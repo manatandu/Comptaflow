@@ -81,13 +81,16 @@ enum RoleUtilisateur {
 }
 
 model User {
-  id        String          @id @default(uuid())
-  tenantId  String
-  tenant    Tenant          @relation(fields: [tenantId], references: [id])
-  email     String          @unique
+  id         String          @id @default(uuid())
+  tenantId   String
+  tenant     Tenant          @relation(fields: [tenantId], references: [id])
+  email      String          @unique
   motDePasse String
-  role      RoleUtilisateur @default(COMPTABLE)
-  createdAt DateTime        @default(now())
+  role       RoleUtilisateur @default(COMPTABLE)
+  // Désactivé plutôt que supprimé : un utilisateur peut être créateur
+  // d'écritures (createdBy) — le supprimer casserait la piste d'audit.
+  estActif   Boolean         @default(true)
+  createdAt  DateTime        @default(now())
 
   @@map("users")
 }

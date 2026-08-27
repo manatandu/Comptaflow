@@ -1,10 +1,11 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { api, setToken } from './api';
-import type { Referentiel } from './types';
+import type { Referentiel, RoleUtilisateur } from './types';
 
 interface MeResponse {
+  id: string;
   email: string;
-  role: string;
+  role: RoleUtilisateur;
   tenant: { id: string; nom: string; referentiel: Referentiel };
 }
 
@@ -12,6 +13,7 @@ interface AuthContextValue {
   chargement: boolean;
   connecte: boolean;
   utilisateur: MeResponse | null;
+  estAdmin: boolean;
   seConnecter: (accessToken: string) => Promise<void>;
   seDeconnecter: () => void;
 }
@@ -57,7 +59,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ chargement, connecte: !!utilisateur, utilisateur, seConnecter, seDeconnecter }}>
+    <AuthContext.Provider
+      value={{
+        chargement,
+        connecte: !!utilisateur,
+        utilisateur,
+        estAdmin: utilisateur?.role === 'ADMIN_CABINET',
+        seConnecter,
+        seDeconnecter,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

@@ -8,6 +8,7 @@ import { ComptesModule } from './modules/comptes/comptes.module';
 import { ExerciceModule } from './modules/exercice/exercice.module';
 import { ComptabiliteModule } from './modules/comptabilite/comptabilite.module';
 import { EtatsFinanciersModule } from './modules/etats-financiers/etats-financiers.module';
+import { UtilisateursModule } from './modules/utilisateurs/utilisateurs.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { EtatsFinanciersModule } from './modules/etats-financiers/etats-financie
     ExerciceModule,
     ComptabiliteModule,
     EtatsFinanciersModule,
+    UtilisateursModule,
   ],
 })
 export class AppModule {}

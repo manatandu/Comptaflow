@@ -10,6 +10,7 @@ import { SaisiePage } from './pages/SaisiePage';
 import { PlanComptesPage } from './pages/PlanComptesPage';
 import { JournalPage } from './pages/JournalPage';
 import { EtatsFinanciersPage } from './pages/EtatsFinanciersPage';
+import { UtilisateursPage } from './pages/UtilisateursPage';
 
 function ZoneProtegee({ children }: { children: JSX.Element }) {
   const { chargement, connecte } = useAuth();
@@ -41,6 +42,7 @@ function Routage() {
         <Route path="comptes" element={<PlanComptesPage />} />
         <Route path="journal" element={<JournalPage />} />
         <Route path="etats-financiers" element={<EtatsFinanciersPage />} />
+        <Route path="utilisateurs" element={<UtilisateursPage />} />
       </Route>
     </Routes>
   );

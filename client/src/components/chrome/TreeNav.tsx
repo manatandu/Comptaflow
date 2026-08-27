@@ -1,8 +1,14 @@
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../lib/auth';
-import { IconHome, IconDashboard, IconSaisie, IconComptes, IconJournal, IconEtats } from './icons';
+import { IconHome, IconDashboard, IconSaisie, IconComptes, IconJournal, IconEtats, IconUsers } from './icons';
 
-const groupes = [
+const LIBELLE_ROLE: Record<string, string> = {
+  ADMIN_CABINET: 'Administrateur',
+  COMPTABLE: 'Comptable',
+  LECTURE_SEULE: 'Lecture seule',
+};
+
+const groupesBase = [
   {
     titre: 'PILOTAGE',
     items: [
@@ -24,14 +30,22 @@ const groupes = [
   },
 ];
 
+const groupeAdministration = {
+  titre: 'ADMINISTRATION',
+  items: [{ to: '/utilisateurs', label: 'Utilisateurs', Icon: IconUsers, exact: false }],
+};
+
 export function TreeNav() {
-  const { utilisateur } = useAuth();
+  const { utilisateur, estAdmin } = useAuth();
+  const groupes = estAdmin ? [...groupesBase, groupeAdministration] : groupesBase;
 
   return (
     <aside className="w-[196px] flex-shrink-0 bg-chrome border-r border-border flex flex-col">
       <div className="px-2.5 py-2 border-b border-border bg-surface-alt">
         <div className="text-[11px] font-bold truncate">{utilisateur?.tenant.nom}</div>
-        <div className="font-mono text-[10px] tracking-wide text-text-dim">{utilisateur?.tenant.referentiel}</div>
+        <div className="font-mono text-[10px] tracking-wide text-text-dim">
+          {utilisateur?.tenant.referentiel} · {utilisateur && LIBELLE_ROLE[utilisateur.role]}
+        </div>
       </div>
 
       <nav className="flex-1 overflow-auto py-1">

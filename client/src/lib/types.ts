@@ -1,4 +1,13 @@
 export type Referentiel = 'SYCEBNL' | 'SYSCOHADA';
+export type RoleUtilisateur = 'ADMIN_CABINET' | 'COMPTABLE' | 'LECTURE_SEULE';
+
+export interface Utilisateur {
+  id: string;
+  email: string;
+  role: RoleUtilisateur;
+  estActif: boolean;
+  createdAt: string;
+}
 export type ClasseCompte =
   | 'CLASSE_1' | 'CLASSE_2' | 'CLASSE_3' | 'CLASSE_4'
   | 'CLASSE_5' | 'CLASSE_6' | 'CLASSE_7' | 'CLASSE_8' | 'CLASSE_9';

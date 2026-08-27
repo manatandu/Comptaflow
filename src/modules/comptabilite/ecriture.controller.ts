@@ -1,15 +1,20 @@
 import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { LicenceGuard } from '../licence/licence.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { EcritureService } from './ecriture.service';
 import { CreerEcritureDto } from './dto/creer-ecriture.dto';
+import { RoleUtilisateur } from '@prisma/client';
 
-@UseGuards(JwtAuthGuard, LicenceGuard)
+@UseGuards(JwtAuthGuard, LicenceGuard, RolesGuard)
 @Controller('ecritures')
 export class EcritureController {
   constructor(private readonly ecritureService: EcritureService) {}
 
+  // LECTURE_SEULE consulte tout ci-dessous mais ne peut pas enregistrer d'écriture.
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Post()
   async creer(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreerEcritureDto) {
     return this.ecritureService.creer(user.tenantId, user.userId, dto);

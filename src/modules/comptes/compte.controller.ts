@@ -1,12 +1,16 @@
 import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { LicenceGuard } from '../licence/licence.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { CompteService } from './compte.service';
 import { CreerCompteDto, ModifierCompteDto } from './dto/creer-compte.dto';
-import { ClasseCompte } from '@prisma/client';
+import { ClasseCompte, RoleUtilisateur } from '@prisma/client';
 
-@UseGuards(JwtAuthGuard, LicenceGuard)
+// Consultation ouverte aux trois rôles ; gestion du plan de comptes réservée
+// à l'admin (@Roles ci-dessous, méthode par méthode).
+@UseGuards(JwtAuthGuard, LicenceGuard, RolesGuard)
 @Controller('comptes')
 export class CompteController {
   constructor(private readonly compteService: CompteService) {}
@@ -25,11 +29,13 @@ export class CompteController {
     });
   }
 
+  @Roles(RoleUtilisateur.ADMIN_CABINET)
   @Post()
   async creer(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreerCompteDto) {
     return this.compteService.creer(user.tenantId, dto);
   }
 
+  @Roles(RoleUtilisateur.ADMIN_CABINET)
   @Patch(':id')
   async modifier(
     @CurrentUser() user: AuthenticatedUser,

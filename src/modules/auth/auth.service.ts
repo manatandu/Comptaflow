@@ -73,7 +73,7 @@ export class AuthService {
     return {
       tenant: { id: tenant.id, nom: tenant.nom, referentiel: tenant.referentiel },
       exercice,
-      ...this.signToken(user.id, tenant.id, user.email, user.role),
+      ...this.signToken(user.id),
     };
   }
 
@@ -86,7 +86,10 @@ export class AuthService {
     if (!motDePasseValide) {
       throw new UnauthorizedException('Identifiants invalides');
     }
-    return this.signToken(user.id, user.tenantId, user.email, user.role);
+    if (!user.estActif) {
+      throw new UnauthorizedException('Ce compte a été désactivé');
+    }
+    return this.signToken(user.id);
   }
 
   async me(userId: string) {
@@ -98,14 +101,19 @@ export class AuthService {
       throw new UnauthorizedException('Utilisateur introuvable');
     }
     return {
+      id: user.id,
       email: user.email,
       role: user.role,
       tenant: { id: user.tenant.id, nom: user.tenant.nom, referentiel: user.tenant.referentiel },
     };
   }
 
-  private signToken(userId: string, tenantId: string, email: string, role: string) {
-    const accessToken = this.jwt.sign({ sub: userId, tenantId, email, role });
+  // Payload volontairement minimal : JwtStrategy.validate relit tenantId/
+  // email/role en base à chaque requête (voir son commentaire) plutôt que
+  // de leur faire confiance ici — un rôle changé ou un compte désactivé
+  // doit prendre effet immédiatement, pas seulement à l'expiration du token.
+  private signToken(userId: string) {
+    const accessToken = this.jwt.sign({ sub: userId });
     return { accessToken };
   }
 }
