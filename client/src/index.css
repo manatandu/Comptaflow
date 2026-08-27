@@ -1,0 +1,56 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Tokens — exactement ceux validés dans le canevas de design Compta Flow. */
+:root {
+  --chrome: #e9eaec;
+  --chrome-alt: #dfe1e4;
+  --chrome-border: #9aa0a6;
+  --chrome-text: #eef0f2;
+  --chrome-text-dim: #a3a9b0;
+
+  --bg: #e8e9eb;
+  --surface: #ffffff;
+  --surface-alt: #f6f6f7;
+  --border: #b7bcc2;
+  --border-dark: #8b929a;
+  --text: #14161a;
+  --text-dim: #565d66;
+  --sel: #2f4f8f;
+  --positive: #256a4a;
+  --positive-soft: #e3f1ea;
+  --warning: #a06a12;
+  --warning-soft: #f7ecd8;
+  --danger: #9c2b23;
+  --danger-soft: #f6e0dd;
+
+  --titlebar-from: #3a5aa0;
+  --titlebar-to: #223c72;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+}
+
+/* Coins carrés partout, pas de style "app moderne" arrondie. */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+  border-radius: 2px;
+}

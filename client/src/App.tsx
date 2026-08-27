@@ -1,0 +1,55 @@
+import { Navigate, Route, HashRouter, Routes } from 'react-router-dom';
+import { AuthProvider, useAuth } from './lib/auth';
+import { ExerciceProvider } from './lib/exercice';
+import { AppShell } from './components/chrome/AppShell';
+import { LoginPage } from './pages/LoginPage';
+import { RegisterPage } from './pages/RegisterPage';
+import { DashboardPage } from './pages/DashboardPage';
+import { SaisiePage } from './pages/SaisiePage';
+import { PlanComptesPage } from './pages/PlanComptesPage';
+import { JournalPage } from './pages/JournalPage';
+import { EtatsFinanciersPage } from './pages/EtatsFinanciersPage';
+
+function ZoneProtegee({ children }: { children: JSX.Element }) {
+  const { chargement, connecte } = useAuth();
+  if (chargement) {
+    return <div className="min-h-screen flex items-center justify-center text-[13px] text-text-dim">Chargement…</div>;
+  }
+  if (!connecte) return <Navigate to="/connexion" replace />;
+  return children;
+}
+
+function Routage() {
+  return (
+    <Routes>
+      <Route path="/connexion" element={<LoginPage />} />
+      <Route path="/inscription" element={<RegisterPage />} />
+      <Route
+        path="/"
+        element={
+          <ZoneProtegee>
+            <ExerciceProvider>
+              <AppShell />
+            </ExerciceProvider>
+          </ZoneProtegee>
+        }
+      >
+        <Route index element={<DashboardPage />} />
+        <Route path="saisie" element={<SaisiePage />} />
+        <Route path="comptes" element={<PlanComptesPage />} />
+        <Route path="journal" element={<JournalPage />} />
+        <Route path="etats-financiers" element={<EtatsFinanciersPage />} />
+      </Route>
+    </Routes>
+  );
+}
+
+export function App() {
+  return (
+    <HashRouter>
+      <AuthProvider>
+        <Routage />
+      </AuthProvider>
+    </HashRouter>
+  );
+}

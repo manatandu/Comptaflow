@@ -54,4 +54,101 @@ export class EcritureService {
       include: { lignes: true },
     });
   }
+
+  /** Journal : liste chronologique des écritures, filtrable par exercice/journal/période/recherche. */
+  async lister(
+    tenantId: string,
+    filtres: { exerciceId?: string; journalCode?: string; dateDebut?: string; dateFin?: string; recherche?: string },
+  ) {
+    const ecritures = await this.prisma.ecriture.findMany({
+      where: {
+        tenantId,
+        ...(filtres.exerciceId ? { exerciceId: filtres.exerciceId } : {}),
+        ...(filtres.journalCode ? { journalCode: filtres.journalCode } : {}),
+        ...(filtres.dateDebut || filtres.dateFin
+          ? {
+              date: {
+                ...(filtres.dateDebut ? { gte: new Date(filtres.dateDebut) } : {}),
+                ...(filtres.dateFin ? { lte: new Date(filtres.dateFin) } : {}),
+              },
+            }
+          : {}),
+        ...(filtres.recherche ? { libelle: { contains: filtres.recherche, mode: 'insensitive' as const } } : {}),
+      },
+      include: { lignes: { include: { compte: true } } },
+      orderBy: { date: 'asc' },
+    });
+
+    const totalDebit = ecritures.reduce((s, e) => s + e.lignes.reduce((s2, l) => s2 + Number(l.debit), 0), 0);
+    const totalCredit = ecritures.reduce((s, e) => s + e.lignes.reduce((s2, l) => s2 + Number(l.credit), 0), 0);
+    return { ecritures, totaux: { debit: totalDebit, credit: totalCredit } };
+  }
+
+  /** Grand livre d'un compte : ses lignes avec solde progressif. */
+  async grandLivre(tenantId: string, compteId: string, exerciceId?: string) {
+    const compte = await this.prisma.compte.findFirst({ where: { id: compteId, tenantId } });
+    if (!compte) {
+      throw new BadRequestException('Compte introuvable pour ce tenant');
+    }
+
+    const lignes = await this.prisma.ligneEcriture.findMany({
+      where: {
+        compteId,
+        ecriture: { tenantId, ...(exerciceId ? { exerciceId } : {}) },
+      },
+      include: { ecriture: true },
+      orderBy: { ecriture: { date: 'asc' } },
+    });
+
+    let solde = 0;
+    const lignesAvecSolde = lignes.map((l) => {
+      solde += Number(l.debit) - Number(l.credit);
+      return {
+        date: l.ecriture.date,
+        journalCode: l.ecriture.journalCode,
+        libelle: l.libelle ?? l.ecriture.libelle,
+        reference: l.ecriture.reference,
+        debit: Number(l.debit),
+        credit: Number(l.credit),
+        soldeProgressif: solde,
+      };
+    });
+
+    return { compte, lignes: lignesAvecSolde, soldeFinal: solde };
+  }
+
+  /** Balance : solde débit/crédit cumulé par compte sur l'exercice. */
+  async balance(tenantId: string, exerciceId: string) {
+    const comptes = await this.prisma.compte.findMany({
+      where: { tenantId },
+      orderBy: { numero: 'asc' },
+      include: {
+        lignesEcriture: { where: { ecriture: { tenantId, exerciceId } } },
+      },
+    });
+
+    const lignesBalance = comptes
+      .map((c) => {
+        const totalDebit = c.lignesEcriture.reduce((s, l) => s + Number(l.debit), 0);
+        const totalCredit = c.lignesEcriture.reduce((s, l) => s + Number(l.credit), 0);
+        return {
+          compteId: c.id,
+          numero: c.numero,
+          intitule: c.intitule,
+          classe: c.classe,
+          totalDebit,
+          totalCredit,
+          solde: totalDebit - totalCredit,
+        };
+      })
+      .filter((l) => l.totalDebit !== 0 || l.totalCredit !== 0);
+
+    return {
+      lignes: lignesBalance,
+      totaux: {
+        debit: lignesBalance.reduce((s, l) => s + l.totalDebit, 0),
+        credit: lignesBalance.reduce((s, l) => s + l.totalCredit, 0),
+      },
+    };
+  }
 }
