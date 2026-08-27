@@ -1,0 +1,167 @@
+// Schéma Phase 0 — fondations multi-tenant + licence + moteur comptable SYCEBNL.
+// Le plan de comptes SYSCOHADA (entreprises) sera ajouté en Phase 3 en réutilisant
+// les mêmes modèles Compte / Ecriture / LigneEcriture / Exercice (le référentiel
+// est porté par Tenant.referentiel, pas par un schéma séparé).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Multi-tenant & licence
+// ---------------------------------------------------------------------------
+
+enum Referentiel {
+  SYCEBNL // associations, ONG, projets de développement (MVP)
+  SYSCOHADA // entreprises (Phase 3)
+}
+
+enum TypeLicence {
+  ABONNEMENT // coupure automatique à échéance
+  PERPETUEL_SAAS // payé une fois, hébergé chez nous, sans expiration
+  PERPETUEL_ONPREMISE // payé une fois, installé chez le client (Phase 4)
+}
+
+enum StatutLicence {
+  ACTIVE
+  EXPIREE
+  SUSPENDUE
+}
+
+model Tenant {
+  id          String      @id @default(uuid())
+  nom         String
+  referentiel Referentiel @default(SYCEBNL)
+  createdAt   DateTime    @default(now())
+
+  licence   Licence?
+  comptes   Compte[]
+  exercices Exercice[]
+  ecritures Ecriture[]
+  users     User[]
+
+  @@map("tenants")
+}
+
+// Une licence par tenant. Le champ dateExpiration est nul pour les deux formes
+// perpétuelles ; c'est dateExpiration + statut qui pilotent la coupure automatique
+// pour un abonnement (voir LicenceGuard).
+model Licence {
+  id                    String        @id @default(uuid())
+  tenantId              String        @unique
+  tenant                Tenant        @relation(fields: [tenantId], references: [id])
+  type                  TypeLicence
+  statut                StatutLicence @default(ACTIVE)
+  dateDebut             DateTime      @default(now())
+  dateExpiration        DateTime? // null pour PERPETUEL_SAAS / PERPETUEL_ONPREMISE
+  dernierHeartbeatAt    DateTime? // pour PERPETUEL_ONPREMISE : dernière vérification en ligne réussie
+  joursGraceHorsLigne   Int           @default(7) // tolérance hors-ligne avant coupure (on-premise)
+
+  @@map("licences")
+}
+
+enum RoleUtilisateur {
+  ADMIN_CABINET
+  COMPTABLE
+  LECTURE_SEULE
+}
+
+model User {
+  id        String          @id @default(uuid())
+  tenantId  String
+  tenant    Tenant          @relation(fields: [tenantId], references: [id])
+  email     String          @unique
+  motDePasse String
+  role      RoleUtilisateur @default(COMPTABLE)
+  createdAt DateTime        @default(now())
+
+  @@map("users")
+}
+
+// ---------------------------------------------------------------------------
+// Moteur comptable — partie double
+// ---------------------------------------------------------------------------
+
+enum ClasseCompte {
+  CLASSE_1 // Fonds propres et ressources durables
+  CLASSE_2 // Immobilisations
+  CLASSE_3 // Stocks
+  CLASSE_4 // Tiers
+  CLASSE_5 // Trésorerie
+  CLASSE_6 // Charges
+  CLASSE_7 // Produits
+  CLASSE_8 // Autres charges/produits
+  CLASSE_9 // Comptabilité analytique / engagements
+}
+
+model Compte {
+  id        String       @id @default(uuid())
+  tenantId  String
+  tenant    Tenant       @relation(fields: [tenantId], references: [id])
+  numero    String // ex : "10600" fonds associatif, "1810" fonds affecté
+  intitule  String
+  classe    ClasseCompte
+  estActif  Boolean      @default(true)
+
+  lignesEcriture LigneEcriture[]
+
+  @@unique([tenantId, numero])
+  @@map("comptes")
+}
+
+enum StatutExercice {
+  OUVERT
+  CLOTURE
+}
+
+model Exercice {
+  id        String         @id @default(uuid())
+  tenantId  String
+  tenant    Tenant         @relation(fields: [tenantId], references: [id])
+  dateDebut DateTime
+  dateFin   DateTime
+  statut    StatutExercice @default(OUVERT)
+
+  ecritures Ecriture[]
+
+  @@unique([tenantId, dateDebut, dateFin])
+  @@map("exercices")
+}
+
+// Une écriture = un fait comptable, composé d'au moins 2 lignes équilibrées
+// (total débit = total crédit). L'équilibre est vérifié en service, pas en DB.
+model Ecriture {
+  id          String   @id @default(uuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  exerciceId  String
+  exercice    Exercice @relation(fields: [exerciceId], references: [id])
+  journalCode String // ex : "OD", "BQ", "CA" (banque, caisse...)
+  date        DateTime
+  libelle     String
+  reference   String? // pièce justificative
+  createdAt   DateTime @default(now())
+  createdBy   String // piste d'audit : jamais modifiable après clôture de l'exercice
+
+  lignes LigneEcriture[]
+
+  @@map("ecritures")
+}
+
+model LigneEcriture {
+  id         String   @id @default(uuid())
+  ecritureId String
+  ecriture   Ecriture @relation(fields: [ecritureId], references: [id])
+  compteId   String
+  compte     Compte   @relation(fields: [compteId], references: [id])
+  libelle    String?
+  debit      Decimal  @default(0) @db.Decimal(18, 2)
+  credit     Decimal  @default(0) @db.Decimal(18, 2)
+
+  @@map("lignes_ecriture")
+}
