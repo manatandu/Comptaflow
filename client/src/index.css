@@ -27,6 +27,17 @@
 
   --titlebar-from: #3a5aa0;
   --titlebar-to: #223c72;
+
+  /* Tuiles de l'écran Accueil — une teinte par groupe, sobres et
+     professionnelles (pas de couleurs vives façon app grand public). */
+  --tile-bleu: #2f4f8f;
+  --tile-bleu-fonce: #223c72;
+  --tile-sarcelle: #2b6b64;
+  --tile-sarcelle-fonce: #1f4f4a;
+  --tile-ardoise: #4a4570;
+  --tile-ardoise-fonce: #343054;
+  --tile-neutre: #7a7f86;
+  --tile-neutre-fonce: #5f636a;
 }
 
 * {

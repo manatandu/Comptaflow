@@ -43,6 +43,12 @@ export class AuthService {
       nom: dto.nomEntite,
       referentiel: dto.referentiel,
       typeLicence: dto.typeLicence ?? TypeLicence.ABONNEMENT,
+      activite: dto.activite,
+      adresse: dto.adresse,
+      ville: dto.ville,
+      pays: dto.pays,
+      telephone: dto.telephone,
+      devise: dto.devise,
     });
 
     const motDePasseHache = await bcrypt.hash(dto.motDePasse, SALT_ROUNDS);
@@ -56,7 +62,13 @@ export class AuthService {
     });
 
     await this.compteService.seedPlanSycebnl(tenant.id);
-    const exercice = await this.exerciceService.creerExerciceCourant(tenant.id);
+    const exercice =
+      dto.dateDebutExercice && dto.dateFinExercice
+        ? await this.exerciceService.creer(tenant.id, {
+            dateDebut: dto.dateDebutExercice,
+            dateFin: dto.dateFinExercice,
+          })
+        : await this.exerciceService.creerExerciceCourant(tenant.id);
 
     return {
       tenant: { id: tenant.id, nom: tenant.nom, referentiel: tenant.referentiel },

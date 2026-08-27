@@ -4,6 +4,7 @@ import { ExerciceProvider } from './lib/exercice';
 import { AppShell } from './components/chrome/AppShell';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
+import { AccueilPage } from './pages/AccueilPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { SaisiePage } from './pages/SaisiePage';
 import { PlanComptesPage } from './pages/PlanComptesPage';
@@ -34,7 +35,8 @@ function Routage() {
           </ZoneProtegee>
         }
       >
-        <Route index element={<DashboardPage />} />
+        <Route index element={<AccueilPage />} />
+        <Route path="tableau-de-bord" element={<DashboardPage />} />
         <Route path="saisie" element={<SaisiePage />} />
         <Route path="comptes" element={<PlanComptesPage />} />
         <Route path="journal" element={<JournalPage />} />

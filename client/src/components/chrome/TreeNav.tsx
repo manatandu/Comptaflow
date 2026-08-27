@@ -1,12 +1,13 @@
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../lib/auth';
-import { IconDashboard, IconSaisie, IconComptes, IconJournal, IconEtats } from './icons';
+import { IconHome, IconDashboard, IconSaisie, IconComptes, IconJournal, IconEtats } from './icons';
 
 const groupes = [
   {
     titre: 'PILOTAGE',
     items: [
-      { to: '/', label: 'Tableau de bord', Icon: IconDashboard, exact: true },
+      { to: '/', label: 'Accueil', Icon: IconHome, exact: true },
+      { to: '/tableau-de-bord', label: 'Tableau de bord', Icon: IconDashboard },
       { to: '/saisie', label: 'Saisir une opération', Icon: IconSaisie },
     ],
   },

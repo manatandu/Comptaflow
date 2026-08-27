@@ -39,6 +39,15 @@ model Tenant {
   referentiel Referentiel @default(SYCEBNL)
   createdAt   DateTime    @default(now())
 
+  // Coordonnées — collectées par l'assistant « Nouveau fichier comptable »,
+  // toutes optionnelles pour ne pas bloquer une inscription rapide.
+  activite  String?
+  adresse   String?
+  ville     String?
+  pays      String? @default("RD Congo")
+  telephone String?
+  devise    String? @default("CDF")
+
   licence   Licence?
   comptes   Compte[]
   exercices Exercice[]

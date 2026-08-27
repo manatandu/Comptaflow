@@ -17,11 +17,23 @@ export class TenantService {
     referentiel: Referentiel;
     typeLicence: TypeLicence;
     dateExpiration?: Date;
+    activite?: string;
+    adresse?: string;
+    ville?: string;
+    pays?: string;
+    telephone?: string;
+    devise?: string;
   }) {
     return this.prisma.tenant.create({
       data: {
         nom: params.nom,
         referentiel: params.referentiel,
+        activite: params.activite,
+        adresse: params.adresse,
+        ville: params.ville,
+        pays: params.pays,
+        telephone: params.telephone,
+        devise: params.devise,
         licence: {
           create: {
             type: params.typeLicence,

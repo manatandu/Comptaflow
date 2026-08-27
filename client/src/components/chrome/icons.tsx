@@ -54,3 +54,27 @@ export const IconCheck = (p: SVGProps<SVGSVGElement>) => (
 export const IconLogo = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}><path d="M3 12h4l3 8 4-16 3 8h4" /></svg>
 );
+export const IconHome = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}><path d="M3 11l9-7 9 7M5 10v9a1 1 0 001 1h4v-6h4v6h4a1 1 0 001-1v-9" /></svg>
+);
+export const IconFileAdd = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}><path d="M14 3v5h5M6 3h8l5 5v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5a2 2 0 012-2z" /><path d="M12 12v6M9 15h6" /></svg>
+);
+export const IconFolderOpen = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}><path d="M3 7a1 1 0 011-1h4l2 2h10a1 1 0 011 1v9a1 1 0 01-1 1H4a1 1 0 01-1-1V7z" /></svg>
+);
+export const IconBook = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}><path d="M4 19.5A2.5 2.5 0 016.5 17H20V4H6.5A2.5 2.5 0 004 6.5v13z" /></svg>
+);
+export const IconNews = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}><rect x="3" y="4" width="18" height="16" rx="1" /><path d="M7 8h10M7 12h10M7 16h6" /></svg>
+);
+export const IconLifeBuoy = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="3.2" /><path d="M6.3 6.3l3.4 3.4M14.3 14.3l3.4 3.4M17.7 6.3l-3.4 3.4M9.7 14.3l-3.4 3.4" /></svg>
+);
+export const IconInfo = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}><circle cx="12" cy="12" r="9" /><path d="M12 11v6M12 7.5v.01" /></svg>
+);
+export const IconLock = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}><rect x="5" y="11" width="14" height="9" rx="1.5" /><path d="M8 11V8a4 4 0 018 0v3" /></svg>
+);
