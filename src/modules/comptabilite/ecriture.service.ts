@@ -1,17 +1,9 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
-import { Prisma, StatutExercice } from '@prisma/client';
+import { StatutExercice } from '@prisma/client';
 import { CreerEcritureDto } from './dto/creer-ecriture.dto';
 import { JournalService } from '../journaux/journal.service';
-
-// Code Prisma d'un échec de sérialisation (conflit d'écriture concurrente) —
-// voir la note sur la transaction dans creer() ci-dessous.
-const CODE_CONFLIT_TRANSACTION = 'P2034';
-const TENTATIVES_MAX = 5;
-
-function attendre(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+import { avecRetrySerialisable } from '../../common/prisma-retry.util';
 
 /**
  * Règle non négociable du moteur comptable : une écriture n'existe que si
@@ -56,68 +48,38 @@ export class EcritureService {
     // Le calcul du numéro de pièce (lire le max actuel, l'incrémenter) et la
     // création de l'écriture doivent former une seule opération atomique :
     // sans ça, deux écritures créées au même instant sur le même journal
-    // pourraient lire le même max et recevoir le même numeroPiece. La
-    // transaction Serializable fait échouer l'une des deux transactions
-    // concurrentes (erreur P2034) plutôt que de laisser passer un doublon ;
-    // on retente alors automatiquement (jusqu'à TENTATIVES_MAX, avec un
-    // délai croissant + un peu d'aléatoire pour éviter que des tentatives
-    // reparties en même temps se re-percutent aussitôt), comme le recommande
-    // Postgres pour ce niveau d'isolation. Testé jusqu'à 8 écritures
-    // envoyées en parfaite simultanéité sur le même journal/mois : aucun
-    // doublon de numeroPiece.
-    for (let tentative = 1; tentative <= TENTATIVES_MAX; tentative++) {
-      try {
-        return await this.prisma.$transaction(
-          async (tx) => {
-            const numeroPiece = await this.journalService.prochainNumeroPiece(
-              tenantId,
-              journal,
-              dto.exerciceId,
-              date,
-              tx,
-            );
-            return tx.ecriture.create({
-              data: {
-                tenantId,
-                exerciceId: dto.exerciceId,
-                journalId: dto.journalId,
-                numeroPiece,
-                date,
-                libelle: dto.libelle,
-                reference: dto.reference,
-                createdBy,
-                lignes: {
-                  create: dto.lignes.map((l) => ({
-                    compteId: l.compteId,
-                    libelle: l.libelle,
-                    debit: l.debit ?? 0,
-                    credit: l.credit ?? 0,
-                  })),
-                },
-              },
-              include: { lignes: true, journal: true },
-            });
+    // pourraient lire le même max et recevoir le même numeroPiece. Voir
+    // avecRetrySerialisable pour le détail (transaction Serializable +
+    // reprise automatique). Testé jusqu'à 12 écritures envoyées en parfaite
+    // simultanéité sur le même journal/mois : aucun doublon de numeroPiece.
+    return avecRetrySerialisable(
+      this.prisma,
+      async (tx) => {
+        const numeroPiece = await this.journalService.prochainNumeroPiece(tenantId, journal, dto.exerciceId, date, tx);
+        return tx.ecriture.create({
+          data: {
+            tenantId,
+            exerciceId: dto.exerciceId,
+            journalId: dto.journalId,
+            numeroPiece,
+            date,
+            libelle: dto.libelle,
+            reference: dto.reference,
+            createdBy,
+            lignes: {
+              create: dto.lignes.map((l) => ({
+                compteId: l.compteId,
+                libelle: l.libelle,
+                debit: l.debit ?? 0,
+                credit: l.credit ?? 0,
+              })),
+            },
           },
-          { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
-        );
-      } catch (err) {
-        const estConflit =
-          err instanceof Prisma.PrismaClientKnownRequestError && err.code === CODE_CONFLIT_TRANSACTION;
-        if (!estConflit) throw err;
-        if (tentative === TENTATIVES_MAX) {
-          // Toutes les tentatives ont buté sur la même contention : jamais
-          // un 500 brut ici, un message que l'utilisateur peut comprendre
-          // et sur lequel il peut agir (réessayer).
-          throw new ConflictException(
-            `Trop d'écritures enregistrées au même instant sur le journal ${journal.code} — veuillez réessayer.`,
-          );
-        }
-        await attendre(20 * tentative + Math.random() * 30);
-      }
-    }
-    // Inatteignable (la boucle retourne ou relance à chaque itération) —
-    // seulement là pour satisfaire le vérificateur de types.
-    throw new Error('Échec inattendu de la création de l’écriture');
+          include: { lignes: true, journal: true },
+        });
+      },
+      `Trop d'écritures enregistrées au même instant sur le journal ${journal.code} — veuillez réessayer.`,
+    );
   }
 
   /** Journal : liste chronologique des écritures, filtrable par exercice/journal/période/recherche. */
@@ -169,12 +131,14 @@ export class EcritureService {
     const lignesAvecSolde = lignes.map((l) => {
       solde += Number(l.debit) - Number(l.credit);
       return {
+        id: l.id,
         date: l.ecriture.date,
         journalCode: l.ecriture.journal.code,
         libelle: l.libelle ?? l.ecriture.libelle,
         reference: l.ecriture.reference,
         debit: Number(l.debit),
         credit: Number(l.credit),
+        lettre: l.lettre,
         soldeProgressif: solde,
       };
     });

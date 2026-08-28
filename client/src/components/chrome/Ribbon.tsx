@@ -53,7 +53,10 @@ export function Ribbon({ groupes, droite }: { groupes: RibbonGroupe[]; droite?: 
       items: [
         { label: 'Saisir une opération', onClick: () => navigate('/saisie') },
         { label: 'Journal & grand livre', onClick: () => navigate('/journal') },
-        { label: 'Lettrage', disabled: true, indication: 'à venir' },
+        // Le lettrage se fait par compte (bouton "Lettrer" du Plan de
+        // comptes, comme l'interrogation de compte chez Sage) — ce menu
+        // amène directement à la sélection du compte.
+        { label: 'Lettrage', onClick: () => navigate('/comptes') },
         { label: 'Rapprochement bancaire', disabled: true, indication: 'à venir' },
         { label: "Clôture d'exercice", disabled: true, indication: 'à venir' },
       ],

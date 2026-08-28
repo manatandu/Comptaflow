@@ -223,5 +223,14 @@ model LigneEcriture {
   debit      Decimal  @default(0) @db.Decimal(18, 2)
   credit     Decimal  @default(0) @db.Decimal(18, 2)
 
+  // Lettrage — rapprochement débit/crédit sur un compte (cf.
+  // docs/plan-de-construction.md §3.1). Toutes les lignes d'un même
+  // rapprochement partagent la même lettre (A, B, ..., Z, AA, AB, ...,
+  // générée par compte — voir LettrageService.prochaineLettre) ; null tant
+  // que la ligne n'est pas lettrée. Le lettrage est un prérequis du report
+  // à-nouveau "Détail" et de toute gestion sérieuse des tiers.
+  lettre String?
+
+  @@index([compteId, lettre])
   @@map("lignes_ecriture")
 }

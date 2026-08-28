@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useRibbon } from '../components/chrome/ribbon-context';
 import { IconNew, IconFilter, IconPrint } from '../components/chrome/icons';
@@ -17,6 +18,7 @@ const LIBELLE_CLASSE: Record<ClasseCompte, string> = {
 };
 
 export function PlanComptesPage() {
+  const navigate = useNavigate();
   const [comptes, setComptes] = useState<Compte[] | null>(null);
   const [recherche, setRecherche] = useState('');
 
@@ -67,7 +69,7 @@ export function PlanComptesPage() {
               <span className="text-[12px] font-semibold text-text-dim">{LIBELLE_CLASSE[classe as ClasseCompte]}</span>
             </div>
             <div className="border border-border">
-              <div className="grid grid-cols-[70px_1fr_90px_24px] gap-3 px-4 py-1.5 bg-chrome border-b border-border text-[10px] font-bold text-text-dim">
+              <div className="grid grid-cols-[70px_1fr_90px_60px] gap-3 px-4 py-1.5 bg-chrome border-b border-border text-[10px] font-bold text-text-dim">
                 <span>N°</span>
                 <span>LIBELLÉ</span>
                 <span>STATUT</span>
@@ -76,7 +78,7 @@ export function PlanComptesPage() {
               {liste.map((c, i) => (
                 <div
                   key={c.id}
-                  className={`grid grid-cols-[70px_1fr_90px_24px] gap-3 items-center px-4 py-1.5 border-b border-border last:border-b-0 ${
+                  className={`grid grid-cols-[70px_1fr_90px_60px] gap-3 items-center px-4 py-1.5 border-b border-border last:border-b-0 ${
                     i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'
                   }`}
                 >
@@ -89,7 +91,13 @@ export function PlanComptesPage() {
                   >
                     {c.estActif ? 'ACTIF' : 'INACTIF'}
                   </span>
-                  <span />
+                  <button
+                    onClick={() => navigate(`/comptes/${c.id}/lettrage`)}
+                    title="Interroger et lettrer ce compte"
+                    className="text-[10.5px] text-sel hover:underline text-left"
+                  >
+                    Lettrer
+                  </button>
                 </div>
               ))}
             </div>

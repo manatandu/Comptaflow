@@ -67,6 +67,17 @@ export interface Ecriture {
   lignes: LigneEcriture[];
 }
 
+export interface LigneLettrage {
+  id: string;
+  date: string;
+  journalCode: string;
+  libelle: string;
+  reference: string | null;
+  debit: number;
+  credit: number;
+  lettre: string | null;
+}
+
 export interface LigneBalance {
   compteId: string;
   numero: string;
