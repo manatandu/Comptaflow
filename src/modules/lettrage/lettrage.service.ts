@@ -142,47 +142,121 @@ export class LettrageService {
   }
 
   /**
-   * Lettrage automatique — version "petit à petit" du mécanisme Sage :
-   * rapproche les paires exactes 1 pour 1 (une ligne au débit et une au
-   * crédit de exactement le même montant). Le cas plus général (plusieurs
-   * lignes d'un côté pour une seule de l'autre, montants combinés) est un
-   * enrichissement futur — voir docs/plan-de-construction.md.
+   * Recherche un sous-ensemble de `lignes` dont la somme des montants vaut
+   * exactement `cible` (à EPSILON près) — cas N-pour-1 du lettrage
+   * automatique (plusieurs petites factures qui soldent un seul règlement,
+   * ou l'inverse). Backtracking sur les montants en centimes (entiers, pour
+   * éviter les écarts flottants), lignes triées par montant décroissant pour
+   * couper les branches tôt (somme des lignes restantes < reste à trouver).
+   * Coût exponentiel dans le pire cas — c'est pourquoi l'appelant plafonne le
+   * nombre de lignes soumises (voir LIMITE_LIGNES_SUBSET_SUM ci-dessous) :
+   * au-delà, la recherche N-pour-1 est simplement sautée pour ce groupe,
+   * sans erreur (le 1-pour-1 reste, lui, toujours effectué).
+   */
+  private trouverSousEnsemble(lignes: Array<{ id: string; montant: number }>, cible: number): string[] | null {
+    const trie = [...lignes].sort((a, b) => b.montant - a.montant);
+    const centimes = trie.map((l) => Math.round(l.montant * 100));
+    const cibleCentimes = Math.round(cible * 100);
+    const n = centimes.length;
+
+    const sommeSuffixe = new Array(n + 1).fill(0);
+    for (let i = n - 1; i >= 0; i--) sommeSuffixe[i] = sommeSuffixe[i + 1] + centimes[i];
+
+    const choisis: number[] = [];
+    const backtrack = (i: number, reste: number): boolean => {
+      if (reste === 0) return true;
+      if (i >= n || reste < 0 || sommeSuffixe[i] < reste) return false;
+      choisis.push(i);
+      if (backtrack(i + 1, reste - centimes[i])) return true;
+      choisis.pop();
+      return backtrack(i + 1, reste);
+    };
+
+    if (!backtrack(0, cibleCentimes)) return null;
+    return choisis.map((i) => trie[i].id);
+  }
+
+  /**
+   * Lettrage automatique — mécanisme en deux temps façon Sage :
+   * 1. Paires exactes 1-pour-1 (une ligne au débit, une au crédit de
+   *    exactement le même montant) — le cas le plus fréquent, traité en
+   *    premier pour réduire vite le nombre de lignes restantes.
+   * 2. N-pour-1 : plusieurs lignes d'un côté dont la somme égale exactement
+   *    une ligne de l'autre côté (ex. trois factures soldées par un seul
+   *    virement, ou un acompte réparti sur plusieurs factures) — recherche
+   *    par sous-ensemble, plafonnée à `LIMITE_LIGNES_SUBSET_SUM` lignes du
+   *    côté fouillé pour rester borné en temps de calcul.
+   * Le cas encore plus général (N lignes d'un côté pour M de l'autre,
+   * combinaison des deux) n'est pas couvert — enrichissement futur si le
+   * besoin se confirme en pratique.
    */
   async lettrageAutomatique(tenantId: string, compteId: string) {
     await this.trouverCompte(tenantId, compteId);
+
+    const LIMITE_LIGNES_SUBSET_SUM = 25;
 
     const nonLettrees = await this.prisma.ligneEcriture.findMany({
       where: { compteId, lettre: null, ecriture: { tenantId } },
       orderBy: { ecriture: { date: 'asc' } },
     });
 
-    const debits = nonLettrees.filter((l) => Number(l.debit) > 0 && Number(l.credit) === 0);
-    const credits = nonLettrees.filter((l) => Number(l.credit) > 0 && Number(l.debit) === 0);
+    let debitsRestants = nonLettrees
+      .filter((l) => Number(l.debit) > 0 && Number(l.credit) === 0)
+      .map((l) => ({ id: l.id, montant: Number(l.debit) }));
+    let creditsRestants = nonLettrees
+      .filter((l) => Number(l.credit) > 0 && Number(l.debit) === 0)
+      .map((l) => ({ id: l.id, montant: Number(l.credit) }));
 
-    const paires: Array<[string, string]> = [];
-    const creditsRestants = [...credits];
-    for (const debit of debits) {
-      const idx = creditsRestants.findIndex((c) => Math.abs(Number(c.credit) - Number(debit.debit)) <= EPSILON);
+    const groupes: string[][] = [];
+
+    // 1) Paires exactes 1-pour-1
+    for (const debit of [...debitsRestants]) {
+      const idx = creditsRestants.findIndex((c) => Math.abs(c.montant - debit.montant) <= EPSILON);
       if (idx !== -1) {
         const [credit] = creditsRestants.splice(idx, 1);
-        paires.push([debit.id, credit.id]);
+        debitsRestants = debitsRestants.filter((d) => d.id !== debit.id);
+        groupes.push([debit.id, credit.id]);
       }
     }
 
-    if (paires.length === 0) {
-      return { paires: 0, lettres: [] };
+    // 2) N débits pour 1 crédit
+    if (debitsRestants.length <= LIMITE_LIGNES_SUBSET_SUM) {
+      for (const credit of [...creditsRestants]) {
+        const sousEnsemble = this.trouverSousEnsemble(debitsRestants, credit.montant);
+        if (sousEnsemble) {
+          groupes.push([credit.id, ...sousEnsemble]);
+          debitsRestants = debitsRestants.filter((d) => !sousEnsemble.includes(d.id));
+          creditsRestants = creditsRestants.filter((c) => c.id !== credit.id);
+        }
+      }
+    }
+
+    // 3) N crédits pour 1 débit
+    if (creditsRestants.length <= LIMITE_LIGNES_SUBSET_SUM) {
+      for (const debit of [...debitsRestants]) {
+        const sousEnsemble = this.trouverSousEnsemble(creditsRestants, debit.montant);
+        if (sousEnsemble) {
+          groupes.push([debit.id, ...sousEnsemble]);
+          creditsRestants = creditsRestants.filter((c) => !sousEnsemble.includes(c.id));
+          debitsRestants = debitsRestants.filter((d) => d.id !== debit.id);
+        }
+      }
+    }
+
+    if (groupes.length === 0) {
+      return { groupes: 0, lettres: [] };
     }
 
     return avecRetrySerialisable(
       this.prisma,
       async (tx) => {
         const lettres: string[] = [];
-        for (const [debitId, creditId] of paires) {
+        for (const ligneIds of groupes) {
           const lettre = await this.prochaineLettre(tx, compteId);
-          await tx.ligneEcriture.updateMany({ where: { id: { in: [debitId, creditId] } }, data: { lettre } });
+          await tx.ligneEcriture.updateMany({ where: { id: { in: ligneIds } }, data: { lettre } });
           lettres.push(lettre);
         }
-        return { paires: paires.length, lettres };
+        return { groupes: groupes.length, lettres };
       },
       'Trop de lettrages effectués au même instant sur ce compte — veuillez réessayer.',
     );

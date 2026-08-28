@@ -94,11 +94,11 @@ export function LettragePage() {
     setErreur(null);
     setInfo(null);
     try {
-      const resultat = await api.post<{ paires: number; lettres: string[] }>(`/comptes/${compteId}/lettrage/auto`, {});
+      const resultat = await api.post<{ groupes: number; lettres: string[] }>(`/comptes/${compteId}/lettrage/auto`, {});
       setInfo(
-        resultat.paires > 0
-          ? `${resultat.paires} paire(s) lettrée(s) automatiquement (${resultat.lettres.join(', ')}).`
-          : 'Aucune paire exacte trouvée pour le lettrage automatique.',
+        resultat.groupes > 0
+          ? `${resultat.groupes} groupe(s) lettré(s) automatiquement (${resultat.lettres.join(', ')}).`
+          : 'Aucun rapprochement (1-pour-1 ou N-pour-1) trouvé pour le lettrage automatique.',
       );
       await charger();
     } catch (err) {

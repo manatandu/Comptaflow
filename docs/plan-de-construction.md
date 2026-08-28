@@ -201,18 +201,35 @@ Ordre de dépendances techniques réelles, pas un simple ordre de préférence :
    concurrence réel (8 puis 12 écritures simultanées, tous numéros distincts).
 2. ✅ **Lettrage** (manuel puis automatique) — livré : `LigneEcriture.lettre`,
    lettrage manuel (rejet si déjà lettré ou solde de sélection non nul), délettrage,
-   lettrage automatique (paires exactes 1-pour-1 ; le cas N-pour-1 reste un
-   enrichissement futur), écran `/comptes/:id/lettrage` accessible depuis le Plan de
-   comptes et le menu Traitement. Même protection contre les conditions de course que
-   le numéro de pièce de journal, factorisée dans `common/prisma-retry.util.ts`.
-   Vérifié de bout en bout (curl + Playwright). Prérequis désormais posé pour le
-   report à-nouveau "Détail" et la future brique Tiers. **Second audit** (Journal +
-   Lettrage relus intégralement une seconde fois) : un trou de validation trouvé et
-   corrigé — `JournalService.modifier()` acceptait `compteTresorerieId: null` sur un
-   journal Trésorerie sans aucun contrôle (contrairement à `creer()`, qui l'interdit
-   à la création), un appel direct à l'API pouvait donc casser silencieusement le
-   lien compte↔journal ; vérifié via un appel PATCH réel (400 désormais, message
-   explicite). Rien d'autre trouvé qui corrompe des données ou casse une invariante.
+   lettrage automatique (paires exactes 1-pour-1), écran `/comptes/:id/lettrage`
+   accessible depuis le Plan de comptes et le menu Traitement. Même protection
+   contre les conditions de course que le numéro de pièce de journal, factorisée
+   dans `common/prisma-retry.util.ts`. Vérifié de bout en bout (curl + Playwright).
+   Prérequis désormais posé pour le report à-nouveau "Détail" et la future brique
+   Tiers. **Second audit** (Journal + Lettrage relus intégralement une seconde
+   fois) : un trou de validation trouvé et corrigé — `JournalService.modifier()`
+   acceptait `compteTresorerieId: null` sur un journal Trésorerie sans aucun
+   contrôle (contrairement à `creer()`, qui l'interdit à la création), un appel
+   direct à l'API pouvait donc casser silencieusement le lien compte↔journal ;
+   vérifié via un appel PATCH réel (400 désormais, message explicite). Rien
+   d'autre trouvé qui corrompe des données ou casse une invariante.
+   **Approfondissement — lettrage automatique N-pour-1** : le cas noté comme
+   enrichissement futur (plusieurs lignes d'un côté soldant une seule de l'autre —
+   ex. trois factures réglées par un seul virement, ou un acompte réparti sur
+   plusieurs factures) est désormais couvert, en plus des paires 1-pour-1. Algo en
+   3 passes : paires exactes d'abord (réduit vite le nombre de lignes), puis
+   recherche par sous-ensemble (backtracking sur les montants en centimes, trié
+   décroissant pour couper tôt) côté débits pour chaque crédit restant, puis côté
+   crédits pour chaque débit restant ; plafonné à 25 lignes du côté fouillé pour
+   rester borné en temps de calcul (le 1-pour-1 reste, lui, toujours effectué au-
+   delà). Le cas encore plus général (N lignes d'un côté pour M combinées de
+   l'autre) n'est pas couvert. Réponse de l'API renommée `{ paires }` →
+   `{ groupes }` (reflète mieux un groupe qui peut compter plus de 2 lignes),
+   frontend mis à jour en conséquence. Vérifié via curl (3 débits 120+230+151
+   soldant 1 crédit 501 ; 1 débit 402 soldé par 3 crédits 91+161+150 ; deux lignes
+   décoy isolées correctement laissées non lettrées) et Playwright (bouton
+   "Lettrage auto" de `LettragePage`, un 3ᵉ groupe créé et lettré en direct dans
+   l'UI sans toucher aux groupes précédents).
 3. ✅ **Cycle de vie complet de l'exercice** — livré : clôture à 3 granularités
    (`Cloture` : Partielle réversible par journal, Totale définitive par journal, Période
    définitive tous journaux confondus), `ExerciceService.verifierEcritureAutorisee`
