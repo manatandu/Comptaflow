@@ -436,6 +436,23 @@ Ordre de dépendances techniques réelles, pas un simple ordre de préférence :
    300+150=450 sur deux comptes Détail, totaux généraux non doublés) et
    Playwright (création du Total "411" via le vrai formulaire, badge et mise
    en forme corrects dans la liste).
+   **Approfondissement** : un vrai bug trouvé et corrigé — `EtatsFinanciers
+   Service.bilan()` lisait `balance().lignes`, qui inclut les comptes Total
+   depuis leur ajout (`balance()` ne les exclut que de ses propres totaux
+   généraux, pas de la liste des lignes elle-même). Le bilan comptait donc un
+   Total ET ses comptes Détail, doublant le montant côté actif/passif
+   concerné. Constaté concrètement : un Total "411" agrégeant un Détail
+   "411001" à 300 produisait un actif à 600 pour un passif à 300,
+   `equilibre: false` — un déséquilibre affiché à l'utilisateur qui n'existe
+   pas dans les faits. Corrigé en excluant les comptes Total de la boucle de
+   `bilan()`, même principe que `balance()` pour ses totaux. Revérifié après
+   correction (actif = passif = 300, équilibré) et sur une hiérarchie Total à
+   2 niveaux imbriqués ("411" > "4110" > "411001"/"411002" à 300+150) : les
+   deux Total affichent chacun 450 sans se compter l'un l'autre (un Total
+   n'agrège jamais un autre Total, seulement les comptes Détail — déjà prévu
+   dans `balance()`), bilan toujours équilibré à 450/450. Garde-fou de
+   `CompteService.modifier()` (rejet de la bascule DETAIL→TOTAL sur un compte
+   déjà mouvementé) également revérifié à cette occasion — fonctionnait déjà.
 7. **Rapprochement bancaire** (manuel d'abord).
 8. **Immobilisations** (Famille → Immobilisation → plan d'amortissement → dotation
    périodique → sortie).

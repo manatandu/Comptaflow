@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { ClasseCompte } from '@prisma/client';
+import { ClasseCompte, TypeCompteDetailTotal } from '@prisma/client';
 import { EcritureService } from '../comptabilite/ecriture.service';
 
 /**
@@ -33,7 +33,13 @@ export class EtatsFinanciersService {
     const passif: Array<{ numero: string; intitule: string; montant: number }> = [];
     let resultatNet = 0;
 
-    for (const l of lignes) {
+    // Comptes Total (§3.1) exclus : leur solde n'est qu'un agrégat
+    // d'affichage des comptes Détail de même racine, déjà comptés
+    // individuellement ci-dessous — les inclure aussi doublerait le montant
+    // (même raison que balance() qui les exclut déjà de ses totaux généraux).
+    const lignesDetailSeules = lignes.filter((l) => l.typeCompte !== TypeCompteDetailTotal.TOTAL);
+
+    for (const l of lignesDetailSeules) {
       switch (l.classe) {
         case ClasseCompte.CLASSE_2:
         case ClasseCompte.CLASSE_3:
