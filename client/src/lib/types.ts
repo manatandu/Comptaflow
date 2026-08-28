@@ -298,6 +298,43 @@ export interface PosteCalcule {
   comptes: CompteDuPoste[];
 }
 
+// --------------------------------------------------------------------------
+// Tableau de flux de trésorerie (associations et ordres professionnels
+// seulement — Partie 4, ch. 1 § 4). Méthode directe, double bouclage.
+// --------------------------------------------------------------------------
+
+export interface LigneFluxTresorerie {
+  ref: string;
+  libelle: string;
+  montant: number;
+  /** Comparatif N-1 — undefined quand il n'y a pas d'exercice antérieur. */
+  montantN1?: number;
+  comptes: CompteDuPoste[];
+  estTotal?: boolean;
+  /** Repère A à H du modèle officiel — seulement sur les sous-totaux (ZB à ZG). */
+  repere?: string;
+}
+
+export interface SectionFlux {
+  section: string;
+}
+
+export interface ControleFluxTresorerie {
+  tresorerieOuverture: number;
+  variation: number;
+  tresorerieClotureParFlux: number;
+  tresorerieClotureParBilan: number;
+  ecart: number;
+  coherent: boolean;
+}
+
+export interface TableauFluxTresorerie {
+  lignes: Array<LigneFluxTresorerie | SectionFlux>;
+  exerciceN1Disponible: boolean;
+  comptesNonVentiles: CompteDuPoste[];
+  controle: ControleFluxTresorerie;
+}
+
 export interface CompteDeResultat {
   produits: PosteCalcule[];
   totalProduits: number; // XA

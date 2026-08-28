@@ -761,6 +761,122 @@ export class ExportService {
    * double-source du résultat net : ce jeu n'a qu'une seule source pour CC
    * (compte 13, voir `EtatsFinanciersProjetService.calculerCC`).
    */
+
+  /**
+   * Tableau de flux de trésorerie — spécifique au jeu associations (Partie 4,
+   * ch. 1 § 4). Méthode directe, colonnes N et N-1, double contrôle de
+   * bouclage porté sur une feuille dédiée plutôt qu'en simple bandeau.
+   */
+  async tableauFluxTresorerieExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
+    const tft = await this.etatsFinanciersService.tableauFluxTresorerie(tenantId, exerciceId);
+    const suffixeN1 = tft.exerciceN1Disponible ? '' : ' (aucun exercice antérieur)';
+
+    const classeur = this.nouveauClasseur();
+    const feuille = classeur.addWorksheet('Flux de trésorerie');
+    feuille.columns = [
+      { header: 'REF', key: 'ref', width: 8 },
+      { header: 'Libellé', key: 'libelle', width: 62 },
+      { header: 'Exercice N', key: 'montant', width: 16 },
+      { header: `Exercice N-1${suffixeN1}`, key: 'montantN1', width: 17 },
+    ];
+
+    for (const l of tft.lignes) {
+      if ('section' in l) {
+        const ligne = feuille.addRow([l.section]);
+        ligne.font = { italic: true, bold: true };
+        feuille.mergeCells(`A${ligne.number}:D${ligne.number}`);
+        continue;
+      }
+      const ligne = feuille.addRow({ ref: l.ref, libelle: l.libelle, montant: l.montant, montantN1: l.montantN1 ?? null });
+      if (l.estTotal) ligne.font = ENTETE_FONT;
+    }
+
+    this.appliquerFormats(feuille, { montant: FORMAT_MONTANT, montantN1: FORMAT_MONTANT });
+    styliserEntete(feuille.getRow(1));
+    feuille.views = [{ state: 'frozen', ySplit: 1 }];
+
+    const note = feuille.addRow([
+      'Méthode directe imposée par le texte officiel (Partie 4, ch. 1 § 4) : Encaissements N = Revenus (N) + ' +
+        'Créances (N-1) − Créances (N) ; Décaissements N = Achats (N) + Dettes (N-1) − Dettes (N). Aucun tableau ' +
+        'de correspondance poste → comptes n’est fourni par le texte pour cet état (contrairement au bilan et au ' +
+        'compte de résultat) : les rattachements sont déduits des intitulés du plan de comptes normalisé, voir ' +
+        'correspondance-tft.ts.',
+    ]);
+    note.font = { italic: true, color: { argb: 'FF555555' } };
+    feuille.mergeCells(`A${note.number}:D${note.number}`);
+
+    // --- Contrôle de bouclage : feuille dédiée, les DEUX égalités du texte ---
+    const controle = classeur.addWorksheet('Contrôle de bouclage');
+    controle.columns = [
+      { header: 'Élément', key: 'libelle', width: 62 },
+      { header: 'Montant', key: 'montant', width: 18 },
+    ];
+    controle.addRow({ libelle: 'Trésorerie nette au 1er janvier (A)', montant: tft.controle.tresorerieOuverture });
+    controle.addRow({ libelle: 'Variation de la trésorerie nette de la période (G = B+C+D+E)', montant: tft.controle.variation });
+    const cloture1 = controle.addRow({
+      libelle: 'Trésorerie nette au 31 décembre — par cumul des flux (G + A)',
+      montant: tft.controle.tresorerieClotureParFlux,
+    });
+    cloture1.font = ENTETE_FONT;
+    const cloture2 = controle.addRow({
+      libelle: 'Trésorerie nette au 31 décembre — lecture directe du bilan (Trésorerie actif N − Trésorerie passif N)',
+      montant: tft.controle.tresorerieClotureParBilan,
+    });
+    cloture2.font = ENTETE_FONT;
+    const ligneEcart = controle.addRow({ libelle: 'ÉCART', montant: tft.controle.ecart });
+    ligneEcart.font = { bold: true, color: { argb: tft.controle.coherent ? 'FF2E7D32' : 'FFB00020' } };
+    const ligneStatut = controle.addRow([
+      tft.controle.coherent
+        ? "L'ÉTAT BOUCLE — les deux égalités de contrôle du texte officiel concordent."
+        : "ÉCART DE BOUCLAGE — la ventilation FA-FQ ne couvre pas tout le mouvement de trésorerie de l'exercice ; " +
+          'voir la feuille « Comptes non ventilés ».',
+    ]);
+    ligneStatut.font = { italic: true };
+    controle.mergeCells(`A${ligneStatut.number}:B${ligneStatut.number}`);
+    this.appliquerFormats(controle, { montant: FORMAT_MONTANT });
+    styliserEntete(controle.getRow(1));
+
+    // --- Comptes non ventilés : la CAUSE d'un écart, jamais un chiffre orphelin ---
+    if (tft.comptesNonVentiles.length > 0) {
+      const nonVentiles = classeur.addWorksheet('Comptes non ventilés');
+      nonVentiles.columns = [
+        { header: 'Compte', key: 'numero', width: 14 },
+        { header: 'Intitulé', key: 'intitule', width: 50 },
+        { header: 'Solde', key: 'montant', width: 16 },
+      ];
+      for (const c of tft.comptesNonVentiles) nonVentiles.addRow(c);
+      this.appliquerFormats(nonVentiles, { montant: FORMAT_MONTANT });
+      styliserEntete(nonVentiles.getRow(1));
+    }
+
+    // --- Détail : quels comptes alimentent quel poste ---
+    const detail = classeur.addWorksheet('Détail par poste');
+    detail.columns = [
+      { header: 'REF', key: 'ref', width: 8 },
+      { header: 'Poste', key: 'poste', width: 58 },
+      { header: 'Compte', key: 'numero', width: 12 },
+      { header: 'Intitulé compte', key: 'intitule', width: 44 },
+      { header: 'Montant', key: 'montant', width: 16 },
+    ];
+    for (const l of tft.lignes) {
+      if ('section' in l) continue;
+      for (const c of l.comptes) {
+        detail.addRow({ ref: l.ref, poste: l.libelle, numero: c.numero, intitule: c.intitule, montant: c.montant });
+      }
+    }
+    this.appliquerFormats(detail, { montant: FORMAT_MONTANT });
+    styliserEntete(detail.getRow(1));
+    detail.views = [{ state: 'frozen', ySplit: 1 }];
+    if (detail.rowCount > 1) {
+      detail.autoFilter = { from: { row: 1, column: 1 }, to: { row: detail.rowCount, column: 5 } };
+    }
+
+    return {
+      buffer: await this.versBuffer(classeur),
+      nomFichier: `flux-tresorerie${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
+    };
+  }
+
   async bilanProjetExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
     const bilan = await this.etatsFinanciersProjetService.bilan(tenantId, exerciceId);
     const suffixeN1 = bilan.exerciceN1Disponible ? '' : ' (aucun exercice antérieur)';

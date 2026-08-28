@@ -112,6 +112,16 @@ export class ExportController {
     envoyerXlsx(res, await this.exportService.compteDeResultatExcel(user.tenantId, exerciceId));
   }
 
+  /** Spécifique au jeu associations (Partie 4, ch. 1 § 4) — voir correspondance-tft.ts. */
+  @Get('etats-financiers/tableau-flux-tresorerie')
+  async tableauFluxTresorerie(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    envoyerXlsx(res, await this.exportService.tableauFluxTresorerieExcel(user.tenantId, exerciceId));
+  }
+
   /** Jeu « projets de développement et assimilés » (Partie 4, ch. 3). */
   @Get('etats-financiers/projet/bilan')
   async bilanProjet(

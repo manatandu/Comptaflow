@@ -835,6 +835,54 @@ describe('EtatsFinanciersService — tableau de flux de trésorerie', () => {
     }
   });
 
+  it('la colonne N-1 est une VRAIE comparaison à trois exercices, pas une copie de la colonne N', async () => {
+    // Le modèle officiel porte « Exercice N | Exercice N-1 » — et chaque
+    // ligne du tableau est déjà elle-même une comparaison entre deux
+    // exercices. La colonne N-1 exige donc un TROISIÈME exercice (N-2) en
+    // arrière-plan. Créance adhérents : 50 fin N-2, 150 fin N-1 (inchangée
+    // fin N). Cotisations appelées : 900 en N-1, 1000 en N.
+    //
+    //   Encaissé N-1 = 900 + 50 (créance N-2) - 150 (créance N-1) = 800.
+    //   Encaissé N   = 1000 + 150 (créance N-1) - 150 (créance N) = 1000.
+    const trois = [
+      { id: 'eN', dateDebut: new Date('2027-01-01') },
+      { id: 'eN1', dateDebut: new Date('2026-01-01') },
+      { id: 'eN2', dateDebut: new Date('2025-01-01') },
+    ];
+    const service = serviceAvecExercices(
+      {
+        eN2: [ligneF('41100000', ClasseCompte.CLASSE_4, 50, 0)],
+        eN1: [
+          ligneF('41100000', ClasseCompte.CLASSE_4, 150, 0), // solde de clôture N-1
+          ligneF('70100000', ClasseCompte.CLASSE_7, 0, 900),
+        ],
+        eN: [
+          ligneF('41100000', ClasseCompte.CLASSE_4, 150, 0), // inchangée sur l'exercice N
+          ligneF('70100000', ClasseCompte.CLASSE_7, 0, 1000),
+        ],
+      },
+      trois,
+    );
+
+    const tft = await service.tableauFluxTresorerie('t1', 'eN');
+    expect(ref(tft, 'FA').montant).toBe(1000);
+    expect(ref(tft, 'FA').montantN1).toBe(800);
+    expect(tft.exerciceN1Disponible).toBe(true);
+  });
+
+  it('sans troisième exercice (N-2), la colonne N-1 se dégrade proprement — jamais un crash', async () => {
+    const service = serviceAvecExercices(
+      {
+        eN1: [ligneF('41100000', ClasseCompte.CLASSE_4, 200, 0), ligneF('70100000', ClasseCompte.CLASSE_7, 0, 500)],
+        eN: [ligneF('70100000', ClasseCompte.CLASSE_7, 0, 100)],
+      },
+      DEUX_EXERCICES,
+    );
+    const tft = await service.tableauFluxTresorerie('t1', 'eN');
+    // N-1 = 500 + 0 (créance N-2 absente, chargerLignes(null) = []) - 200 (créance N-1) = 300.
+    expect(ref(tft, 'FA').montantN1).toBe(300);
+  });
+
   it('reproduit l’ordre officiel, en-têtes de section compris, et la ligne de financement SANS code REF', async () => {
     const service = serviceAvecExercices({ eN: [] });
     const tft = await service.tableauFluxTresorerie('t1', 'eN');

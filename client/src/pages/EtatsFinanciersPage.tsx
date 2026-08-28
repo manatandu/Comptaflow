@@ -4,7 +4,17 @@ import { useExercice } from '../lib/exercice';
 import { useAuth } from '../lib/auth';
 import { useRibbon } from '../components/chrome/ribbon-context';
 import { IconExport, IconCheck } from '../components/chrome/icons';
-import type { Bilan, BilanProjet, CompteDeResultat, CompteExploitationProjet, LigneBilan, NoteBailleur, PosteCalcule } from '../lib/types';
+import type {
+  Bilan,
+  BilanProjet,
+  CompteDeResultat,
+  CompteExploitationProjet,
+  LigneBilan,
+  LigneFluxTresorerie,
+  NoteBailleur,
+  PosteCalcule,
+  TableauFluxTresorerie,
+} from '../lib/types';
 
 /**
  * Onglets du jeu « associations et ordres professionnels » (Partie 4, ch. 2)
@@ -14,7 +24,7 @@ import type { Bilan, BilanProjet, CompteDeResultat, CompteExploitationProjet, Li
  * docs/plan-de-construction.md, item 13). Le Système Minimal de Trésorerie
  * (3ᵉ jeu) n'est pas construit et n'a pas d'onglet ici.
  */
-type OngletAssociations = 'bilan' | 'compte-de-resultat';
+type OngletAssociations = 'bilan' | 'compte-de-resultat' | 'flux-tresorerie';
 type OngletProjet = 'bilan-projet' | 'compte-exploitation-projet' | 'note-bailleur';
 
 export function EtatsFinanciersPage() {
@@ -28,6 +38,7 @@ export function EtatsFinanciersPage() {
 
   const [bilan, setBilan] = useState<Bilan | null>(null);
   const [cr, setCr] = useState<CompteDeResultat | null>(null);
+  const [tft, setTft] = useState<TableauFluxTresorerie | null>(null);
   const [bilanProjet, setBilanProjet] = useState<BilanProjet | null>(null);
   const [ceProjet, setCeProjet] = useState<CompteExploitationProjet | null>(null);
   const [noteBailleur, setNoteBailleur] = useState<NoteBailleur | null>(null);
@@ -68,6 +79,12 @@ export function EtatsFinanciersPage() {
         (r) => !annule && setCr(r),
         (e) => !annule && setErreur(e.message),
       );
+      // Le TFT est spécifique au jeu associations (Partie 4, ch. 1 § 4 : « un
+      // état financier spécifique aux associations et ordres professionnels »).
+      api.get<TableauFluxTresorerie>(`/etats-financiers/tableau-flux-tresorerie?exerciceId=${exerciceCourant.id}`).then(
+        (r) => !annule && setTft(r),
+        (e) => !annule && setErreur(e.message),
+      );
     }
     return () => {
       annule = true;
@@ -86,11 +103,13 @@ export function EtatsFinanciersPage() {
         ? 'bilan'
         : onglet === 'compte-de-resultat'
           ? 'compte-de-resultat'
-          : onglet === 'bilan-projet'
-            ? 'projet/bilan'
-            : onglet === 'compte-exploitation-projet'
-              ? 'projet/compte-exploitation'
-              : 'projet/note-bailleur';
+          : onglet === 'flux-tresorerie'
+            ? 'tableau-flux-tresorerie'
+            : onglet === 'bilan-projet'
+              ? 'projet/bilan'
+              : onglet === 'compte-exploitation-projet'
+                ? 'projet/compte-exploitation'
+                : 'projet/note-bailleur';
     const nomFichier = chemin.includes('/') ? chemin.split('/')[1] + '-projet' : chemin;
     setErreur(null);
     setExportEnCours(true);
@@ -121,6 +140,22 @@ export function EtatsFinanciersPage() {
       <span>{p.libelle}</span>
       <span className="font-mono text-right">{montant(p.montant)}</span>
       <span className="font-mono text-right text-text-dim">{montant(p.montantN1)}</span>
+    </div>
+  );
+
+  // --- Tableau de flux de trésorerie : REF | Libellé | Montant (N) | Montant (N-1) ---
+  const ligneFlux = (l: LigneFluxTresorerie) => (
+    <div
+      key={l.ref || l.libelle}
+      title={l.comptes.length > 0 ? `Comptes : ${l.comptes.map((c) => c.numero).join(', ')}` : undefined}
+      className={`grid grid-cols-[46px_1fr_120px_120px] gap-2 px-4 py-1 text-[12px] ${
+        l.estTotal ? 'font-bold bg-surface-alt border-y border-border' : ''
+      }`}
+    >
+      <span className="font-mono text-[11px] text-text-dim">{l.ref}</span>
+      <span>{l.libelle}</span>
+      <span className="font-mono text-right">{montant(l.montant)}</span>
+      <span className="font-mono text-right text-text-dim font-normal">{montant(l.montantN1)}</span>
     </div>
   );
 
@@ -247,6 +282,14 @@ export function EtatsFinanciersPage() {
             }`}
           >
             COMPTE DE RÉSULTAT
+          </button>
+          <button
+            onClick={() => setOngletAssociations('flux-tresorerie')}
+            className={`px-4 py-1.5 text-[11px] font-bold ${
+              onglet === 'flux-tresorerie' ? 'bg-surface border-r border-l border-border' : 'text-text-dim'
+            }`}
+          >
+            FLUX DE TRÉSORERIE
           </button>
         </div>
       )}
@@ -416,6 +459,85 @@ export function EtatsFinanciersPage() {
                 Partie 4 ch. 2). Charges présentées en positif, de sorte que XC = XA − XB. XA inclut RH : le libellé
                 officiel dit « Somme RA à RG », ce qui romprait l'égalité entre le résultat et le bilan dès qu'il y a
                 des reprises.
+              </p>
+            </div>
+          )}
+        </>
+      )}
+
+      {onglet === 'flux-tresorerie' && (
+        <>
+          {!tft && <div className="border border-border px-4 py-4 text-[12px] text-text-dim">Chargement…</div>}
+          {tft && (
+            <div className="max-w-[900px]">
+              {!tft.exerciceN1Disponible && (
+                <p className="text-[10.5px] text-text-dim mb-1.5">
+                  Aucun exercice antérieur dans ce dossier — la colonne N-1 affiche « — », pas un faux zéro.
+                </p>
+              )}
+
+              <div className="border border-border bg-surface">
+                <div className="grid grid-cols-[46px_1fr_120px_120px] gap-2 px-4 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
+                  <span>REF</span>
+                  <span>LIBELLÉ</span>
+                  <span className="text-right">EXERCICE N</span>
+                  <span className="text-right">EXERCICE N-1</span>
+                </div>
+                {tft.lignes.map((l, i) =>
+                  'section' in l ? (
+                    <div key={`s${i}`} className="px-4 py-1 bg-chrome border-b border-border text-[10.5px] font-bold italic">
+                      {l.section}
+                    </div>
+                  ) : (
+                    ligneFlux(l)
+                  ),
+                )}
+              </div>
+
+              <div
+                className={`flex flex-col gap-1 mt-3 px-3.5 py-2.5 border ${
+                  tft.controle.coherent ? 'border-positive/30 bg-positive-soft' : 'border-danger/30 bg-danger-soft'
+                }`}
+              >
+                <div className="flex items-start gap-2">
+                  <IconCheck
+                    width={14}
+                    height={14}
+                    className={`mt-0.5 shrink-0 ${tft.controle.coherent ? 'text-positive' : 'text-danger'}`}
+                  />
+                  <span className="font-mono text-[11.5px] font-medium">
+                    {tft.controle.coherent
+                      ? "L'ÉTAT BOUCLE — trésorerie de clôture identique par cumul des flux et par lecture du bilan"
+                      : `ÉCART DE ${montant(tft.controle.ecart)} — la ventilation FA-FQ ne couvre pas tout le mouvement de trésorerie`}
+                  </span>
+                </div>
+                <div className="pl-[22px] font-mono text-[10.5px] text-text-dim">
+                  Trésorerie ouverture {montant(tft.controle.tresorerieOuverture)} + variation{' '}
+                  {montant(tft.controle.variation)} = {montant(tft.controle.tresorerieClotureParFlux)} (par les flux) —
+                  bilan : {montant(tft.controle.tresorerieClotureParBilan)}
+                </div>
+              </div>
+
+              {tft.comptesNonVentiles.length > 0 && (
+                <div className="border border-danger/30 bg-danger-soft mt-2 px-3.5 py-2.5">
+                  <div className="text-[11.5px] font-bold mb-1.5">
+                    Comptes encaissables/décaissables rattachés à aucun poste de flux — cause probable de l'écart
+                  </div>
+                  {tft.comptesNonVentiles.map((c) => (
+                    <div key={c.numero} className="flex justify-between text-[11.5px] font-mono">
+                      <span>
+                        {c.numero} — {c.intitule}
+                      </span>
+                      <span>{montant(c.montant)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <p className="text-[11px] text-text-dim mt-3">
+                Méthode directe imposée par le texte officiel (Partie 4, ch. 1 § 4) : Encaissements N = Revenus (N) +
+                Créances (N-1) − Créances (N) ; Décaissements N = Achats (N) + Dettes (N-1) − Dettes (N). État
+                spécifique au jeu associations et ordres professionnels.
               </p>
             </div>
           )}

@@ -592,18 +592,35 @@ export class EtatsFinanciersService {
     return (parRef.get('BX')?.montant ?? 0) - (parRef.get('DX')?.montant ?? 0);
   }
 
-  async tableauFluxTresorerie(tenantId: string, exerciceId: string) {
-    const exerciceN1Id = await this.trouverExerciceN1(tenantId, exerciceId);
-    const [lignesN, lignesN1] = await Promise.all([
-      this.chargerLignes(tenantId, exerciceId),
-      this.chargerLignes(tenantId, exerciceN1Id),
-    ]);
-
+  /**
+   * Résout tous les postes de flux pour UN exercice, à partir de ses propres
+   * lignes et de celles de l'exercice qui le précède (ses créances/dettes de
+   * comparaison). Isolé pour être appelé DEUX FOIS par `tableauFluxTresorerie` :
+   * une fois pour l'exercice demandé (colonne N), une fois pour son propre
+   * exercice antérieur (colonne N-1) — le modèle officiel porte les deux
+   * (« Colonnes : REF | LIBELLES | Rep. | Note | Exercice N | Exercice N-1 »),
+   * et chaque ligne de ce tableau est elle-même une comparaison entre deux
+   * exercices : la colonne N-1 exige donc un TROISIÈME exercice (N-2) en
+   * arrière-plan, exactement comme la colonne N exige N-1. Sans exercice
+   * antérieur disponible à un niveau donné, `chargerLignes(tenantId, null)`
+   * renvoie `[]` et la formule se réduit proprement (même dégradation que ZA
+   * quand le dossier n'a pas d'exercice antérieur).
+   */
+  private resoudreFluxPourExercice(
+    lignesCourant: LigneBalancePourBilan[],
+    lignesAnterieur: LigneBalancePourBilan[],
+  ): {
+    parRef: Map<string, PosteCalcule & { flux?: number; variationContrepartie?: number }>;
+    tresorerieOuverture: number;
+    tresorerieClotureParFlux: number;
+    tresorerieClotureParBilan: number;
+    ecart: number;
+  } {
     const parRef = new Map<string, PosteCalcule & { flux?: number; variationContrepartie?: number }>();
 
     // ZA — « Trésorerie nette au 1er janvier (Trésorerie actif N-1 -
     // Trésorerie passif N-1) », le libellé officiel dit lui-même la formule.
-    const tresorerieOuverture = this.tresorerieNette(lignesN1);
+    const tresorerieOuverture = this.tresorerieNette(lignesAnterieur);
     parRef.set('ZA', {
       ref: 'ZA',
       libelle: 'Trésorerie nette au 1er janvier (Trésorerie actif N-1 – Trésorerie passif N-1)',
@@ -612,7 +629,7 @@ export class EtatsFinanciersService {
     });
 
     for (const poste of TOUS_LES_POSTES_FLUX) {
-      parRef.set(poste.ref, this.calculerPosteFlux(poste, lignesN, lignesN1));
+      parRef.set(poste.ref, this.calculerPosteFlux(poste, lignesCourant, lignesAnterieur));
     }
     for (const total of TOTAUX_FLUX) {
       parRef.set(total.ref, {
@@ -630,7 +647,7 @@ export class EtatsFinanciersService {
     // exactement ce que la ventilation FA-FQ ne couvre pas.
     const variation = parRef.get('ZF')!.montant;
     const tresorerieClotureParFlux = tresorerieOuverture + variation;
-    const tresorerieClotureParBilan = this.tresorerieNette(lignesN);
+    const tresorerieClotureParBilan = this.tresorerieNette(lignesCourant);
     const ecart = tresorerieClotureParFlux - tresorerieClotureParBilan;
     parRef.set('ZG', {
       ref: 'ZG',
@@ -639,18 +656,43 @@ export class EtatsFinanciersService {
       comptes: [],
     });
 
+    return { parRef, tresorerieOuverture, tresorerieClotureParFlux, tresorerieClotureParBilan, ecart };
+  }
+
+  async tableauFluxTresorerie(tenantId: string, exerciceId: string) {
+    const exerciceN1Id = await this.trouverExerciceN1(tenantId, exerciceId);
+    const exerciceN2Id = exerciceN1Id ? await this.trouverExerciceN1(tenantId, exerciceN1Id) : null;
+    const [lignesN, lignesN1, lignesN2] = await Promise.all([
+      this.chargerLignes(tenantId, exerciceId),
+      this.chargerLignes(tenantId, exerciceN1Id),
+      this.chargerLignes(tenantId, exerciceN2Id),
+    ]);
+
+    const resN = this.resoudreFluxPourExercice(lignesN, lignesN1);
+    // Colonne N-1 : seulement si un exercice N-1 existe — jamais un faux
+    // zéro pour un dossier à son premier exercice (même discipline que
+    // partout ailleurs dans ce service).
+    const resN1 = exerciceN1Id ? this.resoudreFluxPourExercice(lignesN1, lignesN2) : null;
+
     const REFS_TOTAUX = new Set(['ZA', 'ZB', 'ZC', 'ZD', 'ZE', 'ZF', 'ZG', '']);
     const lignesAffichees = ORDRE_AFFICHAGE_FLUX.map((entree) => {
       if ('section' in entree) return { section: entree.section };
-      const p = parRef.get(entree.ref)!;
+      const p = resN.parRef.get(entree.ref)!;
       const total = TOTAUX_FLUX.find((t) => t.ref === entree.ref);
-      return { ...p, estTotal: REFS_TOTAUX.has(entree.ref), repere: total?.repere };
+      return {
+        ...p,
+        montantN1: resN1?.parRef.get(entree.ref)?.montant,
+        estTotal: REFS_TOTAUX.has(entree.ref),
+        repere: total?.repere,
+      };
     });
 
     // Comptes ENCAISSABLES qu'aucun poste ne ventile — même discipline qu'au
     // bilan et au compte de résultat. Ce sont eux qui expliquent un écart de
     // bouclage : les lister à côté de l'écart donne la cause avec le montant,
-    // plutôt qu'un chiffre orphelin.
+    // plutôt qu'un chiffre orphelin. Calculé sur N seulement : N-1 n'est
+    // qu'un comparatif d'affichage, pas un état audité par cet appel (même
+    // convention que `bilan()`).
     const ventiles = new Set<string>();
     for (const poste of TOUS_LES_POSTES_FLUX) {
       for (const l of lignesN) {
@@ -677,14 +719,14 @@ export class EtatsFinanciersService {
       exerciceN1Disponible: exerciceN1Id !== null,
       comptesNonVentiles,
       controle: {
-        tresorerieOuverture,
-        variation,
-        tresorerieClotureParFlux,
-        tresorerieClotureParBilan,
-        ecart,
+        tresorerieOuverture: resN.tresorerieOuverture,
+        variation: resN.parRef.get('ZF')!.montant,
+        tresorerieClotureParFlux: resN.tresorerieClotureParFlux,
+        tresorerieClotureParBilan: resN.tresorerieClotureParBilan,
+        ecart: resN.ecart,
         // Les deux égalités du texte officiel sont vérifiées ensemble : si
         // elles concordent, le tableau boucle.
-        coherent: Math.abs(ecart) < 0.01,
+        coherent: Math.abs(resN.ecart) < 0.01,
       },
     };
   }
