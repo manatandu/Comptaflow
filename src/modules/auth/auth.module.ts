@@ -8,6 +8,7 @@ import { JwtStrategy } from './jwt.strategy';
 import { TenantModule } from '../tenant/tenant.module';
 import { ComptesModule } from '../comptes/comptes.module';
 import { ExerciceModule } from '../exercice/exercice.module';
+import { JournauxModule } from '../journaux/journaux.module';
 import { JwtAuthModule } from './jwt-auth.module';
 
 @Module({
@@ -24,6 +25,7 @@ import { JwtAuthModule } from './jwt-auth.module';
     TenantModule,
     ComptesModule,
     ExerciceModule,
+    JournauxModule,
     JwtAuthModule,
   ],
   controllers: [AuthController],

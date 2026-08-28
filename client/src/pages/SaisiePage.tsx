@@ -4,7 +4,7 @@ import { api, ApiError } from '../lib/api';
 import { useExercice } from '../lib/exercice';
 import { useRibbon } from '../components/chrome/ribbon-context';
 import { IconCheck } from '../components/chrome/icons';
-import type { Compte } from '../lib/types';
+import type { Compte, Journal } from '../lib/types';
 
 type TypeOperation = 'don' | 'cotisation' | 'achat' | 'salaire';
 
@@ -18,6 +18,7 @@ const OPERATIONS: Record<TypeOperation, { label: string; numeroContrepartie: str
 export function SaisiePage() {
   const { exerciceCourant } = useExercice();
   const [comptes, setComptes] = useState<Compte[]>([]);
+  const [journaux, setJournaux] = useState<Journal[]>([]);
   const [type, setType] = useState<TypeOperation>('don');
   const [compteTresorerieId, setCompteTresorerieId] = useState('');
   const [montant, setMontant] = useState('');
@@ -34,6 +35,10 @@ export function SaisiePage() {
       setComptes(c);
       if (c[0]) setCompteTresorerieId(c[0].id);
     });
+    // Journaux de type Trésorerie : chacun porte son compte de trésorerie
+    // associé (voir Journal.compteTresorerieId) — c'est ce lien, pas une
+    // règle de préfixe de numéro, qui détermine le journal à utiliser en saisie.
+    api.get<Journal[]>('/journaux?actifsSeuls=true').then(setJournaux);
   }, []);
 
   useRibbon([{ titre: 'SAISIE', boutons: [{ label: 'Enregistrer', Icon: IconCheck }] }]);
@@ -55,10 +60,17 @@ export function SaisiePage() {
       const compteContrepartie = tousComptes.find((c) => c.numero === contrepartie.numeroContrepartie);
       if (!compteContrepartie) throw new Error(`Compte ${contrepartie.numeroContrepartie} introuvable`);
 
+      const journalTresorerie = journaux.find(
+        (j) => j.type === 'TRESORERIE' && j.compteTresorerieId === compteTresorerieId,
+      );
+      if (!journalTresorerie) {
+        throw new Error(`Aucun journal de trésorerie n'est associé au compte ${compteTresorerie?.numero}`);
+      }
+
       const estRecette = contrepartie.sens === 'recette';
       await api.post('/ecritures', {
         exerciceId: exerciceCourant.id,
-        journalCode: compteTresorerie?.numero.startsWith('57') ? 'CA' : 'BQ',
+        journalId: journalTresorerie.id,
         date,
         libelle: libelle || contrepartie.label,
         lignes: [

@@ -8,6 +8,7 @@ import { AccueilPage } from './pages/AccueilPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { SaisiePage } from './pages/SaisiePage';
 import { PlanComptesPage } from './pages/PlanComptesPage';
+import { JournauxPage } from './pages/JournauxPage';
 import { JournalPage } from './pages/JournalPage';
 import { EtatsFinanciersPage } from './pages/EtatsFinanciersPage';
 import { UtilisateursPage } from './pages/UtilisateursPage';
@@ -40,6 +41,7 @@ function Routage() {
         <Route path="tableau-de-bord" element={<DashboardPage />} />
         <Route path="saisie" element={<SaisiePage />} />
         <Route path="comptes" element={<PlanComptesPage />} />
+        <Route path="journaux" element={<JournauxPage />} />
         <Route path="journal" element={<JournalPage />} />
         <Route path="etats-financiers" element={<EtatsFinanciersPage />} />
         <Route path="utilisateurs" element={<UtilisateursPage />} />

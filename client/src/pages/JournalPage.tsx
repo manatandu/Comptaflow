@@ -33,7 +33,7 @@ export function JournalPage() {
   const lignesJournal = ecritures.flatMap((e) =>
     e.lignes.map((l) => ({
       date: e.date,
-      journal: e.journalCode,
+      journal: e.journal?.code ?? '',
       libelle: e.libelle,
       compte: l.compte ? `${l.compte.numero} — ${l.compte.intitule}` : l.compteId,
       debit: Number(l.debit),

@@ -5,6 +5,7 @@ import { PrismaService } from '../../common/prisma.service';
 import { TenantService } from '../tenant/tenant.service';
 import { CompteService } from '../comptes/compte.service';
 import { ExerciceService } from '../exercice/exercice.service';
+import { JournalService } from '../journaux/journal.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { RoleUtilisateur, TypeLicence } from '@prisma/client';
@@ -19,6 +20,7 @@ export class AuthService {
     private readonly tenantService: TenantService,
     private readonly compteService: CompteService,
     private readonly exerciceService: ExerciceService,
+    private readonly journalService: JournalService,
   ) {}
 
   /**
@@ -62,6 +64,10 @@ export class AuthService {
     });
 
     await this.compteService.seedPlanSycebnl(tenant.id);
+    // Les journaux par défaut référencent des comptes de trésorerie du plan
+    // SYCEBNL (521100 Banque, 571000 Caisse) : le seed des comptes doit donc
+    // toujours précéder celui des journaux.
+    await this.journalService.seedJournauxDefaut(tenant.id);
     const exercice =
       dto.dateDebutExercice && dto.dateFinExercice
         ? await this.exerciceService.creer(tenant.id, {

@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../lib/auth';
-import { IconHome, IconDashboard, IconSaisie, IconComptes, IconJournal, IconEtats, IconUsers } from './icons';
+import { IconHome, IconDashboard, IconSaisie, IconComptes, IconJournal, IconEtats, IconUsers, IconBook } from './icons';
 
 const LIBELLE_ROLE: Record<string, string> = {
   ADMIN_CABINET: 'Administrateur',
@@ -21,6 +21,7 @@ const groupesBase = [
     titre: 'COMPTABILITÉ',
     items: [
       { to: '/comptes', label: 'Plan de comptes', Icon: IconComptes },
+      { to: '/journaux', label: 'Codes journaux', Icon: IconBook },
       { to: '/journal', label: 'Journal & grand livre', Icon: IconJournal },
     ],
   },

@@ -53,6 +53,7 @@ model Tenant {
   exercices Exercice[]
   ecritures Ecriture[]
   users     User[]
+  journaux  Journal[]
 
   @@map("tenants")
 }
@@ -120,10 +121,53 @@ model Compte {
   classe    ClasseCompte
   estActif  Boolean      @default(true)
 
-  lignesEcriture LigneEcriture[]
+  lignesEcriture     LigneEcriture[]
+  journauxTresorerie Journal[] // journaux de type TRESORERIE dont ce compte est la contrepartie
 
   @@unique([tenantId, numero])
   @@map("comptes")
+}
+
+// ---------------------------------------------------------------------------
+// Journaux — entité de premier ordre (fondation, cf. docs/plan-de-construction.md §3.1)
+// ---------------------------------------------------------------------------
+
+enum TypeJournal {
+  ACHATS
+  VENTES
+  TRESORERIE
+  GENERAL
+  SITUATION // jamais clôturé ni compacté — écritures provisoires/simulation
+}
+
+enum NumerotationPiece {
+  MANUELLE // saisie libre du numéro de pièce (non auto-généré)
+  CONTINUE_JOURNAL // incrémenté par journal, sur l'exercice
+  CONTINUE_FICHIER // incrémenté tous journaux confondus, sur l'exercice
+  MENSUELLE // incrémenté par journal, remis à zéro chaque mois
+}
+
+model Journal {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+  code     String // ex : "ACH", "VEN", "BQ", "CA", "OD"
+  intitule String
+  type     TypeJournal
+
+  // Obligatoire si type = TRESORERIE (compte sur lequel la contrepartie est
+  // automatiquement enregistrée) ; sans objet pour ACHATS/VENTES/SITUATION.
+  compteTresorerieId String?
+  compteTresorerie   Compte? @relation(fields: [compteTresorerieId], references: [id])
+
+  numerotation NumerotationPiece @default(MANUELLE)
+  estActif     Boolean           @default(true) // "mise en sommeil" réversible
+  createdAt    DateTime          @default(now())
+
+  ecritures Ecriture[]
+
+  @@unique([tenantId, code])
+  @@map("journaux")
 }
 
 enum StatutExercice {
@@ -148,15 +192,19 @@ model Exercice {
 // Une écriture = un fait comptable, composé d'au moins 2 lignes équilibrées
 // (total débit = total crédit). L'équilibre est vérifié en service, pas en DB.
 model Ecriture {
-  id          String   @id @default(uuid())
-  tenantId    String
-  tenant      Tenant   @relation(fields: [tenantId], references: [id])
-  exerciceId  String
-  exercice    Exercice @relation(fields: [exerciceId], references: [id])
-  journalCode String // ex : "OD", "BQ", "CA" (banque, caisse...)
+  id         String   @id @default(uuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  exerciceId String
+  exercice   Exercice @relation(fields: [exerciceId], references: [id])
+  journalId  String
+  journal    Journal  @relation(fields: [journalId], references: [id])
+  // Numéro de pièce auto-calculé selon Journal.numerotation (null si
+  // NumerotationPiece.MANUELLE — voir JournalService.prochainNumeroPiece).
+  numeroPiece Int?
   date        DateTime
   libelle     String
-  reference   String? // pièce justificative
+  reference   String? // pièce justificative (numéro de facture, référence externe...)
   createdAt   DateTime @default(now())
   createdBy   String // piste d'audit : jamais modifiable après clôture de l'exercice
 

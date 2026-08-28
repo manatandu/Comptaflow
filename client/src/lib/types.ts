@@ -30,6 +30,20 @@ export interface Exercice {
   statut: StatutExercice;
 }
 
+export type TypeJournal = 'ACHATS' | 'VENTES' | 'TRESORERIE' | 'GENERAL' | 'SITUATION';
+export type NumerotationPiece = 'MANUELLE' | 'CONTINUE_JOURNAL' | 'CONTINUE_FICHIER' | 'MENSUELLE';
+
+export interface Journal {
+  id: string;
+  code: string;
+  intitule: string;
+  type: TypeJournal;
+  compteTresorerieId: string | null;
+  compteTresorerie?: Compte | null;
+  numerotation: NumerotationPiece;
+  estActif: boolean;
+}
+
 export interface LigneEcriture {
   id: string;
   compteId: string;
@@ -42,7 +56,9 @@ export interface LigneEcriture {
 export interface Ecriture {
   id: string;
   exerciceId: string;
-  journalCode: string;
+  journalId: string;
+  journal?: Journal;
+  numeroPiece: number | null;
   date: string;
   libelle: string;
   reference: string | null;

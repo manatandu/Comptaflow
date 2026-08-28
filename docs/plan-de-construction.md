@@ -185,8 +185,16 @@ périodiquement ; pas nécessaire à notre échelle actuelle).
 
 Ordre de dépendances techniques réelles, pas un simple ordre de préférence :
 
-1. **Journal comme entité de 1er ordre** (code, type, numérotation, compte de
-   trésorerie) — prérequis technique de presque tout ce qui suit.
+1. ✅ **Journal comme entité de 1er ordre** (code, type, numérotation, compte de
+   trésorerie) — livré : modèle `Journal` (5 types, 4 modes de numérotation),
+   `JournalService.prochainNumeroPiece()` (testé sur les 4 modes), seed automatique de
+   5 journaux à l'inscription (ACH/VEN/BQ/CA/OD), écran "Codes journaux"
+   (`/journaux`), `Ecriture.journalId` (remplace l'ancien `journalCode` en texte
+   libre), `SaisiePage` résout désormais le journal via le compte de trésorerie
+   plutôt qu'un préfixe de numéro de compte codé en dur. Vérifié de bout en bout
+   (curl + Playwright) : seed, rejet d'un journal Trésorerie sans compte, mise en
+   sommeil bloquant la saisie, numérotation mensuelle qui incrémente puis se
+   réinitialise au mois suivant.
 2. **Lettrage** (manuel puis automatique) — prérequis du report à-nouveau "Détail" et
    de toute gestion sérieuse des Tiers.
 3. **Cycle de vie complet de l'exercice** : clôture à 3 granularités + génération réelle

@@ -25,12 +25,12 @@ export class EcritureController {
   async lister(
     @CurrentUser() user: AuthenticatedUser,
     @Query('exerciceId') exerciceId?: string,
-    @Query('journalCode') journalCode?: string,
+    @Query('journalId') journalId?: string,
     @Query('dateDebut') dateDebut?: string,
     @Query('dateFin') dateFin?: string,
     @Query('recherche') recherche?: string,
   ) {
-    return this.ecritureService.lister(user.tenantId, { exerciceId, journalCode, dateDebut, dateFin, recherche });
+    return this.ecritureService.lister(user.tenantId, { exerciceId, journalId, dateDebut, dateFin, recherche });
   }
 
   /** Balance — voir l'onglet Balance du même écran. */

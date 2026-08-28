@@ -9,6 +9,7 @@ import { ExerciceModule } from './modules/exercice/exercice.module';
 import { ComptabiliteModule } from './modules/comptabilite/comptabilite.module';
 import { EtatsFinanciersModule } from './modules/etats-financiers/etats-financiers.module';
 import { UtilisateursModule } from './modules/utilisateurs/utilisateurs.module';
+import { JournauxModule } from './modules/journaux/journaux.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { UtilisateursModule } from './modules/utilisateurs/utilisateurs.module';
     AuthModule,
     ComptesModule,
     ExerciceModule,
+    JournauxModule,
     ComptabiliteModule,
     EtatsFinanciersModule,
     UtilisateursModule,

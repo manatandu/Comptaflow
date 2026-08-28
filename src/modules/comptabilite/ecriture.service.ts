@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/com
 import { PrismaService } from '../../common/prisma.service';
 import { StatutExercice } from '@prisma/client';
 import { CreerEcritureDto } from './dto/creer-ecriture.dto';
+import { JournalService } from '../journaux/journal.service';
 
 /**
  * Règle non négociable du moteur comptable : une écriture n'existe que si
@@ -12,7 +13,10 @@ import { CreerEcritureDto } from './dto/creer-ecriture.dto';
  */
 @Injectable()
 export class EcritureService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly journalService: JournalService,
+  ) {}
 
   async creer(tenantId: string, createdBy: string, dto: CreerEcritureDto) {
     const exercice = await this.prisma.exercice.findFirst({
@@ -25,6 +29,11 @@ export class EcritureService {
       throw new ForbiddenException("Impossible d'enregistrer une écriture sur un exercice clôturé");
     }
 
+    const journal = await this.journalService.trouver(tenantId, dto.journalId);
+    if (!journal.estActif) {
+      throw new BadRequestException(`Le journal ${journal.code} est en sommeil`);
+    }
+
     const totalDebit = dto.lignes.reduce((s, l) => s + (l.debit ?? 0), 0);
     const totalCredit = dto.lignes.reduce((s, l) => s + (l.credit ?? 0), 0);
     if (dto.lignes.length < 2 || Math.abs(totalDebit - totalCredit) > 0.005) {
@@ -33,12 +42,16 @@ export class EcritureService {
       );
     }
 
+    const date = new Date(dto.date);
+    const numeroPiece = await this.journalService.prochainNumeroPiece(tenantId, journal, dto.exerciceId, date);
+
     return this.prisma.ecriture.create({
       data: {
         tenantId,
         exerciceId: dto.exerciceId,
-        journalCode: dto.journalCode,
-        date: new Date(dto.date),
+        journalId: dto.journalId,
+        numeroPiece,
+        date,
         libelle: dto.libelle,
         reference: dto.reference,
         createdBy,
@@ -51,20 +64,20 @@ export class EcritureService {
           })),
         },
       },
-      include: { lignes: true },
+      include: { lignes: true, journal: true },
     });
   }
 
   /** Journal : liste chronologique des écritures, filtrable par exercice/journal/période/recherche. */
   async lister(
     tenantId: string,
-    filtres: { exerciceId?: string; journalCode?: string; dateDebut?: string; dateFin?: string; recherche?: string },
+    filtres: { exerciceId?: string; journalId?: string; dateDebut?: string; dateFin?: string; recherche?: string },
   ) {
     const ecritures = await this.prisma.ecriture.findMany({
       where: {
         tenantId,
         ...(filtres.exerciceId ? { exerciceId: filtres.exerciceId } : {}),
-        ...(filtres.journalCode ? { journalCode: filtres.journalCode } : {}),
+        ...(filtres.journalId ? { journalId: filtres.journalId } : {}),
         ...(filtres.dateDebut || filtres.dateFin
           ? {
               date: {
@@ -75,7 +88,7 @@ export class EcritureService {
           : {}),
         ...(filtres.recherche ? { libelle: { contains: filtres.recherche, mode: 'insensitive' as const } } : {}),
       },
-      include: { lignes: { include: { compte: true } } },
+      include: { lignes: { include: { compte: true } }, journal: true },
       orderBy: { date: 'asc' },
     });
 
@@ -96,7 +109,7 @@ export class EcritureService {
         compteId,
         ecriture: { tenantId, ...(exerciceId ? { exerciceId } : {}) },
       },
-      include: { ecriture: true },
+      include: { ecriture: { include: { journal: true } } },
       orderBy: { ecriture: { date: 'asc' } },
     });
 
@@ -105,7 +118,7 @@ export class EcritureService {
       solde += Number(l.debit) - Number(l.credit);
       return {
         date: l.ecriture.date,
-        journalCode: l.ecriture.journalCode,
+        journalCode: l.ecriture.journal.code,
         libelle: l.libelle ?? l.ecriture.libelle,
         reference: l.ecriture.reference,
         debit: Number(l.debit),

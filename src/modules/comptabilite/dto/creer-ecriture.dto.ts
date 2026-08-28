@@ -24,8 +24,8 @@ export class CreerEcritureDto {
   @IsUUID()
   exerciceId!: string;
 
-  @IsString()
-  journalCode!: string;
+  @IsUUID()
+  journalId!: string;
 
   @IsDateString()
   date!: string;

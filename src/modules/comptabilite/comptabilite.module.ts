@@ -3,9 +3,10 @@ import { EcritureService } from './ecriture.service';
 import { EcritureController } from './ecriture.controller';
 import { LicenceModule } from '../licence/licence.module';
 import { JwtAuthModule } from '../auth/jwt-auth.module';
+import { JournauxModule } from '../journaux/journaux.module';
 
 @Module({
-  imports: [LicenceModule, JwtAuthModule],
+  imports: [LicenceModule, JwtAuthModule, JournauxModule],
   controllers: [EcritureController],
   providers: [EcritureService],
   exports: [EcritureService],
