@@ -412,11 +412,15 @@ model TiersCompte {
 // ("Achat avec TVA" / "Vente avec TVA") calculent HT→TVA→TTC et posent une
 // 3ᵉ ligne sur le compte de collecte/déduction du taux choisi, taguée
 // LigneEcriture.tauxTvaId. TauxTvaService.declaration() additionne ces
-// lignes par taux sur une période (registre/déclaration, lecture seule —
-// ne comptabilise pas la liquidation sur le compte 444, voir la note dans
-// TauxTvaService). Toujours hors scope : le prorata de déduction (art.
-// 43-49 O.-L.) et la saisie libre multi-lignes générale (SaisiePage reste
-// une saisie guidée, pas un éditeur d'écriture quelconque).
+// lignes par taux sur une période et applique le prorata de déduction
+// (art. 43-49 O.-L. — prorata général, sans option secteurs distincts) à la
+// TVA déductible brute. TauxTvaService.comptabiliserLiquidation() pose
+// l'écriture de liquidation (solde 443/445 admis sur le compte 444) via
+// EcritureService.creer(), donc avec les mêmes contrôles que toute saisie.
+// Toujours hors scope : la régularisation pluriannuelle du prorata sur les
+// immobilisations (art. 46), l'option secteurs distincts (art. 49), et la
+// saisie libre multi-lignes générale (SaisiePage reste une saisie guidée,
+// pas un éditeur d'écriture quelconque).
 // ---------------------------------------------------------------------------
 
 model TauxTva {

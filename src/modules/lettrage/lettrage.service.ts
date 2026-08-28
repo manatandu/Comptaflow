@@ -177,6 +177,60 @@ export class LettrageService {
   }
 
   /**
+   * Toutes les sommes atteignables par un sous-ensemble NON VIDE de `lignes`,
+   * en centimes → un sous-ensemble (n'importe lequel) qui l'atteint. Énumère
+   * les 2^n - 1 combinaisons non vides — c'est pourquoi l'appelant plafonne
+   * strictement `lignes.length` (voir LIMITE_LIGNES_PARTITION) avant d'appeler
+   * cette méthode : à 16 lignes, 65 535 combinaisons, largement praticable
+   * pour une action manuelle ; au-delà, ça grossit trop vite.
+   */
+  private sommesAtteignables(lignes: Array<{ id: string; montant: number }>): Map<number, string[]> {
+    const centimes = lignes.map((l) => Math.round(l.montant * 100));
+    const resultat = new Map<number, string[]>();
+    const n = lignes.length;
+    for (let masque = 1; masque < 1 << n; masque++) {
+      let somme = 0;
+      const ids: string[] = [];
+      for (let i = 0; i < n; i++) {
+        if (masque & (1 << i)) {
+          somme += centimes[i];
+          ids.push(lignes[i].id);
+        }
+      }
+      // Ne garde que le premier sous-ensemble trouvé pour une somme donnée —
+      // peu importe lequel, seule l'existence d'un match compte ici.
+      if (!resultat.has(somme)) resultat.set(somme, ids);
+    }
+    return resultat;
+  }
+
+  /**
+   * Cas général N-pour-M : un sous-ensemble de débits et un sous-ensemble de
+   * crédits, tous deux non triviaux (au moins une ligne d'un côté, une ligne
+   * de l'autre — les cas 1-pour-N et N-pour-1 sont déjà couverts par les
+   * passes précédentes), dont les sommes sont exactement égales. Recherche
+   * le match de plus petite taille totale (nombre de lignes) pour limiter la
+   * casse d'un lettrage trop gourmand qui engloutirait tout le pool restant.
+   */
+  private trouverPartitionGenerale(
+    debits: Array<{ id: string; montant: number }>,
+    credits: Array<{ id: string; montant: number }>,
+  ): { debits: string[]; credits: string[] } | null {
+    const sommesDebits = this.sommesAtteignables(debits);
+    const sommesCredits = this.sommesAtteignables(credits);
+
+    let meilleur: { debits: string[]; credits: string[] } | null = null;
+    for (const [somme, debitIds] of sommesDebits) {
+      const creditIds = sommesCredits.get(somme);
+      if (!creditIds) continue;
+      if (!meilleur || debitIds.length + creditIds.length < meilleur.debits.length + meilleur.credits.length) {
+        meilleur = { debits: debitIds, credits: creditIds };
+      }
+    }
+    return meilleur;
+  }
+
+  /**
    * Lettrage automatique — mécanisme en deux temps façon Sage :
    * 1. Paires exactes 1-pour-1 (une ligne au débit, une au crédit de
    *    exactement le même montant) — le cas le plus fréquent, traité en
@@ -186,14 +240,20 @@ export class LettrageService {
    *    virement, ou un acompte réparti sur plusieurs factures) — recherche
    *    par sous-ensemble, plafonnée à `LIMITE_LIGNES_SUBSET_SUM` lignes du
    *    côté fouillé pour rester borné en temps de calcul.
-   * Le cas encore plus général (N lignes d'un côté pour M de l'autre,
-   * combinaison des deux) n'est pas couvert — enrichissement futur si le
-   * besoin se confirme en pratique.
+   * 3. N-pour-M : un sous-ensemble de débits ET un sous-ensemble de crédits
+   *    (au moins deux lignes de chaque côté, sinon c'est déjà couvert par la
+   *    passe précédente) de somme égale — ex. deux factures réglées par deux
+   *    virements dont aucune paire ni aucun total 1-pour-N ne coïncide
+   *    individuellement. Énumère toutes les combinaisons possibles des deux
+   *    côtés (2^n), donc plafonnée bien plus bas (`LIMITE_LIGNES_PARTITION`)
+   *    que le N-pour-1 — au-delà, cette dernière passe est sautée (les
+   *    précédentes restent, elles, toujours effectuées).
    */
   async lettrageAutomatique(tenantId: string, compteId: string) {
     await this.trouverCompte(tenantId, compteId);
 
     const LIMITE_LIGNES_SUBSET_SUM = 25;
+    const LIMITE_LIGNES_PARTITION = 16;
 
     const nonLettrees = await this.prisma.ligneEcriture.findMany({
       where: { compteId, lettre: null, ecriture: { tenantId } },
@@ -241,6 +301,21 @@ export class LettrageService {
           debitsRestants = debitsRestants.filter((d) => d.id !== debit.id);
         }
       }
+    }
+
+    // 4) N pour M — partition générale sur ce qui reste, en boucle tant
+    // qu'un match existe (chaque match retire des lignes des deux pools).
+    while (
+      debitsRestants.length >= 2 &&
+      creditsRestants.length >= 2 &&
+      debitsRestants.length <= LIMITE_LIGNES_PARTITION &&
+      creditsRestants.length <= LIMITE_LIGNES_PARTITION
+    ) {
+      const partition = this.trouverPartitionGenerale(debitsRestants, creditsRestants);
+      if (!partition) break;
+      groupes.push([...partition.debits, ...partition.credits]);
+      debitsRestants = debitsRestants.filter((d) => !partition.debits.includes(d.id));
+      creditsRestants = creditsRestants.filter((c) => !partition.credits.includes(c.id));
     }
 
     if (groupes.length === 0) {

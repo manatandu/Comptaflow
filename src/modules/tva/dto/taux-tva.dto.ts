@@ -1,4 +1,4 @@
-import { IsBoolean, IsNumber, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
+import { IsBoolean, IsDateString, IsNumber, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
 
 export class CreerTauxTvaDto {
   @IsString()
@@ -43,4 +43,20 @@ export class ModifierTauxTvaDto {
   @IsOptional()
   @IsBoolean()
   estActif?: boolean;
+}
+
+export class ComptabiliserLiquidationDto {
+  @IsUUID()
+  exerciceId!: string;
+
+  @IsDateString()
+  dateDebut!: string;
+
+  @IsDateString()
+  dateFin!: string;
+
+  // Date de l'écriture de liquidation ; par défaut dateFin de la période.
+  @IsOptional()
+  @IsDateString()
+  date?: string;
 }

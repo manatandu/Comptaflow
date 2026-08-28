@@ -163,12 +163,20 @@ export interface LigneDeclarationTva {
   net: number;
 }
 
+export interface ProrataTva {
+  numerateur: number;
+  denominateur: number;
+  pourcentage: number;
+}
+
 export interface DeclarationTva {
   dateDebut: string;
   dateFin: string;
   lignes: LigneDeclarationTva[];
+  prorata: ProrataTva;
   totalCollecte: number;
   totalDeductible: number;
+  totalDeductibleAdmise: number;
   net: number;
   sens: 'A_PAYER' | 'CREDIT';
 }

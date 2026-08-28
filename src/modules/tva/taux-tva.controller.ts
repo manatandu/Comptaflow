@@ -5,7 +5,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { TauxTvaService } from './taux-tva.service';
-import { CreerTauxTvaDto, ModifierTauxTvaDto } from './dto/taux-tva.dto';
+import { CreerTauxTvaDto, ModifierTauxTvaDto, ComptabiliserLiquidationDto } from './dto/taux-tva.dto';
 import { RoleUtilisateur } from '@prisma/client';
 
 // Même règle que Plan de comptes / Journaux : consultation ouverte aux trois
@@ -31,6 +31,19 @@ export class TauxTvaController {
       throw new BadRequestException('dateDebut et dateFin sont requis');
     }
     return this.tauxTvaService.declaration(user.tenantId, new Date(dateDebut), new Date(dateFin));
+  }
+
+  /**
+   * Comptabilise la liquidation de la période : solde 443/445 (déductible
+   * après prorata) sur le compte 444 — voir TauxTvaService.
+   * comptabiliserLiquidation(). Même rôle que la saisie d'écritures
+   * (ADMIN_CABINET/COMPTABLE), pas seulement l'admin : c'est un acte de
+   * gestion courante, pas une opération de paramétrage.
+   */
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Post('declaration/comptabiliser')
+  async comptabiliserLiquidation(@CurrentUser() user: AuthenticatedUser, @Body() dto: ComptabiliserLiquidationDto) {
+    return this.tauxTvaService.comptabiliserLiquidation(user.tenantId, user.userId, dto);
   }
 
   @Roles(RoleUtilisateur.ADMIN_CABINET)

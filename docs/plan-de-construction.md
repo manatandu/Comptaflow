@@ -222,8 +222,15 @@ Ordre de dépendances techniques réelles, pas un simple ordre de préférence :
    décroissant pour couper tôt) côté débits pour chaque crédit restant, puis côté
    crédits pour chaque débit restant ; plafonné à 25 lignes du côté fouillé pour
    rester borné en temps de calcul (le 1-pour-1 reste, lui, toujours effectué au-
-   delà). Le cas encore plus général (N lignes d'un côté pour M combinées de
-   l'autre) n'est pas couvert. Réponse de l'API renommée `{ paires }` →
+   delà). **4ᵉ passe ajoutée depuis** : le cas général N-pour-M (un sous-
+   ensemble de débits ET un sous-ensemble de crédits, tous deux non triviaux —
+   ex. deux factures réglées par deux virements, sans qu'aucune paire ni
+   aucun total 1-pour-N ne coïncide individuellement) — énumération de toutes
+   les combinaisons possibles des deux côtés (2^n), donc plafonnée bien plus
+   bas (16 lignes) que le N-pour-1 ; retient le plus petit match trouvé pour
+   éviter d'engloutir tout le pool restant en un seul groupe. Vérifié via
+   curl : 2 débits (100+150) ↔ 2 crédits (90+160), aucun montant ne matchant
+   isolément, deux lignes décoy correctement laissées de côté. Réponse de l'API renommée `{ paires }` →
    `{ groupes }` (reflète mieux un groupe qui peut compter plus de 2 lignes),
    frontend mis à jour en conséquence. Vérifié via curl (3 débits 120+230+151
    soldant 1 crédit 501 ; 1 débit 402 soldé par 3 crédits 91+161+150 ; deux lignes
@@ -345,14 +352,38 @@ Ordre de dépendances techniques réelles, pas un simple ordre de préférence :
    compte rattaché inexistant, rejet d'un `tauxTvaId` d'un autre tenant sur
    une écriture, bascule actif/inactif filtrée, vente 1000 HT + achat 500 HT
    à 16 % → déclaration exacte (collectée 160, déductible 80, net 80 à
-   décaisser). **Hors scope** : le régime du prorata de déduction (art. 43-49
-   O.-L., significatif pour une association ayant des activités à la fois
-   exonérées et taxables) et la comptabilisation automatique de la
-   liquidation (écriture sur le compte 444) — restent à construire.
+   décaisser).
    **Approfondissement** : `TauxTvaPage` elle-même (l'écran `/taux-tva`, pas
    seulement l'API) n'avait jamais été cliquée en Playwright — création d'un
    taux et bascule actif/inactif vérifiées directement dans l'UI. Aucun bug
    trouvé.
+   **Second approfondissement — prorata et liquidation** : les deux points
+   notés hors scope sont désormais livrés. `TauxTvaService.calculerProrata`
+   applique l'art. 43 O.-L. : rapport entre les recettes des opérations
+   taxables (toute écriture portant au moins une ligne de TVA, taux zéro
+   export inclus — classe 7 des écritures concernées) et les recettes totales
+   (toute la classe 7 sur la période), **arrondi à l'unité supérieure**
+   (règle explicite du texte, pas un arrondi standard) ; appliqué globalement
+   à la TVA déductible brute (biens, services et immobilisations, régime par
+   défaut en l'absence de l'option secteurs distincts de l'art. 49, non
+   implémentée) pour obtenir la déductible admise. `comptabiliserLiquidation`
+   pose l'écriture de liquidation — solde, par compte réellement utilisé (443
+   collecte / 445 déductible admise), sur le compte 444100 (crédit = TVA due,
+   débit = crédit de TVA à reporter) — via `EcritureService.creer()` normal,
+   donc avec les mêmes contrôles que toute saisie (équilibre, exercice
+   ouvert, clôtures). Écran `/declaration-tva` enrichi : bloc prorata
+   (numérateur/dénominateur/pourcentage), déductible admise, bouton
+   "Comptabiliser la liquidation" avec confirmation. Vérifié de bout en bout
+   via curl et Playwright : vente taxable 1000 HT (TVA 160) + don non taxable
+   500 (classe 7 hors TVA) + achat taxable 500 HT (TVA 80) → prorata exact
+   67 % (ceil(1000/1500×100)), déductible admise 53,6, net 106,4 à décaisser
+   ; écriture de liquidation équilibrée (débit 443 160 = crédit 445 53,6 +
+   crédit 444 106,4) ; rejet sur une période sans mouvement ; la déclaration
+   reste une lecture pure, non affectée par une liquidation déjà postée.
+   **Hors scope, documenté explicitement** : régularisation pluriannuelle du
+   prorata sur les immobilisations (art. 46, variation > 10 % sur 4/19 ans),
+   option secteurs distincts (art. 49), verrou anti-double-liquidation d'une
+   période déjà comptabilisée.
 6. **Comptes "Total"/regroupement par racine** — brique technique courte, prépare le
    moteur de mapping.
 7. **Rapprochement bancaire** (manuel d'abord).
