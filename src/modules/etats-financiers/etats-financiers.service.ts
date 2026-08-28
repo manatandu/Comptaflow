@@ -68,7 +68,7 @@ export class EtatsFinanciersService {
     }
 
     if (resultatNet !== 0) {
-      passif.push({ numero: '131000', intitule: "Excédent (déficit) de l'exercice", montant: resultatNet });
+      passif.push({ numero: '13100000', intitule: "Excédent (déficit) de l'exercice", montant: resultatNet });
     }
 
     const totalActif = actif.reduce((s, l) => s + l.montant, 0);

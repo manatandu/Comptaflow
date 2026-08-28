@@ -24,8 +24,8 @@ export const TAUX_TVA_DEFAUT: Array<{
   numeroCompteCollecte?: string;
   numeroCompteDeductible?: string;
 }> = [
-  { code: 'TVA16', intitule: 'Taux normal 16 %', taux: 16, numeroCompteCollecte: '443100', numeroCompteDeductible: '445100' },
-  { code: 'TVA1', intitule: 'Taux réduit 1 %', taux: 1, numeroCompteCollecte: '443100', numeroCompteDeductible: '445100' },
-  { code: 'TVA5', intitule: 'Taux réduit 5 % (billets d’avion, trafic aérien national)', taux: 5, numeroCompteCollecte: '443100', numeroCompteDeductible: '445100' },
-  { code: 'TVA0', intitule: 'Taux zéro (exportations)', taux: 0, numeroCompteCollecte: '443100' },
+  { code: 'TVA16', intitule: 'Taux normal 16 %', taux: 16, numeroCompteCollecte: '44310000', numeroCompteDeductible: '44510000' },
+  { code: 'TVA1', intitule: 'Taux réduit 1 %', taux: 1, numeroCompteCollecte: '44310000', numeroCompteDeductible: '44510000' },
+  { code: 'TVA5', intitule: 'Taux réduit 5 % (billets d’avion, trafic aérien national)', taux: 5, numeroCompteCollecte: '44310000', numeroCompteDeductible: '44510000' },
+  { code: 'TVA0', intitule: 'Taux zéro (exportations)', taux: 0, numeroCompteCollecte: '44310000' },
 ];

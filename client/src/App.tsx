@@ -11,6 +11,8 @@ import { PlanComptesPage } from './pages/PlanComptesPage';
 import { JournauxPage } from './pages/JournauxPage';
 import { JournalPage } from './pages/JournalPage';
 import { LettragePage } from './pages/LettragePage';
+import { RapprochementPage } from './pages/RapprochementPage';
+import { RapprochementDetailPage } from './pages/RapprochementDetailPage';
 import { ExercicePage } from './pages/ExercicePage';
 import { TiersPage } from './pages/TiersPage';
 import { TauxTvaPage } from './pages/TauxTvaPage';
@@ -47,6 +49,8 @@ function Routage() {
         <Route path="saisie" element={<SaisiePage />} />
         <Route path="comptes" element={<PlanComptesPage />} />
         <Route path="comptes/:compteId/lettrage" element={<LettragePage />} />
+        <Route path="rapprochement" element={<RapprochementPage />} />
+        <Route path="rapprochement/:id" element={<RapprochementDetailPage />} />
         <Route path="journaux" element={<JournauxPage />} />
         <Route path="journal" element={<JournalPage />} />
         <Route path="exercice" element={<ExercicePage />} />

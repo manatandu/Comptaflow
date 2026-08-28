@@ -495,16 +495,75 @@ Ordre de dépendances techniques réelles, pas un simple ordre de préférence :
    `...100` déjà utilisée par ces modules, avec commentaire d'avertissement
    dans le seed pour éviter la régression inverse. Vérifié de bout en bout sur
    un tenant réel : inscription (696 comptes créés), rattachement des 4 taux
-   de TVA par défaut à leurs comptes 443100/445100, écriture réelle
-   (cotisation 500 en caisse 571000/701000), bilan équilibré, et Playwright
-   (affichage complet de la liste par classe, recherche "704" isolant
-   correctement les 8 sous-comptes de générosité 704100-704800).
-8. **Rapprochement bancaire** (manuel d'abord).
-9. **Immobilisations** (Famille → Immobilisation → plan d'amortissement → dotation
+   de TVA par défaut à leurs comptes 443100/445100 (depuis renumérotés
+   44310000/44510000, voir note ci-dessous), écriture réelle (cotisation 500
+   en caisse 571000/701000), bilan équilibré, et Playwright (affichage
+   complet de la liste par classe, recherche "704" isolant correctement les
+   8 sous-comptes de générosité 704100-704800).
+
+   **Suite immédiate, EN COURS (non committée séparément — voir note plus
+   bas)** : demande explicite de l'utilisateur de porter la longueur des
+   numéros de compte à 8 chiffres au lieu de 6 ("un compte peut avoir
+   plusieurs sous-comptes ou même plusieurs catégories qui ont plusieurs
+   sous-comptes"), **personnalisable par dossier comme chez Sage** (skill
+   `sage-i7` : "longueur de compte paramétrable par dossier, 3 à 13
+   caractères"). Fait à ce stade : `Tenant.longueurCompte` (Int, défaut 8,
+   migration appliquée), tout le seed SYCEBNL repadé de 6 à 8 chiffres
+   (696 comptes, ex. "443100" → "44310000"), tous les numéros codés en dur
+   ailleurs dans le code mis à jour en conséquence (TVA, journaux par
+   défaut, saisie guidée, compte de résultat de clôture), validation
+   dynamique par tenant dans `CompteService.creer()` (rejette un numéro plus
+   long que `longueurCompte`, message nommant la limite). **Pas encore
+   fait** (volontairement laissé de côté à la demande de l'utilisateur, "on
+   en parlera" — repris tel quel, non retouché) : aucun écran ni endpoint
+   pour changer `longueurCompte` après l'inscription (donc rien de
+   réellement "personnalisable" à ce stade, seule la valeur par défaut a
+   changé), `RegisterDto`/`TenantService.creerTenant` ne l'exposent pas à
+   l'inscription, `/auth/me` ne le renvoie pas au frontend, et
+   `PlanComptesPage` garde un pattern HTML statique `\d{3,8}` au lieu de
+   lire la valeur réelle du dossier. À reprendre explicitement avant de
+   pouvoir cocher cette brique.
+9. ✅ **Rapprochement bancaire** (manuel d'abord) — livré. Distinct du
+   lettrage (qui rapproche des écritures entre elles) : ici, pointage
+   écriture par écriture d'un compte de trésorerie (classe 5) face à un
+   relevé bancaire externe. Modèle `RapprochementBancaire` (compte, date et
+   solde du relevé, statut EN_COURS/CLOTURE) + `LigneEcriture.
+   rapprochementId` (pointage individuel, un clic par ligne — pas de
+   sélection groupée façon lettrage, plus proche du geste réel de pointage
+   papier). Un seul rapprochement EN_COURS par compte à la fois (409 sinon,
+   avec l'id de celui déjà ouvert) ; le solde de clôture du précédent
+   rapprochement sert de solde de départ au suivant (0 pour le tout
+   premier) ; écart = solde pointé − solde du relevé, recalculé à chaque
+   pointage/dépointage ; clôture bloquée tant que l'écart n'est pas nul
+   (même discipline que le lettrage, qui exige un solde de sélection nul).
+   Rapprochement EN_COURS annulable (dépointe ses lignes puis se supprime)
+   pour corriger une ouverture par erreur. Écran `/rapprochement` (ouverture
+   + historique) et `/rapprochement/:id` (pointage), menu Traitement ET
+   Trésorerie. Vérifié de bout en bout via curl (450 comptabilisés sur deux
+   écritures, écart -300 avant tout pointage, pointage partiel → écart
+   -150, clôture refusée en déséquilibre avec message explicite, double
+   ouverture refusée en 409, annulation puis réouverture possible) et
+   Playwright (écran de pointage réel, clôture par clic).
+   **Bug réel trouvé et corrigé en testant à l'écran** (pas en curl) : juste
+   après une clôture, l'écran réaffichait un solde de départ et un écart
+   faux. Cause : `soldeDepart()` cherchait "le dernier rapprochement
+   CLOTURE" trié par date de clôture décroissante — un rapprochement tout
+   juste clôturé se retrouvait être son propre "dernier clôturé" (il est
+   forcément en tête du tri). Une première correction (exclure son propre
+   id) a réintroduit un second bug symétrique, trouvé en revérifiant le
+   rapprochement précédent : il se voyait alors attribuer le solde de
+   départ du rapprochement suivant (chronologiquement après lui), toujours
+   à cause du même tri par date décroissante sans borne. Corrigé
+   définitivement en filtrant sur `clotureAt < date de clôture du
+   rapprochement affiché` (ou "maintenant" s'il est encore EN_COURS) plutôt
+   que sur une simple exclusion d'id — revérifié sur les trois
+   rapprochements de la séquence de test (0→300, 300→450, écarts nuls sur
+   les deux clôturés).
+10. **Immobilisations** (Famille → Immobilisation → plan d'amortissement → dotation
    périodique → sortie).
-10. **Moteur de mapping / états financiers configurables** (s'appuie sur 6 et 9).
-11. **Comptabilité analytique par projet/bailleur** (spécifique SYCEBNL).
-12. Puis, au choix selon opportunité business : **Trésorerie avancée** (lots, LCR/
+11. **Moteur de mapping / états financiers configurables** (s'appuie sur 6 et 9).
+12. **Comptabilité analytique par projet/bailleur** (spécifique SYCEBNL).
+13. Puis, au choix selon opportunité business : **Trésorerie avancée** (lots, LCR/
     virements), **Stocks**, **SYSCOHADA (Phase 3)**, **OHADA→IFRS**, **Paie**, RBAC fin.
 
 Cette liste n'engage rien : chaque brique reste soumise à validation explicite avant

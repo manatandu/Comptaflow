@@ -57,11 +57,11 @@ export function Ribbon({ groupes, droite }: { groupes: RibbonGroupe[]; droite?: 
         // comptes, comme l'interrogation de compte chez Sage) — ce menu
         // amène directement à la sélection du compte.
         { label: 'Lettrage', onClick: () => navigate('/comptes') },
-        { label: 'Rapprochement bancaire', disabled: true, indication: 'à venir' },
+        { label: 'Rapprochement bancaire', onClick: () => navigate('/rapprochement') },
         { label: "Clôture d'exercice", onClick: () => navigate('/exercice') },
       ],
     },
-    { titre: 'Trésorerie', items: [] },
+    { titre: 'Trésorerie', items: [{ label: 'Rapprochement bancaire', onClick: () => navigate('/rapprochement') }] },
     { titre: 'Tiers', items: [{ label: 'Plan des tiers', onClick: () => navigate('/tiers') }] },
     {
       titre: 'États',

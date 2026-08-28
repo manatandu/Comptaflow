@@ -48,6 +48,18 @@ model Tenant {
   telephone String?
   devise    String? @default("CDF")
 
+  // Longueur du numéro de compte — paramètre "longueur du plan comptable"
+  // chez Sage 100 (dossier > Structure > Paramètres), 3 à 13 caractères,
+  // configurable PAR DOSSIER (voir skill sage-i7, comptabilite-generale.md).
+  // Huit par défaut ici (au lieu des 6 chiffres du seed initial) pour
+  // laisser de la place à des sous-comptes analytiques créés à la main sans
+  // buter sur la longueur du compte racine du plan SYCEBNL (ex. racine à 6
+  // chiffres "411000" + 2 chiffres de sous-compte adhérent). Modifiable
+  // après coup (TenantService.modifierParametres) mais jamais en dessous de
+  // la longueur du plus long numéro de compte déjà créé pour ce tenant —
+  // sinon des comptes existants deviendraient invalides rétroactivement.
+  longueurCompte Int @default(8)
+
   licence          Licence?
   comptes          Compte[]
   exercices        Exercice[]
@@ -58,6 +70,7 @@ model Tenant {
   tiers            Tiers[]
   modelesReglement ModeleReglement[]
   tauxTva          TauxTva[]
+  rapprochements   RapprochementBancaire[]
 
   @@map("tenants")
 }
@@ -150,7 +163,7 @@ model Compte {
   id                 String                @id @default(uuid())
   tenantId           String
   tenant             Tenant                @relation(fields: [tenantId], references: [id])
-  numero             String // ex : "10600" fonds associatif, "1810" fonds affecté
+  numero             String // ex : "10600000" fonds associatif, "18100000" fonds affecté — longueur bornée par Tenant.longueurCompte
   intitule           String
   classe             ClasseCompte
   typeCompte         TypeCompteDetailTotal @default(DETAIL)
@@ -163,9 +176,12 @@ model Compte {
   // compte de classe 4 est le sous-compte auxiliaire d'un seul tiers.
   tiersCompte        TiersCompte?
   // Comptes d'État TVA (443/445) référencés par un ou plusieurs taux (§3.1) —
-  // un même compte 443100 peut être partagé par plusieurs taux (16 %, 1 %...).
+  // un même compte 44310000 peut être partagé par plusieurs taux (16 %, 1 %...).
   tauxTvaCollecte    TauxTva[]       @relation("TauxTvaCollecte")
   tauxTvaDeductible  TauxTva[]       @relation("TauxTvaDeductible")
+  // Rapprochements bancaires (§3.4) ouverts/clôturés sur ce compte de
+  // trésorerie — voir RapprochementBancaire.
+  rapprochements     RapprochementBancaire[]
 
   @@unique([tenantId, numero])
   @@map("comptes")
@@ -332,8 +348,57 @@ model LigneEcriture {
   tauxTvaId String?
   tauxTva   TauxTva? @relation(fields: [tauxTvaId], references: [id])
 
+  // Pointage rapprochement bancaire (§3.4, manuel d'abord) — distinct du
+  // lettrage : le lettrage rapproche débit/crédit entre elles (ex. facture
+  // ↔ règlement), le pointage rapproche une ligne face à un relevé bancaire
+  // externe. Une ligne pointée est rattachée au rapprochement (en cours ou
+  // déjà clôturé) qui l'a pointée ; null tant qu'elle n'est pas pointée.
+  // Dépointable (retour à null) tant que le rapprochement est EN_COURS —
+  // voir RapprochementBancaireService.
+  rapprochementId String?
+  rapprochement   RapprochementBancaire? @relation(fields: [rapprochementId], references: [id])
+
   @@index([compteId, lettre])
+  @@index([compteId, rapprochementId])
   @@map("lignes_ecriture")
+}
+
+// ---------------------------------------------------------------------------
+// Rapprochement bancaire (§3.4, manuel d'abord — cf. docs/plan-de-construction.md) :
+// pointage écriture par écriture face à un relevé bancaire, avec référence
+// de pièce de trésorerie. Un seul rapprochement EN_COURS à la fois par
+// compte (RapprochementBancaireService.ouvrir) ; le solde de clôture du
+// précédent rapprochement CLOTURE sert de solde de départ au suivant (le
+// tout premier rapprochement d'un compte part de zéro) — écart affiché en
+// continu, clôture bloquée tant qu'il n'est pas nul (même discipline que le
+// lettrage, qui exige un solde de sélection nul avant de lettrer).
+// ---------------------------------------------------------------------------
+
+enum StatutRapprochement {
+  EN_COURS
+  CLOTURE
+}
+
+model RapprochementBancaire {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+  compteId String
+  compte   Compte @relation(fields: [compteId], references: [id])
+
+  // Date et solde de fin tels qu'affichés sur le relevé bancaire papier/PDF
+  // rapproché — pas une donnée calculée.
+  dateReleve  DateTime
+  soldeReleve Decimal  @db.Decimal(18, 2)
+
+  statut    StatutRapprochement @default(EN_COURS)
+  createdAt DateTime            @default(now())
+  createdBy String
+  clotureAt DateTime?
+
+  lignes LigneEcriture[]
+
+  @@map("rapprochements_bancaires")
 }
 
 // ---------------------------------------------------------------------------

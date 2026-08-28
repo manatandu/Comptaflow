@@ -13,6 +13,7 @@ import { JournauxModule } from './modules/journaux/journaux.module';
 import { LettrageModule } from './modules/lettrage/lettrage.module';
 import { TiersModule } from './modules/tiers/tiers.module';
 import { TvaModule } from './modules/tva/tva.module';
+import { RapprochementModule } from './modules/rapprochement/rapprochement.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { TvaModule } from './modules/tva/tva.module';
     LettrageModule,
     TiersModule,
     TvaModule,
+    RapprochementModule,
     EtatsFinanciersModule,
     UtilisateursModule,
   ],

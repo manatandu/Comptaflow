@@ -181,14 +181,14 @@ export class ExerciceService {
     }
   }
 
-  /** Le compte 130000 (Résultat de l'exercice) doit exister avant toute clôture annuelle. */
+  /** Le compte 13000000 (Résultat de l'exercice) doit exister avant toute clôture annuelle. */
   private async assurerCompteResultat(tenantId: string, tx: Prisma.TransactionClient) {
-    const existant = await tx.compte.findUnique({ where: { tenantId_numero: { tenantId, numero: '130000' } } });
+    const existant = await tx.compte.findUnique({ where: { tenantId_numero: { tenantId, numero: '13000000' } } });
     if (existant) return existant;
     return tx.compte.create({
       data: {
         tenantId,
-        numero: '130000',
+        numero: '13000000',
         intitule: "Résultat de l'exercice",
         classe: ClasseCompte.CLASSE_1,
         modeReportANouveau: ModeReportANouveau.SOLDE,
@@ -198,7 +198,7 @@ export class ExerciceService {
 
   /**
    * Clôture ANNUELLE de l'exercice : solde les comptes en mode AUCUN (charges/
-   * produits) sur le compte de résultat 130000, puis génère le report à-nouveau
+   * produits) sur le compte de résultat 13000000, puis génère le report à-nouveau
    * réel dans l'exercice suivant (créé automatiquement s'il n'existe pas encore)
    * selon le mode de chaque compte restant (Solde = un seul solde net, Détail =
    * chaque mouvement non lettré individuellement). Les deux écritures générées

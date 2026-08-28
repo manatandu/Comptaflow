@@ -95,6 +95,41 @@ export interface LigneLettrage {
   lettre: string | null;
 }
 
+export type StatutRapprochement = 'EN_COURS' | 'CLOTURE';
+
+export interface RapprochementBancaire {
+  id: string;
+  tenantId: string;
+  compteId: string;
+  compte?: Compte;
+  dateReleve: string;
+  soldeReleve: number;
+  statut: StatutRapprochement;
+  createdAt: string;
+  createdBy: string;
+  clotureAt: string | null;
+}
+
+export interface LignePointage {
+  id: string;
+  date: string;
+  journalCode: string;
+  libelle: string;
+  reference: string | null;
+  debit: number;
+  credit: number;
+  pointee: boolean;
+}
+
+export interface DetailRapprochement {
+  rapprochement: RapprochementBancaire;
+  soldeDepart: number;
+  soldePointe: number;
+  ecart: number;
+  equilibre: boolean;
+  lignes: LignePointage[];
+}
+
 export interface LigneBalance {
   compteId: string;
   numero: string;

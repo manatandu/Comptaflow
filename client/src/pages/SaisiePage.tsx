@@ -11,10 +11,10 @@ type TypeOperationTva = 'vente_tva' | 'achat_tva';
 type TypeOperation = TypeOperationSimple | TypeOperationTva;
 
 const OPERATIONS: Record<TypeOperationSimple, { label: string; numeroContrepartie: string; sens: 'recette' | 'depense' }> = {
-  don: { label: 'Don reçu', numeroContrepartie: '704100', sens: 'recette' },
-  cotisation: { label: 'Cotisation reçue', numeroContrepartie: '701000', sens: 'recette' },
-  achat: { label: 'Achat payé', numeroContrepartie: '605000', sens: 'depense' },
-  salaire: { label: 'Salaire payé', numeroContrepartie: '661000', sens: 'depense' },
+  don: { label: 'Don reçu', numeroContrepartie: '70410000', sens: 'recette' },
+  cotisation: { label: 'Cotisation reçue', numeroContrepartie: '70100000', sens: 'recette' },
+  achat: { label: 'Achat payé', numeroContrepartie: '60500000', sens: 'depense' },
+  salaire: { label: 'Salaire payé', numeroContrepartie: '66100000', sens: 'depense' },
 };
 
 // Opérations TVA (cf. docs/plan-de-construction.md §5) : le compte de

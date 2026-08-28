@@ -2,7 +2,11 @@ import { IsBoolean, IsEnum, IsOptional, IsString, Matches } from 'class-validato
 import { ClasseCompte, ModeReportANouveau, TypeCompteDetailTotal } from '@prisma/client';
 
 export class CreerCompteDto {
-  @Matches(/^\d{3,8}$/, { message: 'Le numéro de compte doit être numérique (3 à 8 chiffres)' })
+  // Borne large ici (3 à 13 chiffres — plage Sage complète) : la longueur
+  // réellement autorisée dépend du dossier (Tenant.longueurCompte, 8 par
+  // défaut) et est vérifiée dynamiquement par CompteService.creer(), pas ici
+  // — un DTO ne connaît pas le tenant.
+  @Matches(/^\d{3,13}$/, { message: 'Le numéro de compte doit être numérique (3 à 13 chiffres)' })
   numero!: string;
 
   @IsString()

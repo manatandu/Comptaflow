@@ -198,10 +198,10 @@ export class TauxTvaService {
 
   /**
    * Comptabilise la liquidation périodique : solde, par compte réellement
-   * utilisé (en général 443100/445100 partagés — voir le seed — mais un
+   * utilisé (en général 44310000/44510000 partagés — voir le seed — mais un
    * tenant peut avoir personnalisé des comptes différents par taux), la TVA
    * collectée et la TVA déductible ADMISE (après prorata), et porte la
-   * différence sur le compte 444100 (crédit = TVA due, débit = crédit de TVA
+   * différence sur le compte 44410000 (crédit = TVA due, débit = crédit de TVA
    * à reporter). Pose une écriture NORMALE via EcritureService.creer — mêmes
    * contrôles que n'importe quelle saisie (équilibre, exercice ouvert,
    * clôtures Partielle/Totale/Période). Aucun verrou anti-double-liquidation
@@ -235,10 +235,10 @@ export class TauxTvaService {
       }
     }
 
-    const compte444 = await this.prisma.compte.findFirst({ where: { tenantId, numero: '444100' } });
+    const compte444 = await this.prisma.compte.findFirst({ where: { tenantId, numero: '44410000' } });
     if (!compte444) {
       throw new BadRequestException(
-        "Compte 444100 (État, TVA due ou crédit de TVA) introuvable pour ce tenant — nécessaire pour comptabiliser la liquidation.",
+        "Compte 44410000 (État, TVA due ou crédit de TVA) introuvable pour ce tenant — nécessaire pour comptabiliser la liquidation.",
       );
     }
 

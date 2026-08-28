@@ -38,6 +38,16 @@ export class CompteService {
   }
 
   async creer(tenantId: string, dto: CreerCompteDto) {
+    // Longueur maximale du numéro de compte — paramètre par dossier (§ voir
+    // Tenant.longueurCompte dans le schéma), pas une constante globale : le
+    // DTO ne valide qu'un format générique (3-13 chiffres, plage Sage), la
+    // borne réelle du dossier se vérifie ici.
+    const tenant = await this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId } });
+    if (dto.numero.length > tenant.longueurCompte) {
+      throw new BadRequestException(
+        `Le numéro de compte "${dto.numero}" dépasse la longueur autorisée pour ce dossier (${tenant.longueurCompte} chiffres) — voir Structure > Paramètres du dossier.`,
+      );
+    }
     const existant = await this.prisma.compte.findUnique({
       where: { tenantId_numero: { tenantId, numero: dto.numero } },
     });

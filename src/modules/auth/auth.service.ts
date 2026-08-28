@@ -67,9 +67,9 @@ export class AuthService {
 
     await this.compteService.seedPlanSycebnl(tenant.id);
     // Les journaux par défaut référencent des comptes de trésorerie du plan
-    // SYCEBNL (521100 Banque, 571000 Caisse) : le seed des comptes doit donc
+    // SYCEBNL (52110000 Banque, 57100000 Caisse) : le seed des comptes doit donc
     // toujours précéder celui des journaux. Même contrainte pour les taux de
-    // TVA, qui référencent les comptes d'État 443100/445100.
+    // TVA, qui référencent les comptes d'État 44310000/44510000.
     await this.journalService.seedJournauxDefaut(tenant.id);
     await this.tauxTvaService.seedTauxDefaut(tenant.id);
     const exercice =
