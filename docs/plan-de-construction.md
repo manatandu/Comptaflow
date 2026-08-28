@@ -718,6 +718,41 @@ Ordre de dépendances techniques réelles, pas un simple ordre de préférence :
     corrects). Écran `/immobilisations` (création famille/immobilisation,
     liste avec cumul amorti/V.N.C. calculés, actions Doter/Sortir en ligne),
     menu Structure > Immobilisations.
+
+    **Approfondissement** (règle §2.6, avant de passer à la brique
+    suivante) : un vrai défaut **grave** trouvé et corrigé — la même
+    condition de course déjà rencontrée deux fois dans ce projet (numéro de
+    pièce des journaux, ouverture de rapprochement bancaire), mais avec des
+    conséquences bien plus sérieuses ici. `passerDotation()` lisait "aucune
+    dotation existante" puis postait l'écriture PUIS créait la ligne
+    `DotationAmortissement` : deux requêtes simultanées passaient toutes
+    deux le contrôle, postaient chacune leur écriture réelle au grand livre
+    (équilibrée, donc invisible à un contrôle de balance), et seule la
+    première `DotationAmortissement.create()` réussissait — la seconde
+    échouait sur la contrainte d'unicité avec une **500 brute**, écriture
+    déjà postée comprise. Vérifié concrètement : 12 requêtes de dotation
+    simultanées → **12 écritures réelles postées, une seule trackée**, 11
+    écritures fantômes gonflant silencieusement le compte d'amortissement
+    cumulé. `EcritureService.creer` gère sa propre transaction et commet
+    réellement l'écriture indépendamment de l'appelant — l'envelopper dans
+    une transaction sérialisable externe n'aurait rien changé (le retry ne
+    rejoue pas un effet de bord déjà commis ailleurs). Corrigé par
+    compensation : poster, puis en cas de conflit avéré sur
+    `DotationAmortissement`, supprimer l'écriture que CETTE requête vient de
+    créer et renvoyer un 409 propre. Revérifié : 12 requêtes simultanées →
+    exactement 1 succès, 11 rejets 409 propres, 0 écriture orpheline (grand
+    livre contrôlé directement). Même risque identifié et corrigé par
+    prévention plutôt que compensation dans `sortir()` (verrou par
+    UPDATE conditionnel sur le statut AVANT toute écriture — la perdante
+    d'une double-sortie n'a rien posté du tout) : revérifié avec 8 sorties
+    simultanées sur le même bien → 1 succès, 7 rejets 409, exactement 3
+    écritures au total (acquisition + dotation + sortie, aucune dupliquée).
+    Deux garde-fous de validation ajoutés au passage (trouvés en relisant,
+    pas testés spontanément) : date de sortie bornée à
+    `[dateMiseEnService, dateFin de l'exercice choisi]` ; comptes d'une
+    famille vérifiés par classe ET préfixe numérique (`ClasseCompte.
+    CLASSE_2` seul ne distingue pas un compte d'immobilisation 20-27 d'un
+    compte d'amortissement 28-29, qui partagent la même classe).
 11. **Moteur de mapping / états financiers configurables** (s'appuie sur 6 et 10).
 12. **Comptabilité analytique par projet/bailleur** (spécifique SYCEBNL).
 13. Puis, au choix selon opportunité business : **Trésorerie avancée** (lots, LCR/

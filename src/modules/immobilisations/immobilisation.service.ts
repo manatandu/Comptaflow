@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
-import { ModeAmortissement, StatutImmobilisation } from '@prisma/client';
+import { ModeAmortissement, Prisma, StatutImmobilisation } from '@prisma/client';
 import { FAMILLES_IMMOBILISATION_DEFAUT } from './famille-immobilisation-seed';
 import {
   CreerFamilleDto,
@@ -37,6 +37,12 @@ function versImmobilisation<T extends { valeurOrigine: unknown; valeurResiduelle
     prixCession: immo.prixCession === null || immo.prixCession === undefined ? null : Number(immo.prixCession),
     dotations: (immo.dotations ?? []).map((d) => versDotation(d as { montant: unknown })),
   };
+}
+
+const CODE_CONTRAINTE_UNIQUE = 'P2002';
+
+function estConflitUnicite(err: unknown): boolean {
+  return err instanceof Prisma.PrismaClientKnownRequestError && err.code === CODE_CONTRAINTE_UNIQUE;
 }
 
 /**
@@ -91,15 +97,40 @@ export class ImmobilisationService {
     });
   }
 
-  async creerFamille(tenantId: string, dto: CreerFamilleDto) {
-    for (const [champ, compteId] of [
-      ['compteImmobilisationId', dto.compteImmobilisationId],
-      ['compteAmortissementId', dto.compteAmortissementId],
-      ['compteDotationId', dto.compteDotationId],
-    ] as const) {
-      const compte = await this.prisma.compte.findFirst({ where: { id: compteId, tenantId } });
-      if (!compte) throw new BadRequestException(`Compte introuvable pour ce tenant (${champ})`);
+  /**
+   * Vérifie que chaque compte de la famille est de la bonne nature — trouvé
+   * en approfondissant (règle §2.6) : rien n'empêchait jusqu'ici de créer
+   * une famille avec, par exemple, un compte de trésorerie comme "compte
+   * d'amortissement". `ClasseCompte.CLASSE_2` seul ne suffit pas à
+   * distinguer immobilisation (20-27) d'amortissement (28-29), qui
+   * partagent la même classe — d'où la vérification sur le préfixe
+   * numérique en plus de la classe.
+   */
+  private async verifierComptesFamille(tenantId: string, dto: { compteImmobilisationId: string; compteAmortissementId: string; compteDotationId: string }) {
+    const [compteImmo, compteAmort, compteDotation] = await Promise.all([
+      this.prisma.compte.findFirst({ where: { id: dto.compteImmobilisationId, tenantId } }),
+      this.prisma.compte.findFirst({ where: { id: dto.compteAmortissementId, tenantId } }),
+      this.prisma.compte.findFirst({ where: { id: dto.compteDotationId, tenantId } }),
+    ]);
+    if (!compteImmo) throw new BadRequestException('Compte introuvable pour ce tenant (compteImmobilisationId)');
+    if (!compteAmort) throw new BadRequestException('Compte introuvable pour ce tenant (compteAmortissementId)');
+    if (!compteDotation) throw new BadRequestException('Compte introuvable pour ce tenant (compteDotationId)');
+
+    if (compteImmo.classe !== 'CLASSE_2' || compteImmo.numero.startsWith('28') || compteImmo.numero.startsWith('29')) {
+      throw new BadRequestException(
+        `Le compte d'immobilisation ${compteImmo.numero} doit être un compte de classe 2, hors amortissements/dépréciations (20-27)`,
+      );
     }
+    if (compteAmort.classe !== 'CLASSE_2' || !compteAmort.numero.startsWith('28')) {
+      throw new BadRequestException(`Le compte d'amortissement ${compteAmort.numero} doit être un compte de classe 28`);
+    }
+    if (compteDotation.classe !== 'CLASSE_6' || !compteDotation.numero.startsWith('68')) {
+      throw new BadRequestException(`Le compte de dotation ${compteDotation.numero} doit être un compte de dotations aux amortissements (68)`);
+    }
+  }
+
+  async creerFamille(tenantId: string, dto: CreerFamilleDto) {
+    await this.verifierComptesFamille(tenantId, dto);
     const existant = await this.prisma.familleImmobilisation.findUnique({
       where: { tenantId_code: { tenantId, code: dto.code } },
     });
@@ -127,6 +158,30 @@ export class ImmobilisationService {
       orderBy: { dateAcquisition: 'desc' },
     });
     return immobilisations.map(versImmobilisation);
+  }
+
+  /**
+   * Compensation : `EcritureService.creer` gère sa propre transaction
+   * (numéro de pièce inclus) et commet réellement l'écriture, indépendamment
+   * de ce qui suit — l'envelopper dans la transaction sérialisable de
+   * l'appelant ne protégerait donc PAS contre une course sur la contrainte
+   * d'unicité DotationAmortissement (le retry ne rejoue pas l'écriture déjà
+   * commise). Seule option sans réécrire EcritureService : poster, puis en
+   * cas de conflit avéré sur DotationAmortissement, supprimer l'écriture que
+   * CETTE requête vient de créer (jamais celle du concurrent gagnant).
+   *
+   * Trouvé et corrigé lors de l'approfondissement post-livraison de cette
+   * brique (règle §2.6) : 12 requêtes de dotation simultanées sur la même
+   * immobilisation/exercice produisaient 12 écritures réelles au grand
+   * livre (toutes équilibrées, donc invisibles à un simple contrôle de
+   * balance) pour une seule ligne DotationAmortissement effectivement
+   * conservée — 11 postes fantômes gonflant silencieusement le compte
+   * d'amortissement cumulé, plus une 500 brute renvoyée aux 11 requêtes
+   * perdantes au lieu d'un 409 propre.
+   */
+  private async annulerEcritureOrpheline(ecritureId: string) {
+    await this.prisma.ligneEcriture.deleteMany({ where: { ecritureId } });
+    await this.prisma.ecriture.delete({ where: { id: ecritureId } });
   }
 
   private async trouver(tenantId: string, id: string) {
@@ -291,10 +346,18 @@ export class ImmobilisationService {
       ],
     });
 
-    const dotation = await this.prisma.dotationAmortissement.create({
-      data: { immobilisationId: id, exerciceId: dto.exerciceId, montant, ecritureId: ecriture.id },
-    });
-    return versDotation(dotation);
+    try {
+      const dotation = await this.prisma.dotationAmortissement.create({
+        data: { immobilisationId: id, exerciceId: dto.exerciceId, montant, ecritureId: ecriture.id },
+      });
+      return versDotation(dotation);
+    } catch (err) {
+      if (estConflitUnicite(err)) {
+        await this.annulerEcritureOrpheline(ecriture.id);
+        throw new ConflictException('Une dotation a déjà été passée pour cette immobilisation sur cet exercice');
+      }
+      throw err;
+    }
   }
 
   /**
@@ -315,8 +378,34 @@ export class ImmobilisationService {
     if (!exercice) throw new BadRequestException('Exercice introuvable pour ce tenant');
     const dateSortie = new Date(dto.dateSortie);
 
+    if (dateSortie < immo.dateMiseEnService) {
+      throw new BadRequestException('La date de sortie ne peut pas précéder la date de mise en service');
+    }
+    if (dateSortie < exercice.dateDebut || dateSortie > exercice.dateFin) {
+      throw new BadRequestException("La date de sortie doit se situer dans l'exercice indiqué");
+    }
+
     if (dto.type === TypeSortie.CESSION && (dto.prixCession === undefined || !dto.compteContrepartieId)) {
       throw new BadRequestException('Une cession nécessite un prix et un compte de contrepartie (trésorerie ou tiers)');
+    }
+
+    // Verrou par écriture conditionnelle AVANT tout effet de bord (même
+    // risque de course que passerDotation, trouvé en l'approfondissant —
+    // deux sorties simultanées sur le même bien liraient toutes deux
+    // EN_SERVICE et posteraient chacune leurs écritures). Un UPDATE Postgres
+    // filtré sur le statut prend un verrou de ligne : seule une requête à la
+    // fois peut faire passer `statut` de EN_SERVICE à sa valeur finale ; la
+    // perdante voit `count: 0` et s'arrête avant d'avoir rien posté au grand
+    // livre — pas de compensation nécessaire ici, contrairement à
+    // passerDotation (où la première écriture existe déjà avant que la
+    // contrainte d'unicité ne puisse être testée).
+    const statutFinal = dto.type === TypeSortie.CESSION ? StatutImmobilisation.CEDEE : StatutImmobilisation.MISE_HORS_SERVICE;
+    const verrou = await this.prisma.immobilisation.updateMany({
+      where: { id, tenantId, statut: StatutImmobilisation.EN_SERVICE },
+      data: { statut: statutFinal, dateSortie, prixCession: dto.prixCession },
+    });
+    if (verrou.count === 0) {
+      throw new ConflictException('Cette immobilisation vient déjà d\'être sortie par une autre opération');
     }
 
     // Dotation complémentaire de l'exercice de sortie (skill sycebnl, COMPTE
@@ -345,9 +434,21 @@ export class ImmobilisationService {
             { compteId: immo.compteAmortissementId, debit: 0, credit: montantComplement },
           ],
         });
-        await this.prisma.dotationAmortissement.create({
-          data: { immobilisationId: id, exerciceId: dto.exerciceId, montant: montantComplement, ecritureId: ecritureComplement.id },
-        });
+        // Conflit théorique seulement ici : le verrou ci-dessus garantit déjà
+        // qu'aucune autre sortie ne peut être en cours sur ce bien, mais
+        // passerDotation() reste appelable en parallèle sur le même
+        // exercice — même compensation par cohérence, au cas où.
+        try {
+          await this.prisma.dotationAmortissement.create({
+            data: { immobilisationId: id, exerciceId: dto.exerciceId, montant: montantComplement, ecritureId: ecritureComplement.id },
+          });
+        } catch (err) {
+          if (estConflitUnicite(err)) {
+            await this.annulerEcritureOrpheline(ecritureComplement.id);
+            throw new ConflictException('Une dotation a été passée entre-temps pour cette immobilisation sur cet exercice — réessayez la sortie');
+          }
+          throw err;
+        }
         cumulAmorti += montantComplement;
       }
     }
@@ -405,14 +506,11 @@ export class ImmobilisationService {
       });
     }
 
+    // statut/dateSortie/prixCession déjà posés par le verrou ci-dessus ;
+    // il ne reste que l'écriture de sortie, connue seulement une fois postée.
     const immobilisation = await this.prisma.immobilisation.update({
       where: { id },
-      data: {
-        statut: dto.type === TypeSortie.CESSION ? StatutImmobilisation.CEDEE : StatutImmobilisation.MISE_HORS_SERVICE,
-        dateSortie,
-        prixCession: dto.prixCession,
-        ecritureSortieId: ecritureSortie.id,
-      },
+      data: { ecritureSortieId: ecritureSortie.id },
       include: { dotations: true },
     });
     return versImmobilisation(immobilisation);
