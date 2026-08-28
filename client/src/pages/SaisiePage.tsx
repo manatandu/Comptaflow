@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api, ApiError } from '../lib/api';
+import { api } from '../lib/api';
 import { useExercice } from '../lib/exercice';
 import { useRibbon } from '../components/chrome/ribbon-context';
 import { IconCheck } from '../components/chrome/icons';
@@ -38,7 +38,9 @@ export function SaisiePage() {
     // Journaux de type Trésorerie : chacun porte son compte de trésorerie
     // associé (voir Journal.compteTresorerieId) — c'est ce lien, pas une
     // règle de préfixe de numéro, qui détermine le journal à utiliser en saisie.
-    api.get<Journal[]>('/journaux?actifsSeuls=true').then(setJournaux);
+    // Récupérés tous (pas seulement les actifs) pour pouvoir distinguer, en cas
+    // d'échec, « aucun journal associé » de « journal en sommeil » — voir onSubmit.
+    api.get<Journal[]>('/journaux').then(setJournaux);
   }, []);
 
   useRibbon([{ titre: 'SAISIE', boutons: [{ label: 'Enregistrer', Icon: IconCheck }] }]);
@@ -66,6 +68,11 @@ export function SaisiePage() {
       if (!journalTresorerie) {
         throw new Error(`Aucun journal de trésorerie n'est associé au compte ${compteTresorerie?.numero}`);
       }
+      if (!journalTresorerie.estActif) {
+        throw new Error(
+          `Le journal ${journalTresorerie.code} (${journalTresorerie.intitule}) est en sommeil — réactivez-le dans Codes journaux avant de saisir sur ce compte.`,
+        );
+      }
 
       const estRecette = contrepartie.sens === 'recette';
       await api.post('/ecritures', {
@@ -89,7 +96,11 @@ export function SaisiePage() {
       setSucces(true);
       setTimeout(() => navigate('/'), 900);
     } catch (err) {
-      setErreur(err instanceof ApiError ? err.message : "Erreur lors de l'enregistrement");
+      // err instanceof Error couvre à la fois ApiError (messages venant du
+      // backend) et les erreurs levées localement ci-dessus (journal absent
+      // ou en sommeil) — les deux doivent remonter leur message précis,
+      // jamais un message générique qui masquerait la vraie cause.
+      setErreur(err instanceof Error ? err.message : "Erreur lors de l'enregistrement");
     } finally {
       setEnvoi(false);
     }
