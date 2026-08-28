@@ -1402,7 +1402,18 @@ Ordre de dépendances techniques réelles, pas un simple ordre de préférence :
 
     127 tests au total (123 → 127).
 
-15. Puis, au choix selon opportunité business : **Trésorerie avancée** (lots, LCR/
+15. ➡️ **Complétude SYCEBNL** — sortie de cette liste le 2026-08-28 et transférée dans un
+    document dédié : **`docs/plan-sycebnl-complet.md`**. Cet item mélangeait la complétude du
+    référentiel avec des chantiers d'une autre nature ; après dépouillement intégral des 633 Ko
+    du skill `sycebnl` (Acte uniforme, cadre conceptuel, plan et fonctionnement des comptes,
+    opérations spécifiques, états financiers, guide d'application), le périmètre réel s'est
+    révélé bien plus large que ce que cette ligne laissait croire : 7 états de synthèse sur 11
+    restent à construire, 75 tableaux de notes sur 76, 21 familles d'opérations spécifiques aux
+    EBNL, 5 registres et documents obligatoires (dont trois sous sanction pénale), et deux
+    moteurs de contrôle que le référentiel fournit lui-même (76 blocs « Éléments de contrôle »,
+    70 blocs « Exclusions »). Le plan dédié fait désormais foi pour tout ce qui est SYCEBNL.
+
+16. Puis, au choix selon opportunité business : **Trésorerie avancée** (lots, LCR/
     virements), **Stocks**, **SYSCOHADA (Phase 3)**, **OHADA→IFRS**, **Paie**, RBAC fin.
 
 Cette liste n'engage rien : chaque brique reste soumise à validation explicite avant
