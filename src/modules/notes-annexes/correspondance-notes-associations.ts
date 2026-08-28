@@ -154,18 +154,28 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     colonnes: COLONNES_STANDARD,
     renvoyeeDepuis: ['BW'],
     rubriques: [
-      { libelle: 'Banques locales', comptes: ['521'] },
-      { libelle: 'Banques autres états région', comptes: ['522'] },
-      { libelle: 'Banques, dépôt à terme', comptes: ['525'] },
+      // `sens: 'DEBITEUR'` sur les comptes 52 et 53 : un compte bancaire
+      // créditeur est un DÉCOUVERT, qui relève de la note 22 « Banques,
+      // crédit d'escompte et de trésorerie » et du poste DW du passif — pas
+      // des disponibilités. C'est exactement la règle que le bilan applique
+      // au poste BW par `comptesTransferesSiCrediteur` ; sans elle la note 13
+      // et le poste BW qu'elle documente donneraient deux montants différents.
+      // Défaut relevé par le test qui recoupe les notes 13 et 22.
+      { libelle: 'Banques locales', comptes: ['521'], sens: 'DEBITEUR' },
+      { libelle: 'Banques autres états région', comptes: ['522'], sens: 'DEBITEUR' },
+      { libelle: 'Banques, dépôt à terme', comptes: ['525'], sens: 'DEBITEUR' },
       // 523 (autres États zone monétaire) et 524 (hors zone monétaire) : le
       // texte de la note ne leur donne pas de ligne propre et les regroupe
       // sous « Autres Banques ».
-      { libelle: 'Autres Banques', comptes: ['523', '524'] },
-      { libelle: 'Banques intérêts courus', comptes: ['526'] },
-      { libelle: 'Banques Postales', comptes: ['531'] },
-      { libelle: 'Autres établissement financiers', comptes: ['532', '533', '538'] },
-      { libelle: 'Etablissement financiers intérêts courus', comptes: ['536'] },
-      { libelle: 'Instruments de monnaie électronique', comptes: ['55'] },
+      { libelle: 'Autres Banques', comptes: ['523', '524'], sens: 'DEBITEUR' },
+      { libelle: 'Banques intérêts courus', comptes: ['526'], sens: 'DEBITEUR' },
+      { libelle: 'Banques Postales', comptes: ['531'], sens: 'DEBITEUR' },
+      { libelle: 'Autres établissement financiers', comptes: ['532', '533', '538'], sens: 'DEBITEUR' },
+      { libelle: 'Etablissement financiers intérêts courus', comptes: ['536'], sens: 'DEBITEUR' },
+      { libelle: 'Instruments de monnaie électronique', comptes: ['55'], sens: 'DEBITEUR' },
+      // La caisse n'est PAS filtrée : une caisse créditrice est impossible en
+      // fait, donc une anomalie du dossier. La masquer la rendrait invisible ;
+      // elle ressort ici en négatif, où elle se voit.
       { libelle: 'Caisse', comptes: ['57'] },
       { libelle: 'TOTAL BRUT', totalDeRubriques: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] },
       { libelle: 'Dépréciations', comptes: ['592', '593', '595'], presenterEnNegatif: true },
@@ -436,5 +446,425 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     ],
     commentaire:
       'indiquer les événements et circonstances qui ont conduit à la dépréciation et à la reprise.',
+  },
+
+  // ======================================================================
+  // FONDS PROPRES ET RESSOURCES DURABLES
+  // ======================================================================
+  {
+    code: '16',
+    titre: 'RESERVES',
+    colonnes: COLONNES_STANDARD,
+    renvoyeeDepuis: ['CD', 'CE'],
+    rubriques: [
+      { libelle: 'Réserves statutaires ou contractuelles', comptes: ['112'], natureCreditrice: true },
+      { libelle: 'Autres réserves', comptes: ['118'], natureCreditrice: true },
+      { libelle: 'TOTAL RESERVES', totalDeRubriques: [0, 1] },
+      // Compte 12 : 121 excédents (créditeur), 129 déficits (débiteur), 128
+      // résultat en instance. Le report à nouveau se lit au crédit et ressort
+      // négatif quand les déficits l'emportent — ce qui est l'information.
+      { libelle: 'Report à nouveau', comptes: ['12'], natureCreditrice: true },
+    ],
+    commentaire:
+      'indiquer la date des délibérations ou des dispositions statutaires qui justifie la variation ' +
+      'des réserves et du report à nouveau.',
+  },
+  {
+    code: '17B',
+    titre: 'FONDS AFFECTES ET REPORTES',
+    // La colonne « Note » du modèle officiel est un renvoi croisé (art. 15),
+    // pas un montant : elle est déclarée en saisie.
+    colonnes: [{ type: 'LIBRE' as const, libelle: 'Note' }, ...COLONNES_STANDARD],
+    renvoyeeDepuis: ['CJ', 'CK'],
+    rubriques: [
+      // 162 bailleurs, 163 l'État, 164 autres organismes assimilés : les trois
+      // comptes d'investissement du plan (161 est une avance à justifier, 169
+      // un fonds à recevoir — ni l'un ni l'autre n'est un fonds affecté aux
+      // investissements).
+      { libelle: 'Fonds affectés aux investissements', comptes: ['162', '163', '164'], natureCreditrice: true },
+      {
+        libelle: "Fonds non consommés en fin d'exercice destinés à un projet spécifique",
+        comptes: ['165'],
+        natureCreditrice: true,
+      },
+      { libelle: "Fonds provenant des dons et legs d'immobilisations", comptes: ['167'], natureCreditrice: true },
+      { libelle: 'Autres fonds affectés', comptes: ['161', '168', '169'], natureCreditrice: true },
+      { libelle: 'TOTAL FONDS AFFECTES', totalDeRubriques: [0, 1, 2, 3] },
+      {
+        libelle: "Donations et legs non encore reçus d'immobilisations destinés à la vente",
+        comptes: ['172'],
+        natureCreditrice: true,
+      },
+      { libelle: "Donation temporaire d'usufruit", comptes: ['171'], natureCreditrice: true },
+      { libelle: 'Autres fonds reportés', comptes: ['178'], natureCreditrice: true },
+      { libelle: 'TOTAL FONDS REPORTES', totalDeRubriques: [5, 6, 7] },
+      { libelle: 'TOTAL FONDS AFFECTES ET REPORTES', totalDeRubriques: [4, 8] },
+    ],
+    commentaire:
+      "indiquer la date d'affectation des fonds aux investissements et leur mode de reprise ; indiquer la date " +
+      "de la donation et du legs des immobilisations ainsi que la nature et leur montant ; indiquer la date de " +
+      "l'acte juridique de la donation et du legs non encore reçus des immobilisations destinées à la vente ; " +
+      "indiquer la date de l'acte juridique de la donation temporaire et la nature de l'usufruit, la durée de " +
+      'jouissance ; justifier le caractère significatif du montant total de cette rubrique ; commenter toute ' +
+      'variation significative.',
+  },
+
+  // ======================================================================
+  // ACTIF CIRCULANT ET TRESORERIE
+  // ======================================================================
+  {
+    code: '8',
+    titre: 'STOCKS ET ENCOURS',
+    // [texte officiel] Le modèle aligne « Variation de stock en valeur
+    // absolue » PUIS « Variation en valeur » et « Variation en % ». Deux
+    // lectures possibles de la première : la valeur absolue de l'écart N/N-1,
+    // ou le mouvement des comptes de variation de stocks (603 et 73). La
+    // lecture littérale du libellé est retenue ; l'autre est signalée ici et
+    // devra être tranchée sur le Journal officiel.
+    colonnes: [
+      { type: 'EXERCICE_N' as const, libelle: 'Année N' },
+      { type: 'EXERCICE_N1' as const, libelle: 'Année N-1' },
+      { type: 'VARIATION_VALEUR_ABSOLUE' as const, libelle: 'Variation de stock en valeur absolue' },
+      { type: 'VARIATION_VALEUR' as const, libelle: 'Variation en valeur' },
+      { type: 'VARIATION_POURCENT' as const, libelle: 'Variation en %' },
+    ],
+    renvoyeeDepuis: ['BB'],
+    rubriques: [
+      { libelle: "Biens et services liés à l'activité", comptes: ['31', '371'] },
+      { libelle: 'Marchandises, Matières premières', comptes: ['32', '372'] },
+      { libelle: 'Autres approvisionnements', comptes: ['33', '373'] },
+      { libelle: 'Dons en nature', comptes: ['34'] },
+      { libelle: 'Produits finis', comptes: ['35', '36', '376'] },
+      { libelle: 'Dons en nature HAO', comptes: ['38'] },
+      { libelle: 'Autres stocks HAO', comptes: ['377', '378'] },
+      { libelle: 'TOTAL STOCKS ET ENCOURS', totalDeRubriques: [0, 1, 2, 3, 4, 5, 6] },
+      { libelle: 'Dépréciations des stocks', comptes: ['39'], presenterEnNegatif: true },
+      { libelle: 'TOTAL NET DE DEPRECIATIONS', totalDeRubriques: [7, 8] },
+    ],
+    renvoiOfficiel:
+      "(1) Les stocks H.A.O. ne doivent être inscrits dans l'actif circulant H.A.O. que lorsque leur montant " +
+      "total est significatif (supérieur à 5 % du total de l'actif circulant).",
+    commentaire:
+      "indiquer la date de prise d'inventaire et décrire la procédure et les méthodes comptables d'évaluation ; " +
+      'commenter toute variation significative des stocks ; indiquer le détail des stocks dépréciés ainsi que ' +
+      'les événements et circonstances.',
+  },
+  {
+    code: '22',
+    titre: "BANQUES, CREDIT D'ESCOMPTE ET DE TRESORERIE",
+    colonnes: COLONNES_STANDARD,
+    renvoyeeDepuis: ['DW'],
+    rubriques: [
+      // Les quatre premières rubriques ne retiennent que les soldes
+      // CRÉDITEURS : un compte bancaire débiteur est une disponibilité et
+      // figure à la note 13, jamais ici. Le NB officiel le dit pour les
+      // intérêts courus (« si le compte principal attaché est créditeur ») ;
+      // le bilan applique la même règle par `comptesTransferesSiCrediteur`.
+      { libelle: 'Banques locales', comptes: ['521'], sens: 'CREDITEUR' },
+      { libelle: 'Banques autres états région', comptes: ['522'], sens: 'CREDITEUR' },
+      { libelle: 'Autres Banques', comptes: ['523', '524', '525'], sens: 'CREDITEUR' },
+      { libelle: 'Banques, intérêts courus', comptes: ['526'], sens: 'CREDITEUR' },
+      { libelle: 'Crédit de trésorerie', comptes: ['56'], natureCreditrice: true },
+      { libelle: 'TOTAL : BANQUES, CREDITS DE TRESORERIE', totalDeRubriques: [0, 1, 2, 3, 4] },
+      { libelle: 'TOTAL GENERAL', totalDeRubriques: [5] },
+    ],
+    commentaire:
+      "commenter toute variation significative ; indiquer le nom de l'organisme, les conditions de crédit, " +
+      "le taux d'intérêt, la durée du crédit.",
+    renvoiOfficiel:
+      'NB : « Banques et intérêts courus » figure dans cette rubrique si le compte principal attaché est créditeur.',
+  },
+
+  // ======================================================================
+  // PRODUITS ET CHARGES DES ACTIVITES ORDINAIRES
+  //
+  // Comptes des classes 6 et 7. Les produits portent `natureCreditrice` :
+  // leur solde est créditeur et s'affiche en positif, sans filtrage sur le
+  // signe — un compte de produits momentanément débiteur reste présenté.
+  // ======================================================================
+  {
+    code: '23',
+    titre: 'REVENUS ET AUTRES PRODUITS',
+    colonnes: COLONNES_STANDARD,
+    renvoyeeDepuis: ['TA', 'TB', 'TC', 'TD', 'TE', 'TF'],
+    rubriques: [
+      { libelle: 'Cotisations des adhérents', comptes: ['701'], natureCreditrice: true },
+      { libelle: 'Quote-part de dotation consomptible transférée', comptes: ['703'], natureCreditrice: true },
+      { libelle: 'Revenus liés à la générosité', comptes: ['704'], natureCreditrice: true },
+      { libelle: 'Ventes de marchandises, services et produits finis', comptes: ['705'], natureCreditrice: true },
+      { libelle: 'Revenus des manifestations', comptes: ['706'], natureCreditrice: true },
+      // 702 « quote-part de fonds d'administration transférés » est un compte
+      // du jeu PROJETS DE DEVELOPPEMENT ; le modèle associations ne lui donne
+      // pas de rubrique. Il est rangé ici avec les autres revenus plutôt que
+      // laissé hors note, où son montant disparaîtrait sans trace.
+      { libelle: 'Autres revenus', comptes: ['702', '707', '708'], natureCreditrice: true },
+      { libelle: 'TOTAL : REVENUS', totalDeRubriques: [0, 1, 2, 3, 4, 5] },
+      { libelle: "Subventions d'exploitation", comptes: ['71'], natureCreditrice: true },
+      {
+        libelle: "Autres produits et transferts de charges d'exploitation",
+        comptes: ['72', '73', '75', '781', '791'],
+        natureCreditrice: true,
+      },
+      { libelle: "TOTAL : SUBVENTIONS D'EXPLOITATION ET AUTRES PRODUITS", totalDeRubriques: [7, 8] },
+      { libelle: 'TOTAL', totalDeRubriques: [6, 9] },
+    ],
+    commentaire: 'justifier toute variation significative ; détailler les revenus liés à la générosité.',
+  },
+  {
+    code: '25',
+    titre: 'TRANSPORTS',
+    colonnes: COLONNES_STANDARD,
+    renvoyeeDepuis: ['TH'],
+    rubriques: [
+      { libelle: 'Transports sur ventes', comptes: ['612'] },
+      { libelle: 'Transports pour le compte de tiers', comptes: ['613'] },
+      { libelle: 'Transport du personnel', comptes: ['614'] },
+      { libelle: 'Transports de plis', comptes: ['616'] },
+      // Le plan ne donne, pour tout le reste, que le compte 618 « Autres frais
+      // de transport ». Les deux rubriques ci-dessous s'y trouvent donc
+      // confondues : les rattacher toutes deux à 618 compterait deux fois le
+      // même montant, en rattacher une seule serait arbitraire.
+      enAttente(
+        'voyages-deplacements',
+        'Voyages et déplacements',
+        "Le plan SYCEBNL s'arrête au compte 618 « Autres frais de transport », qui couvre à la fois les " +
+          'voyages et déplacements et les transports administratifs : subdiviser 618 et rattacher ici ' +
+          'le sous-compte des voyages et déplacements.',
+      ),
+      enAttente(
+        'transports-administratifs',
+        'Transports administratifs',
+        "Même situation que « Voyages et déplacements » : subdiviser le compte 618 et rattacher ici le " +
+          'sous-compte des transports administratifs.',
+      ),
+      { libelle: 'Rabais, remises et ristournes obtenus', comptes: ['619'], presenterEnNegatif: true },
+      { libelle: 'TOTAL', totalDeRubriques: [0, 1, 2, 3, 4, 5, 6] },
+    ],
+    commentaire: 'commenter toute variation significative.',
+  },
+  {
+    code: '26',
+    titre: 'SERVICES EXTERIEURS',
+    colonnes: COLONNES_STANDARD,
+    renvoyeeDepuis: ['TI'],
+    rubriques: [
+      { libelle: 'Sous-traitance générale', comptes: ['621'] },
+      { libelle: 'Locations et charges locatives', comptes: ['622'] },
+      { libelle: 'Redevances de location-acquisition', comptes: ['623'] },
+      { libelle: 'Entretien, réparations et maintenance', comptes: ['624'] },
+      { libelle: "Primes d'assurance", comptes: ['625'] },
+      { libelle: 'Etudes, recherches et documentation', comptes: ['626'] },
+      { libelle: 'Publicité, publications, relations publiques', comptes: ['627'] },
+      { libelle: 'Frais de télécommunications', comptes: ['628'] },
+      { libelle: 'Frais bancaires', comptes: ['631'] },
+      { libelle: "Rémunérations d'intermédiaires et de conseils", comptes: ['632'] },
+      { libelle: 'Frais de formation du personnel', comptes: ['633'] },
+      {
+        libelle: 'Redevances pour brevets, licences, logiciels, concessions et droits similaires',
+        comptes: ['634'],
+      },
+      { libelle: 'Cotisations', comptes: ['635'] },
+      { libelle: 'Frais de recherche de fonds', comptes: ['636'] },
+      { libelle: "Rémunérations de personnel extérieur à l'entité", comptes: ['637'] },
+      { libelle: 'Autres charges externes', comptes: ['638'] },
+      { libelle: 'TOTAL', totalDeRubriques: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15] },
+    ],
+    commentaire: 'commenter toute variation significative.',
+  },
+  {
+    code: '27',
+    titre: 'IMPOTS ET TAXES',
+    colonnes: COLONNES_STANDARD,
+    renvoyeeDepuis: ['TJ'],
+    rubriques: [
+      { libelle: 'Impôts et taxes directs', comptes: ['641'] },
+      { libelle: 'Impôts et taxes indirects', comptes: ['645'] },
+      { libelle: "Droits d'enregistrement", comptes: ['646'] },
+      { libelle: 'Pénalités et amendes fiscales', comptes: ['647'] },
+      { libelle: 'Autres impôts et taxes', comptes: ['648'] },
+      // Renvoi (1) du modèle : « Ce compte a un solde créditeur, son montant
+      // doit être précédé d'un signe (-) ».
+      {
+        libelle: 'Dégrèvements et annulations des impôts et taxes',
+        comptes: ['649'],
+        presenterEnNegatif: true,
+        renvoi: "(1) Ce compte a un solde créditeur, son montant doit être précédé d'un signe (-).",
+      },
+      { libelle: 'TOTAL', totalDeRubriques: [0, 1, 2, 3, 4, 5] },
+    ],
+    commentaire:
+      'commenter toute variation significative ; détailler les pénalités, les amendes et indiquer la cause.',
+  },
+  {
+    code: '28',
+    titre: 'AUTRES CHARGES',
+    colonnes: COLONNES_STANDARD,
+    renvoyeeDepuis: ['TK'],
+    rubriques: [
+      // 651 est subdivisé au plan : 6511 clients-usagers, 6512 adhérents,
+      // 6515 autres débiteurs. Les deux rubriques du modèle s'y rattachent
+      // donc sans jugement.
+      { libelle: 'Pertes sur créances adhérents', comptes: ['6512'] },
+      { libelle: 'Pertes sur Clients et autres débiteurs', comptes: ['6511', '6515'] },
+      { libelle: "Subventions versées par l'entité", comptes: ['652'] },
+      { libelle: 'Dons en nature courants à distribuer', comptes: ['654'] },
+      { libelle: 'Pénalités et amendes pénales', comptes: ['657'] },
+      { libelle: 'Autres charges diverses', comptes: ['658'] },
+      {
+        libelle: "Charges pour dépréciations et provisions pour risques à court terme d'exploitation",
+        comptes: ['659'],
+        renvoi: 'voir note 30',
+      },
+      { libelle: 'TOTAL', totalDeRubriques: [0, 1, 2, 3, 4, 5, 6] },
+    ],
+    commentaire:
+      'commenter toute variation significative ; indiquer la nature et montant des provisions pour risques ' +
+      'à court terme ; indiquer les bénéficiaires des subventions.',
+  },
+  {
+    code: '29A',
+    titre: 'CHARGES DE PERSONNEL',
+    colonnes: COLONNES_STANDARD,
+    renvoyeeDepuis: ['TL'],
+    rubriques: [
+      { libelle: 'Rémunérations directes versées au personnel national', comptes: ['661'] },
+      { libelle: 'Rémunérations directes versées au personnel non national', comptes: ['662'] },
+      { libelle: 'Indemnités forfaitaires versées au personnel', comptes: ['663'] },
+      // 664 est subdivisé au plan : 6641 national, 6642 non national.
+      { libelle: 'Charges sociales (personnel national)', comptes: ['6641'] },
+      { libelle: 'Charges sociales (personnel non national)', comptes: ['6642'] },
+      { libelle: 'Habillement et équipement du personnel', comptes: ['665'] },
+      { libelle: 'Rémunération transférée de personnel extérieur', comptes: ['667'] },
+      { libelle: 'Autres charges sociales', comptes: ['668'] },
+      {
+        libelle: 'Dégrèvements et annulations des charges sociales',
+        comptes: ['669'],
+        presenterEnNegatif: true,
+        renvoi: "(1) Ce compte a un solde créditeur, son montant doit être précédé d'un signe (-).",
+      },
+      { libelle: 'TOTAL', totalDeRubriques: [0, 1, 2, 3, 4, 5, 6, 7, 8] },
+    ],
+    commentaire:
+      'commenter toute variation significative ; indiquer la nature et la durée du contrat du personnel extérieur.',
+  },
+  {
+    code: '31',
+    titre: 'CHARGES ET REVENUS FINANCIERS',
+    colonnes: COLONNES_STANDARD,
+    renvoyeeDepuis: ['TQ', 'UF'],
+    rubriques: [
+      { libelle: 'Intérêts des emprunts', comptes: ['671'] },
+      { libelle: 'Intérêts dans loyers de location-acquisition', comptes: ['672'] },
+      { libelle: 'Escomptes accordés', comptes: ['673'] },
+      { libelle: 'Autres intérêts', comptes: ['674'] },
+      { libelle: 'Pertes de change financières', comptes: ['676'] },
+      { libelle: 'Pertes sur titres de placement', comptes: ['677'] },
+      { libelle: 'Pertes et charges sur risques financiers', comptes: ['678'] },
+      {
+        libelle: 'Charges pour dépréciations et provisions à court terme à caractère financier',
+        comptes: ['679'],
+        renvoi: 'voir note 30',
+      },
+      { libelle: 'TOTAL : FRAIS FINANCIERS', totalDeRubriques: [0, 1, 2, 3, 4, 5, 6, 7] },
+      { libelle: 'Intérêts de prêts et créances diverses', comptes: ['771'], natureCreditrice: true },
+      {
+        libelle: 'Revenus de participations et autres titres immobilisés',
+        comptes: ['772'],
+        natureCreditrice: true,
+      },
+      { libelle: 'Escomptes obtenus', comptes: ['773'], natureCreditrice: true },
+      { libelle: 'Revenus de placement', comptes: ['774'], natureCreditrice: true },
+      // [texte officiel] Le modèle intitule cette rubrique « Intérêts dans
+      // loyers de location-FINANCEMENT », alors que le plan de comptes et
+      // toutes les autres rubriques du référentiel disent « location-
+      // ACQUISITION ». Le libellé est reproduit tel quel. Le plan ne donne
+      // aucun compte de produits pour ces intérêts (772 à 774 sont pris) :
+      // la rubrique reste en attente de rattachement.
+      enAttente(
+        'interets-loyers-location-financement',
+        'Intérêts dans loyers de location-financement',
+        "Le plan SYCEBNL ne prévoit pas de compte de produits distinct pour les intérêts contenus dans les " +
+          'loyers de location-acquisition perçus : subdiviser le compte 774 « Revenus de placement » ou 778 ' +
+          'et rattacher ici le sous-compte correspondant.',
+      ),
+      { libelle: 'Gains de change financiers', comptes: ['776'], natureCreditrice: true },
+      { libelle: 'Gains sur cessions de titres de placement', comptes: ['777'], natureCreditrice: true },
+      { libelle: 'Gains sur risques financiers', comptes: ['778'], natureCreditrice: true },
+      { libelle: 'Transferts de charges financières', comptes: ['787'], natureCreditrice: true },
+      {
+        libelle: 'Reprises de charges pour dépréciations et provisions à court terme à caractère financier',
+        comptes: ['779', '797'],
+        natureCreditrice: true,
+        renvoi: 'voir note 30',
+      },
+      { libelle: 'TOTAL : REVENUS FINANCIERS', totalDeRubriques: [9, 10, 11, 12, 13, 14, 15, 16, 17, 18] },
+      // [texte officiel] Le modèle écrit « TOTAL » sans formule. La lecture
+      // retenue est celle du compte de résultat, où le résultat financier est
+      // la différence des deux sous-totaux — un total qui les additionnerait
+      // mêlerait charges et produits sans signification.
+      { libelle: 'TOTAL', totalDeRubriques: [19], moinsRubriques: [8] },
+    ],
+    commentaire:
+      'commenter toute variation significative ; indiquer la nature des provisions pour risques à court terme.',
+  },
+  {
+    code: '32',
+    titre: 'AUTRES CHARGES ET PRODUITS HAO',
+    colonnes: COLONNES_STANDARD,
+    renvoyeeDepuis: ['TS', 'UH'],
+    rubriques: [
+      // [texte officiel] Le plan numérote les subdivisions du compte 832
+      // « Dons en nature H.A.O. à distribuer » 8311 et 8315 — c'est-à-dire
+      // dans la plage du compte 831. Anomalie déjà signalée dans le référentiel.
+      // Conséquence ici : rattacher « Charges H.A.O. constatées » au seul
+      // préfixe 831 y ferait tomber les dons en nature. Les intitulés
+      // l'emportent sur la numérotation (postulat de prééminence de la réalité
+      // sur l'apparence, Partie 1 ch. 2) : 8311 et 8315 sont exclus de 831 et
+      // rattachés aux dons en nature. Signalé, non corrigé au référentiel.
+      { libelle: 'Charges H.A.O. constatées (compte 831)', comptes: ['831'], exclusions: ['8311', '8315'] },
+      {
+        libelle: 'Dons en nature (compte 832) à détailler : non affectés / affectés',
+        comptes: ['832', '8311', '8315'],
+        renvoi: '(1) à détailler : non affectés / affectés',
+      },
+      { libelle: 'Pertes sur créances HAO', comptes: ['834'] },
+      { libelle: 'Abandons de créances consentis', comptes: ['836'] },
+      { libelle: 'Charges pour dépréciations et provisions pour risques à court terme HAO', comptes: ['839'] },
+      { libelle: 'Dotations hors activités ordinaires', comptes: ['85'] },
+      { libelle: 'TOTAL : AUTRES CHARGES HAO', totalDeRubriques: [0, 1, 2, 3, 4, 5] },
+      // Même anomalie de numérotation au compte 842, traitée de même.
+      {
+        libelle: 'Produits H.A.O. constatés (compte 841)',
+        comptes: ['841'],
+        exclusions: ['8411', '8412', '8415'],
+        natureCreditrice: true,
+      },
+      {
+        libelle:
+          'Contributions volontaires en nature (compte 842) à détailler : Dons en nature non affectés / ' +
+          'Prestations de services en nature / Dons en nature affectés',
+        comptes: ['842', '8411', '8412', '8415'],
+        natureCreditrice: true,
+        renvoi:
+          '(1) à détailler : Dons en nature non affectés / Prestations de services en nature / Dons en nature affectés',
+      },
+      { libelle: 'Contributions volontaires en numéraire', comptes: ['843'], natureCreditrice: true },
+      { libelle: 'Transferts de charges HAO', comptes: ['848'], natureCreditrice: true },
+      {
+        libelle: 'Reprises des charges pour dépréciations et provisions à court terme HAO',
+        comptes: ['849'],
+        natureCreditrice: true,
+      },
+      {
+        libelle: "Reprises d'amortissements, provisions et dépréciations H.A.O.",
+        comptes: ['86'],
+        natureCreditrice: true,
+      },
+      { libelle: "Subventions d'équilibre", comptes: ['88'], natureCreditrice: true },
+      { libelle: 'TOTAL : AUTRES PRODUITS HAO', totalDeRubriques: [7, 8, 9, 10, 11, 12, 13] },
+      // Même lecture qu'à la note 31 : le « TOTAL » final est le solde H.A.O.
+      { libelle: 'TOTAL', totalDeRubriques: [14], moinsRubriques: [6] },
+    ],
+    commentaire: 'commenter toute variation significative.',
   },
 ];

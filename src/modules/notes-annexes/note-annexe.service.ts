@@ -164,6 +164,7 @@ export class NoteAnnexeService {
     let matches = lignes.filter((l) => correspond(l.numero, prefixes, rubrique.exclusions));
     if (rubrique.sens === 'DEBITEUR') matches = matches.filter((l) => l.solde > 0);
     if (rubrique.sens === 'CREDITEUR') matches = matches.filter((l) => l.solde < 0);
+    const litAuCredit = rubrique.sens === 'CREDITEUR' || rubrique.natureCreditrice === true;
 
     const source = rubrique.source ?? 'SOLDE';
     const comptes: CompteDeRubrique[] = matches.map((l) => {
@@ -172,7 +173,7 @@ export class NoteAnnexeService {
       else if (source === 'MOUVEMENT_CREDIT') montant = l.totalCredit;
       // `SOLDE` : le signe est ramené au sens de lecture de la rubrique. Une
       // rubrique créditrice (dettes, dépréciations) s'affiche en positif.
-      else montant = rubrique.sens === 'CREDITEUR' || rubrique.presenterEnNegatif ? -l.solde : l.solde;
+      else montant = litAuCredit || rubrique.presenterEnNegatif ? -l.solde : l.solde;
       return { numero: l.numero, intitule: l.intitule, montant };
     });
 
@@ -192,7 +193,7 @@ export class NoteAnnexeService {
       echeances: matches.reduce((acc, l) => {
         const e = echeancesParCompte.get(l.numero);
         if (!e) return acc;
-        const signe = rubrique.sens === 'CREDITEUR' || rubrique.presenterEnNegatif ? -1 : 1;
+        const signe = litAuCredit || rubrique.presenterEnNegatif ? -1 : 1;
         return {
           unAn: acc.unAn + signe * e.unAn,
           deuxAns: acc.deuxAns + signe * e.deuxAns,
@@ -250,9 +251,11 @@ export class NoteAnnexeService {
         // mouvement se totalisent de la même façon, sinon la ligne TOTAL
         // GENERAL des notes 5A-5F resterait vide en colonnes A/B/C/D.
         const cumul = (f: 'montant' | 'report' | 'mouvementDebit' | 'mouvementCredit') =>
-          rubrique.totalDeRubriques!.reduce((s, i) => s + (resolues[i]?.[f] ?? 0), 0);
+          rubrique.totalDeRubriques!.reduce((s, i) => s + (resolues[i]?.[f] ?? 0), 0) -
+          (rubrique.moinsRubriques ?? []).reduce((s, i) => s + (resolues[i]?.[f] ?? 0), 0);
         const cumulEcheance = (f: keyof Echeances) =>
-          rubrique.totalDeRubriques!.reduce((s, i) => s + (resolues[i]?.echeances[f] ?? 0), 0);
+          rubrique.totalDeRubriques!.reduce((s, i) => s + (resolues[i]?.echeances[f] ?? 0), 0) -
+          (rubrique.moinsRubriques ?? []).reduce((s, i) => s + (resolues[i]?.echeances[f] ?? 0), 0);
         resolues.push({
           montant: cumul('montant'),
           comptes: [],
@@ -289,6 +292,7 @@ export class NoteAnnexeService {
     const aColonnesDeMouvement = spec.colonnes.some((c) =>
       (['OUVERTURE', 'AUGMENTATIONS', 'DIMINUTIONS', 'CLOTURE'] as TypeColonneNote[]).includes(c.type),
     );
+    const aColonneVariationAbsolue = spec.colonnes.some((c) => c.type === 'VARIATION_VALEUR_ABSOLUE');
     const aColonnesDEcheance = spec.colonnes.some((c) =>
       (['ECHEANCE_1AN', 'ECHEANCE_2ANS', 'ECHEANCE_PLUS_2ANS'] as TypeColonneNote[]).includes(c.type),
     );
@@ -308,6 +312,10 @@ export class NoteAnnexeService {
       // Les colonnes A/B/C/D ne sont calculées que si la note les déclare :
       // les 38 notes qui n'en ont pas ne portent pas de champ vide.
       const mouvements = aColonnesDeMouvement ? this.colonnesDeMouvement(spec, resN[i]) : undefined;
+      const variationAbsolue =
+        aColonneVariationAbsolue && variationValeur !== undefined
+          ? { VARIATION_VALEUR_ABSOLUE: Math.abs(variationValeur) }
+          : undefined;
       const e = resN[i].echeances;
       const echeances = aColonnesDEcheance
         ? {
@@ -326,7 +334,10 @@ export class NoteAnnexeService {
         estTotal: rubrique.totalDeRubriques !== undefined,
         enAttenteDeRattachement: rattachee ? undefined : rubrique.subdivisionAttendue,
         rattachementDuDossier: rattachee || undefined,
-        valeurs: mouvements || echeances ? { ...mouvements?.valeurs, ...echeances } : undefined,
+        valeurs:
+          mouvements || echeances || variationAbsolue
+            ? { ...mouvements?.valeurs, ...echeances, ...variationAbsolue }
+            : undefined,
         ecartCloture: mouvements?.ecartCloture,
         // Ce que le dossier n'a pas renseigné : présenté à part, jamais fondu
         // dans « à un an au plus ».
@@ -356,6 +367,7 @@ export class NoteAnnexeService {
       colonnes: spec.colonnes,
       lignes,
       commentaire: spec.commentaire,
+      renvoiOfficiel: spec.renvoiOfficiel,
       renvoyeeDepuis: spec.renvoyeeDepuis,
       horsBalance: spec.horsBalance ?? false,
       exerciceN1Disponible,

@@ -47,6 +47,7 @@ export type TypeColonneNote =
   | 'EXERCICE_N1'
   | 'VARIATION_VALEUR' // N − N-1
   | 'VARIATION_POURCENT' // (N − N-1) / |N-1|
+  | 'VARIATION_VALEUR_ABSOLUE' // |N − N-1| — note 8 « Variation de stock en valeur absolue »
   // --- Tableaux de situations et mouvements (notes 5A à 5F et 30) ---
   // Le texte officiel les nomme A, B, C, D et pose lui-même « D = A + B - C ».
   | 'OUVERTURE' // A — situation à l'ouverture (le report à-nouveau)
@@ -101,7 +102,22 @@ export interface RubriqueNote {
    */
   comptes?: string[];
   exclusions?: string[];
+  /**
+   * Tiers POLYVALENT : ne retient que les comptes dont le solde va dans ce
+   * sens, et présente le montant en positif dans ce sens. Réservé aux
+   * rubriques qui coexistent avec leur symétrique dans la même note (créances
+   * sur les adhérents / avances reçues d'eux, note 9).
+   */
   sens?: SensRubrique;
+  /**
+   * Compte de nature créditrice — produits, reprises, subventions. Présente le
+   * solde en positif, SANS filtrer sur le signe : un compte de produits
+   * momentanément débiteur reste présenté, en négatif, plutôt que de
+   * disparaître de la note.
+   *
+   * À ne pas confondre avec `sens: 'CREDITEUR'`, qui filtre.
+   */
+  natureCreditrice?: boolean;
   source?: SourceMontantNote;
   /**
    * Présentation en négatif : les dépréciations et les comptes créditeurs
@@ -111,6 +127,13 @@ export interface RubriqueNote {
   presenterEnNegatif?: boolean;
   /** Ligne de total : somme des rubriques dont l'index est listé ici. */
   totalDeRubriques?: number[];
+  /**
+   * Rubriques RETRANCHÉES du total. Les notes 31 et 32 alignent un sous-total
+   * de charges puis un sous-total de produits et concluent par un « TOTAL »
+   * qui est le solde des deux — le résultat financier, le résultat H.A.O.
+   * Utilisable seulement avec `totalDeRubriques`.
+   */
+  moinsRubriques?: number[];
   /**
    * Rubrique dont le rattachement suppose que le dossier ait créé ses propres
    * sous-comptes (le plan normalisé n'a pas cette granularité). Le texte de ce
@@ -139,6 +162,12 @@ export interface SpecificationNote {
   sensAccroissement?: SensAccroissement;
   /** Le commentaire officiel de bas de note, reproduit mot pour mot. */
   commentaire?: string;
+  /**
+   * Renvoi ou NB de bas de TABLEAU du texte officiel, distinct du commentaire :
+   * le commentaire dit ce que l'entité doit expliquer, le renvoi qualifie une
+   * rubrique ou une règle de présentation. Reproduit mot pour mot.
+   */
+  renvoiOfficiel?: string;
   /**
    * Article 15 : « les Notes annexes sont organisées par une référence croisée
    * avec l'information liée ». Codes REF des postes d'état qui renvoient ici.
@@ -226,6 +255,7 @@ export interface NoteCalculee {
   colonnes: ColonneNote[];
   lignes: LigneNoteCalculee[];
   commentaire?: string;
+  renvoiOfficiel?: string;
   renvoyeeDepuis?: string[];
   horsBalance: boolean;
   exerciceN1Disponible: boolean;

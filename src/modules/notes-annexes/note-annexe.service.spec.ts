@@ -80,10 +80,50 @@ describe('correspondance des notes (intégrité des spécifications)', () => {
   it('un total ne référence jamais une rubrique qui vient APRÈS lui — sinon le calcul en une passe lirait 0', () => {
     for (const spec of NOTES_ASSOCIATIONS) {
       spec.rubriques.forEach((r, i) => {
-        for (const idx of r.totalDeRubriques ?? []) {
-          expect(idx).toBeLessThan(i);
+        for (const idx of [...(r.totalDeRubriques ?? []), ...(r.moinsRubriques ?? [])]) {
+          expect({ note: spec.code, rubrique: r.libelle, avant: idx < i }).toEqual(
+            { note: spec.code, rubrique: r.libelle, avant: true },
+          );
         }
       });
+    }
+  });
+
+  it('une rubrique retranchée n’apparaît que dans une ligne de total', () => {
+    for (const spec of NOTES_ASSOCIATIONS) {
+      for (const r of spec.rubriques) {
+        if (r.moinsRubriques) expect({ note: spec.code, r: r.libelle, ok: !!r.totalDeRubriques }).toEqual(
+          { note: spec.code, r: r.libelle, ok: true },
+        );
+      }
+    }
+  });
+
+  it('sens et natureCreditrice ne se cumulent jamais : l’un filtre, l’autre non', () => {
+    for (const spec of NOTES_ASSOCIATIONS) {
+      for (const r of spec.rubriques) {
+        expect({ note: spec.code, r: r.libelle, cumul: !!(r.sens && r.natureCreditrice) }).toEqual(
+          { note: spec.code, r: r.libelle, cumul: false },
+        );
+      }
+    }
+  });
+
+  it('toute colonne déclarée est effectivement calculée par le moteur', () => {
+    // Garde contre le défaut relevé sur la note 9 avant la ventilation par
+    // échéance : trois colonnes officielles déclarées, rendues vides, et rien
+    // pour le signaler. Une colonne LIBRE est une saisie assumée, pas un oubli.
+    const CALCULEES = [
+      'EXERCICE_N', 'EXERCICE_N1', 'VARIATION_VALEUR', 'VARIATION_POURCENT', 'VARIATION_VALEUR_ABSOLUE',
+      'OUVERTURE', 'AUGMENTATIONS', 'DIMINUTIONS', 'CLOTURE',
+      'ECHEANCE_1AN', 'ECHEANCE_2ANS', 'ECHEANCE_PLUS_2ANS', 'LIBRE',
+    ];
+    for (const spec of NOTES_ASSOCIATIONS) {
+      for (const c of spec.colonnes) {
+        expect({ note: spec.code, colonne: c.libelle, connue: CALCULEES.includes(c.type) }).toEqual(
+          { note: spec.code, colonne: c.libelle, connue: true },
+        );
+      }
     }
   });
 
@@ -212,6 +252,80 @@ describe('NoteAnnexeService', () => {
     const r = await s.notesAssociations('t', 'e1');
     expect(note(r, '13').renvoyeeDepuis).toEqual(['BW']);
     expect(note(r, '9').renvoyeeDepuis).toEqual(['BD', 'DG']);
+  });
+});
+
+describe('notes de charges et de produits', () => {
+  it('un produit se lit au crédit et s’affiche en positif, sans être filtré sur le signe', async () => {
+    const s = service({ e1: [
+      ligne('70100000', ClasseCompte.CLASSE_7, 0, 5000),   // cotisations, créditeur
+      ligne('70500000', ClasseCompte.CLASSE_7, 200, 0),    // ventes, débiteur (rabais > ventes)
+    ]});
+    const n23 = note(await s.notesAssociations('t', 'e1'), '23');
+    expect(ligneDe(n23, 'Cotisations des adhérents').montantN).toBe(5000);
+    // Le compte débiteur reste présenté, en négatif : `sens: 'CREDITEUR'`
+    // l'aurait fait disparaître de la note.
+    expect(ligneDe(n23, 'Ventes de marchandises, services et produits finis').montantN).toBe(-200);
+    expect(ligneDe(n23, 'TOTAL : REVENUS').montantN).toBe(4800);
+  });
+
+  it('une charge se lit au débit ; un dégrèvement créditeur est présenté en négatif', async () => {
+    const s = service({ e1: [
+      ligne('64100000', ClasseCompte.CLASSE_6, 3000, 0),   // impôts directs
+      ligne('64900000', ClasseCompte.CLASSE_6, 0, 500),    // dégrèvements, créditeur
+    ]});
+    const n27 = note(await s.notesAssociations('t', 'e1'), '27');
+    expect(ligneDe(n27, 'Impôts et taxes directs').montantN).toBe(3000);
+    expect(ligneDe(n27, 'Dégrèvements et annulations des impôts et taxes').montantN).toBe(-500);
+    expect(ligneDe(n27, 'TOTAL').montantN).toBe(2500);
+  });
+
+  it('le TOTAL des notes 31 et 32 retranche les charges des produits', async () => {
+    const s = service({ e1: [
+      ligne('67100000', ClasseCompte.CLASSE_6, 800, 0),    // intérêts des emprunts
+      ligne('77400000', ClasseCompte.CLASSE_7, 0, 2000),   // revenus de placement
+    ]});
+    const n31 = note(await s.notesAssociations('t', 'e1'), '31');
+    expect(ligneDe(n31, 'TOTAL : FRAIS FINANCIERS').montantN).toBe(800);
+    expect(ligneDe(n31, 'TOTAL : REVENUS FINANCIERS').montantN).toBe(2000);
+    expect(ligneDe(n31, 'TOTAL').montantN).toBe(1200); // 2000 - 800, le résultat financier
+  });
+
+  it('les dons en nature HAO vont à leur rubrique malgré leur numérotation en 831x', async () => {
+    // [texte officiel] Le plan numérote les subdivisions du compte 832 en
+    // 8311/8315. Sans l'exclusion, elles tomberaient dans « Charges H.A.O.
+    // constatées » et la rubrique des dons resterait vide.
+    const s = service({ e1: [
+      ligne('83100000', ClasseCompte.CLASSE_8, 400, 0),
+      ligne('83150000', ClasseCompte.CLASSE_8, 900, 0),
+    ]});
+    const n32 = note(await s.notesAssociations('t', 'e1'), '32');
+    expect(ligneDe(n32, 'Charges H.A.O. constatées (compte 831)').montantN).toBe(400);
+    expect(ligneDe(n32, 'Dons en nature (compte 832) à détailler : non affectés / affectés').montantN).toBe(900);
+    expect(ligneDe(n32, 'TOTAL : AUTRES CHARGES HAO').montantN).toBe(1300);
+  });
+
+  it('note 8 : la variation en valeur absolue est calculée, pas laissée vide', async () => {
+    const s = service(
+      {
+        e1: [ligne('32100000', ClasseCompte.CLASSE_3, 800, 0)],
+        e0: [ligne('32100000', ClasseCompte.CLASSE_3, 1000, 0)],
+      },
+      [{ id: 'e1', dateDebut: new Date('2026-01-01') }, { id: 'e0', dateDebut: new Date('2025-01-01') }],
+    );
+    const l = ligneDe(note(await s.notesAssociations('t', 'e1'), '8'), 'Marchandises, Matières premières');
+    expect(l.variationValeur).toBe(-200);
+    expect(l.valeurs).toEqual({ VARIATION_VALEUR_ABSOLUE: 200 });
+  });
+
+  it('note 22 : un compte bancaire DÉBITEUR est une disponibilité, il ne figure pas ici', async () => {
+    const s = service({ e1: [
+      ligne('52110000', ClasseCompte.CLASSE_5, 8000, 0),   // débiteur -> note 13
+      ligne('52120000', ClasseCompte.CLASSE_5, 0, 300),    // créditeur -> note 22
+    ]});
+    const r = await s.notesAssociations('t', 'e1');
+    expect(ligneDe(note(r, '22'), 'Banques locales').montantN).toBe(300);
+    expect(ligneDe(note(r, '13'), 'Banques locales').montantN).toBe(8000);
   });
 });
 
