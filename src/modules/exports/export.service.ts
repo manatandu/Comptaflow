@@ -459,9 +459,17 @@ export class ExportService {
    * PASSIF juxtaposés, sous-totaux en gras dans leur sens de lecture
    * officiel), le détail des comptes derrière chaque poste, et les
    * contrôles/anomalies.
+   *
+   * Colonnes : le texte officiel exige Brut / Amortissements et dépréciations
+   * / Net côté actif (pas un seul montant net), et un comparatif N-1 des
+   * deux côtés — les deux manquaient à l'origine, corrigés après une
+   * question directe de l'utilisateur sur une capture d'écran (2026-08-28).
+   * Le passif n'a pas de colonne Brut/Amort (le texte officiel n'en prévoit
+   * pas) : seulement Net (N) et Net (N-1).
    */
   async bilanExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
     const bilan = await this.etatsFinanciersService.bilan(tenantId, exerciceId);
+    const suffixeN1 = bilan.exerciceN1Disponible ? '' : ' (aucun exercice antérieur)';
 
     const classeur = this.nouveauClasseur();
     const feuille = classeur.addWorksheet('Bilan');
@@ -469,11 +477,15 @@ export class ExportService {
     // titre casseraient tout tableau croisé dynamique.
     feuille.columns = [
       { header: 'Actif — REF', key: 'refActif', width: 10 },
-      { header: 'Actif — libellé', key: 'libelleActif', width: 46 },
-      { header: 'Actif — montant', key: 'montantActif', width: 16 },
+      { header: 'Actif — libellé', key: 'libelleActif', width: 42 },
+      { header: 'Actif — Brut (N)', key: 'brutActif', width: 15 },
+      { header: 'Actif — Amort./dépréc. (N)', key: 'amortActif', width: 18 },
+      { header: 'Actif — Net (N)', key: 'montantActif', width: 15 },
+      { header: `Actif — Net (N-1)${suffixeN1}`, key: 'montantActifN1', width: 17 },
       { header: 'Passif — REF', key: 'refPassif', width: 10 },
-      { header: 'Passif — libellé', key: 'libellePassif', width: 46 },
-      { header: 'Passif — montant', key: 'montantPassif', width: 16 },
+      { header: 'Passif — libellé', key: 'libellePassif', width: 42 },
+      { header: 'Passif — Net (N)', key: 'montantPassif', width: 15 },
+      { header: `Passif — Net (N-1)${suffixeN1}`, key: 'montantPassifN1', width: 17 },
     ];
 
     const maxLignes = Math.max(bilan.actif.length, bilan.passif.length);
@@ -483,28 +495,39 @@ export class ExportService {
       const ligne = feuille.addRow({
         refActif: a?.ref ?? '',
         libelleActif: a?.libelle ?? '',
+        brutActif: a?.brut ?? null,
+        amortActif: a?.amortissement ?? null,
         montantActif: a ? a.montant : null,
+        montantActifN1: a?.montantN1 ?? null,
         refPassif: p?.ref ?? '',
         libellePassif: p?.libelle ?? '',
         montantPassif: p ? p.montant : null,
+        montantPassifN1: p?.montantN1 ?? null,
       });
-      // Chaque total est en gras SUR SA PROPRE COLONNE seulement (actif et
+      // Chaque total est en gras SUR SES PROPRES COLONNES seulement (actif et
       // passif n'atteignent pas forcément un total à la même ligne) : mettre
       // toute la ligne en gras si un seul côté est un total ferait ressortir
       // l'autre à tort.
       if (a?.estTotal) {
-        ligne.getCell('refActif').font = ENTETE_FONT;
-        ligne.getCell('libelleActif').font = ENTETE_FONT;
-        ligne.getCell('montantActif').font = ENTETE_FONT;
+        for (const cle of ['refActif', 'libelleActif', 'brutActif', 'amortActif', 'montantActif', 'montantActifN1']) {
+          ligne.getCell(cle).font = ENTETE_FONT;
+        }
       }
       if (p?.estTotal) {
-        ligne.getCell('refPassif').font = ENTETE_FONT;
-        ligne.getCell('libellePassif').font = ENTETE_FONT;
-        ligne.getCell('montantPassif').font = ENTETE_FONT;
+        for (const cle of ['refPassif', 'libellePassif', 'montantPassif', 'montantPassifN1']) {
+          ligne.getCell(cle).font = ENTETE_FONT;
+        }
       }
     }
 
-    this.appliquerFormats(feuille, { montantActif: FORMAT_MONTANT, montantPassif: FORMAT_MONTANT });
+    this.appliquerFormats(feuille, {
+      brutActif: FORMAT_MONTANT,
+      amortActif: FORMAT_MONTANT,
+      montantActif: FORMAT_MONTANT,
+      montantActifN1: FORMAT_MONTANT,
+      montantPassif: FORMAT_MONTANT,
+      montantPassifN1: FORMAT_MONTANT,
+    });
     // En-tête figée SANS auto-filtre : le bilan n'est pas un tableau plat
     // mais DEUX listes indépendantes juxtaposées (actif à gauche, passif à
     // droite), appariées ligne à ligne par un simple index. Filtrer sur un
@@ -598,33 +621,48 @@ export class ExportService {
    */
   async compteDeResultatExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
     const cr = await this.etatsFinanciersService.compteDeResultat(tenantId, exerciceId);
+    const suffixeN1 = cr.exerciceN1Disponible ? '' : ' (aucun exercice antérieur)';
 
     const classeur = this.nouveauClasseur();
     const feuille = classeur.addWorksheet('Compte de résultat');
+    // Colonne N-1 : exigée par le texte officiel (« Net exercice au
+    // 31/12/N-1 ») au même titre que sur le bilan — manquait à l'origine.
     feuille.columns = [
       { header: 'REF', key: 'ref', width: 8 },
-      { header: 'Libellé', key: 'libelle', width: 62 },
-      { header: 'Montant', key: 'montant', width: 18 },
+      { header: 'Libellé', key: 'libelle', width: 58 },
+      { header: 'Montant (N)', key: 'montant', width: 16 },
+      { header: `Montant (N-1)${suffixeN1}`, key: 'montantN1', width: 17 },
     ];
 
-    const ajouterTotal = (ref: string, libelle: string, montant: number) => {
-      const ligne = feuille.addRow({ ref, libelle, montant });
+    const ajouterTotal = (ref: string, libelle: string, montant: number, montantN1?: number) => {
+      const ligne = feuille.addRow({ ref, libelle, montant, montantN1: montantN1 ?? null });
       ligne.font = ENTETE_FONT;
       return ligne;
     };
-    const ajouterPoste = (p: PosteCalcule) => feuille.addRow({ ref: p.ref, libelle: p.libelle, montant: p.montant });
+    const ajouterPoste = (p: PosteCalcule) =>
+      feuille.addRow({ ref: p.ref, libelle: p.libelle, montant: p.montant, montantN1: p.montantN1 ?? null });
 
     cr.produits.forEach(ajouterPoste);
-    ajouterTotal('XA', 'REVENUS DES ACTIVITÉS ORDINAIRES', cr.totalProduits);
+    ajouterTotal('XA', 'REVENUS DES ACTIVITÉS ORDINAIRES', cr.totalProduits, cr.totalProduitsN1);
     cr.charges.forEach(ajouterPoste);
-    ajouterTotal('XB', 'CHARGES DES ACTIVITÉS ORDINAIRES', cr.totalCharges);
-    ajouterTotal('XC', 'RÉSULTAT DES ACTIVITÉS ORDINAIRES (XA − XB)', cr.resultatActivitesOrdinaires);
+    ajouterTotal('XB', 'CHARGES DES ACTIVITÉS ORDINAIRES', cr.totalCharges, cr.totalChargesN1);
+    ajouterTotal(
+      'XC',
+      'RÉSULTAT DES ACTIVITÉS ORDINAIRES (XA − XB)',
+      cr.resultatActivitesOrdinaires,
+      cr.resultatActivitesOrdinairesN1,
+    );
     ajouterPoste(cr.produitsHao);
     ajouterPoste(cr.chargesHao);
-    ajouterTotal('XD', 'RÉSULTAT H.A.O. (TM − TN)', cr.resultatHao);
-    ajouterTotal('XE', "RÉSULTAT NET DE L'EXERCICE (+excédent, −déficit) (XC + XD)", cr.resultatNet);
+    ajouterTotal('XD', 'RÉSULTAT H.A.O. (TM − TN)', cr.resultatHao, cr.resultatHaoN1);
+    ajouterTotal(
+      'XE',
+      "RÉSULTAT NET DE L'EXERCICE (+excédent, −déficit) (XC + XD)",
+      cr.resultatNet,
+      cr.resultatNetN1,
+    );
 
-    this.appliquerFormats(feuille, { montant: FORMAT_MONTANT });
+    this.appliquerFormats(feuille, { montant: FORMAT_MONTANT, montantN1: FORMAT_MONTANT });
     styliserEntete(feuille.getRow(1));
     feuille.views = [{ state: 'frozen', ySplit: 1 }];
     // Pas d'auto-filtre ici : l'état est une liste ordonnée de postes avec
@@ -637,7 +675,7 @@ export class ExportService {
         '« Somme RA à RG », ce qui romprait l’égalité entre le résultat et le bilan dès qu’il y a des reprises.',
     ]);
     note.font = { italic: true, color: { argb: 'FF555555' } };
-    feuille.mergeCells(`A${note.number}:C${note.number}`);
+    feuille.mergeCells(`A${note.number}:D${note.number}`);
 
     // Détail : quels comptes alimentent quel poste — c'est ce qui rend
     // l'état vérifiable, plutôt qu'à prendre sur parole.

@@ -1,6 +1,7 @@
 import { ClasseCompte, TypeCompteDetailTotal } from '@prisma/client';
 import { EtatsFinanciersService } from './etats-financiers.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
+import { ExerciceService } from '../exercice/exercice.service';
 
 /** Fabrique une ligne de balance telle que `EcritureService.balance()` la renvoie. */
 function ligne(
@@ -22,17 +23,37 @@ function ligne(
   };
 }
 
-function serviceAvecBalance(lignes: ReturnType<typeof ligne>[]) {
+/**
+ * Service avec un jeu de lignes DISTINCT par exercice (pour tester le
+ * comparatif N-1) et la liste d'exercices que `trouverExerciceN1` consulte
+ * pour trouver le plus récent antérieur au demandé.
+ */
+function serviceAvecExercices(
+  lignesParExercice: Record<string, ReturnType<typeof ligne>[]>,
+  exercices: Array<{ id: string; dateDebut: Date }> = [],
+) {
   const ecritureService = {
-    balance: jest.fn().mockResolvedValue({
-      lignes,
-      totaux: {
-        debit: lignes.reduce((s, l) => s + l.totalDebit, 0),
-        credit: lignes.reduce((s, l) => s + l.totalCredit, 0),
-      },
+    balance: jest.fn().mockImplementation((_tenantId: string, exerciceId: string) => {
+      const lignes = lignesParExercice[exerciceId] ?? [];
+      return Promise.resolve({
+        lignes,
+        totaux: {
+          debit: lignes.reduce((s, l) => s + l.totalDebit, 0),
+          credit: lignes.reduce((s, l) => s + l.totalCredit, 0),
+        },
+      });
     }),
   } as unknown as EcritureService;
-  return new EtatsFinanciersService(ecritureService);
+  const exerciceService = {
+    // ExerciceService.lister() trie par dateDebut décroissant — répliqué ici.
+    lister: jest.fn().mockResolvedValue([...exercices].sort((a, b) => b.dateDebut.getTime() - a.dateDebut.getTime())),
+  } as unknown as ExerciceService;
+  return new EtatsFinanciersService(ecritureService, exerciceService);
+}
+
+/** Un seul exercice ('e1'), sans N-1 — c'est ce que la quasi-totalité des tests exercent. */
+function serviceAvecBalance(lignes: ReturnType<typeof ligne>[]) {
+  return serviceAvecExercices({ e1: lignes });
 }
 
 describe('EtatsFinanciersService', () => {
@@ -311,6 +332,174 @@ describe('EtatsFinanciersService', () => {
       const cr = await service.compteDeResultat('t1', 'e1');
 
       expect(cr.totalProduits).toBe(300);
+    });
+  });
+
+  /**
+   * Colonnes Brut / Amortissements et dépréciations / Net — le texte
+   * officiel les exige toutes les trois côté actif du bilan (Partie 4 ch. 2 :
+   * « Colonnes : REF | ACTIF | Note | Brut (N) | Amort. et déprec. (N) |
+   * Net (N) | Net (N-1) »). Un export/écran qui ne montre qu'un montant net
+   * unique n'est pas fidèle à la maquette — corrigé après une question
+   * directe de l'utilisateur sur une capture d'écran (2026-08-28).
+   */
+  describe('bilan — colonnes Brut / Amortissement / Net (actif)', () => {
+    const poste = (bilan: Awaited<ReturnType<EtatsFinanciersService['bilan']>>, ref: string) =>
+      [...bilan.actif, ...bilan.passif].find((p) => p.ref === ref);
+
+    it('expose brut, amortissement (magnitude positive) et net séparément sur un poste actif amorti', async () => {
+      const service = serviceAvecBalance([
+        ligne('24510000', ClasseCompte.CLASSE_2, 5000, 0), // AM brut
+        ligne('28450000', ClasseCompte.CLASSE_2, 0, 1500), // AM amortissement
+      ]);
+
+      const bilan = await service.bilan('t1', 'e1');
+      const am = poste(bilan, 'AM')!;
+
+      expect(am.brut).toBe(5000);
+      expect(am.amortissement).toBe(1500); // magnitude positive, pas -1500
+      expect(am.montant).toBe(3500); // net = brut - amortissement
+    });
+
+    it('remonte brut/amortissement dans les totaux hiérarchiques (AH, AZ)', async () => {
+      const service = serviceAvecBalance([
+        ligne('24510000', ClasseCompte.CLASSE_2, 5000, 0),
+        ligne('28450000', ClasseCompte.CLASSE_2, 0, 1500),
+      ]);
+
+      const bilan = await service.bilan('t1', 'e1');
+
+      expect(poste(bilan, 'AH')?.brut).toBe(5000); // IMMOBILISATIONS CORPORELLES
+      expect(poste(bilan, 'AH')?.amortissement).toBe(1500);
+      expect(poste(bilan, 'AH')?.montant).toBe(3500);
+      expect(poste(bilan, 'AZ')?.montant).toBe(3500); // TOTAL ACTIF IMMOBILISE
+    });
+
+    it('un poste sans compte d’amortissement (AG) a amortissement=0, pas undefined', async () => {
+      const service = serviceAvecBalance([ligne('25100000', ClasseCompte.CLASSE_2, 800, 0)]);
+
+      const bilan = await service.bilan('t1', 'e1');
+      const ag = poste(bilan, 'AG')!;
+
+      expect(ag.brut).toBe(800);
+      expect(ag.amortissement).toBe(0);
+      expect(ag.montant).toBe(800);
+    });
+
+    it('un poste PASSIF n’a pas de brut/amortissement — seulement un montant net', async () => {
+      const service = serviceAvecBalance([ligne('10110000', ClasseCompte.CLASSE_1, 0, 800)]);
+
+      const bilan = await service.bilan('t1', 'e1');
+      const ca = poste(bilan, 'CA')!;
+
+      expect(ca.brut).toBeUndefined();
+      expect(ca.amortissement).toBeUndefined();
+      expect(ca.montant).toBe(800);
+    });
+  });
+
+  /**
+   * Comparatif N-1 — exigé par le texte officiel sur le bilan (colonne
+   * « Net (N-1) ») ET sur le compte de résultat (colonne « Net exercice au
+   * 31/12/N-1 »), pas seulement sur le premier. `trouverExerciceN1` cherche
+   * l'exercice du même tenant dont la date de début est la plus récente
+   * parmi celles antérieures à l'exercice demandé.
+   */
+  describe('comparatif N-1', () => {
+    const exercices = [
+      { id: 'e1', dateDebut: new Date('2026-01-01') },
+      { id: 'e0', dateDebut: new Date('2025-01-01') },
+    ];
+
+    it('bilan : peuple montantN1/brutN1/amortissementN1 depuis l’exercice antérieur', async () => {
+      const service = serviceAvecExercices(
+        {
+          e1: [ligne('52110000', ClasseCompte.CLASSE_5, 1000, 0), ligne('10110000', ClasseCompte.CLASSE_1, 0, 1000)],
+          e0: [ligne('52110000', ClasseCompte.CLASSE_5, 600, 0), ligne('10110000', ClasseCompte.CLASSE_1, 0, 600)],
+        },
+        exercices,
+      );
+
+      const bilan = await service.bilan('t1', 'e1');
+      const bw = [...bilan.actif].find((p) => p.ref === 'BW')!;
+      const ca = [...bilan.passif].find((p) => p.ref === 'CA')!;
+
+      expect(bilan.exerciceN1Disponible).toBe(true);
+      expect(bw.montant).toBe(1000);
+      expect(bw.montantN1).toBe(600);
+      expect(ca.montant).toBe(1000);
+      expect(ca.montantN1).toBe(600);
+      expect(bilan.totalActifN1).toBe(600);
+      expect(bilan.totalPassifN1).toBe(600);
+    });
+
+    it('bilan : sans exercice antérieur, montantN1 est undefined — jamais un faux 0', async () => {
+      const service = serviceAvecExercices({ e1: [ligne('52110000', ClasseCompte.CLASSE_5, 1000, 0)] }, [
+        { id: 'e1', dateDebut: new Date('2026-01-01') },
+      ]);
+
+      const bilan = await service.bilan('t1', 'e1');
+      const bw = [...bilan.actif].find((p) => p.ref === 'BW')!;
+
+      expect(bilan.exerciceN1Disponible).toBe(false);
+      expect(bw.montantN1).toBeUndefined();
+      expect(bilan.totalActifN1).toBeUndefined();
+    });
+
+    it('choisit le PLUS RÉCENT exercice antérieur quand il y en a plusieurs', async () => {
+      const troisExercices = [
+        { id: 'e2', dateDebut: new Date('2027-01-01') },
+        { id: 'e1', dateDebut: new Date('2026-01-01') },
+        { id: 'e0', dateDebut: new Date('2025-01-01') },
+      ];
+      const service = serviceAvecExercices(
+        {
+          e2: [ligne('52110000', ClasseCompte.CLASSE_5, 900, 0)],
+          e1: [ligne('52110000', ClasseCompte.CLASSE_5, 600, 0)], // le bon N-1 pour e2
+          e0: [ligne('52110000', ClasseCompte.CLASSE_5, 300, 0)],
+        },
+        troisExercices,
+      );
+
+      const bilan = await service.bilan('t1', 'e2');
+      const bw = [...bilan.actif].find((p) => p.ref === 'BW')!;
+
+      expect(bw.montant).toBe(900);
+      expect(bw.montantN1).toBe(600); // e1, pas e0
+    });
+
+    it('compte de résultat : peuple totalProduitsN1/totalChargesN1/resultatNetN1', async () => {
+      const service = serviceAvecExercices(
+        {
+          e1: [ligne('70100000', ClasseCompte.CLASSE_7, 0, 500), ligne('60100000', ClasseCompte.CLASSE_6, 200, 0)],
+          e0: [ligne('70100000', ClasseCompte.CLASSE_7, 0, 300), ligne('60100000', ClasseCompte.CLASSE_6, 100, 0)],
+        },
+        exercices,
+      );
+
+      const cr = await service.compteDeResultat('t1', 'e1');
+
+      expect(cr.exerciceN1Disponible).toBe(true);
+      expect(cr.totalProduits).toBe(500);
+      expect(cr.totalProduitsN1).toBe(300);
+      expect(cr.totalCharges).toBe(200);
+      expect(cr.totalChargesN1).toBe(100);
+      expect(cr.resultatNet).toBe(300);
+      expect(cr.resultatNetN1).toBe(200);
+      expect(cr.produits.find((p) => p.ref === 'RA')?.montantN1).toBe(300);
+    });
+
+    it('compte de résultat : sans exercice antérieur, tous les champs N1 sont undefined', async () => {
+      const service = serviceAvecExercices({ e1: [ligne('70100000', ClasseCompte.CLASSE_7, 0, 500)] }, [
+        { id: 'e1', dateDebut: new Date('2026-01-01') },
+      ]);
+
+      const cr = await service.compteDeResultat('t1', 'e1');
+
+      expect(cr.exerciceN1Disponible).toBe(false);
+      expect(cr.totalProduitsN1).toBeUndefined();
+      expect(cr.resultatNetN1).toBeUndefined();
+      expect(cr.produits.find((p) => p.ref === 'RA')?.montantN1).toBeUndefined();
     });
   });
 });

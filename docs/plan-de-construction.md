@@ -1091,6 +1091,50 @@ Ordre de dépendances techniques réelles, pas un simple ordre de préférence :
     correctement classés dans DI (tous deux réellement créditeurs sur ce
     tenant, 0 dans BE) — comportement vérifié sur des données réelles, pas
     seulement en test unitaire.
+
+    **Correctif de fidélité à la maquette** (même jour, question directe de
+    l'utilisateur sur une capture d'écran) : deux écarts réels par rapport au
+    texte officiel, non comblés lors de la livraison initiale.
+
+    1. **Colonnes Brut / Amortissements et dépréciations / Net manquantes côté
+       actif.** Le texte officiel est explicite : « Colonnes : REF | ACTIF |
+       Note | Brut (N) | Amort. et déprec. (N) | Net (N) | Net (N-1) ». Le
+       moteur calculait déjà brut et amortissement séparément en interne mais
+       les fusionnait avant de les exposer — un seul montant net par poste, à
+       l'écran comme en Excel. Corrigé : `PosteCalcule` porte désormais `brut`
+       et `amortissement` (magnitude positive) en plus de `montant` (net),
+       affichés en 3 colonnes côté actif (le passif reste à une seule colonne
+       Net, conforme au texte — il n'a pas de notion d'amortissement).
+    2. **Comparatif N-1 absent — sur le bilan ET le compte de résultat.** Les
+       deux maquettes officielles portent une colonne N-1 (« Net (N-1) » côté
+       bilan, « Net exercice au 31/12/N-1 » côté compte de résultat), jamais
+       implémentée. Corrigé par `trouverExerciceN1()` : l'exercice du même
+       tenant dont la date de début est la plus récente parmi celles
+       antérieures à l'exercice demandé — `undefined` (jamais un faux 0)
+       quand il n'y en a aucun (premier exercice du dossier), signalé à
+       l'écran (« Aucun exercice antérieur… ») plutôt que silencieux. Chaque
+       poste des deux états porte désormais `montantN1` (et `brutN1`/
+       `amortissementN1` côté actif), résolu en rejouant exactement le même
+       moteur de correspondance sur la balance N-1 — aucune logique dupliquée
+       (`resoudreTousLesPostesBilan`/`resoudreTousLesPostesCR`, factorisées et
+       appelées deux fois, une par exercice).
+
+    9 nouveaux tests (16 → 25 dans ce fichier ; 71 → 80 sur le projet) : brut/amort
+    exposés séparément, remontée dans les totaux hiérarchiques (AH, AZ), poste
+    sans compte d'amortissement à 0 et non `undefined`, poste passif sans
+    brut/amort, comparatif N-1 peuplé, absent sans exercice antérieur, le PLUS
+    RÉCENT exercice antérieur choisi quand il y en a plusieurs, et le
+    comparatif N-1 du compte de résultat. Un bug de propreté mineur repéré par
+    un test (`-0` au lieu de `0` sur un poste sans amortissement, `Object.is`
+    les distingue) corrigé avant livraison.
+
+    Revérifié de bout en bout avec un vrai exercice antérieur créé sur le
+    "Tenant Cascade" (2025, deux écritures : cotisations 600, achat 250 →
+    résultat N-1 net 350) : bilan N-1 exact (BW=350, BZ=DZ=350, CH=350),
+    compte de résultat N-1 exact (RA=600, totalProduitsN1=600,
+    totalChargesN1=250, resultatNetN1=350) — les 4 colonnes officielles
+    affichées à l'écran (capture Playwright) et dans le classeur Excel
+    (10 colonnes bilan, 4 colonnes compte de résultat).
 13. **Comptabilité analytique par projet/bailleur** (spécifique SYCEBNL).
 14. Puis, au choix selon opportunité business : **Trésorerie avancée** (lots, LCR/
     virements), **Stocks**, **SYSCOHADA (Phase 3)**, **OHADA→IFRS**, **Paie**, RBAC fin.

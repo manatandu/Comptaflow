@@ -3,7 +3,7 @@ import { api } from '../lib/api';
 import { useExercice } from '../lib/exercice';
 import { useRibbon } from '../components/chrome/ribbon-context';
 import { IconExport, IconCheck } from '../components/chrome/icons';
-import type { Bilan, CompteDeResultat, PosteCalcule } from '../lib/types';
+import type { Bilan, CompteDeResultat, LigneBilan, PosteCalcule } from '../lib/types';
 
 type Onglet = 'bilan' | 'compte-de-resultat';
 
@@ -53,27 +53,63 @@ export function EtatsFinanciersPage() {
     }
   };
 
-  const montant = (v: number) => v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const montant = (v: number | undefined) =>
+    v === undefined ? '—' : v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+  // --- Compte de résultat : REF | Libellé | Montant (N) | Montant (N-1) ---
   const lignePoste = (p: PosteCalcule) => (
     <div
       key={p.ref}
       title={p.comptes.length > 0 ? `Comptes : ${p.comptes.map((c) => c.numero).join(', ')}` : 'Aucun compte mouvementé'}
-      className={`grid grid-cols-[46px_1fr_130px] gap-2 px-4 py-1 text-[12px] ${
-        p.montant === 0 ? 'text-text-dim' : ''
-      }`}
+      className={`grid grid-cols-[46px_1fr_120px_120px] gap-2 px-4 py-1 text-[12px] ${p.montant === 0 ? 'text-text-dim' : ''}`}
     >
       <span className="font-mono text-[11px] text-text-dim">{p.ref}</span>
       <span>{p.libelle}</span>
       <span className="font-mono text-right">{montant(p.montant)}</span>
+      <span className="font-mono text-right text-text-dim">{montant(p.montantN1)}</span>
     </div>
   );
 
-  const ligneTotal = (ref: string, libelle: string, valeur: number) => (
-    <div className="grid grid-cols-[46px_1fr_130px] gap-2 px-4 py-1.5 bg-surface-alt border-y border-border text-[12px] font-bold">
+  const ligneTotal = (ref: string, libelle: string, valeur: number, valeurN1?: number) => (
+    <div className="grid grid-cols-[46px_1fr_120px_120px] gap-2 px-4 py-1.5 bg-surface-alt border-y border-border text-[12px] font-bold">
       <span className="font-mono text-[11px]">{ref}</span>
       <span>{libelle}</span>
       <span className="font-mono text-right">{montant(valeur)}</span>
+      <span className="font-mono text-right text-text-dim font-normal">{montant(valeurN1)}</span>
+    </div>
+  );
+
+  // --- Bilan actif : REF | Libellé | Brut (N) | Amort./dépréc. (N) | Net (N) | Net (N-1) ---
+  const ligneActif = (l: LigneBilan) => (
+    <div
+      key={l.ref}
+      title={l.comptes.length > 0 ? `Comptes : ${l.comptes.map((c) => c.numero).join(', ')}` : undefined}
+      className={`grid grid-cols-[42px_1.4fr_100px_120px_100px_100px] gap-2 px-4 py-1 text-[12px] items-baseline ${
+        l.estTotal ? 'font-bold bg-surface-alt border-y border-border' : ''
+      }`}
+    >
+      <span className="font-mono text-[10px] text-text-dim">{l.ref}</span>
+      <span>{l.libelle}</span>
+      <span className="font-mono text-right">{montant(l.brut)}</span>
+      <span className="font-mono text-right text-text-dim">{l.amortissement ? `(${montant(l.amortissement)})` : montant(l.amortissement)}</span>
+      <span className="font-mono text-right">{montant(l.montant)}</span>
+      <span className="font-mono text-right text-text-dim font-normal">{montant(l.montantN1)}</span>
+    </div>
+  );
+
+  // --- Bilan passif : REF | Libellé | Net (N) | Net (N-1) — pas de colonne Brut/Amort côté passif (le texte officiel n'en prévoit pas) ---
+  const lignePassif = (l: LigneBilan) => (
+    <div
+      key={l.ref}
+      title={l.comptes.length > 0 ? `Comptes : ${l.comptes.map((c) => c.numero).join(', ')}` : undefined}
+      className={`grid grid-cols-[42px_1.4fr_100px_100px] gap-2 px-4 py-1 text-[12px] items-baseline ${
+        l.estTotal ? 'font-bold bg-surface-alt border-y border-border' : ''
+      }`}
+    >
+      <span className="font-mono text-[10px] text-text-dim">{l.ref}</span>
+      <span>{l.libelle}</span>
+      <span className="font-mono text-right">{montant(l.montant)}</span>
+      <span className="font-mono text-right text-text-dim font-normal">{montant(l.montantN1)}</span>
     </div>
   );
 
@@ -128,48 +164,37 @@ export function EtatsFinanciersPage() {
         <>
           {!bilan && <div className="border border-border px-4 py-4 text-[12px] text-text-dim">Chargement…</div>}
           {bilan && (
-            <>
-              <div className="grid grid-cols-2 gap-px bg-border border border-border max-w-[1180px]">
-                <div className="bg-surface">
-                  <div className="px-4 py-2 bg-surface-alt border-b border-border text-[11.5px] font-bold">ACTIF</div>
-                  {bilan.actif.map((l) => (
-                    <div
-                      key={l.ref}
-                      title={l.comptes.length > 0 ? `Comptes : ${l.comptes.map((c) => c.numero).join(', ')}` : undefined}
-                      className={`flex justify-between px-4 py-1 text-[12px] ${
-                        l.estTotal ? 'font-bold bg-surface-alt border-y border-border' : ''
-                      }`}
-                    >
-                      <span className="flex items-baseline gap-1.5">
-                        <span className="font-mono text-[10px] text-text-dim">{l.ref}</span>
-                        {l.libelle}
-                      </span>
-                      <span className="font-mono">{montant(l.montant)}</span>
-                    </div>
-                  ))}
+            <div className="max-w-[1180px] overflow-x-auto">
+              {!bilan.exerciceN1Disponible && (
+                <p className="text-[10.5px] text-text-dim mb-1.5">
+                  Aucun exercice antérieur dans ce dossier — la colonne N-1 affiche « — », pas un faux zéro.
+                </p>
+              )}
+
+              <div className="border border-border bg-surface mb-3">
+                <div className="grid grid-cols-[42px_1.4fr_100px_120px_100px_100px] gap-2 px-4 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
+                  <span>REF</span>
+                  <span>ACTIF</span>
+                  <span className="text-right">BRUT (N)</span>
+                  <span className="text-right">AMORT./DÉPRÉC. (N)</span>
+                  <span className="text-right">NET (N)</span>
+                  <span className="text-right">NET (N-1)</span>
                 </div>
-                <div className="bg-surface">
-                  <div className="px-4 py-2 bg-surface-alt border-b border-border text-[11.5px] font-bold">PASSIF</div>
-                  {bilan.passif.map((l) => (
-                    <div
-                      key={l.ref}
-                      title={l.comptes.length > 0 ? `Comptes : ${l.comptes.map((c) => c.numero).join(', ')}` : undefined}
-                      className={`flex justify-between px-4 py-1 text-[12px] ${
-                        l.estTotal ? 'font-bold bg-surface-alt border-y border-border' : ''
-                      }`}
-                    >
-                      <span className="flex items-baseline gap-1.5">
-                        <span className="font-mono text-[10px] text-text-dim">{l.ref}</span>
-                        {l.libelle}
-                      </span>
-                      <span className="font-mono">{montant(l.montant)}</span>
-                    </div>
-                  ))}
+                {bilan.actif.map(ligneActif)}
+              </div>
+
+              <div className="border border-border bg-surface mb-3">
+                <div className="grid grid-cols-[42px_1.4fr_100px_100px] gap-2 px-4 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
+                  <span>REF</span>
+                  <span>PASSIF</span>
+                  <span className="text-right">NET (N)</span>
+                  <span className="text-right">NET (N-1)</span>
                 </div>
+                {bilan.passif.map(lignePassif)}
               </div>
 
               <div
-                className={`flex items-center gap-2 mt-3 px-3.5 py-2.5 border max-w-[1180px] ${
+                className={`flex items-center gap-2 px-3.5 py-2.5 border ${
                   bilan.equilibre ? 'border-positive/30 bg-positive-soft' : 'border-danger/30 bg-danger-soft'
                 }`}
               >
@@ -182,7 +207,7 @@ export function EtatsFinanciersPage() {
               </div>
 
               {bilan.controle.doubleComptageProbable && (
-                <div className="flex items-start gap-2 mt-2 px-3.5 py-2.5 border border-warning/40 bg-warning-soft max-w-[1180px]">
+                <div className="flex items-start gap-2 mt-2 px-3.5 py-2.5 border border-warning/40 bg-warning-soft">
                   <span className="text-[11.5px]">
                     ⚠ Les classes 6/7/8 ({montant(bilan.controle.resultatClasses678)}) ET le compte 13 (
                     {montant(bilan.controle.resultatCompte13)}) sont tous deux mouvementés — risque de double comptage
@@ -192,7 +217,7 @@ export function EtatsFinanciersPage() {
               )}
 
               {bilan.comptesNonRattaches.length > 0 && (
-                <div className="border border-danger/30 bg-danger-soft mt-2 max-w-[1180px] px-3.5 py-2.5">
+                <div className="border border-danger/30 bg-danger-soft mt-2 px-3.5 py-2.5">
                   <div className="text-[11.5px] font-bold mb-1.5">
                     Comptes de bilan rattachés à aucun poste officiel — leur montant n'entre dans aucun total
                   </div>
@@ -207,13 +232,14 @@ export function EtatsFinanciersPage() {
                 </div>
               )}
 
-              <p className="text-[11px] text-text-dim mt-3 max-w-[1180px]">
+              <p className="text-[11px] text-text-dim mt-3">
                 Postes et rattachements conformes au tableau de correspondance officiel SYCEBNL (Journal officiel
-                OHADA, Partie 4 ch. 2). Comme au compte de résultat, les anomalies du texte officiel sont corrigées
-                explicitement (comptes de tiers polyvalents 42-47 distingués par le sens du solde, provisions
-                réglementées en poste 15) plutôt que devinées — voir <code>correspondance-bilan.ts</code>.
+                OHADA, Partie 4 ch. 2) — 3 colonnes Brut/Amort./Net côté actif et comparatif N-1 des deux côtés,
+                comme l'exige le texte officiel. Comme au compte de résultat, les anomalies du texte officiel sont
+                corrigées explicitement (comptes de tiers polyvalents 42-47 distingués par le sens du solde,
+                provisions réglementées en poste 15) plutôt que devinées — voir <code>correspondance-bilan.ts</code>.
               </p>
-            </>
+            </div>
           )}
         </>
       )}
@@ -222,30 +248,43 @@ export function EtatsFinanciersPage() {
         <>
           {!cr && <div className="border border-border px-4 py-4 text-[12px] text-text-dim">Chargement…</div>}
           {cr && (
-            <>
-              <div className="border border-border bg-surface max-w-[860px]">
-                <div className="grid grid-cols-[46px_1fr_130px] gap-2 px-4 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
+            <div className="max-w-[900px]">
+              {!cr.exerciceN1Disponible && (
+                <p className="text-[10.5px] text-text-dim mb-1.5">
+                  Aucun exercice antérieur dans ce dossier — la colonne N-1 affiche « — », pas un faux zéro.
+                </p>
+              )}
+
+              <div className="border border-border bg-surface">
+                <div className="grid grid-cols-[46px_1fr_120px_120px] gap-2 px-4 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
                   <span>REF</span>
                   <span>LIBELLÉ</span>
-                  <span className="text-right">MONTANT</span>
+                  <span className="text-right">MONTANT (N)</span>
+                  <span className="text-right">MONTANT (N-1)</span>
                 </div>
                 {cr.produits.map(lignePoste)}
-                {ligneTotal('XA', 'REVENUS DES ACTIVITÉS ORDINAIRES', cr.totalProduits)}
+                {ligneTotal('XA', 'REVENUS DES ACTIVITÉS ORDINAIRES', cr.totalProduits, cr.totalProduitsN1)}
                 {cr.charges.map(lignePoste)}
-                {ligneTotal('XB', 'CHARGES DES ACTIVITÉS ORDINAIRES', cr.totalCharges)}
-                {ligneTotal('XC', 'RÉSULTAT DES ACTIVITÉS ORDINAIRES (XA − XB)', cr.resultatActivitesOrdinaires)}
+                {ligneTotal('XB', 'CHARGES DES ACTIVITÉS ORDINAIRES', cr.totalCharges, cr.totalChargesN1)}
+                {ligneTotal(
+                  'XC',
+                  'RÉSULTAT DES ACTIVITÉS ORDINAIRES (XA − XB)',
+                  cr.resultatActivitesOrdinaires,
+                  cr.resultatActivitesOrdinairesN1,
+                )}
                 {lignePoste(cr.produitsHao)}
                 {lignePoste(cr.chargesHao)}
-                {ligneTotal('XD', 'RÉSULTAT H.A.O. (TM − TN)', cr.resultatHao)}
-                <div className="grid grid-cols-[46px_1fr_130px] gap-2 px-4 py-2 bg-chrome border-t border-border-dark text-[12.5px] font-bold">
+                {ligneTotal('XD', 'RÉSULTAT H.A.O. (TM − TN)', cr.resultatHao, cr.resultatHaoN1)}
+                <div className="grid grid-cols-[46px_1fr_120px_120px] gap-2 px-4 py-2 bg-chrome border-t border-border-dark text-[12.5px] font-bold">
                   <span className="font-mono text-[11px]">XE</span>
                   <span>RÉSULTAT NET DE L'EXERCICE (+excédent, −déficit)</span>
                   <span className="font-mono text-right">{montant(cr.resultatNet)}</span>
+                  <span className="font-mono text-right text-text-dim font-normal">{montant(cr.resultatNetN1)}</span>
                 </div>
               </div>
 
               <div
-                className={`flex items-start gap-2 mt-3 px-3.5 py-2.5 border max-w-[860px] ${
+                className={`flex items-start gap-2 mt-3 px-3.5 py-2.5 border ${
                   cr.controle.coherent ? 'border-positive/30 bg-positive-soft' : 'border-danger/30 bg-danger-soft'
                 }`}
               >
@@ -262,7 +301,7 @@ export function EtatsFinanciersPage() {
               </div>
 
               {cr.comptesNonRattaches.length > 0 && (
-                <div className="border border-danger/30 bg-danger-soft mt-2 max-w-[860px] px-3.5 py-2.5">
+                <div className="border border-danger/30 bg-danger-soft mt-2 px-3.5 py-2.5">
                   <div className="text-[11.5px] font-bold mb-1.5">
                     Comptes de gestion rattachés à aucun poste officiel — leur montant n'entre dans aucun total
                   </div>
@@ -281,13 +320,13 @@ export function EtatsFinanciersPage() {
                 </div>
               )}
 
-              <p className="text-[11px] text-text-dim mt-3 max-w-[860px]">
+              <p className="text-[11px] text-text-dim mt-3">
                 Postes et rattachements conformes au tableau de correspondance officiel SYCEBNL (Journal officiel OHADA,
                 Partie 4 ch. 2). Charges présentées en positif, de sorte que XC = XA − XB. XA inclut RH : le libellé
                 officiel dit « Somme RA à RG », ce qui romprait l'égalité entre le résultat et le bilan dès qu'il y a
                 des reprises.
               </p>
-            </>
+            </div>
           )}
         </>
       )}

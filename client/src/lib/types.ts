@@ -157,10 +157,21 @@ export interface LigneGrandLivre {
 }
 
 /** Un poste ACTIF ou PASSIF du bilan officiel SYCEBNL (REF à deux lettres, ex. "BW", "CA"). */
+/**
+ * `brut`/`amortissement` : ACTIF seulement (le texte officiel exige Brut /
+ * Amort. et dépréc. / Net côté actif, rien que Net côté passif).
+ * `*N1` : comparatif N-1, exigé sur le bilan ET le compte de résultat —
+ * `undefined` (jamais 0) quand il n'y a pas d'exercice antérieur.
+ */
 export interface LigneBilan {
   ref: string;
   libelle: string;
   montant: number;
+  montantN1?: number;
+  brut?: number;
+  brutN1?: number;
+  amortissement?: number;
+  amortissementN1?: number;
   /** Ligne de sous-total ou de total (ex. AZ, BT, DZ) — pas un poste de détail. */
   estTotal: boolean;
   comptes: CompteDuPoste[];
@@ -171,6 +182,10 @@ export interface Bilan {
   passif: LigneBilan[];
   totalActif: number;
   totalPassif: number;
+  totalActifN1?: number;
+  totalPassifN1?: number;
+  /** false = premier exercice du dossier, aucun N-1 à afficher. */
+  exerciceN1Disponible: boolean;
   equilibre: boolean;
   /** Comptes de bilan (classes 1-5) qu'aucun poste officiel ne réclame — jamais masqués. */
   comptesNonRattaches: CompteDuPoste[];
@@ -192,19 +207,28 @@ export interface PosteCalcule {
   ref: string;
   libelle: string;
   montant: number;
+  /** Comparatif N-1 — undefined quand il n'y a pas d'exercice antérieur. */
+  montantN1?: number;
   comptes: CompteDuPoste[];
 }
 
 export interface CompteDeResultat {
   produits: PosteCalcule[];
   totalProduits: number; // XA
+  totalProduitsN1?: number;
   charges: PosteCalcule[];
   totalCharges: number; // XB
+  totalChargesN1?: number;
   resultatActivitesOrdinaires: number; // XC
+  resultatActivitesOrdinairesN1?: number;
   produitsHao: PosteCalcule; // TM
   chargesHao: PosteCalcule; // TN
   resultatHao: number; // XD
+  resultatHaoN1?: number;
   resultatNet: number; // XE
+  resultatNetN1?: number;
+  /** false = premier exercice du dossier, aucun N-1 à afficher. */
+  exerciceN1Disponible: boolean;
   /** Comptes de gestion qu'aucun poste officiel ne réclame — jamais masqués. */
   comptesNonRattaches: CompteDuPoste[];
   controle: {
