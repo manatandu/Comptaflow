@@ -1,10 +1,23 @@
-import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
 import { Prisma, StatutExercice, TypeCompteDetailTotal } from '@prisma/client';
 import { CreerEcritureDto } from './dto/creer-ecriture.dto';
+import { CorrigerEcritureDto } from './dto/corriger-ecriture.dto';
 import { JournalService } from '../journaux/journal.service';
 import { ExerciceService } from '../exercice/exercice.service';
 import { avecRetrySerialisable } from '../../common/prisma-retry.util';
+
+/**
+ * Une ligne est au débit si son montant est porté du côté débit — quel que
+ * soit son SIGNE. Une correction par inscription en négatif (art. 20 de
+ * l'AUDCIF, voir `corrigerParInscriptionEnNegatif`) porte un débit négatif :
+ * c'est toujours une ligne de débit, et la tester par `> 0` la rangerait au
+ * crédit, avec la contrepartie du mauvais côté dans le grand livre et dans
+ * l'export d'audit.
+ */
+function estLigneDebit(l: { debit: Prisma.Decimal | number }): boolean {
+  return Math.abs(Number(l.debit)) > 0.005;
+}
 
 /**
  * Règle non négociable du moteur comptable : une écriture n'existe que si
@@ -123,6 +136,206 @@ export class EcritureService {
     );
   }
 
+
+  /**
+   * CORRECTION D'ERREUR PAR INSCRIPTION EN NÉGATIF — art. 20 de l'AUDCIF,
+   * repris mot pour mot par la Partie 2 ch. 2 du SYCEBNL :
+   *
+   *   « Les documents comptables doivent être tenus SANS BLANC NI ALTÉRATION
+   *   D'AUCUNE SORTE. Toute correction d'erreur commise et découverte sur
+   *   l'exercice en cours, s'effectue EXCLUSIVEMENT par l'inscription en
+   *   négatif des éléments erronés ; l'enregistrement exact est ensuite
+   *   opéré. »
+   *
+   * ## Pourquoi ce n'est PAS une contre-passation
+   *
+   * L'adverbe « exclusivement » exclut la contre-passation, qui inverse débit
+   * et crédit. Ce n'est pas la même écriture, et la différence est mesurable :
+   *
+   *  - une erreur de 1 000 au débit du 604, CONTRE-PASSÉE, laisse ce compte
+   *    avec 1 000 au débit ET 1 000 au crédit ; INSCRITE EN NÉGATIF, elle le
+   *    laisse à zéro des deux côtés. Or la même section de la Partie 2 ch. 2
+   *    impose à la balance générale de faire apparaître « le cumul depuis
+   *    l'ouverture de l'exercice des mouvements débiteurs et le cumul des
+   *    mouvements créditeurs » : la contre-passation gonfle les deux cumuls,
+   *    l'inscription en négatif les laisse exacts ;
+   *  - l'effet dépasse la présentation. Le tableau des flux lit les
+   *    immobilisations en `DEBIT_SEUL` (une acquisition est un débit, une
+   *    cession un crédit — voir correspondance-tft.ts) : une acquisition
+   *    erronée CONTRE-PASSÉE apparaîtrait comme une acquisition ET une
+   *    cession, deux flux de trésorerie qui n'ont jamais eu lieu. En négatif,
+   *    l'acquisition se réduit à zéro et rien n'apparaît. Même mécanique pour
+   *    les notes annexes qui ventilent augmentations et diminutions.
+   *
+   * ## Ce que la correction refuse de faire
+   *
+   * Une écriture n'est pas seule au monde : d'autres objets la référencent et
+   * affirment quelque chose à son sujet. La corriger sans le dire laisserait
+   * ces affirmations en place, devenues fausses — c'est-à-dire exactement
+   * l'« altération » que le texte proscrit. Chaque refus ci-dessous nomme
+   * l'objet concerné pour que l'utilisateur sache par où passer.
+   */
+  async corrigerParInscriptionEnNegatif(
+    tenantId: string,
+    createdBy: string,
+    ecritureId: string,
+    dto: CorrigerEcritureDto,
+  ) {
+    const origine = await this.prisma.ecriture.findFirst({
+      where: { id: ecritureId, tenantId },
+      include: {
+        lignes: true,
+        journal: true,
+        exercice: true,
+        correction: { select: { id: true, numeroPiece: true } },
+        immobilisationAcquisition: { select: { id: true, designation: true } },
+        immobilisationSortie: { select: { id: true, designation: true } },
+        dotationAmortissement: { select: { id: true } },
+      },
+    });
+    if (!origine) throw new NotFoundException('Écriture introuvable pour ce dossier.');
+
+    this.verifierCorrigeable(origine);
+
+    const date = dto.date ? new Date(dto.date) : new Date();
+
+    // « erreur commise et DÉCOUVERTE SUR L'EXERCICE EN COURS » : la correction
+    // par inscription en négatif ne vaut QUE dans ce cas. Une erreur d'un
+    // exercice antérieur relève d'un tout autre traitement, que le cadre
+    // conceptuel décrit précisément — on le NOMME plutôt que d'appliquer
+    // silencieusement le mauvais.
+    if (date < origine.exercice.dateDebut || date > origine.exercice.dateFin) {
+      throw new BadRequestException(
+        `La date de correction (${date.toLocaleDateString('fr-FR')}) sort de l'exercice de l'écriture corrigée ` +
+          `(${origine.exercice.dateDebut.toLocaleDateString('fr-FR')} – ${origine.exercice.dateFin.toLocaleDateString('fr-FR')}). ` +
+          "L'inscription en négatif ne vaut que pour une erreur « commise et découverte sur l'exercice en cours ». " +
+          "Une erreur d'un exercice antérieur suit un autre traitement (cadre conceptuel, § corrections d'erreurs) : " +
+          'elle doit faire l’objet d’une information dans les Notes annexes, et, si elle est significative, ' +
+          "être corrigée par ajustement du report à nouveau d'ouverture ; si elle ne l'est pas, directement dans les " +
+          "comptes de l'exercice en cours.",
+      );
+    }
+
+    await this.exerciceService.verifierEcritureAutorisee(tenantId, origine.journalId, date);
+
+    return avecRetrySerialisable(
+      this.prisma,
+      async (tx) => {
+        const numeroPiece = await this.journalService.prochainNumeroPiece(
+          tenantId,
+          origine.journal,
+          origine.exerciceId,
+          date,
+          tx,
+        );
+        return tx.ecriture.create({
+          data: {
+            tenantId,
+            exerciceId: origine.exerciceId,
+            // Même journal que l'erreur : la correction appartient à la même
+            // série chronologique que ce qu'elle corrige.
+            journalId: origine.journalId,
+            numeroPiece,
+            date,
+            libelle: `Correction (inscription en négatif) — ${origine.libelle}`,
+            reference: origine.reference,
+            createdBy,
+            corrigeEcritureId: origine.id,
+            motifCorrection: dto.motifCorrection.trim(),
+            lignes: {
+              // Les MÊMES comptes, dans les MÊMES sens, au signe près : c'est
+              // la définition de l'« inscription en négatif des éléments
+              // erronés ». Ni lettre ni pointage ne sont repris — ils
+              // appartiennent à la ligne d'origine, pas à sa correction.
+              create: origine.lignes.map((l) => ({
+                compteId: l.compteId,
+                libelle: l.libelle,
+                debit: l.debit.negated(),
+                credit: l.credit.negated(),
+                tauxTvaId: l.tauxTvaId,
+                dateEcheance: l.dateEcheance,
+              })),
+            },
+          },
+          include: { lignes: true, journal: true },
+        });
+      },
+      `Trop d'écritures enregistrées au même instant sur le journal ${origine.journal.code} — veuillez réessayer.`,
+    );
+  }
+
+  /**
+   * Les cinq états qui interdisent la correction. Chacun correspond à une
+   * affirmation qu'un autre objet porte sur cette écriture et que la
+   * corriger rendrait fausse sans la corriger elle.
+   */
+  private verifierCorrigeable(e: {
+    estGenereeParCloture: boolean;
+    numeroPiece: number | null;
+    corrigeEcritureId: string | null;
+    correction: { numeroPiece: number | null } | null;
+    exercice: { statut: StatutExercice };
+    lignes: { lettre: string | null; rapprochementId: string | null }[];
+    immobilisationAcquisition: { designation: string } | null;
+    immobilisationSortie: { designation: string } | null;
+    dotationAmortissement: { id: string } | null;
+  }) {
+    if (e.exercice.statut === StatutExercice.CLOTURE) {
+      throw new ForbiddenException(
+        "L'exercice est clôturé. Le texte vise l'erreur « commise et découverte sur l'exercice en cours », et les " +
+          'erreurs de cet exercice « doivent être corrigées AVANT l’arrêté des comptes » (cadre conceptuel).',
+      );
+    }
+    if (e.correction) {
+      throw new BadRequestException(
+        `Cette écriture est déjà corrigée (pièce n° ${e.correction.numeroPiece ?? '—'}). Appliquer une seconde fois ` +
+          "l'inscription en négatif inverserait l'erreur au lieu de l'annuler.",
+      );
+    }
+    if (e.corrigeEcritureId) {
+      throw new BadRequestException(
+        "Cette écriture EST une correction. La corriger à son tour ré-inscrirait l'erreur : passez une nouvelle " +
+          "écriture pour l'enregistrement exact (« l'enregistrement exact est ensuite opéré »).",
+      );
+    }
+    if (e.estGenereeParCloture) {
+      throw new BadRequestException(
+        "Cette écriture a été générée par la clôture (solde des classes 6/7, report à-nouveau). La corriger à la main " +
+          "désaccorderait le report à-nouveau du bilan d'ouverture, alors que « le Bilan d'ouverture d'un exercice doit " +
+          "correspondre au Bilan de clôture de l'exercice précédent » (art. 16-4). Annulez la clôture pour la refaire.",
+      );
+    }
+    if (e.immobilisationAcquisition || e.immobilisationSortie) {
+      const immo = e.immobilisationAcquisition ?? e.immobilisationSortie!;
+      throw new BadRequestException(
+        `Cette écriture porte ${e.immobilisationAcquisition ? "l'acquisition" : 'la sortie'} de l'immobilisation ` +
+          `« ${immo.designation} ». La corriger seule laisserait la fiche d'immobilisation et son plan ` +
+          "d'amortissement en place, désormais sans écriture exacte en face : passez par le module Immobilisations.",
+      );
+    }
+    if (e.dotationAmortissement) {
+      throw new BadRequestException(
+        "Cette écriture porte une dotation aux amortissements. La corriger seule laisserait la dotation enregistrée " +
+          'sur la fiche d’immobilisation sans contrepartie comptable : passez par le module Immobilisations.',
+      );
+    }
+    const lettrees = e.lignes.filter((l) => l.lettre);
+    if (lettrees.length > 0) {
+      throw new BadRequestException(
+        `${lettrees.length} ligne(s) de cette écriture sont lettrées (${[...new Set(lettrees.map((l) => l.lettre))].join(', ')}). ` +
+          'Le lettrage affirme que ces lignes sont soldées entre elles ; corriger sans délettrer laisserait cette ' +
+          'affirmation en place, devenue fausse. Délettrez-les d’abord.',
+      );
+    }
+    const pointees = e.lignes.filter((l) => l.rapprochementId);
+    if (pointees.length > 0) {
+      throw new BadRequestException(
+        `${pointees.length} ligne(s) de cette écriture sont pointées dans un rapprochement bancaire. Le pointage ` +
+          'affirme la concordance avec un relevé ; dépointez-les d’abord (possible tant que le rapprochement est en cours).',
+      );
+    }
+  }
+
   /** Journal : liste chronologique des écritures, filtrable par exercice/journal/période/recherche. */
   async lister(
     tenantId: string,
@@ -143,7 +356,17 @@ export class EcritureService {
           : {}),
         ...(filtres.recherche ? { libelle: { contains: filtres.recherche, mode: 'insensitive' as const } } : {}),
       },
-      include: { lignes: { include: { compte: true } }, journal: true },
+      include: {
+        lignes: { include: { compte: true } },
+        journal: true,
+        // Correction (art. 20 AUDCIF) : le journal doit montrer qu'une
+        // écriture a été annulée par inscription en négatif, sinon le lecteur
+        // additionne une erreur et son annulation sans savoir laquelle est
+        // laquelle. `corrigeEcritureId` et `motifCorrection` sont des scalaires,
+        // donc déjà renvoyés — seul le lien inverse doit être demandé.
+        correction: { select: { id: true, numeroPiece: true, date: true } },
+        corrigeEcriture: { select: { id: true, numeroPiece: true, date: true, libelle: true } },
+      },
       // Départage explicite : à date égale, l'ordre de sortie serait sinon
       // laissé au plan d'exécution PostgreSQL et pourrait changer d'un export
       // à l'autre (voir TRI_GRAND_LIVRE).
@@ -209,7 +432,11 @@ export class EcritureService {
     const debits = new Map<string, Set<string>>();
     const credits = new Map<string, Set<string>>();
     for (const l of brut) {
-      const cible = Number(l.debit) > 0 ? debits : credits;
+      // Le SENS d'une ligne est le côté où son montant est porté, pas le
+      // signe de ce montant : une correction par inscription en négatif
+      // (art. 20 AUDCIF) porte un débit NÉGATIF, qui reste un débit. Tester
+      // `> 0` la rangeait au crédit et lui donnait la mauvaise contrepartie.
+      const cible = estLigneDebit(l) ? debits : credits;
       let ens = cible.get(l.ecritureId);
       if (!ens) {
         ens = new Set();
@@ -250,7 +477,7 @@ export class EcritureService {
     soldeProgressif: number,
     contreparties: Map<string, { DEBIT: string[]; CREDIT: string[] }>,
   ) {
-    const sens = Number(l.debit) > 0 ? 'DEBIT' : 'CREDIT';
+    const sens = estLigneDebit(l) ? 'DEBIT' : 'CREDIT';
     return {
       id: l.id,
       date: l.ecriture.date,

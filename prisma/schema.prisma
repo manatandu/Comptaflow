@@ -324,6 +324,34 @@ model Ecriture {
   // statut CLOTURE de leur exercice.
   estGenereeParCloture Boolean @default(false)
 
+  // ---------------------------------------------------------------------
+  // CORRECTION D'ERREUR PAR INSCRIPTION EN NÉGATIF — art. 20 de l'AUDCIF,
+  // repris par la Partie 2 ch. 2 du SYCEBNL :
+  //
+  //   « Les documents comptables doivent être tenus SANS BLANC NI ALTÉRATION
+  //   D'AUCUNE SORTE. Toute correction d'erreur commise et découverte sur
+  //   l'exercice en cours, s'effectue EXCLUSIVEMENT par l'inscription en
+  //   négatif des éléments erronés ; l'enregistrement exact est ensuite
+  //   opéré. »
+  //
+  // « Exclusivement » exclut la contre-passation, qui inverse débit et
+  // crédit : ce n'est pas la même écriture. Une erreur de 1 000 au débit du
+  // 604 contre-passée laisse ce compte avec 1 000 au débit ET 1 000 au
+  // crédit ; inscrite en négatif, elle le laisse à zéro des deux côtés. Or
+  // la même section impose à la balance générale de faire apparaître « le
+  // cumul depuis l'ouverture de l'exercice des mouvements débiteurs et le
+  // cumul des mouvements créditeurs » : la contre-passation les gonfle tous
+  // les deux, l'inscription en négatif les laisse exacts.
+  //
+  // `@unique` : une écriture ne se corrige QU'UNE FOIS — appliquer deux fois
+  // le négatif inverserait l'erreur au lieu de l'annuler.
+  corrigeEcritureId String?   @unique
+  corrigeEcriture   Ecriture? @relation("CorrectionEcriture", fields: [corrigeEcritureId], references: [id])
+  correction        Ecriture? @relation("CorrectionEcriture")
+  /// Obligatoire sur une écriture de correction : une écriture en négatif
+  /// dont on ignore la raison est une altération, pas une correction.
+  motifCorrection   String?
+
   lignes LigneEcriture[]
 
   // Relations inverses optionnelles vers Immobilisation (§3.3) — une

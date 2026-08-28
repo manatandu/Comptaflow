@@ -175,9 +175,20 @@ export class ExportService {
       { header: 'Débit', key: 'debit', width: 14 },
       { header: 'Crédit', key: 'credit', width: 14 },
       { header: 'Lettrage', key: 'lettre', width: 10 },
+      // Un journal d'audit qui tairait les annulations laisserait additionner
+      // une erreur et sa correction sans savoir laquelle est laquelle. Les
+      // deux écritures RESTENT au journal — « sans blanc ni altération
+      // d'aucune sorte » (Partie 2 ch. 2) — mais chacune se nomme.
+      { header: 'Correction (art. 20 AUDCIF)', key: 'correction', width: 30 },
+      { header: 'Motif de la correction', key: 'motifCorrection', width: 46 },
     ];
 
     for (const e of ecritures) {
+      const etatCorrection = e.correction
+        ? `Annulée par la pièce n° ${e.correction.numeroPiece ?? '—'}`
+        : e.corrigeEcriture
+          ? `Annule la pièce n° ${e.corrigeEcriture.numeroPiece ?? '—'}`
+          : '';
       for (const l of e.lignes) {
         feuille.addRow({
           date: e.date,
@@ -191,6 +202,8 @@ export class ExportService {
           debit: Number(l.debit) || null,
           credit: Number(l.credit) || null,
           lettre: l.lettre ?? '',
+          correction: etatCorrection,
+          motifCorrection: e.motifCorrection ?? '',
         });
       }
     }

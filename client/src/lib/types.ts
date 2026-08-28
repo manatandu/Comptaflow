@@ -130,6 +130,19 @@ export interface Ecriture {
   createdAt: string;
   createdBy: string;
   lignes: LigneEcriture[];
+
+  /**
+   * Correction d'erreur par inscription en négatif — art. 20 de l'AUDCIF,
+   * repris par la Partie 2 ch. 2 du SYCEBNL. `correction` est posé sur
+   * l'écriture ERRONÉE (elle a été annulée par celle-ci) ; `corrigeEcriture`
+   * et `motifCorrection` sur l'écriture de CORRECTION.
+   */
+  /** Écriture de solde des classes 6/7 ou de report à-nouveau : non corrigeable à la main. */
+  estGenereeParCloture?: boolean;
+  corrigeEcritureId: string | null;
+  motifCorrection: string | null;
+  correction?: { id: string; numeroPiece: number | null; date: string } | null;
+  corrigeEcriture?: { id: string; numeroPiece: number | null; date: string; libelle: string } | null;
 }
 
 export interface LigneLettrage {

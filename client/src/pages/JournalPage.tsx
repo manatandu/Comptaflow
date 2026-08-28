@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { api } from '../lib/api';
+import { api, ApiError } from '../lib/api';
 import { useExercice } from '../lib/exercice';
+import { useAuth } from '../lib/auth';
 import { useRibbon } from '../components/chrome/ribbon-context';
 import { IconFilter, IconExport } from '../components/chrome/icons';
 import type { Compte, Ecriture, Journal, LigneBalance, LigneGrandLivre } from '../lib/types';
@@ -45,6 +46,14 @@ export function JournalPage() {
   const [filtresOuverts, setFiltresOuverts] = useState(false);
 
   const [erreur, setErreur] = useState<string | null>(null);
+  // Une correction (art. 20 de l'AUDCIF) change à la fois le journal, la
+  // balance et le grand livre : ce compteur, ajouté aux dépendances des trois
+  // effets, les recharge tous les trois. Recharger le seul journal laisserait
+  // à l'écran une balance qui contient encore le compte annulé.
+  const [rechargement, setRechargement] = useState(0);
+  const charger = () => setRechargement((n) => n + 1);
+  const { utilisateur } = useAuth();
+  const peutCorriger = utilisateur?.role === 'ADMIN_CABINET' || utilisateur?.role === 'COMPTABLE';
 
   useEffect(() => {
     let annule = false;
@@ -81,7 +90,7 @@ export function JournalPage() {
     return () => {
       annule = true;
     };
-  }, [exerciceCourant?.id, filtresAppliques]);
+  }, [exerciceCourant?.id, filtresAppliques, rechargement]);
 
   useEffect(() => {
     if (!exerciceCourant) return;
@@ -93,7 +102,7 @@ export function JournalPage() {
     return () => {
       annule = true;
     };
-  }, [exerciceCourant?.id]);
+  }, [exerciceCourant?.id, rechargement]);
 
   useEffect(() => {
     if (!exerciceCourant || !compteGrandLivreId) {
@@ -169,7 +178,7 @@ export function JournalPage() {
   ]);
 
   const lignesJournal = ecritures.flatMap((e) =>
-    e.lignes.map((l) => ({
+    e.lignes.map((l, indexLigne) => ({
       date: e.date,
       journal: e.journal?.code ?? '',
       libelle: e.libelle,
@@ -183,8 +192,77 @@ export function JournalPage() {
       numeroPiece: e.numeroPiece,
       reference: e.reference,
       key: l.id,
+      // État de correction (art. 20 de l'AUDCIF), porté par l'ÉCRITURE et
+      // rendu sur sa PREMIÈRE ligne seulement : le journal est ici présenté
+      // ligne à ligne, répéter l'état sur chacune donnerait à lire autant de
+      // corrections qu'il y a de lignes.
+      ecritureId: e.id,
+      premiereLigne: indexLigne === 0,
+      annuleePar: e.correction ?? null,
+      corrige: e.corrigeEcriture ?? null,
+      motifCorrection: e.motifCorrection,
+      estGenereeParCloture: e.estGenereeParCloture ?? false,
     })),
   );
+
+  /**
+   * CORRECTION D'ERREUR PAR INSCRIPTION EN NÉGATIF — art. 20 de l'AUDCIF,
+   * repris par la Partie 2 ch. 2 du SYCEBNL : « les documents comptables
+   * doivent être tenus sans blanc ni altération d'aucune sorte. Toute
+   * correction d'erreur commise et découverte sur l'exercice en cours,
+   * s'effectue exclusivement par l'inscription en négatif des éléments
+   * erronés ; l'enregistrement exact est ensuite opéré. »
+   *
+   * D'où l'absence, ici comme côté serveur, de toute action « Modifier » ou
+   * « Supprimer » sur une écriture : ce serait l'altération que le texte
+   * proscrit. L'écriture erronée RESTE au journal, signalée comme annulée —
+   * c'est la trace qui fait foi.
+   */
+  const corriger = async (ecritureId: string, libelle: string) => {
+    const motif = window.prompt(
+      `Correction de « ${libelle} » par inscription en négatif (art. 20 de l’AUDCIF).\n\n` +
+        `L’écriture erronée reste au journal ; une écriture de sens identique et de montants négatifs l’annule. ` +
+        `Passez ensuite l’enregistrement exact.\n\nMotif de la correction :`,
+    );
+    if (!motif?.trim()) return;
+    setErreur(null);
+    try {
+      await api.post(`/ecritures/${ecritureId}/correction`, { motifCorrection: motif.trim() });
+      charger();
+    } catch (e) {
+      setErreur(e instanceof ApiError ? e.message : 'Correction impossible');
+    }
+  };
+
+  const etatCorrection = (l: {
+    ecritureId: string;
+    libelle: string;
+    annuleePar: { numeroPiece: number | null } | null;
+    corrige: { numeroPiece: number | null } | null;
+    motifCorrection: string | null;
+    estGenereeParCloture: boolean;
+  }) => {
+    if (l.annuleePar) {
+      return (
+        <span className="text-danger font-semibold" title="Annulée par inscription en négatif (art. 20 AUDCIF)">
+          Annulée ▸ pièce {l.annuleePar.numeroPiece ?? '—'}
+        </span>
+      );
+    }
+    if (l.corrige) {
+      return (
+        <span className="text-text-dim italic" title={l.motifCorrection ?? undefined}>
+          Correction ▸ pièce {l.corrige.numeroPiece ?? '—'}
+        </span>
+      );
+    }
+    if (!peutCorriger || l.estGenereeParCloture) return null;
+    return (
+      <button onClick={() => corriger(l.ecritureId, l.libelle)} className="text-sel hover:underline">
+        Corriger
+      </button>
+    );
+  };
 
   const boutonExport = (label: string, onClick: () => void, principal = true) => (
     <button
@@ -324,7 +402,7 @@ export function JournalPage() {
 
       {onglet === 'journal' && (
         <div className="border border-border">
-          <div className="grid grid-cols-[62px_46px_1.5fr_1.25fr_100px_100px_60px_84px] gap-2.5 px-3.5 py-1.5 bg-surface-alt text-[10px] font-bold text-text-dim border-b border-border">
+          <div className="grid grid-cols-[62px_46px_1.5fr_1.25fr_100px_100px_60px_84px_150px] gap-2.5 px-3.5 py-1.5 bg-surface-alt text-[10px] font-bold text-text-dim border-b border-border">
             <span>DATE</span>
             <span>JRN</span>
             <span>LIBELLÉ</span>
@@ -333,6 +411,7 @@ export function JournalPage() {
             <span className="text-right">CRÉDIT</span>
             <span className="text-right">N° PIÈCE</span>
             <span>RÉFÉRENCE</span>
+            <span>ÉTAT (ART. 20 AUDCIF)</span>
           </div>
           {lignesJournal.length === 0 && (
             <div className="px-3.5 py-4 text-[11.5px] text-text-dim">
@@ -342,7 +421,7 @@ export function JournalPage() {
           {lignesJournal.map((l, i) => (
             <div
               key={l.key}
-              className={`grid grid-cols-[62px_46px_1.5fr_1.25fr_100px_100px_60px_84px] gap-2.5 px-3.5 py-1 items-center border-b border-border text-[11.5px] ${
+              className={`grid grid-cols-[62px_46px_1.5fr_1.25fr_100px_100px_60px_84px_150px] gap-2.5 px-3.5 py-1 items-center border-b border-border text-[11.5px] ${
                 i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'
               }`}
             >
@@ -354,15 +433,17 @@ export function JournalPage() {
               <span className="font-mono text-right">{l.credit ? l.credit.toLocaleString('fr-FR') : ''}</span>
               <span className="font-mono text-[10px] text-text-dim text-right">{l.numeroPiece ?? ''}</span>
               <span className="font-mono text-[10px] text-text-dim">{l.reference}</span>
+              <span className="text-[10px]">{l.premiereLigne && etatCorrection(l)}</span>
             </div>
           ))}
-          <div className="grid grid-cols-[62px_46px_1.5fr_1.25fr_100px_100px_60px_84px] gap-2.5 px-3.5 py-1.5 bg-surface-alt border-t border-border-dark text-[11.5px] font-bold">
+          <div className="grid grid-cols-[62px_46px_1.5fr_1.25fr_100px_100px_60px_84px_150px] gap-2.5 px-3.5 py-1.5 bg-surface-alt border-t border-border-dark text-[11.5px] font-bold">
             <span />
             <span />
             <span>TOTAUX DE LA PÉRIODE</span>
             <span />
             <span className="font-mono text-right">{totaux.debit.toLocaleString('fr-FR')}</span>
             <span className="font-mono text-right">{totaux.credit.toLocaleString('fr-FR')}</span>
+            <span />
             <span />
           </div>
         </div>

@@ -260,12 +260,21 @@ export class LettrageService {
       orderBy: { ecriture: { date: 'asc' } },
     });
 
+    // Ce qui compte pour le lettrage est l'EFFET NET d'une ligne sur le
+    // compte, pas la colonne dans laquelle elle est écrite. Sur toutes les
+    // lignes ordinaires (un seul côté servi) le résultat est identique ; la
+    // différence apparaît sur une correction par inscription en négatif
+    // (art. 20 de l'AUDCIF), qui porte un débit négatif : économiquement
+    // c'est un crédit, et l'ancienne lecture `> 0` l'écartait des DEUX côtés,
+    // si bien qu'une facture annulée et son annulation ne pouvaient jamais se
+    // solder l'une l'autre.
+    const net = (l: { debit: Prisma.Decimal; credit: Prisma.Decimal }) => Number(l.debit) - Number(l.credit);
     let debitsRestants = nonLettrees
-      .filter((l) => Number(l.debit) > 0 && Number(l.credit) === 0)
-      .map((l) => ({ id: l.id, montant: Number(l.debit) }));
+      .filter((l) => net(l) > EPSILON)
+      .map((l) => ({ id: l.id, montant: net(l) }));
     let creditsRestants = nonLettrees
-      .filter((l) => Number(l.credit) > 0 && Number(l.debit) === 0)
-      .map((l) => ({ id: l.id, montant: Number(l.credit) }));
+      .filter((l) => net(l) < -EPSILON)
+      .map((l) => ({ id: l.id, montant: -net(l) }));
 
     const groupes: string[][] = [];
 

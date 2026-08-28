@@ -540,18 +540,29 @@ export class NoteAnnexeService {
       for (const ligne of lignes) {
         // Un mouvement CRÉDITEUR accroît une provision, un mouvement DÉBITEUR
         // la réduit — les rubriques de la note 30 sont toutes créditrices.
-        const sens: 'augmentation' | 'diminution' = ligne.credit > 0 ? 'augmentation' : 'diminution';
-        const montant = ligne.credit > 0 ? ligne.credit : ligne.debit;
+        //
+        // Le côté se lit sur la PRÉSENCE d'un montant, pas sur son signe :
+        // une correction par inscription en négatif (art. 20 de l'AUDCIF)
+        // porte un crédit NÉGATIF, qui reste un crédit — et vaut une
+        // augmentation négative, c'est-à-dire l'annulation de l'augmentation
+        // erronée. Testé par `> 0`, ce crédit de −500 était lu comme une
+        // diminution de `ligne.debit` (soit 0), donc SILENCIEUSEMENT IGNORÉ :
+        // la note continuait d'afficher une augmentation annulée.
+        const estCredit = Math.abs(ligne.credit) > 0.005;
+        const sens: 'augmentation' | 'diminution' = estCredit ? 'augmentation' : 'diminution';
+        const montant = estCredit ? ligne.credit : ligne.debit;
         if (montant === 0) continue;
 
-        const contreparties = lignes.filter((c) => (ligne.credit > 0 ? c.debit > 0 : c.credit > 0));
-        const total = contreparties.reduce((s2, c) => s2 + (ligne.credit > 0 ? c.debit : c.credit), 0);
+        const contreparties = lignes.filter((c) =>
+          estCredit ? Math.abs(c.debit) > 0.005 : Math.abs(c.credit) > 0.005,
+        );
+        const total = contreparties.reduce((s2, c) => s2 + (estCredit ? c.debit : c.credit), 0);
         const v = parCompte.get(ligne.numero) ?? VENTILATION_NULLE();
         if (total === 0) {
           v.nonVentile[sens] += montant;
         } else {
           for (const c of contreparties) {
-            const part = (montant * (ligne.credit > 0 ? c.debit : c.credit)) / total;
+            const part = (montant * (estCredit ? c.debit : c.credit)) / total;
             const nature = natureDeLaContrepartie(c.numero);
             if (nature) v[sens][nature] += part;
             else v.nonVentile[sens] += part;

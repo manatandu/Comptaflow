@@ -296,7 +296,7 @@ cotisations. Le choix pilote à la fois les écritures et une mention obligatoir
 | C1 | ✅ **Registre des donateurs** — coté, paraphé, numéroté en continu ; date, identité complète du donateur, montant et mode de libération ; signature du représentant légal ; version électronique expressément admise | art. 17-18 · P2 ch. 2 | **Sanction pénale** en cas de registre non tenu ou non mis à jour (art. 24) |
 | C2 | ✅ **Livre d'inventaire** — transcription des états financiers de l'exercice et du résumé de l'opération d'inventaire | art. 14 · P2 ch. 2 | **Sanction pénale** (art. 24) |
 | C3 | ✅ **Rapport d'activité** — situation de l'exercice écoulé, perspectives, évolution de la trésorerie, événements importants survenus après la clôture | art. 16-3 | **Sanction pénale** (art. 24) |
-| C4 | **Correction d'erreur par inscription en négatif** — « toute correction d'erreur découverte sur l'exercice en cours s'effectue exclusivement par l'inscription en négatif des éléments erronés ; l'enregistrement exact est ensuite opéré » | art. 20 AUDCIF, via P2 ch. 2 | Les écritures sont déjà immuables dans l'application, mais **aucune fonction de contre-passation n'existe** |
+| C4 | ✅ **Correction d'erreur par inscription en négatif** — « toute correction d'erreur découverte sur l'exercice en cours s'effectue exclusivement par l'inscription en négatif des éléments erronés ; l'enregistrement exact est ensuite opéré » | art. 20 AUDCIF, via P2 ch. 2 | Les écritures sont déjà immuables dans l'application, mais **aucune fonction de contre-passation n'existe** |
 | C5 | Centralisation des journaux auxiliaires **au moins chaque semaine** dans le livre-journal ou le grand-livre | P2 ch. 2 | Contrainte de périodicité si des journaux auxiliaires sont introduits |
 
 **C1 réalisé** (`src/modules/registre-donateurs/`). Trois garanties tirées du texte, et non de
@@ -367,6 +367,42 @@ tiret de l'art. 24 en plus du 3ᵉ. ⚠️ `[texte officiel]` « annexée audit
 rapport » est ambigu : la phrase figure dans la branche « s'il n'existe pas
 d'auditeur », où aucun rapport d'auditeur n'existe ; le seul autre rapport prévu
 est celui de l'art. 16-3, d'où ce rattachement.
+
+**C4 réalisé** (`EcritureService.corrigerParInscriptionEnNegatif`). Le point de
+méthode : l'adverbe **« exclusivement »** du texte écarte la contre-passation,
+et la différence est mesurable, pas cosmétique.
+
+- Une erreur de 1 000 au débit du 604 **contre-passée** laisse ce compte avec
+  1 000 au débit ET 1 000 au crédit ; **inscrite en négatif**, elle le laisse à
+  zéro des deux côtés. Or la même section de la Partie 2 ch. 2 impose à la
+  balance générale de publier « le cumul depuis l'ouverture de l'exercice des
+  mouvements débiteurs et le cumul des mouvements créditeurs » : la
+  contre-passation gonfle les deux, l'inscription en négatif les laisse exacts.
+  Vérifié en base : le compte 604 **disparaît** de la balance.
+- L'effet dépasse la présentation. Le TFT lit les immobilisations en
+  `DEBIT_SEUL` : une acquisition erronée contre-passée apparaîtrait comme une
+  acquisition **et** une cession, deux flux de trésorerie qui n'ont jamais eu
+  lieu. Chiffré dans `correction-inscription-negatif.spec.ts`.
+
+Aucune route de modification ni de suppression d'écriture n'existe — ce serait
+l'« altération » que le texte proscrit. L'écriture erronée **reste** au journal,
+signalée comme annulée, à l'écran comme à l'export. Sept refus nommés, chacun
+désignant l'objet dont la correction rendrait l'affirmation fausse (immobilisation,
+dotation, lettrage, pointage, écriture de clôture, double correction, correction
+d'une correction) — plus le renvoi au traitement des **erreurs d'un exercice
+antérieur**, que le cadre conceptuel décrit tout autrement (information en Notes
+annexes ; ajustement du report à nouveau si significative).
+
+**Défaut de classe corrigé au passage** : quatre endroits déduisaient le SENS
+d'une ligne de `Number(l.debit) > 0`. Un débit négatif y était lu comme un
+crédit. Conséquences réelles — contrepartie du mauvais côté au grand livre et
+dans l'export d'audit ; ventilation par nature de la note 30 **silencieusement
+ignorée** (un crédit de −500 devenait une « diminution » de 0, court-circuitée
+par le garde `montant === 0`, la note continuant d'afficher une augmentation
+annulée) ; et lettrage automatique écartant la ligne **des deux côtés**, si bien
+qu'une facture annulée et son annulation ne pouvaient jamais se solder. Le sens
+se lit désormais sur la présence d'un montant, et le lettrage sur l'effet net —
+identique sur toute ligne ordinaire.
 
 ---
 

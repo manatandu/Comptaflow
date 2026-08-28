@@ -6,6 +6,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { EcritureService } from './ecriture.service';
 import { CreerEcritureDto } from './dto/creer-ecriture.dto';
+import { CorrigerEcritureDto } from './dto/corriger-ecriture.dto';
 import { RoleUtilisateur } from '@prisma/client';
 
 @UseGuards(JwtAuthGuard, LicenceGuard, RolesGuard)
@@ -18,6 +19,27 @@ export class EcritureController {
   @Post()
   async creer(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreerEcritureDto) {
     return this.ecritureService.creer(user.tenantId, user.userId, dto);
+  }
+
+  /**
+   * Correction d'une écriture par INSCRIPTION EN NÉGATIF (art. 20 de l'AUDCIF,
+   * repris par la Partie 2 ch. 2). Il n'y a délibérément AUCUNE route de
+   * modification ni de suppression d'écriture sur ce contrôleur : « les
+   * documents comptables doivent être tenus sans blanc ni altération d'aucune
+   * sorte », et la correction s'effectue « exclusivement » par cette voie.
+   *
+   * Le corps ne porte ni comptes ni montants : ils sont repris de l'écriture
+   * corrigée, à l'identique et changés de signe. Le texte impose l'inscription
+   * en négatif « des éléments erronés » — ceux-là, pas d'autres.
+   */
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Post(':id/correction')
+  async corriger(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: CorrigerEcritureDto,
+  ) {
+    return this.ecritureService.corrigerParInscriptionEnNegatif(user.tenantId, user.userId, id, dto);
   }
 
   /** Journal — voir l'écran « Journal & grand livre » (onglet Journal) du canevas. */
