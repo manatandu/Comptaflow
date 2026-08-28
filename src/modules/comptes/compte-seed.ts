@@ -30,6 +30,14 @@ export const PLAN_COMPTES_SYCEBNL: Array<{
   { numero: '160000', intitule: 'Fonds affectés', classe: ClasseCompte.CLASSE_1, modeReportANouveau: ModeReportANouveau.SOLDE },
   { numero: '170000', intitule: 'Fonds reportés', classe: ClasseCompte.CLASSE_1, modeReportANouveau: ModeReportANouveau.SOLDE },
 
+  // Classe 4 — Tiers (comptes d'État TVA — cf. AUDCIF Titre VII classe 4 /
+  // skill sycebnl partie2-ch3-classe4 : 443 TVA facturée, crédité lors des
+  // ventes ; 445 TVA récupérable, débité lors des achats ; 444 TVA due ou
+  // crédit de TVA, mouvementé lors de la déclaration — voir TauxTvaService)
+  { numero: '443100', intitule: 'État, TVA facturée', classe: ClasseCompte.CLASSE_4, modeReportANouveau: ModeReportANouveau.SOLDE },
+  { numero: '444100', intitule: 'État, TVA due ou crédit de TVA', classe: ClasseCompte.CLASSE_4, modeReportANouveau: ModeReportANouveau.SOLDE },
+  { numero: '445100', intitule: 'État, TVA récupérable', classe: ClasseCompte.CLASSE_4, modeReportANouveau: ModeReportANouveau.SOLDE },
+
   // Classe 5 — Trésorerie
   { numero: '521100', intitule: 'Banque', classe: ClasseCompte.CLASSE_5, modeReportANouveau: ModeReportANouveau.SOLDE },
   { numero: '571000', intitule: 'Caisse', classe: ClasseCompte.CLASSE_5, modeReportANouveau: ModeReportANouveau.SOLDE },

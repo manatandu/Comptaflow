@@ -141,6 +141,18 @@ export interface TiersCompte {
   compte: Compte;
 }
 
+export interface TauxTva {
+  id: string;
+  code: string;
+  intitule: string;
+  taux: string;
+  compteCollecteId: string | null;
+  compteCollecte?: Compte | null;
+  compteDeductibleId: string | null;
+  compteDeductible?: Compte | null;
+  estActif: boolean;
+}
+
 export interface Tiers {
   id: string;
   type: TypeTiers;

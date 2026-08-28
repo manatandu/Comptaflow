@@ -9,6 +9,7 @@ import { TenantModule } from '../tenant/tenant.module';
 import { ComptesModule } from '../comptes/comptes.module';
 import { ExerciceModule } from '../exercice/exercice.module';
 import { JournauxModule } from '../journaux/journaux.module';
+import { TvaModule } from '../tva/tva.module';
 import { JwtAuthModule } from './jwt-auth.module';
 
 @Module({
@@ -26,6 +27,7 @@ import { JwtAuthModule } from './jwt-auth.module';
     ComptesModule,
     ExerciceModule,
     JournauxModule,
+    TvaModule,
     JwtAuthModule,
   ],
   controllers: [AuthController],

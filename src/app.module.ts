@@ -12,6 +12,7 @@ import { UtilisateursModule } from './modules/utilisateurs/utilisateurs.module';
 import { JournauxModule } from './modules/journaux/journaux.module';
 import { LettrageModule } from './modules/lettrage/lettrage.module';
 import { TiersModule } from './modules/tiers/tiers.module';
+import { TvaModule } from './modules/tva/tva.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { TiersModule } from './modules/tiers/tiers.module';
     ComptabiliteModule,
     LettrageModule,
     TiersModule,
+    TvaModule,
     EtatsFinanciersModule,
     UtilisateursModule,
   ],

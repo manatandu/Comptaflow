@@ -57,6 +57,7 @@ model Tenant {
   clotures         Cloture[]
   tiers            Tiers[]
   modelesReglement ModeleReglement[]
+  tauxTva          TauxTva[]
 
   @@map("tenants")
 }
@@ -143,6 +144,10 @@ model Compte {
   // Rattachement à un tiers (cf. §3.2) : au plus un tiers par compte — un
   // compte de classe 4 est le sous-compte auxiliaire d'un seul tiers.
   tiersCompte        TiersCompte?
+  // Comptes d'État TVA (443/445) référencés par un ou plusieurs taux (§3.1) —
+  // un même compte 443100 peut être partagé par plusieurs taux (16 %, 1 %...).
+  tauxTvaCollecte    TauxTva[]        @relation("TauxTvaCollecte")
+  tauxTvaDeductible  TauxTva[]        @relation("TauxTvaDeductible")
 
   @@unique([tenantId, numero])
   @@map("comptes")
@@ -378,4 +383,49 @@ model TiersCompte {
   createdAt   DateTime @default(now())
 
   @@map("tiers_comptes")
+}
+
+// ---------------------------------------------------------------------------
+// TVA (cf. docs/plan-de-construction.md §3.1 et §5) — entité "Taux" paramétrable
+// (pattern Sage : compte + comptes rattachés par taux), fondée sur
+// l'Ordonnance-Loi n° 10/001 du 20/08/2010 telle que modifiée par la Loi de
+// Finances 2026 (art. 35 O.-L., modifié par l'art. 46 LF n° 25/060 du
+// 29/12/2025) : taux normal 16 %, taux réduits 1 % et 5 % (5 % réservé aux
+// seuls billets d'avion sur le trafic aérien national), taux zéro 0 %
+// (exportations). Les exonérations légales (art. 15.2 et 17.8 : ventes,
+// importations et prestations des ASBL conformes à leur objet, sous réserve
+// de non-distorsion de concurrence pour les prestations) ne sont PAS un taux
+// à 0 % — une opération exonérée ne porte aucune ligne de TVA, elle n'utilise
+// donc simplement aucun taux ; seed volontairement sans taux "EXONÉRÉ" pour
+// ne pas laisser croire à une automatisation qui n'existe pas encore.
+//
+// Portée MVP : entité de référence uniquement (taux + comptes rattachés),
+// pas encore appliquée à la saisie d'écriture — aucune saisie libre multi-
+// lignes n'existe côté frontend pour l'instant (voir SaisiePage, guidée et
+// à 2 lignes fixes). Le rattachement d'un taux à une LigneEcriture et le
+// registre de suivi/déclaration par taux sont un enrichissement futur, posé
+// une fois une saisie libre construite.
+// ---------------------------------------------------------------------------
+
+model TauxTva {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+  code     String // ex : "TVA16", "TVA1", "TVA5", "TVA0"
+  intitule String
+  // Pourcentage (ex. 16.00) ; 0 pour le taux zéro (exportations).
+  taux Decimal @db.Decimal(5, 2)
+
+  // Compte 443 (État, TVA facturée) crédité lors d'une vente à ce taux.
+  compteCollecteId String?
+  compteCollecte   Compte? @relation("TauxTvaCollecte", fields: [compteCollecteId], references: [id])
+  // Compte 445 (État, TVA récupérable) débité lors d'un achat à ce taux.
+  compteDeductibleId String?
+  compteDeductible   Compte? @relation("TauxTvaDeductible", fields: [compteDeductibleId], references: [id])
+
+  estActif  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@unique([tenantId, code])
+  @@map("taux_tva")
 }

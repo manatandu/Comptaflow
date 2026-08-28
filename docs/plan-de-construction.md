@@ -243,7 +243,34 @@ Ordre de dépendances techniques réelles, pas un simple ordre de préférence :
    Vérifié de bout en bout via curl : rejet d'un rattachement sur un compte hors
    classe 4, rejet d'un compte déjà rattaché à un autre tiers, un seul Principal
    après bascule, rejet des codes tiers/modèles dupliqués, détachement.
-5. **TVA / taux de taxes** comme entité paramétrable.
+5. ✅ **TVA / taux de taxes** — livré, entité paramétrable uniquement (pas encore
+   appliquée à la saisie, voir plus bas) : `TauxTva` (code, intitule, taux %,
+   compte de TVA collectée 443 et compte de TVA déductible 445 rattachés,
+   actif/inactif). Fondé sur l'Ordonnance-Loi n° 10/001 du 20/08/2010 telle que
+   modifiée par la Loi de Finances 2026 (art. 35, modifié par l'art. 46 de la LF
+   n° 25/060 du 29/12/2025) — skill `fiscalite-rdc/tva` : taux normal **16 %**,
+   réduits **1 %** (produits de première nécessité, matières premières
+   industrielles, intrants agricoles/ciment/infrastructures publiques) et **5 %**
+   (réservé aux seuls billets d'avion sur le trafic aérien national — ne pas
+   confondre avec l'ancien taux réduit unique de 8 %, abrogé), taux zéro **0 %**
+   (exportations). Seed automatique des 4 taux légaux à l'inscription, avec les
+   comptes 443100/444100/445100 ajoutés au plan SYCEBNL (skill `sycebnl` +
+   `audcif-acte-uniforme`, mécanique de collecte/déduction vérifiée sur les
+   comptes 40/41/443/445 des deux skills). **Exonération ASBL** (art. 15.2 et
+   17.8 : ventes, importations et prestations conformes à l'objet social, sous
+   réserve de non-distorsion de concurrence pour les prestations) volontairement
+   **non modélisée comme un taux à 0 %** — une opération exonérée ne porte
+   aucune ligne de TVA, ce n'est pas un taux ; le tenant qui veut tracer ces
+   opérations peut créer un taux "EXO" à 0 % sans compte rattaché, à titre
+   documentaire. Écran `/taux-tva` (Structure > Taux de taxes), CRUD admin.
+   Vérifié via curl : seed des 4 taux + comptes à l'inscription, rejet code
+   dupliqué, rejet compte rattaché inexistant, bascule actif/inactif filtrée.
+   **Hors scope pour l'instant** (à construire une fois une saisie libre
+   multi-lignes existante côté frontend — `SaisiePage` reste guidée à 2 lignes
+   fixes) : rattachement d'un taux à une `LigneEcriture`, calcul HT→TVA→TTC
+   assisté en saisie, registre de suivi / déclaration TVA par taux et par
+   période, régime du prorata de déduction (art. 43-49 O.-L., significatif pour
+   une association ayant des activités à la fois exonérées et taxables).
 6. **Comptes "Total"/regroupement par racine** — brique technique courte, prépare le
    moteur de mapping.
 7. **Rapprochement bancaire** (manuel d'abord).

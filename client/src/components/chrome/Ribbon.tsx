@@ -44,7 +44,7 @@ export function Ribbon({ groupes, droite }: { groupes: RibbonGroupe[]; droite?: 
       items: [
         { label: 'Plan de comptes', onClick: () => navigate('/comptes') },
         { label: 'Codes journaux', onClick: () => navigate('/journaux') },
-        { label: 'Taux de taxes', disabled: true, indication: 'à venir' },
+        { label: 'Taux de taxes', onClick: () => navigate('/taux-tva') },
         { label: 'Plan des tiers', onClick: () => navigate('/tiers') },
       ],
     },
