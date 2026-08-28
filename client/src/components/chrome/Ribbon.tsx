@@ -15,14 +15,19 @@ export function Ribbon({ groupes, droite }: { groupes: RibbonGroupe[]; droite?: 
   const navigate = useNavigate();
   const [aProposOuvert, setAProposOuvert] = useState(false);
 
-  // Contenu réel de chaque menu. Un menu dont la brique n'existe pas encore
-  // (Édition, Trésorerie, Tiers, Fenêtre) a une liste vide : MenuBar affiche
-  // alors "Pas encore disponible" plutôt que de faire semblant.
+  // Contenu réel de chaque menu, inspiré de la structure Sage 100 i7
+  // (Structure = paramétrage, Traitement = actions du quotidien, plutôt
+  // que tout mélanger sous un seul menu "Comptabilité"). Un item pas encore
+  // construit reste visible mais désactivé, avec l'indication "à venir" —
+  // même logique que les tuiles verrouillées de l'écran Accueil : on montre
+  // ce qui manque, on ne le cache pas. Un menu entièrement vide (Édition,
+  // Trésorerie, Tiers, Fenêtre) affiche "Pas encore disponible" (MenuBar).
   const menus: MenuDef[] = [
     {
       titre: 'Fichier',
       items: [
-        { label: 'Accueil', onClick: () => navigate('/') },
+        { label: 'Nouveau fichier comptable', onClick: () => navigate('/') },
+        { label: 'Ouvrir un dossier existant', disabled: true, indication: 'à venir' },
         { label: 'Déconnexion', onClick: seDeconnecter },
       ],
     },
@@ -35,19 +40,32 @@ export function Ribbon({ groupes, droite }: { groupes: RibbonGroupe[]; droite?: 
       ],
     },
     {
-      titre: 'Comptabilité',
+      titre: 'Structure',
       items: [
-        { label: 'Saisir une opération', onClick: () => navigate('/saisie') },
         { label: 'Plan de comptes', onClick: () => navigate('/comptes') },
         { label: 'Codes journaux', onClick: () => navigate('/journaux') },
+        { label: 'Taux de taxes', disabled: true, indication: 'à venir' },
+        { label: 'Plan des tiers', disabled: true, indication: 'à venir' },
+      ],
+    },
+    {
+      titre: 'Traitement',
+      items: [
+        { label: 'Saisir une opération', onClick: () => navigate('/saisie') },
         { label: 'Journal & grand livre', onClick: () => navigate('/journal') },
+        { label: 'Lettrage', disabled: true, indication: 'à venir' },
+        { label: 'Rapprochement bancaire', disabled: true, indication: 'à venir' },
+        { label: "Clôture d'exercice", disabled: true, indication: 'à venir' },
       ],
     },
     { titre: 'Trésorerie', items: [] },
     { titre: 'Tiers', items: [] },
     {
       titre: 'États',
-      items: [{ label: 'États financiers', onClick: () => navigate('/etats-financiers') }],
+      items: [
+        { label: 'États financiers', onClick: () => navigate('/etats-financiers') },
+        { label: 'Balance âgée', disabled: true, indication: 'à venir' },
+      ],
     },
     {
       titre: 'Outils',
