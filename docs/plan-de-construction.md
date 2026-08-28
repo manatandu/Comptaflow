@@ -194,7 +194,11 @@ Ordre de dépendances techniques réelles, pas un simple ordre de préférence :
    plutôt qu'un préfixe de numéro de compte codé en dur. Vérifié de bout en bout
    (curl + Playwright) : seed, rejet d'un journal Trésorerie sans compte, mise en
    sommeil bloquant la saisie, numérotation mensuelle qui incrémente puis se
-   réinitialise au mois suivant.
+   réinitialise au mois suivant. **Audit de suivi** : condition de course corrigée
+   dans le calcul du numéro de pièce (lecture-puis-écriture non atomique — deux
+   écritures simultanées sur le même journal pouvaient recevoir le même numéro),
+   via une transaction Serializable + reprise automatique ; validé par un test de
+   concurrence réel (8 puis 12 écritures simultanées, tous numéros distincts).
 2. **Lettrage** (manuel puis automatique) — prérequis du report à-nouveau "Détail" et
    de toute gestion sérieuse des Tiers.
 3. **Cycle de vie complet de l'exercice** : clôture à 3 granularités + génération réelle
