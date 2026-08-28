@@ -228,7 +228,9 @@ Ordre de dépendances techniques réelles, pas un simple ordre de préférence :
    l'annulation), Période (bloque tous journaux jusqu'à une date), et clôture annuelle
    complète (don 500 + achat 200 → résultat 300 crédité sur 130000, reporté avec la
    Banque dans l'exercice suivant auto-créé, balance équilibrée 300/300). Frontend
-   (`ExercicePage`, menu Traitement) pas encore construit — reste à faire.
+   Frontend livré : `ExercicePage` (sélecteur d'exercice, clôture annuelle avec
+   confirmation, les 3 formulaires de clôture, liste des clôtures + annulation),
+   accessible depuis le menu Traitement > "Clôture d'exercice". Brique complète.
 4. **Tiers** (Client/Fournisseur/Salarié/Autre, comptes rattachés, modèle de règlement).
 5. **TVA / taux de taxes** comme entité paramétrable.
 6. **Comptes "Total"/regroupement par racine** — brique technique courte, prépare le
