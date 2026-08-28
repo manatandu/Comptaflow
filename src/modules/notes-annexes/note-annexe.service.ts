@@ -31,6 +31,50 @@ interface Echeances {
 const ECHEANCES_NULLES: Echeances = { unAn: 0, deuxAns: 0, plusDeDeuxAns: 0, nonVentile: 0 };
 
 /**
+ * Nature d'un mouvement de provision ou de dépréciation, telle que la note 30
+ * la ventile. Elle ne se lit PAS sur le compte de provision — 191 est le même
+ * compte quelle que soit l'origine de la dotation — mais sur la CONTREPARTIE
+ * de l'écriture.
+ */
+type NatureMouvement = 'EXPLOITATION' | 'FINANCIER' | 'HAO';
+
+interface VentilationNature {
+  augmentation: Record<NatureMouvement, number>;
+  diminution: Record<NatureMouvement, number>;
+  /**
+   * Mouvements dont la contrepartie ne relève d'aucune des trois natures
+   * (virement de provision à provision, écriture manuelle atypique). Comme
+   * pour les échéances : c'est une lacune, elle est dite, pas rangée d'office
+   * en exploitation.
+   */
+  nonVentile: { augmentation: number; diminution: number };
+}
+
+const VENTILATION_NULLE = (): VentilationNature => ({
+  augmentation: { EXPLOITATION: 0, FINANCIER: 0, HAO: 0 },
+  diminution: { EXPLOITATION: 0, FINANCIER: 0, HAO: 0 },
+  nonVentile: { augmentation: 0, diminution: 0 },
+});
+
+/**
+ * Nature d'un compte de contrepartie, d'après le plan normalisé (Partie 2,
+ * ch. 2 et 3). L'ordre des tests compte : le financier et le hors activités
+ * ordinaires sont testés AVANT le repli sur l'exploitation, sans quoi 697 et
+ * 85 seraient rangés en exploitation par leur seule classe.
+ */
+function natureDeLaContrepartie(numero: string): NatureMouvement | null {
+  // Classe 8 : 839/85 dotations H.A.O., 849/86 reprises H.A.O.
+  if (numero.startsWith('8')) return 'HAO';
+  // 679 et 697 dotations financières ; 779 et 797 reprises financières.
+  // Les comptes 67 et 77 entiers sont financiers par nature.
+  if (['67', '77', '697', '797'].some((prefixe) => numero.startsWith(prefixe))) return 'FINANCIER';
+  // 659, 691, 695 dotations d'exploitation ; 759, 791, 792, 795, 796, 799
+  // reprises d'exploitation. Le repli sur les classes 6 et 7 couvre le reste.
+  if (numero.startsWith('6') || numero.startsWith('7')) return 'EXPLOITATION';
+  return null;
+}
+
+/**
  * Une rubrique résolue sur un exercice : le montant au sens de lecture de la
  * rubrique, plus les agrégats bruts dont les tableaux de situations et
  * mouvements ont besoin. Ces agrégats restent NON orientés — c'est
@@ -44,6 +88,7 @@ interface RubriqueResolue {
   mouvementDebit: number;
   mouvementCredit: number;
   echeances: Echeances;
+  ventilation: VentilationNature;
 }
 
 /**
@@ -154,12 +199,16 @@ export class NoteAnnexeService {
     lignes: LigneBalancePourEtat[],
     numerosRattaches: string[] = [],
     echeancesParCompte: Map<string, Echeances> = new Map(),
+    ventilationParCompte: Map<string, VentilationNature> = new Map(),
   ): RubriqueResolue {
     // Les comptes rattachés par le dossier S'AJOUTENT aux préfixes officiels,
     // ils ne les remplacent jamais (voir RattachementNote, prisma/schema.prisma).
     const prefixes = [...(rubrique.comptes ?? []), ...numerosRattaches];
     if (prefixes.length === 0) {
-      return { montant: 0, comptes: [], report: 0, mouvementDebit: 0, mouvementCredit: 0, echeances: { ...ECHEANCES_NULLES } };
+      return {
+        montant: 0, comptes: [], report: 0, mouvementDebit: 0, mouvementCredit: 0,
+        echeances: { ...ECHEANCES_NULLES }, ventilation: VENTILATION_NULLE(),
+      };
     }
     let matches = lignes.filter((l) => correspond(l.numero, prefixes, rubrique.exclusions));
     if (rubrique.sens === 'DEBITEUR') matches = matches.filter((l) => l.solde > 0);
@@ -201,6 +250,17 @@ export class NoteAnnexeService {
           nonVentile: acc.nonVentile + signe * e.nonVentile,
         };
       }, { ...ECHEANCES_NULLES }),
+      ventilation: matches.reduce((acc, l) => {
+        const v = ventilationParCompte.get(l.numero);
+        if (!v) return acc;
+        for (const n of ['EXPLOITATION', 'FINANCIER', 'HAO'] as const) {
+          acc.augmentation[n] += v.augmentation[n];
+          acc.diminution[n] += v.diminution[n];
+        }
+        acc.nonVentile.augmentation += v.nonVentile.augmentation;
+        acc.nonVentile.diminution += v.nonVentile.diminution;
+        return acc;
+      }, VENTILATION_NULLE()),
     };
   }
 
@@ -242,6 +302,7 @@ export class NoteAnnexeService {
     lignes: LigneBalancePourEtat[],
     rattachements: Map<string, string[]> = new Map(),
     echeancesParCompte: Map<string, Echeances> = new Map(),
+    ventilationParCompte: Map<string, VentilationNature> = new Map(),
   ): RubriqueResolue[] {
     const resolues: RubriqueResolue[] = [];
     for (const rubrique of spec.rubriques) {
@@ -268,10 +329,23 @@ export class NoteAnnexeService {
             plusDeDeuxAns: cumulEcheance('plusDeDeuxAns'),
             nonVentile: cumulEcheance('nonVentile'),
           },
+          ventilation: (rubrique.totalDeRubriques ?? []).reduce((acc, i) => {
+            const v = resolues[i]?.ventilation;
+            if (!v) return acc;
+            for (const n of ['EXPLOITATION', 'FINANCIER', 'HAO'] as const) {
+              acc.augmentation[n] += v.augmentation[n];
+              acc.diminution[n] += v.diminution[n];
+            }
+            acc.nonVentile.augmentation += v.nonVentile.augmentation;
+            acc.nonVentile.diminution += v.nonVentile.diminution;
+            return acc;
+          }, VENTILATION_NULLE()),
         });
       } else {
         const cle = rubrique.cle ? `${spec.code}::${rubrique.cle}` : '';
-        resolues.push(this.calculerRubrique(rubrique, lignes, rattachements.get(cle) ?? [], echeancesParCompte));
+        resolues.push(
+          this.calculerRubrique(rubrique, lignes, rattachements.get(cle) ?? [], echeancesParCompte, ventilationParCompte),
+        );
       }
     }
     return resolues;
@@ -284,8 +358,9 @@ export class NoteAnnexeService {
     exerciceN1Disponible: boolean,
     rattachements: Map<string, string[]>,
     echeancesParCompte: Map<string, Echeances>,
+    ventilationParCompte: Map<string, VentilationNature>,
   ): NoteCalculee {
-    const resN = this.resoudreRubriques(spec, lignesN, rattachements, echeancesParCompte);
+    const resN = this.resoudreRubriques(spec, lignesN, rattachements, echeancesParCompte, ventilationParCompte);
     // N-1 n'est pas ventilé par échéance : le texte ne demande les colonnes
     // d'échéance que sur l'exercice présenté.
     const resN1 = this.resoudreRubriques(spec, lignesN1, rattachements);
@@ -293,6 +368,7 @@ export class NoteAnnexeService {
       (['OUVERTURE', 'AUGMENTATIONS', 'DIMINUTIONS', 'CLOTURE'] as TypeColonneNote[]).includes(c.type),
     );
     const aColonneVariationAbsolue = spec.colonnes.some((c) => c.type === 'VARIATION_VALEUR_ABSOLUE');
+    const aColonnesVentilees = spec.colonnes.some((c) => c.type.startsWith('AUGMENTATION_') || c.type.startsWith('DIMINUTION_'));
     const aColonnesDEcheance = spec.colonnes.some((c) =>
       (['ECHEANCE_1AN', 'ECHEANCE_2ANS', 'ECHEANCE_PLUS_2ANS'] as TypeColonneNote[]).includes(c.type),
     );
@@ -316,6 +392,17 @@ export class NoteAnnexeService {
         aColonneVariationAbsolue && variationValeur !== undefined
           ? { VARIATION_VALEUR_ABSOLUE: Math.abs(variationValeur) }
           : undefined;
+      const v = resN[i].ventilation;
+      const ventilees = aColonnesVentilees
+        ? {
+            AUGMENTATION_EXPLOITATION: v.augmentation.EXPLOITATION || 0,
+            AUGMENTATION_FINANCIERE: v.augmentation.FINANCIER || 0,
+            AUGMENTATION_HAO: v.augmentation.HAO || 0,
+            DIMINUTION_EXPLOITATION: v.diminution.EXPLOITATION || 0,
+            DIMINUTION_FINANCIERE: v.diminution.FINANCIER || 0,
+            DIMINUTION_HAO: v.diminution.HAO || 0,
+          }
+        : undefined;
       const e = resN[i].echeances;
       const echeances = aColonnesDEcheance
         ? {
@@ -335,13 +422,19 @@ export class NoteAnnexeService {
         enAttenteDeRattachement: rattachee ? undefined : rubrique.subdivisionAttendue,
         rattachementDuDossier: rattachee || undefined,
         valeurs:
-          mouvements || echeances || variationAbsolue
-            ? { ...mouvements?.valeurs, ...echeances, ...variationAbsolue }
+          mouvements || echeances || variationAbsolue || ventilees
+            ? { ...mouvements?.valeurs, ...echeances, ...variationAbsolue, ...ventilees }
             : undefined,
         ecartCloture: mouvements?.ecartCloture,
         // Ce que le dossier n'a pas renseigné : présenté à part, jamais fondu
         // dans « à un an au plus ».
         echeanceNonVentilee: aColonnesDEcheance && Math.abs(e.nonVentile) > 0.005 ? e.nonVentile : undefined,
+        // Mouvements dont la contrepartie ne relève d'aucune des trois natures.
+        // Dit, jamais rangé d'office en exploitation.
+        natureNonVentilee:
+          aColonnesVentilees && Math.abs(v.nonVentile.augmentation) + Math.abs(v.nonVentile.diminution) > 0.005
+            ? { augmentation: v.nonVentile.augmentation, diminution: v.nonVentile.diminution }
+            : undefined,
         comptes: resN[i].comptes,
         renvoi: rubrique.renvoi,
       };
@@ -378,6 +471,59 @@ export class NoteAnnexeService {
           : [],
       ),
     };
+  }
+
+  /**
+   * Ventilation des mouvements de provisions et de dépréciations par NATURE de
+   * la contrepartie, par numéro de compte — ce que la note 30 demande.
+   *
+   * Le principe : pour chaque ligne portée sur un compte cible, les lignes de
+   * SENS OPPOSÉ de la même écriture donnent la nature. Une écriture à deux
+   * lignes (le cas courant : dotation 6911 / provision 191) tombe entièrement
+   * dans une seule nature ; une écriture multi-lignes est répartie au prorata
+   * des contreparties, ce qui redonne exactement le cas simple quand il n'y en
+   * a qu'une.
+   *
+   * Les écritures générées par la clôture sont exclues, comme partout :
+   * le report à-nouveau est l'ouverture, pas un mouvement de l'exercice.
+   */
+  private async chargerVentilationParNature(tenantId: string, exerciceId: string): Promise<Map<string, VentilationNature>> {
+    const ecritures = await this.prisma.ecriture.findMany({
+      where: { tenantId, exerciceId, estGenereeParCloture: false },
+      select: { lignes: { select: { debit: true, credit: true, compte: { select: { numero: true } } } } },
+    });
+
+    const parCompte = new Map<string, VentilationNature>();
+    for (const e of ecritures) {
+      const lignes = e.lignes.map((l) => ({
+        numero: l.compte.numero,
+        debit: Number(l.debit),
+        credit: Number(l.credit),
+      }));
+      for (const ligne of lignes) {
+        // Un mouvement CRÉDITEUR accroît une provision, un mouvement DÉBITEUR
+        // la réduit — les rubriques de la note 30 sont toutes créditrices.
+        const sens: 'augmentation' | 'diminution' = ligne.credit > 0 ? 'augmentation' : 'diminution';
+        const montant = ligne.credit > 0 ? ligne.credit : ligne.debit;
+        if (montant === 0) continue;
+
+        const contreparties = lignes.filter((c) => (ligne.credit > 0 ? c.debit > 0 : c.credit > 0));
+        const total = contreparties.reduce((s2, c) => s2 + (ligne.credit > 0 ? c.debit : c.credit), 0);
+        const v = parCompte.get(ligne.numero) ?? VENTILATION_NULLE();
+        if (total === 0) {
+          v.nonVentile[sens] += montant;
+        } else {
+          for (const c of contreparties) {
+            const part = (montant * (ligne.credit > 0 ? c.debit : c.credit)) / total;
+            const nature = natureDeLaContrepartie(c.numero);
+            if (nature) v[sens][nature] += part;
+            else v.nonVentile[sens] += part;
+          }
+        }
+        parCompte.set(ligne.numero, v);
+      }
+    }
+    return parCompte;
   }
 
   /**
@@ -448,12 +594,13 @@ export class NoteAnnexeService {
       chargerLignes(this.ecritureService, tenantId, exerciceN1Id),
     ]);
 
-    const [rattachements, echeances] = await Promise.all([
+    const [rattachements, echeances, ventilation] = await Promise.all([
       this.chargerRattachements(tenantId, JeuEtatsFinanciersSycebnl.ASSOCIATIONS_ORDRES_PROFESSIONNELS),
       this.chargerEcheances(tenantId, exerciceId),
+      this.chargerVentilationParNature(tenantId, exerciceId),
     ]);
     const notes = NOTES_ASSOCIATIONS.map((spec) =>
-      this.calculerNote(spec, lignesN, lignesN1, exerciceN1Id !== null, rattachements, echeances),
+      this.calculerNote(spec, lignesN, lignesN1, exerciceN1Id !== null, rattachements, echeances, ventilation),
     );
 
     return {

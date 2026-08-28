@@ -54,6 +54,16 @@ export type TypeColonneNote =
   | 'AUGMENTATIONS' // B — mouvements de l'exercice qui accroissent le poste
   | 'DIMINUTIONS' // C — mouvements de l'exercice qui le réduisent
   | 'CLOTURE' // D = A + B - C, recalculé et non lu tel quel (voir écartCloture)
+  // --- Note 30 : B et C sont elles-mêmes ventilées par nature ---
+  // Le compte de provision ne dit PAS de quelle nature était la dotation :
+  // seule la CONTREPARTIE de l'écriture le dit (691 exploitation, 697
+  // financière, 85 hors activités ordinaires).
+  | 'AUGMENTATION_EXPLOITATION'
+  | 'AUGMENTATION_FINANCIERE'
+  | 'AUGMENTATION_HAO'
+  | 'DIMINUTION_EXPLOITATION'
+  | 'DIMINUTION_FINANCIERE'
+  | 'DIMINUTION_HAO'
   | 'ECHEANCE_1AN' // « à un an au plus »
   | 'ECHEANCE_2ANS' // « à plus d'un an et à deux ans au plus »
   | 'ECHEANCE_PLUS_2ANS' // « à plus de deux ans »
@@ -238,6 +248,13 @@ export interface LigneNoteCalculee {
    * donnerait une ventilation complète et fausse.
    */
   echeanceNonVentilee?: number;
+  /**
+   * Mouvements de provision dont la contrepartie ne relève d'aucune des trois
+   * natures de la note 30 (virement de provision à provision, écriture
+   * atypique). Comme `echeanceNonVentilee` : une lacune qui se dit, jamais un
+   * montant rangé d'office en exploitation.
+   */
+  natureNonVentilee?: { augmentation: number; diminution: number };
   comptes: CompteDeRubrique[];
   renvoi?: string;
 }

@@ -31,7 +31,18 @@ type Rattachement = { codeNote: string; cleRubrique: string; compte: { numero: s
 /** Une ligne d'écriture telle que la ventilation par échéance la lit. */
 type LigneEch = { numero: string; debit: number; credit: number; dateEcheance: Date | null; lettre?: string | null };
 
-function prismaAvec(rattachements: Rattachement[] = [], comptes: any[] = [], lignesEch: LigneEch[] = []) {
+/** Une écriture telle que la ventilation par nature la lit : n lignes, deux sens. */
+type EcritureFixture = { lignes: Array<{ compte: { numero: string }; debit: number; credit: number }> };
+const ecr = (...lignes: Array<[string, number, number]>): EcritureFixture => ({
+  lignes: lignes.map(([numero, debit, credit]) => ({ compte: { numero }, debit, credit })),
+});
+
+function prismaAvec(
+  rattachements: Rattachement[] = [],
+  comptes: any[] = [],
+  lignesEch: LigneEch[] = [],
+  ecritures: EcritureFixture[] = [],
+) {
   return {
     rattachementNote: {
       findMany: jest.fn().mockResolvedValue(rattachements),
@@ -41,6 +52,7 @@ function prismaAvec(rattachements: Rattachement[] = [], comptes: any[] = [], lig
     compte: { findFirst: jest.fn().mockImplementation(({ where }: any) => Promise.resolve(comptes.find((c) => c.id === where.id) ?? null)) },
     // Exercice clos au 31/12/2026 : les bornes d'échéance en découlent.
     exercice: { findFirst: jest.fn().mockResolvedValue({ id: 'e1', dateFin: new Date('2026-12-31T00:00:00Z') }) },
+    ecriture: { findMany: jest.fn().mockResolvedValue(ecritures) },
     ligneEcriture: {
       findMany: jest.fn().mockImplementation(({ where }: any) =>
         Promise.resolve(
@@ -116,6 +128,8 @@ describe('correspondance des notes (intégrité des spécifications)', () => {
     const CALCULEES = [
       'EXERCICE_N', 'EXERCICE_N1', 'VARIATION_VALEUR', 'VARIATION_POURCENT', 'VARIATION_VALEUR_ABSOLUE',
       'OUVERTURE', 'AUGMENTATIONS', 'DIMINUTIONS', 'CLOTURE',
+      'AUGMENTATION_EXPLOITATION', 'AUGMENTATION_FINANCIERE', 'AUGMENTATION_HAO',
+      'DIMINUTION_EXPLOITATION', 'DIMINUTION_FINANCIERE', 'DIMINUTION_HAO',
       'ECHEANCE_1AN', 'ECHEANCE_2ANS', 'ECHEANCE_PLUS_2ANS', 'LIBRE',
     ];
     for (const spec of NOTES_ASSOCIATIONS) {
@@ -256,6 +270,121 @@ describe('NoteAnnexeService', () => {
     const r = await s.notesAssociations('t', 'e1');
     expect(note(r, '13').renvoyeeDepuis).toEqual(['BW']);
     expect(note(r, '9').renvoyeeDepuis).toEqual(['BD', 'DG']);
+  });
+});
+
+describe('note 30 — ventilation des mouvements par nature de contrepartie', () => {
+  const serviceVent = (ecritures: EcritureFixture[], balance: ReturnType<typeof ligne>[]) =>
+    service({ e1: balance }, [], prismaAvec([], [], [], ecritures));
+  const val = (n: any, libelle: string) => ligneDe(n, libelle).valeurs;
+
+  it('la NATURE se lit sur la contrepartie, pas sur le compte de provision', async () => {
+    // Le même compte 191 reçoit trois dotations d'origines différentes. Rien
+    // dans 191 ne les distingue : seule la contrepartie le fait.
+    const s = serviceVent(
+      [
+        ecr(['69110000', 1000, 0], ['19100000', 0, 1000]), // dotation d'exploitation
+        ecr(['69710000', 400, 0], ['19100000', 0, 400]),   // dotation financière
+        ecr(['85400000', 250, 0], ['19100000', 0, 250]),   // dotation H.A.O.
+        ecr(['19100000', 300, 0], ['79110000', 0, 300]),   // reprise d'exploitation
+      ],
+      [ligne('19100000', ClasseCompte.CLASSE_1, 300, 1650)],
+    );
+    const n30 = note(await s.notesAssociations('t', 'e1'), '30');
+    expect(val(n30, 'Provisions pour risques et charges')).toEqual({
+      OUVERTURE: 0,
+      AUGMENTATION_EXPLOITATION: 1000,
+      AUGMENTATION_FINANCIERE: 400,
+      AUGMENTATION_HAO: 250,
+      DIMINUTION_EXPLOITATION: 300,
+      DIMINUTION_FINANCIERE: 0,
+      DIMINUTION_HAO: 0,
+      // La note déclarant aussi OUVERTURE et CLOTURE, le moteur émet les
+      // mouvements BRUTS à côté des ventilés. Loin d'être redondants, ils
+      // donnent un contrôle gratuit : la ventilation doit les recouper.
+      AUGMENTATIONS: 1650,
+      DIMINUTIONS: 300,
+      CLOTURE: 1350, // 0 + 1650 - 300
+    });
+  });
+
+  it('la ventilation se recoupe TOUJOURS avec le mouvement brut', async () => {
+    // Invariant : la somme des trois natures, plus le non ventilé, redonne
+    // exactement le mouvement de l'exercice. Une ventilation qui perdrait ou
+    // dupliquerait un montant se verrait ici, sur n'importe quelle rubrique.
+    const s = serviceVent(
+      [
+        ecr(['69110000', 1000, 0], ['19100000', 0, 1000]),
+        ecr(['69710000', 400, 0], ['19100000', 0, 400]),
+        ecr(['19100000', 700, 0], ['19800000', 0, 700]), // sans nature
+      ],
+      [ligne('19100000', ClasseCompte.CLASSE_1, 700, 1400), ligne('19800000', ClasseCompte.CLASSE_1, 0, 700)],
+    );
+    const l = ligneDe(note(await s.notesAssociations('t', 'e1'), '30'), 'Provisions pour risques et charges');
+    const v = l.valeurs!;
+    const augVentilees =
+      v.AUGMENTATION_EXPLOITATION! + v.AUGMENTATION_FINANCIERE! + v.AUGMENTATION_HAO! +
+      (l.natureNonVentilee?.augmentation ?? 0);
+    const dimVentilees =
+      v.DIMINUTION_EXPLOITATION! + v.DIMINUTION_FINANCIERE! + v.DIMINUTION_HAO! +
+      (l.natureNonVentilee?.diminution ?? 0);
+    expect(augVentilees).toBeCloseTo(v.AUGMENTATIONS!, 6);
+    expect(dimVentilees).toBeCloseTo(v.DIMINUTIONS!, 6);
+  });
+
+  it('697 et 85 ne sont pas rangés en exploitation par leur seule classe', async () => {
+    // Le test d'ordre : 697 commence par « 6 », 85 par « 8 ». Un classement
+    // qui replierait d'abord sur les classes 6 et 7 les rangerait tous deux
+    // en exploitation.
+    const s = serviceVent(
+      [ecr(['69710000', 500, 0], ['29100000', 0, 500]), ecr(['85300000', 700, 0], ['29100000', 0, 700])],
+      [ligne('29100000', ClasseCompte.CLASSE_2, 0, 1200)],
+    );
+    const v = val(note(await s.notesAssociations('t', 'e1'), '30'), 'Dépréciations des immobilisations');
+    expect(v!.AUGMENTATION_EXPLOITATION).toBe(0);
+    expect(v!.AUGMENTATION_FINANCIERE).toBe(500);
+    expect(v!.AUGMENTATION_HAO).toBe(700);
+  });
+
+  it('une écriture multi-lignes est répartie au prorata de ses contreparties', async () => {
+    const s = serviceVent(
+      [ecr(['69110000', 600, 0], ['69710000', 400, 0], ['19100000', 0, 1000])],
+      [ligne('19100000', ClasseCompte.CLASSE_1, 0, 1000)],
+    );
+    const v = val(note(await s.notesAssociations('t', 'e1'), '30'), 'Provisions pour risques et charges');
+    expect(v!.AUGMENTATION_EXPLOITATION).toBe(600);
+    expect(v!.AUGMENTATION_FINANCIERE).toBe(400);
+  });
+
+  it('un mouvement sans contrepartie de nature connue est DIT, pas rangé en exploitation', async () => {
+    // Virement de provision à provision : aucune des deux contreparties n'est
+    // un compte de dotation ou de reprise.
+    const s = serviceVent(
+      [ecr(['19100000', 800, 0], ['19800000', 0, 800])],
+      [ligne('19100000', ClasseCompte.CLASSE_1, 800, 0), ligne('19800000', ClasseCompte.CLASSE_1, 0, 800)],
+    );
+    const l = ligneDe(note(await s.notesAssociations('t', 'e1'), '30'), 'Provisions pour risques et charges');
+    expect(l.valeurs!.DIMINUTION_EXPLOITATION).toBe(0);
+    expect(l.valeurs!.AUGMENTATION_EXPLOITATION).toBe(0);
+    expect(l.natureNonVentilee).toEqual({ augmentation: 800, diminution: 800 });
+  });
+
+  it('les totaux cumulent les six colonnes ventilées', async () => {
+    const s = serviceVent(
+      [ecr(['69110000', 1000, 0], ['19100000', 0, 1000]), ecr(['69110000', 500, 0], ['39100000', 0, 500])],
+      [ligne('19100000', ClasseCompte.CLASSE_1, 0, 1000), ligne('39100000', ClasseCompte.CLASSE_3, 0, 500)],
+    );
+    const n30 = note(await s.notesAssociations('t', 'e1'), '30');
+    expect(val(n30, 'TOTAL : DOTATIONS')!.AUGMENTATION_EXPLOITATION).toBe(1000);
+    expect(val(n30, 'TOTAL : CHARGES POUR DEPRECIATIONS ET PROVISIONS A COURT TERME')!.AUGMENTATION_EXPLOITATION).toBe(500);
+    expect(val(n30, 'TOTAL')!.AUGMENTATION_EXPLOITATION).toBe(1500);
+  });
+
+  it('une note sans colonnes ventilées ne porte aucune valeur de nature', async () => {
+    const s = serviceVent([], [ligne('52110000', ClasseCompte.CLASSE_5, 8000, 0)]);
+    const l = ligneDe(note(await s.notesAssociations('t', 'e1'), '13'), 'Banques locales');
+    expect(l.natureNonVentilee).toBeUndefined();
+    expect(l.valeurs).toBeUndefined();
   });
 });
 

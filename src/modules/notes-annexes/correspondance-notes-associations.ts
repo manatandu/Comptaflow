@@ -1258,4 +1258,73 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     ],
     commentaire: 'de toute variation significative ; des dettes anciennes.',
   },
+
+  // ======================================================================
+  // NOTE 30 — la seule note dont les mouvements sont ventilés PAR NATURE.
+  //
+  // Le compte de provision ne dit pas de quelle nature était la dotation :
+  // 191 « Provisions pour litiges » est le même compte, que la dotation soit
+  // d'exploitation (6911), financière (6971) ou hors activités ordinaires
+  // (85). Seule la CONTREPARTIE de l'écriture le dit — d'où la ventilation
+  // par contrepartie de `NoteAnnexeService.chargerVentilationParNature`.
+  //
+  // Les rubriques sont les NATURES de provision et de dépréciation, c'est-à-
+  // dire les comptes de bilan qui les portent (15, 19, 29, 39, 49, 59), et
+  // non les comptes de dotation. C'est ce que la maquette officielle
+  // énumère : « Provisions réglementées », « Dépréciations des stocks »…
+  // ======================================================================
+  {
+    code: '30',
+    titre: 'DOTATIONS ET CHARGES POUR PROVISIONS ET DEPRECIATIONS',
+    sensAccroissement: 'CREDIT',
+    colonnes: [
+      { type: 'OUVERTURE' as const, libelle: "A — Provisions à l'ouverture" },
+      { type: 'AUGMENTATION_EXPLOITATION' as const, libelle: "B — Augmentations : dotations d'exploitation" },
+      { type: 'AUGMENTATION_FINANCIERE' as const, libelle: 'B — Augmentations : dotations financières' },
+      { type: 'AUGMENTATION_HAO' as const, libelle: 'B — Augmentations : dotations hors activités ordinaires' },
+      { type: 'DIMINUTION_EXPLOITATION' as const, libelle: "C — Diminutions : reprises d'exploitation" },
+      { type: 'DIMINUTION_FINANCIERE' as const, libelle: 'C — Diminutions : reprises financières' },
+      { type: 'DIMINUTION_HAO' as const, libelle: 'C — Diminutions : reprises hors activités ordinaires' },
+      { type: 'CLOTURE' as const, libelle: "D = A + B - C (Provisions à la clôture de l'exercice)" },
+    ],
+    renvoyeeDepuis: ['TN', 'TR', 'TT', 'UD', 'UG', 'UI'],
+    rubriques: [
+      { libelle: 'Provisions réglementées', comptes: ['15'] },
+      { libelle: 'Provisions pour risques et charges', comptes: ['19'] },
+      // 29 dépréciations des immobilisations, SAUF 290 qui a sa propre ligne.
+      { libelle: 'Dépréciations des immobilisations', comptes: ['29'], exclusions: ['290'] },
+      {
+        libelle:
+          "Dépréciations des dons et legs temporaire d'usufruit et d'immobilisations reçues destinées à la vente",
+        comptes: ['290'],
+      },
+      // Compte 165. Ce n'est pas une provision au sens strict — la maquette
+      // le range pourtant parmi les dotations, le fonds non consommé étant
+      // reporté par une dotation de l'exercice (compte 6595 / 79 selon le
+      // sens). Transcrit tel quel.
+      { libelle: 'Dotation de fonds affectés à un projet non consommés', comptes: ['165'] },
+      { libelle: 'TOTAL : DOTATIONS', totalDeRubriques: [0, 1, 2, 3, 4] },
+      { libelle: 'Dépréciations des stocks et en cours', comptes: ['39'] },
+      { libelle: 'Dépréciations des comptes fournisseurs', comptes: ['490'] },
+      { libelle: 'Dépréciations des comptes adhérents et clients', comptes: ['491'] },
+      { libelle: "Dépréciations autres créances d'exploitation", comptes: ['492', '493', '494', '497'] },
+      { libelle: 'Dépréciations des comptes de créances HAO', comptes: ['498'] },
+      { libelle: 'Dépréciations des titres de placement', comptes: ['590'] },
+      { libelle: 'Dépréciations des titres et valeurs à encaisser', comptes: ['591'] },
+      { libelle: 'Dépréciations des comptes banques', comptes: ['592'] },
+      { libelle: 'Dépréciations des comptes établissements financiers et assimilés', comptes: ['593'] },
+      { libelle: "Dépréciations des comptes d'instruments de monnaie électronique", comptes: ['595'] },
+      { libelle: "Provisions pour risques à court terme d'exploitation", comptes: ['4991'] },
+      { libelle: 'Provisions pour risques à court terme HAO', comptes: ['4998'] },
+      { libelle: 'Provisions pour risques à court terme à caractère financier', comptes: ['599'] },
+      {
+        libelle: 'TOTAL : CHARGES POUR DEPRECIATIONS ET PROVISIONS A COURT TERME',
+        totalDeRubriques: [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18],
+      },
+      { libelle: 'TOTAL', totalDeRubriques: [5, 19] },
+    ],
+    commentaire:
+      'indiquer les événements et circonstances qui ont conduit à la constitution et à la reprise de la ' +
+      'dépréciation et/ou de la provision.',
+  },
 ];
