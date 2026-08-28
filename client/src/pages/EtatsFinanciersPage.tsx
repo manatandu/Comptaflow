@@ -39,7 +39,12 @@ export function EtatsFinanciersPage() {
   // récent après un changement d'exercice. Un seul des deux jeux est
   // interrogé, selon le dossier — pas les deux à chaque fois.
   useEffect(() => {
-    if (!exerciceCourant) return;
+    // `utilisateur` est null au tout premier rendu : sans cette garde, un
+    // dossier « projets de développement » interrogerait d'abord les
+    // endpoints du jeu ASSOCIATIONS (jeuProjet valant false par défaut),
+    // puis rebasculerait — requêtes inutiles et onglets qui changent sous
+    // l'œil. Corrigé à l'audit du 2026-08-28.
+    if (!exerciceCourant || !utilisateur) return;
     let annule = false;
     if (jeuProjet) {
       api.get<BilanProjet>(`/etats-financiers/projet/bilan?exerciceId=${exerciceCourant.id}`).then(
@@ -67,7 +72,7 @@ export function EtatsFinanciersPage() {
     return () => {
       annule = true;
     };
-  }, [exerciceCourant?.id, jeuProjet]);
+  }, [exerciceCourant?.id, jeuProjet, utilisateur]);
 
   // Bouton du ruban désactivé : useRibbon fige les gestionnaires au montage,
   // il agirait donc toujours sur l'onglet initial. Le bouton fonctionnel est
@@ -428,24 +433,26 @@ export function EtatsFinanciersPage() {
                 </p>
               )}
 
+              {/* DEUX colonnes de valeur, pas quatre : le texte officiel de ce
+                  jeu ne prévoit ni Brut ni Amortissements côté actif — voir
+                  correspondance-projet-bilan.ts. Le rendu passif convient donc
+                  aux deux volets. */}
               <div className="border border-border bg-surface mb-3">
-                <div className="grid grid-cols-[42px_1.4fr_100px_120px_100px_100px] gap-2 px-4 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
+                <div className="grid grid-cols-[42px_1.4fr_100px_100px] gap-2 px-4 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
                   <span>REF</span>
                   <span>ACTIF</span>
-                  <span className="text-right">BRUT (N)</span>
-                  <span className="text-right">AMORT./DÉPRÉC. (N)</span>
-                  <span className="text-right">NET (N)</span>
-                  <span className="text-right">NET (N-1)</span>
+                  <span className="text-right">EXERCICE AU 31/12/N</span>
+                  <span className="text-right">EXERCICE AU 31/12/N-1</span>
                 </div>
-                {bilanProjet.actif.map(ligneActif)}
+                {bilanProjet.actif.map(lignePassif)}
               </div>
 
               <div className="border border-border bg-surface mb-3">
                 <div className="grid grid-cols-[42px_1.4fr_100px_100px] gap-2 px-4 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
                   <span>REF</span>
                   <span>PASSIF</span>
-                  <span className="text-right">NET (N)</span>
-                  <span className="text-right">NET (N-1)</span>
+                  <span className="text-right">EXERCICE AU 31/12/N</span>
+                  <span className="text-right">EXERCICE AU 31/12/N-1</span>
                 </div>
                 {bilanProjet.passif.map(lignePassif)}
               </div>
@@ -482,8 +489,11 @@ export function EtatsFinanciersPage() {
               <p className="text-[11px] text-text-dim mt-3">
                 Postes et rattachements conformes au tableau de correspondance officiel SYCEBNL, jeu « projets de
                 développement et assimilés » (Journal officiel OHADA, Partie 4 ch. 3) — voir{' '}
-                <code>correspondance-projet-bilan.ts</code>. CC (solde des opérations de l'exercice) vient
-                uniquement du compte 13, pas d'un arbitrage entre plusieurs sources.
+                <code>correspondance-projet-bilan.ts</code>. Deux colonnes de valeur seulement : contrairement au
+                bilan des associations, le texte de ce jeu ne prévoit ni Brut ni Amortissements, et son tableau de
+                correspondance ne cite aucun compte 28x/29x. CC (solde des opérations de l'exercice) vient
+                uniquement du compte 13. Le poste DI reprend le compte 20 tel que l'écrit le texte officiel, bien
+                qu'il s'agisse d'un compte d'actif — anomalie signalée, jamais corrigée en silence.
               </p>
             </div>
           )}
@@ -636,11 +646,12 @@ export function EtatsFinanciersPage() {
               </div>
 
               <p className="text-[11px] text-text-dim mt-3">
-                NOTE 9 — Fonds du bailleur (SYCEBNL, Partie 4 ch. 3, Section 6). Décaissé = mouvements crédit réels
-                de l'exercice (hors report à-nouveau) ; Consommé = mouvements débit réels ; Solde restant = solde
-                cumulé à date. Le texte officiel ne précise le compte source que pour « Consommé » côté Fonds
-                d'administration (compte 702) — convention retenue pour le reste détaillée dans{' '}
-                <code>EtatsFinanciersProjetService.noteBailleur</code>.
+                NOTE 9 — Fonds du bailleur (SYCEBNL, Partie 4 ch. 3, Section 6). Montants <strong>cumulés depuis
+                l'origine du projet</strong>, toutes périodes confondues : cette note suit le cycle de vie du projet,
+                pas l'exercice comptable. Décaissé = mouvements crédit (hors report à-nouveau) ; Consommé =
+                mouvements débit ; Solde restant = Décaissé − Consommé. Le texte officiel ne précise le compte
+                source que pour « Consommé » côté Fonds d'administration (compte 702) — convention retenue pour le
+                reste détaillée dans <code>EtatsFinanciersProjetService.noteBailleur</code>.
               </p>
             </div>
           )}

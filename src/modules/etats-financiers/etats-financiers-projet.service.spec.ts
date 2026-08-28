@@ -65,16 +65,43 @@ function poste(etat: { actif: any[]; passif: any[] } | { revenus: any[]; charges
 
 describe('EtatsFinanciersProjetService', () => {
   describe('bilan', () => {
-    it('expose brut/amortissement/net séparément sur un poste actif amorti (AD, matériel et mobilier)', async () => {
-      const service = serviceAvecBalance([
-        ligne('24100000', ClasseCompte.CLASSE_2, 8000, 0),
-        ligne('28400000', ClasseCompte.CLASSE_2, 0, 2000),
-      ]);
+    it('n’expose NI brut NI amortissement : ce jeu n’a que deux colonnes de valeur (audit 2026-08-28)', async () => {
+      // Le texte officiel du bilan projet donne « EXERCICE AU 31/12/N | N-1 »,
+      // et son tableau de correspondance ne cite aucun compte 28x/29x. Une
+      // première version avait recopié les amortissements du jeu associations.
+      const service = serviceAvecBalance([ligne('24100000', ClasseCompte.CLASSE_2, 8000, 0)]);
       const bilan = await service.bilan('t1', 'e1');
       const ad = poste(bilan, 'AD')!;
-      expect(ad.brut).toBe(8000);
-      expect(ad.amortissement).toBe(2000);
-      expect(ad.montant).toBe(6000);
+      expect(ad.montant).toBe(8000);
+      expect(ad.brut).toBeUndefined();
+      expect(ad.amortissement).toBeUndefined();
+    });
+
+    it('un compte 28x/29x ne disparaît pas en silence : il ressort en « comptes non rattachés »', async () => {
+      const service = serviceAvecBalance([ligne('28400000', ClasseCompte.CLASSE_2, 0, 2000)]);
+      const bilan = await service.bilan('t1', 'e1');
+      expect(bilan.comptesNonRattaches.map((c: any) => c.numero)).toContain('28400000');
+    });
+
+    it('BD exclut 411 ET 419 comme le dit le texte ; 411 ressort en non rattaché', async () => {
+      const service = serviceAvecBalance([
+        ligne('41100000', ClasseCompte.CLASSE_4, 700, 0),
+        ligne('41200000', ClasseCompte.CLASSE_4, 300, 0),
+      ]);
+      const bilan = await service.bilan('t1', 'e1');
+      expect(poste(bilan, 'BD')!.montant).toBe(300); // 412 seulement, pas 411
+      expect(bilan.comptesNonRattaches.map((c: any) => c.numero)).toContain('41100000');
+    });
+
+    it('un découvert bancaire ne casse pas l’équilibre du bilan (régression audit)', async () => {
+      const service = serviceAvecBalance([
+        ligne('24100000', ClasseCompte.CLASSE_2, 300, 0),
+        ligne('52110000', ClasseCompte.CLASSE_5, 0, 300),
+      ]);
+      const bilan = await service.bilan('t1', 'e1');
+      expect(bilan.totalActif).toBe(300);
+      expect(bilan.totalPassif).toBe(300);
+      expect(bilan.equilibre).toBe(true);
     });
 
     it('AZ (total actif immobilisé) additionne AA à AH', async () => {
@@ -213,6 +240,29 @@ describe('EtatsFinanciersProjetService', () => {
       } as unknown as PrismaService;
     }
 
+    it('les trois colonnes se réconcilient TOUJOURS : solde restant = décaissé − consommé', async () => {
+      const prismaMock = prisma(
+        [compte('id-16210000', '16210000', bailleurUE)],
+        [ligneMouvement('id-16210000', 0, 900), ligneMouvement('id-16210000', 350, 0)],
+      );
+      const service = serviceAvecExercices({ e1: [] }, [], prismaMock);
+      const note = await service.noteBailleur('t1', 'e1');
+      const ue = note.investissement.find((b) => b.bailleur.code === 'UE-01')!;
+      expect(ue.soldeRestant).toBe(ue.decaisse - ue.consomme);
+      expect(ue.soldeRestant).toBe(550);
+    });
+
+    it('cumule TOUTES les périodes : la note suit le projet, pas l’exercice (audit 2026-08-28)', async () => {
+      // Le mock ligneEcriture.findMany ignore le filtre : ce test vérifie que
+      // le service ne passe PLUS `exerciceId` dans sa clause where.
+      const prismaMock = prisma([compte('id-16210000', '16210000', bailleurUE)], [ligneMouvement('id-16210000', 0, 100000)]);
+      const service = serviceAvecExercices({ e1: [] }, [], prismaMock);
+      await service.noteBailleur('t1', 'e1');
+      const where = (prismaMock.ligneEcriture.findMany as jest.Mock).mock.calls[0][0].where;
+      expect(where.ecriture).toEqual({ tenantId: 't1' });
+      expect(where.ecriture.exerciceId).toBeUndefined();
+    });
+
     it('décaissé = crédits réels, consommé = débits réels — les écritures de clôture (RAN) sont exclues', async () => {
       const prismaMock = prisma(
         [compte('id-16210000', '16210000', bailleurUE)],
@@ -222,16 +272,12 @@ describe('EtatsFinanciersProjetService', () => {
           ligneMouvement('id-16210000', 0, 5000, true), // report à-nouveau — doit être IGNORÉ
         ],
       );
-      const service = serviceAvecExercices(
-        { e1: [ligne('16210000', ClasseCompte.CLASSE_1, 300, 6000)] }, // solde compte = 300-6000 = -5700
-        [],
-        prismaMock,
-      );
+      const service = serviceAvecExercices({ e1: [] }, [], prismaMock);
       const note = await service.noteBailleur('t1', 'e1');
       const ue = note.investissement.find((b) => b.bailleur.code === 'UE-01')!;
-      expect(ue.decaisse).toBe(1000); // PAS 1000+5000
+      expect(ue.decaisse).toBe(1000); // PAS 1000+5000 : le report à-nouveau est exclu
       expect(ue.consomme).toBe(300);
-      expect(ue.soldeRestant).toBe(5700); // -solde (convention passif)
+      expect(ue.soldeRestant).toBe(700); // 1000 - 300, réconcilié par construction
     });
 
     it('sépare fonds d’investissement (162-164) et fonds d’administration (462-464) même pour le même bailleur', async () => {

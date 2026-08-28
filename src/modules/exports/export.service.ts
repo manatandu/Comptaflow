@@ -764,17 +764,18 @@ export class ExportService {
 
     const classeur = this.nouveauClasseur();
     const feuille = classeur.addWorksheet('Bilan (projet de développement)');
+    // DEUX colonnes de valeur par volet, pas quatre : le texte officiel de ce
+    // jeu ne prévoit ni Brut ni Amortissements (contrairement au bilan des
+    // associations). Voir l'en-tête de correspondance-projet-bilan.ts.
     feuille.columns = [
       { header: 'Actif — REF', key: 'refActif', width: 10 },
       { header: 'Actif — libellé', key: 'libelleActif', width: 42 },
-      { header: 'Actif — Brut (N)', key: 'brutActif', width: 15 },
-      { header: 'Actif — Amort./dépréc. (N)', key: 'amortActif', width: 18 },
-      { header: 'Actif — Net (N)', key: 'montantActif', width: 15 },
-      { header: `Actif — Net (N-1)${suffixeN1}`, key: 'montantActifN1', width: 17 },
+      { header: 'Actif — Exercice au 31/12/N', key: 'montantActif', width: 20 },
+      { header: `Actif — Exercice au 31/12/N-1${suffixeN1}`, key: 'montantActifN1', width: 22 },
       { header: 'Passif — REF', key: 'refPassif', width: 10 },
       { header: 'Passif — libellé', key: 'libellePassif', width: 42 },
-      { header: 'Passif — Net (N)', key: 'montantPassif', width: 15 },
-      { header: `Passif — Net (N-1)${suffixeN1}`, key: 'montantPassifN1', width: 17 },
+      { header: 'Passif — Exercice au 31/12/N', key: 'montantPassif', width: 20 },
+      { header: `Passif — Exercice au 31/12/N-1${suffixeN1}`, key: 'montantPassifN1', width: 22 },
     ];
 
     const maxLignes = Math.max(bilan.actif.length, bilan.passif.length);
@@ -784,8 +785,6 @@ export class ExportService {
       const ligne = feuille.addRow({
         refActif: a?.ref ?? '',
         libelleActif: a?.libelle ?? '',
-        brutActif: a?.brut ?? null,
-        amortActif: a?.amortissement ?? null,
         montantActif: a ? a.montant : null,
         montantActifN1: a?.montantN1 ?? null,
         refPassif: p?.ref ?? '',
@@ -794,7 +793,7 @@ export class ExportService {
         montantPassifN1: p?.montantN1 ?? null,
       });
       if (a?.estTotal) {
-        for (const cle of ['refActif', 'libelleActif', 'brutActif', 'amortActif', 'montantActif', 'montantActifN1']) {
+        for (const cle of ['refActif', 'libelleActif', 'montantActif', 'montantActifN1']) {
           ligne.getCell(cle).font = ENTETE_FONT;
         }
       }
@@ -806,8 +805,6 @@ export class ExportService {
     }
 
     this.appliquerFormats(feuille, {
-      brutActif: FORMAT_MONTANT,
-      amortActif: FORMAT_MONTANT,
       montantActif: FORMAT_MONTANT,
       montantActifN1: FORMAT_MONTANT,
       montantPassif: FORMAT_MONTANT,
@@ -1065,10 +1062,11 @@ export class ExportService {
     feuille.views = [{ state: 'frozen', ySplit: 1 }];
 
     const note9 = feuille.addRow([
-      'Montant décaissé = mouvements crédit RÉELS de l’exercice (hors report à-nouveau) sur les sous-comptes ' +
-        '162-164/462-464 rattachés au bailleur. Montant consommé = mouvements débit réels. Solde restant = solde ' +
-        'cumulé à date. Convention détaillée dans EtatsFinanciersProjetService.noteBailleur (2 ambiguïtés du texte ' +
-        'officiel signalées, résolues par lecture directe des écritures Partie 3 ch. 3, pas par invention).',
+      'Montants CUMULÉS depuis l’origine du projet, toutes périodes confondues — la Note 9 suit le cycle de vie du ' +
+        'projet, pas l’exercice comptable. Décaissé = mouvements crédit (hors report à-nouveau) sur les sous-comptes ' +
+        '162-164/462-464 rattachés au bailleur ; Consommé = mouvements débit ; Solde restant = Décaissé − Consommé. ' +
+        'Convention détaillée dans EtatsFinanciersProjetService.noteBailleur (2 ambiguïtés du texte officiel ' +
+        'signalées, résolues par lecture directe des écritures Partie 3 ch. 3, pas par invention).',
     ]);
     note9.font = { italic: true, color: { argb: 'FF555555' } };
     feuille.mergeCells(`A${note9.number}:G${note9.number}`);

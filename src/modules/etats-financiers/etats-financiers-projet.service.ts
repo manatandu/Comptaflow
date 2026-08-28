@@ -25,9 +25,12 @@ import {
  * Partie 4, ch. 3). Construit le 2026-08-28
  * (docs/plan-de-construction.md, item 13), en miroir de
  * `EtatsFinanciersService` (jeu « associations et ordres professionnels »)
- * dont il réutilise les mêmes conventions Brut/Amortissement/Net côté
- * actif et le même comparatif N-1 — voir `etats-financiers.communs.ts`
- * pour les aides partagées entre les deux services.
+ * dont il réutilise le comparatif N-1 et les aides partagées
+ * (`etats-financiers.communs.ts`) — mais PAS ses colonnes
+ * Brut/Amortissement/Net : le texte de CE jeu n'en prévoit pas, et son
+ * tableau de correspondance ne cite aucun compte 28x/29x. Voir l'en-tête de
+ * `correspondance-projet-bilan.ts`, section « PAS de colonnes Brut /
+ * Amortissement / Net dans ce jeu ».
  *
  * Hors périmètre de ce service, documenté et non simulé (règle §2.6) :
  * - **Tableau d'exécution budgétaire** : la maquette officielle (Section 2)
@@ -63,31 +66,25 @@ export class EtatsFinanciersProjetService {
     return chargerLignes(this.ecritureService, tenantId, exerciceId);
   }
 
-  /** Poste ACTIF de détail : brut, amortissement (magnitude positive) et net — même logique que le jeu associations. */
+  /**
+   * Poste ACTIF de détail — UNE seule valeur, pas de Brut/Amortissement/Net :
+   * le texte officiel de ce jeu ne prévoit que « EXERCICE AU 31/12/N » et
+   * « EXERCICE AU 31/12/N-1 », et son tableau de correspondance ne cite aucun
+   * compte 28x/29x (voir l'en-tête de `correspondance-projet-bilan.ts`).
+   */
   private calculerPosteActif(poste: PosteBilanProjetDeBase, lignes: LigneBalancePourEtat[]): PosteCalcule {
-    let lignesBrut = lignes.filter((l) => correspond(l.numero, poste.comptes, poste.exclusions));
+    let matches = lignes.filter((l) => correspond(l.numero, poste.comptes, poste.exclusions));
     if (poste.sens_qualificatif === 'DEBITEUR') {
-      lignesBrut = lignesBrut.filter((l) => l.solde > 0);
+      matches = matches.filter((l) => l.solde > 0);
     }
-    const comptesBrut: CompteDuPoste[] = lignesBrut.map((l) => ({ numero: l.numero, intitule: l.intitule, montant: l.solde }));
-    const brut = comptesBrut.reduce((s, c) => s + c.montant, 0);
-
-    const lignesAmort = poste.comptesAmortissement
-      ? lignes.filter((l) => correspond(l.numero, poste.comptesAmortissement!, poste.exclusionsAmortissement))
-      : [];
-    // Même convention de signe que EtatsFinanciersService.calculerPosteActif
-    // (voir son commentaire pour le piège de signe déjà rencontré et testé).
-    const comptesAmort: CompteDuPoste[] = lignesAmort.map((l) => ({ numero: l.numero, intitule: l.intitule, montant: l.solde }));
-    const amortissement = -comptesAmort.reduce((s, c) => s + c.montant, 0) || 0;
-
-    return {
-      ref: poste.ref,
-      libelle: poste.libelle,
-      montant: brut - amortissement,
-      brut,
-      amortissement,
-      comptes: [...comptesBrut, ...comptesAmort],
-    };
+    // Découverts bancaires : un 52/53 créditeur appartient à DW (passif). Le
+    // garder ici le compterait deux fois — négatif à l'actif, positif au
+    // passif — et déséquilibrerait le bilan du double du découvert.
+    if (poste.comptesTransferesSiCrediteur) {
+      matches = matches.filter((l) => !(correspond(l.numero, poste.comptesTransferesSiCrediteur!) && l.solde < 0));
+    }
+    const comptes: CompteDuPoste[] = matches.map((l) => ({ numero: l.numero, intitule: l.intitule, montant: l.solde }));
+    return { ref: poste.ref, libelle: poste.libelle, montant: comptes.reduce((s, c) => s + c.montant, 0), comptes };
   }
 
   private calculerPostePassif(poste: PosteBilanProjetDeBase, lignes: LigneBalancePourEtat[]): PosteCalcule {
@@ -139,12 +136,7 @@ export class EtatsFinanciersProjetService {
 
     for (const total of TOTAUX_ACTIF) {
       const montant = total.deRefs.reduce((s, ref) => s + (parRef.get(ref)?.montant ?? 0), 0);
-      const brut = total.deRefs.reduce((s, ref) => {
-        const p = parRef.get(ref);
-        return s + (p?.brut ?? p?.montant ?? 0);
-      }, 0);
-      const amortissement = total.deRefs.reduce((s, ref) => s + (parRef.get(ref)?.amortissement ?? 0), 0);
-      parRef.set(total.ref, { ref: total.ref, libelle: total.libelle, montant, brut, amortissement, comptes: [] });
+      parRef.set(total.ref, { ref: total.ref, libelle: total.libelle, montant, comptes: [] });
     }
     for (const total of TOTAUX_PASSIF) {
       const montant = total.deRefs.reduce((s, ref) => s + (parRef.get(ref)?.montant ?? 0), 0);
@@ -168,13 +160,7 @@ export class EtatsFinanciersProjetService {
     const fusionnerN1 = (ref: string): PosteCalcule => {
       const n = parRefN.get(ref)!;
       const n1 = exerciceN1Id ? parRefN1.get(ref) : undefined;
-      return {
-        ...n,
-        estTotal: refsTotaux.has(ref),
-        montantN1: n1?.montant,
-        brutN1: n.brut !== undefined ? (n1?.brut ?? 0) : undefined,
-        amortissementN1: n.amortissement !== undefined ? (n1?.amortissement ?? 0) : undefined,
-      };
+      return { ...n, estTotal: refsTotaux.has(ref), montantN1: n1?.montant };
     };
     const actif = ORDRE_AFFICHAGE_ACTIF.map(fusionnerN1);
     const passif = ORDRE_AFFICHAGE_PASSIF.map(fusionnerN1);
@@ -184,10 +170,7 @@ export class EtatsFinanciersProjetService {
     const comptesRattaches = new Set<string>();
     for (const poste of [...POSTES_ACTIF, ...POSTES_PASSIF]) {
       for (const l of lignesN) {
-        if (
-          correspond(l.numero, poste.comptes, poste.exclusions) ||
-          (poste.comptesAmortissement && correspond(l.numero, poste.comptesAmortissement, poste.exclusionsAmortissement))
-        ) {
+        if (correspond(l.numero, poste.comptes, poste.exclusions)) {
           comptesRattaches.add(l.compteId);
         }
       }
@@ -333,6 +316,22 @@ export class EtatsFinanciersProjetService {
    * `Bailleur` (voir `Compte.bailleurId`) pour produire la note
    * automatiquement plutôt qu'à la main.
    *
+   * ## Une note de PROJET, pas d'exercice — cumul depuis l'origine
+   *
+   * La Note 9 suit le cycle de vie du PROJET, pas l'exercice comptable :
+   * ses rubriques sont « Date des décaissements » et « TOTAL DES FONDS DU
+   * BAILLEUR », et son objet est le niveau d'utilisation des fonds affectés
+   * « en pourcentage par catégorie de fonds et de façon globale »
+   * (commentaire officiel, Section 6). Les trois colonnes sont donc
+   * calculées EN CUMUL depuis l'origine du dossier, toutes périodes
+   * confondues — `exerciceId` ne restreint pas les montants (il ne sert
+   * qu'à nommer le fichier exporté).
+   *
+   * Une première version (2026-08-28, matin) calculait décaissé et consommé
+   * sur le seul exercice courant tout en affichant un solde cumulé : dès le
+   * 2ᵉ exercice les trois colonnes ne se réconciliaient plus (une ligne
+   * pouvait afficher « 0 | 0 | 100 000 »). Corrigé à l'audit du même jour.
+   *
    * ## Convention retenue pour Montant décaissé / Montant consommé
    *
    * Le texte officiel ne donne le compte source QUE pour « Montant
@@ -343,23 +342,21 @@ export class EtatsFinanciersProjetService {
    * une invention, mais résolue par la lecture directe des ÉCRITURES déjà
    * documentées Partie 3 ch. 3 § 2.1/2.2/2.5, qui ne laisse qu'une seule
    * lecture possible :
-   *   - Montant décaissé = mouvements CRÉDIT de l'exercice sur les comptes
-   *     162-164 (investissement) ou 462-464 (administration) rattachés au
-   *     bailleur (§ 2.1 : mise à disposition, toujours au crédit) ;
-   *   - Montant consommé  = mouvements DÉBIT de l'exercice sur ces mêmes
-   *     comptes (§ 2.2 pour l'administration — mécaniquement le solde du
-   *     702, par construction de l'écriture — et § 2.5 pour
-   *     l'investissement : sortie d'immobilisation en fin de projet).
-   * Les écritures de report à-nouveau (`Ecriture.estGenereeParCloture`) sont
-   * EXCLUES des deux : elles ne sont pas un décaissement ou une
-   * consommation réels de l'exercice, seulement le report du solde de
-   * clôture — les inclure gonflerait « décaissé » de tout le solde déjà
-   * existant à chaque nouvel exercice (piège identifié en examinant
-   * `ExerciceService.cloturer`, jamais constaté en production).
-   *   - Solde restant = solde cumulé du compte à date (mode SOLDE, reporté
-   *     d'exercice en exercice par `ExerciceService.cloturer` — mêmes
-   *     mouvements de report que partout ailleurs dans les états
-   *     financiers, PAS un calcul propre à cette note).
+   *   - Montant décaissé = mouvements CRÉDIT sur les comptes 162-164
+   *     (investissement) ou 462-464 (administration) rattachés au bailleur
+   *     (§ 2.1 : mise à disposition, toujours au crédit) ;
+   *   - Montant consommé  = mouvements DÉBIT sur ces mêmes comptes (§ 2.2
+   *     pour l'administration — mécaniquement le solde du 702, par
+   *     construction de l'écriture — et § 2.5 pour l'investissement :
+   *     sortie d'immobilisation en fin de projet) ;
+   *   - Solde restant = décaissé − consommé, ce qui est exactement le solde
+   *     créditeur cumulé du compte : les trois colonnes se réconcilient par
+   *     construction, à tout moment de la vie du projet.
+   *
+   * Les écritures de report à-nouveau (`Ecriture.estGenereeParCloture`)
+   * restent EXCLUES, et c'est indispensable ici : le report rejoue au crédit
+   * le solde de clôture de l'exercice précédent, qui compterait donc une
+   * deuxième fois le même décaissement dans un cumul multi-exercices.
    *
    * Les comptes 162-164/462-464 SANS bailleur rattaché ne sont jamais
    * absorbés en silence dans un total : ils ressortent sous `nonAffecte`
@@ -378,16 +375,15 @@ export class EtatsFinanciersProjetService {
     const comptesAdministration = comptes.filter((c) => PREFIXES_ADMINISTRATION.some((p) => c.numero.startsWith(p)));
 
     const compteIds = [...comptesInvestissement, ...comptesAdministration].map((c) => c.id);
+    // PAS de filtre `exerciceId` : cumul depuis l'origine du projet (voir
+    // « Une note de PROJET, pas d'exercice » en tête de méthode).
     const lignes = compteIds.length
       ? await this.prisma.ligneEcriture.findMany({
-          where: { compteId: { in: compteIds }, ecriture: { tenantId, exerciceId } },
+          where: { compteId: { in: compteIds }, ecriture: { tenantId } },
           select: { compteId: true, debit: true, credit: true, ecriture: { select: { estGenereeParCloture: true } } },
         })
       : [];
     const lignesReelles = lignes.filter((l) => !l.ecriture.estGenereeParCloture);
-
-    const soldes = await this.chargerLignes(tenantId, exerciceId);
-    const soldeParCompte = new Map(soldes.map((l) => [l.compteId, l.solde]));
 
     const mouvements = (comptesGroupe: typeof comptesInvestissement) => {
       const parCompte = new Map(comptesGroupe.map((c) => [c.id, { decaisse: 0, consomme: 0, soldeRestant: 0 }]));
@@ -397,10 +393,12 @@ export class EtatsFinanciersProjetService {
         acc.decaisse += Number(l.credit);
         acc.consomme += Number(l.debit);
       }
+      // Solde restant = décaissé − consommé : c'est exactement le solde
+      // créditeur cumulé du compte, et les trois colonnes se réconcilient
+      // par construction (pas de solde de balance lu à côté).
       for (const c of comptesGroupe) {
-        // Convention de signe passif (comme calculerPostePassif) : solde
-        // créditeur net = -solde (solde = débit - crédit).
-        parCompte.get(c.id)!.soldeRestant = -(soldeParCompte.get(c.id) ?? 0);
+        const acc = parCompte.get(c.id)!;
+        acc.soldeRestant = acc.decaisse - acc.consomme;
       }
       return parCompte;
     };

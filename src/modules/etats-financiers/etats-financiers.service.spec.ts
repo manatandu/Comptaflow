@@ -405,6 +405,52 @@ describe('EtatsFinanciersService', () => {
    * l'exercice du même tenant dont la date de début est la plus récente
    * parmi celles antérieures à l'exercice demandé.
    */
+  // Régressions issues de l'audit du 2026-08-28 — chacun de ces tests
+  // reproduit un bug qui était RÉELLEMENT présent en production.
+  describe('audit 2026-08-28 — régressions', () => {
+    const poste = (bilan: Awaited<ReturnType<EtatsFinanciersService['bilan']>>, ref: string) =>
+      [...bilan.actif, ...bilan.passif].find((p) => p.ref === ref);
+
+    it('un découvert bancaire ne casse plus l’équilibre du bilan (52/53 créditeurs comptés une seule fois)', async () => {
+      // Matériel 300 financé par un découvert de 300 : Actif 300 = Passif 300.
+      // Avant correctif : BW captait le -300 (actif ramené à 0) pendant que DW
+      // ajoutait +300 au passif -> totalActif 0 / totalPassif 300.
+      const service = serviceAvecBalance([
+        ligne('24100000', ClasseCompte.CLASSE_2, 300, 0),
+        ligne('52110000', ClasseCompte.CLASSE_5, 0, 300),
+      ]);
+      const bilan = await service.bilan('t1', 'e1');
+      expect(bilan.totalActif).toBe(300);
+      expect(bilan.totalPassif).toBe(300);
+      expect(bilan.equilibre).toBe(true);
+      expect(poste(bilan, 'BW')!.montant).toBe(0);
+      expect(poste(bilan, 'DW')!.montant).toBe(300);
+    });
+
+    it('une banque DÉBITRICE reste bien à l’actif (le transfert ne vaut que pour les soldes créditeurs)', async () => {
+      const service = serviceAvecBalance([ligne('52110000', ClasseCompte.CLASSE_5, 800, 0)]);
+      const bilan = await service.bilan('t1', 'e1');
+      expect(poste(bilan, 'BW')!.montant).toBe(800);
+      expect(poste(bilan, 'DW')!.montant).toBe(0);
+    });
+
+    it('une caisse créditrice (57, anomalie de saisie) reste VISIBLE en négatif à l’actif, pas déplacée au passif', async () => {
+      const service = serviceAvecBalance([ligne('57100000', ClasseCompte.CLASSE_5, 0, 120)]);
+      const bilan = await service.bilan('t1', 'e1');
+      expect(poste(bilan, 'BW')!.montant).toBe(-120);
+      expect(poste(bilan, 'DW')!.montant).toBe(0);
+    });
+
+    it('DW capte 561 et 566 (crédits de trésorerie, intérêts courus) — la restriction à 564/565 les perdait', async () => {
+      const service = serviceAvecBalance([
+        ligne('56100000', ClasseCompte.CLASSE_5, 0, 500), // crédits de trésorerie
+        ligne('56600000', ClasseCompte.CLASSE_5, 0, 20), // intérêts courus
+      ]);
+      const bilan = await service.bilan('t1', 'e1');
+      expect(poste(bilan, 'DW')!.montant).toBe(520);
+    });
+  });
+
   describe('comparatif N-1', () => {
     const exercices = [
       { id: 'e1', dateDebut: new Date('2026-01-01') },

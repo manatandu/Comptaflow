@@ -1,4 +1,6 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { RoleUtilisateur } from '@prisma/client';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { LicenceGuard } from '../licence/licence.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -16,11 +18,16 @@ export class BailleurController {
     return this.bailleurService.lister(user.tenantId, actifsSeuls === 'true');
   }
 
+  // Création/modification réservées à l'admin, comme le plan de comptes et
+  // le plan des tiers (un bailleur structure la Note 9 : le laisser modifiable
+  // par un profil lecture seule était une omission, corrigée à l'audit).
+  @Roles(RoleUtilisateur.ADMIN_CABINET)
   @Post()
   async creer(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreerBailleurDto) {
     return this.bailleurService.creer(user.tenantId, dto);
   }
 
+  @Roles(RoleUtilisateur.ADMIN_CABINET)
   @Patch(':id')
   async modifier(
     @CurrentUser() user: AuthenticatedUser,

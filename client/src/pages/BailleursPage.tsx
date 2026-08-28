@@ -17,7 +17,7 @@ import type { Bailleur, Compte } from '../lib/types';
  * des États financiers) se calcule automatiquement.
  */
 export function BailleursPage() {
-  const { utilisateur } = useAuth();
+  const { utilisateur, estAdmin } = useAuth();
   const jeuProjet = utilisateur?.tenant.jeuEtatsFinanciersSycebnl === 'PROJETS_DEVELOPPEMENT';
 
   const [bailleurs, setBailleurs] = useState<Bailleur[] | null>(null);
@@ -39,7 +39,13 @@ export function BailleursPage() {
     charger();
   }, []);
 
-  useRibbon([{ titre: 'GESTION', boutons: [{ label: 'Nouveau', Icon: IconNew, onClick: () => setAfficherFormulaire((v) => !v) }] }]);
+  // Bouton masqué hors admin : le back refuse déjà (POST/PATCH /bailleurs sont
+  // @Roles(ADMIN_CABINET)), l'UI ne doit pas proposer une action vouée au 403.
+  useRibbon(
+    estAdmin
+      ? [{ titre: 'GESTION', boutons: [{ label: 'Nouveau', Icon: IconNew, onClick: () => setAfficherFormulaire((v) => !v) }] }]
+      : [],
+  );
 
   const onCreer = async (e: FormEvent) => {
     e.preventDefault();
@@ -55,6 +61,16 @@ export function BailleursPage() {
       setErreur(err instanceof ApiError ? err.message : 'Impossible de créer ce bailleur');
     } finally {
       setEnvoi(false);
+    }
+  };
+
+  const basculerActif = async (b: Bailleur) => {
+    setErreur(null);
+    try {
+      await api.patch(`/bailleurs/${b.id}`, { estActif: !b.estActif });
+      await charger();
+    } catch (err) {
+      setErreur(err instanceof ApiError ? err.message : 'Impossible de modifier ce bailleur');
     }
   };
 
@@ -90,7 +106,7 @@ export function BailleursPage() {
         </p>
       )}
 
-      {afficherFormulaire && (
+      {estAdmin && afficherFormulaire && (
         <form onSubmit={onCreer} className="bg-surface border border-border p-4 mb-4 max-w-[520px]">
           <div className="font-mono text-[11px] font-semibold text-text-dim mb-3">NOUVEAU BAILLEUR</div>
           <div className="grid grid-cols-2 gap-3 mb-3">
@@ -132,23 +148,29 @@ export function BailleursPage() {
       {!bailleurs && <div className="text-[12px] text-text-dim">Chargement…</div>}
 
       {bailleurs && (
-        <div className="border border-border bg-surface mb-4 max-w-[500px]">
-          <div className="grid grid-cols-[90px_1fr_70px] gap-3 px-4 py-1.5 bg-chrome border-b border-border text-[10px] font-bold text-text-dim">
+        <div className="border border-border bg-surface mb-4 max-w-[600px]">
+          <div className="grid grid-cols-[90px_1fr_70px_90px] gap-3 px-4 py-1.5 bg-chrome border-b border-border text-[10px] font-bold text-text-dim">
             <span>CODE</span>
             <span>NOM</span>
             <span>STATUT</span>
+            <span />
           </div>
           {bailleurs.length === 0 && <div className="px-4 py-3 text-[12px] text-text-dim">Aucun bailleur créé.</div>}
           {bailleurs.map((b, i) => (
             <div
               key={b.id}
-              className={`grid grid-cols-[90px_1fr_70px] gap-3 items-center px-4 py-1.5 border-b border-border last:border-b-0 ${i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'}`}
+              className={`grid grid-cols-[90px_1fr_70px_90px] gap-3 items-center px-4 py-1.5 border-b border-border last:border-b-0 ${i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'}`}
             >
               <span className="font-mono text-[12px]">{b.code}</span>
               <span className="text-[12.5px]">{b.nom}</span>
               <span className={`font-mono text-[10px] font-bold px-1.5 py-0.5 w-fit ${b.estActif ? 'text-positive bg-positive-soft' : 'text-text-dim bg-surface-alt'}`}>
                 {b.estActif ? 'ACTIF' : 'INACTIF'}
               </span>
+              {estAdmin && (
+                <button onClick={() => basculerActif(b)} className="text-[10.5px] text-sel hover:underline text-left">
+                  {b.estActif ? 'Désactiver' : 'Activer'}
+                </button>
+              )}
             </div>
           ))}
         </div>
@@ -182,7 +204,8 @@ export function BailleursPage() {
                 <select
                   value={c.bailleurId ?? ''}
                   onChange={(e) => rattacher(c.id, e.target.value)}
-                  className="border border-border-dark px-2 py-1 text-[11.5px]"
+                  disabled={!estAdmin}
+                  className="border border-border-dark px-2 py-1 text-[11.5px] disabled:opacity-60"
                 >
                   <option value="">— non rattaché —</option>
                   {bailleurs.map((b) => (

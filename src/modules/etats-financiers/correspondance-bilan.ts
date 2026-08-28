@@ -56,11 +56,20 @@
  * 4. **AG (amortissement)** : la cellule est illisible dans la source
  *    scannée. Laissée vide — cohérent avec le fait qu'une avance non livrée
  *    ne s'amortit pas.
- * 5. **DW (Banques… crédits de trésorerie)** : le texte officiel dit
- *    « 56, solde créditeurs : 52, 53 ». Précisé en 564/565 (crédits
- *    d'escompte et de trésorerie) par cohérence avec le plan de comptes
- *    SYCEBNL — 561 (opérations avec le siège) n'a pas sa place dans un poste
- *    de trésorerie PASSIF.
+ * 5. ~~**DW** restreint à 564/565~~ — **CORRIGÉ LE 2026-08-28 (audit)** :
+ *    ce n'était pas une anomalie du texte mais une ERREUR de ce fichier. Le
+ *    texte dit « 56, solde créditeurs : 52, 53 » ; la restriction à 564/565
+ *    invoquait « 561 = opérations avec le siège », qui est la nomenclature
+ *    SYSCOHADA citée de mémoire. Le plan SYCEBNL (COMPTE 56) donne 561
+ *    Crédits de trésorerie, 565 Escompte, 566 intérêts courus : 564
+ *    n'existe pas et 561/566 sont de la trésorerie passif. DW reprend « 56 ».
+ *
+ * 6. **BW / DW — double comptage des découverts**, corrigé le 2026-08-28.
+ *    BW captait les soldes 52/53 CRÉDITEURS (en négatif, donc en diminution
+ *    de l'actif) pendant que DW les ajoutait au passif : un simple découvert
+ *    bancaire déséquilibrait le bilan du double de son montant. Le solde
+ *    créditeur doit être DÉPLACÉ, pas compté des deux côtés — voir
+ *    `comptesTransferesSiCrediteur` sur BW.
  *
  * Une SIXIÈME ambiguïté, propre à cette transcription (non documentée dans
  * `liasse/references/anomalies.md`, qui ne la résout pas non plus) : le
@@ -91,6 +100,15 @@ export interface PosteBilanDeBase {
   comptesAmortissement?: string[];
   /** Préfixes retranchés de `comptesAmortissement` — même logique que `exclusions`. */
   exclusionsAmortissement?: string[];
+  /**
+   * ACTIF seulement : comptes qui QUITTENT ce poste quand leur solde est
+   * créditeur, parce qu'un poste de PASSIF les réclame alors (banque à
+   * découvert : BW -> DW). Sans ça le solde créditeur serait compté DEUX
+   * fois — en négatif à l'actif ET en positif au passif — et le bilan ne
+   * bouclerait plus (bug corrigé le 2026-08-28, test de régression
+   * « découvert bancaire » dans etats-financiers.service.spec.ts).
+   */
+  comptesTransferesSiCrediteur?: string[];
   /** Restreint aux comptes de tiers polyvalents dont le solde va dans ce sens. */
   sens_qualificatif?: QualificatifSens;
 }
@@ -185,6 +203,11 @@ export const POSTES_ACTIF: PosteBilanDeBase[] = [
     sens: 'ACTIF',
     comptes: ['52', '53', '55', '57'],
     comptesAmortissement: ['592', '593', '595'],
+    // 52/53 créditeurs = banque à découvert : ils relèvent de DW (passif),
+    // pas de BW. 55/57 (monnaie électronique, caisse) ne sont PAS transférés :
+    // une caisse créditrice est une anomalie de saisie, elle doit rester
+    // visible en négatif à l'actif plutôt que d'être déplacée au passif.
+    comptesTransferesSiCrediteur: ['52', '53'],
   },
   { ref: 'BY', libelle: 'Écart de conversion — Actif', sens: 'ACTIF', comptes: ['478'] },
 ];
@@ -225,10 +248,16 @@ export const POSTES_PASSIF: PosteBilanDeBase[] = [
     ref: 'DW',
     libelle: 'Banques, établissements financiers et crédits de trésorerie',
     sens: 'PASSIF',
-    // Anomalie n° 5 : 564/565 (pas tout 56 — 561 est hors trésorerie),
-    // + comptes 52/53 (mêmes comptes que BW à l'actif) mais SEULEMENT
-    // quand leur solde est créditeur (une banque à découvert).
-    comptes: ['564', '565'],
+    // Le texte officiel dit « 56 » — repris tel quel. Une précédente version
+    // restreignait le poste à ['564', '565'] au motif que « 561 = opérations
+    // avec le siège » : FAUX, et doublement. 561 est la nomenclature
+    // SYSCOHADA, citée de mémoire — la faute que la règle §2.6 interdit.
+    // Et le plan SYCEBNL (Partie 2 ch. 3, COMPTE 56) subdivise 56 en 561
+    // Crédits de trésorerie / 565 Escompte de crédits ordinaires / 566
+    // intérêts courus : 564 n'existe pas, 561 et 566 sont bien de la
+    // trésorerie passif. La restriction faisait donc disparaître de vrais
+    // comptes du bilan. Corrigé le 2026-08-28 (audit).
+    comptes: ['56'],
   },
   { ref: 'DY', libelle: 'Écart de conversion — Passif', sens: 'PASSIF', comptes: ['479'] },
 ];

@@ -1289,6 +1289,77 @@ Ordre de dépendances techniques réelles, pas un simple ordre de préférence :
     Excel réussi) sur le `Tenant Cascade` basculé temporairement en `PROJETS_DEVELOPPEMENT` —
     toutes les données de test et le réglage du tenant remis dans leur état d'origine ensuite ;
     le jeu associations re-vérifié sans régression après coup.
+14bis. ✅ **Audit des items 13 et 14, et correctifs** — 2026-08-28, sur demande
+    explicite (« fais l'audit complet de tout ce qu'on vient de faire »). Relecture
+    du texte officiel ligne à ligne contre le code, tests d'audit jetables à l'appui.
+    **Six défauts réels trouvés, dont trois prouvés par les chiffres.**
+
+    1. **Colonnes Brut/Amortissement/Net inventées sur le bilan projet.** Le texte
+       de ce jeu donne « REF | ACTIF | Note | EXERCICE AU 31/12/N | EXERCICE AU
+       31/12/N-1 » — DEUX colonnes — et son tableau de correspondance ne cite
+       AUCUN compte 28x/29x. Dix mappings d'amortissement avaient été recopiés du
+       jeu associations, pendant que l'en-tête du fichier affirmait « jamais
+       complété depuis le jeu associations » : **violation directe de la règle
+       §2.6, avec une documentation qui disait l'inverse.** Retirés. Cohérent avec
+       le reste du jeu : le compte d'exploitation projet ne cite aucun compte 68
+       non plus, et la Partie 3 ch. 3 ne parle jamais d'amortissement (les
+       immobilisations d'un projet sont décomptabilisées contre 162-164, pas
+       amorties). Un compte 28x/29x ressort désormais en « comptes non rattachés ».
+       UI et export Excel ramenés à deux colonnes.
+    2. **Compte 297 déduit deux fois** (affecté à AG *et* à AH). Prouvé : sur
+       1 000 brut − 400 de dépréciation, AZ ressortait à 200 au lieu de 600. Le
+       test-garde « chaque compte d'amortissement dans UN SEUL poste » existait
+       côté associations et manquait ici — il est désormais porté.
+    3. **Un découvert bancaire déséquilibrait le bilan — dans les DEUX jeux.**
+       BW captait les soldes 52/53 CRÉDITEURS (en négatif, donc en diminution de
+       l'actif) pendant que DW les ajoutait au passif. Prouvé : matériel 300
+       financé par un découvert de 300 donnait actif 0 / passif 300. Le solde
+       créditeur doit être DÉPLACÉ, pas compté des deux côtés — nouveau champ
+       `comptesTransferesSiCrediteur`. **Bug préexistant au jeu associations
+       (item 12), répliqué dans le jeu projet au lieu d'être détecté.**
+    4. **Exclusion de 411 perdue sur BD** (projet) : le texte dit « 41 (sauf 411
+       et 419) », le code n'excluait que 419 et absorbait 411 en silence.
+    5. **DI = compte « 20 » transcrit sans avertissement.** Le compte 20 SYCEBNL
+       est « Immobilisations destinées à la vente… » — un ACTIF. C'est très
+       probablement une corruption de scan de 499/599. Transcrit tel quel (le
+       corriger serait une interprétation) mais désormais signalé, avec ses deux
+       conséquences documentées.
+    6. **« Anomalie n° 2 » inventée** (BE/DH, projet) : le texte projet écrit
+       lui-même « Soldes débiteurs : » et « Soldes créditeurs ». Aucune ambiguïté
+       à résoudre — l'anomalie réelle était celle du tableau ASSOCIATIONS, et
+       elle avait été transposée à tort. Rectifié.
+
+    **Et un septième, trouvé en vérifiant l'arbitrage du point 6 — le plus
+    ancien :** le poste **DW du jeu associations** était restreint à
+    `['564', '565']` au motif que « 561 = opérations avec le siège ». C'est la
+    nomenclature **SYSCOHADA, citée de mémoire** — précisément la faute que la
+    règle §2.6 interdit. Le plan SYCEBNL (Partie 2 ch. 3, COMPTE 56) donne 561
+    Crédits de trésorerie / 565 Escompte / 566 intérêts courus : **564 n'existe
+    pas**, et 561 comme 566 sont bien de la trésorerie passif. La restriction
+    faisait donc disparaître de vrais comptes du bilan depuis l'item 12. DW
+    reprend « 56 », et l'« anomalie n° 5 » de `correspondance-bilan.ts` est
+    rétractée en toutes lettres dans le fichier.
+
+    Corrigé aussi : Note 9 recalculée **en cumul depuis l'origine du projet**
+    (c'est une note de cycle de vie du projet, pas d'exercice) avec
+    `soldeRestant = décaissé − consommé`, si bien que les trois colonnes se
+    réconcilient toujours — auparavant elles mélangeaient flux de l'exercice et
+    solde cumulé et affichaient « 0 | 0 | 100 000 » dès le 2ᵉ exercice ;
+    `@Roles(ADMIN_CABINET)` sur `BailleurController` (aucun rôle n'y était posé,
+    contre 3 sur les comptes et 9 sur les tiers) ; `estAdmin` appliqué à la page
+    Bailleurs ; bouton Activer/Désactiver (qui rend `BailleurService.modifier`
+    joignable — c'était du code mort) ; et garde sur `utilisateur` dans
+    `EtatsFinanciersPage` (un dossier projet interrogeait d'abord les endpoints
+    associations le temps du chargement).
+
+    **Pourquoi la vérification initiale n'avait rien vu** — 109 tests verts, curl
+    et Playwright au vert : chaque test écrit testait *ce qui avait été construit,
+    pas ce que dit le texte officiel*, si bien qu'une transcription infidèle mais
+    cohérente avec elle-même passait tout. Et les captures « avaient l'air justes »
+    parce que le jeu de test était à zéro presque partout — des zéros ne révèlent
+    jamais un double comptage. 14 tests ajoutés (109 → 123), dont les deux
+    tests-gardes structurels qui auraient suffi à attraper les points 2 et 3.
+
 15. Puis, au choix selon opportunité business : **Trésorerie avancée** (lots, LCR/
     virements), **Stocks**, **SYSCOHADA (Phase 3)**, **OHADA→IFRS**, **Paie**, RBAC fin.
 

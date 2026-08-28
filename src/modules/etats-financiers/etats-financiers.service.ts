@@ -104,6 +104,15 @@ export class EtatsFinanciersService {
     if (poste.sens_qualificatif === 'DEBITEUR') {
       lignesBrut = lignesBrut.filter((l) => l.solde > 0);
     }
+    // Découverts bancaires : un compte 52/53 créditeur appartient à DW
+    // (passif), pas à BW (actif). Le laisser ici l'aurait compté deux fois —
+    // en négatif à l'actif ET en positif au passif — déséquilibrant le bilan
+    // du double du découvert. Voir `comptesTransferesSiCrediteur`.
+    if (poste.comptesTransferesSiCrediteur) {
+      lignesBrut = lignesBrut.filter(
+        (l) => !(correspond(l.numero, poste.comptesTransferesSiCrediteur!) && l.solde < 0),
+      );
+    }
     const comptesBrut: CompteDuPoste[] = lignesBrut.map((l) => ({ numero: l.numero, intitule: l.intitule, montant: l.solde }));
     const brut = comptesBrut.reduce((s, c) => s + c.montant, 0);
 

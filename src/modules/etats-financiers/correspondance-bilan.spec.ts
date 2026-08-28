@@ -78,10 +78,22 @@ describe('correspondance bilan (SYCEBNL, Partie 4 ch. 2)', () => {
     expect(cj.comptes).toEqual(['15']);
   });
 
-  it('DW ne couvre que 564/565 en direct — les découverts 52/53 sont ajoutés à part dans le service', () => {
+  it('DW couvre 56 EN ENTIER — la restriction à 564/565 perdait 561 et 566 (audit 2026-08-28)', () => {
+    // Ce test verrouillait auparavant `['564', '565']`, c'est-à-dire une
+    // erreur : 564 n'existe pas au plan SYCEBNL (COMPTE 56 = 561 Crédits de
+    // trésorerie / 565 Escompte / 566 intérêts courus) et la restriction
+    // faisait disparaître 561 et 566 du bilan. Le texte officiel dit « 56 ».
     const dw = POSTES_PASSIF.find((p) => p.ref === 'DW')!;
-    expect(dw.comptes).toEqual(['564', '565']);
+    expect(dw.comptes).toEqual(['56']);
     expect(COMPTES_TRESORERIE_PASSIF_SI_CREDITEUR).toEqual(['52', '53']);
+  });
+
+  it('BW transfère ses soldes 52/53 CRÉDITEURS vers DW — sinon un découvert est compté des deux côtés', () => {
+    const bw = POSTES_ACTIF.find((p) => p.ref === 'BW')!;
+    expect(bw.comptesTransferesSiCrediteur).toEqual(['52', '53']);
+    // 55/57 volontairement absents : une caisse créditrice doit rester
+    // visible en négatif à l'actif, pas migrer au passif.
+    expect(bw.comptesTransferesSiCrediteur).not.toContain('57');
   });
 
   it('2919 et 2939 (ambiguïté non résolue par le texte officiel) ne sont assignés qu’à UN SEUL poste chacun', () => {
