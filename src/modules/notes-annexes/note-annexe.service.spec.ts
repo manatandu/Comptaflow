@@ -80,13 +80,23 @@ function service(
   } as unknown as ExerciceService;
   return new NoteAnnexeService(ecriture, exercice, prisma);
 }
-const note = (r: { notes: any[] }, code: string) => r.notes.find((n) => n.code === code)!;
+const note = (r: { notes: any[] }, code: string, sousTableau?: string) =>
+  r.notes.find((n) => n.code === code && (sousTableau === undefined || n.sousTableau === sousTableau))!;
 const ligneDe = (n: any, libelle: string) => n.lignes.find((l: any) => l.libelle === libelle);
 
 describe('correspondance des notes (intégrité des spécifications)', () => {
-  it('aucun code de note en double', () => {
-    const codes = NOTES_ASSOCIATIONS.map((n) => n.code);
-    expect(new Set(codes).size).toBe(codes.length);
+  it('aucun tableau en double — un code seul, ou un code et son sous-tableau', () => {
+    const cles = NOTES_ASSOCIATIONS.map((n) => `${n.code}::${n.sousTableau ?? ''}`);
+    expect(new Set(cles).size).toBe(cles.length);
+  });
+
+  it('une note à plusieurs tableaux les nomme TOUS — sinon deux tableaux se confondent', () => {
+    const parCode = new Map<string, number>();
+    for (const n of NOTES_ASSOCIATIONS) parCode.set(n.code, (parCode.get(n.code) ?? 0) + 1);
+    for (const n of NOTES_ASSOCIATIONS) {
+      const multiple = (parCode.get(n.code) ?? 0) > 1;
+      expect({ code: n.code, nomme: !multiple || !!n.sousTableau }).toEqual({ code: n.code, nomme: true });
+    }
   });
 
   it('un total ne référence jamais une rubrique qui vient APRÈS lui — sinon le calcul en une passe lirait 0', () => {
@@ -216,8 +226,11 @@ describe('NoteAnnexeService', () => {
   it('la fiche récapitulative couvre toutes les notes transcrites', async () => {
     const s = service({ e1: [] });
     const r = await s.notesAssociations('t', 'e1');
-    expect(r.ficheRecapitulative).toHaveLength(NOTES_ASSOCIATIONS.length);
-    expect(r.couverture).toEqual({ transcrites: NOTES_ASSOCIATIONS.length, attendues: 45 });
+    // Une note à plusieurs tableaux (note 1) tient UNE ligne à la fiche.
+    const codes = new Set(NOTES_ASSOCIATIONS.map((n) => n.code));
+    expect(r.ficheRecapitulative).toHaveLength(codes.size);
+    expect(r.couverture).toEqual({ transcrites: codes.size, attendues: 45 });
+    expect(r.notes.length).toBeGreaterThan(codes.size); // la note 1 en apporte trois
   });
 
   it('comparatif N-1 : montants, variation en valeur et en pourcentage', async () => {
@@ -389,14 +402,31 @@ describe('note 30 — ventilation des mouvements par nature de contrepartie', ()
 });
 
 describe('recoupement croisé des notes (anti double comptage)', () => {
+  it('la note 1 récapitule, et le déclare : chaque rubrique reprise renvoie à sa note d’origine', async () => {
+    const s = service({ e1: [ligne('40110000', ClasseCompte.CLASSE_4, 0, 600)] });
+    const r = await s.notesAssociations('t', 'e1');
+    const n1 = note(r, '1', 'DETTES GARANTIES PAR DES SURETES REELLES');
+    const reprise = ligneDe(n1, 'Fournisseurs et comptes rattachés');
+    expect(reprise.montantN).toBe(600);
+    expect(reprise.renvoi).toBe('19');
+    // ... et le même montant figure bien, de plein droit, à la note 19.
+    expect(ligneDe(note(r, '19'), 'Fournisseurs, dettes en compte').montantN).toBe(600);
+  });
+
   // Deux fois déjà, le même montant s'est retrouvé dans deux notes à la fois :
   // le découvert bancaire entre les notes 13 et 22, puis les comptes de tiers
   // polyvalents entre la note 10 et les notes 19 à 21. Ces tests ferment la
   // classe entière de défaut plutôt que ses deux occurrences.
 
   /** Somme d'un compte à travers TOUTES les notes, hors lignes de total. */
+  // La note 1 est écartée : elle RÉCAPITULE les dettes déjà présentées aux
+  // notes 9 et 19 à 21, sous l'angle des sûretés qui les garantissent. Le
+  // modèle officiel le dit lui-même — sa colonne « Note » renvoie, rubrique
+  // par rubrique, à la note d'origine. Une récapitulation assumée n'est pas
+  // un double comptage ; c'est la SOMME de deux notes de même rang qui en
+  // serait un.
   const sommeParNote = (r: any, numero: string) =>
-    r.notes.flatMap((n: any) =>
+    r.notes.filter((n: any) => n.code !== '1').flatMap((n: any) =>
       n.lignes
         .filter((l: any) => !l.estTotal && l.comptes.some((c: any) => c.numero === numero))
         .map((l: any) => ({ note: n.code, libelle: l.libelle, montant: l.montantN })),

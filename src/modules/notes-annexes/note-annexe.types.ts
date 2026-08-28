@@ -169,6 +169,18 @@ export interface RubriqueNote {
 export interface SpecificationNote {
   /** Code officiel : « 8 », « 5A », « 29B ». */
   code: string;
+  /**
+   * Sous-tableau d'une note qui en porte plusieurs. La note 1 aligne TROIS
+   * tableaux distincts sous un seul code — dettes garanties par des sûretés
+   * réelles, engagements financiers, contributions volontaires en nature —
+   * avec des colonnes différentes pour chacun.
+   *
+   * Le référentiel n'attribue un code propre (5A à 5H) que lorsqu'il veut des
+   * notes séparées ; là où il ne le fait pas, forcer des codes distincts
+   * fabriquerait des notes qui n'existent pas et fausserait la fiche
+   * récapitulative, qui compte les notes officielles.
+   */
+  sousTableau?: string;
   titre: string;
   colonnes: ColonneNote[];
   rubriques: RubriqueNote[];
@@ -276,6 +288,8 @@ export interface RubriqueEnAttente {
 
 export interface NoteCalculee {
   code: string;
+  /** Voir `SpecificationNote.sousTableau`. */
+  sousTableau?: string;
   titre: string;
   colonnes: ColonneNote[];
   lignes: LigneNoteCalculee[];

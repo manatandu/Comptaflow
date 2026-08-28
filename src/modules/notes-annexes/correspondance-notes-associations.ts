@@ -1327,4 +1327,253 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
       'indiquer les événements et circonstances qui ont conduit à la constitution et à la reprise de la ' +
       'dépréciation et/ou de la provision.',
   },
+
+  // ======================================================================
+  // NOTE 1 — TROIS TABLEAUX sous un seul code officiel.
+  // Le référentiel n'attribue un code propre (5A à 5H) que lorsqu'il veut des
+  // notes séparées ; ici il ne le fait pas, d'où `sousTableau`.
+  // ======================================================================
+  {
+    code: '1',
+    sousTableau: 'DETTES GARANTIES PAR DES SURETES REELLES',
+    titre: 'DETTES GARANTIES PAR DES SURETES REELLES',
+    // Les trois colonnes de sûretés sont en saisie : une hypothèque, un
+    // nantissement ou un gage est un fait juridique attaché au contrat, que
+    // le plan de comptes ne porte nulle part. Seul le « Montant brut » de la
+    // dette se calcule.
+    colonnes: [
+      { type: 'LIBRE' as const, libelle: 'Note' },
+      { type: 'EXERCICE_N' as const, libelle: 'Montant brut (1)' },
+      { type: 'LIBRE' as const, libelle: 'SURETES REELLES (2) : Hypothèques' },
+      { type: 'LIBRE' as const, libelle: 'SURETES REELLES (2) : Nantissements' },
+      { type: 'LIBRE' as const, libelle: 'SURETES REELLES (2) : Gages/Autres' },
+    ],
+    rubriques: [
+      { libelle: 'Emprunts obligataires', comptes: ['181'], natureCreditrice: true, renvoi: '18A' },
+      {
+        libelle: 'Emprunts et dettes des établissements de crédit',
+        comptes: ['182'],
+        natureCreditrice: true,
+        renvoi: '18A',
+      },
+      { libelle: 'Autres dettes financières', comptes: ['183', '185', '186', '188'], natureCreditrice: true },
+      { libelle: 'SOUS TOTAL (1)', totalDeRubriques: [0, 1, 2] },
+      { libelle: 'Dettes de crédit-bail immobilier', comptes: ['1871'], natureCreditrice: true, renvoi: '18A' },
+      { libelle: 'Dettes de crédit-bail mobilier', comptes: ['1872'], natureCreditrice: true },
+      { libelle: 'Dettes sur contrats de location-vente', comptes: ['1873'], natureCreditrice: true },
+      {
+        libelle: 'Autres dettes sur contrats de location-acquisition',
+        comptes: ['187'],
+        exclusions: ['1871', '1872', '1873'],
+        natureCreditrice: true,
+      },
+      { libelle: 'SOUS TOTAL (2)', totalDeRubriques: [4, 5, 6, 7] },
+      // Dettes du passif circulant : comptes de tiers polyvalents, donc
+      // filtrés au crédit, comme aux notes 19 à 21.
+      { libelle: 'Fournisseurs et comptes rattachés', comptes: ['40'], sens: 'CREDITEUR', renvoi: '19' },
+      { libelle: 'Adhérents, clients-usagers créditeurs', comptes: ['419'], sens: 'CREDITEUR', renvoi: '9' },
+      { libelle: 'Personnel', comptes: ['42'], sens: 'CREDITEUR', renvoi: '20' },
+      { libelle: 'Organismes sociaux', comptes: ['43'], sens: 'CREDITEUR', renvoi: '20' },
+      { libelle: 'Etat et collectivités', comptes: ['44'], sens: 'CREDITEUR', renvoi: '20' },
+      { libelle: 'Fondateurs, apporteurs et comptes rattachés', comptes: ['45'], sens: 'CREDITEUR', renvoi: '21' },
+      {
+        libelle: "Bailleurs, Etat et autres organismes, fonds d'administration",
+        comptes: ['46'],
+        sens: 'CREDITEUR',
+        renvoi: '21',
+      },
+      { libelle: 'Créditeurs divers', comptes: ['47'], sens: 'CREDITEUR', renvoi: '21' },
+      { libelle: 'SOUS TOTAL (3)', totalDeRubriques: [9, 10, 11, 12, 13, 14, 15, 16] },
+      { libelle: 'TOTAL (1) + (2) + (3)', totalDeRubriques: [3, 8, 17] },
+    ],
+    commentaire: "Indiquer la raison d'être des sûretés.",
+  },
+  {
+    code: '1',
+    sousTableau: 'ENGAGEMENTS FINANCIERS',
+    titre: 'ENGAGEMENTS FINANCIERS',
+    // Un engagement hors bilan n'est, par définition, porté par aucun compte
+    // de bilan : la totalité du tableau est en saisie.
+    horsBalance: true,
+    colonnes: [
+      { type: 'LIBRE' as const, libelle: 'Engagements réciproques' },
+      { type: 'LIBRE' as const, libelle: 'Engagements donnés' },
+      { type: 'LIBRE' as const, libelle: 'Engagements reçus' },
+    ],
+    rubriques: [
+      { libelle: 'Avals, cautions, garanties', saisie: true },
+      { libelle: 'Hypothèques, nantissements, gages, autres', saisie: true },
+      { libelle: 'Effets escomptés non échus', saisie: true },
+      { libelle: 'TOTAL', saisie: true },
+    ],
+  },
+  {
+    code: '1',
+    sousTableau: 'CONTRIBUTIONS VOLONTAIRES EN NATURE',
+    titre: 'CONTRIBUTIONS VOLONTAIRES EN NATURE',
+    // Classe 9, hors bilan et hors résultat : 90 EMPLOIS (900 secours en
+    // nature, 901 mises à disposition gratuite de biens, 902 prestations en
+    // nature, 904 personnel bénévole) et 91 CONTRIBUTIONS, c'est-à-dire les
+    // ressources (910 dons en nature, 911 prestations en nature, 914
+    // bénévolat).
+    //
+    // Les deux colonnes du modèle sont donc les deux SENS du mouvement de la
+    // classe 9 : ressources au crédit, emplois au débit. C'est exactement ce
+    // que calculent les colonnes de mouvement, d'où leur emploi ici sous les
+    // intitulés officiels.
+    //
+    // [texte officiel] Les deux séries ne se correspondent pas terme à terme :
+    // le plan prévoit un emploi « secours en nature » (900) sans ressource
+    // symétrique, et une ressource « dons en nature » (910) sans emploi
+    // symétrique. Seules les prestations en nature et le bénévolat ont les
+    // deux. Les colonnes restent donc vides là où le plan n'a pas de compte —
+    // ce qui est l'information, et non un défaut de rattachement.
+    sensAccroissement: 'CREDIT',
+    colonnes: [
+      { type: 'AUGMENTATIONS' as const, libelle: 'Ressources' },
+      { type: 'DIMINUTIONS' as const, libelle: 'Emplois' },
+    ],
+    rubriques: [
+      { libelle: 'Dons en nature', comptes: ['910'] },
+      { libelle: 'Secours en nature', comptes: ['900'] },
+      { libelle: 'Mises à disposition gratuite des biens', comptes: ['901'] },
+      { libelle: 'Prestations en nature', comptes: ['902', '911'] },
+      { libelle: 'Personnel bénévole', comptes: ['904', '914'] },
+      { libelle: 'TOTAL', totalDeRubriques: [0, 1, 2, 3, 4] },
+    ],
+    commentaire: 'pour les contributions volontaires, faites une évaluation à la valeur actuelle.',
+  },
+
+  // ======================================================================
+  // AUTRES GRILLES SUR MESURE
+  // ======================================================================
+  {
+    code: '5G',
+    titre: 'IMMOBILISATIONS : PLUS-VALUES ET MOINS-VALUES DE CESSION',
+    // TABLEAU ENTIÈREMENT EN SAISIE, et il faut dire pourquoi plutôt que de
+    // laisser croire à un oubli :
+    //
+    // 1. À la clôture, un bien cédé N'EST PLUS au bilan — son brut et ses
+    //    amortissements ont été soldés par l'écriture de cession. Les colonnes
+    //    A et B sont donc structurellement absentes de la balance de clôture.
+    // 2. Les comptes 81 « Valeurs comptables des cessions » et 82 « Produits
+    //    des cessions » ne descendent qu'à QUATRE natures (incorporelles,
+    //    corporelles, financières, dons et legs) là où ce tableau en veut
+    //    douze. Les colonnes C et D ne sont donc pas ventilables non plus.
+    //
+    // Ces montants sont reconstituables depuis les ÉCRITURES de cession
+    // elles-mêmes (le compte 2x crédité donne la nature et le brut, le 28x
+    // débité les amortissements, le 82x le prix). C'est un chantier du
+    // dossier de révision — phase 5 —, où la revue des cessions a sa place ;
+    // le faire ici sur une seule note serait fragile, une cession pouvant
+    // être passée en deux écritures distinctes.
+    colonnes: [
+      { type: 'LIBRE' as const, libelle: 'Montant brut (A)' },
+      { type: 'LIBRE' as const, libelle: 'Amortissements pratiqués (B)' },
+      { type: 'LIBRE' as const, libelle: 'Valeur comptable nette (C = A - B)' },
+      { type: 'LIBRE' as const, libelle: 'Prix de cession (D)' },
+      { type: 'LIBRE' as const, libelle: 'Plus-value ou moins-value (E = D - C)' },
+    ],
+    horsBalance: true,
+    rubriques: [
+      { libelle: 'Brevets, licences et droits similaires', saisie: true },
+      { libelle: 'Logiciel et sites internet', saisie: true },
+      { libelle: 'Autres immobilisations incorporelles', saisie: true },
+      { libelle: 'SOUS TOTAL : IMMOBILISATIONS INCORPORELLES', saisie: true },
+      { libelle: 'Terrains', saisie: true },
+      { libelle: 'Bâtiments', saisie: true },
+      { libelle: 'Aménagements, agencements et installations', saisie: true },
+      { libelle: 'Matériel, mobilier et actifs biologiques', saisie: true },
+      { libelle: 'Matériel de transport', saisie: true },
+      { libelle: 'SOUS TOTAL : IMMOBILISATIONS CORPORELLES', saisie: true },
+      { libelle: 'Titres de participations', saisie: true },
+      { libelle: 'Autres immobilisations financières', saisie: true },
+      { libelle: 'SOUS TOTAL : IMMOBILISATIONS FINANCIERES', saisie: true },
+      { libelle: 'TOTAL GENERAL', saisie: true },
+    ],
+    commentaire: 'mentionner la justification de la cession ainsi que la date d’acquisition et la date de sortie.',
+  },
+  {
+    code: '14',
+    titre: 'ECARTS DE CONVERSION',
+    // La devise, le montant en devise et les deux cours ne sont portés par
+    // aucun compte : la comptabilité est tenue en monnaie légale. Seul
+    // l'écart lui-même — le solde des comptes 478 et 479 — se calcule, et
+    // c'est précisément ce que la dernière colonne du modèle demande.
+    colonnes: [
+      { type: 'LIBRE' as const, libelle: 'Devises' },
+      { type: 'LIBRE' as const, libelle: 'Montant en devises' },
+      { type: 'LIBRE' as const, libelle: 'Cours UML Année acquisition' },
+      { type: 'LIBRE' as const, libelle: 'Cours UML 31/12' },
+      { type: 'EXERCICE_N' as const, libelle: 'Variation en valeur absolue' },
+    ],
+    rubriques: [
+      { libelle: 'Ecarts de conversion-actif', comptes: ['478'], sens: 'DEBITEUR' },
+      { libelle: 'Ecart de conversion-passif', comptes: ['479'], sens: 'CREDITEUR' },
+    ],
+    renvoiOfficiel:
+      'UML : Unités Monétaires légales. Détailler les créances et dettes concernées.',
+    commentaire: 'faire un commentaire.',
+  },
+  {
+    code: '15',
+    titre: 'DOTATION',
+    // Le modèle veut une ligne NOMINATIVE par apporteur ; la comptabilité ne
+    // porte pas l'identité des membres. Les montants par nature de dotation
+    // se calculent, l'identification est en saisie.
+    //
+    // Le plan aide sur la dernière colonne : le compte 101 est la dotation
+    // « sans droit de reprise » et le 102 « avec droit de reprise ». Le
+    // renseignement est donc déductible du compte employé, apporteur par
+    // apporteur, dès que le dossier subdivise ses comptes de dotation.
+    colonnes: [
+      { type: 'LIBRE' as const, libelle: 'Nom et prénoms des membres' },
+      { type: 'LIBRE' as const, libelle: 'Nationalité' },
+      { type: 'EXERCICE_N' as const, libelle: 'Montant' },
+      { type: 'LIBRE' as const, libelle: 'Préciser avec ou sans droit de reprise' },
+    ],
+    renvoyeeDepuis: ['CA'],
+    rubriques: [
+      { libelle: 'Dotation non consomptible', comptes: ['101', '102'], natureCreditrice: true },
+      { libelle: "Droit d'entrée", comptes: ['103'], natureCreditrice: true },
+      { libelle: 'Dotation consomptible', comptes: ['104'], natureCreditrice: true },
+      { libelle: 'TOTAL', totalDeRubriques: [0, 1, 2] },
+    ],
+    renvoiOfficiel:
+      'Compte 101 : dotation non consomptible SANS droit de reprise ; compte 102 : AVEC droit de reprise.',
+  },
+  {
+    code: '17A',
+    titre: 'SUBVENTIONS ET PROVISIONS REGLEMENTEES',
+    colonnes: [
+      { type: 'LIBRE' as const, libelle: 'Note' },
+      ...COLONNES_STANDARD,
+      { type: 'LIBRE' as const, libelle: 'Régime fiscal' },
+      { type: 'LIBRE' as const, libelle: 'Echéances' },
+    ],
+    renvoyeeDepuis: ['CF', 'CG'],
+    // Le compte 141 « Subventions d'équipement » est subdivisé par ORIGINE
+    // (1411 État à 1418 Autres), exactement les rubriques du modèle.
+    rubriques: [
+      { libelle: 'Etat', comptes: ['1411'], natureCreditrice: true },
+      { libelle: 'Région', comptes: ['1412'], natureCreditrice: true },
+      { libelle: 'Département', comptes: ['1413'], natureCreditrice: true },
+      {
+        libelle: 'Communes et collectivités publiques décentralisées',
+        comptes: ['1414'],
+        natureCreditrice: true,
+      },
+      { libelle: 'Entités publiques ou mixtes', comptes: ['1415'], natureCreditrice: true },
+      { libelle: 'Entités et organismes privés', comptes: ['1416'], natureCreditrice: true },
+      { libelle: 'Organismes internationaux', comptes: ['1417'], natureCreditrice: true },
+      { libelle: "Autres subventions d'investissements", comptes: ['1418', '148'], natureCreditrice: true },
+      { libelle: 'TOTAL SUBVENTIONS', totalDeRubriques: [0, 1, 2, 3, 4, 5, 6, 7] },
+      { libelle: 'PROVISIONS REGLEMENTEES', comptes: ['15'], natureCreditrice: true, renvoi: '30' },
+      { libelle: 'TOTAL SUBVENTIONS ET PROVISIONS REGLEMENTEES', totalDeRubriques: [8, 9] },
+    ],
+    commentaire:
+      "indiquer pour la subvention la date d'octroi, la nature, les obligations éventuelles ; pour les " +
+      'provisions réglementées, indiquer le texte de référence, les obligations ; commenter toute variation ' +
+      'significative.',
+  },
 ];

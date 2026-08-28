@@ -456,6 +456,7 @@ export class NoteAnnexeService {
 
     return {
       code: spec.code,
+      sousTableau: spec.sousTableau,
       titre: spec.titre,
       colonnes: spec.colonnes,
       lignes,
@@ -606,14 +607,20 @@ export class NoteAnnexeService {
     return {
       notes,
       exerciceN1Disponible: exerciceN1Id !== null,
-      ficheRecapitulative: notes.map((n) => ({
-        code: n.code,
-        titre: n.titre,
-        applicable: n.applicable,
-        rubriquesEnAttente: n.rubriquesEnAttente,
-      })),
+      // La fiche récapitulative recense les NOTES officielles ; une note à
+      // plusieurs tableaux (note 1) y tient une seule ligne, applicable dès
+      // qu'un de ses tableaux l'est.
+      ficheRecapitulative: [...new Set(notes.map((n) => n.code))].map((code) => {
+        const tableaux = notes.filter((n) => n.code === code);
+        return {
+          code,
+          titre: tableaux[0].titre,
+          applicable: tableaux.some((n) => n.applicable),
+          rubriquesEnAttente: tableaux.flatMap((n) => n.rubriquesEnAttente),
+        };
+      }),
       couverture: {
-        transcrites: NOTES_ASSOCIATIONS.length,
+        transcrites: new Set(NOTES_ASSOCIATIONS.map((n) => n.code)).size,
         attendues: 45,
       },
     };
