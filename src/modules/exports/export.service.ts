@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, PayloadTooLargeException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import * as ExcelJS from 'exceljs';
 import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
@@ -60,6 +61,33 @@ export class ExportService {
   }
 
   /**
+   * Garde-fou de volume. Le classeur est intégralement construit en mémoire
+   * puis sérialisé en un seul buffer (`writeBuffer`) : mesuré, un export de
+   * 50 000 lignes consomme environ 1 Go. Sans borne, un utilisateur — même
+   * en LECTURE_SEULE — pouvait enchaîner les exports d'un gros dossier et
+   * saturer le tas Node, ce qui fait tomber le processus pour TOUS les
+   * tenants (l'application est mono-processus, sans file de travaux).
+   *
+   * Le refus est explicite et actionnable plutôt que silencieux : mieux vaut
+   * demander de restreindre la période qu'un état tronqué, ou qu'un
+   * plantage. Le passage à `ExcelJS.stream.xlsx.WorkbookWriter` lèverait la
+   * contrainte, au prix d'une refonte de la réponse en flux — hors périmètre
+   * ici, tracé dans docs/plan-de-construction.md.
+   */
+  private static readonly MAX_LIGNES_EXPORT = Number(process.env.EXPORT_MAX_LIGNES ?? 50_000);
+
+  private async verifierVolume(where: Prisma.LigneEcritureWhereInput, quoi: string) {
+    const nb = await this.prisma.ligneEcriture.count({ where });
+    if (nb > ExportService.MAX_LIGNES_EXPORT) {
+      throw new PayloadTooLargeException(
+        `${quoi} : ${nb.toLocaleString('fr-FR')} lignes à exporter, au-delà de la limite de ` +
+          `${ExportService.MAX_LIGNES_EXPORT.toLocaleString('fr-FR')}. Restreignez la période (ou le journal) ` +
+          `et relancez l'export.`,
+      );
+    }
+  }
+
+  /**
    * Suffixe de nom de fichier : l'année de l'exercice, pour que deux
    * exportations d'exercices différents ne s'écrasent pas dans le dossier
    * Téléchargements. Vide si l'export n'est pas borné à un exercice.
@@ -100,6 +128,25 @@ export class ExportService {
     tenantId: string,
     filtres: { exerciceId?: string; journalId?: string; dateDebut?: string; dateFin?: string; recherche?: string },
   ): Promise<ClasseurExporte> {
+    await this.verifierVolume(
+      {
+        ecriture: {
+          tenantId,
+          ...(filtres.exerciceId ? { exerciceId: filtres.exerciceId } : {}),
+          ...(filtres.journalId ? { journalId: filtres.journalId } : {}),
+          ...(filtres.dateDebut || filtres.dateFin
+            ? {
+                date: {
+                  ...(filtres.dateDebut ? { gte: new Date(filtres.dateDebut) } : {}),
+                  ...(filtres.dateFin ? { lte: new Date(filtres.dateFin) } : {}),
+                },
+              }
+            : {}),
+        },
+      },
+      'Journal',
+    );
+
     const { ecritures, totaux } = await this.ecritureService.lister(tenantId, filtres);
 
     const classeur = this.nouveauClasseur();
@@ -193,7 +240,7 @@ export class ExportService {
    * seule fois dans `EcritureService` et partagée par l'écran et l'export.
    */
   async grandLivreExcel(tenantId: string, compteId: string, exerciceId?: string): Promise<ClasseurExporte> {
-    const { compte, lignes } = await this.ecritureService.grandLivre(tenantId, compteId, exerciceId);
+    const { compte, lignes, soldeFinal } = await this.ecritureService.grandLivre(tenantId, compteId, exerciceId);
 
     const classeur = this.nouveauClasseur();
     const feuille = classeur.addWorksheet('Grand livre');
@@ -216,6 +263,18 @@ export class ExportService {
     }
 
     const derniereLigneDonnees = feuille.rowCount;
+    // Ligne de totaux, comme sur le journal, la balance et le sommaire du
+    // grand livre complet — et surtout comme l'écran, qui affiche « SOLDE
+    // FINAL » : sans elle, l'utilisateur qui exporte le compte qu'il a sous
+    // les yeux perd le seul chiffre qu'il regardait.
+    const ligneTotal = feuille.addRow({
+      libelle: 'TOTAUX DU COMPTE',
+      debit: lignes.reduce((s, l) => s + l.debit, 0),
+      credit: lignes.reduce((s, l) => s + l.credit, 0),
+      solde: soldeFinal,
+    });
+    ligneTotal.font = ENTETE_FONT;
+
     this.appliquerFormats(feuille, {
       date: FORMAT_DATE,
       debit: FORMAT_MONTANT,
@@ -223,7 +282,11 @@ export class ExportService {
       solde: FORMAT_MONTANT,
     });
     this.finaliserTableau(feuille, feuille.columns.length, derniereLigneDonnees);
-    feuille.headerFooter = { firstHeader: `&C${compte.numero} — ${compte.intitule}` };
+    // `&` introduit un code de mise en forme dans un en-tête Excel : un
+    // intitulé « Achats & fournitures » donnerait `&f`, qu'Excel remplace par
+    // le nom du fichier. On le double pour l'échapper.
+    const enTete = `${compte.numero} — ${compte.intitule}`.replace(/&/g, '&&');
+    feuille.headerFooter = { firstHeader: `&C${enTete}` };
 
     return {
       buffer: await this.versBuffer(classeur),
@@ -247,6 +310,11 @@ export class ExportService {
    *    rupture au milieu des données qui fausseraient tout filtre.
    */
   async grandLivreCompletExcel(tenantId: string, exerciceId?: string): Promise<ClasseurExporte> {
+    await this.verifierVolume(
+      { ecriture: { tenantId, ...(exerciceId ? { exerciceId } : {}) } },
+      'Grand livre complet',
+    );
+
     const comptes = await this.ecritureService.grandLivreComplet(tenantId, exerciceId);
 
     const classeur = this.nouveauClasseur();
@@ -389,11 +457,13 @@ export class ExportService {
 
     const classeur = this.nouveauClasseur();
     const feuille = classeur.addWorksheet('Bilan');
+    // En-têtes distincts de part et d'autre : deux colonnes portant le même
+    // titre « N° compte » casseraient tout tableau croisé dynamique.
     feuille.columns = [
-      { header: 'N° compte', key: 'numero', width: 12 },
+      { header: 'Actif — n° compte', key: 'numero', width: 16 },
       { header: 'Actif — intitulé', key: 'intituleActif', width: 30 },
       { header: 'Actif — montant', key: 'montantActif', width: 16 },
-      { header: 'N° compte', key: 'numeroPassif', width: 12 },
+      { header: 'Passif — n° compte', key: 'numeroPassif', width: 17 },
       { header: 'Passif — intitulé', key: 'intitulePassif', width: 30 },
       { header: 'Passif — montant', key: 'montantPassif', width: 16 },
     ];
@@ -412,7 +482,6 @@ export class ExportService {
       });
     }
 
-    const derniereLigneDonnees = feuille.rowCount;
     const ligneTotal = feuille.addRow({
       intituleActif: 'TOTAL ACTIF',
       montantActif: bilan.totalActif,
@@ -422,7 +491,15 @@ export class ExportService {
     ligneTotal.font = ENTETE_FONT;
 
     this.appliquerFormats(feuille, { montantActif: FORMAT_MONTANT, montantPassif: FORMAT_MONTANT });
-    this.finaliserTableau(feuille, feuille.columns.length, derniereLigneDonnees);
+    // En-tête figée SANS auto-filtre : contrairement aux autres feuilles, le
+    // bilan n'est pas un tableau plat mais DEUX listes indépendantes
+    // juxtaposées (actif à gauche, passif à droite), appariées ligne à ligne
+    // par un simple index. Filtrer sur un montant d'actif y masquerait des
+    // postes de passif qui n'ont rien à voir, en laissant les totaux
+    // affichés — un bilan faussé en un clic. Trier ferait pire encore, en
+    // désappariant les deux colonnes.
+    styliserEntete(feuille.getRow(1));
+    feuille.views = [{ state: 'frozen', ySplit: 1 }];
 
     const avertissement = feuille.addRow([
       `⚠ Bilan : regroupement simplifié classe → poste (MVP), PAS le tableau de correspondance officiel SYCEBNL. Équilibré : ${

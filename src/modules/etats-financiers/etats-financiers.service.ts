@@ -111,7 +111,14 @@ export class EtatsFinanciersService {
       }
     }
 
-    if (resultatNet !== 0) {
+    // Seuil, pas une égalité stricte : `resultatNet` est une somme de
+    // flottants, et sur un exercice clôturé (comptes de gestion soldés un à
+    // un) elle laisse un résidu de l'ordre de 1e-13. Une comparaison exacte
+    // ajoutait alors une ligne parasite « Excédent (déficit) — 0,00 », en
+    // doublon du compte 131 réel déjà présent au passif via la classe 1 :
+    // deux entrées de même numéro, donc une clé React dupliquée à l'écran.
+    // Même tolérance que les contrôles d'équilibre plus bas.
+    if (Math.abs(resultatNet) > 0.005) {
       passif.push({ numero: '13100000', intitule: "Excédent (déficit) de l'exercice", montant: resultatNet });
     }
 

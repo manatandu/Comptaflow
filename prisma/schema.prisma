@@ -298,6 +298,10 @@ model Ecriture {
   immobilisationSortie      Immobilisation? @relation("ImmoEcritureSortie")
   dotationAmortissement     DotationAmortissement?
 
+  // Chemin de filtrage de TOUS les états (journal, grand livre, balance,
+  // états financiers) : tenant + exercice, trié par date. Sans index, chaque
+  // export balaie l'intégralité des écritures du dossier.
+  @@index([tenantId, exerciceId, date])
   @@map("ecritures")
 }
 
@@ -380,6 +384,12 @@ model LigneEcriture {
 
   @@index([compteId, lettre])
   @@index([compteId, rapprochementId])
+  // PostgreSQL ne crée PAS d'index sur une colonne de clé étrangère, et
+  // Prisma n'en génère pas non plus. Sans celui-ci, tout chargement des
+  // lignes d'un lot d'écritures (journal, grand livre, contreparties) fait
+  // un balayage séquentiel de toute la table — le chemin le plus sollicité
+  // de l'application.
+  @@index([ecritureId])
   @@map("lignes_ecriture")
 }
 

@@ -285,14 +285,22 @@ export class ExerciceService {
           // écriture réelle, et évite de gonfler artificiellement les deux
           // colonnes du journal pour ce compte.
           deltaResultat = totalDebitResultat - totalCreditResultat;
-          const compteResultat = await this.trouverCompteResultat(tenantId, tx, deltaResultat > 0);
-          compteResultatId = compteResultat.id;
-          lignesCloture.push({
-            compteId: compteResultat.id,
-            debit: deltaResultat > 0 ? deltaResultat : 0,
-            credit: deltaResultat < 0 ? -deltaResultat : 0,
-            libelle: deltaResultat > 0 ? "Déficit de l'exercice" : "Excédent de l'exercice",
-          });
+          // Résultat exactement nul (produits = charges) : ne rien pousser.
+          // Une ligne debit: 0, credit: 0 est un mouvement fantôme — elle
+          // apparaîtrait au grand livre mais pas à la balance (qui filtre les
+          // comptes sans mouvement), et sa contrepartie serait calculée comme
+          // si elle était au crédit. Un compte de résultat sans montant n'a
+          // de toute façon rien à enregistrer.
+          if (Math.abs(deltaResultat) > EPSILON) {
+            const compteResultat = await this.trouverCompteResultat(tenantId, tx, deltaResultat > 0);
+            compteResultatId = compteResultat.id;
+            lignesCloture.push({
+              compteId: compteResultat.id,
+              debit: deltaResultat > 0 ? deltaResultat : 0,
+              credit: deltaResultat < 0 ? -deltaResultat : 0,
+              libelle: deltaResultat > 0 ? "Déficit de l'exercice" : "Excédent de l'exercice",
+            });
+          }
 
           const totalDebit = lignesCloture.reduce((s, l) => s + l.debit, 0);
           const totalCredit = lignesCloture.reduce((s, l) => s + l.credit, 0);

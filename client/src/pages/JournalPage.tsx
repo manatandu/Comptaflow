@@ -44,27 +44,55 @@ export function JournalPage() {
   const [filtresAppliques, setFiltresAppliques] = useState<Filtres>(FILTRES_VIDES);
   const [filtresOuverts, setFiltresOuverts] = useState(false);
 
-  useEffect(() => {
-    api.get<Compte[]>('/comptes').then(setComptes);
-    api.get<Journal[]>('/journaux').then(setJournaux);
-  }, []);
+  const [erreur, setErreur] = useState<string | null>(null);
 
   useEffect(() => {
+    let annule = false;
+    api.get<Compte[]>('/comptes').then(
+      (r) => !annule && setComptes(r),
+      (e) => !annule && setErreur(e.message),
+    );
+    api.get<Journal[]>('/journaux').then(
+      (r) => !annule && setJournaux(r),
+      (e) => !annule && setErreur(e.message),
+    );
+    return () => {
+      annule = true;
+    };
+  }, []);
+
+  // Chaque effet pose son drapeau `annule` : sans lui, une réponse lente
+  // partie en premier écrase à son arrivée une réponse plus récente déjà
+  // affichée. Sur le grand livre, cela affichait les lignes ET LE SOLDE d'un
+  // compte sous le nom d'un autre — une faute lourde sur un logiciel
+  // comptable, et rien à l'écran ne l'aurait signalée.
+  useEffect(() => {
     if (!exerciceCourant) return;
+    let annule = false;
     const query = versQuery(exerciceCourant.id, filtresAppliques);
-    api
-      .get<{ ecritures: Ecriture[]; totaux: { debit: number; credit: number } }>(`/ecritures?${query}`)
-      .then((r) => {
+    api.get<{ ecritures: Ecriture[]; totaux: { debit: number; credit: number } }>(`/ecritures?${query}`).then(
+      (r) => {
+        if (annule) return;
         setEcritures(r.ecritures);
         setTotaux(r.totaux);
-      });
+      },
+      (e) => !annule && setErreur(e.message),
+    );
+    return () => {
+      annule = true;
+    };
   }, [exerciceCourant?.id, filtresAppliques]);
 
   useEffect(() => {
     if (!exerciceCourant) return;
-    api
-      .get<{ lignes: LigneBalance[] }>(`/ecritures/balance?exerciceId=${exerciceCourant.id}`)
-      .then((r) => setBalance(r.lignes));
+    let annule = false;
+    api.get<{ lignes: LigneBalance[] }>(`/ecritures/balance?exerciceId=${exerciceCourant.id}`).then(
+      (r) => !annule && setBalance(r.lignes),
+      (e) => !annule && setErreur(e.message),
+    );
+    return () => {
+      annule = true;
+    };
   }, [exerciceCourant?.id]);
 
   useEffect(() => {
@@ -72,11 +100,21 @@ export function JournalPage() {
       setGrandLivre(null);
       return;
     }
+    let annule = false;
+    // Vide l'affichage précédent : sans ça, le grand livre du compte
+    // précédent reste visible sous le nouveau nom pendant le chargement.
+    setGrandLivre(null);
     api
       .get<{ lignes: LigneGrandLivre[]; soldeFinal: number }>(
         `/ecritures/grand-livre/${compteGrandLivreId}?exerciceId=${exerciceCourant.id}`,
       )
-      .then(setGrandLivre);
+      .then(
+        (r) => !annule && setGrandLivre(r),
+        (e) => !annule && setErreur(e.message),
+      );
+    return () => {
+      annule = true;
+    };
   }, [exerciceCourant?.id, compteGrandLivreId]);
 
   const filtreActif = useMemo(
@@ -84,31 +122,50 @@ export function JournalPage() {
     [filtresAppliques],
   );
 
+  // `api.telecharger` rejette sur 403 (licence expirée), 400 ou 500. Sans ce
+  // `catch`, la promesse partait dans le vide : aucun fichier ne se
+  // téléchargeait et AUCUN message n'apparaissait — l'utilisateur reclique
+  // sans comprendre.
+  const [exportEnCours, setExportEnCours] = useState(false);
+  const lancerExport = async (chemin: string, nomParDefaut: string) => {
+    setErreur(null);
+    setExportEnCours(true);
+    try {
+      await api.telecharger(chemin, nomParDefaut);
+    } catch (e) {
+      setErreur(e instanceof Error ? e.message : "Échec de l'export");
+    } finally {
+      setExportEnCours(false);
+    }
+  };
+
   const exporterJournal = () => {
     if (!exerciceCourant) return;
     // Le journal exporté est exactement celui affiché, filtres compris.
-    api.telecharger(`/exports/journal?${versQuery(exerciceCourant.id, filtresAppliques)}`, 'journal.xlsx');
+    lancerExport(`/exports/journal?${versQuery(exerciceCourant.id, filtresAppliques)}`, 'journal.xlsx');
   };
   const exporterBalance = () => {
     if (!exerciceCourant) return;
-    api.telecharger(`/exports/balance?exerciceId=${exerciceCourant.id}`, 'balance.xlsx');
+    lancerExport(`/exports/balance?exerciceId=${exerciceCourant.id}`, 'balance.xlsx');
   };
   const exporterGrandLivreDuCompte = () => {
     if (!exerciceCourant || !compteGrandLivreId) return;
-    api.telecharger(`/exports/grand-livre/${compteGrandLivreId}?exerciceId=${exerciceCourant.id}`, 'grand-livre.xlsx');
+    lancerExport(`/exports/grand-livre/${compteGrandLivreId}?exerciceId=${exerciceCourant.id}`, 'grand-livre.xlsx');
   };
   const exporterGrandLivreComplet = () => {
     if (!exerciceCourant) return;
-    api.telecharger(`/exports/grand-livre?exerciceId=${exerciceCourant.id}`, 'grand-livre-complet.xlsx');
+    lancerExport(`/exports/grand-livre?exerciceId=${exerciceCourant.id}`, 'grand-livre-complet.xlsx');
   };
 
   // useRibbon n'enregistre les boutons qu'au montage (voir sa doc) : un
-  // onClick ici capterait l'onglet initial pour toujours. Les boutons
-  // réellement fonctionnels (réactifs à l'onglet actif) vivent dans
-  // l'en-tête de page ci-dessous, pas dans ce ruban contextuel.
+  // onClick posé ici capterait l'onglet initial pour toujours et agirait sur
+  // le mauvais onglet. Les boutons réellement fonctionnels vivent donc dans
+  // l'en-tête de page ci-dessous. Ceux du ruban sont explicitement
+  // `disabled` : les laisser cliquables sans effet, à l'endroit le plus
+  // visible de l'écran, est pire que de les désactiver.
   useRibbon([
-    { titre: 'AFFICHAGE', boutons: [{ label: 'Filtrer', Icon: IconFilter }] },
-    { titre: 'IMPRESSION', boutons: [{ label: 'Exporter Excel', Icon: IconExport }] },
+    { titre: 'AFFICHAGE', boutons: [{ label: 'Filtrer', Icon: IconFilter, disabled: true }] },
+    { titre: 'IMPRESSION', boutons: [{ label: 'Exporter Excel', Icon: IconExport, disabled: true }] },
   ]);
 
   const lignesJournal = ecritures.flatMap((e) =>
@@ -119,7 +176,12 @@ export function JournalPage() {
       compte: l.compte ? `${l.compte.numero} — ${l.compte.intitule}` : l.compteId,
       debit: Number(l.debit),
       credit: Number(l.credit),
-      piece: e.reference,
+      // Le n° de pièce est celui attribué par le journal ; `reference` est la
+      // pièce justificative externe. L'export Excel a deux colonnes
+      // distinctes — l'écran affichait `reference` sous l'en-tête « PIÈCE »,
+      // si bien que l'écran et le fichier ne nommaient pas la même chose.
+      numeroPiece: e.numeroPiece,
+      reference: e.reference,
       key: l.id,
     })),
   );
@@ -127,12 +189,13 @@ export function JournalPage() {
   const boutonExport = (label: string, onClick: () => void, principal = true) => (
     <button
       onClick={onClick}
-      className={`flex items-center gap-1.5 border border-border px-3 py-1.5 text-[11px] font-bold hover:bg-surface-alt ${
+      disabled={exportEnCours}
+      className={`flex items-center gap-1.5 border border-border px-3 py-1.5 text-[11px] font-bold hover:bg-surface-alt disabled:opacity-50 disabled:cursor-wait ${
         principal ? 'bg-surface' : 'bg-chrome'
       }`}
     >
       <IconExport width={13} height={13} />
-      {label}
+      {exportEnCours ? 'Export en cours…' : label}
     </button>
   );
 
@@ -162,6 +225,15 @@ export function JournalPage() {
           )}
         </div>
       </div>
+
+      {erreur && (
+        <div className="flex items-start justify-between gap-3 border border-danger/30 bg-danger-soft px-3.5 py-2 mb-2.5">
+          <span className="text-[11.5px]">{erreur}</span>
+          <button onClick={() => setErreur(null)} className="text-[11px] font-bold shrink-0 hover:underline">
+            Fermer
+          </button>
+        </div>
+      )}
 
       {onglet === 'journal' && filtresOuverts && (
         <div className="border border-border bg-surface-alt p-3 mb-2.5 flex flex-wrap items-end gap-3">
@@ -252,14 +324,15 @@ export function JournalPage() {
 
       {onglet === 'journal' && (
         <div className="border border-border">
-          <div className="grid grid-cols-[62px_46px_1.6fr_1.3fr_100px_100px_74px] gap-2.5 px-3.5 py-1.5 bg-surface-alt text-[10px] font-bold text-text-dim border-b border-border">
+          <div className="grid grid-cols-[62px_46px_1.5fr_1.25fr_100px_100px_60px_84px] gap-2.5 px-3.5 py-1.5 bg-surface-alt text-[10px] font-bold text-text-dim border-b border-border">
             <span>DATE</span>
             <span>JRN</span>
             <span>LIBELLÉ</span>
             <span>COMPTE</span>
             <span className="text-right">DÉBIT</span>
             <span className="text-right">CRÉDIT</span>
-            <span>PIÈCE</span>
+            <span className="text-right">N° PIÈCE</span>
+            <span>RÉFÉRENCE</span>
           </div>
           {lignesJournal.length === 0 && (
             <div className="px-3.5 py-4 text-[11.5px] text-text-dim">
@@ -269,7 +342,7 @@ export function JournalPage() {
           {lignesJournal.map((l, i) => (
             <div
               key={l.key}
-              className={`grid grid-cols-[62px_46px_1.6fr_1.3fr_100px_100px_74px] gap-2.5 px-3.5 py-1 items-center border-b border-border text-[11.5px] ${
+              className={`grid grid-cols-[62px_46px_1.5fr_1.25fr_100px_100px_60px_84px] gap-2.5 px-3.5 py-1 items-center border-b border-border text-[11.5px] ${
                 i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'
               }`}
             >
@@ -279,10 +352,11 @@ export function JournalPage() {
               <span className="font-mono text-text-dim">{l.compte}</span>
               <span className="font-mono text-right">{l.debit ? l.debit.toLocaleString('fr-FR') : ''}</span>
               <span className="font-mono text-right">{l.credit ? l.credit.toLocaleString('fr-FR') : ''}</span>
-              <span className="font-mono text-[10px] text-text-dim">{l.piece}</span>
+              <span className="font-mono text-[10px] text-text-dim text-right">{l.numeroPiece ?? ''}</span>
+              <span className="font-mono text-[10px] text-text-dim">{l.reference}</span>
             </div>
           ))}
-          <div className="grid grid-cols-[62px_46px_1.6fr_1.3fr_100px_100px_74px] gap-2.5 px-3.5 py-1.5 bg-surface-alt border-t border-border-dark text-[11.5px] font-bold">
+          <div className="grid grid-cols-[62px_46px_1.5fr_1.25fr_100px_100px_60px_84px] gap-2.5 px-3.5 py-1.5 bg-surface-alt border-t border-border-dark text-[11.5px] font-bold">
             <span />
             <span />
             <span>TOTAUX DE LA PÉRIODE</span>

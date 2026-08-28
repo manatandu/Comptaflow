@@ -143,7 +143,10 @@ export class EcritureService {
         ...(filtres.recherche ? { libelle: { contains: filtres.recherche, mode: 'insensitive' as const } } : {}),
       },
       include: { lignes: { include: { compte: true } }, journal: true },
-      orderBy: { date: 'asc' },
+      // Départage explicite : à date égale, l'ordre de sortie serait sinon
+      // laissé au plan d'exécution PostgreSQL et pourrait changer d'un export
+      // à l'autre (voir TRI_GRAND_LIVRE).
+      orderBy: [{ date: 'asc' }, { numeroPiece: 'asc' }, { id: 'asc' }],
     });
 
     const totalDebit = ecritures.reduce((s, e) => s + e.lignes.reduce((s2, l) => s2 + Number(l.debit), 0), 0);
@@ -152,40 +155,85 @@ export class EcritureService {
   }
 
   /**
-   * Compte(s) contrepartie d'une ligne — voir docs/plan-de-construction.md
-   * (« Export Excel — compte contrepartie ») : comptes DISTINCTS de sens
-   * opposé dans la même écriture. Exact et non ambigu dans les cas usuels
-   * (2 lignes, N débits/1 crédit, 1 débit/M crédits) ; dans le cas rare
-   * d'une écriture à débits ET crédits multiples simultanés (N×M), la liste
-   * porte plusieurs comptes candidats plutôt qu'un choix arbitraire
-   * faussement précis.
-   *
-   * Filtrer par sens opposé écarte aussi, par construction, la ligne
-   * elle-même et toute autre ligne portant le même compte du même côté —
-   * inutile d'y ajouter un « sauf soi-même » ad hoc.
-   *
-   * Factorisé ici pour rester unique entre `grandLivre()` (un compte),
-   * `grandLivreComplet()` (tous) et l'export Excel qui les consomme.
+   * Tri total et déterministe des lignes de grand livre. La date seule ne
+   * suffit pas : deux écritures du même jour (une facture et son règlement,
+   * ou toutes les écritures d'une clôture datées de la fin d'exercice)
+   * sortiraient dans un ordre laissé au plan d'exécution PostgreSQL, qui
+   * peut changer d'un appel à l'autre. La colonne « solde progressif »
+   * différerait alors entre deux exports du MÊME exercice — inacceptable
+   * pour un dossier d'audit, où l'on recoupe deux tirages ligne à ligne.
+   * Le `id` final garantit un ordre total.
    */
-  private static contrepartieDe(
-    ligne: { id: string; debit: Prisma.Decimal | number },
-    lignesDeLEcriture: Array<{ id: string; debit: Prisma.Decimal | number; compte: { numero: string } }>,
-  ): string[] {
-    const sensDeLaLigne = Number(ligne.debit) > 0 ? 'DEBIT' : 'CREDIT';
-    return [
-      ...new Set(
-        lignesDeLEcriture
-          .filter((autre) => autre.id !== ligne.id)
-          .filter((autre) => (Number(autre.debit) > 0 ? 'DEBIT' : 'CREDIT') !== sensDeLaLigne)
-          .map((autre) => autre.compte.numero),
-      ),
-    ];
+  private static readonly TRI_GRAND_LIVRE = [
+    { ecriture: { date: 'asc' } },
+    { ecriture: { numeroPiece: 'asc' } },
+    { id: 'asc' },
+  ] satisfies Prisma.LigneEcritureOrderByWithRelationInput[];
+
+  /**
+   * Contreparties de TOUTES les écritures d'un périmètre, précalculées en une
+   * requête plate : pour chaque écriture, la liste des comptes débités et
+   * celle des comptes crédités.
+   *
+   * Règle (voir docs/plan-de-construction.md, « Export Excel — compte
+   * contrepartie ») : la contrepartie d'une ligne, ce sont les comptes
+   * DISTINCTS de sens opposé dans la même écriture. Exacte et non ambiguë
+   * dans les cas usuels (2 lignes, N débits/1 crédit, 1 débit/M crédits) ;
+   * dans le cas rare d'une écriture à débits ET crédits multiples simultanés
+   * (N×M), la liste porte plusieurs comptes candidats plutôt qu'un choix
+   * arbitraire faussement précis. Retenir le seul sens opposé écarte au
+   * passage la ligne elle-même et toute autre ligne portant le même compte du
+   * même côté — inutile d'y ajouter un « sauf soi-même » ad hoc.
+   *
+   * Motif : la contrepartie d'une ligne ne dépend que de son SENS et de son
+   * écriture — il n'y a donc que deux réponses possibles par écriture, pas
+   * une par ligne. Les charger via `ecriture: { lignes: ... }` imbriqué
+   * dupliquait l'écriture entière autant de fois qu'elle a de lignes
+   * (amplification en O(k²) : mesuré 2,4 Go de RSS sur 50 000 lignes, et une
+   * écriture de ventilation de paie à 100 lignes suffisait à faire tomber le
+   * processus — donc tous les tenants avec lui, l'application étant
+   * mono-processus).
+   */
+  private async chargerContreparties(
+    where: Prisma.LigneEcritureWhereInput,
+  ): Promise<Map<string, { DEBIT: string[]; CREDIT: string[] }>> {
+    const brut = await this.prisma.ligneEcriture.findMany({
+      where,
+      select: { ecritureId: true, debit: true, compte: { select: { numero: true } } },
+    });
+
+    // Ensembles pendant l'accumulation (dédoublonnage), figés en tableaux
+    // ensuite : la contrepartie d'une ligne au débit est la liste des comptes
+    // CRÉDITÉS, et réciproquement — d'où l'inversion à la fin.
+    const debits = new Map<string, Set<string>>();
+    const credits = new Map<string, Set<string>>();
+    for (const l of brut) {
+      const cible = Number(l.debit) > 0 ? debits : credits;
+      let ens = cible.get(l.ecritureId);
+      if (!ens) {
+        ens = new Set();
+        cible.set(l.ecritureId, ens);
+      }
+      ens.add(l.compte.numero);
+    }
+
+    const parEcriture = new Map<string, { DEBIT: string[]; CREDIT: string[] }>();
+    for (const ecritureId of new Set([...debits.keys(), ...credits.keys()])) {
+      parEcriture.set(ecritureId, {
+        // Ligne au débit → contrepartie = comptes crédités.
+        DEBIT: [...(credits.get(ecritureId) ?? [])],
+        // Ligne au crédit → contrepartie = comptes débités.
+        CREDIT: [...(debits.get(ecritureId) ?? [])],
+      });
+    }
+    return parEcriture;
   }
 
   /** Mise en forme d'une ligne de grand livre, solde progressif fourni par l'appelant. */
   private static versLigneGrandLivre(
     l: {
       id: string;
+      ecritureId: string;
       libelle: string | null;
       debit: Prisma.Decimal;
       credit: Prisma.Decimal;
@@ -196,11 +244,12 @@ export class EcritureService {
         reference: string | null;
         numeroPiece: number | null;
         journal: { code: string };
-        lignes: Array<{ id: string; debit: Prisma.Decimal; compte: { numero: string } }>;
       };
     },
     soldeProgressif: number,
+    contreparties: Map<string, { DEBIT: string[]; CREDIT: string[] }>,
   ) {
+    const sens = Number(l.debit) > 0 ? 'DEBIT' : 'CREDIT';
     return {
       id: l.id,
       date: l.ecriture.date,
@@ -212,7 +261,7 @@ export class EcritureService {
       credit: Number(l.credit),
       lettre: l.lettre,
       soldeProgressif,
-      contrepartie: EcritureService.contrepartieDe(l, l.ecriture.lignes),
+      contrepartie: contreparties.get(l.ecritureId)?.[sens] ?? [],
     };
   }
 
@@ -223,23 +272,24 @@ export class EcritureService {
       throw new BadRequestException('Compte introuvable pour ce tenant');
     }
 
-    const lignes = await this.prisma.ligneEcriture.findMany({
-      where: {
-        compteId,
-        ecriture: { tenantId, ...(exerciceId ? { exerciceId } : {}) },
-      },
-      include: {
-        ecriture: {
-          include: { journal: true, lignes: { include: { compte: true } } },
-        },
-      },
-      orderBy: { ecriture: { date: 'asc' } },
-    });
+    const perimetreEcriture = { tenantId, ...(exerciceId ? { exerciceId } : {}) };
+
+    const [lignes, contreparties] = await Promise.all([
+      this.prisma.ligneEcriture.findMany({
+        where: { compteId, ecriture: perimetreEcriture },
+        include: { ecriture: { include: { journal: true } } },
+        orderBy: EcritureService.TRI_GRAND_LIVRE,
+      }),
+      // Restreint aux seules écritures qui touchent ce compte.
+      this.chargerContreparties({
+        ecriture: { ...perimetreEcriture, lignes: { some: { compteId } } },
+      }),
+    ]);
 
     let solde = 0;
     const lignesAvecSolde = lignes.map((l) => {
       solde += Number(l.debit) - Number(l.credit);
-      return EcritureService.versLigneGrandLivre(l, solde);
+      return EcritureService.versLigneGrandLivre(l, solde, contreparties);
     });
 
     return { compte, lignes: lignesAvecSolde, soldeFinal: solde };
@@ -251,32 +301,33 @@ export class EcritureService {
    * réellement exploitable pour un audit — un auditeur veut le grand livre
    * entier d'un coup, pas compte par compte.
    *
-   * Une seule requête, puis regroupement en mémoire : appeler `grandLivre()`
-   * en boucle sur chaque compte aurait produit autant de requêtes que de
-   * comptes mouvementés (N+1).
+   * Deux requêtes plates (les lignes, puis les contreparties agrégées par
+   * écriture) puis regroupement en mémoire : ni N+1, ni duplication
+   * quadratique de l'écriture — voir `chargerContreparties`.
    *
    * Les comptes Total (§3.1) n'apparaissent jamais : ils ne portent aucun
    * mouvement propre par construction (imposé par `creer()`), donc aucune
    * ligne ne les référence.
    */
   async grandLivreComplet(tenantId: string, exerciceId?: string) {
-    const lignes = await this.prisma.ligneEcriture.findMany({
-      where: { ecriture: { tenantId, ...(exerciceId ? { exerciceId } : {}) } },
-      include: {
-        compte: true,
-        ecriture: {
-          include: { journal: true, lignes: { include: { compte: true } } },
-        },
-      },
-      // Tri par compte puis par date : le regroupement ci-dessous s'appuie
-      // dessus pour que chaque compte reçoive ses lignes déjà chronologiques
-      // (le solde progressif n'aurait aucun sens sinon).
-      orderBy: [{ compte: { numero: 'asc' } }, { ecriture: { date: 'asc' } }],
-    });
+    const perimetreEcriture = { tenantId, ...(exerciceId ? { exerciceId } : {}) };
+
+    const [lignes, contreparties] = await Promise.all([
+      this.prisma.ligneEcriture.findMany({
+        where: { ecriture: perimetreEcriture },
+        include: { compte: true, ecriture: { include: { journal: true } } },
+        orderBy: [{ compte: { numero: 'asc' } }, ...EcritureService.TRI_GRAND_LIVRE],
+      }),
+      this.chargerContreparties({ ecriture: perimetreEcriture }),
+    ]);
 
     const parCompte = new Map<
       string,
-      { compte: { id: string; numero: string; intitule: string }; lignes: ReturnType<typeof EcritureService.versLigneGrandLivre>[]; solde: number }
+      {
+        compte: { id: string; numero: string; intitule: string };
+        lignes: ReturnType<typeof EcritureService.versLigneGrandLivre>[];
+        solde: number;
+      }
     >();
 
     for (const l of lignes) {
@@ -290,16 +341,24 @@ export class EcritureService {
         parCompte.set(l.compteId, entree);
       }
       entree.solde += Number(l.debit) - Number(l.credit);
-      entree.lignes.push(EcritureService.versLigneGrandLivre(l, entree.solde));
+      entree.lignes.push(EcritureService.versLigneGrandLivre(l, entree.solde, contreparties));
     }
 
-    return [...parCompte.values()].map((e) => ({
-      compte: e.compte,
-      lignes: e.lignes,
-      soldeFinal: e.solde,
-      totalDebit: e.lignes.reduce((s, l) => s + l.debit, 0),
-      totalCredit: e.lignes.reduce((s, l) => s + l.credit, 0),
-    }));
+    return (
+      [...parCompte.values()]
+        .map((e) => ({
+          compte: e.compte,
+          lignes: e.lignes,
+          soldeFinal: e.solde,
+          totalDebit: e.lignes.reduce((s, l) => s + l.debit, 0),
+          totalCredit: e.lignes.reduce((s, l) => s + l.credit, 0),
+        }))
+        // Même filtre que `balance()` : un compte dont tous les mouvements
+        // sont à 0/0 n'y figure pas non plus. Sans cet alignement, deux états
+        // exportés le même jour ne listent pas les mêmes comptes — écart que
+        // relèverait immédiatement un auditeur.
+        .filter((c) => c.totalDebit !== 0 || c.totalCredit !== 0)
+    );
   }
 
   /** Balance : solde débit/crédit cumulé par compte sur l'exercice. */

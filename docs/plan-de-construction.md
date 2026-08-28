@@ -906,6 +906,98 @@ Ordre de dépendances techniques réelles, pas un simple ordre de préférence :
     résultat logé au bilan, bilan équilibré, contrôle à zéro ; 6 exports
     téléchargés depuis l'interface avec leurs noms datés ; filtres du journal
     (période, libellé, réinitialisation) vérifiés à l'écran.
+
+    **Audit intégral de la brique** (demandé après livraison ; deux revues
+    adversariales en parallèle — sécurité multi-tenant d'une part,
+    correction/cas limites de l'autre — plus des mesures sur 50 000 lignes
+    réelles). Ce qui a été confirmé SÛR : aucune fuite inter-tenant sur les
+    six requêtes du périmètre (chacune filtre par `tenantId`, y compris via
+    les relations imbriquées, et un `compteId` étranger est rejeté) ; pas
+    d'injection d'en-tête `Content-Disposition` (le numéro de compte est
+    contraint par `/^\d{3,13}$/` et n'a qu'une seule voie d'écriture) ; pas
+    d'injection de formule Excel (ExcelJS type les chaînes en texte, le
+    risque classique du CSV ne s'applique pas) ; le regroupement du grand
+    livre complet ne dépend pas de la contiguïté des lignes (Map par
+    `compteId`) ; le cas « exercice sans écriture » est correctement traité
+    sur les cinq feuilles. **Onze défauts réels ont en revanche été trouvés
+    et corrigés**, dont trois graves :
+
+    - **Amplification quadratique en mémoire (grave).** Charger les
+      contreparties via `ecriture: { lignes: … }` imbriqué dupliquait
+      l'écriture entière autant de fois qu'elle a de lignes : pour une
+      écriture de ventilation de paie à 100 lignes, l'audit mesurait ~1,8 Go
+      de tas pour la seule requête. Mesuré ici : 2,4 Go de RSS sur 50 000
+      lignes. Or la contrepartie ne dépend que du SENS de la ligne et de son
+      écriture — il n'y a donc que deux réponses possibles par écriture, pas
+      une par ligne. Remplacé par deux requêtes plates
+      (`chargerContreparties`), profil mémoire linéaire.
+    - **Aucune borne de volume (grave).** Le classeur est intégralement
+      construit en mémoire puis sérialisé d'un bloc : un utilisateur, même
+      LECTURE_SEULE, pouvait enchaîner les exports d'un gros dossier et faire
+      tomber le processus pour TOUS les tenants (application mono-processus).
+      Ajout d'un plafond (`EXPORT_MAX_LIGNES`, 50 000 par défaut) refusant en
+      413 avec un message actionnable. Vérifié : 50 002 lignes refusées,
+      export filtré sur janvier accepté en 0,9 s.
+    - **`exerciceId` jamais validé (grave, car silencieux).** Un `@Query`
+      scalaire échappe au `ValidationPipe` global ; absent, il devenait
+      `undefined`, que Prisma IGNORE — le filtre d'exercice disparaissait et
+      l'état agrégeait TOUS les exercices du dossier en se présentant comme
+      celui d'un seul. Pour un module destiné à produire des pièces d'audit,
+      un état faux non signalé est pire qu'une erreur. `ParseUUIDPipe` posé
+      sur les routes concernées (exports ET états financiers).
+    - **Index manquants** sur `lignes_ecriture.ecritureId` et
+      `ecritures(tenantId, exerciceId, date)` : PostgreSQL n'indexe pas les
+      clés étrangères et Prisma n'en générait pas — chaque export balayait
+      les tables en séquentiel. Migration `20260828124454`.
+    - **Course d'affichage (frontend).** Aucun effet n'invalidait sa requête
+      précédente : sélectionner un compte lourd puis un compte léger
+      affichait les lignes ET LE SOLDE du premier sous le nom du second.
+      Faute lourde sur un logiciel comptable, et rien ne la signalait.
+      Drapeau `annule` sur les six effets des deux pages ; vérifié en
+      Playwright par un double changement de compte immédiat.
+    - **Échecs muets.** `api.telecharger` rejette (licence expirée, 413,
+      500) mais aucun appelant ne le gérait : aucun fichier, aucun message.
+      Ajout d'un bandeau d'erreur et d'un état « export en cours ».
+    - **Auto-filtre sur le bilan.** Le bilan n'est pas un tableau plat mais
+      deux listes juxtaposées : filtrer sur un montant d'actif y masquait des
+      postes de passif sans rapport, totaux inchangés — un bilan faussé en un
+      clic. Auto-filtre retiré (en-tête figée conservée), et les deux
+      en-têtes « N° compte » homonymes différenciés.
+    - **Tri non déterministe.** `orderBy` sur la seule date laissait l'ordre
+      des lignes de même date au plan d'exécution PostgreSQL : deux exports
+      du même exercice pouvaient différer sur la colonne « solde
+      progressif ». Départage explicite par `numeroPiece` puis `id`.
+    - **Ligne 0/0 fantôme.** À la clôture, un résultat exactement nul
+      poussait une ligne `debit: 0, credit: 0` sur le compte de résultat :
+      elle apparaissait au grand livre mais pas à la balance (qui filtre les
+      comptes sans mouvement), et sa contrepartie était calculée comme si
+      elle était au crédit. Corrigé à la source, et le grand livre complet
+      aligné sur le filtre de la balance.
+    - **Comparaison flottante exacte** (`resultatNet !== 0`) alors que le
+      reste du fichier utilise une tolérance : sur un exercice clôturé, un
+      résidu de 1e-13 ajoutait une ligne parasite « Excédent (déficit) —
+      0,00 » en doublon du compte 131 réel, donc une clé React dupliquée.
+      Seuil à 0,005.
+    - **Détails corrigés au passage** : ligne de totaux absente de l'export
+      d'un compte alors que l'écran affiche « SOLDE FINAL » ; `&` non
+      échappé dans l'en-tête d'impression Excel (un intitulé « Achats &
+      fournitures » y injectait le nom du fichier) ; colonne « PIÈCE » de
+      l'écran affichant la référence externe quand l'export a deux colonnes
+      distinctes ; boutons du ruban cliquables mais sans effet, désormais
+      `disabled` ; `RolesGuard` absent des deux contrôleurs — sans escalade
+      réelle aujourd'hui (aucune route ne porte `@Roles`), mais tout `@Roles`
+      ajouté plus tard y aurait été silencieusement ignoré.
+
+    Tests portés de 49 à 56 (couverture ajoutée sur `grandLivreComplet`, qui
+    n'en avait aucune). Revérifié après corrections : états inchangés et
+    toujours cohérents (XE = résultat du bilan), 50 002 lignes refusées en
+    413, export filtré accepté, course d'affichage éteinte à l'écran.
+
+    **Signalé, hors périmètre de cette brique, non corrigé** : `jwt.strategy.ts`
+    replie `JWT_SECRET` sur la valeur littérale `'change-me'` si la variable
+    d'environnement est absente. En production, cela permettrait de forger un
+    jeton pour n'importe quel tenant — ce qui annulerait toutes les garanties
+    d'étanchéité vérifiées ci-dessus. À traiter avant toute mise en ligne.
 12. **Moteur de mapping / états financiers configurables** (s'appuie sur 6 et 10) —
     remplacerait le regroupement simplifié classe→poste de `etats-financiers` par
     le vrai tableau de correspondance SYCEBNL (moteur `liasse/` du skill `sycebnl`).

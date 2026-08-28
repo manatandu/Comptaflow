@@ -13,23 +13,44 @@ export function EtatsFinanciersPage() {
   const [bilan, setBilan] = useState<Bilan | null>(null);
   const [cr, setCr] = useState<CompteDeResultat | null>(null);
 
+  const [erreur, setErreur] = useState<string | null>(null);
+  const [exportEnCours, setExportEnCours] = useState(false);
+
+  // Drapeau `annule` : une réponse lente ne doit pas écraser un état plus
+  // récent après un changement d'exercice.
   useEffect(() => {
     if (!exerciceCourant) return;
-    api.get<Bilan>(`/etats-financiers/bilan?exerciceId=${exerciceCourant.id}`).then(setBilan);
-    api
-      .get<CompteDeResultat>(`/etats-financiers/compte-de-resultat?exerciceId=${exerciceCourant.id}`)
-      .then(setCr);
+    let annule = false;
+    api.get<Bilan>(`/etats-financiers/bilan?exerciceId=${exerciceCourant.id}`).then(
+      (r) => !annule && setBilan(r),
+      (e) => !annule && setErreur(e.message),
+    );
+    api.get<CompteDeResultat>(`/etats-financiers/compte-de-resultat?exerciceId=${exerciceCourant.id}`).then(
+      (r) => !annule && setCr(r),
+      (e) => !annule && setErreur(e.message),
+    );
+    return () => {
+      annule = true;
+    };
   }, [exerciceCourant?.id]);
 
-  useRibbon([{ titre: 'IMPRESSION', boutons: [{ label: 'Exporter Excel', Icon: IconExport }] }]);
+  // Bouton du ruban désactivé : useRibbon fige les gestionnaires au montage,
+  // il agirait donc toujours sur l'onglet initial. Le bouton fonctionnel est
+  // dans l'en-tête de page.
+  useRibbon([{ titre: 'IMPRESSION', boutons: [{ label: 'Exporter Excel', Icon: IconExport, disabled: true }] }]);
 
-  const exporter = () => {
+  const exporter = async () => {
     if (!exerciceCourant) return;
     const chemin = onglet === 'bilan' ? 'bilan' : 'compte-de-resultat';
-    api.telecharger(
-      `/exports/etats-financiers/${chemin}?exerciceId=${exerciceCourant.id}`,
-      `${chemin}.xlsx`,
-    );
+    setErreur(null);
+    setExportEnCours(true);
+    try {
+      await api.telecharger(`/exports/etats-financiers/${chemin}?exerciceId=${exerciceCourant.id}`, `${chemin}.xlsx`);
+    } catch (e) {
+      setErreur(e instanceof Error ? e.message : "Échec de l'export");
+    } finally {
+      setExportEnCours(false);
+    }
   };
 
   const montant = (v: number) => v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -68,13 +89,23 @@ export function EtatsFinanciersPage() {
           )}
           <button
             onClick={exporter}
-            className="flex items-center gap-1.5 border border-border bg-surface px-3 py-1.5 text-[11px] font-bold hover:bg-surface-alt"
+            disabled={exportEnCours}
+            className="flex items-center gap-1.5 border border-border bg-surface px-3 py-1.5 text-[11px] font-bold hover:bg-surface-alt disabled:opacity-50 disabled:cursor-wait"
           >
             <IconExport width={13} height={13} />
-            Exporter Excel
+            {exportEnCours ? 'Export en cours…' : 'Exporter Excel'}
           </button>
         </div>
       </div>
+
+      {erreur && (
+        <div className="flex items-start justify-between gap-3 border border-danger/30 bg-danger-soft px-3.5 py-2 mb-2.5">
+          <span className="text-[11.5px]">{erreur}</span>
+          <button onClick={() => setErreur(null)} className="text-[11px] font-bold shrink-0 hover:underline">
+            Fermer
+          </button>
+        </div>
+      )}
 
       <div className="flex bg-chrome border border-border border-b-0">
         <button
