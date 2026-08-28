@@ -32,8 +32,10 @@
  *    créé ses propres sous-comptes. La note reste alors vide pour ce dossier
  *    tant que le rattachement n'a pas été fait — et le dit, au lieu d'afficher
  *    un zéro trompeur.
- * 3. Le rattachement par dossier (à venir : `RattachementNote`) permettra à
- *    l'utilisateur d'affecter ses propres sous-comptes à une rubrique.
+ * 3. Le rattachement par dossier (`RattachementNote`, table `rattachements_notes`)
+ *    permet à l'utilisateur d'affecter ses propres sous-comptes à une rubrique
+ *    déclarée en attente — et à elle seule : `NoteAnnexeService.rubriqueRattachable`
+ *    refuse tout rattachement sur une rubrique que le plan officiel détermine.
  *
  * Aucune rubrique n'est rattachée « au jugé » : ou le texte et le plan la
  * déterminent, ou elle est déclarée en attente de rattachement.
@@ -68,6 +70,15 @@ export type SourceMontantNote = 'SOLDE' | 'MOUVEMENT_DEBIT' | 'MOUVEMENT_CREDIT'
 export type SensRubrique = 'DEBITEUR' | 'CREDITEUR';
 
 export interface RubriqueNote {
+  /**
+   * Clé stable de la rubrique, unique dans sa note. Sert d'ancre au
+   * rattachement par dossier (`RattachementNote`) : s'appuyer sur le libellé
+   * serait fragile — une correction de transcription, une apostrophe typée
+   * autrement, et tous les rattachements du dossier tomberaient en silence.
+   * Obligatoire dès qu'une rubrique porte `subdivisionAttendue` ; facultative
+   * ailleurs, où rien n'a besoin de la désigner.
+   */
+  cle?: string;
   libelle: string;
   /**
    * Préfixes de comptes, même convention que les tableaux de correspondance du
@@ -89,7 +100,11 @@ export interface RubriqueNote {
   /**
    * Rubrique dont le rattachement suppose que le dossier ait créé ses propres
    * sous-comptes (le plan normalisé n'a pas cette granularité). Le texte de ce
-   * champ explique ce qui est attendu ; il est montré à l'utilisateur.
+   * champ explique ce qui est attendu ; il est montré à l'utilisateur, qui
+   * rattache alors ses comptes via `RattachementNote`.
+   *
+   * Une telle rubrique DOIT porter une `cle` — c'est elle qui ancre le
+   * rattachement (test structurel dédié).
    */
   subdivisionAttendue?: string;
   /** Renvoi de bas de tableau du texte officiel, reproduit tel quel. */
@@ -128,6 +143,7 @@ export interface CompteDeRubrique {
 }
 
 export interface LigneNoteCalculee {
+  cle?: string;
   libelle: string;
   montantN: number;
   montantN1?: number;
@@ -135,10 +151,32 @@ export interface LigneNoteCalculee {
   /** `undefined` quand N-1 est nul ou absent : une variation en % n'a alors pas de sens. */
   variationPourcent?: number;
   estTotal: boolean;
-  /** Rubrique en attente d'un rattachement de sous-comptes propre au dossier. */
+  /**
+   * Rubrique dont le rattachement dépend du dossier. Porte le texte de
+   * `subdivisionAttendue` tant qu'aucun compte n'a été rattaché ; passe à
+   * `undefined` dès qu'au moins un l'est — la ligne est alors chiffrée
+   * normalement.
+   */
   enAttenteDeRattachement?: string;
+  /** Comptes rattachés par le dossier (et non déduits du plan normalisé). */
+  rattachementDuDossier?: boolean;
   comptes: CompteDeRubrique[];
   renvoi?: string;
+}
+
+/**
+ * Rubrique en attente, telle que l'écran de rattachement en a besoin.
+ *
+ * Elle porte la CLÉ et pas seulement le libellé : une note dont rien n'est
+ * encore chiffré est non applicable, donc ne présente aucune ligne (§ 1.4) —
+ * si la fiche récapitulative ne portait que des libellés, cette note serait un
+ * cul-de-sac, impossible à alimenter faute de savoir quoi rattacher.
+ */
+export interface RubriqueEnAttente {
+  cle: string;
+  libelle: string;
+  /** Le texte de `subdivisionAttendue` : ce que le dossier doit avoir créé. */
+  attendu: string;
 }
 
 export interface NoteCalculee {
@@ -151,11 +189,13 @@ export interface NoteCalculee {
   horsBalance: boolean;
   exerciceN1Disponible: boolean;
   /**
-   * Article 24 de l'Acte uniforme (fiche récapitulative) : une note dont
-   * aucune ligne n'est chiffrée est « non applicable » et, en vertu du § 1.4
-   * de la Partie 4, ne doit pas être présentée.
+   * Partie 4, ch. 2, section 4 — la « FICHE RECAPITULATIVE DES NOTES ANNEXES
+   * PRESENTEES » porte, pour chaque note, les colonnes « A (Applicable) » et
+   * « N/A (Non applicable) ». Une note dont aucune ligne n'est chiffrée est
+   * non applicable et, en vertu du § 1.4 de la Partie 4, ch. 1, ne doit pas
+   * être présentée.
    */
   applicable: boolean;
   /** Rubriques que ce dossier ne peut pas alimenter faute de sous-comptes. */
-  rubriquesEnAttente: string[];
+  rubriquesEnAttente: RubriqueEnAttente[];
 }

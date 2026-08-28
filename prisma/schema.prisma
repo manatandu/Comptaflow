@@ -83,6 +83,7 @@ model Tenant {
   clotures               Cloture[]
   tiers                  Tiers[]
   bailleurs              Bailleur[]
+  rattachementsNotes     RattachementNote[]
   modelesReglement       ModeleReglement[]
   tauxTva                TauxTva[]
   rapprochements         RapprochementBancaire[]
@@ -218,6 +219,8 @@ model Compte {
   immobilisationsImmobilisation Immobilisation[]        @relation("ImmoCompteImmobilisation")
   immobilisationsAmortissement  Immobilisation[]        @relation("ImmoCompteAmortissement")
   immobilisationsDotation       Immobilisation[]        @relation("ImmoCompteDotation")
+  // Rattachements aux rubriques de notes annexes (voir RattachementNote).
+  rattachementsNotes            RattachementNote[]
 
   @@unique([tenantId, numero])
   @@map("comptes")
@@ -566,6 +569,56 @@ model TiersCompte {
   createdAt    DateTime @default(now())
 
   @@map("tiers_comptes")
+}
+
+// ---------------------------------------------------------------------------
+// Rattachement des comptes du dossier aux rubriques de notes annexes
+// (docs/plan-sycebnl-complet.md, phase 1 — ajouté le 2026-08-28)
+//
+// Le texte SYCEBNL ne fournit AUCUN tableau de correspondance pour les notes
+// annexes : elles n'énumèrent que des libellés de rubriques. Et ces libellés
+// réclament souvent une granularité que le plan de comptes normalisé ne porte
+// pas — la Note 24 « Achats » veut des lignes distinctes pour « Matières
+// consommables », « Produits d'entretien », « Eau », « Électricité », quand le
+// plan s'arrête au compte 604 sans subdivision.
+//
+// Le référentiel suppose donc que chaque entité subdivise le plan normalisé
+// selon ses besoins (art. 16-1 : « recours à un plan de comptes normalisé »,
+// que l'entité reste libre de subdiviser). Ce modèle enregistre ce choix :
+// quel sous-compte du dossier alimente quelle rubrique de quelle note.
+//
+// GARDE-FOU : un rattachement n'est accepté QUE sur une rubrique déclarée
+// `subdivisionAttendue` dans la spécification officielle. Les rubriques dont
+// le rattachement découle du plan normalisé restent intouchables — sans quoi
+// un utilisateur pourrait défaire en silence la fidélité au texte officiel,
+// ce que toute la discipline du projet vise à empêcher. Imposé par
+// NoteAnnexeService, pas par une contrainte SQL (Prisma ne sait pas exprimer
+// une contrainte qui dépend d'une table de référence en TypeScript).
+model RattachementNote {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  jeu JeuEtatsFinanciersSycebnl
+
+  /// Code officiel de la note : « 24 », « 5A », « 29B ».
+  codeNote    String
+  /// Clé stable de la rubrique dans la note (RubriqueNote.cle), jamais son libellé.
+  cleRubrique String
+
+  compteId String
+  compte   Compte @relation(fields: [compteId], references: [id])
+
+  createdAt DateTime @default(now())
+  createdBy String
+
+  // Un même compte ne peut être rattaché deux fois à la même rubrique. En
+  // revanche une rubrique accepte plusieurs comptes, et un compte peut servir
+  // plusieurs rubriques de notes différentes (les notes se recoupent : un
+  // compte d'achat figure à la fois en Note 24 et dans le compte de résultat).
+  @@unique([tenantId, jeu, codeNote, cleRubrique, compteId])
+  @@index([tenantId, jeu, codeNote])
+  @@map("rattachements_notes")
 }
 
 // ---------------------------------------------------------------------------
