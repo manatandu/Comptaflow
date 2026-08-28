@@ -58,7 +58,7 @@ export function Ribbon({ groupes, droite }: { groupes: RibbonGroupe[]; droite?: 
         // amène directement à la sélection du compte.
         { label: 'Lettrage', onClick: () => navigate('/comptes') },
         { label: 'Rapprochement bancaire', disabled: true, indication: 'à venir' },
-        { label: "Clôture d'exercice", disabled: true, indication: 'à venir' },
+        { label: "Clôture d'exercice", onClick: () => navigate('/exercice') },
       ],
     },
     { titre: 'Trésorerie', items: [] },
