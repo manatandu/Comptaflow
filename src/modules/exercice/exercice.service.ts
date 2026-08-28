@@ -337,7 +337,13 @@ export class ExerciceService {
           exerciceSuivant = await tx.exercice.create({ data: { tenantId, dateDebut, dateFin } });
         }
 
-        const lignesRan: Array<{ compteId: string; debit: number; credit: number; libelle: string }> = [];
+        const lignesRan: Array<{
+          compteId: string;
+          debit: number;
+          credit: number;
+          libelle: string;
+          dateEcheance?: Date | null;
+        }> = [];
 
         const comptesSolde = comptes.filter((c) => c.modeReportANouveau === ModeReportANouveau.SOLDE);
         for (const c of comptesSolde) {
@@ -360,6 +366,14 @@ export class ExerciceService {
               debit: Number(l.debit),
               credit: Number(l.credit),
               libelle: `RAN détail ${c.numero} — ${l.libelle ?? l.ecriture.libelle}`,
+              // L'échéance suit la créance ou la dette qu'elle qualifie : sans
+              // ce report, la ventilation par échéance des notes 6, 9, 10, 18A
+              // et 19 à 21 se viderait à chaque clôture, et une créance à trois
+              // ans deviendrait « non ventilée » l'exercice suivant. Le report
+              // à-nouveau en mode SOLDE, lui, agrège en une ligne unique : il
+              // ne peut par construction porter aucune échéance — raison de
+              // plus pour tenir les comptes de tiers en mode DÉTAIL.
+              dateEcheance: l.dateEcheance,
             });
           }
         }

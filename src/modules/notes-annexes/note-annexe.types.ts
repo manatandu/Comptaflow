@@ -194,6 +194,13 @@ export interface LigneNoteCalculee {
    * l'utilisateur plutôt que corrigée en silence.
    */
   ecartCloture?: number;
+  /**
+   * Part du solde que le dossier n'a PAS ventilée, faute d'échéance saisie sur
+   * les lignes. Ce n'est pas une quatrième échéance : c'est une lacune, et
+   * elle est présentée comme telle. La ranger d'office en « à un an au plus »
+   * donnerait une ventilation complète et fausse.
+   */
+  echeanceNonVentilee?: number;
   comptes: CompteDeRubrique[];
   renvoi?: string;
 }

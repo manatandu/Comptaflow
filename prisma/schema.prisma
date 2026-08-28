@@ -410,6 +410,21 @@ model LigneEcriture {
   rapprochementId String?
   rapprochement   RapprochementBancaire? @relation(fields: [rapprochementId], references: [id])
 
+  // Date d'échéance de la créance ou de la dette portée par cette ligne.
+  //
+  // Les notes annexes 6, 9, 10, 18A, 19, 20 et 21 exigent la ventilation des
+  // créances et des dettes « à un an au plus », « à plus d'un an et à deux ans
+  // au plus » et « à plus de deux ans » (Partie 4, ch. 2). Cette ventilation
+  // ne se déduit d'aucun autre champ : ni la date de l'écriture, ni le compte,
+  // ni le tiers ne disent quand la créance vient à terme.
+  //
+  // Null pour toute ligne qui n'est pas une créance ou une dette à terme —
+  // c'est-à-dire l'immense majorité. Une ligne de tiers laissée sans échéance
+  // n'est PAS rangée d'office dans « à un an au plus » : elle est présentée
+  // comme non ventilée, pour que la lacune se voie au lieu de se fondre dans
+  // le court terme (voir NoteAnnexeService.ventilerEcheances).
+  dateEcheance DateTime?
+
   @@index([compteId, lettre])
   @@index([compteId, rapprochementId])
   // PostgreSQL ne crée PAS d'index sur une colonne de clé étrangère, et

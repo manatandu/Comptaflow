@@ -28,7 +28,10 @@ function ligne(
 /** Rattachements du dossier tels que la base les renverrait. */
 type Rattachement = { codeNote: string; cleRubrique: string; compte: { numero: string } };
 
-function prismaAvec(rattachements: Rattachement[] = [], comptes: any[] = []) {
+/** Une ligne d'écriture telle que la ventilation par échéance la lit. */
+type LigneEch = { numero: string; debit: number; credit: number; dateEcheance: Date | null; lettre?: string | null };
+
+function prismaAvec(rattachements: Rattachement[] = [], comptes: any[] = [], lignesEch: LigneEch[] = []) {
   return {
     rattachementNote: {
       findMany: jest.fn().mockResolvedValue(rattachements),
@@ -36,6 +39,18 @@ function prismaAvec(rattachements: Rattachement[] = [], comptes: any[] = []) {
       deleteMany: jest.fn().mockResolvedValue({ count: rattachements.length }),
     },
     compte: { findFirst: jest.fn().mockImplementation(({ where }: any) => Promise.resolve(comptes.find((c) => c.id === where.id) ?? null)) },
+    // Exercice clos au 31/12/2026 : les bornes d'échéance en découlent.
+    exercice: { findFirst: jest.fn().mockResolvedValue({ id: 'e1', dateFin: new Date('2026-12-31T00:00:00Z') }) },
+    ligneEcriture: {
+      findMany: jest.fn().mockImplementation(({ where }: any) =>
+        Promise.resolve(
+          lignesEch
+            // le service ne demande que les lignes NON lettrées
+            .filter((l) => (where?.lettre === null ? !l.lettre : true))
+            .map((l) => ({ debit: l.debit, credit: l.credit, dateEcheance: l.dateEcheance, compte: { numero: l.numero } })),
+        ),
+      ),
+    },
   } as unknown as PrismaService;
 }
 
@@ -197,6 +212,95 @@ describe('NoteAnnexeService', () => {
     const r = await s.notesAssociations('t', 'e1');
     expect(note(r, '13').renvoyeeDepuis).toEqual(['BW']);
     expect(note(r, '9').renvoyeeDepuis).toEqual(['BD', 'DG']);
+  });
+});
+
+describe('ventilation par échéance (notes 6, 9, 10, 18A, 19 à 21)', () => {
+  const ech = (numero: string, debit: number, credit: number, date: string | null, lettre?: string): LigneEch => ({
+    numero, debit, credit, dateEcheance: date ? new Date(date) : null, lettre,
+  });
+  // Clôture au 31/12/2026 : ≤ 31/12/2027 = 1 an ; ≤ 31/12/2028 = 2 ans ; au-delà = plus de 2 ans.
+  const serviceEch = (lignesEch: LigneEch[], balance: ReturnType<typeof ligne>[]) =>
+    service({ e1: balance }, [], prismaAvec([], [], lignesEch));
+
+  it('ventile le solde des adhérents dans les trois tranches officielles', async () => {
+    const s = serviceEch(
+      [
+        ech('41100000', 1000, 0, '2027-06-30'),  // à un an au plus
+        ech('41100000', 2000, 0, '2028-06-30'),  // à plus d'un an et deux ans au plus
+        ech('41100000', 3000, 0, '2030-06-30'),  // à plus de deux ans
+      ],
+      [ligne('41100000', ClasseCompte.CLASSE_4, 6000, 0)],
+    );
+    const l = ligneDe(note(await s.notesAssociations('t', 'e1'), '9'), 'Adhérents');
+    expect(l.valeurs).toEqual({ ECHEANCE_1AN: 1000, ECHEANCE_2ANS: 2000, ECHEANCE_PLUS_2ANS: 3000 });
+    expect(l.montantN).toBe(6000); // la somme des tranches recoupe le solde
+    expect(l.echeanceNonVentilee).toBeUndefined();
+  });
+
+  it('les bornes se comptent depuis la CLÔTURE, pas depuis la saisie', async () => {
+    // 31/12/2027 est la borne exacte : inclus dans « à un an au plus ».
+    // 01/01/2028 bascule dans la tranche suivante.
+    const s = serviceEch(
+      [ech('41100000', 100, 0, '2027-12-31'), ech('41100000', 50, 0, '2028-01-01')],
+      [ligne('41100000', ClasseCompte.CLASSE_4, 150, 0)],
+    );
+    const l = ligneDe(note(await s.notesAssociations('t', 'e1'), '9'), 'Adhérents');
+    expect(l.valeurs).toEqual({ ECHEANCE_1AN: 100, ECHEANCE_2ANS: 50, ECHEANCE_PLUS_2ANS: 0 });
+  });
+
+  it('une créance sans échéance saisie est signalée NON VENTILÉE, jamais rangée en « à un an au plus »', async () => {
+    // C'est le défaut que cette colonne existe pour empêcher : une ventilation
+    // qui a l'air complète alors que la donnée manque.
+    const s = serviceEch(
+      [ech('41100000', 1000, 0, '2027-06-30'), ech('41100000', 4000, 0, null)],
+      [ligne('41100000', ClasseCompte.CLASSE_4, 5000, 0)],
+    );
+    const l = ligneDe(note(await s.notesAssociations('t', 'e1'), '9'), 'Adhérents');
+    expect(l.valeurs!.ECHEANCE_1AN).toBe(1000);
+    expect(l.echeanceNonVentilee).toBe(4000);
+  });
+
+  it('une ligne lettrée est soldée : elle sort de la ventilation', async () => {
+    const s = serviceEch(
+      [ech('41100000', 1000, 0, '2027-06-30'), ech('41100000', 9000, 0, '2027-06-30', 'A')],
+      [ligne('41100000', ClasseCompte.CLASSE_4, 1000, 0)],
+    );
+    const l = ligneDe(note(await s.notesAssociations('t', 'e1'), '9'), 'Adhérents');
+    expect(l.valeurs!.ECHEANCE_1AN).toBe(1000);
+  });
+
+  it('sur une rubrique créditrice, les échéances suivent le sens de lecture', async () => {
+    const s = serviceEch(
+      [ech('41910000', 0, 700, '2027-03-31')],
+      [ligne('41910000', ClasseCompte.CLASSE_4, 0, 700)],
+    );
+    const l = ligneDe(note(await s.notesAssociations('t', 'e1'), '9'), 'Adhérents, avances reçues');
+    expect(l.montantN).toBe(700);
+    expect(l.valeurs!.ECHEANCE_1AN).toBe(700); // et non -700
+  });
+
+  it('les totaux cumulent les échéances de leurs rubriques', async () => {
+    const s = serviceEch(
+      [ech('41100000', 1000, 0, '2027-06-30'), ech('41600000', 500, 0, '2030-06-30')],
+      [
+        ligne('41100000', ClasseCompte.CLASSE_4, 1000, 0),
+        ligne('41600000', ClasseCompte.CLASSE_4, 500, 0),
+      ],
+    );
+    const t = ligneDe(note(await s.notesAssociations('t', 'e1'), '9'), 'TOTAL BRUT ADHERENTS, CLIENTS-USAGERS');
+    expect(t.valeurs!.ECHEANCE_1AN).toBe(1000);
+    expect(t.valeurs!.ECHEANCE_PLUS_2ANS).toBe(500);
+  });
+
+  it('une note sans colonnes d’échéance n’en porte aucune', async () => {
+    const s = serviceEch(
+      [ech('52110000', 8000, 0, '2027-06-30')],
+      [ligne('52110000', ClasseCompte.CLASSE_5, 8000, 0)],
+    );
+    const l = ligneDe(note(await s.notesAssociations('t', 'e1'), '13'), 'Banques locales');
+    expect(l.valeurs).toBeUndefined();
+    expect(l.echeanceNonVentilee).toBeUndefined();
   });
 });
 

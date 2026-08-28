@@ -61,6 +61,14 @@ const COLONNES_AVEC_ECHEANCES_CREANCES = [
   { type: 'ECHEANCE_PLUS_2ANS' as const, libelle: 'Créances à plus de deux ans' },
 ];
 
+/** Même ventilation, côté passif — notes 18A et 19 à 21. */
+const COLONNES_AVEC_ECHEANCES_DETTES = [
+  ...COLONNES_STANDARD,
+  { type: 'ECHEANCE_1AN' as const, libelle: 'Dettes à un an au plus' },
+  { type: 'ECHEANCE_2ANS' as const, libelle: "Dettes à plus d'un an et à deux ans au plus" },
+  { type: 'ECHEANCE_PLUS_2ANS' as const, libelle: 'Dettes à plus de deux ans' },
+];
+
 /**
  * Colonnes des TABLEAUX DE SITUATIONS ET MOUVEMENTS (notes 5A à 5F, 30).
  * Le texte officiel nomme lui-même les colonnes A, B, C et pose « D = A + B - C ».

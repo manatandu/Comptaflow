@@ -25,6 +25,12 @@ export class LigneEcritureDto {
   @IsOptional()
   @IsUUID()
   tauxTvaId?: string;
+
+  // Échéance de la créance ou de la dette portée par cette ligne — alimente la
+  // ventilation par échéance des notes annexes (voir LigneEcriture.dateEcheance).
+  @IsOptional()
+  @IsDateString()
+  dateEcheance?: string;
 }
 
 export class CreerEcritureDto {

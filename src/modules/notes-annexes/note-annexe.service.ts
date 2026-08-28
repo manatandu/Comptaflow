@@ -16,6 +16,21 @@ import {
 import { NOTES_ASSOCIATIONS } from './correspondance-notes-associations';
 
 /**
+ * Ventilation d'un solde de tiers par échéance, telle que les notes 6, 9, 10,
+ * 18A et 19 à 21 la demandent. `nonVentile` n'est pas une quatrième échéance :
+ * c'est ce que le dossier n'a pas renseigné. Le ranger d'office en « à un an
+ * au plus » afficherait une ventilation complète et fausse.
+ */
+interface Echeances {
+  unAn: number;
+  deuxAns: number;
+  plusDeDeuxAns: number;
+  nonVentile: number;
+}
+
+const ECHEANCES_NULLES: Echeances = { unAn: 0, deuxAns: 0, plusDeDeuxAns: 0, nonVentile: 0 };
+
+/**
  * Une rubrique résolue sur un exercice : le montant au sens de lecture de la
  * rubrique, plus les agrégats bruts dont les tableaux de situations et
  * mouvements ont besoin. Ces agrégats restent NON orientés — c'est
@@ -28,6 +43,7 @@ interface RubriqueResolue {
   report: number;
   mouvementDebit: number;
   mouvementCredit: number;
+  echeances: Echeances;
 }
 
 /**
@@ -137,12 +153,13 @@ export class NoteAnnexeService {
     rubrique: RubriqueNote,
     lignes: LigneBalancePourEtat[],
     numerosRattaches: string[] = [],
+    echeancesParCompte: Map<string, Echeances> = new Map(),
   ): RubriqueResolue {
     // Les comptes rattachés par le dossier S'AJOUTENT aux préfixes officiels,
     // ils ne les remplacent jamais (voir RattachementNote, prisma/schema.prisma).
     const prefixes = [...(rubrique.comptes ?? []), ...numerosRattaches];
     if (prefixes.length === 0) {
-      return { montant: 0, comptes: [], report: 0, mouvementDebit: 0, mouvementCredit: 0 };
+      return { montant: 0, comptes: [], report: 0, mouvementDebit: 0, mouvementCredit: 0, echeances: { ...ECHEANCES_NULLES } };
     }
     let matches = lignes.filter((l) => correspond(l.numero, prefixes, rubrique.exclusions));
     if (rubrique.sens === 'DEBITEUR') matches = matches.filter((l) => l.solde > 0);
@@ -169,6 +186,20 @@ export class NoteAnnexeService {
       report: matches.reduce((s, l) => s + l.reportDebit - l.reportCredit, 0),
       mouvementDebit: matches.reduce((s, l) => s + l.mouvementDebit, 0),
       mouvementCredit: matches.reduce((s, l) => s + l.mouvementCredit, 0),
+      // Les échéances suivent le sens de lecture de la rubrique, comme le
+      // montant : sur une rubrique créditrice (dettes), une dette de 700
+      // s'affiche 700 et non -700.
+      echeances: matches.reduce((acc, l) => {
+        const e = echeancesParCompte.get(l.numero);
+        if (!e) return acc;
+        const signe = rubrique.sens === 'CREDITEUR' || rubrique.presenterEnNegatif ? -1 : 1;
+        return {
+          unAn: acc.unAn + signe * e.unAn,
+          deuxAns: acc.deuxAns + signe * e.deuxAns,
+          plusDeDeuxAns: acc.plusDeDeuxAns + signe * e.plusDeDeuxAns,
+          nonVentile: acc.nonVentile + signe * e.nonVentile,
+        };
+      }, { ...ECHEANCES_NULLES }),
     };
   }
 
@@ -209,6 +240,7 @@ export class NoteAnnexeService {
     spec: SpecificationNote,
     lignes: LigneBalancePourEtat[],
     rattachements: Map<string, string[]> = new Map(),
+    echeancesParCompte: Map<string, Echeances> = new Map(),
   ): RubriqueResolue[] {
     const resolues: RubriqueResolue[] = [];
     for (const rubrique of spec.rubriques) {
@@ -219,16 +251,24 @@ export class NoteAnnexeService {
         // GENERAL des notes 5A-5F resterait vide en colonnes A/B/C/D.
         const cumul = (f: 'montant' | 'report' | 'mouvementDebit' | 'mouvementCredit') =>
           rubrique.totalDeRubriques!.reduce((s, i) => s + (resolues[i]?.[f] ?? 0), 0);
+        const cumulEcheance = (f: keyof Echeances) =>
+          rubrique.totalDeRubriques!.reduce((s, i) => s + (resolues[i]?.echeances[f] ?? 0), 0);
         resolues.push({
           montant: cumul('montant'),
           comptes: [],
           report: cumul('report'),
           mouvementDebit: cumul('mouvementDebit'),
           mouvementCredit: cumul('mouvementCredit'),
+          echeances: {
+            unAn: cumulEcheance('unAn'),
+            deuxAns: cumulEcheance('deuxAns'),
+            plusDeDeuxAns: cumulEcheance('plusDeDeuxAns'),
+            nonVentile: cumulEcheance('nonVentile'),
+          },
         });
       } else {
         const cle = rubrique.cle ? `${spec.code}::${rubrique.cle}` : '';
-        resolues.push(this.calculerRubrique(rubrique, lignes, rattachements.get(cle) ?? []));
+        resolues.push(this.calculerRubrique(rubrique, lignes, rattachements.get(cle) ?? [], echeancesParCompte));
       }
     }
     return resolues;
@@ -240,11 +280,17 @@ export class NoteAnnexeService {
     lignesN1: LigneBalancePourEtat[],
     exerciceN1Disponible: boolean,
     rattachements: Map<string, string[]>,
+    echeancesParCompte: Map<string, Echeances>,
   ): NoteCalculee {
-    const resN = this.resoudreRubriques(spec, lignesN, rattachements);
+    const resN = this.resoudreRubriques(spec, lignesN, rattachements, echeancesParCompte);
+    // N-1 n'est pas ventilé par échéance : le texte ne demande les colonnes
+    // d'échéance que sur l'exercice présenté.
     const resN1 = this.resoudreRubriques(spec, lignesN1, rattachements);
     const aColonnesDeMouvement = spec.colonnes.some((c) =>
       (['OUVERTURE', 'AUGMENTATIONS', 'DIMINUTIONS', 'CLOTURE'] as TypeColonneNote[]).includes(c.type),
+    );
+    const aColonnesDEcheance = spec.colonnes.some((c) =>
+      (['ECHEANCE_1AN', 'ECHEANCE_2ANS', 'ECHEANCE_PLUS_2ANS'] as TypeColonneNote[]).includes(c.type),
     );
 
     const toutes: LigneNoteCalculee[] = spec.rubriques.map((rubrique, i) => {
@@ -262,6 +308,14 @@ export class NoteAnnexeService {
       // Les colonnes A/B/C/D ne sont calculées que si la note les déclare :
       // les 38 notes qui n'en ont pas ne portent pas de champ vide.
       const mouvements = aColonnesDeMouvement ? this.colonnesDeMouvement(spec, resN[i]) : undefined;
+      const e = resN[i].echeances;
+      const echeances = aColonnesDEcheance
+        ? {
+            ECHEANCE_1AN: e.unAn || 0,
+            ECHEANCE_2ANS: e.deuxAns || 0,
+            ECHEANCE_PLUS_2ANS: e.plusDeDeuxAns || 0,
+          }
+        : undefined;
       return {
         cle: rubrique.cle,
         libelle: rubrique.libelle,
@@ -272,8 +326,11 @@ export class NoteAnnexeService {
         estTotal: rubrique.totalDeRubriques !== undefined,
         enAttenteDeRattachement: rattachee ? undefined : rubrique.subdivisionAttendue,
         rattachementDuDossier: rattachee || undefined,
-        valeurs: mouvements?.valeurs,
+        valeurs: mouvements || echeances ? { ...mouvements?.valeurs, ...echeances } : undefined,
         ecartCloture: mouvements?.ecartCloture,
+        // Ce que le dossier n'a pas renseigné : présenté à part, jamais fondu
+        // dans « à un an au plus ».
+        echeanceNonVentilee: aColonnesDEcheance && Math.abs(e.nonVentile) > 0.005 ? e.nonVentile : undefined,
         comptes: resN[i].comptes,
         renvoi: rubrique.renvoi,
       };
@@ -312,6 +369,44 @@ export class NoteAnnexeService {
   }
 
   /**
+   * Ventilation par échéance des soldes de tiers, par NUMÉRO de compte.
+   *
+   * Les bornes sont comptées depuis la date de CLÔTURE de l'exercice, comme
+   * l'exige la lecture d'un état arrêté à cette date : « à un an au plus »
+   * signifie exigible dans l'année qui suit la clôture, pas dans l'année qui
+   * suit la saisie. Une ligne lettrée est soldée : elle n'a plus d'échéance à
+   * porter et sort de la ventilation, exactement comme dans le report
+   * à-nouveau en mode Détail.
+   */
+  private async chargerEcheances(tenantId: string, exerciceId: string): Promise<Map<string, Echeances>> {
+    const exercice = await this.prisma.exercice.findFirst({ where: { id: exerciceId, tenantId } });
+    if (!exercice) return new Map();
+
+    const lignes = await this.prisma.ligneEcriture.findMany({
+      where: { ecriture: { tenantId, exerciceId }, lettre: null },
+      select: { debit: true, credit: true, dateEcheance: true, compte: { select: { numero: true } } },
+    });
+
+    const unAn = new Date(exercice.dateFin);
+    unAn.setUTCFullYear(unAn.getUTCFullYear() + 1);
+    const deuxAns = new Date(exercice.dateFin);
+    deuxAns.setUTCFullYear(deuxAns.getUTCFullYear() + 2);
+
+    const parCompte = new Map<string, Echeances>();
+    for (const l of lignes) {
+      const montant = Number(l.debit) - Number(l.credit);
+      if (montant === 0) continue;
+      const e = parCompte.get(l.compte.numero) ?? { ...ECHEANCES_NULLES };
+      if (!l.dateEcheance) e.nonVentile += montant;
+      else if (l.dateEcheance <= unAn) e.unAn += montant;
+      else if (l.dateEcheance <= deuxAns) e.deuxAns += montant;
+      else e.plusDeDeuxAns += montant;
+      parCompte.set(l.compte.numero, e);
+    }
+    return parCompte;
+  }
+
+  /**
    * Rattachements du dossier, indexés par `code::cleRubrique`, chaque entrée
    * portant les NUMÉROS de comptes (pas les identifiants) — le résolveur
    * travaille sur les numéros de la balance.
@@ -341,8 +436,13 @@ export class NoteAnnexeService {
       chargerLignes(this.ecritureService, tenantId, exerciceN1Id),
     ]);
 
-    const rattachements = await this.chargerRattachements(tenantId, JeuEtatsFinanciersSycebnl.ASSOCIATIONS_ORDRES_PROFESSIONNELS);
-    const notes = NOTES_ASSOCIATIONS.map((spec) => this.calculerNote(spec, lignesN, lignesN1, exerciceN1Id !== null, rattachements));
+    const [rattachements, echeances] = await Promise.all([
+      this.chargerRattachements(tenantId, JeuEtatsFinanciersSycebnl.ASSOCIATIONS_ORDRES_PROFESSIONNELS),
+      this.chargerEcheances(tenantId, exerciceId),
+    ]);
+    const notes = NOTES_ASSOCIATIONS.map((spec) =>
+      this.calculerNote(spec, lignesN, lignesN1, exerciceN1Id !== null, rattachements, echeances),
+    );
 
     return {
       notes,

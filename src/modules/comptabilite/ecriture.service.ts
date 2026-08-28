@@ -112,6 +112,7 @@ export class EcritureService {
                 debit: l.debit ?? 0,
                 credit: l.credit ?? 0,
                 tauxTvaId: l.tauxTvaId,
+                dateEcheance: l.dateEcheance ? new Date(l.dateEcheance) : undefined,
               })),
             },
           },
