@@ -75,6 +75,16 @@ export class JournalService {
 
   async modifier(tenantId: string, journalId: string, dto: ModifierJournalDto) {
     const journal = await this.trouver(tenantId, journalId);
+
+    // Le type n'est pas modifiable ici, mais compteTresorerieId l'est : sans
+    // ce contrôle, un appel direct à l'API (ex. { compteTresorerieId: null })
+    // pourrait retirer le compte de trésorerie d'un journal TRESORERIE et
+    // laisser passer un état invalide que creer() interdit pourtant à la
+    // création (voir le contrôle symétrique dans creer() ci-dessus).
+    if (journal.type === TypeJournal.TRESORERIE && dto.compteTresorerieId === null) {
+      throw new BadRequestException('Un journal de type Trésorerie doit avoir un compte de trésorerie associé');
+    }
+
     return this.prisma.journal.update({ where: { id: journal.id }, data: dto });
   }
 

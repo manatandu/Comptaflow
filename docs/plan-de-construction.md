@@ -206,7 +206,13 @@ Ordre de dépendances techniques réelles, pas un simple ordre de préférence :
    comptes et le menu Traitement. Même protection contre les conditions de course que
    le numéro de pièce de journal, factorisée dans `common/prisma-retry.util.ts`.
    Vérifié de bout en bout (curl + Playwright). Prérequis désormais posé pour le
-   report à-nouveau "Détail" et la future brique Tiers.
+   report à-nouveau "Détail" et la future brique Tiers. **Second audit** (Journal +
+   Lettrage relus intégralement une seconde fois) : un trou de validation trouvé et
+   corrigé — `JournalService.modifier()` acceptait `compteTresorerieId: null` sur un
+   journal Trésorerie sans aucun contrôle (contrairement à `creer()`, qui l'interdit
+   à la création), un appel direct à l'API pouvait donc casser silencieusement le
+   lien compte↔journal ; vérifié via un appel PATCH réel (400 désormais, message
+   explicite). Rien d'autre trouvé qui corrompe des données ou casse une invariante.
 3. **Cycle de vie complet de l'exercice** : clôture à 3 granularités + génération réelle
    des reports à-nouveau (3 modes par compte).
 4. **Tiers** (Client/Fournisseur/Salarié/Autre, comptes rattachés, modèle de règlement).
