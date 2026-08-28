@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { validateEnv } from './config/validate-env';
 import { PrismaModule } from './common/prisma.module';
 import { TenantModule } from './modules/tenant/tenant.module';
 import { LicenceModule } from './modules/licence/licence.module';
@@ -19,7 +20,7 @@ import { ExportsModule } from './modules/exports/exports.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({ isGlobal: true, validate: validateEnv }),
     PrismaModule,
     TenantModule,
     LicenceModule,

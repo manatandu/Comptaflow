@@ -993,11 +993,32 @@ Ordre de dépendances techniques réelles, pas un simple ordre de préférence :
     toujours cohérents (XE = résultat du bilan), 50 002 lignes refusées en
     413, export filtré accepté, course d'affichage éteinte à l'écran.
 
-    **Signalé, hors périmètre de cette brique, non corrigé** : `jwt.strategy.ts`
-    replie `JWT_SECRET` sur la valeur littérale `'change-me'` si la variable
-    d'environnement est absente. En production, cela permettrait de forger un
-    jeton pour n'importe quel tenant — ce qui annulerait toutes les garanties
-    d'étanchéité vérifiées ci-dessus. À traiter avant toute mise en ligne.
+    **Corrigé séparément (2026-08-28, même séance)** : `jwt.strategy.ts`
+    repliait `JWT_SECRET` sur la valeur littérale `'change-me'` si la variable
+    d'environnement était absente — signalé lors de l'audit ci-dessus, hors de
+    son périmètre initial, puis traité dans la foulée. Le côté signature
+    (`auth.module.ts`) ne repliait déjà pas ; seule la vérification le
+    faisait, ce qui aurait permis à quiconque connaissant cette chaîne
+    publique (`.env.example`) de forger un jeton valide pour N'IMPORTE QUEL
+    tenant si `JWT_SECRET` restait non défini en production — annulant toutes
+    les garanties d'étanchéité multi-tenant vérifiées plus haut.
+
+    Corrigé par une validation au DÉMARRAGE (`ConfigModule.forRoot({ validate:
+    validateEnv })`, `src/config/validate-env.ts`) plutôt qu'un repli : `JWT_SECRET`
+    absent ou vide fait échouer le démarrage avant même que la première route
+    soit montée (aucune tentative de connexion à Postgres) ; une valeur de
+    développement connue ou trop courte (< 32 caractères) émet un avertissement
+    sans bloquer, pour ne pas casser le développement local. Le repli
+    `?? 'change-me'` de `jwt.strategy.ts` a été retiré (`config.getOrThrow`) —
+    défense en profondeur : la garantie tient même si la validation de
+    démarrage était un jour retirée par erreur.
+
+    Vérifié : démarrage sans `.env` → échec immédiat, message explicite, zéro
+    route montée ; démarrage avec le `.env` de développement → démarre avec
+    l'avertissement affiché ; connexion et route protégée fonctionnelles avec un
+    jeton légitime ; **jeton forgé avec l'ancienne valeur de repli `'change-me'`
+    → rejeté (401)**, alors qu'il aurait été accepté avant ce correctif si
+    `JWT_SECRET` avait été absent en production.
 12. **Moteur de mapping / états financiers configurables** (s'appuie sur 6 et 10) —
     remplacerait le regroupement simplifié classe→poste de `etats-financiers` par
     le vrai tableau de correspondance SYCEBNL (moteur `liasse/` du skill `sycebnl`).
