@@ -464,3 +464,94 @@ export interface Immobilisation {
   prixCession: number | null;
   dotations: DotationAmortissement[];
 }
+
+// --------------------------------------------------------------------------
+// Notes annexes — voir src/modules/notes-annexes/note-annexe.types.ts pour
+// le contrat complet côté serveur ; miroir strict, pas de type simplifié.
+// --------------------------------------------------------------------------
+
+export type TypeColonneNote =
+  | 'EXERCICE_N'
+  | 'EXERCICE_N1'
+  | 'VARIATION_VALEUR'
+  | 'VARIATION_POURCENT'
+  | 'VARIATION_VALEUR_ABSOLUE'
+  | 'OUVERTURE'
+  | 'AUGMENTATIONS'
+  | 'DIMINUTIONS'
+  | 'CLOTURE'
+  | 'AUGMENTATION_EXPLOITATION'
+  | 'AUGMENTATION_FINANCIERE'
+  | 'AUGMENTATION_HAO'
+  | 'DIMINUTION_EXPLOITATION'
+  | 'DIMINUTION_FINANCIERE'
+  | 'DIMINUTION_HAO'
+  | 'ECHEANCE_1AN'
+  | 'ECHEANCE_2ANS'
+  | 'ECHEANCE_PLUS_2ANS'
+  | 'LIBRE';
+
+export interface ColonneNote {
+  type: TypeColonneNote;
+  libelle: string;
+}
+
+export interface CompteDeRubrique {
+  numero: string;
+  intitule: string;
+  montant: number;
+}
+
+export interface LigneNoteCalculee {
+  cle?: string;
+  libelle: string;
+  montantN: number;
+  montantN1?: number;
+  variationValeur?: number;
+  variationPourcent?: number;
+  estTotal: boolean;
+  enAttenteDeRattachement?: string;
+  rattachementDuDossier?: boolean;
+  valeurs?: Partial<Record<TypeColonneNote, number>>;
+  ecartCloture?: number;
+  echeanceNonVentilee?: number;
+  natureNonVentilee?: { augmentation: number; diminution: number };
+  comptes: CompteDeRubrique[];
+  renvoi?: string;
+}
+
+export interface RubriqueEnAttente {
+  cle: string;
+  libelle: string;
+  /** Le texte de `subdivisionAttendue` : ce que le dossier doit avoir créé. */
+  attendu: string;
+}
+
+export interface NoteCalculee {
+  code: string;
+  sousTableau?: string;
+  titre: string;
+  colonnes: ColonneNote[];
+  lignes: LigneNoteCalculee[];
+  commentaire?: string;
+  renvoiOfficiel?: string;
+  renvoyeeDepuis?: string[];
+  horsBalance: boolean;
+  exerciceN1Disponible: boolean;
+  applicable: boolean;
+  rubriquesEnAttente: RubriqueEnAttente[];
+}
+
+export interface LigneFicheRecapitulative {
+  code: string;
+  titre: string;
+  applicable: boolean;
+  rubriquesEnAttente: RubriqueEnAttente[];
+}
+
+export interface ResultatNotesJeu {
+  notes: NoteCalculee[];
+  exerciceN1Disponible: boolean;
+  ficheRecapitulative: LigneFicheRecapitulative[];
+  couverture: { transcrites: number; attendues: number };
+}

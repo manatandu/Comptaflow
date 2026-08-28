@@ -86,6 +86,10 @@ export const api = {
   post: <T>(path: string, body?: unknown) => request<T>(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined }),
   put: <T>(path: string, body?: unknown) => request<T>(path, { method: 'PUT', body: body ? JSON.stringify(body) : undefined }),
   patch: <T>(path: string, body?: unknown) => request<T>(path, { method: 'PATCH', body: body ? JSON.stringify(body) : undefined }),
-  delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
+  // Corps optionnel : `DELETE /notes-annexes/rattachements` identifie la
+  // ligne à retirer par (jeu, codeNote, cleRubrique, compteId), pas par un
+  // identifiant dans l'URL — il n'existe pas de ressource `/rattachements/:id`
+  // adressable côté client, seule cette combinaison l'est.
+  delete: <T>(path: string, body?: unknown) => request<T>(path, { method: 'DELETE', body: body ? JSON.stringify(body) : undefined }),
   telecharger,
 };

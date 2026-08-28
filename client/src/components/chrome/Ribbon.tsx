@@ -73,6 +73,7 @@ export function Ribbon({ groupes, droite }: { groupes: RibbonGroupe[]; droite?: 
       titre: 'États',
       items: [
         { label: 'États financiers', onClick: () => navigate('/etats-financiers') },
+        { label: 'Notes annexes', onClick: () => navigate('/notes-annexes') },
         { label: 'Déclaration TVA', onClick: () => navigate('/declaration-tva') },
         { label: 'Balance âgée', disabled: true, indication: 'à venir' },
       ],
