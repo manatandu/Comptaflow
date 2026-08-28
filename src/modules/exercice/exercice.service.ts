@@ -8,7 +8,6 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
 import {
-  ClasseCompte,
   GranulariteCloture,
   ModeReportANouveau,
   Prisma,
@@ -181,30 +180,55 @@ export class ExerciceService {
     }
   }
 
-  /** Le compte 13000000 (Résultat de l'exercice) doit exister avant toute clôture annuelle. */
-  private async assurerCompteResultat(tenantId: string, tx: Prisma.TransactionClient) {
-    const existant = await tx.compte.findUnique({ where: { tenantId_numero: { tenantId, numero: '13000000' } } });
-    if (existant) return existant;
-    return tx.compte.create({
-      data: {
-        tenantId,
-        numero: '13000000',
-        intitule: "Résultat de l'exercice",
-        classe: ClasseCompte.CLASSE_1,
-        modeReportANouveau: ModeReportANouveau.SOLDE,
-      },
-    });
+  /**
+   * Compte 13 réel (§ COMPTE 13, skill sycebnl `partie2-ch3-classe1-comptes10-19.md`) :
+   * "131 Résultat net de l'exercice : Excédent" (solde créditeur) ou "139 ...
+   * Déficit" (solde débiteur) — il n'existe PAS de compte 130 générique dans
+   * le plan officiel. Choisi par le signe une fois `deltaResultat` connu.
+   *
+   * ⚠️ Trouvé et corrigé lors de l'audit rétroactif "chaque brique ancrée aux
+   * référentiels" (docs/plan-de-construction.md §2.6) : la clôture postait
+   * jusqu'ici le résultat sur un compte "13000000" fictif, jamais présent
+   * dans le plan de comptes officiel SYCEBNL — les vrais comptes 131/139,
+   * pourtant déjà seedés (compte-seed.ts), n'étaient jamais utilisés.
+   *
+   * Ces comptes doivent exister (seedés à l'inscription) — s'ils manquent,
+   * c'est une anomalie de configuration du dossier à signaler clairement,
+   * pas à corriger silencieusement en recréant un compte hors nomenclature.
+   */
+  private async trouverCompteResultat(tenantId: string, tx: Prisma.TransactionClient, deficitaire: boolean) {
+    const numero = deficitaire ? '13900000' : '13100000';
+    const intitule = deficitaire ? "Déficit de l'exercice (139)" : "Excédent de l'exercice (131)";
+    const compte = await tx.compte.findUnique({ where: { tenantId_numero: { tenantId, numero } } });
+    if (!compte) {
+      throw new BadRequestException(
+        `Compte ${numero} (${intitule}) introuvable pour ce dossier — nécessaire pour clôturer l'exercice. Le plan de comptes SYCEBNL de ce dossier semble incomplet ou avoir été modifié.`,
+      );
+    }
+    return compte;
   }
 
   /**
    * Clôture ANNUELLE de l'exercice : solde les comptes en mode AUCUN (charges/
-   * produits) sur le compte de résultat 13000000, puis génère le report à-nouveau
-   * réel dans l'exercice suivant (créé automatiquement s'il n'existe pas encore)
-   * selon le mode de chaque compte restant (Solde = un seul solde net, Détail =
-   * chaque mouvement non lettré individuellement). Les deux écritures générées
-   * sont, par construction comptable (partie double), toujours équilibrées —
-   * un déséquilibre ici signalerait un bug, pas une donnée utilisateur invalide,
-   * d'où l'InternalServerErrorException plutôt qu'un simple rejet de saisie.
+   * produits, et comptes créditeurs/débiteurs de la classe 8 — même règle que
+   * le fonctionnement officiel du compte 13, skill sycebnl) sur le compte de
+   * résultat réel (131 Excédent ou 139 Déficit selon le signe), puis génère
+   * le report à-nouveau réel dans l'exercice suivant (créé automatiquement
+   * s'il n'existe pas encore) selon le mode de chaque compte restant (Solde =
+   * un seul solde net, Détail = chaque mouvement non lettré individuellement).
+   * Les deux écritures générées sont, par construction comptable (partie
+   * double), toujours équilibrées — un déséquilibre ici signalerait un bug,
+   * pas une donnée utilisateur invalide, d'où l'InternalServerErrorException
+   * plutôt qu'un simple rejet de saisie.
+   *
+   * Limite connue, non corrigée à ce stade (à traiter par une future brique
+   * "Affectation du résultat", pas construite) : le texte officiel prévoit
+   * que le compte 13 soit soldé par virement vers 12/11/10 sur décision des
+   * organes compétents, pas reporté indéfiniment sur lui-même. Faute de cette
+   * brique, le solde de 131/139 continue aujourd'hui à s'accumuler d'exercice
+   * en exercice via le report à-nouveau (mode SOLDE, comme tout compte de
+   * bilan) au lieu d'être remis à zéro par une affectation — signalé ici
+   * explicitement plutôt que laissé silencieux (règle §2.6).
    */
   async cloturer(tenantId: string, exerciceId: string, userId: string) {
     const exercice = await this.trouverExercice(tenantId, exerciceId);
@@ -253,15 +277,22 @@ export class ExerciceService {
         let deltaResultat = 0;
         let compteResultatId: string | null = null;
         if (lignesCloture.length > 0) {
-          const compteResultat = await this.assurerCompteResultat(tenantId, tx);
+          // Signe connu AVANT de choisir le compte : débit > crédit sur les
+          // comptes de gestion fermés = déficit (compte 139), sinon excédent
+          // (compte 131) — voir le commentaire de trouverCompteResultat.
+          // Ligne unique nette (pas debit ET credit à la fois sur la même
+          // ligne comme l'ancien code le faisait) : plus proche d'une
+          // écriture réelle, et évite de gonfler artificiellement les deux
+          // colonnes du journal pour ce compte.
+          deltaResultat = totalDebitResultat - totalCreditResultat;
+          const compteResultat = await this.trouverCompteResultat(tenantId, tx, deltaResultat > 0);
           compteResultatId = compteResultat.id;
           lignesCloture.push({
             compteId: compteResultat.id,
-            debit: totalDebitResultat,
-            credit: totalCreditResultat,
-            libelle: "Résultat de l'exercice",
+            debit: deltaResultat > 0 ? deltaResultat : 0,
+            credit: deltaResultat < 0 ? -deltaResultat : 0,
+            libelle: deltaResultat > 0 ? "Déficit de l'exercice" : "Excédent de l'exercice",
           });
-          deltaResultat = totalDebitResultat - totalCreditResultat;
 
           const totalDebit = lignesCloture.reduce((s, l) => s + l.debit, 0);
           const totalCredit = lignesCloture.reduce((s, l) => s + l.credit, 0);

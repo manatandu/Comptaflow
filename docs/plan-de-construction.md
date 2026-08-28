@@ -298,6 +298,41 @@ Ordre de dépendances techniques réelles, pas un simple ordre de préférence :
    date, soumission, apparition dans la liste), puis clôture annuelle (bouton
    avec `confirm()` du navigateur, capturé et accepté), sélecteur d'exercice
    passé à "Clôturé", bouton devenu "EXERCICE DÉJÀ CLÔTURÉ".
+
+   **Audit rétroactif "§2.6" (chaque brique ancrée aux référentiels)** : un
+   vrai défaut trouvé et corrigé. La clôture postait le résultat sur un
+   compte **"130000" fictif**, absent du plan de comptes officiel — le skill
+   `sycebnl` (COMPTE 13, `partie2-ch3-classe1-comptes10-19.md`) ne connaît que
+   131 (Excédent, solde créditeur) et 139 (Déficit, solde débiteur), déjà
+   seedés dans le plan de comptes (brique 7) mais jamais utilisés par la
+   clôture jusqu'ici. Corrigé : le compte réel (131 ou 139) est choisi selon
+   le signe de `deltaResultat`, ligne de clôture nette (un seul sens
+   débit/crédit, pas les deux à la fois sur la même ligne comme avant).
+   Vérifié de bout en bout sur deux tenants réels : un exercice excédentaire
+   (produit 1000, aucune charge) clôture bien sur 13100000, report à-nouveau
+   suivant correct (13100000 crédité 1000 + Caisse débitée 1000, équilibré) ;
+   un exercice déficitaire (charge 500, aucun produit) clôture bien sur
+   13900000. Limite connue et **non corrigée à ce stade**, signalée
+   explicitement plutôt que cachée (même règle) : le texte officiel prévoit
+   que le compte 13 soit soldé par virement vers 12/11/10 sur décision des
+   organes compétents (affectation du résultat) — faute de cette brique (pas
+   construite), 131/139 continuent aujourd'hui de s'accumuler d'exercice en
+   exercice via le report à-nouveau au lieu d'être remis à zéro. À traiter
+   par une future brique "Affectation du résultat".
+
+   **Reste de l'audit rétroactif** (autres briques déjà livrées, relues
+   contre les référentiels avant de passer à la suite) : la TVA (brique 5)
+   était déjà correctement ancrée (articles de l'O.-L. n° 10/001 cités dans
+   le code depuis sa construction, avant même que la règle §2.6 soit
+   écrite) — rien à corriger. Le plan de comptes (brique 7) et les comptes
+   Total (brique 6, fondés sur le principe de codification décimale du
+   skill) sont conformes par construction. Seule réserve mineure, non
+   corrigée (purement cosmétique, sans impact comptable) : `TypeTiers`
+   utilise un vocabulaire générique (CLIENT/FOURNISSEUR/SALARIE/AUTRE,
+   hérité du pattern Sage) plutôt que la terminologie SYCEBNL propre
+   ("Adhérents, Clients-usagers" — compte 41) ; les numéros de compte
+   sous-jacents restent corrects, seul le libellé du type dans l'enum
+   diffère.
    **Second passage** : les formulaires Totale et Période, et le bouton
    "Annuler" une clôture réversible, n'avaient encore jamais été cliqués en
    Playwright (seulement Partielle et la clôture annuelle). Vérifiés à leur
