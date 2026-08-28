@@ -298,9 +298,23 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
       ),
       { libelle: "Achats d'emballages", comptes: ['608'] },
       enAttente('frais-sur-achats', 'Frais sur achats', 'Sous-compte de 605 pour les frais accessoires sur achats.'),
-      // 619 au plan officiel — « rabais, remises et ristournes obtenus (non
-      // ventilés) », présenté en soustraction des achats.
-      { libelle: 'Rabais, remises et ristournes obtenus', comptes: ['619'], presenterEnNegatif: true },
+      // DÉFAUT CORRIGÉ (recoupement croisé Note 24 / Note 25) : le compte 619
+      // « rabais, remises et ristournes obtenus (non ventilés) » est listé au
+      // plan officiel sous LES DEUX classes 60 (Achats) et 61 (Transports) —
+      // « non ventilés » signifiant précisément que le plan ne le répartit
+      // pas entre les deux domaines. Le rattacher en dur ici ET à la note 25
+      // comptait deux fois le même solde. Une version antérieure faisait
+      // exactement cela. Corrigé en attente de rattachement des DEUX côtés :
+      // le dossier subdivise 619 en un sous-compte « achats » et un
+      // sous-compte « transports » s'il veut la ventilation.
+      enAttente(
+        'rabais-remises-ristournes',
+        'Rabais, remises et ristournes obtenus',
+        'Le compte 619 est listé au plan sous les classes 60 (Achats) ET 61 (Transports), sans être ' +
+          "ventilé entre les deux (précision du plan lui-même : « non ventilés »). Le rattacher d'office " +
+          'ici compterait deux fois le même solde avec la note 25 « Transports » : subdiviser 619 en un ' +
+          'sous-compte propre aux achats et le rattacher ici.',
+      ),
       { libelle: 'TOTAL AUTRES ACHATS', totalDeRubriques: [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22] },
     ],
     commentaire:
@@ -659,7 +673,16 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
         "Même situation que « Voyages et déplacements » : subdiviser le compte 618 et rattacher ici le " +
           'sous-compte des transports administratifs.',
       ),
-      { libelle: 'Rabais, remises et ristournes obtenus', comptes: ['619'], presenterEnNegatif: true },
+      // Voir la note 24 : même compte 619, listé sous les deux classes 60 et
+      // 61, non ventilé par le plan. Les deux notes le déclarent en attente
+      // plutôt que de le compter deux fois.
+      enAttente(
+        'rabais-remises-ristournes',
+        'Rabais, remises et ristournes obtenus',
+        'Le compte 619 est listé au plan sous les classes 60 (Achats) ET 61 (Transports), sans être ' +
+          "ventilé entre les deux. Le rattacher d'office ici compterait deux fois le même solde avec la " +
+          "note 24 « Achats » : subdiviser 619 en un sous-compte propre aux transports et le rattacher ici.",
+      ),
       { libelle: 'TOTAL', totalDeRubriques: [0, 1, 2, 3, 4, 5, 6] },
     ],
     commentaire: 'commenter toute variation significative.',

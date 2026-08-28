@@ -3,6 +3,7 @@ import { NoteAnnexeService } from './note-annexe.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { ExerciceService } from '../exercice/exercice.service';
 import { NOTES_ASSOCIATIONS } from './correspondance-notes-associations';
+import { NOTES_PROJETS } from './correspondance-notes-projets';
 import { PrismaService } from '../../common/prisma.service';
 
 /**
@@ -84,23 +85,26 @@ const note = (r: { notes: any[] }, code: string, sousTableau?: string) =>
   r.notes.find((n) => n.code === code && (sousTableau === undefined || n.sousTableau === sousTableau))!;
 const ligneDe = (n: any, libelle: string) => n.lignes.find((l: any) => l.libelle === libelle);
 
-describe('correspondance des notes (intégrité des spécifications)', () => {
+describe.each([
+  { label: 'associations', specs: NOTES_ASSOCIATIONS, officielles: ['1', '2', '3', '4', '5A', '5B', '5C', '5D', '5E', '5F', '5G', '5H', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17A', '17B', '18A', '18B', '19', '20', '21', '22', '23', '24', '25', '26', '27', '28', '29A', '29B', '30', '31', '32', '33', '34', '35'] },
+  { label: 'projets de développement', specs: NOTES_PROJETS, officielles: ['1', '2', '3A', '3B', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20A', '20B', '21', '22', '23', '24'] },
+])('correspondance des notes (intégrité des spécifications) — jeu $label', ({ specs, officielles }) => {
   it('aucun tableau en double — un code seul, ou un code et son sous-tableau', () => {
-    const cles = NOTES_ASSOCIATIONS.map((n) => `${n.code}::${n.sousTableau ?? ''}`);
+    const cles = specs.map((n) => `${n.code}::${n.sousTableau ?? ''}`);
     expect(new Set(cles).size).toBe(cles.length);
   });
 
   it('une note à plusieurs tableaux les nomme TOUS — sinon deux tableaux se confondent', () => {
     const parCode = new Map<string, number>();
-    for (const n of NOTES_ASSOCIATIONS) parCode.set(n.code, (parCode.get(n.code) ?? 0) + 1);
-    for (const n of NOTES_ASSOCIATIONS) {
+    for (const n of specs) parCode.set(n.code, (parCode.get(n.code) ?? 0) + 1);
+    for (const n of specs) {
       const multiple = (parCode.get(n.code) ?? 0) > 1;
       expect({ code: n.code, nomme: !multiple || !!n.sousTableau }).toEqual({ code: n.code, nomme: true });
     }
   });
 
   it('un total ne référence jamais une rubrique qui vient APRÈS lui — sinon le calcul en une passe lirait 0', () => {
-    for (const spec of NOTES_ASSOCIATIONS) {
+    for (const spec of specs) {
       spec.rubriques.forEach((r, i) => {
         for (const idx of [...(r.totalDeRubriques ?? []), ...(r.moinsRubriques ?? [])]) {
           expect({ note: spec.code, rubrique: r.libelle, avant: idx < i }).toEqual(
@@ -112,7 +116,7 @@ describe('correspondance des notes (intégrité des spécifications)', () => {
   });
 
   it('une rubrique retranchée n’apparaît que dans une ligne de total', () => {
-    for (const spec of NOTES_ASSOCIATIONS) {
+    for (const spec of specs) {
       for (const r of spec.rubriques) {
         if (r.moinsRubriques) expect({ note: spec.code, r: r.libelle, ok: !!r.totalDeRubriques }).toEqual(
           { note: spec.code, r: r.libelle, ok: true },
@@ -122,7 +126,7 @@ describe('correspondance des notes (intégrité des spécifications)', () => {
   });
 
   it('sens et natureCreditrice ne se cumulent jamais : l’un filtre, l’autre non', () => {
-    for (const spec of NOTES_ASSOCIATIONS) {
+    for (const spec of specs) {
       for (const r of spec.rubriques) {
         expect({ note: spec.code, r: r.libelle, cumul: !!(r.sens && r.natureCreditrice) }).toEqual(
           { note: spec.code, r: r.libelle, cumul: false },
@@ -142,7 +146,7 @@ describe('correspondance des notes (intégrité des spécifications)', () => {
       'DIMINUTION_EXPLOITATION', 'DIMINUTION_FINANCIERE', 'DIMINUTION_HAO',
       'ECHEANCE_1AN', 'ECHEANCE_2ANS', 'ECHEANCE_PLUS_2ANS', 'LIBRE',
     ];
-    for (const spec of NOTES_ASSOCIATIONS) {
+    for (const spec of specs) {
       for (const c of spec.colonnes) {
         expect({ note: spec.code, colonne: c.libelle, connue: CALCULEES.includes(c.type) }).toEqual(
           { note: spec.code, colonne: c.libelle, connue: true },
@@ -152,7 +156,7 @@ describe('correspondance des notes (intégrité des spécifications)', () => {
   });
 
   it('une rubrique porte soit des comptes, soit un total, soit une subdivision attendue, soit une saisie — jamais rien', () => {
-    for (const spec of NOTES_ASSOCIATIONS) {
+    for (const spec of specs) {
       for (const r of spec.rubriques) {
         const definie =
           (r.comptes?.length ?? 0) > 0 ||
@@ -165,7 +169,7 @@ describe('correspondance des notes (intégrité des spécifications)', () => {
   });
 
   it('toute rubrique en attente de rattachement porte une clé stable — c’est elle qui ancre le rattachement', () => {
-    for (const spec of NOTES_ASSOCIATIONS) {
+    for (const spec of specs) {
       for (const r of spec.rubriques) {
         if (r.subdivisionAttendue) {
           expect({ note: spec.code, libelle: r.libelle, cle: r.cle ?? null }).toEqual(
@@ -177,29 +181,18 @@ describe('correspondance des notes (intégrité des spécifications)', () => {
   });
 
   it('les clés de rubrique sont uniques à l’intérieur d’une note', () => {
-    for (const spec of NOTES_ASSOCIATIONS) {
+    for (const spec of specs) {
       const cles = spec.rubriques.map((r) => r.cle).filter(Boolean);
       expect(new Set(cles).size).toBe(cles.length);
     }
   });
 
-  it('les 45 notes du jeu associations sont transcrites, ni une de plus ni une de moins', () => {
+  it('toutes les notes officielles du jeu sont transcrites, ni une de plus ni une de moins', () => {
     // Liste arrêtée sur la FICHE RECAPITULATIVE DES NOTES ANNEXES PRESENTEES
-    // (Partie 4, ch. 2, section 4). C'est elle qui fait foi sur le nombre et
-    // le code des notes — pas la numérotation apparente, qui saute (pas de
-    // note 5 seule, pas de 17 ni de 18 nues, 29 dédoublée en 29A/29B).
-    const OFFICIELLES = [
-      '1', '2', '3', '4',
-      '5A', '5B', '5C', '5D', '5E', '5F', '5G', '5H',
-      '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16',
-      '17A', '17B', '18A', '18B',
-      '19', '20', '21', '22', '23', '24', '25', '26', '27', '28',
-      '29A', '29B',
-      '30', '31', '32', '33', '34', '35',
-    ];
-    expect(OFFICIELLES).toHaveLength(45);
-    const transcrites = [...new Set(NOTES_ASSOCIATIONS.map((n) => n.code))];
-    expect([...transcrites].sort()).toEqual([...OFFICIELLES].sort());
+    // propre à ce jeu — c'est elle qui fait foi sur le nombre et le code des
+    // notes, pas la numérotation apparente, qui saute d'un jeu à l'autre.
+    const transcrites = [...new Set(specs.map((n) => n.code))];
+    expect([...transcrites].sort()).toEqual([...officielles].sort());
   });
 
   it('une rubrique en SAISIE n’est jamais confondue avec une rubrique en attente de rattachement', () => {
@@ -207,7 +200,7 @@ describe('correspondance des notes (intégrité des spécifications)', () => {
     // rattacher, la donnée n'est pas comptable) contre « en attente de
     // rattachement » (le plan manque de finesse, le dossier doit subdiviser).
     // Les confondre ferait réclamer un sous-compte pour un effectif.
-    for (const spec of NOTES_ASSOCIATIONS) {
+    for (const spec of specs) {
       for (const r of spec.rubriques) {
         expect({ note: spec.code, r: r.libelle, cumul: !!(r.saisie && r.subdivisionAttendue) }).toEqual(
           { note: spec.code, r: r.libelle, cumul: false },
@@ -222,14 +215,12 @@ describe('correspondance des notes (intégrité des spécifications)', () => {
   });
 
   it('chaque note déclare ses colonnes et un titre non vide', () => {
-    for (const spec of NOTES_ASSOCIATIONS) {
+    for (const spec of specs) {
       expect(spec.colonnes.length).toBeGreaterThan(0);
       expect(spec.titre.trim().length).toBeGreaterThan(0);
     }
   });
-});
-
-describe('NoteAnnexeService', () => {
+});describe('NoteAnnexeService', () => {
   it('calcule une note simple, ses totaux, et déduit la dépréciation', async () => {
     const s = service({ e1: [
       ligne('52110000', ClasseCompte.CLASSE_5, 8000, 0),   // Banques locales
@@ -439,6 +430,49 @@ describe('note 30 — ventilation des mouvements par nature de contrepartie', ()
   });
 });
 
+describe('DÉFAUT CORRIGÉ : les notes hors balance présentent leurs rubriques en saisie', () => {
+  // Une note `horsBalance` (informations obligatoires, effectifs, note 9 des
+  // projets…) ne porte QUE des rubriques en saisie, jamais « chiffrées » —
+  // le filtre § 1.4 les retirait TOUTES malgré `applicable: true` : la note
+  // se déclarait applicable et ne présentait rien. Relevé en vérifiant de
+  // bout en bout une note hors balance dont les lignes n'avaient jamais été
+  // lues jusque-là.
+  it('une note horsBalance affiche TOUTES ses rubriques, jamais une liste vide', async () => {
+    const s = service({ e1: [] });
+    const r = await s.notesAssociations('t', 'e1');
+    const n2 = note(r, '2'); // INFORMATIONS OBLIGATOIRES
+    expect(n2.applicable).toBe(true);
+    expect(n2.lignes.length).toBeGreaterThan(0);
+    expect(n2.lignes.map((l: any) => l.libelle)).toContain('A - IDENTITE, ORGANISATION');
+  });
+
+  it('même garde sur le jeu projets — note 9 (fonds du bailleur, renvoi) et note 22 (lacune officielle)', async () => {
+    const s = service({ e1: [] });
+    const r = await s.notesProjet('t', 'e1');
+    for (const code of ['1', '2', '9', '22', '24']) {
+      const n = note(r, code);
+      expect({ code, applicable: n.applicable, lignes: n.lignes.length > 0 }).toEqual(
+        { code, applicable: true, lignes: true },
+      );
+    }
+  });
+
+  it('toutes les notes horsBalance des deux jeux présentent au moins une ligne', async () => {
+    const sA = service({ e1: [] });
+    const rA = await sA.notesAssociations('t', 'e1');
+    const sP = service({ e1: [] });
+    const rP = await sP.notesProjet('t', 'e1');
+    for (const n of [...rA.notes, ...rP.notes]) {
+      if (n.horsBalance) {
+        expect({ code: n.code, sousTableau: n.sousTableau, lignes: n.lignes.length }).toEqual(
+          expect.objectContaining({ lignes: expect.any(Number) }),
+        );
+        expect(n.lignes.length).toBeGreaterThan(0);
+      }
+    }
+  });
+});
+
 describe('recoupement croisé des notes (anti double comptage)', () => {
   it('la note 1 récapitule, et le déclare : chaque rubrique reprise renvoie à sa note d’origine', async () => {
     const s = service({ e1: [ligne('40110000', ClasseCompte.CLASSE_4, 0, 600)] });
@@ -501,6 +535,40 @@ describe('recoupement croisé des notes (anti double comptage)', () => {
     expect(sommeParNote(r, '47500000').map((x: any) => x.note)).toEqual(['21']);
   });
 
+  it('DÉFAUT CORRIGÉ : le compte 619 (achats ET transports) n’est plus rattaché en dur aux deux notes', async () => {
+    // Le plan officiel liste 619 sous les classes 60 ET 61 sans le ventiler
+    // entre elles. Une version antérieure des notes 24 et 25 le rattachait
+    // en dur toutes les deux : un solde sur 619 était donc compté deux fois.
+    const s = service({ e1: [ligne('61900000', ClasseCompte.CLASSE_6, 0, 500)] });
+    const r = await s.notesAssociations('t', 'e1');
+    // Par défaut — sans rattachement du dossier — 619 ne contribue à AUCUNE
+    // des deux notes : il est en attente des deux côtés, jamais compté.
+    expect(sommeParNote(r, '61900000')).toEqual([]);
+    const fiche24 = r.ficheRecapitulative.find((f: any) => f.code === '24')!;
+    const fiche25 = r.ficheRecapitulative.find((f: any) => f.code === '25')!;
+    expect(fiche24.rubriquesEnAttente.map((x: any) => x.cle)).toContain('rabais-remises-ristournes');
+    expect(fiche25.rubriquesEnAttente.map((x: any) => x.cle)).toContain('rabais-remises-ristournes');
+  });
+
+  it('619 subdivisé par le dossier alimente chaque note séparément, sans double compte', async () => {
+    const s = service(
+      { e1: [
+        ligne('61901000', ClasseCompte.CLASSE_6, 0, 300), // sous-compte achats
+        ligne('61902000', ClasseCompte.CLASSE_6, 0, 200), // sous-compte transports
+      ] },
+      [],
+      prismaAvec([
+        { codeNote: '24', cleRubrique: 'rabais-remises-ristournes', compte: { numero: '61901000' } },
+        { codeNote: '25', cleRubrique: 'rabais-remises-ristournes', compte: { numero: '61902000' } },
+      ]),
+    );
+    const r = await s.notesAssociations('t', 'e1');
+    const n24 = note(r, '24');
+    const n25 = note(r, '25');
+    expect(ligneDe(n24, 'Rabais, remises et ristournes obtenus').montantN).toBe(-300);
+    expect(ligneDe(n25, 'Rabais, remises et ristournes obtenus').montantN).toBe(-200);
+  });
+
   it('AUCUN compte du plan de tiers n’est réclamé au même sens par deux notes', async () => {
     // Balayage systématique : un compte représentatif par divisionnaire des
     // classes 40 à 47, testé au débit puis au crédit.
@@ -525,6 +593,77 @@ describe('recoupement croisé des notes (anti double comptage)', () => {
         });
       }
     }
+  });
+});
+
+describe('jeu projets de développement — recoupement croisé (anti double comptage)', () => {
+  const sommeParNoteProjet = (r: any, numero: string) =>
+    r.notes.flatMap((n: any) =>
+      n.lignes
+        .filter((l: any) => !l.estTotal && l.comptes.some((c: any) => c.numero === numero))
+        .map((l: any) => ({ note: n.code, libelle: l.libelle, montant: l.montantN })),
+    );
+
+  it('un compte de tiers DÉBITEUR (note 6) ne figure pas aussi dans les dettes (note 12)', async () => {
+    const s = service({ e1: [ligne('42100000', ClasseCompte.CLASSE_4, 900, 0)] });
+    const r = await s.notesProjet('t', 'e1');
+    expect(sommeParNoteProjet(r, '42100000').map((x: any) => x.note)).toEqual(['6']);
+  });
+
+  it('un compte de tiers CRÉDITEUR (note 12) ne figure pas aussi dans les créances (note 6)', async () => {
+    const s = service({ e1: [ligne('42200000', ClasseCompte.CLASSE_4, 0, 900)] });
+    const r = await s.notesProjet('t', 'e1');
+    expect(sommeParNoteProjet(r, '42200000').map((x: any) => x.note)).toEqual(['12']);
+  });
+
+  it('une banque DÉBITEUR (note 7, disponibilités) ne figure pas aussi au découvert (note 13)', async () => {
+    const s = service({ e1: [ligne('52100000', ClasseCompte.CLASSE_5, 5000, 0)] });
+    const r = await s.notesProjet('t', 'e1');
+    expect(sommeParNoteProjet(r, '52100000').map((x: any) => x.note)).toEqual(['7']);
+  });
+
+  it('une banque CRÉDITEUR (note 13, découvert) ne figure pas aussi aux disponibilités (note 7)', async () => {
+    const s = service({ e1: [ligne('52100000', ClasseCompte.CLASSE_5, 0, 5000)] });
+    const r = await s.notesProjet('t', 'e1');
+    expect(sommeParNoteProjet(r, '52100000').map((x: any) => x.note)).toEqual(['13']);
+  });
+
+  it('balayage systématique : aucun compte n’est réclamé au même sens par deux notes du jeu projets', async () => {
+    const DIVISIONNAIRES = [
+      '40110000', '40910000', '41200000', '41900000', '42100000', '42200000',
+      '43100000', '43200000', '44200000', '44700000', '48100000', '48400000',
+      '52100000', '52200000', '56100000',
+    ];
+    for (const numero of DIVISIONNAIRES) {
+      for (const [d, c] of [[1000, 0], [0, 1000]] as const) {
+        const classe = numero.startsWith('5') ? ClasseCompte.CLASSE_5 : ClasseCompte.CLASSE_4;
+        const s = service({ e1: [ligne(numero, classe, d, c)] });
+        const notes: string[] = sommeParNoteProjet(await s.notesProjet('t', 'e1'), numero).map(
+          (x: any) => `${x.note} / ${x.libelle}`,
+        );
+        expect({ numero, sens: d ? 'débit' : 'crédit', notes }).toEqual({
+          numero,
+          sens: d ? 'débit' : 'crédit',
+          notes: notes.slice(0, 1),
+        });
+      }
+    }
+  });
+
+  it('619 (achats/transports) reste en attente des deux côtés dans le jeu projets aussi', async () => {
+    const s = service({ e1: [ligne('61900000', ClasseCompte.CLASSE_6, 0, 500)] });
+    const r = await s.notesProjet('t', 'e1');
+    expect(sommeParNoteProjet(r, '61900000')).toEqual([]);
+    const fiche15 = r.ficheRecapitulative.find((f: any) => f.code === '15')!;
+    const fiche16 = r.ficheRecapitulative.find((f: any) => f.code === '16')!;
+    expect(fiche15.rubriquesEnAttente.map((x: any) => x.cle)).toContain('rabais-remises-ristournes');
+    expect(fiche16.rubriquesEnAttente.map((x: any) => x.cle)).toContain('rabais-remises-ristournes');
+  });
+
+  it('couverture : 26 notes transcrites, comme attendu par le texte officiel', async () => {
+    const s = service({ e1: [] });
+    const r = await s.notesProjet('t', 'e1');
+    expect(r.couverture).toEqual({ transcrites: 26, attendues: 26 });
   });
 });
 

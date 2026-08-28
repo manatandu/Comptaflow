@@ -14,6 +14,18 @@ import {
   TypeColonneNote,
 } from './note-annexe.types';
 import { NOTES_ASSOCIATIONS } from './correspondance-notes-associations';
+import { NOTES_PROJETS } from './correspondance-notes-projets';
+
+/** Spécifications du jeu, indexées par `JeuEtatsFinanciersSycebnl` — un seul point d'entrée pour les deux jeux transcrits. */
+const NOTES_PAR_JEU: Partial<Record<JeuEtatsFinanciersSycebnl, SpecificationNote[]>> = {
+  [JeuEtatsFinanciersSycebnl.ASSOCIATIONS_ORDRES_PROFESSIONNELS]: NOTES_ASSOCIATIONS,
+  [JeuEtatsFinanciersSycebnl.PROJETS_DEVELOPPEMENT]: NOTES_PROJETS,
+};
+/** Nombre de notes que le texte officiel attend pour ce jeu — sert à `couverture`. */
+const NOTES_ATTENDUES_PAR_JEU: Partial<Record<JeuEtatsFinanciersSycebnl, number>> = {
+  [JeuEtatsFinanciersSycebnl.ASSOCIATIONS_ORDRES_PROFESSIONNELS]: 45,
+  [JeuEtatsFinanciersSycebnl.PROJETS_DEVELOPPEMENT]: 26,
+};
 
 /**
  * Ventilation d'un solde de tiers par échéance, telle que les notes 6, 9, 10,
@@ -129,11 +141,20 @@ export class NoteAnnexeService {
    * refusé explicitement, jamais ignoré.
    */
   private rubriqueRattachable(jeu: JeuEtatsFinanciersSycebnl, codeNote: string, cleRubrique: string) {
-    if (jeu !== JeuEtatsFinanciersSycebnl.ASSOCIATIONS_ORDRES_PROFESSIONNELS) {
-      throw new BadRequestException("Seules les notes du jeu « associations et ordres professionnels » sont transcrites à ce jour.");
+    const specs = NOTES_PAR_JEU[jeu];
+    if (!specs) {
+      throw new BadRequestException(
+        'Seules les notes des jeux « associations et ordres professionnels » et « projets de développement » ' +
+          'sont transcrites à ce jour.',
+      );
     }
-    const spec = NOTES_ASSOCIATIONS.find((n) => n.code === codeNote);
-    if (!spec) throw new NotFoundException(`Aucune note « ${codeNote} » dans ce jeu d'états financiers.`);
+    // Un code de note peut désigner plusieurs TABLEAUX (note 1, note 7,
+    // note 29B…) — ils ne partagent jamais de clé de rubrique entre eux
+    // (test structurel dédié), donc chercher la clé dans TOUS les tableaux
+    // du code reste sans ambiguïté.
+    const tableaux = specs.filter((n) => n.code === codeNote);
+    if (tableaux.length === 0) throw new NotFoundException(`Aucune note « ${codeNote} » dans ce jeu d'états financiers.`);
+    const spec = tableaux.find((n) => n.rubriques.some((r) => r.cle === cleRubrique)) ?? tableaux[0];
     // Une rubrique que le plan officiel détermine ne porte PAS de clé : rien
     // n'a besoin de la désigner, et lui en donner une laisserait croire qu'elle
     // est adressable. Conséquence : une clé introuvable recouvre deux cas — la
@@ -451,8 +472,23 @@ export class NoteAnnexeService {
       Math.abs(l.montantN) > 0.005 ||
       Math.abs(l.montantN1 ?? 0) > 0.005 ||
       Object.values(l.valeurs ?? {}).some((v) => Math.abs(v) > 0.005);
-    const applicable = toutes.some((l) => !l.estTotal && chiffree(l));
-    const lignes = applicable ? toutes.filter((l) => chiffree(l) || l.estTotal || l.enAttenteDeRattachement) : [];
+    const applicableChiffree = toutes.some((l) => !l.estTotal && chiffree(l));
+    const applicable = applicableChiffree || (spec.horsBalance ?? false);
+    // DÉFAUT CORRIGÉ : une note `horsBalance` (informations obligatoires,
+    // effectifs, note 9 « fonds du bailleur »…) ne porte QUE des rubriques en
+    // saisie, jamais chiffrées par construction — `chiffree()` vaut donc
+    // toujours faux pour elles, et le filtre ci-dessous les retirait TOUTES,
+    // malgré `applicable: true` retourné. La note se déclarait applicable et
+    // ne présentait rien : relevé en vérifiant de bout en bout, sur base
+    // réelle, une note qui n'avait jamais eu ses lignes lues jusque-là. Le
+    // filtre du § 1.4 (retirer les lignes non chiffrées) n'a de sens que pour
+    // une note qui PEUT être chiffrée ; une note hors balance est entièrement
+    // en saisie par nature, donc entièrement montrée.
+    const lignes = !applicable
+      ? []
+      : spec.horsBalance
+        ? toutes
+        : toutes.filter((l) => chiffree(l) || l.estTotal || l.enAttenteDeRattachement);
 
     return {
       code: spec.code,
@@ -588,7 +624,17 @@ export class NoteAnnexeService {
    * récapitulative — qui fait partie de la liasse : elle déclare, note par
    * note, si elle est applicable ou non.
    */
-  async notesAssociations(tenantId: string, exerciceId: string) {
+  /**
+   * Toutes les notes d'un jeu pour un exercice, plus la fiche récapitulative
+   * — qui fait partie de la liasse : elle déclare, note par note, si elle
+   * est applicable ou non. Commune aux deux jeux transcrits : la seule
+   * différence entre eux est la spécification (`NOTES_PAR_JEU`) et le
+   * nombre de notes attendu par le texte officiel (`NOTES_ATTENDUES_PAR_JEU`).
+   */
+  private async notesDuJeu(tenantId: string, exerciceId: string, jeu: JeuEtatsFinanciersSycebnl) {
+    const specs = NOTES_PAR_JEU[jeu];
+    if (!specs) throw new BadRequestException(`Jeu d'états financiers non transcrit : ${jeu}.`);
+
     const exerciceN1Id = await trouverExerciceN1(this.exerciceService, tenantId, exerciceId);
     const [lignesN, lignesN1] = await Promise.all([
       chargerLignes(this.ecritureService, tenantId, exerciceId),
@@ -596,11 +642,11 @@ export class NoteAnnexeService {
     ]);
 
     const [rattachements, echeances, ventilation] = await Promise.all([
-      this.chargerRattachements(tenantId, JeuEtatsFinanciersSycebnl.ASSOCIATIONS_ORDRES_PROFESSIONNELS),
+      this.chargerRattachements(tenantId, jeu),
       this.chargerEcheances(tenantId, exerciceId),
       this.chargerVentilationParNature(tenantId, exerciceId),
     ]);
-    const notes = NOTES_ASSOCIATIONS.map((spec) =>
+    const notes = specs.map((spec) =>
       this.calculerNote(spec, lignesN, lignesN1, exerciceN1Id !== null, rattachements, echeances, ventilation),
     );
 
@@ -608,8 +654,8 @@ export class NoteAnnexeService {
       notes,
       exerciceN1Disponible: exerciceN1Id !== null,
       // La fiche récapitulative recense les NOTES officielles ; une note à
-      // plusieurs tableaux (note 1) y tient une seule ligne, applicable dès
-      // qu'un de ses tableaux l'est.
+      // plusieurs tableaux (note 1, note 7…) y tient une seule ligne,
+      // applicable dès qu'un de ses tableaux l'est.
       ficheRecapitulative: [...new Set(notes.map((n) => n.code))].map((code) => {
         const tableaux = notes.filter((n) => n.code === code);
         return {
@@ -620,9 +666,31 @@ export class NoteAnnexeService {
         };
       }),
       couverture: {
-        transcrites: new Set(NOTES_ASSOCIATIONS.map((n) => n.code)).size,
-        attendues: 45,
+        transcrites: new Set(specs.map((n) => n.code)).size,
+        attendues: NOTES_ATTENDUES_PAR_JEU[jeu] ?? 0,
       },
     };
+  }
+
+  /** Notes annexes du jeu « associations et ordres professionnels ». */
+  async notesAssociations(tenantId: string, exerciceId: string) {
+    return this.notesDuJeu(tenantId, exerciceId, JeuEtatsFinanciersSycebnl.ASSOCIATIONS_ORDRES_PROFESSIONNELS);
+  }
+
+  /**
+   * Notes annexes du jeu « projets de développement et assimilés ».
+   *
+   * La NOTE 9 « FONDS DU BAILLEUR » n'y figure PAS : ses colonnes sont
+   * dynamiques (une colonne par bailleur/sous-projet, cumulée depuis
+   * l'origine du projet, pas seulement l'exercice) — une forme que ce moteur
+   * à colonnes fixes ne représente pas. Elle est servie séparément par
+   * `EtatsFinanciersProjetService.noteBailleur()`
+   * (`GET /etats-financiers/projet/note-bailleur`), déjà construite et
+   * testée. `NOTES_PROJETS` transcrit la note 9 comme un renvoi vers cet
+   * endpoint, pour que la fiche récapitulative et la couverture (26 notes)
+   * restent exactes sans dupliquer un calcul qui existe déjà.
+   */
+  async notesProjet(tenantId: string, exerciceId: string) {
+    return this.notesDuJeu(tenantId, exerciceId, JeuEtatsFinanciersSycebnl.PROJETS_DEVELOPPEMENT);
   }
 }
