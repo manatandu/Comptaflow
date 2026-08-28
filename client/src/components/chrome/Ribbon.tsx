@@ -1,16 +1,64 @@
-import { ReactNode } from 'react';
+import { ReactNode, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../lib/auth';
 import { IconLogo } from './icons';
+import { MenuBar, type MenuDef } from './MenuBar';
+import { AProposModale } from './AProposModale';
 
 export interface RibbonGroupe {
   titre: string;
   boutons: Array<{ label: string; Icon: (p: { width?: number; height?: number }) => JSX.Element; onClick?: () => void; disabled?: boolean }>;
 }
 
-const MENUS = ['Fichier', 'Édition', 'Affichage', 'Comptabilité', 'Trésorerie', 'Tiers', 'États', 'Outils', 'Fenêtre', '?'];
-
 export function Ribbon({ groupes, droite }: { groupes: RibbonGroupe[]; droite?: ReactNode }) {
-  const { utilisateur, seDeconnecter } = useAuth();
+  const { utilisateur, estAdmin, seDeconnecter } = useAuth();
+  const navigate = useNavigate();
+  const [aProposOuvert, setAProposOuvert] = useState(false);
+
+  // Contenu réel de chaque menu. Un menu dont la brique n'existe pas encore
+  // (Édition, Trésorerie, Tiers, Fenêtre) a une liste vide : MenuBar affiche
+  // alors "Pas encore disponible" plutôt que de faire semblant.
+  const menus: MenuDef[] = [
+    {
+      titre: 'Fichier',
+      items: [
+        { label: 'Accueil', onClick: () => navigate('/') },
+        { label: 'Déconnexion', onClick: seDeconnecter },
+      ],
+    },
+    { titre: 'Édition', items: [] },
+    {
+      titre: 'Affichage',
+      items: [
+        { label: 'Accueil', onClick: () => navigate('/') },
+        { label: 'Tableau de bord', onClick: () => navigate('/tableau-de-bord') },
+      ],
+    },
+    {
+      titre: 'Comptabilité',
+      items: [
+        { label: 'Saisir une opération', onClick: () => navigate('/saisie') },
+        { label: 'Plan de comptes', onClick: () => navigate('/comptes') },
+        { label: 'Codes journaux', onClick: () => navigate('/journaux') },
+        { label: 'Journal & grand livre', onClick: () => navigate('/journal') },
+      ],
+    },
+    { titre: 'Trésorerie', items: [] },
+    { titre: 'Tiers', items: [] },
+    {
+      titre: 'États',
+      items: [{ label: 'États financiers', onClick: () => navigate('/etats-financiers') }],
+    },
+    {
+      titre: 'Outils',
+      items: estAdmin ? [{ label: 'Utilisateurs', onClick: () => navigate('/utilisateurs') }] : [],
+    },
+    { titre: 'Fenêtre', items: [] },
+    {
+      titre: '?',
+      items: [{ label: 'À propos de Compta Flow', onClick: () => setAProposOuvert(true) }],
+    },
+  ];
 
   return (
     <div className="border-b border-border-dark bg-chrome">
@@ -27,13 +75,8 @@ export function Ribbon({ groupes, droite }: { groupes: RibbonGroupe[]; droite?: 
         </button>
       </div>
 
-      <div className="h-6 flex items-center gap-4 px-3 border-b border-border">
-        {MENUS.map((m) => (
-          <span key={m} className="text-[11.5px]">
-            {m}
-          </span>
-        ))}
-      </div>
+      <MenuBar menus={menus} />
+      {aProposOuvert && <AProposModale onFermer={() => setAProposOuvert(false)} />}
 
       <div className="flex items-stretch justify-between">
         <div className="flex items-stretch px-2 py-1">
