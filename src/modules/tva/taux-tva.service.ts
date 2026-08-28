@@ -79,4 +79,62 @@ export class TauxTvaService {
     await this.verifierComptes(tenantId, dto);
     return this.prisma.tauxTva.update({ where: { id }, data: dto });
   }
+
+  /**
+   * Registre/déclaration TVA sur une période : pour chaque taux, somme les
+   * lignes créditées sur son compte de collecte (443) et les lignes débitées
+   * sur son compte de déduction (445), taguées à ce taux (LigneEcriture.
+   * tauxTvaId — posé par la saisie guidée "Achat/Vente avec TVA"). Lecture
+   * seule : ne comptabilise PAS la liquidation sur le compte 444 (État, TVA
+   * due ou crédit de TVA) — poser cette écriture reste une action manuelle
+   * de l'utilisateur pour l'instant, comme n'importe quelle écriture. Ne
+   * couvre pas le prorata de déduction (art. 43-49 O.-L.).
+   */
+  async declaration(tenantId: string, dateDebut: Date, dateFin: Date) {
+    const taux = await this.prisma.tauxTva.findMany({ where: { tenantId }, orderBy: { taux: 'desc' } });
+
+    const lignes = [];
+    for (const t of taux) {
+      let totalCollecte = 0;
+      let totalDeductible = 0;
+      if (t.compteCollecteId) {
+        const agg = await this.prisma.ligneEcriture.aggregate({
+          where: { tauxTvaId: t.id, compteId: t.compteCollecteId, ecriture: { tenantId, date: { gte: dateDebut, lte: dateFin } } },
+          _sum: { credit: true },
+        });
+        totalCollecte = Number(agg._sum.credit ?? 0);
+      }
+      if (t.compteDeductibleId) {
+        const agg = await this.prisma.ligneEcriture.aggregate({
+          where: { tauxTvaId: t.id, compteId: t.compteDeductibleId, ecriture: { tenantId, date: { gte: dateDebut, lte: dateFin } } },
+          _sum: { debit: true },
+        });
+        totalDeductible = Number(agg._sum.debit ?? 0);
+      }
+      if (totalCollecte === 0 && totalDeductible === 0) continue; // taux sans mouvement sur la période
+      lignes.push({
+        tauxId: t.id,
+        code: t.code,
+        intitule: t.intitule,
+        taux: Number(t.taux),
+        totalCollecte,
+        totalDeductible,
+        net: totalCollecte - totalDeductible,
+      });
+    }
+
+    const totalCollecte = lignes.reduce((s, l) => s + l.totalCollecte, 0);
+    const totalDeductible = lignes.reduce((s, l) => s + l.totalDeductible, 0);
+    const net = totalCollecte - totalDeductible;
+
+    return {
+      dateDebut,
+      dateFin,
+      lignes,
+      totalCollecte,
+      totalDeductible,
+      net,
+      sens: net >= 0 ? ('A_PAYER' as const) : ('CREDIT' as const),
+    };
+  }
 }

@@ -153,6 +153,26 @@ export interface TauxTva {
   estActif: boolean;
 }
 
+export interface LigneDeclarationTva {
+  tauxId: string;
+  code: string;
+  intitule: string;
+  taux: number;
+  totalCollecte: number;
+  totalDeductible: number;
+  net: number;
+}
+
+export interface DeclarationTva {
+  dateDebut: string;
+  dateFin: string;
+  lignes: LigneDeclarationTva[];
+  totalCollecte: number;
+  totalDeductible: number;
+  net: number;
+  sens: 'A_PAYER' | 'CREDIT';
+}
+
 export interface Tiers {
   id: string;
   type: TypeTiers;

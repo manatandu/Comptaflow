@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { LicenceGuard } from '../licence/licence.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -18,6 +18,19 @@ export class TauxTvaController {
   @Get()
   async lister(@CurrentUser() user: AuthenticatedUser, @Query('actifsSeuls') actifsSeuls?: string) {
     return this.tauxTvaService.lister(user.tenantId, actifsSeuls === 'true');
+  }
+
+  /** Registre/déclaration TVA sur une période — voir TauxTvaService.declaration(). */
+  @Get('declaration')
+  async declaration(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('dateDebut') dateDebut?: string,
+    @Query('dateFin') dateFin?: string,
+  ) {
+    if (!dateDebut || !dateFin) {
+      throw new BadRequestException('dateDebut et dateFin sont requis');
+    }
+    return this.tauxTvaService.declaration(user.tenantId, new Date(dateDebut), new Date(dateFin));
   }
 
   @Roles(RoleUtilisateur.ADMIN_CABINET)

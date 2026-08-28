@@ -18,6 +18,13 @@ export class LigneEcritureDto {
   @IsNumber()
   @Min(0)
   credit?: number;
+
+  // Taux de TVA appliqué à cette ligne (la ligne de TVA elle-même) — posé
+  // par la saisie guidée "Achat/Vente avec TVA" de SaisiePage. Voir
+  // TauxTvaService.declaration().
+  @IsOptional()
+  @IsUUID()
+  tauxTvaId?: string;
 }
 
 export class CreerEcritureDto {

@@ -14,6 +14,7 @@ import { LettragePage } from './pages/LettragePage';
 import { ExercicePage } from './pages/ExercicePage';
 import { TiersPage } from './pages/TiersPage';
 import { TauxTvaPage } from './pages/TauxTvaPage';
+import { DeclarationTvaPage } from './pages/DeclarationTvaPage';
 import { EtatsFinanciersPage } from './pages/EtatsFinanciersPage';
 import { UtilisateursPage } from './pages/UtilisateursPage';
 
@@ -51,6 +52,7 @@ function Routage() {
         <Route path="exercice" element={<ExercicePage />} />
         <Route path="tiers" element={<TiersPage />} />
         <Route path="taux-tva" element={<TauxTvaPage />} />
+        <Route path="declaration-tva" element={<DeclarationTvaPage />} />
         <Route path="etats-financiers" element={<EtatsFinanciersPage />} />
         <Route path="utilisateurs" element={<UtilisateursPage />} />
       </Route>

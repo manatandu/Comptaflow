@@ -305,6 +305,15 @@ model LigneEcriture {
   // à-nouveau "Détail" et de toute gestion sérieuse des tiers.
   lettre String?
 
+  // Taux de TVA appliqué à CETTE ligne (la ligne de TVA elle-même, pas la
+  // ligne HT) — posé par la saisie guidée "Achat/Vente avec TVA" de
+  // SaisiePage. Sert au registre/déclaration TVA (TauxTvaService.
+  // declaration) : somme des lignes créditées sur le compte de collecte du
+  // taux moins somme des lignes débitées sur son compte de déduction, sur
+  // une période. Null pour toute ligne hors TVA (l'immense majorité).
+  tauxTvaId String?
+  tauxTva   TauxTva? @relation(fields: [tauxTvaId], references: [id])
+
   @@index([compteId, lettre])
   @@map("lignes_ecriture")
 }
@@ -399,12 +408,15 @@ model TiersCompte {
 // donc simplement aucun taux ; seed volontairement sans taux "EXONÉRÉ" pour
 // ne pas laisser croire à une automatisation qui n'existe pas encore.
 //
-// Portée MVP : entité de référence uniquement (taux + comptes rattachés),
-// pas encore appliquée à la saisie d'écriture — aucune saisie libre multi-
-// lignes n'existe côté frontend pour l'instant (voir SaisiePage, guidée et
-// à 2 lignes fixes). Le rattachement d'un taux à une LigneEcriture et le
-// registre de suivi/déclaration par taux sont un enrichissement futur, posé
-// une fois une saisie libre construite.
+// Application à la saisie : deux types d'opération guidée dans SaisiePage
+// ("Achat avec TVA" / "Vente avec TVA") calculent HT→TVA→TTC et posent une
+// 3ᵉ ligne sur le compte de collecte/déduction du taux choisi, taguée
+// LigneEcriture.tauxTvaId. TauxTvaService.declaration() additionne ces
+// lignes par taux sur une période (registre/déclaration, lecture seule —
+// ne comptabilise pas la liquidation sur le compte 444, voir la note dans
+// TauxTvaService). Toujours hors scope : le prorata de déduction (art.
+// 43-49 O.-L.) et la saisie libre multi-lignes générale (SaisiePage reste
+// une saisie guidée, pas un éditeur d'écriture quelconque).
 // ---------------------------------------------------------------------------
 
 model TauxTva {
@@ -425,6 +437,8 @@ model TauxTva {
 
   estActif  Boolean  @default(true)
   createdAt DateTime @default(now())
+
+  lignesEcriture LigneEcriture[]
 
   @@unique([tenantId, code])
   @@map("taux_tva")

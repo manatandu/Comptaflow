@@ -45,6 +45,19 @@ export class EcritureService {
       );
     }
 
+    // Les tauxTvaId ne participent pas à l'équilibre (informatifs, posés sur
+    // la ligne de TVA par la saisie guidée "Achat/Vente avec TVA") mais
+    // doivent rester scopés au tenant — sans ce contrôle, un appel API direct
+    // pourrait rattacher une ligne au taux d'un autre tenant (la FK Prisma ne
+    // vérifie que l'existence de l'id, pas son tenant).
+    const tauxTvaIds = [...new Set(dto.lignes.map((l) => l.tauxTvaId).filter((id): id is string => !!id))];
+    if (tauxTvaIds.length > 0) {
+      const tauxTrouves = await this.prisma.tauxTva.findMany({ where: { id: { in: tauxTvaIds }, tenantId } });
+      if (tauxTrouves.length !== tauxTvaIds.length) {
+        throw new BadRequestException('Un ou plusieurs taux de TVA sont introuvables pour ce tenant');
+      }
+    }
+
     const date = new Date(dto.date);
 
     // Clôtures Partielle/Totale (par journal) et Période (tous journaux) :
@@ -79,6 +92,7 @@ export class EcritureService {
                 libelle: l.libelle,
                 debit: l.debit ?? 0,
                 credit: l.credit ?? 0,
+                tauxTvaId: l.tauxTvaId,
               })),
             },
           },
