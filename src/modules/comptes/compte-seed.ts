@@ -1,54 +1,873 @@
 import { ClasseCompte, ModeReportANouveau } from '@prisma/client';
 
 /**
- * Plan de comptes SYCEBNL de base proposé automatiquement à la création d'un
- * tenant (voir l'écran « Onboarding » du canevas de design). Numéros et
- * intitulés vérifiés contre le référentiel officiel (skill `sycebnl`,
- * `partie2-ch3-classe*`) — ne pas ajouter de compte ici sans l'avoir vérifié
- * de la même façon : ce fichier fait autorité pour le MVP.
+ * Plan des comptes SYCEBNL — import complet des comptes d'imputation de base
+ * (classes 1 à 8, + comptes principaux 90/91 de la classe 9), transcrits du
+ * texte officiel (Journal officiel OHADA n° spécial du 22/02/2023, Partie 2,
+ * ch. 2, p. 76-105 — voir skill `sycebnl`, `references/partie2-ch2-plan-comptes.md`).
  *
- * Volontairement minimal (Phase 1) : juste assez de comptes pour les
- * opérations couvertes par la saisie guidée (dons, cotisations, achats,
- * salaires, trésorerie, fonds propres/affectés/reportés). Étoffé au fil des
- * phases suivantes plutôt que d'un coup.
+ * Convention de numérotation : chaque numéro officiel (2, 3, 4 ou 5 chiffres)
+ * est complété à droite par des zéros jusqu'à 6 chiffres (ex. "1011" →
+ * "101100", "103" → "103000", "10611" → "106110"). Ceci laisse la place à des
+ * sous-comptes analytiques créés manuellement par le cabinet (ex. "411001",
+ * "411002" pour des adhérents individuels sous la racine "411") — voir
+ * PlanComptesPage et le mécanisme des comptes Total/Détail (§3.1).
  *
- * modeReportANouveau : AUCUN pour les charges/produits (classes 6/7, soldés
- * sur le résultat à la clôture — voir ExerciceService.cloturer), SOLDE pour
- * le reste par défaut. Le compte 130000 porte le résultat de l'exercice
- * avant affectation ; il reçoit lui-même un report en SOLDE, comme n'importe
- * quel compte de bilan.
+ * Règle de sélection des comptes transcrits (pour ne rien inventer) : quand
+ * un compte à N chiffres a des sous-comptes explicitement listés dans le
+ * texte officiel, seuls ces sous-comptes sont repris (le compte parent n'est
+ * pas dupliqué comme ligne distincte). Quand aucune subdivision n'est donnée,
+ * le compte lui-même est repris tel quel. Les comptes 92 à 99 (comptabilité
+ * analytique de gestion) ne sont volontairement PAS repris : le texte
+ * officiel indique explicitement ne pas détailler leurs subdivisions
+ * ("libre usage" — voir le fichier source, note de bas de Section 3).
+ *
+ * Report à-nouveau (§3.1) : SOLDE pour les comptes de bilan (classes 1,2,3,5,
+ * et les subdivisions non-tiers de la classe 4) ; DETAIL pour les comptes de
+ * tiers nécessitant un suivi fin par lettrage (classe 4, divisions 40/41/45/
+ * 46/47 — fournisseurs, adhérents-clients, fondateurs-apporteurs, bailleurs,
+ * débiteurs-créditeurs divers) ; AUCUN pour les comptes de gestion soldés à
+ * la clôture (classes 6, 7, 8) ; SOLDE pour les comptes hors bilan/résultat
+ * de la classe 9 (90/91, mémoire des contributions volontaires en nature).
+ *
+ * Anomalies du texte source, non corrigées silencieusement (voir le skill) :
+ * - Classe 1 (§ tableau de synthèse vs plan détaillé) : numérotation 16/17/18
+ *   retenue ici selon le plan détaillé (source la plus complète), voir le
+ *   commentaire de `partie2-ch2-plan-comptes.md`.
+ * - "452 Fondations et assimilées (4521, 4522, 4555)" : le troisième code
+ *   "4555" est numériquement incohérent avec la racine 452 (452x attendu) et
+ *   coïncide avec le code du compte 455 (Organisations syndicales). Retenu
+ *   ici comme "452500" (correction d'évidence de frappe, flag conservé).
+ * - "832 dons en nature H.A.O. à distribuer (8311 non affectés, 8315
+ *   affectés)" : l'anomalie de numérotation 8311/8315 est déjà signalée dans
+ *   le skill sycebnl (`partie2-ch3-classe8-comptes80-89.md`) ; codes repris
+ *   tels quels.
  */
+
+const SOLDE = ModeReportANouveau.SOLDE;
+const AUCUN = ModeReportANouveau.AUCUN;
+const DETAIL = ModeReportANouveau.DETAIL;
+
+type LigneSeed = { numero: string; intitule: string; classe: ClasseCompte; modeReportANouveau: ModeReportANouveau };
+
+function c(classe: ClasseCompte, mode: ModeReportANouveau, entries: Array<[string, string]>): LigneSeed[] {
+  return entries.map(([numero, intitule]) => ({ numero, intitule, classe, modeReportANouveau: mode }));
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// CLASSE 1 — COMPTES DE RESSOURCES DURABLES (bilan, report SOLDE)
+// ─────────────────────────────────────────────────────────────────────────
+const classe1: LigneSeed[] = c(ClasseCompte.CLASSE_1, SOLDE, [
+  // 10 Dotation
+  ['101100', 'Dotation non consomptible sans droit de reprise — en numéraire'],
+  ['101500', 'Dotation non consomptible sans droit de reprise — en nature'],
+  ['102100', 'Dotation non consomptible avec droit de reprise — en numéraire'],
+  ['102500', 'Dotation non consomptible avec droit de reprise — en nature'],
+  ['103000', "Droit d'entrée"],
+  ['104100', 'Dotation consomptible'],
+  ['104900', 'Dotation consomptible inscrite au compte de résultat'],
+  ['106110', 'Écarts de réévaluation sur des biens sans droit de reprise — immobilisations corporelles'],
+  ['106120', 'Écarts de réévaluation sur des biens sans droit de reprise — immobilisations financières'],
+  ['106210', 'Écarts de réévaluation sur des biens avec droit de reprise — immobilisations corporelles'],
+  ['106220', 'Écarts de réévaluation sur des biens avec droit de reprise — immobilisations financières'],
+  // 11 Réserves
+  ['112000', 'Réserves statutaires ou contractuelles'],
+  ['118000', 'Autres réserves'],
+  // 12 Report à nouveau
+  ['121000', 'Report à nouveau des excédents'],
+  ['128000', "Résultat net en instance d'affectation"],
+  ['129000', 'Report à nouveau des déficits'],
+  // 13 Résultat net de l'exercice
+  ['131000', "Excédent de l'exercice"],
+  ['139000', "Déficit de l'exercice"],
+  // 14 Subventions d'investissement
+  ['141100', "Subventions d'équipement — État"],
+  ['141200', "Subventions d'équipement — Régions"],
+  ['141300', "Subventions d'équipement — Départements"],
+  ['141400', "Subventions d'équipement — Communes et collectivités publiques décentralisées"],
+  ['141500', "Subventions d'équipement — Entités publiques ou mixtes"],
+  ['141600', "Subventions d'équipement — Entités et organismes privés"],
+  ['141700', "Subventions d'équipement — Organismes internationaux"],
+  ['141800', "Subventions d'équipement — Autres"],
+  ['148000', "Autres subventions d'investissement"],
+  // 15 Provisions réglementées et fonds assimilés
+  ['154000', 'Provisions spéciales de réévaluation'],
+  ['158000', 'Autres provisions réglementées et fonds assimilés'],
+  // 16 Fonds affectés
+  ['161000', 'Fonds projet de développement — avances de fonds à justifier'],
+  ['162000', "Fonds affectés aux investissements du projet de développement — bailleurs de fonds"],
+  ['163000', "Fonds affectés aux investissements du projet de développement — l'État"],
+  ['164000', "Fonds affectés aux investissements des autres organismes de financement assimilés"],
+  ['165000', 'Fonds affectés à un projet spécifique'],
+  ['167100', "Fonds provenant de dons et legs d'immobilisations — affectés"],
+  ['167200', "Fonds provenant de dons et legs d'immobilisations — non affectés"],
+  ['167900', "Fonds provenant de dons et legs d'immobilisations — engagements auprès donateur"],
+  ['168000', 'Autres fonds affectés'],
+  ['169000', 'Fonds affectés à recevoir'],
+  // 17 Fonds reportés
+  ['171000', "Donation temporaire d'usufruit"],
+  ['172000', "Donations et legs non encore reçus d'immobilisations destinées à la vente"],
+  ['178000', 'Autres fonds reportés'],
+  // 18 Emprunts et dettes assimilées
+  ['181000', 'Emprunts obligataires'],
+  ['182000', 'Emprunts et dettes auprès des établissements de crédit'],
+  ['183000', "Avances reçues de l'État"],
+  ['185100', 'Dépôts et cautionnements reçus — dépôts'],
+  ['185200', 'Dépôts et cautionnements reçus — cautionnements'],
+  ['186100', 'Intérêts courus sur emprunts obligataires'],
+  ['186200', 'Intérêts courus sur emprunts et dettes auprès des établissements de crédit'],
+  ['186300', "Intérêts courus sur avances reçues de l'État"],
+  ['186500', 'Intérêts courus sur dépôts et cautionnements reçus'],
+  ['186800', 'Intérêts courus sur autres emprunts et dettes'],
+  ['187100', 'Dettes de location-acquisition — crédit-bail immobilier'],
+  ['187200', 'Dettes de location-acquisition — crédit-bail mobilier'],
+  ['187300', 'Dettes de location-acquisition — location-vente'],
+  ['187600', 'Dettes de location-acquisition — intérêts courus'],
+  ['188000', 'Autres emprunts et dettes'],
+  // 19 Provisions pour risques et charges
+  ['191000', 'Provisions pour litiges'],
+  ['192000', 'Provisions pour charges sur donations et legs'],
+  ['194000', 'Provisions pour pertes de change'],
+  ['196000', 'Provisions pour pensions et obligations similaires'],
+  ['198100', 'Autres provisions pour risques et charges — amendes et pénalités'],
+  ['198400', 'Autres provisions pour risques et charges — démantèlement et remise en état'],
+  ['198800', 'Autres provisions pour risques et charges — divers risques et charges'],
+]);
+
+// ─────────────────────────────────────────────────────────────────────────
+// CLASSE 2 — COMPTES D'ACTIF IMMOBILISÉ (bilan, report SOLDE)
+// ─────────────────────────────────────────────────────────────────────────
+const classe2: LigneSeed[] = c(ClasseCompte.CLASSE_2, SOLDE, [
+  // 20 Immobilisations destinées à la vente (dons/legs non reçus) et usufruit temporaire
+  ['201100', 'Immobilisations incorporelles destinées à la vente — usufruit temporaire'],
+  ['201200', 'Immobilisations incorporelles destinées à la vente — brevets, licences, concessions et droits similaires'],
+  ['201300', 'Immobilisations incorporelles destinées à la vente — logiciels et sites internet'],
+  ['201400', 'Immobilisations incorporelles destinées à la vente — marques'],
+  ['201700', 'Immobilisations incorporelles destinées à la vente — autres'],
+  ['202000', 'Terrains destinés à la vente (dons et legs non encore reçus)'],
+  ['203000', 'Bâtiments destinés à la vente (dons et legs non encore reçus)'],
+  ['204000', 'Matériels destinés à la vente (dons et legs non encore reçus)'],
+  ['205000', 'Titres de participations destinés à la vente (dons et legs non encore reçus)'],
+  // 21 Immobilisations incorporelles
+  ['212100', 'Brevets'],
+  ['212200', 'Licences'],
+  ['212300', 'Concessions de service public'],
+  ['212800', 'Autres concessions et droits similaires'],
+  ['213100', 'Logiciels'],
+  ['213200', 'Sites internet'],
+  ['214000', 'Marques'],
+  ['218100', 'Autres droits et valeurs incorporels — indemnités de transfert aux joueurs'],
+  ['219300', 'Immobilisations incorporelles en cours — logiciels et sites internet'],
+  ['219800', 'Immobilisations incorporelles en cours — autres droits et valeurs incorporels'],
+  // 22 Terrains
+  ['221100', 'Terrains agricoles et forestiers — exploitation agricole'],
+  ['221200', 'Terrains agricoles et forestiers — exploitation forestière'],
+  ['221800', 'Terrains agricoles et forestiers — autres terrains'],
+  ['222100', 'Terrains nus — terrains à bâtir'],
+  ['222800', 'Terrains nus — autres terrains nus'],
+  ['223100', 'Terrains bâtis — pour bâtiments industriels et agricoles'],
+  ['223200', 'Terrains bâtis — pour bâtiments administratifs et commerciaux'],
+  ['223400', 'Terrains bâtis — pour bâtiments affectés aux autres opérations professionnelles'],
+  ['223500', 'Terrains bâtis — pour bâtiments affectés aux autres opérations non professionnelles'],
+  ['223800', 'Terrains bâtis — autres terrains bâtis'],
+  ['224100', 'Travaux de mise en valeur des terrains — plantation d\'arbres et d\'arbustes'],
+  ['224500', 'Travaux de mise en valeur des terrains — améliorations du fonds'],
+  ['224800', 'Travaux de mise en valeur des terrains — autres travaux'],
+  ['226100', 'Terrains aménagés — parkings'],
+  ['228100', 'Autres terrains — immeubles de placement'],
+  ['228500', 'Autres terrains — logements affectés au personnel'],
+  ['228600', 'Autres terrains — location-acquisition'],
+  ['228800', 'Autres terrains — divers terrains'],
+  ['229100', 'Aménagements de terrains en cours — terrains agricoles et forestiers'],
+  ['229200', 'Aménagements de terrains en cours — terrains nus'],
+  ['229800', 'Aménagements de terrains en cours — autres terrains'],
+  // 23 Bâtiments, installations techniques et agencements
+  ['231100', 'Bâtiments industriels sur sol propre'],
+  ['231200', 'Bâtiments agricoles sur sol propre'],
+  ['231300', 'Bâtiments administratifs et commerciaux sur sol propre'],
+  ['231400', 'Bâtiments affectés au logement du personnel sur sol propre'],
+  ['231500', 'Bâtiments-immeubles de placement sur sol propre'],
+  ['231600', 'Bâtiments de location-acquisition sur sol propre'],
+  ['231700', 'Édifices religieux et assimilés sur sol propre'],
+  ['231800', 'Autres bâtiments sur sol propre'],
+  ['232100', 'Bâtiments industriels sur sol d\'autrui'],
+  ['232200', 'Bâtiments agricoles sur sol d\'autrui'],
+  ['232300', 'Bâtiments administratifs et commerciaux sur sol d\'autrui'],
+  ['232400', 'Bâtiments affectés au logement du personnel sur sol d\'autrui'],
+  ['232500', 'Bâtiments-immeubles de placement sur sol d\'autrui'],
+  ['232600', 'Bâtiments de location-acquisition sur sol d\'autrui'],
+  ['232700', 'Édifices religieux et assimilés sur sol d\'autrui'],
+  ['232800', 'Autres bâtiments sur sol d\'autrui'],
+  ['233100', "Ouvrages d'infrastructure — voies de terre"],
+  ['233200', "Ouvrages d'infrastructure — voies de fer"],
+  ['233300', "Ouvrages d'infrastructure — voies d'eau"],
+  ['233400', "Ouvrages d'infrastructure — barrages, digues"],
+  ['233500', "Ouvrages d'infrastructure — pistes d'aérodrome"],
+  ['233700', "Ouvrages d'infrastructure — stades et autres infrastructures sportives"],
+  ['233800', "Ouvrages d'infrastructure — autres ouvrages d'infrastructures"],
+  ['234100', 'Installations complexes spécialisées sur sol propre'],
+  ['234200', "Installations complexes spécialisées sur sol d'autrui"],
+  ['234300', 'Installations à caractère spécifique sur sol propre'],
+  ['234400', "Installations à caractère spécifique sur sol d'autrui"],
+  ['234500', 'Aménagements et agencements des bâtiments'],
+  ['235100', 'Aménagements de bureaux et assimilés — installations générales'],
+  ['235800', 'Aménagements de bureaux et assimilés — autres aménagements de bureaux'],
+  ['238100', 'Autres installations et agencements des édifices religieux et assimilés'],
+  ['238200', 'Autres installations et agencements des stades et autres infrastructures sportives'],
+  ['239100', 'Bâtiments sur sol propre en cours'],
+  ['239200', 'Bâtiments sur sol d\'autrui en cours'],
+  ['239300', "Ouvrages d'infrastructure en cours"],
+  ['239400', 'Aménagements, agencements et installations techniques en cours'],
+  ['239500', 'Aménagements de bureaux en cours'],
+  ['239600', 'Bâtiments en cours — immeubles de placement'],
+  ['239800', 'Autres installations et agencements en cours'],
+  // 24 Matériel, mobilier et actifs biologiques
+  ['241100', 'Matériel industriel'],
+  ['241200', 'Outillage industriel'],
+  ['241300', 'Matériel commercial'],
+  ['241400', 'Outillage commercial'],
+  ['241600', 'Matériel et outillage industriel et commercial de location-acquisition'],
+  ['242100', 'Matériel agricole'],
+  ['242200', 'Outillage agricole'],
+  ['242600', 'Matériel et outillage agricole de location-acquisition'],
+  ['243000', "Matériel d'emballage récupérable et identifiable"],
+  ['244100', 'Matériel et mobilier de bureau'],
+  ['244200', 'Matériel et mobilier informatique et bureautique'],
+  ['244300', 'Matériel et mobilier religieux'],
+  ['244400', 'Matériel et mobilier sportifs'],
+  ['244500', 'Matériel et mobilier — immeubles de placement'],
+  ['244600', 'Matériel et mobilier de location-acquisition'],
+  ['244700', 'Matériel et mobilier des logements du personnel'],
+  ['245100', 'Matériel de transport automobile'],
+  ['245200', 'Matériel de transport ferroviaire'],
+  ['245300', 'Matériel de transport fluvial, lagunaire'],
+  ['245400', 'Matériel de transport naval'],
+  ['245500', 'Matériel de transport aérien'],
+  ['245600', 'Matériel de transport de location-acquisition'],
+  ['245700', 'Matériel de transport hippomobile'],
+  ['245800', 'Autres matériels de transport'],
+  ['246100', 'Actifs biologiques — cheptel, animaux de trait'],
+  ['246200', 'Actifs biologiques — cheptel, animaux reproducteurs'],
+  ['246300', 'Actifs biologiques — animaux de garde'],
+  ['246500', 'Actifs biologiques — plantations agricoles'],
+  ['246800', 'Actifs biologiques — autres'],
+  ['247100', 'Agencements, aménagements du matériel'],
+  ['247200', 'Agencements, aménagements des actifs biologiques'],
+  ['247800', 'Agencements, aménagements — autres'],
+  ['248100', 'Autres matériels et mobiliers — collections et œuvres d\'art'],
+  ['248800', 'Autres matériels et mobiliers — divers'],
+  ['249100', 'Matériel industriel et commercial en cours'],
+  ['249200', 'Matériel agricole en cours'],
+  ['249300', "Matériel d'emballage récupérable en cours"],
+  ['249400', 'Matériel et mobilier en cours'],
+  ['249500', 'Matériel de transport en cours'],
+  ['249600', 'Actifs biologiques en cours'],
+  ['249700', 'Agencements, aménagements du matériel et actifs biologiques en cours'],
+  ['249800', 'Autres matériels et mobiliers en cours'],
+  // 25 Avances et acomptes versés sur immobilisations
+  ['251000', 'Avances et acomptes versés sur immobilisations incorporelles'],
+  ['252000', 'Avances et acomptes versés sur immobilisations corporelles'],
+  // 26 Titres de participation
+  ['261000', 'Titres de participation'],
+  ['265000', 'Participations dans des organismes professionnels'],
+  ['266000', "Parts dans des groupements d'intérêt économique (G.I.E.)"],
+  ['268000', 'Autres titres de participation'],
+  // 27 Autres immobilisations financières
+  ['271100', 'Prêts et créances — participatifs'],
+  ['271300', 'Prêts et créances — billets de fonds'],
+  ['271500', 'Prêts et créances — titres prêtés'],
+  ['271800', 'Prêts et créances — autres'],
+  ['272100', 'Prêts au personnel — immobiliers'],
+  ['272200', "Prêts au personnel — mobiliers et d'installation"],
+  ['272800', 'Prêts au personnel — autres'],
+  ['273100', "Créances sur l'État — retenues de garantie"],
+  ['273300', "Créances sur l'État — fonds réglementé"],
+  ['273800', "Créances sur l'État — autres"],
+  ['274100', 'Titres immobilisés — T.I.A.P.'],
+  ['274200', 'Titres immobilisés — titres participatifs'],
+  ['274300', "Titres immobilisés — certificats d'investissement"],
+  ['274400', 'Titres immobilisés — parts de F.C.P.'],
+  ['274500', 'Titres immobilisés — obligations'],
+  ['274800', 'Titres immobilisés — autres'],
+  ['275100', 'Dépôts et cautionnements versés — loyers d\'avance'],
+  ['275200', 'Dépôts et cautionnements versés — électricité'],
+  ['275300', 'Dépôts et cautionnements versés — eau'],
+  ['275400', 'Dépôts et cautionnements versés — gaz'],
+  ['275500', 'Dépôts et cautionnements versés — téléphone/télécopie'],
+  ['275800', 'Dépôts et cautionnements versés — autres'],
+  ['276100', 'Intérêts courus — prêts et créances'],
+  ['276200', 'Intérêts courus — prêts au personnel'],
+  ['276300', "Intérêts courus — créances sur l'État"],
+  ['276400', 'Intérêts courus — titres immobilisés'],
+  ['276500', 'Intérêts courus — dépôts et cautionnements versés'],
+  ['276800', 'Intérêts courus — immobilisations financières diverses'],
+  ['278100', 'Immobilisations financières diverses — créances diverses'],
+  ['278400', 'Immobilisations financières diverses — banques dépôts à terme'],
+  ['278500', 'Immobilisations financières diverses — or et métaux précieux'],
+  ['278800', 'Immobilisations financières diverses — autres'],
+  // 28 Amortissements
+  ['280000', "Amortissements d'usufruit temporaire"],
+  ['281200', 'Amortissements des immobilisations incorporelles — brevets, licences, concessions'],
+  ['281300', 'Amortissements des immobilisations incorporelles — logiciels et sites internet'],
+  ['281400', 'Amortissements des immobilisations incorporelles — marques'],
+  ['281700', 'Amortissements des immobilisations incorporelles — indemnités de transfert aux joueurs'],
+  ['281800', 'Amortissements des immobilisations incorporelles — autres droits et valeurs incorporels'],
+  ['282400', 'Amortissements des terrains — travaux de mise en valeur des terrains'],
+  ['283100', 'Amortissements des bâtiments — sur sol propre'],
+  ['283200', "Amortissements des bâtiments — sur sol d'autrui"],
+  ['283300', "Amortissements des bâtiments — ouvrages d'infrastructure"],
+  ['283400', 'Amortissements des bâtiments — aménagements, agencements et installations techniques'],
+  ['283500', 'Amortissements des bâtiments — aménagements de bureaux'],
+  ['283800', 'Amortissements des bâtiments — autres installations et agencements'],
+  ['284100', 'Amortissements du matériel — industriel et commercial'],
+  ['284200', 'Amortissements du matériel — agricole'],
+  ['284300', 'Amortissements du matériel — emballage récupérable'],
+  ['284400', 'Amortissements du matériel — matériel et mobilier'],
+  ['284500', 'Amortissements du matériel — matériel de transport'],
+  ['284600', 'Amortissements du matériel — actifs biologiques'],
+  ['284700', 'Amortissements du matériel — agencements/aménagements du matériel et actifs biologiques'],
+  ['284800', 'Amortissements du matériel — autres matériels'],
+  // 29 Dépréciations des immobilisations
+  ['290100', 'Dépréciations — usufruit temporaire'],
+  ['290200', 'Dépréciations — immobilisations destinées à la vente'],
+  ['291200', 'Dépréciations des immobilisations incorporelles — brevets, licences, concessions'],
+  ['291300', 'Dépréciations des immobilisations incorporelles — logiciels et sites internet'],
+  ['291400', 'Dépréciations des immobilisations incorporelles — marques'],
+  ['291800', 'Dépréciations des immobilisations incorporelles — autres droits et valeurs incorporels'],
+  ['291900', 'Dépréciations des immobilisations incorporelles en cours'],
+  ['292100', 'Dépréciations des terrains — agricoles et forestiers'],
+  ['292200', 'Dépréciations des terrains — nus'],
+  ['292300', 'Dépréciations des terrains — bâtis'],
+  ['292400', 'Dépréciations des terrains — travaux de mise en valeur'],
+  ['292600', 'Dépréciations des terrains — aménagés'],
+  ['292800', 'Dépréciations des terrains — autres'],
+  ['292900', 'Dépréciations des terrains — aménagements en cours'],
+  ['293100', 'Dépréciations des bâtiments — sur sol propre'],
+  ['293200', "Dépréciations des bâtiments — sur sol d'autrui"],
+  ['293300', "Dépréciations des bâtiments — ouvrages d'infrastructures"],
+  ['293400', 'Dépréciations des bâtiments — aménagements/agencements/installations techniques'],
+  ['293500', 'Dépréciations des bâtiments — aménagements de bureaux'],
+  ['293800', 'Dépréciations des bâtiments — autres installations et agencements'],
+  ['293900', 'Dépréciations des bâtiments et installations en cours'],
+  ['294100', 'Dépréciations du matériel — industriel et commercial'],
+  ['294200', 'Dépréciations du matériel — agricole'],
+  ['294300', 'Dépréciations du matériel — emballage récupérable'],
+  ['294400', 'Dépréciations du matériel — matériel et mobilier'],
+  ['294500', 'Dépréciations du matériel — matériel de transport'],
+  ['294600', 'Dépréciations du matériel — actifs biologiques'],
+  ['294700', 'Dépréciations du matériel — agencements et aménagements'],
+  ['294800', 'Dépréciations du matériel — autres matériels'],
+  ['294900', 'Dépréciations du matériel en cours'],
+  ['295100', 'Dépréciations des avances et acomptes versés — incorporelles'],
+  ['295200', 'Dépréciations des avances et acomptes versés — corporelles'],
+  ['296100', 'Dépréciations des titres de participation'],
+  ['296500', 'Dépréciations des participations dans des organismes professionnels'],
+  ['296600', "Dépréciations des parts dans des G.I.E."],
+  ['296800', 'Dépréciations des autres titres de participation'],
+  ['297100', 'Dépréciations des autres immobilisations financières — prêts et créances'],
+  ['297200', 'Dépréciations des autres immobilisations financières — prêts au personnel'],
+  ['297300', "Dépréciations des autres immobilisations financières — créances sur l'État"],
+  ['297400', 'Dépréciations des autres immobilisations financières — titres immobilisés'],
+  ['297500', 'Dépréciations des autres immobilisations financières — dépôts et cautionnements versés'],
+  ['297700', "Dépréciations des créances rattachées à des participations et avances à des G.I.E."],
+  ['297800', 'Dépréciations des créances financières diverses'],
+]);
+
+// ─────────────────────────────────────────────────────────────────────────
+// CLASSE 3 — COMPTES DE STOCKS (bilan, report SOLDE)
+// ─────────────────────────────────────────────────────────────────────────
+const classe3: LigneSeed[] = c(ClasseCompte.CLASSE_3, SOLDE, [
+  ['311000', "Biens liés à l'activité A"],
+  ['312000', "Biens liés à l'activité B"],
+  ['321000', 'Marchandises A'],
+  ['322000', 'Marchandises B'],
+  ['323000', 'Matières A'],
+  ['324000', 'Matières B'],
+  ['325000', 'Fournitures liées'],
+  ['331000', 'Matières consommables'],
+  ['333000', 'Fournitures de magasin'],
+  ['334000', 'Fournitures de bureau'],
+  ['335100', 'Emballages perdus'],
+  ['335200', 'Emballages récupérables non identifiables'],
+  ['335300', 'Emballages à usage mixte'],
+  ['335800', 'Autres emballages'],
+  ['338000', 'Autres matières'],
+  ['341000', 'Dons en nature — non affectés'],
+  ['345000', 'Dons en nature — affectés'],
+  ['350000', 'Produits et services en cours'],
+  ['361000', 'Produits finis A'],
+  ['362000', 'Produits finis B'],
+  ['363100', 'Actifs biologiques — animaux'],
+  ['363200', 'Actifs biologiques — végétaux'],
+  ['363800', 'Actifs biologiques — autres stocks'],
+  ['367000', 'Produits intermédiaires et résiduels'],
+  ['371000', "Biens liés à l'activité en cours de route"],
+  ['372000', 'Marchandises, matières et fournitures en cours de route'],
+  ['373000', 'Autres approvisionnements en cours de route'],
+  ['376000', 'Produits finis en cours de route'],
+  ['377100', 'Stocks en consignation'],
+  ['377200', 'Stocks en dépôt'],
+  ['378000', "Stock provenant d'immobilisations mises hors services ou au rebut"],
+  ['381000', 'Dons en nature H.A.O. — non affectés'],
+  ['385000', 'Dons en nature H.A.O. — affectés'],
+  ['391000', "Dépréciations des stocks — biens liés à l'activité"],
+  ['392000', 'Dépréciations des stocks — marchandises, matières premières et fournitures liées'],
+  ['393000', 'Dépréciations des stocks — autres approvisionnements'],
+  ['396000', 'Dépréciations des stocks — produits finis, intermédiaires et résiduels'],
+  ['397000', 'Dépréciations des stocks — en cours de route, consignation ou dépôt'],
+]);
+
+// ─────────────────────────────────────────────────────────────────────────
+// CLASSE 4 — COMPTES DE TIERS
+// Divisions 40/41/45/46/47 (tiers avec grand-livre auxiliaire) : report DETAIL.
+// Divisions 42/43/44/48/49 : report SOLDE.
+// ─────────────────────────────────────────────────────────────────────────
+const classe4Detail: LigneSeed[] = c(ClasseCompte.CLASSE_4, DETAIL, [
+  // 40 Fournisseurs et comptes rattachés
+  ['401100', 'Fournisseurs'],
+  ['401300', 'Fournisseurs — sous-traitants'],
+  ['401600', 'Fournisseurs — réserve de propriété'],
+  ['401700', 'Fournisseurs — retenues de garantie'],
+  ['402100', 'Fournisseurs, effets à payer'],
+  ['402300', 'Fournisseurs, effets à payer — sous-traitants'],
+  ['408100', 'Fournisseurs, factures non parvenues'],
+  ['408300', 'Fournisseurs, factures non parvenues — sous-traitants'],
+  ['408600', 'Fournisseurs, factures non parvenues — intérêts courus'],
+  ['409100', 'Fournisseurs débiteurs — avances et acomptes versés'],
+  ['409300', 'Fournisseurs débiteurs — sous-traitants, avances et acomptes'],
+  ['409400', 'Fournisseurs débiteurs — créances pour emballages et matériels à rendre'],
+  ['409800', 'Fournisseurs débiteurs — rabais, remises, ristournes et autres avoirs à obtenir'],
+  // 41 Adhérents, clients-usagers et comptes rattachés
+  ['411000', 'Adhérents'],
+  ['412000', 'Clients-usagers'],
+  ['413100', 'Adhérents, clients-usagers — chèques impayés'],
+  ['413200', 'Adhérents, clients-usagers — chèques impayés (2)'],
+  ['413300', 'Adhérents, clients-usagers — effets impayés'],
+  ['413800', 'Adhérents, clients-usagers — autres valeurs impayées'],
+  ['416100', 'Créances — cotisations litigieuses ou douteuses'],
+  ['416200', 'Créances — adhérents, clients-usagers litigieuses ou douteuses'],
+  ['418100', 'Adhérents, clients-usagers — appels de fonds à établir'],
+  ['418200', 'Adhérents, clients-usagers — factures à établir'],
+  ['418600', 'Adhérents, clients-usagers — intérêts courus'],
+  ['419100', 'Adhérents, clients-usagers créditeurs — avances reçues'],
+  ['419200', 'Adhérents, clients-usagers créditeurs — avances et acomptes reçus'],
+  ['419400', 'Adhérents, clients-usagers créditeurs — dettes pour emballages et matériels consignés'],
+  ['419800', 'Adhérents, clients-usagers créditeurs — rabais, remises, ristournes et autres avoirs à accorder'],
+  // 45 Fondateurs, apporteurs et comptes courants
+  ['451100', 'Associations et assimilées — apporteurs en nature'],
+  ['451200', 'Associations et assimilées — apporteurs en numéraire'],
+  ['451500', 'Associations et assimilées — adhérents/dirigeants, comptes courants'],
+  ['452100', 'Fondations et assimilées (1)'],
+  ['452200', 'Fondations et assimilées (2)'],
+  // [texte officiel] anomalie : la source imprime "4555" comme 3e code sous 452
+  // (Fondations et assimilées), numériquement incohérent avec la racine 452 —
+  // retenu ici comme "4525" (cf. commentaire d'en-tête du fichier).
+  ['452500', 'Fondations et assimilées (3)'],
+  ['453100', 'Ordres professionnels (1)'],
+  ['453200', 'Ordres professionnels (2)'],
+  ['453500', 'Ordres professionnels (3)'],
+  ['454100', 'Organisations politiques (1)'],
+  ['454200', 'Organisations politiques (2)'],
+  ['454500', 'Organisations politiques (3)'],
+  ['455100', 'Organisations syndicales (1)'],
+  ['455200', 'Organisations syndicales (2)'],
+  ['455500', 'Organisations syndicales (3)'],
+  ['456100', 'Organisations religieuses, apporteurs — congrégations religieuses et assimilées'],
+  ['456200', 'Organisations religieuses, apporteurs — Waqf et assimilés'],
+  ['457100', 'Mécènes et assimilés'],
+  ['457200', 'Bénévoles et assimilés'],
+  ['458000', 'Autres fondateurs et apporteurs'],
+  // 46 Bailleurs, État et autres organismes, fonds d'administration
+  ['462000', "Bailleurs — projet de développement, fonds d'administration"],
+  ['463000', "État — projet de développement, fonds d'administration"],
+  ['464000', "Autres tiers ou organismes de financement assimilés — projet de développement, fonds d'administration"],
+  ['469200', "Fonds d'administration à recevoir — bailleurs"],
+  ['469300', "Fonds d'administration à recevoir — État"],
+  ['469400', "Fonds d'administration à recevoir — autres tiers ou organismes de financement assimilés"],
+  // 47 Débiteurs et créditeurs divers
+  ['471100', 'Débiteurs et créditeurs divers (1)'],
+  ['471200', 'Débiteurs et créditeurs divers (2)'],
+  ['471300', 'Créditeurs — dons en nature courants non consommés'],
+  ['471700', 'Débiteurs divers — retenues de garantie'],
+  ['471900', "Bons de souscription d'actions et d'obligations"],
+  ['472100', 'Créances sur cessions de titres de placement'],
+  ['472600', 'Versements restant à effectuer sur titres de placement'],
+  ['473100', 'Subventions à recevoir — investissement'],
+  ['473200', 'Subventions à recevoir — exploitation'],
+  ['473300', 'Subventions à recevoir — équilibre'],
+  ['473800', 'Subventions à recevoir — autres'],
+  ['473900', 'Subventions à reverser'],
+  ['474600', 'Compte de répartition périodique des charges'],
+  ['474700', 'Compte de répartition périodique des produits'],
+  ['475000', 'Générosités financières à recevoir'],
+  ['476000', "Charges constatées d'avance"],
+  ['477000', 'Produits constatés d\'avance'],
+  ['478110', 'Écarts de conversion actif — diminution des créances d\'exploitation'],
+  ['478180', 'Écarts de conversion actif — diminution des créances H.A.O.'],
+  ['478200', 'Écarts de conversion actif — diminution des créances financières'],
+  ['478310', 'Écarts de conversion actif — augmentation des dettes d\'exploitation'],
+  ['478380', 'Écarts de conversion actif — augmentation des dettes H.A.O.'],
+  ['478400', 'Écarts de conversion actif — augmentation des dettes financières'],
+  ['478600', 'Écarts de conversion actif — différences d\'évaluation sur instruments de trésorerie'],
+  ['478800', 'Écarts de conversion actif — différences compensées par couverture de change'],
+  // Le texte source indique "4791 à 4798, symétrique du 478" sans détailler
+  // d'intitulés distincts (contrairement au 478) — repris ici comme un seul
+  // compte générique pour ne pas fabriquer de libellés non documentés.
+  ['479000', 'Écarts de conversion — passif'],
+  ['481100', "Fournisseurs d'investissements — immobilisations incorporelles"],
+  ['481200', "Fournisseurs d'investissements — immobilisations corporelles"],
+  ['481300', "Fournisseurs d'investissements — versements restant à effectuer sur titres non libérés"],
+  ['481610', "Fournisseurs d'investissements — réserve de propriété (incorporelles)"],
+  ['481620', "Fournisseurs d'investissements — réserve de propriété (corporelles)"],
+  ['481710', "Fournisseurs d'investissements — retenues de garantie (incorporelles)"],
+  ['481720', "Fournisseurs d'investissements — retenues de garantie (corporelles)"],
+  ['481810', "Fournisseurs d'investissements — factures non parvenues (incorporelles)"],
+  ['481820', "Fournisseurs d'investissements — factures non parvenues (corporelles)"],
+  ['484000', 'Autres dettes hors activités ordinaires'],
+  ['485100', 'Créances sur cessions d\'immobilisations incorporelles'],
+  ['485200', 'Créances sur cessions d\'immobilisations corporelles'],
+  ['485600', 'Créances sur cessions d\'immobilisations financières'],
+  ['485700', 'Créances sur cessions d\'immobilisations — retenues de garantie'],
+  ['485800', 'Créances sur cessions d\'immobilisations — factures à établir'],
+  ['486100', 'Dettes des legs et dons d\'immobilisations'],
+  ['486500', 'Créances des legs et dons d\'immobilisations'],
+  ['488100', 'Créditeurs — dons en nature H.A.O. non consommés'],
+]);
+
+const classe4Solde: LigneSeed[] = c(ClasseCompte.CLASSE_4, SOLDE, [
+  // 42 Personnel
+  ['421100', 'Personnel — avances'],
+  ['421200', 'Personnel — acomptes'],
+  ['421300', 'Personnel — frais avancés et fournitures au personnel'],
+  ['422000', 'Rémunérations dues au personnel'],
+  ['423100', 'Personnel — oppositions'],
+  ['423200', 'Personnel — saisies arrêts'],
+  ['423300', 'Personnel — avis à tiers détenteur'],
+  ['424100', 'Œuvres sociales internes — assistance médicale'],
+  ['424200', 'Œuvres sociales internes — allocations familiales'],
+  ['424500', 'Œuvres sociales internes — organismes sociaux rattachés à l\'entité'],
+  ['424800', 'Œuvres sociales internes — autres'],
+  ['425100', 'Représentants du personnel — délégués'],
+  ['425200', 'Représentants du personnel — syndicats et assimilés'],
+  ['425800', 'Représentants du personnel — autres'],
+  ['427000', 'Personnel — dépôts'],
+  ['428100', 'Personnel — congés à payer'],
+  ['428600', 'Personnel — autres charges à payer'],
+  ['428700', 'Personnel — produits à recevoir'],
+  // 43 Organismes sociaux
+  ['431100', 'Sécurité sociale — prestations familiales'],
+  ['431200', 'Sécurité sociale — accidents de travail'],
+  ['431800', 'Sécurité sociale — autres cotisations sociales'],
+  ['432100', 'Caisses de retraite — obligatoire'],
+  ['432200', 'Caisses de retraite — complémentaire'],
+  ['432800', 'Caisses de retraite — autres'],
+  ['433100', 'Autres organismes sociaux — mutuelle de santé'],
+  ['433200', 'Autres organismes sociaux — assurances retraite'],
+  ['433300', 'Autres organismes sociaux — assurances et organismes de santé'],
+  ['438100', 'Organismes sociaux — charges sociales sur gratifications à payer'],
+  ['438200', 'Organismes sociaux — charges sociales sur congés à payer'],
+  ['438600', 'Organismes sociaux — autres charges à payer'],
+  ['438700', 'Organismes sociaux — produits à recevoir'],
+  // 44 État et collectivités publiques
+  ['442100', 'État, autres impôts et taxes'],
+  ['442200', 'État, autres impôts et taxes — collectivités publiques'],
+  ['442300', 'État, autres impôts et taxes — recouvrables sur des obligataires'],
+  ['442400', 'État, autres impôts et taxes — recouvrables sur des adhérents et autres'],
+  ['442600', 'État, autres impôts et taxes — droits de douane'],
+  ['442800', 'État, autres impôts et taxes — autres'],
+  // Numérotés en "...100" plutôt qu'en "...000" bien qu'aucune subdivision ne
+  // soit donnée par le texte officiel pour 443/444/445 : convention déjà
+  // utilisée par le module TVA (taux-tva-seed.ts, TauxTvaService), qui
+  // recherche ces comptes par numéro exact — ne pas renommer sans mettre à
+  // jour ces deux fichiers en même temps.
+  ['443100', 'État, T.V.A. facturée'],
+  ['444100', 'État, T.V.A. due ou crédit de T.V.A.'],
+  ['445100', 'État, T.V.A. récupérable'],
+  ['446000', 'Autres taxes sur le chiffre d\'affaires'],
+  ['447100', 'État, impôts retenus à la source — IGR'],
+  ['447200', 'État, impôts retenus à la source — impôts sur salaires'],
+  ['447300', 'État, impôts retenus à la source — contribution nationale'],
+  ['447400', 'État, impôts retenus à la source — contribution nationale de solidarité'],
+  ['447800', 'État, impôts retenus à la source — autres'],
+  ['448600', 'État — charges à payer'],
+  ['448700', 'État — produits à recevoir'],
+  ['449100', 'État, subvention à recevoir'],
+  // 48 Créances et dettes H.A.O.
+  ['490000', 'Dépréciations et provisions — fournisseurs'],
+  ['491100', 'Dépréciations — créances adhérents et clients-usagers litigieuses'],
+  ['491200', 'Dépréciations — créances adhérents et clients-usagers douteuses'],
+  ['492000', 'Dépréciations et provisions — personnel'],
+  ['493000', 'Dépréciations et provisions — organismes sociaux'],
+  ['494000', 'Dépréciations et provisions — État et collectivités publiques'],
+  ['497000', 'Dépréciations et provisions — débiteurs divers'],
+  ['498500', 'Dépréciations — créances H.A.O. sur cessions d\'immobilisations'],
+  ['498800', 'Dépréciations — autres créances H.A.O.'],
+  ['499100', 'Provisions pour risques et charges à court terme — opérations d\'exploitation'],
+  ['499800', 'Provisions pour risques et charges à court terme — opérations H.A.O.'],
+]);
+
+// ─────────────────────────────────────────────────────────────────────────
+// CLASSE 5 — COMPTES DE TRÉSORERIE (bilan, report SOLDE)
+// ─────────────────────────────────────────────────────────────────────────
+const classe5: LigneSeed[] = c(ClasseCompte.CLASSE_5, SOLDE, [
+  ['501000', 'Titres du trésor et bons de caisse à court terme'],
+  ['501600', 'Titres du trésor et bons de caisse à court terme — frais d\'acquisition'],
+  ['502200', 'Actions cotées'],
+  ['502300', 'Actions non cotées'],
+  ['502500', 'Autres actions'],
+  ['502600', 'Actions — frais d\'acquisition'],
+  ['503200', 'Obligations cotées'],
+  ['503300', 'Obligations non cotées'],
+  ['503500', 'Autres obligations'],
+  ['503600', 'Obligations — frais d\'acquisition'],
+  ['504200', 'Bons de souscription d\'actions'],
+  ['504300', 'Bons de souscription d\'obligations'],
+  ['505000', 'Titres négociables hors Région'],
+  ['506000', 'Intérêts courus sur titres de placement'],
+  ['508000', 'Autres titres de placement et créances assimilées'],
+  ['513000', 'Chèques à encaisser'],
+  ['514000', "Chèques à l'encaissement"],
+  ['515000', 'Cartes de crédit à encaisser'],
+  ['518500', 'Chèques de voyage'],
+  ['518600', 'Coupons échus'],
+  ['518700', 'Intérêts échus des obligations'],
+  ['521100', 'Banques locales — monnaie nationale'],
+  ['521500', 'Banques locales — devises'],
+  ['522000', 'Banques — autres États de la Région'],
+  ['523000', 'Banques — autres États de la zone monétaire'],
+  ['524000', 'Banques — hors zone monétaire'],
+  ['525000', 'Banques — dépôt à terme et opérations assimilées'],
+  ['526100', 'Banques — intérêts courus, charges à payer'],
+  ['526700', 'Banques — intérêts courus, produits à recevoir'],
+  ['531000', 'Banques postales'],
+  ['532000', 'Trésor'],
+  ['533000', "Sociétés de gestion et d'intermédiation"],
+  ['536100', 'Établissements financiers — intérêts courus, charges à payer'],
+  ['536700', 'Établissements financiers — intérêts courus, produits à recevoir'],
+  ['538000', 'Autres organismes financiers'],
+  ['551000', 'Instruments de monnaie électronique — carte carburant'],
+  ['552000', 'Instruments de monnaie électronique — téléphone portable'],
+  ['553000', 'Instruments de monnaie électronique — carte péage'],
+  ['554000', 'Instruments de monnaie électronique — porte-monnaie électronique'],
+  ['558000', 'Instruments de monnaie électronique — autres'],
+  ['561000', 'Banques, crédits de trésorerie'],
+  ['565000', 'Banques, escompte de crédits ordinaires'],
+  ['566000', 'Banques, crédits de trésorerie — intérêts courus'],
+  ['571000', 'Caisse — monnaie nationale'],
+  ['572000', 'Caisse — devises'],
+  ['585000', 'Virements de fonds'],
+  ['588000', 'Autres virements internes'],
+  ['590000', 'Dépréciations et provisions — titres de placement'],
+  ['591000', 'Dépréciations et provisions — titres et valeurs à encaisser'],
+  ['592000', 'Dépréciations et provisions — comptes banques'],
+  ['593000', 'Dépréciations et provisions — établissements financiers et assimilés'],
+  ['595000', 'Dépréciations et provisions — instruments de monnaie électronique'],
+  ['599000', 'Provisions pour risques et charges à court terme à caractère financier'],
+]);
+
+// ─────────────────────────────────────────────────────────────────────────
+// CLASSE 6 — COMPTES DE CHARGES DES ACTIVITÉS ORDINAIRES (gestion, report AUCUN)
+// ─────────────────────────────────────────────────────────────────────────
+const classe6: LigneSeed[] = c(ClasseCompte.CLASSE_6, AUCUN, [
+  ['601000', "Achats de biens et services liés à l'activité"],
+  ['602000', 'Achats de marchandises, matières premières et fournitures liées'],
+  ['603000', 'Variations des stocks de biens achetés et reçus en dons en nature à distribuer'],
+  ['604000', 'Achats stockés de matières et fournitures consommables'],
+  ['605000', 'Autres achats'],
+  ['606100', 'Achats autres activités — billetteries'],
+  ['606200', 'Achats autres activités — tombola et autres jeux'],
+  ['606300', 'Achats autres activités — bons d\'achats'],
+  ['606400', 'Achats autres activités — voyages et sorties'],
+  ['606800', 'Achats autres activités — autres'],
+  ['608000', 'Achats d\'emballages'],
+  ['612000', 'Transports sur ventes'],
+  ['613000', 'Transports pour compte de tiers'],
+  ['614000', 'Transports du personnel'],
+  ['616000', 'Transports de plis'],
+  ['618000', 'Autres frais de transport'],
+  ['619000', 'Rabais, remises, ristournes obtenus (non ventilés)'],
+  ['621000', 'Sous-traitance générale'],
+  ['622000', 'Locations et charges locatives'],
+  ['623000', 'Redevances de location-acquisition'],
+  ['624000', 'Entretien, réparation, remise en état et maintenance'],
+  ['625000', "Primes d'assurance"],
+  ['626000', 'Études, recherches et documentation'],
+  ['627000', 'Publicité, publications et relations publiques'],
+  ['628000', 'Frais de télécommunications'],
+  ['631000', 'Frais bancaires'],
+  ['632000', "Rémunérations d'intermédiaires et de conseils"],
+  ['633000', 'Frais de formation'],
+  ['634000', 'Redevances pour brevets, licences, logiciels, sites internet, concessions'],
+  ['635000', 'Cotisations'],
+  ['636000', 'Frais de recherche de fonds'],
+  ['637000', "Rémunérations de personnel extérieur à l'entité"],
+  ['638000', 'Autres charges externes'],
+  ['641000', 'Impôts et taxes directs'],
+  ['645000', 'Impôts et taxes indirects'],
+  ['646000', "Droits d'enregistrement"],
+  ['647000', 'Pénalités et amendes fiscales'],
+  ['648000', 'Autres impôts et taxes'],
+  ['649000', 'Dégrèvements et annulations d\'impôts et taxes'],
+  ['651000', 'Pertes sur créances adhérents/clients-usagers et autres débiteurs'],
+  ['652000', 'Subventions accordées par l\'entité'],
+  ['654000', 'Dons en nature courants à distribuer'],
+  ['657000', 'Pénalités et amendes pénales'],
+  ['658000', 'Charges diverses'],
+  ['659000', 'Charges pour dépréciations et provisions pour risques à court terme d\'exploitation'],
+  ['661000', 'Rémunérations directes — personnel national'],
+  ['662000', 'Rémunérations directes — personnel non national'],
+  ['663000', 'Indemnités forfaitaires versées au personnel'],
+  ['664000', 'Charges sociales'],
+  ['665000', 'Habillement et équipement du personnel'],
+  ['667000', 'Rémunération transférée de personnel extérieur'],
+  ['668000', 'Autres charges sociales'],
+  ['669000', 'Dégrèvements et annulations de charges de personnel'],
+  ['671000', 'Intérêts des emprunts'],
+  ['672000', 'Intérêts dans loyers de location-acquisition'],
+  ['673000', 'Escomptes accordés'],
+  ['674000', 'Autres intérêts'],
+  ['676000', 'Pertes de change financières'],
+  ['677000', 'Pertes sur titres de placement'],
+  ['678000', 'Pertes et charges sur risques financiers'],
+  ['679000', 'Charges pour dépréciations et provisions pour risques à court terme financières'],
+  ['680000', 'Dotations aux amortissements — usufruit temporaire'],
+  ['681200', "Dotations aux amortissements d'exploitation — immobilisations incorporelles"],
+  ['681300', "Dotations aux amortissements d'exploitation — immobilisations corporelles"],
+  ['691000', 'Dotations aux provisions et dépréciations d\'exploitation'],
+  ['695000', "Dotations — immobilisations destinées à la vente provenant de dons et legs et d'usufruit temporaire"],
+  ['697000', 'Dotations aux provisions et dépréciations financières'],
+]);
+
+// ─────────────────────────────────────────────────────────────────────────
+// CLASSE 7 — COMPTES DE PRODUITS DES ACTIVITÉS ORDINAIRES (gestion, report AUCUN)
+// ─────────────────────────────────────────────────────────────────────────
+const classe7: LigneSeed[] = c(ClasseCompte.CLASSE_7, AUCUN, [
+  ['701000', 'Cotisations des adhérents'],
+  ['702000', "Quote-part de fonds d'administration transférés"],
+  ['703000', 'Quote-part de dotation consomptible transférée'],
+  ['704100', 'Revenus liés à la générosité — dons'],
+  ['704200', 'Revenus liés à la générosité — legs'],
+  ['704300', 'Revenus liés à la générosité — deniers du culte'],
+  ['704400', 'Revenus liés à la générosité — zakat, dîme, quête et assimilées'],
+  ['704500', 'Revenus liés à la générosité — célébrations'],
+  ['704600', 'Revenus liés à la générosité — mécénats'],
+  ['704700', 'Revenus liés à la générosité — parrainage'],
+  ['704800', 'Revenus liés à la générosité — autres'],
+  ['705000', 'Ventes de marchandises, services et produits finis'],
+  ['706000', 'Revenus des manifestations'],
+  ['707000', 'Produits accessoires'],
+  ['708100', 'Autres revenus — ventes de dons en nature'],
+  ['708200', "Autres revenus — revenus d'usufruit"],
+  ['711000', "Subventions d'exploitation versées par l'État et collectivités publiques"],
+  ['713000', "Subventions d'exploitation versées par organismes nationaux et internationaux"],
+  ['718000', "Autres subventions d'exploitation"],
+  ['721000', 'Production immobilisée — immobilisations incorporelles'],
+  ['722000', 'Production immobilisée — immobilisations corporelles'],
+  ['724000', 'Production auto-consommée'],
+  ['726000', 'Production immobilisée — immobilisations financières'],
+  ['735000', 'Variations des stocks — produits finis et services en cours'],
+  ['736000', 'Variations des stocks — produits finis, intermédiaires et résiduels'],
+  ['751000', 'Profits sur créances adhérents/clients-usagers et débiteurs'],
+  ['752000', 'Contribution du fondateur'],
+  ['754200', 'Dons en nature courants reçus à distribuer'],
+  ['758200', "Produits divers — indemnités d'assurances"],
+  ['758300', 'Produits divers — abandons de frais par les bénévoles'],
+  ['758800', 'Produits divers — autres'],
+  ['759000', 'Reprises de charges pour dépréciations et provisions à court terme d\'exploitation'],
+  ['771000', 'Intérêts de prêts et créances diverses'],
+  ['772000', 'Revenus de participations et autres titres immobilisés'],
+  ['773000', 'Escomptes obtenus'],
+  ['774000', 'Revenus de placement'],
+  ['776000', 'Gains de change financiers'],
+  ['777000', 'Gains sur cessions de titres de placement'],
+  ['778000', 'Gains sur risques financiers'],
+  ['779000', 'Reprises de charges pour dépréciations et provisions à court terme financières'],
+  ['781000', "Transferts de charges d'exploitation"],
+  ['787000', 'Transferts de charges financières'],
+  ['791000', 'Reprises de provisions et dépréciations d\'exploitation'],
+  ['792000', "Reprises de fonds affectés provenant des dons et legs d'immobilisations"],
+  ['795000', "Reprises des dépréciations d'immobilisations reçues destinées à la vente et d'usufruit temporaire"],
+  ['796000', 'Reprises des fonds reportés'],
+  ['797000', 'Reprises de provisions et dépréciations financières'],
+  ['798000', 'Reprises d\'amortissements'],
+  ['799000', "Reprises de subventions d'investissement"],
+]);
+
+// ─────────────────────────────────────────────────────────────────────────
+// CLASSE 8 — COMPTES DES AUTRES CHARGES ET DES AUTRES PRODUITS (H.A.O., report AUCUN)
+// ─────────────────────────────────────────────────────────────────────────
+const classe8: LigneSeed[] = c(ClasseCompte.CLASSE_8, AUCUN, [
+  ['811000', 'Valeurs comptables des cessions — immobilisations incorporelles'],
+  ['812000', 'Valeurs comptables des cessions — immobilisations corporelles'],
+  ['816000', 'Valeurs comptables des cessions — immobilisations financières'],
+  ['818000', 'Valeurs comptables des cessions — reçues destinées à la vente provenant de dons et legs'],
+  ['821000', 'Produits des cessions — immobilisations incorporelles'],
+  ['822000', 'Produits des cessions — immobilisations corporelles'],
+  ['826000', 'Produits des cessions — immobilisations financières'],
+  ['828000', 'Produits des cessions — reçues destinées à la vente provenant de dons et legs'],
+  ['831000', 'Charges H.A.O. constatées'],
+  // [texte officiel] anomalie de numérotation 8311/8315 déjà signalée dans le
+  // skill sycebnl (partie2-ch3-classe8-comptes80-89.md) — codes repris tels quels.
+  ['831100', 'Dons en nature H.A.O. à distribuer — non affectés'],
+  ['831500', 'Dons en nature H.A.O. à distribuer — affectés'],
+  ['834000', 'Pertes sur créances H.A.O.'],
+  ['836000', 'Abandons de créances consentis'],
+  ['838000', 'Transferts de charges H.A.O.'],
+  ['839000', 'Charges pour dépréciations et provisions à court terme H.A.O.'],
+  ['841000', 'Produits H.A.O. constatés'],
+  ['841100', 'Contributions volontaires en nature — dons en nature H.A.O. vendus'],
+  ['841200', 'Contributions volontaires en nature — prestations de services en nature H.A.O.'],
+  ['841500', 'Contributions volontaires en nature — dons en nature H.A.O. à distribuer'],
+  ['843000', 'Contributions volontaires en numéraire'],
+  ['846000', 'Abandons de créances obtenus'],
+  ['848000', 'Transferts de produits H.A.O.'],
+  ['849000', 'Reprises de charges pour dépréciations et provisions à court terme H.A.O.'],
+  ['851000', 'Dotations H.A.O. — provisions réglementées'],
+  ['852000', 'Dotations H.A.O. — amortissements'],
+  ['853000', 'Dotations H.A.O. — dépréciations'],
+  ['854000', 'Dotations H.A.O. — provisions pour risques et charges'],
+  ['858000', 'Autres dotations H.A.O.'],
+  ['861000', 'Reprises H.A.O. — provisions réglementées'],
+  ['862000', 'Reprises H.A.O. — amortissements'],
+  ['863000', 'Reprises H.A.O. — dépréciations'],
+  ['864000', 'Reprises H.A.O. — provisions pour risques et charges'],
+  ['868000', 'Autres reprises H.A.O.'],
+  ['870000', 'Variations de stocks de dons en nature H.A.O.'],
+  ['881000', "Subventions d'équilibre — État"],
+  ['884000', "Subventions d'équilibre — collectivités publiques"],
+  ['888000', "Subventions d'équilibre — autres"],
+]);
+
+// ─────────────────────────────────────────────────────────────────────────
+// CLASSE 9 — CONTRIBUTIONS VOLONTAIRES EN NATURE (mémoire, report SOLDE)
+// Seuls les comptes 90/91 (contributions volontaires en nature) sont repris :
+// les comptes 92 à 99 (comptabilité analytique de gestion) ne sont PAS
+// subdivisés dans le texte officiel ("libre usage") — ne pas les inventer.
+// ─────────────────────────────────────────────────────────────────────────
+const classe9: LigneSeed[] = c(ClasseCompte.CLASSE_9, SOLDE, [
+  ['900000', 'Emplois des contributions volontaires en nature — secours en nature'],
+  ['901000', 'Emplois des contributions volontaires en nature — mises à disposition gratuite de biens'],
+  ['902000', 'Emplois des contributions volontaires en nature — prestations en nature'],
+  ['904000', 'Emplois des contributions volontaires en nature — personnel bénévole'],
+  ['910000', 'Contributions volontaires en nature — dons en nature'],
+  ['911000', 'Contributions volontaires en nature — prestations en nature'],
+  ['914000', 'Contributions volontaires en nature — bénévolat'],
+]);
+
 export const PLAN_COMPTES_SYCEBNL: Array<{
   numero: string;
   intitule: string;
   classe: ClasseCompte;
   modeReportANouveau: ModeReportANouveau;
 }> = [
-  // Classe 1 — Fonds propres et ressources durables
-  { numero: '101000', intitule: 'Dotation non consomptible sans droit de reprise', classe: ClasseCompte.CLASSE_1, modeReportANouveau: ModeReportANouveau.SOLDE },
-  { numero: '130000', intitule: "Résultat de l'exercice", classe: ClasseCompte.CLASSE_1, modeReportANouveau: ModeReportANouveau.SOLDE },
-  { numero: '160000', intitule: 'Fonds affectés', classe: ClasseCompte.CLASSE_1, modeReportANouveau: ModeReportANouveau.SOLDE },
-  { numero: '170000', intitule: 'Fonds reportés', classe: ClasseCompte.CLASSE_1, modeReportANouveau: ModeReportANouveau.SOLDE },
-
-  // Classe 4 — Tiers (comptes d'État TVA — cf. AUDCIF Titre VII classe 4 /
-  // skill sycebnl partie2-ch3-classe4 : 443 TVA facturée, crédité lors des
-  // ventes ; 445 TVA récupérable, débité lors des achats ; 444 TVA due ou
-  // crédit de TVA, mouvementé lors de la déclaration — voir TauxTvaService)
-  { numero: '443100', intitule: 'État, TVA facturée', classe: ClasseCompte.CLASSE_4, modeReportANouveau: ModeReportANouveau.SOLDE },
-  { numero: '444100', intitule: 'État, TVA due ou crédit de TVA', classe: ClasseCompte.CLASSE_4, modeReportANouveau: ModeReportANouveau.SOLDE },
-  { numero: '445100', intitule: 'État, TVA récupérable', classe: ClasseCompte.CLASSE_4, modeReportANouveau: ModeReportANouveau.SOLDE },
-
-  // Classe 5 — Trésorerie
-  { numero: '521100', intitule: 'Banque', classe: ClasseCompte.CLASSE_5, modeReportANouveau: ModeReportANouveau.SOLDE },
-  { numero: '571000', intitule: 'Caisse', classe: ClasseCompte.CLASSE_5, modeReportANouveau: ModeReportANouveau.SOLDE },
-
-  // Classe 6 — Charges des activités ordinaires (soldées sur le résultat, jamais reportées)
-  { numero: '605000', intitule: 'Achats de fournitures', classe: ClasseCompte.CLASSE_6, modeReportANouveau: ModeReportANouveau.AUCUN },
-  { numero: '618100', intitule: 'Voyages et déplacements du personnel', classe: ClasseCompte.CLASSE_6, modeReportANouveau: ModeReportANouveau.AUCUN },
-  { numero: '661000', intitule: 'Rémunérations du personnel', classe: ClasseCompte.CLASSE_6, modeReportANouveau: ModeReportANouveau.AUCUN },
-
-  // Classe 7 — Produits des activités ordinaires (soldés sur le résultat, jamais reportés)
-  { numero: '701000', intitule: 'Cotisations des adhérents', classe: ClasseCompte.CLASSE_7, modeReportANouveau: ModeReportANouveau.AUCUN },
-  { numero: '704100', intitule: 'Dons (revenus liés à la générosité)', classe: ClasseCompte.CLASSE_7, modeReportANouveau: ModeReportANouveau.AUCUN },
-  { numero: '711000', intitule: "Subventions d'exploitation", classe: ClasseCompte.CLASSE_7, modeReportANouveau: ModeReportANouveau.AUCUN },
+  ...classe1,
+  ...classe2,
+  ...classe3,
+  ...classe4Detail,
+  ...classe4Solde,
+  ...classe5,
+  ...classe6,
+  ...classe7,
+  ...classe8,
+  ...classe9,
 ];

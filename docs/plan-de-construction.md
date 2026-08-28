@@ -20,8 +20,9 @@
   Compte → Ecriture/LigneEcriture → User).
 - Auth JWT (payload minimal, re-résolution fraîche à chaque requête), RBAC à 3 rôles
   (`ADMIN_CABINET` / `COMPTABLE` / `LECTURE_SEULE`) via `@Roles()` + `RolesGuard`.
-- Plan de comptes SYCEBNL (référentiel associations/ONG/projets de développement) seedé
-  à la création du dossier.
+- Plan de comptes SYCEBNL **complet** (696 comptes, classes 1 à 8 + comptes 90/91 de la
+  classe 9 — voir feuille de route §4.7) seedé à la création du dossier, création de
+  comptes individuels via `PlanComptesPage`, comptes "Total"/regroupement par racine.
 - Écritures en partie double, journal, grand livre, balance, bilan (simplifié).
 - Gestion des utilisateurs et rôles (module `UtilisateursPage`, désactivation,
   changement de rôle, protection contre l'auto-désactivation).
@@ -453,12 +454,57 @@ Ordre de dépendances techniques réelles, pas un simple ordre de préférence :
    dans `balance()`), bilan toujours équilibré à 450/450. Garde-fou de
    `CompteService.modifier()` (rejet de la bascule DETAIL→TOTAL sur un compte
    déjà mouvementé) également revérifié à cette occasion — fonctionnait déjà.
-7. **Rapprochement bancaire** (manuel d'abord).
-8. **Immobilisations** (Famille → Immobilisation → plan d'amortissement → dotation
+7. ✅ **Import complet du plan de comptes SYCEBNL** — livré. Le seed automatique à
+   l'inscription (`compte-seed.ts`) était volontairement minimal (~15 comptes,
+   classes 1/4/5/6/7 seulement) depuis le début du projet ; remplacé par une
+   transcription complète des comptes d'imputation de base (4-5 chiffres) du
+   texte officiel (Journal officiel OHADA, Partie 2 ch. 2, p. 76-105 — skill
+   `sycebnl`), classes 1 à 8 intégralement, plus les comptes 90/91 de la
+   classe 9 (contributions volontaires en nature). Les comptes 92 à 99
+   (comptabilité analytique de gestion) ne sont volontairement **pas** repris :
+   le texte officiel indique explicitement ne pas en détailler la subdivision
+   ("libre usage") — les inventer aurait été fabriquer une donnée comptable,
+   contraire à la règle du skill. **696 comptes** au total (Classe 1 : 64,
+   Classe 2 : 223, Classe 3 : 38, Classe 4 : 158, Classe 5 : 53, Classe 6 : 67,
+   Classe 7 : 49, Classe 8 : 37, Classe 9 : 7). Convention de numérotation :
+   chaque code officiel est complété à droite par des zéros jusqu'à 6 chiffres
+   (`"1011"` → `"101100"`), laissant la place à des sous-comptes analytiques
+   créés manuellement (ex. `"411001"`, `"411002"` pour des adhérents
+   individuels) via le formulaire de `PlanComptesPage` livré à la brique 6.
+   Règle de transcription stricte pour ne rien inventer : quand un compte a des
+   sous-comptes explicitement listés, seuls ces sous-comptes sont repris (le
+   parent n'est pas dupliqué) ; sinon le compte lui-même est repris tel quel.
+   Report à-nouveau attribué par division : `SOLDE` pour les comptes de bilan
+   (classes 1/2/3/5, + classe 4 hors tiers) ; `DETAIL` pour les comptes de
+   tiers nécessitant un suivi fin par lettrage (classe 4, divisions 40/41/45/
+   46/47) ; `AUCUN` pour les comptes de gestion soldés à la clôture (classes
+   6/7/8) ; `SOLDE` pour la classe 9 (mémoire hors bilan/résultat). Anomalies
+   du texte source repérées et non corrigées silencieusement (flag en
+   commentaire dans `compte-seed.ts`, cf. la règle du skill `sycebnl`) : le
+   3e code de "452 Fondations et assimilées" ("4555" imprimé, numériquement
+   incohérent avec la racine 452 — retenu comme "4525") et l'anomalie déjà
+   connue 8311/8315 de la classe 8. **Piège réel trouvé et corrigé en cours de
+   route** : les comptes de TVA (443/444/445) et le compte de résultat 130
+   sont référencés en dur ailleurs dans le code (`taux-tva-seed.ts`,
+   `TauxTvaService.comptabiliserLiquidation`, `ExerciceService.
+   assurerCompteResultat`) sous des numéros précis (`443100`/`444100`/
+   `445100`) — la première transcription littérale du texte officiel (comptes
+   443/444/445 sans subdivision documentée) les avait numérotés `443000`/
+   `444000`/`445000`, ce qui aurait cassé silencieusement le rattachement TVA
+   à l'inscription (compte introuvable). Corrigé pour préserver la convention
+   `...100` déjà utilisée par ces modules, avec commentaire d'avertissement
+   dans le seed pour éviter la régression inverse. Vérifié de bout en bout sur
+   un tenant réel : inscription (696 comptes créés), rattachement des 4 taux
+   de TVA par défaut à leurs comptes 443100/445100, écriture réelle
+   (cotisation 500 en caisse 571000/701000), bilan équilibré, et Playwright
+   (affichage complet de la liste par classe, recherche "704" isolant
+   correctement les 8 sous-comptes de générosité 704100-704800).
+8. **Rapprochement bancaire** (manuel d'abord).
+9. **Immobilisations** (Famille → Immobilisation → plan d'amortissement → dotation
    périodique → sortie).
-9. **Moteur de mapping / états financiers configurables** (s'appuie sur 6 et 8).
-10. **Comptabilité analytique par projet/bailleur** (spécifique SYCEBNL).
-11. Puis, au choix selon opportunité business : **Trésorerie avancée** (lots, LCR/
+10. **Moteur de mapping / états financiers configurables** (s'appuie sur 6 et 9).
+11. **Comptabilité analytique par projet/bailleur** (spécifique SYCEBNL).
+12. Puis, au choix selon opportunité business : **Trésorerie avancée** (lots, LCR/
     virements), **Stocks**, **SYSCOHADA (Phase 3)**, **OHADA→IFRS**, **Paie**, RBAC fin.
 
 Cette liste n'engage rien : chaque brique reste soumise à validation explicite avant
