@@ -111,4 +111,23 @@ export class ExportController {
   ) {
     envoyerXlsx(res, await this.exportService.compteDeResultatExcel(user.tenantId, exerciceId));
   }
+
+  /** Jeu « projets de développement et assimilés » (Partie 4, ch. 3). */
+  @Get('etats-financiers/projet/bilan')
+  async bilanProjet(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    envoyerXlsx(res, await this.exportService.bilanProjetExcel(user.tenantId, exerciceId));
+  }
+
+  @Get('etats-financiers/projet/compte-exploitation')
+  async compteExploitationProjet(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    envoyerXlsx(res, await this.exportService.compteExploitationProjetExcel(user.tenantId, exerciceId));
+  }
 }

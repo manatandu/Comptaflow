@@ -1,4 +1,11 @@
 export type Referentiel = 'SYCEBNL' | 'SYSCOHADA';
+/**
+ * N'a de sens que si `Referentiel` = 'SYCEBNL' (le SYSCOHADA n'a qu'un seul
+ * jeu). SYCEBNL en prévoit 3 (Partie 4, ch. 2 à 4 du texte officiel) ; seuls
+ * les deux premiers sont construits — le Système Minimal de Trésorerie
+ * (SMT, < 30 M FCFA) n'a pas de valeur ici.
+ */
+export type JeuEtatsFinanciersSycebnl = 'ASSOCIATIONS_ORDRES_PROFESSIONNELS' | 'PROJETS_DEVELOPPEMENT';
 export type RoleUtilisateur = 'ADMIN_CABINET' | 'COMPTABLE' | 'LECTURE_SEULE';
 
 export interface Utilisateur {
@@ -200,6 +207,44 @@ export interface CompteDuPoste {
   numero: string;
   intitule: string;
   montant: number;
+}
+
+/**
+ * BILAN et COMPTE D'EXPLOITATION du jeu « projets de développement et
+ * assimilés » (Partie 4, ch. 3) — structure volontairement proche de
+ * `Bilan`/`CompteDeResultat` (mêmes conventions Brut/Amort/Net et
+ * comparatif N-1), mais PAS interchangeable : REF, libellés et comptes
+ * rattachés sont propres à ce jeu (voir `correspondance-projet-*.ts` côté
+ * serveur). `controle` diffère aussi : pas de double source à arbitrer côté
+ * bilan (`equilibre` seulement), et `boucleAZero` (pas `coherent`) côté
+ * compte d'exploitation — ce jeu vise XC = 0, pas un résultat net.
+ */
+export interface BilanProjet {
+  actif: LigneBilan[];
+  passif: LigneBilan[];
+  totalActif: number;
+  totalPassif: number;
+  totalActifN1?: number;
+  totalPassifN1?: number;
+  exerciceN1Disponible: boolean;
+  equilibre: boolean;
+  comptesNonRattaches: CompteDuPoste[];
+}
+
+export interface CompteExploitationProjet {
+  revenus: PosteCalcule[];
+  totalRevenus: number; // XA
+  totalRevenusN1?: number;
+  charges: PosteCalcule[]; // TJ et TK peuvent apparaître deux fois — doublon officiel, voir correspondance-projet-compte-exploitation.ts
+  totalCharges: number; // XB
+  totalChargesN1?: number;
+  solde: number; // XC — attendu à 0 en régime normal, PAS un résultat net
+  soldeN1?: number;
+  exerciceN1Disponible: boolean;
+  comptesNonRattaches: CompteDuPoste[];
+  controle: {
+    boucleAZero: boolean;
+  };
 }
 
 /** Poste du compte de résultat SYCEBNL (code REF officiel : RA, TA, TM…). */

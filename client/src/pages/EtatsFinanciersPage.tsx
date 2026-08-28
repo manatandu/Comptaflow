@@ -1,38 +1,68 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { useExercice } from '../lib/exercice';
+import { useAuth } from '../lib/auth';
 import { useRibbon } from '../components/chrome/ribbon-context';
 import { IconExport, IconCheck } from '../components/chrome/icons';
-import type { Bilan, CompteDeResultat, LigneBilan, PosteCalcule } from '../lib/types';
+import type { Bilan, BilanProjet, CompteDeResultat, CompteExploitationProjet, LigneBilan, PosteCalcule } from '../lib/types';
 
-type Onglet = 'bilan' | 'compte-de-resultat';
+/**
+ * Onglets du jeu « associations et ordres professionnels » (Partie 4, ch. 2)
+ * vs du jeu « projets de développement et assimilés » (Partie 4, ch. 3) —
+ * jamais les deux à la fois : `useAuth().utilisateur.tenant.jeuEtatsFinanciersSycebnl`
+ * décide lequel des deux jeux ce dossier affiche (voir
+ * docs/plan-de-construction.md, item 13). Le Système Minimal de Trésorerie
+ * (3ᵉ jeu) n'est pas construit et n'a pas d'onglet ici.
+ */
+type OngletAssociations = 'bilan' | 'compte-de-resultat';
+type OngletProjet = 'bilan-projet' | 'compte-exploitation-projet';
 
 export function EtatsFinanciersPage() {
   const { exerciceCourant } = useExercice();
-  const [onglet, setOnglet] = useState<Onglet>('bilan');
+  const { utilisateur } = useAuth();
+  const jeuProjet = utilisateur?.tenant.jeuEtatsFinanciersSycebnl === 'PROJETS_DEVELOPPEMENT';
+
+  const [ongletAssociations, setOngletAssociations] = useState<OngletAssociations>('bilan');
+  const [ongletProjet, setOngletProjet] = useState<OngletProjet>('bilan-projet');
+  const onglet = jeuProjet ? ongletProjet : ongletAssociations;
+
   const [bilan, setBilan] = useState<Bilan | null>(null);
   const [cr, setCr] = useState<CompteDeResultat | null>(null);
+  const [bilanProjet, setBilanProjet] = useState<BilanProjet | null>(null);
+  const [ceProjet, setCeProjet] = useState<CompteExploitationProjet | null>(null);
 
   const [erreur, setErreur] = useState<string | null>(null);
   const [exportEnCours, setExportEnCours] = useState(false);
 
   // Drapeau `annule` : une réponse lente ne doit pas écraser un état plus
-  // récent après un changement d'exercice.
+  // récent après un changement d'exercice. Un seul des deux jeux est
+  // interrogé, selon le dossier — pas les deux à chaque fois.
   useEffect(() => {
     if (!exerciceCourant) return;
     let annule = false;
-    api.get<Bilan>(`/etats-financiers/bilan?exerciceId=${exerciceCourant.id}`).then(
-      (r) => !annule && setBilan(r),
-      (e) => !annule && setErreur(e.message),
-    );
-    api.get<CompteDeResultat>(`/etats-financiers/compte-de-resultat?exerciceId=${exerciceCourant.id}`).then(
-      (r) => !annule && setCr(r),
-      (e) => !annule && setErreur(e.message),
-    );
+    if (jeuProjet) {
+      api.get<BilanProjet>(`/etats-financiers/projet/bilan?exerciceId=${exerciceCourant.id}`).then(
+        (r) => !annule && setBilanProjet(r),
+        (e) => !annule && setErreur(e.message),
+      );
+      api.get<CompteExploitationProjet>(`/etats-financiers/projet/compte-exploitation?exerciceId=${exerciceCourant.id}`).then(
+        (r) => !annule && setCeProjet(r),
+        (e) => !annule && setErreur(e.message),
+      );
+    } else {
+      api.get<Bilan>(`/etats-financiers/bilan?exerciceId=${exerciceCourant.id}`).then(
+        (r) => !annule && setBilan(r),
+        (e) => !annule && setErreur(e.message),
+      );
+      api.get<CompteDeResultat>(`/etats-financiers/compte-de-resultat?exerciceId=${exerciceCourant.id}`).then(
+        (r) => !annule && setCr(r),
+        (e) => !annule && setErreur(e.message),
+      );
+    }
     return () => {
       annule = true;
     };
-  }, [exerciceCourant?.id]);
+  }, [exerciceCourant?.id, jeuProjet]);
 
   // Bouton du ruban désactivé : useRibbon fige les gestionnaires au montage,
   // il agirait donc toujours sur l'onglet initial. Le bouton fonctionnel est
@@ -41,11 +71,19 @@ export function EtatsFinanciersPage() {
 
   const exporter = async () => {
     if (!exerciceCourant) return;
-    const chemin = onglet === 'bilan' ? 'bilan' : 'compte-de-resultat';
+    const chemin =
+      onglet === 'bilan'
+        ? 'bilan'
+        : onglet === 'compte-de-resultat'
+          ? 'compte-de-resultat'
+          : onglet === 'bilan-projet'
+            ? 'projet/bilan'
+            : 'projet/compte-exploitation';
+    const nomFichier = chemin.includes('/') ? chemin.split('/')[1] + '-projet' : chemin;
     setErreur(null);
     setExportEnCours(true);
     try {
-      await api.telecharger(`/exports/etats-financiers/${chemin}?exerciceId=${exerciceCourant.id}`, `${chemin}.xlsx`);
+      await api.telecharger(`/exports/etats-financiers/${chemin}?exerciceId=${exerciceCourant.id}`, `${nomFichier}.xlsx`);
     } catch (e) {
       setErreur(e instanceof Error ? e.message : "Échec de l'export");
     } finally {
@@ -57,9 +95,13 @@ export function EtatsFinanciersPage() {
     v === undefined ? '—' : v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   // --- Compte de résultat : REF | Libellé | Montant (N) | Montant (N-1) ---
-  const lignePoste = (p: PosteCalcule) => (
+  // `cle` : par défaut `p.ref`, mais explicite côté compte d'exploitation
+  // projet — TJ et TK y apparaissent deux fois (doublon officiel, voir
+  // correspondance-projet-compte-exploitation.ts), une clé React sur le
+  // seul `ref` y collisionnerait.
+  const lignePoste = (p: PosteCalcule, cle: string = p.ref) => (
     <div
-      key={p.ref}
+      key={cle}
       title={p.comptes.length > 0 ? `Comptes : ${p.comptes.map((c) => c.numero).join(', ')}` : 'Aucun compte mouvementé'}
       className={`grid grid-cols-[46px_1fr_120px_120px] gap-2 px-4 py-1 text-[12px] ${p.montant === 0 ? 'text-text-dim' : ''}`}
     >
@@ -143,22 +185,51 @@ export function EtatsFinanciersPage() {
         </div>
       )}
 
-      <div className="flex bg-chrome border border-border border-b-0">
-        <button
-          onClick={() => setOnglet('bilan')}
-          className={`px-4 py-1.5 text-[11px] font-bold ${onglet === 'bilan' ? 'bg-surface border-r border-border' : 'text-text-dim'}`}
-        >
-          BILAN
-        </button>
-        <button
-          onClick={() => setOnglet('compte-de-resultat')}
-          className={`px-4 py-1.5 text-[11px] font-bold ${
-            onglet === 'compte-de-resultat' ? 'bg-surface border-r border-l border-border' : 'text-text-dim'
-          }`}
-        >
-          COMPTE DE RÉSULTAT
-        </button>
-      </div>
+      {jeuProjet && (
+        <p className="text-[10.5px] text-text-dim mb-1.5">
+          Jeu « Projets de développement et assimilés » (SYCEBNL, Partie 4 ch. 3) — Tableau emplois-ressources,
+          Tableau d'exécution budgétaire et Tableau de réconciliation de trésorerie non construits (voir{' '}
+          <code>EtatsFinanciersProjetService</code>) : seuls Bilan et Compte d'exploitation sont disponibles ici.
+        </p>
+      )}
+
+      {jeuProjet ? (
+        <div className="flex bg-chrome border border-border border-b-0">
+          <button
+            onClick={() => setOngletProjet('bilan-projet')}
+            className={`px-4 py-1.5 text-[11px] font-bold ${
+              onglet === 'bilan-projet' ? 'bg-surface border-r border-border' : 'text-text-dim'
+            }`}
+          >
+            BILAN
+          </button>
+          <button
+            onClick={() => setOngletProjet('compte-exploitation-projet')}
+            className={`px-4 py-1.5 text-[11px] font-bold ${
+              onglet === 'compte-exploitation-projet' ? 'bg-surface border-r border-l border-border' : 'text-text-dim'
+            }`}
+          >
+            COMPTE D'EXPLOITATION
+          </button>
+        </div>
+      ) : (
+        <div className="flex bg-chrome border border-border border-b-0">
+          <button
+            onClick={() => setOngletAssociations('bilan')}
+            className={`px-4 py-1.5 text-[11px] font-bold ${onglet === 'bilan' ? 'bg-surface border-r border-border' : 'text-text-dim'}`}
+          >
+            BILAN
+          </button>
+          <button
+            onClick={() => setOngletAssociations('compte-de-resultat')}
+            className={`px-4 py-1.5 text-[11px] font-bold ${
+              onglet === 'compte-de-resultat' ? 'bg-surface border-r border-l border-border' : 'text-text-dim'
+            }`}
+          >
+            COMPTE DE RÉSULTAT
+          </button>
+        </div>
+      )}
 
       {onglet === 'bilan' && (
         <>
@@ -262,9 +333,9 @@ export function EtatsFinanciersPage() {
                   <span className="text-right">MONTANT (N)</span>
                   <span className="text-right">MONTANT (N-1)</span>
                 </div>
-                {cr.produits.map(lignePoste)}
+                {cr.produits.map((p) => lignePoste(p))}
                 {ligneTotal('XA', 'REVENUS DES ACTIVITÉS ORDINAIRES', cr.totalProduits, cr.totalProduitsN1)}
-                {cr.charges.map(lignePoste)}
+                {cr.charges.map((p) => lignePoste(p))}
                 {ligneTotal('XB', 'CHARGES DES ACTIVITÉS ORDINAIRES', cr.totalCharges, cr.totalChargesN1)}
                 {ligneTotal(
                   'XC',
@@ -325,6 +396,159 @@ export function EtatsFinanciersPage() {
                 Partie 4 ch. 2). Charges présentées en positif, de sorte que XC = XA − XB. XA inclut RH : le libellé
                 officiel dit « Somme RA à RG », ce qui romprait l'égalité entre le résultat et le bilan dès qu'il y a
                 des reprises.
+              </p>
+            </div>
+          )}
+        </>
+      )}
+
+      {onglet === 'bilan-projet' && (
+        <>
+          {!bilanProjet && <div className="border border-border px-4 py-4 text-[12px] text-text-dim">Chargement…</div>}
+          {bilanProjet && (
+            <div className="max-w-[1180px] overflow-x-auto">
+              {!bilanProjet.exerciceN1Disponible && (
+                <p className="text-[10.5px] text-text-dim mb-1.5">
+                  Aucun exercice antérieur dans ce dossier — la colonne N-1 affiche « — », pas un faux zéro.
+                </p>
+              )}
+
+              <div className="border border-border bg-surface mb-3">
+                <div className="grid grid-cols-[42px_1.4fr_100px_120px_100px_100px] gap-2 px-4 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
+                  <span>REF</span>
+                  <span>ACTIF</span>
+                  <span className="text-right">BRUT (N)</span>
+                  <span className="text-right">AMORT./DÉPRÉC. (N)</span>
+                  <span className="text-right">NET (N)</span>
+                  <span className="text-right">NET (N-1)</span>
+                </div>
+                {bilanProjet.actif.map(ligneActif)}
+              </div>
+
+              <div className="border border-border bg-surface mb-3">
+                <div className="grid grid-cols-[42px_1.4fr_100px_100px] gap-2 px-4 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
+                  <span>REF</span>
+                  <span>PASSIF</span>
+                  <span className="text-right">NET (N)</span>
+                  <span className="text-right">NET (N-1)</span>
+                </div>
+                {bilanProjet.passif.map(lignePassif)}
+              </div>
+
+              <div
+                className={`flex items-center gap-2 px-3.5 py-2.5 border ${
+                  bilanProjet.equilibre ? 'border-positive/30 bg-positive-soft' : 'border-danger/30 bg-danger-soft'
+                }`}
+              >
+                <IconCheck width={14} height={14} className={bilanProjet.equilibre ? 'text-positive' : 'text-danger'} />
+                <span className="font-mono text-[11.5px] font-medium">
+                  {bilanProjet.equilibre
+                    ? `LE BILAN EST ÉQUILIBRÉ — ACTIF = PASSIF = ${montant(bilanProjet.totalActif)}`
+                    : 'DÉSÉQUILIBRE DÉTECTÉ — vérifier les écritures et les comptes non rattachés ci-dessous'}
+                </span>
+              </div>
+
+              {bilanProjet.comptesNonRattaches.length > 0 && (
+                <div className="border border-danger/30 bg-danger-soft mt-2 px-3.5 py-2.5">
+                  <div className="text-[11.5px] font-bold mb-1.5">
+                    Comptes de bilan rattachés à aucun poste officiel — leur montant n'entre dans aucun total
+                  </div>
+                  {bilanProjet.comptesNonRattaches.map((c) => (
+                    <div key={c.numero} className="flex justify-between text-[11.5px] font-mono">
+                      <span>
+                        {c.numero} — {c.intitule}
+                      </span>
+                      <span>{montant(c.montant)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <p className="text-[11px] text-text-dim mt-3">
+                Postes et rattachements conformes au tableau de correspondance officiel SYCEBNL, jeu « projets de
+                développement et assimilés » (Journal officiel OHADA, Partie 4 ch. 3) — voir{' '}
+                <code>correspondance-projet-bilan.ts</code>. CC (solde des opérations de l'exercice) vient
+                uniquement du compte 13, pas d'un arbitrage entre plusieurs sources.
+              </p>
+            </div>
+          )}
+        </>
+      )}
+
+      {onglet === 'compte-exploitation-projet' && (
+        <>
+          {!ceProjet && <div className="border border-border px-4 py-4 text-[12px] text-text-dim">Chargement…</div>}
+          {ceProjet && (
+            <div className="max-w-[900px]">
+              {!ceProjet.exerciceN1Disponible && (
+                <p className="text-[10.5px] text-text-dim mb-1.5">
+                  Aucun exercice antérieur dans ce dossier — la colonne N-1 affiche « — », pas un faux zéro.
+                </p>
+              )}
+
+              <div className="border border-border bg-surface">
+                <div className="grid grid-cols-[46px_1fr_120px_120px] gap-2 px-4 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
+                  <span>REF</span>
+                  <span>LIBELLÉ</span>
+                  <span className="text-right">MONTANT (N)</span>
+                  <span className="text-right">MONTANT (N-1)</span>
+                </div>
+                {ceProjet.revenus.map((p, i) => lignePoste(p, `revenu-${i}`))}
+                {ligneTotal('XA', 'REVENUS (Somme RA à RE)', ceProjet.totalRevenus, ceProjet.totalRevenusN1)}
+                {ceProjet.charges.map((p, i) => lignePoste(p, `charge-${i}`))}
+                <div className="grid grid-cols-[46px_1fr_120px_120px] gap-2 px-4 py-2 bg-chrome border-t border-border-dark text-[12.5px] font-bold">
+                  <span className="font-mono text-[11px]">XB</span>
+                  <span>CHARGES DE FONCTIONNEMENT (Somme TA à TL)</span>
+                  <span className="font-mono text-right">{montant(ceProjet.totalCharges)}</span>
+                  <span className="font-mono text-right text-text-dim font-normal">{montant(ceProjet.totalChargesN1)}</span>
+                </div>
+                <div className="grid grid-cols-[46px_1fr_120px_120px] gap-2 px-4 py-2 bg-chrome border-t border-border-dark text-[12.5px] font-bold">
+                  <span className="font-mono text-[11px]">XC</span>
+                  <span>SOLDE DES OPÉRATIONS DE L'EXERCICE (XA − XB)</span>
+                  <span className="font-mono text-right">{montant(ceProjet.solde)}</span>
+                  <span className="font-mono text-right text-text-dim font-normal">{montant(ceProjet.soldeN1)}</span>
+                </div>
+              </div>
+
+              <div
+                className={`flex items-start gap-2 mt-3 px-3.5 py-2.5 border ${
+                  ceProjet.controle.boucleAZero ? 'border-positive/30 bg-positive-soft' : 'border-warning/40 bg-warning-soft'
+                }`}
+              >
+                <IconCheck
+                  width={14}
+                  height={14}
+                  className={`mt-0.5 shrink-0 ${ceProjet.controle.boucleAZero ? 'text-positive' : 'text-warning'}`}
+                />
+                <span className="font-mono text-[11.5px] font-medium">
+                  {ceProjet.controle.boucleAZero
+                    ? `XC = ${montant(ceProjet.solde)} (≈ 0) — régime normal pour ce jeu`
+                    : `XC = ${montant(ceProjet.solde)} (≠ 0) — pas nécessairement une erreur, vérifier le compte 13 et les comptes non rattachés ci-dessous`}
+                </span>
+              </div>
+
+              {ceProjet.comptesNonRattaches.length > 0 && (
+                <div className="border border-danger/30 bg-danger-soft mt-2 px-3.5 py-2.5">
+                  <div className="text-[11.5px] font-bold mb-1.5">
+                    Comptes de gestion rattachés à aucun poste officiel — leur montant n'entre dans aucun total
+                  </div>
+                  {ceProjet.comptesNonRattaches.map((c) => (
+                    <div key={c.numero} className="flex justify-between text-[11.5px] font-mono">
+                      <span>
+                        {c.numero} — {c.intitule}
+                      </span>
+                      <span>{montant(c.montant)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <p className="text-[11px] text-text-dim mt-3">
+                Postes conformes au tableau de correspondance officiel SYCEBNL, jeu « projets de développement et
+                assimilés » (Journal officiel OHADA, Partie 4 ch. 3) — voir{' '}
+                <code>correspondance-projet-compte-exploitation.ts</code>. RC (subventions) et RE (reprises) dans XA :
+                deux anomalies du texte officiel corrigées. TJ et TK apparaissent deux fois chacun : doublon du texte
+                officiel, reproduit tel quel.
               </p>
             </div>
           )}

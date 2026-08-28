@@ -4,6 +4,7 @@ import { LicenceGuard } from '../licence/licence.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { EtatsFinanciersService } from './etats-financiers.service';
+import { EtatsFinanciersProjetService } from './etats-financiers-projet.service';
 
 /**
  * Même raison qu'au contrôleur d'export : un `@Query` scalaire échappe au
@@ -21,8 +22,12 @@ const EXERCICE_REQUIS = new ParseUUIDPipe({
 @UseGuards(JwtAuthGuard, LicenceGuard, RolesGuard)
 @Controller('etats-financiers')
 export class EtatsFinanciersController {
-  constructor(private readonly etatsFinanciersService: EtatsFinanciersService) {}
+  constructor(
+    private readonly etatsFinanciersService: EtatsFinanciersService,
+    private readonly etatsFinanciersProjetService: EtatsFinanciersProjetService,
+  ) {}
 
+  /** Jeu « associations et ordres professionnels » (Partie 4, ch. 2). */
   @Get('bilan')
   async bilan(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string) {
     return this.etatsFinanciersService.bilan(user.tenantId, exerciceId);
@@ -35,5 +40,24 @@ export class EtatsFinanciersController {
     @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
   ) {
     return this.etatsFinanciersService.compteDeResultat(user.tenantId, exerciceId);
+  }
+
+  /**
+   * Jeu « projets de développement et assimilés » (Partie 4, ch. 3) — bilan
+   * et compte d'exploitation seulement ; voir
+   * `EtatsFinanciersProjetService` pour ce qui reste hors périmètre
+   * (tableau d'exécution budgétaire, TER, TRC).
+   */
+  @Get('projet/bilan')
+  async bilanProjet(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string) {
+    return this.etatsFinanciersProjetService.bilan(user.tenantId, exerciceId);
+  }
+
+  @Get('projet/compte-exploitation')
+  async compteExploitationProjet(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    return this.etatsFinanciersProjetService.compteExploitation(user.tenantId, exerciceId);
   }
 }

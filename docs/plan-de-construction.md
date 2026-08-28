@@ -1157,8 +1157,82 @@ Ordre de dépendances techniques réelles, pas un simple ordre de préférence :
     totalChargesN1=250, resultatNetN1=350) — les 4 colonnes officielles
     affichées à l'écran (capture Playwright) et dans le classeur Excel
     (10 colonnes bilan, 4 colonnes compte de résultat).
-13. 🚧 **Jeu d'états financiers "Projets de développement et assimilés"** —
-    engagé le 2026-08-28 (voir la précision de scope au §1, point 3). En cours.
+13. ✅ **Jeu d'états financiers "Projets de développement et assimilés"** —
+    engagé et livré le 2026-08-28 (voir la précision de scope au §1, point 3).
+
+    Adossé au texte officiel (skill `sycebnl`,
+    `references/partie4-ch3-etats-projets-developpement.md`, Partie 4 ch. 3),
+    en miroir du jeu associations (item 12) mais séparé de bout en bout :
+    `correspondance-projet-bilan.ts`, `correspondance-projet-compte-exploitation.ts`,
+    `EtatsFinanciersProjetService`, routes `GET /etats-financiers/projet/bilan`
+    et `GET /etats-financiers/projet/compte-exploitation`, exports Excel
+    (`bilanProjetExcel`/`compteExploitationProjetExcel`), et un onglet dédié
+    dans `EtatsFinanciersPage.tsx` — jamais un mélange des deux jeux dans un
+    même fichier ou un même écran.
+
+    **Nouveau champ `Tenant.jeuEtatsFinanciersSycebnl`** (migration
+    `20260828143944_jeu_etats_financiers_sycebnl`) : un même
+    `Referentiel = SYCEBNL` peut relever du jeu associations OU du jeu
+    projets de développement — le front lit ce champ (exposé par
+    `/auth/me`) pour savoir quels onglets et quelles routes afficher.
+    Défaut : `ASSOCIATIONS_ORDRES_PROFESSIONNELS` (aucun dossier existant
+    n'est basculé par la migration).
+
+    **Construit** : Bilan (REF AA-DZ) et Compte d'exploitation (REF RA-RE,
+    TA-TL), tous deux avec le détail Brut/Amortissement/Net côté actif et le
+    comparatif N-1, sur le même modèle que le jeu associations
+    (`etats-financiers.communs.ts` factorise `correspond`/`chargerLignes`/
+    `trouverExerciceN1`, partagés par les deux services).
+
+    **Hors périmètre, documenté et non simulé** (`EtatsFinanciersProjetService`,
+    en-tête de fichier) : Tableau d'exécution budgétaire (aucun modèle de
+    données "ligne budgétaire"/"engagement" dans Compta Flow — inventer des
+    montants Budget/Réalisation romprait la règle §2.6), Tableau
+    emplois-ressources et Tableau de réconciliation de trésorerie (le texte
+    officiel ne fournit AUCUN tableau de correspondance poste→comptes pour
+    ces deux-là, contrairement au Bilan et au Compte d'exploitation — les
+    construire quand même inventerait un rattachement que le texte ne donne
+    pas).
+
+    **4 anomalies du texte officiel signalées et corrigées/documentées,
+    jamais en silence** (voir les fichiers `correspondance-projet-*.ts`) :
+    1. RC (Subventions d'exploitation, compte 71) absente du modèle vierge
+       (Section 5) mais présente dans le tableau de correspondance —
+       retenue, le tableau de correspondance fait autorité.
+    2. XA : le modèle vierge dit "Somme RA à RE", le tableau de
+       correspondance dit "Somme RA à RD" (excluant RE, Reprises de
+       provisions) — RE inclus, même raisonnement que RH côté associations
+       (item 12) : l'exclure romprait le bouclage attendu avec le bilan.
+    3. Codes REF **"TJ" et "TK" dupliqués** dans le compte d'exploitation
+       (déjà repéré par le skill `sycebnl` lui-même) : "TJ" sert à la fois à
+       Charges de personnel (compte 66) et Dotations aux provisions (compte
+       69) ; "TK" à Frais financiers (compte 67) et Produits H.A.O. (comptes
+       82/84/86/88, signe +). Reproduit tel quel — deux postes distincts par
+       clé interne unique (`cle`), même `ref` affiché sur les deux lignes,
+       exactement comme le texte officiel et comme rendu à l'écran/à l'export.
+    4. Compte 68 (Dotations aux amortissements) absent de tout poste du
+       tableau officiel (contrairement au jeu associations, où TL regroupe
+       68 ET 69) — non comblé, un solde sur 68 ressort en "comptes non
+       rattachés", visible plutôt que silencieusement absorbé.
+
+    CC (Solde des opérations de l'exercice, bilan) vient UNIQUEMENT du
+    compte 13 — contrairement à CH côté associations, pas d'arbitrage entre
+    classes 6/7/8 et compte 13 : ce jeu ne loge pas un résultat net
+    associatif, XC (compte d'exploitation) est attendu à zéro en régime de
+    croisière et exposé tel quel (jamais forcé à 0) quand il ne l'est pas.
+
+    25 nouveaux tests (`correspondance-projet-bilan.spec.ts`,
+    `correspondance-projet-compte-exploitation.spec.ts`,
+    `etats-financiers-projet.service.spec.ts` — intégrité du référentiel,
+    Brut/Amort/Net, DW/découverts bancaires, CC via le seul compte 13,
+    doublon TJ/TK réparti sans confusion, XA/XB/XC, comparatif N-1) ; 80 →
+    104 sur le projet backend, tous passants. Vérifié de bout en bout avec
+    curl (routes JSON + export Excel, fichiers `.xlsx` valides) et
+    Playwright (bascule du `Tenant Cascade` en `PROJETS_DEVELOPPEMENT` le
+    temps du test, capture d'écran des deux onglets, export Excel réussi,
+    tenant remis à `ASSOCIATIONS_ORDRES_PROFESSIONNELS` ensuite — pas de
+    données de test laissées dans un état différent de celui trouvé) ; le
+    jeu associations (item 12) re-vérifié sans régression après coup.
 14. **Comptabilité analytique par projet/bailleur** (spécifique SYCEBNL).
 15. Puis, au choix selon opportunité business : **Trésorerie avancée** (lots, LCR/
     virements), **Stocks**, **SYSCOHADA (Phase 3)**, **OHADA→IFRS**, **Paie**, RBAC fin.

@@ -1,12 +1,12 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { api, setToken } from './api';
-import type { Referentiel, RoleUtilisateur } from './types';
+import type { JeuEtatsFinanciersSycebnl, Referentiel, RoleUtilisateur } from './types';
 
 interface MeResponse {
   id: string;
   email: string;
   role: RoleUtilisateur;
-  tenant: { id: string; nom: string; referentiel: Referentiel };
+  tenant: { id: string; nom: string; referentiel: Referentiel; jeuEtatsFinanciersSycebnl: JeuEtatsFinanciersSycebnl };
 }
 
 interface AuthContextValue {

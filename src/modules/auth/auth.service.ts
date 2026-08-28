@@ -119,7 +119,14 @@ export class AuthService {
       id: user.id,
       email: user.email,
       role: user.role,
-      tenant: { id: user.tenant.id, nom: user.tenant.nom, referentiel: user.tenant.referentiel },
+      tenant: {
+        id: user.tenant.id,
+        nom: user.tenant.nom,
+        referentiel: user.tenant.referentiel,
+        // N'a de sens que si referentiel = SYCEBNL (voir prisma/schema.prisma) —
+        // le front s'en sert pour choisir le jeu d'états financiers à afficher.
+        jeuEtatsFinanciersSycebnl: user.tenant.jeuEtatsFinanciersSycebnl,
+      },
     };
   }
 

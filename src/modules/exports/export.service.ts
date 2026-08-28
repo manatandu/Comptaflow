@@ -4,6 +4,7 @@ import * as ExcelJS from 'exceljs';
 import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { EtatsFinanciersService, PosteCalcule } from '../etats-financiers/etats-financiers.service';
+import { EtatsFinanciersProjetService } from '../etats-financiers/etats-financiers-projet.service';
 
 const ENTETE_FONT = { bold: true } as const;
 const ENTETE_FILL = {
@@ -47,6 +48,7 @@ export class ExportService {
     private readonly prisma: PrismaService,
     private readonly ecritureService: EcritureService,
     private readonly etatsFinanciersService: EtatsFinanciersService,
+    private readonly etatsFinanciersProjetService: EtatsFinanciersProjetService,
   ) {}
 
   private nouveauClasseur(): ExcelJS.Workbook {
@@ -745,6 +747,245 @@ export class ExportService {
     return {
       buffer: await this.versBuffer(classeur),
       nomFichier: `compte-de-resultat${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
+    };
+  }
+
+  /**
+   * BILAN — jeu SYCEBNL « projets de développement et assimilés » (Partie 4,
+   * ch. 3), adossé à `EtatsFinanciersProjetService`/`correspondance-projet-bilan.ts`.
+   * Même parti pris de forme que `bilanExcel` ci-dessus (Brut/Amort/Net,
+   * comparatif N-1, feuille Détail, feuille Contrôles) — sans la feuille de
+   * double-source du résultat net : ce jeu n'a qu'une seule source pour CC
+   * (compte 13, voir `EtatsFinanciersProjetService.calculerCC`).
+   */
+  async bilanProjetExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
+    const bilan = await this.etatsFinanciersProjetService.bilan(tenantId, exerciceId);
+    const suffixeN1 = bilan.exerciceN1Disponible ? '' : ' (aucun exercice antérieur)';
+
+    const classeur = this.nouveauClasseur();
+    const feuille = classeur.addWorksheet('Bilan (projet de développement)');
+    feuille.columns = [
+      { header: 'Actif — REF', key: 'refActif', width: 10 },
+      { header: 'Actif — libellé', key: 'libelleActif', width: 42 },
+      { header: 'Actif — Brut (N)', key: 'brutActif', width: 15 },
+      { header: 'Actif — Amort./dépréc. (N)', key: 'amortActif', width: 18 },
+      { header: 'Actif — Net (N)', key: 'montantActif', width: 15 },
+      { header: `Actif — Net (N-1)${suffixeN1}`, key: 'montantActifN1', width: 17 },
+      { header: 'Passif — REF', key: 'refPassif', width: 10 },
+      { header: 'Passif — libellé', key: 'libellePassif', width: 42 },
+      { header: 'Passif — Net (N)', key: 'montantPassif', width: 15 },
+      { header: `Passif — Net (N-1)${suffixeN1}`, key: 'montantPassifN1', width: 17 },
+    ];
+
+    const maxLignes = Math.max(bilan.actif.length, bilan.passif.length);
+    for (let i = 0; i < maxLignes; i++) {
+      const a = bilan.actif[i];
+      const p = bilan.passif[i];
+      const ligne = feuille.addRow({
+        refActif: a?.ref ?? '',
+        libelleActif: a?.libelle ?? '',
+        brutActif: a?.brut ?? null,
+        amortActif: a?.amortissement ?? null,
+        montantActif: a ? a.montant : null,
+        montantActifN1: a?.montantN1 ?? null,
+        refPassif: p?.ref ?? '',
+        libellePassif: p?.libelle ?? '',
+        montantPassif: p ? p.montant : null,
+        montantPassifN1: p?.montantN1 ?? null,
+      });
+      if (a?.estTotal) {
+        for (const cle of ['refActif', 'libelleActif', 'brutActif', 'amortActif', 'montantActif', 'montantActifN1']) {
+          ligne.getCell(cle).font = ENTETE_FONT;
+        }
+      }
+      if (p?.estTotal) {
+        for (const cle of ['refPassif', 'libellePassif', 'montantPassif', 'montantPassifN1']) {
+          ligne.getCell(cle).font = ENTETE_FONT;
+        }
+      }
+    }
+
+    this.appliquerFormats(feuille, {
+      brutActif: FORMAT_MONTANT,
+      amortActif: FORMAT_MONTANT,
+      montantActif: FORMAT_MONTANT,
+      montantActifN1: FORMAT_MONTANT,
+      montantPassif: FORMAT_MONTANT,
+      montantPassifN1: FORMAT_MONTANT,
+    });
+    styliserEntete(feuille.getRow(1));
+    feuille.views = [{ state: 'frozen', ySplit: 1 }];
+
+    const detail = classeur.addWorksheet('Détail par poste');
+    detail.columns = [
+      { header: 'Sens', key: 'sens', width: 8 },
+      { header: 'REF', key: 'ref', width: 8 },
+      { header: 'Poste', key: 'poste', width: 48 },
+      { header: 'Compte', key: 'numero', width: 12 },
+      { header: 'Intitulé compte', key: 'intitule', width: 44 },
+      { header: 'Montant', key: 'montant', width: 16 },
+    ];
+    for (const [sens, postes] of [['Actif', bilan.actif], ['Passif', bilan.passif]] as const) {
+      for (const p of postes) {
+        for (const c of p.comptes) {
+          detail.addRow({ sens, ref: p.ref, poste: p.libelle, numero: c.numero, intitule: c.intitule, montant: c.montant });
+        }
+      }
+    }
+    this.appliquerFormats(detail, { montant: FORMAT_MONTANT });
+    this.finaliserTableau(detail, detail.columns.length, detail.rowCount);
+
+    const anomalies = classeur.addWorksheet('Contrôles et anomalies');
+    anomalies.columns = [
+      { header: 'Compte', key: 'numero', width: 14 },
+      { header: 'Intitulé', key: 'intitule', width: 48 },
+      { header: 'Montant', key: 'montant', width: 20 },
+      { header: 'Diagnostic', key: 'diagnostic', width: 90 },
+    ];
+
+    const ligneEquilibre = anomalies.addRow({
+      numero: 'CONTRÔLE',
+      intitule: 'Total actif (BZ) = Total passif (DZ) ?',
+      montant: bilan.totalActif - bilan.totalPassif,
+      diagnostic: bilan.equilibre
+        ? `OK — bilan équilibré. Actif = Passif = ${bilan.totalActif.toFixed(2)}.`
+        : `DÉSÉQUILIBRE de ${(bilan.totalActif - bilan.totalPassif).toFixed(2)} — vérifier les écritures et les comptes non rattachés ci-dessous.`,
+    });
+    ligneEquilibre.font = { bold: true, color: { argb: bilan.equilibre ? 'FF1E7B34' : 'FFB00020' } };
+
+    for (const c of bilan.comptesNonRattaches) {
+      anomalies.addRow({
+        numero: c.numero,
+        intitule: c.intitule,
+        montant: c.montant,
+        diagnostic:
+          'Compte de bilan (classe 1 à 5) qu’aucun poste du tableau de correspondance officiel (jeu projets de développement) ne réclame : ' +
+          'son montant n’entre dans AUCUN total de cet état. Vérifier le numéro de compte.',
+      });
+    }
+    if (bilan.comptesNonRattaches.length === 0) {
+      anomalies.addRow({
+        numero: '—',
+        intitule: 'Aucun compte non rattaché : tous les comptes de bilan entrent dans un poste officiel.',
+      });
+    }
+    this.appliquerFormats(anomalies, { montant: FORMAT_MONTANT });
+    this.finaliserTableau(anomalies, anomalies.columns.length, anomalies.rowCount);
+
+    return {
+      buffer: await this.versBuffer(classeur),
+      nomFichier: `bilan-projet-developpement${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
+    };
+  }
+
+  /**
+   * COMPTE D'EXPLOITATION — jeu SYCEBNL « projets de développement et
+   * assimilés » (Partie 4, ch. 3), adossé à
+   * `EtatsFinanciersProjetService`/`correspondance-projet-compte-exploitation.ts`.
+   * Le doublon officiel de REF « TJ »/« TK » (anomalie n° 3, voir ce fichier)
+   * ressort tel quel : deux lignes portant le même REF, comme le fait
+   * l'état officiel.
+   */
+  async compteExploitationProjetExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
+    const ce = await this.etatsFinanciersProjetService.compteExploitation(tenantId, exerciceId);
+    const suffixeN1 = ce.exerciceN1Disponible ? '' : ' (aucun exercice antérieur)';
+
+    const classeur = this.nouveauClasseur();
+    const feuille = classeur.addWorksheet("Compte d'exploitation");
+    feuille.columns = [
+      { header: 'REF', key: 'ref', width: 8 },
+      { header: 'Libellé', key: 'libelle', width: 58 },
+      { header: 'Montant (N)', key: 'montant', width: 16 },
+      { header: `Montant (N-1)${suffixeN1}`, key: 'montantN1', width: 17 },
+    ];
+
+    const ajouterTotal = (ref: string, libelle: string, montant: number, montantN1?: number) => {
+      const ligne = feuille.addRow({ ref, libelle, montant, montantN1: montantN1 ?? null });
+      ligne.font = ENTETE_FONT;
+      return ligne;
+    };
+    const ajouterPoste = (p: PosteCalcule) =>
+      feuille.addRow({ ref: p.ref, libelle: p.libelle, montant: p.montant, montantN1: p.montantN1 ?? null });
+
+    ce.revenus.forEach(ajouterPoste);
+    ajouterTotal('XA', 'REVENUS (Somme RA à RE)', ce.totalRevenus, ce.totalRevenusN1);
+    ce.charges.forEach(ajouterPoste);
+    ajouterTotal('XB', 'CHARGES DE FONCTIONNEMENT (Somme TA à TL)', ce.totalCharges, ce.totalChargesN1);
+    ajouterTotal('XC', "SOLDE DES OPERATIONS DE L'EXERCICE (XA − XB)", ce.solde, ce.soldeN1);
+
+    this.appliquerFormats(feuille, { montant: FORMAT_MONTANT, montantN1: FORMAT_MONTANT });
+    styliserEntete(feuille.getRow(1));
+    feuille.views = [{ state: 'frozen', ySplit: 1 }];
+
+    const note = feuille.addRow([
+      'Postes conformes au tableau de correspondance officiel SYCEBNL (Journal officiel OHADA, Partie 4 ch. 3). ' +
+        'RC (subventions, compte 71) et RE (reprises) dans XA : deux anomalies du texte officiel corrigées ' +
+        '(RC absente du modèle vierge, XA limité à « RA à RD » au lieu de RA à RE) — voir ' +
+        'correspondance-projet-compte-exploitation.ts. TJ et TK apparaissent DEUX FOIS chacun : doublon du ' +
+        'texte officiel, reproduit tel quel, non corrigé.',
+    ]);
+    note.font = { italic: true, color: { argb: 'FF555555' } };
+    feuille.mergeCells(`A${note.number}:D${note.number}`);
+
+    const detail = classeur.addWorksheet('Détail par poste');
+    detail.columns = [
+      { header: 'REF', key: 'ref', width: 8 },
+      { header: 'Poste', key: 'poste', width: 52 },
+      { header: 'Compte', key: 'numero', width: 12 },
+      { header: 'Intitulé compte', key: 'intitule', width: 44 },
+      { header: 'Montant', key: 'montant', width: 18 },
+    ];
+    for (const p of [...ce.revenus, ...ce.charges]) {
+      for (const c of p.comptes) {
+        detail.addRow({ ref: p.ref, poste: p.libelle, numero: c.numero, intitule: c.intitule, montant: c.montant });
+      }
+    }
+    this.appliquerFormats(detail, { montant: FORMAT_MONTANT });
+    this.finaliserTableau(detail, detail.columns.length, detail.rowCount);
+
+    const anomalies = classeur.addWorksheet('Contrôles et anomalies');
+    anomalies.columns = [
+      { header: 'Compte', key: 'numero', width: 14 },
+      { header: 'Intitulé', key: 'intitule', width: 48 },
+      { header: 'Montant (crédit − débit)', key: 'montant', width: 24 },
+      { header: 'Diagnostic', key: 'diagnostic', width: 78 },
+    ];
+
+    const ligneControle = anomalies.addRow({
+      numero: 'CONTRÔLE',
+      intitule: "Solde des opérations de l'exercice (XC) boucle-t-il à zéro ?",
+      montant: ce.solde,
+      diagnostic: ce.controle.boucleAZero
+        ? `OK — XC = ${ce.solde.toFixed(2)} (≈ 0), régime normal pour ce jeu.`
+        : `XC = ${ce.solde.toFixed(2)} (≠ 0) — pas nécessairement une erreur : un projet en cours d'exercice ` +
+          `ou dont la clôture n'a pas transféré le solde au compte 13 peut légitimement présenter un écart. ` +
+          `Vérifier les comptes non rattachés ci-dessous et l'état du compte 13.`,
+    });
+    ligneControle.font = { bold: true, color: { argb: ce.controle.boucleAZero ? 'FF1E7B34' : 'FFB00020' } };
+
+    for (const c of ce.comptesNonRattaches) {
+      anomalies.addRow({
+        numero: c.numero,
+        intitule: c.intitule,
+        montant: c.montant,
+        diagnostic:
+          'Compte de gestion (classe 6/7/8) qu’aucun poste du tableau de correspondance officiel (jeu projets ' +
+          'de développement) ne réclame — le compte 68 (dotations aux amortissements) notamment : absent du ' +
+          'tableau officiel lui-même (anomalie n° 4, voir correspondance-projet-compte-exploitation.ts).',
+      });
+    }
+    if (ce.comptesNonRattaches.length === 0) {
+      anomalies.addRow({
+        numero: '—',
+        intitule: 'Aucun compte non rattaché : tous les comptes de gestion entrent dans un poste officiel.',
+      });
+    }
+    this.appliquerFormats(anomalies, { montant: FORMAT_MONTANT });
+    this.finaliserTableau(anomalies, anomalies.columns.length, anomalies.rowCount);
+
+    return {
+      buffer: await this.versBuffer(classeur),
+      nomFichier: `compte-exploitation-projet-developpement${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
     };
   }
 }

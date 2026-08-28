@@ -1,7 +1,14 @@
 import { Injectable } from '@nestjs/common';
-import { ClasseCompte, TypeCompteDetailTotal } from '@prisma/client';
+import { ClasseCompte } from '@prisma/client';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { ExerciceService } from '../exercice/exercice.service';
+import {
+  CompteDuPoste,
+  LigneBalancePourEtat,
+  chargerLignes,
+  correspond,
+  trouverExerciceN1,
+} from './etats-financiers.communs';
 import {
   POSTES_CHARGES,
   POSTES_HAO,
@@ -19,13 +26,6 @@ import {
   TOTAUX_ACTIF,
   TOTAUX_PASSIF,
 } from './correspondance-bilan';
-
-/** Un compte rattaché à un poste, avec sa contribution — permet le drill-down. */
-export interface CompteDuPoste {
-  numero: string;
-  intitule: string;
-  montant: number;
-}
 
 /**
  * Un poste du compte de résultat OU du bilan, calculé.
@@ -56,26 +56,14 @@ export interface PosteCalcule {
   estTotal?: boolean;
 }
 
-/** Une ligne de balance déjà agrégée par compte (voir EcritureService.balance()). */
-interface LigneBalancePourBilan {
-  compteId: string;
-  numero: string;
-  intitule: string;
-  classe: ClasseCompte;
-  typeCompte: TypeCompteDetailTotal;
-  totalDebit: number;
-  totalCredit: number;
-  solde: number;
-}
-
 /**
- * Un compte correspond à un poste si son numéro commence par l'un des
- * préfixes du poste ET par aucun de ses préfixes exclus (§ convention de
- * lecture, `correspondance-bilan.ts`).
+ * `LigneBalancePourBilan` = alias local historique de
+ * `LigneBalancePourEtat` (`etats-financiers.communs.ts`, où `correspond` et
+ * le chargement de balance ont été extraits le 2026-08-28 pour être
+ * partagés avec le jeu « projets de développement »). Conservé pour ne pas
+ * réécrire toutes les signatures ci-dessous.
  */
-function correspond(numero: string, prefixes: string[], exclusions: string[] = []): boolean {
-  return prefixes.some((p) => numero.startsWith(p)) && !exclusions.some((e) => numero.startsWith(e));
-}
+type LigneBalancePourBilan = LigneBalancePourEtat;
 
 /**
  * BILAN et COMPTE DE RÉSULTAT — adossés au tableau de correspondance
@@ -103,20 +91,11 @@ export class EtatsFinanciersService {
    * zéro qui laisserait croire à un exercice antérieur réel et vide.
    */
   private async trouverExerciceN1(tenantId: string, exerciceId: string): Promise<string | null> {
-    const exercices = await this.exerciceService.lister(tenantId); // triés par dateDebut décroissant
-    const courant = exercices.find((e) => e.id === exerciceId);
-    if (!courant) return null;
-    const anterieur = exercices.find((e) => e.dateDebut < courant.dateDebut);
-    return anterieur?.id ?? null;
+    return trouverExerciceN1(this.exerciceService, tenantId, exerciceId);
   }
 
   private async chargerLignes(tenantId: string, exerciceId: string | null): Promise<LigneBalancePourBilan[]> {
-    if (!exerciceId) return [];
-    const { lignes } = await this.ecritureService.balance(tenantId, exerciceId);
-    // Comptes Total (§3.1) exclus : leur solde n'est qu'un agrégat
-    // d'affichage des comptes Détail de même racine, déjà comptés
-    // individuellement ailleurs — les inclure doublerait le montant.
-    return lignes.filter((l) => l.typeCompte !== TypeCompteDetailTotal.TOTAL);
+    return chargerLignes(this.ecritureService, tenantId, exerciceId);
   }
 
   /** Poste ACTIF de détail : brut, amortissement (magnitude positive) et net, chacun exposé séparément. */
