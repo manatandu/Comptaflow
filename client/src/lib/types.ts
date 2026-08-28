@@ -124,6 +124,23 @@ export interface AuthResponse {
 
 export type TypeTiers = 'CLIENT' | 'FOURNISSEUR' | 'SALARIE' | 'AUTRE';
 export type ConditionEcheance = 'NET' | 'FIN_DE_MOIS';
+export type TypeEcheance = 'POURCENTAGE' | 'MONTANT' | 'EQUILIBRE';
+
+export interface EcheanceReglement {
+  id: string;
+  ordre: number;
+  type: TypeEcheance;
+  valeur: string | null;
+  delaiJours: number;
+  echeance: ConditionEcheance;
+}
+
+export interface EcheanceCalculee {
+  ordre: number;
+  type: TypeEcheance | null;
+  montant: number;
+  dateEcheance: string;
+}
 
 export interface ModeleReglement {
   id: string;
@@ -131,6 +148,7 @@ export interface ModeleReglement {
   delaiJours: number;
   echeance: ConditionEcheance;
   estActif: boolean;
+  echeances: EcheanceReglement[];
 }
 
 export interface TiersCompte {

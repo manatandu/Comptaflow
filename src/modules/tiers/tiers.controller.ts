@@ -6,7 +6,12 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { TiersService } from './tiers.service';
 import { CreerTiersDto, ModifierTiersDto, RattacherCompteDto } from './dto/tiers.dto';
-import { CreerModeleReglementDto, ModifierModeleReglementDto } from './dto/modele-reglement.dto';
+import {
+  CreerModeleReglementDto,
+  ModifierModeleReglementDto,
+  CreerEcheanceReglementDto,
+  CalculerEcheancesDto,
+} from './dto/modele-reglement.dto';
 import { RoleUtilisateur, TypeTiers } from '@prisma/client';
 
 // Même règle que Plan de comptes / Journaux : consultation ouverte aux trois
@@ -98,5 +103,41 @@ export class ModeleReglementController {
     @Body() dto: ModifierModeleReglementDto,
   ) {
     return this.tiersService.modifierModeleReglement(user.tenantId, id, dto);
+  }
+
+  /** Fractionnement en plusieurs échéances — voir TiersService.ajouterEcheance(). */
+  @Get(':id/echeances')
+  async listerEcheances(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.tiersService.listerEcheances(user.tenantId, id);
+  }
+
+  @Roles(RoleUtilisateur.ADMIN_CABINET)
+  @Post(':id/echeances')
+  async ajouterEcheance(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: CreerEcheanceReglementDto,
+  ) {
+    return this.tiersService.ajouterEcheance(user.tenantId, id, dto);
+  }
+
+  @Roles(RoleUtilisateur.ADMIN_CABINET)
+  @Delete(':id/echeances/:echeanceId')
+  async supprimerEcheance(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Param('echeanceId') echeanceId: string,
+  ) {
+    return this.tiersService.supprimerEcheance(user.tenantId, id, echeanceId);
+  }
+
+  /** Essai/simulation — pure lecture, ouvert aux trois rôles comme le reste des consultations. */
+  @Post(':id/calculer')
+  async calculerEcheances(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: CalculerEcheancesDto,
+  ) {
+    return this.tiersService.calculerEcheances(user.tenantId, id, dto);
   }
 }

@@ -5,7 +5,16 @@ import { useAuth } from '../lib/auth';
 import { useExercice } from '../lib/exercice';
 import { useRibbon } from '../components/chrome/ribbon-context';
 import { IconRefresh, IconCheck } from '../components/chrome/icons';
-import type { Compte, ConditionEcheance, LigneBalance, ModeleReglement, Tiers, TypeTiers } from '../lib/types';
+import type {
+  Compte,
+  ConditionEcheance,
+  EcheanceCalculee,
+  LigneBalance,
+  ModeleReglement,
+  Tiers,
+  TypeEcheance,
+  TypeTiers,
+} from '../lib/types';
 
 const LIBELLE_TYPE: Record<TypeTiers, string> = {
   CLIENT: 'Client',
@@ -17,6 +26,12 @@ const LIBELLE_TYPE: Record<TypeTiers, string> = {
 const LIBELLE_ECHEANCE: Record<ConditionEcheance, string> = {
   NET: 'Net (date facture + délai)',
   FIN_DE_MOIS: 'Fin de mois + délai',
+};
+
+const LIBELLE_TYPE_ECHEANCE: Record<TypeEcheance, string> = {
+  POURCENTAGE: 'Pourcentage',
+  MONTANT: 'Montant fixe',
+  EQUILIBRE: 'Équilibre (le reste)',
 };
 
 export function TiersPage() {
@@ -49,6 +64,19 @@ export function TiersPage() {
   const [intituleModele, setIntituleModele] = useState('');
   const [delaiJours, setDelaiJours] = useState(30);
   const [echeance, setEcheance] = useState<ConditionEcheance>('NET');
+  const [modeleSelectionneId, setModeleSelectionneId] = useState<string | null>(null);
+
+  // Formulaire d'ajout d'une échéance (fractionnement)
+  const [ordreEch, setOrdreEch] = useState(1);
+  const [typeEch, setTypeEch] = useState<TypeEcheance>('POURCENTAGE');
+  const [valeurEch, setValeurEch] = useState('');
+  const [delaiJoursEch, setDelaiJoursEch] = useState(30);
+  const [echeanceEch, setEcheanceEch] = useState<ConditionEcheance>('NET');
+
+  // Simulateur d'échéancier
+  const [dateFactureCalc, setDateFactureCalc] = useState(new Date().toISOString().slice(0, 10));
+  const [montantCalc, setMontantCalc] = useState('1000');
+  const [resultatCalc, setResultatCalc] = useState<EcheanceCalculee[] | null>(null);
 
   const charger = async () => {
     try {
@@ -157,6 +185,8 @@ export function TiersPage() {
     }
   };
 
+  const rechargerModeles = async () => setModeles(await api.get<ModeleReglement[]>('/modeles-reglement'));
+
   const onCreerModele = async (e: FormEvent) => {
     e.preventDefault();
     setErreur(null);
@@ -164,9 +194,58 @@ export function TiersPage() {
       await api.post('/modeles-reglement', { intitule: intituleModele, delaiJours, echeance });
       setIntituleModele('');
       setDelaiJours(30);
-      setModeles(await api.get<ModeleReglement[]>('/modeles-reglement'));
+      await rechargerModeles();
     } catch (err) {
       setErreur(err instanceof ApiError ? err.message : 'Impossible de créer ce modèle de règlement');
+    }
+  };
+
+  const modeleSelectionne = modeles.find((m) => m.id === modeleSelectionneId) ?? null;
+
+  const onAjouterEcheance = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!modeleSelectionneId) return;
+    setErreur(null);
+    try {
+      await api.post(`/modeles-reglement/${modeleSelectionneId}/echeances`, {
+        ordre: ordreEch,
+        type: typeEch,
+        ...(typeEch !== 'EQUILIBRE' ? { valeur: Number(valeurEch) } : {}),
+        delaiJours: delaiJoursEch,
+        echeance: echeanceEch,
+      });
+      setOrdreEch((n) => n + 1);
+      setValeurEch('');
+      await rechargerModeles();
+    } catch (err) {
+      setErreur(err instanceof ApiError ? err.message : 'Impossible d’ajouter cette échéance');
+    }
+  };
+
+  const onSupprimerEcheance = async (echeanceId: string) => {
+    if (!modeleSelectionneId) return;
+    setErreur(null);
+    try {
+      await api.delete(`/modeles-reglement/${modeleSelectionneId}/echeances/${echeanceId}`);
+      await rechargerModeles();
+    } catch (err) {
+      setErreur(err instanceof ApiError ? err.message : 'Impossible de supprimer cette échéance');
+    }
+  };
+
+  const onCalculer = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!modeleSelectionneId) return;
+    setErreur(null);
+    try {
+      setResultatCalc(
+        await api.post<EcheanceCalculee[]>(`/modeles-reglement/${modeleSelectionneId}/calculer`, {
+          dateFacture: dateFactureCalc,
+          montantTotal: Number(montantCalc),
+        }),
+      );
+    } catch (err) {
+      setErreur(err instanceof ApiError ? err.message : 'Impossible de calculer l’échéancier');
     }
   };
 
@@ -358,13 +437,125 @@ export function TiersPage() {
         <div className="border border-border mb-3">
           {modeles.length === 0 && <div className="p-2.5 text-[11.5px] text-text-dim">Aucun modèle de règlement.</div>}
           {modeles.map((m, i) => (
-            <div key={m.id} className={`grid grid-cols-[1fr_90px_180px] gap-2 items-center px-3 py-1.5 border-b border-border last:border-b-0 text-[11.5px] ${i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'}`}>
+            <div
+              key={m.id}
+              onClick={() => setModeleSelectionneId(m.id === modeleSelectionneId ? null : m.id)}
+              className={`grid grid-cols-[1fr_90px_180px_90px] gap-2 items-center px-3 py-1.5 border-b border-border last:border-b-0 text-[11.5px] cursor-pointer ${
+                m.id === modeleSelectionneId ? 'bg-sel/15' : i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'
+              }`}
+            >
               <span>{m.intitule}</span>
-              <span className="text-text-dim">{m.delaiJours} j.</span>
-              <span className="text-[10.5px] text-text-dim">{LIBELLE_ECHEANCE[m.echeance]}</span>
+              <span className="text-text-dim">
+                {m.echeances.length > 0 ? `${m.echeances.length} échéances` : `${m.delaiJours} j.`}
+              </span>
+              <span className="text-[10.5px] text-text-dim">
+                {m.echeances.length > 0 ? 'Fractionné' : LIBELLE_ECHEANCE[m.echeance]}
+              </span>
+              <span className="text-[10.5px] text-sel">{m.id === modeleSelectionneId ? '▾ fermer' : '▸ détail'}</span>
             </div>
           ))}
         </div>
+
+        {modeleSelectionne && (
+          <div className="border border-border mb-3 p-3 bg-surface-alt">
+            <div className="font-mono text-[10.5px] font-semibold text-text-dim mb-2">
+              ÉCHÉANCES — {modeleSelectionne.intitule}
+            </div>
+            {modeleSelectionne.echeances.length === 0 && (
+              <div className="text-[11px] text-text-dim mb-2">
+                Mono-échéance : 100 % à {modeleSelectionne.delaiJours} j. ({LIBELLE_ECHEANCE[modeleSelectionne.echeance]}).
+                Ajoutez une échéance ci-dessous pour fractionner.
+              </div>
+            )}
+            {modeleSelectionne.echeances.length > 0 && (
+              <div className="border border-border mb-3">
+                {modeleSelectionne.echeances.map((ech, i) => (
+                  <div
+                    key={ech.id}
+                    className={`grid grid-cols-[40px_130px_90px_70px_120px_70px] gap-2 items-center px-2.5 py-1 border-b border-border last:border-b-0 text-[11px] ${
+                      i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'
+                    }`}
+                  >
+                    <span className="font-mono">#{ech.ordre}</span>
+                    <span>{LIBELLE_TYPE_ECHEANCE[ech.type]}</span>
+                    <span className="text-right font-mono">{ech.valeur ?? '—'}</span>
+                    <span className="text-text-dim">{ech.delaiJours} j.</span>
+                    <span className="text-[10px] text-text-dim">{LIBELLE_ECHEANCE[ech.echeance]}</span>
+                    <button onClick={() => onSupprimerEcheance(ech.id)} className="text-danger text-[10px] font-semibold hover:underline w-fit">
+                      Supprimer
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <form onSubmit={onAjouterEcheance} className="grid grid-cols-6 gap-2 items-end mb-4">
+              <label className="text-[10.5px] font-semibold text-text-dim">
+                Ordre
+                <input required type="number" min={1} value={ordreEch} onChange={(e) => setOrdreEch(Number(e.target.value))} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px]" />
+              </label>
+              <label className="text-[10.5px] font-semibold text-text-dim">
+                Type
+                <select value={typeEch} onChange={(e) => setTypeEch(e.target.value as TypeEcheance)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px]">
+                  {(Object.keys(LIBELLE_TYPE_ECHEANCE) as TypeEcheance[]).map((t) => (
+                    <option key={t} value={t}>
+                      {LIBELLE_TYPE_ECHEANCE[t]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {typeEch !== 'EQUILIBRE' && (
+                <label className="text-[10.5px] font-semibold text-text-dim">
+                  {typeEch === 'POURCENTAGE' ? 'Valeur (%)' : 'Valeur (montant)'}
+                  <input required type="number" min={0} step="0.01" value={valeurEch} onChange={(e) => setValeurEch(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px]" />
+                </label>
+              )}
+              <label className="text-[10.5px] font-semibold text-text-dim">
+                Délai (j.)
+                <input required type="number" min={0} value={delaiJoursEch} onChange={(e) => setDelaiJoursEch(Number(e.target.value))} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px]" />
+              </label>
+              <label className="text-[10.5px] font-semibold text-text-dim">
+                Condition
+                <select value={echeanceEch} onChange={(e) => setEcheanceEch(e.target.value as ConditionEcheance)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px]">
+                  {(Object.keys(LIBELLE_ECHEANCE) as ConditionEcheance[]).map((c) => (
+                    <option key={c} value={c}>
+                      {LIBELLE_ECHEANCE[c]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button type="submit" className="bg-sel text-white text-[11px] font-semibold px-3 py-1.5 h-fit">
+                Ajouter
+              </button>
+            </form>
+
+            <div className="font-mono text-[10.5px] font-semibold text-text-dim mb-2">SIMULATEUR</div>
+            <form onSubmit={onCalculer} className="flex items-end gap-2 mb-3">
+              <label className="text-[10.5px] font-semibold text-text-dim">
+                Date facture
+                <input required type="date" value={dateFactureCalc} onChange={(e) => setDateFactureCalc(e.target.value)} className="mt-1 block border border-border-dark px-2 py-1 text-[11.5px]" />
+              </label>
+              <label className="text-[10.5px] font-semibold text-text-dim">
+                Montant
+                <input required type="number" min={0.01} step="0.01" value={montantCalc} onChange={(e) => setMontantCalc(e.target.value)} className="mt-1 block border border-border-dark px-2 py-1 text-[11.5px]" />
+              </label>
+              <button type="submit" className="bg-sel text-white text-[11px] font-semibold px-3 py-1.5">
+                Calculer
+              </button>
+            </form>
+            {resultatCalc && (
+              <div className="border border-border">
+                {resultatCalc.map((r) => (
+                  <div key={r.ordre} className="grid grid-cols-3 gap-2 px-2.5 py-1 border-b border-border last:border-b-0 text-[11px] font-mono">
+                    <span>#{r.ordre}</span>
+                    <span className="text-right">{r.montant.toLocaleString('fr-FR')}</span>
+                    <span className="text-text-dim">{new Date(r.dateEcheance).toLocaleDateString('fr-FR')}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         <form onSubmit={onCreerModele} className="grid grid-cols-4 gap-2 items-end">
           <label className="text-[11px] font-semibold text-text-dim col-span-2">
             Intitulé

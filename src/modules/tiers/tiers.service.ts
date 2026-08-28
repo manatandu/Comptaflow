@@ -1,8 +1,13 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
-import { ClasseCompte, Prisma, TypeTiers } from '@prisma/client';
+import { ClasseCompte, ConditionEcheance, Prisma, TypeEcheance, TypeTiers } from '@prisma/client';
 import { CreerTiersDto, ModifierTiersDto, RattacherCompteDto } from './dto/tiers.dto';
-import { CreerModeleReglementDto, ModifierModeleReglementDto } from './dto/modele-reglement.dto';
+import {
+  CreerModeleReglementDto,
+  ModifierModeleReglementDto,
+  CreerEcheanceReglementDto,
+  CalculerEcheancesDto,
+} from './dto/modele-reglement.dto';
 
 /**
  * Tiers (cf. docs/plan-de-construction.md §3.2) : Client/Fournisseur/Salarié/
@@ -152,7 +157,11 @@ export class TiersService {
   }
 
   async listerModelesReglement(tenantId: string) {
-    return this.prisma.modeleReglement.findMany({ where: { tenantId }, orderBy: { intitule: 'asc' } });
+    return this.prisma.modeleReglement.findMany({
+      where: { tenantId },
+      include: { echeances: { orderBy: { ordre: 'asc' } } },
+      orderBy: { intitule: 'asc' },
+    });
   }
 
   async creerModeleReglement(tenantId: string, dto: CreerModeleReglementDto) {
@@ -168,5 +177,130 @@ export class TiersService {
   async modifierModeleReglement(tenantId: string, id: string, dto: ModifierModeleReglementDto) {
     await this.trouverModeleReglement(tenantId, id);
     return this.prisma.modeleReglement.update({ where: { id }, data: dto });
+  }
+
+  // -----------------------------------------------------------------------
+  // Fractionnement en plusieurs échéances (§3.2 — pattern Sage : type
+  // pourcentage/équilibre/montant + délai + condition, par échéance). Un
+  // modèle sans aucune ligne ici reste mono-échéance (delaiJours/echeance du
+  // modèle lui-même) — voir calculerEcheances().
+  // -----------------------------------------------------------------------
+
+  async listerEcheances(tenantId: string, modeleId: string) {
+    await this.trouverModeleReglement(tenantId, modeleId);
+    return this.prisma.echeanceReglement.findMany({ where: { modeleReglementId: modeleId }, orderBy: { ordre: 'asc' } });
+  }
+
+  async ajouterEcheance(tenantId: string, modeleId: string, dto: CreerEcheanceReglementDto) {
+    await this.trouverModeleReglement(tenantId, modeleId);
+
+    if (dto.type !== TypeEcheance.EQUILIBRE && dto.valeur === undefined) {
+      throw new BadRequestException(`Une échéance de type ${dto.type} doit préciser une valeur`);
+    }
+
+    const existantes = await this.prisma.echeanceReglement.findMany({ where: { modeleReglementId: modeleId } });
+
+    if (dto.type === TypeEcheance.EQUILIBRE && existantes.some((e) => e.type === TypeEcheance.EQUILIBRE)) {
+      throw new ConflictException('Ce modèle a déjà une échéance de type Équilibre — une seule est autorisée');
+    }
+    if (dto.type === TypeEcheance.POURCENTAGE) {
+      const sommeExistante = existantes
+        .filter((e) => e.type === TypeEcheance.POURCENTAGE)
+        .reduce((s, e) => s + Number(e.valeur ?? 0), 0);
+      if (sommeExistante + (dto.valeur ?? 0) > 100 + 0.005) {
+        throw new BadRequestException(
+          `La somme des échéances en pourcentage dépasserait 100 % (${sommeExistante} % déjà réparti)`,
+        );
+      }
+    }
+
+    const dejaCetOrdre = existantes.some((e) => e.ordre === dto.ordre);
+    if (dejaCetOrdre) {
+      throw new ConflictException(`Une échéance à l'ordre ${dto.ordre} existe déjà pour ce modèle`);
+    }
+
+    return this.prisma.echeanceReglement.create({
+      data: {
+        modeleReglementId: modeleId,
+        ordre: dto.ordre,
+        type: dto.type,
+        valeur: dto.type === TypeEcheance.EQUILIBRE ? null : dto.valeur,
+        delaiJours: dto.delaiJours,
+        echeance: dto.echeance ?? ConditionEcheance.NET,
+      },
+    });
+  }
+
+  async supprimerEcheance(tenantId: string, modeleId: string, echeanceId: string) {
+    await this.trouverModeleReglement(tenantId, modeleId);
+    const echeance = await this.prisma.echeanceReglement.findFirst({ where: { id: echeanceId, modeleReglementId: modeleId } });
+    if (!echeance) {
+      throw new NotFoundException('Échéance introuvable pour ce modèle');
+    }
+    await this.prisma.echeanceReglement.delete({ where: { id: echeance.id } });
+    return { id: echeanceId, supprimee: true };
+  }
+
+  /** dateFacture + delaiJours (NET), ou fin du mois de dateFacture + delaiJours (FIN_DE_MOIS). */
+  private calculerDateEcheance(dateFacture: Date, delaiJours: number, condition: ConditionEcheance): Date {
+    if (condition === ConditionEcheance.NET) {
+      const d = new Date(dateFacture);
+      d.setUTCDate(d.getUTCDate() + delaiJours);
+      return d;
+    }
+    const finDeMois = new Date(Date.UTC(dateFacture.getUTCFullYear(), dateFacture.getUTCMonth() + 1, 0));
+    finDeMois.setUTCDate(finDeMois.getUTCDate() + delaiJours);
+    return finDeMois;
+  }
+
+  /**
+   * Calcule l'échéancier d'un modèle pour une facture donnée : une seule
+   * échéance (100 % à delaiJours/echeance du modèle) si aucune ligne
+   * `EcheanceReglement` n'existe, sinon le détail par échéance dans l'ordre.
+   * Pure fonction de simulation — ne persiste rien, aucune facture réelle
+   * n'existe encore dans le modèle de données pour rattacher un échéancier.
+   */
+  async calculerEcheances(tenantId: string, modeleId: string, dto: CalculerEcheancesDto) {
+    const modele = await this.trouverModeleReglement(tenantId, modeleId);
+    const echeances = await this.prisma.echeanceReglement.findMany({
+      where: { modeleReglementId: modeleId },
+      orderBy: { ordre: 'asc' },
+    });
+    const dateFacture = new Date(dto.dateFacture);
+
+    if (echeances.length === 0) {
+      return [
+        {
+          ordre: 1,
+          type: null,
+          montant: dto.montantTotal,
+          dateEcheance: this.calculerDateEcheance(dateFacture, modele.delaiJours, modele.echeance),
+        },
+      ];
+    }
+
+    let reste = dto.montantTotal;
+    const resultat = echeances.map((e, i) => {
+      let montant: number;
+      if (e.type === TypeEcheance.EQUILIBRE || i === echeances.length - 1) {
+        // La dernière échéance absorbe toujours le reste, même si elle
+        // n'est pas explicitement de type EQUILIBRE — évite qu'un écart
+        // d'arrondi sur les pourcentages laisse un centime non réparti.
+        montant = Math.round(reste * 100) / 100;
+      } else if (e.type === TypeEcheance.POURCENTAGE) {
+        montant = Math.round(dto.montantTotal * (Number(e.valeur) / 100) * 100) / 100;
+      } else {
+        montant = Math.min(Number(e.valeur), Math.round(reste * 100) / 100);
+      }
+      reste = Math.round((reste - montant) * 100) / 100;
+      return {
+        ordre: e.ordre,
+        type: e.type,
+        montant,
+        dateEcheance: this.calculerDateEcheance(dateFacture, e.delaiJours, e.echeance),
+      };
+    });
+
+    return resultat;
   }
 }

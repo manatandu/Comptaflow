@@ -285,9 +285,9 @@ Ordre de dépendances techniques réelles, pas un simple ordre de préférence :
    généraux rattachés (`TiersCompte`, un compte n'appartient qu'à un seul tiers —
    contrainte `@unique` sur `compteId`, un seul marqué Principal à la fois, imposé
    en service), `ModeleReglement` réutilisable entre tiers (délai en jours +
-   condition d'échéance Net/Fin de mois — modèle mono-échéance pour le MVP, le
-   fractionnement en plusieurs échéances est un enrichissement futur). Seuls les
-   comptes de classe 4 peuvent être rattachés. Écran `/tiers` (création, filtre
+   condition d'échéance Net/Fin de mois, mono-échéance par défaut — voir plus
+   bas pour le fractionnement). Seuls les comptes de classe 4 peuvent être
+   rattachés. Écran `/tiers` (création, filtre
    type/recherche, rattachement/détachement de comptes, bascule Principal, gestion
    des modèles de règlement), accessible depuis Structure et le menu Tiers.
    Vérifié de bout en bout via curl : rejet d'un rattachement sur un compte hors
@@ -318,6 +318,28 @@ Ordre de dépendances techniques réelles, pas un simple ordre de préférence :
    par `orderBy: { createdAt: 'asc' }`. Vérifié via Playwright, deux comptes
    rattachés, bascule Principal puis détachement : ordre désormais stable
    d'un rafraîchissement à l'autre, la bonne ligne est toujours détachée.
+   **Troisième approfondissement — fractionnement en plusieurs échéances** :
+   le mono-échéance noté comme limite MVP est désormais un cas particulier,
+   pas une limite. `EcheanceReglement` (table à part, rattachée à un
+   `ModeleReglement`) porte le pattern Sage : type Pourcentage/Montant/
+   Équilibre + délai + condition, par échéance. Rétrocompatible par
+   construction : un modèle sans aucune ligne `EcheanceReglement` reste
+   mono-échéance (100 % à `delaiJours`/`echeance` du modèle lui-même, exactement
+   le comportement d'avant). Contrôles : un seul Équilibre par modèle, somme
+   des Pourcentages ≤ 100 %, ordre unique par modèle. `TiersService.
+   calculerEcheances()` simule l'échéancier d'une facture (pure lecture,
+   aucune facture réelle n'existe encore dans le modèle de données) ; la
+   dernière échéance absorbe toujours le reste exact (même si elle n'est pas
+   explicitement Équilibre), pour ne jamais laisser un centime d'arrondi non
+   réparti. Écran : panneau dépliable par modèle dans `/tiers` (liste des
+   échéances + formulaire d'ajout/suppression + simulateur avec date de
+   facture et montant). Vérifié de bout en bout via curl (30 %/30 %/Équilibre
+   sur 1000 → 300/300/400 avec les bonnes dates NET et FIN_DE_MOIS, calculées
+   et recoupées indépendamment en Python ; rejets ordre dupliqué, second
+   Équilibre, dépassement de 100 %) et Playwright (ajout de deux échéances et
+   simulation via l'UI réelle — un premier essai de script avait mal ciblé un
+   champ homonyme d'un autre formulaire de la page, corrigé côté script, pas
+   côté application : aucun bug trouvé une fois le test correctement scopé).
 5. ✅ **TVA / taux de taxes** — livré, entité paramétrable **et appliquée à la
    saisie**. `TauxTva` (code, intitule, taux %, compte de TVA collectée 443 et
    compte de TVA déductible 445 rattachés, actif/inactif). Fondé sur
