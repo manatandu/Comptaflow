@@ -71,6 +71,8 @@ model Tenant {
   modelesReglement ModeleReglement[]
   tauxTva          TauxTva[]
   rapprochements   RapprochementBancaire[]
+  famillesImmobilisation FamilleImmobilisation[]
+  immobilisations        Immobilisation[]
 
   @@map("tenants")
 }
@@ -182,6 +184,15 @@ model Compte {
   // Rapprochements bancaires (§3.4) ouverts/clôturés sur ce compte de
   // trésorerie — voir RapprochementBancaire.
   rapprochements     RapprochementBancaire[]
+  // Immobilisations (§3.3) — un compte de classe 2 peut être le compte
+  // d'imputation de plusieurs immobilisations (ou de leur famille) ; un
+  // compte de classe 28/68 peut de même être partagé par plusieurs.
+  famillesImmoImmobilisation  FamilleImmobilisation[] @relation("FamilleCompteImmobilisation")
+  famillesImmoAmortissement   FamilleImmobilisation[] @relation("FamilleCompteAmortissement")
+  famillesImmoDotation        FamilleImmobilisation[] @relation("FamilleCompteDotation")
+  immobilisationsImmobilisation Immobilisation[]      @relation("ImmoCompteImmobilisation")
+  immobilisationsAmortissement  Immobilisation[]      @relation("ImmoCompteAmortissement")
+  immobilisationsDotation       Immobilisation[]      @relation("ImmoCompteDotation")
 
   @@unique([tenantId, numero])
   @@map("comptes")
@@ -245,6 +256,7 @@ model Exercice {
 
   ecritures Ecriture[]
   clotures  Cloture[]
+  dotationsAmortissement DotationAmortissement[]
 
   @@unique([tenantId, dateDebut, dateFin])
   @@map("exercices")
@@ -277,6 +289,14 @@ model Ecriture {
   estGenereeParCloture Boolean @default(false)
 
   lignes LigneEcriture[]
+
+  // Relations inverses optionnelles vers Immobilisation (§3.3) — une
+  // écriture donnée est SOIT une acquisition, SOIT une sortie d'au plus une
+  // immobilisation (jamais les deux), d'où deux relations 1-1 distinctes
+  // plutôt qu'une seule generic "écriture liée à une immobilisation".
+  immobilisationAcquisition Immobilisation? @relation("ImmoEcritureAcquisition")
+  immobilisationSortie      Immobilisation? @relation("ImmoEcritureSortie")
+  dotationAmortissement     DotationAmortissement?
 
   @@map("ecritures")
 }
@@ -565,4 +585,155 @@ model TauxTva {
 
   @@unique([tenantId, code])
   @@map("taux_tva")
+}
+
+// ---------------------------------------------------------------------------
+// Immobilisations (§3.3, docs/plan-de-construction.md) — ancré au skill
+// `sycebnl` (Partie 2 ch.3 §2, COMPTE 20 à 29 — mécanique d'acquisition,
+// amortissement, dépréciation, cession) et au skill `fiscalite-rdc/socle`
+// (arrêté ministériel n° 013/CAB/MIN/FINANCES/2025 du 19/02/2025 — taux
+// d'amortissement linéaire officiels par catégorie de bien, entré en
+// vigueur le 01/01/2026 ; arrêté n° 014/2025 — seuil de 500 USD en deçà
+// duquel le petit matériel/outillage/matériel de bureau passe directement
+// en charges plutôt qu'en immobilisation).
+//
+// Hors scope MVP, explicitement (voir §3.3 du roadmap) :
+// - Gestion des composants (le texte SYCEBNL ne l'autorise de toute façon
+//   que pour des catégories limitées : bâtiments/ouvrages, avions, bateaux,
+//   camions, autocars, bus, véhicules blindés, matériels d'entités
+//   industrielles/minières/agricoles/hospitalières/pétrolières — pas un
+//   mécanisme généralisable à toute immobilisation).
+// - Amortissement dégressif et dérogatoire (fiscal vs comptable) — seul le
+//   linéaire est couvert ; plus pertinent pour SYSCOHADA (Phase 3).
+// - Dépréciation (compte 29, perte de valeur exceptionnelle distincte de
+//   l'amortissement) — non couverte, à traiter par un futur enrichissement.
+// - Plans d'amortissement multiples (National/IFRS) — vision §3.6.
+// ---------------------------------------------------------------------------
+
+enum ModeAmortissement {
+  LINEAIRE
+  // DEGRESSIF non couvert par ce MVP — voir le commentaire ci-dessus.
+}
+
+enum StatutImmobilisation {
+  EN_SERVICE
+  CEDEE
+  MISE_HORS_SERVICE
+}
+
+// Gabarit réutilisable (ex. "Matériel informatique", "Véhicules") : comptes
+// et durée d'amortissement par défaut, pré-remplis à la création d'une
+// immobilisation mais toujours modifiables au cas par cas (voir
+// Immobilisation, qui duplique ces champs plutôt que de les référencer en
+// lecture seule — une famille peut évoluer sans réécrire l'historique).
+model FamilleImmobilisation {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+  code     String
+  intitule String
+
+  // Compte de classe 2 où le bien est porté à l'actif.
+  compteImmobilisationId String
+  compteImmobilisation   Compte @relation("FamilleCompteImmobilisation", fields: [compteImmobilisationId], references: [id])
+  // Compte de classe 28 crédité des dotations cumulées.
+  compteAmortissementId String
+  compteAmortissement   Compte @relation("FamilleCompteAmortissement", fields: [compteAmortissementId], references: [id])
+  // Compte de classe 68 débité de la dotation de l'exercice (681200
+  // incorporelles / 681300 corporelles, selon la nature du bien).
+  compteDotationId String
+  compteDotation   Compte @relation("FamilleCompteDotation", fields: [compteDotationId], references: [id])
+
+  // Durée par défaut, en années entières — arrêté n° 013/2025 pour les
+  // familles seedées, personnalisable pour toute famille créée à la main
+  // (art. 4 de l'arrêté : taux dérogatoires possibles si justifiés au
+  // contrôle, la charge de la preuve reposant sur l'entité).
+  dureeAmortissementAns Int
+  modeAmortissement     ModeAmortissement @default(LINEAIRE)
+
+  estActif  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  immobilisations Immobilisation[]
+
+  @@unique([tenantId, code])
+  @@map("familles_immobilisation")
+}
+
+model Immobilisation {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  familleId String
+  famille   FamilleImmobilisation @relation(fields: [familleId], references: [id])
+
+  designation      String
+  numeroInventaire String?
+
+  // Comptes réels de CETTE immobilisation — copiés depuis la famille à la
+  // création, mais indépendants ensuite (voir commentaire de
+  // FamilleImmobilisation).
+  compteImmobilisationId String
+  compteImmobilisation   Compte @relation("ImmoCompteImmobilisation", fields: [compteImmobilisationId], references: [id])
+  compteAmortissementId String
+  compteAmortissement   Compte @relation("ImmoCompteAmortissement", fields: [compteAmortissementId], references: [id])
+  compteDotationId String
+  compteDotation   Compte @relation("ImmoCompteDotation", fields: [compteDotationId], references: [id])
+
+  // Distinctes : l'amortissement démarre à la mise en service, pas à
+  // l'acquisition (skill sycebnl, COMPTE 28 — "la date de début
+  // d'amortissement est la date à laquelle l'actif est en état de
+  // fonctionner..." ; confirmé par l'arrêté RDC n° 013/2025 art. 30 —
+  // prorata temporis à compter du premier jour du mois de mise en service).
+  dateAcquisition   DateTime
+  dateMiseEnService DateTime
+
+  valeurOrigine     Decimal @db.Decimal(18, 2)
+  // Déduite de la base amortissable (skill sycebnl, COMPTE 28).
+  valeurResiduelle  Decimal @default(0) @db.Decimal(18, 2)
+
+  dureeAmortissementAns Int
+  modeAmortissement     ModeAmortissement @default(LINEAIRE)
+
+  statut       StatutImmobilisation @default(EN_SERVICE)
+  dateSortie   DateTime?
+  // Renseigné uniquement en cas de cession (par opposition à une mise hors
+  // service/rebut, sans produit) — voir ImmobilisationService.sortir.
+  prixCession  Decimal? @db.Decimal(18, 2)
+
+  // Écriture d'acquisition (débit du compte d'immobilisation, crédit
+  // trésorerie/tiers/dotation selon le mode de financement choisi à la
+  // création).
+  ecritureAcquisitionId String  @unique
+  ecritureAcquisition   Ecriture @relation("ImmoEcritureAcquisition", fields: [ecritureAcquisitionId], references: [id])
+  // Écriture de sortie (solde des comptes 2/28, VCN sur 81) — null tant que
+  // le bien est EN_SERVICE.
+  ecritureSortieId String? @unique
+  ecritureSortie   Ecriture? @relation("ImmoEcritureSortie", fields: [ecritureSortieId], references: [id])
+
+  createdAt DateTime @default(now())
+  createdBy String
+
+  dotations DotationAmortissement[]
+
+  @@map("immobilisations")
+}
+
+// Une dotation passée = un exercice ; jamais deux fois le même exercice sur
+// la même immobilisation (@@unique) — la contrainte qui empêche une double
+// dotation par erreur, plutôt qu'une simple discipline d'écran.
+model DotationAmortissement {
+  id               String   @id @default(uuid())
+  immobilisationId String
+  immobilisation   Immobilisation @relation(fields: [immobilisationId], references: [id])
+  exerciceId       String
+  exercice         Exercice @relation(fields: [exerciceId], references: [id])
+  montant          Decimal  @db.Decimal(18, 2)
+  ecritureId       String   @unique
+  ecriture         Ecriture @relation(fields: [ecritureId], references: [id])
+  createdAt        DateTime @default(now())
+
+  @@unique([immobilisationId, exerciceId])
+  @@map("dotations_amortissement")
 }

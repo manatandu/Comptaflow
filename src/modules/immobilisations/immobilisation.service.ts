@@ -1,0 +1,420 @@
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { PrismaService } from '../../common/prisma.service';
+import { EcritureService } from '../comptabilite/ecriture.service';
+import { ModeAmortissement, StatutImmobilisation } from '@prisma/client';
+import { FAMILLES_IMMOBILISATION_DEFAUT } from './famille-immobilisation-seed';
+import {
+  CreerFamilleDto,
+  CreerImmobilisationDto,
+  ModifierFamilleDto,
+  PasserDotationDto,
+  SortirImmobilisationDto,
+  TypeSortie,
+} from './dto/immobilisation.dto';
+
+const EPSILON = 0.005;
+
+/**
+ * Les champs Decimal de Prisma (valeurOrigine, valeurResiduelle,
+ * prixCession, montant) sérialisent en CHAÎNES sur le JSON de réponse —
+ * jamais renvoyés bruts ici, jamais laissés au frontend à deviner. Même
+ * discipline que LettrageService.lister() (`Number(l.debit)`) : trouvé en
+ * testant l'écran (pas en curl, où tout s'affiche comme du texte de toute
+ * façon) — le cumul amorti "0120240" au lieu de 360 venait d'une
+ * concaténation de chaînes ("120" + "240"), la V.N.C. affichée -119040 au
+ * lieu de 840.
+ */
+function versDotation<T extends { montant: unknown }>(d: T) {
+  return { ...d, montant: Number(d.montant) };
+}
+function versImmobilisation<T extends { valeurOrigine: unknown; valeurResiduelle: unknown; prixCession: unknown; dotations?: unknown[] }>(
+  immo: T,
+) {
+  return {
+    ...immo,
+    valeurOrigine: Number(immo.valeurOrigine),
+    valeurResiduelle: Number(immo.valeurResiduelle),
+    prixCession: immo.prixCession === null || immo.prixCession === undefined ? null : Number(immo.prixCession),
+    dotations: (immo.dotations ?? []).map((d) => versDotation(d as { montant: unknown })),
+  };
+}
+
+/**
+ * Immobilisations (§3.3, docs/plan-de-construction.md) — ancré au skill
+ * `sycebnl` (COMPTE 21 à 29, Partie 2 ch.3 §2) pour la mécanique
+ * d'acquisition/amortissement/cession, et au skill `fiscalite-rdc/socle`
+ * (arrêté n° 013/2025) pour les durées d'amortissement par défaut des
+ * familles seedées — voir famille-immobilisation-seed.ts pour le détail des
+ * citations.
+ */
+@Injectable()
+export class ImmobilisationService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly ecritureService: EcritureService,
+  ) {}
+
+  /** Appelé une fois à la création du tenant (voir AuthService.register). */
+  async seedFamillesDefaut(tenantId: string) {
+    for (const f of FAMILLES_IMMOBILISATION_DEFAUT) {
+      const [compteImmo, compteAmort, compteDotation] = await Promise.all([
+        this.prisma.compte.findUnique({ where: { tenantId_numero: { tenantId, numero: f.numeroCompteImmobilisation } } }),
+        this.prisma.compte.findUnique({ where: { tenantId_numero: { tenantId, numero: f.numeroCompteAmortissement } } }),
+        this.prisma.compte.findUnique({ where: { tenantId_numero: { tenantId, numero: f.numeroCompteDotation } } }),
+      ]);
+      // Défensif plutôt que silencieux : si le plan de comptes du tenant ne
+      // contient pas (encore) ces numéros — dossier créé avant l'import
+      // complet du plan SYCEBNL, ou compte supprimé entre-temps — on saute
+      // cette famille plutôt que de planter tout le seed de l'inscription.
+      if (!compteImmo || !compteAmort || !compteDotation) continue;
+      await this.prisma.familleImmobilisation.upsert({
+        where: { tenantId_code: { tenantId, code: f.code } },
+        update: {},
+        create: {
+          tenantId,
+          code: f.code,
+          intitule: f.intitule,
+          compteImmobilisationId: compteImmo.id,
+          compteAmortissementId: compteAmort.id,
+          compteDotationId: compteDotation.id,
+          dureeAmortissementAns: f.dureeAmortissementAns,
+        },
+      });
+    }
+  }
+
+  async listerFamilles(tenantId: string) {
+    return this.prisma.familleImmobilisation.findMany({
+      where: { tenantId },
+      include: { compteImmobilisation: true, compteAmortissement: true, compteDotation: true },
+      orderBy: { intitule: 'asc' },
+    });
+  }
+
+  async creerFamille(tenantId: string, dto: CreerFamilleDto) {
+    for (const [champ, compteId] of [
+      ['compteImmobilisationId', dto.compteImmobilisationId],
+      ['compteAmortissementId', dto.compteAmortissementId],
+      ['compteDotationId', dto.compteDotationId],
+    ] as const) {
+      const compte = await this.prisma.compte.findFirst({ where: { id: compteId, tenantId } });
+      if (!compte) throw new BadRequestException(`Compte introuvable pour ce tenant (${champ})`);
+    }
+    const existant = await this.prisma.familleImmobilisation.findUnique({
+      where: { tenantId_code: { tenantId, code: dto.code } },
+    });
+    if (existant) {
+      throw new ConflictException(`Une famille de code "${dto.code}" existe déjà pour ce tenant`);
+    }
+    return this.prisma.familleImmobilisation.create({ data: { ...dto, tenantId } });
+  }
+
+  async modifierFamille(tenantId: string, id: string, dto: ModifierFamilleDto) {
+    const famille = await this.prisma.familleImmobilisation.findFirst({ where: { id, tenantId } });
+    if (!famille) throw new NotFoundException('Famille introuvable pour ce tenant');
+    return this.prisma.familleImmobilisation.update({ where: { id }, data: dto });
+  }
+
+  async lister(tenantId: string, statut?: StatutImmobilisation) {
+    const immobilisations = await this.prisma.immobilisation.findMany({
+      where: { tenantId, ...(statut ? { statut } : {}) },
+      include: {
+        famille: true,
+        compteImmobilisation: true,
+        compteAmortissement: true,
+        dotations: true,
+      },
+      orderBy: { dateAcquisition: 'desc' },
+    });
+    return immobilisations.map(versImmobilisation);
+  }
+
+  private async trouver(tenantId: string, id: string) {
+    const immo = await this.prisma.immobilisation.findFirst({
+      where: { id, tenantId },
+      include: { famille: true, dotations: { orderBy: { exercice: { dateDebut: 'asc' } }, include: { exercice: true } } },
+    });
+    if (!immo) throw new NotFoundException('Immobilisation introuvable pour ce tenant');
+    return immo;
+  }
+
+  /**
+   * Base amortissable = valeur d'origine - valeur résiduelle (skill
+   * sycebnl, COMPTE 28). Cumul déjà amorti = somme des dotations déjà
+   * passées (jamais recalculé depuis le compte 28 lui-même, qui pourrait
+   * porter d'autres écritures manuelles — la source de vérité du cumul
+   * "généré par ce module" est la table DotationAmortissement).
+   */
+  private baseAmortissable(valeurOrigine: number, valeurResiduelle: number) {
+    return Math.max(0, valeurOrigine - valeurResiduelle);
+  }
+
+  async creer(tenantId: string, userId: string, dto: CreerImmobilisationDto) {
+    const famille = await this.prisma.familleImmobilisation.findFirst({ where: { id: dto.familleId, tenantId } });
+    if (!famille) throw new BadRequestException('Famille introuvable pour ce tenant');
+
+    const compteContrepartie = await this.prisma.compte.findFirst({ where: { id: dto.compteContrepartieId, tenantId } });
+    if (!compteContrepartie) throw new BadRequestException('Compte de contrepartie introuvable pour ce tenant');
+
+    const dateAcquisition = new Date(dto.dateAcquisition);
+    const dateMiseEnService = new Date(dto.dateMiseEnService);
+    if (dateMiseEnService < dateAcquisition) {
+      throw new BadRequestException("La date de mise en service ne peut pas précéder la date d'acquisition");
+    }
+
+    // Écriture d'acquisition : débit du compte d'immobilisation (skill
+    // sycebnl, COMPTE 21-27, "utilisation au débit" — apport, acquisition ou
+    // création) ; crédit du compte de contrepartie choisi par l'utilisateur
+    // (trésorerie, fournisseur, dotation/fonds affectés selon le mode de
+    // financement réel — le texte cite indifféremment 10/16/45/40/48 ou
+    // trésorerie, EcritureService se charge déjà de valider ce compte).
+    const ecritureAcquisition = await this.ecritureService.creer(tenantId, userId, {
+      exerciceId: dto.exerciceId,
+      journalId: dto.journalId,
+      date: dto.dateAcquisition,
+      libelle: `Acquisition — ${dto.designation}`,
+      lignes: [
+        { compteId: famille.compteImmobilisationId, debit: dto.valeurOrigine, credit: 0 },
+        { compteId: dto.compteContrepartieId, debit: 0, credit: dto.valeurOrigine },
+      ],
+    });
+
+    const immobilisation = await this.prisma.immobilisation.create({
+      data: {
+        tenantId,
+        familleId: famille.id,
+        designation: dto.designation,
+        numeroInventaire: dto.numeroInventaire,
+        compteImmobilisationId: famille.compteImmobilisationId,
+        compteAmortissementId: famille.compteAmortissementId,
+        compteDotationId: famille.compteDotationId,
+        dateAcquisition,
+        dateMiseEnService,
+        valeurOrigine: dto.valeurOrigine,
+        valeurResiduelle: dto.valeurResiduelle ?? 0,
+        dureeAmortissementAns: dto.dureeAmortissementAns ?? famille.dureeAmortissementAns,
+        modeAmortissement: ModeAmortissement.LINEAIRE,
+        ecritureAcquisitionId: ecritureAcquisition.id,
+        createdBy: userId,
+      },
+      include: { dotations: true },
+    });
+    return versImmobilisation(immobilisation);
+  }
+
+  /**
+   * Annuité de dotation pour `exercice`, compte tenu du cumul déjà passé.
+   *
+   * Première dotation (aucune dotation antérieure) : prorata temporis à
+   * compter du premier jour du mois de mise en service (arrêté RDC
+   * n° 013/2025, art. 30 ; confirmé par le skill sycebnl, COMPTE 28 — "la
+   * date de début d'amortissement est la date à laquelle l'actif est en
+   * état de fonctionner..."), borné à 12 mois pour CET exercice — limite du
+   * MVP assumée : si la mise en service est antérieure au début de
+   * l'exercice choisi pour la première dotation (dotation en retard, jamais
+   * passée pour l'exercice réel de mise en service), le calcul ne rattrape
+   * pas les mois antérieurs à cet exercice, il les ignore silencieusement.
+   * Documenté ici plutôt que caché (règle §2.6).
+   *
+   * Dotations suivantes : annuité pleine (base / durée), plafonnée par le
+   * reliquat (base - cumul déjà amorti) pour ne jamais dépasser la base
+   * amortissable — un bien totalement amorti reste inscrit au bilan
+   * (COMPTE 20-29, dernier paragraphe) mais ne génère plus de dotation.
+   */
+  private calculerDotation(
+    valeurOrigine: number,
+    valeurResiduelle: number,
+    dureeAns: number,
+    dateMiseEnService: Date,
+    dotationsAnterieures: Array<{ montant: number }>,
+    exercice: { dateDebut: Date; dateFin: Date },
+  ): number {
+    const base = this.baseAmortissable(valeurOrigine, valeurResiduelle);
+    const annuitePleine = base / dureeAns;
+    const cumulAnterieur = dotationsAnterieures.reduce((s, d) => s + d.montant, 0);
+    const reliquat = Math.max(0, base - cumulAnterieur);
+    if (reliquat <= EPSILON) return 0;
+
+    let montant: number;
+    if (dotationsAnterieures.length === 0) {
+      const premierJourMoisMES = new Date(Date.UTC(dateMiseEnService.getUTCFullYear(), dateMiseEnService.getUTCMonth(), 1));
+      const debutProrata = premierJourMoisMES < exercice.dateDebut ? exercice.dateDebut : premierJourMoisMES;
+      const moisEcoules =
+        (exercice.dateFin.getUTCFullYear() - debutProrata.getUTCFullYear()) * 12 +
+        (exercice.dateFin.getUTCMonth() - debutProrata.getUTCMonth()) +
+        1;
+      const mois = Math.min(12, Math.max(0, moisEcoules));
+      montant = annuitePleine * (mois / 12);
+    } else {
+      montant = annuitePleine;
+    }
+    return Math.min(montant, reliquat);
+  }
+
+  async passerDotation(tenantId: string, userId: string, id: string, dto: PasserDotationDto) {
+    const immo = await this.trouver(tenantId, id);
+    if (immo.statut !== StatutImmobilisation.EN_SERVICE) {
+      throw new BadRequestException("Cette immobilisation n'est plus en service — aucune dotation possible");
+    }
+    const exercice = await this.prisma.exercice.findFirst({ where: { id: dto.exerciceId, tenantId } });
+    if (!exercice) throw new BadRequestException('Exercice introuvable pour ce tenant');
+
+    const dejaPassee = await this.prisma.dotationAmortissement.findUnique({
+      where: { immobilisationId_exerciceId: { immobilisationId: id, exerciceId: dto.exerciceId } },
+    });
+    if (dejaPassee) {
+      throw new ConflictException('Une dotation a déjà été passée pour cette immobilisation sur cet exercice');
+    }
+
+    const montant = this.calculerDotation(
+      Number(immo.valeurOrigine),
+      Number(immo.valeurResiduelle),
+      immo.dureeAmortissementAns,
+      immo.dateMiseEnService,
+      immo.dotations.map((d) => ({ montant: Number(d.montant) })),
+      exercice,
+    );
+    if (montant <= EPSILON) {
+      throw new BadRequestException('Aucun montant à doter — le bien est déjà entièrement amorti ou hors période');
+    }
+
+    // Utilisation au crédit du compte 28 (skill sycebnl, COMPTE 28) — par le
+    // débit du compte 681 (dotations aux amortissements d'exploitation).
+    const ecriture = await this.ecritureService.creer(tenantId, userId, {
+      exerciceId: dto.exerciceId,
+      journalId: dto.journalId,
+      date: exercice.dateFin.toISOString().slice(0, 10),
+      libelle: `Dotation aux amortissements — ${immo.designation}`,
+      lignes: [
+        { compteId: immo.compteDotationId, debit: montant, credit: 0 },
+        { compteId: immo.compteAmortissementId, debit: 0, credit: montant },
+      ],
+    });
+
+    const dotation = await this.prisma.dotationAmortissement.create({
+      data: { immobilisationId: id, exerciceId: dto.exerciceId, montant, ecritureId: ecriture.id },
+    });
+    return versDotation(dotation);
+  }
+
+  /**
+   * Sortie (cession ou mise hors service) — skill sycebnl, COMPTE 21-27
+   * "utilisation au crédit" : le compte d'immobilisation est crédité pour
+   * solde, en contrepartie du débit du compte 81 (V.C.N., pour la valeur
+   * nette restante) et du débit du compte 28 (pour solde des amortissements
+   * cumulés). Si cession avec un prix, le produit est comptabilisé
+   * SÉPARÉMENT au crédit du compte 82 (skill sycebnl ne mélange jamais VCN
+   * et produit de cession dans la même ligne).
+   */
+  async sortir(tenantId: string, userId: string, id: string, dto: SortirImmobilisationDto) {
+    const immo = await this.trouver(tenantId, id);
+    if (immo.statut !== StatutImmobilisation.EN_SERVICE) {
+      throw new BadRequestException('Cette immobilisation est déjà sortie');
+    }
+    const exercice = await this.prisma.exercice.findFirst({ where: { id: dto.exerciceId, tenantId } });
+    if (!exercice) throw new BadRequestException('Exercice introuvable pour ce tenant');
+    const dateSortie = new Date(dto.dateSortie);
+
+    if (dto.type === TypeSortie.CESSION && (dto.prixCession === undefined || !dto.compteContrepartieId)) {
+      throw new BadRequestException('Une cession nécessite un prix et un compte de contrepartie (trésorerie ou tiers)');
+    }
+
+    // Dotation complémentaire de l'exercice de sortie (skill sycebnl, COMPTE
+    // 28 : "la dotation complémentaire en cas de cession"), seulement si
+    // aucune dotation n'a déjà été passée sur cet exercice pour ce bien —
+    // sinon le cumul est déjà à jour, pas de complément à ajouter.
+    let cumulAmorti = immo.dotations.reduce((s, d) => s + Number(d.montant), 0);
+    const dejaDoteCetExercice = immo.dotations.some((d) => d.exerciceId === dto.exerciceId);
+    if (!dejaDoteCetExercice) {
+      const montantComplement = this.calculerDotation(
+        Number(immo.valeurOrigine),
+        Number(immo.valeurResiduelle),
+        immo.dureeAmortissementAns,
+        immo.dateMiseEnService,
+        immo.dotations.map((d) => ({ montant: Number(d.montant) })),
+        { dateDebut: exercice.dateDebut, dateFin: dateSortie },
+      );
+      if (montantComplement > EPSILON) {
+        const ecritureComplement = await this.ecritureService.creer(tenantId, userId, {
+          exerciceId: dto.exerciceId,
+          journalId: dto.journalId,
+          date: dto.dateSortie,
+          libelle: `Dotation complémentaire (sortie) — ${immo.designation}`,
+          lignes: [
+            { compteId: immo.compteDotationId, debit: montantComplement, credit: 0 },
+            { compteId: immo.compteAmortissementId, debit: 0, credit: montantComplement },
+          ],
+        });
+        await this.prisma.dotationAmortissement.create({
+          data: { immobilisationId: id, exerciceId: dto.exerciceId, montant: montantComplement, ecritureId: ecritureComplement.id },
+        });
+        cumulAmorti += montantComplement;
+      }
+    }
+
+    const valeurComptableNette = Math.max(0, Number(immo.valeurOrigine) - cumulAmorti);
+
+    const lignesSortie: Array<{ compteId: string; debit: number; credit: number }> = [
+      { compteId: immo.compteImmobilisationId, debit: 0, credit: Number(immo.valeurOrigine) },
+    ];
+    if (cumulAmorti > EPSILON) {
+      lignesSortie.push({ compteId: immo.compteAmortissementId, debit: cumulAmorti, credit: 0 });
+    }
+    if (valeurComptableNette > EPSILON) {
+      // 811-818 selon la nature — la classe 8 exacte dépend du type de
+      // bien ; on utilise ici le compte générique "Valeurs comptables des
+      // cessions — immobilisations corporelles" (812), le cas le plus
+      // fréquent pour une association (matériel, mobilier, véhicules,
+      // bâtiments) ; un compte incorporel (811) resterait à choisir
+      // manuellement pour un logiciel/brevet — limite du MVP, non couverte
+      // par une résolution automatique par classe de bien.
+      const compte812 = await this.prisma.compte.findUnique({ where: { tenantId_numero: { tenantId, numero: '81200000' } } });
+      if (!compte812) {
+        throw new BadRequestException(
+          "Compte 81200000 (Valeurs comptables des cessions — immobilisations corporelles) introuvable pour ce dossier.",
+        );
+      }
+      lignesSortie.push({ compteId: compte812.id, debit: valeurComptableNette, credit: 0 });
+    }
+
+    const ecritureSortie = await this.ecritureService.creer(tenantId, userId, {
+      exerciceId: dto.exerciceId,
+      journalId: dto.journalId,
+      date: dto.dateSortie,
+      libelle: `${dto.type === TypeSortie.CESSION ? 'Cession' : 'Mise hors service'} — ${immo.designation}`,
+      lignes: lignesSortie,
+    });
+
+    // Produit de cession — écriture séparée, jamais mélangée à la sortie de
+    // l'actif (skill sycebnl distingue clairement 81 "valeur comptable" et
+    // 82 "produit de cession").
+    if (dto.type === TypeSortie.CESSION && dto.prixCession && dto.compteContrepartieId) {
+      const compte822 = await this.prisma.compte.findUnique({ where: { tenantId_numero: { tenantId, numero: '82200000' } } });
+      if (!compte822) {
+        throw new BadRequestException("Compte 82200000 (Produits des cessions — immobilisations corporelles) introuvable pour ce dossier.");
+      }
+      await this.ecritureService.creer(tenantId, userId, {
+        exerciceId: dto.exerciceId,
+        journalId: dto.journalId,
+        date: dto.dateSortie,
+        libelle: `Produit de cession — ${immo.designation}`,
+        lignes: [
+          { compteId: dto.compteContrepartieId, debit: dto.prixCession, credit: 0 },
+          { compteId: compte822.id, debit: 0, credit: dto.prixCession },
+        ],
+      });
+    }
+
+    const immobilisation = await this.prisma.immobilisation.update({
+      where: { id },
+      data: {
+        statut: dto.type === TypeSortie.CESSION ? StatutImmobilisation.CEDEE : StatutImmobilisation.MISE_HORS_SERVICE,
+        dateSortie,
+        prixCession: dto.prixCession,
+        ecritureSortieId: ecritureSortie.id,
+      },
+      include: { dotations: true },
+    });
+    return versImmobilisation(immobilisation);
+  }
+}

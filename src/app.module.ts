@@ -14,6 +14,7 @@ import { LettrageModule } from './modules/lettrage/lettrage.module';
 import { TiersModule } from './modules/tiers/tiers.module';
 import { TvaModule } from './modules/tva/tva.module';
 import { RapprochementModule } from './modules/rapprochement/rapprochement.module';
+import { ImmobilisationsModule } from './modules/immobilisations/immobilisations.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { RapprochementModule } from './modules/rapprochement/rapprochement.modul
     TiersModule,
     TvaModule,
     RapprochementModule,
+    ImmobilisationsModule,
     EtatsFinanciersModule,
     UtilisateursModule,
   ],

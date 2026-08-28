@@ -7,6 +7,7 @@ import { CompteService } from '../comptes/compte.service';
 import { ExerciceService } from '../exercice/exercice.service';
 import { JournalService } from '../journaux/journal.service';
 import { TauxTvaService } from '../tva/taux-tva.service';
+import { ImmobilisationService } from '../immobilisations/immobilisation.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { RoleUtilisateur, TypeLicence } from '@prisma/client';
@@ -23,6 +24,7 @@ export class AuthService {
     private readonly exerciceService: ExerciceService,
     private readonly journalService: JournalService,
     private readonly tauxTvaService: TauxTvaService,
+    private readonly immobilisationService: ImmobilisationService,
   ) {}
 
   /**
@@ -69,9 +71,12 @@ export class AuthService {
     // Les journaux par défaut référencent des comptes de trésorerie du plan
     // SYCEBNL (52110000 Banque, 57100000 Caisse) : le seed des comptes doit donc
     // toujours précéder celui des journaux. Même contrainte pour les taux de
-    // TVA, qui référencent les comptes d'État 44310000/44510000.
+    // TVA, qui référencent les comptes d'État 44310000/44510000, et pour les
+    // familles d'immobilisations par défaut, qui référencent des comptes de
+    // classe 2/28/68 (voir famille-immobilisation-seed.ts).
     await this.journalService.seedJournauxDefaut(tenant.id);
     await this.tauxTvaService.seedTauxDefaut(tenant.id);
+    await this.immobilisationService.seedFamillesDefaut(tenant.id);
     const exercice =
       dto.dateDebutExercice && dto.dateFinExercice
         ? await this.exerciceService.creer(tenant.id, {

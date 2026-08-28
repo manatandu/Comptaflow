@@ -10,6 +10,7 @@ import { ComptesModule } from '../comptes/comptes.module';
 import { ExerciceModule } from '../exercice/exercice.module';
 import { JournauxModule } from '../journaux/journaux.module';
 import { TvaModule } from '../tva/tva.module';
+import { ImmobilisationsModule } from '../immobilisations/immobilisations.module';
 import { JwtAuthModule } from './jwt-auth.module';
 
 @Module({
@@ -28,6 +29,7 @@ import { JwtAuthModule } from './jwt-auth.module';
     ExerciceModule,
     JournauxModule,
     TvaModule,
+    ImmobilisationsModule,
     JwtAuthModule,
   ],
   controllers: [AuthController],

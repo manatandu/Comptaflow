@@ -650,8 +650,74 @@ Ordre de dépendances techniques réelles, pas un simple ordre de préférence :
      discipline que le reste de l'API). Vérifié par 5 annulations
      simultanées du même rapprochement : 1 succès, 4 échecs propres (404),
      aucune erreur brute.
-10. **Immobilisations** (Famille → Immobilisation → plan d'amortissement → dotation
-    périodique → sortie).
+10. ✅ **Immobilisations** — livré. Ancré au skill `sycebnl` (COMPTE 20 à 29,
+    Partie 2 ch.3 §2 — mécanique complète d'acquisition/amortissement/
+    dépréciation/cession) et au skill `fiscalite-rdc/socle` (arrêté
+    ministériel n° 013/CAB/MIN/FINANCES/2025 du 19/02/2025 — taux
+    d'amortissement linéaire officiels, corroborés par deux exemplaires
+    indépendants ; arrêté n° 014/2025 — seuil de 500 USD pour le petit
+    matériel/outillage passé directement en charge).
+
+    Modèle : `FamilleImmobilisation` (gabarit — comptes classe 2/28/68 +
+    durée par défaut, 6 familles seedées à l'inscription : Logiciels 5 ans,
+    Bâtiments 20 ans, Informatique 5 ans, Mobilier 10 ans, Véhicules 3 ans,
+    Agencements 10 ans — durées citées individuellement dans
+    `famille-immobilisation-seed.ts`, personnalisable/extensible via
+    l'écran) ; `Immobilisation` (instance, dates d'acquisition ET de mise en
+    service **distinctes** — l'amortissement démarre à la mise en service,
+    pas à l'achat, confirmé par les deux skills indépendamment) ;
+    `DotationAmortissement` (une ligne par exercice, `@@unique` empêchant
+    toute double dotation).
+
+    Mécanique comptable, chaque étape postée via `EcritureService.creer`
+    (jamais de logique de partie double dupliquée) :
+    - **Acquisition** : débit compte 2X, crédit du compte de contrepartie
+      choisi (trésorerie, fournisseur, dotation/fonds affectés — le texte
+      SYCEBNL cite indifféremment 10/16/45/40/48 ou trésorerie).
+    - **Dotation** (linéaire uniquement — dégressif hors scope MVP, plus
+      pertinent pour SYSCOHADA Phase 3) : prorata temporis dès le premier
+      jour du mois de mise en service (arrêté RDC art. 30), annuité pleine
+      les exercices suivants, plafonnée au reliquat pour ne jamais dépasser
+      la base amortissable (valeur d'origine - valeur résiduelle) — un bien
+      totalement amorti reste au bilan sans générer de nouvelle dotation
+      (skill sycebnl, COMPTE 20-29).
+    - **Sortie** (cession/mise hors service) : dotation complémentaire
+      automatique si l'exercice de sortie n'a pas encore été doté, puis
+      solde des comptes 2/28 avec la V.N.C. sur le compte 81 ; produit de
+      cession comptabilisé dans une écriture **séparée** sur le compte 82
+      (le skill sycebnl ne mélange jamais VCN et produit de cession dans la
+      même ligne).
+
+    Hors scope MVP, explicitement documenté dans le schéma et non caché
+    (règle §2.6) : gestion des composants (le texte SYCEBNL ne l'autorise
+    de toute façon que pour des catégories limitées de biens), amortissement
+    dégressif/dérogatoire, dépréciation (compte 29, distincte de
+    l'amortissement), plans multiples National/IFRS. Limite assumée sur le
+    calcul du prorata : si la première dotation d'un bien est passée pour un
+    exercice postérieur à celui de sa mise en service (dotation en retard,
+    jamais rattrapée), le calcul ne recompte pas les mois de l'exercice
+    manqué — signalé en commentaire dans le service, pas caché.
+
+    Vérifié de bout en bout sur un tenant réel : les 6 familles seedées avec
+    leurs bons comptes/durées ; acquisition (ordinateur 1200, mise en
+    service 15/07/2026) ; dotation exercice 1 = 120 (prorata 6/12 exact) ;
+    dotation exercice 2 = 240 (annuité pleine exacte) ; double dotation
+    refusée (409) ; mise hors service avec cumul 360 → VCN 840 comptabilisée
+    correctement ; cession d'un véhicule (9000, durée 3 ans) sans dotation
+    préalable → dotation complémentaire automatique de 1500 (prorata 6/12)
+    puis écriture de sortie (crédit 9000, débit amort. 1500, débit VCN 7500)
+    et écriture de produit de cession séparée (6000) ; cession sans prix
+    refusée (400). **Bug réel trouvé et corrigé en testant à l'écran** (pas
+    en curl, où tout s'affiche comme du texte de toute façon) : les champs
+    Decimal de Prisma sérialisent en chaînes sur le JSON — le cumul amorti
+    s'affichait "0120240" (concaténation `"120"+"240"` au lieu d'une
+    addition) et la V.N.C. "-119 040" au lieu de 840. Corrigé en convertissant
+    explicitement ces champs en `Number` côté service avant de répondre
+    (même discipline déjà appliquée par `LettrageService.lister()`),
+    revérifié après correctif (360/840 corrects, séparateurs de milliers
+    corrects). Écran `/immobilisations` (création famille/immobilisation,
+    liste avec cumul amorti/V.N.C. calculés, actions Doter/Sortir en ligne),
+    menu Structure > Immobilisations.
 11. **Moteur de mapping / états financiers configurables** (s'appuie sur 6 et 10).
 12. **Comptabilité analytique par projet/bailleur** (spécifique SYCEBNL).
 13. Puis, au choix selon opportunité business : **Trésorerie avancée** (lots, LCR/

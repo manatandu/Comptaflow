@@ -248,3 +248,50 @@ export interface Tiers {
   modeleReglement?: ModeleReglement | null;
   comptesRattaches: TiersCompte[];
 }
+
+export type ModeAmortissement = 'LINEAIRE';
+export type StatutImmobilisation = 'EN_SERVICE' | 'CEDEE' | 'MISE_HORS_SERVICE';
+
+export interface FamilleImmobilisation {
+  id: string;
+  code: string;
+  intitule: string;
+  compteImmobilisationId: string;
+  compteImmobilisation?: Compte;
+  compteAmortissementId: string;
+  compteAmortissement?: Compte;
+  compteDotationId: string;
+  compteDotation?: Compte;
+  dureeAmortissementAns: number;
+  modeAmortissement: ModeAmortissement;
+  estActif: boolean;
+}
+
+export interface DotationAmortissement {
+  id: string;
+  exerciceId: string;
+  montant: number;
+  createdAt: string;
+}
+
+export interface Immobilisation {
+  id: string;
+  familleId: string;
+  famille?: FamilleImmobilisation;
+  designation: string;
+  numeroInventaire: string | null;
+  compteImmobilisationId: string;
+  compteImmobilisation?: Compte;
+  compteAmortissementId: string;
+  compteAmortissement?: Compte;
+  dateAcquisition: string;
+  dateMiseEnService: string;
+  valeurOrigine: number;
+  valeurResiduelle: number;
+  dureeAmortissementAns: number;
+  modeAmortissement: ModeAmortissement;
+  statut: StatutImmobilisation;
+  dateSortie: string | null;
+  prixCession: number | null;
+  dotations: DotationAmortissement[];
+}
