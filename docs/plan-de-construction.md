@@ -559,9 +559,38 @@ Ordre de dépendances techniques réelles, pas un simple ordre de préférence :
    que sur une simple exclusion d'id — revérifié sur les trois
    rapprochements de la séquence de test (0→300, 300→450, écarts nuls sur
    les deux clôturés).
+
+   **Approfondissement** (relecture du service + tests délibérés de cas
+   limites, avant de passer à la brique suivante) : trois trous trouvés et
+   corrigés.
+   - Un compte Total (regroupement par racine, §3.1) pouvait ouvrir un
+     rapprochement sans aucune erreur — alors qu'il ne reçoit jamais de
+     mouvement direct (`EcritureService.creer` le lui interdit déjà), donc
+     structurellement aucune ligne à jamais pointer, et un tel rapprochement
+     se clôture trivialement à 0/0 : un faux "rapproché" silencieux. Vérifié
+     concrètement (création d'un compte Total classe 5, ouverture acceptée
+     en 201). Corrigé par le même garde-fou que `EcritureService.creer`
+     (`RapprochementService.trouverCompteTresorerie` rejette désormais un
+     compte Total en 400).
+   - Condition de course réelle sur l'ouverture : `ouvrir()` lisait "aucun
+     rapprochement EN_COURS sur ce compte" puis créait — sans la protection
+     `avecRetrySerialisable` déjà utilisée pour le numéro de pièce des
+     journaux et la prochaine lettre de lettrage (même risque exact :
+     lecture-puis-écriture non atomique). Vérifié par un test de
+     concurrence réel : 12 ouvertures simultanées sur le même compte AVANT
+     correctif auraient pu créer plusieurs rapprochements EN_COURS ; APRÈS
+     correctif, exactement 1 succès (201) et 11 rejets propres (409), une
+     seule ligne EN_COURS confirmée en base.
+   - `annuler()` (DELETE) pouvait renvoyer une erreur Prisma brute (500) en
+     cas d'annulation concurrente du même rapprochement (la seconde
+     suppression tombe sur un enregistrement déjà supprimé) — capturé
+     (P2025) pour renvoyer un 404 propre à la place, jamais un 500 nu (même
+     discipline que le reste de l'API). Vérifié par 5 annulations
+     simultanées du même rapprochement : 1 succès, 4 échecs propres (404),
+     aucune erreur brute.
 10. **Immobilisations** (Famille → Immobilisation → plan d'amortissement → dotation
-   périodique → sortie).
-11. **Moteur de mapping / états financiers configurables** (s'appuie sur 6 et 9).
+    périodique → sortie).
+11. **Moteur de mapping / états financiers configurables** (s'appuie sur 6 et 10).
 12. **Comptabilité analytique par projet/bailleur** (spécifique SYCEBNL).
 13. Puis, au choix selon opportunité business : **Trésorerie avancée** (lots, LCR/
     virements), **Stocks**, **SYSCOHADA (Phase 3)**, **OHADA→IFRS**, **Paie**, RBAC fin.

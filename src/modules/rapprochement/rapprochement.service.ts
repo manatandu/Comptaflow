@@ -1,7 +1,8 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
-import { ClasseCompte, StatutRapprochement } from '@prisma/client';
+import { ClasseCompte, Prisma, StatutRapprochement, TypeCompteDetailTotal } from '@prisma/client';
 import { OuvrirRapprochementDto } from './dto/rapprochement.dto';
+import { avecRetrySerialisable } from '../../common/prisma-retry.util';
 
 const EPSILON = 0.005;
 
@@ -27,6 +28,16 @@ export class RapprochementService {
     if (compte.classe !== ClasseCompte.CLASSE_5) {
       throw new BadRequestException(
         `Le compte ${compte.numero} n'est pas un compte de trésorerie (classe 5) — le rapprochement bancaire ne porte que sur ces comptes`,
+      );
+    }
+    // Même garde-fou qu'EcritureService.creer pour les écritures directes :
+    // un compte Total (§3.1) ne reçoit jamais de mouvement — un rapprochement
+    // ouvert dessus n'aurait structurellement aucune ligne à pointer et se
+    // clôturerait trivialement à 0/0, un faux "rapproché" silencieux. Trouvé
+    // en testant délibérément ce cas limite (pas de bug spontané observé).
+    if (compte.typeCompte === TypeCompteDetailTotal.TOTAL) {
+      throw new BadRequestException(
+        `Le compte ${compte.numero} est un compte Total (regroupement) — il ne reçoit jamais d'écriture directement, le rapprochement bancaire ne porte que sur un compte Détail`,
       );
     }
     return compte;
@@ -74,24 +85,35 @@ export class RapprochementService {
   async ouvrir(tenantId: string, userId: string, dto: OuvrirRapprochementDto) {
     await this.trouverCompteTresorerie(tenantId, dto.compteId);
 
-    const enCours = await this.prisma.rapprochementBancaire.findFirst({
-      where: { tenantId, compteId: dto.compteId, statut: StatutRapprochement.EN_COURS },
-    });
-    if (enCours) {
-      throw new ConflictException(
-        `Un rapprochement est déjà en cours sur ce compte (ouvert le ${enCours.createdAt.toISOString().slice(0, 10)}, id ${enCours.id}) — clôturez-le ou annulez-le avant d'en ouvrir un nouveau`,
-      );
-    }
-
-    return this.prisma.rapprochementBancaire.create({
-      data: {
-        tenantId,
-        compteId: dto.compteId,
-        dateReleve: new Date(dto.dateReleve),
-        soldeReleve: dto.soldeReleve,
-        createdBy: userId,
+    // Lecture (aucun EN_COURS existant) puis écriture (création) — même
+    // risque de condition de course que le numéro de pièce des journaux et
+    // la prochaine lettre de lettrage (voir prisma-retry.util.ts) : deux
+    // ouvertures simultanées sur le même compte pourraient toutes deux lire
+    // "aucun EN_COURS" et créer chacune leur rapprochement, violant la
+    // règle "un seul EN_COURS par compte" sans qu'aucune ne le remarque.
+    return avecRetrySerialisable(
+      this.prisma,
+      async (tx) => {
+        const enCours = await tx.rapprochementBancaire.findFirst({
+          where: { tenantId, compteId: dto.compteId, statut: StatutRapprochement.EN_COURS },
+        });
+        if (enCours) {
+          throw new ConflictException(
+            `Un rapprochement est déjà en cours sur ce compte (ouvert le ${enCours.createdAt.toISOString().slice(0, 10)}, id ${enCours.id}) — clôturez-le ou annulez-le avant d'en ouvrir un nouveau`,
+          );
+        }
+        return tx.rapprochementBancaire.create({
+          data: {
+            tenantId,
+            compteId: dto.compteId,
+            dateReleve: new Date(dto.dateReleve),
+            soldeReleve: dto.soldeReleve,
+            createdBy: userId,
+          },
+        });
       },
-    });
+      'Trop d\'ouvertures de rapprochement simultanées sur ce compte — veuillez réessayer.',
+    );
   }
 
   /** Détail d'un rapprochement : lignes déjà pointées ici + lignes encore pointables sur ce compte. */
@@ -187,14 +209,29 @@ export class RapprochementService {
     });
   }
 
-  /** Annule un rapprochement EN_COURS ouvert par erreur : dépointe ses lignes puis le supprime. */
+  /**
+   * Annule un rapprochement EN_COURS ouvert par erreur : dépointe ses
+   * lignes puis le supprime. Deux annulations simultanées du même
+   * rapprochement passeraient toutes deux `assurerEnCours` (aucune n'a
+   * encore supprimé la ligne au moment où l'autre la lit) ; la seconde
+   * `delete` échouerait alors sur un enregistrement déjà supprimé — capturé
+   * ici pour ne jamais renvoyer une erreur Prisma brute (P2025) à
+   * l'utilisateur, même principe que le reste de l'API (jamais de 500 nu).
+   */
   async annuler(tenantId: string, id: string) {
     const rapprochement = await this.assurerEnCours(tenantId, id);
     await this.prisma.ligneEcriture.updateMany({
       where: { rapprochementId: rapprochement.id },
       data: { rapprochementId: null },
     });
-    await this.prisma.rapprochementBancaire.delete({ where: { id: rapprochement.id } });
+    try {
+      await this.prisma.rapprochementBancaire.delete({ where: { id: rapprochement.id } });
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
+        throw new NotFoundException('Ce rapprochement a déjà été annulé');
+      }
+      throw err;
+    }
     return { supprime: true };
   }
 }
