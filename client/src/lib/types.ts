@@ -13,12 +13,15 @@ export type ClasseCompte =
   | 'CLASSE_5' | 'CLASSE_6' | 'CLASSE_7' | 'CLASSE_8' | 'CLASSE_9';
 export type StatutExercice = 'OUVERT' | 'CLOTURE';
 
+export type TypeCompteDetailTotal = 'DETAIL' | 'TOTAL';
+
 export interface Compte {
   id: string;
   tenantId: string;
   numero: string;
   intitule: string;
   classe: ClasseCompte;
+  typeCompte: TypeCompteDetailTotal;
   estActif: boolean;
 }
 
@@ -97,6 +100,7 @@ export interface LigneBalance {
   numero: string;
   intitule: string;
   classe: ClasseCompte;
+  typeCompte: TypeCompteDetailTotal;
   totalDebit: number;
   totalCredit: number;
   solde: number;

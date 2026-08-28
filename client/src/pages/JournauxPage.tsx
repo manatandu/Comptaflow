@@ -46,7 +46,7 @@ export function JournauxPage() {
   useEffect(() => {
     if (!estAdmin) return;
     charger();
-    api.get<Compte[]>('/comptes?classe=CLASSE_5&actifsSeuls=true').then(setComptesTresorerie);
+    api.get<Compte[]>('/comptes?classe=CLASSE_5&actifsSeuls=true&typeCompte=DETAIL').then(setComptesTresorerie);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [estAdmin]);
 

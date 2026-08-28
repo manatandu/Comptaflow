@@ -58,12 +58,12 @@ export function SaisiePage() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    api.get<Compte[]>('/comptes?classe=CLASSE_5&actifsSeuls=true').then((c) => {
+    api.get<Compte[]>('/comptes?classe=CLASSE_5&actifsSeuls=true&typeCompte=DETAIL').then((c) => {
       setComptes(c);
       if (c[0]) setCompteTresorerieId(c[0].id);
     });
-    api.get<Compte[]>('/comptes?classe=CLASSE_6&actifsSeuls=true').then(setComptesCharges);
-    api.get<Compte[]>('/comptes?classe=CLASSE_7&actifsSeuls=true').then(setComptesProduits);
+    api.get<Compte[]>('/comptes?classe=CLASSE_6&actifsSeuls=true&typeCompte=DETAIL').then(setComptesCharges);
+    api.get<Compte[]>('/comptes?classe=CLASSE_7&actifsSeuls=true&typeCompte=DETAIL').then(setComptesProduits);
     api.get<TauxTva[]>('/taux-tva?actifsSeuls=true').then(setTauxTvaListe);
     // Journaux de type Trésorerie : chacun porte son compte de trésorerie
     // associé (voir Journal.compteTresorerieId) — c'est ce lien, pas une

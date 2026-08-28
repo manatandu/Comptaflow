@@ -406,8 +406,36 @@ Ordre de dépendances techniques réelles, pas un simple ordre de préférence :
    prorata sur les immobilisations (art. 46, variation > 10 % sur 4/19 ans),
    option secteurs distincts (art. 49), verrou anti-double-liquidation d'une
    période déjà comptabilisée.
-6. **Comptes "Total"/regroupement par racine** — brique technique courte, prépare le
-   moteur de mapping.
+6. ✅ **Comptes "Total"/regroupement par racine** — livré. `Compte.typeCompte`
+   (`DETAIL` par défaut / `TOTAL`), agrégation par préfixe **littéral** de
+   chaîne de caractères (pas de troncature des zéros de fin — une racine
+   "411" agrège "411001"/"411002", mais "411000" ne les agrège **pas**, piège
+   relevé en testant : le numéro complet du Total n'est alors plus un préfixe
+   du Détail ; documenté dans le schéma et l'écran). Comptes Total jamais
+   mouvementables directement (`EcritureService.creer` les rejette
+   explicitement, avec le numéro du compte fautif dans le message) ; bascule
+   DETAIL→TOTAL refusée par `CompteService.modifier` si le compte a déjà des
+   écritures. `EcritureService.balance` calcule le solde d'un compte Total en
+   sommant tous les comptes DÉTAIL (jamais les Total imbriqués eux-mêmes, pour
+   ne pas compter deux fois en cas de hiérarchie à plusieurs niveaux) dont le
+   numéro commence par le sien ; exclu du total général de la balance pour ne
+   pas doubler les montants déjà comptés côté Détail. Bonus au passage :
+   `EcritureService.creer` renvoie désormais une 400 propre si un `compteId`
+   est introuvable/hors tenant, au lieu d'une erreur Prisma brute.
+   **Frontend** : `PlanComptesPage` n'avait jusqu'ici **aucun formulaire de
+   création de compte** (bouton "Nouveau" du ruban mort, sans `onClick`) —
+   corrigé à cette occasion, condition nécessaire pour que la brique soit
+   utilisable dans l'UI. Formulaire (numéro, intitulé, classe, Détail/Total),
+   badge de type dans la liste, ligne Total mise en évidence (gras,
+   surlignée), bouton "Lettrer" masqué sur les comptes Total (rien à
+   lettrer). Les sélecteurs de compte des écrans de saisie (SaisiePage,
+   TiersPage, TauxTvaPage, JournauxPage) filtrent désormais `typeCompte=
+   DETAIL` pour ne jamais proposer un compte Total dans un contexte où la
+   saisie serait de toute façon rejetée par le backend. Vérifié de bout en
+   bout via curl (rejet de saisie directe sur un Total, agrégation exacte
+   300+150=450 sur deux comptes Détail, totaux généraux non doublés) et
+   Playwright (création du Total "411" via le vrai formulaire, badge et mise
+   en forme corrects dans la liste).
 7. **Rapprochement bancaire** (manuel d'abord).
 8. **Immobilisations** (Famille → Immobilisation → plan d'amortissement → dotation
    périodique → sortie).

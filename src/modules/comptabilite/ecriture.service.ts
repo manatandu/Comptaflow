@@ -1,6 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
-import { StatutExercice } from '@prisma/client';
+import { StatutExercice, TypeCompteDetailTotal } from '@prisma/client';
 import { CreerEcritureDto } from './dto/creer-ecriture.dto';
 import { JournalService } from '../journaux/journal.service';
 import { ExerciceService } from '../exercice/exercice.service';
@@ -56,6 +56,25 @@ export class EcritureService {
       if (tauxTrouves.length !== tauxTvaIds.length) {
         throw new BadRequestException('Un ou plusieurs taux de TVA sont introuvables pour ce tenant');
       }
+    }
+
+    // Comptes Total (regroupement par racine, §3.1) : jamais mouvementables
+    // directement — leur solde n'est qu'une agrégation des comptes Détail de
+    // même préfixe numérique (voir balance() plus bas). Un appel API direct
+    // pourrait sinon y poster une écriture, brisant l'invariant du moteur de
+    // mapping futur (§3.5) qui suppose que seuls les comptes Détail portent
+    // des mouvements réels.
+    const compteIds = [...new Set(dto.lignes.map((l) => l.compteId))];
+    const comptes = await this.prisma.compte.findMany({ where: { id: { in: compteIds }, tenantId } });
+    if (comptes.length !== compteIds.length) {
+      throw new BadRequestException('Un ou plusieurs comptes sont introuvables pour ce tenant');
+    }
+    const comptesTotal = comptes.filter((c) => c.typeCompte === TypeCompteDetailTotal.TOTAL);
+    if (comptesTotal.length > 0) {
+      throw new BadRequestException(
+        `Impossible de saisir sur un compte Total (${comptesTotal.map((c) => c.numero).join(', ')}) — ` +
+          'ce sont des comptes de regroupement, saisissez sur le compte Détail concerné',
+      );
     }
 
     const date = new Date(dto.date);
@@ -177,15 +196,40 @@ export class EcritureService {
       },
     });
 
+    const soldeDirectParCompte = new Map(
+      comptes.map((c) => [
+        c.id,
+        {
+          totalDebit: c.lignesEcriture.reduce((s, l) => s + Number(l.debit), 0),
+          totalCredit: c.lignesEcriture.reduce((s, l) => s + Number(l.credit), 0),
+        },
+      ]),
+    );
+
     const lignesBalance = comptes
       .map((c) => {
-        const totalDebit = c.lignesEcriture.reduce((s, l) => s + Number(l.debit), 0);
-        const totalCredit = c.lignesEcriture.reduce((s, l) => s + Number(l.credit), 0);
+        let totalDebit: number;
+        let totalCredit: number;
+        if (c.typeCompte === TypeCompteDetailTotal.TOTAL) {
+          // Comptes Total (§3.1) : jamais de mouvement propre (imposé par
+          // EcritureService.creer) — leur solde agrège tous les comptes
+          // DÉTAIL de même préfixe numérique (jamais les comptes Total
+          // imbriqués eux-mêmes, pour ne pas compter deux fois les mêmes
+          // mouvements en cas de hiérarchie à plusieurs niveaux).
+          const enfantsDetail = comptes.filter(
+            (autre) => autre.id !== c.id && autre.numero.startsWith(c.numero) && autre.typeCompte === TypeCompteDetailTotal.DETAIL,
+          );
+          totalDebit = enfantsDetail.reduce((s, e) => s + soldeDirectParCompte.get(e.id)!.totalDebit, 0);
+          totalCredit = enfantsDetail.reduce((s, e) => s + soldeDirectParCompte.get(e.id)!.totalCredit, 0);
+        } else {
+          ({ totalDebit, totalCredit } = soldeDirectParCompte.get(c.id)!);
+        }
         return {
           compteId: c.id,
           numero: c.numero,
           intitule: c.intitule,
           classe: c.classe,
+          typeCompte: c.typeCompte,
           totalDebit,
           totalCredit,
           solde: totalDebit - totalCredit,
@@ -193,11 +237,16 @@ export class EcritureService {
       })
       .filter((l) => l.totalDebit !== 0 || l.totalCredit !== 0);
 
+    // Les comptes Total n'entrent pas dans les totaux généraux : leur solde
+    // n'est qu'un agrégat d'affichage des comptes Détail déjà comptés à côté
+    // — les additionner aussi doublerait les montants.
+    const lignesDetailSeules = lignesBalance.filter((l) => l.typeCompte !== TypeCompteDetailTotal.TOTAL);
+
     return {
       lignes: lignesBalance,
       totaux: {
-        debit: lignesBalance.reduce((s, l) => s + l.totalDebit, 0),
-        credit: lignesBalance.reduce((s, l) => s + l.totalCredit, 0),
+        debit: lignesDetailSeules.reduce((s, l) => s + l.totalDebit, 0),
+        credit: lignesDetailSeules.reduce((s, l) => s + l.totalCredit, 0),
       },
     };
   }

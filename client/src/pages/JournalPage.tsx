@@ -113,8 +113,9 @@ export function JournalPage() {
           {balance.map((l, i) => (
             <div
               key={l.compteId}
+              title={l.typeCompte === 'TOTAL' ? 'Compte Total — agrège les comptes Détail de même racine' : undefined}
               className={`grid grid-cols-[70px_1fr_110px_110px_110px] gap-2.5 px-3.5 py-1.5 items-center border-b border-border text-[12px] ${
-                i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'
+                l.typeCompte === 'TOTAL' ? 'bg-chrome font-semibold' : i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'
               }`}
             >
               <span className="font-mono">{l.numero}</span>

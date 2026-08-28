@@ -30,7 +30,7 @@ export function TauxTvaPage() {
   useEffect(() => {
     if (!estAdmin) return;
     charger();
-    api.get<Compte[]>('/comptes?classe=CLASSE_4&actifsSeuls=true').then(setComptesClasse4);
+    api.get<Compte[]>('/comptes?classe=CLASSE_4&actifsSeuls=true&typeCompte=DETAIL').then(setComptesClasse4);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [estAdmin]);
 

@@ -1,5 +1,5 @@
 import { IsBoolean, IsEnum, IsOptional, IsString, Matches } from 'class-validator';
-import { ClasseCompte, ModeReportANouveau } from '@prisma/client';
+import { ClasseCompte, ModeReportANouveau, TypeCompteDetailTotal } from '@prisma/client';
 
 export class CreerCompteDto {
   @Matches(/^\d{3,8}$/, { message: 'Le numéro de compte doit être numérique (3 à 8 chiffres)' })
@@ -16,6 +16,13 @@ export class CreerCompteDto {
   @IsOptional()
   @IsEnum(ModeReportANouveau)
   modeReportANouveau?: ModeReportANouveau;
+
+  // Par défaut DETAIL (compte mouvementable normalement). TOTAL = compte de
+  // regroupement par racine (§3.1) — ne reçoit jamais d'écriture directement,
+  // voir EcritureService.creer().
+  @IsOptional()
+  @IsEnum(TypeCompteDetailTotal)
+  typeCompte?: TypeCompteDetailTotal;
 }
 
 export class ModifierCompteDto {
@@ -30,4 +37,8 @@ export class ModifierCompteDto {
   @IsOptional()
   @IsEnum(ModeReportANouveau)
   modeReportANouveau?: ModeReportANouveau;
+
+  @IsOptional()
+  @IsEnum(TypeCompteDetailTotal)
+  typeCompte?: TypeCompteDetailTotal;
 }

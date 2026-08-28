@@ -98,7 +98,7 @@ export function TiersPage() {
 
   useEffect(() => {
     api.get<ModeleReglement[]>('/modeles-reglement').then(setModeles);
-    api.get<Compte[]>('/comptes?classe=CLASSE_4&actifsSeuls=true').then(setComptesClasse4);
+    api.get<Compte[]>('/comptes?classe=CLASSE_4&actifsSeuls=true&typeCompte=DETAIL').then(setComptesClasse4);
   }, []);
 
   // Solde des comptes rattachés (balance de l'exercice courant) — affiché à

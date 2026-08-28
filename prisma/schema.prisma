@@ -129,15 +129,33 @@ enum ModeReportANouveau {
   DETAIL
 }
 
+// Comptes "Total"/regroupement par racine (§3.1, §3.5 — brique technique qui
+// prépare le futur moteur de mapping/états financiers) : un compte Total ne
+// reçoit JAMAIS d'écriture directement (voir EcritureService.creer) ; son
+// solde est calculé en agrégeant tous les comptes Détail dont le numéro
+// commence par le sien (voir EcritureService.balance) — pas une relation
+// explicite parent/enfant, un simple préfixe numérique, comme chez Sage.
+// Préfixe au sens LITTÉRAL de la chaîne de caractères, sans troncature des
+// zéros de fin : la racine "411" agrège "411001"/"411002", mais "411000" ne
+// les agrège PAS (le numéro complet du Total n'est alors plus un préfixe de
+// celui du Détail) — un piège relevé en testant la fonctionnalité, à choisir
+// la racine en conséquence (numéro court, pas un numéro complet suffixé de
+// zéros).
+enum TypeCompteDetailTotal {
+  DETAIL
+  TOTAL
+}
+
 model Compte {
-  id                 String             @id @default(uuid())
+  id                 String                @id @default(uuid())
   tenantId           String
-  tenant             Tenant             @relation(fields: [tenantId], references: [id])
+  tenant             Tenant                @relation(fields: [tenantId], references: [id])
   numero             String // ex : "10600" fonds associatif, "1810" fonds affecté
   intitule           String
   classe             ClasseCompte
-  estActif           Boolean            @default(true)
-  modeReportANouveau ModeReportANouveau @default(SOLDE)
+  typeCompte         TypeCompteDetailTotal @default(DETAIL)
+  estActif           Boolean               @default(true)
+  modeReportANouveau ModeReportANouveau    @default(SOLDE)
 
   lignesEcriture     LigneEcriture[]
   journauxTresorerie Journal[] // journaux de type TRESORERIE dont ce compte est la contrepartie
@@ -146,8 +164,8 @@ model Compte {
   tiersCompte        TiersCompte?
   // Comptes d'État TVA (443/445) référencés par un ou plusieurs taux (§3.1) —
   // un même compte 443100 peut être partagé par plusieurs taux (16 %, 1 %...).
-  tauxTvaCollecte    TauxTva[]        @relation("TauxTvaCollecte")
-  tauxTvaDeductible  TauxTva[]        @relation("TauxTvaDeductible")
+  tauxTvaCollecte    TauxTva[]       @relation("TauxTvaCollecte")
+  tauxTvaDeductible  TauxTva[]       @relation("TauxTvaDeductible")
 
   @@unique([tenantId, numero])
   @@map("comptes")
@@ -367,8 +385,8 @@ model ModeleReglement {
   estActif   Boolean           @default(true)
   createdAt  DateTime          @default(now())
 
-  tiers      Tiers[]
-  echeances  EcheanceReglement[]
+  tiers     Tiers[]
+  echeances EcheanceReglement[]
 
   @@unique([tenantId, intitule])
   @@map("modeles_reglement")
@@ -378,14 +396,14 @@ model ModeleReglement {
 // a besoin de plusieurs échéances ; un modèle sans aucune ligne ici reste
 // mono-échéance (voir le commentaire sur ModeleReglement.delaiJours).
 model EcheanceReglement {
-  id                String          @id @default(uuid())
+  id                String            @id @default(uuid())
   modeleReglementId String
-  modeleReglement   ModeleReglement @relation(fields: [modeleReglementId], references: [id])
+  modeleReglement   ModeleReglement   @relation(fields: [modeleReglementId], references: [id])
   ordre             Int // ordre d'application — détermine aussi ce que "le reste" signifie pour EQUILIBRE
   type              TypeEcheance
   // Pourcentage (0-100) pour POURCENTAGE, montant fixe pour MONTANT, null
   // pour EQUILIBRE (n'a pas de valeur propre, prend ce qu'il reste).
-  valeur            Decimal?        @db.Decimal(12, 2)
+  valeur            Decimal?          @db.Decimal(12, 2)
   delaiJours        Int
   echeance          ConditionEcheance @default(NET)
 
@@ -419,13 +437,13 @@ model Tiers {
 // tiers ; imposé par TiersService.rattacherCompte, pas par une contrainte SQL
 // (Postgres ne supporte pas nativement un "unique partiel" via Prisma ici).
 model TiersCompte {
-  id          String  @id @default(uuid())
-  tiersId     String
-  tiers       Tiers   @relation(fields: [tiersId], references: [id])
-  compteId    String  @unique
-  compte      Compte  @relation(fields: [compteId], references: [id])
-  estPrincipal Boolean @default(false)
-  createdAt   DateTime @default(now())
+  id           String   @id @default(uuid())
+  tiersId      String
+  tiers        Tiers    @relation(fields: [tiersId], references: [id])
+  compteId     String   @unique
+  compte       Compte   @relation(fields: [compteId], references: [id])
+  estPrincipal Boolean  @default(false)
+  createdAt    DateTime @default(now())
 
   @@map("tiers_comptes")
 }
@@ -460,17 +478,17 @@ model TiersCompte {
 // ---------------------------------------------------------------------------
 
 model TauxTva {
-  id       String @id @default(uuid())
+  id       String  @id @default(uuid())
   tenantId String
-  tenant   Tenant @relation(fields: [tenantId], references: [id])
+  tenant   Tenant  @relation(fields: [tenantId], references: [id])
   code     String // ex : "TVA16", "TVA1", "TVA5", "TVA0"
   intitule String
   // Pourcentage (ex. 16.00) ; 0 pour le taux zéro (exportations).
-  taux Decimal @db.Decimal(5, 2)
+  taux     Decimal @db.Decimal(5, 2)
 
   // Compte 443 (État, TVA facturée) crédité lors d'une vente à ce taux.
-  compteCollecteId String?
-  compteCollecte   Compte? @relation("TauxTvaCollecte", fields: [compteCollecteId], references: [id])
+  compteCollecteId   String?
+  compteCollecte     Compte? @relation("TauxTvaCollecte", fields: [compteCollecteId], references: [id])
   // Compte 445 (État, TVA récupérable) débité lors d'un achat à ce taux.
   compteDeductibleId String?
   compteDeductible   Compte? @relation("TauxTvaDeductible", fields: [compteDeductibleId], references: [id])

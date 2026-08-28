@@ -6,7 +6,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { CompteService } from './compte.service';
 import { CreerCompteDto, ModifierCompteDto } from './dto/creer-compte.dto';
-import { ClasseCompte, RoleUtilisateur } from '@prisma/client';
+import { ClasseCompte, RoleUtilisateur, TypeCompteDetailTotal } from '@prisma/client';
 
 // Consultation ouverte aux trois rôles ; gestion du plan de comptes réservée
 // à l'admin (@Roles ci-dessous, méthode par méthode).
@@ -21,11 +21,17 @@ export class CompteController {
     @Query('classe') classe?: ClasseCompte,
     @Query('recherche') recherche?: string,
     @Query('actifsSeuls') actifsSeuls?: string,
+    // Filtre les comptes Total (regroupement, §3.1) — utile aux sélecteurs
+    // de saisie, qui ne doivent proposer que des comptes mouvementables
+    // (EcritureService.creer rejette de toute façon une écriture sur un
+    // compte Total, mais autant ne pas le proposer dans la liste).
+    @Query('typeCompte') typeCompte?: TypeCompteDetailTotal,
   ) {
     return this.compteService.lister(user.tenantId, {
       classe,
       recherche,
       actifsSeuls: actifsSeuls === 'true',
+      typeCompte,
     });
   }
 
