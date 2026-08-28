@@ -48,6 +48,33 @@ grosses briques métier de la vision long terme) — voir §3.
 5. **On construit petit à petit, brique par brique.** Ce document enrichit et ordonne
    cette vision — il ne la remplace pas, et ne dispense pas de valider chaque brique
    avant de l'attaquer.
+6. **Chaque brique est ancrée aux référentiels OHADA/SYCEBNL et aux textes locaux
+   congolais pertinents — jamais construite ni close sans ce contrôle.** Ne jamais
+   citer une règle comptable, fiscale, sociale ou juridique de mémoire : toujours lire
+   le skill correspondant (règle déjà appliquée pour le plan de comptes et la TVA,
+   généralisée ici à toute brique future qui touche un domaine réglementé). Une brique
+   dont la conformité n'est que partielle (ex. le bilan actuel — regroupement
+   simplifié, pas le tableau de correspondance officiel) le dit explicitement dans le
+   code ET à l'écran, jamais silencieusement. Table de correspondance domaine → skill,
+   à consulter avant d'attaquer une brique et à élargir au fil des besoins :
+
+   | Domaine de la brique | Skill(s) à consulter |
+   |---|---|
+   | Plan de comptes, structure comptable, états financiers SYCEBNL | `sycebnl` |
+   | Plan de comptes SYSCOHADA (Phase 3) | `syscohada` |
+   | Acte uniforme comptable général (au-delà de SYCEBNL) | `audcif-acte-uniforme` |
+   | Autres actes uniformes OHADA (sociétés, sûretés, procédures collectives...) | `auscgie-acte-uniforme`, `aupcap-acte-uniforme`, `aus-acte-uniforme`, `aupsrve-acte-uniforme`, `aua-acte-uniforme`, `auctmr-acte-uniforme`, `audcg-acte-uniforme`, `auscoop-acte-uniforme`, `aum-acte-uniforme` (au cas par cas) |
+   | TVA, impôts, taxes RDC | `fiscalite-rdc`, `fiscalite-rdc-socle`, `precis-droit-fiscal-congolais-kalonji` |
+   | Paie, droit du travail (brique Paie, hors périmètre actuel) | `droit-travail-congolais` |
+   | Cotisations sociales (CNSS) | `cnss-cotisations-sociales-rdc` |
+   | Immobilisations (brique à venir) — amortissement fiscal vs comptable | `fiscalite-rdc` + `sycebnl` (comptes classe 2/28/29) |
+   | Audit, commissariat aux comptes (seuils art. 19-22 SYCEBNL) | `guide-pratique-mission-audit-ohada`, `isa-isqm-normes`, `iaasb-assurance-services-connexes` |
+   | Passage OHADA→IFRS (vision long terme) | `ifrs`, `gcec-ifrs-rdc` |
+   | Normalisation comptable congolaise au-delà de SYCEBNL/OHADA | `kinzonzi-normalisation-comptable`, `organisation-comptable-cpcc` |
+   | Enregistrement/statut légal d'une ASBL (hors comptabilité) | `note-circulaire-003-2013-enregistrement-asbl-eup` (fichier référence du skill `sycebnl`) |
+
+   Cette table n'est pas exhaustive et ne remplace pas la lecture du skill au moment
+   de la brique — elle sert à ne pas oublier de la consulter.
 
 ---
 
