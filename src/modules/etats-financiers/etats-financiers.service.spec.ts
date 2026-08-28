@@ -2,6 +2,8 @@ import { ClasseCompte, TypeCompteDetailTotal } from '@prisma/client';
 import { EtatsFinanciersService } from './etats-financiers.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { ExerciceService } from '../exercice/exercice.service';
+import { TOUS_LES_POSTES_FLUX } from './correspondance-tft';
+import { correspond } from './etats-financiers.communs';
 
 /** Fabrique une ligne de balance telle que `EcritureService.balance()` la renvoie. */
 function ligne(
@@ -591,5 +593,264 @@ describe('EtatsFinanciersService', () => {
       expect(cr.resultatNetN1).toBeUndefined();
       expect(cr.produits.find((p) => p.ref === 'RA')?.montantN1).toBeUndefined();
     });
+  });
+});
+
+/**
+ * Fixture propre au TABLEAU DE FLUX : contrairement au bilan et au compte de
+ * résultat, le TFT distingue le REPORT À-NOUVEAU des MOUVEMENTS PROPRES de
+ * l'exercice — sans quoi le report d'un compte d'immobilisation serait lu
+ * comme une acquisition de l'année. `report` porte le report à-nouveau
+ * (débit, crédit) ; `d`/`c` les mouvements de la période ; les totaux sont
+ * leur somme, exactement comme `EcritureService.balance` les calcule.
+ */
+function ligneF(
+  numero: string,
+  classe: ClasseCompte,
+  d: number,
+  c: number,
+  report: [number, number] = [0, 0],
+) {
+  const [rd, rc] = report;
+  return {
+    compteId: `id-${numero}`,
+    numero,
+    intitule: `Compte ${numero}`,
+    classe,
+    typeCompte: TypeCompteDetailTotal.DETAIL,
+    totalDebit: d + rd,
+    totalCredit: c + rc,
+    reportDebit: rd,
+    reportCredit: rc,
+    mouvementDebit: d,
+    mouvementCredit: c,
+    solde: d + rd - c - rc,
+  };
+}
+
+const DEUX_EXERCICES = [
+  { id: 'eN', dateDebut: new Date('2026-01-01') },
+  { id: 'eN1', dateDebut: new Date('2025-01-01') },
+];
+
+describe('EtatsFinanciersService — tableau de flux de trésorerie', () => {
+  const ref = (tft: any, r: string) => tft.lignes.find((l: any) => l.ref === r);
+
+  it('applique la formule officielle et BOUCLE : cycle complet des cotisations sur deux exercices', async () => {
+    // Scénario vérifié à la main, chiffre par chiffre.
+    //
+    // N-1 : cotisations appelées 1 000, encaissées 800 -> créance 200, banque 800.
+    // N   : cotisations appelées 1 500, encaissements 1 400 -> créance 300, banque 2 200.
+    //
+    // Formule officielle (Partie 4, ch. 1 § 4), reprise de l'exemple du texte :
+    //   Cotisations encaissées en N = 1 500 + 200 (créances N-1) - 300 (créances N) = 1 400.
+    const service = serviceAvecExercices(
+      {
+        eN1: [
+          ligneF('41100000', ClasseCompte.CLASSE_4, 1000, 800),
+          ligneF('52110000', ClasseCompte.CLASSE_5, 800, 0),
+          ligneF('70100000', ClasseCompte.CLASSE_7, 0, 1000),
+        ],
+        eN: [
+          ligneF('41100000', ClasseCompte.CLASSE_4, 1500, 1400, [200, 0]),
+          ligneF('52110000', ClasseCompte.CLASSE_5, 1400, 0, [800, 0]),
+          ligneF('70100000', ClasseCompte.CLASSE_7, 0, 1500),
+        ],
+      },
+      DEUX_EXERCICES,
+    );
+
+    const tft = await service.tableauFluxTresorerie('t1', 'eN');
+
+    expect(ref(tft, 'ZA').montant).toBe(800); // trésorerie à l'ouverture
+    expect(ref(tft, 'FA').montant).toBe(1400); // 1500 + 200 - 300
+    expect(ref(tft, 'ZB').montant).toBe(1400);
+    expect(ref(tft, 'ZF').montant).toBe(1400);
+    expect(ref(tft, 'ZG').montant).toBe(2200);
+
+    // Les DEUX égalités de contrôle du texte officiel, vérifiées ensemble.
+    expect(tft.controle.tresorerieClotureParFlux).toBe(2200);
+    expect(tft.controle.tresorerieClotureParBilan).toBe(2200);
+    expect(tft.controle.ecart).toBe(0);
+    expect(tft.controle.coherent).toBe(true);
+  });
+
+  it('côté charges : le décaissement fournisseurs est le paiement RÉEL, pas l’achat de l’exercice', async () => {
+    // N-1 : dette fournisseurs 150, banque 1 000.
+    // N   : achats 600, paiements 500 -> dette 250, banque 500.
+    // Décaissements = 600 + 150 (dettes N-1) - 250 (dettes N) = 500 = les paiements réels.
+    const service = serviceAvecExercices(
+      {
+        eN1: [
+          ligneF('40110000', ClasseCompte.CLASSE_4, 0, 150),
+          ligneF('52110000', ClasseCompte.CLASSE_5, 1000, 0),
+        ],
+        eN: [
+          ligneF('40110000', ClasseCompte.CLASSE_4, 500, 600, [0, 150]),
+          ligneF('60400000', ClasseCompte.CLASSE_6, 600, 0),
+          ligneF('52110000', ClasseCompte.CLASSE_5, 0, 500, [1000, 0]),
+        ],
+      },
+      DEUX_EXERCICES,
+    );
+
+    const tft = await service.tableauFluxTresorerie('t1', 'eN');
+
+    // Présenté en NÉGATIF : le modèle officiel écrit « - Décaissement des
+    // sommes versées aux fournisseurs », et les sous-totaux sont des sommes.
+    expect(ref(tft, 'FF').montant).toBe(-500);
+    expect(ref(tft, 'ZB').montant).toBe(-500);
+    expect(ref(tft, 'ZG').montant).toBe(500);
+    expect(tft.controle.coherent).toBe(true);
+  });
+
+  it('le REPORT À-NOUVEAU d’une immobilisation n’est JAMAIS une acquisition de l’exercice', async () => {
+    // LE défaut que la lecture en mouvements propres existe pour empêcher :
+    // un bâtiment détenu depuis l'exercice précédent (report 20 000) plus une
+    // acquisition de l'année (5 000). Lire le solde donnerait 25 000 de
+    // décaissement d'investissement, dont 20 000 purement imaginaires.
+    const service = serviceAvecExercices(
+      {
+        eN1: [ligneF('52110000', ClasseCompte.CLASSE_5, 25000, 0)],
+        eN: [
+          ligneF('23110000', ClasseCompte.CLASSE_2, 5000, 0, [20000, 0]),
+          ligneF('52110000', ClasseCompte.CLASSE_5, 0, 5000, [25000, 0]),
+        ],
+      },
+      DEUX_EXERCICES,
+    );
+
+    const tft = await service.tableauFluxTresorerie('t1', 'eN');
+    expect(ref(tft, 'FI').montant).toBe(-5000);
+    expect(tft.controle.coherent).toBe(true);
+  });
+
+  it('une acquisition ET une cession la même année ne se compensent pas : deux flux réels, de sens opposés', async () => {
+    // Lire le NET du compte 231 donnerait une acquisition de 2 000 au lieu de
+    // 5 000, et ferait disparaître la sortie d'actif. `DEBIT_SEUL` l'interdit.
+    const service = serviceAvecExercices(
+      {
+        eN1: [ligneF('52110000', ClasseCompte.CLASSE_5, 10000, 0)],
+        eN: [
+          ligneF('23110000', ClasseCompte.CLASSE_2, 5000, 3000),
+          ligneF('82200000', ClasseCompte.CLASSE_8, 0, 3500), // prix de cession encaissé
+          ligneF('81200000', ClasseCompte.CLASSE_8, 3000, 0), // valeur comptable sortie
+          ligneF('52110000', ClasseCompte.CLASSE_5, 3500, 5000, [10000, 0]),
+        ],
+      },
+      DEUX_EXERCICES,
+    );
+
+    const tft = await service.tableauFluxTresorerie('t1', 'eN');
+    expect(ref(tft, 'FI').montant).toBe(-5000); // acquisition, débit seul
+    expect(ref(tft, 'FK').montant).toBe(3500); // prix de cession, compte 82
+    expect(ref(tft, 'ZC').montant).toBe(-1500);
+    expect(tft.controle.coherent).toBe(true);
+  });
+
+  it('un compte NON VENTILÉ est dit, et l’écart de bouclage en chiffre exactement l’effet', async () => {
+    // Compte 4491 « Etat, subvention à recevoir » : le plan ne le subdivise
+    // PAS entre exploitation (FB) et investissement (FN), il n'est donc
+    // rattaché à aucun poste (anomalie n° 2 de correspondance-tft.ts).
+    //
+    // Une subvention de 500 acquise mais non encaissée gonfle donc FB de 500
+    // sans contrepartie de trésorerie. Le tableau ne le corrige pas : il
+    // signale un écart de 500 ET nomme le compte responsable.
+    const service = serviceAvecExercices(
+      {
+        eN1: [ligneF('52110000', ClasseCompte.CLASSE_5, 1000, 0)],
+        eN: [
+          ligneF('44910000', ClasseCompte.CLASSE_4, 500, 0),
+          ligneF('71100000', ClasseCompte.CLASSE_7, 0, 500),
+          ligneF('52110000', ClasseCompte.CLASSE_5, 0, 0, [1000, 0]),
+        ],
+      },
+      DEUX_EXERCICES,
+    );
+
+    const tft = await service.tableauFluxTresorerie('t1', 'eN');
+
+    expect(ref(tft, 'FB').montant).toBe(500);
+    expect(tft.controle.tresorerieClotureParFlux).toBe(1500);
+    expect(tft.controle.tresorerieClotureParBilan).toBe(1000); // la banque n'a pas bougé
+    expect(tft.controle.ecart).toBe(500);
+    expect(tft.controle.coherent).toBe(false);
+    // La cause est nommée, pas seulement le montant.
+    expect(tft.comptesNonVentiles.map((c: any) => c.numero)).toContain('44910000');
+  });
+
+  it('sans exercice antérieur, la trésorerie d’ouverture est nulle et le tableau le dit', async () => {
+    const service = serviceAvecExercices({
+      eN: [
+        ligneF('70100000', ClasseCompte.CLASSE_7, 0, 900),
+        ligneF('52110000', ClasseCompte.CLASSE_5, 900, 0),
+      ],
+    });
+    const tft = await service.tableauFluxTresorerie('t1', 'eN');
+    expect(tft.exerciceN1Disponible).toBe(false);
+    expect(ref(tft, 'ZA').montant).toBe(0);
+    expect(ref(tft, 'FA').montant).toBe(900);
+    expect(ref(tft, 'ZG').montant).toBe(900);
+    expect(tft.controle.coherent).toBe(true);
+  });
+
+  it('AUCUN compte n’est réclamé par deux postes de flux — ni en flux, ni en contrepartie', async () => {
+    // Troisième fois que ce défaut apparaît dans le projet (bilan BW/DW,
+    // notes 13/22 puis 10/19-21) : ici il produirait un tableau qui boucle à
+    // tort, le double comptage se compensant entre deux postes. Un compte
+    // PEUT figurer en flux d'un poste et en contrepartie d'un autre (23110000
+    // est le flux de FI et rien d'autre ; 40110000 la contrepartie de FF) —
+    // ce qui est interdit, c'est qu'il soit réclamé DEUX FOIS au même titre.
+    const ECHANTILLON = [
+      // Produits et charges
+      '70100000', '70400000', '70600000', '70500000', '71100000', '77100000',
+      '60400000', '61200000', '62200000', '64100000', '65800000', '66100000', '67100000',
+      // Tiers
+      '40110000', '41100000', '41610000', '41810000', '41200000', '41620000', '41820000',
+      '42200000', '43100000', '44200000', '44910000', '47110000', '47310000', '47320000', '47500000',
+      '48100000', '48510000', '48560000',
+      // Immobilisations et ressources durables
+      '21200000', '23110000', '26100000', '27100000', '10110000', '14110000', '16500000', '18200000',
+      // Classe 8
+      '82200000', '82600000', '88100000',
+    ];
+    for (const numero of ECHANTILLON) {
+      const enFlux = TOUS_LES_POSTES_FLUX.filter((p) => correspond(numero, p.comptesFlux, p.exclusionsFlux));
+      const enContrepartie = TOUS_LES_POSTES_FLUX.filter(
+        (p) => p.comptesContrepartie && correspond(numero, p.comptesContrepartie, p.exclusionsContrepartie),
+      );
+      // FM et FO partagent volontairement le compte 10, lus en sens OPPOSÉS
+      // (`CREDIT_SEUL` / `DEBIT_SEUL`) — de même FP et FQ sur 16/18. Ce n'est
+      // pas un double comptage : c'est ainsi que le modèle sépare l'apport du
+      // remboursement. On vérifie donc l'unicité PAR SENS DE LECTURE.
+      const parLecture = new Map<string, string[]>();
+      for (const p of enFlux) parLecture.set(p.lectureFlux, [...(parLecture.get(p.lectureFlux) ?? []), p.ref]);
+      for (const [lecture, refs] of parLecture) {
+        expect({ numero, lecture, refs }).toEqual({ numero, lecture, refs: refs.slice(0, 1) });
+      }
+      expect({ numero, contreparties: enContrepartie.map((p) => p.ref) }).toEqual({
+        numero,
+        contreparties: enContrepartie.map((p) => p.ref).slice(0, 1),
+      });
+    }
+  });
+
+  it('reproduit l’ordre officiel, en-têtes de section compris, et la ligne de financement SANS code REF', async () => {
+    const service = serviceAvecExercices({ eN: [] });
+    const tft = await service.tableauFluxTresorerie('t1', 'eN');
+
+    const refs = tft.lignes.filter((l: any) => !('section' in l)).map((l: any) => l.ref);
+    expect(refs).toEqual([
+      'ZA',
+      'FA', 'FB', 'FC', 'FD', 'FE', 'FF', 'FG', 'FH', 'ZB',
+      'FI', 'FJ', 'FK', 'FL', 'ZC',
+      'FM', 'FN', 'FO', 'ZD',
+      'FP', 'FQ', 'ZE',
+      '', // « Flux de trésorerie provenant des activités de financement (D+E) » — sans REF au texte officiel
+      'ZF', 'ZG',
+    ]);
+    const sections = tft.lignes.filter((l: any) => 'section' in l).map((l: any) => l.section);
+    expect(sections).toHaveLength(4);
+    expect(sections[0]).toBe('Flux de trésorerie provenant des activités opérationnelles');
   });
 });

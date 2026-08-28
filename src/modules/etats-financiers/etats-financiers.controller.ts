@@ -43,6 +43,21 @@ export class EtatsFinanciersController {
   }
 
   /**
+   * Tableau de flux de trésorerie — état propre au jeu « associations et
+   * ordres professionnels » (Partie 4, ch. 1 § 4 : « Le tableau des flux de
+   * trésorerie est un état financier spécifique aux associations et ordres
+   * professionnels »). Méthode directe, formule officielle, double contrôle
+   * de bouclage — voir `correspondance-tft.ts`.
+   */
+  @Get('tableau-flux-tresorerie')
+  async tableauFluxTresorerie(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    return this.etatsFinanciersService.tableauFluxTresorerie(user.tenantId, exerciceId);
+  }
+
+  /**
    * Jeu « projets de développement et assimilés » (Partie 4, ch. 3) — bilan
    * et compte d'exploitation seulement ; voir
    * `EtatsFinanciersProjetService` pour ce qui reste hors périmètre

@@ -26,6 +26,12 @@ import {
   TOTAUX_ACTIF,
   TOTAUX_PASSIF,
 } from './correspondance-bilan';
+import {
+  ORDRE_AFFICHAGE_FLUX,
+  PosteFluxTresorerie,
+  TOTAUX_FLUX,
+  TOUS_LES_POSTES_FLUX,
+} from './correspondance-tft';
 
 /**
  * Un poste du compte de résultat OU du bilan, calculé.
@@ -483,4 +489,204 @@ export class EtatsFinanciersService {
       },
     };
   }
+
+  // ==========================================================================
+  // TABLEAU DE FLUX DE TRÉSORERIE (associations et ordres professionnels)
+  //
+  // Méthode DIRECTE, imposée par le référentiel (Partie 4, ch. 1 § 4), et
+  // formule officielle appliquée telle quelle :
+  //
+  //     Encaissements N = Revenus (N) + Créances (N-1) - Créances (N)
+  //     Décaissements N = Achats  (N) + Dettes   (N-1) - Dettes   (N)
+  //
+  // Voir `correspondance-tft.ts` pour le rattachement poste par poste et les
+  // quatre anomalies du texte relevées.
+  // ==========================================================================
+
+  /**
+   * Montant du FLUX d'un poste — le fait générateur, lu sur les mouvements
+   * PROPRES de l'exercice (report à-nouveau exclu, voir
+   * `EcritureService.balance`). Sans cette exclusion, le report à-nouveau
+   * d'un compte d'immobilisation serait lu comme une acquisition de
+   * l'exercice, et tout le tableau serait faux dès le deuxième exercice.
+   */
+  private fluxDuPoste(poste: PosteFluxTresorerie, lignes: LigneBalancePourBilan[]): CompteDuPoste[] {
+    return lignes
+      .filter((l) => correspond(l.numero, poste.comptesFlux, poste.exclusionsFlux))
+      .map((l) => {
+        let montant: number;
+        switch (poste.lectureFlux) {
+          case 'NET_PRODUIT':
+            montant = l.mouvementCredit - l.mouvementDebit;
+            break;
+          case 'NET_CHARGE':
+            montant = l.mouvementDebit - l.mouvementCredit;
+            break;
+          case 'DEBIT_SEUL':
+            montant = l.mouvementDebit;
+            break;
+          case 'CREDIT_SEUL':
+            montant = l.mouvementCredit;
+            break;
+        }
+        return { numero: l.numero, intitule: l.intitule, montant };
+      })
+      .filter((c) => Math.abs(c.montant) > 0.005);
+  }
+
+  /**
+   * Solde de CLÔTURE des contreparties (créances ou dettes) d'un poste, dans
+   * sa magnitude naturelle : une créance est débitrice, une dette créditrice.
+   * Lu en solde et non en mouvement — c'est une SITUATION à une date, que la
+   * formule officielle compare entre N-1 et N.
+   */
+  private contrepartieDuPoste(poste: PosteFluxTresorerie, lignes: LigneBalancePourBilan[]): number {
+    if (!poste.comptesContrepartie) return 0;
+    const soldes = lignes
+      .filter((l) => correspond(l.numero, poste.comptesContrepartie!, poste.exclusionsContrepartie))
+      .reduce((s, l) => s + l.solde, 0);
+    // Une créance (encaissement à venir) est débitrice, une dette
+    // (décaissement à venir) créditrice : on ramène les deux à une magnitude
+    // positive pour que la formule s'écrive à l'identique dans les deux sens.
+    return poste.sens === 'ENCAISSEMENT' ? soldes : -soldes;
+  }
+
+  /**
+   * Un poste de flux, formule officielle appliquée. Le montant retourné est
+   * l'EFFET SUR LA TRÉSORERIE, signé : positif pour un encaissement, négatif
+   * pour un décaissement — de sorte que les sous-totaux ZB à ZF s'obtiennent
+   * par simple addition, comme le modèle l'écrit (« somme FA à FH »).
+   */
+  private calculerPosteFlux(
+    poste: PosteFluxTresorerie,
+    lignesN: LigneBalancePourBilan[],
+    lignesN1: LigneBalancePourBilan[],
+  ): PosteCalcule & { flux: number; variationContrepartie: number } {
+    const comptes = this.fluxDuPoste(poste, lignesN);
+    const flux = comptes.reduce((s, c) => s + c.montant, 0);
+    const contrepartieN = this.contrepartieDuPoste(poste, lignesN);
+    const contrepartieN1 = this.contrepartieDuPoste(poste, lignesN1);
+    // « + Créances (N-1) - Créances (N) », mot pour mot.
+    const variationContrepartie = contrepartieN1 - contrepartieN;
+    const encaisse = flux + variationContrepartie;
+    return {
+      ref: poste.ref,
+      libelle: poste.libelle,
+      montant: (poste.sens === 'ENCAISSEMENT' ? encaisse : -encaisse) || 0,
+      flux,
+      variationContrepartie,
+      comptes,
+    };
+  }
+
+  /**
+   * Trésorerie nette à la clôture d'un jeu de lignes : « Trésorerie actif -
+   * Trésorerie passif », deuxième égalité de contrôle du texte officiel.
+   * Lue depuis les postes du BILAN (BX et DX) et non depuis les comptes en
+   * vrac : c'est le même chiffre que celui présenté au bilan, y compris le
+   * traitement des découverts bancaires (52/53 créditeurs transférés de BW
+   * vers DW) — les deux états ne peuvent donc pas diverger.
+   */
+  private tresorerieNette(lignes: LigneBalancePourBilan[]): number {
+    const { parRef } = this.resoudreTousLesPostesBilan(lignes);
+    return (parRef.get('BX')?.montant ?? 0) - (parRef.get('DX')?.montant ?? 0);
+  }
+
+  async tableauFluxTresorerie(tenantId: string, exerciceId: string) {
+    const exerciceN1Id = await this.trouverExerciceN1(tenantId, exerciceId);
+    const [lignesN, lignesN1] = await Promise.all([
+      this.chargerLignes(tenantId, exerciceId),
+      this.chargerLignes(tenantId, exerciceN1Id),
+    ]);
+
+    const parRef = new Map<string, PosteCalcule & { flux?: number; variationContrepartie?: number }>();
+
+    // ZA — « Trésorerie nette au 1er janvier (Trésorerie actif N-1 -
+    // Trésorerie passif N-1) », le libellé officiel dit lui-même la formule.
+    const tresorerieOuverture = this.tresorerieNette(lignesN1);
+    parRef.set('ZA', {
+      ref: 'ZA',
+      libelle: 'Trésorerie nette au 1er janvier (Trésorerie actif N-1 – Trésorerie passif N-1)',
+      montant: tresorerieOuverture,
+      comptes: [],
+    });
+
+    for (const poste of TOUS_LES_POSTES_FLUX) {
+      parRef.set(poste.ref, this.calculerPosteFlux(poste, lignesN, lignesN1));
+    }
+    for (const total of TOTAUX_FLUX) {
+      parRef.set(total.ref, {
+        ref: total.ref,
+        libelle: total.libelle,
+        montant: total.deRefs.reduce((s, ref) => s + (parRef.get(ref)?.montant ?? 0), 0),
+        comptes: [],
+      });
+    }
+
+    // ZG calculé DEUX FOIS, comme le texte l'exige (deux égalités de
+    // contrôle). Le montant présenté est celui du CUMUL DES FLUX (G + A),
+    // qui est ce que le tableau démontre ; la lecture directe du bilan sert
+    // de contrôle indépendant. Un écart n'est pas corrigé : il chiffre
+    // exactement ce que la ventilation FA-FQ ne couvre pas.
+    const variation = parRef.get('ZF')!.montant;
+    const tresorerieClotureParFlux = tresorerieOuverture + variation;
+    const tresorerieClotureParBilan = this.tresorerieNette(lignesN);
+    const ecart = tresorerieClotureParFlux - tresorerieClotureParBilan;
+    parRef.set('ZG', {
+      ref: 'ZG',
+      libelle: 'Trésorerie nette au 31 Décembre (G+A)',
+      montant: tresorerieClotureParFlux,
+      comptes: [],
+    });
+
+    const REFS_TOTAUX = new Set(['ZA', 'ZB', 'ZC', 'ZD', 'ZE', 'ZF', 'ZG', '']);
+    const lignesAffichees = ORDRE_AFFICHAGE_FLUX.map((entree) => {
+      if ('section' in entree) return { section: entree.section };
+      const p = parRef.get(entree.ref)!;
+      const total = TOTAUX_FLUX.find((t) => t.ref === entree.ref);
+      return { ...p, estTotal: REFS_TOTAUX.has(entree.ref), repere: total?.repere };
+    });
+
+    // Comptes ENCAISSABLES qu'aucun poste ne ventile — même discipline qu'au
+    // bilan et au compte de résultat. Ce sont eux qui expliquent un écart de
+    // bouclage : les lister à côté de l'écart donne la cause avec le montant,
+    // plutôt qu'un chiffre orphelin.
+    const ventiles = new Set<string>();
+    for (const poste of TOUS_LES_POSTES_FLUX) {
+      for (const l of lignesN) {
+        if (
+          correspond(l.numero, poste.comptesFlux, poste.exclusionsFlux) ||
+          (poste.comptesContrepartie && correspond(l.numero, poste.comptesContrepartie, poste.exclusionsContrepartie))
+        ) {
+          ventiles.add(l.compteId);
+        }
+      }
+    }
+    const comptesNonVentiles = lignesN
+      .filter((l) => !ventiles.has(l.compteId))
+      // La trésorerie elle-même (classe 5) n'a rien à ventiler : elle EST le
+      // solde que le tableau explique. Les classes 3 (stocks) et 12/13
+      // (report et résultat) ne portent pas de flux non plus.
+      .filter((l) => !l.numero.startsWith('5') && !l.numero.startsWith('3'))
+      .filter((l) => !l.numero.startsWith('12') && !l.numero.startsWith('13'))
+      .filter((l) => Math.abs(l.mouvementDebit) > 0.005 || Math.abs(l.mouvementCredit) > 0.005)
+      .map((l) => ({ numero: l.numero, intitule: l.intitule, montant: l.solde }));
+
+    return {
+      lignes: lignesAffichees,
+      exerciceN1Disponible: exerciceN1Id !== null,
+      comptesNonVentiles,
+      controle: {
+        tresorerieOuverture,
+        variation,
+        tresorerieClotureParFlux,
+        tresorerieClotureParBilan,
+        ecart,
+        // Les deux égalités du texte officiel sont vérifiées ensemble : si
+        // elles concordent, le tableau boucle.
+        coherent: Math.abs(ecart) < 0.01,
+      },
+    };
+  }
+
 }
