@@ -140,4 +140,24 @@ export class ExportController {
   ) {
     envoyerXlsx(res, await this.exportService.noteBailleurExcel(user.tenantId, exerciceId));
   }
+
+  /** Notes annexes du jeu « associations et ordres professionnels » — 45 notes, une feuille par tableau applicable. */
+  @Get('notes-annexes/associations')
+  async notesAssociations(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    envoyerXlsx(res, await this.exportService.notesAssociationsExcel(user.tenantId, exerciceId));
+  }
+
+  /** Notes annexes du jeu « projets de développement et assimilés » — 26 notes. */
+  @Get('notes-annexes/projet')
+  async notesProjet(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    envoyerXlsx(res, await this.exportService.notesProjetExcel(user.tenantId, exerciceId));
+  }
 }

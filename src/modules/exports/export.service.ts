@@ -5,6 +5,8 @@ import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { EtatsFinanciersService, PosteCalcule } from '../etats-financiers/etats-financiers.service';
 import { EtatsFinanciersProjetService } from '../etats-financiers/etats-financiers-projet.service';
+import { NoteAnnexeService } from '../notes-annexes/note-annexe.service';
+import { ColonneNote, LigneNoteCalculee, NoteCalculee, TypeColonneNote } from '../notes-annexes/note-annexe.types';
 
 const ENTETE_FONT = { bold: true } as const;
 const ENTETE_FILL = {
@@ -49,6 +51,7 @@ export class ExportService {
     private readonly ecritureService: EcritureService,
     private readonly etatsFinanciersService: EtatsFinanciersService,
     private readonly etatsFinanciersProjetService: EtatsFinanciersProjetService,
+    private readonly noteAnnexeService: NoteAnnexeService,
   ) {}
 
   private nouveauClasseur(): ExcelJS.Workbook {
@@ -1074,6 +1077,204 @@ export class ExportService {
     return {
       buffer: await this.versBuffer(classeur),
       nomFichier: `note9-fonds-bailleur${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
+    };
+  }
+
+  // ==========================================================================
+  // NOTES ANNEXES — un classeur par jeu, une feuille par TABLEAU (pas par
+  // code de note) : une note à plusieurs sous-tableaux — Note 1, ses trois
+  // grilles ; Note 4/7/20B/29B, leurs deux — a des colonnes DIFFÉRENTES d'un
+  // tableau à l'autre. Les empiler sur une même feuille mélangerait des
+  // en-têtes incompatibles ; une feuille par tableau les garde chacune
+  // propre, la « Fiche récapitulative » relie les tableaux d'un même code.
+  //
+  // Article 15 : « les Notes annexes sont organisées par une référence
+  // croisée avec l'information liée » — `note.renvoyeeDepuis` porte les
+  // codes REF des postes d'état qui renvoient à chaque note, reproduit tel
+  // quel en commentaire de feuille.
+  //
+  // § 1.4, note officielle de la fiche récapitulative (identique dans les
+  // deux jeux) : « les Notes non documentées ne doivent pas être jointes aux
+  // états financiers ». Une note NON applicable n'a donc PAS sa propre
+  // feuille — seulement une ligne « N/A » dans la fiche récapitulative.
+  // ==========================================================================
+
+  /** Nom de feuille Excel : 31 caractères maximum, doit rester unique dans le classeur. */
+  private nomFeuilleNote(note: NoteCalculee, indexParmiMemeCode: number, nbTableauxMemeCode: number): string {
+    const base = `Note ${note.code}`;
+    return nbTableauxMemeCode > 1 ? `${base}.${indexParmiMemeCode + 1}` : base;
+  }
+
+  /**
+   * Valeur d'une colonne pour une ligne, au type de colonne déclaré par la
+   * note. Les quatre colonnes « historiques » (montant N/N-1, variations)
+   * vivent sur des champs dédiés de `LigneNoteCalculee` ; toutes les autres
+   * (mouvements, ventilation par nature, échéances, variation absolue)
+   * vivent dans `valeurs`, indexé par le même `TypeColonneNote` — voir
+   * `note-annexe.types.ts`. `LIBRE` n'a rien à calculer : c'est une colonne
+   * de saisie (devise, cours, identité d'un apporteur…), jamais un oubli.
+   */
+  private valeurColonneNote(ligne: LigneNoteCalculee, type: TypeColonneNote): number | null {
+    switch (type) {
+      case 'EXERCICE_N':
+        return ligne.montantN;
+      case 'EXERCICE_N1':
+        return ligne.montantN1 ?? null;
+      case 'VARIATION_VALEUR':
+        return ligne.variationValeur ?? null;
+      case 'VARIATION_POURCENT':
+        return ligne.variationPourcent ?? null;
+      case 'LIBRE':
+        return null;
+      default:
+        return ligne.valeurs?.[type] ?? null;
+    }
+  }
+
+  private feuilleNote(classeur: ExcelJS.Workbook, note: NoteCalculee, nomFeuille: string) {
+    const feuille = classeur.addWorksheet(nomFeuille);
+
+    const colonnes: Partial<ExcelJS.Column>[] = [
+      { header: 'Libellé', key: 'libelle', width: 46 },
+      ...note.colonnes.map((c: ColonneNote, i: number) => ({ header: c.libelle, key: `c${i}`, width: 18 })),
+    ];
+    feuille.columns = colonnes;
+
+    for (const l of note.lignes) {
+      const valeurs: Record<string, unknown> = { libelle: l.libelle };
+      note.colonnes.forEach((c: ColonneNote, i: number) => {
+        valeurs[`c${i}`] = this.valeurColonneNote(l, c.type);
+      });
+      const ligne = feuille.addRow(valeurs);
+      if (l.estTotal) ligne.font = ENTETE_FONT;
+      // Rubrique en attente de rattachement : signalée en couleur plutôt que
+      // laissée à zéro sans explication — un zéro muet se lirait comme un
+      // montant réel, pas comme une lacune du dossier.
+      if (l.enAttenteDeRattachement) {
+        ligne.getCell('libelle').font = { italic: true, color: { argb: 'FFB00020' } };
+        ligne.getCell('libelle').note = `EN ATTENTE DE RATTACHEMENT : ${l.enAttenteDeRattachement}`;
+      }
+      if (l.ecartCloture !== undefined) {
+        ligne.getCell('libelle').note =
+          `Écart de clôture : ${l.ecartCloture.toFixed(2)} — la clôture recalculée (D = A + B − C) ne ` +
+          `correspond pas au solde réel de la balance. Anomalie du dossier à examiner (report à-nouveau ` +
+          `manquant, écriture hors comptes de la rubrique…).`;
+      }
+      if (l.echeanceNonVentilee !== undefined) {
+        ligne.getCell('libelle').note =
+          (ligne.getCell('libelle').note ? `${ligne.getCell('libelle').note}\n` : '') +
+          `Part non ventilée par échéance (aucune date d'échéance saisie) : ${l.echeanceNonVentilee.toFixed(2)}.`;
+      }
+      if (l.renvoi) {
+        const derniere = colonnes[colonnes.length - 1].key!;
+        ligne.getCell(derniere).note = l.renvoi;
+      }
+    }
+
+    const formats: Record<string, string> = {};
+    note.colonnes.forEach((c: ColonneNote, i: number) => {
+      if (c.type !== 'LIBRE') formats[`c${i}`] = c.type === 'VARIATION_POURCENT' ? '#,##0.00"%"' : FORMAT_MONTANT;
+    });
+    this.appliquerFormats(feuille, formats);
+    styliserEntete(feuille.getRow(1));
+    feuille.views = [{ state: 'frozen', ySplit: 1 }];
+
+    const commentaires: string[] = [];
+    if (note.renvoyeeDepuis?.length) commentaires.push(`Renvoyée depuis les postes : ${note.renvoyeeDepuis.join(', ')}.`);
+    if (note.renvoiOfficiel) commentaires.push(note.renvoiOfficiel);
+    if (note.commentaire) commentaires.push(`Commentaire officiel : ${note.commentaire}`);
+    if (note.lignes.length === 0) {
+      commentaires.push(
+        'Aucune rubrique chiffrée cet exercice ; les rubriques en attente de rattachement du dossier sont listées ' +
+          'quand même, pour que le rattachement reste possible.',
+      );
+    }
+    if (commentaires.length) {
+      const ligneCom = feuille.addRow([commentaires.join(' ')]);
+      ligneCom.font = { italic: true, color: { argb: 'FF555555' } };
+      feuille.mergeCells(`A${ligneCom.number}:${colonnes[colonnes.length - 1].key === 'libelle' ? 'A' : String.fromCharCode(65 + colonnes.length - 1)}${ligneCom.number}`);
+    }
+  }
+
+  /**
+   * Fiche récapitulative — Partie 4, section 4 des deux jeux : « NOTES |
+   * INTITULES | A (Applicable) | N/A (Non applicable) ». Colonnes A/N-A
+   * reproduites telles quelles ; une note non applicable y figure SANS
+   * feuille propre (voir en-tête de section) — la fiche est alors sa seule
+   * trace dans le classeur, avec les rubriques que le dossier pourrait
+   * rattacher pour la faire apparaître.
+   */
+  private feuilleFicheRecapitulative(
+    classeur: ExcelJS.Workbook,
+    fiche: Array<{ code: string; titre: string; applicable: boolean; rubriquesEnAttente: Array<{ libelle: string }> }>,
+    couverture: { transcrites: number; attendues: number },
+  ) {
+    const feuille = classeur.addWorksheet('Fiche récapitulative', { views: [{ state: 'frozen', ySplit: 1 }] });
+    feuille.columns = [
+      { header: 'Note', key: 'code', width: 10 },
+      { header: 'Intitulé', key: 'titre', width: 60 },
+      { header: 'A (Applicable)', key: 'applicable', width: 14 },
+      { header: 'N/A (Non applicable)', key: 'nonApplicable', width: 18 },
+      { header: 'Rubriques en attente de rattachement', key: 'enAttente', width: 60 },
+    ];
+    for (const n of fiche) {
+      const ligne = feuille.addRow({
+        code: n.code,
+        titre: n.titre,
+        applicable: n.applicable ? 'A' : '',
+        nonApplicable: n.applicable ? '' : 'N/A',
+        enAttente: n.rubriquesEnAttente.map((r) => r.libelle).join(' ; '),
+      });
+      if (!n.applicable) ligne.font = { color: { argb: 'FF999999' } };
+    }
+    styliserEntete(feuille.getRow(1));
+    const noteCouverture = feuille.addRow([
+      `Couverture du référentiel : ${couverture.transcrites} note(s) transcrite(s) sur ${couverture.attendues} attendue(s). ` +
+        "« les Notes non documentées ne doivent pas être jointes aux états financiers » — les notes N/A ci-dessus " +
+        "n'ont donc pas de feuille propre dans ce classeur.",
+    ]);
+    noteCouverture.font = { italic: true, color: { argb: 'FF555555' } };
+    feuille.mergeCells(`A${noteCouverture.number}:E${noteCouverture.number}`);
+  }
+
+  private construireClasseurNotes(
+    resultat: { notes: NoteCalculee[]; ficheRecapitulative: any[]; couverture: { transcrites: number; attendues: number } },
+  ): ExcelJS.Workbook {
+    const classeur = this.nouveauClasseur();
+    this.feuilleFicheRecapitulative(classeur, resultat.ficheRecapitulative, resultat.couverture);
+
+    const parCode = new Map<string, NoteCalculee[]>();
+    for (const n of resultat.notes) parCode.set(n.code, [...(parCode.get(n.code) ?? []), n]);
+
+    for (const n of resultat.notes) {
+      if (!n.applicable) continue; // § 1.4 : non jointe, voir en-tête de section.
+      const tableauxMemeCode = parCode.get(n.code)!;
+      const index = tableauxMemeCode.indexOf(n);
+      this.feuilleNote(classeur, n, this.nomFeuilleNote(n, index, tableauxMemeCode.length));
+    }
+    return classeur;
+  }
+
+  /** Notes annexes du jeu « associations et ordres professionnels ». */
+  async notesAssociationsExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
+    const resultat = await this.noteAnnexeService.notesAssociations(tenantId, exerciceId);
+    return {
+      buffer: await this.versBuffer(this.construireClasseurNotes(resultat)),
+      nomFichier: `notes-annexes-associations${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
+    };
+  }
+
+  /**
+   * Notes annexes du jeu « projets de développement et assimilés ». La
+   * note 9 « Fonds du bailleur » y figure comme un simple RENVOI (colonnes
+   * dynamiques par bailleur, hors de la forme de ce moteur) vers
+   * `noteBailleurExcel` — voir `NoteAnnexeService.notesProjet`.
+   */
+  async notesProjetExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
+    const resultat = await this.noteAnnexeService.notesProjet(tenantId, exerciceId);
+    return {
+      buffer: await this.versBuffer(this.construireClasseurNotes(resultat)),
+      nomFichier: `notes-annexes-projet${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
     };
   }
 }
