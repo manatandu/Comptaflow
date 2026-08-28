@@ -231,7 +231,18 @@ Ordre de dépendances techniques réelles, pas un simple ordre de préférence :
    Frontend livré : `ExercicePage` (sélecteur d'exercice, clôture annuelle avec
    confirmation, les 3 formulaires de clôture, liste des clôtures + annulation),
    accessible depuis le menu Traitement > "Clôture d'exercice". Brique complète.
-4. **Tiers** (Client/Fournisseur/Salarié/Autre, comptes rattachés, modèle de règlement).
+4. ✅ **Tiers** — livré : 4 types (Client/Fournisseur/Salarié/Autre), comptes
+   généraux rattachés (`TiersCompte`, un compte n'appartient qu'à un seul tiers —
+   contrainte `@unique` sur `compteId`, un seul marqué Principal à la fois, imposé
+   en service), `ModeleReglement` réutilisable entre tiers (délai en jours +
+   condition d'échéance Net/Fin de mois — modèle mono-échéance pour le MVP, le
+   fractionnement en plusieurs échéances est un enrichissement futur). Seuls les
+   comptes de classe 4 peuvent être rattachés. Écran `/tiers` (création, filtre
+   type/recherche, rattachement/détachement de comptes, bascule Principal, gestion
+   des modèles de règlement), accessible depuis Structure et le menu Tiers.
+   Vérifié de bout en bout via curl : rejet d'un rattachement sur un compte hors
+   classe 4, rejet d'un compte déjà rattaché à un autre tiers, un seul Principal
+   après bascule, rejet des codes tiers/modèles dupliqués, détachement.
 5. **TVA / taux de taxes** comme entité paramétrable.
 6. **Comptes "Total"/regroupement par racine** — brique technique courte, prépare le
    moteur de mapping.

@@ -48,13 +48,15 @@ model Tenant {
   telephone String?
   devise    String? @default("CDF")
 
-  licence   Licence?
-  comptes   Compte[]
-  exercices Exercice[]
-  ecritures Ecriture[]
-  users     User[]
-  journaux  Journal[]
-  clotures  Cloture[]
+  licence          Licence?
+  comptes          Compte[]
+  exercices        Exercice[]
+  ecritures        Ecriture[]
+  users            User[]
+  journaux         Journal[]
+  clotures         Cloture[]
+  tiers            Tiers[]
+  modelesReglement ModeleReglement[]
 
   @@map("tenants")
 }
@@ -138,6 +140,9 @@ model Compte {
 
   lignesEcriture     LigneEcriture[]
   journauxTresorerie Journal[] // journaux de type TRESORERIE dont ce compte est la contrepartie
+  // Rattachement à un tiers (cf. §3.2) : au plus un tiers par compte — un
+  // compte de classe 4 est le sous-compte auxiliaire d'un seul tiers.
+  tiersCompte        TiersCompte?
 
   @@unique([tenantId, numero])
   @@map("comptes")
@@ -297,4 +302,80 @@ model LigneEcriture {
 
   @@index([compteId, lettre])
   @@map("lignes_ecriture")
+}
+
+// ---------------------------------------------------------------------------
+// Tiers (cf. docs/plan-de-construction.md §3.2) — dépend du Lettrage (déjà
+// livré) : le rapprochement débit/crédit par compte est le mécanisme qui rend
+// utile le suivi par tiers (solde réel = mouvements non lettrés).
+// ---------------------------------------------------------------------------
+
+enum TypeTiers {
+  CLIENT
+  FOURNISSEUR
+  SALARIE
+  AUTRE
+}
+
+// Condition de calcul de l'échéance : NET = dateFacture + délaiJours ;
+// FIN_DE_MOIS = fin du mois de la facture + délaiJours (ex. "30 jours fin de
+// mois", très répandu en zone OHADA). Modèle mono-échéance pour le MVP — le
+// fractionnement en plusieurs échéances (type pourcentage/équilibre/montant
+// chez Sage) est un enrichissement futur si le besoin se confirme.
+enum ConditionEcheance {
+  NET
+  FIN_DE_MOIS
+}
+
+model ModeleReglement {
+  id         String            @id @default(uuid())
+  tenantId   String
+  tenant     Tenant            @relation(fields: [tenantId], references: [id])
+  intitule   String // ex : "30 jours net", "60 jours fin de mois"
+  delaiJours Int
+  echeance   ConditionEcheance @default(NET)
+  estActif   Boolean           @default(true)
+  createdAt  DateTime          @default(now())
+
+  tiers Tiers[]
+
+  @@unique([tenantId, intitule])
+  @@map("modeles_reglement")
+}
+
+model Tiers {
+  id       String    @id @default(uuid())
+  tenantId String
+  tenant   Tenant    @relation(fields: [tenantId], references: [id])
+  type     TypeTiers
+  code     String // ex : "CLI-0001" — libre, unique par tenant
+  nom      String
+  estActif Boolean   @default(true)
+
+  modeleReglementId String?
+  modeleReglement   ModeleReglement? @relation(fields: [modeleReglementId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  comptesRattaches TiersCompte[]
+
+  @@unique([tenantId, code])
+  @@map("tiers")
+}
+
+// Comptes généraux rattachés à un tiers (§3.2 : "sous-compte auxiliaire
+// remonté sur un compte collectif" — un compte donné n'est rattaché qu'à un
+// seul tiers, cf. Compte.tiersCompte). Un seul compte marqué Principal par
+// tiers ; imposé par TiersService.rattacherCompte, pas par une contrainte SQL
+// (Postgres ne supporte pas nativement un "unique partiel" via Prisma ici).
+model TiersCompte {
+  id          String  @id @default(uuid())
+  tiersId     String
+  tiers       Tiers   @relation(fields: [tiersId], references: [id])
+  compteId    String  @unique
+  compte      Compte  @relation(fields: [compteId], references: [id])
+  estPrincipal Boolean @default(false)
+  createdAt   DateTime @default(now())
+
+  @@map("tiers_comptes")
 }

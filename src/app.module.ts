@@ -11,6 +11,7 @@ import { EtatsFinanciersModule } from './modules/etats-financiers/etats-financie
 import { UtilisateursModule } from './modules/utilisateurs/utilisateurs.module';
 import { JournauxModule } from './modules/journaux/journaux.module';
 import { LettrageModule } from './modules/lettrage/lettrage.module';
+import { TiersModule } from './modules/tiers/tiers.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { LettrageModule } from './modules/lettrage/lettrage.module';
     JournauxModule,
     ComptabiliteModule,
     LettrageModule,
+    TiersModule,
     EtatsFinanciersModule,
     UtilisateursModule,
   ],

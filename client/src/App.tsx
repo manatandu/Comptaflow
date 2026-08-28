@@ -12,6 +12,7 @@ import { JournauxPage } from './pages/JournauxPage';
 import { JournalPage } from './pages/JournalPage';
 import { LettragePage } from './pages/LettragePage';
 import { ExercicePage } from './pages/ExercicePage';
+import { TiersPage } from './pages/TiersPage';
 import { EtatsFinanciersPage } from './pages/EtatsFinanciersPage';
 import { UtilisateursPage } from './pages/UtilisateursPage';
 
@@ -47,6 +48,7 @@ function Routage() {
         <Route path="journaux" element={<JournauxPage />} />
         <Route path="journal" element={<JournalPage />} />
         <Route path="exercice" element={<ExercicePage />} />
+        <Route path="tiers" element={<TiersPage />} />
         <Route path="etats-financiers" element={<EtatsFinanciersPage />} />
         <Route path="utilisateurs" element={<UtilisateursPage />} />
       </Route>

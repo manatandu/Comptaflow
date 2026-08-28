@@ -121,3 +121,33 @@ export interface AuthResponse {
   exercice?: Exercice;
   accessToken: string;
 }
+
+export type TypeTiers = 'CLIENT' | 'FOURNISSEUR' | 'SALARIE' | 'AUTRE';
+export type ConditionEcheance = 'NET' | 'FIN_DE_MOIS';
+
+export interface ModeleReglement {
+  id: string;
+  intitule: string;
+  delaiJours: number;
+  echeance: ConditionEcheance;
+  estActif: boolean;
+}
+
+export interface TiersCompte {
+  id: string;
+  tiersId: string;
+  compteId: string;
+  estPrincipal: boolean;
+  compte: Compte;
+}
+
+export interface Tiers {
+  id: string;
+  type: TypeTiers;
+  code: string;
+  nom: string;
+  estActif: boolean;
+  modeleReglementId: string | null;
+  modeleReglement?: ModeleReglement | null;
+  comptesRattaches: TiersCompte[];
+}

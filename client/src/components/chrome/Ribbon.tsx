@@ -45,7 +45,7 @@ export function Ribbon({ groupes, droite }: { groupes: RibbonGroupe[]; droite?: 
         { label: 'Plan de comptes', onClick: () => navigate('/comptes') },
         { label: 'Codes journaux', onClick: () => navigate('/journaux') },
         { label: 'Taux de taxes', disabled: true, indication: 'à venir' },
-        { label: 'Plan des tiers', disabled: true, indication: 'à venir' },
+        { label: 'Plan des tiers', onClick: () => navigate('/tiers') },
       ],
     },
     {
@@ -62,7 +62,7 @@ export function Ribbon({ groupes, droite }: { groupes: RibbonGroupe[]; droite?: 
       ],
     },
     { titre: 'Trésorerie', items: [] },
-    { titre: 'Tiers', items: [] },
+    { titre: 'Tiers', items: [{ label: 'Plan des tiers', onClick: () => navigate('/tiers') }] },
     {
       titre: 'États',
       items: [
