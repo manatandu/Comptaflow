@@ -452,19 +452,27 @@ export class ExportService {
    * (skill sycebnl) qui doit remplacer ce module (roadmap — Moteur de
    * mapping / états financiers configurables).
    */
+  /**
+   * Bilan — adossé au tableau de correspondance OFFICIEL SYCEBNL, comme le
+   * compte de résultat (voir `EtatsFinanciersService.bilan()` et
+   * `correspondance-bilan.ts`). Trois feuilles : l'état (postes ACTIF et
+   * PASSIF juxtaposés, sous-totaux en gras dans leur sens de lecture
+   * officiel), le détail des comptes derrière chaque poste, et les
+   * contrôles/anomalies.
+   */
   async bilanExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
     const bilan = await this.etatsFinanciersService.bilan(tenantId, exerciceId);
 
     const classeur = this.nouveauClasseur();
     const feuille = classeur.addWorksheet('Bilan');
     // En-têtes distincts de part et d'autre : deux colonnes portant le même
-    // titre « N° compte » casseraient tout tableau croisé dynamique.
+    // titre casseraient tout tableau croisé dynamique.
     feuille.columns = [
-      { header: 'Actif — n° compte', key: 'numero', width: 16 },
-      { header: 'Actif — intitulé', key: 'intituleActif', width: 30 },
+      { header: 'Actif — REF', key: 'refActif', width: 10 },
+      { header: 'Actif — libellé', key: 'libelleActif', width: 46 },
       { header: 'Actif — montant', key: 'montantActif', width: 16 },
-      { header: 'Passif — n° compte', key: 'numeroPassif', width: 17 },
-      { header: 'Passif — intitulé', key: 'intitulePassif', width: 30 },
+      { header: 'Passif — REF', key: 'refPassif', width: 10 },
+      { header: 'Passif — libellé', key: 'libellePassif', width: 46 },
       { header: 'Passif — montant', key: 'montantPassif', width: 16 },
     ];
 
@@ -472,42 +480,108 @@ export class ExportService {
     for (let i = 0; i < maxLignes; i++) {
       const a = bilan.actif[i];
       const p = bilan.passif[i];
-      feuille.addRow({
-        numero: a?.numero ?? '',
-        intituleActif: a?.intitule ?? '',
+      const ligne = feuille.addRow({
+        refActif: a?.ref ?? '',
+        libelleActif: a?.libelle ?? '',
         montantActif: a ? a.montant : null,
-        numeroPassif: p?.numero ?? '',
-        intitulePassif: p?.intitule ?? '',
+        refPassif: p?.ref ?? '',
+        libellePassif: p?.libelle ?? '',
         montantPassif: p ? p.montant : null,
       });
+      // Chaque total est en gras SUR SA PROPRE COLONNE seulement (actif et
+      // passif n'atteignent pas forcément un total à la même ligne) : mettre
+      // toute la ligne en gras si un seul côté est un total ferait ressortir
+      // l'autre à tort.
+      if (a?.estTotal) {
+        ligne.getCell('refActif').font = ENTETE_FONT;
+        ligne.getCell('libelleActif').font = ENTETE_FONT;
+        ligne.getCell('montantActif').font = ENTETE_FONT;
+      }
+      if (p?.estTotal) {
+        ligne.getCell('refPassif').font = ENTETE_FONT;
+        ligne.getCell('libellePassif').font = ENTETE_FONT;
+        ligne.getCell('montantPassif').font = ENTETE_FONT;
+      }
     }
 
-    const ligneTotal = feuille.addRow({
-      intituleActif: 'TOTAL ACTIF',
-      montantActif: bilan.totalActif,
-      intitulePassif: 'TOTAL PASSIF',
-      montantPassif: bilan.totalPassif,
-    });
-    ligneTotal.font = ENTETE_FONT;
-
     this.appliquerFormats(feuille, { montantActif: FORMAT_MONTANT, montantPassif: FORMAT_MONTANT });
-    // En-tête figée SANS auto-filtre : contrairement aux autres feuilles, le
-    // bilan n'est pas un tableau plat mais DEUX listes indépendantes
-    // juxtaposées (actif à gauche, passif à droite), appariées ligne à ligne
-    // par un simple index. Filtrer sur un montant d'actif y masquerait des
-    // postes de passif qui n'ont rien à voir, en laissant les totaux
-    // affichés — un bilan faussé en un clic. Trier ferait pire encore, en
-    // désappariant les deux colonnes.
+    // En-tête figée SANS auto-filtre : le bilan n'est pas un tableau plat
+    // mais DEUX listes indépendantes juxtaposées (actif à gauche, passif à
+    // droite), appariées ligne à ligne par un simple index. Filtrer sur un
+    // montant d'actif y masquerait des postes de passif qui n'ont rien à
+    // voir, en laissant les totaux affichés — un bilan faussé en un clic.
     styliserEntete(feuille.getRow(1));
     feuille.views = [{ state: 'frozen', ySplit: 1 }];
 
-    const avertissement = feuille.addRow([
-      `⚠ Bilan : regroupement simplifié classe → poste (MVP), PAS le tableau de correspondance officiel SYCEBNL. Équilibré : ${
-        bilan.equilibre ? 'oui' : 'NON — vérifier les écritures'
-      }.`,
-    ]);
-    avertissement.font = { italic: true, color: { argb: 'FF8A6D3B' } };
-    feuille.mergeCells(`A${avertissement.number}:F${avertissement.number}`);
+    // Détail : quels comptes alimentent quel poste — indispensable pour
+    // qu'un auditeur puisse vérifier le montant plutôt que le prendre sur
+    // parole. Les lignes de total n'ont pas de comptes propres (`comptes: []`).
+    const detail = classeur.addWorksheet('Détail par poste');
+    detail.columns = [
+      { header: 'Sens', key: 'sens', width: 8 },
+      { header: 'REF', key: 'ref', width: 8 },
+      { header: 'Poste', key: 'poste', width: 48 },
+      { header: 'Compte', key: 'numero', width: 12 },
+      { header: 'Intitulé compte', key: 'intitule', width: 44 },
+      { header: 'Montant', key: 'montant', width: 16 },
+    ];
+    for (const [sens, postes] of [['Actif', bilan.actif], ['Passif', bilan.passif]] as const) {
+      for (const p of postes) {
+        for (const c of p.comptes) {
+          detail.addRow({ sens, ref: p.ref, poste: p.libelle, numero: c.numero, intitule: c.intitule, montant: c.montant });
+        }
+      }
+    }
+    this.appliquerFormats(detail, { montant: FORMAT_MONTANT });
+    this.finaliserTableau(detail, detail.columns.length, detail.rowCount);
+
+    // Contrôles et anomalies — même esprit que le compte de résultat.
+    const anomalies = classeur.addWorksheet('Contrôles et anomalies');
+    anomalies.columns = [
+      { header: 'Compte', key: 'numero', width: 14 },
+      { header: 'Intitulé', key: 'intitule', width: 48 },
+      { header: 'Montant', key: 'montant', width: 20 },
+      { header: 'Diagnostic', key: 'diagnostic', width: 90 },
+    ];
+
+    const ligneEquilibre = anomalies.addRow({
+      numero: 'CONTRÔLE',
+      intitule: 'Total actif (BZ) = Total passif (DZ) ?',
+      montant: bilan.totalActif - bilan.totalPassif,
+      diagnostic: bilan.equilibre
+        ? `OK — bilan équilibré. Actif = Passif = ${bilan.totalActif.toFixed(2)}.`
+        : `DÉSÉQUILIBRE de ${(bilan.totalActif - bilan.totalPassif).toFixed(2)} — vérifier les écritures et les comptes non rattachés ci-dessous.`,
+    });
+    ligneEquilibre.font = { bold: true, color: { argb: bilan.equilibre ? 'FF1E7B34' : 'FFB00020' } };
+
+    const ligneResultat = anomalies.addRow({
+      numero: 'CONTRÔLE',
+      intitule: 'Source du résultat net (poste CH)',
+      montant: null,
+      diagnostic: bilan.controle.doubleComptageProbable
+        ? `Classes 6/7/8 ET compte 13 sont TOUS DEUX mouvementés (${bilan.controle.resultatClasses678.toFixed(2)} / ${bilan.controle.resultatCompte13.toFixed(2)}) — risque de double comptage. Le résultat retenu vient des classes 6/7/8 (avant clôture). Fournir une balance avant OU après clôture, pas un état intermédiaire.`
+        : `OK — une seule source mouvementée (${Math.abs(bilan.controle.resultatClasses678) > 0.005 ? 'classes 6/7/8, avant clôture' : 'compte 13, après clôture'}).`,
+    });
+    ligneResultat.font = { bold: true, color: { argb: bilan.controle.doubleComptageProbable ? 'FFB00020' : 'FF1E7B34' } };
+
+    for (const c of bilan.comptesNonRattaches) {
+      anomalies.addRow({
+        numero: c.numero,
+        intitule: c.intitule,
+        montant: c.montant,
+        diagnostic:
+          'Compte de bilan (classe 1 à 5) qu’aucun poste du tableau de correspondance officiel ne réclame : ' +
+          'son montant n’entre dans AUCUN total de cet état. Vérifier le numéro de compte.',
+      });
+    }
+    if (bilan.comptesNonRattaches.length === 0) {
+      anomalies.addRow({
+        numero: '—',
+        intitule: 'Aucun compte non rattaché : tous les comptes de bilan entrent dans un poste officiel.',
+      });
+    }
+    this.appliquerFormats(anomalies, { montant: FORMAT_MONTANT });
+    this.finaliserTableau(anomalies, anomalies.columns.length, anomalies.rowCount);
 
     return {
       buffer: await this.versBuffer(classeur),

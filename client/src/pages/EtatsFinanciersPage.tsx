@@ -133,28 +133,38 @@ export function EtatsFinanciersPage() {
                 <div className="bg-surface">
                   <div className="px-4 py-2 bg-surface-alt border-b border-border text-[11.5px] font-bold">ACTIF</div>
                   {bilan.actif.map((l) => (
-                    <div key={l.numero} className="flex justify-between px-4 py-1 text-[12px]">
-                      <span>{l.intitule}</span>
+                    <div
+                      key={l.ref}
+                      title={l.comptes.length > 0 ? `Comptes : ${l.comptes.map((c) => c.numero).join(', ')}` : undefined}
+                      className={`flex justify-between px-4 py-1 text-[12px] ${
+                        l.estTotal ? 'font-bold bg-surface-alt border-y border-border' : ''
+                      }`}
+                    >
+                      <span className="flex items-baseline gap-1.5">
+                        <span className="font-mono text-[10px] text-text-dim">{l.ref}</span>
+                        {l.libelle}
+                      </span>
                       <span className="font-mono">{montant(l.montant)}</span>
                     </div>
                   ))}
-                  <div className="flex justify-between px-4 py-2 bg-surface-alt border-t border-border-dark text-[12.5px] font-bold mt-2">
-                    <span>TOTAL ACTIF</span>
-                    <span className="font-mono">{montant(bilan.totalActif)}</span>
-                  </div>
                 </div>
                 <div className="bg-surface">
                   <div className="px-4 py-2 bg-surface-alt border-b border-border text-[11.5px] font-bold">PASSIF</div>
                   {bilan.passif.map((l) => (
-                    <div key={l.numero} className="flex justify-between px-4 py-1 text-[12px]">
-                      <span>{l.intitule}</span>
+                    <div
+                      key={l.ref}
+                      title={l.comptes.length > 0 ? `Comptes : ${l.comptes.map((c) => c.numero).join(', ')}` : undefined}
+                      className={`flex justify-between px-4 py-1 text-[12px] ${
+                        l.estTotal ? 'font-bold bg-surface-alt border-y border-border' : ''
+                      }`}
+                    >
+                      <span className="flex items-baseline gap-1.5">
+                        <span className="font-mono text-[10px] text-text-dim">{l.ref}</span>
+                        {l.libelle}
+                      </span>
                       <span className="font-mono">{montant(l.montant)}</span>
                     </div>
                   ))}
-                  <div className="flex justify-between px-4 py-2 bg-surface-alt border-t border-border-dark text-[12.5px] font-bold mt-2">
-                    <span>TOTAL PASSIF</span>
-                    <span className="font-mono">{montant(bilan.totalPassif)}</span>
-                  </div>
                 </div>
               </div>
 
@@ -165,14 +175,43 @@ export function EtatsFinanciersPage() {
               >
                 <IconCheck width={14} height={14} className={bilan.equilibre ? 'text-positive' : 'text-danger'} />
                 <span className="font-mono text-[11.5px] font-medium">
-                  {bilan.equilibre ? 'LE BILAN EST ÉQUILIBRÉ — ACTIF = PASSIF' : 'DÉSÉQUILIBRE DÉTECTÉ — vérifier les écritures'}
+                  {bilan.equilibre
+                    ? `LE BILAN EST ÉQUILIBRÉ — ACTIF = PASSIF = ${montant(bilan.totalActif)}`
+                    : 'DÉSÉQUILIBRE DÉTECTÉ — vérifier les écritures et les comptes non rattachés ci-dessous'}
                 </span>
               </div>
 
+              {bilan.controle.doubleComptageProbable && (
+                <div className="flex items-start gap-2 mt-2 px-3.5 py-2.5 border border-warning/40 bg-warning-soft max-w-[1180px]">
+                  <span className="text-[11.5px]">
+                    ⚠ Les classes 6/7/8 ({montant(bilan.controle.resultatClasses678)}) ET le compte 13 (
+                    {montant(bilan.controle.resultatCompte13)}) sont tous deux mouvementés — risque de double comptage
+                    du résultat. Fournir une balance avant OU après clôture, pas un état intermédiaire.
+                  </span>
+                </div>
+              )}
+
+              {bilan.comptesNonRattaches.length > 0 && (
+                <div className="border border-danger/30 bg-danger-soft mt-2 max-w-[1180px] px-3.5 py-2.5">
+                  <div className="text-[11.5px] font-bold mb-1.5">
+                    Comptes de bilan rattachés à aucun poste officiel — leur montant n'entre dans aucun total
+                  </div>
+                  {bilan.comptesNonRattaches.map((c) => (
+                    <div key={c.numero} className="flex justify-between text-[11.5px] font-mono">
+                      <span>
+                        {c.numero} — {c.intitule}
+                      </span>
+                      <span>{montant(c.montant)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <p className="text-[11px] text-text-dim mt-3 max-w-[1180px]">
-                ⚠ Bilan : regroupement simplifié classe → poste (MVP) — voir le commentaire de{' '}
-                <code>etats-financiers.service.ts</code> côté API avant toute utilisation en production. Le compte de
-                résultat, lui, suit le tableau de correspondance officiel SYCEBNL.
+                Postes et rattachements conformes au tableau de correspondance officiel SYCEBNL (Journal officiel
+                OHADA, Partie 4 ch. 2). Comme au compte de résultat, les anomalies du texte officiel sont corrigées
+                explicitement (comptes de tiers polyvalents 42-47 distingués par le sens du solde, provisions
+                réglementées en poste 15) plutôt que devinées — voir <code>correspondance-bilan.ts</code>.
               </p>
             </>
           )}

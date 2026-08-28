@@ -156,10 +156,14 @@ export interface LigneGrandLivre {
   contrepartie: string[];
 }
 
+/** Un poste ACTIF ou PASSIF du bilan officiel SYCEBNL (REF à deux lettres, ex. "BW", "CA"). */
 export interface LigneBilan {
-  numero: string;
-  intitule: string;
+  ref: string;
+  libelle: string;
   montant: number;
+  /** Ligne de sous-total ou de total (ex. AZ, BT, DZ) — pas un poste de détail. */
+  estTotal: boolean;
+  comptes: CompteDuPoste[];
 }
 
 export interface Bilan {
@@ -168,6 +172,13 @@ export interface Bilan {
   totalActif: number;
   totalPassif: number;
   equilibre: boolean;
+  /** Comptes de bilan (classes 1-5) qu'aucun poste officiel ne réclame — jamais masqués. */
+  comptesNonRattaches: CompteDuPoste[];
+  controle: {
+    resultatClasses678: number;
+    resultatCompte13: number;
+    doubleComptageProbable: boolean;
+  };
 }
 
 export interface CompteDuPoste {

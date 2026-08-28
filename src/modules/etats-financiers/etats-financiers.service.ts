@@ -8,6 +8,16 @@ import {
   PosteCompteResultat,
   posteDuCompte,
 } from './correspondance-compte-resultat';
+import {
+  COMPTES_TRESORERIE_PASSIF_SI_CREDITEUR,
+  ORDRE_AFFICHAGE_ACTIF,
+  ORDRE_AFFICHAGE_PASSIF,
+  POSTES_ACTIF,
+  POSTES_PASSIF,
+  PosteBilanDeBase,
+  TOTAUX_ACTIF,
+  TOTAUX_PASSIF,
+} from './correspondance-bilan';
 
 /** Un compte rattaché à un poste, avec sa contribution — permet le drill-down. */
 export interface CompteDuPoste {
@@ -16,127 +26,226 @@ export interface CompteDuPoste {
   montant: number;
 }
 
-/** Un poste du compte de résultat, calculé. */
+/** Un poste du compte de résultat OU du bilan, calculé. */
 export interface PosteCalcule {
   ref: string;
   libelle: string;
   montant: number;
   comptes: CompteDuPoste[];
+  /** Bilan uniquement : ligne de sous-total ou de total, pas un poste de détail. */
+  estTotal?: boolean;
+}
+
+/** Une ligne de balance déjà agrégée par compte (voir EcritureService.balance()). */
+interface LigneBalancePourBilan {
+  compteId: string;
+  numero: string;
+  intitule: string;
+  classe: ClasseCompte;
+  typeCompte: TypeCompteDetailTotal;
+  totalDebit: number;
+  totalCredit: number;
+  solde: number;
 }
 
 /**
- * ⚠️ BILAN — Regroupement SIMPLIFIÉ classe de compte → poste ACTIF/PASSIF, à
- * but de démonstration MVP (calqué sur l'écran « États financiers » du
- * canevas de design). Ce n'est PAS le tableau de correspondance postes/comptes
- * officiel SYCEBNL (Partie 4, ch. 2 — voir le moteur `liasse/` du skill
- * `sycebnl`, bâti précisément pour ça et déjà vérifié contre le Journal
- * officiel).
- *
- * Ne pas présenter le résultat du bilan comme un bilan SYCEBNL conforme sans
- * être passé par ce tableau de correspondance réel — à remplacer avant toute
- * mise en production. La règle appliquée ici :
- *   - Classe 1 (fonds propres/durables) → PASSIF, en totalité
- *   - Classe 2/3 (immobilisations/stocks) → ACTIF, en totalité
- *   - Classe 4/5 (tiers/trésorerie) → ACTIF si le compte est débiteur,
- *     PASSIF si créditeur (un compte de tiers ou de trésorerie peut être
- *     l'un ou l'autre selon son solde, contrairement aux classes 1/2/3)
- *   - Classe 6/7/8 (charges/produits ordinaires ET H.A.O.) → jamais
- *     affichées comme postes de bilan ; leur solde net devient la ligne
- *     « Excédent / déficit de l'exercice » du passif (fonds propres), comme
- *     le fait le compte 13 officiel (voir sycebnl, COMPTE 13) à la clôture.
- *   - Classe 9 → hors bilan ET hors compte de résultat par construction de
- *     l'Acte uniforme (contributions volontaires en nature / comptabilité
- *     analytique) : volontairement ignorée, ce n'est pas un oubli.
- *
- * En revanche le COMPTE DE RÉSULTAT (`compteDeResultat()` plus bas) est, lui,
- * réellement adossé au tableau de correspondance officiel — voir
- * `correspondance-compte-resultat.ts`.
+ * Un compte correspond à un poste si son numéro commence par l'un des
+ * préfixes du poste ET par aucun de ses préfixes exclus (§ convention de
+ * lecture, `correspondance-bilan.ts`).
+ */
+function correspond(numero: string, prefixes: string[], exclusions: string[] = []): boolean {
+  return prefixes.some((p) => numero.startsWith(p)) && !exclusions.some((e) => numero.startsWith(e));
+}
+
+/**
+ * BILAN — adossé au tableau de correspondance OFFICIEL SYCEBNL
+ * (`correspondance-bilan.ts`, transcrit du Journal officiel OHADA,
+ * Partie 4 ch. 2 section 6) — remplace, depuis le 2026-08-28, le
+ * regroupement simplifié classe→poste qui servait de MVP. Comme pour le
+ * compte de résultat, les anomalies du texte officiel sont signalées et
+ * corrigées explicitement dans `correspondance-bilan.ts` (mêmes
+ * corrections que le moteur `liasse/` du skill `sycebnl`), jamais
+ * masquées ni devinées.
  */
 @Injectable()
 export class EtatsFinanciersService {
   constructor(private readonly ecritureService: EcritureService) {}
 
+  /** Poste ACTIF de détail : brut (sens naturel) moins amortissements/dépréciations (soustractifs). */
+  private calculerPosteActif(poste: PosteBilanDeBase, lignes: LigneBalancePourBilan[]): PosteCalcule {
+    let lignesBrut = lignes.filter((l) => correspond(l.numero, poste.comptes, poste.exclusions));
+    if (poste.sens_qualificatif === 'DEBITEUR') {
+      lignesBrut = lignesBrut.filter((l) => l.solde > 0);
+    }
+    const comptes: CompteDuPoste[] = lignesBrut.map((l) => ({ numero: l.numero, intitule: l.intitule, montant: l.solde }));
+
+    const lignesAmort = poste.comptesAmortissement
+      ? lignes.filter((l) => correspond(l.numero, poste.comptesAmortissement!, poste.exclusionsAmortissement))
+      : [];
+    for (const l of lignesAmort) {
+      // PAS de négation ici : un compte d'amortissement/dépréciation bien
+      // formé porte un solde (débit − crédit) déjà négatif (créditeur), ce
+      // qui le soustrait naturellement du brut dès qu'on l'additionne dans
+      // la même somme — brut(5000) + amort(-1500) = net(3500). Le signer en
+      // positif aurait ADDITIONNÉ l'amortissement au lieu de le déduire :
+      // piège repéré en dérivant un cas de test à la main avant livraison,
+      // pas constaté en production. La valeur reste donc négative dans le
+      // drill-down (feuille « Détail par poste »), ce qui est le signe
+      // honnête de sa contribution au total, pas une erreur d'affichage.
+      comptes.push({ numero: l.numero, intitule: l.intitule, montant: l.solde });
+    }
+
+    return { ref: poste.ref, libelle: poste.libelle, montant: comptes.reduce((s, c) => s + c.montant, 0), comptes };
+  }
+
+  /** Poste PASSIF de détail : solde créditeur net dans son sens naturel de lecture. */
+  private calculerPostePassif(poste: PosteBilanDeBase, lignes: LigneBalancePourBilan[]): PosteCalcule {
+    let matches = lignes.filter((l) => correspond(l.numero, poste.comptes, poste.exclusions));
+    if (poste.sens_qualificatif === 'CREDITEUR') {
+      matches = matches.filter((l) => l.solde < 0);
+    }
+    const comptes: CompteDuPoste[] = matches.map((l) => ({ numero: l.numero, intitule: l.intitule, montant: -l.solde }));
+    return { ref: poste.ref, libelle: poste.libelle, montant: comptes.reduce((s, c) => s + c.montant, 0), comptes };
+  }
+
+  /**
+   * DW (banques… crédits de trésorerie) — anomalie n° 5 : capte 564/565
+   * comme un poste normal, PLUS les comptes 52/53 (les mêmes numéros que BW
+   * à l'actif) mais SEULEMENT pour ceux dont le solde est créditeur (une
+   * banque à découvert). Traité à part : ce n'est pas un poste de détail
+   * ordinaire, il partage ses comptes avec un poste de l'ACTIF.
+   */
+  private calculerDW(lignes: LigneBalancePourBilan[]): PosteCalcule {
+    const posteDW = POSTES_PASSIF.find((p) => p.ref === 'DW')!;
+    const base = this.calculerPostePassif(posteDW, lignes);
+    const decouverts = lignes.filter((l) => correspond(l.numero, COMPTES_TRESORERIE_PASSIF_SI_CREDITEUR) && l.solde < 0);
+    const comptes = [...base.comptes, ...decouverts.map((l) => ({ numero: l.numero, intitule: l.intitule, montant: -l.solde }))];
+    return { ref: 'DW', libelle: posteDW.libelle, montant: comptes.reduce((s, c) => s + c.montant, 0), comptes };
+  }
+
+  /**
+   * CH (Résultat net de l'exercice) — n'est PAS listé dans
+   * `correspondance-bilan.ts` : le compte 13 officiel (voir sycebnl,
+   * COMPTE 13) n'est mouvementé qu'À LA CLÔTURE, par transfert des soldes
+   * des classes 6/7/8. Avant clôture, le résultat vit dans ces classes ;
+   * après, il vit dans le compte 13, qui les solde à zéro. Utiliser l'une
+   * OU l'autre source, jamais les deux (voir `controle` du retour de
+   * `bilan()` — double comptage possible et signalé, pas deviné).
+   */
+  private calculerCH(
+    lignes: LigneBalancePourBilan[],
+  ): { poste: PosteCalcule; resultatClasses678: number; resultatCompte13: number } {
+    const lignes678 = lignes.filter(
+      (l) => l.classe === ClasseCompte.CLASSE_6 || l.classe === ClasseCompte.CLASSE_7 || l.classe === ClasseCompte.CLASSE_8,
+    );
+    const resultatClasses678 = lignes678.reduce((s, l) => s - l.solde, 0);
+
+    const lignes13 = lignes.filter((l) => l.numero.startsWith('13'));
+    const resultatCompte13 = lignes13.reduce((s, l) => s - l.solde, 0);
+
+    const avantCloture = Math.abs(resultatClasses678) > 0.005;
+    const montant = avantCloture ? resultatClasses678 : resultatCompte13;
+    const source = avantCloture ? lignes678 : lignes13;
+    const comptes = source
+      .filter((l) => Math.abs(l.solde) > 0.005)
+      .map((l) => ({ numero: l.numero, intitule: l.intitule, montant: -l.solde }));
+
+    return {
+      poste: { ref: 'CH', libelle: "Résultat net de l'exercice (excédent + ou déficit -)", montant, comptes },
+      resultatClasses678,
+      resultatCompte13,
+    };
+  }
+
   async bilan(tenantId: string, exerciceId: string) {
-    const { lignes } = await this.ecritureService.balance(tenantId, exerciceId);
-
-    const actif: Array<{ numero: string; intitule: string; montant: number }> = [];
-    const passif: Array<{ numero: string; intitule: string; montant: number }> = [];
-    let resultatNet = 0;
-
+    const { lignes: toutes } = await this.ecritureService.balance(tenantId, exerciceId);
     // Comptes Total (§3.1) exclus : leur solde n'est qu'un agrégat
     // d'affichage des comptes Détail de même racine, déjà comptés
-    // individuellement ci-dessous — les inclure aussi doublerait le montant
-    // (même raison que balance() qui les exclut déjà de ses totaux généraux).
-    const lignesDetailSeules = lignes.filter((l) => l.typeCompte !== TypeCompteDetailTotal.TOTAL);
+    // individuellement ci-dessous — les inclure doublerait le montant.
+    const lignes = toutes.filter((l) => l.typeCompte !== TypeCompteDetailTotal.TOTAL);
 
-    for (const l of lignesDetailSeules) {
-      switch (l.classe) {
-        case ClasseCompte.CLASSE_2:
-        case ClasseCompte.CLASSE_3:
-          actif.push({ numero: l.numero, intitule: l.intitule, montant: l.solde });
-          break;
-        case ClasseCompte.CLASSE_1:
-          passif.push({ numero: l.numero, intitule: l.intitule, montant: -l.solde });
-          break;
-        case ClasseCompte.CLASSE_4:
-        case ClasseCompte.CLASSE_5:
-          if (l.solde >= 0) {
-            actif.push({ numero: l.numero, intitule: l.intitule, montant: l.solde });
-          } else {
-            passif.push({ numero: l.numero, intitule: l.intitule, montant: -l.solde });
-          }
-          break;
-        case ClasseCompte.CLASSE_6:
-        case ClasseCompte.CLASSE_7:
-        case ClasseCompte.CLASSE_8:
-          // Produits (7) : solde créditeur (négatif) → contribue positivement au résultat.
-          // Charges (6) : solde débiteur (positif) → contribue négativement au résultat.
-          // Classe 8 (H.A.O. — valeurs comptables et produits de cession,
-          // charges/produits et dotations/reprises H.A.O., subventions
-          // d'équilibre) : entre AUSSI dans le résultat, via XD au compte de
-          // résultat officiel (postes TM/TN). L'omettre déséquilibrait le
-          // bilan du montant exact des opérations H.A.O. — bug réel constaté
-          // en testant une écriture de cession telle que le module
-          // Immobilisations en poste (comptes 81/82) : actif 250 / passif 210
-          // sur une écriture H.A.O. de 40. Voir docs/plan-de-construction.md.
-          resultatNet -= l.solde;
-          break;
-        case ClasseCompte.CLASSE_9:
-          // Contributions volontaires en nature et comptabilité analytique :
-          // hors bilan ET hors compte de résultat par construction de l'Acte
-          // uniforme SYCEBNL. Exclusion VOULUE, explicitée ici pour qu'elle
-          // ne se confonde pas avec un oubli (c'est ce qui avait masqué le
-          // cas de la classe 8 ci-dessus, noyée dans un `default`).
-          break;
+    const parRef = new Map<string, PosteCalcule>();
+    for (const poste of POSTES_ACTIF) {
+      parRef.set(poste.ref, this.calculerPosteActif(poste, lignes));
+    }
+    for (const poste of POSTES_PASSIF) {
+      if (poste.ref === 'DW') continue; // traité à part (calculerDW)
+      parRef.set(poste.ref, this.calculerPostePassif(poste, lignes));
+    }
+    parRef.set('DW', this.calculerDW(lignes));
+
+    const { poste: posteCH, resultatClasses678, resultatCompte13 } = this.calculerCH(lignes);
+    parRef.set('CH', posteCH);
+
+    // Totaux : chaque total additionne des refs déjà résolues (détail OU
+    // total imbriqué) — TOTAUX_ACTIF/PASSIF sont déjà dans un ordre où une
+    // ref n'est jamais utilisée avant d'avoir été calculée.
+    for (const total of [...TOTAUX_ACTIF, ...TOTAUX_PASSIF]) {
+      const montant = total.deRefs.reduce((s, ref) => s + (parRef.get(ref)?.montant ?? 0), 0);
+      parRef.set(total.ref, { ref: total.ref, libelle: total.libelle, montant, comptes: [] });
+    }
+
+    const refsTotaux = new Set([...TOTAUX_ACTIF, ...TOTAUX_PASSIF].map((t) => t.ref));
+    const actif = ORDRE_AFFICHAGE_ACTIF.map((ref) => ({ ...parRef.get(ref)!, estTotal: refsTotaux.has(ref) }));
+    const passif = ORDRE_AFFICHAGE_PASSIF.map((ref) => ({ ...parRef.get(ref)!, estTotal: refsTotaux.has(ref) }));
+
+    // Comptes de bilan (classes 1-5) qu'AUCUN poste ne capte — signalés,
+    // jamais absorbés en silence (règle §2.6, même discipline qu'au compte
+    // de résultat). Un plan de comptes personnalisé qui s'écarterait des
+    // préfixes officiels ferait apparaître ses comptes ici.
+    const comptesRattaches = new Set<string>();
+    for (const poste of [...POSTES_ACTIF, ...POSTES_PASSIF]) {
+      for (const l of lignes) {
+        if (
+          correspond(l.numero, poste.comptes, poste.exclusions) ||
+          (poste.comptesAmortissement && correspond(l.numero, poste.comptesAmortissement, poste.exclusionsAmortissement))
+        ) {
+          comptesRattaches.add(l.compteId);
+        }
       }
     }
-
-    // Seuil, pas une égalité stricte : `resultatNet` est une somme de
-    // flottants, et sur un exercice clôturé (comptes de gestion soldés un à
-    // un) elle laisse un résidu de l'ordre de 1e-13. Une comparaison exacte
-    // ajoutait alors une ligne parasite « Excédent (déficit) — 0,00 », en
-    // doublon du compte 131 réel déjà présent au passif via la classe 1 :
-    // deux entrées de même numéro, donc une clé React dupliquée à l'écran.
-    // Même tolérance que les contrôles d'équilibre plus bas.
-    if (Math.abs(resultatNet) > 0.005) {
-      passif.push({ numero: '13100000', intitule: "Excédent (déficit) de l'exercice", montant: resultatNet });
+    for (const l of lignes) {
+      if (correspond(l.numero, COMPTES_TRESORERIE_PASSIF_SI_CREDITEUR) || l.numero.startsWith('13')) {
+        comptesRattaches.add(l.compteId);
+      }
     }
+    const CLASSES_DE_BILAN = new Set<ClasseCompte>([
+      ClasseCompte.CLASSE_1,
+      ClasseCompte.CLASSE_2,
+      ClasseCompte.CLASSE_3,
+      ClasseCompte.CLASSE_4,
+      ClasseCompte.CLASSE_5,
+    ]);
+    const comptesNonRattaches: CompteDuPoste[] = lignes
+      .filter((l) => CLASSES_DE_BILAN.has(l.classe) && !comptesRattaches.has(l.compteId))
+      .map((l) => ({ numero: l.numero, intitule: l.intitule, montant: l.solde }));
 
-    const totalActif = actif.reduce((s, l) => s + l.montant, 0);
-    const totalPassif = passif.reduce((s, l) => s + l.montant, 0);
+    const totalActif = parRef.get('BZ')!.montant;
+    const totalPassif = parRef.get('DZ')!.montant;
 
     return {
       actif,
       passif,
       totalActif,
       totalPassif,
-      // Tolérance d'arrondi ; un écart réel signale un bug du moteur d'écritures,
-      // pas de la présente répartition (voir le commentaire de classe ci-dessus).
+      // Tolérance d'arrondi ; un écart réel signale un bug du moteur
+      // d'écritures OU un compte non rattaché (voir comptesNonRattaches),
+      // pas un défaut de cette répartition.
       equilibre: Math.abs(totalActif - totalPassif) < 0.01,
+      comptesNonRattaches,
+      controle: {
+        resultatClasses678,
+        resultatCompte13,
+        // Les deux sources sont non nulles à la fois : risque de double
+        // comptage (balance transmise à un moment ambigu de la clôture).
+        // Voir COMPTE 13, sycebnl — le compte 13 ne se mouvemente qu'À la
+        // clôture, en soldant justement les classes 6/7/8 à zéro.
+        doubleComptageProbable: Math.abs(resultatClasses678) > 0.005 && Math.abs(resultatCompte13) > 0.005,
+      },
     };
   }
 
-  /**
+    /**
    * COMPTE DE RÉSULTAT — adossé au tableau de correspondance OFFICIEL
    * (`correspondance-compte-resultat.ts`, transcrit du Journal officiel
    * OHADA, Partie 4 ch. 2 section 6), contrairement au bilan ci-dessus qui

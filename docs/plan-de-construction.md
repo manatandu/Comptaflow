@@ -1019,9 +1019,78 @@ Ordre de dépendances techniques réelles, pas un simple ordre de préférence :
     jeton légitime ; **jeton forgé avec l'ancienne valeur de repli `'change-me'`
     → rejeté (401)**, alors qu'il aurait été accepté avant ce correctif si
     `JWT_SECRET` avait été absent en production.
-12. **Moteur de mapping / états financiers configurables** (s'appuie sur 6 et 10) —
-    remplacerait le regroupement simplifié classe→poste de `etats-financiers` par
-    le vrai tableau de correspondance SYCEBNL (moteur `liasse/` du skill `sycebnl`).
+12. ✅ **Moteur de mapping bilan** — livré. Remplace le regroupement simplifié
+    classe→poste qui servait de bilan MVP par le vrai tableau de correspondance
+    officiel SYCEBNL (`correspondance-bilan.ts`, transcrit du Journal officiel
+    OHADA, Partie 4 ch. 2 section 6) — sur le même principe que le compte de
+    résultat livré dans la brique précédente.
+
+    Plus complexe que le compte de résultat : bilan hiérarchique (des postes de
+    détail comme AB/CA se somment en sous-totaux comme AD/CK, eux-mêmes sommés
+    en totaux comme AZ/CZ, jusqu'au TOTAL GÉNÉRAL BZ/DZ — 4 niveaux imbriqués côté
+    passif), comptes d'amortissement soustractifs (28x/29x), et des comptes de
+    tiers polyvalents (42-47, 52-53) qui changent de poste selon le SENS de leur
+    solde, pas leur seul numéro.
+
+    Anomalies du texte officiel reprises (mêmes corrections, mêmes justifications
+    que le moteur `liasse/` du skill `sycebnl`, dupliquées dans le code de
+    l'application pour ne pas dépendre d'un fichier hors dépôt) : compte 41
+    retiré de BE (déjà capté par BD) ; qualificatif « solde débiteurs »/« solde
+    créditeurs » sur BE/DI pour les tiers polyvalents 42-47 (sinon double
+    compte) ; CJ numéroté 15 et non 16 (fiche détaillée vs fiche sommaire de la
+    classe 1, le tableau de correspondance fait foi) ; DW précisé en 564/565
+    (561, opérations avec le siège, exclu d'un poste de trésorerie) + comptes
+    52/53 mais seulement pour ceux dont le solde est créditeur (une banque à
+    découvert). **Une sixième ambiguïté, propre à cette transcription et non
+    résolue par le moteur `liasse/` non plus** : les comptes 2919 et 2939
+    apparaissent chacun sous DEUX postes différents dans le texte officiel (AE
+    et AF pour 2919 ; AJ et AK pour 2939), sans clé de répartition donnée —
+    pris en entier sous un seul poste (celui dont l'intitulé colle le mieux),
+    signalé en commentaire plutôt que dupliqué (ce qui aurait gonflé l'actif) ou
+    coupé en deux (ce qui aurait inventé une clé que le texte ne donne pas).
+
+    Résultat net (poste CH) : n'est PAS un poste de détail comme les autres — le
+    compte 13 officiel (COMPTE 13, skill sycebnl) ne se mouvemente qu'À LA
+    CLÔTURE, en soldant les classes 6/7/8. Avant clôture le résultat vit dans
+    ces classes, après il vit dans le compte 13. Les deux sources sont donc
+    utilisées en OU exclusif (classes 6/7/8 si mouvementées, sinon compte 13),
+    jamais additionnées — et un `controle.doubleComptageProbable` signale le cas
+    où les deux le sont à la fois (balance transmise à un moment ambigu de la
+    clôture) sans trancher à la place de l'utilisateur.
+
+    Comme au compte de résultat : `comptesNonRattaches` (comptes de bilan
+    classes 1-5 qu'aucun poste officiel ne capte, jamais absorbés en silence) et
+    un contrôle d'équilibre BZ=DZ affiché en rouge en cas d'écart, à l'écran
+    comme dans la feuille « Contrôles et anomalies » de l'export Excel (qui
+    gagne aussi une feuille « Détail par poste » pour le drill-down).
+
+    **Bug de signe réel trouvé et corrigé avant la première exécution d'un
+    test** (pas en production) : le calcul du montant net d'un poste actif
+    faisait `-l.solde` sur les lignes d'amortissement au lieu de `l.solde` —
+    un compte d'amortissement bien formé porte déjà un solde négatif
+    (débit−crédit, créditeur), qui soustrait naturellement du brut par simple
+    addition ; le signer en positif l'ADDITIONNAIT au lieu de l'en déduire
+    (5000 brut + 1500 amortissement serait ressorti à 6500 au lieu de 3500).
+    Repéré en dérivant à la main le premier cas de test avant de l'exécuter,
+    corrigé, verrouillé par un test de régression dédié.
+
+    17 tests dédiés (9 comportementaux dans `etats-financiers.service.spec.ts`
+    — équilibre simple, régression classe 8, régression signe amortissement,
+    séparation BE/DI par le sens, retrait du compte 41 de BE, CH avant/après
+    clôture, double comptage signalé, compte non rattaché qui fait fuir
+    l'équilibre — et 8 structurels dans `correspondance-bilan.spec.ts` — aucune
+    ref en double, ordre d'affichage complet, totaux résolubles en une passe,
+    qualificatifs BE/DI opposés, CJ=15, DW=564/565, ambiguïté 2919/2939
+    résolue à un seul poste). 71 tests au total sur le projet (56 → 71).
+
+    Revérifié de bout en bout sur les tenants réels de la brique précédente :
+    bilan du "Tenant Cascade" (2 350/2 350, équilibré, résultat net CH=2 350
+    identique au XE du compte de résultat déjà vérifié) affiché à l'écran
+    (capture Playwright) et exporté en Excel (3 feuilles, totaux en gras,
+    contrôles corrects) ; comptes de tiers 47110000/47120000 du "Tenant Export"
+    correctement classés dans DI (tous deux réellement créditeurs sur ce
+    tenant, 0 dans BE) — comportement vérifié sur des données réelles, pas
+    seulement en test unitaire.
 13. **Comptabilité analytique par projet/bailleur** (spécifique SYCEBNL).
 14. Puis, au choix selon opportunité business : **Trésorerie avancée** (lots, LCR/
     virements), **Stocks**, **SYSCOHADA (Phase 3)**, **OHADA→IFRS**, **Paie**, RBAC fin.
