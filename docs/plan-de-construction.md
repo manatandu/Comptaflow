@@ -40,8 +40,30 @@ grosses briques métier de la vision long terme) — voir §3.
    "SaaS IA générique". Design déjà validé, ne pas y revenir.
 2. Deux modèles commerciaux : abonnement (coupure automatique à expiration) et achat
    ferme (SaaS perpétuel + on-premise, on-premise en dernier).
-3. MVP = référentiel **SYCEBNL** (associations/ONG/projets de développement) d'abord ;
-   **SYSCOHADA** (entreprises) en Phase 3.
+3. MVP = référentiel **SYCEBNL** d'abord ; **SYSCOHADA** (entreprises) en Phase 3.
+
+   ⚠️ **Précision de scope, ajoutée le 2026-08-28** (la formulation d'origine
+   ci-dessus — "associations/ONG/projets de développement" — laissait
+   entendre à tort que les deux étaient couverts dès le départ ; ce n'est pas
+   le cas et ça n'a jamais été vérifié explicitement avant cette date).
+   SYCEBNL prévoit en réalité **trois jeux d'états financiers distincts**,
+   pas un seul régime unique :
+   1. **Associations et ordres professionnels**, Système normal ;
+   2. **Projets de développement et assimilés**, Système normal ;
+   3. **Système Minimal de Trésorerie** (SMT, petites entités < 30 M FCFA).
+
+   Tout ce qui a été construit jusqu'ici (moteur de mapping bilan, compte de
+   résultat — items 10 et 12) **ne couvre que le jeu n° 1** (associations et
+   ordres professionnels). Ce n'est pas qu'une différence de libellés : le
+   jeu "projets de développement" a des états structurellement différents
+   (tableau emplois-ressources, tableau d'exécution budgétaire, tableau de
+   réconciliation de trésorerie, bilan à codes REF propres, **compte
+   d'exploitation** — dont le solde doit être exactement NUL, pas un
+   résultat net comme pour une association) et ses propres codes REF/tableaux
+   de correspondance. Le jeu SMT n'est pas non plus couvert. Voir item 15
+   pour le chantier d'extension au jeu "projets de développement", engagé le
+   même jour suite à l'analyse d'une vraie liasse DGI RDC déposée pour un
+   projet de développement réel (Google Drive, dossier `Sycebnl`).
 4. Vision fonctionnelle long terme, dans cet esprit (non séquencée avant ce document) :
    immobilisations + plan d'amortissement, gestion des stocks, gestion des tiers, moteur
    de mapping pour générer tout état financier depuis une balance, passage OHADA→IFRS.
@@ -1135,8 +1157,10 @@ Ordre de dépendances techniques réelles, pas un simple ordre de préférence :
     totalChargesN1=250, resultatNetN1=350) — les 4 colonnes officielles
     affichées à l'écran (capture Playwright) et dans le classeur Excel
     (10 colonnes bilan, 4 colonnes compte de résultat).
-13. **Comptabilité analytique par projet/bailleur** (spécifique SYCEBNL).
-14. Puis, au choix selon opportunité business : **Trésorerie avancée** (lots, LCR/
+13. 🚧 **Jeu d'états financiers "Projets de développement et assimilés"** —
+    engagé le 2026-08-28 (voir la précision de scope au §1, point 3). En cours.
+14. **Comptabilité analytique par projet/bailleur** (spécifique SYCEBNL).
+15. Puis, au choix selon opportunité business : **Trésorerie avancée** (lots, LCR/
     virements), **Stocks**, **SYSCOHADA (Phase 3)**, **OHADA→IFRS**, **Paie**, RBAC fin.
 
 Cette liste n'engage rien : chaque brique reste soumise à validation explicite avant
