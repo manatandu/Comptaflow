@@ -821,6 +821,91 @@ Ordre de dépendances techniques réelles, pas un simple ordre de préférence :
     par ligne du côté multiple), et N débits/M crédits simultanés
     (liste `47110000 + 47120000`, pas de faux choix) tous les trois
     couverts par des écritures de test réelles.
+
+    **Approfondissement** (règle §2.6). Sept manques relevés en relisant la
+    brique livrée, tous traités — et deux bugs réels découverts en chemin.
+
+    *Bug grave n° 1 — le bilan ignorait la classe 8.* `bilan()` ne faisait
+    entrer dans le résultat que les classes 6 et 7 ; la classe 8 (H.A.O.)
+    tombait dans un `default: break` muet. Or le module Immobilisations
+    poste en 81 (V.C.N.) et 82 (produit de cession) à **chaque cession** :
+    une seule écriture H.A.O. déséquilibrait donc le bilan de son montant
+    exact. Constaté sur un tenant réel (écriture H.A.O. de 40 → actif 250 /
+    passif 210). Corrigé, revérifié (250/250), et le `default` muet a été
+    remplacé par un `case CLASSE_9` explicite — c'est précisément le
+    fourre-tout qui avait masqué le cas.
+
+    *Bug n° 2 — le plan de comptes seedé ne permettait pas un compte de
+    résultat conforme.* Le seed a sa propre règle écrite (« quand un compte a
+    des sous-comptes explicitement listés au texte officiel, seuls ces
+    sous-comptes sont repris ») ; elle avait été appliquée à 704 et 708 mais
+    **pas** à 603 ni 705, laissés comme comptes génériques mouvementables.
+    Conséquence concrète : l'état officiel sépare 7051 (poste RD, ventes de
+    marchandises) de 7052/7053 (poste RE, services et produits finis), et
+    6031 (TB) de 6032-6035 (TE) — une vente passée sur un compte 705 unique
+    n'entrait alors dans aucun total (écart de 500 mesuré entre le résultat
+    du bilan et le XE du compte de résultat). Seed corrigé (7051-7055,
+    6031-6035), revérifié sur un tenant neuf : plus aucun écart.
+
+    Les sept points traités :
+    1. **Grand livre complet** (`GET /exports/grand-livre`) — tous les
+       comptes mouvementés dans un seul classeur, au lieu d'un
+       téléchargement par compte. Une seule requête puis regroupement en
+       mémoire (`grandLivreComplet()`), pas de N+1. Deux feuilles : tableau
+       **plat** (numéro et intitulé du compte répétés sur chaque ligne, donc
+       filtrable et pivotable, solde progressif réinitialisé par compte) et
+       feuille « Sommaire » portant les sous-totaux — plutôt que des lignes
+       de rupture au milieu des données, qui fausseraient tout filtre.
+    2. **Filtres du journal exposés à l'écran** : journal, période, libellé.
+       L'API les acceptait déjà mais aucun écran ne les offrait, et le bouton
+       « Filtrer » du ruban était décoratif. L'export reprend exactement les
+       filtres affichés. État des champs et filtres appliqués séparés, pour
+       ne pas requêter à chaque frappe.
+    3. **Compte de résultat** — le module n'avait que le bilan. Contrairement
+       à celui-ci, il est **réellement adossé au tableau de correspondance
+       officiel** (Journal officiel OHADA, Partie 4 ch. 2 section 6),
+       transcrit dans `correspondance-compte-resultat.ts` : codes REF, postes
+       RA-RH / TA-TL / TM-TN et formules XA à XE. Rattachement par préfixe,
+       le plus long l'emportant. Charges présentées en positif, de sorte que
+       les formules officielles s'appliquent littéralement. Anomalies du
+       texte officiel signalées et **non comblées** : XA inclut RH (le
+       libellé dit « Somme RA à RG », ce qui romprait l'égalité
+       résultat/bilan dès qu'il y a des reprises — même correction que le
+       moteur `liasse/` du skill, anomalie n° 4) ; 7054/7055 ne figurent dans
+       aucun poste et ressortent donc en « non rattachés » plutôt que d'être
+       rangés d'office dans RE, ce qui serait une interprétation.
+       Un **contrôle croisé** compare XE au solde de tous les comptes de
+       gestion (la base du bilan) : tout écart vaut exactement la somme des
+       comptes non rattachés, et s'affiche en rouge à l'écran comme en
+       feuille « Contrôles et anomalies » de l'export. Un état qui ne boucle
+       pas doit se voir.
+    4. **Vraies dates Excel** au lieu de texte « 01/02/2026 » : sans ça, ni
+       tri chronologique ni filtre par période ne fonctionnent dans le
+       tableur — l'inverse du but recherché.
+    5. **En-tête figée et auto-filtre** sur chaque tableau. La plage du
+       filtre s'arrête à la dernière ligne de données : y inclure la ligne de
+       totaux la ferait remonter dans n'importe quel filtre.
+    6. **Noms de fichiers datés**, décidés côté serveur (seul à connaître
+       l'exercice et le compte) et transmis via `Content-Disposition` —
+       `journal-2026.xlsx`, `grand-livre-52110000-2026.xlsx`,
+       `compte-de-resultat-2026.xlsx`… Deux exercices exportés d'affilée ne
+       s'écrasent plus.
+    7. **Premiers tests automatisés du projet** (49, Jest — il n'en existait
+       aucun jusqu'ici) : rattachement compte→poste et lacunes assumées du
+       texte officiel ; bilan, compte de résultat et leur contrôle croisé,
+       dont une **régression explicite sur le bug classe 8** ; règle de
+       contrepartie sur ses quatre cas (2 lignes, N/1, 1/M, N×M) plus le
+       piège des `Decimal` Prisma sérialisés en chaînes. Vérifiés par
+       mutation : réintroduire le bug classe 8 fait échouer exactement 2
+       tests, retirer le filtre de sens exactement 3 — aucun faux positif.
+
+    Revérifié de bout en bout après coup : scénario complet sur un tenant
+    neuf (cotisations, ventes de marchandises et de services, achats,
+    salaires, loyer, cession H.A.O.) → chaque compte au bon poste officiel,
+    XA 5 000 / XB 2 800 / XC 2 200 / XD 150 / XE 2 350, XE identique au
+    résultat logé au bilan, bilan équilibré, contrôle à zéro ; 6 exports
+    téléchargés depuis l'interface avec leurs noms datés ; filtres du journal
+    (période, libellé, réinitialisation) vérifiés à l'écran.
 12. **Moteur de mapping / états financiers configurables** (s'appuie sur 6 et 10) —
     remplacerait le regroupement simplifié classe→poste de `etats-financiers` par
     le vrai tableau de correspondance SYCEBNL (moteur `liasse/` du skill `sycebnl`).

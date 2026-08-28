@@ -674,7 +674,18 @@ const classe5: LigneSeed[] = c(ClasseCompte.CLASSE_5, SOLDE, [
 const classe6: LigneSeed[] = c(ClasseCompte.CLASSE_6, AUCUN, [
   ['60100000', "Achats de biens et services liés à l'activité"],
   ['60200000', 'Achats de marchandises, matières premières et fournitures liées'],
-  ['60300000', 'Variations des stocks de biens achetés et reçus en dons en nature à distribuer'],
+  // 603 a des subdivisions explicitement listées au texte officiel (Partie 2,
+  // ch. 3, classe 6 : « 6031 Variations des stocks de biens liés ; 6032
+  // Variations des stocks de marchandises ; 6033 ... ; 6034 ... ; 6035 ») :
+  // la règle de sélection ci-dessus impose donc de reprendre les
+  // subdivisions et non le compte parent. Elles ne sont pas cosmétiques —
+  // le compte de résultat officiel sépare 6031 (poste TB) de 6032-6035
+  // (poste TE), ce qu'un compte 603 unique rend structurellement impossible.
+  ['60310000', 'Variations des stocks de biens liés'],
+  ['60320000', 'Variations des stocks de marchandises'],
+  ['60330000', 'Variations des stocks de matières premières et fournitures liées'],
+  ['60340000', "Variations des stocks d'autres approvisionnements"],
+  ['60350000', 'Variations de stocks de dons en nature à distribuer'],
   ['60400000', 'Achats stockés de matières et fournitures consommables'],
   ['60500000', 'Autres achats'],
   ['60610000', 'Achats autres activités — billetteries'],
@@ -756,7 +767,23 @@ const classe7: LigneSeed[] = c(ClasseCompte.CLASSE_7, AUCUN, [
   ['70460000', 'Revenus liés à la générosité — mécénats'],
   ['70470000', 'Revenus liés à la générosité — parrainage'],
   ['70480000', 'Revenus liés à la générosité — autres'],
-  ['70500000', 'Ventes de marchandises, services et produits finis'],
+  // 705 a des subdivisions explicitement listées au texte officiel (Partie 2,
+  // ch. 3, classe 7 : « 705 Ventes marchandises, services et produits finis
+  // (7051 Ventes de marchandises, 7052 Services vendus, 7053 Ventes de
+  // produits finis, 7054 Ventes de produits intermédiaires, 7055 Ventes de
+  // produits résiduels) ») : la règle de sélection ci-dessus impose de
+  // reprendre les subdivisions, comme cela a été fait pour 704 et 708.
+  // Distinction structurante et non cosmétique : le compte de résultat
+  // officiel sépare 7051 (poste RD, ventes de marchandises) de 7052/7053
+  // (poste RE, services et produits finis) — un compte 705 unique et
+  // mouvementable rend un compte de résultat conforme impossible, et son
+  // montant disparaît alors de tous les totaux de l'état (constaté en test :
+  // écart de 500 entre le résultat du bilan et le résultat XE).
+  ['70510000', 'Ventes de marchandises'],
+  ['70520000', 'Services vendus'],
+  ['70530000', 'Ventes de produits finis'],
+  ['70540000', 'Ventes de produits intermédiaires'],
+  ['70550000', 'Ventes de produits résiduels'],
   ['70600000', 'Revenus des manifestations'],
   ['70700000', 'Produits accessoires'],
   ['70810000', 'Autres revenus — ventes de dons en nature'],

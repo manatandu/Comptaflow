@@ -13,4 +13,10 @@ export class EtatsFinanciersController {
   async bilan(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId') exerciceId: string) {
     return this.etatsFinanciersService.bilan(user.tenantId, exerciceId);
   }
+
+  /** Compte de résultat — postes officiels SYCEBNL (Partie 4, ch. 2). */
+  @Get('compte-de-resultat')
+  async compteDeResultat(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId') exerciceId: string) {
+    return this.etatsFinanciersService.compteDeResultat(user.tenantId, exerciceId);
+  }
 }

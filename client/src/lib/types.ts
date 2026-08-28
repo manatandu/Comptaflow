@@ -170,6 +170,39 @@ export interface Bilan {
   equilibre: boolean;
 }
 
+export interface CompteDuPoste {
+  numero: string;
+  intitule: string;
+  montant: number;
+}
+
+/** Poste du compte de résultat SYCEBNL (code REF officiel : RA, TA, TM…). */
+export interface PosteCalcule {
+  ref: string;
+  libelle: string;
+  montant: number;
+  comptes: CompteDuPoste[];
+}
+
+export interface CompteDeResultat {
+  produits: PosteCalcule[];
+  totalProduits: number; // XA
+  charges: PosteCalcule[];
+  totalCharges: number; // XB
+  resultatActivitesOrdinaires: number; // XC
+  produitsHao: PosteCalcule; // TM
+  chargesHao: PosteCalcule; // TN
+  resultatHao: number; // XD
+  resultatNet: number; // XE
+  /** Comptes de gestion qu'aucun poste officiel ne réclame — jamais masqués. */
+  comptesNonRattaches: CompteDuPoste[];
+  controle: {
+    resultatToutesClassesDeGestion: number;
+    ecart: number;
+    coherent: boolean;
+  };
+}
+
 export interface AuthResponse {
   tenant?: { id: string; nom: string; referentiel: Referentiel };
   exercice?: Exercice;

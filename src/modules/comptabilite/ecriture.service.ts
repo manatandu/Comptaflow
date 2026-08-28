@@ -1,6 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
-import { StatutExercice, TypeCompteDetailTotal } from '@prisma/client';
+import { Prisma, StatutExercice, TypeCompteDetailTotal } from '@prisma/client';
 import { CreerEcritureDto } from './dto/creer-ecriture.dto';
 import { JournalService } from '../journaux/journal.service';
 import { ExerciceService } from '../exercice/exercice.service';
@@ -151,6 +151,71 @@ export class EcritureService {
     return { ecritures, totaux: { debit: totalDebit, credit: totalCredit } };
   }
 
+  /**
+   * Compte(s) contrepartie d'une ligne — voir docs/plan-de-construction.md
+   * (« Export Excel — compte contrepartie ») : comptes DISTINCTS de sens
+   * opposé dans la même écriture. Exact et non ambigu dans les cas usuels
+   * (2 lignes, N débits/1 crédit, 1 débit/M crédits) ; dans le cas rare
+   * d'une écriture à débits ET crédits multiples simultanés (N×M), la liste
+   * porte plusieurs comptes candidats plutôt qu'un choix arbitraire
+   * faussement précis.
+   *
+   * Filtrer par sens opposé écarte aussi, par construction, la ligne
+   * elle-même et toute autre ligne portant le même compte du même côté —
+   * inutile d'y ajouter un « sauf soi-même » ad hoc.
+   *
+   * Factorisé ici pour rester unique entre `grandLivre()` (un compte),
+   * `grandLivreComplet()` (tous) et l'export Excel qui les consomme.
+   */
+  private static contrepartieDe(
+    ligne: { id: string; debit: Prisma.Decimal | number },
+    lignesDeLEcriture: Array<{ id: string; debit: Prisma.Decimal | number; compte: { numero: string } }>,
+  ): string[] {
+    const sensDeLaLigne = Number(ligne.debit) > 0 ? 'DEBIT' : 'CREDIT';
+    return [
+      ...new Set(
+        lignesDeLEcriture
+          .filter((autre) => autre.id !== ligne.id)
+          .filter((autre) => (Number(autre.debit) > 0 ? 'DEBIT' : 'CREDIT') !== sensDeLaLigne)
+          .map((autre) => autre.compte.numero),
+      ),
+    ];
+  }
+
+  /** Mise en forme d'une ligne de grand livre, solde progressif fourni par l'appelant. */
+  private static versLigneGrandLivre(
+    l: {
+      id: string;
+      libelle: string | null;
+      debit: Prisma.Decimal;
+      credit: Prisma.Decimal;
+      lettre: string | null;
+      ecriture: {
+        date: Date;
+        libelle: string;
+        reference: string | null;
+        numeroPiece: number | null;
+        journal: { code: string };
+        lignes: Array<{ id: string; debit: Prisma.Decimal; compte: { numero: string } }>;
+      };
+    },
+    soldeProgressif: number,
+  ) {
+    return {
+      id: l.id,
+      date: l.ecriture.date,
+      journalCode: l.ecriture.journal.code,
+      numeroPiece: l.ecriture.numeroPiece,
+      libelle: l.libelle ?? l.ecriture.libelle,
+      reference: l.ecriture.reference,
+      debit: Number(l.debit),
+      credit: Number(l.credit),
+      lettre: l.lettre,
+      soldeProgressif,
+      contrepartie: EcritureService.contrepartieDe(l, l.ecriture.lignes),
+    };
+  }
+
   /** Grand livre d'un compte : ses lignes avec solde progressif. */
   async grandLivre(tenantId: string, compteId: string, exerciceId?: string) {
     const compte = await this.prisma.compte.findFirst({ where: { id: compteId, tenantId } });
@@ -173,43 +238,68 @@ export class EcritureService {
 
     let solde = 0;
     const lignesAvecSolde = lignes.map((l) => {
-      const debit = Number(l.debit);
-      const credit = Number(l.credit);
-      solde += debit - credit;
-
-      // Compte(s) contrepartie — voir docs/plan-de-construction.md
-      // (« Export Excel — compte contrepartie ») : comptes DISTINCTS de
-      // sens opposé dans la même écriture. Exact et non ambigu dans les cas
-      // usuels (2 lignes, N débits/1 crédit, 1 débit/M crédits) ; dans le
-      // cas rare d'une écriture à débits ET crédits multiples simultanés
-      // (N×M), la liste porte plusieurs comptes candidats plutôt qu'un
-      // choix arbitraire faussement précis.
-      const sensDeLaLigne = debit > 0 ? 'DEBIT' : 'CREDIT';
-      const contrepartie = [
-        ...new Set(
-          l.ecriture.lignes
-            .filter((autre) => autre.id !== l.id)
-            .filter((autre) => (Number(autre.debit) > 0 ? 'DEBIT' : 'CREDIT') !== sensDeLaLigne)
-            .map((autre) => autre.compte.numero),
-        ),
-      ];
-
-      return {
-        id: l.id,
-        date: l.ecriture.date,
-        journalCode: l.ecriture.journal.code,
-        numeroPiece: l.ecriture.numeroPiece,
-        libelle: l.libelle ?? l.ecriture.libelle,
-        reference: l.ecriture.reference,
-        debit,
-        credit,
-        lettre: l.lettre,
-        soldeProgressif: solde,
-        contrepartie,
-      };
+      solde += Number(l.debit) - Number(l.credit);
+      return EcritureService.versLigneGrandLivre(l, solde);
     });
 
     return { compte, lignes: lignesAvecSolde, soldeFinal: solde };
+  }
+
+  /**
+   * Grand livre COMPLET : tous les comptes mouvementés de l'exercice, chacun
+   * avec ses lignes et son solde progressif propre. C'est la forme
+   * réellement exploitable pour un audit — un auditeur veut le grand livre
+   * entier d'un coup, pas compte par compte.
+   *
+   * Une seule requête, puis regroupement en mémoire : appeler `grandLivre()`
+   * en boucle sur chaque compte aurait produit autant de requêtes que de
+   * comptes mouvementés (N+1).
+   *
+   * Les comptes Total (§3.1) n'apparaissent jamais : ils ne portent aucun
+   * mouvement propre par construction (imposé par `creer()`), donc aucune
+   * ligne ne les référence.
+   */
+  async grandLivreComplet(tenantId: string, exerciceId?: string) {
+    const lignes = await this.prisma.ligneEcriture.findMany({
+      where: { ecriture: { tenantId, ...(exerciceId ? { exerciceId } : {}) } },
+      include: {
+        compte: true,
+        ecriture: {
+          include: { journal: true, lignes: { include: { compte: true } } },
+        },
+      },
+      // Tri par compte puis par date : le regroupement ci-dessous s'appuie
+      // dessus pour que chaque compte reçoive ses lignes déjà chronologiques
+      // (le solde progressif n'aurait aucun sens sinon).
+      orderBy: [{ compte: { numero: 'asc' } }, { ecriture: { date: 'asc' } }],
+    });
+
+    const parCompte = new Map<
+      string,
+      { compte: { id: string; numero: string; intitule: string }; lignes: ReturnType<typeof EcritureService.versLigneGrandLivre>[]; solde: number }
+    >();
+
+    for (const l of lignes) {
+      let entree = parCompte.get(l.compteId);
+      if (!entree) {
+        entree = {
+          compte: { id: l.compte.id, numero: l.compte.numero, intitule: l.compte.intitule },
+          lignes: [],
+          solde: 0,
+        };
+        parCompte.set(l.compteId, entree);
+      }
+      entree.solde += Number(l.debit) - Number(l.credit);
+      entree.lignes.push(EcritureService.versLigneGrandLivre(l, entree.solde));
+    }
+
+    return [...parCompte.values()].map((e) => ({
+      compte: e.compte,
+      lignes: e.lignes,
+      soldeFinal: e.solde,
+      totalDebit: e.lignes.reduce((s, l) => s + l.debit, 0),
+      totalCredit: e.lignes.reduce((s, l) => s + l.credit, 0),
+    }));
   }
 
   /** Balance : solde débit/crédit cumulé par compte sur l'exercice. */

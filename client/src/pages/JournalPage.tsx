@@ -1,11 +1,30 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api } from '../lib/api';
 import { useExercice } from '../lib/exercice';
 import { useRibbon } from '../components/chrome/ribbon-context';
 import { IconFilter, IconExport } from '../components/chrome/icons';
-import type { Compte, Ecriture, LigneBalance, LigneGrandLivre } from '../lib/types';
+import type { Compte, Ecriture, Journal, LigneBalance, LigneGrandLivre } from '../lib/types';
 
 type Onglet = 'journal' | 'grand-livre' | 'balance';
+
+interface Filtres {
+  journalId: string;
+  dateDebut: string;
+  dateFin: string;
+  recherche: string;
+}
+
+const FILTRES_VIDES: Filtres = { journalId: '', dateDebut: '', dateFin: '', recherche: '' };
+
+/** Construit la query string commune à la consultation et à l'export. */
+function versQuery(exerciceId: string, filtres: Filtres): string {
+  const params = new URLSearchParams({ exerciceId });
+  if (filtres.journalId) params.set('journalId', filtres.journalId);
+  if (filtres.dateDebut) params.set('dateDebut', filtres.dateDebut);
+  if (filtres.dateFin) params.set('dateFin', filtres.dateFin);
+  if (filtres.recherche) params.set('recherche', filtres.recherche);
+  return params.toString();
+}
 
 export function JournalPage() {
   const { exerciceCourant } = useExercice();
@@ -14,19 +33,38 @@ export function JournalPage() {
   const [totaux, setTotaux] = useState({ debit: 0, credit: 0 });
   const [balance, setBalance] = useState<LigneBalance[]>([]);
   const [comptes, setComptes] = useState<Compte[]>([]);
+  const [journaux, setJournaux] = useState<Journal[]>([]);
   const [compteGrandLivreId, setCompteGrandLivreId] = useState('');
   const [grandLivre, setGrandLivre] = useState<{ lignes: LigneGrandLivre[]; soldeFinal: number } | null>(null);
 
+  // `filtres` est l'état des champs ; `filtresAppliques` ce qui a réellement
+  // été envoyé au serveur. Les séparer évite de relancer une requête à
+  // chaque frappe dans le champ de recherche.
+  const [filtres, setFiltres] = useState<Filtres>(FILTRES_VIDES);
+  const [filtresAppliques, setFiltresAppliques] = useState<Filtres>(FILTRES_VIDES);
+  const [filtresOuverts, setFiltresOuverts] = useState(false);
+
+  useEffect(() => {
+    api.get<Compte[]>('/comptes').then(setComptes);
+    api.get<Journal[]>('/journaux').then(setJournaux);
+  }, []);
+
   useEffect(() => {
     if (!exerciceCourant) return;
-    api.get<{ ecritures: Ecriture[]; totaux: { debit: number; credit: number } }>(
-      `/ecritures?exerciceId=${exerciceCourant.id}`,
-    ).then((r) => {
-      setEcritures(r.ecritures);
-      setTotaux(r.totaux);
-    });
-    api.get<{ lignes: LigneBalance[] }>(`/ecritures/balance?exerciceId=${exerciceCourant.id}`).then((r) => setBalance(r.lignes));
-    api.get<Compte[]>('/comptes').then(setComptes);
+    const query = versQuery(exerciceCourant.id, filtresAppliques);
+    api
+      .get<{ ecritures: Ecriture[]; totaux: { debit: number; credit: number } }>(`/ecritures?${query}`)
+      .then((r) => {
+        setEcritures(r.ecritures);
+        setTotaux(r.totaux);
+      });
+  }, [exerciceCourant?.id, filtresAppliques]);
+
+  useEffect(() => {
+    if (!exerciceCourant) return;
+    api
+      .get<{ lignes: LigneBalance[] }>(`/ecritures/balance?exerciceId=${exerciceCourant.id}`)
+      .then((r) => setBalance(r.lignes));
   }, [exerciceCourant?.id]);
 
   useEffect(() => {
@@ -41,28 +79,32 @@ export function JournalPage() {
       .then(setGrandLivre);
   }, [exerciceCourant?.id, compteGrandLivreId]);
 
+  const filtreActif = useMemo(
+    () => Object.values(filtresAppliques).some((v) => v !== ''),
+    [filtresAppliques],
+  );
+
   const exporterJournal = () => {
     if (!exerciceCourant) return;
-    api.telecharger(`/exports/journal?exerciceId=${exerciceCourant.id}`, 'journal.xlsx');
+    // Le journal exporté est exactement celui affiché, filtres compris.
+    api.telecharger(`/exports/journal?${versQuery(exerciceCourant.id, filtresAppliques)}`, 'journal.xlsx');
   };
   const exporterBalance = () => {
     if (!exerciceCourant) return;
     api.telecharger(`/exports/balance?exerciceId=${exerciceCourant.id}`, 'balance.xlsx');
   };
-  const exporterGrandLivre = () => {
+  const exporterGrandLivreDuCompte = () => {
     if (!exerciceCourant || !compteGrandLivreId) return;
     api.telecharger(`/exports/grand-livre/${compteGrandLivreId}?exerciceId=${exerciceCourant.id}`, 'grand-livre.xlsx');
   };
-
-  const exportsParOnglet: Record<Onglet, (() => void) | null> = {
-    journal: exporterJournal,
-    'grand-livre': compteGrandLivreId ? exporterGrandLivre : null,
-    balance: exporterBalance,
+  const exporterGrandLivreComplet = () => {
+    if (!exerciceCourant) return;
+    api.telecharger(`/exports/grand-livre?exerciceId=${exerciceCourant.id}`, 'grand-livre-complet.xlsx');
   };
 
   // useRibbon n'enregistre les boutons qu'au montage (voir sa doc) : un
-  // onClick ici capterait l'onglet initial pour toujours. Le bouton
-  // d'export réellement fonctionnel (réactif à l'onglet actif) vit dans
+  // onClick ici capterait l'onglet initial pour toujours. Les boutons
+  // réellement fonctionnels (réactifs à l'onglet actif) vivent dans
   // l'en-tête de page ci-dessous, pas dans ce ruban contextuel.
   useRibbon([
     { titre: 'AFFICHAGE', boutons: [{ label: 'Filtrer', Icon: IconFilter }] },
@@ -82,20 +124,110 @@ export function JournalPage() {
     })),
   );
 
+  const boutonExport = (label: string, onClick: () => void, principal = true) => (
+    <button
+      onClick={onClick}
+      className={`flex items-center gap-1.5 border border-border px-3 py-1.5 text-[11px] font-bold hover:bg-surface-alt ${
+        principal ? 'bg-surface' : 'bg-chrome'
+      }`}
+    >
+      <IconExport width={13} height={13} />
+      {label}
+    </button>
+  );
+
   return (
     <div className="p-2.5">
-      <div className="flex items-center justify-between mb-2.5">
+      <div className="flex items-center justify-between mb-2.5 gap-2">
         <h1 className="text-[15px] font-bold">Journal &amp; grand livre</h1>
-        {exportsParOnglet[onglet] && (
-          <button
-            onClick={exportsParOnglet[onglet]!}
-            className="flex items-center gap-1.5 border border-border bg-surface px-3 py-1.5 text-[11px] font-bold hover:bg-surface-alt"
-          >
-            <IconExport width={13} height={13} />
-            Exporter Excel
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {onglet === 'journal' && (
+            <button
+              onClick={() => setFiltresOuverts((v) => !v)}
+              className={`flex items-center gap-1.5 border border-border px-3 py-1.5 text-[11px] font-bold hover:bg-surface-alt ${
+                filtreActif ? 'bg-warning-soft border-warning/40' : 'bg-surface'
+              }`}
+            >
+              <IconFilter width={13} height={13} />
+              Filtrer{filtreActif ? ' (actif)' : ''}
+            </button>
+          )}
+          {onglet === 'journal' && boutonExport('Exporter Excel', exporterJournal)}
+          {onglet === 'balance' && boutonExport('Exporter Excel', exporterBalance)}
+          {onglet === 'grand-livre' && (
+            <>
+              {compteGrandLivreId && boutonExport('Exporter ce compte', exporterGrandLivreDuCompte, false)}
+              {boutonExport('Exporter tout le grand livre', exporterGrandLivreComplet)}
+            </>
+          )}
+        </div>
       </div>
+
+      {onglet === 'journal' && filtresOuverts && (
+        <div className="border border-border bg-surface-alt p-3 mb-2.5 flex flex-wrap items-end gap-3">
+          <label className="flex flex-col gap-1">
+            <span className="text-[10px] font-bold text-text-dim">JOURNAL</span>
+            <select
+              value={filtres.journalId}
+              onChange={(e) => setFiltres({ ...filtres, journalId: e.target.value })}
+              className="border border-border bg-surface px-2 py-1 text-[11.5px] font-mono min-w-[150px]"
+            >
+              <option value="">Tous</option>
+              {journaux.map((j) => (
+                <option key={j.id} value={j.id}>
+                  {j.code} — {j.intitule}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[10px] font-bold text-text-dim">DU</span>
+            <input
+              type="date"
+              value={filtres.dateDebut}
+              onChange={(e) => setFiltres({ ...filtres, dateDebut: e.target.value })}
+              className="border border-border bg-surface px-2 py-1 text-[11.5px] font-mono"
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[10px] font-bold text-text-dim">AU</span>
+            <input
+              type="date"
+              value={filtres.dateFin}
+              onChange={(e) => setFiltres({ ...filtres, dateFin: e.target.value })}
+              className="border border-border bg-surface px-2 py-1 text-[11.5px] font-mono"
+            />
+          </label>
+          <label className="flex flex-col gap-1 flex-1 min-w-[180px]">
+            <span className="text-[10px] font-bold text-text-dim">LIBELLÉ CONTIENT</span>
+            <input
+              type="text"
+              value={filtres.recherche}
+              onChange={(e) => setFiltres({ ...filtres, recherche: e.target.value })}
+              onKeyDown={(e) => e.key === 'Enter' && setFiltresAppliques(filtres)}
+              placeholder="ex. cotisation"
+              className="border border-border bg-surface px-2 py-1 text-[11.5px]"
+            />
+          </label>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setFiltresAppliques(filtres)}
+              className="border border-border bg-surface px-3 py-1.5 text-[11px] font-bold hover:bg-chrome"
+            >
+              Appliquer
+            </button>
+            <button
+              onClick={() => {
+                setFiltres(FILTRES_VIDES);
+                setFiltresAppliques(FILTRES_VIDES);
+              }}
+              className="border border-border bg-chrome px-3 py-1.5 text-[11px] font-bold hover:bg-surface-alt"
+            >
+              Réinitialiser
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="flex bg-chrome border border-border border-b-0">
         <button
@@ -129,6 +261,11 @@ export function JournalPage() {
             <span className="text-right">CRÉDIT</span>
             <span>PIÈCE</span>
           </div>
+          {lignesJournal.length === 0 && (
+            <div className="px-3.5 py-4 text-[11.5px] text-text-dim">
+              {filtreActif ? 'Aucune écriture ne correspond au filtre.' : 'Aucune écriture sur cet exercice.'}
+            </div>
+          )}
           {lignesJournal.map((l, i) => (
             <div
               key={l.key}
@@ -175,6 +312,9 @@ export function JournalPage() {
                   </option>
                 ))}
             </select>
+            <span className="text-[10.5px] text-text-dim">
+              L'export « tout le grand livre » ne dépend pas de ce choix : il reprend tous les comptes mouvementés.
+            </span>
           </div>
 
           {!compteGrandLivreId && (

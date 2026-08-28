@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import * as ExcelJS from 'exceljs';
+import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
-import { EtatsFinanciersService } from '../etats-financiers/etats-financiers.service';
+import { EtatsFinanciersService, PosteCalcule } from '../etats-financiers/etats-financiers.service';
 
 const ENTETE_FONT = { bold: true } as const;
 const ENTETE_FILL = {
@@ -10,23 +11,39 @@ const ENTETE_FILL = {
   fgColor: { argb: 'FFE8E8E8' },
 } as const;
 
-function styliserEntete(ligne: ExcelJS.Row) {
-  ligne.font = ENTETE_FONT;
-  ligne.fill = ENTETE_FILL as ExcelJS.Fill;
+const FORMAT_MONTANT = '#,##0.00';
+const FORMAT_DATE = 'DD/MM/YYYY';
+
+/** Un classeur produit, avec le nom de fichier que le contrôleur doit servir. */
+export interface ClasseurExporte {
+  buffer: Buffer;
+  nomFichier: string;
 }
 
 /**
- * Export Excel des documents comptables — Journal, Grand livre, Balance,
- * Bilan (MVP). Objectif explicite (demande utilisateur, séance du
- * 2026-08-28) : produire des documents exploitables pour l'audit, un PDF
- * étant difficile à recouper ligne à ligne. Chaque feuille reste strictement
- * SYCEBNL/OHADA — pas d'emprunt de mise en forme SYSCOHADA, même si des
- * dossiers d'audit réels (SYSCOHADA) ont inspiré la richesse des colonnes
- * de traçabilité (voir docs/plan-de-construction.md, analyse CARRIGRES).
+ * Export Excel des documents comptables — Journal, Grand livre (un compte ou
+ * complet), Balance, Bilan et Compte de résultat. Objectif explicite
+ * (demande utilisateur, séance du 2026-08-28) : produire des documents
+ * exploitables pour l'audit, un PDF étant difficile à recouper ligne à
+ * ligne. Chaque feuille reste strictement SYCEBNL/OHADA — pas d'emprunt de
+ * mise en forme SYSCOHADA, même si des dossiers d'audit réels (SYSCOHADA)
+ * ont inspiré la richesse des colonnes de traçabilité (voir
+ * docs/plan-de-construction.md, analyse CARRIGRES).
+ *
+ * Trois partis pris de forme, tous au service de l'exploitation réelle du
+ * fichier par un auditeur, et non de sa seule impression :
+ *  - les dates sont de VRAIES dates Excel (pas du texte « 01/02/2026 ») :
+ *    sans ça, ni tri chronologique ni filtre par période ne fonctionnent ;
+ *  - la ligne d'en-tête est figée et porte un auto-filtre, pour rester
+ *    lisible sur un journal de plusieurs milliers de lignes ;
+ *  - les tableaux de données sont PLATS (pas de ligne de rupture au milieu),
+ *    afin que filtre et tableau croisé dynamique restent honnêtes ; les
+ *    sous-totaux vivent sur une feuille « Sommaire » dédiée.
  */
 @Injectable()
 export class ExportService {
   constructor(
+    private readonly prisma: PrismaService,
     private readonly ecritureService: EcritureService,
     private readonly etatsFinanciersService: EtatsFinanciersService,
   ) {}
@@ -42,11 +59,47 @@ export class ExportService {
     return Buffer.from(await classeur.xlsx.writeBuffer());
   }
 
+  /**
+   * Suffixe de nom de fichier : l'année de l'exercice, pour que deux
+   * exportations d'exercices différents ne s'écrasent pas dans le dossier
+   * Téléchargements. Vide si l'export n'est pas borné à un exercice.
+   */
+  private async suffixeExercice(tenantId: string, exerciceId?: string): Promise<string> {
+    if (!exerciceId) return '';
+    const exercice = await this.prisma.exercice.findFirst({
+      where: { id: exerciceId, tenantId },
+      select: { dateDebut: true },
+    });
+    return exercice ? `-${exercice.dateDebut.getFullYear()}` : '';
+  }
+
+  /**
+   * En-tête figée + auto-filtre sur la plage de données. La plage s'arrête à
+   * `dernereLigneDonnees` : y inclure une ligne de totaux ferait remonter
+   * celle-ci dans les résultats de n'importe quel filtre.
+   */
+  private finaliserTableau(feuille: ExcelJS.Worksheet, nbColonnes: number, derniereLigneDonnees: number) {
+    styliserEntete(feuille.getRow(1));
+    feuille.views = [{ state: 'frozen', ySplit: 1 }];
+    if (derniereLigneDonnees > 1) {
+      feuille.autoFilter = {
+        from: { row: 1, column: 1 },
+        to: { row: derniereLigneDonnees, column: nbColonnes },
+      };
+    }
+  }
+
+  private appliquerFormats(feuille: ExcelJS.Worksheet, formats: Record<string, string>) {
+    for (const [cle, format] of Object.entries(formats)) {
+      feuille.getColumn(cle).numFmt = format;
+    }
+  }
+
   /** Journal : reprend exactement EcritureService.lister(), une ligne d'écriture = une ligne Excel. */
   async journalExcel(
     tenantId: string,
     filtres: { exerciceId?: string; journalId?: string; dateDebut?: string; dateFin?: string; recherche?: string },
-  ): Promise<Buffer> {
+  ): Promise<ClasseurExporte> {
     const { ecritures, totaux } = await this.ecritureService.lister(tenantId, filtres);
 
     const classeur = this.nouveauClasseur();
@@ -64,12 +117,11 @@ export class ExportService {
       { header: 'Crédit', key: 'credit', width: 14 },
       { header: 'Lettrage', key: 'lettre', width: 10 },
     ];
-    styliserEntete(feuille.getRow(1));
 
     for (const e of ecritures) {
       for (const l of e.lignes) {
         feuille.addRow({
-          date: new Date(e.date).toLocaleDateString('fr-FR'),
+          date: e.date,
           journal: e.journal.code,
           numeroPiece: e.numeroPiece,
           reference: e.reference ?? '',
@@ -84,41 +136,33 @@ export class ExportService {
       }
     }
 
+    const derniereLigneDonnees = feuille.rowCount;
     const ligneTotal = feuille.addRow({
       libelleEcriture: 'TOTAUX DE LA PÉRIODE',
       debit: totaux.debit,
       credit: totaux.credit,
     });
     ligneTotal.font = ENTETE_FONT;
-    feuille.getColumn('debit').numFmt = '#,##0.00';
-    feuille.getColumn('credit').numFmt = '#,##0.00';
 
-    return this.versBuffer(classeur);
+    this.appliquerFormats(feuille, { date: FORMAT_DATE, debit: FORMAT_MONTANT, credit: FORMAT_MONTANT });
+    this.finaliserTableau(feuille, feuille.columns.length, derniereLigneDonnees);
+
+    return {
+      buffer: await this.versBuffer(classeur),
+      nomFichier: `journal${await this.suffixeExercice(tenantId, filtres.exerciceId)}.xlsx`,
+    };
   }
 
-  /**
-   * Grand livre d'un compte, avec colonne "Compte contrepartie" — demande
-   * explicite de l'utilisateur, pour retracer une écriture sans connaître
-   * son journal.
-   *
-   * Règle retenue (voir discussion du 2026-08-28, docs/plan-de-construction.md) :
-   * contrepartie(ligne) = comptes DISTINCTS de sens opposé dans la même
-   * écriture. Exacte et non ambiguë dans l'écrasante majorité des cas réels
-   * (écriture à 2 lignes, N débits/1 crédit, 1 débit/M crédits). Dans le cas
-   * rare d'une écriture à débits ET crédits multiples simultanés (N×M), la
-   * cellule affiche la liste des comptes candidats séparés par « + » plutôt
-   * qu'un choix arbitraire faussement précis — un vrai modèle 1-pour-1
-   * (façon Banana) demanderait de restructurer la saisie elle-même (voir
-   * doc), volontairement hors scope de cet export.
-   */
-  async grandLivreExcel(tenantId: string, compteId: string, exerciceId?: string): Promise<Buffer> {
-    // Réutilise EcritureService.grandLivre() — même règle de contrepartie
-    // que l'écran « Journal & grand livre », pas de logique dupliquée.
-    const { compte, lignes: lignesDuCompte } = await this.ecritureService.grandLivre(tenantId, compteId, exerciceId);
-
-    const classeur = this.nouveauClasseur();
-    const feuille = classeur.addWorksheet('Grand livre');
-    feuille.columns = [
+  /** Colonnes communes au grand livre d'un compte et au grand livre complet. */
+  private colonnesGrandLivre(avecCompte: boolean): Partial<ExcelJS.Column>[] {
+    const colonnesCompte: Partial<ExcelJS.Column>[] = avecCompte
+      ? [
+          { header: 'Compte', key: 'compteNumero', width: 12 },
+          { header: 'Intitulé compte', key: 'compteIntitule', width: 30 },
+        ]
+      : [];
+    return [
+      ...colonnesCompte,
       { header: 'Date', key: 'date', width: 12 },
       { header: 'Journal', key: 'journal', width: 10 },
       { header: 'N° pièce', key: 'numeroPiece', width: 10 },
@@ -130,15 +174,35 @@ export class ExportService {
       { header: 'Lettrage', key: 'lettre', width: 10 },
       { header: 'Compte contrepartie', key: 'contrepartie', width: 28 },
     ];
-    feuille.getCell('A1').note =
+  }
+
+  private noteContrepartie(feuille: ExcelJS.Worksheet, cellule: string) {
+    feuille.getCell(cellule).note =
       'Compte(s) de sens opposé dans la même écriture. Si plusieurs comptes apparaissent ' +
       '(séparés par « + »), l’écriture mêle débits et crédits multiples : la répartition exacte ' +
       "n'est pas déterminable sans information de saisie supplémentaire.";
-    styliserEntete(feuille.getRow(1));
+  }
 
-    for (const l of lignesDuCompte) {
+  /**
+   * Grand livre d'UN compte, avec colonne « Compte contrepartie » — demande
+   * explicite de l'utilisateur, pour retracer une écriture sans connaître
+   * son journal.
+   *
+   * Règle retenue (voir discussion du 2026-08-28, docs/plan-de-construction.md) :
+   * comptes DISTINCTS de sens opposé dans la même écriture — calculée une
+   * seule fois dans `EcritureService` et partagée par l'écran et l'export.
+   */
+  async grandLivreExcel(tenantId: string, compteId: string, exerciceId?: string): Promise<ClasseurExporte> {
+    const { compte, lignes } = await this.ecritureService.grandLivre(tenantId, compteId, exerciceId);
+
+    const classeur = this.nouveauClasseur();
+    const feuille = classeur.addWorksheet('Grand livre');
+    feuille.columns = this.colonnesGrandLivre(false);
+    this.noteContrepartie(feuille, 'J1');
+
+    for (const l of lignes) {
       feuille.addRow({
-        date: new Date(l.date).toLocaleDateString('fr-FR'),
+        date: l.date,
         journal: l.journalCode,
         numeroPiece: l.numeroPiece,
         reference: l.reference ?? '',
@@ -151,17 +215,114 @@ export class ExportService {
       });
     }
 
-    feuille.getColumn('debit').numFmt = '#,##0.00';
-    feuille.getColumn('credit').numFmt = '#,##0.00';
-    feuille.getColumn('solde').numFmt = '#,##0.00';
-
+    const derniereLigneDonnees = feuille.rowCount;
+    this.appliquerFormats(feuille, {
+      date: FORMAT_DATE,
+      debit: FORMAT_MONTANT,
+      credit: FORMAT_MONTANT,
+      solde: FORMAT_MONTANT,
+    });
+    this.finaliserTableau(feuille, feuille.columns.length, derniereLigneDonnees);
     feuille.headerFooter = { firstHeader: `&C${compte.numero} — ${compte.intitule}` };
 
-    return this.versBuffer(classeur);
+    return {
+      buffer: await this.versBuffer(classeur),
+      nomFichier: `grand-livre-${compte.numero}${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
+    };
+  }
+
+  /**
+   * Grand livre COMPLET — tous les comptes mouvementés de l'exercice dans un
+   * seul classeur. C'est la forme réellement attendue par un auditeur : le
+   * grand livre compte par compte obligeait à autant de téléchargements
+   * qu'il y a de comptes.
+   *
+   * Deux feuilles :
+   *  - « Grand livre » : tableau PLAT (numéro et intitulé du compte répétés
+   *    sur chaque ligne), donc filtrable et pivotable tel quel ; le solde
+   *    progressif se réinitialise à chaque compte, ce qui conserve la
+   *    lecture classique une fois filtré sur un compte ;
+   *  - « Sommaire » : une ligne par compte (totaux débit/crédit, solde
+   *    final) — c'est là que vivent les sous-totaux, plutôt qu'en lignes de
+   *    rupture au milieu des données qui fausseraient tout filtre.
+   */
+  async grandLivreCompletExcel(tenantId: string, exerciceId?: string): Promise<ClasseurExporte> {
+    const comptes = await this.ecritureService.grandLivreComplet(tenantId, exerciceId);
+
+    const classeur = this.nouveauClasseur();
+    const feuille = classeur.addWorksheet('Grand livre');
+    feuille.columns = this.colonnesGrandLivre(true);
+    this.noteContrepartie(feuille, 'L1');
+
+    for (const c of comptes) {
+      for (const l of c.lignes) {
+        feuille.addRow({
+          compteNumero: c.compte.numero,
+          compteIntitule: c.compte.intitule,
+          date: l.date,
+          journal: l.journalCode,
+          numeroPiece: l.numeroPiece,
+          reference: l.reference ?? '',
+          libelle: l.libelle,
+          debit: l.debit || null,
+          credit: l.credit || null,
+          solde: l.soldeProgressif,
+          lettre: l.lettre ?? '',
+          contrepartie: l.contrepartie.join(' + '),
+        });
+      }
+    }
+
+    const derniereLigneDonnees = feuille.rowCount;
+    this.appliquerFormats(feuille, {
+      date: FORMAT_DATE,
+      debit: FORMAT_MONTANT,
+      credit: FORMAT_MONTANT,
+      solde: FORMAT_MONTANT,
+    });
+    this.finaliserTableau(feuille, feuille.columns.length, derniereLigneDonnees);
+
+    const sommaire = classeur.addWorksheet('Sommaire');
+    sommaire.columns = [
+      { header: 'Compte', key: 'numero', width: 12 },
+      { header: 'Intitulé', key: 'intitule', width: 40 },
+      { header: 'Nb lignes', key: 'nbLignes', width: 11 },
+      { header: 'Total débit', key: 'totalDebit', width: 16 },
+      { header: 'Total crédit', key: 'totalCredit', width: 16 },
+      { header: 'Solde final', key: 'solde', width: 16 },
+    ];
+    for (const c of comptes) {
+      sommaire.addRow({
+        numero: c.compte.numero,
+        intitule: c.compte.intitule,
+        nbLignes: c.lignes.length,
+        totalDebit: c.totalDebit || null,
+        totalCredit: c.totalCredit || null,
+        solde: c.soldeFinal,
+      });
+    }
+    const derniereLigneSommaire = sommaire.rowCount;
+    const ligneTotalSommaire = sommaire.addRow({
+      intitule: 'TOTAUX GÉNÉRAUX',
+      totalDebit: comptes.reduce((s, c) => s + c.totalDebit, 0),
+      totalCredit: comptes.reduce((s, c) => s + c.totalCredit, 0),
+    });
+    ligneTotalSommaire.font = ENTETE_FONT;
+    this.appliquerFormats(sommaire, {
+      totalDebit: FORMAT_MONTANT,
+      totalCredit: FORMAT_MONTANT,
+      solde: FORMAT_MONTANT,
+    });
+    this.finaliserTableau(sommaire, sommaire.columns.length, derniereLigneSommaire);
+
+    return {
+      buffer: await this.versBuffer(classeur),
+      nomFichier: `grand-livre-complet${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
+    };
   }
 
   /** Balance générale, comptes Détail et Total (regroupement affiché en gras). */
-  async balanceExcel(tenantId: string, exerciceId: string): Promise<Buffer> {
+  async balanceExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
     const { lignes, totaux } = await this.ecritureService.balance(tenantId, exerciceId);
 
     const classeur = this.nouveauClasseur();
@@ -169,16 +330,21 @@ export class ExportService {
     feuille.columns = [
       { header: 'N° compte', key: 'numero', width: 12 },
       { header: 'Intitulé', key: 'intitule', width: 36 },
+      { header: 'Type', key: 'type', width: 10 },
       { header: 'Total débit', key: 'totalDebit', width: 16 },
       { header: 'Total crédit', key: 'totalCredit', width: 16 },
       { header: 'Solde', key: 'solde', width: 16 },
     ];
-    styliserEntete(feuille.getRow(1));
 
     for (const l of lignes) {
       const ligne = feuille.addRow({
         numero: l.numero,
         intitule: l.intitule,
+        // Colonne explicite plutôt que le seul gras : un compte Total est un
+        // agrégat des comptes Détail de même racine, jamais un mouvement
+        // propre — sommer les deux doublerait les montants, et cette
+        // distinction doit rester lisible même après tri ou filtre.
+        type: l.typeCompte === 'TOTAL' ? 'Total' : 'Détail',
         totalDebit: l.totalDebit || null,
         totalCredit: l.totalCredit || null,
         solde: l.solde,
@@ -188,13 +354,25 @@ export class ExportService {
       }
     }
 
-    const ligneTotal = feuille.addRow({ intitule: 'TOTAUX GÉNÉRAUX', totalDebit: totaux.debit, totalCredit: totaux.credit });
+    const derniereLigneDonnees = feuille.rowCount;
+    const ligneTotal = feuille.addRow({
+      intitule: 'TOTAUX GÉNÉRAUX (comptes Détail seuls)',
+      totalDebit: totaux.debit,
+      totalCredit: totaux.credit,
+    });
     ligneTotal.font = ENTETE_FONT;
-    feuille.getColumn('totalDebit').numFmt = '#,##0.00';
-    feuille.getColumn('totalCredit').numFmt = '#,##0.00';
-    feuille.getColumn('solde').numFmt = '#,##0.00';
 
-    return this.versBuffer(classeur);
+    this.appliquerFormats(feuille, {
+      totalDebit: FORMAT_MONTANT,
+      totalCredit: FORMAT_MONTANT,
+      solde: FORMAT_MONTANT,
+    });
+    this.finaliserTableau(feuille, feuille.columns.length, derniereLigneDonnees);
+
+    return {
+      buffer: await this.versBuffer(classeur),
+      nomFichier: `balance${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
+    };
   }
 
   /**
@@ -206,7 +384,7 @@ export class ExportService {
    * (skill sycebnl) qui doit remplacer ce module (roadmap — Moteur de
    * mapping / états financiers configurables).
    */
-  async bilanExcel(tenantId: string, exerciceId: string): Promise<Buffer> {
+  async bilanExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
     const bilan = await this.etatsFinanciersService.bilan(tenantId, exerciceId);
 
     const classeur = this.nouveauClasseur();
@@ -219,7 +397,6 @@ export class ExportService {
       { header: 'Passif — intitulé', key: 'intitulePassif', width: 30 },
       { header: 'Passif — montant', key: 'montantPassif', width: 16 },
     ];
-    styliserEntete(feuille.getRow(1));
 
     const maxLignes = Math.max(bilan.actif.length, bilan.passif.length);
     for (let i = 0; i < maxLignes; i++) {
@@ -235,6 +412,7 @@ export class ExportService {
       });
     }
 
+    const derniereLigneDonnees = feuille.rowCount;
     const ligneTotal = feuille.addRow({
       intituleActif: 'TOTAL ACTIF',
       montantActif: bilan.totalActif,
@@ -242,15 +420,147 @@ export class ExportService {
       montantPassif: bilan.totalPassif,
     });
     ligneTotal.font = ENTETE_FONT;
-    feuille.getColumn('montantActif').numFmt = '#,##0.00';
-    feuille.getColumn('montantPassif').numFmt = '#,##0.00';
+
+    this.appliquerFormats(feuille, { montantActif: FORMAT_MONTANT, montantPassif: FORMAT_MONTANT });
+    this.finaliserTableau(feuille, feuille.columns.length, derniereLigneDonnees);
 
     const avertissement = feuille.addRow([
-      `⚠ Regroupement simplifié classe → poste (MVP), pas le tableau de correspondance officiel SYCEBNL. Équilibré : ${bilan.equilibre ? 'oui' : 'NON — vérifier les écritures'}.`,
+      `⚠ Bilan : regroupement simplifié classe → poste (MVP), PAS le tableau de correspondance officiel SYCEBNL. Équilibré : ${
+        bilan.equilibre ? 'oui' : 'NON — vérifier les écritures'
+      }.`,
     ]);
     avertissement.font = { italic: true, color: { argb: 'FF8A6D3B' } };
     feuille.mergeCells(`A${avertissement.number}:F${avertissement.number}`);
 
-    return this.versBuffer(classeur);
+    return {
+      buffer: await this.versBuffer(classeur),
+      nomFichier: `bilan${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
+    };
   }
+
+  /**
+   * Compte de résultat — adossé au tableau de correspondance OFFICIEL
+   * (Journal officiel OHADA, Partie 4 ch. 2 section 6), contrairement au
+   * bilan ci-dessus. Trois feuilles : l'état lui-même, le détail des comptes
+   * derrière chaque poste (drill-down indispensable en audit), et les
+   * anomalies éventuelles.
+   */
+  async compteDeResultatExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
+    const cr = await this.etatsFinanciersService.compteDeResultat(tenantId, exerciceId);
+
+    const classeur = this.nouveauClasseur();
+    const feuille = classeur.addWorksheet('Compte de résultat');
+    feuille.columns = [
+      { header: 'REF', key: 'ref', width: 8 },
+      { header: 'Libellé', key: 'libelle', width: 62 },
+      { header: 'Montant', key: 'montant', width: 18 },
+    ];
+
+    const ajouterTotal = (ref: string, libelle: string, montant: number) => {
+      const ligne = feuille.addRow({ ref, libelle, montant });
+      ligne.font = ENTETE_FONT;
+      return ligne;
+    };
+    const ajouterPoste = (p: PosteCalcule) => feuille.addRow({ ref: p.ref, libelle: p.libelle, montant: p.montant });
+
+    cr.produits.forEach(ajouterPoste);
+    ajouterTotal('XA', 'REVENUS DES ACTIVITÉS ORDINAIRES', cr.totalProduits);
+    cr.charges.forEach(ajouterPoste);
+    ajouterTotal('XB', 'CHARGES DES ACTIVITÉS ORDINAIRES', cr.totalCharges);
+    ajouterTotal('XC', 'RÉSULTAT DES ACTIVITÉS ORDINAIRES (XA − XB)', cr.resultatActivitesOrdinaires);
+    ajouterPoste(cr.produitsHao);
+    ajouterPoste(cr.chargesHao);
+    ajouterTotal('XD', 'RÉSULTAT H.A.O. (TM − TN)', cr.resultatHao);
+    ajouterTotal('XE', "RÉSULTAT NET DE L'EXERCICE (+excédent, −déficit) (XC + XD)", cr.resultatNet);
+
+    this.appliquerFormats(feuille, { montant: FORMAT_MONTANT });
+    styliserEntete(feuille.getRow(1));
+    feuille.views = [{ state: 'frozen', ySplit: 1 }];
+    // Pas d'auto-filtre ici : l'état est une liste ordonnée de postes avec
+    // ses totaux intercalés, filtrer n'aurait aucun sens comptable.
+
+    const note = feuille.addRow([
+      'Postes et rattachements de comptes conformes au tableau de correspondance officiel SYCEBNL ' +
+        '(Journal officiel OHADA, Partie 4 ch. 2). Les charges sont présentées en positif, ' +
+        'de sorte que XC = XA − XB. Le poste XA inclut RH (reprises) : le libellé officiel dit ' +
+        '« Somme RA à RG », ce qui romprait l’égalité entre le résultat et le bilan dès qu’il y a des reprises.',
+    ]);
+    note.font = { italic: true, color: { argb: 'FF555555' } };
+    feuille.mergeCells(`A${note.number}:C${note.number}`);
+
+    // Détail : quels comptes alimentent quel poste — c'est ce qui rend
+    // l'état vérifiable, plutôt qu'à prendre sur parole.
+    const detail = classeur.addWorksheet('Détail par poste');
+    detail.columns = [
+      { header: 'REF', key: 'ref', width: 8 },
+      { header: 'Poste', key: 'poste', width: 52 },
+      { header: 'Compte', key: 'numero', width: 12 },
+      { header: 'Intitulé compte', key: 'intitule', width: 44 },
+      { header: 'Montant', key: 'montant', width: 18 },
+    ];
+    const tousPostes = [...cr.produits, ...cr.charges, cr.produitsHao, cr.chargesHao];
+    for (const p of tousPostes) {
+      for (const c of p.comptes) {
+        detail.addRow({ ref: p.ref, poste: p.libelle, numero: c.numero, intitule: c.intitule, montant: c.montant });
+      }
+    }
+    this.appliquerFormats(detail, { montant: FORMAT_MONTANT });
+    this.finaliserTableau(detail, detail.columns.length, detail.rowCount);
+
+    // Contrôles et anomalies. Feuille toujours présente, même quand tout va
+    // bien — une feuille absente pourrait passer pour un oubli, alors que
+    // « aucune anomalie » est une information à part entière en audit.
+    const anomalies = classeur.addWorksheet('Contrôles et anomalies');
+    anomalies.columns = [
+      { header: 'Compte', key: 'numero', width: 14 },
+      { header: 'Intitulé', key: 'intitule', width: 48 },
+      { header: 'Montant (crédit − débit)', key: 'montant', width: 24 },
+      { header: 'Diagnostic', key: 'diagnostic', width: 78 },
+    ];
+
+    const ligneControle = anomalies.addRow({
+      numero: 'CONTRÔLE',
+      intitule: 'Résultat des postes (XE) = résultat de tous les comptes de gestion ?',
+      montant: cr.controle.ecart,
+      diagnostic: cr.controle.coherent
+        ? `OK — l'état boucle. XE = ${cr.resultatNet.toFixed(2)}, identique au résultat logé au bilan.`
+        : `ÉCART DE ${cr.controle.ecart.toFixed(2)} — l'état NE BOUCLE PAS. XE = ${cr.resultatNet.toFixed(2)} alors que le solde de ` +
+          `tous les comptes de gestion vaut ${cr.controle.resultatToutesClassesDeGestion.toFixed(2)} (montant logé au bilan). ` +
+          `L'écart vaut la somme des comptes non rattachés listés ci-dessous.`,
+    });
+    ligneControle.font = {
+      bold: true,
+      color: { argb: cr.controle.coherent ? 'FF1E7B34' : 'FFB00020' },
+    };
+
+    for (const c of cr.comptesNonRattaches) {
+      anomalies.addRow({
+        numero: c.numero,
+        intitule: c.intitule,
+        montant: c.montant,
+        diagnostic:
+          'Compte de gestion (classe 6/7/8) qu’aucun poste du tableau de correspondance officiel ne réclame : ' +
+          'son montant n’entre dans AUCUN total de cet état. Saisir sur la subdivision prévue par le plan officiel ' +
+          '(ex. 7051/7052/7053 plutôt que 705), ou vérifier le numéro de compte.',
+      });
+    }
+    if (cr.comptesNonRattaches.length === 0) {
+      anomalies.addRow({
+        numero: '—',
+        intitule: 'Aucun compte non rattaché : tous les comptes de gestion entrent dans un poste officiel.',
+      });
+    }
+    this.appliquerFormats(anomalies, { montant: FORMAT_MONTANT });
+    this.finaliserTableau(anomalies, anomalies.columns.length, anomalies.rowCount);
+
+    return {
+      buffer: await this.versBuffer(classeur),
+      nomFichier: `compte-de-resultat${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
+    };
+  }
+}
+
+function styliserEntete(ligne: ExcelJS.Row) {
+  ligne.font = ENTETE_FONT;
+  ligne.fill = ENTETE_FILL as ExcelJS.Fill;
 }

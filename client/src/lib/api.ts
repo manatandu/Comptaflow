@@ -45,8 +45,13 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
  * Télécharge un export binaire (Excel) protégé par le Bearer token — un
  * <a href> classique ne peut pas porter l'en-tête Authorization, d'où le
  * passage par fetch + Blob + lien temporaire déclenché par script.
+ *
+ * Le nom de fichier vient du serveur (en-tête Content-Disposition), qui y
+ * met l'année de l'exercice et, pour un grand livre, le numéro de compte —
+ * il est le seul à connaître ces éléments. `nomParDefaut` ne sert que si
+ * l'en-tête est absent ou illisible.
  */
-async function telecharger(path: string, nomFichier: string): Promise<void> {
+async function telecharger(path: string, nomParDefaut: string): Promise<void> {
   const token = getToken();
   const res = await fetch(`${API_URL}${path}`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -61,11 +66,15 @@ async function telecharger(path: string, nomFichier: string): Promise<void> {
     }
     throw new ApiError(res.status, message);
   }
+
+  const disposition = res.headers.get('Content-Disposition');
+  const nomServeur = disposition?.match(/filename="([^"]+)"/)?.[1];
+
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
   const lien = document.createElement('a');
   lien.href = url;
-  lien.download = nomFichier;
+  lien.download = nomServeur ?? nomParDefaut;
   document.body.appendChild(lien);
   lien.click();
   lien.remove();
