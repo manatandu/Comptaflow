@@ -227,10 +227,25 @@ Ordre de dépendances techniques réelles, pas un simple ordre de préférence :
    annulation), Totale (bloque définitivement, rejette une 2ᵉ clôture, rejette
    l'annulation), Période (bloque tous journaux jusqu'à une date), et clôture annuelle
    complète (don 500 + achat 200 → résultat 300 crédité sur 130000, reporté avec la
-   Banque dans l'exercice suivant auto-créé, balance équilibrée 300/300). Frontend
+   Banque dans l'exercice suivant auto-créé, balance équilibrée 300/300).
    Frontend livré : `ExercicePage` (sélecteur d'exercice, clôture annuelle avec
    confirmation, les 3 formulaires de clôture, liste des clôtures + annulation),
-   accessible depuis le menu Traitement > "Clôture d'exercice". Brique complète.
+   accessible depuis le menu Traitement > "Clôture d'exercice".
+   **Approfondissement** : le mode de report à-nouveau `DETAIL` (chaque mouvement
+   NON lettré reporté individuellement) n'avait encore jamais été exercé — le
+   test de clôture ci-dessus ne mouvementait que des comptes en mode `SOLDE`.
+   Vérifié via curl sur un compte 411001 en mode `DETAIL` : une paire lettrée
+   (vente 500 + encaissement 500, lettre A) correctement **exclue** du report,
+   deux mouvements non lettrés (vente 300, avoir 100) chacun repris
+   **individuellement** avec leur libellé d'origine (`RAN détail 411001 —
+   Vente facture B` / `— Avoir facture B`), écriture de RAN globale équilibrée
+   (800/800 : résultat 700 + Banque 500 + Client détail 300/100). Aucun bug
+   trouvé — un chemin de code jusque-là jamais exécuté est désormais couvert.
+   `ExercicePage` elle-même vérifiée en Playwright (elle ne l'avait été qu'au
+   build jusqu'ici) : clôture Partielle réelle via l'UI (sélection du journal,
+   date, soumission, apparition dans la liste), puis clôture annuelle (bouton
+   avec `confirm()` du navigateur, capturé et accepté), sélecteur d'exercice
+   passé à "Clôturé", bouton devenu "EXERCICE DÉJÀ CLÔTURÉ". Brique complète.
 4. ✅ **Tiers** — livré : 4 types (Client/Fournisseur/Salarié/Autre), comptes
    généraux rattachés (`TiersCompte`, un compte n'appartient qu'à un seul tiers —
    contrainte `@unique` sur `compteId`, un seul marqué Principal à la fois, imposé
