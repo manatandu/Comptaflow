@@ -76,6 +76,15 @@ export class CompteService {
         );
       }
     }
+    // `null` = détacher explicitement ; une chaîne = doit être un bailleur du
+    // même tenant (jamais un simple id accepté sans vérification, sinon un
+    // compte pourrait se retrouver rattaché à un bailleur d'un autre dossier).
+    if (dto.bailleurId) {
+      const bailleur = await this.prisma.bailleur.findFirst({ where: { id: dto.bailleurId, tenantId } });
+      if (!bailleur) {
+        throw new BadRequestException("Bailleur introuvable pour ce tenant");
+      }
+    }
     return this.prisma.compte.update({ where: { id: compteId }, data: dto });
   }
 }

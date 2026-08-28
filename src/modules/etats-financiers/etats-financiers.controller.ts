@@ -60,4 +60,13 @@ export class EtatsFinanciersController {
   ) {
     return this.etatsFinanciersProjetService.compteExploitation(user.tenantId, exerciceId);
   }
+
+  /**
+   * NOTE 9 : FONDS DU BAILLEUR (Partie 4, ch. 3, Section 6) — comptabilité
+   * analytique par projet/bailleur, docs/plan-de-construction.md item 14.
+   */
+  @Get('projet/note-bailleur')
+  async noteBailleur(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string) {
+    return this.etatsFinanciersProjetService.noteBailleur(user.tenantId, exerciceId);
+  }
 }

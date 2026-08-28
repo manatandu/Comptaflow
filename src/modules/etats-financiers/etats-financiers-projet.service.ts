@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ClasseCompte } from '@prisma/client';
+import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { ExerciceService } from '../exercice/exercice.service';
 import { CompteDuPoste, LigneBalancePourEtat, chargerLignes, correspond, trouverExerciceN1 } from './etats-financiers.communs';
@@ -51,6 +52,7 @@ export class EtatsFinanciersProjetService {
   constructor(
     private readonly ecritureService: EcritureService,
     private readonly exerciceService: ExerciceService,
+    private readonly prisma: PrismaService,
   ) {}
 
   private async trouverExerciceN1(tenantId: string, exerciceId: string): Promise<string | null> {
@@ -311,6 +313,155 @@ export class EtatsFinanciersProjetService {
         // XC doit valoir 0 en régime normal (voir note de tête de fichier) —
         // exposé, jamais forcé à zéro artificiellement.
         boucleAZero: Math.abs(solde) < 0.01,
+      },
+    };
+  }
+
+  /**
+   * NOTE 9 : FONDS DU BAILLEUR — Partie 4, ch. 3, Section 6 du texte
+   * officiel. Colonnes officielles : « Date des décaissements | BAILLEUR/
+   * SOUS PROJET 1 (Montant décaissé ; Montant consommé ; Solde restant) |
+   * BAILLEUR/SOUS PROJET 2 (…) | … », en deux blocs de rubriques : Fonds
+   * d'investissement (comptes 162 à 164) puis Fonds d'administration
+   * (comptes 462 à 464). Docs/plan-de-construction.md, item 14
+   * (comptabilité analytique par projet/bailleur, ajouté le 2026-08-28).
+   *
+   * Le mécanisme de suivi PAR bailleur est déjà celui du texte officiel
+   * (Partie 3, ch. 3, § 1.2) : les bailleurs se distinguent par LEURS
+   * PROPRES sous-comptes 162x/163x/164x et 462x/463x/464x — rien à
+   * inventer. Ce service se contente de grouper ces sous-comptes par
+   * `Bailleur` (voir `Compte.bailleurId`) pour produire la note
+   * automatiquement plutôt qu'à la main.
+   *
+   * ## Convention retenue pour Montant décaissé / Montant consommé
+   *
+   * Le texte officiel ne donne le compte source QUE pour « Montant
+   * consommé » côté Fonds d'administration : « le solde du compte 702 [...]
+   * qu'il convient de subdiviser par nature de projet » (note (2), Section
+   * 6). Rien n'est précisé pour Fonds d'investissement, ni pour Montant
+   * décaissé des deux côtés `[texte officiel]` — ambiguïté non comblée par
+   * une invention, mais résolue par la lecture directe des ÉCRITURES déjà
+   * documentées Partie 3 ch. 3 § 2.1/2.2/2.5, qui ne laisse qu'une seule
+   * lecture possible :
+   *   - Montant décaissé = mouvements CRÉDIT de l'exercice sur les comptes
+   *     162-164 (investissement) ou 462-464 (administration) rattachés au
+   *     bailleur (§ 2.1 : mise à disposition, toujours au crédit) ;
+   *   - Montant consommé  = mouvements DÉBIT de l'exercice sur ces mêmes
+   *     comptes (§ 2.2 pour l'administration — mécaniquement le solde du
+   *     702, par construction de l'écriture — et § 2.5 pour
+   *     l'investissement : sortie d'immobilisation en fin de projet).
+   * Les écritures de report à-nouveau (`Ecriture.estGenereeParCloture`) sont
+   * EXCLUES des deux : elles ne sont pas un décaissement ou une
+   * consommation réels de l'exercice, seulement le report du solde de
+   * clôture — les inclure gonflerait « décaissé » de tout le solde déjà
+   * existant à chaque nouvel exercice (piège identifié en examinant
+   * `ExerciceService.cloturer`, jamais constaté en production).
+   *   - Solde restant = solde cumulé du compte à date (mode SOLDE, reporté
+   *     d'exercice en exercice par `ExerciceService.cloturer` — mêmes
+   *     mouvements de report que partout ailleurs dans les états
+   *     financiers, PAS un calcul propre à cette note).
+   *
+   * Les comptes 162-164/462-464 SANS bailleur rattaché ne sont jamais
+   * absorbés en silence dans un total : ils ressortent sous `nonAffecte`
+   * (même discipline que `comptesNonRattaches` sur le bilan/compte
+   * d'exploitation).
+   */
+  async noteBailleur(tenantId: string, exerciceId: string) {
+    const PREFIXES_INVESTISSEMENT = ['162', '163', '164'];
+    const PREFIXES_ADMINISTRATION = ['462', '463', '464'];
+
+    const comptes = await this.prisma.compte.findMany({
+      where: { tenantId, OR: [{ numero: { startsWith: '16' } }, { numero: { startsWith: '46' } }] },
+      include: { bailleur: true },
+    });
+    const comptesInvestissement = comptes.filter((c) => PREFIXES_INVESTISSEMENT.some((p) => c.numero.startsWith(p)));
+    const comptesAdministration = comptes.filter((c) => PREFIXES_ADMINISTRATION.some((p) => c.numero.startsWith(p)));
+
+    const compteIds = [...comptesInvestissement, ...comptesAdministration].map((c) => c.id);
+    const lignes = compteIds.length
+      ? await this.prisma.ligneEcriture.findMany({
+          where: { compteId: { in: compteIds }, ecriture: { tenantId, exerciceId } },
+          select: { compteId: true, debit: true, credit: true, ecriture: { select: { estGenereeParCloture: true } } },
+        })
+      : [];
+    const lignesReelles = lignes.filter((l) => !l.ecriture.estGenereeParCloture);
+
+    const soldes = await this.chargerLignes(tenantId, exerciceId);
+    const soldeParCompte = new Map(soldes.map((l) => [l.compteId, l.solde]));
+
+    const mouvements = (comptesGroupe: typeof comptesInvestissement) => {
+      const parCompte = new Map(comptesGroupe.map((c) => [c.id, { decaisse: 0, consomme: 0, soldeRestant: 0 }]));
+      for (const l of lignesReelles) {
+        const acc = parCompte.get(l.compteId);
+        if (!acc) continue;
+        acc.decaisse += Number(l.credit);
+        acc.consomme += Number(l.debit);
+      }
+      for (const c of comptesGroupe) {
+        // Convention de signe passif (comme calculerPostePassif) : solde
+        // créditeur net = -solde (solde = débit - crédit).
+        parCompte.get(c.id)!.soldeRestant = -(soldeParCompte.get(c.id) ?? 0);
+      }
+      return parCompte;
+    };
+
+    const agregerParBailleur = (comptesGroupe: typeof comptesInvestissement) => {
+      const parCompte = mouvements(comptesGroupe);
+      const parBailleur = new Map<string, { bailleur: { id: string; code: string; nom: string }; decaisse: number; consomme: number; soldeRestant: number }>();
+      const nonAffecte = { decaisse: 0, consomme: 0, soldeRestant: 0 };
+      for (const c of comptesGroupe) {
+        const m = parCompte.get(c.id)!;
+        if (!c.bailleur) {
+          nonAffecte.decaisse += m.decaisse;
+          nonAffecte.consomme += m.consomme;
+          nonAffecte.soldeRestant += m.soldeRestant;
+          continue;
+        }
+        const existant = parBailleur.get(c.bailleur.id) ?? {
+          bailleur: { id: c.bailleur.id, code: c.bailleur.code, nom: c.bailleur.nom },
+          decaisse: 0,
+          consomme: 0,
+          soldeRestant: 0,
+        };
+        existant.decaisse += m.decaisse;
+        existant.consomme += m.consomme;
+        existant.soldeRestant += m.soldeRestant;
+        parBailleur.set(c.bailleur.id, existant);
+      }
+      return { parBailleur: [...parBailleur.values()].sort((a, b) => a.bailleur.code.localeCompare(b.bailleur.code)), nonAffecte };
+    };
+
+    const investissement = agregerParBailleur(comptesInvestissement);
+    const administration = agregerParBailleur(comptesAdministration);
+
+    const totalInvestissement = investissement.parBailleur.reduce(
+      (s, b) => ({
+        decaisse: s.decaisse + b.decaisse,
+        consomme: s.consomme + b.consomme,
+        soldeRestant: s.soldeRestant + b.soldeRestant,
+      }),
+      { decaisse: 0, consomme: 0, soldeRestant: 0 },
+    );
+    const totalAdministration = administration.parBailleur.reduce(
+      (s, b) => ({
+        decaisse: s.decaisse + b.decaisse,
+        consomme: s.consomme + b.consomme,
+        soldeRestant: s.soldeRestant + b.soldeRestant,
+      }),
+      { decaisse: 0, consomme: 0, soldeRestant: 0 },
+    );
+
+    return {
+      investissement: investissement.parBailleur,
+      investissementNonAffecte: investissement.nonAffecte,
+      totalInvestissement,
+      administration: administration.parBailleur,
+      administrationNonAffecte: administration.nonAffecte,
+      totalAdministration,
+      totalFondsDuBailleur: {
+        decaisse: totalInvestissement.decaisse + totalAdministration.decaisse,
+        consomme: totalInvestissement.consomme + totalAdministration.consomme,
+        soldeRestant: totalInvestissement.soldeRestant + totalAdministration.soldeRestant,
       },
     };
   }

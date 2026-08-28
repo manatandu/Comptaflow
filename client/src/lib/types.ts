@@ -30,6 +30,47 @@ export interface Compte {
   classe: ClasseCompte;
   typeCompte: TypeCompteDetailTotal;
   estActif: boolean;
+  /** Rattachement à un Bailleur (comptabilité analytique par projet/bailleur) — voir Bailleur. */
+  bailleurId: string | null;
+}
+
+/**
+ * Bailleur (ou sous-projet) — regroupe les sous-comptes 162-164/462-464 qui
+ * lui sont propres (docs/plan-de-construction.md item 14, jeu « projets de
+ * développement »).
+ */
+export interface Bailleur {
+  id: string;
+  tenantId: string;
+  code: string;
+  nom: string;
+  estActif: boolean;
+  createdAt: string;
+}
+
+/** Une ligne (par bailleur) de la NOTE 9 — Fonds du bailleur. */
+export interface LigneNoteBailleur {
+  bailleur: { id: string; code: string; nom: string };
+  decaisse: number;
+  consomme: number;
+  soldeRestant: number;
+}
+
+export interface TotalNoteBailleur {
+  decaisse: number;
+  consomme: number;
+  soldeRestant: number;
+}
+
+/** NOTE 9 : FONDS DU BAILLEUR (jeu « projets de développement », Partie 4 ch. 3). */
+export interface NoteBailleur {
+  investissement: LigneNoteBailleur[];
+  investissementNonAffecte: TotalNoteBailleur;
+  totalInvestissement: TotalNoteBailleur;
+  administration: LigneNoteBailleur[];
+  administrationNonAffecte: TotalNoteBailleur;
+  totalAdministration: TotalNoteBailleur;
+  totalFondsDuBailleur: TotalNoteBailleur;
 }
 
 export interface Exercice {

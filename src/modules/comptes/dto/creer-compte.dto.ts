@@ -45,4 +45,11 @@ export class ModifierCompteDto {
   @IsOptional()
   @IsEnum(TypeCompteDetailTotal)
   typeCompte?: TypeCompteDetailTotal;
+
+  // Rattachement à un Bailleur (§ comptabilité analytique par projet/
+  // bailleur, docs/plan-de-construction.md item 14) — `null` explicite pour
+  // détacher, `undefined`/absent pour ne pas toucher au rattachement actuel.
+  @IsOptional()
+  @IsString()
+  bailleurId?: string | null;
 }

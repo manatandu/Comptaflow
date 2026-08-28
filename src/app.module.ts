@@ -17,6 +17,7 @@ import { TvaModule } from './modules/tva/tva.module';
 import { RapprochementModule } from './modules/rapprochement/rapprochement.module';
 import { ImmobilisationsModule } from './modules/immobilisations/immobilisations.module';
 import { ExportsModule } from './modules/exports/exports.module';
+import { BailleursModule } from './modules/bailleurs/bailleurs.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { ExportsModule } from './modules/exports/exports.module';
     EtatsFinanciersModule,
     ExportsModule,
     UtilisateursModule,
+    BailleursModule,
   ],
 })
 export class AppModule {}

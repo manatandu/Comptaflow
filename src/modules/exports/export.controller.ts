@@ -130,4 +130,14 @@ export class ExportController {
   ) {
     envoyerXlsx(res, await this.exportService.compteExploitationProjetExcel(user.tenantId, exerciceId));
   }
+
+  /** Comptabilité analytique par projet/bailleur (docs/plan-de-construction.md item 14). */
+  @Get('etats-financiers/projet/note-bailleur')
+  async noteBailleur(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    envoyerXlsx(res, await this.exportService.noteBailleurExcel(user.tenantId, exerciceId));
+  }
 }

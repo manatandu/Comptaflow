@@ -988,6 +988,96 @@ export class ExportService {
       nomFichier: `compte-exploitation-projet-developpement${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
     };
   }
+
+  /**
+   * NOTE 9 : FONDS DU BAILLEUR (Partie 4, ch. 3, Section 6) — comptabilité
+   * analytique par projet/bailleur (docs/plan-de-construction.md item 14).
+   * Une ligne par bailleur, Fonds d'investissement puis Fonds
+   * d'administration côte à côte — voir
+   * `EtatsFinanciersProjetService.noteBailleur` pour la convention retenue
+   * sur Montant décaissé/consommé (les deux anomalies du texte officiel
+   * qu'elle documente).
+   */
+  async noteBailleurExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
+    const note = await this.etatsFinanciersProjetService.noteBailleur(tenantId, exerciceId);
+
+    const classeur = this.nouveauClasseur();
+    const feuille = classeur.addWorksheet('Note 9 — Fonds du bailleur');
+    feuille.columns = [
+      { header: 'Bailleur', key: 'bailleur', width: 28 },
+      { header: 'Investissement — Décaissé', key: 'iDecaisse', width: 20 },
+      { header: 'Investissement — Consommé', key: 'iConsomme', width: 20 },
+      { header: 'Investissement — Solde restant', key: 'iSolde', width: 22 },
+      { header: 'Administration — Décaissé', key: 'aDecaisse', width: 20 },
+      { header: 'Administration — Consommé', key: 'aConsomme', width: 20 },
+      { header: 'Administration — Solde restant', key: 'aSolde', width: 22 },
+    ];
+
+    const bailleurs = new Map<string, { nom: string; code: string }>();
+    for (const b of [...note.investissement, ...note.administration]) {
+      bailleurs.set(b.bailleur.id, { nom: b.bailleur.nom, code: b.bailleur.code });
+    }
+    for (const [id, { nom, code }] of bailleurs) {
+      const inv = note.investissement.find((b) => b.bailleur.id === id);
+      const adm = note.administration.find((b) => b.bailleur.id === id);
+      feuille.addRow({
+        bailleur: `${code} — ${nom}`,
+        iDecaisse: inv?.decaisse ?? 0,
+        iConsomme: inv?.consomme ?? 0,
+        iSolde: inv?.soldeRestant ?? 0,
+        aDecaisse: adm?.decaisse ?? 0,
+        aConsomme: adm?.consomme ?? 0,
+        aSolde: adm?.soldeRestant ?? 0,
+      });
+    }
+    if (note.investissementNonAffecte.decaisse !== 0 || note.administrationNonAffecte.decaisse !== 0) {
+      const ligneNonAffecte = feuille.addRow({
+        bailleur: 'NON AFFECTÉ (comptes 162-164/462-464 sans bailleur rattaché)',
+        iDecaisse: note.investissementNonAffecte.decaisse,
+        iConsomme: note.investissementNonAffecte.consomme,
+        iSolde: note.investissementNonAffecte.soldeRestant,
+        aDecaisse: note.administrationNonAffecte.decaisse,
+        aConsomme: note.administrationNonAffecte.consomme,
+        aSolde: note.administrationNonAffecte.soldeRestant,
+      });
+      ligneNonAffecte.font = { italic: true, color: { argb: 'FFB00020' } };
+    }
+    const ligneTotal = feuille.addRow({
+      bailleur: 'TOTAL DES FONDS DU BAILLEUR',
+      iDecaisse: note.totalInvestissement.decaisse,
+      iConsomme: note.totalInvestissement.consomme,
+      iSolde: note.totalInvestissement.soldeRestant,
+      aDecaisse: note.totalAdministration.decaisse,
+      aConsomme: note.totalAdministration.consomme,
+      aSolde: note.totalAdministration.soldeRestant,
+    });
+    ligneTotal.font = ENTETE_FONT;
+
+    this.appliquerFormats(feuille, {
+      iDecaisse: FORMAT_MONTANT,
+      iConsomme: FORMAT_MONTANT,
+      iSolde: FORMAT_MONTANT,
+      aDecaisse: FORMAT_MONTANT,
+      aConsomme: FORMAT_MONTANT,
+      aSolde: FORMAT_MONTANT,
+    });
+    styliserEntete(feuille.getRow(1));
+    feuille.views = [{ state: 'frozen', ySplit: 1 }];
+
+    const note9 = feuille.addRow([
+      'Montant décaissé = mouvements crédit RÉELS de l’exercice (hors report à-nouveau) sur les sous-comptes ' +
+        '162-164/462-464 rattachés au bailleur. Montant consommé = mouvements débit réels. Solde restant = solde ' +
+        'cumulé à date. Convention détaillée dans EtatsFinanciersProjetService.noteBailleur (2 ambiguïtés du texte ' +
+        'officiel signalées, résolues par lecture directe des écritures Partie 3 ch. 3, pas par invention).',
+    ]);
+    note9.font = { italic: true, color: { argb: 'FF555555' } };
+    feuille.mergeCells(`A${note9.number}:G${note9.number}`);
+
+    return {
+      buffer: await this.versBuffer(classeur),
+      nomFichier: `note9-fonds-bailleur${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
+    };
+  }
 }
 
 function styliserEntete(ligne: ExcelJS.Row) {

@@ -82,6 +82,7 @@ model Tenant {
   journaux               Journal[]
   clotures               Cloture[]
   tiers                  Tiers[]
+  bailleurs              Bailleur[]
   modelesReglement       ModeleReglement[]
   tauxTva                TauxTva[]
   rapprochements         RapprochementBancaire[]
@@ -185,6 +186,16 @@ model Compte {
   typeCompte         TypeCompteDetailTotal @default(DETAIL)
   estActif           Boolean               @default(true)
   modeReportANouveau ModeReportANouveau    @default(SOLDE)
+
+  // Rattachement à un Bailleur (§3.7, comptabilité analytique par
+  // projet/bailleur — ajouté le 2026-08-28, docs/plan-de-construction.md
+  // item 14) : utile principalement pour les sous-comptes 162-164/462-464
+  // (Fonds affectés aux investissements / Fonds d'administration, jeu
+  // « projets de développement », voir Partie 3 ch. 3 du texte officiel) —
+  // mais pas restreint à ces préfixes, un tenant reste libre de rattacher
+  // n'importe quel compte à un bailleur pour son propre usage.
+  bailleurId String?
+  bailleur   Bailleur? @relation(fields: [bailleurId], references: [id])
 
   lignesEcriture                LigneEcriture[]
   journauxTresorerie            Journal[] // journaux de type TRESORERIE dont ce compte est la contrepartie
@@ -555,6 +566,32 @@ model TiersCompte {
   createdAt    DateTime @default(now())
 
   @@map("tiers_comptes")
+}
+
+// ---------------------------------------------------------------------------
+// Comptabilité analytique par projet/bailleur (docs/plan-de-construction.md
+// item 14, ajouté le 2026-08-28). Un Bailleur (ou sous-projet) regroupe les
+// sous-comptes 162-164 (Fonds affectés aux investissements) et 462-464
+// (Fonds d'administration) qui lui sont propres — le mécanisme officiel de
+// suivi PAR bailleur est déjà la subdivision de ces comptes racines (Partie
+// 3, ch. 3 du texte officiel SYCEBNL) : ce modèle ne réinvente rien, il
+// nomme un groupe de sous-comptes pour produire automatiquement la NOTE 9
+// « Fonds du bailleur » du jeu « projets de développement » (voir
+// EtatsFinanciersProjetService.noteBailleur) plutôt que de la reconstituer à
+// la main depuis le plan comptable.
+model Bailleur {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  code      String // ex : "UE-01" — libre, unique par tenant
+  nom       String
+  estActif  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  comptesRattaches Compte[]
+
+  @@unique([tenantId, code])
+  @@map("bailleurs")
 }
 
 // ---------------------------------------------------------------------------

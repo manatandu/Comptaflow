@@ -2,6 +2,7 @@ import { ClasseCompte, TypeCompteDetailTotal } from '@prisma/client';
 import { EtatsFinanciersProjetService } from './etats-financiers-projet.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { ExerciceService } from '../exercice/exercice.service';
+import { PrismaService } from '../../common/prisma.service';
 
 function ligne(
   numero: string,
@@ -22,9 +23,18 @@ function ligne(
   };
 }
 
+/** Stub Prisma minimal : noteBailleur() ne trouve aucun compte/aucune ligne par défaut. */
+function prismaVide() {
+  return {
+    compte: { findMany: jest.fn().mockResolvedValue([]) },
+    ligneEcriture: { findMany: jest.fn().mockResolvedValue([]) },
+  } as unknown as PrismaService;
+}
+
 function serviceAvecExercices(
   lignesParExercice: Record<string, ReturnType<typeof ligne>[]>,
   exercices: Array<{ id: string; dateDebut: Date }> = [],
+  prisma: PrismaService = prismaVide(),
 ) {
   const ecritureService = {
     balance: jest.fn().mockImplementation((_tenantId: string, exerciceId: string) => {
@@ -41,7 +51,7 @@ function serviceAvecExercices(
   const exerciceService = {
     lister: jest.fn().mockResolvedValue([...exercices].sort((a, b) => b.dateDebut.getTime() - a.dateDebut.getTime())),
   } as unknown as ExerciceService;
-  return new EtatsFinanciersProjetService(ecritureService, exerciceService);
+  return new EtatsFinanciersProjetService(ecritureService, exerciceService, prisma);
 }
 
 function serviceAvecBalance(lignes: ReturnType<typeof ligne>[]) {
@@ -182,6 +192,104 @@ describe('EtatsFinanciersProjetService', () => {
       const service = serviceAvecBalance([ligne('68000000', ClasseCompte.CLASSE_6, 50, 0)]);
       const ce = await service.compteExploitation('t1', 'e1');
       expect(ce.comptesNonRattaches.map((c) => c.numero)).toContain('68000000');
+    });
+  });
+
+  describe('noteBailleur', () => {
+    const bailleurUE = { id: 'b-ue', code: 'UE-01', nom: 'Union européenne' };
+    const bailleurBM = { id: 'b-bm', code: 'BM-01', nom: 'Banque mondiale' };
+
+    function compte(id: string, numero: string, bailleur: typeof bailleurUE | null = null) {
+      return { id, numero, bailleur };
+    }
+    function ligneMouvement(compteId: string, debit: number, credit: number, estGenereeParCloture = false) {
+      return { compteId, debit, credit, ecriture: { estGenereeParCloture } };
+    }
+
+    function prisma(comptes: ReturnType<typeof compte>[], mouvements: ReturnType<typeof ligneMouvement>[]) {
+      return {
+        compte: { findMany: jest.fn().mockResolvedValue(comptes) },
+        ligneEcriture: { findMany: jest.fn().mockResolvedValue(mouvements) },
+      } as unknown as PrismaService;
+    }
+
+    it('décaissé = crédits réels, consommé = débits réels — les écritures de clôture (RAN) sont exclues', async () => {
+      const prismaMock = prisma(
+        [compte('id-16210000', '16210000', bailleurUE)],
+        [
+          ligneMouvement('id-16210000', 0, 1000), // mise à disposition réelle
+          ligneMouvement('id-16210000', 300, 0), // consommation réelle
+          ligneMouvement('id-16210000', 0, 5000, true), // report à-nouveau — doit être IGNORÉ
+        ],
+      );
+      const service = serviceAvecExercices(
+        { e1: [ligne('16210000', ClasseCompte.CLASSE_1, 300, 6000)] }, // solde compte = 300-6000 = -5700
+        [],
+        prismaMock,
+      );
+      const note = await service.noteBailleur('t1', 'e1');
+      const ue = note.investissement.find((b) => b.bailleur.code === 'UE-01')!;
+      expect(ue.decaisse).toBe(1000); // PAS 1000+5000
+      expect(ue.consomme).toBe(300);
+      expect(ue.soldeRestant).toBe(5700); // -solde (convention passif)
+    });
+
+    it('sépare fonds d’investissement (162-164) et fonds d’administration (462-464) même pour le même bailleur', async () => {
+      const prismaMock = prisma(
+        [compte('c-162', '16210000', bailleurUE), compte('c-462', '46210000', bailleurUE)],
+        [ligneMouvement('c-162', 0, 500), ligneMouvement('c-462', 0, 800)],
+      );
+      const service = serviceAvecExercices(
+        { e1: [ligne('16210000', ClasseCompte.CLASSE_1, 0, 500), ligne('46210000', ClasseCompte.CLASSE_4, 0, 800)] },
+        [],
+        prismaMock,
+      );
+      const note = await service.noteBailleur('t1', 'e1');
+      expect(note.investissement.find((b) => b.bailleur.code === 'UE-01')!.decaisse).toBe(500);
+      expect(note.administration.find((b) => b.bailleur.code === 'UE-01')!.decaisse).toBe(800);
+    });
+
+    it('agrège plusieurs sous-comptes du même bailleur, distingue deux bailleurs différents', async () => {
+      const prismaMock = prisma(
+        [compte('c-1621', '16210000', bailleurUE), compte('c-1622', '16220000', bailleurUE), compte('c-1631', '16310000', bailleurBM)],
+        [ligneMouvement('c-1621', 0, 400), ligneMouvement('c-1622', 0, 100), ligneMouvement('c-1631', 0, 900)],
+      );
+      const service = serviceAvecExercices(
+        {
+          e1: [
+            ligne('16210000', ClasseCompte.CLASSE_1, 0, 400),
+            ligne('16220000', ClasseCompte.CLASSE_1, 0, 100),
+            ligne('16310000', ClasseCompte.CLASSE_1, 0, 900),
+          ],
+        },
+        [],
+        prismaMock,
+      );
+      const note = await service.noteBailleur('t1', 'e1');
+      expect(note.investissement.find((b) => b.bailleur.code === 'UE-01')!.decaisse).toBe(500); // 400 + 100
+      expect(note.investissement.find((b) => b.bailleur.code === 'BM-01')!.decaisse).toBe(900);
+    });
+
+    it('un compte 162-164/462-464 SANS bailleur ressort dans nonAffecte, jamais silencieusement absorbé dans un total', async () => {
+      const prismaMock = prisma([compte('c-164', '16400000', null)], [ligneMouvement('c-164', 0, 250)]);
+      const service = serviceAvecExercices({ e1: [ligne('16400000', ClasseCompte.CLASSE_1, 0, 250)] }, [], prismaMock);
+      const note = await service.noteBailleur('t1', 'e1');
+      expect(note.investissement).toHaveLength(0);
+      expect(note.investissementNonAffecte.decaisse).toBe(250);
+    });
+
+    it('totalFondsDuBailleur additionne investissement + administration (bailleurs affectés seulement)', async () => {
+      const prismaMock = prisma(
+        [compte('c-162', '16210000', bailleurUE), compte('c-462', '46210000', bailleurUE)],
+        [ligneMouvement('c-162', 0, 500), ligneMouvement('c-462', 0, 800)],
+      );
+      const service = serviceAvecExercices(
+        { e1: [ligne('16210000', ClasseCompte.CLASSE_1, 0, 500), ligne('46210000', ClasseCompte.CLASSE_4, 0, 800)] },
+        [],
+        prismaMock,
+      );
+      const note = await service.noteBailleur('t1', 'e1');
+      expect(note.totalFondsDuBailleur.decaisse).toBe(1300);
     });
   });
 });

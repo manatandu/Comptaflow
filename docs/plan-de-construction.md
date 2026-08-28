@@ -1233,7 +1233,62 @@ Ordre de dépendances techniques réelles, pas un simple ordre de préférence :
     tenant remis à `ASSOCIATIONS_ORDRES_PROFESSIONNELS` ensuite — pas de
     données de test laissées dans un état différent de celui trouvé) ; le
     jeu associations (item 12) re-vérifié sans régression après coup.
-14. **Comptabilité analytique par projet/bailleur** (spécifique SYCEBNL).
+14. ✅ **Comptabilité analytique par projet/bailleur** (spécifique SYCEBNL, jeu « projets de
+    développement ») — livré le 2026-08-28, juste après l'item 13.
+
+    Le mécanisme de suivi PAR bailleur est déjà celui du texte officiel (Partie 3, ch. 3,
+    § 1.2 : les bailleurs se distinguent par LEURS PROPRES sous-comptes 162x/163x/164x et
+    462x/463x/464x) — rien à réinventer côté plan comptable. Ce qui manquait : nommer ces
+    groupes de sous-comptes et produire automatiquement la **NOTE 9 « Fonds du bailleur »**
+    (Partie 4 ch. 3, Section 6) au lieu de la reconstituer à la main.
+
+    **Modèle `Bailleur`** (migration `20260828150733_bailleurs_comptabilite_analytique`) :
+    tenant-scopé, `code`/`nom`/`estActif`, CRUD minimal (`BailleurService`/`BailleurController`,
+    routes `/bailleurs`). **`Compte.bailleurId`** (nullable) rattache un sous-compte à un
+    bailleur — exposé par `ModifierCompteDto`, validé contre le tenant courant
+    (`CompteService.modifier`).
+
+    **`EtatsFinanciersProjetService.noteBailleur`** calcule, par bailleur, Fonds
+    d'investissement (162-164) et Fonds d'administration (462-464) séparément :
+    - **Montant décaissé** = mouvements CRÉDIT réels de l'exercice (mise à disposition,
+      § 2.1 du texte officiel) ;
+    - **Montant consommé** = mouvements DÉBIT réels de l'exercice (§ 2.2 pour l'administration
+      — mécaniquement le solde du 702 par construction de l'écriture — et § 2.5 pour
+      l'investissement : sortie d'immobilisation en fin de projet) ;
+    - **Solde restant** = solde cumulé du compte à date (mode SOLDE, même mécanisme de report
+      à-nouveau que partout ailleurs dans les états financiers).
+
+    Deux ambiguïtés du texte officiel signalées et résolues par lecture directe des écritures
+    documentées (Partie 3 ch. 3), pas par invention : le texte ne donne le compte source que
+    pour « Montant consommé » côté administration (note (2), compte 702) — rien n'est précisé
+    pour l'investissement ni pour « Montant décaissé » des deux côtés `[texte officiel]`.
+
+    **Écritures de report à-nouveau exclues** (`Ecriture.estGenereeParCloture`) : sans ce
+    filtre, la clôture d'exercice gonflerait « décaissé » de tout le solde déjà existant à
+    chaque nouvel exercice — piège identifié en lisant `ExerciceService.cloturer` avant
+    d'écrire la requête, jamais constaté en production.
+
+    Comptes 162-164/462-464 SANS bailleur rattaché : jamais absorbés en silence dans un total,
+    ressortent sous `nonAffecte` (même discipline que `comptesNonRattaches` sur bilan/compte
+    d'exploitation).
+
+    Frontend : page **Bailleurs** (CRUD + rattachement de comptes par menu déroulant,
+    accessible depuis Structure), onglet **NOTE 9 — FONDS DU BAILLEUR** dans les États
+    financiers (jeu projet seulement), export Excel dédié (`noteBailleurExcel`).
+
+    5 nouveaux tests unitaires (`etats-financiers-projet.service.spec.ts`, describe
+    `noteBailleur`) : décaissé/consommé excluent bien le report à-nouveau, séparation
+    investissement/administration, agrégation multi-sous-comptes d'un même bailleur,
+    distinction entre bailleurs, comptes non affectés jamais absorbés dans un total ; 104 →
+    109 sur le projet backend, tous passants.
+
+    Vérifié de bout en bout avec curl (création bailleur, rattachement de comptes, écritures
+    réelles de décaissement/consommation, lecture de la note — chiffres exacts : décaissé
+    100 000/consommé 0/solde 100 000 côté investissement, décaissé 50 000/consommé 20 000/
+    solde 30 000 côté administration) et Playwright (page Bailleurs, onglet Note 9, export
+    Excel réussi) sur le `Tenant Cascade` basculé temporairement en `PROJETS_DEVELOPPEMENT` —
+    toutes les données de test et le réglage du tenant remis dans leur état d'origine ensuite ;
+    le jeu associations re-vérifié sans régression après coup.
 15. Puis, au choix selon opportunité business : **Trésorerie avancée** (lots, LCR/
     virements), **Stocks**, **SYSCOHADA (Phase 3)**, **OHADA→IFRS**, **Paie**, RBAC fin.
 

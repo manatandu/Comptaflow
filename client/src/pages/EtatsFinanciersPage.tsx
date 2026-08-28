@@ -4,7 +4,7 @@ import { useExercice } from '../lib/exercice';
 import { useAuth } from '../lib/auth';
 import { useRibbon } from '../components/chrome/ribbon-context';
 import { IconExport, IconCheck } from '../components/chrome/icons';
-import type { Bilan, BilanProjet, CompteDeResultat, CompteExploitationProjet, LigneBilan, PosteCalcule } from '../lib/types';
+import type { Bilan, BilanProjet, CompteDeResultat, CompteExploitationProjet, LigneBilan, NoteBailleur, PosteCalcule } from '../lib/types';
 
 /**
  * Onglets du jeu « associations et ordres professionnels » (Partie 4, ch. 2)
@@ -15,7 +15,7 @@ import type { Bilan, BilanProjet, CompteDeResultat, CompteExploitationProjet, Li
  * (3ᵉ jeu) n'est pas construit et n'a pas d'onglet ici.
  */
 type OngletAssociations = 'bilan' | 'compte-de-resultat';
-type OngletProjet = 'bilan-projet' | 'compte-exploitation-projet';
+type OngletProjet = 'bilan-projet' | 'compte-exploitation-projet' | 'note-bailleur';
 
 export function EtatsFinanciersPage() {
   const { exerciceCourant } = useExercice();
@@ -30,6 +30,7 @@ export function EtatsFinanciersPage() {
   const [cr, setCr] = useState<CompteDeResultat | null>(null);
   const [bilanProjet, setBilanProjet] = useState<BilanProjet | null>(null);
   const [ceProjet, setCeProjet] = useState<CompteExploitationProjet | null>(null);
+  const [noteBailleur, setNoteBailleur] = useState<NoteBailleur | null>(null);
 
   const [erreur, setErreur] = useState<string | null>(null);
   const [exportEnCours, setExportEnCours] = useState(false);
@@ -47,6 +48,10 @@ export function EtatsFinanciersPage() {
       );
       api.get<CompteExploitationProjet>(`/etats-financiers/projet/compte-exploitation?exerciceId=${exerciceCourant.id}`).then(
         (r) => !annule && setCeProjet(r),
+        (e) => !annule && setErreur(e.message),
+      );
+      api.get<NoteBailleur>(`/etats-financiers/projet/note-bailleur?exerciceId=${exerciceCourant.id}`).then(
+        (r) => !annule && setNoteBailleur(r),
         (e) => !annule && setErreur(e.message),
       );
     } else {
@@ -78,7 +83,9 @@ export function EtatsFinanciersPage() {
           ? 'compte-de-resultat'
           : onglet === 'bilan-projet'
             ? 'projet/bilan'
-            : 'projet/compte-exploitation';
+            : onglet === 'compte-exploitation-projet'
+              ? 'projet/compte-exploitation'
+              : 'projet/note-bailleur';
     const nomFichier = chemin.includes('/') ? chemin.split('/')[1] + '-projet' : chemin;
     setErreur(null);
     setExportEnCours(true);
@@ -210,6 +217,14 @@ export function EtatsFinanciersPage() {
             }`}
           >
             COMPTE D'EXPLOITATION
+          </button>
+          <button
+            onClick={() => setOngletProjet('note-bailleur')}
+            className={`px-4 py-1.5 text-[11px] font-bold ${
+              onglet === 'note-bailleur' ? 'bg-surface border-r border-l border-border' : 'text-text-dim'
+            }`}
+          >
+            NOTE 9 — FONDS DU BAILLEUR
           </button>
         </div>
       ) : (
@@ -549,6 +564,83 @@ export function EtatsFinanciersPage() {
                 <code>correspondance-projet-compte-exploitation.ts</code>. RC (subventions) et RE (reprises) dans XA :
                 deux anomalies du texte officiel corrigées. TJ et TK apparaissent deux fois chacun : doublon du texte
                 officiel, reproduit tel quel.
+              </p>
+            </div>
+          )}
+        </>
+      )}
+
+      {onglet === 'note-bailleur' && (
+        <>
+          {!noteBailleur && <div className="border border-border px-4 py-4 text-[12px] text-text-dim">Chargement…</div>}
+          {noteBailleur && (
+            <div className="max-w-[1000px] overflow-x-auto">
+              <p className="text-[10.5px] text-text-dim mb-2">
+                Un bailleur n'apparaît ici que si des comptes 162-164/462-464 lui sont rattachés — voir la page{' '}
+                <a href="#/bailleurs" className="text-sel hover:underline">
+                  Bailleurs
+                </a>
+                .
+              </p>
+
+              {(['Fonds d’investissement (162-164)', 'Fonds d’administration (462-464)'] as const).map((titre, idx) => {
+                const lignes = idx === 0 ? noteBailleur.investissement : noteBailleur.administration;
+                const nonAffecte = idx === 0 ? noteBailleur.investissementNonAffecte : noteBailleur.administrationNonAffecte;
+                const total = idx === 0 ? noteBailleur.totalInvestissement : noteBailleur.totalAdministration;
+                return (
+                  <div key={titre} className="border border-border bg-surface mb-3">
+                    <div className="px-4 py-1.5 bg-chrome border-b border-border text-[11px] font-bold">{titre}</div>
+                    <div className="grid grid-cols-[1.4fr_130px_130px_130px] gap-2 px-4 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
+                      <span>BAILLEUR</span>
+                      <span className="text-right">DÉCAISSÉ</span>
+                      <span className="text-right">CONSOMMÉ</span>
+                      <span className="text-right">SOLDE RESTANT</span>
+                    </div>
+                    {lignes.length === 0 && (
+                      <div className="px-4 py-3 text-[12px] text-text-dim">Aucun bailleur rattaché à ce type de fonds.</div>
+                    )}
+                    {lignes.map((l) => (
+                      <div key={l.bailleur.id} className="grid grid-cols-[1.4fr_130px_130px_130px] gap-2 px-4 py-1 text-[12px]">
+                        <span>
+                          {l.bailleur.code} — {l.bailleur.nom}
+                        </span>
+                        <span className="font-mono text-right">{montant(l.decaisse)}</span>
+                        <span className="font-mono text-right">{montant(l.consomme)}</span>
+                        <span className="font-mono text-right">{montant(l.soldeRestant)}</span>
+                      </div>
+                    ))}
+                    {(nonAffecte.decaisse !== 0 || nonAffecte.consomme !== 0 || nonAffecte.soldeRestant !== 0) && (
+                      <div className="grid grid-cols-[1.4fr_130px_130px_130px] gap-2 px-4 py-1 text-[12px] text-danger bg-danger-soft italic">
+                        <span>NON AFFECTÉ (comptes sans bailleur rattaché)</span>
+                        <span className="font-mono text-right">{montant(nonAffecte.decaisse)}</span>
+                        <span className="font-mono text-right">{montant(nonAffecte.consomme)}</span>
+                        <span className="font-mono text-right">{montant(nonAffecte.soldeRestant)}</span>
+                      </div>
+                    )}
+                    <div className="grid grid-cols-[1.4fr_130px_130px_130px] gap-2 px-4 py-1.5 bg-surface-alt border-t border-border text-[12px] font-bold">
+                      <span>TOTAL</span>
+                      <span className="font-mono text-right">{montant(total.decaisse)}</span>
+                      <span className="font-mono text-right">{montant(total.consomme)}</span>
+                      <span className="font-mono text-right">{montant(total.soldeRestant)}</span>
+                    </div>
+                  </div>
+                );
+              })}
+
+              <div className="flex items-center gap-2 px-3.5 py-2.5 border border-border bg-chrome">
+                <span className="font-mono text-[11.5px] font-medium">
+                  TOTAL DES FONDS DU BAILLEUR — Décaissé {montant(noteBailleur.totalFondsDuBailleur.decaisse)} · Consommé{' '}
+                  {montant(noteBailleur.totalFondsDuBailleur.consomme)} · Solde restant{' '}
+                  {montant(noteBailleur.totalFondsDuBailleur.soldeRestant)}
+                </span>
+              </div>
+
+              <p className="text-[11px] text-text-dim mt-3">
+                NOTE 9 — Fonds du bailleur (SYCEBNL, Partie 4 ch. 3, Section 6). Décaissé = mouvements crédit réels
+                de l'exercice (hors report à-nouveau) ; Consommé = mouvements débit réels ; Solde restant = solde
+                cumulé à date. Le texte officiel ne précise le compte source que pour « Consommé » côté Fonds
+                d'administration (compte 702) — convention retenue pour le reste détaillée dans{' '}
+                <code>EtatsFinanciersProjetService.noteBailleur</code>.
               </p>
             </div>
           )}

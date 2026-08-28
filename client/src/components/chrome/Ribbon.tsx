@@ -47,6 +47,11 @@ export function Ribbon({ groupes, droite }: { groupes: RibbonGroupe[]; droite?: 
         { label: 'Taux de taxes', onClick: () => navigate('/taux-tva') },
         { label: 'Plan des tiers', onClick: () => navigate('/tiers') },
         { label: 'Immobilisations', onClick: () => navigate('/immobilisations') },
+        // Comptabilité analytique par projet/bailleur (jeu « projets de
+        // développement » — voir BailleursPage) : reste accessible même
+        // hors de ce jeu (rattachement de comptes toujours possible), la
+        // page elle-même explique quand la NOTE 9 s'applique.
+        { label: 'Bailleurs', onClick: () => navigate('/bailleurs') },
       ],
     },
     {

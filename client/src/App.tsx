@@ -20,6 +20,7 @@ import { TauxTvaPage } from './pages/TauxTvaPage';
 import { DeclarationTvaPage } from './pages/DeclarationTvaPage';
 import { EtatsFinanciersPage } from './pages/EtatsFinanciersPage';
 import { UtilisateursPage } from './pages/UtilisateursPage';
+import { BailleursPage } from './pages/BailleursPage';
 
 function ZoneProtegee({ children }: { children: JSX.Element }) {
   const { chargement, connecte } = useAuth();
@@ -60,6 +61,7 @@ function Routage() {
         <Route path="taux-tva" element={<TauxTvaPage />} />
         <Route path="declaration-tva" element={<DeclarationTvaPage />} />
         <Route path="etats-financiers" element={<EtatsFinanciersPage />} />
+        <Route path="bailleurs" element={<BailleursPage />} />
         <Route path="utilisateurs" element={<UtilisateursPage />} />
       </Route>
     </Routes>
