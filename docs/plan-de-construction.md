@@ -275,6 +275,19 @@ Ordre de dépendances techniques réelles, pas un simple ordre de préférence :
    Vérifié de bout en bout via curl : rejet d'un rattachement sur un compte hors
    classe 4, rejet d'un compte déjà rattaché à un autre tiers, un seul Principal
    après bascule, rejet des codes tiers/modèles dupliqués, détachement.
+   **Approfondissement** : `TiersPage` n'avait jamais été vérifiée en Playwright
+   (seulement curl) — corrigé. À cette occasion, ajout d'un raccourci solde +
+   lettrage manquant : chaque compte rattaché affiche désormais son solde de
+   l'exercice courant (`GET /ecritures/balance`) et un bouton "Lettrage" qui
+   ouvre directement `/comptes/:id/lettrage`, sans repasser par le Plan de
+   comptes. Un vrai bug trouvé au passage et corrigé : la réponse de
+   `/ecritures/balance` est `{ lignes, totaux }`, pas un tableau brut — le
+   premier code écrit pour `TiersPage` la traitait comme un tableau (repris
+   par erreur d'un autre pattern), échec silencieux (promesse rejetée sans
+   `.catch()`, solde resté à "—" sans qu'aucune erreur ne s'affiche). Vérifié
+   via Playwright : tiers créé, compte avec un solde réel de 250 rattaché,
+   solde 250 bien affiché dans le tableau, clic sur "Lettrage" navigue
+   correctement vers l'écran de lettrage du compte.
 5. ✅ **TVA / taux de taxes** — livré, entité paramétrable **et appliquée à la
    saisie**. `TauxTva` (code, intitule, taux %, compte de TVA collectée 443 et
    compte de TVA déductible 445 rattachés, actif/inactif). Fondé sur

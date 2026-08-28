@@ -1,9 +1,11 @@
 import { FormEvent, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { useExercice } from '../lib/exercice';
 import { useRibbon } from '../components/chrome/ribbon-context';
 import { IconRefresh, IconCheck } from '../components/chrome/icons';
-import type { Compte, ConditionEcheance, ModeleReglement, Tiers, TypeTiers } from '../lib/types';
+import type { Compte, ConditionEcheance, LigneBalance, ModeleReglement, Tiers, TypeTiers } from '../lib/types';
 
 const LIBELLE_TYPE: Record<TypeTiers, string> = {
   CLIENT: 'Client',
@@ -19,9 +21,12 @@ const LIBELLE_ECHEANCE: Record<ConditionEcheance, string> = {
 
 export function TiersPage() {
   const { estAdmin } = useAuth();
+  const { exerciceCourant } = useExercice();
+  const navigate = useNavigate();
   const [liste, setListe] = useState<Tiers[] | null>(null);
   const [modeles, setModeles] = useState<ModeleReglement[]>([]);
   const [comptesClasse4, setComptesClasse4] = useState<Compte[]>([]);
+  const [soldes, setSoldes] = useState<Record<string, number>>({});
   const [erreur, setErreur] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
 
@@ -67,6 +72,15 @@ export function TiersPage() {
     api.get<ModeleReglement[]>('/modeles-reglement').then(setModeles);
     api.get<Compte[]>('/comptes?classe=CLASSE_4&actifsSeuls=true').then(setComptesClasse4);
   }, []);
+
+  // Solde des comptes rattachés (balance de l'exercice courant) — affiché à
+  // côté du raccourci lettrage dans le panneau de détail d'un tiers.
+  useEffect(() => {
+    if (!exerciceCourant) return;
+    api.get<{ lignes: LigneBalance[] }>(`/ecritures/balance?exerciceId=${exerciceCourant.id}`).then((r) => {
+      setSoldes(Object.fromEntries(r.lignes.map((l) => [l.compteId, l.solde])));
+    });
+  }, [exerciceCourant]);
 
   useRibbon([{ titre: 'AFFICHAGE', boutons: [{ label: 'Actualiser', Icon: IconRefresh, onClick: charger }] }]);
 
@@ -271,15 +285,21 @@ export function TiersPage() {
           )}
           {tiersSelectionne.comptesRattaches.length > 0 && (
             <div className="border border-border mb-3">
+              <div className="grid grid-cols-[110px_1fr_100px_90px_90px_80px] gap-2 px-3 py-1 bg-chrome border-b border-border text-[9.5px] font-bold text-text-dim">
+                <span>COMPTE</span><span>INTITULÉ</span><span className="text-right">SOLDE</span><span>PRINCIPAL</span><span /><span />
+              </div>
               {tiersSelectionne.comptesRattaches.map((tc, i) => (
                 <div
                   key={tc.id}
-                  className={`grid grid-cols-[110px_1fr_90px_90px] gap-2 items-center px-3 py-1.5 border-b border-border last:border-b-0 text-[11.5px] ${
+                  className={`grid grid-cols-[110px_1fr_100px_90px_90px_80px] gap-2 items-center px-3 py-1.5 border-b border-border last:border-b-0 text-[11.5px] ${
                     i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'
                   }`}
                 >
                   <span className="font-mono">{tc.compte.numero}</span>
                   <span className="truncate">{tc.compte.intitule}</span>
+                  <span className="font-mono text-right text-text-dim">
+                    {tc.compteId in soldes ? soldes[tc.compteId].toLocaleString('fr-FR') : '—'}
+                  </span>
                   <span>
                     {tc.estPrincipal ? (
                       <span className="font-mono text-[9.5px] font-bold px-1.5 py-0.5 bg-positive-soft text-positive flex items-center gap-1 w-fit">
@@ -291,6 +311,12 @@ export function TiersPage() {
                       </button>
                     )}
                   </span>
+                  <button
+                    onClick={() => navigate(`/comptes/${tc.compteId}/lettrage`)}
+                    className="text-[10.5px] font-semibold text-sel hover:underline w-fit"
+                  >
+                    Lettrage
+                  </button>
                   <button onClick={() => detacherCompte(tc.compteId)} className="text-[10.5px] font-semibold text-danger hover:underline w-fit">
                     Détacher
                   </button>
