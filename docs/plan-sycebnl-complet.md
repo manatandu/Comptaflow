@@ -114,8 +114,45 @@ Cela ajoute un chantier à la phase 1, qui n'était pas au plan initial : **une 
 rattachement des sous-comptes du dossier aux rubriques de notes**. Sans elle, une bonne part
 des 45 notes du jeu associations resteront structurellement vides.
 
-**Reste en phase 1** : 40 notes du jeu associations, 25 du jeu projets, la couche de
-rattachement, l'export Excel et l'écran.
+**Couche de rattachement — livrée.** Table `rattachements_notes`, unique par
+(dossier, jeu, note, rubrique, compte). Garde-fou central : **seule** une rubrique portant
+`subdivisionAttendue` est rattachable ; un rattachement sur une rubrique que le plan officiel
+détermine est refusé explicitement, jamais ignoré — le permettre laisserait défaire en silence
+la fidélité au texte. Les comptes rattachés **s'ajoutent** aux préfixes officiels, ils ne les
+remplacent pas. Chaque rubrique rattachable porte une `cle` stable : s'ancrer sur le libellé
+serait fragile, une correction de transcription faisant tomber tous les rattachements du
+dossier. La fiche récapitulative porte les rubriques en attente **avec leur clé**, sans quoi
+une note dont rien n'est encore chiffré (donc sans lignes, § 1.4) serait impossible à alimenter.
+
+### Dépouillement des 45 notes par forme de tableau (2026-08-28)
+
+Fait avant de lancer la transcription en lot, et qui en a changé l'ordre : le moteur ne
+couvrait qu'une forme sur cinq.
+
+| Famille | Forme | Notes | Nb |
+|---|---|---|---|
+| **A** | Année N / N-1 / variations | 8, 11, 12, 13, 16, 17B, 18B, 22, 23, 24, 25, 26, 27, 28, 29A, 31, 32 | 17 |
+| **B** | + échéances 1 an / 2 ans / +2 ans | 6, 9, 10, 18A, 19, 20, 21 | 7 |
+| **C** | ouverture / augmentations / diminutions / clôture | 5A, 5B, 5C, 5D, 5E, 5F, 30 | 7 |
+| **D** | grilles sur mesure | 1, 5G, 14, 15, 17A | 5 |
+| **E** | hors balance ou saisie | 2, 3, 4, 5H, 7, 29B, 33, 34, 35 | 9 |
+
+**Famille C livrée.** `EcritureService.balance` scinde chaque ligne en *report à-nouveau*
+(l'ouverture) et *mouvements propres de l'exercice*. Sans cette scission, `totalDebit` englobe
+le report et un bâtiment détenu depuis 2020 serait présenté comme une acquisition de
+l'exercice en colonne « AUGMENTATIONS B ». La clôture est **recalculée** (D = A + B − C, la
+formule que le texte écrit lui-même) et l'écart avec le solde réel devient un contrôle offert
+à l'utilisateur. Notes 5B, 5E, 5F transcrites.
+
+**Famille B livrée.** `LigneEcriture.dateEcheance` — la ventilation ne se déduit d'aucun champ
+existant. Bornes comptées depuis la clôture ; lignes lettrées exclues ; échéance transportée
+par le report à-nouveau en mode Détail, sans quoi elle se viderait à chaque clôture. Ce qui
+n'est pas ventilé est **dit** (`echeanceNonVentilee`) plutôt que rangé d'office en « à un an
+au plus », qui donnerait une ventilation d'apparence complète et fausse.
+
+**Reste en phase 1** : 36 notes du jeu associations (dont 22 relèvent des familles A/B/C
+désormais outillées, donc mécaniques ; 5 de la famille D et 9 de la famille E demandent
+chacune une forme propre), les 26 notes du jeu projets, l'export Excel et l'écran.
 
 ---
 
