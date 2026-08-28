@@ -18,6 +18,7 @@ import { RapprochementModule } from './modules/rapprochement/rapprochement.modul
 import { ImmobilisationsModule } from './modules/immobilisations/immobilisations.module';
 import { ExportsModule } from './modules/exports/exports.module';
 import { BailleursModule } from './modules/bailleurs/bailleurs.module';
+import { NotesAnnexesModule } from './modules/notes-annexes/notes-annexes.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { BailleursModule } from './modules/bailleurs/bailleurs.module';
     ExportsModule,
     UtilisateursModule,
     BailleursModule,
+    NotesAnnexesModule,
   ],
 })
 export class AppModule {}

@@ -48,6 +48,44 @@ budgétaire. Les deux états redeviennent constructibles sur base officielle. Se
 
 ---
 
+## Journal d'avancement
+
+### Phase 1 engagée le 2026-08-28 — moteur de notes annexes
+
+**Livré** : `src/modules/notes-annexes/` — types déclaratifs, résolveur, contrôleur,
+fiche récapitulative, renvois croisés de l'art. 15, et les 5 premières notes du jeu
+associations (7, 9, 11, 12, 13). 13 tests. Route `GET /notes-annexes/associations`.
+
+La règle du **§ 1.4** est appliquée dans le moteur, pas dans l'affichage, pour qu'elle vaille
+aussi à l'export : une note sans aucune rubrique chiffrée est déclarée non applicable et ne
+présente rien ; dans une note applicable, les lignes à zéro sont retirées, les totaux
+conservés. Vérifié en recoupant la Note 13 avec le poste BW du bilan — mêmes montants,
+N et N-1.
+
+**Découverte de conception, faite au premier pas et qui change la nature de la phase.**
+Le texte ne fournit **aucun tableau de correspondance pour les notes** : elles n'énumèrent que
+des libellés de rubriques. Pire, ces libellés réclament souvent une granularité que le plan de
+comptes normalisé ne porte pas — la Note 24 « Achats » veut des lignes distinctes pour
+« Matières consommables », « Produits d'entretien », « Eau », « Électricité », « Fourniture de
+bureau », alors que le plan s'arrête au compte 604 sans subdivision. Et un rapprochement par
+ressemblance de libellé serait pire que rien : « Matières consommables » existe bien au plan,
+en compte **331**, qui est un compte de STOCK et non d'achat.
+
+Conséquence tenue dans le moteur : une rubrique n'est rattachée que si le rattachement découle
+**sans jugement** du plan normalisé. Sinon elle porte `subdivisionAttendue`, reste non
+rattachée, et s'affiche en attente — jamais à zéro. Les notes de trésorerie (11, 12, 13) sont
+intégralement rattachables, le plan y descendant au divisionnaire ; les notes de charges et de
+produits demanderont un rattachement par dossier.
+
+Cela ajoute un chantier à la phase 1, qui n'était pas au plan initial : **une couche de
+rattachement des sous-comptes du dossier aux rubriques de notes**. Sans elle, une bonne part
+des 45 notes du jeu associations resteront structurellement vides.
+
+**Reste en phase 1** : 40 notes du jeu associations, 25 du jeu projets, la couche de
+rattachement, l'export Excel et l'écran.
+
+---
+
 ## A. États financiers restants (Partie 4)
 
 ### A1 — Tableau des flux de trésorerie, jeu associations
