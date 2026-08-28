@@ -1360,6 +1360,48 @@ Ordre de dépendances techniques réelles, pas un simple ordre de préférence :
     jamais un double comptage. 14 tests ajoutés (109 → 123), dont les deux
     tests-gardes structurels qui auraient suffi à attraper les points 2 et 3.
 
+14ter. ✅ **Audit de la surface restante (jeu associations, items 10 et 12)** —
+    2026-08-28, dans la foulée. L'audit précédent avait trouvé DEUX bugs réels
+    dans le jeu associations **par accident** (en allant vérifier le plan
+    comptable pour trancher un arbitrage du jeu projet) : or ce jeu, livré aux
+    items 10 et 12, n'avait jamais été relu ligne à ligne contre le texte.
+    Laisser cette surface non auditée aurait été bâtir la suite sur un socle
+    dont on venait de démontrer qu'il contenait cette classe d'erreur.
+
+    **Résultat : aucun nouveau bug.** Les deux tableaux ont été comparés poste
+    par poste au Journal officiel (Partie 4, ch. 2, section 6) :
+    - **Compte de résultat** (`correspondance-compte-resultat.ts`) —
+      intégralement fidèle, 22 postes RA-RH / TA-TN / TM-TN, aucun écart. Les
+      deux écarts documentés (XA incluant RH ; 7054/7055 non rattachés) sont
+      bien conformes à ce que dit le texte.
+    - **Bilan** (`correspondance-bilan.ts`) — les ~40 postes d'actif et de
+      passif correspondent au texte, exclusions comprises (« 24 sauf 245 et
+      2495 », « 47 sauf 479 », « 499 sauf 4998 »…), de même que la structure
+      des totaux et sous-totaux (AA/AD/AH/AO en en-têtes de section, CK/CY/CZ,
+      DD/DE/DV). Les seuls écarts réels étaient DW et BW, déjà corrigés à
+      l'audit précédent.
+
+    Une lacune de **documentation** corrigée : le texte officiel marque d'un
+    suffixe « p » (pour partie) TROIS comptes de dépréciation partagés entre
+    deux postes — 2919p (AE/AF), 2939p (AJ/AK) et **2949p (AL/AM)**. L'en-tête
+    n'en citait que deux, alors que le code traitait bien les trois de la même
+    façon. La liste est désormais complète.
+
+    **Trois gardes structurelles portées** du jeu projet vers le jeu
+    associations (aucun compte brut ni aucun compte d'amortissement réclamé par
+    deux postes à la fois ; les trois comptes « p » assignés à un seul poste
+    chacun) : ce sont elles qui avaient manqué côté projet et laissé passer le
+    297 en double.
+
+    Et surtout, **le test qui manquait le plus** : un scénario réaliste complet
+    (`BILAN COMPLET`) en partie double vérifié à la main, qui exerce
+    simultanément un amortissement, des tiers dans les deux sens, un découvert
+    bancaire et un déficit — actif 4 200 = passif 4 200, aucun compte non
+    rattaché. C'est le type d'interaction qu'aucun test unitaire isolé ne
+    couvrait, et c'est exactement là que se cachaient les bugs de l'audit.
+
+    127 tests au total (123 → 127).
+
 15. Puis, au choix selon opportunité business : **Trésorerie avancée** (lots, LCR/
     virements), **Stocks**, **SYSCOHADA (Phase 3)**, **OHADA→IFRS**, **Paie**, RBAC fin.
 

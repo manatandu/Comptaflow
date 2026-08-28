@@ -441,6 +441,50 @@ describe('EtatsFinanciersService', () => {
       expect(poste(bilan, 'DW')!.montant).toBe(0);
     });
 
+    it('BILAN COMPLET — un dossier réaliste boucle exactement (amortissement + tiers 2 sens + découvert + déficit)', async () => {
+      // Scénario en partie double, vérifié à la main (somme des soldes = 0) :
+      //  1. dotation 10 000 en banque            5211 D / 101  C
+      //  2. achat matériel 4 000 à crédit        2410 D / 481  C
+      //  3. paiement du fournisseur d'invest.     481 D / 5211 C
+      //  4. dotation aux amortissements 800      6813 D / 2841 C
+      //  5. cotisations appelées 3 000           4110 D / 7010 C
+      //  6. encaissement partiel 2 000           5211 D / 4110 C
+      //  7. achat de fournitures 500 à crédit    6040 D / 4010 C
+      //  8. services extérieurs 9 000 payés      6220 D / 5211 C  -> banque à DÉCOUVERT
+      const service = serviceAvecBalance([
+        ligne('10100000', ClasseCompte.CLASSE_1, 0, 10000), // CA
+        ligne('24100000', ClasseCompte.CLASSE_2, 4000, 0), // AL brut
+        ligne('28410000', ClasseCompte.CLASSE_2, 0, 800), // AL amortissement
+        ligne('48100000', ClasseCompte.CLASSE_4, 4000, 4000), // DF, soldé
+        ligne('41100000', ClasseCompte.CLASSE_4, 3000, 2000), // BD
+        ligne('40100000', ClasseCompte.CLASSE_4, 0, 500), // DH
+        ligne('52110000', ClasseCompte.CLASSE_5, 12000, 13000), // découvert -> DW
+        ligne('70100000', ClasseCompte.CLASSE_7, 0, 3000), // RA
+        ligne('60400000', ClasseCompte.CLASSE_6, 500, 0), // TD
+        ligne('62200000', ClasseCompte.CLASSE_6, 9000, 0), // TG
+        ligne('68130000', ClasseCompte.CLASSE_6, 800, 0), // TL
+      ]);
+      const bilan = await service.bilan('t1', 'e1');
+
+      // Actif : matériel net 3 200 + adhérents 1 000 + trésorerie 0 (au passif)
+      expect(poste(bilan, 'AL')!.brut).toBe(4000);
+      expect(poste(bilan, 'AL')!.amortissement).toBe(800);
+      expect(poste(bilan, 'AL')!.montant).toBe(3200);
+      expect(poste(bilan, 'BD')!.montant).toBe(1000);
+      expect(poste(bilan, 'BW')!.montant).toBe(0);
+      // Passif : dotation 10 000 + déficit -7 300 + fournisseurs 500 + découvert 1 000
+      expect(poste(bilan, 'CA')!.montant).toBe(10000);
+      expect(poste(bilan, 'CH')!.montant).toBe(-7300);
+      expect(poste(bilan, 'DH')!.montant).toBe(500);
+      expect(poste(bilan, 'DW')!.montant).toBe(1000);
+
+      expect(bilan.totalActif).toBe(4200);
+      expect(bilan.totalPassif).toBe(4200);
+      expect(bilan.equilibre).toBe(true);
+      // Aucun compte ne doit tomber hors des postes officiels dans ce scénario.
+      expect(bilan.comptesNonRattaches).toEqual([]);
+    });
+
     it('DW capte 561 et 566 (crédits de trésorerie, intérêts courus) — la restriction à 564/565 les perdait', async () => {
       const service = serviceAvecBalance([
         ligne('56100000', ClasseCompte.CLASSE_5, 0, 500), // crédits de trésorerie

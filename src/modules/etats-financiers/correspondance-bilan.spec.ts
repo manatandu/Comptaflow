@@ -96,6 +96,36 @@ describe('correspondance bilan (SYCEBNL, Partie 4 ch. 2)', () => {
     expect(bw.comptesTransferesSiCrediteur).not.toContain('57');
   });
 
+  // Garde structurelle portée depuis correspondance-projet-bilan.spec.ts à
+  // l'audit du 2026-08-28 : c'est elle qui y avait manqué et laissé passer le
+  // compte 297 affecté à deux postes (déduction en double). Vérifiée ici aussi.
+  it('aucun compte BRUT n’est réclamé par DEUX postes d’actif à la fois', () => {
+    const vus = new Map<string, string>();
+    for (const p of POSTES_ACTIF) {
+      for (const c of p.comptes) {
+        expect(vus.get(c) ?? p.ref).toBe(p.ref);
+        vus.set(c, p.ref);
+      }
+    }
+  });
+
+  it('aucun compte d’AMORTISSEMENT n’est déduit par DEUX postes d’actif à la fois', () => {
+    const vus = new Map<string, string>();
+    for (const p of POSTES_ACTIF) {
+      for (const c of p.comptesAmortissement ?? []) {
+        expect(vus.get(c) ?? p.ref).toBe(p.ref);
+        vus.set(c, p.ref);
+      }
+    }
+  });
+
+  it('2919, 2939 ET 2949 (les trois comptes « p » du texte officiel) ne sont assignés qu’à UN SEUL poste chacun', () => {
+    for (const numero of ['2919', '2939', '2949']) {
+      const postes = POSTES_ACTIF.filter((p) => p.comptesAmortissement?.includes(numero));
+      expect(postes).toHaveLength(1);
+    }
+  });
+
   it('2919 et 2939 (ambiguïté non résolue par le texte officiel) ne sont assignés qu’à UN SEUL poste chacun', () => {
     // Documenté en tête de correspondance-bilan.ts : le texte officiel liste
     // ces deux comptes sous deux postes à la fois sans donner de clé de

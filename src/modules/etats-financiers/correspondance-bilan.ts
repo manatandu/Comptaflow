@@ -71,11 +71,14 @@
  *    créditeur doit être DÉPLACÉ, pas compté des deux côtés — voir
  *    `comptesTransferesSiCrediteur` sur BW.
  *
- * Une SIXIÈME ambiguïté, propre à cette transcription (non documentée dans
+ * Une SEPTIÈME ambiguïté, propre à cette transcription (non documentée dans
  * `liasse/references/anomalies.md`, qui ne la résout pas non plus) : le
- * texte officiel liste le compte 2919 (dépréciation) et le compte 2939
- * (idem) chacun sous DEUX postes différents à la fois (AE et AF pour 2919 ;
- * AJ et AK pour 2939), sans que rien n'indique la clé de répartition — un
+ * texte officiel marque d'un suffixe « p » (pour partie) TROIS comptes de
+ * dépréciation qu'il liste sous DEUX postes à la fois — 2919p (AE et AF),
+ * 2939p (AJ et AK) et 2949p (AL et AM) —, sans que rien n'indique la clé de
+ * répartition. Le troisième (2949p) manquait à cette liste jusqu'à l'audit
+ * du 2026-08-28 ; le code le traitait pourtant déjà comme les deux autres
+ * (rattaché en entier à AM, exclu de AL). Dans les trois cas : un
  * compte agrégé "Autres" partagé entre plusieurs postes de détail que la
  * seule balance ne permet pas de désagréger. Pris en entier sous UN SEUL
  * poste (celui dont le libellé "Autres"/"Aménagements" correspond le mieux
