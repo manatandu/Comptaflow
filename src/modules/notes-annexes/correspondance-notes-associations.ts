@@ -867,4 +867,395 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     ],
     commentaire: 'commenter toute variation significative.',
   },
+
+  // ======================================================================
+  // IMMOBILISATIONS RECUES PAR DONS ET LEGS, USUFRUIT, LOCATION-ACQUISITION
+  //
+  // Compte 20 « Immobilisations destinées à la vente provenant de dons et
+  // legs non encore reçus et usufruit temporaire ». Le plan y descend au
+  // divisionnaire à l'ACTIF BRUT (2011 à 2017, 202 à 205) mais pas du tout
+  // aux amortissements et dépréciations, où il ne donne que 280 et 290 —
+  // d'où l'écart de finesse entre les notes 5A et 5D.
+  // ======================================================================
+  {
+    code: '5A',
+    titre: "DONS ET LEGS D'IMMOBILISATIONS NON REÇUS DESTINES A LA VENTE ET USUFRUIT TEMPORAIRE",
+    colonnes: COLONNES_MOUVEMENTS,
+    renvoyeeDepuis: ['AA'],
+    // Le modèle groupe les rubriques sous des intitulés de section
+    // (IMMOBILISATIONS INCORPORELLES, CORPORELLES, FINANCIERES) sans en
+    // faire des lignes de sous-total — contrairement aux notes 5B et 5F, qui
+    // écrivent « SOUS TOTAL : ». Aucun sous-total n'est donc ajouté ici : le
+    // groupement est une affaire de présentation, pas de calcul.
+    rubriques: [
+      { libelle: 'Usufruit', comptes: ['2011'] },
+      { libelle: 'Brevets, licences, logiciels et droits similaires', comptes: ['2012', '2013'] },
+      { libelle: 'Autres immobilisations incorporelles', comptes: ['2014', '2017'] },
+      { libelle: 'Terrains', comptes: ['202'] },
+      { libelle: 'Bâtiments', comptes: ['203'] },
+      { libelle: 'Matériels et mobiliers', comptes: ['204'] },
+      { libelle: 'Titres de participation', comptes: ['205'] },
+      enAttente(
+        'autres-immobilisations-financieres',
+        'Autres immobilisations financières',
+        "Le compte 20 ne prévoit, en immobilisations financières reçues par dons et legs, que le compte 205 " +
+          '« Titres de participations » : subdiviser le compte 20 et rattacher ici le sous-compte des autres ' +
+          'immobilisations financières.',
+      ),
+      { libelle: 'TOTAL GENERAL', totalDeRubriques: [0, 1, 2, 3, 4, 5, 6, 7] },
+    ],
+    commentaire:
+      'toute variation significative doit être commentée ; pour les banques, DAT indiquer le nom de la banque, ' +
+      "le montant et la date d'échéance.",
+  },
+  {
+    code: '5C',
+    titre: 'BIENS PRIS EN LOCATION-ACQUISITION',
+    // La première colonne du modèle (« Nature du contrat : I crédit-bail
+    // immobilier, M mobilier, A autres contrats ») qualifie le contrat, elle
+    // ne porte pas de montant : déclarée en saisie.
+    colonnes: [{ type: 'LIBRE' as const, libelle: 'Nature du contrat (I ; M ; A)' }, ...COLONNES_MOUVEMENTS],
+    // Les comptes de location-acquisition sont les divisionnaires « 6 » de
+    // chaque famille d'immobilisations (Partie 2, ch. 2) : 2286 terrains,
+    // 2316/2326 bâtiments, 2416/2426/2446 matériel et mobilier, 2456
+    // matériel de transport.
+    rubriques: [
+      { libelle: 'Terrains', comptes: ['2286'] },
+      { libelle: 'Bâtiments', comptes: ['2316', '2326'] },
+      { libelle: 'Matériel, mobilier', comptes: ['2416', '2426', '2446'] },
+      { libelle: 'Matériel de transport', comptes: ['2456'] },
+      { libelle: 'TOTAL IMMOBILISATIONS EN LOCATION-ACQUISITION', totalDeRubriques: [0, 1, 2, 3] },
+    ],
+    renvoiOfficiel:
+      'I : Crédit-bail immobilier ; M : Crédit-bail mobilier ; A : Autres contrats ' +
+      '(dédoubler le poste si montant significatif).',
+    commentaire: 'indiquer la nature du bien, le nom du bailleur et la durée du bail.',
+  },
+  {
+    code: '5D',
+    titre:
+      "DONS ET LEGS D'IMMOBILISATIONS NON REÇUS DESTINES A LA VENTE ET USUFRUIT TEMPORAIRE " +
+      '(AMORTISSEMENTS ET DEPRECIATIONS)',
+    sensAccroissement: 'CREDIT',
+    // Même formule et même réserve qu'à la note 5E : la colonne D
+    // « Virements de poste à poste » ne se distingue pas d'un mouvement
+    // ordinaire en balance et reste en saisie ; un virement non saisi se
+    // signale de lui-même par l'écart de clôture.
+    colonnes: [
+      { type: 'OUVERTURE' as const, libelle: "A — Amortissements et dépréciations cumulés à l'ouverture" },
+      { type: 'AUGMENTATIONS' as const, libelle: "B — Augmentations : Dotations de l'exercice" },
+      {
+        type: 'DIMINUTIONS' as const,
+        libelle:
+          "C — Diminutions : Amortissements et dépréciations relatifs aux éléments sortis de l'actif ; " +
+          'Reprises amortissements et dépréciations',
+      },
+      { type: 'LIBRE' as const, libelle: 'D — Virements de poste à poste' },
+      {
+        type: 'CLOTURE' as const,
+        libelle: 'E = A + B - C - D (Cumuls des amortissements et dépréciations à la clôture)',
+      },
+    ],
+    // Le plan ne donne, pour tout le compte 20, que 280 « Amortissements
+    // d'usufruit temporaire » et 290 « Dépréciations » (2901 usufruit, 2902
+    // immobilisations destinées à la vente, sans distinction de nature).
+    // Seul l'usufruit est donc déterminable ; les cinq autres rubriques
+    // exigent que le dossier subdivise le compte 2902.
+    rubriques: [
+      { libelle: 'Usufruit', comptes: ['280', '2901'] },
+      ...(
+        [
+          ['brevets-licences-logiciels', 'Brevets, licences, logiciels et droits similaires'],
+          ['autres-incorporelles', 'Autres immobilisations incorporelles'],
+          ['terrains', 'Terrains'],
+          ['batiments', 'Bâtiments'],
+          ['materiel-mobilier', 'Matériel, mobilier'],
+        ] as const
+      ).map(([cle, libelle]) =>
+        enAttente(
+          cle,
+          libelle,
+          'Le compte 2902 « Dépréciations des immobilisations destinées à la vente » ne distingue pas la ' +
+            "nature des biens, et le plan ne prévoit pas d'amortissement pour eux (seul l'usufruit temporaire " +
+            'en a un, compte 280) : subdiviser 2902 par nature et rattacher ici le sous-compte correspondant.',
+        ),
+      ),
+      { libelle: 'SOUS TOTAL : IMMOBILISATIONS INCORPORELLES', totalDeRubriques: [0, 1, 2] },
+      { libelle: 'SOUS TOTAL : IMMOBILISATIONS CORPORELLES', totalDeRubriques: [3, 4, 5] },
+      { libelle: 'TOTAL GENERAL', totalDeRubriques: [6, 7] },
+    ],
+  },
+
+  // ======================================================================
+  // CREANCES ET DETTES — ventilation par échéance
+  // ======================================================================
+  {
+    code: '6',
+    titre: 'IMMOBILISATIONS FINANCIERES',
+    // [texte officiel] Le modèle de cette note omet « Variation en valeur »,
+    // que toutes les autres notes comparatives portent. Transcrit tel quel.
+    colonnes: [
+      { type: 'EXERCICE_N' as const, libelle: 'Année N' },
+      { type: 'EXERCICE_N1' as const, libelle: 'Année N-1' },
+      { type: 'VARIATION_POURCENT' as const, libelle: 'Variation en %' },
+      { type: 'ECHEANCE_1AN' as const, libelle: 'Créances à un an au plus' },
+      { type: 'ECHEANCE_2ANS' as const, libelle: "Créances à plus d'un an et à deux ans au plus" },
+      { type: 'ECHEANCE_PLUS_2ANS' as const, libelle: 'Créances à plus de deux ans' },
+    ],
+    renvoyeeDepuis: ['AN', 'AP'],
+    rubriques: [
+      { libelle: 'Titres de participation', comptes: ['26'] },
+      { libelle: 'Prêts et créances', comptes: ['271'] },
+      { libelle: 'Prêt au personnel', comptes: ['272'] },
+      { libelle: "Créances sur l'état", comptes: ['273'] },
+      { libelle: 'Titres immobilisés', comptes: ['274'] },
+      { libelle: 'Dépôts et cautionnements', comptes: ['275'] },
+      { libelle: 'Intérêts courus', comptes: ['276'] },
+      { libelle: 'Immobilisations financières diverses', comptes: ['278'] },
+      { libelle: 'TOTAL BRUT', totalDeRubriques: [0, 1, 2, 3, 4, 5, 6, 7] },
+      { libelle: 'Dépréciations des titres de participation', comptes: ['296'], presenterEnNegatif: true },
+      {
+        libelle: 'Dépréciations des autres immobilisations financières',
+        comptes: ['297'],
+        presenterEnNegatif: true,
+      },
+      { libelle: 'TOTAL NET DE DEPRECIATIONS', totalDeRubriques: [8, 9, 10] },
+    ],
+    commentaire:
+      'justifier toute variation significative ; commenter toutes les créances anciennes ; indiquer le nombre ' +
+      "et la date d'acquisition des actions ou des parts ; dépréciations : indiquer les évènements et les " +
+      'circonstances qui ont motivé la dépréciation ou la reprise.',
+  },
+  {
+    code: '10',
+    titre: 'AUTRES CREANCES',
+    colonnes: COLONNES_AVEC_ECHEANCES_CREANCES,
+    renvoyeeDepuis: ['BH'],
+    // Comptes de tiers POLYVALENTS : les classes 42 à 47 portent aussi bien
+    // des créances que des dettes. `sens: 'DEBITEUR'` ne retient donc que
+    // les soldes débiteurs — leur pendant créditeur relève des notes 20 et 21.
+    rubriques: [
+      { libelle: 'Personnel', comptes: ['42'], sens: 'DEBITEUR' },
+      { libelle: 'Organismes sociaux', comptes: ['43'], sens: 'DEBITEUR' },
+      { libelle: 'Etat et Collectivités publiques', comptes: ['44'], sens: 'DEBITEUR' },
+      { libelle: 'Fondateurs, apporteurs et comptes courants', comptes: ['45'], sens: 'DEBITEUR' },
+      {
+        libelle: "Bailleurs, Etat et autres organismes, fonds d'administration",
+        comptes: ['46'],
+        sens: 'DEBITEUR',
+      },
+      { libelle: 'Débiteurs divers', comptes: ['471'], sens: 'DEBITEUR' },
+      // Tout le reste du compte 47 : créances sur titres, subventions à
+      // recevoir, générosités à recevoir, charges constatées d'avance, écarts
+      // de conversion. Le modèle ne les nomme pas une à une.
+      {
+        // 475 « Générosités financières à recevoir » est ABSENT de cette liste :
+        // le modèle officiel lui donne une ligne propre à la note 21. L'y
+        // laisser aussi le compterait deux fois.
+        libelle: 'Autres débiteurs divers',
+        comptes: ['472', '473', '474', '476', '478'],
+        sens: 'DEBITEUR',
+      },
+      { libelle: 'TOTAL BRUT', totalDeRubriques: [0, 1, 2, 3, 4, 5, 6] },
+      {
+        libelle: 'Dépréciations des autres créances',
+        comptes: ['492', '493', '494', '497'],
+        presenterEnNegatif: true,
+      },
+      { libelle: 'TOTAL NET DE DEPRECIATIONS', totalDeRubriques: [7, 8] },
+    ],
+    commentaire:
+      'justifier toute variation significative ; détailler les créances dont le montant est significatif ; ' +
+      'justifier les créances anciennes ; indiquer les événements et circonstances motivant la dépréciation ' +
+      'et la reprise.',
+  },
+  {
+    code: '18A',
+    titre: 'DETTES FINANCIERES ET RESSOURCES ASSIMILEES',
+    colonnes: COLONNES_AVEC_ECHEANCES_DETTES,
+    renvoyeeDepuis: ['DA', 'DB', 'DC'],
+    rubriques: [
+      { libelle: 'Emprunts obligataires', comptes: ['181'], natureCreditrice: true },
+      {
+        libelle: 'Emprunts et dettes auprès des établissements de crédit',
+        comptes: ['182'],
+        natureCreditrice: true,
+      },
+      { libelle: "Avances reçues de l'Etat", comptes: ['183'], natureCreditrice: true },
+      { libelle: 'Dépôts et cautionnements reçus', comptes: ['185'], natureCreditrice: true },
+      { libelle: 'Intérêts courus', comptes: ['186'], natureCreditrice: true },
+      { libelle: 'Autres emprunts et dettes', comptes: ['188'], natureCreditrice: true },
+      { libelle: 'TOTAL EMPRUNTS ET DETTES FINANCIERES', totalDeRubriques: [0, 1, 2, 3, 4, 5] },
+      { libelle: 'Crédit-bail immobilier', comptes: ['1871'], natureCreditrice: true },
+      { libelle: 'Crédit-bail mobilier', comptes: ['1872'], natureCreditrice: true },
+      { libelle: 'Location-vente', comptes: ['1873'], natureCreditrice: true },
+      { libelle: 'Intérêts courus', comptes: ['1876'], natureCreditrice: true },
+      {
+        libelle: 'Autres dettes de location-acquisition',
+        comptes: ['187'],
+        exclusions: ['1871', '1872', '1873', '1876'],
+        natureCreditrice: true,
+      },
+      { libelle: 'TOTAL DETTES DE LOCATION-ACQUISITION', totalDeRubriques: [7, 8, 9, 10, 11] },
+      { libelle: 'Provisions pour litiges', comptes: ['191'], natureCreditrice: true },
+      { libelle: 'Provisions pour charges sur donations et legs', comptes: ['192'], natureCreditrice: true },
+      { libelle: 'Provisions pour pertes de change', comptes: ['194'], natureCreditrice: true },
+      // 196 est polyvalent dans cette note : la provision au crédit, l'actif
+      // du régime de retraite au débit. Le renvoi (1) du modèle le dit
+      // expressément (« solde débiteur du compte ») ; l'actif vient en
+      // diminution de la provision, d'où la présentation en négatif.
+      {
+        libelle: 'Provisions pour pensions et obligations similaires',
+        comptes: ['196'],
+        sens: 'CREDITEUR',
+      },
+      {
+        libelle: 'Actif du régime de retraite',
+        comptes: ['196'],
+        sens: 'DEBITEUR',
+        presenterEnNegatif: true,
+        renvoi: '(1) solde débiteur du compte.',
+      },
+      { libelle: 'Autres provisions pour risques et charges', comptes: ['198'], natureCreditrice: true },
+      {
+        libelle: 'TOTAL PROVISIONS FINANCIERES POUR RISQUES ET CHARGES',
+        totalDeRubriques: [13, 14, 15, 16, 17, 18],
+      },
+    ],
+    commentaire:
+      "pour chaque emprunt et dette de location-acquisition, mentionner la date d'octroi, le nom de l'organisme " +
+      'financier, le montant initial, la durée du crédit, les garanties données ; indiquer les événements et ' +
+      'circonstances motivant la provision et la reprise ; pour les pensions et obligations de retraite, ' +
+      "indiquer la méthode d'évaluation retenue, le nom de la compagnie d'assurance ou du fonds de pension, le " +
+      'descriptif de la convention signée, la périodicité des versements, le montant et la durée de la ' +
+      'convention pour les actifs du régime.',
+  },
+  {
+    code: '18B',
+    titre: 'ACTIFS ET PASSIFS EVENTUELS',
+    // Par définition, un actif ou un passif ÉVENTUEL n'est pas comptabilisé :
+    // aucune balance ne le porte. La note est donc entièrement en saisie —
+    // ni rattachable, ni en attente de rattachement.
+    horsBalance: true,
+    colonnes: [
+      { type: 'EXERCICE_N' as const, libelle: 'Année N' },
+      { type: 'EXERCICE_N1' as const, libelle: 'Année N-1' },
+    ],
+    rubriques: [
+      { libelle: 'Actif éventuel — Litiges', saisie: true },
+      { libelle: 'Actif éventuel — Autres', saisie: true },
+      { libelle: 'Passif éventuel — Litiges', saisie: true },
+      { libelle: 'Passif éventuel — Autres', saisie: true },
+    ],
+    commentaire:
+      'décrire les principales caractéristiques des actifs / passifs éventuels, l’horizon de temps auquel les ' +
+      'encaissements / décaissements sont attendus et les éventuels remboursements à percevoir.',
+  },
+  // Notes 19, 20 et 21 : les comptes des classes 40 à 47 sont POLYVALENTS —
+  // le même compte porte une créance ou une dette selon le sens de son solde.
+  // Ces notes les filtrent donc au crédit (`sens: 'CREDITEUR'`), et la note 10
+  // au débit. Employer `natureCreditrice`, qui ne filtre pas, ferait figurer
+  // un compte débiteur DANS LES DEUX — en positif à la note 10, en négatif
+  // ici : le même montant compté deux fois, comme le découvert bancaire l'a
+  // été entre les notes 13 et 22.
+  {
+    code: '19',
+    titre: "FOURNISSEURS D'EXPLOITATION",
+    colonnes: COLONNES_AVEC_ECHEANCES_DETTES,
+    renvoyeeDepuis: ['DJ'],
+    rubriques: [
+      { libelle: 'Fournisseurs, dettes en compte', comptes: ['4011', '4013'], sens: 'CREDITEUR' },
+      { libelle: 'Fournisseurs, réserve de propriété', comptes: ['4016'], sens: 'CREDITEUR' },
+      { libelle: 'Fournisseurs, retenue de garantie', comptes: ['4017'], sens: 'CREDITEUR' },
+      { libelle: 'Fournisseurs effets à payer', comptes: ['402'], sens: 'CREDITEUR' },
+      { libelle: 'Fournisseurs factures non parvenues', comptes: ['408'], sens: 'CREDITEUR' },
+      { libelle: 'TOTAL FOURNISSEURS', totalDeRubriques: [0, 1, 2, 3, 4] },
+      // Le compte 409 « Fournisseurs débiteurs » est une CRÉANCE : il se lit
+      // au débit et figure ici en positif, comme le fait la maquette.
+      { libelle: 'Fournisseurs, avances et acomptes', comptes: ['4091'], sens: 'DEBITEUR' },
+      { libelle: 'Fournisseurs sous-traitants, avances et acomptes', comptes: ['4093'], sens: 'DEBITEUR' },
+      { libelle: 'Autres fournisseurs débiteurs', comptes: ['4094', '4098'], sens: 'DEBITEUR' },
+      { libelle: 'TOTAL FOURNISSEURS DEBITEURS', totalDeRubriques: [6, 7, 8] },
+    ],
+    commentaire: 'commenter toute variation significative ; commenter les dettes anciennes.',
+  },
+  {
+    code: '20',
+    titre: 'DETTES FISCALES ET SOCIALES',
+    colonnes: COLONNES_AVEC_ECHEANCES_DETTES,
+    renvoyeeDepuis: ['DK', 'DL'],
+    rubriques: [
+      { libelle: 'Personnel, rémunérations dues', comptes: ['422'], sens: 'CREDITEUR' },
+      { libelle: 'Personnel, congés à payer', comptes: ['4281'], sens: 'CREDITEUR' },
+      { libelle: 'Charges sociales sur congés à payer', comptes: ['4382'], sens: 'CREDITEUR' },
+      {
+        libelle: 'Autres personnel',
+        comptes: ['423', '424', '425', '427', '4286'],
+        sens: 'CREDITEUR',
+      },
+      { libelle: 'Caisse de sécurité sociale', comptes: ['431'], sens: 'CREDITEUR' },
+      { libelle: 'Caisse de retraite', comptes: ['432'], sens: 'CREDITEUR' },
+      { libelle: 'Mutuelle de santé', comptes: ['4331'], sens: 'CREDITEUR' },
+      { libelle: 'Assurance Retraite', comptes: ['4332'], sens: 'CREDITEUR' },
+      { libelle: 'Autres charges sociales à payer', comptes: ['4381', '4386'], sens: 'CREDITEUR' },
+      { libelle: 'Autres cotisations et organismes sociaux', comptes: ['4333'], sens: 'CREDITEUR' },
+      { libelle: 'TOTAL DETTES SOCIALES', totalDeRubriques: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] },
+      { libelle: 'Etat, autres impôts et taxes', comptes: ['442'], sens: 'CREDITEUR' },
+      // 443 facturée, 444 due ou crédit, 445 récupérable, 446 autres taxes :
+      // la rubrique est le solde net de TVA. 445 étant débiteur, un crédit de
+      // TVA y ressort en négatif — c'est bien une créance sur l'Etat.
+      { libelle: 'Etat, TVA', comptes: ['443', '444', '445', '446'], sens: 'CREDITEUR' },
+      { libelle: 'Etat, impôts retenus à la source', comptes: ['447'], sens: 'CREDITEUR' },
+      { libelle: 'Autres dettes Etat', comptes: ['448', '449'], sens: 'CREDITEUR' },
+      { libelle: 'TOTAL DETTES FISCALES', totalDeRubriques: [11, 12, 13, 14] },
+      { libelle: 'TOTAL DETTES SOCIALES ET FISCALES', totalDeRubriques: [10, 15] },
+    ],
+    commentaire: 'commenter toute variation significative ; commenter les dettes anciennes.',
+  },
+  {
+    code: '21',
+    titre: 'AUTRES DETTES ET PROVISIONS POUR RISQUES ET CHARGES A COURT TERME',
+    colonnes: COLONNES_AVEC_ECHEANCES_DETTES,
+    renvoyeeDepuis: ['DM', 'DN'],
+    rubriques: [
+      { libelle: "Fonds d'administration des projets — Bailleurs de fonds", comptes: ['462'], sens: 'CREDITEUR' },
+      { libelle: "Fonds d'administration des projets — Etat", comptes: ['463'], sens: 'CREDITEUR' },
+      {
+        libelle: "Fonds d'administration des projets — Autres organismes de financement assimilés",
+        comptes: ['464'],
+        sens: 'CREDITEUR',
+      },
+      { libelle: "TOTAL BAILLEURS, FONDS D'ADMINISTRATION", totalDeRubriques: [0, 1, 2] },
+      { libelle: 'Créditeurs divers', comptes: ['4711', '4712'], sens: 'CREDITEUR' },
+      {
+        libelle: 'Créditeurs, dons en nature courants non consommées',
+        comptes: ['4713'],
+        sens: 'CREDITEUR',
+      },
+      {
+        libelle: 'Versements restant à effectuer sur titres de placement non libérés',
+        comptes: ['4726'],
+        sens: 'CREDITEUR',
+      },
+      // 475 « Générosités financières à recevoir » est un compte DÉBITEUR ;
+      // le modèle le range pourtant dans cette note de dettes. Transcrit tel
+      // quel, en lecture débitrice, donc en diminution du total.
+      { libelle: 'Générosités financières à recevoir', comptes: ['475'], presenterEnNegatif: true },
+      {
+        libelle: 'Autres créditeurs divers',
+        comptes: ['471', '472', '474', '477', '479'],
+        exclusions: ['4711', '4712', '4713', '4726'],
+        sens: 'CREDITEUR',
+      },
+      { libelle: 'TOTAL CREDITEURS DIVERS', totalDeRubriques: [4, 5, 6, 7, 8] },
+      { libelle: 'TOTAL AUTRES DETTES', totalDeRubriques: [3, 9] },
+      {
+        libelle: 'Provisions pour risques et charges à court terme',
+        comptes: ['499'],
+        sens: 'CREDITEUR',
+        renvoi: 'voir note 30',
+      },
+    ],
+    commentaire: 'de toute variation significative ; des dettes anciennes.',
+  },
 ];

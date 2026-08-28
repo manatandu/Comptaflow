@@ -144,6 +144,14 @@ export interface RubriqueNote {
    * rattachement (test structurel dédié).
    */
   subdivisionAttendue?: string;
+  /**
+   * Rubrique renseignée HORS comptabilité : engagements, actifs et passifs
+   * éventuels, effectifs. Aucune balance ne la porte — elle n'est ni
+   * rattachable (rien à rattacher) ni en attente (rien ne manque au plan) :
+   * elle attend une saisie. Sans ce qualificatif elle serait indistinguable
+   * d'un oubli de rattachement.
+   */
+  saisie?: boolean;
   /** Renvoi de bas de tableau du texte officiel, reproduit tel quel. */
   renvoi?: string;
 }

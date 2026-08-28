@@ -127,10 +127,14 @@ describe('correspondance des notes (intégrité des spécifications)', () => {
     }
   });
 
-  it('une rubrique porte soit des comptes, soit un total, soit une subdivision attendue — jamais rien', () => {
+  it('une rubrique porte soit des comptes, soit un total, soit une subdivision attendue, soit une saisie — jamais rien', () => {
     for (const spec of NOTES_ASSOCIATIONS) {
       for (const r of spec.rubriques) {
-        const definie = (r.comptes?.length ?? 0) > 0 || r.totalDeRubriques !== undefined || r.subdivisionAttendue !== undefined;
+        const definie =
+          (r.comptes?.length ?? 0) > 0 ||
+          r.totalDeRubriques !== undefined ||
+          r.subdivisionAttendue !== undefined ||
+          r.saisie === true;
         expect({ note: spec.code, rubrique: r.libelle, definie }).toEqual({ note: spec.code, rubrique: r.libelle, definie: true });
       }
     }
@@ -252,6 +256,78 @@ describe('NoteAnnexeService', () => {
     const r = await s.notesAssociations('t', 'e1');
     expect(note(r, '13').renvoyeeDepuis).toEqual(['BW']);
     expect(note(r, '9').renvoyeeDepuis).toEqual(['BD', 'DG']);
+  });
+});
+
+describe('recoupement croisé des notes (anti double comptage)', () => {
+  // Deux fois déjà, le même montant s'est retrouvé dans deux notes à la fois :
+  // le découvert bancaire entre les notes 13 et 22, puis les comptes de tiers
+  // polyvalents entre la note 10 et les notes 19 à 21. Ces tests ferment la
+  // classe entière de défaut plutôt que ses deux occurrences.
+
+  /** Somme d'un compte à travers TOUTES les notes, hors lignes de total. */
+  const sommeParNote = (r: any, numero: string) =>
+    r.notes.flatMap((n: any) =>
+      n.lignes
+        .filter((l: any) => !l.estTotal && l.comptes.some((c: any) => c.numero === numero))
+        .map((l: any) => ({ note: n.code, libelle: l.libelle, montant: l.montantN })),
+    );
+
+  it('un compte de tiers DÉBITEUR ne figure que dans la note des créances', async () => {
+    const s = service({ e1: [
+      ligne('43100000', ClasseCompte.CLASSE_4, 900, 0),   // organismes sociaux, débiteur
+      ligne('47170000', ClasseCompte.CLASSE_4, 400, 0),   // débiteurs divers, débiteur
+    ]});
+    const r = await s.notesAssociations('t', 'e1');
+    expect(sommeParNote(r, '43100000').map((x: any) => x.note)).toEqual(['10']);
+    expect(sommeParNote(r, '47170000').map((x: any) => x.note)).toEqual(['10']);
+  });
+
+  it('un compte de tiers CRÉDITEUR ne figure que dans la note des dettes', async () => {
+    const s = service({ e1: [
+      ligne('43100000', ClasseCompte.CLASSE_4, 0, 900),   // organismes sociaux, créditeur
+      ligne('47170000', ClasseCompte.CLASSE_4, 0, 400),   // créditeurs divers
+      ligne('40110000', ClasseCompte.CLASSE_4, 0, 600),   // fournisseurs
+    ]});
+    const r = await s.notesAssociations('t', 'e1');
+    expect(sommeParNote(r, '43100000').map((x: any) => x.note)).toEqual(['20']);
+    expect(sommeParNote(r, '47170000').map((x: any) => x.note)).toEqual(['21']);
+    expect(sommeParNote(r, '40110000').map((x: any) => x.note)).toEqual(['19']);
+  });
+
+  it('475 « Générosités financières à recevoir » n’appartient qu’à la note 21', async () => {
+    // Le modèle officiel lui donne une ligne propre dans la note 21 ; le
+    // ranger AUSSI dans « Autres débiteurs divers » de la note 10 le
+    // compterait deux fois.
+    const s = service({ e1: [ligne('47500000', ClasseCompte.CLASSE_4, 250, 0)] });
+    const r = await s.notesAssociations('t', 'e1');
+    expect(sommeParNote(r, '47500000').map((x: any) => x.note)).toEqual(['21']);
+  });
+
+  it('AUCUN compte du plan de tiers n’est réclamé au même sens par deux notes', async () => {
+    // Balayage systématique : un compte représentatif par divisionnaire des
+    // classes 40 à 47, testé au débit puis au crédit.
+    const DIVISIONNAIRES = [
+      '40110000', '40910000', '41100000', '41910000', '42100000', '42200000',
+      '43100000', '43200000', '44200000', '44700000', '45110000', '46200000',
+      '47110000', '47170000', '47600000',
+    ];
+    for (const numero of DIVISIONNAIRES) {
+      for (const [d, c] of [[1000, 0], [0, 1000]] as const) {
+        const s = service({ e1: [ligne(numero, ClasseCompte.CLASSE_4, d, c)] });
+        const notes: string[] = sommeParNote(await s.notesAssociations('t', 'e1'), numero).map(
+          (x: any) => `${x.note} / ${x.libelle}`,
+        );
+        // Au plus UNE note réclame ce compte dans ce sens. Zéro est possible
+        // et signalerait un trou de couverture — question distincte, traitée
+        // par le dossier de révision (phase 5), pas ici.
+        expect({ numero, sens: d ? 'débit' : 'crédit', notes }).toEqual({
+          numero,
+          sens: d ? 'débit' : 'crédit',
+          notes: notes.slice(0, 1),
+        });
+      }
+    }
   });
 });
 
