@@ -11,8 +11,24 @@ import {
   RubriqueEnAttente,
   RubriqueNote,
   SpecificationNote,
+  TypeColonneNote,
 } from './note-annexe.types';
 import { NOTES_ASSOCIATIONS } from './correspondance-notes-associations';
+
+/**
+ * Une rubrique résolue sur un exercice : le montant au sens de lecture de la
+ * rubrique, plus les agrégats bruts dont les tableaux de situations et
+ * mouvements ont besoin. Ces agrégats restent NON orientés — c'est
+ * `colonnesDeMouvement` qui les oriente selon `sensAccroissement`.
+ */
+interface RubriqueResolue {
+  montant: number;
+  comptes: CompteDeRubrique[];
+  /** Report à-nouveau, en solde (débit − crédit). */
+  report: number;
+  mouvementDebit: number;
+  mouvementCredit: number;
+}
 
 /**
  * Calcule une note annexe à partir de sa spécification déclarative et de la
@@ -121,12 +137,12 @@ export class NoteAnnexeService {
     rubrique: RubriqueNote,
     lignes: LigneBalancePourEtat[],
     numerosRattaches: string[] = [],
-  ): { montant: number; comptes: CompteDeRubrique[] } {
+  ): RubriqueResolue {
     // Les comptes rattachés par le dossier S'AJOUTENT aux préfixes officiels,
     // ils ne les remplacent jamais (voir RattachementNote, prisma/schema.prisma).
     const prefixes = [...(rubrique.comptes ?? []), ...numerosRattaches];
     if (prefixes.length === 0) {
-      return { montant: 0, comptes: [] };
+      return { montant: 0, comptes: [], report: 0, mouvementDebit: 0, mouvementCredit: 0 };
     }
     let matches = lignes.filter((l) => correspond(l.numero, prefixes, rubrique.exclusions));
     if (rubrique.sens === 'DEBITEUR') matches = matches.filter((l) => l.solde > 0);
@@ -145,7 +161,47 @@ export class NoteAnnexeService {
 
     const brut = comptes.reduce((s, c) => s + c.montant, 0);
     // `|| 0` normalise -0 en 0 (même souci de propreté qu'au bilan).
-    return { montant: (rubrique.presenterEnNegatif ? -brut : brut) || 0, comptes };
+    return {
+      montant: (rubrique.presenterEnNegatif ? -brut : brut) || 0,
+      comptes,
+      // Agrégats bruts (jamais retournés au sens de lecture) : les colonnes
+      // A/B/C/D les orientent elles-mêmes selon `sensAccroissement`.
+      report: matches.reduce((s, l) => s + l.reportDebit - l.reportCredit, 0),
+      mouvementDebit: matches.reduce((s, l) => s + l.mouvementDebit, 0),
+      mouvementCredit: matches.reduce((s, l) => s + l.mouvementCredit, 0),
+    };
+  }
+
+  /**
+   * Colonnes A/B/C/D d'un tableau de situations et mouvements (notes 5A-5F, 30).
+   *
+   * A = report à-nouveau, orienté dans le sens du poste ; B et C = mouvements
+   * PROPRES de l'exercice (report exclu — voir `EcritureService.balance`) ;
+   * D = A + B - C, la formule que le texte officiel écrit lui-même en tête de
+   * colonne. D est donc RECALCULÉ, jamais lu : l'écart avec le solde réel de la
+   * balance devient un contrôle offert à l'utilisateur (`ecartCloture`).
+   */
+  private colonnesDeMouvement(
+    spec: SpecificationNote,
+    r: RubriqueResolue,
+  ): { valeurs: Partial<Record<TypeColonneNote, number>>; ecartCloture?: number } {
+    const auCredit = spec.sensAccroissement === 'CREDIT';
+    const ouverture = (auCredit ? -r.report : r.report) || 0;
+    const augmentations = (auCredit ? r.mouvementCredit : r.mouvementDebit) || 0;
+    const diminutions = (auCredit ? r.mouvementDebit : r.mouvementCredit) || 0;
+    const cloture = ouverture + augmentations - diminutions;
+    // `montant` est le solde réel de la balance. `calculerRubrique` ne
+    // l'oriente que si la rubrique porte `sens`/`presenterEnNegatif` — ce que
+    // les tableaux de mouvements ne font pas —, donc l'orientation au sens de
+    // lecture se fait ici, UNE fois. (Une double négation à cet endroit ne se
+    // voyait pas dans le sens débit, où elle est neutre ; le premier cas
+    // crédit l'a fait ressortir avec un écart de 4400 sur un tableau juste.)
+    const reel = auCredit ? -r.montant : r.montant;
+    const ecart = cloture - reel;
+    return {
+      valeurs: { OUVERTURE: ouverture, AUGMENTATIONS: augmentations, DIMINUTIONS: diminutions, CLOTURE: cloture },
+      ecartCloture: Math.abs(ecart) > 0.005 ? ecart : undefined,
+    };
   }
 
   /** Résout toutes les rubriques d'une note pour un exercice donné, totaux compris. */
@@ -153,14 +209,23 @@ export class NoteAnnexeService {
     spec: SpecificationNote,
     lignes: LigneBalancePourEtat[],
     rattachements: Map<string, string[]> = new Map(),
-  ): Array<{ montant: number; comptes: CompteDeRubrique[] }> {
-    const resolues: Array<{ montant: number; comptes: CompteDeRubrique[] }> = [];
+  ): RubriqueResolue[] {
+    const resolues: RubriqueResolue[] = [];
     for (const rubrique of spec.rubriques) {
       if (rubrique.totalDeRubriques) {
         // Un total ne référence que des rubriques déjà résolues — vérifié par
-        // un test structurel sur chaque spécification.
-        const montant = rubrique.totalDeRubriques.reduce((s, i) => s + (resolues[i]?.montant ?? 0), 0);
-        resolues.push({ montant, comptes: [] });
+        // un test structurel sur chaque spécification. Les agrégats de
+        // mouvement se totalisent de la même façon, sinon la ligne TOTAL
+        // GENERAL des notes 5A-5F resterait vide en colonnes A/B/C/D.
+        const cumul = (f: 'montant' | 'report' | 'mouvementDebit' | 'mouvementCredit') =>
+          rubrique.totalDeRubriques!.reduce((s, i) => s + (resolues[i]?.[f] ?? 0), 0);
+        resolues.push({
+          montant: cumul('montant'),
+          comptes: [],
+          report: cumul('report'),
+          mouvementDebit: cumul('mouvementDebit'),
+          mouvementCredit: cumul('mouvementCredit'),
+        });
       } else {
         const cle = rubrique.cle ? `${spec.code}::${rubrique.cle}` : '';
         resolues.push(this.calculerRubrique(rubrique, lignes, rattachements.get(cle) ?? []));
@@ -178,6 +243,9 @@ export class NoteAnnexeService {
   ): NoteCalculee {
     const resN = this.resoudreRubriques(spec, lignesN, rattachements);
     const resN1 = this.resoudreRubriques(spec, lignesN1, rattachements);
+    const aColonnesDeMouvement = spec.colonnes.some((c) =>
+      (['OUVERTURE', 'AUGMENTATIONS', 'DIMINUTIONS', 'CLOTURE'] as TypeColonneNote[]).includes(c.type),
+    );
 
     const toutes: LigneNoteCalculee[] = spec.rubriques.map((rubrique, i) => {
       const montantN = resN[i].montant;
@@ -191,6 +259,9 @@ export class NoteAnnexeService {
       // Une rubrique en attente cesse de l'être dès qu'un compte du dossier
       // lui est rattaché : elle est alors chiffrée comme les autres.
       const rattachee = (rattachements.get(`${spec.code}::${rubrique.cle}`) ?? []).length > 0;
+      // Les colonnes A/B/C/D ne sont calculées que si la note les déclare :
+      // les 38 notes qui n'en ont pas ne portent pas de champ vide.
+      const mouvements = aColonnesDeMouvement ? this.colonnesDeMouvement(spec, resN[i]) : undefined;
       return {
         cle: rubrique.cle,
         libelle: rubrique.libelle,
@@ -201,6 +272,8 @@ export class NoteAnnexeService {
         estTotal: rubrique.totalDeRubriques !== undefined,
         enAttenteDeRattachement: rattachee ? undefined : rubrique.subdivisionAttendue,
         rattachementDuDossier: rattachee || undefined,
+        valeurs: mouvements?.valeurs,
+        ecartCloture: mouvements?.ecartCloture,
         comptes: resN[i].comptes,
         renvoi: rubrique.renvoi,
       };
@@ -209,7 +282,14 @@ export class NoteAnnexeService {
     // § 1.4 : les lignes non chiffrées ne sont pas présentées. Une ligne en
     // attente de rattachement est CONSERVÉE même à zéro : son absence de
     // montant est une information à porter, pas un vide à masquer.
-    const chiffree = (l: LigneNoteCalculee) => Math.abs(l.montantN) > 0.005 || Math.abs(l.montantN1 ?? 0) > 0.005;
+    // Une rubrique est « chiffrée » dès qu'UNE de ses colonnes l'est. Sans
+    // cela, un poste entré et sorti dans l'exercice (ouverture 0, acquisition
+    // 500, cession 500, clôture 0) disparaîtrait des notes 5A-5F alors que
+    // c'est exactement le mouvement que ces tableaux ont pour objet de montrer.
+    const chiffree = (l: LigneNoteCalculee) =>
+      Math.abs(l.montantN) > 0.005 ||
+      Math.abs(l.montantN1 ?? 0) > 0.005 ||
+      Object.values(l.valeurs ?? {}).some((v) => Math.abs(v) > 0.005);
     const applicable = toutes.some((l) => !l.estTotal && chiffree(l));
     const lignes = applicable ? toutes.filter((l) => chiffree(l) || l.estTotal || l.enAttenteDeRattachement) : [];
 

@@ -361,30 +361,70 @@ export class EcritureService {
     );
   }
 
-  /** Balance : solde débit/crédit cumulé par compte sur l'exercice. */
+  /**
+   * Balance : solde débit/crédit cumulé par compte sur l'exercice.
+   *
+   * Chaque ligne porte AUSSI la même somme scindée en deux :
+   *
+   * - `reportDebit` / `reportCredit` — les lignes issues d'écritures générées
+   *   par la clôture (`estGenereeParCloture`). Pour un compte de bilan c'est le
+   *   report à-nouveau, donc la SITUATION À L'OUVERTURE de l'exercice.
+   * - `mouvementDebit` / `mouvementCredit` — tout le reste, c'est-à-dire les
+   *   MOUVEMENTS PROPRES de l'exercice.
+   *
+   * Cette scission n'est pas un raffinement : sans elle, `totalDebit` d'un
+   * compte d'immobilisation englobe le report à-nouveau, et un bâtiment détenu
+   * depuis 2020 serait présenté comme une acquisition de l'exercice dans les
+   * notes 5A à 5F (« AUGMENTATIONS B »). Les tableaux de situations et
+   * mouvements du texte officiel (Partie 4, ch. 2, notes 5A-5F et 30) exigent
+   * précisément cette distinction.
+   *
+   * Réserve, à connaître avant de lire `report*` sur un compte de gestion :
+   * pour un exercice CLÔTURÉ, l'écriture de solde des classes 6 et 7 porte le
+   * même drapeau. Sur une classe 6 ou 7, `report*` est donc la contrepassation
+   * de clôture, pas une ouverture — les charges et les produits ne se
+   * reportent pas. `mouvement*` reste, lui, juste dans tous les cas.
+   */
   async balance(tenantId: string, exerciceId: string) {
     const comptes = await this.prisma.compte.findMany({
       where: { tenantId },
       orderBy: { numero: 'asc' },
       include: {
-        lignesEcriture: { where: { ecriture: { tenantId, exerciceId } } },
+        lignesEcriture: {
+          where: { ecriture: { tenantId, exerciceId } },
+          include: { ecriture: { select: { estGenereeParCloture: true } } },
+        },
       },
     });
 
+    const somme = (lignes: typeof comptes[number]['lignesEcriture'], champ: 'debit' | 'credit') =>
+      lignes.reduce((s, l) => s + Number(l[champ]), 0);
+
     const soldeDirectParCompte = new Map(
-      comptes.map((c) => [
-        c.id,
-        {
-          totalDebit: c.lignesEcriture.reduce((s, l) => s + Number(l.debit), 0),
-          totalCredit: c.lignesEcriture.reduce((s, l) => s + Number(l.credit), 0),
-        },
-      ]),
+      comptes.map((c) => {
+        const report = c.lignesEcriture.filter((l) => l.ecriture.estGenereeParCloture);
+        const mouvement = c.lignesEcriture.filter((l) => !l.ecriture.estGenereeParCloture);
+        return [
+          c.id,
+          {
+            totalDebit: somme(c.lignesEcriture, 'debit'),
+            totalCredit: somme(c.lignesEcriture, 'credit'),
+            reportDebit: somme(report, 'debit'),
+            reportCredit: somme(report, 'credit'),
+            mouvementDebit: somme(mouvement, 'debit'),
+            mouvementCredit: somme(mouvement, 'credit'),
+          },
+        ];
+      }),
     );
+
+    /** Les six agrégats d'une ligne, résolus pareillement pour Détail et Total. */
+    const CHAMPS = ['totalDebit', 'totalCredit', 'reportDebit', 'reportCredit', 'mouvementDebit', 'mouvementCredit'] as const;
+    type Agregats = Record<(typeof CHAMPS)[number], number>;
 
     const lignesBalance = comptes
       .map((c) => {
-        let totalDebit: number;
-        let totalCredit: number;
+        let agregats: Agregats;
         if (c.typeCompte === TypeCompteDetailTotal.TOTAL) {
           // Comptes Total (§3.1) : jamais de mouvement propre (imposé par
           // EcritureService.creer) — leur solde agrège tous les comptes
@@ -394,10 +434,11 @@ export class EcritureService {
           const enfantsDetail = comptes.filter(
             (autre) => autre.id !== c.id && autre.numero.startsWith(c.numero) && autre.typeCompte === TypeCompteDetailTotal.DETAIL,
           );
-          totalDebit = enfantsDetail.reduce((s, e) => s + soldeDirectParCompte.get(e.id)!.totalDebit, 0);
-          totalCredit = enfantsDetail.reduce((s, e) => s + soldeDirectParCompte.get(e.id)!.totalCredit, 0);
+          agregats = Object.fromEntries(
+            CHAMPS.map((f) => [f, enfantsDetail.reduce((s, e) => s + soldeDirectParCompte.get(e.id)![f], 0)]),
+          ) as Agregats;
         } else {
-          ({ totalDebit, totalCredit } = soldeDirectParCompte.get(c.id)!);
+          agregats = soldeDirectParCompte.get(c.id)!;
         }
         return {
           compteId: c.id,
@@ -405,9 +446,8 @@ export class EcritureService {
           intitule: c.intitule,
           classe: c.classe,
           typeCompte: c.typeCompte,
-          totalDebit,
-          totalCredit,
-          solde: totalDebit - totalCredit,
+          ...agregats,
+          solde: agregats.totalDebit - agregats.totalCredit,
         };
       })
       .filter((l) => l.totalDebit !== 0 || l.totalCredit !== 0);

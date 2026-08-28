@@ -62,6 +62,17 @@ const COLONNES_AVEC_ECHEANCES_CREANCES = [
 ];
 
 /**
+ * Colonnes des TABLEAUX DE SITUATIONS ET MOUVEMENTS (notes 5A à 5F, 30).
+ * Le texte officiel nomme lui-même les colonnes A, B, C et pose « D = A + B - C ».
+ */
+const COLONNES_MOUVEMENTS = [
+  { type: 'OUVERTURE' as const, libelle: "A — Montant brut à l'ouverture" },
+  { type: 'AUGMENTATIONS' as const, libelle: 'AUGMENTATIONS B' },
+  { type: 'DIMINUTIONS' as const, libelle: 'DIMINUTIONS C' },
+  { type: 'CLOTURE' as const, libelle: 'D = A + B - C (Montant brut à la clôture)' },
+];
+
+/**
  * Rubrique que le plan de comptes NORMALISÉ ne permet pas de déterminer : le
  * dossier doit y rattacher ses propres sous-comptes (voir `RattachementNote`).
  * Le texte passé en second argument est montré tel quel à l'utilisateur.
@@ -254,5 +265,168 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     ],
     commentaire:
       'commenter toute variation significative ; indiquer la nature des fournitures ; détailler achats autres activités.',
+  },
+
+  // ======================================================================
+  // TABLEAUX DE SITUATIONS ET MOUVEMENTS
+  //
+  // A = report à-nouveau (l'ouverture) ; B et C = mouvements PROPRES de
+  // l'exercice ; D = A + B - C, recalculé. La distinction report/mouvements
+  // vient de `EcritureService.balance` : sans elle, un bâtiment détenu depuis
+  // 2020 serait présenté en acquisition de l'exercice.
+  //
+  // Découpage des comptes de la classe 2 (Partie 2, ch. 2). Trois rubriques
+  // de la maquette n'ont PAS de compte au plan normalisé — « immeuble de
+  // placement » n'est subdivisé qu'à l'actif brut (2281, 2315, 2325, 2396),
+  // jamais dans les amortissements (28) ni dans les dépréciations (29). Elles
+  // sont donc déclarées en attente de rattachement, pas rattachées au jugé.
+  // ======================================================================
+  {
+    code: '5B',
+    titre: 'IMMOBILISATIONS BRUTES',
+    colonnes: COLONNES_MOUVEMENTS,
+    renvoyeeDepuis: ['AE', 'AF', 'AG', 'AH', 'AI', 'AJ', 'AK', 'AL', 'AM'],
+    rubriques: [
+      { libelle: 'Brevets, licences et droits similaires', comptes: ['212'] },
+      { libelle: 'Logiciels et sites internet', comptes: ['213'] },
+      { libelle: 'Avances et acomptes sur immobilisations incorporelles', comptes: ['251'] },
+      { libelle: 'Autres immobilisations incorporelles', comptes: ['214', '218', '219'] },
+      { libelle: 'SOUS TOTAL : IMMOBILISATIONS INCORPORELLES', totalDeRubriques: [0, 1, 2, 3] },
+      // 2281 « Terrains - immeubles de placement » est le SEUL divisionnaire
+      // de placement de la classe 22 : la rubrique « hors placement » est donc
+      // tout le reste de 22, et l'exclusion suffit à la déterminer.
+      { libelle: 'Terrains hors immeuble de placement', comptes: ['22'], exclusions: ['2281'] },
+      { libelle: 'Terrains - immeuble de placement', comptes: ['2281'] },
+      {
+        libelle: 'Bâtiments hors immeuble de placement',
+        comptes: ['231', '232', '233', '2391', '2392', '2393'],
+        exclusions: ['2315', '2325'],
+      },
+      { libelle: 'Bâtiments - immeuble de placement', comptes: ['2315', '2325', '2396'] },
+      { libelle: 'Aménagements, agencements et installations', comptes: ['234', '235', '238', '2394', '2395', '2398'] },
+      {
+        libelle: 'Matériel, mobilier et actifs biologiques',
+        comptes: ['241', '242', '243', '244', '246', '247', '248', '249'],
+        exclusions: ['2495'],
+      },
+      { libelle: 'Matériel de transport', comptes: ['245', '2495'] },
+      { libelle: 'Avances et acomptes sur immobilisations corporelles', comptes: ['252'] },
+      { libelle: 'SOUS TOTAL : IMMOBILISATIONS CORPORELLES', totalDeRubriques: [5, 6, 7, 8, 9, 10, 11, 12] },
+      { libelle: 'Titres de participation', comptes: ['26'] },
+      { libelle: 'Autres immobilisations financières', comptes: ['27'] },
+      { libelle: 'SOUS TOTAL : IMMOBILISATIONS FINANCIERES', totalDeRubriques: [14, 15] },
+      { libelle: 'TOTAL GENERAL', totalDeRubriques: [4, 13, 16] },
+    ],
+    commentaire:
+      'toute variation significative doit être commentée ; pour les banques, DAT indiquer le nom de la banque, ' +
+      'le montant et la date d\'échéance ; donner le détail des produits et charges liés aux immeubles de placement.',
+  },
+  {
+    code: '5E',
+    titre: 'IMMOBILISATIONS (AMORTISSEMENTS)',
+    sensAccroissement: 'CREDIT',
+    // Le texte officiel donne CINQ colonnes et la formule « E = A + B - C - D »,
+    // où D est « Virements de poste à poste ».
+    //
+    // [texte officiel] Deux difficultés, signalées et non corrigées :
+    //   1. La formule retranche D. Un virement de poste à poste est pourtant
+    //      un transfert : ce qui sort d'un poste entre dans un autre, et la
+    //      colonne ne peut être soustraite des deux côtés sans déséquilibrer
+    //      le tableau. La note 5A, qui traite le même sujet, place au contraire
+    //      les « Virements de poste à poste » DANS les augmentations B ET dans
+    //      les diminutions C. La formule de la 5E est reproduite telle quelle.
+    //   2. Un virement de poste à poste ne se distingue pas, en balance, d'un
+    //      mouvement ordinaire : les deux sont un débit et un crédit sur des
+    //      comptes d'amortissement. La colonne D est donc déclarée LIBRE
+    //      (saisie), et la colonne de clôture reste D = A + B - C. Un virement
+    //      non saisi se signale alors de lui-même par `ecartCloture`.
+    colonnes: [
+      { type: 'OUVERTURE' as const, libelle: "A — Amortissements cumulés à l'ouverture" },
+      { type: 'AUGMENTATIONS' as const, libelle: "B — Augmentations : Dotations de l'exercice" },
+      {
+        type: 'DIMINUTIONS' as const,
+        libelle: "C — Diminutions : Amortissements relatifs aux éléments sortis de l'actif ; Reprises amortissements",
+      },
+      { type: 'LIBRE' as const, libelle: 'D — Virements de poste à poste' },
+      { type: 'CLOTURE' as const, libelle: 'E = A + B - C - D (Cumuls des amortissements à la clôture)' },
+    ],
+    renvoyeeDepuis: ['AE', 'AF', 'AG', 'AH', 'AI', 'AJ', 'AK', 'AL', 'AM'],
+    rubriques: [
+      { libelle: 'Brevets, licences et droits similaires', comptes: ['2812'] },
+      { libelle: 'Logiciels et sites internet', comptes: ['2813'] },
+      { libelle: 'Autres immobilisations incorporelles', comptes: ['2814', '2817', '2818'] },
+      { libelle: 'SOUS TOTAL : IMMOBILISATIONS INCORPORELLES', totalDeRubriques: [0, 1, 2] },
+      { libelle: 'Terrains hors immeuble de placement', comptes: ['282'] },
+      enAttente(
+        'terrains-immeuble-placement',
+        'Terrains-immeuble de placement',
+        'Le compte 282 « Amortissements des terrains » n\'est pas subdivisé par destination : ' +
+          'créer un sous-compte des terrains-immeubles de placement et le rattacher ici.',
+      ),
+      { libelle: 'Bâtiments hors immeuble de placement', comptes: ['2831', '2832', '2833'] },
+      enAttente(
+        'batiments-immeuble-placement',
+        'Bâtiments immeubles de placement',
+        'Le compte 283 n\'a pas de divisionnaire « immeuble de placement » (contrairement à l\'actif brut, ' +
+          'comptes 2315 et 2325) : créer un sous-compte dédié et le rattacher ici.',
+      ),
+      { libelle: 'Aménagements, agencements et installations', comptes: ['2834', '2835', '2838'] },
+      {
+        libelle: 'Matériel, mobilier et actifs biologiques',
+        comptes: ['2841', '2842', '2843', '2844', '2846', '2847', '2848'],
+      },
+      { libelle: 'Matériel de transport', comptes: ['2845'] },
+      { libelle: 'SOUS TOTAL : IMMOBILISATIONS CORPORELLES', totalDeRubriques: [4, 5, 6, 7, 8, 9, 10] },
+      { libelle: 'TOTAL GENERAL', totalDeRubriques: [3, 11] },
+    ],
+    commentaire:
+      'indiquer les modes d\'amortissement utilisés ; la durée d\'utilité ou les taux d\'amortissements utilisés.',
+  },
+  {
+    code: '5F',
+    titre: 'IMMOBILISATIONS (DEPRECIATIONS)',
+    sensAccroissement: 'CREDIT',
+    colonnes: [
+      { type: 'OUVERTURE' as const, libelle: "A — Dépréciations cumulées à l'ouverture" },
+      { type: 'AUGMENTATIONS' as const, libelle: "B — Augmentations : dotations de l'exercice" },
+      { type: 'DIMINUTIONS' as const, libelle: "C — Diminutions : reprises de l'exercice" },
+      { type: 'CLOTURE' as const, libelle: 'D = A + B - C (Cumul des dépréciations à la clôture)' },
+    ],
+    renvoyeeDepuis: ['AE', 'AF', 'AG', 'AH', 'AI', 'AJ', 'AK', 'AL', 'AM'],
+    rubriques: [
+      { libelle: 'Brevets, licences et droits similaires', comptes: ['2912'] },
+      { libelle: 'Logiciels et sites internet', comptes: ['2913'] },
+      { libelle: 'Avances et acomptes sur immobilisations incorporelles', comptes: ['2951'] },
+      { libelle: 'Autres immobilisations incorporelles', comptes: ['2914', '2918', '2919'] },
+      { libelle: 'SOUS TOTAL : IMMOBILISATIONS INCORPORELLES', totalDeRubriques: [0, 1, 2, 3] },
+      { libelle: 'Terrains hors immeuble de placement', comptes: ['292'] },
+      enAttente(
+        'terrains-immeuble-placement',
+        'Terrains - immeuble de placement',
+        'Le compte 292 « Dépréciations des terrains » n\'est pas subdivisé par destination : ' +
+          'créer un sous-compte des terrains-immeubles de placement et le rattacher ici.',
+      ),
+      { libelle: 'Bâtiments hors immeuble de placement', comptes: ['2931', '2932', '2933', '2939'] },
+      enAttente(
+        'batiments-immeuble-placement',
+        'Bâtiments - immeuble de placement',
+        'Le compte 293 n\'a pas de divisionnaire « immeuble de placement » (contrairement à l\'actif brut, ' +
+          'comptes 2315 et 2325) : créer un sous-compte dédié et le rattacher ici.',
+      ),
+      { libelle: 'Aménagements, agencements et installations', comptes: ['2934', '2935', '2938'] },
+      {
+        libelle: 'Matériel, mobilier et actifs biologiques',
+        comptes: ['2941', '2942', '2943', '2944', '2946', '2947', '2948', '2949'],
+      },
+      { libelle: 'Matériel de transport', comptes: ['2945'] },
+      { libelle: 'Avances et acomptes sur immobilisations corporelles', comptes: ['2952'] },
+      { libelle: 'SOUS TOTAL : IMMOBILISATIONS CORPORELLES', totalDeRubriques: [5, 6, 7, 8, 9, 10, 11, 12] },
+      { libelle: 'Titres de participation', comptes: ['296'] },
+      { libelle: 'Autres immobilisations financières', comptes: ['297'] },
+      { libelle: 'SOUS TOTAL : IMMOBILISATIONS FINANCIERES', totalDeRubriques: [14, 15] },
+      { libelle: 'TOTAL DES IMMOBILISATIONS DEPRECIEES', totalDeRubriques: [4, 13, 16] },
+    ],
+    commentaire:
+      'indiquer les événements et circonstances qui ont conduit à la dépréciation et à la reprise.',
   },
 ];

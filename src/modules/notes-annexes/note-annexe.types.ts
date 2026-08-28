@@ -47,10 +47,24 @@ export type TypeColonneNote =
   | 'EXERCICE_N1'
   | 'VARIATION_VALEUR' // N − N-1
   | 'VARIATION_POURCENT' // (N − N-1) / |N-1|
+  // --- Tableaux de situations et mouvements (notes 5A à 5F et 30) ---
+  // Le texte officiel les nomme A, B, C, D et pose lui-même « D = A + B - C ».
+  | 'OUVERTURE' // A — situation à l'ouverture (le report à-nouveau)
+  | 'AUGMENTATIONS' // B — mouvements de l'exercice qui accroissent le poste
+  | 'DIMINUTIONS' // C — mouvements de l'exercice qui le réduisent
+  | 'CLOTURE' // D = A + B - C, recalculé et non lu tel quel (voir écartCloture)
   | 'ECHEANCE_1AN' // « à un an au plus »
   | 'ECHEANCE_2ANS' // « à plus d'un an et à deux ans au plus »
   | 'ECHEANCE_PLUS_2ANS' // « à plus de deux ans »
   | 'LIBRE'; // colonne renseignée hors comptabilité (devises, échéances, cours…)
+
+/**
+ * Sens dans lequel les mouvements ACCROISSENT le poste d'un tableau de
+ * situations et mouvements. Une immobilisation brute s'accroît au débit ; un
+ * amortissement ou une dépréciation (notes 5D, 5E, 5F) s'accroît au crédit —
+ * ses « dotations de l'exercice » sont des mouvements créditeurs.
+ */
+export type SensAccroissement = 'DEBIT' | 'CREDIT';
 
 export interface ColonneNote {
   type: TypeColonneNote;
@@ -117,6 +131,12 @@ export interface SpecificationNote {
   titre: string;
   colonnes: ColonneNote[];
   rubriques: RubriqueNote[];
+  /**
+   * Pour un tableau de situations et mouvements : sens dans lequel les
+   * mouvements accroissent le poste. `DEBIT` par défaut (immobilisations
+   * brutes) ; `CREDIT` pour les notes d'amortissements et de dépréciations.
+   */
+  sensAccroissement?: SensAccroissement;
   /** Le commentaire officiel de bas de note, reproduit mot pour mot. */
   commentaire?: string;
   /**
@@ -160,6 +180,20 @@ export interface LigneNoteCalculee {
   enAttenteDeRattachement?: string;
   /** Comptes rattachés par le dossier (et non déduits du plan normalisé). */
   rattachementDuDossier?: boolean;
+  /**
+   * Valeurs des colonnes que les quatre champs ci-dessus ne portent pas —
+   * `OUVERTURE`, `AUGMENTATIONS`, `DIMINUTIONS`, `CLOTURE`. Renseignée
+   * uniquement pour les colonnes que la note déclare.
+   */
+  valeurs?: Partial<Record<TypeColonneNote, number>>;
+  /**
+   * Écart entre la clôture recalculée (D = A + B - C) et le solde réellement
+   * porté par la balance. Zéro attendu ; toute valeur non nulle est une
+   * ANOMALIE du dossier — typiquement un report à-nouveau manquant ou une
+   * écriture passée hors des comptes de la rubrique. Présentée à
+   * l'utilisateur plutôt que corrigée en silence.
+   */
+  ecartCloture?: number;
   comptes: CompteDeRubrique[];
   renvoi?: string;
 }

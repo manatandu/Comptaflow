@@ -5,10 +5,24 @@ import { ExerciceService } from '../exercice/exercice.service';
 import { NOTES_ASSOCIATIONS } from './correspondance-notes-associations';
 import { PrismaService } from '../../common/prisma.service';
 
-function ligne(numero: string, classe: ClasseCompte, d: number, c: number) {
+/**
+ * Une ligne de balance. `report` porte le report à-nouveau (débit, crédit) —
+ * ce que `EcritureService.balance` isole depuis les écritures générées par la
+ * clôture ; `d`/`c` sont alors les mouvements PROPRES de l'exercice, et les
+ * totaux la somme des deux, exactement comme le fait le service.
+ */
+function ligne(
+  numero: string, classe: ClasseCompte, d: number, c: number,
+  report: [number, number] = [0, 0],
+) {
+  const [rd, rc] = report;
   return {
     compteId: `id-${numero}`, numero, intitule: `Compte ${numero}`, classe,
-    typeCompte: TypeCompteDetailTotal.DETAIL, totalDebit: d, totalCredit: c, solde: d - c,
+    typeCompte: TypeCompteDetailTotal.DETAIL,
+    totalDebit: d + rd, totalCredit: c + rc,
+    reportDebit: rd, reportCredit: rc,
+    mouvementDebit: d, mouvementCredit: c,
+    solde: d + rd - c - rc,
   };
 }
 /** Rattachements du dossier tels que la base les renverrait. */
@@ -183,6 +197,92 @@ describe('NoteAnnexeService', () => {
     const r = await s.notesAssociations('t', 'e1');
     expect(note(r, '13').renvoyeeDepuis).toEqual(['BW']);
     expect(note(r, '9').renvoyeeDepuis).toEqual(['BD', 'DG']);
+  });
+});
+
+describe('tableaux de situations et mouvements (notes 5A-5F, 30)', () => {
+  const val = (n: any, libelle: string) => ligneDe(n, libelle).valeurs;
+
+  it('sens DÉBIT : le report à-nouveau est l’OUVERTURE, jamais une acquisition de l’exercice', async () => {
+    // LE défaut que cette colonne existe pour empêcher : un bâtiment détenu
+    // depuis un exercice antérieur (report 9000) plus une acquisition de
+    // l'exercice (1000) et une cession (400).
+    const s = service({ e1: [
+      ligne('23110000', ClasseCompte.CLASSE_2, 1000, 400, [9000, 0]),
+    ]});
+    const n5b = note(await s.notesAssociations('t', 'e1'), '5B');
+    expect(val(n5b, 'Bâtiments hors immeuble de placement')).toEqual({
+      OUVERTURE: 9000, AUGMENTATIONS: 1000, DIMINUTIONS: 400, CLOTURE: 9600,
+    });
+    // et le solde réel de la balance confirme : 9000 + 1000 - 400 = 9600
+    expect(ligneDe(n5b, 'Bâtiments hors immeuble de placement').ecartCloture).toBeUndefined();
+  });
+
+  it('sens CRÉDIT : sur un amortissement, la dotation est une AUGMENTATION', async () => {
+    // Amortissement : ouverture au crédit 2000, dotation de l'exercice 500
+    // (crédit), reprise sur sortie d'actif 300 (débit).
+    const s = service({ e1: [
+      ligne('28440000', ClasseCompte.CLASSE_2, 300, 500, [0, 2000]),
+    ]});
+    const n5e = note(await s.notesAssociations('t', 'e1'), '5E');
+    expect(val(n5e, 'Matériel, mobilier et actifs biologiques')).toEqual({
+      OUVERTURE: 2000, AUGMENTATIONS: 500, DIMINUTIONS: 300, CLOTURE: 2200,
+    });
+    expect(ligneDe(n5e, 'Matériel, mobilier et actifs biologiques').ecartCloture).toBeUndefined();
+  });
+
+  it('les totaux cumulent les colonnes A/B/C/D, pas seulement le solde', async () => {
+    const s = service({ e1: [
+      ligne('21200000', ClasseCompte.CLASSE_2, 100, 0, [700, 0]),   // Brevets
+      ligne('21300000', ClasseCompte.CLASSE_2, 50, 20, [300, 0]),   // Logiciels
+    ]});
+    const n5b = note(await s.notesAssociations('t', 'e1'), '5B');
+    expect(val(n5b, 'SOUS TOTAL : IMMOBILISATIONS INCORPORELLES')).toEqual({
+      OUVERTURE: 1000, AUGMENTATIONS: 150, DIMINUTIONS: 20, CLOTURE: 1130,
+    });
+    expect(val(n5b, 'TOTAL GENERAL')).toEqual({
+      OUVERTURE: 1000, AUGMENTATIONS: 150, DIMINUTIONS: 20, CLOTURE: 1130,
+    });
+  });
+
+  it('§1.4 : un poste entré ET sorti dans l’exercice reste présenté, malgré une clôture nulle', async () => {
+    // Sans la règle « chiffrée = une colonne au moins », cette ligne
+    // disparaîtrait — alors que c'est précisément le mouvement que le tableau
+    // a pour objet de montrer.
+    const s = service({ e1: [ligne('24500000', ClasseCompte.CLASSE_2, 500, 500)] });
+    const n5b = note(await s.notesAssociations('t', 'e1'), '5B');
+    const l = ligneDe(n5b, 'Matériel de transport');
+    expect(l).toBeDefined();
+    expect(l.valeurs).toEqual({ OUVERTURE: 0, AUGMENTATIONS: 500, DIMINUTIONS: 500, CLOTURE: 0 });
+  });
+
+  it('signale un écart entre la clôture recalculée et le solde de la balance', async () => {
+    // Report à-nouveau manquant : la balance porte un solde de 9600 mais
+    // aucune ouverture. D = 0 + 1000 - 400 = 600, contre 600 réel... on force
+    // donc l'incohérence en déclarant un solde qui ne suit pas ses agrégats.
+    const bancal = { ...ligne('23110000', ClasseCompte.CLASSE_2, 1000, 400), solde: 9600 };
+    const s = service({ e1: [bancal] });
+    const n5b = note(await s.notesAssociations('t', 'e1'), '5B');
+    expect(ligneDe(n5b, 'Bâtiments hors immeuble de placement').ecartCloture).toBeCloseTo(-9000, 6);
+  });
+
+  it('les rubriques « immeuble de placement » des notes 5E et 5F sont en attente, pas rattachées au jugé', async () => {
+    // Le plan ne subdivise « immeuble de placement » qu'à l'actif brut
+    // (2281, 2315, 2325, 2396) — jamais en 28 ni en 29.
+    const s = service({ e1: [] });
+    const r = await s.notesAssociations('t', 'e1');
+    for (const code of ['5E', '5F']) {
+      const cles = r.ficheRecapitulative.find((f) => f.code === code)!.rubriquesEnAttente.map((x) => x.cle);
+      expect(cles).toEqual(['terrains-immeuble-placement', 'batiments-immeuble-placement']);
+    }
+    // ... alors que la 5B, elle, les détermine sans jugement.
+    expect(r.ficheRecapitulative.find((f) => f.code === '5B')!.rubriquesEnAttente).toEqual([]);
+  });
+
+  it('une note SANS colonnes de mouvement ne porte aucune valeur A/B/C/D', async () => {
+    const s = service({ e1: [ligne('52110000', ClasseCompte.CLASSE_5, 8000, 0)] });
+    const n13 = note(await s.notesAssociations('t', 'e1'), '13');
+    expect(ligneDe(n13, 'Banques locales').valeurs).toBeUndefined();
   });
 });
 

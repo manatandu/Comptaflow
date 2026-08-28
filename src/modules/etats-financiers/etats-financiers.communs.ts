@@ -28,6 +28,12 @@ export interface LigneBalancePourEtat {
   typeCompte: TypeCompteDetailTotal;
   totalDebit: number;
   totalCredit: number;
+  /** Report à-nouveau (écritures de clôture) — l'ouverture, pour un compte de bilan. */
+  reportDebit: number;
+  reportCredit: number;
+  /** Mouvements propres de l'exercice, report à-nouveau exclu. */
+  mouvementDebit: number;
+  mouvementCredit: number;
   solde: number;
 }
 
