@@ -18,7 +18,14 @@ export class TiersService {
   private async trouver(tenantId: string, tiersId: string) {
     const tiers = await this.prisma.tiers.findFirst({
       where: { id: tiersId, tenantId },
-      include: { modeleReglement: true, comptesRattaches: { include: { compte: true } } },
+      include: {
+        modeleReglement: true,
+        // orderBy explicite : sans lui, Postgres ne garantit aucun ordre
+        // stable, et l'ordre peut visiblement changer après un simple UPDATE
+        // (ex. bascule du compte Principal) — repéré en testant le bouton
+        // "Détacher" dans l'UI (la ligne visée changeait de position).
+        comptesRattaches: { include: { compte: true }, orderBy: { createdAt: 'asc' } },
+      },
     });
     if (!tiers) {
       throw new NotFoundException('Tiers introuvable pour ce tenant');
@@ -42,7 +49,14 @@ export class TiersService {
     };
     return this.prisma.tiers.findMany({
       where,
-      include: { modeleReglement: true, comptesRattaches: { include: { compte: true } } },
+      include: {
+        modeleReglement: true,
+        // orderBy explicite : sans lui, Postgres ne garantit aucun ordre
+        // stable, et l'ordre peut visiblement changer après un simple UPDATE
+        // (ex. bascule du compte Principal) — repéré en testant le bouton
+        // "Détacher" dans l'UI (la ligne visée changeait de position).
+        comptesRattaches: { include: { compte: true }, orderBy: { createdAt: 'asc' } },
+      },
       orderBy: { code: 'asc' },
     });
   }

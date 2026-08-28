@@ -262,7 +262,18 @@ Ordre de dépendances techniques réelles, pas un simple ordre de préférence :
    build jusqu'ici) : clôture Partielle réelle via l'UI (sélection du journal,
    date, soumission, apparition dans la liste), puis clôture annuelle (bouton
    avec `confirm()` du navigateur, capturé et accepté), sélecteur d'exercice
-   passé à "Clôturé", bouton devenu "EXERCICE DÉJÀ CLÔTURÉ". Brique complète.
+   passé à "Clôturé", bouton devenu "EXERCICE DÉJÀ CLÔTURÉ".
+   **Second passage** : les formulaires Totale et Période, et le bouton
+   "Annuler" une clôture réversible, n'avaient encore jamais été cliqués en
+   Playwright (seulement Partielle et la clôture annuelle). Vérifiés à leur
+   tour : clôture Totale sur un journal puis Période tous journaux confondus
+   (apparaissent bien toutes les deux dans la liste, sans bouton "Annuler" —
+   cohérent, elles sont définitives), puis clôture Partielle + "Annuler" avec
+   confirmation du navigateur → passage à "ANNULÉE", bouton disparu. Aucun bug
+   trouvé (une apparente incohérence d'affichage lors du test s'est révélée
+   être un artefact de timing du script de test, pas de l'application — un
+   rechargement de page confirme que les 3 clôtures restent toutes visibles).
+   Brique complète.
 4. ✅ **Tiers** — livré : 4 types (Client/Fournisseur/Salarié/Autre), comptes
    généraux rattachés (`TiersCompte`, un compte n'appartient qu'à un seul tiers —
    contrainte `@unique` sur `compteId`, un seul marqué Principal à la fois, imposé
@@ -288,6 +299,18 @@ Ordre de dépendances techniques réelles, pas un simple ordre de préférence :
    via Playwright : tiers créé, compte avec un solde réel de 250 rattaché,
    solde 250 bien affiché dans le tableau, clic sur "Lettrage" navigue
    correctement vers l'écran de lettrage du compte.
+   **Second passage** : les boutons "Rattacher", "Définir principal" et
+   "Détacher" n'avaient eux non plus jamais été cliqués en Playwright
+   (seulement curl). Un second vrai bug trouvé et corrigé :
+   `TiersService.trouver()` n'imposait aucun `orderBy` explicite sur
+   `comptesRattaches` — Postgres ne garantit aucun ordre stable sans lui, et
+   l'ordre affiché changeait visiblement après un simple `UPDATE` (bascule du
+   compte Principal), ce qui rendait le bouton "Détacher" de la mauvaise
+   ligne trompeur pour l'utilisateur (rien ne bougeait à l'écran entre le
+   clic et le résultat, mais la ligne visée n'était plus la même). Corrigé
+   par `orderBy: { createdAt: 'asc' }`. Vérifié via Playwright, deux comptes
+   rattachés, bascule Principal puis détachement : ordre désormais stable
+   d'un rafraîchissement à l'autre, la bonne ligne est toujours détachée.
 5. ✅ **TVA / taux de taxes** — livré, entité paramétrable **et appliquée à la
    saisie**. `TauxTva` (code, intitule, taux %, compte de TVA collectée 443 et
    compte de TVA déductible 445 rattachés, actif/inactif). Fondé sur
@@ -326,6 +349,10 @@ Ordre de dépendances techniques réelles, pas un simple ordre de préférence :
    O.-L., significatif pour une association ayant des activités à la fois
    exonérées et taxables) et la comptabilisation automatique de la
    liquidation (écriture sur le compte 444) — restent à construire.
+   **Approfondissement** : `TauxTvaPage` elle-même (l'écran `/taux-tva`, pas
+   seulement l'API) n'avait jamais été cliquée en Playwright — création d'un
+   taux et bascule actif/inactif vérifiées directement dans l'UI. Aucun bug
+   trouvé.
 6. **Comptes "Total"/regroupement par racine** — brique technique courte, prépare le
    moteur de mapping.
 7. **Rapprochement bancaire** (manuel d'abord).
