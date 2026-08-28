@@ -141,6 +141,21 @@ export interface LigneBalance {
   solde: number;
 }
 
+export interface LigneGrandLivre {
+  id: string;
+  date: string;
+  journalCode: string;
+  numeroPiece: number | null;
+  libelle: string;
+  reference: string | null;
+  debit: number;
+  credit: number;
+  lettre: string | null;
+  soldeProgressif: number;
+  /** Comptes de sens opposé dans la même écriture — voir ExportService.grandLivreExcel. */
+  contrepartie: string[];
+}
+
 export interface LigneBilan {
   numero: string;
   intitule: string;

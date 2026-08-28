@@ -15,6 +15,7 @@ import { TiersModule } from './modules/tiers/tiers.module';
 import { TvaModule } from './modules/tva/tva.module';
 import { RapprochementModule } from './modules/rapprochement/rapprochement.module';
 import { ImmobilisationsModule } from './modules/immobilisations/immobilisations.module';
+import { ExportsModule } from './modules/exports/exports.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { ImmobilisationsModule } from './modules/immobilisations/immobilisations
     RapprochementModule,
     ImmobilisationsModule,
     EtatsFinanciersModule,
+    ExportsModule,
     UtilisateursModule,
   ],
 })

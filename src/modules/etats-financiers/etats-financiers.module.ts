@@ -9,5 +9,6 @@ import { JwtAuthModule } from '../auth/jwt-auth.module';
   imports: [ComptabiliteModule, LicenceModule, JwtAuthModule],
   controllers: [EtatsFinanciersController],
   providers: [EtatsFinanciersService],
+  exports: [EtatsFinanciersService],
 })
 export class EtatsFinanciersModule {}

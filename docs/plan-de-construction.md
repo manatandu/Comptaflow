@@ -753,9 +753,79 @@ Ordre de dépendances techniques réelles, pas un simple ordre de préférence :
     famille vérifiés par classe ET préfixe numérique (`ClasseCompte.
     CLASSE_2` seul ne distingue pas un compte d'immobilisation 20-27 d'un
     compte d'amortissement 28-29, qui partagent la même classe).
-11. **Moteur de mapping / états financiers configurables** (s'appuie sur 6 et 10).
-12. **Comptabilité analytique par projet/bailleur** (spécifique SYCEBNL).
-13. Puis, au choix selon opportunité business : **Trésorerie avancée** (lots, LCR/
+11. ✅ **Export Excel — Journal, Grand livre, Balance, Bilan** — livré. Demande
+    explicite (séance du 2026-08-28) : produire des documents comptables
+    exploitables pour l'audit, un PDF étant difficile à recouper ligne à
+    ligne — inspirée d'un dossier d'audit réel (CARRIGRES, SYSCOHADA)
+    analysé en profondeur sur demande de l'utilisateur, mais **sans copier
+    ni ses données ni son plan de comptes** : seul le principe « produire du
+    Excel auditable plutôt que du PDF » a été retenu, tout le reste reste
+    strictement SYCEBNL/OHADA.
+
+    Module `exports` (`ExportService` + `ExportController`, `exceljs`),
+    4 endpoints (`GET /exports/journal`, `/exports/grand-livre/:compteId`,
+    `/exports/balance`, `/exports/etats-financiers/bilan`), chacun réutilise
+    le service métier existant (`EcritureService`, `EtatsFinanciersService`)
+    plutôt que de dupliquer une requête — pas de logique comptable propre à
+    l'export.
+
+    **Colonne « compte contrepartie » du Grand livre** (demande explicite,
+    pour retracer une écriture sans connaître son journal) : discussion
+    approfondie avec l'utilisateur avant implémentation, plusieurs
+    itérations rejetées à raison (liste brute de tous les autres comptes →
+    doublon possible si le même compte apparaît sur 2 lignes ; correction
+    « moins soi-même » → toujours faux dans le cas réel N débits/M crédits
+    simultanés). Règle finalement retenue : **comptes DISTINCTS de sens
+    opposé (débit/crédit) dans la même écriture** — exacte et non ambiguë
+    dans l'écrasante majorité des cas réels (2 lignes, N débits/1 crédit, 1
+    débit/M crédits), la même règle qui exclut par construction le doublon
+    de soi-même (une ligne au débit ne peut jamais apparaître parmi les
+    comptes crédités). Dans le cas rare d'une écriture à débits ET crédits
+    multiples simultanés (N×M pur), la cellule affiche la liste des comptes
+    candidats séparés par « + » plutôt qu'un choix arbitraire faussement
+    précis — signalé en commentaire de cellule Excel et en `title` HTML côté
+    écran. Calculée dans `EcritureService.grandLivre()` (partagée par
+    l'écran et l'export, pas de logique dupliquée) et exposée dans l'onglet
+    GRAND LIVRE de l'écran « Journal & grand livre » (jusque-là annoncé dans
+    le titre de la page mais jamais construit — écart comblé au passage).
+
+    Alternative envisagée et explicitement écartée pour l'instant : un
+    modèle à la Banana Accounting, où chaque écriture est décomposée en
+    mouvements élémentaires 1-pour-1 (chaque compte a une seule contrepartie
+    déclarée à la saisie, jamais reconstruite après coup). Rejetée pour
+    cette brique parce qu'elle exigerait un nouveau niveau de modèle
+    (`Mouvement`, entre `Ecriture` et `LigneEcriture`), une refonte de la
+    saisie dans tous les modules qui postent des écritures, et serait
+    impossible à appliquer rétroactivement aux écritures déjà en base (leur
+    répartition N×M n'a jamais été déclarée). Notée comme piste d'évolution
+    future si le besoin de précision N×M devient réellement gênant en
+    pratique — pas construite maintenant.
+
+    Bilan Excel : reprend explicitement le regroupement SIMPLIFIÉ
+    classe→poste du module `etats-financiers` (MVP, voir son propre
+    avertissement) — PAS le tableau de correspondance officiel SYCEBNL
+    (Partie 4, ch. 2). L'avertissement est écrit en toutes lettres dans une
+    cellule du classeur (règle §2.6 : jamais caché). Le remplacement par le
+    vrai moteur `liasse/` du skill `sycebnl` (gabarit + tableau de
+    correspondance vérifié contre le Journal officiel) est le sujet de
+    l'item suivant, pas de celui-ci — cet export Bilan n'est qu'un
+    conteneur Excel autour du calcul MVP existant, pas un nouveau moteur de
+    montage.
+
+    Vérifié de bout en bout sur un tenant réel : 4 endpoints testés en curl
+    (200, fichiers `.xlsx` valides, contenu relu et vérifié colonne par
+    colonne) puis en Playwright (connexion, téléchargement réel déclenché
+    depuis chaque bouton « Exporter Excel » des 4 écrans, fichier
+    téléchargé recontrôlé et identique à l'aperçu affiché à l'écran) — cas
+    2 lignes (contrepartie unique), N débits/1 crédit (contrepartie unique
+    par ligne du côté multiple), et N débits/M crédits simultanés
+    (liste `47110000 + 47120000`, pas de faux choix) tous les trois
+    couverts par des écritures de test réelles.
+12. **Moteur de mapping / états financiers configurables** (s'appuie sur 6 et 10) —
+    remplacerait le regroupement simplifié classe→poste de `etats-financiers` par
+    le vrai tableau de correspondance SYCEBNL (moteur `liasse/` du skill `sycebnl`).
+13. **Comptabilité analytique par projet/bailleur** (spécifique SYCEBNL).
+14. Puis, au choix selon opportunité business : **Trésorerie avancée** (lots, LCR/
     virements), **Stocks**, **SYSCOHADA (Phase 3)**, **OHADA→IFRS**, **Paie**, RBAC fin.
 
 Cette liste n'engage rien : chaque brique reste soumise à validation explicite avant

@@ -16,15 +16,29 @@ export function EtatsFinanciersPage() {
 
   useRibbon([{ titre: 'IMPRESSION', boutons: [{ label: 'Exporter PDF', Icon: IconExport }] }]);
 
+  const exporterBilan = () => {
+    if (!exerciceCourant) return;
+    api.telecharger(`/exports/etats-financiers/bilan?exerciceId=${exerciceCourant.id}`, 'bilan.xlsx');
+  };
+
   return (
     <div className="p-2.5">
       <div className="flex items-center justify-between mb-2.5">
         <h1 className="text-[15px] font-bold">États financiers — Bilan associatif</h1>
-        {exerciceCourant && (
-          <span className="font-mono text-[11px] border border-border bg-surface px-2.5 py-1.5">
-            Exercice {new Date(exerciceCourant.dateDebut).getFullYear()}
-          </span>
-        )}
+        <div className="flex items-center gap-2.5">
+          {exerciceCourant && (
+            <span className="font-mono text-[11px] border border-border bg-surface px-2.5 py-1.5">
+              Exercice {new Date(exerciceCourant.dateDebut).getFullYear()}
+            </span>
+          )}
+          <button
+            onClick={exporterBilan}
+            className="flex items-center gap-1.5 border border-border bg-surface px-3 py-1.5 text-[11px] font-bold hover:bg-surface-alt"
+          >
+            <IconExport width={13} height={13} />
+            Exporter Excel
+          </button>
+        </div>
       </div>
 
       {!bilan && <div className="text-[12px] text-text-dim">Chargement…</div>}

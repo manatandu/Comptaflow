@@ -163,23 +163,49 @@ export class EcritureService {
         compteId,
         ecriture: { tenantId, ...(exerciceId ? { exerciceId } : {}) },
       },
-      include: { ecriture: { include: { journal: true } } },
+      include: {
+        ecriture: {
+          include: { journal: true, lignes: { include: { compte: true } } },
+        },
+      },
       orderBy: { ecriture: { date: 'asc' } },
     });
 
     let solde = 0;
     const lignesAvecSolde = lignes.map((l) => {
-      solde += Number(l.debit) - Number(l.credit);
+      const debit = Number(l.debit);
+      const credit = Number(l.credit);
+      solde += debit - credit;
+
+      // Compte(s) contrepartie — voir docs/plan-de-construction.md
+      // (« Export Excel — compte contrepartie ») : comptes DISTINCTS de
+      // sens opposé dans la même écriture. Exact et non ambigu dans les cas
+      // usuels (2 lignes, N débits/1 crédit, 1 débit/M crédits) ; dans le
+      // cas rare d'une écriture à débits ET crédits multiples simultanés
+      // (N×M), la liste porte plusieurs comptes candidats plutôt qu'un
+      // choix arbitraire faussement précis.
+      const sensDeLaLigne = debit > 0 ? 'DEBIT' : 'CREDIT';
+      const contrepartie = [
+        ...new Set(
+          l.ecriture.lignes
+            .filter((autre) => autre.id !== l.id)
+            .filter((autre) => (Number(autre.debit) > 0 ? 'DEBIT' : 'CREDIT') !== sensDeLaLigne)
+            .map((autre) => autre.compte.numero),
+        ),
+      ];
+
       return {
         id: l.id,
         date: l.ecriture.date,
         journalCode: l.ecriture.journal.code,
+        numeroPiece: l.ecriture.numeroPiece,
         libelle: l.libelle ?? l.ecriture.libelle,
         reference: l.ecriture.reference,
-        debit: Number(l.debit),
-        credit: Number(l.credit),
+        debit,
+        credit,
         lettre: l.lettre,
         soldeProgressif: solde,
+        contrepartie,
       };
     });
 
