@@ -161,6 +161,21 @@ export class ExportController {
     envoyerXlsx(res, await this.exportService.notesAssociationsExcel(user.tenantId, exerciceId));
   }
 
+  /**
+   * Registre des donateurs (art. 17) et constatations de conformité (art. 18).
+   * Le classeur est destiné à être imprimé et présenté : l'art. 17 admet la
+   * « version électronique » mais la version physique reste « cotée, paraphée
+   * et numérotée de façon continue par la juridiction compétente ».
+   */
+  @Get('registre-donateurs')
+  async registreDonateurs(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    envoyerXlsx(res, await this.exportService.registreDonateursExcel(user.tenantId, exerciceId));
+  }
+
   /** Notes annexes du jeu « projets de développement et assimilés » — 26 notes. */
   @Get('notes-annexes/projet')
   async notesProjet(

@@ -74,6 +74,10 @@ export function Ribbon({ groupes, droite }: { groupes: RibbonGroupe[]; droite?: 
       items: [
         { label: 'États financiers', onClick: () => navigate('/etats-financiers') },
         { label: 'Notes annexes', onClick: () => navigate('/notes-annexes') },
+        // Document comptable OBLIGATOIRE au même titre que le livre-journal et
+        // le grand-livre (Partie 2 ch. 2), et pénalement sanctionné (art. 24) :
+        // il a sa place dans le menu, pas dans un recoin.
+        { label: 'Registre des donateurs', onClick: () => navigate('/registre-donateurs') },
         { label: 'Déclaration TVA', onClick: () => navigate('/declaration-tva') },
         { label: 'Balance âgée', disabled: true, indication: 'à venir' },
       ],

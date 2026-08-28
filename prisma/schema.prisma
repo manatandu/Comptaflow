@@ -84,6 +84,7 @@ model Tenant {
   tiers                  Tiers[]
   bailleurs              Bailleur[]
   rattachementsNotes     RattachementNote[]
+  donations              Donation[]
   modelesReglement       ModeleReglement[]
   tauxTva                TauxTva[]
   rapprochements         RapprochementBancaire[]
@@ -325,6 +326,11 @@ model Ecriture {
   immobilisationAcquisition Immobilisation?        @relation("ImmoEcritureAcquisition")
   immobilisationSortie      Immobilisation?        @relation("ImmoEcritureSortie")
   dotationAmortissement     DotationAmortissement?
+
+  // Registre des donateurs (art. 17) — une écriture d'encaissement peut porter
+  // PLUSIEURS libéralités (une remise de chèques, une collecte de quête), d'où
+  // une relation 1-N et non 1-1.
+  donations Donation[]
 
   // Chemin de filtrage de TOUS les états (journal, grand livre, balance,
   // états financiers) : tenant + exercice, trié par date. Sans index, chaque
@@ -865,4 +871,126 @@ model DotationAmortissement {
 
   @@unique([immobilisationId, exerciceId])
   @@map("dotations_amortissement")
+}
+
+// ---------------------------------------------------------------------------
+// REGISTRE DES DONATEURS — article 17 de l'Acte uniforme SYCEBNL.
+//
+// « Il est établi pour chaque entité à but non lucratif un registre des
+// donateurs pour tous les dons, donations et legs reçus par l'entité. »
+//
+// Ce n'est pas un confort : l'ARTICLE 24 sanctionne PÉNALEMENT les dirigeants
+// « qui n'ont pas tenu et mis à jour le registre des donateurs ». Trois
+// exigences du texte ont donc force de loi et façonnent ce modèle :
+//
+//  1. « coté, paraphé et NUMÉROTÉ DE FAÇON CONTINUE par la juridiction
+//     compétente » — d'où `numero`, entier, unique par dossier et attribué
+//     sans trou par le service. Un registre à trous n'est pas continu, donc
+//     pas conforme : la suppression d'une ligne est IMPOSSIBLE (voir
+//     `annulee`), une erreur s'annule en conservant son numéro, exactement
+//     comme une écriture comptable se contre-passe au lieu d'être effacée.
+//  2. « Toutes les écritures contenues dans ce registre doivent être SIGNÉES
+//     par le représentant légal de l'entité » — d'où `signeePar` et `signeeLe`.
+//  3. « Ce registre peut être tenu en version physique reliée, brochée ou en
+//     VERSION ÉLECTRONIQUE » — c'est cet alinéa qui autorise expressément ce
+//     que fait ce module.
+//
+// Le contenu obligatoire (art. 17, points 1 à 4) est repris champ par champ
+// ci-dessous, y compris la distinction personne physique / personne morale,
+// qui commande deux jeux d'identifiants différents.
+// ---------------------------------------------------------------------------
+
+/// Art. 17, points 2 et 3 : le texte impose des identifiants DIFFÉRENTS selon
+/// la nature du donateur — nom/prénoms/domicile pour une personne physique,
+/// dénomination/immatriculation/NIF/siège pour une personne morale.
+enum TypeDonateur {
+  PERSONNE_PHYSIQUE
+  PERSONNE_MORALE
+}
+
+/// Art. 17, point 4 : « le montant et le MODE DE LIBÉRATION du don/legs mis à
+/// la disposition de l'entité en espèces, par chèque, par virement ou en
+/// nature ». Les quatre modes sont ceux du texte, ni plus ni moins.
+enum ModeLiberation {
+  ESPECES
+  CHEQUE
+  VIREMENT
+  NATURE
+}
+
+/// Nature de la libéralité, telle que l'article 17 l'énumère : « tous les
+/// dons, donations et legs ».
+enum NatureLiberalite {
+  DON
+  DONATION
+  LEGS
+}
+
+model Donation {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  /// Numéro d'ordre CONTINU dans le registre du dossier (art. 17). Attribué
+  /// par le service, jamais par le client, et jamais réutilisé.
+  numero Int
+
+  /// Art. 17, point 1 : « la date de l'opération ».
+  dateOperation DateTime
+
+  nature       NatureLiberalite
+  typeDonateur TypeDonateur
+
+  // --- Art. 17, point 2 : personne physique ---
+  nom      String?
+  prenoms  String?
+  domicile String?
+
+  // --- Art. 17, point 3 : personne morale ---
+  denomination                String?
+  numeroImmatriculation       String?
+  numeroIdentificationFiscale String?
+  adresseSiegeSocial          String?
+
+  /// Commun aux deux : le texte exige l'adresse électronique dans les deux cas.
+  adresseElectronique String?
+
+  // --- Art. 17, point 4 : montant et mode de libération ---
+  montant           Decimal        @db.Decimal(18, 2)
+  modeLiberation    ModeLiberation
+  /// Description du bien lorsque le mode de libération est NATURE — le texte
+  /// admet le don en nature sans en fixer le formalisme.
+  designationNature String?
+
+  /// Art. 17 : « Toutes les écritures contenues dans ce registre doivent être
+  /// signées par le représentant légal de l'entité à but non lucratif. »
+  /// Une ligne non signée reste une ligne du registre (elle existe, elle est
+  /// numérotée) mais le rapport de conformité la signale : c'est une lacune
+  /// à voir, pas une saisie à refuser.
+  signeePar String?
+  signeeLe  DateTime?
+
+  /// Écriture comptable correspondante, quand elle existe. Facultatif :
+  /// l'inscription au registre et l'enregistrement comptable sont deux
+  /// obligations DISTINCTES (art. 17 d'un côté, art. 16 de l'autre) — c'est
+  /// justement leur rapprochement qui révèle un don comptabilisé mais non
+  /// inscrit, ou l'inverse.
+  ecritureId String?
+  ecriture   Ecriture? @relation(fields: [ecritureId], references: [id])
+
+  /// Une ligne erronée est ANNULÉE, jamais supprimée : la numérotation doit
+  /// rester continue (art. 17). Même principe que la contre-passation d'une
+  /// écriture. Le motif est obligatoire à l'annulation (imposé par le service).
+  annulee         Boolean   @default(false)
+  motifAnnulation String?
+  annuleeLe       DateTime?
+
+  createdAt DateTime @default(now())
+  /// Piste d'audit non optionnelle : l'article 24 sanctionne les DIRIGEANTS,
+  /// le registre doit donc dire qui a inscrit chaque ligne.
+  createdBy String
+
+  @@unique([tenantId, numero])
+  @@index([tenantId, dateOperation])
+  @@map("registre_donateurs")
 }

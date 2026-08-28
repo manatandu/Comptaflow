@@ -19,6 +19,7 @@ import { ImmobilisationsModule } from './modules/immobilisations/immobilisations
 import { ExportsModule } from './modules/exports/exports.module';
 import { BailleursModule } from './modules/bailleurs/bailleurs.module';
 import { NotesAnnexesModule } from './modules/notes-annexes/notes-annexes.module';
+import { RegistreDonateursModule } from './modules/registre-donateurs/registre-donateurs.module';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { NotesAnnexesModule } from './modules/notes-annexes/notes-annexes.module
     UtilisateursModule,
     BailleursModule,
     NotesAnnexesModule,
+    RegistreDonateursModule,
   ],
 })
 export class AppModule {}

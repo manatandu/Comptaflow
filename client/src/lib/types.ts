@@ -592,3 +592,89 @@ export interface ResultatNotesJeu {
   ficheRecapitulative: LigneFicheRecapitulative[];
   couverture: { transcrites: number; attendues: number };
 }
+
+// ---------------------------------------------------------------------------
+// Registre des donateurs — articles 17, 18 et 24 de l'Acte uniforme SYCEBNL
+// ---------------------------------------------------------------------------
+
+export type TypeDonateur = 'PERSONNE_PHYSIQUE' | 'PERSONNE_MORALE';
+export type ModeLiberation = 'ESPECES' | 'CHEQUE' | 'VIREMENT' | 'NATURE';
+export type NatureLiberalite = 'DON' | 'DONATION' | 'LEGS';
+
+export interface Donation {
+  id: string;
+  /** Numéro d'ordre continu (art. 17) — attribué par le serveur, jamais saisi. */
+  numero: number;
+  dateOperation: string;
+  nature: NatureLiberalite;
+  typeDonateur: TypeDonateur;
+  nom: string | null;
+  prenoms: string | null;
+  domicile: string | null;
+  denomination: string | null;
+  numeroImmatriculation: string | null;
+  numeroIdentificationFiscale: string | null;
+  adresseSiegeSocial: string | null;
+  adresseElectronique: string | null;
+  montant: number;
+  modeLiberation: ModeLiberation;
+  designationNature: string | null;
+  signeePar: string | null;
+  signeeLe: string | null;
+  ecritureId: string | null;
+  ecriture: { id: string; date: string; libelle: string; numeroPiece: number | null } | null;
+  annulee: boolean;
+  motifAnnulation: string | null;
+  annuleeLe: string | null;
+}
+
+export interface ManquementArticle17 {
+  champ: string;
+  exigence: string;
+}
+
+export interface CompteRegistre {
+  numero: string;
+  intitule: string;
+  lecture: 'NET_CREDIT' | 'CREDIT_SEUL';
+  fondement: string;
+  montant: number;
+  comptes: { numero: string; intitule: string; montant: number }[];
+}
+
+/** Constatations de l'article 18 — jamais un avis, voir DonationService. */
+export interface RapportConformiteRegistre {
+  exercice: { id: string; dateDebut: string; dateFin: string };
+  existence: {
+    registreOuvert: boolean;
+    lignesTotalRegistre: number;
+    lignesSurExercice: number;
+    lignesAnnuleesSurExercice: number;
+  };
+  numerotation: {
+    exigence: string;
+    premier: number | null;
+    dernier: number | null;
+    trous: number[];
+    doublons: number[];
+    continue: boolean;
+  };
+  signature: {
+    exigence: string;
+    lignesNonSignees: { id: string; numero: number; dateOperation: string; montant: number }[];
+  };
+  completude: {
+    lignesIncompletes: { id: string; numero: number; dateOperation: string; manquements: ManquementArticle17[] }[];
+  };
+  rapprochement: {
+    totalRegistre: number;
+    totalComptable: number;
+    ecart: number;
+    rapproche: boolean;
+    lecture: string;
+    comptesLiberalite: CompteRegistre[];
+    comptesFrontiere: CompteRegistre[];
+    comptesHorsPerimetre: CompteRegistre[];
+    avertissement: string;
+  };
+}

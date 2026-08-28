@@ -293,11 +293,38 @@ cotisations. Le choix pilote à la fois les écritures et une mention obligatoir
 
 | # | Obligation | Source | Enjeu |
 |---|---|---|---|
-| C1 | **Registre des donateurs** — coté, paraphé, numéroté en continu ; date, identité complète du donateur, montant et mode de libération ; signature du représentant légal ; version électronique expressément admise | art. 17-18 · P2 ch. 2 | **Sanction pénale** en cas de registre non tenu ou non mis à jour (art. 24) |
+| C1 | ✅ **Registre des donateurs** — coté, paraphé, numéroté en continu ; date, identité complète du donateur, montant et mode de libération ; signature du représentant légal ; version électronique expressément admise | art. 17-18 · P2 ch. 2 | **Sanction pénale** en cas de registre non tenu ou non mis à jour (art. 24) |
 | C2 | **Livre d'inventaire** — transcription des états financiers de l'exercice et du résumé de l'opération d'inventaire | art. 14 · P2 ch. 2 | **Sanction pénale** (art. 24) |
 | C3 | **Rapport d'activité** — situation de l'exercice écoulé, perspectives, évolution de la trésorerie, événements importants survenus après la clôture | art. 16-3 | **Sanction pénale** (art. 24) |
 | C4 | **Correction d'erreur par inscription en négatif** — « toute correction d'erreur découverte sur l'exercice en cours s'effectue exclusivement par l'inscription en négatif des éléments erronés ; l'enregistrement exact est ensuite opéré » | art. 20 AUDCIF, via P2 ch. 2 | Les écritures sont déjà immuables dans l'application, mais **aucune fonction de contre-passation n'existe** |
 | C5 | Centralisation des journaux auxiliaires **au moins chaque semaine** dans le livre-journal ou le grand-livre | P2 ch. 2 | Contrainte de périodicité si des journaux auxiliaires sont introduits |
+
+**C1 réalisé** (`src/modules/registre-donateurs/`). Trois garanties tirées du texte, et non de
+l'ergonomie :
+
+- **numérotation continue** — le numéro est attribué par le serveur, jamais saisi, et la
+  contrainte `@@unique([tenantId, numero])` arbitre les inscriptions concurrentes (rejeu sur
+  P2002). Aucune route `DELETE` n'existe : effacer une ligne ouvrirait un trou dans une
+  numérotation que l'art. 17 veut continue. Une erreur s'**annule** avec motif en gardant son
+  numéro, comme une écriture se contre-passe ;
+- **mentions manquantes signalées, jamais bloquantes** — l'art. 18 organise expressément un
+  rapport « sur sa tenue conforme », donc un registre dont la conformité se constate a
+  posteriori ; et l'art. 24 sanctionne le *défaut de tenue*. Refuser un don réel parce que
+  l'adresse électronique du donateur est inconnue pousserait à ne l'inscrire nulle part, ce qui
+  est l'infraction elle-même. Seules les **incohérences** sont refusées (un NIF sur une personne
+  physique mélange les points 2 et 3 de l'art. 17) ;
+- **rapprochement avec la comptabilité** (`correspondance-registre.ts`) — aucun tableau de
+  correspondance officiel n'existe pour ce rapprochement : le périmètre est construit compte par
+  compte, chaque entrée portant sa citation. Deux points de méthode y sont décisifs :
+  - les dons en nature (7542, 8415) et les fonds de dons et legs d'immobilisations (167, 171)
+    se lisent **au crédit seul**. Lus en net, l'extourne de clôture des dons non consommés
+    (P3 ch. 4 § 1.2) amputerait le total comptable et accuserait le registre d'un manquement
+    inexistant ;
+  - le **parrainage (7047)** et les **célébrations (7045)** sont chiffrés mais **jamais agrégés**.
+    Le plan les range sous « Revenus liés à la générosité » alors que le parrainage est défini
+    « en vue d'en retirer un bénéfice direct », ce qui contredit le « sans contrepartie » de la
+    définition de la donation. Le texte ne tranche pas : le rapport expose les deux lectures avec
+    leurs citations et laisse le dossier décider (règle §2.6).
 
 ---
 

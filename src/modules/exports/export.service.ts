@@ -6,6 +6,7 @@ import { EcritureService } from '../comptabilite/ecriture.service';
 import { EtatsFinanciersService, PosteCalcule } from '../etats-financiers/etats-financiers.service';
 import { EtatsFinanciersProjetService } from '../etats-financiers/etats-financiers-projet.service';
 import { NoteAnnexeService } from '../notes-annexes/note-annexe.service';
+import { DonationService, manquementsArticle17 } from '../registre-donateurs/donation.service';
 import { ColonneNote, LigneNoteCalculee, NoteCalculee, TypeColonneNote } from '../notes-annexes/note-annexe.types';
 
 const ENTETE_FONT = { bold: true } as const;
@@ -52,6 +53,7 @@ export class ExportService {
     private readonly etatsFinanciersService: EtatsFinanciersService,
     private readonly etatsFinanciersProjetService: EtatsFinanciersProjetService,
     private readonly noteAnnexeService: NoteAnnexeService,
+    private readonly donationService: DonationService,
   ) {}
 
   private nouveauClasseur(): ExcelJS.Workbook {
@@ -1392,6 +1394,197 @@ export class ExportService {
       buffer: await this.versBuffer(this.construireClasseurNotes(resultat)),
       nomFichier: `notes-annexes-projet${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
     };
+  }
+
+  // -------------------------------------------------------------------------
+  // Registre des donateurs (art. 17-18)
+  // -------------------------------------------------------------------------
+
+  /**
+   * Le registre lui-même, plus le rapport de conformité de l'article 18.
+   *
+   * L'article 17 admet expressément que « ce registre peut être tenu en
+   * version physique reliée, brochée ou en version électronique » — mais la
+   * version physique reste « cotée, paraphée et numérotée de façon continue
+   * PAR LA JURIDICTION COMPÉTENTE ». Ce classeur est donc conçu pour être
+   * imprimé et présenté : le numéro d'ordre est la PREMIÈRE colonne, les
+   * lignes sortent dans l'ordre de leur numérotation, et les lignes annulées
+   * y figurent — barrées et motivées — parce qu'un registre dont on aurait
+   * retiré les annulations se présenterait à la juridiction avec des trous.
+   */
+  async registreDonateursExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
+    const [lignes, rapport] = await Promise.all([
+      this.donationService.lister(tenantId, { exerciceId }),
+      this.donationService.rapportConformite(tenantId, exerciceId),
+    ]);
+
+    const classeur = this.nouveauClasseur();
+    this.feuilleRegistre(classeur, lignes);
+    this.feuilleConformite(classeur, rapport);
+    this.feuilleRapprochementRegistre(classeur, rapport.rapprochement);
+
+    return {
+      buffer: await this.versBuffer(classeur),
+      nomFichier: `registre-donateurs${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
+    };
+  }
+
+  private feuilleRegistre(classeur: ExcelJS.Workbook, lignes: any[]) {
+    const feuille = classeur.addWorksheet('Registre des donateurs');
+    // L'ordre des colonnes suit l'article 17 : numéro d'ordre, puis point 1
+    // (date), puis nature, puis points 2 et 3 (identité selon le type de
+    // donateur), puis point 4 (montant et mode de libération), puis la
+    // signature exigée par le dernier alinéa.
+    feuille.columns = [
+      { header: 'N°', key: 'numero', width: 7 },
+      { header: 'Date de l’opération', key: 'dateOperation', width: 16 },
+      { header: 'Nature', key: 'nature', width: 11 },
+      { header: 'Type de donateur', key: 'typeDonateur', width: 18 },
+      { header: 'Nom', key: 'nom', width: 20 },
+      { header: 'Prénoms', key: 'prenoms', width: 20 },
+      { header: 'Domicile', key: 'domicile', width: 26 },
+      { header: 'Dénomination', key: 'denomination', width: 26 },
+      { header: 'N° d’immatriculation', key: 'numeroImmatriculation', width: 22 },
+      { header: 'N° d’identification fiscale', key: 'numeroIdentificationFiscale', width: 22 },
+      { header: 'Adresse du siège social', key: 'adresseSiegeSocial', width: 28 },
+      { header: 'Adresse électronique', key: 'adresseElectronique', width: 26 },
+      { header: 'Montant', key: 'montant', width: 14 },
+      { header: 'Mode de libération', key: 'modeLiberation', width: 18 },
+      { header: 'Désignation du bien (nature)', key: 'designationNature', width: 30 },
+      { header: 'Signée par (représentant légal)', key: 'signeePar', width: 28 },
+      { header: 'Signée le', key: 'signeeLe', width: 16 },
+      { header: 'Écriture comptable', key: 'ecriture', width: 24 },
+      { header: 'Annulée', key: 'annulee', width: 9 },
+      { header: 'Motif d’annulation', key: 'motifAnnulation', width: 34 },
+      { header: 'Mentions manquantes (art. 17)', key: 'manquements', width: 34 },
+    ];
+
+    for (const d of lignes) {
+      const rang = feuille.addRow({
+        ...d,
+        dateOperation: new Date(d.dateOperation),
+        signeeLe: d.signeeLe ? new Date(d.signeeLe) : null,
+        ecriture: d.ecriture ? `${d.ecriture.numeroPiece ?? ''} ${d.ecriture.libelle}`.trim() : '',
+        annulee: d.annulee ? 'OUI' : '',
+        manquements: manquementsArticle17(d).map((m) => m.champ).join(', '),
+      });
+      // Barrée, pas retirée : son numéro reste occupé (art. 17).
+      if (d.annulee) rang.font = { strike: true, color: { argb: 'FF999999' } };
+    }
+
+    this.appliquerFormats(feuille, { dateOperation: FORMAT_DATE, signeeLe: FORMAT_DATE, montant: FORMAT_MONTANT });
+    this.finaliserTableau(feuille, feuille.columns.length, lignes.length + 1);
+  }
+
+  /** Constatations de l'article 18, dans l'ordre où elles se lisent. */
+  private feuilleConformite(classeur: ExcelJS.Workbook, rapport: any) {
+    const feuille = classeur.addWorksheet('Conformité (art. 18)');
+    feuille.columns = [
+      { header: 'Constatation', key: 'constatation', width: 44 },
+      { header: 'Résultat', key: 'resultat', width: 22 },
+      { header: 'Fondement / détail', key: 'detail', width: 96 },
+    ];
+
+    const n = rapport.numerotation;
+    const nonSignees = rapport.signature.lignesNonSignees;
+    const incompletes = rapport.completude.lignesIncompletes;
+
+    const constats: Array<[string, string, string]> = [
+      [
+        'Existence du registre',
+        rapport.existence.registreOuvert ? 'OUI' : 'NON',
+        `Art. 18 : le rapport « constate l’existence du registre des donateurs ». ${rapport.existence.lignesTotalRegistre} ligne(s) au registre, dont ${rapport.existence.lignesSurExercice} sur l’exercice (${rapport.existence.lignesAnnuleesSurExercice} annulée(s)).`,
+      ],
+      [
+        'Numérotation continue',
+        n.continue ? 'CONFORME' : 'NON CONFORME',
+        `${n.exigence} Numéros ${n.premier ?? '—'} à ${n.dernier ?? '—'}.` +
+          (n.trous.length ? ` Trous : ${n.trous.join(', ')}.` : '') +
+          (n.doublons.length ? ` Doublons : ${n.doublons.join(', ')}.` : ''),
+      ],
+      [
+        'Signature du représentant légal',
+        nonSignees.length === 0 ? 'CONFORME' : `${nonSignees.length} ligne(s) non signée(s)`,
+        `${rapport.signature.exigence}` +
+          (nonSignees.length ? ` Lignes n° ${nonSignees.map((l: any) => l.numero).join(', ')}.` : ''),
+      ],
+      [
+        'Contenu obligatoire (art. 17, points 1 à 4)',
+        incompletes.length === 0 ? 'CONFORME' : `${incompletes.length} ligne(s) incomplète(s)`,
+        incompletes.length
+          ? incompletes
+              .map((l: any) => `n° ${l.numero} : ${l.manquements.map((m: any) => m.champ).join(', ')}`)
+              .join(' ; ')
+          : 'Toutes les mentions exigées sont renseignées.',
+      ],
+      [
+        'Rapprochement avec la comptabilité',
+        rapport.rapprochement.rapproche ? 'RAPPROCHÉ' : `Écart de ${rapport.rapprochement.ecart}`,
+        rapport.rapprochement.lecture,
+      ],
+    ];
+    for (const [constatation, resultat, detail] of constats) {
+      const rang = feuille.addRow({ constatation, resultat, detail });
+      const conforme = ['OUI', 'CONFORME', 'RAPPROCHÉ'].includes(resultat);
+      rang.getCell('resultat').font = { bold: true, color: { argb: conforme ? 'FF1B7F3B' : 'FFB3261E' } };
+      rang.getCell('detail').alignment = { wrapText: true, vertical: 'top' };
+    }
+    this.finaliserTableau(feuille, 3, constats.length + 1);
+
+    // L'article 18 laisse l'AVIS à l'auditeur (ou la déclaration aux
+    // dirigeants) : le classeur s'arrête aux constatations et le dit.
+    const reserve = feuille.addRow([
+      'Ces constatations ne valent pas avis. Art. 18 : « S’il existe un auditeur, ce dernier soumet […] un rapport qui constate l’existence du registre des donateurs et donne son avis sur sa tenue conforme. S’il n’existe pas d’auditeur, une déclaration des dirigeants attestant de la tenue conforme du registre des donateurs est annexée audit rapport ou soumise à l’assemblée générale ou l’instance qui en tient lieu. »',
+    ]);
+    reserve.font = { italic: true, color: { argb: 'FF555555' } };
+    feuille.mergeCells(`A${reserve.number}:C${reserve.number}`);
+  }
+
+  /** Le rapprochement, avec les comptes frontière chiffrés mais jamais agrégés. */
+  private feuilleRapprochementRegistre(classeur: ExcelJS.Workbook, r: any) {
+    const feuille = classeur.addWorksheet('Rapprochement comptable');
+    feuille.columns = [
+      { header: 'Catégorie', key: 'categorie', width: 22 },
+      { header: 'Compte', key: 'numero', width: 10 },
+      { header: 'Intitulé', key: 'intitule', width: 52 },
+      { header: 'Lecture', key: 'lecture', width: 14 },
+      { header: 'Montant', key: 'montant', width: 14 },
+      { header: 'Fondement (texte officiel)', key: 'fondement', width: 110 },
+    ];
+
+    const bloc = (categorie: string, comptes: any[]) => {
+      for (const c of comptes) {
+        const rang = feuille.addRow({ categorie, ...c });
+        rang.getCell('fondement').alignment = { wrapText: true, vertical: 'top' };
+        if (categorie !== 'Libéralité') rang.font = { color: { argb: 'FF777777' } };
+      }
+    };
+    bloc('Libéralité', r.comptesLiberalite);
+    bloc('Frontière', r.comptesFrontiere);
+    bloc('Hors périmètre', r.comptesHorsPerimetre);
+
+    const derniere = feuille.lastRow!.number;
+    this.appliquerFormats(feuille, { montant: FORMAT_MONTANT });
+    this.finaliserTableau(feuille, 6, derniere);
+
+    feuille.addRow([]);
+    const totaux: Array<[string, number | string]> = [
+      ['Total comptabilisé (comptes « Libéralité » seuls)', r.totalComptable],
+      ['Total du registre sur l’exercice', r.totalRegistre],
+      ['Écart', r.ecart],
+    ];
+    for (const [libelle, valeur] of totaux) {
+      const rang = feuille.addRow({ intitule: libelle, montant: valeur });
+      rang.font = ENTETE_FONT;
+      rang.getCell('montant').numFmt = FORMAT_MONTANT;
+    }
+    const lecture = feuille.addRow({ intitule: r.lecture });
+    lecture.font = { italic: true, color: { argb: r.rapproche ? 'FF1B7F3B' : 'FFB3261E' } };
+
+    const avertissement = feuille.addRow([r.avertissement]);
+    avertissement.font = { italic: true, color: { argb: 'FF555555' } };
+    avertissement.alignment = { wrapText: true, vertical: 'top' };
+    feuille.mergeCells(`A${avertissement.number}:F${avertissement.number}`);
   }
 }
 
