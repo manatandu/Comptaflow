@@ -7,6 +7,9 @@ import { EtatsFinanciersService, PosteCalcule } from '../etats-financiers/etats-
 import { EtatsFinanciersProjetService } from '../etats-financiers/etats-financiers-projet.service';
 import { NoteAnnexeService } from '../notes-annexes/note-annexe.service';
 import { DonationService, manquementsArticle17 } from '../registre-donateurs/donation.service';
+import { LivreInventaireService } from '../documents-obligatoires/livre-inventaire.service';
+import { RapportActiviteService } from '../documents-obligatoires/rapport-activite.service';
+import { SECTIONS_RAPPORT_ACTIVITE } from '../documents-obligatoires/correspondance-inventaire';
 import { ColonneNote, LigneNoteCalculee, NoteCalculee, TypeColonneNote } from '../notes-annexes/note-annexe.types';
 
 const ENTETE_FONT = { bold: true } as const;
@@ -54,6 +57,8 @@ export class ExportService {
     private readonly etatsFinanciersProjetService: EtatsFinanciersProjetService,
     private readonly noteAnnexeService: NoteAnnexeService,
     private readonly donationService: DonationService,
+    private readonly livreInventaire: LivreInventaireService,
+    private readonly rapportActivite: RapportActiviteService,
   ) {}
 
   private nouveauClasseur(): ExcelJS.Workbook {
@@ -1586,9 +1591,286 @@ export class ExportService {
     avertissement.alignment = { wrapText: true, vertical: 'top' };
     feuille.mergeCells(`A${avertissement.number}:F${avertissement.number}`);
   }
+
+  // -------------------------------------------------------------------------
+  // Livre d'inventaire (art. 14) et rapport d'activité (art. 16-3)
+  // -------------------------------------------------------------------------
+
+  /**
+   * Le livre d'inventaire tel qu'il se présente : une feuille de garde qui
+   * dit ce que l'article 14 exige et ce que la transcription porte, puis les
+   * états FIGÉS, puis le résumé de l'opération d'inventaire.
+   *
+   * Les états sont relus depuis la transcription, JAMAIS recalculés — c'est
+   * le sens même du mot « transcrits » de l'article. Un classeur qui
+   * régénérerait les états à l'export produirait, à partir du même livre,
+   * deux documents différents à deux dates différentes.
+   */
+  async livreInventaireExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
+    const [transcription, conformite] = await Promise.all([
+      this.livreInventaire.courante(tenantId, exerciceId),
+      this.livreInventaire.conformite(tenantId, exerciceId),
+    ]);
+
+    const classeur = this.nouveauClasseur();
+    this.feuilleGardeInventaire(classeur, conformite, transcription);
+
+    if (transcription) {
+      const etats = transcription.etats as Record<string, any>;
+      // Ordre de l'article 14, pas ordre alphabétique des clés : le livre se
+      // lit dans l'ordre où le texte énumère les états.
+      for (const e of conformite.etatsExiges) {
+        const etat = etats[e.cle];
+        if (etat) this.feuilleEtatFige(classeur, e.libelle, etat);
+      }
+    }
+
+    return {
+      buffer: await this.versBuffer(classeur),
+      nomFichier: `livre-inventaire${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
+    };
+  }
+
+  private feuilleGardeInventaire(classeur: ExcelJS.Workbook, c: any, t: any) {
+    const feuille = classeur.addWorksheet("Livre d'inventaire");
+    feuille.columns = [
+      { header: 'Rubrique', key: 'rubrique', width: 44 },
+      { header: 'État', key: 'etat', width: 24 },
+      { header: 'Détail', key: 'detail', width: 110 },
+    ];
+
+    const lignes: Array<[string, string, string]> = [
+      ["Transcription de l'exercice", t ? `VERSION ${t.version}` : 'ABSENTE', c.exigence],
+      [
+        'Jeu applicable',
+        c.jeu === 'PROJETS_DEVELOPPEMENT' ? 'Art. 14, point 2' : 'Art. 14, point 1',
+        c.jeu === 'PROJETS_DEVELOPPEMENT'
+          ? 'Entités ayant pour objet la gestion ou l’administration de projets de développement.'
+          : 'Associations et ordres professionnels.',
+      ],
+      ...c.etatsExiges.map(
+        (e: any) =>
+          [
+            `État exigé — ${e.libelle}`,
+            e.transcrit ? 'TRANSCRIT' : 'MANQUANT',
+            e.motifIndisponibilite ?? 'Transcrit et figé dans ce classeur, feuille dédiée.',
+          ] as [string, string, string],
+      ),
+      [
+        "Résumé de l'opération d'inventaire",
+        c.resume.renseigne ? 'RENSEIGNÉ' : 'MANQUANT',
+        `${c.resume.exigence} ${c.resume.remarque}`,
+      ],
+    ];
+
+    for (const [rubrique, etat, detail] of lignes) {
+      const rang = feuille.addRow({ rubrique, etat, detail });
+      const ok = ['TRANSCRIT', 'RENSEIGNÉ'].includes(etat) || etat.startsWith('VERSION') || etat.startsWith('Art.');
+      rang.getCell('etat').font = { bold: true, color: { argb: ok ? 'FF1B7F3B' : 'FFB3261E' } };
+      rang.getCell('detail').alignment = { wrapText: true, vertical: 'top' };
+    }
+    this.finaliserTableau(feuille, 3, lignes.length + 1);
+
+    if (t?.resumeOperationInventaire) {
+      feuille.addRow([]);
+      const titre = feuille.addRow(["Résumé de l'opération d'inventaire"]);
+      titre.font = ENTETE_FONT;
+      const texte = feuille.addRow([t.resumeOperationInventaire]);
+      texte.alignment = { wrapText: true, vertical: 'top' };
+      feuille.mergeCells(`A${texte.number}:C${texte.number}`);
+    }
+
+    const pied = feuille.addRow([
+      t
+        ? `Transcrit le ${new Date(t.transcritLe).toLocaleDateString('fr-FR')}. Les états des feuilles suivantes sont FIGÉS à cette date : ils sont relus tels quels, jamais recalculés — c'est le sens du mot « transcrits » de l'article 14.`
+        : "Aucune transcription pour cet exercice. L'article 24 sanctionne pénalement les dirigeants « qui n'ont pas, pour un exercice, dressé l'inventaire et établi les états financiers annuels ».",
+    ]);
+    pied.font = { italic: true, color: { argb: 'FF555555' } };
+    pied.alignment = { wrapText: true, vertical: 'top' };
+    feuille.mergeCells(`A${pied.number}:C${pied.number}`);
+  }
+
+  /**
+   * Un état figé, restitué à plat.
+   *
+   * La structure est DÉCOUVERTE, pas codée en dur : chaque état SYCEBNL a sa
+   * forme propre (`actif`/`passif` au bilan, `produits`/`charges` au compte
+   * de résultat, `revenus`/`charges` au compte d'exploitation, `lignes` au
+   * tableau des flux), et un livre d'inventaire doit pouvoir restituer un
+   * état FIGÉ PAR UNE VERSION ANTÉRIEURE du logiciel. Une carte de formes
+   * codée en dur rendrait mal, ou pas du tout, un état gelé avant qu'elle ne
+   * soit écrite — ce qui viderait de son sens la transcription même.
+   *
+   * On rend donc : tout tableau dont les éléments ressemblent à un poste
+   * (`ref`/`libelle`/`montant`), sous le nom de sa clé ; puis les scalaires
+   * numériques et booléens, qui sont les totaux et contrôles de l'état.
+   *
+   * (La mise en forme officielle de chaque état vit dans son propre export —
+   * `bilanExcel`, `compteDeResultatExcel`… ; ici c'est la transcription qui
+   * fait foi, pas la présentation.)
+   */
+  private feuilleEtatFige(classeur: ExcelJS.Workbook, libelle: string, etat: any) {
+    // 31 caractères est la limite Excel pour un nom de feuille.
+    const feuille = classeur.addWorksheet(libelle.slice(0, 31));
+    feuille.columns = [
+      { header: 'Section', key: 'section', width: 22 },
+      { header: 'REF', key: 'ref', width: 8 },
+      { header: 'Libellé', key: 'libelle', width: 62 },
+      { header: 'Exercice N', key: 'montant', width: 16 },
+      { header: 'Exercice N-1', key: 'montantN1', width: 16 },
+    ];
+
+    const estPoste = (v: any) =>
+      v !== null && typeof v === 'object' && ('ref' in v || 'section' in v) && !Array.isArray(v);
+
+    let sectionCourante = '';
+    for (const [cle, valeur] of Object.entries(etat ?? {})) {
+      if (!Array.isArray(valeur) || valeur.length === 0 || !valeur.some(estPoste)) continue;
+      sectionCourante = enMots(cle);
+      const entete = feuille.addRow({ section: sectionCourante });
+      entete.font = ENTETE_FONT;
+      for (const l of valeur as any[]) {
+        // Le tableau des flux intercale ses propres intitulés de section.
+        if (l.section) {
+          const s = feuille.addRow({ libelle: l.section });
+          s.font = { italic: true, bold: true };
+          continue;
+        }
+        const rang = feuille.addRow({
+          ref: l.ref,
+          libelle: l.libelle,
+          montant: l.montant,
+          montantN1: l.montantN1,
+        });
+        if (l.estTotal) rang.font = ENTETE_FONT;
+      }
+    }
+
+    this.appliquerFormats(feuille, { montant: FORMAT_MONTANT, montantN1: FORMAT_MONTANT });
+    this.finaliserTableau(feuille, 5, feuille.lastRow?.number ?? 1);
+
+    // Totaux, résultats et contrôles : ce sont eux qui font foi de ce qui a
+    // été ARRÊTÉ (équilibre du bilan, bouclage du tableau des flux). Un livre
+    // d'inventaire qui les tairait laisserait relire les chiffres sans savoir
+    // s'ils bouclaient au moment de la transcription.
+    const scalaires = Object.entries(etat ?? {}).filter(
+      ([, v]) => typeof v === 'number' || typeof v === 'boolean',
+    );
+    const controle = (etat ?? {}).controle;
+    if (scalaires.length > 0 || controle) {
+      feuille.addRow([]);
+      const titre = feuille.addRow({ section: 'Totaux et contrôles figés' });
+      titre.font = ENTETE_FONT;
+      for (const [cle, v] of scalaires) {
+        const rang = feuille.addRow({ libelle: enMots(cle), montant: typeof v === 'number' ? v : undefined });
+        if (typeof v === 'boolean') rang.getCell('libelle').value = `${enMots(cle)} : ${v ? 'oui' : 'NON'}`;
+        rang.getCell('montant').numFmt = FORMAT_MONTANT;
+      }
+      if (controle && typeof controle === 'object') {
+        for (const [cle, v] of Object.entries(controle)) {
+          const rang = feuille.addRow({
+            libelle: typeof v === 'boolean' ? `${enMots(cle)} : ${v ? 'oui' : 'NON'}` : enMots(cle),
+            montant: typeof v === 'number' ? v : undefined,
+          });
+          rang.getCell('montant').numFmt = FORMAT_MONTANT;
+          if (typeof v === 'boolean' && !v) rang.font = { bold: true, color: { argb: 'FFB3261E' } };
+        }
+      }
+    }
+  }
+
+  /**
+   * Le rapport d'activité, section par section dans l'ordre de l'article
+   * 16-3, avec la citation qui fonde chacune et la mention explicite d'une
+   * section vide — un rapport amputé d'un contenu exigé n'est pas « établi ».
+   */
+  async rapportActiviteExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
+    const [rapport, conformite] = await Promise.all([
+      this.rapportActivite.courant(tenantId, exerciceId),
+      this.rapportActivite.conformite(tenantId, exerciceId),
+    ]);
+
+    const classeur = this.nouveauClasseur();
+    const feuille = classeur.addWorksheet("Rapport d'activité");
+    feuille.columns = [
+      { header: 'Section', key: 'titre', width: 46 },
+      { header: 'État', key: 'etat', width: 14 },
+      { header: 'Contenu', key: 'contenu', width: 90 },
+      { header: 'Exigence (texte officiel)', key: 'exigence', width: 96 },
+    ];
+
+    for (const s of SECTIONS_RAPPORT_ACTIVITE) {
+      const contenu = (rapport?.[s.cle] as string | null) ?? null;
+      const rang = feuille.addRow({
+        titre: s.titre,
+        etat: contenu ? 'RENSEIGNÉE' : 'VIDE',
+        contenu: contenu ?? '',
+        exigence: s.exigence,
+      });
+      rang.getCell('etat').font = { bold: true, color: { argb: contenu ? 'FF1B7F3B' : 'FFB3261E' } };
+      for (const cle of ['contenu', 'exigence']) rang.getCell(cle).alignment = { wrapText: true, vertical: 'top' };
+    }
+    this.finaliserTableau(feuille, 4, SECTIONS_RAPPORT_ACTIVITE.length + 1);
+
+    feuille.addRow([]);
+    const f = conformite.fenetreEvenementsPosterieurs;
+    const meta: Array<[string, string]> = [
+      ["Date d'établissement", rapport ? new Date(rapport.etabliLe).toLocaleDateString('fr-FR') : 'Rapport non établi'],
+      [
+        'Fenêtre des événements postérieurs',
+        f
+          ? `du ${new Date(f.du).toLocaleDateString('fr-FR')} au ${new Date(f.au).toLocaleDateString('fr-FR')} — c'est la date d'établissement qui la ferme (art. 16-3).`
+          : '—',
+      ],
+      [
+        'Évolution de la trésorerie (figée du Tableau des flux)',
+        conformite.tresorerie
+          ? `ouverture ${conformite.tresorerie.ouverture} · variation ${conformite.tresorerie.variation} · clôture ${conformite.tresorerie.cloture}` +
+            (conformite.tresorerie.boucle ? ' · tableau bouclé' : ' · ⚠ TABLEAU NON BOUCLÉ à cette date')
+          : '—',
+      ],
+      [
+        'Déclaration des dirigeants (registre des donateurs, art. 18)',
+        conformite.declarationRegistreDonateurs.attendue
+          ? conformite.declarationRegistreDonateurs.renseignee
+            ? `Annexée. Registre ${conformite.declarationRegistreDonateurs.registreConforme ? 'conforme' : '⚠ NON CONFORME au rapport de l’art. 18'}.`
+            : "⚠ ATTENDUE et absente : l'entité déclare n'avoir pas d'auditeur."
+          : "Non attendue : l'entité déclare avoir un auditeur, qui produit son propre rapport (art. 18).",
+      ],
+    ];
+    for (const [libelle, valeur] of meta) {
+      const rang = feuille.addRow({ titre: libelle, contenu: valeur });
+      rang.font = ENTETE_FONT;
+      rang.getCell('contenu').alignment = { wrapText: true, vertical: 'top' };
+      rang.getCell('contenu').font = { bold: false };
+    }
+
+    if (rapport?.declarationDirigeants) {
+      feuille.addRow([]);
+      const d = feuille.addRow({ titre: 'Texte de la déclaration', contenu: rapport.declarationDirigeants });
+      d.getCell('contenu').alignment = { wrapText: true, vertical: 'top' };
+    }
+
+    return {
+      buffer: await this.versBuffer(classeur),
+      nomFichier: `rapport-activite${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
+    };
+  }
 }
 
 function styliserEntete(ligne: ExcelJS.Row) {
   ligne.font = ENTETE_FONT;
   ligne.fill = ENTETE_FILL as ExcelJS.Fill;
+}
+
+/**
+ * `resultatActivitesOrdinaires` → « Resultat activites ordinaires ». Sert à
+ * nommer les sections et les totaux d'un état FIGÉ dont on ne connaît pas la
+ * forme à l'avance (voir `feuilleEtatFige`) : mieux vaut restituer la clé
+ * telle qu'elle a été gelée que la traduire par une table qui, elle,
+ * évoluerait.
+ */
+function enMots(cle: string): string {
+  const espace = cle.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/([A-Z])([A-Z][a-z])/g, '$1 $2');
+  return espace.charAt(0).toUpperCase() + espace.slice(1).toLowerCase();
 }

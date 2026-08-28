@@ -74,22 +74,24 @@ model Tenant {
   // sinon des comptes existants deviendraient invalides rétroactivement.
   longueurCompte Int @default(8)
 
-  licence                Licence?
-  comptes                Compte[]
-  exercices              Exercice[]
-  ecritures              Ecriture[]
-  users                  User[]
-  journaux               Journal[]
-  clotures               Cloture[]
-  tiers                  Tiers[]
-  bailleurs              Bailleur[]
-  rattachementsNotes     RattachementNote[]
-  donations              Donation[]
-  modelesReglement       ModeleReglement[]
-  tauxTva                TauxTva[]
-  rapprochements         RapprochementBancaire[]
-  famillesImmobilisation FamilleImmobilisation[]
-  immobilisations        Immobilisation[]
+  licence                  Licence?
+  comptes                  Compte[]
+  exercices                Exercice[]
+  ecritures                Ecriture[]
+  users                    User[]
+  journaux                 Journal[]
+  clotures                 Cloture[]
+  tiers                    Tiers[]
+  bailleurs                Bailleur[]
+  rattachementsNotes       RattachementNote[]
+  donations                Donation[]
+  transcriptionsInventaire TranscriptionInventaire[]
+  rapportsActivite         RapportActivite[]
+  modelesReglement         ModeleReglement[]
+  tauxTva                  TauxTva[]
+  rapprochements           RapprochementBancaire[]
+  famillesImmobilisation   FamilleImmobilisation[]
+  immobilisations          Immobilisation[]
 
   @@map("tenants")
 }
@@ -286,6 +288,11 @@ model Exercice {
   ecritures              Ecriture[]
   clotures               Cloture[]
   dotationsAmortissement DotationAmortissement[]
+
+  // Documents obligatoires de l'exercice (art. 14 et 16-3) — versionnés,
+  // d'où des relations 1-N et non 1-1 : voir leurs modèles.
+  transcriptionsInventaire TranscriptionInventaire[]
+  rapportsActivite         RapportActivite[]
 
   @@unique([tenantId, dateDebut, dateFin])
   @@map("exercices")
@@ -993,4 +1000,153 @@ model Donation {
   @@unique([tenantId, numero])
   @@index([tenantId, dateOperation])
   @@map("registre_donateurs")
+}
+
+// ---------------------------------------------------------------------------
+// LIVRE D'INVENTAIRE — article 14 de l'Acte uniforme SYCEBNL.
+//
+// « Le livre d'inventaire est un document obligatoire sur lequel sont
+// TRANSCRITS :
+//  1) pour les associations et les ordres professionnels, le Bilan, le Compte
+//     de résultat et le Tableau des flux de trésorerie de chaque exercice
+//     ainsi que le résumé de l'opération d'inventaire ;
+//  2) pour les entités ayant pour objet la gestion ou l'administration de
+//     projets de développement, le Tableau emplois-ressources, le Tableau
+//     d'exécution budgétaire, le Tableau de réconciliation de trésorerie, le
+//     Bilan, le Compte d'exploitation de chaque exercice ainsi que le résumé
+//     de l'opération d'inventaire. »
+//
+// L'article 24 sanctionne PÉNALEMENT les dirigeants « qui n'ont pas, pour un
+// exercice, dressé l'inventaire et établi les états financiers annuels ».
+//
+// Le mot qui commande tout le modèle est TRANSCRITS. Un livre d'inventaire
+// qui recalculerait ses états à chaque consultation ne transcrirait rien : il
+// changerait sans bruit dès qu'une table de correspondance est corrigée dans
+// une version ultérieure du logiciel, ou qu'un exercice est rouvert. Les
+// états sont donc FIGÉS ici, en JSON, tels qu'ils se présentaient à la date
+// de transcription. C'est la même raison qui fait qu'un livre d'inventaire
+// papier se relie : ce qui y est porté ne bouge plus.
+// ---------------------------------------------------------------------------
+
+model TranscriptionInventaire {
+  id         String   @id @default(uuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  exerciceId String
+  exercice   Exercice @relation(fields: [exerciceId], references: [id])
+
+  /// Une transcription n'est jamais écrasée : un exercice rouvert et corrigé
+  /// se re-transcrit en version suivante, l'ancienne restant lisible. Écraser
+  /// ferait perdre la trace de ce qui avait été arrêté, exactement comme une
+  /// suppression au registre des donateurs.
+  version Int
+
+  /// Le jeu applicable à la DATE DE TRANSCRIPTION : c'est lui qui décide de
+  /// la liste des états exigés par l'art. 14 (point 1 ou point 2). Figé
+  /// aussi, car un dossier peut en changer.
+  jeu JeuEtatsFinanciersSycebnl
+
+  /// Les états financiers figés, indexés par leur clé (`bilan`,
+  /// `compteDeResultat`, `tableauFluxTresorerie`…). Un état exigé par
+  /// l'art. 14 mais non encore construit par le logiciel n'y figure pas — il
+  /// est alors listé dans `documentsManquants` plutôt que passé sous silence.
+  etats Json
+
+  /// Documents que l'art. 14 exige pour ce jeu et que cette transcription ne
+  /// porte pas, avec le motif. Rendre l'incomplétude LISIBLE plutôt que de
+  /// laisser croire à une transcription complète : c'est l'exposition pénale
+  /// de l'art. 24 que ce champ chiffre.
+  documentsManquants Json
+
+  /// « … ainsi que le résumé de l'opération d'inventaire » (art. 14).
+  /// Le référentiel EXIGE ce résumé mais n'en définit NULLE PART le contenu
+  /// ni la forme — ni le glossaire, ni le cadre conceptuel, ni la Partie 2
+  /// ch. 2. C'est donc une saisie libre du dossier : le combler d'office
+  /// depuis un autre référentiel serait inventer une exigence que le texte
+  /// ne formule pas.
+  resumeOperationInventaire String?
+
+  transcritLe  DateTime @default(now())
+  transcritPar String
+
+  @@unique([tenantId, exerciceId, version])
+  @@index([tenantId, exerciceId])
+  @@map("transcriptions_inventaire")
+}
+
+// ---------------------------------------------------------------------------
+// RAPPORT D'ACTIVITÉ — article 16, point 3, de l'Acte uniforme SYCEBNL.
+//
+// « à la clôture de chaque exercice, les organes d'administration ou de
+// direction, selon le cas, dressent l'inventaire et les états financiers
+// conformément aux dispositions de l'Acte uniforme et ÉTABLISSENT UN RAPPORT
+// D'ACTIVITÉ ; le rapport d'activité expose la situation de l'entité durant
+// l'exercice écoulé, ses perspectives de développement ou son évolution
+// prévisible et l'évolution de la situation de trésorerie ; les événements
+// importants, survenus entre la date de clôture de l'exercice et la date à
+// laquelle il est établi, doivent également y être mentionnés. »
+//
+// Sanction pénale de l'art. 24, au même titre que l'inventaire et les états
+// financiers annuels.
+//
+// Le texte énumère QUATRE contenus, ni plus ni moins : ce sont les quatre
+// champs narratifs ci-dessous. En ajouter un cinquième « utile » ferait
+// passer pour une exigence légale ce qui n'en est pas une ; en fondre deux
+// en un masquerait un manquement.
+// ---------------------------------------------------------------------------
+
+model RapportActivite {
+  id         String   @id @default(uuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  exerciceId String
+  exercice   Exercice @relation(fields: [exerciceId], references: [id])
+
+  /// Même raison qu'à la transcription d'inventaire : un rapport arrêté ne
+  /// s'écrase pas, il se réédite en version suivante.
+  version Int
+
+  /// « la date à laquelle il est établi » — ce n'est pas une date
+  /// décorative : conjuguée à la date de clôture, elle DÉFINIT la fenêtre des
+  /// événements postérieurs que le point 4 exige de mentionner.
+  etabliLe  DateTime
+  etabliPar String
+
+  /// 1) « expose la situation de l'entité durant l'exercice écoulé »
+  situationExerciceEcoule String?
+
+  /// 2) « ses perspectives de développement ou son évolution prévisible »
+  perspectivesDeveloppement String?
+
+  /// 3) « et l'évolution de la situation de trésorerie »
+  evolutionTresorerie String?
+
+  /// 4) « les événements importants, survenus entre la date de clôture de
+  /// l'exercice et la date à laquelle il est établi »
+  evenementsPosterieurs String?
+
+  /// Art. 18 : « S'il n'existe pas d'auditeur, une DÉCLARATION DES DIRIGEANTS
+  /// attestant de la tenue conforme du registre des donateurs est annexée
+  /// audit rapport ou soumise à l'assemblée générale ou l'instance qui en
+  /// tient lieu. »
+  /// [texte officiel] « audit rapport » est ambigu : la phrase figure dans la
+  /// branche « s'il n'existe pas d'auditeur », où aucun rapport d'auditeur
+  /// n'existe — le seul autre rapport prévu par le texte est celui de
+  /// l'art. 16-3. C'est donc ici que la déclaration est annexée, sans que le
+  /// texte le dise expressément.
+  entiteAvecAuditeur    Boolean @default(false)
+  declarationDirigeants String?
+
+  /// Chiffres de trésorerie figés à l'établissement du rapport, repris du
+  /// Tableau des flux de trésorerie (ouverture, variation, clôture, et le
+  /// comparatif N-1 quand il existe). Le point 3 de l'art. 16 exige
+  /// « l'évolution de la situation de trésorerie » : la narration seule
+  /// l'expose, ces chiffres la datent.
+  tresorerie Json?
+
+  createdAt DateTime @default(now())
+
+  @@unique([tenantId, exerciceId, version])
+  @@index([tenantId, exerciceId])
+  @@map("rapports_activite")
 }

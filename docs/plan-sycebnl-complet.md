@@ -294,8 +294,8 @@ cotisations. Le choix pilote à la fois les écritures et une mention obligatoir
 | # | Obligation | Source | Enjeu |
 |---|---|---|---|
 | C1 | ✅ **Registre des donateurs** — coté, paraphé, numéroté en continu ; date, identité complète du donateur, montant et mode de libération ; signature du représentant légal ; version électronique expressément admise | art. 17-18 · P2 ch. 2 | **Sanction pénale** en cas de registre non tenu ou non mis à jour (art. 24) |
-| C2 | **Livre d'inventaire** — transcription des états financiers de l'exercice et du résumé de l'opération d'inventaire | art. 14 · P2 ch. 2 | **Sanction pénale** (art. 24) |
-| C3 | **Rapport d'activité** — situation de l'exercice écoulé, perspectives, évolution de la trésorerie, événements importants survenus après la clôture | art. 16-3 | **Sanction pénale** (art. 24) |
+| C2 | ✅ **Livre d'inventaire** — transcription des états financiers de l'exercice et du résumé de l'opération d'inventaire | art. 14 · P2 ch. 2 | **Sanction pénale** (art. 24) |
+| C3 | ✅ **Rapport d'activité** — situation de l'exercice écoulé, perspectives, évolution de la trésorerie, événements importants survenus après la clôture | art. 16-3 | **Sanction pénale** (art. 24) |
 | C4 | **Correction d'erreur par inscription en négatif** — « toute correction d'erreur découverte sur l'exercice en cours s'effectue exclusivement par l'inscription en négatif des éléments erronés ; l'enregistrement exact est ensuite opéré » | art. 20 AUDCIF, via P2 ch. 2 | Les écritures sont déjà immuables dans l'application, mais **aucune fonction de contre-passation n'existe** |
 | C5 | Centralisation des journaux auxiliaires **au moins chaque semaine** dans le livre-journal ou le grand-livre | P2 ch. 2 | Contrainte de périodicité si des journaux auxiliaires sont introduits |
 
@@ -325,6 +325,48 @@ l'ergonomie :
     « en vue d'en retirer un bénéfice direct », ce qui contredit le « sans contrepartie » de la
     définition de la donation. Le texte ne tranche pas : le rapport expose les deux lectures avec
     leurs citations et laisse le dossier décider (règle §2.6).
+
+**C2 et C3 réalisés** (`src/modules/documents-obligatoires/`).
+
+*Livre d'inventaire.* Le mot qui commande tout est **transcrits** : les états
+sont FIGÉS en JSON à la date de transcription et relus tels quels. Un livre qui
+recalculerait ses états changerait sans bruit dès qu'une table de correspondance
+est corrigée dans une version ultérieure, et ne prouverait plus ce qui a été
+arrêté à la clôture. Une re-transcription **versionne** au lieu d'écraser.
+L'export restitue la structure de l'état **génériquement**, sans carte de formes
+codée en dur : un livre doit pouvoir rendre un état gelé par une version
+antérieure du logiciel.
+
+La liste des états vient de l'article, pas du logiciel — et pour le jeu
+« projets », trois des cinq états du point 2 (TER, tableau d'exécution
+budgétaire, TRC) ne sont pas construits : ils sont déclarés **manquants avec
+leur motif**, l'exposition à l'article 24 devenant lisible au lieu d'être
+masquée par une transcription qui se présenterait comme complète. La phase 6
+les fermera. ⚠️ `[texte officiel]` la Partie 2 ch. 2 décrit ce même livre en
+citant, pour les projets, « l'État des dépenses et des ressources » là où
+l'article 14 en énumère cinq : c'est l'article qui est retenu.
+
+Le **résumé de l'opération d'inventaire** est exigé par l'article mais n'est
+défini NULLE PART (ni glossaire, ni cadre conceptuel, ni Partie 2 ch. 2) :
+saisie libre du dossier, absence signalée, jamais suppléée (règle §2.6).
+
+*Rapport d'activité.* Quatre sections, celles que l'article énumère — ni plus
+(ce serait présenter une exigence légale qui n'en est pas une), ni moins (ce
+serait masquer un manquement). Le logiciel ne rédige pas : il structure, signale
+une section vide, **chiffre** la troisième depuis le tableau des flux
+(ouverture, variation, clôture, bouclage — figés, non-bouclage compris, faute de
+quoi le rapport serait l'état « non fidèle » du 2ᵉ tiret de l'art. 24), et
+**nomme** la fenêtre de la quatrième, que la date d'établissement ferme. D'où le
+refus d'une date antérieure à la clôture : la fenêtre serait vide par
+construction.
+
+L'art. 18 est croisé ici : la déclaration des dirigeants n'est attendue qu'à
+défaut d'auditeur, et elle est confrontée à l'état réel du registre — attester
+d'une « tenue conforme » démentie par le rapport de l'art. 18 exposerait au 2ᵉ
+tiret de l'art. 24 en plus du 3ᵉ. ⚠️ `[texte officiel]` « annexée audit
+rapport » est ambigu : la phrase figure dans la branche « s'il n'existe pas
+d'auditeur », où aucun rapport d'auditeur n'existe ; le seul autre rapport prévu
+est celui de l'art. 16-3, d'où ce rattachement.
 
 ---
 

@@ -678,3 +678,81 @@ export interface RapportConformiteRegistre {
     avertissement: string;
   };
 }
+
+// ---------------------------------------------------------------------------
+// Documents obligatoires de clôture — livre d'inventaire (art. 14) et rapport
+// d'activité (art. 16-3), tous deux pénalement sanctionnés (art. 24).
+// ---------------------------------------------------------------------------
+
+export interface DocumentManquantInventaire {
+  cle: string;
+  libelle: string;
+  motif: string;
+}
+
+export interface TranscriptionInventaire {
+  id: string;
+  version: number;
+  jeu: JeuEtatsFinanciersSycebnl;
+  /** États FIGÉS à la date de transcription — jamais recalculés (art. 14). */
+  etats: Record<string, unknown>;
+  documentsManquants: DocumentManquantInventaire[];
+  resumeOperationInventaire: string | null;
+  transcritLe: string;
+  transcritPar: string;
+}
+
+export interface ConformiteInventaire {
+  exercice: { id: string; dateDebut: string; dateFin: string };
+  jeu: JeuEtatsFinanciersSycebnl;
+  exigence: string;
+  transcrit: boolean;
+  version: number | null;
+  transcritLe: string | null;
+  etatsExiges: { cle: string; libelle: string; transcrit: boolean; motifIndisponibilite: string | null }[];
+  documentsManquants: DocumentManquantInventaire[];
+  resume: { exigence: string; renseigne: boolean; remarque: string };
+  complete: boolean;
+}
+
+export interface TresorerieDuRapport {
+  ouverture: number;
+  variation: number;
+  cloture: number;
+  boucle: boolean;
+}
+
+export interface RapportActivite {
+  id: string;
+  version: number;
+  etabliLe: string;
+  etabliPar: string;
+  situationExerciceEcoule: string | null;
+  perspectivesDeveloppement: string | null;
+  evolutionTresorerie: string | null;
+  evenementsPosterieurs: string | null;
+  entiteAvecAuditeur: boolean;
+  declarationDirigeants: string | null;
+  tresorerie: TresorerieDuRapport | null;
+}
+
+export interface ConformiteRapportActivite {
+  exercice: { id: string; dateDebut: string; dateFin: string };
+  exigence: string;
+  etabli: boolean;
+  version: number | null;
+  etabliLe: string | null;
+  sections: { cle: string; titre: string; exigence: string; renseignee: boolean }[];
+  /** Définie par la clôture et la date d'établissement — voir art. 16-3. */
+  fenetreEvenementsPosterieurs: { du: string; au: string } | null;
+  tresorerie: TresorerieDuRapport | null;
+  declarationRegistreDonateurs: {
+    exigence: string;
+    remarque: string;
+    entiteAvecAuditeur: boolean;
+    attendue: boolean;
+    renseignee: boolean;
+    registreConforme: boolean;
+  };
+  complet: boolean;
+}

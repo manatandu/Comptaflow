@@ -78,6 +78,10 @@ export function Ribbon({ groupes, droite }: { groupes: RibbonGroupe[]; droite?: 
         // le grand-livre (Partie 2 ch. 2), et pénalement sanctionné (art. 24) :
         // il a sa place dans le menu, pas dans un recoin.
         { label: 'Registre des donateurs', onClick: () => navigate('/registre-donateurs') },
+        // Livre d'inventaire (art. 14) et rapport d'activité (art. 16-3) :
+        // documents de clôture, pénalement sanctionnés au même titre que les
+        // états financiers eux-mêmes (art. 24).
+        { label: 'Documents obligatoires', onClick: () => navigate('/documents-obligatoires') },
         { label: 'Déclaration TVA', onClick: () => navigate('/declaration-tva') },
         { label: 'Balance âgée', disabled: true, indication: 'à venir' },
       ],

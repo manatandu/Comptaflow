@@ -176,6 +176,31 @@ export class ExportController {
     envoyerXlsx(res, await this.exportService.registreDonateursExcel(user.tenantId, exerciceId));
   }
 
+  /**
+   * Livre d'inventaire (art. 14). Les états y sont RELUS depuis la
+   * transcription, jamais recalculés : un classeur qui les régénérerait
+   * produirait, à partir du même livre, deux documents différents à deux
+   * dates différentes.
+   */
+  @Get('livre-inventaire')
+  async livreInventaire(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    envoyerXlsx(res, await this.exportService.livreInventaireExcel(user.tenantId, exerciceId));
+  }
+
+  /** Rapport d'activité (art. 16-3) — quatre sections, section vide signalée. */
+  @Get('rapport-activite')
+  async rapportActivite(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    envoyerXlsx(res, await this.exportService.rapportActiviteExcel(user.tenantId, exerciceId));
+  }
+
   /** Notes annexes du jeu « projets de développement et assimilés » — 26 notes. */
   @Get('notes-annexes/projet')
   async notesProjet(

@@ -7,9 +7,10 @@ import { ComptabiliteModule } from '../comptabilite/comptabilite.module';
 import { EtatsFinanciersModule } from '../etats-financiers/etats-financiers.module';
 import { NotesAnnexesModule } from '../notes-annexes/notes-annexes.module';
 import { RegistreDonateursModule } from '../registre-donateurs/registre-donateurs.module';
+import { DocumentsObligatoiresModule } from '../documents-obligatoires/documents-obligatoires.module';
 
 @Module({
-  imports: [LicenceModule, JwtAuthModule, ComptabiliteModule, EtatsFinanciersModule, NotesAnnexesModule, RegistreDonateursModule],
+  imports: [LicenceModule, JwtAuthModule, ComptabiliteModule, EtatsFinanciersModule, NotesAnnexesModule, RegistreDonateursModule, DocumentsObligatoiresModule],
   controllers: [ExportController],
   providers: [ExportService],
 })
