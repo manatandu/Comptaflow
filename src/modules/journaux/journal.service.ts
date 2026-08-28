@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
-import { NumerotationPiece, TypeJournal } from '@prisma/client';
+import { NumerotationPiece, Prisma, TypeJournal } from '@prisma/client';
 import { JOURNAUX_DEFAUT } from './journal-seed';
 import { CreerJournalDto, ModifierJournalDto } from './dto/journal.dto';
 
@@ -85,19 +85,26 @@ export class JournalService {
    * - CONTINUE_JOURNAL : incrémenté par journal, sur l'exercice.
    * - CONTINUE_FICHIER : incrémenté tous journaux confondus, sur l'exercice.
    * - MENSUELLE : incrémenté par journal, remis à zéro chaque mois civil.
+   *
+   * Prend un client Prisma optionnel (`tx`) pour pouvoir être appelé DANS la
+   * transaction sérialisable qui crée l'écriture (voir
+   * EcritureService.creer) : lu et écrit hors transaction, ce calcul serait
+   * une lecture-puis-écriture non atomique — deux écritures créées en même
+   * temps sur le même journal pourraient recevoir le même numéro de pièce.
    */
   async prochainNumeroPiece(
     tenantId: string,
     journal: { id: string; numerotation: NumerotationPiece },
     exerciceId: string,
     date: Date,
+    tx: Prisma.TransactionClient | PrismaService = this.prisma,
   ): Promise<number | null> {
     switch (journal.numerotation) {
       case NumerotationPiece.MANUELLE:
         return null;
 
       case NumerotationPiece.CONTINUE_JOURNAL: {
-        const max = await this.prisma.ecriture.aggregate({
+        const max = await tx.ecriture.aggregate({
           where: { tenantId, journalId: journal.id, exerciceId },
           _max: { numeroPiece: true },
         });
@@ -105,7 +112,7 @@ export class JournalService {
       }
 
       case NumerotationPiece.CONTINUE_FICHIER: {
-        const max = await this.prisma.ecriture.aggregate({
+        const max = await tx.ecriture.aggregate({
           where: { tenantId, exerciceId },
           _max: { numeroPiece: true },
         });
@@ -115,7 +122,7 @@ export class JournalService {
       case NumerotationPiece.MENSUELLE: {
         const debutMois = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
         const debutMoisSuivant = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1));
-        const max = await this.prisma.ecriture.aggregate({
+        const max = await tx.ecriture.aggregate({
           where: { tenantId, journalId: journal.id, date: { gte: debutMois, lt: debutMoisSuivant } },
           _max: { numeroPiece: true },
         });
