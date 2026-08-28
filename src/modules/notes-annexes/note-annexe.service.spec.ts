@@ -183,6 +183,44 @@ describe('correspondance des notes (intégrité des spécifications)', () => {
     }
   });
 
+  it('les 45 notes du jeu associations sont transcrites, ni une de plus ni une de moins', () => {
+    // Liste arrêtée sur la FICHE RECAPITULATIVE DES NOTES ANNEXES PRESENTEES
+    // (Partie 4, ch. 2, section 4). C'est elle qui fait foi sur le nombre et
+    // le code des notes — pas la numérotation apparente, qui saute (pas de
+    // note 5 seule, pas de 17 ni de 18 nues, 29 dédoublée en 29A/29B).
+    const OFFICIELLES = [
+      '1', '2', '3', '4',
+      '5A', '5B', '5C', '5D', '5E', '5F', '5G', '5H',
+      '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16',
+      '17A', '17B', '18A', '18B',
+      '19', '20', '21', '22', '23', '24', '25', '26', '27', '28',
+      '29A', '29B',
+      '30', '31', '32', '33', '34', '35',
+    ];
+    expect(OFFICIELLES).toHaveLength(45);
+    const transcrites = [...new Set(NOTES_ASSOCIATIONS.map((n) => n.code))];
+    expect([...transcrites].sort()).toEqual([...OFFICIELLES].sort());
+  });
+
+  it('une rubrique en SAISIE n’est jamais confondue avec une rubrique en attente de rattachement', () => {
+    // La distinction porte l'information : « à renseigner » (rien à
+    // rattacher, la donnée n'est pas comptable) contre « en attente de
+    // rattachement » (le plan manque de finesse, le dossier doit subdiviser).
+    // Les confondre ferait réclamer un sous-compte pour un effectif.
+    for (const spec of NOTES_ASSOCIATIONS) {
+      for (const r of spec.rubriques) {
+        expect({ note: spec.code, r: r.libelle, cumul: !!(r.saisie && r.subdivisionAttendue) }).toEqual(
+          { note: spec.code, r: r.libelle, cumul: false },
+        );
+        // Une rubrique en saisie ne porte pas de comptes : elle serait alors
+        // calculée, et la mention « à renseigner » serait fausse.
+        expect({ note: spec.code, r: r.libelle, comptes: !!(r.saisie && r.comptes?.length) }).toEqual(
+          { note: spec.code, r: r.libelle, comptes: false },
+        );
+      }
+    }
+  });
+
   it('chaque note déclare ses colonnes et un titre non vide', () => {
     for (const spec of NOTES_ASSOCIATIONS) {
       expect(spec.colonnes.length).toBeGreaterThan(0);

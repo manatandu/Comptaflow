@@ -92,9 +92,10 @@ function enAttente(cle: string, libelle: string, attendu: string) {
 export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
   {
     code: '7',
-    titre: 'ACTIF CIRCULANT ET DETTES CIRCULANTES HAO',
+    sousTableau: 'ACTIF CIRCULANT HAO',
+    titre: 'ACTIF CIRCULANT HAO',
     colonnes: COLONNES_STANDARD,
-    renvoyeeDepuis: ['BA', 'DF'],
+    renvoyeeDepuis: ['BA'],
     rubriques: [
       { libelle: "Créances sur cessions d'immobilisations", comptes: ['485'] },
       { libelle: "Créances reçues par dons et legs d'immobilisations", comptes: ['4865'] },
@@ -102,13 +103,34 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
       { libelle: 'TOTAL BRUT', totalDeRubriques: [0, 1, 2] },
       { libelle: 'Dépréciations des créances HAO', comptes: ['498'], presenterEnNegatif: true },
       { libelle: 'TOTAL NET DE DEPRECIATIONS', totalDeRubriques: [3, 4] },
-      { libelle: "Fournisseurs d'investissements", comptes: ['481'], sens: 'CREDITEUR' },
-      { libelle: "Dettes sur dons et legs d'immobilisations", comptes: ['4861'], sens: 'CREDITEUR' },
-      { libelle: 'Autres dettes hors activités ordinaires', comptes: ['484', '488'], sens: 'CREDITEUR' },
-      { libelle: 'TOTAL DETTES CIRCULANTES HAO', totalDeRubriques: [6, 7, 8] },
     ],
     commentaire:
-      "commenter toute variation significative ; dépréciations : indiquer les événements et circonstances ; indiquer la date et la nature de l'immobilisation achetée et/ou cédée.",
+      'commenter toute variation significative ; dépréciations : indiquer les événements et circonstances ; ' +
+      "indiquer la date et la nature de l'immobilisation achetée et/ou cédée.",
+  },
+  {
+    code: '7',
+    sousTableau: 'DETTES CIRCULANTES HAO',
+    titre: 'DETTES CIRCULANTES HAO',
+    colonnes: COLONNES_STANDARD,
+    renvoyeeDepuis: ['DF'],
+    rubriques: [
+      { libelle: "Fournisseurs d'investissements", comptes: ['481'], sens: 'CREDITEUR' },
+      { libelle: "Dettes des dons et legs d'immobilisations", comptes: ['4861'], sens: 'CREDITEUR' },
+      // Rubrique OMISE à la première transcription, relevée en reprenant le
+      // modèle pour le découper en ses deux tableaux. Le plan ne prévoit un
+      // compte de dons en nature non consommés qu'en COURANT (4713) ; rien
+      // en hors activités ordinaires.
+      enAttente(
+        'crediteurs-dons-nature-hao',
+        'Créditeurs, dons nature HAO non consommés',
+        "Le plan ne prévoit un compte de créditeurs pour dons en nature non consommés qu'en courant " +
+          '(4713) : subdiviser le compte 484 « Autres dettes hors activités ordinaires » et rattacher ici ' +
+          'le sous-compte des dons en nature H.A.O. non consommés.',
+      ),
+      { libelle: 'Autres dettes hors activités ordinaires', comptes: ['484', '488'], sens: 'CREDITEUR' },
+      { libelle: 'TOTAL', totalDeRubriques: [0, 1, 2, 3] },
+    ],
   },
 
   {
@@ -1575,5 +1597,301 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
       "indiquer pour la subvention la date d'octroi, la nature, les obligations éventuelles ; pour les " +
       'provisions réglementées, indiquer le texte de référence, les obligations ; commenter toute variation ' +
       'significative.',
+  },
+
+  // ======================================================================
+  // NOTES NARRATIVES ET HORS BALANCE
+  //
+  // Aucune de ces notes ne se calcule depuis une balance : ce sont des
+  // informations que l'entité rédige ou dénombre. Leurs rubriques portent
+  // `saisie`, qui les distingue d'un rattachement oublié — la différence
+  // compte, parce que la fiche récapitulative doit dire « à renseigner » et
+  // non « en attente de rattachement ».
+  // ======================================================================
+  {
+    code: '2',
+    titre: 'INFORMATIONS OBLIGATOIRES',
+    horsBalance: true,
+    colonnes: [{ type: 'LIBRE' as const, libelle: 'Informations' }],
+    rubriques: [
+      { libelle: 'A - IDENTITE, ORGANISATION', saisie: true },
+      {
+        libelle:
+          "B - DECLARATION DE CONFORMITE AU SYSTEME COMPTABLE DES ENTITÉS À BUT NON LUCRATIF ET FAITS " +
+          "MARQUANTS DE L'EXERCICE",
+        saisie: true,
+      },
+      { libelle: 'C - REGLES, METHODES COMPTABLES ET DEROGATION AUX PRINCIPES COMPTABLES', saisie: true },
+      {
+        libelle:
+          'D - INFORMATIONS COMPLEMENTAIRES RELATIVES AU BILAN, AU COMPTE DE RESULTAT ET AU TABLEAU DES ' +
+          'FLUX DE TRESORERIE',
+        saisie: true,
+      },
+    ],
+    commentaire:
+      "décrire brièvement l'identité et l'organisation ; mentionner les faits marquants de l'exercice, les " +
+      "subventions ayant fait l'objet d'une restitution étant mentionnées après la déclaration de conformité ; " +
+      'ne mentionner que les éléments ayant une incidence comptable significative ou nuisant à la ' +
+      'comparabilité des exercices ; décrire les règles et méthodes utilisées pour l’établissement des états ' +
+      'financiers.',
+  },
+  {
+    code: '3',
+    titre: "EVENEMENTS POSTERIEURS A LA CLOTURE DE L'EXERCICE",
+    horsBalance: true,
+    colonnes: [{ type: 'LIBRE' as const, libelle: 'Informations' }],
+    rubriques: [
+      { libelle: "Date d'arrêté des états financiers", saisie: true },
+      { libelle: 'Organe ayant autorisé la publication des comptes', saisie: true },
+      {
+        libelle:
+          'A - EVENEMENTS POSTERIEURS A LA DATE DE CLOTURE DONNANT LIEU A DES AJUSTEMENTS DES ETATS FINANCIERS',
+        saisie: true,
+      },
+      {
+        libelle:
+          'B - EVENEMENTS POSTERIEURS A LA DATE DE CLOTURE NE DONNANT PAS LIEU A DES AJUSTEMENTS DES ETATS ' +
+          'FINANCIERS',
+        saisie: true,
+      },
+      {
+        libelle: "C - EVENEMENTS REMETTANT EN CAUSE L'HYPOTHESE DE BASE DE CONTINUITE DE L'EXPLOITATION",
+        saisie: true,
+      },
+    ],
+    commentaire:
+      'A : indiquer la nature des événements et, pour chacun, des précisions sur les comptes ajustés. ' +
+      "B : estimation de l'impact financier de chaque événement, ou indication que l'estimation ne peut être " +
+      "fournie. C : nature de l'événement ayant entraîné la remise en cause ; précisions sur les valeurs " +
+      'liquidatives retenues.',
+  },
+  {
+    code: '4',
+    titre: "CHANGEMENTS DE METHODES COMPTABLES, D'ESTIMATIONS ET CORRECTIONS D'ERREURS",
+    horsBalance: true,
+    colonnes: [{ type: 'LIBRE' as const, libelle: 'Informations' }],
+    rubriques: [
+      { libelle: 'A - CHANGEMENTS DE METHODES COMPTABLES — 1. Changement de réglementation comptable', saisie: true },
+      {
+        libelle:
+          "A - CHANGEMENTS DE METHODES COMPTABLES — 2. Changement de méthode comptable à l'initiative de " +
+          "l'entité (impact à l'ouverture, retraitement rétrospectif ou application prospective)",
+        saisie: true,
+      },
+      { libelle: "B - CHANGEMENTS D'ESTIMATIONS", saisie: true },
+      { libelle: "C - CORRECTIONS D'ERREURS", saisie: true },
+    ],
+    commentaire:
+      "B : l'entité doit indiquer et justifier le changement d'estimation. C : nature des erreurs corrigées " +
+      '(exercice en cours et exercice antérieur) et présentation des principaux postes retraités.',
+  },
+  {
+    code: '5H',
+    titre: "INFORMATIONS SUR LES REEVALUATIONS EFFECTUEES PAR L'ENTITE",
+    horsBalance: true,
+    colonnes: [
+      { type: 'LIBRE' as const, libelle: 'Eléments réévalués par postes du bilan' },
+      { type: 'LIBRE' as const, libelle: 'Montants en coûts historiques' },
+      { type: 'LIBRE' as const, libelle: 'Montants réévalués' },
+      { type: 'LIBRE' as const, libelle: 'Ecarts et provisions spéciales réévaluation' },
+    ],
+    rubriques: [
+      { libelle: 'Nature et date des réévaluations', saisie: true },
+      { libelle: 'Eléments réévalués par postes du bilan', saisie: true },
+      { libelle: 'TOTAL GENERAL', saisie: true },
+      { libelle: 'Méthode de réévaluation utilisée', saisie: true },
+      {
+        libelle: "Traitement fiscal de l'écart de réévaluation et des amortissements supplémentaires",
+        saisie: true,
+      },
+      { libelle: "Montant de l'écart incorporé à la dotation", saisie: true },
+    ],
+  },
+  {
+    code: '29B',
+    sousTableau: 'PERSONNEL PROPRE',
+    titre: 'EFFECTIF, MASSE SALARIALE ET PERSONNEL — 1. Personnel propre',
+    horsBalance: true,
+    // Les effectifs ne sont pas une donnée comptable : aucun compte ne porte
+    // un nombre de personnes. La masse salariale, elle, se recoupe avec la
+    // note 29A — c'est un contrôle à offrir plus tard, pas un calcul à
+    // inventer ici, la ventilation par sexe et par zone n'existant nulle part
+    // en comptabilité.
+    colonnes: [
+      { type: 'LIBRE' as const, libelle: 'EFFECTIFS — Nationaux (M / F)' },
+      { type: 'LIBRE' as const, libelle: 'EFFECTIFS — Autres Etats de la Région (M / F)' },
+      { type: 'LIBRE' as const, libelle: 'EFFECTIFS — Hors Région (M / F)' },
+      { type: 'LIBRE' as const, libelle: 'EFFECTIFS — Total (M / F)' },
+      { type: 'LIBRE' as const, libelle: 'MASSE SALARIALE — Nationaux (M / F)' },
+      { type: 'LIBRE' as const, libelle: 'MASSE SALARIALE — Autres Etats de la Région (M / F)' },
+      { type: 'LIBRE' as const, libelle: 'MASSE SALARIALE — Hors Région (M / F)' },
+      { type: 'LIBRE' as const, libelle: 'MASSE SALARIALE — Total (M / F)' },
+    ],
+    rubriques: [
+      { libelle: 'YA. 1. Cadres supérieurs', saisie: true },
+      { libelle: 'YB. 2. Techniciens supérieurs et cadres moyens', saisie: true },
+      { libelle: 'YC. 3. Techniciens, agents de maîtrise et ouvriers qualifiés', saisie: true },
+      { libelle: 'YD. 4. Employés, manœuvres, ouvriers et apprentis', saisie: true },
+      { libelle: 'YE. TOTAL (1)', saisie: true },
+      { libelle: 'YF. Permanents', saisie: true },
+      { libelle: 'YG. Saisonniers', saisie: true },
+    ],
+    renvoiOfficiel: 'M : Masculin ; F : Féminin.',
+    commentaire: 'faire un commentaire si nécessaire en cas de mouvement significatif du personnel.',
+  },
+  {
+    code: '29B',
+    sousTableau: 'PERSONNEL EXTERIEUR ET BENEVOLE',
+    titre: 'EFFECTIF, MASSE SALARIALE ET PERSONNEL — 2. Personnel extérieur et bénévole',
+    horsBalance: true,
+    colonnes: [{ type: 'LIBRE' as const, libelle: "Facturation à l'entité" }],
+    rubriques: [
+      { libelle: 'YH. 1. Cadres supérieurs', saisie: true },
+      { libelle: 'YI. 2. Techniciens supérieurs et cadres moyens', saisie: true },
+      { libelle: 'YJ. 3. Techniciens, agents de maîtrise et ouvriers qualifiés', saisie: true },
+      { libelle: 'YK. 4. Employés, manœuvres, ouvriers et apprentis', saisie: true },
+      { libelle: 'YL. TOTAL (2)', saisie: true },
+      { libelle: 'YM. Permanents', saisie: true },
+      { libelle: 'YN. Saisonniers', saisie: true },
+      { libelle: 'YO. TOTAL (1 + 2)', saisie: true },
+    ],
+  },
+  {
+    code: '33',
+    titre: 'FICHE DE SYNTHESE DES PRINCIPAUX INDICATEURS FINANCIERS',
+    // TRANSCRITE, PAS ENCORE CALCULÉE — et c'est délibéré.
+    //
+    // Cette fiche est une SYNTHÈSE des trois autres états : elle reprend des
+    // agrégats du bilan (fonds propres, ressources stables, actif immobilisé),
+    // du compte de résultat (résultats, CAFG) et du TABLEAU DE FLUX DE
+    // TRÉSORERIE, qui n'est pas construit (phase 2). La calculer maintenant
+    // reviendrait à livrer une fiche d'apparence complète dont le dernier
+    // bloc resterait vide, puis à la refaire.
+    //
+    // Sa structure et ses formules officielles sont transcrites ici pour
+    // qu'elle soit branchée d'un bloc quand le TFT existera.
+    horsBalance: true,
+    colonnes: [
+      { type: 'LIBRE' as const, libelle: 'Année N' },
+      { type: 'LIBRE' as const, libelle: 'Année N-1' },
+      { type: 'LIBRE' as const, libelle: 'Variation en valeur' },
+      { type: 'LIBRE' as const, libelle: 'Variation en %' },
+    ],
+    rubriques: [
+      { libelle: 'Résultat des activités ordinaires', saisie: true },
+      { libelle: 'Résultat hors activités ordinaires', saisie: true },
+      { libelle: 'Résultat net', saisie: true },
+      { libelle: "Capacité d'autofinancement globale (CAFG)", saisie: true, renvoi: '(a)' },
+      { libelle: "Ratio de cotisations acquises = Cotisations / Charges de l'exercice", saisie: true, renvoi: '(b)' },
+      {
+        libelle:
+          "Ratio d'utilisation des dons = Sommes versées directement aux bénéficiaires / Sommes collectées brutes",
+        saisie: true,
+      },
+      { libelle: '+ Fonds propres et assimilés', saisie: true },
+      { libelle: '+ Dettes financières et ressources assimilées', saisie: true, renvoi: '(c)' },
+      { libelle: '= RESSOURCES STABLES', saisie: true },
+      { libelle: '- Actif immobilisé', saisie: true, renvoi: '(c)' },
+      { libelle: '= FONDS DE ROULEMENT (1)', saisie: true },
+      { libelle: "+ Actif circulant d'exploitation", saisie: true, renvoi: '(c)' },
+      { libelle: "- Passif circulant d'exploitation", saisie: true, renvoi: '(c)' },
+      { libelle: "= BESOIN DE FINANCEMENT D'EXPLOITATION (2)", saisie: true },
+      { libelle: '+ Actif circulant HAO', saisie: true, renvoi: '(c)' },
+      { libelle: '- Passif circulant HAO', saisie: true, renvoi: '(c)' },
+      { libelle: '= BESOIN DE FINANCEMENT HAO (3)', saisie: true },
+      { libelle: 'BESOIN DE FINANCEMENT GLOBAL (4) = (2) + (3)', saisie: true },
+      { libelle: 'TRESORERIE NETTE (5) = (1) - (4)', saisie: true },
+      {
+        libelle: 'CONTRÔLE : TRESORERIE NETTE = (TRESORERIE - ACTIF) - (TRESORERIE - PASSIF)',
+        saisie: true,
+      },
+      {
+        libelle: 'Ratio de liquidité générale = Créances + Trésorerie-actif / Passif circulant',
+        saisie: true,
+        renvoi: '(**)',
+      },
+      { libelle: 'Flux de trésorerie des activités opérationnelles', saisie: true },
+      { libelle: "Flux de trésorerie des activités d'investissement", saisie: true },
+      { libelle: 'Flux de trésorerie des activités de financement', saisie: true },
+      { libelle: '= VARIATION DE LA TRESORERIE NETTE DE LA PERIODE', saisie: true },
+    ],
+    renvoiOfficiel:
+      "(EN MILLIERS DE FRANCS) — a) capacité d'autofinancement globale = Résultat net + Dotations aux " +
+      'amortissements aux dépréciations, provisions et autres - Reprises d’amortissements, de dépréciations ' +
+      'provisions et autres + valeurs comptables des cessions d’immobilisations - Produits des cessions ' +
+      'd’immobilisations. b) Les variations des ratios doivent être exprimées en nombre de points (par exemple ' +
+      'de 2% à 5% = 3 points). c) Les écarts de conversion doivent être éliminés afin de ramener les créances ' +
+      'et les dettes concernées à leur valeur initiale. (*) dettes financières : emprunts et dettes ' +
+      'financières diverses + dettes de location-acquisition. (**) Créances = Fournisseurs avances versées + ' +
+      'Adhérents + Autres créances.',
+  },
+  {
+    code: '34',
+    titre: 'LISTE DES INFORMATIONS SOCIALES, ENVIRONNEMENTALES ET SOCIETALES',
+    // Obligatoire seulement au-delà de 250 personnes, BÉNÉVOLES COMPRIS — un
+    // seuil que la comptabilité ne peut pas vérifier seule (voir note 29B).
+    horsBalance: true,
+    colonnes: [{ type: 'LIBRE' as const, libelle: 'Informations' }],
+    rubriques: [
+      { libelle: 'INFORMATIONS SOCIALES — Emploi', saisie: true },
+      { libelle: 'INFORMATIONS SOCIALES — Relations sociales', saisie: true },
+      { libelle: 'INFORMATIONS SOCIALES — Santé et sécurité', saisie: true },
+      { libelle: 'INFORMATIONS SOCIALES — Formation', saisie: true },
+      { libelle: 'INFORMATIONS SOCIALES — Égalité de traitement', saisie: true },
+      { libelle: 'INFORMATIONS ENVIRONNEMENTALES — Politique générale en matière environnementale', saisie: true },
+      { libelle: 'INFORMATIONS ENVIRONNEMENTALES — Pollution et gestion des déchets', saisie: true },
+      { libelle: 'INFORMATIONS ENVIRONNEMENTALES — Utilisation durable des ressources', saisie: true },
+      {
+        libelle: 'INFORMATIONS ENVIRONNEMENTALES — Changement climatique (rejets de gaz à effet de serre)',
+        saisie: true,
+      },
+      { libelle: 'INFORMATIONS ENVIRONNEMENTALES — Protection de la biodiversité', saisie: true },
+      {
+        libelle:
+          "ENGAGEMENTS SOCIÉTAUX — Impact territorial, économique et social de l'activité (emploi et " +
+          'développement régional ; populations riveraines ou locales)',
+        saisie: true,
+      },
+      {
+        libelle:
+          "ENGAGEMENTS SOCIÉTAUX — Relations entretenues avec les personnes ou organisations intéressées par " +
+          "l'activité de l'entité",
+        saisie: true,
+      },
+      {
+        libelle:
+          'ENGAGEMENTS SOCIÉTAUX — Sous-traitance et fournisseurs (prise en compte des enjeux sociaux et ' +
+          "environnementaux dans la politique d'achat)",
+        saisie: true,
+      },
+    ],
+    renvoiOfficiel:
+      'Note obligatoire pour les entités ayant un effectif de plus de 250 personnes y compris les bénévoles.',
+  },
+  {
+    code: '35',
+    titre: "TABLEAU D'EXECUTION BUDGETAIRE",
+    // Le budget n'est pas une donnée comptable : rien dans la balance ne
+    // porte un montant BUDGÉTÉ. Ce tableau suppose une brique budgétaire —
+    // saisie du budget par ligne de nomenclature, puis rapprochement avec les
+    // décaissements et les engagements. Les colonnes (4) et (5) et le
+    // pourcentage se déduisent alors des trois premières.
+    horsBalance: true,
+    colonnes: [
+      { type: 'LIBRE' as const, libelle: 'Code' },
+      { type: 'LIBRE' as const, libelle: 'Libellé' },
+      { type: 'LIBRE' as const, libelle: "Budget de l'exercice (1)" },
+      { type: 'LIBRE' as const, libelle: 'Décaissement (2)' },
+      { type: 'LIBRE' as const, libelle: 'Engagement (3)' },
+      { type: 'LIBRE' as const, libelle: 'Réalisation (4 = 2 + 3)' },
+      { type: 'LIBRE' as const, libelle: 'Crédit Disponible (5 = 1 - 4)' },
+      { type: 'LIBRE' as const, libelle: 'Exécution budget (%) (4/1)' },
+    ],
+    rubriques: [
+      { libelle: 'Lignes de la nomenclature budgétaire du projet', saisie: true },
+      { libelle: 'TOTAL', saisie: true },
+    ],
+    renvoiOfficiel: 'Remplir, code et libellé, suivant la nomenclature budgétaire du projet.',
   },
 ];
