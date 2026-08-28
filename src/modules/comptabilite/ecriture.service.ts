@@ -3,6 +3,7 @@ import { PrismaService } from '../../common/prisma.service';
 import { StatutExercice } from '@prisma/client';
 import { CreerEcritureDto } from './dto/creer-ecriture.dto';
 import { JournalService } from '../journaux/journal.service';
+import { ExerciceService } from '../exercice/exercice.service';
 import { avecRetrySerialisable } from '../../common/prisma-retry.util';
 
 /**
@@ -17,6 +18,7 @@ export class EcritureService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly journalService: JournalService,
+    private readonly exerciceService: ExerciceService,
   ) {}
 
   async creer(tenantId: string, createdBy: string, dto: CreerEcritureDto) {
@@ -44,6 +46,11 @@ export class EcritureService {
     }
 
     const date = new Date(dto.date);
+
+    // Clôtures Partielle/Totale (par journal) et Période (tous journaux) :
+    // verrouillage de saisie indépendant du statut CLOTURE de l'exercice —
+    // voir ExerciceService.verifierEcritureAutorisee.
+    await this.exerciceService.verifierEcritureAutorisee(tenantId, dto.journalId, date);
 
     // Le calcul du numéro de pièce (lire le max actuel, l'incrémenter) et la
     // création de l'écriture doivent former une seule opération atomique :

@@ -213,8 +213,22 @@ Ordre de dépendances techniques réelles, pas un simple ordre de préférence :
    à la création), un appel direct à l'API pouvait donc casser silencieusement le
    lien compte↔journal ; vérifié via un appel PATCH réel (400 désormais, message
    explicite). Rien d'autre trouvé qui corrompe des données ou casse une invariante.
-3. **Cycle de vie complet de l'exercice** : clôture à 3 granularités + génération réelle
-   des reports à-nouveau (3 modes par compte).
+3. ✅ **Cycle de vie complet de l'exercice** — livré : clôture à 3 granularités
+   (`Cloture` : Partielle réversible par journal, Totale définitive par journal, Période
+   définitive tous journaux confondus), `ExerciceService.verifierEcritureAutorisee`
+   appelée par `EcritureService.creer()` avant toute saisie. Clôture ANNUELLE réécrite :
+   solde les comptes en mode `AUCUN` (charges/produits) sur le compte 130000 "Résultat
+   de l'exercice", puis génère le report à-nouveau réel dans l'exercice suivant (créé
+   automatiquement s'il n'existe pas) selon le mode de chaque compte (`SOLDE` = un
+   solde net, `DETAIL` = chaque mouvement non lettré individuellement). Les deux
+   écritures générées s'équilibrent par construction (identité partie double) ; un
+   déséquilibre lèverait une erreur interne plutôt que de poster une écriture fausse.
+   Vérifié de bout en bout via curl : verrouillage Partielle (bloque puis autorise après
+   annulation), Totale (bloque définitivement, rejette une 2ᵉ clôture, rejette
+   l'annulation), Période (bloque tous journaux jusqu'à une date), et clôture annuelle
+   complète (don 500 + achat 200 → résultat 300 crédité sur 130000, reporté avec la
+   Banque dans l'exercice suivant auto-créé, balance équilibrée 300/300). Frontend
+   (`ExercicePage`, menu Traitement) pas encore construit — reste à faire.
 4. **Tiers** (Client/Fournisseur/Salarié/Autre, comptes rattachés, modèle de règlement).
 5. **TVA / taux de taxes** comme entité paramétrable.
 6. **Comptes "Total"/regroupement par racine** — brique technique courte, prépare le

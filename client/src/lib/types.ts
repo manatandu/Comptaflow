@@ -30,6 +30,20 @@ export interface Exercice {
   statut: StatutExercice;
 }
 
+export type GranulariteCloture = 'PARTIELLE' | 'TOTALE' | 'PERIODE';
+
+export interface Cloture {
+  id: string;
+  exerciceId: string;
+  granularite: GranulariteCloture;
+  journalId: string | null;
+  journal?: Journal | null;
+  dateLimite: string;
+  annulable: boolean;
+  createdAt: string;
+  annuleeAt: string | null;
+}
+
 export type TypeJournal = 'ACHATS' | 'VENTES' | 'TRESORERIE' | 'GENERAL' | 'SITUATION';
 export type NumerotationPiece = 'MANUELLE' | 'CONTINUE_JOURNAL' | 'CONTINUE_FICHIER' | 'MENSUELLE';
 

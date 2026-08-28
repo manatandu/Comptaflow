@@ -1,5 +1,5 @@
 import { IsBoolean, IsEnum, IsOptional, IsString, Matches } from 'class-validator';
-import { ClasseCompte } from '@prisma/client';
+import { ClasseCompte, ModeReportANouveau } from '@prisma/client';
 
 export class CreerCompteDto {
   @Matches(/^\d{3,8}$/, { message: 'Le numéro de compte doit être numérique (3 à 8 chiffres)' })
@@ -10,6 +10,12 @@ export class CreerCompteDto {
 
   @IsEnum(ClasseCompte)
   classe!: ClasseCompte;
+
+  // Par défaut SOLDE (voir Compte.modeReportANouveau côté schéma) ; un compte
+  // de charge/produit créé à la main doit explicitement passer AUCUN.
+  @IsOptional()
+  @IsEnum(ModeReportANouveau)
+  modeReportANouveau?: ModeReportANouveau;
 }
 
 export class ModifierCompteDto {
@@ -20,4 +26,8 @@ export class ModifierCompteDto {
   @IsOptional()
   @IsBoolean()
   estActif?: boolean;
+
+  @IsOptional()
+  @IsEnum(ModeReportANouveau)
+  modeReportANouveau?: ModeReportANouveau;
 }

@@ -54,6 +54,7 @@ model Tenant {
   ecritures Ecriture[]
   users     User[]
   journaux  Journal[]
+  clotures  Cloture[]
 
   @@map("tenants")
 }
@@ -62,15 +63,15 @@ model Tenant {
 // perpétuelles ; c'est dateExpiration + statut qui pilotent la coupure automatique
 // pour un abonnement (voir LicenceGuard).
 model Licence {
-  id                    String        @id @default(uuid())
-  tenantId              String        @unique
-  tenant                Tenant        @relation(fields: [tenantId], references: [id])
-  type                  TypeLicence
-  statut                StatutLicence @default(ACTIVE)
-  dateDebut             DateTime      @default(now())
-  dateExpiration        DateTime? // null pour PERPETUEL_SAAS / PERPETUEL_ONPREMISE
-  dernierHeartbeatAt    DateTime? // pour PERPETUEL_ONPREMISE : dernière vérification en ligne réussie
-  joursGraceHorsLigne   Int           @default(7) // tolérance hors-ligne avant coupure (on-premise)
+  id                  String        @id @default(uuid())
+  tenantId            String        @unique
+  tenant              Tenant        @relation(fields: [tenantId], references: [id])
+  type                TypeLicence
+  statut              StatutLicence @default(ACTIVE)
+  dateDebut           DateTime      @default(now())
+  dateExpiration      DateTime? // null pour PERPETUEL_SAAS / PERPETUEL_ONPREMISE
+  dernierHeartbeatAt  DateTime? // pour PERPETUEL_ONPREMISE : dernière vérification en ligne réussie
+  joursGraceHorsLigne Int           @default(7) // tolérance hors-ligne avant coupure (on-premise)
 
   @@map("licences")
 }
@@ -112,14 +113,28 @@ enum ClasseCompte {
   CLASSE_9 // Comptabilité analytique / engagements
 }
 
+// Report à-nouveau — 3 modes par compte (cf. docs/plan-de-construction.md §3.1) :
+// - AUCUN : pas de report, soldé sur le résultat (comptes de charges/produits,
+//   classes 6/7 — voir ExerciceService.cloturer, qui les vire vers le compte
+//   de résultat plutôt que de les reporter).
+// - SOLDE : seul le solde net est reporté (comptes de bilan génériques).
+// - DETAIL : chaque mouvement NON LETTRÉ est reporté individuellement (comptes
+//   nécessitant un suivi fin, ex. tiers) — suppose un lettrage à jour.
+enum ModeReportANouveau {
+  AUCUN
+  SOLDE
+  DETAIL
+}
+
 model Compte {
-  id        String       @id @default(uuid())
-  tenantId  String
-  tenant    Tenant       @relation(fields: [tenantId], references: [id])
-  numero    String // ex : "10600" fonds associatif, "1810" fonds affecté
-  intitule  String
-  classe    ClasseCompte
-  estActif  Boolean      @default(true)
+  id                 String             @id @default(uuid())
+  tenantId           String
+  tenant             Tenant             @relation(fields: [tenantId], references: [id])
+  numero             String // ex : "10600" fonds associatif, "1810" fonds affecté
+  intitule           String
+  classe             ClasseCompte
+  estActif           Boolean            @default(true)
+  modeReportANouveau ModeReportANouveau @default(SOLDE)
 
   lignesEcriture     LigneEcriture[]
   journauxTresorerie Journal[] // journaux de type TRESORERIE dont ce compte est la contrepartie
@@ -148,9 +163,9 @@ enum NumerotationPiece {
 }
 
 model Journal {
-  id       String @id @default(uuid())
+  id       String      @id @default(uuid())
   tenantId String
-  tenant   Tenant @relation(fields: [tenantId], references: [id])
+  tenant   Tenant      @relation(fields: [tenantId], references: [id])
   code     String // ex : "ACH", "VEN", "BQ", "CA", "OD"
   intitule String
   type     TypeJournal
@@ -165,6 +180,7 @@ model Journal {
   createdAt    DateTime          @default(now())
 
   ecritures Ecriture[]
+  clotures  Cloture[]
 
   @@unique([tenantId, code])
   @@map("journaux")
@@ -184,6 +200,7 @@ model Exercice {
   statut    StatutExercice @default(OUVERT)
 
   ecritures Ecriture[]
+  clotures  Cloture[]
 
   @@unique([tenantId, dateDebut, dateFin])
   @@map("exercices")
@@ -192,13 +209,13 @@ model Exercice {
 // Une écriture = un fait comptable, composé d'au moins 2 lignes équilibrées
 // (total débit = total crédit). L'équilibre est vérifié en service, pas en DB.
 model Ecriture {
-  id         String   @id @default(uuid())
-  tenantId   String
-  tenant     Tenant   @relation(fields: [tenantId], references: [id])
-  exerciceId String
-  exercice   Exercice @relation(fields: [exerciceId], references: [id])
-  journalId  String
-  journal    Journal  @relation(fields: [journalId], references: [id])
+  id          String   @id @default(uuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  exerciceId  String
+  exercice    Exercice @relation(fields: [exerciceId], references: [id])
+  journalId   String
+  journal     Journal  @relation(fields: [journalId], references: [id])
   // Numéro de pièce auto-calculé selon Journal.numerotation (null si
   // NumerotationPiece.MANUELLE — voir JournalService.prochainNumeroPiece).
   numeroPiece Int?
@@ -208,9 +225,56 @@ model Ecriture {
   createdAt   DateTime @default(now())
   createdBy   String // piste d'audit : jamais modifiable après clôture de l'exercice
 
+  // Écriture générée automatiquement par la clôture de l'exercice (clôture des
+  // classes 6/7 sur le résultat, ou report à-nouveau dans l'exercice suivant) —
+  // voir ExerciceService.cloturer. Purement informatif pour l'instant (affichage),
+  // ces écritures sont de toute façon déjà protégées comme les autres par le
+  // statut CLOTURE de leur exercice.
+  estGenereeParCloture Boolean @default(false)
+
   lignes LigneEcriture[]
 
   @@map("ecritures")
+}
+
+// ---------------------------------------------------------------------------
+// Clôture — 3 granularités (cf. docs/plan-de-construction.md §3.1) :
+// - PARTIELLE : verrouille les écritures d'un journal jusqu'à dateLimite,
+//   réversible (annulable = true) ; nouvelles saisies encore possibles après
+//   dateLimite dans ce même journal.
+// - TOTALE : fige un journal en entier (dateLimite = dateFin de l'exercice le
+//   plus souvent), définitive.
+// - PERIODE : verrouille jusqu'à dateLimite, tous journaux confondus
+//   (journalId = null), définitive.
+// Distincte de la clôture annuelle de l'exercice (ExerciceService.cloturer,
+// StatutExercice.CLOTURE) qui, elle, génère le report à-nouveau réel.
+// ---------------------------------------------------------------------------
+
+enum GranulariteCloture {
+  PARTIELLE
+  TOTALE
+  PERIODE
+}
+
+model Cloture {
+  id          String             @id @default(uuid())
+  tenantId    String
+  tenant      Tenant             @relation(fields: [tenantId], references: [id])
+  exerciceId  String
+  exercice    Exercice           @relation(fields: [exerciceId], references: [id])
+  granularite GranulariteCloture
+  // Requis pour PARTIELLE/TOTALE (verrouille ce seul journal) ; null pour
+  // PERIODE (verrouille tous les journaux du tenant jusqu'à dateLimite).
+  journalId   String?
+  journal     Journal?           @relation(fields: [journalId], references: [id])
+  dateLimite  DateTime
+  annulable   Boolean            @default(false)
+  createdAt   DateTime           @default(now())
+  createdBy   String
+  annuleeAt   DateTime?
+  annuleeBy   String?
+
+  @@map("clotures")
 }
 
 model LigneEcriture {

@@ -1,11 +1,42 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
-import { StatutExercice } from '@prisma/client';
+import {
+  ClasseCompte,
+  GranulariteCloture,
+  ModeReportANouveau,
+  Prisma,
+  StatutExercice,
+  TypeJournal,
+} from '@prisma/client';
 import { CreerExerciceDto } from './dto/creer-exercice.dto';
+import { ClorePartielleDto, CloreTotaleDto, ClorePeriodeDto } from './dto/cloture.dto';
+import { JournalService } from '../journaux/journal.service';
+import { avecRetrySerialisable } from '../../common/prisma-retry.util';
 
+const EPSILON = 0.005;
+
+/**
+ * Cycle de vie complet de l'exercice (docs/plan-de-construction.md §3.1) :
+ * - 3 granularités de clôture (Partielle/Totale/Période), qui verrouillent la
+ *   saisie sans rien générer — voir clorePartielle/cloreTotale/clorePeriode
+ *   et verifierEcritureAutorisee (consulté par EcritureService.creer).
+ * - la clôture ANNUELLE de l'exercice (cloturer), distincte, qui solde les
+ *   classes 6/7 sur le résultat et génère le report à-nouveau réel dans
+ *   l'exercice suivant selon le mode de chaque compte (Aucun/Solde/Détail).
+ */
 @Injectable()
 export class ExerciceService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly journalService: JournalService,
+  ) {}
 
   /** Crée l'exercice de l'année en cours à l'inscription du tenant (1er janvier → 31 décembre). */
   async creerExerciceCourant(tenantId: string) {
@@ -32,14 +63,301 @@ export class ExerciceService {
     return this.prisma.exercice.create({ data: { tenantId, dateDebut, dateFin } });
   }
 
-  async cloturer(tenantId: string, exerciceId: string) {
+  private async trouverExercice(tenantId: string, exerciceId: string) {
     const exercice = await this.prisma.exercice.findFirst({ where: { id: exerciceId, tenantId } });
     if (!exercice) {
       throw new NotFoundException('Exercice introuvable pour ce tenant');
     }
+    return exercice;
+  }
+
+  // ---------------------------------------------------------------------
+  // Clôtures (Partielle/Totale/Période) — verrouillage de saisie, réversible
+  // uniquement pour la Partielle.
+  // ---------------------------------------------------------------------
+
+  async clorePartielle(tenantId: string, exerciceId: string, userId: string, dto: ClorePartielleDto) {
+    await this.trouverExercice(tenantId, exerciceId);
+    const journal = await this.journalService.trouver(tenantId, dto.journalId);
+    return this.prisma.cloture.create({
+      data: {
+        tenantId,
+        exerciceId,
+        granularite: GranulariteCloture.PARTIELLE,
+        journalId: journal.id,
+        dateLimite: new Date(dto.dateLimite),
+        annulable: true,
+        createdBy: userId,
+      },
+    });
+  }
+
+  async cloreTotale(tenantId: string, exerciceId: string, userId: string, dto: CloreTotaleDto) {
+    const exercice = await this.trouverExercice(tenantId, exerciceId);
+    const journal = await this.journalService.trouver(tenantId, dto.journalId);
+    const dejaClos = await this.prisma.cloture.findFirst({
+      where: { tenantId, journalId: journal.id, granularite: GranulariteCloture.TOTALE, annuleeAt: null },
+    });
+    if (dejaClos) {
+      throw new ConflictException(`Le journal ${journal.code} est déjà clôturé totalement`);
+    }
+    return this.prisma.cloture.create({
+      data: {
+        tenantId,
+        exerciceId,
+        granularite: GranulariteCloture.TOTALE,
+        journalId: journal.id,
+        dateLimite: exercice.dateFin,
+        annulable: false,
+        createdBy: userId,
+      },
+    });
+  }
+
+  async clorePeriode(tenantId: string, exerciceId: string, userId: string, dto: ClorePeriodeDto) {
+    await this.trouverExercice(tenantId, exerciceId);
+    return this.prisma.cloture.create({
+      data: {
+        tenantId,
+        exerciceId,
+        granularite: GranulariteCloture.PERIODE,
+        journalId: null,
+        dateLimite: new Date(dto.dateLimite),
+        annulable: false,
+        createdBy: userId,
+      },
+    });
+  }
+
+  async listerClotures(tenantId: string, exerciceId: string) {
+    await this.trouverExercice(tenantId, exerciceId);
+    return this.prisma.cloture.findMany({
+      where: { tenantId, exerciceId },
+      include: { journal: true },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async annulerCloture(tenantId: string, clotureId: string, userId: string) {
+    const cloture = await this.prisma.cloture.findFirst({ where: { id: clotureId, tenantId } });
+    if (!cloture) {
+      throw new NotFoundException('Clôture introuvable pour ce tenant');
+    }
+    if (!cloture.annulable) {
+      throw new ForbiddenException('Cette clôture est définitive et ne peut pas être annulée (Totale/Période)');
+    }
+    if (cloture.annuleeAt) {
+      throw new ForbiddenException('Cette clôture est déjà annulée');
+    }
+    return this.prisma.cloture.update({
+      where: { id: cloture.id },
+      data: { annuleeAt: new Date(), annuleeBy: userId },
+    });
+  }
+
+  /**
+   * Appelé par EcritureService.creer() avant toute écriture : lève une
+   * ForbiddenException si une clôture active (Partielle/Totale sur ce
+   * journal, ou Période tous journaux) verrouille cette date.
+   */
+  async verifierEcritureAutorisee(tenantId: string, journalId: string, date: Date) {
+    const clotures = await this.prisma.cloture.findMany({
+      where: { tenantId, annuleeAt: null, OR: [{ journalId }, { journalId: null }] },
+    });
+    for (const c of clotures) {
+      if (c.granularite === GranulariteCloture.TOTALE && c.journalId === journalId) {
+        throw new ForbiddenException('Ce journal est clôturé totalement — aucune écriture n\'y est plus possible.');
+      }
+      if (c.granularite === GranulariteCloture.PARTIELLE && c.journalId === journalId && date <= c.dateLimite) {
+        throw new ForbiddenException(
+          `Ce journal est clôturé partiellement jusqu'au ${c.dateLimite.toISOString().slice(0, 10)} — aucune écriture ne peut plus y être datée à cette période ou avant.`,
+        );
+      }
+      if (c.granularite === GranulariteCloture.PERIODE && date <= c.dateLimite) {
+        throw new ForbiddenException(
+          `La période jusqu'au ${c.dateLimite.toISOString().slice(0, 10)} est clôturée pour tous les journaux.`,
+        );
+      }
+    }
+  }
+
+  /** Le compte 130000 (Résultat de l'exercice) doit exister avant toute clôture annuelle. */
+  private async assurerCompteResultat(tenantId: string, tx: Prisma.TransactionClient) {
+    const existant = await tx.compte.findUnique({ where: { tenantId_numero: { tenantId, numero: '130000' } } });
+    if (existant) return existant;
+    return tx.compte.create({
+      data: {
+        tenantId,
+        numero: '130000',
+        intitule: "Résultat de l'exercice",
+        classe: ClasseCompte.CLASSE_1,
+        modeReportANouveau: ModeReportANouveau.SOLDE,
+      },
+    });
+  }
+
+  /**
+   * Clôture ANNUELLE de l'exercice : solde les comptes en mode AUCUN (charges/
+   * produits) sur le compte de résultat 130000, puis génère le report à-nouveau
+   * réel dans l'exercice suivant (créé automatiquement s'il n'existe pas encore)
+   * selon le mode de chaque compte restant (Solde = un seul solde net, Détail =
+   * chaque mouvement non lettré individuellement). Les deux écritures générées
+   * sont, par construction comptable (partie double), toujours équilibrées —
+   * un déséquilibre ici signalerait un bug, pas une donnée utilisateur invalide,
+   * d'où l'InternalServerErrorException plutôt qu'un simple rejet de saisie.
+   */
+  async cloturer(tenantId: string, exerciceId: string, userId: string) {
+    const exercice = await this.trouverExercice(tenantId, exerciceId);
     if (exercice.statut === StatutExercice.CLOTURE) {
       throw new ForbiddenException('Cet exercice est déjà clôturé');
     }
-    return this.prisma.exercice.update({ where: { id: exerciceId }, data: { statut: StatutExercice.CLOTURE } });
+
+    return avecRetrySerialisable(
+      this.prisma,
+      async (tx) => {
+        const comptes = await tx.compte.findMany({
+          where: { tenantId },
+          include: { lignesEcriture: { where: { ecriture: { tenantId, exerciceId } }, include: { ecriture: true } } },
+        });
+        const solde = (c: (typeof comptes)[number]) =>
+          c.lignesEcriture.reduce((s, l) => s + Number(l.debit) - Number(l.credit), 0);
+
+        // Journal support des écritures générées — on réutilise le journal
+        // général existant (code OD, "Opérations diverses") plutôt que
+        // d'introduire un 6e type de journal pour ce seul usage.
+        const journal =
+          (await tx.journal.findFirst({ where: { tenantId, code: 'OD' } })) ??
+          (await tx.journal.findFirst({ where: { tenantId, type: TypeJournal.GENERAL } }));
+        if (!journal) {
+          throw new BadRequestException(
+            "Aucun journal de type Général disponible pour enregistrer les écritures de clôture (journal 'OD' attendu).",
+          );
+        }
+
+        // --- 1. Solde des comptes en mode AUCUN (charges/produits) sur le résultat ---
+        const comptesAucun = comptes.filter((c) => c.modeReportANouveau === ModeReportANouveau.AUCUN && Math.abs(solde(c)) > EPSILON);
+        let totalDebitResultat = 0;
+        let totalCreditResultat = 0;
+        const lignesCloture: Array<{ compteId: string; debit: number; credit: number; libelle: string }> = [];
+        for (const c of comptesAucun) {
+          const s = solde(c);
+          if (s > 0) {
+            lignesCloture.push({ compteId: c.id, debit: 0, credit: s, libelle: `Clôture ${c.numero} — ${c.intitule}` });
+            totalDebitResultat += s;
+          } else {
+            lignesCloture.push({ compteId: c.id, debit: -s, credit: 0, libelle: `Clôture ${c.numero} — ${c.intitule}` });
+            totalCreditResultat += -s;
+          }
+        }
+
+        let deltaResultat = 0;
+        let compteResultatId: string | null = null;
+        if (lignesCloture.length > 0) {
+          const compteResultat = await this.assurerCompteResultat(tenantId, tx);
+          compteResultatId = compteResultat.id;
+          lignesCloture.push({
+            compteId: compteResultat.id,
+            debit: totalDebitResultat,
+            credit: totalCreditResultat,
+            libelle: "Résultat de l'exercice",
+          });
+          deltaResultat = totalDebitResultat - totalCreditResultat;
+
+          const totalDebit = lignesCloture.reduce((s, l) => s + l.debit, 0);
+          const totalCredit = lignesCloture.reduce((s, l) => s + l.credit, 0);
+          if (Math.abs(totalDebit - totalCredit) > EPSILON) {
+            throw new InternalServerErrorException("Écriture de clôture déséquilibrée — anomalie interne, clôture annulée.");
+          }
+
+          const numeroPiece = await this.journalService.prochainNumeroPiece(tenantId, journal, exerciceId, exercice.dateFin, tx);
+          await tx.ecriture.create({
+            data: {
+              tenantId,
+              exerciceId,
+              journalId: journal.id,
+              numeroPiece,
+              date: exercice.dateFin,
+              libelle: `Clôture des charges/produits — exercice ${exercice.dateDebut.getUTCFullYear()}`,
+              createdBy: userId,
+              estGenereeParCloture: true,
+              lignes: { create: lignesCloture },
+            },
+          });
+        }
+
+        // --- 2. Report à-nouveau dans l'exercice suivant, selon le mode de chaque compte ---
+        let exerciceSuivant = await tx.exercice.findFirst({
+          where: { tenantId, dateDebut: { gt: exercice.dateFin } },
+          orderBy: { dateDebut: 'asc' },
+        });
+        if (!exerciceSuivant) {
+          const dateDebut = new Date(exercice.dateFin);
+          dateDebut.setUTCDate(dateDebut.getUTCDate() + 1);
+          const dureeMs = exercice.dateFin.getTime() - exercice.dateDebut.getTime();
+          const dateFin = new Date(dateDebut.getTime() + dureeMs);
+          exerciceSuivant = await tx.exercice.create({ data: { tenantId, dateDebut, dateFin } });
+        }
+
+        const lignesRan: Array<{ compteId: string; debit: number; credit: number; libelle: string }> = [];
+
+        const comptesSolde = comptes.filter((c) => c.modeReportANouveau === ModeReportANouveau.SOLDE);
+        for (const c of comptesSolde) {
+          const s = solde(c) + (c.id === compteResultatId ? deltaResultat : 0);
+          if (Math.abs(s) <= EPSILON) continue;
+          lignesRan.push({
+            compteId: c.id,
+            debit: s > 0 ? s : 0,
+            credit: s < 0 ? -s : 0,
+            libelle: `Report à-nouveau ${c.numero} — ${c.intitule}`,
+          });
+        }
+
+        const comptesDetail = comptes.filter((c) => c.modeReportANouveau === ModeReportANouveau.DETAIL);
+        for (const c of comptesDetail) {
+          for (const l of c.lignesEcriture) {
+            if (l.lettre) continue; // seuls les mouvements NON lettrés sont reportés en détail
+            lignesRan.push({
+              compteId: c.id,
+              debit: Number(l.debit),
+              credit: Number(l.credit),
+              libelle: `RAN détail ${c.numero} — ${l.libelle ?? l.ecriture.libelle}`,
+            });
+          }
+        }
+
+        if (lignesRan.length > 0) {
+          const totalDebit = lignesRan.reduce((s, l) => s + l.debit, 0);
+          const totalCredit = lignesRan.reduce((s, l) => s + l.credit, 0);
+          if (Math.abs(totalDebit - totalCredit) > EPSILON) {
+            throw new InternalServerErrorException(
+              "Report à-nouveau déséquilibré — anomalie interne (identité partie double violée), clôture annulée.",
+            );
+          }
+          const numeroPieceRan = await this.journalService.prochainNumeroPiece(
+            tenantId,
+            journal,
+            exerciceSuivant.id,
+            exerciceSuivant.dateDebut,
+            tx,
+          );
+          await tx.ecriture.create({
+            data: {
+              tenantId,
+              exerciceId: exerciceSuivant.id,
+              journalId: journal.id,
+              numeroPiece: numeroPieceRan,
+              date: exerciceSuivant.dateDebut,
+              libelle: `Report à-nouveau — ouverture exercice ${exerciceSuivant.dateDebut.getUTCFullYear()}`,
+              createdBy: userId,
+              estGenereeParCloture: true,
+              lignes: { create: lignesRan },
+            },
+          });
+        }
+
+        return tx.exercice.update({ where: { id: exerciceId }, data: { statut: StatutExercice.CLOTURE } });
+      },
+      "Trop d'opérations simultanées sur cet exercice — veuillez réessayer.",
+    );
   }
 }
