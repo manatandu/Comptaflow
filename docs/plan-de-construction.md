@@ -199,8 +199,14 @@ Ordre de dépendances techniques réelles, pas un simple ordre de préférence :
    écritures simultanées sur le même journal pouvaient recevoir le même numéro),
    via une transaction Serializable + reprise automatique ; validé par un test de
    concurrence réel (8 puis 12 écritures simultanées, tous numéros distincts).
-2. **Lettrage** (manuel puis automatique) — prérequis du report à-nouveau "Détail" et
-   de toute gestion sérieuse des Tiers.
+2. ✅ **Lettrage** (manuel puis automatique) — livré : `LigneEcriture.lettre`,
+   lettrage manuel (rejet si déjà lettré ou solde de sélection non nul), délettrage,
+   lettrage automatique (paires exactes 1-pour-1 ; le cas N-pour-1 reste un
+   enrichissement futur), écran `/comptes/:id/lettrage` accessible depuis le Plan de
+   comptes et le menu Traitement. Même protection contre les conditions de course que
+   le numéro de pièce de journal, factorisée dans `common/prisma-retry.util.ts`.
+   Vérifié de bout en bout (curl + Playwright). Prérequis désormais posé pour le
+   report à-nouveau "Détail" et la future brique Tiers.
 3. **Cycle de vie complet de l'exercice** : clôture à 3 granularités + génération réelle
    des reports à-nouveau (3 modes par compte).
 4. **Tiers** (Client/Fournisseur/Salarié/Autre, comptes rattachés, modèle de règlement).
