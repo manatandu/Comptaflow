@@ -2,7 +2,7 @@ import { ClasseCompte, TypeCompteDetailTotal } from '@prisma/client';
 import { EtatsFinanciersService } from './etats-financiers.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { ExerciceService } from '../exercice/exercice.service';
-import { TOUS_LES_POSTES_FLUX } from './correspondance-tft';
+import { COMPTES_SANS_TRESORERIE, CONTREPARTIES_SANS_TRESORERIE, TOUS_LES_POSTES_FLUX } from './correspondance-tft';
 import { correspond } from './etats-financiers.communs';
 
 /** Fabrique une ligne de balance telle que `EcritureService.balance()` la renvoie. */
@@ -833,6 +833,138 @@ describe('EtatsFinanciersService — tableau de flux de trésorerie', () => {
         contreparties: enContrepartie.map((p) => p.ref).slice(0, 1),
       });
     }
+  });
+
+  it('AUCUNE contrepartie sans trésorerie n’est captée par un poste', () => {
+    // SEPTIÈME occurrence de la classe « une opération sans trésorerie rentre
+    // par la fenêtre ». Ce balayage la ferme d'un coup au lieu de rattraper
+    // chaque compte à mesure qu'un dossier réel le fait apparaître : un
+    // poste exclut 654 ou 754 de ses comptes de flux parce que l'opération
+    // n'a pas de trésorerie — sa CONTREPARTIE au bilan ne doit pas davantage
+    // corriger un décaissement ou un encaissement.
+    for (const { numero, intitule } of CONTREPARTIES_SANS_TRESORERIE) {
+      // Comptes du dossier : le plan seedé porte des numéros à 8 chiffres.
+      const compteReel = numero.padEnd(8, '0');
+      const captants = TOUS_LES_POSTES_FLUX.filter(
+        (p) => p.comptesContrepartie && correspond(compteReel, p.comptesContrepartie, p.exclusionsContrepartie),
+      ).map((p) => p.ref);
+      expect({ numero, intitule, captants }).toEqual({ numero, intitule, captants: [] });
+    }
+  });
+
+  it('le bloc « comptes non ventilés » ne signale QUE ce qui peut expliquer un écart', async () => {
+    // Un don en nature reçu puis partiellement extourné à la clôture ne
+    // touche pas la trésorerie : le tableau boucle. Les trois comptes en jeu
+    // (654, 7542, 4713) ne doivent donc PAS figurer au diagnostic — les y
+    // laisser à côté d'un écart nul apprend à ignorer le bloc.
+    const service = serviceAvecExercices({
+      eN: [
+        ligneF('70410000', ClasseCompte.CLASSE_7, 0, 800),
+        ligneF('52110000', ClasseCompte.CLASSE_5, 800, 0),
+        ligneF('65400000', ClasseCompte.CLASSE_6, 1000, 0),
+        ligneF('75420000', ClasseCompte.CLASSE_7, 400, 1000),
+        ligneF('47130000', ClasseCompte.CLASSE_4, 0, 400),
+      ],
+    });
+    const tft = await service.tableauFluxTresorerie('t1', 'eN');
+    expect(tft.controle.coherent).toBe(true);
+    expect(tft.comptesNonVentiles).toEqual([]);
+  });
+
+  it('… mais y laisse le compte que le PLAN ne tranche pas', async () => {
+    // Contre-épreuve : le 4491, lui, explique un écart de 500 (anomalie n° 2).
+    // Le filtre ne doit pas l'emporter avec le reste.
+    const service = serviceAvecExercices({
+      eN: [
+        ligneF('44910000', ClasseCompte.CLASSE_4, 500, 0),
+        ligneF('71100000', ClasseCompte.CLASSE_7, 0, 500),
+        ligneF('68100000', ClasseCompte.CLASSE_6, 300, 0), // dotation : bruit
+        ligneF('28110000', ClasseCompte.CLASSE_2, 0, 300), // sa contrepartie : bruit
+      ],
+    });
+    const tft = await service.tableauFluxTresorerie('t1', 'eN');
+    expect(tft.controle.ecart).toBe(500);
+    expect(tft.comptesNonVentiles.map((c: any) => c.numero)).toEqual(['44910000']);
+  });
+
+  it('aucun compte « sans trésorerie » n’est en même temps le FLUX d’un poste', () => {
+    // Invariant symétrique du balayage des contreparties : un compte déclaré
+    // sans trésorerie ne peut pas être, ailleurs, le flux qui alimente un
+    // poste — ce serait l'inverse exact du filtre qu'on vient de poser.
+    for (const { numero } of COMPTES_SANS_TRESORERIE) {
+      const compteReel = numero.padEnd(8, '0');
+      const captants = TOUS_LES_POSTES_FLUX.filter((p) =>
+        correspond(compteReel, p.comptesFlux, p.exclusionsFlux),
+      ).map((p) => p.ref);
+      expect({ numero, captants }).toEqual({ numero, captants: [] });
+    }
+  });
+
+  it('le compte 4572 « Bénévoles » n’est rattaché à AUCUN poste (anomalie n° 5)', () => {
+    // Trouvé par le balayage ci-dessus, puis ÉCARTÉ de sa liste après lecture
+    // du texte : la Partie 3 ch. 6 § 2 donne au 4572 deux issues de sens
+    // opposé — remboursement (décaissement réel) ou renonciation (sans flux)
+    // — et le plan ne les subdivise pas. Le rattacher supposerait de choisir
+    // l'une d'avance. Même traitement que le 4491 : non rattaché, et c'est
+    // l'écart de bouclage qui le désigne.
+    const compte = '45720000';
+    expect(TOUS_LES_POSTES_FLUX.filter((p) => correspond(compte, p.comptesFlux, p.exclusionsFlux))).toEqual([]);
+    expect(
+      TOUS_LES_POSTES_FLUX.filter(
+        (p) => p.comptesContrepartie && correspond(compte, p.comptesContrepartie, p.exclusionsContrepartie),
+      ),
+    ).toEqual([]);
+  });
+
+  it('la souscription non libérée d’un apporteur corrige bien FM, elle', () => {
+    // Contre-épreuve de la restriction posée sur FM : en excluant les comptes
+    // courants et le 457, on ne devait pas perdre la contrepartie que le
+    // poste existe pour porter — la créance sur l'apporteur qui a souscrit
+    // sans avoir libéré (Partie 3 ch. 1).
+    const fm = TOUS_LES_POSTES_FLUX.find((p) => p.ref === 'FM')!;
+    for (const apporteur of ['45110000', '45120000', '45210000', '45620000', '45800000']) {
+      expect({ apporteur, capte: correspond(apporteur, fm.comptesContrepartie!, fm.exclusionsContrepartie) }).toEqual({
+        apporteur,
+        capte: true,
+      });
+    }
+    for (const horsDotation of ['45150000', '45550000', '45710000', '45720000']) {
+      expect({
+        horsDotation,
+        capte: correspond(horsDotation, fm.comptesContrepartie!, fm.exclusionsContrepartie),
+      }).toEqual({ horsDotation, capte: false });
+    }
+  });
+
+  it('l’extourne de clôture des dons en nature ne déplace PAS la trésorerie', async () => {
+    // Le défaut tel qu'il s'est présenté : un don en nature de 1 000 reçu
+    // (654 / 7542), dont 400 restent non consommés à la clôture et sont
+    // extournés (7542 / 4713 — Partie 3 ch. 4 § 1.2). Aucune de ces deux
+    // écritures ne touche la trésorerie : les 800 encaissés en banque sont
+    // les seuls flux de l'exercice.
+    //
+    // Avant correction, le compte 4713 était capté par la contrepartie « 47 »
+    // du poste FH : sa dette de 400 réduisait le décaissement de FH, et la
+    // trésorerie de clôture par les flux dépassait celle du bilan de 400
+    // exactement — le montant des dons non consommés.
+    const service = serviceAvecExercices(
+      {
+        eN: [
+          ligneF('70410000', ClasseCompte.CLASSE_7, 0, 800), // don encaissé
+          ligneF('52110000', ClasseCompte.CLASSE_5, 800, 0),
+          ligneF('65400000', ClasseCompte.CLASSE_6, 1000, 0), // don en nature reçu
+          ligneF('75420000', ClasseCompte.CLASSE_7, 400, 1000), // reçu 1000, extourné 400
+          ligneF('47130000', ClasseCompte.CLASSE_4, 0, 400), // dons non consommés
+        ],
+      },
+    );
+
+    const tft = await service.tableauFluxTresorerie('t1', 'eN');
+    expect(ref(tft, 'FC').montant).toBe(800);
+    expect(ref(tft, 'FH').montant).toBe(0); // ni charge, ni dette : rien à décaisser
+    expect(tft.controle.tresorerieClotureParFlux).toBe(800);
+    expect(tft.controle.tresorerieClotureParBilan).toBe(800);
+    expect(tft.controle.coherent).toBe(true);
   });
 
   it('la colonne N-1 est une VRAIE comparaison à trois exercices, pas une copie de la colonne N', async () => {

@@ -27,6 +27,7 @@ import {
   TOTAUX_PASSIF,
 } from './correspondance-bilan';
 import {
+  COMPTES_SANS_TRESORERIE,
   ORDRE_AFFICHAGE_FLUX,
   PosteFluxTresorerie,
   TOTAUX_FLUX,
@@ -711,6 +712,12 @@ export class EtatsFinanciersService {
       // (report et résultat) ne portent pas de flux non plus.
       .filter((l) => !l.numero.startsWith('5') && !l.numero.startsWith('3'))
       .filter((l) => !l.numero.startsWith('12') && !l.numero.startsWith('13'))
+      // Comptes sans trésorerie PAR CONSTRUCTION (dons en nature, dotations,
+      // écritures d'inventaire…) : ils n'expliquent aucun écart, et les lister
+      // à côté d'un écart nul apprend à ignorer le bloc. Ce qui doit y rester,
+      // ce sont les comptes que le PLAN ne tranche pas (4491, 4572) — ceux-là
+      // en expliquent un. Voir COMPTES_SANS_TRESORERIE.
+      .filter((l) => !COMPTES_SANS_TRESORERIE.some((c) => l.numero.startsWith(c.numero)))
       .filter((l) => Math.abs(l.mouvementDebit) > 0.005 || Math.abs(l.mouvementCredit) > 0.005)
       .map((l) => ({ numero: l.numero, intitule: l.intitule, montant: l.solde }));
 

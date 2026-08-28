@@ -98,6 +98,16 @@
  *    `[texte officiel]`, entre ZE et ZF. Elle est reproduite ici comme un
  *    sous-total sans REF (`ref: ''`), pas inventée sous un code que le texte
  *    ne donne pas.
+ * 5. **Le compte 4572 « Bénévoles » n'est pas subdivisé** entre les frais
+ *    « qui donnent droit à un remboursement » et ceux auxquels le bénévole
+ *    « renonce » `[texte officiel]`, alors que la Partie 3 ch. 6 § 2 prévoit
+ *    expressément les deux issues et qu'elles n'ont PAS le même effet sur la
+ *    trésorerie : le remboursement en est un décaissement réel, la
+ *    renonciation se solde par le compte 7583 (ou 846) sans aucun flux. Le
+ *    rattacher à un poste supposerait de choisir une issue d'avance. Non
+ *    rattaché, donc — même traitement que le 4491, et pour la même raison. Un
+ *    dossier qui l'utilise doit subdiviser 4572, sans quoi son montant
+ *    apparaîtra en écart de bouclage.
  */
 
 /** Comment lire les comptes de flux d'un poste. */
@@ -260,8 +270,20 @@ export const POSTES_OPERATIONNELS: PosteFluxTresorerie[] = [
     // Exclus du 47 : 473 (subventions à recevoir → FB et FN), 475
     // (générosités → FC), 472 (titres de placement, qui sont de la
     // trésorerie), 478/479 (écarts de conversion, réévaluation sans flux).
+    //
+    // SECOND DÉFAUT DE LA MÊME CLASSE, relevé en UTILISANT le logiciel (le
+    // livre d'inventaire figeait un TFT qui ne bouclait pas) : le préfixe
+    // « 47 » avalait aussi 4713 « créditeurs, dons en nature courants non
+    // consommés ». Or l'extourne de clôture des dons en nature (Partie 3
+    // ch. 4 § 1.2 : 7542 au débit par 4713 au crédit) est SANS TRÉSORERIE, et
+    // ce poste exclut déjà 654 de ses comptes de flux pour cette exacte
+    // raison. La dette du 4713 réduisait donc le décaissement de FH sans
+    // qu'aucune charge ne lui corresponde : la trésorerie de clôture par les
+    // flux dépassait celle du bilan du montant des dons non consommés.
+    // Voir CONTREPARTIES_SANS_TRESORERIE en fin de fichier, et le balayage
+    // qui ferme la classe entière plutôt que ce seul cas.
     comptesContrepartie: ['44', '47'],
-    exclusionsContrepartie: ['4491', '472', '473', '475', '478', '479'],
+    exclusionsContrepartie: ['4491', '472', '473', '475', '478', '479', '4713'],
   },
 ];
 
@@ -330,7 +352,28 @@ export const POSTES_FONDS_PROPRES: PosteFluxTresorerie[] = [
     exclusionsFlux: ['106'],
     // 45 Fondateurs, apporteurs — la créance sur l'apporteur qui a souscrit
     // sans avoir encore libéré (Partie 3, ch. 1 : souscription puis libération).
+    //
+    // DÉFAUT CORRIGÉ (relevé par le balayage CONTREPARTIES_SANS_TRESORERIE) :
+    // le préfixe « 45 » ne captait pas que les apporteurs. Le compte 45
+    // regroupe, dit sa fiche (Partie 2 ch. 3, COMPTE 45), DEUX choses
+    // distinctes : « les créances/dettes envers les apporteurs résultant des
+    // divers mouvements de dotation » ET « les créances/dettes temporaires en
+    // comptes courants des adhérents et dirigeants ». Seules les premières
+    // sont la contrepartie du compte 10, flux de ce poste.
+    //
+    // Exclus donc :
+    //  - les comptes courants (4515, 4525, 4535, 4545, 4555) : des « fonds
+    //    laissés ou mis TEMPORAIREMENT à la disposition de l'entité », c'est
+    //    un prêt, pas une dotation ;
+    //    [texte officiel] la Partie 2 ch. 2 énumère les subdivisions du 452
+    //    comme « (4521, 4522, 4555) » là où la fiche du compte 45 donne 4525.
+    //    Les deux numéros sont exclus, l'exclusion étant valable dans les deux
+    //    lectures ;
+    //  - le 457 « Mécènes, bénévoles et assimilés » : ni dotation ni compte
+    //    courant. Le mécénat se constate au 4751 par le 7046 (Partie 3 ch. 6
+    //    § 3, contrepartie de FC), et le 4572 relève de l'anomalie n° 5.
     comptesContrepartie: ['45'],
+    exclusionsContrepartie: ['4515', '4525', '4535', '4545', '4555', '457'],
   },
   {
     ref: 'FN',
@@ -459,3 +502,98 @@ export const ORDRE_AFFICHAGE_FLUX: Array<{ ref: string } | { section: string }> 
 export function trouvePosteFlux(ref: string): PosteFluxTresorerie | undefined {
   return TOUS_LES_POSTES_FLUX.find((p) => p.ref === ref);
 }
+
+
+/**
+ * CONTREPARTIES SANS TRÉSORERIE — invariant du tableau.
+ *
+ * Un poste exclut de ses `comptesFlux` les charges et produits sans
+ * trésorerie (654 et 754 dons en nature, 7583 abandons de frais, 659/679
+ * dépréciations…). Mais chacune de ces opérations a une CONTREPARTIE au
+ * bilan, et si cette contrepartie est ramassée par le préfixe de dettes ou de
+ * créances d'un autre poste, l'opération rentre par la fenêtre : la formule
+ * « Décaissements = Charges(N) + Dettes(N−1) − Dettes(N) » corrige alors un
+ * décaissement au titre d'une charge qui n'existe pour aucun poste.
+ *
+ * C'est la même erreur que le compte 4491 admis dans FH, puis que le 4713 —
+ * deux fois le même symptôme : le tableau cesse de boucler, ou boucle à tort,
+ * sans que rien ne désigne la cause. La liste ci-dessous nomme ces
+ * contreparties une fois pour toutes, et le balayage de
+ * `correspondance-tft.spec.ts` vérifie qu'AUCUN poste n'en capte une —
+ * fermant la classe de défauts au lieu du seul cas rencontré.
+ */
+/**
+ * COMPTES SANS TRÉSORERIE — bruit à écarter du diagnostic de bouclage.
+ *
+ * `comptesNonVentiles` existe pour DÉSIGNER LA CAUSE d'un écart : ce sont les
+ * comptes mouvementés qu'aucun poste ne ventile, et dont le montant explique
+ * la différence entre les deux trésoreries de clôture. Deux raisons très
+ * différentes conduisent pourtant un compte à n'être rattaché à aucun poste :
+ *
+ *  - le plan NE TRANCHE PAS (4491 non subdivisé entre exploitation et
+ *    investissement, 4572 non subdivisé entre remboursement et renonciation) :
+ *    ces comptes-là expliquent bel et bien un écart, et doivent être vus ;
+ *  - l'opération EST SANS TRÉSORERIE par construction (dons en nature,
+ *    abandons de frais, dotations et reprises de dépréciations) : ceux-là
+ *    n'expliquent rien, par définition. Les afficher à côté d'un écart nul
+ *    apprend au lecteur à ignorer le bloc — et le jour où un vrai coupable
+ *    s'y trouve, il est noyé.
+ *
+ * Ils sont donc écartés de l'affichage. Ce n'est pas les cacher : ils sont
+ * déjà exclus, nommément et avec leur motif, des `exclusionsFlux` et
+ * `exclusionsContrepartie` des postes ci-dessus.
+ */
+export const COMPTES_SANS_TRESORERIE: { numero: string; motif: string }[] = [
+  { numero: '654', motif: 'Dons en nature courants reçus à distribuer (Partie 3 ch. 4 § 1.1) — aucune trésorerie.' },
+  { numero: '754', motif: 'Dons en nature courants (7542 reçus à distribuer) — aucune trésorerie.' },
+  { numero: '832', motif: 'Dons en nature H.A.O. reçus à distribuer (Partie 3 ch. 4 § 1.1) — aucune trésorerie.' },
+  { numero: '8415', motif: 'Dons en nature H.A.O. à distribuer — aucune trésorerie.' },
+  { numero: '7583', motif: 'Abandons de frais par les bénévoles (Partie 3 ch. 6 § 2) — renonciation, sans flux.' },
+  { numero: '846', motif: "Abandons de créances obtenus — contrepartie non récurrente de la même renonciation." },
+  { numero: '4713', motif: 'Créditeurs, dons en nature courants non consommés — écriture d’inventaire extournée (§ 1.2).' },
+  { numero: '4881', motif: 'Créditeurs, dons en nature H.A.O. non consommés — même mécanique, hors activités ordinaires.' },
+  { numero: '603', motif: 'Variations de stocks de biens achetés — écriture d’inventaire.' },
+  { numero: '659', motif: 'Charges pour dépréciations et provisions à court terme — sans décaissement.' },
+  { numero: '679', motif: 'Charges financières pour dépréciations et provisions — sans décaissement.' },
+  { numero: '759', motif: 'Reprises de charges pour dépréciations et provisions — sans encaissement.' },
+  { numero: '68', motif: 'Dotations aux amortissements — sans décaissement.' },
+  { numero: '69', motif: 'Dotations aux provisions et dépréciations — sans décaissement.' },
+  { numero: '78', motif: 'Transferts de charges — reclassement interne, sans flux.' },
+  { numero: '79', motif: 'Reprises de provisions, dépréciations et subventions d’investissement — sans encaissement.' },
+  { numero: '85', motif: 'Dotations H.A.O. — sans décaissement.' },
+  { numero: '86', motif: 'Reprises H.A.O. — sans encaissement.' },
+  { numero: '87', motif: 'Variations de stocks de dons en nature H.A.O. — écriture d’inventaire.' },
+  { numero: '106', motif: 'Écarts de réévaluation — réévaluation comptable, sans encaissement.' },
+  { numero: '478', motif: 'Écarts de conversion - actif — réévaluation, sans flux.' },
+  { numero: '479', motif: 'Écarts de conversion - passif — réévaluation, sans flux.' },
+  { numero: '81', motif: "Valeurs comptables des cessions d'immobilisations — la trésorerie est au 82 (poste FK)." },
+  { numero: '28', motif: 'Amortissements — contrepartie du 68, sans flux.' },
+  { numero: '29', motif: 'Dépréciations — contrepartie du 69, sans flux.' },
+  { numero: '19', motif: 'Provisions pour risques et charges — dotation et reprise, sans flux.' },
+];
+
+export const CONTREPARTIES_SANS_TRESORERIE: { numero: string; intitule: string; fondement: string }[] = [
+  {
+    numero: '4713',
+    intitule: 'Créditeurs, dons en nature courants non consommés',
+    fondement:
+      "Partie 3 ch. 4 § 1.2 : « 7542 Dons en nature courants reçus à distribuer » au débit par « 4713 Créditeurs, dons en nature courants non consommés » au crédit. Écriture d'inventaire, extournée à l'ouverture suivante — sans trésorerie. Sa charge symétrique (654) est déjà exclue de FH.",
+  },
+  {
+    numero: '4881',
+    intitule: 'Créditeurs, dons en nature H.A.O. non consommés',
+    fondement:
+      "Partie 3 ch. 4 § 1.2, cas de non-récurrence : « 8415 » au débit par « 488 » au crédit. Même mécanique que le 4713, hors activités ordinaires.",
+  },
+];
+
+/**
+ * ⚠️ Le compte 4572 « Bénévoles » N'EST PAS dans cette liste, bien que le
+ * balayage l'ait d'abord fait ressortir. La Partie 3 ch. 6 § 2 lui donne DEUX
+ * issues : le remboursement des frais, qui est un décaissement réel, et la
+ * renonciation du bénévole, qui se solde par le 7583 sans flux. Il n'est donc
+ * pas « sans trésorerie » — il est NON SUBDIVISÉ entre les deux, ce qui est
+ * une lacune du plan et non un compte à exclure (anomalie n° 5). Il reste
+ * rattaché à aucun poste et ressort en `comptesNonVentiles`, exactement comme
+ * le 4491.
+ */
