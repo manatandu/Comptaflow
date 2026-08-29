@@ -83,6 +83,7 @@ export function AppShell() {
         { label: 'Brouillard', onClick: () => navigate('/brouillard') },
         { label: 'Balance âgée', separateurAvant: true, onClick: () => navigate('/balance-agee') },
         { label: 'États analytiques et budgétaires', onClick: () => navigate('/etats-analytiques') },
+        { label: 'Analyse et contrôles', separateurAvant: true, onClick: () => navigate('/controles') },
         { label: 'États financiers', separateurAvant: true, onClick: () => navigate('/etats-financiers') },
         { label: 'Notes annexes', onClick: () => navigate('/notes-annexes') },
         { label: 'Documents obligatoires', onClick: () => navigate('/documents-obligatoires') },

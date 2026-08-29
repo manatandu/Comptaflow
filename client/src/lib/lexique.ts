@@ -55,6 +55,18 @@ export const LEXIQUE = {
       "Trois règles gouvernent l'import. La correspondance entre les colonnes du fichier et les champs attendus est proposée, jamais imposée : un import qui se trompe de colonne de montants est pire que pas d'import du tout. Tout ce qui entre atterrit au brouillard, pour être relu avant de rejoindre le livre-journal. Et une balance de reprise devient une écriture d'à-nouveau équilibrée, datée, corrigeable : le SYCEBNL ne connaît pas de solde sans écriture.",
     source: 'Reprise de dossier · art. 20 et Partie 2 ch. 2',
   },
+  controles: {
+    titre: 'Analyse et contrôles',
+    texte:
+      "Une batterie de contrôles cherche ce qu'aucun total ne montre : une caisse créditrice, un compte de tiers au solde inversé, une créance ancienne jamais lettrée, une écriture sans pièce justificative, un compte mal classé. Chaque anomalie dit ce qu'elle risque et ce qu'il faut faire, plutôt que de laisser le diagnostic à faire.",
+    source: 'Contrôles de cohérence · SYCEBNL et AUDCIF',
+  },
+  caisse: {
+    titre: 'Contrôle de caisse',
+    texte:
+      "Une caisse ne peut pas être créditrice : cela signifierait qu'on a décaissé de l'argent qu'on n'avait pas. Le contrôle reconstitue le solde jour par jour et nomme la date exacte du passage sous zéro, car une caisse peut finir l'exercice positive tout en ayant été négative un mardi. Le remède habituel est d'enregistrer les approvisionnements avant les dépenses du même jour.",
+    source: 'Suivi de trésorerie · pratique courante en RDC',
+  },
   adherent: {
     titre: 'Adhérent',
     texte:

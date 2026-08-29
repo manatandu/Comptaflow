@@ -1071,3 +1071,44 @@ export interface RapportImport {
   totalCredit: number;
   anomalies: { ligne: number; message: string }[];
 }
+
+// ---------------------------------------------------------------------------
+// Analyse et contrôles · État → Analyse et contrôles, État → Contrôle de caisse
+// ---------------------------------------------------------------------------
+
+export type GraviteControle = 'BLOQUANT' | 'AVERTISSEMENT' | 'INFORMATION';
+
+export interface AnomalieControle {
+  code: string;
+  gravite: GraviteControle;
+  libelle: string;
+  consequence: string;
+  action: string;
+  occurrences: { reference: string; detail: string; montant?: number; date?: string }[];
+}
+
+export interface RapportControles {
+  exerciceId: string;
+  genereLe: string;
+  anomalies: AnomalieControle[];
+  totaux: { bloquants: number; avertissements: number; informations: number };
+}
+
+export interface JourneeCaisse {
+  date: string;
+  mouvementDebit: number;
+  mouvementCredit: number;
+  soldeFinJournee: number;
+  negatif: boolean;
+}
+
+export interface ControleCaisse {
+  compteId: string;
+  numero: string;
+  intitule: string;
+  journal: string | null;
+  soldeFinal: number;
+  premierJourNegatif: string | null;
+  nombreJoursNegatifs: number;
+  journees: JourneeCaisse[];
+}
