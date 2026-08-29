@@ -49,10 +49,14 @@ export function StatusBar() {
   const titreFenetre = TITRES.find(([re]) => re.test(location.pathname))?.[1] ?? 'Prêt';
 
   return (
-    <div className="h-5 bg-chrome border-t border-border flex items-center justify-between px-2.5 text-[10px] text-text-dim shrink-0">
-      <span className="flex items-center gap-1.5">
-        <span className="w-1.5 h-1.5 rounded-full bg-positive" />
-        <span>{titreFenetre}</span>
+    <div className="h-[24px] bg-chrome/70 backdrop-blur-md border-t border-border flex items-center justify-between px-3 text-[10.5px] text-text-dim shrink-0">
+      <span className="flex items-center gap-2">
+        {/* Pastille de veille · le halo dit « connecté » sans clignoter. */}
+        <span className="relative flex w-1.5 h-1.5">
+          <span className="absolute inline-flex w-full h-full rounded-full bg-positive opacity-40 animate-ping" />
+          <span className="relative inline-flex w-1.5 h-1.5 rounded-full bg-positive" />
+        </span>
+        <span className="font-medium text-text">{titreFenetre}</span>
       </span>
       <span>
         {utilisateur?.tenant.nom} · {utilisateur?.tenant.referentiel}

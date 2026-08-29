@@ -392,3 +392,18 @@ rend un mauvais service.
 
 Chacun de ces sept points doit être vérifié auprès d'un conseil fiscal avant
 d'être opposé à l'administration. Cette note n'est pas un avis fiscal.
+
+---
+
+## Addendum du 29 août 2026 : ce que la DGI reçoit, et ce qu'elle ne reçoit pas
+
+Une ASBL **ne dépose pas ses états financiers à la DGI**. Ce qu'elle lui doit,
+ce sont ses déclarations (y compris à zéro), le reversement de ce qu'elle
+retient pour autrui, et une comptabilité régulière que la DGI peut contrôler.
+Contrôler n'est pas recevoir un dépôt annuel. La liasse SYCEBNL se dépose au
+**CPCC** ; le compte annuel et la liste des membres effectifs se déposent au
+**Ministère de la Justice** et aux autorités administratives locales du siège.
+
+Le circuit complet, les citations et les réserves sont dans
+`docs/obligations-annuelles-ebnl-rdc.md`. Cette note-ci reste la référence pour
+le régime d'imposition lui-même.

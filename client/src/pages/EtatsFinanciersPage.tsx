@@ -156,6 +156,27 @@ function EtatsSystemeNormalPage() {
   // Bouton du ruban désactivé : useRibbon fige les gestionnaires au montage,
   // il agirait donc toujours sur l'onglet initial. Le bouton fonctionnel est
   // dans l'en-tête de page.
+  /**
+   * La liasse complète : tous les états du jeu retenu par le dossier dans un
+   * seul classeur. C'est ce fichier qui se dépose au CPCC ou s'envoie à un
+   * bailleur.
+   */
+  const exporterLiasse = async () => {
+    if (!exerciceCourant) return;
+    setErreur(null);
+    setExportEnCours(true);
+    try {
+      await api.telecharger(
+        `/exports/etats-financiers/liasse-complete?exerciceId=${exerciceCourant.id}`,
+        `liasse-complete-${new Date(exerciceCourant.dateDebut).getFullYear()}.xlsx`,
+      );
+    } catch (e) {
+      setErreur(e instanceof Error ? e.message : "Échec de l'export de la liasse");
+    } finally {
+      setExportEnCours(false);
+    }
+  };
+
   const exporter = async () => {
     if (!exerciceCourant) return;
     const chemin =
@@ -291,13 +312,31 @@ function EtatsSystemeNormalPage() {
               Exercice {new Date(exerciceCourant.dateDebut).getFullYear()}
             </span>
           )}
+          {/*
+            DEUX boutons, et l'ordre compte. Un bouton par onglet suffit pour
+            retravailler un état ; il ne suffit pas pour DÉPOSER. Une liasse,
+            c'est cinq à sept états plus les notes : les télécharger un par un
+            puis les recoller à la main, c'est la manipulation où l'on oublie
+            une pièce. La liasse complète est donc l'action principale, et
+            l'export de l'onglet courant l'action secondaire.
+          */}
+          <button
+            onClick={exporterLiasse}
+            disabled={exportEnCours}
+            title="Tous les états du jeu dans un seul classeur, précédés d’un sommaire"
+            className="flex items-center gap-1.5 border border-sel bg-sel text-white px-3 py-1.5 text-[11px] font-bold hover:brightness-110 disabled:opacity-50 disabled:cursor-wait"
+          >
+            <IconExport width={13} height={13} />
+            {exportEnCours ? 'Export en cours…' : 'Exporter la liasse complète'}
+          </button>
           <button
             onClick={exporter}
             disabled={exportEnCours}
+            title="Seulement l’état affiché dans cet onglet"
             className="flex items-center gap-1.5 border border-border bg-surface px-3 py-1.5 text-[11px] font-bold hover:bg-surface-alt disabled:opacity-50 disabled:cursor-wait"
           >
             <IconExport width={13} height={13} />
-            {exportEnCours ? 'Export en cours…' : 'Exporter Excel'}
+            Cet onglet
           </button>
         </div>
       </div>

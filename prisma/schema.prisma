@@ -35,6 +35,37 @@ enum Referentiel {
 // sa taille, soumise au Système normal ». Le choix est donc encadré, et
 // l'assistant de création le dit au lieu de le présenter comme une préférence
 // de présentation (voir NouveauFichierWizard, écran « Type d'entité »).
+
+// Forme juridique de l'entité, au sens de la loi n° 004/2001 du 20 juillet
+// 2001 portant dispositions générales applicables aux ASBL et aux
+// établissements d'utilité publique (JO, numéro spécial du 15 août 2001).
+//
+// L'article 2 classe l'ASBL en trois natures ; le Titre II (art. 58-73) régit
+// séparément l'établissement d'utilité publique. S'y ajoute l'unité de gestion
+// de projet, qui n'est pas une ASBL mais que le CPCC vise expressément parmi
+// les entités tenues au SYCEBNL.
+//
+// Ce n'est pas une décoration : la forme juridique commande À QUI l'entité
+// rend compte en fin d'exercice, et ce n'est pas le même destinataire pour
+// une ASBL et pour une ONG. Voir src/modules/exercice/planning-cloture.ts et
+// docs/obligations-annuelles-ebnl-rdc.md.
+enum FormeJuridiqueEbnl {
+  // Art. 2, point 1 : « association à caractère culturel, social ou éducatif
+  // ou économique ».
+  ASSOCIATION
+  // Art. 2, point 2, et art. 35 à 45 (rapports avec l'État, facilités,
+  // engagements). Rend compte au Ministère du Plan et au ministère du secteur.
+  ORGANISATION_NON_GOUVERNEMENTALE
+  // Art. 2, point 3, et art. 46 à 56.
+  ASSOCIATION_CONFESSIONNELLE
+  // Titre II, art. 58 à 73.
+  ETABLISSEMENT_UTILITE_PUBLIQUE
+  // Hors loi 004/2001 · unité de gestion d'un projet financé par un bailleur,
+  // visée par le CPCC parmi les entités tenues au SYCEBNL.
+  UNITE_GESTION_PROJET
+  AUTRE
+}
+
 enum JeuEtatsFinanciersSycebnl {
   ASSOCIATIONS_ORDRES_PROFESSIONNELS
   PROJETS_DEVELOPPEMENT
@@ -82,7 +113,19 @@ model Tenant {
   // omet alors au lieu de bloquer. Voir docs/organisation-comptable-cpcc.md.
   numeroImpot String? // NIF attribué par la DGI
   idNat       String? // identification nationale
-  rccm        String? // registre du commerce et du crédit mobilier
+  // Une ASBL n'est pas commerçante (art. 1er de la loi 004/2001 : elle « ne se
+  // livre pas à des opérations industrielles ou commerciales, si ce n'est à
+  // titre accessoire ») et n'est donc pas immatriculée au RCCM. Le champ reste
+  // pour un dossier tenu en SYSCOHADA, et pour l'entité qui en détient un.
+  rccm        String?
+
+  // Forme juridique au sens de la loi n° 004/2001 · commande les obligations
+  // annuelles du planning de clôture. Défaut ASSOCIATION, cas le plus fréquent.
+  formeJuridique FormeJuridiqueEbnl @default(ASSOCIATION)
+  // Association ou ONG de droit étranger (art. 29-34 et art. 37 de la loi
+  // 004/2001) · une ONG étrangère doit en outre conclure un accord-cadre avec
+  // le Ministère du Plan, ce qui ajoute un jalon annuel.
+  droitEtranger  Boolean            @default(false)
 
   // Longueur du numéro de compte · paramètre "longueur du plan comptable"
   // chez Sage 100 (dossier > Structure > Paramètres), 3 à 13 caractères,

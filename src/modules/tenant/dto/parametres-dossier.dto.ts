@@ -1,5 +1,5 @@
-import { IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
-import { JeuEtatsFinanciersSycebnl } from '@prisma/client';
+import { IsBoolean, IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
+import { FormeJuridiqueEbnl, JeuEtatsFinanciersSycebnl } from '@prisma/client';
 
 export class ModifierJeuEtatsDto {
   @IsEnum(JeuEtatsFinanciersSycebnl)
@@ -26,4 +26,20 @@ export class ModifierIdentiteDto {
   @IsString()
   @MaxLength(40)
   rccm?: string;
+}
+
+
+/**
+ * Forme juridique au sens de la loi n° 004/2001 · commande les obligations
+ * annuelles affichées par le planning de clôture, pas la présentation des
+ * états. Modifiable à tout moment, contrairement au jeu d'états : une
+ * association peut être reconnue ONG en cours de vie.
+ */
+export class ModifierFormeJuridiqueDto {
+  @IsEnum(FormeJuridiqueEbnl)
+  formeJuridique!: FormeJuridiqueEbnl;
+
+  @IsOptional()
+  @IsBoolean()
+  droitEtranger?: boolean;
 }

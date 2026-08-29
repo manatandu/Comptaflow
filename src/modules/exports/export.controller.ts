@@ -94,6 +94,30 @@ export class ExportController {
     envoyerXlsx(res, await this.exportService.balanceExcel(user.tenantId, exerciceId));
   }
 
+  /**
+   * LA LIASSE COMPLÈTE · tous les états du jeu retenu par le dossier dans un
+   * seul classeur, précédés d'un sommaire. C'est ce fichier-là qui se dépose
+   * au CPCC ou s'envoie à un bailleur ; les exports unitaires ci-dessous
+   * restent utiles pour retravailler un état isolé.
+   */
+  @Get('etats-financiers/liasse-complete')
+  async liasseComplete(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+    @Query('paiementsEnInstance') paiementsEnInstance?: string,
+  ) {
+    const montant = Number(paiementsEnInstance);
+    envoyerXlsx(
+      res,
+      await this.exportService.liasseCompleteExcel(
+        user.tenantId,
+        exerciceId,
+        Number.isFinite(montant) ? montant : 0,
+      ),
+    );
+  }
+
   @Get('etats-financiers/bilan')
   async bilan(
     @CurrentUser() user: AuthenticatedUser,

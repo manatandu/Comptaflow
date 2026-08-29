@@ -135,21 +135,38 @@ export function AppShell() {
 
   return (
     <div className="h-screen flex flex-col bg-bg text-text">
-      {/* Barre de titre · dossier comptable ouvert + exercice, comme chez Sage. */}
+      {/*
+        Barre de titre · elle porte l'identité du dossier ouvert, comme la
+        barre de titres de Sage (« Le nouvel exercice s'affiche dans la barre
+        de titres »). Fond sombre profond plutôt que le dégradé bleu d'antan :
+        une barre sombre encadre l'espace de travail au lieu de rivaliser
+        avec lui, et fait ressortir le blanc des fenêtres.
+      */}
       <div
-        className="ecran-seul h-[26px] flex items-center justify-between px-2 text-white text-[11.5px] shrink-0"
+        className="ecran-seul h-[34px] flex items-center justify-between px-3 text-white text-[12px] shrink-0 relative"
         style={{ background: 'linear-gradient(180deg, var(--titlebar-from), var(--titlebar-to))' }}
       >
-        <div className="flex items-center gap-2">
-          <IconLogo width={14} height={14} />
-          <span>
-            OmegaX · {utilisateur?.tenant.nom}
-            {anneeExercice && ` · Exercice ${anneeExercice}`}
+        {/* Filet lumineux en haut : la profondeur vient de là, pas d'une ombre. */}
+        <div className="absolute inset-x-0 top-0 h-px bg-white/10" />
+        <div className="flex items-center gap-2.5 min-w-0">
+          <span className="flex items-center justify-center w-[20px] h-[20px] rounded-[6px] bg-white/10">
+            <IconLogo width={13} height={13} />
           </span>
+          <span className="font-semibold tracking-[0.01em]">OmegaX</span>
+          <span className="text-white/25">/</span>
+          <span className="truncate text-white/85">{utilisateur?.tenant.nom}</span>
+          {anneeExercice && (
+            <span className="shrink-0 rounded-full bg-white/10 px-2 py-[1px] text-[10.5px] font-semibold text-white/80">
+              Exercice {anneeExercice}
+            </span>
+          )}
         </div>
-        <div className="flex items-center gap-3">
-          <span className="text-white/75 text-[10.5px]">{utilisateur?.email}</span>
-          <button onClick={seDeconnecter} className="text-white/85 hover:text-white text-[11px] px-1.5">
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-white/55 text-[11px] hidden sm:inline">{utilisateur?.email}</span>
+          <button
+            onClick={seDeconnecter}
+            className="rounded-[7px] px-2.5 py-[3px] text-[11px] font-semibold text-white/75 hover:bg-white/10 hover:text-white"
+          >
             Déconnexion
           </button>
         </div>
@@ -160,11 +177,19 @@ export function AppShell() {
         <Toolbar />
       </div>
 
-      {/* La fenêtre active glisse en place à chaque changement de route
-          (clé = pathname seul : changer d'onglet dans une même fenêtre ne
-          la remonte pas et n'y perd donc aucun état). */}
+      {/*
+        La fenêtre active glisse en place à chaque changement de route.
+        Clé = pathname SEUL : changer d'onglet dans une même fenêtre ne la
+        remonte pas et n'y perd donc aucun état de saisie. `will-change`
+        prévient le compositeur pour que la transition parte sur la carte
+        graphique dès la première image, sans le saut d'une frame.
+      */}
       <main className="flex-1 min-h-0 overflow-auto">
-        <div key={location.pathname} className="anim-fenetre min-h-full">
+        <div
+          key={location.pathname}
+          className="anim-fenetre min-h-full"
+          style={{ willChange: 'transform, opacity' }}
+        >
           <Outlet />
         </div>
       </main>

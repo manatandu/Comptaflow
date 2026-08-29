@@ -1,5 +1,5 @@
 import { Injectable, PayloadTooLargeException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { JeuEtatsFinanciersSycebnl, Prisma } from '@prisma/client';
 import * as ExcelJS from 'exceljs';
 import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
@@ -25,6 +25,13 @@ const FORMAT_MONTANT = '#,##0.00';
 const FORMAT_DATE = 'DD/MM/YYYY';
 
 /** Un classeur produit, avec le nom de fichier que le contrôleur doit servir. */
+/** Libellé humain du jeu d'états, pour le sommaire de la liasse. */
+const LIBELLE_JEU: Record<JeuEtatsFinanciersSycebnl, string> = {
+  ASSOCIATIONS_ORDRES_PROFESSIONNELS: 'Associations, ordres professionnels et fondations',
+  PROJETS_DEVELOPPEMENT: 'Projets de développement et assimilés',
+  SYSTEME_MINIMAL_TRESORERIE: 'Système minimal de trésorerie',
+};
+
 export interface ClasseurExporte {
   buffer: Buffer;
   nomFichier: string;
@@ -2569,7 +2576,284 @@ export class ExportService {
     };
   }
 
+  // -------------------------------------------------------------------
+  // LIASSE COMPLÈTE · tous les états du jeu dans UN seul classeur
+  // -------------------------------------------------------------------
 
+  /**
+   * Un bouton par état, c'est bien pour consulter ; c'est intenable pour
+   * déposer. Une liasse SYCEBNL, c'est cinq à sept états plus les notes
+   * annexes : les exporter un par un, puis les recoller à la main dans un
+   * classeur avant de l'envoyer au CPCC ou à un bailleur, c'est huit
+   * téléchargements et une manipulation où l'on oublie une pièce.
+   *
+   * Cette méthode produit LE classeur du dépôt : tous les états du jeu retenu
+   * par le dossier, dans l'ordre officiel, précédés d'un sommaire qui porte
+   * les mentions d'en-tête exigées de chaque page déposée (dénomination,
+   * n° impôt, exercice clos le, durée en mois · CPCC § 7.4 règle 7-a) et qui
+   * dit ce que le classeur contient.
+   *
+   * La construction réutilise les exports unitaires plutôt que de dupliquer
+   * leur logique : chacun produit son classeur, dont les feuilles sont
+   * recopiées ici. C'est un aller-retour par la sérialisation, plus coûteux
+   * qu'un assemblage direct, mais qui garantit qu'un état exporté seul et le
+   * même état dans la liasse sont RIGOUREUSEMENT identiques. Un écart entre
+   * les deux serait le pire défaut possible pour un document d'audit.
+   */
+  async liasseCompleteExcel(
+    tenantId: string,
+    exerciceId: string,
+    /**
+     * Poste H du tableau de réconciliation de trésorerie (jeu projets) ·
+     * paiements en instance, donnée extra-comptable que seul l'utilisateur
+     * connaît. Zéro par défaut, et le sommaire le DIT : un zéro non déclaré
+     * serait pris pour un constat alors que c'est une absence de saisie.
+     */
+    paiementsEnInstance = 0,
+  ): Promise<ClasseurExporte> {
+    const tenant = await this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId } });
+    const exercice = await this.prisma.exercice.findFirstOrThrow({ where: { id: exerciceId, tenantId } });
+
+    const composants = this.composantsLiasse(
+      tenant.jeuEtatsFinanciersSycebnl,
+      tenantId,
+      exerciceId,
+      paiementsEnInstance,
+    );
+
+    const classeur = this.nouveauClasseur();
+    const sommaire = this.feuilleSommaireLiasse(classeur, tenant, exercice, composants, paiementsEnInstance);
+
+    const nomsPris = new Set<string>([sommaire.name]);
+    let rang = 0;
+    for (const composant of composants) {
+      rang += 1;
+      const produit = await composant.construire();
+      const source = new ExcelJS.Workbook();
+      await source.xlsx.load(produit.buffer as unknown as ExcelJS.Buffer);
+      source.eachSheet((feuille) => {
+        const nom = this.nomFeuilleUnique(`${rang}. ${feuille.name}`, nomsPris);
+        const copie = classeur.addWorksheet(nom);
+        // `model` porte les valeurs, les formats de nombre, les polices, les
+        // largeurs de colonnes et les volets figés · vérifié à la relecture.
+        copie.model = { ...feuille.model, name: nom };
+        copie.name = nom;
+      });
+    }
+
+    return {
+      buffer: await this.versBuffer(classeur),
+      nomFichier: `liasse-complete${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
+    };
+  }
+
+  /**
+   * Les états d'une liasse dépendent du jeu retenu par le dossier
+   * (art. 4 de l'Acte uniforme). L'ordre suit celui du texte officiel, parce
+   * que c'est l'ordre dans lequel un lecteur de la liasse les attend.
+   */
+  private composantsLiasse(
+    jeu: JeuEtatsFinanciersSycebnl,
+    tenantId: string,
+    exerciceId: string,
+    paiementsEnInstance: number,
+  ): { titre: string; source: string; construire: () => Promise<ClasseurExporte> }[] {
+    if (jeu === JeuEtatsFinanciersSycebnl.SYSTEME_MINIMAL_TRESORERIE) {
+      return [
+        {
+          titre: 'Bilan',
+          source: 'Partie 4, ch. 4 · codes GA à HZ',
+          construire: () => this.bilanSmtExcel(tenantId, exerciceId),
+        },
+        {
+          titre: 'Compte de résultat de trésorerie',
+          source: 'Partie 4, ch. 4 · codes KA à KZC',
+          construire: () => this.compteDeResultatSmtExcel(tenantId, exerciceId),
+        },
+        {
+          titre: 'Journal de trésorerie',
+          source: 'Partie 4, ch. 4 · note annexe 4',
+          construire: () => this.journalTresorerieSmtExcel(tenantId, exerciceId),
+        },
+        {
+          titre: 'Notes annexes (5)',
+          source: 'Partie 4, ch. 4 · fiche récapitulative',
+          construire: () => this.notesSmtExcel(tenantId, exerciceId),
+        },
+        {
+          titre: 'Contrôle d’éligibilité au S.M.T',
+          source: 'Acte uniforme, art. 5 et 6',
+          construire: () => this.eligibiliteSmtExcel(tenantId, exerciceId),
+        },
+      ];
+    }
+
+    if (jeu === JeuEtatsFinanciersSycebnl.PROJETS_DEVELOPPEMENT) {
+      return [
+        {
+          titre: 'Bilan',
+          source: 'Partie 4, ch. 3 · codes AA à DZ',
+          construire: () => this.bilanProjetExcel(tenantId, exerciceId),
+        },
+        {
+          titre: 'Compte d’exploitation',
+          source: 'Partie 4, ch. 3 · codes RA à XC',
+          construire: () => this.compteExploitationProjetExcel(tenantId, exerciceId),
+        },
+        {
+          titre: 'Tableau emplois-ressources',
+          source: 'Guide d’application, ch. 7, APPLICATION 21 · codes FA à GZ',
+          construire: () => this.emploisRessourcesExcel(tenantId, exerciceId),
+        },
+        {
+          titre: 'Tableau d’exécution budgétaire',
+          source: 'Guide d’application, ch. 7, APPLICATION 22',
+          construire: () => this.executionBudgetaireExcel(tenantId, exerciceId),
+        },
+        {
+          titre: 'Tableau de réconciliation de trésorerie',
+          source: 'Partie 4, ch. 3 · codes A à I',
+          construire: () => this.reconciliationTresorerieExcel(tenantId, exerciceId, paiementsEnInstance),
+        },
+        {
+          titre: 'Note des fonds du bailleur',
+          source: 'Partie 4, ch. 3 · note annexe 9',
+          construire: () => this.noteBailleurExcel(tenantId, exerciceId),
+        },
+        {
+          titre: 'Notes annexes (24)',
+          source: 'Partie 4, ch. 3 · fiche récapitulative',
+          construire: () => this.notesProjetExcel(tenantId, exerciceId),
+        },
+      ];
+    }
+
+    return [
+      {
+        titre: 'Bilan',
+        source: 'Partie 4, ch. 2 · codes AA à DZ',
+        construire: () => this.bilanExcel(tenantId, exerciceId),
+      },
+      {
+        titre: 'Compte de résultat',
+        source: 'Partie 4, ch. 2 · codes RA à XE',
+        construire: () => this.compteDeResultatExcel(tenantId, exerciceId),
+      },
+      {
+        titre: 'Tableau de flux de trésorerie',
+        source: 'Partie 4, ch. 2 · codes ZA à ZG, méthode directe',
+        construire: () => this.tableauFluxTresorerieExcel(tenantId, exerciceId),
+      },
+      {
+        titre: 'Notes annexes (35)',
+        source: 'Partie 4, ch. 2 · fiche récapitulative',
+        construire: () => this.notesAssociationsExcel(tenantId, exerciceId),
+      },
+    ];
+  }
+
+  /**
+   * Sommaire du classeur. Il n'est pas décoratif : c'est la seule page du
+   * fichier qui identifie l'entité et l'exercice, mentions que le CPCC exige
+   * en tête de chaque page d'un état déposé (§ 7.4 règle 7-a). Il liste
+   * ensuite les états présents et la source officielle de chacun.
+   */
+  private feuilleSommaireLiasse(
+    classeur: ExcelJS.Workbook,
+    tenant: { nom: string; numeroImpot: string | null; idNat: string | null; jeuEtatsFinanciersSycebnl: JeuEtatsFinanciersSycebnl },
+    exercice: { dateDebut: Date; dateFin: Date },
+    composants: { titre: string; source: string }[],
+    paiementsEnInstance: number,
+  ): ExcelJS.Worksheet {
+    const feuille = classeur.addWorksheet('Sommaire');
+    feuille.columns = [
+      { header: '', key: 'cle', width: 34 },
+      { header: '', key: 'valeur', width: 62 },
+      { header: '', key: 'source', width: 52 },
+    ];
+
+    const dureeMois =
+      (exercice.dateFin.getUTCFullYear() - exercice.dateDebut.getUTCFullYear()) * 12 +
+      (exercice.dateFin.getUTCMonth() - exercice.dateDebut.getUTCMonth()) +
+      1;
+
+    const titre = feuille.addRow({ cle: 'ÉTATS FINANCIERS SYCEBNL' });
+    titre.getCell('cle').font = { bold: true, size: 14 };
+    feuille.addRow({});
+
+    const identite: [string, string][] = [
+      ['Dénomination', tenant.nom],
+      ['N° d’identification fiscale', tenant.numeroImpot ?? 'non renseigné'],
+      ['Identification nationale', tenant.idNat ?? 'non renseignée'],
+      ['Exercice ouvert le', exercice.dateDebut.toLocaleDateString('fr-FR')],
+      ['Exercice clos le', exercice.dateFin.toLocaleDateString('fr-FR')],
+      ['Durée (en mois)', String(dureeMois)],
+      ['Jeu d’états financiers', LIBELLE_JEU[tenant.jeuEtatsFinanciersSycebnl]],
+      ['Édité le', new Date().toLocaleDateString('fr-FR')],
+    ];
+    for (const [cle, valeur] of identite) {
+      const l = feuille.addRow({ cle, valeur });
+      l.getCell('cle').font = { bold: true };
+    }
+
+    feuille.addRow({});
+    const enTete = feuille.addRow({ cle: 'ÉTAT', valeur: '', source: 'SOURCE OFFICIELLE' });
+    styliserEntete(enTete);
+    composants.forEach((c, i) => {
+      feuille.addRow({ cle: `${i + 1}. ${c.titre}`, valeur: '', source: c.source });
+    });
+
+    feuille.addRow({});
+    const note = feuille.addRow({
+      cle: 'Note',
+      valeur:
+        'Ce classeur reprend, à l’identique, les états exportés individuellement. Chaque état conserve ses feuilles de détail, d’anomalies et de méthode.',
+    });
+    note.getCell('valeur').alignment = { wrapText: true, vertical: 'top' };
+
+    // Le poste H du tableau de réconciliation est extra-comptable : le
+    // logiciel ne peut pas le déduire. Annoncer la valeur retenue évite qu'un
+    // zéro par défaut soit lu comme un constat.
+    if (tenant.jeuEtatsFinanciersSycebnl === JeuEtatsFinanciersSycebnl.PROJETS_DEVELOPPEMENT) {
+      const h = feuille.addRow({
+        cle: 'Paiements en instance (poste H)',
+        valeur:
+          paiementsEnInstance === 0
+            ? 'Zéro retenu, faute de saisie. C’est une donnée extra-comptable : renseignez-la sur l’écran avant dépôt si elle n’est pas nulle.'
+            : `${paiementsEnInstance.toLocaleString('fr-FR')} , saisi par l’utilisateur`,
+      });
+      h.getCell('cle').font = { bold: true };
+      h.getCell('valeur').alignment = { wrapText: true, vertical: 'top' };
+    }
+
+    feuille.getRow(1).height = 20;
+    return feuille;
+  }
+
+  /**
+   * Excel refuse un nom de feuille de plus de 31 caractères et deux feuilles
+   * de même nom. Les états unitaires ont chacun leur feuille « Détail » et
+   * « Anomalies » : sans déduplication, la liasse serait rejetée à
+   * l’ouverture. Le rang préfixé rend l’ordre lisible et sert de premier
+   * discriminant ; le suffixe numérique ne sert que pour les collisions
+   * résiduelles après troncature.
+   */
+  private nomFeuilleUnique(souhaite: string, pris: Set<string>): string {
+    const base = souhaite.slice(0, 31);
+    if (!pris.has(base)) {
+      pris.add(base);
+      return base;
+    }
+    for (let i = 2; i < 100; i++) {
+      const suffixe = ` (${i})`;
+      const candidat = base.slice(0, 31 - suffixe.length) + suffixe;
+      if (!pris.has(candidat)) {
+        pris.add(candidat);
+        return candidat;
+      }
+    }
+    throw new Error(`Impossible de nommer la feuille « ${souhaite} » sans collision`);
+  }
 }
 
 function styliserEntete(ligne: ExcelJS.Row) {

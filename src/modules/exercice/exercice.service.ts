@@ -12,7 +12,7 @@ import { CreerExerciceDto } from './dto/creer-exercice.dto';
 import { ClorePartielleDto, CloreTotaleDto, ClorePeriodeDto } from './dto/cloture.dto';
 import { JournalService } from '../journaux/journal.service';
 import { avecRetrySerialisable } from '../../common/prisma-retry.util';
-import { DERNIERE_VERIFICATION, JALONS_CLOTURE, dateJalon } from './planning-cloture';
+import { DERNIERE_VERIFICATION, dateJalon, jalonsApplicables } from './planning-cloture';
 
 const EPSILON = 0.005;
 
@@ -75,6 +75,7 @@ export class ExerciceService {
    */
   async planningCloture(tenantId: string, exerciceId: string) {
     const exercice = await this.trouverExercice(tenantId, exerciceId);
+    const tenant = await this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId } });
 
     const [enBrouillard, transcriptions, rapports, donations] = await Promise.all([
       this.prisma.ecriture.count({ where: { tenantId, exerciceId, statut: StatutEcriture.BROUILLARD } }),
@@ -136,7 +137,15 @@ export class ExerciceService {
       dateFin: exercice.dateFin,
       statut: exercice.statut,
       derniereVerification: DERNIERE_VERIFICATION,
-      jalons: JALONS_CLOTURE.map((j) => {
+      // Le planning n'est pas le même pour une ASBL, une ONG et une entreprise
+      // commerciale : voir jalonsApplicables et son commentaire.
+      formeJuridique: tenant.formeJuridique,
+      droitEtranger: tenant.droitEtranger,
+      jalons: jalonsApplicables({
+        referentiel: tenant.referentiel,
+        formeJuridique: tenant.formeJuridique,
+        droitEtranger: tenant.droitEtranger,
+      }).map((j) => {
         const echeance = dateJalon(exercice.dateFin, j.echeance);
         const observation = j.observation ? observations[j.observation] : undefined;
         return {

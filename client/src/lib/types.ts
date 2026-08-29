@@ -915,6 +915,8 @@ export interface ParametresDossier {
   numeroImpot: string | null;
   idNat: string | null;
   rccm: string | null;
+  formeJuridique: FormeJuridiqueEbnl;
+  droitEtranger: boolean;
   longueurCompte: number;
   /** Au-delà de zéro, le jeu d'états financiers est verrouillé. */
   nombreEcritures: number;
@@ -1607,6 +1609,15 @@ export interface EcheancierFiscal {
 
 export type NatureJalon = 'INTERNE' | 'LEGALE';
 
+/** Loi n° 004/2001, art. 2 et Titre II. Voir docs/obligations-annuelles-ebnl-rdc.md. */
+export type FormeJuridiqueEbnl =
+  | 'ASSOCIATION'
+  | 'ORGANISATION_NON_GOUVERNEMENTALE'
+  | 'ASSOCIATION_CONFESSIONNELLE'
+  | 'ETABLISSEMENT_UTILITE_PUBLIQUE'
+  | 'UNITE_GESTION_PROJET'
+  | 'AUTRE';
+
 export interface JalonCloture {
   etape: number;
   libelle: string;
@@ -1627,5 +1638,8 @@ export interface PlanningCloture {
   statut: StatutExercice;
   /** Date de dernière vérification des échéances légales contre leur source. */
   derniereVerification: string;
+  /** La forme juridique décide des jalons affichés · voir jalonsApplicables. */
+  formeJuridique: FormeJuridiqueEbnl;
+  droitEtranger: boolean;
   jalons: JalonCloture[];
 }

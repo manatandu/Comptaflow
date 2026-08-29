@@ -5,10 +5,23 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        // Registre "logiciel professionnel dense" · police système Windows,
-        // pas une police web moderne (voir le canevas Compta Flow validé).
-        sans: ['"Segoe UI"', 'Tahoma', 'Geneva', 'Verdana', 'system-ui', 'sans-serif'],
-        mono: ['"IBM Plex Mono"', '"Courier New"', 'ui-monospace', 'monospace'],
+        // Pile système moderne · un logiciel installé doit ressembler au
+        // système sur lequel il tourne, pas à une page web. `ui-sans-serif`
+        // en tête prend la police d'interface native de chaque plateforme ;
+        // Segoe UI Variable reste nommée pour Windows 11.
+        sans: [
+          'ui-sans-serif',
+          'system-ui',
+          '-apple-system',
+          '"Segoe UI Variable Text"',
+          '"Segoe UI"',
+          'Inter',
+          'Roboto',
+          '"Helvetica Neue"',
+          'Arial',
+          'sans-serif',
+        ],
+        mono: ['"IBM Plex Mono"', 'ui-monospace', 'SFMono-Regular', 'Menlo', '"Courier New"', 'monospace'],
       },
       colors: {
         chrome: 'var(--chrome)',
@@ -33,11 +46,19 @@ export default {
         'danger-soft': 'var(--danger-soft)',
       },
       borderRadius: {
-        DEFAULT: '3px',
+        DEFAULT: '6px',
       },
       boxShadow: {
+        plate: 'var(--ombre-plate)',
         posee: 'var(--ombre-posee)',
         flottante: 'var(--ombre-flottante)',
+        dominante: 'var(--ombre-dominante)',
+        focus: 'var(--anneau-focus)',
+      },
+      transitionTimingFunction: {
+        sortie: 'var(--t-sortie)',
+        ressort: 'var(--t-ressort)',
+        doux: 'var(--t-doux)',
       },
     },
   },

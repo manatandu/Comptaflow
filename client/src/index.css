@@ -3,51 +3,122 @@
 @tailwind utilities;
 
 /*
- * Design system OmegaX · registre « poste de travail comptable » (Sage
- * 100 i7 comme modèle d'inspiration), modernisé : palette raffinée, ombres
- * douces, transitions courtes partout, animations discrètes d'ouverture.
- * Jamais d'effet démonstratif : la fluidité doit se sentir, pas se voir.
+ * DESIGN SYSTEM OMEGAX
+ *
+ * Registre : poste de travail comptable. La structure vient de Sage 100 i7
+ * (barre de titre, menus, barre d'outils, fenêtre active, barre d'état) parce
+ * qu'un comptable congolais formé sur Sage doit se repérer sans réapprendre.
+ * L'habillage, lui, ne vient pas de 2010.
+ *
+ * Trois principes, dans cet ordre :
+ *
+ *  1. LA DENSITÉ RESTE. Un logiciel comptable montre des centaines de lignes
+ *     par écran. Aérer au point de perdre la vue d'ensemble serait un recul,
+ *     pas une modernisation. On gagne en respiration par la hiérarchie et la
+ *     couleur, pas en poussant les tailles.
+ *  2. LA PROFONDEUR REMPLACE LE TRAIT. Les traits gris de 1px partout, c'est
+ *     la signature visuelle des années 2010. Ici : surfaces franches, filets
+ *     très clairs, et une échelle d'ombres à trois niveaux qui dit ce qui est
+ *     posé, ce qui flotte et ce qui domine.
+ *  3. LE MOUVEMENT SERT LA COMPRÉHENSION. Chaque animation répond à une
+ *     question : d'où vient cette fenêtre, qu'est-ce qui vient de changer,
+ *     où en est ce chargement. Jamais de mouvement décoratif, et tout se
+ *     coupe sous `prefers-reduced-motion`.
  */
+
 :root {
-  --chrome: #f2f4f7;
-  --chrome-alt: #e5e9ee;
-  --chrome-border: #9aa0a6;
-  --chrome-text: #eef0f2;
-  --chrome-text-dim: #a3a9b0;
+  /* ---------------------------------------------------------------- */
+  /* Neutres · gamme froide légèrement bleutée, comme l'encre sur un   */
+  /* papier de gestion. Contrastes vérifiés : text sur surface = 15:1. */
+  /* ---------------------------------------------------------------- */
+  --n-0: #ffffff;
+  --n-25: #fbfcfd;
+  --n-50: #f5f7fa;
+  --n-100: #eceff4;
+  --n-150: #e2e7ee;
+  --n-200: #d3dae4;
+  --n-300: #b4bdcb;
+  --n-400: #8c97a8;
+  --n-500: #6b7688;
+  --n-600: #515b6b;
+  --n-700: #3b4351;
+  --n-800: #262c37;
+  --n-900: #151a22;
+  --n-950: #0d1118;
 
-  --bg: #eef1f5;
-  --surface: #ffffff;
-  --surface-alt: #f6f7f9;
-  --border: #d4d9e0;
-  --border-dark: #aab1bc;
-  --text: #16181d;
-  --text-dim: #5a6170;
-  --sel: #2456a6;
-  --sel-soft: #e8eef8;
-  --positive: #1f6b49;
-  --positive-soft: #e2f1e9;
-  --warning: #9a6410;
-  --warning-soft: #f8edd6;
-  --danger: #9c2b23;
-  --danger-soft: #f7e1de;
+  /* Accent · bleu d'encre, plus profond et plus saturé que l'ancien
+     #2456a6, qui virait au gris sur les écrans mats. */
+  --a-50: #eef4ff;
+  --a-100: #dbe7fe;
+  --a-200: #bed4fd;
+  --a-400: #5a8ff0;
+  --a-500: #3570e0;
+  --a-600: #2359c4;
+  --a-700: #1c479e;
+  --a-800: #183c84;
 
-  --titlebar-from: #2b56a0;
-  --titlebar-to: #254a8c;
+  --chrome: var(--n-50);
+  --chrome-alt: var(--n-100);
+  --chrome-border: var(--n-200);
+  --chrome-text: #eaeff7;
+  --chrome-text-dim: #9fb0c9;
 
-  /* Ombres · deux niveaux seulement : posé (fenêtres, listes) et flottant
-     (menus, modales, listes déroulantes). */
-  --ombre-posee: 0 1px 2px rgba(16, 24, 40, 0.05), 0 2px 6px rgba(16, 24, 40, 0.07);
-  --ombre-flottante: 0 8px 28px rgba(16, 24, 40, 0.18), 0 2px 6px rgba(16, 24, 40, 0.1);
+  --bg: var(--n-100);
+  --surface: var(--n-0);
+  --surface-alt: var(--n-50);
+  --border: var(--n-150);
+  --border-dark: var(--n-300);
+  --text: var(--n-900);
+  --text-dim: var(--n-500);
+  --sel: var(--a-600);
+  --sel-soft: var(--a-50);
 
-  /* Tuiles de l'écran Accueil · sobres et professionnelles. */
-  --tile-bleu: #2456a6;
-  --tile-bleu-fonce: #1b3a75;
-  --tile-sarcelle: #24655e;
-  --tile-sarcelle-fonce: #1a4a45;
-  --tile-ardoise: #47426e;
-  --tile-ardoise-fonce: #322e52;
-  --tile-neutre: #767c85;
-  --tile-neutre-fonce: #5c6169;
+  --positive: #0f7a4f;
+  --positive-soft: #e4f6ed;
+  --warning: #9a5b06;
+  --warning-soft: #fdf0da;
+  --danger: #b52e26;
+  --danger-soft: #fde9e7;
+
+  --titlebar-from: #1d2a3f;
+  --titlebar-to: #16202f;
+
+  /* ---------------------------------------------------------------- */
+  /* Élévation · trois niveaux, jamais plus. Chaque ombre combine un   */
+  /* filet coloré (le contact) et une diffusion (la hauteur).          */
+  /* ---------------------------------------------------------------- */
+  --ombre-plate: 0 1px 1px rgba(21, 26, 34, 0.04);
+  --ombre-posee:
+    0 0 0 1px rgba(21, 26, 34, 0.04),
+    0 1px 2px rgba(21, 26, 34, 0.05),
+    0 4px 12px -4px rgba(21, 26, 34, 0.08);
+  --ombre-flottante:
+    0 0 0 1px rgba(21, 26, 34, 0.06),
+    0 8px 16px -6px rgba(21, 26, 34, 0.12),
+    0 20px 40px -12px rgba(21, 26, 34, 0.2);
+  --ombre-dominante:
+    0 0 0 1px rgba(21, 26, 34, 0.08),
+    0 24px 48px -12px rgba(21, 26, 34, 0.3),
+    0 48px 80px -24px rgba(21, 26, 34, 0.22);
+
+  --anneau-focus: 0 0 0 3px color-mix(in srgb, var(--sel) 26%, transparent);
+
+  /* Courbes · une seule famille, pour que tout le logiciel bouge de la
+     même façon. `sortie` pour ce qui apparaît, `ressort` pour ce que
+     l'utilisateur vient de déclencher lui-même. */
+  --t-sortie: cubic-bezier(0.16, 1, 0.3, 1);
+  --t-ressort: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --t-doux: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Tuiles de l'écran Accueil. */
+  --tile-bleu: #2359c4;
+  --tile-bleu-fonce: #17408f;
+  --tile-sarcelle: #10695f;
+  --tile-sarcelle-fonce: #0a4a43;
+  --tile-ardoise: #46407a;
+  --tile-ardoise-fonce: #2f2b57;
+  --tile-neutre: var(--n-500);
+  --tile-neutre-fonce: var(--n-700);
 }
 
 * {
@@ -62,58 +133,157 @@ body,
 
 body {
   margin: 0;
-  font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI Variable Text', 'Segoe UI', Inter, Roboto,
+    'Helvetica Neue', Arial, sans-serif;
+  /* Interlignage un cran plus large qu'avant : à densité égale, c'est ce qui
+     distingue un tableau lisible d'un tableau compact. */
+  line-height: 1.45;
   color: var(--text);
-  /* Fond « mica » Windows 11 : un voile très léger, fixe, jamais criard. */
-  background:
-    radial-gradient(1200px 600px at 85% -10%, rgba(43, 86, 160, 0.05), transparent 60%),
-    linear-gradient(165deg, #f0f3f7 0%, #e9edf3 100%);
-  background-attachment: fixed;
+  background: var(--bg);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+  /* Les chiffres d'une comptabilité doivent s'aligner colonne par colonne,
+     y compris en police proportionnelle : sans chasse fixe, un 1 et un 8
+     ne tombent pas au même endroit et l'œil ne peut plus comparer. */
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1, 'cv05' 1;
 }
 
-/* Coins arrondis façon Windows 11 : contrôles 6px, fenêtres 10px. */
+/* Le fond n'est pas un aplat : un dégradé très large donne de la profondeur
+   à la fenêtre sans que l'on puisse nommer la couleur. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(1000px 520px at 88% -12%, rgba(35, 89, 196, 0.07), transparent 62%),
+    radial-gradient(760px 420px at 4% 104%, rgba(16, 105, 95, 0.05), transparent 60%),
+    linear-gradient(178deg, var(--n-50) 0%, var(--n-100) 100%);
+}
+
 button,
 input,
 select,
 textarea {
   font-family: inherit;
-  border-radius: 6px;
+  font-variant-numeric: inherit;
+  border-radius: 8px;
 }
 
-/*
- * Toute surface « posée » (fenêtre, liste, carte) et toute surface
- * « flottante » (menu, dialogue, liste déroulante) est arrondie et clippe
- * son contenu · les en-têtes carrés suivent le coin automatiquement.
- * Les seuls conteneurs qui hébergent une liste déroulante positionnée en
- * absolu ne portent PAS shadow-posee (ils seraient clippés) : ils reçoivent
- * leurs propres arrondis dans leur page.
- */
+/* Une surface posée ou flottante est arrondie et clippe son contenu · les
+   en-têtes carrés suivent le coin automatiquement. */
 @layer components {
   .shadow-posee,
   .shadow-flottante {
-    border-radius: 10px;
+    border-radius: 12px;
     overflow: hidden;
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Boutons · trois registres. Les pages plus anciennes composent      */
+  /* encore leurs boutons en utilitaires Tailwind ; ces classes sont la */
+  /* cible vers laquelle elles convergent.                              */
+  /* ---------------------------------------------------------------- */
+  .btn {
+    @apply inline-flex items-center justify-center gap-1.5 px-3 h-[30px] text-[11.5px] font-semibold;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    white-space: nowrap;
+    transition:
+      background-color 0.14s var(--t-doux),
+      border-color 0.14s var(--t-doux),
+      color 0.14s var(--t-doux),
+      box-shadow 0.18s var(--t-doux),
+      transform 0.1s var(--t-ressort);
+  }
+  .btn:active:not(:disabled) {
+    transform: scale(0.975);
+  }
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .btn-principal {
+    background: linear-gradient(180deg, var(--a-500), var(--a-600));
+    color: #fff;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.18),
+      0 1px 2px rgba(21, 26, 34, 0.16);
+  }
+  .btn-principal:hover:not(:disabled) {
+    background: linear-gradient(180deg, var(--a-400), var(--a-500));
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.22),
+      0 3px 10px -2px color-mix(in srgb, var(--a-600) 45%, transparent);
+  }
+
+  .btn-neutre {
+    background: var(--surface);
+    border-color: var(--border);
+    color: var(--text);
+    box-shadow: var(--ombre-plate);
+  }
+  .btn-neutre:hover:not(:disabled) {
+    background: var(--surface-alt);
+    border-color: var(--border-dark);
+  }
+
+  .btn-fantome {
+    background: transparent;
+    color: var(--text-dim);
+  }
+  .btn-fantome:hover:not(:disabled) {
+    background: var(--n-100);
+    color: var(--text);
+  }
+
+  /* Onglets · le trait actif glisse au lieu de sauter. */
+  .onglet {
+    @apply relative px-3 py-1.5 text-[11.5px] font-semibold;
+    color: var(--text-dim);
+    transition: color 0.14s var(--t-doux);
+  }
+  .onglet:hover {
+    color: var(--text);
+  }
+  .onglet-actif {
+    color: var(--sel);
+  }
+  .onglet-actif::after {
+    content: '';
+    position: absolute;
+    left: 8px;
+    right: 8px;
+    bottom: -1px;
+    height: 2px;
+    border-radius: 2px 2px 0 0;
+    background: var(--sel);
+    animation: trait-onglet 0.24s var(--t-sortie) both;
   }
 }
 
-/* Fluidité : transitions courtes et uniformes sur tout l'interactif. */
+/* Fluidité : transitions uniformes sur tout l'interactif. */
 button,
 a,
 input,
 select,
-textarea {
+textarea,
+[role='button'] {
   transition:
-    background-color 0.13s ease,
-    border-color 0.13s ease,
-    color 0.13s ease,
-    box-shadow 0.13s ease,
-    opacity 0.13s ease,
-    transform 0.08s ease;
+    background-color 0.14s var(--t-doux),
+    border-color 0.14s var(--t-doux),
+    color 0.14s var(--t-doux),
+    box-shadow 0.18s var(--t-doux),
+    opacity 0.14s var(--t-doux),
+    transform 0.1s var(--t-ressort);
 }
 button:active:not(:disabled) {
-  transform: translateY(0.5px);
+  transform: scale(0.975);
 }
 
 /* Focus lisible et discret, cohérent partout. */
@@ -122,49 +292,68 @@ select:focus-visible,
 textarea:focus-visible {
   outline: none;
   border-color: var(--sel);
-  box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--sel) 22%, transparent);
+  box-shadow: var(--anneau-focus);
 }
-button:focus-visible {
+button:focus-visible,
+a:focus-visible {
   outline: 2px solid var(--sel);
-  outline-offset: 1px;
+  outline-offset: 2px;
+  border-radius: 8px;
 }
 
-/* Barres de défilement fines, au registre du reste. */
+/* Une ligne de tableau survolée doit se distinguer sans clignoter. */
+tbody tr {
+  transition: background-color 0.1s var(--t-doux);
+}
+
+/* Barres de défilement fines, qui n'apparaissent qu'au survol du conteneur. */
 *::-webkit-scrollbar {
-  width: 9px;
-  height: 9px;
+  width: 10px;
+  height: 10px;
 }
 *::-webkit-scrollbar-track {
   background: transparent;
 }
 *::-webkit-scrollbar-thumb {
-  background: #b6bcc6;
-  border-radius: 5px;
-  border: 2px solid transparent;
+  background: var(--n-200);
+  border-radius: 6px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+  transition: background-color 0.15s;
+}
+*:hover::-webkit-scrollbar-thumb {
+  background: var(--n-300);
   background-clip: content-box;
 }
 *::-webkit-scrollbar-thumb:hover {
-  background-color: #99a1ad;
+  background: var(--n-400);
   background-clip: content-box;
+}
+*::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 /* ------------------------------------------------------------------ */
-/* Animations d'apparition · discrètes (≤ 160 ms), jamais bloquantes.  */
+/* ANIMATIONS                                                          */
+/* Chaque animation répond à une question de l'utilisateur.            */
 /* ------------------------------------------------------------------ */
+
+/* « D'où vient cette fenêtre ? » · elle monte et se pose. */
 @keyframes fenetre-in {
   from {
     opacity: 0;
-    transform: translateY(4px);
+    transform: translate3d(0, 10px, 0) scale(0.995);
   }
   to {
     opacity: 1;
     transform: none;
   }
 }
+/* « Ce menu sort d'où ? » · de la barre qui l'a ouvert. */
 @keyframes menu-in {
   from {
     opacity: 0;
-    transform: translateY(-4px);
+    transform: translate3d(0, -6px, 0) scale(0.98);
   }
   to {
     opacity: 1;
@@ -174,7 +363,7 @@ button:focus-visible {
 @keyframes modale-in {
   from {
     opacity: 0;
-    transform: scale(0.985);
+    transform: translate3d(0, 12px, 0) scale(0.97);
   }
   to {
     opacity: 1;
@@ -184,44 +373,133 @@ button:focus-visible {
 @keyframes voile-in {
   from {
     opacity: 0;
+    backdrop-filter: blur(0);
   }
   to {
     opacity: 1;
+    backdrop-filter: blur(3px);
+  }
+}
+@keyframes trait-onglet {
+  from {
+    transform: scaleX(0.3);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+/* « Qu'est-ce qui vient de changer ? » · la ligne qui arrive se signale. */
+@keyframes ligne-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+/* « Où en est ce chargement ? » · un reflet passe sur la forme du contenu à
+   venir, plutôt qu'un mot « Chargement… » qui n'informe de rien. */
+@keyframes scintille {
+  from {
+    background-position: -180% 0;
+  }
+  to {
+    background-position: 180% 0;
+  }
+}
+/* Un message qui apparaît en cours de travail se glisse depuis le haut. */
+@keyframes alerte-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -8px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
   }
 }
 
-/* La fenêtre active (contenu de page) glisse en place à la navigation. */
 .anim-fenetre {
-  animation: fenetre-in 0.16s ease-out both;
+  animation: fenetre-in 0.28s var(--t-sortie) both;
 }
-/* Menus déroulants et listes de choix. */
 .anim-menu {
-  animation: menu-in 0.12s ease-out both;
+  animation: menu-in 0.15s var(--t-sortie) both;
+  transform-origin: top center;
 }
-/* Modales : le voile fond, la boîte se pose. */
 .anim-voile {
-  animation: voile-in 0.14s ease-out both;
+  animation: voile-in 0.18s var(--t-doux) both;
 }
 .anim-modale {
-  animation: modale-in 0.15s ease-out both;
+  animation: modale-in 0.24s var(--t-sortie) both;
+}
+.anim-alerte {
+  animation: alerte-in 0.2s var(--t-sortie) both;
+}
+
+/*
+ * Cascade · les premières lignes d'une liste arrivent l'une après l'autre.
+ * Bornée à douze : au-delà, l'attente cumulée se verrait, et une liste de
+ * quatre cents écritures ne doit pas mettre trois secondes à se poser.
+ */
+.anim-cascade > * {
+  animation: ligne-in 0.3s var(--t-sortie) both;
+}
+.anim-cascade > *:nth-child(1) { animation-delay: 0ms; }
+.anim-cascade > *:nth-child(2) { animation-delay: 22ms; }
+.anim-cascade > *:nth-child(3) { animation-delay: 44ms; }
+.anim-cascade > *:nth-child(4) { animation-delay: 66ms; }
+.anim-cascade > *:nth-child(5) { animation-delay: 88ms; }
+.anim-cascade > *:nth-child(6) { animation-delay: 110ms; }
+.anim-cascade > *:nth-child(7) { animation-delay: 132ms; }
+.anim-cascade > *:nth-child(8) { animation-delay: 154ms; }
+.anim-cascade > *:nth-child(9) { animation-delay: 176ms; }
+.anim-cascade > *:nth-child(10) { animation-delay: 198ms; }
+.anim-cascade > *:nth-child(11) { animation-delay: 220ms; }
+.anim-cascade > *:nth-child(n + 12) { animation-delay: 240ms; }
+
+/* Squelette de chargement · prend la forme du contenu attendu. */
+.squelette {
+  background: linear-gradient(
+    100deg,
+    var(--n-100) 30%,
+    var(--n-50) 46%,
+    var(--n-100) 62%
+  );
+  background-size: 220% 100%;
+  animation: scintille 1.4s linear infinite;
+  border-radius: 6px;
+  color: transparent !important;
+  user-select: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .anim-fenetre,
   .anim-menu,
   .anim-voile,
-  .anim-modale {
-    animation: none;
+  .anim-modale,
+  .anim-alerte,
+  .anim-cascade > *,
+  .squelette,
+  .onglet-actif::after {
+    animation: none !important;
   }
   button,
   a,
   input,
   select,
-  textarea {
-    transition: none;
+  textarea,
+  [role='button'],
+  tbody tr {
+    transition: none !important;
+  }
+  button:active:not(:disabled) {
+    transform: none;
   }
 }
-
 
 /* ---------------------------------------------------------------------------
    IMPRESSION

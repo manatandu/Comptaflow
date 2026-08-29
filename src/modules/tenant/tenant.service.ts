@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
-import { JeuEtatsFinanciersSycebnl, Referentiel, TypeLicence } from '@prisma/client';
+import { FormeJuridiqueEbnl, JeuEtatsFinanciersSycebnl, Referentiel, TypeLicence } from '@prisma/client';
 
 /**
  * Crée un tenant et sa licence en une transaction. Le référentiel comptable
@@ -78,6 +78,8 @@ export class TenantService {
       numeroImpot: tenant.numeroImpot,
       idNat: tenant.idNat,
       rccm: tenant.rccm,
+      formeJuridique: tenant.formeJuridique,
+      droitEtranger: tenant.droitEtranger,
       longueurCompte: tenant.longueurCompte,
       nombreEcritures,
     };
@@ -140,6 +142,24 @@ export class TenantService {
         idNat: normaliser(dto.idNat),
         rccm: normaliser(dto.rccm),
       },
+    });
+    return this.parametres(tenantId);
+  }
+
+  /**
+   * Forme juridique de l'entité (loi n° 004/2001). Comme les identifiants
+   * légaux, modifiable à tout moment : elle ne change ni le plan de comptes ni
+   * la présentation des états, seulement la liste des obligations annuelles
+   * que le planning de clôture propose (voir jalonsApplicables).
+   */
+  async modifierFormeJuridique(tenantId: string, formeJuridique: FormeJuridiqueEbnl, droitEtranger?: boolean) {
+    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
+    if (!tenant) {
+      throw new NotFoundException('Dossier introuvable');
+    }
+    await this.prisma.tenant.update({
+      where: { id: tenantId },
+      data: { formeJuridique, ...(droitEtranger === undefined ? {} : { droitEtranger }) },
     });
     return this.parametres(tenantId);
   }

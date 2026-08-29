@@ -86,10 +86,13 @@ durée, pour la raison simple que le dossier ne les connaissait pas. Le modèle
 Structure > Paramètres du dossier, et `EnteteImpression` les porte.
 
 Les trois identifiants sont ceux d'une entité congolaise, pas d'une entité
-française : le **numéro impôt** (NIF) de la DGI, l'**identification nationale**
-et le **RCCM**. Une ASBL enregistrée en RDC les détient tous les trois, la note
-circulaire n° 003/2013 du Ministère du Plan en faisant des pièces du dossier
-d'enregistrement.
+française : le **numéro impôt** (NIF) de la DGI et l'**identification
+nationale**. Le **RCCM** est également saisissable, mais il ne concerne pas une
+ASBL : l'article 1er de la loi n° 004/2001 en fait une entité qui « ne se livre
+pas à des opérations industrielles ou commerciales, si ce n'est à titre
+accessoire », donc non commerçante et non immatriculée au registre du commerce.
+Le champ sert aux dossiers tenus en SYSCOHADA et à l'entité qui en détient un
+pour une autre raison. Voir `docs/obligations-annuelles-ebnl-rdc.md`.
 
 ### 2.2 Le bloc de certification (§ 7.4, règle 7-b)
 
@@ -326,6 +329,17 @@ ci-dessus.
 ---
 
 ## 6. Point de vigilance sur les échéances
+
+> **Correction du 29 août 2026.** Deux des jalons construits à partir de cette
+> section se sont révélés faux pour une EBNL et ont été corrigés le lendemain :
+> une ASBL ne dépose pas ses états financiers à la DGI, et n'étant pas
+> commerçante, elle n'est pas immatriculée au RCCM. Le compte annuel se dépose
+> au Ministère de la Justice, la liasse SYCEBNL au CPCC. Le détail, les
+> citations et le circuit complet sont dans
+> `docs/obligations-annuelles-ebnl-rdc.md`. La cause de l'erreur est celle que
+> le § 0 annonçait : ce cours décrit le circuit d'une entreprise commerciale
+> SYSCOHADA, et le transposer sans le confronter au droit des ASBL était
+> exactement ce qu'il ne fallait pas faire.
 
 Les dates de dépôt du § 7.3 (DGI fin avril, Ministère de l'Économie mi-juin,
 CPCC fin juin, RCCM le mois suivant l'approbation) proviennent d'un cours de

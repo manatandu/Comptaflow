@@ -41,24 +41,34 @@ export function MenuBar({ menus }: { menus: MenuDef[] }) {
   }, []);
 
   return (
-    <div ref={ref} className="h-[24px] flex items-center px-1.5 bg-chrome border-b border-border select-none">
+    <div
+      ref={ref}
+      className="h-[32px] flex items-center gap-0.5 px-2 bg-chrome/80 backdrop-blur-md border-b border-border select-none"
+    >
       {menus.map((m) => (
-        <div key={m.titre} className="relative h-full">
+        <div key={m.titre} className="relative h-full flex items-center">
+          {/*
+            Le menu ouvert prend la forme d'une pastille et non d'un pavé
+            bleu pleine hauteur : la barre reste calme quand un menu est
+            déployé, et l'œil suit le contenu du menu, pas son titre.
+          */}
           <button
             type="button"
             onClick={() => setOuvert(ouvert === m.titre ? null : m.titre)}
             onMouseEnter={() => {
               if (ouvert && ouvert !== m.titre) setOuvert(m.titre);
             }}
-            className={`h-full text-[11.5px] px-2 ${ouvert === m.titre ? 'bg-sel text-white' : 'hover:bg-chrome-alt'}`}
+            className={`rounded-[7px] px-2.5 py-1 text-[12px] font-medium ${
+              ouvert === m.titre ? 'bg-sel-soft text-sel font-semibold' : 'hover:bg-chrome-alt'
+            }`}
           >
             {m.titre}
           </button>
           {ouvert === m.titre && (
-            <div className="anim-menu absolute left-0 top-full z-30 min-w-[230px] bg-surface border border-border-dark shadow-flottante py-1">
+            <div className="anim-menu absolute left-0 top-full mt-1 z-30 min-w-[250px] rounded-[12px] bg-surface shadow-flottante p-1.5">
               {m.items.map((it, i) => (
                 <div key={`${it.label}-${i}`}>
-                  {it.separateurAvant && <div className="my-1 border-t border-border" />}
+                  {it.separateurAvant && <div className="my-1.5 mx-2 border-t border-border" />}
                   <button
                     type="button"
                     disabled={it.disabled}
@@ -67,7 +77,7 @@ export function MenuBar({ menus }: { menus: MenuDef[] }) {
                       it.onClick?.();
                       setOuvert(null);
                     }}
-                    className="w-full text-left px-3.5 py-[5px] text-[11.5px] hover:enabled:bg-sel hover:enabled:text-white disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="w-full text-left rounded-[8px] px-3 py-[6px] text-[12px] hover:enabled:bg-sel-soft hover:enabled:text-sel hover:enabled:font-medium disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     {it.label}
                   </button>

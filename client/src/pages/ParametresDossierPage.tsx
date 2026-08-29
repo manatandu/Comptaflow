@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { Aide } from '../components/chrome/Aide';
-import type { JeuEtatsFinanciersSycebnl, ParametresDossier } from '../lib/types';
+import type { FormeJuridiqueEbnl, JeuEtatsFinanciersSycebnl, ParametresDossier } from '../lib/types';
 
 /**
  * PARAMÈTRES DU DOSSIER · Structure → Paramètres société chez Sage 100 i7.
@@ -56,6 +56,45 @@ const CHOIX: {
   },
 ];
 
+/**
+ * Formes juridiques de la loi n° 004/2001 du 20 juillet 2001 · article 2 pour
+ * les trois natures d'ASBL, Titre II pour l'établissement d'utilité publique.
+ * L'unité de gestion de projet n'est pas une ASBL, mais le CPCC la vise parmi
+ * les entités tenues au SYCEBNL.
+ *
+ * Ce choix ne change ni le plan de comptes ni la présentation des états : il
+ * décide À QUI le dossier rend compte en fin d'exercice, donc des jalons du
+ * planning de clôture. Voir docs/obligations-annuelles-ebnl-rdc.md.
+ */
+const FORMES: { valeur: FormeJuridiqueEbnl; titre: string; detail: string }[] = [
+  {
+    valeur: 'ASSOCIATION',
+    titre: 'Association',
+    detail: 'Caractère culturel, social, éducatif ou économique (art. 2, point 1)',
+  },
+  {
+    valeur: 'ORGANISATION_NON_GOUVERNEMENTALE',
+    titre: 'Organisation non gouvernementale',
+    detail: 'Rend compte en outre au Ministère du Plan et au ministère du secteur (art. 44 et 45)',
+  },
+  {
+    valeur: 'ASSOCIATION_CONFESSIONNELLE',
+    titre: 'Association confessionnelle',
+    detail: 'Art. 2, point 3, et art. 46 à 56',
+  },
+  {
+    valeur: 'ETABLISSEMENT_UTILITE_PUBLIQUE',
+    titre: 'Établissement d’utilité publique',
+    detail: 'Titre II, art. 58 à 73',
+  },
+  {
+    valeur: 'UNITE_GESTION_PROJET',
+    titre: 'Unité de gestion de projet',
+    detail: 'Projet financé par un bailleur · visée par le CPCC parmi les entités tenues au SYCEBNL',
+  },
+  { valeur: 'AUTRE', titre: 'Autre', detail: 'Aucune obligation propre déduite' },
+];
+
 export function ParametresDossierPage() {
   const { estAdmin, rafraichir } = useAuth();
   const [params, setParams] = useState<ParametresDossier | null>(null);
@@ -100,6 +139,26 @@ export function ParametresDossierPage() {
       setInfo("Jeu d'états financiers enregistré.");
     } catch (e) {
       setErreur(e instanceof ApiError ? e.message : 'Modification impossible');
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
+  const changerForme = async (forme: FormeJuridiqueEbnl, droitEtranger?: boolean) => {
+    if (!params) return;
+    setEnvoi(true);
+    setErreur(null);
+    setInfo(null);
+    try {
+      setParams(
+        await api.patch<ParametresDossier>('/dossier/forme-juridique', {
+          formeJuridique: forme,
+          ...(droitEtranger === undefined ? {} : { droitEtranger }),
+        }),
+      );
+      setInfo('Forme juridique enregistrée.');
+    } catch (err) {
+      setErreur(err instanceof ApiError ? err.message : 'Modification impossible');
     } finally {
       setEnvoi(false);
     }
@@ -221,6 +280,60 @@ export function ParametresDossierPage() {
                 </div>
               ))}
             </dl>
+          </section>
+
+          {/*
+            Forme juridique · loi n° 004/2001. Elle ne touche à aucun état
+            financier ; elle décide des obligations annuelles que le planning
+            de clôture propose (Fin d'exercice). Une ASBL dépose son compte
+            annuel au Ministère de la Justice et n'est pas immatriculée au
+            RCCM ; une ONG rend compte en plus au Ministère du Plan.
+          */}
+          <section className="bg-surface border border-border rounded-[10px] shadow-posee overflow-hidden lg:col-span-2">
+            <header className="px-3 py-2 bg-chrome-alt border-b border-border text-[11.5px] font-bold">
+              Forme juridique
+            </header>
+            <div className="p-3 flex flex-col gap-2">
+              <p className="text-[11px] text-text-dim">
+                Au sens de la loi n° 004/2001 du 20 juillet 2001. Ce choix ne change pas vos états financiers : il
+                détermine les obligations annuelles proposées par le planning de clôture.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {FORMES.map((f) => {
+                  const actif = params.formeJuridique === f.valeur;
+                  return (
+                    <label
+                      key={f.valeur}
+                      className={`flex items-start gap-2.5 rounded-[8px] border p-2.5 transition-colors ${
+                        actif ? 'border-sel bg-sel-soft' : 'border-border hover:bg-surface-alt'
+                      } ${estAdmin ? 'cursor-pointer' : 'cursor-not-allowed opacity-70'}`}
+                    >
+                      <input
+                        type="radio"
+                        name="formeJuridique"
+                        className="mt-0.5"
+                        checked={actif}
+                        disabled={!estAdmin || envoi}
+                        onChange={() => changerForme(f.valeur)}
+                      />
+                      <span className="min-w-0">
+                        <span className="block text-[12.5px] font-semibold">{f.titre}</span>
+                        <span className="block text-[11px] text-text-dim mt-0.5">{f.detail}</span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+              <label className="flex items-center gap-2 text-[11.5px] mt-1">
+                <input
+                  type="checkbox"
+                  checked={params.droitEtranger}
+                  disabled={!estAdmin || envoi}
+                  onChange={(e) => changerForme(params.formeJuridique, e.target.checked)}
+                />
+                Entité de droit étranger (art. 29 à 34 et art. 37 : accord-cadre avec le Ministère du Plan)
+              </label>
+            </div>
           </section>
 
           {/*
