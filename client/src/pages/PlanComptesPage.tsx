@@ -1,6 +1,7 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../lib/api';
+import { useActionsFenetre } from '../lib/actions-fenetre';
 import { useAuth } from '../lib/auth';
 import type { ClasseCompte, Compte, ModeReportANouveau, TauxTva, TypeCompteDetailTotal } from '../lib/types';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
@@ -52,6 +53,7 @@ export function PlanComptesPage() {
   const [classeFiltre, setClasseFiltre] = useState<ClasseCompte>('CLASSE_1');
   const [selectionId, setSelectionId] = useState<string | null>(null);
   const [nouveauOuvert, setNouveauOuvert] = useState(false);
+  const champRecherche = useRef<HTMLInputElement>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
 
@@ -88,6 +90,26 @@ export function PlanComptesPage() {
     [comptes, classeFiltre, recherche],
   );
   const selection = liste.find((c) => c.id === selectionId) ?? (comptes ?? []).find((c) => c.id === selectionId) ?? null;
+
+  /*
+    Ce que cette fenêtre sait faire, annoncé à la barre d'outils · les verbes
+    de Sage prennent ici leur sens concret. « Consulter » ouvre l'interrogation
+    du compte (son grand livre et son lettrage), qui est exactement ce que
+    « Gérer » fait depuis la fiche compte de Sage. Ce qui n'est pas déclaré
+    reste grisé dans la barre : le plan comptable ne trie pas et n'inverse
+    rien, ces boutons doivent donc rester éteints ici.
+  */
+  useActionsFenetre({
+    ajouter: estAdmin ? { titre: 'Nouveau compte général', executer: () => setNouveauOuvert(true) } : undefined,
+    rechercher: {
+      titre: 'Rechercher un compte (numéro ou intitulé)',
+      executer: () => champRecherche.current?.focus(),
+    },
+    consulter:
+      selection && selection.typeCompte === 'DETAIL'
+        ? { titre: `Interroger le compte ${selection.numero}`, executer: () => navigate(`/comptes/${selection.id}/lettrage`) }
+        : undefined,
+  });
 
   useEffect(() => {
     setIntituleEdit(selection?.intitule ?? '');
@@ -140,6 +162,7 @@ export function PlanComptesPage() {
         </div>
         <div className="flex items-center gap-2">
           <input
+            ref={champRecherche}
             value={recherche}
             onChange={(e) => setRecherche(e.target.value)}
             placeholder="Rechercher (numéro ou intitulé)…"

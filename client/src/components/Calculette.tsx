@@ -27,9 +27,21 @@ export function Calculette({
   onReporter,
 }: {
   onFermer: () => void;
-  onReporter: (valeur: number) => void;
+  /**
+   * Reporte le résultat dans une zone de montant. ABSENT quand la calculette
+   * est ouverte depuis la barre d'outils : il n'y a alors aucune zone de
+   * saisie où reporter, et proposer « OK » y serait un bouton qui ne fait
+   * rien. Le calcul se copie alors dans le presse-papiers, ce qui est le
+   * service réellement rendu dans ce cas.
+   */
+  onReporter?: (valeur: number) => void;
 }) {
   const [expression, setExpression] = useState('');
+  const reporterOuCopier = (valeur: number) => {
+    if (onReporter) return onReporter(valeur);
+    navigator.clipboard?.writeText(String(valeur)).catch(() => {});
+    onFermer();
+  };
   const champ = useRef<HTMLInputElement>(null);
   const resultat = evaluerExpression(expression);
 
@@ -62,7 +74,7 @@ export function Calculette({
             value={expression}
             onChange={(e) => setExpression(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && resultat !== null) onReporter(resultat);
+              if (e.key === 'Enter' && resultat !== null) reporterOuCopier(resultat);
             }}
             placeholder="1250 * 12 + 300"
             className="w-full border border-border rounded-[6px] px-2.5 py-2 text-[14px] font-mono text-right"
@@ -120,16 +132,18 @@ export function Calculette({
               +
             </button>
             <button
-              onClick={() => resultat !== null && onReporter(resultat)}
+              onClick={() => resultat !== null && reporterOuCopier(resultat)}
               disabled={resultat === null}
               className="bg-sel text-white rounded-[6px] py-1.5 text-[12px] font-bold hover:brightness-110 disabled:opacity-40"
             >
-              OK
+              {onReporter ? 'OK' : 'Copier'}
             </button>
           </div>
 
           <p className="text-[10.5px] text-text-dim mt-2 leading-[1.5]">
-            Le résultat se reporte dans la zone de montant du côté qui manque à l'équilibre de la pièce.
+            {onReporter
+              ? "Le résultat se reporte dans la zone de montant du côté qui manque à l'équilibre de la pièce."
+              : 'Le résultat se copie dans le presse-papiers.'}
           </p>
         </div>
       </div>

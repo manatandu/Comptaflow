@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
+import { useActionsFenetre } from '../lib/actions-fenetre';
 import { useAuth } from '../lib/auth';
 import type { Compte, Journal, NumerotationPiece, TypeJournal } from '../lib/types';
 
@@ -32,6 +33,10 @@ export function JournauxPage() {
   const [comptesTresorerie, setComptesTresorerie] = useState<Compte[]>([]);
   const [erreurChargement, setErreurChargement] = useState<string | null>(null);
   const [nouveauOuvert, setNouveauOuvert] = useState(false);
+
+  // Codes journaux · seule la création est offerte ici. Un code journal ne se
+  // « consulte » pas séparément : sa fiche EST la ligne de la liste.
+  useActionsFenetre({ ajouter: { titre: 'Nouveau code journal', executer: () => setNouveauOuvert(true) } });
 
   const [code, setCode] = useState('');
   const [intitule, setIntitule] = useState('');

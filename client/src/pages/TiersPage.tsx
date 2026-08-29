@@ -1,6 +1,7 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../lib/api';
+import { useActionsFenetre } from '../lib/actions-fenetre';
 import { useAuth } from '../lib/auth';
 import { useExercice } from '../lib/exercice';
 import { IconCheck } from '../components/chrome/icons';
@@ -92,6 +93,7 @@ export function TiersPage() {
   const [filtreType, setFiltreType] = useState<TypeTiers | ''>('');
   const [selectionId, setSelectionId] = useState<string | null>(null);
   const [nouveauOuvert, setNouveauOuvert] = useState(false);
+  const champRecherche = useRef<HTMLInputElement>(null);
   const [modelesOuverts, setModelesOuverts] = useState(false);
 
   // Formulaire de création d'un tiers
@@ -168,6 +170,20 @@ export function TiersPage() {
   }, [liste]);
 
   const tiersSelectionne = liste?.find((t) => t.id === selectionId) ?? null;
+
+  // Voir PlanComptesPage : les verbes de la barre d'outils prennent leur sens
+  // ici. « Consulter » ouvre l'interrogation du compte de rattachement du
+  // tiers, seul endroit où l'on voit ce qu'il doit et ce qu'il a réglé.
+  useActionsFenetre({
+    ajouter: { titre: 'Nouveau tiers', executer: () => setNouveauOuvert(true) },
+    rechercher: { titre: 'Rechercher un tiers (code, nom)', executer: () => champRecherche.current?.focus() },
+    consulter: tiersSelectionne?.comptesRattaches?.[0]
+      ? {
+          titre: `Interroger le compte de ${tiersSelectionne.nom}`,
+          executer: () => navigate(`/comptes/${tiersSelectionne.comptesRattaches[0].compteId}/lettrage`),
+        }
+      : undefined,
+  });
   const comptesDisponibles = comptesClasse4.filter(
     (c) => !tiersSelectionne?.comptesRattaches.some((tc) => tc.compteId === c.id),
   );
@@ -326,6 +342,7 @@ export function TiersPage() {
         </div>
         <div className="flex items-center gap-2">
           <input
+            ref={champRecherche}
             value={recherche}
             onChange={(e) => setRecherche(e.target.value)}
             placeholder="Rechercher (code, nom)…"
@@ -380,12 +397,15 @@ export function TiersPage() {
                 filtreType === t ? 'bg-sel text-white' : 'hover:bg-chrome-alt'
               }`}
             >
-              <span className="flex items-baseline gap-1.5">
-                {PLURIEL_TYPE[t]}
-                <span className={`font-mono text-[10px] ${filtreType === t ? 'text-white/60' : 'text-text-dim'}`}>
-                  {COMPTE_TYPE[t]}
-                </span>
-              </span>
+              {/*
+                Le compte de rattachement (411, 412, 40…) N'EST PLUS rappelé
+                ici : cette colonne sert à choisir une famille de tiers, pas à
+                réviser le plan comptable. Le numéro reste là où il sert
+                vraiment · sur la fiche du tiers sélectionné, et dans le
+                sélecteur de type au moment de la création, où il éclaire le
+                choix qu'on est en train de faire.
+              */}
+              <span>{PLURIEL_TYPE[t]}</span>
               <span className={filtreType === t ? 'text-white/70' : 'text-text-dim'}>{nombresParType.get(t) ?? 0}</span>
             </button>
           ))}

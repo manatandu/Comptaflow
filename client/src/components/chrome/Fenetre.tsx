@@ -3,6 +3,7 @@ import type { FenetreOuverte } from '../../lib/fenetres';
 import { useFenetres } from '../../lib/fenetres';
 import { rendreFenetre } from '../../lib/registre-fenetres';
 import { LimiteErreur } from './LimiteErreur';
+import { FenetreCouranteProvider } from '../../lib/actions-fenetre';
 
 /**
  * CADRE DE FENÊTRE · la fenêtre MDI de Sage 100 i7 : une barre de titre
@@ -28,6 +29,18 @@ const HAUTEUR_TITRE = 30;
 const MARGE_MIN_VISIBLE = 90; // px de barre de titre toujours attrapables
 const LARGEUR_MIN = 380;
 const HAUTEUR_MIN = 220;
+/**
+ * Marge conservée autour d'une fenêtre AGRANDIE.
+ *
+ * Une fenêtre agrandie collée aux bords se soudait visuellement à la barre
+ * d'outils : sa barre de titre sombre, pleine largeur et sans bordure,
+ * ressemblait à une seconde barre de l'application, pas au haut d'une
+ * fenêtre. On ne voyait plus où le logiciel s'arrête et où la fenêtre
+ * commence. La marge (avec le coin arrondi et l'ombre qu'elle rend visibles)
+ * fait que la fenêtre s'ARRÊTE, nettement, sous la rangée d'icônes · c'est
+ * ce que montre Sage, dont la fenêtre agrandie reste une fenêtre.
+ */
+const MARGE_AGRANDIE = 8;
 
 export function Fenetre({ fenetre, active }: { fenetre: FenetreOuverte; active: boolean }) {
   const { activer, fermer, reduire, basculerAgrandissement, deplacer } = useFenetres();
@@ -102,7 +115,7 @@ export function Fenetre({ fenetre, active }: { fenetre: FenetreOuverte; active: 
   if (fenetre.etat === 'reduite') return null;
 
   const style: React.CSSProperties = agrandie
-    ? { inset: 0, zIndex: fenetre.ordre }
+    ? { inset: MARGE_AGRANDIE, zIndex: fenetre.ordre }
     : {
         left: fenetre.cadre.x,
         top: fenetre.cadre.y,
@@ -116,10 +129,8 @@ export function Fenetre({ fenetre, active }: { fenetre: FenetreOuverte; active: 
       ref={refCadre}
       onPointerDown={() => !active && activer(fenetre.cle)}
       style={style}
-      className={`anim-fenetre absolute flex flex-col overflow-hidden bg-surface ${
-        agrandie
-          ? 'rounded-none border-0'
-          : `rounded-[12px] border ${active ? 'border-border-dark shadow-dominante' : 'border-border shadow-posee'}`
+      className={`anim-fenetre absolute flex flex-col overflow-hidden rounded-[12px] border bg-surface ${
+        active ? 'border-border-dark shadow-dominante' : 'border-border shadow-posee'
       }`}
     >
       {/* --- Barre de titre ------------------------------------------------ */}
@@ -177,7 +188,12 @@ export function Fenetre({ fenetre, active }: { fenetre: FenetreOuverte; active: 
 
       {/* --- Contenu -------------------------------------------------------- */}
       <div className="flex-1 min-h-0 overflow-auto bg-bg">
-        <LimiteErreur titreFenetre={fenetre.titre}>{rendreFenetre(fenetre.adresse)}</LimiteErreur>
+        <LimiteErreur titreFenetre={fenetre.titre}>
+          {/* La page apprend ici dans QUELLE fenêtre elle est montée · c'est
+              ce qui lui permet de déclarer ses actions à la barre d'outils
+              sans jamais avoir à connaître le gestionnaire de fenêtres. */}
+          <FenetreCouranteProvider cle={fenetre.cle}>{rendreFenetre(fenetre.adresse)}</FenetreCouranteProvider>
+        </LimiteErreur>
       </div>
 
       {/* --- Poignée de redimensionnement ----------------------------------- */}

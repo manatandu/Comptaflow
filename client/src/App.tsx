@@ -2,6 +2,7 @@ import { Navigate, Route, HashRouter, Routes } from 'react-router-dom';
 import { AuthProvider, useAuth } from './lib/auth';
 import { ExerciceProvider } from './lib/exercice';
 import { FenetresProvider } from './lib/fenetres';
+import { ActionsFenetreProvider } from './lib/actions-fenetre';
 import { AppShell } from './components/chrome/AppShell';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
@@ -26,7 +27,9 @@ function Routage() {
           <ZoneProtegee>
             <ExerciceProvider>
               <FenetresProvider>
-                <AppShell />
+                <ActionsFenetreProvider>
+                  <AppShell />
+                </ActionsFenetreProvider>
               </FenetresProvider>
             </ExerciceProvider>
           </ZoneProtegee>

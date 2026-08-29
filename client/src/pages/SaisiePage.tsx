@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError } from '../lib/api';
+import { useActionsFenetre } from '../lib/actions-fenetre';
 import { useExercice } from '../lib/exercice';
 import { ModelesSaisieModale, type LigneInseree } from '../components/ModelesSaisie';
 import { Calculette } from '../components/Calculette';
@@ -396,6 +397,16 @@ export function SaisiePage() {
     setDebitSaisie(creditSaisie);
     setCreditSaisie(d);
   };
+
+  /*
+    Saisie des journaux · c'est la fenêtre où les verbes de Sage sont les plus
+    littéraux. « Inverseur » bascule le sens de la ligne en cours de frappe,
+    exactement comme le bouton Inverseur de la barre de Sage. La calculette
+    reste, elle, à demeure dans la barre : elle ne dépend d'aucune fenêtre.
+  */
+  useActionsFenetre({
+    inverseur: { titre: 'Inverser débit et crédit sur la ligne en cours', executer: inverserSaisie },
+  });
 
   const equilibrer = () => {
     if (Math.abs(soldePiece) < 0.005) return;

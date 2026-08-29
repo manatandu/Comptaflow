@@ -1,61 +1,72 @@
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useFenetres } from '../../lib/fenetres';
+import { useRegistreActions, type NomAction } from '../../lib/actions-fenetre';
+import { Calculette } from '../Calculette';
 import {
-  IconBalance,
-  IconComptes,
-  IconDashboard,
-  IconEtats,
-  IconGrille,
-  IconJournal,
-  IconUsers,
+  IconAjouter,
+  IconAtteindre,
+  IconCalculette,
+  IconConsulter,
+  IconInverseur,
+  IconModifier,
+  IconRechercher,
+  IconSupprimer,
+  IconTrier,
 } from './icons';
+import type { SVGProps } from 'react';
 
-interface OutilDef {
+/**
+ * BARRE D'OUTILS · celle de Sage 100 i7, et non un second sommaire.
+ *
+ * Elle listait sept ÉCRANS (Saisie, Journal, Balance, Plan comptable, Tiers,
+ * États, Tableau de bord) · exactement les mêmes que les tuiles de l'accueil.
+ * Deux surfaces pour la même chose : la tautologie relevée à l'usage. Sage ne
+ * fait pas cela. Sa barre porte les VERBES qui agissent sur l'enregistrement
+ * courant de la fenêtre active :
+ *
+ *   Ajouter · Consulter · Voir/Modifier · Supprimer
+ *   Précédent · Suivant
+ *   Rechercher · Atteindre
+ *   Inverseur · Calculette Sage
+ *   Trier
+ *
+ * et grise ceux qui ne s'appliquent pas à la fenêtre du moment · ce sont les
+ * boutons pâles qu'on voit sur les captures. Les écrans, eux, se lancent par
+ * les menus et par l'accueil : chaque surface a maintenant un rôle, un seul.
+ *
+ * Un bouton grisé n'est pas un chantier inachevé : il dit que CETTE fenêtre
+ * ne sait pas faire cette action. Chaque page déclare les siennes
+ * (`useActionsFenetre`, voir lib/actions-fenetre.tsx).
+ *
+ * Précédent, Suivant et Accueil restent inchangés, à leur place, en tête.
+ */
+
+interface DefAction {
+  nom: NomAction;
   label: string;
-  titre: string; // infobulle
-  Icon: (p: { width?: number; height?: number }) => JSX.Element;
-  chemin: string;
+  /** Ce que le verbe veut dire, y compris quand personne ne le propose. */
+  aide: string;
+  Icon: (p: SVGProps<SVGSVGElement>) => JSX.Element;
 }
 
-/**
- * Barre d'outils FIXE, identique sur tous les écrans · la « barre d'outils
- * Comptabilité générale » de Sage 100 i7 : mêmes boutons partout, l'outil
- * actif est enfoncé. Les actions propres à chaque fenêtre (imprimer, filtrer,
- * enregistrer…) vivent DANS la fenêtre, en ses propres boutons · jamais ici.
- */
-/**
- * Sept outils, pas plus : l'essentiel du quotidien. Le reste (grand livre,
- * balance âgée, rapprochement, immobilisations, TVA, documents…) vit dans
- * les menus · une barre d'outils surchargée cesse d'être un raccourci.
- */
-const OUTILS: OutilDef[][] = [
-  [{ label: 'Saisie', titre: 'Saisie des journaux', Icon: IconGrille, chemin: '/saisie' }],
+const GROUPES_ACTIONS: DefAction[][] = [
   [
-    { label: 'Journal', titre: 'Journal · consultation', Icon: IconJournal, chemin: '/journal?onglet=journal' },
-    { label: 'Balance', titre: 'Balance des comptes', Icon: IconBalance, chemin: '/journal?onglet=balance' },
+    { nom: 'ajouter', label: 'Ajouter', aide: 'Créer un enregistrement', Icon: IconAjouter },
+    { nom: 'consulter', label: 'Consulter', aide: 'Afficher la fiche sélectionnée', Icon: IconConsulter },
+    { nom: 'modifier', label: 'Voir/Modifier', aide: 'Modifier la fiche sélectionnée', Icon: IconModifier },
+    { nom: 'supprimer', label: 'Supprimer', aide: 'Supprimer la fiche sélectionnée', Icon: IconSupprimer },
   ],
   [
-    { label: 'Plan comptable', titre: 'Plan comptable général', Icon: IconComptes, chemin: '/comptes' },
-    { label: 'Tiers', titre: 'Plan des tiers', Icon: IconUsers, chemin: '/tiers' },
+    { nom: 'rechercher', label: 'Rechercher', aide: 'Rechercher dans la fenêtre', Icon: IconRechercher },
+    { nom: 'atteindre', label: 'Atteindre', aide: 'Aller directement à un enregistrement', Icon: IconAtteindre },
   ],
   [
-    { label: 'États', titre: 'États financiers', Icon: IconEtats, chemin: '/etats-financiers' },
-    { label: 'Tabl. bord', titre: 'Tableau de bord', Icon: IconDashboard, chemin: '/tableau-de-bord' },
+    { nom: 'inverseur', label: 'Inverseur', aide: 'Inverser débit et crédit', Icon: IconInverseur },
+    { nom: 'trier', label: 'Trier', aide: 'Changer l’ordre de la liste', Icon: IconTrier },
   ],
 ];
 
-/**
- * RETOUR / AVANCE / ACCUEIL · Sage place « Précédent » et « Suivant » en tête
- * de sa barre d'outils, et le logiciel n'en offrait AUCUN équivalent : une
- * fois dans un écran, plus moyen de revenir d'où l'on venait autrement qu'en
- * retrouvant la commande dans les menus. C'est le défaut relevé à l'usage.
- *
- * Le retour s'appuie sur l'historique du navigateur, qui est déjà la mémoire
- * exacte du chemin parcouru · en tenir une seconde, parallèle, finirait par
- * diverger de la première (bouton « Précédent » du navigateur, lien collé,
- * touche Retour arrière). « Accueil » referme les fenêtres pour découvrir
- * l'espace de travail, là où Sage revient à sa page IntuiSage.
- */
 function BoutonNavigation({
   titre,
   infobulle,
@@ -84,21 +95,47 @@ function BoutonNavigation({
   );
 }
 
+function BoutonAction({
+  def,
+  disponible,
+  infobulle,
+  onClick,
+}: {
+  def: DefAction;
+  disponible: boolean;
+  infobulle: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      title={infobulle}
+      aria-label={def.label}
+      disabled={!disponible}
+      onClick={onClick}
+      className={`group flex flex-col items-center justify-center gap-1 w-[58px] py-1.5 rounded-[9px] transition-[background-color,color,transform] duration-150 ${
+        disponible ? 'text-text hover:bg-chrome-alt active:scale-95' : 'text-text-dim/35 cursor-not-allowed'
+      }`}
+    >
+      <span className={disponible ? 'transition-transform duration-200 group-hover:-translate-y-[1px]' : ''}>
+        <def.Icon width={18} height={18} />
+      </span>
+      <span className="text-[9.5px] leading-none">{def.label}</span>
+    </button>
+  );
+}
+
 export function Toolbar() {
   const navigate = useNavigate();
-  const location = useLocation();
-  const { fermerTout, fenetres } = useFenetres();
+  const { fermerTout, fenetres, cleActive } = useFenetres();
+  const { signatures, lire } = useRegistreActions();
+  const [calculetteOuverte, setCalculetteOuverte] = useState(false);
 
-  // L'outil actif est celui dont le chemin ET la query correspondent · les
-  // trois états de /journal (?onglet=…) sont trois outils distincts.
-  const estActif = (chemin: string) => {
-    const [pathOutil, queryOutil] = chemin.split('?');
-    if (location.pathname !== pathOutil) return false;
-    if (!queryOutil) return true;
-    // Sans ?onglet= dans l'URL, /journal affiche l'onglet Journal (défaut).
-    const ongletCourant = new URLSearchParams(location.search).get('onglet') ?? 'journal';
-    return ongletCourant === new URLSearchParams(queryOutil).get('onglet');
-  };
+  // La SIGNATURE de la fenêtre active dit quelles actions elle propose. La
+  // lire ici (plutôt que les gestionnaires eux-mêmes) suffit à faire basculer
+  // les boutons entre actif et grisé au bon moment, sans réabonner la barre à
+  // chaque frappe au clavier dans la fenêtre.
+  const disponibles = new Set((cleActive ? (signatures[cleActive] ?? '') : '').split('|').filter(Boolean));
 
   return (
     <div className="relative z-30 flex items-stretch gap-0 px-2 py-1.5 bg-chrome/70 backdrop-blur-md border-b border-border">
@@ -116,9 +153,7 @@ export function Toolbar() {
         </BoutonNavigation>
         <BoutonNavigation
           titre="Accueil"
-          infobulle={
-            fenetres.length > 0 ? 'Accueil · referme les fenêtres ouvertes' : 'Accueil'
-          }
+          infobulle={fenetres.length > 0 ? 'Accueil · referme les fenêtres ouvertes' : 'Accueil'}
           onClick={fermerTout}
         >
           <svg viewBox="0 0 20 20" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.7">
@@ -127,40 +162,53 @@ export function Toolbar() {
           </svg>
         </BoutonNavigation>
       </div>
-      <div className="w-px bg-border mx-1.5 my-1.5" />
 
-      {OUTILS.map((groupe, gi) => (
+      {/* --- Agir sur la fenêtre active ------------------------------------ */}
+      {GROUPES_ACTIONS.map((groupe, gi) => (
         <div key={gi} className="flex items-stretch gap-0.5">
-          {gi > 0 && <div className="w-px bg-border mx-1.5 my-1.5" />}
-          {groupe.map((o) => {
-            const actif = estActif(o.chemin);
+          <div className="w-px bg-border mx-1.5 my-1.5" />
+          {groupe.map((def) => {
+            const disponible = disponibles.has(def.nom);
             return (
-              /*
-                L'outil actif n'est plus « enfoncé » par une ombre interne,
-                effet daté et illisible sur un écran mat : il porte une
-                pastille bleue franche. On voit où l'on est d'un coup d'œil,
-                de loin, ce qui est le seul rôle de cette barre.
-              */
-              <button
-                key={o.chemin}
-                type="button"
-                title={o.titre}
-                onClick={() => navigate(o.chemin)}
-                className={`group relative flex flex-col items-center justify-center gap-1 w-[64px] py-1.5 rounded-[9px] transition-[background-color,color,transform] duration-150 ${
-                  actif
-                    ? 'bg-sel text-white shadow-[0_2px_8px_-2px_color-mix(in_srgb,var(--sel)_55%,transparent)]'
-                    : 'text-text-dim hover:bg-chrome-alt hover:text-text'
-                }`}
-              >
-                <span className={`transition-transform duration-200 ${actif ? '' : 'group-hover:-translate-y-[1px]'}`}>
-                  <o.Icon width={18} height={18} />
-                </span>
-                <span className={`text-[9.5px] leading-none ${actif ? 'font-semibold' : ''}`}>{o.label}</span>
-              </button>
+              <BoutonAction
+                key={def.nom}
+                def={def}
+                disponible={disponible}
+                infobulle={
+                  disponible
+                    ? (lire(cleActive!, def.nom)?.titre ?? def.label)
+                    : `${def.aide} · indisponible dans cette fenêtre`
+                }
+                // Le gestionnaire est relu À L'INSTANT DU CLIC : celui capturé
+                // au rendu fermerait sur un état déjà périmé (la ligne
+                // sélectionnée il y a trois clics, par exemple).
+                onClick={() => cleActive && lire(cleActive, def.nom)?.executer()}
+              />
             );
           })}
         </div>
       ))}
+
+      {/* --- Calculette · toujours disponible -------------------------------
+          Elle ne dépend d'aucune fenêtre : c'est un accessoire, comme la
+          « Calculette Sage » qui reste active sur toutes les captures. */}
+      <div className="flex items-stretch gap-0.5">
+        <div className="w-px bg-border mx-1.5 my-1.5" />
+        <button
+          type="button"
+          title="Calculette"
+          aria-label="Calculette"
+          onClick={() => setCalculetteOuverte(true)}
+          className="group flex flex-col items-center justify-center gap-1 w-[58px] py-1.5 rounded-[9px] text-text transition-[background-color,transform] duration-150 hover:bg-chrome-alt active:scale-95"
+        >
+          <span className="transition-transform duration-200 group-hover:-translate-y-[1px]">
+            <IconCalculette width={18} height={18} />
+          </span>
+          <span className="text-[9.5px] leading-none">Calculette</span>
+        </button>
+      </div>
+
+      {calculetteOuverte && <Calculette onFermer={() => setCalculetteOuverte(false)} />}
     </div>
   );
 }

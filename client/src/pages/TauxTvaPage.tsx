@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
+import { useActionsFenetre } from '../lib/actions-fenetre';
 import { useAuth } from '../lib/auth';
 import type { Compte, TauxTva } from '../lib/types';
 
@@ -16,6 +17,8 @@ export function TauxTvaPage() {
   const [comptesClasse4, setComptesClasse4] = useState<Compte[]>([]);
   const [erreur, setErreur] = useState<string | null>(null);
   const [nouveauOuvert, setNouveauOuvert] = useState(false);
+
+  useActionsFenetre({ ajouter: { titre: 'Nouveau taux de taxe', executer: () => setNouveauOuvert(true) } });
 
   const [code, setCode] = useState('');
   const [intitule, setIntitule] = useState('');
