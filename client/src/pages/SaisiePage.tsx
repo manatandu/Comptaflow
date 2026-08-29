@@ -657,7 +657,7 @@ export function SaisiePage() {
               className="w-full border border-border-dark px-1.5 py-1 font-mono text-[12px]"
             />
             {pickerOuvert && comptesFiltres.length > 0 && (
-              <div className="absolute left-0 top-full z-20 w-[380px] max-h-[240px] overflow-auto bg-surface border border-border-dark shadow-[2px_2px_0_rgba(0,0,0,0.18)]">
+              <div className="anim-menu absolute left-0 top-full z-20 w-[380px] max-h-[240px] overflow-auto bg-surface border border-border-dark shadow-flottante">
                 {comptesFiltres.map((c, i) => (
                   <button
                     key={c.id}

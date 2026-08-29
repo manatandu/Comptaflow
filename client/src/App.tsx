@@ -10,6 +10,7 @@ import { SaisiePage } from './pages/SaisiePage';
 import { PlanComptesPage } from './pages/PlanComptesPage';
 import { JournauxPage } from './pages/JournauxPage';
 import { JournalPage } from './pages/JournalPage';
+import { BalanceAgeePage } from './pages/BalanceAgeePage';
 import { LettragePage } from './pages/LettragePage';
 import { RapprochementPage } from './pages/RapprochementPage';
 import { RapprochementDetailPage } from './pages/RapprochementDetailPage';
@@ -59,6 +60,7 @@ function Routage() {
         <Route path="immobilisations" element={<ImmobilisationsPage />} />
         <Route path="journaux" element={<JournauxPage />} />
         <Route path="journal" element={<JournalPage />} />
+        <Route path="balance-agee" element={<BalanceAgeePage />} />
         <Route path="exercice" element={<ExercicePage />} />
         <Route path="tiers" element={<TiersPage />} />
         <Route path="taux-tva" element={<TauxTvaPage />} />

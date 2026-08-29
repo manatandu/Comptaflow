@@ -62,6 +62,17 @@ export class EcritureController {
   }
 
   /** Grand livre d'un compte — voir l'onglet Grand livre du même écran. */
+  /** Balance âgée — échéances non lettrées des comptes 40/41 par tranches de retard. */
+  @Get('balance-agee')
+  async balanceAgee(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('exerciceId') exerciceId: string,
+    @Query('dateReference') dateReference?: string,
+    @Query('type') type?: 'CLIENTS' | 'FOURNISSEURS' | 'TOUS',
+  ) {
+    return this.ecritureService.balanceAgee(user.tenantId, { exerciceId, dateReference, type });
+  }
+
   @Get('grand-livre/:compteId')
   async grandLivre(
     @CurrentUser() user: AuthenticatedUser,

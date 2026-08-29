@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Outlet, useNavigate } from 'react-router-dom';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../lib/auth';
 import { useExercice } from '../../lib/exercice';
 import { IconLogo } from './icons';
@@ -22,6 +22,7 @@ export function AppShell() {
   const { utilisateur, estAdmin, seDeconnecter } = useAuth();
   const { exerciceCourant } = useExercice();
   const navigate = useNavigate();
+  const location = useLocation();
   const [aProposOuvert, setAProposOuvert] = useState(false);
 
   const anneeExercice = exerciceCourant ? new Date(exerciceCourant.dateDebut).getFullYear() : null;
@@ -67,6 +68,7 @@ export function AppShell() {
         { label: 'Journal', onClick: () => navigate('/journal?onglet=journal') },
         { label: 'Grand livre des comptes', onClick: () => navigate('/journal?onglet=grand-livre') },
         { label: 'Balance des comptes', onClick: () => navigate('/journal?onglet=balance') },
+        { label: 'Balance âgée', onClick: () => navigate('/balance-agee') },
         { label: 'États financiers', separateurAvant: true, onClick: () => navigate('/etats-financiers') },
         { label: 'Notes annexes', onClick: () => navigate('/notes-annexes') },
         { label: 'Documents obligatoires', onClick: () => navigate('/documents-obligatoires') },
@@ -111,8 +113,13 @@ export function AppShell() {
       <MenuBar menus={menus} />
       <Toolbar />
 
+      {/* La fenêtre active glisse en place à chaque changement de route
+          (clé = pathname seul : changer d'onglet dans une même fenêtre ne
+          la remonte pas et n'y perd donc aucun état). */}
       <main className="flex-1 min-h-0 overflow-auto">
-        <Outlet />
+        <div key={location.pathname} className="anim-fenetre min-h-full">
+          <Outlet />
+        </div>
       </main>
 
       <StatusBar />

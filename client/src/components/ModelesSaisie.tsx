@@ -265,8 +265,8 @@ export function ModelesSaisieModale({
       : [];
 
   return (
-    <div className="fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
-      <div className="w-full max-w-[900px] max-h-[88vh] flex flex-col bg-surface border border-border-dark shadow-[3px_3px_0_rgba(0,0,0,0.2)]">
+    <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
+      <div className="anim-modale w-full max-w-[900px] max-h-[88vh] flex flex-col bg-surface border border-border-dark shadow-flottante">
         <div
           className="h-[26px] flex items-center justify-between px-2.5 text-white text-[11.5px] shrink-0"
           style={{ background: 'linear-gradient(180deg, var(--titlebar-from), var(--titlebar-to))' }}

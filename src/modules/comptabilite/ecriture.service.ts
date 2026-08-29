@@ -19,6 +19,19 @@ function estLigneDebit(l: { debit: Prisma.Decimal | number }): boolean {
   return Math.abs(Number(l.debit)) > 0.005;
 }
 
+/** Une ligne de la balance âgée : un compte de tiers, ses tranches de retard. */
+export interface LigneAgee {
+  compteId: string;
+  numero: string;
+  intitule: string;
+  nonEchu: number;
+  j1a30: number;
+  j31a60: number;
+  j61a90: number;
+  plus90: number;
+  total: number;
+}
+
 /**
  * Règle non négociable du moteur comptable : une écriture n'existe que si
  * total(débit) === total(crédit), et un exercice clôturé n'accepte plus
@@ -491,6 +504,112 @@ export class EcritureService {
       soldeProgressif,
       contrepartie: contreparties.get(l.ecritureId)?.[sens] ?? [],
     };
+  }
+
+  /**
+   * BALANCE ÂGÉE — état prévisionnel des échéances (Sage : État → Balance
+   * âgée : « état prévisionnel des échéances à venir, ventilées par tranches
+   * de dates, en fonction d'une date de référence »).
+   *
+   * Assiette : les lignes NON LETTRÉES des comptes de tiers (racine 40
+   * fournisseurs, 41 adhérents/clients-usagers — nomenclature SYCEBNL) de
+   * l'exercice. Une ligne lettrée est soldée par définition : elle n'a plus
+   * d'échéance à suivre. L'échéance retenue est LigneEcriture.dateEcheance ;
+   * à défaut, la date de l'écriture (même règle que Sage : « le programme
+   * reprend la date d'écriture comme échéance si celle-ci n'a pas été saisie »).
+   *
+   * Chaque ligne pèse son montant NET (débit − crédit) : une correction par
+   * inscription en négatif (art. 20 AUDCIF) annule ainsi sa ligne d'origine
+   * dans la même tranche au lieu de gonfler deux tranches en sens opposés.
+   * Les montants restent signés — créances au débit positives (41), dettes
+   * au crédit négatives (40) vues du compte : le client présente les deux
+   * familles séparément.
+   */
+  async balanceAgee(
+    tenantId: string,
+    params: { exerciceId: string; dateReference?: string; type?: 'CLIENTS' | 'FOURNISSEURS' | 'TOUS' },
+  ) {
+    const ref = params.dateReference ? new Date(params.dateReference) : new Date();
+    const type = params.type ?? 'TOUS';
+    const racines = type === 'CLIENTS' ? ['41'] : type === 'FOURNISSEURS' ? ['40'] : ['40', '41'];
+
+    const lignes = await this.prisma.ligneEcriture.findMany({
+      where: {
+        ecriture: { tenantId, exerciceId: params.exerciceId },
+        lettre: null,
+        OR: racines.map((r) => ({ compte: { numero: { startsWith: r } } })),
+      },
+      include: {
+        compte: { select: { id: true, numero: true, intitule: true } },
+        ecriture: { select: { date: true } },
+      },
+    });
+
+    type Tranche = 'nonEchu' | 'j1a30' | 'j31a60' | 'j61a90' | 'plus90';
+    const trancheDe = (echeance: Date): Tranche => {
+      const retardJours = Math.floor((ref.getTime() - echeance.getTime()) / 86_400_000);
+      if (retardJours <= 0) return 'nonEchu';
+      if (retardJours <= 30) return 'j1a30';
+      if (retardJours <= 60) return 'j31a60';
+      if (retardJours <= 90) return 'j61a90';
+      return 'plus90';
+    };
+
+    const parCompte = new Map<string, LigneAgee>();
+    for (const l of lignes) {
+      const net = Number(l.debit) - Number(l.credit);
+      if (Math.abs(net) < 0.005) continue;
+      const entree =
+        parCompte.get(l.compte.id) ??
+        ({
+          compteId: l.compte.id,
+          numero: l.compte.numero,
+          intitule: l.compte.intitule,
+          nonEchu: 0,
+          j1a30: 0,
+          j31a60: 0,
+          j61a90: 0,
+          plus90: 0,
+          total: 0,
+        } satisfies LigneAgee);
+      const tranche = trancheDe(l.dateEcheance ?? l.ecriture.date);
+      entree[tranche] += net;
+      entree.total += net;
+      parCompte.set(l.compte.id, entree);
+    }
+
+    const arrondir = (x: LigneAgee): LigneAgee => ({
+      ...x,
+      nonEchu: Math.round(x.nonEchu * 100) / 100,
+      j1a30: Math.round(x.j1a30 * 100) / 100,
+      j31a60: Math.round(x.j31a60 * 100) / 100,
+      j61a90: Math.round(x.j61a90 * 100) / 100,
+      plus90: Math.round(x.plus90 * 100) / 100,
+      total: Math.round(x.total * 100) / 100,
+    });
+    // Un compte dont toutes les tranches se compensent à zéro (avances égales
+    // aux factures, corrections) n'apporte rien à l'état : écarté.
+    const comptes = [...parCompte.values()]
+      .map(arrondir)
+      .filter((c) => Math.abs(c.total) >= 0.005 || [c.nonEchu, c.j1a30, c.j31a60, c.j61a90, c.plus90].some((t) => Math.abs(t) >= 0.005))
+      .sort((a, b) => a.numero.localeCompare(b.numero));
+
+    const totaux = comptes.reduce(
+      (acc, c) => ({
+        compteId: '',
+        numero: '',
+        intitule: '',
+        nonEchu: acc.nonEchu + c.nonEchu,
+        j1a30: acc.j1a30 + c.j1a30,
+        j31a60: acc.j31a60 + c.j31a60,
+        j61a90: acc.j61a90 + c.j61a90,
+        plus90: acc.plus90 + c.plus90,
+        total: acc.total + c.total,
+      }),
+      { compteId: '', numero: '', intitule: '', nonEchu: 0, j1a30: 0, j31a60: 0, j61a90: 0, plus90: 0, total: 0 },
+    );
+
+    return { dateReference: ref.toISOString().slice(0, 10), type, comptes, totaux: arrondir(totaux) };
   }
 
   /** Grand livre d'un compte : ses lignes avec solde progressif. */

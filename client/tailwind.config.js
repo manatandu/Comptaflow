@@ -24,6 +24,7 @@ export default {
         text: 'var(--text)',
         'text-dim': 'var(--text-dim)',
         sel: 'var(--sel)',
+        'sel-soft': 'var(--sel-soft)',
         positive: 'var(--positive)',
         'positive-soft': 'var(--positive-soft)',
         warning: 'var(--warning)',
@@ -32,7 +33,11 @@ export default {
         'danger-soft': 'var(--danger-soft)',
       },
       borderRadius: {
-        DEFAULT: '2px',
+        DEFAULT: '3px',
+      },
+      boxShadow: {
+        posee: 'var(--ombre-posee)',
+        flottante: 'var(--ombre-flottante)',
       },
     },
   },

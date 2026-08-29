@@ -1,13 +1,10 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   IconBalance,
-  IconBanque,
-  IconBook,
   IconComptes,
   IconDashboard,
   IconEtats,
   IconGrille,
-  IconImmo,
   IconJournal,
   IconUsers,
 } from './icons';
@@ -25,20 +22,20 @@ interface OutilDef {
  * actif est enfoncé. Les actions propres à chaque fenêtre (imprimer, filtrer,
  * enregistrer…) vivent DANS la fenêtre, en ses propres boutons — jamais ici.
  */
+/**
+ * Sept outils, pas plus : l'essentiel du quotidien. Le reste (grand livre,
+ * balance âgée, rapprochement, immobilisations, TVA, documents…) vit dans
+ * les menus — une barre d'outils surchargée cesse d'être un raccourci.
+ */
 const OUTILS: OutilDef[][] = [
+  [{ label: 'Saisie', titre: 'Saisie des journaux', Icon: IconGrille, chemin: '/saisie' }],
   [
-    { label: 'Saisie', titre: 'Saisie des journaux', Icon: IconGrille, chemin: '/saisie' },
     { label: 'Journal', titre: 'Journal — consultation', Icon: IconJournal, chemin: '/journal?onglet=journal' },
-    { label: 'Grand livre', titre: 'Grand livre des comptes', Icon: IconBook, chemin: '/journal?onglet=grand-livre' },
     { label: 'Balance', titre: 'Balance des comptes', Icon: IconBalance, chemin: '/journal?onglet=balance' },
   ],
   [
     { label: 'Plan comptable', titre: 'Plan comptable général', Icon: IconComptes, chemin: '/comptes' },
     { label: 'Tiers', titre: 'Plan des tiers', Icon: IconUsers, chemin: '/tiers' },
-  ],
-  [
-    { label: 'Rapproch.', titre: 'Rapprochement bancaire', Icon: IconBanque, chemin: '/rapprochement' },
-    { label: 'Immos', titre: 'Immobilisations', Icon: IconImmo, chemin: '/immobilisations' },
   ],
   [
     { label: 'États', titre: 'États financiers', Icon: IconEtats, chemin: '/etats-financiers' },

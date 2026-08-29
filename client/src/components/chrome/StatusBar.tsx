@@ -17,6 +17,7 @@ const TITRES: Array<[RegExp, string]> = [
   [/^\/comptes/, 'Plan comptable'],
   [/^\/journaux/, 'Codes journaux'],
   [/^\/journal/, 'Journal · Grand livre · Balance'],
+  [/^\/balance-agee/, 'Balance âgée'],
   [/^\/rapprochement/, 'Rapprochement bancaire'],
   [/^\/immobilisations/, 'Immobilisations'],
   [/^\/exercice/, "Fin d'exercice"],

@@ -22,6 +22,8 @@ export type StatutExercice = 'OUVERT' | 'CLOTURE';
 
 export type TypeCompteDetailTotal = 'DETAIL' | 'TOTAL';
 
+export type ModeReportANouveau = 'AUCUN' | 'SOLDE' | 'DETAIL';
+
 export interface Compte {
   id: string;
   tenantId: string;
@@ -30,6 +32,8 @@ export interface Compte {
   classe: ClasseCompte;
   typeCompte: TypeCompteDetailTotal;
   estActif: boolean;
+  /** Report à-nouveau en fin d'exercice — Aucun (charges/produits), Solde, ou Détail (lignes non lettrées). */
+  modeReportANouveau: ModeReportANouveau;
   /** Rattachement à un Bailleur (comptabilité analytique par projet/bailleur) — voir Bailleur. */
   bailleurId: string | null;
 }

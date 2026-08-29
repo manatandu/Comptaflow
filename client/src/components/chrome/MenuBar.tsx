@@ -55,7 +55,7 @@ export function MenuBar({ menus }: { menus: MenuDef[] }) {
             {m.titre}
           </button>
           {ouvert === m.titre && (
-            <div className="absolute left-0 top-full z-30 min-w-[230px] bg-surface border border-border-dark shadow-[2px_2px_0_rgba(0,0,0,0.18)] py-1">
+            <div className="anim-menu absolute left-0 top-full z-30 min-w-[230px] bg-surface border border-border-dark shadow-flottante py-1">
               {m.items.map((it, i) => (
                 <div key={`${it.label}-${i}`}>
                   {it.separateurAvant && <div className="my-1 border-t border-border" />}

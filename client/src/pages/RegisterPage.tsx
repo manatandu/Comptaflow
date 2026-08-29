@@ -43,7 +43,7 @@ export function RegisterPage() {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-bg">
-      <div className="w-full max-w-[470px] border border-border-dark bg-surface shadow-[3px_3px_0_rgba(0,0,0,0.15)]">
+      <div className="w-full max-w-[470px] border border-border-dark bg-surface shadow-flottante">
         <div
           className="h-[26px] flex items-center gap-2 px-2.5 text-white text-[11.5px]"
           style={{ background: 'linear-gradient(180deg, var(--titlebar-from), var(--titlebar-to))' }}

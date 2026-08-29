@@ -2,42 +2,52 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Tokens — exactement ceux validés dans le canevas de design Compta Flow. */
+/*
+ * Design system Compta Flow — registre « poste de travail comptable » (Sage
+ * 100 i7 comme modèle d'inspiration), modernisé : palette raffinée, ombres
+ * douces, transitions courtes partout, animations discrètes d'ouverture.
+ * Jamais d'effet démonstratif : la fluidité doit se sentir, pas se voir.
+ */
 :root {
-  --chrome: #e9eaec;
-  --chrome-alt: #dfe1e4;
+  --chrome: #eef0f3;
+  --chrome-alt: #e2e5ea;
   --chrome-border: #9aa0a6;
   --chrome-text: #eef0f2;
   --chrome-text-dim: #a3a9b0;
 
-  --bg: #e8e9eb;
+  --bg: #e9ebef;
   --surface: #ffffff;
-  --surface-alt: #f6f6f7;
-  --border: #b7bcc2;
-  --border-dark: #8b929a;
-  --text: #14161a;
-  --text-dim: #565d66;
-  --sel: #2f4f8f;
-  --positive: #256a4a;
-  --positive-soft: #e3f1ea;
-  --warning: #a06a12;
-  --warning-soft: #f7ecd8;
+  --surface-alt: #f6f7f9;
+  --border: #c3c8cf;
+  --border-dark: #8e959f;
+  --text: #16181d;
+  --text-dim: #5a6170;
+  --sel: #2456a6;
+  --sel-soft: #e8eef8;
+  --positive: #1f6b49;
+  --positive-soft: #e2f1e9;
+  --warning: #9a6410;
+  --warning-soft: #f8edd6;
   --danger: #9c2b23;
-  --danger-soft: #f6e0dd;
+  --danger-soft: #f7e1de;
 
-  --titlebar-from: #3a5aa0;
-  --titlebar-to: #223c72;
+  --titlebar-from: #2d5ba9;
+  --titlebar-to: #1b3a75;
 
-  /* Tuiles de l'écran Accueil — une teinte par groupe, sobres et
-     professionnelles (pas de couleurs vives façon app grand public). */
-  --tile-bleu: #2f4f8f;
-  --tile-bleu-fonce: #223c72;
-  --tile-sarcelle: #2b6b64;
-  --tile-sarcelle-fonce: #1f4f4a;
-  --tile-ardoise: #4a4570;
-  --tile-ardoise-fonce: #343054;
-  --tile-neutre: #7a7f86;
-  --tile-neutre-fonce: #5f636a;
+  /* Ombres — deux niveaux seulement : posé (fenêtres, listes) et flottant
+     (menus, modales, listes déroulantes). */
+  --ombre-posee: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.08);
+  --ombre-flottante: 0 4px 14px rgba(16, 24, 40, 0.16), 0 2px 4px rgba(16, 24, 40, 0.1);
+
+  /* Tuiles de l'écran Accueil — sobres et professionnelles. */
+  --tile-bleu: #2456a6;
+  --tile-bleu-fonce: #1b3a75;
+  --tile-sarcelle: #24655e;
+  --tile-sarcelle-fonce: #1a4a45;
+  --tile-ardoise: #47426e;
+  --tile-ardoise-fonce: #322e52;
+  --tile-neutre: #767c85;
+  --tile-neutre-fonce: #5c6169;
 }
 
 * {
@@ -52,16 +62,142 @@ body,
 
 body {
   margin: 0;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-family: 'Segoe UI', system-ui, -apple-system, Roboto, 'Helvetica Neue', Arial, sans-serif;
   color: var(--text);
   background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
-/* Coins carrés partout, pas de style "app moderne" arrondie. */
+/* Coins à peine adoucis — moderne sans devenir « app grand public ». */
 button,
 input,
 select,
 textarea {
   font-family: inherit;
-  border-radius: 2px;
+  border-radius: 3px;
+}
+
+/* Fluidité : transitions courtes et uniformes sur tout l'interactif. */
+button,
+a,
+input,
+select,
+textarea {
+  transition:
+    background-color 0.13s ease,
+    border-color 0.13s ease,
+    color 0.13s ease,
+    box-shadow 0.13s ease,
+    opacity 0.13s ease,
+    transform 0.08s ease;
+}
+button:active:not(:disabled) {
+  transform: translateY(0.5px);
+}
+
+/* Focus lisible et discret, cohérent partout. */
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: none;
+  border-color: var(--sel);
+  box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--sel) 22%, transparent);
+}
+button:focus-visible {
+  outline: 2px solid var(--sel);
+  outline-offset: 1px;
+}
+
+/* Barres de défilement fines, au registre du reste. */
+*::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: #b6bcc6;
+  border-radius: 5px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: #99a1ad;
+  background-clip: content-box;
+}
+
+/* ------------------------------------------------------------------ */
+/* Animations d'apparition — discrètes (≤ 160 ms), jamais bloquantes.  */
+/* ------------------------------------------------------------------ */
+@keyframes fenetre-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes modale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes voile-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* La fenêtre active (contenu de page) glisse en place à la navigation. */
+.anim-fenetre {
+  animation: fenetre-in 0.16s ease-out both;
+}
+/* Menus déroulants et listes de choix. */
+.anim-menu {
+  animation: menu-in 0.12s ease-out both;
+}
+/* Modales : le voile fond, la boîte se pose. */
+.anim-voile {
+  animation: voile-in 0.14s ease-out both;
+}
+.anim-modale {
+  animation: modale-in 0.15s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .anim-fenetre,
+  .anim-menu,
+  .anim-voile,
+  .anim-modale {
+    animation: none;
+  }
+  button,
+  a,
+  input,
+  select,
+  textarea {
+    transition: none;
+  }
 }
