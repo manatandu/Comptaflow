@@ -188,6 +188,9 @@ export function AppShell() {
         // ce qu'elle retient pour autrui, et de la déclaration même à zéro ·
         // voir docs/fiscalite-asbl-rdc.md.
         { label: 'Retenues et échéancier fiscal', onClick: () => navigate('/retenues') },
+        // Les facilités douanières de l'article 39 de la loi 004/2001 · un
+        // arrêté prévisionnel périmé se découvre d'ordinaire au port.
+        { label: 'Exonérations douanières et fiscales', onClick: () => navigate('/exonerations') },
       ],
     },
     {

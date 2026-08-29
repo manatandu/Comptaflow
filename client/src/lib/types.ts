@@ -1737,3 +1737,68 @@ export interface CompteDormant {
   solde: number;
   jamaisMouvemente: boolean;
 }
+
+// ---------------------------------------------------------------------------
+// Exonérations douanières et fiscales · facilités de l'article 39 de la loi
+// n° 004/2001, constatées par arrêté interministériel du Plan et des Finances.
+// ---------------------------------------------------------------------------
+
+export type TypeDemandeExoneration = 'PONCTUEL' | 'PREVISIONNEL' | 'RENOUVELLEMENT';
+export type StatutExoneration = 'EN_PREPARATION' | 'DEPOSE' | 'ACCORDE' | 'REJETE' | 'EXPIRE';
+
+export interface PieceExoneration {
+  cle: string;
+  libelle: string;
+  /** Renseignée quand la pièce n'est exigée que dans un cas particulier. */
+  conditionnelle?: string;
+  fournie: boolean;
+}
+
+export interface DossierExoneration {
+  id: string;
+  type: TypeDemandeExoneration;
+  statut: StatutExoneration;
+  objet: string;
+  referenceArrete: string | null;
+  dateArrete: string | null;
+  dateDebutValidite: string | null;
+  dateFinValidite: string | null;
+  lettreTransport: string | null;
+  valeurBiens: number | null;
+  franchiseDouaniere: string | null;
+  observations: string | null;
+  piecesFournies: string[];
+  modele: { libelle: string; objet: string; baseLegale: string; validiteMois: number | null };
+  pieces: PieceExoneration[];
+  nombrePiecesFournies: number;
+  nombrePiecesRequises: number;
+  piecesManquantes: string[];
+  conditionnellesAVerifier: Array<{ libelle: string; condition: string }>;
+  complet: boolean;
+  /** Null tant que le dossier n'est pas ACCORDÉ · il n'y a alors aucun titre. */
+  joursAvantExpiration: number | null;
+  alerte: 'EXPIRE' | 'A_RENOUVELER' | null;
+}
+
+export interface RegistreExonerations {
+  dateReference: string;
+  dossiers: DossierExoneration[];
+  aRenouveler: number;
+  expires: number;
+  incomplets: number;
+  avertissement: string;
+}
+
+export interface ReferentielExonerations {
+  modeles: Array<{
+    type: TypeDemandeExoneration;
+    libelle: string;
+    objet: string;
+    baseLegale: string;
+    validiteMois: number | null;
+    pieces: Array<{ cle: string; libelle: string; conditionnelle?: string }>;
+  }>;
+  franchisesDouanieres: ReadonlyArray<{ lettre: string; libelle: string; texte: string }>;
+  joursAlerteRenouvellement: number;
+  avertissement: string;
+}

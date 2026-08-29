@@ -232,6 +232,8 @@ model Tenant {
   relances                 Relance[]
   lettrages                Lettrage[]
 
+  exonerations              Exoneration[]
+
   @@map("tenants")
 }
 
@@ -1972,4 +1974,86 @@ model RapportActivite {
   @@unique([tenantId, exerciceId, version])
   @@index([tenantId, exerciceId])
   @@map("rapports_activite")
+}
+
+// ---------------------------------------------------------------------------
+// EXONÉRATIONS DOUANIÈRES ET FISCALES · facilités de l'article 39 de la loi
+// n° 004/2001, constatées par arrêté interministériel des Ministres du Plan et
+// des Finances. Voir src/modules/exonerations/correspondance-exonerations.ts
+// pour les listes de pièces (note circulaire n° 003/2013) et les cas de
+// franchise du code des douanes (art. 339).
+// ---------------------------------------------------------------------------
+
+// PONCTUEL : une opération d'importation isolée, rattachée à un BL ou une LTA.
+// PREVISIONNEL : un flux récurrent, arrêté valable deux ans, renouvelable.
+// RENOUVELLEMENT : la reconduction d'un prévisionnel arrivé à échéance.
+enum TypeDemandeExoneration {
+  PONCTUEL
+  PREVISIONNEL
+  RENOUVELLEMENT
+}
+
+// Un dossier suit ce chemin, et le registre doit pouvoir montrer où il en est :
+// tant qu'il n'est pas ACCORDE, il n'existe aucun titre, et les droits sont dus.
+enum StatutExoneration {
+  EN_PREPARATION
+  DEPOSE
+  ACCORDE
+  REJETE
+  EXPIRE
+}
+
+model Exoneration {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  type   TypeDemandeExoneration
+  statut StatutExoneration      @default(EN_PREPARATION)
+
+  /// Ce que le dossier couvre, en clair · « Lot de médicaments Kinshasa,
+  /// don MSF », « Véhicules de mission 2026 ». C'est le libellé que
+  /// l'utilisateur relit dans six mois, pas le numéro d'arrêté.
+  objet String
+
+  /// Numéro de l'arrêté interministériel, une fois obtenu. Null tant que le
+  /// dossier n'est pas accordé · c'est justement ce qui distingue un dossier
+  /// en cours d'un titre opposable à la douane.
+  referenceArrete String?
+  dateArrete      DateTime?
+
+  /// Validité de l'arrêté prévisionnel · deux ans (note circulaire, B.III).
+  /// Null pour un arrêté ponctuel, qui s'épuise avec l'opération qu'il couvre.
+  dateDebutValidite DateTime?
+  dateFinValidite   DateTime?
+
+  /// Lettre de transport de l'opération couverte (arrêté ponctuel).
+  lettreTransport String?
+
+  /// Valeur des biens à exonérer, dans la monnaie de tenue du dossier. Sert à
+  /// mesurer l'enjeu d'un dossier en retard, jamais à calculer un droit : le
+  /// logiciel ne liquide aucune imposition douanière.
+  valeurBiens Decimal? @db.Decimal(18, 2)
+
+  /// Lettre du point 1 de l'article 339 du code des douanes invoquée (e, h,
+  /// i, l, m). Facultative : l'arrêté interministériel est le titre, cette
+  /// lettre n'en est que le fondement tarifaire.
+  franchiseDouaniere String?
+
+  /// Clés des pièces réunies, prises dans la liste du modèle de demande
+  /// correspondant. Une liste de clés plutôt qu'une table fille : le
+  /// référentiel des pièces vit dans le code (il change avec la circulaire,
+  /// pas avec les données), et seul l'état « fournie / non fournie » est
+  /// propre au dossier.
+  piecesFournies String[]
+
+  observations String?
+
+  createdAt DateTime @default(now())
+  createdBy String
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId, statut])
+  @@index([tenantId, dateFinValidite])
+  @@map("exonerations")
 }

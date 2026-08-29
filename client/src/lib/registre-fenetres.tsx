@@ -16,6 +16,7 @@ import { TiersPage } from '../pages/TiersPage';
 import { TauxTvaPage } from '../pages/TauxTvaPage';
 import { DeclarationTvaPage } from '../pages/DeclarationTvaPage';
 import { RetenuesPage } from '../pages/RetenuesPage';
+import { ExonerationsPage } from '../pages/ExonerationsPage';
 import { EtatsFinanciersPage } from '../pages/EtatsFinanciersPage';
 import { NotesAnnexesPage } from '../pages/NotesAnnexesPage';
 import { RegistreDonateursPage } from '../pages/RegistreDonateursPage';
@@ -120,6 +121,12 @@ export const FENETRES: DefinitionFenetre[] = [
     titre: 'Retenues et échéancier fiscal',
     titreCourt: 'Retenues',
     rendre: () => <RetenuesPage />,
+  },
+  {
+    motif: /^\/exonerations$/,
+    titre: 'Exonérations douanières et fiscales',
+    titreCourt: 'Exonérations',
+    rendre: () => <ExonerationsPage />,
   },
   {
     motif: /^\/etats-financiers$/,

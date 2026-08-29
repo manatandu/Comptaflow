@@ -29,6 +29,7 @@ import { RegularisationModule } from './modules/regularisation/regularisation.mo
 import { DevisesModule } from './modules/devises/devises.module';
 import { RelancesModule } from './modules/relances/relances.module';
 import { RetenuesModule } from './modules/retenues/retenues.module';
+import { ExonerationsModule } from './modules/exonerations/exonerations.module';
 
 @Module({
   imports: [
@@ -61,6 +62,7 @@ import { RetenuesModule } from './modules/retenues/retenues.module';
     DevisesModule,
     RelancesModule,
     RetenuesModule,
+    ExonerationsModule,
   ],
 })
 export class AppModule {}

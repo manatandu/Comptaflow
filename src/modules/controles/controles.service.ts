@@ -1,6 +1,13 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
-import { ClasseCompte, JeuEtatsFinanciersSycebnl, StatutEcriture, TypeCompteDetailTotal } from '@prisma/client';
+import {
+  ClasseCompte,
+  JeuEtatsFinanciersSycebnl,
+  StatutEcriture,
+  StatutExoneration,
+  TypeCompteDetailTotal,
+} from '@prisma/client';
+import { JOURS_ALERTE_RENOUVELLEMENT } from '../exonerations/correspondance-exonerations';
 
 /**
  * SEUILS DE DÉSIGNATION DE L'AUDITEUR · Acte uniforme SYCEBNL, article 19.
@@ -814,6 +821,55 @@ export class ControlesService {
           "moins 45 jours avant l'assemblée générale (art. 19, alinéa 4). Les montants ci-dessous sont approchés " +
           'depuis la balance : confrontez-les à la liasse arrêtée avant de conclure.',
         occurrences: seuils.franchis.map((f) => ({ reference: f.critere, detail: f.detail })),
+      });
+    }
+
+    // --- 11. Arrêtés d'exonération périmés ou sur le point de l'être --------
+    //
+    // Un arrêté prévisionnel du Ministère du Plan vaut deux ans (note
+    // circulaire n° 003/2013, section B.III). Périmé, il se découvre au port,
+    // la marchandise déjà débarquée et les frais de magasinage qui courent ·
+    // c'est l'échéance la plus coûteuse à manquer de toutes celles que le
+    // logiciel suit, et la seule qui ne laisse aucune régularisation possible
+    // après coup : sans titre, les droits sont dus (code des douanes,
+    // art. 338).
+    //
+    // Soixante jours d'avance, parce que le renouvellement exige un rapport
+    // d'évaluation SUR TERRAIN, qui suppose une descente à organiser.
+    const aujourdhui = new Date();
+    const exonerations = await this.prisma.exoneration.findMany({
+      where: {
+        tenantId,
+        statut: StatutExoneration.ACCORDE,
+        dateFinValidite: { not: null, lte: new Date(aujourdhui.getTime() + JOURS_ALERTE_RENOUVELLEMENT * 86_400_000) },
+      },
+      orderBy: { dateFinValidite: 'asc' },
+    });
+    if (exonerations.length > 0) {
+      const perimes = exonerations.filter((e) => e.dateFinValidite! < aujourdhui);
+      anomalies.push({
+        code: 'EXONERATION_A_RENOUVELER',
+        gravite: perimes.length > 0 ? 'BLOQUANT' : 'AVERTISSEMENT',
+        libelle:
+          perimes.length > 0
+            ? "Arrêté d'exonération EXPIRÉ"
+            : "Arrêté d'exonération à renouveler sous soixante jours",
+        consequence:
+          "Aucune franchise ne se présume : « Il ne peut être accordé de franchise des droits et taxes qu'en " +
+          "application des conventions internationales ou que par la loi ou en vertu de celle-ci » (code des " +
+          "douanes, ordonnance-loi n° 10/002, art. 338). Sans arrêté en cours de validité, les droits et taxes " +
+          'sont dus à l’importation, et la marchandise reste au port aux frais de l’entité.',
+        action:
+          "Déposez le dossier de renouvellement au Ministère du Plan : requête signée, copie de l'ancien arrêté, " +
+          "rapport d'évaluation sur terrain et liste quantifiée des biens (note circulaire n° 003/2013, " +
+          'section B.III). Le rapport de terrain suppose une descente · c’est lui qui commande le délai.',
+        occurrences: exonerations.map((e) => ({
+          reference: e.referenceArrete ?? e.objet,
+          detail:
+            e.dateFinValidite! < aujourdhui
+              ? `Expiré le ${e.dateFinValidite!.toISOString().slice(0, 10)}`
+              : `Expire le ${e.dateFinValidite!.toISOString().slice(0, 10)}`,
+        })),
       });
     }
 

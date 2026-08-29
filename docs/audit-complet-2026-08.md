@@ -39,10 +39,11 @@ ci-dessous sont TRAITÉS et couverts par des tests. Voir les commits
 | Social CNSS/INPP/ONEM | Natures séparées, comptes INPP et ONEM ouverts, sources réelles citées, taux ONEM 0,5 % sourcé sur l’AM n° 028/2025 |
 | Coordonnées des tiers | Huit champs sur la fiche, dont le Numéro Impôt exigé par l'art. 47 ter |
 | TVA à l'encaissement (P2-10) | Régime d'exigibilité au dossier (livraisons / encaissements / débits) ; la déclaration suit le lettrage, prorate le règlement partiel, et affiche la TVA facturée non encore encaissée |
+| Exonérations douanières (P2-13) | Registre des arrêtés interministériels (art. 39 loi 004/2001), listes de pièces de la note circulaire 003/2013, cas de franchise de l'art. 339 du code des douanes, et alerte de renouvellement à J-60 remontée dans « Analyse et contrôles » |
 
-**Reste ouvert** : le P2 sauf le point 10, et tout le P3 (import de relevé
-bancaire, modèles de saisie paramétrables, registre des exonérations
-douanières, et les points Sage de confort).
+**Reste ouvert** : le P2 sauf les points 10 et 13, et tout le P3 (import de
+relevé bancaire, modèles de saisie paramétrables, et les points Sage de
+confort).
 
 ## Priorités consolidées
 
