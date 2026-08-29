@@ -33,6 +33,16 @@ const LIBELLE_RAN: Record<ModeReportANouveau, string> = {
   DETAIL: 'Détail',
 };
 
+/**
+ * Compte principal officiel (2 chiffres) · les 76 en-têtes de division
+ * semés par compte-seed.ts (total()). Un numéro à 2 chiffres est
+ * structurellement impossible à obtenir autrement : CreerCompteDto exige
+ * 3 à 13 chiffres. Cette propriété sert ici à verrouiller ces lignes en
+ * édition, sans marqueur ni champ supplémentaire côté base.
+ */
+const estComptePrincipalOfficiel = (c: Pick<Compte, 'typeCompte' | 'numero'>) =>
+  c.typeCompte === 'TOTAL' && c.numero.length === 2;
+
 export function PlanComptesPage() {
   const [tauxTva, setTauxTva] = useState<TauxTva[]>([]);
   const navigate = useNavigate();
@@ -248,14 +258,28 @@ export function PlanComptesPage() {
                   {selection.classe.replace('CLASSE_', '')} · {LIBELLE_CLASSE[selection.classe]}
                 </span>
                 <span className="text-text-dim text-right">Type :</span>
-                <span>{selection.typeCompte === 'TOTAL' ? 'Total (regroupement par racine)' : 'Détail (mouvementable)'}</span>
+                <span>
+                  {estComptePrincipalOfficiel(selection)
+                    ? 'Total · compte principal officiel'
+                    : selection.typeCompte === 'TOTAL'
+                      ? 'Total (regroupement par racine)'
+                      : 'Détail (mouvementable)'}
+                </span>
                 <span className="text-text-dim text-right">État :</span>
                 <span className={selection.estActif ? 'text-positive' : 'text-warning'}>
                   {selection.estActif ? 'Actif' : 'En sommeil'}
                 </span>
               </div>
 
-              {estAdmin && (
+              {estComptePrincipalOfficiel(selection) && (
+                <p className="mb-3 rounded-[6px] border border-border bg-surface-alt px-2.5 py-2 text-[11px] text-text-dim leading-[1.5]">
+                  Compte principal du plan SYCEBNL (Partie 2, ch. 2) : son numéro, son intitulé et son rattachement
+                  ne se modifient pas. Il regroupe automatiquement les comptes Détail de sa division · aucune
+                  écriture ne s'y saisit jamais.
+                </p>
+              )}
+
+              {estAdmin && !estComptePrincipalOfficiel(selection) && (
                 <>
                   <label className="block mb-2">
                     <span className="text-[10px] font-bold text-text-dim">INTITULÉ</span>
@@ -350,7 +374,7 @@ export function PlanComptesPage() {
                     Gérer · interrogation et lettrage
                   </button>
                 )}
-                {estAdmin && (
+                {estAdmin && !estComptePrincipalOfficiel(selection) && (
                   <button
                     type="button"
                     onClick={() => modifier(selection.id, { estActif: !selection.estActif })}

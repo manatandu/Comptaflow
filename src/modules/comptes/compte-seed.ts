@@ -1,4 +1,4 @@
-import { ClasseCompte, ModeReportANouveau } from '@prisma/client';
+import { ClasseCompte, ModeReportANouveau, TypeCompteDetailTotal } from '@prisma/client';
 
 /**
  * Plan des comptes SYCEBNL · import complet des comptes d'imputation de base
@@ -51,10 +51,50 @@ const SOLDE = ModeReportANouveau.SOLDE;
 const AUCUN = ModeReportANouveau.AUCUN;
 const DETAIL = ModeReportANouveau.DETAIL;
 
-type LigneSeed = { numero: string; intitule: string; classe: ClasseCompte; modeReportANouveau: ModeReportANouveau };
+type LigneSeed = {
+  numero: string;
+  intitule: string;
+  classe: ClasseCompte;
+  modeReportANouveau: ModeReportANouveau;
+  typeCompte?: TypeCompteDetailTotal;
+};
 
 function c(classe: ClasseCompte, mode: ModeReportANouveau, entries: Array<[string, string]>): LigneSeed[] {
   return entries.map(([numero, intitule]) => ({ numero, intitule, classe, modeReportANouveau: mode }));
+}
+
+/**
+ * COMPTES PRINCIPAUX (2 chiffres) · les 76 en-têtes de division du plan
+ * SYCEBNL (Partie 2, ch. 2, section 3 : « les comptes principaux à deux (02)
+ * chiffres »), ajoutés le 2026-08-29 à la demande explicite de l'utilisateur
+ * (« réintègre aussi les comptes à 2 chiffres en gras »).
+ *
+ * Numéro NON complété à 8 chiffres, à la différence de tous les autres
+ * comptes du fichier · deux raisons, l'une suffirait déjà :
+ *
+ *  1. COLLISION. Compléter "90" à 8 chiffres donnerait "90000000" · or ce
+ *     numéro est DÉJÀ pris par le compte 900 « secours en nature » (900 +
+ *     cinq zéros = 90000000). Semer les deux violerait la contrainte
+ *     d'unicité [tenantId, numero].
+ *  2. AGRÉGATION CASSÉE. Ces comptes sont de type TOTAL (regroupement par
+ *     racine, §3.1) · leur solde s'obtient en sommant tout compte Détail
+ *     dont le numéro COMMENCE PAR le leur (`EcritureService.balance()`,
+ *     `numero.startsWith(c.numero)`). "10110000".startsWith("10") est vrai ;
+ *     "10110000".startsWith("10000000") est faux. Le numéro complété romprait
+ *     donc l'agrégation, et l'en-tête afficherait toujours un solde à zéro.
+ *
+ * Le numéro à 2 chiffres reste néanmoins la valeur exacte du code officiel :
+ * ce n'est pas une troncature, c'est le compte principal tel que le texte le
+ * numérote lui-même.
+ *
+ * Protection : un compte créé via l'API (`CreerCompteDto.numero`) est borné
+ * à 3-13 chiffres · un numéro à 2 chiffres est donc structurellement
+ * impossible à obtenir autrement que par ce semis. `PlanComptesPage`
+ * s'appuie sur cette propriété pour verrouiller ces lignes en édition (voir
+ * son commentaire).
+ */
+function total(numero: string, intitule: string, classe: ClasseCompte, mode: ModeReportANouveau): LigneSeed {
+  return { numero, intitule, classe, modeReportANouveau: mode, typeCompte: TypeCompteDetailTotal.TOTAL };
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -884,20 +924,144 @@ const classe9: LigneSeed[] = c(ClasseCompte.CLASSE_9, SOLDE, [
   ['91400000', 'Contributions volontaires en nature · bénévolat'],
 ]);
 
+// ─────────────────────────────────────────────────────────────────────────
+// COMPTES PRINCIPAUX (2 chiffres) · voir le commentaire de total() ci-dessus.
+// Un en-tête par division effectivement détaillée plus haut · les classes
+// 92 à 99 n'en portent aucun, faute de subdivisions officielles (§ en-tête
+// de fichier).
+// ─────────────────────────────────────────────────────────────────────────
+const totauxClasse1: LigneSeed[] = [
+  total('10', 'Dotation', ClasseCompte.CLASSE_1, SOLDE),
+  total('11', 'Réserves', ClasseCompte.CLASSE_1, SOLDE),
+  total('12', 'Report à nouveau', ClasseCompte.CLASSE_1, SOLDE),
+  total('13', "Résultat net de l'exercice", ClasseCompte.CLASSE_1, SOLDE),
+  total('14', "Subventions d'investissement", ClasseCompte.CLASSE_1, SOLDE),
+  total('15', 'Provisions réglementées et fonds assimilés', ClasseCompte.CLASSE_1, SOLDE),
+  total('16', 'Fonds affectés', ClasseCompte.CLASSE_1, SOLDE),
+  total('17', 'Fonds reportés', ClasseCompte.CLASSE_1, SOLDE),
+  total('18', 'Emprunts et dettes assimilées', ClasseCompte.CLASSE_1, SOLDE),
+  total('19', 'Provisions pour risques et charges', ClasseCompte.CLASSE_1, SOLDE),
+];
+
+const totauxClasse2: LigneSeed[] = [
+  total('20', 'Immobilisations destinées à la vente (dons/legs non reçus) et usufruit temporaire', ClasseCompte.CLASSE_2, SOLDE),
+  total('21', 'Immobilisations incorporelles', ClasseCompte.CLASSE_2, SOLDE),
+  total('22', 'Terrains', ClasseCompte.CLASSE_2, SOLDE),
+  total('23', 'Bâtiments, installations techniques et agencements', ClasseCompte.CLASSE_2, SOLDE),
+  total('24', 'Matériel, mobilier et actifs biologiques', ClasseCompte.CLASSE_2, SOLDE),
+  total('25', 'Avances et acomptes versés sur immobilisations', ClasseCompte.CLASSE_2, SOLDE),
+  total('26', 'Titres de participation', ClasseCompte.CLASSE_2, SOLDE),
+  total('27', 'Autres immobilisations financières', ClasseCompte.CLASSE_2, SOLDE),
+  total('28', 'Amortissements', ClasseCompte.CLASSE_2, SOLDE),
+  total('29', 'Dépréciations des immobilisations', ClasseCompte.CLASSE_2, SOLDE),
+];
+
+const totauxClasse3: LigneSeed[] = [
+  total('31', "Biens liés à l'activité", ClasseCompte.CLASSE_3, SOLDE),
+  total('32', 'Marchandises, matières premières et fournitures liées', ClasseCompte.CLASSE_3, SOLDE),
+  total('33', 'Autres approvisionnements', ClasseCompte.CLASSE_3, SOLDE),
+  total('34', 'Dons en nature', ClasseCompte.CLASSE_3, SOLDE),
+  total('35', 'Produits et services en cours', ClasseCompte.CLASSE_3, SOLDE),
+  total('36', 'Produits finis, produits intermédiaires et résiduels', ClasseCompte.CLASSE_3, SOLDE),
+  total('37', 'Stocks en cours de route, en consignation ou en dépôt', ClasseCompte.CLASSE_3, SOLDE),
+  total('38', 'Dons en nature H.A.O.', ClasseCompte.CLASSE_3, SOLDE),
+  total('39', 'Dépréciations des stocks et des productions en cours', ClasseCompte.CLASSE_3, SOLDE),
+];
+
+// Divisions 40/41/45/46/47 (tiers avec grand-livre auxiliaire) : report
+// DETAIL, comme leurs comptes Détail · 42/43/44/48/49 : report SOLDE.
+const totauxClasse4: LigneSeed[] = [
+  total('40', 'Fournisseurs et comptes rattachés', ClasseCompte.CLASSE_4, DETAIL),
+  total('41', 'Adhérents, clients-usagers et comptes rattachés', ClasseCompte.CLASSE_4, DETAIL),
+  total('42', 'Personnel', ClasseCompte.CLASSE_4, SOLDE),
+  total('43', 'Organismes sociaux', ClasseCompte.CLASSE_4, SOLDE),
+  total('44', 'État et collectivités publiques', ClasseCompte.CLASSE_4, SOLDE),
+  total('45', 'Fondateurs, apporteurs et comptes courants', ClasseCompte.CLASSE_4, DETAIL),
+  total('46', "Bailleurs, État et autres organismes, fonds d'administration", ClasseCompte.CLASSE_4, DETAIL),
+  total('47', 'Débiteurs et créditeurs divers', ClasseCompte.CLASSE_4, DETAIL),
+  total('48', 'Créances et dettes H.A.O.', ClasseCompte.CLASSE_4, SOLDE),
+  total('49', 'Dépréciations et provisions pour risques à court terme (tiers)', ClasseCompte.CLASSE_4, SOLDE),
+];
+
+const totauxClasse5: LigneSeed[] = [
+  total('50', 'Titres de placement', ClasseCompte.CLASSE_5, SOLDE),
+  total('51', 'Valeurs à encaisser', ClasseCompte.CLASSE_5, SOLDE),
+  total('52', 'Banques', ClasseCompte.CLASSE_5, SOLDE),
+  total('53', 'Établissements financiers et assimilés', ClasseCompte.CLASSE_5, SOLDE),
+  total('55', 'Instruments de monnaie électronique', ClasseCompte.CLASSE_5, SOLDE),
+  total('56', "Banques, crédits de trésorerie et d'escompte", ClasseCompte.CLASSE_5, SOLDE),
+  total('57', 'Caisse', ClasseCompte.CLASSE_5, SOLDE),
+  total('58', 'Virements internes', ClasseCompte.CLASSE_5, SOLDE),
+  total('59', 'Dépréciations et provisions pour risques à court terme', ClasseCompte.CLASSE_5, SOLDE),
+];
+
+const totauxClasse6: LigneSeed[] = [
+  total('60', 'Achats et variations de stocks', ClasseCompte.CLASSE_6, AUCUN),
+  total('61', 'Transports', ClasseCompte.CLASSE_6, AUCUN),
+  total('62', 'Services extérieurs', ClasseCompte.CLASSE_6, AUCUN),
+  total('63', 'Autres services extérieurs', ClasseCompte.CLASSE_6, AUCUN),
+  total('64', 'Impôts et taxes', ClasseCompte.CLASSE_6, AUCUN),
+  total('65', 'Autres charges', ClasseCompte.CLASSE_6, AUCUN),
+  total('66', 'Charges de personnel', ClasseCompte.CLASSE_6, AUCUN),
+  total('67', 'Frais financiers et charges assimilées', ClasseCompte.CLASSE_6, AUCUN),
+  total('68', 'Dotations aux amortissements', ClasseCompte.CLASSE_6, AUCUN),
+  total('69', 'Dotations aux provisions et aux dépréciations', ClasseCompte.CLASSE_6, AUCUN),
+];
+
+const totauxClasse7: LigneSeed[] = [
+  total('70', 'Revenus', ClasseCompte.CLASSE_7, AUCUN),
+  total('71', "Subventions d'exploitation", ClasseCompte.CLASSE_7, AUCUN),
+  total('72', 'Production immobilisée', ClasseCompte.CLASSE_7, AUCUN),
+  total('73', 'Variations des stocks de biens produits', ClasseCompte.CLASSE_7, AUCUN),
+  total('75', 'Autres produits', ClasseCompte.CLASSE_7, AUCUN),
+  total('77', 'Revenus financiers et produits assimilés', ClasseCompte.CLASSE_7, AUCUN),
+  total('78', 'Transferts de charges', ClasseCompte.CLASSE_7, AUCUN),
+  total('79', 'Reprises de provisions, de dépréciations et autres', ClasseCompte.CLASSE_7, AUCUN),
+];
+
+const totauxClasse8: LigneSeed[] = [
+  total('81', "Valeurs comptables des cessions d'immobilisations", ClasseCompte.CLASSE_8, AUCUN),
+  total('82', "Produits des cessions d'immobilisations", ClasseCompte.CLASSE_8, AUCUN),
+  total('83', 'Charges hors activités ordinaires', ClasseCompte.CLASSE_8, AUCUN),
+  total('84', 'Revenus hors activités ordinaires', ClasseCompte.CLASSE_8, AUCUN),
+  total('85', 'Dotations hors activités ordinaires', ClasseCompte.CLASSE_8, AUCUN),
+  total('86', "Reprises d'amortissements, provisions et dépréciations H.A.O.", ClasseCompte.CLASSE_8, AUCUN),
+  total('87', 'Variations de stocks de dons en nature H.A.O.', ClasseCompte.CLASSE_8, AUCUN),
+  total('88', "Subventions d'équilibre", ClasseCompte.CLASSE_8, AUCUN),
+];
+
+// 92 à 99 (comptabilité analytique de gestion) volontairement sans en-tête :
+// aucun compte Détail n'est semé dessous (§ en-tête de fichier, « libre
+// usage »), un en-tête sans enfant n'aurait rien à regrouper.
+const totauxClasse9: LigneSeed[] = [
+  total('90', 'Emplois des contributions volontaires en nature', ClasseCompte.CLASSE_9, SOLDE),
+  total('91', 'Contributions volontaires en nature', ClasseCompte.CLASSE_9, SOLDE),
+];
+
 export const PLAN_COMPTES_SYCEBNL: Array<{
   numero: string;
   intitule: string;
   classe: ClasseCompte;
   modeReportANouveau: ModeReportANouveau;
+  typeCompte?: TypeCompteDetailTotal;
 }> = [
+  ...totauxClasse1,
   ...classe1,
+  ...totauxClasse2,
   ...classe2,
+  ...totauxClasse3,
   ...classe3,
+  ...totauxClasse4,
   ...classe4Detail,
   ...classe4Solde,
+  ...totauxClasse5,
   ...classe5,
+  ...totauxClasse6,
   ...classe6,
+  ...totauxClasse7,
   ...classe7,
+  ...totauxClasse8,
   ...classe8,
+  ...totauxClasse9,
   ...classe9,
 ];

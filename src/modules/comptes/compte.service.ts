@@ -27,7 +27,16 @@ export class CompteService {
   /** Appelé une fois à la création du tenant (voir AuthService.register). */
   async seedPlanSycebnl(tenantId: string) {
     await this.prisma.compte.createMany({
-      data: PLAN_COMPTES_SYCEBNL.map((c) => ({ ...c, tenantId, lettrable: estLettrableParDefaut(c.numero) })),
+      data: PLAN_COMPTES_SYCEBNL.map((c) => ({
+        ...c,
+        tenantId,
+        // Un compte Total (les 44 comptes principaux à 2 chiffres, voir
+        // compte-seed.ts) ne peut jamais recevoir d'écriture, donc jamais de
+        // lettrage : une case cochée sur une ligne qui ne mouvementera
+        // jamais rien serait trompeuse. Le défaut par numéro (classes 4 et
+        // 58) ne s'applique donc qu'aux comptes Détail.
+        lettrable: c.typeCompte === 'TOTAL' ? false : estLettrableParDefaut(c.numero),
+      })),
       skipDuplicates: true,
     });
   }
