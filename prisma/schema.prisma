@@ -98,6 +98,8 @@ model Tenant {
   immobilisations          Immobilisation[]
   plansAnalytiques         PlanAnalytique[]
   sectionsAnalytiques      SectionAnalytique[]
+  regularisations          Regularisation[]
+  modelesAbonnement        ModeleAbonnement[]
 
   @@map("tenants")
 }
@@ -227,6 +229,12 @@ model Compte {
   famillesImmoDotation          FamilleImmobilisation[] @relation("FamilleCompteDotation")
   immobilisationsImmobilisation Immobilisation[]        @relation("ImmoCompteImmobilisation")
   immobilisationsAmortissement  Immobilisation[]        @relation("ImmoCompteAmortissement")
+  // Régularisation des charges et produits (476/477) et abonnements ·
+  // voir Regularisation et ModeleAbonnement.
+  regularisationsChargeProduit  Regularisation[]        @relation("RegulCompteChargeProduit")
+  regularisationsDiffere        Regularisation[]        @relation("RegulCompteDiffere")
+  abonnementsDebit              ModeleAbonnement[]      @relation("AbonnementCompteDebit")
+  abonnementsCredit             ModeleAbonnement[]      @relation("AbonnementCompteCredit")
   immobilisationsDotation       Immobilisation[]        @relation("ImmoCompteDotation")
   // Rattachements aux rubriques de notes annexes (voir RattachementNote).
   rattachementsNotes            RattachementNote[]
@@ -276,6 +284,7 @@ model Journal {
 
   @@unique([tenantId, code])
   @@map("journaux")
+  modelesAbonnement ModeleAbonnement[]
 }
 
 enum StatutExercice {
@@ -295,6 +304,7 @@ model Exercice {
   clotures               Cloture[]
   dotationsAmortissement DotationAmortissement[]
   budgetsSection         BudgetSection[]
+  regularisations        Regularisation[]
 
   // Documents obligatoires de l'exercice (art. 14 et 16-3) · versionnés,
   // d'où des relations 1-N et non 1-1 : voir leurs modèles.
@@ -356,6 +366,11 @@ model Ecriture {
   statut    StatutEcriture @default(BROUILLARD)
   valideeAt DateTime?
   valideeBy String?
+
+  // Régularisations et abonnements dont cette écriture est l'aboutissement.
+  regularisationConstatee Regularisation?     @relation("RegulConstatation")
+  regularisationReprise   Regularisation?     @relation("RegulReprise")
+  echeanceAbonnement      EcheanceAbonnement?
 
   // Écriture générée automatiquement par la clôture de l'exercice (clôture des
   // classes 6/7 sur le résultat, ou report à-nouveau dans l'exercice suivant) ·
@@ -899,6 +914,142 @@ model VentilationAnalytique {
   @@index([ligneEcritureId])
   @@index([sectionId])
   @@map("ventilations_analytiques")
+}
+
+// ---------------------------------------------------------------------------
+// RÉGULARISATION DES CHARGES ET DES PRODUITS, ET ÉCRITURES D'ABONNEMENT
+//
+// Deux automatismes que les manuels Sage décrivent ensemble, et que le
+// SYCEBNL traite différemment de la pratique française. Voir
+// docs/analytique-et-budget.md pour la méthode, et la Partie 3 ch. 6 du texte
+// officiel pour la règle.
+//
+// ## Régularisation
+//
+// Une charge payée en N qui couvre une partie de N+1 n'est pas une charge de
+// N : la convention de spécialisation des exercices l'impose. Elle est
+// différée au compte 476 « Charges constatées d'avance », et reprise sur
+// l'exercice qu'elle concerne. Symétriquement pour un produit encaissé
+// d'avance (477).
+//
+// ## Le cas propre aux EBNL
+//
+// La Partie 3 ch. 6 section 1 traite nommément la SUBVENTION D'EXPLOITATION
+// PLURIANNUELLE, qui est le cas le plus fréquent d'une association financée
+// par convention : « à la clôture du premier exercice, il convient
+// d'extourner la part de subvention se rapportant aux exercices ultérieurs au
+// crédit d'un compte 477 Produits constatés d'avance par le débit du compte 71
+// Subventions d'exploitation. A la fin de chaque exercice ultérieur concerné,
+// la quote-part de la subvention d'exploitation y afférant est reprise au
+// débit du compte 477 par le crédit du compte 71. »
+//
+// Noter le moment : la reprise se fait À LA FIN de l'exercice concerné, et non
+// à son ouverture par contre-passation comme le ferait un progiciel français.
+// C'est cette lecture que le service applique.
+// ---------------------------------------------------------------------------
+
+enum TypeRegularisation {
+  CHARGE_CONSTATEE_AVANCE // 476 · charge payée en N pour tout ou partie de N+1
+  PRODUIT_CONSTATE_AVANCE // 477 · produit encaissé en N pour N+1
+  SUBVENTION_PLURIANNUELLE // 477 / 71 · Partie 3 ch. 6, section 1
+}
+
+model Regularisation {
+  id         String   @id @default(uuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  exerciceId String
+  exercice   Exercice @relation(fields: [exerciceId], references: [id])
+
+  type    TypeRegularisation
+  libelle String
+
+  // Compte de charge (6) ou de produit (7) concerné, et le compte 476/477 qui
+  // porte le différé.
+  compteChargeProduitId String
+  compteChargeProduit   Compte @relation("RegulCompteChargeProduit", fields: [compteChargeProduitId], references: [id])
+  compteDifferId        String
+  compteDiffere         Compte @relation("RegulCompteDiffere", fields: [compteDifferId], references: [id])
+
+  // Montant total de la charge ou du produit, tel qu'il a été comptabilisé.
+  montantTotal Decimal @db.Decimal(18, 2)
+  // Période que ce montant couvre réellement.
+  periodeDebut DateTime
+  periodeFin   DateTime
+  // Part rattachée aux exercices ultérieurs, calculée au prorata des jours.
+  montantDiffere Decimal @db.Decimal(18, 2)
+
+  // Écriture de constatation à la clôture, puis de reprise sur l'exercice
+  // concerné. Null tant que l'opération n'a pas été passée.
+  ecritureConstatationId String?   @unique
+  ecritureConstatation   Ecriture? @relation("RegulConstatation", fields: [ecritureConstatationId], references: [id])
+  ecritureRepriseId      String?   @unique
+  ecritureReprise        Ecriture? @relation("RegulReprise", fields: [ecritureRepriseId], references: [id])
+
+  createdAt DateTime @default(now())
+  createdBy String
+
+  @@index([tenantId, exerciceId])
+  @@map("regularisations")
+}
+
+enum PeriodiciteAbonnement {
+  MENSUELLE
+  TRIMESTRIELLE
+  SEMESTRIELLE
+  ANNUELLE
+}
+
+// Modèle d'abonnement · « permet de pré-enregistrer et d'automatiser la
+// passation des écritures répétitives concernant les contrats d'abonnements
+// contractés par la société (ex : loyer, abonnement téléphonique) » dit le
+// manuel Sage. Chez une EBNL s'y ajoutent les versements périodiques d'une
+// convention de financement et les cotisations d'un membre bienfaiteur.
+model ModeleAbonnement {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  code      String
+  intitule  String
+  journalId String
+  journal   Journal @relation(fields: [journalId], references: [id])
+
+  compteDebitId  String
+  compteDebit    Compte @relation("AbonnementCompteDebit", fields: [compteDebitId], references: [id])
+  compteCreditId String
+  compteCredit   Compte @relation("AbonnementCompteCredit", fields: [compteCreditId], references: [id])
+
+  periodicite  PeriodiciteAbonnement
+  dateDebut    DateTime
+  dateFin      DateTime
+  // Montant de CHAQUE échéance, pas du contrat entier.
+  montant      Decimal  @db.Decimal(18, 2)
+  estActif     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  createdBy    String
+
+  echeances EcheanceAbonnement[]
+
+  @@unique([tenantId, code])
+  @@map("modeles_abonnement")
+}
+
+model EcheanceAbonnement {
+  id           String           @id @default(uuid())
+  abonnementId String
+  abonnement   ModeleAbonnement @relation(fields: [abonnementId], references: [id], onDelete: Cascade)
+  date         DateTime
+  montant      Decimal          @db.Decimal(18, 2)
+
+  // Null tant que l'écriture n'a pas été générée · c'est ce qui rend
+  // l'opération idempotente, une échéance déjà passée ne l'est pas deux fois.
+  ecritureId String?   @unique
+  ecriture   Ecriture? @relation(fields: [ecritureId], references: [id])
+
+  @@unique([abonnementId, date])
+  @@index([abonnementId])
+  @@map("echeances_abonnement")
 }
 
 // ---------------------------------------------------------------------------

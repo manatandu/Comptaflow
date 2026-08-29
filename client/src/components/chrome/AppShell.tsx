@@ -70,6 +70,7 @@ export function AppShell() {
         // exactement comme le bouton « Gérer » de la fiche compte chez Sage.
         { label: 'Interrogation et lettrage', separateurAvant: true, onClick: () => navigate('/comptes') },
         { label: 'Rapprochement bancaire', onClick: () => navigate('/rapprochement') },
+        { label: 'Régularisations et abonnements', onClick: () => navigate('/regularisations') },
         { label: 'Registre des donateurs', separateurAvant: true, onClick: () => navigate('/registre-donateurs') },
         { label: "Fin d'exercice…", onClick: () => navigate('/exercice') },
       ],

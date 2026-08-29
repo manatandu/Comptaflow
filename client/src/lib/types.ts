@@ -1112,3 +1112,61 @@ export interface ControleCaisse {
   nombreJoursNegatifs: number;
   journees: JourneeCaisse[];
 }
+
+// ---------------------------------------------------------------------------
+// Régularisation des charges et produits, écritures d'abonnement
+// ---------------------------------------------------------------------------
+
+export type TypeRegularisation =
+  | 'CHARGE_CONSTATEE_AVANCE'
+  | 'PRODUIT_CONSTATE_AVANCE'
+  | 'SUBVENTION_PLURIANNUELLE';
+
+export type PeriodiciteAbonnement = 'MENSUELLE' | 'TRIMESTRIELLE' | 'SEMESTRIELLE' | 'ANNUELLE';
+
+export interface Regularisation {
+  id: string;
+  exerciceId: string;
+  type: TypeRegularisation;
+  libelle: string;
+  compteChargeProduit: { numero: string; intitule: string };
+  compteDiffere: { numero: string; intitule: string };
+  montantTotal: string;
+  periodeDebut: string;
+  periodeFin: string;
+  montantDiffere: string;
+  ecritureConstatation: { id: string; numeroPiece: number | null; date: string } | null;
+  ecritureReprise: { id: string; numeroPiece: number | null; date: string } | null;
+  createdAt: string;
+}
+
+export interface SimulationRegularisation {
+  montantTotal: number;
+  montantDiffere: number;
+  montantExercice: number;
+  finExercice: string;
+  joursTotal: number;
+  joursApresCloture: number;
+}
+
+export interface EcheanceAbonnement {
+  id: string;
+  date: string;
+  montant: string;
+  ecritureId: string | null;
+}
+
+export interface ModeleAbonnement {
+  id: string;
+  code: string;
+  intitule: string;
+  periodicite: PeriodiciteAbonnement;
+  dateDebut: string;
+  dateFin: string;
+  montant: string;
+  estActif: boolean;
+  journal: { code: string; intitule: string };
+  compteDebit: { numero: string; intitule: string };
+  compteCredit: { numero: string; intitule: string };
+  echeances: EcheanceAbonnement[];
+}

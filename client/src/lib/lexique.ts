@@ -67,6 +67,12 @@ export const LEXIQUE = {
       "Une caisse ne peut pas être créditrice : cela signifierait qu'on a décaissé de l'argent qu'on n'avait pas. Le contrôle reconstitue le solde jour par jour et nomme la date exacte du passage sous zéro, car une caisse peut finir l'exercice positive tout en ayant été négative un mardi. Le remède habituel est d'enregistrer les approvisionnements avant les dépenses du même jour.",
     source: 'Suivi de trésorerie · pratique courante en RDC',
   },
+  regularisation: {
+    titre: 'Régularisation des charges et des produits',
+    texte:
+      "Une charge payée cette année qui couvre en partie la suivante n'est pas une charge de cette année : la spécialisation des exercices l'impose. Elle est différée au compte 476, un produit encaissé d'avance au 477. Pour une subvention accordée sur toute la durée d'un projet, le texte est explicite : on extourne à la clôture la part des exercices ultérieurs au crédit du 477 par le débit du 71, puis on la reprend À LA FIN de chaque exercice concerné · et non par contre-passation à son ouverture.",
+    source: 'SYCEBNL, Partie 3 ch. 6 section 1 · comptes 476 et 477',
+  },
   adherent: {
     titre: 'Adhérent',
     texte:

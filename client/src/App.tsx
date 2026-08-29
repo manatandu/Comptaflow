@@ -29,6 +29,7 @@ import { PlansAnalytiquesPage } from './pages/PlansAnalytiquesPage';
 import { BrouillardPage } from './pages/BrouillardPage';
 import { ImportPage } from './pages/ImportPage';
 import { ControlesPage } from './pages/ControlesPage';
+import { RegularisationPage } from './pages/RegularisationPage';
 import { EtatsAnalytiquesPage } from './pages/EtatsAnalytiquesPage';
 import { BailleursPage } from './pages/BailleursPage';
 
@@ -82,6 +83,7 @@ function Routage() {
         <Route path="brouillard" element={<BrouillardPage />} />
         <Route path="import" element={<ImportPage />} />
         <Route path="controles" element={<ControlesPage />} />
+        <Route path="regularisations" element={<RegularisationPage />} />
         <Route path="etats-analytiques" element={<EtatsAnalytiquesPage />} />
       </Route>
     </Routes>

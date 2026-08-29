@@ -25,6 +25,7 @@ import { OperationsSpecifiquesModule } from './modules/operations-specifiques/op
 import { AnalytiqueModule } from './modules/analytique/analytique.module';
 import { ImportModule } from './modules/import/import.module';
 import { ControlesModule } from './modules/controles/controles.module';
+import { RegularisationModule } from './modules/regularisation/regularisation.module';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { ControlesModule } from './modules/controles/controles.module';
     AnalytiqueModule,
     ImportModule,
     ControlesModule,
+    RegularisationModule,
   ],
 })
 export class AppModule {}
