@@ -2,7 +2,13 @@ import { useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useExercice } from '../lib/exercice';
 import { Aide } from '../components/chrome/Aide';
-import type { ControleCaisse, GraviteControle, RapportControles } from '../lib/types';
+import type {
+  CompteDormant,
+  ControleCaisse,
+  EvolutionMensuelle,
+  GraviteControle,
+  RapportControles,
+} from '../lib/types';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
 
 /**
@@ -25,13 +31,20 @@ function montant(n: number): string {
   return n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+type Onglet = 'controles' | 'caisse' | 'evolution' | 'dormants';
+
 export function ControlesPage() {
   const { exerciceCourant } = useExercice();
-  const [onglet, setOnglet] = useState<'controles' | 'caisse'>('controles');
+  const [onglet, setOnglet] = useState<Onglet>('controles');
   const [rapport, setRapport] = useState<RapportControles | null>(null);
   const [caisses, setCaisses] = useState<ControleCaisse[] | null>(null);
   const [deplie, setDeplie] = useState<Set<string>>(new Set());
   const [erreur, setErreur] = useState<string | null>(null);
+  const [evolution, setEvolution] = useState<EvolutionMensuelle | null>(null);
+  const [dormants, setDormants] = useState<CompteDormant[] | null>(null);
+  // Le total d'une colonne mensuelle n'a de sens que filtré sur une classe :
+  // sur tout le plan, la partie double le ramène à zéro. Vide = pas de total.
+  const [classeEvolution, setClasseEvolution] = useState<string>('');
 
   useEffect(() => {
     if (!exerciceCourant) return;
@@ -39,10 +52,20 @@ export function ControlesPage() {
     const echec = (e: unknown) => setErreur(e instanceof ApiError ? e.message : 'Chargement impossible');
     if (onglet === 'controles') {
       api.get<RapportControles>(`/controles?exerciceId=${exerciceCourant.id}`).then(setRapport, echec);
-    } else {
+    } else if (onglet === 'caisse') {
       api.get<ControleCaisse[]>(`/controles/caisse?exerciceId=${exerciceCourant.id}`).then(setCaisses, echec);
+    } else if (onglet === 'evolution') {
+      setEvolution(null);
+      api
+        .get<EvolutionMensuelle>(
+          `/controles/evolution-mensuelle?exerciceId=${exerciceCourant.id}` +
+            (classeEvolution ? `&classe=${classeEvolution}` : ''),
+        )
+        .then(setEvolution, echec);
+    } else {
+      api.get<CompteDormant[]>('/controles/comptes-dormants').then(setDormants, echec);
     }
-  }, [onglet, exerciceCourant?.id]);
+  }, [onglet, exerciceCourant?.id, classeEvolution]);
 
   const basculer = (code: string) =>
     setDeplie((prev) => {
@@ -52,7 +75,7 @@ export function ControlesPage() {
       return s;
     });
 
-  const ongletClasse = (o: 'controles' | 'caisse') =>
+  const ongletClasse = (o: Onglet) =>
     `px-4 py-1.5 text-[11px] font-bold ${onglet === o ? 'bg-surface border-x border-border' : 'text-text-dim'}`;
 
   return (
@@ -78,6 +101,12 @@ export function ControlesPage() {
         </button>
         <button onClick={() => setOnglet('caisse')} className={ongletClasse('caisse')}>
           CONTRÔLE DE CAISSE
+        </button>
+        <button onClick={() => setOnglet('evolution')} className={ongletClasse('evolution')}>
+          ÉVOLUTION MENSUELLE
+        </button>
+        <button onClick={() => setOnglet('dormants')} className={ongletClasse('dormants')}>
+          COMPTES DORMANTS
         </button>
       </div>
 
@@ -228,6 +257,171 @@ export function ControlesPage() {
               </div>
             </section>
           ))}
+        </div>
+      )}
+
+      {/*
+        ÉVOLUTION MENSUELLE · un compte par ligne, un mois par colonne.
+        Vue tirée d'un reporting réel (CARRIGRES) où c'est la seule lecture
+        qui fasse ressortir une charge qui double en juillet. Le cumul de
+        l'exercice et la comparaison N/N-1 ne le montrent pas.
+      */}
+      {onglet === 'evolution' && (
+        <div className="border border-border bg-surface rounded-b-[10px] overflow-auto">
+          <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
+            <label className="text-[11.5px] text-text-dim">Classe</label>
+            <select
+              value={classeEvolution}
+              onChange={(e) => setClasseEvolution(e.target.value)}
+              className="border border-border-dark px-2 py-1 text-[11.5px]"
+            >
+              <option value="">Toutes (sans ligne de totaux)</option>
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
+                <option key={n} value={`CLASSE_${n}`}>
+                  Classe {n}
+                </option>
+              ))}
+            </select>
+            <span className="text-[11px] text-text-dim">
+              Le total d’une colonne n’a de sens que sur une classe : sur tout le plan, la partie double le ramène
+              à zéro.
+            </span>
+          </div>
+          {!evolution && <div className="px-4 py-4 text-[12px] text-text-dim">Calcul en cours…</div>}
+          {evolution && evolution.comptes.length === 0 && (
+            <div className="px-4 py-6 text-[12px] text-text-dim text-center">
+              Aucun compte mouvementé sur cet exercice.
+            </div>
+          )}
+          {evolution && evolution.comptes.length > 0 && (
+            <table className="w-full text-[11px] border-collapse">
+              <thead className="sticky top-0 z-10">
+                <tr className="bg-surface-alt text-[10px] font-semibold uppercase tracking-[0.04em] text-text-dim">
+                  <th className="text-left px-2.5 py-2 border-b border-border-dark">Compte</th>
+                  <th className="text-right px-2 py-2 border-b border-border-dark" title="Report à-nouveau, exclu des colonnes mensuelles">
+                    Ouverture
+                  </th>
+                  {evolution.mois.map((m) => (
+                    <th key={m.cle} className="text-right px-2 py-2 border-b border-border-dark whitespace-nowrap">
+                      {m.libelle}
+                    </th>
+                  ))}
+                  <th className="text-right px-2.5 py-2 border-b border-border-dark">Cumul</th>
+                  <th className="text-right px-2.5 py-2 border-b border-border-dark">Solde</th>
+                </tr>
+              </thead>
+              <tbody>
+                {evolution.comptes.map((c) => (
+                  <tr key={c.compteId} className="border-b border-border/60 hover:bg-sel-soft">
+                    <td className="px-2.5 py-1">
+                      <span className="font-mono text-text-dim">{c.numero}</span>
+                      <span className="ml-2">{c.intitule}</span>
+                    </td>
+                    <td className="text-right px-2 py-1 font-mono text-text-dim">
+                      {c.report === 0 ? '·' : montant(c.report)}
+                    </td>
+                    {c.valeurs.map((v, i) => (
+                      <td
+                        key={evolution.mois[i].cle}
+                        title={
+                          c.moisAberrant === evolution.mois[i].cle
+                            ? 'Mois le plus éloigné de la moyenne des mois mouvementés de ce compte'
+                            : undefined
+                        }
+                        className={`text-right px-2 py-1 font-mono ${
+                          v === 0
+                            ? 'text-text-dim/50'
+                            : c.moisAberrant === evolution.mois[i].cle
+                              ? 'bg-warning-soft font-semibold text-warning'
+                              : ''
+                        }`}
+                      >
+                        {v === 0 ? '·' : montant(v)}
+                      </td>
+                    ))}
+                    <td className="text-right px-2.5 py-1 font-mono font-semibold">{montant(c.cumul)}</td>
+                    <td className="text-right px-2.5 py-1 font-mono text-text-dim">{montant(c.soldeFinal)}</td>
+                  </tr>
+                ))}
+                {evolution.totaux && (
+                  <tr className="bg-surface-alt font-semibold">
+                    <td className="px-2.5 py-1.5">TOTAL classe {evolution.classe?.replace('CLASSE_', '')}</td>
+                    <td />
+                    {evolution.totaux.map((t, i) => (
+                      <td key={evolution.mois[i].cle} className="text-right px-2 py-1.5 font-mono">
+                        {montant(t)}
+                      </td>
+                    ))}
+                    <td className="text-right px-2.5 py-1.5 font-mono">
+                      {montant(evolution.totaux.reduce((s, t) => s + t, 0))}
+                    </td>
+                    <td />
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+
+      {/*
+        COMPTES DORMANTS · le grand livre CARRIGRES porte la date du dernier
+        mouvement de chaque compte, et l'on y lit des comptes ouverts en 1963
+        dont rien n'a bougé depuis 2012. OmegaX savait mettre un compte en
+        sommeil sans jamais dire lesquels le méritaient.
+      */}
+      {onglet === 'dormants' && (
+        <div className="border border-border bg-surface rounded-b-[10px] overflow-auto">
+          {!dormants && <div className="px-4 py-4 text-[12px] text-text-dim">Analyse en cours…</div>}
+          {dormants && dormants.length === 0 && (
+            <div className="px-4 py-6 text-center">
+              <div className="text-[14px] font-bold text-positive">Aucun compte dormant</div>
+              <div className="text-[11.5px] text-text-dim mt-1">
+                Tous les comptes actifs ont été mouvementés dans les douze derniers mois.
+              </div>
+            </div>
+          )}
+          {dormants && dormants.length > 0 && (
+            <>
+              <p className="px-3 py-2 text-[11px] text-text-dim border-b border-border">
+                Comptes actifs sans mouvement depuis plus de douze mois. Ceux qui portent encore un solde sont
+                listés en premier : un compte dormant à solde non nul est une question à poser avant l’arrêté.
+              </p>
+              <table className="w-full text-[11.5px] border-collapse">
+                <thead>
+                  <tr className="bg-surface-alt text-[10px] font-semibold uppercase tracking-[0.04em] text-text-dim">
+                    <th className="text-left px-3 py-2 border-b border-border-dark">Compte</th>
+                    <th className="text-left px-3 py-2 border-b border-border-dark">Dernier mouvement</th>
+                    <th className="text-right px-3 py-2 border-b border-border-dark">Écritures</th>
+                    <th className="text-right px-3 py-2 border-b border-border-dark">Solde</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {dormants.map((c) => (
+                    <tr key={c.compteId} className="border-b border-border/60 hover:bg-sel-soft">
+                      <td className="px-3 py-1.5">
+                        <span className="font-mono text-text-dim">{c.numero}</span>
+                        <span className="ml-2">{c.intitule}</span>
+                      </td>
+                      <td className="px-3 py-1.5 text-text-dim">
+                        {c.jamaisMouvemente
+                          ? 'Jamais mouvementé'
+                          : new Date(c.dernierMouvement!).toLocaleDateString('fr-FR')}
+                      </td>
+                      <td className="text-right px-3 py-1.5 font-mono text-text-dim">{c.nombreEcritures}</td>
+                      <td
+                        className={`text-right px-3 py-1.5 font-mono ${
+                          Math.abs(c.solde) > 0.005 ? 'font-semibold text-warning' : 'text-text-dim'
+                        }`}
+                      >
+                        {montant(c.solde)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
         </div>
       )}
     </div>

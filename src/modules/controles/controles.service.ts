@@ -169,6 +169,217 @@ export class ControlesService {
   }
 
   /** Batterie complète de contrôles sur un exercice. */
+  /**
+   * ÉVOLUTION MENSUELLE PAR COMPTE · douze colonnes plus le cumul.
+   *
+   * Le besoin vient d'un dossier réel : le reporting CARRIGRES (Drive,
+   * exercices 2024 et 2025) est bâti presque entièrement sur cette vue, un
+   * compte par ligne et un mois par colonne, du salaire de base aux ventes de
+   * grès par calibre. C'est ainsi qu'un chef comptable repère ce qu'aucun
+   * cumul ne montre : une charge qui double en juillet, un produit qui
+   * disparaît en septembre, une régularisation passée deux fois.
+   *
+   * OmegaX savait donner le cumul de l'exercice et la comparaison N/N-1 ;
+   * entre les deux, il n'y avait rien. Douze colonnes, c'est la granularité
+   * à laquelle une anomalie devient visible sans ouvrir le grand livre.
+   *
+   * Deux partis pris :
+   *  - le REPORT À-NOUVEAU est exclu des colonnes mensuelles et présenté à
+   *    part. Sans cela, janvier porterait l'intégralité du passé et écraserait
+   *    toute lecture de l'année ;
+   *  - le montant retenu est le NET SIGNÉ du mois (débit moins crédit), pas
+   *    deux colonnes par mois. Vingt-quatre colonnes ne se lisent pas, et le
+   *    sens du solde d'un compte est connu de son détenteur.
+   */
+  async evolutionMensuelle(
+    tenantId: string,
+    exerciceId: string,
+    options: { classe?: ClasseCompte; inclureBrouillard?: boolean } = {},
+  ) {
+    const ex = await this.exercice(tenantId, exerciceId);
+
+    const lignes = await this.prisma.ligneEcriture.findMany({
+      where: {
+        compte: { tenantId, ...(options.classe ? { classe: options.classe } : {}) },
+        ecriture: {
+          tenantId,
+          exerciceId,
+          ...(options.inclureBrouillard === false ? { statut: StatutEcriture.VALIDEE } : {}),
+        },
+      },
+      select: {
+        debit: true,
+        credit: true,
+        compte: { select: { id: true, numero: true, intitule: true, classe: true, typeCompte: true } },
+        ecriture: { select: { date: true, estGenereeParCloture: true } },
+      },
+    });
+
+    // Les mois de l'exercice, dans l'ordre, bornes comprises. Un exercice
+    // décalé ou de première année n'en compte pas douze : la table de colonnes
+    // se déduit de l'exercice, elle n'est pas figée sur l'année civile.
+    const mois: { cle: string; libelle: string }[] = [];
+    const curseur = new Date(Date.UTC(ex.dateDebut.getUTCFullYear(), ex.dateDebut.getUTCMonth(), 1));
+    const fin = new Date(Date.UTC(ex.dateFin.getUTCFullYear(), ex.dateFin.getUTCMonth(), 1));
+    while (curseur <= fin) {
+      mois.push({
+        cle: `${curseur.getUTCFullYear()}-${String(curseur.getUTCMonth() + 1).padStart(2, '0')}`,
+        libelle: curseur.toLocaleDateString('fr-FR', { month: 'short', year: '2-digit', timeZone: 'UTC' }),
+      });
+      curseur.setUTCMonth(curseur.getUTCMonth() + 1);
+    }
+
+    const parCompte = new Map<
+      string,
+      {
+        compteId: string;
+        numero: string;
+        intitule: string;
+        classe: ClasseCompte;
+        report: number;
+        parMois: Map<string, number>;
+      }
+    >();
+
+    for (const l of lignes) {
+      // Un compte TOTAL ne porte jamais d'écriture directe (voir
+      // EcritureService.creer) ; s'il en portait, l'inclure doublerait les
+      // montants de sa racine.
+      if (l.compte.typeCompte === TypeCompteDetailTotal.TOTAL) continue;
+      const net = Number(l.debit) - Number(l.credit);
+      let e = parCompte.get(l.compte.id);
+      if (!e) {
+        e = {
+          compteId: l.compte.id,
+          numero: l.compte.numero,
+          intitule: l.compte.intitule,
+          classe: l.compte.classe,
+          report: 0,
+          parMois: new Map(),
+        };
+        parCompte.set(l.compte.id, e);
+      }
+      if (l.ecriture.estGenereeParCloture) {
+        e.report += net;
+        continue;
+      }
+      const d = l.ecriture.date;
+      const cle = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+      e.parMois.set(cle, (e.parMois.get(cle) ?? 0) + net);
+    }
+
+    const comptes = [...parCompte.values()]
+      .map((e) => {
+        const valeurs = mois.map((m) => e.parMois.get(m.cle) ?? 0);
+        const cumul = valeurs.reduce((s, v) => s + v, 0);
+        const nonNuls = valeurs.filter((v) => Math.abs(v) > 0.005);
+        const moyenne = nonNuls.length > 0 ? cumul / nonNuls.length : 0;
+        // Le mois qui s'écarte le plus de la moyenne des mois mouvementés ·
+        // c'est la colonne que l'œil doit aller voir en premier. Nul quand le
+        // compte n'a bougé qu'une fois : un mois isolé n'est pas un écart.
+        let moisAberrant: string | null = null;
+        if (nonNuls.length >= 3 && Math.abs(moyenne) > 0.005) {
+          let pire = 0;
+          valeurs.forEach((v, i) => {
+            const ecart = Math.abs(v - moyenne) / Math.abs(moyenne);
+            if (Math.abs(v) > 0.005 && ecart > pire && ecart >= 1) {
+              pire = ecart;
+              moisAberrant = mois[i].cle;
+            }
+          });
+        }
+        return {
+          compteId: e.compteId,
+          numero: e.numero,
+          intitule: e.intitule,
+          classe: e.classe,
+          report: e.report,
+          valeurs,
+          cumul,
+          soldeFinal: e.report + cumul,
+          moisAberrant,
+        };
+      })
+      .filter((c) => Math.abs(c.cumul) > 0.005 || Math.abs(c.report) > 0.005)
+      .sort((a, b) => a.numero.localeCompare(b.numero));
+
+    return {
+      exerciceId: ex.id,
+      mois,
+      comptes,
+      classe: options.classe ?? null,
+      /*
+       * Le total d'une colonne n'a de sens QUE filtré sur une classe. Sur
+       * l'ensemble du plan, la somme des nets signés d'un mois vaut zéro par
+       * construction (partie double) : une ligne de totaux à zéro sur douze
+       * colonnes ressemble à un bug alors que c'est une tautologie. Nul quand
+       * aucune classe n'est demandée, et l'écran ne l'affiche alors pas.
+       */
+      totaux: options.classe ? mois.map((_, i) => comptes.reduce((s, c) => s + c.valeurs[i], 0)) : null,
+    };
+  }
+
+  /**
+   * COMPTES DORMANTS · date du dernier mouvement, compte par compte.
+   *
+   * Le grand livre CARRIGRES porte, à côté de chaque compte, sa date de
+   * création et celle de son dernier mouvement : on y lit des comptes ouverts
+   * en 1963 dont le dernier mouvement date de 2012, toujours dans le plan.
+   * Un plan comptable qui accumule des comptes morts se lit de plus en plus
+   * mal, et un compte dormant à solde non nul est une question à poser avant
+   * l'arrêté, pas après.
+   *
+   * OmegaX savait mettre un compte en sommeil (`estActif`) sans jamais dire
+   * LESQUELS le méritaient. Ce contrôle le dit.
+   */
+  async comptesDormants(tenantId: string, moisSansMouvement = 12) {
+    const comptes = await this.prisma.compte.findMany({
+      where: { tenantId, typeCompte: TypeCompteDetailTotal.DETAIL },
+      select: {
+        id: true,
+        numero: true,
+        intitule: true,
+        classe: true,
+        estActif: true,
+        lignesEcriture: {
+          select: { debit: true, credit: true, ecriture: { select: { date: true } } },
+        },
+      },
+      orderBy: { numero: 'asc' },
+    });
+
+    const seuil = new Date();
+    seuil.setMonth(seuil.getMonth() - moisSansMouvement);
+
+    return comptes
+      .map((c) => {
+        const dates = c.lignesEcriture.map((l) => l.ecriture.date.getTime());
+        const dernier = dates.length > 0 ? new Date(Math.max(...dates)) : null;
+        const solde = c.lignesEcriture.reduce((s, l) => s + Number(l.debit) - Number(l.credit), 0);
+        return {
+          compteId: c.id,
+          numero: c.numero,
+          intitule: c.intitule,
+          classe: c.classe,
+          estActif: c.estActif,
+          dernierMouvement: dernier ? dernier.toISOString() : null,
+          nombreEcritures: c.lignesEcriture.length,
+          solde,
+          // Un compte jamais mouvementé n'est pas « dormant » : il n'a jamais
+          // servi. Les deux cas appellent des décisions différentes, on les
+          // distingue plutôt que de les confondre sous une même étiquette.
+          jamaisMouvemente: dernier === null,
+        };
+      })
+      .filter((c) => c.estActif && (c.jamaisMouvemente || new Date(c.dernierMouvement!) < seuil))
+      .sort((a, b) => {
+        // Un compte dormant à solde non nul passe devant : c'est celui qui
+        // pose une question comptable, pas seulement un problème de propreté.
+        const poids = (x: typeof a) => (Math.abs(x.solde) > 0.005 ? 0 : 1);
+        return poids(a) - poids(b) || a.numero.localeCompare(b.numero);
+      });
+  }
+
   async analyser(tenantId: string, exerciceId: string): Promise<RapportControles> {
     const ex = await this.exercice(tenantId, exerciceId);
     const anomalies: AnomalieControle[] = [];

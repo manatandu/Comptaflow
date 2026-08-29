@@ -1643,3 +1643,45 @@ export interface PlanningCloture {
   droitEtranger: boolean;
   jalons: JalonCloture[];
 }
+
+
+// ---------------------------------------------------------------------------
+// Analyse et contrôles · vues tirées d'un dossier de révision réel
+// (CARRIGRES, Drive). Voir ControlesService.
+// ---------------------------------------------------------------------------
+
+export interface CompteEvolution {
+  compteId: string;
+  numero: string;
+  intitule: string;
+  classe: ClasseCompte;
+  /** Report à-nouveau, tenu à part pour ne pas écraser janvier. */
+  report: number;
+  /** Net signé du mois, un par colonne, dans l'ordre de `mois`. */
+  valeurs: number[];
+  cumul: number;
+  soldeFinal: number;
+  /** Clé du mois le plus éloigné de la moyenne, ou null. */
+  moisAberrant: string | null;
+}
+
+export interface EvolutionMensuelle {
+  exerciceId: string;
+  mois: { cle: string; libelle: string }[];
+  comptes: CompteEvolution[];
+  classe: ClasseCompte | null;
+  /** Nul hors filtre de classe : en partie double, la somme vaudrait zéro. */
+  totaux: number[] | null;
+}
+
+export interface CompteDormant {
+  compteId: string;
+  numero: string;
+  intitule: string;
+  classe: ClasseCompte;
+  estActif: boolean;
+  dernierMouvement: string | null;
+  nombreEcritures: number;
+  solde: number;
+  jamaisMouvemente: boolean;
+}

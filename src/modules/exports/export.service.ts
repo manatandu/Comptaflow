@@ -431,12 +431,31 @@ export class ExportService {
 
     const classeur = this.nouveauClasseur();
     const feuille = classeur.addWorksheet('Balance');
+    /*
+     * BALANCE À SIX COLONNES, format des dossiers de révision réels.
+     *
+     * L'export ne montrait que Total débit / Total crédit / Solde, alors que
+     * le service calcule DÉJÀ la scission report / mouvements. C'était perdre
+     * l'information la plus utile : sur un compte d'immobilisation, le total
+     * englobe le report à-nouveau, et un bâtiment détenu depuis 2020 y est
+     * indiscernable d'une acquisition de l'exercice.
+     *
+     * Les six colonnes reprennent celles d'un dossier d'audit congolais réel
+     * (balance générale CARRIGRES au 31/12/2025, analysée sur le Drive) :
+     * « Solde débit avant période, Solde crédit avant période, Débit, Crédit,
+     * Débit cumulé, Crédit cumulé ». Un réviseur lit cette balance-là ; celle
+     * à trois colonnes l'oblige à retourner au grand livre.
+     */
     feuille.columns = [
       { header: 'N° compte', key: 'numero', width: 12 },
       { header: 'Intitulé', key: 'intitule', width: 36 },
       { header: 'Type', key: 'type', width: 10 },
-      { header: 'Total débit', key: 'totalDebit', width: 16 },
-      { header: 'Total crédit', key: 'totalCredit', width: 16 },
+      { header: 'Solde débit à l’ouverture', key: 'reportDebit', width: 17 },
+      { header: 'Solde crédit à l’ouverture', key: 'reportCredit', width: 17 },
+      { header: 'Mouvements débit', key: 'mouvementDebit', width: 16 },
+      { header: 'Mouvements crédit', key: 'mouvementCredit', width: 16 },
+      { header: 'Débit cumulé', key: 'totalDebit', width: 16 },
+      { header: 'Crédit cumulé', key: 'totalCredit', width: 16 },
       { header: 'Solde', key: 'solde', width: 16 },
     ];
 
@@ -449,6 +468,10 @@ export class ExportService {
         // propre · sommer les deux doublerait les montants, et cette
         // distinction doit rester lisible même après tri ou filtre.
         type: l.typeCompte === 'TOTAL' ? 'Total' : 'Détail',
+        reportDebit: l.reportDebit || null,
+        reportCredit: l.reportCredit || null,
+        mouvementDebit: l.mouvementDebit || null,
+        mouvementCredit: l.mouvementCredit || null,
         totalDebit: l.totalDebit || null,
         totalCredit: l.totalCredit || null,
         solde: l.solde,
@@ -467,6 +490,10 @@ export class ExportService {
     ligneTotal.font = ENTETE_FONT;
 
     this.appliquerFormats(feuille, {
+      reportDebit: FORMAT_MONTANT,
+      reportCredit: FORMAT_MONTANT,
+      mouvementDebit: FORMAT_MONTANT,
+      mouvementCredit: FORMAT_MONTANT,
       totalDebit: FORMAT_MONTANT,
       totalCredit: FORMAT_MONTANT,
       solde: FORMAT_MONTANT,
