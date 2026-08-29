@@ -122,6 +122,19 @@ export class EcritureController {
 
   /** Grand livre d'un compte · voir l'onglet Grand livre du même écran. */
   /** Balance âgée · échéances non lettrées des comptes 40/41 par tranches de retard. */
+  /**
+   * ÉCHÉANCIER DE TRÉSORERIE · ce qui va tomber et ce qu'il restera. Distinct
+   * de la balance âgée, qui regarde en arrière (voir EcritureService).
+   */
+  @Get('echeancier')
+  async echeancier(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('exerciceId') exerciceId: string,
+    @Query('dateReference') dateReference?: string,
+  ) {
+    return this.ecritureService.echeancier(user.tenantId, { exerciceId, dateReference });
+  }
+
   @Get('balance-agee')
   async balanceAgee(
     @CurrentUser() user: AuthenticatedUser,

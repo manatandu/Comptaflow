@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import type { ClasseCompte, Compte, ModeReportANouveau, TypeCompteDetailTotal } from '../lib/types';
+import type { ClasseCompte, Compte, ModeReportANouveau, TauxTva, TypeCompteDetailTotal } from '../lib/types';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
 
 /**
@@ -34,6 +34,7 @@ const LIBELLE_RAN: Record<ModeReportANouveau, string> = {
 };
 
 export function PlanComptesPage() {
+  const [tauxTva, setTauxTva] = useState<TauxTva[]>([]);
   const navigate = useNavigate();
   const { estAdmin } = useAuth();
   const [comptes, setComptes] = useState<Compte[] | null>(null);
@@ -63,6 +64,12 @@ export function PlanComptesPage() {
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recherche]);
+
+  // Taux de TVA du dossier · alimentent le sélecteur « code taxe par défaut »
+  // de la fiche compte. Chargés une fois, ils changent rarement.
+  useEffect(() => {
+    api.get<TauxTva[]>('/taux-tva?actifsSeuls=true').then(setTauxTva).catch(() => setTauxTva([]));
+  }, []);
 
   // Une recherche en cours affiche ses résultats toutes classes confondues ·
   // le classement par classe ne s'applique qu'en navigation libre, sans recherche.
@@ -96,7 +103,13 @@ export function PlanComptesPage() {
 
   const modifier = async (
     id: string,
-    corps: { intitule?: string; estActif?: boolean; modeReportANouveau?: ModeReportANouveau; lettrable?: boolean },
+    corps: {
+      intitule?: string;
+      estActif?: boolean;
+      modeReportANouveau?: ModeReportANouveau;
+      lettrable?: boolean;
+      tauxTvaDefautId?: string | null;
+    },
   ) => {
     setErreur(null);
     try {
@@ -284,6 +297,30 @@ export function PlanComptesPage() {
                       numéro (classes 4 et comptes 58), mais rien n'oblige à
                       s'y tenir : le même chapitre illustre le lettrage sur le
                       compte 585. */}
+                  {/* CODE TAXE PAR DÉFAUT · Sage le porte sur la fiche
+                      compte et le propose en saisie. Offert sur les charges
+                      et les produits seulement : c'est là qu'il a un sens. */}
+                  {(selection.numero.startsWith('6') || selection.numero.startsWith('7')) && (
+                    <label className="block mb-3">
+                      <span className="text-[10px] font-bold text-text-dim" title="Proposé automatiquement en saisie guidée quand ce compte est choisi · modifiable ligne à ligne">
+                        CODE TAXE PAR DÉFAUT
+                      </span>
+                      <select
+                        value={selection.tauxTvaDefautId ?? ''}
+                        disabled={!estAdmin}
+                        onChange={(e) => modifier(selection.id, { tauxTvaDefautId: e.target.value || null })}
+                        className="mt-0.5 w-full border border-border-dark px-2 py-1 text-[12px]"
+                      >
+                        <option value="">Aucun · taux à saisir à chaque ligne</option>
+                        {tauxTva.map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.code} · {t.intitule} ({t.taux} %)
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+
                   <label className="flex items-start gap-2 mb-3 text-[11.5px]">
                     <input
                       type="checkbox"

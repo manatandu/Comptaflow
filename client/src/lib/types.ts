@@ -43,6 +43,8 @@ export interface Compte {
   bailleurId: string | null;
   /** Compte ouvert au lettrage · « liberté de définir la liste des comptes auxquels s'applique le lettrage » (CPCC, ch. 6). */
   lettrable: boolean;
+  /** Taux de TVA proposé automatiquement en saisie quand ce compte est choisi. */
+  tauxTvaDefautId: string | null;
 }
 
 /**
@@ -1493,4 +1495,42 @@ export interface TableauReconciliationTresorerie {
   lignes: { rep: string; libelle: string; montant: number }[];
   controle: { tresorerieBalance: number; ecart: number; boucle: boolean };
   avertissements: string[];
+}
+
+// --------------------------------------------------------------------------
+// Échéancier de trésorerie · ce qui va tomber, et ce qu'il restera.
+// Distinct de la balance âgée, qui regarde en arrière.
+// --------------------------------------------------------------------------
+
+export interface TrancheEcheancier {
+  cle: string;
+  libelle: string;
+  deJours: number | null;
+  aJours: number | null;
+  encaissements: number;
+  decaissements: number;
+  net: number;
+  tresorerieProjetee: number;
+}
+
+export interface EcheanceDetail {
+  ligneId: string;
+  date: string;
+  tranche: string;
+  compteNumero: string;
+  compteIntitule: string;
+  tiers: string | null;
+  libelle: string;
+  reference: string | null;
+  montant: number;
+  sens: 'ENCAISSEMENT' | 'DECAISSEMENT';
+}
+
+export interface Echeancier {
+  dateReference: string;
+  tresorerieActuelle: number;
+  tranches: TrancheEcheancier[];
+  details: EcheanceDetail[];
+  alerte: { tranche: string; libelle: string; tresorerieProjetee: number; message: string } | null;
+  lignesSansEcheance: number;
 }

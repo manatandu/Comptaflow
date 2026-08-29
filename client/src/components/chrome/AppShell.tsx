@@ -103,7 +103,11 @@ export function AppShell() {
         { label: 'Grand livre des comptes', onClick: () => navigate('/journal?onglet=grand-livre') },
         { label: 'Balance des comptes', onClick: () => navigate('/journal?onglet=balance') },
         { label: 'Brouillard', onClick: () => navigate('/brouillard') },
+        // Deux états jumeaux et complémentaires : la balance âgée recense le
+        // RETARD, l'échéancier annonce ce qui VIENT. Sage les distingue de la
+        // même façon.
         { label: 'Balance âgée', separateurAvant: true, onClick: () => navigate('/balance-agee') },
+        { label: 'Échéancier de trésorerie', onClick: () => navigate('/echeancier') },
         { label: 'États analytiques et budgétaires', onClick: () => navigate('/etats-analytiques') },
         { label: 'Analyse et contrôles', separateurAvant: true, onClick: () => navigate('/controles') },
         { label: 'États financiers', separateurAvant: true, onClick: () => navigate('/etats-financiers') },

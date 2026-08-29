@@ -34,6 +34,36 @@ export interface LigneAgee {
   total: number;
 }
 
+/** Une échéance à venir, ligne à ligne · le détail de l'échéancier. */
+export interface EcheanceDetail {
+  ligneId: string;
+  date: Date;
+  tranche: string;
+  compteNumero: string;
+  compteIntitule: string;
+  /** Nom du tiers quand le compte lui est rattaché · l'intitulé du compte sinon. */
+  tiers: string | null;
+  libelle: string;
+  reference: string | null;
+  montant: number;
+  sens: 'ENCAISSEMENT' | 'DECAISSEMENT';
+}
+
+/** Une tranche de l'échéancier · ce qui tombe dans une fenêtre de temps. */
+export interface TrancheEcheancier {
+  cle: string;
+  libelle: string;
+  /** Bornes en jours à compter de la date de référence · `null` = sans borne. */
+  deJours: number | null;
+  aJours: number | null;
+  encaissements: number;
+  decaissements: number;
+  /** Encaissements moins décaissements de la tranche. */
+  net: number;
+  /** Trésorerie projetée à la fin de la tranche, cumul depuis la trésorerie actuelle. */
+  tresorerieProjetee: number;
+}
+
 /**
  * Règle non négociable du moteur comptable : une écriture n'existe que si
  * total(débit) === total(crédit), et un exercice clôturé n'accepte plus
@@ -876,6 +906,178 @@ export class EcritureService {
       lettre: l.lettre,
       soldeProgressif,
       contrepartie: contreparties.get(l.ecritureId)?.[sens] ?? [],
+    };
+  }
+
+  /**
+   * ÉCHÉANCIER DE TRÉSORERIE · ce qui va tomber, et ce qu'il restera en
+   * caisse quand ce sera tombé.
+   *
+   * ## Pourquoi il ne fait pas double emploi avec la balance âgée
+   *
+   * La balance âgée regarde EN ARRIÈRE : elle ventile par ancienneté de
+   * retard ce qui aurait dû être réglé. L'échéancier regarde EN AVANT : il
+   * ventile par date d'exigibilité ce qui va devoir l'être, et le confronte
+   * à la trésorerie disponible. Ce sont deux questions différentes, et une
+   * association qui vit de tranches de subvention se pose surtout la seconde.
+   *
+   * Sage les distingue d'ailleurs lui aussi (`sage-i7`,
+   * `comptabilite-generale.md` : « Échéancier : état de suivi des échéances à
+   * venir, DISTINCT de la balance âgée »).
+   *
+   * ## Assiette
+   *
+   * Les lignes non lettrées des comptes de tiers, classes 40 à 44 · pas
+   * seulement les fournisseurs et les clients. Une ASBL congolaise doit
+   * autant d'argent à son personnel (42), aux organismes sociaux (43) et à
+   * l'État (44) qu'à ses fournisseurs, et ces trois-là ont des dates de
+   * reversement strictes (voir docs/fiscalite-asbl-rdc.md, section 6). Un
+   * échéancier qui les ignorerait manquerait précisément ce qui met une
+   * association en défaut.
+   *
+   * `lettre: null` et non `lettrageId: null` : une ligne d'un groupe de
+   * lettrage PARTIEL reste due pour son solde, elle a donc sa place ici.
+   *
+   * L'échéance retenue est `dateEcheance` ; à défaut, la date de l'écriture,
+   * même règle que la balance âgée et que Sage.
+   *
+   * ## Sens
+   *
+   * Une ligne de tiers au débit est une créance : son dénouement est un
+   * ENCAISSEMENT. Au crédit, c'est une dette : un DÉCAISSEMENT.
+   *
+   * ## Détail ligne à ligne, totaux compensés
+   *
+   * Contrairement à la balance âgée, qui agrège par compte, le détail garde
+   * une ligne par écriture avec sa pièce : c'est ce qu'on attend d'un état
+   * d'en-cours, où l'on veut savoir QUELLE facture tombe quand. Une
+   * correction par inscription en négatif (art. 20 AUDCIF) y reste donc
+   * visible à côté de la ligne qu'elle corrige · elles se compensent dans le
+   * total de la tranche, et c'est la projection qui décide.
+   */
+  async echeancier(
+    tenantId: string,
+    params: { exerciceId: string; dateReference?: string },
+  ) {
+    const ref = params.dateReference ? new Date(params.dateReference) : new Date();
+    // Minuit, pour qu'une échéance du jour ne bascule pas en retard selon
+    // l'heure d'ouverture de l'écran.
+    ref.setHours(0, 0, 0, 0);
+
+    const [lignes, tresorerie] = await Promise.all([
+      this.prisma.ligneEcriture.findMany({
+        where: {
+          ecriture: { tenantId, exerciceId: params.exerciceId },
+          lettre: null,
+          OR: ['40', '41', '42', '43', '44'].map((r) => ({ compte: { numero: { startsWith: r } } })),
+        },
+        include: {
+          compte: {
+            select: {
+              id: true,
+              numero: true,
+              intitule: true,
+              tiersCompte: { select: { tiers: { select: { nom: true } } } },
+            },
+          },
+          ecriture: { select: { date: true, libelle: true, reference: true } },
+        },
+      }),
+      // Trésorerie disponible au sens du plan SYCEBNL : classe 5 hors 59
+      // (dépréciations, qui ne sont pas des liquidités).
+      this.prisma.ligneEcriture.findMany({
+        where: {
+          ecriture: { tenantId, exerciceId: params.exerciceId },
+          compte: { numero: { startsWith: '5' } },
+        },
+        select: { debit: true, credit: true, compte: { select: { numero: true } } },
+      }),
+    ]);
+
+    const tresorerieActuelle = tresorerie
+      .filter((l) => !l.compte.numero.startsWith('59'))
+      .reduce((s, l) => s + Number(l.debit) - Number(l.credit), 0);
+
+    const TRANCHES: Array<{ cle: string; libelle: string; deJours: number | null; aJours: number | null }> = [
+      { cle: 'echu', libelle: 'Échu, non réglé', deJours: null, aJours: -1 },
+      { cle: 'j0a7', libelle: 'À 7 jours', deJours: 0, aJours: 7 },
+      { cle: 'j8a30', libelle: 'De 8 à 30 jours', deJours: 8, aJours: 30 },
+      { cle: 'j31a60', libelle: 'De 31 à 60 jours', deJours: 31, aJours: 60 },
+      { cle: 'j61a90', libelle: 'De 61 à 90 jours', deJours: 61, aJours: 90 },
+      { cle: 'plus90', libelle: 'Au-delà de 90 jours', deJours: 91, aJours: null },
+    ];
+
+    const trancheDe = (echeance: Date): string => {
+      const jours = Math.floor((echeance.getTime() - ref.getTime()) / 86_400_000);
+      if (jours < 0) return 'echu';
+      if (jours <= 7) return 'j0a7';
+      if (jours <= 30) return 'j8a30';
+      if (jours <= 60) return 'j31a60';
+      if (jours <= 90) return 'j61a90';
+      return 'plus90';
+    };
+
+    const details: EcheanceDetail[] = [];
+    for (const l of lignes) {
+      const net = Number(l.debit) - Number(l.credit);
+      if (Math.abs(net) < 0.005) continue;
+      const date = l.dateEcheance ?? l.ecriture.date;
+      details.push({
+        ligneId: l.id,
+        date,
+        tranche: trancheDe(date),
+        compteNumero: l.compte.numero,
+        compteIntitule: l.compte.intitule,
+        tiers: l.compte.tiersCompte?.tiers.nom ?? null,
+        libelle: l.libelle ?? l.ecriture.libelle,
+        reference: l.ecriture.reference,
+        montant: Math.abs(net),
+        sens: net > 0 ? 'ENCAISSEMENT' : 'DECAISSEMENT',
+      });
+    }
+    details.sort((a, b) => a.date.getTime() - b.date.getTime());
+
+    let cumul = tresorerieActuelle;
+    const tranches: TrancheEcheancier[] = TRANCHES.map((t) => {
+      const dedans = details.filter((d) => d.tranche === t.cle);
+      const encaissements = dedans.filter((d) => d.sens === 'ENCAISSEMENT').reduce((s, d) => s + d.montant, 0);
+      const decaissements = dedans.filter((d) => d.sens === 'DECAISSEMENT').reduce((s, d) => s + d.montant, 0);
+      const net = encaissements - decaissements;
+      cumul += net;
+      return {
+        ...t,
+        encaissements: Math.round(encaissements * 100) / 100,
+        decaissements: Math.round(decaissements * 100) / 100,
+        net: Math.round(net * 100) / 100,
+        tresorerieProjetee: Math.round(cumul * 100) / 100,
+      };
+    });
+
+    // La première tranche où la projection passe sous zéro · c'est LA
+    // réponse que cherche un trésorier, et elle doit être nommée plutôt que
+    // laissée à lire dans une colonne.
+    const premiereTrancheNegative = tranches.find((t) => t.tresorerieProjetee < 0) ?? null;
+
+    return {
+      dateReference: ref,
+      tresorerieActuelle: Math.round(tresorerieActuelle * 100) / 100,
+      tranches,
+      details,
+      alerte: premiereTrancheNegative
+        ? {
+            tranche: premiereTrancheNegative.cle,
+            libelle: premiereTrancheNegative.libelle,
+            tresorerieProjetee: premiereTrancheNegative.tresorerieProjetee,
+            message:
+              `La trésorerie projetée devient négative dans la tranche « ${premiereTrancheNegative.libelle} » ` +
+              `(${premiereTrancheNegative.tresorerieProjetee.toFixed(2)}). Les échéances de cette tranche et des ` +
+              'suivantes ne pourront pas être honorées sans encaissement supplémentaire.',
+          }
+        : null,
+      // Les échéances non renseignées prennent la date de l'écriture : c'est
+      // la règle, mais elle fausse la projection si beaucoup de lignes en
+      // relèvent. Le compte est donné pour que le lecteur en juge.
+      lignesSansEcheance: lignes.filter((l) => l.dateEcheance === null).length,
     };
   }
 

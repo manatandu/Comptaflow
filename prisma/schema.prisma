@@ -1401,6 +1401,9 @@ model TauxTva {
 
   @@unique([tenantId, code])
   @@map("taux_tva")
+
+  // Comptes de charge ou de produit qui proposent ce taux en saisie.
+  comptesAvecCeTauxParDefaut Compte[] @relation("CompteTauxTvaDefaut")
 }
 
 // ---------------------------------------------------------------------------

@@ -34,6 +34,12 @@ export class CreerCompteDto {
   @IsOptional()
   @IsBoolean()
   lettrable?: boolean;
+
+  // Taux de TVA proposé automatiquement quand ce compte est saisi · `null`
+  // explicite pour ne rien proposer.
+  @IsOptional()
+  @IsString()
+  tauxTvaDefautId?: string | null;
 }
 
 export class ModifierCompteDto {
@@ -63,4 +69,8 @@ export class ModifierCompteDto {
   @IsOptional()
   @IsBoolean()
   lettrable?: boolean;
+
+  @IsOptional()
+  @IsString()
+  tauxTvaDefautId?: string | null;
 }
