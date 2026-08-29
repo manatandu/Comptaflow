@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../lib/auth';
 import { NouveauFichierWizard } from '../components/NouveauFichierWizard';
 import { AProposModale } from '../components/chrome/AProposModale';
 import {
@@ -49,12 +50,27 @@ function GrilleTuiles({ titre, tuiles }: { titre: string; tuiles: Tuile[] }) {
 
 export function AccueilPage() {
   const navigate = useNavigate();
+  const { seDeconnecter } = useAuth();
   const [wizardOuvert, setWizardOuvert] = useState(false);
   const [aProposOuvert, setAProposOuvert] = useState(false);
 
   const demarrer: Tuile[] = [
     { label: 'Nouveau fichier comptable', Icon: IconFileAdd, degradeDe: 'var(--tile-bleu)', degradeA: 'var(--tile-bleu-fonce)', onClick: () => setWizardOuvert(true) },
-    { label: 'Ouvrir un dossier existant', Icon: IconFolderOpen, degradeDe: 'var(--tile-neutre)', degradeA: 'var(--tile-neutre-fonce)', bientot: true },
+    // Fichier > Ouvrir, chez Sage, ferme le fichier courant et en ouvre un
+    // autre. Ici : on referme le dossier (déconnexion) et on revient à la
+    // porte d'entrée, qui présente les dossiers récents · le seul sens que
+    // « ouvrir un autre dossier » puisse avoir dans une application hébergée
+    // où l'accès est porté par le compte.
+    {
+      label: 'Ouvrir un autre dossier',
+      Icon: IconFolderOpen,
+      degradeDe: 'var(--tile-neutre)',
+      degradeA: 'var(--tile-neutre-fonce)',
+      onClick: () => {
+        seDeconnecter();
+        navigate('/connexion');
+      },
+    },
     { label: 'Guide de démarrage', Icon: IconBook, degradeDe: 'var(--tile-neutre)', degradeA: 'var(--tile-neutre-fonce)', bientot: true },
     { label: 'Nouveautés de la version', Icon: IconNews, degradeDe: 'var(--tile-neutre)', degradeA: 'var(--tile-neutre-fonce)', bientot: true },
   ];

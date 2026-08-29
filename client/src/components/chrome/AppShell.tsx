@@ -32,6 +32,17 @@ export function AppShell() {
       titre: 'Fichier',
       items: [
         { label: 'Nouveau fichier comptable…', onClick: () => navigate('/') },
+        // Sage : Fichier > Ouvrir. Ouvrir un autre fichier ferme d'abord le
+        // fichier courant · ici, refermer le dossier c'est se déconnecter, et
+        // la porte d'entrée présente ensuite les dossiers récents (l'équivalent
+        // de Fichier > Favoris). Voir client/src/pages/AuthPage.tsx.
+        {
+          label: 'Ouvrir un autre dossier…',
+          onClick: () => {
+            seDeconnecter();
+            navigate('/connexion');
+          },
+        },
         // Sage : Fichier → Autorisations d'accès. La gestion des utilisateurs
         // est une commande du dossier, pas un « outil » à part.
         ...(estAdmin ? [{ label: "Autorisations d'accès (utilisateurs)", onClick: () => navigate('/utilisateurs') }] : []),
@@ -60,10 +71,12 @@ export function AppShell() {
         { label: 'Taux de taxes', onClick: () => navigate('/taux-tva') },
         { label: 'Bailleurs de fonds', separateurAvant: true, onClick: () => navigate('/bailleurs') },
         { label: 'Immobilisations', onClick: () => navigate('/immobilisations') },
-        // Sage : Fichier → Paramètres société. Ici le paramètre décisif est le
-        // jeu d'états financiers SYCEBNL (association / projet de
-        // développement), qui commande toute la liasse · il a sa place dans
-        // Structure, avec les autres éléments qui structurent le dossier.
+        // Sage : Fichier > Paramètres société, où l'utilisateur « met à jour le
+        // système comptable utilisé ». Ici les paramètres décisifs sont le
+        // référentiel et le jeu d'états financiers SYCEBNL (associations et
+        // ordres professionnels / projets de développement / Système minimal
+        // de trésorerie), qui commandent toute la liasse · ils ont leur place
+        // dans Structure, avec les autres éléments qui structurent le dossier.
         { label: 'Paramètres du dossier', separateurAvant: true, onClick: () => navigate('/parametres-dossier') },
       ],
     },
