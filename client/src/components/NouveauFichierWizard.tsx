@@ -264,7 +264,7 @@ export function NouveauFichierWizard({ onClose }: { onClose: () => void }) {
                   <>
                     <h2 className="text-[14px] font-bold mb-1">Connexion au dossier</h2>
                     <p className="text-[12px] text-text-dim mb-4">
-                      Compta Flow est hébergé — pas de fichier local à nommer. Ces identifiants serviront à vous
+                      OmegaX est hébergé — pas de fichier local à nommer. Ces identifiants serviront à vous
                       reconnecter à « {form.nomEntite || 'ce dossier'} ».
                     </p>
                     <label className="text-[11.5px] font-semibold text-text-dim block mb-3">

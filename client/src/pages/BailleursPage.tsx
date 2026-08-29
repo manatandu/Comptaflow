@@ -87,7 +87,10 @@ export function BailleursPage() {
   return (
     <div className="p-2.5">
       <div className="flex items-center justify-between mb-2.5">
-        <h1 className="text-[15px] font-bold">Bailleurs</h1>
+        <div>
+          <div className="text-[10.5px] font-mono text-text-dim">STRUCTURE</div>
+          <h1 className="text-[15px] font-bold">Bailleurs de fonds</h1>
+        </div>
       </div>
 
       {!jeuProjet && (

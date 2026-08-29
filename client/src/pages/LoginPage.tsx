@@ -56,7 +56,7 @@ export function LoginPage() {
             <IconLogo width={26} height={26} />
           </div>
           <div>
-            <div className="text-[17px] font-bold tracking-wide leading-tight">COMPTA FLOW</div>
+            <div className="text-[17px] font-bold tracking-wide leading-tight">OMEGAX</div>
             <div className="text-[11px] text-text-dim leading-tight">
               Comptabilité des entités à but non lucratif · SYCEBNL — OHADA
             </div>
@@ -134,7 +134,7 @@ export function LoginPage() {
       </div>
 
       <div className="mt-3 text-[10.5px] text-text-dim">
-        Compta Flow · Référentiel SYCEBNL (Acte uniforme OHADA du 22 décembre 2022)
+        OmegaX · Référentiel SYCEBNL (Acte uniforme OHADA du 22 décembre 2022)
       </div>
     </div>
   );

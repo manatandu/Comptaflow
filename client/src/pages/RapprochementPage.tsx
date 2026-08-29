@@ -55,6 +55,7 @@ export function RapprochementPage() {
 
   return (
     <div className="p-2.5">
+      <div className="text-[10.5px] font-mono text-text-dim">TRAITEMENT</div>
       <h1 className="text-[15px] font-bold mb-2.5">Rapprochement bancaire</h1>
 
       {afficherFormulaire && (

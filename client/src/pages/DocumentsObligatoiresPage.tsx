@@ -182,7 +182,10 @@ export function DocumentsObligatoiresPage() {
   return (
     <div className="p-2.5">
       <div className="flex items-center justify-between mb-2.5">
-        <h1 className="text-[15px] font-bold">Documents obligatoires de clôture</h1>
+        <div>
+          <div className="text-[10.5px] font-mono text-text-dim">ÉTAT</div>
+          <h1 className="text-[15px] font-bold">Documents obligatoires de clôture</h1>
+        </div>
         {exerciceCourant && (
           <span className="font-mono text-[11px] border border-border bg-surface px-2.5 py-1.5">
             Exercice {new Date(exerciceCourant.dateDebut).getFullYear()}

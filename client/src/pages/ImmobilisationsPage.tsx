@@ -194,6 +194,7 @@ export function ImmobilisationsPage() {
 
   return (
     <div className="p-2.5">
+      <div className="text-[10.5px] font-mono text-text-dim">STRUCTURE</div>
       <h1 className="text-[15px] font-bold mb-2.5">Immobilisations</h1>
 
       {erreur && <div className="text-[12px] text-danger bg-danger-soft border border-danger/30 px-3 py-2 mb-3 max-w-[1100px]">{erreur}</div>}

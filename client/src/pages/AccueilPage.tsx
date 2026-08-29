@@ -69,7 +69,7 @@ export function AccueilPage() {
   const ressources: Tuile[] = [
     { label: 'Documentation', Icon: IconBook, degradeDe: 'var(--tile-ardoise)', degradeA: 'var(--tile-ardoise-fonce)', bientot: true },
     { label: 'Assistance', Icon: IconLifeBuoy, degradeDe: 'var(--tile-ardoise)', degradeA: 'var(--tile-ardoise-fonce)', bientot: true },
-    { label: 'À propos de Compta Flow', Icon: IconInfo, degradeDe: 'var(--tile-ardoise)', degradeA: 'var(--tile-ardoise-fonce)', onClick: () => setAProposOuvert(true) },
+    { label: "À propos d’OmegaX", Icon: IconInfo, degradeDe: 'var(--tile-ardoise)', degradeA: 'var(--tile-ardoise-fonce)', onClick: () => setAProposOuvert(true) },
   ];
 
   return (

@@ -228,7 +228,10 @@ export function RegistreDonateursPage() {
   return (
     <div className="p-2.5">
       <div className="flex items-center justify-between mb-2.5">
-        <h1 className="text-[15px] font-bold">Registre des donateurs</h1>
+        <div>
+          <div className="text-[10.5px] font-mono text-text-dim">TRAITEMENT</div>
+          <h1 className="text-[15px] font-bold">Registre des donateurs</h1>
+        </div>
         <div className="flex items-center gap-2.5">
           {exerciceCourant && (
             <span className="font-mono text-[11px] border border-border bg-surface px-2.5 py-1.5">

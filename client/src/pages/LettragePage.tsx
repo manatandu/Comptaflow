@@ -7,6 +7,7 @@ export function LettragePage() {
   const { compteId } = useParams<{ compteId: string }>();
   const navigate = useNavigate();
   const [compte, setCompte] = useState<Compte | null>(null);
+  const [comptes, setComptes] = useState<Compte[]>([]);
   const [lignes, setLignes] = useState<LigneLettrage[] | null>(null);
   const [selection, setSelection] = useState<Set<string>>(new Set());
   const [erreur, setErreur] = useState<string | null>(null);
@@ -20,6 +21,7 @@ export function LettragePage() {
         api.get<Compte[]>('/comptes'),
         api.get<LigneLettrage[]>(`/comptes/${compteId}/lettrage`),
       ]);
+      setComptes(tousComptes.filter((c) => c.typeCompte === 'DETAIL' && c.estActif));
       setCompte(tousComptes.find((c) => c.id === compteId) ?? null);
       setLignes(lignesLettrage);
       setErreur(null);
@@ -100,24 +102,38 @@ export function LettragePage() {
 
   return (
     <div className="p-2.5">
-      <div className="text-[10.5px] font-mono text-text-dim mb-1">
-        <button onClick={() => navigate('/comptes')} className="hover:underline">
-          Plan de comptes
-        </button>{' '}
-        / Lettrage
-      </div>
-      <div className="flex items-center justify-between max-w-[900px] mb-2.5">
-        <h1 className="text-[15px] font-bold">
-          {compte ? `${compte.numero} — ${compte.intitule}` : 'Lettrage'}
-        </h1>
-        <button
-          type="button"
-          onClick={lancerLettrageAuto}
-          disabled={envoi}
-          className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[11.5px] disabled:opacity-50"
-        >
-          Lettrage automatique
-        </button>
+      <div className="flex items-end justify-between max-w-[960px] mb-2.5 gap-3 flex-wrap">
+        <div>
+          <div className="text-[10.5px] font-mono text-text-dim">TRAITEMENT</div>
+          <h1 className="text-[15px] font-bold">
+            Interrogation et lettrage{compte && <> — <span className="font-mono">{compte.numero}</span> {compte.intitule}</>}
+          </h1>
+        </div>
+        <div className="flex items-end gap-2">
+          <label className="flex flex-col gap-1">
+            <span className="text-[10px] font-bold text-text-dim">COMPTE À CONSULTER</span>
+            <select
+              value={compteId ?? ''}
+              onChange={(e) => e.target.value && navigate(`/comptes/${e.target.value}/lettrage`)}
+              className="border border-border-dark bg-surface px-2 py-1 text-[11.5px] font-mono min-w-[280px]"
+            >
+              {comptes.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.numero} — {c.intitule}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            onClick={lancerLettrageAuto}
+            disabled={envoi}
+            title="Rapprochements 1-pour-1 et N-pour-1 automatiques sur ce compte"
+            className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[11.5px] disabled:opacity-50"
+          >
+            Lettrage automatique
+          </button>
+        </div>
       </div>
 
       {erreur && <div className="text-[12px] text-danger bg-danger-soft border border-danger/30 px-3 py-2 mb-3 max-w-[720px]">{erreur}</div>}
@@ -126,21 +142,27 @@ export function LettragePage() {
       {!lignes && <div className="text-[12px] text-text-dim">Chargement…</div>}
 
       {lignes && (
-        <div className="border border-border max-w-[900px]">
-          <div className="grid grid-cols-[26px_70px_46px_1.4fr_100px_100px_60px] gap-2.5 px-3.5 py-1.5 bg-chrome border-b border-border text-[10px] font-bold text-text-dim">
+        <div className="border border-border bg-surface shadow-posee max-w-[960px]">
+          <div className="grid grid-cols-[26px_70px_46px_1.4fr_100px_100px_104px_60px] gap-2.5 px-3.5 py-1.5 bg-surface-alt border-b border-border-dark text-[10px] font-bold text-text-dim">
             <span />
             <span>DATE</span>
             <span>JRN</span>
-            <span>LIBELLÉ</span>
+            <span>LIBELLÉ ÉCRITURE</span>
             <span className="text-right">DÉBIT</span>
             <span className="text-right">CRÉDIT</span>
+            <span className="text-right">SOLDE PROGRESSIF</span>
             <span>LETTRE</span>
           </div>
-          {lignes.map((l, i) => (
+          {(() => {
+            let cumul = 0;
+            return lignes.map((l) => {
+              cumul += l.debit - l.credit;
+              const soldeProgressif = Math.round(cumul * 100) / 100;
+              return (
             <div
               key={l.id}
-              className={`grid grid-cols-[26px_70px_46px_1.4fr_100px_100px_60px] gap-2.5 px-3.5 py-1.5 items-center border-b border-border last:border-b-0 text-[11.5px] ${
-                i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'
+              className={`grid grid-cols-[26px_70px_46px_1.4fr_100px_100px_104px_60px] gap-2.5 px-3.5 py-[4px] items-center border-b border-border/50 last:border-b-0 text-[11.5px] ${
+                selection.has(l.id) ? 'bg-sel-soft' : l.lettre ? 'opacity-60' : ''
               }`}
             >
               <input
@@ -154,6 +176,7 @@ export function LettragePage() {
               <span className="truncate">{l.libelle}</span>
               <span className="font-mono text-right">{l.debit ? l.debit.toLocaleString('fr-FR') : ''}</span>
               <span className="font-mono text-right">{l.credit ? l.credit.toLocaleString('fr-FR') : ''}</span>
+              <span className="font-mono text-right font-semibold">{soldeProgressif.toLocaleString('fr-FR')}</span>
               <span>
                 {l.lettre && (
                   <button
@@ -166,9 +189,21 @@ export function LettragePage() {
                 )}
               </span>
             </div>
-          ))}
+              );
+            });
+          })()}
           {lignes.length === 0 && (
             <div className="p-3 text-[12px] text-text-dim">Aucun mouvement sur ce compte.</div>
+          )}
+          {lignes.length > 0 && (
+            <div className="grid grid-cols-[26px_70px_46px_1.4fr_100px_100px_104px_60px] gap-2.5 px-3.5 py-1.5 bg-surface-alt border-t border-border-dark text-[11.5px] font-bold">
+              <span className="col-span-3" />
+              <span className="text-right text-[10px] text-text-dim self-center">TOTAL MOUVEMENTS · SOLDE</span>
+              <span className="font-mono text-right">{lignes.reduce((t, l) => t + l.debit, 0).toLocaleString('fr-FR')}</span>
+              <span className="font-mono text-right">{lignes.reduce((t, l) => t + l.credit, 0).toLocaleString('fr-FR')}</span>
+              <span className="font-mono text-right">{lignes.reduce((t, l) => t + l.debit - l.credit, 0).toLocaleString('fr-FR')}</span>
+              <span />
+            </div>
           )}
         </div>
       )}

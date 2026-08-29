@@ -155,6 +155,7 @@ export function ExercicePage() {
 
   return (
     <div className="p-2.5">
+      <div className="text-[10.5px] font-mono text-text-dim">TRAITEMENT — FIN D'EXERCICE</div>
       <h1 className="text-[15px] font-bold mb-2.5">Clôture d'exercice</h1>
 
       <div className="mb-3 flex items-center gap-2 max-w-[640px]">

@@ -7,12 +7,12 @@ export class ApiError extends Error {
 }
 
 function getToken(): string | null {
-  return localStorage.getItem('compta-flow:token');
+  return localStorage.getItem('omegax:token');
 }
 
 export function setToken(token: string | null) {
-  if (token) localStorage.setItem('compta-flow:token', token);
-  else localStorage.removeItem('compta-flow:token');
+  if (token) localStorage.setItem('omegax:token', token);
+  else localStorage.removeItem('omegax:token');
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {

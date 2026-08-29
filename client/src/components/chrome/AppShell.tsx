@@ -84,7 +84,7 @@ export function AppShell() {
     },
     {
       titre: '?',
-      items: [{ label: 'À propos de Compta Flow', onClick: () => setAProposOuvert(true) }],
+      items: [{ label: "À propos d’OmegaX", onClick: () => setAProposOuvert(true) }],
     },
   ];
 
@@ -98,7 +98,7 @@ export function AppShell() {
         <div className="flex items-center gap-2">
           <IconLogo width={14} height={14} />
           <span>
-            Compta Flow — {utilisateur?.tenant.nom}
+            OmegaX — {utilisateur?.tenant.nom}
             {anneeExercice && ` — Exercice ${anneeExercice}`}
           </span>
         </div>
