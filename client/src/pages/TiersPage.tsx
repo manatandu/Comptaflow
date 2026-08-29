@@ -1,10 +1,11 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useExercice } from '../lib/exercice';
-import { useRibbon } from '../components/chrome/ribbon-context';
-import { IconRefresh, IconCheck } from '../components/chrome/icons';
+import { IconCheck } from '../components/chrome/icons';
+import { Aide } from '../components/chrome/Aide';
+import { EnteteImpression } from '../components/chrome/EnteteImpression';
 import type {
   Compte,
   ConditionEcheance,
@@ -16,11 +17,53 @@ import type {
   TypeTiers,
 } from '../lib/types';
 
+/**
+ * PLAN DES TIERS · la fenêtre Structure → Plan tiers de Sage 100 i7 :
+ * « Dans la partie gauche de la fenêtre, un filtre permet de sélectionner le
+ * type de tiers » ; au centre
+ * la liste dense ; à droite la FICHE du tiers sélectionné, en volets
+ * Identification (code, type, nom, modèle de règlement, état) et Comptes
+ * rattachés (avec compte Principal, comme chez Sage : « un des comptes
+ * généraux sélectionnés doit être défini comme Principal »).
+ * Les modèles de règlement Structure → Modèles chez Sage s'ouvrent dans
+ * leur propre boîte de dialogue, avec le simulateur d'échéancier.
+ *
+ * DIFFÉRENCE ASSUMÉE AVEC SAGE. Le plan français de Sage ne connaît que le
+ * « Client ». Le SYCEBNL, lui, loge au compte 41 « Adhérents, clients-usagers
+ * et comptes rattachés » DEUX populations qu'il subdivise explicitement :
+ * 411 Adhérents (les membres qui doivent leur cotisation conformément aux
+ * statuts) et 412 Clients-usagers (les tiers auxquels l'entité vend biens et
+ * services). Les fondre en un seul type ferait perdre le suivi des appels de
+ * cotisations, qui est l'activité même d'une EBNL · d'où un type ADHERENT à
+ * part entière, et le rappel du compte de rattachement sur chaque type.
+ */
+
 const LIBELLE_TYPE: Record<TypeTiers, string> = {
-  CLIENT: 'Client',
+  ADHERENT: 'Adhérent',
+  CLIENT: 'Client-usager',
   FOURNISSEUR: 'Fournisseur',
   SALARIE: 'Salarié',
   AUTRE: 'Autre',
+};
+const PLURIEL_TYPE: Record<TypeTiers, string> = {
+  ADHERENT: 'Adhérents',
+  CLIENT: 'Clients-usagers',
+  FOURNISSEUR: 'Fournisseurs',
+  SALARIE: 'Salariés',
+  AUTRE: 'Autres',
+};
+/** Compte de rattachement SYCEBNL, rappelé à côté de chaque type. */
+const COMPTE_TYPE: Record<TypeTiers, string> = {
+  ADHERENT: '411',
+  CLIENT: '412',
+  FOURNISSEUR: '40',
+  SALARIE: '42',
+  AUTRE: '47',
+};
+/** Bulle d'aide « ? » du lexique SYCEBNL, par type de tiers. */
+const AIDE_TYPE: Partial<Record<TypeTiers, 'adherent' | 'clientUsager'>> = {
+  ADHERENT: 'adherent',
+  CLIENT: 'clientUsager',
 };
 
 const LIBELLE_ECHEANCE: Record<ConditionEcheance, string> = {
@@ -48,6 +91,8 @@ export function TiersPage() {
   const [recherche, setRecherche] = useState('');
   const [filtreType, setFiltreType] = useState<TypeTiers | ''>('');
   const [selectionId, setSelectionId] = useState<string | null>(null);
+  const [nouveauOuvert, setNouveauOuvert] = useState(false);
+  const [modelesOuverts, setModelesOuverts] = useState(false);
 
   // Formulaire de création d'un tiers
   const [type, setType] = useState<TypeTiers>('CLIENT');
@@ -78,11 +123,13 @@ export function TiersPage() {
   const [montantCalc, setMontantCalc] = useState('1000');
   const [resultatCalc, setResultatCalc] = useState<EcheanceCalculee[] | null>(null);
 
+  // La liste est chargée SANS filtre de type : le filtre de gauche (façon
+  // Sage) se fait localement, ce qui permet d'afficher les compteurs par
+  // type sans requêtes supplémentaires.
   const charger = async () => {
     try {
       const params = new URLSearchParams();
       if (recherche) params.set('recherche', recherche);
-      if (filtreType) params.set('type', filtreType);
       setListe(await api.get<Tiers[]>(`/tiers?${params.toString()}`));
       setErreur(null);
     } catch (err) {
@@ -94,15 +141,15 @@ export function TiersPage() {
     const t = setTimeout(charger, 250);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [recherche, filtreType]);
+  }, [recherche]);
 
   useEffect(() => {
     api.get<ModeleReglement[]>('/modeles-reglement').then(setModeles);
     api.get<Compte[]>('/comptes?classe=CLASSE_4&actifsSeuls=true&typeCompte=DETAIL').then(setComptesClasse4);
   }, []);
 
-  // Solde des comptes rattachés (balance de l'exercice courant) — affiché à
-  // côté du raccourci lettrage dans le panneau de détail d'un tiers.
+  // Solde des comptes rattachés (balance de l'exercice courant) · affiché
+  // dans le volet Comptes rattachés de la fiche.
   useEffect(() => {
     if (!exerciceCourant) return;
     api.get<{ lignes: LigneBalance[] }>(`/ecritures/balance?exerciceId=${exerciceCourant.id}`).then((r) => {
@@ -110,12 +157,17 @@ export function TiersPage() {
     });
   }, [exerciceCourant]);
 
-  useRibbon([{ titre: 'AFFICHAGE', boutons: [{ label: 'Actualiser', Icon: IconRefresh, onClick: charger }] }]);
+  const listeFiltree = useMemo(
+    () => (liste ?? []).filter((t) => !filtreType || t.type === filtreType),
+    [liste, filtreType],
+  );
+  const nombresParType = useMemo(() => {
+    const m = new Map<TypeTiers, number>();
+    for (const t of liste ?? []) m.set(t.type, (m.get(t.type) ?? 0) + 1);
+    return m;
+  }, [liste]);
 
   const tiersSelectionne = liste?.find((t) => t.id === selectionId) ?? null;
-  // Comptes classe 4 non encore rattachés à un tiers (parmi ceux vus par la
-  // liste courante) — approximation raisonnable pour le sélecteur : on
-  // n'exclut que les comptes déjà rattachés au tiers sélectionné lui-même.
   const comptesDisponibles = comptesClasse4.filter(
     (c) => !tiersSelectionne?.comptesRattaches.some((tc) => tc.compteId === c.id),
   );
@@ -127,10 +179,11 @@ export function TiersPage() {
     setEnvoi(true);
     try {
       await api.post('/tiers', { type, code, nom, ...(modeleReglementId ? { modeleReglementId } : {}) });
+      setInfo(`Tiers ${code} créé.`);
       setCode('');
       setNom('');
       setModeleReglementId('');
-      setInfo(`Tiers ${code} créé.`);
+      setNouveauOuvert(false);
       await charger();
     } catch (err) {
       setErreur(err instanceof ApiError ? err.message : 'Impossible de créer ce tiers');
@@ -252,7 +305,8 @@ export function TiersPage() {
   if (!estAdmin) {
     return (
       <div className="p-2.5">
-        <h1 className="text-[15px] font-bold mb-2.5">Tiers</h1>
+      <EnteteImpression titre="Plan des tiers" />
+        <h1 className="text-[15px] font-bold mb-2.5">Plan des tiers</h1>
         <div className="border border-warning/30 bg-warning-soft px-4 py-3 text-[12.5px] max-w-[480px]">
           La gestion des tiers est réservée aux administrateurs du dossier.
         </div>
@@ -261,325 +315,434 @@ export function TiersPage() {
   }
 
   return (
-    <div className="p-2.5">
-      <h1 className="text-[15px] font-bold mb-2.5">Plan des tiers</h1>
-
-      {erreur && <div className="text-[12px] text-danger bg-danger-soft border border-danger/30 px-2.5 py-1.5 mb-3 max-w-[900px]">{erreur}</div>}
-      {info && <div className="text-[12px] text-positive bg-positive-soft border border-positive/30 px-2.5 py-1.5 mb-3 max-w-[900px]">{info}</div>}
-
-      <form onSubmit={onCreerTiers} className="bg-surface border border-border p-4 mb-4 max-w-[720px]">
-        <div className="font-mono text-[11px] font-semibold text-text-dim mb-3">AJOUTER UN TIERS</div>
-        <div className="grid grid-cols-2 gap-3 mb-3">
-          <label className="text-[11.5px] font-semibold text-text-dim">
-            Type
-            <select value={type} onChange={(e) => setType(e.target.value as TypeTiers)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[13px] font-normal">
-              {(Object.keys(LIBELLE_TYPE) as TypeTiers[]).map((t) => (
-                <option key={t} value={t}>
-                  {LIBELLE_TYPE[t]}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="text-[11.5px] font-semibold text-text-dim">
-            Code
-            <input required value={code} onChange={(e) => setCode(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[13px] font-normal font-mono" />
-          </label>
-          <label className="text-[11.5px] font-semibold text-text-dim col-span-2">
-            Nom
-            <input required value={nom} onChange={(e) => setNom(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[13px] font-normal" />
-          </label>
-          <label className="text-[11.5px] font-semibold text-text-dim col-span-2">
-            Modèle de règlement (optionnel)
-            <select value={modeleReglementId} onChange={(e) => setModeleReglementId(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[13px] font-normal">
-              <option value="">— Aucun —</option>
-              {modeles.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.intitule}
-                </option>
-              ))}
-            </select>
-          </label>
+    <div className="p-2.5 flex flex-col" style={{ height: 'calc(100vh - 114px)' }}>
+      <div className="flex items-center justify-between mb-2 shrink-0">
+        <div>
+          <div className="text-[10.5px] font-mono text-text-dim">STRUCTURE</div>
+          <h1 className="text-[15px] font-bold flex items-center gap-1.5">
+            Plan des tiers
+            <Aide sujet="compte41" />
+          </h1>
         </div>
-        <button type="submit" disabled={envoi} className="bg-sel text-white text-[12.5px] font-semibold px-4 py-1.5 disabled:opacity-50">
-          {envoi ? 'Création…' : 'Ajouter'}
-        </button>
-      </form>
-
-      <div className="flex items-center gap-2 mb-2.5 max-w-[900px]">
-        <input
-          value={recherche}
-          onChange={(e) => setRecherche(e.target.value)}
-          placeholder="Rechercher un tiers (code, nom)…"
-          className="border border-border-dark bg-surface px-2.5 py-1 text-[12.5px] flex-1"
-        />
-        <select value={filtreType} onChange={(e) => setFiltreType(e.target.value as TypeTiers | '')} className="border border-border-dark px-2.5 py-1 text-[12.5px]">
-          <option value="">Tous types</option>
-          {(Object.keys(LIBELLE_TYPE) as TypeTiers[]).map((t) => (
-            <option key={t} value={t}>
-              {LIBELLE_TYPE[t]}
-            </option>
-          ))}
-        </select>
+        <div className="flex items-center gap-2">
+          <input
+            value={recherche}
+            onChange={(e) => setRecherche(e.target.value)}
+            placeholder="Rechercher (code, nom)…"
+            className="border border-border-dark bg-surface px-2.5 py-1 text-[12px] w-64"
+          />
+          <button
+            type="button"
+            onClick={() => setModelesOuverts(true)}
+            className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[11.5px]"
+          >
+            Modèles de règlement…
+          </button>
+          <button
+            type="button"
+            onClick={() => setNouveauOuvert(true)}
+            className="bg-sel text-white px-3.5 py-1 text-[11.5px] font-semibold"
+          >
+            Nouveau tiers
+          </button>
+        </div>
       </div>
 
-      <div className="border border-border max-w-[900px] mb-5">
-        <div className="grid grid-cols-[90px_100px_1fr_150px_90px] gap-2 px-3.5 py-1.5 bg-chrome border-b border-border text-[10px] font-bold text-text-dim">
-          <span>CODE</span><span>TYPE</span><span>NOM</span><span>RÈGLEMENT</span><span>STATUT</span>
-        </div>
-        {!liste && <div className="p-3 text-[12px] text-text-dim">Chargement…</div>}
-        {liste?.length === 0 && <div className="p-3 text-[12px] text-text-dim">Aucun tiers.</div>}
-        {liste?.map((t, i) => (
-          <div
-            key={t.id}
-            onClick={() => setSelectionId(t.id)}
-            className={`grid grid-cols-[90px_100px_1fr_150px_90px] gap-2 items-center px-3.5 py-1.5 border-b border-border last:border-b-0 cursor-pointer text-[11.5px] ${
-              t.id === selectionId ? 'bg-sel/15' : i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'
+      {erreur && (
+        <div className="text-[12px] text-danger bg-danger-soft border border-danger/30 px-3 py-1.5 mb-2 shrink-0">{erreur}</div>
+      )}
+      {info && !erreur && (
+        <div className="text-[12px] text-positive bg-positive-soft border border-positive/30 px-3 py-1.5 mb-2 shrink-0">{info}</div>
+      )}
+
+      <div className="flex-1 min-h-0 flex gap-2.5">
+        {/* Filtre par type · la partie gauche de la fenêtre Sage */}
+        <div className="w-[190px] shrink-0 bg-surface border border-border shadow-posee overflow-auto">
+          <div className="px-3 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
+            TYPE DE TIERS
+          </div>
+          <button
+            type="button"
+            onClick={() => setFiltreType('')}
+            className={`w-full text-left px-3 py-1.5 text-[11.5px] flex justify-between ${
+              filtreType === '' ? 'bg-sel text-white' : 'hover:bg-chrome-alt'
             }`}
           >
-            <span className="font-mono font-semibold">{t.code}</span>
-            <span className="text-text-dim">{LIBELLE_TYPE[t.type]}</span>
-            <span className="truncate">{t.nom}</span>
-            <span className="text-[10.5px] text-text-dim truncate">{t.modeleReglement?.intitule ?? '—'}</span>
+            <span>Tous les tiers</span>
+            <span className={filtreType === '' ? 'text-white/70' : 'text-text-dim'}>{liste?.length ?? '…'}</span>
+          </button>
+          {(Object.keys(PLURIEL_TYPE) as TypeTiers[]).map((t) => (
             <button
-              onClick={(e) => {
-                e.stopPropagation();
-                basculerActif(t);
-              }}
-              className={`font-mono text-[9.5px] font-bold px-1.5 py-0.5 w-fit ${t.estActif ? 'text-positive bg-positive-soft' : 'text-text-dim bg-surface-alt'}`}
+              key={t}
+              type="button"
+              onClick={() => setFiltreType(t)}
+              className={`w-full text-left px-3 py-1.5 text-[11.5px] flex justify-between ${
+                filtreType === t ? 'bg-sel text-white' : 'hover:bg-chrome-alt'
+              }`}
             >
-              {t.estActif ? 'ACTIF' : 'INACTIF'}
+              <span className="flex items-baseline gap-1.5">
+                {PLURIEL_TYPE[t]}
+                <span className={`font-mono text-[10px] ${filtreType === t ? 'text-white/60' : 'text-text-dim'}`}>
+                  {COMPTE_TYPE[t]}
+                </span>
+              </span>
+              <span className={filtreType === t ? 'text-white/70' : 'text-text-dim'}>{nombresParType.get(t) ?? 0}</span>
             </button>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
 
-      {tiersSelectionne && (
-        <div className="border border-border max-w-[900px] p-4 mb-5 bg-surface">
-          <div className="font-mono text-[11px] font-semibold text-text-dim mb-3">
-            COMPTES RATTACHÉS — {tiersSelectionne.code} {tiersSelectionne.nom}
+        {/* Liste des tiers */}
+        <div className="flex-1 min-w-0 bg-surface border border-border shadow-posee flex flex-col">
+          <div className="grid grid-cols-[96px_1fr_150px_86px] gap-2.5 px-3.5 py-1.5 bg-surface-alt border-b border-border-dark text-[10px] font-bold text-text-dim shrink-0">
+            <span>CODE</span>
+            <span>NOM</span>
+            <span>MODÈLE DE RÈGLEMENT</span>
+            <span>ÉTAT</span>
           </div>
+          <div className="flex-1 overflow-auto">
+            {!liste && <div className="px-3.5 py-3 text-[12px] text-text-dim">Chargement…</div>}
+            {listeFiltree.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setSelectionId(t.id)}
+                className={`w-full grid grid-cols-[96px_1fr_150px_86px] gap-2.5 px-3.5 py-[4px] items-center text-left border-b border-border/50 text-[11.5px] ${
+                  selectionId === t.id ? 'bg-sel text-white' : 'hover:bg-sel-soft'
+                } ${!t.estActif && selectionId !== t.id ? 'opacity-55' : ''}`}
+              >
+                <span className="font-mono font-semibold">{t.code}</span>
+                <span className="truncate">{t.nom}</span>
+                <span className={`text-[10.5px] truncate ${selectionId === t.id ? 'text-white/80' : 'text-text-dim'}`}>
+                  {t.modeleReglement?.intitule ?? '·'}
+                </span>
+                <span className={`text-[10.5px] ${selectionId === t.id ? 'text-white/90' : t.estActif ? 'text-positive' : 'text-warning'}`}>
+                  {t.estActif ? 'Actif' : 'Sommeil'}
+                </span>
+              </button>
+            ))}
+            {liste && listeFiltree.length === 0 && (
+              <div className="px-3.5 py-3 text-[12px] text-text-dim italic">Aucun tiers de ce type.</div>
+            )}
+          </div>
+          <div className="px-3.5 py-1 bg-surface-alt border-t border-border text-[10px] text-text-dim shrink-0">
+            {listeFiltree.length} tiers{filtreType && ` · ${PLURIEL_TYPE[filtreType].toLowerCase()}`}
+          </div>
+        </div>
 
-          {tiersSelectionne.comptesRattaches.length === 0 && (
-            <div className="text-[11.5px] text-text-dim mb-3">Aucun compte rattaché.</div>
-          )}
-          {tiersSelectionne.comptesRattaches.length > 0 && (
-            <div className="border border-border mb-3">
-              <div className="grid grid-cols-[110px_1fr_100px_90px_90px_80px] gap-2 px-3 py-1 bg-chrome border-b border-border text-[9.5px] font-bold text-text-dim">
-                <span>COMPTE</span><span>INTITULÉ</span><span className="text-right">SOLDE</span><span>PRINCIPAL</span><span /><span />
-              </div>
-              {tiersSelectionne.comptesRattaches.map((tc, i) => (
-                <div
-                  key={tc.id}
-                  className={`grid grid-cols-[110px_1fr_100px_90px_90px_80px] gap-2 items-center px-3 py-1.5 border-b border-border last:border-b-0 text-[11.5px] ${
-                    i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'
-                  }`}
-                >
-                  <span className="font-mono">{tc.compte.numero}</span>
-                  <span className="truncate">{tc.compte.intitule}</span>
-                  <span className="font-mono text-right text-text-dim">
-                    {tc.compteId in soldes ? soldes[tc.compteId].toLocaleString('fr-FR') : '—'}
-                  </span>
-                  <span>
-                    {tc.estPrincipal ? (
-                      <span className="font-mono text-[9.5px] font-bold px-1.5 py-0.5 bg-positive-soft text-positive flex items-center gap-1 w-fit">
-                        <IconCheck width={10} height={10} /> PRINCIPAL
-                      </span>
-                    ) : (
-                      <button onClick={() => definirPrincipal(tc.compteId)} className="text-[10.5px] font-semibold text-sel hover:underline">
-                        Définir principal
-                      </button>
-                    )}
-                  </span>
-                  <button
-                    onClick={() => navigate(`/comptes/${tc.compteId}/lettrage`)}
-                    className="text-[10.5px] font-semibold text-sel hover:underline w-fit"
-                  >
-                    Lettrage
-                  </button>
-                  <button onClick={() => detacherCompte(tc.compteId)} className="text-[10.5px] font-semibold text-danger hover:underline w-fit">
-                    Détacher
-                  </button>
-                </div>
-              ))}
+        {/* Fiche du tiers sélectionné */}
+        <div className="w-[340px] shrink-0 bg-surface border border-border shadow-posee overflow-auto">
+          <div className="px-3 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
+            FICHE DU TIERS
+          </div>
+          {!tiersSelectionne && (
+            <div className="px-3 py-3 text-[11.5px] text-text-dim">
+              Sélectionnez un tiers dans la liste pour afficher sa fiche : identification, modèle de
+              règlement, comptes généraux rattachés (avec le compte Principal proposé en saisie).
             </div>
           )}
-
-          <form onSubmit={onRattacherCompte} className="flex items-end gap-3">
-            <label className="text-[11px] font-semibold text-text-dim flex-1">
-              Rattacher un compte (classe 4)
-              <select
-                required
-                value={compteARattacher}
-                onChange={(e) => setCompteARattacher(e.target.value)}
-                className="mt-1 w-full border border-border-dark px-2 py-1.5 text-[12.5px] font-normal"
+          {tiersSelectionne && (
+            <div className="p-3 text-[11.5px]">
+              {/* Volet Identification */}
+              <div className="font-mono text-[15px] font-bold">{tiersSelectionne.code}</div>
+              <div className="text-[12.5px] mb-2.5">{tiersSelectionne.nom}</div>
+              <div className="grid grid-cols-[92px_1fr] gap-x-2 gap-y-1.5 items-center mb-3">
+                <span className="text-text-dim text-right">Type :</span>
+                <span className="flex items-center gap-1.5">
+                  {LIBELLE_TYPE[tiersSelectionne.type]}
+                  <span className="font-mono text-[10.5px] text-text-dim">
+                    compte {COMPTE_TYPE[tiersSelectionne.type]}
+                  </span>
+                  {AIDE_TYPE[tiersSelectionne.type] && <Aide sujet={AIDE_TYPE[tiersSelectionne.type]!} />}
+                </span>
+                <span className="text-text-dim text-right">Règlement :</span>
+                <span>{tiersSelectionne.modeleReglement?.intitule ?? 'aucun modèle'}</span>
+                <span className="text-text-dim text-right">État :</span>
+                <span className={tiersSelectionne.estActif ? 'text-positive' : 'text-warning'}>
+                  {tiersSelectionne.estActif ? 'Actif' : 'En sommeil'}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => basculerActif(tiersSelectionne)}
+                className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[11px] mb-3"
               >
-                <option value="">— Sélectionner —</option>
-                {comptesDisponibles.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.numero} — {c.intitule}
-                  </option>
+                {tiersSelectionne.estActif ? 'Mettre en sommeil' : 'Réactiver'}
+              </button>
+
+              {/* Volet Comptes rattachés */}
+              <div className="border-t border-border pt-2.5">
+                <div className="text-[10px] font-bold text-text-dim mb-1.5">COMPTES GÉNÉRAUX RATTACHÉS</div>
+                {tiersSelectionne.comptesRattaches.length === 0 && (
+                  <div className="text-[11px] text-text-dim mb-2">Aucun compte rattaché.</div>
+                )}
+                {tiersSelectionne.comptesRattaches.map((tc) => (
+                  <div key={tc.id} className="border border-border mb-1.5 px-2.5 py-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-mono font-semibold">{tc.compte.numero}</span>
+                      {tc.estPrincipal ? (
+                        <span className="font-mono text-[9px] font-bold px-1.5 py-0.5 bg-positive-soft text-positive flex items-center gap-1">
+                          <IconCheck width={9} height={9} /> PRINCIPAL
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => definirPrincipal(tc.compteId)}
+                          className="text-[10px] text-sel hover:underline"
+                        >
+                          Définir principal
+                        </button>
+                      )}
+                    </div>
+                    <div className="text-[10.5px] text-text-dim truncate">{tc.compte.intitule}</div>
+                    <div className="flex items-center justify-between mt-1">
+                      <span className="font-mono text-[10.5px]">
+                        Solde : {tc.compteId in soldes ? soldes[tc.compteId].toLocaleString('fr-FR') : '·'}
+                      </span>
+                      <span className="flex gap-2.5">
+                        <button
+                          onClick={() => navigate(`/comptes/${tc.compteId}/lettrage`)}
+                          className="text-[10px] text-sel hover:underline"
+                        >
+                          Interroger / lettrer
+                        </button>
+                        <button
+                          onClick={() => detacherCompte(tc.compteId)}
+                          className="text-[10px] text-danger hover:underline"
+                        >
+                          Détacher
+                        </button>
+                      </span>
+                    </div>
+                  </div>
                 ))}
-              </select>
-            </label>
-            <label className="text-[11px] font-semibold text-text-dim flex items-center gap-1.5 pb-1.5">
-              <input type="checkbox" checked={estPrincipal} onChange={(e) => setEstPrincipal(e.target.checked)} />
-              Principal
-            </label>
-            <button type="submit" className="bg-sel text-white text-[12px] font-semibold px-3 py-1.5">
-              Rattacher
-            </button>
+
+                <form onSubmit={onRattacherCompte} className="mt-2">
+                  <select
+                    required
+                    value={compteARattacher}
+                    onChange={(e) => setCompteARattacher(e.target.value)}
+                    className="w-full border border-border-dark px-2 py-1 text-[11.5px] mb-1.5"
+                  >
+                    <option value="">Rattacher un compte de classe 4</option>
+                    {comptesDisponibles.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.numero} · {c.intitule}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="flex items-center justify-between">
+                    <label className="flex items-center gap-1.5 text-[11px]">
+                      <input type="checkbox" checked={estPrincipal} onChange={(e) => setEstPrincipal(e.target.checked)} />
+                      Principal
+                    </label>
+                    <button type="submit" className="bg-sel text-white text-[11px] font-semibold px-3 py-1">
+                      Rattacher
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Boîte de dialogue · Nouveau tiers */}
+      {nouveauOuvert && (
+        <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
+          <form onSubmit={onCreerTiers} className="anim-modale w-full max-w-[440px] bg-surface border border-border-dark shadow-flottante">
+            <div
+              className="h-[26px] flex items-center justify-between px-2.5 text-white text-[11.5px]"
+              style={{ background: 'linear-gradient(180deg, var(--titlebar-from), var(--titlebar-to))' }}
+            >
+              <span>Nouveau tiers</span>
+              <button type="button" onClick={() => setNouveauOuvert(false)} className="text-white/85 hover:text-white px-1.5">✕</button>
+            </div>
+            <div className="p-4">
+              <div className="grid grid-cols-[110px_1fr] items-center gap-x-3 gap-y-2.5">
+                <label className="text-[12px] text-right">Type :</label>
+                <select value={type} onChange={(e) => setType(e.target.value as TypeTiers)} className="border border-border-dark px-2.5 py-1.5 text-[12.5px]">
+                  {(Object.keys(LIBELLE_TYPE) as TypeTiers[]).map((t) => (
+                    <option key={t} value={t}>{`${LIBELLE_TYPE[t]} · compte ${COMPTE_TYPE[t]}`}</option>
+                  ))}
+                </select>
+                <label className="text-[12px] text-right">Code :</label>
+                <input required autoFocus value={code} onChange={(e) => setCode(e.target.value)} placeholder="ex. CLI-0001" className="border border-border-dark px-2.5 py-1.5 text-[13px] font-mono" />
+                <label className="text-[12px] text-right">Nom :</label>
+                <input required value={nom} onChange={(e) => setNom(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[13px]" />
+                <label className="text-[12px] text-right">Règlement :</label>
+                <select value={modeleReglementId} onChange={(e) => setModeleReglementId(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[12.5px]">
+                  <option value="">Aucun modèle</option>
+                  {modeles.map((m) => (
+                    <option key={m.id} value={m.id}>{m.intitule}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex justify-end gap-2 mt-4">
+                <button type="button" onClick={() => setNouveauOuvert(false)} className="border border-border-dark bg-chrome hover:bg-chrome-alt px-4 py-1.5 text-[12px]">
+                  Annuler
+                </button>
+                <button type="submit" disabled={envoi} className="bg-sel text-white px-4 py-1.5 text-[12px] font-semibold disabled:opacity-50">
+                  {envoi ? 'Création…' : 'Créer le tiers'}
+                </button>
+              </div>
+            </div>
           </form>
         </div>
       )}
 
-      <div className="border border-border max-w-[720px] p-4">
-        <div className="font-mono text-[11px] font-semibold text-text-dim mb-3">MODÈLES DE RÈGLEMENT</div>
-        <div className="border border-border mb-3">
-          {modeles.length === 0 && <div className="p-2.5 text-[11.5px] text-text-dim">Aucun modèle de règlement.</div>}
-          {modeles.map((m, i) => (
+      {/* Boîte de dialogue · Modèles de règlement (Structure → Modèles chez Sage) */}
+      {modelesOuverts && (
+        <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
+          <div className="anim-modale w-full max-w-[720px] max-h-[86vh] flex flex-col bg-surface border border-border-dark shadow-flottante">
             <div
-              key={m.id}
-              onClick={() => setModeleSelectionneId(m.id === modeleSelectionneId ? null : m.id)}
-              className={`grid grid-cols-[1fr_90px_180px_90px] gap-2 items-center px-3 py-1.5 border-b border-border last:border-b-0 text-[11.5px] cursor-pointer ${
-                m.id === modeleSelectionneId ? 'bg-sel/15' : i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'
-              }`}
+              className="h-[26px] flex items-center justify-between px-2.5 text-white text-[11.5px] shrink-0"
+              style={{ background: 'linear-gradient(180deg, var(--titlebar-from), var(--titlebar-to))' }}
             >
-              <span>{m.intitule}</span>
-              <span className="text-text-dim">
-                {m.echeances.length > 0 ? `${m.echeances.length} échéances` : `${m.delaiJours} j.`}
-              </span>
-              <span className="text-[10.5px] text-text-dim">
-                {m.echeances.length > 0 ? 'Fractionné' : LIBELLE_ECHEANCE[m.echeance]}
-              </span>
-              <span className="text-[10.5px] text-sel">{m.id === modeleSelectionneId ? '▾ fermer' : '▸ détail'}</span>
+              <span>Modèles de règlement</span>
+              <button type="button" onClick={() => setModelesOuverts(false)} className="text-white/85 hover:text-white px-1.5">✕</button>
             </div>
-          ))}
-        </div>
-
-        {modeleSelectionne && (
-          <div className="border border-border mb-3 p-3 bg-surface-alt">
-            <div className="font-mono text-[10.5px] font-semibold text-text-dim mb-2">
-              ÉCHÉANCES — {modeleSelectionne.intitule}
-            </div>
-            {modeleSelectionne.echeances.length === 0 && (
-              <div className="text-[11px] text-text-dim mb-2">
-                Mono-échéance : 100 % à {modeleSelectionne.delaiJours} j. ({LIBELLE_ECHEANCE[modeleSelectionne.echeance]}).
-                Ajoutez une échéance ci-dessous pour fractionner.
-              </div>
-            )}
-            {modeleSelectionne.echeances.length > 0 && (
+            <div className="flex-1 min-h-0 overflow-auto p-4">
               <div className="border border-border mb-3">
-                {modeleSelectionne.echeances.map((ech, i) => (
+                {modeles.length === 0 && <div className="p-2.5 text-[11.5px] text-text-dim">Aucun modèle de règlement.</div>}
+                {modeles.map((m) => (
                   <div
-                    key={ech.id}
-                    className={`grid grid-cols-[40px_130px_90px_70px_120px_70px] gap-2 items-center px-2.5 py-1 border-b border-border last:border-b-0 text-[11px] ${
-                      i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'
+                    key={m.id}
+                    onClick={() => setModeleSelectionneId(m.id === modeleSelectionneId ? null : m.id)}
+                    className={`grid grid-cols-[1fr_100px_180px_80px] gap-2 items-center px-3 py-1.5 border-b border-border last:border-b-0 text-[11.5px] cursor-pointer ${
+                      m.id === modeleSelectionneId ? 'bg-sel-soft' : 'hover:bg-chrome-alt'
                     }`}
                   >
-                    <span className="font-mono">#{ech.ordre}</span>
-                    <span>{LIBELLE_TYPE_ECHEANCE[ech.type]}</span>
-                    <span className="text-right font-mono">{ech.valeur ?? '—'}</span>
-                    <span className="text-text-dim">{ech.delaiJours} j.</span>
-                    <span className="text-[10px] text-text-dim">{LIBELLE_ECHEANCE[ech.echeance]}</span>
-                    <button onClick={() => onSupprimerEcheance(ech.id)} className="text-danger text-[10px] font-semibold hover:underline w-fit">
-                      Supprimer
+                    <span>{m.intitule}</span>
+                    <span className="text-text-dim">
+                      {m.echeances.length > 0 ? `${m.echeances.length} échéances` : `${m.delaiJours} j.`}
+                    </span>
+                    <span className="text-[10.5px] text-text-dim">
+                      {m.echeances.length > 0 ? 'Fractionné' : LIBELLE_ECHEANCE[m.echeance]}
+                    </span>
+                    <span className="text-[10.5px] text-sel">{m.id === modeleSelectionneId ? '▾ fermer' : '▸ détail'}</span>
+                  </div>
+                ))}
+              </div>
+
+              {modeleSelectionne && (
+                <div className="border border-border mb-3 p-3 bg-surface-alt">
+                  <div className="font-mono text-[10.5px] font-semibold text-text-dim mb-2">
+                    ÉCHÉANCES · {modeleSelectionne.intitule}
+                  </div>
+                  {modeleSelectionne.echeances.length === 0 && (
+                    <div className="text-[11px] text-text-dim mb-2">
+                      Mono-échéance : 100 % à {modeleSelectionne.delaiJours} j. ({LIBELLE_ECHEANCE[modeleSelectionne.echeance]}).
+                      Ajoutez une échéance ci-dessous pour fractionner.
+                    </div>
+                  )}
+                  {modeleSelectionne.echeances.length > 0 && (
+                    <div className="border border-border mb-3 bg-surface">
+                      {modeleSelectionne.echeances.map((ech) => (
+                        <div
+                          key={ech.id}
+                          className="grid grid-cols-[40px_130px_90px_70px_150px_70px] gap-2 items-center px-2.5 py-1 border-b border-border last:border-b-0 text-[11px]"
+                        >
+                          <span className="font-mono">#{ech.ordre}</span>
+                          <span>{LIBELLE_TYPE_ECHEANCE[ech.type]}</span>
+                          <span className="text-right font-mono">{ech.valeur ?? '·'}</span>
+                          <span className="text-text-dim">{ech.delaiJours} j.</span>
+                          <span className="text-[10px] text-text-dim">{LIBELLE_ECHEANCE[ech.echeance]}</span>
+                          <button onClick={() => onSupprimerEcheance(ech.id)} className="text-danger text-[10px] font-semibold hover:underline w-fit">
+                            Supprimer
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <form onSubmit={onAjouterEcheance} className="grid grid-cols-6 gap-2 items-end mb-4">
+                    <label className="text-[10.5px] font-semibold text-text-dim">
+                      Ordre
+                      <input required type="number" min={1} value={ordreEch} onChange={(e) => setOrdreEch(Number(e.target.value))} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px]" />
+                    </label>
+                    <label className="text-[10.5px] font-semibold text-text-dim">
+                      Type
+                      <select value={typeEch} onChange={(e) => setTypeEch(e.target.value as TypeEcheance)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px]">
+                        {(Object.keys(LIBELLE_TYPE_ECHEANCE) as TypeEcheance[]).map((t) => (
+                          <option key={t} value={t}>{LIBELLE_TYPE_ECHEANCE[t]}</option>
+                        ))}
+                      </select>
+                    </label>
+                    {typeEch !== 'EQUILIBRE' && (
+                      <label className="text-[10.5px] font-semibold text-text-dim">
+                        {typeEch === 'POURCENTAGE' ? 'Valeur (%)' : 'Valeur (montant)'}
+                        <input required type="number" min={0} step="0.01" value={valeurEch} onChange={(e) => setValeurEch(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px]" />
+                      </label>
+                    )}
+                    <label className="text-[10.5px] font-semibold text-text-dim">
+                      Délai (j.)
+                      <input required type="number" min={0} value={delaiJoursEch} onChange={(e) => setDelaiJoursEch(Number(e.target.value))} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px]" />
+                    </label>
+                    <label className="text-[10.5px] font-semibold text-text-dim">
+                      Condition
+                      <select value={echeanceEch} onChange={(e) => setEcheanceEch(e.target.value as ConditionEcheance)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px]">
+                        {(Object.keys(LIBELLE_ECHEANCE) as ConditionEcheance[]).map((c) => (
+                          <option key={c} value={c}>{LIBELLE_ECHEANCE[c]}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <button type="submit" className="bg-sel text-white text-[11px] font-semibold px-3 py-1.5 h-fit">
+                      Ajouter
                     </button>
-                  </div>
-                ))}
-              </div>
-            )}
+                  </form>
 
-            <form onSubmit={onAjouterEcheance} className="grid grid-cols-6 gap-2 items-end mb-4">
-              <label className="text-[10.5px] font-semibold text-text-dim">
-                Ordre
-                <input required type="number" min={1} value={ordreEch} onChange={(e) => setOrdreEch(Number(e.target.value))} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px]" />
-              </label>
-              <label className="text-[10.5px] font-semibold text-text-dim">
-                Type
-                <select value={typeEch} onChange={(e) => setTypeEch(e.target.value as TypeEcheance)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px]">
-                  {(Object.keys(LIBELLE_TYPE_ECHEANCE) as TypeEcheance[]).map((t) => (
-                    <option key={t} value={t}>
-                      {LIBELLE_TYPE_ECHEANCE[t]}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              {typeEch !== 'EQUILIBRE' && (
-                <label className="text-[10.5px] font-semibold text-text-dim">
-                  {typeEch === 'POURCENTAGE' ? 'Valeur (%)' : 'Valeur (montant)'}
-                  <input required type="number" min={0} step="0.01" value={valeurEch} onChange={(e) => setValeurEch(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px]" />
-                </label>
+                  <div className="font-mono text-[10.5px] font-semibold text-text-dim mb-2">SIMULATEUR D'ÉCHÉANCIER</div>
+                  <form onSubmit={onCalculer} className="flex items-end gap-2 mb-3">
+                    <label className="text-[10.5px] font-semibold text-text-dim">
+                      Date facture
+                      <input required type="date" value={dateFactureCalc} onChange={(e) => setDateFactureCalc(e.target.value)} className="mt-1 block border border-border-dark px-2 py-1 text-[11.5px]" />
+                    </label>
+                    <label className="text-[10.5px] font-semibold text-text-dim">
+                      Montant
+                      <input required type="number" min={0.01} step="0.01" value={montantCalc} onChange={(e) => setMontantCalc(e.target.value)} className="mt-1 block border border-border-dark px-2 py-1 text-[11.5px]" />
+                    </label>
+                    <button type="submit" className="bg-sel text-white text-[11px] font-semibold px-3 py-1.5">
+                      Calculer
+                    </button>
+                  </form>
+                  {resultatCalc && (
+                    <div className="border border-border bg-surface shadow-posee">
+                      {resultatCalc.map((r) => (
+                        <div key={r.ordre} className="grid grid-cols-3 gap-2 px-2.5 py-1 border-b border-border last:border-b-0 text-[11px] font-mono">
+                          <span>#{r.ordre}</span>
+                          <span className="text-right">{r.montant.toLocaleString('fr-FR')}</span>
+                          <span className="text-text-dim">{new Date(r.dateEcheance).toLocaleDateString('fr-FR')}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               )}
-              <label className="text-[10.5px] font-semibold text-text-dim">
-                Délai (j.)
-                <input required type="number" min={0} value={delaiJoursEch} onChange={(e) => setDelaiJoursEch(Number(e.target.value))} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px]" />
-              </label>
-              <label className="text-[10.5px] font-semibold text-text-dim">
-                Condition
-                <select value={echeanceEch} onChange={(e) => setEcheanceEch(e.target.value as ConditionEcheance)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px]">
-                  {(Object.keys(LIBELLE_ECHEANCE) as ConditionEcheance[]).map((c) => (
-                    <option key={c} value={c}>
-                      {LIBELLE_ECHEANCE[c]}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <button type="submit" className="bg-sel text-white text-[11px] font-semibold px-3 py-1.5 h-fit">
-                Ajouter
-              </button>
-            </form>
 
-            <div className="font-mono text-[10.5px] font-semibold text-text-dim mb-2">SIMULATEUR</div>
-            <form onSubmit={onCalculer} className="flex items-end gap-2 mb-3">
-              <label className="text-[10.5px] font-semibold text-text-dim">
-                Date facture
-                <input required type="date" value={dateFactureCalc} onChange={(e) => setDateFactureCalc(e.target.value)} className="mt-1 block border border-border-dark px-2 py-1 text-[11.5px]" />
-              </label>
-              <label className="text-[10.5px] font-semibold text-text-dim">
-                Montant
-                <input required type="number" min={0.01} step="0.01" value={montantCalc} onChange={(e) => setMontantCalc(e.target.value)} className="mt-1 block border border-border-dark px-2 py-1 text-[11.5px]" />
-              </label>
-              <button type="submit" className="bg-sel text-white text-[11px] font-semibold px-3 py-1.5">
-                Calculer
-              </button>
-            </form>
-            {resultatCalc && (
-              <div className="border border-border">
-                {resultatCalc.map((r) => (
-                  <div key={r.ordre} className="grid grid-cols-3 gap-2 px-2.5 py-1 border-b border-border last:border-b-0 text-[11px] font-mono">
-                    <span>#{r.ordre}</span>
-                    <span className="text-right">{r.montant.toLocaleString('fr-FR')}</span>
-                    <span className="text-text-dim">{new Date(r.dateEcheance).toLocaleDateString('fr-FR')}</span>
-                  </div>
-                ))}
-              </div>
-            )}
+              <form onSubmit={onCreerModele} className="grid grid-cols-4 gap-2 items-end border-t border-border pt-3">
+                <label className="text-[11px] font-semibold text-text-dim col-span-2">
+                  Nouveau modèle · intitulé
+                  <input required value={intituleModele} onChange={(e) => setIntituleModele(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[12px] font-normal" />
+                </label>
+                <label className="text-[11px] font-semibold text-text-dim">
+                  Délai (j.)
+                  <input required type="number" min={0} value={delaiJours} onChange={(e) => setDelaiJours(Number(e.target.value))} className="mt-1 w-full border border-border-dark px-2 py-1 text-[12px] font-normal" />
+                </label>
+                <label className="text-[11px] font-semibold text-text-dim">
+                  Échéance
+                  <select value={echeance} onChange={(e) => setEcheance(e.target.value as ConditionEcheance)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[12px] font-normal">
+                    {(Object.keys(LIBELLE_ECHEANCE) as ConditionEcheance[]).map((c) => (
+                      <option key={c} value={c}>{LIBELLE_ECHEANCE[c]}</option>
+                    ))}
+                  </select>
+                </label>
+                <button type="submit" className="bg-sel text-white text-[11.5px] font-semibold px-3 py-1.5 col-span-4 w-fit">
+                  Ajouter le modèle
+                </button>
+              </form>
+            </div>
           </div>
-        )}
-        <form onSubmit={onCreerModele} className="grid grid-cols-4 gap-2 items-end">
-          <label className="text-[11px] font-semibold text-text-dim col-span-2">
-            Intitulé
-            <input required value={intituleModele} onChange={(e) => setIntituleModele(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[12px] font-normal" />
-          </label>
-          <label className="text-[11px] font-semibold text-text-dim">
-            Délai (j.)
-            <input required type="number" min={0} value={delaiJours} onChange={(e) => setDelaiJours(Number(e.target.value))} className="mt-1 w-full border border-border-dark px-2 py-1 text-[12px] font-normal" />
-          </label>
-          <label className="text-[11px] font-semibold text-text-dim">
-            Échéance
-            <select value={echeance} onChange={(e) => setEcheance(e.target.value as ConditionEcheance)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[12px] font-normal">
-              {(Object.keys(LIBELLE_ECHEANCE) as ConditionEcheance[]).map((c) => (
-                <option key={c} value={c}>
-                  {LIBELLE_ECHEANCE[c]}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button type="submit" className="bg-sel text-white text-[11.5px] font-semibold px-3 py-1.5 col-span-4 w-fit">
-            Ajouter le modèle
-          </button>
-        </form>
-      </div>
+        </div>
+      )}
     </div>
   );
 }

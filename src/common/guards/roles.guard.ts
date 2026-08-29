@@ -5,7 +5,7 @@ import { ROLES_KEY } from '../decorators/roles.decorator';
 
 /**
  * S'applique après JwtAuthGuard (request.user doit déjà exister). Sans
- * @Roles(...) sur la route, elle laisse passer — l'absence de restriction
+ * @Roles(...) sur la route, elle laisse passer · l'absence de restriction
  * n'est pas un oubli, c'est le comportement par défaut pour les routes
  * ouvertes à tout utilisateur authentifié du tenant (consultation).
  */
@@ -25,7 +25,7 @@ export class RolesGuard implements CanActivate {
     const request = context.switchToHttp().getRequest();
     const role: RoleUtilisateur | undefined = request.user?.role;
     if (!role || !rolesRequis.includes(role)) {
-      throw new ForbiddenException(`Rôle insuffisant — requis : ${rolesRequis.join(', ')}`);
+      throw new ForbiddenException(`Rôle insuffisant · requis : ${rolesRequis.join(', ')}`);
     }
     return true;
   }

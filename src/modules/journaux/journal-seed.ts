@@ -1,11 +1,11 @@
 import { NumerotationPiece, TypeJournal } from '@prisma/client';
 
 /**
- * Journaux proposés automatiquement à la création d'un tenant — le minimum
+ * Journaux proposés automatiquement à la création d'un tenant · le minimum
  * réaliste pour démarrer une comptabilité SYCEBNL (voir le cas pratique
  * observé dans les sources Sage : ACHAT/VENTE/BANQUE/CAISSE/OD reviennent
  * systématiquement). Les comptes de trésorerie référencés ici (52110000
- * Banque, 57100000 Caisse) doivent exister — voir compte-seed.ts, seedé juste
+ * Banque, 57100000 Caisse) doivent exister · voir compte-seed.ts, seedé juste
  * avant l'appel à seedJournauxDefaut.
  */
 export const JOURNAUX_DEFAUT: Array<{

@@ -1,8 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../lib/api';
-import { useRibbon } from '../components/chrome/ribbon-context';
-import { IconNew, IconRefresh } from '../components/chrome/icons';
 import type { Compte, RapprochementBancaire } from '../lib/types';
 
 /**
@@ -37,11 +35,6 @@ export function RapprochementPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useRibbon([
-    { titre: 'AFFICHAGE', boutons: [{ label: 'Actualiser', Icon: IconRefresh, onClick: charger }] },
-    { titre: 'GESTION', boutons: [{ label: 'Nouveau', Icon: IconNew, onClick: () => setAfficherFormulaire((v) => !v) }] },
-  ]);
-
   const onOuvrir = async (e: FormEvent) => {
     e.preventDefault();
     setErreur(null);
@@ -62,6 +55,7 @@ export function RapprochementPage() {
 
   return (
     <div className="p-2.5">
+      <div className="text-[10.5px] font-mono text-text-dim">TRAITEMENT</div>
       <h1 className="text-[15px] font-bold mb-2.5">Rapprochement bancaire</h1>
 
       {afficherFormulaire && (
@@ -77,7 +71,7 @@ export function RapprochementPage() {
               >
                 {(comptes ?? []).map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.numero} — {c.intitule}
+                    {c.numero} · {c.intitule}
                   </option>
                 ))}
               </select>
@@ -105,7 +99,7 @@ export function RapprochementPage() {
             </label>
           </div>
           <p className="text-[11px] text-text-dim mb-3">
-            Le solde à saisir est celui affiché en bas du relevé papier/PDF de la banque à la date choisie — pas un
+            Le solde à saisir est celui affiché en bas du relevé papier/PDF de la banque à la date choisie · pas un
             solde comptable. L'écart avec le solde pointé sera calculé automatiquement sur l'écran suivant.
           </p>
           {erreur && <div className="text-[12px] text-danger bg-danger-soft border border-danger/30 px-2.5 py-1.5 mb-3">{erreur}</div>}
@@ -123,7 +117,7 @@ export function RapprochementPage() {
       {!rapprochements && <div className="text-[12px] text-text-dim">Chargement…</div>}
 
       {rapprochements && (
-        <div className="border border-border max-w-[900px]">
+        <div className="border border-border bg-surface shadow-posee max-w-[900px]">
           <div className="grid grid-cols-[110px_1.2fr_100px_110px_90px_100px] gap-3 px-3.5 py-1.5 bg-chrome border-b border-border text-[10px] font-bold text-text-dim">
             <span>DATE RELEVÉ</span>
             <span>COMPTE</span>
@@ -140,7 +134,7 @@ export function RapprochementPage() {
               }`}
             >
               <span className="font-mono text-[10.5px]">{new Date(r.dateReleve).toLocaleDateString('fr-FR')}</span>
-              <span>{r.compte ? `${r.compte.numero} — ${r.compte.intitule}` : r.compteId}</span>
+              <span>{r.compte ? `${r.compte.numero} · ${r.compte.intitule}` : r.compteId}</span>
               <span className="font-mono text-right">{r.soldeReleve.toLocaleString('fr-FR')}</span>
               <span className="font-mono text-[10.5px] text-text-dim">{new Date(r.createdAt).toLocaleDateString('fr-FR')}</span>
               <span

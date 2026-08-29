@@ -5,7 +5,7 @@ import { CreerUtilisateurDto, ModifierUtilisateurDto } from './dto/utilisateur.d
 
 const SALT_ROUNDS = 12;
 
-// Champs exposés côté API — motDePasse (haché) n'en fait jamais partie.
+// Champs exposés côté API · motDePasse (haché) n'en fait jamais partie.
 const SELECTION = { id: true, email: true, role: true, estActif: true, createdAt: true } as const;
 
 @Injectable()

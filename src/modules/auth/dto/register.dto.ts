@@ -1,5 +1,5 @@
 import { IsDateString, IsEmail, IsEnum, IsOptional, IsString, MinLength } from 'class-validator';
-import { Referentiel, TypeLicence } from '@prisma/client';
+import { JeuEtatsFinanciersSycebnl, Referentiel, TypeLicence } from '@prisma/client';
 
 /**
  * Inscription = création du tenant (cabinet/association) + de son admin +
@@ -10,7 +10,7 @@ import { Referentiel, TypeLicence } from '@prisma/client';
  *
  * Ce DTO sert aussi bien à l'inscription initiale (page /inscription) qu'à
  * l'assistant « Nouveau fichier comptable » (créer un dossier supplémentaire
- * sous une nouvelle adresse e-mail — voir NouveauFichierWizard côté client) :
+ * sous une nouvelle adresse e-mail · voir NouveauFichierWizard côté client) :
  * même endpoint, même règles, l'assistant ne fait qu'en habiller la saisie.
  */
 export class RegisterDto {
@@ -26,11 +26,21 @@ export class RegisterDto {
   @MinLength(10, { message: 'Le mot de passe doit contenir au moins 10 caractères' })
   motDePasse!: string;
 
+  // Jeu d'états financiers SYCEBNL · écran « Type d'entité » de l'assistant.
+  // Article 4 de l'Acte uniforme : une association ou un ordre professionnel
+  // n'a pas les mêmes états qu'un projet de développement (tableau
+  // emplois-ressources, exécution budgétaire, réconciliation de trésorerie).
+  // Omis, on retient les associations et ordres professionnels, cas le plus
+  // fréquent (défaut du schéma).
+  @IsOptional()
+  @IsEnum(JeuEtatsFinanciersSycebnl)
+  jeuEtatsFinanciersSycebnl?: JeuEtatsFinanciersSycebnl;
+
   @IsOptional()
   @IsEnum(TypeLicence)
   typeLicence?: TypeLicence;
 
-  // Coordonnées — écran « Coordonnées de l'entreprise » de l'assistant.
+  // Coordonnées · écran « Coordonnées de l'entreprise » de l'assistant.
   @IsOptional()
   @IsString()
   activite?: string;
@@ -55,7 +65,7 @@ export class RegisterDto {
   @IsString()
   devise?: string;
 
-  // Exercice — écran « Définition de l'exercice » de l'assistant. Si omis,
+  // Exercice · écran « Définition de l'exercice » de l'assistant. Si omis,
   // l'exercice de l'année civile en cours est créé automatiquement
   // (voir ExerciceService.creerExerciceCourant).
   @IsOptional()

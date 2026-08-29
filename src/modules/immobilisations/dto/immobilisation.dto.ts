@@ -68,9 +68,9 @@ export class CreerImmobilisationDto {
   @IsPositive()
   dureeAmortissementAns?: number; // sinon, valeur par défaut de la famille
 
-  // Financement de l'acquisition — l'écriture générée débite le compte
+  // Financement de l'acquisition · l'écriture générée débite le compte
   // d'immobilisation (valeurOrigine) et crédite ce compte de contrepartie
-  // (trésorerie, fournisseur, dotation/fonds selon le mode de financement —
+  // (trésorerie, fournisseur, dotation/fonds selon le mode de financement ·
   // voir le commentaire de ImmobilisationService.creer).
   @IsUUID('4')
   compteContrepartieId!: string;
@@ -108,13 +108,13 @@ export class SortirImmobilisationDto {
   @IsUUID('4')
   journalId!: string;
 
-  // Requis si type = CESSION (produit de la vente) — voir compte 82.
+  // Requis si type = CESSION (produit de la vente) · voir compte 82.
   @IsOptional()
   @IsNumber()
   @Min(0)
   prixCession?: number;
 
-  // Compte encaissant le prix de cession (trésorerie ou tiers) — requis si prixCession renseigné.
+  // Compte encaissant le prix de cession (trésorerie ou tiers) · requis si prixCession renseigné.
   @IsOptional()
   @IsUUID('4')
   compteContrepartieId?: string;

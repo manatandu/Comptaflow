@@ -1,20 +1,20 @@
 /**
- * Familles d'immobilisations proposées par défaut à la création d'un tenant —
+ * Familles d'immobilisations proposées par défaut à la création d'un tenant ·
  * un point de départ courant pour une association/ONG (informatique,
  * mobilier, véhicules, bâtiments), pas une liste exhaustive : le cabinet en
  * crée d'autres au besoin via l'écran (même logique que le plan de comptes,
- * volontairement pas seedé "à l'exhaustive" au-delà du raisonnable — voir
+ * volontairement pas seedé "à l'exhaustive" au-delà du raisonnable · voir
  * compte-seed.ts).
  *
  * Comptes rattachés : voir compte-seed.ts (classe 2 = immobilisation, classe
  * 28 = amortissement cumulé, 681200/681300 = dotation incorporelle/
- * corporelle — skill sycebnl, COMPTE 21 à 28).
+ * corporelle · skill sycebnl, COMPTE 21 à 28).
  *
  * Durées par défaut : arrêté ministériel n° 013/CAB/MIN/FINANCES/2025 du
  * 19/02/2025 (skill fiscalite-rdc/socle, `amortissements-am-013-2025.md`),
  * taux d'amortissement linéaire, entré en vigueur le 01/01/2026. Le SYCEBNL
  * lui-même ne fixe aucune durée chiffrée (« selon les usages de la
- * profession » — COMPTE 28) ; l'arrêté RDC est la source la plus concrète
+ * profession » · COMPTE 28) ; l'arrêté RDC est la source la plus concrète
  * disponible pour un défaut réaliste. Modifiable au cas par cas (art. 4 de
  * l'arrêté : taux dérogatoires possibles si justifiés au contrôle).
  */

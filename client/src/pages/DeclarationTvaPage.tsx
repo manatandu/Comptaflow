@@ -1,8 +1,7 @@
 import { FormEvent, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useExercice } from '../lib/exercice';
-import { useRibbon } from '../components/chrome/ribbon-context';
-import { IconRefresh, IconCheck } from '../components/chrome/icons';
+import { IconCheck } from '../components/chrome/icons';
 import type { DeclarationTva } from '../lib/types';
 
 function premierJourDuMois(): string {
@@ -34,8 +33,6 @@ export function DeclarationTvaPage() {
     }
   };
 
-  useRibbon([{ titre: 'AFFICHAGE', boutons: [{ label: 'Recalculer', Icon: IconRefresh, onClick: () => calculer() }] }]);
-
   const comptabiliserLiquidation = async () => {
     if (!exerciceCourant || !declaration) return;
     if (
@@ -56,7 +53,7 @@ export function DeclarationTvaPage() {
         dateDebut,
         dateFin,
       });
-      setInfo(`Liquidation comptabilisée (pièce n°${resultat.ecriture.numeroPiece ?? '—'}).`);
+      setInfo(`Liquidation comptabilisée (pièce n°${resultat.ecriture.numeroPiece ?? '·'}).`);
       await calculer();
     } catch (err) {
       setErreur(err instanceof ApiError ? err.message : 'Impossible de comptabiliser la liquidation');
@@ -67,7 +64,8 @@ export function DeclarationTvaPage() {
 
   return (
     <div className="p-2.5">
-      <h1 className="text-[15px] font-bold mb-2.5">Déclaration TVA</h1>
+      <div className="text-[10.5px] font-mono text-text-dim">ÉTAT</div>
+      <h1 className="text-[15px] font-bold mb-2.5">Déclaration de TVA</h1>
       <p className="text-[11.5px] text-text-dim mb-3 max-w-[720px]">
         Registre de suivi par taux sur une période : TVA collectée (443) et TVA déductible (445), à partir des
         lignes d'écriture posées par la saisie « Achat/Vente avec TVA ». Le prorata de déduction (art. 43 O.-L.
@@ -106,7 +104,7 @@ export function DeclarationTvaPage() {
 
       {declaration && (
         <>
-          <div className="border border-border max-w-[780px] mb-4">
+          <div className="border border-border bg-surface shadow-posee max-w-[780px] mb-4">
             <div className="grid grid-cols-[80px_1fr_70px_140px_140px_140px] gap-2 px-3.5 py-1.5 bg-chrome border-b border-border text-[10px] font-bold text-text-dim">
               <span>CODE</span><span>INTITULÉ</span><span>TAUX</span><span className="text-right">COLLECTÉE</span><span className="text-right">DÉDUCTIBLE</span><span className="text-right">NET</span>
             </div>

@@ -1,0 +1,324 @@
+import { BadRequestException, Controller, Get, Param, ParseUUIDPipe, Query, Res, UseGuards } from '@nestjs/common';
+import { Response } from 'express';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { LicenceGuard } from '../licence/licence.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
+import { ClasseurExporte, ExportService } from './export.service';
+
+/**
+ * `exerciceId` doit être validé, pas seulement typé : un `@Query` scalaire
+ * n'est pas couvert par le ValidationPipe global, et `undefined` traverse
+ * jusqu'à Prisma qui IGNORE purement et simplement un champ `undefined`.
+ * Le filtre d'exercice disparaîtrait alors sans bruit et l'export
+ * agrégerait TOUS les exercices du dossier en se présentant comme l'état
+ * d'un seul · un état faux et non signalé, ce qui est plus grave qu'une
+ * erreur pour un module destiné à produire des pièces d'audit.
+ */
+const EXERCICE_REQUIS = new ParseUUIDPipe({
+  exceptionFactory: () =>
+    new BadRequestException("Le paramètre exerciceId est requis et doit être un identifiant d'exercice valide"),
+});
+
+const TYPE_XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+/**
+ * Le nom de fichier est décidé par le service (il connaît l'exercice et le
+ * compte concernés, et y ajoute l'année pour que deux exports d'exercices
+ * différents ne s'écrasent pas côté navigateur). Le contrôleur se contente
+ * de le servir.
+ */
+function envoyerXlsx(res: Response, classeur: ClasseurExporte) {
+  res.set({
+    'Content-Type': TYPE_XLSX,
+    'Content-Disposition': `attachment; filename="${classeur.nomFichier}"`,
+    // Sans ça, `fetch` côté client ne voit pas l'en-tête (CORS masque tout
+    // sauf une liste blanche) et ne peut pas reprendre le nom proposé.
+    'Access-Control-Expose-Headers': 'Content-Disposition',
+  });
+  res.send(classeur.buffer);
+}
+
+// RolesGuard est inclus bien qu'aucune route ne porte encore `@Roles` (les
+// exports sont en lecture seule, ouverts aux trois rôles comme les écrans
+// qu'ils reprennent). Sans lui, un futur `@Roles` posé ici serait
+// SILENCIEUSEMENT ignoré · pas d'erreur, pas de 403, la route resterait
+// ouverte à tous. Aligné sur les autres contrôleurs du projet.
+@UseGuards(JwtAuthGuard, LicenceGuard, RolesGuard)
+@Controller('exports')
+export class ExportController {
+  constructor(private readonly exportService: ExportService) {}
+
+  @Get('journal')
+  async journal(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId') exerciceId?: string,
+    @Query('journalId') journalId?: string,
+    @Query('dateDebut') dateDebut?: string,
+    @Query('dateFin') dateFin?: string,
+    @Query('recherche') recherche?: string,
+  ) {
+    envoyerXlsx(
+      res,
+      await this.exportService.journalExcel(user.tenantId, { exerciceId, journalId, dateDebut, dateFin, recherche }),
+    );
+  }
+
+  /** Grand livre complet · tous les comptes mouvementés, un seul classeur. */
+  @Get('grand-livre')
+  async grandLivreComplet(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId') exerciceId?: string,
+  ) {
+    envoyerXlsx(res, await this.exportService.grandLivreCompletExcel(user.tenantId, exerciceId));
+  }
+
+  @Get('grand-livre/:compteId')
+  async grandLivre(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('compteId') compteId: string,
+    @Res() res: Response,
+    @Query('exerciceId') exerciceId?: string,
+  ) {
+    envoyerXlsx(res, await this.exportService.grandLivreExcel(user.tenantId, compteId, exerciceId));
+  }
+
+  @Get('balance')
+  async balance(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    envoyerXlsx(res, await this.exportService.balanceExcel(user.tenantId, exerciceId));
+  }
+
+  /**
+   * LA LIASSE COMPLÈTE · tous les états du jeu retenu par le dossier dans un
+   * seul classeur, précédés d'un sommaire. C'est ce fichier-là qui se dépose
+   * au CPCC ou s'envoie à un bailleur ; les exports unitaires ci-dessous
+   * restent utiles pour retravailler un état isolé.
+   */
+  @Get('etats-financiers/liasse-complete')
+  async liasseComplete(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+    @Query('paiementsEnInstance') paiementsEnInstance?: string,
+  ) {
+    const montant = Number(paiementsEnInstance);
+    envoyerXlsx(
+      res,
+      await this.exportService.liasseCompleteExcel(
+        user.tenantId,
+        exerciceId,
+        Number.isFinite(montant) ? montant : 0,
+      ),
+    );
+  }
+
+  @Get('etats-financiers/bilan')
+  async bilan(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    envoyerXlsx(res, await this.exportService.bilanExcel(user.tenantId, exerciceId));
+  }
+
+  @Get('etats-financiers/compte-de-resultat')
+  async compteDeResultat(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    envoyerXlsx(res, await this.exportService.compteDeResultatExcel(user.tenantId, exerciceId));
+  }
+
+  /** Spécifique au jeu associations (Partie 4, ch. 1 § 4) · voir correspondance-tft.ts. */
+  @Get('etats-financiers/tableau-flux-tresorerie')
+  async tableauFluxTresorerie(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    envoyerXlsx(res, await this.exportService.tableauFluxTresorerieExcel(user.tenantId, exerciceId));
+  }
+
+  /** Jeu « projets de développement et assimilés » (Partie 4, ch. 3). */
+  @Get('etats-financiers/projet/bilan')
+  async bilanProjet(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    envoyerXlsx(res, await this.exportService.bilanProjetExcel(user.tenantId, exerciceId));
+  }
+
+  @Get('etats-financiers/projet/compte-exploitation')
+  async compteExploitationProjet(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    envoyerXlsx(res, await this.exportService.compteExploitationProjetExcel(user.tenantId, exerciceId));
+  }
+
+  /** Comptabilité analytique par projet/bailleur (docs/plan-de-construction.md item 14). */
+  @Get('etats-financiers/projet/note-bailleur')
+  async noteBailleur(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    envoyerXlsx(res, await this.exportService.noteBailleurExcel(user.tenantId, exerciceId));
+  }
+
+  /** Les trois tableaux du point 2 de l'article 14 (guide d'application, ch. 7). */
+  @Get('etats-financiers/projet/emplois-ressources')
+  async emploisRessources(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    envoyerXlsx(res, await this.exportService.emploisRessourcesExcel(user.tenantId, exerciceId));
+  }
+
+  @Get('etats-financiers/projet/execution-budgetaire')
+  async executionBudgetaire(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    envoyerXlsx(res, await this.exportService.executionBudgetaireExcel(user.tenantId, exerciceId));
+  }
+
+  @Get('etats-financiers/projet/reconciliation-tresorerie')
+  async reconciliationTresorerie(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+    @Query('paiementsEnInstance') paiementsEnInstance?: string,
+  ) {
+    const montant = Number(paiementsEnInstance);
+    envoyerXlsx(
+      res,
+      await this.exportService.reconciliationTresorerieExcel(
+        user.tenantId,
+        exerciceId,
+        Number.isFinite(montant) ? montant : 0,
+      ),
+    );
+  }
+
+  // -------------------------------------------------------------------------
+  // Jeu « Système Minimal de Trésorerie » (Partie 4, ch. 4) · un export par
+  // onglet de l'écran, comme les deux autres jeux ont un export par état.
+  // -------------------------------------------------------------------------
+
+  @Get('etats-financiers/smt/bilan')
+  async bilanSmt(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    envoyerXlsx(res, await this.exportService.bilanSmtExcel(user.tenantId, exerciceId));
+  }
+
+  @Get('etats-financiers/smt/compte-de-resultat')
+  async compteDeResultatSmt(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    envoyerXlsx(res, await this.exportService.compteDeResultatSmtExcel(user.tenantId, exerciceId));
+  }
+
+  @Get('etats-financiers/smt/journal-tresorerie')
+  async journalTresorerieSmt(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    envoyerXlsx(res, await this.exportService.journalTresorerieSmtExcel(user.tenantId, exerciceId));
+  }
+
+  @Get('etats-financiers/smt/notes')
+  async notesSmt(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    envoyerXlsx(res, await this.exportService.notesSmtExcel(user.tenantId, exerciceId));
+  }
+
+  @Get('etats-financiers/smt/eligibilite')
+  async eligibiliteSmt(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    envoyerXlsx(res, await this.exportService.eligibiliteSmtExcel(user.tenantId, exerciceId));
+  }
+
+  /** Notes annexes du jeu « associations et ordres professionnels » · 45 notes, une feuille par tableau applicable. */
+  @Get('notes-annexes/associations')
+  async notesAssociations(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    envoyerXlsx(res, await this.exportService.notesAssociationsExcel(user.tenantId, exerciceId));
+  }
+
+  /**
+   * Registre des donateurs (art. 17) et constatations de conformité (art. 18).
+   * Le classeur est destiné à être imprimé et présenté : l'art. 17 admet la
+   * « version électronique » mais la version physique reste « cotée, paraphée
+   * et numérotée de façon continue par la juridiction compétente ».
+   */
+  @Get('registre-donateurs')
+  async registreDonateurs(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    envoyerXlsx(res, await this.exportService.registreDonateursExcel(user.tenantId, exerciceId));
+  }
+
+  /**
+   * Livre d'inventaire (art. 14). Les états y sont RELUS depuis la
+   * transcription, jamais recalculés : un classeur qui les régénérerait
+   * produirait, à partir du même livre, deux documents différents à deux
+   * dates différentes.
+   */
+  @Get('livre-inventaire')
+  async livreInventaire(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    envoyerXlsx(res, await this.exportService.livreInventaireExcel(user.tenantId, exerciceId));
+  }
+
+  /** Rapport d'activité (art. 16-3) · quatre sections, section vide signalée. */
+  @Get('rapport-activite')
+  async rapportActivite(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    envoyerXlsx(res, await this.exportService.rapportActiviteExcel(user.tenantId, exerciceId));
+  }
+
+  /** Notes annexes du jeu « projets de développement et assimilés » · 26 notes. */
+  @Get('notes-annexes/projet')
+  async notesProjet(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    envoyerXlsx(res, await this.exportService.notesProjetExcel(user.tenantId, exerciceId));
+  }
+}

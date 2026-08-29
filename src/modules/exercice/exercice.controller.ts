@@ -32,6 +32,11 @@ export class ExerciceController {
     return this.exerciceService.cloturer(user.tenantId, id, user.userId);
   }
 
+  @Get(':id/planning-cloture')
+  async planningCloture(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.exerciceService.planningCloture(user.tenantId, id);
+  }
+
   @Get(':id/clotures')
   async listerClotures(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return this.exerciceService.listerClotures(user.tenantId, id);

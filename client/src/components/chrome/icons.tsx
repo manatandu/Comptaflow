@@ -1,6 +1,6 @@
 /**
  * Icônes SVG inline, tracé simple, cohérentes avec le canevas de design
- * validé — jamais d'emoji, jamais d'icon font.
+ * validé · jamais d'emoji, jamais d'icon font.
  */
 import type { SVGProps } from 'react';
 
@@ -80,4 +80,20 @@ export const IconLock = (p: SVGProps<SVGSVGElement>) => (
 );
 export const IconUsers = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}><circle cx="9" cy="8" r="3.2" /><path d="M3 20v-1.5A4.5 4.5 0 017.5 14h3A4.5 4.5 0 0115 18.5V20" /><circle cx="17" cy="9" r="2.6" /><path d="M15.5 14.2A4 4 0 0121 18v2" /></svg>
+);
+/** Balance (l'état) · deux plateaux. */
+export const IconBalance = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}><path d="M12 4v16M8 20h8M12 6l-6 2m6-2l6 2M6 8l-2.5 6a3 3 0 005 0L6 8zM18 8l-2.5 6a3 3 0 005 0L18 8z" /></svg>
+);
+/** Banque / rapprochement bancaire · fronton à colonnes. */
+export const IconBanque = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}><path d="M3 9l9-5 9 5M4 9h16M6 9v8M10 9v8M14 9v8M18 9v8M4 17h16M3 20h18" /></svg>
+);
+/** Immobilisation · machine/bâtiment stylisé. */
+export const IconImmo = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}><path d="M3 20h18M5 20V9h6v11M11 13h8v7M8 12v.01M8 16v.01M14 16h2" /></svg>
+);
+/** Grille de saisie · tableau à lignes et colonnes. */
+export const IconGrille = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}><rect x="3" y="4" width="18" height="16" rx="1" /><path d="M3 9h18M3 14h18M9 4v16" /></svg>
 );

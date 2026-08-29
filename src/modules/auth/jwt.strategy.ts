@@ -15,7 +15,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: config.get<string>('JWT_SECRET') ?? 'change-me',
+      // Pas de repli sur une valeur littérale : `validateEnv` (app.module.ts)
+      // fait déjà échouer le démarrage si JWT_SECRET est absent · un repli
+      // silencieux ici aurait permis de vérifier des jetons forgés avec une
+      // chaîne connue si la validation était un jour contournée ou retirée par
+      // erreur (défense en profondeur : la garantie doit tenir même sans
+      // relire tout l'historique du projet).
+      secretOrKey: config.getOrThrow<string>('JWT_SECRET'),
     });
   }
 
@@ -24,7 +30,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
    * On ne fait PAS confiance à `email`/`role` du payload : ils sont relus en
    * base à chaque requête, pour qu'une désactivation ou un changement de
    * rôle prenne effet immédiatement, sans attendre l'expiration du token
-   * (jusqu'à 8h — voir JWT_EXPIRES_IN).
+   * (jusqu'à 8h · voir JWT_EXPIRES_IN).
    */
   async validate(payload: JwtPayload): Promise<AuthenticatedUser> {
     const user = await this.prisma.user.findUnique({ where: { id: payload.sub } });

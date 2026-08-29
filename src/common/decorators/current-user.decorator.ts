@@ -10,7 +10,7 @@ export interface AuthenticatedUser {
 /**
  * Raccourci pour lire l'utilisateur authentifié posé sur `request.user` par
  * JwtStrategy. Évite le `@Req() request: any` + cast répété dans chaque
- * contrôleur — pose la même convention partout.
+ * contrôleur · pose la même convention partout.
  */
 export const CurrentUser = createParamDecorator((_: unknown, ctx: ExecutionContext): AuthenticatedUser => {
   const request = ctx.switchToHttp().getRequest();

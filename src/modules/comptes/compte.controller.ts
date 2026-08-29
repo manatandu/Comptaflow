@@ -21,7 +21,7 @@ export class CompteController {
     @Query('classe') classe?: ClasseCompte,
     @Query('recherche') recherche?: string,
     @Query('actifsSeuls') actifsSeuls?: string,
-    // Filtre les comptes Total (regroupement, §3.1) — utile aux sélecteurs
+    // Filtre les comptes Total (regroupement, §3.1) · utile aux sélecteurs
     // de saisie, qui ne doivent proposer que des comptes mouvementables
     // (EcritureService.creer rejette de toute façon une écriture sur un
     // compte Total, mais autant ne pas le proposer dans la liste).

@@ -1,11 +1,11 @@
-# sycebnl-suite (nom provisoire — à renommer en "Compta Flow" sur GitHub)
+# sycebnl-suite (nom provisoire · à renommer en "Compta Flow" sur GitHub)
 
-Logiciel comptable professionnel spécialisé **OHADA / SYCEBNL** — un ERP comptable plus
+Logiciel comptable professionnel spécialisé **OHADA / SYCEBNL** · un ERP comptable plus
 large qu'un Sage généraliste, vendu en deux modèles commerciaux : abonnement (coupure
 automatique à échéance) et licence perpétuelle (SaaS hébergé ou installable on-premise).
 
 Direction visuelle : dense et professionnelle (barre de titre, barre de menus, ruban à
-onglets/groupes, arborescence de navigation, grilles à lignes alternées) — délibérément à
+onglets/groupes, arborescence de navigation, grilles à lignes alternées) · délibérément à
 l'opposé du "look SaaS générique", pour signaler un outil sérieux plutôt qu'une app grand
 public. Voir le canevas de design validé pour la référence exacte.
 
@@ -16,7 +16,7 @@ l'outil pédagogique OHADA/AUDCIF pour étudiants.
 
 Un grand livre légal exige des écritures en partie double équilibrées, des exercices
 verrouillables à la clôture, et des requêtes de reporting transactionnelles (balance,
-grand livre filtré, états financiers) — des garanties ACID et des jointures que le
+grand livre filtré, états financiers) · des garanties ACID et des jointures que le
 NoSQL documentaire gère mal. Firestore reste très bien adapté à `compta-edu` (contenu
 pédagogique), mais pas ici.
 
@@ -24,7 +24,7 @@ pédagogique), mais pas ici.
 
 - Backend : Node.js + NestJS + TypeScript + Prisma + PostgreSQL
 - Frontend : React + TypeScript + Vite + Tailwind (`client/`)
-- Auth : JWT (Passport, bcrypt) — voir `src/modules/auth/`
+- Auth : JWT (Passport, bcrypt) · voir `src/modules/auth/`
 
 ## Structure
 
@@ -36,7 +36,7 @@ src/modules/auth/                 Inscription (tenant+admin+licence+plan de comp
 src/modules/comptes/               Plan de comptes SYCEBNL (CRUD + seed automatique à l'inscription)
 src/modules/exercice/              Exercices comptables (création, clôture)
 src/modules/comptabilite/          Écritures (partie double), journal, grand livre, balance
-src/modules/etats-financiers/      Bilan associatif (⚠ regroupement simplifié — voir le fichier)
+src/modules/etats-financiers/      Bilan associatif (⚠ regroupement simplifié · voir le fichier)
 client/src/components/chrome/      Ruban, arborescence de navigation, barre de statut (chrome partagé)
 client/src/pages/                  Connexion, inscription, tableau de bord, saisie guidée, plan de
                                     comptes, journal/grand livre/balance, états financiers
@@ -63,24 +63,24 @@ Voir `src/modules/licence/licence.service.ts` pour la logique d'autorisation.
 - **Transaction d'inscription non atomique** : la création tenant+licence+user et le
   seed du plan de comptes ne sont pas dans la même transaction DB (voir le commentaire
   dans `auth.service.ts`).
-- **Un seul exercice géré côté frontend** (le premier `OUVERT`) — le multi-exercice
+- **Un seul exercice géré côté frontend** (le premier `OUVERT`) · le multi-exercice
   UI (sélecteur, historique) est prévu en Phase 2/3.
 - **Saisie guidée à 4 modèles** (don, cotisation, achat, salaire) câblés sur les 11
-  comptes seedés — pas encore un formulaire d'écriture libre pour un comptable qui
+  comptes seedés · pas encore un formulaire d'écriture libre pour un comptable qui
   voudrait sortir de ces gabarits (prévu avec le développement du plan de comptes
   personnalisable).
 
 ## Roadmap
 
-- ✅ **Phase 0** — fondations : schéma Prisma, multi-tenant, licence, squelette NestJS
-- ✅ **Phase 1** — MVP SYCEBNL en SaaS abonnement : auth JWT, plan de comptes, saisie
+- ✅ **Phase 0** · fondations : schéma Prisma, multi-tenant, licence, squelette NestJS
+- ✅ **Phase 1** · MVP SYCEBNL en SaaS abonnement : auth JWT, plan de comptes, saisie
   guidée, journal, grand livre, balance, bilan associatif (simplifié), frontend dense
   fidèle au canevas de design validé
-- **Phase 2** — option licence perpétuelle SaaS, facturation/abonnement, relances,
+- **Phase 2** · option licence perpétuelle SaaS, facturation/abonnement, relances,
   bilan conforme au tableau de correspondance officiel SYCEBNL
-- **Phase 3** — extension SYSCOHADA (entreprises) : plan de comptes, facturation, immobilisations, trésorerie
-- **Phase 4** — version on-premise (packaging, licence anti-piratage, updates manuelles)
-- **Phase 5** — paie (barèmes RDC), déclarations fiscales (TVA, IS/IRPP), multi-devises/multi-entités, tableaux de bord
+- **Phase 3** · extension SYSCOHADA (entreprises) : plan de comptes, facturation, immobilisations, trésorerie
+- **Phase 4** · version on-premise (packaging, licence anti-piratage, updates manuelles)
+- **Phase 5** · paie (barèmes RDC), déclarations fiscales (TVA, IS/IRPP), multi-devises/multi-entités, tableaux de bord
 
 ## Démarrage
 
@@ -101,5 +101,5 @@ npm install
 npm run dev             # http://localhost:5173 (VITE_API_URL par défaut : http://localhost:3000)
 ```
 
-Ouvrir `http://localhost:5173/#/inscription` pour créer une première entité — le plan
+Ouvrir `http://localhost:5173/#/inscription` pour créer une première entité · le plan
 de comptes SYCEBNL et l'exercice courant sont générés automatiquement.

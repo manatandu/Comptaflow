@@ -1,4 +1,4 @@
-# Immobilisations — modèle Sage Immobilisations i7
+# Immobilisations · modèle Sage Immobilisations i7
 
 Sources principales : document #3 (support de formation complet, 6 séances) et #18
 (manuel de référence, section gestion des composants et CRC 2002/IFRS).
@@ -34,7 +34,7 @@ Module séparé chez Sage (fichier `.IMO` propre), lié au fichier comptable `.M
 manuel de référence)
 
 - Un bien **"Composé"/"Nomenclature"** peut être décomposé en plusieurs
-  **"Composants"**, chacun avec son propre plan d'amortissement (durée, méthode) —
+  **"Composants"**, chacun avec son propre plan d'amortissement (durée, méthode) ·
   recommandé pour les ensembles hétérogènes : un bâtiment décomposé en toiture,
   chauffage, étanchéité, ravalement ; un avion en structure, moteurs, sièges.
 - Un "Composé" intègre au moins un bien de type Composant associé à une immobilisation
@@ -45,14 +45,14 @@ manuel de référence)
 ## Amortissement dérogatoire (fiscal vs comptable)
 
 - Quand l'amortissement fiscal (dégressif) est supérieur à l'amortissement comptable
-  (linéaire), l'excédent doit être porté en "provisions réglementées" — c'est
+  (linéaire), l'excédent doit être porté en "provisions réglementées" · c'est
   l'amortissement dérogatoire.
 - Quand l'amortissement fiscal est inférieur au comptable, ce dernier reste en
   écritures et la différence fait l'objet d'une réintégration fiscale extra-comptable.
 - **Plan d'amortissement "natif"** : un plan de référence distinct des plans
   National/IFRS, non affecté par les cessions partielles (sauf fractionnement/fusion),
   utilisé comme **plafond de contrôle** pour la reprise des amortissements
-  dérogatoires — empêche la survalorisation fiscale.
+  dérogatoires · empêche la survalorisation fiscale.
 - Probablement hors scope SYCEBNL immédiat (associations à but non lucratif) ; plus
   pertinent pour un futur volet SYSCOHADA entreprises.
 

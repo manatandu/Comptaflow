@@ -1,0 +1,5 @@
+-- CreateEnum
+CREATE TYPE "JeuEtatsFinanciersSycebnl" AS ENUM ('ASSOCIATIONS_ORDRES_PROFESSIONNELS', 'PROJETS_DEVELOPPEMENT');
+
+-- AlterTable
+ALTER TABLE "tenants" ADD COLUMN     "jeuEtatsFinanciersSycebnl" "JeuEtatsFinanciersSycebnl" NOT NULL DEFAULT 'ASSOCIATIONS_ORDRES_PROFESSIONNELS';

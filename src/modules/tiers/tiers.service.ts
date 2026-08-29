@@ -12,7 +12,7 @@ import {
 /**
  * Tiers (cf. docs/plan-de-construction.md §3.2) : Client/Fournisseur/Salarié/
  * Autre, avec un ou plusieurs comptes généraux rattachés (dont un Principal)
- * et un modèle de règlement optionnel. Dépend du Lettrage déjà livré — le
+ * et un modèle de règlement optionnel. Dépend du Lettrage déjà livré · le
  * suivi par tiers n'a de sens que parce que le solde réel (mouvements non
  * lettrés) est calculable.
  */
@@ -27,7 +27,7 @@ export class TiersService {
         modeleReglement: true,
         // orderBy explicite : sans lui, Postgres ne garantit aucun ordre
         // stable, et l'ordre peut visiblement changer après un simple UPDATE
-        // (ex. bascule du compte Principal) — repéré en testant le bouton
+        // (ex. bascule du compte Principal) · repéré en testant le bouton
         // "Détacher" dans l'UI (la ligne visée changeait de position).
         comptesRattaches: { include: { compte: true }, orderBy: { createdAt: 'asc' } },
       },
@@ -58,7 +58,7 @@ export class TiersService {
         modeleReglement: true,
         // orderBy explicite : sans lui, Postgres ne garantit aucun ordre
         // stable, et l'ordre peut visiblement changer après un simple UPDATE
-        // (ex. bascule du compte Principal) — repéré en testant le bouton
+        // (ex. bascule du compte Principal) · repéré en testant le bouton
         // "Détacher" dans l'UI (la ligne visée changeait de position).
         comptesRattaches: { include: { compte: true }, orderBy: { createdAt: 'asc' } },
       },
@@ -91,7 +91,7 @@ export class TiersService {
 
   /**
    * Rattache un compte à ce tiers. Un compte ne peut être rattaché qu'à un
-   * seul tiers à la fois (contrainte @unique sur TiersCompte.compteId — voir
+   * seul tiers à la fois (contrainte @unique sur TiersCompte.compteId · voir
    * schéma) ; s'il est marqué Principal, tout autre compte Principal de ce
    * tiers perd cette marque (un seul Principal à la fois).
    */
@@ -145,7 +145,7 @@ export class TiersService {
   }
 
   // -----------------------------------------------------------------------
-  // Modèles de règlement — entité réutilisable entre tiers (§3.2).
+  // Modèles de règlement · entité réutilisable entre tiers (§3.2).
   // -----------------------------------------------------------------------
 
   private async trouverModeleReglement(tenantId: string, id: string) {
@@ -180,10 +180,10 @@ export class TiersService {
   }
 
   // -----------------------------------------------------------------------
-  // Fractionnement en plusieurs échéances (§3.2 — pattern Sage : type
+  // Fractionnement en plusieurs échéances (§3.2 · pattern Sage : type
   // pourcentage/équilibre/montant + délai + condition, par échéance). Un
   // modèle sans aucune ligne ici reste mono-échéance (delaiJours/echeance du
-  // modèle lui-même) — voir calculerEcheances().
+  // modèle lui-même) · voir calculerEcheances().
   // -----------------------------------------------------------------------
 
   async listerEcheances(tenantId: string, modeleId: string) {
@@ -201,7 +201,7 @@ export class TiersService {
     const existantes = await this.prisma.echeanceReglement.findMany({ where: { modeleReglementId: modeleId } });
 
     if (dto.type === TypeEcheance.EQUILIBRE && existantes.some((e) => e.type === TypeEcheance.EQUILIBRE)) {
-      throw new ConflictException('Ce modèle a déjà une échéance de type Équilibre — une seule est autorisée');
+      throw new ConflictException('Ce modèle a déjà une échéance de type Équilibre · une seule est autorisée');
     }
     if (dto.type === TypeEcheance.POURCENTAGE) {
       const sommeExistante = existantes
@@ -257,7 +257,7 @@ export class TiersService {
    * Calcule l'échéancier d'un modèle pour une facture donnée : une seule
    * échéance (100 % à delaiJours/echeance du modèle) si aucune ligne
    * `EcheanceReglement` n'existe, sinon le détail par échéance dans l'ordre.
-   * Pure fonction de simulation — ne persiste rien, aucune facture réelle
+   * Pure fonction de simulation · ne persiste rien, aucune facture réelle
    * n'existe encore dans le modèle de données pour rattacher un échéancier.
    */
   async calculerEcheances(tenantId: string, modeleId: string, dto: CalculerEcheancesDto) {
@@ -284,7 +284,7 @@ export class TiersService {
       let montant: number;
       if (e.type === TypeEcheance.EQUILIBRE || i === echeances.length - 1) {
         // La dernière échéance absorbe toujours le reste, même si elle
-        // n'est pas explicitement de type EQUILIBRE — évite qu'un écart
+        // n'est pas explicitement de type EQUILIBRE · évite qu'un écart
         // d'arrondi sur les pourcentages laisse un centime non réparti.
         montant = Math.round(reste * 100) / 100;
       } else if (e.type === TypeEcheance.POURCENTAGE) {

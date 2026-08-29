@@ -7,24 +7,19 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
-import {
-  GranulariteCloture,
-  ModeReportANouveau,
-  Prisma,
-  StatutExercice,
-  TypeJournal,
-} from '@prisma/client';
+import { GranulariteCloture, ModeReportANouveau, Prisma, StatutEcriture, StatutExercice, TypeJournal } from '@prisma/client';
 import { CreerExerciceDto } from './dto/creer-exercice.dto';
 import { ClorePartielleDto, CloreTotaleDto, ClorePeriodeDto } from './dto/cloture.dto';
 import { JournalService } from '../journaux/journal.service';
 import { avecRetrySerialisable } from '../../common/prisma-retry.util';
+import { DERNIERE_VERIFICATION, dateJalon, jalonsApplicables } from './planning-cloture';
 
 const EPSILON = 0.005;
 
 /**
  * Cycle de vie complet de l'exercice (docs/plan-de-construction.md §3.1) :
  * - 3 granularités de clôture (Partielle/Totale/Période), qui verrouillent la
- *   saisie sans rien générer — voir clorePartielle/cloreTotale/clorePeriode
+ *   saisie sans rien générer · voir clorePartielle/cloreTotale/clorePeriode
  *   et verifierEcritureAutorisee (consulté par EcritureService.creer).
  * - la clôture ANNUELLE de l'exercice (cloturer), distincte, qui solde les
  *   classes 6/7 sur le résultat et génère le report à-nouveau réel dans
@@ -62,6 +57,114 @@ export class ExerciceService {
     return this.prisma.exercice.create({ data: { tenantId, dateDebut, dateFin } });
   }
 
+  /**
+   * Planning de clôture de l'exercice · les seize jalons de
+   * planning-cloture.ts, datés à partir de la date de clôture de CET
+   * exercice, augmentés de ce qu'OmegaX sait observer tout seul.
+   *
+   * L'observation est le point : un planning statique est une affiche, un
+   * planning qui sait qu'il reste douze écritures au brouillard est un outil.
+   * Elle ne couvre que les jalons vérifiables en base ; les autres restent
+   * des cases que le comptable coche dans sa tête, et le disent.
+   *
+   * Les échéances légales sont indicatives et sourcées : elles viennent d'un
+   * cours du CPCC de novembre 2020, antérieur au SYCEBNL, et n'ont pas été
+   * reverifiées sur texte primaire (les textes congolais ne sont pas
+   * accessibles depuis cet environnement). Voir docs/organisation-comptable-cpcc.md
+   * § 6. Le logiciel ne calcule aucune astreinte.
+   */
+  async planningCloture(tenantId: string, exerciceId: string) {
+    const exercice = await this.trouverExercice(tenantId, exerciceId);
+    const tenant = await this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId } });
+
+    const [enBrouillard, transcriptions, rapports, donations] = await Promise.all([
+      this.prisma.ecriture.count({ where: { tenantId, exerciceId, statut: StatutEcriture.BROUILLARD } }),
+      this.prisma.transcriptionInventaire.count({ where: { tenantId, exerciceId } }),
+      this.prisma.rapportActivite.count({ where: { tenantId, exerciceId } }),
+      this.prisma.donation.findMany({
+        where: {
+          tenantId,
+          annulee: false,
+          dateOperation: { gte: exercice.dateDebut, lte: exercice.dateFin },
+        },
+        select: { signeeLe: true },
+      }),
+    ]);
+    const donationsNonSignees = donations.filter((d) => d.signeeLe === null).length;
+
+    const observations: Record<string, { libelle: string; satisfait: boolean }> = {
+      BROUILLARD: {
+        libelle:
+          enBrouillard === 0
+            ? 'Aucune écriture au brouillard'
+            : `${enBrouillard} écriture(s) encore au brouillard, à valider avant la balance`,
+        satisfait: enBrouillard === 0,
+      },
+      INVENTAIRE: {
+        libelle:
+          transcriptions === 0
+            ? 'Aucune transcription au livre d’inventaire'
+            : `${transcriptions} transcription(s) au livre d’inventaire`,
+        satisfait: transcriptions > 0,
+      },
+      RAPPORT_ACTIVITE: {
+        libelle: rapports === 0 ? 'Aucun rapport d’activité établi' : `${rapports} version(s) du rapport d’activité`,
+        satisfait: rapports > 0,
+      },
+      DONATEURS: {
+        libelle:
+          donations.length === 0
+            ? 'Aucune libéralité enregistrée sur l’exercice'
+            : donationsNonSignees === 0
+              ? `${donations.length} libéralité(s), toutes signées`
+              : `${donations.length} libéralité(s) dont ${donationsNonSignees} non signée(s)`,
+        // Un registre vide est un registre en règle : rien n'oblige une
+        // association à recevoir des dons. Ce qui n'est pas en règle, c'est
+        // une libéralité inscrite et non signée (art. 18).
+        satisfait: donationsNonSignees === 0,
+      },
+      CLOTURE_ANNUELLE: {
+        libelle:
+          exercice.statut === StatutExercice.CLOTURE ? 'Exercice clôturé' : 'Exercice encore ouvert',
+        satisfait: exercice.statut === StatutExercice.CLOTURE,
+      },
+    };
+
+    const aujourdHui = new Date();
+    return {
+      exerciceId: exercice.id,
+      dateDebut: exercice.dateDebut,
+      dateFin: exercice.dateFin,
+      statut: exercice.statut,
+      derniereVerification: DERNIERE_VERIFICATION,
+      // Le planning n'est pas le même pour une ASBL, une ONG et une entreprise
+      // commerciale : voir jalonsApplicables et son commentaire.
+      formeJuridique: tenant.formeJuridique,
+      droitEtranger: tenant.droitEtranger,
+      jalons: jalonsApplicables({
+        referentiel: tenant.referentiel,
+        formeJuridique: tenant.formeJuridique,
+        droitEtranger: tenant.droitEtranger,
+      }).map((j) => {
+        const echeance = dateJalon(exercice.dateFin, j.echeance);
+        const observation = j.observation ? observations[j.observation] : undefined;
+        return {
+          etape: j.etape,
+          libelle: j.libelle,
+          detail: j.detail,
+          nature: j.nature,
+          source: j.source,
+          debut: dateJalon(exercice.dateFin, j.debut),
+          echeance,
+          // « En retard » n'a de sens que pour un jalon non satisfait : une
+          // étape faite reste faite, même après la date.
+          enRetard: echeance < aujourdHui && !(observation?.satisfait ?? false),
+          observation,
+        };
+      }),
+    };
+  }
+
   private async trouverExercice(tenantId: string, exerciceId: string) {
     const exercice = await this.prisma.exercice.findFirst({ where: { id: exerciceId, tenantId } });
     if (!exercice) {
@@ -71,7 +174,7 @@ export class ExerciceService {
   }
 
   // ---------------------------------------------------------------------
-  // Clôtures (Partielle/Totale/Période) — verrouillage de saisie, réversible
+  // Clôtures (Partielle/Totale/Période) · verrouillage de saisie, réversible
   // uniquement pour la Partielle.
   // ---------------------------------------------------------------------
 
@@ -165,11 +268,11 @@ export class ExerciceService {
     });
     for (const c of clotures) {
       if (c.granularite === GranulariteCloture.TOTALE && c.journalId === journalId) {
-        throw new ForbiddenException('Ce journal est clôturé totalement — aucune écriture n\'y est plus possible.');
+        throw new ForbiddenException('Ce journal est clôturé totalement · aucune écriture n\'y est plus possible.');
       }
       if (c.granularite === GranulariteCloture.PARTIELLE && c.journalId === journalId && date <= c.dateLimite) {
         throw new ForbiddenException(
-          `Ce journal est clôturé partiellement jusqu'au ${c.dateLimite.toISOString().slice(0, 10)} — aucune écriture ne peut plus y être datée à cette période ou avant.`,
+          `Ce journal est clôturé partiellement jusqu'au ${c.dateLimite.toISOString().slice(0, 10)} · aucune écriture ne peut plus y être datée à cette période ou avant.`,
         );
       }
       if (c.granularite === GranulariteCloture.PERIODE && date <= c.dateLimite) {
@@ -183,16 +286,16 @@ export class ExerciceService {
   /**
    * Compte 13 réel (§ COMPTE 13, skill sycebnl `partie2-ch3-classe1-comptes10-19.md`) :
    * "131 Résultat net de l'exercice : Excédent" (solde créditeur) ou "139 ...
-   * Déficit" (solde débiteur) — il n'existe PAS de compte 130 générique dans
+   * Déficit" (solde débiteur) · il n'existe PAS de compte 130 générique dans
    * le plan officiel. Choisi par le signe une fois `deltaResultat` connu.
    *
    * ⚠️ Trouvé et corrigé lors de l'audit rétroactif "chaque brique ancrée aux
    * référentiels" (docs/plan-de-construction.md §2.6) : la clôture postait
    * jusqu'ici le résultat sur un compte "13000000" fictif, jamais présent
-   * dans le plan de comptes officiel SYCEBNL — les vrais comptes 131/139,
+   * dans le plan de comptes officiel SYCEBNL · les vrais comptes 131/139,
    * pourtant déjà seedés (compte-seed.ts), n'étaient jamais utilisés.
    *
-   * Ces comptes doivent exister (seedés à l'inscription) — s'ils manquent,
+   * Ces comptes doivent exister (seedés à l'inscription) · s'ils manquent,
    * c'est une anomalie de configuration du dossier à signaler clairement,
    * pas à corriger silencieusement en recréant un compte hors nomenclature.
    */
@@ -202,7 +305,7 @@ export class ExerciceService {
     const compte = await tx.compte.findUnique({ where: { tenantId_numero: { tenantId, numero } } });
     if (!compte) {
       throw new BadRequestException(
-        `Compte ${numero} (${intitule}) introuvable pour ce dossier — nécessaire pour clôturer l'exercice. Le plan de comptes SYCEBNL de ce dossier semble incomplet ou avoir été modifié.`,
+        `Compte ${numero} (${intitule}) introuvable pour ce dossier · nécessaire pour clôturer l'exercice. Le plan de comptes SYCEBNL de ce dossier semble incomplet ou avoir été modifié.`,
       );
     }
     return compte;
@@ -210,14 +313,14 @@ export class ExerciceService {
 
   /**
    * Clôture ANNUELLE de l'exercice : solde les comptes en mode AUCUN (charges/
-   * produits, et comptes créditeurs/débiteurs de la classe 8 — même règle que
+   * produits, et comptes créditeurs/débiteurs de la classe 8 · même règle que
    * le fonctionnement officiel du compte 13, skill sycebnl) sur le compte de
    * résultat réel (131 Excédent ou 139 Déficit selon le signe), puis génère
    * le report à-nouveau réel dans l'exercice suivant (créé automatiquement
    * s'il n'existe pas encore) selon le mode de chaque compte restant (Solde =
    * un seul solde net, Détail = chaque mouvement non lettré individuellement).
    * Les deux écritures générées sont, par construction comptable (partie
-   * double), toujours équilibrées — un déséquilibre ici signalerait un bug,
+   * double), toujours équilibrées · un déséquilibre ici signalerait un bug,
    * pas une donnée utilisateur invalide, d'où l'InternalServerErrorException
    * plutôt qu'un simple rejet de saisie.
    *
@@ -227,13 +330,28 @@ export class ExerciceService {
    * organes compétents, pas reporté indéfiniment sur lui-même. Faute de cette
    * brique, le solde de 131/139 continue aujourd'hui à s'accumuler d'exercice
    * en exercice via le report à-nouveau (mode SOLDE, comme tout compte de
-   * bilan) au lieu d'être remis à zéro par une affectation — signalé ici
+   * bilan) au lieu d'être remis à zéro par une affectation · signalé ici
    * explicitement plutôt que laissé silencieux (règle §2.6).
    */
   async cloturer(tenantId: string, exerciceId: string, userId: string) {
     const exercice = await this.trouverExercice(tenantId, exerciceId);
     if (exercice.statut === StatutExercice.CLOTURE) {
       throw new ForbiddenException('Cet exercice est déjà clôturé');
+    }
+
+    // Rien ne doit rester en brouillard au moment de clôturer : la clôture
+    // solde les comptes de gestion et génère le report à-nouveau à partir des
+    // soldes du livre-journal. Une écriture restée en brouillard n'y figure
+    // pas · elle serait purement et simplement perdue du résultat, et son
+    // exercice serait clos avant qu'elle n'ait pu y entrer.
+    const enBrouillard = await this.prisma.ecriture.count({
+      where: { tenantId, exerciceId, statut: StatutEcriture.BROUILLARD },
+    });
+    if (enBrouillard > 0) {
+      throw new BadRequestException(
+        `${enBrouillard} écriture(s) sont encore en brouillard sur cet exercice. Validez-les ou supprimez-les avant ` +
+          "de clôturer : la clôture ne lit que le livre-journal, et ce qui reste en brouillard serait perdu du résultat.",
+      );
     }
 
     return avecRetrySerialisable(
@@ -246,7 +364,7 @@ export class ExerciceService {
         const solde = (c: (typeof comptes)[number]) =>
           c.lignesEcriture.reduce((s, l) => s + Number(l.debit) - Number(l.credit), 0);
 
-        // Journal support des écritures générées — on réutilise le journal
+        // Journal support des écritures générées · on réutilise le journal
         // général existant (code OD, "Opérations diverses") plutôt que
         // d'introduire un 6e type de journal pour ce seul usage.
         const journal =
@@ -266,10 +384,10 @@ export class ExerciceService {
         for (const c of comptesAucun) {
           const s = solde(c);
           if (s > 0) {
-            lignesCloture.push({ compteId: c.id, debit: 0, credit: s, libelle: `Clôture ${c.numero} — ${c.intitule}` });
+            lignesCloture.push({ compteId: c.id, debit: 0, credit: s, libelle: `Clôture ${c.numero} · ${c.intitule}` });
             totalDebitResultat += s;
           } else {
-            lignesCloture.push({ compteId: c.id, debit: -s, credit: 0, libelle: `Clôture ${c.numero} — ${c.intitule}` });
+            lignesCloture.push({ compteId: c.id, debit: -s, credit: 0, libelle: `Clôture ${c.numero} · ${c.intitule}` });
             totalCreditResultat += -s;
           }
         }
@@ -279,25 +397,33 @@ export class ExerciceService {
         if (lignesCloture.length > 0) {
           // Signe connu AVANT de choisir le compte : débit > crédit sur les
           // comptes de gestion fermés = déficit (compte 139), sinon excédent
-          // (compte 131) — voir le commentaire de trouverCompteResultat.
+          // (compte 131) · voir le commentaire de trouverCompteResultat.
           // Ligne unique nette (pas debit ET credit à la fois sur la même
           // ligne comme l'ancien code le faisait) : plus proche d'une
           // écriture réelle, et évite de gonfler artificiellement les deux
           // colonnes du journal pour ce compte.
           deltaResultat = totalDebitResultat - totalCreditResultat;
-          const compteResultat = await this.trouverCompteResultat(tenantId, tx, deltaResultat > 0);
-          compteResultatId = compteResultat.id;
-          lignesCloture.push({
-            compteId: compteResultat.id,
-            debit: deltaResultat > 0 ? deltaResultat : 0,
-            credit: deltaResultat < 0 ? -deltaResultat : 0,
-            libelle: deltaResultat > 0 ? "Déficit de l'exercice" : "Excédent de l'exercice",
-          });
+          // Résultat exactement nul (produits = charges) : ne rien pousser.
+          // Une ligne debit: 0, credit: 0 est un mouvement fantôme · elle
+          // apparaîtrait au grand livre mais pas à la balance (qui filtre les
+          // comptes sans mouvement), et sa contrepartie serait calculée comme
+          // si elle était au crédit. Un compte de résultat sans montant n'a
+          // de toute façon rien à enregistrer.
+          if (Math.abs(deltaResultat) > EPSILON) {
+            const compteResultat = await this.trouverCompteResultat(tenantId, tx, deltaResultat > 0);
+            compteResultatId = compteResultat.id;
+            lignesCloture.push({
+              compteId: compteResultat.id,
+              debit: deltaResultat > 0 ? deltaResultat : 0,
+              credit: deltaResultat < 0 ? -deltaResultat : 0,
+              libelle: deltaResultat > 0 ? "Déficit de l'exercice" : "Excédent de l'exercice",
+            });
+          }
 
           const totalDebit = lignesCloture.reduce((s, l) => s + l.debit, 0);
           const totalCredit = lignesCloture.reduce((s, l) => s + l.credit, 0);
           if (Math.abs(totalDebit - totalCredit) > EPSILON) {
-            throw new InternalServerErrorException("Écriture de clôture déséquilibrée — anomalie interne, clôture annulée.");
+            throw new InternalServerErrorException("Écriture de clôture déséquilibrée · anomalie interne, clôture annulée.");
           }
 
           const numeroPiece = await this.journalService.prochainNumeroPiece(tenantId, journal, exerciceId, exercice.dateFin, tx);
@@ -308,7 +434,7 @@ export class ExerciceService {
               journalId: journal.id,
               numeroPiece,
               date: exercice.dateFin,
-              libelle: `Clôture des charges/produits — exercice ${exercice.dateDebut.getUTCFullYear()}`,
+              libelle: `Clôture des charges/produits · exercice ${exercice.dateDebut.getUTCFullYear()}`,
               createdBy: userId,
               estGenereeParCloture: true,
               lignes: { create: lignesCloture },
@@ -329,7 +455,13 @@ export class ExerciceService {
           exerciceSuivant = await tx.exercice.create({ data: { tenantId, dateDebut, dateFin } });
         }
 
-        const lignesRan: Array<{ compteId: string; debit: number; credit: number; libelle: string }> = [];
+        const lignesRan: Array<{
+          compteId: string;
+          debit: number;
+          credit: number;
+          libelle: string;
+          dateEcheance?: Date | null;
+        }> = [];
 
         const comptesSolde = comptes.filter((c) => c.modeReportANouveau === ModeReportANouveau.SOLDE);
         for (const c of comptesSolde) {
@@ -339,7 +471,7 @@ export class ExerciceService {
             compteId: c.id,
             debit: s > 0 ? s : 0,
             credit: s < 0 ? -s : 0,
-            libelle: `Report à-nouveau ${c.numero} — ${c.intitule}`,
+            libelle: `Report à-nouveau ${c.numero} · ${c.intitule}`,
           });
         }
 
@@ -351,7 +483,15 @@ export class ExerciceService {
               compteId: c.id,
               debit: Number(l.debit),
               credit: Number(l.credit),
-              libelle: `RAN détail ${c.numero} — ${l.libelle ?? l.ecriture.libelle}`,
+              libelle: `RAN détail ${c.numero} · ${l.libelle ?? l.ecriture.libelle}`,
+              // L'échéance suit la créance ou la dette qu'elle qualifie : sans
+              // ce report, la ventilation par échéance des notes 6, 9, 10, 18A
+              // et 19 à 21 se viderait à chaque clôture, et une créance à trois
+              // ans deviendrait « non ventilée » l'exercice suivant. Le report
+              // à-nouveau en mode SOLDE, lui, agrège en une ligne unique : il
+              // ne peut par construction porter aucune échéance · raison de
+              // plus pour tenir les comptes de tiers en mode DÉTAIL.
+              dateEcheance: l.dateEcheance,
             });
           }
         }
@@ -361,7 +501,7 @@ export class ExerciceService {
           const totalCredit = lignesRan.reduce((s, l) => s + l.credit, 0);
           if (Math.abs(totalDebit - totalCredit) > EPSILON) {
             throw new InternalServerErrorException(
-              "Report à-nouveau déséquilibré — anomalie interne (identité partie double violée), clôture annulée.",
+              "Report à-nouveau déséquilibré · anomalie interne (identité partie double violée), clôture annulée.",
             );
           }
           const numeroPieceRan = await this.journalService.prochainNumeroPiece(
@@ -378,7 +518,7 @@ export class ExerciceService {
               journalId: journal.id,
               numeroPiece: numeroPieceRan,
               date: exerciceSuivant.dateDebut,
-              libelle: `Report à-nouveau — ouverture exercice ${exerciceSuivant.dateDebut.getUTCFullYear()}`,
+              libelle: `Report à-nouveau · ouverture exercice ${exerciceSuivant.dateDebut.getUTCFullYear()}`,
               createdBy: userId,
               estGenereeParCloture: true,
               lignes: { create: lignesRan },
@@ -388,7 +528,7 @@ export class ExerciceService {
 
         return tx.exercice.update({ where: { id: exerciceId }, data: { statut: StatutExercice.CLOTURE } });
       },
-      "Trop d'opérations simultanées sur cet exercice — veuillez réessayer.",
+      "Trop d'opérations simultanées sur cet exercice · veuillez réessayer.",
     );
   }
 }

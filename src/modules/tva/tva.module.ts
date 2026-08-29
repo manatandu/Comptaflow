@@ -7,7 +7,7 @@ import { ComptabiliteModule } from '../comptabilite/comptabilite.module';
 
 @Module({
   // ComptabiliteModule : la liquidation TVA pose une écriture normale via
-  // EcritureService (mêmes contrôles que n'importe quelle saisie — équilibre,
+  // EcritureService (mêmes contrôles que n'importe quelle saisie · équilibre,
   // exercice ouvert, clôtures).
   imports: [LicenceModule, JwtAuthModule, ComptabiliteModule],
   controllers: [TauxTvaController],

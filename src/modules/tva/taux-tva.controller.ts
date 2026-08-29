@@ -20,7 +20,7 @@ export class TauxTvaController {
     return this.tauxTvaService.lister(user.tenantId, actifsSeuls === 'true');
   }
 
-  /** Registre/déclaration TVA sur une période — voir TauxTvaService.declaration(). */
+  /** Registre/déclaration TVA sur une période · voir TauxTvaService.declaration(). */
   @Get('declaration')
   async declaration(
     @CurrentUser() user: AuthenticatedUser,
@@ -35,7 +35,7 @@ export class TauxTvaController {
 
   /**
    * Comptabilise la liquidation de la période : solde 443/445 (déductible
-   * après prorata) sur le compte 444 — voir TauxTvaService.
+   * après prorata) sur le compte 444 · voir TauxTvaService.
    * comptabiliserLiquidation(). Même rôle que la saisie d'écritures
    * (ADMIN_CABINET/COMPTABLE), pas seulement l'admin : c'est un acte de
    * gestion courante, pas une opération de paramétrage.

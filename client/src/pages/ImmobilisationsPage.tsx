@@ -2,12 +2,10 @@ import { FormEvent, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useExercice } from '../lib/exercice';
-import { useRibbon } from '../components/chrome/ribbon-context';
-import { IconNew, IconRefresh } from '../components/chrome/icons';
 import type { Compte, FamilleImmobilisation, Immobilisation, Journal } from '../lib/types';
 
 /**
- * Immobilisations (§3.3) : familles (gabarits, comptes + durée par défaut —
+ * Immobilisations (§3.3) : familles (gabarits, comptes + durée par défaut ·
  * voir famille-immobilisation-seed.ts pour les 6 familles seedées, ancrées
  * à l'arrêté RDC n° 013/2025), instances, dotation périodique (linéaire,
  * prorata temporis) et sortie (cession/mise hors service). Pas de gestion
@@ -82,17 +80,6 @@ export function ImmobilisationsPage() {
     charger();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  useRibbon([
-    { titre: 'AFFICHAGE', boutons: [{ label: 'Actualiser', Icon: IconRefresh, onClick: charger }] },
-    {
-      titre: 'GESTION',
-      boutons: [
-        { label: 'Nouvelle famille', Icon: IconNew, onClick: () => setAfficherFormFamille((v) => !v) },
-        { label: 'Nouvelle immo', Icon: IconNew, onClick: () => setAfficherFormImmo((v) => !v) },
-      ],
-    },
-  ]);
 
   const onCreerFamille = async (e: FormEvent) => {
     e.preventDefault();
@@ -207,6 +194,7 @@ export function ImmobilisationsPage() {
 
   return (
     <div className="p-2.5">
+      <div className="text-[10.5px] font-mono text-text-dim">STRUCTURE</div>
       <h1 className="text-[15px] font-bold mb-2.5">Immobilisations</h1>
 
       {erreur && <div className="text-[12px] text-danger bg-danger-soft border border-danger/30 px-3 py-2 mb-3 max-w-[1100px]">{erreur}</div>}
@@ -229,7 +217,7 @@ export function ImmobilisationsPage() {
               <select required value={fCompteImmo} onChange={(e) => setFCompteImmo(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[13px] font-normal">
                 <option value="" />
                 {comptesClasse2.map((c) => (
-                  <option key={c.id} value={c.id}>{c.numero} — {c.intitule}</option>
+                  <option key={c.id} value={c.id}>{c.numero} · {c.intitule}</option>
                 ))}
               </select>
             </label>
@@ -238,7 +226,7 @@ export function ImmobilisationsPage() {
               <select required value={fCompteAmort} onChange={(e) => setFCompteAmort(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[13px] font-normal">
                 <option value="" />
                 {comptesFinancement.filter((c) => c.numero.startsWith('28')).map((c) => (
-                  <option key={c.id} value={c.id}>{c.numero} — {c.intitule}</option>
+                  <option key={c.id} value={c.id}>{c.numero} · {c.intitule}</option>
                 ))}
               </select>
             </label>
@@ -247,7 +235,7 @@ export function ImmobilisationsPage() {
               <select required value={fCompteDotation} onChange={(e) => setFCompteDotation(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[13px] font-normal">
                 <option value="" />
                 {comptesFinancement.filter((c) => c.numero.startsWith('68')).map((c) => (
-                  <option key={c.id} value={c.id}>{c.numero} — {c.intitule}</option>
+                  <option key={c.id} value={c.id}>{c.numero} · {c.intitule}</option>
                 ))}
               </select>
             </label>
@@ -305,14 +293,14 @@ export function ImmobilisationsPage() {
               <select required value={iCompteContrepartie} onChange={(e) => setICompteContrepartie(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[13px] font-normal">
                 <option value="" />
                 {comptesFinancement.map((c) => (
-                  <option key={c.id} value={c.id}>{c.numero} — {c.intitule}</option>
+                  <option key={c.id} value={c.id}>{c.numero} · {c.intitule}</option>
                 ))}
               </select>
             </label>
           </div>
           <p className="text-[11px] text-text-dim mb-3">
             En dessous de l'équivalent de 500 USD (arrêté RDC n° 014/2025), le bien peut être passé
-            directement en charge plutôt qu'immobilisé — à votre appréciation, non vérifié automatiquement ici.
+            directement en charge plutôt qu'immobilisé · à votre appréciation, non vérifié automatiquement ici.
           </p>
           <div className="flex gap-2">
             <button type="submit" disabled={envoi || !exerciceCourant} className="bg-sel text-white text-[12.5px] font-semibold px-4 py-1.5 disabled:opacity-50">{envoi ? 'Création…' : 'Ajouter'}</button>
@@ -324,7 +312,7 @@ export function ImmobilisationsPage() {
       {!immobilisations && <div className="text-[12px] text-text-dim">Chargement…</div>}
 
       {immobilisations && (
-        <div className="border border-border max-w-[1180px]">
+        <div className="border border-border bg-surface shadow-posee max-w-[1180px]">
           <div className="grid grid-cols-[1.4fr_110px_100px_100px_100px_100px_90px_170px] gap-2.5 px-3.5 py-1.5 bg-chrome border-b border-border text-[10px] font-bold text-text-dim">
             <span>DÉSIGNATION</span>
             <span>MISE EN SERVICE</span>
@@ -401,7 +389,7 @@ export function ImmobilisationsPage() {
                           <select required value={sCompteContrepartie} onChange={(e) => setSCompteContrepartie(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[12.5px]">
                             <option value="" />
                             {comptesFinancement.map((c) => (
-                              <option key={c.id} value={c.id}>{c.numero} — {c.intitule}</option>
+                              <option key={c.id} value={c.id}>{c.numero} · {c.intitule}</option>
                             ))}
                           </select>
                         </label>

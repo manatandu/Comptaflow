@@ -1,8 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { useRibbon } from '../components/chrome/ribbon-context';
-import { IconRefresh } from '../components/chrome/icons';
 import type { RoleUtilisateur, Utilisateur } from '../lib/types';
 
 const LIBELLE_ROLE: Record<RoleUtilisateur, string> = {
@@ -16,6 +14,7 @@ export function UtilisateursPage() {
   const [liste, setListe] = useState<Utilisateur[] | null>(null);
   const [erreurChargement, setErreurChargement] = useState<string | null>(null);
 
+  const [nouveauOuvert, setNouveauOuvert] = useState(false);
   const [email, setEmail] = useState('');
   const [motDePasse, setMotDePasse] = useState('');
   const [role, setRole] = useState<RoleUtilisateur>('COMPTABLE');
@@ -36,10 +35,6 @@ export function UtilisateursPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [estAdmin]);
 
-  useRibbon([
-    { titre: 'AFFICHAGE', boutons: [{ label: 'Actualiser', Icon: IconRefresh, onClick: charger }] },
-  ]);
-
   if (!estAdmin) {
     return (
       <div className="p-4">
@@ -59,6 +54,7 @@ export function UtilisateursPage() {
       setEmail('');
       setMotDePasse('');
       setRole('COMPTABLE');
+      setNouveauOuvert(false);
       await charger();
     } catch (err) {
       setErreurForm(err instanceof ApiError ? err.message : 'Impossible de créer cet utilisateur');
@@ -83,37 +79,19 @@ export function UtilisateursPage() {
 
   return (
     <div className="p-2.5">
-      <h1 className="text-[15px] font-bold mb-2.5">Utilisateurs du dossier</h1>
-
-      <form onSubmit={onCreer} className="bg-surface border border-border p-4 mb-4 max-w-[560px]">
-        <div className="font-mono text-[11px] font-semibold text-text-dim mb-3">AJOUTER UN UTILISATEUR</div>
-        <div className="grid grid-cols-2 gap-3 mb-3">
-          <label className="text-[11.5px] font-semibold text-text-dim col-span-2">
-            Adresse e-mail
-            <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[13px] font-normal" />
-          </label>
-          <label className="text-[11.5px] font-semibold text-text-dim">
-            Mot de passe (10 car. min.)
-            <input type="password" required minLength={10} value={motDePasse} onChange={(e) => setMotDePasse(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[13px] font-normal" />
-          </label>
-          <label className="text-[11.5px] font-semibold text-text-dim">
-            Rôle
-            <select value={role} onChange={(e) => setRole(e.target.value as RoleUtilisateur)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[13px] font-normal">
-              <option value="ADMIN_CABINET">Administrateur</option>
-              <option value="COMPTABLE">Comptable</option>
-              <option value="LECTURE_SEULE">Lecture seule</option>
-            </select>
-          </label>
+      <div className="flex items-center justify-between mb-2">
+        <div>
+          <div className="text-[10.5px] font-mono text-text-dim">FICHIER</div>
+          <h1 className="text-[15px] font-bold">Autorisations d'accès · utilisateurs du dossier</h1>
         </div>
-        {erreurForm && <div className="text-[12px] text-danger bg-danger-soft border border-danger/30 px-2.5 py-1.5 mb-3">{erreurForm}</div>}
-        <button type="submit" disabled={envoi} className="bg-sel text-white text-[12.5px] font-semibold px-4 py-1.5 disabled:opacity-50">
-          {envoi ? 'Création…' : 'Ajouter'}
+        <button type="button" onClick={() => setNouveauOuvert(true)} className="bg-sel text-white px-3.5 py-1 text-[11.5px] font-semibold">
+          Nouvel utilisateur
         </button>
-      </form>
+      </div>
 
-      {erreurChargement && <div className="text-[12px] text-danger bg-danger-soft border border-danger/30 px-2.5 py-1.5 mb-3 max-w-[560px]">{erreurChargement}</div>}
+      {erreurChargement && <div className="text-[12px] text-danger bg-danger-soft border border-danger/30 px-3 py-1.5 mb-2 max-w-[720px]">{erreurChargement}</div>}
 
-      <div className="border border-border max-w-[720px]">
+      <div className="border border-border bg-surface shadow-posee max-w-[760px]">
         <div className="grid grid-cols-[1fr_150px_90px_100px] gap-2 px-3.5 py-1.5 bg-chrome border-b border-border text-[10px] font-bold text-text-dim">
           <span>E-MAIL</span><span>RÔLE</span><span>STATUT</span><span></span>
         </div>
@@ -148,9 +126,46 @@ export function UtilisateursPage() {
         ))}
       </div>
       <p className="text-[11px] text-text-dim mt-2 max-w-[720px]">
-        {LIBELLE_ROLE.ADMIN_CABINET} : accès complet, y compris cette page. {LIBELLE_ROLE.COMPTABLE} : saisie et
+        {LIBELLE_ROLE.ADMIN_CABINET} : accès complet, y compris cette fenêtre. {LIBELLE_ROLE.COMPTABLE} : saisie et
         consultation. {LIBELLE_ROLE.LECTURE_SEULE} : consultation uniquement.
       </p>
+
+      {nouveauOuvert && (
+        <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
+          <form onSubmit={onCreer} className="anim-modale w-full max-w-[440px] bg-surface border border-border-dark shadow-flottante">
+            <div
+              className="h-[26px] flex items-center justify-between px-2.5 text-white text-[11.5px]"
+              style={{ background: 'linear-gradient(180deg, var(--titlebar-from), var(--titlebar-to))' }}
+            >
+              <span>Nouvel utilisateur</span>
+              <button type="button" onClick={() => setNouveauOuvert(false)} className="text-white/85 hover:text-white px-1.5">✕</button>
+            </div>
+            <div className="p-4">
+              <div className="grid grid-cols-[130px_1fr] items-center gap-x-3 gap-y-2.5">
+                <label className="text-[12px] text-right">E-mail :</label>
+                <input type="email" required autoFocus value={email} onChange={(e) => setEmail(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[13px]" />
+                <label className="text-[12px] text-right">Mot de passe :</label>
+                <input type="password" required minLength={10} placeholder="10 caractères min." value={motDePasse} onChange={(e) => setMotDePasse(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[13px]" />
+                <label className="text-[12px] text-right">Rôle :</label>
+                <select value={role} onChange={(e) => setRole(e.target.value as RoleUtilisateur)} className="border border-border-dark px-2.5 py-1.5 text-[12.5px]">
+                  <option value="ADMIN_CABINET">Administrateur</option>
+                  <option value="COMPTABLE">Comptable</option>
+                  <option value="LECTURE_SEULE">Lecture seule</option>
+                </select>
+              </div>
+              {erreurForm && <div className="text-[12px] text-danger bg-danger-soft border border-danger/30 px-2.5 py-1.5 mt-3">{erreurForm}</div>}
+              <div className="flex justify-end gap-2 mt-4">
+                <button type="button" onClick={() => setNouveauOuvert(false)} className="border border-border-dark bg-chrome hover:bg-chrome-alt px-4 py-1.5 text-[12px]">
+                  Annuler
+                </button>
+                <button type="submit" disabled={envoi} className="bg-sel text-white px-4 py-1.5 text-[12px] font-semibold disabled:opacity-50">
+                  {envoi ? 'Création…' : "Créer l'utilisateur"}
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }
