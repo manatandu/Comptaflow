@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import type { ClasseCompte, Compte, ModeReportANouveau, TypeCompteDetailTotal } from '../lib/types';
+import { EnteteImpression } from '../components/chrome/EnteteImpression';
 
 /**
  * PLAN COMPTABLE · la fenêtre Structure → Plan comptable de Sage 100 i7 :
@@ -105,6 +106,7 @@ export function PlanComptesPage() {
 
   return (
     <div className="p-2.5 flex flex-col" style={{ height: 'calc(100vh - 114px)' }}>
+      <EnteteImpression titre="Plan comptable" />
       <div className="flex items-center justify-between mb-2 shrink-0">
         <div>
           <div className="text-[10.5px] font-mono text-text-dim">STRUCTURE</div>

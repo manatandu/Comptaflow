@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../lib/api';
 import { useExercice } from '../lib/exercice';
 import { Aide } from '../components/chrome/Aide';
+import { EnteteImpression } from '../components/chrome/EnteteImpression';
 import type {
   BalanceAnalytique,
   ControleCumuls,
@@ -97,6 +98,7 @@ export function EtatsAnalytiquesPage() {
 
   return (
     <div className="p-2.5">
+      <EnteteImpression titre="États analytiques" />
       <div className="flex items-end justify-between mb-2.5 gap-3 flex-wrap">
         <div>
           <div className="text-[10.5px] font-mono text-text-dim">ÉTAT</div>

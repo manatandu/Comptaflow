@@ -38,6 +38,12 @@ export function AppShell() {
         // Sage : Fichier → Importer. C'est par là qu'une association arrive
         // avec son tableur ou l'export de son logiciel précédent.
         ...(estAdmin ? [{ label: 'Importer des données…', separateurAvant: true, onClick: () => navigate('/import') }] : []),
+        // Sage : Fichier → Mise en page / Format d'impression. Ici, une seule
+        // commande : la boîte du navigateur, où « Enregistrer au format PDF »
+        // produit le fichier à déposer chez un bailleur ou au greffe. Ce qui
+        // s'imprime est exactement ce qui est à l'écran · aucun second moteur
+        // de rendu, donc aucune divergence possible entre les deux.
+        { label: 'Imprimer la fenêtre…', separateurAvant: true, onClick: () => window.print() },
         { label: 'Fermer le dossier (déconnexion)', separateurAvant: true, onClick: seDeconnecter },
       ],
     },
@@ -110,7 +116,7 @@ export function AppShell() {
     <div className="h-screen flex flex-col bg-bg text-text">
       {/* Barre de titre · dossier comptable ouvert + exercice, comme chez Sage. */}
       <div
-        className="h-[26px] flex items-center justify-between px-2 text-white text-[11.5px] shrink-0"
+        className="ecran-seul h-[26px] flex items-center justify-between px-2 text-white text-[11.5px] shrink-0"
         style={{ background: 'linear-gradient(180deg, var(--titlebar-from), var(--titlebar-to))' }}
       >
         <div className="flex items-center gap-2">
@@ -128,8 +134,10 @@ export function AppShell() {
         </div>
       </div>
 
-      <MenuBar menus={menus} />
-      <Toolbar />
+      <div className="ecran-seul contents">
+        <MenuBar menus={menus} />
+        <Toolbar />
+      </div>
 
       {/* La fenêtre active glisse en place à chaque changement de route
           (clé = pathname seul : changer d'onglet dans une même fenêtre ne
@@ -140,7 +148,9 @@ export function AppShell() {
         </div>
       </main>
 
-      <StatusBar />
+      <div className="ecran-seul contents">
+        <StatusBar />
+      </div>
       {aProposOuvert && <AProposModale onFermer={() => setAProposOuvert(false)} />}
     </div>
   );

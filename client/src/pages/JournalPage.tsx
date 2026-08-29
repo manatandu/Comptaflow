@@ -5,6 +5,7 @@ import { useExercice } from '../lib/exercice';
 import { useAuth } from '../lib/auth';
 import { IconFilter, IconExport } from '../components/chrome/icons';
 import type { Compte, Ecriture, Journal, LigneBalance, LigneGrandLivre } from '../lib/types';
+import { EnteteImpression } from '../components/chrome/EnteteImpression';
 
 type Onglet = 'journal' | 'grand-livre' | 'balance';
 
@@ -302,6 +303,7 @@ export function JournalPage() {
 
   return (
     <div className="p-2.5">
+      <EnteteImpression titre="Journal, grand livre et balance" />
       <div className="flex items-center justify-between mb-2.5 gap-2">
         <div>
           <div className="text-[10.5px] font-mono text-text-dim">ÉTAT</div>

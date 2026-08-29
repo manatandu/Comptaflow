@@ -5,6 +5,7 @@ import { useExercice } from '../lib/exercice';
 import { useAuth } from '../lib/auth';
 import { IconExport, IconCheck } from '../components/chrome/icons';
 import { Aide } from '../components/chrome/Aide';
+import { EnteteImpression } from '../components/chrome/EnteteImpression';
 import type {
   Bilan,
   BilanProjet,
@@ -27,6 +28,16 @@ import type {
  */
 type OngletAssociations = 'bilan' | 'compte-de-resultat' | 'flux-tresorerie';
 type OngletProjet = 'bilan-projet' | 'compte-exploitation-projet' | 'note-bailleur';
+
+/** Nom de l'état affiché · repris en sous-titre de l'en-tête d'impression. */
+const LIBELLE_ONGLET: Record<string, string> = {
+  bilan: 'Bilan',
+  'compte-de-resultat': 'Compte de résultat',
+  'flux-tresorerie': 'Tableau de flux de trésorerie',
+  'bilan-projet': 'Bilan',
+  'compte-exploitation-projet': "Compte d'exploitation",
+  'note-bailleur': 'Note 9 · Fonds du bailleur',
+};
 
 /** Entrée du lexique SYCEBNL correspondant à chaque onglet d'état. */
 const AIDE_ONGLET: Record<string, 'bilan' | 'compteResultat' | 'tft' | 'compteExploitation' | 'bailleur' | undefined> = {
@@ -214,7 +225,8 @@ export function EtatsFinanciersPage() {
 
   return (
     <div className="p-2.5">
-      <div className="flex items-center justify-between mb-2.5">
+      <EnteteImpression titre="États financiers" sousTitre={LIBELLE_ONGLET[onglet]} />
+      <div className="ecran-seul flex items-center justify-between mb-2.5">
         <div>
           <div className="text-[10.5px] font-mono text-text-dim">ÉTAT</div>
           <h1 className="text-[15px] font-bold flex items-center gap-1.5">
@@ -263,7 +275,7 @@ export function EtatsFinanciersPage() {
       )}
 
       {jeuProjet ? (
-        <div className="flex bg-chrome border border-border border-b-0">
+        <div className="ecran-seul flex bg-chrome border border-border border-b-0">
           <button
             onClick={() => setOngletProjet('bilan-projet')}
             className={`px-4 py-1.5 text-[11px] font-bold ${
@@ -290,7 +302,7 @@ export function EtatsFinanciersPage() {
           </button>
         </div>
       ) : (
-        <div className="flex bg-chrome border border-border border-b-0">
+        <div className="ecran-seul flex bg-chrome border border-border border-b-0">
           <button
             onClick={() => setOngletAssociations('bilan')}
             className={`px-4 py-1.5 text-[11px] font-bold ${onglet === 'bilan' ? 'bg-surface border-r border-border' : 'text-text-dim'}`}
@@ -319,7 +331,7 @@ export function EtatsFinanciersPage() {
       {/* Bulle d'aide de l'état affiché : la définition SYCEBNL de l'état est
           à portée de clic, sans encombrer les onglets d'un paragraphe. */}
       {AIDE_ONGLET[onglet] && (
-        <div className="flex items-center gap-1.5 border-x border-t border-border bg-surface px-4 pt-2 text-[10.5px] text-text-dim">
+        <div className="ecran-seul flex items-center gap-1.5 border-x border-t border-border bg-surface px-4 pt-2 text-[10.5px] text-text-dim">
           <span>Ce que dit le référentiel</span>
           <Aide sujet={AIDE_ONGLET[onglet]!} />
         </div>

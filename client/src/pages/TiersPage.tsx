@@ -5,6 +5,7 @@ import { useAuth } from '../lib/auth';
 import { useExercice } from '../lib/exercice';
 import { IconCheck } from '../components/chrome/icons';
 import { Aide } from '../components/chrome/Aide';
+import { EnteteImpression } from '../components/chrome/EnteteImpression';
 import type {
   Compte,
   ConditionEcheance,
@@ -304,6 +305,7 @@ export function TiersPage() {
   if (!estAdmin) {
     return (
       <div className="p-2.5">
+      <EnteteImpression titre="Plan des tiers" />
         <h1 className="text-[15px] font-bold mb-2.5">Plan des tiers</h1>
         <div className="border border-warning/30 bg-warning-soft px-4 py-3 text-[12.5px] max-w-[480px]">
           La gestion des tiers est réservée aux administrateurs du dossier.

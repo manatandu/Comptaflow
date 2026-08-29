@@ -3,6 +3,7 @@ import { api, ApiError } from '../lib/api';
 import { useExercice } from '../lib/exercice';
 import { Aide } from '../components/chrome/Aide';
 import type { ControleCaisse, GraviteControle, RapportControles } from '../lib/types';
+import { EnteteImpression } from '../components/chrome/EnteteImpression';
 
 /**
  * ANALYSE ET CONTRÔLES · État → Analyse et contrôles, et État → Contrôle de
@@ -56,6 +57,7 @@ export function ControlesPage() {
 
   return (
     <div className="p-2.5">
+      <EnteteImpression titre="Analyse et contrôles" />
       <div className="mb-2.5">
         <div className="text-[10.5px] font-mono text-text-dim">ÉTAT</div>
         <h1 className="text-[15px] font-bold flex items-center gap-1.5">

@@ -5,6 +5,7 @@ import { useAuth } from '../lib/auth';
 import { IconExport } from '../components/chrome/icons';
 import type { Compte, LigneNoteCalculee, NoteCalculee, ResultatNotesJeu } from '../lib/types';
 import { Aide } from '../components/chrome/Aide';
+import { EnteteImpression } from '../components/chrome/EnteteImpression';
 
 /**
  * Tri croissant des codes de note (« 1 », « 5A »…« 5H », « 17A », « 17B »,
@@ -322,6 +323,7 @@ export function NotesAnnexesPage() {
 
   return (
     <div className="p-2.5">
+      <EnteteImpression titre="Notes annexes" />
       <div className="flex items-center justify-between mb-2.5">
         <div>
           <div className="text-[10.5px] font-mono text-text-dim">ÉTAT</div>

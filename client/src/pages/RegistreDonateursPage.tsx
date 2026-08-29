@@ -4,6 +4,7 @@ import { useExercice } from '../lib/exercice';
 import { useAuth } from '../lib/auth';
 import { IconExport } from '../components/chrome/icons';
 import { Aide } from '../components/chrome/Aide';
+import { EnteteImpression } from '../components/chrome/EnteteImpression';
 import type {
   Donation,
   ModeLiberation,
@@ -228,6 +229,7 @@ export function RegistreDonateursPage() {
 
   return (
     <div className="p-2.5">
+      <EnteteImpression titre="Registre des donateurs" />
       <div className="flex items-center justify-between mb-2.5">
         <div>
           <div className="text-[10.5px] font-mono text-text-dim">TRAITEMENT</div>

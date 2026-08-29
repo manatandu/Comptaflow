@@ -4,6 +4,7 @@ import { useAuth } from '../lib/auth';
 import { useExercice } from '../lib/exercice';
 import { Aide } from '../components/chrome/Aide';
 import type { Devise, Exercice, RapportReevaluation, Reevaluation } from '../lib/types';
+import { EnteteImpression } from '../components/chrome/EnteteImpression';
 
 /**
  * DEVISES ET RÉÉVALUATION · Structure → devises et Traitement → Réévaluation
@@ -155,6 +156,7 @@ export function DevisesPage() {
 
   return (
     <div className="p-2.5">
+      <EnteteImpression titre="Devises et réévaluation" />
       <div className="mb-2.5">
         <div className="text-[10.5px] font-mono text-text-dim">TRAITEMENT</div>
         <h1 className="text-[15px] font-bold flex items-center gap-1.5">

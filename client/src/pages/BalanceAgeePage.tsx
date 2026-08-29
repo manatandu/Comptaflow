@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useExercice } from '../lib/exercice';
 import { Aide } from '../components/chrome/Aide';
+import { EnteteImpression } from '../components/chrome/EnteteImpression';
 
 /**
  * BALANCE ÂGÉE · État → Balance âgée de Sage 100 i7 : « état prévisionnel
@@ -71,6 +72,7 @@ export function BalanceAgeePage() {
 
   return (
     <div className="p-2.5">
+      <EnteteImpression titre="Balance âgée" />
       <div className="flex items-end justify-between mb-2.5 gap-3 flex-wrap">
         <div>
           <div className="text-[10.5px] font-mono text-text-dim">ÉTAT</div>

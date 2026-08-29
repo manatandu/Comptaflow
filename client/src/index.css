@@ -221,3 +221,112 @@ button:focus-visible {
     transition: none;
   }
 }
+
+
+/* ---------------------------------------------------------------------------
+   IMPRESSION
+   ---------------------------------------------------------------------------
+   Le dépôt d'une liasse SYCEBNL se fait sur papier ou en PDF, jamais en
+   tableur : « Enregistrer au format PDF » de la boîte d'impression du
+   navigateur produit exactement le fichier attendu, sans dépendance ni
+   moteur de rendu supplémentaire, et surtout SANS DIVERGENCE entre ce que
+   l'utilisateur voit à l'écran et ce qu'il dépose.
+
+   Trois règles :
+     .ecran-seul     ne s'imprime pas (chrome de l'application, boutons) ;
+     .impression-seul ne s'affiche qu'à l'impression (en-tête officiel) ;
+     .eviter-coupure  ne se coupe pas entre deux pages (une ligne, un bloc).
+--------------------------------------------------------------------------- */
+
+.impression-seul {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm 12mm 16mm 12mm;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+    /* La mica et les ombres portées mangent de l'encre pour rien et
+       grisent le fond d'une liasse qui doit rester lisible. */
+    background-image: none !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .ecran-seul,
+  .ecran-seul * {
+    display: none !important;
+  }
+
+  /* Les bulles d'aide « ? » n'ont aucun sens sur du papier : on ne clique pas
+     une feuille imprimée. */
+  button[aria-label^='Aide'] {
+    display: none !important;
+  }
+
+  /* Un état imprimé occupe la largeur de la page, pas celle d'une fenêtre. */
+  .max-w-\[1180px\],
+  .max-w-\[960px\],
+  .max-w-\[900px\] {
+    max-width: none !important;
+  }
+
+  .impression-seul {
+    display: block !important;
+  }
+
+  /* Le conteneur d'application est en h-screen + overflow auto à l'écran :
+     sans cette libération, l'impression s'arrêterait à la première page. */
+  #root,
+  #root > div,
+  main,
+  main > div {
+    display: block !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  .shadow-posee,
+  .shadow-flottante {
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+
+  .anim-fenetre,
+  .anim-menu,
+  .anim-modale,
+  .anim-voile {
+    animation: none !important;
+  }
+
+  /* Les listes défilantes doivent se dérouler entièrement sur le papier. */
+  .max-h-\[34vh\],
+  .max-h-\[240px\],
+  .max-h-\[280px\],
+  .max-h-\[300px\],
+  .max-h-\[320px\],
+  [class*='overflow-y-auto'],
+  [class*='overflow-auto'] {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  .eviter-coupure {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Une couleur de fond porteuse de sens (anomalie, dépassement) doit
+     survivre à l'impression : sans cela, une ligne en rouge devient une
+     ligne comme les autres. */
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

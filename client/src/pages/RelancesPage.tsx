@@ -4,6 +4,7 @@ import { useAuth } from '../lib/auth';
 import { useExercice } from '../lib/exercice';
 import { Aide } from '../components/chrome/Aide';
 import type { LettreRelance, NiveauRelance, PositionRelance, TypeRelance } from '../lib/types';
+import { EnteteImpression } from '../components/chrome/EnteteImpression';
 
 /**
  * RAPPEL ET RELEVÉ · Traitement → Rappel/relevé chez Sage 100 i7, qui
@@ -119,6 +120,7 @@ export function RelancesPage() {
 
   return (
     <div className="p-2.5">
+      <EnteteImpression titre="Rappel et relevé" />
       <div className="flex items-end justify-between mb-2.5 gap-3 flex-wrap">
         <div>
           <div className="text-[10.5px] font-mono text-text-dim">TRAITEMENT</div>
