@@ -1,5 +1,16 @@
 {
   "projects": {
-    "default": "REMPLACER-PAR-VOTRE-ID-PROJET-FIREBASE"
-  }
+    "default": "omega-x-ec07a",
+    "omega": "omega-x-ec07a"
+  },
+  "targets": {
+    "omega-x-ec07a": {
+      "hosting": {
+        "oomega": [
+          "oomega"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }
