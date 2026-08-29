@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../common/prisma.service';
@@ -12,7 +12,7 @@ import { AnalytiqueService } from '../analytique/analytique.service';
 import { RelancesService } from '../relances/relances.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
-import { RoleUtilisateur, TypeLicence } from '@prisma/client';
+import { Referentiel, RoleUtilisateur, TypeLicence } from '@prisma/client';
 
 const SALT_ROUNDS = 12;
 
@@ -47,6 +47,22 @@ export class AuthService {
     const emailExistant = await this.prisma.user.findUnique({ where: { email: dto.email } });
     if (emailExistant) {
       throw new ConflictException('Un compte existe déjà avec cet email');
+    }
+
+    // Le DTO accepte les deux valeurs de l'enum `Referentiel` parce que le
+    // schéma les porte toutes deux, mais `seedPlanSycebnl` ci-dessous n'en
+    // sème qu'UN : le plan SYCEBNL. Sans ce garde-fou, un dossier créé en
+    // SYSCOHADA se retrouverait tenu avec la nomenclature des entités à but
+    // non lucratif tout en s'annonçant en référentiel d'entreprise · un
+    // mensonge silencieux sur chaque état imprimé. L'assistant côté client
+    // présente d'ailleurs le SYSCOHADA comme « bientôt » ; ce refus est ce
+    // qui rend cette mention vraie côté serveur.
+    if (dto.referentiel !== Referentiel.SYCEBNL) {
+      throw new BadRequestException(
+        "Le référentiel SYSCOHADA révisé (entités à but lucratif) n'est pas encore construit dans OmegaX : " +
+          "son plan de comptes et ses états financiers lui sont propres et ne peuvent pas être remplacés par ceux " +
+          'du SYCEBNL. Seul le référentiel SYCEBNL peut être retenu pour l\'instant.',
+      );
     }
 
     const tenant = await this.tenantService.creerTenant({

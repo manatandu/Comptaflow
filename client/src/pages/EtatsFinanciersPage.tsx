@@ -6,6 +6,7 @@ import { useAuth } from '../lib/auth';
 import { IconExport, IconCheck } from '../components/chrome/icons';
 import { Aide } from '../components/chrome/Aide';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
+import { EtatsSmtPage } from './EtatsSmtPage';
 import type {
   Bilan,
   BilanProjet,
@@ -23,8 +24,13 @@ import type {
  * vs du jeu « projets de développement et assimilés » (Partie 4, ch. 3) ·
  * jamais les deux à la fois : `useAuth().utilisateur.tenant.jeuEtatsFinanciersSycebnl`
  * décide lequel des deux jeux ce dossier affiche (voir
- * docs/plan-de-construction.md, item 13). Le Système Minimal de Trésorerie
- * (3ᵉ jeu) n'est pas construit et n'a pas d'onglet ici.
+ * docs/plan-de-construction.md, item 13).
+ *
+ * Le troisième jeu, le Système Minimal de Trésorerie (Partie 4, ch. 4), n'est
+ * PAS un onglet de plus ici : ses maquettes n'ont ni les mêmes postes, ni le
+ * même nombre de colonnes, ni la même logique (comptabilité de trésorerie).
+ * Il a son propre écran, `EtatsSmtPage`, vers lequel le composant exporté en
+ * fin de fichier aiguille.
  */
 type OngletAssociations = 'bilan' | 'compte-de-resultat' | 'flux-tresorerie';
 type OngletProjet = 'bilan-projet' | 'compte-exploitation-projet' | 'note-bailleur';
@@ -49,7 +55,7 @@ const AIDE_ONGLET: Record<string, 'bilan' | 'compteResultat' | 'tft' | 'compteEx
   'note-bailleur': 'bailleur',
 };
 
-export function EtatsFinanciersPage() {
+function EtatsSystemeNormalPage() {
   const { exerciceCourant } = useExercice();
   const { utilisateur } = useAuth();
   const jeuProjet = utilisateur?.tenant.jeuEtatsFinanciersSycebnl === 'PROJETS_DEVELOPPEMENT';
@@ -784,5 +790,30 @@ export function EtatsFinanciersPage() {
         </>
       )}
     </div>
+  );
+}
+
+/**
+ * Aiguillage entre les trois jeux d'états financiers SYCEBNL. Le Système
+ * Minimal de Trésorerie a son écran propre ; les deux jeux du Système normal
+ * partagent celui-ci, qui bascule ses onglets selon le dossier.
+ *
+ * L'aiguillage est fait ICI, au-dessus des hooks des deux écrans, et non par
+ * un `if` à l'intérieur d'un composant unique : les deux jeux n'appellent pas
+ * les mêmes endpoints, et un rendu conditionnel après les hooks les lancerait
+ * tous les deux.
+ */
+export function EtatsFinanciersPage() {
+  const { utilisateur, chargement } = useAuth();
+  // Tant que le profil n'est pas chargé, aucun des deux écrans ne doit partir :
+  // le jeu par défaut est celui des associations, et un dossier S.M.T
+  // interrogerait d'abord les endpoints du Système normal pour rien.
+  if (chargement || !utilisateur) {
+    return <div className="p-2.5 text-[12px] text-text-dim">Chargement…</div>;
+  }
+  return utilisateur.tenant.jeuEtatsFinanciersSycebnl === 'SYSTEME_MINIMAL_TRESORERIE' ? (
+    <EtatsSmtPage />
+  ) : (
+    <EtatsSystemeNormalPage />
   );
 }

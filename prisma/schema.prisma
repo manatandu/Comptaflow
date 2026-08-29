@@ -23,14 +23,22 @@ enum Referentiel {
 
 // SYCEBNL prévoit 3 jeux d'états financiers distincts (Partie 4, ch. 2 à 4 du
 // texte officiel) : associations/ordres professionnels, projets de
-// développement et assimilés, Système Minimal de Trésorerie (SMT, < 30 M
-// FCFA). Un même Tenant.referentiel = SYCEBNL peut donc relever de l'un ou
-// l'autre · ce champ précise lequel. Ajouté le 2026-08-28 avec le chantier
-// "projets de développement" (docs/plan-de-construction.md, item 13) ; le SMT
-// n'est pas construit et n'a pas de valeur ici.
+// développement et assimilés, Système Minimal de Trésorerie (SMT). Un même
+// Tenant.referentiel = SYCEBNL peut donc relever de l'un ou l'autre · ce champ
+// précise lequel. Les deux premiers ont été construits le 2026-08-28
+// (docs/plan-de-construction.md, items 12 et 13) ; le troisième le 2026-08-29.
+//
+// Le SMT n'est pas un jeu « au choix » au même titre que les deux autres :
+// l'article 6 le RÉSERVE aux entités dont chacune des cinq catégories de
+// ressources annuelles reste sous 30 000 000 FCFA (ou l'équivalent en monnaie
+// locale), et l'article 5 pose que « toute entité est, sauf exception liée à
+// sa taille, soumise au Système normal ». Le choix est donc encadré, et
+// l'assistant de création le dit au lieu de le présenter comme une préférence
+// de présentation (voir NouveauFichierWizard, écran « Type d'entité »).
 enum JeuEtatsFinanciersSycebnl {
   ASSOCIATIONS_ORDRES_PROFESSIONNELS
   PROJETS_DEVELOPPEMENT
+  SYSTEME_MINIMAL_TRESORERIE
 }
 
 enum TypeLicence {

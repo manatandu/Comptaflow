@@ -1,11 +1,16 @@
 export type Referentiel = 'SYCEBNL' | 'SYSCOHADA';
 /**
  * N'a de sens que si `Referentiel` = 'SYCEBNL' (le SYSCOHADA n'a qu'un seul
- * jeu). SYCEBNL en prévoit 3 (Partie 4, ch. 2 à 4 du texte officiel) ; seuls
- * les deux premiers sont construits · le Système Minimal de Trésorerie
- * (SMT, < 30 M FCFA) n'a pas de valeur ici.
+ * jeu). SYCEBNL en prévoit 3 (Partie 4, ch. 2 à 4 du texte officiel), et les
+ * trois sont désormais construits. Le Système Minimal de Trésorerie n'est
+ * toutefois pas un choix libre : l'article 6 le réserve aux entités dont
+ * chacune des cinq catégories de ressources annuelles reste sous 30 000 000
+ * FCFA, l'article 5 posant que le Système normal est la règle.
  */
-export type JeuEtatsFinanciersSycebnl = 'ASSOCIATIONS_ORDRES_PROFESSIONNELS' | 'PROJETS_DEVELOPPEMENT';
+export type JeuEtatsFinanciersSycebnl =
+  | 'ASSOCIATIONS_ORDRES_PROFESSIONNELS'
+  | 'PROJETS_DEVELOPPEMENT'
+  | 'SYSTEME_MINIMAL_TRESORERIE';
 export type RoleUtilisateur = 'ADMIN_CABINET' | 'COMPTABLE' | 'LECTURE_SEULE';
 
 export interface Utilisateur {
@@ -1261,4 +1266,133 @@ export interface LettreRelance {
   tiers: string;
   montant: number;
   texte: string;
+}
+
+// --------------------------------------------------------------------------
+// Système Minimal de Trésorerie (SYCEBNL, Partie 4 ch. 4)
+// --------------------------------------------------------------------------
+
+/** Poste du bilan S.M.T · la maquette imprime un renvoi de note par ligne. */
+export interface PosteBilanSmt extends PosteCalcule {
+  note: string | null;
+  estTotal?: boolean;
+}
+
+export interface BilanSmt {
+  actif: PosteBilanSmt[];
+  passif: PosteBilanSmt[];
+  totalActif: number;
+  totalPassif: number;
+  totalActifN1?: number;
+  totalPassifN1?: number;
+  exerciceN1Disponible: boolean;
+  equilibre: boolean;
+  renvoiImmobilisations: string;
+}
+
+/** VA, VB, VC et JG · les quatre lignes qui mènent du solde de caisse au résultat net. */
+export interface RetraitementSmt extends PosteCalcule {
+  signe: 1 | -1;
+}
+
+export interface CompteDeResultatSmt {
+  recettes: PosteCalcule[];
+  totalRecettes: number;
+  depenses: PosteCalcule[];
+  totalDepenses: number;
+  soldeCaisse: number;
+  retraitements: RetraitementSmt[];
+  resultatNet: number;
+  exerciceN1Disponible: boolean;
+  controle: {
+    resultatBilan: number;
+    ecart: number;
+    interpretable: boolean;
+    concordant: boolean;
+  };
+}
+
+export interface OperationTresorerieSmt {
+  date: string;
+  libelle: string;
+  reference: string | null;
+  sens: 'RECETTE' | 'DEPENSE';
+  recette: number;
+  depense: number;
+  solde: number;
+  ventile: boolean;
+  ventilation: Record<string, number>;
+}
+
+export interface JournalTresorerieSmt {
+  compteId: string;
+  numero: string;
+  intitule: string;
+  reportANouveau: number;
+  operations: OperationTresorerieSmt[];
+  soldeAReporter: number;
+  totalRecettes: number;
+  totalDepenses: number;
+  lignesNonVentilees: number;
+}
+
+export interface Note4Smt {
+  journaux: JournalTresorerieSmt[];
+  colonnesRecettes: { cle: string; libelle: string }[];
+  colonnesDepenses: { cle: string; libelle: string }[];
+  nb: string;
+}
+
+export interface NotesSmt {
+  fiche: { numero: number; intitule: string; partie: 'BILAN' | 'COMPTE_DE_RESULTAT' }[];
+  note1: {
+    lignes: {
+      dateMiseEnService: string;
+      designation: string;
+      montant: number;
+      dateAcquisition: string;
+      dureeUtiliteAns: number;
+      dateSortie: string | null;
+      prixCession: number | null;
+    }[];
+    total: number;
+  };
+  note2: {
+    lignes: { reference: string; designation: string; quantite: null; prixUnitaire: null; montant: number }[];
+    valeurStockFinal: number;
+    valeurStockInitial: number;
+    quantitesTenues: boolean;
+    motifQuantites: string;
+  };
+  note3: {
+    creances: LigneCreanceDetteSmt[];
+    totalCreances: number;
+    dettes: LigneCreanceDetteSmt[];
+    totalDettes: number;
+  };
+  note5: {
+    rubriques: { cle: string; libelle: string; montant: number; comptes: CompteDuPoste[] }[];
+    total: number;
+    membres: { nom: string; nationalite: null; montant: number; numero: string }[];
+    nationaliteTenue: boolean;
+    motifNationalite: string;
+  };
+}
+
+export interface LigneCreanceDetteSmt {
+  numero: string;
+  nom: string;
+  montantCloture: number;
+  montantOuverture: number;
+  variationValeur: number;
+  variationPourcent: number | null;
+}
+
+export interface EligibiliteSmt {
+  categories: { cle: string; libelle: string; montant: number; comptes: CompteDuPoste[] }[];
+  totalRessources: number;
+  seuilParCategorieFcfa: number;
+  deviseDossier: string | null;
+  conversionAppliquee: boolean;
+  avertissement: string;
 }

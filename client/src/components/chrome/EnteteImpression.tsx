@@ -21,10 +21,12 @@ export function EnteteImpression({ titre, sousTitre }: { titre: string; sousTitr
       ).toLocaleDateString('fr-FR')}`
     : null;
 
-  const jeu =
-    tenant?.jeuEtatsFinanciersSycebnl === 'PROJETS_DEVELOPPEMENT'
-      ? 'Projets de développement et assimilés'
-      : 'Associations et ordres professionnels';
+  const JEUX: Record<string, string> = {
+    PROJETS_DEVELOPPEMENT: 'Projets de développement et assimilés',
+    SYSTEME_MINIMAL_TRESORERIE: 'Système Minimal de Trésorerie',
+    ASSOCIATIONS_ORDRES_PROFESSIONNELS: 'Associations et ordres professionnels',
+  };
+  const jeu = JEUX[tenant?.jeuEtatsFinanciersSycebnl ?? ''] ?? JEUX.ASSOCIATIONS_ORDRES_PROFESSIONNELS;
 
   return (
     <header className="impression-seul mb-4 pb-2 border-b-2 border-black">

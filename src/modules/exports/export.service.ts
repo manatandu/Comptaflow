@@ -63,7 +63,7 @@ export class ExportService {
 
   private nouveauClasseur(): ExcelJS.Workbook {
     const classeur = new ExcelJS.Workbook();
-    classeur.creator = 'Compta Flow';
+    classeur.creator = 'OmegaX';
     classeur.created = new Date();
     return classeur;
   }

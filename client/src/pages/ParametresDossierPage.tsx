@@ -43,6 +43,17 @@ const CHOIX: {
       '24 notes annexes',
     ],
   },
+  {
+    valeur: 'SYSTEME_MINIMAL_TRESORERIE',
+    titre: 'Système minimal de trésorerie · petites entités (art. 5 et 6)',
+    etats: [
+      'Bilan (5 lignes d’actif, 4 de passif)',
+      'Compte de résultat de trésorerie',
+      'Journal unique de trésorerie',
+      '5 notes annexes',
+      'Réservé aux ressources annuelles sous 30 000 000 FCFA par catégorie',
+    ],
+  },
 ];
 
 export function ParametresDossierPage() {

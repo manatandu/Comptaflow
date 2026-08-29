@@ -11,6 +11,7 @@ import {
 import { PrismaService } from '../../common/prisma.service';
 import { EtatsFinanciersService } from '../etats-financiers/etats-financiers.service';
 import { EtatsFinanciersProjetService } from '../etats-financiers/etats-financiers-projet.service';
+import { EtatsFinanciersSmtService } from '../etats-financiers/etats-financiers-smt.service';
 import { DonationService } from '../registre-donateurs/donation.service';
 
 const EXERCICE = { id: 'ex1', tenantId: 't1', dateDebut: new Date('2026-01-01'), dateFin: new Date('2026-12-31') };
@@ -77,12 +78,20 @@ function services(
       rapprochement: { rapproche: true },
     }),
   } as unknown as DonationService;
+  // Jeu S.M.T · le doublon suffit ici, aucun test de ce fichier ne transcrit
+  // un livre d'inventaire de Système Minimal de Trésorerie (voir
+  // `etats-financiers-smt.service.spec.ts` pour les états eux-mêmes).
+  const efs = {
+    bilan: jest.fn().mockResolvedValue({ etat: 'bilan-smt' }),
+    compteDeResultat: jest.fn().mockResolvedValue({ etat: 'compte-de-resultat-smt' }),
+  } as unknown as EtatsFinanciersSmtService;
   return {
-    inventaire: new LivreInventaireService(prisma, ef, efp),
+    inventaire: new LivreInventaireService(prisma, ef, efp, efs),
     rapport: new RapportActiviteService(prisma, ef, donations),
     prisma,
     ef,
     efp,
+    efs,
   };
 }
 

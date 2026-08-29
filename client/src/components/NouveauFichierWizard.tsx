@@ -3,11 +3,11 @@ import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { IconLogo, IconCheck } from '../components/chrome/icons';
 import { Aide } from '../components/chrome/Aide';
-import type { AuthResponse, JeuEtatsFinanciersSycebnl } from '../lib/types';
+import type { AuthResponse, JeuEtatsFinanciersSycebnl, Referentiel } from '../lib/types';
 
 const ETAPES = [
+  'Référentiel',
   'Raison sociale',
-  "Type d'entité",
   'Coordonnées',
   'Exercice',
   'Monnaie',
@@ -16,25 +16,74 @@ const ETAPES = [
 ] as const;
 
 /**
- * Écran « Type d'entité ». L'article 4 de l'Acte uniforme SYCEBNL ne prévoit
- * pas un jeu d'états financiers unique : le choix fait ici commande le bilan,
- * le compte de résultat ou d'exploitation, le tableau de flux et jusqu'au
- * nombre de notes annexes. Il ne peut donc pas rester implicite, ni être
- * deviné du nom de l'entité · c'est une question qu'on pose.
+ * PREMIER écran de l'assistant · le référentiel comptable, puis, pour le
+ * SYCEBNL, le jeu d'états financiers.
  *
- * Le Système Minimal de Trésorerie (art. 5 et 6, recettes annuelles jusqu'à
- * 30 M FCFA) est présenté mais désactivé : il n'est pas construit, et le
- * proposer comme s'il l'était produirait un dossier faux.
+ * ## Pourquoi ce choix est ici, et pas ailleurs
+ *
+ * Sage 100 ne le demande PAS à la création : son assistant enchaîne raison
+ * sociale, coordonnées, dates du premier exercice et longueur des comptes,
+ * puis emplacement du fichier ; c'est ensuite, dans Fichier > Paramètres
+ * société, que l'utilisateur « met à jour le système comptable utilisé
+ * c'est-à-dire le SYSCOHADA » et rectifie les natures de compte (manuel Sage
+ * i7 d'une ONG, Drive/Sage). Sage peut se le permettre : son plan de comptes
+ * vient d'un « modèle standard » que l'on retouche après coup.
+ *
+ * OmegaX ne le peut pas : le plan de comptes est SEMÉ à la création du
+ * dossier, et le plan SYCEBNL n'est pas le plan SYSCOHADA. Demander le
+ * référentiel après coup obligerait à re-semer un plan sur un dossier déjà
+ * ouvert. Le choix est donc posé d'entrée, et il reste modifiable dans
+ * Structure > Paramètres du dossier TANT QUE le dossier ne porte aucune
+ * écriture · c'est la place que Sage lui donne, avec le garde-fou que sa
+ * propre architecture ne lui impose pas.
+ */
+const REFERENTIELS: {
+  valeur: Referentiel;
+  titre: string;
+  sousTitre: string;
+  description: string;
+  disponible: boolean;
+}[] = [
+  {
+    valeur: 'SYCEBNL',
+    titre: 'SYCEBNL',
+    sousTitre: 'Entités à but non lucratif',
+    description:
+      "Acte uniforme adopté à Niamey le 22 décembre 2022, applicable depuis le 1er janvier 2024. Plan de comptes et états financiers propres aux associations, ONG, fondations, organisations religieuses, ordres professionnels et projets de développement.",
+    disponible: true,
+  },
+  {
+    valeur: 'SYSCOHADA',
+    titre: 'SYSCOHADA révisé',
+    sousTitre: 'Entreprises · droit comptable OHADA',
+    description:
+      "Référentiel de droit commun des entités à but lucratif (AUDCIF). Son plan de comptes et ses états financiers ne sont pas encore construits dans OmegaX : le proposer aujourd'hui produirait un dossier d'entreprise tenu avec la nomenclature d'une association.",
+    disponible: false,
+  },
+];
+
+/**
+ * Les TROIS jeux d'états financiers du SYCEBNL (art. 4 pour les deux
+ * premiers, art. 5 et 6 pour le troisième). Le choix fait ici commande le
+ * bilan, le compte de résultat ou d'exploitation, le tableau de flux et
+ * jusqu'au nombre de notes annexes : il ne peut ni rester implicite, ni être
+ * deviné du nom de l'entité.
+ *
+ * Le Système Minimal de Trésorerie n'est pas une préférence de présentation :
+ * l'article 5 pose que « toute entité est, sauf exception liée à sa taille,
+ * soumise au Système normal », et l'article 6 plafonne chacune des cinq
+ * catégories de ressources à 30 000 000 FCFA. L'écran le dit au lieu de
+ * laisser croire à trois options équivalentes.
  */
 const TYPES_ENTITE: {
-  valeur: JeuEtatsFinanciersSycebnl | 'SYSTEME_MINIMAL_TRESORERIE';
+  valeur: JeuEtatsFinanciersSycebnl;
   titre: string;
   description: string;
   disponible: boolean;
 }[] = [
   {
     valeur: 'ASSOCIATIONS_ORDRES_PROFESSIONNELS',
-    titre: 'Association, ordre professionnel, fondation',
+    titre: 'Système normal · association, ordre professionnel, fondation',
     description:
       'Bilan, compte de résultat, tableau de flux de trésorerie et 35 notes annexes. Le cas le plus fréquent : ASBL, ONG, fondation, fonds de dotation, organisation religieuse, ordre professionnel.',
     disponible: true,
@@ -48,14 +97,15 @@ const TYPES_ENTITE: {
   },
   {
     valeur: 'SYSTEME_MINIMAL_TRESORERIE',
-    titre: 'Système Minimal de Trésorerie',
+    titre: 'Système minimal de trésorerie · petite ASBL',
     description:
-      "Régime allégé des entités dont les recettes annuelles ne dépassent pas 30 millions de FCFA : comptabilité de trésorerie, journal unique, cinq notes annexes.",
-    disponible: false,
+      "Régime allégé RÉSERVÉ aux entités dont chacune des cinq catégories de ressources annuelles (subventions, cotisations, dons et legs, ressources de projet, autres) reste sous 30 000 000 FCFA : bilan à cinq lignes, compte de résultat de caisse, journal unique de trésorerie et cinq notes annexes. Au-delà d'un seul de ces seuils, l'entité relève du Système normal.",
+    disponible: true,
   },
 ];
 
 interface Form {
+  referentiel: Referentiel;
   nomEntite: string;
   jeuEtatsFinanciersSycebnl: JeuEtatsFinanciersSycebnl;
   activite: string;
@@ -70,10 +120,18 @@ interface Form {
   motDePasse: string;
 }
 
+/** Comment le jeu se nomme dans une phrase · écran de succès, dernier écran. */
+const LIBELLE_JEU: Record<JeuEtatsFinanciersSycebnl, string> = {
+  ASSOCIATIONS_ORDRES_PROFESSIONNELS: 'des associations et ordres professionnels',
+  PROJETS_DEVELOPPEMENT: 'des projets de développement et assimilés',
+  SYSTEME_MINIMAL_TRESORERIE: 'du Système minimal de trésorerie',
+};
+
 const anneeCourante = new Date().getFullYear();
 
 function formInitial(): Form {
   return {
+    referentiel: 'SYCEBNL',
     nomEntite: '',
     jeuEtatsFinanciersSycebnl: 'ASSOCIATIONS_ORDRES_PROFESSIONNELS',
     activite: '',
@@ -104,8 +162,11 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
 
   const derniereEtape = etape === ETAPES.length - 1;
   const peutAvancer =
-    (etape === 0 && form.nomEntite.trim().length > 0) ||
-    (etape > 0 && !derniereEtape) ||
+    // L'écran 0 (référentiel) a toujours une valeur sélectionnée : rien à
+    // valider. L'écran 1 exige la raison sociale.
+    etape === 0 ||
+    (etape === 1 && form.nomEntite.trim().length > 0) ||
+    (etape > 1 && !derniereEtape) ||
     (derniereEtape && form.email.trim().length > 0 && form.motDePasse.length >= 10);
 
   const suivant = () => {
@@ -121,7 +182,7 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
     try {
       const res = await api.post<AuthResponse>('/auth/register', {
         nomEntite: form.nomEntite,
-        referentiel: 'SYCEBNL',
+        referentiel: form.referentiel,
         jeuEtatsFinanciersSycebnl: form.jeuEtatsFinanciersSycebnl,
         email: form.email,
         motDePasse: form.motDePasse,
@@ -144,8 +205,6 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
       setEnvoi(false);
     }
   };
-
-  const typeChoisi = TYPES_ENTITE.find((t) => t.valeur === form.jeuEtatsFinanciersSycebnl);
 
   return (
     <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4 anim-voile">
@@ -172,10 +231,8 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
             </div>
             <h2 className="text-[15px] font-bold">Dossier « {form.nomEntite} » créé</h2>
             <p className="text-[12.5px] text-text-dim max-w-[440px]">
-              Le plan de comptes SYCEBNL et l'exercice {new Date(form.dateDebutExercice).getFullYear()} sont prêts.
-              Les états financiers seront ceux {form.jeuEtatsFinanciersSycebnl === 'PROJETS_DEVELOPPEMENT'
-                ? 'des projets de développement et assimilés'
-                : 'des associations et ordres professionnels'}.
+              Le plan de comptes {form.referentiel} et l'exercice {new Date(form.dateDebutExercice).getFullYear()} sont
+              prêts. Les états financiers seront ceux {LIBELLE_JEU[form.jeuEtatsFinanciersSycebnl]}.
             </p>
             <button
               onClick={() => (onTermine ? onTermine() : onClose())}
@@ -225,9 +282,110 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
               <div className="p-5 flex-1 min-h-[320px]">
                 {etape === 0 && (
                   <>
+                    <h2 className="text-[14px] font-bold mb-1 flex items-center gap-1.5">
+                      Référentiel comptable
+                      <Aide sujet="jeuEtats" />
+                    </h2>
+                    <p className="text-[12px] text-text-dim mb-3">
+                      Il commande le plan de comptes semé à la création et la présentation des états financiers. Il
+                      restera modifiable dans Structure &gt; Paramètres du dossier tant qu'aucune écriture n'est saisie.
+                    </p>
+                    <div className="flex flex-col gap-2">
+                      {REFERENTIELS.map((r) => {
+                        const actif = r.disponible && form.referentiel === r.valeur;
+                        return (
+                          <label
+                            key={r.valeur}
+                            className={`flex items-start gap-2.5 rounded-[8px] border p-3 transition-colors ${
+                              !r.disponible
+                                ? 'border-border bg-chrome-alt opacity-60 cursor-not-allowed'
+                                : actif
+                                  ? 'border-sel bg-sel-soft cursor-pointer'
+                                  : 'border-border hover:border-sel/50 cursor-pointer'
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              name="referentiel"
+                              className="mt-0.5"
+                              disabled={!r.disponible}
+                              checked={actif}
+                              onChange={() => r.disponible && majer('referentiel', r.valeur)}
+                            />
+                            <span className="min-w-0">
+                              <span className="block text-[13px] font-semibold flex items-center gap-1.5">
+                                {r.titre}
+                                <span className="text-[11px] font-normal text-text-dim">{r.sousTitre}</span>
+                                {!r.disponible && (
+                                  <span className="text-[10px] font-semibold text-warning">bientôt</span>
+                                )}
+                              </span>
+                              <span className="block text-[11.5px] text-text-dim leading-[1.5] mt-0.5">
+                                {r.description}
+                              </span>
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+
+                    {/* Le jeu d'états n'a de sens que sous SYCEBNL : le
+                        SYSCOHADA n'en prévoit qu'un. Il n'apparaît donc que
+                        si le SYCEBNL est retenu. */}
+                    {form.referentiel === 'SYCEBNL' && (
+                      <>
+                        <h3 className="text-[12.5px] font-bold mt-4 mb-1">Jeu d'états financiers</h3>
+                        <p className="text-[11.5px] text-text-dim mb-2">
+                          Le SYCEBNL en prévoit trois. Ce choix ne pourra plus être changé une fois la première
+                          écriture saisie.
+                        </p>
+                        <div className="flex flex-col gap-1.5">
+                          {TYPES_ENTITE.map((t) => {
+                            const actif = form.jeuEtatsFinanciersSycebnl === t.valeur;
+                            return (
+                              <label
+                                key={t.valeur}
+                                className={`flex items-start gap-2.5 rounded-[8px] border p-2.5 cursor-pointer transition-colors ${
+                                  actif ? 'border-sel bg-sel-soft' : 'border-border hover:border-sel/50'
+                                }`}
+                              >
+                                <input
+                                  type="radio"
+                                  name="typeEntite"
+                                  className="mt-0.5"
+                                  checked={actif}
+                                  onChange={() => majer('jeuEtatsFinanciersSycebnl', t.valeur)}
+                                />
+                                <span className="min-w-0">
+                                  <span className="block text-[12.5px] font-semibold flex items-center gap-1.5">
+                                    {t.titre}
+                                    {t.valeur === 'SYSTEME_MINIMAL_TRESORERIE' && <Aide sujet="smt" />}
+                                  </span>
+                                  <span className="block text-[11px] text-text-dim leading-[1.5] mt-0.5">
+                                    {t.description}
+                                  </span>
+                                </span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                        {form.jeuEtatsFinanciersSycebnl === 'SYSTEME_MINIMAL_TRESORERIE' && (
+                          <p className="mt-2 text-[11px] text-warning bg-warning-soft border border-warning/30 rounded-[6px] px-2.5 py-1.5">
+                            Le Système minimal de trésorerie est une exception liée à la taille (art. 5 et 6). Le
+                            dossier ouvrira un onglet « Éligibilité » qui mesure vos ressources contre le seuil, mais
+                            c'est à l'entité de vérifier qu'elle y a droit.
+                          </p>
+                        )}
+                      </>
+                    )}
+                  </>
+                )}
+
+                {etape === 1 && (
+                  <>
                     <h2 className="text-[14px] font-bold mb-1">Raison sociale de l'entité</h2>
                     <p className="text-[12px] text-text-dim mb-4">
-                      Association, ONG, fondation ou projet de développement · le référentiel SYCEBNL sera appliqué.
+                      Telle qu'elle figure aux statuts · elle sera portée en tête de chaque état imprimé.
                     </p>
                     <label className="text-[11.5px] font-semibold text-text-dim block mb-1">Raison sociale</label>
                     <input
@@ -237,62 +395,6 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
                       placeholder="Espoir pour Tous asbl"
                       className={champ}
                     />
-                  </>
-                )}
-
-                {etape === 1 && (
-                  <>
-                    <h2 className="text-[14px] font-bold mb-1 flex items-center gap-1.5">
-                      Type d'entité
-                      <Aide sujet="jeuEtats" />
-                    </h2>
-                    <p className="text-[12px] text-text-dim mb-4">
-                      Ce choix détermine le jeu d'états financiers du dossier. Il ne pourra plus être changé une fois
-                      la première écriture saisie.
-                    </p>
-                    <div className="flex flex-col gap-2">
-                      {TYPES_ENTITE.map((t) => {
-                        const actif = t.disponible && form.jeuEtatsFinanciersSycebnl === t.valeur;
-                        return (
-                          <label
-                            key={t.valeur}
-                            className={`flex items-start gap-2.5 rounded-[8px] border p-3 transition-colors ${
-                              !t.disponible
-                                ? 'border-border bg-chrome-alt opacity-60 cursor-not-allowed'
-                                : actif
-                                  ? 'border-sel bg-sel-soft cursor-pointer'
-                                  : 'border-border hover:border-sel/50 cursor-pointer'
-                            }`}
-                          >
-                            <input
-                              type="radio"
-                              name="typeEntite"
-                              className="mt-0.5"
-                              disabled={!t.disponible}
-                              checked={actif}
-                              onChange={() =>
-                                t.disponible &&
-                                majer('jeuEtatsFinanciersSycebnl', t.valeur as JeuEtatsFinanciersSycebnl)
-                              }
-                            />
-                            <span className="min-w-0">
-                              <span className="block text-[13px] font-semibold flex items-center gap-1.5">
-                                {t.titre}
-                                {!t.disponible && (
-                                  <>
-                                    <span className="text-[10px] font-semibold text-warning">bientôt</span>
-                                    <Aide sujet="smt" />
-                                  </>
-                                )}
-                              </span>
-                              <span className="block text-[11.5px] text-text-dim leading-[1.5] mt-0.5">
-                                {t.description}
-                              </span>
-                            </span>
-                          </label>
-                        );
-                      })}
-                    </div>
                   </>
                 )}
 
@@ -408,7 +510,8 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
                     <h2 className="text-[14px] font-bold mb-1">Connexion au dossier</h2>
                     <p className="text-[12px] text-text-dim mb-4">
                       OmegaX est hébergé · pas de fichier local à nommer. Ces identifiants serviront à vous reconnecter
-                      à « {form.nomEntite || 'ce dossier'} », tenu selon les états {typeChoisi?.titre.toLowerCase()}.
+                      à « {form.nomEntite || 'ce dossier'} », tenu en {form.referentiel} selon les états{' '}
+                      {LIBELLE_JEU[form.jeuEtatsFinanciersSycebnl]}.
                     </p>
                     <label className="text-[11.5px] font-semibold text-text-dim block mb-3">
                       Adresse e-mail de l'administrateur

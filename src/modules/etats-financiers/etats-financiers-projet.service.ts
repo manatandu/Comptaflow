@@ -35,7 +35,7 @@ import {
  * Hors périmètre de ce service, documenté et non simulé (règle §2.6) :
  * - **Tableau d'exécution budgétaire** : la maquette officielle (Section 2)
  *   suit un budget PAR PROJET selon une nomenclature budgétaire propre au
- *   projet, que Compta Flow n'a aucun modèle de données pour représenter
+ *   projet, qu'OmegaX n'a aucun modèle de données pour représenter
  *   (pas de notion de "ligne budgétaire" ni d'"engagement" distincte d'une
  *   écriture comptée). Construire ce tableau à partir de la seule balance
  *   inventerait des montants "Budget"/"Engagement" qu'aucune donnée ne

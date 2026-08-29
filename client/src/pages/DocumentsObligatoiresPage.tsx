@@ -264,7 +264,14 @@ export function DocumentsObligatoiresPage() {
           <div className="border border-border bg-surface px-3.5 py-3 mb-2.5">
             <div className="text-[10px] font-bold text-text-dim mb-1.5">
               ÉTATS EXIGÉS ·{' '}
-              {confInv.jeu === 'PROJETS_DEVELOPPEMENT' ? 'article 14, point 2' : 'article 14, point 1'}
+              {confInv.jeu === 'PROJETS_DEVELOPPEMENT'
+                ? 'article 14, point 2'
+                : confInv.jeu === 'SYSTEME_MINIMAL_TRESORERIE'
+                  ? // L'article 14 n'énumère que deux cas et ne nomme pas le
+                    // Système minimal de trésorerie · le dire, plutôt que de
+                    // ranger d'office ce dossier sous le point 1.
+                    "article 14, point 1 · lecture, le texte ne nomme pas le Système minimal de trésorerie"
+                  : 'article 14, point 1'}
             </div>
             {confInv.etatsExiges.map((e) => (
               <div key={e.cle} className="grid grid-cols-[1fr_110px] gap-2 py-1 border-b border-border last:border-b-0">

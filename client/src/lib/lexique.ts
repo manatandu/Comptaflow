@@ -160,7 +160,7 @@ export const LEXIQUE = {
   smt: {
     titre: 'Système Minimal de Trésorerie',
     texte:
-      "Régime allégé ouvert aux entités dont les recettes annuelles ne dépassent pas 30 millions de FCFA : comptabilité de trésorerie, journal unique, bilan et compte de résultat simplifiés, cinq notes annexes. Au-delà du seuil, le Système normal redevient obligatoire.",
+      "Régime allégé réservé aux petites entités : comptabilité de trésorerie (le fait générateur est l'encaissement ou le décaissement), journal unique de trésorerie, bilan à cinq lignes d'actif, compte de résultat de caisse et cinq notes annexes. L'article 6 plafonne à 30 millions de FCFA CHACUNE des cinq catégories de ressources annuelles (subventions ; cotisations et autres revenus ; dons et legs ; ressources de projet ; autres) : un seul dépassement, ou un cumul supérieur sur deux exercices, ramène l'entité au Système normal, qui reste la règle.",
     source: 'SYCEBNL, art. 5 et 6, Partie 4 ch. 4',
   },
   notesAnnexes: {
