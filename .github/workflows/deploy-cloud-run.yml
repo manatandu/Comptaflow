@@ -1,0 +1,59 @@
+name: Déployer le serveur sur Cloud Run
+
+# Se déclenche à chaque push sur main qui touche le code du serveur (pas le
+# client, qui a son propre workflow Firebase Hosting) — évite un redéploiement
+# du serveur pour un simple changement d'écran côté client.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'prisma/**'
+      - 'Dockerfile'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/deploy-cloud-run.yml'
+
+permissions:
+  contents: read
+
+env:
+  PROJECT_ID: omega-x-ec07a
+  REGION: us-east1
+  SERVICE: comptaflow-api
+
+jobs:
+  migrer-et-deployer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # La base se met à jour AVANT le serveur : une migration en attente ne
+      # doit jamais arriver après du code qui en dépend déjà.
+      - name: Appliquer les migrations Prisma
+        run: |
+          npm ci
+          npx prisma generate
+          npx prisma migrate deploy
+        env:
+          DATABASE_URL: ${{ secrets.API_DATABASE_URL }}
+
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Déployer sur Cloud Run
+        run: |
+          gcloud run deploy "$SERVICE" \
+            --source . \
+            --region "$REGION" \
+            --project "$PROJECT_ID" \
+            --allow-unauthenticated \
+            --quiet \
+            --set-env-vars="DATABASE_URL=${{ secrets.API_DATABASE_URL }},JWT_SECRET=${{ secrets.API_JWT_SECRET }},JWT_EXPIRES_IN=${{ secrets.API_JWT_EXPIRES_IN }},CORS_ORIGIN=https://oomega.web.app"
