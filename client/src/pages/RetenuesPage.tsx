@@ -19,6 +19,18 @@ import type { EcheancierFiscal, RegistreRetenues } from '../lib/types';
  */
 type Onglet = 'echeancier' | 'registre';
 
+/**
+ * Rythme de l'obligation · le registre ne connaissait que le mensuel, alors
+ * que les obligations créées par la loi de finances n° 25/060 sont
+ * trimestrielles et annuelles. Afficher le rythme évite de lire une échéance
+ * annuelle comme si elle revenait chaque mois.
+ */
+const RYTHME: Record<'MENSUELLE' | 'TRIMESTRIELLE' | 'ANNUELLE', string> = {
+  MENSUELLE: 'Mensuel',
+  TRIMESTRIELLE: 'Trimestriel',
+  ANNUELLE: 'Annuel',
+};
+
 export function RetenuesPage() {
   const { exerciceCourant } = useExercice();
   const [onglet, setOnglet] = useState<Onglet>('echeancier');
@@ -93,8 +105,9 @@ export function RetenuesPage() {
       {onglet === 'echeancier' && echeancier && (
         <div className="max-w-[1100px]">
           <div className="border border-border bg-surface mb-3">
-            <div className="grid grid-cols-[100px_1fr_130px_150px_110px] gap-2 px-4 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
+            <div className="grid grid-cols-[100px_86px_1fr_130px_150px_110px] gap-2 px-4 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
               <span>PROCHAINE</span>
+              <span>RYTHME</span>
               <span>NATURE</span>
               <span>BÉNÉFICIAIRE</span>
               <span className="text-right">RESTE À REVERSER</span>
@@ -104,28 +117,52 @@ export function RetenuesPage() {
               <div
                 key={e.cle}
                 title={e.echeance}
-                className={`grid grid-cols-[100px_1fr_130px_150px_110px] gap-2 px-4 py-1.5 items-start border-b border-border/50 last:border-b-0 text-[12px] ${
+                className={`grid grid-cols-[100px_86px_1fr_130px_150px_110px] gap-2 px-4 py-1.5 items-start border-b border-border/50 last:border-b-0 text-[12px] ${
                   e.moisEnRetard > 0 ? 'bg-danger-soft' : ''
                 }`}
               >
                 <span className="font-mono text-[11px]">{jour(e.date)}</span>
+                <span className="text-[10px] text-text-dim uppercase tracking-[0.04em] pt-[1px]">
+                  {RYTHME[e.periodicite]}
+                </span>
                 <span>
                   {e.libelle}
                   <span className="block text-[10px] text-text-dim leading-[1.5]">{e.baseLegale}</span>
+                  {/*
+                    Une DÉCLARATION ne porte aucun montant : sans son contenu,
+                    la ligne ne dirait pas ce qu'il y a à produire, et une
+                    échéance dont on ignore l'objet ne sert à rien.
+                  */}
+                  {e.contenu && (
+                    <span className="block text-[10.5px] leading-[1.5] mt-0.5">{e.contenu}</span>
+                  )}
+                  {e.sanction && (
+                    <span className="block text-[10px] text-danger leading-[1.5] mt-0.5">{e.sanction}</span>
+                  )}
+                  {e.sourceDonnees && (
+                    <span className="block text-[10px] text-text-dim italic leading-[1.5] mt-0.5">
+                      Où trouver la matière : {e.sourceDonnees}
+                    </span>
+                  )}
                   {e.reserve && <span className="block text-[10px] text-warning leading-[1.5] mt-0.5">{e.reserve}</span>}
                 </span>
                 <span className="text-[10.5px] text-text-dim">
                   {e.beneficiaire === 'ETAT' ? 'État (DGI)' : 'Organisme social'}
                 </span>
                 <span className={`font-mono text-right ${e.montantDu > 0.005 ? 'font-semibold' : 'text-text-dim'}`}>
-                  {montant(e.montantDu)}
+                  {e.genre === 'DECLARATION' ? (
+                    <span className="text-[10.5px] text-text-dim not-italic">Déclaration</span>
+                  ) : (
+                    montant(e.montantDu)
+                  )}
                 </span>
                 <span className={`font-mono text-right ${e.moisEnRetard > 0 ? 'text-danger font-bold' : 'text-text-dim'}`}>
                   {e.moisEnRetard > 0 ? e.moisEnRetard : '·'}
                 </span>
               </div>
             ))}
-            <div className="grid grid-cols-[100px_1fr_130px_150px_110px] gap-2 px-4 py-1.5 bg-surface-alt border-t border-border text-[12px] font-bold">
+            <div className="grid grid-cols-[100px_86px_1fr_130px_150px_110px] gap-2 px-4 py-1.5 bg-surface-alt border-t border-border text-[12px] font-bold">
+              <span />
               <span />
               <span>TOTAL RESTANT À REVERSER</span>
               <span />

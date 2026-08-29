@@ -519,6 +519,19 @@ export interface Tiers {
   modeleReglementId: string | null;
   modeleReglement?: ModeleReglement | null;
   comptesRattaches: TiersCompte[];
+  /**
+   * Coordonnées · sans elles, les lettres de relance que le logiciel compose
+   * déjà ne partaient nulle part. Le Numéro Impôt est en outre exigé par la
+   * liste annuelle des fournisseurs (loi de procédures fiscales, art. 47 ter).
+   */
+  adresse: string | null;
+  boitePostale: string | null;
+  ville: string | null;
+  pays: string | null;
+  telephone: string | null;
+  email: string | null;
+  numeroImpot: string | null;
+  contact: string | null;
 }
 
 export type ModeAmortissement = 'LINEAIRE';
@@ -918,6 +931,18 @@ export interface ParametresDossier {
   formeJuridique: FormeJuridiqueEbnl;
   droitEtranger: boolean;
   longueurCompte: number;
+  /**
+   * Assujettissement à la TVA · une ASBL ne l'est PAS de plein droit
+   * (ordonnance-loi n° 10/001, art. 14 : seuil de 80 000 000 FC de chiffre
+   * d'affaires annuel hors taxes ; exonérations des art. 15, 2° et 17, 8°).
+   */
+  assujettiTva: boolean;
+  dateOptionTva: string | null;
+  /**
+   * Effectif permanent · troisième critère de désignation d'un auditeur
+   * (SYCEBNL, art. 19) et tranche de cotisation INPP.
+   */
+  effectifPermanent: number;
   /** Au-delà de zéro, le jeu d'états financiers est verrouillé. */
   nombreEcritures: number;
 }
@@ -1589,6 +1614,14 @@ export interface EcheancierFiscal {
   echeances: {
     cle: string;
     libelle: string;
+    /**
+     * REVERSEMENT · une somme retenue sur un compte, qu'il faut verser.
+     * DECLARATION · une obligation qui ne porte AUCUN montant, et que le
+     * registre ne voyait donc pas : les trois déclarations créées par la loi
+     * de finances n° 25/060 sont de ce genre, et sanctionnées comme telles.
+     */
+    genre: 'REVERSEMENT' | 'DECLARATION';
+    periodicite: 'MENSUELLE' | 'TRIMESTRIELLE' | 'ANNUELLE';
     beneficiaire: 'ETAT' | 'ORGANISME_SOCIAL';
     date: string;
     echeance: string;
@@ -1596,6 +1629,10 @@ export interface EcheancierFiscal {
     reserve: string | null;
     montantDu: number;
     moisEnRetard: number;
+    /** Ce qu'il faut produire · une échéance sans contenu ne sert à rien. */
+    contenu: string | null;
+    sanction: string | null;
+    sourceDonnees: string | null;
   }[];
   totalDu: number;
   avertissements: string[];

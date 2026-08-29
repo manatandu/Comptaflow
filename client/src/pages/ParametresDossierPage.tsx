@@ -144,6 +144,24 @@ export function ParametresDossierPage() {
     }
   };
 
+  /**
+   * Régime de TVA et effectif · deux données qui commandent des RÈGLES, pas
+   * un affichage : sans l'assujettissement, le logiciel proposait la saisie
+   * « avec TVA » à toute association ; sans l'effectif, il ne pouvait pas
+   * mesurer le troisième critère de l'article 19 ni la tranche INPP.
+   */
+  const changerRegime = async (dto: { assujettiTva?: boolean; effectifPermanent?: number }) => {
+    setEnvoi(true);
+    setErreur(null);
+    try {
+      setParams(await api.patch<ParametresDossier>('/dossier/regime', dto));
+    } catch (e) {
+      setErreur(e instanceof ApiError ? e.message : 'Modification impossible');
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
   const changerForme = async (forme: FormeJuridiqueEbnl, droitEtranger?: boolean) => {
     if (!params) return;
     setEnvoi(true);
@@ -332,6 +350,57 @@ export function ParametresDossierPage() {
                   onChange={(e) => changerForme(params.formeJuridique, e.target.checked)}
                 />
                 Entité de droit étranger (art. 29 à 34 et art. 37 : accord-cadre avec le Ministère du Plan)
+              </label>
+            </div>
+          </section>
+
+          {/*
+            RÉGIME FISCAL ET EFFECTIF · deux champs ajoutés après l'audit du
+            29 août 2026, parce que leur absence faisait appliquer au dossier
+            des règles qui ne sont pas les siennes.
+          */}
+          <section className="bg-surface border border-border rounded-[10px] shadow-posee overflow-hidden">
+            <div className="bg-chrome-alt border-b border-border px-4 py-2 text-[11px] font-bold uppercase tracking-[0.06em] text-text-dim">
+              Régime fiscal et effectif
+            </div>
+            <div className="p-4 space-y-3">
+              <label className="flex items-start gap-2 text-[11.5px]">
+                <input
+                  type="checkbox"
+                  className="mt-[3px]"
+                  checked={params.assujettiTva}
+                  disabled={!estAdmin || envoi}
+                  onChange={(e) => changerRegime({ assujettiTva: e.target.checked })}
+                />
+                <span>
+                  Entité assujettie à la TVA
+                  <span className="block text-[10.5px] text-text-dim leading-[1.5] mt-0.5">
+                    Une association ne l’est pas de plein droit. Le seuil est de 80 000 000 FC de chiffre d’affaires
+                    annuel hors taxes (ordonnance-loi n° 10/001, art. 14) ; en deçà, l’option est possible et engage
+                    deux ans. Les opérations conformes à l’objet sont par ailleurs exonérées (art. 15, 2° et 17, 8°).
+                    Décochée, la TVA supportée n’est pas récupérable et se porte en charge.
+                  </span>
+                </span>
+              </label>
+              <label className="block text-[11.5px]">
+                Effectif permanent
+                <input
+                  type="number"
+                  min={0}
+                  defaultValue={params.effectifPermanent}
+                  disabled={!estAdmin || envoi}
+                  onBlur={(e) => {
+                    const valeur = Number(e.target.value);
+                    if (Number.isFinite(valeur) && valeur !== params.effectifPermanent) {
+                      changerRegime({ effectifPermanent: Math.max(0, Math.trunc(valeur)) });
+                    }
+                  }}
+                  className="mt-1 w-32 border border-border rounded-[7px] bg-bg px-2 py-1 text-[12px] focus:outline-none focus:border-sel"
+                />
+                <span className="block text-[10.5px] text-text-dim leading-[1.5] mt-1">
+                  Au-delà de vingt personnes, la désignation d’un auditeur devient obligatoire (SYCEBNL, art. 19,
+                  troisième critère). Ce nombre commande aussi la tranche de cotisation INPP.
+                </span>
               </label>
             </div>
           </section>

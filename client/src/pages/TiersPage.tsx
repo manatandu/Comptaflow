@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState, useRef } from 'react';
+import { Fragment, FormEvent, useEffect, useMemo, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../lib/api';
 import { useActionsFenetre } from '../lib/actions-fenetre';
@@ -78,6 +78,26 @@ const LIBELLE_TYPE_ECHEANCE: Record<TypeEcheance, string> = {
   EQUILIBRE: 'Équilibre (le reste)',
 };
 
+/**
+ * Les huit coordonnées de la fiche · l'ordre est celui dans lequel on les
+ * lit sur une enveloppe, puis les moyens de contact, puis l'identifiant
+ * fiscal qu'exige la liste annuelle des fournisseurs.
+ */
+const CHAMPS_COORDONNEES: Array<{
+  cle: 'contact' | 'adresse' | 'boitePostale' | 'ville' | 'pays' | 'telephone' | 'email' | 'numeroImpot';
+  libelle: string;
+  exemple: string;
+}> = [
+  { cle: 'contact', libelle: 'Contact', exemple: 'personne à qui écrire' },
+  { cle: 'adresse', libelle: 'Adresse', exemple: 'avenue, numéro, quartier' },
+  { cle: 'boitePostale', libelle: 'Boîte postale', exemple: 'B.P. 1234' },
+  { cle: 'ville', libelle: 'Ville', exemple: 'Kinshasa' },
+  { cle: 'pays', libelle: 'Pays', exemple: 'RD Congo' },
+  { cle: 'telephone', libelle: 'Téléphone', exemple: '+243 …' },
+  { cle: 'email', libelle: 'Courriel', exemple: 'nom@exemple.cd' },
+  { cle: 'numeroImpot', libelle: 'Numéro Impôt', exemple: 'exigé par la liste des fournisseurs' },
+];
+
 export function TiersPage() {
   const { estAdmin } = useAuth();
   const { exerciceCourant } = useExercice();
@@ -155,7 +175,10 @@ export function TiersPage() {
   useEffect(() => {
     if (!exerciceCourant) return;
     api.get<{ lignes: LigneBalance[] }>(`/ecritures/balance?exerciceId=${exerciceCourant.id}`).then((r) => {
-      setSoldes(Object.fromEntries(r.lignes.map((l) => [l.compteId, l.solde])));
+      // `?? []` · une balance qui revient sans lignes ne doit pas emporter la
+      // fenêtre. Le solde affiché à côté de chaque compte rattaché est un
+      // CONFORT : son absence doit dégrader la fiche, pas l'abattre.
+      setSoldes(Object.fromEntries((r.lignes ?? []).map((l) => [l.compteId, l.solde])));
     });
   }, [exerciceCourant]);
 
@@ -242,6 +265,27 @@ export function TiersPage() {
       await charger();
     } catch (err) {
       setErreur(err instanceof ApiError ? err.message : 'Impossible de détacher ce compte');
+    }
+  };
+
+  /**
+   * Enregistre UNE coordonnée, à la sortie du champ et seulement si elle a
+   * changé · sans ce test, quitter un champ sans l'avoir touché déclencherait
+   * une requête pour rien.
+   */
+  const enregistrerCoordonnee = async (
+    t: Tiers,
+    cle: (typeof CHAMPS_COORDONNEES)[number]['cle'],
+    valeur: string,
+  ) => {
+    const propre = valeur.trim();
+    if (propre === (t[cle] ?? '')) return;
+    setErreur(null);
+    try {
+      await api.patch(`/tiers/${t.id}`, { [cle]: propre });
+      charger();
+    } catch (e) {
+      setErreur(e instanceof ApiError ? e.message : 'Modification impossible');
     }
   };
 
@@ -488,6 +532,47 @@ export function TiersPage() {
               >
                 {tiersSelectionne.estActif ? 'Mettre en sommeil' : 'Réactiver'}
               </button>
+
+              {/*
+                VOLET COORDONNÉES · il manquait, et son absence rendait
+                inutilisable une brique déjà construite : les lettres de rappel
+                et les relevés que le logiciel compose n'avaient aucun
+                destinataire. Le Numéro Impôt s'y trouve aussi parce que la
+                liste annuelle des fournisseurs (loi de procédures fiscales,
+                art. 47 ter, au plus tard le 31 mars) l'exige pour chacun.
+
+                Enregistrement à la SORTIE du champ, pas à chaque frappe : une
+                requête par caractère saturerait le serveur pour rien.
+              */}
+              <div className="border-t border-border pt-2.5 mb-3">
+                <div className="text-[10px] font-bold text-text-dim mb-1.5">COORDONNÉES</div>
+                <div className="grid grid-cols-[92px_1fr] gap-x-2 gap-y-1 items-center">
+                  {CHAMPS_COORDONNEES.map((champ) => (
+                    <Fragment key={champ.cle}>
+                      <label className="text-text-dim text-right text-[11px]" htmlFor={`tiers-${champ.cle}`}>
+                        {champ.libelle} :
+                      </label>
+                      <input
+                        id={`tiers-${champ.cle}`}
+                        type={champ.cle === 'email' ? 'email' : 'text'}
+                        defaultValue={tiersSelectionne[champ.cle] ?? ''}
+                        placeholder={champ.exemple}
+                        // La clé force le remontage quand on change de tiers ·
+                        // sans elle, un champ non contrôlé garderait la valeur
+                        // du tiers précédent.
+                        key={`${tiersSelectionne.id}-${champ.cle}`}
+                        onBlur={(e) => enregistrerCoordonnee(tiersSelectionne, champ.cle, e.target.value)}
+                        className="border border-border rounded-[6px] bg-bg px-2 py-[3px] text-[11.5px] focus:outline-none focus:border-sel"
+                      />
+                    </Fragment>
+                  ))}
+                </div>
+                {!tiersSelectionne.adresse && !tiersSelectionne.email && (
+                  <div className="text-[10px] text-warning leading-[1.5] mt-1.5">
+                    Sans adresse ni courriel, aucune lettre de rappel ni aucun relevé ne peut être adressé à ce tiers.
+                  </div>
+                )}
+              </div>
 
               {/* Volet Comptes rattachés */}
               <div className="border-t border-border pt-2.5">
