@@ -1,12 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { api, ApiError } from '../lib/api';
 import { useExercice } from '../lib/exercice';
 import { useAuth } from '../lib/auth';
-import { useRibbon } from '../components/chrome/ribbon-context';
 import { IconFilter, IconExport } from '../components/chrome/icons';
 import type { Compte, Ecriture, Journal, LigneBalance, LigneGrandLivre } from '../lib/types';
 
 type Onglet = 'journal' | 'grand-livre' | 'balance';
+
+function estOnglet(v: string | null): v is Onglet {
+  return v === 'journal' || v === 'grand-livre' || v === 'balance';
+}
 
 interface Filtres {
   journalId: string;
@@ -29,7 +33,13 @@ function versQuery(exerciceId: string, filtres: Filtres): string {
 
 export function JournalPage() {
   const { exerciceCourant } = useExercice();
-  const [onglet, setOnglet] = useState<Onglet>('journal');
+  // L'onglet est piloté par l'URL (?onglet=…) pour que les menus État →
+  // Journal / Grand livre / Balance et la barre d'outils ouvrent directement
+  // le bon état, comme les commandes du menu État de Sage.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const brut = searchParams.get('onglet');
+  const onglet: Onglet = estOnglet(brut) ? brut : 'journal';
+  const setOnglet = (o: Onglet) => setSearchParams({ onglet: o }, { replace: true });
   const [ecritures, setEcritures] = useState<Ecriture[]>([]);
   const [totaux, setTotaux] = useState({ debit: 0, credit: 0 });
   const [balance, setBalance] = useState<LigneBalance[]>([]);
@@ -172,17 +182,16 @@ export function JournalPage() {
   // l'en-tête de page ci-dessous. Ceux du ruban sont explicitement
   // `disabled` : les laisser cliquables sans effet, à l'endroit le plus
   // visible de l'écran, est pire que de les désactiver.
-  useRibbon([
-    { titre: 'AFFICHAGE', boutons: [{ label: 'Filtrer', Icon: IconFilter, disabled: true }] },
-    { titre: 'IMPRESSION', boutons: [{ label: 'Exporter Excel', Icon: IconExport, disabled: true }] },
-  ]);
-
   const lignesJournal = ecritures.flatMap((e) =>
     e.lignes.map((l, indexLigne) => ({
       date: e.date,
       journal: e.journal?.code ?? '',
       libelle: e.libelle,
+      // Libellé au niveau de la LIGNE (celui saisi ligne à ligne), à défaut
+      // celui de la pièce — même règle que l'édition du journal chez Sage.
+      libelleLigne: l.libelle ?? e.libelle,
       compte: l.compte ? `${l.compte.numero} — ${l.compte.intitule}` : l.compteId,
+      compteNumero: l.compte?.numero ?? '',
       debit: Number(l.debit),
       credit: Number(l.credit),
       // Le n° de pièce est celui attribué par le journal ; `reference` est la
@@ -280,7 +289,12 @@ export function JournalPage() {
   return (
     <div className="p-2.5">
       <div className="flex items-center justify-between mb-2.5 gap-2">
-        <h1 className="text-[15px] font-bold">Journal &amp; grand livre</h1>
+        <div>
+          <div className="text-[10.5px] font-mono text-text-dim">ÉTAT</div>
+          <h1 className="text-[15px] font-bold">
+            {onglet === 'journal' ? 'Journal' : onglet === 'grand-livre' ? 'Grand livre des comptes' : 'Balance des comptes'}
+          </h1>
+        </div>
         <div className="flex items-center gap-2">
           {onglet === 'journal' && (
             <button
@@ -400,50 +414,63 @@ export function JournalPage() {
         </button>
       </div>
 
+      {/*
+        Présentation « Journal — état de base » de Sage : une ligne par ligne
+        d'écriture, colonnes Jour · Jrn · Pièce · Référence · N° compte ·
+        Libellé · Débit · Crédit ; les informations de la pièce (jour, n°,
+        référence, état de correction) ne sont portées que par sa PREMIÈRE
+        ligne, un filet sépare chaque pièce, les mouvements sont totalisés en
+        fin d'édition.
+      */}
       {onglet === 'journal' && (
-        <div className="border border-border">
-          <div className="grid grid-cols-[62px_46px_1.5fr_1.25fr_100px_100px_60px_84px_150px] gap-2.5 px-3.5 py-1.5 bg-surface-alt text-[10px] font-bold text-text-dim border-b border-border">
+        <div className="border border-border bg-surface">
+          <div className="grid grid-cols-[68px_46px_52px_92px_120px_1fr_108px_108px_128px] gap-2.5 px-3.5 py-1.5 bg-surface-alt text-[10px] font-bold text-text-dim border-b border-border-dark">
             <span>DATE</span>
             <span>JRN</span>
-            <span>LIBELLÉ</span>
-            <span>COMPTE</span>
+            <span className="text-right">PIÈCE</span>
+            <span>RÉFÉRENCE</span>
+            <span>N° COMPTE</span>
+            <span>LIBELLÉ ÉCRITURE</span>
             <span className="text-right">DÉBIT</span>
             <span className="text-right">CRÉDIT</span>
-            <span className="text-right">N° PIÈCE</span>
-            <span>RÉFÉRENCE</span>
-            <span>ÉTAT (ART. 20 AUDCIF)</span>
+            <span>CORRECTION (ART. 20)</span>
           </div>
           {lignesJournal.length === 0 && (
             <div className="px-3.5 py-4 text-[11.5px] text-text-dim">
               {filtreActif ? 'Aucune écriture ne correspond au filtre.' : 'Aucune écriture sur cet exercice.'}
             </div>
           )}
-          {lignesJournal.map((l, i) => (
+          {lignesJournal.map((l) => (
             <div
               key={l.key}
-              className={`grid grid-cols-[62px_46px_1.5fr_1.25fr_100px_100px_60px_84px_150px] gap-2.5 px-3.5 py-1 items-center border-b border-border text-[11.5px] ${
-                i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'
-              }`}
+              className={`grid grid-cols-[68px_46px_52px_92px_120px_1fr_108px_108px_128px] gap-2.5 px-3.5 py-[3px] items-center text-[11.5px] border-b border-border/50 ${
+                l.premiereLigne ? 'border-t border-t-border' : ''
+              } ${l.annuleePar ? 'opacity-55 line-through decoration-danger/60' : ''}`}
             >
-              <span className="font-mono text-[10.5px] text-text-dim">{new Date(l.date).toLocaleDateString('fr-FR')}</span>
-              <span className="font-mono text-text-dim">{l.journal}</span>
-              <span>{l.libelle}</span>
-              <span className="font-mono text-text-dim">{l.compte}</span>
+              <span className="font-mono text-[10.5px] text-text-dim">
+                {l.premiereLigne ? new Date(l.date).toLocaleDateString('fr-FR') : ''}
+              </span>
+              <span className="font-mono text-text-dim">{l.premiereLigne ? l.journal : ''}</span>
+              <span className="font-mono text-[10.5px] text-text-dim text-right">
+                {l.premiereLigne ? (l.numeroPiece ?? '—') : ''}
+              </span>
+              <span className="font-mono text-[10px] text-text-dim truncate">{l.premiereLigne ? l.reference : ''}</span>
+              <span className="font-mono" title={l.compte}>
+                {l.compteNumero}
+              </span>
+              <span className="truncate" title={`${l.compte} — ${l.libelleLigne}`}>
+                {l.libelleLigne}
+              </span>
               <span className="font-mono text-right">{l.debit ? l.debit.toLocaleString('fr-FR') : ''}</span>
               <span className="font-mono text-right">{l.credit ? l.credit.toLocaleString('fr-FR') : ''}</span>
-              <span className="font-mono text-[10px] text-text-dim text-right">{l.numeroPiece ?? ''}</span>
-              <span className="font-mono text-[10px] text-text-dim">{l.reference}</span>
-              <span className="text-[10px]">{l.premiereLigne && etatCorrection(l)}</span>
+              <span className="text-[10px] no-underline">{l.premiereLigne && etatCorrection(l)}</span>
             </div>
           ))}
-          <div className="grid grid-cols-[62px_46px_1.5fr_1.25fr_100px_100px_60px_84px_150px] gap-2.5 px-3.5 py-1.5 bg-surface-alt border-t border-border-dark text-[11.5px] font-bold">
-            <span />
-            <span />
-            <span>TOTAUX DE LA PÉRIODE</span>
-            <span />
+          <div className="grid grid-cols-[68px_46px_52px_92px_120px_1fr_108px_108px_128px] gap-2.5 px-3.5 py-1.5 bg-surface-alt border-t border-border-dark text-[11.5px] font-bold">
+            <span className="col-span-5" />
+            <span className="text-right text-[10px] text-text-dim self-center">TOTAUX DE LA PÉRIODE</span>
             <span className="font-mono text-right">{totaux.debit.toLocaleString('fr-FR')}</span>
             <span className="font-mono text-right">{totaux.credit.toLocaleString('fr-FR')}</span>
-            <span />
             <span />
           </div>
         </div>
@@ -476,45 +503,65 @@ export function JournalPage() {
             <div className="px-3.5 py-4 text-[11.5px] text-text-dim">Choisissez un compte pour afficher son grand livre.</div>
           )}
 
+          {/*
+            Présentation « Grand livre — état de base » de Sage : une première
+            ligne en gras porte le numéro et l'intitulé du compte (la rupture),
+            puis chaque mouvement — date, jrn, pièce, libellé, débit, crédit,
+            solde progressif —, et un pied avec le total des mouvements et le
+            solde final du compte.
+          */}
           {compteGrandLivreId && grandLivre && (
             <>
-              <div className="grid grid-cols-[62px_46px_1.8fr_90px_90px_100px_74px_1.2fr] gap-2.5 px-3.5 py-1.5 bg-surface-alt text-[10px] font-bold text-text-dim border-b border-border">
+              {(() => {
+                const compteGL = comptes.find((c) => c.id === compteGrandLivreId);
+                return (
+                  <div className="px-3.5 py-1.5 border-b border-border-dark bg-surface font-bold text-[12.5px]">
+                    <span className="font-mono">{compteGL?.numero}</span> — {compteGL?.intitule}
+                  </div>
+                );
+              })()}
+              <div className="grid grid-cols-[68px_46px_52px_1.8fr_100px_100px_110px_64px_1fr] gap-2.5 px-3.5 py-1.5 bg-surface-alt text-[10px] font-bold text-text-dim border-b border-border">
                 <span>DATE</span>
                 <span>JRN</span>
-                <span>LIBELLÉ</span>
+                <span className="text-right">PIÈCE</span>
+                <span>LIBELLÉ ÉCRITURE</span>
                 <span className="text-right">DÉBIT</span>
                 <span className="text-right">CRÉDIT</span>
-                <span className="text-right">SOLDE</span>
+                <span className="text-right">SOLDE PROGRESSIF</span>
                 <span>LETTRE</span>
                 <span title="Comptes de sens opposé dans la même écriture. Plusieurs comptes = écriture N débits/M crédits, répartition non déterminable sans information de saisie supplémentaire.">
                   CONTREPARTIE
                 </span>
               </div>
-              {grandLivre.lignes.map((l, i) => (
+              {grandLivre.lignes.map((l) => (
                 <div
                   key={l.id}
-                  className={`grid grid-cols-[62px_46px_1.8fr_90px_90px_100px_74px_1.2fr] gap-2.5 px-3.5 py-1 items-center border-b border-border text-[11.5px] ${
-                    i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'
-                  }`}
+                  className="grid grid-cols-[68px_46px_52px_1.8fr_100px_100px_110px_64px_1fr] gap-2.5 px-3.5 py-[3px] items-center border-b border-border/50 text-[11.5px]"
                 >
                   <span className="font-mono text-[10.5px] text-text-dim">{new Date(l.date).toLocaleDateString('fr-FR')}</span>
                   <span className="font-mono text-text-dim">{l.journalCode}</span>
-                  <span>{l.libelle}</span>
+                  <span className="font-mono text-[10.5px] text-text-dim text-right">{l.numeroPiece ?? '—'}</span>
+                  <span className="truncate" title={l.libelle}>
+                    {l.libelle}
+                  </span>
                   <span className="font-mono text-right">{l.debit ? l.debit.toLocaleString('fr-FR') : ''}</span>
                   <span className="font-mono text-right">{l.credit ? l.credit.toLocaleString('fr-FR') : ''}</span>
                   <span className="font-mono text-right font-semibold">{l.soldeProgressif.toLocaleString('fr-FR')}</span>
                   <span className="font-mono text-text-dim">{l.lettre ?? ''}</span>
-                  <span className="font-mono text-[10.5px] text-text-dim">
+                  <span className="font-mono text-[10.5px] text-text-dim truncate">
                     {l.contrepartie.length > 0 ? l.contrepartie.join(' + ') : '—'}
                   </span>
                 </div>
               ))}
-              <div className="grid grid-cols-[62px_46px_1.8fr_90px_90px_100px_74px_1.2fr] gap-2.5 px-3.5 py-1.5 bg-surface-alt border-t border-border-dark text-[11.5px] font-bold">
-                <span />
-                <span />
-                <span>SOLDE FINAL</span>
-                <span />
-                <span />
+              <div className="grid grid-cols-[68px_46px_52px_1.8fr_100px_100px_110px_64px_1fr] gap-2.5 px-3.5 py-1.5 bg-surface-alt border-t border-border-dark text-[11.5px] font-bold">
+                <span className="col-span-3" />
+                <span className="text-right text-[10px] text-text-dim self-center">TOTAL MOUVEMENTS · SOLDE FINAL</span>
+                <span className="font-mono text-right">
+                  {grandLivre.lignes.reduce((s, l) => s + l.debit, 0).toLocaleString('fr-FR')}
+                </span>
+                <span className="font-mono text-right">
+                  {grandLivre.lignes.reduce((s, l) => s + l.credit, 0).toLocaleString('fr-FR')}
+                </span>
                 <span className="font-mono text-right">{grandLivre.soldeFinal.toLocaleString('fr-FR')}</span>
                 <span />
                 <span />
@@ -524,30 +571,59 @@ export function JournalPage() {
         </div>
       )}
 
+      {/*
+        Présentation « Balance — état de base » de Sage : la balance classique
+        à quatre colonnes de montants — mouvements débit et crédit, soldes
+        DÉBITEURS et soldes CRÉDITEURS en colonnes séparées —, les comptes de
+        type Total tenant lieu de lignes de sous-totalisation (mêmes « niveaux
+        de sous-totaux » que chez Sage), et les totaux généraux en pied,
+        calculés sur les seuls comptes Détail pour ne rien compter deux fois.
+      */}
       {onglet === 'balance' && (
-        <div className="border border-border">
-          <div className="grid grid-cols-[70px_1fr_110px_110px_110px] gap-2.5 px-3.5 py-1.5 bg-surface-alt text-[10px] font-bold text-text-dim border-b border-border">
-            <span>N°</span>
-            <span>LIBELLÉ</span>
-            <span className="text-right">DÉBIT</span>
-            <span className="text-right">CRÉDIT</span>
-            <span className="text-right">SOLDE</span>
+        <div className="border border-border bg-surface">
+          <div className="grid grid-cols-[86px_1fr_115px_115px_115px_115px] gap-2.5 px-3.5 py-1.5 bg-surface-alt text-[10px] font-bold text-text-dim border-b border-border-dark">
+            <span>N° COMPTE</span>
+            <span>INTITULÉ DU COMPTE</span>
+            <span className="text-right">MVTS DÉBIT</span>
+            <span className="text-right">MVTS CRÉDIT</span>
+            <span className="text-right">SOLDE DÉBITEUR</span>
+            <span className="text-right">SOLDE CRÉDITEUR</span>
           </div>
-          {balance.map((l, i) => (
+          {balance.map((l) => (
             <div
               key={l.compteId}
-              title={l.typeCompte === 'TOTAL' ? 'Compte Total — agrège les comptes Détail de même racine' : undefined}
-              className={`grid grid-cols-[70px_1fr_110px_110px_110px] gap-2.5 px-3.5 py-1.5 items-center border-b border-border text-[12px] ${
-                l.typeCompte === 'TOTAL' ? 'bg-chrome font-semibold' : i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'
+              title={l.typeCompte === 'TOTAL' ? 'Compte Total — sous-totalisation des comptes Détail de même racine' : undefined}
+              className={`grid grid-cols-[86px_1fr_115px_115px_115px_115px] gap-2.5 px-3.5 py-[3px] items-center border-b border-border/50 text-[11.5px] ${
+                l.typeCompte === 'TOTAL' ? 'bg-chrome font-semibold border-b-border' : ''
               }`}
             >
               <span className="font-mono">{l.numero}</span>
-              <span>{l.intitule}</span>
+              <span className="truncate" title={l.intitule}>
+                {l.intitule}
+              </span>
               <span className="font-mono text-right">{l.totalDebit.toLocaleString('fr-FR')}</span>
               <span className="font-mono text-right">{l.totalCredit.toLocaleString('fr-FR')}</span>
-              <span className="font-mono text-right font-semibold">{l.solde.toLocaleString('fr-FR')}</span>
+              <span className="font-mono text-right">{l.solde > 0 ? l.solde.toLocaleString('fr-FR') : ''}</span>
+              <span className="font-mono text-right">{l.solde < 0 ? Math.abs(l.solde).toLocaleString('fr-FR') : ''}</span>
             </div>
           ))}
+          {(() => {
+            const details = balance.filter((l) => l.typeCompte !== 'TOTAL');
+            const tDebit = details.reduce((s, l) => s + l.totalDebit, 0);
+            const tCredit = details.reduce((s, l) => s + l.totalCredit, 0);
+            const tSoldeD = details.reduce((s, l) => s + (l.solde > 0 ? l.solde : 0), 0);
+            const tSoldeC = details.reduce((s, l) => s + (l.solde < 0 ? -l.solde : 0), 0);
+            return (
+              <div className="grid grid-cols-[86px_1fr_115px_115px_115px_115px] gap-2.5 px-3.5 py-1.5 bg-surface-alt border-t border-border-dark text-[11.5px] font-bold">
+                <span />
+                <span className="text-right text-[10px] text-text-dim self-center">TOTAUX GÉNÉRAUX</span>
+                <span className="font-mono text-right">{tDebit.toLocaleString('fr-FR')}</span>
+                <span className="font-mono text-right">{tCredit.toLocaleString('fr-FR')}</span>
+                <span className="font-mono text-right">{tSoldeD.toLocaleString('fr-FR')}</span>
+                <span className="font-mono text-right">{tSoldeC.toLocaleString('fr-FR')}</span>
+              </div>
+            );
+          })()}
         </div>
       )}
     </div>

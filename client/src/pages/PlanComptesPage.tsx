@@ -2,8 +2,6 @@ import { FormEvent, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { useRibbon } from '../components/chrome/ribbon-context';
-import { IconNew, IconFilter, IconPrint } from '../components/chrome/icons';
 import type { ClasseCompte, Compte, TypeCompteDetailTotal } from '../lib/types';
 
 const LIBELLE_CLASSE: Record<ClasseCompte, string> = {
@@ -43,12 +41,6 @@ export function PlanComptesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recherche]);
 
-  useRibbon([
-    { titre: 'GESTION', boutons: [{ label: 'Nouveau', Icon: IconNew, onClick: () => setAfficherFormulaire((v) => !v) }] },
-    { titre: 'RECHERCHE', boutons: [{ label: 'Filtrer', Icon: IconFilter }] },
-    { titre: 'IMPRESSION', boutons: [{ label: 'Imprimer', Icon: IconPrint }] },
-  ]);
-
   const onCreer = async (e: FormEvent) => {
     e.preventDefault();
     setErreur(null);
@@ -75,13 +67,24 @@ export function PlanComptesPage() {
   return (
     <div className="p-2.5">
       <div className="flex items-center justify-between mb-2.5">
-        <h1 className="text-[15px] font-bold">Plan de comptes</h1>
-        <input
-          value={recherche}
-          onChange={(e) => setRecherche(e.target.value)}
-          placeholder="Rechercher un compte…"
-          className="border border-border-dark bg-surface px-2.5 py-1 text-[12.5px] w-64"
-        />
+        <h1 className="text-[15px] font-bold">Plan comptable</h1>
+        <div className="flex items-center gap-2">
+          <input
+            value={recherche}
+            onChange={(e) => setRecherche(e.target.value)}
+            placeholder="Rechercher un compte…"
+            className="border border-border-dark bg-surface px-2.5 py-1 text-[12.5px] w-64"
+          />
+          {estAdmin && (
+            <button
+              type="button"
+              onClick={() => setAfficherFormulaire((v) => !v)}
+              className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[11.5px]"
+            >
+              Nouveau compte
+            </button>
+          )}
+        </div>
       </div>
 
       {estAdmin && afficherFormulaire && (

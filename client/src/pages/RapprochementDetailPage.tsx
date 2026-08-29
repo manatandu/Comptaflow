@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../lib/api';
-import { useRibbon } from '../components/chrome/ribbon-context';
-import { IconRefresh, IconCheck } from '../components/chrome/icons';
 import type { DetailRapprochement } from '../lib/types';
 
 /**
@@ -34,14 +32,6 @@ export function RapprochementDetailPage() {
     charger();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
-
-  useRibbon([
-    { titre: 'AFFICHAGE', boutons: [{ label: 'Actualiser', Icon: IconRefresh, onClick: charger }] },
-    {
-      titre: 'RAPPROCHEMENT',
-      boutons: [{ label: 'Clôturer', Icon: IconCheck, onClick: () => cloturer(), disabled: !detail?.equilibre || detail?.rapprochement.statut === 'CLOTURE' }],
-    },
-  ]);
 
   const enCours = detail?.rapprochement.statut === 'EN_COURS';
 

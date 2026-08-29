@@ -1,8 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { useRibbon } from '../components/chrome/ribbon-context';
-import { IconRefresh } from '../components/chrome/icons';
 import type { RoleUtilisateur, Utilisateur } from '../lib/types';
 
 const LIBELLE_ROLE: Record<RoleUtilisateur, string> = {
@@ -35,10 +33,6 @@ export function UtilisateursPage() {
     if (estAdmin) charger();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [estAdmin]);
-
-  useRibbon([
-    { titre: 'AFFICHAGE', boutons: [{ label: 'Actualiser', Icon: IconRefresh, onClick: charger }] },
-  ]);
 
   if (!estAdmin) {
     return (

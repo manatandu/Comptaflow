@@ -1,8 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { useRibbon } from '../components/chrome/ribbon-context';
-import { IconNew } from '../components/chrome/icons';
 import type { Bailleur, Compte } from '../lib/types';
 
 /**
@@ -41,12 +39,6 @@ export function BailleursPage() {
 
   // Bouton masqué hors admin : le back refuse déjà (POST/PATCH /bailleurs sont
   // @Roles(ADMIN_CABINET)), l'UI ne doit pas proposer une action vouée au 403.
-  useRibbon(
-    estAdmin
-      ? [{ titre: 'GESTION', boutons: [{ label: 'Nouveau', Icon: IconNew, onClick: () => setAfficherFormulaire((v) => !v) }] }]
-      : [],
-  );
-
   const onCreer = async (e: FormEvent) => {
     e.preventDefault();
     setErreur(null);

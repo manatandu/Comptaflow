@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { useExercice } from '../lib/exercice';
 import { useAuth } from '../lib/auth';
-import { useRibbon } from '../components/chrome/ribbon-context';
 import { IconExport, IconCheck } from '../components/chrome/icons';
 import type {
   Bilan,
@@ -94,8 +93,6 @@ export function EtatsFinanciersPage() {
   // Bouton du ruban désactivé : useRibbon fige les gestionnaires au montage,
   // il agirait donc toujours sur l'onglet initial. Le bouton fonctionnel est
   // dans l'en-tête de page.
-  useRibbon([{ titre: 'IMPRESSION', boutons: [{ label: 'Exporter Excel', Icon: IconExport, disabled: true }] }]);
-
   const exporter = async () => {
     if (!exerciceCourant) return;
     const chemin =

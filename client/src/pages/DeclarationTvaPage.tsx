@@ -1,8 +1,7 @@
 import { FormEvent, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useExercice } from '../lib/exercice';
-import { useRibbon } from '../components/chrome/ribbon-context';
-import { IconRefresh, IconCheck } from '../components/chrome/icons';
+import { IconCheck } from '../components/chrome/icons';
 import type { DeclarationTva } from '../lib/types';
 
 function premierJourDuMois(): string {
@@ -33,8 +32,6 @@ export function DeclarationTvaPage() {
       setChargement(false);
     }
   };
-
-  useRibbon([{ titre: 'AFFICHAGE', boutons: [{ label: 'Recalculer', Icon: IconRefresh, onClick: () => calculer() }] }]);
 
   const comptabiliserLiquidation = async () => {
     if (!exerciceCourant || !declaration) return;

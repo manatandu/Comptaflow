@@ -1,8 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../lib/api';
-import { useRibbon } from '../components/chrome/ribbon-context';
-import { IconNew, IconRefresh } from '../components/chrome/icons';
 import type { Compte, RapprochementBancaire } from '../lib/types';
 
 /**
@@ -36,11 +34,6 @@ export function RapprochementPage() {
     charger();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  useRibbon([
-    { titre: 'AFFICHAGE', boutons: [{ label: 'Actualiser', Icon: IconRefresh, onClick: charger }] },
-    { titre: 'GESTION', boutons: [{ label: 'Nouveau', Icon: IconNew, onClick: () => setAfficherFormulaire((v) => !v) }] },
-  ]);
 
   const onOuvrir = async (e: FormEvent) => {
     e.preventDefault();

@@ -4,8 +4,8 @@ export interface MenuItemDef {
   label: string;
   onClick?: () => void;
   disabled?: boolean;
-  /** Affiché en italique à droite de l'item désactivé (ex. "brique à venir"). */
-  indication?: string;
+  /** Trait horizontal AVANT cet item — regroupe les commandes par famille, comme chez Sage. */
+  separateurAvant?: boolean;
 }
 
 export interface MenuDef {
@@ -14,12 +14,12 @@ export interface MenuDef {
 }
 
 /**
- * Barre de menus classique (Fichier/Édition/Affichage/...) — jusqu'ici de
- * simples libellés décoratifs, maintenant de vrais menus déroulants.
- * Un menu sans item réel (brique pas encore construite : Édition, Trésorerie,
- * Tiers, Fenêtre) affiche "Pas encore disponible" plutôt que de disparaître —
- * même logique que les tuiles verrouillées de l'écran Accueil : on montre ce
- * qui manque, on ne le cache pas.
+ * Barre de menus classique (Fichier / Structure / Traitement / État / ...),
+ * calquée sur la barre de menus de Sage 100 Comptabilité i7 : chaque menu ne
+ * contient QUE des commandes réelles — pas d'items « à venir » ni de menus
+ * vides, un logiciel fini ne montre pas ses chantiers dans sa barre de menus.
+ * Comportement Windows : un clic ouvre, le survol fait glisser d'un menu à
+ * l'autre tant qu'un menu est ouvert, Échap ou clic dehors referme.
  */
 export function MenuBar({ menus }: { menus: MenuDef[] }) {
   const [ouvert, setOuvert] = useState<string | null>(null);
@@ -41,24 +41,25 @@ export function MenuBar({ menus }: { menus: MenuDef[] }) {
   }, []);
 
   return (
-    <div ref={ref} className="h-6 flex items-center gap-1 px-2.5 border-b border-border">
+    <div ref={ref} className="h-[24px] flex items-center px-1.5 bg-chrome border-b border-border select-none">
       {menus.map((m) => (
-        <div key={m.titre} className="relative">
+        <div key={m.titre} className="relative h-full">
           <button
             type="button"
             onClick={() => setOuvert(ouvert === m.titre ? null : m.titre)}
-            className={`text-[11.5px] px-1.5 py-0.5 ${ouvert === m.titre ? 'bg-sel text-white' : 'hover:bg-chrome-alt'}`}
+            onMouseEnter={() => {
+              if (ouvert && ouvert !== m.titre) setOuvert(m.titre);
+            }}
+            className={`h-full text-[11.5px] px-2 ${ouvert === m.titre ? 'bg-sel text-white' : 'hover:bg-chrome-alt'}`}
           >
             {m.titre}
           </button>
           {ouvert === m.titre && (
-            <div className="absolute left-0 top-full z-20 min-w-[210px] bg-surface border border-border-dark py-1">
-              {m.items.length === 0 ? (
-                <div className="px-3 py-1.5 text-[11.5px] text-text-dim italic">Pas encore disponible</div>
-              ) : (
-                m.items.map((it) => (
+            <div className="absolute left-0 top-full z-30 min-w-[230px] bg-surface border border-border-dark shadow-[2px_2px_0_rgba(0,0,0,0.18)] py-1">
+              {m.items.map((it, i) => (
+                <div key={`${it.label}-${i}`}>
+                  {it.separateurAvant && <div className="my-1 border-t border-border" />}
                   <button
-                    key={it.label}
                     type="button"
                     disabled={it.disabled}
                     onClick={() => {
@@ -66,13 +67,12 @@ export function MenuBar({ menus }: { menus: MenuDef[] }) {
                       it.onClick?.();
                       setOuvert(null);
                     }}
-                    className="w-full flex items-center justify-between gap-3 text-left px-3 py-1.5 text-[11.5px] hover:enabled:bg-chrome-alt disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="w-full text-left px-3.5 py-[5px] text-[11.5px] hover:enabled:bg-sel hover:enabled:text-white disabled:opacity-40 disabled:cursor-not-allowed"
                   >
-                    <span>{it.label}</span>
-                    {it.indication && <span className="text-[10px] text-text-dim italic">{it.indication}</span>}
+                    {it.label}
                   </button>
-                ))
-              )}
+                </div>
+              ))}
             </div>
           )}
         </div>

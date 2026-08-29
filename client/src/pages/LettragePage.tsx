@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../lib/api';
-import { useRibbon } from '../components/chrome/ribbon-context';
-import { IconRefresh, IconCheck } from '../components/chrome/icons';
 import type { Compte, LigneLettrage } from '../lib/types';
 
 export function LettragePage() {
@@ -34,14 +32,6 @@ export function LettragePage() {
     charger();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [compteId]);
-
-  useRibbon([
-    { titre: 'AFFICHAGE', boutons: [{ label: 'Actualiser', Icon: IconRefresh, onClick: charger }] },
-    {
-      titre: 'LETTRAGE',
-      boutons: [{ label: 'Lettrage auto', Icon: IconCheck, onClick: () => lancerLettrageAuto() }],
-    },
-  ]);
 
   const basculerSelection = (id: string) => {
     setSelection((prev) => {
@@ -116,9 +106,19 @@ export function LettragePage() {
         </button>{' '}
         / Lettrage
       </div>
-      <h1 className="text-[15px] font-bold mb-2.5">
-        {compte ? `${compte.numero} — ${compte.intitule}` : 'Lettrage'}
-      </h1>
+      <div className="flex items-center justify-between max-w-[900px] mb-2.5">
+        <h1 className="text-[15px] font-bold">
+          {compte ? `${compte.numero} — ${compte.intitule}` : 'Lettrage'}
+        </h1>
+        <button
+          type="button"
+          onClick={lancerLettrageAuto}
+          disabled={envoi}
+          className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[11.5px] disabled:opacity-50"
+        >
+          Lettrage automatique
+        </button>
+      </div>
 
       {erreur && <div className="text-[12px] text-danger bg-danger-soft border border-danger/30 px-3 py-2 mb-3 max-w-[720px]">{erreur}</div>}
       {info && <div className="text-[12px] text-positive bg-positive-soft border border-positive/30 px-3 py-2 mb-3 max-w-[720px]">{info}</div>}

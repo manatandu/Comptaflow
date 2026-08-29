@@ -2,8 +2,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useExercice } from '../lib/exercice';
-import { useRibbon } from '../components/chrome/ribbon-context';
-import { IconRefresh, IconLock, IconCheck } from '../components/chrome/icons';
+import { IconLock, IconCheck } from '../components/chrome/icons';
 import type { Cloture, GranulariteCloture, Journal } from '../lib/types';
 
 const LIBELLE_GRANULARITE: Record<GranulariteCloture, string> = {
@@ -57,8 +56,6 @@ export function ExercicePage() {
     if (!estAdmin) return;
     api.get<Journal[]>('/journaux').then(setJournaux);
   }, [estAdmin]);
-
-  useRibbon([{ titre: 'AFFICHAGE', boutons: [{ label: 'Actualiser', Icon: IconRefresh, onClick: charger }] }]);
 
   const clorePartielle = async (e: FormEvent) => {
     e.preventDefault();

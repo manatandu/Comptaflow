@@ -2,8 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useExercice } from '../lib/exercice';
-import { useRibbon } from '../components/chrome/ribbon-context';
-import { IconRefresh, IconExport, IconNew } from '../components/chrome/icons';
+import { IconNew } from '../components/chrome/icons';
 import type { Ecriture } from '../lib/types';
 
 export function DashboardPage() {
@@ -21,12 +20,6 @@ export function DashboardPage() {
     charger();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [exerciceCourant?.id]);
-
-  useRibbon([
-    { titre: 'AFFICHAGE', boutons: [{ label: 'Actualiser', Icon: IconRefresh, onClick: charger }] },
-    { titre: 'SAISIE', boutons: [{ label: 'Nouvelle opération', Icon: IconNew, onClick: () => navigate('/saisie') }] },
-    { titre: 'IMPRESSION', boutons: [{ label: 'Exporter', Icon: IconExport }] },
-  ]);
 
   const soldeTresorerie = null; // Phase 2 : calculé depuis /ecritures/balance filtré classe 5
 
@@ -51,7 +44,7 @@ export function DashboardPage() {
         className="flex items-center gap-2 px-4 py-2.5 bg-sel text-white text-[13.5px] font-semibold mb-2.5"
       >
         <IconNew width={17} height={17} />
-        Enregistrer une opération
+        Ouvrir la saisie des journaux
       </button>
 
       <div className="bg-surface border border-border">

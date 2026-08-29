@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useExercice } from '../lib/exercice';
 import { useAuth } from '../lib/auth';
-import { useRibbon } from '../components/chrome/ribbon-context';
 import { IconExport } from '../components/chrome/icons';
 import type { Compte, LigneNoteCalculee, NoteCalculee, ResultatNotesJeu } from '../lib/types';
 
@@ -55,8 +54,6 @@ export function NotesAnnexesPage() {
     api.get<Compte[]>('/comptes').then(setComptes, () => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [exerciceCourant?.id, chemin, utilisateur]);
-
-  useRibbon([{ titre: 'IMPRESSION', boutons: [{ label: 'Exporter Excel', Icon: IconExport, disabled: true }] }]);
 
   const exporter = async () => {
     if (!exerciceCourant) return;

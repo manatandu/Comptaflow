@@ -1430,3 +1430,39 @@ Comptabilite.pdf`, 62 Mo) n'a pas pu être extrait (limite technique) — son co
 très probablement redondant avec les autres sources SAARI/Comptabilité 100 déjà
 analysées en intégralité ; à ne redemander que si un doute précis apparaît sur un point
 non couvert par ce document.
+
+## 6. Refonte de l'interface au modèle Sage (29/08/2026)
+
+À la demande de l'utilisateur (« je veux un logiciel comptable comme Sage —
+sois conformiste »), l'interface a été entièrement refondue sur les patterns
+documentés dans le skill `sage-i7` — relecture intégrale des sources du Drive,
+manuel EDM (#7) désormais lu en entier :
+
+- **Espace de travail** : barre de titre (dossier + exercice), barre de menus
+  Fichier / Structure / Traitement / État / Fenêtre / ? (uniquement des
+  commandes réelles), barre d'outils fixe (l'outil actif est enfoncé),
+  barre d'état (fenêtre active, dossier, rôle, exercice). Le ruban par page a
+  été supprimé — les actions d'une fenêtre vivent dans la fenêtre.
+- **Ouverture du dossier** : la connexion est une boîte de dialogue
+  « Ouverture du dossier comptable » ; l'inscription, un assistant
+  « Création d'un nouveau fichier comptable ».
+- **Saisie des journaux** (`SaisiePage`, refonte totale) : choix du code
+  journal + période (mois), puis grille Jour · Pièce · Référence · N° compte ·
+  Libellé · Débit · Crédit — saisie LIBRE ligne à ligne sur tout compte du
+  plan (préfixe ou F4 pour la liste, Tab de zone en zone, Entrée valide),
+  pré-positionnement débit/crédit selon type de journal et racine du compte,
+  bouton Équilibrer, contrepartie trésorerie en un clic, totaux journal et
+  pièce. C'est l'écran par défaut ; les modèles ne sont qu'un accélérateur.
+- **Modèles de saisie** (`ModelesSaisie`) : appelés DEPUIS la saisie, comme
+  chez Sage — opérations courantes, opérations avec TVA, et les 19
+  écritures-types SYCEBNL (l'API `/operations-specifiques` reste la source
+  du chiffrage). Ils pré-remplissent la pièce, toujours modifiable ligne à
+  ligne. La page autonome « Opérations spécifiques » a été supprimée.
+- **États** (`JournalPage`) : Journal (une ligne par ligne d'écriture, pièce
+  groupée, totaux en fin), Grand livre (rupture par compte, solde progressif,
+  total mouvements + solde final), Balance (4 colonnes de montants : mvts
+  débit/crédit, soldes débiteur/créditeur, sous-totaux par comptes Total,
+  totaux généraux) ; menus État → Journal / Grand livre / Balance et barre
+  d'outils ouvrent directement le bon état (`?onglet=`).
+
+Rien n'a changé côté API, logique des états financiers, ni exports Excel.

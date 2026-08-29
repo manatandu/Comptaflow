@@ -3,8 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useExercice } from '../lib/exercice';
-import { useRibbon } from '../components/chrome/ribbon-context';
-import { IconRefresh, IconCheck } from '../components/chrome/icons';
+import { IconCheck } from '../components/chrome/icons';
 import type {
   Compte,
   ConditionEcheance,
@@ -109,8 +108,6 @@ export function TiersPage() {
       setSoldes(Object.fromEntries(r.lignes.map((l) => [l.compteId, l.solde])));
     });
   }, [exerciceCourant]);
-
-  useRibbon([{ titre: 'AFFICHAGE', boutons: [{ label: 'Actualiser', Icon: IconRefresh, onClick: charger }] }]);
 
   const tiersSelectionne = liste?.find((t) => t.id === selectionId) ?? null;
   // Comptes classe 4 non encore rattachés à un tiers (parmi ceux vus par la

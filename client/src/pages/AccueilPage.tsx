@@ -1,12 +1,11 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useRibbon } from '../components/chrome/ribbon-context';
 import { NouveauFichierWizard } from '../components/NouveauFichierWizard';
+import { AProposModale } from '../components/chrome/AProposModale';
 import {
   IconFileAdd, IconFolderOpen, IconBook, IconNews,
   IconSaisie, IconComptes, IconJournal, IconEtats,
-  IconLifeBuoy, IconInfo, IconLock, IconRefresh,
-} from '../components/chrome/icons';
+  IconLifeBuoy, IconInfo, IconLock, } from '../components/chrome/icons';
 
 interface Tuile {
   label: string;
@@ -51,8 +50,7 @@ function GrilleTuiles({ titre, tuiles }: { titre: string; tuiles: Tuile[] }) {
 export function AccueilPage() {
   const navigate = useNavigate();
   const [wizardOuvert, setWizardOuvert] = useState(false);
-
-  useRibbon([{ titre: 'AFFICHAGE', boutons: [{ label: 'Actualiser', Icon: IconRefresh }] }]);
+  const [aProposOuvert, setAProposOuvert] = useState(false);
 
   const demarrer: Tuile[] = [
     { label: 'Nouveau fichier comptable', Icon: IconFileAdd, degradeDe: 'var(--tile-bleu)', degradeA: 'var(--tile-bleu-fonce)', onClick: () => setWizardOuvert(true) },
@@ -62,7 +60,7 @@ export function AccueilPage() {
   ];
 
   const travailler: Tuile[] = [
-    { label: 'Saisir une opération', Icon: IconSaisie, degradeDe: 'var(--tile-sarcelle)', degradeA: 'var(--tile-sarcelle-fonce)', onClick: () => navigate('/saisie') },
+    { label: 'Saisie des journaux', Icon: IconSaisie, degradeDe: 'var(--tile-sarcelle)', degradeA: 'var(--tile-sarcelle-fonce)', onClick: () => navigate('/saisie') },
     { label: 'Plan de comptes', Icon: IconComptes, degradeDe: 'var(--tile-sarcelle)', degradeA: 'var(--tile-sarcelle-fonce)', onClick: () => navigate('/comptes') },
     { label: 'Journal & grand livre', Icon: IconJournal, degradeDe: 'var(--tile-sarcelle)', degradeA: 'var(--tile-sarcelle-fonce)', onClick: () => navigate('/journal') },
     { label: 'États financiers', Icon: IconEtats, degradeDe: 'var(--tile-sarcelle)', degradeA: 'var(--tile-sarcelle-fonce)', onClick: () => navigate('/etats-financiers') },
@@ -71,7 +69,7 @@ export function AccueilPage() {
   const ressources: Tuile[] = [
     { label: 'Documentation', Icon: IconBook, degradeDe: 'var(--tile-ardoise)', degradeA: 'var(--tile-ardoise-fonce)', bientot: true },
     { label: 'Assistance', Icon: IconLifeBuoy, degradeDe: 'var(--tile-ardoise)', degradeA: 'var(--tile-ardoise-fonce)', bientot: true },
-    { label: 'À propos de Compta Flow', Icon: IconInfo, degradeDe: 'var(--tile-ardoise)', degradeA: 'var(--tile-ardoise-fonce)', bientot: true },
+    { label: 'À propos de Compta Flow', Icon: IconInfo, degradeDe: 'var(--tile-ardoise)', degradeA: 'var(--tile-ardoise-fonce)', onClick: () => setAProposOuvert(true) },
   ];
 
   return (
@@ -81,6 +79,7 @@ export function AccueilPage() {
       <GrilleTuiles titre="RESSOURCES" tuiles={ressources} />
 
       {wizardOuvert && <NouveauFichierWizard onClose={() => setWizardOuvert(false)} />}
+      {aProposOuvert && <AProposModale onFermer={() => setAProposOuvert(false)} />}
     </div>
   );
 }

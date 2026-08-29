@@ -2,8 +2,6 @@ import { FormEvent, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useExercice } from '../lib/exercice';
-import { useRibbon } from '../components/chrome/ribbon-context';
-import { IconNew, IconRefresh } from '../components/chrome/icons';
 import type { Compte, FamilleImmobilisation, Immobilisation, Journal } from '../lib/types';
 
 /**
@@ -82,17 +80,6 @@ export function ImmobilisationsPage() {
     charger();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  useRibbon([
-    { titre: 'AFFICHAGE', boutons: [{ label: 'Actualiser', Icon: IconRefresh, onClick: charger }] },
-    {
-      titre: 'GESTION',
-      boutons: [
-        { label: 'Nouvelle famille', Icon: IconNew, onClick: () => setAfficherFormFamille((v) => !v) },
-        { label: 'Nouvelle immo', Icon: IconNew, onClick: () => setAfficherFormImmo((v) => !v) },
-      ],
-    },
-  ]);
 
   const onCreerFamille = async (e: FormEvent) => {
     e.preventDefault();

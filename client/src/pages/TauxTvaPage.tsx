@@ -1,8 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { useRibbon } from '../components/chrome/ribbon-context';
-import { IconRefresh } from '../components/chrome/icons';
 import type { Compte, TauxTva } from '../lib/types';
 
 export function TauxTvaPage() {
@@ -33,8 +31,6 @@ export function TauxTvaPage() {
     api.get<Compte[]>('/comptes?classe=CLASSE_4&actifsSeuls=true&typeCompte=DETAIL').then(setComptesClasse4);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [estAdmin]);
-
-  useRibbon([{ titre: 'AFFICHAGE', boutons: [{ label: 'Actualiser', Icon: IconRefresh, onClick: charger }] }]);
 
   if (!estAdmin) {
     return (
