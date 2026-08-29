@@ -164,18 +164,37 @@ describe('Registre des retenues à la source', () => {
     expect(nature(r, 'onem').retenu).toBe(2_000);
   });
 
-  it('porte le taux ONEM de 0,5 % ET la provenance de ce taux', async () => {
-    // Le taux vient de la PRATIQUE, communiqué par l'utilisateur, et non d'un
-    // texte du corpus : le dossier de parafiscalité sociale dit expressément
-    // qu'aucun texte ONEM n'y a été rassemblé. Le test fige les deux : le
-    // chiffre retenu, et le fait qu'il s'annonce comme non confirmé · un taux
-    // sans provenance dans un logiciel comptable est un piège.
+  it('porte le taux ONEM de 0,5 % ET sa date d’effet', async () => {
+    // 0,5 % depuis l'arrêté ministériel n° 028/2025, entré en vigueur le
+    // 25 septembre 2025 ; 0,2 % avant lui (arrêté n° 095/2018). Le test fige
+    // les deux : le chiffre en vigueur, et l'avertissement de date · un
+    // exercice à cheval sur septembre 2025 porte les DEUX taux, et un taux
+    // sans date d'effet, dans un logiciel comptable, est un piège.
     const r = await service([]).registre('t1', { exerciceId: 'e1' });
     expect(nature(r, 'onem').baseLegale).toContain('0,5 %');
-    expect(nature(r, 'onem').reserve).toContain('PROVENANCE');
-    expect(nature(r, 'onem').reserve).toContain('PAS confirmés sur texte primaire');
-    // Et surtout : le 0,2 % des notes de cours ne doit pas resurgir.
+    expect(nature(r, 'onem').baseLegale).toContain('028/CAB/MIN.ET');
+    expect(nature(r, 'onem').reserve).toContain("DATE D'EFFET");
+    expect(nature(r, 'onem').reserve).toContain('25 septembre 2025');
+    // L'ancien taux doit rester lisible en réserve, et JAMAIS en base légale.
+    expect(nature(r, 'onem').reserve).toMatch(/0,2\s*%/);
     expect(nature(r, 'onem').baseLegale).not.toMatch(/0[.,]2\s*%/);
+  });
+
+  it('sépare la déclaration ONEM (le 10) du versement ONEM (le 15)', async () => {
+    // Deux dates, deux sanctions : 50 % de la contribution pour la déclaration
+    // manquante ou inexacte, 0,5 % par jour pour le versement en retard. Les
+    // confondre laisserait croire qu'être à jour du paiement suffit.
+    const e = await service([]).echeancierFiscal('t1', { exerciceId: 'e1' });
+    const declaration = e.echeances.find((x) => x.cle === 'declarationMensuelleOnem');
+    const versement = e.echeances.find((x) => x.cle === 'onem');
+    expect(declaration).toBeDefined();
+    expect(versement).toBeDefined();
+    expect(declaration!.genre).toBe('DECLARATION');
+    expect(versement!.genre).toBe('REVERSEMENT');
+    expect(declaration!.periodicite).toBe('MENSUELLE');
+    expect(declaration!.sanction).toContain('50 %');
+    // La déclaration tombe cinq jours AVANT le versement du même mois.
+    expect(declaration!.date.getTime()).toBeLessThan(versement!.date.getTime());
   });
 
   it('avertit que la retenue omise est personnellement due (art. 96 bis)', async () => {

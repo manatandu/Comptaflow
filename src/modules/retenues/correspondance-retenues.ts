@@ -70,8 +70,8 @@ export interface NatureRetenue {
 export interface ObligationDeclarative {
   cle: string;
   libelle: string;
-  periodicite: 'TRIMESTRIELLE' | 'ANNUELLE';
-  /** Trimestrielle : jours après la fin du trimestre. */
+  periodicite: 'MENSUELLE' | 'TRIMESTRIELLE' | 'ANNUELLE';
+  /** Mensuelle ou trimestrielle : jours après la fin de la période. */
   joursApresPeriode?: number;
   /** Annuelle : mois (1-12) et jour de l'échéance, dans l'année qui suit. */
   moisEcheance?: number;
@@ -234,10 +234,10 @@ export const NATURES_RETENUES: NatureRetenue[] = [
     beneficiaire: 'ORGANISME_SOCIAL',
     joursApresPeriode: 15,
     echeance: 'Mensuelle, au plus tard le 15 du mois suivant',
-baseLegale:
-      "Taux de 0,5 % de la masse salariale. Code du travail, titre X (moyens de contrôle) : déclaration d'engagement du travailleur dans les quinze jours au ministère du Travail et à l'ONEM, et déclaration annuelle de la situation de la main-d'œuvre nationale et étrangère.",
+    baseLegale:
+      "Arrêté ministériel n° 028/CAB/MIN.ET/FMM/RK/09/2025 du 24 septembre 2025, art. 1er : 0,5 % de la rémunération mensuelle payée aux travailleurs, pour tout employeur public, parapublic ou privé, le secteur humanitaire compris (sous réserve des exonérations légales). Déclaration au plus tard le 10 du mois suivant le paiement de la rémunération (art. 2) ; paiement au plus tard le 15 (art. 3).",
     reserve:
-      "PROVENANCE DU TAUX · les 0,5 % sont ceux que la pratique applique aujourd'hui, communiqués par l'utilisateur du logiciel. Ils ne sont PAS confirmés sur texte primaire dans le corpus consulté : le dossier de parafiscalité sociale indique expressément qu'aucun texte ONEM n'y a été rassemblé, et les deux seules mentions chiffrées qu'on y trouve (0,2 %) proviennent de notes de cours, non d'un arrêté. Le logiciel ne LIQUIDE toujours rien : il recense ce que votre comptabilité porte sur le compte 4335. Faites confirmer le taux avant de vous en servir dans un calcul de paie.",
+      "DATE D'EFFET · les 0,5 % ne valent qu'à partir du 25 septembre 2025, date de signature de l'arrêté (art. 10). Avant cette date, le taux est de 0,2 % (arrêté ministériel n° 095/CAB/MINETAT/MTEPS/01/2018 du 17 août 2018) · un exercice à cheval sur septembre 2025 porte donc les deux taux. Les arriérés antérieurs non acquittés se recalculent en revanche au nouveau taux (art. 6). SANCTIONS · 50 % de la contribution due en cas de défaut de déclaration ou de déclaration fausse, inexacte ou incomplète (art. 2) ; majoration de retard de 0,5 % PAR JOUR, tout mois commencé compté entier (art. 3). Le logiciel ne LIQUIDE rien : il recense ce que votre comptabilité porte sur le compte 4335.",
   },
   {
     cle: 'autresOrganismesSociaux',
@@ -262,6 +262,25 @@ baseLegale:
  * les ignorait toutes les trois.
  */
 export const OBLIGATIONS_DECLARATIVES: ObligationDeclarative[] = [
+  {
+    // La DÉCLARATION ONEM (le 10) est distincte du PAIEMENT (le 15, porté par
+    // la nature `onem` ci-dessus). Deux dates, deux sanctions : 50 % de la
+    // contribution pour la déclaration manquante ou inexacte, 0,5 % par jour
+    // pour le versement en retard. Les confondre en une seule échéance
+    // laisserait croire qu'être à jour du paiement suffit.
+    cle: 'declarationMensuelleOnem',
+    libelle: "Déclaration mensuelle de la contribution patronale ONEM",
+    periodicite: 'MENSUELLE',
+    joursApresPeriode: 10,
+    echeance: 'Au plus tard le 10 du mois suivant le paiement de la rémunération',
+    baseLegale:
+      "Article 2 de l'arrêté ministériel n° 028/CAB/MIN.ET/FMM/RK/09/2025 du 24 septembre 2025.",
+    contenu:
+      "Déclaration de la rémunération mensuelle payée aux travailleurs et de la contribution de 0,5 % qui en découle. Elle figure comme ligne dédiée de la Déclaration mensuelle unique du guichet unique (DGI, ONEM, INPP, CNSS), aux côtés de l'IPR, de l'INPP et de la CNSS.",
+    sanction:
+      "50 % du montant de la contribution due en cas de défaut de déclaration ou de déclaration fausse, inexacte ou incomplète (art. 2). Le versement tardif, lui, subit une majoration de 0,5 % par jour, tout mois commencé compté entier (art. 3).",
+    sourceDonnees: 'Comptes 66 (charges de personnel) pour l’assiette, et 4335 pour la contribution due.',
+  },
   {
     cle: 'releveTrimestrielTiers',
     libelle: 'Relevé des sommes versées à des tiers (hors salaires)',

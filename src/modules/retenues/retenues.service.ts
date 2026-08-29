@@ -62,6 +62,16 @@ export class RetenuesService {
    * date de cette année est passée, c'est celle de l'année prochaine.
    */
   private prochaineEcheanceDeclarative(obligation: ObligationDeclarative, reference: Date): Date {
+    if (obligation.periodicite === 'MENSUELLE') {
+      // N jours après la fin du mois, et le mois suivant si c'est déjà passé.
+      const jours = obligation.joursApresPeriode ?? 10;
+      for (let m = 0; m < 2; m++) {
+        const finDeMois = new Date(reference.getFullYear(), reference.getMonth() + m + 1, 0);
+        const echeance = new Date(finDeMois);
+        echeance.setDate(echeance.getDate() + jours);
+        if (echeance >= reference) return echeance;
+      }
+    }
     if (obligation.periodicite === 'TRIMESTRIELLE') {
       const jours = obligation.joursApresPeriode ?? 10;
       // Fin du trimestre en cours, puis les suivants tant que l'échéance est

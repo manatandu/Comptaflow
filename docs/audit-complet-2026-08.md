@@ -36,7 +36,7 @@ ci-dessous sont TRAITÉS et couverts par des tests. Voir les commits
 | Cumul biennal art. 6 (SMT) | Calculé, ou déclaré non mesurable faute d'exercice antérieur |
 | Statut TVA du dossier | `assujettiTva` + seuil rappelé + écran de paramétrage |
 | Loi 004/2001 hors fiscal | Jalon semestriel (art. 4 e), ONG étrangères (art. 37), et table des obligations événementielles (art. 11, art. 15…) |
-| Social CNSS/INPP/ONEM | Natures séparées, comptes INPP et ONEM ouverts, sources réelles citées, aucun taux ONEM inventé |
+| Social CNSS/INPP/ONEM | Natures séparées, comptes INPP et ONEM ouverts, sources réelles citées, taux ONEM 0,5 % sourcé sur l’AM n° 028/2025 |
 | Coordonnées des tiers | Huit champs sur la fiche, dont le Numéro Impôt exigé par l'art. 47 ter |
 
 **Reste ouvert** : tout le P2 et le P3 ci-dessous (TVA à l'encaissement,

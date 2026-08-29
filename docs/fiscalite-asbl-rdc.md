@@ -286,8 +286,34 @@ Le taux dépend de l'effectif, il change dans le temps, et il a été relevé en
 
 ### 7.4 ONEM
 
-La cotisation ONEM (0,2 % couramment citée) n'est couverte par aucun des
-référentiels encodés ici. **Non vérifiée, donc non retenue.**
+**Arrêté ministériel n° 028/CAB/MIN.ET/FMM/RK/09/2025 du 24 septembre 2025**,
+qui modifie l'arrêté n° 095/CAB/MINETAT/MTEPS/01/2018 du 17 août 2018.
+
+| Période | Base légale | Taux |
+|---|---|---|
+| Jusqu'au 24/09/2025 | AM n° 095/2018 | 0,2 % |
+| À partir du 25/09/2025 | AM n° 028/2025, art. 1er | **0,5 %** |
+
+- **Redevable** : tout employeur public, parapublic ou privé, **le secteur
+  humanitaire compris**, sous réserve des exonérations ou exemptions accordées
+  par la loi (art. 1er). Une ASBL employeuse est donc redevable.
+- **Assiette** : la rémunération mensuelle payée aux travailleurs (art. 1er) ·
+  la même que celle de l'IPR/IRPP, de l'INPP et de la CNSS.
+- **Déclaration** : au plus tard le **10** du mois qui suit le paiement de la
+  rémunération (art. 2).
+- **Paiement** : au plus tard le **15** du mois suivant (art. 3).
+- **Sanctions** : 50 % de la contribution due en cas de défaut de déclaration
+  ou de déclaration fausse, inexacte ou incomplète (art. 2) ; majoration de
+  retard de **0,5 % par jour**, tout mois commencé compté entier (art. 3).
+- **Arriérés** : les contributions non acquittées au 25/09/2025 se recalculent
+  au NOUVEAU taux (art. 6) · c'est l'exception à la règle de non-rétroactivité.
+- **Exécution forcée** : saisie-arrêt des avoirs de l'employeur en défaut, sur
+  le fondement de l'AM n° 092/CAB/VPM/METPS/WM/JMS/2016 du 27/09/2016 (art. 8).
+- **Rattachement** : ligne « Contributions patronales à l'ONEM » de la
+  Déclaration mensuelle unique du guichet unique (DGI, ONEM, INPP, CNSS).
+
+Attention aux exercices à cheval sur septembre 2025 : ils portent les DEUX
+taux, et le logiciel le rappelle en réserve sur la nature « ONEM ».
 
 ---
 
@@ -396,14 +422,13 @@ rend un mauvais service.
    les entreprises individuelles ou sociétaires. Tension non tranchée.
 4. **Première déclaration sous le régime IS** : vraisemblablement l'exercice
    2026 souscrit au plus tard le 30 avril 2027, mais le texte ne le dit pas.
-5. **Taux ONEM** : non couvert par les référentiels encodés.
-6. **Barème locatif hors Kinshasa** : les arrêtés provinciaux encodés sont
+5. **Barème locatif hors Kinshasa** : les arrêtés provinciaux encodés sont
    ceux de Kinshasa seulement.
-7. **Circulaire fixant le taux de change** du forfait micro-entreprises
+6. **Circulaire fixant le taux de change** du forfait micro-entreprises
    (30 USD) : inconnue. Sans objet pour une ASBL, mais signalée parce qu'elle
    montre le degré de dépendance des chiffres à des textes non publiés.
 
-Chacun de ces sept points doit être vérifié auprès d'un conseil fiscal avant
+Chacun de ces six points doit être vérifié auprès d'un conseil fiscal avant
 d'être opposé à l'administration. Cette note n'est pas un avis fiscal.
 
 ---
