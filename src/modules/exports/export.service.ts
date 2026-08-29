@@ -5,6 +5,7 @@ import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { EtatsFinanciersService, PosteCalcule } from '../etats-financiers/etats-financiers.service';
 import { EtatsFinanciersProjetService } from '../etats-financiers/etats-financiers-projet.service';
+import { EtatsFinanciersSmtService } from '../etats-financiers/etats-financiers-smt.service';
 import { NoteAnnexeService } from '../notes-annexes/note-annexe.service';
 import { DonationService, manquementsArticle17 } from '../registre-donateurs/donation.service';
 import { LivreInventaireService } from '../documents-obligatoires/livre-inventaire.service';
@@ -55,6 +56,7 @@ export class ExportService {
     private readonly ecritureService: EcritureService,
     private readonly etatsFinanciersService: EtatsFinanciersService,
     private readonly etatsFinanciersProjetService: EtatsFinanciersProjetService,
+    private readonly etatsFinanciersSmtService: EtatsFinanciersSmtService,
     private readonly noteAnnexeService: NoteAnnexeService,
     private readonly donationService: DonationService,
     private readonly livreInventaire: LivreInventaireService,
@@ -1869,6 +1871,491 @@ export class ExportService {
       nomFichier: `rapport-activite${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
     };
   }
+  // -------------------------------------------------------------------------
+  // SYSTÈME MINIMAL DE TRÉSORERIE (Partie 4, ch. 4)
+  //
+  // Cinq classeurs, un par onglet de l'écran, exactement comme les deux autres
+  // jeux ont un export par état. Le rattachement des comptes de ce jeu étant
+  // DÉRIVÉ du plan des comptes et non transcrit d'un tableau de correspondance
+  // officiel (le chapitre 4 n'en comporte aucun, voir correspondance-smt.ts),
+  // chaque classeur porte une feuille « Méthode » qui l'énonce : un état
+  // déposé chez un bailleur doit dire de quoi il est tiré.
+  // -------------------------------------------------------------------------
+
+  /** Feuille commune rappelant sur quoi le jeu S.M.T est bâti. */
+  private feuilleMethodeSmt(classeur: ExcelJS.Workbook, precisions: string[]) {
+    const f = classeur.addWorksheet('Méthode');
+    f.columns = [{ header: 'Point', key: 'point', width: 34 }, { header: 'Ce qui est appliqué', key: 'texte', width: 120 }];
+    const lignes: [string, string][] = [
+      ['Référentiel', "SYCEBNL, Acte uniforme adopté à Niamey le 22 décembre 2022, applicable depuis le 1er janvier 2024."],
+      ['Jeu d’états', "Système Minimal de Trésorerie, Partie 4, chapitre 4 (Journal officiel OHADA, numéro spécial du 22 février 2023, p. 433-438)."],
+      [
+        'Éligibilité',
+        "Article 5 : le Système normal est la règle, le S.M.T l’exception liée à la taille. Article 6 : chacune des cinq catégories de ressources annuelles doit rester sous 30 000 000 FCFA.",
+      ],
+      [
+        'Rattachement des comptes',
+        "Le chapitre 4 ne fournit AUCUN tableau de correspondance poste vers comptes, contrairement aux chapitres 2 et 3. Le rattachement appliqué ici est dérivé du plan des comptes SYCEBNL lui-même (Partie 2), poste par poste, par lecture du libellé officiel. Il est documenté dans le logiciel (correspondance-smt.ts).",
+      ],
+      [
+        'Écritures retenues',
+        "Écritures validées seulement ; écritures de clôture exclues, le report à nouveau n’étant pas un encaissement de l’exercice.",
+      ],
+      ...precisions.map((t) => ['Précision', t] as [string, string]),
+    ];
+    for (const [point, texte] of lignes) {
+      const l = f.addRow({ point, texte });
+      l.getCell('point').font = ENTETE_FONT;
+      l.getCell('texte').alignment = { wrapText: true, vertical: 'top' };
+    }
+    styliserEntete(f.getRow(1));
+    return f;
+  }
+
+  async bilanSmtExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
+    const bilan = await this.etatsFinanciersSmtService.bilan(tenantId, exerciceId);
+    const suffixeN1 = bilan.exerciceN1Disponible ? '' : ' (aucun exercice antérieur)';
+
+    const classeur = this.nouveauClasseur();
+    const feuille = classeur.addWorksheet('Bilan (S.M.T)');
+    feuille.columns = [
+      { header: 'Actif · REF', key: 'refActif', width: 10 },
+      { header: 'Actif · libellé', key: 'libelleActif', width: 44 },
+      { header: 'Note', key: 'noteActif', width: 7 },
+      { header: 'Actif · Exercice N', key: 'montantActif', width: 20 },
+      { header: `Actif · Exercice N-1${suffixeN1}`, key: 'montantActifN1', width: 22 },
+      { header: 'Passif · REF', key: 'refPassif', width: 10 },
+      { header: 'Passif · libellé', key: 'libellePassif', width: 44 },
+      { header: 'Note', key: 'notePassif', width: 7 },
+      { header: 'Passif · Exercice N', key: 'montantPassif', width: 20 },
+      { header: `Passif · Exercice N-1${suffixeN1}`, key: 'montantPassifN1', width: 22 },
+    ];
+
+    const maxLignes = Math.max(bilan.actif.length, bilan.passif.length);
+    for (let i = 0; i < maxLignes; i++) {
+      const a = bilan.actif[i];
+      const p = bilan.passif[i];
+      const ligne = feuille.addRow({
+        refActif: a?.ref ?? '',
+        libelleActif: a?.libelle ?? '',
+        noteActif: a?.note ?? '',
+        montantActif: a ? a.montant : null,
+        montantActifN1: a?.montantN1 ?? null,
+        refPassif: p?.ref ?? '',
+        libellePassif: p?.libelle ?? '',
+        notePassif: p?.note ?? '',
+        montantPassif: p ? p.montant : null,
+        montantPassifN1: p?.montantN1 ?? null,
+      });
+      if (a?.estTotal) {
+        for (const cle of ['refActif', 'libelleActif', 'montantActif', 'montantActifN1']) ligne.getCell(cle).font = ENTETE_FONT;
+      }
+      if (p?.estTotal) {
+        for (const cle of ['refPassif', 'libellePassif', 'montantPassif', 'montantPassifN1']) ligne.getCell(cle).font = ENTETE_FONT;
+      }
+    }
+    feuille.addRow({});
+    feuille.addRow({ libelleActif: bilan.renvoiImmobilisations });
+
+    this.appliquerFormats(feuille, {
+      montantActif: FORMAT_MONTANT,
+      montantActifN1: FORMAT_MONTANT,
+      montantPassif: FORMAT_MONTANT,
+      montantPassifN1: FORMAT_MONTANT,
+    });
+    styliserEntete(feuille.getRow(1));
+    feuille.views = [{ state: 'frozen', ySplit: 1 }];
+
+    const detail = classeur.addWorksheet('Détail par poste');
+    detail.columns = [
+      { header: 'Sens', key: 'sens', width: 8 },
+      { header: 'REF', key: 'ref', width: 8 },
+      { header: 'Poste', key: 'poste', width: 48 },
+      { header: 'Compte', key: 'numero', width: 14 },
+      { header: 'Intitulé compte', key: 'intitule', width: 46 },
+      { header: 'Montant', key: 'montant', width: 16 },
+    ];
+    for (const [sens, postes] of [['Actif', bilan.actif], ['Passif', bilan.passif]] as const) {
+      for (const p of postes) {
+        for (const c of p.comptes) {
+          detail.addRow({ sens, ref: p.ref, poste: p.libelle, numero: c.numero, intitule: c.intitule, montant: c.montant });
+        }
+      }
+    }
+    this.appliquerFormats(detail, { montant: FORMAT_MONTANT });
+    this.finaliserTableau(detail, detail.columns.length, detail.rowCount);
+
+    const controles = classeur.addWorksheet('Contrôles');
+    controles.columns = [
+      { header: 'Contrôle', key: 'controle', width: 40 },
+      { header: 'Écart', key: 'montant', width: 18 },
+      { header: 'Diagnostic', key: 'diagnostic', width: 100 },
+    ];
+    const l = controles.addRow({
+      controle: 'Total actif (GZ) = Total passif (HZ) ?',
+      montant: bilan.totalActif - bilan.totalPassif,
+      diagnostic: bilan.equilibre
+        ? `OK · bilan équilibré. GZ = HZ = ${bilan.totalActif.toFixed(2)}.`
+        : `DÉSÉQUILIBRE de ${(bilan.totalActif - bilan.totalPassif).toFixed(2)} · vérifier les écritures de l’exercice.`,
+    });
+    l.font = { bold: true, color: { argb: bilan.equilibre ? 'FF1E7B34' : 'FFB00020' } };
+    this.appliquerFormats(controles, { montant: FORMAT_MONTANT });
+    this.finaliserTableau(controles, controles.columns.length, controles.rowCount);
+
+    this.feuilleMethodeSmt(classeur, [
+      "Poste HC « Autres fonds propres » : réserve assumée. La classe 1 contient aussi les comptes 18 (emprunts) et 19 (provisions), qui ne sont pas des fonds propres ; la maquette n’ouvre que quatre lignes de passif et aucune ne peut les recevoir. Les écarter déséquilibrerait le bilan. Ils sont rattachés à HC et nommés dans la feuille « Détail par poste ».",
+      "Poste GE « Banque (en + ou en -) » : le découvert reste à l’actif en négatif, ce jeu n’ayant pas de poste de trésorerie-passif.",
+      "Postes GA et GB : valeur nette. La maquette n’ouvre qu’une colonne de montant, les amortissements et dépréciations y sont donc déduits.",
+    ]);
+
+    return {
+      buffer: await this.versBuffer(classeur),
+      nomFichier: `bilan-smt${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
+    };
+  }
+
+  async compteDeResultatSmtExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
+    const cr = await this.etatsFinanciersSmtService.compteDeResultat(tenantId, exerciceId);
+
+    const classeur = this.nouveauClasseur();
+    const feuille = classeur.addWorksheet('Compte de résultat (S.M.T)');
+    feuille.columns = [
+      { header: 'REF', key: 'ref', width: 8 },
+      { header: 'Libellé', key: 'libelle', width: 62 },
+      { header: 'Exercice N', key: 'montant', width: 20 },
+    ];
+    const total = (ref: string, libelle: string, montant: number) => {
+      const l = feuille.addRow({ ref, libelle, montant });
+      l.font = ENTETE_FONT;
+    };
+    for (const p of cr.recettes) feuille.addRow({ ref: p.ref, libelle: p.libelle, montant: p.montant });
+    total('KX', 'TOTAL DES REVENUS ENCAISSÉS (A)', cr.totalRecettes);
+    for (const p of cr.depenses) feuille.addRow({ ref: p.ref, libelle: p.libelle, montant: p.montant });
+    total('JX', 'TOTAL DÉPENSES SUR CHARGES (B)', cr.totalDepenses);
+    total('KZ', 'SOLDE : excédent (+) ou insuffisance (-) de recettes (C = A-B)', cr.soldeCaisse);
+    for (const r of cr.retraitements) feuille.addRow({ ref: r.ref, libelle: r.libelle, montant: r.montant });
+    total('KZC', "RÉSULTAT NET DE L'EXERCICE", cr.resultatNet);
+    this.appliquerFormats(feuille, { montant: FORMAT_MONTANT });
+    styliserEntete(feuille.getRow(1));
+    feuille.views = [{ state: 'frozen', ySplit: 1 }];
+
+    const detail = classeur.addWorksheet('Détail par poste');
+    detail.columns = [
+      { header: 'REF', key: 'ref', width: 8 },
+      { header: 'Poste', key: 'poste', width: 52 },
+      { header: 'Compte de contrepartie', key: 'numero', width: 22 },
+      { header: 'Intitulé compte', key: 'intitule', width: 46 },
+      { header: 'Montant', key: 'montant', width: 16 },
+    ];
+    for (const p of [...cr.recettes, ...cr.depenses, ...cr.retraitements]) {
+      for (const c of p.comptes) {
+        detail.addRow({ ref: p.ref, poste: p.libelle, numero: c.numero, intitule: c.intitule, montant: c.montant });
+      }
+    }
+    this.appliquerFormats(detail, { montant: FORMAT_MONTANT });
+    this.finaliserTableau(detail, detail.columns.length, detail.rowCount);
+
+    const controles = classeur.addWorksheet('Contrôles');
+    controles.columns = [
+      { header: 'Contrôle', key: 'controle', width: 46 },
+      { header: 'Montant', key: 'montant', width: 18 },
+      { header: 'Diagnostic', key: 'diagnostic', width: 110 },
+    ];
+    controles.addRow({
+      controle: 'Flux de trésorerie hors exploitation',
+      montant: cr.controle.fluxHorsExploitation,
+      diagnostic:
+        "Encaissements et décaissements qui ne sont ni un produit ni une charge (apport en dotation, emprunt, acquisition ou cession d’immobilisation). Ils entrent dans le solde de caisse KZ mais pas dans le résultat, et la maquette officielle n’ouvre aucune ligne pour les reprendre.",
+    });
+    for (const c of cr.controle.comptesHorsExploitation) {
+      controles.addRow({ controle: `    ${c.numero} · ${c.intitule}`, montant: c.montant });
+    }
+    const lc = controles.addRow({
+      controle: 'KZC moins flux hors exploitation = résultat du bilan (HB) ?',
+      montant: cr.controle.ecart,
+      diagnostic: cr.controle.concordant
+        ? `OK · les deux chemins vers le résultat coïncident à ${cr.controle.resultatBilan.toFixed(2)}.`
+        : `ÉCART de ${cr.controle.ecart.toFixed(2)} · une opération de trésorerie a une contrepartie qu’aucun poste ne capte, ou une charge sans décaissement n’est pas une dotation aux amortissements.`,
+    });
+    lc.font = { bold: true, color: { argb: cr.controle.concordant ? 'FF1E7B34' : 'FFB00020' } };
+    this.appliquerFormats(controles, { montant: FORMAT_MONTANT });
+    this.finaliserTableau(controles, controles.columns.length, controles.rowCount);
+
+    this.feuilleMethodeSmt(classeur, [
+      "Les postes KA à JF ne sont PAS lus dans les soldes des classes 6 et 7 : ce serait déjà de la comptabilité d’engagement, et les retraitements VA, VB et VC compteraient deux fois. Ils sont lus dans les contreparties des mouvements de trésorerie, comme le veut la comptabilité de trésorerie du S.M.T (Partie 4, ch. 1, § 1.3).",
+      "Les variations VA, VB et VC se mesurent contre l’OUVERTURE de l’exercice (report à nouveau), toujours présente, et non contre l’exercice N-1 tel qu’enregistré dans le logiciel, qui peut ne pas exister pour un dossier repris en cours de vie.",
+      "Un règlement passant par un compte de tiers ne dit pas de quelle nature de charge il s’agit : il tombe en JF. C’est inhérent à la maquette, et la feuille « Détail par poste » le montre compte par compte.",
+    ]);
+
+    return {
+      buffer: await this.versBuffer(classeur),
+      nomFichier: `compte-de-resultat-smt${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
+    };
+  }
+
+  /** NOTE 4 · un onglet par compte de trésorerie, comme le NB officiel le demande. */
+  async journalTresorerieSmtExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
+    const note4 = await this.etatsFinanciersSmtService.journalTresorerie(tenantId, exerciceId);
+    const classeur = this.nouveauClasseur();
+
+    for (const j of note4.journaux) {
+      // Un nom d'onglet Excel est borné à 31 caractères et interdit : \ / ? * [ ]
+      const nom = `${j.numero} ${j.intitule}`.replace(/[\\/?*[\]]/g, ' ').slice(0, 31);
+      const f = classeur.addWorksheet(nom);
+      const colonnes = [
+        { header: 'Date', key: 'date', width: 12 },
+        { header: 'Libellé', key: 'libelle', width: 44 },
+        { header: 'Pièce', key: 'reference', width: 14 },
+        { header: 'Recettes', key: 'recette', width: 16 },
+        { header: 'Dépenses', key: 'depense', width: 16 },
+        { header: 'Solde', key: 'solde', width: 16 },
+      ];
+      // Les colonnes de ventilation diffèrent selon le sens : les deux jeux
+      // officiels sont posés côte à côte, chaque ligne ne servant que le sien.
+      const cles: string[] = [];
+      for (const c of note4.colonnesRecettes) {
+        colonnes.push({ header: `Recette · ${c.libelle}`, key: `r_${c.cle}`, width: 20 });
+        cles.push(`r_${c.cle}`);
+      }
+      for (const c of note4.colonnesDepenses) {
+        colonnes.push({ header: `Dépense · ${c.libelle}`, key: `d_${c.cle}`, width: 20 });
+        cles.push(`d_${c.cle}`);
+      }
+      f.columns = colonnes;
+
+      f.addRow({ libelle: 'Report à nouveau', solde: j.reportANouveau }).font = ENTETE_FONT;
+      for (const o of j.operations) {
+        const ligne: Record<string, unknown> = {
+          date: new Date(o.date),
+          libelle: o.virementInterne ? `${o.libelle} (virement interne)` : o.libelle,
+          reference: o.reference ?? '',
+          recette: o.recette || null,
+          depense: o.depense || null,
+          solde: o.solde,
+        };
+        const prefixe = o.sens === 'RECETTE' ? 'r_' : 'd_';
+        for (const [cle, valeur] of Object.entries(o.ventilation)) {
+          if (Math.abs(valeur) > 0.005) ligne[prefixe + cle] = valeur;
+        }
+        f.addRow(ligne);
+      }
+      const fin = f.addRow({
+        libelle: 'Totaux · solde à reporter',
+        recette: j.totalRecettes,
+        depense: j.totalDepenses,
+        solde: j.soldeAReporter,
+      });
+      fin.font = ENTETE_FONT;
+      f.addRow({});
+      const ctrl = f.addRow({
+        libelle: j.boucle
+          ? 'CONTRÔLE OK · le solde à reporter est celui du compte à la balance.'
+          : `CONTRÔLE EN ÉCHEC · solde du journal ${j.soldeAReporter.toFixed(2)}, solde du compte à la balance ${j.soldeBalance.toFixed(2)}.`,
+      });
+      ctrl.font = { bold: true, color: { argb: j.boucle ? 'FF1E7B34' : 'FFB00020' } };
+      if (j.lignesNonVentilees > 0) {
+        f.addRow({
+          libelle: `${j.lignesNonVentilees} ligne(s) non ventilée(s) : l’écriture touche plusieurs comptes de trésorerie, aucune clé de répartition ne figure dans l’écriture.`,
+        });
+      }
+
+      const formats: Record<string, string> = { date: FORMAT_DATE, recette: FORMAT_MONTANT, depense: FORMAT_MONTANT, solde: FORMAT_MONTANT };
+      for (const cle of cles) formats[cle] = FORMAT_MONTANT;
+      this.appliquerFormats(f, formats);
+      styliserEntete(f.getRow(1));
+      f.views = [{ state: 'frozen', ySplit: 1, xSplit: 2 }];
+    }
+
+    if (note4.journaux.length === 0) {
+      const f = classeur.addWorksheet('Journal de trésorerie');
+      f.addRow(['Aucun compte de trésorerie mouvementé sur cet exercice.']);
+    }
+
+    this.feuilleMethodeSmt(classeur, [
+      note4.nb,
+      "Ce journal est un LIVRE DE CAISSE : il montre tous les mouvements du compte, virements internes compris, sinon son solde à reporter ne serait pas celui du compte. Les virements internes ne reçoivent aucune ventilation, les colonnes officielles ne classant que des natures de recette et de dépense.",
+    ]);
+
+    return {
+      buffer: await this.versBuffer(classeur),
+      nomFichier: `note4-journal-tresorerie-smt${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
+    };
+  }
+
+  /** Notes 1, 2, 3 et 5 · une feuille par note, plus la fiche récapitulative. */
+  async notesSmtExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
+    const [fiche, note1, note2, note3, note5] = await Promise.all([
+      Promise.resolve(this.etatsFinanciersSmtService.ficheNotes()),
+      this.etatsFinanciersSmtService.note1Immobilisations(tenantId, exerciceId),
+      this.etatsFinanciersSmtService.note2Stocks(tenantId, exerciceId),
+      this.etatsFinanciersSmtService.note3CreancesDettes(tenantId, exerciceId),
+      this.etatsFinanciersSmtService.note5Dotation(tenantId, exerciceId),
+    ]);
+
+    const classeur = this.nouveauClasseur();
+
+    const f0 = classeur.addWorksheet('Fiche récapitulative');
+    f0.columns = [
+      { header: 'Note', key: 'note', width: 10 },
+      { header: 'Intitulé', key: 'intitule', width: 70 },
+      { header: 'Partie', key: 'partie', width: 32 },
+    ];
+    for (const n of fiche) {
+      f0.addRow({
+        note: `Note ${n.numero}`,
+        intitule: n.intitule,
+        partie: n.partie === 'BILAN' ? 'Notes sur le bilan' : 'Notes sur compte de résultat',
+      });
+    }
+    this.finaliserTableau(f0, f0.columns.length, f0.rowCount);
+
+    const f1 = classeur.addWorksheet('Note 1 · Immobilisations');
+    f1.columns = [
+      { header: 'Date de mise en service', key: 'mes', width: 22 },
+      { header: 'Désignation', key: 'designation', width: 46 },
+      { header: 'Montant', key: 'montant', width: 16 },
+      { header: "Date d'acquisition", key: 'acq', width: 18 },
+      { header: "Durée d'utilité (ans)", key: 'duree', width: 20 },
+      { header: 'Date de sortie', key: 'sortie', width: 16 },
+      { header: 'Prix de cession', key: 'cession', width: 16 },
+    ];
+    for (const l of note1.lignes) {
+      f1.addRow({
+        mes: new Date(l.dateMiseEnService),
+        designation: l.designation,
+        montant: l.montant,
+        acq: new Date(l.dateAcquisition),
+        duree: l.dureeUtiliteAns,
+        sortie: l.dateSortie ? new Date(l.dateSortie) : null,
+        cession: l.prixCession,
+      });
+    }
+    f1.addRow({ designation: 'TOTAL', montant: note1.total }).font = ENTETE_FONT;
+    this.appliquerFormats(f1, { mes: FORMAT_DATE, acq: FORMAT_DATE, sortie: FORMAT_DATE, montant: FORMAT_MONTANT, cession: FORMAT_MONTANT });
+    this.finaliserTableau(f1, f1.columns.length, f1.rowCount);
+
+    const f2 = classeur.addWorksheet('Note 2 · Stocks');
+    f2.columns = [
+      { header: 'Référence', key: 'reference', width: 16 },
+      { header: 'Désignation', key: 'designation', width: 50 },
+      { header: 'Quantité', key: 'quantite', width: 14 },
+      { header: 'Prix unitaire', key: 'pu', width: 16 },
+      { header: 'Montant', key: 'montant', width: 18 },
+    ];
+    for (const l of note2.lignes) {
+      f2.addRow({ reference: l.reference, designation: l.designation, quantite: null, pu: null, montant: l.montant });
+    }
+    f2.addRow({ designation: 'VALEUR DU STOCK FINAL', montant: note2.valeurStockFinal }).font = ENTETE_FONT;
+    f2.addRow({ designation: 'VALEUR DU STOCK INITIAL', montant: note2.valeurStockInitial }).font = ENTETE_FONT;
+    f2.addRow({});
+    f2.addRow({ designation: note2.motifQuantites });
+    this.appliquerFormats(f2, { montant: FORMAT_MONTANT, pu: FORMAT_MONTANT });
+    this.finaliserTableau(f2, f2.columns.length, f2.rowCount);
+
+    const f3 = classeur.addWorksheet('Note 3 · Créances et dettes');
+    f3.columns = [
+      { header: 'Nature', key: 'nature', width: 12 },
+      { header: 'Compte', key: 'numero', width: 14 },
+      { header: 'Nom', key: 'nom', width: 46 },
+      { header: 'Montant au 31/12/N', key: 'cloture', width: 20 },
+      { header: 'Montant au 01/01/N', key: 'ouverture', width: 20 },
+      { header: 'Variation en valeur', key: 'variation', width: 20 },
+      { header: 'Variation en %', key: 'pourcent', width: 16 },
+    ];
+    for (const [nature, lignes, totalLibelle, total] of [
+      ['Créance', note3.creances, 'TOTAL DES CRÉANCES', note3.totalCreances],
+      ['Dette', note3.dettes, 'TOTAL DES DETTES', note3.totalDettes],
+    ] as const) {
+      for (const l of lignes) {
+        f3.addRow({
+          nature,
+          numero: l.numero,
+          nom: l.nom,
+          cloture: l.montantCloture,
+          ouverture: l.montantOuverture,
+          variation: l.variationValeur,
+          pourcent: l.variationPourcent,
+        });
+      }
+      f3.addRow({ nom: totalLibelle, cloture: total }).font = ENTETE_FONT;
+    }
+    this.appliquerFormats(f3, {
+      cloture: FORMAT_MONTANT,
+      ouverture: FORMAT_MONTANT,
+      variation: FORMAT_MONTANT,
+      pourcent: '0.0"%"',
+    });
+    this.finaliserTableau(f3, f3.columns.length, f3.rowCount);
+
+    const f5 = classeur.addWorksheet('Note 5 · Dotation');
+    f5.columns = [
+      { header: 'Rubrique', key: 'rubrique', width: 40 },
+      { header: 'Montant', key: 'montant', width: 18 },
+      { header: 'Comptes', key: 'comptes', width: 40 },
+    ];
+    for (const r of note5.rubriques) {
+      f5.addRow({ rubrique: r.libelle, montant: r.montant, comptes: r.comptes.map((c) => c.numero).join(', ') });
+    }
+    f5.addRow({ rubrique: 'TOTAL', montant: note5.total }).font = ENTETE_FONT;
+    if (note5.membres.length > 0) {
+      f5.addRow({});
+      f5.addRow({ rubrique: 'Membre apporteur', montant: null, comptes: 'Nationalité' }).font = ENTETE_FONT;
+      for (const m of note5.membres) f5.addRow({ rubrique: m.nom, montant: m.montant, comptes: '' });
+    }
+    f5.addRow({});
+    f5.addRow({ rubrique: note5.motifNationalite });
+    this.appliquerFormats(f5, { montant: FORMAT_MONTANT });
+    this.finaliserTableau(f5, f5.columns.length, f5.rowCount);
+
+    this.feuilleMethodeSmt(classeur, [
+      note2.motifQuantites,
+      note5.motifNationalite,
+      "Note 3 : « Montant au 1er janvier N » est l’OUVERTURE de l’exercice, c’est-à-dire le report à nouveau du compte, et non le solde de l’exercice N-1 rechargé.",
+    ]);
+
+    return {
+      buffer: await this.versBuffer(classeur),
+      nomFichier: `notes-annexes-smt${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
+    };
+  }
+
+  async eligibiliteSmtExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
+    const e = await this.etatsFinanciersSmtService.eligibilite(tenantId, exerciceId);
+    const classeur = this.nouveauClasseur();
+
+    const f = classeur.addWorksheet('Éligibilité (art. 6)');
+    f.columns = [
+      { header: 'Catégorie de ressources (art. 6)', key: 'libelle', width: 52 },
+      { header: 'Exercice N', key: 'montant', width: 20 },
+      { header: 'Seuil légal', key: 'seuil', width: 22 },
+      { header: 'Comptes', key: 'comptes', width: 46 },
+    ];
+    for (const c of e.categories) {
+      f.addRow({
+        libelle: c.libelle,
+        montant: c.montant,
+        seuil: `${e.seuilParCategorieFcfa.toLocaleString('fr-FR')} FCFA`,
+        comptes: c.comptes.map((x) => x.numero).join(', '),
+      });
+    }
+    f.addRow({ libelle: 'TOTAL DES RESSOURCES', montant: e.totalRessources }).font = ENTETE_FONT;
+    f.addRow({});
+    f.addRow({ libelle: `Montants exprimés en ${e.deviseDossier ?? 'monnaie de tenue du dossier'}.` });
+    f.addRow({ libelle: e.avertissement });
+    this.appliquerFormats(f, { montant: FORMAT_MONTANT });
+    this.finaliserTableau(f, f.columns.length, f.rowCount);
+
+    this.feuilleMethodeSmt(classeur, [
+      "OmegaX ne convertit PAS le seuil : l’article 6 le fixe en francs CFA « ou l’équivalent dans l’unité monétaire ayant cours légal dans l’État partie », et le cours de conversion n’appartient pas au texte comptable. Comparez chaque catégorie au seuil converti au cours que retient votre entité.",
+    ]);
+
+    return {
+      buffer: await this.versBuffer(classeur),
+      nomFichier: `eligibilite-smt${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
+    };
+  }
+
+
 }
 
 function styliserEntete(ligne: ExcelJS.Row) {

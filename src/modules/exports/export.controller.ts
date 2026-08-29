@@ -151,6 +151,56 @@ export class ExportController {
     envoyerXlsx(res, await this.exportService.noteBailleurExcel(user.tenantId, exerciceId));
   }
 
+  // -------------------------------------------------------------------------
+  // Jeu « Système Minimal de Trésorerie » (Partie 4, ch. 4) · un export par
+  // onglet de l'écran, comme les deux autres jeux ont un export par état.
+  // -------------------------------------------------------------------------
+
+  @Get('etats-financiers/smt/bilan')
+  async bilanSmt(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    envoyerXlsx(res, await this.exportService.bilanSmtExcel(user.tenantId, exerciceId));
+  }
+
+  @Get('etats-financiers/smt/compte-de-resultat')
+  async compteDeResultatSmt(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    envoyerXlsx(res, await this.exportService.compteDeResultatSmtExcel(user.tenantId, exerciceId));
+  }
+
+  @Get('etats-financiers/smt/journal-tresorerie')
+  async journalTresorerieSmt(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    envoyerXlsx(res, await this.exportService.journalTresorerieSmtExcel(user.tenantId, exerciceId));
+  }
+
+  @Get('etats-financiers/smt/notes')
+  async notesSmt(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    envoyerXlsx(res, await this.exportService.notesSmtExcel(user.tenantId, exerciceId));
+  }
+
+  @Get('etats-financiers/smt/eligibilite')
+  async eligibiliteSmt(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    envoyerXlsx(res, await this.exportService.eligibiliteSmtExcel(user.tenantId, exerciceId));
+  }
+
   /** Notes annexes du jeu « associations et ordres professionnels » · 45 notes, une feuille par tableau applicable. */
   @Get('notes-annexes/associations')
   async notesAssociations(

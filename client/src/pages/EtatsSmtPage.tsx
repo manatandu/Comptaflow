@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useExercice } from '../lib/exercice';
-import { IconCheck } from '../components/chrome/icons';
+import { IconCheck, IconExport } from '../components/chrome/icons';
 import { Aide } from '../components/chrome/Aide';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
 import type {
@@ -37,6 +37,15 @@ const LIBELLE_ONGLET: Record<Onglet, string> = {
   eligibilite: "Éligibilité au Système Minimal de Trésorerie",
 };
 
+/** Nom du fichier téléchargé · le serveur y ajoute le suffixe d'exercice. */
+const FICHIER_ONGLET: Record<Onglet, string> = {
+  bilan: 'bilan-smt',
+  'compte-de-resultat': 'compte-de-resultat-smt',
+  journal: 'note4-journal-tresorerie-smt',
+  notes: 'notes-annexes-smt',
+  eligibilite: 'eligibilite-smt',
+};
+
 const ONGLETS: { cle: Onglet; libelle: string }[] = [
   { cle: 'bilan', libelle: 'BILAN' },
   { cle: 'compte-de-resultat', libelle: 'COMPTE DE RÉSULTAT' },
@@ -56,6 +65,7 @@ export function EtatsSmtPage() {
   const [notes, setNotes] = useState<NotesSmt | null>(null);
   const [eligibilite, setEligibilite] = useState<EligibiliteSmt | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
+  const [exportEnCours, setExportEnCours] = useState(false);
 
   useEffect(() => {
     if (!exerciceCourant) return;
@@ -71,6 +81,28 @@ export function EtatsSmtPage() {
       annule = true;
     };
   }, [exerciceCourant?.id]);
+
+  /**
+   * Export Excel de l'onglet affiché · même mécanique que les deux autres
+   * jeux (voir EtatsFinanciersPage) : un classeur par état, servi par
+   * ExportService, avec ses feuilles de détail, de contrôles et de méthode.
+   * Le chemin de l'export est celui de l'onglet, à un préfixe près.
+   */
+  const exporter = async () => {
+    if (!exerciceCourant) return;
+    setErreur(null);
+    setExportEnCours(true);
+    try {
+      await api.telecharger(
+        `/exports/etats-financiers/smt/${onglet}?exerciceId=${exerciceCourant.id}`,
+        `${FICHIER_ONGLET[onglet]}.xlsx`,
+      );
+    } catch (e) {
+      setErreur(e instanceof Error ? e.message : "Échec de l'export");
+    } finally {
+      setExportEnCours(false);
+    }
+  };
 
   const montant = (v: number | null | undefined) =>
     v === null || v === undefined ? '·' : v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -140,11 +172,21 @@ export function EtatsSmtPage() {
             </button>
           </div>
         </div>
-        {exerciceCourant && (
-          <span className="font-mono text-[11px] border border-border bg-surface px-2.5 py-1.5">
-            Exercice {new Date(exerciceCourant.dateDebut).getFullYear()}
-          </span>
-        )}
+        <div className="flex items-center gap-2.5">
+          {exerciceCourant && (
+            <span className="font-mono text-[11px] border border-border bg-surface px-2.5 py-1.5">
+              Exercice {new Date(exerciceCourant.dateDebut).getFullYear()}
+            </span>
+          )}
+          <button
+            onClick={exporter}
+            disabled={exportEnCours}
+            className="flex items-center gap-1.5 border border-border bg-surface px-3 py-1.5 text-[11px] font-bold hover:bg-surface-alt disabled:opacity-50 disabled:cursor-wait"
+          >
+            <IconExport width={13} height={13} />
+            {exportEnCours ? 'Export en cours…' : 'Exporter Excel'}
+          </button>
+        </div>
       </div>
 
       {erreur && (
