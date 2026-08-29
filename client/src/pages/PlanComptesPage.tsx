@@ -54,6 +54,7 @@ export function PlanComptesPage() {
   const [selectionId, setSelectionId] = useState<string | null>(null);
   const [nouveauOuvert, setNouveauOuvert] = useState(false);
   const champRecherche = useRef<HTMLInputElement>(null);
+  const champIntitule = useRef<HTMLInputElement>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
 
@@ -105,6 +106,34 @@ export function PlanComptesPage() {
       titre: 'Rechercher un compte (numéro ou intitulé)',
       executer: () => champRecherche.current?.focus(),
     },
+    // Atteindre · le « Atteindre » de Sage : aller droit à un compte dont on
+    // connaît le numéro, sans dérouler les classes. La recherche est remplie
+    // du même numéro pour que la liste MONTRE où l'on vient d'atterrir.
+    atteindre: {
+      titre: 'Atteindre un compte par son numéro',
+      executer: () => {
+        const brut = window.prompt('Numéro du compte à atteindre :');
+        const numero = brut?.trim();
+        if (!numero) return;
+        const tous = comptes ?? [];
+        const exact =
+          tous.find((c) => c.numero === numero) ??
+          tous.find((c) => c.numero.startsWith(numero)) ??
+          null;
+        if (!exact) {
+          window.alert(`Aucun compte ne commence par « ${numero} ».`);
+          return;
+        }
+        setRecherche(exact.numero);
+        setSelectionId(exact.id);
+      },
+    },
+    // Voir/Modifier · place le curseur dans l'intitulé de la fiche. Grisé
+    // sur les 76 comptes principaux officiels, dont la fiche est verrouillée.
+    modifier:
+      selection && !estComptePrincipalOfficiel(selection)
+        ? { titre: `Modifier l'intitulé du compte ${selection.numero}`, executer: () => champIntitule.current?.focus() }
+        : undefined,
     consulter:
       selection && selection.typeCompte === 'DETAIL'
         ? { titre: `Interroger le compte ${selection.numero}`, executer: () => navigate(`/comptes/${selection.id}/lettrage`) }
@@ -308,6 +337,7 @@ export function PlanComptesPage() {
                     <span className="text-[10px] font-bold text-text-dim">INTITULÉ</span>
                     <div className="flex gap-1.5 mt-0.5">
                       <input
+                        ref={champIntitule}
                         value={intituleEdit}
                         onChange={(e) => setIntituleEdit(e.target.value)}
                         className="flex-1 min-w-0 border border-border-dark px-2 py-1 text-[12px]"

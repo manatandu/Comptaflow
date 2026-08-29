@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '../lib/api';
+import { useActionsFenetre } from '../lib/actions-fenetre';
 import { useExercice } from '../lib/exercice';
 import { useAuth } from '../lib/auth';
 import { IconFilter, IconExport } from '../components/chrome/icons';
@@ -82,6 +83,17 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
   const [filtres, setFiltres] = useState<Filtres>(FILTRES_VIDES);
   const [filtresAppliques, setFiltresAppliques] = useState<Filtres>(FILTRES_VIDES);
   const [filtresOuverts, setFiltresOuverts] = useState(false);
+
+  // « Rechercher » de la barre d'outils = la Recherche d'écritures de Sage ·
+  // ici, le panneau de filtres du journal (période, compte, montant). Il
+  // n'existe que sur l'onglet Journal : sur la balance et le grand livre, le
+  // verbe reste grisé, ce qui est exact.
+  useActionsFenetre({
+    rechercher:
+      onglet === 'journal'
+        ? { titre: 'Rechercher des écritures (filtres)', executer: () => setFiltresOuverts(true) }
+        : undefined,
+  });
 
   const [erreur, setErreur] = useState<string | null>(null);
   // Une correction (art. 20 de l'AUDCIF) change à la fois le journal, la

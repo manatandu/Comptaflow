@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
+import { useActionsFenetre } from '../lib/actions-fenetre';
 import { useAuth } from '../lib/auth';
 import { useExercice } from '../lib/exercice';
 import type { Compte, FamilleImmobilisation, Immobilisation, Journal } from '../lib/types';
@@ -24,6 +25,10 @@ export function ImmobilisationsPage() {
 
   const [afficherFormFamille, setAfficherFormFamille] = useState(false);
   const [afficherFormImmo, setAfficherFormImmo] = useState(false);
+
+  useActionsFenetre({
+    ajouter: { titre: 'Nouvelle immobilisation', executer: () => setAfficherFormImmo(true) },
+  });
   const [sortieOuvertePour, setSortieOuvertePour] = useState<string | null>(null);
 
   const [erreur, setErreur] = useState<string | null>(null);

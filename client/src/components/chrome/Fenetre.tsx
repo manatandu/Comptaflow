@@ -192,7 +192,11 @@ export function Fenetre({ fenetre, active }: { fenetre: FenetreOuverte; active: 
           {/* La page apprend ici dans QUELLE fenêtre elle est montée · c'est
               ce qui lui permet de déclarer ses actions à la barre d'outils
               sans jamais avoir à connaître le gestionnaire de fenêtres. */}
-          <FenetreCouranteProvider cle={fenetre.cle}>{rendreFenetre(fenetre.adresse)}</FenetreCouranteProvider>
+          {/* La clé porte le compteur d'Actualiser : l'incrémenter remonte le
+              contenu, qui recharge ses données · le F5 de Sage. */}
+          <FenetreCouranteProvider key={fenetre.version} cle={fenetre.cle}>
+            {rendreFenetre(fenetre.adresse)}
+          </FenetreCouranteProvider>
         </LimiteErreur>
       </div>
 

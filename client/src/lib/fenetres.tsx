@@ -59,6 +59,13 @@ export interface FenetreOuverte {
   ordre: number;
   /** Position et taille à l'état « normale », en pixels dans l'espace de travail. */
   cadre: CadreFenetre;
+  /**
+   * Compteur d'« Actualiser » (menu Fenêtre, le F5 de Sage). L'incrémenter
+   * remonte le contenu de la fenêtre, qui recharge donc ses données · c'est
+   * le seul moyen de rafraîchir une liste sans fermer/rouvrir la fenêtre ni
+   * recharger tout le logiciel.
+   */
+  version: number;
 }
 
 /** Ce que l'appelant doit fournir pour qu'une fenêtre inconnue soit créée. */
@@ -78,6 +85,10 @@ interface ContexteFenetres {
   reduire: (cle: string) => void;
   basculerAgrandissement: (cle: string) => void;
   deplacer: (cle: string, cadre: Partial<CadreFenetre>) => void;
+  /** Menu Fenêtre → Réorganiser · toutes les fenêtres en cascade, comme Sage. */
+  reorganiser: () => void;
+  /** Menu Fenêtre → Actualiser · remonte le contenu de la fenêtre (rechargement des données). */
+  actualiser: (cle: string) => void;
 }
 
 const Contexte = createContext<ContexteFenetres | null>(null);
@@ -125,6 +136,7 @@ export function FenetresProvider({ children }: { children: React.ReactNode }) {
           // obligerait à agrandir à chaque fois, neuf fois sur dix.
           etat: 'agrandie' as const,
           etatAvantReduction: 'agrandie' as const,
+          version: 0,
           ordre,
           cadre: {
             x: 24 + rang * CASCADE_PAS,
@@ -175,6 +187,32 @@ export function FenetresProvider({ children }: { children: React.ReactNode }) {
     setFenetres((a) => a.map((f) => (f.cle === cle ? { ...f, cadre: { ...f.cadre, ...cadre } } : f)));
   }, []);
 
+  /**
+   * Réorganiser · le « Fenêtre → Réorganiser » de Sage. Toutes les fenêtres
+   * repassent flottantes et se rangent en cascade, dans leur ordre
+   * d'empilement : celle du dessus finit devant, en bas de l'escalier. C'est
+   * la commande qui rattrape un plan de travail devenu illisible, quand des
+   * fenêtres se recouvrent exactement ou qu'une a été poussée dans un coin.
+   */
+  const reorganiser = useCallback(() => {
+    setFenetres((a) => {
+      const parOrdre = [...a].sort((x, y) => x.ordre - y.ordre);
+      return a.map((f) => {
+        const rang = parOrdre.findIndex((x) => x.cle === f.cle);
+        return {
+          ...f,
+          etat: 'normale' as const,
+          etatAvantReduction: 'normale' as const,
+          cadre: { ...f.cadre, x: 24 + rang * CASCADE_PAS, y: 16 + rang * CASCADE_PAS },
+        };
+      });
+    });
+  }, []);
+
+  const actualiser = useCallback((cle: string) => {
+    setFenetres((a) => a.map((f) => (f.cle === cle ? { ...f, version: f.version + 1 } : f)));
+  }, []);
+
   const cleActive = useMemo(() => {
     const visibles = fenetres.filter((f) => f.etat !== 'reduite');
     if (visibles.length === 0) return null;
@@ -192,8 +230,10 @@ export function FenetresProvider({ children }: { children: React.ReactNode }) {
       reduire,
       basculerAgrandissement,
       deplacer,
+      reorganiser,
+      actualiser,
     }),
-    [fenetres, cleActive, ouvrir, fermer, fermerTout, activer, reduire, basculerAgrandissement, deplacer],
+    [fenetres, cleActive, ouvrir, fermer, fermerTout, activer, reduire, basculerAgrandissement, deplacer, reorganiser, actualiser],
   );
 
   return <Contexte.Provider value={valeur}>{children}</Contexte.Provider>;

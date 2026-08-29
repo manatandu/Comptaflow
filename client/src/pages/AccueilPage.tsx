@@ -20,11 +20,8 @@ import {
   IconImmo,
   IconInfo,
   IconJournal,
-  IconLock,
-  IconNews,
   IconPrint,
   IconRefresh,
-  IconSaisie,
   IconSearch,
   IconUsers,
 } from '../components/chrome/icons';
@@ -82,6 +79,14 @@ interface GroupeDef {
  * (registre des donateurs, bailleurs, budgets par projet) · le mettre à part
  * évite de le noyer parmi les fenêtres classiques, alors que c'est là que se
  * joue la conformité SYCEBNL.
+ *
+ * DIX-NEUF TUILES, pas une par écran · retenue après le constat « trop
+ * d'icônes ». N'y figurent ni ce que les cartes d'état au-dessus ouvrent
+ * déjà (Brouillard, Analyse et contrôles · elles y mènent d'un clic), ni ce
+ * qu'on ne visite qu'à l'installation ou rarement (Codes journaux, Plans
+ * analytiques, Documents obligatoires, Échéancier) · tout cela reste dans
+ * les menus, qui sont la carte complète. IntuiSage fait le même choix : ses
+ * tuiles sont une sélection, jamais le catalogue.
  */
 const GROUPES: GroupeDef[] = [
   {
@@ -89,9 +94,7 @@ const GROUPES: GroupeDef[] = [
     tuiles: [
       { label: 'Saisie des journaux', chemin: '/saisie', Icon: IconGrille },
       { label: 'Journal', chemin: '/journal?onglet=journal', Icon: IconJournal },
-      { label: 'Brouillard', chemin: '/brouillard', Icon: IconSaisie },
       { label: 'Balance des comptes', chemin: '/journal?onglet=balance', Icon: IconBalance },
-      { label: 'Analyse et contrôles', chemin: '/controles', Icon: IconCheck },
     ],
   },
   {
@@ -99,7 +102,6 @@ const GROUPES: GroupeDef[] = [
     tuiles: [
       { label: 'Plan des tiers', chemin: '/tiers', Icon: IconUsers },
       { label: 'Balance âgée', chemin: '/balance-agee', Icon: IconSearch },
-      { label: 'Échéancier', chemin: '/echeancier', Icon: IconNews },
       { label: 'Rappel et relevé', chemin: '/relances', Icon: IconPrint },
       { label: 'Rapprochement', chemin: '/rapprochement', Icon: IconBanque },
     ],
@@ -109,7 +111,6 @@ const GROUPES: GroupeDef[] = [
     tuiles: [
       { label: 'Plan comptable', chemin: '/comptes', Icon: IconComptes },
       { label: 'Grand livre', chemin: '/journal?onglet=grand-livre', Icon: IconBook },
-      { label: 'Codes journaux', chemin: '/journaux', Icon: IconJournal },
       { label: 'Immobilisations', chemin: '/immobilisations', Icon: IconImmo },
       { label: 'Régularisations', chemin: '/regularisations', Icon: IconRefresh },
     ],
@@ -119,7 +120,6 @@ const GROUPES: GroupeDef[] = [
     tuiles: [
       { label: 'États financiers', chemin: '/etats-financiers', Icon: IconEtats },
       { label: 'Notes annexes', chemin: '/notes-annexes', Icon: IconBook },
-      { label: 'Documents obligatoires', chemin: '/documents-obligatoires', Icon: IconLock },
       { label: "Fin d'exercice", chemin: '/exercice', Icon: IconCheck },
       { label: 'Tableau de bord', chemin: '/tableau-de-bord', Icon: IconDashboard },
     ],
@@ -130,7 +130,6 @@ const GROUPES: GroupeDef[] = [
       { label: 'Registre des donateurs', chemin: '/registre-donateurs', Icon: IconBook },
       { label: 'Bailleurs de fonds', chemin: '/bailleurs', Icon: IconUsers },
       { label: 'États analytiques', chemin: '/etats-analytiques', Icon: IconDashboard },
-      { label: 'Plans analytiques', chemin: '/plans-analytiques', Icon: IconComptes },
       { label: 'Retenues et fiscal', chemin: '/retenues', Icon: IconPrint },
     ],
   },
@@ -350,15 +349,15 @@ function Tuile({ tuile, rang, onClick }: { tuile: TuileDef; rang: number; onClic
       onClick={onClick}
       title={tuile.label}
       style={{ animationDelay: `${rang * 35}ms` }}
-      className="anim-cascade group flex w-[104px] flex-col items-center gap-2 rounded-[12px] border border-transparent p-2 text-center transition-[background-color,border-color,transform] duration-200 ease-sortie hover:-translate-y-[2px] hover:border-border hover:bg-surface"
+      className="anim-cascade group flex w-[86px] flex-col items-center gap-1.5 rounded-[10px] border border-transparent p-1.5 text-center transition-[background-color,border-color,transform] duration-200 ease-sortie hover:-translate-y-[2px] hover:border-border hover:bg-surface"
     >
       <span
-        className="flex h-[52px] w-[52px] items-center justify-center rounded-[13px] text-white shadow-plate transition-shadow duration-200 group-hover:shadow-flottante"
+        className="flex h-[38px] w-[38px] items-center justify-center rounded-[10px] text-white shadow-plate transition-shadow duration-200 group-hover:shadow-flottante"
         style={{ background: 'linear-gradient(140deg, var(--a-600), var(--a-800))' }}
       >
-        <tuile.Icon width={22} height={22} />
+        <tuile.Icon width={16} height={16} />
       </span>
-      <span className="text-[10.5px] font-medium leading-tight text-text">{tuile.label}</span>
+      <span className="text-[10px] font-medium leading-tight text-text">{tuile.label}</span>
     </button>
   );
 }

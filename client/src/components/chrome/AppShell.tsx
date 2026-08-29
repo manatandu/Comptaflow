@@ -52,7 +52,7 @@ export function AppShell() {
   const { exerciceCourant } = useExercice();
   const navigate = useNavigate();
   const location = useLocation();
-  const { fenetres, cleActive, ouvrir, fermerTout } = useFenetres();
+  const { fenetres, cleActive, ouvrir, fermerTout, reorganiser, actualiser } = useFenetres();
   const [aProposOuvert, setAProposOuvert] = useState(false);
 
   const anneeExercice = exerciceCourant ? new Date(exerciceCourant.dateDebut).getFullYear() : null;
@@ -165,7 +165,11 @@ export function AppShell() {
     {
       titre: 'État',
       items: [
-        { label: 'Journal', onClick: () => navigate('/journal?onglet=journal') },
+        // Sage range le tableau de bord dans l'Édition Pilotée, côté États ·
+        // même logique ici : c'est une édition de synthèse, pas une fenêtre
+        // de gestion. Il était dans le menu Fenêtre, où rien ne le justifiait.
+        { label: 'Tableau de bord', onClick: () => navigate('/tableau-de-bord') },
+        { label: 'Journal', separateurAvant: true, onClick: () => navigate('/journal?onglet=journal') },
         { label: 'Grand livre des comptes', onClick: () => navigate('/journal?onglet=grand-livre') },
         { label: 'Balance des comptes', onClick: () => navigate('/journal?onglet=balance') },
         { label: 'Brouillard', onClick: () => navigate('/brouillard') },
@@ -187,20 +191,33 @@ export function AppShell() {
       ],
     },
     {
-      // Sage : menu Fenêtre · il liste les fenêtres ouvertes et permet de
-      // passer de l'une à l'autre. On le construit dynamiquement, une entrée
-      // par fenêtre, en plus des deux commandes fixes.
+      // Sage : menu Fenêtre · Réorganiser, Actualiser (F5), puis la liste des
+      // fenêtres ouvertes. Les commandes de personnalisation d'écran de Sage
+      // (Personnaliser, Barre verticale, Modes) n'ont pas d'équivalent ici :
+      // on ne met PAS d'entrée sans effet pour faire nombre, on grise comme
+      // Sage grise · une commande inapplicable reste visible mais éteinte.
       titre: 'Fenêtre',
       items: [
-        { label: "Accueil (fermer les fenêtres)", onClick: fermerTout },
-        { label: 'Tableau de bord', onClick: () => navigate('/tableau-de-bord') },
-        ...(fenetres.length > 0
-          ? fenetres.map((f, i) => ({
-              label: `${f.cle === cleActive ? '• ' : '   '}${f.titre}`,
-              separateurAvant: i === 0,
-              onClick: () => navigate(f.adresse),
-            }))
-          : []),
+        {
+          label: 'Réorganiser (cascade)',
+          disabled: fenetres.length === 0,
+          onClick: reorganiser,
+        },
+        {
+          label: 'Actualiser la fenêtre active',
+          disabled: !cleActive,
+          onClick: () => cleActive && actualiser(cleActive),
+        },
+        {
+          label: "Tout fermer · revenir à l'accueil",
+          disabled: fenetres.length === 0,
+          onClick: fermerTout,
+        },
+        ...fenetres.map((f, i) => ({
+          label: `${f.cle === cleActive ? '• ' : '\u2007\u2007'}${f.titre}`,
+          separateurAvant: i === 0,
+          onClick: () => navigate(f.adresse),
+        })),
       ],
     },
     {

@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
+import { useActionsFenetre } from '../lib/actions-fenetre';
 import { useAuth } from '../lib/auth';
 import type { Bailleur, Compte } from '../lib/types';
 import { Aide } from '../components/chrome/Aide';
@@ -22,6 +23,10 @@ export function BailleursPage() {
   const [bailleurs, setBailleurs] = useState<Bailleur[] | null>(null);
   const [comptes, setComptes] = useState<Compte[] | null>(null);
   const [afficherFormulaire, setAfficherFormulaire] = useState(false);
+
+  useActionsFenetre({
+    ajouter: { titre: 'Nouveau bailleur de fonds', executer: () => setAfficherFormulaire(true) },
+  });
   const [erreur, setErreur] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
 

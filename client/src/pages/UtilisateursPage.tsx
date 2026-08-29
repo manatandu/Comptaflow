@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
+import { useActionsFenetre } from '../lib/actions-fenetre';
 import { useAuth } from '../lib/auth';
 import type { RoleUtilisateur, Utilisateur } from '../lib/types';
 
@@ -15,6 +16,10 @@ export function UtilisateursPage() {
   const [erreurChargement, setErreurChargement] = useState<string | null>(null);
 
   const [nouveauOuvert, setNouveauOuvert] = useState(false);
+
+  useActionsFenetre({
+    ajouter: { titre: 'Nouvel utilisateur', executer: () => setNouveauOuvert(true) },
+  });
   const [email, setEmail] = useState('');
   const [motDePasse, setMotDePasse] = useState('');
   const [role, setRole] = useState<RoleUtilisateur>('COMPTABLE');
