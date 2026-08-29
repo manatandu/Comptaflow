@@ -16,7 +16,10 @@ import type {
   LigneFluxTresorerie,
   NoteBailleur,
   PosteCalcule,
+  TableauEmploisRessources,
+  TableauExecutionBudgetaire,
   TableauFluxTresorerie,
+  TableauReconciliationTresorerie,
 } from '../lib/types';
 
 /**
@@ -33,7 +36,13 @@ import type {
  * fin de fichier aiguille.
  */
 type OngletAssociations = 'bilan' | 'compte-de-resultat' | 'flux-tresorerie';
-type OngletProjet = 'bilan-projet' | 'compte-exploitation-projet' | 'note-bailleur';
+type OngletProjet =
+  | 'bilan-projet'
+  | 'compte-exploitation-projet'
+  | 'emplois-ressources'
+  | 'execution-budgetaire'
+  | 'reconciliation-tresorerie'
+  | 'note-bailleur';
 
 /** Nom de l'état affiché · repris en sous-titre de l'en-tête d'impression. */
 const LIBELLE_ONGLET: Record<string, string> = {
@@ -42,16 +51,22 @@ const LIBELLE_ONGLET: Record<string, string> = {
   'flux-tresorerie': 'Tableau de flux de trésorerie',
   'bilan-projet': 'Bilan',
   'compte-exploitation-projet': "Compte d'exploitation",
+  'emplois-ressources': 'Tableau emplois-ressources',
+  'execution-budgetaire': "Tableau d'exécution budgétaire",
+  'reconciliation-tresorerie': 'Tableau de réconciliation de trésorerie',
   'note-bailleur': 'Note 9 · Fonds du bailleur',
 };
 
 /** Entrée du lexique SYCEBNL correspondant à chaque onglet d'état. */
-const AIDE_ONGLET: Record<string, 'bilan' | 'compteResultat' | 'tft' | 'compteExploitation' | 'bailleur' | undefined> = {
+const AIDE_ONGLET: Record<string, 'bilan' | 'compteResultat' | 'tft' | 'compteExploitation' | 'bailleur' | 'budget' | undefined> = {
   bilan: 'bilan',
   'compte-de-resultat': 'compteResultat',
   'flux-tresorerie': 'tft',
   'bilan-projet': 'bilan',
   'compte-exploitation-projet': 'compteExploitation',
+  'emplois-ressources': undefined,
+  'execution-budgetaire': 'budget',
+  'reconciliation-tresorerie': 'tft',
   'note-bailleur': 'bailleur',
 };
 
@@ -71,6 +86,12 @@ function EtatsSystemeNormalPage() {
   const [bilanProjet, setBilanProjet] = useState<BilanProjet | null>(null);
   const [ceProjet, setCeProjet] = useState<CompteExploitationProjet | null>(null);
   const [noteBailleur, setNoteBailleur] = useState<NoteBailleur | null>(null);
+  const [emploisRessources, setEmploisRessources] = useState<TableauEmploisRessources | null>(null);
+  const [executionBudget, setExecutionBudget] = useState<TableauExecutionBudgetaire | null>(null);
+  const [erreurBudget, setErreurBudget] = useState<string | null>(null);
+  const [reconciliation, setReconciliation] = useState<TableauReconciliationTresorerie | null>(null);
+  // Repère H du tableau de réconciliation · extra-comptable, saisi ici.
+  const [paiementsEnInstance, setPaiementsEnInstance] = useState('0');
 
   const [erreur, setErreur] = useState<string | null>(null);
   const [exportEnCours, setExportEnCours] = useState(false);
@@ -98,6 +119,18 @@ function EtatsSystemeNormalPage() {
       api.get<NoteBailleur>(`/etats-financiers/projet/note-bailleur?exerciceId=${exerciceCourant.id}`).then(
         (r) => !annule && setNoteBailleur(r),
         (e) => !annule && setErreur(e.message),
+      );
+      api.get<TableauEmploisRessources>(`/etats-financiers/projet/emplois-ressources?exerciceId=${exerciceCourant.id}`).then(
+        (r) => !annule && setEmploisRessources(r),
+        (e) => !annule && setErreur(e.message),
+      );
+      // Le tableau d'exécution budgétaire suppose une nomenclature budgétaire :
+      // son absence n'est pas une erreur de l'application, c'est un dossier
+      // qui n'a pas encore de plan analytique à budgets. Erreur isolée pour ne
+      // pas polluer les autres états.
+      api.get<TableauExecutionBudgetaire>(`/etats-financiers/projet/execution-budgetaire?exerciceId=${exerciceCourant.id}`).then(
+        (r) => !annule && setExecutionBudget(r),
+        (e) => !annule && setErreurBudget(e.message),
       );
     } else {
       api.get<Bilan>(`/etats-financiers/bilan?exerciceId=${exerciceCourant.id}`).then(
@@ -136,7 +169,13 @@ function EtatsSystemeNormalPage() {
               ? 'projet/bilan'
               : onglet === 'compte-exploitation-projet'
                 ? 'projet/compte-exploitation'
-                : 'projet/note-bailleur';
+                : onglet === 'emplois-ressources'
+                  ? 'projet/emplois-ressources'
+                  : onglet === 'execution-budgetaire'
+                    ? 'projet/execution-budgetaire'
+                    : onglet === 'reconciliation-tresorerie'
+                      ? 'projet/reconciliation-tresorerie'
+                      : 'projet/note-bailleur';
     const nomFichier = chemin.includes('/') ? chemin.split('/')[1] + '-projet' : chemin;
     setErreur(null);
     setExportEnCours(true);
@@ -274,9 +313,9 @@ function EtatsSystemeNormalPage() {
 
       {jeuProjet && (
         <p className="text-[10.5px] text-text-dim mb-1.5">
-          Jeu « Projets de développement et assimilés » (SYCEBNL, Partie 4 ch. 3). Le tableau emplois-ressources,
-          le tableau d'exécution budgétaire et le tableau de réconciliation de trésorerie ne sont pas encore
-          construits : seuls le bilan et le compte d'exploitation sont disponibles ici.
+          Jeu « Projets de développement et assimilés » (SYCEBNL, Partie 4 ch. 3). Les cinq états du point 2 de
+          l'article 14 sont produits ; la correspondance du tableau emplois-ressources et du tableau d'exécution
+          budgétaire vient du Guide d'application, chapitre 7.
         </p>
       )}
 
@@ -297,6 +336,30 @@ function EtatsSystemeNormalPage() {
             }`}
           >
             COMPTE D'EXPLOITATION
+          </button>
+          <button
+            onClick={() => setOngletProjet('emplois-ressources')}
+            className={`px-4 py-1.5 text-[11px] font-bold ${
+              onglet === 'emplois-ressources' ? 'bg-surface border-r border-l border-border' : 'text-text-dim'
+            }`}
+          >
+            EMPLOIS-RESSOURCES
+          </button>
+          <button
+            onClick={() => setOngletProjet('execution-budgetaire')}
+            className={`px-4 py-1.5 text-[11px] font-bold ${
+              onglet === 'execution-budgetaire' ? 'bg-surface border-r border-l border-border' : 'text-text-dim'
+            }`}
+          >
+            EXÉCUTION BUDGÉTAIRE
+          </button>
+          <button
+            onClick={() => setOngletProjet('reconciliation-tresorerie')}
+            className={`px-4 py-1.5 text-[11px] font-bold ${
+              onglet === 'reconciliation-tresorerie' ? 'bg-surface border-r border-l border-border' : 'text-text-dim'
+            }`}
+          >
+            RÉCONCILIATION
           </button>
           <button
             onClick={() => setOngletProjet('note-bailleur')}
@@ -710,6 +773,237 @@ function EtatsSystemeNormalPage() {
             </div>
           )}
         </>
+      )}
+
+      {/* ------------------------------------------------------------- */}
+      {/* TABLEAU EMPLOIS-RESSOURCES · FA à GZ                            */}
+      {/* ------------------------------------------------------------- */}
+      {onglet === 'emplois-ressources' && (
+        <>
+          {!emploisRessources && <div className="border border-border px-4 py-4 text-[12px] text-text-dim">Chargement…</div>}
+          {emploisRessources && (
+            <div className="max-w-[1000px]">
+              <div className="border border-border bg-surface mb-3">
+                <div className="grid grid-cols-[42px_1fr_120px_120px_120px] gap-2 px-4 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
+                  <span>REF</span>
+                  <span>DÉSIGNATION</span>
+                  <span className="text-right">MOUVEMENT BRUT</span>
+                  <span className="text-right">CORRECTION</span>
+                  <span className="text-right">EXERCICE N</span>
+                </div>
+                {emploisRessources.lignes.map((l, i) => (
+                  <div
+                    key={`${l.ref}-${i}`}
+                    title={l.comptes.length > 0 ? `Comptes : ${l.comptes.map((c) => c.numero).join(', ')}` : undefined}
+                    className={`grid grid-cols-[42px_1fr_120px_120px_120px] gap-2 px-4 py-1 text-[12px] ${
+                      l.estTotal ? 'font-bold bg-surface-alt border-y border-border' : l.montant === 0 ? 'text-text-dim' : ''
+                    }`}
+                  >
+                    <span className="font-mono text-[10px] text-text-dim">{l.ref}</span>
+                    <span>{l.libelle}</span>
+                    {/* Le brut et la correction ne sont affichés que là où le
+                        guide en prévoit une : les lire ailleurs n'aurait pas
+                        de sens. */}
+                    <span className="font-mono text-right text-text-dim">
+                      {l.brut !== undefined && l.correction !== undefined && Math.abs(l.correction) > 0.005 ? montant(l.brut) : ''}
+                    </span>
+                    <span className="font-mono text-right text-text-dim">
+                      {l.correction !== undefined && Math.abs(l.correction) > 0.005 ? montant(l.correction) : ''}
+                    </span>
+                    <span className="font-mono text-right">{montant(l.montant)}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div
+                className={`flex items-start gap-2 px-3.5 py-2.5 border ${
+                  emploisRessources.controle.boucle ? 'border-positive/30 bg-positive-soft' : 'border-danger/30 bg-danger-soft'
+                }`}
+              >
+                <IconCheck width={14} height={14} className={emploisRessources.controle.boucle ? 'text-positive' : 'text-danger'} />
+                <span className="font-mono text-[11.5px]">
+                  {emploisRessources.controle.boucle
+                    ? `CONTRÔLE OFFICIEL GZ · TOTAL V = TOTAL VI = ${montant(emploisRessources.encaisseDisponible)}`
+                    : `CONTRÔLE OFFICIEL GZ EN ÉCHEC · écart de ${montant(emploisRessources.controle.ecart)} entre l'encaisse reconstituée et les fonds disponibles en fin d'exercice`}
+                </span>
+              </div>
+
+              {emploisRessources.anomalies.length > 0 && (
+                <div className="border border-warning/40 bg-warning-soft mt-2 px-3.5 py-2.5">
+                  <div className="text-[11.5px] font-bold mb-1.5">
+                    Répartition faussée entre postes · le total des emplois reste exact
+                  </div>
+                  {emploisRessources.anomalies.map((a) => (
+                    <p key={a.ref} className="text-[11px] mb-1 last:mb-0">
+                      {a.diagnostic}
+                    </p>
+                  ))}
+                </div>
+              )}
+
+              {emploisRessources.avertissements.map((a) => (
+                <p key={a} className="mt-2 text-[10.5px] text-text-dim">
+                  {a}
+                </p>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ------------------------------------------------------------- */}
+      {/* TABLEAU D'EXÉCUTION BUDGÉTAIRE · Section 2, et Note 24          */}
+      {/* ------------------------------------------------------------- */}
+      {onglet === 'execution-budgetaire' && (
+        <>
+          {erreurBudget && (
+            <div className="border border-warning/40 bg-warning-soft px-3.5 py-2.5 text-[12px] max-w-[820px]">
+              {erreurBudget}
+            </div>
+          )}
+          {!executionBudget && !erreurBudget && (
+            <div className="border border-border px-4 py-4 text-[12px] text-text-dim">Chargement…</div>
+          )}
+          {executionBudget && (
+            <div className="max-w-[1160px] overflow-x-auto">
+              <p className="text-[10.5px] text-text-dim mb-1.5">
+                Nomenclature budgétaire : plan analytique{' '}
+                <span className="font-mono">{executionBudget.plan.code}</span> · {executionBudget.plan.intitule}
+              </p>
+              <div className="border border-border bg-surface mb-3 min-w-[1060px]">
+                <div className="grid grid-cols-[80px_1fr_120px_120px_120px_120px_120px_90px] gap-2 px-4 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
+                  <span>CODE</span>
+                  <span>LIBELLÉ</span>
+                  <span className="text-right">BUDGET (1)</span>
+                  <span className="text-right">DÉCAISSEMENT (2)</span>
+                  <span className="text-right">ENGAGEMENT (3)</span>
+                  <span className="text-right">RÉALISATION (4)</span>
+                  <span className="text-right">CRÉDIT DISPO. (5)</span>
+                  <span className="text-right">EXÉC. (4/1)</span>
+                </div>
+                {executionBudget.lignes.map((l) => (
+                  <div
+                    key={l.code}
+                    className="grid grid-cols-[80px_1fr_120px_120px_120px_120px_120px_90px] gap-2 px-4 py-1 text-[12px]"
+                  >
+                    <span className="font-mono text-[11px]">{l.code}</span>
+                    <span className="truncate">{l.libelle}</span>
+                    <span className="font-mono text-right">{montant(l.budget)}</span>
+                    <span className="font-mono text-right">{montant(l.decaissement)}</span>
+                    <span className="font-mono text-right">{montant(l.engagement)}</span>
+                    <span className="font-mono text-right">{montant(l.realisation)}</span>
+                    <span className={`font-mono text-right ${l.creditDisponible < 0 ? 'text-danger font-semibold' : ''}`}>
+                      {montant(l.creditDisponible)}
+                    </span>
+                    <span className="font-mono text-right text-text-dim">
+                      {l.executionPourcent === null ? '·' : `${l.executionPourcent.toFixed(1)} %`}
+                    </span>
+                  </div>
+                ))}
+                {executionBudget.lignes.length === 0 && (
+                  <div className="px-4 py-2 text-[11.5px] text-text-dim">
+                    Ce plan analytique ne porte encore aucune section.
+                  </div>
+                )}
+                <div className="grid grid-cols-[80px_1fr_120px_120px_120px_120px_120px_90px] gap-2 px-4 py-1.5 bg-surface-alt border-t border-border text-[12px] font-bold">
+                  <span>TOTAL</span>
+                  <span />
+                  <span className="font-mono text-right">{montant(executionBudget.total.budget)}</span>
+                  <span className="font-mono text-right">{montant(executionBudget.total.decaissement)}</span>
+                  <span className="font-mono text-right">{montant(executionBudget.total.engagement)}</span>
+                  <span className="font-mono text-right">{montant(executionBudget.total.realisation)}</span>
+                  <span className="font-mono text-right">{montant(executionBudget.total.creditDisponible)}</span>
+                  <span className="font-mono text-right">
+                    {executionBudget.total.executionPourcent === null
+                      ? '·'
+                      : `${executionBudget.total.executionPourcent.toFixed(1)} %`}
+                  </span>
+                </div>
+              </div>
+              <p className="text-[10.5px] text-text-dim max-w-[900px]">{executionBudget.engagementsHorsComptabilite}</p>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ------------------------------------------------------------- */}
+      {/* TABLEAU DE RÉCONCILIATION DE TRÉSORERIE · repères A à I         */}
+      {/* ------------------------------------------------------------- */}
+      {onglet === 'reconciliation-tresorerie' && (
+        <div className="max-w-[760px]">
+          <div className="ecran-seul flex items-end gap-2 border-x border-t border-border bg-surface px-4 pt-2.5 pb-2">
+            <label className="flex flex-col gap-1">
+              <span className="text-[10px] font-bold text-text-dim" title="Chèques émis non encaissés, virements en cours · le repère H de la maquette officielle est extra-comptable">
+                PAIEMENTS EN INSTANCE (REPÈRE H)
+              </span>
+              <input
+                type="number"
+                value={paiementsEnInstance}
+                onChange={(e) => setPaiementsEnInstance(e.target.value)}
+                className="border border-border-dark bg-surface px-2 py-1 text-[12px] font-mono w-[160px]"
+              />
+            </label>
+            <button
+              type="button"
+              onClick={() => {
+                if (!exerciceCourant) return;
+                api
+                  .get<TableauReconciliationTresorerie>(
+                    `/etats-financiers/projet/reconciliation-tresorerie?exerciceId=${exerciceCourant.id}&paiementsEnInstance=${Number(paiementsEnInstance) || 0}`,
+                  )
+                  .then(setReconciliation, (e) => setErreur(e.message));
+              }}
+              className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[11.5px]"
+            >
+              Établir le tableau
+            </button>
+          </div>
+
+          {!reconciliation && (
+            <div className="border border-border px-4 py-4 text-[12px] text-text-dim">
+              Saisissez les paiements en instance puis établissez le tableau.
+            </div>
+          )}
+          {reconciliation && (
+            <>
+              <div className="border border-border bg-surface mb-3">
+                <div className="grid grid-cols-[1fr_44px_150px] gap-2 px-4 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
+                  <span>LIBELLÉ</span>
+                  <span className="text-center">REP.</span>
+                  <span className="text-right">MONTANT</span>
+                </div>
+                {reconciliation.lignes.map((l) => (
+                  <div
+                    key={l.rep}
+                    className={`grid grid-cols-[1fr_44px_150px] gap-2 px-4 py-1 text-[12px] ${
+                      l.rep === 'G' || l.rep === 'I' ? 'font-bold bg-surface-alt border-y border-border' : ''
+                    }`}
+                  >
+                    <span>{l.libelle}</span>
+                    <span className="font-mono text-[10px] text-text-dim text-center">{l.rep}</span>
+                    <span className="font-mono text-right">{montant(l.montant)}</span>
+                  </div>
+                ))}
+              </div>
+              <div
+                className={`flex items-start gap-2 px-3.5 py-2.5 border ${
+                  reconciliation.controle.boucle ? 'border-positive/30 bg-positive-soft' : 'border-danger/30 bg-danger-soft'
+                }`}
+              >
+                <span className="text-[11.5px]">
+                  {reconciliation.controle.boucle
+                    ? `La trésorerie reconstituée (repère G) correspond au solde des comptes de trésorerie à la balance : ${montant(reconciliation.controle.tresorerieBalance)}.`
+                    : `Écart de ${montant(reconciliation.controle.ecart)} entre la trésorerie reconstituée (G) et le solde des comptes de trésorerie à la balance (${montant(reconciliation.controle.tresorerieBalance)}).`}
+                </span>
+              </div>
+              {reconciliation.avertissements.map((a) => (
+                <p key={a} className="mt-2 text-[10.5px] text-text-dim">
+                  {a}
+                </p>
+              ))}
+            </>
+          )}
+        </div>
       )}
 
       {onglet === 'note-bailleur' && (

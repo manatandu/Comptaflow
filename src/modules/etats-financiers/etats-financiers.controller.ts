@@ -6,6 +6,7 @@ import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-
 import { EtatsFinanciersService } from './etats-financiers.service';
 import { EtatsFinanciersProjetService } from './etats-financiers-projet.service';
 import { EtatsFinanciersSmtService } from './etats-financiers-smt.service';
+import { EtatsFinanciersProjetBudgetService } from './etats-financiers-projet-budget.service';
 
 /**
  * Même raison qu'au contrôleur d'export : un `@Query` scalaire échappe au
@@ -27,6 +28,7 @@ export class EtatsFinanciersController {
     private readonly etatsFinanciersService: EtatsFinanciersService,
     private readonly etatsFinanciersProjetService: EtatsFinanciersProjetService,
     private readonly etatsFinanciersSmtService: EtatsFinanciersSmtService,
+    private readonly etatsFinanciersProjetBudgetService: EtatsFinanciersProjetBudgetService,
   ) {}
 
   /** Jeu « associations et ordres professionnels » (Partie 4, ch. 2). */
@@ -76,6 +78,54 @@ export class EtatsFinanciersController {
     @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
   ) {
     return this.etatsFinanciersProjetService.compteExploitation(user.tenantId, exerciceId);
+  }
+
+  /**
+   * TABLEAU EMPLOIS-RESSOURCES (Section 1, FA à GZ) · correspondance du
+   * Guide d'application, chapitre 7, APPLICATION 21.
+   */
+  @Get('projet/emplois-ressources')
+  async emploisRessources(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    return this.etatsFinanciersProjetService.tableauEmploisRessources(user.tenantId, exerciceId);
+  }
+
+  /**
+   * TABLEAU D'EXÉCUTION BUDGÉTAIRE (Section 2, et NOTE 24) · une ligne par
+   * section du plan analytique qui tient la nomenclature budgétaire du
+   * projet. `planId` facultatif : à défaut, le premier plan actif à budgets.
+   */
+  @Get('projet/execution-budgetaire')
+  async executionBudgetaire(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+    @Query('planId') planId?: string,
+  ) {
+    return this.etatsFinanciersProjetBudgetService.executionBudgetaire(user.tenantId, exerciceId, planId);
+  }
+
+  /**
+   * TABLEAU DE RÉCONCILIATION DE TRÉSORERIE (Section 3, repères A à I).
+   * `paiementsEnInstance` est extra-comptable (repère H) : il est saisi par
+   * l'entité et repris tel quel.
+   */
+  @Get('projet/reconciliation-tresorerie')
+  async reconciliationTresorerie(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+    @Query('paiementsEnInstance') paiementsEnInstance?: string,
+  ) {
+    // `Number('')` vaut 0 et `Number(undefined)` vaut NaN : le garde-fou
+    // évite qu'un paramètre absent ou mal formé fasse ressortir NaN sur un
+    // état imprimé.
+    const montant = Number(paiementsEnInstance);
+    return this.etatsFinanciersProjetBudgetService.reconciliationTresorerie(
+      user.tenantId,
+      exerciceId,
+      Number.isFinite(montant) ? montant : 0,
+    );
   }
 
   /**

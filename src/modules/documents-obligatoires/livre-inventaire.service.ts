@@ -4,6 +4,7 @@ import { PrismaService } from '../../common/prisma.service';
 import { EtatsFinanciersService } from '../etats-financiers/etats-financiers.service';
 import { EtatsFinanciersProjetService } from '../etats-financiers/etats-financiers-projet.service';
 import { EtatsFinanciersSmtService } from '../etats-financiers/etats-financiers-smt.service';
+import { EtatsFinanciersProjetBudgetService } from '../etats-financiers/etats-financiers-projet-budget.service';
 import { CleEtatInventaire, EtatATranscrire, etatsExigesPar } from './correspondance-inventaire';
 import { ResumeInventaireDto, TranscrireInventaireDto } from './dto/documents-obligatoires.dto';
 
@@ -49,6 +50,7 @@ export class LivreInventaireService {
     private readonly etatsFinanciers: EtatsFinanciersService,
     private readonly etatsFinanciersProjet: EtatsFinanciersProjetService,
     private readonly etatsFinanciersSmt: EtatsFinanciersSmtService,
+    private readonly etatsFinanciersProjetBudget: EtatsFinanciersProjetBudgetService,
   ) {}
 
   /** Toutes les versions transcrites d'un exercice, la plus récente en tête. */
@@ -219,6 +221,17 @@ export class LivreInventaireService {
         return this.etatsFinanciers.tableauFluxTresorerie(tenantId, exerciceId);
       case 'compteExploitation':
         return this.etatsFinanciersProjet.compteExploitation(tenantId, exerciceId);
+      case 'tableauEmploisRessources':
+        return this.etatsFinanciersProjet.tableauEmploisRessources(tenantId, exerciceId);
+      case 'tableauExecutionBudgetaire':
+        return this.etatsFinanciersProjetBudget.executionBudgetaire(tenantId, exerciceId);
+      case 'tableauReconciliationTresorerie':
+        // Les paiements en instance (repère H) sont extra-comptables : la
+        // transcription au livre d'inventaire les fige à zéro, faute d'une
+        // saisie possible à cet instant. L'état imprimé depuis l'écran, lui,
+        // les porte. La différence est assumée : le livre d'inventaire fige
+        // ce que la comptabilité établit.
+        return this.etatsFinanciersProjetBudget.reconciliationTresorerie(tenantId, exerciceId, 0);
       default:
         // Les trois états du point 2 non encore construits ne passent jamais
         // ici : `transcrire` les écarte sur `disponible: false`.

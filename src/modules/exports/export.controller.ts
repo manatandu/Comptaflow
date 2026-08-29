@@ -151,6 +151,43 @@ export class ExportController {
     envoyerXlsx(res, await this.exportService.noteBailleurExcel(user.tenantId, exerciceId));
   }
 
+  /** Les trois tableaux du point 2 de l'article 14 (guide d'application, ch. 7). */
+  @Get('etats-financiers/projet/emplois-ressources')
+  async emploisRessources(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    envoyerXlsx(res, await this.exportService.emploisRessourcesExcel(user.tenantId, exerciceId));
+  }
+
+  @Get('etats-financiers/projet/execution-budgetaire')
+  async executionBudgetaire(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    envoyerXlsx(res, await this.exportService.executionBudgetaireExcel(user.tenantId, exerciceId));
+  }
+
+  @Get('etats-financiers/projet/reconciliation-tresorerie')
+  async reconciliationTresorerie(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+    @Query('paiementsEnInstance') paiementsEnInstance?: string,
+  ) {
+    const montant = Number(paiementsEnInstance);
+    envoyerXlsx(
+      res,
+      await this.exportService.reconciliationTresorerieExcel(
+        user.tenantId,
+        exerciceId,
+        Number.isFinite(montant) ? montant : 0,
+      ),
+    );
+  }
+
   // -------------------------------------------------------------------------
   // Jeu « Système Minimal de Trésorerie » (Partie 4, ch. 4) · un export par
   // onglet de l'écran, comme les deux autres jeux ont un export par état.

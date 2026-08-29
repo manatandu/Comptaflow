@@ -1437,3 +1437,60 @@ export interface EligibiliteSmt {
   conversionAppliquee: boolean;
   avertissement: string;
 }
+
+// --------------------------------------------------------------------------
+// Jeu « projets de développement » · les trois tableaux du point 2 de
+// l'article 14, dont la correspondance vient du Guide d'application (ch. 7).
+// --------------------------------------------------------------------------
+
+export interface PosteEmploisRessources extends PosteCalcule {
+  estTotal?: boolean;
+  /** Mouvement avant correction des dettes · absent des lignes de ressources et des totaux. */
+  brut?: number;
+  /** Correction des renvois du guide, signée · positive quand la dette a diminué. */
+  correction?: number;
+}
+
+export interface TableauEmploisRessources {
+  lignes: PosteEmploisRessources[];
+  totalRessources: number;
+  totalEmplois: number;
+  excedent: number;
+  encaisseDisponible: number;
+  fondsFinExercice: number;
+  controle: { ecart: number; boucle: boolean };
+  /** Postes dont la correction de dettes dépasse le mouvement · répartition faussée. */
+  anomalies: {
+    ref: string;
+    libelle: string;
+    brut: number;
+    correction: number;
+    montant: number;
+    diagnostic: string;
+  }[];
+  avertissements: string[];
+}
+
+export interface LigneExecutionBudgetaire {
+  code: string;
+  libelle: string;
+  budget: number;
+  decaissement: number;
+  engagement: number;
+  realisation: number;
+  creditDisponible: number;
+  executionPourcent: number | null;
+}
+
+export interface TableauExecutionBudgetaire {
+  plan: { id: string; code: string; intitule: string };
+  lignes: LigneExecutionBudgetaire[];
+  total: Omit<LigneExecutionBudgetaire, 'code' | 'libelle'>;
+  engagementsHorsComptabilite: string;
+}
+
+export interface TableauReconciliationTresorerie {
+  lignes: { rep: string; libelle: string; montant: number }[];
+  controle: { tresorerieBalance: number; ecart: number; boucle: boolean };
+  avertissements: string[];
+}

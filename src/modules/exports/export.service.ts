@@ -6,6 +6,7 @@ import { EcritureService } from '../comptabilite/ecriture.service';
 import { EtatsFinanciersService, PosteCalcule } from '../etats-financiers/etats-financiers.service';
 import { EtatsFinanciersProjetService } from '../etats-financiers/etats-financiers-projet.service';
 import { EtatsFinanciersSmtService } from '../etats-financiers/etats-financiers-smt.service';
+import { EtatsFinanciersProjetBudgetService } from '../etats-financiers/etats-financiers-projet-budget.service';
 import { NoteAnnexeService } from '../notes-annexes/note-annexe.service';
 import { DonationService, manquementsArticle17 } from '../registre-donateurs/donation.service';
 import { LivreInventaireService } from '../documents-obligatoires/livre-inventaire.service';
@@ -57,6 +58,7 @@ export class ExportService {
     private readonly etatsFinanciersService: EtatsFinanciersService,
     private readonly etatsFinanciersProjetService: EtatsFinanciersProjetService,
     private readonly etatsFinanciersSmtService: EtatsFinanciersSmtService,
+    private readonly etatsFinanciersProjetBudgetService: EtatsFinanciersProjetBudgetService,
     private readonly noteAnnexeService: NoteAnnexeService,
     private readonly donationService: DonationService,
     private readonly livreInventaire: LivreInventaireService,
@@ -1871,6 +1873,218 @@ export class ExportService {
       nomFichier: `rapport-activite${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
     };
   }
+  // -------------------------------------------------------------------------
+  // Jeu « projets de développement » · les trois tableaux du point 2 de
+  // l'article 14, dont la correspondance vient du Guide d'application, ch. 7.
+  // -------------------------------------------------------------------------
+
+  async emploisRessourcesExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
+    const er = await this.etatsFinanciersProjetService.tableauEmploisRessources(tenantId, exerciceId);
+    const classeur = this.nouveauClasseur();
+
+    const f = classeur.addWorksheet('Emplois-ressources');
+    f.columns = [
+      { header: 'REF', key: 'ref', width: 8 },
+      { header: 'Désignation', key: 'libelle', width: 56 },
+      { header: 'Mouvement brut', key: 'brut', width: 18 },
+      { header: 'Correction (renvois du guide)', key: 'correction', width: 26 },
+      { header: 'Exercice N', key: 'montant', width: 18 },
+    ];
+    for (const l of er.lignes) {
+      // `brut` et `correction` ne figurent que sur les postes d'emploi · les
+      // ressources et les totaux n'en ont pas, d'où la lecture élargie.
+      const p = l as typeof l & { brut?: number; correction?: number };
+      const aCorrection = p.correction !== undefined && Math.abs(p.correction) > 0.005;
+      const ligne = f.addRow({
+        ref: l.ref,
+        libelle: l.libelle,
+        brut: aCorrection ? p.brut : null,
+        correction: aCorrection ? p.correction : null,
+        montant: l.montant,
+      });
+      if (l.estTotal) ligne.font = ENTETE_FONT;
+    }
+    this.appliquerFormats(f, { brut: FORMAT_MONTANT, correction: FORMAT_MONTANT, montant: FORMAT_MONTANT });
+    styliserEntete(f.getRow(1));
+    f.views = [{ state: 'frozen', ySplit: 1 }];
+
+    const detail = classeur.addWorksheet('Détail par poste');
+    detail.columns = [
+      { header: 'REF', key: 'ref', width: 8 },
+      { header: 'Poste', key: 'poste', width: 50 },
+      { header: 'Compte', key: 'numero', width: 14 },
+      { header: 'Intitulé compte', key: 'intitule', width: 46 },
+      { header: 'Montant', key: 'montant', width: 18 },
+    ];
+    for (const l of er.lignes) {
+      for (const c of l.comptes) {
+        detail.addRow({ ref: l.ref, poste: l.libelle, numero: c.numero, intitule: c.intitule, montant: c.montant });
+      }
+    }
+    this.appliquerFormats(detail, { montant: FORMAT_MONTANT });
+    this.finaliserTableau(detail, detail.columns.length, detail.rowCount);
+
+    const controles = classeur.addWorksheet('Contrôles et méthode');
+    controles.columns = [
+      { header: 'Point', key: 'point', width: 34 },
+      { header: 'Montant', key: 'montant', width: 18 },
+      { header: 'Ce qui est appliqué', key: 'texte', width: 110 },
+    ];
+    const ctrl = controles.addRow({
+      point: 'CONTRÔLE OFFICIEL GZ',
+      montant: er.controle.ecart,
+      texte: er.controle.boucle
+        ? `OK · « VII. CONTRÔLE : TOTAL V = TOTAL VI » vérifié à ${er.encaisseDisponible.toFixed(2)}.`
+        : "ÉCHEC · l'encaisse reconstituée (V) ne correspond pas aux fonds disponibles en fin d'exercice (VI).",
+    });
+    ctrl.font = { bold: true, color: { argb: er.controle.boucle ? 'FF1E7B34' : 'FFB00020' } };
+    controles.addRow({
+      point: 'Source de la correspondance',
+      texte:
+        "Guide d'application du SYCEBNL, chapitre 7, APPLICATION 21. La Partie 4 ch. 3 donne la maquette du tableau mais aucun rattachement aux comptes ; c'est le guide qui le fournit, poste par poste, renvois compris.",
+    });
+    controles.addRow({
+      point: 'Nature des montants',
+      texte:
+        "Ce tableau lit des MOUVEMENTS de la balance (crédit pour les ressources, débit pour les emplois), corrigés des variations de dettes pour ne retenir que ce qui a été encaissé ou décaissé. Ce n'est pas une lecture de soldes.",
+    });
+    controles.addRow({
+      point: 'Anomalie du guide',
+      texte:
+        "Les renvois (3) à (7) écrivent « solde DÉBITEUR » pour des comptes de dettes (401, 44, 42, 43, 4813), dont le solde normal est créditeur ; le renvoi (2) écrit « créditeur » pour le même mécanisme sur le 481. C'est une coquille du guide : le sens créditeur est retenu partout, et le sens économique le confirme (emploi décaissé = charge + dette N-1 − dette N).",
+    });
+    for (const a of er.avertissements) controles.addRow({ point: 'Réserve', texte: a });
+    this.appliquerFormats(controles, { montant: FORMAT_MONTANT });
+    for (let i = 2; i <= controles.rowCount; i++) {
+      controles.getRow(i).getCell('texte').alignment = { wrapText: true, vertical: 'top' };
+    }
+    this.finaliserTableau(controles, controles.columns.length, controles.rowCount);
+
+    return {
+      buffer: await this.versBuffer(classeur),
+      nomFichier: `emplois-ressources-projet${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
+    };
+  }
+
+  async executionBudgetaireExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
+    const t = await this.etatsFinanciersProjetBudgetService.executionBudgetaire(tenantId, exerciceId);
+    const classeur = this.nouveauClasseur();
+
+    const f = classeur.addWorksheet('Exécution budgétaire');
+    f.columns = [
+      { header: 'Code', key: 'code', width: 12 },
+      { header: 'Libellé', key: 'libelle', width: 46 },
+      { header: "Budget de l'exercice (1)", key: 'budget', width: 22 },
+      { header: 'Décaissement (2)', key: 'decaissement', width: 18 },
+      { header: 'Engagement (3)', key: 'engagement', width: 18 },
+      { header: 'Réalisation (4 = 2+3)', key: 'realisation', width: 20 },
+      { header: 'Crédit disponible (5 = 1-4)', key: 'creditDisponible', width: 24 },
+      { header: 'Exécution budget (4/1)', key: 'pourcent', width: 20 },
+    ];
+    for (const l of t.lignes) {
+      f.addRow({ ...l, pourcent: l.executionPourcent === null ? null : l.executionPourcent / 100 });
+    }
+    const total = f.addRow({
+      code: 'TOTAL',
+      budget: t.total.budget,
+      decaissement: t.total.decaissement,
+      engagement: t.total.engagement,
+      realisation: t.total.realisation,
+      creditDisponible: t.total.creditDisponible,
+      pourcent: t.total.executionPourcent === null ? null : t.total.executionPourcent / 100,
+    });
+    total.font = ENTETE_FONT;
+    this.appliquerFormats(f, {
+      budget: FORMAT_MONTANT,
+      decaissement: FORMAT_MONTANT,
+      engagement: FORMAT_MONTANT,
+      realisation: FORMAT_MONTANT,
+      creditDisponible: FORMAT_MONTANT,
+      pourcent: '0.0%',
+    });
+    styliserEntete(f.getRow(1));
+    f.views = [{ state: 'frozen', ySplit: 1 }];
+
+    const methode = classeur.addWorksheet('Méthode');
+    methode.columns = [
+      { header: 'Point', key: 'point', width: 34 },
+      { header: 'Ce qui est appliqué', key: 'texte', width: 120 },
+    ];
+    for (const [point, texte] of [
+      ['Source', "Partie 4, ch. 3, Section 2 (et NOTE 24) pour la maquette ; Guide d'application, chapitre 7, APPLICATION 22 pour les règles de remplissage."],
+      ['Nomenclature budgétaire', `Plan analytique ${t.plan.code} · ${t.plan.intitule}. Le guide dit « remplir code et libellé suivant la nomenclature budgétaire du projet » : dans OmegaX cette nomenclature est un plan analytique, et ses sections portent le budget de l'exercice.`],
+      ['Décaissement contre engagement', "Le guide définit l'engagement par « le solde créditeur balance N des comptes fournisseurs d'exploitation (40) et d'investissement (481) ». Cette définition est globale ; le tableau étant par ligne budgétaire, la règle est appliquée écriture par écriture, ce qui donne le même agrégé tout en étant exact par section : une dépense dont l'écriture a touché la trésorerie est décaissée ; une dépense passée en compte de tiers est engagée tant que la ligne de tiers n'est pas lettrée, décaissée une fois lettrée."],
+      ['Engagements hors comptabilité', t.engagementsHorsComptabilite],
+    ] as [string, string][]) {
+      const l = methode.addRow({ point, texte });
+      l.getCell('point').font = ENTETE_FONT;
+      l.getCell('texte').alignment = { wrapText: true, vertical: 'top' };
+    }
+    styliserEntete(methode.getRow(1));
+
+    return {
+      buffer: await this.versBuffer(classeur),
+      nomFichier: `execution-budgetaire-projet${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
+    };
+  }
+
+  async reconciliationTresorerieExcel(
+    tenantId: string,
+    exerciceId: string,
+    paiementsEnInstance: number,
+  ): Promise<ClasseurExporte> {
+    const t = await this.etatsFinanciersProjetBudgetService.reconciliationTresorerie(
+      tenantId,
+      exerciceId,
+      paiementsEnInstance,
+    );
+    const classeur = this.nouveauClasseur();
+
+    const f = classeur.addWorksheet('Réconciliation de trésorerie');
+    f.columns = [
+      { header: 'Libellé', key: 'libelle', width: 60 },
+      { header: 'Rep.', key: 'rep', width: 8 },
+      { header: 'Montant', key: 'montant', width: 20 },
+    ];
+    for (const l of t.lignes) {
+      const ligne = f.addRow(l);
+      if (l.rep === 'G' || l.rep === 'I') ligne.font = ENTETE_FONT;
+    }
+    this.appliquerFormats(f, { montant: FORMAT_MONTANT });
+    styliserEntete(f.getRow(1));
+
+    const methode = classeur.addWorksheet('Contrôles et méthode');
+    methode.columns = [
+      { header: 'Point', key: 'point', width: 34 },
+      { header: 'Montant', key: 'montant', width: 18 },
+      { header: 'Ce qui est appliqué', key: 'texte', width: 115 },
+    ];
+    const ctrl = methode.addRow({
+      point: 'CONTRÔLE',
+      montant: t.controle.ecart,
+      texte: t.controle.boucle
+        ? `OK · la trésorerie reconstituée (repère G) égale le solde des comptes de trésorerie à la balance : ${t.controle.tresorerieBalance.toFixed(2)}.`
+        : `ÉCART · le repère G ne correspond pas au solde des comptes de trésorerie à la balance (${t.controle.tresorerieBalance.toFixed(2)}).`,
+    });
+    ctrl.font = { bold: true, color: { argb: t.controle.boucle ? 'FF1E7B34' : 'FFB00020' } };
+    methode.addRow({
+      point: 'Source',
+      texte:
+        "Partie 4, ch. 3, Section 3. Le texte donne les neuf libellés et les formules (G = A+B+C+D-E-F, I = G-H) mais aucun rattachement aux comptes, et le guide d'application n'en donne pas non plus. Le rattachement est lu dans les contreparties des mouvements de trésorerie.",
+    });
+    for (const a of t.avertissements) methode.addRow({ point: 'Réserve', texte: a });
+    this.appliquerFormats(methode, { montant: FORMAT_MONTANT });
+    for (let i = 2; i <= methode.rowCount; i++) {
+      methode.getRow(i).getCell('texte').alignment = { wrapText: true, vertical: 'top' };
+    }
+    this.finaliserTableau(methode, methode.columns.length, methode.rowCount);
+
+    return {
+      buffer: await this.versBuffer(classeur),
+      nomFichier: `reconciliation-tresorerie-projet${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
+    };
+  }
+
   // -------------------------------------------------------------------------
   // SYSTÈME MINIMAL DE TRÉSORERIE (Partie 4, ch. 4)
   //

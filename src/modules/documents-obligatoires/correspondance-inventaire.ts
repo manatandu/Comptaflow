@@ -54,25 +54,17 @@ export const ETATS_INVENTAIRE_ASSOCIATIONS: EtatATranscrire[] = [
 ];
 
 /** Art. 14, point 2 · entités gérant ou administrant des projets de développement. */
+// Les trois premiers états ont longtemps été déclarés indisponibles ici, la
+// Partie 4 ch. 3 ne fournissant pas leur rattachement aux comptes. Le GUIDE
+// D'APPLICATION du SYCEBNL le fournit pour deux d'entre eux (chapitre 7,
+// Applications 21 et 22), et les libellés du troisième se lisent dans les
+// contreparties des mouvements de trésorerie. Les cinq états du point 2 sont
+// désormais produits · voir EtatsFinanciersProjetService et
+// EtatsFinanciersProjetBudgetService.
 export const ETATS_INVENTAIRE_PROJETS: EtatATranscrire[] = [
-  {
-    cle: 'tableauEmploisRessources',
-    libelle: 'Tableau emplois-ressources',
-    disponible: false,
-    motifIndisponibilite: NON_CONSTRUIT('Partie 4 ch. 3, codes FA à GZ'),
-  },
-  {
-    cle: 'tableauExecutionBudgetaire',
-    libelle: "Tableau d'exécution budgétaire",
-    disponible: false,
-    motifIndisponibilite: NON_CONSTRUIT('Partie 4 ch. 3 ; suppose la brique budgétaire'),
-  },
-  {
-    cle: 'tableauReconciliationTresorerie',
-    libelle: 'Tableau de réconciliation de trésorerie',
-    disponible: false,
-    motifIndisponibilite: NON_CONSTRUIT('Partie 4 ch. 3, codes A à I'),
-  },
+  { cle: 'tableauEmploisRessources', libelle: 'Tableau emplois-ressources', disponible: true },
+  { cle: 'tableauExecutionBudgetaire', libelle: "Tableau d'exécution budgétaire", disponible: true },
+  { cle: 'tableauReconciliationTresorerie', libelle: 'Tableau de réconciliation de trésorerie', disponible: true },
   { cle: 'bilan', libelle: 'Bilan', disponible: true },
   { cle: 'compteExploitation', libelle: "Compte d'exploitation", disponible: true },
 ];
