@@ -234,10 +234,10 @@ export const NATURES_RETENUES: NatureRetenue[] = [
     beneficiaire: 'ORGANISME_SOCIAL',
     joursApresPeriode: 15,
     echeance: 'Mensuelle, au plus tard le 15 du mois suivant',
-    baseLegale:
-      "Code du travail, titre X (moyens de contrôle) : déclaration d'engagement du travailleur dans les quinze jours au ministère du Travail et à l'ONEM, et déclaration annuelle de la situation de la main-d'œuvre nationale et étrangère.",
+baseLegale:
+      "Taux de 0,5 % de la masse salariale. Code du travail, titre X (moyens de contrôle) : déclaration d'engagement du travailleur dans les quinze jours au ministère du Travail et à l'ONEM, et déclaration annuelle de la situation de la main-d'œuvre nationale et étrangère.",
     reserve:
-      "AUCUN TAUX n'est inscrit ici. Le taux de 0,2 % couramment pratiqué ne figure dans aucun texte du corpus consulté : le compte est ouvert pour recevoir ce que vous y portez, le logiciel ne liquide rien.",
+      "PROVENANCE DU TAUX · les 0,5 % sont ceux que la pratique applique aujourd'hui, communiqués par l'utilisateur du logiciel. Ils ne sont PAS confirmés sur texte primaire dans le corpus consulté : le dossier de parafiscalité sociale indique expressément qu'aucun texte ONEM n'y a été rassemblé, et les deux seules mentions chiffrées qu'on y trouve (0,2 %) proviennent de notes de cours, non d'un arrêté. Le logiciel ne LIQUIDE toujours rien : il recense ce que votre comptabilité porte sur le compte 4335. Faites confirmer le taux avant de vous en servir dans un calcul de paie.",
   },
   {
     cle: 'autresOrganismesSociaux',

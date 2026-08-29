@@ -256,18 +256,32 @@ export function PlanComptesPage() {
                 onClick={() => setSelectionId(c.id)}
                 onDoubleClick={() => c.typeCompte === 'DETAIL' && navigate(`/comptes/${c.id}/lettrage`)}
                 title={c.typeCompte === 'TOTAL' ? 'Compte Total · agrège les comptes Détail de même racine' : 'Double-clic : interroger le compte'}
-                className={`w-full grid grid-cols-[92px_1fr_58px_72px_74px] gap-2.5 px-3.5 py-[3.5px] items-center text-left border-b border-border/50 text-[11.5px] ${
+                /*
+                  TROIS NIVEAUX DE LECTURE, et non deux · le compte principal
+                  officiel à deux chiffres (10 Dotation, 40 Fournisseurs…) est
+                  la TÊTE d'une division du plan SYCEBNL. Il portait la même
+                  graisse qu'un compte Total ordinaire créé à la main, ce qui
+                  noyait l'ossature du plan dans les regroupements de confort.
+                  Il s'écrit donc en GRAS franc, un cran plus grand, sur un
+                  fond plus soutenu · on doit reconnaître la charpente du plan
+                  en le parcourant, sans lire les numéros.
+                */
+                className={`w-full grid grid-cols-[92px_1fr_58px_72px_74px] gap-2.5 px-3.5 items-center text-left border-b border-border/50 ${
+                  estComptePrincipalOfficiel(c) ? 'py-[5px] text-[12.5px]' : 'py-[3.5px] text-[11.5px]'
+                } ${
                   selectionId === c.id
                     ? 'bg-sel text-white'
-                    : c.typeCompte === 'TOTAL'
-                      ? 'bg-chrome font-semibold hover:bg-chrome-alt'
-                      : 'hover:bg-sel-soft'
+                    : estComptePrincipalOfficiel(c)
+                      ? 'bg-chrome-alt font-bold hover:brightness-[0.97]'
+                      : c.typeCompte === 'TOTAL'
+                        ? 'bg-chrome font-semibold hover:bg-chrome-alt'
+                        : 'hover:bg-sel-soft'
                 } ${!c.estActif && selectionId !== c.id ? 'opacity-55' : ''}`}
               >
-                <span className="font-mono">{c.numero}</span>
+                <span className={`font-mono ${estComptePrincipalOfficiel(c) ? 'font-bold' : ''}`}>{c.numero}</span>
                 <span className="truncate">{c.intitule}</span>
-                <span className={`text-[10.5px] ${selectionId === c.id ? 'text-white/80' : 'text-text-dim'}`}>
-                  {c.typeCompte === 'TOTAL' ? 'Total' : 'Détail'}
+                <span className={`text-[10.5px] font-normal ${selectionId === c.id ? 'text-white/80' : 'text-text-dim'}`}>
+                  {estComptePrincipalOfficiel(c) ? 'Principal' : c.typeCompte === 'TOTAL' ? 'Total' : 'Détail'}
                 </span>
                 <span className={`text-[10.5px] ${selectionId === c.id ? 'text-white/80' : 'text-text-dim'}`}>
                   {LIBELLE_RAN[c.modeReportANouveau] ?? '·'}

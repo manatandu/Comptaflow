@@ -164,9 +164,17 @@ describe('Registre des retenues à la source', () => {
     expect(nature(r, 'onem').retenu).toBe(2_000);
   });
 
-  it('n’inscrit AUCUN taux ONEM · aucun texte du corpus ne le porte', async () => {
+  it('porte le taux ONEM de 0,5 % ET la provenance de ce taux', async () => {
+    // Le taux vient de la PRATIQUE, communiqué par l'utilisateur, et non d'un
+    // texte du corpus : le dossier de parafiscalité sociale dit expressément
+    // qu'aucun texte ONEM n'y a été rassemblé. Le test fige les deux : le
+    // chiffre retenu, et le fait qu'il s'annonce comme non confirmé · un taux
+    // sans provenance dans un logiciel comptable est un piège.
     const r = await service([]).registre('t1', { exerciceId: 'e1' });
-    expect(nature(r, 'onem').reserve).toContain('AUCUN TAUX');
+    expect(nature(r, 'onem').baseLegale).toContain('0,5 %');
+    expect(nature(r, 'onem').reserve).toContain('PROVENANCE');
+    expect(nature(r, 'onem').reserve).toContain('PAS confirmés sur texte primaire');
+    // Et surtout : le 0,2 % des notes de cours ne doit pas resurgir.
     expect(nature(r, 'onem').baseLegale).not.toMatch(/0[.,]2\s*%/);
   });
 
