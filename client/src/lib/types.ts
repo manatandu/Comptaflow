@@ -911,6 +911,10 @@ export interface ParametresDossier {
   pays: string | null;
   telephone: string | null;
   devise: string | null;
+  /** Identifiants légaux congolais · CPCC, § 7.4 règle 7-a. */
+  numeroImpot: string | null;
+  idNat: string | null;
+  rccm: string | null;
   longueurCompte: number;
   /** Au-delà de zéro, le jeu d'états financiers est verrouillé. */
   nombreEcritures: number;
@@ -1593,4 +1597,35 @@ export interface EcheancierFiscal {
   }[];
   totalDu: number;
   avertissements: string[];
+}
+
+
+// ---------------------------------------------------------------------------
+// Planning de clôture · CPCC, notes de cours d'organisation comptable, § 2.3
+// et § 7.1. Voir docs/organisation-comptable-cpcc.md.
+// ---------------------------------------------------------------------------
+
+export type NatureJalon = 'INTERNE' | 'LEGALE';
+
+export interface JalonCloture {
+  etape: number;
+  libelle: string;
+  detail: string;
+  nature: NatureJalon;
+  source: string;
+  debut: string;
+  echeance: string;
+  enRetard: boolean;
+  /** Ce qu'OmegaX sait vérifier seul sur ce jalon · absent sinon. */
+  observation?: { libelle: string; satisfait: boolean };
+}
+
+export interface PlanningCloture {
+  exerciceId: string;
+  dateDebut: string;
+  dateFin: string;
+  statut: StatutExercice;
+  /** Date de dernière vérification des échéances légales contre leur source. */
+  derniereVerification: string;
+  jalons: JalonCloture[];
 }

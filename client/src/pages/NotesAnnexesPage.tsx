@@ -5,7 +5,7 @@ import { useAuth } from '../lib/auth';
 import { IconExport } from '../components/chrome/icons';
 import type { Compte, LigneNoteCalculee, NoteCalculee, ResultatNotesJeu } from '../lib/types';
 import { Aide } from '../components/chrome/Aide';
-import { EnteteImpression } from '../components/chrome/EnteteImpression';
+import { BlocCertification, EnteteImpression } from '../components/chrome/EnteteImpression';
 
 /**
  * Tri croissant des codes de note (« 1 », « 5A »…« 5H », « 17A », « 17B »,
@@ -445,6 +445,9 @@ export function NotesAnnexesPage() {
           </div>
         </div>
       )}
+
+      {/* Encadré de signature · CPCC § 7.4 règle 7-b, imprimé uniquement. */}
+      <BlocCertification />
     </div>
   );
 }

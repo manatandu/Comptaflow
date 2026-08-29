@@ -119,6 +119,7 @@ export class AuthService {
         nom: tenant.nom,
         referentiel: tenant.referentiel,
         jeuEtatsFinanciersSycebnl: tenant.jeuEtatsFinanciersSycebnl,
+        numeroImpot: tenant.numeroImpot,
       },
       exercice,
       ...this.signToken(user.id),
@@ -159,6 +160,9 @@ export class AuthService {
         // N'a de sens que si referentiel = SYCEBNL (voir prisma/schema.prisma) ·
         // le front s'en sert pour choisir le jeu d'états financiers à afficher.
         jeuEtatsFinanciersSycebnl: user.tenant.jeuEtatsFinanciersSycebnl,
+        // Porté jusqu'au front pour l'en-tête d'impression : le n° impôt doit
+        // figurer sur chaque page d'un état déposé (CPCC, § 7.4 règle 7-a).
+        numeroImpot: user.tenant.numeroImpot,
       },
     };
   }

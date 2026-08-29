@@ -70,6 +70,22 @@ function lettreVersIndex(lettre: string): number {
  * AUTOMATIQUE_MONTANT) parce que les trois n'ont pas la même valeur probante :
  * un rapprochement par numéro de pièce s'appuie sur une donnée saisie par un
  * humain, un rapprochement par montant est une présomption du logiciel.
+ *
+ * AUCUN CONTRÔLE DE CLÔTURE ICI, ET C'EST VOULU. Ce service ne consulte
+ * jamais le statut de l'exercice, là où EcritureService refuse toute création,
+ * modification ou suppression sur un exercice CLOTURE. Le même cours l'écrit
+ * noir sur blanc (§ 2.3, clôture informatique) :
+ *
+ *   « La clôture interdit : l'ajout d'écriture, la modification de tous les
+ *   composants des écritures comptables, la suppression d'une écriture
+ *   comptable. La clôture AUTORISE : le lettrage et le pointage, la
+ *   consultation et l'édition. »
+ *
+ * Lettrer ne modifie aucun montant, aucune date, aucune imputation : cela
+ * rattache des lignes entre elles. Un règlement de mars qui solde une facture
+ * de décembre doit pouvoir être lettré même si l'exercice précédent est clos,
+ * sans quoi le compte de tiers ne se justifie plus jamais. Voir
+ * docs/organisation-comptable-cpcc.md § 3.
  */
 @Injectable()
 export class LettrageService {

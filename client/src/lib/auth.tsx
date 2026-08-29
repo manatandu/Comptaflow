@@ -7,7 +7,14 @@ interface MeResponse {
   id: string;
   email: string;
   role: RoleUtilisateur;
-  tenant: { id: string; nom: string; referentiel: Referentiel; jeuEtatsFinanciersSycebnl: JeuEtatsFinanciersSycebnl };
+  tenant: {
+    id: string;
+    nom: string;
+    referentiel: Referentiel;
+    jeuEtatsFinanciersSycebnl: JeuEtatsFinanciersSycebnl;
+    /** N° impôt · exigé en en-tête de chaque page imprimée (CPCC, § 7.4). */
+    numeroImpot: string | null;
+  };
 }
 
 interface AuthContextValue {

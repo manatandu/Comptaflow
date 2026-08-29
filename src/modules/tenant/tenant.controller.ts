@@ -5,7 +5,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { TenantService } from './tenant.service';
-import { ModifierJeuEtatsDto } from './dto/parametres-dossier.dto';
+import { ModifierIdentiteDto, ModifierJeuEtatsDto } from './dto/parametres-dossier.dto';
 import { RoleUtilisateur } from '@prisma/client';
 
 /**
@@ -27,5 +27,11 @@ export class TenantController {
   @Roles(RoleUtilisateur.ADMIN_CABINET)
   async modifierJeuEtats(@CurrentUser() user: AuthenticatedUser, @Body() dto: ModifierJeuEtatsDto) {
     return this.tenantService.modifierJeuEtatsFinanciers(user.tenantId, dto.jeuEtatsFinanciersSycebnl);
+  }
+
+  @Patch('identite')
+  @Roles(RoleUtilisateur.ADMIN_CABINET)
+  async modifierIdentite(@CurrentUser() user: AuthenticatedUser, @Body() dto: ModifierIdentiteDto) {
+    return this.tenantService.modifierIdentite(user.tenantId, dto);
   }
 }

@@ -12,8 +12,7 @@ import { JeuEtatsFinanciersSycebnl, Referentiel, TypeLicence } from '@prisma/cli
  * modifiable tant que le dossier ne porte aucune écriture. L'article 4 de
  * l'Acte uniforme distingue trois jeux d'états selon le type d'entité :
  * associations et ordres professionnels, projets de développement et
- * assimilés, et Système Minimal de Trésorerie. Les deux premiers sont
- * construits ; le SMT ne l'est pas encore et n'a donc pas de valeur ici.
+ * assimilés, et Système Minimal de Trésorerie. Les trois sont construits.
  */
 @Injectable()
 export class TenantService {
@@ -76,6 +75,9 @@ export class TenantService {
       pays: tenant.pays,
       telephone: tenant.telephone,
       devise: tenant.devise,
+      numeroImpot: tenant.numeroImpot,
+      idNat: tenant.idNat,
+      rccm: tenant.rccm,
       longueurCompte: tenant.longueurCompte,
       nombreEcritures,
     };
@@ -111,6 +113,33 @@ export class TenantService {
     await this.prisma.tenant.update({
       where: { id: tenantId },
       data: { jeuEtatsFinanciersSycebnl: jeu },
+    });
+    return this.parametres(tenantId);
+  }
+
+  /**
+   * Identifiants légaux du dossier (n° impôt, id. nat., RCCM). Contrairement
+   * au jeu d'états, ils restent modifiables à tout moment : ce sont des
+   * données d'identité, pas de structure, et une association les obtient
+   * souvent APRÈS avoir commencé à tenir ses comptes.
+   *
+   * Une chaîne vide efface l'identifiant (`null` en base) plutôt que de
+   * stocker `''`, pour que l'en-tête d'impression n'ait qu'un seul cas
+   * d'absence à traiter.
+   */
+  async modifierIdentite(tenantId: string, dto: { numeroImpot?: string; idNat?: string; rccm?: string }) {
+    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
+    if (!tenant) {
+      throw new NotFoundException('Dossier introuvable');
+    }
+    const normaliser = (v: string | undefined) => (v === undefined ? undefined : v.trim() === '' ? null : v.trim());
+    await this.prisma.tenant.update({
+      where: { id: tenantId },
+      data: {
+        numeroImpot: normaliser(dto.numeroImpot),
+        idNat: normaliser(dto.idNat),
+        rccm: normaliser(dto.rccm),
+      },
     });
     return this.parametres(tenantId);
   }

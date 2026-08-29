@@ -74,6 +74,16 @@ model Tenant {
   telephone String?
   devise    String? @default("CDF")
 
+  // Identifiants légaux de l'entité congolaise · exigés en en-tête de CHAQUE
+  // page d'un état financier déposé (CPCC, Notes de cours d'organisation
+  // comptable, § 7.4 règle 7-a : « Dénomination sociale de l'entreprise ;
+  // N° d'identification fiscale ; Exercice clos le ; Durée (en mois) »).
+  // Optionnels : un dossier se crée sans eux, l'en-tête d'impression les
+  // omet alors au lieu de bloquer. Voir docs/organisation-comptable-cpcc.md.
+  numeroImpot String? // NIF attribué par la DGI
+  idNat       String? // identification nationale
+  rccm        String? // registre du commerce et du crédit mobilier
+
   // Longueur du numéro de compte · paramètre "longueur du plan comptable"
   // chez Sage 100 (dossier > Structure > Paramètres), 3 à 13 caractères,
   // configurable PAR DOSSIER (voir skill sage-i7, comptabilite-generale.md).
@@ -222,6 +232,14 @@ model Compte {
   // pour les classes 4, les comptes 58, et tout compte portant déjà des
   // lignes lettrées.
   lettrable Boolean @default(false)
+
+  // Taux de taxe proposé automatiquement dès que ce compte est saisi · Sage
+  // porte un code taxe sur la fiche compte (skill sage-i7,
+  // comptabilite-generale.md). Rien n'est déduit du numéro : tous les achats
+  // ne sont pas au taux normal, et une association exonérée n'a aucun taux
+  // (voir docs/fiscalite-asbl-rdc.md § 5). Paramétrage propre au dossier.
+  tauxTvaDefautId String?
+  tauxTvaDefaut   TauxTva? @relation("CompteTauxTvaDefaut", fields: [tauxTvaDefautId], references: [id])
 
   // Rattachement à un Bailleur (§3.7, comptabilité analytique par
   // projet/bailleur · ajouté le 2026-08-28, docs/plan-de-construction.md

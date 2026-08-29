@@ -3,7 +3,7 @@ import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useExercice } from '../lib/exercice';
 import { IconLock, IconCheck } from '../components/chrome/icons';
-import type { Cloture, GranulariteCloture, Journal } from '../lib/types';
+import type { Cloture, GranulariteCloture, Journal, PlanningCloture } from '../lib/types';
 import { Aide } from '../components/chrome/Aide';
 
 const LIBELLE_GRANULARITE: Record<GranulariteCloture, string> = {
@@ -18,6 +18,8 @@ export function ExercicePage() {
 
   const [exerciceId, setExerciceId] = useState<string>('');
   const [clotures, setClotures] = useState<Cloture[] | null>(null);
+  const [planning, setPlanning] = useState<PlanningCloture | null>(null);
+  const [planningOuvert, setPlanningOuvert] = useState(true);
   const [journaux, setJournaux] = useState<Journal[]>([]);
   const [erreur, setErreur] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -41,7 +43,12 @@ export function ExercicePage() {
   const charger = async () => {
     if (!exerciceId) return;
     try {
-      setClotures(await api.get<Cloture[]>(`/exercices/${exerciceId}/clotures`));
+      const [c, p] = await Promise.all([
+        api.get<Cloture[]>(`/exercices/${exerciceId}/clotures`),
+        api.get<PlanningCloture>(`/exercices/${exerciceId}/planning-cloture`),
+      ]);
+      setClotures(c);
+      setPlanning(p);
       setErreur(null);
     } catch (err) {
       setErreur(err instanceof ApiError ? err.message : 'Impossible de charger les clôtures');
@@ -183,6 +190,87 @@ export function ExercicePage() {
 
       {erreur && <div className="text-[12px] text-danger bg-danger-soft border border-danger/30 px-2.5 py-1.5 mb-3 max-w-[720px]">{erreur}</div>}
       {info && <div className="text-[12px] text-positive bg-positive-soft border border-positive/30 px-2.5 py-1.5 mb-3 max-w-[720px]">{info}</div>}
+
+      {/*
+        PLANNING DE CLÔTURE · l'état prévisionnel des travaux de fin
+        d'exercice, décrit par le CPCC (« Notes de cours d'organisation
+        comptable », § 2.3 et § 7.1) : « un état prévisionnel des différents
+        travaux à exécuter préalablement à la publication, sous la forme
+        légale ou normalisée, des états financiers ». La fenêtre savait
+        clôturer, elle ne savait pas préparer la clôture.
+        Les échéances légales sont indicatives et sourcées jalon par jalon ·
+        voir docs/organisation-comptable-cpcc.md § 6 pour les réserves.
+      */}
+      {planning && (
+        <div className="mb-5 border border-border max-w-[1100px] bg-surface">
+          <button
+            onClick={() => setPlanningOuvert((v) => !v)}
+            className="w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-surface-alt"
+          >
+            <span className="font-mono text-[11px] font-semibold text-text-dim">
+              PLANNING DE CLÔTURE · {planning.jalons.filter((j) => j.enRetard).length} jalon(s) en retard
+            </span>
+            <span className="text-[11px] text-text-dim">{planningOuvert ? 'Réduire' : 'Déployer'}</span>
+          </button>
+
+          {planningOuvert && (
+            <div className="border-t border-border">
+              <table className="w-full text-[11.5px] border-collapse">
+                <thead>
+                  <tr className="bg-chrome-alt text-[10.5px] font-mono text-text-dim">
+                    <th className="text-left px-3 py-1.5 font-semibold w-8">#</th>
+                    <th className="text-left px-3 py-1.5 font-semibold">Travaux</th>
+                    <th className="text-left px-3 py-1.5 font-semibold w-24">Échéance</th>
+                    <th className="text-left px-3 py-1.5 font-semibold w-20">Nature</th>
+                    <th className="text-left px-3 py-1.5 font-semibold w-64">État</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {planning.jalons.map((j) => (
+                    <tr key={j.etape} className="border-t border-border align-top">
+                      <td className="px-3 py-2 font-mono text-text-dim">{j.etape}</td>
+                      <td className="px-3 py-2">
+                        <div className="font-semibold">{j.libelle}</div>
+                        <div className="text-[11px] text-text-dim mt-0.5">{j.detail}</div>
+                        <div className="text-[10px] text-text-dim mt-1 italic">{j.source}</div>
+                      </td>
+                      <td className={`px-3 py-2 font-mono ${j.enRetard ? 'text-danger font-bold' : ''}`}>
+                        {new Date(j.echeance).toLocaleDateString('fr-FR')}
+                      </td>
+                      <td className="px-3 py-2">
+                        <span
+                          className={`font-mono text-[10px] font-bold px-1.5 py-0.5 ${
+                            j.nature === 'LEGALE' ? 'bg-danger-soft text-danger' : 'bg-surface-alt text-text-dim'
+                          }`}
+                        >
+                          {j.nature === 'LEGALE' ? 'LÉGAL' : 'INTERNE'}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 text-[11px]">
+                        {j.observation ? (
+                          <span className={j.observation.satisfait ? 'text-positive' : 'text-danger'}>
+                            {j.observation.satisfait ? '✓ ' : '! '}
+                            {j.observation.libelle}
+                          </span>
+                        ) : (
+                          <span className="text-text-dim">Suivi manuel</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="px-3 py-2.5 text-[10.5px] text-text-dim border-t border-border">
+                Les dates se calculent à partir de la date de clôture de cet exercice. Les échéances légales
+                proviennent des notes de cours d’organisation comptable du CPCC (novembre 2020), antérieures au
+                SYCEBNL et non revérifiées sur texte primaire : ce sont des jalons indicatifs, pas un calcul
+                d’obligation. Dernière vérification de la table : {planning.derniereVerification}. Aucune astreinte
+                n’est chiffrée ici.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
 
       {exercice && (
         <div className="mb-5 border border-border max-w-[720px] p-4 bg-surface">

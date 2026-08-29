@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { Aide } from '../components/chrome/Aide';
@@ -63,9 +63,19 @@ export function ParametresDossierPage() {
   const [info, setInfo] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
 
+  // Identifiants légaux · saisis à part du reste, parce qu'ils sont les seuls
+  // paramètres modifiables à tout moment (voir TenantService.modifierIdentite).
+  const [numeroImpot, setNumeroImpot] = useState('');
+  const [idNat, setIdNat] = useState('');
+  const [rccm, setRccm] = useState('');
+
   const charger = async () => {
     try {
-      setParams(await api.get<ParametresDossier>('/dossier/parametres'));
+      const p = await api.get<ParametresDossier>('/dossier/parametres');
+      setParams(p);
+      setNumeroImpot(p.numeroImpot ?? '');
+      setIdNat(p.idNat ?? '');
+      setRccm(p.rccm ?? '');
       setErreur(null);
     } catch (e) {
       setErreur(e instanceof ApiError ? e.message : 'Chargement impossible');
@@ -90,6 +100,25 @@ export function ParametresDossierPage() {
       setInfo("Jeu d'états financiers enregistré.");
     } catch (e) {
       setErreur(e instanceof ApiError ? e.message : 'Modification impossible');
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
+  const enregistrerIdentite = async (e: FormEvent) => {
+    e.preventDefault();
+    setEnvoi(true);
+    setErreur(null);
+    setInfo(null);
+    try {
+      setParams(await api.patch<ParametresDossier>('/dossier/identite', { numeroImpot, idNat, rccm }));
+      // Le n° impôt part dans l'en-tête de chaque page imprimée, lu depuis
+      // /auth/me : sans ce rafraîchissement, les états continueraient de
+      // s'imprimer sans lui jusqu'à la prochaine session.
+      await rafraichir();
+      setInfo('Identifiants légaux enregistrés.');
+    } catch (err) {
+      setErreur(err instanceof ApiError ? err.message : 'Modification impossible');
     } finally {
       setEnvoi(false);
     }
@@ -144,26 +173,15 @@ export function ParametresDossierPage() {
                       onChange={() => changerJeu(c.valeur)}
                     />
                     <span className="min-w-0">
-                      <span className="block text-[13px] font-semibold">{c.titre}</span>
+                      <span className="block text-[13px] font-semibold flex items-center gap-1.5">
+                        {c.titre}
+                        {c.valeur === 'SYSTEME_MINIMAL_TRESORERIE' && <Aide sujet="smt" />}
+                      </span>
                       <span className="block text-[11.5px] text-text-dim mt-1">{c.etats.join(' · ')}</span>
                     </span>
                   </label>
                 );
               })}
-
-              <label className="flex items-start gap-2.5 rounded-[8px] border border-border bg-chrome-alt p-3 opacity-60 cursor-not-allowed">
-                <input type="radio" className="mt-0.5" disabled />
-                <span className="min-w-0">
-                  <span className="block text-[13px] font-semibold flex items-center gap-1.5">
-                    Système Minimal de Trésorerie
-                    <span className="text-[10px] font-semibold text-warning">bientôt</span>
-                    <Aide sujet="smt" />
-                  </span>
-                  <span className="block text-[11.5px] text-text-dim mt-1">
-                    Recettes annuelles jusqu'à 30 millions de FCFA · journal unique de trésorerie, 5 notes annexes
-                  </span>
-                </span>
-              </label>
 
               <p className="text-[11.5px] text-text-dim mt-1 leading-[1.55]">
                 {verrouille
@@ -190,6 +208,9 @@ export function ParametresDossierPage() {
                   ['Pays', params.pays],
                   ['Téléphone', params.telephone],
                   ['Monnaie de tenue', params.devise],
+                  ['N° impôt', params.numeroImpot],
+                  ['Identification nationale', params.idNat],
+                  ['RCCM', params.rccm],
                   ['Longueur des comptes', `${params.longueurCompte} caractères`],
                   ['Écritures enregistrées', String(params.nombreEcritures)],
                 ] as [string, string | null][]
@@ -200,6 +221,61 @@ export function ParametresDossierPage() {
                 </div>
               ))}
             </dl>
+          </section>
+
+          {/*
+            Identifiants légaux · le CPCC (« Notes de cours d'organisation
+            comptable », § 7.4 règle 7-a) exige le n° d'identification fiscale
+            en tête de CHAQUE page d'un état déposé, à côté de la dénomination,
+            de la date de clôture et de la durée en mois. Sans ce champ,
+            OmegaX ne pouvait pas l'imprimer. Voir
+            docs/organisation-comptable-cpcc.md § 2.1.
+            Modifiables à tout moment, contrairement au jeu d'états : une
+            association obtient souvent ses numéros après avoir commencé à
+            tenir ses comptes.
+          */}
+          <section className="bg-surface border border-border rounded-[10px] shadow-posee overflow-hidden lg:col-span-2">
+            <header className="px-3 py-2 bg-chrome-alt border-b border-border text-[11.5px] font-bold">
+              Identifiants légaux
+            </header>
+            <form onSubmit={enregistrerIdentite} className="p-3 flex flex-col gap-3">
+              <p className="text-[11px] text-text-dim">
+                Portés en tête de chaque page imprimée. Le numéro d’impôt y est exigé au même titre que la
+                dénomination, la date de clôture et la durée de l’exercice.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {(
+                  [
+                    ['N° impôt (DGI)', numeroImpot, setNumeroImpot, 'A1234567B'],
+                    ['Identification nationale', idNat, setIdNat, '01-93-K12345C'],
+                    ['RCCM', rccm, setRccm, 'CD/KIN/RCCM/23-B-01234'],
+                  ] as [string, string, (v: string) => void, string][]
+                ).map(([label, valeur, set, exemple]) => (
+                  <label key={label} className="flex flex-col gap-1 text-[11px]">
+                    <span className="text-text-dim">{label}</span>
+                    <input
+                      value={valeur}
+                      onChange={(e) => set(e.target.value)}
+                      placeholder={exemple}
+                      disabled={!estAdmin || envoi}
+                      maxLength={40}
+                      className="border border-border rounded-[6px] px-2 py-1.5 text-[12px] font-mono bg-bg disabled:opacity-60"
+                    />
+                  </label>
+                ))}
+              </div>
+              {estAdmin && (
+                <div>
+                  <button
+                    type="submit"
+                    disabled={envoi}
+                    className="border border-border rounded-[6px] bg-surface px-3 py-1.5 text-[11px] font-bold hover:bg-surface-alt disabled:opacity-60"
+                  >
+                    Enregistrer
+                  </button>
+                </div>
+              )}
+            </form>
           </section>
         </div>
       )}

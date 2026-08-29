@@ -5,7 +5,7 @@ import { useExercice } from '../lib/exercice';
 import { useAuth } from '../lib/auth';
 import { IconExport, IconCheck } from '../components/chrome/icons';
 import { Aide } from '../components/chrome/Aide';
-import { EnteteImpression } from '../components/chrome/EnteteImpression';
+import { BlocCertification, EnteteImpression } from '../components/chrome/EnteteImpression';
 import { EtatsSmtPage } from './EtatsSmtPage';
 import type {
   Bilan,
@@ -1083,6 +1083,9 @@ function EtatsSystemeNormalPage() {
           )}
         </>
       )}
+
+      {/* Encadré de signature · CPCC § 7.4 règle 7-b, imprimé uniquement. */}
+      <BlocCertification />
     </div>
   );
 }
