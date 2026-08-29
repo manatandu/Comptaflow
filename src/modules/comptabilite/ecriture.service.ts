@@ -1316,67 +1316,110 @@ export class EcritureService {
    * passent faux et ne lisent que le livre-journal · un état financier bâti
    * sur des écritures non validées n'engagerait personne.
    */
+  /**
+   * BALANCE GÉNÉRALE · la fonction la plus sollicitée du logiciel. Les états
+   * financiers, les exports, l'analytique et le plan comptable en dépendent
+   * tous, et sa lenteur se voit donc partout.
+   *
+   * Deux choses la rendaient lente, l'une et l'autre corrigées ici.
+   *
+   * 1. ELLE RAPATRIAIT TOUTES LES LIGNES. Un `include: { lignesEcriture }`
+   *    transférait chaque ligne d'écriture de l'exercice, plus son écriture
+   *    parente, pour n'en faire que six sommes. Un dossier de dix mille
+   *    lignes transportait dix mille objets sur le réseau pour produire une
+   *    page. Deux `groupBy` font désormais la somme DANS Postgres et ne
+   *    ramènent qu'une ligne par compte. Deux et non un, parce que la
+   *    distinction report / mouvement tient à `estGenereeParCloture`, porté
+   *    par l'écriture et non par la ligne : le groupement se fait donc une
+   *    fois de chaque côté du filtre.
+   *
+   * 2. L'AGRÉGATION DES COMPTES TOTAL ÉTAIT EN N². Chaque compte Total
+   *    balayait la liste ENTIÈRE des comptes pour trouver ses enfants par
+   *    `startsWith`. Avec les 76 comptes principaux à deux chiffres du plan
+   *    SYCEBNL et un millier de comptes de détail, cela faisait des dizaines
+   *    de milliers de comparaisons de chaînes à chaque appel. On parcourt
+   *    maintenant les comptes de détail UNE fois, en remontant les préfixes
+   *    de chacun (au plus la longueur du numéro, soit huit) vers les comptes
+   *    Total qui existent · même résultat, temps linéaire.
+   */
   async balance(tenantId: string, exerciceId: string, inclureBrouillard = true) {
-    const comptes = await this.prisma.compte.findMany({
-      where: { tenantId },
-      orderBy: { numero: 'asc' },
-      include: {
-        lignesEcriture: {
-          where: {
-            ecriture: {
-              tenantId,
-              exerciceId,
-              ...(inclureBrouillard ? {} : { statut: StatutEcriture.VALIDEE }),
-            },
-          },
-          include: { ecriture: { select: { estGenereeParCloture: true } } },
-        },
-      },
-    });
-
-    const somme = (lignes: typeof comptes[number]['lignesEcriture'], champ: 'debit' | 'credit') =>
-      lignes.reduce((s, l) => s + Number(l[champ]), 0);
-
-    const soldeDirectParCompte = new Map(
-      comptes.map((c) => {
-        const report = c.lignesEcriture.filter((l) => l.ecriture.estGenereeParCloture);
-        const mouvement = c.lignesEcriture.filter((l) => !l.ecriture.estGenereeParCloture);
-        return [
-          c.id,
-          {
-            totalDebit: somme(c.lignesEcriture, 'debit'),
-            totalCredit: somme(c.lignesEcriture, 'credit'),
-            reportDebit: somme(report, 'debit'),
-            reportCredit: somme(report, 'credit'),
-            mouvementDebit: somme(mouvement, 'debit'),
-            mouvementCredit: somme(mouvement, 'credit'),
-          },
-        ];
+    const filtreEcriture = {
+      tenantId,
+      exerciceId,
+      ...(inclureBrouillard ? {} : { statut: StatutEcriture.VALIDEE }),
+    };
+    const [comptes, reports, mouvements] = await Promise.all([
+      this.prisma.compte.findMany({ where: { tenantId }, orderBy: { numero: 'asc' } }),
+      this.prisma.ligneEcriture.groupBy({
+        by: ['compteId'],
+        where: { ecriture: { ...filtreEcriture, estGenereeParCloture: true } },
+        _sum: { debit: true, credit: true },
       }),
-    );
+      this.prisma.ligneEcriture.groupBy({
+        by: ['compteId'],
+        where: { ecriture: { ...filtreEcriture, estGenereeParCloture: false } },
+        _sum: { debit: true, credit: true },
+      }),
+    ]);
 
     /** Les six agrégats d'une ligne, résolus pareillement pour Détail et Total. */
     const CHAMPS = ['totalDebit', 'totalCredit', 'reportDebit', 'reportCredit', 'mouvementDebit', 'mouvementCredit'] as const;
     type Agregats = Record<(typeof CHAMPS)[number], number>;
+    const zero = (): Agregats => ({
+      totalDebit: 0,
+      totalCredit: 0,
+      reportDebit: 0,
+      reportCredit: 0,
+      mouvementDebit: 0,
+      mouvementCredit: 0,
+    });
+
+    const soldeDirectParCompte = new Map<string, Agregats>();
+    const accumuler = (
+      groupes: Array<{ compteId: string; _sum: { debit: unknown; credit: unknown } }>,
+      champDebit: 'reportDebit' | 'mouvementDebit',
+      champCredit: 'reportCredit' | 'mouvementCredit',
+    ) => {
+      for (const g of groupes) {
+        const a = soldeDirectParCompte.get(g.compteId) ?? zero();
+        const d = Number(g._sum.debit ?? 0);
+        const c = Number(g._sum.credit ?? 0);
+        a[champDebit] += d;
+        a[champCredit] += c;
+        a.totalDebit += d;
+        a.totalCredit += c;
+        soldeDirectParCompte.set(g.compteId, a);
+      }
+    };
+    accumuler(reports, 'reportDebit', 'reportCredit');
+    accumuler(mouvements, 'mouvementDebit', 'mouvementCredit');
+
+    // Agrégation des comptes Total · un seul passage sur les comptes de
+    // détail, en remontant les préfixes de chaque numéro. Un compte Total ne
+    // s'agrège JAMAIS dans un autre compte Total : ses propres enfants de
+    // détail y sont déjà comptés, l'ajouter compterait deux fois les mêmes
+    // mouvements dans une hiérarchie à plusieurs niveaux.
+    const totauxParNumero = new Map<string, Agregats>();
+    for (const c of comptes) {
+      if (c.typeCompte === TypeCompteDetailTotal.TOTAL) totauxParNumero.set(c.numero, zero());
+    }
+    for (const c of comptes) {
+      if (c.typeCompte === TypeCompteDetailTotal.TOTAL) continue;
+      const direct = soldeDirectParCompte.get(c.id);
+      if (!direct) continue;
+      for (let l = 1; l < c.numero.length; l++) {
+        const parent = totauxParNumero.get(c.numero.slice(0, l));
+        if (!parent) continue;
+        for (const f of CHAMPS) parent[f] += direct[f];
+      }
+    }
 
     const lignesBalance = comptes
       .map((c) => {
-        let agregats: Agregats;
-        if (c.typeCompte === TypeCompteDetailTotal.TOTAL) {
-          // Comptes Total (§3.1) : jamais de mouvement propre (imposé par
-          // EcritureService.creer) · leur solde agrège tous les comptes
-          // DÉTAIL de même préfixe numérique (jamais les comptes Total
-          // imbriqués eux-mêmes, pour ne pas compter deux fois les mêmes
-          // mouvements en cas de hiérarchie à plusieurs niveaux).
-          const enfantsDetail = comptes.filter(
-            (autre) => autre.id !== c.id && autre.numero.startsWith(c.numero) && autre.typeCompte === TypeCompteDetailTotal.DETAIL,
-          );
-          agregats = Object.fromEntries(
-            CHAMPS.map((f) => [f, enfantsDetail.reduce((s, e) => s + soldeDirectParCompte.get(e.id)![f], 0)]),
-          ) as Agregats;
-        } else {
-          agregats = soldeDirectParCompte.get(c.id)!;
-        }
+        const agregats =
+          c.typeCompte === TypeCompteDetailTotal.TOTAL
+            ? totauxParNumero.get(c.numero)!
+            : (soldeDirectParCompte.get(c.id) ?? zero());
         return {
           compteId: c.id,
           numero: c.numero,

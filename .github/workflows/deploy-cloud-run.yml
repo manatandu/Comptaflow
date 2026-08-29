@@ -48,6 +48,15 @@ jobs:
 
       - uses: google-github-actions/setup-gcloud@v2
 
+      # DÉMARRAGE À FROID · `--min-instances 1` garde une instance chaude.
+      # Sans elle, Cloud Run éteint le service après quelques minutes
+      # d'inactivité, et la requête suivante attend le démarrage complet de
+      # NestJS ET l'ouverture d'une connexion Prisma vers Neon · plusieurs
+      # secondes, sur la PREMIÈRE page ouverte, celle qui donne l'impression
+      # que tout le logiciel est lent. `--cpu-boost` accélère en plus la
+      # phase de démarrage elle-même. Le coût est celui d'une instance
+      # toujours allumée ; c'est le prix d'un logiciel qui répond.
+      #
       # Les variables passent par un FICHIER (--env-vars-file) et non par
       # --set-env-vars : gcloud découpe ce dernier sur les virgules et les
       # égalités, et une chaîne de connexion Postgres (mot de passe,
@@ -73,4 +82,6 @@ jobs:
             --project "$PROJECT_ID" \
             --allow-unauthenticated \
             --quiet \
+            --min-instances 1 \
+            --cpu-boost \
             --env-vars-file /tmp/env-vars.yaml
