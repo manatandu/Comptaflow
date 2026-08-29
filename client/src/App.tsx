@@ -26,6 +26,7 @@ import { DocumentsObligatoiresPage } from './pages/DocumentsObligatoiresPage';
 import { UtilisateursPage } from './pages/UtilisateursPage';
 import { ParametresDossierPage } from './pages/ParametresDossierPage';
 import { PlansAnalytiquesPage } from './pages/PlansAnalytiquesPage';
+import { BrouillardPage } from './pages/BrouillardPage';
 import { EtatsAnalytiquesPage } from './pages/EtatsAnalytiquesPage';
 import { BailleursPage } from './pages/BailleursPage';
 
@@ -76,6 +77,7 @@ function Routage() {
         <Route path="utilisateurs" element={<UtilisateursPage />} />
         <Route path="parametres-dossier" element={<ParametresDossierPage />} />
         <Route path="plans-analytiques" element={<PlansAnalytiquesPage />} />
+        <Route path="brouillard" element={<BrouillardPage />} />
         <Route path="etats-analytiques" element={<EtatsAnalytiquesPage />} />
       </Route>
     </Routes>

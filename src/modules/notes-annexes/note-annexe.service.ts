@@ -589,7 +589,10 @@ export class NoteAnnexeService {
     if (!exercice) return new Map();
 
     const lignes = await this.prisma.ligneEcriture.findMany({
-      where: { ecriture: { tenantId, exerciceId }, lettre: null },
+      // Comme la balance qui alimente les autres notes : les notes annexes
+      // font partie intégrante des états financiers (art. 15) et ne lisent que
+      // le livre-journal, pas le brouillard.
+      where: { ecriture: { tenantId, exerciceId, statut: 'VALIDEE' }, lettre: null },
       select: { debit: true, credit: true, dateEcheance: true, compte: { select: { numero: true } } },
     });
 

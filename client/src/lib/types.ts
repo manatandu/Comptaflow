@@ -133,6 +133,10 @@ export interface Ecriture {
   reference: string | null;
   createdAt: string;
   createdBy: string;
+  /** BROUILLARD tant que l'écriture n'est pas entrée au livre-journal. */
+  statut: StatutEcriture;
+  valideeAt: string | null;
+  valideeBy: string | null;
   lignes: LigneEcriture[];
 
   /**
@@ -995,4 +999,46 @@ export interface LigneEtatBudgetaire {
 export interface EtatBudgetaire {
   lignes: LigneEtatBudgetaire[];
   totaux: LigneEtatBudgetaire;
+}
+
+// ---------------------------------------------------------------------------
+// Brouillard et validation · voir StatutEcriture dans prisma/schema.prisma
+// ---------------------------------------------------------------------------
+
+export type StatutEcriture = 'BROUILLARD' | 'VALIDEE';
+
+export interface LigneBrouillard {
+  id: string;
+  date: string;
+  createdAt: string;
+  journal: string;
+  journalIntitule: string;
+  numeroPiece: number | null;
+  libelle: string;
+  reference: string | null;
+  debit: number;
+  credit: number;
+  equilibree: boolean;
+  ancienneteJours: number;
+  /** Au-delà du délai de centralisation hebdomadaire du SYCEBNL. */
+  retardCentralisation: boolean;
+  lignes: {
+    compteNumero: string;
+    compteIntitule: string;
+    libelle: string | null;
+    debit: number;
+    credit: number;
+  }[];
+}
+
+export interface EtatBrouillard {
+  lignes: LigneBrouillard[];
+  totaux: {
+    nombre: number;
+    debit: number;
+    credit: number;
+    desequilibrees: number;
+    enRetard: number;
+  };
+  delaiCentralisationJours: number;
 }

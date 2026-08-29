@@ -259,7 +259,11 @@ describe('EtatsFinanciersProjetService', () => {
       const service = serviceAvecExercices({ e1: [] }, [], prismaMock);
       await service.noteBailleur('t1', 'e1');
       const where = (prismaMock.ligneEcriture.findMany as jest.Mock).mock.calls[0][0].where;
-      expect(where.ecriture).toEqual({ tenantId: 't1' });
+      // Le filtre porte sur le dossier et sur le statut, jamais sur
+      // l'exercice · la note 9 cumule depuis l'origine du projet. Le statut
+      // VALIDEE s'y est ajouté avec le brouillard : la note 9 est un état
+      // financier, elle ne lit pas les écritures non encore validées.
+      expect(where.ecriture).toEqual({ tenantId: 't1', statut: 'VALIDEE' });
       expect(where.ecriture.exerciceId).toBeUndefined();
     });
 

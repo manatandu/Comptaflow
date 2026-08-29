@@ -379,7 +379,9 @@ export class EtatsFinanciersProjetService {
     // « Une note de PROJET, pas d'exercice » en tête de méthode).
     const lignes = compteIds.length
       ? await this.prisma.ligneEcriture.findMany({
-          where: { compteId: { in: compteIds }, ecriture: { tenantId } },
+          // `VALIDEE` seulement : la note 9 est un état financier, elle ne
+          // lit pas le brouillard (voir StatutEcriture dans le schéma).
+          where: { compteId: { in: compteIds }, ecriture: { tenantId, statut: 'VALIDEE' } },
           select: { compteId: true, debit: true, credit: true, ecriture: { select: { estGenereeParCloture: true } } },
         })
       : [];

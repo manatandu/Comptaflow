@@ -307,6 +307,31 @@ model Exercice {
 
 // Une écriture = un fait comptable, composé d'au moins 2 lignes équilibrées
 // (total débit = total crédit). L'équilibre est vérifié en service, pas en DB.
+// Cycle de vie d'une écriture · le « brouillard » des manuels Sage, recalé
+// sur le SYCEBNL.
+//
+// Chez Sage, une écriture reste modifiable et supprimable tant que le journal
+// n'est ni lettré, ni pointé, ni clôturé, et « le programme refuse de clôturer
+// un journal non imprimé ». Le brouillard y est donc un document de travail :
+// « un brouillard est un document qui permet de conserver une trace écrite des
+// saisies faites sur une période ou un journal ».
+//
+// Le SYCEBNL va plus loin que cette simple exigence d'impression. La Partie 2
+// ch. 2 admet la tenue de journaux auxiliaires, mais impose que « les données
+// des documents auxiliaires sont centralisées AU MOINS CHAQUE SEMAINE dans le
+// journal ou le grand-livre ». Un brouillard n'a donc pas vocation à durer :
+// OmegaX signale toute écriture qui y séjourne depuis plus de sept jours.
+//
+// Une fois VALIDEE, l'écriture entre au livre-journal et devient intangible :
+// l'article 20 de l'AUDCIF ne laisse plus qu'une voie, l'inscription en
+// négatif. C'est cette frontière, et elle seule, que la validation déplace ·
+// tant qu'elle n'est pas franchie, corriger une faute de frappe ne coûte pas
+// une contre-écriture.
+enum StatutEcriture {
+  BROUILLARD
+  VALIDEE
+}
+
 model Ecriture {
   id          String   @id @default(uuid())
   tenantId    String
@@ -323,6 +348,14 @@ model Ecriture {
   reference   String? // pièce justificative (numéro de facture, référence externe...)
   createdAt   DateTime @default(now())
   createdBy   String // piste d'audit : jamais modifiable après clôture de l'exercice
+
+  // Brouillard tant que l'écriture n'est pas validée · voir StatutEcriture.
+  // Les états de travail (journal, grand livre, balance, analytique) la
+  // montrent ; les états LÉGAUX (bilan, compte de résultat, TFT, livre
+  // d'inventaire, notes annexes) ne prennent que le validé.
+  statut    StatutEcriture @default(BROUILLARD)
+  valideeAt DateTime?
+  valideeBy String?
 
   // Écriture générée automatiquement par la clôture de l'exercice (clôture des
   // classes 6/7 sur le résultat, ou report à-nouveau dans l'exercice suivant) ·
@@ -378,6 +411,7 @@ model Ecriture {
   // états financiers) : tenant + exercice, trié par date. Sans index, chaque
   // export balaie l'intégralité des écritures du dossier.
   @@index([tenantId, exerciceId, date])
+  @@index([tenantId, statut], map: "ecritures_statut_idx")
   @@map("ecritures")
 }
 

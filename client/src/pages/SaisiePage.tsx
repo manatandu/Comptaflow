@@ -580,7 +580,14 @@ export function SaisiePage() {
                 } ${i === 0 ? 'border-t border-border' : ''}`}
               >
                 <span className="font-mono text-text-dim">{i === 0 ? String(jourE).padStart(2, '0') : ''}</span>
-                <span className="font-mono text-text-dim">{i === 0 ? (e.numeroPiece ?? '·') : ''}</span>
+                <span className="font-mono text-text-dim">
+                  {i === 0 ? (e.numeroPiece ?? '·') : ''}
+                  {i === 0 && e.statut === 'BROUILLARD' && (
+                    <span className="ml-1 text-[9px] font-bold text-warning" title="En brouillard · pas encore au livre-journal">
+                      B
+                    </span>
+                  )}
+                </span>
                 <span className="font-mono text-[10.5px] text-text-dim truncate">
                   {i === 0 ? (e.reference ?? '') : ''}
                 </span>

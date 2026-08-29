@@ -7,13 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
-import {
-  GranulariteCloture,
-  ModeReportANouveau,
-  Prisma,
-  StatutExercice,
-  TypeJournal,
-} from '@prisma/client';
+import { GranulariteCloture, ModeReportANouveau, Prisma, StatutEcriture, StatutExercice, TypeJournal } from '@prisma/client';
 import { CreerExerciceDto } from './dto/creer-exercice.dto';
 import { ClorePartielleDto, CloreTotaleDto, ClorePeriodeDto } from './dto/cloture.dto';
 import { JournalService } from '../journaux/journal.service';
@@ -234,6 +228,21 @@ export class ExerciceService {
     const exercice = await this.trouverExercice(tenantId, exerciceId);
     if (exercice.statut === StatutExercice.CLOTURE) {
       throw new ForbiddenException('Cet exercice est déjà clôturé');
+    }
+
+    // Rien ne doit rester en brouillard au moment de clôturer : la clôture
+    // solde les comptes de gestion et génère le report à-nouveau à partir des
+    // soldes du livre-journal. Une écriture restée en brouillard n'y figure
+    // pas · elle serait purement et simplement perdue du résultat, et son
+    // exercice serait clos avant qu'elle n'ait pu y entrer.
+    const enBrouillard = await this.prisma.ecriture.count({
+      where: { tenantId, exerciceId, statut: StatutEcriture.BROUILLARD },
+    });
+    if (enBrouillard > 0) {
+      throw new BadRequestException(
+        `${enBrouillard} écriture(s) sont encore en brouillard sur cet exercice. Validez-les ou supprimez-les avant ` +
+          "de clôturer : la clôture ne lit que le livre-journal, et ce qui reste en brouillard serait perdu du résultat.",
+      );
     }
 
     return avecRetrySerialisable(

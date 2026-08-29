@@ -32,6 +32,7 @@ const TITRES: Array<[RegExp, string]> = [
   [/^\/utilisateurs/, "Autorisations d'accès"],
   [/^\/parametres-dossier/, "Paramètres du dossier"],
   [/^\/plans-analytiques/, 'Plans analytiques'],
+  [/^\/brouillard/, 'Brouillard'],
   [/^\/etats-analytiques/, 'États analytiques'],
 ];
 

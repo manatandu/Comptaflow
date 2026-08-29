@@ -43,6 +43,12 @@ export const LEXIQUE = {
       "Il compare, pour chaque axe, les mouvements comptables des comptes censés être ventilés aux mouvements effectivement ventilés, et liste les écritures restées sans répartition. Un écart n'est pas une panne : c'est du travail de ventilation qui reste à faire. Sans cet état, un rapport d'exécution adressé à un bailleur n'est pas défendable en audit.",
     source: 'Suivi analytique · rapprochement général / analytique',
   },
+  brouillard: {
+    titre: 'Brouillard',
+    texte:
+      "Une écriture y naît modifiable et supprimable : elle n'est pas encore entrée au livre-journal. La valider franchit cette frontière, et l'article 20 ne laisse alors plus qu'une voie de correction, l'inscription en négatif. Le SYCEBNL borne ce séjour : les journaux auxiliaires doivent être centralisés au moins chaque semaine, donc une écriture qui y reste plus de sept jours est signalée.",
+    source: 'SYCEBNL, Partie 2 ch. 2 · AUDCIF art. 20',
+  },
   adherent: {
     titre: 'Adhérent',
     texte:

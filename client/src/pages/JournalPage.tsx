@@ -17,9 +17,21 @@ interface Filtres {
   dateDebut: string;
   dateFin: string;
   recherche: string;
+  /**
+   * Le journal est un état de TRAVAIL : il montre le brouillard par défaut,
+   * marqué comme tel. Décoché, il donne le livre-journal seul · c'est cette
+   * vue-là qui s'imprime et qui fait foi.
+   */
+  inclureBrouillard: boolean;
 }
 
-const FILTRES_VIDES: Filtres = { journalId: '', dateDebut: '', dateFin: '', recherche: '' };
+const FILTRES_VIDES: Filtres = {
+  journalId: '',
+  dateDebut: '',
+  dateFin: '',
+  recherche: '',
+  inclureBrouillard: true,
+};
 
 /** Construit la query string commune à la consultation et à l'export. */
 function versQuery(exerciceId: string, filtres: Filtres): string {
@@ -28,6 +40,7 @@ function versQuery(exerciceId: string, filtres: Filtres): string {
   if (filtres.dateDebut) params.set('dateDebut', filtres.dateDebut);
   if (filtres.dateFin) params.set('dateFin', filtres.dateFin);
   if (filtres.recherche) params.set('recherche', filtres.recherche);
+  if (!filtres.inclureBrouillard) params.set('inclureBrouillard', 'false');
   return params.toString();
 }
 
@@ -211,6 +224,7 @@ export function JournalPage() {
       corrige: e.corrigeEcriture ?? null,
       motifCorrection: e.motifCorrection,
       estGenereeParCloture: e.estGenereeParCloture ?? false,
+      enBrouillard: e.statut === 'BROUILLARD',
     })),
   );
 
@@ -306,6 +320,19 @@ export function JournalPage() {
               <IconFilter width={13} height={13} />
               Filtrer{filtreActif ? ' (actif)' : ''}
             </button>
+          )}
+          {onglet === 'journal' && (
+            <label
+              className="flex items-center gap-1.5 border border-border bg-surface px-3 py-1.5 text-[11px] font-bold cursor-pointer hover:bg-surface-alt"
+              title="Décoché, le journal ne montre que le livre-journal · ce qui fait foi"
+            >
+              <input
+                type="checkbox"
+                checked={filtres.inclureBrouillard}
+                onChange={(e) => setFiltres((f) => ({ ...f, inclureBrouillard: e.target.checked }))}
+              />
+              Brouillard
+            </label>
           )}
           {onglet === 'journal' && boutonExport('Exporter Excel', exporterJournal)}
           {onglet === 'balance' && boutonExport('Exporter Excel', exporterBalance)}
@@ -463,7 +490,17 @@ export function JournalPage() {
               </span>
               <span className="font-mono text-right">{l.debit ? l.debit.toLocaleString('fr-FR') : ''}</span>
               <span className="font-mono text-right">{l.credit ? l.credit.toLocaleString('fr-FR') : ''}</span>
-              <span className="text-[10px] no-underline">{l.premiereLigne && etatCorrection(l)}</span>
+              <span className="text-[10px] no-underline flex items-center gap-1.5 justify-end">
+                {l.premiereLigne && l.enBrouillard && (
+                  <span
+                    className="text-[9px] font-bold text-warning bg-warning-soft border border-warning/40 rounded-[3px] px-1"
+                    title="En brouillard · pas encore entrée au livre-journal"
+                  >
+                    BROUILLARD
+                  </span>
+                )}
+                {l.premiereLigne && etatCorrection(l)}
+              </span>
             </div>
           ))}
           <div className="grid grid-cols-[68px_46px_52px_92px_120px_1fr_108px_108px_128px] gap-2.5 px-3.5 py-1.5 bg-surface-alt border-t border-border-dark text-[11.5px] font-bold">
