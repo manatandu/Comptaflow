@@ -20,7 +20,7 @@ function attendre(ms: number) {
  * cette garantie, deux requêtes concurrentes peuvent lire le même état et
  * produire un doublon silencieux. Introduit après un bug réel de ce type
  * trouvé dans la numérotation des pièces de journal (voir
- * EcritureService.creer) — le lettrage a exactement le même risque avec le
+ * EcritureService.creer) · le lettrage a exactement le même risque avec le
  * calcul de la prochaine lettre, d'où ce partage.
  *
  * `messageConflit` est utilisé pour le message renvoyé à l'utilisateur si
@@ -41,7 +41,7 @@ export async function avecRetrySerialisable<T>(
       await attendre(20 * tentative + Math.random() * 30);
     }
   }
-  // Inatteignable (la boucle retourne ou relance à chaque itération) —
+  // Inatteignable (la boucle retourne ou relance à chaque itération) ·
   // seulement là pour satisfaire le vérificateur de types.
   throw new Error('Échec inattendu de la transaction sérialisable');
 }

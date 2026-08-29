@@ -1,7 +1,7 @@
 import { OperationSpecifique } from './operation-specifique.types';
 
 /**
- * CATALOGUE DES OPÉRATIONS SPÉCIFIQUES AUX EBNL — Partie 3 du référentiel
+ * CATALOGUE DES OPÉRATIONS SPÉCIFIQUES AUX EBNL · Partie 3 du référentiel
  * SYCEBNL, et les applications chiffrées du Guide d'application.
  *
  * Les codes B1 à B21 sont ceux de `docs/plan-sycebnl-complet.md`.
@@ -10,7 +10,7 @@ import { OperationSpecifique } from './operation-specifique.types';
  *
  * Les comptes visés sont ceux du PLAN NORMALISÉ (Partie 2 ch. 2), jamais les
  * subdivisions que le Guide s'autorise dans ses exemples. Le Guide écrit par
- * endroits un cran plus bas — `6055` là où le plan donne `605`, `4751` là où
+ * endroits un cran plus bas · `6055` là où le plan donne `605`, `4751` là où
  * il donne `475`, `7925` là où il donne `792`. Ces sous-comptes n'existent pas
  * dans un plan standard : viser ce niveau rendrait les modèles inapplicables.
  * Chaque cas est noté sur la ligne concernée.
@@ -29,16 +29,16 @@ import { OperationSpecifique } from './operation-specifique.types';
  *    8411 et le signale.
  * 3. **App. 20** : le bénévolat vaut 2 880 450 dans l'écriture (8 325 h × 346,
  *    arithmétiquement exact) mais 2 864 880 dans le tableau de la Note 1.
- *    L'écart n'est pas expliqué. Le modèle calcule l'écriture — la seule des
+ *    L'écart n'est pas expliqué. Le modèle calcule l'écriture · la seule des
  *    deux valeurs qui se vérifie.
  *
  * ⚠️ N'EST PAS une anomalie, vérification faite : App. 11 impute l'édifice
- * religieux en 2327, qui existe bien au plan — « Édifices religieux et
+ * religieux en 2327, qui existe bien au plan · « Édifices religieux et
  * assimilés SUR SOL D'AUTRUI » (232 reprend les subdivisions de 231).
  */
 
 // ---------------------------------------------------------------------------
-// B14 — Dotation consomptible et non consomptible
+// B14 · Dotation consomptible et non consomptible
 // ---------------------------------------------------------------------------
 
 const B14: OperationSpecifique = {
@@ -63,7 +63,7 @@ const B14: OperationSpecifique = {
       lignes: [
         { compte: '4511', libelle: 'Apporteurs en nature', sens: 'DEBIT', montant: { mode: 'PARAMETRE', parametre: 'apportsNature' } },
         { compte: '4512', libelle: 'Apporteurs en numéraire', sens: 'DEBIT', montant: { mode: 'PARAMETRE', parametre: 'apportsNumeraire' } },
-        { compte: '1015', libelle: 'Dotation non consomptible sans droit de reprise — en nature', sens: 'CREDIT', montant: { mode: 'PARAMETRE', parametre: 'apportsNature' } },
+        { compte: '1015', libelle: 'Dotation non consomptible sans droit de reprise · en nature', sens: 'CREDIT', montant: { mode: 'PARAMETRE', parametre: 'apportsNature' } },
         { compte: '1041', libelle: 'Dotation consomptible', sens: 'CREDIT', montant: { mode: 'PARAMETRE', parametre: 'apportsNumeraire' } },
       ],
     },
@@ -81,8 +81,8 @@ const B14: OperationSpecifique = {
       lignes: [
         { compte: '4511', libelle: 'Apporteurs en nature', sens: 'DEBIT', montant: { mode: 'PARAMETRE', parametre: 'apportsNature' } },
         { compte: '4512', libelle: 'Apporteurs en numéraire', sens: 'DEBIT', montant: { mode: 'PARAMETRE', parametre: 'apportsNumeraire' } },
-        { compte: '1025', libelle: 'Dotation non consomptible avec droit de reprise — en nature', sens: 'CREDIT', montant: { mode: 'PARAMETRE', parametre: 'apportsNature' } },
-        { compte: '1021', libelle: 'Dotation non consomptible avec droit de reprise — en numéraire', sens: 'CREDIT', montant: { mode: 'PARAMETRE', parametre: 'apportsNumeraire' } },
+        { compte: '1025', libelle: 'Dotation non consomptible avec droit de reprise · en nature', sens: 'CREDIT', montant: { mode: 'PARAMETRE', parametre: 'apportsNature' } },
+        { compte: '1021', libelle: 'Dotation non consomptible avec droit de reprise · en numéraire', sens: 'CREDIT', montant: { mode: 'PARAMETRE', parametre: 'apportsNumeraire' } },
       ],
     },
     {
@@ -102,7 +102,7 @@ const B14: OperationSpecifique = {
 };
 
 // ---------------------------------------------------------------------------
-// B6 — Cotisations des membres et droit d'entrée
+// B6 · Cotisations des membres et droit d'entrée
 // ---------------------------------------------------------------------------
 
 const B6: OperationSpecifique = {
@@ -130,12 +130,12 @@ const B6: OperationSpecifique = {
         {
           compte: '1851', libelle: 'Dépôts reçus', sens: 'CREDIT',
           montant: { mode: 'PROPORTION', parametre: 'appelGlobal', taux: 'tauxDepot' },
-          note: 'Dette restituable, pas un produit — délai fixé par les statuts.',
+          note: 'Dette restituable, pas un produit · délai fixé par les statuts.',
         },
         { compte: '701', libelle: 'Cotisations des adhérents', sens: 'CREDIT', montant: { mode: 'PROPORTION', parametre: 'appelGlobal', taux: 'tauxCotisation' } },
         {
           compte: '103', libelle: "Droit d'entrée", sens: 'CREDIT', montant: { mode: 'COMPLEMENT' },
-          note: "« le solde = droit d'entrée » (App. 2) — calculé, jamais saisi.",
+          note: "« le solde = droit d'entrée » (App. 2) · calculé, jamais saisi.",
         },
       ],
     },
@@ -174,7 +174,7 @@ const B6: OperationSpecifique = {
         { nom: 'tauxDepreciation', libelle: 'Taux de dépréciation retenu', type: 'TAUX', defaut: 0.8 },
       ],
       lignes: [
-        { compte: '659', libelle: 'Charges pour dépréciations sur créances', sens: 'DEBIT', montant: { mode: 'PROPORTION', parametre: 'creanceDouteuse', taux: 'tauxDepreciation' }, note: 'Le Guide écrit 6594 — subdivision du 659.' },
+        { compte: '659', libelle: 'Charges pour dépréciations sur créances', sens: 'DEBIT', montant: { mode: 'PROPORTION', parametre: 'creanceDouteuse', taux: 'tauxDepreciation' }, note: 'Le Guide écrit 6594 · subdivision du 659.' },
         { compte: '4912', libelle: 'Dépréciations des créances douteuses', sens: 'CREDIT', montant: { mode: 'PROPORTION', parametre: 'creanceDouteuse', taux: 'tauxDepreciation' } },
       ],
     },
@@ -182,7 +182,7 @@ const B6: OperationSpecifique = {
 };
 
 // ---------------------------------------------------------------------------
-// B15 — Subventions d'investissement
+// B15 · Subventions d'investissement
 // ---------------------------------------------------------------------------
 
 const B15: OperationSpecifique = {
@@ -225,7 +225,7 @@ const B15: OperationSpecifique = {
 };
 
 // ---------------------------------------------------------------------------
-// B1 — Fonds affectés à un projet spécifique
+// B1 · Fonds affectés à un projet spécifique
 // ---------------------------------------------------------------------------
 
 const B1: OperationSpecifique = {
@@ -252,19 +252,19 @@ const B1: OperationSpecifique = {
       libelle: 'Reprise des fonds affectés consommés',
       objet: 'À la clôture, rapporte au résultat la seule part des fonds réellement consommée par le projet.',
       source:
-        "Guide App. 4 : les fonds consommés sont repris au crédit du 792. La part NON consommée reste au passif — c'est l'objet du compte 165 (glossaire : « fonds que les tiers financeurs ont affecté à un but déterminé qui ne sont pas entièrement consommés en fin d'exercice »).",
+        "Guide App. 4 : les fonds consommés sont repris au crédit du 792. La part NON consommée reste au passif · c'est l'objet du compte 165 (glossaire : « fonds que les tiers financeurs ont affecté à un but déterminé qui ne sont pas entièrement consommés en fin d'exercice »).",
       applicationGuide: 'App. 4',
       parametres: [{ nom: 'consomme', libelle: "Part des fonds consommée sur l'exercice", type: 'MONTANT' }],
       lignes: [
         { compte: '165', libelle: 'Fonds affectés à un projet spécifique', sens: 'DEBIT', montant: { mode: 'PARAMETRE', parametre: 'consomme' } },
-        { compte: '792', libelle: 'Reprises de fonds affectés', sens: 'CREDIT', montant: { mode: 'PARAMETRE', parametre: 'consomme' }, note: 'Le Guide écrit 7925 — subdivision du 792.' },
+        { compte: '792', libelle: 'Reprises de fonds affectés', sens: 'CREDIT', montant: { mode: 'PARAMETRE', parametre: 'consomme' }, note: 'Le Guide écrit 7925 · subdivision du 792.' },
       ],
     },
   ],
 };
 
 // ---------------------------------------------------------------------------
-// B16 — Dons et legs d'immobilisations à conserver
+// B16 · Dons et legs d'immobilisations à conserver
 // ---------------------------------------------------------------------------
 
 const B16: OperationSpecifique = {
@@ -312,7 +312,7 @@ const B16: OperationSpecifique = {
       parametres: [{ nom: 'dotation', libelle: "Dotation aux amortissements de l'exercice sur ces biens", type: 'MONTANT' }],
       lignes: [
         { compte: '167', libelle: 'Fonds provenant des dons et legs', sens: 'DEBIT', auChoix: true, montant: { mode: 'PARAMETRE', parametre: 'dotation' } },
-        { compte: '792', libelle: "Reprises de fonds affectés provenant de dons et legs d'immobilisations", sens: 'CREDIT', montant: { mode: 'PARAMETRE', parametre: 'dotation' }, note: 'Le Guide écrit 7923 — subdivision du 792.' },
+        { compte: '792', libelle: "Reprises de fonds affectés provenant de dons et legs d'immobilisations", sens: 'CREDIT', montant: { mode: 'PARAMETRE', parametre: 'dotation' }, note: 'Le Guide écrit 7923 · subdivision du 792.' },
       ],
       anomalie:
         "[texte officiel] Dans l'écriture d'amortissement de la même application, le mobilier de bureau (bien en 2441) est amorti en « 28444 » alors que les trois autres lignes suivent le schéma « 28 + racine du bien » (2313→28313, 2442→28442, 2451→28451), qui donnerait 28441 ; 28444 est l'amortissement des matériels sportifs. Sans effet ici : le plan s'arrête à 2844, qui couvre les deux.",
@@ -321,7 +321,7 @@ const B16: OperationSpecifique = {
 };
 
 // ---------------------------------------------------------------------------
-// B17 — Legs et donations non encore reçus, destinés à la vente
+// B17 · Legs et donations non encore reçus, destinés à la vente
 // ---------------------------------------------------------------------------
 
 const B17: OperationSpecifique = {
@@ -355,7 +355,7 @@ const B17: OperationSpecifique = {
       applicationGuide: 'App. 6',
       parametres: [{ nom: 'depreciation', libelle: 'Dépréciation constatée', type: 'MONTANT' }],
       lignes: [
-        { compte: '695', libelle: 'Dotations aux dépréciations des immobilisations destinées à la vente', sens: 'DEBIT', montant: { mode: 'PARAMETRE', parametre: 'depreciation' }, note: 'Le Guide écrit 6952 — subdivision du 695.' },
+        { compte: '695', libelle: 'Dotations aux dépréciations des immobilisations destinées à la vente', sens: 'DEBIT', montant: { mode: 'PARAMETRE', parametre: 'depreciation' }, note: 'Le Guide écrit 6952 · subdivision du 695.' },
         { compte: '2902', libelle: 'Dépréciations des immobilisations destinées à la vente', sens: 'CREDIT', montant: { mode: 'PARAMETRE', parametre: 'depreciation' } },
       ],
     },
@@ -368,14 +368,14 @@ const B17: OperationSpecifique = {
       parametres: [{ nom: 'fondsReporte', libelle: 'Fonds reporté à solder', type: 'MONTANT' }],
       lignes: [
         { compte: '172', libelle: "Legs non encore reçus d'immobilisations destinées à la vente", sens: 'DEBIT', montant: { mode: 'PARAMETRE', parametre: 'fondsReporte' } },
-        { compte: '796', libelle: 'Reprises des fonds reportés', sens: 'CREDIT', montant: { mode: 'PARAMETRE', parametre: 'fondsReporte' }, note: 'Le Guide écrit 7962 — subdivision du 796.' },
+        { compte: '796', libelle: 'Reprises des fonds reportés', sens: 'CREDIT', montant: { mode: 'PARAMETRE', parametre: 'fondsReporte' }, note: 'Le Guide écrit 7962 · subdivision du 796.' },
       ],
     },
   ],
 };
 
 // ---------------------------------------------------------------------------
-// B18 — Donation temporaire d'usufruit
+// B18 · Donation temporaire d'usufruit
 // ---------------------------------------------------------------------------
 
 const B18: OperationSpecifique = {
@@ -422,19 +422,19 @@ const B18: OperationSpecifique = {
       parametres: [{ nom: 'dotation', libelle: "Amortissement de l'usufruit sur l'exercice", type: 'MONTANT' }],
       lignes: [
         { compte: '171', libelle: "Donation temporaire d'usufruit", sens: 'DEBIT', montant: { mode: 'PARAMETRE', parametre: 'dotation' } },
-        { compte: '796', libelle: "Reprises de fonds provenant d'usufruit temporaire", sens: 'CREDIT', montant: { mode: 'PARAMETRE', parametre: 'dotation' }, note: 'Le Guide écrit 7961 — subdivision du 796.' },
+        { compte: '796', libelle: "Reprises de fonds provenant d'usufruit temporaire", sens: 'CREDIT', montant: { mode: 'PARAMETRE', parametre: 'dotation' }, note: 'Le Guide écrit 7961 · subdivision du 796.' },
       ],
     },
   ],
 };
 
 // ---------------------------------------------------------------------------
-// B19 — Projets de développement : fonds du bailleur
+// B19 · Projets de développement : fonds du bailleur
 // ---------------------------------------------------------------------------
 
 const B19: OperationSpecifique = {
   code: 'B19',
-  libelle: 'Projets de développement — fonds du bailleur',
+  libelle: 'Projets de développement · fonds du bailleur',
   source: 'Partie 3 ch. 3 · Guide, Application 8',
   portee: 'PROJETS',
   modeles: [
@@ -452,7 +452,7 @@ const B19: OperationSpecifique = {
       lignes: [
         { compte: '52', libelle: 'Banque', sens: 'DEBIT', auChoix: true, montant: { mode: 'PARAMETRE', parametre: 'virement' } },
         { compte: '162', libelle: 'Fonds affectés aux investissements du projet', sens: 'CREDIT', montant: { mode: 'PROPORTION', parametre: 'virement', taux: 'partInvestissement' } },
-        { compte: '462', libelle: "Bailleurs — fonds d'administration", sens: 'CREDIT', montant: { mode: 'COMPLEMENT' } },
+        { compte: '462', libelle: "Bailleurs · fonds d'administration", sens: 'CREDIT', montant: { mode: 'COMPLEMENT' } },
       ],
     },
     {
@@ -464,7 +464,7 @@ const B19: OperationSpecifique = {
       applicationGuide: 'App. 8',
       parametres: [{ nom: 'chargesEngagees', libelle: 'Charges de fonctionnement engagées', type: 'MONTANT' }],
       lignes: [
-        { compte: '462', libelle: "Bailleurs — fonds d'administration", sens: 'DEBIT', montant: { mode: 'PARAMETRE', parametre: 'chargesEngagees' } },
+        { compte: '462', libelle: "Bailleurs · fonds d'administration", sens: 'DEBIT', montant: { mode: 'PARAMETRE', parametre: 'chargesEngagees' } },
         { compte: '702', libelle: "Quote-part de fonds d'administration transférés", sens: 'CREDIT', montant: { mode: 'PARAMETRE', parametre: 'chargesEngagees' } },
       ],
     },
@@ -491,7 +491,7 @@ const B19: OperationSpecifique = {
       parametres: [{ nom: 'ajustement', libelle: "Montant à transférer de l'investissement vers l'administration", type: 'MONTANT' }],
       lignes: [
         { compte: '162', libelle: 'Fonds affectés aux investissements du projet', sens: 'DEBIT', montant: { mode: 'PARAMETRE', parametre: 'ajustement' } },
-        { compte: '462', libelle: "Bailleurs — fonds d'administration", sens: 'CREDIT', montant: { mode: 'PARAMETRE', parametre: 'ajustement' } },
+        { compte: '462', libelle: "Bailleurs · fonds d'administration", sens: 'CREDIT', montant: { mode: 'PARAMETRE', parametre: 'ajustement' } },
       ],
     },
   ],

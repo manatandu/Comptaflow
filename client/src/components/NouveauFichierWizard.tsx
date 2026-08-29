@@ -87,7 +87,7 @@ export function NouveauFichierWizard({ onClose }: { onClose: () => void }) {
         dateFinExercice: form.dateFinExercice,
       });
       setSucces(true);
-      // On connecte directement sur le dossier fraîchement créé — inutile de
+      // On connecte directement sur le dossier fraîchement créé · inutile de
       // faire ressaisir les identifiants qu'on vient de définir.
       await seConnecter(res.accessToken);
     } catch (err) {
@@ -159,7 +159,7 @@ export function NouveauFichierWizard({ onClose }: { onClose: () => void }) {
                   <>
                     <h2 className="text-[14px] font-bold mb-1">Raison sociale de l'entité</h2>
                     <p className="text-[12px] text-text-dim mb-4">
-                      Association, ONG, fondation ou projet de développement — le référentiel SYCEBNL sera appliqué.
+                      Association, ONG, fondation ou projet de développement · le référentiel SYCEBNL sera appliqué.
                     </p>
                     <label className="text-[11.5px] font-semibold text-text-dim block mb-1">Raison sociale</label>
                     <input
@@ -239,7 +239,7 @@ export function NouveauFichierWizard({ onClose }: { onClose: () => void }) {
                         <input type="radio" checked readOnly className="mt-0.5" />
                         <span>
                           Oui, le dossier sera prêt à l'emploi : plan de comptes SYCEBNL standard et exercice généré automatiquement
-                          <span className="block text-[11px] text-text-dim">(recommandé — c'est la seule option disponible pour l'instant)</span>
+                          <span className="block text-[11px] text-text-dim">(recommandé · c'est la seule option disponible pour l'instant)</span>
                         </span>
                       </label>
                       <label className="flex items-start gap-2 text-[13px] text-text-dim opacity-60">
@@ -264,7 +264,7 @@ export function NouveauFichierWizard({ onClose }: { onClose: () => void }) {
                   <>
                     <h2 className="text-[14px] font-bold mb-1">Connexion au dossier</h2>
                     <p className="text-[12px] text-text-dim mb-4">
-                      OmegaX est hébergé — pas de fichier local à nommer. Ces identifiants serviront à vous
+                      OmegaX est hébergé · pas de fichier local à nommer. Ces identifiants serviront à vous
                       reconnecter à « {form.nomEntite || 'ce dossier'} ».
                     </p>
                     <label className="text-[11.5px] font-semibold text-text-dim block mb-3">

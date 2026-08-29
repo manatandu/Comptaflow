@@ -4,11 +4,11 @@ import { useAuth } from '../lib/auth';
 import type { Compte, Journal, NumerotationPiece, TypeJournal } from '../lib/types';
 
 /**
- * CODES JOURNAUX — la fenêtre Structure → Codes journaux de Sage 100 i7 :
+ * CODES JOURNAUX · la fenêtre Structure → Codes journaux de Sage 100 i7 :
  * liste dense (code · intitulé · type · numérotation · compte de trésorerie
  * · état), création en boîte de dialogue. Le type d'un journal est figé
  * après création (règle Sage) ; un journal de trésorerie exige son compte
- * de trésorerie rattaché — c'est lui qui porte la contrepartie automatique.
+ * de trésorerie rattaché · c'est lui qui porte la contrepartie automatique.
  */
 
 const LIBELLE_TYPE: Record<TypeJournal, string> = {
@@ -146,7 +146,7 @@ export function JournauxPage() {
             <span className="text-text-dim">{LIBELLE_TYPE[j.type]}</span>
             <span className="text-[10.5px] text-text-dim">{LIBELLE_NUMEROTATION[j.numerotation]}</span>
             <span className="font-mono text-[10.5px] text-text-dim truncate">
-              {j.compteTresorerie ? `${j.compteTresorerie.numero} — ${j.compteTresorerie.intitule}` : '—'}
+              {j.compteTresorerie ? `${j.compteTresorerie.numero} ${j.compteTresorerie.intitule}` : ''}
             </span>
             <button
               onClick={() => basculerActif(j)}
@@ -230,10 +230,10 @@ export function JournauxPage() {
                       onChange={(e) => setCompteTresorerieId(e.target.value)}
                       className="border border-border-dark px-2.5 py-1.5 text-[12.5px]"
                     >
-                      <option value="">— Sélectionner —</option>
+                      <option value="">Sélectionner</option>
                       {comptesTresorerie.map((c) => (
                         <option key={c.id} value={c.id}>
-                          {c.numero} — {c.intitule}
+                          {c.numero} · {c.intitule}
                         </option>
                       ))}
                     </select>

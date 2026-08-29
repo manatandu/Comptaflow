@@ -4,10 +4,10 @@ import { useAuth } from '../lib/auth';
 import type { Compte, TauxTva } from '../lib/types';
 
 /**
- * TAUX DE TAXES — la fenêtre Structure → Taux de taxes de Sage 100 i7 :
+ * TAUX DE TAXES · la fenêtre Structure → Taux de taxes de Sage 100 i7 :
  * liste dense (code · intitulé · taux · sens par comptes rattachés · état),
  * création en boîte de dialogue. Chaque taux porte son compte de TVA
- * collectée (443, ventes) et/ou déductible (445, achats) — c'est ce
+ * collectée (443, ventes) et/ou déductible (445, achats) · c'est ce
  * rattachement qui permet le calcul automatique en saisie et la déclaration.
  */
 export function TauxTvaPage() {
@@ -123,10 +123,10 @@ export function TauxTvaPage() {
             <span className="truncate">{t.intitule}</span>
             <span className="font-mono text-right">{Number(t.taux).toLocaleString('fr-FR')} %</span>
             <span className="font-mono text-[10.5px] text-text-dim truncate">
-              {t.compteCollecte ? `${t.compteCollecte.numero} — ${t.compteCollecte.intitule}` : '—'}
+              {t.compteCollecte ? `${t.compteCollecte.numero} ${t.compteCollecte.intitule}` : ''}
             </span>
             <span className="font-mono text-[10.5px] text-text-dim truncate">
-              {t.compteDeductible ? `${t.compteDeductible.numero} — ${t.compteDeductible.intitule}` : '—'}
+              {t.compteDeductible ? `${t.compteDeductible.numero} ${t.compteDeductible.intitule}` : ''}
             </span>
             <button
               onClick={() => basculerActif(t)}
@@ -139,9 +139,9 @@ export function TauxTvaPage() {
       </div>
 
       <p className="text-[10.5px] text-text-dim mt-2 max-w-[860px]">
-        Taux normal 16 %, réduits 1 % et 5 % (billets d'avion), zéro (exportations) — Ordonnance-Loi n° 10/001
+        Taux normal 16 %, réduits 1 % et 5 % (billets d'avion), zéro (exportations) · Ordonnance-Loi n° 10/001
         du 20/08/2010, art. 35 (modifié par la Loi de Finances 2026). Une opération exonérée (ex. activité
-        normale d'une ASBL — art. 15.2/17.8) n'utilise aucun taux : ce n'est pas un taux à 0 %.
+        normale d'une ASBL · art. 15.2/17.8) n'utilise aucun taux : ce n'est pas un taux à 0 %.
       </p>
 
       {nouveauOuvert && (
@@ -166,19 +166,19 @@ export function TauxTvaPage() {
                 <input required type="number" min={0} max={100} step="0.01" value={taux} onChange={(e) => setTaux(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[13px] font-mono text-right" />
                 <label className="text-[12px] text-right">Collectée (443) :</label>
                 <select value={compteCollecteId} onChange={(e) => setCompteCollecteId(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[12px]">
-                  <option value="">— Aucun —</option>
+                  <option value="">Aucun</option>
                   {comptesClasse4.map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.numero} — {c.intitule}
+                      {c.numero} · {c.intitule}
                     </option>
                   ))}
                 </select>
                 <label className="text-[12px] text-right">Déductible (445) :</label>
                 <select value={compteDeductibleId} onChange={(e) => setCompteDeductibleId(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[12px]">
-                  <option value="">— Aucun —</option>
+                  <option value="">Aucun</option>
                   {comptesClasse4.map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.numero} — {c.intitule}
+                      {c.numero} · {c.intitule}
                     </option>
                   ))}
                 </select>

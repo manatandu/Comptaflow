@@ -10,7 +10,7 @@ export class JournalService {
 
   /**
    * Appelé une fois à la création du tenant, juste après le seed du plan de
-   * comptes (voir AuthService.register) — les comptes de trésorerie
+   * comptes (voir AuthService.register) · les comptes de trésorerie
    * référencés par JOURNAUX_DEFAUT doivent déjà exister.
    */
   async seedJournauxDefaut(tenantId: string) {
@@ -99,7 +99,7 @@ export class JournalService {
    * Prend un client Prisma optionnel (`tx`) pour pouvoir être appelé DANS la
    * transaction sérialisable qui crée l'écriture (voir
    * EcritureService.creer) : lu et écrit hors transaction, ce calcul serait
-   * une lecture-puis-écriture non atomique — deux écritures créées en même
+   * une lecture-puis-écriture non atomique · deux écritures créées en même
    * temps sur le même journal pourraient recevoir le même numéro de pièce.
    */
   async prochainNumeroPiece(

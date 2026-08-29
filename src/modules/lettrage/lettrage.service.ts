@@ -26,7 +26,7 @@ function lettreVersIndex(lettre: string): number {
 
 /**
  * Lettrage : rapprochement débit/crédit sur un compte (cf.
- * docs/plan-de-construction.md §3.1) — prérequis du report à-nouveau
+ * docs/plan-de-construction.md §3.1) · prérequis du report à-nouveau
  * "Détail" et de toute gestion sérieuse des tiers. Toutes les lignes d'un
  * même rapprochement partagent la même lettre ; le lettrage n'est autorisé
  * que si le solde des lignes sélectionnées est nul (même règle que Sage :
@@ -69,7 +69,7 @@ export class LettrageService {
   }
 
   /**
-   * Calcule la prochaine lettre disponible pour ce compte — même risque de
+   * Calcule la prochaine lettre disponible pour ce compte · même risque de
    * condition de course que le numéro de pièce des journaux (deux lettrages
    * simultanés sur le même compte pourraient lire la même "dernière lettre"),
    * donc toujours appelé DANS la transaction sérialisable de lettrerManuel.
@@ -104,20 +104,20 @@ export class LettrageService {
           }
           if (l.lettre) {
             throw new BadRequestException(
-              `La ligne du ${l.ecriture.date.toISOString().slice(0, 10)} est déjà lettrée (${l.lettre}) — délettrez-la d'abord`,
+              `La ligne du ${l.ecriture.date.toISOString().slice(0, 10)} est déjà lettrée (${l.lettre}) · délettrez-la d'abord`,
             );
           }
         }
         // Pas de contrôle de clôture d'exercice ici, volontairement : le
         // lettrage porte sur des lignes déjà enregistrées (il ne modifie ni
         // montant ni compte), et reste possible après une clôture partielle
-        // — même règle que chez Sage ("le lettrage... pourront tout de même
+        // · même règle que chez Sage ("le lettrage... pourront tout de même
         // être effectués" après une clôture partielle).
 
         const solde = lignes.reduce((s, l) => s + Number(l.debit) - Number(l.credit), 0);
         if (Math.abs(solde) > EPSILON) {
           throw new BadRequestException(
-            `Le solde des lignes sélectionnées n'est pas nul (${solde.toFixed(2)}) — le lettrage est impossible`,
+            `Le solde des lignes sélectionnées n'est pas nul (${solde.toFixed(2)}) · le lettrage est impossible`,
           );
         }
 
@@ -125,7 +125,7 @@ export class LettrageService {
         await tx.ligneEcriture.updateMany({ where: { id: { in: ligneIds } }, data: { lettre } });
         return { lettre, nombreLignes: ligneIds.length };
       },
-      `Trop de lettrages effectués au même instant sur ce compte — veuillez réessayer.`,
+      `Trop de lettrages effectués au même instant sur ce compte · veuillez réessayer.`,
     );
   }
 
@@ -143,12 +143,12 @@ export class LettrageService {
 
   /**
    * Recherche un sous-ensemble de `lignes` dont la somme des montants vaut
-   * exactement `cible` (à EPSILON près) — cas N-pour-1 du lettrage
+   * exactement `cible` (à EPSILON près) · cas N-pour-1 du lettrage
    * automatique (plusieurs petites factures qui soldent un seul règlement,
    * ou l'inverse). Backtracking sur les montants en centimes (entiers, pour
    * éviter les écarts flottants), lignes triées par montant décroissant pour
    * couper les branches tôt (somme des lignes restantes < reste à trouver).
-   * Coût exponentiel dans le pire cas — c'est pourquoi l'appelant plafonne le
+   * Coût exponentiel dans le pire cas · c'est pourquoi l'appelant plafonne le
    * nombre de lignes soumises (voir LIMITE_LIGNES_SUBSET_SUM ci-dessous) :
    * au-delà, la recherche N-pour-1 est simplement sautée pour ce groupe,
    * sans erreur (le 1-pour-1 reste, lui, toujours effectué).
@@ -179,7 +179,7 @@ export class LettrageService {
   /**
    * Toutes les sommes atteignables par un sous-ensemble NON VIDE de `lignes`,
    * en centimes → un sous-ensemble (n'importe lequel) qui l'atteint. Énumère
-   * les 2^n - 1 combinaisons non vides — c'est pourquoi l'appelant plafonne
+   * les 2^n - 1 combinaisons non vides · c'est pourquoi l'appelant plafonne
    * strictement `lignes.length` (voir LIMITE_LIGNES_PARTITION) avant d'appeler
    * cette méthode : à 16 lignes, 65 535 combinaisons, largement praticable
    * pour une action manuelle ; au-delà, ça grossit trop vite.
@@ -197,7 +197,7 @@ export class LettrageService {
           ids.push(lignes[i].id);
         }
       }
-      // Ne garde que le premier sous-ensemble trouvé pour une somme donnée —
+      // Ne garde que le premier sous-ensemble trouvé pour une somme donnée ·
       // peu importe lequel, seule l'existence d'un match compte ici.
       if (!resultat.has(somme)) resultat.set(somme, ids);
     }
@@ -207,7 +207,7 @@ export class LettrageService {
   /**
    * Cas général N-pour-M : un sous-ensemble de débits et un sous-ensemble de
    * crédits, tous deux non triviaux (au moins une ligne d'un côté, une ligne
-   * de l'autre — les cas 1-pour-N et N-pour-1 sont déjà couverts par les
+   * de l'autre · les cas 1-pour-N et N-pour-1 sont déjà couverts par les
    * passes précédentes), dont les sommes sont exactement égales. Recherche
    * le match de plus petite taille totale (nombre de lignes) pour limiter la
    * casse d'un lettrage trop gourmand qui engloutirait tout le pool restant.
@@ -231,22 +231,22 @@ export class LettrageService {
   }
 
   /**
-   * Lettrage automatique — mécanisme en deux temps façon Sage :
+   * Lettrage automatique · mécanisme en deux temps façon Sage :
    * 1. Paires exactes 1-pour-1 (une ligne au débit, une au crédit de
-   *    exactement le même montant) — le cas le plus fréquent, traité en
+   *    exactement le même montant) · le cas le plus fréquent, traité en
    *    premier pour réduire vite le nombre de lignes restantes.
    * 2. N-pour-1 : plusieurs lignes d'un côté dont la somme égale exactement
    *    une ligne de l'autre côté (ex. trois factures soldées par un seul
-   *    virement, ou un acompte réparti sur plusieurs factures) — recherche
+   *    virement, ou un acompte réparti sur plusieurs factures) · recherche
    *    par sous-ensemble, plafonnée à `LIMITE_LIGNES_SUBSET_SUM` lignes du
    *    côté fouillé pour rester borné en temps de calcul.
    * 3. N-pour-M : un sous-ensemble de débits ET un sous-ensemble de crédits
    *    (au moins deux lignes de chaque côté, sinon c'est déjà couvert par la
-   *    passe précédente) de somme égale — ex. deux factures réglées par deux
+   *    passe précédente) de somme égale · ex. deux factures réglées par deux
    *    virements dont aucune paire ni aucun total 1-pour-N ne coïncide
    *    individuellement. Énumère toutes les combinaisons possibles des deux
    *    côtés (2^n), donc plafonnée bien plus bas (`LIMITE_LIGNES_PARTITION`)
-   *    que le N-pour-1 — au-delà, cette dernière passe est sautée (les
+   *    que le N-pour-1 · au-delà, cette dernière passe est sautée (les
    *    précédentes restent, elles, toujours effectuées).
    */
   async lettrageAutomatique(tenantId: string, compteId: string) {
@@ -312,7 +312,7 @@ export class LettrageService {
       }
     }
 
-    // 4) N pour M — partition générale sur ce qui reste, en boucle tant
+    // 4) N pour M · partition générale sur ce qui reste, en boucle tant
     // qu'un match existe (chaque match retire des lignes des deux pools).
     while (
       debitsRestants.length >= 2 &&
@@ -342,7 +342,7 @@ export class LettrageService {
         }
         return { groupes: groupes.length, lettres };
       },
-      'Trop de lettrages effectués au même instant sur ce compte — veuillez réessayer.',
+      'Trop de lettrages effectués au même instant sur ce compte · veuillez réessayer.',
     );
   }
 }

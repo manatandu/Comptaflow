@@ -87,7 +87,7 @@ export function ExercicePage() {
     setInfo(null);
     try {
       await api.post(`/exercices/${exerciceId}/clotures/totale`, { journalId: journalTotaleId });
-      setInfo('Clôture totale enregistrée — définitive.');
+      setInfo('Clôture totale enregistrée · définitive.');
       setJournalTotaleId('');
       await charger();
     } catch (err) {
@@ -105,7 +105,7 @@ export function ExercicePage() {
     setInfo(null);
     try {
       await api.post(`/exercices/${exerciceId}/clotures/periode`, { dateLimite: dateLimitePeriode });
-      setInfo('Clôture de période enregistrée — définitive, tous journaux confondus.');
+      setInfo('Clôture de période enregistrée · définitive, tous journaux confondus.');
       setDateLimitePeriode('');
       await charger();
     } catch (err) {
@@ -132,7 +132,7 @@ export function ExercicePage() {
     if (!exercice) return;
     if (
       !confirm(
-        `Clôturer définitivement l'exercice ${new Date(exercice.dateDebut).toLocaleDateString('fr-FR')} — ${new Date(
+        `Clôturer définitivement l'exercice ${new Date(exercice.dateDebut).toLocaleDateString('fr-FR')} · ${new Date(
           exercice.dateFin,
         ).toLocaleDateString('fr-FR')} ?\n\nCette action solde les comptes de charges/produits sur le résultat et génère le report à-nouveau réel dans l'exercice suivant.`,
       )
@@ -144,7 +144,7 @@ export function ExercicePage() {
     setInfo(null);
     try {
       await api.post(`/exercices/${exercice.id}/cloturer`);
-      setInfo("Exercice clôturé — report à-nouveau généré dans l'exercice suivant.");
+      setInfo("Exercice clôturé · report à-nouveau généré dans l'exercice suivant.");
       await rechargerExercices();
     } catch (err) {
       setErreur(err instanceof ApiError ? err.message : "Impossible de clôturer cet exercice");
@@ -155,7 +155,7 @@ export function ExercicePage() {
 
   return (
     <div className="p-2.5">
-      <div className="text-[10.5px] font-mono text-text-dim">TRAITEMENT — FIN D'EXERCICE</div>
+      <div className="text-[10.5px] font-mono text-text-dim">TRAITEMENT · FIN D'EXERCICE</div>
       <h1 className="text-[15px] font-bold mb-2.5">Clôture d'exercice</h1>
 
       <div className="mb-3 flex items-center gap-2 max-w-[640px]">
@@ -168,7 +168,7 @@ export function ExercicePage() {
           >
             {exercices.map((e) => (
               <option key={e.id} value={e.id}>
-                {new Date(e.dateDebut).toLocaleDateString('fr-FR')} — {new Date(e.dateFin).toLocaleDateString('fr-FR')} (
+                {new Date(e.dateDebut).toLocaleDateString('fr-FR')} · {new Date(e.dateFin).toLocaleDateString('fr-FR')} (
                 {e.statut === 'OUVERT' ? 'Ouvert' : 'Clôturé'})
               </option>
             ))}
@@ -211,7 +211,7 @@ export function ExercicePage() {
         <div className="grid grid-cols-3 gap-3 mb-5 max-w-[980px]">
           <form onSubmit={clorePartielle} className="bg-surface border border-border p-3">
             <div className="font-mono text-[10.5px] font-semibold text-text-dim mb-2">CLÔTURE PARTIELLE</div>
-            <p className="text-[11px] text-text-dim mb-2">Verrouille un journal jusqu'à une date — réversible.</p>
+            <p className="text-[11px] text-text-dim mb-2">Verrouille un journal jusqu'à une date · réversible.</p>
             <label className="block text-[11px] font-semibold text-text-dim mb-2">
               Journal
               <select
@@ -220,10 +220,10 @@ export function ExercicePage() {
                 onChange={(e) => setJournalPartielleId(e.target.value)}
                 className="mt-1 w-full border border-border-dark px-2 py-1 text-[12px] font-normal"
               >
-                <option value="">— Sélectionner —</option>
+                <option value="">Sélectionner</option>
                 {journaux.map((j) => (
                   <option key={j.id} value={j.id}>
-                    {j.code} — {j.intitule}
+                    {j.code} · {j.intitule}
                   </option>
                 ))}
               </select>
@@ -245,7 +245,7 @@ export function ExercicePage() {
 
           <form onSubmit={cloreTotale} className="bg-surface border border-border p-3">
             <div className="font-mono text-[10.5px] font-semibold text-text-dim mb-2">CLÔTURE TOTALE</div>
-            <p className="text-[11px] text-text-dim mb-2">Fige un journal en entier — définitive.</p>
+            <p className="text-[11px] text-text-dim mb-2">Fige un journal en entier · définitive.</p>
             <label className="block text-[11px] font-semibold text-text-dim mb-2">
               Journal
               <select
@@ -254,10 +254,10 @@ export function ExercicePage() {
                 onChange={(e) => setJournalTotaleId(e.target.value)}
                 className="mt-1 w-full border border-border-dark px-2 py-1 text-[12px] font-normal"
               >
-                <option value="">— Sélectionner —</option>
+                <option value="">Sélectionner</option>
                 {journaux.map((j) => (
                   <option key={j.id} value={j.id}>
-                    {j.code} — {j.intitule}
+                    {j.code} · {j.intitule}
                   </option>
                 ))}
               </select>
@@ -269,7 +269,7 @@ export function ExercicePage() {
 
           <form onSubmit={clorePeriode} className="bg-surface border border-border p-3">
             <div className="font-mono text-[10.5px] font-semibold text-text-dim mb-2">CLÔTURE DE PÉRIODE</div>
-            <p className="text-[11px] text-text-dim mb-2">Verrouille tous les journaux jusqu'à une date — définitive.</p>
+            <p className="text-[11px] text-text-dim mb-2">Verrouille tous les journaux jusqu'à une date · définitive.</p>
             <label className="block text-[11px] font-semibold text-text-dim mb-2">
               Date limite
               <input
@@ -287,7 +287,7 @@ export function ExercicePage() {
         </div>
       )}
 
-      <div className="border border-border max-w-[980px]">
+      <div className="border border-border bg-surface shadow-posee max-w-[980px]">
         <div className="grid grid-cols-[90px_1fr_100px_110px_90px_100px] gap-2 px-3.5 py-1.5 bg-chrome border-b border-border text-[10px] font-bold text-text-dim">
           <span>GRANULARITÉ</span>
           <span>JOURNAL</span>
@@ -307,7 +307,7 @@ export function ExercicePage() {
           >
             <span className="font-semibold">{LIBELLE_GRANULARITE[c.granularite]}</span>
             <span className="font-mono text-text-dim truncate">
-              {c.journal ? `${c.journal.code} — ${c.journal.intitule}` : 'Tous journaux'}
+              {c.journal ? `${c.journal.code} · ${c.journal.intitule}` : 'Tous journaux'}
             </span>
             <span className="font-mono text-[10.5px] text-text-dim">{new Date(c.dateLimite).toLocaleDateString('fr-FR')}</span>
             <span className="font-mono text-[10.5px] text-text-dim">{new Date(c.createdAt).toLocaleDateString('fr-FR')}</span>

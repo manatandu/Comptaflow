@@ -3,7 +3,7 @@ import { correspond } from '../etats-financiers/etats-financiers.communs';
 import { TOUS_LES_POSTES_FLUX } from '../etats-financiers/correspondance-tft';
 
 /**
- * CORRECTION D'ERREUR PAR INSCRIPTION EN NÉGATIF — art. 20 de l'AUDCIF,
+ * CORRECTION D'ERREUR PAR INSCRIPTION EN NÉGATIF · art. 20 de l'AUDCIF,
  * repris par la Partie 2 ch. 2 du SYCEBNL :
  *
  *   « Toute correction d'erreur commise et découverte sur l'exercice en
@@ -11,8 +11,8 @@ import { TOUS_LES_POSTES_FLUX } from '../etats-financiers/correspondance-tft';
  *   erronés ; l'enregistrement exact est ensuite opéré. »
  *
  * Ces tests ne vérifient pas seulement que la mécanique fonctionne : ils
- * CHIFFRENT ce que la contre-passation — la technique que l'adverbe
- * « exclusivement » écarte — aurait faussé. C'est la seule façon de montrer
+ * CHIFFRENT ce que la contre-passation · la technique que l'adverbe
+ * « exclusivement » écarte · aurait faussé. C'est la seule façon de montrer
  * que le choix du texte n'est pas une préférence de forme.
  */
 
@@ -49,8 +49,8 @@ const CONTRE_PASSATION: L[] = [
   { numero: '40110000', debit: 1000, credit: 0 },
 ];
 
-describe('Art. 20 AUDCIF — pourquoi « exclusivement » l’inscription en négatif', () => {
-  it('les deux techniques donnent le même SOLDE — c’est ce qui les fait confondre', () => {
+describe('Art. 20 AUDCIF · pourquoi « exclusivement » l’inscription en négatif', () => {
+  it('les deux techniques donnent le même SOLDE · c’est ce qui les fait confondre', () => {
     expect(cumuls([...ERREUR, ...INSCRIPTION_EN_NEGATIF], '60400000').solde).toBe(0);
     expect(cumuls([...ERREUR, ...CONTRE_PASSATION], '60400000').solde).toBe(0);
   });
@@ -102,7 +102,7 @@ describe('Art. 20 AUDCIF — pourquoi « exclusivement » l’inscription en né
     expect(lectureCreditSeul(enNegatif)).toBe(0);
   });
 
-  it('l’écriture de correction reste ÉQUILIBRÉE — un négatif de chaque côté', () => {
+  it('l’écriture de correction reste ÉQUILIBRÉE · un négatif de chaque côté', () => {
     const d = INSCRIPTION_EN_NEGATIF.reduce((s, l) => s + l.debit, 0);
     const c = INSCRIPTION_EN_NEGATIF.reduce((s, l) => s + l.credit, 0);
     expect(d).toBe(-1000);
@@ -141,7 +141,7 @@ describe('Le signe ne décide pas du sens d’une ligne', () => {
    * la note 30, un crédit de −500 était lu comme une « diminution » de
    * `ligne.debit` (soit 0), donc court-circuité par `if (montant === 0)
    * continue`. La note continuait d'afficher une augmentation annulée, sans
-   * qu'aucun total ne bouge — c'est-à-dire sans aucun signal.
+   * qu'aucun total ne bouge · c'est-à-dire sans aucun signal.
    */
   it('un crédit NÉGATIF est une augmentation négative, pas une diminution nulle', () => {
     const ventiler = (ligne: { debit: number; credit: number }) => {

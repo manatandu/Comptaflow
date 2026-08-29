@@ -32,7 +32,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
       const body = await res.json();
       message = Array.isArray(body.message) ? body.message.join(', ') : body.message ?? message;
     } catch {
-      // corps non-JSON (erreur réseau, 502, etc.) — on garde statusText
+      // corps non-JSON (erreur réseau, 502, etc.) · on garde statusText
     }
     throw new ApiError(res.status, message);
   }
@@ -42,12 +42,12 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 }
 
 /**
- * Télécharge un export binaire (Excel) protégé par le Bearer token — un
+ * Télécharge un export binaire (Excel) protégé par le Bearer token · un
  * <a href> classique ne peut pas porter l'en-tête Authorization, d'où le
  * passage par fetch + Blob + lien temporaire déclenché par script.
  *
  * Le nom de fichier vient du serveur (en-tête Content-Disposition), qui y
- * met l'année de l'exercice et, pour un grand livre, le numéro de compte —
+ * met l'année de l'exercice et, pour un grand livre, le numéro de compte ·
  * il est le seul à connaître ces éléments. `nomParDefaut` ne sert que si
  * l'en-tête est absent ou illisible.
  */
@@ -88,7 +88,7 @@ export const api = {
   patch: <T>(path: string, body?: unknown) => request<T>(path, { method: 'PATCH', body: body ? JSON.stringify(body) : undefined }),
   // Corps optionnel : `DELETE /notes-annexes/rattachements` identifie la
   // ligne à retirer par (jeu, codeNote, cleRubrique, compteId), pas par un
-  // identifiant dans l'URL — il n'existe pas de ressource `/rattachements/:id`
+  // identifiant dans l'URL · il n'existe pas de ressource `/rattachements/:id`
   // adressable côté client, seule cette combinaison l'est.
   delete: <T>(path: string, body?: unknown) => request<T>(path, { method: 'DELETE', body: body ? JSON.stringify(body) : undefined }),
   telecharger,

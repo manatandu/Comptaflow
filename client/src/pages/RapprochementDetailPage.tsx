@@ -6,7 +6,7 @@ import type { DetailRapprochement } from '../lib/types';
 /**
  * Pointage écriture par écriture d'un rapprochement bancaire (§3.4) : chaque
  * ligne se pointe/dépointe individuellement d'un clic (comme sur un relevé
- * papier qu'on coche ligne à ligne), pas par sélection groupée — l'écart
+ * papier qu'on coche ligne à ligne), pas par sélection groupée · l'écart
  * (solde pointé - solde du relevé) se recalcule à chaque pointage. Clôture
  * bloquée tant que l'écart n'est pas nul.
  */
@@ -91,10 +91,10 @@ export function RapprochementDetailPage() {
       {detail && (
         <>
           <h1 className="text-[15px] font-bold mb-1">
-            {detail.rapprochement.compte ? `${detail.rapprochement.compte.numero} — ${detail.rapprochement.compte.intitule}` : 'Rapprochement'}
+            {detail.rapprochement.compte ? `${detail.rapprochement.compte.numero} · ${detail.rapprochement.compte.intitule}` : 'Rapprochement'}
           </h1>
           <div className="text-[11.5px] text-text-dim mb-3">
-            Relevé du {new Date(detail.rapprochement.dateReleve).toLocaleDateString('fr-FR')} — solde{' '}
+            Relevé du {new Date(detail.rapprochement.dateReleve).toLocaleDateString('fr-FR')} · solde{' '}
             <span className="font-mono font-semibold">{detail.rapprochement.soldeReleve.toLocaleString('fr-FR')}</span>{' '}
             {detail.rapprochement.statut === 'CLOTURE' && <span className="font-mono font-bold text-text-dim">(CLÔTURÉ)</span>}
           </div>
@@ -122,7 +122,7 @@ export function RapprochementDetailPage() {
             </div>
           </div>
 
-          <div className="border border-border max-w-[900px]">
+          <div className="border border-border bg-surface shadow-posee max-w-[900px]">
             <div className="grid grid-cols-[26px_70px_46px_1.4fr_100px_100px] gap-2.5 px-3.5 py-1.5 bg-chrome border-b border-border text-[10px] font-bold text-text-dim">
               <span />
               <span>DATE</span>

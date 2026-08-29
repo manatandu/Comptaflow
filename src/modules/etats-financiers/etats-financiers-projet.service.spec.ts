@@ -157,7 +157,7 @@ describe('EtatsFinanciersProjetService', () => {
   });
 
   describe('compteExploitation', () => {
-    it('XA (revenus) inclut RE (reprises) — anomalie n° 2 corrigée, pas le "Somme RA à RD" littéral du texte', async () => {
+    it('XA (revenus) inclut RE (reprises) · anomalie n° 2 corrigée, pas le "Somme RA à RD" littéral du texte', async () => {
       const service = serviceAvecBalance([
         ligne('70200000', ClasseCompte.CLASSE_7, 0, 500), // RA
         ligne('79000000', ClasseCompte.CLASSE_7, 0, 50), // RE
@@ -166,7 +166,7 @@ describe('EtatsFinanciersProjetService', () => {
       expect(ce.totalRevenus).toBe(550);
     });
 
-    it('RC (subventions, compte 71) est bien rattachée — anomalie n° 1 corrigée', async () => {
+    it('RC (subventions, compte 71) est bien rattachée · anomalie n° 1 corrigée', async () => {
       const service = serviceAvecBalance([ligne('71000000', ClasseCompte.CLASSE_7, 0, 200)]);
       const ce = await service.compteExploitation('t1', 'e1');
       expect(poste(ce, 'RC')!.montant).toBe(200);
@@ -263,13 +263,13 @@ describe('EtatsFinanciersProjetService', () => {
       expect(where.ecriture.exerciceId).toBeUndefined();
     });
 
-    it('décaissé = crédits réels, consommé = débits réels — les écritures de clôture (RAN) sont exclues', async () => {
+    it('décaissé = crédits réels, consommé = débits réels · les écritures de clôture (RAN) sont exclues', async () => {
       const prismaMock = prisma(
         [compte('id-16210000', '16210000', bailleurUE)],
         [
           ligneMouvement('id-16210000', 0, 1000), // mise à disposition réelle
           ligneMouvement('id-16210000', 300, 0), // consommation réelle
-          ligneMouvement('id-16210000', 0, 5000, true), // report à-nouveau — doit être IGNORÉ
+          ligneMouvement('id-16210000', 0, 5000, true), // report à-nouveau · doit être IGNORÉ
         ],
       );
       const service = serviceAvecExercices({ e1: [] }, [], prismaMock);

@@ -12,7 +12,7 @@ import { ClasseurExporte, ExportService } from './export.service';
  * jusqu'à Prisma qui IGNORE purement et simplement un champ `undefined`.
  * Le filtre d'exercice disparaîtrait alors sans bruit et l'export
  * agrégerait TOUS les exercices du dossier en se présentant comme l'état
- * d'un seul — un état faux et non signalé, ce qui est plus grave qu'une
+ * d'un seul · un état faux et non signalé, ce qui est plus grave qu'une
  * erreur pour un module destiné à produire des pièces d'audit.
  */
 const EXERCICE_REQUIS = new ParseUUIDPipe({
@@ -42,7 +42,7 @@ function envoyerXlsx(res: Response, classeur: ClasseurExporte) {
 // RolesGuard est inclus bien qu'aucune route ne porte encore `@Roles` (les
 // exports sont en lecture seule, ouverts aux trois rôles comme les écrans
 // qu'ils reprennent). Sans lui, un futur `@Roles` posé ici serait
-// SILENCIEUSEMENT ignoré — pas d'erreur, pas de 403, la route resterait
+// SILENCIEUSEMENT ignoré · pas d'erreur, pas de 403, la route resterait
 // ouverte à tous. Aligné sur les autres contrôleurs du projet.
 @UseGuards(JwtAuthGuard, LicenceGuard, RolesGuard)
 @Controller('exports')
@@ -65,7 +65,7 @@ export class ExportController {
     );
   }
 
-  /** Grand livre complet — tous les comptes mouvementés, un seul classeur. */
+  /** Grand livre complet · tous les comptes mouvementés, un seul classeur. */
   @Get('grand-livre')
   async grandLivreComplet(
     @CurrentUser() user: AuthenticatedUser,
@@ -112,7 +112,7 @@ export class ExportController {
     envoyerXlsx(res, await this.exportService.compteDeResultatExcel(user.tenantId, exerciceId));
   }
 
-  /** Spécifique au jeu associations (Partie 4, ch. 1 § 4) — voir correspondance-tft.ts. */
+  /** Spécifique au jeu associations (Partie 4, ch. 1 § 4) · voir correspondance-tft.ts. */
   @Get('etats-financiers/tableau-flux-tresorerie')
   async tableauFluxTresorerie(
     @CurrentUser() user: AuthenticatedUser,
@@ -151,7 +151,7 @@ export class ExportController {
     envoyerXlsx(res, await this.exportService.noteBailleurExcel(user.tenantId, exerciceId));
   }
 
-  /** Notes annexes du jeu « associations et ordres professionnels » — 45 notes, une feuille par tableau applicable. */
+  /** Notes annexes du jeu « associations et ordres professionnels » · 45 notes, une feuille par tableau applicable. */
   @Get('notes-annexes/associations')
   async notesAssociations(
     @CurrentUser() user: AuthenticatedUser,
@@ -191,7 +191,7 @@ export class ExportController {
     envoyerXlsx(res, await this.exportService.livreInventaireExcel(user.tenantId, exerciceId));
   }
 
-  /** Rapport d'activité (art. 16-3) — quatre sections, section vide signalée. */
+  /** Rapport d'activité (art. 16-3) · quatre sections, section vide signalée. */
   @Get('rapport-activite')
   async rapportActivite(
     @CurrentUser() user: AuthenticatedUser,
@@ -201,7 +201,7 @@ export class ExportController {
     envoyerXlsx(res, await this.exportService.rapportActiviteExcel(user.tenantId, exerciceId));
   }
 
-  /** Notes annexes du jeu « projets de développement et assimilés » — 26 notes. */
+  /** Notes annexes du jeu « projets de développement et assimilés » · 26 notes. */
   @Get('notes-annexes/projet')
   async notesProjet(
     @CurrentUser() user: AuthenticatedUser,

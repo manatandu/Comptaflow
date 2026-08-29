@@ -14,7 +14,7 @@ export interface DocumentManquant {
 }
 
 /**
- * LIVRE D'INVENTAIRE — article 14 de l'Acte uniforme SYCEBNL.
+ * LIVRE D'INVENTAIRE · article 14 de l'Acte uniforme SYCEBNL.
  *
  * « Le livre d'inventaire est un document obligatoire sur lequel sont
  * TRANSCRITS [les états financiers] de chaque exercice ainsi que le résumé de
@@ -26,7 +26,7 @@ export interface DocumentManquant {
  *    tels quels. Un livre qui recalculerait ses états à chaque consultation
  *    ne transcrirait rien : il changerait sans bruit dès qu'une table de
  *    correspondance est corrigée dans une version ultérieure, ou qu'un
- *    exercice est rouvert et retouché — et le livre ne prouverait plus ce qui
+ *    exercice est rouvert et retouché · et le livre ne prouverait plus ce qui
  *    a été arrêté à la clôture.
  * 2. L'ARTICLE DÉCIDE DU CONTENU, PAS LE LOGICIEL. La liste des états diffère
  *    selon le jeu (point 1 pour les associations, point 2 pour les projets) et
@@ -36,7 +36,7 @@ export interface DocumentManquant {
  *    présenterait comme complète.
  * 3. LE RÉSUMÉ DE L'OPÉRATION D'INVENTAIRE EST UNE SAISIE. Le texte l'exige
  *    (« ainsi que le résumé de l'opération d'inventaire ») mais n'en définit
- *    NULLE PART le contenu — ni le glossaire, ni le cadre conceptuel, ni la
+ *    NULLE PART le contenu · ni le glossaire, ni le cadre conceptuel, ni la
  *    Partie 2 ch. 2. Le déduire d'un autre référentiel serait inventer une
  *    exigence que le texte ne formule pas (règle §2.6). Il est donc laissé au
  *    dossier, et son absence est signalée, jamais suppléée.
@@ -60,7 +60,7 @@ export class LivreInventaireService {
 
   /**
    * La transcription en vigueur : la dernière version. `null` si l'exercice
-   * n'a jamais été transcrit — état que l'article 24 vise directement, donc
+   * n'a jamais été transcrit · état que l'article 24 vise directement, donc
    * jamais déguisé en transcription vide.
    */
   async courante(tenantId: string, exerciceId: string) {
@@ -120,7 +120,7 @@ export class LivreInventaireService {
 
   /**
    * Complète le résumé de l'opération d'inventaire sur une transcription
-   * existante. Seul champ modifiable : les états, eux, sont figés — les
+   * existante. Seul champ modifiable : les états, eux, sont figés · les
    * retoucher viderait la transcription de son sens (voir l'en-tête).
    */
   async renseignerResume(tenantId: string, id: string, dto: ResumeInventaireDto) {

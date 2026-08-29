@@ -8,7 +8,7 @@ import { EtablirRapportActiviteDto } from './dto/documents-obligatoires.dto';
 
 /**
  * Chiffres de trésorerie figés au rapport. Ils viennent du Tableau des flux
- * de trésorerie — le seul état qui décompose « l'évolution de la situation de
+ * de trésorerie · le seul état qui décompose « l'évolution de la situation de
  * trésorerie » qu'exige l'art. 16-3.
  */
 export interface TresorerieDuRapport {
@@ -20,7 +20,7 @@ export interface TresorerieDuRapport {
 }
 
 /**
- * RAPPORT D'ACTIVITÉ — article 16, point 3, de l'Acte uniforme SYCEBNL.
+ * RAPPORT D'ACTIVITÉ · article 16, point 3, de l'Acte uniforme SYCEBNL.
  *
  * « à la clôture de chaque exercice, les organes d'administration ou de
  * direction […] établissent un rapport d'activité ; le rapport d'activité
@@ -39,7 +39,7 @@ export interface TresorerieDuRapport {
  *    organes de direction ; les remplir d'office ferait signer aux dirigeants
  *    un texte qu'ils n'ont pas écrit, sur un document pénalement sanctionné ;
  *  - il STRUCTURE selon les quatre contenus du texte, ni plus ni moins, et
- *    signale une section vide — un rapport amputé d'un contenu exigé n'est
+ *    signale une section vide · un rapport amputé d'un contenu exigé n'est
  *    pas « établi » au sens de l'article ;
  *  - il CHIFFRE la troisième section. « L'évolution de la situation de
  *    trésorerie » est précisément ce que décompose le Tableau des flux de
@@ -114,7 +114,7 @@ export class RapportActiviteService {
   }
 
   /**
-   * Constatations sur le rapport de l'exercice — section par section, avec la
+   * Constatations sur le rapport de l'exercice · section par section, avec la
    * citation qui fonde chacune. Comme partout ailleurs sur ces documents
    * pénalement sanctionnés, ce sont des constatations et non un avis.
    */
@@ -145,7 +145,7 @@ export class RapportActiviteService {
         : null,
       tresorerie: (courant?.tresorerie ?? null) as TresorerieDuRapport | null,
       /**
-       * Art. 18 — la déclaration des dirigeants n'est attendue QUE faute
+       * Art. 18 · la déclaration des dirigeants n'est attendue QUE faute
        * d'auditeur. La réclamer à une entité qui en a un inventerait une
        * obligation ; la taire à celle qui n'en a pas laisserait passer un
        * manquement.

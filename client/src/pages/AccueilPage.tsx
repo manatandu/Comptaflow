@@ -27,9 +27,9 @@ function GrilleTuiles({ titre, tuiles }: { titre: string; tuiles: Tuile[] }) {
             type="button"
             onClick={t.bientot ? undefined : t.onClick}
             disabled={t.bientot}
-            title={t.bientot ? `${t.label} — bientôt disponible` : t.label}
-            className={`relative w-[104px] h-[104px] flex flex-col items-center justify-center gap-2 text-white text-[11px] font-medium text-center px-1.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sel ${
-              t.bientot ? 'opacity-55 cursor-default' : 'cursor-pointer hover:brightness-110'
+            title={t.bientot ? `${t.label} · bientôt disponible` : t.label}
+            className={`relative w-[104px] h-[104px] rounded-[14px] flex flex-col items-center justify-center gap-2 text-white text-[11px] font-medium text-center px-1.5 shadow-posee focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sel ${
+              t.bientot ? 'opacity-55 cursor-default' : 'cursor-pointer hover:brightness-110 hover:shadow-flottante'
             }`}
             style={{ background: `linear-gradient(160deg, ${t.degradeDe}, ${t.degradeA})` }}
           >

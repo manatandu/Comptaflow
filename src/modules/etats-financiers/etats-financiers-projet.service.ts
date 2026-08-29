@@ -19,14 +19,14 @@ import {
 
 /**
  * BILAN et COMPTE D'EXPLOITATION du jeu SYCEBNL « projets de développement
- * et assimilés », Système normal — adossés aux tableaux de correspondance
+ * et assimilés », Système normal · adossés aux tableaux de correspondance
  * OFFICIELS transcrits dans `correspondance-projet-bilan.ts` et
  * `correspondance-projet-compte-exploitation.ts` (Journal officiel OHADA,
  * Partie 4, ch. 3). Construit le 2026-08-28
  * (docs/plan-de-construction.md, item 13), en miroir de
  * `EtatsFinanciersService` (jeu « associations et ordres professionnels »)
  * dont il réutilise le comparatif N-1 et les aides partagées
- * (`etats-financiers.communs.ts`) — mais PAS ses colonnes
+ * (`etats-financiers.communs.ts`) · mais PAS ses colonnes
  * Brut/Amortissement/Net : le texte de CE jeu n'en prévoit pas, et son
  * tableau de correspondance ne cite aucun compte 28x/29x. Voir l'en-tête de
  * `correspondance-projet-bilan.ts`, section « PAS de colonnes Brut /
@@ -39,11 +39,11 @@ import {
  *   (pas de notion de "ligne budgétaire" ni d'"engagement" distincte d'une
  *   écriture comptée). Construire ce tableau à partir de la seule balance
  *   inventerait des montants "Budget"/"Engagement" qu'aucune donnée ne
- *   porte — un mur de périmètre réel, pas un oubli.
+ *   porte · un mur de périmètre réel, pas un oubli.
  * - **Tableau emplois-ressources (TER)** et **Tableau de réconciliation de
  *   trésorerie (TRC)** : le texte officiel ne fournit, pour ces deux
  *   tableaux, AUCUN tableau de correspondance poste→comptes (contrairement
- *   au Bilan et au Compte d'exploitation, Section 4-correspondance) — leurs
+ *   au Bilan et au Compte d'exploitation, Section 4-correspondance) · leurs
  *   REF (FA-GZ, A-I) ne sont définis que par leur libellé. Les construire
  *   quand même exigerait d'inventer un rattachement aux comptes, ce que la
  *   règle §2.6 interdit explicitement. Restent donc non construits ici ;
@@ -67,7 +67,7 @@ export class EtatsFinanciersProjetService {
   }
 
   /**
-   * Poste ACTIF de détail — UNE seule valeur, pas de Brut/Amortissement/Net :
+   * Poste ACTIF de détail · UNE seule valeur, pas de Brut/Amortissement/Net :
    * le texte officiel de ce jeu ne prévoit que « EXERCICE AU 31/12/N » et
    * « EXERCICE AU 31/12/N-1 », et son tableau de correspondance ne cite aucun
    * compte 28x/29x (voir l'en-tête de `correspondance-projet-bilan.ts`).
@@ -78,8 +78,8 @@ export class EtatsFinanciersProjetService {
       matches = matches.filter((l) => l.solde > 0);
     }
     // Découverts bancaires : un 52/53 créditeur appartient à DW (passif). Le
-    // garder ici le compterait deux fois — négatif à l'actif, positif au
-    // passif — et déséquilibrerait le bilan du double du découvert.
+    // garder ici le compterait deux fois · négatif à l'actif, positif au
+    // passif · et déséquilibrerait le bilan du double du découvert.
     if (poste.comptesTransferesSiCrediteur) {
       matches = matches.filter((l) => !(correspond(l.numero, poste.comptesTransferesSiCrediteur!) && l.solde < 0));
     }
@@ -96,7 +96,7 @@ export class EtatsFinanciersProjetService {
     return { ref: poste.ref, libelle: poste.libelle, montant: comptes.reduce((s, c) => s + c.montant, 0), comptes };
   }
 
-  /** DW — même mécanisme de découvert bancaire que le jeu associations (voir correspondance-projet-bilan.ts). */
+  /** DW · même mécanisme de découvert bancaire que le jeu associations (voir correspondance-projet-bilan.ts). */
   private calculerDW(lignes: LigneBalancePourEtat[]): PosteCalcule {
     const posteDW = POSTES_PASSIF.find((p) => p.ref === 'DW')!;
     const base = this.calculerPostePassif(posteDW, lignes);
@@ -106,10 +106,10 @@ export class EtatsFinanciersProjetService {
   }
 
   /**
-   * CC (Solde des opérations de l'exercice) — contrairement à CH côté
+   * CC (Solde des opérations de l'exercice) · contrairement à CH côté
    * associations, ce poste ne s'arbitre pas entre classes 6/7/8 et compte
    * 13 : il vient UNIQUEMENT du compte 13 (voir la note de tête de fichier
-   * de `correspondance-projet-compte-exploitation.ts` — ce jeu est construit
+   * de `correspondance-projet-compte-exploitation.ts` · ce jeu est construit
    * pour boucler le compte d'exploitation à XC = 0, pas pour porter un
    * résultat net au sens associatif).
    */
@@ -165,7 +165,7 @@ export class EtatsFinanciersProjetService {
     const actif = ORDRE_AFFICHAGE_ACTIF.map(fusionnerN1);
     const passif = ORDRE_AFFICHAGE_PASSIF.map(fusionnerN1);
 
-    // Comptes de bilan (classes 1-5) qu'aucun poste ne capte — jamais
+    // Comptes de bilan (classes 1-5) qu'aucun poste ne capte · jamais
     // absorbés en silence (même discipline que le jeu associations).
     const comptesRattaches = new Set<string>();
     for (const poste of [...POSTES_ACTIF, ...POSTES_PASSIF]) {
@@ -246,11 +246,11 @@ export class EtatsFinanciersProjetService {
   }
 
   /**
-   * COMPTE D'EXPLOITATION — voir `correspondance-projet-compte-exploitation.ts`
+   * COMPTE D'EXPLOITATION · voir `correspondance-projet-compte-exploitation.ts`
    * pour les 3 anomalies du texte officiel reproduites/corrigées ici (RC
    * restituée, RE inclus dans XA, doublon REF TJ/TK conservé via `cle`).
    * XA = Σrevenus, XB = Σcharges (au sens officiel, TK_PRODUITS_HAO inclus
-   * malgré son signe +), XC = XA − XB — voir la note de tête de fichier du
+   * malgré son signe +), XC = XA − XB · voir la note de tête de fichier du
    * service pour ce que XC ≠ 0 signale (pas une erreur du moteur).
    */
   async compteExploitation(tenantId: string, exerciceId: string) {
@@ -293,7 +293,7 @@ export class EtatsFinanciersProjetService {
       exerciceN1Disponible: exerciceN1Id !== null,
       comptesNonRattaches: resN.comptesNonRattaches,
       controle: {
-        // XC doit valoir 0 en régime normal (voir note de tête de fichier) —
+        // XC doit valoir 0 en régime normal (voir note de tête de fichier) ·
         // exposé, jamais forcé à zéro artificiellement.
         boucleAZero: Math.abs(solde) < 0.01,
       },
@@ -301,7 +301,7 @@ export class EtatsFinanciersProjetService {
   }
 
   /**
-   * NOTE 9 : FONDS DU BAILLEUR — Partie 4, ch. 3, Section 6 du texte
+   * NOTE 9 : FONDS DU BAILLEUR · Partie 4, ch. 3, Section 6 du texte
    * officiel. Colonnes officielles : « Date des décaissements | BAILLEUR/
    * SOUS PROJET 1 (Montant décaissé ; Montant consommé ; Solde restant) |
    * BAILLEUR/SOUS PROJET 2 (…) | … », en deux blocs de rubriques : Fonds
@@ -311,12 +311,12 @@ export class EtatsFinanciersProjetService {
    *
    * Le mécanisme de suivi PAR bailleur est déjà celui du texte officiel
    * (Partie 3, ch. 3, § 1.2) : les bailleurs se distinguent par LEURS
-   * PROPRES sous-comptes 162x/163x/164x et 462x/463x/464x — rien à
+   * PROPRES sous-comptes 162x/163x/164x et 462x/463x/464x · rien à
    * inventer. Ce service se contente de grouper ces sous-comptes par
    * `Bailleur` (voir `Compte.bailleurId`) pour produire la note
    * automatiquement plutôt qu'à la main.
    *
-   * ## Une note de PROJET, pas d'exercice — cumul depuis l'origine
+   * ## Une note de PROJET, pas d'exercice · cumul depuis l'origine
    *
    * La Note 9 suit le cycle de vie du PROJET, pas l'exercice comptable :
    * ses rubriques sont « Date des décaissements » et « TOTAL DES FONDS DU
@@ -324,7 +324,7 @@ export class EtatsFinanciersProjetService {
    * « en pourcentage par catégorie de fonds et de façon globale »
    * (commentaire officiel, Section 6). Les trois colonnes sont donc
    * calculées EN CUMUL depuis l'origine du dossier, toutes périodes
-   * confondues — `exerciceId` ne restreint pas les montants (il ne sert
+   * confondues · `exerciceId` ne restreint pas les montants (il ne sert
    * qu'à nommer le fichier exporté).
    *
    * Une première version (2026-08-28, matin) calculait décaissé et consommé
@@ -338,7 +338,7 @@ export class EtatsFinanciersProjetService {
    * consommé » côté Fonds d'administration : « le solde du compte 702 [...]
    * qu'il convient de subdiviser par nature de projet » (note (2), Section
    * 6). Rien n'est précisé pour Fonds d'investissement, ni pour Montant
-   * décaissé des deux côtés `[texte officiel]` — ambiguïté non comblée par
+   * décaissé des deux côtés `[texte officiel]` · ambiguïté non comblée par
    * une invention, mais résolue par la lecture directe des ÉCRITURES déjà
    * documentées Partie 3 ch. 3 § 2.1/2.2/2.5, qui ne laisse qu'une seule
    * lecture possible :
@@ -346,8 +346,8 @@ export class EtatsFinanciersProjetService {
    *     (investissement) ou 462-464 (administration) rattachés au bailleur
    *     (§ 2.1 : mise à disposition, toujours au crédit) ;
    *   - Montant consommé  = mouvements DÉBIT sur ces mêmes comptes (§ 2.2
-   *     pour l'administration — mécaniquement le solde du 702, par
-   *     construction de l'écriture — et § 2.5 pour l'investissement :
+   *     pour l'administration · mécaniquement le solde du 702, par
+   *     construction de l'écriture · et § 2.5 pour l'investissement :
    *     sortie d'immobilisation en fin de projet) ;
    *   - Solde restant = décaissé − consommé, ce qui est exactement le solde
    *     créditeur cumulé du compte : les trois colonnes se réconcilient par

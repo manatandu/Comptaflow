@@ -7,13 +7,13 @@ import { avecRetrySerialisable } from '../../common/prisma-retry.util';
 const EPSILON = 0.005;
 
 /**
- * Rapprochement bancaire manuel (§3.4 — cf. docs/plan-de-construction.md) :
+ * Rapprochement bancaire manuel (§3.4 · cf. docs/plan-de-construction.md) :
  * pointage écriture par écriture d'un compte de trésorerie face à un relevé
  * bancaire, distinct du lettrage (qui rapproche des écritures entre elles,
  * pas contre une source externe). Un seul rapprochement EN_COURS par compte
  * à la fois ; le solde de clôture du précédent sert de solde de départ au
  * suivant, écart affiché en continu, clôture bloquée tant qu'il n'est pas
- * nul — même discipline que LettrageService (solde de sélection nul avant
+ * nul · même discipline que LettrageService (solde de sélection nul avant
  * de lettrer).
  */
 @Injectable()
@@ -27,17 +27,17 @@ export class RapprochementService {
     }
     if (compte.classe !== ClasseCompte.CLASSE_5) {
       throw new BadRequestException(
-        `Le compte ${compte.numero} n'est pas un compte de trésorerie (classe 5) — le rapprochement bancaire ne porte que sur ces comptes`,
+        `Le compte ${compte.numero} n'est pas un compte de trésorerie (classe 5) · le rapprochement bancaire ne porte que sur ces comptes`,
       );
     }
     // Même garde-fou qu'EcritureService.creer pour les écritures directes :
-    // un compte Total (§3.1) ne reçoit jamais de mouvement — un rapprochement
+    // un compte Total (§3.1) ne reçoit jamais de mouvement · un rapprochement
     // ouvert dessus n'aurait structurellement aucune ligne à pointer et se
     // clôturerait trivialement à 0/0, un faux "rapproché" silencieux. Trouvé
     // en testant délibérément ce cas limite (pas de bug spontané observé).
     if (compte.typeCompte === TypeCompteDetailTotal.TOTAL) {
       throw new BadRequestException(
-        `Le compte ${compte.numero} est un compte Total (regroupement) — il ne reçoit jamais d'écriture directement, le rapprochement bancaire ne porte que sur un compte Détail`,
+        `Le compte ${compte.numero} est un compte Total (regroupement) · il ne reçoit jamais d'écriture directement, le rapprochement bancaire ne porte que sur un compte Détail`,
       );
     }
     return compte;
@@ -52,7 +52,7 @@ export class RapprochementService {
    * lui-même) NE SUFFIT PAS pour la RELECTURE d'un rapprochement déjà
    * clôturé : la requête reste triée par `clotureAt desc` et remonterait
    * alors le rapprochement clôturé APRÈS lui (chronologiquement plus
-   * récent), pas celui d'AVANT — deux bugs réels trouvés en testant à
+   * récent), pas celui d'AVANT · deux bugs réels trouvés en testant à
    * l'écran juste après une clôture (le nouveau rapprochement se voyait
    * d'abord comme son propre "dernier clôturé" ; corrigé une première fois
    * par exclusion d'id, ce qui cassait alors la relecture du rapprochement
@@ -85,7 +85,7 @@ export class RapprochementService {
   async ouvrir(tenantId: string, userId: string, dto: OuvrirRapprochementDto) {
     await this.trouverCompteTresorerie(tenantId, dto.compteId);
 
-    // Lecture (aucun EN_COURS existant) puis écriture (création) — même
+    // Lecture (aucun EN_COURS existant) puis écriture (création) · même
     // risque de condition de course que le numéro de pièce des journaux et
     // la prochaine lettre de lettrage (voir prisma-retry.util.ts) : deux
     // ouvertures simultanées sur le même compte pourraient toutes deux lire
@@ -99,7 +99,7 @@ export class RapprochementService {
         });
         if (enCours) {
           throw new ConflictException(
-            `Un rapprochement est déjà en cours sur ce compte (ouvert le ${enCours.createdAt.toISOString().slice(0, 10)}, id ${enCours.id}) — clôturez-le ou annulez-le avant d'en ouvrir un nouveau`,
+            `Un rapprochement est déjà en cours sur ce compte (ouvert le ${enCours.createdAt.toISOString().slice(0, 10)}, id ${enCours.id}) · clôturez-le ou annulez-le avant d'en ouvrir un nouveau`,
           );
         }
         return tx.rapprochementBancaire.create({
@@ -112,7 +112,7 @@ export class RapprochementService {
           },
         });
       },
-      'Trop d\'ouvertures de rapprochement simultanées sur ce compte — veuillez réessayer.',
+      'Trop d\'ouvertures de rapprochement simultanées sur ce compte · veuillez réessayer.',
     );
   }
 
@@ -158,7 +158,7 @@ export class RapprochementService {
   private async assurerEnCours(tenantId: string, id: string) {
     const rapprochement = await this.trouverRapprochement(tenantId, id);
     if (rapprochement.statut !== StatutRapprochement.EN_COURS) {
-      throw new BadRequestException('Ce rapprochement est déjà clôturé — plus aucun pointage possible');
+      throw new BadRequestException('Ce rapprochement est déjà clôturé · plus aucun pointage possible');
     }
     return rapprochement;
   }
@@ -200,7 +200,7 @@ export class RapprochementService {
     const { ecart, equilibre } = await this.obtenir(tenantId, id);
     if (!equilibre) {
       throw new BadRequestException(
-        `L'écart n'est pas nul (${ecart.toFixed(2)}) — pointez ou dépointez des lignes jusqu'à ce que le solde pointé corresponde exactement au solde du relevé avant de clôturer`,
+        `L'écart n'est pas nul (${ecart.toFixed(2)}) · pointez ou dépointez des lignes jusqu'à ce que le solde pointé corresponde exactement au solde du relevé avant de clôturer`,
       );
     }
     return this.prisma.rapprochementBancaire.update({
@@ -214,7 +214,7 @@ export class RapprochementService {
    * lignes puis le supprime. Deux annulations simultanées du même
    * rapprochement passeraient toutes deux `assurerEnCours` (aucune n'a
    * encore supprimé la ligne au moment où l'autre la lit) ; la seconde
-   * `delete` échouerait alors sur un enregistrement déjà supprimé — capturé
+   * `delete` échouerait alors sur un enregistrement déjà supprimé · capturé
    * ici pour ne jamais renvoyer une erreur Prisma brute (P2025) à
    * l'utilisateur, même principe que le reste de l'API (jamais de 500 nu).
    */

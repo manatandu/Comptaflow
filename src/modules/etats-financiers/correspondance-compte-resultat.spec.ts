@@ -4,14 +4,14 @@ import { POSTES_CHARGES, POSTES_HAO, POSTES_PRODUITS, TOUS_LES_POSTES, posteDuCo
  * Le tableau de correspondance est une transcription du Journal officiel :
  * ces tests verrouillent le rattachement compte → poste, qui décide de la
  * conformité du compte de résultat. Une régression ici ne « planterait »
- * rien — elle produirait silencieusement un état faux.
+ * rien · elle produirait silencieusement un état faux.
  */
 describe('correspondance compte de résultat (SYCEBNL, Partie 4 ch. 2)', () => {
   describe('rattachement des comptes aux postes officiels', () => {
     it.each([
       ['70100000', 'RA'], // Cotisations
       ['70300000', 'RB'], // Dotations consomptibles transférées
-      ['70410000', 'RC'], // Générosité — dons
+      ['70410000', 'RC'], // Générosité · dons
       ['70510000', 'RD'], // Ventes de marchandises
       ['70520000', 'RE'], // Services vendus
       ['70530000', 'RE'], // Ventes de produits finis
@@ -36,7 +36,7 @@ describe('correspondance compte de résultat (SYCEBNL, Partie 4 ch. 2)', () => {
       expect(posteDuCompte(numero)?.ref).toBe(refAttendu);
     });
 
-    it('distingue 6031 (TB) de 6032-6035 (TE) — le préfixe le plus long l’emporte', () => {
+    it('distingue 6031 (TB) de 6032-6035 (TE) · le préfixe le plus long l’emporte', () => {
       // Sans la règle du préfixe le plus long, « 603 » n'existant pas comme
       // jeton, ces comptes tomberaient tous dans le même poste (ou aucun) et
       // la ventilation officielle des variations de stocks serait perdue.

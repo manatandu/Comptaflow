@@ -6,7 +6,7 @@ import { IconExport } from '../components/chrome/icons';
 import type { Compte, LigneNoteCalculee, NoteCalculee, ResultatNotesJeu } from '../lib/types';
 
 /**
- * Notes annexes SYCEBNL — les deux jeux (45 notes « associations et ordres
+ * Notes annexes SYCEBNL · les deux jeux (45 notes « associations et ordres
  * professionnels », 26 notes « projets de développement »), plus le
  * rattachement des sous-comptes du dossier aux rubriques que le plan de
  * comptes normalisé ne permet pas de déterminer seul (voir
@@ -15,13 +15,13 @@ import type { Compte, LigneNoteCalculee, NoteCalculee, ResultatNotesJeu } from '
  * Deux garde-fous côté serveur que cet écran RESPECTE plutôt que contourne :
  *
  * 1. Une rubrique n'est proposée au rattachement QUE si elle porte
- *    `subdivisionAttendue` (donc une `cle`) — le back refuse explicitement
+ *    `subdivisionAttendue` (donc une `cle`) · le back refuse explicitement
  *    toute tentative sur une rubrique que le plan officiel détermine déjà
  *    (`NoteAnnexeService.rubriqueRattachable`). Cet écran ne propose donc un
  *    sélecteur QUE pour les rubriques qui portent une `cle` : les autres
  *    n'en ont pas les moyens, il n'y a rien à choisir.
  * 2. § 1.4 : une note non applicable ne présente aucune ligne. Ses rubriques
- *    en attente restent néanmoins visibles et rattachables — sans quoi une
+ *    en attente restent néanmoins visibles et rattachables · sans quoi une
  *    note entièrement vide serait un cul-de-sac (voir `RubriqueEnAttente`
  *    dans note-annexe.types.ts). D'où l'usage de `note.rubriquesEnAttente`
  *    (calculé indépendamment de `applicable`) plutôt que de dériver la liste
@@ -69,15 +69,15 @@ export function NotesAnnexesPage() {
   };
 
   const montant = (v: number | undefined) =>
-    v === undefined ? '—' : v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    v === undefined ? '·' : v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   // Comptes DÉTAIL seulement : un compte Total est refusé par le back (il n'a
-  // jamais de mouvement propre, la rubrique resterait vide) — inutile de le
+  // jamais de mouvement propre, la rubrique resterait vide) · inutile de le
   // proposer et de laisser l'utilisateur essuyer un 400.
   const comptesDetail = useMemo(() => (comptes ?? []).filter((c) => c.typeCompte === 'DETAIL' && c.estActif), [comptes]);
   const compteParNumero = useMemo(() => new Map((comptes ?? []).map((c) => [c.numero, c])), [comptes]);
 
-  // Tableaux du code actuellement affiché — un code peut en porter plusieurs
+  // Tableaux du code actuellement affiché · un code peut en porter plusieurs
   // (note 1, ses trois grilles) : `sousTableau` les distingue.
   const tableaux = resultat?.notes.filter((n) => n.code === codeSelectionne) ?? [];
 
@@ -163,7 +163,7 @@ export function NotesAnnexesPage() {
         const v = valeurColonne(l, c.type);
         return (
           <span key={ci} className="font-mono text-right text-text-dim">
-            {c.type === 'LIBRE' ? '—' : c.type === 'VARIATION_POURCENT' ? (v === undefined ? '—' : `${montant(v)} %`) : montant(v)}
+            {c.type === 'LIBRE' ? '' : c.type === 'VARIATION_POURCENT' ? (v === undefined ? '' : `${montant(v)} %`) : montant(v)}
           </span>
         );
       })}
@@ -173,7 +173,7 @@ export function NotesAnnexesPage() {
   // --- Un tableau complet (une note ou l'un des sous-tableaux d'une note) ---
   const blocTableau = (note: NoteCalculee) => {
     // Rubriques déjà rattachées par le dossier : lues sur les LIGNES (pas la
-    // fiche récapitulative, qui ne porte que ce qui reste EN ATTENTE) — pour
+    // fiche récapitulative, qui ne porte que ce qui reste EN ATTENTE) · pour
     // une rubrique `subdivisionAttendue`, le plan officiel ne lui donne
     // aucun compte propre, donc tout `l.comptes` vient du rattachement.
     const rattachees = note.lignes.filter((l) => l.cle && l.rattachementDuDossier);
@@ -183,7 +183,7 @@ export function NotesAnnexesPage() {
         <div className="px-4 py-2 border-b border-border bg-chrome">
           <div className="text-[12.5px] font-bold">
             NOTE {note.code}
-            {note.sousTableau ? ` — ${note.sousTableau}` : ''} — {note.titre}
+            {note.sousTableau ? ` ${note.sousTableau}` : ''} {note.titre}
           </div>
           {note.renvoyeeDepuis && note.renvoyeeDepuis.length > 0 && (
             <div className="text-[10px] text-text-dim mt-0.5">Renvoyée depuis les postes : {note.renvoyeeDepuis.join(', ')}</div>
@@ -192,7 +192,7 @@ export function NotesAnnexesPage() {
 
         {!note.applicable && (
           <div className="px-4 py-3 text-[11.5px] text-text-dim italic">
-            Non applicable cet exercice — aucune rubrique chiffrée. « les Notes non documentées ne doivent pas être
+            Non applicable cet exercice · aucune rubrique chiffrée. « les Notes non documentées ne doivent pas être
             jointes aux états financiers » (texte officiel).
           </div>
         )}
@@ -235,7 +235,7 @@ export function NotesAnnexesPage() {
                       key={c.numero}
                       className="inline-flex items-center gap-1.5 border border-border bg-surface px-2 py-0.5 font-mono text-[10.5px]"
                     >
-                      {c.numero} — {c.intitule}
+                      {c.numero} · {c.intitule}
                       {estAdmin && (
                         <button
                           onClick={() => {
@@ -268,10 +268,10 @@ export function NotesAnnexesPage() {
                         onChange={(e) => setCompteChoisi((v) => ({ ...v, [cleForm]: e.target.value }))}
                         className="border border-border-dark px-2 py-1 text-[11px] max-w-[360px]"
                       >
-                        <option value="">— choisir un sous-compte —</option>
+                        <option value="">choisir un sous-compte</option>
                         {comptesDetail.map((c) => (
                           <option key={c.id} value={c.numero}>
-                            {c.numero} — {c.intitule}
+                            {c.numero} · {c.intitule}
                           </option>
                         ))}
                       </select>
@@ -321,7 +321,7 @@ export function NotesAnnexesPage() {
 
       <p className="text-[10.5px] text-text-dim mb-2">
         Jeu «{' '}
-        {jeuProjet ? 'Projets de développement et assimilés' : 'Associations et ordres professionnels'} » (SYCEBNL) —{' '}
+        {jeuProjet ? 'Projets de développement et assimilés' : 'Associations et ordres professionnels'} » (SYCEBNL) ·{' '}
         {resultat ? `${resultat.couverture.transcrites} notes sur ${resultat.couverture.attendues} attendues.` : 'chargement…'}
         {jeuProjet && (
           <>

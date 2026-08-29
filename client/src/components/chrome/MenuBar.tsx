@@ -4,7 +4,7 @@ export interface MenuItemDef {
   label: string;
   onClick?: () => void;
   disabled?: boolean;
-  /** Trait horizontal AVANT cet item — regroupe les commandes par famille, comme chez Sage. */
+  /** Trait horizontal AVANT cet item · regroupe les commandes par famille, comme chez Sage. */
   separateurAvant?: boolean;
 }
 
@@ -16,7 +16,7 @@ export interface MenuDef {
 /**
  * Barre de menus classique (Fichier / Structure / Traitement / État / ...),
  * calquée sur la barre de menus de Sage 100 Comptabilité i7 : chaque menu ne
- * contient QUE des commandes réelles — pas d'items « à venir » ni de menus
+ * contient QUE des commandes réelles · pas d'items « à venir » ni de menus
  * vides, un logiciel fini ne montre pas ses chantiers dans sa barre de menus.
  * Comportement Windows : un clic ouvre, le survol fait glisser d'un menu à
  * l'autre tant qu'un menu est ouvert, Échap ou clic dehors referme.

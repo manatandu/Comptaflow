@@ -1,17 +1,17 @@
 /**
  * Tableau de correspondance officiel « poste → comptes » du COMPTE DE
- * RÉSULTAT SYCEBNL — associations et ordres professionnels, Système normal.
+ * RÉSULTAT SYCEBNL · associations et ordres professionnels, Système normal.
  *
  * Source unique : skill `sycebnl`,
  * `references/partie4-ch2-etats-associations.md`, section « TABLEAU DE
  * CORRESPONDANCE - COMPTE DE RESULTAT » (transcription du Journal officiel
  * OHADA, n° spécial du 22 février 2023, Partie 4, chapitre 2, section 6).
  * Chaque poste ci-dessous reprend son code REF, son libellé et ses numéros
- * de comptes tels qu'ils figurent au texte — jamais de mémoire, jamais
+ * de comptes tels qu'ils figurent au texte · jamais de mémoire, jamais
  * complété depuis le SYSCOHADA (règle §2.6 du plan de construction).
  *
- * Contrairement au bilan — dont le regroupement classe→poste reste
- * simplifié/MVP dans `etats-financiers.service.ts` —, ce compte de résultat
+ * Contrairement au bilan · dont le regroupement classe→poste reste
+ * simplifié/MVP dans `etats-financiers.service.ts` ·, ce compte de résultat
  * est donc réellement adossé au tableau officiel.
  *
  * ## Convention de lecture des numéros de comptes
@@ -21,7 +21,7 @@
  * ne vaut que pour lui-même et ses subdivisions (« 601 » couvre 601xxxx mais
  * pas 6031). Le rapprochement se fait donc par PRÉFIXE, et en cas de
  * chevauchement le préfixe le PLUS LONG l'emporte (voir
- * `posteDuCompte()`) — les jetons du tableau officiel sont disjoints, mais
+ * `posteDuCompte()`) · les jetons du tableau officiel sont disjoints, mais
  * la règle du préfixe le plus long protège d'un plan de comptes
  * personnalisé qui introduirait une subdivision plus fine.
  *
@@ -34,7 +34,7 @@
  * Les charges apparaissent donc en positif, ce qui rend les formules
  * officielles littéralement vraies : XA = ΣR, XB = ΣT, XC = XA − XB.
  * Les postes marqués « +/- » au texte officiel (variations de stocks TB/TE,
- * comptes 73 et 87) peuvent légitimement ressortir négatifs — c'est le même
+ * comptes 73 et 87) peuvent légitimement ressortir négatifs · c'est le même
  * calcul, aucun traitement particulier n'est nécessaire.
  */
 
@@ -50,14 +50,14 @@ export interface PosteCompteResultat {
 }
 
 /**
- * Produits — postes RA à RH.
+ * Produits · postes RA à RH.
  *
  * ⚠️ Anomalie du texte officiel, signalée et non corrigée en silence
  * (règle §2.6) : le libellé du poste XA indique « Somme RA à RG », ce qui
  * exclurait RH (reprises de provisions, dépréciations, subventions). RH est
  * pourtant un produit ordinaire, et l'exclure romprait l'égalité entre le
  * résultat du compte de résultat et le résultat logé au bilan dès qu'une
- * entité a des reprises. RH est donc inclus dans XA — même correction, pour
+ * entité a des reprises. RH est donc inclus dans XA · même correction, pour
  * la même raison, que celle retenue par le moteur `liasse/` du skill
  * `sycebnl` (voir `liasse/references/anomalies.md`, anomalie n° 4).
  */
@@ -92,7 +92,7 @@ export const POSTES_PRODUITS: PosteCompteResultat[] = [
     libelle: 'Autres produits et transferts de charges',
     sens: 'PRODUIT',
     // « 73 (+/-) » au texte officiel : variation de stocks de biens produits,
-    // qui peut ressortir négative — géré par la convention de signe ci-dessus.
+    // qui peut ressortir négative · géré par la convention de signe ci-dessus.
     comptes: ['706', '707', '708', '72', '73', '75', '77', '78'],
   },
   {
@@ -103,7 +103,7 @@ export const POSTES_PRODUITS: PosteCompteResultat[] = [
   },
 ];
 
-/** Charges — postes TA à TL. */
+/** Charges · postes TA à TL. */
 export const POSTES_CHARGES: PosteCompteResultat[] = [
   { ref: 'TA', libelle: "Achats de biens et services liés à l'activité", sens: 'CHARGE', comptes: ['601'] },
   {
@@ -134,7 +134,7 @@ export const POSTES_CHARGES: PosteCompteResultat[] = [
   },
 ];
 
-/** Hors activités ordinaires — postes TM (produits) et TN (charges). */
+/** Hors activités ordinaires · postes TM (produits) et TN (charges). */
 export const POSTES_HAO: PosteCompteResultat[] = [
   { ref: 'TM', libelle: 'Produits H.A.O.', sens: 'PRODUIT', comptes: ['82', '84', '86', '88'] },
   {

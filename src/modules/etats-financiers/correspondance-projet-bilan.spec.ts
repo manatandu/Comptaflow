@@ -21,7 +21,7 @@ describe('correspondance bilan projet (SYCEBNL, Partie 4 ch. 3)', () => {
       ...POSTES_PASSIF.map((p) => p.ref),
       ...TOTAUX_ACTIF.map((t) => t.ref),
       ...TOTAUX_PASSIF.map((t) => t.ref),
-      'CC', // solde des opérations de l'exercice — calculé à part (compte 13 seul), pas listé dans POSTES_PASSIF
+      'CC', // solde des opérations de l'exercice · calculé à part (compte 13 seul), pas listé dans POSTES_PASSIF
     ];
     expect(new Set(toutesLesRefs).size).toBe(toutesLesRefs.length);
   });
@@ -49,7 +49,7 @@ describe('correspondance bilan projet (SYCEBNL, Partie 4 ch. 3)', () => {
     }
   });
 
-  it('un total ne référence jamais une ref qui vient APRÈS lui dans sa propre liste — sinon le calcul en une passe casserait', () => {
+  it('un total ne référence jamais une ref qui vient APRÈS lui dans sa propre liste · sinon le calcul en une passe casserait', () => {
     const dejaResolues = new Set([...POSTES_ACTIF.map((p) => p.ref), ...POSTES_PASSIF.map((p) => p.ref), 'CC']);
     for (const total of [...TOTAUX_ACTIF, ...TOTAUX_PASSIF]) {
       for (const ref of total.deRefs) {
@@ -59,7 +59,7 @@ describe('correspondance bilan projet (SYCEBNL, Partie 4 ch. 3)', () => {
     }
   });
 
-  it('BE (créances) et DH (dettes) portent un qualificatif de sens opposé sur les mêmes préfixes de tiers polyvalents — anomalie n° 2', () => {
+  it('BE (créances) et DH (dettes) portent un qualificatif de sens opposé sur les mêmes préfixes de tiers polyvalents · anomalie n° 2', () => {
     const be = POSTES_ACTIF.find((p) => p.ref === 'BE')!;
     const dh = POSTES_PASSIF.find((p) => p.ref === 'DH')!;
     expect(be.sens_qualificatif).toBe('DEBITEUR');
@@ -83,7 +83,7 @@ describe('correspondance bilan projet (SYCEBNL, Partie 4 ch. 3)', () => {
   it('aucun poste d’actif ne porte de comptes d’amortissement : ce jeu n’a pas de colonne Amort. (audit 2026-08-28)', () => {
     // Le tableau de correspondance officiel ne cite aucun compte 28x/29x et la
     // maquette n'a que « EXERCICE AU 31/12/N | N-1 ». Une version précédente
-    // avait recopié les mappings du jeu associations — règle §2.6 violée.
+    // avait recopié les mappings du jeu associations · règle §2.6 violée.
     for (const p of POSTES_ACTIF) {
       expect(Object.keys(p)).not.toContain('comptesAmortissement');
       expect(p.comptes.some((c) => c.startsWith('28') || c.startsWith('29'))).toBe(false);
@@ -95,7 +95,7 @@ describe('correspondance bilan projet (SYCEBNL, Partie 4 ch. 3)', () => {
     expect(bd.exclusions).toEqual(['411', '419']);
   });
 
-  it('DI transcrit le compte 20 tel quel — anomalie du texte officiel, signalée et non corrigée en silence', () => {
+  it('DI transcrit le compte 20 tel quel · anomalie du texte officiel, signalée et non corrigée en silence', () => {
     const di = POSTES_PASSIF.find((p) => p.ref === 'DI')!;
     expect(di.comptes).toEqual(['20']);
   });

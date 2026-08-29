@@ -3,7 +3,7 @@ import { PrismaService } from '../../common/prisma.service';
 import { CreerBailleurDto, ModifierBailleurDto } from './dto/bailleur.dto';
 
 /**
- * Bailleur (ou sous-projet) — regroupe les sous-comptes 162-164/462-464
+ * Bailleur (ou sous-projet) · regroupe les sous-comptes 162-164/462-464
  * qui lui sont propres (voir Compte.bailleurId, prisma/schema.prisma). CRUD
  * volontairement minimal, sur le même modèle que TiersService : ce module
  * ne fait que nommer un groupe de comptes, la substance (rattachement des

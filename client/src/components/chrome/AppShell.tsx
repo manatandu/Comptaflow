@@ -90,7 +90,7 @@ export function AppShell() {
 
   return (
     <div className="h-screen flex flex-col bg-bg text-text">
-      {/* Barre de titre — dossier comptable ouvert + exercice, comme chez Sage. */}
+      {/* Barre de titre · dossier comptable ouvert + exercice, comme chez Sage. */}
       <div
         className="h-[26px] flex items-center justify-between px-2 text-white text-[11.5px] shrink-0"
         style={{ background: 'linear-gradient(180deg, var(--titlebar-from), var(--titlebar-to))' }}
@@ -98,8 +98,8 @@ export function AppShell() {
         <div className="flex items-center gap-2">
           <IconLogo width={14} height={14} />
           <span>
-            OmegaX — {utilisateur?.tenant.nom}
-            {anneeExercice && ` — Exercice ${anneeExercice}`}
+            OmegaX · {utilisateur?.tenant.nom}
+            {anneeExercice && ` · Exercice ${anneeExercice}`}
           </span>
         </div>
         <div className="flex items-center gap-3">

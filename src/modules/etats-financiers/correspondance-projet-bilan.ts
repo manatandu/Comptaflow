@@ -1,5 +1,5 @@
 /**
- * Tableau de correspondance officiel « poste → comptes » du BILAN SYCEBNL —
+ * Tableau de correspondance officiel « poste → comptes » du BILAN SYCEBNL ·
  * projets de développement et assimilés, Système normal.
  *
  * Source unique : skill `sycebnl`,
@@ -17,19 +17,19 @@
  *     « Colonnes : REF | ACTIF | Note | EXERCICE AU 31/12/N | EXERCICE AU 31/12/N-1 »
  * soit DEUX colonnes de valeur. Le bilan des associations (ch. 2) prévoit au
  * contraire explicitement « Brut / Amortissements et dépréciations / Net »
- * — pas celui-ci. Et le tableau de correspondance ci-dessous ne cite AUCUN
+ * · pas celui-ci. Et le tableau de correspondance ci-dessous ne cite AUCUN
  * compte 28x/29x.
  *
  * Une première version de ce fichier (2026-08-28, matin) avait recopié les
  * mappings d'amortissement du jeu associations et affiché 4 colonnes. C'était
- * une violation directe de la règle §2.6 — combler une lacune depuis un autre
- * jeu — et l'en-tête affirmait pourtant l'inverse. Retiré à l'audit du même
+ * une violation directe de la règle §2.6 · combler une lacune depuis un autre
+ * jeu · et l'en-tête affirmait pourtant l'inverse. Retiré à l'audit du même
  * jour.
  *
  * Cette absence est cohérente avec le reste du jeu : le compte d'exploitation
  * projet ne cite AUCUN compte 68 (dotations aux amortissements) non plus, et
  * la Partie 3 ch. 3 (fonds propres des projets) ne parle jamais
- * d'amortissement — les immobilisations d'un projet sont décomptabilisées en
+ * d'amortissement · les immobilisations d'un projet sont décomptabilisées en
  * fin de projet contre les comptes 162-164, pas amorties. Un projet qui
  * porterait malgré tout des comptes 28x/29x les verra ressortir en
  * « comptes non rattachés » : visibles, jamais absorbés en silence.
@@ -52,7 +52,7 @@
  *    corruption de scan de 499/599 (« Provisions pour risques à court
  *    terme »), ce que retient d'ailleurs le poste DI du jeu associations.
  *    **Transcrit tel quel malgré tout** : le corriger en 499/599 serait une
- *    interprétation, pas une transcription. Deux conséquences à connaître —
+ *    interprétation, pas une transcription. Deux conséquences à connaître ·
  *    (a) un compte 20xxxxx débiteur fera ressortir DI en NÉGATIF au passif,
  *    anomalie visible plutôt que silencieuse ; (b) les comptes 499/599 ne
  *    sont réclamés par AUCUN poste de ce bilan et ressortiront donc en
@@ -63,7 +63,7 @@
  *    `[texte officiel]`. Le libellé de la maquette est retenu (c'est elle
  *    qui est présentée aux tiers) ; divergence sans incidence sur les
  *    montants.
- * 3. **BW / DW — double comptage des découverts** : ce n'est pas une
+ * 3. **BW / DW · double comptage des découverts** : ce n'est pas une
  *    anomalie du texte mais un piège d'implémentation, identique à celui du
  *    jeu associations et corrigé en même temps (2026-08-28, audit). Le
  *    texte affecte les soldes 52/53 CRÉDITEURS à DW ; si BW les capte aussi
@@ -74,7 +74,7 @@
  *
  * BE et DH : le texte projet écrit lui-même « Soldes débiteurs : 42, 43, 44,
  * 47 » et « Soldes créditeurs : 42, 43, 44, 47 ». Aucune ambiguïté à
- * résoudre ici — les `sens_qualificatif` ci-dessous ne font que transcrire.
+ * résoudre ici · les `sens_qualificatif` ci-dessous ne font que transcrire.
  * (Une version précédente de cet en-tête présentait ça comme une « anomalie
  * n° 2 » corrigée par nos soins, en transposant l'anomalie réelle du tableau
  * ASSOCIATIONS, qui lui ne qualifiait pas le sens. Rectifié à l'audit.)
@@ -137,7 +137,7 @@ export const POSTES_ACTIF: PosteBilanProjetDeBase[] = [
   { ref: 'BA', libelle: 'Actif circulant H.A.O.', sens: 'ACTIF', comptes: ['485'] },
   { ref: 'BB', libelle: 'Stocks et encours', sens: 'ACTIF', comptes: ['31', '32', '33', '34', '36', '37', '38'] },
   { ref: 'BC', libelle: 'Fournisseurs débiteurs', sens: 'ACTIF', comptes: ['409'] },
-  // Le texte officiel dit « 41 (sauf 411 et 419) » — les DEUX exclusions.
+  // Le texte officiel dit « 41 (sauf 411 et 419) » · les DEUX exclusions.
   // 411 n'est réclamé par aucun autre poste de ce bilan : il ressortira donc
   // en « comptes non rattachés », ce qui est le comportement fidèle. Une
   // version précédente n'excluait que 419 et absorbait 411 en silence.
@@ -157,11 +157,11 @@ export const POSTES_ACTIF: PosteBilanProjetDeBase[] = [
     sens: 'ACTIF',
     comptes: ['52', '53', '55', '57'],
     // 52/53 créditeurs = découvert bancaire : ils relèvent de DW. 55/57
-    // (monnaie électronique, caisse) ne sont pas transférés — une caisse
+    // (monnaie électronique, caisse) ne sont pas transférés · une caisse
     // créditrice est une anomalie de saisie qui doit rester visible.
     comptesTransferesSiCrediteur: ['52', '53'],
   },
-  { ref: 'BY', libelle: 'Écart de conversion — Actif', sens: 'ACTIF', comptes: ['478'] },
+  { ref: 'BY', libelle: 'Écart de conversion · Actif', sens: 'ACTIF', comptes: ['478'] },
 ];
 
 /** Postes PASSIF portant directement des comptes (hors sous-totaux/totaux). */
@@ -193,10 +193,10 @@ export const POSTES_PASSIF: PosteBilanProjetDeBase[] = [
     sens: 'PASSIF',
     comptes: ['56'],
   },
-  { ref: 'DY', libelle: 'Écart de conversion — Passif', sens: 'PASSIF', comptes: ['479'] },
+  { ref: 'DY', libelle: 'Écart de conversion · Passif', sens: 'PASSIF', comptes: ['479'] },
 ];
 
-/** DW capte aussi 52/53 côté créditeur — voir `comptesTransferesSiCrediteur` sur BW. */
+/** DW capte aussi 52/53 côté créditeur · voir `comptesTransferesSiCrediteur` sur BW. */
 export const COMPTES_TRESORERIE_PASSIF_SI_CREDITEUR = ['52', '53'];
 
 export function trouvePosteActif(ref: string): PosteBilanProjetDeBase | undefined {
@@ -230,7 +230,7 @@ export const TOTAUX_PASSIF: TotalBilanProjet[] = [
   { ref: 'DZ', libelle: 'TOTAL GENERAL', deRefs: ['DD', 'DJ', 'DX', 'DY'] },
 ];
 
-/** Ordre d'affichage officiel — mélange détail et totaux, comme la maquette (Section 4). */
+/** Ordre d'affichage officiel · mélange détail et totaux, comme la maquette (Section 4). */
 export const ORDRE_AFFICHAGE_ACTIF = [
   'AA', 'AB', 'AC', 'AD', 'AE', 'AF', 'AG', 'AH', 'AZ',
   'BA', 'BB', 'BC', 'BD', 'BE', 'BF', 'BV', 'BW', 'BX', 'BY', 'BZ',

@@ -37,7 +37,7 @@ import {
 /**
  * Un poste du compte de résultat OU du bilan, calculé.
  *
- * `brut`/`amortissement` : BILAN ACTIF seulement — le texte officiel exige
+ * `brut`/`amortissement` : BILAN ACTIF seulement · le texte officiel exige
  * trois colonnes côté actif (Brut, Amortissements et dépréciations, Net),
  * pas un seul montant net. `amortissement` est une magnitude POSITIVE (le
  * montant accumulé), `montant` (net) = `brut` − `amortissement`. Absents
@@ -73,12 +73,12 @@ export interface PosteCalcule {
 type LigneBalancePourBilan = LigneBalancePourEtat;
 
 /**
- * BILAN et COMPTE DE RÉSULTAT — adossés au tableau de correspondance
+ * BILAN et COMPTE DE RÉSULTAT · adossés au tableau de correspondance
  * OFFICIEL SYCEBNL (`correspondance-bilan.ts` et
  * `correspondance-compte-resultat.ts`, transcrits du Journal officiel
  * OHADA, Partie 4 ch. 2 section 6). Les deux exposent, comme le texte
  * officiel l'exige : le détail Brut/Amortissement/Net côté bilan actif
- * (voir `PosteCalcule`), et un comparatif N-1 sur les deux états — trouvé
+ * (voir `PosteCalcule`), et un comparatif N-1 sur les deux états · trouvé
  * en écart lors d'une relecture du 2026-08-28 (voir le commentaire de
  * `trouverExerciceN1`), corrigé dans la foulée. Anomalies du texte officiel
  * signalées et corrigées explicitement, jamais masquées ni devinées.
@@ -93,7 +93,7 @@ export class EtatsFinanciersService {
   /**
    * Exercice « N-1 » d'un bilan/compte de résultat : celui du même tenant
    * dont la date de début est la plus récente PARMI celles antérieures à
-   * l'exercice demandé. `null` si aucun (premier exercice du dossier) — le
+   * l'exercice demandé. `null` si aucun (premier exercice du dossier) · le
    * comparatif reste alors simplement absent (`undefined`), jamais un faux
    * zéro qui laisserait croire à un exercice antérieur réel et vide.
    */
@@ -112,8 +112,7 @@ export class EtatsFinanciersService {
       lignesBrut = lignesBrut.filter((l) => l.solde > 0);
     }
     // Découverts bancaires : un compte 52/53 créditeur appartient à DW
-    // (passif), pas à BW (actif). Le laisser ici l'aurait compté deux fois —
-    // en négatif à l'actif ET en positif au passif — déséquilibrant le bilan
+    // (passif), pas à BW (actif). Le laisser ici l'aurait compté deux fois // en négatif à l'actif ET en positif au passif déséquilibrant le bilan
     // du double du découvert. Voir `comptesTransferesSiCrediteur`.
     if (poste.comptesTransferesSiCrediteur) {
       lignesBrut = lignesBrut.filter(
@@ -128,7 +127,7 @@ export class EtatsFinanciersService {
       : [];
     // PAS de négation sur `montant` ici : un compte d'amortissement bien
     // formé porte déjà un solde (débit − crédit) négatif (créditeur), ce qui
-    // le soustrait naturellement du brut par simple addition — brut(5000) +
+    // le soustrait naturellement du brut par simple addition · brut(5000) +
     // solde(-1500) = net(3500). Le signer en positif dans CETTE somme
     // l'ADDITIONNERAIT au lieu de le déduire : piège de signe repéré en
     // dérivant un cas de test à la main avant livraison, jamais constaté en
@@ -138,7 +137,7 @@ export class EtatsFinanciersService {
     const comptesAmort: CompteDuPoste[] = lignesAmort.map((l) => ({ numero: l.numero, intitule: l.intitule, montant: l.solde }));
     // `|| 0` normalise -0 en 0 (reduce sur un tableau vide renvoie 0, la
     // négation donne -0 : mathématiquement identique, mais Object.is(-0,0)
-    // est faux — un simple souci de propreté de sortie, repéré par un test).
+    // est faux · un simple souci de propreté de sortie, repéré par un test).
     const amortissement = -comptesAmort.reduce((s, c) => s + c.montant, 0) || 0;
 
     return {
@@ -162,7 +161,7 @@ export class EtatsFinanciersService {
   }
 
   /**
-   * DW (banques… crédits de trésorerie) — anomalie n° 5 : capte 564/565
+   * DW (banques… crédits de trésorerie) · anomalie n° 5 : capte 564/565
    * comme un poste normal, PLUS les comptes 52/53 (les mêmes numéros que BW
    * à l'actif) mais SEULEMENT pour ceux dont le solde est créditeur (une
    * banque à découvert). Traité à part : ce n'est pas un poste de détail
@@ -177,13 +176,13 @@ export class EtatsFinanciersService {
   }
 
   /**
-   * CH (Résultat net de l'exercice) — n'est PAS listé dans
+   * CH (Résultat net de l'exercice) · n'est PAS listé dans
    * `correspondance-bilan.ts` : le compte 13 officiel (voir sycebnl,
    * COMPTE 13) n'est mouvementé qu'À LA CLÔTURE, par transfert des soldes
    * des classes 6/7/8. Avant clôture, le résultat vit dans ces classes ;
    * après, il vit dans le compte 13, qui les solde à zéro. Utiliser l'une
    * OU l'autre source, jamais les deux (voir `controle` du retour de
-   * `bilan()` — double comptage possible et signalé, pas deviné).
+   * `bilan()` · double comptage possible et signalé, pas deviné).
    */
   private calculerCH(
     lignes: LigneBalancePourBilan[],
@@ -212,7 +211,7 @@ export class EtatsFinanciersService {
 
   /**
    * Résout tous les postes du bilan (détail + totaux) pour UN jeu de lignes
-   * de balance — appelée une fois pour l'exercice N, une fois pour N-1
+   * de balance · appelée une fois pour l'exercice N, une fois pour N-1
    * (`bilan()` fusionne ensuite les deux résultats). `lignes: []` (aucun
    * exercice N-1) résout tout à zéro sans cas particulier : un poste sans
    * compte est légitimement à 0, pas une erreur.
@@ -236,7 +235,7 @@ export class EtatsFinanciersService {
     parRef.set('CH', posteCH);
 
     // Totaux : chaque total additionne des refs déjà résolues (détail OU
-    // total imbriqué) — TOTAUX_ACTIF/PASSIF sont déjà dans un ordre où une
+    // total imbriqué) · TOTAUX_ACTIF/PASSIF sont déjà dans un ordre où une
     // ref n'est jamais utilisée avant d'avoir été calculée (vérifié par un
     // test dédié dans correspondance-bilan.spec.ts).
     for (const total of TOTAUX_ACTIF) {
@@ -281,7 +280,7 @@ export class EtatsFinanciersService {
     const actif = ORDRE_AFFICHAGE_ACTIF.map(fusionnerN1);
     const passif = ORDRE_AFFICHAGE_PASSIF.map(fusionnerN1);
 
-    // Comptes de bilan (classes 1-5) qu'AUCUN poste ne capte — signalés,
+    // Comptes de bilan (classes 1-5) qu'AUCUN poste ne capte · signalés,
     // jamais absorbés en silence (règle §2.6, même discipline qu'au compte
     // de résultat). Un plan de comptes personnalisé qui s'écarterait des
     // préfixes officiels ferait apparaître ses comptes ici. Calculé sur N
@@ -337,7 +336,7 @@ export class EtatsFinanciersService {
         resultatCompte13,
         // Les deux sources sont non nulles à la fois : risque de double
         // comptage (balance transmise à un moment ambigu de la clôture).
-        // Voir COMPTE 13, sycebnl — le compte 13 ne se mouvemente qu'À la
+        // Voir COMPTE 13, sycebnl · le compte 13 ne se mouvemente qu'À la
         // clôture, en soldant justement les classes 6/7/8 à zéro.
         doubleComptageProbable: Math.abs(resultatClasses678) > 0.005 && Math.abs(resultatCompte13) > 0.005,
       },
@@ -346,7 +345,7 @@ export class EtatsFinanciersService {
 
   /**
    * Résout tous les postes du compte de résultat pour UN jeu de lignes de
-   * balance — même principe que `resoudreTousLesPostesBilan`, appelée une
+   * balance · même principe que `resoudreTousLesPostesBilan`, appelée une
    * fois pour N, une fois pour N-1.
    */
   private resoudreTousLesPostesCR(lignes: LigneBalancePourBilan[]): {
@@ -360,9 +359,9 @@ export class EtatsFinanciersService {
     const comptesParPoste = new Map<string, CompteDuPoste[]>();
     // Comptes de gestion (classes 6/7/8) qu'aucun poste du tableau officiel
     // ne réclame : signalés, jamais rattachés d'office à un poste voisin
-    // (règle §2.6 — une non-conformité se déclare, elle ne se devine pas).
+    // (règle §2.6 · une non-conformité se déclare, elle ne se devine pas).
     const comptesNonRattaches: CompteDuPoste[] = [];
-    // Résultat « brut » — tous les comptes de gestion, indépendamment des
+    // Résultat « brut » · tous les comptes de gestion, indépendamment des
     // postes : c'est exactement la base sur laquelle le bilan calcule sa
     // ligne « Excédent (déficit) de l'exercice ». Sert de contrôle croisé.
     let resultatToutesClassesDeGestion = 0;
@@ -405,14 +404,14 @@ export class EtatsFinanciersService {
   }
 
   /**
-   * COMPTE DE RÉSULTAT — adossé au tableau de correspondance OFFICIEL
+   * COMPTE DE RÉSULTAT · adossé au tableau de correspondance OFFICIEL
    * (`correspondance-compte-resultat.ts`, transcrit du Journal officiel
    * OHADA, Partie 4 ch. 2 section 6).
    *
    * Les postes portent leur montant dans leur sens naturel de lecture
    * (charges en positif), de sorte que les formules officielles s'appliquent
    * littéralement : XA = ΣR, XB = ΣT, XC = XA − XB, XD = TM − TN, XE = XC + XD
-   * — sur N comme sur N-1 (le texte officiel exige les deux, colonne
+   * · sur N comme sur N-1 (le texte officiel exige les deux, colonne
    * « Net exercice au 31/12/N-1 »).
    */
   async compteDeResultat(tenantId: string, exerciceId: string) {
@@ -437,7 +436,7 @@ export class EtatsFinanciersService {
     const produitsHao = fusionnerN1(resN.produitsHao);
     const chargesHao = fusionnerN1(resN.chargesHao);
 
-    // XA inclut RH — voir l'anomalie n° 4 documentée dans
+    // XA inclut RH · voir l'anomalie n° 4 documentée dans
     // correspondance-compte-resultat.ts (le libellé officiel dit « Somme RA à
     // RG », ce qui romprait l'égalité résultat/bilan dès qu'il y a reprises).
     const totalProduits = produits.reduce((s, p) => s + p.montant, 0);
@@ -458,7 +457,7 @@ export class EtatsFinanciersService {
 
     // Contrôle croisé : le résultat obtenu en additionnant les postes
     // officiels (XE) doit être identique au résultat obtenu en soldant tous
-    // les comptes de gestion — celui que le bilan loge en « Excédent
+    // les comptes de gestion · celui que le bilan loge en « Excédent
     // (déficit) de l'exercice ». Tout écart vaut exactement la somme des
     // comptes non rattachés : un compte de gestion hors poste disparaît des
     // totaux de l'état, et le compte de résultat cesse alors de boucler avec
@@ -505,7 +504,7 @@ export class EtatsFinanciersService {
   // ==========================================================================
 
   /**
-   * Montant du FLUX d'un poste — le fait générateur, lu sur les mouvements
+   * Montant du FLUX d'un poste · le fait générateur, lu sur les mouvements
    * PROPRES de l'exercice (report à-nouveau exclu, voir
    * `EcritureService.balance`). Sans cette exclusion, le report à-nouveau
    * d'un compte d'immobilisation serait lu comme une acquisition de
@@ -538,7 +537,7 @@ export class EtatsFinanciersService {
   /**
    * Solde de CLÔTURE des contreparties (créances ou dettes) d'un poste, dans
    * sa magnitude naturelle : une créance est débitrice, une dette créditrice.
-   * Lu en solde et non en mouvement — c'est une SITUATION à une date, que la
+   * Lu en solde et non en mouvement · c'est une SITUATION à une date, que la
    * formule officielle compare entre N-1 et N.
    */
   private contrepartieDuPoste(poste: PosteFluxTresorerie, lignes: LigneBalancePourBilan[]): number {
@@ -555,7 +554,7 @@ export class EtatsFinanciersService {
   /**
    * Un poste de flux, formule officielle appliquée. Le montant retourné est
    * l'EFFET SUR LA TRÉSORERIE, signé : positif pour un encaissement, négatif
-   * pour un décaissement — de sorte que les sous-totaux ZB à ZF s'obtiennent
+   * pour un décaissement · de sorte que les sous-totaux ZB à ZF s'obtiennent
    * par simple addition, comme le modèle l'écrit (« somme FA à FH »).
    */
   private calculerPosteFlux(
@@ -586,7 +585,7 @@ export class EtatsFinanciersService {
    * Lue depuis les postes du BILAN (BX et DX) et non depuis les comptes en
    * vrac : c'est le même chiffre que celui présenté au bilan, y compris le
    * traitement des découverts bancaires (52/53 créditeurs transférés de BW
-   * vers DW) — les deux états ne peuvent donc pas diverger.
+   * vers DW) · les deux états ne peuvent donc pas diverger.
    */
   private tresorerieNette(lignes: LigneBalancePourBilan[]): number {
     const { parRef } = this.resoudreTousLesPostesBilan(lignes);
@@ -598,7 +597,7 @@ export class EtatsFinanciersService {
    * lignes et de celles de l'exercice qui le précède (ses créances/dettes de
    * comparaison). Isolé pour être appelé DEUX FOIS par `tableauFluxTresorerie` :
    * une fois pour l'exercice demandé (colonne N), une fois pour son propre
-   * exercice antérieur (colonne N-1) — le modèle officiel porte les deux
+   * exercice antérieur (colonne N-1) · le modèle officiel porte les deux
    * (« Colonnes : REF | LIBELLES | Rep. | Note | Exercice N | Exercice N-1 »),
    * et chaque ligne de ce tableau est elle-même une comparaison entre deux
    * exercices : la colonne N-1 exige donc un TROISIÈME exercice (N-2) en
@@ -619,7 +618,7 @@ export class EtatsFinanciersService {
   } {
     const parRef = new Map<string, PosteCalcule & { flux?: number; variationContrepartie?: number }>();
 
-    // ZA — « Trésorerie nette au 1er janvier (Trésorerie actif N-1 -
+    // ZA · « Trésorerie nette au 1er janvier (Trésorerie actif N-1 -
     // Trésorerie passif N-1) », le libellé officiel dit lui-même la formule.
     const tresorerieOuverture = this.tresorerieNette(lignesAnterieur);
     parRef.set('ZA', {
@@ -670,7 +669,7 @@ export class EtatsFinanciersService {
     ]);
 
     const resN = this.resoudreFluxPourExercice(lignesN, lignesN1);
-    // Colonne N-1 : seulement si un exercice N-1 existe — jamais un faux
+    // Colonne N-1 : seulement si un exercice N-1 existe · jamais un faux
     // zéro pour un dossier à son premier exercice (même discipline que
     // partout ailleurs dans ce service).
     const resN1 = exerciceN1Id ? this.resoudreFluxPourExercice(lignesN1, lignesN2) : null;
@@ -688,7 +687,7 @@ export class EtatsFinanciersService {
       };
     });
 
-    // Comptes ENCAISSABLES qu'aucun poste ne ventile — même discipline qu'au
+    // Comptes ENCAISSABLES qu'aucun poste ne ventile · même discipline qu'au
     // bilan et au compte de résultat. Ce sont eux qui expliquent un écart de
     // bouclage : les lister à côté de l'écart donne la cause avec le montant,
     // plutôt qu'un chiffre orphelin. Calculé sur N seulement : N-1 n'est
@@ -715,7 +714,7 @@ export class EtatsFinanciersService {
       // Comptes sans trésorerie PAR CONSTRUCTION (dons en nature, dotations,
       // écritures d'inventaire…) : ils n'expliquent aucun écart, et les lister
       // à côté d'un écart nul apprend à ignorer le bloc. Ce qui doit y rester,
-      // ce sont les comptes que le PLAN ne tranche pas (4491, 4572) — ceux-là
+      // ce sont les comptes que le PLAN ne tranche pas (4491, 4572) · ceux-là
       // en expliquent un. Voir COMPTES_SANS_TRESORERIE.
       .filter((l) => !COMPTES_SANS_TRESORERIE.some((c) => l.numero.startsWith(c.numero)))
       .filter((l) => Math.abs(l.mouvementDebit) > 0.005 || Math.abs(l.mouvementCredit) > 0.005)

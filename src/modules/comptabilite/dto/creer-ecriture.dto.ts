@@ -19,14 +19,14 @@ export class LigneEcritureDto {
   @Min(0)
   credit?: number;
 
-  // Taux de TVA appliqué à cette ligne (la ligne de TVA elle-même) — posé
+  // Taux de TVA appliqué à cette ligne (la ligne de TVA elle-même) · posé
   // par la saisie guidée "Achat/Vente avec TVA" de SaisiePage. Voir
   // TauxTvaService.declaration().
   @IsOptional()
   @IsUUID()
   tauxTvaId?: string;
 
-  // Échéance de la créance ou de la dette portée par cette ligne — alimente la
+  // Échéance de la créance ou de la dette portée par cette ligne · alimente la
   // ventilation par échéance des notes annexes (voir LigneEcriture.dateEcheance).
   @IsOptional()
   @IsDateString()

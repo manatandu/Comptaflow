@@ -1,15 +1,15 @@
 /**
- * Validation du démarrage — pas une simple lecture avec repli silencieux.
+ * Validation du démarrage · pas une simple lecture avec repli silencieux.
  *
  * Trouvé lors de l'audit de la brique Export Excel (2026-08-28) :
  * `jwt.strategy.ts` repliait `JWT_SECRET` sur la valeur littérale
  * `'change-me'` si la variable d'environnement était absente. Le côté
- * signature (`auth.module.ts`) ne le fait PAS — sans `JWT_SECRET`, signer un
+ * signature (`auth.module.ts`) ne le fait PAS · sans `JWT_SECRET`, signer un
  * jeton échoue déjà. Mais le côté VÉRIFICATION acceptait silencieusement
  * n'importe quel jeton signé avec cette chaîne bien connue, publiée dans ce
  * dépôt (`.env.example`). En production, sans cette variable positionnée,
  * n'importe qui aurait pu forger un jeton valide pour N'IMPORTE QUEL
- * tenant — ce qui aurait annulé toutes les garanties d'étanchéité
+ * tenant · ce qui aurait annulé toutes les garanties d'étanchéité
  * multi-tenant (chaque requête filtre bien par `tenantId`, encore faut-il
  * que ce `tenantId` vienne d'un jeton authentique).
  *
@@ -23,7 +23,7 @@ export function validateEnv(config: Record<string, unknown>): Record<string, unk
   if (typeof secret !== 'string' || secret.trim().length === 0) {
     throw new Error(
       "JWT_SECRET est obligatoire et doit être défini dans l'environnement (.env en local, " +
-        'variable de déploiement en production) — aucun repli silencieux, voir validate-env.ts.',
+        'variable de déploiement en production) · aucun repli silencieux, voir validate-env.ts.',
     );
   }
 
@@ -36,7 +36,7 @@ export function validateEnv(config: Record<string, unknown>): Record<string, unk
     // eslint-disable-next-line no-console
     console.warn(
       '⚠ JWT_SECRET utilise une valeur de développement ou trop courte (< 32 caractères). ' +
-        'À ne JAMAIS utiliser en production — générez une valeur aléatoire dédiée par environnement.',
+        'À ne JAMAIS utiliser en production · générez une valeur aléatoire dédiée par environnement.',
     );
   }
 

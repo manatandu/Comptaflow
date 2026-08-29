@@ -53,7 +53,7 @@ export function DeclarationTvaPage() {
         dateDebut,
         dateFin,
       });
-      setInfo(`Liquidation comptabilisée (pièce n°${resultat.ecriture.numeroPiece ?? '—'}).`);
+      setInfo(`Liquidation comptabilisée (pièce n°${resultat.ecriture.numeroPiece ?? '·'}).`);
       await calculer();
     } catch (err) {
       setErreur(err instanceof ApiError ? err.message : 'Impossible de comptabiliser la liquidation');
@@ -104,7 +104,7 @@ export function DeclarationTvaPage() {
 
       {declaration && (
         <>
-          <div className="border border-border max-w-[780px] mb-4">
+          <div className="border border-border bg-surface shadow-posee max-w-[780px] mb-4">
             <div className="grid grid-cols-[80px_1fr_70px_140px_140px_140px] gap-2 px-3.5 py-1.5 bg-chrome border-b border-border text-[10px] font-bold text-text-dim">
               <span>CODE</span><span>INTITULÉ</span><span>TAUX</span><span className="text-right">COLLECTÉE</span><span className="text-right">DÉDUCTIBLE</span><span className="text-right">NET</span>
             </div>

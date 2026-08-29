@@ -16,11 +16,11 @@ const EPSILON = 0.005;
 
 /**
  * Les champs Decimal de Prisma (valeurOrigine, valeurResiduelle,
- * prixCession, montant) sérialisent en CHAÎNES sur le JSON de réponse —
+ * prixCession, montant) sérialisent en CHAÎNES sur le JSON de réponse ·
  * jamais renvoyés bruts ici, jamais laissés au frontend à deviner. Même
  * discipline que LettrageService.lister() (`Number(l.debit)`) : trouvé en
  * testant l'écran (pas en curl, où tout s'affiche comme du texte de toute
- * façon) — le cumul amorti "0120240" au lieu de 360 venait d'une
+ * façon) · le cumul amorti "0120240" au lieu de 360 venait d'une
  * concaténation de chaînes ("120" + "240"), la V.N.C. affichée -119040 au
  * lieu de 840.
  */
@@ -46,11 +46,11 @@ function estConflitUnicite(err: unknown): boolean {
 }
 
 /**
- * Immobilisations (§3.3, docs/plan-de-construction.md) — ancré au skill
+ * Immobilisations (§3.3, docs/plan-de-construction.md) · ancré au skill
  * `sycebnl` (COMPTE 21 à 29, Partie 2 ch.3 §2) pour la mécanique
  * d'acquisition/amortissement/cession, et au skill `fiscalite-rdc/socle`
  * (arrêté n° 013/2025) pour les durées d'amortissement par défaut des
- * familles seedées — voir famille-immobilisation-seed.ts pour le détail des
+ * familles seedées · voir famille-immobilisation-seed.ts pour le détail des
  * citations.
  */
 @Injectable()
@@ -69,8 +69,8 @@ export class ImmobilisationService {
         this.prisma.compte.findUnique({ where: { tenantId_numero: { tenantId, numero: f.numeroCompteDotation } } }),
       ]);
       // Défensif plutôt que silencieux : si le plan de comptes du tenant ne
-      // contient pas (encore) ces numéros — dossier créé avant l'import
-      // complet du plan SYCEBNL, ou compte supprimé entre-temps — on saute
+      // contient pas (encore) ces numéros · dossier créé avant l'import
+      // complet du plan SYCEBNL, ou compte supprimé entre-temps · on saute
       // cette famille plutôt que de planter tout le seed de l'inscription.
       if (!compteImmo || !compteAmort || !compteDotation) continue;
       await this.prisma.familleImmobilisation.upsert({
@@ -98,12 +98,12 @@ export class ImmobilisationService {
   }
 
   /**
-   * Vérifie que chaque compte de la famille est de la bonne nature — trouvé
+   * Vérifie que chaque compte de la famille est de la bonne nature · trouvé
    * en approfondissant (règle §2.6) : rien n'empêchait jusqu'ici de créer
    * une famille avec, par exemple, un compte de trésorerie comme "compte
    * d'amortissement". `ClasseCompte.CLASSE_2` seul ne suffit pas à
    * distinguer immobilisation (20-27) d'amortissement (28-29), qui
-   * partagent la même classe — d'où la vérification sur le préfixe
+   * partagent la même classe · d'où la vérification sur le préfixe
    * numérique en plus de la classe.
    */
   private async verifierComptesFamille(tenantId: string, dto: { compteImmobilisationId: string; compteAmortissementId: string; compteDotationId: string }) {
@@ -163,7 +163,7 @@ export class ImmobilisationService {
   /**
    * Compensation : `EcritureService.creer` gère sa propre transaction
    * (numéro de pièce inclus) et commet réellement l'écriture, indépendamment
-   * de ce qui suit — l'envelopper dans la transaction sérialisable de
+   * de ce qui suit · l'envelopper dans la transaction sérialisable de
    * l'appelant ne protégerait donc PAS contre une course sur la contrainte
    * d'unicité DotationAmortissement (le retry ne rejoue pas l'écriture déjà
    * commise). Seule option sans réécrire EcritureService : poster, puis en
@@ -175,7 +175,7 @@ export class ImmobilisationService {
    * immobilisation/exercice produisaient 12 écritures réelles au grand
    * livre (toutes équilibrées, donc invisibles à un simple contrôle de
    * balance) pour une seule ligne DotationAmortissement effectivement
-   * conservée — 11 postes fantômes gonflant silencieusement le compte
+   * conservée · 11 postes fantômes gonflant silencieusement le compte
    * d'amortissement cumulé, plus une 500 brute renvoyée aux 11 requêtes
    * perdantes au lieu d'un 409 propre.
    */
@@ -197,7 +197,7 @@ export class ImmobilisationService {
    * Base amortissable = valeur d'origine - valeur résiduelle (skill
    * sycebnl, COMPTE 28). Cumul déjà amorti = somme des dotations déjà
    * passées (jamais recalculé depuis le compte 28 lui-même, qui pourrait
-   * porter d'autres écritures manuelles — la source de vérité du cumul
+   * porter d'autres écritures manuelles · la source de vérité du cumul
    * "généré par ce module" est la table DotationAmortissement).
    */
   private baseAmortissable(valeurOrigine: number, valeurResiduelle: number) {
@@ -218,16 +218,16 @@ export class ImmobilisationService {
     }
 
     // Écriture d'acquisition : débit du compte d'immobilisation (skill
-    // sycebnl, COMPTE 21-27, "utilisation au débit" — apport, acquisition ou
+    // sycebnl, COMPTE 21-27, "utilisation au débit" · apport, acquisition ou
     // création) ; crédit du compte de contrepartie choisi par l'utilisateur
     // (trésorerie, fournisseur, dotation/fonds affectés selon le mode de
-    // financement réel — le texte cite indifféremment 10/16/45/40/48 ou
+    // financement réel · le texte cite indifféremment 10/16/45/40/48 ou
     // trésorerie, EcritureService se charge déjà de valider ce compte).
     const ecritureAcquisition = await this.ecritureService.creer(tenantId, userId, {
       exerciceId: dto.exerciceId,
       journalId: dto.journalId,
       date: dto.dateAcquisition,
-      libelle: `Acquisition — ${dto.designation}`,
+      libelle: `Acquisition · ${dto.designation}`,
       lignes: [
         { compteId: famille.compteImmobilisationId, debit: dto.valeurOrigine, credit: 0 },
         { compteId: dto.compteContrepartieId, debit: 0, credit: dto.valeurOrigine },
@@ -262,9 +262,9 @@ export class ImmobilisationService {
    *
    * Première dotation (aucune dotation antérieure) : prorata temporis à
    * compter du premier jour du mois de mise en service (arrêté RDC
-   * n° 013/2025, art. 30 ; confirmé par le skill sycebnl, COMPTE 28 — "la
+   * n° 013/2025, art. 30 ; confirmé par le skill sycebnl, COMPTE 28 · "la
    * date de début d'amortissement est la date à laquelle l'actif est en
-   * état de fonctionner..."), borné à 12 mois pour CET exercice — limite du
+   * état de fonctionner..."), borné à 12 mois pour CET exercice · limite du
    * MVP assumée : si la mise en service est antérieure au début de
    * l'exercice choisi pour la première dotation (dotation en retard, jamais
    * passée pour l'exercice réel de mise en service), le calcul ne rattrape
@@ -273,7 +273,7 @@ export class ImmobilisationService {
    *
    * Dotations suivantes : annuité pleine (base / durée), plafonnée par le
    * reliquat (base - cumul déjà amorti) pour ne jamais dépasser la base
-   * amortissable — un bien totalement amorti reste inscrit au bilan
+   * amortissable · un bien totalement amorti reste inscrit au bilan
    * (COMPTE 20-29, dernier paragraphe) mais ne génère plus de dotation.
    */
   private calculerDotation(
@@ -309,7 +309,7 @@ export class ImmobilisationService {
   async passerDotation(tenantId: string, userId: string, id: string, dto: PasserDotationDto) {
     const immo = await this.trouver(tenantId, id);
     if (immo.statut !== StatutImmobilisation.EN_SERVICE) {
-      throw new BadRequestException("Cette immobilisation n'est plus en service — aucune dotation possible");
+      throw new BadRequestException("Cette immobilisation n'est plus en service · aucune dotation possible");
     }
     const exercice = await this.prisma.exercice.findFirst({ where: { id: dto.exerciceId, tenantId } });
     if (!exercice) throw new BadRequestException('Exercice introuvable pour ce tenant');
@@ -330,16 +330,16 @@ export class ImmobilisationService {
       exercice,
     );
     if (montant <= EPSILON) {
-      throw new BadRequestException('Aucun montant à doter — le bien est déjà entièrement amorti ou hors période');
+      throw new BadRequestException('Aucun montant à doter · le bien est déjà entièrement amorti ou hors période');
     }
 
-    // Utilisation au crédit du compte 28 (skill sycebnl, COMPTE 28) — par le
+    // Utilisation au crédit du compte 28 (skill sycebnl, COMPTE 28) · par le
     // débit du compte 681 (dotations aux amortissements d'exploitation).
     const ecriture = await this.ecritureService.creer(tenantId, userId, {
       exerciceId: dto.exerciceId,
       journalId: dto.journalId,
       date: exercice.dateFin.toISOString().slice(0, 10),
-      libelle: `Dotation aux amortissements — ${immo.designation}`,
+      libelle: `Dotation aux amortissements · ${immo.designation}`,
       lignes: [
         { compteId: immo.compteDotationId, debit: montant, credit: 0 },
         { compteId: immo.compteAmortissementId, debit: 0, credit: montant },
@@ -361,7 +361,7 @@ export class ImmobilisationService {
   }
 
   /**
-   * Sortie (cession ou mise hors service) — skill sycebnl, COMPTE 21-27
+   * Sortie (cession ou mise hors service) · skill sycebnl, COMPTE 21-27
    * "utilisation au crédit" : le compte d'immobilisation est crédité pour
    * solde, en contrepartie du débit du compte 81 (V.C.N., pour la valeur
    * nette restante) et du débit du compte 28 (pour solde des amortissements
@@ -390,13 +390,13 @@ export class ImmobilisationService {
     }
 
     // Verrou par écriture conditionnelle AVANT tout effet de bord (même
-    // risque de course que passerDotation, trouvé en l'approfondissant —
+    // risque de course que passerDotation, trouvé en l'approfondissant ·
     // deux sorties simultanées sur le même bien liraient toutes deux
     // EN_SERVICE et posteraient chacune leurs écritures). Un UPDATE Postgres
     // filtré sur le statut prend un verrou de ligne : seule une requête à la
     // fois peut faire passer `statut` de EN_SERVICE à sa valeur finale ; la
     // perdante voit `count: 0` et s'arrête avant d'avoir rien posté au grand
-    // livre — pas de compensation nécessaire ici, contrairement à
+    // livre · pas de compensation nécessaire ici, contrairement à
     // passerDotation (où la première écriture existe déjà avant que la
     // contrainte d'unicité ne puisse être testée).
     const statutFinal = dto.type === TypeSortie.CESSION ? StatutImmobilisation.CEDEE : StatutImmobilisation.MISE_HORS_SERVICE;
@@ -410,7 +410,7 @@ export class ImmobilisationService {
 
     // Dotation complémentaire de l'exercice de sortie (skill sycebnl, COMPTE
     // 28 : "la dotation complémentaire en cas de cession"), seulement si
-    // aucune dotation n'a déjà été passée sur cet exercice pour ce bien —
+    // aucune dotation n'a déjà été passée sur cet exercice pour ce bien ·
     // sinon le cumul est déjà à jour, pas de complément à ajouter.
     let cumulAmorti = immo.dotations.reduce((s, d) => s + Number(d.montant), 0);
     const dejaDoteCetExercice = immo.dotations.some((d) => d.exerciceId === dto.exerciceId);
@@ -428,7 +428,7 @@ export class ImmobilisationService {
           exerciceId: dto.exerciceId,
           journalId: dto.journalId,
           date: dto.dateSortie,
-          libelle: `Dotation complémentaire (sortie) — ${immo.designation}`,
+          libelle: `Dotation complémentaire (sortie) · ${immo.designation}`,
           lignes: [
             { compteId: immo.compteDotationId, debit: montantComplement, credit: 0 },
             { compteId: immo.compteAmortissementId, debit: 0, credit: montantComplement },
@@ -437,7 +437,7 @@ export class ImmobilisationService {
         // Conflit théorique seulement ici : le verrou ci-dessus garantit déjà
         // qu'aucune autre sortie ne peut être en cours sur ce bien, mais
         // passerDotation() reste appelable en parallèle sur le même
-        // exercice — même compensation par cohérence, au cas où.
+        // exercice · même compensation par cohérence, au cas où.
         try {
           await this.prisma.dotationAmortissement.create({
             data: { immobilisationId: id, exerciceId: dto.exerciceId, montant: montantComplement, ecritureId: ecritureComplement.id },
@@ -445,7 +445,7 @@ export class ImmobilisationService {
         } catch (err) {
           if (estConflitUnicite(err)) {
             await this.annulerEcritureOrpheline(ecritureComplement.id);
-            throw new ConflictException('Une dotation a été passée entre-temps pour cette immobilisation sur cet exercice — réessayez la sortie');
+            throw new ConflictException('Une dotation a été passée entre-temps pour cette immobilisation sur cet exercice · réessayez la sortie');
           }
           throw err;
         }
@@ -462,17 +462,17 @@ export class ImmobilisationService {
       lignesSortie.push({ compteId: immo.compteAmortissementId, debit: cumulAmorti, credit: 0 });
     }
     if (valeurComptableNette > EPSILON) {
-      // 811-818 selon la nature — la classe 8 exacte dépend du type de
+      // 811-818 selon la nature · la classe 8 exacte dépend du type de
       // bien ; on utilise ici le compte générique "Valeurs comptables des
-      // cessions — immobilisations corporelles" (812), le cas le plus
+      // cessions · immobilisations corporelles" (812), le cas le plus
       // fréquent pour une association (matériel, mobilier, véhicules,
       // bâtiments) ; un compte incorporel (811) resterait à choisir
-      // manuellement pour un logiciel/brevet — limite du MVP, non couverte
+      // manuellement pour un logiciel/brevet · limite du MVP, non couverte
       // par une résolution automatique par classe de bien.
       const compte812 = await this.prisma.compte.findUnique({ where: { tenantId_numero: { tenantId, numero: '81200000' } } });
       if (!compte812) {
         throw new BadRequestException(
-          "Compte 81200000 (Valeurs comptables des cessions — immobilisations corporelles) introuvable pour ce dossier.",
+          "Compte 81200000 (Valeurs comptables des cessions · immobilisations corporelles) introuvable pour ce dossier.",
         );
       }
       lignesSortie.push({ compteId: compte812.id, debit: valeurComptableNette, credit: 0 });
@@ -482,23 +482,23 @@ export class ImmobilisationService {
       exerciceId: dto.exerciceId,
       journalId: dto.journalId,
       date: dto.dateSortie,
-      libelle: `${dto.type === TypeSortie.CESSION ? 'Cession' : 'Mise hors service'} — ${immo.designation}`,
+      libelle: `${dto.type === TypeSortie.CESSION ? 'Cession' : 'Mise hors service'} · ${immo.designation}`,
       lignes: lignesSortie,
     });
 
-    // Produit de cession — écriture séparée, jamais mélangée à la sortie de
+    // Produit de cession · écriture séparée, jamais mélangée à la sortie de
     // l'actif (skill sycebnl distingue clairement 81 "valeur comptable" et
     // 82 "produit de cession").
     if (dto.type === TypeSortie.CESSION && dto.prixCession && dto.compteContrepartieId) {
       const compte822 = await this.prisma.compte.findUnique({ where: { tenantId_numero: { tenantId, numero: '82200000' } } });
       if (!compte822) {
-        throw new BadRequestException("Compte 82200000 (Produits des cessions — immobilisations corporelles) introuvable pour ce dossier.");
+        throw new BadRequestException("Compte 82200000 (Produits des cessions · immobilisations corporelles) introuvable pour ce dossier.");
       }
       await this.ecritureService.creer(tenantId, userId, {
         exerciceId: dto.exerciceId,
         journalId: dto.journalId,
         date: dto.dateSortie,
-        libelle: `Produit de cession — ${immo.designation}`,
+        libelle: `Produit de cession · ${immo.designation}`,
         lignes: [
           { compteId: dto.compteContrepartieId, debit: dto.prixCession, credit: 0 },
           { compteId: compte822.id, debit: 0, credit: dto.prixCession },

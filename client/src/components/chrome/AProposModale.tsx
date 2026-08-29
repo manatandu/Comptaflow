@@ -13,7 +13,7 @@ export function AProposModale({ onFermer }: { onFermer: () => void }) {
         </div>
         <div className="p-4 text-[12.5px] space-y-2">
           <p className="font-semibold">OmegaX</p>
-          <p className="text-text-dim">Logiciel de comptabilité OHADA — référentiel SYCEBNL.</p>
+          <p className="text-text-dim">Logiciel de comptabilité OHADA · référentiel SYCEBNL.</p>
           <p className="text-text-dim">Version de développement.</p>
         </div>
         <div className="border-t border-border px-3 py-2 flex justify-end">

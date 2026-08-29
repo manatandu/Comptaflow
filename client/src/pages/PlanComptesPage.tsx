@@ -5,13 +5,13 @@ import { useAuth } from '../lib/auth';
 import type { ClasseCompte, Compte, ModeReportANouveau, TypeCompteDetailTotal } from '../lib/types';
 
 /**
- * PLAN COMPTABLE — la fenêtre Structure → Plan comptable de Sage 100 i7 :
+ * PLAN COMPTABLE · la fenêtre Structure → Plan comptable de Sage 100 i7 :
  * à gauche le classement par classe (1 à 9, SYCEBNL), au centre la liste
  * dense des comptes (numéro · intitulé · type · report à-nouveau · état),
  * à droite la FICHE du compte sélectionné, en volet « Identification »
  * (numéro, type Détail/Total, intitulé, classe, report à-nouveau à trois
  * modes, mise en sommeil) avec le bouton « Gérer » qui ouvre l'interrogation
- * et le lettrage du compte — exactement le bouton Gérer de la fiche Sage.
+ * et le lettrage du compte · exactement le bouton Gérer de la fiche Sage.
  */
 
 const LIBELLE_CLASSE: Record<ClasseCompte, string> = {
@@ -140,7 +140,7 @@ export function PlanComptesPage() {
       )}
 
       <div className="flex-1 min-h-0 flex gap-2.5">
-        {/* Classement par classe — la barre de gauche de la fenêtre Sage */}
+        {/* Classement par classe · la barre de gauche de la fenêtre Sage */}
         <div className="w-[230px] shrink-0 bg-surface border border-border shadow-posee overflow-auto">
           <div className="px-3 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
             CLASSEMENT
@@ -189,7 +189,7 @@ export function PlanComptesPage() {
                 type="button"
                 onClick={() => setSelectionId(c.id)}
                 onDoubleClick={() => c.typeCompte === 'DETAIL' && navigate(`/comptes/${c.id}/lettrage`)}
-                title={c.typeCompte === 'TOTAL' ? 'Compte Total — agrège les comptes Détail de même racine' : 'Double-clic : interroger le compte'}
+                title={c.typeCompte === 'TOTAL' ? 'Compte Total · agrège les comptes Détail de même racine' : 'Double-clic : interroger le compte'}
                 className={`w-full grid grid-cols-[92px_1fr_58px_72px_74px] gap-2.5 px-3.5 py-[3.5px] items-center text-left border-b border-border/50 text-[11.5px] ${
                   selectionId === c.id
                     ? 'bg-sel text-white'
@@ -204,7 +204,7 @@ export function PlanComptesPage() {
                   {c.typeCompte === 'TOTAL' ? 'Total' : 'Détail'}
                 </span>
                 <span className={`text-[10.5px] ${selectionId === c.id ? 'text-white/80' : 'text-text-dim'}`}>
-                  {LIBELLE_RAN[c.modeReportANouveau] ?? '—'}
+                  {LIBELLE_RAN[c.modeReportANouveau] ?? '·'}
                 </span>
                 <span className={`text-[10.5px] ${selectionId === c.id ? 'text-white/90' : c.estActif ? 'text-positive' : 'text-warning'}`}>
                   {c.estActif ? 'Actif' : 'Sommeil'}
@@ -221,10 +221,10 @@ export function PlanComptesPage() {
           </div>
         </div>
 
-        {/* Fiche du compte sélectionné — volet Identification */}
+        {/* Fiche du compte sélectionné · volet Identification */}
         <div className="w-[300px] shrink-0 bg-surface border border-border shadow-posee overflow-auto">
           <div className="px-3 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
-            FICHE DU COMPTE — IDENTIFICATION
+            FICHE DU COMPTE · IDENTIFICATION
           </div>
           {!selection && (
             <div className="px-3 py-3 text-[11.5px] text-text-dim">
@@ -240,7 +240,7 @@ export function PlanComptesPage() {
               <div className="grid grid-cols-[92px_1fr] gap-x-2 gap-y-1.5 items-center mb-3">
                 <span className="text-text-dim text-right">Classe :</span>
                 <span>
-                  {selection.classe.replace('CLASSE_', '')} — {LIBELLE_CLASSE[selection.classe]}
+                  {selection.classe.replace('CLASSE_', '')} · {LIBELLE_CLASSE[selection.classe]}
                 </span>
                 <span className="text-text-dim text-right">Type :</span>
                 <span>{selection.typeCompte === 'TOTAL' ? 'Total (regroupement par racine)' : 'Détail (mouvementable)'}</span>
@@ -280,9 +280,9 @@ export function PlanComptesPage() {
                       onChange={(e) => modifier(selection.id, { modeReportANouveau: e.target.value as ModeReportANouveau })}
                       className="mt-0.5 w-full border border-border-dark px-2 py-1 text-[12px]"
                     >
-                      <option value="AUCUN">Aucun — pas de report (charges, produits)</option>
-                      <option value="SOLDE">Solde — le solde seul est reporté</option>
-                      <option value="DETAIL">Détail — lignes non lettrées reprises</option>
+                      <option value="AUCUN">Aucun · pas de report (charges, produits)</option>
+                      <option value="SOLDE">Solde · le solde seul est reporté</option>
+                      <option value="DETAIL">Détail · lignes non lettrées reprises</option>
                     </select>
                   </label>
                 </>
@@ -295,7 +295,7 @@ export function PlanComptesPage() {
                     onClick={() => navigate(`/comptes/${selection.id}/lettrage`)}
                     className="bg-sel text-white px-3 py-1.5 text-[11.5px] font-semibold"
                   >
-                    Gérer — interrogation et lettrage
+                    Gérer · interrogation et lettrage
                   </button>
                 )}
                 {estAdmin && (
@@ -313,7 +313,7 @@ export function PlanComptesPage() {
         </div>
       </div>
 
-      {/* Nouveau compte — boîte de dialogue */}
+      {/* Nouveau compte · boîte de dialogue */}
       {estAdmin && nouveauOuvert && (
         <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
           <form
@@ -356,7 +356,7 @@ export function PlanComptesPage() {
                 >
                   {(Object.keys(LIBELLE_CLASSE) as ClasseCompte[]).map((cl) => (
                     <option key={cl} value={cl}>
-                      {cl.replace('CLASSE_', 'Classe ')} — {LIBELLE_CLASSE[cl]}
+                      {cl.replace('CLASSE_', 'Classe ')} · {LIBELLE_CLASSE[cl]}
                     </option>
                   ))}
                 </select>

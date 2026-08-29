@@ -11,7 +11,7 @@ import type {
 } from '../lib/types';
 
 /**
- * DOCUMENTS OBLIGATOIRES DE CLÔTURE — livre d'inventaire (art. 14) et rapport
+ * DOCUMENTS OBLIGATOIRES DE CLÔTURE · livre d'inventaire (art. 14) et rapport
  * d'activité (art. 16-3). L'article 24 sanctionne PÉNALEMENT les dirigeants
  * « qui n'ont pas, pour un exercice, dressé l'inventaire et établi les états
  * financiers annuels, ainsi que le rapport d'activité ».
@@ -250,14 +250,14 @@ export function DocumentsObligatoiresPage() {
             </button>
             {confInv.transcrit && (
               <span className="text-[10.5px] text-text-dim">
-                Version {confInv.version} du {date(confInv.transcritLe!)} — {transcriptions.length} version(s)
+                Version {confInv.version} du {date(confInv.transcritLe!)} · {transcriptions.length} version(s)
               </span>
             )}
           </div>
 
           <div className="border border-border bg-surface px-3.5 py-3 mb-2.5">
             <div className="text-[10px] font-bold text-text-dim mb-1.5">
-              ÉTATS EXIGÉS —{' '}
+              ÉTATS EXIGÉS ·{' '}
               {confInv.jeu === 'PROJETS_DEVELOPPEMENT' ? 'article 14, point 2' : 'article 14, point 1'}
             </div>
             {confInv.etatsExiges.map((e) => (
@@ -301,7 +301,7 @@ export function DocumentsObligatoiresPage() {
           </div>
 
           <div className="text-[10px] text-text-dim italic mt-2.5 border border-border bg-surface-alt px-3.5 py-2">
-            Les états transcrits sont <strong>figés</strong> : ils sont relus tels quels, jamais recalculés — c’est le
+            Les états transcrits sont <strong>figés</strong> : ils sont relus tels quels, jamais recalculés · c’est le
             sens du mot « transcrits » de l’article 14. Un exercice rouvert et corrigé se re-transcrit en version
             suivante, sans effacer ce qui avait été arrêté.
           </div>
@@ -348,7 +348,7 @@ export function DocumentsObligatoiresPage() {
               <strong>
                 du {date(confRap.fenetreEvenementsPosterieurs.du)} au {date(confRap.fenetreEvenementsPosterieurs.au)}
               </strong>{' '}
-              — c’est la date d’établissement qui la ferme (art. 16-3).
+              · c’est la date d’établissement qui la ferme (art. 16-3).
             </div>
           )}
 
@@ -359,7 +359,7 @@ export function DocumentsObligatoiresPage() {
               }`}
             >
               <div className="text-[10px] font-bold text-text-dim mb-1">
-                ÉVOLUTION DE LA TRÉSORERIE — figée du Tableau des flux à l’établissement du rapport
+                ÉVOLUTION DE LA TRÉSORERIE · figée du Tableau des flux à l’établissement du rapport
               </div>
               <div className="grid grid-cols-4 gap-4 text-[11.5px]">
                 <span>
@@ -389,7 +389,7 @@ export function DocumentsObligatoiresPage() {
 
           <div className="border border-border bg-surface px-3.5 py-2.5">
             <div className="flex items-baseline justify-between gap-3 mb-1">
-              <span className="text-[12px] font-bold">Déclaration des dirigeants — registre des donateurs</span>
+              <span className="text-[12px] font-bold">Déclaration des dirigeants · registre des donateurs</span>
               {confRap.etabli &&
                 (confRap.declarationRegistreDonateurs.attendue
                   ? pastille(confRap.declarationRegistreDonateurs.renseignee, 'ANNEXÉE', 'ATTENDUE')
@@ -405,7 +405,7 @@ export function DocumentsObligatoiresPage() {
                 onChange={(e) => setForm((f) => ({ ...f, entiteAvecAuditeur: e.target.checked }))}
                 disabled={!peutEtablir}
               />
-              L’entité a un auditeur — il produit alors son propre rapport et la déclaration n’est pas attendue.
+              L’entité a un auditeur · il produit alors son propre rapport et la déclaration n’est pas attendue.
             </label>
             {!form.entiteAvecAuditeur && (
               <>

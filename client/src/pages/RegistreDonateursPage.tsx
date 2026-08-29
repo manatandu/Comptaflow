@@ -12,14 +12,14 @@ import type {
 } from '../lib/types';
 
 /**
- * REGISTRE DES DONATEURS — articles 17, 18 et 24 de l'Acte uniforme SYCEBNL.
+ * REGISTRE DES DONATEURS · articles 17, 18 et 24 de l'Acte uniforme SYCEBNL.
  *
  * Trois partis pris de cet écran, tous imposés par le texte et non par
  * l'ergonomie :
  *
  * 1. AUCUN bouton « Supprimer ». Le registre est « numéroté de façon
  *    continue » (art. 17) : effacer une ligne y ouvrirait un trou. Une
- *    erreur s'annule avec motif, en gardant son numéro — la ligne reste
+ *    erreur s'annule avec motif, en gardant son numéro · la ligne reste
  *    affichée, barrée. Le serveur n'expose d'ailleurs aucune route DELETE.
  * 2. Le numéro n'est PAS saisissable. Il est attribué par le serveur ; le
  *    proposer à la saisie inviterait à le choisir, donc à le trouer.
@@ -252,7 +252,7 @@ export function RegistreDonateursPage() {
       <p className="text-[10.5px] text-text-dim mb-2">
         Article 17 : « Il est établi pour chaque entité à but non lucratif un registre des donateurs pour tous les dons,
         donations et legs reçus par l’entité. » Sa tenue et sa mise à jour sont <strong>pénalement sanctionnées</strong>{' '}
-        (art. 24). Une ligne erronée s’annule avec motif et conserve son numéro — la numérotation doit rester continue.
+        (art. 24). Une ligne erronée s’annule avec motif et conserve son numéro · la numérotation doit rester continue.
       </p>
 
       {erreur && (
@@ -298,7 +298,7 @@ export function RegistreDonateursPage() {
               ) : (
                 <div className="border border-border bg-surface p-3">
                   <div className="text-[10px] font-bold text-text-dim mb-2">
-                    NOUVELLE INSCRIPTION — le numéro d’ordre est attribué automatiquement (art. 17)
+                    NOUVELLE INSCRIPTION · le numéro d’ordre est attribué automatiquement (art. 17)
                   </div>
                   <div className="grid grid-cols-4 gap-2.5 mb-2.5">
                     {champ('Date de l’opération', 'dateOperation', { type: 'date', requis: true })}
@@ -330,7 +330,7 @@ export function RegistreDonateursPage() {
                     {champ('Adresse électronique', 'adresseElectronique')}
                   </div>
 
-                  {/* Art. 17 : deux jeux d'identifiants distincts — on n'affiche
+                  {/* Art. 17 : deux jeux d'identifiants distincts · on n'affiche
                       que celui du type choisi, le serveur refusant le mélange. */}
                   <div className="grid grid-cols-4 gap-2.5 mb-2.5">
                     {physique ? (
@@ -445,7 +445,7 @@ export function RegistreDonateursPage() {
                         <span className="text-text-dim font-mono text-[10px]">{d.signeeLe ? date(d.signeeLe) : ''}</span>
                       </>
                     ) : d.annulee ? (
-                      <span className="text-text-dim italic">—</span>
+                      <span className="text-text-dim italic">·</span>
                     ) : (
                       <span className="text-danger italic">non signée</span>
                     )}
@@ -477,7 +477,7 @@ export function RegistreDonateursPage() {
   );
 }
 
-/** Les cinq constatations sont conformes — sert au marqueur d'onglet. */
+/** Les cinq constatations sont conformes · sert au marqueur d'onglet. */
 function estConforme(r: RapportConformiteRegistre): boolean {
   return (
     r.numerotation.continue &&
@@ -538,7 +538,7 @@ function BlocConformite({
         'Numérotation continue',
         n.continue,
         n.continue ? 'CONFORME' : 'NON CONFORME',
-        `${n.exigence} Numéros ${n.premier ?? '—'} à ${n.dernier ?? '—'}.` +
+        `${n.exigence} Numéros ${n.premier ?? ''} à ${n.dernier ?? ''}.` +
           (n.trous.length ? ` Trous : ${n.trous.join(', ')}.` : '') +
           (n.doublons.length ? ` Doublons : ${n.doublons.join(', ')}.` : ''),
       )}
@@ -588,8 +588,8 @@ function BlocConformite({
       </div>
 
       <div className="border border-border bg-surface px-3.5 py-3">
-        {blocComptes('COMPTES DE LIBÉRALITÉ — rapprochés', r.comptesLiberalite, false)}
-        {blocComptes('COMPTES FRONTIÈRE — chiffrés, non rapprochés (survolez pour le fondement)', r.comptesFrontiere, true)}
+        {blocComptes('COMPTES DE LIBÉRALITÉ · rapprochés', r.comptesLiberalite, false)}
+        {blocComptes('COMPTES FRONTIÈRE · chiffrés, non rapprochés (survolez pour le fondement)', r.comptesFrontiere, true)}
         {blocComptes('HORS PÉRIMÈTRE DE L’ARTICLE 17', r.comptesHorsPerimetre, true)}
         <div className="text-[10px] text-text-dim italic border-t border-border pt-2">{r.avertissement}</div>
       </div>

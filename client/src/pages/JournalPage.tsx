@@ -83,7 +83,7 @@ export function JournalPage() {
   // Chaque effet pose son drapeau `annule` : sans lui, une réponse lente
   // partie en premier écrase à son arrivée une réponse plus récente déjà
   // affichée. Sur le grand livre, cela affichait les lignes ET LE SOLDE d'un
-  // compte sous le nom d'un autre — une faute lourde sur un logiciel
+  // compte sous le nom d'un autre · une faute lourde sur un logiciel
   // comptable, et rien à l'écran ne l'aurait signalée.
   useEffect(() => {
     if (!exerciceCourant) return;
@@ -143,7 +143,7 @@ export function JournalPage() {
 
   // `api.telecharger` rejette sur 403 (licence expirée), 400 ou 500. Sans ce
   // `catch`, la promesse partait dans le vide : aucun fichier ne se
-  // téléchargeait et AUCUN message n'apparaissait — l'utilisateur reclique
+  // téléchargeait et AUCUN message n'apparaissait · l'utilisateur reclique
   // sans comprendre.
   const [exportEnCours, setExportEnCours] = useState(false);
   const lancerExport = async (chemin: string, nomParDefaut: string) => {
@@ -188,15 +188,15 @@ export function JournalPage() {
       journal: e.journal?.code ?? '',
       libelle: e.libelle,
       // Libellé au niveau de la LIGNE (celui saisi ligne à ligne), à défaut
-      // celui de la pièce — même règle que l'édition du journal chez Sage.
+      // celui de la pièce · même règle que l'édition du journal chez Sage.
       libelleLigne: l.libelle ?? e.libelle,
-      compte: l.compte ? `${l.compte.numero} — ${l.compte.intitule}` : l.compteId,
+      compte: l.compte ? `${l.compte.numero} · ${l.compte.intitule}` : l.compteId,
       compteNumero: l.compte?.numero ?? '',
       debit: Number(l.debit),
       credit: Number(l.credit),
       // Le n° de pièce est celui attribué par le journal ; `reference` est la
       // pièce justificative externe. L'export Excel a deux colonnes
-      // distinctes — l'écran affichait `reference` sous l'en-tête « PIÈCE »,
+      // distinctes · l'écran affichait `reference` sous l'en-tête « PIÈCE »,
       // si bien que l'écran et le fichier ne nommaient pas la même chose.
       numeroPiece: e.numeroPiece,
       reference: e.reference,
@@ -215,7 +215,7 @@ export function JournalPage() {
   );
 
   /**
-   * CORRECTION D'ERREUR PAR INSCRIPTION EN NÉGATIF — art. 20 de l'AUDCIF,
+   * CORRECTION D'ERREUR PAR INSCRIPTION EN NÉGATIF · art. 20 de l'AUDCIF,
    * repris par la Partie 2 ch. 2 du SYCEBNL : « les documents comptables
    * doivent être tenus sans blanc ni altération d'aucune sorte. Toute
    * correction d'erreur commise et découverte sur l'exercice en cours,
@@ -224,7 +224,7 @@ export function JournalPage() {
    *
    * D'où l'absence, ici comme côté serveur, de toute action « Modifier » ou
    * « Supprimer » sur une écriture : ce serait l'altération que le texte
-   * proscrit. L'écriture erronée RESTE au journal, signalée comme annulée —
+   * proscrit. L'écriture erronée RESTE au journal, signalée comme annulée ·
    * c'est la trace qui fait foi.
    */
   const corriger = async (ecritureId: string, libelle: string) => {
@@ -254,14 +254,14 @@ export function JournalPage() {
     if (l.annuleePar) {
       return (
         <span className="text-danger font-semibold" title="Annulée par inscription en négatif (art. 20 AUDCIF)">
-          Annulée ▸ pièce {l.annuleePar.numeroPiece ?? '—'}
+          Annulée ▸ pièce {l.annuleePar.numeroPiece ?? '·'}
         </span>
       );
     }
     if (l.corrige) {
       return (
         <span className="text-text-dim italic" title={l.motifCorrection ?? undefined}>
-          Correction ▸ pièce {l.corrige.numeroPiece ?? '—'}
+          Correction ▸ pièce {l.corrige.numeroPiece ?? '·'}
         </span>
       );
     }
@@ -328,7 +328,7 @@ export function JournalPage() {
       )}
 
       {onglet === 'journal' && filtresOuverts && (
-        <div className="border border-border bg-surface-alt p-3 mb-2.5 flex flex-wrap items-end gap-3">
+        <div className="border border-border bg-surface-alt shadow-posee p-3 mb-2.5 flex flex-wrap items-end gap-3">
           <label className="flex flex-col gap-1">
             <span className="text-[10px] font-bold text-text-dim">JOURNAL</span>
             <select
@@ -339,7 +339,7 @@ export function JournalPage() {
               <option value="">Tous</option>
               {journaux.map((j) => (
                 <option key={j.id} value={j.id}>
-                  {j.code} — {j.intitule}
+                  {j.code} · {j.intitule}
                 </option>
               ))}
             </select>
@@ -393,7 +393,7 @@ export function JournalPage() {
         </div>
       )}
 
-      <div className="flex bg-chrome border border-border border-b-0">
+      <div className="flex bg-chrome border border-border border-b-0 rounded-t-[10px] overflow-hidden">
         <button
           onClick={() => setOnglet('journal')}
           className={`px-4 py-1.5 text-[11px] font-bold ${onglet === 'journal' ? 'bg-surface border-r border-border' : 'text-text-dim'}`}
@@ -415,7 +415,7 @@ export function JournalPage() {
       </div>
 
       {/*
-        Présentation « Journal — état de base » de Sage : une ligne par ligne
+        Présentation « Journal · état de base » de Sage : une ligne par ligne
         d'écriture, colonnes Jour · Jrn · Pièce · Référence · N° compte ·
         Libellé · Débit · Crédit ; les informations de la pièce (jour, n°,
         référence, état de correction) ne sont portées que par sa PREMIÈRE
@@ -423,7 +423,7 @@ export function JournalPage() {
         fin d'édition.
       */}
       {onglet === 'journal' && (
-        <div className="border border-border bg-surface">
+        <div className="border border-border bg-surface shadow-posee rounded-t-none">
           <div className="grid grid-cols-[68px_46px_52px_92px_120px_1fr_108px_108px_128px] gap-2.5 px-3.5 py-1.5 bg-surface-alt text-[10px] font-bold text-text-dim border-b border-border-dark">
             <span>DATE</span>
             <span>JRN</span>
@@ -452,13 +452,13 @@ export function JournalPage() {
               </span>
               <span className="font-mono text-text-dim">{l.premiereLigne ? l.journal : ''}</span>
               <span className="font-mono text-[10.5px] text-text-dim text-right">
-                {l.premiereLigne ? (l.numeroPiece ?? '—') : ''}
+                {l.premiereLigne ? (l.numeroPiece ?? '·') : ''}
               </span>
               <span className="font-mono text-[10px] text-text-dim truncate">{l.premiereLigne ? l.reference : ''}</span>
               <span className="font-mono" title={l.compte}>
                 {l.compteNumero}
               </span>
-              <span className="truncate" title={`${l.compte} — ${l.libelleLigne}`}>
+              <span className="truncate" title={`${l.compte} · ${l.libelleLigne}`}>
                 {l.libelleLigne}
               </span>
               <span className="font-mono text-right">{l.debit ? l.debit.toLocaleString('fr-FR') : ''}</span>
@@ -485,12 +485,12 @@ export function JournalPage() {
               onChange={(e) => setCompteGrandLivreId(e.target.value)}
               className="border border-border bg-surface px-2 py-1 text-[11.5px] font-mono"
             >
-              <option value="">— sélectionner un compte —</option>
+              <option value="">sélectionner un compte</option>
               {comptes
                 .filter((c) => c.estActif)
                 .map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.numero} — {c.intitule}
+                    {c.numero} · {c.intitule}
                   </option>
                 ))}
             </select>
@@ -504,10 +504,10 @@ export function JournalPage() {
           )}
 
           {/*
-            Présentation « Grand livre — état de base » de Sage : une première
+            Présentation « Grand livre · état de base » de Sage : une première
             ligne en gras porte le numéro et l'intitulé du compte (la rupture),
-            puis chaque mouvement — date, jrn, pièce, libellé, débit, crédit,
-            solde progressif —, et un pied avec le total des mouvements et le
+            puis chaque mouvement · date, jrn, pièce, libellé, débit, crédit,
+            solde progressif ·, et un pied avec le total des mouvements et le
             solde final du compte.
           */}
           {compteGrandLivreId && grandLivre && (
@@ -516,7 +516,7 @@ export function JournalPage() {
                 const compteGL = comptes.find((c) => c.id === compteGrandLivreId);
                 return (
                   <div className="px-3.5 py-1.5 border-b border-border-dark bg-surface font-bold text-[12.5px]">
-                    <span className="font-mono">{compteGL?.numero}</span> — {compteGL?.intitule}
+                    <span className="font-mono">{compteGL?.numero}</span> · {compteGL?.intitule}
                   </div>
                 );
               })()}
@@ -540,7 +540,7 @@ export function JournalPage() {
                 >
                   <span className="font-mono text-[10.5px] text-text-dim">{new Date(l.date).toLocaleDateString('fr-FR')}</span>
                   <span className="font-mono text-text-dim">{l.journalCode}</span>
-                  <span className="font-mono text-[10.5px] text-text-dim text-right">{l.numeroPiece ?? '—'}</span>
+                  <span className="font-mono text-[10.5px] text-text-dim text-right">{l.numeroPiece ?? '·'}</span>
                   <span className="truncate" title={l.libelle}>
                     {l.libelle}
                   </span>
@@ -549,7 +549,7 @@ export function JournalPage() {
                   <span className="font-mono text-right font-semibold">{l.soldeProgressif.toLocaleString('fr-FR')}</span>
                   <span className="font-mono text-text-dim">{l.lettre ?? ''}</span>
                   <span className="font-mono text-[10.5px] text-text-dim truncate">
-                    {l.contrepartie.length > 0 ? l.contrepartie.join(' + ') : '—'}
+                    {l.contrepartie.length > 0 ? l.contrepartie.join(' + ') : '·'}
                   </span>
                 </div>
               ))}
@@ -572,15 +572,15 @@ export function JournalPage() {
       )}
 
       {/*
-        Présentation « Balance — état de base » de Sage : la balance classique
-        à quatre colonnes de montants — mouvements débit et crédit, soldes
-        DÉBITEURS et soldes CRÉDITEURS en colonnes séparées —, les comptes de
+        Présentation « Balance · état de base » de Sage : la balance classique
+        à quatre colonnes de montants · mouvements débit et crédit, soldes
+        DÉBITEURS et soldes CRÉDITEURS en colonnes séparées ·, les comptes de
         type Total tenant lieu de lignes de sous-totalisation (mêmes « niveaux
         de sous-totaux » que chez Sage), et les totaux généraux en pied,
         calculés sur les seuls comptes Détail pour ne rien compter deux fois.
       */}
       {onglet === 'balance' && (
-        <div className="border border-border bg-surface">
+        <div className="border border-border bg-surface shadow-posee rounded-t-none">
           <div className="grid grid-cols-[86px_1fr_115px_115px_115px_115px] gap-2.5 px-3.5 py-1.5 bg-surface-alt text-[10px] font-bold text-text-dim border-b border-border-dark">
             <span>N° COMPTE</span>
             <span>INTITULÉ DU COMPTE</span>
@@ -592,7 +592,7 @@ export function JournalPage() {
           {balance.map((l) => (
             <div
               key={l.compteId}
-              title={l.typeCompte === 'TOTAL' ? 'Compte Total — sous-totalisation des comptes Détail de même racine' : undefined}
+              title={l.typeCompte === 'TOTAL' ? 'Compte Total · sous-totalisation des comptes Détail de même racine' : undefined}
               className={`grid grid-cols-[86px_1fr_115px_115px_115px_115px] gap-2.5 px-3.5 py-[3px] items-center border-b border-border/50 text-[11.5px] ${
                 l.typeCompte === 'TOTAL' ? 'bg-chrome font-semibold border-b-border' : ''
               }`}

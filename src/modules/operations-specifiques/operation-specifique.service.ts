@@ -18,13 +18,13 @@ export const CATALOGUE: OperationSpecifique[] = [...OPERATIONS_FONDS_PROPRES, ..
 /** Deux montants sont égaux au centime près (les Decimal sont en 18,2). */
 const EPSILON = 0.005;
 
-/** Arrondi au centime — le référentiel raisonne en unités monétaires, pas en flottants. */
+/** Arrondi au centime · le référentiel raisonne en unités monétaires, pas en flottants. */
 function auCentime(v: number): number {
   return Math.round(v * 100) / 100;
 }
 
 /**
- * ÉCRITURES-TYPES DES OPÉRATIONS SPÉCIFIQUES — Partie 3 du référentiel
+ * ÉCRITURES-TYPES DES OPÉRATIONS SPÉCIFIQUES · Partie 3 du référentiel
  * SYCEBNL et Guide d'application.
  *
  * Ce service PROPOSE une écriture ; il ne l'enregistre qu'en passant par
@@ -37,13 +37,13 @@ function auCentime(v: number): number {
  * Deux garanties de la proposition :
  *
  * 1. **Rien n'est imputé au hasard.** Un préfixe du catalogue qui désigne
- *    plusieurs comptes du dossier — une banque parmi plusieurs, le compte
- *    d'immobilisation correspondant au bien reçu — ne se résout PAS d'office
+ *    plusieurs comptes du dossier · une banque parmi plusieurs, le compte
+ *    d'immobilisation correspondant au bien reçu · ne se résout PAS d'office
  *    sur le premier venu : la proposition remonte les candidats et attend le
  *    choix. Choisir seul reviendrait à imputer sans savoir.
  * 2. **Un compte absent est nommé, pas contourné.** Si le dossier ne possède
  *    aucun compte sous un préfixe du modèle, l'écriture est déclarée
- *    inapplicable en désignant le compte manquant — plutôt que de proposer
+ *    inapplicable en désignant le compte manquant · plutôt que de proposer
  *    une écriture amputée qui ne bouclerait pas.
  */
 @Injectable()
@@ -118,7 +118,7 @@ export class OperationSpecifiqueService {
    *
    * Les comptes TOTAL sont écartés : ce sont des agrégats de regroupement,
    * jamais mouvementables (`EcritureService.creer` les refuse). Les comptes
-   * inactifs le sont aussi — les proposer conduirait à une écriture rejetée.
+   * inactifs le sont aussi · les proposer conduirait à une écriture rejetée.
    */
   private async resoudreComptes(tenantId: string) {
     return this.prisma.compte.findMany({
@@ -142,7 +142,7 @@ export class OperationSpecifiqueService {
     // 1) Montants, hors complément.
     const montants = modele.lignes.map((l) => this.montantDeLaLigne(l, valeurs, modele.code));
 
-    // 2) Complément : ce qu'il faut pour équilibrer. Au plus un par modèle —
+    // 2) Complément : ce qu'il faut pour équilibrer. Au plus un par modèle ·
     //    deux compléments rendraient la répartition indéterminée.
     const indexComplement = modele.lignes.findIndex((l) => l.montant.mode === 'COMPLEMENT');
     if (modele.lignes.filter((l) => l.montant.mode === 'COMPLEMENT').length > 1) {
@@ -191,7 +191,7 @@ export class OperationSpecifiqueService {
       }
 
       // Un seul candidat : aucune ambiguïté, même si la ligne est marquée
-      // « au choix » — inutile de faire choisir entre une seule option.
+      // « au choix » · inutile de faire choisir entre une seule option.
       const resolu = choisi ?? (candidats.length === 1 ? candidats[0] : undefined);
 
       lignes.push({
@@ -226,7 +226,7 @@ export class OperationSpecifiqueService {
   }
 
   /**
-   * Enregistre l'écriture proposée, via `EcritureService.creer` — donc avec
+   * Enregistre l'écriture proposée, via `EcritureService.creer` · donc avec
    * tous ses contrôles. Refuse tant qu'un choix de compte reste ouvert ou
    * qu'un compte manque : une écriture incomplète n'a pas à atteindre la base.
    */
@@ -243,7 +243,7 @@ export class OperationSpecifiqueService {
     const enAttente = proposition.lignes.filter((l) => l.choixRequis);
     if (enAttente.length > 0) {
       throw new BadRequestException(
-        `Un compte reste à choisir pour : ${enAttente.map((l) => l.libelle).join(', ')}. Plusieurs comptes du dossier conviennent — le modèle ne tranche pas à votre place.`,
+        `Un compte reste à choisir pour : ${enAttente.map((l) => l.libelle).join(', ')}. Plusieurs comptes du dossier conviennent · le modèle ne tranche pas à votre place.`,
       );
     }
     if (!proposition.equilibree) {

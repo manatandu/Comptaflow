@@ -13,7 +13,7 @@ import { EcritureService } from '../comptabilite/ecriture.service';
  * Le plan de comptes utilisé ici n'est pas un jeu d'essai : c'est
  * `PLAN_COMPTES_SYCEBNL`, celui que la création d'un dossier installe
  * réellement. Un modèle qui passe ces tests est donc applicable tel quel dans
- * un dossier neuf — et un préfixe trop court se voit immédiatement.
+ * un dossier neuf · et un préfixe trop court se voit immédiatement.
  */
 
 /** Le plan réel, sous la forme que le service lit. */
@@ -55,10 +55,10 @@ async function ecriture(
 }
 
 // ---------------------------------------------------------------------------
-// Chapitre 1 — fonds propres des associations
+// Chapitre 1 · fonds propres des associations
 // ---------------------------------------------------------------------------
 
-describe('Guide, Application 1 — dotation consomptible et non consomptible', () => {
+describe('Guide, Application 1 · dotation consomptible et non consomptible', () => {
   it('souscription des apports à titre définitif : 33 000 000 en nature, 5 000 000 en numéraire', async () => {
     const e = await ecriture('B14-SOUSCRIPTION-DEFINITIF', { apportsNature: 33_000_000, apportsNumeraire: 5_000_000 });
     expect(e.table).toEqual([
@@ -90,10 +90,10 @@ describe('Guide, Application 1 — dotation consomptible et non consomptible', (
 });
 
 // ---------------------------------------------------------------------------
-// Chapitre 1 — cotisations et droit d'entrée
+// Chapitre 1 · cotisations et droit d'entrée
 // ---------------------------------------------------------------------------
 
-describe('Guide, Application 2 — droit d’entrée et appel de cotisations', () => {
+describe('Guide, Application 2 · droit d’entrée et appel de cotisations', () => {
   /**
    * LE cas qui justifie le mode COMPLEMENT : les statuts donnent 15 % et
    * 10 %, et le texte dit « le SOLDE = droit d'entrée ». Saisir ce solde
@@ -118,7 +118,7 @@ describe('Guide, Application 2 — droit d’entrée et appel de cotisations', (
   });
 });
 
-describe('Guide, Application 13 — cotisations des membres', () => {
+describe('Guide, Application 13 · cotisations des membres', () => {
   it('appel de 2 500 000, transfert en douteux de 12 000 000, dépréciation à 80 %', async () => {
     expect((await ecriture('B6-APPEL-COTISATION', { cotisation: 2_500_000 })).table).toEqual([
       { numero: '41100000', debit: 2_500_000, credit: 0 },
@@ -137,15 +137,15 @@ describe('Guide, Application 13 — cotisations des membres', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Chapitre 1 — subventions d'investissement
+// Chapitre 1 · subventions d'investissement
 // ---------------------------------------------------------------------------
 
-describe('Guide, Application 3 — subvention d’investissement', () => {
+describe('Guide, Application 3 · subvention d’investissement', () => {
   /**
    * Les deux reprises de l'application, qui ne suivent PAS la même règle :
    * le terrain n'est pas amortissable, sa subvention se reprend sur 10 ans
    * « SANS prorata temporis » ; l'entrepôt suit son amortissement, prorata
-   * compris. Le même modèle sert les deux — c'est le paramètre « mois » qui
+   * compris. Le même modèle sert les deux · c'est le paramètre « mois » qui
    * porte la différence.
    */
   it('terrain non amortissable : 20 000 000 × 1/10, sans prorata → 2 000 000', async () => {
@@ -174,10 +174,10 @@ describe('Guide, Application 3 — subvention d’investissement', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Chapitre 2 — fonds affectés et reportés
+// Chapitre 2 · fonds affectés et reportés
 // ---------------------------------------------------------------------------
 
-describe('Guide, Application 4 — fonds affectés à un projet spécifique', () => {
+describe('Guide, Application 4 · fonds affectés à un projet spécifique', () => {
   it('réception de 45 000 000 : au PASSIF, pas en produit', async () => {
     const e = await ecriture('B1-RECEPTION', { fonds: 45_000_000 }, { '52': '52110000' });
     expect(e.table).toEqual([
@@ -195,7 +195,7 @@ describe('Guide, Application 4 — fonds affectés à un projet spécifique', ()
   });
 });
 
-describe('Guide, Application 5 — legs d’immobilisations à conserver', () => {
+describe('Guide, Application 5 · legs d’immobilisations à conserver', () => {
   it('447 000 000 de biens, 25 000 000 de dettes successorales → 422 000 000 de fonds', async () => {
     const e = await ecriture(
       'B16-RECEPTION-LEGS',
@@ -231,7 +231,7 @@ describe('Guide, Application 5 — legs d’immobilisations à conserver', () =>
   });
 });
 
-describe('Guide, Application 6 — legs destinés à la vente', () => {
+describe('Guide, Application 6 · legs destinés à la vente', () => {
   it('400 000 000 de bâtiments + 47 000 000 de matériels → 447 000 000 de fonds reporté', async () => {
     const e = await ecriture('B17-COMPTABILISATION', { batiments: 400_000_000, materiels: 47_000_000 });
     expect(e.table).toEqual([
@@ -256,7 +256,7 @@ describe('Guide, Application 6 — legs destinés à la vente', () => {
   });
 });
 
-describe('Guide, Application 7 — donation temporaire d’usufruit', () => {
+describe('Guide, Application 7 · donation temporaire d’usufruit', () => {
   it('usufruit de 150 000 000 sur 10 ans : amortissement et reprise de 15 000 000 chacun', async () => {
     expect((await ecriture('B18-RECEPTION', { valeur: 150_000_000 })).table).toEqual([
       { numero: '20110000', debit: 150_000_000, credit: 0 },
@@ -274,10 +274,10 @@ describe('Guide, Application 7 — donation temporaire d’usufruit', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Chapitre 3 — projets de développement
+// Chapitre 3 · projets de développement
 // ---------------------------------------------------------------------------
 
-describe('Guide, Application 8 — projet de développement', () => {
+describe('Guide, Application 8 · projet de développement', () => {
   it('150 000 000 décaissés, clé 80 / 20 → 120 000 000 en investissement, 30 000 000 en administration', async () => {
     const e = await ecriture('B19-DECAISSEMENT', { virement: 150_000_000, partInvestissement: 0.8 }, { '52': '52110000' });
     expect(e.table).toEqual([
@@ -312,10 +312,10 @@ describe('Guide, Application 8 — projet de développement', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Chapitre 4 — dons
+// Chapitre 4 · dons
 // ---------------------------------------------------------------------------
 
-describe('Guide, Application 9 — dons en nature à distribuer', () => {
+describe('Guide, Application 9 · dons en nature à distribuer', () => {
   it('réception de 25 000 000, stock de 5 000 000, revenus différés de 5 000 000', async () => {
     expect((await ecriture('B2-RECEPTION-COURANT', { valeur: 25_000_000 })).table).toEqual([
       { numero: '65400000', debit: 25_000_000, credit: 0 },
@@ -331,12 +331,12 @@ describe('Guide, Application 9 — dons en nature à distribuer', () => {
       { numero: '47130000', debit: 0, credit: 5_000_000 },
     ]);
     // « Les écritures de fin d'exercice doivent être extournées au début de
-    // l'exercice suivant » — le taire ferait porter deux fois la régularisation.
+    // l'exercice suivant » · le taire ferait porter deux fois la régularisation.
     expect(differe.aExtourner).toBe(true);
   });
 });
 
-describe('Guide, Application 10 — dons en nature à vendre', () => {
+describe('Guide, Application 10 · dons en nature à vendre', () => {
   it('suivi hors bilan du camion reçu : 15 000 000 en classe 9', async () => {
     expect((await ecriture('B3-SUIVI-EXTRA-COMPTABLE', { valeur: 15_000_000 })).table).toEqual([
       { numero: '90100000', debit: 15_000_000, credit: 0 },
@@ -369,7 +369,7 @@ describe('Guide, Application 10 — dons en nature à vendre', () => {
   });
 });
 
-describe('Guide, Application 11 — dons en numéraire', () => {
+describe('Guide, Application 11 · dons en numéraire', () => {
   it('générosité promise et non encore reçue : 475 par le crédit du 704', async () => {
     const e = await ecriture('B4-GENEROSITE-A-RECEVOIR', { promesse: 8_000_000 }, { '704': '70410000' });
     expect(e.table).toEqual([
@@ -395,7 +395,7 @@ describe('Guide, Application 11 — dons en numéraire', () => {
   });
 });
 
-describe('Guide, Application 12 — frais de recherche de fonds', () => {
+describe('Guide, Application 12 · frais de recherche de fonds', () => {
   it('25 000 + 35 000 + 75 000 = 135 000 au compte spécifique 636', async () => {
     const e = await ecriture('B5-FRAIS', { frais: 135_000 }, { '401': '40110000' });
     expect(e.table).toEqual([
@@ -409,7 +409,7 @@ describe('Guide, Application 12 — frais de recherche de fonds', () => {
 // Chapitres 5 et 6
 // ---------------------------------------------------------------------------
 
-describe('Guide, Applications 14 et 15 — fondateur et aides versées', () => {
+describe('Guide, Applications 14 et 15 · fondateur et aides versées', () => {
   it('contribution du fondateur : 20 000 000 au compte 752, pas au compte 10', async () => {
     const e = await ecriture('B7-CONTRIBUTION', { versement: 20_000_000 }, { '5': '52110000' });
     expect(e.table).toEqual([
@@ -427,7 +427,7 @@ describe('Guide, Applications 14 et 15 — fondateur et aides versées', () => {
   });
 });
 
-describe('Guide, Application 16 — subvention d’exploitation pluriannuelle', () => {
+describe('Guide, Application 16 · subvention d’exploitation pluriannuelle', () => {
   it('60 000 000 sur trois exercices : 40 000 000 différés, 20 000 000 rattachés par exercice', async () => {
     expect((await ecriture('B9-NOTIFICATION', { subvention: 60_000_000 }, { '71': '71100000' })).table).toEqual([
       { numero: '47320000', debit: 60_000_000, credit: 0 },
@@ -444,7 +444,7 @@ describe('Guide, Application 16 — subvention d’exploitation pluriannuelle', 
   });
 });
 
-describe('Guide, Application 17 — abandons de frais des bénévoles', () => {
+describe('Guide, Application 17 · abandons de frais des bénévoles', () => {
   it('525 000 de frais engagés puis abandonnés', async () => {
     const engages = await ecriture('B10-FRAIS-ENGAGES', { frais: 525_000 }, { '6': '61800000' });
     expect(engages.table).toEqual([
@@ -458,7 +458,7 @@ describe('Guide, Application 17 — abandons de frais des bénévoles', () => {
   });
 });
 
-describe('Guide, Applications 18 et 19 — mécénat et restitution', () => {
+describe('Guide, Applications 18 et 19 · mécénat et restitution', () => {
   it('convention de mécénat de 50 000 000 : créance dès la signature', async () => {
     expect((await ecriture('B11-SIGNATURE', { convention: 50_000_000 })).table).toEqual([
       { numero: '47500000', debit: 50_000_000, credit: 0 },
@@ -475,7 +475,7 @@ describe('Guide, Applications 18 et 19 — mécénat et restitution', () => {
   });
 });
 
-describe('Guide, Application 20 — contributions volontaires en nature', () => {
+describe('Guide, Application 20 · contributions volontaires en nature', () => {
   it('450 000 de fournitures reçues, hors bilan', async () => {
     expect((await ecriture('B13-BIENS', { valeur: 450_000 })).table).toEqual([
       { numero: '90100000', debit: 450_000, credit: 0 },
@@ -488,7 +488,7 @@ describe('Guide, Application 20 — contributions volontaires en nature', () => 
    * la Note 1 porte 2 864 880, sans explication. 8 325 × 346 = 2 880 450 :
    * seule l'écriture se vérifie, c'est donc elle que le modèle calcule.
    */
-  it('8 325 heures × 346 = 2 880 450 — et l’écart avec la Note 1 est signalé', async () => {
+  it('8 325 heures × 346 = 2 880 450 · et l’écart avec la Note 1 est signalé', async () => {
     const e = await ecriture('B13-BENEVOLAT', { heures: 8_325, tauxHoraire: 346 });
     expect(e.table).toEqual([
       { numero: '90400000', debit: 2_880_450, credit: 0 },
@@ -525,7 +525,7 @@ describe('Invariants du catalogue', () => {
     }
   });
 
-  it('toute ligne marquée « au choix » a bien PLUSIEURS candidats — sinon la marque est de trop', () => {
+  it('toute ligne marquée « au choix » a bien PLUSIEURS candidats · sinon la marque est de trop', () => {
     for (const operation of CATALOGUE) {
       for (const modele of operation.modeles) {
         for (const ligne of modele.lignes.filter((l) => l.auChoix)) {
@@ -613,7 +613,7 @@ describe('Application effective d’un modèle', () => {
     expect(creer).not.toHaveBeenCalled();
   });
 
-  it('passe par EcritureService.creer — jamais d’écriture par un chemin dérobé', async () => {
+  it('passe par EcritureService.creer · jamais d’écriture par un chemin dérobé', async () => {
     const { svc, creer } = service();
     await svc.appliquer('t1', 'u1', {
       codeModele: 'B1-RECEPTION', parametres: { fonds: 45_000_000 }, comptesChoisis: { '52': '52110000' },

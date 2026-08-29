@@ -29,11 +29,11 @@ export interface ClasseurExporte {
 }
 
 /**
- * Export Excel des documents comptables — Journal, Grand livre (un compte ou
+ * Export Excel des documents comptables · Journal, Grand livre (un compte ou
  * complet), Balance, Bilan et Compte de résultat. Objectif explicite
  * (demande utilisateur, séance du 2026-08-28) : produire des documents
  * exploitables pour l'audit, un PDF étant difficile à recouper ligne à
- * ligne. Chaque feuille reste strictement SYCEBNL/OHADA — pas d'emprunt de
+ * ligne. Chaque feuille reste strictement SYCEBNL/OHADA · pas d'emprunt de
  * mise en forme SYSCOHADA, même si des dossiers d'audit réels (SYSCOHADA)
  * ont inspiré la richesse des colonnes de traçabilité (voir
  * docs/plan-de-construction.md, analyse CARRIGRES).
@@ -75,15 +75,15 @@ export class ExportService {
   /**
    * Garde-fou de volume. Le classeur est intégralement construit en mémoire
    * puis sérialisé en un seul buffer (`writeBuffer`) : mesuré, un export de
-   * 50 000 lignes consomme environ 1 Go. Sans borne, un utilisateur — même
-   * en LECTURE_SEULE — pouvait enchaîner les exports d'un gros dossier et
+   * 50 000 lignes consomme environ 1 Go. Sans borne, un utilisateur · même
+   * en LECTURE_SEULE · pouvait enchaîner les exports d'un gros dossier et
    * saturer le tas Node, ce qui fait tomber le processus pour TOUS les
    * tenants (l'application est mono-processus, sans file de travaux).
    *
    * Le refus est explicite et actionnable plutôt que silencieux : mieux vaut
    * demander de restreindre la période qu'un état tronqué, ou qu'un
    * plantage. Le passage à `ExcelJS.stream.xlsx.WorkbookWriter` lèverait la
-   * contrainte, au prix d'une refonte de la réponse en flux — hors périmètre
+   * contrainte, au prix d'une refonte de la réponse en flux · hors périmètre
    * ici, tracé dans docs/plan-de-construction.md.
    */
   private static readonly MAX_LIGNES_EXPORT = Number(process.env.EXPORT_MAX_LIGNES ?? 50_000);
@@ -177,17 +177,17 @@ export class ExportService {
       { header: 'Lettrage', key: 'lettre', width: 10 },
       // Un journal d'audit qui tairait les annulations laisserait additionner
       // une erreur et sa correction sans savoir laquelle est laquelle. Les
-      // deux écritures RESTENT au journal — « sans blanc ni altération
-      // d'aucune sorte » (Partie 2 ch. 2) — mais chacune se nomme.
+      // deux écritures RESTENT au journal · « sans blanc ni altération
+      // d'aucune sorte » (Partie 2 ch. 2) · mais chacune se nomme.
       { header: 'Correction (art. 20 AUDCIF)', key: 'correction', width: 30 },
       { header: 'Motif de la correction', key: 'motifCorrection', width: 46 },
     ];
 
     for (const e of ecritures) {
       const etatCorrection = e.correction
-        ? `Annulée par la pièce n° ${e.correction.numeroPiece ?? '—'}`
+        ? `Annulée par la pièce n° ${e.correction.numeroPiece ?? '·'}`
         : e.corrigeEcriture
-          ? `Annule la pièce n° ${e.corrigeEcriture.numeroPiece ?? '—'}`
+          ? `Annule la pièce n° ${e.corrigeEcriture.numeroPiece ?? '·'}`
           : '';
       for (const l of e.lignes) {
         feuille.addRow({
@@ -256,12 +256,12 @@ export class ExportService {
   }
 
   /**
-   * Grand livre d'UN compte, avec colonne « Compte contrepartie » — demande
+   * Grand livre d'UN compte, avec colonne « Compte contrepartie » · demande
    * explicite de l'utilisateur, pour retracer une écriture sans connaître
    * son journal.
    *
    * Règle retenue (voir discussion du 2026-08-28, docs/plan-de-construction.md) :
-   * comptes DISTINCTS de sens opposé dans la même écriture — calculée une
+   * comptes DISTINCTS de sens opposé dans la même écriture · calculée une
    * seule fois dans `EcritureService` et partagée par l'écran et l'export.
    */
   async grandLivreExcel(tenantId: string, compteId: string, exerciceId?: string): Promise<ClasseurExporte> {
@@ -289,7 +289,7 @@ export class ExportService {
 
     const derniereLigneDonnees = feuille.rowCount;
     // Ligne de totaux, comme sur le journal, la balance et le sommaire du
-    // grand livre complet — et surtout comme l'écran, qui affiche « SOLDE
+    // grand livre complet · et surtout comme l'écran, qui affiche « SOLDE
     // FINAL » : sans elle, l'utilisateur qui exporte le compte qu'il a sous
     // les yeux perd le seul chiffre qu'il regardait.
     const ligneTotal = feuille.addRow({
@@ -310,7 +310,7 @@ export class ExportService {
     // `&` introduit un code de mise en forme dans un en-tête Excel : un
     // intitulé « Achats & fournitures » donnerait `&f`, qu'Excel remplace par
     // le nom du fichier. On le double pour l'échapper.
-    const enTete = `${compte.numero} — ${compte.intitule}`.replace(/&/g, '&&');
+    const enTete = `${compte.numero} · ${compte.intitule}`.replace(/&/g, '&&');
     feuille.headerFooter = { firstHeader: `&C${enTete}` };
 
     return {
@@ -320,7 +320,7 @@ export class ExportService {
   }
 
   /**
-   * Grand livre COMPLET — tous les comptes mouvementés de l'exercice dans un
+   * Grand livre COMPLET · tous les comptes mouvementés de l'exercice dans un
    * seul classeur. C'est la forme réellement attendue par un auditeur : le
    * grand livre compte par compte obligeait à autant de téléchargements
    * qu'il y a de comptes.
@@ -331,7 +331,7 @@ export class ExportService {
    *    progressif se réinitialise à chaque compte, ce qui conserve la
    *    lecture classique une fois filtré sur un compte ;
    *  - « Sommaire » : une ligne par compte (totaux débit/crédit, solde
-   *    final) — c'est là que vivent les sous-totaux, plutôt qu'en lignes de
+   *    final) · c'est là que vivent les sous-totaux, plutôt qu'en lignes de
    *    rupture au milieu des données qui fausseraient tout filtre.
    */
   async grandLivreCompletExcel(tenantId: string, exerciceId?: string): Promise<ClasseurExporte> {
@@ -435,7 +435,7 @@ export class ExportService {
         intitule: l.intitule,
         // Colonne explicite plutôt que le seul gras : un compte Total est un
         // agrégat des comptes Détail de même racine, jamais un mouvement
-        // propre — sommer les deux doublerait les montants, et cette
+        // propre · sommer les deux doublerait les montants, et cette
         // distinction doit rester lisible même après tri ou filtre.
         type: l.typeCompte === 'TOTAL' ? 'Total' : 'Détail',
         totalDebit: l.totalDebit || null,
@@ -469,16 +469,16 @@ export class ExportService {
   }
 
   /**
-   * Bilan — ⚠️ reprend le regroupement SIMPLIFIÉ classe→poste du module
+   * Bilan · ⚠️ reprend le regroupement SIMPLIFIÉ classe→poste du module
    * etats-financiers (MVP, PAS le tableau de correspondance officiel
    * SYCEBNL Partie 4 ch. 2). Le classeur porte l'avertissement explicitement
-   * en cellule, jamais caché — voir etats-financiers.service.ts pour le
+   * en cellule, jamais caché · voir etats-financiers.service.ts pour le
    * détail de la règle appliquée et la note sur le moteur `liasse/` officiel
-   * (skill sycebnl) qui doit remplacer ce module (roadmap — Moteur de
+   * (skill sycebnl) qui doit remplacer ce module (roadmap · Moteur de
    * mapping / états financiers configurables).
    */
   /**
-   * Bilan — adossé au tableau de correspondance OFFICIEL SYCEBNL, comme le
+   * Bilan · adossé au tableau de correspondance OFFICIEL SYCEBNL, comme le
    * compte de résultat (voir `EtatsFinanciersService.bilan()` et
    * `correspondance-bilan.ts`). Trois feuilles : l'état (postes ACTIF et
    * PASSIF juxtaposés, sous-totaux en gras dans leur sens de lecture
@@ -487,7 +487,7 @@ export class ExportService {
    *
    * Colonnes : le texte officiel exige Brut / Amortissements et dépréciations
    * / Net côté actif (pas un seul montant net), et un comparatif N-1 des
-   * deux côtés — les deux manquaient à l'origine, corrigés après une
+   * deux côtés · les deux manquaient à l'origine, corrigés après une
    * question directe de l'utilisateur sur une capture d'écran (2026-08-28).
    * Le passif n'a pas de colonne Brut/Amort (le texte officiel n'en prévoit
    * pas) : seulement Net (N) et Net (N-1).
@@ -501,16 +501,16 @@ export class ExportService {
     // En-têtes distincts de part et d'autre : deux colonnes portant le même
     // titre casseraient tout tableau croisé dynamique.
     feuille.columns = [
-      { header: 'Actif — REF', key: 'refActif', width: 10 },
-      { header: 'Actif — libellé', key: 'libelleActif', width: 42 },
-      { header: 'Actif — Brut (N)', key: 'brutActif', width: 15 },
-      { header: 'Actif — Amort./dépréc. (N)', key: 'amortActif', width: 18 },
-      { header: 'Actif — Net (N)', key: 'montantActif', width: 15 },
-      { header: `Actif — Net (N-1)${suffixeN1}`, key: 'montantActifN1', width: 17 },
-      { header: 'Passif — REF', key: 'refPassif', width: 10 },
-      { header: 'Passif — libellé', key: 'libellePassif', width: 42 },
-      { header: 'Passif — Net (N)', key: 'montantPassif', width: 15 },
-      { header: `Passif — Net (N-1)${suffixeN1}`, key: 'montantPassifN1', width: 17 },
+      { header: 'Actif · REF', key: 'refActif', width: 10 },
+      { header: 'Actif · libellé', key: 'libelleActif', width: 42 },
+      { header: 'Actif · Brut (N)', key: 'brutActif', width: 15 },
+      { header: 'Actif · Amort./dépréc. (N)', key: 'amortActif', width: 18 },
+      { header: 'Actif · Net (N)', key: 'montantActif', width: 15 },
+      { header: `Actif · Net (N-1)${suffixeN1}`, key: 'montantActifN1', width: 17 },
+      { header: 'Passif · REF', key: 'refPassif', width: 10 },
+      { header: 'Passif · libellé', key: 'libellePassif', width: 42 },
+      { header: 'Passif · Net (N)', key: 'montantPassif', width: 15 },
+      { header: `Passif · Net (N-1)${suffixeN1}`, key: 'montantPassifN1', width: 17 },
     ];
 
     const maxLignes = Math.max(bilan.actif.length, bilan.passif.length);
@@ -557,11 +557,11 @@ export class ExportService {
     // mais DEUX listes indépendantes juxtaposées (actif à gauche, passif à
     // droite), appariées ligne à ligne par un simple index. Filtrer sur un
     // montant d'actif y masquerait des postes de passif qui n'ont rien à
-    // voir, en laissant les totaux affichés — un bilan faussé en un clic.
+    // voir, en laissant les totaux affichés · un bilan faussé en un clic.
     styliserEntete(feuille.getRow(1));
     feuille.views = [{ state: 'frozen', ySplit: 1 }];
 
-    // Détail : quels comptes alimentent quel poste — indispensable pour
+    // Détail : quels comptes alimentent quel poste · indispensable pour
     // qu'un auditeur puisse vérifier le montant plutôt que le prendre sur
     // parole. Les lignes de total n'ont pas de comptes propres (`comptes: []`).
     const detail = classeur.addWorksheet('Détail par poste');
@@ -583,7 +583,7 @@ export class ExportService {
     this.appliquerFormats(detail, { montant: FORMAT_MONTANT });
     this.finaliserTableau(detail, detail.columns.length, detail.rowCount);
 
-    // Contrôles et anomalies — même esprit que le compte de résultat.
+    // Contrôles et anomalies · même esprit que le compte de résultat.
     const anomalies = classeur.addWorksheet('Contrôles et anomalies');
     anomalies.columns = [
       { header: 'Compte', key: 'numero', width: 14 },
@@ -597,8 +597,8 @@ export class ExportService {
       intitule: 'Total actif (BZ) = Total passif (DZ) ?',
       montant: bilan.totalActif - bilan.totalPassif,
       diagnostic: bilan.equilibre
-        ? `OK — bilan équilibré. Actif = Passif = ${bilan.totalActif.toFixed(2)}.`
-        : `DÉSÉQUILIBRE de ${(bilan.totalActif - bilan.totalPassif).toFixed(2)} — vérifier les écritures et les comptes non rattachés ci-dessous.`,
+        ? `OK · bilan équilibré. Actif = Passif = ${bilan.totalActif.toFixed(2)}.`
+        : `DÉSÉQUILIBRE de ${(bilan.totalActif - bilan.totalPassif).toFixed(2)} · vérifier les écritures et les comptes non rattachés ci-dessous.`,
     });
     ligneEquilibre.font = { bold: true, color: { argb: bilan.equilibre ? 'FF1E7B34' : 'FFB00020' } };
 
@@ -607,8 +607,8 @@ export class ExportService {
       intitule: 'Source du résultat net (poste CH)',
       montant: null,
       diagnostic: bilan.controle.doubleComptageProbable
-        ? `Classes 6/7/8 ET compte 13 sont TOUS DEUX mouvementés (${bilan.controle.resultatClasses678.toFixed(2)} / ${bilan.controle.resultatCompte13.toFixed(2)}) — risque de double comptage. Le résultat retenu vient des classes 6/7/8 (avant clôture). Fournir une balance avant OU après clôture, pas un état intermédiaire.`
-        : `OK — une seule source mouvementée (${Math.abs(bilan.controle.resultatClasses678) > 0.005 ? 'classes 6/7/8, avant clôture' : 'compte 13, après clôture'}).`,
+        ? `Classes 6/7/8 ET compte 13 sont TOUS DEUX mouvementés (${bilan.controle.resultatClasses678.toFixed(2)} / ${bilan.controle.resultatCompte13.toFixed(2)}) · risque de double comptage. Le résultat retenu vient des classes 6/7/8 (avant clôture). Fournir une balance avant OU après clôture, pas un état intermédiaire.`
+        : `OK · une seule source mouvementée (${Math.abs(bilan.controle.resultatClasses678) > 0.005 ? 'classes 6/7/8, avant clôture' : 'compte 13, après clôture'}).`,
     });
     ligneResultat.font = { bold: true, color: { argb: bilan.controle.doubleComptageProbable ? 'FFB00020' : 'FF1E7B34' } };
 
@@ -624,7 +624,7 @@ export class ExportService {
     }
     if (bilan.comptesNonRattaches.length === 0) {
       anomalies.addRow({
-        numero: '—',
+        numero: '·',
         intitule: 'Aucun compte non rattaché : tous les comptes de bilan entrent dans un poste officiel.',
       });
     }
@@ -638,7 +638,7 @@ export class ExportService {
   }
 
   /**
-   * Compte de résultat — adossé au tableau de correspondance OFFICIEL
+   * Compte de résultat · adossé au tableau de correspondance OFFICIEL
    * (Journal officiel OHADA, Partie 4 ch. 2 section 6), contrairement au
    * bilan ci-dessus. Trois feuilles : l'état lui-même, le détail des comptes
    * derrière chaque poste (drill-down indispensable en audit), et les
@@ -651,7 +651,7 @@ export class ExportService {
     const classeur = this.nouveauClasseur();
     const feuille = classeur.addWorksheet('Compte de résultat');
     // Colonne N-1 : exigée par le texte officiel (« Net exercice au
-    // 31/12/N-1 ») au même titre que sur le bilan — manquait à l'origine.
+    // 31/12/N-1 ») au même titre que sur le bilan · manquait à l'origine.
     feuille.columns = [
       { header: 'REF', key: 'ref', width: 8 },
       { header: 'Libellé', key: 'libelle', width: 58 },
@@ -702,7 +702,7 @@ export class ExportService {
     note.font = { italic: true, color: { argb: 'FF555555' } };
     feuille.mergeCells(`A${note.number}:D${note.number}`);
 
-    // Détail : quels comptes alimentent quel poste — c'est ce qui rend
+    // Détail : quels comptes alimentent quel poste · c'est ce qui rend
     // l'état vérifiable, plutôt qu'à prendre sur parole.
     const detail = classeur.addWorksheet('Détail par poste');
     detail.columns = [
@@ -722,7 +722,7 @@ export class ExportService {
     this.finaliserTableau(detail, detail.columns.length, detail.rowCount);
 
     // Contrôles et anomalies. Feuille toujours présente, même quand tout va
-    // bien — une feuille absente pourrait passer pour un oubli, alors que
+    // bien · une feuille absente pourrait passer pour un oubli, alors que
     // « aucune anomalie » est une information à part entière en audit.
     const anomalies = classeur.addWorksheet('Contrôles et anomalies');
     anomalies.columns = [
@@ -737,8 +737,8 @@ export class ExportService {
       intitule: 'Résultat des postes (XE) = résultat de tous les comptes de gestion ?',
       montant: cr.controle.ecart,
       diagnostic: cr.controle.coherent
-        ? `OK — l'état boucle. XE = ${cr.resultatNet.toFixed(2)}, identique au résultat logé au bilan.`
-        : `ÉCART DE ${cr.controle.ecart.toFixed(2)} — l'état NE BOUCLE PAS. XE = ${cr.resultatNet.toFixed(2)} alors que le solde de ` +
+        ? `OK · l'état boucle. XE = ${cr.resultatNet.toFixed(2)}, identique au résultat logé au bilan.`
+        : `ÉCART DE ${cr.controle.ecart.toFixed(2)} · l'état NE BOUCLE PAS. XE = ${cr.resultatNet.toFixed(2)} alors que le solde de ` +
           `tous les comptes de gestion vaut ${cr.controle.resultatToutesClassesDeGestion.toFixed(2)} (montant logé au bilan). ` +
           `L'écart vaut la somme des comptes non rattachés listés ci-dessous.`,
     });
@@ -760,7 +760,7 @@ export class ExportService {
     }
     if (cr.comptesNonRattaches.length === 0) {
       anomalies.addRow({
-        numero: '—',
+        numero: '·',
         intitule: 'Aucun compte non rattaché : tous les comptes de gestion entrent dans un poste officiel.',
       });
     }
@@ -774,16 +774,16 @@ export class ExportService {
   }
 
   /**
-   * BILAN — jeu SYCEBNL « projets de développement et assimilés » (Partie 4,
+   * BILAN · jeu SYCEBNL « projets de développement et assimilés » (Partie 4,
    * ch. 3), adossé à `EtatsFinanciersProjetService`/`correspondance-projet-bilan.ts`.
    * Même parti pris de forme que `bilanExcel` ci-dessus (Brut/Amort/Net,
-   * comparatif N-1, feuille Détail, feuille Contrôles) — sans la feuille de
+   * comparatif N-1, feuille Détail, feuille Contrôles) · sans la feuille de
    * double-source du résultat net : ce jeu n'a qu'une seule source pour CC
    * (compte 13, voir `EtatsFinanciersProjetService.calculerCC`).
    */
 
   /**
-   * Tableau de flux de trésorerie — spécifique au jeu associations (Partie 4,
+   * Tableau de flux de trésorerie · spécifique au jeu associations (Partie 4,
    * ch. 1 § 4). Méthode directe, colonnes N et N-1, double contrôle de
    * bouclage porté sur une feuille dédiée plutôt qu'en simple bandeau.
    */
@@ -834,12 +834,12 @@ export class ExportService {
     controle.addRow({ libelle: 'Trésorerie nette au 1er janvier (A)', montant: tft.controle.tresorerieOuverture });
     controle.addRow({ libelle: 'Variation de la trésorerie nette de la période (G = B+C+D+E)', montant: tft.controle.variation });
     const cloture1 = controle.addRow({
-      libelle: 'Trésorerie nette au 31 décembre — par cumul des flux (G + A)',
+      libelle: 'Trésorerie nette au 31 décembre · par cumul des flux (G + A)',
       montant: tft.controle.tresorerieClotureParFlux,
     });
     cloture1.font = ENTETE_FONT;
     const cloture2 = controle.addRow({
-      libelle: 'Trésorerie nette au 31 décembre — lecture directe du bilan (Trésorerie actif N − Trésorerie passif N)',
+      libelle: 'Trésorerie nette au 31 décembre · lecture directe du bilan (Trésorerie actif N − Trésorerie passif N)',
       montant: tft.controle.tresorerieClotureParBilan,
     });
     cloture2.font = ENTETE_FONT;
@@ -847,8 +847,8 @@ export class ExportService {
     ligneEcart.font = { bold: true, color: { argb: tft.controle.coherent ? 'FF2E7D32' : 'FFB00020' } };
     const ligneStatut = controle.addRow([
       tft.controle.coherent
-        ? "L'ÉTAT BOUCLE — les deux égalités de contrôle du texte officiel concordent."
-        : "ÉCART DE BOUCLAGE — la ventilation FA-FQ ne couvre pas tout le mouvement de trésorerie de l'exercice ; " +
+        ? "L'ÉTAT BOUCLE · les deux égalités de contrôle du texte officiel concordent."
+        : "ÉCART DE BOUCLAGE · la ventilation FA-FQ ne couvre pas tout le mouvement de trésorerie de l'exercice ; " +
           'voir la feuille « Comptes non ventilés ».',
     ]);
     ligneStatut.font = { italic: true };
@@ -907,14 +907,14 @@ export class ExportService {
     // jeu ne prévoit ni Brut ni Amortissements (contrairement au bilan des
     // associations). Voir l'en-tête de correspondance-projet-bilan.ts.
     feuille.columns = [
-      { header: 'Actif — REF', key: 'refActif', width: 10 },
-      { header: 'Actif — libellé', key: 'libelleActif', width: 42 },
-      { header: 'Actif — Exercice au 31/12/N', key: 'montantActif', width: 20 },
-      { header: `Actif — Exercice au 31/12/N-1${suffixeN1}`, key: 'montantActifN1', width: 22 },
-      { header: 'Passif — REF', key: 'refPassif', width: 10 },
-      { header: 'Passif — libellé', key: 'libellePassif', width: 42 },
-      { header: 'Passif — Exercice au 31/12/N', key: 'montantPassif', width: 20 },
-      { header: `Passif — Exercice au 31/12/N-1${suffixeN1}`, key: 'montantPassifN1', width: 22 },
+      { header: 'Actif · REF', key: 'refActif', width: 10 },
+      { header: 'Actif · libellé', key: 'libelleActif', width: 42 },
+      { header: 'Actif · Exercice au 31/12/N', key: 'montantActif', width: 20 },
+      { header: `Actif · Exercice au 31/12/N-1${suffixeN1}`, key: 'montantActifN1', width: 22 },
+      { header: 'Passif · REF', key: 'refPassif', width: 10 },
+      { header: 'Passif · libellé', key: 'libellePassif', width: 42 },
+      { header: 'Passif · Exercice au 31/12/N', key: 'montantPassif', width: 20 },
+      { header: `Passif · Exercice au 31/12/N-1${suffixeN1}`, key: 'montantPassifN1', width: 22 },
     ];
 
     const maxLignes = Math.max(bilan.actif.length, bilan.passif.length);
@@ -984,8 +984,8 @@ export class ExportService {
       intitule: 'Total actif (BZ) = Total passif (DZ) ?',
       montant: bilan.totalActif - bilan.totalPassif,
       diagnostic: bilan.equilibre
-        ? `OK — bilan équilibré. Actif = Passif = ${bilan.totalActif.toFixed(2)}.`
-        : `DÉSÉQUILIBRE de ${(bilan.totalActif - bilan.totalPassif).toFixed(2)} — vérifier les écritures et les comptes non rattachés ci-dessous.`,
+        ? `OK · bilan équilibré. Actif = Passif = ${bilan.totalActif.toFixed(2)}.`
+        : `DÉSÉQUILIBRE de ${(bilan.totalActif - bilan.totalPassif).toFixed(2)} · vérifier les écritures et les comptes non rattachés ci-dessous.`,
     });
     ligneEquilibre.font = { bold: true, color: { argb: bilan.equilibre ? 'FF1E7B34' : 'FFB00020' } };
 
@@ -1001,7 +1001,7 @@ export class ExportService {
     }
     if (bilan.comptesNonRattaches.length === 0) {
       anomalies.addRow({
-        numero: '—',
+        numero: '·',
         intitule: 'Aucun compte non rattaché : tous les comptes de bilan entrent dans un poste officiel.',
       });
     }
@@ -1015,7 +1015,7 @@ export class ExportService {
   }
 
   /**
-   * COMPTE D'EXPLOITATION — jeu SYCEBNL « projets de développement et
+   * COMPTE D'EXPLOITATION · jeu SYCEBNL « projets de développement et
    * assimilés » (Partie 4, ch. 3), adossé à
    * `EtatsFinanciersProjetService`/`correspondance-projet-compte-exploitation.ts`.
    * Le doublon officiel de REF « TJ »/« TK » (anomalie n° 3, voir ce fichier)
@@ -1056,7 +1056,7 @@ export class ExportService {
     const note = feuille.addRow([
       'Postes conformes au tableau de correspondance officiel SYCEBNL (Journal officiel OHADA, Partie 4 ch. 3). ' +
         'RC (subventions, compte 71) et RE (reprises) dans XA : deux anomalies du texte officiel corrigées ' +
-        '(RC absente du modèle vierge, XA limité à « RA à RD » au lieu de RA à RE) — voir ' +
+        '(RC absente du modèle vierge, XA limité à « RA à RD » au lieu de RA à RE) · voir ' +
         'correspondance-projet-compte-exploitation.ts. TJ et TK apparaissent DEUX FOIS chacun : doublon du ' +
         'texte officiel, reproduit tel quel, non corrigé.',
     ]);
@@ -1092,8 +1092,8 @@ export class ExportService {
       intitule: "Solde des opérations de l'exercice (XC) boucle-t-il à zéro ?",
       montant: ce.solde,
       diagnostic: ce.controle.boucleAZero
-        ? `OK — XC = ${ce.solde.toFixed(2)} (≈ 0), régime normal pour ce jeu.`
-        : `XC = ${ce.solde.toFixed(2)} (≠ 0) — pas nécessairement une erreur : un projet en cours d'exercice ` +
+        ? `OK · XC = ${ce.solde.toFixed(2)} (≈ 0), régime normal pour ce jeu.`
+        : `XC = ${ce.solde.toFixed(2)} (≠ 0) · pas nécessairement une erreur : un projet en cours d'exercice ` +
           `ou dont la clôture n'a pas transféré le solde au compte 13 peut légitimement présenter un écart. ` +
           `Vérifier les comptes non rattachés ci-dessous et l'état du compte 13.`,
     });
@@ -1106,13 +1106,13 @@ export class ExportService {
         montant: c.montant,
         diagnostic:
           'Compte de gestion (classe 6/7/8) qu’aucun poste du tableau de correspondance officiel (jeu projets ' +
-          'de développement) ne réclame — le compte 68 (dotations aux amortissements) notamment : absent du ' +
+          'de développement) ne réclame · le compte 68 (dotations aux amortissements) notamment : absent du ' +
           'tableau officiel lui-même (anomalie n° 4, voir correspondance-projet-compte-exploitation.ts).',
       });
     }
     if (ce.comptesNonRattaches.length === 0) {
       anomalies.addRow({
-        numero: '—',
+        numero: '·',
         intitule: 'Aucun compte non rattaché : tous les comptes de gestion entrent dans un poste officiel.',
       });
     }
@@ -1126,10 +1126,10 @@ export class ExportService {
   }
 
   /**
-   * NOTE 9 : FONDS DU BAILLEUR (Partie 4, ch. 3, Section 6) — comptabilité
+   * NOTE 9 : FONDS DU BAILLEUR (Partie 4, ch. 3, Section 6) · comptabilité
    * analytique par projet/bailleur (docs/plan-de-construction.md item 14).
    * Une ligne par bailleur, Fonds d'investissement puis Fonds
-   * d'administration côte à côte — voir
+   * d'administration côte à côte · voir
    * `EtatsFinanciersProjetService.noteBailleur` pour la convention retenue
    * sur Montant décaissé/consommé (les deux anomalies du texte officiel
    * qu'elle documente).
@@ -1138,15 +1138,15 @@ export class ExportService {
     const note = await this.etatsFinanciersProjetService.noteBailleur(tenantId, exerciceId);
 
     const classeur = this.nouveauClasseur();
-    const feuille = classeur.addWorksheet('Note 9 — Fonds du bailleur');
+    const feuille = classeur.addWorksheet('Note 9 · Fonds du bailleur');
     feuille.columns = [
       { header: 'Bailleur', key: 'bailleur', width: 28 },
-      { header: 'Investissement — Décaissé', key: 'iDecaisse', width: 20 },
-      { header: 'Investissement — Consommé', key: 'iConsomme', width: 20 },
-      { header: 'Investissement — Solde restant', key: 'iSolde', width: 22 },
-      { header: 'Administration — Décaissé', key: 'aDecaisse', width: 20 },
-      { header: 'Administration — Consommé', key: 'aConsomme', width: 20 },
-      { header: 'Administration — Solde restant', key: 'aSolde', width: 22 },
+      { header: 'Investissement · Décaissé', key: 'iDecaisse', width: 20 },
+      { header: 'Investissement · Consommé', key: 'iConsomme', width: 20 },
+      { header: 'Investissement · Solde restant', key: 'iSolde', width: 22 },
+      { header: 'Administration · Décaissé', key: 'aDecaisse', width: 20 },
+      { header: 'Administration · Consommé', key: 'aConsomme', width: 20 },
+      { header: 'Administration · Solde restant', key: 'aSolde', width: 22 },
     ];
 
     const bailleurs = new Map<string, { nom: string; code: string }>();
@@ -1157,7 +1157,7 @@ export class ExportService {
       const inv = note.investissement.find((b) => b.bailleur.id === id);
       const adm = note.administration.find((b) => b.bailleur.id === id);
       feuille.addRow({
-        bailleur: `${code} — ${nom}`,
+        bailleur: `${code} · ${nom}`,
         iDecaisse: inv?.decaisse ?? 0,
         iConsomme: inv?.consomme ?? 0,
         iSolde: inv?.soldeRestant ?? 0,
@@ -1201,7 +1201,7 @@ export class ExportService {
     feuille.views = [{ state: 'frozen', ySplit: 1 }];
 
     const note9 = feuille.addRow([
-      'Montants CUMULÉS depuis l’origine du projet, toutes périodes confondues — la Note 9 suit le cycle de vie du ' +
+      'Montants CUMULÉS depuis l’origine du projet, toutes périodes confondues · la Note 9 suit le cycle de vie du ' +
         'projet, pas l’exercice comptable. Décaissé = mouvements crédit (hors report à-nouveau) sur les sous-comptes ' +
         '162-164/462-464 rattachés au bailleur ; Consommé = mouvements débit ; Solde restant = Décaissé − Consommé. ' +
         'Convention détaillée dans EtatsFinanciersProjetService.noteBailleur (2 ambiguïtés du texte officiel ' +
@@ -1217,22 +1217,22 @@ export class ExportService {
   }
 
   // ==========================================================================
-  // NOTES ANNEXES — un classeur par jeu, une feuille par TABLEAU (pas par
-  // code de note) : une note à plusieurs sous-tableaux — Note 1, ses trois
-  // grilles ; Note 4/7/20B/29B, leurs deux — a des colonnes DIFFÉRENTES d'un
+  // NOTES ANNEXES · un classeur par jeu, une feuille par TABLEAU (pas par
+  // code de note) : une note à plusieurs sous-tableaux · Note 1, ses trois
+  // grilles ; Note 4/7/20B/29B, leurs deux · a des colonnes DIFFÉRENTES d'un
   // tableau à l'autre. Les empiler sur une même feuille mélangerait des
   // en-têtes incompatibles ; une feuille par tableau les garde chacune
   // propre, la « Fiche récapitulative » relie les tableaux d'un même code.
   //
   // Article 15 : « les Notes annexes sont organisées par une référence
-  // croisée avec l'information liée » — `note.renvoyeeDepuis` porte les
+  // croisée avec l'information liée » · `note.renvoyeeDepuis` porte les
   // codes REF des postes d'état qui renvoient à chaque note, reproduit tel
   // quel en commentaire de feuille.
   //
   // § 1.4, note officielle de la fiche récapitulative (identique dans les
   // deux jeux) : « les Notes non documentées ne doivent pas être jointes aux
   // états financiers ». Une note NON applicable n'a donc PAS sa propre
-  // feuille — seulement une ligne « N/A » dans la fiche récapitulative.
+  // feuille · seulement une ligne « N/A » dans la fiche récapitulative.
   // ==========================================================================
 
   /** Nom de feuille Excel : 31 caractères maximum, doit rester unique dans le classeur. */
@@ -1246,7 +1246,7 @@ export class ExportService {
    * note. Les quatre colonnes « historiques » (montant N/N-1, variations)
    * vivent sur des champs dédiés de `LigneNoteCalculee` ; toutes les autres
    * (mouvements, ventilation par nature, échéances, variation absolue)
-   * vivent dans `valeurs`, indexé par le même `TypeColonneNote` — voir
+   * vivent dans `valeurs`, indexé par le même `TypeColonneNote` · voir
    * `note-annexe.types.ts`. `LIBRE` n'a rien à calculer : c'est une colonne
    * de saisie (devise, cours, identité d'un apporteur…), jamais un oubli.
    */
@@ -1284,7 +1284,7 @@ export class ExportService {
       const ligne = feuille.addRow(valeurs);
       if (l.estTotal) ligne.font = ENTETE_FONT;
       // Rubrique en attente de rattachement : signalée en couleur plutôt que
-      // laissée à zéro sans explication — un zéro muet se lirait comme un
+      // laissée à zéro sans explication · un zéro muet se lirait comme un
       // montant réel, pas comme une lacune du dossier.
       if (l.enAttenteDeRattachement) {
         ligne.getCell('libelle').font = { italic: true, color: { argb: 'FFB00020' } };
@@ -1292,7 +1292,7 @@ export class ExportService {
       }
       if (l.ecartCloture !== undefined) {
         ligne.getCell('libelle').note =
-          `Écart de clôture : ${l.ecartCloture.toFixed(2)} — la clôture recalculée (D = A + B − C) ne ` +
+          `Écart de clôture : ${l.ecartCloture.toFixed(2)} · la clôture recalculée (D = A + B − C) ne ` +
           `correspond pas au solde réel de la balance. Anomalie du dossier à examiner (report à-nouveau ` +
           `manquant, écriture hors comptes de la rubrique…).`;
       }
@@ -1333,10 +1333,10 @@ export class ExportService {
   }
 
   /**
-   * Fiche récapitulative — Partie 4, section 4 des deux jeux : « NOTES |
+   * Fiche récapitulative · Partie 4, section 4 des deux jeux : « NOTES |
    * INTITULES | A (Applicable) | N/A (Non applicable) ». Colonnes A/N-A
    * reproduites telles quelles ; une note non applicable y figure SANS
-   * feuille propre (voir en-tête de section) — la fiche est alors sa seule
+   * feuille propre (voir en-tête de section) · la fiche est alors sa seule
    * trace dans le classeur, avec les rubriques que le dossier pourrait
    * rattacher pour la faire apparaître.
    */
@@ -1366,7 +1366,7 @@ export class ExportService {
     styliserEntete(feuille.getRow(1));
     const noteCouverture = feuille.addRow([
       `Couverture du référentiel : ${couverture.transcrites} note(s) transcrite(s) sur ${couverture.attendues} attendue(s). ` +
-        "« les Notes non documentées ne doivent pas être jointes aux états financiers » — les notes N/A ci-dessus " +
+        "« les Notes non documentées ne doivent pas être jointes aux états financiers » · les notes N/A ci-dessus " +
         "n'ont donc pas de feuille propre dans ce classeur.",
     ]);
     noteCouverture.font = { italic: true, color: { argb: 'FF555555' } };
@@ -1404,7 +1404,7 @@ export class ExportService {
    * Notes annexes du jeu « projets de développement et assimilés ». La
    * note 9 « Fonds du bailleur » y figure comme un simple RENVOI (colonnes
    * dynamiques par bailleur, hors de la forme de ce moteur) vers
-   * `noteBailleurExcel` — voir `NoteAnnexeService.notesProjet`.
+   * `noteBailleurExcel` · voir `NoteAnnexeService.notesProjet`.
    */
   async notesProjetExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
     const resultat = await this.noteAnnexeService.notesProjet(tenantId, exerciceId);
@@ -1422,12 +1422,12 @@ export class ExportService {
    * Le registre lui-même, plus le rapport de conformité de l'article 18.
    *
    * L'article 17 admet expressément que « ce registre peut être tenu en
-   * version physique reliée, brochée ou en version électronique » — mais la
+   * version physique reliée, brochée ou en version électronique » · mais la
    * version physique reste « cotée, paraphée et numérotée de façon continue
    * PAR LA JURIDICTION COMPÉTENTE ». Ce classeur est donc conçu pour être
    * imprimé et présenté : le numéro d'ordre est la PREMIÈRE colonne, les
    * lignes sortent dans l'ordre de leur numérotation, et les lignes annulées
-   * y figurent — barrées et motivées — parce qu'un registre dont on aurait
+   * y figurent barrées et motivées parce qu'un registre dont on aurait
    * retiré les annulations se présenterait à la juridiction avec des trous.
    */
   async registreDonateursExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
@@ -1516,7 +1516,7 @@ export class ExportService {
       [
         'Numérotation continue',
         n.continue ? 'CONFORME' : 'NON CONFORME',
-        `${n.exigence} Numéros ${n.premier ?? '—'} à ${n.dernier ?? '—'}.` +
+        `${n.exigence} Numéros ${n.premier ?? ''} à ${n.dernier ?? ''}.` +
           (n.trous.length ? ` Trous : ${n.trous.join(', ')}.` : '') +
           (n.doublons.length ? ` Doublons : ${n.doublons.join(', ')}.` : ''),
       ],
@@ -1614,7 +1614,7 @@ export class ExportService {
    * dit ce que l'article 14 exige et ce que la transcription porte, puis les
    * états FIGÉS, puis le résumé de l'opération d'inventaire.
    *
-   * Les états sont relus depuis la transcription, JAMAIS recalculés — c'est
+   * Les états sont relus depuis la transcription, JAMAIS recalculés · c'est
    * le sens même du mot « transcrits » de l'article. Un classeur qui
    * régénérerait les états à l'export produirait, à partir du même livre,
    * deux documents différents à deux dates différentes.
@@ -1664,7 +1664,7 @@ export class ExportService {
       ...c.etatsExiges.map(
         (e: any) =>
           [
-            `État exigé — ${e.libelle}`,
+            `État exigé · ${e.libelle}`,
             e.transcrit ? 'TRANSCRIT' : 'MANQUANT',
             e.motifIndisponibilite ?? 'Transcrit et figé dans ce classeur, feuille dédiée.',
           ] as [string, string, string],
@@ -1695,7 +1695,7 @@ export class ExportService {
 
     const pied = feuille.addRow([
       t
-        ? `Transcrit le ${new Date(t.transcritLe).toLocaleDateString('fr-FR')}. Les états des feuilles suivantes sont FIGÉS à cette date : ils sont relus tels quels, jamais recalculés — c'est le sens du mot « transcrits » de l'article 14.`
+        ? `Transcrit le ${new Date(t.transcritLe).toLocaleDateString('fr-FR')}. Les états des feuilles suivantes sont FIGÉS à cette date : ils sont relus tels quels, jamais recalculés · c'est le sens du mot « transcrits » de l'article 14.`
         : "Aucune transcription pour cet exercice. L'article 24 sanctionne pénalement les dirigeants « qui n'ont pas, pour un exercice, dressé l'inventaire et établi les états financiers annuels ».",
     ]);
     pied.font = { italic: true, color: { argb: 'FF555555' } };
@@ -1712,13 +1712,13 @@ export class ExportService {
    * tableau des flux), et un livre d'inventaire doit pouvoir restituer un
    * état FIGÉ PAR UNE VERSION ANTÉRIEURE du logiciel. Une carte de formes
    * codée en dur rendrait mal, ou pas du tout, un état gelé avant qu'elle ne
-   * soit écrite — ce qui viderait de son sens la transcription même.
+   * soit écrite · ce qui viderait de son sens la transcription même.
    *
    * On rend donc : tout tableau dont les éléments ressemblent à un poste
    * (`ref`/`libelle`/`montant`), sous le nom de sa clé ; puis les scalaires
    * numériques et booléens, qui sont les totaux et contrôles de l'état.
    *
-   * (La mise en forme officielle de chaque état vit dans son propre export —
+   * (La mise en forme officielle de chaque état vit dans son propre export ·
    * `bilanExcel`, `compteDeResultatExcel`… ; ici c'est la transcription qui
    * fait foi, pas la présentation.)
    */
@@ -1795,7 +1795,7 @@ export class ExportService {
   /**
    * Le rapport d'activité, section par section dans l'ordre de l'article
    * 16-3, avec la citation qui fonde chacune et la mention explicite d'une
-   * section vide — un rapport amputé d'un contenu exigé n'est pas « établi ».
+   * section vide · un rapport amputé d'un contenu exigé n'est pas « établi ».
    */
   async rapportActiviteExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
     const [rapport, conformite] = await Promise.all([
@@ -1832,15 +1832,15 @@ export class ExportService {
       [
         'Fenêtre des événements postérieurs',
         f
-          ? `du ${new Date(f.du).toLocaleDateString('fr-FR')} au ${new Date(f.au).toLocaleDateString('fr-FR')} — c'est la date d'établissement qui la ferme (art. 16-3).`
-          : '—',
+          ? `du ${new Date(f.du).toLocaleDateString('fr-FR')} au ${new Date(f.au).toLocaleDateString('fr-FR')} · c'est la date d'établissement qui la ferme (art. 16-3).`
+          : '·',
       ],
       [
         'Évolution de la trésorerie (figée du Tableau des flux)',
         conformite.tresorerie
           ? `ouverture ${conformite.tresorerie.ouverture} · variation ${conformite.tresorerie.variation} · clôture ${conformite.tresorerie.cloture}` +
             (conformite.tresorerie.boucle ? ' · tableau bouclé' : ' · ⚠ TABLEAU NON BOUCLÉ à cette date')
-          : '—',
+          : '·',
       ],
       [
         'Déclaration des dirigeants (registre des donateurs, art. 18)',

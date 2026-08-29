@@ -27,7 +27,7 @@ export class NoteAnnexeController {
   /**
    * Notes annexes du jeu « projets de développement et assimilés » + fiche
    * récapitulative. La note 9 « Fonds du bailleur » y renvoie vers
-   * `GET /etats-financiers/projet/note-bailleur` — voir
+   * `GET /etats-financiers/projet/note-bailleur` · voir
    * `NoteAnnexeService.notesProjet`.
    */
   @Get('projet')
@@ -37,7 +37,7 @@ export class NoteAnnexeController {
 
   /**
    * Rattache un compte du dossier à une rubrique de note. Refusé sur une
-   * rubrique que le plan de comptes officiel détermine déjà — voir
+   * rubrique que le plan de comptes officiel détermine déjà · voir
    * `NoteAnnexeService.rubriqueRattachable`.
    */
   @Roles(RoleUtilisateur.ADMIN_CABINET)

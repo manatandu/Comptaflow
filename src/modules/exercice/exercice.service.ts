@@ -24,7 +24,7 @@ const EPSILON = 0.005;
 /**
  * Cycle de vie complet de l'exercice (docs/plan-de-construction.md §3.1) :
  * - 3 granularités de clôture (Partielle/Totale/Période), qui verrouillent la
- *   saisie sans rien générer — voir clorePartielle/cloreTotale/clorePeriode
+ *   saisie sans rien générer · voir clorePartielle/cloreTotale/clorePeriode
  *   et verifierEcritureAutorisee (consulté par EcritureService.creer).
  * - la clôture ANNUELLE de l'exercice (cloturer), distincte, qui solde les
  *   classes 6/7 sur le résultat et génère le report à-nouveau réel dans
@@ -71,7 +71,7 @@ export class ExerciceService {
   }
 
   // ---------------------------------------------------------------------
-  // Clôtures (Partielle/Totale/Période) — verrouillage de saisie, réversible
+  // Clôtures (Partielle/Totale/Période) · verrouillage de saisie, réversible
   // uniquement pour la Partielle.
   // ---------------------------------------------------------------------
 
@@ -165,11 +165,11 @@ export class ExerciceService {
     });
     for (const c of clotures) {
       if (c.granularite === GranulariteCloture.TOTALE && c.journalId === journalId) {
-        throw new ForbiddenException('Ce journal est clôturé totalement — aucune écriture n\'y est plus possible.');
+        throw new ForbiddenException('Ce journal est clôturé totalement · aucune écriture n\'y est plus possible.');
       }
       if (c.granularite === GranulariteCloture.PARTIELLE && c.journalId === journalId && date <= c.dateLimite) {
         throw new ForbiddenException(
-          `Ce journal est clôturé partiellement jusqu'au ${c.dateLimite.toISOString().slice(0, 10)} — aucune écriture ne peut plus y être datée à cette période ou avant.`,
+          `Ce journal est clôturé partiellement jusqu'au ${c.dateLimite.toISOString().slice(0, 10)} · aucune écriture ne peut plus y être datée à cette période ou avant.`,
         );
       }
       if (c.granularite === GranulariteCloture.PERIODE && date <= c.dateLimite) {
@@ -183,16 +183,16 @@ export class ExerciceService {
   /**
    * Compte 13 réel (§ COMPTE 13, skill sycebnl `partie2-ch3-classe1-comptes10-19.md`) :
    * "131 Résultat net de l'exercice : Excédent" (solde créditeur) ou "139 ...
-   * Déficit" (solde débiteur) — il n'existe PAS de compte 130 générique dans
+   * Déficit" (solde débiteur) · il n'existe PAS de compte 130 générique dans
    * le plan officiel. Choisi par le signe une fois `deltaResultat` connu.
    *
    * ⚠️ Trouvé et corrigé lors de l'audit rétroactif "chaque brique ancrée aux
    * référentiels" (docs/plan-de-construction.md §2.6) : la clôture postait
    * jusqu'ici le résultat sur un compte "13000000" fictif, jamais présent
-   * dans le plan de comptes officiel SYCEBNL — les vrais comptes 131/139,
+   * dans le plan de comptes officiel SYCEBNL · les vrais comptes 131/139,
    * pourtant déjà seedés (compte-seed.ts), n'étaient jamais utilisés.
    *
-   * Ces comptes doivent exister (seedés à l'inscription) — s'ils manquent,
+   * Ces comptes doivent exister (seedés à l'inscription) · s'ils manquent,
    * c'est une anomalie de configuration du dossier à signaler clairement,
    * pas à corriger silencieusement en recréant un compte hors nomenclature.
    */
@@ -202,7 +202,7 @@ export class ExerciceService {
     const compte = await tx.compte.findUnique({ where: { tenantId_numero: { tenantId, numero } } });
     if (!compte) {
       throw new BadRequestException(
-        `Compte ${numero} (${intitule}) introuvable pour ce dossier — nécessaire pour clôturer l'exercice. Le plan de comptes SYCEBNL de ce dossier semble incomplet ou avoir été modifié.`,
+        `Compte ${numero} (${intitule}) introuvable pour ce dossier · nécessaire pour clôturer l'exercice. Le plan de comptes SYCEBNL de ce dossier semble incomplet ou avoir été modifié.`,
       );
     }
     return compte;
@@ -210,14 +210,14 @@ export class ExerciceService {
 
   /**
    * Clôture ANNUELLE de l'exercice : solde les comptes en mode AUCUN (charges/
-   * produits, et comptes créditeurs/débiteurs de la classe 8 — même règle que
+   * produits, et comptes créditeurs/débiteurs de la classe 8 · même règle que
    * le fonctionnement officiel du compte 13, skill sycebnl) sur le compte de
    * résultat réel (131 Excédent ou 139 Déficit selon le signe), puis génère
    * le report à-nouveau réel dans l'exercice suivant (créé automatiquement
    * s'il n'existe pas encore) selon le mode de chaque compte restant (Solde =
    * un seul solde net, Détail = chaque mouvement non lettré individuellement).
    * Les deux écritures générées sont, par construction comptable (partie
-   * double), toujours équilibrées — un déséquilibre ici signalerait un bug,
+   * double), toujours équilibrées · un déséquilibre ici signalerait un bug,
    * pas une donnée utilisateur invalide, d'où l'InternalServerErrorException
    * plutôt qu'un simple rejet de saisie.
    *
@@ -227,7 +227,7 @@ export class ExerciceService {
    * organes compétents, pas reporté indéfiniment sur lui-même. Faute de cette
    * brique, le solde de 131/139 continue aujourd'hui à s'accumuler d'exercice
    * en exercice via le report à-nouveau (mode SOLDE, comme tout compte de
-   * bilan) au lieu d'être remis à zéro par une affectation — signalé ici
+   * bilan) au lieu d'être remis à zéro par une affectation · signalé ici
    * explicitement plutôt que laissé silencieux (règle §2.6).
    */
   async cloturer(tenantId: string, exerciceId: string, userId: string) {
@@ -246,7 +246,7 @@ export class ExerciceService {
         const solde = (c: (typeof comptes)[number]) =>
           c.lignesEcriture.reduce((s, l) => s + Number(l.debit) - Number(l.credit), 0);
 
-        // Journal support des écritures générées — on réutilise le journal
+        // Journal support des écritures générées · on réutilise le journal
         // général existant (code OD, "Opérations diverses") plutôt que
         // d'introduire un 6e type de journal pour ce seul usage.
         const journal =
@@ -266,10 +266,10 @@ export class ExerciceService {
         for (const c of comptesAucun) {
           const s = solde(c);
           if (s > 0) {
-            lignesCloture.push({ compteId: c.id, debit: 0, credit: s, libelle: `Clôture ${c.numero} — ${c.intitule}` });
+            lignesCloture.push({ compteId: c.id, debit: 0, credit: s, libelle: `Clôture ${c.numero} · ${c.intitule}` });
             totalDebitResultat += s;
           } else {
-            lignesCloture.push({ compteId: c.id, debit: -s, credit: 0, libelle: `Clôture ${c.numero} — ${c.intitule}` });
+            lignesCloture.push({ compteId: c.id, debit: -s, credit: 0, libelle: `Clôture ${c.numero} · ${c.intitule}` });
             totalCreditResultat += -s;
           }
         }
@@ -279,14 +279,14 @@ export class ExerciceService {
         if (lignesCloture.length > 0) {
           // Signe connu AVANT de choisir le compte : débit > crédit sur les
           // comptes de gestion fermés = déficit (compte 139), sinon excédent
-          // (compte 131) — voir le commentaire de trouverCompteResultat.
+          // (compte 131) · voir le commentaire de trouverCompteResultat.
           // Ligne unique nette (pas debit ET credit à la fois sur la même
           // ligne comme l'ancien code le faisait) : plus proche d'une
           // écriture réelle, et évite de gonfler artificiellement les deux
           // colonnes du journal pour ce compte.
           deltaResultat = totalDebitResultat - totalCreditResultat;
           // Résultat exactement nul (produits = charges) : ne rien pousser.
-          // Une ligne debit: 0, credit: 0 est un mouvement fantôme — elle
+          // Une ligne debit: 0, credit: 0 est un mouvement fantôme · elle
           // apparaîtrait au grand livre mais pas à la balance (qui filtre les
           // comptes sans mouvement), et sa contrepartie serait calculée comme
           // si elle était au crédit. Un compte de résultat sans montant n'a
@@ -305,7 +305,7 @@ export class ExerciceService {
           const totalDebit = lignesCloture.reduce((s, l) => s + l.debit, 0);
           const totalCredit = lignesCloture.reduce((s, l) => s + l.credit, 0);
           if (Math.abs(totalDebit - totalCredit) > EPSILON) {
-            throw new InternalServerErrorException("Écriture de clôture déséquilibrée — anomalie interne, clôture annulée.");
+            throw new InternalServerErrorException("Écriture de clôture déséquilibrée · anomalie interne, clôture annulée.");
           }
 
           const numeroPiece = await this.journalService.prochainNumeroPiece(tenantId, journal, exerciceId, exercice.dateFin, tx);
@@ -316,7 +316,7 @@ export class ExerciceService {
               journalId: journal.id,
               numeroPiece,
               date: exercice.dateFin,
-              libelle: `Clôture des charges/produits — exercice ${exercice.dateDebut.getUTCFullYear()}`,
+              libelle: `Clôture des charges/produits · exercice ${exercice.dateDebut.getUTCFullYear()}`,
               createdBy: userId,
               estGenereeParCloture: true,
               lignes: { create: lignesCloture },
@@ -353,7 +353,7 @@ export class ExerciceService {
             compteId: c.id,
             debit: s > 0 ? s : 0,
             credit: s < 0 ? -s : 0,
-            libelle: `Report à-nouveau ${c.numero} — ${c.intitule}`,
+            libelle: `Report à-nouveau ${c.numero} · ${c.intitule}`,
           });
         }
 
@@ -365,13 +365,13 @@ export class ExerciceService {
               compteId: c.id,
               debit: Number(l.debit),
               credit: Number(l.credit),
-              libelle: `RAN détail ${c.numero} — ${l.libelle ?? l.ecriture.libelle}`,
+              libelle: `RAN détail ${c.numero} · ${l.libelle ?? l.ecriture.libelle}`,
               // L'échéance suit la créance ou la dette qu'elle qualifie : sans
               // ce report, la ventilation par échéance des notes 6, 9, 10, 18A
               // et 19 à 21 se viderait à chaque clôture, et une créance à trois
               // ans deviendrait « non ventilée » l'exercice suivant. Le report
               // à-nouveau en mode SOLDE, lui, agrège en une ligne unique : il
-              // ne peut par construction porter aucune échéance — raison de
+              // ne peut par construction porter aucune échéance · raison de
               // plus pour tenir les comptes de tiers en mode DÉTAIL.
               dateEcheance: l.dateEcheance,
             });
@@ -383,7 +383,7 @@ export class ExerciceService {
           const totalCredit = lignesRan.reduce((s, l) => s + l.credit, 0);
           if (Math.abs(totalDebit - totalCredit) > EPSILON) {
             throw new InternalServerErrorException(
-              "Report à-nouveau déséquilibré — anomalie interne (identité partie double violée), clôture annulée.",
+              "Report à-nouveau déséquilibré · anomalie interne (identité partie double violée), clôture annulée.",
             );
           }
           const numeroPieceRan = await this.journalService.prochainNumeroPiece(
@@ -400,7 +400,7 @@ export class ExerciceService {
               journalId: journal.id,
               numeroPiece: numeroPieceRan,
               date: exerciceSuivant.dateDebut,
-              libelle: `Report à-nouveau — ouverture exercice ${exerciceSuivant.dateDebut.getUTCFullYear()}`,
+              libelle: `Report à-nouveau · ouverture exercice ${exerciceSuivant.dateDebut.getUTCFullYear()}`,
               createdBy: userId,
               estGenereeParCloture: true,
               lignes: { create: lignesRan },
@@ -410,7 +410,7 @@ export class ExerciceService {
 
         return tx.exercice.update({ where: { id: exerciceId }, data: { statut: StatutExercice.CLOTURE } });
       },
-      "Trop d'opérations simultanées sur cet exercice — veuillez réessayer.",
+      "Trop d'opérations simultanées sur cet exercice · veuillez réessayer.",
     );
   }
 }

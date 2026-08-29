@@ -1,10 +1,10 @@
 /**
- * Moteur de NOTES ANNEXES SYCEBNL — types et contrat déclaratif.
+ * Moteur de NOTES ANNEXES SYCEBNL · types et contrat déclaratif.
  *
  * Le référentiel compte 76 tableaux de notes (45 pour le jeu associations,
  * 26 pour les projets de développement, 5 pour le Système minimal de
  * trésorerie). Les traiter un par un en code serait absurde : la très grande
- * majorité partage une même ossature — des rubriques en lignes, des colonnes
+ * majorité partage une même ossature · des rubriques en lignes, des colonnes
  * Année N / Année N-1 / variations. D'où ce moteur déclaratif : une note = une
  * DONNÉE (voir `correspondance-notes-*.ts`), pas du code.
  *
@@ -21,7 +21,7 @@
  * « Fourniture de bureau »… alors que le plan SYCEBNL s'arrête au compte 604
  * « Achats stockés de matières et fournitures consommables », sans subdivision.
  * Et un rapprochement naïf par libellé serait pire que rien : « Matières
- * consommables » existe bien au plan — en compte 331, qui est un compte de
+ * consommables » existe bien au plan · en compte 331, qui est un compte de
  * STOCK, pas d'achat.
  *
  * Conséquence de conception, assumée et documentée plutôt que masquée :
@@ -30,11 +30,11 @@
  *    (la rubrique correspond à un compte du plan normalisé, sans ambiguïté).
  * 2. `subdivisionAttendue` signale les rubriques qui exigent que le dossier ait
  *    créé ses propres sous-comptes. La note reste alors vide pour ce dossier
- *    tant que le rattachement n'a pas été fait — et le dit, au lieu d'afficher
+ *    tant que le rattachement n'a pas été fait · et le dit, au lieu d'afficher
  *    un zéro trompeur.
  * 3. Le rattachement par dossier (`RattachementNote`, table `rattachements_notes`)
  *    permet à l'utilisateur d'affecter ses propres sous-comptes à une rubrique
- *    déclarée en attente — et à elle seule : `NoteAnnexeService.rubriqueRattachable`
+ *    déclarée en attente · et à elle seule : `NoteAnnexeService.rubriqueRattachable`
  *    refuse tout rattachement sur une rubrique que le plan officiel détermine.
  *
  * Aucune rubrique n'est rattachée « au jugé » : ou le texte et le plan la
@@ -47,12 +47,12 @@ export type TypeColonneNote =
   | 'EXERCICE_N1'
   | 'VARIATION_VALEUR' // N − N-1
   | 'VARIATION_POURCENT' // (N − N-1) / |N-1|
-  | 'VARIATION_VALEUR_ABSOLUE' // |N − N-1| — note 8 « Variation de stock en valeur absolue »
+  | 'VARIATION_VALEUR_ABSOLUE' // |N − N-1| · note 8 « Variation de stock en valeur absolue »
   // --- Tableaux de situations et mouvements (notes 5A à 5F et 30) ---
   // Le texte officiel les nomme A, B, C, D et pose lui-même « D = A + B - C ».
-  | 'OUVERTURE' // A — situation à l'ouverture (le report à-nouveau)
-  | 'AUGMENTATIONS' // B — mouvements de l'exercice qui accroissent le poste
-  | 'DIMINUTIONS' // C — mouvements de l'exercice qui le réduisent
+  | 'OUVERTURE' // A · situation à l'ouverture (le report à-nouveau)
+  | 'AUGMENTATIONS' // B · mouvements de l'exercice qui accroissent le poste
+  | 'DIMINUTIONS' // C · mouvements de l'exercice qui le réduisent
   | 'CLOTURE' // D = A + B - C, recalculé et non lu tel quel (voir écartCloture)
   // --- Note 30 : B et C sont elles-mêmes ventilées par nature ---
   // Le compte de provision ne dit PAS de quelle nature était la dotation :
@@ -72,7 +72,7 @@ export type TypeColonneNote =
 /**
  * Sens dans lequel les mouvements ACCROISSENT le poste d'un tableau de
  * situations et mouvements. Une immobilisation brute s'accroît au débit ; un
- * amortissement ou une dépréciation (notes 5D, 5E, 5F) s'accroît au crédit —
+ * amortissement ou une dépréciation (notes 5D, 5E, 5F) s'accroît au crédit ·
  * ses « dotations de l'exercice » sont des mouvements créditeurs.
  */
 export type SensAccroissement = 'DEBIT' | 'CREDIT';
@@ -98,7 +98,7 @@ export interface RubriqueNote {
   /**
    * Clé stable de la rubrique, unique dans sa note. Sert d'ancre au
    * rattachement par dossier (`RattachementNote`) : s'appuyer sur le libellé
-   * serait fragile — une correction de transcription, une apostrophe typée
+   * serait fragile · une correction de transcription, une apostrophe typée
    * autrement, et tous les rattachements du dossier tomberaient en silence.
    * Obligatoire dès qu'une rubrique porte `subdivisionAttendue` ; facultative
    * ailleurs, où rien n'a besoin de la désigner.
@@ -120,7 +120,7 @@ export interface RubriqueNote {
    */
   sens?: SensRubrique;
   /**
-   * Compte de nature créditrice — produits, reprises, subventions. Présente le
+   * Compte de nature créditrice · produits, reprises, subventions. Présente le
    * solde en positif, SANS filtrer sur le signe : un compte de produits
    * momentanément débiteur reste présenté, en négatif, plutôt que de
    * disparaître de la note.
@@ -140,7 +140,7 @@ export interface RubriqueNote {
   /**
    * Rubriques RETRANCHÉES du total. Les notes 31 et 32 alignent un sous-total
    * de charges puis un sous-total de produits et concluent par un « TOTAL »
-   * qui est le solde des deux — le résultat financier, le résultat H.A.O.
+   * qui est le solde des deux · le résultat financier, le résultat H.A.O.
    * Utilisable seulement avec `totalDeRubriques`.
    */
   moinsRubriques?: number[];
@@ -150,13 +150,13 @@ export interface RubriqueNote {
    * champ explique ce qui est attendu ; il est montré à l'utilisateur, qui
    * rattache alors ses comptes via `RattachementNote`.
    *
-   * Une telle rubrique DOIT porter une `cle` — c'est elle qui ancre le
+   * Une telle rubrique DOIT porter une `cle` · c'est elle qui ancre le
    * rattachement (test structurel dédié).
    */
   subdivisionAttendue?: string;
   /**
    * Rubrique renseignée HORS comptabilité : engagements, actifs et passifs
-   * éventuels, effectifs. Aucune balance ne la porte — elle n'est ni
+   * éventuels, effectifs. Aucune balance ne la porte · elle n'est ni
    * rattachable (rien à rattacher) ni en attente (rien ne manque au plan) :
    * elle attend une saisie. Sans ce qualificatif elle serait indistinguable
    * d'un oubli de rattachement.
@@ -171,8 +171,8 @@ export interface SpecificationNote {
   code: string;
   /**
    * Sous-tableau d'une note qui en porte plusieurs. La note 1 aligne TROIS
-   * tableaux distincts sous un seul code — dettes garanties par des sûretés
-   * réelles, engagements financiers, contributions volontaires en nature —
+   * tableaux distincts sous un seul code · dettes garanties par des sûretés
+   * réelles, engagements financiers, contributions volontaires en nature ·
    * avec des colonnes différentes pour chacun.
    *
    * Le référentiel n'attribue un code propre (5A à 5H) que lorsqu'il veut des
@@ -233,14 +233,14 @@ export interface LigneNoteCalculee {
   /**
    * Rubrique dont le rattachement dépend du dossier. Porte le texte de
    * `subdivisionAttendue` tant qu'aucun compte n'a été rattaché ; passe à
-   * `undefined` dès qu'au moins un l'est — la ligne est alors chiffrée
+   * `undefined` dès qu'au moins un l'est · la ligne est alors chiffrée
    * normalement.
    */
   enAttenteDeRattachement?: string;
   /** Comptes rattachés par le dossier (et non déduits du plan normalisé). */
   rattachementDuDossier?: boolean;
   /**
-   * Valeurs des colonnes que les quatre champs ci-dessus ne portent pas —
+   * Valeurs des colonnes que les quatre champs ci-dessus ne portent pas ·
    * `OUVERTURE`, `AUGMENTATIONS`, `DIMINUTIONS`, `CLOTURE`. Renseignée
    * uniquement pour les colonnes que la note déclare.
    */
@@ -248,7 +248,7 @@ export interface LigneNoteCalculee {
   /**
    * Écart entre la clôture recalculée (D = A + B - C) et le solde réellement
    * porté par la balance. Zéro attendu ; toute valeur non nulle est une
-   * ANOMALIE du dossier — typiquement un report à-nouveau manquant ou une
+   * ANOMALIE du dossier · typiquement un report à-nouveau manquant ou une
    * écriture passée hors des comptes de la rubrique. Présentée à
    * l'utilisateur plutôt que corrigée en silence.
    */
@@ -275,7 +275,7 @@ export interface LigneNoteCalculee {
  * Rubrique en attente, telle que l'écran de rattachement en a besoin.
  *
  * Elle porte la CLÉ et pas seulement le libellé : une note dont rien n'est
- * encore chiffré est non applicable, donc ne présente aucune ligne (§ 1.4) —
+ * encore chiffré est non applicable, donc ne présente aucune ligne (§ 1.4) ·
  * si la fiche récapitulative ne portait que des libellés, cette note serait un
  * cul-de-sac, impossible à alimenter faute de savoir quoi rattacher.
  */
@@ -299,7 +299,7 @@ export interface NoteCalculee {
   horsBalance: boolean;
   exerciceN1Disponible: boolean;
   /**
-   * Partie 4, ch. 2, section 4 — la « FICHE RECAPITULATIVE DES NOTES ANNEXES
+   * Partie 4, ch. 2, section 4 · la « FICHE RECAPITULATIVE DES NOTES ANNEXES
    * PRESENTEES » porte, pour chaque note, les colonnes « A (Applicable) » et
    * « N/A (Non applicable) ». Une note dont aucune ligne n'est chiffrée est
    * non applicable et, en vertu du § 1.4 de la Partie 4, ch. 1, ne doit pas

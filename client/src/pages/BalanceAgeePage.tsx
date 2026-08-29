@@ -3,13 +3,13 @@ import { api, ApiError } from '../lib/api';
 import { useExercice } from '../lib/exercice';
 
 /**
- * BALANCE ÂGÉE — État → Balance âgée de Sage 100 i7 : « état prévisionnel
+ * BALANCE ÂGÉE · État → Balance âgée de Sage 100 i7 : « état prévisionnel
  * des échéances à venir, ventilées par tranches de dates, en fonction d'une
  * date de référence saisie ». Assiette : les échéances NON LETTRÉES des
- * comptes de tiers (40 fournisseurs, 41 adhérents/clients — SYCEBNL) ; une
+ * comptes de tiers (40 fournisseurs, 41 adhérents/clients · SYCEBNL) ; une
  * ligne sans échéance saisie est rattachée à sa date d'écriture, comme chez
  * Sage. Les tranches en retard s'assombrissent à mesure que le retard
- * grandit — la colonne « + de 90 jours » est celle qui doit faire réagir.
+ * grandit · la colonne « + de 90 jours » est celle qui doit faire réagir.
  */
 
 interface LigneAgee {
@@ -120,7 +120,7 @@ export function BalanceAgeePage() {
 
         {donnees && donnees.comptes.length === 0 && (
           <div className="px-3.5 py-4 text-[11.5px] text-text-dim">
-            Aucune échéance non lettrée sur les comptes de tiers de cet exercice — soit rien n'est dû, soit
+            Aucune échéance non lettrée sur les comptes de tiers de cet exercice · soit rien n'est dû, soit
             tout est lettré. Les créances et dettes lettrées sont soldées, donc hors balance âgée.
           </div>
         )}

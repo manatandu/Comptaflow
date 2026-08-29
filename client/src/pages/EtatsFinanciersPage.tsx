@@ -17,7 +17,7 @@ import type {
 
 /**
  * Onglets du jeu « associations et ordres professionnels » (Partie 4, ch. 2)
- * vs du jeu « projets de développement et assimilés » (Partie 4, ch. 3) —
+ * vs du jeu « projets de développement et assimilés » (Partie 4, ch. 3) ·
  * jamais les deux à la fois : `useAuth().utilisateur.tenant.jeuEtatsFinanciersSycebnl`
  * décide lequel des deux jeux ce dossier affiche (voir
  * docs/plan-de-construction.md, item 13). Le Système Minimal de Trésorerie
@@ -47,12 +47,12 @@ export function EtatsFinanciersPage() {
 
   // Drapeau `annule` : une réponse lente ne doit pas écraser un état plus
   // récent après un changement d'exercice. Un seul des deux jeux est
-  // interrogé, selon le dossier — pas les deux à chaque fois.
+  // interrogé, selon le dossier · pas les deux à chaque fois.
   useEffect(() => {
     // `utilisateur` est null au tout premier rendu : sans cette garde, un
     // dossier « projets de développement » interrogerait d'abord les
     // endpoints du jeu ASSOCIATIONS (jeuProjet valant false par défaut),
-    // puis rebasculerait — requêtes inutiles et onglets qui changent sous
+    // puis rebasculerait · requêtes inutiles et onglets qui changent sous
     // l'œil. Corrigé à l'audit du 2026-08-28.
     if (!exerciceCourant || !utilisateur) return;
     let annule = false;
@@ -120,11 +120,11 @@ export function EtatsFinanciersPage() {
   };
 
   const montant = (v: number | undefined) =>
-    v === undefined ? '—' : v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    v === undefined ? '·' : v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   // --- Compte de résultat : REF | Libellé | Montant (N) | Montant (N-1) ---
   // `cle` : par défaut `p.ref`, mais explicite côté compte d'exploitation
-  // projet — TJ et TK y apparaissent deux fois (doublon officiel, voir
+  // projet · TJ et TK y apparaissent deux fois (doublon officiel, voir
   // correspondance-projet-compte-exploitation.ts), une clé React sur le
   // seul `ref` y collisionnerait.
   const lignePoste = (p: PosteCalcule, cle: string = p.ref) => (
@@ -183,7 +183,7 @@ export function EtatsFinanciersPage() {
     </div>
   );
 
-  // --- Bilan passif : REF | Libellé | Net (N) | Net (N-1) — pas de colonne Brut/Amort côté passif (le texte officiel n'en prévoit pas) ---
+  // --- Bilan passif : REF | Libellé | Net (N) | Net (N-1) · pas de colonne Brut/Amort côté passif (le texte officiel n'en prévoit pas) ---
   const lignePassif = (l: LigneBilan) => (
     <div
       key={l.ref}
@@ -234,7 +234,7 @@ export function EtatsFinanciersPage() {
 
       {jeuProjet && (
         <p className="text-[10.5px] text-text-dim mb-1.5">
-          Jeu « Projets de développement et assimilés » (SYCEBNL, Partie 4 ch. 3) — Tableau emplois-ressources,
+          Jeu « Projets de développement et assimilés » (SYCEBNL, Partie 4 ch. 3) · Tableau emplois-ressources,
           Tableau d'exécution budgétaire et Tableau de réconciliation de trésorerie non construits (voir{' '}
           <code>EtatsFinanciersProjetService</code>) : seuls Bilan et Compte d'exploitation sont disponibles ici.
         </p>
@@ -264,7 +264,7 @@ export function EtatsFinanciersPage() {
               onglet === 'note-bailleur' ? 'bg-surface border-r border-l border-border' : 'text-text-dim'
             }`}
           >
-            NOTE 9 — FONDS DU BAILLEUR
+            NOTE 9 · FONDS DU BAILLEUR
           </button>
         </div>
       ) : (
@@ -301,7 +301,7 @@ export function EtatsFinanciersPage() {
             <div className="max-w-[1180px] overflow-x-auto">
               {!bilan.exerciceN1Disponible && (
                 <p className="text-[10.5px] text-text-dim mb-1.5">
-                  Aucun exercice antérieur dans ce dossier — la colonne N-1 affiche « — », pas un faux zéro.
+                  Aucun exercice antérieur dans ce dossier la colonne N-1 affiche « », pas un faux zéro.
                 </p>
               )}
 
@@ -335,8 +335,8 @@ export function EtatsFinanciersPage() {
                 <IconCheck width={14} height={14} className={bilan.equilibre ? 'text-positive' : 'text-danger'} />
                 <span className="font-mono text-[11.5px] font-medium">
                   {bilan.equilibre
-                    ? `LE BILAN EST ÉQUILIBRÉ — ACTIF = PASSIF = ${montant(bilan.totalActif)}`
-                    : 'DÉSÉQUILIBRE DÉTECTÉ — vérifier les écritures et les comptes non rattachés ci-dessous'}
+                    ? `LE BILAN EST ÉQUILIBRÉ · ACTIF = PASSIF = ${montant(bilan.totalActif)}`
+                    : 'DÉSÉQUILIBRE DÉTECTÉ · vérifier les écritures et les comptes non rattachés ci-dessous'}
                 </span>
               </div>
 
@@ -344,7 +344,7 @@ export function EtatsFinanciersPage() {
                 <div className="flex items-start gap-2 mt-2 px-3.5 py-2.5 border border-warning/40 bg-warning-soft">
                   <span className="text-[11.5px]">
                     ⚠ Les classes 6/7/8 ({montant(bilan.controle.resultatClasses678)}) ET le compte 13 (
-                    {montant(bilan.controle.resultatCompte13)}) sont tous deux mouvementés — risque de double comptage
+                    {montant(bilan.controle.resultatCompte13)}) sont tous deux mouvementés · risque de double comptage
                     du résultat. Fournir une balance avant OU après clôture, pas un état intermédiaire.
                   </span>
                 </div>
@@ -353,12 +353,12 @@ export function EtatsFinanciersPage() {
               {bilan.comptesNonRattaches.length > 0 && (
                 <div className="border border-danger/30 bg-danger-soft mt-2 px-3.5 py-2.5">
                   <div className="text-[11.5px] font-bold mb-1.5">
-                    Comptes de bilan rattachés à aucun poste officiel — leur montant n'entre dans aucun total
+                    Comptes de bilan rattachés à aucun poste officiel · leur montant n'entre dans aucun total
                   </div>
                   {bilan.comptesNonRattaches.map((c) => (
                     <div key={c.numero} className="flex justify-between text-[11.5px] font-mono">
                       <span>
-                        {c.numero} — {c.intitule}
+                        {c.numero} · {c.intitule}
                       </span>
                       <span>{montant(c.montant)}</span>
                     </div>
@@ -368,10 +368,10 @@ export function EtatsFinanciersPage() {
 
               <p className="text-[11px] text-text-dim mt-3">
                 Postes et rattachements conformes au tableau de correspondance officiel SYCEBNL (Journal officiel
-                OHADA, Partie 4 ch. 2) — 3 colonnes Brut/Amort./Net côté actif et comparatif N-1 des deux côtés,
+                OHADA, Partie 4 ch. 2) · 3 colonnes Brut/Amort./Net côté actif et comparatif N-1 des deux côtés,
                 comme l'exige le texte officiel. Comme au compte de résultat, les anomalies du texte officiel sont
                 corrigées explicitement (comptes de tiers polyvalents 42-47 distingués par le sens du solde,
-                provisions réglementées en poste 15) plutôt que devinées — voir <code>correspondance-bilan.ts</code>.
+                provisions réglementées en poste 15) plutôt que devinées · voir <code>correspondance-bilan.ts</code>.
               </p>
             </div>
           )}
@@ -385,11 +385,11 @@ export function EtatsFinanciersPage() {
             <div className="max-w-[900px]">
               {!cr.exerciceN1Disponible && (
                 <p className="text-[10.5px] text-text-dim mb-1.5">
-                  Aucun exercice antérieur dans ce dossier — la colonne N-1 affiche « — », pas un faux zéro.
+                  Aucun exercice antérieur dans ce dossier la colonne N-1 affiche « », pas un faux zéro.
                 </p>
               )}
 
-              <div className="border border-border bg-surface">
+              <div className="border border-border bg-surface shadow-posee">
                 <div className="grid grid-cols-[46px_1fr_120px_120px] gap-2 px-4 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
                   <span>REF</span>
                   <span>LIBELLÉ</span>
@@ -429,20 +429,20 @@ export function EtatsFinanciersPage() {
                 />
                 <span className="font-mono text-[11.5px] font-medium">
                   {cr.controle.coherent
-                    ? "L'ÉTAT BOUCLE — le résultat des postes est identique au résultat logé au bilan"
-                    : `ÉCART DE ${montant(cr.controle.ecart)} — l'état ne boucle pas avec le bilan`}
+                    ? "L'ÉTAT BOUCLE · le résultat des postes est identique au résultat logé au bilan"
+                    : `ÉCART DE ${montant(cr.controle.ecart)} · l'état ne boucle pas avec le bilan`}
                 </span>
               </div>
 
               {cr.comptesNonRattaches.length > 0 && (
                 <div className="border border-danger/30 bg-danger-soft mt-2 px-3.5 py-2.5">
                   <div className="text-[11.5px] font-bold mb-1.5">
-                    Comptes de gestion rattachés à aucun poste officiel — leur montant n'entre dans aucun total
+                    Comptes de gestion rattachés à aucun poste officiel · leur montant n'entre dans aucun total
                   </div>
                   {cr.comptesNonRattaches.map((c) => (
                     <div key={c.numero} className="flex justify-between text-[11.5px] font-mono">
                       <span>
-                        {c.numero} — {c.intitule}
+                        {c.numero} · {c.intitule}
                       </span>
                       <span>{montant(c.montant)}</span>
                     </div>
@@ -472,11 +472,11 @@ export function EtatsFinanciersPage() {
             <div className="max-w-[900px]">
               {!tft.exerciceN1Disponible && (
                 <p className="text-[10.5px] text-text-dim mb-1.5">
-                  Aucun exercice antérieur dans ce dossier — la colonne N-1 affiche « — », pas un faux zéro.
+                  Aucun exercice antérieur dans ce dossier la colonne N-1 affiche « », pas un faux zéro.
                 </p>
               )}
 
-              <div className="border border-border bg-surface">
+              <div className="border border-border bg-surface shadow-posee">
                 <div className="grid grid-cols-[46px_1fr_120px_120px] gap-2 px-4 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
                   <span>REF</span>
                   <span>LIBELLÉ</span>
@@ -507,13 +507,13 @@ export function EtatsFinanciersPage() {
                   />
                   <span className="font-mono text-[11.5px] font-medium">
                     {tft.controle.coherent
-                      ? "L'ÉTAT BOUCLE — trésorerie de clôture identique par cumul des flux et par lecture du bilan"
-                      : `ÉCART DE ${montant(tft.controle.ecart)} — la ventilation FA-FQ ne couvre pas tout le mouvement de trésorerie`}
+                      ? "L'ÉTAT BOUCLE · trésorerie de clôture identique par cumul des flux et par lecture du bilan"
+                      : `ÉCART DE ${montant(tft.controle.ecart)} · la ventilation FA-FQ ne couvre pas tout le mouvement de trésorerie`}
                   </span>
                 </div>
                 <div className="pl-[22px] font-mono text-[10.5px] text-text-dim">
                   Trésorerie ouverture {montant(tft.controle.tresorerieOuverture)} + variation{' '}
-                  {montant(tft.controle.variation)} = {montant(tft.controle.tresorerieClotureParFlux)} (par les flux) —
+                  {montant(tft.controle.variation)} = {montant(tft.controle.tresorerieClotureParFlux)} (par les flux) ·
                   bilan : {montant(tft.controle.tresorerieClotureParBilan)}
                 </div>
               </div>
@@ -521,12 +521,12 @@ export function EtatsFinanciersPage() {
               {tft.comptesNonVentiles.length > 0 && (
                 <div className="border border-danger/30 bg-danger-soft mt-2 px-3.5 py-2.5">
                   <div className="text-[11.5px] font-bold mb-1.5">
-                    Comptes encaissables/décaissables rattachés à aucun poste de flux — cause probable de l'écart
+                    Comptes encaissables/décaissables rattachés à aucun poste de flux · cause probable de l'écart
                   </div>
                   {tft.comptesNonVentiles.map((c) => (
                     <div key={c.numero} className="flex justify-between text-[11.5px] font-mono">
                       <span>
-                        {c.numero} — {c.intitule}
+                        {c.numero} · {c.intitule}
                       </span>
                       <span>{montant(c.montant)}</span>
                     </div>
@@ -551,12 +551,12 @@ export function EtatsFinanciersPage() {
             <div className="max-w-[1180px] overflow-x-auto">
               {!bilanProjet.exerciceN1Disponible && (
                 <p className="text-[10.5px] text-text-dim mb-1.5">
-                  Aucun exercice antérieur dans ce dossier — la colonne N-1 affiche « — », pas un faux zéro.
+                  Aucun exercice antérieur dans ce dossier la colonne N-1 affiche « », pas un faux zéro.
                 </p>
               )}
 
               {/* DEUX colonnes de valeur, pas quatre : le texte officiel de ce
-                  jeu ne prévoit ni Brut ni Amortissements côté actif — voir
+                  jeu ne prévoit ni Brut ni Amortissements côté actif · voir
                   correspondance-projet-bilan.ts. Le rendu passif convient donc
                   aux deux volets. */}
               <div className="border border-border bg-surface mb-3">
@@ -587,20 +587,20 @@ export function EtatsFinanciersPage() {
                 <IconCheck width={14} height={14} className={bilanProjet.equilibre ? 'text-positive' : 'text-danger'} />
                 <span className="font-mono text-[11.5px] font-medium">
                   {bilanProjet.equilibre
-                    ? `LE BILAN EST ÉQUILIBRÉ — ACTIF = PASSIF = ${montant(bilanProjet.totalActif)}`
-                    : 'DÉSÉQUILIBRE DÉTECTÉ — vérifier les écritures et les comptes non rattachés ci-dessous'}
+                    ? `LE BILAN EST ÉQUILIBRÉ · ACTIF = PASSIF = ${montant(bilanProjet.totalActif)}`
+                    : 'DÉSÉQUILIBRE DÉTECTÉ · vérifier les écritures et les comptes non rattachés ci-dessous'}
                 </span>
               </div>
 
               {bilanProjet.comptesNonRattaches.length > 0 && (
                 <div className="border border-danger/30 bg-danger-soft mt-2 px-3.5 py-2.5">
                   <div className="text-[11.5px] font-bold mb-1.5">
-                    Comptes de bilan rattachés à aucun poste officiel — leur montant n'entre dans aucun total
+                    Comptes de bilan rattachés à aucun poste officiel · leur montant n'entre dans aucun total
                   </div>
                   {bilanProjet.comptesNonRattaches.map((c) => (
                     <div key={c.numero} className="flex justify-between text-[11.5px] font-mono">
                       <span>
-                        {c.numero} — {c.intitule}
+                        {c.numero} · {c.intitule}
                       </span>
                       <span>{montant(c.montant)}</span>
                     </div>
@@ -610,12 +610,12 @@ export function EtatsFinanciersPage() {
 
               <p className="text-[11px] text-text-dim mt-3">
                 Postes et rattachements conformes au tableau de correspondance officiel SYCEBNL, jeu « projets de
-                développement et assimilés » (Journal officiel OHADA, Partie 4 ch. 3) — voir{' '}
+                développement et assimilés » (Journal officiel OHADA, Partie 4 ch. 3) · voir{' '}
                 <code>correspondance-projet-bilan.ts</code>. Deux colonnes de valeur seulement : contrairement au
                 bilan des associations, le texte de ce jeu ne prévoit ni Brut ni Amortissements, et son tableau de
                 correspondance ne cite aucun compte 28x/29x. CC (solde des opérations de l'exercice) vient
                 uniquement du compte 13. Le poste DI reprend le compte 20 tel que l'écrit le texte officiel, bien
-                qu'il s'agisse d'un compte d'actif — anomalie signalée, jamais corrigée en silence.
+                qu'il s'agisse d'un compte d'actif · anomalie signalée, jamais corrigée en silence.
               </p>
             </div>
           )}
@@ -629,11 +629,11 @@ export function EtatsFinanciersPage() {
             <div className="max-w-[900px]">
               {!ceProjet.exerciceN1Disponible && (
                 <p className="text-[10.5px] text-text-dim mb-1.5">
-                  Aucun exercice antérieur dans ce dossier — la colonne N-1 affiche « — », pas un faux zéro.
+                  Aucun exercice antérieur dans ce dossier la colonne N-1 affiche « », pas un faux zéro.
                 </p>
               )}
 
-              <div className="border border-border bg-surface">
+              <div className="border border-border bg-surface shadow-posee">
                 <div className="grid grid-cols-[46px_1fr_120px_120px] gap-2 px-4 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
                   <span>REF</span>
                   <span>LIBELLÉ</span>
@@ -669,20 +669,20 @@ export function EtatsFinanciersPage() {
                 />
                 <span className="font-mono text-[11.5px] font-medium">
                   {ceProjet.controle.boucleAZero
-                    ? `XC = ${montant(ceProjet.solde)} (≈ 0) — régime normal pour ce jeu`
-                    : `XC = ${montant(ceProjet.solde)} (≠ 0) — pas nécessairement une erreur, vérifier le compte 13 et les comptes non rattachés ci-dessous`}
+                    ? `XC = ${montant(ceProjet.solde)} (≈ 0) · régime normal pour ce jeu`
+                    : `XC = ${montant(ceProjet.solde)} (≠ 0) · pas nécessairement une erreur, vérifier le compte 13 et les comptes non rattachés ci-dessous`}
                 </span>
               </div>
 
               {ceProjet.comptesNonRattaches.length > 0 && (
                 <div className="border border-danger/30 bg-danger-soft mt-2 px-3.5 py-2.5">
                   <div className="text-[11.5px] font-bold mb-1.5">
-                    Comptes de gestion rattachés à aucun poste officiel — leur montant n'entre dans aucun total
+                    Comptes de gestion rattachés à aucun poste officiel · leur montant n'entre dans aucun total
                   </div>
                   {ceProjet.comptesNonRattaches.map((c) => (
                     <div key={c.numero} className="flex justify-between text-[11.5px] font-mono">
                       <span>
-                        {c.numero} — {c.intitule}
+                        {c.numero} · {c.intitule}
                       </span>
                       <span>{montant(c.montant)}</span>
                     </div>
@@ -692,7 +692,7 @@ export function EtatsFinanciersPage() {
 
               <p className="text-[11px] text-text-dim mt-3">
                 Postes conformes au tableau de correspondance officiel SYCEBNL, jeu « projets de développement et
-                assimilés » (Journal officiel OHADA, Partie 4 ch. 3) — voir{' '}
+                assimilés » (Journal officiel OHADA, Partie 4 ch. 3) · voir{' '}
                 <code>correspondance-projet-compte-exploitation.ts</code>. RC (subventions) et RE (reprises) dans XA :
                 deux anomalies du texte officiel corrigées. TJ et TK apparaissent deux fois chacun : doublon du texte
                 officiel, reproduit tel quel.
@@ -708,7 +708,7 @@ export function EtatsFinanciersPage() {
           {noteBailleur && (
             <div className="max-w-[1000px] overflow-x-auto">
               <p className="text-[10.5px] text-text-dim mb-2">
-                Un bailleur n'apparaît ici que si des comptes 162-164/462-464 lui sont rattachés — voir la page{' '}
+                Un bailleur n'apparaît ici que si des comptes 162-164/462-464 lui sont rattachés · voir la page{' '}
                 <a href="#/bailleurs" className="text-sel hover:underline">
                   Bailleurs
                 </a>
@@ -734,7 +734,7 @@ export function EtatsFinanciersPage() {
                     {lignes.map((l) => (
                       <div key={l.bailleur.id} className="grid grid-cols-[1.4fr_130px_130px_130px] gap-2 px-4 py-1 text-[12px]">
                         <span>
-                          {l.bailleur.code} — {l.bailleur.nom}
+                          {l.bailleur.code} · {l.bailleur.nom}
                         </span>
                         <span className="font-mono text-right">{montant(l.decaisse)}</span>
                         <span className="font-mono text-right">{montant(l.consomme)}</span>
@@ -761,18 +761,18 @@ export function EtatsFinanciersPage() {
 
               <div className="flex items-center gap-2 px-3.5 py-2.5 border border-border bg-chrome">
                 <span className="font-mono text-[11.5px] font-medium">
-                  TOTAL DES FONDS DU BAILLEUR — Décaissé {montant(noteBailleur.totalFondsDuBailleur.decaisse)} · Consommé{' '}
+                  TOTAL DES FONDS DU BAILLEUR · Décaissé {montant(noteBailleur.totalFondsDuBailleur.decaisse)} · Consommé{' '}
                   {montant(noteBailleur.totalFondsDuBailleur.consomme)} · Solde restant{' '}
                   {montant(noteBailleur.totalFondsDuBailleur.soldeRestant)}
                 </span>
               </div>
 
               <p className="text-[11px] text-text-dim mt-3">
-                NOTE 9 — Fonds du bailleur (SYCEBNL, Partie 4 ch. 3, Section 6). Montants <strong>cumulés depuis
+                NOTE 9 · Fonds du bailleur (SYCEBNL, Partie 4 ch. 3, Section 6). Montants <strong>cumulés depuis
                 l'origine du projet</strong>, toutes périodes confondues : cette note suit le cycle de vie du projet,
                 pas l'exercice comptable. Décaissé = mouvements crédit (hors report à-nouveau) ; Consommé =
                 mouvements débit ; Solde restant = Décaissé − Consommé. Le texte officiel ne précise le compte
-                source que pour « Consommé » côté Fonds d'administration (compte 702) — convention retenue pour le
+                source que pour « Consommé » côté Fonds d'administration (compte 702) · convention retenue pour le
                 reste détaillée dans <code>EtatsFinanciersProjetService.noteBailleur</code>.
               </p>
             </div>

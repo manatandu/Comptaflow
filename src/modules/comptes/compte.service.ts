@@ -38,14 +38,14 @@ export class CompteService {
   }
 
   async creer(tenantId: string, dto: CreerCompteDto) {
-    // Longueur maximale du numéro de compte — paramètre par dossier (§ voir
+    // Longueur maximale du numéro de compte · paramètre par dossier (§ voir
     // Tenant.longueurCompte dans le schéma), pas une constante globale : le
     // DTO ne valide qu'un format générique (3-13 chiffres, plage Sage), la
     // borne réelle du dossier se vérifie ici.
     const tenant = await this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId } });
     if (dto.numero.length > tenant.longueurCompte) {
       throw new BadRequestException(
-        `Le numéro de compte "${dto.numero}" dépasse la longueur autorisée pour ce dossier (${tenant.longueurCompte} chiffres) — voir Structure > Paramètres du dossier.`,
+        `Le numéro de compte "${dto.numero}" dépasse la longueur autorisée pour ce dossier (${tenant.longueurCompte} chiffres) · voir Structure > Paramètres du dossier.`,
       );
     }
     const existant = await this.prisma.compte.findUnique({
@@ -63,7 +63,7 @@ export class CompteService {
       throw new NotFoundException('Compte introuvable pour ce tenant');
     }
     // Un compte Total (regroupement par racine, §3.1) ne peut jamais avoir
-    // reçu d'écriture directement — voir EcritureService.creer(). Basculer
+    // reçu d'écriture directement · voir EcritureService.creer(). Basculer
     // un compte déjà mouvementé en Total laisserait ces mouvements orphelins
     // d'une comptabilisation cohérente (ils resteraient dans le solde agrégé
     // sans qu'on puisse plus jamais les corriger par une contre-écriture sur
@@ -72,7 +72,7 @@ export class CompteService {
       const aDesMouvements = await this.prisma.ligneEcriture.findFirst({ where: { compteId } });
       if (aDesMouvements) {
         throw new BadRequestException(
-          `Le compte ${compte.numero} a déjà des écritures — impossible de le basculer en compte Total`,
+          `Le compte ${compte.numero} a déjà des écritures · impossible de le basculer en compte Total`,
         );
       }
     }

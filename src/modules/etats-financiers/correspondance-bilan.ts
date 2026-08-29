@@ -1,5 +1,5 @@
 /**
- * Tableau de correspondance officiel « poste → comptes » du BILAN SYCEBNL —
+ * Tableau de correspondance officiel « poste → comptes » du BILAN SYCEBNL ·
  * associations et ordres professionnels, Système normal.
  *
  * Source unique : skill `sycebnl`, `references/partie4-ch2-etats-associations.md`,
@@ -9,7 +9,7 @@
  * §2.6 du plan de construction).
  *
  * Remplace le regroupement simplifié classe → poste qui servait de bilan MVP
- * (`etats-financiers.service.ts`, avant le 2026-08-28) — sur le même modèle
+ * (`etats-financiers.service.ts`, avant le 2026-08-28) · sur le même modèle
  * que `correspondance-compte-resultat.ts`, construit lors de la même
  * séance : un vrai tableau de correspondance, pas une approximation.
  *
@@ -24,19 +24,19 @@
  * ## Convention de signe
  *
  * « brut » et « passif » : montant = solde DÉBITEUR net pour un poste
- * d'actif, solde CRÉDITEUR net pour un poste de passif — chacun dans son
+ * d'actif, solde CRÉDITEUR net pour un poste de passif · chacun dans son
  * sens naturel de lecture (un poste d'actif ressort en positif si le compte
  * est bien débiteur, jamais en négatif par construction du bilan officiel).
  * « amortissements/dépréciations » : toujours solde CRÉDITEUR net (ce sont
  * des comptes soustractifs de l'actif, quel que soit leur poste).
  *
  * Pour les comptes de tiers polyvalents (42 à 47, 499, 52, 53, 599), un même
- * numéro peut être tour à tour débiteur ou créditeur selon l'écriture — voir
+ * numéro peut être tour à tour débiteur ou créditeur selon l'écriture · voir
  * `sens` sur `BE`/`DI`/`DW`, corrections officiellement admises (voir
  * `ANOMALIES` ci-dessous).
  *
  * ## Anomalies du texte officiel, signalées et corrigées comme le fait déjà
- * le moteur `liasse/` du skill (`liasse/references/anomalies.md`) — même
+ * le moteur `liasse/` du skill (`liasse/references/anomalies.md`) · même
  * corrections, mêmes justifications, reprises ici pour ne pas dépendre d'un
  * fichier hors du dépôt de l'application :
  *
@@ -54,9 +54,9 @@
  *    numérotent 15. Le numéro 15 est retenu, cohérent avec le tableau qui
  *    gouverne le montage.
  * 4. **AG (amortissement)** : la cellule est illisible dans la source
- *    scannée. Laissée vide — cohérent avec le fait qu'une avance non livrée
+ *    scannée. Laissée vide · cohérent avec le fait qu'une avance non livrée
  *    ne s'amortit pas.
- * 5. ~~**DW** restreint à 564/565~~ — **CORRIGÉ LE 2026-08-28 (audit)** :
+ * 5. ~~**DW** restreint à 564/565~~ · **CORRIGÉ LE 2026-08-28 (audit)** :
  *    ce n'était pas une anomalie du texte mais une ERREUR de ce fichier. Le
  *    texte dit « 56, solde créditeurs : 52, 53 » ; la restriction à 564/565
  *    invoquait « 561 = opérations avec le siège », qui est la nomenclature
@@ -64,18 +64,18 @@
  *    Crédits de trésorerie, 565 Escompte, 566 intérêts courus : 564
  *    n'existe pas et 561/566 sont de la trésorerie passif. DW reprend « 56 ».
  *
- * 6. **BW / DW — double comptage des découverts**, corrigé le 2026-08-28.
+ * 6. **BW / DW · double comptage des découverts**, corrigé le 2026-08-28.
  *    BW captait les soldes 52/53 CRÉDITEURS (en négatif, donc en diminution
  *    de l'actif) pendant que DW les ajoutait au passif : un simple découvert
  *    bancaire déséquilibrait le bilan du double de son montant. Le solde
- *    créditeur doit être DÉPLACÉ, pas compté des deux côtés — voir
+ *    créditeur doit être DÉPLACÉ, pas compté des deux côtés · voir
  *    `comptesTransferesSiCrediteur` sur BW.
  *
  * Une SEPTIÈME ambiguïté, propre à cette transcription (non documentée dans
  * `liasse/references/anomalies.md`, qui ne la résout pas non plus) : le
  * texte officiel marque d'un suffixe « p » (pour partie) TROIS comptes de
- * dépréciation qu'il liste sous DEUX postes à la fois — 2919p (AE et AF),
- * 2939p (AJ et AK) et 2949p (AL et AM) —, sans que rien n'indique la clé de
+ * dépréciation qu'il liste sous DEUX postes à la fois · 2919p (AE et AF),
+ * 2939p (AJ et AK) et 2949p (AL et AM) ·, sans que rien n'indique la clé de
  * répartition. Le troisième (2949p) manquait à cette liste jusqu'à l'audit
  * du 2026-08-28 ; le code le traitait pourtant déjà comme les deux autres
  * (rattaché en entier à AM, exclu de AL). Dans les trois cas : un
@@ -101,13 +101,13 @@ export interface PosteBilanDeBase {
   exclusions?: string[];
   /** Uniquement pour l'actif : comptes 28x/29x soustractifs de ce poste. */
   comptesAmortissement?: string[];
-  /** Préfixes retranchés de `comptesAmortissement` — même logique que `exclusions`. */
+  /** Préfixes retranchés de `comptesAmortissement` · même logique que `exclusions`. */
   exclusionsAmortissement?: string[];
   /**
    * ACTIF seulement : comptes qui QUITTENT ce poste quand leur solde est
    * créditeur, parce qu'un poste de PASSIF les réclame alors (banque à
    * découvert : BW -> DW). Sans ça le solde créditeur serait compté DEUX
-   * fois — en négatif à l'actif ET en positif au passif — et le bilan ne
+   * fois en négatif à l'actif ET en positif au passif et le bilan ne
    * bouclerait plus (bug corrigé le 2026-08-28, test de régression
    * « découvert bancaire » dans etats-financiers.service.spec.ts).
    */
@@ -140,7 +140,7 @@ export const POSTES_ACTIF: PosteBilanDeBase[] = [
     comptes: ['218', '2198'],
     comptesAmortissement: ['2818', '2918', '2919'],
   },
-  // AG : l'amortissement est illisible dans la source (anomalie n° 4) — pas de comptesAmortissement.
+  // AG : l'amortissement est illisible dans la source (anomalie n° 4) · pas de comptesAmortissement.
   { ref: 'AG', libelle: 'Avances et acomptes versés sur immobilisations incorporelles', sens: 'ACTIF', comptes: ['251'] },
   { ref: 'AI', libelle: 'Terrains', sens: 'ACTIF', comptes: ['22'], comptesAmortissement: ['282', '292'] },
   {
@@ -212,7 +212,7 @@ export const POSTES_ACTIF: PosteBilanDeBase[] = [
     // visible en négatif à l'actif plutôt que d'être déplacée au passif.
     comptesTransferesSiCrediteur: ['52', '53'],
   },
-  { ref: 'BY', libelle: 'Écart de conversion — Actif', sens: 'ACTIF', comptes: ['478'] },
+  { ref: 'BY', libelle: 'Écart de conversion · Actif', sens: 'ACTIF', comptes: ['478'] },
 ];
 
 /** Postes PASSIF portant directement des comptes (hors sous-totaux/totaux). */
@@ -225,7 +225,7 @@ export const POSTES_PASSIF: PosteBilanDeBase[] = [
   { ref: 'CF', libelle: 'Réserves', sens: 'PASSIF', comptes: ['11'] },
   { ref: 'CG', libelle: 'Report à nouveau (+ ou -)', sens: 'PASSIF', comptes: ['12'] },
   // CH (Résultat net) n'est PAS listé ici : il vit du côté classes 6/7/8
-  // (avant clôture) ou du compte 13 (après clôture) — voir calculerResultatNet()
+  // (avant clôture) ou du compte 13 (après clôture) · voir calculerResultatNet()
   // dans etats-financiers.service.ts, même logique que la balance déjà en place.
   { ref: 'CI', libelle: "Subventions d'investissement", sens: 'PASSIF', comptes: ['14'] },
   // Anomalie n° 3 : 15, pas 16 (voir tableau de correspondance vs fiche sommaire classe 1).
@@ -251,10 +251,10 @@ export const POSTES_PASSIF: PosteBilanDeBase[] = [
     ref: 'DW',
     libelle: 'Banques, établissements financiers et crédits de trésorerie',
     sens: 'PASSIF',
-    // Le texte officiel dit « 56 » — repris tel quel. Une précédente version
+    // Le texte officiel dit « 56 » · repris tel quel. Une précédente version
     // restreignait le poste à ['564', '565'] au motif que « 561 = opérations
     // avec le siège » : FAUX, et doublement. 561 est la nomenclature
-    // SYSCOHADA, citée de mémoire — la faute que la règle §2.6 interdit.
+    // SYSCOHADA, citée de mémoire · la faute que la règle §2.6 interdit.
     // Et le plan SYCEBNL (Partie 2 ch. 3, COMPTE 56) subdivise 56 en 561
     // Crédits de trésorerie / 565 Escompte de crédits ordinaires / 566
     // intérêts courus : 564 n'existe pas, 561 et 566 sont bien de la
@@ -262,11 +262,11 @@ export const POSTES_PASSIF: PosteBilanDeBase[] = [
     // comptes du bilan. Corrigé le 2026-08-28 (audit).
     comptes: ['56'],
   },
-  { ref: 'DY', libelle: 'Écart de conversion — Passif', sens: 'PASSIF', comptes: ['479'] },
+  { ref: 'DY', libelle: 'Écart de conversion · Passif', sens: 'PASSIF', comptes: ['479'] },
 ];
 
 /**
- * DW capte aussi 52/53 côté créditeur — mais BW (actif) capte déjà 52/53
+ * DW capte aussi 52/53 côté créditeur · mais BW (actif) capte déjà 52/53
  * côté débiteur. Représenté à part car ce n'est pas un poste de base
  * ordinaire : il partage ses comptes avec BW, distingué uniquement par le
  * sens du solde (exactement le même mécanisme que BE/DI, sur les mêmes
@@ -310,7 +310,7 @@ export const TOTAUX_PASSIF: TotalBilan[] = [
   { ref: 'DZ', libelle: 'TOTAL GENERAL', deRefs: ['DE', 'DV', 'DX', 'DY'] },
 ];
 
-/** Ordre d'affichage officiel — mélange détail et totaux, comme la maquette. */
+/** Ordre d'affichage officiel · mélange détail et totaux, comme la maquette. */
 export const ORDRE_AFFICHAGE_ACTIF = [
   'AA', 'AB', 'AC', 'AD', 'AE', 'AF', 'AG', 'AH', 'AI', 'AJ', 'AK', 'AL', 'AM', 'AN',
   'AO', 'AX', 'AY', 'AZ', 'BA', 'BB', 'BC', 'BD', 'BE', 'BT', 'BU', 'BV', 'BW', 'BX', 'BY', 'BZ',

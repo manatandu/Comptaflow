@@ -2,7 +2,7 @@ export type Referentiel = 'SYCEBNL' | 'SYSCOHADA';
 /**
  * N'a de sens que si `Referentiel` = 'SYCEBNL' (le SYSCOHADA n'a qu'un seul
  * jeu). SYCEBNL en prévoit 3 (Partie 4, ch. 2 à 4 du texte officiel) ; seuls
- * les deux premiers sont construits — le Système Minimal de Trésorerie
+ * les deux premiers sont construits · le Système Minimal de Trésorerie
  * (SMT, < 30 M FCFA) n'a pas de valeur ici.
  */
 export type JeuEtatsFinanciersSycebnl = 'ASSOCIATIONS_ORDRES_PROFESSIONNELS' | 'PROJETS_DEVELOPPEMENT';
@@ -32,14 +32,14 @@ export interface Compte {
   classe: ClasseCompte;
   typeCompte: TypeCompteDetailTotal;
   estActif: boolean;
-  /** Report à-nouveau en fin d'exercice — Aucun (charges/produits), Solde, ou Détail (lignes non lettrées). */
+  /** Report à-nouveau en fin d'exercice · Aucun (charges/produits), Solde, ou Détail (lignes non lettrées). */
   modeReportANouveau: ModeReportANouveau;
-  /** Rattachement à un Bailleur (comptabilité analytique par projet/bailleur) — voir Bailleur. */
+  /** Rattachement à un Bailleur (comptabilité analytique par projet/bailleur) · voir Bailleur. */
   bailleurId: string | null;
 }
 
 /**
- * Bailleur (ou sous-projet) — regroupe les sous-comptes 162-164/462-464 qui
+ * Bailleur (ou sous-projet) · regroupe les sous-comptes 162-164/462-464 qui
  * lui sont propres (docs/plan-de-construction.md item 14, jeu « projets de
  * développement »).
  */
@@ -52,7 +52,7 @@ export interface Bailleur {
   createdAt: string;
 }
 
-/** Une ligne (par bailleur) de la NOTE 9 — Fonds du bailleur. */
+/** Une ligne (par bailleur) de la NOTE 9 · Fonds du bailleur. */
 export interface LigneNoteBailleur {
   bailleur: { id: string; code: string; nom: string };
   decaisse: number;
@@ -136,7 +136,7 @@ export interface Ecriture {
   lignes: LigneEcriture[];
 
   /**
-   * Correction d'erreur par inscription en négatif — art. 20 de l'AUDCIF,
+   * Correction d'erreur par inscription en négatif · art. 20 de l'AUDCIF,
    * repris par la Partie 2 ch. 2 du SYCEBNL. `correction` est posé sur
    * l'écriture ERRONÉE (elle a été annulée par celle-ci) ; `corrigeEcriture`
    * et `motifCorrection` sur l'écriture de CORRECTION.
@@ -217,7 +217,7 @@ export interface LigneGrandLivre {
   credit: number;
   lettre: string | null;
   soldeProgressif: number;
-  /** Comptes de sens opposé dans la même écriture — voir ExportService.grandLivreExcel. */
+  /** Comptes de sens opposé dans la même écriture · voir ExportService.grandLivreExcel. */
   contrepartie: string[];
 }
 
@@ -225,7 +225,7 @@ export interface LigneGrandLivre {
 /**
  * `brut`/`amortissement` : ACTIF seulement (le texte officiel exige Brut /
  * Amort. et dépréc. / Net côté actif, rien que Net côté passif).
- * `*N1` : comparatif N-1, exigé sur le bilan ET le compte de résultat —
+ * `*N1` : comparatif N-1, exigé sur le bilan ET le compte de résultat ·
  * `undefined` (jamais 0) quand il n'y a pas d'exercice antérieur.
  */
 export interface LigneBilan {
@@ -237,7 +237,7 @@ export interface LigneBilan {
   brutN1?: number;
   amortissement?: number;
   amortissementN1?: number;
-  /** Ligne de sous-total ou de total (ex. AZ, BT, DZ) — pas un poste de détail. */
+  /** Ligne de sous-total ou de total (ex. AZ, BT, DZ) · pas un poste de détail. */
   estTotal: boolean;
   comptes: CompteDuPoste[];
 }
@@ -252,7 +252,7 @@ export interface Bilan {
   /** false = premier exercice du dossier, aucun N-1 à afficher. */
   exerciceN1Disponible: boolean;
   equilibre: boolean;
-  /** Comptes de bilan (classes 1-5) qu'aucun poste officiel ne réclame — jamais masqués. */
+  /** Comptes de bilan (classes 1-5) qu'aucun poste officiel ne réclame · jamais masqués. */
   comptesNonRattaches: CompteDuPoste[];
   controle: {
     resultatClasses678: number;
@@ -269,13 +269,13 @@ export interface CompteDuPoste {
 
 /**
  * BILAN et COMPTE D'EXPLOITATION du jeu « projets de développement et
- * assimilés » (Partie 4, ch. 3) — structure volontairement proche de
+ * assimilés » (Partie 4, ch. 3) · structure volontairement proche de
  * `Bilan`/`CompteDeResultat` (mêmes conventions Brut/Amort/Net et
  * comparatif N-1), mais PAS interchangeable : REF, libellés et comptes
  * rattachés sont propres à ce jeu (voir `correspondance-projet-*.ts` côté
  * serveur). `controle` diffère aussi : pas de double source à arbitrer côté
  * bilan (`equilibre` seulement), et `boucleAZero` (pas `coherent`) côté
- * compte d'exploitation — ce jeu vise XC = 0, pas un résultat net.
+ * compte d'exploitation · ce jeu vise XC = 0, pas un résultat net.
  */
 export interface BilanProjet {
   actif: LigneBilan[];
@@ -293,10 +293,10 @@ export interface CompteExploitationProjet {
   revenus: PosteCalcule[];
   totalRevenus: number; // XA
   totalRevenusN1?: number;
-  charges: PosteCalcule[]; // TJ et TK peuvent apparaître deux fois — doublon officiel, voir correspondance-projet-compte-exploitation.ts
+  charges: PosteCalcule[]; // TJ et TK peuvent apparaître deux fois · doublon officiel, voir correspondance-projet-compte-exploitation.ts
   totalCharges: number; // XB
   totalChargesN1?: number;
-  solde: number; // XC — attendu à 0 en régime normal, PAS un résultat net
+  solde: number; // XC · attendu à 0 en régime normal, PAS un résultat net
   soldeN1?: number;
   exerciceN1Disponible: boolean;
   comptesNonRattaches: CompteDuPoste[];
@@ -310,25 +310,25 @@ export interface PosteCalcule {
   ref: string;
   libelle: string;
   montant: number;
-  /** Comparatif N-1 — undefined quand il n'y a pas d'exercice antérieur. */
+  /** Comparatif N-1 · undefined quand il n'y a pas d'exercice antérieur. */
   montantN1?: number;
   comptes: CompteDuPoste[];
 }
 
 // --------------------------------------------------------------------------
 // Tableau de flux de trésorerie (associations et ordres professionnels
-// seulement — Partie 4, ch. 1 § 4). Méthode directe, double bouclage.
+// seulement · Partie 4, ch. 1 § 4). Méthode directe, double bouclage.
 // --------------------------------------------------------------------------
 
 export interface LigneFluxTresorerie {
   ref: string;
   libelle: string;
   montant: number;
-  /** Comparatif N-1 — undefined quand il n'y a pas d'exercice antérieur. */
+  /** Comparatif N-1 · undefined quand il n'y a pas d'exercice antérieur. */
   montantN1?: number;
   comptes: CompteDuPoste[];
   estTotal?: boolean;
-  /** Repère A à H du modèle officiel — seulement sur les sous-totaux (ZB à ZG). */
+  /** Repère A à H du modèle officiel · seulement sur les sous-totaux (ZB à ZG). */
   repere?: string;
 }
 
@@ -369,7 +369,7 @@ export interface CompteDeResultat {
   resultatNetN1?: number;
   /** false = premier exercice du dossier, aucun N-1 à afficher. */
   exerciceN1Disponible: boolean;
-  /** Comptes de gestion qu'aucun poste officiel ne réclame — jamais masqués. */
+  /** Comptes de gestion qu'aucun poste officiel ne réclame · jamais masqués. */
   comptesNonRattaches: CompteDuPoste[];
   controle: {
     resultatToutesClassesDeGestion: number;
@@ -520,7 +520,7 @@ export interface Immobilisation {
 }
 
 // --------------------------------------------------------------------------
-// Notes annexes — voir src/modules/notes-annexes/note-annexe.types.ts pour
+// Notes annexes · voir src/modules/notes-annexes/note-annexe.types.ts pour
 // le contrat complet côté serveur ; miroir strict, pas de type simplifié.
 // --------------------------------------------------------------------------
 
@@ -611,7 +611,7 @@ export interface ResultatNotesJeu {
 }
 
 // ---------------------------------------------------------------------------
-// Registre des donateurs — articles 17, 18 et 24 de l'Acte uniforme SYCEBNL
+// Registre des donateurs · articles 17, 18 et 24 de l'Acte uniforme SYCEBNL
 // ---------------------------------------------------------------------------
 
 export type TypeDonateur = 'PERSONNE_PHYSIQUE' | 'PERSONNE_MORALE';
@@ -620,7 +620,7 @@ export type NatureLiberalite = 'DON' | 'DONATION' | 'LEGS';
 
 export interface Donation {
   id: string;
-  /** Numéro d'ordre continu (art. 17) — attribué par le serveur, jamais saisi. */
+  /** Numéro d'ordre continu (art. 17) · attribué par le serveur, jamais saisi. */
   numero: number;
   dateOperation: string;
   nature: NatureLiberalite;
@@ -659,7 +659,7 @@ export interface CompteRegistre {
   comptes: { numero: string; intitule: string; montant: number }[];
 }
 
-/** Constatations de l'article 18 — jamais un avis, voir DonationService. */
+/** Constatations de l'article 18 · jamais un avis, voir DonationService. */
 export interface RapportConformiteRegistre {
   exercice: { id: string; dateDebut: string; dateFin: string };
   existence: {
@@ -697,7 +697,7 @@ export interface RapportConformiteRegistre {
 }
 
 // ---------------------------------------------------------------------------
-// Documents obligatoires de clôture — livre d'inventaire (art. 14) et rapport
+// Documents obligatoires de clôture · livre d'inventaire (art. 14) et rapport
 // d'activité (art. 16-3), tous deux pénalement sanctionnés (art. 24).
 // ---------------------------------------------------------------------------
 
@@ -711,7 +711,7 @@ export interface TranscriptionInventaire {
   id: string;
   version: number;
   jeu: JeuEtatsFinanciersSycebnl;
-  /** États FIGÉS à la date de transcription — jamais recalculés (art. 14). */
+  /** États FIGÉS à la date de transcription · jamais recalculés (art. 14). */
   etats: Record<string, unknown>;
   documentsManquants: DocumentManquantInventaire[];
   resumeOperationInventaire: string | null;
@@ -760,7 +760,7 @@ export interface ConformiteRapportActivite {
   version: number | null;
   etabliLe: string | null;
   sections: { cle: string; titre: string; exigence: string; renseignee: boolean }[];
-  /** Définie par la clôture et la date d'établissement — voir art. 16-3. */
+  /** Définie par la clôture et la date d'établissement · voir art. 16-3. */
   fenetreEvenementsPosterieurs: { du: string; au: string } | null;
   tresorerie: TresorerieDuRapport | null;
   declarationRegistreDonateurs: {
@@ -814,7 +814,7 @@ export interface OperationSpecifique {
   source: string;
   portee: 'ASSOCIATIONS' | 'PROJETS' | 'TOUS';
   modeles: ModeleEcriture[];
-  /** Choix que le TEXTE laisse ouvert — exposé, jamais tranché par le logiciel. */
+  /** Choix que le TEXTE laisse ouvert · exposé, jamais tranché par le logiciel. */
   politiqueADecider?: string;
 }
 

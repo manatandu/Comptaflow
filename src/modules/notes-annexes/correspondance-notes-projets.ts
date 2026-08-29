@@ -9,7 +9,7 @@ import { SpecificationNote } from './note-annexe.types';
  * rubriques, colonnes et commentaires sont transcrits mot pour mot.
  *
  * Fichier INDÉPENDANT de `correspondance-notes-associations.ts` : même
- * discipline que pour le bilan et le compte d'exploitation de ce jeu — jamais
+ * discipline que pour le bilan et le compte d'exploitation de ce jeu · jamais
  * complété depuis l'autre jeu, jamais supposé que les mêmes libellés
  * rattachent les mêmes comptes. Deux jeux, deux tableaux de correspondance,
  * deux notes 24 qui n'ont rien à voir l'une avec l'autre (« Achats » côté
@@ -19,11 +19,11 @@ import { SpecificationNote } from './note-annexe.types';
  *
  * La classe 2 (immobilisations) n'a qu'une seule numérotation SYCEBNL, quel
  * que soit le jeu. Les notes 3A et 3B reprennent donc les préfixes déjà
- * établis et testés pour les notes 5A/5B/5C des associations — même compte,
+ * établis et testés pour les notes 5A/5B/5C des associations · même compte,
  * même numéro, même découpage « immeuble de placement ». Ce n'est PAS un
  * comblement de lacune depuis l'autre jeu : c'est le même plan de comptes.
  *
- * ## Absence d'amortissement — cohérent avec le reste du jeu
+ * ## Absence d'amortissement · cohérent avec le reste du jeu
  *
  * Aucune note de ce jeu ne porte de colonne amortissement/dépréciation des
  * immobilisations (note 3A : « IMMOBILISATIONS BRUTES » seulement, pas de
@@ -34,21 +34,21 @@ import { SpecificationNote } from './note-annexe.types';
  *
  * ## NOTE 9 absente d'ici
  *
- * La note 9 « Fonds du bailleur » a des colonnes DYNAMIQUES — une par
- * bailleur/sous-projet — que ce moteur à colonnes fixes ne représente pas.
+ * La note 9 « Fonds du bailleur » a des colonnes DYNAMIQUES · une par
+ * bailleur/sous-projet · que ce moteur à colonnes fixes ne représente pas.
  * Elle est servie par `EtatsFinanciersProjetService.noteBailleur()`
  * (`GET /etats-financiers/projet/note-bailleur`), déjà construite, testée,
- * et cumulative depuis l'origine du projet (pas seulement l'exercice — voir
+ * et cumulative depuis l'origine du projet (pas seulement l'exercice · voir
  * son propre en-tête). Transcrite ici comme un simple renvoi, pour que la
  * fiche récapitulative et la couverture (26 notes) restent exactes sans
  * dupliquer un calcul qui existe déjà ailleurs et fonctionne.
  *
- * ## NOTE 22 — lacune du texte officiel, non comblée
+ * ## NOTE 22 · lacune du texte officiel, non comblée
  *
  * Le texte officiel ne donne NI colonnes NI rubriques pour la note 22
- * « Dotations et charges pour provisions » — seulement un commentaire. La
+ * « Dotations et charges pour provisions » · seulement un commentaire. La
  * combler avec la structure de la note 30 associations (qui traite le même
- * sujet) inventerait une note que le texte de CE jeu ne donne pas — exactement
+ * sujet) inventerait une note que le texte de CE jeu ne donne pas · exactement
  * la faute que la règle §2.6 interdit. Transcrite en `horsBalance`, la
  * lacune elle-même déclarée comme contenu de la note plutôt que masquée.
  *
@@ -66,11 +66,11 @@ import { SpecificationNote } from './note-annexe.types';
  * 2. **Note 12** : la rubrique « Etat, impôts sur les bénéfices » ne
  *    correspond à AUCUN compte du plan SYCEBNL, qui commence sa classe 44 à
  *    442 (pas de 441, contrairement au SYSCOHADA). Ne pas lui prêter le
- *    compte 441 du SYSCOHADA — interdit par la règle du skill lui-même
+ *    compte 441 du SYSCOHADA · interdit par la règle du skill lui-même
  *    (« ne pas transposer les comptes... du SYSCOHADA à une EBNL »).
  *    Déclarée en attente de rattachement.
  * 3. **Note 21** : le plan ne détaille, pour le compte 677 « Pertes sur
- *    titres de placement », qu'une seule subdivision — 6771 « Pertes sur
+ *    titres de placement », qu'une seule subdivision · 6771 « Pertes sur
  *    cessions de titres de placement », qui reprend exactement le libellé
  *    de la rubrique. Le compte 678 « Pertes et charges sur risques
  *    financiers », que le jeu associations rattache à sa note 31, n'a pas
@@ -100,7 +100,7 @@ const COLONNES_AVEC_ECHEANCES_DETTES = [
 ];
 
 const COLONNES_MOUVEMENTS = [
-  { type: 'OUVERTURE' as const, libelle: "A — Montant brut à l'ouverture de l'exercice" },
+  { type: 'OUVERTURE' as const, libelle: "A · Montant brut à l'ouverture de l'exercice" },
   { type: 'AUGMENTATIONS' as const, libelle: 'AUGMENTATIONS B' },
   { type: 'DIMINUTIONS' as const, libelle: 'DIMINUTIONS C' },
   { type: 'CLOTURE' as const, libelle: "D = A + B - C (Montant brut à la clôture de l'exercice)" },
@@ -144,7 +144,7 @@ export const NOTES_PROJETS: SpecificationNote[] = [
     titre: 'INFORMATIONS SPECIFIQUES',
     // Chaque sous-rubrique renvoie à un état qui n'est pas encore construit
     // (tableau emplois-ressources, tableau d'exécution budgétaire, tableau
-    // de réconciliation de trésorerie — phase 2). Transcrite en saisie,
+    // de réconciliation de trésorerie · phase 2). Transcrite en saisie,
     // jamais calculée à moitié.
     horsBalance: true,
     colonnes: [{ type: 'LIBRE' as const, libelle: 'Informations' }],
@@ -172,7 +172,7 @@ export const NOTES_PROJETS: SpecificationNote[] = [
       { libelle: 'Autres immobilisations incorporelles', comptes: ['214', '218', '219'] },
       // Même découpage « immeuble de placement » que la note 5B associations
       // (2281 seul divisionnaire de placement de la classe 22 ; 2315/2325
-      // pour les bâtiments) — même plan de comptes, classe 2 (voir en-tête).
+      // pour les bâtiments) · même plan de comptes, classe 2 (voir en-tête).
       { libelle: 'Terrains hors immeuble de placement', comptes: ['22'], exclusions: ['2281'] },
       { libelle: 'Terrains - immeuble de placement', comptes: ['2281'] },
       {
@@ -326,7 +326,7 @@ export const NOTES_PROJETS: SpecificationNote[] = [
       { libelle: 'Cartes de crédit à encaisser', comptes: ['515'] },
       { libelle: 'Autres valeurs à encaisser', comptes: ['518'] },
       { libelle: 'TOTAL VALEURS A ENCAISSER', totalDeRubriques: [0, 1, 2, 3] },
-      // Comptes 52/53 filtrés au débit — un solde créditeur est un découvert,
+      // Comptes 52/53 filtrés au débit · un solde créditeur est un découvert,
       // il relève de la note 13. Voir anomalie n° 1 en tête de fichier sur le
       // NB officiel, dont le sens littéral n'est pas appliqué tel quel.
       { libelle: 'Banques locales', comptes: ['521'], sens: 'DEBITEUR' },
@@ -380,7 +380,7 @@ export const NOTES_PROJETS: SpecificationNote[] = [
   {
     code: '9',
     titre: 'FONDS DU BAILLEUR',
-    // Colonnes dynamiques (une par bailleur/sous-projet) — voir en-tête de
+    // Colonnes dynamiques (une par bailleur/sous-projet) · voir en-tête de
     // fichier. Servie par un endpoint séparé, déjà construit et testé.
     horsBalance: true,
     colonnes: [{ type: 'LIBRE' as const, libelle: 'Voir GET /etats-financiers/projet/note-bailleur' }],
@@ -510,7 +510,7 @@ export const NOTES_PROJETS: SpecificationNote[] = [
     renvoyeeDepuis: ['DW'],
     rubriques: [
       // Le plan ne prévoit qu'UN compte d'escompte (565, « escompte de
-      // crédits ordinaires ») — aucun compte distinct pour un « escompte de
+      // crédits ordinaires ») · aucun compte distinct pour un « escompte de
       // crédit de campagne ». Non comblé.
       enAttente(
         'escomptes-credit-campagne',
@@ -546,7 +546,7 @@ export const NOTES_PROJETS: SpecificationNote[] = [
     renvoyeeDepuis: ['RB', 'RD'],
     rubriques: [
       // Le compte 705 « ventes marchandises/services/produits finis » n'est
-      // pas subdivisé — la même confusion que « Matières consommables » côté
+      // pas subdivisé · la même confusion que « Matières consommables » côté
       // achats associations. Trois lignes du modèle, un seul compte.
       enAttente(
         'ventes-marchandises',
@@ -767,17 +767,17 @@ export const NOTES_PROJETS: SpecificationNote[] = [
   {
     code: '20B',
     sousTableau: 'PERSONNEL PROPRE',
-    titre: 'EFFECTIFS, MASSE SALARIALE ET PERSONNEL — 1. Personnel propre',
+    titre: 'EFFECTIFS, MASSE SALARIALE ET PERSONNEL · 1. Personnel propre',
     horsBalance: true,
     colonnes: [
-      { type: 'LIBRE' as const, libelle: 'EFFECTIFS — Nationaux (M / F)' },
-      { type: 'LIBRE' as const, libelle: 'EFFECTIFS — Autres Etats de la Région (M / F)' },
-      { type: 'LIBRE' as const, libelle: 'EFFECTIFS — Hors Région (M / F)' },
-      { type: 'LIBRE' as const, libelle: 'EFFECTIFS — Total (M / F)' },
-      { type: 'LIBRE' as const, libelle: 'MASSE SALARIALE — Nationaux (M / F)' },
-      { type: 'LIBRE' as const, libelle: 'MASSE SALARIALE — Autres Etats de la Région (M / F)' },
-      { type: 'LIBRE' as const, libelle: 'MASSE SALARIALE — Hors Région (M / F)' },
-      { type: 'LIBRE' as const, libelle: 'MASSE SALARIALE — Total (M / F)' },
+      { type: 'LIBRE' as const, libelle: 'EFFECTIFS · Nationaux (M / F)' },
+      { type: 'LIBRE' as const, libelle: 'EFFECTIFS · Autres Etats de la Région (M / F)' },
+      { type: 'LIBRE' as const, libelle: 'EFFECTIFS · Hors Région (M / F)' },
+      { type: 'LIBRE' as const, libelle: 'EFFECTIFS · Total (M / F)' },
+      { type: 'LIBRE' as const, libelle: 'MASSE SALARIALE · Nationaux (M / F)' },
+      { type: 'LIBRE' as const, libelle: 'MASSE SALARIALE · Autres Etats de la Région (M / F)' },
+      { type: 'LIBRE' as const, libelle: 'MASSE SALARIALE · Hors Région (M / F)' },
+      { type: 'LIBRE' as const, libelle: 'MASSE SALARIALE · Total (M / F)' },
     ],
     rubriques: [
       { libelle: 'YA. 1. Cadres supérieurs', saisie: true },
@@ -794,7 +794,7 @@ export const NOTES_PROJETS: SpecificationNote[] = [
   {
     code: '20B',
     sousTableau: 'PERSONNEL EXTERIEUR ET BENEVOLE',
-    titre: 'EFFECTIFS, MASSE SALARIALE ET PERSONNEL — 2. Personnel extérieur et bénévole',
+    titre: 'EFFECTIFS, MASSE SALARIALE ET PERSONNEL · 2. Personnel extérieur et bénévole',
     horsBalance: true,
     colonnes: [{ type: 'LIBRE' as const, libelle: "Facturation à l'entité" }],
     rubriques: [
@@ -851,7 +851,7 @@ export const NOTES_PROJETS: SpecificationNote[] = [
   {
     code: '22',
     titre: 'DOTATIONS ET CHARGES POUR PROVISIONS',
-    // LACUNE DU TEXTE OFFICIEL, non comblée — voir en-tête de fichier. Le
+    // LACUNE DU TEXTE OFFICIEL, non comblée · voir en-tête de fichier. Le
     // texte ne donne ni colonnes ni rubriques pour cette note, seulement un
     // commentaire. La combler avec la structure de la note 30 associations
     // inventerait une note que CE jeu ne donne pas.
@@ -860,7 +860,7 @@ export const NOTES_PROJETS: SpecificationNote[] = [
     rubriques: [
       {
         libelle:
-          '[texte officiel] Le référentiel ne donne ni colonnes ni rubriques pour cette note — seulement le ' +
+          '[texte officiel] Le référentiel ne donne ni colonnes ni rubriques pour cette note · seulement le ' +
           'commentaire ci-dessous. Non comblé depuis la note 30 du jeu associations, qui traite le même ' +
           'sujet mais reste un jeu distinct (règle §2.6). Le compte 69 « Dotations aux provisions » est déjà ' +
           'rattaché au poste TJ du compte d’exploitation ; seul le détail par nature manque ici.',
@@ -922,7 +922,7 @@ export const NOTES_PROJETS: SpecificationNote[] = [
   {
     code: '24',
     titre: "TABLEAU D'EXECUTION BUDGETAIRE",
-    // Le budget n'est pas une donnée comptable — même situation que la note
+    // Le budget n'est pas une donnée comptable · même situation que la note
     // 35 associations. Suppose la brique budgétaire (phase 8).
     horsBalance: true,
     colonnes: [

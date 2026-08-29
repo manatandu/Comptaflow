@@ -47,13 +47,13 @@ function serviceAvecExercices(
     }),
   } as unknown as EcritureService;
   const exerciceService = {
-    // ExerciceService.lister() trie par dateDebut décroissant — répliqué ici.
+    // ExerciceService.lister() trie par dateDebut décroissant · répliqué ici.
     lister: jest.fn().mockResolvedValue([...exercices].sort((a, b) => b.dateDebut.getTime() - a.dateDebut.getTime())),
   } as unknown as ExerciceService;
   return new EtatsFinanciersService(ecritureService, exerciceService);
 }
 
-/** Un seul exercice ('e1'), sans N-1 — c'est ce que la quasi-totalité des tests exercent. */
+/** Un seul exercice ('e1'), sans N-1 · c'est ce que la quasi-totalité des tests exercent. */
 function serviceAvecBalance(lignes: ReturnType<typeof ligne>[]) {
   return serviceAvecExercices({ e1: lignes });
 }
@@ -91,7 +91,7 @@ describe('EtatsFinanciersService', () => {
     });
 
     /**
-     * RÉGRESSION — bug réel constaté le 2026-08-28. La classe 8 (H.A.O.)
+     * RÉGRESSION · bug réel constaté le 2026-08-28. La classe 8 (H.A.O.)
      * tombait dans un `default: break` et n'entrait donc pas dans le
      * résultat : toute cession d'immobilisation (le module Immobilisations
      * poste en 81/82) déséquilibrait le bilan du montant exact de
@@ -99,7 +99,7 @@ describe('EtatsFinanciersService', () => {
      * postes TM/TN (hors bilan direct), mais leur solde net doit quand même
      * entrer dans CH comme n'importe quel résultat de gestion.
      */
-    it('fait entrer la classe 8 (H.A.O.) dans le résultat — sinon le bilan ne boucle pas', async () => {
+    it('fait entrer la classe 8 (H.A.O.) dans le résultat · sinon le bilan ne boucle pas', async () => {
       const service = serviceAvecBalance([
         ligne('52110000', ClasseCompte.CLASSE_5, 40, 0), // encaissement de la cession
         ligne('82200000', ClasseCompte.CLASSE_8, 0, 40), // produit de cession H.A.O.
@@ -141,15 +141,15 @@ describe('EtatsFinanciersService', () => {
     });
 
     /**
-     * RÉGRESSION — bug de signe trouvé en dérivant ce cas de test à la main
+     * RÉGRESSION · bug de signe trouvé en dérivant ce cas de test à la main
      * avant toute exécution : un compte d'amortissement soumis à `-l.solde`
      * s'ADDITIONNAIT au brut au lieu de s'en soustraire (5000 + 1500 = 6500
-     * au lieu de 5000 - 1500 = 3500). Jamais constaté en production — repéré
+     * au lieu de 5000 - 1500 = 3500). Jamais constaté en production · repéré
      * avant la première exécution du test.
      */
     it('soustrait l’amortissement du brut, pas l’inverse', async () => {
       const service = serviceAvecBalance([
-        ligne('24510000', ClasseCompte.CLASSE_2, 5000, 0), // AM brut — matériel de transport
+        ligne('24510000', ClasseCompte.CLASSE_2, 5000, 0), // AM brut · matériel de transport
         ligne('28450000', ClasseCompte.CLASSE_2, 0, 1500), // AM amortissement
       ]);
 
@@ -174,7 +174,7 @@ describe('EtatsFinanciersService', () => {
       expect(poste(bilan, 'DI')?.comptes.map((c) => c.numero)).toEqual(['47120000']);
     });
 
-    it('retire le compte 41 de BE — déjà entièrement capté par BD (anomalie n° 1)', async () => {
+    it('retire le compte 41 de BE · déjà entièrement capté par BD (anomalie n° 1)', async () => {
       const service = serviceAvecBalance([ligne('41100000', ClasseCompte.CLASSE_4, 200, 0)]);
 
       const bilan = await service.bilan('t1', 'e1');
@@ -205,7 +205,7 @@ describe('EtatsFinanciersService', () => {
       expect(bilan.controle.doubleComptageProbable).toBe(false);
     });
 
-    it('signale (sans trancher) un double comptage probable — classes 6/7/8 ET compte 13 mouvementés à la fois', async () => {
+    it('signale (sans trancher) un double comptage probable · classes 6/7/8 ET compte 13 mouvementés à la fois', async () => {
       const service = serviceAvecBalance([
         ligne('70100000', ClasseCompte.CLASSE_7, 0, 500),
         ligne('13100000', ClasseCompte.CLASSE_1, 0, 300), // reliquat d'un exercice antérieur, par exemple
@@ -218,10 +218,10 @@ describe('EtatsFinanciersService', () => {
       expect(poste(bilan, 'CH')?.montant).toBe(500);
     });
 
-    it('signale un compte de bilan qu’aucun poste officiel ne réclame — et fait fuir l’équilibre de son montant', async () => {
+    it('signale un compte de bilan qu’aucun poste officiel ne réclame · et fait fuir l’équilibre de son montant', async () => {
       // Une vraie écriture a toujours une contrepartie : le compte 29999999
       // (hors de tout préfixe officiel) est débité, son crédit compensateur
-      // ATTERRIT normalement sur CA — c'est justement cette contrepartie
+      // ATTERRIT normalement sur CA · c'est justement cette contrepartie
       // captée d'un côté et pas de l'autre qui fait fuir l'équilibre, pas
       // l'absence de contrepartie (un compte isolé sans écriture réelle
       // donnerait trivialement 0 = 0, ce qui ne prouverait rien).
@@ -270,7 +270,7 @@ describe('EtatsFinanciersService', () => {
       expect(cr.comptesNonRattaches).toHaveLength(0);
     });
 
-    it('inclut RH (reprises) dans XA — sans quoi le résultat cesserait d’égaler celui du bilan', async () => {
+    it('inclut RH (reprises) dans XA · sans quoi le résultat cesserait d’égaler celui du bilan', async () => {
       // Anomalie n° 4 du texte officiel : le libellé de XA dit « Somme RA à
       // RG », ce qui exclurait RH. Voir correspondance-compte-resultat.ts.
       const service = serviceAvecBalance([ligne('79000000', ClasseCompte.CLASSE_7, 0, 500)]);
@@ -338,14 +338,14 @@ describe('EtatsFinanciersService', () => {
   });
 
   /**
-   * Colonnes Brut / Amortissements et dépréciations / Net — le texte
+   * Colonnes Brut / Amortissements et dépréciations / Net · le texte
    * officiel les exige toutes les trois côté actif du bilan (Partie 4 ch. 2 :
    * « Colonnes : REF | ACTIF | Note | Brut (N) | Amort. et déprec. (N) |
    * Net (N) | Net (N-1) »). Un export/écran qui ne montre qu'un montant net
-   * unique n'est pas fidèle à la maquette — corrigé après une question
+   * unique n'est pas fidèle à la maquette · corrigé après une question
    * directe de l'utilisateur sur une capture d'écran (2026-08-28).
    */
-  describe('bilan — colonnes Brut / Amortissement / Net (actif)', () => {
+  describe('bilan · colonnes Brut / Amortissement / Net (actif)', () => {
     const poste = (bilan: Awaited<ReturnType<EtatsFinanciersService['bilan']>>, ref: string) =>
       [...bilan.actif, ...bilan.passif].find((p) => p.ref === ref);
 
@@ -388,7 +388,7 @@ describe('EtatsFinanciersService', () => {
       expect(ag.montant).toBe(800);
     });
 
-    it('un poste PASSIF n’a pas de brut/amortissement — seulement un montant net', async () => {
+    it('un poste PASSIF n’a pas de brut/amortissement · seulement un montant net', async () => {
       const service = serviceAvecBalance([ligne('10110000', ClasseCompte.CLASSE_1, 0, 800)]);
 
       const bilan = await service.bilan('t1', 'e1');
@@ -401,15 +401,15 @@ describe('EtatsFinanciersService', () => {
   });
 
   /**
-   * Comparatif N-1 — exigé par le texte officiel sur le bilan (colonne
+   * Comparatif N-1 · exigé par le texte officiel sur le bilan (colonne
    * « Net (N-1) ») ET sur le compte de résultat (colonne « Net exercice au
    * 31/12/N-1 »), pas seulement sur le premier. `trouverExerciceN1` cherche
    * l'exercice du même tenant dont la date de début est la plus récente
    * parmi celles antérieures à l'exercice demandé.
    */
-  // Régressions issues de l'audit du 2026-08-28 — chacun de ces tests
+  // Régressions issues de l'audit du 2026-08-28 · chacun de ces tests
   // reproduit un bug qui était RÉELLEMENT présent en production.
-  describe('audit 2026-08-28 — régressions', () => {
+  describe('audit 2026-08-28 · régressions', () => {
     const poste = (bilan: Awaited<ReturnType<EtatsFinanciersService['bilan']>>, ref: string) =>
       [...bilan.actif, ...bilan.passif].find((p) => p.ref === ref);
 
@@ -443,7 +443,7 @@ describe('EtatsFinanciersService', () => {
       expect(poste(bilan, 'DW')!.montant).toBe(0);
     });
 
-    it('BILAN COMPLET — un dossier réaliste boucle exactement (amortissement + tiers 2 sens + découvert + déficit)', async () => {
+    it('BILAN COMPLET · un dossier réaliste boucle exactement (amortissement + tiers 2 sens + découvert + déficit)', async () => {
       // Scénario en partie double, vérifié à la main (somme des soldes = 0) :
       //  1. dotation 10 000 en banque            5211 D / 101  C
       //  2. achat matériel 4 000 à crédit        2410 D / 481  C
@@ -487,7 +487,7 @@ describe('EtatsFinanciersService', () => {
       expect(bilan.comptesNonRattaches).toEqual([]);
     });
 
-    it('DW capte 561 et 566 (crédits de trésorerie, intérêts courus) — la restriction à 564/565 les perdait', async () => {
+    it('DW capte 561 et 566 (crédits de trésorerie, intérêts courus) · la restriction à 564/565 les perdait', async () => {
       const service = serviceAvecBalance([
         ligne('56100000', ClasseCompte.CLASSE_5, 0, 500), // crédits de trésorerie
         ligne('56600000', ClasseCompte.CLASSE_5, 0, 20), // intérêts courus
@@ -525,7 +525,7 @@ describe('EtatsFinanciersService', () => {
       expect(bilan.totalPassifN1).toBe(600);
     });
 
-    it('bilan : sans exercice antérieur, montantN1 est undefined — jamais un faux 0', async () => {
+    it('bilan : sans exercice antérieur, montantN1 est undefined · jamais un faux 0', async () => {
       const service = serviceAvecExercices({ e1: [ligne('52110000', ClasseCompte.CLASSE_5, 1000, 0)] }, [
         { id: 'e1', dateDebut: new Date('2026-01-01') },
       ]);
@@ -599,7 +599,7 @@ describe('EtatsFinanciersService', () => {
 /**
  * Fixture propre au TABLEAU DE FLUX : contrairement au bilan et au compte de
  * résultat, le TFT distingue le REPORT À-NOUVEAU des MOUVEMENTS PROPRES de
- * l'exercice — sans quoi le report d'un compte d'immobilisation serait lu
+ * l'exercice · sans quoi le report d'un compte d'immobilisation serait lu
  * comme une acquisition de l'année. `report` porte le report à-nouveau
  * (débit, crédit) ; `d`/`c` les mouvements de la période ; les totaux sont
  * leur somme, exactement comme `EcritureService.balance` les calcule.
@@ -633,7 +633,7 @@ const DEUX_EXERCICES = [
   { id: 'eN1', dateDebut: new Date('2025-01-01') },
 ];
 
-describe('EtatsFinanciersService — tableau de flux de trésorerie', () => {
+describe('EtatsFinanciersService · tableau de flux de trésorerie', () => {
   const ref = (tft: any, r: string) => tft.lignes.find((l: any) => l.ref === r);
 
   it('applique la formule officielle et BOUCLE : cycle complet des cotisations sur deux exercices', async () => {
@@ -794,12 +794,12 @@ describe('EtatsFinanciersService — tableau de flux de trésorerie', () => {
     expect(tft.controle.coherent).toBe(true);
   });
 
-  it('AUCUN compte n’est réclamé par deux postes de flux — ni en flux, ni en contrepartie', async () => {
+  it('AUCUN compte n’est réclamé par deux postes de flux · ni en flux, ni en contrepartie', async () => {
     // Troisième fois que ce défaut apparaît dans le projet (bilan BW/DW,
     // notes 13/22 puis 10/19-21) : ici il produirait un tableau qui boucle à
     // tort, le double comptage se compensant entre deux postes. Un compte
     // PEUT figurer en flux d'un poste et en contrepartie d'un autre (23110000
-    // est le flux de FI et rien d'autre ; 40110000 la contrepartie de FF) —
+    // est le flux de FI et rien d'autre ; 40110000 la contrepartie de FF) ·
     // ce qui est interdit, c'est qu'il soit réclamé DEUX FOIS au même titre.
     const ECHANTILLON = [
       // Produits et charges
@@ -820,7 +820,7 @@ describe('EtatsFinanciersService — tableau de flux de trésorerie', () => {
         (p) => p.comptesContrepartie && correspond(numero, p.comptesContrepartie, p.exclusionsContrepartie),
       );
       // FM et FO partagent volontairement le compte 10, lus en sens OPPOSÉS
-      // (`CREDIT_SEUL` / `DEBIT_SEUL`) — de même FP et FQ sur 16/18. Ce n'est
+      // (`CREDIT_SEUL` / `DEBIT_SEUL`) · de même FP et FQ sur 16/18. Ce n'est
       // pas un double comptage : c'est ainsi que le modèle sépare l'apport du
       // remboursement. On vérifie donc l'unicité PAR SENS DE LECTURE.
       const parLecture = new Map<string, string[]>();
@@ -840,7 +840,7 @@ describe('EtatsFinanciersService — tableau de flux de trésorerie', () => {
     // par la fenêtre ». Ce balayage la ferme d'un coup au lieu de rattraper
     // chaque compte à mesure qu'un dossier réel le fait apparaître : un
     // poste exclut 654 ou 754 de ses comptes de flux parce que l'opération
-    // n'a pas de trésorerie — sa CONTREPARTIE au bilan ne doit pas davantage
+    // n'a pas de trésorerie · sa CONTREPARTIE au bilan ne doit pas davantage
     // corriger un décaissement ou un encaissement.
     for (const { numero, intitule } of CONTREPARTIES_SANS_TRESORERIE) {
       // Comptes du dossier : le plan seedé porte des numéros à 8 chiffres.
@@ -855,7 +855,7 @@ describe('EtatsFinanciersService — tableau de flux de trésorerie', () => {
   it('le bloc « comptes non ventilés » ne signale QUE ce qui peut expliquer un écart', async () => {
     // Un don en nature reçu puis partiellement extourné à la clôture ne
     // touche pas la trésorerie : le tableau boucle. Les trois comptes en jeu
-    // (654, 7542, 4713) ne doivent donc PAS figurer au diagnostic — les y
+    // (654, 7542, 4713) ne doivent donc PAS figurer au diagnostic · les y
     // laisser à côté d'un écart nul apprend à ignorer le bloc.
     const service = serviceAvecExercices({
       eN: [
@@ -890,7 +890,7 @@ describe('EtatsFinanciersService — tableau de flux de trésorerie', () => {
   it('aucun compte « sans trésorerie » n’est en même temps le FLUX d’un poste', () => {
     // Invariant symétrique du balayage des contreparties : un compte déclaré
     // sans trésorerie ne peut pas être, ailleurs, le flux qui alimente un
-    // poste — ce serait l'inverse exact du filtre qu'on vient de poser.
+    // poste · ce serait l'inverse exact du filtre qu'on vient de poser.
     for (const { numero } of COMPTES_SANS_TRESORERIE) {
       const compteReel = numero.padEnd(8, '0');
       const captants = TOUS_LES_POSTES_FLUX.filter((p) =>
@@ -903,8 +903,8 @@ describe('EtatsFinanciersService — tableau de flux de trésorerie', () => {
   it('le compte 4572 « Bénévoles » n’est rattaché à AUCUN poste (anomalie n° 5)', () => {
     // Trouvé par le balayage ci-dessus, puis ÉCARTÉ de sa liste après lecture
     // du texte : la Partie 3 ch. 6 § 2 donne au 4572 deux issues de sens
-    // opposé — remboursement (décaissement réel) ou renonciation (sans flux)
-    // — et le plan ne les subdivise pas. Le rattacher supposerait de choisir
+    // opposé · remboursement (décaissement réel) ou renonciation (sans flux)
+    // · et le plan ne les subdivise pas. Le rattacher supposerait de choisir
     // l'une d'avance. Même traitement que le 4491 : non rattaché, et c'est
     // l'écart de bouclage qui le désigne.
     const compte = '45720000';
@@ -919,7 +919,7 @@ describe('EtatsFinanciersService — tableau de flux de trésorerie', () => {
   it('la souscription non libérée d’un apporteur corrige bien FM, elle', () => {
     // Contre-épreuve de la restriction posée sur FM : en excluant les comptes
     // courants et le 457, on ne devait pas perdre la contrepartie que le
-    // poste existe pour porter — la créance sur l'apporteur qui a souscrit
+    // poste existe pour porter · la créance sur l'apporteur qui a souscrit
     // sans avoir libéré (Partie 3 ch. 1).
     const fm = TOUS_LES_POSTES_FLUX.find((p) => p.ref === 'FM')!;
     for (const apporteur of ['45110000', '45120000', '45210000', '45620000', '45800000']) {
@@ -939,14 +939,14 @@ describe('EtatsFinanciersService — tableau de flux de trésorerie', () => {
   it('l’extourne de clôture des dons en nature ne déplace PAS la trésorerie', async () => {
     // Le défaut tel qu'il s'est présenté : un don en nature de 1 000 reçu
     // (654 / 7542), dont 400 restent non consommés à la clôture et sont
-    // extournés (7542 / 4713 — Partie 3 ch. 4 § 1.2). Aucune de ces deux
+    // extournés (7542 / 4713 · Partie 3 ch. 4 § 1.2). Aucune de ces deux
     // écritures ne touche la trésorerie : les 800 encaissés en banque sont
     // les seuls flux de l'exercice.
     //
     // Avant correction, le compte 4713 était capté par la contrepartie « 47 »
     // du poste FH : sa dette de 400 réduisait le décaissement de FH, et la
     // trésorerie de clôture par les flux dépassait celle du bilan de 400
-    // exactement — le montant des dons non consommés.
+    // exactement · le montant des dons non consommés.
     const service = serviceAvecExercices(
       {
         eN: [
@@ -968,7 +968,7 @@ describe('EtatsFinanciersService — tableau de flux de trésorerie', () => {
   });
 
   it('la colonne N-1 est une VRAIE comparaison à trois exercices, pas une copie de la colonne N', async () => {
-    // Le modèle officiel porte « Exercice N | Exercice N-1 » — et chaque
+    // Le modèle officiel porte « Exercice N | Exercice N-1 » · et chaque
     // ligne du tableau est déjà elle-même une comparaison entre deux
     // exercices. La colonne N-1 exige donc un TROISIÈME exercice (N-2) en
     // arrière-plan. Créance adhérents : 50 fin N-2, 150 fin N-1 (inchangée
@@ -1002,7 +1002,7 @@ describe('EtatsFinanciersService — tableau de flux de trésorerie', () => {
     expect(tft.exerciceN1Disponible).toBe(true);
   });
 
-  it('sans troisième exercice (N-2), la colonne N-1 se dégrade proprement — jamais un crash', async () => {
+  it('sans troisième exercice (N-2), la colonne N-1 se dégrade proprement · jamais un crash', async () => {
     const service = serviceAvecExercices(
       {
         eN1: [ligneF('41100000', ClasseCompte.CLASSE_4, 200, 0), ligneF('70100000', ClasseCompte.CLASSE_7, 0, 500)],
@@ -1026,7 +1026,7 @@ describe('EtatsFinanciersService — tableau de flux de trésorerie', () => {
       'FI', 'FJ', 'FK', 'FL', 'ZC',
       'FM', 'FN', 'FO', 'ZD',
       'FP', 'FQ', 'ZE',
-      '', // « Flux de trésorerie provenant des activités de financement (D+E) » — sans REF au texte officiel
+      '', // « Flux de trésorerie provenant des activités de financement (D+E) » · sans REF au texte officiel
       'ZF', 'ZG',
     ]);
     const sections = tft.lignes.filter((l: any) => 'section' in l).map((l: any) => l.section);

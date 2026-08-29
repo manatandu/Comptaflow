@@ -16,12 +16,12 @@ import {
 import { NOTES_ASSOCIATIONS } from './correspondance-notes-associations';
 import { NOTES_PROJETS } from './correspondance-notes-projets';
 
-/** Spécifications du jeu, indexées par `JeuEtatsFinanciersSycebnl` — un seul point d'entrée pour les deux jeux transcrits. */
+/** Spécifications du jeu, indexées par `JeuEtatsFinanciersSycebnl` · un seul point d'entrée pour les deux jeux transcrits. */
 const NOTES_PAR_JEU: Partial<Record<JeuEtatsFinanciersSycebnl, SpecificationNote[]>> = {
   [JeuEtatsFinanciersSycebnl.ASSOCIATIONS_ORDRES_PROFESSIONNELS]: NOTES_ASSOCIATIONS,
   [JeuEtatsFinanciersSycebnl.PROJETS_DEVELOPPEMENT]: NOTES_PROJETS,
 };
-/** Nombre de notes que le texte officiel attend pour ce jeu — sert à `couverture`. */
+/** Nombre de notes que le texte officiel attend pour ce jeu · sert à `couverture`. */
 const NOTES_ATTENDUES_PAR_JEU: Partial<Record<JeuEtatsFinanciersSycebnl, number>> = {
   [JeuEtatsFinanciersSycebnl.ASSOCIATIONS_ORDRES_PROFESSIONNELS]: 45,
   [JeuEtatsFinanciersSycebnl.PROJETS_DEVELOPPEMENT]: 26,
@@ -44,8 +44,8 @@ const ECHEANCES_NULLES: Echeances = { unAn: 0, deuxAns: 0, plusDeDeuxAns: 0, non
 
 /**
  * Nature d'un mouvement de provision ou de dépréciation, telle que la note 30
- * la ventile. Elle ne se lit PAS sur le compte de provision — 191 est le même
- * compte quelle que soit l'origine de la dotation — mais sur la CONTREPARTIE
+ * la ventile. Elle ne se lit PAS sur le compte de provision · 191 est le même
+ * compte quelle que soit l'origine de la dotation · mais sur la CONTREPARTIE
  * de l'écriture.
  */
 type NatureMouvement = 'EXPLOITATION' | 'FINANCIER' | 'HAO';
@@ -89,7 +89,7 @@ function natureDeLaContrepartie(numero: string): NatureMouvement | null {
 /**
  * Une rubrique résolue sur un exercice : le montant au sens de lecture de la
  * rubrique, plus les agrégats bruts dont les tableaux de situations et
- * mouvements ont besoin. Ces agrégats restent NON orientés — c'est
+ * mouvements ont besoin. Ces agrégats restent NON orientés · c'est
  * `colonnesDeMouvement` qui les oriente selon `sensAccroissement`.
  */
 interface RubriqueResolue {
@@ -119,7 +119,7 @@ interface RubriqueResolue {
  *   supprimées ».
  * - **§ 1.4 encore** : « pour chaque poste et rubrique, les chiffres
  *   correspondants de l'exercice précédent doivent être mentionnés ». D'où la
- *   colonne N-1 systématique, `undefined` — jamais 0 — s'il n'y a pas
+ *   colonne N-1 systématique, `undefined` jamais 0 s'il n'y a pas
  *   d'exercice antérieur.
  */
 @Injectable()
@@ -135,7 +135,7 @@ export class NoteAnnexeService {
    *
    * GARDE-FOU CENTRAL : seule une rubrique déclarée `subdivisionAttendue` est
    * rattachable. Les rubriques dont le rattachement découle du plan de comptes
-   * normalisé sont intouchables — les laisser modifier permettrait de défaire
+   * normalisé sont intouchables · les laisser modifier permettrait de défaire
    * en silence la fidélité au texte officiel, ce que toute la discipline du
    * projet vise à empêcher. Un rattachement sur une rubrique officielle est
    * refusé explicitement, jamais ignoré.
@@ -149,7 +149,7 @@ export class NoteAnnexeService {
       );
     }
     // Un code de note peut désigner plusieurs TABLEAUX (note 1, note 7,
-    // note 29B…) — ils ne partagent jamais de clé de rubrique entre eux
+    // note 29B…) · ils ne partagent jamais de clé de rubrique entre eux
     // (test structurel dédié), donc chercher la clé dans TOUS les tableaux
     // du code reste sans ambiguïté.
     const tableaux = specs.filter((n) => n.code === codeNote);
@@ -157,7 +157,7 @@ export class NoteAnnexeService {
     const spec = tableaux.find((n) => n.rubriques.some((r) => r.cle === cleRubrique)) ?? tableaux[0];
     // Une rubrique que le plan officiel détermine ne porte PAS de clé : rien
     // n'a besoin de la désigner, et lui en donner une laisserait croire qu'elle
-    // est adressable. Conséquence : une clé introuvable recouvre deux cas — la
+    // est adressable. Conséquence : une clé introuvable recouvre deux cas · la
     // clé est fausse, ou elle vise une rubrique officielle. Le message doit dire
     // les deux, sans quoi l'utilisateur croit à une faute de frappe alors que
     // c'est le garde-fou qui a joué.
@@ -165,7 +165,7 @@ export class NoteAnnexeService {
     if (!rubrique) {
       throw new NotFoundException(
         `La note ${codeNote} n'a pas de rubrique rattachable « ${cleRubrique} » : soit la clé est erronée, ` +
-          `soit elle désigne une rubrique que le plan de comptes officiel détermine déjà — celles-là ne sont ` +
+          `soit elle désigne une rubrique que le plan de comptes officiel détermine déjà · celles-là ne sont ` +
           `pas modifiables et ne portent volontairement pas de clé.`,
       );
     }
@@ -289,7 +289,7 @@ export class NoteAnnexeService {
    * Colonnes A/B/C/D d'un tableau de situations et mouvements (notes 5A-5F, 30).
    *
    * A = report à-nouveau, orienté dans le sens du poste ; B et C = mouvements
-   * PROPRES de l'exercice (report exclu — voir `EcritureService.balance`) ;
+   * PROPRES de l'exercice (report exclu · voir `EcritureService.balance`) ;
    * D = A + B - C, la formule que le texte officiel écrit lui-même en tête de
    * colonne. D est donc RECALCULÉ, jamais lu : l'écart avec le solde réel de la
    * balance devient un contrôle offert à l'utilisateur (`ecartCloture`).
@@ -304,8 +304,8 @@ export class NoteAnnexeService {
     const diminutions = (auCredit ? r.mouvementDebit : r.mouvementCredit) || 0;
     const cloture = ouverture + augmentations - diminutions;
     // `montant` est le solde réel de la balance. `calculerRubrique` ne
-    // l'oriente que si la rubrique porte `sens`/`presenterEnNegatif` — ce que
-    // les tableaux de mouvements ne font pas —, donc l'orientation au sens de
+    // l'oriente que si la rubrique porte `sens`/`presenterEnNegatif` · ce que
+    // les tableaux de mouvements ne font pas ·, donc l'orientation au sens de
     // lecture se fait ici, UNE fois. (Une double négation à cet endroit ne se
     // voyait pas dans le sens débit, où elle est neutre ; le premier cas
     // crédit l'a fait ressortir avec un écart de 4400 sur un tableau juste.)
@@ -328,7 +328,7 @@ export class NoteAnnexeService {
     const resolues: RubriqueResolue[] = [];
     for (const rubrique of spec.rubriques) {
       if (rubrique.totalDeRubriques) {
-        // Un total ne référence que des rubriques déjà résolues — vérifié par
+        // Un total ne référence que des rubriques déjà résolues · vérifié par
         // un test structurel sur chaque spécification. Les agrégats de
         // mouvement se totalisent de la même façon, sinon la ligne TOTAL
         // GENERAL des notes 5A-5F resterait vide en colonnes A/B/C/D.
@@ -476,7 +476,7 @@ export class NoteAnnexeService {
     const applicable = applicableChiffree || (spec.horsBalance ?? false);
     // DÉFAUT CORRIGÉ : une note `horsBalance` (informations obligatoires,
     // effectifs, note 9 « fonds du bailleur »…) ne porte QUE des rubriques en
-    // saisie, jamais chiffrées par construction — `chiffree()` vaut donc
+    // saisie, jamais chiffrées par construction · `chiffree()` vaut donc
     // toujours faux pour elles, et le filtre ci-dessous les retirait TOUTES,
     // malgré `applicable: true` retourné. La note se déclarait applicable et
     // ne présentait rien : relevé en vérifiant de bout en bout, sur base
@@ -512,7 +512,7 @@ export class NoteAnnexeService {
 
   /**
    * Ventilation des mouvements de provisions et de dépréciations par NATURE de
-   * la contrepartie, par numéro de compte — ce que la note 30 demande.
+   * la contrepartie, par numéro de compte · ce que la note 30 demande.
    *
    * Le principe : pour chaque ligne portée sur un compte cible, les lignes de
    * SENS OPPOSÉ de la même écriture donnent la nature. Une écriture à deux
@@ -539,11 +539,11 @@ export class NoteAnnexeService {
       }));
       for (const ligne of lignes) {
         // Un mouvement CRÉDITEUR accroît une provision, un mouvement DÉBITEUR
-        // la réduit — les rubriques de la note 30 sont toutes créditrices.
+        // la réduit · les rubriques de la note 30 sont toutes créditrices.
         //
         // Le côté se lit sur la PRÉSENCE d'un montant, pas sur son signe :
         // une correction par inscription en négatif (art. 20 de l'AUDCIF)
-        // porte un crédit NÉGATIF, qui reste un crédit — et vaut une
+        // porte un crédit NÉGATIF, qui reste un crédit · et vaut une
         // augmentation négative, c'est-à-dire l'annulation de l'augmentation
         // erronée. Testé par `> 0`, ce crédit de −500 était lu comme une
         // diminution de `ligne.debit` (soit 0), donc SILENCIEUSEMENT IGNORÉ :
@@ -614,7 +614,7 @@ export class NoteAnnexeService {
 
   /**
    * Rattachements du dossier, indexés par `code::cleRubrique`, chaque entrée
-   * portant les NUMÉROS de comptes (pas les identifiants) — le résolveur
+   * portant les NUMÉROS de comptes (pas les identifiants) · le résolveur
    * travaille sur les numéros de la balance.
    */
   private async chargerRattachements(tenantId: string, jeu: JeuEtatsFinanciersSycebnl): Promise<Map<string, string[]>> {
@@ -632,12 +632,12 @@ export class NoteAnnexeService {
 
   /**
    * Toutes les notes du jeu associations pour un exercice, plus la fiche
-   * récapitulative — qui fait partie de la liasse : elle déclare, note par
+   * récapitulative · qui fait partie de la liasse : elle déclare, note par
    * note, si elle est applicable ou non.
    */
   /**
    * Toutes les notes d'un jeu pour un exercice, plus la fiche récapitulative
-   * — qui fait partie de la liasse : elle déclare, note par note, si elle
+   * · qui fait partie de la liasse : elle déclare, note par note, si elle
    * est applicable ou non. Commune aux deux jeux transcrits : la seule
    * différence entre eux est la spécification (`NOTES_PAR_JEU`) et le
    * nombre de notes attendu par le texte officiel (`NOTES_ATTENDUES_PAR_JEU`).
@@ -693,7 +693,7 @@ export class NoteAnnexeService {
    *
    * La NOTE 9 « FONDS DU BAILLEUR » n'y figure PAS : ses colonnes sont
    * dynamiques (une colonne par bailleur/sous-projet, cumulée depuis
-   * l'origine du projet, pas seulement l'exercice) — une forme que ce moteur
+   * l'origine du projet, pas seulement l'exercice) · une forme que ce moteur
    * à colonnes fixes ne représente pas. Elle est servie séparément par
    * `EtatsFinanciersProjetService.noteBailleur()`
    * (`GET /etats-financiers/projet/note-bailleur`), déjà construite et

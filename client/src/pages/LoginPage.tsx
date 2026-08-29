@@ -6,10 +6,10 @@ import { IconLogo } from '../components/chrome/icons';
 import type { AuthResponse } from '../lib/types';
 
 /**
- * Ouverture du dossier comptable — calquée sur l'entrée dans Sage 100 i7 :
+ * Ouverture du dossier comptable · calquée sur l'entrée dans Sage 100 i7 :
  * on n'entre pas dans « une application », on OUVRE UN DOSSIER COMPTABLE, et
  * cette ouverture est protégée par un code utilisateur et un mot de passe
- * (« La connexion au fichier comptable est sécurisée » — guide utilisateur).
+ * (« La connexion au fichier comptable est sécurisée » · guide utilisateur).
  * D'où une boîte de dialogue de poste de travail, pas un écran de SaaS.
  */
 export function LoginPage() {
@@ -58,7 +58,7 @@ export function LoginPage() {
           <div>
             <div className="text-[17px] font-bold tracking-wide leading-tight">OMEGAX</div>
             <div className="text-[11px] text-text-dim leading-tight">
-              Comptabilité des entités à but non lucratif · SYCEBNL — OHADA
+              Comptabilité des entités à but non lucratif · SYCEBNL · OHADA
             </div>
           </div>
         </div>

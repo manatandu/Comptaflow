@@ -16,14 +16,14 @@ import type {
 } from '../lib/types';
 
 /**
- * PLAN DES TIERS — la fenêtre Structure → Plan tiers de Sage 100 i7 :
+ * PLAN DES TIERS · la fenêtre Structure → Plan tiers de Sage 100 i7 :
  * « Dans la partie gauche de la fenêtre, un filtre permet de sélectionner le
  * type de tiers (Client, Fournisseur, Salarié, Autre ou tous) » ; au centre
  * la liste dense ; à droite la FICHE du tiers sélectionné, en volets
  * Identification (code, type, nom, modèle de règlement, état) et Comptes
  * rattachés (avec compte Principal, comme chez Sage : « un des comptes
  * généraux sélectionnés doit être défini comme Principal »).
- * Les modèles de règlement — Structure → Modèles chez Sage — s'ouvrent dans
+ * Les modèles de règlement Structure → Modèles chez Sage s'ouvrent dans
  * leur propre boîte de dialogue, avec le simulateur d'échéancier.
  */
 
@@ -122,7 +122,7 @@ export function TiersPage() {
     api.get<Compte[]>('/comptes?classe=CLASSE_4&actifsSeuls=true&typeCompte=DETAIL').then(setComptesClasse4);
   }, []);
 
-  // Solde des comptes rattachés (balance de l'exercice courant) — affiché
+  // Solde des comptes rattachés (balance de l'exercice courant) · affiché
   // dans le volet Comptes rattachés de la fiche.
   useEffect(() => {
     if (!exerciceCourant) return;
@@ -326,7 +326,7 @@ export function TiersPage() {
       )}
 
       <div className="flex-1 min-h-0 flex gap-2.5">
-        {/* Filtre par type — la partie gauche de la fenêtre Sage */}
+        {/* Filtre par type · la partie gauche de la fenêtre Sage */}
         <div className="w-[190px] shrink-0 bg-surface border border-border shadow-posee overflow-auto">
           <div className="px-3 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
             TYPE DE TIERS
@@ -378,7 +378,7 @@ export function TiersPage() {
                 <span className="font-mono font-semibold">{t.code}</span>
                 <span className="truncate">{t.nom}</span>
                 <span className={`text-[10.5px] truncate ${selectionId === t.id ? 'text-white/80' : 'text-text-dim'}`}>
-                  {t.modeleReglement?.intitule ?? '—'}
+                  {t.modeleReglement?.intitule ?? '·'}
                 </span>
                 <span className={`text-[10.5px] ${selectionId === t.id ? 'text-white/90' : t.estActif ? 'text-positive' : 'text-warning'}`}>
                   {t.estActif ? 'Actif' : 'Sommeil'}
@@ -414,7 +414,7 @@ export function TiersPage() {
                 <span className="text-text-dim text-right">Type :</span>
                 <span>{LIBELLE_TYPE[tiersSelectionne.type]}</span>
                 <span className="text-text-dim text-right">Règlement :</span>
-                <span>{tiersSelectionne.modeleReglement?.intitule ?? '— aucun modèle —'}</span>
+                <span>{tiersSelectionne.modeleReglement?.intitule ?? 'aucun modèle'}</span>
                 <span className="text-text-dim text-right">État :</span>
                 <span className={tiersSelectionne.estActif ? 'text-positive' : 'text-warning'}>
                   {tiersSelectionne.estActif ? 'Actif' : 'En sommeil'}
@@ -454,7 +454,7 @@ export function TiersPage() {
                     <div className="text-[10.5px] text-text-dim truncate">{tc.compte.intitule}</div>
                     <div className="flex items-center justify-between mt-1">
                       <span className="font-mono text-[10.5px]">
-                        Solde : {tc.compteId in soldes ? soldes[tc.compteId].toLocaleString('fr-FR') : '—'}
+                        Solde : {tc.compteId in soldes ? soldes[tc.compteId].toLocaleString('fr-FR') : '·'}
                       </span>
                       <span className="flex gap-2.5">
                         <button
@@ -481,10 +481,10 @@ export function TiersPage() {
                     onChange={(e) => setCompteARattacher(e.target.value)}
                     className="w-full border border-border-dark px-2 py-1 text-[11.5px] mb-1.5"
                   >
-                    <option value="">— Rattacher un compte de classe 4 —</option>
+                    <option value="">Rattacher un compte de classe 4</option>
                     {comptesDisponibles.map((c) => (
                       <option key={c.id} value={c.id}>
-                        {c.numero} — {c.intitule}
+                        {c.numero} · {c.intitule}
                       </option>
                     ))}
                   </select>
@@ -504,7 +504,7 @@ export function TiersPage() {
         </div>
       </div>
 
-      {/* Boîte de dialogue — Nouveau tiers */}
+      {/* Boîte de dialogue · Nouveau tiers */}
       {nouveauOuvert && (
         <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
           <form onSubmit={onCreerTiers} className="anim-modale w-full max-w-[440px] bg-surface border border-border-dark shadow-flottante">
@@ -529,7 +529,7 @@ export function TiersPage() {
                 <input required value={nom} onChange={(e) => setNom(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[13px]" />
                 <label className="text-[12px] text-right">Règlement :</label>
                 <select value={modeleReglementId} onChange={(e) => setModeleReglementId(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[12.5px]">
-                  <option value="">— Aucun modèle —</option>
+                  <option value="">Aucun modèle</option>
                   {modeles.map((m) => (
                     <option key={m.id} value={m.id}>{m.intitule}</option>
                   ))}
@@ -548,7 +548,7 @@ export function TiersPage() {
         </div>
       )}
 
-      {/* Boîte de dialogue — Modèles de règlement (Structure → Modèles chez Sage) */}
+      {/* Boîte de dialogue · Modèles de règlement (Structure → Modèles chez Sage) */}
       {modelesOuverts && (
         <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
           <div className="anim-modale w-full max-w-[720px] max-h-[86vh] flex flex-col bg-surface border border-border-dark shadow-flottante">
@@ -585,7 +585,7 @@ export function TiersPage() {
               {modeleSelectionne && (
                 <div className="border border-border mb-3 p-3 bg-surface-alt">
                   <div className="font-mono text-[10.5px] font-semibold text-text-dim mb-2">
-                    ÉCHÉANCES — {modeleSelectionne.intitule}
+                    ÉCHÉANCES · {modeleSelectionne.intitule}
                   </div>
                   {modeleSelectionne.echeances.length === 0 && (
                     <div className="text-[11px] text-text-dim mb-2">
@@ -602,7 +602,7 @@ export function TiersPage() {
                         >
                           <span className="font-mono">#{ech.ordre}</span>
                           <span>{LIBELLE_TYPE_ECHEANCE[ech.type]}</span>
-                          <span className="text-right font-mono">{ech.valeur ?? '—'}</span>
+                          <span className="text-right font-mono">{ech.valeur ?? '·'}</span>
                           <span className="text-text-dim">{ech.delaiJours} j.</span>
                           <span className="text-[10px] text-text-dim">{LIBELLE_ECHEANCE[ech.echeance]}</span>
                           <button onClick={() => onSupprimerEcheance(ech.id)} className="text-danger text-[10px] font-semibold hover:underline w-fit">
@@ -664,7 +664,7 @@ export function TiersPage() {
                     </button>
                   </form>
                   {resultatCalc && (
-                    <div className="border border-border bg-surface">
+                    <div className="border border-border bg-surface shadow-posee">
                       {resultatCalc.map((r) => (
                         <div key={r.ordre} className="grid grid-cols-3 gap-2 px-2.5 py-1 border-b border-border last:border-b-0 text-[11px] font-mono">
                           <span>#{r.ordre}</span>
@@ -679,7 +679,7 @@ export function TiersPage() {
 
               <form onSubmit={onCreerModele} className="grid grid-cols-4 gap-2 items-end border-t border-border pt-3">
                 <label className="text-[11px] font-semibold text-text-dim col-span-2">
-                  Nouveau modèle — intitulé
+                  Nouveau modèle · intitulé
                   <input required value={intituleModele} onChange={(e) => setIntituleModele(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[12px] font-normal" />
                 </label>
                 <label className="text-[11px] font-semibold text-text-dim">

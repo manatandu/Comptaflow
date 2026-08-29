@@ -12,7 +12,7 @@ async function bootstrap() {
   // (ex. domaine par défaut *.web.app + domaine personnalisé Workspace).
   const origines = process.env.CORS_ORIGIN?.split(',').map((o) => o.trim());
   app.enableCors(origines ? { origin: origines } : undefined);
-  // whitelist: rejette tout champ non déclaré dans un DTO — évite qu'un client
+  // whitelist: rejette tout champ non déclaré dans un DTO · évite qu'un client
   // injecte silencieusement un champ (ex: tenantId) qui devrait venir du JWT.
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
   await app.listen(process.env.PORT ?? 3000);

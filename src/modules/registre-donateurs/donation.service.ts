@@ -45,25 +45,25 @@ export interface LigneNonConforme {
 
 export interface MontantCompteLiberalite extends CompteLiberalite {
   montant: number;
-  /** Comptes réels du dossier rattachés à ce préfixe — permet le pointage. */
+  /** Comptes réels du dossier rattachés à ce préfixe · permet le pointage. */
   comptes: { numero: string; intitule: string; montant: number }[];
 }
 
 /**
- * REGISTRE DES DONATEURS — articles 17, 18 et 24 de l'Acte uniforme SYCEBNL
+ * REGISTRE DES DONATEURS · articles 17, 18 et 24 de l'Acte uniforme SYCEBNL
  * (Niamey, 22 décembre 2022), ancré au skill `sycebnl`.
  *
  * Trois garanties de ce service découlent directement du texte, et d'aucune
  * autre considération :
  *
- *  1. NUMÉROTATION CONTINUE — art. 17 : le registre est « coté, paraphé et
+ *  1. NUMÉROTATION CONTINUE · art. 17 : le registre est « coté, paraphé et
  *     numéroté de façon continue ». Le numéro est attribué ici (jamais par le
  *     client), sans trou et sans réemploi.
- *  2. PAS DE SUPPRESSION — corollaire du même alinéa : effacer une ligne
+ *  2. PAS DE SUPPRESSION · corollaire du même alinéa : effacer une ligne
  *     ouvrirait un trou dans la numérotation. Une erreur s'ANNULE avec motif,
- *     en conservant son numéro — exactement comme une écriture comptable se
+ *     en conservant son numéro · exactement comme une écriture comptable se
  *     contre-passe au lieu de disparaître.
- *  3. RAPPORT DE CONFORMITÉ — art. 18 : l'auditeur « constate l'existence du
+ *  3. RAPPORT DE CONFORMITÉ · art. 18 : l'auditeur « constate l'existence du
  *     registre des donateurs et donne son avis sur sa tenue conforme » ; à
  *     défaut d'auditeur, « une déclaration des dirigeants attestant de la
  *     tenue conforme » est annexée. `rapportConformite()` produit les
@@ -120,7 +120,7 @@ export class DonationService {
    * contrainte `@@unique([tenantId, numero])` fait le reste : si deux
    * inscriptions concurrentes calculent le même `max + 1`, la seconde échoue
    * en P2002 et rejoue. Sans ce filet, deux dons simultanés partageraient un
-   * numéro — le registre cesserait d'être « numéroté de façon continue »
+   * numéro · le registre cesserait d'être « numéroté de façon continue »
    * (art. 17) au moment précis où il est le plus sollicité (une collecte).
    */
   async inscrire(tenantId: string, userId: string, dto: InscrireDonationDto) {
@@ -179,7 +179,7 @@ export class DonationService {
    * montant, la nature et le mode de libération n'y sont PAS modifiables :
    * ce sont les données que l'article 17 érige en contenu du registre et que
    * la signature du représentant légal couvre. Les corriger reviendrait à
-   * réécrire une ligne déjà signée — on annule et on réinscrit.
+   * réécrire une ligne déjà signée · on annule et on réinscrit.
    */
   async modifier(tenantId: string, id: string, dto: ModifierDonationDto) {
     const ligne = await this.ligne(tenantId, id);
@@ -232,15 +232,15 @@ export class DonationService {
   }
 
   // -------------------------------------------------------------------------
-  // Article 18 — rapport de conformité
+  // Article 18 · rapport de conformité
   // -------------------------------------------------------------------------
 
   /**
    * Constatations de l'article 18, sur un exercice donné.
    *
    * Le rapport ne conclut pas à la place de l'auditeur (ni des dirigeants) :
-   * il expose ce qui se constate — existence, continuité, signature,
-   * complétude, rapprochement — et laisse l'avis à qui le signe. C'est la
+   * il expose ce qui se constate · existence, continuité, signature,
+   * complétude, rapprochement · et laisse l'avis à qui le signe. C'est la
    * lettre de l'article 18, qui demande un rapport « qui constate » et
    * « donne son avis ».
    */
@@ -268,7 +268,7 @@ export class DonationService {
       /**
        * Art. 18 : le rapport « constate l'existence du registre ». Un
        * registre vide sur l'exercice N'EST PAS un registre inexistant si le
-       * dossier a inscrit des libéralités sur d'autres exercices — d'où les
+       * dossier a inscrit des libéralités sur d'autres exercices · d'où les
        * deux constatations distinctes.
        */
       existence: {
@@ -310,7 +310,7 @@ export class DonationService {
          * Le sens de l'écart se lit, il ne se devine pas : un écart POSITIF
          * dit qu'il existe des libéralités comptabilisées qui ne sont pas au
          * registre (le manquement visé par l'art. 24) ; un écart NÉGATIF dit
-         * l'inverse — des libéralités inscrites sans trace comptable, ce qui
+         * l'inverse · des libéralités inscrites sans trace comptable, ce qui
          * met en cause la comptabilité, pas le registre.
          */
         lecture:
@@ -320,11 +320,11 @@ export class DonationService {
               ? 'Des libéralités sont comptabilisées sans être inscrites au registre (art. 24 : défaut de tenue et de mise à jour).'
               : 'Des libéralités sont inscrites au registre sans contrepartie comptable sur l’exercice.',
         comptesLiberalite: liberalites,
-        /** Chiffrés mais NI ajoutés NI retranchés — voir correspondance-registre.ts. */
+        /** Chiffrés mais NI ajoutés NI retranchés · voir correspondance-registre.ts. */
         comptesFrontiere: COMPTES_FRONTIERE.map((c) => this.montantDuCompte(c, lignesBalance)),
         comptesHorsPerimetre: COMPTES_HORS_PERIMETRE.map((c) => this.montantDuCompte(c, lignesBalance)),
         avertissement:
-          'Aucun tableau de correspondance officiel n’existe entre le registre des donateurs et le plan des comptes : le périmètre retenu est construit compte par compte à partir des définitions du référentiel, citées dans chaque ligne. Les comptes « frontière » ne sont pas rapprochés — le texte ne tranche pas s’ils relèvent de l’art. 17.',
+          'Aucun tableau de correspondance officiel n’existe entre le registre des donateurs et le plan des comptes : le périmètre retenu est construit compte par compte à partir des définitions du référentiel, citées dans chaque ligne. Les comptes « frontière » ne sont pas rapprochés · le texte ne tranche pas s’ils relèvent de l’art. 17.',
       },
     };
   }
@@ -335,7 +335,7 @@ export class DonationService {
 
   /**
    * Constate la continuité exigée par l'art. 17. Le service ne peut pas
-   * produire de trou lui-même (il n'efface jamais et incrémente toujours) —
+   * produire de trou lui-même (il n'efface jamais et incrémente toujours) ·
    * la vérification vise les registres repris d'un autre outil, les imports
    * et toute intervention directe en base. Un contrôle qui ne vérifie que ce
    * qu'il a lui-même écrit ne contrôle rien.
@@ -388,7 +388,7 @@ export class DonationService {
   /**
    * Refuse les combinaisons INCOHÉRENTES, pas les combinaisons incomplètes :
    * l'article 17 prévoit deux jeux d'identifiants distincts (point 2 pour les
-   * personnes physiques, point 3 pour les personnes morales) — un NIF sur une
+   * personnes physiques, point 3 pour les personnes morales) · un NIF sur une
    * personne physique, ou des prénoms sur une personne morale, ne sont pas
    * des mentions manquantes, ce sont des mentions du mauvais registre. Les
    * mentions simplement absentes relèvent du rapport de conformité, pas d'un
@@ -432,7 +432,7 @@ export class DonationService {
     }
 
     // Art. 17, point 4 : le mode de libération « en nature » n'a de sens que
-    // si le bien est désigné — un montant seul ne dit pas ce qui a été donné.
+    // si le bien est désigné · un montant seul ne dit pas ce qui a été donné.
     if (d.modeLiberation === ModeLiberation.NATURE && !d.designationNature?.trim()) {
       throw new BadRequestException(
         'Libération en nature (art. 17, point 4) : la désignation du bien reçu est requise, le montant seul ne dit pas ce qui a été donné.',

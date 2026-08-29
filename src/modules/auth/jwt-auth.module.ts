@@ -10,7 +10,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
  * Ni JwtAuthGuard ni RolesGuard n'ont de dépendance propre à un autre module
  * métier (la stratégie 'jwt' est enregistrée globalement par Passport dès
  * qu'AuthModule instancie JwtStrategy ; RolesGuard ne dépend que du Reflector
- * fourni par Nest) — ce module peut donc être importé partout sans rien
+ * fourni par Nest) · ce module peut donc être importé partout sans rien
  * entraîner d'autre.
  */
 @Module({

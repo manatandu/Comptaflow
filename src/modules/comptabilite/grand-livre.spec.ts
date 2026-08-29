@@ -21,7 +21,7 @@ interface LigneBrute {
  * Faux PrismaService couvrant les deux requêtes que fait désormais le grand
  * livre : la requête « lignes à afficher » (avec `include`) et la requête
  * plate « contreparties » (avec `select`). C'est le `select` qui les
- * distingue — voir `EcritureService.chargerContreparties`.
+ * distingue · voir `EcritureService.chargerContreparties`.
  */
 function serviceAvec(
   lignes: LigneBrute[],
@@ -80,7 +80,7 @@ function serviceAvec(
  * (séance du 2026-08-28), y compris ceux qui avaient invalidé les deux
  * premières versions de la règle.
  */
-describe('grand livre — colonne « compte contrepartie »', () => {
+describe('grand livre · colonne « compte contrepartie »', () => {
   it('écriture à 2 lignes : contrepartie unique et certaine', async () => {
     const lignes: LigneBrute[] = [
       { id: 'l1', compteId: 'c-achat', numero: '60100000', debit: 100, credit: 0 },

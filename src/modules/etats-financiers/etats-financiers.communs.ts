@@ -4,15 +4,15 @@ import { ExerciceService } from '../exercice/exercice.service';
 
 /**
  * Aides communes aux DEUX jeux d'états financiers SYCEBNL construits à ce
- * jour — « associations et ordres professionnels » (`etats-financiers.service.ts`)
+ * jour · « associations et ordres professionnels » (`etats-financiers.service.ts`)
  * et « projets de développement et assimilés » (`etats-financiers-projet.service.ts`)
- * — extraites ici lors de la construction du second jeu (2026-08-28) pour ne
+ * · extraites ici lors de la construction du second jeu (2026-08-28) pour ne
  * pas dupliquer une logique déjà écrite et testée pour le premier. Le
  * Système Minimal de Trésorerie (3ᵉ jeu) n'est pas construit ; il pourra
  * réutiliser ces mêmes aides le jour où il le sera.
  */
 
-/** Un compte rattaché à un poste, avec sa contribution — permet le drill-down. */
+/** Un compte rattaché à un poste, avec sa contribution · permet le drill-down. */
 export interface CompteDuPoste {
   numero: string;
   intitule: string;
@@ -28,7 +28,7 @@ export interface LigneBalancePourEtat {
   typeCompte: TypeCompteDetailTotal;
   totalDebit: number;
   totalCredit: number;
-  /** Report à-nouveau (écritures de clôture) — l'ouverture, pour un compte de bilan. */
+  /** Report à-nouveau (écritures de clôture) · l'ouverture, pour un compte de bilan. */
   reportDebit: number;
   reportCredit: number;
   /** Mouvements propres de l'exercice, report à-nouveau exclu. */
@@ -50,7 +50,7 @@ export function correspond(numero: string, prefixes: string[], exclusions: strin
  * Exercice « N-1 » d'un bilan/compte de résultat (ou compte d'exploitation) :
  * celui du même tenant dont la date de début est la plus récente PARMI
  * celles antérieures à l'exercice demandé. `null` si aucun (premier
- * exercice du dossier) — le comparatif reste alors simplement absent
+ * exercice du dossier) · le comparatif reste alors simplement absent
  * (`undefined`), jamais un faux zéro qui laisserait croire à un exercice
  * antérieur réel et vide.
  */
@@ -75,6 +75,6 @@ export async function chargerLignes(
   const { lignes } = await ecritureService.balance(tenantId, exerciceId);
   // Comptes Total (§3.1) exclus : leur solde n'est qu'un agrégat
   // d'affichage des comptes Détail de même racine, déjà comptés
-  // individuellement ailleurs — les inclure doublerait le montant.
+  // individuellement ailleurs · les inclure doublerait le montant.
   return lignes.filter((l) => l.typeCompte !== TypeCompteDetailTotal.TOTAL);
 }

@@ -91,7 +91,7 @@ export class TauxTvaService {
 
   /**
    * Prorata de déduction (art. 43 O.-L.) : rapport entre les recettes
-   * ouvrant droit à déduction (opérations taxables — toute écriture portant
+   * ouvrant droit à déduction (opérations taxables · toute écriture portant
    * au moins une ligne de TVA, y compris au taux zéro export, qui ouvre
    * droit comme les autres) et les recettes totales (comptes de produits,
    * classe 7) sur la période, arrondi à l'**unité supérieure** (règle
@@ -99,14 +99,14 @@ export class TauxTvaService {
    *
    * Fidélité assumée à notre modèle de données : le numérateur légal inclut
    * aussi les recettes aux missions diplomatiques/organisations
-   * internationales (pas de compte dédié ici, donc non comptées à part —
+   * internationales (pas de compte dédié ici, donc non comptées à part ·
    * l'écart ne joue que pour ce cas de figure précis) ; le dénominateur
    * légal exclut cessions d'actif immobilisé, subventions d'équipement et
    * indemnités d'assurance hors champ, qui ne sont de toute façon jamais
    * portées en classe 7 dans notre plan de comptes, donc déjà exclues
    * naturellement. S'applique globalement à toute la déduction (biens,
    * services, immobilisations) en l'absence d'option secteurs distincts
-   * (art. 49, non implémentée — la seule option ici est le prorata général).
+   * (art. 49, non implémentée · la seule option ici est le prorata général).
    */
   async calculerProrata(tenantId: string, dateDebut: Date, dateFin: Date) {
     const ecrituresTaxables = await this.prisma.ecriture.findMany({
@@ -126,7 +126,7 @@ export class TauxTvaService {
 
     const numerateur = Number(numerateurAgg._sum.credit ?? 0);
     const denominateur = Number(denominateurAgg._sum.credit ?? 0);
-    // Aucune recette sur la période : rien ne vient limiter la déduction —
+    // Aucune recette sur la période : rien ne vient limiter la déduction ·
     // 100 % plutôt qu'une division par zéro.
     const pourcentage = denominateur <= EPSILON ? 100 : Math.min(100, Math.ceil((numerateur / denominateur) * 100));
 
@@ -137,9 +137,9 @@ export class TauxTvaService {
    * Registre/déclaration TVA sur une période : pour chaque taux, somme les
    * lignes créditées sur son compte de collecte (443) et les lignes débitées
    * sur son compte de déduction (445), taguées à ce taux (LigneEcriture.
-   * tauxTvaId — posé par la saisie guidée "Achat/Vente avec TVA"). Applique
+   * tauxTvaId · posé par la saisie guidée "Achat/Vente avec TVA"). Applique
    * le prorata de déduction (art. 43) à la TVA déductible brute pour obtenir
-   * la TVA déductible admise. Reste lecture seule ici — voir
+   * la TVA déductible admise. Reste lecture seule ici · voir
    * `comptabiliserLiquidation` pour poser l'écriture sur le compte 444.
    */
   async declaration(tenantId: string, dateDebut: Date, dateFin: Date) {
@@ -198,15 +198,15 @@ export class TauxTvaService {
 
   /**
    * Comptabilise la liquidation périodique : solde, par compte réellement
-   * utilisé (en général 44310000/44510000 partagés — voir le seed — mais un
+   * utilisé (en général 44310000/44510000 partagés voir le seed mais un
    * tenant peut avoir personnalisé des comptes différents par taux), la TVA
    * collectée et la TVA déductible ADMISE (après prorata), et porte la
    * différence sur le compte 44410000 (crédit = TVA due, débit = crédit de TVA
-   * à reporter). Pose une écriture NORMALE via EcritureService.creer — mêmes
+   * à reporter). Pose une écriture NORMALE via EcritureService.creer · mêmes
    * contrôles que n'importe quelle saisie (équilibre, exercice ouvert,
    * clôtures Partielle/Totale/Période). Aucun verrou anti-double-liquidation
    * pour l'instant : reposter la même période créerait une seconde écriture
-   * — à la charge de l'utilisateur de ne pas le faire (enrichissement futur
+   * · à la charge de l'utilisateur de ne pas le faire (enrichissement futur
    * possible : marquer la période comme liquidée).
    */
   async comptabiliserLiquidation(
@@ -219,7 +219,7 @@ export class TauxTvaService {
     const decl = await this.declaration(tenantId, dateDebut, dateFin);
 
     if (decl.totalCollecte <= EPSILON && decl.totalDeductibleAdmise <= EPSILON) {
-      throw new BadRequestException('Aucun mouvement de TVA sur cette période — rien à comptabiliser.');
+      throw new BadRequestException('Aucun mouvement de TVA sur cette période · rien à comptabiliser.');
     }
 
     const ratio = decl.prorata.pourcentage / 100;
@@ -238,16 +238,16 @@ export class TauxTvaService {
     const compte444 = await this.prisma.compte.findFirst({ where: { tenantId, numero: '44410000' } });
     if (!compte444) {
       throw new BadRequestException(
-        "Compte 44410000 (État, TVA due ou crédit de TVA) introuvable pour ce tenant — nécessaire pour comptabiliser la liquidation.",
+        "Compte 44410000 (État, TVA due ou crédit de TVA) introuvable pour ce tenant · nécessaire pour comptabiliser la liquidation.",
       );
     }
 
     const lignesEcriture: Array<{ compteId: string; debit?: number; credit?: number; libelle?: string }> = [];
     for (const [compteId, montant] of parCompteCollecte) {
-      lignesEcriture.push({ compteId, debit: montant, credit: 0, libelle: 'Liquidation TVA — solde TVA collectée' });
+      lignesEcriture.push({ compteId, debit: montant, credit: 0, libelle: 'Liquidation TVA · solde TVA collectée' });
     }
     for (const [compteId, montant] of parCompteDeductible) {
-      lignesEcriture.push({ compteId, debit: 0, credit: montant, libelle: 'Liquidation TVA — solde TVA déductible admise' });
+      lignesEcriture.push({ compteId, debit: 0, credit: montant, libelle: 'Liquidation TVA · solde TVA déductible admise' });
     }
     if (Math.abs(decl.net) > EPSILON) {
       if (decl.net > 0) {
@@ -275,7 +275,7 @@ export class TauxTvaService {
       exerciceId: dto.exerciceId,
       journalId: journal.id,
       date: date.toISOString(),
-      libelle: `Liquidation TVA — période du ${dto.dateDebut} au ${dto.dateFin}`,
+      libelle: `Liquidation TVA · période du ${dto.dateDebut} au ${dto.dateFin}`,
       lignes: lignesEcriture,
     });
 

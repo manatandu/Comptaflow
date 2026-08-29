@@ -21,16 +21,16 @@ export interface LigneInseree {
 }
 
 /**
- * Modèles de saisie — appelés DEPUIS la fenêtre de saisie des journaux,
+ * Modèles de saisie · appelés DEPUIS la fenêtre de saisie des journaux,
  * exactement comme chez Sage (« En saisie des journaux, pour faire appel à un
  * modèle de saisie, sélectionner le modèle dans la zone prévue à cet effet »).
  * Un modèle ne fait que PRÉ-REMPLIR la pièce en cours : les lignes générées
- * restent modifiables ligne à ligne avant enregistrement — le modèle
+ * restent modifiables ligne à ligne avant enregistrement · le modèle
  * accélère la saisie, il ne l'enferme jamais.
  *
  * Trois familles :
  *  - opérations courantes (don, cotisation, achat, salaire) ;
- *  - opérations avec TVA (vente, achat) — TVA calculée, jamais saisie ;
+ *  - opérations avec TVA (vente, achat) · TVA calculée, jamais saisie ;
  *  - écritures-types SYCEBNL (Partie 3 · Guide d'application), servies par
  *    l'API /operations-specifiques qui les chiffre contre le référentiel.
  */
@@ -324,7 +324,7 @@ export function ModelesSaisieModale({
               [...catalogue.operations, ...catalogue.operationsAutreJeu].map((op) => (
                 <div key={op.code}>
                   <div className="px-3 pt-1.5 pb-0.5 text-[10.5px] font-semibold text-text-dim">
-                    {op.code} — {op.libelle}
+                    {op.code} · {op.libelle}
                   </div>
                   {op.modeles.map((mo) => (
                     <button
@@ -348,7 +348,7 @@ export function ModelesSaisieModale({
           <div className="flex-1 min-w-0 overflow-auto p-4">
             {!selection && (
               <div className="text-[12px] text-text-dim">
-                Sélectionnez un modèle à gauche. Le modèle pré-remplit la pièce en cours de saisie — toutes
+                Sélectionnez un modèle à gauche. Le modèle pré-remplit la pièce en cours de saisie · toutes
                 les lignes générées restent modifiables avant enregistrement.
               </div>
             )}
@@ -379,10 +379,10 @@ export function ModelesSaisieModale({
                         onChange={(e) => setCompteContrepartieTvaId(e.target.value)}
                         className="border border-border-dark px-2 py-1 text-[12px]"
                       >
-                        <option value="">— Sélectionner —</option>
+                        <option value="">Sélectionner</option>
                         {(selection.modele.code === 'vente_tva' ? comptesProduits : comptesCharges).map((c) => (
                           <option key={c.id} value={c.id}>
-                            {c.numero} — {c.intitule}
+                            {c.numero} · {c.intitule}
                           </option>
                         ))}
                       </select>
@@ -392,10 +392,10 @@ export function ModelesSaisieModale({
                         onChange={(e) => setTauxTvaId(e.target.value)}
                         className="border border-border-dark px-2 py-1 text-[12px]"
                       >
-                        <option value="">— Sélectionner —</option>
+                        <option value="">Sélectionner</option>
                         {tauxDisponibles.map((t) => (
                           <option key={t.id} value={t.id}>
-                            {t.code} — {t.intitule}
+                            {t.code} · {t.intitule}
                           </option>
                         ))}
                       </select>
@@ -410,7 +410,7 @@ export function ModelesSaisieModale({
                   >
                     {comptesTresorerie.map((c) => (
                       <option key={c.id} value={c.id}>
-                        {c.numero} — {c.intitule}
+                        {c.numero} · {c.intitule}
                       </option>
                     ))}
                   </select>
@@ -492,7 +492,7 @@ export function ModelesSaisieModale({
                               <option value="">{l.numero}… à choisir</option>
                               {l.choixRequis.candidats.map((c) => (
                                 <option key={c.id} value={c.id}>
-                                  {c.numero} — {c.intitule}
+                                  {c.numero} · {c.intitule}
                                 </option>
                               ))}
                             </select>
@@ -500,7 +500,7 @@ export function ModelesSaisieModale({
                             l.numero
                           )}
                         </span>
-                        <span className="truncate" title={`${l.intitule} — ${l.libelle}`}>
+                        <span className="truncate" title={`${l.intitule} · ${l.libelle}`}>
                           {l.libelle}
                         </span>
                         <span className="font-mono text-right">{l.debit ? l.debit.toLocaleString('fr-FR') : ''}</span>

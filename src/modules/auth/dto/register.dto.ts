@@ -10,7 +10,7 @@ import { Referentiel, TypeLicence } from '@prisma/client';
  *
  * Ce DTO sert aussi bien à l'inscription initiale (page /inscription) qu'à
  * l'assistant « Nouveau fichier comptable » (créer un dossier supplémentaire
- * sous une nouvelle adresse e-mail — voir NouveauFichierWizard côté client) :
+ * sous une nouvelle adresse e-mail · voir NouveauFichierWizard côté client) :
  * même endpoint, même règles, l'assistant ne fait qu'en habiller la saisie.
  */
 export class RegisterDto {
@@ -30,7 +30,7 @@ export class RegisterDto {
   @IsEnum(TypeLicence)
   typeLicence?: TypeLicence;
 
-  // Coordonnées — écran « Coordonnées de l'entreprise » de l'assistant.
+  // Coordonnées · écran « Coordonnées de l'entreprise » de l'assistant.
   @IsOptional()
   @IsString()
   activite?: string;
@@ -55,7 +55,7 @@ export class RegisterDto {
   @IsString()
   devise?: string;
 
-  // Exercice — écran « Définition de l'exercice » de l'assistant. Si omis,
+  // Exercice · écran « Définition de l'exercice » de l'assistant. Si omis,
   // l'exercice de l'année civile en cours est créé automatiquement
   // (voir ExerciceService.creerExerciceCourant).
   @IsOptional()

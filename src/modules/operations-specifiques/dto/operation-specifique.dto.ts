@@ -3,7 +3,7 @@ import { IsDateString, IsObject, IsOptional, IsString, IsUUID } from 'class-vali
 /**
  * Proposition d'une écriture-type. Aucun compte ni montant de ligne n'est
  * transmis : ils sont déduits du modèle et des paramètres. Les accepter du
- * client ferait de l'écriture-type une saisie libre déguisée — et lui ferait
+ * client ferait de l'écriture-type une saisie libre déguisée · et lui ferait
  * perdre la seule chose qui la rend vérifiable contre le Guide.
  */
 export class ProposerModeleDto {
@@ -39,7 +39,7 @@ export class AppliquerModeleDto extends ProposerModeleDto {
   @IsDateString()
   date!: string;
 
-  /** Par défaut, le libellé du modèle — qui nomme l'opération du référentiel. */
+  /** Par défaut, le libellé du modèle · qui nomme l'opération du référentiel. */
   @IsOptional()
   @IsString()
   libelle?: string;

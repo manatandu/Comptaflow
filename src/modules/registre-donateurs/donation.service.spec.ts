@@ -23,7 +23,7 @@ type LigneRegistre = Partial<Prisma.DonationUncheckedCreateInput> & { id: string
 
 /**
  * Registre en mémoire : `create` reproduit la contrainte
- * `@@unique([tenantId, numero])` de la base — c'est elle, et pas le service,
+ * `@@unique([tenantId, numero])` de la base · c'est elle, et pas le service,
  * qui garantit l'unicité du numéro sous concurrence.
  */
 function prismaAvec(registre: LigneRegistre[] = []) {
@@ -96,10 +96,10 @@ const donPP = (montant: number, extra: Partial<any> = {}) => ({
 });
 
 // ---------------------------------------------------------------------------
-// Article 17 — numérotation continue
+// Article 17 · numérotation continue
 // ---------------------------------------------------------------------------
 
-describe('Article 17 — « numéroté de façon continue »', () => {
+describe('Article 17 · « numéroté de façon continue »', () => {
   it('attribue 1, 2, 3… sans que le client puisse imposer un numéro', async () => {
     const { svc } = service();
     const a = await svc.inscrire('t1', 'u1', donPP(100) as any);
@@ -141,7 +141,7 @@ describe('Article 17 — « numéroté de façon continue »', () => {
   });
 
   it('signale les trous et les doublons d’un registre repris d’un autre outil', async () => {
-    // 1, 3, 4, 4 : le service ne peut pas produire cela — un import le peut.
+    // 1, 3, 4, 4 : le service ne peut pas produire cela · un import le peut.
     const { svc } = service([], prismaAvec([
       { id: 'a', numero: 1 }, { id: 'b', numero: 3 }, { id: 'c', numero: 4 }, { id: 'd', numero: 4 },
     ]));
@@ -153,10 +153,10 @@ describe('Article 17 — « numéroté de façon continue »', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Article 17 — contenu obligatoire et cohérence des identifiants
+// Article 17 · contenu obligatoire et cohérence des identifiants
 // ---------------------------------------------------------------------------
 
-describe('Article 17, points 2 et 3 — identifiants du donateur', () => {
+describe('Article 17, points 2 et 3 · identifiants du donateur', () => {
   it('refuse un identifiant de personne morale sur une personne physique', async () => {
     const { svc } = service();
     await expect(
@@ -203,10 +203,10 @@ describe('Article 17, points 2 et 3 — identifiants du donateur', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Article 17 — signature du représentant légal
+// Article 17 · signature du représentant légal
 // ---------------------------------------------------------------------------
 
-describe('Article 17 — « signées par le représentant légal »', () => {
+describe('Article 17 · « signées par le représentant légal »', () => {
   it('liste les lignes non signées et retire celles qui le sont', async () => {
     const { svc } = service();
     const a = await svc.inscrire('t1', 'u1', donPP(100) as any);
@@ -233,10 +233,10 @@ describe('Article 17 — « signées par le représentant légal »', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Article 18 — rapprochement comptable
+// Article 18 · rapprochement comptable
 // ---------------------------------------------------------------------------
 
-describe('Article 18 — rapprochement registre / comptabilité', () => {
+describe('Article 18 · rapprochement registre / comptabilité', () => {
   it('boucle quand le registre couvre exactement les comptes de libéralité', async () => {
     const { svc } = service([ligne('7041', ClasseCompte.CLASSE_7, 0, 800)]);
     await svc.inscrire('t1', 'u1', donPP(500) as any);
@@ -262,7 +262,7 @@ describe('Article 18 — rapprochement registre / comptabilité', () => {
     expect(rapport.existence.lignesAnnuleesSurExercice).toBe(1);
   });
 
-  it('nomme le sens de l’écart — art. 24 quand la comptabilité dépasse le registre', async () => {
+  it('nomme le sens de l’écart · art. 24 quand la comptabilité dépasse le registre', async () => {
     const { svc } = service([ligne('7041', ClasseCompte.CLASSE_7, 0, 1000)]);
     await svc.inscrire('t1', 'u1', donPP(600) as any);
     const { rapprochement } = await svc.rapportConformite('t1', 'ex1');
@@ -270,7 +270,7 @@ describe('Article 18 — rapprochement registre / comptabilité', () => {
     expect(rapprochement.lecture).toMatch(/art\. 24/);
   });
 
-  it('signale l’inverse — inscrit au registre sans contrepartie comptable', async () => {
+  it('signale l’inverse · inscrit au registre sans contrepartie comptable', async () => {
     const { svc } = service([ligne('7041', ClasseCompte.CLASSE_7, 0, 100)]);
     await svc.inscrire('t1', 'u1', donPP(600) as any);
     const { rapprochement } = await svc.rapportConformite('t1', 'ex1');
@@ -279,7 +279,7 @@ describe('Article 18 — rapprochement registre / comptabilité', () => {
   });
 
   /**
-   * DÉFAUT DE CLASSE — le même que celui rencontré au TFT : une écriture de
+   * DÉFAUT DE CLASSE · le même que celui rencontré au TFT : une écriture de
    * régularisation qui se compense silencieusement. Le don en nature non
    * consommé à la clôture est extourné au DÉBIT du 7542 (Partie 3 ch. 4
    * § 1.2). Lu en net, le don de 1 000 dont 400 restent en stock ne pèserait
@@ -348,7 +348,7 @@ describe('Article 18 — rapprochement registre / comptabilité', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Périmètre — balayage structurel
+// Périmètre · balayage structurel
 // ---------------------------------------------------------------------------
 
 describe('Périmètre comptable du registre', () => {

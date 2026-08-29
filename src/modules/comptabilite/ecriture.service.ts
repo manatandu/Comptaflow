@@ -8,7 +8,7 @@ import { ExerciceService } from '../exercice/exercice.service';
 import { avecRetrySerialisable } from '../../common/prisma-retry.util';
 
 /**
- * Une ligne est au débit si son montant est porté du côté débit — quel que
+ * Une ligne est au débit si son montant est porté du côté débit · quel que
  * soit son SIGNE. Une correction par inscription en négatif (art. 20 de
  * l'AUDCIF, voir `corrigerParInscriptionEnNegatif`) porte un débit négatif :
  * c'est toujours une ligne de débit, et la tester par `> 0` la rangerait au
@@ -73,7 +73,7 @@ export class EcritureService {
 
     // Les tauxTvaId ne participent pas à l'équilibre (informatifs, posés sur
     // la ligne de TVA par la saisie guidée "Achat/Vente avec TVA") mais
-    // doivent rester scopés au tenant — sans ce contrôle, un appel API direct
+    // doivent rester scopés au tenant · sans ce contrôle, un appel API direct
     // pourrait rattacher une ligne au taux d'un autre tenant (la FK Prisma ne
     // vérifie que l'existence de l'id, pas son tenant).
     const tauxTvaIds = [...new Set(dto.lignes.map((l) => l.tauxTvaId).filter((id): id is string => !!id))];
@@ -85,7 +85,7 @@ export class EcritureService {
     }
 
     // Comptes Total (regroupement par racine, §3.1) : jamais mouvementables
-    // directement — leur solde n'est qu'une agrégation des comptes Détail de
+    // directement · leur solde n'est qu'une agrégation des comptes Détail de
     // même préfixe numérique (voir balance() plus bas). Un appel API direct
     // pourrait sinon y poster une écriture, brisant l'invariant du moteur de
     // mapping futur (§3.5) qui suppose que seuls les comptes Détail portent
@@ -98,7 +98,7 @@ export class EcritureService {
     const comptesTotal = comptes.filter((c) => c.typeCompte === TypeCompteDetailTotal.TOTAL);
     if (comptesTotal.length > 0) {
       throw new BadRequestException(
-        `Impossible de saisir sur un compte Total (${comptesTotal.map((c) => c.numero).join(', ')}) — ` +
+        `Impossible de saisir sur un compte Total (${comptesTotal.map((c) => c.numero).join(', ')}) · ` +
           'ce sont des comptes de regroupement, saisissez sur le compte Détail concerné',
       );
     }
@@ -106,7 +106,7 @@ export class EcritureService {
     const date = new Date(dto.date);
 
     // Clôtures Partielle/Totale (par journal) et Période (tous journaux) :
-    // verrouillage de saisie indépendant du statut CLOTURE de l'exercice —
+    // verrouillage de saisie indépendant du statut CLOTURE de l'exercice ·
     // voir ExerciceService.verifierEcritureAutorisee.
     await this.exerciceService.verifierEcritureAutorisee(tenantId, dto.journalId, date);
 
@@ -145,13 +145,13 @@ export class EcritureService {
           include: { lignes: true, journal: true },
         });
       },
-      `Trop d'écritures enregistrées au même instant sur le journal ${journal.code} — veuillez réessayer.`,
+      `Trop d'écritures enregistrées au même instant sur le journal ${journal.code} · veuillez réessayer.`,
     );
   }
 
 
   /**
-   * CORRECTION D'ERREUR PAR INSCRIPTION EN NÉGATIF — art. 20 de l'AUDCIF,
+   * CORRECTION D'ERREUR PAR INSCRIPTION EN NÉGATIF · art. 20 de l'AUDCIF,
    * repris mot pour mot par la Partie 2 ch. 2 du SYCEBNL :
    *
    *   « Les documents comptables doivent être tenus SANS BLANC NI ALTÉRATION
@@ -174,7 +174,7 @@ export class EcritureService {
    *    l'inscription en négatif les laisse exacts ;
    *  - l'effet dépasse la présentation. Le tableau des flux lit les
    *    immobilisations en `DEBIT_SEUL` (une acquisition est un débit, une
-   *    cession un crédit — voir correspondance-tft.ts) : une acquisition
+   *    cession un crédit · voir correspondance-tft.ts) : une acquisition
    *    erronée CONTRE-PASSÉE apparaîtrait comme une acquisition ET une
    *    cession, deux flux de trésorerie qui n'ont jamais eu lieu. En négatif,
    *    l'acquisition se réduit à zéro et rien n'apparaît. Même mécanique pour
@@ -184,7 +184,7 @@ export class EcritureService {
    *
    * Une écriture n'est pas seule au monde : d'autres objets la référencent et
    * affirment quelque chose à son sujet. La corriger sans le dire laisserait
-   * ces affirmations en place, devenues fausses — c'est-à-dire exactement
+   * ces affirmations en place, devenues fausses · c'est-à-dire exactement
    * l'« altération » que le texte proscrit. Chaque refus ci-dessous nomme
    * l'objet concerné pour que l'utilisateur sache par où passer.
    */
@@ -215,7 +215,7 @@ export class EcritureService {
     // « erreur commise et DÉCOUVERTE SUR L'EXERCICE EN COURS » : la correction
     // par inscription en négatif ne vaut QUE dans ce cas. Une erreur d'un
     // exercice antérieur relève d'un tout autre traitement, que le cadre
-    // conceptuel décrit précisément — on le NOMME plutôt que d'appliquer
+    // conceptuel décrit précisément · on le NOMME plutôt que d'appliquer
     // silencieusement le mauvais.
     if (date < origine.exercice.dateDebut || date > origine.exercice.dateFin) {
       throw new BadRequestException(
@@ -250,7 +250,7 @@ export class EcritureService {
             journalId: origine.journalId,
             numeroPiece,
             date,
-            libelle: `Correction (inscription en négatif) — ${origine.libelle}`,
+            libelle: `Correction (inscription en négatif) · ${origine.libelle}`,
             reference: origine.reference,
             createdBy,
             corrigeEcritureId: origine.id,
@@ -258,7 +258,7 @@ export class EcritureService {
             lignes: {
               // Les MÊMES comptes, dans les MÊMES sens, au signe près : c'est
               // la définition de l'« inscription en négatif des éléments
-              // erronés ». Ni lettre ni pointage ne sont repris — ils
+              // erronés ». Ni lettre ni pointage ne sont repris · ils
               // appartiennent à la ligne d'origine, pas à sa correction.
               create: origine.lignes.map((l) => ({
                 compteId: l.compteId,
@@ -273,7 +273,7 @@ export class EcritureService {
           include: { lignes: true, journal: true },
         });
       },
-      `Trop d'écritures enregistrées au même instant sur le journal ${origine.journal.code} — veuillez réessayer.`,
+      `Trop d'écritures enregistrées au même instant sur le journal ${origine.journal.code} · veuillez réessayer.`,
     );
   }
 
@@ -301,7 +301,7 @@ export class EcritureService {
     }
     if (e.correction) {
       throw new BadRequestException(
-        `Cette écriture est déjà corrigée (pièce n° ${e.correction.numeroPiece ?? '—'}). Appliquer une seconde fois ` +
+        `Cette écriture est déjà corrigée (pièce n° ${e.correction.numeroPiece ?? '·'}). Appliquer une seconde fois ` +
           "l'inscription en négatif inverserait l'erreur au lieu de l'annuler.",
       );
     }
@@ -376,7 +376,7 @@ export class EcritureService {
         // écriture a été annulée par inscription en négatif, sinon le lecteur
         // additionne une erreur et son annulation sans savoir laquelle est
         // laquelle. `corrigeEcritureId` et `motifCorrection` sont des scalaires,
-        // donc déjà renvoyés — seul le lien inverse doit être demandé.
+        // donc déjà renvoyés · seul le lien inverse doit être demandé.
         correction: { select: { id: true, numeroPiece: true, date: true } },
         corrigeEcriture: { select: { id: true, numeroPiece: true, date: true, libelle: true } },
       },
@@ -397,7 +397,7 @@ export class EcritureService {
    * ou toutes les écritures d'une clôture datées de la fin d'exercice)
    * sortiraient dans un ordre laissé au plan d'exécution PostgreSQL, qui
    * peut changer d'un appel à l'autre. La colonne « solde progressif »
-   * différerait alors entre deux exports du MÊME exercice — inacceptable
+   * différerait alors entre deux exports du MÊME exercice · inacceptable
    * pour un dossier d'audit, où l'on recoupe deux tirages ligne à ligne.
    * Le `id` final garantit un ordre total.
    */
@@ -412,7 +412,7 @@ export class EcritureService {
    * requête plate : pour chaque écriture, la liste des comptes débités et
    * celle des comptes crédités.
    *
-   * Règle (voir docs/plan-de-construction.md, « Export Excel — compte
+   * Règle (voir docs/plan-de-construction.md, « Export Excel · compte
    * contrepartie ») : la contrepartie d'une ligne, ce sont les comptes
    * DISTINCTS de sens opposé dans la même écriture. Exacte et non ambiguë
    * dans les cas usuels (2 lignes, N débits/1 crédit, 1 débit/M crédits) ;
@@ -420,15 +420,15 @@ export class EcritureService {
    * (N×M), la liste porte plusieurs comptes candidats plutôt qu'un choix
    * arbitraire faussement précis. Retenir le seul sens opposé écarte au
    * passage la ligne elle-même et toute autre ligne portant le même compte du
-   * même côté — inutile d'y ajouter un « sauf soi-même » ad hoc.
+   * même côté · inutile d'y ajouter un « sauf soi-même » ad hoc.
    *
    * Motif : la contrepartie d'une ligne ne dépend que de son SENS et de son
-   * écriture — il n'y a donc que deux réponses possibles par écriture, pas
+   * écriture · il n'y a donc que deux réponses possibles par écriture, pas
    * une par ligne. Les charger via `ecriture: { lignes: ... }` imbriqué
    * dupliquait l'écriture entière autant de fois qu'elle a de lignes
    * (amplification en O(k²) : mesuré 2,4 Go de RSS sur 50 000 lignes, et une
    * écriture de ventilation de paie à 100 lignes suffisait à faire tomber le
-   * processus — donc tous les tenants avec lui, l'application étant
+   * processus · donc tous les tenants avec lui, l'application étant
    * mono-processus).
    */
   private async chargerContreparties(
@@ -441,7 +441,7 @@ export class EcritureService {
 
     // Ensembles pendant l'accumulation (dédoublonnage), figés en tableaux
     // ensuite : la contrepartie d'une ligne au débit est la liste des comptes
-    // CRÉDITÉS, et réciproquement — d'où l'inversion à la fin.
+    // CRÉDITÉS, et réciproquement · d'où l'inversion à la fin.
     const debits = new Map<string, Set<string>>();
     const credits = new Map<string, Set<string>>();
     for (const l of brut) {
@@ -507,12 +507,12 @@ export class EcritureService {
   }
 
   /**
-   * BALANCE ÂGÉE — état prévisionnel des échéances (Sage : État → Balance
+   * BALANCE ÂGÉE · état prévisionnel des échéances (Sage : État → Balance
    * âgée : « état prévisionnel des échéances à venir, ventilées par tranches
    * de dates, en fonction d'une date de référence »).
    *
    * Assiette : les lignes NON LETTRÉES des comptes de tiers (racine 40
-   * fournisseurs, 41 adhérents/clients-usagers — nomenclature SYCEBNL) de
+   * fournisseurs, 41 adhérents/clients-usagers · nomenclature SYCEBNL) de
    * l'exercice. Une ligne lettrée est soldée par définition : elle n'a plus
    * d'échéance à suivre. L'échéance retenue est LigneEcriture.dateEcheance ;
    * à défaut, la date de l'écriture (même règle que Sage : « le programme
@@ -521,7 +521,7 @@ export class EcritureService {
    * Chaque ligne pèse son montant NET (débit − crédit) : une correction par
    * inscription en négatif (art. 20 AUDCIF) annule ainsi sa ligne d'origine
    * dans la même tranche au lieu de gonfler deux tranches en sens opposés.
-   * Les montants restent signés — créances au débit positives (41), dettes
+   * Les montants restent signés · créances au débit positives (41), dettes
    * au crédit négatives (40) vues du compte : le client présente les deux
    * familles séparément.
    */
@@ -645,12 +645,12 @@ export class EcritureService {
   /**
    * Grand livre COMPLET : tous les comptes mouvementés de l'exercice, chacun
    * avec ses lignes et son solde progressif propre. C'est la forme
-   * réellement exploitable pour un audit — un auditeur veut le grand livre
+   * réellement exploitable pour un audit · un auditeur veut le grand livre
    * entier d'un coup, pas compte par compte.
    *
    * Deux requêtes plates (les lignes, puis les contreparties agrégées par
    * écriture) puis regroupement en mémoire : ni N+1, ni duplication
-   * quadratique de l'écriture — voir `chargerContreparties`.
+   * quadratique de l'écriture · voir `chargerContreparties`.
    *
    * Les comptes Total (§3.1) n'apparaissent jamais : ils ne portent aucun
    * mouvement propre par construction (imposé par `creer()`), donc aucune
@@ -702,7 +702,7 @@ export class EcritureService {
         }))
         // Même filtre que `balance()` : un compte dont tous les mouvements
         // sont à 0/0 n'y figure pas non plus. Sans cet alignement, deux états
-        // exportés le même jour ne listent pas les mêmes comptes — écart que
+        // exportés le même jour ne listent pas les mêmes comptes · écart que
         // relèverait immédiatement un auditeur.
         .filter((c) => c.totalDebit !== 0 || c.totalCredit !== 0)
     );
@@ -713,10 +713,10 @@ export class EcritureService {
    *
    * Chaque ligne porte AUSSI la même somme scindée en deux :
    *
-   * - `reportDebit` / `reportCredit` — les lignes issues d'écritures générées
+   * - `reportDebit` / `reportCredit` · les lignes issues d'écritures générées
    *   par la clôture (`estGenereeParCloture`). Pour un compte de bilan c'est le
    *   report à-nouveau, donc la SITUATION À L'OUVERTURE de l'exercice.
-   * - `mouvementDebit` / `mouvementCredit` — tout le reste, c'est-à-dire les
+   * - `mouvementDebit` / `mouvementCredit` · tout le reste, c'est-à-dire les
    *   MOUVEMENTS PROPRES de l'exercice.
    *
    * Cette scission n'est pas un raffinement : sans elle, `totalDebit` d'un
@@ -729,7 +729,7 @@ export class EcritureService {
    * Réserve, à connaître avant de lire `report*` sur un compte de gestion :
    * pour un exercice CLÔTURÉ, l'écriture de solde des classes 6 et 7 porte le
    * même drapeau. Sur une classe 6 ou 7, `report*` est donc la contrepassation
-   * de clôture, pas une ouverture — les charges et les produits ne se
+   * de clôture, pas une ouverture · les charges et les produits ne se
    * reportent pas. `mouvement*` reste, lui, juste dans tous les cas.
    */
   async balance(tenantId: string, exerciceId: string) {
@@ -774,7 +774,7 @@ export class EcritureService {
         let agregats: Agregats;
         if (c.typeCompte === TypeCompteDetailTotal.TOTAL) {
           // Comptes Total (§3.1) : jamais de mouvement propre (imposé par
-          // EcritureService.creer) — leur solde agrège tous les comptes
+          // EcritureService.creer) · leur solde agrège tous les comptes
           // DÉTAIL de même préfixe numérique (jamais les comptes Total
           // imbriqués eux-mêmes, pour ne pas compter deux fois les mêmes
           // mouvements en cas de hiérarchie à plusieurs niveaux).
@@ -801,7 +801,7 @@ export class EcritureService {
 
     // Les comptes Total n'entrent pas dans les totaux généraux : leur solde
     // n'est qu'un agrégat d'affichage des comptes Détail déjà comptés à côté
-    // — les additionner aussi doublerait les montants.
+    // · les additionner aussi doublerait les montants.
     const lignesDetailSeules = lignesBalance.filter((l) => l.typeCompte !== TypeCompteDetailTotal.TOTAL);
 
     return {

@@ -34,7 +34,7 @@ export class AuthService {
    * étape de configuration manuelle.
    *
    * NB : la création tenant+licence+user et le seed du plan de comptes ne
-   * sont pas dans la même transaction DB — un échec du seed après un tenant
+   * sont pas dans la même transaction DB · un échec du seed après un tenant
    * créé est un état incohérent possible en MVP, acceptable pour l'instant
    * mais à durcir (transaction interactive Prisma) avant une mise en prod
    * réelle.
@@ -123,7 +123,7 @@ export class AuthService {
         id: user.tenant.id,
         nom: user.tenant.nom,
         referentiel: user.tenant.referentiel,
-        // N'a de sens que si referentiel = SYCEBNL (voir prisma/schema.prisma) —
+        // N'a de sens que si referentiel = SYCEBNL (voir prisma/schema.prisma) ·
         // le front s'en sert pour choisir le jeu d'états financiers à afficher.
         jeuEtatsFinanciersSycebnl: user.tenant.jeuEtatsFinanciersSycebnl,
       },
@@ -132,7 +132,7 @@ export class AuthService {
 
   // Payload volontairement minimal : JwtStrategy.validate relit tenantId/
   // email/role en base à chaque requête (voir son commentaire) plutôt que
-  // de leur faire confiance ici — un rôle changé ou un compte désactivé
+  // de leur faire confiance ici · un rôle changé ou un compte désactivé
   // doit prendre effet immédiatement, pas seulement à l'expiration du token.
   private signToken(userId: string) {
     const accessToken = this.jwt.sign({ sub: userId });

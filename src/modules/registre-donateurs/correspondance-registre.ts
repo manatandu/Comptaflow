@@ -1,5 +1,5 @@
 /**
- * PÉRIMÈTRE COMPTABLE DU REGISTRE DES DONATEURS — rapprochement art. 17 / art. 18.
+ * PÉRIMÈTRE COMPTABLE DU REGISTRE DES DONATEURS · rapprochement art. 17 / art. 18.
  *
  * L'article 17 impose un registre « pour tous les dons, donations et legs
  * REÇUS par l'entité » ; l'article 18 charge l'auditeur d'un rapport qui
@@ -8,7 +8,7 @@
  * comptabilité : c'est l'objet de cette table.
  *
  * ⚠️ Aucun tableau de correspondance officiel n'existe pour ce rapprochement
- * — le référentiel ne le prévoit ni à l'art. 17, ni à l'art. 18, ni dans la
+ * · le référentiel ne le prévoit ni à l'art. 17, ni à l'art. 18, ni dans la
  * Partie 4. Cette table est donc CONSTRUITE, compte par compte, à partir de
  * deux sources et de rien d'autre :
  *   - la définition de l'opération dans le glossaire officiel (Partie 1 ch. 1)
@@ -24,11 +24,11 @@
  *     relèverait du registre.
  *   - Mais l'article 17 vise « les dons, donations et legs », et la donation
  *     est définie comme un transfert « SANS CONTREPARTIE et avec intention
- *     libérale » — alors que le parrainage, logé au 7047, est défini « en vue
+ *     libérale » · alors que le parrainage, logé au 7047, est défini « en vue
  *     d'en retirer un BÉNÉFICE DIRECT ».
  * Les deux lectures ne peuvent pas être vraies ensemble pour le 7047. Le
  * texte ne dit pas laquelle l'emporte : le rapport expose les deux avec
- * leurs citations et laisse le dossier décider (règle §2.6 — ne jamais
+ * leurs citations et laisse le dossier décider (règle §2.6 · ne jamais
  * combler une lacune du référentiel par une intuition).
  */
 
@@ -40,7 +40,7 @@
  * à la clôture sont en effet extournés au débit du compte de produit
  * (Partie 3 ch. 4 § 1.2 : « 7542 Dons en nature courants reçus à distribuer »
  * au débit par « 4713 Créditeurs, dons en nature courants non consommés » au
- * crédit). Ce débit ne réduit pas les dons REÇUS — il en diffère seulement la
+ * crédit). Ce débit ne réduit pas les dons REÇUS · il en diffère seulement la
  * consommation. Le registre, lui, les a bien enregistrés à leur date de
  * réception : c'est donc le crédit seul qui lui fait face.
  */
@@ -80,7 +80,7 @@ export const COMPTES_LIBERALITE: CompteLiberalite[] = [
     intitule: 'Deniers du culte',
     lecture: 'NET_CREDIT',
     fondement:
-      'Partie 3 ch. 4 § 3 : « une somme d’argent que les catholiques versent pour subvenir aux besoins du culte » — versement sans contrepartie.',
+      'Partie 3 ch. 4 § 3 : « une somme d’argent que les catholiques versent pour subvenir aux besoins du culte » · versement sans contrepartie.',
   },
   {
     numero: '7044',
@@ -112,14 +112,14 @@ export const COMPTES_LIBERALITE: CompteLiberalite[] = [
   },
   {
     numero: '1671',
-    intitule: 'Fonds provenant de dons et legs d’immobilisations — affectés',
+    intitule: 'Fonds provenant de dons et legs d’immobilisations · affectés',
     lecture: 'CREDIT_SEUL',
     fondement:
-      'Glossaire, FONDS PROPRES PROVENANT DE LEGS ET DE DONS D’IMMOBILISATIONS : « dons et legs d’immobilisations destinés à être conservés par l’entité » — reçus, donc dans le champ de l’art. 17. Lu au crédit seul : le débit est la reprise au résultat au rythme des amortissements.',
+      'Glossaire, FONDS PROPRES PROVENANT DE LEGS ET DE DONS D’IMMOBILISATIONS : « dons et legs d’immobilisations destinés à être conservés par l’entité » · reçus, donc dans le champ de l’art. 17. Lu au crédit seul : le débit est la reprise au résultat au rythme des amortissements.',
   },
   {
     numero: '1672',
-    intitule: 'Fonds provenant de dons et legs d’immobilisations — non affectés',
+    intitule: 'Fonds provenant de dons et legs d’immobilisations · non affectés',
     lecture: 'CREDIT_SEUL',
     fondement: 'Même fondement que le 1671 (Partie 2 ch. 2, subdivisions du compte 167).',
   },

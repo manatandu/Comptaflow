@@ -6,7 +6,7 @@ import { IconLogo } from '../components/chrome/icons';
 import type { AuthResponse } from '../lib/types';
 
 /**
- * Création d'un nouveau fichier comptable — le « Fichier → Nouveau » de Sage
+ * Création d'un nouveau fichier comptable · le « Fichier → Nouveau » de Sage
  * 100 i7, en assistant : raison sociale de l'entité, puis l'administrateur du
  * dossier. Le plan comptable SYCEBNL et les journaux standards sont générés
  * automatiquement à la création (côté API), comme la reprise des « éléments
@@ -49,7 +49,7 @@ export function RegisterPage() {
           style={{ background: 'linear-gradient(180deg, var(--titlebar-from), var(--titlebar-to))' }}
         >
           <IconLogo width={13} height={13} />
-          <span>Assistant — Création d'un nouveau fichier comptable</span>
+          <span>Assistant · Création d'un nouveau fichier comptable</span>
         </div>
 
         <form onSubmit={onSubmit} className="px-5 py-4">

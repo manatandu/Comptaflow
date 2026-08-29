@@ -15,7 +15,7 @@ import {
 import { RoleUtilisateur, StatutImmobilisation } from '@prisma/client';
 
 // Consultation ouverte aux trois rôles ; gestion (familles, création,
-// dotation, sortie) réservée à ADMIN_CABINET/COMPTABLE — même règle que la
+// dotation, sortie) réservée à ADMIN_CABINET/COMPTABLE · même règle que la
 // saisie d'écritures, dont ce module n'est jamais qu'une façade guidée.
 @UseGuards(JwtAuthGuard, LicenceGuard, RolesGuard)
 @Controller('immobilisations')

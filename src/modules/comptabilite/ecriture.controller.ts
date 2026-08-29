@@ -30,7 +30,7 @@ export class EcritureController {
    *
    * Le corps ne porte ni comptes ni montants : ils sont repris de l'écriture
    * corrigée, à l'identique et changés de signe. Le texte impose l'inscription
-   * en négatif « des éléments erronés » — ceux-là, pas d'autres.
+   * en négatif « des éléments erronés » · ceux-là, pas d'autres.
    */
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Post(':id/correction')
@@ -42,7 +42,7 @@ export class EcritureController {
     return this.ecritureService.corrigerParInscriptionEnNegatif(user.tenantId, user.userId, id, dto);
   }
 
-  /** Journal — voir l'écran « Journal & grand livre » (onglet Journal) du canevas. */
+  /** Journal · voir l'écran « Journal & grand livre » (onglet Journal) du canevas. */
   @Get()
   async lister(
     @CurrentUser() user: AuthenticatedUser,
@@ -55,14 +55,14 @@ export class EcritureController {
     return this.ecritureService.lister(user.tenantId, { exerciceId, journalId, dateDebut, dateFin, recherche });
   }
 
-  /** Balance — voir l'onglet Balance du même écran. */
+  /** Balance · voir l'onglet Balance du même écran. */
   @Get('balance')
   async balance(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId') exerciceId: string) {
     return this.ecritureService.balance(user.tenantId, exerciceId);
   }
 
-  /** Grand livre d'un compte — voir l'onglet Grand livre du même écran. */
-  /** Balance âgée — échéances non lettrées des comptes 40/41 par tranches de retard. */
+  /** Grand livre d'un compte · voir l'onglet Grand livre du même écran. */
+  /** Balance âgée · échéances non lettrées des comptes 40/41 par tranches de retard. */
   @Get('balance-agee')
   async balanceAgee(
     @CurrentUser() user: AuthenticatedUser,

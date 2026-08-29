@@ -5,7 +5,7 @@ import { ModelesSaisieModale, type LigneInseree } from '../components/ModelesSai
 import type { Compte, Ecriture, Journal } from '../lib/types';
 
 /**
- * SAISIE DES JOURNAUX — l'écran central du logiciel, calqué sur
+ * SAISIE DES JOURNAUX · l'écran central du logiciel, calqué sur
  * Traitement → Journaux de saisie de Sage 100 i7 :
  *
  *  1. on choisit un CODE JOURNAL et une PÉRIODE (mois de l'exercice) ;
@@ -14,13 +14,13 @@ import type { Compte, Ecriture, Journal } from '../lib/types';
  *     totalisées en pied ;
  *  3. la pièce se saisit LIGNE À LIGNE, sur N'IMPORTE QUEL compte du plan :
  *     Tab passe de zone en zone, Entrée valide la ligne, F4 (ou la frappe
- *     d'un préfixe) ouvre la liste des comptes filtrée — exactement le
+ *     d'un préfixe) ouvre la liste des comptes filtrée · exactement le
  *     comportement décrit par les guides Sage. Le bouton Équilibrer complète
  *     le montant manquant ; dans un journal de trésorerie, la contrepartie
  *     s'enregistre en un clic sur le compte rattaché au journal.
  *
  * Les modèles de saisie (opérations courantes, TVA, écritures-types SYCEBNL)
- * s'appellent DEPUIS cette fenêtre et ne font que pré-remplir la pièce —
+ * s'appellent DEPUIS cette fenêtre et ne font que pré-remplir la pièce ·
  * jamais l'inverse : la saisie libre est la règle, le modèle un accélérateur.
  */
 
@@ -68,7 +68,7 @@ function joursDansMois(annee: number, mois: number): number {
 
 /**
  * Pré-positionnement du curseur en débit ou crédit selon le type de journal
- * et la racine du compte — la règle exacte des codes journaux Sage (« Achats :
+ * et la racine du compte · la règle exacte des codes journaux Sage (« Achats :
  * le curseur se place dans la colonne crédit si le compte mouvementé est de
  * nature Fournisseur…, débit s'il est de nature Charges », etc.), transposée
  * aux racines SYCEBNL (40 fournisseurs, 41 adhérents/clients, 42 personnel).
@@ -328,7 +328,7 @@ export function SaisiePage() {
     setErreur(null);
     setSucces(null);
     if (!journal.estActif) {
-      setErreur(`Le journal ${journal.code} est en sommeil — réactivez-le dans Codes journaux avant de saisir.`);
+      setErreur(`Le journal ${journal.code} est en sommeil · réactivez-le dans Codes journaux avant de saisir.`);
       return;
     }
     if (!equilibree) {
@@ -380,7 +380,7 @@ export function SaisiePage() {
 
   const grille = 'grid grid-cols-[44px_58px_92px_108px_1fr_112px_112px_30px] gap-2';
 
-  // ============ ÉTAPE 1 — choix du journal et de la période ============
+  // ============ ÉTAPE 1 · choix du journal et de la période ============
   if (!ouvert) {
     return (
       <div className="p-3 flex justify-center">
@@ -388,7 +388,7 @@ export function SaisiePage() {
           <div className="text-[10.5px] font-mono text-text-dim mb-1">TRAITEMENT</div>
           <h1 className="text-[15px] font-bold mb-3">Saisie des journaux</h1>
 
-          <div className="bg-surface border border-border">
+          <div className="bg-surface border border-border shadow-posee">
             <div className="px-4 py-2 bg-surface-alt border-b border-border text-[11px] font-semibold text-text-dim">
               Sélectionnez le journal et la période de saisie
             </div>
@@ -421,7 +421,7 @@ export function SaisiePage() {
                 ))}
                 {journaux.length === 0 && (
                   <div className="px-3 py-2 text-[12px] text-text-dim italic">
-                    Aucun journal — créez-les dans Structure → Codes journaux.
+                    Aucun journal · créez-les dans Structure → Codes journaux.
                   </div>
                 )}
               </div>
@@ -466,7 +466,7 @@ export function SaisiePage() {
     );
   }
 
-  // ============ ÉTAPE 2 — le journal du mois, grille de saisie ============
+  // ============ ÉTAPE 2 · le journal du mois, grille de saisie ============
   return (
     <div className="p-2.5">
       {/* En-tête du journal ouvert */}
@@ -474,7 +474,7 @@ export function SaisiePage() {
         <div>
           <div className="text-[10.5px] font-mono text-text-dim">SAISIE DES JOURNAUX</div>
           <h1 className="text-[15px] font-bold">
-            Journal {journal?.code} — {journal?.intitule} · {periode?.libelle}
+            Journal {journal?.code} · {journal?.intitule} · {periode?.libelle}
           </h1>
         </div>
         <button
@@ -489,8 +489,8 @@ export function SaisiePage() {
         </button>
       </div>
 
-      <div className="bg-surface border border-border">
-        {/* En-tête de colonnes — la grille Sage : Jour · Pièce · Référence · Compte · Libellé · Débit · Crédit */}
+      <div className="bg-surface border border-border shadow-posee">
+        {/* En-tête de colonnes · la grille Sage : Jour · Pièce · Référence · Compte · Libellé · Débit · Crédit */}
         <div
           className={`${grille} px-3 py-1.5 bg-surface-alt border-b border-border-dark text-[10px] font-bold text-text-dim`}
         >
@@ -517,7 +517,7 @@ export function SaisiePage() {
                 } ${i === 0 ? 'border-t border-border' : ''}`}
               >
                 <span className="font-mono text-text-dim">{i === 0 ? String(jourE).padStart(2, '0') : ''}</span>
-                <span className="font-mono text-text-dim">{i === 0 ? (e.numeroPiece ?? '—') : ''}</span>
+                <span className="font-mono text-text-dim">{i === 0 ? (e.numeroPiece ?? '·') : ''}</span>
                 <span className="font-mono text-[10.5px] text-text-dim truncate">
                   {i === 0 ? (e.reference ?? '') : ''}
                 </span>
@@ -553,8 +553,8 @@ export function SaisiePage() {
       </div>
 
       {/* ------- Pièce en cours ------- */}
-      <div className="bg-surface border border-border-dark mt-2.5">
-        <div className="flex items-center justify-between px-3 py-1.5 bg-chrome border-b border-border">
+      <div className="bg-surface border border-border-dark mt-2.5 rounded-[10px]">
+        <div className="flex items-center justify-between px-3 py-1.5 bg-chrome border-b border-border rounded-t-[10px]">
           <span className="text-[11px] font-bold text-text-dim">PIÈCE EN COURS DE SAISIE</span>
           <div className="flex items-center gap-2.5 text-[11.5px]">
             <label className="flex items-center gap-1.5">
@@ -600,7 +600,7 @@ export function SaisiePage() {
             <span className="font-mono" title={l.intitule}>
               {l.numero}
             </span>
-            <span className="truncate" title={`${l.intitule} — ${l.libelle}`}>
+            <span className="truncate" title={`${l.intitule} · ${l.libelle}`}>
               {l.libelle}
             </span>
             <span className="font-mono text-right">{l.debit ? l.debit.toLocaleString('fr-FR') : ''}</span>
@@ -616,7 +616,7 @@ export function SaisiePage() {
           </div>
         ))}
 
-        {/* Zone de saisie de la ligne — Tab de zone en zone, Entrée valide. */}
+        {/* Zone de saisie de la ligne · Tab de zone en zone, Entrée valide. */}
         <div className={`${grille} px-3 py-1.5 items-center border-b border-border bg-surface`}>
           <span className="font-mono text-[11px] text-text-dim text-center">·</span>
           <span className="font-mono text-[11px] text-text-dim">(auto)</span>

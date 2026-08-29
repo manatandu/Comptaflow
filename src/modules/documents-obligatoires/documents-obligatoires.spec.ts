@@ -87,10 +87,10 @@ function services(
 }
 
 // ---------------------------------------------------------------------------
-// Article 14 — contenu du livre d'inventaire
+// Article 14 · contenu du livre d'inventaire
 // ---------------------------------------------------------------------------
 
-describe('Article 14 — liste des états à transcrire', () => {
+describe('Article 14 · liste des états à transcrire', () => {
   it('reprend les trois états du point 1 pour les associations, dans l’ordre du texte', () => {
     expect(ETATS_INVENTAIRE_ASSOCIATIONS.map((e) => e.libelle)).toEqual([
       'Bilan',
@@ -122,7 +122,7 @@ describe('Article 14 — liste des états à transcrire', () => {
   });
 });
 
-describe('Livre d’inventaire — transcription', () => {
+describe('Livre d’inventaire · transcription', () => {
   it('fige les trois états d’une association et n’en déclare aucun manquant', async () => {
     const { inventaire } = services();
     const t = await inventaire.transcrire('t1', 'u1', { exerciceId: 'ex1' });
@@ -133,12 +133,12 @@ describe('Livre d’inventaire — transcription', () => {
 
   /**
    * Le défaut que ce test ferme : `jeuEstProjet()` renvoyait une Promise
-   * utilisée en condition ternaire — toujours vraie —, si bien qu'une
+   * utilisée en condition ternaire toujours vraie, si bien qu'une
    * ASSOCIATION se voyait transcrire le bilan du jeu « projets ». Détecté par
    * le compilateur (TS2801), puis supprimé comme classe d'erreur en passant
    * le jeu en paramètre plutôt qu'en le rechargeant.
    */
-  it('transcrit le bilan du BON jeu — associations', async () => {
+  it('transcrit le bilan du BON jeu · associations', async () => {
     const { inventaire, ef, efp } = services();
     const t = await inventaire.transcrire('t1', 'u1', { exerciceId: 'ex1' });
     expect((t.etats as any).bilan).toEqual({ etat: 'bilan-associations' });
@@ -146,7 +146,7 @@ describe('Livre d’inventaire — transcription', () => {
     expect(efp.bilan).not.toHaveBeenCalled();
   });
 
-  it('transcrit le bilan du BON jeu — projets de développement', async () => {
+  it('transcrit le bilan du BON jeu · projets de développement', async () => {
     const { inventaire, ef, efp } = services(JeuEtatsFinanciersSycebnl.PROJETS_DEVELOPPEMENT);
     const t = await inventaire.transcrire('t1', 'u1', { exerciceId: 'ex1' });
     expect((t.etats as any).bilan).toEqual({ etat: 'bilan-projet' });
@@ -156,7 +156,7 @@ describe('Livre d’inventaire — transcription', () => {
 
   /**
    * Le point de méthode du module : ne pas laisser croire à une transcription
-   * complète. Trois des cinq états du point 2 ne sont pas construits — le
+   * complète. Trois des cinq états du point 2 ne sont pas construits · le
    * livre les déclare manquants avec leur motif, au lieu de se présenter
    * comme conforme sur les deux qu'il porte.
    */
@@ -207,7 +207,7 @@ describe('Livre d’inventaire — transcription', () => {
   });
 });
 
-describe('Livre d’inventaire — conformité (art. 14)', () => {
+describe('Livre d’inventaire · conformité (art. 14)', () => {
   it('un exercice jamais transcrit n’est pas déguisé en transcription vide', async () => {
     const { inventaire } = services();
     const c = await inventaire.conformite('t1', 'ex1');
@@ -243,7 +243,7 @@ describe('Livre d’inventaire — conformité (art. 14)', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Article 16-3 — rapport d'activité
+// Article 16-3 · rapport d'activité
 // ---------------------------------------------------------------------------
 
 const RAPPORT_COMPLET = {
@@ -256,7 +256,7 @@ const RAPPORT_COMPLET = {
   declarationDirigeants: 'Les dirigeants attestent de la tenue conforme du registre des donateurs.',
 };
 
-describe('Article 16-3 — sections du rapport d’activité', () => {
+describe('Article 16-3 · sections du rapport d’activité', () => {
   it('en énumère QUATRE, ni plus ni moins, dans l’ordre du texte', () => {
     expect(SECTIONS_RAPPORT_ACTIVITE.map((s) => s.cle)).toEqual([
       'situationExerciceEcoule',
@@ -271,7 +271,7 @@ describe('Article 16-3 — sections du rapport d’activité', () => {
   });
 });
 
-describe('Rapport d’activité — établissement', () => {
+describe('Rapport d’activité · établissement', () => {
   /**
    * La date d'établissement n'est pas décorative : conjuguée à la clôture,
    * elle DÉFINIT la fenêtre des événements postérieurs que le point 4 exige.
@@ -320,7 +320,7 @@ describe('Rapport d’activité — établissement', () => {
   });
 });
 
-describe('Rapport d’activité — conformité', () => {
+describe('Rapport d’activité · conformité', () => {
   it('un exercice sans rapport est signalé comme tel (art. 24)', async () => {
     const { rapport } = services();
     const c = await rapport.conformite('t1', 'ex1');

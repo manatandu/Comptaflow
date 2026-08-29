@@ -3,23 +3,23 @@
 @tailwind utilities;
 
 /*
- * Design system OmegaX — registre « poste de travail comptable » (Sage
+ * Design system OmegaX · registre « poste de travail comptable » (Sage
  * 100 i7 comme modèle d'inspiration), modernisé : palette raffinée, ombres
  * douces, transitions courtes partout, animations discrètes d'ouverture.
  * Jamais d'effet démonstratif : la fluidité doit se sentir, pas se voir.
  */
 :root {
-  --chrome: #eef0f3;
-  --chrome-alt: #e2e5ea;
+  --chrome: #f2f4f7;
+  --chrome-alt: #e5e9ee;
   --chrome-border: #9aa0a6;
   --chrome-text: #eef0f2;
   --chrome-text-dim: #a3a9b0;
 
-  --bg: #e9ebef;
+  --bg: #eef1f5;
   --surface: #ffffff;
   --surface-alt: #f6f7f9;
-  --border: #c3c8cf;
-  --border-dark: #8e959f;
+  --border: #d4d9e0;
+  --border-dark: #aab1bc;
   --text: #16181d;
   --text-dim: #5a6170;
   --sel: #2456a6;
@@ -31,15 +31,15 @@
   --danger: #9c2b23;
   --danger-soft: #f7e1de;
 
-  --titlebar-from: #2d5ba9;
-  --titlebar-to: #1b3a75;
+  --titlebar-from: #2b56a0;
+  --titlebar-to: #254a8c;
 
-  /* Ombres — deux niveaux seulement : posé (fenêtres, listes) et flottant
+  /* Ombres · deux niveaux seulement : posé (fenêtres, listes) et flottant
      (menus, modales, listes déroulantes). */
-  --ombre-posee: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.08);
-  --ombre-flottante: 0 4px 14px rgba(16, 24, 40, 0.16), 0 2px 4px rgba(16, 24, 40, 0.1);
+  --ombre-posee: 0 1px 2px rgba(16, 24, 40, 0.05), 0 2px 6px rgba(16, 24, 40, 0.07);
+  --ombre-flottante: 0 8px 28px rgba(16, 24, 40, 0.18), 0 2px 6px rgba(16, 24, 40, 0.1);
 
-  /* Tuiles de l'écran Accueil — sobres et professionnelles. */
+  /* Tuiles de l'écran Accueil · sobres et professionnelles. */
   --tile-bleu: #2456a6;
   --tile-bleu-fonce: #1b3a75;
   --tile-sarcelle: #24655e;
@@ -62,20 +62,40 @@ body,
 
 body {
   margin: 0;
-  font-family: 'Segoe UI', system-ui, -apple-system, Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, Roboto, 'Helvetica Neue', Arial, sans-serif;
   color: var(--text);
-  background: var(--bg);
+  /* Fond « mica » Windows 11 : un voile très léger, fixe, jamais criard. */
+  background:
+    radial-gradient(1200px 600px at 85% -10%, rgba(43, 86, 160, 0.05), transparent 60%),
+    linear-gradient(165deg, #f0f3f7 0%, #e9edf3 100%);
+  background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
-/* Coins à peine adoucis — moderne sans devenir « app grand public ». */
+/* Coins arrondis façon Windows 11 : contrôles 6px, fenêtres 10px. */
 button,
 input,
 select,
 textarea {
   font-family: inherit;
-  border-radius: 3px;
+  border-radius: 6px;
+}
+
+/*
+ * Toute surface « posée » (fenêtre, liste, carte) et toute surface
+ * « flottante » (menu, dialogue, liste déroulante) est arrondie et clippe
+ * son contenu · les en-têtes carrés suivent le coin automatiquement.
+ * Les seuls conteneurs qui hébergent une liste déroulante positionnée en
+ * absolu ne portent PAS shadow-posee (ils seraient clippés) : ils reçoivent
+ * leurs propres arrondis dans leur page.
+ */
+@layer components {
+  .shadow-posee,
+  .shadow-flottante {
+    border-radius: 10px;
+    overflow: hidden;
+  }
 }
 
 /* Fluidité : transitions courtes et uniformes sur tout l'interactif. */
@@ -129,7 +149,7 @@ button:focus-visible {
 }
 
 /* ------------------------------------------------------------------ */
-/* Animations d'apparition — discrètes (≤ 160 ms), jamais bloquantes.  */
+/* Animations d'apparition · discrètes (≤ 160 ms), jamais bloquantes.  */
 /* ------------------------------------------------------------------ */
 @keyframes fenetre-in {
   from {

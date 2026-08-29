@@ -1,7 +1,7 @@
 import { JeuEtatsFinanciersSycebnl } from '@prisma/client';
 
 /**
- * CONTENU DU LIVRE D'INVENTAIRE — article 14 de l'Acte uniforme SYCEBNL.
+ * CONTENU DU LIVRE D'INVENTAIRE · article 14 de l'Acte uniforme SYCEBNL.
  *
  * L'article énumère, jeu par jeu, les états à transcrire. Cette table les
  * reprend dans l'ORDRE DU TEXTE, sans en ajouter ni en retrancher : un livre
@@ -35,7 +35,7 @@ export interface EtatATranscrire {
   /**
    * `false` quand le logiciel ne produit pas encore cet état. La
    * transcription le déclare alors MANQUANT au lieu de se présenter comme
-   * complète — c'est l'exposition à l'article 24 qui devient lisible, plutôt
+   * complète · c'est l'exposition à l'article 24 qui devient lisible, plutôt
    * qu'une omission silencieuse.
    */
   disponible: boolean;
@@ -46,14 +46,14 @@ export interface EtatATranscrire {
 const NON_CONSTRUIT = (article: string) =>
   `État exigé par l'article 14 mais non encore produit par Compta Flow (${article}). Il doit être établi hors application et joint au livre d'inventaire tant que cette lacune subsiste.`;
 
-/** Art. 14, point 1 — associations et ordres professionnels. */
+/** Art. 14, point 1 · associations et ordres professionnels. */
 export const ETATS_INVENTAIRE_ASSOCIATIONS: EtatATranscrire[] = [
   { cle: 'bilan', libelle: 'Bilan', disponible: true },
   { cle: 'compteDeResultat', libelle: 'Compte de résultat', disponible: true },
   { cle: 'tableauFluxTresorerie', libelle: 'Tableau des flux de trésorerie', disponible: true },
 ];
 
-/** Art. 14, point 2 — entités gérant ou administrant des projets de développement. */
+/** Art. 14, point 2 · entités gérant ou administrant des projets de développement. */
 export const ETATS_INVENTAIRE_PROJETS: EtatATranscrire[] = [
   {
     cle: 'tableauEmploisRessources',
@@ -84,12 +84,12 @@ export function etatsExigesPar(jeu: JeuEtatsFinanciersSycebnl): EtatATranscrire[
 }
 
 /**
- * SECTIONS DU RAPPORT D'ACTIVITÉ — article 16, point 3.
+ * SECTIONS DU RAPPORT D'ACTIVITÉ · article 16, point 3.
  *
  * Le texte en énumère quatre, dans cet ordre. Elles sont transcrites ici
  * telles quelles, avec la citation qui fonde chacune : c'est ce qui permet à
  * l'écran comme à l'export de dire, section par section, ce que le texte
- * exige — et de signaler une section vide sans avoir à en juger le contenu.
+ * exige · et de signaler une section vide sans avoir à en juger le contenu.
  */
 export interface SectionRapportActivite {
   cle: 'situationExerciceEcoule' | 'perspectivesDeveloppement' | 'evolutionTresorerie' | 'evenementsPosterieurs';

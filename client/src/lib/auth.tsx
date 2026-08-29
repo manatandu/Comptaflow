@@ -46,7 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Ne PAS repasser `chargement` à true ici : ZoneProtegee (App.tsx) affiche
     // un plein écran « Chargement… » à la place de ses enfants tant que
     // `chargement` est vrai, ce qui démonterait tout l'arbre (dont l'écran
-    // ou le wizard actuellement affiché) le temps de récupérer /auth/me —
+    // ou le wizard actuellement affiché) le temps de récupérer /auth/me ·
     // et donc, par ex., ferait disparaître la confirmation du wizard
     // « Nouveau fichier » avant que l'utilisateur ne la voie. `chargement`
     // ne sert qu'à la toute première vérification de session au montage.

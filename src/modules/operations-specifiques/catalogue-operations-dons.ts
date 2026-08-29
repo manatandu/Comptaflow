@@ -1,14 +1,14 @@
 import { OperationSpecifique } from './operation-specifique.types';
 
 /**
- * Suite du catalogue — Partie 3 chapitres 4 à 6 (dons, cotisations, autres
+ * Suite du catalogue · Partie 3 chapitres 4 à 6 (dons, cotisations, autres
  * opérations spécifiques) et Guide, Applications 9 à 20. Voir l'en-tête de
  * `catalogue-operations.ts` pour la règle de numérotation et la liste des
  * anomalies du texte officiel.
  */
 
 // ---------------------------------------------------------------------------
-// B2 — Dons en nature à distribuer
+// B2 · Dons en nature à distribuer
 // ---------------------------------------------------------------------------
 
 const B2: OperationSpecifique = {
@@ -21,7 +21,7 @@ const B2: OperationSpecifique = {
   modeles: [
     {
       code: 'B2-RECEPTION-COURANT',
-      libelle: 'Réception de dons en nature à distribuer — opération récurrente',
+      libelle: 'Réception de dons en nature à distribuer · opération récurrente',
       objet: "Enregistre à leur valeur actuelle les dons en nature destinés à être distribués en l'état.",
       source:
         "Partie 3 ch. 4 § 1.1 : « les dons en nature destinés à être distribués en l'état sont enregistrés à leur VALEUR ACTUELLE au fur et à mesure de leur réception […] au débit du compte 654 par le crédit du compte 7542 en cas de récurrence ».",
@@ -34,7 +34,7 @@ const B2: OperationSpecifique = {
     },
     {
       code: 'B2-RECEPTION-HAO',
-      libelle: 'Réception de dons en nature à distribuer — opération non récurrente',
+      libelle: 'Réception de dons en nature à distribuer · opération non récurrente',
       objet: "Même opération, hors activités ordinaires quand le don n'a pas de caractère répétitif.",
       source: 'Partie 3 ch. 4 § 1.1 : « au débit du compte 832 par le crédit du compte 8415 en cas de non récurrence ».',
       applicationGuide: 'App. 9',
@@ -44,7 +44,7 @@ const B2: OperationSpecifique = {
           compte: '831', exclusions: ['8310'],
           libelle: 'Dons en nature H.A.O. à distribuer', sens: 'DEBIT', auChoix: true,
           montant: { mode: 'PARAMETRE', parametre: 'valeur' },
-          note: 'Non affectés (8311) ou affectés (8315) — 8310 « Charges H.A.O. constatées » est exclu, c’est un autre compte.',
+          note: 'Non affectés (8311) ou affectés (8315) · 8310 « Charges H.A.O. constatées » est exclu, c’est un autre compte.',
         },
         { compte: '8415', libelle: 'Dons en nature H.A.O. reçus à distribuer', sens: 'CREDIT', montant: { mode: 'PARAMETRE', parametre: 'valeur' } },
       ],
@@ -70,7 +70,7 @@ const B2: OperationSpecifique = {
       libelle: 'Neutralisation des revenus de dons non consommés',
       objet: "Diffère à l'exercice suivant le produit correspondant aux dons non encore distribués.",
       source:
-        "Partie 3 ch. 4 § 1.2 : « lorsqu'il s'agit de dons en nature courants non consommés » — compte 7542 au débit par le crédit du 4713 Créditeurs, dons en nature courants non consommés. « Les écritures de fin d'exercice doivent être extournées au début de l'exercice suivant. »",
+        "Partie 3 ch. 4 § 1.2 : « lorsqu'il s'agit de dons en nature courants non consommés » · compte 7542 au débit par le crédit du 4713 Créditeurs, dons en nature courants non consommés. « Les écritures de fin d'exercice doivent être extournées au début de l'exercice suivant. »",
       applicationGuide: 'App. 9',
       parametres: [{ nom: 'nonConsomme', libelle: 'Dons non consommés', type: 'MONTANT' }],
       lignes: [
@@ -83,7 +83,7 @@ const B2: OperationSpecifique = {
 };
 
 // ---------------------------------------------------------------------------
-// B3 — Dons en nature à vendre
+// B3 · Dons en nature à vendre
 // ---------------------------------------------------------------------------
 
 const B3: OperationSpecifique = {
@@ -108,7 +108,7 @@ const B3: OperationSpecifique = {
     },
     {
       code: 'B3-VENTE-COURANTE',
-      libelle: 'Vente du don en nature — opération récurrente',
+      libelle: 'Vente du don en nature · opération récurrente',
       objet: 'Constate le produit de la vente du bien reçu en don.',
       source: 'Partie 3 ch. 4 § 2 : « les produits de la vente sont inscrits dans le compte 7081 Ventes de dons en nature EN CAS DE RÉCURRENCE ».',
       applicationGuide: 'App. 10',
@@ -120,7 +120,7 @@ const B3: OperationSpecifique = {
     },
     {
       code: 'B3-VENTE-HAO',
-      libelle: 'Vente du don en nature — opération non récurrente',
+      libelle: 'Vente du don en nature · opération non récurrente',
       objet: 'Même vente, hors activités ordinaires.',
       source:
         "Partie 3 ch. 4 § 2 : « et dans le compte 8411 Dons en nature vendus, EN CAS DE NON-RÉCURRENCE ». Confirmé par le plan des comptes et par la fiche du compte 84 (Partie 2 ch. 3), qui donnent tous deux 8411.",
@@ -155,7 +155,7 @@ const B3: OperationSpecifique = {
 };
 
 // ---------------------------------------------------------------------------
-// B4 — Dons en numéraire et revenus des manifestations
+// B4 · Dons en numéraire et revenus des manifestations
 // ---------------------------------------------------------------------------
 
 const B4: OperationSpecifique = {
@@ -206,7 +206,7 @@ const B4: OperationSpecifique = {
 };
 
 // ---------------------------------------------------------------------------
-// B5 — Frais de recherche de fonds
+// B5 · Frais de recherche de fonds
 // ---------------------------------------------------------------------------
 
 const B5: OperationSpecifique = {
@@ -232,7 +232,7 @@ const B5: OperationSpecifique = {
 };
 
 // ---------------------------------------------------------------------------
-// B7 — Contribution du fondateur
+// B7 · Contribution du fondateur
 // ---------------------------------------------------------------------------
 
 const B7: OperationSpecifique = {
@@ -246,7 +246,7 @@ const B7: OperationSpecifique = {
       libelle: 'Versement du fondateur pour les frais de fonctionnement',
       objet: "Constate un versement ponctuel du fondateur, distinct de la dotation.",
       source:
-        "Partie 3 ch. 5 § 2 : compte 752 Contribution du fondateur. À ne pas confondre avec la dotation (compte 10), qui est une ressource durable — ici le versement couvre des charges de l'exercice.",
+        "Partie 3 ch. 5 § 2 : compte 752 Contribution du fondateur. À ne pas confondre avec la dotation (compte 10), qui est une ressource durable · ici le versement couvre des charges de l'exercice.",
       applicationGuide: 'App. 14',
       parametres: [{ nom: 'versement', libelle: 'Versement du fondateur', type: 'MONTANT' }],
       lignes: [
@@ -258,7 +258,7 @@ const B7: OperationSpecifique = {
 };
 
 // ---------------------------------------------------------------------------
-// B8 — Subventions et aides financières versées par l'entité
+// B8 · Subventions et aides financières versées par l'entité
 // ---------------------------------------------------------------------------
 
 const B8: OperationSpecifique = {
@@ -284,7 +284,7 @@ const B8: OperationSpecifique = {
 };
 
 // ---------------------------------------------------------------------------
-// B9 — Subventions d'exploitation pluriannuelles
+// B9 · Subventions d'exploitation pluriannuelles
 // ---------------------------------------------------------------------------
 
 const B9: OperationSpecifique = {
@@ -336,7 +336,7 @@ const B9: OperationSpecifique = {
 };
 
 // ---------------------------------------------------------------------------
-// B10 — Abandons de frais engagés par les bénévoles
+// B10 · Abandons de frais engagés par les bénévoles
 // ---------------------------------------------------------------------------
 
 const B10: OperationSpecifique = {
@@ -375,7 +375,7 @@ const B10: OperationSpecifique = {
 };
 
 // ---------------------------------------------------------------------------
-// B11 — Convention de mécénat
+// B11 · Convention de mécénat
 // ---------------------------------------------------------------------------
 
 const B11: OperationSpecifique = {
@@ -393,7 +393,7 @@ const B11: OperationSpecifique = {
       applicationGuide: 'App. 18',
       parametres: [{ nom: 'convention', libelle: 'Montant de la convention', type: 'MONTANT' }],
       lignes: [
-        { compte: '475', libelle: 'Mécènes', sens: 'DEBIT', montant: { mode: 'PARAMETRE', parametre: 'convention' }, note: 'Le texte écrit 4751 — subdivision du 475 Générosités financières à recevoir.' },
+        { compte: '475', libelle: 'Mécènes', sens: 'DEBIT', montant: { mode: 'PARAMETRE', parametre: 'convention' }, note: 'Le texte écrit 4751 · subdivision du 475 Générosités financières à recevoir.' },
         { compte: '7046', libelle: 'Mécénats', sens: 'CREDIT', montant: { mode: 'PARAMETRE', parametre: 'convention' } },
       ],
     },
@@ -401,7 +401,7 @@ const B11: OperationSpecifique = {
 };
 
 // ---------------------------------------------------------------------------
-// B12 — Restitution de subvention non utilisée
+// B12 · Restitution de subvention non utilisée
 // ---------------------------------------------------------------------------
 
 const B12: OperationSpecifique = {
@@ -439,7 +439,7 @@ const B12: OperationSpecifique = {
 };
 
 // ---------------------------------------------------------------------------
-// B13 — Contributions volontaires en nature
+// B13 · Contributions volontaires en nature
 // ---------------------------------------------------------------------------
 
 const B13: OperationSpecifique = {
@@ -448,7 +448,7 @@ const B13: OperationSpecifique = {
   source: 'Partie 3 ch. 6 § 5 · Guide, Application 20',
   portee: 'ASSOCIATIONS',
   politiqueADecider:
-    "Ces contributions sont GRATUITES : « elles n'entraînent pas de flux financiers à l'exception des dons en nature à vendre. Elles ne sont donc PAS INSCRITES AU COMPTE DE RÉSULTAT mais doivent faire l'objet d'informations dans la Note annexe 1 » (Partie 3 ch. 6 § 5.2.3). D'où la classe 9, hors bilan et hors résultat. Reste à fixer la BASE D'ÉVALUATION : « la valeur actuelle des biens et services » pour les biens, « le SMIG horaire » pour le bénévolat dans l'exemple du Guide — un taux que le dossier doit justifier.",
+    "Ces contributions sont GRATUITES : « elles n'entraînent pas de flux financiers à l'exception des dons en nature à vendre. Elles ne sont donc PAS INSCRITES AU COMPTE DE RÉSULTAT mais doivent faire l'objet d'informations dans la Note annexe 1 » (Partie 3 ch. 6 § 5.2.3). D'où la classe 9, hors bilan et hors résultat. Reste à fixer la BASE D'ÉVALUATION : « la valeur actuelle des biens et services » pour les biens, « le SMIG horaire » pour le bénévolat dans l'exemple du Guide · un taux que le dossier doit justifier.",
   modeles: [
     {
       code: 'B13-BIENS',
@@ -479,13 +479,13 @@ const B13: OperationSpecifique = {
         { compte: '914', libelle: 'Bénévolat', sens: 'CREDIT', montant: { mode: 'PROPORTION', parametre: 'heures', taux: 'tauxHoraire' } },
       ],
       anomalie:
-        "[texte officiel] Dans l'App. 20, le bénévolat vaut 2 880 450 dans l'écriture comptable (8 325 h × 346, arithmétiquement exact) mais 2 864 880 dans le tableau de la Note 1, sans que l'écart soit expliqué. Ce modèle calcule heures × taux — la seule des deux valeurs qui se vérifie.",
+        "[texte officiel] Dans l'App. 20, le bénévolat vaut 2 880 450 dans l'écriture comptable (8 325 h × 346, arithmétiquement exact) mais 2 864 880 dans le tableau de la Note 1, sans que l'écart soit expliqué. Ce modèle calcule heures × taux · la seule des deux valeurs qui se vérifie.",
     },
   ],
 };
 
 // ---------------------------------------------------------------------------
-// B20 et B21 — opérations décrites par le texte SANS cas chiffré
+// B20 et B21 · opérations décrites par le texte SANS cas chiffré
 // ---------------------------------------------------------------------------
 
 /**
@@ -494,14 +494,14 @@ const B13: OperationSpecifique = {
  * d'écriture ni application chiffrée. En fabriquer une reviendrait à inventer
  * un traitement que le texte ne prescrit pas (règle §2.6).
  *
- * - **B20 — Promesses de financement.** Le cadre conceptuel (§ 5.4.2.4)
+ * - **B20 · Promesses de financement.** Le cadre conceptuel (§ 5.4.2.4)
  *   distingue la promesse FERME ET ÉCRITE, qui se constate en créance, de la
  *   promesse CONDITIONNELLE, qui relève de la seule Note annexe. Le cas ferme
  *   est couvert en pratique par `B4-GENEROSITE-A-RECEVOIR` (compte 475) et
  *   par `B11-SIGNATURE` (mécénat) ; le cas conditionnel n'appelle aucune
  *   écriture, par construction.
  *
- * - **B21 — Première année d'application du SYCEBNL.** La Partie 3 ch. 6 § 6
+ * - **B21 · Première année d'application du SYCEBNL.** La Partie 3 ch. 6 § 6
  *   fixe une méthode, pas des écritures : « faire l'inventaire et
  *   comptabiliser TOUS les actifs et passifs suivant le plan des comptes du
  *   Système comptable des entités à but non lucratif » et, à l'inverse, « NE

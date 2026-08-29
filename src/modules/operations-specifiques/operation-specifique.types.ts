@@ -6,7 +6,7 @@
  *
  * Il N'EST PAS un moteur de règles qui déciderait à la place du comptable.
  * Chaque modèle ci-dessous PROPOSE une écriture ; c'est le service
- * `EcritureService` — et lui seul — qui l'enregistre, avec ses contrôles
+ * `EcritureService` et lui seul qui l'enregistre, avec ses contrôles
  * habituels (équilibre, exercice ouvert, comptes du dossier, verrous de
  * période). Une écriture issue d'un modèle est une écriture ordinaire : elle
  * se corrige, se lettre et se rapproche comme les autres.
@@ -14,13 +14,13 @@
  * Il EST le catalogue des opérations que le référentiel décrit et qu'aucun
  * logiciel généraliste ne porte : fonds affectés, dons en nature, cotisations,
  * mécénat, contributions volontaires, fonds de bailleur. Chaque modèle porte
- * sa source — chapitre de la Partie 3 et, quand elle existe, l'application
+ * sa source · chapitre de la Partie 3 et, quand elle existe, l'application
  * chiffrée du Guide qui sert de test.
  *
  * ## Deux niveaux de numérotation, à ne pas confondre
  *
  * Le PLAN DES COMPTES (Partie 2 ch. 2) s'arrête à un certain niveau de détail
- * — par exemple `605 Autres achats`, `475 Générosités financières à recevoir`.
+ * · par exemple `605 Autres achats`, `475 Générosités financières à recevoir`.
  * Le GUIDE, lui, écrit parfois un cran plus bas (`6055`, `4751`) : ce sont des
  * subdivisions que le dossier crée s'il le souhaite, PAS des comptes du plan
  * normalisé. Les modèles visent donc TOUJOURS le niveau du plan : c'est le
@@ -31,7 +31,7 @@
 /**
  * Comment le montant d'une ligne se déduit des paramètres saisis.
  *
- * Quatre modes, chacun tiré d'un cas réel du Guide — et pas un de plus : un
+ * Quatre modes, chacun tiré d'un cas réel du Guide · et pas un de plus : un
  * moteur de formules générique serait invérifiable, alors que ces quatre-là se
  * testent contre les chiffres officiels.
  */
@@ -45,7 +45,7 @@ export type ModeMontant =
    */
   | { mode: 'PROPORTION'; parametre: string; taux: number | string }
   /**
-   * Ce qu'il reste pour équilibrer l'écriture — au plus UN par modèle.
+   * Ce qu'il reste pour équilibrer l'écriture · au plus UN par modèle.
    * Ex. App. 2 : « le solde = droit d'entrée », soit 50 M − 15 % − 10 %.
    * Calculé, jamais saisi : le saisir laisserait passer un déséquilibre.
    */
@@ -69,7 +69,7 @@ export interface LigneModele {
   /**
    * Sous-préfixes à écarter, quand la racine désigne plus large que
    * l'opération. Ex. le don en nature H.A.O. vise 8311 ET 8315, tous deux
-   * sous la racine 831 — mais pas 8310 « Charges H.A.O. constatées », qui est
+   * sous la racine 831 · mais pas 8310 « Charges H.A.O. constatées », qui est
    * un autre compte. Sans cette exclusion, le choix proposé au dossier
    * contiendrait un compte étranger à l'opération.
    */
@@ -79,7 +79,7 @@ export interface LigneModele {
   montant: ModeMontant;
   /**
    * `true` quand plusieurs comptes du dossier peuvent légitimement convenir
-   * et que le texte ne tranche pas — une banque parmi plusieurs, le compte
+   * et que le texte ne tranche pas · une banque parmi plusieurs, le compte
    * d'immobilisation correspondant au bien reçu. L'utilisateur choisit alors
    * dans la liste des comptes sous ce préfixe. Choisir d'office le premier
    * imputerait au hasard.
@@ -108,7 +108,7 @@ export interface ParametreModele {
 export interface ModeleEcriture {
   code: string;
   libelle: string;
-  /** Ce que l'écriture constate, en une phrase — affiché avant la saisie. */
+  /** Ce que l'écriture constate, en une phrase · affiché avant la saisie. */
   objet: string;
   /** Citation du référentiel qui fonde l'écriture. Jamais de mémoire. */
   source: string;
@@ -125,7 +125,7 @@ export interface ModeleEcriture {
    * Écriture d'inventaire à extourner à l'ouverture de l'exercice suivant.
    * Le référentiel le dit expressément pour les dons en nature (Partie 3
    * ch. 4 § 1.2 : « les écritures de fin d'exercice doivent être extournées
-   * au début de l'exercice suivant ») — le taire ferait porter deux fois la
+   * au début de l'exercice suivant ») · le taire ferait porter deux fois la
    * même régularisation.
    */
   aExtourner?: boolean;
@@ -143,7 +143,7 @@ export interface OperationSpecifique {
   modeles: ModeleEcriture[];
   /**
    * Politique de dossier que l'opération suppose et que le TEXTE laisse
-   * ouverte — à exposer, jamais à trancher d'office. Ex. B6 : la cotisation
+   * ouverte · à exposer, jamais à trancher d'office. Ex. B6 : la cotisation
    * se constate-t-elle à l'appel ou à l'encaissement ?
    */
   politiqueADecider?: string;
@@ -177,6 +177,6 @@ export interface EcritureProposee {
   totalDebit: number;
   totalCredit: number;
   equilibree: boolean;
-  /** Comptes du plan que le dossier ne possède pas — le modèle est inapplicable. */
+  /** Comptes du plan que le dossier ne possède pas · le modèle est inapplicable. */
   comptesIntrouvables: { compte: string; libelle: string }[];
 }

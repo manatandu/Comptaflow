@@ -13,7 +13,7 @@ import { ModeLiberation, NatureLiberalite, TypeDonateur } from '@prisma/client';
  *
  * Ce choix est commandé par le texte, pas par le confort : l'article 18
  * organise un rapport de l'auditeur qui « donne son avis sur sa tenue
- * conforme » — le référentiel envisage donc expressément un registre dont la
+ * conforme » · le référentiel envisage donc expressément un registre dont la
  * conformité se constate a posteriori. Et l'article 24 sanctionne les
  * dirigeants « qui n'ont pas tenu et mis à jour le registre des donateurs » :
  * refuser un don réel parce que l'adresse électronique du donateur est
@@ -89,7 +89,7 @@ export class InscrireDonationDto {
 /**
  * Correction d'une ligne. Le NUMÉRO et la DATE D'OPÉRATION n'y figurent pas :
  * le numéro fonde la continuité exigée par l'art. 17 et la date fonde le
- * rattachement à l'exercice — les deux se corrigent par annulation puis
+ * rattachement à l'exercice · les deux se corrigent par annulation puis
  * réinscription, jamais par retouche.
  */
 export class ModifierDonationDto {
@@ -149,7 +149,7 @@ export class SignerDonationDto {
 
 /**
  * Le motif est obligatoire : une ligne annulée reste au registre avec son
- * numéro (la numérotation doit rester continue — art. 17), donc sa présence
+ * numéro (la numérotation doit rester continue · art. 17), donc sa présence
  * doit s'expliquer d'elle-même à qui lira le registre après coup.
  */
 export class AnnulerDonationDto {
@@ -169,7 +169,7 @@ export class FiltreRegistreDto {
 
   /**
    * Par défaut les lignes annulées RESTENT visibles : elles font partie du
-   * registre (art. 17 — leur numéro est occupé, les masquer par défaut
+   * registre (art. 17 · leur numéro est occupé, les masquer par défaut
    * donnerait à lire un registre à trous). La conversion est explicite : le
    * ValidationPipe global n'a pas `enableImplicitConversion`, un `?
    * masquerAnnulees=true` arriverait donc en CHAÎNE et serait rejeté par

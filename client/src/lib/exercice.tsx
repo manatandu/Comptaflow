@@ -13,7 +13,7 @@ const ExerciceContext = createContext<ExerciceContextValue | null>(null);
 
 /**
  * L'exercice « courant » est le premier OUVERT dans la liste (triée par date
- * de début décroissante côté API) — évite d'imposer un sélecteur d'exercice
+ * de début décroissante côté API) · évite d'imposer un sélecteur d'exercice
  * dans chaque écran du MVP. Le multi-exercice UI viendra en Phase 2/3.
  */
 export function ExerciceProvider({ children }: { children: ReactNode }) {

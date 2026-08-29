@@ -5,10 +5,10 @@ import type { Bailleur, Compte } from '../lib/types';
 
 /**
  * Bailleurs / sous-projets (comptabilité analytique par projet/bailleur,
- * docs/plan-de-construction.md item 14) — spécifique au jeu SYCEBNL
+ * docs/plan-de-construction.md item 14) · spécifique au jeu SYCEBNL
  * « projets de développement et assimilés ». Un bailleur regroupe les
  * sous-comptes 162-164 (Fonds affectés aux investissements) et 462-464
- * (Fonds d'administration) qui lui sont propres — voir Partie 3 ch. 3 du
+ * (Fonds d'administration) qui lui sont propres · voir Partie 3 ch. 3 du
  * texte officiel : le mécanisme de suivi par bailleur est déjà la
  * subdivision de ces comptes, cette page se contente de nommer un groupe
  * de sous-comptes et de les rattacher, pour que la NOTE 9 (onglet dédié
@@ -76,7 +76,7 @@ export function BailleursPage() {
     }
   };
 
-  // Comptes éligibles au rattachement — 162-164 (Fonds d'investissement) et
+  // Comptes éligibles au rattachement · 162-164 (Fonds d'investissement) et
   // 462-464 (Fonds d'administration), les deux seules familles que la
   // NOTE 9 sait lire (voir EtatsFinanciersProjetService.noteBailleur). Un
   // tenant reste libre de rattacher un autre compte via l'API, mais cette
@@ -95,7 +95,7 @@ export function BailleursPage() {
 
       {!jeuProjet && (
         <p className="text-[11px] text-text-dim mb-2.5">
-          Ce dossier relève du jeu SYCEBNL « associations et ordres professionnels » — la NOTE 9 « Fonds du
+          Ce dossier relève du jeu SYCEBNL « associations et ordres professionnels » · la NOTE 9 « Fonds du
           bailleur » n'existe que dans le jeu « projets de développement et assimilés ». Les bailleurs restent
           utilisables ici (rattachement de comptes), mais aucun état ne les exploite pour ce dossier.
         </p>
@@ -176,7 +176,7 @@ export function BailleursPage() {
           <h2 className="text-[13px] font-bold mb-1.5">Comptes rattachés (162-164 / 462-464)</h2>
           <p className="text-[10.5px] text-text-dim mb-2">
             Seuls les sous-comptes 162-164 (Fonds affectés aux investissements) et 462-464 (Fonds
-            d'administration) sont proposés ici — ce sont les seuls que la NOTE 9 sait lire.
+            d'administration) sont proposés ici · ce sont les seuls que la NOTE 9 sait lire.
           </p>
           <div className="border border-border bg-surface max-w-[720px]">
             <div className="grid grid-cols-[90px_1fr_200px] gap-3 px-4 py-1.5 bg-chrome border-b border-border text-[10px] font-bold text-text-dim">
@@ -186,7 +186,7 @@ export function BailleursPage() {
             </div>
             {comptesEligibles.length === 0 && (
               <div className="px-4 py-3 text-[12px] text-text-dim">
-                Aucun sous-compte 162-164/462-464 dans ce dossier — créez-en depuis le Plan de comptes.
+                Aucun sous-compte 162-164/462-464 dans ce dossier · créez-en depuis le Plan de comptes.
               </div>
             )}
             {comptesEligibles.map((c, i) => (
@@ -202,10 +202,10 @@ export function BailleursPage() {
                   disabled={!estAdmin}
                   className="border border-border-dark px-2 py-1 text-[11.5px] disabled:opacity-60"
                 >
-                  <option value="">— non rattaché —</option>
+                  <option value="">non rattaché</option>
                   {bailleurs.map((b) => (
                     <option key={b.id} value={b.id}>
-                      {b.code} — {b.nom}
+                      {b.code} · {b.nom}
                     </option>
                   ))}
                 </select>

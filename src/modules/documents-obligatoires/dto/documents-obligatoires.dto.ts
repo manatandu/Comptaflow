@@ -3,7 +3,7 @@ import { IsBoolean, IsDateString, IsOptional, IsString, IsNotEmpty, IsUUID } fro
 /**
  * Transcription au livre d'inventaire (art. 14). Aucun état n'est transmis
  * par le client : ils sont produits et figés côté serveur. Accepter des états
- * du client ferait du livre d'inventaire — document pénalement sanctionné —
+ * du client ferait du livre d'inventaire document pénalement sanctionné
  * un document dont le contenu serait dicté de l'extérieur.
  */
 export class TranscrireInventaireDto {
@@ -31,7 +31,7 @@ export class ResumeInventaireDto {
  * Établissement du rapport d'activité (art. 16-3). Les quatre sections sont
  * facultatives ICI et contrôlées par le rapport de conformité : le texte
  * exige leur présence, mais un rapport se rédige par passes, et refuser
- * l'enregistrement d'un brouillon pousserait à le rédiger hors application —
+ * l'enregistrement d'un brouillon pousserait à le rédiger hors application ·
  * donc à ne pas l'avoir du tout au sens de l'article 24.
  */
 export class EtablirRapportActiviteDto {
@@ -39,7 +39,7 @@ export class EtablirRapportActiviteDto {
   exerciceId!: string;
 
   /**
-   * « la date à laquelle il est établi » (art. 16-3) — elle DÉFINIT, avec la
+   * « la date à laquelle il est établi » (art. 16-3) · elle DÉFINIT, avec la
    * date de clôture, la fenêtre des événements postérieurs à mentionner.
    */
   @IsDateString()

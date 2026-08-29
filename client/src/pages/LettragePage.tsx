@@ -106,7 +106,7 @@ export function LettragePage() {
         <div>
           <div className="text-[10.5px] font-mono text-text-dim">TRAITEMENT</div>
           <h1 className="text-[15px] font-bold">
-            Interrogation et lettrage{compte && <> — <span className="font-mono">{compte.numero}</span> {compte.intitule}</>}
+            Interrogation et lettrage{compte && <> · <span className="font-mono">{compte.numero}</span> {compte.intitule}</>}
           </h1>
         </div>
         <div className="flex items-end gap-2">
@@ -119,7 +119,7 @@ export function LettragePage() {
             >
               {comptes.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.numero} — {c.intitule}
+                  {c.numero} · {c.intitule}
                 </option>
               ))}
             </select>
@@ -211,7 +211,7 @@ export function LettragePage() {
       {lignes && lignes.length > 0 && (
         <div className="mt-3 flex items-center gap-4 max-w-[900px]">
           <span className="text-[11.5px] text-text-dim">
-            {lignesSelectionnees.length} ligne(s) sélectionnée(s) — solde{' '}
+            {lignesSelectionnees.length} ligne(s) sélectionnée(s) · solde{' '}
             <span className={Math.abs(soldeSelection) < 0.005 ? 'text-positive font-semibold' : 'text-danger font-semibold'}>
               {soldeSelection.toLocaleString('fr-FR')}
             </span>

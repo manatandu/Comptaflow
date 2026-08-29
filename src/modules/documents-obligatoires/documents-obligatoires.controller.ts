@@ -20,7 +20,7 @@ const EXERCICE_REQUIS = new ParseUUIDPipe({
 });
 
 /**
- * Documents obligatoires de clôture — livre d'inventaire (art. 14) et rapport
+ * Documents obligatoires de clôture · livre d'inventaire (art. 14) et rapport
  * d'activité (art. 16-3), tous deux pénalement sanctionnés (art. 24).
  *
  * Consultation ouverte aux trois rôles : l'auditeur qui constate leur
@@ -57,7 +57,7 @@ export class DocumentsObligatoiresController {
   }
 
   /**
-   * Seul champ modifiable d'une transcription : les états sont figés — les
+   * Seul champ modifiable d'une transcription : les états sont figés · les
    * retoucher viderait la transcription de son sens (voir le service). Il n'y
    * a pour la même raison aucune route de suppression.
    */

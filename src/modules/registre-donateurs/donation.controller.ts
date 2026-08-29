@@ -28,7 +28,7 @@ const EXERCICE_REQUIS = new ParseUUIDPipe({
 
 /**
  * Registre des donateurs (art. 17-18). Consultation ouverte aux trois rôles
- * — l'auditeur qui doit « constater l'existence du registre » (art. 18) est
+ * · l'auditeur qui doit « constater l'existence du registre » (art. 18) est
  * typiquement en LECTURE_SEULE. Tenue réservée à ADMIN_CABINET/COMPTABLE,
  * comme la saisie d'écritures.
  */
@@ -42,7 +42,7 @@ export class DonationController {
     return this.donationService.lister(user.tenantId, filtre);
   }
 
-  /** Art. 18 — constatations qui fondent l'avis de l'auditeur ou la déclaration des dirigeants. */
+  /** Art. 18 · constatations qui fondent l'avis de l'auditeur ou la déclaration des dirigeants. */
   @Get('rapport-conformite')
   async rapportConformite(
     @CurrentUser() user: AuthenticatedUser,

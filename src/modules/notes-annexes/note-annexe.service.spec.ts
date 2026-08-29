@@ -7,7 +7,7 @@ import { NOTES_PROJETS } from './correspondance-notes-projets';
 import { PrismaService } from '../../common/prisma.service';
 
 /**
- * Une ligne de balance. `report` porte le report à-nouveau (débit, crédit) —
+ * Une ligne de balance. `report` porte le report à-nouveau (débit, crédit) ·
  * ce que `EcritureService.balance` isole depuis les écritures générées par la
  * clôture ; `d`/`c` sont alors les mouvements PROPRES de l'exercice, et les
  * totaux la somme des deux, exactement comme le fait le service.
@@ -88,13 +88,13 @@ const ligneDe = (n: any, libelle: string) => n.lignes.find((l: any) => l.libelle
 describe.each([
   { label: 'associations', specs: NOTES_ASSOCIATIONS, officielles: ['1', '2', '3', '4', '5A', '5B', '5C', '5D', '5E', '5F', '5G', '5H', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17A', '17B', '18A', '18B', '19', '20', '21', '22', '23', '24', '25', '26', '27', '28', '29A', '29B', '30', '31', '32', '33', '34', '35'] },
   { label: 'projets de développement', specs: NOTES_PROJETS, officielles: ['1', '2', '3A', '3B', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20A', '20B', '21', '22', '23', '24'] },
-])('correspondance des notes (intégrité des spécifications) — jeu $label', ({ specs, officielles }) => {
-  it('aucun tableau en double — un code seul, ou un code et son sous-tableau', () => {
+])('correspondance des notes (intégrité des spécifications) · jeu $label', ({ specs, officielles }) => {
+  it('aucun tableau en double · un code seul, ou un code et son sous-tableau', () => {
     const cles = specs.map((n) => `${n.code}::${n.sousTableau ?? ''}`);
     expect(new Set(cles).size).toBe(cles.length);
   });
 
-  it('une note à plusieurs tableaux les nomme TOUS — sinon deux tableaux se confondent', () => {
+  it('une note à plusieurs tableaux les nomme TOUS · sinon deux tableaux se confondent', () => {
     const parCode = new Map<string, number>();
     for (const n of specs) parCode.set(n.code, (parCode.get(n.code) ?? 0) + 1);
     for (const n of specs) {
@@ -103,7 +103,7 @@ describe.each([
     }
   });
 
-  it('un total ne référence jamais une rubrique qui vient APRÈS lui — sinon le calcul en une passe lirait 0', () => {
+  it('un total ne référence jamais une rubrique qui vient APRÈS lui · sinon le calcul en une passe lirait 0', () => {
     for (const spec of specs) {
       spec.rubriques.forEach((r, i) => {
         for (const idx of [...(r.totalDeRubriques ?? []), ...(r.moinsRubriques ?? [])]) {
@@ -155,7 +155,7 @@ describe.each([
     }
   });
 
-  it('une rubrique porte soit des comptes, soit un total, soit une subdivision attendue, soit une saisie — jamais rien', () => {
+  it('une rubrique porte soit des comptes, soit un total, soit une subdivision attendue, soit une saisie · jamais rien', () => {
     for (const spec of specs) {
       for (const r of spec.rubriques) {
         const definie =
@@ -168,7 +168,7 @@ describe.each([
     }
   });
 
-  it('toute rubrique en attente de rattachement porte une clé stable — c’est elle qui ancre le rattachement', () => {
+  it('toute rubrique en attente de rattachement porte une clé stable · c’est elle qui ancre le rattachement', () => {
     for (const spec of specs) {
       for (const r of spec.rubriques) {
         if (r.subdivisionAttendue) {
@@ -189,7 +189,7 @@ describe.each([
 
   it('toutes les notes officielles du jeu sont transcrites, ni une de plus ni une de moins', () => {
     // Liste arrêtée sur la FICHE RECAPITULATIVE DES NOTES ANNEXES PRESENTEES
-    // propre à ce jeu — c'est elle qui fait foi sur le nombre et le code des
+    // propre à ce jeu · c'est elle qui fait foi sur le nombre et le code des
     // notes, pas la numérotation apparente, qui saute d'un jeu à l'autre.
     const transcrites = [...new Set(specs.map((n) => n.code))];
     expect([...transcrites].sort()).toEqual([...officielles].sort());
@@ -277,7 +277,7 @@ describe.each([
     expect(l.variationPourcent).toBeCloseTo(25, 6);
   });
 
-  it('sans exercice antérieur, N-1 et les variations restent undefined — jamais un faux zéro', async () => {
+  it('sans exercice antérieur, N-1 et les variations restent undefined · jamais un faux zéro', async () => {
     const s = service({ e1: [ligne('52110000', ClasseCompte.CLASSE_5, 1250, 0)] });
     const l = ligneDe(note(await s.notesAssociations('t', 'e1'), '13'), 'Banques locales');
     expect(l.montantN1).toBeUndefined();
@@ -315,7 +315,7 @@ describe.each([
   });
 });
 
-describe('note 30 — ventilation des mouvements par nature de contrepartie', () => {
+describe('note 30 · ventilation des mouvements par nature de contrepartie', () => {
   const serviceVent = (ecritures: EcritureFixture[], balance: ReturnType<typeof ligne>[]) =>
     service({ e1: balance }, [], prismaAvec([], [], [], ecritures));
   const val = (n: any, libelle: string) => ligneDe(n, libelle).valeurs;
@@ -432,7 +432,7 @@ describe('note 30 — ventilation des mouvements par nature de contrepartie', ()
 
 describe('DÉFAUT CORRIGÉ : les notes hors balance présentent leurs rubriques en saisie', () => {
   // Une note `horsBalance` (informations obligatoires, effectifs, note 9 des
-  // projets…) ne porte QUE des rubriques en saisie, jamais « chiffrées » —
+  // projets…) ne porte QUE des rubriques en saisie, jamais « chiffrées » ·
   // le filtre § 1.4 les retirait TOUTES malgré `applicable: true` : la note
   // se déclarait applicable et ne présentait rien. Relevé en vérifiant de
   // bout en bout une note hors balance dont les lignes n'avaient jamais été
@@ -446,7 +446,7 @@ describe('DÉFAUT CORRIGÉ : les notes hors balance présentent leurs rubriques 
     expect(n2.lignes.map((l: any) => l.libelle)).toContain('A - IDENTITE, ORGANISATION');
   });
 
-  it('même garde sur le jeu projets — note 9 (fonds du bailleur, renvoi) et note 22 (lacune officielle)', async () => {
+  it('même garde sur le jeu projets · note 9 (fonds du bailleur, renvoi) et note 22 (lacune officielle)', async () => {
     const s = service({ e1: [] });
     const r = await s.notesProjet('t', 'e1');
     for (const code of ['1', '2', '9', '22', '24']) {
@@ -493,7 +493,7 @@ describe('recoupement croisé des notes (anti double comptage)', () => {
   /** Somme d'un compte à travers TOUTES les notes, hors lignes de total. */
   // La note 1 est écartée : elle RÉCAPITULE les dettes déjà présentées aux
   // notes 9 et 19 à 21, sous l'angle des sûretés qui les garantissent. Le
-  // modèle officiel le dit lui-même — sa colonne « Note » renvoie, rubrique
+  // modèle officiel le dit lui-même · sa colonne « Note » renvoie, rubrique
   // par rubrique, à la note d'origine. Une récapitulation assumée n'est pas
   // un double comptage ; c'est la SOMME de deux notes de même rang qui en
   // serait un.
@@ -541,7 +541,7 @@ describe('recoupement croisé des notes (anti double comptage)', () => {
     // en dur toutes les deux : un solde sur 619 était donc compté deux fois.
     const s = service({ e1: [ligne('61900000', ClasseCompte.CLASSE_6, 0, 500)] });
     const r = await s.notesAssociations('t', 'e1');
-    // Par défaut — sans rattachement du dossier — 619 ne contribue à AUCUNE
+    // Par défaut sans rattachement du dossier 619 ne contribue à AUCUNE
     // des deux notes : il est en attente des deux côtés, jamais compté.
     expect(sommeParNote(r, '61900000')).toEqual([]);
     const fiche24 = r.ficheRecapitulative.find((f: any) => f.code === '24')!;
@@ -584,7 +584,7 @@ describe('recoupement croisé des notes (anti double comptage)', () => {
           (x: any) => `${x.note} / ${x.libelle}`,
         );
         // Au plus UNE note réclame ce compte dans ce sens. Zéro est possible
-        // et signalerait un trou de couverture — question distincte, traitée
+        // et signalerait un trou de couverture · question distincte, traitée
         // par le dossier de révision (phase 5), pas ici.
         expect({ numero, sens: d ? 'débit' : 'crédit', notes }).toEqual({
           numero,
@@ -596,7 +596,7 @@ describe('recoupement croisé des notes (anti double comptage)', () => {
   });
 });
 
-describe('jeu projets de développement — recoupement croisé (anti double comptage)', () => {
+describe('jeu projets de développement · recoupement croisé (anti double comptage)', () => {
   const sommeParNoteProjet = (r: any, numero: string) =>
     r.notes.flatMap((n: any) =>
       n.lignes
@@ -877,7 +877,7 @@ describe('tableaux de situations et mouvements (notes 5A-5F, 30)', () => {
 
   it('§1.4 : un poste entré ET sorti dans l’exercice reste présenté, malgré une clôture nulle', async () => {
     // Sans la règle « chiffrée = une colonne au moins », cette ligne
-    // disparaîtrait — alors que c'est précisément le mouvement que le tableau
+    // disparaîtrait · alors que c'est précisément le mouvement que le tableau
     // a pour objet de montrer.
     const s = service({ e1: [ligne('24500000', ClasseCompte.CLASSE_2, 500, 500)] });
     const n5b = note(await s.notesAssociations('t', 'e1'), '5B');
@@ -898,7 +898,7 @@ describe('tableaux de situations et mouvements (notes 5A-5F, 30)', () => {
 
   it('les rubriques « immeuble de placement » des notes 5E et 5F sont en attente, pas rattachées au jugé', async () => {
     // Le plan ne subdivise « immeuble de placement » qu'à l'actif brut
-    // (2281, 2315, 2325, 2396) — jamais en 28 ni en 29.
+    // (2281, 2315, 2325, 2396) · jamais en 28 ni en 29.
     const s = service({ e1: [] });
     const r = await s.notesAssociations('t', 'e1');
     for (const code of ['5E', '5F']) {
@@ -974,7 +974,7 @@ describe('rattachement des comptes du dossier aux rubriques', () => {
 
   it('une note NON applicable expose quand même les clés de ses rubriques en attente', async () => {
     // Sans cela, le cas le plus courant serait un cul-de-sac : la note n'a rien
-    // à présenter (§1.4), donc aucune ligne, donc aucune clé — et l'utilisateur
+    // à présenter (§1.4), donc aucune ligne, donc aucune clé · et l'utilisateur
     // n'aurait jamais de quoi rattacher ses sous-comptes pour l'alimenter.
     const s = service({ e1: [] });
     const r = await s.notesAssociations('t', 'e1');

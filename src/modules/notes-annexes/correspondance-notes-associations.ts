@@ -25,17 +25,17 @@ import { SpecificationNote } from './note-annexe.types';
  *    « Achats » veut des lignes séparées pour « Matières consommables »,
  *    « Produits d'entretien », « Eau », « Électricité »… alors que le plan
  *    s'arrête au compte 604. Les rattacher au jugé serait une invention ; les
- *    rattacher par ressemblance de libellé serait pire — « Matières
+ *    rattacher par ressemblance de libellé serait pire · « Matières
  *    consommables » existe au plan en compte 331, qui est un compte de STOCK.
  *
  * ## Rubriques créditrices intercalées dans une note d'actif
  *
  * Plusieurs notes mêlent, dans un même tableau, des rubriques débitrices et des
- * rubriques créditrices — la Note 9 énumère les créances sur les adhérents PUIS
+ * rubriques créditrices · la Note 9 énumère les créances sur les adhérents PUIS
  * les avances qu'ils ont versées. Ces dernières portent `sens: 'CREDITEUR'`,
  * qui fait deux choses à la fois : ne retenir que les soldes créditeurs, et
  * présenter le montant en positif dans son sens de lecture, comme la maquette.
- * Sans ce qualificatif elles ressortaient en négatif — défaut attrapé par un
+ * Sans ce qualificatif elles ressortaient en négatif · défaut attrapé par un
  * test avant livraison.
  *
  * ## Ordre des rubriques
@@ -43,7 +43,7 @@ import { SpecificationNote } from './note-annexe.types';
  * L'ordre est celui du texte, y compris quand une note mêle des postes
  * d'actif et de passif (Note 9, Note 19) : la maquette officielle le fait.
  * Les index de `totalDeRubriques` renvoient à la position dans ce même
- * tableau, et ne référencent jamais une rubrique postérieure — vérifié par un
+ * tableau, et ne référencent jamais une rubrique postérieure · vérifié par un
  * test structurel.
  */
 
@@ -61,7 +61,7 @@ const COLONNES_AVEC_ECHEANCES_CREANCES = [
   { type: 'ECHEANCE_PLUS_2ANS' as const, libelle: 'Créances à plus de deux ans' },
 ];
 
-/** Même ventilation, côté passif — notes 18A et 19 à 21. */
+/** Même ventilation, côté passif · notes 18A et 19 à 21. */
 const COLONNES_AVEC_ECHEANCES_DETTES = [
   ...COLONNES_STANDARD,
   { type: 'ECHEANCE_1AN' as const, libelle: 'Dettes à un an au plus' },
@@ -74,7 +74,7 @@ const COLONNES_AVEC_ECHEANCES_DETTES = [
  * Le texte officiel nomme lui-même les colonnes A, B, C et pose « D = A + B - C ».
  */
 const COLONNES_MOUVEMENTS = [
-  { type: 'OUVERTURE' as const, libelle: "A — Montant brut à l'ouverture" },
+  { type: 'OUVERTURE' as const, libelle: "A · Montant brut à l'ouverture" },
   { type: 'AUGMENTATIONS' as const, libelle: 'AUGMENTATIONS B' },
   { type: 'DIMINUTIONS' as const, libelle: 'DIMINUTIONS C' },
   { type: 'CLOTURE' as const, libelle: 'D = A + B - C (Montant brut à la clôture)' },
@@ -178,7 +178,7 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     rubriques: [
       // `sens: 'DEBITEUR'` sur les comptes 52 et 53 : un compte bancaire
       // créditeur est un DÉCOUVERT, qui relève de la note 22 « Banques,
-      // crédit d'escompte et de trésorerie » et du poste DW du passif — pas
+      // crédit d'escompte et de trésorerie » et du poste DW du passif · pas
       // des disponibilités. C'est exactement la règle que le bilan applique
       // au poste BW par `comptesTransferesSiCrediteur` ; sans elle la note 13
       // et le poste BW qu'elle documente donneraient deux montants différents.
@@ -300,7 +300,7 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
       enAttente('frais-sur-achats', 'Frais sur achats', 'Sous-compte de 605 pour les frais accessoires sur achats.'),
       // DÉFAUT CORRIGÉ (recoupement croisé Note 24 / Note 25) : le compte 619
       // « rabais, remises et ristournes obtenus (non ventilés) » est listé au
-      // plan officiel sous LES DEUX classes 60 (Achats) et 61 (Transports) —
+      // plan officiel sous LES DEUX classes 60 (Achats) et 61 (Transports) ·
       // « non ventilés » signifiant précisément que le plan ne le répartit
       // pas entre les deux domaines. Le rattacher en dur ici ET à la note 25
       // comptait deux fois le même solde. Une version antérieure faisait
@@ -330,7 +330,7 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
   // 2020 serait présenté en acquisition de l'exercice.
   //
   // Découpage des comptes de la classe 2 (Partie 2, ch. 2). Trois rubriques
-  // de la maquette n'ont PAS de compte au plan normalisé — « immeuble de
+  // de la maquette n'ont PAS de compte au plan normalisé · « immeuble de
   // placement » n'est subdivisé qu'à l'actif brut (2281, 2315, 2325, 2396),
   // jamais dans les amortissements (28) ni dans les dépréciations (29). Elles
   // sont donc déclarées en attente de rattachement, pas rattachées au jugé.
@@ -395,13 +395,13 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     //      (saisie), et la colonne de clôture reste D = A + B - C. Un virement
     //      non saisi se signale alors de lui-même par `ecartCloture`.
     colonnes: [
-      { type: 'OUVERTURE' as const, libelle: "A — Amortissements cumulés à l'ouverture" },
-      { type: 'AUGMENTATIONS' as const, libelle: "B — Augmentations : Dotations de l'exercice" },
+      { type: 'OUVERTURE' as const, libelle: "A · Amortissements cumulés à l'ouverture" },
+      { type: 'AUGMENTATIONS' as const, libelle: "B · Augmentations : Dotations de l'exercice" },
       {
         type: 'DIMINUTIONS' as const,
-        libelle: "C — Diminutions : Amortissements relatifs aux éléments sortis de l'actif ; Reprises amortissements",
+        libelle: "C · Diminutions : Amortissements relatifs aux éléments sortis de l'actif ; Reprises amortissements",
       },
-      { type: 'LIBRE' as const, libelle: 'D — Virements de poste à poste' },
+      { type: 'LIBRE' as const, libelle: 'D · Virements de poste à poste' },
       { type: 'CLOTURE' as const, libelle: 'E = A + B - C - D (Cumuls des amortissements à la clôture)' },
     ],
     renvoyeeDepuis: ['AE', 'AF', 'AG', 'AH', 'AI', 'AJ', 'AK', 'AL', 'AM'],
@@ -441,9 +441,9 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     titre: 'IMMOBILISATIONS (DEPRECIATIONS)',
     sensAccroissement: 'CREDIT',
     colonnes: [
-      { type: 'OUVERTURE' as const, libelle: "A — Dépréciations cumulées à l'ouverture" },
-      { type: 'AUGMENTATIONS' as const, libelle: "B — Augmentations : dotations de l'exercice" },
-      { type: 'DIMINUTIONS' as const, libelle: "C — Diminutions : reprises de l'exercice" },
+      { type: 'OUVERTURE' as const, libelle: "A · Dépréciations cumulées à l'ouverture" },
+      { type: 'AUGMENTATIONS' as const, libelle: "B · Augmentations : dotations de l'exercice" },
+      { type: 'DIMINUTIONS' as const, libelle: "C · Diminutions : reprises de l'exercice" },
       { type: 'CLOTURE' as const, libelle: 'D = A + B - C (Cumul des dépréciations à la clôture)' },
     ],
     renvoyeeDepuis: ['AE', 'AF', 'AG', 'AH', 'AI', 'AJ', 'AK', 'AL', 'AM'],
@@ -498,7 +498,7 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
       { libelle: 'TOTAL RESERVES', totalDeRubriques: [0, 1] },
       // Compte 12 : 121 excédents (créditeur), 129 déficits (débiteur), 128
       // résultat en instance. Le report à nouveau se lit au crédit et ressort
-      // négatif quand les déficits l'emportent — ce qui est l'information.
+      // négatif quand les déficits l'emportent · ce qui est l'information.
       { libelle: 'Report à nouveau', comptes: ['12'], natureCreditrice: true },
     ],
     commentaire:
@@ -515,7 +515,7 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     rubriques: [
       // 162 bailleurs, 163 l'État, 164 autres organismes assimilés : les trois
       // comptes d'investissement du plan (161 est une avance à justifier, 169
-      // un fonds à recevoir — ni l'un ni l'autre n'est un fonds affecté aux
+      // un fonds à recevoir · ni l'un ni l'autre n'est un fonds affecté aux
       // investissements).
       { libelle: 'Fonds affectés aux investissements', comptes: ['162', '163', '164'], natureCreditrice: true },
       {
@@ -616,7 +616,7 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
   //
   // Comptes des classes 6 et 7. Les produits portent `natureCreditrice` :
   // leur solde est créditeur et s'affiche en positif, sans filtrage sur le
-  // signe — un compte de produits momentanément débiteur reste présenté.
+  // signe · un compte de produits momentanément débiteur reste présenté.
   // ======================================================================
   {
     code: '23',
@@ -845,7 +845,7 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
       { libelle: 'TOTAL : REVENUS FINANCIERS', totalDeRubriques: [9, 10, 11, 12, 13, 14, 15, 16, 17, 18] },
       // [texte officiel] Le modèle écrit « TOTAL » sans formule. La lecture
       // retenue est celle du compte de résultat, où le résultat financier est
-      // la différence des deux sous-totaux — un total qui les additionnerait
+      // la différence des deux sous-totaux · un total qui les additionnerait
       // mêlerait charges et produits sans signification.
       { libelle: 'TOTAL', totalDeRubriques: [19], moinsRubriques: [8] },
     ],
@@ -859,7 +859,7 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     renvoyeeDepuis: ['TS', 'UH'],
     rubriques: [
       // [texte officiel] Le plan numérote les subdivisions du compte 832
-      // « Dons en nature H.A.O. à distribuer » 8311 et 8315 — c'est-à-dire
+      // « Dons en nature H.A.O. à distribuer » 8311 et 8315 · c'est-à-dire
       // dans la plage du compte 831. Anomalie déjà signalée dans le référentiel.
       // Conséquence ici : rattacher « Charges H.A.O. constatées » au seul
       // préfixe 831 y ferait tomber les dons en nature. Les intitulés
@@ -919,7 +919,7 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
   // Compte 20 « Immobilisations destinées à la vente provenant de dons et
   // legs non encore reçus et usufruit temporaire ». Le plan y descend au
   // divisionnaire à l'ACTIF BRUT (2011 à 2017, 202 à 205) mais pas du tout
-  // aux amortissements et dépréciations, où il ne donne que 280 et 290 —
+  // aux amortissements et dépréciations, où il ne donne que 280 et 290 ·
   // d'où l'écart de finesse entre les notes 5A et 5D.
   // ======================================================================
   {
@@ -929,7 +929,7 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     renvoyeeDepuis: ['AA'],
     // Le modèle groupe les rubriques sous des intitulés de section
     // (IMMOBILISATIONS INCORPORELLES, CORPORELLES, FINANCIERES) sans en
-    // faire des lignes de sous-total — contrairement aux notes 5B et 5F, qui
+    // faire des lignes de sous-total · contrairement aux notes 5B et 5F, qui
     // écrivent « SOUS TOTAL : ». Aucun sous-total n'est donc ajouté ici : le
     // groupement est une affaire de présentation, pas de calcul.
     rubriques: [
@@ -987,15 +987,15 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     // ordinaire en balance et reste en saisie ; un virement non saisi se
     // signale de lui-même par l'écart de clôture.
     colonnes: [
-      { type: 'OUVERTURE' as const, libelle: "A — Amortissements et dépréciations cumulés à l'ouverture" },
-      { type: 'AUGMENTATIONS' as const, libelle: "B — Augmentations : Dotations de l'exercice" },
+      { type: 'OUVERTURE' as const, libelle: "A · Amortissements et dépréciations cumulés à l'ouverture" },
+      { type: 'AUGMENTATIONS' as const, libelle: "B · Augmentations : Dotations de l'exercice" },
       {
         type: 'DIMINUTIONS' as const,
         libelle:
-          "C — Diminutions : Amortissements et dépréciations relatifs aux éléments sortis de l'actif ; " +
+          "C · Diminutions : Amortissements et dépréciations relatifs aux éléments sortis de l'actif ; " +
           'Reprises amortissements et dépréciations',
       },
-      { type: 'LIBRE' as const, libelle: 'D — Virements de poste à poste' },
+      { type: 'LIBRE' as const, libelle: 'D · Virements de poste à poste' },
       {
         type: 'CLOTURE' as const,
         libelle: 'E = A + B - C - D (Cumuls des amortissements et dépréciations à la clôture)',
@@ -1032,7 +1032,7 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
   },
 
   // ======================================================================
-  // CREANCES ET DETTES — ventilation par échéance
+  // CREANCES ET DETTES · ventilation par échéance
   // ======================================================================
   {
     code: '6',
@@ -1078,7 +1078,7 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     renvoyeeDepuis: ['BH'],
     // Comptes de tiers POLYVALENTS : les classes 42 à 47 portent aussi bien
     // des créances que des dettes. `sens: 'DEBITEUR'` ne retient donc que
-    // les soldes débiteurs — leur pendant créditeur relève des notes 20 et 21.
+    // les soldes débiteurs · leur pendant créditeur relève des notes 20 et 21.
     rubriques: [
       { libelle: 'Personnel', comptes: ['42'], sens: 'DEBITEUR' },
       { libelle: 'Organismes sociaux', comptes: ['43'], sens: 'DEBITEUR' },
@@ -1179,7 +1179,7 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     code: '18B',
     titre: 'ACTIFS ET PASSIFS EVENTUELS',
     // Par définition, un actif ou un passif ÉVENTUEL n'est pas comptabilisé :
-    // aucune balance ne le porte. La note est donc entièrement en saisie —
+    // aucune balance ne le porte. La note est donc entièrement en saisie ·
     // ni rattachable, ni en attente de rattachement.
     horsBalance: true,
     colonnes: [
@@ -1187,20 +1187,20 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
       { type: 'EXERCICE_N1' as const, libelle: 'Année N-1' },
     ],
     rubriques: [
-      { libelle: 'Actif éventuel — Litiges', saisie: true },
-      { libelle: 'Actif éventuel — Autres', saisie: true },
-      { libelle: 'Passif éventuel — Litiges', saisie: true },
-      { libelle: 'Passif éventuel — Autres', saisie: true },
+      { libelle: 'Actif éventuel · Litiges', saisie: true },
+      { libelle: 'Actif éventuel · Autres', saisie: true },
+      { libelle: 'Passif éventuel · Litiges', saisie: true },
+      { libelle: 'Passif éventuel · Autres', saisie: true },
     ],
     commentaire:
       'décrire les principales caractéristiques des actifs / passifs éventuels, l’horizon de temps auquel les ' +
       'encaissements / décaissements sont attendus et les éventuels remboursements à percevoir.',
   },
-  // Notes 19, 20 et 21 : les comptes des classes 40 à 47 sont POLYVALENTS —
+  // Notes 19, 20 et 21 : les comptes des classes 40 à 47 sont POLYVALENTS ·
   // le même compte porte une créance ou une dette selon le sens de son solde.
   // Ces notes les filtrent donc au crédit (`sens: 'CREDITEUR'`), et la note 10
   // au débit. Employer `natureCreditrice`, qui ne filtre pas, ferait figurer
-  // un compte débiteur DANS LES DEUX — en positif à la note 10, en négatif
+  // un compte débiteur DANS LES DEUX · en positif à la note 10, en négatif
   // ici : le même montant compté deux fois, comme le découvert bancaire l'a
   // été entre les notes 13 et 22.
   {
@@ -1248,7 +1248,7 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
       { libelle: 'Etat, autres impôts et taxes', comptes: ['442'], sens: 'CREDITEUR' },
       // 443 facturée, 444 due ou crédit, 445 récupérable, 446 autres taxes :
       // la rubrique est le solde net de TVA. 445 étant débiteur, un crédit de
-      // TVA y ressort en négatif — c'est bien une créance sur l'Etat.
+      // TVA y ressort en négatif · c'est bien une créance sur l'Etat.
       { libelle: 'Etat, TVA', comptes: ['443', '444', '445', '446'], sens: 'CREDITEUR' },
       { libelle: 'Etat, impôts retenus à la source', comptes: ['447'], sens: 'CREDITEUR' },
       { libelle: 'Autres dettes Etat', comptes: ['448', '449'], sens: 'CREDITEUR' },
@@ -1263,10 +1263,10 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     colonnes: COLONNES_AVEC_ECHEANCES_DETTES,
     renvoyeeDepuis: ['DM', 'DN'],
     rubriques: [
-      { libelle: "Fonds d'administration des projets — Bailleurs de fonds", comptes: ['462'], sens: 'CREDITEUR' },
-      { libelle: "Fonds d'administration des projets — Etat", comptes: ['463'], sens: 'CREDITEUR' },
+      { libelle: "Fonds d'administration des projets · Bailleurs de fonds", comptes: ['462'], sens: 'CREDITEUR' },
+      { libelle: "Fonds d'administration des projets · Etat", comptes: ['463'], sens: 'CREDITEUR' },
       {
-        libelle: "Fonds d'administration des projets — Autres organismes de financement assimilés",
+        libelle: "Fonds d'administration des projets · Autres organismes de financement assimilés",
         comptes: ['464'],
         sens: 'CREDITEUR',
       },
@@ -1305,12 +1305,12 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
   },
 
   // ======================================================================
-  // NOTE 30 — la seule note dont les mouvements sont ventilés PAR NATURE.
+  // NOTE 30 · la seule note dont les mouvements sont ventilés PAR NATURE.
   //
   // Le compte de provision ne dit pas de quelle nature était la dotation :
   // 191 « Provisions pour litiges » est le même compte, que la dotation soit
   // d'exploitation (6911), financière (6971) ou hors activités ordinaires
-  // (85). Seule la CONTREPARTIE de l'écriture le dit — d'où la ventilation
+  // (85). Seule la CONTREPARTIE de l'écriture le dit · d'où la ventilation
   // par contrepartie de `NoteAnnexeService.chargerVentilationParNature`.
   //
   // Les rubriques sont les NATURES de provision et de dépréciation, c'est-à-
@@ -1323,13 +1323,13 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     titre: 'DOTATIONS ET CHARGES POUR PROVISIONS ET DEPRECIATIONS',
     sensAccroissement: 'CREDIT',
     colonnes: [
-      { type: 'OUVERTURE' as const, libelle: "A — Provisions à l'ouverture" },
-      { type: 'AUGMENTATION_EXPLOITATION' as const, libelle: "B — Augmentations : dotations d'exploitation" },
-      { type: 'AUGMENTATION_FINANCIERE' as const, libelle: 'B — Augmentations : dotations financières' },
-      { type: 'AUGMENTATION_HAO' as const, libelle: 'B — Augmentations : dotations hors activités ordinaires' },
-      { type: 'DIMINUTION_EXPLOITATION' as const, libelle: "C — Diminutions : reprises d'exploitation" },
-      { type: 'DIMINUTION_FINANCIERE' as const, libelle: 'C — Diminutions : reprises financières' },
-      { type: 'DIMINUTION_HAO' as const, libelle: 'C — Diminutions : reprises hors activités ordinaires' },
+      { type: 'OUVERTURE' as const, libelle: "A · Provisions à l'ouverture" },
+      { type: 'AUGMENTATION_EXPLOITATION' as const, libelle: "B · Augmentations : dotations d'exploitation" },
+      { type: 'AUGMENTATION_FINANCIERE' as const, libelle: 'B · Augmentations : dotations financières' },
+      { type: 'AUGMENTATION_HAO' as const, libelle: 'B · Augmentations : dotations hors activités ordinaires' },
+      { type: 'DIMINUTION_EXPLOITATION' as const, libelle: "C · Diminutions : reprises d'exploitation" },
+      { type: 'DIMINUTION_FINANCIERE' as const, libelle: 'C · Diminutions : reprises financières' },
+      { type: 'DIMINUTION_HAO' as const, libelle: 'C · Diminutions : reprises hors activités ordinaires' },
       { type: 'CLOTURE' as const, libelle: "D = A + B - C (Provisions à la clôture de l'exercice)" },
     ],
     renvoyeeDepuis: ['TN', 'TR', 'TT', 'UD', 'UG', 'UI'],
@@ -1343,7 +1343,7 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
           "Dépréciations des dons et legs temporaire d'usufruit et d'immobilisations reçues destinées à la vente",
         comptes: ['290'],
       },
-      // Compte 165. Ce n'est pas une provision au sens strict — la maquette
+      // Compte 165. Ce n'est pas une provision au sens strict · la maquette
       // le range pourtant parmi les dotations, le fonds non consommé étant
       // reporté par une dotation de l'exercice (compte 6595 / 79 selon le
       // sens). Transcrit tel quel.
@@ -1374,7 +1374,7 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
   },
 
   // ======================================================================
-  // NOTE 1 — TROIS TABLEAUX sous un seul code officiel.
+  // NOTE 1 · TROIS TABLEAUX sous un seul code officiel.
   // Le référentiel n'attribue un code propre (5A à 5H) que lorsqu'il veut des
   // notes séparées ; ici il ne le fait pas, d'où `sousTableau`.
   // ======================================================================
@@ -1471,7 +1471,7 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     // le plan prévoit un emploi « secours en nature » (900) sans ressource
     // symétrique, et une ressource « dons en nature » (910) sans emploi
     // symétrique. Seules les prestations en nature et le bénévolat ont les
-    // deux. Les colonnes restent donc vides là où le plan n'a pas de compte —
+    // deux. Les colonnes restent donc vides là où le plan n'a pas de compte ·
     // ce qui est l'information, et non un défaut de rattachement.
     sensAccroissement: 'CREDIT',
     colonnes: [
@@ -1498,7 +1498,7 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     // TABLEAU ENTIÈREMENT EN SAISIE, et il faut dire pourquoi plutôt que de
     // laisser croire à un oubli :
     //
-    // 1. À la clôture, un bien cédé N'EST PLUS au bilan — son brut et ses
+    // 1. À la clôture, un bien cédé N'EST PLUS au bilan · son brut et ses
     //    amortissements ont été soldés par l'écriture de cession. Les colonnes
     //    A et B sont donc structurellement absentes de la balance de clôture.
     // 2. Les comptes 81 « Valeurs comptables des cessions » et 82 « Produits
@@ -1509,7 +1509,7 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     // Ces montants sont reconstituables depuis les ÉCRITURES de cession
     // elles-mêmes (le compte 2x crédité donne la nature et le brut, le 28x
     // débité les amortissements, le 82x le prix). C'est un chantier du
-    // dossier de révision — phase 5 —, où la revue des cessions a sa place ;
+    // dossier de révision phase 5, où la revue des cessions a sa place ;
     // le faire ici sur une seule note serait fragile, une cession pouvant
     // être passée en deux écritures distinctes.
     colonnes: [
@@ -1543,7 +1543,7 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     titre: 'ECARTS DE CONVERSION',
     // La devise, le montant en devise et les deux cours ne sont portés par
     // aucun compte : la comptabilité est tenue en monnaie légale. Seul
-    // l'écart lui-même — le solde des comptes 478 et 479 — se calcule, et
+    // l'écart lui-même le solde des comptes 478 et 479 se calcule, et
     // c'est précisément ce que la dernière colonne du modèle demande.
     colonnes: [
       { type: 'LIBRE' as const, libelle: 'Devises' },
@@ -1627,7 +1627,7 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
   //
   // Aucune de ces notes ne se calcule depuis une balance : ce sont des
   // informations que l'entité rédige ou dénombre. Leurs rubriques portent
-  // `saisie`, qui les distingue d'un rattachement oublié — la différence
+  // `saisie`, qui les distingue d'un rattachement oublié · la différence
   // compte, parce que la fiche récapitulative doit dire « à renseigner » et
   // non « en attente de rattachement ».
   // ======================================================================
@@ -1695,10 +1695,10 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     horsBalance: true,
     colonnes: [{ type: 'LIBRE' as const, libelle: 'Informations' }],
     rubriques: [
-      { libelle: 'A - CHANGEMENTS DE METHODES COMPTABLES — 1. Changement de réglementation comptable', saisie: true },
+      { libelle: 'A - CHANGEMENTS DE METHODES COMPTABLES · 1. Changement de réglementation comptable', saisie: true },
       {
         libelle:
-          "A - CHANGEMENTS DE METHODES COMPTABLES — 2. Changement de méthode comptable à l'initiative de " +
+          "A - CHANGEMENTS DE METHODES COMPTABLES · 2. Changement de méthode comptable à l'initiative de " +
           "l'entité (impact à l'ouverture, retraitement rétrospectif ou application prospective)",
         saisie: true,
       },
@@ -1734,22 +1734,22 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
   {
     code: '29B',
     sousTableau: 'PERSONNEL PROPRE',
-    titre: 'EFFECTIF, MASSE SALARIALE ET PERSONNEL — 1. Personnel propre',
+    titre: 'EFFECTIF, MASSE SALARIALE ET PERSONNEL · 1. Personnel propre',
     horsBalance: true,
     // Les effectifs ne sont pas une donnée comptable : aucun compte ne porte
     // un nombre de personnes. La masse salariale, elle, se recoupe avec la
-    // note 29A — c'est un contrôle à offrir plus tard, pas un calcul à
+    // note 29A · c'est un contrôle à offrir plus tard, pas un calcul à
     // inventer ici, la ventilation par sexe et par zone n'existant nulle part
     // en comptabilité.
     colonnes: [
-      { type: 'LIBRE' as const, libelle: 'EFFECTIFS — Nationaux (M / F)' },
-      { type: 'LIBRE' as const, libelle: 'EFFECTIFS — Autres Etats de la Région (M / F)' },
-      { type: 'LIBRE' as const, libelle: 'EFFECTIFS — Hors Région (M / F)' },
-      { type: 'LIBRE' as const, libelle: 'EFFECTIFS — Total (M / F)' },
-      { type: 'LIBRE' as const, libelle: 'MASSE SALARIALE — Nationaux (M / F)' },
-      { type: 'LIBRE' as const, libelle: 'MASSE SALARIALE — Autres Etats de la Région (M / F)' },
-      { type: 'LIBRE' as const, libelle: 'MASSE SALARIALE — Hors Région (M / F)' },
-      { type: 'LIBRE' as const, libelle: 'MASSE SALARIALE — Total (M / F)' },
+      { type: 'LIBRE' as const, libelle: 'EFFECTIFS · Nationaux (M / F)' },
+      { type: 'LIBRE' as const, libelle: 'EFFECTIFS · Autres Etats de la Région (M / F)' },
+      { type: 'LIBRE' as const, libelle: 'EFFECTIFS · Hors Région (M / F)' },
+      { type: 'LIBRE' as const, libelle: 'EFFECTIFS · Total (M / F)' },
+      { type: 'LIBRE' as const, libelle: 'MASSE SALARIALE · Nationaux (M / F)' },
+      { type: 'LIBRE' as const, libelle: 'MASSE SALARIALE · Autres Etats de la Région (M / F)' },
+      { type: 'LIBRE' as const, libelle: 'MASSE SALARIALE · Hors Région (M / F)' },
+      { type: 'LIBRE' as const, libelle: 'MASSE SALARIALE · Total (M / F)' },
     ],
     rubriques: [
       { libelle: 'YA. 1. Cadres supérieurs', saisie: true },
@@ -1766,7 +1766,7 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
   {
     code: '29B',
     sousTableau: 'PERSONNEL EXTERIEUR ET BENEVOLE',
-    titre: 'EFFECTIF, MASSE SALARIALE ET PERSONNEL — 2. Personnel extérieur et bénévole',
+    titre: 'EFFECTIF, MASSE SALARIALE ET PERSONNEL · 2. Personnel extérieur et bénévole',
     horsBalance: true,
     colonnes: [{ type: 'LIBRE' as const, libelle: "Facturation à l'entité" }],
     rubriques: [
@@ -1783,7 +1783,7 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
   {
     code: '33',
     titre: 'FICHE DE SYNTHESE DES PRINCIPAUX INDICATEURS FINANCIERS',
-    // TRANSCRITE, PAS ENCORE CALCULÉE — et c'est délibéré.
+    // TRANSCRITE, PAS ENCORE CALCULÉE · et c'est délibéré.
     //
     // Cette fiche est une SYNTHÈSE des trois autres états : elle reprend des
     // agrégats du bilan (fonds propres, ressources stables, actif immobilisé),
@@ -1840,7 +1840,7 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
       { libelle: '= VARIATION DE LA TRESORERIE NETTE DE LA PERIODE', saisie: true },
     ],
     renvoiOfficiel:
-      "(EN MILLIERS DE FRANCS) — a) capacité d'autofinancement globale = Résultat net + Dotations aux " +
+      "(EN MILLIERS DE FRANCS) · a) capacité d'autofinancement globale = Résultat net + Dotations aux " +
       'amortissements aux dépréciations, provisions et autres - Reprises d’amortissements, de dépréciations ' +
       'provisions et autres + valeurs comptables des cessions d’immobilisations - Produits des cessions ' +
       'd’immobilisations. b) Les variations des ratios doivent être exprimées en nombre de points (par exemple ' +
@@ -1852,39 +1852,39 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
   {
     code: '34',
     titre: 'LISTE DES INFORMATIONS SOCIALES, ENVIRONNEMENTALES ET SOCIETALES',
-    // Obligatoire seulement au-delà de 250 personnes, BÉNÉVOLES COMPRIS — un
+    // Obligatoire seulement au-delà de 250 personnes, BÉNÉVOLES COMPRIS · un
     // seuil que la comptabilité ne peut pas vérifier seule (voir note 29B).
     horsBalance: true,
     colonnes: [{ type: 'LIBRE' as const, libelle: 'Informations' }],
     rubriques: [
-      { libelle: 'INFORMATIONS SOCIALES — Emploi', saisie: true },
-      { libelle: 'INFORMATIONS SOCIALES — Relations sociales', saisie: true },
-      { libelle: 'INFORMATIONS SOCIALES — Santé et sécurité', saisie: true },
-      { libelle: 'INFORMATIONS SOCIALES — Formation', saisie: true },
-      { libelle: 'INFORMATIONS SOCIALES — Égalité de traitement', saisie: true },
-      { libelle: 'INFORMATIONS ENVIRONNEMENTALES — Politique générale en matière environnementale', saisie: true },
-      { libelle: 'INFORMATIONS ENVIRONNEMENTALES — Pollution et gestion des déchets', saisie: true },
-      { libelle: 'INFORMATIONS ENVIRONNEMENTALES — Utilisation durable des ressources', saisie: true },
+      { libelle: 'INFORMATIONS SOCIALES · Emploi', saisie: true },
+      { libelle: 'INFORMATIONS SOCIALES · Relations sociales', saisie: true },
+      { libelle: 'INFORMATIONS SOCIALES · Santé et sécurité', saisie: true },
+      { libelle: 'INFORMATIONS SOCIALES · Formation', saisie: true },
+      { libelle: 'INFORMATIONS SOCIALES · Égalité de traitement', saisie: true },
+      { libelle: 'INFORMATIONS ENVIRONNEMENTALES · Politique générale en matière environnementale', saisie: true },
+      { libelle: 'INFORMATIONS ENVIRONNEMENTALES · Pollution et gestion des déchets', saisie: true },
+      { libelle: 'INFORMATIONS ENVIRONNEMENTALES · Utilisation durable des ressources', saisie: true },
       {
-        libelle: 'INFORMATIONS ENVIRONNEMENTALES — Changement climatique (rejets de gaz à effet de serre)',
+        libelle: 'INFORMATIONS ENVIRONNEMENTALES · Changement climatique (rejets de gaz à effet de serre)',
         saisie: true,
       },
-      { libelle: 'INFORMATIONS ENVIRONNEMENTALES — Protection de la biodiversité', saisie: true },
+      { libelle: 'INFORMATIONS ENVIRONNEMENTALES · Protection de la biodiversité', saisie: true },
       {
         libelle:
-          "ENGAGEMENTS SOCIÉTAUX — Impact territorial, économique et social de l'activité (emploi et " +
+          "ENGAGEMENTS SOCIÉTAUX · Impact territorial, économique et social de l'activité (emploi et " +
           'développement régional ; populations riveraines ou locales)',
         saisie: true,
       },
       {
         libelle:
-          "ENGAGEMENTS SOCIÉTAUX — Relations entretenues avec les personnes ou organisations intéressées par " +
+          "ENGAGEMENTS SOCIÉTAUX · Relations entretenues avec les personnes ou organisations intéressées par " +
           "l'activité de l'entité",
         saisie: true,
       },
       {
         libelle:
-          'ENGAGEMENTS SOCIÉTAUX — Sous-traitance et fournisseurs (prise en compte des enjeux sociaux et ' +
+          'ENGAGEMENTS SOCIÉTAUX · Sous-traitance et fournisseurs (prise en compte des enjeux sociaux et ' +
           "environnementaux dans la politique d'achat)",
         saisie: true,
       },
@@ -1896,7 +1896,7 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     code: '35',
     titre: "TABLEAU D'EXECUTION BUDGETAIRE",
     // Le budget n'est pas une donnée comptable : rien dans la balance ne
-    // porte un montant BUDGÉTÉ. Ce tableau suppose une brique budgétaire —
+    // porte un montant BUDGÉTÉ. Ce tableau suppose une brique budgétaire ·
     // saisie du budget par ligne de nomenclature, puis rapprochement avec les
     // décaissements et les engagements. Les colonnes (4) et (5) et le
     // pourcentage se déduisent alors des trois premières.

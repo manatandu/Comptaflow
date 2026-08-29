@@ -11,7 +11,7 @@ import {
 /**
  * Intégrité structurelle du tableau de correspondance du bilan. Le
  * comportement (quel compte va où, BE/DI, CH, amortissements) est couvert
- * par `etats-financiers.service.spec.ts` — ces tests-ci vérifient la
+ * par `etats-financiers.service.spec.ts` · ces tests-ci vérifient la
  * cohérence interne du référentiel lui-même : rien de double, rien
  * d'orphelin, l'ordre d'affichage couvre exactement ce qui est défini.
  */
@@ -22,7 +22,7 @@ describe('correspondance bilan (SYCEBNL, Partie 4 ch. 2)', () => {
       ...POSTES_PASSIF.map((p) => p.ref),
       ...TOTAUX_ACTIF.map((t) => t.ref),
       ...TOTAUX_PASSIF.map((t) => t.ref),
-      'CH', // résultat net — calculé à part (etats-financiers.service.ts), pas listé dans POSTES_PASSIF
+      'CH', // résultat net · calculé à part (etats-financiers.service.ts), pas listé dans POSTES_PASSIF
     ];
     expect(new Set(toutesLesRefs).size).toBe(toutesLesRefs.length);
   });
@@ -50,7 +50,7 @@ describe('correspondance bilan (SYCEBNL, Partie 4 ch. 2)', () => {
     }
   });
 
-  it('un total ne référence jamais une ref qui vient APRÈS lui dans sa propre liste — sinon le calcul en une passe casserait', () => {
+  it('un total ne référence jamais une ref qui vient APRÈS lui dans sa propre liste · sinon le calcul en une passe casserait', () => {
     // etats-financiers.service.ts résout les totaux dans l'ordre de
     // [...TOTAUX_ACTIF, ...TOTAUX_PASSIF] : une ref utilisée avant d'avoir
     // été calculée lirait `undefined` (traité comme 0, silencieusement faux).
@@ -73,12 +73,12 @@ describe('correspondance bilan (SYCEBNL, Partie 4 ch. 2)', () => {
     expect(di.comptes).not.toContain('41');
   });
 
-  it('CJ (provisions réglementées) retient 15, pas 16 — anomalie n° 3', () => {
+  it('CJ (provisions réglementées) retient 15, pas 16 · anomalie n° 3', () => {
     const cj = POSTES_PASSIF.find((p) => p.ref === 'CJ')!;
     expect(cj.comptes).toEqual(['15']);
   });
 
-  it('DW couvre 56 EN ENTIER — la restriction à 564/565 perdait 561 et 566 (audit 2026-08-28)', () => {
+  it('DW couvre 56 EN ENTIER · la restriction à 564/565 perdait 561 et 566 (audit 2026-08-28)', () => {
     // Ce test verrouillait auparavant `['564', '565']`, c'est-à-dire une
     // erreur : 564 n'existe pas au plan SYCEBNL (COMPTE 56 = 561 Crédits de
     // trésorerie / 565 Escompte / 566 intérêts courus) et la restriction
@@ -88,7 +88,7 @@ describe('correspondance bilan (SYCEBNL, Partie 4 ch. 2)', () => {
     expect(COMPTES_TRESORERIE_PASSIF_SI_CREDITEUR).toEqual(['52', '53']);
   });
 
-  it('BW transfère ses soldes 52/53 CRÉDITEURS vers DW — sinon un découvert est compté des deux côtés', () => {
+  it('BW transfère ses soldes 52/53 CRÉDITEURS vers DW · sinon un découvert est compté des deux côtés', () => {
     const bw = POSTES_ACTIF.find((p) => p.ref === 'BW')!;
     expect(bw.comptesTransferesSiCrediteur).toEqual(['52', '53']);
     // 55/57 volontairement absents : une caisse créditrice doit rester
