@@ -3,16 +3,21 @@ import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { IconLogo } from '../components/chrome/icons';
+import { NouveauFichierWizard } from '../components/NouveauFichierWizard';
 import type { AuthResponse } from '../lib/types';
 
 /**
- * Page d'ouverture — un seul écran, deux onglets (Connexion / Rejoindre),
- * dans un registre simple et accueillant plutôt que la boîte de dialogue
- * de poste de travail : c'est la première chose que voit quiconque découvre
- * OmegaX, elle doit donner envie d'entrer, pas ressembler à un formulaire
- * administratif. Le reste du logiciel, une fois à l'intérieur, garde son
- * registre « poste de travail comptable » — seule cette porte d'entrée
- * change de ton.
+ * Page d'ouverture · un seul écran, dans un registre simple et accueillant
+ * plutôt que la boîte de dialogue de poste de travail : c'est la première
+ * chose que voit quiconque découvre OmegaX, elle doit donner envie d'entrer,
+ * pas ressembler à un formulaire administratif. Le reste du logiciel, une
+ * fois à l'intérieur, garde son registre « poste de travail comptable » ·
+ * seule cette porte d'entrée change de ton.
+ *
+ * Un seul formulaire, celui de la connexion. La création d'un dossier passe
+ * par l'assistant « Nouveau fichier comptable », qui pose les questions
+ * qu'une inscription en trois champs ne peut pas poser (type d'entité et donc
+ * jeu d'états financiers SYCEBNL, exercice, monnaie de tenue).
  */
 
 function IconOeil({ ouvert }: { ouvert: boolean }) {
@@ -30,8 +35,7 @@ function IconOeil({ ouvert }: { ouvert: boolean }) {
   );
 }
 
-/** Cercles décoratifs, en pur CSS — le même esprit que la page d'accueil
- * d'un grand réseau social, sans rien emprunter à sa marque. */
+/** Cercles décoratifs, en pur CSS. */
 function CerclesDecoratifs() {
   const cercle = (style: React.CSSProperties) => (
     <div className="absolute rounded-full border border-sel/25 pointer-events-none" style={style} />
@@ -49,14 +53,13 @@ function CerclesDecoratifs() {
   );
 }
 
-export function AuthPage({ ongletInitial }: { ongletInitial: 'connexion' | 'rejoindre' }) {
-  const [onglet, setOnglet] = useState<'connexion' | 'rejoindre'>(ongletInitial);
-  const [nomEntite, setNomEntite] = useState('');
+export function AuthPage({ assistantInitial = false }: { assistantInitial?: boolean }) {
   const [email, setEmail] = useState('');
   const [motDePasse, setMotDePasse] = useState('');
   const [motDePasseVisible, setMotDePasseVisible] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
+  const [assistantOuvert, setAssistantOuvert] = useState(assistantInitial);
   const { seConnecter } = useAuth();
   const navigate = useNavigate();
 
@@ -65,10 +68,7 @@ export function AuthPage({ ongletInitial }: { ongletInitial: 'connexion' | 'rejo
     setErreur(null);
     setEnvoi(true);
     try {
-      const res =
-        onglet === 'connexion'
-          ? await api.post<AuthResponse>('/auth/login', { email, motDePasse })
-          : await api.post<AuthResponse>('/auth/register', { nomEntite, referentiel: 'SYCEBNL', email, motDePasse });
+      const res = await api.post<AuthResponse>('/auth/login', { email, motDePasse });
       await seConnecter(res.accessToken);
       navigate('/');
     } catch (err) {
@@ -96,45 +96,13 @@ export function AuthPage({ ongletInitial }: { ongletInitial: 'connexion' | 'rejo
       </div>
 
       <div className="relative z-10 w-full max-w-[400px]">
-        <div className="flex bg-chrome-alt rounded-full p-1 mb-5">
-          {(['connexion', 'rejoindre'] as const).map((o) => (
-            <button
-              key={o}
-              type="button"
-              onClick={() => {
-                setOnglet(o);
-                setErreur(null);
-              }}
-              className={`flex-1 rounded-full py-2 text-[13.5px] font-semibold transition-colors ${
-                onglet === o ? 'bg-surface text-text shadow-posee' : 'text-text-dim hover:text-text'
-              }`}
-            >
-              {o === 'connexion' ? 'Connexion' : 'Rejoindre'}
-            </button>
-          ))}
-        </div>
-
         <form onSubmit={onSubmit} className="flex flex-col gap-3.5">
-          {onglet === 'rejoindre' && (
-            <label className="flex flex-col gap-1.5">
-              <span className="text-[13px] font-semibold text-text px-0.5">Nom de votre entité</span>
-              <input
-                required
-                autoFocus
-                value={nomEntite}
-                onChange={(e) => setNomEntite(e.target.value)}
-                placeholder="Association, ONG, fondation, projet…"
-                className={champClasse}
-              />
-            </label>
-          )}
-
           <label className="flex flex-col gap-1.5">
             <span className="text-[13px] font-semibold text-text px-0.5">Adresse e-mail</span>
             <input
               type="email"
               required
-              autoFocus={onglet === 'connexion'}
+              autoFocus
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className={champClasse}
@@ -147,7 +115,6 @@ export function AuthPage({ ongletInitial }: { ongletInitial: 'connexion' | 'rejo
               <input
                 type={motDePasseVisible ? 'text' : 'password'}
                 required
-                minLength={onglet === 'rejoindre' ? 8 : undefined}
                 value={motDePasse}
                 onChange={(e) => setMotDePasse(e.target.value)}
                 className={`${champClasse} pr-11`}
@@ -174,12 +141,30 @@ export function AuthPage({ ongletInitial }: { ongletInitial: 'connexion' | 'rejo
             disabled={envoi}
             className="mt-1.5 bg-sel text-white text-[14.5px] font-bold py-3 rounded-xl hover:brightness-110 disabled:opacity-60"
           >
-            {envoi ? 'Un instant…' : onglet === 'connexion' ? 'Se connecter' : 'Créer mon dossier'}
+            {envoi ? 'Un instant…' : 'Se connecter'}
           </button>
         </form>
+
+        <div className="flex items-center gap-3 my-5">
+          <div className="flex-1 h-px bg-border" />
+          <span className="text-[11.5px] text-text-dim">ou</span>
+          <div className="flex-1 h-px bg-border" />
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setAssistantOuvert(true)}
+          className="w-full bg-surface border border-border text-sel text-[14px] font-bold py-3 rounded-xl hover:bg-sel-soft shadow-posee"
+        >
+          Créer un dossier comptable
+        </button>
       </div>
 
       <p className="relative z-10 mt-8 text-[11px] text-text-dim">OmegaX © 2026</p>
+
+      {assistantOuvert && (
+        <NouveauFichierWizard onClose={() => setAssistantOuvert(false)} onTermine={() => navigate('/')} />
+      )}
     </div>
   );
 }

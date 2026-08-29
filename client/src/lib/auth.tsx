@@ -15,6 +15,8 @@ interface AuthContextValue {
   utilisateur: MeResponse | null;
   estAdmin: boolean;
   seConnecter: (accessToken: string) => Promise<void>;
+  /** Relit /auth/me · à appeler après avoir changé un paramètre du dossier. */
+  rafraichir: () => Promise<void>;
   seDeconnecter: () => void;
 }
 
@@ -53,6 +55,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await chargerUtilisateur();
   };
 
+  const rafraichir = async () => {
+    await chargerUtilisateur();
+  };
+
   const seDeconnecter = () => {
     setToken(null);
     setUtilisateur(null);
@@ -66,6 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         utilisateur,
         estAdmin: utilisateur?.role === 'ADMIN_CABINET',
         seConnecter,
+        rafraichir,
         seDeconnecter,
       }}
     >

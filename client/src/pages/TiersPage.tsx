@@ -4,6 +4,7 @@ import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useExercice } from '../lib/exercice';
 import { IconCheck } from '../components/chrome/icons';
+import { Aide } from '../components/chrome/Aide';
 import type {
   Compte,
   ConditionEcheance,
@@ -18,26 +19,50 @@ import type {
 /**
  * PLAN DES TIERS · la fenêtre Structure → Plan tiers de Sage 100 i7 :
  * « Dans la partie gauche de la fenêtre, un filtre permet de sélectionner le
- * type de tiers (Client, Fournisseur, Salarié, Autre ou tous) » ; au centre
+ * type de tiers » ; au centre
  * la liste dense ; à droite la FICHE du tiers sélectionné, en volets
  * Identification (code, type, nom, modèle de règlement, état) et Comptes
  * rattachés (avec compte Principal, comme chez Sage : « un des comptes
  * généraux sélectionnés doit être défini comme Principal »).
  * Les modèles de règlement Structure → Modèles chez Sage s'ouvrent dans
  * leur propre boîte de dialogue, avec le simulateur d'échéancier.
+ *
+ * DIFFÉRENCE ASSUMÉE AVEC SAGE. Le plan français de Sage ne connaît que le
+ * « Client ». Le SYCEBNL, lui, loge au compte 41 « Adhérents, clients-usagers
+ * et comptes rattachés » DEUX populations qu'il subdivise explicitement :
+ * 411 Adhérents (les membres qui doivent leur cotisation conformément aux
+ * statuts) et 412 Clients-usagers (les tiers auxquels l'entité vend biens et
+ * services). Les fondre en un seul type ferait perdre le suivi des appels de
+ * cotisations, qui est l'activité même d'une EBNL · d'où un type ADHERENT à
+ * part entière, et le rappel du compte de rattachement sur chaque type.
  */
 
 const LIBELLE_TYPE: Record<TypeTiers, string> = {
-  CLIENT: 'Client',
+  ADHERENT: 'Adhérent',
+  CLIENT: 'Client-usager',
   FOURNISSEUR: 'Fournisseur',
   SALARIE: 'Salarié',
   AUTRE: 'Autre',
 };
 const PLURIEL_TYPE: Record<TypeTiers, string> = {
-  CLIENT: 'Clients',
+  ADHERENT: 'Adhérents',
+  CLIENT: 'Clients-usagers',
   FOURNISSEUR: 'Fournisseurs',
   SALARIE: 'Salariés',
   AUTRE: 'Autres',
+};
+/** Compte de rattachement SYCEBNL, rappelé à côté de chaque type. */
+const COMPTE_TYPE: Record<TypeTiers, string> = {
+  ADHERENT: '411',
+  CLIENT: '412',
+  FOURNISSEUR: '40',
+  SALARIE: '42',
+  AUTRE: '47',
+};
+/** Bulle d'aide « ? » du lexique SYCEBNL, par type de tiers. */
+const AIDE_TYPE: Partial<Record<TypeTiers, 'adherent' | 'clientUsager'>> = {
+  ADHERENT: 'adherent',
+  CLIENT: 'clientUsager',
 };
 
 const LIBELLE_ECHEANCE: Record<ConditionEcheance, string> = {
@@ -292,7 +317,10 @@ export function TiersPage() {
       <div className="flex items-center justify-between mb-2 shrink-0">
         <div>
           <div className="text-[10.5px] font-mono text-text-dim">STRUCTURE</div>
-          <h1 className="text-[15px] font-bold">Plan des tiers</h1>
+          <h1 className="text-[15px] font-bold flex items-center gap-1.5">
+            Plan des tiers
+            <Aide sujet="compte41" />
+          </h1>
         </div>
         <div className="flex items-center gap-2">
           <input
@@ -350,7 +378,12 @@ export function TiersPage() {
                 filtreType === t ? 'bg-sel text-white' : 'hover:bg-chrome-alt'
               }`}
             >
-              <span>{PLURIEL_TYPE[t]}</span>
+              <span className="flex items-baseline gap-1.5">
+                {PLURIEL_TYPE[t]}
+                <span className={`font-mono text-[10px] ${filtreType === t ? 'text-white/60' : 'text-text-dim'}`}>
+                  {COMPTE_TYPE[t]}
+                </span>
+              </span>
               <span className={filtreType === t ? 'text-white/70' : 'text-text-dim'}>{nombresParType.get(t) ?? 0}</span>
             </button>
           ))}
@@ -412,7 +445,13 @@ export function TiersPage() {
               <div className="text-[12.5px] mb-2.5">{tiersSelectionne.nom}</div>
               <div className="grid grid-cols-[92px_1fr] gap-x-2 gap-y-1.5 items-center mb-3">
                 <span className="text-text-dim text-right">Type :</span>
-                <span>{LIBELLE_TYPE[tiersSelectionne.type]}</span>
+                <span className="flex items-center gap-1.5">
+                  {LIBELLE_TYPE[tiersSelectionne.type]}
+                  <span className="font-mono text-[10.5px] text-text-dim">
+                    compte {COMPTE_TYPE[tiersSelectionne.type]}
+                  </span>
+                  {AIDE_TYPE[tiersSelectionne.type] && <Aide sujet={AIDE_TYPE[tiersSelectionne.type]!} />}
+                </span>
                 <span className="text-text-dim text-right">Règlement :</span>
                 <span>{tiersSelectionne.modeleReglement?.intitule ?? 'aucun modèle'}</span>
                 <span className="text-text-dim text-right">État :</span>
@@ -520,7 +559,7 @@ export function TiersPage() {
                 <label className="text-[12px] text-right">Type :</label>
                 <select value={type} onChange={(e) => setType(e.target.value as TypeTiers)} className="border border-border-dark px-2.5 py-1.5 text-[12.5px]">
                   {(Object.keys(LIBELLE_TYPE) as TypeTiers[]).map((t) => (
-                    <option key={t} value={t}>{LIBELLE_TYPE[t]}</option>
+                    <option key={t} value={t}>{`${LIBELLE_TYPE[t]} · compte ${COMPTE_TYPE[t]}`}</option>
                   ))}
                 </select>
                 <label className="text-[12px] text-right">Code :</label>

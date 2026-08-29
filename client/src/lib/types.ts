@@ -379,12 +379,20 @@ export interface CompteDeResultat {
 }
 
 export interface AuthResponse {
-  tenant?: { id: string; nom: string; referentiel: Referentiel };
+  tenant?: {
+    id: string;
+    nom: string;
+    referentiel: Referentiel;
+    jeuEtatsFinanciersSycebnl?: JeuEtatsFinanciersSycebnl;
+  };
   exercice?: Exercice;
   accessToken: string;
 }
 
-export type TypeTiers = 'CLIENT' | 'FOURNISSEUR' | 'SALARIE' | 'AUTRE';
+// Types de tiers du SYCEBNL : le compte 41 « Adhérents, clients-usagers et
+// comptes rattachés » couvre deux populations que le texte officiel
+// subdivise (411 Adhérents, 412 Clients-usagers). Voir prisma/schema.prisma.
+export type TypeTiers = 'ADHERENT' | 'CLIENT' | 'FOURNISSEUR' | 'SALARIE' | 'AUTRE';
 export type ConditionEcheance = 'NET' | 'FIN_DE_MOIS';
 export type TypeEcheance = 'POURCENTAGE' | 'MONTANT' | 'EQUILIBRE';
 
@@ -848,4 +856,21 @@ export interface EcritureProposee {
   totalCredit: number;
   equilibree: boolean;
   comptesIntrouvables: { compte: string; libelle: string }[];
+}
+
+/** Structure > Paramètres du dossier (GET /dossier/parametres). */
+export interface ParametresDossier {
+  id: string;
+  nom: string;
+  referentiel: Referentiel;
+  jeuEtatsFinanciersSycebnl: JeuEtatsFinanciersSycebnl;
+  activite: string | null;
+  adresse: string | null;
+  ville: string | null;
+  pays: string | null;
+  telephone: string | null;
+  devise: string | null;
+  longueurCompte: number;
+  /** Au-delà de zéro, le jeu d'états financiers est verrouillé. */
+  nombreEcritures: number;
 }

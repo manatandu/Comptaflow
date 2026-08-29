@@ -24,6 +24,7 @@ import { NotesAnnexesPage } from './pages/NotesAnnexesPage';
 import { RegistreDonateursPage } from './pages/RegistreDonateursPage';
 import { DocumentsObligatoiresPage } from './pages/DocumentsObligatoiresPage';
 import { UtilisateursPage } from './pages/UtilisateursPage';
+import { ParametresDossierPage } from './pages/ParametresDossierPage';
 import { BailleursPage } from './pages/BailleursPage';
 
 function ZoneProtegee({ children }: { children: JSX.Element }) {
@@ -71,6 +72,7 @@ function Routage() {
         <Route path="documents-obligatoires" element={<DocumentsObligatoiresPage />} />
         <Route path="bailleurs" element={<BailleursPage />} />
         <Route path="utilisateurs" element={<UtilisateursPage />} />
+        <Route path="parametres-dossier" element={<ParametresDossierPage />} />
       </Route>
     </Routes>
   );

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../lib/api';
 import type { Compte, LigneLettrage } from '../lib/types';
+import { Aide } from '../components/chrome/Aide';
 
 export function LettragePage() {
   const { compteId } = useParams<{ compteId: string }>();
@@ -105,8 +106,12 @@ export function LettragePage() {
       <div className="flex items-end justify-between max-w-[960px] mb-2.5 gap-3 flex-wrap">
         <div>
           <div className="text-[10.5px] font-mono text-text-dim">TRAITEMENT</div>
-          <h1 className="text-[15px] font-bold">
-            Interrogation et lettrage{compte && <> · <span className="font-mono">{compte.numero}</span> {compte.intitule}</>}
+          <h1 className="text-[15px] font-bold flex items-center gap-1.5">
+            <span>
+              Interrogation et lettrage
+              {compte && <> · <span className="font-mono">{compte.numero}</span> {compte.intitule}</>}
+            </span>
+            <Aide sujet="lettrage" />
           </h1>
         </div>
         <div className="flex items-end gap-2">

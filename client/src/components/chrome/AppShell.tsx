@@ -47,6 +47,11 @@ export function AppShell() {
         { label: 'Taux de taxes', onClick: () => navigate('/taux-tva') },
         { label: 'Bailleurs de fonds', separateurAvant: true, onClick: () => navigate('/bailleurs') },
         { label: 'Immobilisations', onClick: () => navigate('/immobilisations') },
+        // Sage : Fichier → Paramètres société. Ici le paramètre décisif est le
+        // jeu d'états financiers SYCEBNL (association / projet de
+        // développement), qui commande toute la liasse · il a sa place dans
+        // Structure, avec les autres éléments qui structurent le dossier.
+        { label: 'Paramètres du dossier', separateurAvant: true, onClick: () => navigate('/parametres-dossier') },
       ],
     },
     {

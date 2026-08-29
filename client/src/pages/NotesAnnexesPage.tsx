@@ -4,6 +4,7 @@ import { useExercice } from '../lib/exercice';
 import { useAuth } from '../lib/auth';
 import { IconExport } from '../components/chrome/icons';
 import type { Compte, LigneNoteCalculee, NoteCalculee, ResultatNotesJeu } from '../lib/types';
+import { Aide } from '../components/chrome/Aide';
 
 /**
  * Tri croissant des codes de note (« 1 », « 5A »…« 5H », « 17A », « 17B »,
@@ -324,7 +325,10 @@ export function NotesAnnexesPage() {
       <div className="flex items-center justify-between mb-2.5">
         <div>
           <div className="text-[10.5px] font-mono text-text-dim">ÉTAT</div>
-          <h1 className="text-[15px] font-bold">Notes annexes</h1>
+          <h1 className="text-[15px] font-bold flex items-center gap-1.5">
+            Notes annexes
+            <Aide sujet="notesAnnexes" />
+          </h1>
         </div>
         <div className="flex items-center gap-2.5">
           {exerciceCourant && (

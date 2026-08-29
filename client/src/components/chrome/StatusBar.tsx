@@ -30,6 +30,7 @@ const TITRES: Array<[RegExp, string]> = [
   [/^\/documents-obligatoires/, 'Documents obligatoires'],
   [/^\/bailleurs/, 'Bailleurs de fonds'],
   [/^\/utilisateurs/, "Autorisations d'accès"],
+  [/^\/parametres-dossier/, "Paramètres du dossier"],
 ];
 
 export function StatusBar() {

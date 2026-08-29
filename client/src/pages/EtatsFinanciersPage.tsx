@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useExercice } from '../lib/exercice';
 import { useAuth } from '../lib/auth';
 import { IconExport, IconCheck } from '../components/chrome/icons';
+import { Aide } from '../components/chrome/Aide';
 import type {
   Bilan,
   BilanProjet,
@@ -26,10 +28,21 @@ import type {
 type OngletAssociations = 'bilan' | 'compte-de-resultat' | 'flux-tresorerie';
 type OngletProjet = 'bilan-projet' | 'compte-exploitation-projet' | 'note-bailleur';
 
+/** Entrée du lexique SYCEBNL correspondant à chaque onglet d'état. */
+const AIDE_ONGLET: Record<string, 'bilan' | 'compteResultat' | 'tft' | 'compteExploitation' | 'bailleur' | undefined> = {
+  bilan: 'bilan',
+  'compte-de-resultat': 'compteResultat',
+  'flux-tresorerie': 'tft',
+  'bilan-projet': 'bilan',
+  'compte-exploitation-projet': 'compteExploitation',
+  'note-bailleur': 'bailleur',
+};
+
 export function EtatsFinanciersPage() {
   const { exerciceCourant } = useExercice();
   const { utilisateur } = useAuth();
   const jeuProjet = utilisateur?.tenant.jeuEtatsFinanciersSycebnl === 'PROJETS_DEVELOPPEMENT';
+  const navigate = useNavigate();
 
   const [ongletAssociations, setOngletAssociations] = useState<OngletAssociations>('bilan');
   const [ongletProjet, setOngletProjet] = useState<OngletProjet>('bilan-projet');
@@ -204,7 +217,16 @@ export function EtatsFinanciersPage() {
       <div className="flex items-center justify-between mb-2.5">
         <div>
           <div className="text-[10.5px] font-mono text-text-dim">ÉTAT</div>
-          <h1 className="text-[15px] font-bold">États financiers</h1>
+          <h1 className="text-[15px] font-bold flex items-center gap-1.5">
+            États financiers
+            <Aide sujet="jeuEtats" />
+          </h1>
+          <div className="text-[10.5px] text-text-dim mt-0.5">
+            Jeu {jeuProjet ? 'des projets de développement' : 'des associations et ordres professionnels'} ·{' '}
+            <button onClick={() => navigate('/parametres-dossier')} className="underline hover:text-sel">
+              paramètres du dossier
+            </button>
+          </div>
         </div>
         <div className="flex items-center gap-2.5">
           {exerciceCourant && (
@@ -234,9 +256,9 @@ export function EtatsFinanciersPage() {
 
       {jeuProjet && (
         <p className="text-[10.5px] text-text-dim mb-1.5">
-          Jeu « Projets de développement et assimilés » (SYCEBNL, Partie 4 ch. 3) · Tableau emplois-ressources,
-          Tableau d'exécution budgétaire et Tableau de réconciliation de trésorerie non construits (voir{' '}
-          <code>EtatsFinanciersProjetService</code>) : seuls Bilan et Compte d'exploitation sont disponibles ici.
+          Jeu « Projets de développement et assimilés » (SYCEBNL, Partie 4 ch. 3). Le tableau emplois-ressources,
+          le tableau d'exécution budgétaire et le tableau de réconciliation de trésorerie ne sont pas encore
+          construits : seuls le bilan et le compte d'exploitation sont disponibles ici.
         </p>
       )}
 
@@ -294,6 +316,15 @@ export function EtatsFinanciersPage() {
         </div>
       )}
 
+      {/* Bulle d'aide de l'état affiché : la définition SYCEBNL de l'état est
+          à portée de clic, sans encombrer les onglets d'un paragraphe. */}
+      {AIDE_ONGLET[onglet] && (
+        <div className="flex items-center gap-1.5 border-x border-t border-border bg-surface px-4 pt-2 text-[10.5px] text-text-dim">
+          <span>Ce que dit le référentiel</span>
+          <Aide sujet={AIDE_ONGLET[onglet]!} />
+        </div>
+      )}
+
       {onglet === 'bilan' && (
         <>
           {!bilan && <div className="border border-border px-4 py-4 text-[12px] text-text-dim">Chargement…</div>}
@@ -301,7 +332,7 @@ export function EtatsFinanciersPage() {
             <div className="max-w-[1180px] overflow-x-auto">
               {!bilan.exerciceN1Disponible && (
                 <p className="text-[10.5px] text-text-dim mb-1.5">
-                  Aucun exercice antérieur dans ce dossier la colonne N-1 affiche « », pas un faux zéro.
+                  Aucun exercice antérieur dans ce dossier : la colonne N-1 reste vide, ce n'est pas un zéro.
                 </p>
               )}
 
@@ -377,7 +408,7 @@ export function EtatsFinanciersPage() {
             <div className="max-w-[900px]">
               {!cr.exerciceN1Disponible && (
                 <p className="text-[10.5px] text-text-dim mb-1.5">
-                  Aucun exercice antérieur dans ce dossier la colonne N-1 affiche « », pas un faux zéro.
+                  Aucun exercice antérieur dans ce dossier : la colonne N-1 reste vide, ce n'est pas un zéro.
                 </p>
               )}
 
@@ -457,7 +488,7 @@ export function EtatsFinanciersPage() {
             <div className="max-w-[900px]">
               {!tft.exerciceN1Disponible && (
                 <p className="text-[10.5px] text-text-dim mb-1.5">
-                  Aucun exercice antérieur dans ce dossier la colonne N-1 affiche « », pas un faux zéro.
+                  Aucun exercice antérieur dans ce dossier : la colonne N-1 reste vide, ce n'est pas un zéro.
                 </p>
               )}
 
@@ -530,7 +561,7 @@ export function EtatsFinanciersPage() {
             <div className="max-w-[1180px] overflow-x-auto">
               {!bilanProjet.exerciceN1Disponible && (
                 <p className="text-[10.5px] text-text-dim mb-1.5">
-                  Aucun exercice antérieur dans ce dossier la colonne N-1 affiche « », pas un faux zéro.
+                  Aucun exercice antérieur dans ce dossier : la colonne N-1 reste vide, ce n'est pas un zéro.
                 </p>
               )}
 
@@ -598,7 +629,7 @@ export function EtatsFinanciersPage() {
             <div className="max-w-[900px]">
               {!ceProjet.exerciceN1Disponible && (
                 <p className="text-[10.5px] text-text-dim mb-1.5">
-                  Aucun exercice antérieur dans ce dossier la colonne N-1 affiche « », pas un faux zéro.
+                  Aucun exercice antérieur dans ce dossier : la colonne N-1 reste vide, ce n'est pas un zéro.
                 </p>
               )}
 

@@ -3,6 +3,7 @@ import { api, ApiError } from '../lib/api';
 import { useExercice } from '../lib/exercice';
 import { useAuth } from '../lib/auth';
 import { IconExport } from '../components/chrome/icons';
+import { Aide } from '../components/chrome/Aide';
 import type {
   Donation,
   ModeLiberation,
@@ -230,7 +231,10 @@ export function RegistreDonateursPage() {
       <div className="flex items-center justify-between mb-2.5">
         <div>
           <div className="text-[10.5px] font-mono text-text-dim">TRAITEMENT</div>
-          <h1 className="text-[15px] font-bold">Registre des donateurs</h1>
+          <h1 className="text-[15px] font-bold flex items-center gap-1.5">
+            Registre des donateurs
+            <Aide sujet="registreDonateurs" />
+          </h1>
         </div>
         <div className="flex items-center gap-2.5">
           {exerciceCourant && (

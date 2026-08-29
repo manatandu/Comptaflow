@@ -527,11 +527,11 @@ export class EcritureService {
    */
   async balanceAgee(
     tenantId: string,
-    params: { exerciceId: string; dateReference?: string; type?: 'CLIENTS' | 'FOURNISSEURS' | 'TOUS' },
+    params: { exerciceId: string; dateReference?: string; type?: 'ADHERENTS_CLIENTS' | 'FOURNISSEURS' | 'TOUS' },
   ) {
     const ref = params.dateReference ? new Date(params.dateReference) : new Date();
     const type = params.type ?? 'TOUS';
-    const racines = type === 'CLIENTS' ? ['41'] : type === 'FOURNISSEURS' ? ['40'] : ['40', '41'];
+    const racines = type === 'ADHERENTS_CLIENTS' ? ['41'] : type === 'FOURNISSEURS' ? ['40'] : ['40', '41'];
 
     const lignes = await this.prisma.ligneEcriture.findMany({
       where: {

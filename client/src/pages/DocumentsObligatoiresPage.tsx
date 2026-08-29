@@ -3,6 +3,7 @@ import { api, ApiError } from '../lib/api';
 import { useExercice } from '../lib/exercice';
 import { useAuth } from '../lib/auth';
 import { IconExport } from '../components/chrome/icons';
+import { Aide } from '../components/chrome/Aide';
 import type {
   ConformiteInventaire,
   ConformiteRapportActivite,
@@ -184,7 +185,10 @@ export function DocumentsObligatoiresPage() {
       <div className="flex items-center justify-between mb-2.5">
         <div>
           <div className="text-[10.5px] font-mono text-text-dim">ÉTAT</div>
-          <h1 className="text-[15px] font-bold">Documents obligatoires de clôture</h1>
+          <h1 className="text-[15px] font-bold flex items-center gap-1.5">
+            Documents obligatoires de clôture
+            <Aide sujet="livreInventaire" />
+          </h1>
         </div>
         {exerciceCourant && (
           <span className="font-mono text-[11px] border border-border bg-surface px-2.5 py-1.5">

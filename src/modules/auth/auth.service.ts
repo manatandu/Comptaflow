@@ -49,6 +49,7 @@ export class AuthService {
       nom: dto.nomEntite,
       referentiel: dto.referentiel,
       typeLicence: dto.typeLicence ?? TypeLicence.ABONNEMENT,
+      jeuEtatsFinanciersSycebnl: dto.jeuEtatsFinanciersSycebnl,
       activite: dto.activite,
       adresse: dto.adresse,
       ville: dto.ville,
@@ -86,7 +87,12 @@ export class AuthService {
         : await this.exerciceService.creerExerciceCourant(tenant.id);
 
     return {
-      tenant: { id: tenant.id, nom: tenant.nom, referentiel: tenant.referentiel },
+      tenant: {
+        id: tenant.id,
+        nom: tenant.nom,
+        referentiel: tenant.referentiel,
+        jeuEtatsFinanciersSycebnl: tenant.jeuEtatsFinanciersSycebnl,
+      },
       exercice,
       ...this.signToken(user.id),
     };

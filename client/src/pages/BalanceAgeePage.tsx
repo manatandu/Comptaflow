@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useExercice } from '../lib/exercice';
+import { Aide } from '../components/chrome/Aide';
 
 /**
  * BALANCE ÂGÉE · État → Balance âgée de Sage 100 i7 : « état prévisionnel
@@ -31,11 +32,11 @@ interface BalanceAgee {
   totaux: LigneAgee;
 }
 
-type TypeTiers = 'TOUS' | 'CLIENTS' | 'FOURNISSEURS';
+type TypeTiers = 'TOUS' | 'ADHERENTS_CLIENTS' | 'FOURNISSEURS';
 
 const LIBELLE_TYPE: Record<TypeTiers, string> = {
   TOUS: 'Tous les tiers (40 et 41)',
-  CLIENTS: 'Adhérents / clients (41)',
+  ADHERENTS_CLIENTS: 'Adhérents, clients-usagers (41)',
   FOURNISSEURS: 'Fournisseurs (40)',
 };
 
@@ -73,7 +74,10 @@ export function BalanceAgeePage() {
       <div className="flex items-end justify-between mb-2.5 gap-3 flex-wrap">
         <div>
           <div className="text-[10.5px] font-mono text-text-dim">ÉTAT</div>
-          <h1 className="text-[15px] font-bold">Balance âgée</h1>
+          <h1 className="text-[15px] font-bold flex items-center gap-1.5">
+            Balance âgée
+            <Aide sujet="balanceAgee" />
+          </h1>
         </div>
         <div className="flex items-end gap-3">
           <label className="flex flex-col gap-1">
