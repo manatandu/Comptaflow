@@ -31,6 +31,7 @@ import { ImportPage } from './pages/ImportPage';
 import { ControlesPage } from './pages/ControlesPage';
 import { RegularisationPage } from './pages/RegularisationPage';
 import { DevisesPage } from './pages/DevisesPage';
+import { RelancesPage } from './pages/RelancesPage';
 import { EtatsAnalytiquesPage } from './pages/EtatsAnalytiquesPage';
 import { BailleursPage } from './pages/BailleursPage';
 
@@ -86,6 +87,7 @@ function Routage() {
         <Route path="controles" element={<ControlesPage />} />
         <Route path="regularisations" element={<RegularisationPage />} />
         <Route path="devises" element={<DevisesPage />} />
+        <Route path="relances" element={<RelancesPage />} />
         <Route path="etats-analytiques" element={<EtatsAnalytiquesPage />} />
       </Route>
     </Routes>

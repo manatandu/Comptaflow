@@ -79,6 +79,12 @@ export const LEXIQUE = {
       "À la clôture, les créances et dettes en devises sont converties au cours du jour. L'écart est LATENT : perte probable au 478, gain probable au 479, et par prudence la perte probable est provisionnée au 194. Les disponibilités en devises suivent une autre règle : leur écart est considéré comme réalisé et va droit au résultat, 676 ou 776. Le texte prend soin de le dire : le 676 ne doit pas être confondu avec le 478, qui n'enregistre que les pertes probables.",
     source: 'SYCEBNL, Partie 2 ch. 3, comptes 47, 67 et 77',
   },
+  relance: {
+    titre: 'Rappel et relevé',
+    texte:
+      "Trois états distincts, et non un seul : la relance préventive avant l'échéance, le rappel gradué après, et le relevé de tout ce qui est dû. L'assiette est celle de la balance âgée, les lignes non lettrées des comptes 41 · une ligne lettrée est soldée, il n'y a rien à réclamer. Une EBNL ne relance pas des clients en retard : elle rappelle à ses adhérents une cotisation appelée et non payée.",
+    source: 'Suivi des tiers · comptes 411 et 412',
+  },
   adherent: {
     titre: 'Adhérent',
     texte:

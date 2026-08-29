@@ -102,6 +102,8 @@ model Tenant {
   modelesAbonnement        ModeleAbonnement[]
   devises                  Devise[]
   reevaluations            Reevaluation[]
+  niveauxRelance           NiveauRelance[]
+  relances                 Relance[]
 
   @@map("tenants")
 }
@@ -233,6 +235,7 @@ model Compte {
   immobilisationsAmortissement  Immobilisation[]        @relation("ImmoCompteAmortissement")
   // Régularisation des charges et produits (476/477) et abonnements ·
   // voir Regularisation et ModeleAbonnement.
+  relances                      Relance[]
   regularisationsChargeProduit  Regularisation[]        @relation("RegulCompteChargeProduit")
   regularisationsDiffere        Regularisation[]        @relation("RegulCompteDiffere")
   abonnementsDebit              ModeleAbonnement[]      @relation("AbonnementCompteDebit")
@@ -688,6 +691,7 @@ model Tiers {
   createdAt DateTime @default(now())
 
   comptesRattaches TiersCompte[]
+  relances         Relance[]
 
   @@unique([tenantId, code])
   @@map("tiers")
@@ -1151,6 +1155,78 @@ model Reevaluation {
 
   @@index([tenantId, exerciceId])
   @@map("reevaluations")
+}
+
+// ---------------------------------------------------------------------------
+// RELANCE, RAPPEL ET RELEVÉ
+//
+// Le manuel Sage distingue trois états, et non un seul : « Relance préventive »
+// (avant échéance), « Rappel » qui imprime « les lettres de rappel sur
+// l'ensemble des écritures non lettrées en retard de paiement », et « Relevé »
+// qui imprime « un relevé de toutes les écritures dues ».
+//
+// La structure est reprise, le vocabulaire non. Une EBNL ne relance pas des
+// clients en retard : elle rappelle à ses ADHÉRENTS une cotisation appelée et
+// non payée (compte 411), et accessoirement à ses clients-usagers une facture
+// due (412). La lettre d'une association n'a pas la tonalité d'une mise en
+// demeure commerciale, et le paramétrage des niveaux le reflète.
+// ---------------------------------------------------------------------------
+
+enum TypeRelance {
+  PREVENTIVE // avant l'échéance · une invitation à régler
+  RAPPEL // après l'échéance · un rappel gradué
+  RELEVE // récapitulatif de tout ce qui est dû, sans gradation
+}
+
+// Niveau de relance paramétrable · trois par défaut, du rappel courtois à la
+// mise en demeure. `joursApresEcheance` négatif = relance préventive.
+model NiveauRelance {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  niveau             Int
+  libelle            String
+  type               TypeRelance @default(RAPPEL)
+  // Nombre de jours après l'échéance à partir duquel ce niveau s'applique.
+  // Négatif pour une relance préventive (ex. -7 = une semaine avant).
+  joursApresEcheance Int
+  // Corps de la lettre. Les jetons {tiers}, {montant}, {date}, {entite} et
+  // {detail} sont remplacés à la génération.
+  modeleTexte        String
+  estActif           Boolean @default(true)
+
+  relances Relance[]
+
+  @@unique([tenantId, niveau])
+  @@map("niveaux_relance")
+}
+
+// Trace d'une relance émise · c'est elle qui permet de graduer : le niveau
+// suivant ne s'applique qu'une fois le précédent envoyé.
+model Relance {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  compteId String
+  compte   Compte @relation(fields: [compteId], references: [id])
+  tiersId  String?
+  tiers    Tiers?  @relation(fields: [tiersId], references: [id])
+
+  niveauId String
+  niveauRelance NiveauRelance @relation(fields: [niveauId], references: [id])
+
+  dateRelance DateTime
+  // Montant dû au moment de la relance · figé, pour que l'historique reste
+  // lisible même après règlement.
+  montant     Decimal  @db.Decimal(18, 2)
+  texte       String
+  createdAt   DateTime @default(now())
+  createdBy   String
+
+  @@index([tenantId, compteId])
+  @@map("relances")
 }
 
 // ---------------------------------------------------------------------------

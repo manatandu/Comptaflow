@@ -1223,3 +1223,42 @@ export interface Reevaluation {
   ecritureProvision: { id: string; numeroPiece: number | null } | null;
   ecritureExtourne: { id: string; numeroPiece: number | null; date: string } | null;
 }
+
+// ---------------------------------------------------------------------------
+// Relance, rappel et relevé
+// ---------------------------------------------------------------------------
+
+export type TypeRelance = 'PREVENTIVE' | 'RAPPEL' | 'RELEVE';
+
+export interface NiveauRelance {
+  id: string;
+  niveau: number;
+  libelle: string;
+  type: TypeRelance;
+  joursApresEcheance: number;
+  modeleTexte: string;
+  estActif: boolean;
+}
+
+export interface PositionRelance {
+  compteId: string;
+  numero: string;
+  intitule: string;
+  tiersId: string | null;
+  tiersNom: string | null;
+  /** Adhérent (411) ou client-usager (412) · vocabulaire du SYCEBNL. */
+  qualite: string;
+  montantDu: number;
+  retardMaxJours: number;
+  echeancePlusAncienne: string | null;
+  niveauSuggere: number | null;
+  derniereRelance: { niveau: number; date: string } | null;
+  lignes: { date: string; echeance: string | null; libelle: string; montant: number; retardJours: number }[];
+}
+
+export interface LettreRelance {
+  compteId: string;
+  tiers: string;
+  montant: number;
+  texte: string;
+}

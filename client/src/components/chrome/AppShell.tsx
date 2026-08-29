@@ -72,6 +72,7 @@ export function AppShell() {
         { label: 'Rapprochement bancaire', onClick: () => navigate('/rapprochement') },
         { label: 'Régularisations et abonnements', onClick: () => navigate('/regularisations') },
         { label: 'Devises et réévaluation', onClick: () => navigate('/devises') },
+        { label: 'Rappel et relevé', onClick: () => navigate('/relances') },
         { label: 'Registre des donateurs', separateurAvant: true, onClick: () => navigate('/registre-donateurs') },
         { label: "Fin d'exercice…", onClick: () => navigate('/exercice') },
       ],

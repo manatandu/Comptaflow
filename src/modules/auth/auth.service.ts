@@ -9,6 +9,7 @@ import { JournalService } from '../journaux/journal.service';
 import { TauxTvaService } from '../tva/taux-tva.service';
 import { ImmobilisationService } from '../immobilisations/immobilisation.service';
 import { AnalytiqueService } from '../analytique/analytique.service';
+import { RelancesService } from '../relances/relances.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { RoleUtilisateur, TypeLicence } from '@prisma/client';
@@ -27,6 +28,7 @@ export class AuthService {
     private readonly tauxTvaService: TauxTvaService,
     private readonly immobilisationService: ImmobilisationService,
     private readonly analytiqueService: AnalytiqueService,
+    private readonly relancesService: RelancesService,
   ) {}
 
   /**
@@ -84,6 +86,9 @@ export class AuthService {
     // mais placés ici pour que le dossier soit prêt à ventiler dès la
     // première écriture.
     await this.analytiqueService.seedPlansDefaut(tenant.id);
+    // Trois niveaux de relance au ton d'une association à ses membres · voir
+    // RelancesService.NIVEAUX_DEFAUT.
+    await this.relancesService.seedNiveauxDefaut(tenant.id);
     const exercice =
       dto.dateDebutExercice && dto.dateFinExercice
         ? await this.exerciceService.creer(tenant.id, {

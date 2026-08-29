@@ -37,6 +37,7 @@ const TITRES: Array<[RegExp, string]> = [
   [/^\/controles/, 'Analyse et contrôles'],
   [/^\/regularisations/, 'Régularisations et abonnements'],
   [/^\/devises/, 'Devises et réévaluation'],
+  [/^\/relances/, 'Rappel et relevé'],
   [/^\/etats-analytiques/, 'États analytiques'],
 ];
 
