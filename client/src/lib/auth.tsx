@@ -1,12 +1,20 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { api, setToken } from './api';
+import { memoriserDossier } from './dossiersRecents';
 import type { JeuEtatsFinanciersSycebnl, Referentiel, RoleUtilisateur } from './types';
 
 interface MeResponse {
   id: string;
   email: string;
   role: RoleUtilisateur;
-  tenant: { id: string; nom: string; referentiel: Referentiel; jeuEtatsFinanciersSycebnl: JeuEtatsFinanciersSycebnl };
+  tenant: {
+    id: string;
+    nom: string;
+    referentiel: Referentiel;
+    jeuEtatsFinanciersSycebnl: JeuEtatsFinanciersSycebnl;
+    /** N° impôt · exigé en en-tête de chaque page imprimée (CPCC, § 7.4). */
+    numeroImpot: string | null;
+  };
 }
 
 interface AuthContextValue {
@@ -15,6 +23,8 @@ interface AuthContextValue {
   utilisateur: MeResponse | null;
   estAdmin: boolean;
   seConnecter: (accessToken: string) => Promise<void>;
+  /** Relit /auth/me · à appeler après avoir changé un paramètre du dossier. */
+  rafraichir: () => Promise<void>;
   seDeconnecter: () => void;
 }
 
@@ -28,6 +38,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const me = await api.get<MeResponse>('/auth/me');
       setUtilisateur(me);
+      // Le dossier vient d'être ouvert · il rejoint la liste des dossiers
+      // récents de cet appareil, l'équivalent du menu Fichier > Favoris de
+      // Sage (voir lib/dossiersRecents.ts). C'est le SEUL endroit où cette
+      // liste est alimentée : `chargerUtilisateur` est appelée après une
+      // connexion, après la création d'un dossier par l'assistant, et à la
+      // reprise d'une session. Le faire ailleurs dupliquerait la règle · et
+      // le faire depuis la réponse de /auth/login ne marcherait pas, cette
+      // réponse ne portant que le jeton.
+      memoriserDossier({
+        nom: me.tenant.nom,
+        email: me.email,
+        referentiel: me.tenant.referentiel,
+        jeuEtatsFinanciersSycebnl: me.tenant.jeuEtatsFinanciersSycebnl,
+      });
     } catch {
       setToken(null);
       setUtilisateur(null);
@@ -53,6 +77,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await chargerUtilisateur();
   };
 
+  const rafraichir = async () => {
+    await chargerUtilisateur();
+  };
+
   const seDeconnecter = () => {
     setToken(null);
     setUtilisateur(null);
@@ -66,6 +94,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         utilisateur,
         estAdmin: utilisateur?.role === 'ADMIN_CABINET',
         seConnecter,
+        rafraichir,
         seDeconnecter,
       }}
     >

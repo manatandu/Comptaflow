@@ -11,6 +11,7 @@ import { PlanComptesPage } from './pages/PlanComptesPage';
 import { JournauxPage } from './pages/JournauxPage';
 import { JournalPage } from './pages/JournalPage';
 import { BalanceAgeePage } from './pages/BalanceAgeePage';
+import { EcheancierPage } from './pages/EcheancierPage';
 import { LettragePage } from './pages/LettragePage';
 import { RapprochementPage } from './pages/RapprochementPage';
 import { RapprochementDetailPage } from './pages/RapprochementDetailPage';
@@ -19,11 +20,21 @@ import { ExercicePage } from './pages/ExercicePage';
 import { TiersPage } from './pages/TiersPage';
 import { TauxTvaPage } from './pages/TauxTvaPage';
 import { DeclarationTvaPage } from './pages/DeclarationTvaPage';
+import { RetenuesPage } from './pages/RetenuesPage';
 import { EtatsFinanciersPage } from './pages/EtatsFinanciersPage';
 import { NotesAnnexesPage } from './pages/NotesAnnexesPage';
 import { RegistreDonateursPage } from './pages/RegistreDonateursPage';
 import { DocumentsObligatoiresPage } from './pages/DocumentsObligatoiresPage';
 import { UtilisateursPage } from './pages/UtilisateursPage';
+import { ParametresDossierPage } from './pages/ParametresDossierPage';
+import { PlansAnalytiquesPage } from './pages/PlansAnalytiquesPage';
+import { BrouillardPage } from './pages/BrouillardPage';
+import { ImportPage } from './pages/ImportPage';
+import { ControlesPage } from './pages/ControlesPage';
+import { RegularisationPage } from './pages/RegularisationPage';
+import { DevisesPage } from './pages/DevisesPage';
+import { RelancesPage } from './pages/RelancesPage';
+import { EtatsAnalytiquesPage } from './pages/EtatsAnalytiquesPage';
 import { BailleursPage } from './pages/BailleursPage';
 
 function ZoneProtegee({ children }: { children: JSX.Element }) {
@@ -61,16 +72,27 @@ function Routage() {
         <Route path="journaux" element={<JournauxPage />} />
         <Route path="journal" element={<JournalPage />} />
         <Route path="balance-agee" element={<BalanceAgeePage />} />
+        <Route path="echeancier" element={<EcheancierPage />} />
         <Route path="exercice" element={<ExercicePage />} />
         <Route path="tiers" element={<TiersPage />} />
         <Route path="taux-tva" element={<TauxTvaPage />} />
         <Route path="declaration-tva" element={<DeclarationTvaPage />} />
+        <Route path="retenues" element={<RetenuesPage />} />
         <Route path="etats-financiers" element={<EtatsFinanciersPage />} />
         <Route path="notes-annexes" element={<NotesAnnexesPage />} />
         <Route path="registre-donateurs" element={<RegistreDonateursPage />} />
         <Route path="documents-obligatoires" element={<DocumentsObligatoiresPage />} />
         <Route path="bailleurs" element={<BailleursPage />} />
         <Route path="utilisateurs" element={<UtilisateursPage />} />
+        <Route path="parametres-dossier" element={<ParametresDossierPage />} />
+        <Route path="plans-analytiques" element={<PlansAnalytiquesPage />} />
+        <Route path="brouillard" element={<BrouillardPage />} />
+        <Route path="import" element={<ImportPage />} />
+        <Route path="controles" element={<ControlesPage />} />
+        <Route path="regularisations" element={<RegularisationPage />} />
+        <Route path="devises" element={<DevisesPage />} />
+        <Route path="relances" element={<RelancesPage />} />
+        <Route path="etats-analytiques" element={<EtatsAnalytiquesPage />} />
       </Route>
     </Routes>
   );

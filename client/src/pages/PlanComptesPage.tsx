@@ -2,7 +2,8 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import type { ClasseCompte, Compte, ModeReportANouveau, TypeCompteDetailTotal } from '../lib/types';
+import type { ClasseCompte, Compte, ModeReportANouveau, TauxTva, TypeCompteDetailTotal } from '../lib/types';
+import { EnteteImpression } from '../components/chrome/EnteteImpression';
 
 /**
  * PLAN COMPTABLE · la fenêtre Structure → Plan comptable de Sage 100 i7 :
@@ -32,12 +33,23 @@ const LIBELLE_RAN: Record<ModeReportANouveau, string> = {
   DETAIL: 'Détail',
 };
 
+/**
+ * Compte principal officiel (2 chiffres) · les 76 en-têtes de division
+ * semés par compte-seed.ts (total()). Un numéro à 2 chiffres est
+ * structurellement impossible à obtenir autrement : CreerCompteDto exige
+ * 3 à 13 chiffres. Cette propriété sert ici à verrouiller ces lignes en
+ * édition, sans marqueur ni champ supplémentaire côté base.
+ */
+const estComptePrincipalOfficiel = (c: Pick<Compte, 'typeCompte' | 'numero'>) =>
+  c.typeCompte === 'TOTAL' && c.numero.length === 2;
+
 export function PlanComptesPage() {
+  const [tauxTva, setTauxTva] = useState<TauxTva[]>([]);
   const navigate = useNavigate();
   const { estAdmin } = useAuth();
   const [comptes, setComptes] = useState<Compte[] | null>(null);
   const [recherche, setRecherche] = useState('');
-  const [classeFiltre, setClasseFiltre] = useState<ClasseCompte | 'TOUTES'>('TOUTES');
+  const [classeFiltre, setClasseFiltre] = useState<ClasseCompte>('CLASSE_1');
   const [selectionId, setSelectionId] = useState<string | null>(null);
   const [nouveauOuvert, setNouveauOuvert] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
@@ -63,21 +75,23 @@ export function PlanComptesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recherche]);
 
+  // Taux de TVA du dossier · alimentent le sélecteur « code taxe par défaut »
+  // de la fiche compte. Chargés une fois, ils changent rarement.
+  useEffect(() => {
+    api.get<TauxTva[]>('/taux-tva?actifsSeuls=true').then(setTauxTva).catch(() => setTauxTva([]));
+  }, []);
+
+  // Une recherche en cours affiche ses résultats toutes classes confondues ·
+  // le classement par classe ne s'applique qu'en navigation libre, sans recherche.
   const liste = useMemo(
-    () => (comptes ?? []).filter((c) => classeFiltre === 'TOUTES' || c.classe === classeFiltre),
-    [comptes, classeFiltre],
+    () => (comptes ?? []).filter((c) => recherche.trim() !== '' || c.classe === classeFiltre),
+    [comptes, classeFiltre, recherche],
   );
   const selection = liste.find((c) => c.id === selectionId) ?? (comptes ?? []).find((c) => c.id === selectionId) ?? null;
 
   useEffect(() => {
     setIntituleEdit(selection?.intitule ?? '');
   }, [selection?.id, selection?.intitule]);
-
-  const nombresParClasse = useMemo(() => {
-    const m = new Map<ClasseCompte, number>();
-    for (const c of comptes ?? []) m.set(c.classe, (m.get(c.classe) ?? 0) + 1);
-    return m;
-  }, [comptes]);
 
   const onCreer = async (e: FormEvent) => {
     e.preventDefault();
@@ -97,7 +111,16 @@ export function PlanComptesPage() {
     }
   };
 
-  const modifier = async (id: string, corps: { intitule?: string; estActif?: boolean; modeReportANouveau?: ModeReportANouveau }) => {
+  const modifier = async (
+    id: string,
+    corps: {
+      intitule?: string;
+      estActif?: boolean;
+      modeReportANouveau?: ModeReportANouveau;
+      lettrable?: boolean;
+      tauxTvaDefautId?: string | null;
+    },
+  ) => {
     setErreur(null);
     try {
       await api.patch(`/comptes/${id}`, corps);
@@ -109,6 +132,7 @@ export function PlanComptesPage() {
 
   return (
     <div className="p-2.5 flex flex-col" style={{ height: 'calc(100vh - 114px)' }}>
+      <EnteteImpression titre="Plan comptable" />
       <div className="flex items-center justify-between mb-2 shrink-0">
         <div>
           <div className="text-[10.5px] font-mono text-text-dim">STRUCTURE</div>
@@ -145,16 +169,6 @@ export function PlanComptesPage() {
           <div className="px-3 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
             CLASSEMENT
           </div>
-          <button
-            type="button"
-            onClick={() => setClasseFiltre('TOUTES')}
-            className={`w-full text-left px-3 py-1.5 text-[11.5px] flex justify-between ${
-              classeFiltre === 'TOUTES' ? 'bg-sel text-white' : 'hover:bg-chrome-alt'
-            }`}
-          >
-            <span>Tous les comptes</span>
-            <span className={classeFiltre === 'TOUTES' ? 'text-white/70' : 'text-text-dim'}>{comptes?.length ?? '…'}</span>
-          </button>
           {(Object.keys(LIBELLE_CLASSE) as ClasseCompte[]).map((cl) => (
             <button
               key={cl}
@@ -166,7 +180,7 @@ export function PlanComptesPage() {
             >
               <span className="font-mono font-semibold">Classe {cl.replace('CLASSE_', '')}</span>
               <span className={`block text-[10px] leading-tight truncate ${classeFiltre === cl ? 'text-white/75' : 'text-text-dim'}`}>
-                {LIBELLE_CLASSE[cl]} · {nombresParClasse.get(cl) ?? 0}
+                {LIBELLE_CLASSE[cl]}
               </span>
             </button>
           ))}
@@ -205,6 +219,7 @@ export function PlanComptesPage() {
                 </span>
                 <span className={`text-[10.5px] ${selectionId === c.id ? 'text-white/80' : 'text-text-dim'}`}>
                   {LIBELLE_RAN[c.modeReportANouveau] ?? '·'}
+                  {c.lettrable && <span title="Compte lettrable"> · L</span>}
                 </span>
                 <span className={`text-[10.5px] ${selectionId === c.id ? 'text-white/90' : c.estActif ? 'text-positive' : 'text-warning'}`}>
                   {c.estActif ? 'Actif' : 'Sommeil'}
@@ -217,7 +232,7 @@ export function PlanComptesPage() {
           </div>
           <div className="px-3.5 py-1 bg-surface-alt border-t border-border text-[10px] text-text-dim shrink-0">
             {liste.length} compte{liste.length > 1 ? 's' : ''}
-            {classeFiltre !== 'TOUTES' && ` · classe ${classeFiltre.replace('CLASSE_', '')}`}
+            {recherche.trim() === '' && ` · classe ${classeFiltre.replace('CLASSE_', '')}`}
           </div>
         </div>
 
@@ -243,14 +258,28 @@ export function PlanComptesPage() {
                   {selection.classe.replace('CLASSE_', '')} · {LIBELLE_CLASSE[selection.classe]}
                 </span>
                 <span className="text-text-dim text-right">Type :</span>
-                <span>{selection.typeCompte === 'TOTAL' ? 'Total (regroupement par racine)' : 'Détail (mouvementable)'}</span>
+                <span>
+                  {estComptePrincipalOfficiel(selection)
+                    ? 'Total · compte principal officiel'
+                    : selection.typeCompte === 'TOTAL'
+                      ? 'Total (regroupement par racine)'
+                      : 'Détail (mouvementable)'}
+                </span>
                 <span className="text-text-dim text-right">État :</span>
                 <span className={selection.estActif ? 'text-positive' : 'text-warning'}>
                   {selection.estActif ? 'Actif' : 'En sommeil'}
                 </span>
               </div>
 
-              {estAdmin && (
+              {estComptePrincipalOfficiel(selection) && (
+                <p className="mb-3 rounded-[6px] border border-border bg-surface-alt px-2.5 py-2 text-[11px] text-text-dim leading-[1.5]">
+                  Compte principal du plan SYCEBNL (Partie 2, ch. 2) : son numéro, son intitulé et son rattachement
+                  ne se modifient pas. Il regroupe automatiquement les comptes Détail de sa division · aucune
+                  écriture ne s'y saisit jamais.
+                </p>
+              )}
+
+              {estAdmin && !estComptePrincipalOfficiel(selection) && (
                 <>
                   <label className="block mb-2">
                     <span className="text-[10px] font-bold text-text-dim">INTITULÉ</span>
@@ -285,6 +314,53 @@ export function PlanComptesPage() {
                       <option value="DETAIL">Détail · lignes non lettrées reprises</option>
                     </select>
                   </label>
+
+                  {/* « Liberté de définir la liste des comptes auxquels
+                      s'applique le lettrage » · CPCC, Notes de cours
+                      d'organisation comptable, ch. 6. Le défaut suit le
+                      numéro (classes 4 et comptes 58), mais rien n'oblige à
+                      s'y tenir : le même chapitre illustre le lettrage sur le
+                      compte 585. */}
+                  {/* CODE TAXE PAR DÉFAUT · Sage le porte sur la fiche
+                      compte et le propose en saisie. Offert sur les charges
+                      et les produits seulement : c'est là qu'il a un sens. */}
+                  {(selection.numero.startsWith('6') || selection.numero.startsWith('7')) && (
+                    <label className="block mb-3">
+                      <span className="text-[10px] font-bold text-text-dim" title="Proposé automatiquement en saisie guidée quand ce compte est choisi · modifiable ligne à ligne">
+                        CODE TAXE PAR DÉFAUT
+                      </span>
+                      <select
+                        value={selection.tauxTvaDefautId ?? ''}
+                        disabled={!estAdmin}
+                        onChange={(e) => modifier(selection.id, { tauxTvaDefautId: e.target.value || null })}
+                        className="mt-0.5 w-full border border-border-dark px-2 py-1 text-[12px]"
+                      >
+                        <option value="">Aucun · taux à saisir à chaque ligne</option>
+                        {tauxTva.map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.code} · {t.intitule} ({t.taux} %)
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+
+                  <label className="flex items-start gap-2 mb-3 text-[11.5px]">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5"
+                      disabled={!estAdmin}
+                      checked={selection.lettrable}
+                      onChange={(e) => modifier(selection.id, { lettrable: e.target.checked })}
+                    />
+                    <span>
+                      Compte lettrable
+                      <span className="block text-[10px] text-text-dim leading-[1.5]">
+                        Autorise le rapprochement débit/crédit sur ce compte. Utile surtout aux comptes de tiers, mais
+                        pas réservé à eux : les virements internes (58) s'y prêtent aussi.
+                      </span>
+                    </span>
+                  </label>
                 </>
               )}
 
@@ -298,7 +374,7 @@ export function PlanComptesPage() {
                     Gérer · interrogation et lettrage
                   </button>
                 )}
-                {estAdmin && (
+                {estAdmin && !estComptePrincipalOfficiel(selection) && (
                   <button
                     type="button"
                     onClick={() => modifier(selection.id, { estActif: !selection.estActif })}

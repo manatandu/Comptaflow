@@ -22,6 +22,13 @@ import { NotesAnnexesModule } from './modules/notes-annexes/notes-annexes.module
 import { RegistreDonateursModule } from './modules/registre-donateurs/registre-donateurs.module';
 import { DocumentsObligatoiresModule } from './modules/documents-obligatoires/documents-obligatoires.module';
 import { OperationsSpecifiquesModule } from './modules/operations-specifiques/operations-specifiques.module';
+import { AnalytiqueModule } from './modules/analytique/analytique.module';
+import { ImportModule } from './modules/import/import.module';
+import { ControlesModule } from './modules/controles/controles.module';
+import { RegularisationModule } from './modules/regularisation/regularisation.module';
+import { DevisesModule } from './modules/devises/devises.module';
+import { RelancesModule } from './modules/relances/relances.module';
+import { RetenuesModule } from './modules/retenues/retenues.module';
 
 @Module({
   imports: [
@@ -47,6 +54,13 @@ import { OperationsSpecifiquesModule } from './modules/operations-specifiques/op
     RegistreDonateursModule,
     DocumentsObligatoiresModule,
     OperationsSpecifiquesModule,
+    AnalytiqueModule,
+    ImportModule,
+    ControlesModule,
+    RegularisationModule,
+    DevisesModule,
+    RelancesModule,
+    RetenuesModule,
   ],
 })
 export class AppModule {}

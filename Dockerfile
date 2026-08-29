@@ -1,4 +1,4 @@
-# --- Compta Flow — API NestJS (déploiement Cloud Run) ---------------------
+# --- Compta Flow · API NestJS (déploiement Cloud Run) ---------------------
 # Multi-stage : la première étape compile (dev deps + prisma generate), la
 # seconde ne garde que le nécessaire à l'exécution.
 
@@ -31,6 +31,6 @@ RUN npx prisma generate
 COPY --from=build /app/dist ./dist
 
 # Cloud Run fournit PORT dynamiquement (8080 par défaut) ; main.ts lit déjà
-# process.env.PORT — aucun changement de code nécessaire.
+# process.env.PORT · aucun changement de code nécessaire.
 EXPOSE 8080
 CMD ["node", "dist/main.js"]

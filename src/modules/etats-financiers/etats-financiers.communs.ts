@@ -72,7 +72,11 @@ export async function chargerLignes(
   exerciceId: string | null,
 ): Promise<LigneBalancePourEtat[]> {
   if (!exerciceId) return [];
-  const { lignes } = await ecritureService.balance(tenantId, exerciceId);
+  // `false` : les états financiers sont des documents légaux et ne lisent que
+  // le livre-journal. Une écriture restée en brouillard n'y est pas encore
+  // entrée · un bilan bâti dessus n'engagerait personne (voir
+  // EcritureService.balance et StatutEcriture dans le schéma).
+  const { lignes } = await ecritureService.balance(tenantId, exerciceId, false);
   // Comptes Total (§3.1) exclus : leur solde n'est qu'un agrégat
   // d'affichage des comptes Détail de même racine, déjà comptés
   // individuellement ailleurs · les inclure doublerait le montant.

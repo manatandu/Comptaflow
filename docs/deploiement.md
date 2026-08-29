@@ -1,8 +1,8 @@
-# Déploiement — Firebase Hosting (client) + Cloud Run (API)
+# Déploiement · Firebase Hosting (client) + Cloud Run (API)
 
 Architecture retenue : le client React/Vite est un site **statique**, il va sur
 **Firebase Hosting**. L'API NestJS a besoin d'un serveur qui tourne en continu
-et d'une base PostgreSQL — Firebase Hosting seul ne le permet pas — elle va
+et d'une base PostgreSQL · Firebase Hosting seul ne le permet pas · elle va
 sur **Cloud Run** (conteneur, le `Dockerfile` à la racine du dépôt la prépare)
 avec une base **Cloud SQL PostgreSQL**. Les deux services sont dans le même
 projet Google Cloud que le projet Firebase (Firebase Hosting/Functions/Cloud
@@ -16,9 +16,9 @@ le code (Dockerfile, `firebase.json`, variable `CORS_ORIGIN`) est déjà prêt.
 ## 1. Créer le projet Firebase / Google Cloud
 
 1. https://console.firebase.google.com/ → **Ajouter un projet**. Notez l'ID du
-   projet (ex. `comptaflow-prod`) — il sert partout ensuite.
+   projet (ex. `comptaflow-prod`) · il sert partout ensuite.
 2. Installer le CLI en local (pas dans cette session) : `npm install -g firebase-tools`
-3. `firebase login` — ouvre le navigateur, connectez-vous avec le compte
+3. `firebase login` · ouvre le navigateur, connectez-vous avec le compte
    Google qui doit administrer le projet.
 4. Dans `client/.firebaserc`, remplacer `REMPLACER-PAR-VOTRE-ID-PROJET-FIREBASE`
    par l'ID réel du projet.
@@ -38,7 +38,7 @@ Si vous voulez servir l'application sur un domaine de votre Google Workspace
    domaine vérifié.
 4. Une fois le domaine actif, ajoutez-le à `CORS_ORIGIN` côté API (étape 4).
 
-## 3. Base de données — Cloud SQL PostgreSQL
+## 3. Base de données · Cloud SQL PostgreSQL
 
 ```bash
 gcloud sql instances create comptaflow-db \
@@ -47,7 +47,7 @@ gcloud sql databases create sycebnl_suite --instance=comptaflow-db
 gcloud sql users create comptaflow --instance=comptaflow-db --password=<mot-de-passe-fort>
 ```
 
-Notez la chaîne de connexion (`DATABASE_URL`) — pour Cloud Run avec Cloud SQL,
+Notez la chaîne de connexion (`DATABASE_URL`) · pour Cloud Run avec Cloud SQL,
 la forme habituelle est via l'Unix socket du connecteur Cloud SQL :
 ```
 postgresql://comptaflow:<mot-de-passe>@localhost/sycebnl_suite?host=/cloudsql/<PROJET>:<REGION>:comptaflow-db
@@ -75,7 +75,7 @@ npx prisma migrate deploy
 ```
 
 Notez l'URL du service Cloud Run affichée en sortie (ex.
-`https://comptaflow-api-xxxxx-ew.a.run.app`) — c'est `VITE_API_URL` de l'étape
+`https://comptaflow-api-xxxxx-ew.a.run.app`) · c'est `VITE_API_URL` de l'étape
 suivante.
 
 ## 5. Construire et déployer le client sur Firebase Hosting
@@ -88,7 +88,7 @@ firebase deploy --only hosting
 ```
 
 Le rewrite SPA (`client/firebase.json`) redirige toute route inconnue vers
-`index.html` — nécessaire pour `HashRouter`/`BrowserRouter` côté client
+`index.html` · nécessaire pour `HashRouter`/`BrowserRouter` côté client
 (cette app utilise `HashRouter`, donc les routes `#/...` fonctionnent même
 sans ce rewrite ; il reste utile pour un futur passage à un routeur
 sans hash).
@@ -102,11 +102,11 @@ domaine pendant la mise au point.
 
 ## Ce qui est déjà prêt côté code
 
-- `Dockerfile` (racine) — build multi-étage de l'API, écoute sur
+- `Dockerfile` (racine) · build multi-étage de l'API, écoute sur
   `process.env.PORT` (déjà lu par `main.ts`, compatible Cloud Run tel quel).
-- `client/firebase.json` + `client/.firebaserc` — Hosting, réécriture SPA,
+- `client/firebase.json` + `client/.firebaserc` · Hosting, réécriture SPA,
   cache long sur les assets versionnés.
-- `main.ts` — `CORS_ORIGIN` (liste séparée par virgules) restreint les
+- `main.ts` · `CORS_ORIGIN` (liste séparée par virgules) restreint les
   origines autorisées en production ; absent, tout est autorisé (dev).
-- `client/src/lib/api.ts` lit déjà `VITE_API_URL` — aucun changement de code
+- `client/src/lib/api.ts` lit déjà `VITE_API_URL` · aucun changement de code
   requis côté client au-delà du `.env.production`.

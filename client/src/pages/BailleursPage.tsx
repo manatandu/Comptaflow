@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import type { Bailleur, Compte } from '../lib/types';
+import { Aide } from '../components/chrome/Aide';
 
 /**
  * Bailleurs / sous-projets (comptabilité analytique par projet/bailleur,
@@ -89,7 +90,10 @@ export function BailleursPage() {
       <div className="flex items-center justify-between mb-2.5">
         <div>
           <div className="text-[10.5px] font-mono text-text-dim">STRUCTURE</div>
-          <h1 className="text-[15px] font-bold">Bailleurs de fonds</h1>
+          <h1 className="text-[15px] font-bold flex items-center gap-1.5">
+            Bailleurs de fonds
+            <Aide sujet="bailleur" />
+          </h1>
         </div>
       </div>
 

@@ -7,6 +7,17 @@ import { CompteDuPoste, LigneBalancePourEtat, chargerLignes, correspond, trouver
 import { PosteCalcule } from './etats-financiers.service';
 import { POSTES_CHARGES, POSTES_REVENUS, PosteCompteExploitation, posteDuCompte } from './correspondance-projet-compte-exploitation';
 import {
+  COMPTES_TRESORERIE_PROJET,
+  LIBELLES_CALCULES,
+  ORDRE_AFFICHAGE as ORDRE_EMPLOIS_RESSOURCES,
+  POSTES_CHARGES as POSTES_ER_CHARGES,
+  POSTES_IMMOBILISATIONS as POSTES_ER_IMMOBILISATIONS,
+  POSTES_RESSOURCES as POSTES_ER_RESSOURCES,
+  OperationCorrection,
+  PosteEmploisRessources,
+  TOTAUX as TOTAUX_EMPLOIS_RESSOURCES,
+} from './correspondance-projet-emplois-ressources';
+import {
   COMPTES_TRESORERIE_PASSIF_SI_CREDITEUR,
   ORDRE_AFFICHAGE_ACTIF,
   ORDRE_AFFICHAGE_PASSIF,
@@ -32,23 +43,20 @@ import {
  * `correspondance-projet-bilan.ts`, section « PAS de colonnes Brut /
  * Amortissement / Net dans ce jeu ».
  *
- * Hors périmètre de ce service, documenté et non simulé (règle §2.6) :
- * - **Tableau d'exécution budgétaire** : la maquette officielle (Section 2)
- *   suit un budget PAR PROJET selon une nomenclature budgétaire propre au
- *   projet, que Compta Flow n'a aucun modèle de données pour représenter
- *   (pas de notion de "ligne budgétaire" ni d'"engagement" distincte d'une
- *   écriture comptée). Construire ce tableau à partir de la seule balance
- *   inventerait des montants "Budget"/"Engagement" qu'aucune donnée ne
- *   porte · un mur de périmètre réel, pas un oubli.
- * - **Tableau emplois-ressources (TER)** et **Tableau de réconciliation de
- *   trésorerie (TRC)** : le texte officiel ne fournit, pour ces deux
- *   tableaux, AUCUN tableau de correspondance poste→comptes (contrairement
- *   au Bilan et au Compte d'exploitation, Section 4-correspondance) · leurs
- *   REF (FA-GZ, A-I) ne sont définis que par leur libellé. Les construire
- *   quand même exigerait d'inventer un rattachement aux comptes, ce que la
- *   règle §2.6 interdit explicitement. Restent donc non construits ici ;
- *   à reprendre si/quand le texte officiel (ou une note annexe encore non
- *   transcrite) fournit ce rattachement.
+ * ## Le TABLEAU EMPLOIS-RESSOURCES a désormais sa source
+ *
+ * Il était déclaré hors périmètre ici, au motif que le chapitre 3 de la
+ * Partie 4 n'en donne aucun rattachement aux comptes. C'était exact pour ce
+ * chapitre, et faux pour le référentiel pris dans son ensemble : le GUIDE
+ * D'APPLICATION du SYCEBNL, chapitre 7, APPLICATION 21, donne la
+ * correspondance poste par poste, renvois compris. Elle est transcrite dans
+ * `correspondance-projet-emplois-ressources.ts` et le tableau est construit
+ * ci-dessous. L'affirmation précédente est corrigée plutôt que laissée en
+ * place.
+ *
+ * Il en va de même du TABLEAU D'EXÉCUTION BUDGÉTAIRE (Application 22) et du
+ * TABLEAU DE RÉCONCILIATION DE TRÉSORERIE · voir
+ * `EtatsFinanciersProjetBudgetService`.
  */
 @Injectable()
 export class EtatsFinanciersProjetService {
@@ -379,7 +387,9 @@ export class EtatsFinanciersProjetService {
     // « Une note de PROJET, pas d'exercice » en tête de méthode).
     const lignes = compteIds.length
       ? await this.prisma.ligneEcriture.findMany({
-          where: { compteId: { in: compteIds }, ecriture: { tenantId } },
+          // `VALIDEE` seulement : la note 9 est un état financier, elle ne
+          // lit pas le brouillard (voir StatutEcriture dans le schéma).
+          where: { compteId: { in: compteIds }, ecriture: { tenantId, statut: 'VALIDEE' } },
           select: { compteId: true, debit: true, credit: true, ecriture: { select: { estGenereeParCloture: true } } },
         })
       : [];
@@ -463,4 +473,347 @@ export class EtatsFinanciersProjetService {
       },
     };
   }
+  // -------------------------------------------------------------------------
+  // TABLEAU EMPLOIS-RESSOURCES (Section 1, codes FA à GZ)
+  // Correspondance : Guide d'application, chapitre 7, APPLICATION 21.
+  // -------------------------------------------------------------------------
+
+  /** Solde CRÉDITEUR d'un jeu de comptes, à l'ouverture ou à la clôture. */
+  private soldeCrediteur(
+    lignes: LigneBalancePourEtat[],
+    comptes: string[],
+    exclusions: string[] | undefined,
+    moment: 'OUVERTURE' | 'CLOTURE',
+  ): number {
+    return lignes
+      .filter((l) => correspond(l.numero, comptes, exclusions))
+      .reduce((s, l) => {
+        const solde = moment === 'CLOTURE' ? l.solde : l.reportDebit - l.reportCredit;
+        // Solde créditeur : seule la part créditrice compte, un compte de
+        // dette débiteur ne « négative » pas la dette des autres.
+        return s + (solde < 0 ? -solde : 0);
+      }, 0);
+  }
+
+  /**
+   * Un poste d'emploi, brut de déductions · mouvement débit de la période
+   * (report à-nouveau exclu, c'est ce que `mouvementDebit` garantit), ou
+   * solde débiteur de clôture pour le seul poste FT.
+   */
+  private brutEmploi(poste: PosteEmploisRessources, lignes: LigneBalancePourEtat[]) {
+    const matches = lignes.filter((l) => correspond(l.numero, poste.comptes, poste.exclusions));
+    if (poste.lectureSolde === 'DEBITEUR_CLOTURE') {
+      const comptes = matches
+        .filter((l) => l.solde > 0)
+        .map((l) => ({ numero: l.numero, intitule: l.intitule, montant: l.solde }));
+      return { montant: comptes.reduce((s, c) => s + c.montant, 0), comptes };
+    }
+    const comptes = matches
+      .filter((l) => l.mouvementDebit > 0.005)
+      .map((l) => ({ numero: l.numero, intitule: l.intitule, montant: l.mouvementDebit }));
+    return { montant: comptes.reduce((s, c) => s + c.montant, 0), comptes };
+  }
+
+  /**
+   * Variation d'un poste de dettes à retrancher d'un emploi, telle que les
+   * renvois (2) à (7) du guide la définissent : « + solde créditeur N-1 −
+   * solde créditeur N ». Positive quand la dette a DIMINUÉ, donc quand on a
+   * décaissé plus que la charge de la période.
+   *
+   * Sur le sens créditeur là où le guide écrit « débiteur », voir l'anomalie
+   * signalée en tête de `correspondance-projet-emplois-ressources.ts`.
+   */
+  private variationDettes(lignes: LigneBalancePourEtat[], comptes: string[], exclusions?: string[]): number {
+    return (
+      this.soldeCrediteur(lignes, comptes, exclusions, 'OUVERTURE') -
+      this.soldeCrediteur(lignes, comptes, exclusions, 'CLOTURE')
+    );
+  }
+
+  /**
+   * TABLEAU EMPLOIS-RESSOURCES.
+   *
+   * ## Ce que ce tableau est, et n'est pas
+   *
+   * Ce n'est pas une lecture de soldes mais une reconstitution des FLUX de la
+   * période : mouvement crédit pour les ressources reçues, mouvement débit
+   * pour les emplois, corrigés des variations de dettes pour ne retenir que
+   * ce qui a effectivement été encaissé ou décaissé. Le contrôle final GZ
+   * (V = VI) n'a de sens qu'à ce prix, et c'est lui qui atteste que la
+   * reconstitution est complète.
+   *
+   * ## Deux choix de répartition, exposés plutôt qu'enfouis
+   *
+   * 1. **FA et FB.** La maquette imprime deux lignes portant le même libellé
+   *    « Fonds reçus, Bailleurs … » avec une ellipse à compléter, et le guide
+   *    précise « si plusieurs bailleurs, créer des sous-comptes de 161, 162,
+   *    462 pour remplir FB ». OmegaX connaît les bailleurs (`Bailleur`, et
+   *    `Compte.bailleurId`) : le tableau émet donc une ligne PAR BAILLEUR,
+   *    nommée, la première portant le REF FA et les suivantes FB. Les comptes
+   *    161/162/462 rattachés à aucun bailleur forment une dernière ligne FB
+   *    explicitement nommée. Aucun montant n'est perdu ni fusionné en silence.
+   *
+   * 2. **Les déductions partagées.** Le renvoi (2) parle du « compte 481
+   *    CONCERNÉ », c'est-à-dire d'un sous-compte propre à chaque nature
+   *    d'immobilisation ; le renvoi (4) fait de même pour le 401 face aux
+   *    charges. Un dossier qui n'a pas cette granularité laisse la variation
+   *    globale sans affectation. Elle est alors répartie AU PRORATA du
+   *    mouvement brut des postes concernés : c'est la seule répartition qui
+   *    préserve à la fois le sous-total, le poids relatif de chaque poste et
+   *    le déterminisme. Chaque poste expose la part qui lui a été imputée
+   *    (`deduction`), pour que le lecteur puisse la refaire.
+   */
+  async tableauEmploisRessources(tenantId: string, exerciceId: string) {
+    const [lignes, bailleurs] = await Promise.all([
+      this.chargerLignes(tenantId, exerciceId),
+      this.prisma.bailleur.findMany({ where: { tenantId }, orderBy: { nom: 'asc' } }),
+    ]);
+
+    const parRef = new Map<string, PosteCalcule>();
+    const postes: PosteCalcule[] = [];
+
+    // --- I. RESSOURCES ----------------------------------------------------
+    const posteFA = POSTES_ER_RESSOURCES.find((p) => p.ref === 'FA')!;
+    const lignesFonds = lignes.filter((l) => correspond(l.numero, posteFA.comptes));
+    const compteIdsParBailleur = new Map<string, Set<string>>();
+    if (lignesFonds.length > 0) {
+      const rattachements = await this.prisma.compte.findMany({
+        where: { id: { in: lignesFonds.map((l) => l.compteId) }, bailleurId: { not: null } },
+        select: { id: true, bailleurId: true },
+      });
+      for (const r of rattachements) {
+        const ids = compteIdsParBailleur.get(r.bailleurId!) ?? new Set<string>();
+        ids.add(r.id);
+        compteIdsParBailleur.set(r.bailleurId!, ids);
+      }
+    }
+
+    const lignesBailleurs: PosteCalcule[] = [];
+    const rattaches = new Set<string>();
+    for (const b of bailleurs) {
+      const ids = compteIdsParBailleur.get(b.id);
+      if (!ids || ids.size === 0) continue;
+      const comptes = lignesFonds
+        .filter((l) => ids.has(l.compteId))
+        .map((l) => {
+          rattaches.add(l.compteId);
+          return { numero: l.numero, intitule: l.intitule, montant: l.mouvementCredit };
+        })
+        .filter((c) => c.montant > 0.005);
+      lignesBailleurs.push({
+        ref: lignesBailleurs.length === 0 ? 'FA' : 'FB',
+        libelle: `Fonds reçus, Bailleur ${b.nom}`,
+        montant: comptes.reduce((s, c) => s + c.montant, 0),
+        comptes,
+      });
+    }
+    const nonRattaches = lignesFonds
+      .filter((l) => !rattaches.has(l.compteId) && l.mouvementCredit > 0.005)
+      .map((l) => ({ numero: l.numero, intitule: l.intitule, montant: l.mouvementCredit }));
+    if (nonRattaches.length > 0 || lignesBailleurs.length === 0) {
+      lignesBailleurs.push({
+        ref: lignesBailleurs.length === 0 ? 'FA' : 'FB',
+        libelle:
+          bailleurs.length > 0 && lignesBailleurs.length > 0
+            ? 'Fonds reçus, Bailleurs (comptes non rattachés à un bailleur)'
+            : 'Fonds reçus, Bailleurs',
+        montant: nonRattaches.reduce((s, c) => s + c.montant, 0),
+        comptes: nonRattaches,
+      });
+    }
+    postes.push(...lignesBailleurs);
+
+    for (const poste of POSTES_ER_RESSOURCES.filter((p) => p.ref !== 'FA')) {
+      const comptes = lignes
+        .filter((l) => correspond(l.numero, poste.comptes, poste.exclusions) && l.mouvementCredit > 0.005)
+        .map((l) => ({ numero: l.numero, intitule: l.intitule, montant: l.mouvementCredit }));
+      const calc = { ref: poste.ref, libelle: poste.libelle, montant: comptes.reduce((s, c) => s + c.montant, 0), comptes };
+      parRef.set(poste.ref, calc);
+      postes.push(calc);
+    }
+
+    // --- EMPLOIS · brut, puis déductions ----------------------------------
+    type PosteAvecDeduction = PosteCalcule & { brut: number; correction: number };
+    const calculerEmplois = (definitions: PosteEmploisRessources[]): PosteAvecDeduction[] => {
+      const bruts = definitions.map((d) => ({ definition: d, ...this.brutEmploi(d, lignes) }));
+
+      // Les déductions sont regroupées par jeu de comptes : celles qu'un seul
+      // poste porte lui sont imputées en entier, celles que plusieurs postes
+      // partagent sont réparties au prorata du brut (voir la note ci-dessus).
+      const deductionsParCle = new Map<
+        string,
+        { comptes: string[]; exclusions?: string[]; operation: OperationCorrection; refs: string[] }
+      >();
+      for (const b of bruts) {
+        for (const d of b.definition.deductions ?? []) {
+          const cle = `${d.comptes.join('|')}::${(d.exclusions ?? []).join('|')}`;
+          const existante =
+            deductionsParCle.get(cle) ?? { comptes: d.comptes, exclusions: d.exclusions, operation: d.operation, refs: [] };
+          existante.refs.push(b.definition.ref);
+          deductionsParCle.set(cle, existante);
+        }
+      }
+
+      const deductionParRef = new Map<string, number>();
+      for (const [, d] of deductionsParCle) {
+        // Le signe est porté par l'opération, pas par le calcul · voir
+        // OperationCorrection dans le fichier de correspondance. Une variation
+        // de dettes s'AJOUTE (charge + dette N-1 − dette N), un mouvement du
+        // compte 166 se RETRANCHE.
+        const montant =
+          d.operation === 'RETRANCHER_MOUVEMENT'
+            ? -lignes.filter((l) => correspond(l.numero, d.comptes)).reduce((s, l) => s + l.mouvementCredit, 0)
+            : this.variationDettes(lignes, d.comptes, d.exclusions);
+        if (Math.abs(montant) < 0.005) continue;
+
+        const concernes = bruts.filter((b) => d.refs.includes(b.definition.ref));
+        const totalBrut = concernes.reduce((s, b) => s + b.montant, 0);
+        for (const b of concernes) {
+          // Prorata du brut ; à brut total nul, la déduction est portée
+          // entièrement par le premier poste concerné plutôt que perdue.
+          const part = totalBrut > 0.005 ? (b.montant / totalBrut) * montant : b === concernes[0] ? montant : 0;
+          deductionParRef.set(b.definition.ref, (deductionParRef.get(b.definition.ref) ?? 0) + part);
+        }
+      }
+
+      return bruts.map((b) => {
+        const correction = deductionParRef.get(b.definition.ref) ?? 0;
+        return {
+          ref: b.definition.ref,
+          libelle: b.definition.libelle,
+          // `correction` porte déjà son signe : positive quand la dette a
+          // diminué (on a décaissé plus que la charge de la période).
+          montant: b.montant + correction,
+          brut: b.montant,
+          correction,
+          comptes: b.comptes,
+        };
+      });
+    };
+
+    const immobilisations = calculerEmplois(POSTES_ER_IMMOBILISATIONS);
+    const charges = calculerEmplois(POSTES_ER_CHARGES);
+    for (const p of [...immobilisations, ...charges]) {
+      parRef.set(p.ref, p);
+      postes.push(p);
+    }
+
+    // --- FONDS DISPONIBLES ------------------------------------------------
+    const lignesTresorerie = lignes.filter((l) => correspond(l.numero, COMPTES_TRESORERIE_PROJET));
+    const tresorerieBailleur = new Set<string>();
+    if (lignesTresorerie.length > 0) {
+      const rattachees = await this.prisma.compte.findMany({
+        where: { id: { in: lignesTresorerie.map((l) => l.compteId) }, bailleurId: { not: null } },
+        select: { id: true },
+      });
+      for (const r of rattachees) tresorerieBailleur.add(r.id);
+    }
+
+    const fonds = (ref: string, filtre: (l: LigneBalancePourEtat) => boolean, moment: 'OUVERTURE' | 'CLOTURE') => {
+      const comptes = lignesTresorerie
+        .filter(filtre)
+        .map((l) => ({
+          numero: l.numero,
+          intitule: l.intitule,
+          montant: moment === 'CLOTURE' ? l.solde : l.reportDebit - l.reportCredit,
+        }))
+        .filter((c) => Math.abs(c.montant) > 0.005);
+      const calc = {
+        ref,
+        libelle: LIBELLES_CALCULES[ref],
+        montant: comptes.reduce((s, c) => s + c.montant, 0),
+        comptes,
+      };
+      parRef.set(ref, calc);
+      postes.push(calc);
+    };
+
+    fonds('FU', (l) => tresorerieBailleur.has(l.compteId), 'OUVERTURE');
+    // FV · aucun modèle ne désigne le compte de contrepartie État, le poste
+    // reste donc à zéro et l'état le déclare (voir `avertissements`).
+    fonds('FV', () => false, 'OUVERTURE');
+    fonds('FW', (l) => !tresorerieBailleur.has(l.compteId), 'OUVERTURE');
+    fonds('FX', (l) => tresorerieBailleur.has(l.compteId), 'CLOTURE');
+    fonds('FY', () => false, 'CLOTURE');
+    fonds('FZ', (l) => !tresorerieBailleur.has(l.compteId), 'CLOTURE');
+
+    for (const p of lignesBailleurs) {
+      // FA et FB peuvent être répétés : les totaux les additionnent par REF.
+      const existant = parRef.get(p.ref);
+      parRef.set(p.ref, existant ? { ...existant, montant: existant.montant + p.montant, comptes: [...existant.comptes, ...p.comptes] } : p);
+    }
+
+    // --- TOTAUX ET CONTRÔLE ----------------------------------------------
+    for (const total of TOTAUX_EMPLOIS_RESSOURCES) {
+      const montant = total.deRefs.reduce((s, ref) => s + (parRef.get(ref)?.montant ?? 0), 0);
+      parRef.set(total.ref, { ref: total.ref, libelle: total.libelle, montant, comptes: [], estTotal: true });
+    }
+    const gv = (parRef.get('GR')?.montant ?? 0) - (parRef.get('GU')?.montant ?? 0);
+    parRef.set('GV', { ref: 'GV', libelle: LIBELLES_CALCULES.GV, montant: gv, comptes: [], estTotal: true });
+    const gx = gv + (parRef.get('GW')?.montant ?? 0);
+    parRef.set('GX', { ref: 'GX', libelle: LIBELLES_CALCULES.GX, montant: gx, comptes: [], estTotal: true });
+    const gy = parRef.get('GY')?.montant ?? 0;
+    parRef.set('GZ', { ref: 'GZ', libelle: LIBELLES_CALCULES.GZ, montant: gx - gy, comptes: [], estTotal: true });
+
+    // Ordre officiel, en dépliant les lignes de bailleurs à leur place.
+    const affichage: PosteCalcule[] = [];
+    for (const ref of ORDRE_EMPLOIS_RESSOURCES) {
+      if (ref === 'FA' || ref === 'FB') continue;
+      const p = parRef.get(ref);
+      if (p) affichage.push(p);
+    }
+    const rendu = [...lignesBailleurs, ...affichage];
+
+    // Un emploi net NÉGATIF alors que son mouvement brut est positif veut
+    // dire que la correction de dettes a dépassé le mouvement de la période.
+    // Le total, lui, reste juste (la dette est bien décaissée quelque part) :
+    // c'est la RÉPARTITION entre postes qui est faussée, et la cause est
+    // presque toujours la même · la dette d'une immobilisation a été passée
+    // au compte 401 (fournisseurs d'exploitation) au lieu du 481
+    // (fournisseurs d'investissement), ou l'inverse. Le guide construit
+    // justement ses renvois sur cette distinction. On le dit.
+    const anomalies = [...immobilisations, ...charges]
+      .filter((p) => p.montant < -0.005 && p.brut > 0.005)
+      .map((p) => ({
+        ref: p.ref,
+        libelle: p.libelle,
+        brut: p.brut,
+        correction: p.correction,
+        montant: p.montant,
+        diagnostic:
+          `Le poste ${p.ref} ressort négatif : la correction de dettes (${p.correction.toFixed(2)}) dépasse le ` +
+          `mouvement de la période (${p.brut.toFixed(2)}). Le total des emplois reste exact, mais la répartition ` +
+          "entre postes ne l'est pas. Cause la plus fréquente : une dette d'immobilisation passée au compte 401 " +
+          '(fournisseurs d\'exploitation) au lieu du 481 (fournisseurs d\'investissement), ou une dette ' +
+          "d'exploitation passée au 481. Le guide d'application bâtit ses renvois (2) et (4) sur cette distinction.",
+      }));
+
+    const avertissements: string[] = [];
+    if (bailleurs.length === 0) {
+      avertissements.push(
+        "Aucun bailleur n'est enregistré dans ce dossier : les fonds reçus tiennent sur une seule ligne. Créez les bailleurs et rattachez-leur les sous-comptes 161, 162 et 462 pour obtenir une ligne par bailleur, comme la maquette le prévoit.",
+      );
+    }
+    avertissements.push(
+      "Postes FV et FY (fonds de contrepartie État) : aucun modèle du logiciel ne désigne le compte de trésorerie portant la contrepartie de l'État. Ces deux lignes restent donc à zéro et leur montant est compris dans « Autres fonds » (FW et FZ). Les totaux GW et GY, eux, sont exacts, et c'est sur eux que porte le contrôle GZ.",
+    );
+
+    return {
+      lignes: rendu,
+      totalRessources: parRef.get('GR')!.montant,
+      totalEmplois: parRef.get('GU')!.montant,
+      excedent: gv,
+      encaisseDisponible: gx,
+      fondsFinExercice: gy,
+      controle: {
+        // « VII. CONTRÔLE : TOTAL V = TOTAL VI » · c'est le contrôle du texte
+        // officiel lui-même, pas un ajout du logiciel.
+        ecart: gx - gy,
+        boucle: Math.abs(gx - gy) < 0.01,
+      },
+      anomalies,
+      avertissements,
+    };
+  }
+
 }

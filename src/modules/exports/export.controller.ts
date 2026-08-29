@@ -94,6 +94,30 @@ export class ExportController {
     envoyerXlsx(res, await this.exportService.balanceExcel(user.tenantId, exerciceId));
   }
 
+  /**
+   * LA LIASSE COMPLÈTE · tous les états du jeu retenu par le dossier dans un
+   * seul classeur, précédés d'un sommaire. C'est ce fichier-là qui se dépose
+   * au CPCC ou s'envoie à un bailleur ; les exports unitaires ci-dessous
+   * restent utiles pour retravailler un état isolé.
+   */
+  @Get('etats-financiers/liasse-complete')
+  async liasseComplete(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+    @Query('paiementsEnInstance') paiementsEnInstance?: string,
+  ) {
+    const montant = Number(paiementsEnInstance);
+    envoyerXlsx(
+      res,
+      await this.exportService.liasseCompleteExcel(
+        user.tenantId,
+        exerciceId,
+        Number.isFinite(montant) ? montant : 0,
+      ),
+    );
+  }
+
   @Get('etats-financiers/bilan')
   async bilan(
     @CurrentUser() user: AuthenticatedUser,
@@ -149,6 +173,93 @@ export class ExportController {
     @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
   ) {
     envoyerXlsx(res, await this.exportService.noteBailleurExcel(user.tenantId, exerciceId));
+  }
+
+  /** Les trois tableaux du point 2 de l'article 14 (guide d'application, ch. 7). */
+  @Get('etats-financiers/projet/emplois-ressources')
+  async emploisRessources(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    envoyerXlsx(res, await this.exportService.emploisRessourcesExcel(user.tenantId, exerciceId));
+  }
+
+  @Get('etats-financiers/projet/execution-budgetaire')
+  async executionBudgetaire(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    envoyerXlsx(res, await this.exportService.executionBudgetaireExcel(user.tenantId, exerciceId));
+  }
+
+  @Get('etats-financiers/projet/reconciliation-tresorerie')
+  async reconciliationTresorerie(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+    @Query('paiementsEnInstance') paiementsEnInstance?: string,
+  ) {
+    const montant = Number(paiementsEnInstance);
+    envoyerXlsx(
+      res,
+      await this.exportService.reconciliationTresorerieExcel(
+        user.tenantId,
+        exerciceId,
+        Number.isFinite(montant) ? montant : 0,
+      ),
+    );
+  }
+
+  // -------------------------------------------------------------------------
+  // Jeu « Système Minimal de Trésorerie » (Partie 4, ch. 4) · un export par
+  // onglet de l'écran, comme les deux autres jeux ont un export par état.
+  // -------------------------------------------------------------------------
+
+  @Get('etats-financiers/smt/bilan')
+  async bilanSmt(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    envoyerXlsx(res, await this.exportService.bilanSmtExcel(user.tenantId, exerciceId));
+  }
+
+  @Get('etats-financiers/smt/compte-de-resultat')
+  async compteDeResultatSmt(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    envoyerXlsx(res, await this.exportService.compteDeResultatSmtExcel(user.tenantId, exerciceId));
+  }
+
+  @Get('etats-financiers/smt/journal-tresorerie')
+  async journalTresorerieSmt(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    envoyerXlsx(res, await this.exportService.journalTresorerieSmtExcel(user.tenantId, exerciceId));
+  }
+
+  @Get('etats-financiers/smt/notes')
+  async notesSmt(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    envoyerXlsx(res, await this.exportService.notesSmtExcel(user.tenantId, exerciceId));
+  }
+
+  @Get('etats-financiers/smt/eligibilite')
+  async eligibiliteSmt(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    envoyerXlsx(res, await this.exportService.eligibiliteSmtExcel(user.tenantId, exerciceId));
   }
 
   /** Notes annexes du jeu « associations et ordres professionnels » · 45 notes, une feuille par tableau applicable. */

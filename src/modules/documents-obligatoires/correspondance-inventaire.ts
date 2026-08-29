@@ -44,7 +44,7 @@ export interface EtatATranscrire {
 }
 
 const NON_CONSTRUIT = (article: string) =>
-  `État exigé par l'article 14 mais non encore produit par Compta Flow (${article}). Il doit être établi hors application et joint au livre d'inventaire tant que cette lacune subsiste.`;
+  `État exigé par l'article 14 mais non encore produit par OmegaX (${article}). Il doit être établi hors application et joint au livre d'inventaire tant que cette lacune subsiste.`;
 
 /** Art. 14, point 1 · associations et ordres professionnels. */
 export const ETATS_INVENTAIRE_ASSOCIATIONS: EtatATranscrire[] = [
@@ -54,33 +54,55 @@ export const ETATS_INVENTAIRE_ASSOCIATIONS: EtatATranscrire[] = [
 ];
 
 /** Art. 14, point 2 · entités gérant ou administrant des projets de développement. */
+// Les trois premiers états ont longtemps été déclarés indisponibles ici, la
+// Partie 4 ch. 3 ne fournissant pas leur rattachement aux comptes. Le GUIDE
+// D'APPLICATION du SYCEBNL le fournit pour deux d'entre eux (chapitre 7,
+// Applications 21 et 22), et les libellés du troisième se lisent dans les
+// contreparties des mouvements de trésorerie. Les cinq états du point 2 sont
+// désormais produits · voir EtatsFinanciersProjetService et
+// EtatsFinanciersProjetBudgetService.
 export const ETATS_INVENTAIRE_PROJETS: EtatATranscrire[] = [
-  {
-    cle: 'tableauEmploisRessources',
-    libelle: 'Tableau emplois-ressources',
-    disponible: false,
-    motifIndisponibilite: NON_CONSTRUIT('Partie 4 ch. 3, codes FA à GZ'),
-  },
-  {
-    cle: 'tableauExecutionBudgetaire',
-    libelle: "Tableau d'exécution budgétaire",
-    disponible: false,
-    motifIndisponibilite: NON_CONSTRUIT('Partie 4 ch. 3 ; suppose la brique budgétaire'),
-  },
-  {
-    cle: 'tableauReconciliationTresorerie',
-    libelle: 'Tableau de réconciliation de trésorerie',
-    disponible: false,
-    motifIndisponibilite: NON_CONSTRUIT('Partie 4 ch. 3, codes A à I'),
-  },
+  { cle: 'tableauEmploisRessources', libelle: 'Tableau emplois-ressources', disponible: true },
+  { cle: 'tableauExecutionBudgetaire', libelle: "Tableau d'exécution budgétaire", disponible: true },
+  { cle: 'tableauReconciliationTresorerie', libelle: 'Tableau de réconciliation de trésorerie', disponible: true },
   { cle: 'bilan', libelle: 'Bilan', disponible: true },
   { cle: 'compteExploitation', libelle: "Compte d'exploitation", disponible: true },
 ];
 
+/**
+ * Système Minimal de Trésorerie.
+ *
+ * ⚠️ L'article 14 NE NOMME PAS le S.M.T : il n'énumère que deux cas, les
+ * associations et ordres professionnels (point 1) et les entités gérant des
+ * projets de développement (point 2). C'est cohérent avec l'économie du
+ * texte · le S.M.T (art. 5 et 6) est un régime de PRÉSENTATION lié à la
+ * taille, pas un type d'entité, et une petite association reste une
+ * association.
+ *
+ * Le contenu retenu ici est donc celui du point 1 RESTREINT à ce que le
+ * chapitre 4 produit réellement : le Bilan et le Compte de résultat. Le
+ * Tableau des flux de trésorerie en est écarté · la Partie 4, ch. 1 § 4 pose
+ * qu'il est « un état financier spécifique aux associations et ordres
+ * professionnels » du Système normal, et le jeu du S.M.T ne le comporte pas.
+ * Sa place est tenue par le journal unique de trésorerie (Note 4).
+ *
+ * Ce choix est une lecture, pas une transcription : il est écrit ici pour
+ * pouvoir être discuté, et non enfoui dans un ternaire.
+ */
+export const ETATS_INVENTAIRE_SMT: EtatATranscrire[] = [
+  { cle: 'bilan', libelle: 'Bilan', disponible: true },
+  { cle: 'compteDeResultat', libelle: 'Compte de résultat', disponible: true },
+];
+
 export function etatsExigesPar(jeu: JeuEtatsFinanciersSycebnl): EtatATranscrire[] {
-  return jeu === JeuEtatsFinanciersSycebnl.PROJETS_DEVELOPPEMENT
-    ? ETATS_INVENTAIRE_PROJETS
-    : ETATS_INVENTAIRE_ASSOCIATIONS;
+  switch (jeu) {
+    case JeuEtatsFinanciersSycebnl.PROJETS_DEVELOPPEMENT:
+      return ETATS_INVENTAIRE_PROJETS;
+    case JeuEtatsFinanciersSycebnl.SYSTEME_MINIMAL_TRESORERIE:
+      return ETATS_INVENTAIRE_SMT;
+    default:
+      return ETATS_INVENTAIRE_ASSOCIATIONS;
+  }
 }
 
 /**

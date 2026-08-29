@@ -27,6 +27,19 @@ export class CreerCompteDto {
   @IsOptional()
   @IsEnum(TypeCompteDetailTotal)
   typeCompte?: TypeCompteDetailTotal;
+
+  // Ouvre ce compte au lettrage · « liberté de définir la liste des comptes
+  // auxquels s'applique le lettrage » (CPCC, ch. 6). Omis, le défaut se
+  // déduit du numéro (voir estLettrableParDefaut).
+  @IsOptional()
+  @IsBoolean()
+  lettrable?: boolean;
+
+  // Taux de TVA proposé automatiquement quand ce compte est saisi · `null`
+  // explicite pour ne rien proposer.
+  @IsOptional()
+  @IsString()
+  tauxTvaDefautId?: string | null;
 }
 
 export class ModifierCompteDto {
@@ -52,4 +65,12 @@ export class ModifierCompteDto {
   @IsOptional()
   @IsString()
   bailleurId?: string | null;
+
+  @IsOptional()
+  @IsBoolean()
+  lettrable?: boolean;
+
+  @IsOptional()
+  @IsString()
+  tauxTvaDefautId?: string | null;
 }

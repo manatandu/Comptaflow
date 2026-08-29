@@ -4,6 +4,25 @@ import { useExercice } from '../lib/exercice';
 import { useAuth } from '../lib/auth';
 import { IconExport } from '../components/chrome/icons';
 import type { Compte, LigneNoteCalculee, NoteCalculee, ResultatNotesJeu } from '../lib/types';
+import { Aide } from '../components/chrome/Aide';
+import { BlocCertification, EnteteImpression } from '../components/chrome/EnteteImpression';
+
+/**
+ * Tri croissant des codes de note (« 1 », « 5A »…« 5H », « 17A », « 17B »,
+ * « 29A », « 29B »…« 35 ») · le texte officiel les numérote dans cet ordre,
+ * mais rien côté serveur ne garantit que `ficheRecapitulative` sorte déjà
+ * ainsi (l'ordre de déclaration du référentiel est libre). Numéro d'abord,
+ * puis suffixe alphabétique.
+ */
+function compareCodesNotes(a: string, b: string): number {
+  const decouper = (s: string) => {
+    const m = /^(\d+)([A-Za-z]*)$/.exec(s);
+    return m ? { num: Number(m[1]), suffixe: m[2] } : { num: Number.MAX_SAFE_INTEGER, suffixe: s };
+  };
+  const pa = decouper(a);
+  const pb = decouper(b);
+  return pa.num !== pb.num ? pa.num - pb.num : pa.suffixe.localeCompare(pb.suffixe);
+}
 
 /**
  * Notes annexes SYCEBNL · les deux jeux (45 notes « associations et ordres
@@ -31,6 +50,12 @@ export function NotesAnnexesPage() {
   const { exerciceCourant } = useExercice();
   const { utilisateur, estAdmin } = useAuth();
   const jeuProjet = utilisateur?.tenant.jeuEtatsFinanciersSycebnl === 'PROJETS_DEVELOPPEMENT';
+  // Les 35 et 24 notes catalogués ici sont celles du Système normal. Le
+  // Système minimal de trésorerie n'en a que cinq, servies directement par
+  // l'écran des états financiers (Partie 4, ch. 4) · cette fenêtre n'a rien
+  // à lui montrer, et le lui dire vaut mieux que lui afficher les 35 notes
+  // d'un jeu dont il ne relève pas.
+  const jeuSmt = utilisateur?.tenant.jeuEtatsFinanciersSycebnl === 'SYSTEME_MINIMAL_TRESORERIE';
   const chemin = jeuProjet ? 'projet' : 'associations';
 
   const [resultat, setResultat] = useState<ResultatNotesJeu | null>(null);
@@ -43,6 +68,7 @@ export function NotesAnnexesPage() {
   const [enCours, setEnCours] = useState<string | null>(null); // "codeNote::cle::compteId" en cours d'envoi
 
   const charger = () => {
+    if (jeuSmt) return; // aucun catalogue de notes du Système normal à charger
     if (!exerciceCourant || !utilisateur) return; // même garde qu'EtatsFinanciersPage : utilisateur null au tout premier rendu.
     api
       .get<ResultatNotesJeu>(`/notes-annexes/${chemin}?exerciceId=${exerciceCourant.id}`)
@@ -81,12 +107,19 @@ export function NotesAnnexesPage() {
   // (note 1, ses trois grilles) : `sousTableau` les distingue.
   const tableaux = resultat?.notes.filter((n) => n.code === codeSelectionne) ?? [];
 
+  // Ordre croissant des numéros de note (1, 2, 3… 5A…5H… 35) · le back ne
+  // le garantit pas (voir compareCodesNotes ci-dessus).
+  const ficheTriee = useMemo(
+    () => [...(resultat?.ficheRecapitulative ?? [])].sort((a, b) => compareCodesNotes(a.code, b.code)),
+    [resultat],
+  );
+
   // Sélection par défaut : la première note applicable, pour ne pas ouvrir
   // l'écran sur un tableau vide.
   useEffect(() => {
     if (!resultat || codeSelectionne) return;
-    const premiereApplicable = resultat.ficheRecapitulative.find((f) => f.applicable);
-    setCodeSelectionne(premiereApplicable?.code ?? resultat.ficheRecapitulative[0]?.code ?? null);
+    const premiereApplicable = ficheTriee.find((f) => f.applicable);
+    setCodeSelectionne(premiereApplicable?.code ?? ficheTriee[0]?.code ?? null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resultat]);
 
@@ -295,12 +328,39 @@ export function NotesAnnexesPage() {
     );
   };
 
+  // Dossier au Système minimal de trésorerie : cette fenêtre n'a pas de
+  // catalogue à lui présenter. Ses cinq notes sont dans l'écran des états
+  // financiers, où elles sont servies directement (Partie 4, ch. 4, Section 3).
+  if (jeuSmt) {
+    return (
+      <div className="p-2.5">
+        <div className="text-[10.5px] font-mono text-text-dim">ÉTAT</div>
+        <h1 className="text-[15px] font-bold mb-2">Notes annexes</h1>
+        <div className="border border-border bg-surface px-3.5 py-3 max-w-[620px]">
+          <p className="text-[12px] mb-2">
+            Ce dossier est tenu au Système minimal de trésorerie. Le SYCEBNL ne lui demande pas les 35 notes des
+            associations ni les 24 des projets de développement, mais cinq notes propres : acquisition et suivi des
+            immobilisations, état des stocks, état des créances et des dettes non échues, journal unique de
+            trésorerie et dotation.
+          </p>
+          <p className="text-[12px] text-text-dim">
+            Elles sont servies dans l'écran <span className="font-semibold">États financiers</span>, onglets
+            « Journal de trésorerie » et « Notes annexes ».
+          </p>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="p-2.5">
+      <EnteteImpression titre="Notes annexes" />
       <div className="flex items-center justify-between mb-2.5">
         <div>
           <div className="text-[10.5px] font-mono text-text-dim">ÉTAT</div>
-          <h1 className="text-[15px] font-bold">Notes annexes</h1>
+          <h1 className="text-[15px] font-bold flex items-center gap-1.5">
+            Notes annexes
+            <Aide sujet="notesAnnexes" />
+          </h1>
         </div>
         <div className="flex items-center gap-2.5">
           {exerciceCourant && (
@@ -355,7 +415,7 @@ export function NotesAnnexesPage() {
               <span>INTITULÉ</span>
               <span />
             </div>
-            {resultat.ficheRecapitulative.map((f) => (
+            {ficheTriee.map((f) => (
               <button
                 key={f.code}
                 onClick={() => setCodeSelectionne(f.code)}
@@ -385,6 +445,9 @@ export function NotesAnnexesPage() {
           </div>
         </div>
       )}
+
+      {/* Encadré de signature · CPCC § 7.4 règle 7-b, imprimé uniquement. */}
+      <BlocCertification />
     </div>
   );
 }

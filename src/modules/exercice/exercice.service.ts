@@ -7,17 +7,12 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
-import {
-  GranulariteCloture,
-  ModeReportANouveau,
-  Prisma,
-  StatutExercice,
-  TypeJournal,
-} from '@prisma/client';
+import { GranulariteCloture, ModeReportANouveau, Prisma, StatutEcriture, StatutExercice, TypeJournal } from '@prisma/client';
 import { CreerExerciceDto } from './dto/creer-exercice.dto';
 import { ClorePartielleDto, CloreTotaleDto, ClorePeriodeDto } from './dto/cloture.dto';
 import { JournalService } from '../journaux/journal.service';
 import { avecRetrySerialisable } from '../../common/prisma-retry.util';
+import { DERNIERE_VERIFICATION, dateJalon, jalonsApplicables } from './planning-cloture';
 
 const EPSILON = 0.005;
 
@@ -60,6 +55,114 @@ export class ExerciceService {
       throw new BadRequestException("La date de fin doit être postérieure à la date de début");
     }
     return this.prisma.exercice.create({ data: { tenantId, dateDebut, dateFin } });
+  }
+
+  /**
+   * Planning de clôture de l'exercice · les seize jalons de
+   * planning-cloture.ts, datés à partir de la date de clôture de CET
+   * exercice, augmentés de ce qu'OmegaX sait observer tout seul.
+   *
+   * L'observation est le point : un planning statique est une affiche, un
+   * planning qui sait qu'il reste douze écritures au brouillard est un outil.
+   * Elle ne couvre que les jalons vérifiables en base ; les autres restent
+   * des cases que le comptable coche dans sa tête, et le disent.
+   *
+   * Les échéances légales sont indicatives et sourcées : elles viennent d'un
+   * cours du CPCC de novembre 2020, antérieur au SYCEBNL, et n'ont pas été
+   * reverifiées sur texte primaire (les textes congolais ne sont pas
+   * accessibles depuis cet environnement). Voir docs/organisation-comptable-cpcc.md
+   * § 6. Le logiciel ne calcule aucune astreinte.
+   */
+  async planningCloture(tenantId: string, exerciceId: string) {
+    const exercice = await this.trouverExercice(tenantId, exerciceId);
+    const tenant = await this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId } });
+
+    const [enBrouillard, transcriptions, rapports, donations] = await Promise.all([
+      this.prisma.ecriture.count({ where: { tenantId, exerciceId, statut: StatutEcriture.BROUILLARD } }),
+      this.prisma.transcriptionInventaire.count({ where: { tenantId, exerciceId } }),
+      this.prisma.rapportActivite.count({ where: { tenantId, exerciceId } }),
+      this.prisma.donation.findMany({
+        where: {
+          tenantId,
+          annulee: false,
+          dateOperation: { gte: exercice.dateDebut, lte: exercice.dateFin },
+        },
+        select: { signeeLe: true },
+      }),
+    ]);
+    const donationsNonSignees = donations.filter((d) => d.signeeLe === null).length;
+
+    const observations: Record<string, { libelle: string; satisfait: boolean }> = {
+      BROUILLARD: {
+        libelle:
+          enBrouillard === 0
+            ? 'Aucune écriture au brouillard'
+            : `${enBrouillard} écriture(s) encore au brouillard, à valider avant la balance`,
+        satisfait: enBrouillard === 0,
+      },
+      INVENTAIRE: {
+        libelle:
+          transcriptions === 0
+            ? 'Aucune transcription au livre d’inventaire'
+            : `${transcriptions} transcription(s) au livre d’inventaire`,
+        satisfait: transcriptions > 0,
+      },
+      RAPPORT_ACTIVITE: {
+        libelle: rapports === 0 ? 'Aucun rapport d’activité établi' : `${rapports} version(s) du rapport d’activité`,
+        satisfait: rapports > 0,
+      },
+      DONATEURS: {
+        libelle:
+          donations.length === 0
+            ? 'Aucune libéralité enregistrée sur l’exercice'
+            : donationsNonSignees === 0
+              ? `${donations.length} libéralité(s), toutes signées`
+              : `${donations.length} libéralité(s) dont ${donationsNonSignees} non signée(s)`,
+        // Un registre vide est un registre en règle : rien n'oblige une
+        // association à recevoir des dons. Ce qui n'est pas en règle, c'est
+        // une libéralité inscrite et non signée (art. 18).
+        satisfait: donationsNonSignees === 0,
+      },
+      CLOTURE_ANNUELLE: {
+        libelle:
+          exercice.statut === StatutExercice.CLOTURE ? 'Exercice clôturé' : 'Exercice encore ouvert',
+        satisfait: exercice.statut === StatutExercice.CLOTURE,
+      },
+    };
+
+    const aujourdHui = new Date();
+    return {
+      exerciceId: exercice.id,
+      dateDebut: exercice.dateDebut,
+      dateFin: exercice.dateFin,
+      statut: exercice.statut,
+      derniereVerification: DERNIERE_VERIFICATION,
+      // Le planning n'est pas le même pour une ASBL, une ONG et une entreprise
+      // commerciale : voir jalonsApplicables et son commentaire.
+      formeJuridique: tenant.formeJuridique,
+      droitEtranger: tenant.droitEtranger,
+      jalons: jalonsApplicables({
+        referentiel: tenant.referentiel,
+        formeJuridique: tenant.formeJuridique,
+        droitEtranger: tenant.droitEtranger,
+      }).map((j) => {
+        const echeance = dateJalon(exercice.dateFin, j.echeance);
+        const observation = j.observation ? observations[j.observation] : undefined;
+        return {
+          etape: j.etape,
+          libelle: j.libelle,
+          detail: j.detail,
+          nature: j.nature,
+          source: j.source,
+          debut: dateJalon(exercice.dateFin, j.debut),
+          echeance,
+          // « En retard » n'a de sens que pour un jalon non satisfait : une
+          // étape faite reste faite, même après la date.
+          enRetard: echeance < aujourdHui && !(observation?.satisfait ?? false),
+          observation,
+        };
+      }),
+    };
   }
 
   private async trouverExercice(tenantId: string, exerciceId: string) {
@@ -234,6 +337,21 @@ export class ExerciceService {
     const exercice = await this.trouverExercice(tenantId, exerciceId);
     if (exercice.statut === StatutExercice.CLOTURE) {
       throw new ForbiddenException('Cet exercice est déjà clôturé');
+    }
+
+    // Rien ne doit rester en brouillard au moment de clôturer : la clôture
+    // solde les comptes de gestion et génère le report à-nouveau à partir des
+    // soldes du livre-journal. Une écriture restée en brouillard n'y figure
+    // pas · elle serait purement et simplement perdue du résultat, et son
+    // exercice serait clos avant qu'elle n'ait pu y entrer.
+    const enBrouillard = await this.prisma.ecriture.count({
+      where: { tenantId, exerciceId, statut: StatutEcriture.BROUILLARD },
+    });
+    if (enBrouillard > 0) {
+      throw new BadRequestException(
+        `${enBrouillard} écriture(s) sont encore en brouillard sur cet exercice. Validez-les ou supprimez-les avant ` +
+          "de clôturer : la clôture ne lit que le livre-journal, et ce qui reste en brouillard serait perdu du résultat.",
+      );
     }
 
     return avecRetrySerialisable(

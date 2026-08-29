@@ -1,8 +1,12 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useExercice } from '../lib/exercice';
 import { useAuth } from '../lib/auth';
 import { IconExport, IconCheck } from '../components/chrome/icons';
+import { Aide } from '../components/chrome/Aide';
+import { BlocCertification, EnteteImpression } from '../components/chrome/EnteteImpression';
+import { EtatsSmtPage } from './EtatsSmtPage';
 import type {
   Bilan,
   BilanProjet,
@@ -12,7 +16,10 @@ import type {
   LigneFluxTresorerie,
   NoteBailleur,
   PosteCalcule,
+  TableauEmploisRessources,
+  TableauExecutionBudgetaire,
   TableauFluxTresorerie,
+  TableauReconciliationTresorerie,
 } from '../lib/types';
 
 /**
@@ -20,16 +27,54 @@ import type {
  * vs du jeu « projets de développement et assimilés » (Partie 4, ch. 3) ·
  * jamais les deux à la fois : `useAuth().utilisateur.tenant.jeuEtatsFinanciersSycebnl`
  * décide lequel des deux jeux ce dossier affiche (voir
- * docs/plan-de-construction.md, item 13). Le Système Minimal de Trésorerie
- * (3ᵉ jeu) n'est pas construit et n'a pas d'onglet ici.
+ * docs/plan-de-construction.md, item 13).
+ *
+ * Le troisième jeu, le Système Minimal de Trésorerie (Partie 4, ch. 4), n'est
+ * PAS un onglet de plus ici : ses maquettes n'ont ni les mêmes postes, ni le
+ * même nombre de colonnes, ni la même logique (comptabilité de trésorerie).
+ * Il a son propre écran, `EtatsSmtPage`, vers lequel le composant exporté en
+ * fin de fichier aiguille.
  */
 type OngletAssociations = 'bilan' | 'compte-de-resultat' | 'flux-tresorerie';
-type OngletProjet = 'bilan-projet' | 'compte-exploitation-projet' | 'note-bailleur';
+type OngletProjet =
+  | 'bilan-projet'
+  | 'compte-exploitation-projet'
+  | 'emplois-ressources'
+  | 'execution-budgetaire'
+  | 'reconciliation-tresorerie'
+  | 'note-bailleur';
 
-export function EtatsFinanciersPage() {
+/** Nom de l'état affiché · repris en sous-titre de l'en-tête d'impression. */
+const LIBELLE_ONGLET: Record<string, string> = {
+  bilan: 'Bilan',
+  'compte-de-resultat': 'Compte de résultat',
+  'flux-tresorerie': 'Tableau de flux de trésorerie',
+  'bilan-projet': 'Bilan',
+  'compte-exploitation-projet': "Compte d'exploitation",
+  'emplois-ressources': 'Tableau emplois-ressources',
+  'execution-budgetaire': "Tableau d'exécution budgétaire",
+  'reconciliation-tresorerie': 'Tableau de réconciliation de trésorerie',
+  'note-bailleur': 'Note 9 · Fonds du bailleur',
+};
+
+/** Entrée du lexique SYCEBNL correspondant à chaque onglet d'état. */
+const AIDE_ONGLET: Record<string, 'bilan' | 'compteResultat' | 'tft' | 'compteExploitation' | 'bailleur' | 'budget' | undefined> = {
+  bilan: 'bilan',
+  'compte-de-resultat': 'compteResultat',
+  'flux-tresorerie': 'tft',
+  'bilan-projet': 'bilan',
+  'compte-exploitation-projet': 'compteExploitation',
+  'emplois-ressources': undefined,
+  'execution-budgetaire': 'budget',
+  'reconciliation-tresorerie': 'tft',
+  'note-bailleur': 'bailleur',
+};
+
+function EtatsSystemeNormalPage() {
   const { exerciceCourant } = useExercice();
   const { utilisateur } = useAuth();
   const jeuProjet = utilisateur?.tenant.jeuEtatsFinanciersSycebnl === 'PROJETS_DEVELOPPEMENT';
+  const navigate = useNavigate();
 
   const [ongletAssociations, setOngletAssociations] = useState<OngletAssociations>('bilan');
   const [ongletProjet, setOngletProjet] = useState<OngletProjet>('bilan-projet');
@@ -41,6 +86,12 @@ export function EtatsFinanciersPage() {
   const [bilanProjet, setBilanProjet] = useState<BilanProjet | null>(null);
   const [ceProjet, setCeProjet] = useState<CompteExploitationProjet | null>(null);
   const [noteBailleur, setNoteBailleur] = useState<NoteBailleur | null>(null);
+  const [emploisRessources, setEmploisRessources] = useState<TableauEmploisRessources | null>(null);
+  const [executionBudget, setExecutionBudget] = useState<TableauExecutionBudgetaire | null>(null);
+  const [erreurBudget, setErreurBudget] = useState<string | null>(null);
+  const [reconciliation, setReconciliation] = useState<TableauReconciliationTresorerie | null>(null);
+  // Repère H du tableau de réconciliation · extra-comptable, saisi ici.
+  const [paiementsEnInstance, setPaiementsEnInstance] = useState('0');
 
   const [erreur, setErreur] = useState<string | null>(null);
   const [exportEnCours, setExportEnCours] = useState(false);
@@ -69,6 +120,18 @@ export function EtatsFinanciersPage() {
         (r) => !annule && setNoteBailleur(r),
         (e) => !annule && setErreur(e.message),
       );
+      api.get<TableauEmploisRessources>(`/etats-financiers/projet/emplois-ressources?exerciceId=${exerciceCourant.id}`).then(
+        (r) => !annule && setEmploisRessources(r),
+        (e) => !annule && setErreur(e.message),
+      );
+      // Le tableau d'exécution budgétaire suppose une nomenclature budgétaire :
+      // son absence n'est pas une erreur de l'application, c'est un dossier
+      // qui n'a pas encore de plan analytique à budgets. Erreur isolée pour ne
+      // pas polluer les autres états.
+      api.get<TableauExecutionBudgetaire>(`/etats-financiers/projet/execution-budgetaire?exerciceId=${exerciceCourant.id}`).then(
+        (r) => !annule && setExecutionBudget(r),
+        (e) => !annule && setErreurBudget(e.message),
+      );
     } else {
       api.get<Bilan>(`/etats-financiers/bilan?exerciceId=${exerciceCourant.id}`).then(
         (r) => !annule && setBilan(r),
@@ -93,6 +156,27 @@ export function EtatsFinanciersPage() {
   // Bouton du ruban désactivé : useRibbon fige les gestionnaires au montage,
   // il agirait donc toujours sur l'onglet initial. Le bouton fonctionnel est
   // dans l'en-tête de page.
+  /**
+   * La liasse complète : tous les états du jeu retenu par le dossier dans un
+   * seul classeur. C'est ce fichier qui se dépose au CPCC ou s'envoie à un
+   * bailleur.
+   */
+  const exporterLiasse = async () => {
+    if (!exerciceCourant) return;
+    setErreur(null);
+    setExportEnCours(true);
+    try {
+      await api.telecharger(
+        `/exports/etats-financiers/liasse-complete?exerciceId=${exerciceCourant.id}`,
+        `liasse-complete-${new Date(exerciceCourant.dateDebut).getFullYear()}.xlsx`,
+      );
+    } catch (e) {
+      setErreur(e instanceof Error ? e.message : "Échec de l'export de la liasse");
+    } finally {
+      setExportEnCours(false);
+    }
+  };
+
   const exporter = async () => {
     if (!exerciceCourant) return;
     const chemin =
@@ -106,7 +190,13 @@ export function EtatsFinanciersPage() {
               ? 'projet/bilan'
               : onglet === 'compte-exploitation-projet'
                 ? 'projet/compte-exploitation'
-                : 'projet/note-bailleur';
+                : onglet === 'emplois-ressources'
+                  ? 'projet/emplois-ressources'
+                  : onglet === 'execution-budgetaire'
+                    ? 'projet/execution-budgetaire'
+                    : onglet === 'reconciliation-tresorerie'
+                      ? 'projet/reconciliation-tresorerie'
+                      : 'projet/note-bailleur';
     const nomFichier = chemin.includes('/') ? chemin.split('/')[1] + '-projet' : chemin;
     setErreur(null);
     setExportEnCours(true);
@@ -201,10 +291,20 @@ export function EtatsFinanciersPage() {
 
   return (
     <div className="p-2.5">
-      <div className="flex items-center justify-between mb-2.5">
+      <EnteteImpression titre="États financiers" sousTitre={LIBELLE_ONGLET[onglet]} />
+      <div className="ecran-seul flex items-center justify-between mb-2.5">
         <div>
           <div className="text-[10.5px] font-mono text-text-dim">ÉTAT</div>
-          <h1 className="text-[15px] font-bold">États financiers</h1>
+          <h1 className="text-[15px] font-bold flex items-center gap-1.5">
+            États financiers
+            <Aide sujet="jeuEtats" />
+          </h1>
+          <div className="text-[10.5px] text-text-dim mt-0.5">
+            Jeu {jeuProjet ? 'des projets de développement' : 'des associations et ordres professionnels'} ·{' '}
+            <button onClick={() => navigate('/parametres-dossier')} className="underline hover:text-sel">
+              paramètres du dossier
+            </button>
+          </div>
         </div>
         <div className="flex items-center gap-2.5">
           {exerciceCourant && (
@@ -212,13 +312,31 @@ export function EtatsFinanciersPage() {
               Exercice {new Date(exerciceCourant.dateDebut).getFullYear()}
             </span>
           )}
+          {/*
+            DEUX boutons, et l'ordre compte. Un bouton par onglet suffit pour
+            retravailler un état ; il ne suffit pas pour DÉPOSER. Une liasse,
+            c'est cinq à sept états plus les notes : les télécharger un par un
+            puis les recoller à la main, c'est la manipulation où l'on oublie
+            une pièce. La liasse complète est donc l'action principale, et
+            l'export de l'onglet courant l'action secondaire.
+          */}
+          <button
+            onClick={exporterLiasse}
+            disabled={exportEnCours}
+            title="Tous les états du jeu dans un seul classeur, précédés d’un sommaire"
+            className="flex items-center gap-1.5 border border-sel bg-sel text-white px-3 py-1.5 text-[11px] font-bold hover:brightness-110 disabled:opacity-50 disabled:cursor-wait"
+          >
+            <IconExport width={13} height={13} />
+            {exportEnCours ? 'Export en cours…' : 'Exporter la liasse complète'}
+          </button>
           <button
             onClick={exporter}
             disabled={exportEnCours}
+            title="Seulement l’état affiché dans cet onglet"
             className="flex items-center gap-1.5 border border-border bg-surface px-3 py-1.5 text-[11px] font-bold hover:bg-surface-alt disabled:opacity-50 disabled:cursor-wait"
           >
             <IconExport width={13} height={13} />
-            {exportEnCours ? 'Export en cours…' : 'Exporter Excel'}
+            Cet onglet
           </button>
         </div>
       </div>
@@ -234,14 +352,14 @@ export function EtatsFinanciersPage() {
 
       {jeuProjet && (
         <p className="text-[10.5px] text-text-dim mb-1.5">
-          Jeu « Projets de développement et assimilés » (SYCEBNL, Partie 4 ch. 3) · Tableau emplois-ressources,
-          Tableau d'exécution budgétaire et Tableau de réconciliation de trésorerie non construits (voir{' '}
-          <code>EtatsFinanciersProjetService</code>) : seuls Bilan et Compte d'exploitation sont disponibles ici.
+          Jeu « Projets de développement et assimilés » (SYCEBNL, Partie 4 ch. 3). Les cinq états du point 2 de
+          l'article 14 sont produits ; la correspondance du tableau emplois-ressources et du tableau d'exécution
+          budgétaire vient du Guide d'application, chapitre 7.
         </p>
       )}
 
       {jeuProjet ? (
-        <div className="flex bg-chrome border border-border border-b-0">
+        <div className="ecran-seul flex bg-chrome border border-border border-b-0">
           <button
             onClick={() => setOngletProjet('bilan-projet')}
             className={`px-4 py-1.5 text-[11px] font-bold ${
@@ -259,6 +377,30 @@ export function EtatsFinanciersPage() {
             COMPTE D'EXPLOITATION
           </button>
           <button
+            onClick={() => setOngletProjet('emplois-ressources')}
+            className={`px-4 py-1.5 text-[11px] font-bold ${
+              onglet === 'emplois-ressources' ? 'bg-surface border-r border-l border-border' : 'text-text-dim'
+            }`}
+          >
+            EMPLOIS-RESSOURCES
+          </button>
+          <button
+            onClick={() => setOngletProjet('execution-budgetaire')}
+            className={`px-4 py-1.5 text-[11px] font-bold ${
+              onglet === 'execution-budgetaire' ? 'bg-surface border-r border-l border-border' : 'text-text-dim'
+            }`}
+          >
+            EXÉCUTION BUDGÉTAIRE
+          </button>
+          <button
+            onClick={() => setOngletProjet('reconciliation-tresorerie')}
+            className={`px-4 py-1.5 text-[11px] font-bold ${
+              onglet === 'reconciliation-tresorerie' ? 'bg-surface border-r border-l border-border' : 'text-text-dim'
+            }`}
+          >
+            RÉCONCILIATION
+          </button>
+          <button
             onClick={() => setOngletProjet('note-bailleur')}
             className={`px-4 py-1.5 text-[11px] font-bold ${
               onglet === 'note-bailleur' ? 'bg-surface border-r border-l border-border' : 'text-text-dim'
@@ -268,7 +410,7 @@ export function EtatsFinanciersPage() {
           </button>
         </div>
       ) : (
-        <div className="flex bg-chrome border border-border border-b-0">
+        <div className="ecran-seul flex bg-chrome border border-border border-b-0">
           <button
             onClick={() => setOngletAssociations('bilan')}
             className={`px-4 py-1.5 text-[11px] font-bold ${onglet === 'bilan' ? 'bg-surface border-r border-border' : 'text-text-dim'}`}
@@ -294,6 +436,15 @@ export function EtatsFinanciersPage() {
         </div>
       )}
 
+      {/* Bulle d'aide de l'état affiché : la définition SYCEBNL de l'état est
+          à portée de clic, sans encombrer les onglets d'un paragraphe. */}
+      {AIDE_ONGLET[onglet] && (
+        <div className="ecran-seul flex items-center gap-1.5 border-x border-t border-border bg-surface px-4 pt-2 text-[10.5px] text-text-dim">
+          <span>Ce que dit le référentiel</span>
+          <Aide sujet={AIDE_ONGLET[onglet]!} />
+        </div>
+      )}
+
       {onglet === 'bilan' && (
         <>
           {!bilan && <div className="border border-border px-4 py-4 text-[12px] text-text-dim">Chargement…</div>}
@@ -301,7 +452,7 @@ export function EtatsFinanciersPage() {
             <div className="max-w-[1180px] overflow-x-auto">
               {!bilan.exerciceN1Disponible && (
                 <p className="text-[10.5px] text-text-dim mb-1.5">
-                  Aucun exercice antérieur dans ce dossier la colonne N-1 affiche « », pas un faux zéro.
+                  Aucun exercice antérieur dans ce dossier : la colonne N-1 reste vide, ce n'est pas un zéro.
                 </p>
               )}
 
@@ -365,14 +516,6 @@ export function EtatsFinanciersPage() {
                   ))}
                 </div>
               )}
-
-              <p className="text-[11px] text-text-dim mt-3">
-                Postes et rattachements conformes au tableau de correspondance officiel SYCEBNL (Journal officiel
-                OHADA, Partie 4 ch. 2) · 3 colonnes Brut/Amort./Net côté actif et comparatif N-1 des deux côtés,
-                comme l'exige le texte officiel. Comme au compte de résultat, les anomalies du texte officiel sont
-                corrigées explicitement (comptes de tiers polyvalents 42-47 distingués par le sens du solde,
-                provisions réglementées en poste 15) plutôt que devinées · voir <code>correspondance-bilan.ts</code>.
-              </p>
             </div>
           )}
         </>
@@ -385,7 +528,7 @@ export function EtatsFinanciersPage() {
             <div className="max-w-[900px]">
               {!cr.exerciceN1Disponible && (
                 <p className="text-[10.5px] text-text-dim mb-1.5">
-                  Aucun exercice antérieur dans ce dossier la colonne N-1 affiche « », pas un faux zéro.
+                  Aucun exercice antérieur dans ce dossier : la colonne N-1 reste vide, ce n'est pas un zéro.
                 </p>
               )}
 
@@ -453,13 +596,6 @@ export function EtatsFinanciersPage() {
                   </p>
                 </div>
               )}
-
-              <p className="text-[11px] text-text-dim mt-3">
-                Postes et rattachements conformes au tableau de correspondance officiel SYCEBNL (Journal officiel OHADA,
-                Partie 4 ch. 2). Charges présentées en positif, de sorte que XC = XA − XB. XA inclut RH : le libellé
-                officiel dit « Somme RA à RG », ce qui romprait l'égalité entre le résultat et le bilan dès qu'il y a
-                des reprises.
-              </p>
             </div>
           )}
         </>
@@ -472,7 +608,7 @@ export function EtatsFinanciersPage() {
             <div className="max-w-[900px]">
               {!tft.exerciceN1Disponible && (
                 <p className="text-[10.5px] text-text-dim mb-1.5">
-                  Aucun exercice antérieur dans ce dossier la colonne N-1 affiche « », pas un faux zéro.
+                  Aucun exercice antérieur dans ce dossier : la colonne N-1 reste vide, ce n'est pas un zéro.
                 </p>
               )}
 
@@ -533,12 +669,6 @@ export function EtatsFinanciersPage() {
                   ))}
                 </div>
               )}
-
-              <p className="text-[11px] text-text-dim mt-3">
-                Méthode directe imposée par le texte officiel (Partie 4, ch. 1 § 4) : Encaissements N = Revenus (N) +
-                Créances (N-1) − Créances (N) ; Décaissements N = Achats (N) + Dettes (N-1) − Dettes (N). État
-                spécifique au jeu associations et ordres professionnels.
-              </p>
             </div>
           )}
         </>
@@ -551,7 +681,7 @@ export function EtatsFinanciersPage() {
             <div className="max-w-[1180px] overflow-x-auto">
               {!bilanProjet.exerciceN1Disponible && (
                 <p className="text-[10.5px] text-text-dim mb-1.5">
-                  Aucun exercice antérieur dans ce dossier la colonne N-1 affiche « », pas un faux zéro.
+                  Aucun exercice antérieur dans ce dossier : la colonne N-1 reste vide, ce n'est pas un zéro.
                 </p>
               )}
 
@@ -607,16 +737,6 @@ export function EtatsFinanciersPage() {
                   ))}
                 </div>
               )}
-
-              <p className="text-[11px] text-text-dim mt-3">
-                Postes et rattachements conformes au tableau de correspondance officiel SYCEBNL, jeu « projets de
-                développement et assimilés » (Journal officiel OHADA, Partie 4 ch. 3) · voir{' '}
-                <code>correspondance-projet-bilan.ts</code>. Deux colonnes de valeur seulement : contrairement au
-                bilan des associations, le texte de ce jeu ne prévoit ni Brut ni Amortissements, et son tableau de
-                correspondance ne cite aucun compte 28x/29x. CC (solde des opérations de l'exercice) vient
-                uniquement du compte 13. Le poste DI reprend le compte 20 tel que l'écrit le texte officiel, bien
-                qu'il s'agisse d'un compte d'actif · anomalie signalée, jamais corrigée en silence.
-              </p>
             </div>
           )}
         </>
@@ -629,7 +749,7 @@ export function EtatsFinanciersPage() {
             <div className="max-w-[900px]">
               {!ceProjet.exerciceN1Disponible && (
                 <p className="text-[10.5px] text-text-dim mb-1.5">
-                  Aucun exercice antérieur dans ce dossier la colonne N-1 affiche « », pas un faux zéro.
+                  Aucun exercice antérieur dans ce dossier : la colonne N-1 reste vide, ce n'est pas un zéro.
                 </p>
               )}
 
@@ -689,17 +809,240 @@ export function EtatsFinanciersPage() {
                   ))}
                 </div>
               )}
-
-              <p className="text-[11px] text-text-dim mt-3">
-                Postes conformes au tableau de correspondance officiel SYCEBNL, jeu « projets de développement et
-                assimilés » (Journal officiel OHADA, Partie 4 ch. 3) · voir{' '}
-                <code>correspondance-projet-compte-exploitation.ts</code>. RC (subventions) et RE (reprises) dans XA :
-                deux anomalies du texte officiel corrigées. TJ et TK apparaissent deux fois chacun : doublon du texte
-                officiel, reproduit tel quel.
-              </p>
             </div>
           )}
         </>
+      )}
+
+      {/* ------------------------------------------------------------- */}
+      {/* TABLEAU EMPLOIS-RESSOURCES · FA à GZ                            */}
+      {/* ------------------------------------------------------------- */}
+      {onglet === 'emplois-ressources' && (
+        <>
+          {!emploisRessources && <div className="border border-border px-4 py-4 text-[12px] text-text-dim">Chargement…</div>}
+          {emploisRessources && (
+            <div className="max-w-[1000px]">
+              <div className="border border-border bg-surface mb-3">
+                <div className="grid grid-cols-[42px_1fr_120px_120px_120px] gap-2 px-4 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
+                  <span>REF</span>
+                  <span>DÉSIGNATION</span>
+                  <span className="text-right">MOUVEMENT BRUT</span>
+                  <span className="text-right">CORRECTION</span>
+                  <span className="text-right">EXERCICE N</span>
+                </div>
+                {emploisRessources.lignes.map((l, i) => (
+                  <div
+                    key={`${l.ref}-${i}`}
+                    title={l.comptes.length > 0 ? `Comptes : ${l.comptes.map((c) => c.numero).join(', ')}` : undefined}
+                    className={`grid grid-cols-[42px_1fr_120px_120px_120px] gap-2 px-4 py-1 text-[12px] ${
+                      l.estTotal ? 'font-bold bg-surface-alt border-y border-border' : l.montant === 0 ? 'text-text-dim' : ''
+                    }`}
+                  >
+                    <span className="font-mono text-[10px] text-text-dim">{l.ref}</span>
+                    <span>{l.libelle}</span>
+                    {/* Le brut et la correction ne sont affichés que là où le
+                        guide en prévoit une : les lire ailleurs n'aurait pas
+                        de sens. */}
+                    <span className="font-mono text-right text-text-dim">
+                      {l.brut !== undefined && l.correction !== undefined && Math.abs(l.correction) > 0.005 ? montant(l.brut) : ''}
+                    </span>
+                    <span className="font-mono text-right text-text-dim">
+                      {l.correction !== undefined && Math.abs(l.correction) > 0.005 ? montant(l.correction) : ''}
+                    </span>
+                    <span className="font-mono text-right">{montant(l.montant)}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div
+                className={`flex items-start gap-2 px-3.5 py-2.5 border ${
+                  emploisRessources.controle.boucle ? 'border-positive/30 bg-positive-soft' : 'border-danger/30 bg-danger-soft'
+                }`}
+              >
+                <IconCheck width={14} height={14} className={emploisRessources.controle.boucle ? 'text-positive' : 'text-danger'} />
+                <span className="font-mono text-[11.5px]">
+                  {emploisRessources.controle.boucle
+                    ? `CONTRÔLE OFFICIEL GZ · TOTAL V = TOTAL VI = ${montant(emploisRessources.encaisseDisponible)}`
+                    : `CONTRÔLE OFFICIEL GZ EN ÉCHEC · écart de ${montant(emploisRessources.controle.ecart)} entre l'encaisse reconstituée et les fonds disponibles en fin d'exercice`}
+                </span>
+              </div>
+
+              {emploisRessources.anomalies.length > 0 && (
+                <div className="border border-warning/40 bg-warning-soft mt-2 px-3.5 py-2.5">
+                  <div className="text-[11.5px] font-bold mb-1.5">
+                    Répartition faussée entre postes · le total des emplois reste exact
+                  </div>
+                  {emploisRessources.anomalies.map((a) => (
+                    <p key={a.ref} className="text-[11px] mb-1 last:mb-0">
+                      {a.diagnostic}
+                    </p>
+                  ))}
+                </div>
+              )}
+
+              {emploisRessources.avertissements.map((a) => (
+                <p key={a} className="mt-2 text-[10.5px] text-text-dim">
+                  {a}
+                </p>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ------------------------------------------------------------- */}
+      {/* TABLEAU D'EXÉCUTION BUDGÉTAIRE · Section 2, et Note 24          */}
+      {/* ------------------------------------------------------------- */}
+      {onglet === 'execution-budgetaire' && (
+        <>
+          {erreurBudget && (
+            <div className="border border-warning/40 bg-warning-soft px-3.5 py-2.5 text-[12px] max-w-[820px]">
+              {erreurBudget}
+            </div>
+          )}
+          {!executionBudget && !erreurBudget && (
+            <div className="border border-border px-4 py-4 text-[12px] text-text-dim">Chargement…</div>
+          )}
+          {executionBudget && (
+            <div className="max-w-[1160px] overflow-x-auto">
+              <p className="text-[10.5px] text-text-dim mb-1.5">
+                Nomenclature budgétaire : plan analytique{' '}
+                <span className="font-mono">{executionBudget.plan.code}</span> · {executionBudget.plan.intitule}
+              </p>
+              <div className="border border-border bg-surface mb-3 min-w-[1060px]">
+                <div className="grid grid-cols-[80px_1fr_120px_120px_120px_120px_120px_90px] gap-2 px-4 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
+                  <span>CODE</span>
+                  <span>LIBELLÉ</span>
+                  <span className="text-right">BUDGET (1)</span>
+                  <span className="text-right">DÉCAISSEMENT (2)</span>
+                  <span className="text-right">ENGAGEMENT (3)</span>
+                  <span className="text-right">RÉALISATION (4)</span>
+                  <span className="text-right">CRÉDIT DISPO. (5)</span>
+                  <span className="text-right">EXÉC. (4/1)</span>
+                </div>
+                {executionBudget.lignes.map((l) => (
+                  <div
+                    key={l.code}
+                    className="grid grid-cols-[80px_1fr_120px_120px_120px_120px_120px_90px] gap-2 px-4 py-1 text-[12px]"
+                  >
+                    <span className="font-mono text-[11px]">{l.code}</span>
+                    <span className="truncate">{l.libelle}</span>
+                    <span className="font-mono text-right">{montant(l.budget)}</span>
+                    <span className="font-mono text-right">{montant(l.decaissement)}</span>
+                    <span className="font-mono text-right">{montant(l.engagement)}</span>
+                    <span className="font-mono text-right">{montant(l.realisation)}</span>
+                    <span className={`font-mono text-right ${l.creditDisponible < 0 ? 'text-danger font-semibold' : ''}`}>
+                      {montant(l.creditDisponible)}
+                    </span>
+                    <span className="font-mono text-right text-text-dim">
+                      {l.executionPourcent === null ? '·' : `${l.executionPourcent.toFixed(1)} %`}
+                    </span>
+                  </div>
+                ))}
+                {executionBudget.lignes.length === 0 && (
+                  <div className="px-4 py-2 text-[11.5px] text-text-dim">
+                    Ce plan analytique ne porte encore aucune section.
+                  </div>
+                )}
+                <div className="grid grid-cols-[80px_1fr_120px_120px_120px_120px_120px_90px] gap-2 px-4 py-1.5 bg-surface-alt border-t border-border text-[12px] font-bold">
+                  <span>TOTAL</span>
+                  <span />
+                  <span className="font-mono text-right">{montant(executionBudget.total.budget)}</span>
+                  <span className="font-mono text-right">{montant(executionBudget.total.decaissement)}</span>
+                  <span className="font-mono text-right">{montant(executionBudget.total.engagement)}</span>
+                  <span className="font-mono text-right">{montant(executionBudget.total.realisation)}</span>
+                  <span className="font-mono text-right">{montant(executionBudget.total.creditDisponible)}</span>
+                  <span className="font-mono text-right">
+                    {executionBudget.total.executionPourcent === null
+                      ? '·'
+                      : `${executionBudget.total.executionPourcent.toFixed(1)} %`}
+                  </span>
+                </div>
+              </div>
+              <p className="text-[10.5px] text-text-dim max-w-[900px]">{executionBudget.engagementsHorsComptabilite}</p>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ------------------------------------------------------------- */}
+      {/* TABLEAU DE RÉCONCILIATION DE TRÉSORERIE · repères A à I         */}
+      {/* ------------------------------------------------------------- */}
+      {onglet === 'reconciliation-tresorerie' && (
+        <div className="max-w-[760px]">
+          <div className="ecran-seul flex items-end gap-2 border-x border-t border-border bg-surface px-4 pt-2.5 pb-2">
+            <label className="flex flex-col gap-1">
+              <span className="text-[10px] font-bold text-text-dim" title="Chèques émis non encaissés, virements en cours · le repère H de la maquette officielle est extra-comptable">
+                PAIEMENTS EN INSTANCE (REPÈRE H)
+              </span>
+              <input
+                type="number"
+                value={paiementsEnInstance}
+                onChange={(e) => setPaiementsEnInstance(e.target.value)}
+                className="border border-border-dark bg-surface px-2 py-1 text-[12px] font-mono w-[160px]"
+              />
+            </label>
+            <button
+              type="button"
+              onClick={() => {
+                if (!exerciceCourant) return;
+                api
+                  .get<TableauReconciliationTresorerie>(
+                    `/etats-financiers/projet/reconciliation-tresorerie?exerciceId=${exerciceCourant.id}&paiementsEnInstance=${Number(paiementsEnInstance) || 0}`,
+                  )
+                  .then(setReconciliation, (e) => setErreur(e.message));
+              }}
+              className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[11.5px]"
+            >
+              Établir le tableau
+            </button>
+          </div>
+
+          {!reconciliation && (
+            <div className="border border-border px-4 py-4 text-[12px] text-text-dim">
+              Saisissez les paiements en instance puis établissez le tableau.
+            </div>
+          )}
+          {reconciliation && (
+            <>
+              <div className="border border-border bg-surface mb-3">
+                <div className="grid grid-cols-[1fr_44px_150px] gap-2 px-4 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
+                  <span>LIBELLÉ</span>
+                  <span className="text-center">REP.</span>
+                  <span className="text-right">MONTANT</span>
+                </div>
+                {reconciliation.lignes.map((l) => (
+                  <div
+                    key={l.rep}
+                    className={`grid grid-cols-[1fr_44px_150px] gap-2 px-4 py-1 text-[12px] ${
+                      l.rep === 'G' || l.rep === 'I' ? 'font-bold bg-surface-alt border-y border-border' : ''
+                    }`}
+                  >
+                    <span>{l.libelle}</span>
+                    <span className="font-mono text-[10px] text-text-dim text-center">{l.rep}</span>
+                    <span className="font-mono text-right">{montant(l.montant)}</span>
+                  </div>
+                ))}
+              </div>
+              <div
+                className={`flex items-start gap-2 px-3.5 py-2.5 border ${
+                  reconciliation.controle.boucle ? 'border-positive/30 bg-positive-soft' : 'border-danger/30 bg-danger-soft'
+                }`}
+              >
+                <span className="text-[11.5px]">
+                  {reconciliation.controle.boucle
+                    ? `La trésorerie reconstituée (repère G) correspond au solde des comptes de trésorerie à la balance : ${montant(reconciliation.controle.tresorerieBalance)}.`
+                    : `Écart de ${montant(reconciliation.controle.ecart)} entre la trésorerie reconstituée (G) et le solde des comptes de trésorerie à la balance (${montant(reconciliation.controle.tresorerieBalance)}).`}
+                </span>
+              </div>
+              {reconciliation.avertissements.map((a) => (
+                <p key={a} className="mt-2 text-[10.5px] text-text-dim">
+                  {a}
+                </p>
+              ))}
+            </>
+          )}
+        </div>
       )}
 
       {onglet === 'note-bailleur' && (
@@ -779,6 +1122,34 @@ export function EtatsFinanciersPage() {
           )}
         </>
       )}
+
+      {/* Encadré de signature · CPCC § 7.4 règle 7-b, imprimé uniquement. */}
+      <BlocCertification />
     </div>
+  );
+}
+
+/**
+ * Aiguillage entre les trois jeux d'états financiers SYCEBNL. Le Système
+ * Minimal de Trésorerie a son écran propre ; les deux jeux du Système normal
+ * partagent celui-ci, qui bascule ses onglets selon le dossier.
+ *
+ * L'aiguillage est fait ICI, au-dessus des hooks des deux écrans, et non par
+ * un `if` à l'intérieur d'un composant unique : les deux jeux n'appellent pas
+ * les mêmes endpoints, et un rendu conditionnel après les hooks les lancerait
+ * tous les deux.
+ */
+export function EtatsFinanciersPage() {
+  const { utilisateur, chargement } = useAuth();
+  // Tant que le profil n'est pas chargé, aucun des deux écrans ne doit partir :
+  // le jeu par défaut est celui des associations, et un dossier S.M.T
+  // interrogerait d'abord les endpoints du Système normal pour rien.
+  if (chargement || !utilisateur) {
+    return <div className="p-2.5 text-[12px] text-text-dim">Chargement…</div>;
+  }
+  return utilisateur.tenant.jeuEtatsFinanciersSycebnl === 'SYSTEME_MINIMAL_TRESORERIE' ? (
+    <EtatsSmtPage />
+  ) : (
+    <EtatsSystemeNormalPage />
   );
 }

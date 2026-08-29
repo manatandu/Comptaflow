@@ -1,11 +1,16 @@
 export type Referentiel = 'SYCEBNL' | 'SYSCOHADA';
 /**
  * N'a de sens que si `Referentiel` = 'SYCEBNL' (le SYSCOHADA n'a qu'un seul
- * jeu). SYCEBNL en prévoit 3 (Partie 4, ch. 2 à 4 du texte officiel) ; seuls
- * les deux premiers sont construits · le Système Minimal de Trésorerie
- * (SMT, < 30 M FCFA) n'a pas de valeur ici.
+ * jeu). SYCEBNL en prévoit 3 (Partie 4, ch. 2 à 4 du texte officiel), et les
+ * trois sont désormais construits. Le Système Minimal de Trésorerie n'est
+ * toutefois pas un choix libre : l'article 6 le réserve aux entités dont
+ * chacune des cinq catégories de ressources annuelles reste sous 30 000 000
+ * FCFA, l'article 5 posant que le Système normal est la règle.
  */
-export type JeuEtatsFinanciersSycebnl = 'ASSOCIATIONS_ORDRES_PROFESSIONNELS' | 'PROJETS_DEVELOPPEMENT';
+export type JeuEtatsFinanciersSycebnl =
+  | 'ASSOCIATIONS_ORDRES_PROFESSIONNELS'
+  | 'PROJETS_DEVELOPPEMENT'
+  | 'SYSTEME_MINIMAL_TRESORERIE';
 export type RoleUtilisateur = 'ADMIN_CABINET' | 'COMPTABLE' | 'LECTURE_SEULE';
 
 export interface Utilisateur {
@@ -36,6 +41,10 @@ export interface Compte {
   modeReportANouveau: ModeReportANouveau;
   /** Rattachement à un Bailleur (comptabilité analytique par projet/bailleur) · voir Bailleur. */
   bailleurId: string | null;
+  /** Compte ouvert au lettrage · « liberté de définir la liste des comptes auxquels s'applique le lettrage » (CPCC, ch. 6). */
+  lettrable: boolean;
+  /** Taux de TVA proposé automatiquement en saisie quand ce compte est choisi. */
+  tauxTvaDefautId: string | null;
 }
 
 /**
@@ -133,6 +142,10 @@ export interface Ecriture {
   reference: string | null;
   createdAt: string;
   createdBy: string;
+  /** BROUILLARD tant que l'écriture n'est pas entrée au livre-journal. */
+  statut: StatutEcriture;
+  valideeAt: string | null;
+  valideeBy: string | null;
   lignes: LigneEcriture[];
 
   /**
@@ -149,6 +162,9 @@ export interface Ecriture {
   corrigeEcriture?: { id: string; numeroPiece: number | null; date: string; libelle: string } | null;
 }
 
+export type StatutLettrage = 'PARTIEL' | 'SOLDE';
+export type OrigineLettrage = 'MANUEL' | 'AUTOMATIQUE_PIECE' | 'AUTOMATIQUE_MONTANT';
+
 export interface LigneLettrage {
   id: string;
   date: string;
@@ -157,7 +173,32 @@ export interface LigneLettrage {
   reference: string | null;
   debit: number;
   credit: number;
+  /** Servie uniquement quand le groupe est SOLDÉ · voir GroupeLettrage. */
   lettre: string | null;
+  lettrageId: string | null;
+  /** Code tel qu'il doit s'afficher : minuscule si partiel, majuscule si soldé. */
+  codeLettrage: string | null;
+  devise: string | null;
+  montantDevise: number | null;
+}
+
+export interface GroupeLettrage {
+  id: string;
+  code: string;
+  statut: StatutLettrage;
+  solde: number;
+  origine: OrigineLettrage;
+  verrouille: boolean;
+  ecartChange: number | null;
+  createdAt: string;
+  createdBy: string;
+  soldeAt: string | null;
+}
+
+export interface EtatLettrage {
+  compte: { id: string; numero: string; intitule: string; lettrable: boolean };
+  lignes: LigneLettrage[];
+  lettrages: GroupeLettrage[];
 }
 
 export type StatutRapprochement = 'EN_COURS' | 'CLOTURE';
@@ -379,12 +420,20 @@ export interface CompteDeResultat {
 }
 
 export interface AuthResponse {
-  tenant?: { id: string; nom: string; referentiel: Referentiel };
+  tenant?: {
+    id: string;
+    nom: string;
+    referentiel: Referentiel;
+    jeuEtatsFinanciersSycebnl?: JeuEtatsFinanciersSycebnl;
+  };
   exercice?: Exercice;
   accessToken: string;
 }
 
-export type TypeTiers = 'CLIENT' | 'FOURNISSEUR' | 'SALARIE' | 'AUTRE';
+// Types de tiers du SYCEBNL : le compte 41 « Adhérents, clients-usagers et
+// comptes rattachés » couvre deux populations que le texte officiel
+// subdivise (411 Adhérents, 412 Clients-usagers). Voir prisma/schema.prisma.
+export type TypeTiers = 'ADHERENT' | 'CLIENT' | 'FOURNISSEUR' | 'SALARIE' | 'AUTRE';
 export type ConditionEcheance = 'NET' | 'FIN_DE_MOIS';
 export type TypeEcheance = 'POURCENTAGE' | 'MONTANT' | 'EQUILIBRE';
 
@@ -848,4 +897,791 @@ export interface EcritureProposee {
   totalCredit: number;
   equilibree: boolean;
   comptesIntrouvables: { compte: string; libelle: string }[];
+}
+
+/** Structure > Paramètres du dossier (GET /dossier/parametres). */
+export interface ParametresDossier {
+  id: string;
+  nom: string;
+  referentiel: Referentiel;
+  jeuEtatsFinanciersSycebnl: JeuEtatsFinanciersSycebnl;
+  activite: string | null;
+  adresse: string | null;
+  ville: string | null;
+  pays: string | null;
+  telephone: string | null;
+  devise: string | null;
+  /** Identifiants légaux congolais · CPCC, § 7.4 règle 7-a. */
+  numeroImpot: string | null;
+  idNat: string | null;
+  rccm: string | null;
+  formeJuridique: FormeJuridiqueEbnl;
+  droitEtranger: boolean;
+  longueurCompte: number;
+  /** Au-delà de zéro, le jeu d'états financiers est verrouillé. */
+  nombreEcritures: number;
+}
+
+// ---------------------------------------------------------------------------
+// Comptabilité analytique et budgétaire · voir docs/analytique-et-budget.md
+// ---------------------------------------------------------------------------
+
+export interface PlanAnalytique {
+  id: string;
+  code: string;
+  intitule: string;
+  /** Chiffres de classe SYCEBNL ventilés, ex. "2,6,7,9". */
+  classesVentilees: string;
+  ventilationObligatoire: boolean;
+  gererBudgets: boolean;
+  ordre: number;
+  estActif: boolean;
+  _count?: { sections: number };
+}
+
+export interface SectionAnalytique {
+  id: string;
+  planId: string;
+  code: string;
+  intitule: string;
+  type: TypeCompteDetailTotal;
+  bailleurId: string | null;
+  bailleur: { id: string; code: string; nom: string } | null;
+  dateDebut: string | null;
+  dateFin: string | null;
+  estActive: boolean;
+}
+
+export interface BudgetSection {
+  annuel: number;
+  mensuel: { mois: number; montant: number }[];
+}
+
+export interface VentilationAnalytique {
+  id: string;
+  sectionId: string;
+  planId: string;
+  debit: number;
+  credit: number;
+  section: { id: string; code: string; intitule: string; planId: string };
+}
+
+export interface LigneBalanceAnalytique {
+  sectionId: string;
+  code: string;
+  intitule: string;
+  type: TypeCompteDetailTotal;
+  debit: number;
+  credit: number;
+  solde: number;
+}
+
+export interface BalanceAnalytique {
+  lignes: LigneBalanceAnalytique[];
+  totaux: { debit: number; credit: number; solde: number };
+}
+
+export interface LigneGrandLivreAnalytique {
+  date: string;
+  journal: string;
+  numeroPiece: number | null;
+  compteNumero: string;
+  compteIntitule: string;
+  libelle: string;
+  debit: number;
+  credit: number;
+  soldeProgressif: number;
+}
+
+export interface GrandLivreAnalytique {
+  section: {
+    id: string;
+    code: string;
+    intitule: string;
+    plan: { code: string; intitule: string };
+    dateDebut: string | null;
+    dateFin: string | null;
+  };
+  lignes: LigneGrandLivreAnalytique[];
+  totaux: { debit: number; credit: number; solde: number };
+}
+
+export interface ControleCumuls {
+  planId: string;
+  planCode: string;
+  planIntitule: string;
+  mouvementsGenerauxDebit: number;
+  mouvementsGenerauxCredit: number;
+  mouvementsAnalytiquesDebit: number;
+  mouvementsAnalytiquesCredit: number;
+  ecartDebit: number;
+  ecartCredit: number;
+  lignesSansRepartition: {
+    ecritureId: string;
+    date: string;
+    journal: string;
+    compteNumero: string;
+    compteIntitule: string;
+    libelle: string;
+    debit: number;
+    credit: number;
+  }[];
+}
+
+export interface LigneEtatBudgetaire {
+  sectionId: string | null;
+  code: string;
+  intitule: string;
+  budget: number;
+  realise: number;
+  ecart: number;
+  tauxConsommation: number | null;
+  horsBudget: boolean;
+}
+
+export interface EtatBudgetaire {
+  lignes: LigneEtatBudgetaire[];
+  totaux: LigneEtatBudgetaire;
+}
+
+// ---------------------------------------------------------------------------
+// Brouillard et validation · voir StatutEcriture dans prisma/schema.prisma
+// ---------------------------------------------------------------------------
+
+export type StatutEcriture = 'BROUILLARD' | 'VALIDEE';
+
+export interface LigneBrouillard {
+  id: string;
+  date: string;
+  createdAt: string;
+  journal: string;
+  journalIntitule: string;
+  numeroPiece: number | null;
+  libelle: string;
+  reference: string | null;
+  debit: number;
+  credit: number;
+  equilibree: boolean;
+  ancienneteJours: number;
+  /** Au-delà du délai de centralisation hebdomadaire du SYCEBNL. */
+  retardCentralisation: boolean;
+  lignes: {
+    compteNumero: string;
+    compteIntitule: string;
+    libelle: string | null;
+    debit: number;
+    credit: number;
+  }[];
+}
+
+export interface EtatBrouillard {
+  lignes: LigneBrouillard[];
+  totaux: {
+    nombre: number;
+    debit: number;
+    credit: number;
+    desequilibrees: number;
+    enRetard: number;
+  };
+  delaiCentralisationJours: number;
+}
+
+// ---------------------------------------------------------------------------
+// Import de plan de comptes, de balance et d'écritures
+// ---------------------------------------------------------------------------
+
+export type TypeImport = 'PLAN_COMPTES' | 'BALANCE' | 'ECRITURES';
+
+export interface AnalyseImport {
+  colonnes: string[];
+  separateur: string | null;
+  nombreLignes: number;
+  apercu: string[][];
+  champs: { cle: string; libelle: string; obligatoire: boolean }[];
+  mappingPropose: Record<string, string | null>;
+  manquants: string[];
+}
+
+export interface RapportImport {
+  type: TypeImport;
+  simulation: boolean;
+  lignesLues: number;
+  comptesCrees: number;
+  comptesReconnus: number;
+  ecrituresCreees: number;
+  lignesEcritureCreees: number;
+  totalDebit: number;
+  totalCredit: number;
+  anomalies: { ligne: number; message: string }[];
+}
+
+// ---------------------------------------------------------------------------
+// Analyse et contrôles · État → Analyse et contrôles, État → Contrôle de caisse
+// ---------------------------------------------------------------------------
+
+export type GraviteControle = 'BLOQUANT' | 'AVERTISSEMENT' | 'INFORMATION';
+
+export interface AnomalieControle {
+  code: string;
+  gravite: GraviteControle;
+  libelle: string;
+  consequence: string;
+  action: string;
+  occurrences: { reference: string; detail: string; montant?: number; date?: string }[];
+}
+
+export interface RapportControles {
+  exerciceId: string;
+  genereLe: string;
+  anomalies: AnomalieControle[];
+  totaux: { bloquants: number; avertissements: number; informations: number };
+}
+
+export interface JourneeCaisse {
+  date: string;
+  mouvementDebit: number;
+  mouvementCredit: number;
+  soldeFinJournee: number;
+  negatif: boolean;
+}
+
+export interface ControleCaisse {
+  compteId: string;
+  numero: string;
+  intitule: string;
+  journal: string | null;
+  soldeFinal: number;
+  premierJourNegatif: string | null;
+  nombreJoursNegatifs: number;
+  journees: JourneeCaisse[];
+}
+
+// ---------------------------------------------------------------------------
+// Régularisation des charges et produits, écritures d'abonnement
+// ---------------------------------------------------------------------------
+
+export type TypeRegularisation =
+  | 'CHARGE_CONSTATEE_AVANCE'
+  | 'PRODUIT_CONSTATE_AVANCE'
+  | 'SUBVENTION_PLURIANNUELLE';
+
+export type PeriodiciteAbonnement = 'MENSUELLE' | 'TRIMESTRIELLE' | 'SEMESTRIELLE' | 'ANNUELLE';
+
+export interface Regularisation {
+  id: string;
+  exerciceId: string;
+  type: TypeRegularisation;
+  libelle: string;
+  compteChargeProduit: { numero: string; intitule: string };
+  compteDiffere: { numero: string; intitule: string };
+  montantTotal: string;
+  periodeDebut: string;
+  periodeFin: string;
+  montantDiffere: string;
+  ecritureConstatation: { id: string; numeroPiece: number | null; date: string } | null;
+  ecritureReprise: { id: string; numeroPiece: number | null; date: string } | null;
+  createdAt: string;
+}
+
+export interface SimulationRegularisation {
+  montantTotal: number;
+  montantDiffere: number;
+  montantExercice: number;
+  finExercice: string;
+  joursTotal: number;
+  joursApresCloture: number;
+}
+
+export interface EcheanceAbonnement {
+  id: string;
+  date: string;
+  montant: string;
+  ecritureId: string | null;
+}
+
+export interface ModeleAbonnement {
+  id: string;
+  code: string;
+  intitule: string;
+  periodicite: PeriodiciteAbonnement;
+  dateDebut: string;
+  dateFin: string;
+  montant: string;
+  estActif: boolean;
+  journal: { code: string; intitule: string };
+  compteDebit: { numero: string; intitule: string };
+  compteCredit: { numero: string; intitule: string };
+  echeances: EcheanceAbonnement[];
+}
+
+// ---------------------------------------------------------------------------
+// Multidevise et réévaluation
+// ---------------------------------------------------------------------------
+
+export interface CoursDevise {
+  id: string;
+  date: string;
+  cours: string;
+  source: string | null;
+}
+
+export interface Devise {
+  id: string;
+  code: string;
+  intitule: string;
+  estActive: boolean;
+  cours: CoursDevise[];
+}
+
+export interface PositionDevise {
+  compteId: string;
+  numero: string;
+  intitule: string;
+  deviseCode: string;
+  deviseId: string;
+  montantDevise: number;
+  valeurComptable: number;
+  coursCloture: number;
+  valeurReevaluee: number;
+  ecart: number;
+  /** Compte de classe 5 : l'écart y est réalisé, non latent. */
+  estTresorerie: boolean;
+}
+
+export interface RapportReevaluation {
+  dateReevaluation: string;
+  positions: PositionDevise[];
+  perteLatente: number;
+  gainLatent: number;
+  perteRealisee: number;
+  gainRealise: number;
+  provision: number;
+  coursManquants: string[];
+}
+
+export interface Reevaluation {
+  id: string;
+  dateReevaluation: string;
+  ecritureEcarts: { id: string; numeroPiece: number | null; date: string } | null;
+  ecritureProvision: { id: string; numeroPiece: number | null } | null;
+  ecritureExtourne: { id: string; numeroPiece: number | null; date: string } | null;
+}
+
+// ---------------------------------------------------------------------------
+// Relance, rappel et relevé
+// ---------------------------------------------------------------------------
+
+export type TypeRelance = 'PREVENTIVE' | 'RAPPEL' | 'RELEVE';
+
+export interface NiveauRelance {
+  id: string;
+  niveau: number;
+  libelle: string;
+  type: TypeRelance;
+  joursApresEcheance: number;
+  modeleTexte: string;
+  estActif: boolean;
+}
+
+export interface PositionRelance {
+  compteId: string;
+  numero: string;
+  intitule: string;
+  tiersId: string | null;
+  tiersNom: string | null;
+  /** Adhérent (411) ou client-usager (412) · vocabulaire du SYCEBNL. */
+  qualite: string;
+  montantDu: number;
+  retardMaxJours: number;
+  echeancePlusAncienne: string | null;
+  niveauSuggere: number | null;
+  derniereRelance: { niveau: number; date: string } | null;
+  lignes: { date: string; echeance: string | null; libelle: string; montant: number; retardJours: number }[];
+}
+
+export interface LettreRelance {
+  compteId: string;
+  tiers: string;
+  montant: number;
+  texte: string;
+}
+
+// --------------------------------------------------------------------------
+// Système Minimal de Trésorerie (SYCEBNL, Partie 4 ch. 4)
+// --------------------------------------------------------------------------
+
+/** Poste du bilan S.M.T · la maquette imprime un renvoi de note par ligne. */
+export interface PosteBilanSmt extends PosteCalcule {
+  note: string | null;
+  estTotal?: boolean;
+}
+
+export interface BilanSmt {
+  actif: PosteBilanSmt[];
+  passif: PosteBilanSmt[];
+  totalActif: number;
+  totalPassif: number;
+  totalActifN1?: number;
+  totalPassifN1?: number;
+  exerciceN1Disponible: boolean;
+  equilibre: boolean;
+  renvoiImmobilisations: string;
+}
+
+/** VA, VB, VC et JG · les quatre lignes qui mènent du solde de caisse au résultat net. */
+export interface RetraitementSmt extends PosteCalcule {
+  signe: 1 | -1;
+}
+
+export interface CompteDeResultatSmt {
+  recettes: PosteCalcule[];
+  totalRecettes: number;
+  depenses: PosteCalcule[];
+  totalDepenses: number;
+  soldeCaisse: number;
+  retraitements: RetraitementSmt[];
+  resultatNet: number;
+  controle: {
+    resultatBilan: number;
+    /**
+     * Encaissements et décaissements qui ne sont ni produit ni charge
+     * (dotation, emprunt, immobilisation). La maquette du S.M.T n'ouvre aucune
+     * ligne pour les reprendre : ils font diverger KZC du résultat du bilan,
+     * et c'est ce montant qui explique l'écart.
+     */
+    fluxHorsExploitation: number;
+    comptesHorsExploitation: CompteDuPoste[];
+    ecart: number;
+    concordant: boolean;
+  };
+}
+
+export interface OperationTresorerieSmt {
+  date: string;
+  libelle: string;
+  reference: string | null;
+  sens: 'RECETTE' | 'DEPENSE';
+  recette: number;
+  depense: number;
+  solde: number;
+  /** Déplacement entre deux comptes de l'entité : ni recette ni dépense, mais bien un mouvement du compte. */
+  virementInterne: boolean;
+  ventile: boolean;
+  ventilation: Record<string, number>;
+}
+
+export interface JournalTresorerieSmt {
+  compteId: string;
+  numero: string;
+  intitule: string;
+  reportANouveau: number;
+  operations: OperationTresorerieSmt[];
+  soldeAReporter: number;
+  totalRecettes: number;
+  totalDepenses: number;
+  lignesNonVentilees: number;
+  /** Solde du compte à la balance · le journal boucle quand il l'égale. */
+  soldeBalance: number;
+  boucle: boolean;
+}
+
+export interface Note4Smt {
+  journaux: JournalTresorerieSmt[];
+  colonnesRecettes: { cle: string; libelle: string }[];
+  colonnesDepenses: { cle: string; libelle: string }[];
+  nb: string;
+}
+
+export interface NotesSmt {
+  fiche: { numero: number; intitule: string; partie: 'BILAN' | 'COMPTE_DE_RESULTAT' }[];
+  note1: {
+    lignes: {
+      dateMiseEnService: string;
+      designation: string;
+      montant: number;
+      dateAcquisition: string;
+      dureeUtiliteAns: number;
+      dateSortie: string | null;
+      prixCession: number | null;
+    }[];
+    total: number;
+  };
+  note2: {
+    lignes: { reference: string; designation: string; quantite: null; prixUnitaire: null; montant: number }[];
+    valeurStockFinal: number;
+    valeurStockInitial: number;
+    quantitesTenues: boolean;
+    motifQuantites: string;
+  };
+  note3: {
+    creances: LigneCreanceDetteSmt[];
+    totalCreances: number;
+    dettes: LigneCreanceDetteSmt[];
+    totalDettes: number;
+  };
+  note5: {
+    rubriques: { cle: string; libelle: string; montant: number; comptes: CompteDuPoste[] }[];
+    total: number;
+    membres: { nom: string; nationalite: null; montant: number; numero: string }[];
+    nationaliteTenue: boolean;
+    motifNationalite: string;
+  };
+}
+
+export interface LigneCreanceDetteSmt {
+  numero: string;
+  nom: string;
+  montantCloture: number;
+  montantOuverture: number;
+  variationValeur: number;
+  variationPourcent: number | null;
+}
+
+export interface EligibiliteSmt {
+  categories: { cle: string; libelle: string; montant: number; comptes: CompteDuPoste[] }[];
+  totalRessources: number;
+  seuilParCategorieFcfa: number;
+  deviseDossier: string | null;
+  conversionAppliquee: boolean;
+  avertissement: string;
+}
+
+// --------------------------------------------------------------------------
+// Jeu « projets de développement » · les trois tableaux du point 2 de
+// l'article 14, dont la correspondance vient du Guide d'application (ch. 7).
+// --------------------------------------------------------------------------
+
+export interface PosteEmploisRessources extends PosteCalcule {
+  estTotal?: boolean;
+  /** Mouvement avant correction des dettes · absent des lignes de ressources et des totaux. */
+  brut?: number;
+  /** Correction des renvois du guide, signée · positive quand la dette a diminué. */
+  correction?: number;
+}
+
+export interface TableauEmploisRessources {
+  lignes: PosteEmploisRessources[];
+  totalRessources: number;
+  totalEmplois: number;
+  excedent: number;
+  encaisseDisponible: number;
+  fondsFinExercice: number;
+  controle: { ecart: number; boucle: boolean };
+  /** Postes dont la correction de dettes dépasse le mouvement · répartition faussée. */
+  anomalies: {
+    ref: string;
+    libelle: string;
+    brut: number;
+    correction: number;
+    montant: number;
+    diagnostic: string;
+  }[];
+  avertissements: string[];
+}
+
+export interface LigneExecutionBudgetaire {
+  code: string;
+  libelle: string;
+  budget: number;
+  decaissement: number;
+  engagement: number;
+  realisation: number;
+  creditDisponible: number;
+  executionPourcent: number | null;
+}
+
+export interface TableauExecutionBudgetaire {
+  plan: { id: string; code: string; intitule: string };
+  lignes: LigneExecutionBudgetaire[];
+  total: Omit<LigneExecutionBudgetaire, 'code' | 'libelle'>;
+  engagementsHorsComptabilite: string;
+}
+
+export interface TableauReconciliationTresorerie {
+  lignes: { rep: string; libelle: string; montant: number }[];
+  controle: { tresorerieBalance: number; ecart: number; boucle: boolean };
+  avertissements: string[];
+}
+
+// --------------------------------------------------------------------------
+// Échéancier de trésorerie · ce qui va tomber, et ce qu'il restera.
+// Distinct de la balance âgée, qui regarde en arrière.
+// --------------------------------------------------------------------------
+
+export interface TrancheEcheancier {
+  cle: string;
+  libelle: string;
+  deJours: number | null;
+  aJours: number | null;
+  encaissements: number;
+  decaissements: number;
+  net: number;
+  tresorerieProjetee: number;
+}
+
+export interface EcheanceDetail {
+  ligneId: string;
+  date: string;
+  tranche: string;
+  compteNumero: string;
+  compteIntitule: string;
+  tiers: string | null;
+  libelle: string;
+  reference: string | null;
+  montant: number;
+  sens: 'ENCAISSEMENT' | 'DECAISSEMENT';
+}
+
+export interface Echeancier {
+  dateReference: string;
+  tresorerieActuelle: number;
+  tranches: TrancheEcheancier[];
+  details: EcheanceDetail[];
+  alerte: { tranche: string; libelle: string; tresorerieProjetee: number; message: string } | null;
+  lignesSansEcheance: number;
+}
+
+// --------------------------------------------------------------------------
+// Registre des retenues à la source et échéancier fiscal · voir
+// docs/fiscalite-asbl-rdc.md. Aucun calcul d'impôt : l'état recense ce que la
+// comptabilité porte déjà, en regard de l'échéance légale.
+// --------------------------------------------------------------------------
+
+export interface MoisRetenue {
+  mois: string;
+  retenu: number;
+  reverse: number;
+  solde: number;
+  echeance: string;
+  enRetard: boolean;
+}
+
+export interface NatureRetenueCalculee {
+  cle: string;
+  libelle: string;
+  beneficiaire: 'ETAT' | 'ORGANISME_SOCIAL';
+  echeance: string;
+  baseLegale: string;
+  reserve: string | null;
+  comptes: { numero: string; intitule: string; retenu: number; reverse: number }[];
+  mois: MoisRetenue[];
+  retenu: number;
+  reverse: number;
+  solde: number;
+  moisEnRetard: number;
+  prochaineEcheance: string;
+}
+
+export interface RegistreRetenues {
+  dateReference: string;
+  derniereVerificationEcheances: string;
+  natures: NatureRetenueCalculee[];
+  totalRetenu: number;
+  totalReverse: number;
+  totalDu: number;
+  comptesNonRattaches: { numero: string; intitule: string }[];
+  avertissements: string[];
+}
+
+export interface EcheancierFiscal {
+  dateReference: string;
+  derniereVerificationEcheances: string;
+  echeances: {
+    cle: string;
+    libelle: string;
+    beneficiaire: 'ETAT' | 'ORGANISME_SOCIAL';
+    date: string;
+    echeance: string;
+    baseLegale: string;
+    reserve: string | null;
+    montantDu: number;
+    moisEnRetard: number;
+  }[];
+  totalDu: number;
+  avertissements: string[];
+}
+
+
+// ---------------------------------------------------------------------------
+// Planning de clôture · CPCC, notes de cours d'organisation comptable, § 2.3
+// et § 7.1. Voir docs/organisation-comptable-cpcc.md.
+// ---------------------------------------------------------------------------
+
+export type NatureJalon = 'INTERNE' | 'LEGALE';
+
+/** Loi n° 004/2001, art. 2 et Titre II. Voir docs/obligations-annuelles-ebnl-rdc.md. */
+export type FormeJuridiqueEbnl =
+  | 'ASSOCIATION'
+  | 'ORGANISATION_NON_GOUVERNEMENTALE'
+  | 'ASSOCIATION_CONFESSIONNELLE'
+  | 'ETABLISSEMENT_UTILITE_PUBLIQUE'
+  | 'UNITE_GESTION_PROJET'
+  | 'AUTRE';
+
+export interface JalonCloture {
+  etape: number;
+  libelle: string;
+  detail: string;
+  nature: NatureJalon;
+  source: string;
+  debut: string;
+  echeance: string;
+  enRetard: boolean;
+  /** Ce qu'OmegaX sait vérifier seul sur ce jalon · absent sinon. */
+  observation?: { libelle: string; satisfait: boolean };
+}
+
+export interface PlanningCloture {
+  exerciceId: string;
+  dateDebut: string;
+  dateFin: string;
+  statut: StatutExercice;
+  /** Date de dernière vérification des échéances légales contre leur source. */
+  derniereVerification: string;
+  /** La forme juridique décide des jalons affichés · voir jalonsApplicables. */
+  formeJuridique: FormeJuridiqueEbnl;
+  droitEtranger: boolean;
+  jalons: JalonCloture[];
+}
+
+
+// ---------------------------------------------------------------------------
+// Analyse et contrôles · vues tirées d'un dossier de révision réel
+// (CARRIGRES, Drive). Voir ControlesService.
+// ---------------------------------------------------------------------------
+
+export interface CompteEvolution {
+  compteId: string;
+  numero: string;
+  intitule: string;
+  classe: ClasseCompte;
+  /** Report à-nouveau, tenu à part pour ne pas écraser janvier. */
+  report: number;
+  /** Net signé du mois, un par colonne, dans l'ordre de `mois`. */
+  valeurs: number[];
+  cumul: number;
+  soldeFinal: number;
+  /** Clé du mois le plus éloigné de la moyenne, ou null. */
+  moisAberrant: string | null;
+}
+
+export interface EvolutionMensuelle {
+  exerciceId: string;
+  mois: { cle: string; libelle: string }[];
+  comptes: CompteEvolution[];
+  classe: ClasseCompte | null;
+  /** Nul hors filtre de classe : en partie double, la somme vaudrait zéro. */
+  totaux: number[] | null;
+}
+
+export interface CompteDormant {
+  compteId: string;
+  numero: string;
+  intitule: string;
+  classe: ClasseCompte;
+  estActif: boolean;
+  dernierMouvement: string | null;
+  nombreEcritures: number;
+  solde: number;
+  jamaisMouvemente: boolean;
 }

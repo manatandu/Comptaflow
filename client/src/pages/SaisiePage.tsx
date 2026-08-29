@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useExercice } from '../lib/exercice';
 import { ModelesSaisieModale, type LigneInseree } from '../components/ModelesSaisie';
-import type { Compte, Ecriture, Journal } from '../lib/types';
+import { Calculette } from '../components/Calculette';
+import type { Compte, Ecriture, Journal, PlanAnalytique, SectionAnalytique } from '../lib/types';
 
 /**
  * SAISIE DES JOURNAUX · l'écran central du logiciel, calqué sur
@@ -33,6 +34,14 @@ interface LignePiece {
   credit: number;
   tauxTvaId?: string;
   dateEcheance?: string;
+  /**
+   * Ventilation analytique de la ligne, une section par axe · c'est la
+   * « colonne ligne budgétaire » du guide Sage écrit pour une ONG, active
+   * seulement sur les classes que l'axe déclare ventiler. La grille impute la
+   * ligne en totalité sur une section ; un partage entre deux projets sur une
+   * même ligne reste possible par l'écran des états analytiques.
+   */
+  sections?: Record<string, string>;
 }
 
 interface Periode {
@@ -119,6 +128,9 @@ export function SaisiePage() {
   // Journal ouvert (étape 2)
   const [ecritures, setEcritures] = useState<Ecriture[]>([]);
   const [rechargement, setRechargement] = useState(0);
+  const [plans, setPlans] = useState<PlanAnalytique[]>([]);
+  const [sectionsParPlan, setSectionsParPlan] = useState<Record<string, SectionAnalytique[]>>({});
+  const [sectionsSaisie, setSectionsSaisie] = useState<Record<string, string>>({});
 
   // Pièce en cours de composition
   const [jour, setJour] = useState(1);
@@ -140,6 +152,7 @@ export function SaisiePage() {
   const [succes, setSucces] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
   const [modaleModeles, setModaleModeles] = useState(false);
+  const [calculetteOuverte, setCalculetteOuverte] = useState(false);
 
   const compteRef = useRef<HTMLInputElement>(null);
   const libelleRef = useRef<HTMLInputElement>(null);
@@ -153,7 +166,77 @@ export function SaisiePage() {
       if (premierActif) setJournalId((prev) => prev || premierActif.id);
     });
     api.get<Compte[]>('/comptes?actifsSeuls=true&typeCompte=DETAIL').then(setComptes);
+    // Axes analytiques et leurs sections · chargés une fois, la grille en fait
+    // une colonne par axe (voir docs/analytique-et-budget.md).
+    api.get<PlanAnalytique[]>('/analytique/plans').then(
+      async (ps) => {
+        const actifs = ps.filter((p) => p.estActif);
+        setPlans(actifs);
+        const paires = await Promise.all(
+          actifs.map(async (p) => {
+            try {
+              const sections = await api.get<SectionAnalytique[]>(`/analytique/plans/${p.id}/sections`);
+              return [p.id, sections.filter((sc) => sc.type === 'DETAIL' && sc.estActive)] as const;
+            } catch {
+              return [p.id, [] as SectionAnalytique[]] as const;
+            }
+          }),
+        );
+        setSectionsParPlan(Object.fromEntries(paires));
+      },
+      () => setPlans([]),
+    );
   }, []);
+
+  /**
+   * Un axe ne ventile que certaines classes du plan SYCEBNL · la colonne reste
+   * grisée sur une ligne de trésorerie ou de tiers, exactement comme la zone
+   * « ligne budgétaire » du guide Sage, active « seulement lorsqu'un compte
+   * d'immobilisation, de charges ou de produits est utilisé ».
+   */
+  const axeConcerne = (plan: PlanAnalytique, compte: Compte | null) =>
+    !!compte && plan.classesVentilees.split(',').includes(compte.classe.replace('CLASSE_', ''));
+
+  /** Axes visibles dans la grille : ceux qui ont au moins une section. */
+  const axesGrille = useMemo(
+    () => plans.filter((p) => (sectionsParPlan[p.id] ?? []).length > 0),
+    [plans, sectionsParPlan],
+  );
+
+  /**
+   * Raccourcis de la grille · repris des manuels Sage, où ils sont ce qui
+   * distingue une saisie fluide d'une saisie pénible : Ctrl+D duplique la
+   * dernière ligne, Ctrl+K ouvre la calculette, F5 recharge le journal.
+   *
+   * `capture: false` et le test sur la cible : un raccourci ne doit pas
+   * partir pendant que l'utilisateur tape dans un champ de recherche ailleurs
+   * dans l'écran.
+   */
+  useEffect(() => {
+    if (!ouvert) return;
+    const surTouche = (e: KeyboardEvent) => {
+      if (e.key === 'F5') {
+        e.preventDefault();
+        setRechargement((n) => n + 1);
+        return;
+      }
+      if (!e.ctrlKey && !e.metaKey) return;
+      const touche = e.key.toLowerCase();
+      if (touche === 'd') {
+        e.preventDefault();
+        setLignes((prev) => {
+          if (prev.length === 0) return prev;
+          const derniere = prev[prev.length - 1];
+          return [...prev, { ...derniere, debit: 0, credit: 0, sections: { ...(derniere.sections ?? {}) } }];
+        });
+      } else if (touche === 'k') {
+        e.preventDefault();
+        setCalculetteOuverte(true);
+      }
+    };
+    window.addEventListener('keydown', surTouche);
+    return () => window.removeEventListener('keydown', surTouche);
+  }, [ouvert]);
 
   const periodes = useMemo(
     () => (exerciceCourant ? periodesDeLExercice(exerciceCourant.dateDebut, exerciceCourant.dateFin) : []),
@@ -250,6 +333,14 @@ export function SaisiePage() {
         debit: d,
         credit: c,
         dateEcheance: echeance || undefined,
+        // On ne retient que les axes qui ventilent la classe du compte : une
+        // section restée sélectionnée d'une ligne précédente ne doit pas
+        // suivre sur une ligne de trésorerie.
+        sections: Object.fromEntries(
+          axesGrille
+            .filter((p) => axeConcerne(p, compteChoisi) && sectionsSaisie[p.id])
+            .map((p) => [p.id, sectionsSaisie[p.id]]),
+        ),
       },
     ]);
     // « Répéter » façon modèle Sage : le libellé reste, le compte et les
@@ -264,6 +355,46 @@ export function SaisiePage() {
 
   const retirerLigne = (i: number) => {
     setLignes((prev) => prev.filter((_, idx) => idx !== i));
+  };
+
+  /**
+   * DUPLIQUER (Ctrl+D) · la commande la plus utilisée d'un comptable qui
+   * saisit quarante cotisations identiques. La copie reprend tout SAUF le
+   * montant, qu'on remet à zéro : dupliquer une ligne en gardant son montant
+   * déséquilibrerait la pièce sans que rien ne le signale, et l'erreur la plus
+   * coûteuse est celle qu'un automatisme commet à notre place.
+   */
+  const dupliquerLigne = (i: number) => {
+    setLignes((prev) => {
+      const source = prev[i];
+      if (!source) return prev;
+      const copie = [...prev];
+      copie.splice(i + 1, 0, { ...source, debit: 0, credit: 0, sections: { ...(source.sections ?? {}) } });
+      return copie;
+    });
+  };
+
+  /**
+   * INVERSEUR · bascule le montant d'une ligne du débit au crédit et
+   * réciproquement.
+   *
+   * Attention à ne pas le confondre avec l'extourne des progiciels français,
+   * que le SYCEBNL proscrit comme mode de CORRECTION : l'article 20 de
+   * l'AUDCIF n'admet que l'inscription en négatif. Ici, rien n'est corrigé ·
+   * on redresse le sens d'une ligne d'une pièce EN COURS DE COMPOSITION, qui
+   * n'est pas encore enregistrée et n'existe donc pour personne.
+   */
+  const inverserLigne = (i: number) => {
+    setLignes((prev) =>
+      prev.map((l, idx) => (idx === i ? { ...l, debit: l.credit, credit: l.debit } : l)),
+    );
+  };
+
+  /** Bascule le sens de la ligne en cours de frappe, avant sa validation. */
+  const inverserSaisie = () => {
+    const d = debitSaisie;
+    setDebitSaisie(creditSaisie);
+    setCreditSaisie(d);
   };
 
   const equilibrer = () => {
@@ -353,6 +484,11 @@ export function SaisiePage() {
           credit: l.credit || undefined,
           tauxTvaId: l.tauxTvaId,
           dateEcheance: l.dateEcheance,
+          // Une section par axe, imputée pour la totalité de la ligne · le
+          // serveur vérifie cet équilibre axe par axe.
+          ventilations: Object.values(l.sections ?? {})
+            .filter(Boolean)
+            .map((sectionId) => ({ sectionId, debit: l.debit || undefined, credit: l.credit || undefined })),
         })),
       });
       setSucces('Pièce enregistrée au journal.');
@@ -378,7 +514,12 @@ export function SaisiePage() {
     0,
   );
 
-  const grille = 'grid grid-cols-[44px_58px_92px_108px_1fr_112px_112px_30px] gap-2';
+  // La grille gagne une colonne par axe analytique doté de sections · sans
+  // axe, elle retrouve exactement sa largeur d'origine.
+  const grille = 'grid gap-2';
+  const grilleStyle = {
+    gridTemplateColumns: `44px 58px 92px 108px ${axesGrille.map(() => '104px ').join('')}1fr 112px 112px 30px`,
+  } as const;
 
   // ============ ÉTAPE 1 · choix du journal et de la période ============
   if (!ouvert) {
@@ -455,12 +596,6 @@ export function SaisiePage() {
               </div>
             </div>
           </div>
-
-          <p className="text-[11px] text-text-dim mt-2.5">
-            La saisie est libre : toute écriture équilibrée, sur n'importe quels comptes du plan, dans le
-            journal de votre choix. Les modèles de saisie (opérations courantes, TVA, écritures-types
-            SYCEBNL) s'appellent ensuite depuis le journal ouvert.
-          </p>
         </div>
       </div>
     );
@@ -492,12 +627,17 @@ export function SaisiePage() {
       <div className="bg-surface border border-border shadow-posee">
         {/* En-tête de colonnes · la grille Sage : Jour · Pièce · Référence · Compte · Libellé · Débit · Crédit */}
         <div
-          className={`${grille} px-3 py-1.5 bg-surface-alt border-b border-border-dark text-[10px] font-bold text-text-dim`}
+          style={grilleStyle} className={`${grille} px-3 py-1.5 bg-surface-alt border-b border-border-dark text-[10px] font-bold text-text-dim`}
         >
           <span>JOUR</span>
           <span>PIÈCE</span>
           <span>RÉFÉRENCE</span>
           <span>N° COMPTE</span>
+          {axesGrille.map((p) => (
+            <span key={p.id} title={p.intitule}>
+              {p.code}
+            </span>
+          ))}
           <span>LIBELLÉ ÉCRITURE</span>
           <span className="text-right">DÉBIT</span>
           <span className="text-right">CRÉDIT</span>
@@ -512,16 +652,26 @@ export function SaisiePage() {
             return e.lignes.map((l, i) => (
               <div
                 key={l.id}
-                className={`${grille} px-3 py-[3px] border-b border-border/60 text-[11.5px] items-center ${
+                style={grilleStyle} className={`${grille} px-3 py-[3px] border-b border-border/60 text-[11.5px] items-center ${
                   annulee ? 'opacity-50 line-through decoration-danger/60' : ''
                 } ${i === 0 ? 'border-t border-border' : ''}`}
               >
                 <span className="font-mono text-text-dim">{i === 0 ? String(jourE).padStart(2, '0') : ''}</span>
-                <span className="font-mono text-text-dim">{i === 0 ? (e.numeroPiece ?? '·') : ''}</span>
+                <span className="font-mono text-text-dim">
+                  {i === 0 ? (e.numeroPiece ?? '·') : ''}
+                  {i === 0 && e.statut === 'BROUILLARD' && (
+                    <span className="ml-1 text-[9px] font-bold text-warning" title="En brouillard · pas encore au livre-journal">
+                      B
+                    </span>
+                  )}
+                </span>
                 <span className="font-mono text-[10.5px] text-text-dim truncate">
                   {i === 0 ? (e.reference ?? '') : ''}
                 </span>
                 <span className="font-mono">{l.compte?.numero ?? ''}</span>
+                {axesGrille.map((p) => (
+                  <span key={p.id} />
+                ))}
                 <span className="truncate" title={l.libelle ?? e.libelle}>
                   {l.libelle ?? e.libelle}
                 </span>
@@ -543,8 +693,8 @@ export function SaisiePage() {
         </div>
 
         {/* Totaux du journal */}
-        <div className={`${grille} px-3 py-1.5 bg-surface-alt border-t border-border-dark text-[11.5px] font-bold`}>
-          <span className="col-span-4" />
+        <div style={grilleStyle} className={`${grille} px-3 py-1.5 bg-surface-alt border-t border-border-dark text-[11.5px] font-bold`}>
+          <span style={{ gridColumn: `span ${4 + axesGrille.length}` }} />
           <span className="text-right text-[10px] text-text-dim self-center">TOTAUX JOURNAL</span>
           <span className="font-mono text-right">{totalDebitJournal.toLocaleString('fr-FR')}</span>
           <span className="font-mono text-right">{totalCreditJournal.toLocaleString('fr-FR')}</span>
@@ -592,7 +742,7 @@ export function SaisiePage() {
         {lignes.map((l, i) => (
           <div
             key={i}
-            className={`${grille} px-3 py-[3px] border-b border-border/60 text-[11.5px] items-center bg-positive-soft/40`}
+            style={grilleStyle} className={`${grille} px-3 py-[3px] border-b border-border/60 text-[11.5px] items-center bg-positive-soft/40`}
           >
             <span className="font-mono text-text-dim">{i === 0 ? String(jour).padStart(2, '0') : ''}</span>
             <span className="font-mono text-text-dim">{i === 0 ? '(auto)' : ''}</span>
@@ -600,24 +750,50 @@ export function SaisiePage() {
             <span className="font-mono" title={l.intitule}>
               {l.numero}
             </span>
+            {axesGrille.map((p) => {
+              const section = (sectionsParPlan[p.id] ?? []).find((sc) => sc.id === l.sections?.[p.id]);
+              return (
+                <span key={p.id} className="font-mono text-[10.5px] text-text-dim truncate" title={section?.intitule}>
+                  {section?.code ?? ''}
+                </span>
+              );
+            })}
             <span className="truncate" title={`${l.intitule} · ${l.libelle}`}>
               {l.libelle}
             </span>
             <span className="font-mono text-right">{l.debit ? l.debit.toLocaleString('fr-FR') : ''}</span>
             <span className="font-mono text-right">{l.credit ? l.credit.toLocaleString('fr-FR') : ''}</span>
-            <button
-              type="button"
-              onClick={() => retirerLigne(i)}
-              title="Retirer cette ligne"
-              className="text-danger/70 hover:text-danger text-[11px] text-center"
-            >
-              ✕
-            </button>
+            <span className="flex items-center justify-end gap-1">
+              <button
+                type="button"
+                onClick={() => dupliquerLigne(i)}
+                title="Dupliquer cette ligne sans son montant (Ctrl+D)"
+                className="text-text-dim hover:text-sel text-[10px] leading-none"
+              >
+                ⧉
+              </button>
+              <button
+                type="button"
+                onClick={() => inverserLigne(i)}
+                title="Inverser débit et crédit sur cette ligne"
+                className="text-text-dim hover:text-sel text-[10px] leading-none"
+              >
+                ⇅
+              </button>
+              <button
+                type="button"
+                onClick={() => retirerLigne(i)}
+                title="Retirer cette ligne"
+                className="text-danger/70 hover:text-danger text-[11px] leading-none"
+              >
+                ✕
+              </button>
+            </span>
           </div>
         ))}
 
         {/* Zone de saisie de la ligne · Tab de zone en zone, Entrée valide. */}
-        <div className={`${grille} px-3 py-1.5 items-center border-b border-border bg-surface`}>
+        <div style={grilleStyle} className={`${grille} px-3 py-1.5 items-center border-b border-border bg-surface`}>
           <span className="font-mono text-[11px] text-text-dim text-center">·</span>
           <span className="font-mono text-[11px] text-text-dim">(auto)</span>
           <span />
@@ -682,6 +858,30 @@ export function SaisiePage() {
               </div>
             )}
           </div>
+          {axesGrille.map((p) => {
+            const actif = axeConcerne(p, compteChoisi);
+            return (
+              <select
+                key={p.id}
+                value={sectionsSaisie[p.id] ?? ''}
+                disabled={!actif}
+                title={
+                  actif
+                    ? p.intitule
+                    : `${p.intitule} · ne ventile que les classes ${p.classesVentilees.split(',').join(', ')}`
+                }
+                onChange={(e) => setSectionsSaisie((prev) => ({ ...prev, [p.id]: e.target.value }))}
+                className="w-full border border-border-dark px-1 py-1 text-[11px] font-mono disabled:opacity-40 disabled:bg-chrome-alt"
+              >
+                <option value="">{actif ? '·' : ''}</option>
+                {(sectionsParPlan[p.id] ?? []).map((sc) => (
+                  <option key={sc.id} value={sc.id}>
+                    {sc.code}
+                  </option>
+                ))}
+              </select>
+            );
+          })}
           <input
             ref={libelleRef}
             value={libelleLigne}
@@ -750,7 +950,7 @@ export function SaisiePage() {
         </div>
 
         {/* Pied de la pièce : totaux, équilibre, boutons de bas d'écran Sage */}
-        <div className={`${grille} px-3 py-1.5 bg-surface-alt text-[11.5px] font-bold border-b border-border`}>
+        <div style={grilleStyle} className={`${grille} px-3 py-1.5 bg-surface-alt text-[11.5px] font-bold border-b border-border`}>
           <span className="col-span-4" />
           <span className="text-right text-[10px] text-text-dim self-center">TOTAUX PIÈCE</span>
           <span className="font-mono text-right">{totalDebitPiece.toLocaleString('fr-FR')}</span>
@@ -781,6 +981,23 @@ export function SaisiePage() {
             className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[11.5px]"
           >
             Modèle de saisie…
+          </button>
+          <button
+            type="button"
+            onClick={() => setCalculetteOuverte(true)}
+            title="Calculette · son résultat se reporte dans la zone de montant (Ctrl+K)"
+            className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[11.5px]"
+          >
+            Calculette
+          </button>
+          <button
+            type="button"
+            onClick={inverserSaisie}
+            disabled={!debitSaisie && !creditSaisie}
+            title="Inverse débit et crédit sur la ligne en cours de frappe"
+            className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[11.5px] disabled:opacity-45"
+          >
+            Inverseur
           </button>
           <button
             type="button"
@@ -828,6 +1045,25 @@ export function SaisiePage() {
         <div className="text-[12px] text-positive bg-positive-soft border border-positive/30 px-3 py-2 mt-2.5">
           {succes}
         </div>
+      )}
+
+      {calculetteOuverte && (
+        <Calculette
+          onFermer={() => setCalculetteOuverte(false)}
+          onReporter={(valeur) => {
+            // Le résultat va du côté qui manque à l'équilibre · c'est ce que
+            // fait la calculette de Sage, et cela évite de choisir soi-même
+            // entre débit et crédit à chaque report.
+            if (soldePiece > 0) {
+              setCreditSaisie(String(valeur));
+              setDebitSaisie('');
+            } else {
+              setDebitSaisie(String(valeur));
+              setCreditSaisie('');
+            }
+            setCalculetteOuverte(false);
+          }}
+        />
       )}
 
       {modaleModeles && (

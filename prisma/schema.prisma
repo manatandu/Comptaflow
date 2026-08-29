@@ -1,4 +1,4 @@
-// Schéma Phase 0 — fondations multi-tenant + licence + moteur comptable SYCEBNL.
+// Schéma Phase 0 · fondations multi-tenant + licence + moteur comptable SYCEBNL.
 // Le plan de comptes SYSCOHADA (entreprises) sera ajouté en Phase 3 en réutilisant
 // les mêmes modèles Compte / Ecriture / LigneEcriture / Exercice (le référentiel
 // est porté par Tenant.referentiel, pas par un schéma séparé).
@@ -17,20 +17,59 @@ datasource db {
 // ---------------------------------------------------------------------------
 
 enum Referentiel {
-  SYCEBNL // MVP — voir JeuEtatsFinanciersSycebnl pour le jeu d'états financiers réellement couvert
+  SYCEBNL // MVP · voir JeuEtatsFinanciersSycebnl pour le jeu d'états financiers réellement couvert
   SYSCOHADA // entreprises (Phase 3)
 }
 
 // SYCEBNL prévoit 3 jeux d'états financiers distincts (Partie 4, ch. 2 à 4 du
 // texte officiel) : associations/ordres professionnels, projets de
-// développement et assimilés, Système Minimal de Trésorerie (SMT, < 30 M
-// FCFA). Un même Tenant.referentiel = SYCEBNL peut donc relever de l'un ou
-// l'autre — ce champ précise lequel. Ajouté le 2026-08-28 avec le chantier
-// "projets de développement" (docs/plan-de-construction.md, item 13) ; le SMT
-// n'est pas construit et n'a pas de valeur ici.
+// développement et assimilés, Système Minimal de Trésorerie (SMT). Un même
+// Tenant.referentiel = SYCEBNL peut donc relever de l'un ou l'autre · ce champ
+// précise lequel. Les deux premiers ont été construits le 2026-08-28
+// (docs/plan-de-construction.md, items 12 et 13) ; le troisième le 2026-08-29.
+//
+// Le SMT n'est pas un jeu « au choix » au même titre que les deux autres :
+// l'article 6 le RÉSERVE aux entités dont chacune des cinq catégories de
+// ressources annuelles reste sous 30 000 000 FCFA (ou l'équivalent en monnaie
+// locale), et l'article 5 pose que « toute entité est, sauf exception liée à
+// sa taille, soumise au Système normal ». Le choix est donc encadré, et
+// l'assistant de création le dit au lieu de le présenter comme une préférence
+// de présentation (voir NouveauFichierWizard, écran « Type d'entité »).
+
+// Forme juridique de l'entité, au sens de la loi n° 004/2001 du 20 juillet
+// 2001 portant dispositions générales applicables aux ASBL et aux
+// établissements d'utilité publique (JO, numéro spécial du 15 août 2001).
+//
+// L'article 2 classe l'ASBL en trois natures ; le Titre II (art. 58-73) régit
+// séparément l'établissement d'utilité publique. S'y ajoute l'unité de gestion
+// de projet, qui n'est pas une ASBL mais que le CPCC vise expressément parmi
+// les entités tenues au SYCEBNL.
+//
+// Ce n'est pas une décoration : la forme juridique commande À QUI l'entité
+// rend compte en fin d'exercice, et ce n'est pas le même destinataire pour
+// une ASBL et pour une ONG. Voir src/modules/exercice/planning-cloture.ts et
+// docs/obligations-annuelles-ebnl-rdc.md.
+enum FormeJuridiqueEbnl {
+  // Art. 2, point 1 : « association à caractère culturel, social ou éducatif
+  // ou économique ».
+  ASSOCIATION
+  // Art. 2, point 2, et art. 35 à 45 (rapports avec l'État, facilités,
+  // engagements). Rend compte au Ministère du Plan et au ministère du secteur.
+  ORGANISATION_NON_GOUVERNEMENTALE
+  // Art. 2, point 3, et art. 46 à 56.
+  ASSOCIATION_CONFESSIONNELLE
+  // Titre II, art. 58 à 73.
+  ETABLISSEMENT_UTILITE_PUBLIQUE
+  // Hors loi 004/2001 · unité de gestion d'un projet financé par un bailleur,
+  // visée par le CPCC parmi les entités tenues au SYCEBNL.
+  UNITE_GESTION_PROJET
+  AUTRE
+}
+
 enum JeuEtatsFinanciersSycebnl {
   ASSOCIATIONS_ORDRES_PROFESSIONNELS
   PROJETS_DEVELOPPEMENT
+  SYSTEME_MINIMAL_TRESORERIE
 }
 
 enum TypeLicence {
@@ -49,11 +88,15 @@ model Tenant {
   id                        String                    @id @default(uuid())
   nom                       String
   referentiel               Referentiel               @default(SYCEBNL)
-  // N'a de sens que si referentiel = SYCEBNL — ignoré pour SYSCOHADA.
+  // N'a de sens que si referentiel = SYCEBNL, ignoré pour SYSCOHADA. Choisi
+  // à la création du dossier (assistant « Nouveau fichier comptable », écran
+  // « Type d'entité ») et modifiable ensuite dans Structure > Paramètres du
+  // dossier tant que le dossier ne porte aucune écriture · au-delà, changer
+  // de jeu changerait rétroactivement la présentation des états déjà arrêtés.
   jeuEtatsFinanciersSycebnl JeuEtatsFinanciersSycebnl @default(ASSOCIATIONS_ORDRES_PROFESSIONNELS)
   createdAt                 DateTime                  @default(now())
 
-  // Coordonnées — collectées par l'assistant « Nouveau fichier comptable »,
+  // Coordonnées · collectées par l'assistant « Nouveau fichier comptable »,
   // toutes optionnelles pour ne pas bloquer une inscription rapide.
   activite  String?
   adresse   String?
@@ -62,7 +105,29 @@ model Tenant {
   telephone String?
   devise    String? @default("CDF")
 
-  // Longueur du numéro de compte — paramètre "longueur du plan comptable"
+  // Identifiants légaux de l'entité congolaise · exigés en en-tête de CHAQUE
+  // page d'un état financier déposé (CPCC, Notes de cours d'organisation
+  // comptable, § 7.4 règle 7-a : « Dénomination sociale de l'entreprise ;
+  // N° d'identification fiscale ; Exercice clos le ; Durée (en mois) »).
+  // Optionnels : un dossier se crée sans eux, l'en-tête d'impression les
+  // omet alors au lieu de bloquer. Voir docs/organisation-comptable-cpcc.md.
+  numeroImpot String? // NIF attribué par la DGI
+  idNat       String? // identification nationale
+  // Une ASBL n'est pas commerçante (art. 1er de la loi 004/2001 : elle « ne se
+  // livre pas à des opérations industrielles ou commerciales, si ce n'est à
+  // titre accessoire ») et n'est donc pas immatriculée au RCCM. Le champ reste
+  // pour un dossier tenu en SYSCOHADA, et pour l'entité qui en détient un.
+  rccm        String?
+
+  // Forme juridique au sens de la loi n° 004/2001 · commande les obligations
+  // annuelles du planning de clôture. Défaut ASSOCIATION, cas le plus fréquent.
+  formeJuridique FormeJuridiqueEbnl @default(ASSOCIATION)
+  // Association ou ONG de droit étranger (art. 29-34 et art. 37 de la loi
+  // 004/2001) · une ONG étrangère doit en outre conclure un accord-cadre avec
+  // le Ministère du Plan, ce qui ajoute un jalon annuel.
+  droitEtranger  Boolean            @default(false)
+
+  // Longueur du numéro de compte · paramètre "longueur du plan comptable"
   // chez Sage 100 (dossier > Structure > Paramètres), 3 à 13 caractères,
   // configurable PAR DOSSIER (voir skill sage-i7, comptabilite-generale.md).
   // Huit par défaut ici (au lieu des 6 chiffres du seed initial) pour
@@ -70,7 +135,7 @@ model Tenant {
   // buter sur la longueur du compte racine du plan SYCEBNL (ex. racine à 6
   // chiffres "411000" + 2 chiffres de sous-compte adhérent). Modifiable
   // après coup (TenantService.modifierParametres) mais jamais en dessous de
-  // la longueur du plus long numéro de compte déjà créé pour ce tenant —
+  // la longueur du plus long numéro de compte déjà créé pour ce tenant ·
   // sinon des comptes existants deviendraient invalides rétroactivement.
   longueurCompte Int @default(8)
 
@@ -92,6 +157,15 @@ model Tenant {
   rapprochements           RapprochementBancaire[]
   famillesImmobilisation   FamilleImmobilisation[]
   immobilisations          Immobilisation[]
+  plansAnalytiques         PlanAnalytique[]
+  sectionsAnalytiques      SectionAnalytique[]
+  regularisations          Regularisation[]
+  modelesAbonnement        ModeleAbonnement[]
+  devises                  Devise[]
+  reevaluations            Reevaluation[]
+  niveauxRelance           NiveauRelance[]
+  relances                 Relance[]
+  lettrages                Lettrage[]
 
   @@map("tenants")
 }
@@ -127,7 +201,7 @@ model User {
   motDePasse String
   role       RoleUtilisateur @default(COMPTABLE)
   // Désactivé plutôt que supprimé : un utilisateur peut être créateur
-  // d'écritures (createdBy) — le supprimer casserait la piste d'audit.
+  // d'écritures (createdBy) · le supprimer casserait la piste d'audit.
   estActif   Boolean         @default(true)
   createdAt  DateTime        @default(now())
 
@@ -135,7 +209,7 @@ model User {
 }
 
 // ---------------------------------------------------------------------------
-// Moteur comptable — partie double
+// Moteur comptable · partie double
 // ---------------------------------------------------------------------------
 
 enum ClasseCompte {
@@ -150,29 +224,29 @@ enum ClasseCompte {
   CLASSE_9 // Comptabilité analytique / engagements
 }
 
-// Report à-nouveau — 3 modes par compte (cf. docs/plan-de-construction.md §3.1) :
+// Report à-nouveau · 3 modes par compte (cf. docs/plan-de-construction.md §3.1) :
 // - AUCUN : pas de report, soldé sur le résultat (comptes de charges/produits,
-//   classes 6/7 — voir ExerciceService.cloturer, qui les vire vers le compte
+//   classes 6/7 · voir ExerciceService.cloturer, qui les vire vers le compte
 //   de résultat plutôt que de les reporter).
 // - SOLDE : seul le solde net est reporté (comptes de bilan génériques).
 // - DETAIL : chaque mouvement NON LETTRÉ est reporté individuellement (comptes
-//   nécessitant un suivi fin, ex. tiers) — suppose un lettrage à jour.
+//   nécessitant un suivi fin, ex. tiers) · suppose un lettrage à jour.
 enum ModeReportANouveau {
   AUCUN
   SOLDE
   DETAIL
 }
 
-// Comptes "Total"/regroupement par racine (§3.1, §3.5 — brique technique qui
+// Comptes "Total"/regroupement par racine (§3.1, §3.5 · brique technique qui
 // prépare le futur moteur de mapping/états financiers) : un compte Total ne
 // reçoit JAMAIS d'écriture directement (voir EcritureService.creer) ; son
 // solde est calculé en agrégeant tous les comptes Détail dont le numéro
-// commence par le sien (voir EcritureService.balance) — pas une relation
+// commence par le sien (voir EcritureService.balance) · pas une relation
 // explicite parent/enfant, un simple préfixe numérique, comme chez Sage.
 // Préfixe au sens LITTÉRAL de la chaîne de caractères, sans troncature des
 // zéros de fin : la racine "411" agrège "411001"/"411002", mais "411000" ne
 // les agrège PAS (le numéro complet du Total n'est alors plus un préfixe de
-// celui du Détail) — un piège relevé en testant la fonctionnalité, à choisir
+// celui du Détail) · un piège relevé en testant la fonctionnalité, à choisir
 // la racine en conséquence (numéro court, pas un numéro complet suffixé de
 // zéros).
 enum TypeCompteDetailTotal {
@@ -184,18 +258,37 @@ model Compte {
   id                 String                @id @default(uuid())
   tenantId           String
   tenant             Tenant                @relation(fields: [tenantId], references: [id])
-  numero             String // ex : "10600000" fonds associatif, "18100000" fonds affecté — longueur bornée par Tenant.longueurCompte
+  numero             String // ex : "10600000" fonds associatif, "18100000" fonds affecté · longueur bornée par Tenant.longueurCompte
   intitule           String
   classe             ClasseCompte
   typeCompte         TypeCompteDetailTotal @default(DETAIL)
   estActif           Boolean               @default(true)
   modeReportANouveau ModeReportANouveau    @default(SOLDE)
 
+  // « Liberté de définir la liste des comptes auxquels s'applique le
+  // lettrage » · CPCC, Notes de cours d'organisation comptable, ch. 6.
+  // Le même chapitre précise que « les principaux comptes pour lesquels le
+  // lettrage a un intérêt sont principalement les comptes de tiers
+  // (classe 4) », mais son exemple chiffré porte sur le compte 585 Virements
+  // internes : le lettrage n'est donc PAS réservé à la classe 4, et ce
+  // drapeau est modifiable compte par compte. La migration le pose à vrai
+  // pour les classes 4, les comptes 58, et tout compte portant déjà des
+  // lignes lettrées.
+  lettrable Boolean @default(false)
+
+  // Taux de taxe proposé automatiquement dès que ce compte est saisi · Sage
+  // porte un code taxe sur la fiche compte (skill sage-i7,
+  // comptabilite-generale.md). Rien n'est déduit du numéro : tous les achats
+  // ne sont pas au taux normal, et une association exonérée n'a aucun taux
+  // (voir docs/fiscalite-asbl-rdc.md § 5). Paramétrage propre au dossier.
+  tauxTvaDefautId String?
+  tauxTvaDefaut   TauxTva? @relation("CompteTauxTvaDefaut", fields: [tauxTvaDefautId], references: [id])
+
   // Rattachement à un Bailleur (§3.7, comptabilité analytique par
-  // projet/bailleur — ajouté le 2026-08-28, docs/plan-de-construction.md
+  // projet/bailleur · ajouté le 2026-08-28, docs/plan-de-construction.md
   // item 14) : utile principalement pour les sous-comptes 162-164/462-464
   // (Fonds affectés aux investissements / Fonds d'administration, jeu
-  // « projets de développement », voir Partie 3 ch. 3 du texte officiel) —
+  // « projets de développement », voir Partie 3 ch. 3 du texte officiel) ·
   // mais pas restreint à ces préfixes, un tenant reste libre de rattacher
   // n'importe quel compte à un bailleur pour son propre usage.
   bailleurId String?
@@ -203,17 +296,17 @@ model Compte {
 
   lignesEcriture                LigneEcriture[]
   journauxTresorerie            Journal[] // journaux de type TRESORERIE dont ce compte est la contrepartie
-  // Rattachement à un tiers (cf. §3.2) : au plus un tiers par compte — un
+  // Rattachement à un tiers (cf. §3.2) : au plus un tiers par compte · un
   // compte de classe 4 est le sous-compte auxiliaire d'un seul tiers.
   tiersCompte                   TiersCompte?
-  // Comptes d'État TVA (443/445) référencés par un ou plusieurs taux (§3.1) —
+  // Comptes d'État TVA (443/445) référencés par un ou plusieurs taux (§3.1) ·
   // un même compte 44310000 peut être partagé par plusieurs taux (16 %, 1 %...).
   tauxTvaCollecte               TauxTva[]               @relation("TauxTvaCollecte")
   tauxTvaDeductible             TauxTva[]               @relation("TauxTvaDeductible")
   // Rapprochements bancaires (§3.4) ouverts/clôturés sur ce compte de
-  // trésorerie — voir RapprochementBancaire.
+  // trésorerie · voir RapprochementBancaire.
   rapprochements                RapprochementBancaire[]
-  // Immobilisations (§3.3) — un compte de classe 2 peut être le compte
+  // Immobilisations (§3.3) · un compte de classe 2 peut être le compte
   // d'imputation de plusieurs immobilisations (ou de leur famille) ; un
   // compte de classe 28/68 peut de même être partagé par plusieurs.
   famillesImmoImmobilisation    FamilleImmobilisation[] @relation("FamilleCompteImmobilisation")
@@ -221,16 +314,24 @@ model Compte {
   famillesImmoDotation          FamilleImmobilisation[] @relation("FamilleCompteDotation")
   immobilisationsImmobilisation Immobilisation[]        @relation("ImmoCompteImmobilisation")
   immobilisationsAmortissement  Immobilisation[]        @relation("ImmoCompteAmortissement")
+  // Régularisation des charges et produits (476/477) et abonnements ·
+  // voir Regularisation et ModeleAbonnement.
+  relances                      Relance[]
+  regularisationsChargeProduit  Regularisation[]        @relation("RegulCompteChargeProduit")
+  regularisationsDiffere        Regularisation[]        @relation("RegulCompteDiffere")
+  abonnementsDebit              ModeleAbonnement[]      @relation("AbonnementCompteDebit")
+  abonnementsCredit             ModeleAbonnement[]      @relation("AbonnementCompteCredit")
   immobilisationsDotation       Immobilisation[]        @relation("ImmoCompteDotation")
   // Rattachements aux rubriques de notes annexes (voir RattachementNote).
   rattachementsNotes            RattachementNote[]
+  lettrages                     Lettrage[]
 
   @@unique([tenantId, numero])
   @@map("comptes")
 }
 
 // ---------------------------------------------------------------------------
-// Journaux — entité de premier ordre (fondation, cf. docs/plan-de-construction.md §3.1)
+// Journaux · entité de premier ordre (fondation, cf. docs/plan-de-construction.md §3.1)
 // ---------------------------------------------------------------------------
 
 enum TypeJournal {
@@ -238,7 +339,7 @@ enum TypeJournal {
   VENTES
   TRESORERIE
   GENERAL
-  SITUATION // jamais clôturé ni compacté — écritures provisoires/simulation
+  SITUATION // jamais clôturé ni compacté · écritures provisoires/simulation
 }
 
 enum NumerotationPiece {
@@ -265,8 +366,9 @@ model Journal {
   estActif     Boolean           @default(true) // "mise en sommeil" réversible
   createdAt    DateTime          @default(now())
 
-  ecritures Ecriture[]
-  clotures  Cloture[]
+  ecritures         Ecriture[]
+  clotures          Cloture[]
+  modelesAbonnement ModeleAbonnement[]
 
   @@unique([tenantId, code])
   @@map("journaux")
@@ -288,8 +390,11 @@ model Exercice {
   ecritures              Ecriture[]
   clotures               Cloture[]
   dotationsAmortissement DotationAmortissement[]
+  budgetsSection         BudgetSection[]
+  regularisations        Regularisation[]
+  reevaluations          Reevaluation[]
 
-  // Documents obligatoires de l'exercice (art. 14 et 16-3) — versionnés,
+  // Documents obligatoires de l'exercice (art. 14 et 16-3) · versionnés,
   // d'où des relations 1-N et non 1-1 : voir leurs modèles.
   transcriptionsInventaire TranscriptionInventaire[]
   rapportsActivite         RapportActivite[]
@@ -300,6 +405,31 @@ model Exercice {
 
 // Une écriture = un fait comptable, composé d'au moins 2 lignes équilibrées
 // (total débit = total crédit). L'équilibre est vérifié en service, pas en DB.
+// Cycle de vie d'une écriture · le « brouillard » des manuels Sage, recalé
+// sur le SYCEBNL.
+//
+// Chez Sage, une écriture reste modifiable et supprimable tant que le journal
+// n'est ni lettré, ni pointé, ni clôturé, et « le programme refuse de clôturer
+// un journal non imprimé ». Le brouillard y est donc un document de travail :
+// « un brouillard est un document qui permet de conserver une trace écrite des
+// saisies faites sur une période ou un journal ».
+//
+// Le SYCEBNL va plus loin que cette simple exigence d'impression. La Partie 2
+// ch. 2 admet la tenue de journaux auxiliaires, mais impose que « les données
+// des documents auxiliaires sont centralisées AU MOINS CHAQUE SEMAINE dans le
+// journal ou le grand-livre ». Un brouillard n'a donc pas vocation à durer :
+// OmegaX signale toute écriture qui y séjourne depuis plus de sept jours.
+//
+// Une fois VALIDEE, l'écriture entre au livre-journal et devient intangible :
+// l'article 20 de l'AUDCIF ne laisse plus qu'une voie, l'inscription en
+// négatif. C'est cette frontière, et elle seule, que la validation déplace ·
+// tant qu'elle n'est pas franchie, corriger une faute de frappe ne coûte pas
+// une contre-écriture.
+enum StatutEcriture {
+  BROUILLARD
+  VALIDEE
+}
+
 model Ecriture {
   id          String   @id @default(uuid())
   tenantId    String
@@ -309,7 +439,7 @@ model Ecriture {
   journalId   String
   journal     Journal  @relation(fields: [journalId], references: [id])
   // Numéro de pièce auto-calculé selon Journal.numerotation (null si
-  // NumerotationPiece.MANUELLE — voir JournalService.prochainNumeroPiece).
+  // NumerotationPiece.MANUELLE · voir JournalService.prochainNumeroPiece).
   numeroPiece Int?
   date        DateTime
   libelle     String
@@ -317,15 +447,31 @@ model Ecriture {
   createdAt   DateTime @default(now())
   createdBy   String // piste d'audit : jamais modifiable après clôture de l'exercice
 
+  // Brouillard tant que l'écriture n'est pas validée · voir StatutEcriture.
+  // Les états de travail (journal, grand livre, balance, analytique) la
+  // montrent ; les états LÉGAUX (bilan, compte de résultat, TFT, livre
+  // d'inventaire, notes annexes) ne prennent que le validé.
+  statut    StatutEcriture @default(BROUILLARD)
+  valideeAt DateTime?
+  valideeBy String?
+
+  // Régularisations et abonnements dont cette écriture est l'aboutissement.
+  regularisationConstatee Regularisation?     @relation("RegulConstatation")
+  regularisationReprise   Regularisation?     @relation("RegulReprise")
+  echeanceAbonnement      EcheanceAbonnement?
+  reevaluationEcarts      Reevaluation?       @relation("ReevalEcarts")
+  reevaluationProvision   Reevaluation?       @relation("ReevalProvision")
+  reevaluationExtourne    Reevaluation?       @relation("ReevalExtourne")
+
   // Écriture générée automatiquement par la clôture de l'exercice (clôture des
-  // classes 6/7 sur le résultat, ou report à-nouveau dans l'exercice suivant) —
+  // classes 6/7 sur le résultat, ou report à-nouveau dans l'exercice suivant) ·
   // voir ExerciceService.cloturer. Purement informatif pour l'instant (affichage),
   // ces écritures sont de toute façon déjà protégées comme les autres par le
   // statut CLOTURE de leur exercice.
   estGenereeParCloture Boolean @default(false)
 
   // ---------------------------------------------------------------------
-  // CORRECTION D'ERREUR PAR INSCRIPTION EN NÉGATIF — art. 20 de l'AUDCIF,
+  // CORRECTION D'ERREUR PAR INSCRIPTION EN NÉGATIF · art. 20 de l'AUDCIF,
   // repris par la Partie 2 ch. 2 du SYCEBNL :
   //
   //   « Les documents comptables doivent être tenus SANS BLANC NI ALTÉRATION
@@ -343,7 +489,7 @@ model Ecriture {
   // cumul des mouvements créditeurs » : la contre-passation les gonfle tous
   // les deux, l'inscription en négatif les laisse exacts.
   //
-  // `@unique` : une écriture ne se corrige QU'UNE FOIS — appliquer deux fois
+  // `@unique` : une écriture ne se corrige QU'UNE FOIS · appliquer deux fois
   // le négatif inverserait l'erreur au lieu de l'annuler.
   corrigeEcritureId String?   @unique
   corrigeEcriture   Ecriture? @relation("CorrectionEcriture", fields: [corrigeEcritureId], references: [id])
@@ -354,7 +500,7 @@ model Ecriture {
 
   lignes LigneEcriture[]
 
-  // Relations inverses optionnelles vers Immobilisation (§3.3) — une
+  // Relations inverses optionnelles vers Immobilisation (§3.3) · une
   // écriture donnée est SOIT une acquisition, SOIT une sortie d'au plus une
   // immobilisation (jamais les deux), d'où deux relations 1-1 distinctes
   // plutôt qu'une seule generic "écriture liée à une immobilisation".
@@ -362,7 +508,7 @@ model Ecriture {
   immobilisationSortie      Immobilisation?        @relation("ImmoEcritureSortie")
   dotationAmortissement     DotationAmortissement?
 
-  // Registre des donateurs (art. 17) — une écriture d'encaissement peut porter
+  // Registre des donateurs (art. 17) · une écriture d'encaissement peut porter
   // PLUSIEURS libéralités (une remise de chèques, une collecte de quête), d'où
   // une relation 1-N et non 1-1.
   donations Donation[]
@@ -371,11 +517,12 @@ model Ecriture {
   // états financiers) : tenant + exercice, trié par date. Sans index, chaque
   // export balaie l'intégralité des écritures du dossier.
   @@index([tenantId, exerciceId, date])
+  @@index([tenantId, statut], map: "ecritures_statut_idx")
   @@map("ecritures")
 }
 
 // ---------------------------------------------------------------------------
-// Clôture — 3 granularités (cf. docs/plan-de-construction.md §3.1) :
+// Clôture · 3 granularités (cf. docs/plan-de-construction.md §3.1) :
 // - PARTIELLE : verrouille les écritures d'un journal jusqu'à dateLimite,
 //   réversible (annulable = true) ; nouvelles saisies encore possibles après
 //   dateLimite dans ce même journal.
@@ -424,16 +571,34 @@ model LigneEcriture {
   debit      Decimal  @default(0) @db.Decimal(18, 2)
   credit     Decimal  @default(0) @db.Decimal(18, 2)
 
-  // Lettrage — rapprochement débit/crédit sur un compte (cf.
-  // docs/plan-de-construction.md §3.1). Toutes les lignes d'un même
-  // rapprochement partagent la même lettre (A, B, ..., Z, AA, AB, ...,
-  // générée par compte — voir LettrageService.prochaineLettre) ; null tant
-  // que la ligne n'est pas lettrée. Le lettrage est un prérequis du report
-  // à-nouveau "Détail" et de toute gestion sérieuse des tiers.
-  lettre String?
+  // Lettrage · rapprochement débit/crédit sur un compte (cf.
+  // docs/plan-de-construction.md §3.1).
+  //
+  // DEUX champs, et la distinction est le cœur du modèle :
+  //
+  //  - `lettrageId` rattache la ligne au GROUPE de lettrage, qu'il soit
+  //    soldé ou partiel (voir le modèle Lettrage).
+  //  - `lettre` ne porte le code QUE lorsque le groupe est soldé.
+  //
+  // Pourquoi les deux. Le CPCC pose que « la somme des montants lettrés au
+  // débit peut être égale, SUPÉRIEURE OU INFÉRIEURE à celle des montants
+  // lettrés au crédit », le but étant d'identifier les opérations restées
+  // « totalement ou partiellement ouvertes ». Une facture réglée à moitié
+  // est donc lettrable, et elle reste due pour le solde. Or `lettre != null`
+  // signifie « soldé » partout ailleurs dans le logiciel : report à-nouveau
+  // Détail (seuls les mouvements non lettrés sont reportés), relances, note
+  // annexe des créances, contrôle d'ancienneté des tiers. Laisser une ligne
+  // partiellement réglée porter une lettre la sortirait de tous ces états,
+  // alors qu'elle est encore ouverte. Le groupe partiel est donc rattaché
+  // par `lettrageId` sans que `lettre` soit servi ; le jour où le solde
+  // tombe à zéro, le groupe passe SOLDE et `lettre` est posée sur toutes ses
+  // lignes d'un coup.
+  lettre     String?
+  lettrageId String?
+  lettrage   Lettrage? @relation(fields: [lettrageId], references: [id])
 
   // Taux de TVA appliqué à CETTE ligne (la ligne de TVA elle-même, pas la
-  // ligne HT) — posé par la saisie guidée "Achat/Vente avec TVA" de
+  // ligne HT) · posé par la saisie guidée "Achat/Vente avec TVA" de
   // SaisiePage. Sert au registre/déclaration TVA (TauxTvaService.
   // declaration) : somme des lignes créditées sur le compte de collecte du
   // taux moins somme des lignes débitées sur son compte de déduction, sur
@@ -441,12 +606,12 @@ model LigneEcriture {
   tauxTvaId String?
   tauxTva   TauxTva? @relation(fields: [tauxTvaId], references: [id])
 
-  // Pointage rapprochement bancaire (§3.4, manuel d'abord) — distinct du
+  // Pointage rapprochement bancaire (§3.4, manuel d'abord) · distinct du
   // lettrage : le lettrage rapproche débit/crédit entre elles (ex. facture
   // ↔ règlement), le pointage rapproche une ligne face à un relevé bancaire
   // externe. Une ligne pointée est rattachée au rapprochement (en cours ou
   // déjà clôturé) qui l'a pointée ; null tant qu'elle n'est pas pointée.
-  // Dépointable (retour à null) tant que le rapprochement est EN_COURS —
+  // Dépointable (retour à null) tant que le rapprochement est EN_COURS ·
   // voir RapprochementBancaireService.
   rapprochementId String?
   rapprochement   RapprochementBancaire? @relation(fields: [rapprochementId], references: [id])
@@ -459,31 +624,44 @@ model LigneEcriture {
   // ne se déduit d'aucun autre champ : ni la date de l'écriture, ni le compte,
   // ni le tiers ne disent quand la créance vient à terme.
   //
-  // Null pour toute ligne qui n'est pas une créance ou une dette à terme —
+  // Null pour toute ligne qui n'est pas une créance ou une dette à terme ·
   // c'est-à-dire l'immense majorité. Une ligne de tiers laissée sans échéance
   // n'est PAS rangée d'office dans « à un an au plus » : elle est présentée
   // comme non ventilée, pour que la lacune se voie au lieu de se fondre dans
   // le court terme (voir NoteAnnexeService.ventilerEcheances).
   dateEcheance DateTime?
 
+  // Ventilation analytique (projet, bailleur) · voir PlanAnalytique.
+  ventilations VentilationAnalytique[]
+
+  // Multidevise · `debit`/`credit` restent TOUJOURS exprimés dans la monnaie
+  // de tenue du dossier, seule monnaie dans laquelle la comptabilité est
+  // arrêtée. Ces trois champs conservent l'opération d'origine, ce qui permet
+  // de réévaluer la créance ou la dette à la clôture et de justifier l'écart.
+  deviseId      String?
+  devise        Devise?  @relation(fields: [deviseId], references: [id])
+  montantDevise Decimal? @db.Decimal(18, 2)
+  coursApplique Decimal? @db.Decimal(18, 6)
+
   @@index([compteId, lettre])
+  @@index([lettrageId])
   @@index([compteId, rapprochementId])
   // PostgreSQL ne crée PAS d'index sur une colonne de clé étrangère, et
   // Prisma n'en génère pas non plus. Sans celui-ci, tout chargement des
   // lignes d'un lot d'écritures (journal, grand livre, contreparties) fait
-  // un balayage séquentiel de toute la table — le chemin le plus sollicité
+  // un balayage séquentiel de toute la table · le chemin le plus sollicité
   // de l'application.
   @@index([ecritureId])
   @@map("lignes_ecriture")
 }
 
 // ---------------------------------------------------------------------------
-// Rapprochement bancaire (§3.4, manuel d'abord — cf. docs/plan-de-construction.md) :
+// Rapprochement bancaire (§3.4, manuel d'abord · cf. docs/plan-de-construction.md) :
 // pointage écriture par écriture face à un relevé bancaire, avec référence
 // de pièce de trésorerie. Un seul rapprochement EN_COURS à la fois par
 // compte (RapprochementBancaireService.ouvrir) ; le solde de clôture du
 // précédent rapprochement CLOTURE sert de solde de départ au suivant (le
-// tout premier rapprochement d'un compte part de zéro) — écart affiché en
+// tout premier rapprochement d'un compte part de zéro) · écart affiché en
 // continu, clôture bloquée tant qu'il n'est pas nul (même discipline que le
 // lettrage, qui exige un solde de sélection nul avant de lettrer).
 // ---------------------------------------------------------------------------
@@ -491,6 +669,86 @@ model LigneEcriture {
 enum StatutRapprochement {
   EN_COURS
   CLOTURE
+}
+
+// ---------------------------------------------------------------------------
+// Lettrage · CPCC, Notes de cours d'organisation comptable, chapitre 6
+// ---------------------------------------------------------------------------
+
+// « Le lettrage est une opération comptable qui consiste à affecter un seul
+// repère à deux ou plusieurs entrées enregistrées d'un compte, la somme des
+// montants lettrés au débit pouvant être égale, supérieure ou inférieure à
+// celle des montants lettrés au crédit. Le but ainsi poursuivi est d'associer
+// les opérations de manière à identifier celles restées totalement ou
+// partiellement ouvertes. »
+//
+// D'où deux statuts, et non un seul.
+enum StatutLettrage {
+  // Débit et crédit du groupe ne s'équilibrent pas · l'opération reste
+  // partiellement ouverte pour la différence. Les lignes du groupe ne
+  // portent PAS de `lettre` : elles restent visibles de tous les états qui
+  // recensent l'ouvert (voir LigneEcriture.lettre).
+  PARTIEL
+  // Le groupe est soldé · `lettre` est posée sur toutes ses lignes.
+  SOLDE
+}
+
+// Le CPCC distingue le lettrage manuel du lettrage automatique, et au sein de
+// ce dernier le lettrage « a priori » (par le code unique de la pièce, saisi
+// au règlement) du lettrage « a posteriori » (l'ordinateur rapproche par
+// montant ou libellé). Les trois sont tracés, parce qu'ils n'ont pas la même
+// valeur probante : un rapprochement par numéro de pièce s'appuie sur une
+// donnée saisie par un humain, un rapprochement par montant est une
+// présomption du logiciel.
+enum OrigineLettrage {
+  MANUEL
+  AUTOMATIQUE_PIECE // « a priori » · appariement par référence de pièce
+  AUTOMATIQUE_MONTANT // « a posteriori » · appariement par montant
+}
+
+model Lettrage {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+  compteId String
+  compte   Compte @relation(fields: [compteId], references: [id])
+
+  // A, B, ..., Z, AA, AB, ... par compte. Affiché en minuscules tant que le
+  // groupe est PARTIEL, en majuscules une fois SOLDE · c'est la convention
+  // que retient l'exemple chiffré du CPCC (compte 585) et celle des
+  // logiciels de la place.
+  code   String
+  statut StatutLettrage
+
+  // Reste à solder, signé (débit moins crédit). Zéro pour un groupe SOLDE.
+  solde   Decimal         @db.Decimal(18, 2)
+  origine OrigineLettrage
+
+  // « Verrouillage définitif ou non du lettrage » (CPCC, ch. 6). Un lettrage
+  // verrouillé ne peut plus être défait ni complété sans être déverrouillé :
+  // c'est ce qui permet de figer un rapprochement présenté à un auditeur.
+  verrouille Boolean @default(false)
+
+  // « Il facilite également, pour les opérations en monnaies étrangères
+  // dénouées, le calcul des différences de change réalisées » (CPCC, ch. 6).
+  // Renseigné au dénouement (passage à SOLDE) quand les lignes du groupe
+  // portent une devise : c'est l'écart entre la contrevaleur historique et
+  // la contrevaleur au règlement. Null quand aucune ligne n'est en devise,
+  // ce qui n'est PAS la même chose que zéro.
+  ecartChange Decimal? @db.Decimal(18, 2)
+
+  createdAt DateTime  @default(now())
+  createdBy String
+  // Date de passage à SOLDE · « lettrage en continu ou à une date précise ».
+  soldeAt   DateTime?
+
+  lignes LigneEcriture[]
+
+  // Un code de lettrage est unique PAR COMPTE, pas par dossier : deux comptes
+  // de tiers ont chacun leur série A, B, C.
+  @@unique([compteId, code])
+  @@index([tenantId, statut])
+  @@map("lettrages")
 }
 
 model RapprochementBancaire {
@@ -501,7 +759,7 @@ model RapprochementBancaire {
   compte   Compte @relation(fields: [compteId], references: [id])
 
   // Date et solde de fin tels qu'affichés sur le relevé bancaire papier/PDF
-  // rapproché — pas une donnée calculée.
+  // rapproché · pas une donnée calculée.
   dateReleve  DateTime
   soldeReleve Decimal  @db.Decimal(18, 2)
 
@@ -516,15 +774,24 @@ model RapprochementBancaire {
 }
 
 // ---------------------------------------------------------------------------
-// Tiers (cf. docs/plan-de-construction.md §3.2) — dépend du Lettrage (déjà
+// Tiers (cf. docs/plan-de-construction.md §3.2) · dépend du Lettrage (déjà
 // livré) : le rapprochement débit/crédit par compte est le mécanisme qui rend
 // utile le suivi par tiers (solde réel = mouvements non lettrés).
 // ---------------------------------------------------------------------------
 
+// Types de tiers du SYCEBNL, et non ceux du plan français de Sage : le
+// compte 41 « Adhérents, clients-usagers et comptes rattachés » couvre DEUX
+// populations distinctes, subdivisées par le texte officiel (Partie 2, ch. 3,
+// compte 41) : 411 Adhérents (les membres qui doivent leur cotisation
+// conformément aux statuts) et 412 Clients-usagers (les tiers auxquels
+// l'entité vend des biens ou services). Les confondre sous un seul type
+// « Client » ferait perdre le suivi des cotisations, qui est le coeur de
+// l'activité d'une EBNL.
 enum TypeTiers {
-  CLIENT
-  FOURNISSEUR
-  SALARIE
+  ADHERENT // 411 · membre cotisant
+  CLIENT // 412 · client-usager
+  FOURNISSEUR // 40
+  SALARIE // 42
   AUTRE
 }
 
@@ -539,7 +806,7 @@ enum ConditionEcheance {
 // Fractionnement en plusieurs échéances (pattern Sage : type pourcentage/
 // équilibre/montant + délai + condition par échéance). POURCENTAGE = X % du
 // montant total ; MONTANT = un montant fixe ; EQUILIBRE = absorbe le reste
-// (solde après les échéances précédentes) — typiquement la dernière ligne,
+// (solde après les échéances précédentes) · typiquement la dernière ligne,
 // pour garantir que la somme retombe exactement sur le montant total malgré
 // les arrondis des pourcentages.
 enum TypeEcheance {
@@ -553,7 +820,7 @@ model ModeleReglement {
   tenantId   String
   tenant     Tenant            @relation(fields: [tenantId], references: [id])
   intitule   String // ex : "30 jours net", "60 jours fin de mois"
-  // Échéance unique par défaut (100 % du montant à delaiJours/echeance) —
+  // Échéance unique par défaut (100 % du montant à delaiJours/echeance) ·
   // c'est le mode mono-échéance du MVP initial, toujours valable tel quel
   // tant qu'aucune ligne n'existe dans `echeances` (voir TauxTvaService...
   // pardon, TiersService.calculerEcheances : `echeances` vide → une seule
@@ -578,7 +845,7 @@ model EcheanceReglement {
   id                String            @id @default(uuid())
   modeleReglementId String
   modeleReglement   ModeleReglement   @relation(fields: [modeleReglementId], references: [id])
-  ordre             Int // ordre d'application — détermine aussi ce que "le reste" signifie pour EQUILIBRE
+  ordre             Int // ordre d'application · détermine aussi ce que "le reste" signifie pour EQUILIBRE
   type              TypeEcheance
   // Pourcentage (0-100) pour POURCENTAGE, montant fixe pour MONTANT, null
   // pour EQUILIBRE (n'a pas de valeur propre, prend ce qu'il reste).
@@ -595,7 +862,7 @@ model Tiers {
   tenantId String
   tenant   Tenant    @relation(fields: [tenantId], references: [id])
   type     TypeTiers
-  code     String // ex : "CLI-0001" — libre, unique par tenant
+  code     String // ex : "CLI-0001" · libre, unique par tenant
   nom      String
   estActif Boolean   @default(true)
 
@@ -605,13 +872,14 @@ model Tiers {
   createdAt DateTime @default(now())
 
   comptesRattaches TiersCompte[]
+  relances         Relance[]
 
   @@unique([tenantId, code])
   @@map("tiers")
 }
 
 // Comptes généraux rattachés à un tiers (§3.2 : "sous-compte auxiliaire
-// remonté sur un compte collectif" — un compte donné n'est rattaché qu'à un
+// remonté sur un compte collectif" · un compte donné n'est rattaché qu'à un
 // seul tiers, cf. Compte.tiersCompte). Un seul compte marqué Principal par
 // tiers ; imposé par TiersService.rattacherCompte, pas par une contrainte SQL
 // (Postgres ne supporte pas nativement un "unique partiel" via Prisma ici).
@@ -629,12 +897,12 @@ model TiersCompte {
 
 // ---------------------------------------------------------------------------
 // Rattachement des comptes du dossier aux rubriques de notes annexes
-// (docs/plan-sycebnl-complet.md, phase 1 — ajouté le 2026-08-28)
+// (docs/plan-sycebnl-complet.md, phase 1 · ajouté le 2026-08-28)
 //
 // Le texte SYCEBNL ne fournit AUCUN tableau de correspondance pour les notes
 // annexes : elles n'énumèrent que des libellés de rubriques. Et ces libellés
 // réclament souvent une granularité que le plan de comptes normalisé ne porte
-// pas — la Note 24 « Achats » veut des lignes distinctes pour « Matières
+// pas · la Note 24 « Achats » veut des lignes distinctes pour « Matières
 // consommables », « Produits d'entretien », « Eau », « Électricité », quand le
 // plan s'arrête au compte 604 sans subdivision.
 //
@@ -645,7 +913,7 @@ model TiersCompte {
 //
 // GARDE-FOU : un rattachement n'est accepté QUE sur une rubrique déclarée
 // `subdivisionAttendue` dans la spécification officielle. Les rubriques dont
-// le rattachement découle du plan normalisé restent intouchables — sans quoi
+// le rattachement découle du plan normalisé restent intouchables · sans quoi
 // un utilisateur pourrait défaire en silence la fidélité au texte officiel,
 // ce que toute la discipline du projet vise à empêcher. Imposé par
 // NoteAnnexeService, pas par une contrainte SQL (Prisma ne sait pas exprimer
@@ -681,7 +949,7 @@ model RattachementNote {
 // Comptabilité analytique par projet/bailleur (docs/plan-de-construction.md
 // item 14, ajouté le 2026-08-28). Un Bailleur (ou sous-projet) regroupe les
 // sous-comptes 162-164 (Fonds affectés aux investissements) et 462-464
-// (Fonds d'administration) qui lui sont propres — le mécanisme officiel de
+// (Fonds d'administration) qui lui sont propres · le mécanisme officiel de
 // suivi PAR bailleur est déjà la subdivision de ces comptes racines (Partie
 // 3, ch. 3 du texte officiel SYCEBNL) : ce modèle ne réinvente rien, il
 // nomme un groupe de sous-comptes pour produire automatiquement la NOTE 9
@@ -692,19 +960,458 @@ model Bailleur {
   id        String   @id @default(uuid())
   tenantId  String
   tenant    Tenant   @relation(fields: [tenantId], references: [id])
-  code      String // ex : "UE-01" — libre, unique par tenant
+  code      String // ex : "UE-01" · libre, unique par tenant
   nom       String
   estActif  Boolean  @default(true)
   createdAt DateTime @default(now())
 
-  comptesRattaches Compte[]
+  comptesRattaches    Compte[]
+  sectionsAnalytiques SectionAnalytique[]
 
   @@unique([tenantId, code])
   @@map("bailleurs")
 }
 
 // ---------------------------------------------------------------------------
-// TVA (cf. docs/plan-de-construction.md §3.1 et §5) — entité "Taux" paramétrable
+// COMPTABILITÉ ANALYTIQUE ET BUDGÉTAIRE
+//
+// La classe 9 du SYCEBNL réserve les comptes 92 à 99 à la comptabilité
+// analytique de gestion, d'usage libre (Partie 2, ch. 3, section 9). Pour une
+// EBNL, cette liberté a une traduction évidente et une seule : le suivi PAR
+// PROJET et PAR BAILLEUR. Une ONG doit pouvoir répondre à « combien a coûté
+// le projet Eau Potable, et quelle part le bailleur X a-t-il financée » ·
+// c'est la question que pose tout rapport d'exécution.
+//
+// Le modèle suit le guide Sage 100 i7 écrit pour une ONG (voir
+// docs/analytique-et-budget.md, qui cite les manuels et dit ce qu'on en
+// retient) avec deux écarts assumés :
+//
+//  - deux axes livrés (Projet, Bailleur) plutôt que les onze plans de Sage :
+//    le guide ONG lui-même n'en utilise qu'un, et onze axes sont un outil de
+//    contrôle de gestion industriel ;
+//  - la ventilation couvre AUSSI la classe 9. Une journée de bénévolat
+//    affectée à un projet financé se rapporte au bailleur au même titre
+//    qu'une dépense : l'exclure amputerait le rapport d'exécution.
+//
+// Le budget n'a pas de plan à lui : il se porte sur les sections analytiques,
+// exactement comme dans le paramétrage retenu par l'ONG du guide (« Gérer les
+// budgets sur les sections analytiques »). Chez une EBNL, le budget EST celui
+// du projet.
+// ---------------------------------------------------------------------------
+
+model PlanAnalytique {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+  code     String // "PROJ", "BAIL"
+  intitule String
+
+  // Classes du plan SYCEBNL sur lesquelles la ventilation est attendue, en
+  // chiffres séparés par des virgules. Défaut "2,6,7,9" : actif immobilisé,
+  // charges et produits des activités ordinaires, contributions volontaires
+  // en nature. Une ligne de trésorerie ou de tiers n'a pas de projet · c'est
+  // la charge qu'elle solde qui en a un.
+  classesVentilees String @default("2,6,7,9")
+
+  // Faux par défaut : une ventilation manquante est SIGNALÉE par le contrôle
+  // des cumuls, elle ne bloque pas la saisie. Bloquer d'office rendrait la
+  // saisie courante impraticable dans une petite association qui ne tient
+  // l'analytique que sur une partie de son activité. À vrai, la saisie refuse
+  // toute ligne non ventilée sur une classe concernée.
+  ventilationObligatoire Boolean @default(false)
+
+  // Le budget se saisit sur les sections de ce plan (case « Gérer les budgets
+  // sur les sections analytiques » de Sage). Un dossier peut vouloir suivre
+  // ses projets sans les budgéter.
+  gererBudgets Boolean @default(true)
+
+  ordre     Int      @default(0)
+  estActif  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  sections SectionAnalytique[]
+
+  @@unique([tenantId, code])
+  @@map("plans_analytiques")
+}
+
+model SectionAnalytique {
+  id       String         @id @default(uuid())
+  planId   String
+  plan     PlanAnalytique @relation(fields: [planId], references: [id])
+  // Dénormalisé : toutes les requêtes de l'application sont scopées au
+  // dossier, et remonter au plan pour chacune coûterait une jointure de plus
+  // sur le chemin le plus sollicité (la grille de saisie).
+  tenantId String
+  tenant   Tenant         @relation(fields: [tenantId], references: [id])
+
+  code     String
+  intitule String
+  // Même logique que les comptes : DETAIL porte les ventilations, TOTAL ne
+  // sert qu'à regrouper ses sections de même racine dans les états.
+  type     TypeCompteDetailTotal @default(DETAIL)
+
+  // Axe bailleur : rattache la section au financeur, ce qui permet de croiser
+  // l'analytique avec la note 9 « Fonds du bailleur » des projets de
+  // développement. Null sur l'axe projet.
+  bailleurId String?
+  bailleur   Bailleur? @relation(fields: [bailleurId], references: [id])
+
+  // Durée de la convention de financement. Un budget bailleur ne suit pas
+  // l'année civile : répartir sur douze mois un financement de huit fausserait
+  // tous les écarts. Null = la section couvre tout l'exercice.
+  dateDebut DateTime?
+  dateFin   DateTime?
+
+  estActive Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  budgets      BudgetSection[]
+  ventilations VentilationAnalytique[]
+
+  @@unique([planId, code])
+  @@index([tenantId])
+  @@map("sections_analytiques")
+}
+
+// Dotation budgétaire d'une section sur un exercice. Une ligne `mois = null`
+// porte la dotation annuelle ; les douze lignes mensuelles la déclinent. Le
+// service répartit l'annuel de façon homogène sur les mois RÉELLEMENT couverts
+// par la convention (dateDebut/dateFin de la section), puis chaque mois reste
+// modifiable à la main.
+model BudgetSection {
+  id         String            @id @default(uuid())
+  sectionId  String
+  section    SectionAnalytique @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  exerciceId String
+  exercice   Exercice          @relation(fields: [exerciceId], references: [id])
+
+  mois    Int? // 1 à 12, ou null pour la dotation annuelle
+  montant Decimal @db.Decimal(18, 2)
+
+  @@unique([sectionId, exerciceId, mois])
+  @@map("budgets_section")
+}
+
+// Ventilation d'une ligne d'écriture sur une section. Plusieurs ventilations
+// par ligne sont possibles (une dépense partagée entre deux projets), y
+// compris sur plusieurs plans à la fois : la contrainte n'est pas « une
+// ventilation par ligne » mais « par PLAN, la somme des ventilations d'une
+// ligne égale son montant, ou il n'y en a aucune ». C'est ce que vérifie
+// l'état de contrôle des cumuls.
+model VentilationAnalytique {
+  id              String            @id @default(uuid())
+  ligneEcritureId String
+  ligne           LigneEcriture     @relation(fields: [ligneEcritureId], references: [id], onDelete: Cascade)
+  sectionId       String
+  section         SectionAnalytique @relation(fields: [sectionId], references: [id])
+  // Dénormalisé, pour vérifier l'équilibre par plan sans charger la section.
+  planId          String
+
+  debit  Decimal @default(0) @db.Decimal(18, 2)
+  credit Decimal @default(0) @db.Decimal(18, 2)
+
+  @@index([ligneEcritureId])
+  @@index([sectionId])
+  @@map("ventilations_analytiques")
+}
+
+// ---------------------------------------------------------------------------
+// RÉGULARISATION DES CHARGES ET DES PRODUITS, ET ÉCRITURES D'ABONNEMENT
+//
+// Deux automatismes que les manuels Sage décrivent ensemble, et que le
+// SYCEBNL traite différemment de la pratique française. Voir
+// docs/analytique-et-budget.md pour la méthode, et la Partie 3 ch. 6 du texte
+// officiel pour la règle.
+//
+// ## Régularisation
+//
+// Une charge payée en N qui couvre une partie de N+1 n'est pas une charge de
+// N : la convention de spécialisation des exercices l'impose. Elle est
+// différée au compte 476 « Charges constatées d'avance », et reprise sur
+// l'exercice qu'elle concerne. Symétriquement pour un produit encaissé
+// d'avance (477).
+//
+// ## Le cas propre aux EBNL
+//
+// La Partie 3 ch. 6 section 1 traite nommément la SUBVENTION D'EXPLOITATION
+// PLURIANNUELLE, qui est le cas le plus fréquent d'une association financée
+// par convention : « à la clôture du premier exercice, il convient
+// d'extourner la part de subvention se rapportant aux exercices ultérieurs au
+// crédit d'un compte 477 Produits constatés d'avance par le débit du compte 71
+// Subventions d'exploitation. A la fin de chaque exercice ultérieur concerné,
+// la quote-part de la subvention d'exploitation y afférant est reprise au
+// débit du compte 477 par le crédit du compte 71. »
+//
+// Noter le moment : la reprise se fait À LA FIN de l'exercice concerné, et non
+// à son ouverture par contre-passation comme le ferait un progiciel français.
+// C'est cette lecture que le service applique.
+// ---------------------------------------------------------------------------
+
+enum TypeRegularisation {
+  CHARGE_CONSTATEE_AVANCE // 476 · charge payée en N pour tout ou partie de N+1
+  PRODUIT_CONSTATE_AVANCE // 477 · produit encaissé en N pour N+1
+  SUBVENTION_PLURIANNUELLE // 477 / 71 · Partie 3 ch. 6, section 1
+}
+
+model Regularisation {
+  id         String   @id @default(uuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  exerciceId String
+  exercice   Exercice @relation(fields: [exerciceId], references: [id])
+
+  type    TypeRegularisation
+  libelle String
+
+  // Compte de charge (6) ou de produit (7) concerné, et le compte 476/477 qui
+  // porte le différé.
+  compteChargeProduitId String
+  compteChargeProduit   Compte @relation("RegulCompteChargeProduit", fields: [compteChargeProduitId], references: [id])
+  compteDifferId        String
+  compteDiffere         Compte @relation("RegulCompteDiffere", fields: [compteDifferId], references: [id])
+
+  // Montant total de la charge ou du produit, tel qu'il a été comptabilisé.
+  montantTotal   Decimal  @db.Decimal(18, 2)
+  // Période que ce montant couvre réellement.
+  periodeDebut   DateTime
+  periodeFin     DateTime
+  // Part rattachée aux exercices ultérieurs, calculée au prorata des jours.
+  montantDiffere Decimal  @db.Decimal(18, 2)
+
+  // Écriture de constatation à la clôture, puis de reprise sur l'exercice
+  // concerné. Null tant que l'opération n'a pas été passée.
+  ecritureConstatationId String?   @unique
+  ecritureConstatation   Ecriture? @relation("RegulConstatation", fields: [ecritureConstatationId], references: [id])
+  ecritureRepriseId      String?   @unique
+  ecritureReprise        Ecriture? @relation("RegulReprise", fields: [ecritureRepriseId], references: [id])
+
+  createdAt DateTime @default(now())
+  createdBy String
+
+  @@index([tenantId, exerciceId])
+  @@map("regularisations")
+}
+
+enum PeriodiciteAbonnement {
+  MENSUELLE
+  TRIMESTRIELLE
+  SEMESTRIELLE
+  ANNUELLE
+}
+
+// Modèle d'abonnement · « permet de pré-enregistrer et d'automatiser la
+// passation des écritures répétitives concernant les contrats d'abonnements
+// contractés par la société (ex : loyer, abonnement téléphonique) » dit le
+// manuel Sage. Chez une EBNL s'y ajoutent les versements périodiques d'une
+// convention de financement et les cotisations d'un membre bienfaiteur.
+model ModeleAbonnement {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  code      String
+  intitule  String
+  journalId String
+  journal   Journal @relation(fields: [journalId], references: [id])
+
+  compteDebitId  String
+  compteDebit    Compte @relation("AbonnementCompteDebit", fields: [compteDebitId], references: [id])
+  compteCreditId String
+  compteCredit   Compte @relation("AbonnementCompteCredit", fields: [compteCreditId], references: [id])
+
+  periodicite PeriodiciteAbonnement
+  dateDebut   DateTime
+  dateFin     DateTime
+  // Montant de CHAQUE échéance, pas du contrat entier.
+  montant     Decimal               @db.Decimal(18, 2)
+  estActif    Boolean               @default(true)
+  createdAt   DateTime              @default(now())
+  createdBy   String
+
+  echeances EcheanceAbonnement[]
+
+  @@unique([tenantId, code])
+  @@map("modeles_abonnement")
+}
+
+model EcheanceAbonnement {
+  id           String           @id @default(uuid())
+  abonnementId String
+  abonnement   ModeleAbonnement @relation(fields: [abonnementId], references: [id], onDelete: Cascade)
+  date         DateTime
+  montant      Decimal          @db.Decimal(18, 2)
+
+  // Null tant que l'écriture n'a pas été générée · c'est ce qui rend
+  // l'opération idempotente, une échéance déjà passée ne l'est pas deux fois.
+  ecritureId String?   @unique
+  ecriture   Ecriture? @relation(fields: [ecritureId], references: [id])
+
+  @@unique([abonnementId, date])
+  @@index([abonnementId])
+  @@map("echeances_abonnement")
+}
+
+// ---------------------------------------------------------------------------
+// MULTIDEVISE ET RÉÉVALUATION DES CRÉANCES ET DETTES
+//
+// La RDC est une économie bi-monétaire : une association encaisse en dollars
+// et paie en francs congolais, ou l'inverse. Le bilan SYCEBNL prévoit
+// d'ailleurs les postes BY « Ecart de conversion-Actif » et DY « Ecart de
+// conversion-Passif », que nous affichions jusqu'ici à zéro faute de
+// mécanisme pour les calculer.
+//
+// Le texte distingue deux traitements, et les confondre est l'erreur la plus
+// courante (Partie 2 ch. 3, comptes 47, 67 et 77) :
+//
+//  - CRÉANCES ET DETTES en devises : l'écart constaté à la clôture est
+//    LATENT. Il va au 478 (perte probable) ou au 479 (gain probable), et la
+//    perte probable appelle une provision au 194 par le 6971. Le texte est
+//    explicite : « Le compte 676 ne doit pas être confondu avec le compte 478
+//    qui n'enregistre que les pertes probables de change. »
+//
+//  - DISPONIBILITÉS en devises : l'écart est RÉALISÉ. « Les écarts de
+//    conversion négatifs constatés à la clôture de l'exercice sur les
+//    disponibilités en devises sont considérés comme étant des pertes de
+//    change supportées » · ils vont donc directement au résultat, 676 ou 776.
+// ---------------------------------------------------------------------------
+
+model Devise {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  code      String // ISO : USD, EUR, XAF...
+  intitule  String
+  estActive Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  cours  CoursDevise[]
+  lignes LigneEcriture[]
+
+  @@unique([tenantId, code])
+  @@map("devises")
+}
+
+// Cours d'une devise à une date : combien vaut UNE unité de la devise dans la
+// monnaie de tenue du dossier. En RDC, le cours de référence est celui publié
+// par la Banque Centrale du Congo.
+model CoursDevise {
+  id       String   @id @default(uuid())
+  deviseId String
+  devise   Devise   @relation(fields: [deviseId], references: [id], onDelete: Cascade)
+  date     DateTime
+  cours    Decimal  @db.Decimal(18, 6)
+  source   String? // « BCC », « contractuel »...
+
+  @@unique([deviseId, date])
+  @@index([deviseId, date])
+  @@map("cours_devise")
+}
+
+// Réévaluation d'un exercice · garde le lien vers les écritures produites,
+// pour que la contre-passation d'ouverture sache quoi extourner.
+model Reevaluation {
+  id         String   @id @default(uuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  exerciceId String
+  exercice   Exercice @relation(fields: [exerciceId], references: [id])
+
+  dateReevaluation DateTime
+
+  // Écarts latents (478/479) et réalisés sur disponibilités (676/776).
+  ecritureEcartsId    String?   @unique
+  ecritureEcarts      Ecriture? @relation("ReevalEcarts", fields: [ecritureEcartsId], references: [id])
+  // Provision pour perte de change (6971 / 194) sur la seule perte latente.
+  ecritureProvisionId String?   @unique
+  ecritureProvision   Ecriture? @relation("ReevalProvision", fields: [ecritureProvisionId], references: [id])
+  // Contre-passation à l'ouverture de l'exercice suivant · les écarts de
+  // conversion sont latents, ils n'ont pas à survivre à la réouverture.
+  ecritureExtourneId  String?   @unique
+  ecritureExtourne    Ecriture? @relation("ReevalExtourne", fields: [ecritureExtourneId], references: [id])
+
+  createdAt DateTime @default(now())
+  createdBy String
+
+  @@index([tenantId, exerciceId])
+  @@map("reevaluations")
+}
+
+// ---------------------------------------------------------------------------
+// RELANCE, RAPPEL ET RELEVÉ
+//
+// Le manuel Sage distingue trois états, et non un seul : « Relance préventive »
+// (avant échéance), « Rappel » qui imprime « les lettres de rappel sur
+// l'ensemble des écritures non lettrées en retard de paiement », et « Relevé »
+// qui imprime « un relevé de toutes les écritures dues ».
+//
+// La structure est reprise, le vocabulaire non. Une EBNL ne relance pas des
+// clients en retard : elle rappelle à ses ADHÉRENTS une cotisation appelée et
+// non payée (compte 411), et accessoirement à ses clients-usagers une facture
+// due (412). La lettre d'une association n'a pas la tonalité d'une mise en
+// demeure commerciale, et le paramétrage des niveaux le reflète.
+// ---------------------------------------------------------------------------
+
+enum TypeRelance {
+  PREVENTIVE // avant l'échéance · une invitation à régler
+  RAPPEL // après l'échéance · un rappel gradué
+  RELEVE // récapitulatif de tout ce qui est dû, sans gradation
+}
+
+// Niveau de relance paramétrable · trois par défaut, du rappel courtois à la
+// mise en demeure. `joursApresEcheance` négatif = relance préventive.
+model NiveauRelance {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  niveau             Int
+  libelle            String
+  type               TypeRelance @default(RAPPEL)
+  // Nombre de jours après l'échéance à partir duquel ce niveau s'applique.
+  // Négatif pour une relance préventive (ex. -7 = une semaine avant).
+  joursApresEcheance Int
+  // Corps de la lettre. Les jetons {tiers}, {montant}, {date}, {entite} et
+  // {detail} sont remplacés à la génération.
+  modeleTexte        String
+  estActif           Boolean     @default(true)
+
+  relances Relance[]
+
+  @@unique([tenantId, niveau])
+  @@map("niveaux_relance")
+}
+
+// Trace d'une relance émise · c'est elle qui permet de graduer : le niveau
+// suivant ne s'applique qu'une fois le précédent envoyé.
+model Relance {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  compteId String
+  compte   Compte  @relation(fields: [compteId], references: [id])
+  tiersId  String?
+  tiers    Tiers?  @relation(fields: [tiersId], references: [id])
+
+  niveauId      String
+  niveauRelance NiveauRelance @relation(fields: [niveauId], references: [id])
+
+  dateRelance DateTime
+  // Montant dû au moment de la relance · figé, pour que l'historique reste
+  // lisible même après règlement.
+  montant     Decimal  @db.Decimal(18, 2)
+  texte       String
+  createdAt   DateTime @default(now())
+  createdBy   String
+
+  @@index([tenantId, compteId])
+  @@map("relances")
+}
+
+// ---------------------------------------------------------------------------
+// TVA (cf. docs/plan-de-construction.md §3.1 et §5) · entité "Taux" paramétrable
 // (pattern Sage : compte + comptes rattachés par taux), fondée sur
 // l'Ordonnance-Loi n° 10/001 du 20/08/2010 telle que modifiée par la Loi de
 // Finances 2026 (art. 35 O.-L., modifié par l'art. 46 LF n° 25/060 du
@@ -713,7 +1420,7 @@ model Bailleur {
 // (exportations). Les exonérations légales (art. 15.2 et 17.8 : ventes,
 // importations et prestations des ASBL conformes à leur objet, sous réserve
 // de non-distorsion de concurrence pour les prestations) ne sont PAS un taux
-// à 0 % — une opération exonérée ne porte aucune ligne de TVA, elle n'utilise
+// à 0 % · une opération exonérée ne porte aucune ligne de TVA, elle n'utilise
 // donc simplement aucun taux ; seed volontairement sans taux "EXONÉRÉ" pour
 // ne pas laisser croire à une automatisation qui n'existe pas encore.
 //
@@ -722,7 +1429,7 @@ model Bailleur {
 // 3ᵉ ligne sur le compte de collecte/déduction du taux choisi, taguée
 // LigneEcriture.tauxTvaId. TauxTvaService.declaration() additionne ces
 // lignes par taux sur une période et applique le prorata de déduction
-// (art. 43-49 O.-L. — prorata général, sans option secteurs distincts) à la
+// (art. 43-49 O.-L. · prorata général, sans option secteurs distincts) à la
 // TVA déductible brute. TauxTvaService.comptabiliserLiquidation() pose
 // l'écriture de liquidation (solde 443/445 admis sur le compte 444) via
 // EcritureService.creer(), donc avec les mêmes contrôles que toute saisie.
@@ -755,15 +1462,18 @@ model TauxTva {
 
   @@unique([tenantId, code])
   @@map("taux_tva")
+
+  // Comptes de charge ou de produit qui proposent ce taux en saisie.
+  comptesAvecCeTauxParDefaut Compte[] @relation("CompteTauxTvaDefaut")
 }
 
 // ---------------------------------------------------------------------------
-// Immobilisations (§3.3, docs/plan-de-construction.md) — ancré au skill
-// `sycebnl` (Partie 2 ch.3 §2, COMPTE 20 à 29 — mécanique d'acquisition,
+// Immobilisations (§3.3, docs/plan-de-construction.md) · ancré au skill
+// `sycebnl` (Partie 2 ch.3 §2, COMPTE 20 à 29 · mécanique d'acquisition,
 // amortissement, dépréciation, cession) et au skill `fiscalite-rdc/socle`
-// (arrêté ministériel n° 013/CAB/MIN/FINANCES/2025 du 19/02/2025 — taux
+// (arrêté ministériel n° 013/CAB/MIN/FINANCES/2025 du 19/02/2025 · taux
 // d'amortissement linéaire officiels par catégorie de bien, entré en
-// vigueur le 01/01/2026 ; arrêté n° 014/2025 — seuil de 500 USD en deçà
+// vigueur le 01/01/2026 ; arrêté n° 014/2025 · seuil de 500 USD en deçà
 // duquel le petit matériel/outillage/matériel de bureau passe directement
 // en charges plutôt qu'en immobilisation).
 //
@@ -771,18 +1481,18 @@ model TauxTva {
 // - Gestion des composants (le texte SYCEBNL ne l'autorise de toute façon
 //   que pour des catégories limitées : bâtiments/ouvrages, avions, bateaux,
 //   camions, autocars, bus, véhicules blindés, matériels d'entités
-//   industrielles/minières/agricoles/hospitalières/pétrolières — pas un
+//   industrielles/minières/agricoles/hospitalières/pétrolières · pas un
 //   mécanisme généralisable à toute immobilisation).
-// - Amortissement dégressif et dérogatoire (fiscal vs comptable) — seul le
+// - Amortissement dégressif et dérogatoire (fiscal vs comptable) · seul le
 //   linéaire est couvert ; plus pertinent pour SYSCOHADA (Phase 3).
 // - Dépréciation (compte 29, perte de valeur exceptionnelle distincte de
-//   l'amortissement) — non couverte, à traiter par un futur enrichissement.
-// - Plans d'amortissement multiples (National/IFRS) — vision §3.6.
+//   l'amortissement) · non couverte, à traiter par un futur enrichissement.
+// - Plans d'amortissement multiples (National/IFRS) · vision §3.6.
 // ---------------------------------------------------------------------------
 
 enum ModeAmortissement {
   LINEAIRE
-  // DEGRESSIF non couvert par ce MVP — voir le commentaire ci-dessus.
+  // DEGRESSIF non couvert par ce MVP · voir le commentaire ci-dessus.
 }
 
 enum StatutImmobilisation {
@@ -795,7 +1505,7 @@ enum StatutImmobilisation {
 // et durée d'amortissement par défaut, pré-remplis à la création d'une
 // immobilisation mais toujours modifiables au cas par cas (voir
 // Immobilisation, qui duplique ces champs plutôt que de les référencer en
-// lecture seule — une famille peut évoluer sans réécrire l'historique).
+// lecture seule · une famille peut évoluer sans réécrire l'historique).
 model FamilleImmobilisation {
   id       String @id @default(uuid())
   tenantId String
@@ -814,7 +1524,7 @@ model FamilleImmobilisation {
   compteDotationId       String
   compteDotation         Compte @relation("FamilleCompteDotation", fields: [compteDotationId], references: [id])
 
-  // Durée par défaut, en années entières — arrêté n° 013/2025 pour les
+  // Durée par défaut, en années entières · arrêté n° 013/2025 pour les
   // familles seedées, personnalisable pour toute famille créée à la main
   // (art. 4 de l'arrêté : taux dérogatoires possibles si justifiés au
   // contrôle, la charge de la preuve reposant sur l'entité).
@@ -841,7 +1551,7 @@ model Immobilisation {
   designation      String
   numeroInventaire String?
 
-  // Comptes réels de CETTE immobilisation — copiés depuis la famille à la
+  // Comptes réels de CETTE immobilisation · copiés depuis la famille à la
   // création, mais indépendants ensuite (voir commentaire de
   // FamilleImmobilisation).
   compteImmobilisationId String
@@ -852,9 +1562,9 @@ model Immobilisation {
   compteDotation         Compte @relation("ImmoCompteDotation", fields: [compteDotationId], references: [id])
 
   // Distinctes : l'amortissement démarre à la mise en service, pas à
-  // l'acquisition (skill sycebnl, COMPTE 28 — "la date de début
+  // l'acquisition (skill sycebnl, COMPTE 28 · "la date de début
   // d'amortissement est la date à laquelle l'actif est en état de
-  // fonctionner..." ; confirmé par l'arrêté RDC n° 013/2025 art. 30 —
+  // fonctionner..." ; confirmé par l'arrêté RDC n° 013/2025 art. 30 ·
   // prorata temporis à compter du premier jour du mois de mise en service).
   dateAcquisition   DateTime
   dateMiseEnService DateTime
@@ -869,7 +1579,7 @@ model Immobilisation {
   statut      StatutImmobilisation @default(EN_SERVICE)
   dateSortie  DateTime?
   // Renseigné uniquement en cas de cession (par opposition à une mise hors
-  // service/rebut, sans produit) — voir ImmobilisationService.sortir.
+  // service/rebut, sans produit) · voir ImmobilisationService.sortir.
   prixCession Decimal?             @db.Decimal(18, 2)
 
   // Écriture d'acquisition (débit du compte d'immobilisation, crédit
@@ -877,7 +1587,7 @@ model Immobilisation {
   // création).
   ecritureAcquisitionId String    @unique
   ecritureAcquisition   Ecriture  @relation("ImmoEcritureAcquisition", fields: [ecritureAcquisitionId], references: [id])
-  // Écriture de sortie (solde des comptes 2/28, VCN sur 81) — null tant que
+  // Écriture de sortie (solde des comptes 2/28, VCN sur 81) · null tant que
   // le bien est EN_SERVICE.
   ecritureSortieId      String?   @unique
   ecritureSortie        Ecriture? @relation("ImmoEcritureSortie", fields: [ecritureSortieId], references: [id])
@@ -891,7 +1601,7 @@ model Immobilisation {
 }
 
 // Une dotation passée = un exercice ; jamais deux fois le même exercice sur
-// la même immobilisation (@@unique) — la contrainte qui empêche une double
+// la même immobilisation (@@unique) · la contrainte qui empêche une double
 // dotation par erreur, plutôt qu'une simple discipline d'écran.
 model DotationAmortissement {
   id               String         @id @default(uuid())
@@ -909,7 +1619,7 @@ model DotationAmortissement {
 }
 
 // ---------------------------------------------------------------------------
-// REGISTRE DES DONATEURS — article 17 de l'Acte uniforme SYCEBNL.
+// REGISTRE DES DONATEURS · article 17 de l'Acte uniforme SYCEBNL.
 //
 // « Il est établi pour chaque entité à but non lucratif un registre des
 // donateurs pour tous les dons, donations et legs reçus par l'entité. »
@@ -919,15 +1629,15 @@ model DotationAmortissement {
 // exigences du texte ont donc force de loi et façonnent ce modèle :
 //
 //  1. « coté, paraphé et NUMÉROTÉ DE FAÇON CONTINUE par la juridiction
-//     compétente » — d'où `numero`, entier, unique par dossier et attribué
+//     compétente » · d'où `numero`, entier, unique par dossier et attribué
 //     sans trou par le service. Un registre à trous n'est pas continu, donc
 //     pas conforme : la suppression d'une ligne est IMPOSSIBLE (voir
 //     `annulee`), une erreur s'annule en conservant son numéro, exactement
 //     comme une écriture comptable se contre-passe au lieu d'être effacée.
 //  2. « Toutes les écritures contenues dans ce registre doivent être SIGNÉES
-//     par le représentant légal de l'entité » — d'où `signeePar` et `signeeLe`.
+//     par le représentant légal de l'entité » · d'où `signeePar` et `signeeLe`.
 //  3. « Ce registre peut être tenu en version physique reliée, brochée ou en
-//     VERSION ÉLECTRONIQUE » — c'est cet alinéa qui autorise expressément ce
+//     VERSION ÉLECTRONIQUE » · c'est cet alinéa qui autorise expressément ce
 //     que fait ce module.
 //
 // Le contenu obligatoire (art. 17, points 1 à 4) est repris champ par champ
@@ -936,7 +1646,7 @@ model DotationAmortissement {
 // ---------------------------------------------------------------------------
 
 /// Art. 17, points 2 et 3 : le texte impose des identifiants DIFFÉRENTS selon
-/// la nature du donateur — nom/prénoms/domicile pour une personne physique,
+/// la nature du donateur · nom/prénoms/domicile pour une personne physique,
 /// dénomination/immatriculation/NIF/siège pour une personne morale.
 enum TypeDonateur {
   PERSONNE_PHYSIQUE
@@ -993,7 +1703,7 @@ model Donation {
   // --- Art. 17, point 4 : montant et mode de libération ---
   montant           Decimal        @db.Decimal(18, 2)
   modeLiberation    ModeLiberation
-  /// Description du bien lorsque le mode de libération est NATURE — le texte
+  /// Description du bien lorsque le mode de libération est NATURE · le texte
   /// admet le don en nature sans en fixer le formalisme.
   designationNature String?
 
@@ -1007,7 +1717,7 @@ model Donation {
 
   /// Écriture comptable correspondante, quand elle existe. Facultatif :
   /// l'inscription au registre et l'enregistrement comptable sont deux
-  /// obligations DISTINCTES (art. 17 d'un côté, art. 16 de l'autre) — c'est
+  /// obligations DISTINCTES (art. 17 d'un côté, art. 16 de l'autre) · c'est
   /// justement leur rapprochement qui révèle un don comptabilisé mais non
   /// inscrit, ou l'inverse.
   ecritureId String?
@@ -1031,7 +1741,7 @@ model Donation {
 }
 
 // ---------------------------------------------------------------------------
-// LIVRE D'INVENTAIRE — article 14 de l'Acte uniforme SYCEBNL.
+// LIVRE D'INVENTAIRE · article 14 de l'Acte uniforme SYCEBNL.
 //
 // « Le livre d'inventaire est un document obligatoire sur lequel sont
 // TRANSCRITS :
@@ -1076,7 +1786,7 @@ model TranscriptionInventaire {
 
   /// Les états financiers figés, indexés par leur clé (`bilan`,
   /// `compteDeResultat`, `tableauFluxTresorerie`…). Un état exigé par
-  /// l'art. 14 mais non encore construit par le logiciel n'y figure pas — il
+  /// l'art. 14 mais non encore construit par le logiciel n'y figure pas · il
   /// est alors listé dans `documentsManquants` plutôt que passé sous silence.
   etats Json
 
@@ -1088,7 +1798,7 @@ model TranscriptionInventaire {
 
   /// « … ainsi que le résumé de l'opération d'inventaire » (art. 14).
   /// Le référentiel EXIGE ce résumé mais n'en définit NULLE PART le contenu
-  /// ni la forme — ni le glossaire, ni le cadre conceptuel, ni la Partie 2
+  /// ni la forme · ni le glossaire, ni le cadre conceptuel, ni la Partie 2
   /// ch. 2. C'est donc une saisie libre du dossier : le combler d'office
   /// depuis un autre référentiel serait inventer une exigence que le texte
   /// ne formule pas.
@@ -1103,7 +1813,7 @@ model TranscriptionInventaire {
 }
 
 // ---------------------------------------------------------------------------
-// RAPPORT D'ACTIVITÉ — article 16, point 3, de l'Acte uniforme SYCEBNL.
+// RAPPORT D'ACTIVITÉ · article 16, point 3, de l'Acte uniforme SYCEBNL.
 //
 // « à la clôture de chaque exercice, les organes d'administration ou de
 // direction, selon le cas, dressent l'inventaire et les états financiers
@@ -1134,7 +1844,7 @@ model RapportActivite {
   /// s'écrase pas, il se réédite en version suivante.
   version Int
 
-  /// « la date à laquelle il est établi » — ce n'est pas une date
+  /// « la date à laquelle il est établi » · ce n'est pas une date
   /// décorative : conjuguée à la date de clôture, elle DÉFINIT la fenêtre des
   /// événements postérieurs que le point 4 exige de mentionner.
   etabliLe  DateTime
@@ -1159,7 +1869,7 @@ model RapportActivite {
   /// tient lieu. »
   /// [texte officiel] « audit rapport » est ambigu : la phrase figure dans la
   /// branche « s'il n'existe pas d'auditeur », où aucun rapport d'auditeur
-  /// n'existe — le seul autre rapport prévu par le texte est celui de
+  /// n'existe · le seul autre rapport prévu par le texte est celui de
   /// l'art. 16-3. C'est donc ici que la déclaration est annexée, sans que le
   /// texte le dise expressément.
   entiteAvecAuditeur    Boolean @default(false)

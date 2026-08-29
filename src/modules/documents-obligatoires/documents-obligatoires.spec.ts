@@ -11,6 +11,8 @@ import {
 import { PrismaService } from '../../common/prisma.service';
 import { EtatsFinanciersService } from '../etats-financiers/etats-financiers.service';
 import { EtatsFinanciersProjetService } from '../etats-financiers/etats-financiers-projet.service';
+import { EtatsFinanciersSmtService } from '../etats-financiers/etats-financiers-smt.service';
+import { EtatsFinanciersProjetBudgetService } from '../etats-financiers/etats-financiers-projet-budget.service';
 import { DonationService } from '../registre-donateurs/donation.service';
 
 const EXERCICE = { id: 'ex1', tenantId: 't1', dateDebut: new Date('2026-01-01'), dateFin: new Date('2026-12-31') };
@@ -77,12 +79,26 @@ function services(
       rapprochement: { rapproche: true },
     }),
   } as unknown as DonationService;
+  // Jeu S.M.T · le doublon suffit ici, aucun test de ce fichier ne transcrit
+  // un livre d'inventaire de Système Minimal de Trésorerie (voir
+  // `etats-financiers-smt.service.spec.ts` pour les états eux-mêmes).
+  const efs = {
+    bilan: jest.fn().mockResolvedValue({ etat: 'bilan-smt' }),
+    compteDeResultat: jest.fn().mockResolvedValue({ etat: 'compte-de-resultat-smt' }),
+  } as unknown as EtatsFinanciersSmtService;
+  // Jeu projets · les trois tableaux du point 2 de l'article 14 sont
+  // désormais produits (guide d'application, Applications 21 et 22).
+  const efb = {
+    executionBudgetaire: jest.fn().mockResolvedValue({ etat: 'execution-budgetaire' }),
+    reconciliationTresorerie: jest.fn().mockResolvedValue({ etat: 'reconciliation-tresorerie' }),
+  } as unknown as EtatsFinanciersProjetBudgetService;
   return {
-    inventaire: new LivreInventaireService(prisma, ef, efp),
+    inventaire: new LivreInventaireService(prisma, ef, efp, efs, efb),
     rapport: new RapportActiviteService(prisma, ef, donations),
     prisma,
     ef,
     efp,
+    efs,
   };
 }
 
@@ -148,6 +164,7 @@ describe('Livre d’inventaire · transcription', () => {
 
   it('transcrit le bilan du BON jeu · projets de développement', async () => {
     const { inventaire, ef, efp } = services(JeuEtatsFinanciersSycebnl.PROJETS_DEVELOPPEMENT);
+    efp.tableauEmploisRessources = jest.fn().mockResolvedValue({ etat: 'emplois-ressources' });
     const t = await inventaire.transcrire('t1', 'u1', { exerciceId: 'ex1' });
     expect((t.etats as any).bilan).toEqual({ etat: 'bilan-projet' });
     expect(efp.bilan).toHaveBeenCalled();
@@ -155,29 +172,33 @@ describe('Livre d’inventaire · transcription', () => {
   });
 
   /**
-   * Le point de méthode du module : ne pas laisser croire à une transcription
-   * complète. Trois des cinq états du point 2 ne sont pas construits · le
-   * livre les déclare manquants avec leur motif, au lieu de se présenter
-   * comme conforme sur les deux qu'il porte.
+   * Le point de méthode du module reste le même · ne pas laisser croire à une
+   * transcription complète. Ce qui a changé est le CONSTAT : les cinq états
+   * du point 2 sont désormais produits, la correspondance des trois derniers
+   * ayant été trouvée au guide d'application (chapitre 7, Applications 21 et
+   * 22) et dans les contreparties de trésorerie. Le test vérifie donc que le
+   * livre les transcrit tous, et qu'il ne déclare plus rien manquant.
    */
-  it('déclare manquants les états du point 2 que le logiciel ne produit pas', async () => {
-    const { inventaire } = services(JeuEtatsFinanciersSycebnl.PROJETS_DEVELOPPEMENT);
+  it('transcrit LES CINQ états du point 2, aucun n’est plus déclaré manquant', async () => {
+    const { inventaire, efp } = services(JeuEtatsFinanciersSycebnl.PROJETS_DEVELOPPEMENT);
+    efp.tableauEmploisRessources = jest.fn().mockResolvedValue({ etat: 'emplois-ressources' });
     const t = await inventaire.transcrire('t1', 'u1', { exerciceId: 'ex1' });
-    expect(Object.keys(t.etats as object).sort()).toEqual(['bilan', 'compteExploitation']);
-    const manquants = t.documentsManquants as any[];
     // Assertion sur l'ORDRE DU TEXTE, pas sur un tri alphabétique : l'art. 14
     // point 2 énumère ces états dans cet ordre, et c'est cet ordre que le
     // livre doit restituer à qui le lit.
-    expect(manquants.map((m) => m.cle)).toEqual([
+    expect(Object.keys(t.etats as object)).toEqual([
       'tableauEmploisRessources',
       'tableauExecutionBudgetaire',
       'tableauReconciliationTresorerie',
+      'bilan',
+      'compteExploitation',
     ]);
-    expect(manquants[0].motif).toMatch(/article 14/i);
+    expect(t.documentsManquants).toEqual([]);
   });
 
   it('fige le jeu sur la transcription, pas seulement les états', async () => {
-    const { inventaire } = services(JeuEtatsFinanciersSycebnl.PROJETS_DEVELOPPEMENT);
+    const { inventaire, efp } = services(JeuEtatsFinanciersSycebnl.PROJETS_DEVELOPPEMENT);
+    efp.tableauEmploisRessources = jest.fn().mockResolvedValue({ etat: 'emplois-ressources' });
     const t = await inventaire.transcrire('t1', 'u1', { exerciceId: 'ex1' });
     expect(t.jeu).toBe(JeuEtatsFinanciersSycebnl.PROJETS_DEVELOPPEMENT);
   });
@@ -229,16 +250,17 @@ describe('Livre d’inventaire · conformité (art. 14)', () => {
     expect(c.complete).toBe(true);
   });
 
-  it('reste incomplet pour un projet tant que les trois états manquent, résumé ou non', async () => {
-    const { inventaire } = services(JeuEtatsFinanciersSycebnl.PROJETS_DEVELOPPEMENT);
+  it('un livre de projet est complet dès lors que les cinq états et le résumé y sont', async () => {
+    const { inventaire, efp } = services(JeuEtatsFinanciersSycebnl.PROJETS_DEVELOPPEMENT);
+    efp.tableauEmploisRessources = jest.fn().mockResolvedValue({ etat: 'emplois-ressources' });
     const t = await inventaire.transcrire('t1', 'u1', {
       exerciceId: 'ex1',
       resumeOperationInventaire: 'Inventaire réalisé.',
     });
     expect(t.resumeOperationInventaire).toBeTruthy();
     const c = await inventaire.conformite('t1', 'ex1');
-    expect(c.documentsManquants).toHaveLength(3);
-    expect(c.complete).toBe(false);
+    expect(c.documentsManquants).toHaveLength(0);
+    expect(c.complete).toBe(true);
   });
 });
 

@@ -3,6 +3,7 @@ import { EcritureService } from './ecriture.service';
 import { PrismaService } from '../../common/prisma.service';
 import { JournalService } from '../journaux/journal.service';
 import { ExerciceService } from '../exercice/exercice.service';
+import { AnalytiqueService } from '../analytique/analytique.service';
 
 const d = (n: number) => new Prisma.Decimal(n);
 
@@ -71,7 +72,7 @@ function serviceAvec(
     },
   } as unknown as PrismaService;
 
-  return new EcritureService(prisma, {} as JournalService, {} as ExerciceService);
+  return new EcritureService(prisma, {} as JournalService, {} as ExerciceService, {} as AnalytiqueService);
 }
 
 /**

@@ -107,6 +107,20 @@ export function ModelesSaisieModale({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [comptesTresorerie]);
 
+  /**
+   * CODE TAXE PAR DÉFAUT · Sage porte un taux sur la fiche compte et le
+   * propose dès que ce compte est choisi (skill sage-i7,
+   * `comptabilite-generale.md`). Le taux reste modifiable : c'est une
+   * proposition, pas une contrainte, et une opération exonérée doit rester
+   * saisissable sur un compte qui porte habituellement un taux.
+   */
+  useEffect(() => {
+    if (!compteContrepartieTvaId) return;
+    const compte = comptes.find((c) => c.id === compteContrepartieTvaId);
+    if (compte?.tauxTvaDefautId) setTauxTvaId(compte.tauxTvaDefautId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [compteContrepartieTvaId, comptes]);
+
   const choisirEbnl = (operation: OperationSpecifique, modele: ModeleEcriture) => {
     setSelection({ genre: 'ebnl', operation, modele });
     setErreur(null);

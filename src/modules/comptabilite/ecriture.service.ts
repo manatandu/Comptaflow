@@ -1,10 +1,12 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
-import { Prisma, StatutExercice, TypeCompteDetailTotal } from '@prisma/client';
+import { Prisma, StatutEcriture, StatutExercice, TypeCompteDetailTotal } from '@prisma/client';
 import { CreerEcritureDto } from './dto/creer-ecriture.dto';
 import { CorrigerEcritureDto } from './dto/corriger-ecriture.dto';
+import { ModifierEcritureDto, ValiderJusquaDto } from './dto/brouillard.dto';
 import { JournalService } from '../journaux/journal.service';
 import { ExerciceService } from '../exercice/exercice.service';
+import { AnalytiqueService } from '../analytique/analytique.service';
 import { avecRetrySerialisable } from '../../common/prisma-retry.util';
 
 /**
@@ -32,6 +34,36 @@ export interface LigneAgee {
   total: number;
 }
 
+/** Une échéance à venir, ligne à ligne · le détail de l'échéancier. */
+export interface EcheanceDetail {
+  ligneId: string;
+  date: Date;
+  tranche: string;
+  compteNumero: string;
+  compteIntitule: string;
+  /** Nom du tiers quand le compte lui est rattaché · l'intitulé du compte sinon. */
+  tiers: string | null;
+  libelle: string;
+  reference: string | null;
+  montant: number;
+  sens: 'ENCAISSEMENT' | 'DECAISSEMENT';
+}
+
+/** Une tranche de l'échéancier · ce qui tombe dans une fenêtre de temps. */
+export interface TrancheEcheancier {
+  cle: string;
+  libelle: string;
+  /** Bornes en jours à compter de la date de référence · `null` = sans borne. */
+  deJours: number | null;
+  aJours: number | null;
+  encaissements: number;
+  decaissements: number;
+  /** Encaissements moins décaissements de la tranche. */
+  net: number;
+  /** Trésorerie projetée à la fin de la tranche, cumul depuis la trésorerie actuelle. */
+  tresorerieProjetee: number;
+}
+
 /**
  * Règle non négociable du moteur comptable : une écriture n'existe que si
  * total(débit) === total(crédit), et un exercice clôturé n'accepte plus
@@ -45,6 +77,7 @@ export class EcritureService {
     private readonly prisma: PrismaService,
     private readonly journalService: JournalService,
     private readonly exerciceService: ExerciceService,
+    private readonly analytiqueService: AnalytiqueService,
   ) {}
 
   async creer(tenantId: string, createdBy: string, dto: CreerEcritureDto) {
@@ -110,6 +143,12 @@ export class EcritureService {
     // voir ExerciceService.verifierEcritureAutorisee.
     await this.exerciceService.verifierEcritureAutorisee(tenantId, dto.journalId, date);
 
+    // Ventilation analytique · seuls les plans marqués « ventilation
+    // obligatoire » bloquent ici. Les autres laissent passer, et l'état de
+    // contrôle des cumuls signale les lignes restées sans répartition.
+    await this.analytiqueService.verifierVentilationObligatoire(tenantId, dto.lignes);
+    const sectionsParId = await this.verifierSectionsVentilees(tenantId, dto);
+
     // Le calcul du numéro de pièce (lire le max actuel, l'incrémenter) et la
     // création de l'écriture doivent former une seule opération atomique :
     // sans ça, deux écritures créées au même instant sur le même journal
@@ -139,6 +178,21 @@ export class EcritureService {
                 credit: l.credit ?? 0,
                 tauxTvaId: l.tauxTvaId,
                 dateEcheance: l.dateEcheance ? new Date(l.dateEcheance) : undefined,
+                deviseId: l.deviseId,
+                montantDevise: l.montantDevise,
+                coursApplique: l.coursApplique,
+                ...(l.ventilations && l.ventilations.length > 0
+                  ? {
+                      ventilations: {
+                        create: l.ventilations.map((v) => ({
+                          sectionId: v.sectionId,
+                          planId: sectionsParId.get(v.sectionId)!.planId,
+                          debit: v.debit ?? 0,
+                          credit: v.credit ?? 0,
+                        })),
+                      },
+                    }
+                  : {}),
               })),
             },
           },
@@ -149,6 +203,334 @@ export class EcritureService {
     );
   }
 
+
+
+  /**
+   * Contrôle des sections ventilées en saisie · scope du dossier, type Détail,
+   * section active, et équilibre PAR PLAN de chaque ligne. La contrainte n'est
+   * pas « une section par ligne » mais « sur un plan donné, la ventilation
+   * d'une ligne couvre son montant en totalité, ou il n'y en a aucune » : une
+   * dépense partagée entre deux projets est parfaitement légitime.
+   *
+   * Retourne les sections indexées par id, pour que la création de l'écriture
+   * puisse dénormaliser le planId sur chaque ventilation sans requête de plus.
+   */
+  private async verifierSectionsVentilees(tenantId: string, dto: CreerEcritureDto) {
+    const sectionIds = [
+      ...new Set(dto.lignes.flatMap((l) => (l.ventilations ?? []).map((v) => v.sectionId))),
+    ];
+    const sectionsParId = new Map<string, { planId: string; code: string; planCode: string }>();
+    if (sectionIds.length === 0) return sectionsParId;
+
+    const sections = await this.prisma.sectionAnalytique.findMany({
+      where: { id: { in: sectionIds }, tenantId },
+      include: { plan: { select: { code: true } } },
+    });
+    if (sections.length !== sectionIds.length) {
+      throw new BadRequestException('Une ou plusieurs sections analytiques sont introuvables pour ce dossier');
+    }
+    const totale = sections.find((s) => s.type === TypeCompteDetailTotal.TOTAL);
+    if (totale) {
+      throw new BadRequestException(
+        `La section ${totale.code} est de type Total : elle regroupe ses sections Détail dans les états et ne reçoit pas de ventilation directe.`,
+      );
+    }
+    const sommeil = sections.find((s) => !s.estActive);
+    if (sommeil) {
+      throw new BadRequestException(`La section analytique ${sommeil.code} est en sommeil`);
+    }
+    for (const s of sections) {
+      sectionsParId.set(s.id, { planId: s.planId, code: s.code, planCode: s.plan.code });
+    }
+
+    for (const [index, ligne] of dto.lignes.entries()) {
+      if (!ligne.ventilations || ligne.ventilations.length === 0) continue;
+      const parPlan = new Map<string, { debit: number; credit: number; planCode: string }>();
+      for (const v of ligne.ventilations) {
+        const s = sectionsParId.get(v.sectionId)!;
+        const cumul = parPlan.get(s.planId) ?? { debit: 0, credit: 0, planCode: s.planCode };
+        cumul.debit += v.debit ?? 0;
+        cumul.credit += v.credit ?? 0;
+        parPlan.set(s.planId, cumul);
+      }
+      for (const [, cumul] of parPlan) {
+        if (
+          Math.abs(cumul.debit - (ligne.debit ?? 0)) > 0.005 ||
+          Math.abs(cumul.credit - (ligne.credit ?? 0)) > 0.005
+        ) {
+          throw new BadRequestException(
+            `Ligne ${index + 1} : ventilation incomplète sur le plan ${cumul.planCode} · ` +
+              `${cumul.debit.toFixed(2)} au débit et ${cumul.credit.toFixed(2)} au crédit, ` +
+              `pour une ligne de ${(ligne.debit ?? 0).toFixed(2)} / ${(ligne.credit ?? 0).toFixed(2)}.`,
+          );
+        }
+      }
+    }
+    return sectionsParId;
+  }
+
+
+  // ==========================================================================
+  // BROUILLARD ET VALIDATION
+  //
+  // Une écriture naît en BROUILLARD : modifiable et supprimable, elle n'est pas
+  // encore au livre-journal. La VALIDER l'y fait entrer, et la rend intangible
+  // au sens de l'article 20 · à partir de là, seule l'inscription en négatif
+  // corrige.
+  //
+  // Cette frontière n'existait pas jusqu'ici : toute écriture était définitive
+  // dès sa saisie, et une faute de frappe repérée dans la seconde coûtait une
+  // contre-écriture. Le brouillard réconcilie l'ergonomie et l'intangibilité,
+  // sans rien céder sur la seconde.
+  //
+  // Le SYCEBNL borne ce séjour. La Partie 2 ch. 2 impose que « les données des
+  // documents auxiliaires sont centralisées au moins chaque semaine dans le
+  // journal ou le grand-livre » : au-delà de sept jours, une écriture laissée
+  // en brouillard n'est plus un document de travail, c'est un retard de
+  // centralisation. L'état du brouillard le signale nommément.
+  // ==========================================================================
+
+  /** Sept jours · délai de centralisation du SYCEBNL, Partie 2 ch. 2. */
+  private static readonly JOURS_CENTRALISATION = 7;
+
+  private async trouverEnBrouillard(tenantId: string, ecritureId: string) {
+    const ecriture = await this.prisma.ecriture.findFirst({
+      where: { id: ecritureId, tenantId },
+      include: { lignes: true, journal: true, exercice: true },
+    });
+    if (!ecriture) throw new NotFoundException('Écriture introuvable pour ce dossier.');
+    if (ecriture.statut === StatutEcriture.VALIDEE) {
+      throw new ForbiddenException(
+        `L'écriture n° ${ecriture.numeroPiece ?? ''} est validée : elle est entrée au livre-journal et ne se modifie ` +
+          "plus. L'article 20 de l'AUDCIF n'ouvre qu'une voie, la correction par inscription en négatif.",
+      );
+    }
+    if (ecriture.exercice.statut === StatutExercice.CLOTURE) {
+      throw new ForbiddenException("L'exercice de cette écriture est clôturé.");
+    }
+    const lettree = ecriture.lignes.find((l) => l.lettre);
+    if (lettree) {
+      throw new BadRequestException(
+        `Une ligne de cette écriture est lettrée (${lettree.lettre}) : délettrez-la avant de modifier l'écriture.`,
+      );
+    }
+    const pointee = ecriture.lignes.find((l) => l.rapprochementId);
+    if (pointee) {
+      throw new BadRequestException(
+        'Une ligne de cette écriture est pointée dans un rapprochement bancaire : dépointez-la avant de modifier.',
+      );
+    }
+    return ecriture;
+  }
+
+  /**
+   * Modifie une écriture en brouillard. Les lignes sont remplacées en bloc :
+   * une écriture est un tout équilibré, et retoucher une ligne isolément
+   * ouvrirait une fenêtre où elle ne l'est plus.
+   */
+  async modifier(tenantId: string, ecritureId: string, dto: ModifierEcritureDto) {
+    const ecriture = await this.trouverEnBrouillard(tenantId, ecritureId);
+    const date = dto.date ? new Date(dto.date) : ecriture.date;
+
+    if (date < ecriture.exercice.dateDebut || date > ecriture.exercice.dateFin) {
+      throw new BadRequestException("La date sort de l'exercice de l'écriture.");
+    }
+    await this.exerciceService.verifierEcritureAutorisee(tenantId, ecriture.journalId, date);
+
+    if (dto.lignes) {
+      const totalDebit = dto.lignes.reduce((s, l) => s + (l.debit ?? 0), 0);
+      const totalCredit = dto.lignes.reduce((s, l) => s + (l.credit ?? 0), 0);
+      if (Math.abs(totalDebit - totalCredit) > 0.005) {
+        throw new BadRequestException(`Écriture déséquilibrée : débit=${totalDebit} crédit=${totalCredit}`);
+      }
+      const compteIds = [...new Set(dto.lignes.map((l) => l.compteId))];
+      const comptes = await this.prisma.compte.findMany({ where: { id: { in: compteIds }, tenantId } });
+      if (comptes.length !== compteIds.length) {
+        throw new BadRequestException('Un ou plusieurs comptes sont introuvables pour ce tenant');
+      }
+      const comptesTotal = comptes.filter((c) => c.typeCompte === TypeCompteDetailTotal.TOTAL);
+      if (comptesTotal.length > 0) {
+        throw new BadRequestException(
+          `Impossible de saisir sur un compte Total (${comptesTotal.map((c) => c.numero).join(', ')})`,
+        );
+      }
+      await this.analytiqueService.verifierVentilationObligatoire(tenantId, dto.lignes);
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      if (dto.lignes) {
+        // Les ventilations analytiques suivent leurs lignes (onDelete: Cascade
+        // sur VentilationAnalytique.ligne) : remplacer les lignes remplace
+        // aussi la ventilation, ce qui est le comportement attendu · on ne
+        // garde pas l'imputation projet d'une ligne qui n'existe plus.
+        await tx.ligneEcriture.deleteMany({ where: { ecritureId } });
+        await tx.ligneEcriture.createMany({
+          data: dto.lignes.map((l) => ({
+            ecritureId,
+            compteId: l.compteId,
+            libelle: l.libelle,
+            debit: l.debit ?? 0,
+            credit: l.credit ?? 0,
+            tauxTvaId: l.tauxTvaId,
+            dateEcheance: l.dateEcheance ? new Date(l.dateEcheance) : undefined,
+          })),
+        });
+      }
+      return tx.ecriture.update({
+        where: { id: ecritureId },
+        data: {
+          date,
+          libelle: dto.libelle ?? undefined,
+          reference: dto.reference ?? undefined,
+        },
+        include: { lignes: { include: { compte: true } }, journal: true },
+      });
+    });
+  }
+
+  /** Supprime une écriture en brouillard. Une écriture validée ne se supprime pas. */
+  async supprimer(tenantId: string, ecritureId: string) {
+    await this.trouverEnBrouillard(tenantId, ecritureId);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.ligneEcriture.deleteMany({ where: { ecritureId } });
+      await tx.ecriture.delete({ where: { id: ecritureId } });
+    });
+    return { supprime: true };
+  }
+
+  /**
+   * Valide une sélection d'écritures : elles entrent au livre-journal. Le
+   * contrôle d'équilibre est refait ici · une écriture ne devrait jamais être
+   * déséquilibrée en base, mais la validation est le dernier point où on peut
+   * encore l'empêcher d'entrer dans un document légal.
+   */
+  async valider(tenantId: string, valideeBy: string, ecritureIds: string[]) {
+    const ecritures = await this.prisma.ecriture.findMany({
+      where: { id: { in: ecritureIds }, tenantId },
+      include: { lignes: true, exercice: { select: { statut: true } }, journal: { select: { code: true } } },
+    });
+    if (ecritures.length !== ecritureIds.length) {
+      throw new NotFoundException('Une ou plusieurs écritures sont introuvables pour ce dossier.');
+    }
+    const dejaValidees = ecritures.filter((e) => e.statut === StatutEcriture.VALIDEE);
+    const aValider = ecritures.filter((e) => e.statut === StatutEcriture.BROUILLARD);
+
+    for (const e of aValider) {
+      if (e.exercice.statut === StatutExercice.CLOTURE) {
+        throw new ForbiddenException(`L'exercice de l'écriture ${e.journal.code} n° ${e.numeroPiece ?? ''} est clôturé.`);
+      }
+      const debit = e.lignes.reduce((s, l) => s + Number(l.debit), 0);
+      const credit = e.lignes.reduce((s, l) => s + Number(l.credit), 0);
+      if (Math.abs(debit - credit) > 0.005) {
+        throw new BadRequestException(
+          `L'écriture ${e.journal.code} n° ${e.numeroPiece ?? ''} est déséquilibrée (${debit} / ${credit}) : ` +
+            'corrigez-la avant de la valider.',
+        );
+      }
+    }
+
+    const valideeAt = new Date();
+    await this.prisma.ecriture.updateMany({
+      where: { id: { in: aValider.map((e) => e.id) } },
+      data: { statut: StatutEcriture.VALIDEE, valideeAt, valideeBy },
+    });
+    return { validees: aValider.length, dejaValidees: dejaValidees.length };
+  }
+
+  /** Valide tout le brouillard jusqu'à une date, éventuellement sur un seul journal. */
+  async validerJusqua(tenantId: string, valideeBy: string, dto: ValiderJusquaDto) {
+    const ecritures = await this.prisma.ecriture.findMany({
+      where: {
+        tenantId,
+        exerciceId: dto.exerciceId,
+        statut: StatutEcriture.BROUILLARD,
+        date: { lte: new Date(dto.dateLimite) },
+        ...(dto.journalId ? { journalId: dto.journalId } : {}),
+      },
+      select: { id: true },
+    });
+    if (ecritures.length === 0) {
+      return { validees: 0, dejaValidees: 0 };
+    }
+    return this.valider(
+      tenantId,
+      valideeBy,
+      ecritures.map((e) => e.id),
+    );
+  }
+
+  /**
+   * État du brouillard · État → Brouillard de Sage, augmenté du retard de
+   * centralisation qu'impose le SYCEBNL. Chaque écriture porte son ancienneté
+   * en jours et un drapeau au-delà de sept.
+   */
+  async brouillard(
+    tenantId: string,
+    params: { exerciceId: string; journalId?: string; dateDebut?: string; dateFin?: string },
+  ) {
+    const ecritures = await this.prisma.ecriture.findMany({
+      where: {
+        tenantId,
+        exerciceId: params.exerciceId,
+        statut: StatutEcriture.BROUILLARD,
+        ...(params.journalId ? { journalId: params.journalId } : {}),
+        ...(params.dateDebut || params.dateFin
+          ? {
+              date: {
+                ...(params.dateDebut ? { gte: new Date(params.dateDebut) } : {}),
+                ...(params.dateFin ? { lte: new Date(params.dateFin) } : {}),
+              },
+            }
+          : {}),
+      },
+      include: {
+        journal: { select: { code: true, intitule: true } },
+        lignes: { include: { compte: { select: { numero: true, intitule: true } } } },
+      },
+      orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
+    });
+
+    const maintenant = Date.now();
+    const lignes = ecritures.map((e) => {
+      const ancienneteJours = Math.floor((maintenant - e.createdAt.getTime()) / 86_400_000);
+      const debit = e.lignes.reduce((s, l) => s + Number(l.debit), 0);
+      const credit = e.lignes.reduce((s, l) => s + Number(l.credit), 0);
+      return {
+        id: e.id,
+        date: e.date.toISOString().slice(0, 10),
+        createdAt: e.createdAt.toISOString(),
+        journal: e.journal.code,
+        journalIntitule: e.journal.intitule,
+        numeroPiece: e.numeroPiece,
+        libelle: e.libelle,
+        reference: e.reference,
+        debit,
+        credit,
+        equilibree: Math.abs(debit - credit) <= 0.005,
+        ancienneteJours,
+        retardCentralisation: ancienneteJours > EcritureService.JOURS_CENTRALISATION,
+        lignes: e.lignes.map((l) => ({
+          compteNumero: l.compte.numero,
+          compteIntitule: l.compte.intitule,
+          libelle: l.libelle,
+          debit: Number(l.debit),
+          credit: Number(l.credit),
+        })),
+      };
+    });
+
+    return {
+      lignes,
+      totaux: {
+        nombre: lignes.length,
+        debit: lignes.reduce((s, l) => s + l.debit, 0),
+        credit: lignes.reduce((s, l) => s + l.credit, 0),
+        desequilibrees: lignes.filter((l) => !l.equilibree).length,
+        enRetard: lignes.filter((l) => l.retardCentralisation).length,
+      },
+      delaiCentralisationJours: EcritureService.JOURS_CENTRALISATION,
+    };
+  }
 
   /**
    * CORRECTION D'ERREUR PAR INSCRIPTION EN NÉGATIF · art. 20 de l'AUDCIF,
@@ -207,6 +589,14 @@ export class EcritureService {
       },
     });
     if (!origine) throw new NotFoundException('Écriture introuvable pour ce dossier.');
+
+    if (origine.statut === StatutEcriture.BROUILLARD) {
+      throw new BadRequestException(
+        "Cette écriture est encore en brouillard : elle n'est pas entrée au livre-journal. " +
+          "Modifiez-la directement plutôt que d'y ajouter une inscription en négatif, qui laisserait " +
+          'deux écritures là où il n\'y a qu\'une saisie à reprendre.',
+      );
+    }
 
     this.verifierCorrigeable(origine);
 
@@ -352,11 +742,24 @@ export class EcritureService {
   /** Journal : liste chronologique des écritures, filtrable par exercice/journal/période/recherche. */
   async lister(
     tenantId: string,
-    filtres: { exerciceId?: string; journalId?: string; dateDebut?: string; dateFin?: string; recherche?: string },
+    filtres: {
+      exerciceId?: string;
+      journalId?: string;
+      dateDebut?: string;
+      dateFin?: string;
+      recherche?: string;
+      /**
+       * Le journal est un état de TRAVAIL : il montre le brouillard par
+       * défaut, marqué comme tel, pour que le comptable voie où il en est.
+       * `false` donne le livre-journal seul, tel qu'il sera imprimé.
+       */
+      inclureBrouillard?: boolean;
+    },
   ) {
     const ecritures = await this.prisma.ecriture.findMany({
       where: {
         tenantId,
+        ...(filtres.inclureBrouillard === false ? { statut: StatutEcriture.VALIDEE } : {}),
         ...(filtres.exerciceId ? { exerciceId: filtres.exerciceId } : {}),
         ...(filtres.journalId ? { journalId: filtres.journalId } : {}),
         ...(filtres.dateDebut || filtres.dateFin
@@ -507,6 +910,178 @@ export class EcritureService {
   }
 
   /**
+   * ÉCHÉANCIER DE TRÉSORERIE · ce qui va tomber, et ce qu'il restera en
+   * caisse quand ce sera tombé.
+   *
+   * ## Pourquoi il ne fait pas double emploi avec la balance âgée
+   *
+   * La balance âgée regarde EN ARRIÈRE : elle ventile par ancienneté de
+   * retard ce qui aurait dû être réglé. L'échéancier regarde EN AVANT : il
+   * ventile par date d'exigibilité ce qui va devoir l'être, et le confronte
+   * à la trésorerie disponible. Ce sont deux questions différentes, et une
+   * association qui vit de tranches de subvention se pose surtout la seconde.
+   *
+   * Sage les distingue d'ailleurs lui aussi (`sage-i7`,
+   * `comptabilite-generale.md` : « Échéancier : état de suivi des échéances à
+   * venir, DISTINCT de la balance âgée »).
+   *
+   * ## Assiette
+   *
+   * Les lignes non lettrées des comptes de tiers, classes 40 à 44 · pas
+   * seulement les fournisseurs et les clients. Une ASBL congolaise doit
+   * autant d'argent à son personnel (42), aux organismes sociaux (43) et à
+   * l'État (44) qu'à ses fournisseurs, et ces trois-là ont des dates de
+   * reversement strictes (voir docs/fiscalite-asbl-rdc.md, section 6). Un
+   * échéancier qui les ignorerait manquerait précisément ce qui met une
+   * association en défaut.
+   *
+   * `lettre: null` et non `lettrageId: null` : une ligne d'un groupe de
+   * lettrage PARTIEL reste due pour son solde, elle a donc sa place ici.
+   *
+   * L'échéance retenue est `dateEcheance` ; à défaut, la date de l'écriture,
+   * même règle que la balance âgée et que Sage.
+   *
+   * ## Sens
+   *
+   * Une ligne de tiers au débit est une créance : son dénouement est un
+   * ENCAISSEMENT. Au crédit, c'est une dette : un DÉCAISSEMENT.
+   *
+   * ## Détail ligne à ligne, totaux compensés
+   *
+   * Contrairement à la balance âgée, qui agrège par compte, le détail garde
+   * une ligne par écriture avec sa pièce : c'est ce qu'on attend d'un état
+   * d'en-cours, où l'on veut savoir QUELLE facture tombe quand. Une
+   * correction par inscription en négatif (art. 20 AUDCIF) y reste donc
+   * visible à côté de la ligne qu'elle corrige · elles se compensent dans le
+   * total de la tranche, et c'est la projection qui décide.
+   */
+  async echeancier(
+    tenantId: string,
+    params: { exerciceId: string; dateReference?: string },
+  ) {
+    const ref = params.dateReference ? new Date(params.dateReference) : new Date();
+    // Minuit, pour qu'une échéance du jour ne bascule pas en retard selon
+    // l'heure d'ouverture de l'écran.
+    ref.setHours(0, 0, 0, 0);
+
+    const [lignes, tresorerie] = await Promise.all([
+      this.prisma.ligneEcriture.findMany({
+        where: {
+          ecriture: { tenantId, exerciceId: params.exerciceId },
+          lettre: null,
+          OR: ['40', '41', '42', '43', '44'].map((r) => ({ compte: { numero: { startsWith: r } } })),
+        },
+        include: {
+          compte: {
+            select: {
+              id: true,
+              numero: true,
+              intitule: true,
+              tiersCompte: { select: { tiers: { select: { nom: true } } } },
+            },
+          },
+          ecriture: { select: { date: true, libelle: true, reference: true } },
+        },
+      }),
+      // Trésorerie disponible au sens du plan SYCEBNL : classe 5 hors 59
+      // (dépréciations, qui ne sont pas des liquidités).
+      this.prisma.ligneEcriture.findMany({
+        where: {
+          ecriture: { tenantId, exerciceId: params.exerciceId },
+          compte: { numero: { startsWith: '5' } },
+        },
+        select: { debit: true, credit: true, compte: { select: { numero: true } } },
+      }),
+    ]);
+
+    const tresorerieActuelle = tresorerie
+      .filter((l) => !l.compte.numero.startsWith('59'))
+      .reduce((s, l) => s + Number(l.debit) - Number(l.credit), 0);
+
+    const TRANCHES: Array<{ cle: string; libelle: string; deJours: number | null; aJours: number | null }> = [
+      { cle: 'echu', libelle: 'Échu, non réglé', deJours: null, aJours: -1 },
+      { cle: 'j0a7', libelle: 'À 7 jours', deJours: 0, aJours: 7 },
+      { cle: 'j8a30', libelle: 'De 8 à 30 jours', deJours: 8, aJours: 30 },
+      { cle: 'j31a60', libelle: 'De 31 à 60 jours', deJours: 31, aJours: 60 },
+      { cle: 'j61a90', libelle: 'De 61 à 90 jours', deJours: 61, aJours: 90 },
+      { cle: 'plus90', libelle: 'Au-delà de 90 jours', deJours: 91, aJours: null },
+    ];
+
+    const trancheDe = (echeance: Date): string => {
+      const jours = Math.floor((echeance.getTime() - ref.getTime()) / 86_400_000);
+      if (jours < 0) return 'echu';
+      if (jours <= 7) return 'j0a7';
+      if (jours <= 30) return 'j8a30';
+      if (jours <= 60) return 'j31a60';
+      if (jours <= 90) return 'j61a90';
+      return 'plus90';
+    };
+
+    const details: EcheanceDetail[] = [];
+    for (const l of lignes) {
+      const net = Number(l.debit) - Number(l.credit);
+      if (Math.abs(net) < 0.005) continue;
+      const date = l.dateEcheance ?? l.ecriture.date;
+      details.push({
+        ligneId: l.id,
+        date,
+        tranche: trancheDe(date),
+        compteNumero: l.compte.numero,
+        compteIntitule: l.compte.intitule,
+        tiers: l.compte.tiersCompte?.tiers.nom ?? null,
+        libelle: l.libelle ?? l.ecriture.libelle,
+        reference: l.ecriture.reference,
+        montant: Math.abs(net),
+        sens: net > 0 ? 'ENCAISSEMENT' : 'DECAISSEMENT',
+      });
+    }
+    details.sort((a, b) => a.date.getTime() - b.date.getTime());
+
+    let cumul = tresorerieActuelle;
+    const tranches: TrancheEcheancier[] = TRANCHES.map((t) => {
+      const dedans = details.filter((d) => d.tranche === t.cle);
+      const encaissements = dedans.filter((d) => d.sens === 'ENCAISSEMENT').reduce((s, d) => s + d.montant, 0);
+      const decaissements = dedans.filter((d) => d.sens === 'DECAISSEMENT').reduce((s, d) => s + d.montant, 0);
+      const net = encaissements - decaissements;
+      cumul += net;
+      return {
+        ...t,
+        encaissements: Math.round(encaissements * 100) / 100,
+        decaissements: Math.round(decaissements * 100) / 100,
+        net: Math.round(net * 100) / 100,
+        tresorerieProjetee: Math.round(cumul * 100) / 100,
+      };
+    });
+
+    // La première tranche où la projection passe sous zéro · c'est LA
+    // réponse que cherche un trésorier, et elle doit être nommée plutôt que
+    // laissée à lire dans une colonne.
+    const premiereTrancheNegative = tranches.find((t) => t.tresorerieProjetee < 0) ?? null;
+
+    return {
+      dateReference: ref,
+      tresorerieActuelle: Math.round(tresorerieActuelle * 100) / 100,
+      tranches,
+      details,
+      alerte: premiereTrancheNegative
+        ? {
+            tranche: premiereTrancheNegative.cle,
+            libelle: premiereTrancheNegative.libelle,
+            tresorerieProjetee: premiereTrancheNegative.tresorerieProjetee,
+            message:
+              `La trésorerie projetée devient négative dans la tranche « ${premiereTrancheNegative.libelle} » ` +
+              `(${premiereTrancheNegative.tresorerieProjetee.toFixed(2)}). Les échéances de cette tranche et des ` +
+              'suivantes ne pourront pas être honorées sans encaissement supplémentaire.',
+          }
+        : null,
+      // Les échéances non renseignées prennent la date de l'écriture : c'est
+      // la règle, mais elle fausse la projection si beaucoup de lignes en
+      // relèvent. Le compte est donné pour que le lecteur en juge.
+      lignesSansEcheance: lignes.filter((l) => l.dateEcheance === null).length,
+    };
+  }
+
+  /**
    * BALANCE ÂGÉE · état prévisionnel des échéances (Sage : État → Balance
    * âgée : « état prévisionnel des échéances à venir, ventilées par tranches
    * de dates, en fonction d'une date de référence »).
@@ -527,11 +1102,11 @@ export class EcritureService {
    */
   async balanceAgee(
     tenantId: string,
-    params: { exerciceId: string; dateReference?: string; type?: 'CLIENTS' | 'FOURNISSEURS' | 'TOUS' },
+    params: { exerciceId: string; dateReference?: string; type?: 'ADHERENTS_CLIENTS' | 'FOURNISSEURS' | 'TOUS' },
   ) {
     const ref = params.dateReference ? new Date(params.dateReference) : new Date();
     const type = params.type ?? 'TOUS';
-    const racines = type === 'CLIENTS' ? ['41'] : type === 'FOURNISSEURS' ? ['40'] : ['40', '41'];
+    const racines = type === 'ADHERENTS_CLIENTS' ? ['41'] : type === 'FOURNISSEURS' ? ['40'] : ['40', '41'];
 
     const lignes = await this.prisma.ligneEcriture.findMany({
       where: {
@@ -732,13 +1307,28 @@ export class EcritureService {
    * de clôture, pas une ouverture · les charges et les produits ne se
    * reportent pas. `mouvement*` reste, lui, juste dans tous les cas.
    */
-  async balance(tenantId: string, exerciceId: string) {
+  /**
+   * Balance générale.
+   *
+   * `inclureBrouillard` vaut vrai pour les états de TRAVAIL : le comptable
+   * doit voir où il en est, brouillard compris. Les états LÉGAUX (bilan,
+   * compte de résultat, tableau de flux, livre d'inventaire, notes annexes)
+   * passent faux et ne lisent que le livre-journal · un état financier bâti
+   * sur des écritures non validées n'engagerait personne.
+   */
+  async balance(tenantId: string, exerciceId: string, inclureBrouillard = true) {
     const comptes = await this.prisma.compte.findMany({
       where: { tenantId },
       orderBy: { numero: 'asc' },
       include: {
         lignesEcriture: {
-          where: { ecriture: { tenantId, exerciceId } },
+          where: {
+            ecriture: {
+              tenantId,
+              exerciceId,
+              ...(inclureBrouillard ? {} : { statut: StatutEcriture.VALIDEE }),
+            },
+          },
           include: { ecriture: { select: { estGenereeParCloture: true } } },
         },
       },

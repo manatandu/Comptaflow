@@ -59,26 +59,37 @@ export function Toolbar() {
   };
 
   return (
-    <div className="flex items-stretch gap-0 px-1.5 py-0.5 bg-chrome border-b border-border-dark">
+    <div className="flex items-stretch gap-0 px-2 py-1.5 bg-chrome/70 backdrop-blur-md border-b border-border">
       {OUTILS.map((groupe, gi) => (
-        <div key={gi} className="flex items-stretch">
-          {gi > 0 && <div className="w-px bg-border mx-1 my-1" />}
-          {groupe.map((o) => (
-            <button
-              key={o.chemin}
-              type="button"
-              title={o.titre}
-              onClick={() => navigate(o.chemin)}
-              className={`flex flex-col items-center justify-center gap-0.5 w-[58px] py-1 border ${
-                estActif(o.chemin)
-                  ? 'border-border-dark bg-surface-alt shadow-[inset_1px_1px_2px_rgba(0,0,0,0.12)]'
-                  : 'border-transparent hover:border-border hover:bg-chrome-alt'
-              }`}
-            >
-              <o.Icon width={18} height={18} />
-              <span className="text-[9px] text-text-dim leading-none">{o.label}</span>
-            </button>
-          ))}
+        <div key={gi} className="flex items-stretch gap-0.5">
+          {gi > 0 && <div className="w-px bg-border mx-1.5 my-1.5" />}
+          {groupe.map((o) => {
+            const actif = estActif(o.chemin);
+            return (
+              /*
+                L'outil actif n'est plus « enfoncé » par une ombre interne,
+                effet daté et illisible sur un écran mat : il porte une
+                pastille bleue franche. On voit où l'on est d'un coup d'œil,
+                de loin, ce qui est le seul rôle de cette barre.
+              */
+              <button
+                key={o.chemin}
+                type="button"
+                title={o.titre}
+                onClick={() => navigate(o.chemin)}
+                className={`group relative flex flex-col items-center justify-center gap-1 w-[64px] py-1.5 rounded-[9px] transition-[background-color,color,transform] duration-150 ${
+                  actif
+                    ? 'bg-sel text-white shadow-[0_2px_8px_-2px_color-mix(in_srgb,var(--sel)_55%,transparent)]'
+                    : 'text-text-dim hover:bg-chrome-alt hover:text-text'
+                }`}
+              >
+                <span className={`transition-transform duration-200 ${actif ? '' : 'group-hover:-translate-y-[1px]'}`}>
+                  <o.Icon width={18} height={18} />
+                </span>
+                <span className={`text-[9.5px] leading-none ${actif ? 'font-semibold' : ''}`}>{o.label}</span>
+              </button>
+            );
+          })}
         </div>
       ))}
     </div>

@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../common/prisma.service';
@@ -8,9 +8,11 @@ import { ExerciceService } from '../exercice/exercice.service';
 import { JournalService } from '../journaux/journal.service';
 import { TauxTvaService } from '../tva/taux-tva.service';
 import { ImmobilisationService } from '../immobilisations/immobilisation.service';
+import { AnalytiqueService } from '../analytique/analytique.service';
+import { RelancesService } from '../relances/relances.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
-import { RoleUtilisateur, TypeLicence } from '@prisma/client';
+import { Referentiel, RoleUtilisateur, TypeLicence } from '@prisma/client';
 
 const SALT_ROUNDS = 12;
 
@@ -25,6 +27,8 @@ export class AuthService {
     private readonly journalService: JournalService,
     private readonly tauxTvaService: TauxTvaService,
     private readonly immobilisationService: ImmobilisationService,
+    private readonly analytiqueService: AnalytiqueService,
+    private readonly relancesService: RelancesService,
   ) {}
 
   /**
@@ -45,10 +49,27 @@ export class AuthService {
       throw new ConflictException('Un compte existe déjà avec cet email');
     }
 
+    // Le DTO accepte les deux valeurs de l'enum `Referentiel` parce que le
+    // schéma les porte toutes deux, mais `seedPlanSycebnl` ci-dessous n'en
+    // sème qu'UN : le plan SYCEBNL. Sans ce garde-fou, un dossier créé en
+    // SYSCOHADA se retrouverait tenu avec la nomenclature des entités à but
+    // non lucratif tout en s'annonçant en référentiel d'entreprise · un
+    // mensonge silencieux sur chaque état imprimé. L'assistant côté client
+    // présente d'ailleurs le SYSCOHADA comme « bientôt » ; ce refus est ce
+    // qui rend cette mention vraie côté serveur.
+    if (dto.referentiel !== Referentiel.SYCEBNL) {
+      throw new BadRequestException(
+        "Le référentiel SYSCOHADA révisé (entités à but lucratif) n'est pas encore construit dans OmegaX : " +
+          "son plan de comptes et ses états financiers lui sont propres et ne peuvent pas être remplacés par ceux " +
+          'du SYCEBNL. Seul le référentiel SYCEBNL peut être retenu pour l\'instant.',
+      );
+    }
+
     const tenant = await this.tenantService.creerTenant({
       nom: dto.nomEntite,
       referentiel: dto.referentiel,
       typeLicence: dto.typeLicence ?? TypeLicence.ABONNEMENT,
+      jeuEtatsFinanciersSycebnl: dto.jeuEtatsFinanciersSycebnl,
       activite: dto.activite,
       adresse: dto.adresse,
       ville: dto.ville,
@@ -77,6 +98,13 @@ export class AuthService {
     await this.journalService.seedJournauxDefaut(tenant.id);
     await this.tauxTvaService.seedTauxDefaut(tenant.id);
     await this.immobilisationService.seedFamillesDefaut(tenant.id);
+    // Axes analytiques Projets / Bailleurs · aucune dépendance sur les comptes,
+    // mais placés ici pour que le dossier soit prêt à ventiler dès la
+    // première écriture.
+    await this.analytiqueService.seedPlansDefaut(tenant.id);
+    // Trois niveaux de relance au ton d'une association à ses membres · voir
+    // RelancesService.NIVEAUX_DEFAUT.
+    await this.relancesService.seedNiveauxDefaut(tenant.id);
     const exercice =
       dto.dateDebutExercice && dto.dateFinExercice
         ? await this.exerciceService.creer(tenant.id, {
@@ -86,7 +114,13 @@ export class AuthService {
         : await this.exerciceService.creerExerciceCourant(tenant.id);
 
     return {
-      tenant: { id: tenant.id, nom: tenant.nom, referentiel: tenant.referentiel },
+      tenant: {
+        id: tenant.id,
+        nom: tenant.nom,
+        referentiel: tenant.referentiel,
+        jeuEtatsFinanciersSycebnl: tenant.jeuEtatsFinanciersSycebnl,
+        numeroImpot: tenant.numeroImpot,
+      },
       exercice,
       ...this.signToken(user.id),
     };
@@ -126,6 +160,9 @@ export class AuthService {
         // N'a de sens que si referentiel = SYCEBNL (voir prisma/schema.prisma) ·
         // le front s'en sert pour choisir le jeu d'états financiers à afficher.
         jeuEtatsFinanciersSycebnl: user.tenant.jeuEtatsFinanciersSycebnl,
+        // Porté jusqu'au front pour l'en-tête d'impression : le n° impôt doit
+        // figurer sur chaque page d'un état déposé (CPCC, § 7.4 règle 7-a).
+        numeroImpot: user.tenant.numeroImpot,
       },
     };
   }

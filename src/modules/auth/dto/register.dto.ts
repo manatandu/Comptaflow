@@ -1,5 +1,5 @@
 import { IsDateString, IsEmail, IsEnum, IsOptional, IsString, MinLength } from 'class-validator';
-import { Referentiel, TypeLicence } from '@prisma/client';
+import { JeuEtatsFinanciersSycebnl, Referentiel, TypeLicence } from '@prisma/client';
 
 /**
  * Inscription = création du tenant (cabinet/association) + de son admin +
@@ -25,6 +25,16 @@ export class RegisterDto {
 
   @MinLength(10, { message: 'Le mot de passe doit contenir au moins 10 caractères' })
   motDePasse!: string;
+
+  // Jeu d'états financiers SYCEBNL · écran « Type d'entité » de l'assistant.
+  // Article 4 de l'Acte uniforme : une association ou un ordre professionnel
+  // n'a pas les mêmes états qu'un projet de développement (tableau
+  // emplois-ressources, exécution budgétaire, réconciliation de trésorerie).
+  // Omis, on retient les associations et ordres professionnels, cas le plus
+  // fréquent (défaut du schéma).
+  @IsOptional()
+  @IsEnum(JeuEtatsFinanciersSycebnl)
+  jeuEtatsFinanciersSycebnl?: JeuEtatsFinanciersSycebnl;
 
   @IsOptional()
   @IsEnum(TypeLicence)

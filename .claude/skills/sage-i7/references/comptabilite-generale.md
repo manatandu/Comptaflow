@@ -1,18 +1,18 @@
-# Comptabilité générale — modèle Sage 100/i7 (structure, journaux, lettrage, automatisations)
+# Comptabilité générale · modèle Sage 100/i7 (structure, journaux, lettrage, automatisations)
 
 Sources principales : documents #1, #2, #5, #6, #8 (voir `sources.md`).
 
 ## Compte général (Plan comptable)
 
 - Deux types structurels : **Détail** (saisie réelle) vs **Total** (agrégation par
-  racine de numéro de compte — comptes, sections analytiques et rubriques de paie
+  racine de numéro de compte · comptes, sections analytiques et rubriques de paie
   partagent tous ce même principe de regroupement par racine chez Sage).
 - Longueur de compte paramétrable par dossier, 3 à 13 caractères, dont les 3 premiers
   obligatoirement numériques pour un compte Détail.
 - **Report à-nouveau : 3 modes** par compte, pas 2 :
-  - `Aucun` — pas de report (charges/produits, soldés sur le résultat).
-  - `Solde` — seul le solde est reporté (comptes de bilan génériques).
-  - `Détail` — tous les mouvements NON LETTRÉS sont reportés en détail (comptes clients/
+  - `Aucun` · pas de report (charges/produits, soldés sur le résultat).
+  - `Solde` · seul le solde est reporté (comptes de bilan génériques).
+  - `Détail` · tous les mouvements NON LETTRÉS sont reportés en détail (comptes clients/
     fournisseurs) ; nécessite un lettrage complet préalable à la clôture.
 - **Compte reporting** : classification alternative pour états consolidés
   groupe/société mère (hors scope MVP, pertinent pour un futur module multi-entités).
@@ -28,7 +28,7 @@ Voir `tiers.md` pour le détail complet.
 ## Journaux comptables
 
 - **5 types**, pas 4 : Achats / Ventes / Trésorerie / Général / **Situation** (jamais
-  clôturé ni compacté — écritures provisoires/simulation).
+  clôturé ni compacté · écritures provisoires/simulation).
 - Le type du journal pilote le pré-positionnement automatique débit/crédit selon la
   nature du compte saisi (ergonomie de saisie, pas seulement une classification).
 - **4 modes de numérotation des pièces** : Manuelle / Continue par journal / Continue
@@ -38,7 +38,7 @@ Voir `tiers.md` pour le détail complet.
 - Un journal peut être réservé aux écritures IFRS uniquement.
 - Compte de trésorerie associé obligatoire pour un journal de type Trésorerie.
 
-## Clôture — 3 granularités
+## Clôture · 3 granularités
 
 - **Partielle** : écritures déjà validées verrouillées, mais nouvelles saisies encore
   possibles dans le journal ; lettrage et ventilation analytique encore permis.
@@ -67,7 +67,7 @@ TVA/Débit, TVA/Encaissement, TP/HT, TP/TTC, TP/Poids (taxes parafiscales), TVA/
 - Champs : code taxe, sens (déductible/collectée), intitulé, compte de taxe, taux,
   comptes généraux HT rattachés.
 - Le régime Encaissement se déclenche à la date de règlement (pas la date de facture)
-  — lien fort entre taxe et lettrage.
+  · lien fort entre taxe et lettrage.
 - "Registre taxe" : état intermédiaire de suivi base/montant par taux, ajustable.
 - Le calcul de taxe ne peut se faire que dans un journal de type Achat ou Vente.
 
@@ -80,7 +80,7 @@ TVA/Débit, TVA/Encaissement, TP/HT, TP/TTC, TP/Poids (taxes parafiscales), TVA/
   assurance) à partir d'un modèle de saisie dédié (le modèle doit ne demander que la
   date en saisie, tout le reste étant pré-rempli).
 - **Modèles de saisie** : fonctions de zone (Saisir / Répéter / Incrémenter /
-  Équilibrer / Calculer par paramétrage / Fonction pré-paramétrée) — généralise le
+  Équilibrer / Calculer par paramétrage / Fonction pré-paramétrée) · généralise le
   système à 4 templates déjà en place côté Compta Flow (`SaisiePage`).
 - **Rappels et relevés clients** : périodes de relance paramétrables, exclusion par
   tiers ("Hors rappel/relevé"), envoi par messagerie.

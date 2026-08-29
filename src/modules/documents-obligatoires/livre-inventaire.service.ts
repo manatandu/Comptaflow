@@ -3,6 +3,8 @@ import { JeuEtatsFinanciersSycebnl, Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import { EtatsFinanciersService } from '../etats-financiers/etats-financiers.service';
 import { EtatsFinanciersProjetService } from '../etats-financiers/etats-financiers-projet.service';
+import { EtatsFinanciersSmtService } from '../etats-financiers/etats-financiers-smt.service';
+import { EtatsFinanciersProjetBudgetService } from '../etats-financiers/etats-financiers-projet-budget.service';
 import { CleEtatInventaire, EtatATranscrire, etatsExigesPar } from './correspondance-inventaire';
 import { ResumeInventaireDto, TranscrireInventaireDto } from './dto/documents-obligatoires.dto';
 
@@ -47,6 +49,8 @@ export class LivreInventaireService {
     private readonly prisma: PrismaService,
     private readonly etatsFinanciers: EtatsFinanciersService,
     private readonly etatsFinanciersProjet: EtatsFinanciersProjetService,
+    private readonly etatsFinanciersSmt: EtatsFinanciersSmtService,
+    private readonly etatsFinanciersProjetBudget: EtatsFinanciersProjetBudgetService,
   ) {}
 
   /** Toutes les versions transcrites d'un exercice, la plus récente en tête. */
@@ -197,19 +201,37 @@ export class LivreInventaireService {
     exerciceId: string,
   ) {
     const projet = jeu === JeuEtatsFinanciersSycebnl.PROJETS_DEVELOPPEMENT;
+    const smt = jeu === JeuEtatsFinanciersSycebnl.SYSTEME_MINIMAL_TRESORERIE;
     switch (cle) {
       case 'bilan':
-        // Les deux jeux ont un Bilan (art. 14, points 1 et 2) mais ce ne sont
-        // pas les mêmes postes : Partie 4 ch. 2 pour l'un, ch. 3 pour l'autre.
-        return projet
-          ? this.etatsFinanciersProjet.bilan(tenantId, exerciceId)
-          : this.etatsFinanciers.bilan(tenantId, exerciceId);
+        // Les trois jeux ont un Bilan mais ce ne sont pas les mêmes postes :
+        // Partie 4 ch. 2 pour les associations, ch. 3 pour les projets, ch. 4
+        // pour le S.M.T (cinq lignes d'actif, quatre de passif).
+        if (projet) return this.etatsFinanciersProjet.bilan(tenantId, exerciceId);
+        if (smt) return this.etatsFinanciersSmt.bilan(tenantId, exerciceId);
+        return this.etatsFinanciers.bilan(tenantId, exerciceId);
       case 'compteDeResultat':
-        return this.etatsFinanciers.compteDeResultat(tenantId, exerciceId);
+        // Le compte de résultat du S.M.T est bâti sur les encaissements et
+        // décaissements, pas sur les soldes des classes 6 et 7 · c'est un
+        // autre état, pas une autre présentation du même.
+        return smt
+          ? this.etatsFinanciersSmt.compteDeResultat(tenantId, exerciceId)
+          : this.etatsFinanciers.compteDeResultat(tenantId, exerciceId);
       case 'tableauFluxTresorerie':
         return this.etatsFinanciers.tableauFluxTresorerie(tenantId, exerciceId);
       case 'compteExploitation':
         return this.etatsFinanciersProjet.compteExploitation(tenantId, exerciceId);
+      case 'tableauEmploisRessources':
+        return this.etatsFinanciersProjet.tableauEmploisRessources(tenantId, exerciceId);
+      case 'tableauExecutionBudgetaire':
+        return this.etatsFinanciersProjetBudget.executionBudgetaire(tenantId, exerciceId);
+      case 'tableauReconciliationTresorerie':
+        // Les paiements en instance (repère H) sont extra-comptables : la
+        // transcription au livre d'inventaire les fige à zéro, faute d'une
+        // saisie possible à cet instant. L'état imprimé depuis l'écran, lui,
+        // les porte. La différence est assumée : le livre d'inventaire fige
+        // ce que la comptabilité établit.
+        return this.etatsFinanciersProjetBudget.reconciliationTresorerie(tenantId, exerciceId, 0);
       default:
         // Les trois états du point 2 non encore construits ne passent jamais
         // ici : `transcrire` les écarte sur `disponible: false`.
