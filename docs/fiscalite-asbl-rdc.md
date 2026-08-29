@@ -155,10 +155,23 @@ scientifiques ou philanthropiques et associations assimilées.
 
 L'**impôt sur les revenus locatifs reste en vigueur** : la loi 23/053 l'exclut
 explicitement des revenus catégoriels de l'IRPP tout en organisant une retenue
-à la source. Taux national de référence : **22 %** (art. 11, D.-L. 109/2000).
+à la source.
+
+**Deux taux distincts, à ne surtout pas confondre** · la confusion figurait
+dans cette note avant l'audit du 29 août 2026, et elle conduit à retenir un
+cinquième de trop sur chaque loyer payé :
+
+| | Taux | Qui le supporte | Texte |
+|---|---|---|---|
+| Impôt sur les revenus locatifs | **22 %** | le **bailleur**, sur son revenu | art. 11 de l'O.-L. n° 69/009 |
+| Retenue opérée par le locataire | **20 % du loyer brut** | avancé par le **locataire**, pour le compte du bailleur | art. 11 du régime de retenue, D.-L. n° 109/2000 |
+
+La retenue de 20 % est un **acompte** : elle s'impute sur l'impôt de 22 % dû
+par le bailleur, elle ne s'y ajoute pas et ne s'y substitue pas.
+
 À Kinshasa, un barème provincial différencié 22 % / 17 % par rang de localité
-s'applique depuis le 1er janvier 2024 (arrêtés provinciaux n° 015 à 017 du
-7 décembre 2023). **Propre à Kinshasa, à ne pas extrapoler.**
+s'applique à l'impôt depuis le 1er janvier 2024 (arrêtés provinciaux n° 015 à
+017 du 7 décembre 2023). **Propre à Kinshasa, à ne pas extrapoler.**
 
 Attention au sens de l'exonération : elle vise l'ASBL **bailleresse**. Une
 ASBL **locataire** reste tenue de la retenue à la source sur le loyer qu'elle
@@ -204,7 +217,7 @@ d'autrui**. C'est la source d'erreur la plus fréquente, et la plus coûteuse.
 | Prélèvement | Taux | Échéance de reversement |
 |---|---|---|
 | Retenue IRPP sur revenus salariaux | barème progressif (section 7) | le 15 du mois suivant le versement (art. 18 LPF) |
-| Retenue sur revenus locatifs (loyer payé) | 22 % de référence | dans les 10 jours du mois suivant le paiement (art. 57 LPF) |
+| Retenue sur revenus locatifs (loyer payé) | 20 % du loyer brut | dans les 10 jours du mois suivant le paiement (art. 57 LPF) |
 | Prélèvement sur sommes payées aux prestataires non-résidents | 14 % du brut des factures (art. 144) | le 15 du mois suivant le paiement (art. 22 bis LPF) |
 | Prélèvement exceptionnel sur personnel expatrié | 25 % du brut (art. 148) | dans les 15 jours suivant le mois du versement (art. 19 LPF) |
 | TVA collectée sur une opération non exonérée | 16 % (taux normal) | le 15 du mois suivant |

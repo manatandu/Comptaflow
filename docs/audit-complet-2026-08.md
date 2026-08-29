@@ -20,6 +20,29 @@ par la loi de finances 25/060 pour 2026), un point SYCEBNL sans aucune
 brique (les seuils de désignation de l'auditeur, art. 19), et trois vrais
 bugs de périmètre.
 
+## État au 29 août 2026 · ce qui a été corrigé
+
+Les trois bugs (P0) et les cinq obligations absentes (P1) de la liste
+ci-dessous sont TRAITÉS et couverts par des tests. Voir les commits
+« Corrections de l'audit » du 29 août 2026 :
+
+| Point | Correction |
+|---|---|
+| Retenue locative datée au 15 | Délai en JOURS (dix), compte 4478 éclaté en cinq sous-comptes, taux du document corrigé (20 % acompte, non 22 %) |
+| EUP sans jalon | Jalon propre art. 66 (budget ET comptes annuels, Journal officiel) |
+| Prorata TVA sur la mauvaise période | Provisoire N-1, définitif au 31 mars, régularisation chiffrée ; numérateur exact (base = TVA / taux) |
+| Trois déclarations LF 25/060 | Au registre, avec périodicité, contenu, sanction et source des données |
+| Seuils d'auditeur art. 19 | Contrôle SEUIL_AUDITEUR_FRANCHI + champ effectif sur le dossier |
+| Cumul biennal art. 6 (SMT) | Calculé, ou déclaré non mesurable faute d'exercice antérieur |
+| Statut TVA du dossier | `assujettiTva` + seuil rappelé + écran de paramétrage |
+| Loi 004/2001 hors fiscal | Jalon semestriel (art. 4 e), ONG étrangères (art. 37), et table des obligations événementielles (art. 11, art. 15…) |
+| Social CNSS/INPP/ONEM | Natures séparées, comptes INPP et ONEM ouverts, sources réelles citées, aucun taux ONEM inventé |
+| Coordonnées des tiers | Huit champs sur la fiche, dont le Numéro Impôt exigé par l'art. 47 ter |
+
+**Reste ouvert** : tout le P2 et le P3 ci-dessous (TVA à l'encaissement,
+import de relevé bancaire, modèles de saisie paramétrables, registre des
+exonérations douanières, et les points Sage de confort).
+
 ## Priorités consolidées
 
 ### P0 · bugs à corriger (le code contredit le texte qu'il cite)
