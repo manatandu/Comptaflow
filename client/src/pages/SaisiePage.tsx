@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useExercice } from '../lib/exercice';
 import { ModelesSaisieModale, type LigneInseree } from '../components/ModelesSaisie';
+import { Calculette } from '../components/Calculette';
 import type { Compte, Ecriture, Journal, PlanAnalytique, SectionAnalytique } from '../lib/types';
 
 /**
@@ -151,6 +152,7 @@ export function SaisiePage() {
   const [succes, setSucces] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
   const [modaleModeles, setModaleModeles] = useState(false);
+  const [calculetteOuverte, setCalculetteOuverte] = useState(false);
 
   const compteRef = useRef<HTMLInputElement>(null);
   const libelleRef = useRef<HTMLInputElement>(null);
@@ -200,6 +202,41 @@ export function SaisiePage() {
     () => plans.filter((p) => (sectionsParPlan[p.id] ?? []).length > 0),
     [plans, sectionsParPlan],
   );
+
+  /**
+   * Raccourcis de la grille · repris des manuels Sage, où ils sont ce qui
+   * distingue une saisie fluide d'une saisie pénible : Ctrl+D duplique la
+   * dernière ligne, Ctrl+K ouvre la calculette, F5 recharge le journal.
+   *
+   * `capture: false` et le test sur la cible : un raccourci ne doit pas
+   * partir pendant que l'utilisateur tape dans un champ de recherche ailleurs
+   * dans l'écran.
+   */
+  useEffect(() => {
+    if (!ouvert) return;
+    const surTouche = (e: KeyboardEvent) => {
+      if (e.key === 'F5') {
+        e.preventDefault();
+        setRechargement((n) => n + 1);
+        return;
+      }
+      if (!e.ctrlKey && !e.metaKey) return;
+      const touche = e.key.toLowerCase();
+      if (touche === 'd') {
+        e.preventDefault();
+        setLignes((prev) => {
+          if (prev.length === 0) return prev;
+          const derniere = prev[prev.length - 1];
+          return [...prev, { ...derniere, debit: 0, credit: 0, sections: { ...(derniere.sections ?? {}) } }];
+        });
+      } else if (touche === 'k') {
+        e.preventDefault();
+        setCalculetteOuverte(true);
+      }
+    };
+    window.addEventListener('keydown', surTouche);
+    return () => window.removeEventListener('keydown', surTouche);
+  }, [ouvert]);
 
   const periodes = useMemo(
     () => (exerciceCourant ? periodesDeLExercice(exerciceCourant.dateDebut, exerciceCourant.dateFin) : []),
@@ -318,6 +355,46 @@ export function SaisiePage() {
 
   const retirerLigne = (i: number) => {
     setLignes((prev) => prev.filter((_, idx) => idx !== i));
+  };
+
+  /**
+   * DUPLIQUER (Ctrl+D) · la commande la plus utilisée d'un comptable qui
+   * saisit quarante cotisations identiques. La copie reprend tout SAUF le
+   * montant, qu'on remet à zéro : dupliquer une ligne en gardant son montant
+   * déséquilibrerait la pièce sans que rien ne le signale, et l'erreur la plus
+   * coûteuse est celle qu'un automatisme commet à notre place.
+   */
+  const dupliquerLigne = (i: number) => {
+    setLignes((prev) => {
+      const source = prev[i];
+      if (!source) return prev;
+      const copie = [...prev];
+      copie.splice(i + 1, 0, { ...source, debit: 0, credit: 0, sections: { ...(source.sections ?? {}) } });
+      return copie;
+    });
+  };
+
+  /**
+   * INVERSEUR · bascule le montant d'une ligne du débit au crédit et
+   * réciproquement.
+   *
+   * Attention à ne pas le confondre avec l'extourne des progiciels français,
+   * que le SYCEBNL proscrit comme mode de CORRECTION : l'article 20 de
+   * l'AUDCIF n'admet que l'inscription en négatif. Ici, rien n'est corrigé ·
+   * on redresse le sens d'une ligne d'une pièce EN COURS DE COMPOSITION, qui
+   * n'est pas encore enregistrée et n'existe donc pour personne.
+   */
+  const inverserLigne = (i: number) => {
+    setLignes((prev) =>
+      prev.map((l, idx) => (idx === i ? { ...l, debit: l.credit, credit: l.debit } : l)),
+    );
+  };
+
+  /** Bascule le sens de la ligne en cours de frappe, avant sa validation. */
+  const inverserSaisie = () => {
+    const d = debitSaisie;
+    setDebitSaisie(creditSaisie);
+    setCreditSaisie(d);
   };
 
   const equilibrer = () => {
@@ -686,14 +763,32 @@ export function SaisiePage() {
             </span>
             <span className="font-mono text-right">{l.debit ? l.debit.toLocaleString('fr-FR') : ''}</span>
             <span className="font-mono text-right">{l.credit ? l.credit.toLocaleString('fr-FR') : ''}</span>
-            <button
-              type="button"
-              onClick={() => retirerLigne(i)}
-              title="Retirer cette ligne"
-              className="text-danger/70 hover:text-danger text-[11px] text-center"
-            >
-              ✕
-            </button>
+            <span className="flex items-center justify-end gap-1">
+              <button
+                type="button"
+                onClick={() => dupliquerLigne(i)}
+                title="Dupliquer cette ligne sans son montant (Ctrl+D)"
+                className="text-text-dim hover:text-sel text-[10px] leading-none"
+              >
+                ⧉
+              </button>
+              <button
+                type="button"
+                onClick={() => inverserLigne(i)}
+                title="Inverser débit et crédit sur cette ligne"
+                className="text-text-dim hover:text-sel text-[10px] leading-none"
+              >
+                ⇅
+              </button>
+              <button
+                type="button"
+                onClick={() => retirerLigne(i)}
+                title="Retirer cette ligne"
+                className="text-danger/70 hover:text-danger text-[11px] leading-none"
+              >
+                ✕
+              </button>
+            </span>
           </div>
         ))}
 
@@ -889,6 +984,23 @@ export function SaisiePage() {
           </button>
           <button
             type="button"
+            onClick={() => setCalculetteOuverte(true)}
+            title="Calculette · son résultat se reporte dans la zone de montant (Ctrl+K)"
+            className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[11.5px]"
+          >
+            Calculette
+          </button>
+          <button
+            type="button"
+            onClick={inverserSaisie}
+            disabled={!debitSaisie && !creditSaisie}
+            title="Inverse débit et crédit sur la ligne en cours de frappe"
+            className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[11.5px] disabled:opacity-45"
+          >
+            Inverseur
+          </button>
+          <button
+            type="button"
             onClick={equilibrer}
             disabled={Math.abs(soldePiece) < 0.005}
             title="Reporte le montant manquant dans la zone débit ou crédit de la ligne en cours"
@@ -933,6 +1045,25 @@ export function SaisiePage() {
         <div className="text-[12px] text-positive bg-positive-soft border border-positive/30 px-3 py-2 mt-2.5">
           {succes}
         </div>
+      )}
+
+      {calculetteOuverte && (
+        <Calculette
+          onFermer={() => setCalculetteOuverte(false)}
+          onReporter={(valeur) => {
+            // Le résultat va du côté qui manque à l'équilibre · c'est ce que
+            // fait la calculette de Sage, et cela évite de choisir soi-même
+            // entre débit et crédit à chaque report.
+            if (soldePiece > 0) {
+              setCreditSaisie(String(valeur));
+              setDebitSaisie('');
+            } else {
+              setDebitSaisie(String(valeur));
+              setCreditSaisie('');
+            }
+            setCalculetteOuverte(false);
+          }}
+        />
       )}
 
       {modaleModeles && (
