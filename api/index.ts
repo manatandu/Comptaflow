@@ -2,7 +2,7 @@ import 'reflect-metadata';
 import type { IncomingMessage, ServerResponse } from 'http';
 import { NestFactory } from '@nestjs/core';
 import { ExpressAdapter } from '@nestjs/platform-express';
-import * as express from 'express';
+import express = require('express');
 import { AppModule } from '../src/app.module';
 import { configurerApplication } from '../src/bootstrap';
 
