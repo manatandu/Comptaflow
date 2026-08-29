@@ -26,6 +26,7 @@ import { AnalytiqueModule } from './modules/analytique/analytique.module';
 import { ImportModule } from './modules/import/import.module';
 import { ControlesModule } from './modules/controles/controles.module';
 import { RegularisationModule } from './modules/regularisation/regularisation.module';
+import { DevisesModule } from './modules/devises/devises.module';
 
 @Module({
   imports: [
@@ -55,6 +56,7 @@ import { RegularisationModule } from './modules/regularisation/regularisation.mo
     ImportModule,
     ControlesModule,
     RegularisationModule,
+    DevisesModule,
   ],
 })
 export class AppModule {}

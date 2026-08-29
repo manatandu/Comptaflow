@@ -62,6 +62,21 @@ export class LigneEcritureDto {
   @ValidateNested({ each: true })
   @Type(() => VentilationLigneDto)
   ventilations?: VentilationLigneDto[];
+
+  // Multidevise · `debit`/`credit` restent exprimés dans la monnaie de tenue
+  // du dossier. Ces trois champs conservent l'opération d'origine, ce qui
+  // permet de réévaluer la position à la clôture (voir DevisesService).
+  @IsOptional()
+  @IsUUID()
+  deviseId?: string;
+
+  @IsOptional()
+  @IsNumber()
+  montantDevise?: number;
+
+  @IsOptional()
+  @IsNumber()
+  coursApplique?: number;
 }
 
 export class CreerEcritureDto {

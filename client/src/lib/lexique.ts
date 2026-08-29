@@ -73,6 +73,12 @@ export const LEXIQUE = {
       "Une charge payée cette année qui couvre en partie la suivante n'est pas une charge de cette année : la spécialisation des exercices l'impose. Elle est différée au compte 476, un produit encaissé d'avance au 477. Pour une subvention accordée sur toute la durée d'un projet, le texte est explicite : on extourne à la clôture la part des exercices ultérieurs au crédit du 477 par le débit du 71, puis on la reprend À LA FIN de chaque exercice concerné · et non par contre-passation à son ouverture.",
     source: 'SYCEBNL, Partie 3 ch. 6 section 1 · comptes 476 et 477',
   },
+  devises: {
+    titre: 'Écarts de conversion',
+    texte:
+      "À la clôture, les créances et dettes en devises sont converties au cours du jour. L'écart est LATENT : perte probable au 478, gain probable au 479, et par prudence la perte probable est provisionnée au 194. Les disponibilités en devises suivent une autre règle : leur écart est considéré comme réalisé et va droit au résultat, 676 ou 776. Le texte prend soin de le dire : le 676 ne doit pas être confondu avec le 478, qui n'enregistre que les pertes probables.",
+    source: 'SYCEBNL, Partie 2 ch. 3, comptes 47, 67 et 77',
+  },
   adherent: {
     titre: 'Adhérent',
     texte:

@@ -100,6 +100,8 @@ model Tenant {
   sectionsAnalytiques      SectionAnalytique[]
   regularisations          Regularisation[]
   modelesAbonnement        ModeleAbonnement[]
+  devises                  Devise[]
+  reevaluations            Reevaluation[]
 
   @@map("tenants")
 }
@@ -305,6 +307,7 @@ model Exercice {
   dotationsAmortissement DotationAmortissement[]
   budgetsSection         BudgetSection[]
   regularisations        Regularisation[]
+  reevaluations          Reevaluation[]
 
   // Documents obligatoires de l'exercice (art. 14 et 16-3) · versionnés,
   // d'où des relations 1-N et non 1-1 : voir leurs modèles.
@@ -371,6 +374,9 @@ model Ecriture {
   regularisationConstatee Regularisation?     @relation("RegulConstatation")
   regularisationReprise   Regularisation?     @relation("RegulReprise")
   echeanceAbonnement      EcheanceAbonnement?
+  reevaluationEcarts      Reevaluation?       @relation("ReevalEcarts")
+  reevaluationProvision   Reevaluation?       @relation("ReevalProvision")
+  reevaluationExtourne    Reevaluation?       @relation("ReevalExtourne")
 
   // Écriture générée automatiquement par la clôture de l'exercice (clôture des
   // classes 6/7 sur le résultat, ou report à-nouveau dans l'exercice suivant) ·
@@ -524,6 +530,15 @@ model LigneEcriture {
 
   // Ventilation analytique (projet, bailleur) · voir PlanAnalytique.
   ventilations VentilationAnalytique[]
+
+  // Multidevise · `debit`/`credit` restent TOUJOURS exprimés dans la monnaie
+  // de tenue du dossier, seule monnaie dans laquelle la comptabilité est
+  // arrêtée. Ces trois champs conservent l'opération d'origine, ce qui permet
+  // de réévaluer la créance ou la dette à la clôture et de justifier l'écart.
+  deviseId      String?
+  devise        Devise?  @relation(fields: [deviseId], references: [id])
+  montantDevise Decimal? @db.Decimal(18, 2)
+  coursApplique Decimal? @db.Decimal(18, 6)
 
   @@index([compteId, lettre])
   @@index([compteId, rapprochementId])
@@ -1050,6 +1065,92 @@ model EcheanceAbonnement {
   @@unique([abonnementId, date])
   @@index([abonnementId])
   @@map("echeances_abonnement")
+}
+
+// ---------------------------------------------------------------------------
+// MULTIDEVISE ET RÉÉVALUATION DES CRÉANCES ET DETTES
+//
+// La RDC est une économie bi-monétaire : une association encaisse en dollars
+// et paie en francs congolais, ou l'inverse. Le bilan SYCEBNL prévoit
+// d'ailleurs les postes BY « Ecart de conversion-Actif » et DY « Ecart de
+// conversion-Passif », que nous affichions jusqu'ici à zéro faute de
+// mécanisme pour les calculer.
+//
+// Le texte distingue deux traitements, et les confondre est l'erreur la plus
+// courante (Partie 2 ch. 3, comptes 47, 67 et 77) :
+//
+//  - CRÉANCES ET DETTES en devises : l'écart constaté à la clôture est
+//    LATENT. Il va au 478 (perte probable) ou au 479 (gain probable), et la
+//    perte probable appelle une provision au 194 par le 6971. Le texte est
+//    explicite : « Le compte 676 ne doit pas être confondu avec le compte 478
+//    qui n'enregistre que les pertes probables de change. »
+//
+//  - DISPONIBILITÉS en devises : l'écart est RÉALISÉ. « Les écarts de
+//    conversion négatifs constatés à la clôture de l'exercice sur les
+//    disponibilités en devises sont considérés comme étant des pertes de
+//    change supportées » · ils vont donc directement au résultat, 676 ou 776.
+// ---------------------------------------------------------------------------
+
+model Devise {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  code     String // ISO : USD, EUR, XAF...
+  intitule String
+  estActive Boolean @default(true)
+  createdAt DateTime @default(now())
+
+  cours  CoursDevise[]
+  lignes LigneEcriture[]
+
+  @@unique([tenantId, code])
+  @@map("devises")
+}
+
+// Cours d'une devise à une date : combien vaut UNE unité de la devise dans la
+// monnaie de tenue du dossier. En RDC, le cours de référence est celui publié
+// par la Banque Centrale du Congo.
+model CoursDevise {
+  id       String   @id @default(uuid())
+  deviseId String
+  devise   Devise   @relation(fields: [deviseId], references: [id], onDelete: Cascade)
+  date     DateTime
+  cours    Decimal  @db.Decimal(18, 6)
+  source   String? // « BCC », « contractuel »...
+
+  @@unique([deviseId, date])
+  @@index([deviseId, date])
+  @@map("cours_devise")
+}
+
+// Réévaluation d'un exercice · garde le lien vers les écritures produites,
+// pour que la contre-passation d'ouverture sache quoi extourner.
+model Reevaluation {
+  id         String   @id @default(uuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  exerciceId String
+  exercice   Exercice @relation(fields: [exerciceId], references: [id])
+
+  dateReevaluation DateTime
+
+  // Écarts latents (478/479) et réalisés sur disponibilités (676/776).
+  ecritureEcartsId String?   @unique
+  ecritureEcarts   Ecriture? @relation("ReevalEcarts", fields: [ecritureEcartsId], references: [id])
+  // Provision pour perte de change (6971 / 194) sur la seule perte latente.
+  ecritureProvisionId String?   @unique
+  ecritureProvision   Ecriture? @relation("ReevalProvision", fields: [ecritureProvisionId], references: [id])
+  // Contre-passation à l'ouverture de l'exercice suivant · les écarts de
+  // conversion sont latents, ils n'ont pas à survivre à la réouverture.
+  ecritureExtourneId String?   @unique
+  ecritureExtourne   Ecriture? @relation("ReevalExtourne", fields: [ecritureExtourneId], references: [id])
+
+  createdAt DateTime @default(now())
+  createdBy String
+
+  @@index([tenantId, exerciceId])
+  @@map("reevaluations")
 }
 
 // ---------------------------------------------------------------------------

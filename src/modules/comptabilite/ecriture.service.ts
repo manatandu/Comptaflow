@@ -148,6 +148,9 @@ export class EcritureService {
                 credit: l.credit ?? 0,
                 tauxTvaId: l.tauxTvaId,
                 dateEcheance: l.dateEcheance ? new Date(l.dateEcheance) : undefined,
+                deviseId: l.deviseId,
+                montantDevise: l.montantDevise,
+                coursApplique: l.coursApplique,
                 ...(l.ventilations && l.ventilations.length > 0
                   ? {
                       ventilations: {

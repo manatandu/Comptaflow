@@ -1170,3 +1170,56 @@ export interface ModeleAbonnement {
   compteCredit: { numero: string; intitule: string };
   echeances: EcheanceAbonnement[];
 }
+
+// ---------------------------------------------------------------------------
+// Multidevise et réévaluation
+// ---------------------------------------------------------------------------
+
+export interface CoursDevise {
+  id: string;
+  date: string;
+  cours: string;
+  source: string | null;
+}
+
+export interface Devise {
+  id: string;
+  code: string;
+  intitule: string;
+  estActive: boolean;
+  cours: CoursDevise[];
+}
+
+export interface PositionDevise {
+  compteId: string;
+  numero: string;
+  intitule: string;
+  deviseCode: string;
+  deviseId: string;
+  montantDevise: number;
+  valeurComptable: number;
+  coursCloture: number;
+  valeurReevaluee: number;
+  ecart: number;
+  /** Compte de classe 5 : l'écart y est réalisé, non latent. */
+  estTresorerie: boolean;
+}
+
+export interface RapportReevaluation {
+  dateReevaluation: string;
+  positions: PositionDevise[];
+  perteLatente: number;
+  gainLatent: number;
+  perteRealisee: number;
+  gainRealise: number;
+  provision: number;
+  coursManquants: string[];
+}
+
+export interface Reevaluation {
+  id: string;
+  dateReevaluation: string;
+  ecritureEcarts: { id: string; numeroPiece: number | null; date: string } | null;
+  ecritureProvision: { id: string; numeroPiece: number | null } | null;
+  ecritureExtourne: { id: string; numeroPiece: number | null; date: string } | null;
+}
