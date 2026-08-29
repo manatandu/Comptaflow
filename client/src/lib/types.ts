@@ -1042,3 +1042,32 @@ export interface EtatBrouillard {
   };
   delaiCentralisationJours: number;
 }
+
+// ---------------------------------------------------------------------------
+// Import de plan de comptes, de balance et d'écritures
+// ---------------------------------------------------------------------------
+
+export type TypeImport = 'PLAN_COMPTES' | 'BALANCE' | 'ECRITURES';
+
+export interface AnalyseImport {
+  colonnes: string[];
+  separateur: string | null;
+  nombreLignes: number;
+  apercu: string[][];
+  champs: { cle: string; libelle: string; obligatoire: boolean }[];
+  mappingPropose: Record<string, string | null>;
+  manquants: string[];
+}
+
+export interface RapportImport {
+  type: TypeImport;
+  simulation: boolean;
+  lignesLues: number;
+  comptesCrees: number;
+  comptesReconnus: number;
+  ecrituresCreees: number;
+  lignesEcritureCreees: number;
+  totalDebit: number;
+  totalCredit: number;
+  anomalies: { ligne: number; message: string }[];
+}

@@ -49,6 +49,12 @@ export const LEXIQUE = {
       "Une écriture y naît modifiable et supprimable : elle n'est pas encore entrée au livre-journal. La valider franchit cette frontière, et l'article 20 ne laisse alors plus qu'une voie de correction, l'inscription en négatif. Le SYCEBNL borne ce séjour : les journaux auxiliaires doivent être centralisés au moins chaque semaine, donc une écriture qui y reste plus de sept jours est signalée.",
     source: 'SYCEBNL, Partie 2 ch. 2 · AUDCIF art. 20',
   },
+  import: {
+    titre: 'Import de données',
+    texte:
+      "Trois règles gouvernent l'import. La correspondance entre les colonnes du fichier et les champs attendus est proposée, jamais imposée : un import qui se trompe de colonne de montants est pire que pas d'import du tout. Tout ce qui entre atterrit au brouillard, pour être relu avant de rejoindre le livre-journal. Et une balance de reprise devient une écriture d'à-nouveau équilibrée, datée, corrigeable : le SYCEBNL ne connaît pas de solde sans écriture.",
+    source: 'Reprise de dossier · art. 20 et Partie 2 ch. 2',
+  },
   adherent: {
     titre: 'Adhérent',
     texte:

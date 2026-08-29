@@ -35,6 +35,9 @@ export function AppShell() {
         // Sage : Fichier → Autorisations d'accès. La gestion des utilisateurs
         // est une commande du dossier, pas un « outil » à part.
         ...(estAdmin ? [{ label: "Autorisations d'accès (utilisateurs)", onClick: () => navigate('/utilisateurs') }] : []),
+        // Sage : Fichier → Importer. C'est par là qu'une association arrive
+        // avec son tableur ou l'export de son logiciel précédent.
+        ...(estAdmin ? [{ label: 'Importer des données…', separateurAvant: true, onClick: () => navigate('/import') }] : []),
         { label: 'Fermer le dossier (déconnexion)', separateurAvant: true, onClick: seDeconnecter },
       ],
     },
