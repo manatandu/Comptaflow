@@ -22,6 +22,7 @@ import { EtatsFinanciersPage } from './pages/EtatsFinanciersPage';
 import { NotesAnnexesPage } from './pages/NotesAnnexesPage';
 import { RegistreDonateursPage } from './pages/RegistreDonateursPage';
 import { DocumentsObligatoiresPage } from './pages/DocumentsObligatoiresPage';
+import { OperationsSpecifiquesPage } from './pages/OperationsSpecifiquesPage';
 import { UtilisateursPage } from './pages/UtilisateursPage';
 import { BailleursPage } from './pages/BailleursPage';
 
@@ -67,6 +68,7 @@ function Routage() {
         <Route path="notes-annexes" element={<NotesAnnexesPage />} />
         <Route path="registre-donateurs" element={<RegistreDonateursPage />} />
         <Route path="documents-obligatoires" element={<DocumentsObligatoiresPage />} />
+        <Route path="operations-specifiques" element={<OperationsSpecifiquesPage />} />
         <Route path="bailleurs" element={<BailleursPage />} />
         <Route path="utilisateurs" element={<UtilisateursPage />} />
       </Route>

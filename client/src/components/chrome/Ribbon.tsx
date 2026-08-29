@@ -58,6 +58,9 @@ export function Ribbon({ groupes, droite }: { groupes: RibbonGroupe[]; droite?: 
       titre: 'Traitement',
       items: [
         { label: 'Saisir une opération', onClick: () => navigate('/saisie') },
+        // Écritures-types de la Partie 3 : c'est une SAISIE guidée, sa place
+        // est donc auprès de la saisie libre, pas dans les états.
+        { label: 'Opérations spécifiques EBNL', onClick: () => navigate('/operations-specifiques') },
         { label: 'Journal & grand livre', onClick: () => navigate('/journal') },
         // Le lettrage se fait par compte (bouton "Lettrer" du Plan de
         // comptes, comme l'interrogation de compte chez Sage) — ce menu

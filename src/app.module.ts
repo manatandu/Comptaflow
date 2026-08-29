@@ -21,6 +21,7 @@ import { BailleursModule } from './modules/bailleurs/bailleurs.module';
 import { NotesAnnexesModule } from './modules/notes-annexes/notes-annexes.module';
 import { RegistreDonateursModule } from './modules/registre-donateurs/registre-donateurs.module';
 import { DocumentsObligatoiresModule } from './modules/documents-obligatoires/documents-obligatoires.module';
+import { OperationsSpecifiquesModule } from './modules/operations-specifiques/operations-specifiques.module';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { DocumentsObligatoiresModule } from './modules/documents-obligatoires/do
     NotesAnnexesModule,
     RegistreDonateursModule,
     DocumentsObligatoiresModule,
+    OperationsSpecifiquesModule,
   ],
 })
 export class AppModule {}

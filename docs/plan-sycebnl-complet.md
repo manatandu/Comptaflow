@@ -256,25 +256,25 @@ ligne renvoie à son chapitre de la Partie 3 et, quand il existe, à son cas chi
 
 | # | Opération | Source | Comptes pivots |
 |---|---|---|---|
-| B1 | Fonds affectés à un projet spécifique — **dotation automatique à la clôture** de la quote-part non utilisée | P3 ch. 2 · §5.4.2.3 · App. 4 | 165, charge « Dotation fonds affectés non consommés » |
-| B2 | Dons en nature à distribuer (courants et H.A.O.), stock de fin d'exercice | P3 ch. 4 §1 · App. 9 | 654, 7542, 832, 842 |
-| B3 | Dons en nature à vendre (suivi extra-comptable) | P3 ch. 4 §2 · App. 10 | 7081, 172 |
-| B4 | Dons en numéraire, legs, denier du culte, zakat, dîme, célébrations, mécénat, parrainage | P3 ch. 4 §3 · App. 11 | 704 |
-| B5 | Frais de recherche de fonds | P3 ch. 4 §4 · App. 12 | 636 |
-| B6 | Cotisations et droit d'entrée — **politique de fait générateur** (appel vs encaissement) | P3 ch. 5 §1 · §5.4.2.1 · App. 2, 13 | 701, 103, dépréciation 491 |
-| B7 | Contribution du fondateur d'une fondation | P3 ch. 5 §2 · App. 14 | 752 |
-| B8 | Subventions et aides financières **versées** par l'EBNL | P3 ch. 5 §3 · App. 15 | 652 |
-| B9 | Subventions d'exploitation pluriannuelles — quote-part automatique | P3 ch. 6 §1 · §5.4.2.2 · App. 16 | 477, reprises |
-| B10 | Abandons de frais engagés par les bénévoles | P3 ch. 6 §2 · App. 17 | 4572, 7583, 846 |
-| B11 | Convention de mécénat | P3 ch. 6 §3 · App. 18 | 4751, 7046 |
-| B12 | Restitution de subvention non utilisée | P3 ch. 6 §4 · App. 19 | 4739 |
-| B13 | **Contributions volontaires en nature** — bénévolat, mises à disposition, prestations | P3 ch. 6 §5 · App. 20 | classe 9 (900-904 / 910-914) |
-| B14 | Dotation consomptible et non consomptible, droit d'adhésion | P3 ch. 1 · App. 1 | 101-104 |
-| B15 | Subventions d'investissement | P3 ch. 1 §2.5 · App. 3 | 14, reprise 79 |
-| B16 | Dons et legs d'immobilisations à conserver | P3 ch. 2 §2.2 · App. 5 | 167, 4861, 192 |
-| B17 | Legs et donations non encore reçus, destinés à la vente | P3 ch. 2 §2.2 · App. 6 | 171, 172 |
-| B18 | Donation temporaire d'usufruit | P3 ch. 2 §2.3 · App. 7 | 2011, 171, 280, 7961 |
-| B19 | Projets : décaissement bailleur, engagement, reprise de quote-part, décomptabilisation en fin de projet | P3 ch. 3 · App. 8 | 162-164, 462-464, 702 |
+| B1 | ✅ Fonds affectés à un projet spécifique — **dotation automatique à la clôture** de la quote-part non utilisée | P3 ch. 2 · §5.4.2.3 · App. 4 | 165, charge « Dotation fonds affectés non consommés » |
+| B2 | ✅ Dons en nature à distribuer (courants et H.A.O.), stock de fin d'exercice | P3 ch. 4 §1 · App. 9 | 654, 7542, 832, 842 |
+| B3 | ✅ Dons en nature à vendre (suivi extra-comptable) | P3 ch. 4 §2 · App. 10 | 7081, 172 |
+| B4 | ✅ Dons en numéraire, legs, denier du culte, zakat, dîme, célébrations, mécénat, parrainage | P3 ch. 4 §3 · App. 11 | 704 |
+| B5 | ✅ Frais de recherche de fonds | P3 ch. 4 §4 · App. 12 | 636 |
+| B6 | ✅ Cotisations et droit d'entrée — **politique de fait générateur** (appel vs encaissement) | P3 ch. 5 §1 · §5.4.2.1 · App. 2, 13 | 701, 103, dépréciation 491 |
+| B7 | ✅ Contribution du fondateur d'une fondation | P3 ch. 5 §2 · App. 14 | 752 |
+| B8 | ✅ Subventions et aides financières **versées** par l'EBNL | P3 ch. 5 §3 · App. 15 | 652 |
+| B9 | ✅ Subventions d'exploitation pluriannuelles — quote-part automatique | P3 ch. 6 §1 · §5.4.2.2 · App. 16 | 477, reprises |
+| B10 | ✅ Abandons de frais engagés par les bénévoles | P3 ch. 6 §2 · App. 17 | 4572, 7583, 846 |
+| B11 | ✅ Convention de mécénat | P3 ch. 6 §3 · App. 18 | 4751, 7046 |
+| B12 | ✅ Restitution de subvention non utilisée | P3 ch. 6 §4 · App. 19 | 4739 |
+| B13 | ✅ **Contributions volontaires en nature** — bénévolat, mises à disposition, prestations | P3 ch. 6 §5 · App. 20 | classe 9 (900-904 / 910-914) |
+| B14 | ✅ Dotation consomptible et non consomptible, droit d'adhésion | P3 ch. 1 · App. 1 | 101-104 |
+| B15 | ✅ Subventions d'investissement | P3 ch. 1 §2.5 · App. 3 | 14, reprise 79 |
+| B16 | ✅ Dons et legs d'immobilisations à conserver | P3 ch. 2 §2.2 · App. 5 | 167, 4861, 192 |
+| B17 | ✅ Legs et donations non encore reçus, destinés à la vente | P3 ch. 2 §2.2 · App. 6 | 171, 172 |
+| B18 | ✅ Donation temporaire d'usufruit | P3 ch. 2 §2.3 · App. 7 | 2011, 171, 280, 7961 |
+| B19 | ✅ Projets : décaissement bailleur, engagement, reprise de quote-part, décomptabilisation en fin de projet | P3 ch. 3 · App. 8 | 162-164, 462-464, 702 |
 | B20 | **Promesses de financement** — ferme et écrite → créance ; conditionnelle → note annexe | §5.4.2.4 | créances / Note annexe |
 | B21 | Première année d'application du SYCEBNL (reprise des soldes, transition) | P3 ch. 6 §6 | — |
 
@@ -282,6 +282,48 @@ ligne renvoie à son chapitre de la Partie 3 et, quand il existe, à son cas chi
 (900, 901, 902, 904, 910, 911, 914 — la liste complète du texte). Ce qui manque, c'est le
 traitement : ces contributions sont **hors bilan et hors résultat**, et la Note 1 du jeu
 associations les réclame.
+
+**Phase 4 réalisée** (`src/modules/operations-specifiques/`) — 19 opérations sur 21,
+48 écritures-types, toutes éprouvées contre les chiffres du Guide d'application.
+
+*Ce que le module est.* Un catalogue DÉCLARATIF : comptes et sens figés par le texte,
+seuls les montants varient. C'est ce qui le rend testable — chaque application chiffrée
+du Guide devient une épreuve, montant par montant, contre le **plan de comptes réellement
+livré** aux dossiers (`PLAN_COMPTES_SYCEBNL`), pas contre un jeu d'essai. Un modèle qui
+passe est applicable tel quel dans un dossier neuf.
+
+*Ce qu'il n'est pas.* Un moteur qui déciderait à la place du comptable. Il PROPOSE ;
+`EcritureService.creer` seul enregistre, avec tous ses contrôles. L'écriture produite est
+ordinaire : elle se corrige par inscription en négatif, se lettre, se rapproche.
+
+*Quatre modes de calcul, pas un de plus* — chacun tiré d'un cas réel : `PARAMETRE`,
+`PROPORTION`, `COMPLEMENT` (« le solde = droit d'entrée », App. 2 : calculé, jamais saisi,
+pour qu'un déséquilibre soit impossible) et `ANNUITE` (montant ÷ durée × mois ÷ 12, qui
+couvre à la fois l'amortissement au prorata et la reprise « SANS prorata temporis » d'un
+bien non amortissable). Un moteur de formules générique serait invérifiable.
+
+*Deux garanties.* Rien n'est imputé au hasard : un préfixe qui désigne plusieurs comptes du
+dossier remonte les candidats et attend le choix. Un compte absent est nommé, pas contourné.
+
+*Niveau de numérotation.* Les modèles visent le PLAN NORMALISÉ. Le Guide écrit par endroits
+un cran plus bas (`6055`, `4751`, `7925`) : ces sous-comptes n'existent pas dans un plan
+standard, les viser rendrait la moitié des modèles inapplicables. Chaque cas est noté.
+
+*Anomalies du texte relevées* (règle §2.6) : App. 5 impute l'amortissement d'un mobilier de
+bureau en 28444 au lieu de 28441 ; **App. 10 impute une vente H.A.O. en 8421 alors que la
+Partie 3 ch. 4 §2, le plan des comptes ET la fiche du compte 84 donnent tous trois 8411** —
+trois sources contre une, le modèle retient 8411 ; App. 20 chiffre le bénévolat à 2 880 450
+dans l'écriture (8 325 × 346, exact) et 2 864 880 dans la Note 1, sans explication.
+⚠️ N'est PAS une anomalie, vérification faite : le 2327 de l'App. 11 existe bien au plan
+(« édifices religieux SUR SOL D'AUTRUI »).
+
+*Restent sans écriture-type, délibérément* : **B20** (promesses de financement — le cas ferme
+est couvert par les modèles 475 et mécénat, le cas conditionnel n'appelle aucune écriture) et
+**B21** (première année d'application — le texte fixe une méthode, pas des écritures).
+
+*Audit du plan seedé mené au passage* : balayé compte par compte contre la Partie 2 ch. 2 —
+**complet**, les deux « absences » relevées étaient des faux positifs de lecture (un numéro
+de page, une notation d'intervalle).
 
 **Note sur B6 et B20** : ce sont des **politiques comptables au niveau du dossier**, pas de
 simples écritures. Le texte impose de préciser en notes annexes la méthode retenue pour les

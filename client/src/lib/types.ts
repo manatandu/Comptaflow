@@ -769,3 +769,79 @@ export interface ConformiteRapportActivite {
   };
   complet: boolean;
 }
+
+// ---------------------------------------------------------------------------
+// Écritures-types des opérations spécifiques aux EBNL (Partie 3 · Guide)
+// ---------------------------------------------------------------------------
+
+export interface ParametreModele {
+  nom: string;
+  libelle: string;
+  type: 'MONTANT' | 'TAUX' | 'DUREE_ANNEES' | 'MOIS';
+  defaut?: number;
+  aide?: string;
+}
+
+export interface LigneModele {
+  compte: string;
+  exclusions?: string[];
+  libelle: string;
+  sens: 'DEBIT' | 'CREDIT';
+  auChoix?: boolean;
+  note?: string;
+}
+
+export interface ModeleEcriture {
+  code: string;
+  libelle: string;
+  objet: string;
+  source: string;
+  applicationGuide?: string;
+  parametres: ParametreModele[];
+  lignes: LigneModele[];
+  anomalie?: string;
+  /** Écriture d'inventaire à extourner à l'ouverture de l'exercice suivant. */
+  aExtourner?: boolean;
+}
+
+export interface OperationSpecifique {
+  code: string;
+  libelle: string;
+  source: string;
+  portee: 'ASSOCIATIONS' | 'PROJETS' | 'TOUS';
+  modeles: ModeleEcriture[];
+  /** Choix que le TEXTE laisse ouvert — exposé, jamais tranché par le logiciel. */
+  politiqueADecider?: string;
+}
+
+export interface CatalogueOperations {
+  jeu: 'ASSOCIATIONS' | 'PROJETS';
+  operations: OperationSpecifique[];
+  operationsAutreJeu: OperationSpecifique[];
+}
+
+export interface LigneProposee {
+  compteId: string | null;
+  numero: string;
+  intitule: string;
+  libelle: string;
+  debit: number;
+  credit: number;
+  note?: string;
+  choixRequis?: { racine: string; candidats: { id: string; numero: string; intitule: string }[] };
+}
+
+export interface EcritureProposee {
+  modele: string;
+  libelle: string;
+  objet: string;
+  source: string;
+  applicationGuide?: string;
+  anomalie?: string;
+  aExtourner?: boolean;
+  lignes: LigneProposee[];
+  totalDebit: number;
+  totalCredit: number;
+  equilibree: boolean;
+  comptesIntrouvables: { compte: string; libelle: string }[];
+}
