@@ -31,6 +31,8 @@ const TITRES: Array<[RegExp, string]> = [
   [/^\/bailleurs/, 'Bailleurs de fonds'],
   [/^\/utilisateurs/, "Autorisations d'accès"],
   [/^\/parametres-dossier/, "Paramètres du dossier"],
+  [/^\/plans-analytiques/, 'Plans analytiques'],
+  [/^\/etats-analytiques/, 'États analytiques'],
 ];
 
 export function StatusBar() {

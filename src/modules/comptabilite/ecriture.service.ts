@@ -5,6 +5,7 @@ import { CreerEcritureDto } from './dto/creer-ecriture.dto';
 import { CorrigerEcritureDto } from './dto/corriger-ecriture.dto';
 import { JournalService } from '../journaux/journal.service';
 import { ExerciceService } from '../exercice/exercice.service';
+import { AnalytiqueService } from '../analytique/analytique.service';
 import { avecRetrySerialisable } from '../../common/prisma-retry.util';
 
 /**
@@ -45,6 +46,7 @@ export class EcritureService {
     private readonly prisma: PrismaService,
     private readonly journalService: JournalService,
     private readonly exerciceService: ExerciceService,
+    private readonly analytiqueService: AnalytiqueService,
   ) {}
 
   async creer(tenantId: string, createdBy: string, dto: CreerEcritureDto) {
@@ -110,6 +112,12 @@ export class EcritureService {
     // voir ExerciceService.verifierEcritureAutorisee.
     await this.exerciceService.verifierEcritureAutorisee(tenantId, dto.journalId, date);
 
+    // Ventilation analytique · seuls les plans marqués « ventilation
+    // obligatoire » bloquent ici. Les autres laissent passer, et l'état de
+    // contrôle des cumuls signale les lignes restées sans répartition.
+    await this.analytiqueService.verifierVentilationObligatoire(tenantId, dto.lignes);
+    const sectionsParId = await this.verifierSectionsVentilees(tenantId, dto);
+
     // Le calcul du numéro de pièce (lire le max actuel, l'incrémenter) et la
     // création de l'écriture doivent former une seule opération atomique :
     // sans ça, deux écritures créées au même instant sur le même journal
@@ -139,6 +147,18 @@ export class EcritureService {
                 credit: l.credit ?? 0,
                 tauxTvaId: l.tauxTvaId,
                 dateEcheance: l.dateEcheance ? new Date(l.dateEcheance) : undefined,
+                ...(l.ventilations && l.ventilations.length > 0
+                  ? {
+                      ventilations: {
+                        create: l.ventilations.map((v) => ({
+                          sectionId: v.sectionId,
+                          planId: sectionsParId.get(v.sectionId)!.planId,
+                          debit: v.debit ?? 0,
+                          credit: v.credit ?? 0,
+                        })),
+                      },
+                    }
+                  : {}),
               })),
             },
           },
@@ -149,6 +169,71 @@ export class EcritureService {
     );
   }
 
+
+
+  /**
+   * Contrôle des sections ventilées en saisie · scope du dossier, type Détail,
+   * section active, et équilibre PAR PLAN de chaque ligne. La contrainte n'est
+   * pas « une section par ligne » mais « sur un plan donné, la ventilation
+   * d'une ligne couvre son montant en totalité, ou il n'y en a aucune » : une
+   * dépense partagée entre deux projets est parfaitement légitime.
+   *
+   * Retourne les sections indexées par id, pour que la création de l'écriture
+   * puisse dénormaliser le planId sur chaque ventilation sans requête de plus.
+   */
+  private async verifierSectionsVentilees(tenantId: string, dto: CreerEcritureDto) {
+    const sectionIds = [
+      ...new Set(dto.lignes.flatMap((l) => (l.ventilations ?? []).map((v) => v.sectionId))),
+    ];
+    const sectionsParId = new Map<string, { planId: string; code: string; planCode: string }>();
+    if (sectionIds.length === 0) return sectionsParId;
+
+    const sections = await this.prisma.sectionAnalytique.findMany({
+      where: { id: { in: sectionIds }, tenantId },
+      include: { plan: { select: { code: true } } },
+    });
+    if (sections.length !== sectionIds.length) {
+      throw new BadRequestException('Une ou plusieurs sections analytiques sont introuvables pour ce dossier');
+    }
+    const totale = sections.find((s) => s.type === TypeCompteDetailTotal.TOTAL);
+    if (totale) {
+      throw new BadRequestException(
+        `La section ${totale.code} est de type Total : elle regroupe ses sections Détail dans les états et ne reçoit pas de ventilation directe.`,
+      );
+    }
+    const sommeil = sections.find((s) => !s.estActive);
+    if (sommeil) {
+      throw new BadRequestException(`La section analytique ${sommeil.code} est en sommeil`);
+    }
+    for (const s of sections) {
+      sectionsParId.set(s.id, { planId: s.planId, code: s.code, planCode: s.plan.code });
+    }
+
+    for (const [index, ligne] of dto.lignes.entries()) {
+      if (!ligne.ventilations || ligne.ventilations.length === 0) continue;
+      const parPlan = new Map<string, { debit: number; credit: number; planCode: string }>();
+      for (const v of ligne.ventilations) {
+        const s = sectionsParId.get(v.sectionId)!;
+        const cumul = parPlan.get(s.planId) ?? { debit: 0, credit: 0, planCode: s.planCode };
+        cumul.debit += v.debit ?? 0;
+        cumul.credit += v.credit ?? 0;
+        parPlan.set(s.planId, cumul);
+      }
+      for (const [, cumul] of parPlan) {
+        if (
+          Math.abs(cumul.debit - (ligne.debit ?? 0)) > 0.005 ||
+          Math.abs(cumul.credit - (ligne.credit ?? 0)) > 0.005
+        ) {
+          throw new BadRequestException(
+            `Ligne ${index + 1} : ventilation incomplète sur le plan ${cumul.planCode} · ` +
+              `${cumul.debit.toFixed(2)} au débit et ${cumul.credit.toFixed(2)} au crédit, ` +
+              `pour une ligne de ${(ligne.debit ?? 0).toFixed(2)} / ${(ligne.credit ?? 0).toFixed(2)}.`,
+          );
+        }
+      }
+    }
+    return sectionsParId;
+  }
 
   /**
    * CORRECTION D'ERREUR PAR INSCRIPTION EN NÉGATIF · art. 20 de l'AUDCIF,

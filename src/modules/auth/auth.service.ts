@@ -8,6 +8,7 @@ import { ExerciceService } from '../exercice/exercice.service';
 import { JournalService } from '../journaux/journal.service';
 import { TauxTvaService } from '../tva/taux-tva.service';
 import { ImmobilisationService } from '../immobilisations/immobilisation.service';
+import { AnalytiqueService } from '../analytique/analytique.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { RoleUtilisateur, TypeLicence } from '@prisma/client';
@@ -25,6 +26,7 @@ export class AuthService {
     private readonly journalService: JournalService,
     private readonly tauxTvaService: TauxTvaService,
     private readonly immobilisationService: ImmobilisationService,
+    private readonly analytiqueService: AnalytiqueService,
   ) {}
 
   /**
@@ -78,6 +80,10 @@ export class AuthService {
     await this.journalService.seedJournauxDefaut(tenant.id);
     await this.tauxTvaService.seedTauxDefaut(tenant.id);
     await this.immobilisationService.seedFamillesDefaut(tenant.id);
+    // Axes analytiques Projets / Bailleurs · aucune dépendance sur les comptes,
+    // mais placés ici pour que le dossier soit prêt à ventiler dès la
+    // première écriture.
+    await this.analytiqueService.seedPlansDefaut(tenant.id);
     const exercice =
       dto.dateDebutExercice && dto.dateFinExercice
         ? await this.exerciceService.creer(tenant.id, {

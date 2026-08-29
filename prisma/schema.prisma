@@ -96,6 +96,8 @@ model Tenant {
   rapprochements           RapprochementBancaire[]
   famillesImmobilisation   FamilleImmobilisation[]
   immobilisations          Immobilisation[]
+  plansAnalytiques         PlanAnalytique[]
+  sectionsAnalytiques      SectionAnalytique[]
 
   @@map("tenants")
 }
@@ -292,6 +294,7 @@ model Exercice {
   ecritures              Ecriture[]
   clotures               Cloture[]
   dotationsAmortissement DotationAmortissement[]
+  budgetsSection         BudgetSection[]
 
   // Documents obligatoires de l'exercice (art. 14 et 16-3) · versionnés,
   // d'où des relations 1-N et non 1-1 : voir leurs modèles.
@@ -469,6 +472,9 @@ model LigneEcriture {
   // comme non ventilée, pour que la lacune se voie au lieu de se fondre dans
   // le court terme (voir NoteAnnexeService.ventilerEcheances).
   dateEcheance DateTime?
+
+  // Ventilation analytique (projet, bailleur) · voir PlanAnalytique.
+  ventilations VentilationAnalytique[]
 
   @@index([compteId, lettre])
   @@index([compteId, rapprochementId])
@@ -710,10 +716,155 @@ model Bailleur {
   estActif  Boolean  @default(true)
   createdAt DateTime @default(now())
 
-  comptesRattaches Compte[]
+  comptesRattaches   Compte[]
+  sectionsAnalytiques SectionAnalytique[]
 
   @@unique([tenantId, code])
   @@map("bailleurs")
+}
+
+// ---------------------------------------------------------------------------
+// COMPTABILITÉ ANALYTIQUE ET BUDGÉTAIRE
+//
+// La classe 9 du SYCEBNL réserve les comptes 92 à 99 à la comptabilité
+// analytique de gestion, d'usage libre (Partie 2, ch. 3, section 9). Pour une
+// EBNL, cette liberté a une traduction évidente et une seule : le suivi PAR
+// PROJET et PAR BAILLEUR. Une ONG doit pouvoir répondre à « combien a coûté
+// le projet Eau Potable, et quelle part le bailleur X a-t-il financée » ·
+// c'est la question que pose tout rapport d'exécution.
+//
+// Le modèle suit le guide Sage 100 i7 écrit pour une ONG (voir
+// docs/analytique-et-budget.md, qui cite les manuels et dit ce qu'on en
+// retient) avec deux écarts assumés :
+//
+//  - deux axes livrés (Projet, Bailleur) plutôt que les onze plans de Sage :
+//    le guide ONG lui-même n'en utilise qu'un, et onze axes sont un outil de
+//    contrôle de gestion industriel ;
+//  - la ventilation couvre AUSSI la classe 9. Une journée de bénévolat
+//    affectée à un projet financé se rapporte au bailleur au même titre
+//    qu'une dépense : l'exclure amputerait le rapport d'exécution.
+//
+// Le budget n'a pas de plan à lui : il se porte sur les sections analytiques,
+// exactement comme dans le paramétrage retenu par l'ONG du guide (« Gérer les
+// budgets sur les sections analytiques »). Chez une EBNL, le budget EST celui
+// du projet.
+// ---------------------------------------------------------------------------
+
+model PlanAnalytique {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+  code     String // "PROJ", "BAIL"
+  intitule String
+
+  // Classes du plan SYCEBNL sur lesquelles la ventilation est attendue, en
+  // chiffres séparés par des virgules. Défaut "2,6,7,9" : actif immobilisé,
+  // charges et produits des activités ordinaires, contributions volontaires
+  // en nature. Une ligne de trésorerie ou de tiers n'a pas de projet · c'est
+  // la charge qu'elle solde qui en a un.
+  classesVentilees String @default("2,6,7,9")
+
+  // Faux par défaut : une ventilation manquante est SIGNALÉE par le contrôle
+  // des cumuls, elle ne bloque pas la saisie. Bloquer d'office rendrait la
+  // saisie courante impraticable dans une petite association qui ne tient
+  // l'analytique que sur une partie de son activité. À vrai, la saisie refuse
+  // toute ligne non ventilée sur une classe concernée.
+  ventilationObligatoire Boolean @default(false)
+
+  // Le budget se saisit sur les sections de ce plan (case « Gérer les budgets
+  // sur les sections analytiques » de Sage). Un dossier peut vouloir suivre
+  // ses projets sans les budgéter.
+  gererBudgets Boolean @default(true)
+
+  ordre     Int      @default(0)
+  estActif  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  sections SectionAnalytique[]
+
+  @@unique([tenantId, code])
+  @@map("plans_analytiques")
+}
+
+model SectionAnalytique {
+  id       String         @id @default(uuid())
+  planId   String
+  plan     PlanAnalytique @relation(fields: [planId], references: [id])
+  // Dénormalisé : toutes les requêtes de l'application sont scopées au
+  // dossier, et remonter au plan pour chacune coûterait une jointure de plus
+  // sur le chemin le plus sollicité (la grille de saisie).
+  tenantId String
+  tenant   Tenant         @relation(fields: [tenantId], references: [id])
+
+  code     String
+  intitule String
+  // Même logique que les comptes : DETAIL porte les ventilations, TOTAL ne
+  // sert qu'à regrouper ses sections de même racine dans les états.
+  type     TypeCompteDetailTotal @default(DETAIL)
+
+  // Axe bailleur : rattache la section au financeur, ce qui permet de croiser
+  // l'analytique avec la note 9 « Fonds du bailleur » des projets de
+  // développement. Null sur l'axe projet.
+  bailleurId String?
+  bailleur   Bailleur? @relation(fields: [bailleurId], references: [id])
+
+  // Durée de la convention de financement. Un budget bailleur ne suit pas
+  // l'année civile : répartir sur douze mois un financement de huit fausserait
+  // tous les écarts. Null = la section couvre tout l'exercice.
+  dateDebut DateTime?
+  dateFin   DateTime?
+
+  estActive Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  budgets      BudgetSection[]
+  ventilations VentilationAnalytique[]
+
+  @@unique([planId, code])
+  @@index([tenantId])
+  @@map("sections_analytiques")
+}
+
+// Dotation budgétaire d'une section sur un exercice. Une ligne `mois = null`
+// porte la dotation annuelle ; les douze lignes mensuelles la déclinent. Le
+// service répartit l'annuel de façon homogène sur les mois RÉELLEMENT couverts
+// par la convention (dateDebut/dateFin de la section), puis chaque mois reste
+// modifiable à la main.
+model BudgetSection {
+  id         String            @id @default(uuid())
+  sectionId  String
+  section    SectionAnalytique @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  exerciceId String
+  exercice   Exercice          @relation(fields: [exerciceId], references: [id])
+
+  mois    Int? // 1 à 12, ou null pour la dotation annuelle
+  montant Decimal @db.Decimal(18, 2)
+
+  @@unique([sectionId, exerciceId, mois])
+  @@map("budgets_section")
+}
+
+// Ventilation d'une ligne d'écriture sur une section. Plusieurs ventilations
+// par ligne sont possibles (une dépense partagée entre deux projets), y
+// compris sur plusieurs plans à la fois : la contrainte n'est pas « une
+// ventilation par ligne » mais « par PLAN, la somme des ventilations d'une
+// ligne égale son montant, ou il n'y en a aucune ». C'est ce que vérifie
+// l'état de contrôle des cumuls.
+model VentilationAnalytique {
+  id              String            @id @default(uuid())
+  ligneEcritureId String
+  ligne           LigneEcriture     @relation(fields: [ligneEcritureId], references: [id], onDelete: Cascade)
+  sectionId       String
+  section         SectionAnalytique @relation(fields: [sectionId], references: [id])
+  // Dénormalisé, pour vérifier l'équilibre par plan sans charger la section.
+  planId          String
+
+  debit  Decimal @default(0) @db.Decimal(18, 2)
+  credit Decimal @default(0) @db.Decimal(18, 2)
+
+  @@index([ligneEcritureId])
+  @@index([sectionId])
+  @@map("ventilations_analytiques")
 }
 
 // ---------------------------------------------------------------------------

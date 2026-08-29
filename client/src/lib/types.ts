@@ -874,3 +874,125 @@ export interface ParametresDossier {
   /** Au-delà de zéro, le jeu d'états financiers est verrouillé. */
   nombreEcritures: number;
 }
+
+// ---------------------------------------------------------------------------
+// Comptabilité analytique et budgétaire · voir docs/analytique-et-budget.md
+// ---------------------------------------------------------------------------
+
+export interface PlanAnalytique {
+  id: string;
+  code: string;
+  intitule: string;
+  /** Chiffres de classe SYCEBNL ventilés, ex. "2,6,7,9". */
+  classesVentilees: string;
+  ventilationObligatoire: boolean;
+  gererBudgets: boolean;
+  ordre: number;
+  estActif: boolean;
+  _count?: { sections: number };
+}
+
+export interface SectionAnalytique {
+  id: string;
+  planId: string;
+  code: string;
+  intitule: string;
+  type: TypeCompteDetailTotal;
+  bailleurId: string | null;
+  bailleur: { id: string; code: string; nom: string } | null;
+  dateDebut: string | null;
+  dateFin: string | null;
+  estActive: boolean;
+}
+
+export interface BudgetSection {
+  annuel: number;
+  mensuel: { mois: number; montant: number }[];
+}
+
+export interface VentilationAnalytique {
+  id: string;
+  sectionId: string;
+  planId: string;
+  debit: number;
+  credit: number;
+  section: { id: string; code: string; intitule: string; planId: string };
+}
+
+export interface LigneBalanceAnalytique {
+  sectionId: string;
+  code: string;
+  intitule: string;
+  type: TypeCompteDetailTotal;
+  debit: number;
+  credit: number;
+  solde: number;
+}
+
+export interface BalanceAnalytique {
+  lignes: LigneBalanceAnalytique[];
+  totaux: { debit: number; credit: number; solde: number };
+}
+
+export interface LigneGrandLivreAnalytique {
+  date: string;
+  journal: string;
+  numeroPiece: number | null;
+  compteNumero: string;
+  compteIntitule: string;
+  libelle: string;
+  debit: number;
+  credit: number;
+  soldeProgressif: number;
+}
+
+export interface GrandLivreAnalytique {
+  section: {
+    id: string;
+    code: string;
+    intitule: string;
+    plan: { code: string; intitule: string };
+    dateDebut: string | null;
+    dateFin: string | null;
+  };
+  lignes: LigneGrandLivreAnalytique[];
+  totaux: { debit: number; credit: number; solde: number };
+}
+
+export interface ControleCumuls {
+  planId: string;
+  planCode: string;
+  planIntitule: string;
+  mouvementsGenerauxDebit: number;
+  mouvementsGenerauxCredit: number;
+  mouvementsAnalytiquesDebit: number;
+  mouvementsAnalytiquesCredit: number;
+  ecartDebit: number;
+  ecartCredit: number;
+  lignesSansRepartition: {
+    ecritureId: string;
+    date: string;
+    journal: string;
+    compteNumero: string;
+    compteIntitule: string;
+    libelle: string;
+    debit: number;
+    credit: number;
+  }[];
+}
+
+export interface LigneEtatBudgetaire {
+  sectionId: string | null;
+  code: string;
+  intitule: string;
+  budget: number;
+  realise: number;
+  ecart: number;
+  tauxConsommation: number | null;
+  horsBudget: boolean;
+}
+
+export interface EtatBudgetaire {
+  lignes: LigneEtatBudgetaire[];
+  totaux: LigneEtatBudgetaire;
+}

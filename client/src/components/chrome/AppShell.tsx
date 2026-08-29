@@ -43,6 +43,10 @@ export function AppShell() {
       items: [
         { label: 'Plan comptable', onClick: () => navigate('/comptes') },
         { label: 'Plan des tiers', onClick: () => navigate('/tiers') },
+        // Sage : Structure → Plan analytique. Chez une EBNL, l'axe analytique
+        // est celui des projets et des bailleurs · voir
+        // docs/analytique-et-budget.md.
+        { label: 'Plans analytiques', onClick: () => navigate('/plans-analytiques') },
         { label: 'Codes journaux', onClick: () => navigate('/journaux') },
         { label: 'Taux de taxes', onClick: () => navigate('/taux-tva') },
         { label: 'Bailleurs de fonds', separateurAvant: true, onClick: () => navigate('/bailleurs') },
@@ -74,6 +78,7 @@ export function AppShell() {
         { label: 'Grand livre des comptes', onClick: () => navigate('/journal?onglet=grand-livre') },
         { label: 'Balance des comptes', onClick: () => navigate('/journal?onglet=balance') },
         { label: 'Balance âgée', onClick: () => navigate('/balance-agee') },
+        { label: 'États analytiques et budgétaires', onClick: () => navigate('/etats-analytiques') },
         { label: 'États financiers', separateurAvant: true, onClick: () => navigate('/etats-financiers') },
         { label: 'Notes annexes', onClick: () => navigate('/notes-annexes') },
         { label: 'Documents obligatoires', onClick: () => navigate('/documents-obligatoires') },

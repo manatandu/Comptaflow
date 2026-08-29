@@ -25,6 +25,24 @@ export interface EntreeLexique {
 }
 
 export const LEXIQUE = {
+  analytique: {
+    titre: 'Comptabilité analytique',
+    texte:
+      "Le SYCEBNL réserve les comptes 92 à 99 à la comptabilité analytique de gestion, d'usage libre. Pour une entité à but non lucratif, cet usage est le suivi par projet et par bailleur : savoir ce qu'a coûté chaque programme et quel financement le couvre. Chaque ligne d'écriture de charge, de produit, d'immobilisation ou de contribution en nature peut être ventilée sur une ou plusieurs sections.",
+    source: 'SYCEBNL, Partie 2 ch. 3, classe 9',
+  },
+  budget: {
+    titre: 'Dotation budgétaire',
+    texte:
+      "Le budget se porte sur les sections analytiques : chez une EBNL, le budget est celui du projet. Le montant annuel est réparti sur les mois que la convention de financement couvre réellement, puis chaque mois reste modifiable. C'est ce budget qui alimente la note annexe 35 des associations et le tableau d'exécution budgétaire des projets de développement.",
+    source: 'SYCEBNL, art. 4 · notes annexes 35 et tableau d’exécution budgétaire',
+  },
+  controleCumuls: {
+    titre: 'Contrôle des cumuls',
+    texte:
+      "Il compare, pour chaque axe, les mouvements comptables des comptes censés être ventilés aux mouvements effectivement ventilés, et liste les écritures restées sans répartition. Un écart n'est pas une panne : c'est du travail de ventilation qui reste à faire. Sans cet état, un rapport d'exécution adressé à un bailleur n'est pas défendable en audit.",
+    source: 'Suivi analytique · rapprochement général / analytique',
+  },
   adherent: {
     titre: 'Adhérent',
     texte:

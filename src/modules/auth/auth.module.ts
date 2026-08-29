@@ -11,6 +11,7 @@ import { ExerciceModule } from '../exercice/exercice.module';
 import { JournauxModule } from '../journaux/journaux.module';
 import { TvaModule } from '../tva/tva.module';
 import { ImmobilisationsModule } from '../immobilisations/immobilisations.module';
+import { AnalytiqueModule } from '../analytique/analytique.module';
 import { JwtAuthModule } from './jwt-auth.module';
 
 @Module({
@@ -30,6 +31,7 @@ import { JwtAuthModule } from './jwt-auth.module';
     JournauxModule,
     TvaModule,
     ImmobilisationsModule,
+    AnalytiqueModule,
     JwtAuthModule,
   ],
   controllers: [AuthController],

@@ -1,6 +1,26 @@
 import { Type } from 'class-transformer';
 import { IsArray, IsDateString, IsNumber, IsOptional, IsString, IsUUID, Min, ValidateNested } from 'class-validator';
 
+/**
+ * Ventilation analytique posée directement en saisie · c'est ainsi que le
+ * guide Sage écrit pour une ONG la décrit : « Dans la septième colonne,
+ * saisir ou sélectionner la ligne budgétaire concernée par l'opération en
+ * cours », puis une huitième colonne pour les codes projets. La ventilation
+ * n'est donc pas un écran séparé mais une colonne de la grille.
+ */
+export class VentilationLigneDto {
+  @IsUUID()
+  sectionId!: string;
+
+  @IsOptional()
+  @IsNumber()
+  debit?: number;
+
+  @IsOptional()
+  @IsNumber()
+  credit?: number;
+}
+
 export class LigneEcritureDto {
   @IsUUID()
   compteId!: string;
@@ -31,6 +51,17 @@ export class LigneEcritureDto {
   @IsOptional()
   @IsDateString()
   dateEcheance?: string;
+
+  // Ventilation analytique de la ligne (projet, bailleur). Facultative : sauf
+  // plan marqué à ventilation obligatoire, une ligne non ventilée passe et
+  // c'est l'état de contrôle des cumuls qui la signale · même parti que Sage,
+  // sans quoi la saisie courante d'une petite association deviendrait
+  // impraticable.
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => VentilationLigneDto)
+  ventilations?: VentilationLigneDto[];
 }
 
 export class CreerEcritureDto {
