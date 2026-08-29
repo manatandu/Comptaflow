@@ -37,7 +37,7 @@ export function PlanComptesPage() {
   const { estAdmin } = useAuth();
   const [comptes, setComptes] = useState<Compte[] | null>(null);
   const [recherche, setRecherche] = useState('');
-  const [classeFiltre, setClasseFiltre] = useState<ClasseCompte | 'TOUTES'>('TOUTES');
+  const [classeFiltre, setClasseFiltre] = useState<ClasseCompte>('CLASSE_1');
   const [selectionId, setSelectionId] = useState<string | null>(null);
   const [nouveauOuvert, setNouveauOuvert] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
@@ -63,21 +63,17 @@ export function PlanComptesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recherche]);
 
+  // Une recherche en cours affiche ses résultats toutes classes confondues ·
+  // le classement par classe ne s'applique qu'en navigation libre, sans recherche.
   const liste = useMemo(
-    () => (comptes ?? []).filter((c) => classeFiltre === 'TOUTES' || c.classe === classeFiltre),
-    [comptes, classeFiltre],
+    () => (comptes ?? []).filter((c) => recherche.trim() !== '' || c.classe === classeFiltre),
+    [comptes, classeFiltre, recherche],
   );
   const selection = liste.find((c) => c.id === selectionId) ?? (comptes ?? []).find((c) => c.id === selectionId) ?? null;
 
   useEffect(() => {
     setIntituleEdit(selection?.intitule ?? '');
   }, [selection?.id, selection?.intitule]);
-
-  const nombresParClasse = useMemo(() => {
-    const m = new Map<ClasseCompte, number>();
-    for (const c of comptes ?? []) m.set(c.classe, (m.get(c.classe) ?? 0) + 1);
-    return m;
-  }, [comptes]);
 
   const onCreer = async (e: FormEvent) => {
     e.preventDefault();
@@ -145,16 +141,6 @@ export function PlanComptesPage() {
           <div className="px-3 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
             CLASSEMENT
           </div>
-          <button
-            type="button"
-            onClick={() => setClasseFiltre('TOUTES')}
-            className={`w-full text-left px-3 py-1.5 text-[11.5px] flex justify-between ${
-              classeFiltre === 'TOUTES' ? 'bg-sel text-white' : 'hover:bg-chrome-alt'
-            }`}
-          >
-            <span>Tous les comptes</span>
-            <span className={classeFiltre === 'TOUTES' ? 'text-white/70' : 'text-text-dim'}>{comptes?.length ?? '…'}</span>
-          </button>
           {(Object.keys(LIBELLE_CLASSE) as ClasseCompte[]).map((cl) => (
             <button
               key={cl}
@@ -166,7 +152,7 @@ export function PlanComptesPage() {
             >
               <span className="font-mono font-semibold">Classe {cl.replace('CLASSE_', '')}</span>
               <span className={`block text-[10px] leading-tight truncate ${classeFiltre === cl ? 'text-white/75' : 'text-text-dim'}`}>
-                {LIBELLE_CLASSE[cl]} · {nombresParClasse.get(cl) ?? 0}
+                {LIBELLE_CLASSE[cl]}
               </span>
             </button>
           ))}
@@ -217,7 +203,7 @@ export function PlanComptesPage() {
           </div>
           <div className="px-3.5 py-1 bg-surface-alt border-t border-border text-[10px] text-text-dim shrink-0">
             {liste.length} compte{liste.length > 1 ? 's' : ''}
-            {classeFiltre !== 'TOUTES' && ` · classe ${classeFiltre.replace('CLASSE_', '')}`}
+            {recherche.trim() === '' && ` · classe ${classeFiltre.replace('CLASSE_', '')}`}
           </div>
         </div>
 

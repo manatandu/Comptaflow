@@ -365,14 +365,6 @@ export function EtatsFinanciersPage() {
                   ))}
                 </div>
               )}
-
-              <p className="text-[11px] text-text-dim mt-3">
-                Postes et rattachements conformes au tableau de correspondance officiel SYCEBNL (Journal officiel
-                OHADA, Partie 4 ch. 2) · 3 colonnes Brut/Amort./Net côté actif et comparatif N-1 des deux côtés,
-                comme l'exige le texte officiel. Comme au compte de résultat, les anomalies du texte officiel sont
-                corrigées explicitement (comptes de tiers polyvalents 42-47 distingués par le sens du solde,
-                provisions réglementées en poste 15) plutôt que devinées · voir <code>correspondance-bilan.ts</code>.
-              </p>
             </div>
           )}
         </>
@@ -453,13 +445,6 @@ export function EtatsFinanciersPage() {
                   </p>
                 </div>
               )}
-
-              <p className="text-[11px] text-text-dim mt-3">
-                Postes et rattachements conformes au tableau de correspondance officiel SYCEBNL (Journal officiel OHADA,
-                Partie 4 ch. 2). Charges présentées en positif, de sorte que XC = XA − XB. XA inclut RH : le libellé
-                officiel dit « Somme RA à RG », ce qui romprait l'égalité entre le résultat et le bilan dès qu'il y a
-                des reprises.
-              </p>
             </div>
           )}
         </>
@@ -533,12 +518,6 @@ export function EtatsFinanciersPage() {
                   ))}
                 </div>
               )}
-
-              <p className="text-[11px] text-text-dim mt-3">
-                Méthode directe imposée par le texte officiel (Partie 4, ch. 1 § 4) : Encaissements N = Revenus (N) +
-                Créances (N-1) − Créances (N) ; Décaissements N = Achats (N) + Dettes (N-1) − Dettes (N). État
-                spécifique au jeu associations et ordres professionnels.
-              </p>
             </div>
           )}
         </>
@@ -607,16 +586,6 @@ export function EtatsFinanciersPage() {
                   ))}
                 </div>
               )}
-
-              <p className="text-[11px] text-text-dim mt-3">
-                Postes et rattachements conformes au tableau de correspondance officiel SYCEBNL, jeu « projets de
-                développement et assimilés » (Journal officiel OHADA, Partie 4 ch. 3) · voir{' '}
-                <code>correspondance-projet-bilan.ts</code>. Deux colonnes de valeur seulement : contrairement au
-                bilan des associations, le texte de ce jeu ne prévoit ni Brut ni Amortissements, et son tableau de
-                correspondance ne cite aucun compte 28x/29x. CC (solde des opérations de l'exercice) vient
-                uniquement du compte 13. Le poste DI reprend le compte 20 tel que l'écrit le texte officiel, bien
-                qu'il s'agisse d'un compte d'actif · anomalie signalée, jamais corrigée en silence.
-              </p>
             </div>
           )}
         </>
@@ -689,14 +658,6 @@ export function EtatsFinanciersPage() {
                   ))}
                 </div>
               )}
-
-              <p className="text-[11px] text-text-dim mt-3">
-                Postes conformes au tableau de correspondance officiel SYCEBNL, jeu « projets de développement et
-                assimilés » (Journal officiel OHADA, Partie 4 ch. 3) · voir{' '}
-                <code>correspondance-projet-compte-exploitation.ts</code>. RC (subventions) et RE (reprises) dans XA :
-                deux anomalies du texte officiel corrigées. TJ et TK apparaissent deux fois chacun : doublon du texte
-                officiel, reproduit tel quel.
-              </p>
             </div>
           )}
         </>

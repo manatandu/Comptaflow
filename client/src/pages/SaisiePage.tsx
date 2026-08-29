@@ -455,12 +455,6 @@ export function SaisiePage() {
               </div>
             </div>
           </div>
-
-          <p className="text-[11px] text-text-dim mt-2.5">
-            La saisie est libre : toute écriture équilibrée, sur n'importe quels comptes du plan, dans le
-            journal de votre choix. Les modèles de saisie (opérations courantes, TVA, écritures-types
-            SYCEBNL) s'appellent ensuite depuis le journal ouvert.
-          </p>
         </div>
       </div>
     );

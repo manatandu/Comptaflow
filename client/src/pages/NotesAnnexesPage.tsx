@@ -6,6 +6,23 @@ import { IconExport } from '../components/chrome/icons';
 import type { Compte, LigneNoteCalculee, NoteCalculee, ResultatNotesJeu } from '../lib/types';
 
 /**
+ * Tri croissant des codes de note (« 1 », « 5A »…« 5H », « 17A », « 17B »,
+ * « 29A », « 29B »…« 35 ») · le texte officiel les numérote dans cet ordre,
+ * mais rien côté serveur ne garantit que `ficheRecapitulative` sorte déjà
+ * ainsi (l'ordre de déclaration du référentiel est libre). Numéro d'abord,
+ * puis suffixe alphabétique.
+ */
+function compareCodesNotes(a: string, b: string): number {
+  const decouper = (s: string) => {
+    const m = /^(\d+)([A-Za-z]*)$/.exec(s);
+    return m ? { num: Number(m[1]), suffixe: m[2] } : { num: Number.MAX_SAFE_INTEGER, suffixe: s };
+  };
+  const pa = decouper(a);
+  const pb = decouper(b);
+  return pa.num !== pb.num ? pa.num - pb.num : pa.suffixe.localeCompare(pb.suffixe);
+}
+
+/**
  * Notes annexes SYCEBNL · les deux jeux (45 notes « associations et ordres
  * professionnels », 26 notes « projets de développement »), plus le
  * rattachement des sous-comptes du dossier aux rubriques que le plan de
@@ -81,12 +98,19 @@ export function NotesAnnexesPage() {
   // (note 1, ses trois grilles) : `sousTableau` les distingue.
   const tableaux = resultat?.notes.filter((n) => n.code === codeSelectionne) ?? [];
 
+  // Ordre croissant des numéros de note (1, 2, 3… 5A…5H… 35) · le back ne
+  // le garantit pas (voir compareCodesNotes ci-dessus).
+  const ficheTriee = useMemo(
+    () => [...(resultat?.ficheRecapitulative ?? [])].sort((a, b) => compareCodesNotes(a.code, b.code)),
+    [resultat],
+  );
+
   // Sélection par défaut : la première note applicable, pour ne pas ouvrir
   // l'écran sur un tableau vide.
   useEffect(() => {
     if (!resultat || codeSelectionne) return;
-    const premiereApplicable = resultat.ficheRecapitulative.find((f) => f.applicable);
-    setCodeSelectionne(premiereApplicable?.code ?? resultat.ficheRecapitulative[0]?.code ?? null);
+    const premiereApplicable = ficheTriee.find((f) => f.applicable);
+    setCodeSelectionne(premiereApplicable?.code ?? ficheTriee[0]?.code ?? null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resultat]);
 
@@ -355,7 +379,7 @@ export function NotesAnnexesPage() {
               <span>INTITULÉ</span>
               <span />
             </div>
-            {resultat.ficheRecapitulative.map((f) => (
+            {ficheTriee.map((f) => (
               <button
                 key={f.code}
                 onClick={() => setCodeSelectionne(f.code)}
