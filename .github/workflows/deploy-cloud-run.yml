@@ -48,12 +48,29 @@ jobs:
 
       - uses: google-github-actions/setup-gcloud@v2
 
+      # Les variables passent par un FICHIER (--env-vars-file) et non par
+      # --set-env-vars : gcloud découpe ce dernier sur les virgules et les
+      # égalités, et une chaîne de connexion Postgres (mot de passe,
+      # ?sslmode=...&...) l'a fait échouer en erreur d'usage (exit 2). Le
+      # fichier est produit en JSON (JSON est du YAML valide) depuis
+      # l'environnement, jamais par interpolation shell · aucun caractère du
+      # secret ne peut casser ni la commande ni le fichier.
       - name: Déployer sur Cloud Run
+        env:
+          DATABASE_URL: ${{ secrets.API_DATABASE_URL }}
+          JWT_SECRET: ${{ secrets.API_JWT_SECRET }}
+          JWT_EXPIRES_IN: ${{ secrets.API_JWT_EXPIRES_IN }}
+          CORS_ORIGIN: https://oomega.web.app,https://oomega.firebaseapp.com
         run: |
+          python3 - <<'PY' > /tmp/env-vars.yaml
+          import json, os
+          cles = ("DATABASE_URL", "JWT_SECRET", "JWT_EXPIRES_IN", "CORS_ORIGIN")
+          print(json.dumps({c: os.environ[c] for c in cles}))
+          PY
           gcloud run deploy "$SERVICE" \
             --source . \
             --region "$REGION" \
             --project "$PROJECT_ID" \
             --allow-unauthenticated \
             --quiet \
-            --set-env-vars="DATABASE_URL=${{ secrets.API_DATABASE_URL }},JWT_SECRET=${{ secrets.API_JWT_SECRET }},JWT_EXPIRES_IN=${{ secrets.API_JWT_EXPIRES_IN }},CORS_ORIGIN=https://oomega.web.app"
+            --env-vars-file /tmp/env-vars.yaml
