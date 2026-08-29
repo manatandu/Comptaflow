@@ -6,10 +6,10 @@ Pilotée).
 ## Module "Moyens de Paiement" (trésorerie avancée)
 
 - Instruments de règlement distincts : **LCR** (Lettre de Change Relevée), **virement
-  SEPA**, prélèvement — chacun avec un cycle propre : saisie → pointage → transmission
+  SEPA**, prélèvement · chacun avec un cycle propre : saisie → pointage → transmission
   → bordereau de remise imprimé.
 - **Le règlement n'est finalisé qu'après édition du bordereau** (même règle que pour
-  les règlements tiers en comptabilité générale — cohérence du modèle Sage sur ce
+  les règlements tiers en comptabilité générale · cohérence du modèle Sage sur ce
   point de contrôle).
 - **Lots préétablis** de virements/prélèvements récurrents et répétitifs : paramétrés
   une fois, rappelés et ajustés à chaque échéance (modèle réutilisable pour une
@@ -64,10 +64,10 @@ Gestion Commerciale et Paie.
 ## Implication pour Compta Flow
 
 - Le module Trésorerie est une **nouvelle brique**, pas explicitement prévue dans la
-  vision initiale — à ajouter à la roadmap avec un séquencement clair : rapprochement
+  vision initiale · à ajouter à la roadmap avec un séquencement clair : rapprochement
   bancaire manuel (brique courte) avant tout module de paiement avancé (lots, LCR,
   virements).
 - Le pattern BI (catalogue à 3 modes d'accès, historique pluriannuel, simulateur) est
   intéressant pour une future version avancée du tableau de bord, mais très en aval :
   Postgres + requêtes vivantes suffira largement tant que le volume de reporting ne
-  l'impose pas — la couche "cube de données" séparée n'est pas un besoin actuel.
+  l'impose pas · la couche "cube de données" séparée n'est pas un besoin actuel.

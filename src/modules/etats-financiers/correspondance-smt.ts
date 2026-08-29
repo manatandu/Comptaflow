@@ -37,6 +37,14 @@
  * D'où la structure du compte de résultat : un solde de CAISSE (C = A - B),
  * puis trois retraitements de variation (stocks, créances, dettes) et les
  * dotations aux amortissements pour revenir au résultat net d'engagement.
+ *
+ * Ce trajet a une limite que le texte ne relève pas : il suppose que la
+ * caisse ne bouge que pour des produits, des charges et des règlements de
+ * tiers. Un apport en dotation encaissé ou un véhicule payé en banque
+ * gonflent ou creusent KZ sans toucher au résultat, et la maquette n'ouvre
+ * aucune ligne pour les reprendre. `EtatsFinanciersSmtService` calcule ce
+ * montant sous le nom de FLUX HORS EXPLOITATION, l'expose et l'utilise dans
+ * le contrôle de concordance · l'état imprimé, lui, reste celui du texte.
  * Ces lignes de variation n'ont de sens que si A et B sont de vrais flux de
  * trésorerie. Les postes KA-KB et JA-JF ne sont donc **pas** lus dans les
  * soldes des classes 6 et 7 (ce serait déjà de l'engagement, et le
@@ -323,21 +331,21 @@ export const RETRAITEMENTS: RetraitementSmt[] = [
     libelle: '+ Variations des stocks sur les achats [N - (N-1)]',
     signe: 1,
     fondement:
-      'Poste GB du bilan, exercice N moins exercice N-1. Un stock qui augmente correspond à des achats décaissés mais non consommés : la dépense de caisse est retranchée du résultat, la variation la rend.',
+      "Poste GB du bilan, clôture moins OUVERTURE de l'exercice (report à nouveau). Un stock qui augmente correspond à des achats décaissés mais non consommés : la dépense de caisse est retranchée du résultat, la variation la rend.",
   },
   {
     ref: 'VB',
     libelle: '+ Variation des créances [N - (N-1)]',
     signe: 1,
     fondement:
-      'Poste GC du bilan, exercice N moins exercice N-1. Une créance qui augmente correspond à un revenu acquis non encaissé : absent de A, la variation le rend.',
+      "Poste GC du bilan, clôture moins OUVERTURE de l'exercice (report à nouveau). Une créance qui augmente correspond à un revenu acquis non encaissé : absent de A, la variation le rend.",
   },
   {
     ref: 'VC',
     libelle: "- Variation des dettes d'exploitation [N - (N-1)]",
     signe: -1,
     fondement:
-      "Poste HD du bilan, exercice N moins exercice N-1. Une dette qui augmente correspond à une charge engagée non payée : absente de B, la variation la retranche. L'opérateur « - » est celui du texte officiel.",
+      "Poste HD du bilan, clôture moins OUVERTURE de l'exercice (report à nouveau). Une dette qui augmente correspond à une charge engagée non payée : absente de B, la variation la retranche. L'opérateur « - » est celui du texte officiel.",
   },
   {
     ref: 'JG',

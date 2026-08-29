@@ -370,11 +370,55 @@ describe('Compte de résultat S.M.T', () => {
     expect(cr.controle.concordant).toBe(true);
   });
 
-  it('sans exercice N-1 le contrôle se déclare NON interprétable au lieu de crier à l’anomalie', async () => {
-    const s = service({ e1: BALANCE_CAISSE }, { ecritures: [] });
+  it('les variations VA/VB/VC se mesurent contre l’OUVERTURE de l’exercice, pas contre l’exercice N-1 du logiciel', async () => {
+    // Dossier repris en cours de vie : une dette de 100 existait à
+    // l'ouverture (report à nouveau), portée à 250 à la clôture. La variation
+    // est de 150, pas de 250. Aucun exercice N-1 n'est enregistré dans
+    // OmegaX : lire le N-1 plutôt que le report à nouveau donnerait 250.
+    const s = service(
+      { e1: [ligne('40100000', ClasseCompte.CLASSE_4, 0, 250, { credit: 100 })] },
+      { ecritures: [] },
+    );
     const cr = await s.compteDeResultat('t1', 'e1');
-    expect(cr.controle.interpretable).toBe(false);
-    expect(cr.controle.concordant).toBe(false);
+    expect(cr.retraitements.find((r) => r.ref === 'VC')!.montant).toBe(150);
+  });
+
+  it('isole les flux qui ne sont NI produit NI charge, et le contrôle concorde une fois qu’on les retire', async () => {
+    // Limite assumée de la maquette officielle : un apport en dotation
+    // encaissé et une immobilisation payée gonflent et creusent KZ sans
+    // toucher au résultat, et le texte n'ouvre aucune ligne pour les
+    // reprendre. Le moteur les calcule et les expose plutôt que de laisser
+    // un écart inexpliqué.
+    const s = service(
+      {
+        e1: [
+          ligne('57100000', ClasseCompte.CLASSE_5, 500, 600),
+          ligne('10110000', ClasseCompte.CLASSE_1, 0, 500),
+          ligne('24110000', ClasseCompte.CLASSE_2, 600, 0),
+        ],
+      },
+      {
+        ecritures: [
+          ecriture('d', '2026-01-10', 'Apport en dotation', [
+            { numero: '57100000', debit: 500 },
+            { numero: '10110000', credit: 500 },
+          ]),
+          ecriture('i', '2026-07-15', 'Achat de matériel', [
+            { numero: '24110000', debit: 600 },
+            { numero: '57100000', credit: 600 },
+          ]),
+        ],
+      },
+    );
+    const cr = await s.compteDeResultat('t1', 'e1');
+    expect(cr.soldeCaisse).toBe(-100);
+    expect(cr.controle.fluxHorsExploitation).toBe(-100);
+    expect(cr.controle.comptesHorsExploitation.map((c) => c.numero)).toEqual(['10110000', '24110000']);
+    // Résultat du bilan nul (aucune classe 6/7/8 mouvementée) : KZC vaut le
+    // flux hors exploitation, et le contrôle concorde une fois celui-ci retiré.
+    expect(cr.controle.resultatBilan).toBe(0);
+    expect(cr.controle.ecart).toBe(0);
+    expect(cr.controle.concordant).toBe(true);
   });
 });
 
@@ -383,6 +427,47 @@ describe('Compte de résultat S.M.T', () => {
 // ---------------------------------------------------------------------------
 
 describe('Note 4 · journal unique de trésorerie', () => {
+  it('le virement interne EST dans le journal (livre de caisse), et le solde boucle avec la balance', async () => {
+    // Il n'est ni recette ni dépense pour l'entité, donc absent du compte de
+    // résultat · mais c'est une sortie de la caisse, et l'omettre donnerait un
+    // journal dont le solde final ne serait pas celui du compte.
+    const s = service(
+      {
+        e1: [
+          ligne('57100000', ClasseCompte.CLASSE_5, 1000, 400),
+          ligne('52100000', ClasseCompte.CLASSE_5, 400, 0),
+        ],
+      },
+      {
+        ecritures: [
+          ecriture('a', '2026-03-01', 'Cotisations', [
+            { numero: '57100000', debit: 1000 },
+            { numero: '70100000', credit: 1000 },
+          ]),
+          ecriture('v', '2026-06-01', 'Versement en banque', [
+            { numero: '52100000', debit: 400 },
+            { numero: '57100000', credit: 400 },
+          ]),
+        ],
+      },
+    );
+    const { journaux } = await s.journalTresorerie('t1', 'e1');
+    const caisse = journaux.find((j) => j.numero === '57100000')!;
+    expect(caisse.operations).toHaveLength(2);
+    expect(caisse.operations[1].virementInterne).toBe(true);
+    expect(caisse.operations[1].depense).toBe(400);
+    // La ligne de virement ne reçoit aucune ventilation : les colonnes
+    // officielles ne classent que des natures de recette et de dépense.
+    expect(Object.values(caisse.operations[1].ventilation).every((v) => v === 0)).toBe(true);
+    expect(caisse.soldeAReporter).toBe(600);
+    expect(caisse.soldeBalance).toBe(600);
+    expect(caisse.boucle).toBe(true);
+
+    const banque = journaux.find((j) => j.numero === '52100000')!;
+    expect(banque.operations[0].recette).toBe(400);
+    expect(banque.boucle).toBe(true);
+  });
+
   it('ouvre un journal PAR compte de trésorerie, du report à nouveau au solde à reporter', async () => {
     const s = service(
       {

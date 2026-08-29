@@ -223,31 +223,45 @@ export function EtatsSmtPage() {
             {ligneTotal('KZC', "RÉSULTAT NET DE L'EXERCICE", cr.resultatNet)}
           </div>
 
-          {/* Le seul contrôle qui atteste que la reconstruction de trésorerie
-              est complète : les deux chemins vers le résultat doivent
-              coïncider. */}
-          {cr.controle.interpretable ? (
-            <div
-              className={`flex items-start gap-2 px-3.5 py-2.5 border ${
-                cr.controle.concordant ? 'border-positive/30 bg-positive-soft' : 'border-warning/40 bg-warning-soft'
-              }`}
-            >
-              <span className="text-[11.5px]">
-                {cr.controle.concordant
-                  ? `Résultat net (KZC) et résultat du bilan (HB) concordent à ${montant(cr.resultatNet)}.`
-                  : `Écart de ${montant(cr.controle.ecart)} entre le résultat reconstitué (KZC ${montant(
-                      cr.resultatNet,
-                    )}) et le résultat du bilan (HB ${montant(
-                      cr.controle.resultatBilan,
-                    )}). Une opération de trésorerie a une contrepartie qu’aucun poste ne capte, ou une charge sans décaissement n’est pas une dotation aux amortissements.`}
-              </span>
+          {/* Les deux chemins vers le résultat doivent coïncider, une fois
+              retirés les flux que la maquette officielle ne reprend nulle
+              part. C'est le seul contrôle qui atteste que la reconstruction
+              de trésorerie est complète. */}
+          {Math.abs(cr.controle.fluxHorsExploitation) > 0.005 && (
+            <div className="border border-border bg-surface px-3.5 py-2.5 mb-2">
+              <div className="text-[11.5px] font-bold mb-1">
+                Flux de trésorerie hors exploitation : {montant(cr.controle.fluxHorsExploitation)}
+              </div>
+              <p className="text-[11px] text-text-dim mb-1.5">
+                Encaissements et décaissements qui ne sont ni un produit ni une charge (apport en dotation, emprunt,
+                acquisition ou cession d'immobilisation). Ils entrent dans le solde de caisse KZ mais pas dans le
+                résultat, et la maquette officielle du Système minimal de trésorerie n'ouvre aucune ligne pour les
+                reprendre. Le montant est donc calculé ici plutôt que laissé en écart inexpliqué.
+              </p>
+              {cr.controle.comptesHorsExploitation.map((c) => (
+                <div key={c.numero} className="flex justify-between text-[11px] font-mono">
+                  <span>
+                    {c.numero} · {c.intitule}
+                  </span>
+                  <span>{montant(c.montant)}</span>
+                </div>
+              ))}
             </div>
-          ) : (
-            <p className="text-[10.5px] text-text-dim">
-              Aucun exercice antérieur dans ce dossier : les variations VA, VB et VC valent le stock de clôture au
-              lieu de sa variation, et le rapprochement avec le résultat du bilan n'est pas interprétable.
-            </p>
           )}
+
+          <div
+            className={`flex items-start gap-2 px-3.5 py-2.5 border ${
+              cr.controle.concordant ? 'border-positive/30 bg-positive-soft' : 'border-warning/40 bg-warning-soft'
+            }`}
+          >
+            <span className="text-[11.5px]">
+              {cr.controle.concordant
+                ? `Résultat net (KZC ${montant(cr.resultatNet)}), une fois retirés les flux hors exploitation, concorde avec le résultat du bilan (HB ${montant(cr.controle.resultatBilan)}).`
+                : `Écart de ${montant(cr.controle.ecart)} entre le résultat reconstitué et le résultat du bilan (HB ${montant(
+                    cr.controle.resultatBilan,
+                  )}), flux hors exploitation déjà retirés. Une opération de trésorerie a une contrepartie qu'aucun poste ne capte, ou une charge sans décaissement n'est pas une dotation aux amortissements.`}
+            </span>
+          </div>
         </div>
       )}
 
@@ -265,8 +279,16 @@ export function EtatsSmtPage() {
                 <span className="text-[11.5px] font-bold font-mono">
                   {j.numero} · {j.intitule}
                 </span>
-                <span className="text-[10.5px] text-text-dim font-mono">
+                <span
+                  className={`text-[10.5px] font-mono ${j.boucle ? 'text-text-dim' : 'text-danger font-bold'}`}
+                  title={
+                    j.boucle
+                      ? 'Le journal boucle : son solde final est celui du compte à la balance.'
+                      : `Le solde du journal (${montant(j.soldeAReporter)}) diffère du solde du compte à la balance (${montant(j.soldeBalance)}).`
+                  }
+                >
                   Report à nouveau {montant(j.reportANouveau)} · Solde à reporter {montant(j.soldeAReporter)}
+                  {!j.boucle && ` · balance ${montant(j.soldeBalance)}`}
                 </span>
               </div>
               <div className="grid grid-cols-[86px_1fr_110px_110px_110px] gap-2 px-4 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
@@ -287,19 +309,24 @@ export function EtatsSmtPage() {
                 <div
                   key={`${j.compteId}-${i}`}
                   title={
-                    o.ventile
-                      ? Object.entries(o.ventilation)
-                          .filter(([, v]) => Math.abs(v) > 0.005)
-                          .map(([k, v]) => `${k} : ${montant(v)}`)
-                          .join(' · ')
-                      : "Écriture partagée entre plusieurs comptes de trésorerie : ventilation non attribuée"
+                    o.virementInterne
+                      ? "Déplacement entre deux comptes de l'entité : ni recette ni dépense, donc absent du compte de résultat, mais bien un mouvement de ce compte."
+                      : o.ventile
+                        ? Object.entries(o.ventilation)
+                            .filter(([, v]) => Math.abs(v) > 0.005)
+                            .map(([k, v]) => `${k} : ${montant(v)}`)
+                            .join(' · ')
+                        : 'Écriture partagée entre plusieurs comptes de trésorerie : ventilation non attribuée'
                   }
                   className="grid grid-cols-[86px_1fr_110px_110px_110px] gap-2 px-4 py-1 text-[12px]"
                 >
                   <span className="font-mono text-[11px]">{jour(o.date)}</span>
                   <span>
                     {o.libelle}
-                    {!o.ventile && <span className="ml-1.5 text-[10px] text-warning">non ventilé</span>}
+                    {o.virementInterne && <span className="ml-1.5 text-[10px] text-text-dim">virement interne</span>}
+                    {!o.virementInterne && !o.ventile && (
+                      <span className="ml-1.5 text-[10px] text-warning">non ventilé</span>
+                    )}
                   </span>
                   <span className="font-mono text-right">{o.recette ? montant(o.recette) : ''}</span>
                   <span className="font-mono text-right">{o.depense ? montant(o.depense) : ''}</span>
@@ -308,7 +335,11 @@ export function EtatsSmtPage() {
               ))}
               <div className="grid grid-cols-[86px_1fr_110px_110px_110px] gap-2 px-4 py-1.5 bg-surface-alt border-t border-border text-[12px] font-bold">
                 <span>·</span>
-                <span>Solde à reporter</span>
+                {/* La maquette officielle nomme cette ligne « Solde à reporter ».
+                    Les deux colonnes de totaux sont un ajout : les nommer évite
+                    de laisser croire que le solde vaut 1 200 000 quand c'est le
+                    cumul des recettes. */}
+                <span>Totaux · solde à reporter</span>
                 <span className="font-mono text-right">{montant(j.totalRecettes)}</span>
                 <span className="font-mono text-right">{montant(j.totalDepenses)}</span>
                 <span className="font-mono text-right">{montant(j.soldeAReporter)}</span>

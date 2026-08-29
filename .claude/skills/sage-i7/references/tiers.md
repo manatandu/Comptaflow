@@ -1,4 +1,4 @@
-# Plan des tiers (comptabilité auxiliaire) — modèle Sage 100/i7
+# Plan des tiers (comptabilité auxiliaire) · modèle Sage 100/i7
 
 Sources principales : documents #1, #2, #6, #8, #17.
 
@@ -6,7 +6,7 @@ Sources principales : documents #1, #2, #6, #8, #17.
 
 - 4 types de compte tiers : **Client / Fournisseur / Salarié / Autre**.
 - Un tiers a un ou plusieurs **comptes généraux rattachés**, dont un marqué
-  **Principal** (premier sélectionné par défaut, un seul principal à la fois) — c'est
+  **Principal** (premier sélectionné par défaut, un seul principal à la fois) · c'est
   le vrai modèle "sous-compte auxiliaire remonté sur un compte collectif" : en saisie,
   indiquer le tiers propose automatiquement son compte général principal.
 - Champs d'identification : numéro (jusqu'à 17 caractères alphanumériques, unique tous
@@ -59,10 +59,10 @@ Réutilisable au-delà des tiers (paie, trésorerie) :
   comptabilité.
 - Regroupement possible de plusieurs factures d'un même tiers sur un même règlement.
 - Règlement partiel possible.
-- **Le règlement n'est effectif qu'après impression de la lettre de règlement** — état
+- **Le règlement n'est effectif qu'après impression de la lettre de règlement** · état
   intermédiaire "en attente d'impression" à prévoir comme état légitime.
 
 ## Implication pour Compta Flow
 
-Cette brique dépend directement du lettrage (voir `comptabilite-generale.md`) — ne pas
+Cette brique dépend directement du lettrage (voir `comptabilite-generale.md`) · ne pas
 l'attaquer avant que le lettrage existe, sous peine de devoir la refaire.

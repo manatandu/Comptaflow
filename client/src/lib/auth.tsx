@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { api, setToken } from './api';
+import { memoriserDossier } from './dossiersRecents';
 import type { JeuEtatsFinanciersSycebnl, Referentiel, RoleUtilisateur } from './types';
 
 interface MeResponse {
@@ -30,6 +31,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const me = await api.get<MeResponse>('/auth/me');
       setUtilisateur(me);
+      // Le dossier vient d'être ouvert · il rejoint la liste des dossiers
+      // récents de cet appareil, l'équivalent du menu Fichier > Favoris de
+      // Sage (voir lib/dossiersRecents.ts). C'est le SEUL endroit où cette
+      // liste est alimentée : `chargerUtilisateur` est appelée après une
+      // connexion, après la création d'un dossier par l'assistant, et à la
+      // reprise d'une session. Le faire ailleurs dupliquerait la règle · et
+      // le faire depuis la réponse de /auth/login ne marcherait pas, cette
+      // réponse ne portant que le jeton.
+      memoriserDossier({
+        nom: me.tenant.nom,
+        email: me.email,
+        referentiel: me.tenant.referentiel,
+        jeuEtatsFinanciersSycebnl: me.tenant.jeuEtatsFinanciersSycebnl,
+      });
     } catch {
       setToken(null);
       setUtilisateur(null);

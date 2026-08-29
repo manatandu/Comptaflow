@@ -78,6 +78,31 @@ export class EtatsFinanciersSmtService {
     return chargerLignes(this.ecritureService, tenantId, exerciceId);
   }
 
+  /**
+   * Les mêmes lignes de balance, ramenées à l'OUVERTURE de l'exercice : le
+   * report à nouveau tient lieu de solde, les mouvements de l'exercice sont
+   * mis de côté.
+   *
+   * Sert aux trois lignes de variation du compte de résultat (VA, VB, VC),
+   * que la maquette note « [N - (N-1)] ». Le terme (N-1) y est l'ouverture de
+   * l'exercice, pas la clôture de l'exercice précédent tel qu'il figure dans
+   * le logiciel : les deux coïncident quand la clôture a été passée dans
+   * OmegaX, mais pas pour un premier exercice (où l'ouverture est le solde
+   * repris de l'ancienne comptabilité) ni pour un dossier repris en cours de
+   * vie. L'ouverture, elle, est toujours présente. C'est d'ailleurs déjà ce
+   * que sert la Note 3 sous l'intitulé « Montant au 1er janvier N ».
+   */
+  private aLOuverture(lignes: LigneBalancePourEtat[]): LigneBalancePourEtat[] {
+    return lignes.map((l) => ({
+      ...l,
+      totalDebit: l.reportDebit,
+      totalCredit: l.reportCredit,
+      mouvementDebit: 0,
+      mouvementCredit: 0,
+      solde: l.reportDebit - l.reportCredit,
+    }));
+  }
+
   // -------------------------------------------------------------------------
   // BILAN (Section 1)
   // -------------------------------------------------------------------------
@@ -186,12 +211,36 @@ export class EtatsFinanciersSmtService {
    * une date, un libellé, un montant en recette OU en dépense, et la
    * ventilation de ce montant sur les comptes de contrepartie.
    */
-  private async mouvementsTresorerie(tenantId: string, exerciceId: string) {
-    const ecritures = await this.prisma.ecriture.findMany({
+  /**
+   * Les écritures de l'exercice qui entrent dans les états du S.M.T.
+   *
+   * VALIDÉES seulement, et écritures de clôture EXCLUES : le report à nouveau
+   * rouvre les comptes de trésorerie par une écriture qui n'est pas un
+   * encaissement, et la compter ferait apparaître le solde d'ouverture comme
+   * une recette de l'exercice. Le report à nouveau a sa place ailleurs, en
+   * première ligne du journal de la Note 4.
+   */
+  private async ecrituresDeLExercice(tenantId: string, exerciceId: string) {
+    return this.prisma.ecriture.findMany({
       where: { tenantId, exerciceId, statut: StatutEcriture.VALIDEE, estGenereeParCloture: false },
       include: { lignes: { include: { compte: true } } },
       orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
     });
+  }
+
+  /**
+   * Une opération qui a un EFFET NET sur la trésorerie de l'entité : une
+   * recette ou une dépense, avec la ventilation de son montant sur les
+   * comptes de contrepartie.
+   *
+   * Un virement de la caisse vers la banque est écarté ici · son flux net est
+   * nul, ce n'est ni une recette ni une dépense. Il n'est PAS écarté du
+   * journal de la Note 4, qui est un livre de caisse et doit montrer tous les
+   * mouvements du compte pour que son solde soit juste (voir
+   * `journalTresorerie`).
+   */
+  private async mouvementsTresorerie(tenantId: string, exerciceId: string) {
+    const ecritures = await this.ecrituresDeLExercice(tenantId, exerciceId);
 
     return ecritures
       .map((e) => {
@@ -210,30 +259,10 @@ export class EtatsFinanciersSmtService {
           .map((l) => ({
             numero: l.compte.numero,
             intitule: l.compte.intitule,
-            montant:
-              sens === 'RECETTE'
-                ? Number(l.credit) - Number(l.debit)
-                : Number(l.debit) - Number(l.credit),
+            montant: sens === 'RECETTE' ? Number(l.credit) - Number(l.debit) : Number(l.debit) - Number(l.credit),
           }))
           .filter((c) => Math.abs(c.montant) > 0.005);
-        return {
-          ecritureId: e.id,
-          date: e.date,
-          libelle: e.libelle,
-          reference: e.reference,
-          sens,
-          montant: Math.abs(flux),
-          // Les comptes de trésorerie touchés · sert à répartir le journal
-          // unique en un journal par banque et un journal pour la caisse (NB
-          // officiel de la Note 4).
-          comptesTresorerie: tresorerie.map((l) => ({
-            compteId: l.compteId,
-            numero: l.compte.numero,
-            intitule: l.compte.intitule,
-            montant: Number(l.debit) - Number(l.credit),
-          })),
-          contreparties,
-        };
+        return { ecritureId: e.id, date: e.date, libelle: e.libelle, sens, montant: Math.abs(flux), contreparties };
       })
       .filter((m): m is NonNullable<typeof m> => m !== null);
   }
@@ -289,21 +318,66 @@ export class EtatsFinanciersSmtService {
    * est exposé tel quel dans `controle`, jamais absorbé · c'est le seul
    * contrôle qui atteste que la reconstruction de trésorerie est complète.
    */
+  /**
+   * Encaissements et décaissements qui ne sont NI un produit NI une charge :
+   * apport ou reprise de dotation (classe 1), emprunt et remboursement
+   * (compte 18), acquisition et cession d'immobilisation (classe 2), achat
+   * de stock enregistré directement à l'actif (classe 3).
+   *
+   * ## Pourquoi ce poste existe alors que la maquette ne le prévoit pas
+   *
+   * Le compte de résultat du S.M.T part du solde de caisse (KZ) et le corrige
+   * de trois variations et des dotations pour retrouver le résultat net
+   * (KZC). Ce trajet est exact tant que la caisse ne bouge que pour des
+   * produits, des charges et des règlements de tiers. Il ne l'est plus dès
+   * qu'un apport en dotation ou l'achat d'un véhicule passe par la banque :
+   * ces flux gonflent ou creusent KZ sans toucher au résultat, et la maquette
+   * n'ouvre AUCUNE ligne pour les reprendre.
+   *
+   * Ce n'est pas une lacune du moteur, c'est la limite du modèle officiel,
+   * cohérente avec ce qu'il vise : une petite entité dont le journal de
+   * trésorerie est essentiellement opérationnel. Plutôt que de corriger KZC
+   * en silence (ce qui s'écarterait de la maquette) ou de laisser un écart
+   * inexpliqué, ce montant est calculé, exposé, et utilisé par le contrôle
+   * de concordance. L'état imprimé reste celui du texte ; le lecteur sait
+   * pourquoi les deux chemins divergent.
+   */
+  private fluxHorsExploitation(
+    mouvements: Awaited<ReturnType<EtatsFinanciersSmtService['mouvementsTresorerie']>>,
+  ): { montant: number; comptes: CompteDuPoste[] } {
+    const parCompte = new Map<string, CompteDuPoste>();
+    for (const m of mouvements) {
+      for (const c of m.contreparties) {
+        // Classes 1, 2 et 3 seulement. La classe 4 est déjà reprise par VB et
+        // VC ; les classes 6, 7 et 8 SONT le résultat.
+        if (!/^[123]/.test(c.numero)) continue;
+        // Signe : un encaissement augmente KZ, un décaissement le diminue.
+        const montant = m.sens === 'RECETTE' ? c.montant : -c.montant;
+        const existant = parCompte.get(c.numero);
+        if (existant) existant.montant += montant;
+        else parCompte.set(c.numero, { numero: c.numero, intitule: c.intitule, montant });
+      }
+    }
+    const comptes = [...parCompte.values()]
+      .filter((c) => Math.abs(c.montant) > 0.005)
+      .sort((a, b) => a.numero.localeCompare(b.numero));
+    return { montant: comptes.reduce((s, c) => s + c.montant, 0), comptes };
+  }
+
   async compteDeResultat(tenantId: string, exerciceId: string) {
-    const exerciceN1Id = await trouverExerciceN1(this.exerciceService, tenantId, exerciceId);
-    const [mouvements, lignesN, lignesN1] = await Promise.all([
+    const [mouvements, lignesN] = await Promise.all([
       this.mouvementsTresorerie(tenantId, exerciceId),
       this.chargerLignes(tenantId, exerciceId),
-      this.chargerLignes(tenantId, exerciceN1Id),
     ]);
 
     const recettes = this.ventilerFlux(mouvements, 'RECETTE', POSTES_RECETTES);
     const depenses = this.ventilerFlux(mouvements, 'DEPENSE', POSTES_DEPENSES);
     const soldeCaisse = recettes.total - depenses.total; // KZ
 
-    const bilanN = this.resoudreBilan(lignesN);
-    const bilanN1 = this.resoudreBilan(lignesN1);
-    const variation = (ref: string) => (bilanN.get(ref)?.montant ?? 0) - (bilanN1.get(ref)?.montant ?? 0);
+    const bilanCloture = this.resoudreBilan(lignesN);
+    const bilanOuverture = this.resoudreBilan(this.aLOuverture(lignesN));
+    const variation = (ref: string) =>
+      (bilanCloture.get(ref)?.montant ?? 0) - (bilanOuverture.get(ref)?.montant ?? 0);
 
     // Dotations aux amortissements : compte 68, charge sans décaissement.
     const lignes68 = lignesN.filter((l) => correspond(l.numero, COMPTES_DOTATIONS_AMORTISSEMENTS));
@@ -316,9 +390,9 @@ export class EtatsFinanciersSmtService {
       JG: dotations,
     };
     const comptesDe: Record<string, CompteDuPoste[]> = {
-      VA: bilanN.get('GB')!.comptes,
-      VB: bilanN.get('GC')!.comptes,
-      VC: bilanN.get('HD')!.comptes,
+      VA: bilanCloture.get('GB')!.comptes,
+      VB: bilanCloture.get('GC')!.comptes,
+      VC: bilanCloture.get('HD')!.comptes,
       JG: lignes68
         .filter((l) => Math.abs(l.solde) > 0.005)
         .map((l) => ({ numero: l.numero, intitule: l.intitule, montant: l.solde })),
@@ -333,7 +407,8 @@ export class EtatsFinanciersSmtService {
     }));
 
     const resultatNet = retraitements.reduce((s, r) => s + r.signe * r.montant, soldeCaisse); // KZC
-    const resultatBilan = bilanN.get('HB')!.montant;
+    const resultatBilan = bilanCloture.get('HB')!.montant;
+    const hors = this.fluxHorsExploitation(mouvements);
 
     return {
       recettes: recettes.postes,
@@ -343,16 +418,14 @@ export class EtatsFinanciersSmtService {
       soldeCaisse, // KZ
       retraitements, // VA, VB, VC, JG
       resultatNet, // KZC
-      exerciceN1Disponible: exerciceN1Id !== null,
       controle: {
         resultatBilan,
-        ecart: resultatNet - resultatBilan,
-        // Sans exercice N-1, les variations VA/VB/VC sont calculées contre
-        // zéro : elles valent le stock de clôture au lieu de sa variation, et
-        // l'écart n'est alors pas interprétable. Le dire plutôt que de laisser
-        // croire à une anomalie.
-        interpretable: exerciceN1Id !== null,
-        concordant: exerciceN1Id !== null && Math.abs(resultatNet - resultatBilan) < 0.01,
+        fluxHorsExploitation: hors.montant,
+        comptesHorsExploitation: hors.comptes,
+        // KZC - flux hors exploitation doit égaler le résultat du bilan ·
+        // voir la note ci-dessus sur la limite de la maquette.
+        ecart: resultatNet - hors.montant - resultatBilan,
+        concordant: Math.abs(resultatNet - hors.montant - resultatBilan) < 0.01,
       },
     };
   }
@@ -362,20 +435,45 @@ export class EtatsFinanciersSmtService {
   // -------------------------------------------------------------------------
 
   /**
+   * NOTE 4 · JOURNAL UNIQUE DE TRÉSORERIE.
+   *
    * « NB : Prévoir un journal par banque et un journal pour la caisse. » ·
    * un journal par compte de trésorerie, donc, chacun ouvert sur son report
    * à nouveau et clos sur son solde à reporter, comme la maquette l'imprime.
    *
-   * La ventilation d'une ligne est attribuée quand l'écriture ne touche
-   * qu'UN compte de trésorerie · le cas courant. Quand elle en touche
-   * plusieurs (un encaissement partagé entre caisse et banque), répartir la
-   * ventilation entre eux supposerait une clé que l'écriture ne porte pas :
-   * la ligne est alors comptée dans les colonnes Recettes/Dépenses/Solde,
-   * mais laissée hors ventilation et signalée par `lignesNonVentilees`.
+   * ## Un livre de caisse, pas un extrait du compte de résultat
+   *
+   * Ce journal balaie les LIGNES portées sur chaque compte de trésorerie, et
+   * non les seules opérations qui ont un effet net sur la trésorerie de
+   * l'entité. La différence tient au virement interne : un versement de la
+   * caisse à la banque n'est ni une recette ni une dépense pour l'entité (il
+   * est donc absent du compte de résultat), mais c'est bel et bien une sortie
+   * de la caisse et une entrée en banque. L'omettre laisserait un journal
+   * dont le solde à reporter ne serait pas celui du compte · un livre de
+   * caisse faux.
+   *
+   * Ces lignes sont marquées `virementInterne` et ne reçoivent aucune
+   * ventilation : les colonnes officielles ne classent que des natures de
+   * recette et de dépense, et un virement n'en est pas une.
+   *
+   * ## Ventilation
+   *
+   * Attribuée quand l'écriture ne touche qu'UN compte de trésorerie · le cas
+   * courant. Quand elle en touche plusieurs (un encaissement partagé entre
+   * caisse et banque), répartir la ventilation entre eux supposerait une clé
+   * que l'écriture ne porte pas : la ligne est comptée dans les colonnes
+   * Recettes, Dépenses et Solde, mais laissée hors ventilation et signalée
+   * par `lignesNonVentilees`.
+   *
+   * ## Contrôle
+   *
+   * `soldeAReporter` est confronté au solde du compte tel que la balance le
+   * donne. L'égalité est la preuve que le journal est complet ; l'écart est
+   * exposé, jamais absorbé.
    */
   async journalTresorerie(tenantId: string, exerciceId: string) {
-    const [mouvements, lignes] = await Promise.all([
-      this.mouvementsTresorerie(tenantId, exerciceId),
+    const [ecritures, lignes] = await Promise.all([
+      this.ecrituresDeLExercice(tenantId, exerciceId),
       this.chargerLignes(tenantId, exerciceId),
     ]);
 
@@ -390,36 +488,51 @@ export class EtatsFinanciersSmtService {
       let solde = reportANouveau;
       let nonVentilees = 0;
 
-      const operations = mouvements
-        .filter((m) => m.comptesTresorerie.some((c) => c.compteId === compte.compteId))
-        .map((m) => {
-          const surCeCompte = m.comptesTresorerie.find((c) => c.compteId === compte.compteId)!;
-          const recette = surCeCompte.montant > 0 ? surCeCompte.montant : 0;
-          const depense = surCeCompte.montant < 0 ? -surCeCompte.montant : 0;
-          solde += surCeCompte.montant;
-          const ventilable = m.comptesTresorerie.length === 1;
-          if (!ventilable) nonVentilees += 1;
-          const colonnes = m.sens === 'RECETTE' ? VENTILATION_RECETTES : VENTILATION_DEPENSES;
-          const ventilation: Record<string, number> = {};
-          for (const col of colonnes) ventilation[col.cle] = 0;
-          if (ventilable) {
-            for (const c of m.contreparties) {
-              const col = colonnes.find((k) => correspond(c.numero, k.comptes, k.exclusions));
-              if (col) ventilation[col.cle] += c.montant;
-            }
+      const operations = ecritures.flatMap((e) => {
+        const surCeCompte = e.lignes.filter((l) => l.compteId === compte.compteId);
+        if (surCeCompte.length === 0) return [];
+        const mouvement = surCeCompte.reduce((s, l) => s + Number(l.debit) - Number(l.credit), 0);
+        if (Math.abs(mouvement) < 0.005) return [];
+
+        const tresorerieDeLEcriture = e.lignes.filter((l) => this.estTresorerie(l.compte.numero));
+        const contreparties = e.lignes.filter((l) => !this.estTresorerie(l.compte.numero));
+        // Aucune contrepartie hors trésorerie : l'écriture ne fait que
+        // déplacer de l'argent entre deux comptes de l'entité.
+        const virementInterne = contreparties.length === 0;
+        // Une seule caisse ou banque touchée : la ventilation est
+        // attribuable sans clé de répartition.
+        const ventilable = !virementInterne && tresorerieDeLEcriture.length === 1;
+        if (!virementInterne && !ventilable) nonVentilees += 1;
+
+        const sens: 'RECETTE' | 'DEPENSE' = mouvement > 0 ? 'RECETTE' : 'DEPENSE';
+        const colonnes = sens === 'RECETTE' ? VENTILATION_RECETTES : VENTILATION_DEPENSES;
+        const ventilation: Record<string, number> = {};
+        for (const col of colonnes) ventilation[col.cle] = 0;
+        if (ventilable) {
+          for (const l of contreparties) {
+            const montant =
+              sens === 'RECETTE' ? Number(l.credit) - Number(l.debit) : Number(l.debit) - Number(l.credit);
+            const col = colonnes.find((k) => correspond(l.compte.numero, k.comptes, k.exclusions));
+            if (col) ventilation[col.cle] += montant;
           }
-          return {
-            date: m.date,
-            libelle: m.libelle,
-            reference: m.reference,
-            sens: m.sens,
-            recette,
-            depense,
+        }
+
+        solde += mouvement;
+        return [
+          {
+            date: e.date,
+            libelle: e.libelle,
+            reference: e.reference,
+            sens,
+            recette: mouvement > 0 ? mouvement : 0,
+            depense: mouvement < 0 ? -mouvement : 0,
             solde,
+            virementInterne,
             ventile: ventilable,
             ventilation,
-          };
-        });
+          },
+        ];
+      });
 
       return {
         compteId: compte.compteId,
@@ -431,6 +544,10 @@ export class EtatsFinanciersSmtService {
         totalRecettes: operations.reduce((s, o) => s + o.recette, 0),
         totalDepenses: operations.reduce((s, o) => s + o.depense, 0),
         lignesNonVentilees: nonVentilees,
+        // Preuve que le journal est complet : son solde final doit être celui
+        // du compte à la balance.
+        soldeBalance: compte.solde,
+        boucle: Math.abs(solde - compte.solde) < 0.01,
       };
     });
 

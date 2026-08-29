@@ -5,7 +5,7 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        // Registre "logiciel professionnel dense" — police système Windows,
+        // Registre "logiciel professionnel dense" · police système Windows,
         // pas une police web moderne (voir le canevas Compta Flow validé).
         sans: ['"Segoe UI"', 'Tahoma', 'Geneva', 'Verdana', 'system-ui', 'sans-serif'],
         mono: ['"IBM Plex Mono"', '"Courier New"', 'ui-monospace', 'monospace'],

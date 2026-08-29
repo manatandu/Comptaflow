@@ -2,7 +2,7 @@
   "name": "sycebnl-suite",
   "version": "0.0.1",
   "private": true,
-  "description": "Moteur comptable professionnel OHADA / SYCEBNL — MVP SYCEBNL (associations, ONG, projets de développement)",
+  "description": "Moteur comptable professionnel OHADA / SYCEBNL · MVP SYCEBNL (associations, ONG, projets de développement)",
   "scripts": {
     "build": "nest build",
     "start": "nest start",

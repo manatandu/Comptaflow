@@ -4,7 +4,7 @@ import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { IconLogo, IconFileAdd, IconFolderOpen } from '../components/chrome/icons';
 import { NouveauFichierWizard } from '../components/NouveauFichierWizard';
-import { DossierRecent, lireDossiersRecents, memoriserDossier, oublierDossier } from '../lib/dossiersRecents';
+import { DossierRecent, lireDossiersRecents, oublierDossier } from '../lib/dossiersRecents';
 import type { AuthResponse } from '../lib/types';
 
 /**
@@ -122,16 +122,9 @@ export function AuthPage({ assistantInitial = false }: { assistantInitial?: bool
     setEnvoi(true);
     try {
       const res = await api.post<AuthResponse>('/auth/login', { email, motDePasse });
-      // Mémoriser AVANT de naviguer : `seConnecter` remonte le profil et
-      // démonte cette page.
-      if (res.tenant) {
-        memoriserDossier({
-          nom: res.tenant.nom,
-          email,
-          referentiel: res.tenant.referentiel,
-          jeuEtatsFinanciersSycebnl: res.tenant.jeuEtatsFinanciersSycebnl,
-        });
-      }
+      // Le dossier est ajouté aux dossiers récents par `chargerUtilisateur`
+      // (lib/auth.tsx), qui lit /auth/me · la réponse de /auth/login ne porte
+      // que le jeton, elle ne connaît pas le nom du dossier.
       await seConnecter(res.accessToken);
       navigate('/');
     } catch (err) {

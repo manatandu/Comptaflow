@@ -3,7 +3,6 @@ import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { IconLogo, IconCheck } from '../components/chrome/icons';
 import { Aide } from '../components/chrome/Aide';
-import { memoriserDossier } from '../lib/dossiersRecents';
 import type { AuthResponse, JeuEtatsFinanciersSycebnl, Referentiel } from '../lib/types';
 
 const ETAPES = [
@@ -197,17 +196,10 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
         dateFinExercice: form.dateFinExercice,
       });
       setSucces(true);
-      // Le dossier rejoint la liste des dossiers récents de cet appareil ·
-      // l'équivalent des Favoris de Sage, pour que la prochaine ouverture le
-      // retrouve sans ressaisie (voir lib/dossiersRecents.ts).
-      memoriserDossier({
-        nom: res.tenant?.nom ?? form.nomEntite,
-        email: form.email,
-        referentiel: form.referentiel,
-        jeuEtatsFinanciersSycebnl: form.jeuEtatsFinanciersSycebnl,
-      });
       // On connecte directement sur le dossier fraîchement créé · inutile de
-      // faire ressaisir les identifiants qu'on vient de définir.
+      // faire ressaisir les identifiants qu'on vient de définir. C'est
+      // `seConnecter` qui inscrit le dossier dans les dossiers récents de cet
+      // appareil (voir lib/auth.tsx).
       await seConnecter(res.accessToken);
     } catch (err) {
       setErreur(err instanceof ApiError ? err.message : 'Impossible de créer le dossier');

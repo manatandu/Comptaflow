@@ -1303,11 +1303,17 @@ export interface CompteDeResultatSmt {
   soldeCaisse: number;
   retraitements: RetraitementSmt[];
   resultatNet: number;
-  exerciceN1Disponible: boolean;
   controle: {
     resultatBilan: number;
+    /**
+     * Encaissements et décaissements qui ne sont ni produit ni charge
+     * (dotation, emprunt, immobilisation). La maquette du S.M.T n'ouvre aucune
+     * ligne pour les reprendre : ils font diverger KZC du résultat du bilan,
+     * et c'est ce montant qui explique l'écart.
+     */
+    fluxHorsExploitation: number;
+    comptesHorsExploitation: CompteDuPoste[];
     ecart: number;
-    interpretable: boolean;
     concordant: boolean;
   };
 }
@@ -1320,6 +1326,8 @@ export interface OperationTresorerieSmt {
   recette: number;
   depense: number;
   solde: number;
+  /** Déplacement entre deux comptes de l'entité : ni recette ni dépense, mais bien un mouvement du compte. */
+  virementInterne: boolean;
   ventile: boolean;
   ventilation: Record<string, number>;
 }
@@ -1334,6 +1342,9 @@ export interface JournalTresorerieSmt {
   totalRecettes: number;
   totalDepenses: number;
   lignesNonVentilees: number;
+  /** Solde du compte à la balance · le journal boucle quand il l'égale. */
+  soldeBalance: number;
+  boucle: boolean;
 }
 
 export interface Note4Smt {
