@@ -1,41 +1,10 @@
 import { Navigate, Route, HashRouter, Routes } from 'react-router-dom';
 import { AuthProvider, useAuth } from './lib/auth';
 import { ExerciceProvider } from './lib/exercice';
+import { FenetresProvider } from './lib/fenetres';
 import { AppShell } from './components/chrome/AppShell';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
-import { AccueilPage } from './pages/AccueilPage';
-import { DashboardPage } from './pages/DashboardPage';
-import { SaisiePage } from './pages/SaisiePage';
-import { PlanComptesPage } from './pages/PlanComptesPage';
-import { JournauxPage } from './pages/JournauxPage';
-import { JournalPage } from './pages/JournalPage';
-import { BalanceAgeePage } from './pages/BalanceAgeePage';
-import { EcheancierPage } from './pages/EcheancierPage';
-import { LettragePage } from './pages/LettragePage';
-import { RapprochementPage } from './pages/RapprochementPage';
-import { RapprochementDetailPage } from './pages/RapprochementDetailPage';
-import { ImmobilisationsPage } from './pages/ImmobilisationsPage';
-import { ExercicePage } from './pages/ExercicePage';
-import { TiersPage } from './pages/TiersPage';
-import { TauxTvaPage } from './pages/TauxTvaPage';
-import { DeclarationTvaPage } from './pages/DeclarationTvaPage';
-import { RetenuesPage } from './pages/RetenuesPage';
-import { EtatsFinanciersPage } from './pages/EtatsFinanciersPage';
-import { NotesAnnexesPage } from './pages/NotesAnnexesPage';
-import { RegistreDonateursPage } from './pages/RegistreDonateursPage';
-import { DocumentsObligatoiresPage } from './pages/DocumentsObligatoiresPage';
-import { UtilisateursPage } from './pages/UtilisateursPage';
-import { ParametresDossierPage } from './pages/ParametresDossierPage';
-import { PlansAnalytiquesPage } from './pages/PlansAnalytiquesPage';
-import { BrouillardPage } from './pages/BrouillardPage';
-import { ImportPage } from './pages/ImportPage';
-import { ControlesPage } from './pages/ControlesPage';
-import { RegularisationPage } from './pages/RegularisationPage';
-import { DevisesPage } from './pages/DevisesPage';
-import { RelancesPage } from './pages/RelancesPage';
-import { EtatsAnalytiquesPage } from './pages/EtatsAnalytiquesPage';
-import { BailleursPage } from './pages/BailleursPage';
 
 function ZoneProtegee({ children }: { children: JSX.Element }) {
   const { chargement, connecte } = useAuth();
@@ -56,43 +25,24 @@ function Routage() {
         element={
           <ZoneProtegee>
             <ExerciceProvider>
-              <AppShell />
+              <FenetresProvider>
+                <AppShell />
+              </FenetresProvider>
             </ExerciceProvider>
           </ZoneProtegee>
         }
       >
-        <Route index element={<AccueilPage />} />
-        <Route path="tableau-de-bord" element={<DashboardPage />} />
-        <Route path="saisie" element={<SaisiePage />} />
-        <Route path="comptes" element={<PlanComptesPage />} />
-        <Route path="comptes/:compteId/lettrage" element={<LettragePage />} />
-        <Route path="rapprochement" element={<RapprochementPage />} />
-        <Route path="rapprochement/:id" element={<RapprochementDetailPage />} />
-        <Route path="immobilisations" element={<ImmobilisationsPage />} />
-        <Route path="journaux" element={<JournauxPage />} />
-        <Route path="journal" element={<JournalPage />} />
-        <Route path="balance-agee" element={<BalanceAgeePage />} />
-        <Route path="echeancier" element={<EcheancierPage />} />
-        <Route path="exercice" element={<ExercicePage />} />
-        <Route path="tiers" element={<TiersPage />} />
-        <Route path="taux-tva" element={<TauxTvaPage />} />
-        <Route path="declaration-tva" element={<DeclarationTvaPage />} />
-        <Route path="retenues" element={<RetenuesPage />} />
-        <Route path="etats-financiers" element={<EtatsFinanciersPage />} />
-        <Route path="notes-annexes" element={<NotesAnnexesPage />} />
-        <Route path="registre-donateurs" element={<RegistreDonateursPage />} />
-        <Route path="documents-obligatoires" element={<DocumentsObligatoiresPage />} />
-        <Route path="bailleurs" element={<BailleursPage />} />
-        <Route path="utilisateurs" element={<UtilisateursPage />} />
-        <Route path="parametres-dossier" element={<ParametresDossierPage />} />
-        <Route path="plans-analytiques" element={<PlansAnalytiquesPage />} />
-        <Route path="brouillard" element={<BrouillardPage />} />
-        <Route path="import" element={<ImportPage />} />
-        <Route path="controles" element={<ControlesPage />} />
-        <Route path="regularisations" element={<RegularisationPage />} />
-        <Route path="devises" element={<DevisesPage />} />
-        <Route path="relances" element={<RelancesPage />} />
-        <Route path="etats-analytiques" element={<EtatsAnalytiquesPage />} />
+        {/*
+          Les routes filles ne rendent plus rien : depuis le passage à
+          l'espace de travail multi-fenêtres, c'est `AppShell` qui monte les
+          fenêtres, à partir du registre (`lib/registre-fenetres.tsx`). Ce
+          `path="*"` reste néanmoins nécessaire · sans lui, `navigate('/comptes')`
+          ne correspondrait à aucune route, React Router avertirait, et
+          l'adresse ne serait plus une adresse. La liste des écrans, elle, est
+          tenue à UN SEUL endroit désormais : le registre.
+        */}
+        <Route index element={null} />
+        <Route path="*" element={null} />
       </Route>
     </Routes>
   );

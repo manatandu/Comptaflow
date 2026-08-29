@@ -10,8 +10,10 @@ import type { DetailRapprochement } from '../lib/types';
  * (solde pointé - solde du relevé) se recalcule à chaque pointage. Clôture
  * bloquée tant que l'écart n'est pas nul.
  */
-export function RapprochementDetailPage() {
-  const { id } = useParams<{ id: string }>();
+export function RapprochementDetailPage({ id: idProp }: { id?: string } = {}) {
+  // Voir LettragePage : en fenêtre, l'identifiant vient en propriété.
+  const params = useParams<{ id: string }>();
+  const id = idProp ?? params.id;
   const navigate = useNavigate();
   const [detail, setDetail] = useState<DetailRapprochement | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);

@@ -1,4 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useFenetres } from '../../lib/fenetres';
 import {
   IconBalance,
   IconComptes,
@@ -43,9 +44,50 @@ const OUTILS: OutilDef[][] = [
   ],
 ];
 
+/**
+ * RETOUR / AVANCE / ACCUEIL · Sage place « Précédent » et « Suivant » en tête
+ * de sa barre d'outils, et le logiciel n'en offrait AUCUN équivalent : une
+ * fois dans un écran, plus moyen de revenir d'où l'on venait autrement qu'en
+ * retrouvant la commande dans les menus. C'est le défaut relevé à l'usage.
+ *
+ * Le retour s'appuie sur l'historique du navigateur, qui est déjà la mémoire
+ * exacte du chemin parcouru · en tenir une seconde, parallèle, finirait par
+ * diverger de la première (bouton « Précédent » du navigateur, lien collé,
+ * touche Retour arrière). « Accueil » referme les fenêtres pour découvrir
+ * l'espace de travail, là où Sage revient à sa page IntuiSage.
+ */
+function BoutonNavigation({
+  titre,
+  infobulle,
+  onClick,
+  children,
+}: {
+  /** Nom accessible · STABLE. Il ne doit pas dépendre de l'état du bouton :
+   *  un lecteur d'écran, et tout test qui vise le bouton, le retrouvent par
+   *  ce nom · le faire varier revient à renommer le bouton en cours de route. */
+  titre: string;
+  /** Infobulle, elle libre de se préciser selon le contexte. */
+  infobulle?: string;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      title={infobulle ?? titre}
+      aria-label={titre}
+      onClick={onClick}
+      className="flex items-center justify-center w-[34px] h-[34px] self-center rounded-[9px] text-text-dim transition-[background-color,color,transform] duration-150 hover:bg-chrome-alt hover:text-text active:scale-95"
+    >
+      {children}
+    </button>
+  );
+}
+
 export function Toolbar() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { fermerTout, fenetres } = useFenetres();
 
   // L'outil actif est celui dont le chemin ET la query correspondent · les
   // trois états de /journal (?onglet=…) sont trois outils distincts.
@@ -59,7 +101,34 @@ export function Toolbar() {
   };
 
   return (
-    <div className="flex items-stretch gap-0 px-2 py-1.5 bg-chrome/70 backdrop-blur-md border-b border-border">
+    <div className="relative z-30 flex items-stretch gap-0 px-2 py-1.5 bg-chrome/70 backdrop-blur-md border-b border-border">
+      {/* --- Se déplacer : reculer, avancer, revenir à l'accueil ----------- */}
+      <div className="flex items-stretch gap-0.5">
+        <BoutonNavigation titre="Précédent" onClick={() => navigate(-1)}>
+          <svg viewBox="0 0 20 20" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.7">
+            <path d="M12.5 4.5L7 10l5.5 5.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </BoutonNavigation>
+        <BoutonNavigation titre="Suivant" onClick={() => navigate(1)}>
+          <svg viewBox="0 0 20 20" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.7">
+            <path d="M7.5 4.5L13 10l-5.5 5.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </BoutonNavigation>
+        <BoutonNavigation
+          titre="Accueil"
+          infobulle={
+            fenetres.length > 0 ? 'Accueil · referme les fenêtres ouvertes' : 'Accueil'
+          }
+          onClick={fermerTout}
+        >
+          <svg viewBox="0 0 20 20" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.7">
+            <path d="M3.2 9.2L10 3.6l6.8 5.6" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M5 8.6V16h10V8.6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </BoutonNavigation>
+      </div>
+      <div className="w-px bg-border mx-1.5 my-1.5" />
+
       {OUTILS.map((groupe, gi) => (
         <div key={gi} className="flex items-stretch gap-0.5">
           {gi > 0 && <div className="w-px bg-border mx-1.5 my-1.5" />}

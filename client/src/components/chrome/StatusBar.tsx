@@ -1,6 +1,6 @@
-import { useLocation } from 'react-router-dom';
 import { useAuth } from '../../lib/auth';
 import { useExercice } from '../../lib/exercice';
+import { useFenetres } from '../../lib/fenetres';
 
 const LIBELLE_ROLE: Record<string, string> = {
   ADMIN_CABINET: 'Administrateur',
@@ -8,45 +8,20 @@ const LIBELLE_ROLE: Record<string, string> = {
   LECTURE_SEULE: 'Lecture seule',
 };
 
-/** Nom de la fenêtre active, affiché à gauche de la barre d'état. */
-const TITRES: Array<[RegExp, string]> = [
-  [/^\/$/, 'Accueil'],
-  [/^\/tableau-de-bord/, 'Tableau de bord'],
-  [/^\/saisie/, 'Saisie des journaux'],
-  [/^\/comptes\/.+\/lettrage/, 'Interrogation et lettrage'],
-  [/^\/comptes/, 'Plan comptable'],
-  [/^\/journaux/, 'Codes journaux'],
-  [/^\/journal/, 'Journal · Grand livre · Balance'],
-  [/^\/balance-agee/, 'Balance âgée'],
-  [/^\/rapprochement/, 'Rapprochement bancaire'],
-  [/^\/immobilisations/, 'Immobilisations'],
-  [/^\/exercice/, "Fin d'exercice"],
-  [/^\/tiers/, 'Plan des tiers'],
-  [/^\/taux-tva/, 'Taux de taxes'],
-  [/^\/declaration-tva/, 'Déclaration de TVA'],
-  [/^\/etats-financiers/, 'États financiers'],
-  [/^\/notes-annexes/, 'Notes annexes'],
-  [/^\/registre-donateurs/, 'Registre des donateurs'],
-  [/^\/documents-obligatoires/, 'Documents obligatoires'],
-  [/^\/bailleurs/, 'Bailleurs de fonds'],
-  [/^\/utilisateurs/, "Autorisations d'accès"],
-  [/^\/parametres-dossier/, "Paramètres du dossier"],
-  [/^\/plans-analytiques/, 'Plans analytiques'],
-  [/^\/brouillard/, 'Brouillard'],
-  [/^\/import/, 'Importer des données'],
-  [/^\/controles/, 'Analyse et contrôles'],
-  [/^\/regularisations/, 'Régularisations et abonnements'],
-  [/^\/devises/, 'Devises et réévaluation'],
-  [/^\/relances/, 'Rappel et relevé'],
-  [/^\/etats-analytiques/, 'États analytiques'],
-];
-
 export function StatusBar() {
   const { utilisateur } = useAuth();
   const { exerciceCourant } = useExercice();
-  const location = useLocation();
+  const { fenetres, cleActive } = useFenetres();
 
-  const titreFenetre = TITRES.find(([re]) => re.test(location.pathname))?.[1] ?? 'Prêt';
+  /*
+    Le nom de la fenêtre active vient du GESTIONNAIRE DE FENÊTRES, plus d'une
+    table de correspondance tenue ici. Cette table doublait la liste des
+    écrans et se périmait en silence : un écran ajouté sans sa ligne
+    s'annonçait « Prêt ». Le titre affiché est désormais, par construction,
+    celui que porte la barre de titre de la fenêtre · ils ne peuvent plus
+    diverger. Aucune fenêtre ouverte = on regarde l'accueil.
+  */
+  const titreFenetre = fenetres.find((f) => f.cle === cleActive)?.titre ?? 'Accueil';
 
   return (
     <div className="h-[24px] bg-chrome/70 backdrop-blur-md border-t border-border flex items-center justify-between px-3 text-[10.5px] text-text-dim shrink-0">

@@ -29,8 +29,14 @@ const LIBELLE_ORIGINE: Record<GroupeLettrage['origine'], string> = {
 
 const GRILLE = 'grid grid-cols-[26px_70px_46px_1.3fr_96px_96px_100px_78px] gap-2.5';
 
-export function LettragePage() {
-  const { compteId } = useParams<{ compteId: string }>();
+export function LettragePage({ compteId: compteIdProp }: { compteId?: string } = {}) {
+  // `compteId` arrive en propriété quand la page est montée comme FENÊTRE
+  // (cas courant depuis le passage au multi-fenêtres : plusieurs
+  // interrogations peuvent être ouvertes en même temps, et l'URL ne décrit
+  // que la fenêtre active · elle ne peut donc pas servir de source à toutes).
+  // Le repli sur `useParams` garde la page utilisable par une route directe.
+  const params = useParams<{ compteId: string }>();
+  const compteId = compteIdProp ?? params.compteId;
   const navigate = useNavigate();
   const [comptes, setComptes] = useState<Compte[]>([]);
   const [etat, setEtat] = useState<EtatLettrage | null>(null);

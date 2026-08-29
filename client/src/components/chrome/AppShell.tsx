@@ -1,11 +1,17 @@
-import { useState } from 'react';
-import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../lib/auth';
 import { useExercice } from '../../lib/exercice';
+import { useFenetres } from '../../lib/fenetres';
+import { definitionPour } from '../../lib/registre-fenetres';
 import { IconLogo } from './icons';
 import { MenuBar, type MenuDef } from './MenuBar';
 import { Toolbar } from './Toolbar';
 import { StatusBar } from './StatusBar';
+import { BarreFenetres } from './BarreFenetres';
+import { Fenetre } from './Fenetre';
+import { AccueilPage } from '../../pages/AccueilPage';
+import { LimiteErreur } from './LimiteErreur';
 import { AProposModale } from './AProposModale';
 
 /**
@@ -18,33 +24,74 @@ import { AProposModale } from './AProposModale';
  * et ses accès), Structure (les plans et codes), Traitement (le quotidien),
  * État (les éditions), Fenêtre, « ? ».
  *
+ * ESPACE DE TRAVAIL MULTI-FENÊTRES (MDI), comme Sage · l'accueil n'est PAS
+ * une page parmi d'autres : c'est le FOND de l'espace de travail, toujours
+ * là, sur lequel les fenêtres s'ouvrent et se referment. Fermer la dernière
+ * fenêtre ramène donc à l'accueil sans avoir à y naviguer · c'est ce que
+ * fait Sage avec sa page IntuiSage.
+ *
  * PARTAGE DES RÔLES ENTRE LES SURFACES DE NAVIGATION, à tenir.
  *
  *   BARRE DE MENUS  · la carte complète du logiciel. Toute fenêtre s'y
  *                     trouve, et une seule fois. C'est le seul endroit qui
  *                     a vocation à être exhaustif.
- *   BARRE D'OUTILS  · les sept fenêtres du quotidien, à un clic, depuis
- *                     n'importe quel écran. Un raccourci, pas un sommaire :
- *                     tout ce qui n'est pas quotidien reste dans les menus.
- *   ACCUEIL         · où en est CE dossier et ce qui réclame une action.
- *                     Pas un lanceur · la barre d'outils, présente au-dessus
- *                     de lui, en est déjà un.
+ *   BARRE D'OUTILS  · le retour/avance/accueil, puis les fenêtres du
+ *                     quotidien à un clic. Un raccourci, pas un sommaire.
+ *   ACCUEIL (fond)  · le lanceur par domaine ET l'état du dossier, à la
+ *                     façon de la page IntuiSage de Sage.
+ *   BARRE DES FENÊTRES · en bas, ce qui est ouvert · seule façon de
+ *                     retrouver une fenêtre réduite.
  *
- * La règle vient d'un défaut relevé à l'usage : « Journal » se trouvait à la
- * fois sur la page d'accueil, dans la barre d'outils juste au-dessus, et dans
- * le menu État. Trois chemins pour une même fenêtre, dont deux visibles en
- * même temps. La grille de raccourcis de l'accueil a été retirée (voir
- * AccueilPage), la barre d'outils et les menus se partageant désormais
- * clairement le travail : accès rapide d'un côté, exhaustivité de l'autre.
+ * Le doublon relevé plus tôt (« Journal » à trois endroits visibles en même
+ * temps) ne se reproduit pas ainsi : l'accueil est un FOND, jamais visible
+ * en même temps qu'une fenêtre plein écran, là où l'ancienne grille de
+ * raccourcis s'affichait sous la barre d'outils qui la répétait.
  */
 export function AppShell() {
   const { utilisateur, estAdmin, seDeconnecter } = useAuth();
   const { exerciceCourant } = useExercice();
   const navigate = useNavigate();
   const location = useLocation();
+  const { fenetres, cleActive, ouvrir, fermerTout } = useFenetres();
   const [aProposOuvert, setAProposOuvert] = useState(false);
 
   const anneeExercice = exerciceCourant ? new Date(exerciceCourant.dateDebut).getFullYear() : null;
+
+  /**
+   * L'URL COMMANDE L'OUVERTURE DES FENÊTRES.
+   *
+   * Chaque page continue d'appeler `navigate('/comptes')` comme avant : rien
+   * à réécrire dans les trente écrans. C'est ici que le changement d'adresse
+   * se traduit en ouverture (ou en remise au premier plan) d'une fenêtre.
+   * L'URL reste ainsi l'adresse réelle de ce qu'on regarde · un lien collé
+   * dans un courriel rouvre la bonne fenêtre.
+   */
+  useEffect(() => {
+    if (location.pathname === '/') return; // l'accueil est le fond, pas une fenêtre
+    const def = definitionPour(location.pathname);
+    if (!def) return;
+    ouvrir(location.pathname + location.search, { titre: def.titre, titreCourt: def.titreCourt });
+  }, [location.pathname, location.search, ouvrir]);
+
+  /**
+   * … ET RÉCIPROQUEMENT : donner le premier plan à une fenêtre remet l'URL
+   * sur son adresse. Sans ça, la barre d'adresse et la barre d'état
+   * décriraient une fenêtre qu'on ne regarde plus.
+   *
+   * `precedenteCle` évite la boucle : on ne réécrit l'URL que lorsque la
+   * fenêtre active CHANGE, jamais en réaction à l'effet ci-dessus (qui, lui,
+   * se déclenche sur chaque changement d'URL).
+   */
+  const precedenteCle = useRef<string | null>(null);
+  useEffect(() => {
+    if (precedenteCle.current === cleActive) return;
+    precedenteCle.current = cleActive;
+    const cible = cleActive ? (fenetres.find((f) => f.cle === cleActive)?.adresse ?? '/') : '/';
+    if (cible !== location.pathname + location.search) navigate(cible, { replace: true });
+    // `fenetres` est volontairement hors dépendances : seule la BASCULE de
+    // fenêtre active doit réécrire l'URL, pas chaque remaniement de la pile.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cleActive]);
 
   const menus: MenuDef[] = [
     {
@@ -140,10 +187,20 @@ export function AppShell() {
       ],
     },
     {
+      // Sage : menu Fenêtre · il liste les fenêtres ouvertes et permet de
+      // passer de l'une à l'autre. On le construit dynamiquement, une entrée
+      // par fenêtre, en plus des deux commandes fixes.
       titre: 'Fenêtre',
       items: [
-        { label: 'Accueil', onClick: () => navigate('/') },
+        { label: "Accueil (fermer les fenêtres)", onClick: fermerTout },
         { label: 'Tableau de bord', onClick: () => navigate('/tableau-de-bord') },
+        ...(fenetres.length > 0
+          ? fenetres.map((f, i) => ({
+              label: `${f.cle === cleActive ? '• ' : '   '}${f.titre}`,
+              separateurAvant: i === 0,
+              onClick: () => navigate(f.adresse),
+            }))
+          : []),
       ],
     },
     {
@@ -197,23 +254,24 @@ export function AppShell() {
       </div>
 
       {/*
-        La fenêtre active glisse en place à chaque changement de route.
-        Clé = pathname SEUL : changer d'onglet dans une même fenêtre ne la
-        remonte pas et n'y perd donc aucun état de saisie. `will-change`
-        prévient le compositeur pour que la transition parte sur la carte
-        graphique dès la première image, sans le saut d'une frame.
+        ESPACE DE TRAVAIL · l'accueil occupe le fond, en permanence ; les
+        fenêtres se posent dessus, chacune à son rang d'empilement.
+        `overflow-hidden` : une fenêtre déplacée près du bord ne doit pas
+        faire défiler l'espace, elle doit être bornée (voir Fenetre.tsx).
       */}
-      <main className="flex-1 min-h-0 overflow-auto">
-        <div
-          key={location.pathname}
-          className="anim-fenetre min-h-full"
-          style={{ willChange: 'transform, opacity' }}
-        >
-          <Outlet />
+      <main className="relative z-0 flex-1 min-h-0 overflow-hidden">
+        <div className="absolute inset-0 overflow-auto">
+          <LimiteErreur titreFenetre="Accueil">
+            <AccueilPage />
+          </LimiteErreur>
         </div>
+        {fenetres.map((f) => (
+          <Fenetre key={f.cle} fenetre={f} active={f.cle === cleActive} />
+        ))}
       </main>
 
       <div className="ecran-seul contents">
+        <BarreFenetres />
         <StatusBar />
       </div>
       {aProposOuvert && <AProposModale onFermer={() => setAProposOuvert(false)} />}

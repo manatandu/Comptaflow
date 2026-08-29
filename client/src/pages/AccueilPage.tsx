@@ -6,36 +6,54 @@ import { useExercice } from '../lib/exercice';
 import { NouveauFichierWizard } from '../components/NouveauFichierWizard';
 import { AProposModale } from '../components/chrome/AProposModale';
 import type { PlanningCloture, RapportControles } from '../lib/types';
-import { IconFileAdd, IconFolderOpen, IconInfo } from '../components/chrome/icons';
+import {
+  IconBalance,
+  IconBanque,
+  IconBook,
+  IconCheck,
+  IconComptes,
+  IconDashboard,
+  IconEtats,
+  IconFileAdd,
+  IconFolderOpen,
+  IconGrille,
+  IconImmo,
+  IconInfo,
+  IconJournal,
+  IconLock,
+  IconNews,
+  IconPrint,
+  IconRefresh,
+  IconSaisie,
+  IconSearch,
+  IconUsers,
+} from '../components/chrome/icons';
+import type { SVGProps } from 'react';
 
 /**
- * ACCUEIL · la première fenêtre du dossier ouvert.
+ * ACCUEIL · le FOND de l'espace de travail, jamais une fenêtre. Les fenêtres
+ * s'ouvrent par-dessus ; les refermer toutes le redécouvre. C'est exactement
+ * le rôle de la page IntuiSage de Sage 100 i7.
  *
- * Ce n'était qu'un mur de tuiles carrées, dont quatre grisées « bientôt » :
- * un écran qui parlait de lui-même au lieu de parler du dossier. Il répond
- * maintenant à la seule question qu'on se pose en ouvrant un logiciel
- * comptable un matin : OÙ EN EST CE DOSSIER, et par quoi je commence.
+ * Il porte DEUX choses, dans cet ordre :
  *
- * Deux bandes seulement :
- *  1. l'identité du dossier et son exercice ;
- *  2. ce qui réclame une action, tiré du planning de clôture et des contrôles
- *     de cohérence.
+ *   1. OÙ EN EST CE DOSSIER · ce qui réclame une action (jalons en retard,
+ *      anomalies de cohérence, écritures encore au brouillard). C'est la
+ *      seule question qu'on se pose en ouvrant un logiciel comptable un
+ *      matin, et aucun autre écran n'y répond d'un coup d'œil.
+ *   2. PAR OÙ COMMENCER · le lanceur, en tuiles groupées par domaine, comme
+ *      IntuiSage groupe les siennes en « Gestion quotidienne », « Gestion des
+ *      tiers », « Gestion des comptes généraux ».
  *
- * IL N'Y A PLUS DE GRILLE DE RACCOURCIS ICI, et c'est délibéré. Elle reprenait
- * mot pour mot les sept boutons de la barre d'outils, elle-même présente sur
- * TOUS les écrans, accueil compris : « Journal » se trouvait à la fois sur
- * cette page, dans la barre d'outils juste au-dessus, et dans le menu État.
- * Trois chemins pour une même fenêtre, dont deux visibles en même temps.
- *
- * Le partage des rôles retenu, écrit ici pour qu'il ne dérive pas :
- *
- *   BARRE DE MENUS  · la carte complète du logiciel. Tout s'y trouve.
- *   BARRE D'OUTILS  · les sept fenêtres du quotidien, à un clic, partout.
- *   ACCUEIL         · où en est CE dossier, et ce qui réclame une action.
- *                     Pas un lanceur : la barre d'outils au-dessus en est un.
- *
- * Aucune tuile « bientôt » non plus : un logiciel fini ne montre pas ses
- * chantiers, règle déjà posée pour la barre de menus.
+ * Une grille de raccourcis avait été retirée d'ici, au motif qu'elle
+ * répétait la barre d'outils affichée juste au-dessus. Le motif ne tient plus
+ * depuis le passage au multi-fenêtres : l'accueil est désormais un FOND,
+ * qu'on ne voit que lorsque aucune fenêtre ne le couvre · il n'est donc
+ * jamais visible en même temps que le travail en cours, et n'entre plus en
+ * concurrence avec rien. C'est précisément la disposition de Sage, dont la
+ * barre d'outils porte les actions sur l'enregistrement courant (ajouter,
+ * consulter, rechercher) pendant que la page d'accueil, elle, lance les
+ * fenêtres. Ce partage-là est le bon, et c'est celui qui est en place ici.
  */
 
 const JEUX: Record<string, string> = {
@@ -44,9 +62,83 @@ const JEUX: Record<string, string> = {
   SYSTEME_MINIMAL_TRESORERIE: 'Système minimal de trésorerie',
 };
 
+interface TuileDef {
+  label: string;
+  chemin: string;
+  Icon: (p: SVGProps<SVGSVGElement>) => JSX.Element;
+  /** Réservée aux administrateurs du dossier. */
+  admin?: boolean;
+}
+
+interface GroupeDef {
+  titre: string;
+  tuiles: TuileDef[];
+}
+
+/**
+ * Les groupes suivent la journée d'un comptable, pas l'ordre des menus :
+ * on saisit, on suit ses tiers, on tient ses comptes, on clôture. Le dernier
+ * groupe rassemble ce qui n'existe QUE chez une entité à but non lucratif
+ * (registre des donateurs, bailleurs, budgets par projet) · le mettre à part
+ * évite de le noyer parmi les fenêtres classiques, alors que c'est là que se
+ * joue la conformité SYCEBNL.
+ */
+const GROUPES: GroupeDef[] = [
+  {
+    titre: 'Gestion quotidienne',
+    tuiles: [
+      { label: 'Saisie des journaux', chemin: '/saisie', Icon: IconGrille },
+      { label: 'Journal', chemin: '/journal?onglet=journal', Icon: IconJournal },
+      { label: 'Brouillard', chemin: '/brouillard', Icon: IconSaisie },
+      { label: 'Balance des comptes', chemin: '/journal?onglet=balance', Icon: IconBalance },
+      { label: 'Analyse et contrôles', chemin: '/controles', Icon: IconCheck },
+    ],
+  },
+  {
+    titre: 'Gestion des tiers',
+    tuiles: [
+      { label: 'Plan des tiers', chemin: '/tiers', Icon: IconUsers },
+      { label: 'Balance âgée', chemin: '/balance-agee', Icon: IconSearch },
+      { label: 'Échéancier', chemin: '/echeancier', Icon: IconNews },
+      { label: 'Rappel et relevé', chemin: '/relances', Icon: IconPrint },
+      { label: 'Rapprochement', chemin: '/rapprochement', Icon: IconBanque },
+    ],
+  },
+  {
+    titre: 'Comptes généraux et structure',
+    tuiles: [
+      { label: 'Plan comptable', chemin: '/comptes', Icon: IconComptes },
+      { label: 'Grand livre', chemin: '/journal?onglet=grand-livre', Icon: IconBook },
+      { label: 'Codes journaux', chemin: '/journaux', Icon: IconJournal },
+      { label: 'Immobilisations', chemin: '/immobilisations', Icon: IconImmo },
+      { label: 'Régularisations', chemin: '/regularisations', Icon: IconRefresh },
+    ],
+  },
+  {
+    titre: 'Clôture et états financiers',
+    tuiles: [
+      { label: 'États financiers', chemin: '/etats-financiers', Icon: IconEtats },
+      { label: 'Notes annexes', chemin: '/notes-annexes', Icon: IconBook },
+      { label: 'Documents obligatoires', chemin: '/documents-obligatoires', Icon: IconLock },
+      { label: "Fin d'exercice", chemin: '/exercice', Icon: IconCheck },
+      { label: 'Tableau de bord', chemin: '/tableau-de-bord', Icon: IconDashboard },
+    ],
+  },
+  {
+    titre: 'Propre aux entités à but non lucratif',
+    tuiles: [
+      { label: 'Registre des donateurs', chemin: '/registre-donateurs', Icon: IconBook },
+      { label: 'Bailleurs de fonds', chemin: '/bailleurs', Icon: IconUsers },
+      { label: 'États analytiques', chemin: '/etats-analytiques', Icon: IconDashboard },
+      { label: 'Plans analytiques', chemin: '/plans-analytiques', Icon: IconComptes },
+      { label: 'Retenues et fiscal', chemin: '/retenues', Icon: IconPrint },
+    ],
+  },
+];
+
 export function AccueilPage() {
   const navigate = useNavigate();
-  const { utilisateur, seDeconnecter } = useAuth();
+  const { utilisateur, estAdmin, seDeconnecter } = useAuth();
   const { exerciceCourant } = useExercice();
   const [wizardOuvert, setWizardOuvert] = useState(false);
   const [aProposOuvert, setAProposOuvert] = useState(false);
@@ -77,18 +169,26 @@ export function AccueilPage() {
     };
   }, [exerciceCourant]);
 
-  const enRetard = planning?.jalons.filter((j) => j.enRetard) ?? [];
+  /*
+    Chaînage optionnel jusqu'au BOUT (`jalons?.filter`), et pas seulement sur
+    `planning` : depuis que l'accueil est le FOND de l'espace de travail, il
+    est monté en permanence · une exception ici n'emporte plus une page, elle
+    emporte le logiciel entier, fenêtres ouvertes comprises. Une réponse
+    inattendue du serveur (champ absent, forme changée) doit donc dégrader
+    l'accueil, jamais l'abattre.
+  */
+  const enRetard = planning?.jalons?.filter((j) => j.enRetard) ?? [];
   const aujourdHui = Date.now();
   const prochain =
-    planning?.jalons.find((j) => !j.enRetard && new Date(j.echeance).getTime() >= aujourdHui) ?? null;
-  const brouillard = planning?.jalons.find((j) => j.libelle === 'Balance de vérification')?.observation ?? null;
+    planning?.jalons?.find((j) => !j.enRetard && new Date(j.echeance).getTime() >= aujourdHui) ?? null;
+  const brouillard = planning?.jalons?.find((j) => j.libelle === 'Balance de vérification')?.observation ?? null;
 
   // Les anomalies bloquantes passent avant tout : une écriture déséquilibrée
   // ou une caisse créditrice empêchent d'arrêter les comptes, pas seulement
   // de bien les tenir.
-  const bloquants = controles?.totaux.bloquants ?? 0;
-  const avertissements = controles?.totaux.avertissements ?? 0;
-  const pireAnomalie = controles?.anomalies.find((a) => a.gravite !== 'INFORMATION') ?? null;
+  const bloquants = controles?.totaux?.bloquants ?? 0;
+  const avertissements = controles?.totaux?.avertissements ?? 0;
+  const pireAnomalie = controles?.anomalies?.find((a) => a.gravite !== 'INFORMATION') ?? null;
 
   const jeu = utilisateur ? JEUX[utilisateur.tenant.jeuEtatsFinanciersSycebnl] : null;
   const anneeExercice = exerciceCourant ? new Date(exerciceCourant.dateDebut).getFullYear() : null;
@@ -97,7 +197,7 @@ export function AccueilPage() {
     new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
 
   return (
-    <div className="p-4 max-w-[1180px]">
+    <div className="p-4 pb-8 max-w-[1320px]">
       {/* --- Bande 1 · identité du dossier --------------------------------- */}
       <section
         className="relative overflow-hidden rounded-[16px] px-5 py-4 mb-4 text-white shadow-posee"
@@ -147,10 +247,8 @@ export function AccueilPage() {
       </section>
 
       {/* --- Bande 2 · ce qui réclame une action --------------------------- */}
-      <section className="mb-5">
-        <div className="text-[11px] font-semibold uppercase tracking-[0.09em] text-text-dim mb-2 px-0.5">
-          Où en est ce dossier
-        </div>
+      <section className="mb-6">
+        <TitreBande>Où en est ce dossier</TitreBande>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
           {chargement ? (
             [0, 1, 2, 3].map((i) => <div key={i} className="squelette h-[86px] rounded-[12px]" />)
@@ -201,7 +299,21 @@ export function AccueilPage() {
         </div>
       </section>
 
-      <div className="mt-5 flex justify-end">
+      {/* --- Bande 3 · le lanceur, par domaine ----------------------------- */}
+      {GROUPES.map((groupe) => (
+        <section key={groupe.titre} className="mb-5">
+          <TitreBande>{groupe.titre}</TitreBande>
+          <div className="flex flex-wrap gap-2.5">
+            {groupe.tuiles
+              .filter((t) => !t.admin || estAdmin)
+              .map((t, i) => (
+                <Tuile key={t.chemin} tuile={t} rang={i} onClick={() => navigate(t.chemin)} />
+              ))}
+          </div>
+        </section>
+      ))}
+
+      <div className="mt-6 flex justify-end">
         <button
           type="button"
           onClick={() => setAProposOuvert(true)}
@@ -215,6 +327,39 @@ export function AccueilPage() {
       {wizardOuvert && <NouveauFichierWizard onClose={() => setWizardOuvert(false)} />}
       {aProposOuvert && <AProposModale onFermer={() => setAProposOuvert(false)} />}
     </div>
+  );
+}
+
+function TitreBande({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="text-[11px] font-semibold uppercase tracking-[0.09em] text-text-dim mb-2 px-0.5">{children}</div>
+  );
+}
+
+/**
+ * Tuile de lancement · carrée et colorée comme celles d'IntuiSage, mais avec
+ * le libellé SOUS l'icône et non par-dessus : chez Sage, le texte se glisse
+ * dans le carré coloré et s'y coupe (« Visualisation/mo-dification d'une »),
+ * ce qui rend la moitié des tuiles illisibles. Le carré porte l'icône, le
+ * libellé vit dessous, au complet.
+ */
+function Tuile({ tuile, rang, onClick }: { tuile: TuileDef; rang: number; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={tuile.label}
+      style={{ animationDelay: `${rang * 35}ms` }}
+      className="anim-cascade group flex w-[104px] flex-col items-center gap-2 rounded-[12px] border border-transparent p-2 text-center transition-[background-color,border-color,transform] duration-200 ease-sortie hover:-translate-y-[2px] hover:border-border hover:bg-surface"
+    >
+      <span
+        className="flex h-[52px] w-[52px] items-center justify-center rounded-[13px] text-white shadow-plate transition-shadow duration-200 group-hover:shadow-flottante"
+        style={{ background: 'linear-gradient(140deg, var(--a-600), var(--a-800))' }}
+      >
+        <tuile.Icon width={22} height={22} />
+      </span>
+      <span className="text-[10.5px] font-medium leading-tight text-text">{tuile.label}</span>
+    </button>
   );
 }
 
@@ -243,10 +388,7 @@ function CarteEtat({
       className="group flex flex-col items-start gap-1.5 rounded-[12px] border border-border bg-surface p-3.5 text-left shadow-plate transition-[transform,box-shadow,border-color] duration-200 ease-sortie hover:-translate-y-[2px] hover:border-border-dark hover:shadow-flottante"
     >
       <span className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.05em] text-text-dim">
-        <span
-          className={`h-1.5 w-1.5 rounded-full ${bon ? 'bg-positive' : 'bg-warning'}`}
-          aria-hidden
-        />
+        <span className={`h-1.5 w-1.5 rounded-full ${bon ? 'bg-positive' : 'bg-warning'}`} aria-hidden />
         {titre}
       </span>
       <span className={`text-[13px] font-medium leading-snug ${bon ? '' : 'text-warning'}`}>{valeur}</span>

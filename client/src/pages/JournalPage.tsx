@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
 import { api, ApiError } from '../lib/api';
 import { useExercice } from '../lib/exercice';
 import { useAuth } from '../lib/auth';
 import { IconFilter, IconExport } from '../components/chrome/icons';
+import { ModaleCorrection } from '../components/ModaleCorrection';
 import type { Compte, Ecriture, Journal, LigneBalance, LigneGrandLivre } from '../lib/types';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
 
@@ -45,15 +45,29 @@ function versQuery(exerciceId: string, filtres: Filtres): string {
   return params.toString();
 }
 
-export function JournalPage() {
+/** Lit `?onglet=…` dans une adresse, avec repli sur l'onglet Journal. */
+function ongletDe(adresse: string | undefined): Onglet {
+  const brut = new URLSearchParams(adresse?.split('?')[1] ?? '').get('onglet');
+  return estOnglet(brut) ? brut : 'journal';
+}
+
+export function JournalPage({ adresse }: { adresse?: string } = {}) {
   const { exerciceCourant } = useExercice();
-  // L'onglet est piloté par l'URL (?onglet=…) pour que les menus État →
-  // Journal / Grand livre / Balance et la barre d'outils ouvrent directement
-  // le bon état, comme les commandes du menu État de Sage.
-  const [searchParams, setSearchParams] = useSearchParams();
-  const brut = searchParams.get('onglet');
-  const onglet: Onglet = estOnglet(brut) ? brut : 'journal';
-  const setOnglet = (o: Onglet) => setSearchParams({ onglet: o }, { replace: true });
+  /*
+    L'onglet vient de l'adresse de la FENÊTRE (`?onglet=…`), pour que les
+    commandes « État → Journal / Grand livre / Balance » et la barre d'outils
+    ouvrent directement le bon état, comme le menu État de Sage.
+
+    Il est ensuite tenu en état local, et NON relu dans l'URL à chaque rendu :
+    depuis le multi-fenêtres, l'URL ne décrit que la fenêtre ACTIVE. Un
+    journal laissé ouvert en arrière-plan y lirait l'adresse d'une autre
+    fenêtre et changerait d'onglet tout seul. L'effet ci-dessous resynchronise
+    lorsque le menu redemande explicitement un onglet.
+  */
+  const [onglet, setOnglet] = useState<Onglet>(() => ongletDe(adresse));
+  useEffect(() => {
+    setOnglet(ongletDe(adresse));
+  }, [adresse]);
   const [ecritures, setEcritures] = useState<Ecriture[]>([]);
   const [totaux, setTotaux] = useState({ debit: 0, credit: 0 });
   const [balance, setBalance] = useState<LigneBalance[]>([]);
@@ -78,6 +92,11 @@ export function JournalPage() {
   const charger = () => setRechargement((n) => n + 1);
   const { utilisateur } = useAuth();
   const peutCorriger = utilisateur?.role === 'ADMIN_CABINET' || utilisateur?.role === 'COMPTABLE';
+  // L'écriture dont on demande la correction · `null` tant que la boîte est
+  // fermée. Elle porte le libellé pour que la boîte puisse nommer ce qu'elle
+  // s'apprête à annuler, plutôt que de dire « cette écriture ».
+  const [aCorriger, setACorriger] = useState<{ id: string; libelle: string } | null>(null);
+  const [correctionEnCours, setCorrectionEnCours] = useState(false);
 
   useEffect(() => {
     let annule = false;
@@ -242,19 +261,18 @@ export function JournalPage() {
    * proscrit. L'écriture erronée RESTE au journal, signalée comme annulée ·
    * c'est la trace qui fait foi.
    */
-  const corriger = async (ecritureId: string, libelle: string) => {
-    const motif = window.prompt(
-      `Correction de « ${libelle} » par inscription en négatif (art. 20 de l’AUDCIF).\n\n` +
-        `L’écriture erronée reste au journal ; une écriture de sens identique et de montants négatifs l’annule. ` +
-        `Passez ensuite l’enregistrement exact.\n\nMotif de la correction :`,
-    );
-    if (!motif?.trim()) return;
+  const corriger = async (motif: string) => {
+    if (!aCorriger) return;
     setErreur(null);
+    setCorrectionEnCours(true);
     try {
-      await api.post(`/ecritures/${ecritureId}/correction`, { motifCorrection: motif.trim() });
+      await api.post(`/ecritures/${aCorriger.id}/correction`, { motifCorrection: motif });
+      setACorriger(null);
       charger();
     } catch (e) {
       setErreur(e instanceof ApiError ? e.message : 'Correction impossible');
+    } finally {
+      setCorrectionEnCours(false);
     }
   };
 
@@ -282,7 +300,7 @@ export function JournalPage() {
     }
     if (!peutCorriger || l.estGenereeParCloture) return null;
     return (
-      <button onClick={() => corriger(l.ecritureId, l.libelle)} className="text-sel hover:underline">
+      <button onClick={() => setACorriger({ id: l.ecritureId, libelle: l.libelle })} className="text-sel hover:underline">
         Corriger
       </button>
     );
@@ -664,6 +682,15 @@ export function JournalPage() {
             );
           })()}
         </div>
+      )}
+
+      {aCorriger && (
+        <ModaleCorrection
+          libelleEcriture={aCorriger.libelle}
+          enCours={correctionEnCours}
+          onFermer={() => setACorriger(null)}
+          onValider={corriger}
+        />
       )}
     </div>
   );

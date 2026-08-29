@@ -43,7 +43,18 @@ export function MenuBar({ menus }: { menus: MenuDef[] }) {
   return (
     <div
       ref={ref}
-      className="h-[32px] flex items-center gap-0.5 px-2 bg-chrome/80 backdrop-blur-md border-b border-border select-none"
+      /*
+        `relative z-40` n'est PAS décoratif · il corrige un menu qui s'ouvrait
+        DERRIÈRE la fenêtre active. `backdrop-blur` crée un contexte
+        d'empilement sur cette barre, et `will-change: transform` en crée un
+        autre sur la fenêtre en dessous : deux contextes à z-index `auto`,
+        donc à égalité, que seul l'ordre du DOM départageait · la fenêtre,
+        écrite après, recouvrait le menu déroulé. Le `z-30` interne au menu
+        n'y pouvait rien, un z-index ne compare que des frères du même
+        contexte. La barre passe donc explicitement au-dessus (voir le
+        `relative z-0` de <main> dans AppShell, qui borne l'autre côté).
+      */
+      className="relative z-40 h-[32px] flex items-center gap-0.5 px-2 bg-chrome/80 backdrop-blur-md border-b border-border select-none"
     >
       {menus.map((m) => (
         <div key={m.titre} className="relative h-full flex items-center">
