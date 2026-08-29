@@ -288,28 +288,144 @@ export class TauxTvaService {
    * la TVA déductible admise. Reste lecture seule ici · voir
    * `comptabiliserLiquidation` pour poser l'écriture sur le compte 444.
    */
+  /**
+   * EXIGIBILITÉ · à quelle date une ligne de TVA entre dans une déclaration.
+   *
+   * Ce n'est pas toujours la date de l'écriture. L'ordonnance-loi n° 10/001
+   * distingue le FAIT GÉNÉRATEUR (art. 24, l'événement qui fait naître la
+   * créance fiscale) de l'EXIGIBILITÉ (art. 25, le moment où l'administration
+   * peut en réclamer le paiement) ; c'est la seconde qui commande la période
+   * de déclaration. Pour les prestations de services et les travaux
+   * immobiliers, l'art. 25, 2° la place « au moment de l'encaissement du prix,
+   * des acomptes ou avances » : une facture de mars réglée en juin se déclare
+   * en JUIN.
+   *
+   * Comment le logiciel date l'encaissement · par le LETTRAGE. Une facture de
+   * vente porte, dans la même écriture, la créance sur le client (classe 4) et
+   * la TVA collectée. Quand la créance est lettrée avec son règlement, le
+   * groupe de lettrage passe SOLDE et porte la date du dénouement
+   * (`soldeAt`) : c'est cette date que la TVA suit. Un règlement partiel
+   * rend la taxe exigible À PROPORTION du montant encaissé, et le groupe
+   * partiel donne cette proportion.
+   *
+   * Ce que le logiciel ne fait PAS, et le dit : il ne devine pas quelle ligne
+   * du groupe a réglé quelle facture quand plusieurs factures y sont réunies.
+   * Il applique alors au groupe entier la proportion réglée du groupe. C'est
+   * l'imputation la plus neutre ; l'imputation « plus ancienne d'abord » du
+   * fisc donnerait, sur un groupe multi-factures, un fractionnement différent.
+   */
+  private exigibilite(
+    ligne: { debit: unknown; credit: unknown },
+    lignesTiers: Array<{
+      debit: unknown;
+      credit: unknown;
+      lettrage: { statut: string; solde: unknown; soldeAt: Date | null } | null;
+    }>,
+    dateEcriture: Date,
+  ): { date: Date | null; fraction: number } {
+    // Aucune contrepartie de tiers lettrable : rien ne dit quand l'argent est
+    // entré. On s'en tient à la date de l'écriture · c'est le cas d'une vente
+    // au comptant, où encaissement et écriture coïncident de toute façon.
+    const avecLettrage = lignesTiers.filter((l) => l.lettrage);
+    if (avecLettrage.length === 0) return { date: dateEcriture, fraction: 1 };
+
+    const groupe = avecLettrage[0].lettrage!;
+    if (groupe.statut === 'SOLDE') {
+      // Dénoué : exigible en totalité, à la date du dénouement. `soldeAt` peut
+      // manquer sur un lettrage ancien · la date d'écriture sert alors de
+      // repli, faute de mieux, plutôt que d'exclure la ligne de toute
+      // déclaration (une TVA jamais déclarée est pire qu'une TVA mal datée).
+      return { date: groupe.soldeAt ?? dateEcriture, fraction: 1 };
+    }
+    // Groupe PARTIEL · une part est encaissée. `solde` est le reste à solder,
+    // signé ; la part réglée est donc (engagé - |reste|) / engagé.
+    const engage = avecLettrage.reduce((t, l) => t + Math.abs(Number(l.debit) - Number(l.credit)), 0);
+    const reste = Math.abs(Number(groupe.solde));
+    if (engage <= EPSILON) return { date: null, fraction: 0 };
+    const fraction = Math.min(1, Math.max(0, (engage - reste) / engage));
+    if (fraction <= EPSILON) return { date: null, fraction: 0 };
+    // Un groupe partiel n'a pas de date de dénouement : la part encaissée l'a
+    // été à une date qu'on ne sait pas isoler ligne à ligne. On la rattache à
+    // la date d'écriture du règlement le plus récent du groupe · à défaut,
+    // à celle de la facture.
+    return { date: groupe.soldeAt ?? dateEcriture, fraction };
+  }
+
   async declaration(tenantId: string, dateDebut: Date, dateFin: Date) {
+    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
+    // DEBITS (art. 26) se comporte comme LIVRAISONS : l'exigibilité est
+    // l'inscription au débit du compte du client, c'est-à-dire la date de la
+    // facture, donc de l'écriture. La nuance de l'art. 26 in fine (un
+    // encaissement antérieur au débit reste exigible à l'encaissement) ne
+    // change rien ici : sur une facture, le débit précède l'encaissement.
+    const alEncaissement = tenant?.regimeExigibiliteTva === 'ENCAISSEMENTS';
     const taux = await this.prisma.tauxTva.findMany({ where: { tenantId }, orderBy: { taux: 'desc' } });
 
     const lignes = [];
+    let enAttente = 0;
     for (const t of taux) {
       let totalCollecte = 0;
       let totalDeductible = 0;
-      if (t.compteCollecteId) {
-        const agg = await this.prisma.ligneEcriture.aggregate({
-          where: { tauxTvaId: t.id, compteId: t.compteCollecteId, ecriture: { tenantId, date: { gte: dateDebut, lte: dateFin } } },
-          _sum: { credit: true },
+      let attenteDuTaux = 0;
+
+      if (alEncaissement) {
+        // Régime de l'encaissement · on ne peut plus agréger en base : chaque
+        // ligne a sa propre date d'exigibilité, qui dépend de son lettrage.
+        // La fenêtre de lecture remonte donc AVANT la période déclarée (une
+        // facture de l'an dernier encaissée ce mois-ci est exigible ce
+        // mois-ci) et s'arrête à la fin de la période.
+        const candidates = await this.prisma.ligneEcriture.findMany({
+          where: {
+            tauxTvaId: t.id,
+            compteId: { in: [t.compteCollecteId, t.compteDeductibleId].filter(Boolean) as string[] },
+            ecriture: { tenantId, date: { lte: dateFin } },
+          },
+          include: {
+            ecriture: {
+              include: {
+                lignes: {
+                  where: { compte: { classe: ClasseCompte.CLASSE_4 }, lettrageId: { not: null } },
+                  include: { lettrage: true },
+                },
+              },
+            },
+          },
         });
-        totalCollecte = Number(agg._sum.credit ?? 0);
+        for (const l of candidates) {
+          const { date, fraction } = this.exigibilite(l, l.ecriture.lignes, l.ecriture.date);
+          const estCollecte = l.compteId === t.compteCollecteId;
+          const montant = estCollecte ? Number(l.credit) : Number(l.debit);
+          if (montant <= EPSILON) continue;
+          // Part non encore exigible d'une facture de la période · c'est le
+          // chiffre qui explique l'écart entre le chiffre d'affaires et la
+          // déclaration, et sans lequel le régime paraît perdre de la TVA.
+          if (estCollecte && l.ecriture.date >= dateDebut && l.ecriture.date <= dateFin) {
+            attenteDuTaux += Math.round(montant * (1 - fraction) * 100) / 100;
+          }
+          if (!date || date < dateDebut || date > dateFin) continue;
+          const exigible = Math.round(montant * fraction * 100) / 100;
+          if (estCollecte) totalCollecte += exigible;
+          else totalDeductible += exigible;
+        }
+      } else {
+        if (t.compteCollecteId) {
+          const agg = await this.prisma.ligneEcriture.aggregate({
+            where: { tauxTvaId: t.id, compteId: t.compteCollecteId, ecriture: { tenantId, date: { gte: dateDebut, lte: dateFin } } },
+            _sum: { credit: true },
+          });
+          totalCollecte = Number(agg._sum.credit ?? 0);
+        }
+        if (t.compteDeductibleId) {
+          const agg = await this.prisma.ligneEcriture.aggregate({
+            where: { tauxTvaId: t.id, compteId: t.compteDeductibleId, ecriture: { tenantId, date: { gte: dateDebut, lte: dateFin } } },
+            _sum: { debit: true },
+          });
+          totalDeductible = Number(agg._sum.debit ?? 0);
+        }
       }
-      if (t.compteDeductibleId) {
-        const agg = await this.prisma.ligneEcriture.aggregate({
-          where: { tauxTvaId: t.id, compteId: t.compteDeductibleId, ecriture: { tenantId, date: { gte: dateDebut, lte: dateFin } } },
-          _sum: { debit: true },
-        });
-        totalDeductible = Number(agg._sum.debit ?? 0);
-      }
-      if (totalCollecte === 0 && totalDeductible === 0) continue; // taux sans mouvement sur la période
+
+      enAttente += attenteDuTaux;
+      if (totalCollecte === 0 && totalDeductible === 0 && attenteDuTaux === 0) continue; // taux sans mouvement sur la période
       lignes.push({
         tauxId: t.id,
         code: t.code,
@@ -319,6 +435,7 @@ export class TauxTvaService {
         compteDeductibleId: t.compteDeductibleId,
         totalCollecte,
         totalDeductible,
+        enAttente: attenteDuTaux,
         net: totalCollecte - totalDeductible,
       });
     }
@@ -332,6 +449,20 @@ export class TauxTvaService {
     return {
       dateDebut,
       dateFin,
+      regimeExigibilite: tenant?.regimeExigibiliteTva ?? 'LIVRAISONS',
+      mentionExigibilite: alEncaissement
+        ? "Régime de l'encaissement (art. 25, 2° de l'ordonnance-loi n° 10/001) : la TVA d'une prestation de " +
+          "services devient exigible au règlement, et non à la facture. Les factures de la période encore " +
+          'impayées ne figurent donc pas ici · elles sont reprises sous « TVA en attente d’encaissement ».'
+        : tenant?.regimeExigibiliteTva === 'DEBITS'
+          ? "Régime des débits (art. 26, sur autorisation du Directeur Général des Impôts) : la TVA est exigible à " +
+            "l'inscription au débit du compte du client, donc à la date de la facture."
+          : "Régime des livraisons (art. 25, 1°) : la TVA est exigible à la réalisation du fait générateur. Si ce " +
+            'dossier facture des PRESTATIONS DE SERVICES, le régime de droit commun est celui de l’encaissement ' +
+            '(art. 25, 2°) · à changer dans Structure > Paramètres du dossier.',
+      // TVA facturée sur la période mais pas encore encaissée, donc pas encore
+      // due. Zéro hors régime de l'encaissement, où la notion n'existe pas.
+      tvaEnAttenteEncaissement: Math.round(enAttente * 100) / 100,
       lignes,
       prorata,
       totalCollecte,

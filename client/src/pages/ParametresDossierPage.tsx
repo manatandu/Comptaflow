@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { Aide } from '../components/chrome/Aide';
-import type { FormeJuridiqueEbnl, JeuEtatsFinanciersSycebnl, ParametresDossier } from '../lib/types';
+import type { FormeJuridiqueEbnl, JeuEtatsFinanciersSycebnl, ParametresDossier, RegimeExigibiliteTva } from '../lib/types';
 
 /**
  * PARAMÈTRES DU DOSSIER · Structure → Paramètres société chez Sage 100 i7.
@@ -150,7 +150,11 @@ export function ParametresDossierPage() {
    * « avec TVA » à toute association ; sans l'effectif, il ne pouvait pas
    * mesurer le troisième critère de l'article 19 ni la tranche INPP.
    */
-  const changerRegime = async (dto: { assujettiTva?: boolean; effectifPermanent?: number }) => {
+  const changerRegime = async (dto: {
+    assujettiTva?: boolean;
+    effectifPermanent?: number;
+    regimeExigibiliteTva?: RegimeExigibiliteTva;
+  }) => {
     setEnvoi(true);
     setErreur(null);
     try {
@@ -382,6 +386,31 @@ export function ParametresDossierPage() {
                   </span>
                 </span>
               </label>
+              {/* RÉGIME D'EXIGIBILITÉ · n'a de sens qu'assujetti. Il ne change
+                  pas le MONTANT de la taxe mais la PÉRIODE où elle est due,
+                  ce qui est la première cause d'écart sur une déclaration. */}
+              {params.assujettiTva && (
+                <label className="block text-[11.5px]">
+                  Exigibilité de la TVA
+                  <select
+                    value={params.regimeExigibiliteTva}
+                    disabled={!estAdmin || envoi}
+                    onChange={(e) => changerRegime({ regimeExigibiliteTva: e.target.value as RegimeExigibiliteTva })}
+                    className="mt-1 block w-full max-w-[420px] border border-border rounded-[7px] bg-bg px-2 py-1 text-[12px] focus:outline-none focus:border-sel"
+                  >
+                    <option value="LIVRAISONS">Livraisons · taxe due à la livraison du bien (art. 25, 1°)</option>
+                    <option value="ENCAISSEMENTS">Encaissements · taxe due au règlement (art. 25, 2°)</option>
+                    <option value="DEBITS">Débits · sur autorisation du DGI (art. 26)</option>
+                  </select>
+                  <span className="block text-[10.5px] text-text-dim leading-[1.5] mt-1">
+                    Pour les PRESTATIONS DE SERVICES et les travaux immobiliers, le régime de droit commun est celui
+                    de l’<strong>encaissement</strong> : une facture émise en mars et réglée en juin se déclare en
+                    juin. Laisser « Livraisons » sur un dossier de services fait verser chaque mois une taxe qui n’a
+                    pas encore été encaissée. Le régime des débits ne s’ouvre que sur autorisation écrite du Directeur
+                    Général des Impôts, et ne dispense pas de payer à l’encaissement s’il précède la facture.
+                  </span>
+                </label>
+              )}
               <label className="block text-[11.5px]">
                 Effectif permanent
                 <input

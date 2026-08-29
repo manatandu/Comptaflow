@@ -66,6 +66,33 @@ enum FormeJuridiqueEbnl {
   AUTRE
 }
 
+// RÉGIME D'EXIGIBILITÉ DE LA TVA · ordonnance-loi n° 10/001, art. 25 et 26.
+//
+// L'exigibilité est « le droit dont dispose l'Administration des Impôts de
+// réclamer le paiement de la taxe à partir d'une date donnée » (art. 25).
+// Elle ne coïncide PAS toujours avec la date de l'écriture, et c'est elle,
+// non l'écriture, qui commande la période de déclaration.
+//
+//  · LIVRAISONS · exigible à la réalisation du fait générateur, c'est-à-dire
+//    à la livraison (art. 25, 1°). Régime des ventes de biens meubles.
+//  · ENCAISSEMENTS · exigible « au moment de l'encaissement du prix, des
+//    acomptes ou avances » (art. 25, 2°). Régime de DROIT COMMUN des
+//    prestations de services et des travaux immobiliers · une facture de
+//    service émise en mars et réglée en juin se déclare en juin, pas en mars.
+//  · DEBITS · option de l'art. 26, ouverte sur autorisation du Directeur
+//    Général des Impôts aux entrepreneurs de travaux et aux prestataires
+//    justifiant de circonstances particulières : l'exigibilité devient
+//    l'inscription au débit du compte du client, donc la date de facture.
+//    L'option ne dispense PAS d'acquitter la taxe à l'encaissement quand
+//    celui-ci précède le débit (art. 26 in fine) · d'où le traitement
+//    identique à LIVRAISONS, la date de facture étant la plus précoce des
+//    deux dans le cas usuel.
+enum RegimeExigibiliteTva {
+  LIVRAISONS
+  ENCAISSEMENTS
+  DEBITS
+}
+
 enum JeuEtatsFinanciersSycebnl {
   ASSOCIATIONS_ORDRES_PROFESSIONNELS
   PROJETS_DEVELOPPEMENT
@@ -155,6 +182,16 @@ model Tenant {
   // début des obligations déclaratives, et à rappeler que l'option prise en
   // deçà du seuil engage deux ans.
   dateOptionTva  DateTime?
+
+  // RÉGIME D'EXIGIBILITÉ DE LA TVA · voir l'enum RegimeExigibiliteTva.
+  // LIVRAISONS par défaut : c'est le régime des ventes de biens, le plus
+  // simple, et celui qu'un dossier sans prestation de services doit garder.
+  regimeExigibiliteTva      RegimeExigibiliteTva @default(LIVRAISONS)
+  // Date de l'autorisation du Directeur Général des Impôts pour le régime
+  // des débits (art. 26) · l'autorisation est nominative et datée, et elle
+  // reste valable tant que le redevable n'a pas demandé par écrit de revenir
+  // au droit commun. Null pour les deux autres régimes.
+  dateAutorisationDebitsTva DateTime?
 
   // EFFECTIF PERMANENT · nécessaire à DEUX règles chiffrées que le logiciel ne
   // pouvait pas appliquer faute de connaître ce nombre :

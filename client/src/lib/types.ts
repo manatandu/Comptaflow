@@ -483,6 +483,8 @@ export interface TauxTva {
 }
 
 export interface LigneDeclarationTva {
+  /** Part facturée sur la période et non encore encaissée (régime de l'encaissement). */
+  enAttente: number;
   tauxId: string;
   code: string;
   intitule: string;
@@ -498,9 +500,15 @@ export interface ProrataTva {
   pourcentage: number;
 }
 
+export type RegimeExigibiliteTva = 'LIVRAISONS' | 'ENCAISSEMENTS' | 'DEBITS';
+
 export interface DeclarationTva {
   dateDebut: string;
   dateFin: string;
+  regimeExigibilite: RegimeExigibiliteTva;
+  mentionExigibilite: string;
+  /** TVA facturée sur la période mais pas encore encaissée, donc pas due. */
+  tvaEnAttenteEncaissement: number;
   lignes: LigneDeclarationTva[];
   prorata: ProrataTva;
   totalCollecte: number;
@@ -938,6 +946,13 @@ export interface ParametresDossier {
    */
   assujettiTva: boolean;
   dateOptionTva: string | null;
+  /**
+   * Régime d'exigibilité de la TVA · O.-L. n° 10/001, art. 25 et 26. Il
+   * décide de la PÉRIODE dans laquelle une TVA facturée se déclare, ce qui
+   * n'est pas la même question que celle de son montant.
+   */
+  regimeExigibiliteTva: RegimeExigibiliteTva;
+  dateAutorisationDebitsTva: string | null;
   /**
    * Effectif permanent · troisième critère de désignation d'un auditeur
    * (SYCEBNL, art. 19) et tranche de cotisation INPP.

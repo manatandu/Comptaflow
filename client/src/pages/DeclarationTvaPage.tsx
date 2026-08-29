@@ -104,6 +104,41 @@ export function DeclarationTvaPage() {
 
       {declaration && (
         <>
+          {/* RÉGIME D'EXIGIBILITÉ · un total de TVA ne se vérifie pas sans lui.
+              Le même chiffre d'affaires donne deux déclarations différentes
+              selon que la taxe est due à la facture ou au règlement. */}
+          <div className="border border-border bg-surface-alt max-w-[780px] mb-3 px-3.5 py-2">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="font-mono text-[10px] font-bold text-text-dim">EXIGIBILITÉ</span>
+              <span
+                className={`font-mono text-[10px] font-bold px-1.5 py-0.5 ${
+                  declaration.regimeExigibilite === 'ENCAISSEMENTS'
+                    ? 'bg-positive-soft text-positive'
+                    : 'bg-chrome text-text-dim'
+                }`}
+              >
+                {declaration.regimeExigibilite === 'ENCAISSEMENTS'
+                  ? 'ENCAISSEMENTS'
+                  : declaration.regimeExigibilite === 'DEBITS'
+                    ? 'DÉBITS'
+                    : 'LIVRAISONS'}
+              </span>
+            </div>
+            <div className="text-[11px] text-text-dim leading-[1.45]">{declaration.mentionExigibilite}</div>
+            {declaration.tvaEnAttenteEncaissement > 0 && (
+              <div className="mt-2 pt-2 border-t border-border font-mono text-[11.5px]">
+                TVA facturée sur la période et pas encore encaissée :{' '}
+                <span className="font-semibold text-warning">
+                  {declaration.tvaEnAttenteEncaissement.toLocaleString('fr-FR')} CDF
+                </span>
+                <div className="text-[10.5px] text-text-dim mt-0.5">
+                  Elle n’est pas due tant que le client n’a pas réglé, et deviendra exigible sur la période de
+                  l’encaissement. Elle explique l’écart entre le chiffre d’affaires de la période et la taxe déclarée.
+                </div>
+              </div>
+            )}
+          </div>
+
           <div className="border border-border bg-surface shadow-posee max-w-[780px] mb-4">
             <div className="grid grid-cols-[80px_1fr_70px_140px_140px_140px] gap-2 px-3.5 py-1.5 bg-chrome border-b border-border text-[10px] font-bold text-text-dim">
               <span>CODE</span><span>INTITULÉ</span><span>TAUX</span><span className="text-right">COLLECTÉE</span><span className="text-right">DÉDUCTIBLE</span><span className="text-right">NET</span>

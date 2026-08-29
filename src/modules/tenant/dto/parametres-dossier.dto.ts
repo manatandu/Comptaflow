@@ -1,5 +1,5 @@
 import { IsBoolean, IsEnum, IsOptional, IsString, MaxLength, IsDateString, IsInt, Min } from 'class-validator';
-import { FormeJuridiqueEbnl, JeuEtatsFinanciersSycebnl } from '@prisma/client';
+import { FormeJuridiqueEbnl, JeuEtatsFinanciersSycebnl, RegimeExigibiliteTva } from '@prisma/client';
 
 export class ModifierJeuEtatsDto {
   @IsEnum(JeuEtatsFinanciersSycebnl)
@@ -63,4 +63,18 @@ export class ModifierRegimeDto {
   @IsInt()
   @Min(0)
   effectifPermanent?: number;
+
+  /**
+   * Régime d'exigibilité de la TVA · O.-L. n° 10/001, art. 25 et 26. Il
+   * décide de la PÉRIODE dans laquelle une TVA facturée se déclare : à la
+   * livraison, à l'encaissement (droit commun des prestations de services),
+   * ou aux débits sur autorisation.
+   */
+  @IsOptional()
+  @IsEnum(RegimeExigibiliteTva)
+  regimeExigibiliteTva?: RegimeExigibiliteTva;
+
+  @IsOptional()
+  @IsDateString()
+  dateAutorisationDebitsTva?: string;
 }

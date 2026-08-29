@@ -38,10 +38,11 @@ ci-dessous sont TRAITÉS et couverts par des tests. Voir les commits
 | Loi 004/2001 hors fiscal | Jalon semestriel (art. 4 e), ONG étrangères (art. 37), et table des obligations événementielles (art. 11, art. 15…) |
 | Social CNSS/INPP/ONEM | Natures séparées, comptes INPP et ONEM ouverts, sources réelles citées, taux ONEM 0,5 % sourcé sur l’AM n° 028/2025 |
 | Coordonnées des tiers | Huit champs sur la fiche, dont le Numéro Impôt exigé par l'art. 47 ter |
+| TVA à l'encaissement (P2-10) | Régime d'exigibilité au dossier (livraisons / encaissements / débits) ; la déclaration suit le lettrage, prorate le règlement partiel, et affiche la TVA facturée non encore encaissée |
 
-**Reste ouvert** : tout le P2 et le P3 ci-dessous (TVA à l'encaissement,
-import de relevé bancaire, modèles de saisie paramétrables, registre des
-exonérations douanières, et les points Sage de confort).
+**Reste ouvert** : le P2 sauf le point 10, et tout le P3 (import de relevé
+bancaire, modèles de saisie paramétrables, registre des exonérations
+douanières, et les points Sage de confort).
 
 ## Priorités consolidées
 

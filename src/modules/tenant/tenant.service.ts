@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
-import { FormeJuridiqueEbnl, JeuEtatsFinanciersSycebnl, Referentiel, TypeLicence } from '@prisma/client';
+import { FormeJuridiqueEbnl, JeuEtatsFinanciersSycebnl, Referentiel, RegimeExigibiliteTva, TypeLicence } from '@prisma/client';
 
 /**
  * Crée un tenant et sa licence en une transaction. Le référentiel comptable
@@ -83,6 +83,8 @@ export class TenantService {
       longueurCompte: tenant.longueurCompte,
       assujettiTva: tenant.assujettiTva,
       dateOptionTva: tenant.dateOptionTva,
+      regimeExigibiliteTva: tenant.regimeExigibiliteTva,
+      dateAutorisationDebitsTva: tenant.dateAutorisationDebitsTva,
       effectifPermanent: tenant.effectifPermanent,
       nombreEcritures,
     };
@@ -184,7 +186,13 @@ export class TenantService {
    */
   async modifierRegime(
     tenantId: string,
-    dto: { assujettiTva?: boolean; dateOptionTva?: string; effectifPermanent?: number },
+    dto: {
+      assujettiTva?: boolean;
+      dateOptionTva?: string;
+      effectifPermanent?: number;
+      regimeExigibiliteTva?: RegimeExigibiliteTva;
+      dateAutorisationDebitsTva?: string;
+    },
   ) {
     const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
     if (!tenant) {
@@ -196,6 +204,10 @@ export class TenantService {
         ...(dto.assujettiTva === undefined ? {} : { assujettiTva: dto.assujettiTva }),
         ...(dto.dateOptionTva === undefined ? {} : { dateOptionTva: new Date(dto.dateOptionTva) }),
         ...(dto.effectifPermanent === undefined ? {} : { effectifPermanent: dto.effectifPermanent }),
+        ...(dto.regimeExigibiliteTva === undefined ? {} : { regimeExigibiliteTva: dto.regimeExigibiliteTva }),
+        ...(dto.dateAutorisationDebitsTva === undefined
+          ? {}
+          : { dateAutorisationDebitsTva: new Date(dto.dateAutorisationDebitsTva) }),
       },
     });
     return this.parametres(tenantId);
