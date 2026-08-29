@@ -17,6 +17,25 @@ import { AProposModale } from './AProposModale';
  * chose ici. Les menus reprennent la structure de Sage : Fichier (le dossier
  * et ses accès), Structure (les plans et codes), Traitement (le quotidien),
  * État (les éditions), Fenêtre, « ? ».
+ *
+ * PARTAGE DES RÔLES ENTRE LES SURFACES DE NAVIGATION, à tenir.
+ *
+ *   BARRE DE MENUS  · la carte complète du logiciel. Toute fenêtre s'y
+ *                     trouve, et une seule fois. C'est le seul endroit qui
+ *                     a vocation à être exhaustif.
+ *   BARRE D'OUTILS  · les sept fenêtres du quotidien, à un clic, depuis
+ *                     n'importe quel écran. Un raccourci, pas un sommaire :
+ *                     tout ce qui n'est pas quotidien reste dans les menus.
+ *   ACCUEIL         · où en est CE dossier et ce qui réclame une action.
+ *                     Pas un lanceur · la barre d'outils, présente au-dessus
+ *                     de lui, en est déjà un.
+ *
+ * La règle vient d'un défaut relevé à l'usage : « Journal » se trouvait à la
+ * fois sur la page d'accueil, dans la barre d'outils juste au-dessus, et dans
+ * le menu État. Trois chemins pour une même fenêtre, dont deux visibles en
+ * même temps. La grille de raccourcis de l'accueil a été retirée (voir
+ * AccueilPage), la barre d'outils et les menus se partageant désormais
+ * clairement le travail : accès rapide d'un côté, exhaustivité de l'autre.
  */
 export function AppShell() {
   const { utilisateur, estAdmin, seDeconnecter } = useAuth();

@@ -98,3 +98,66 @@ describe('échéancier d’abonnement', () => {
     ).toHaveLength(0);
   });
 });
+
+/**
+ * LE PASSAGE PAR LE TIERS, refusé à la création d'un abonnement.
+ *
+ * Un abonnement est un contrat récurrent : il a par construction une
+ * contrepartie nommée, qui reviendra à chaque échéance. Le laisser solder une
+ * charge directement en trésorerie, c'est fabriquer douze écritures par an
+ * dont aucune ne dit à qui l'on paie. SYCEBNL, Partie 3, ch. 3, § 2.2 et 2.4.
+ */
+describe('abonnement · contrepartie de la charge', () => {
+  const compte = (id: string, numero: string) => ({ id, numero, intitule: `Compte ${numero}` });
+
+  function service(debit: { id: string; numero: string }, credit: { id: string; numero: string }) {
+    const prisma = {
+      modeleAbonnement: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn() },
+      journal: { findFirst: jest.fn().mockResolvedValue({ id: 'j', code: 'OD' }) },
+      compte: {
+        findFirst: jest.fn(({ where }: { where: { id: string } }) =>
+          Promise.resolve(where.id === debit.id ? debit : credit),
+        ),
+      },
+    };
+    return { svc: new RegularisationService(prisma as never, {} as never), prisma };
+  }
+
+  const dto = {
+    code: 'LOYER',
+    intitule: 'Loyer du siège',
+    journalId: 'j',
+    compteDebitId: 'd',
+    compteCreditId: 'c',
+    periodicite: PeriodiciteAbonnement.MENSUELLE,
+    dateDebut: '2026-01-01',
+    dateFin: '2026-12-31',
+    montant: 300_000,
+  };
+
+  it('refuse D/622 par C/521, le cas relevé sur les abonnements', async () => {
+    const { svc } = service(compte('d', '62210000'), compte('c', '52110000'));
+    await expect(svc.creerAbonnement('t', 'u', dto as never)).rejects.toThrow(/directement sur la trésorerie/);
+  });
+
+  it('nomme la voie à suivre dans le message, pas seulement le refus', async () => {
+    const { svc } = service(compte('d', '62210000'), compte('c', '57100000'));
+    await expect(svc.creerAbonnement('t', 'u', dto as never)).rejects.toThrow(/compte fournisseur \(40\)/);
+  });
+
+  it('accepte le schéma du référentiel : la charge contre le tiers', async () => {
+    const { svc, prisma } = service(compte('d', '62210000'), compte('c', '40110000'));
+    prisma.modeleAbonnement.create.mockResolvedValue({ id: 'a' });
+    await svc.creerAbonnement('t', 'u', dto as never);
+    expect(prisma.modeleAbonnement.create).toHaveBeenCalled();
+  });
+
+  it('laisse intacts les abonnements qui ne portent aucune charge', async () => {
+    // Une régularisation d'actif (486 charges constatées d'avance contre 401)
+    // n'est pas concernée : le débit n'est pas une charge.
+    const { svc, prisma } = service(compte('d', '48600000'), compte('c', '52110000'));
+    prisma.modeleAbonnement.create.mockResolvedValue({ id: 'a' });
+    await svc.creerAbonnement('t', 'u', dto as never);
+    expect(prisma.modeleAbonnement.create).toHaveBeenCalled();
+  });
+});

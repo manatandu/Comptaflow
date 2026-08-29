@@ -364,6 +364,41 @@ export class RegularisationService {
       throw new BadRequestException("Le compte débité et le compte crédité ne peuvent pas être le même.");
     }
 
+    /*
+     * LE PASSAGE PAR LE TIERS · refusé ici, pas seulement signalé.
+     *
+     * Ailleurs dans le logiciel, une charge soldée directement en trésorerie
+     * n'est qu'un AVERTISSEMENT (ControlesService, contrôle CHARGE_SANS_TIERS)
+     * : une dépense de caisse de 2 000 francs contre un reçu reste une
+     * écriture qu'un comptable peut vouloir passer, et c'est à lui de
+     * trancher. Un abonnement, non.
+     *
+     * Un abonnement est un CONTRAT RÉCURRENT : un loyer, une prime
+     * d'assurance, un forfait internet. Par construction, il a une
+     * contrepartie nommée, connue d'avance, qui reviendra à chaque échéance.
+     * Enregistrer douze fois dans l'année « 6221 Loyers par le crédit de 5211
+     * Banque » sans jamais dire à qui, c'est fabriquer douze écritures dont
+     * aucune n'est justifiable, et se priver du relevé du bailleur au moment
+     * de la circularisation.
+     *
+     * Le schéma attendu est celui du référentiel (SYCEBNL, Partie 3, ch. 3) :
+     * § 2.2, la charge par le crédit d'un compte de tiers ; § 2.4, le tiers
+     * par le crédit de la trésorerie. Le modèle d'abonnement porte la
+     * PREMIÈRE écriture · le règlement se saisit ensuite, à sa date réelle,
+     * qui n'est presque jamais celle de l'échéance.
+     */
+    const estCharge = debit.numero.startsWith('6') || debit.numero.startsWith('8');
+    const estTresorerie = credit.numero.startsWith('5') && !credit.numero.startsWith('59');
+    if (estCharge && estTresorerie) {
+      throw new BadRequestException(
+        `Un abonnement ne peut pas solder une charge (${debit.numero}) directement sur la trésorerie ` +
+          `(${credit.numero}). Une charge se constate d'abord contre le TIERS à qui elle est due : créditez le ` +
+          `compte fournisseur (40), personnel (42), organismes sociaux (43) ou État (44) concerné. Le règlement ` +
+          `se saisira ensuite, à sa date réelle, en débitant ce tiers par le crédit de la trésorerie. ` +
+          `SYCEBNL, Partie 3, ch. 3, § 2.2 et 2.4.`,
+      );
+    }
+
     const dates = RegularisationService.echeancesDe(dateDebut, dateFin, dto.periodicite);
     if (dates.length === 0) {
       throw new BadRequestException('Le contrat ne produit aucune échéance sur la période indiquée.');

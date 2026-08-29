@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
-import { ClasseCompte, StatutEcriture, TypeCompteDetailTotal } from '@prisma/client';
+import { ClasseCompte, JeuEtatsFinanciersSycebnl, StatutEcriture, TypeCompteDetailTotal } from '@prisma/client';
 
 /** Gravité d'une anomalie · commande la couleur et l'ordre de lecture. */
 export type Gravite = 'BLOQUANT' | 'AVERTISSEMENT' | 'INFORMATION';
@@ -382,6 +382,9 @@ export class ControlesService {
 
   async analyser(tenantId: string, exerciceId: string): Promise<RapportControles> {
     const ex = await this.exercice(tenantId, exerciceId);
+    // Le jeu d'états commande un contrôle : le S.M.T est une comptabilité de
+    // trésorerie, où le passage par un tiers n'a pas lieu d'être exigé.
+    const tenant = await this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId } });
     const anomalies: AnomalieControle[] = [];
 
     // --- 1. Caisse créditrice ------------------------------------------------
@@ -542,6 +545,104 @@ export class ControlesService {
           date: e.date.toISOString().slice(0, 10),
         })),
       });
+    }
+
+    // --- 6 bis. Charge imputée directement sur la trésorerie -----------------
+    /*
+     * LE PASSAGE PAR LE TIERS.
+     *
+     * Une charge se constate d'abord contre un TIERS (classe 4), et le tiers
+     * se solde ensuite contre la TRÉSORERIE (classe 5). Deux écritures, jamais
+     * une. Débiter 6221 Loyers par le crédit de 5211 Banque, c'est enregistrer
+     * une dépense dont on ne saura jamais à qui elle a été payée.
+     *
+     * Ce n'est pas une convention de cabinet, c'est le schéma du référentiel.
+     * SYCEBNL, Partie 3, ch. 3 :
+     *
+     *   § 2.2 Engagement des dépenses suivant la nature de charges :
+     *     « 6 ou 8  Charges par nature      DÉBIT
+     *       4       Comptes de tiers (1)          CRÉDIT »
+     *   § 2.4 Paiement des dépenses :
+     *     « 4  Compte de tiers   DÉBIT
+     *       5  Trésorerie              CRÉDIT »
+     *
+     * Le guide d'application ne dit pas autre chose, et le dit vingt-deux
+     * fois : sur ses 22 applications chiffrées, AUCUNE charge n'est imputée
+     * directement sur un compte de trésorerie. L'APPLICATION 12 est la plus
+     * probante · l'énoncé précise « Règlement par chèque », donc un paiement
+     * immédiat, et le guide passe malgré tout deux écritures (636 par le
+     * crédit de 40, puis 40 par le crédit de 52). Même les frais avancés par
+     * un bénévole transitent par un tiers (4572, APPLICATION 17).
+     *
+     * Le fondement est le postulat de la comptabilité d'engagement (Partie 1,
+     * ch. 2, § 3.3.1.1.3) : « les effets des transactions sont pris en compte
+     * dès que ces transactions se produisent et non pas au moment des
+     * encaissements ou paiements ». Le compte de tiers EST le mécanisme qui
+     * sépare le moment où la charge naît de celui où elle est payée. Sans lui,
+     * la comptabilité redevient une comptabilité de caisse.
+     *
+     * TROIS RÉSERVES, sans quoi le contrôle crierait à tort.
+     *
+     * 1. LES PRODUITS NE SONT PAS CONCERNÉS. Le même guide encaisse
+     *    directement 57 Caisse par le crédit de 706 Revenus des manifestations,
+     *    et 57 + 52 par le crédit de 7041 Dons. Un don reçu en espèces n'a pas
+     *    de tiers : personne ne le doit, il est là. La règle est asymétrique et
+     *    ce contrôle ne regarde donc que les CHARGES.
+     * 2. LE S.M.T EST HORS CHAMP. Le postulat lui-même réserve « les
+     *    dispositions spécifiques concernant le Système Minimal de
+     *    Trésorerie », qui est une comptabilité de trésorerie par construction
+     *    (art. 5 et 6). Y exiger un tiers serait exiger l'inverse du
+     *    référentiel.
+     * 3. CE N'EST PAS BLOQUANT. Le contrôle avertit, il n'interdit pas. Une
+     *    dépense de caisse de 2 000 francs contre un reçu, sur laquelle nommer
+     *    un fournisseur n'apporte rien, reste une écriture qu'un comptable peut
+     *    vouloir passer. C'est à lui de trancher, pas au logiciel · mais il
+     *    doit le voir.
+     */
+    if (tenant.jeuEtatsFinanciersSycebnl !== JeuEtatsFinanciersSycebnl.SYSTEME_MINIMAL_TRESORERIE) {
+      const chargesDirectes = ecritures.filter((e) => {
+        const aUneCharge = e.lignes.some(
+          (l) =>
+            (l.compte.numero.startsWith('6') || l.compte.numero.startsWith('8')) &&
+            Number(l.debit) - Number(l.credit) > 0.005,
+        );
+        if (!aUneCharge) return false;
+        const aUneTresorerieCreditee = e.lignes.some(
+          (l) =>
+            l.compte.numero.startsWith('5') &&
+            !l.compte.numero.startsWith('59') &&
+            Number(l.credit) - Number(l.debit) > 0.005,
+        );
+        if (!aUneTresorerieCreditee) return false;
+        // La présence d'un tiers dans la MÊME écriture suffit à l'absoudre :
+        // c'est le cas d'une écriture composée (facture + règlement partiel)
+        // ou d'une retenue à la source, où le tiers est bien nommé.
+        const aUnTiers = e.lignes.some((l) => l.compte.numero.startsWith('4'));
+        return !aUnTiers;
+      });
+
+      if (chargesDirectes.length > 0) {
+        anomalies.push({
+          code: 'CHARGE_SANS_TIERS',
+          gravite: 'AVERTISSEMENT',
+          libelle: 'Charge imputée directement sur la trésorerie, sans passer par un tiers',
+          consequence:
+            "On ne saura jamais à qui cette dépense a été payée : ni relevé fournisseur, ni balance âgée, ni lettrage, ni circularisation possible. La charge et son règlement sont confondus en une seule écriture, ce que le postulat de la comptabilité d'engagement écarte (SYCEBNL, Partie 1, ch. 2).",
+          action:
+            "Passez deux écritures : la charge par le crédit du tiers (compte 40 fournisseur, 42 personnel, 43 organismes sociaux, 44 État selon le cas), puis le règlement par le débit de ce tiers et le crédit de la trésorerie. C'est le schéma des § 2.2 et 2.4 de la Partie 3, ch. 3.",
+          occurrences: chargesDirectes.slice(0, 200).map((e) => ({
+            reference: `${e.journal.code} n° ${e.numeroPiece ?? '·'}`,
+            detail: `${e.libelle} · ${e.lignes
+              .filter((l) => l.compte.numero.startsWith('6') || l.compte.numero.startsWith('8'))
+              .map((l) => l.compte.numero)
+              .join(', ')} soldé(s) directement en trésorerie`,
+            montant: e.lignes
+              .filter((l) => l.compte.numero.startsWith('6') || l.compte.numero.startsWith('8'))
+              .reduce((s2, l) => s2 + Number(l.debit) - Number(l.credit), 0),
+            date: e.date.toISOString().slice(0, 10),
+          })),
+        });
+      }
     }
 
     // --- 7. Comptes hors nomenclature SYCEBNL --------------------------------

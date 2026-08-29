@@ -5,18 +5,8 @@ import { useAuth } from '../lib/auth';
 import { useExercice } from '../lib/exercice';
 import { NouveauFichierWizard } from '../components/NouveauFichierWizard';
 import { AProposModale } from '../components/chrome/AProposModale';
-import type { PlanningCloture } from '../lib/types';
-import {
-  IconFileAdd,
-  IconFolderOpen,
-  IconSaisie,
-  IconComptes,
-  IconJournal,
-  IconEtats,
-  IconInfo,
-  IconDashboard,
-  IconBalance,
-} from '../components/chrome/icons';
+import type { PlanningCloture, RapportControles } from '../lib/types';
+import { IconFileAdd, IconFolderOpen, IconInfo } from '../components/chrome/icons';
 
 /**
  * ACCUEIL · la première fenêtre du dossier ouvert.
@@ -26,68 +16,27 @@ import {
  * maintenant à la seule question qu'on se pose en ouvrant un logiciel
  * comptable un matin : OÙ EN EST CE DOSSIER, et par quoi je commence.
  *
- * Trois bandes :
+ * Deux bandes seulement :
  *  1. l'identité du dossier et son exercice ;
- *  2. ce qui réclame une action, tiré du planning de clôture (écritures au
- *     brouillard, jalons en retard, prochaine échéance) ;
- *  3. les fenêtres du quotidien, en cartes larges avec ce qu'elles font.
+ *  2. ce qui réclame une action, tiré du planning de clôture et des contrôles
+ *     de cohérence.
  *
- * Aucune tuile « bientôt » : un logiciel fini ne montre pas ses chantiers,
- * règle déjà posée pour la barre de menus.
+ * IL N'Y A PLUS DE GRILLE DE RACCOURCIS ICI, et c'est délibéré. Elle reprenait
+ * mot pour mot les sept boutons de la barre d'outils, elle-même présente sur
+ * TOUS les écrans, accueil compris : « Journal » se trouvait à la fois sur
+ * cette page, dans la barre d'outils juste au-dessus, et dans le menu État.
+ * Trois chemins pour une même fenêtre, dont deux visibles en même temps.
+ *
+ * Le partage des rôles retenu, écrit ici pour qu'il ne dérive pas :
+ *
+ *   BARRE DE MENUS  · la carte complète du logiciel. Tout s'y trouve.
+ *   BARRE D'OUTILS  · les sept fenêtres du quotidien, à un clic, partout.
+ *   ACCUEIL         · où en est CE dossier, et ce qui réclame une action.
+ *                     Pas un lanceur : la barre d'outils au-dessus en est un.
+ *
+ * Aucune tuile « bientôt » non plus : un logiciel fini ne montre pas ses
+ * chantiers, règle déjà posée pour la barre de menus.
  */
-
-interface Raccourci {
-  label: string;
-  detail: string;
-  Icon: (p: { width?: number; height?: number; className?: string }) => JSX.Element;
-  chemin: string;
-  teinte: string;
-}
-
-const RACCOURCIS: Raccourci[] = [
-  {
-    label: 'Saisie des journaux',
-    detail: 'Passer les écritures du jour, par journal',
-    Icon: IconSaisie,
-    chemin: '/saisie',
-    teinte: 'var(--a-600)',
-  },
-  {
-    label: 'Journal et grand livre',
-    detail: 'Consulter, filtrer, justifier un solde',
-    Icon: IconJournal,
-    chemin: '/journal',
-    teinte: 'var(--a-600)',
-  },
-  {
-    label: 'Balance des comptes',
-    detail: 'Contrôler les masses avant arrêté',
-    Icon: IconBalance,
-    chemin: '/journal?onglet=balance',
-    teinte: 'var(--tile-sarcelle)',
-  },
-  {
-    label: 'Plan comptable',
-    detail: 'Ouvrir, paramétrer et interroger un compte',
-    Icon: IconComptes,
-    chemin: '/comptes',
-    teinte: 'var(--tile-sarcelle)',
-  },
-  {
-    label: 'États financiers',
-    detail: 'La liasse du jeu retenu, et son export',
-    Icon: IconEtats,
-    chemin: '/etats-financiers',
-    teinte: 'var(--tile-ardoise)',
-  },
-  {
-    label: 'Tableau de bord',
-    detail: 'Trésorerie, produits, charges, résultat',
-    Icon: IconDashboard,
-    chemin: '/tableau-de-bord',
-    teinte: 'var(--tile-ardoise)',
-  },
-];
 
 const JEUX: Record<string, string> = {
   ASSOCIATIONS_ORDRES_PROFESSIONNELS: 'Associations et ordres professionnels',
@@ -102,19 +51,26 @@ export function AccueilPage() {
   const [wizardOuvert, setWizardOuvert] = useState(false);
   const [aProposOuvert, setAProposOuvert] = useState(false);
   const [planning, setPlanning] = useState<PlanningCloture | null>(null);
+  const [controles, setControles] = useState<RapportControles | null>(null);
   const [chargement, setChargement] = useState(true);
 
   useEffect(() => {
     if (!exerciceCourant) return;
     let vivant = true;
     setChargement(true);
-    api
-      .get<PlanningCloture>(`/exercices/${exerciceCourant.id}/planning-cloture`)
-      .then((p) => vivant && setPlanning(p))
-      // L'accueil ne doit jamais afficher une erreur : la bande « à faire »
-      // disparaît, les raccourcis restent. Le détail se voit sur la fenêtre
-      // Fin d'exercice, qui est faite pour ça.
-      .catch(() => vivant && setPlanning(null))
+    // Les deux appels sont indépendants et tolérants : l'accueil ne doit
+    // jamais afficher une erreur. Une carte qui n'a pas pu être calculée le
+    // dit, les autres restent. Le détail se voit sur les fenêtres qui sont
+    // faites pour ça (Fin d'exercice, Analyse et contrôles).
+    Promise.allSettled([
+      api.get<PlanningCloture>(`/exercices/${exerciceCourant.id}/planning-cloture`),
+      api.get<RapportControles>(`/controles?exerciceId=${exerciceCourant.id}`),
+    ])
+      .then(([p, c]) => {
+        if (!vivant) return;
+        setPlanning(p.status === 'fulfilled' ? p.value : null);
+        setControles(c.status === 'fulfilled' ? c.value : null);
+      })
       .finally(() => vivant && setChargement(false));
     return () => {
       vivant = false;
@@ -126,6 +82,13 @@ export function AccueilPage() {
   const prochain =
     planning?.jalons.find((j) => !j.enRetard && new Date(j.echeance).getTime() >= aujourdHui) ?? null;
   const brouillard = planning?.jalons.find((j) => j.libelle === 'Balance de vérification')?.observation ?? null;
+
+  // Les anomalies bloquantes passent avant tout : une écriture déséquilibrée
+  // ou une caisse créditrice empêchent d'arrêter les comptes, pas seulement
+  // de bien les tenir.
+  const bloquants = controles?.totaux.bloquants ?? 0;
+  const avertissements = controles?.totaux.avertissements ?? 0;
+  const pireAnomalie = controles?.anomalies.find((a) => a.gravite !== 'INFORMATION') ?? null;
 
   const jeu = utilisateur ? JEUX[utilisateur.tenant.jeuEtatsFinanciersSycebnl] : null;
   const anneeExercice = exerciceCourant ? new Date(exerciceCourant.dateDebut).getFullYear() : null;
@@ -188,9 +151,9 @@ export function AccueilPage() {
         <div className="text-[11px] font-semibold uppercase tracking-[0.09em] text-text-dim mb-2 px-0.5">
           Où en est ce dossier
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
           {chargement ? (
-            [0, 1, 2].map((i) => <div key={i} className="squelette h-[86px] rounded-[12px]" />)
+            [0, 1, 2, 3].map((i) => <div key={i} className="squelette h-[86px] rounded-[12px]" />)
           ) : (
             <>
               <CarteEtat
@@ -198,6 +161,21 @@ export function AccueilPage() {
                 valeur={brouillard ? brouillard.libelle : 'Non déterminé'}
                 bon={brouillard?.satisfait ?? true}
                 chemin="/brouillard"
+                navigate={navigate}
+              />
+              <CarteEtat
+                titre="Contrôles de cohérence"
+                valeur={
+                  !controles
+                    ? 'Non calculés'
+                    : bloquants + avertissements === 0
+                      ? 'Aucune anomalie à traiter'
+                      : `${bloquants > 0 ? `${bloquants} bloquante(s)` : `${avertissements} à vérifier`} · ${
+                          pireAnomalie?.libelle ?? ''
+                        }`
+                }
+                bon={!!controles && bloquants + avertissements === 0}
+                chemin="/controles"
                 navigate={navigate}
               />
               <CarteEtat
@@ -220,34 +198,6 @@ export function AccueilPage() {
               />
             </>
           )}
-        </div>
-      </section>
-
-      {/* --- Bande 3 · les fenêtres du quotidien --------------------------- */}
-      <section>
-        <div className="text-[11px] font-semibold uppercase tracking-[0.09em] text-text-dim mb-2 px-0.5">
-          Travailler
-        </div>
-        <div className="anim-cascade grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {RACCOURCIS.map((r) => (
-            <button
-              key={r.chemin}
-              type="button"
-              onClick={() => navigate(r.chemin)}
-              className="group flex items-start gap-3 rounded-[12px] border border-border bg-surface p-3.5 text-left shadow-plate transition-[transform,box-shadow,border-color] duration-200 ease-sortie hover:-translate-y-[2px] hover:border-border-dark hover:shadow-flottante"
-            >
-              <span
-                className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[10px] text-white transition-transform duration-200 ease-ressort group-hover:scale-105"
-                style={{ background: r.teinte }}
-              >
-                <r.Icon width={19} height={19} />
-              </span>
-              <span className="min-w-0">
-                <span className="block text-[13px] font-semibold">{r.label}</span>
-                <span className="block text-[11.5px] text-text-dim mt-0.5 leading-snug">{r.detail}</span>
-              </span>
-            </button>
-          ))}
         </div>
       </section>
 
