@@ -11,10 +11,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # firebase.json vit dans client/, pas à la racine du dépôt (le dépôt
+      # contient aussi le serveur NestJS) : sans ce dossier de travail, npm
+      # construisait le serveur et l'action ne trouvait pas firebase.json.
       - run: npm ci && npm run build
+        working-directory: client
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_OMEGA_X_EC07A }}
           channelId: live
           projectId: omega-x-ec07a
+          entryPoint: ./client
