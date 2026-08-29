@@ -22,7 +22,16 @@ export function configurerApplication(app: INestApplication) {
   // l'API avec les identifiants d'un utilisateur connecté. Séparateur
   // virgule pour plusieurs domaines (ex. domaine Vercel par défaut + domaine
   // personnalisé).
-  const origines = process.env.CORS_ORIGIN?.split(',').map((o) => o.trim());
+  //
+  // Les deux domaines que Firebase Hosting sert sont admis D'OFFICE, en plus
+  // de CORS_ORIGIN : ce sont les adresses fixes du site, elles ne dépendent
+  // d'aucun réglage. Les faire reposer sur une variable d'environnement
+  // signifiait qu'une variable oubliée sur une cible de déploiement coupait
+  // le site entier · panne muette côté navigateur (le serveur répond, le
+  // navigateur jette la réponse), donc longue à diagnostiquer.
+  const ORIGINES_SITE = ['https://oomega.web.app', 'https://oomega.firebaseapp.com'];
+  const configurees = process.env.CORS_ORIGIN?.split(',').map((o) => o.trim()).filter(Boolean);
+  const origines = configurees ? [...new Set([...configurees, ...ORIGINES_SITE])] : undefined;
   app.enableCors(origines ? { origin: origines } : undefined);
   // whitelist: rejette tout champ non déclaré dans un DTO · évite qu'un client
   // injecte silencieusement un champ (ex: tenantId) qui devrait venir du JWT.
