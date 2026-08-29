@@ -41,6 +41,8 @@ export interface Compte {
   modeReportANouveau: ModeReportANouveau;
   /** Rattachement à un Bailleur (comptabilité analytique par projet/bailleur) · voir Bailleur. */
   bailleurId: string | null;
+  /** Compte ouvert au lettrage · « liberté de définir la liste des comptes auxquels s'applique le lettrage » (CPCC, ch. 6). */
+  lettrable: boolean;
 }
 
 /**
@@ -158,6 +160,9 @@ export interface Ecriture {
   corrigeEcriture?: { id: string; numeroPiece: number | null; date: string; libelle: string } | null;
 }
 
+export type StatutLettrage = 'PARTIEL' | 'SOLDE';
+export type OrigineLettrage = 'MANUEL' | 'AUTOMATIQUE_PIECE' | 'AUTOMATIQUE_MONTANT';
+
 export interface LigneLettrage {
   id: string;
   date: string;
@@ -166,7 +171,32 @@ export interface LigneLettrage {
   reference: string | null;
   debit: number;
   credit: number;
+  /** Servie uniquement quand le groupe est SOLDÉ · voir GroupeLettrage. */
   lettre: string | null;
+  lettrageId: string | null;
+  /** Code tel qu'il doit s'afficher : minuscule si partiel, majuscule si soldé. */
+  codeLettrage: string | null;
+  devise: string | null;
+  montantDevise: number | null;
+}
+
+export interface GroupeLettrage {
+  id: string;
+  code: string;
+  statut: StatutLettrage;
+  solde: number;
+  origine: OrigineLettrage;
+  verrouille: boolean;
+  ecartChange: number | null;
+  createdAt: string;
+  createdBy: string;
+  soldeAt: string | null;
+}
+
+export interface EtatLettrage {
+  compte: { id: string; numero: string; intitule: string; lettrable: boolean };
+  lignes: LigneLettrage[];
+  lettrages: GroupeLettrage[];
 }
 
 export type StatutRapprochement = 'EN_COURS' | 'CLOTURE';

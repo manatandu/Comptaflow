@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
-import { Prisma } from '@prisma/client';
+import { OrigineLettrage, Prisma, StatutLettrage } from '@prisma/client';
 import { avecRetrySerialisable } from '../../common/prisma-retry.util';
 
 const EPSILON = 0.005;
@@ -25,12 +25,51 @@ function lettreVersIndex(lettre: string): number {
 }
 
 /**
- * Lettrage : rapprochement débit/crédit sur un compte (cf.
- * docs/plan-de-construction.md §3.1) · prérequis du report à-nouveau
- * "Détail" et de toute gestion sérieuse des tiers. Toutes les lignes d'un
- * même rapprochement partagent la même lettre ; le lettrage n'est autorisé
- * que si le solde des lignes sélectionnées est nul (même règle que Sage :
- * "le solde lettrage doit être nul avant de lancer le traitement").
+ * LETTRAGE · modèle repris des Notes de cours d'organisation comptable du
+ * CPCC (Conseil Permanent de la Comptabilité au Congo), SHEKOMBO SHUNGU John,
+ * novembre 2020, chapitre 6, croisé avec l'ergonomie de Sage 100 i7.
+ *
+ * Définition retenue, citée : « Le lettrage est une opération comptable qui
+ * consiste à affecter un seul repère à deux ou plusieurs entrées enregistrées
+ * d'un compte, la somme des montants lettrés au débit pouvant être ÉGALE,
+ * SUPÉRIEURE OU INFÉRIEURE à celle des montants lettrés au crédit. Le but
+ * ainsi poursuivi est d'associer les opérations de manière à identifier
+ * celles restées TOTALEMENT OU PARTIELLEMENT ouvertes. »
+ *
+ * Ce que cela change par rapport à la version précédente, qui refusait tout
+ * groupe dont le solde n'était pas nul : une facture réglée à moitié est
+ * lettrable, et le groupe reste PARTIEL jusqu'à son dénouement. Les lignes
+ * d'un groupe partiel ne portent pas de `lettre` et restent donc visibles de
+ * tous les états qui recensent l'ouvert (report à-nouveau Détail, relances,
+ * note annexe des créances, contrôle d'ancienneté) · voir le commentaire de
+ * `LigneEcriture.lettre` dans le schéma.
+ *
+ * Les autres apports du chapitre, tous implémentés ici :
+ *
+ *  - « Liberté de définir la liste des comptes auxquels s'applique le
+ *    lettrage » → `Compte.lettrable`. Le texte dit que l'intérêt porte
+ *    « principalement » sur les comptes de tiers, mais son exemple chiffré
+ *    est sur le compte 585 Virements internes : le drapeau n'est donc pas
+ *    déduit de la classe, il est posé compte par compte.
+ *  - Lettrage automatique « a priori » : « chaque facture saisie est
+ *    identifiée par un code unique, généralement le numéro de la pièce
+ *    comptable. Et, chaque fois qu'on enregistre un règlement, le système
+ *    impose d'enregistrer en même temps le code de la facture objet du
+ *    règlement. » → première passe par référence de pièce, avant toute
+ *    présomption sur les montants.
+ *  - Lettrage automatique « a posteriori » : « l'ordinateur s'efforce
+ *    d'associer chaque règlement à une facture en s'appuyant sur des éléments
+ *    identiques des deux écritures, généralement le montant ou le libellé. »
+ *    → les passes par montant, conservées et enrichies.
+ *  - « Verrouillage définitif ou non du lettrage » → `Lettrage.verrouille`.
+ *  - « Il facilite également, pour les opérations en monnaies étrangères
+ *    dénouées, le calcul des différences de change réalisées » →
+ *    `Lettrage.ecartChange`, calculé au passage à SOLDE.
+ *
+ * L'origine de chaque groupe est tracée (MANUEL, AUTOMATIQUE_PIECE,
+ * AUTOMATIQUE_MONTANT) parce que les trois n'ont pas la même valeur probante :
+ * un rapprochement par numéro de pièce s'appuie sur une donnée saisie par un
+ * humain, un rapprochement par montant est une présomption du logiciel.
  */
 @Injectable()
 export class LettrageService {
@@ -44,48 +83,224 @@ export class LettrageService {
     return compte;
   }
 
-  /** Lignes du compte, groupées par lettre pour faciliter la lecture côté client. */
-  async lister(tenantId: string, compteId: string, nonLettreesSeulement?: boolean) {
-    await this.trouverCompte(tenantId, compteId);
-    const lignes = await this.prisma.ligneEcriture.findMany({
-      where: {
-        compteId,
-        ecriture: { tenantId },
-        ...(nonLettreesSeulement ? { lettre: null } : {}),
-      },
-      include: { ecriture: { include: { journal: true } } },
-      orderBy: { ecriture: { date: 'asc' } },
-    });
-    return lignes.map((l) => ({
-      id: l.id,
-      date: l.ecriture.date,
-      journalCode: l.ecriture.journal.code,
-      libelle: l.libelle ?? l.ecriture.libelle,
-      reference: l.ecriture.reference,
-      debit: Number(l.debit),
-      credit: Number(l.credit),
-      lettre: l.lettre,
-    }));
+  /** Le compte, en vérifiant qu'il accepte le lettrage. */
+  private async trouverCompteLettrable(tenantId: string, compteId: string) {
+    const compte = await this.trouverCompte(tenantId, compteId);
+    if (!compte.lettrable) {
+      throw new BadRequestException(
+        `Le compte ${compte.numero} n'est pas déclaré lettrable. Ouvrez-le au lettrage depuis le plan comptable ` +
+          "(« liberté de définir la liste des comptes auxquels s'applique le lettrage », CPCC, ch. 6).",
+      );
+    }
+    return compte;
   }
 
   /**
-   * Calcule la prochaine lettre disponible pour ce compte · même risque de
-   * condition de course que le numéro de pièce des journaux (deux lettrages
-   * simultanés sur le même compte pourraient lire la même "dernière lettre"),
-   * donc toujours appelé DANS la transaction sérialisable de lettrerManuel.
+   * Lignes du compte, avec leur groupe de lettrage.
+   *
+   * `nonLettreesSeulement` retient ce qui est OUVERT au sens du CPCC : les
+   * lignes sans lettre, donc aussi celles d'un groupe PARTIEL, qui restent
+   * dues pour le solde. C'est le sens du mot « ouvertes » dans la définition
+   * citée en tête de fichier.
+   */
+  async lister(tenantId: string, compteId: string, nonLettreesSeulement?: boolean) {
+    const compte = await this.trouverCompte(tenantId, compteId);
+    const [lignes, lettrages] = await Promise.all([
+      this.prisma.ligneEcriture.findMany({
+        where: {
+          compteId,
+          ecriture: { tenantId },
+          ...(nonLettreesSeulement ? { lettre: null } : {}),
+        },
+        include: { ecriture: { include: { journal: true } }, lettrage: true, devise: true },
+        orderBy: { ecriture: { date: 'asc' } },
+      }),
+      this.prisma.lettrage.findMany({ where: { compteId, tenantId }, orderBy: { createdAt: 'asc' } }),
+    ]);
+
+    return {
+      compte: { id: compte.id, numero: compte.numero, intitule: compte.intitule, lettrable: compte.lettrable },
+      lignes: lignes.map((l) => ({
+        id: l.id,
+        date: l.ecriture.date,
+        journalCode: l.ecriture.journal.code,
+        libelle: l.libelle ?? l.ecriture.libelle,
+        reference: l.ecriture.reference,
+        debit: Number(l.debit),
+        credit: Number(l.credit),
+        lettre: l.lettre,
+        lettrageId: l.lettrageId,
+        // Le code tel qu'il doit s'AFFICHER : minuscule tant que le groupe
+        // est partiel, majuscule une fois soldé · convention de l'exemple
+        // chiffré du CPCC (compte 585) et des logiciels de la place.
+        codeLettrage: l.lettrage ? (l.lettrage.statut === StatutLettrage.SOLDE ? l.lettrage.code : l.lettrage.code.toLowerCase()) : null,
+        devise: l.devise?.code ?? null,
+        montantDevise: l.montantDevise === null ? null : Number(l.montantDevise),
+      })),
+      lettrages: lettrages.map((g) => ({
+        id: g.id,
+        code: g.statut === StatutLettrage.SOLDE ? g.code : g.code.toLowerCase(),
+        statut: g.statut,
+        solde: Number(g.solde),
+        origine: g.origine,
+        verrouille: g.verrouille,
+        ecartChange: g.ecartChange === null ? null : Number(g.ecartChange),
+        createdAt: g.createdAt,
+        createdBy: g.createdBy,
+        soldeAt: g.soldeAt,
+      })),
+    };
+  }
+
+  /**
+   * Prochain code disponible pour ce compte · même risque de condition de
+   * course que le numéro de pièce des journaux (deux lettrages simultanés sur
+   * le même compte pourraient lire le même « dernier code »), donc toujours
+   * appelé DANS la transaction sérialisable de l'appelant.
+   *
+   * Lit la table des lettrages ET les lettres posées sur les lignes : la
+   * seconde source couvre les dossiers repris avant l'introduction du modèle
+   * Lettrage, dont la migration a recréé les groupes mais dont un code
+   * pourrait, en théorie, ne pas avoir été repris.
    */
   private async prochaineLettre(tx: Prisma.TransactionClient, compteId: string): Promise<string> {
-    const lignes = await tx.ligneEcriture.findMany({
-      where: { compteId, lettre: { not: null } },
-      select: { lettre: true },
-      distinct: ['lettre'],
-    });
-    const maxIndex = lignes.reduce((max, l) => Math.max(max, l.lettre ? lettreVersIndex(l.lettre) : 0), 0);
+    const [groupes, lignes] = await Promise.all([
+      tx.lettrage.findMany({ where: { compteId }, select: { code: true } }),
+      tx.ligneEcriture.findMany({
+        where: { compteId, lettre: { not: null } },
+        select: { lettre: true },
+        distinct: ['lettre'],
+      }),
+    ]);
+    const codes = [...groupes.map((g) => g.code), ...lignes.map((l) => l.lettre!)];
+    const maxIndex = codes.reduce((max, c) => Math.max(max, lettreVersIndex(c)), 0);
     return indexVersLettre(maxIndex + 1);
   }
 
-  async lettrerManuel(tenantId: string, compteId: string, ligneIds: string[]) {
-    await this.trouverCompte(tenantId, compteId);
+  /**
+   * ÉCART DE CHANGE RÉALISÉ · « le lettrage facilite, pour les opérations en
+   * monnaies étrangères dénouées, le calcul des différences de change
+   * réalisées » (CPCC, ch. 6).
+   *
+   * Le calcul porte sur les seules lignes PORTANT UNE DEVISE, et non sur tout
+   * le groupe. C'est essentiel : dans un dénouement en devise, la facture et
+   * son règlement ne s'équilibrent justement PAS en monnaie de tenue, et
+   * c'est une troisième ligne, l'écriture d'écart de change (676 ou 776), qui
+   * ramène le groupe à zéro. Exiger que toutes les lignes portent une devise
+   * écarterait précisément le cas que le CPCC vise.
+   *
+   * Conditions : au moins une ligne en devise, une seule devise dans le
+   * groupe, et un solde EN DEVISE nul (la créance ou la dette est réellement
+   * dénouée). L'écart rendu est alors le solde de ces lignes en monnaie de
+   * tenue, SIGNÉ : le sens économique (gain ou perte) dépend de la nature du
+   * compte, actif ou passif, et le nommer ici serait une interprétation.
+   *
+   * `null` dans tous les autres cas, et ce n'est PAS zéro : rendre zéro
+   * laisserait croire à un dénouement sans écart.
+   */
+  private ecartChangeRealise(
+    lignes: Array<{ debit: Prisma.Decimal; credit: Prisma.Decimal; deviseId: string | null; montantDevise: Prisma.Decimal | null }>,
+  ): number | null {
+    const enDevise = lignes.filter((l) => l.deviseId !== null && l.montantDevise !== null);
+    if (enDevise.length === 0) return null;
+    if (new Set(enDevise.map((l) => l.deviseId)).size !== 1) return null;
+
+    // Le montant en devise est stocké en valeur absolue ; son sens est celui
+    // de la ligne, comme pour les montants en monnaie de tenue.
+    const soldeDevise = enDevise.reduce((s, l) => {
+      const sens = Number(l.debit) - Number(l.credit) >= 0 ? 1 : -1;
+      return s + sens * Number(l.montantDevise);
+    }, 0);
+    if (Math.abs(soldeDevise) > EPSILON) return null;
+
+    const soldeLocal = enDevise.reduce((s, l) => s + Number(l.debit) - Number(l.credit), 0);
+    // Un solde local nul sur des lignes dénouées veut dire que le cours n'a
+    // pas bougé : zéro est alors la bonne réponse, pas null.
+    return soldeLocal;
+  }
+
+  /**
+   * Crée un groupe de lettrage sur des lignes vérifiées, dans une transaction
+   * déjà ouverte. Sert au lettrage manuel comme aux passes automatiques ·
+   * c'est le seul endroit qui décide du statut, pose ou non la `lettre`, et
+   * calcule l'écart de change.
+   */
+  private async creerGroupe(
+    tx: Prisma.TransactionClient,
+    params: { tenantId: string; compteId: string; ligneIds: string[]; origine: OrigineLettrage; userId: string },
+  ) {
+    const lignes = await tx.ligneEcriture.findMany({
+      where: { id: { in: params.ligneIds } },
+      select: { id: true, debit: true, credit: true, deviseId: true, montantDevise: true },
+    });
+    const solde = lignes.reduce((s, l) => s + Number(l.debit) - Number(l.credit), 0);
+    const soldeNul = Math.abs(solde) <= EPSILON;
+    const statut = soldeNul ? StatutLettrage.SOLDE : StatutLettrage.PARTIEL;
+    const code = await this.prochaineLettre(tx, params.compteId);
+
+    const groupe = await tx.lettrage.create({
+      data: {
+        tenantId: params.tenantId,
+        compteId: params.compteId,
+        code,
+        statut,
+        solde: soldeNul ? 0 : solde,
+        origine: params.origine,
+        createdBy: params.userId,
+        soldeAt: soldeNul ? new Date() : null,
+        ecartChange: soldeNul ? this.ecartChangeRealise(lignes) : null,
+      },
+    });
+    await tx.ligneEcriture.updateMany({
+      where: { id: { in: params.ligneIds } },
+      // `lettre` n'est servie QUE si le groupe est soldé · voir le
+      // commentaire de LigneEcriture.lettre dans le schéma.
+      data: { lettrageId: groupe.id, lettre: soldeNul ? code : null },
+    });
+    return groupe;
+  }
+
+  /** Contrôles communs à toute pose de lettrage sur une sélection de lignes. */
+  private verifierLignes(
+    lignes: Array<{ compteId: string; lettre: string | null; lettrageId: string | null; ecriture: { tenantId: string; date: Date } }>,
+    attendu: { compteId: string; tenantId: string; nombre: number },
+  ) {
+    if (lignes.length !== attendu.nombre) {
+      throw new NotFoundException('Une ou plusieurs lignes sont introuvables');
+    }
+    for (const l of lignes) {
+      if (l.compteId !== attendu.compteId || l.ecriture.tenantId !== attendu.tenantId) {
+        throw new BadRequestException('Toutes les lignes doivent appartenir au compte et au tenant indiqués');
+      }
+      if (l.lettrageId) {
+        const jour = l.ecriture.date.toISOString().slice(0, 10);
+        throw new BadRequestException(
+          `La ligne du ${jour} appartient déjà à un lettrage · délettrez-le d'abord, ou complétez-le.`,
+        );
+      }
+    }
+  }
+
+  /**
+   * Lettrage manuel. `autoriserPartiel` commande ce qui se passe quand le
+   * solde de la sélection n'est pas nul :
+   *
+   *  - faux (défaut) : refus, avec le montant de l'écart. C'est le
+   *    comportement attendu quand on croit solder une facture ;
+   *  - vrai : le groupe est créé au statut PARTIEL. C'est le cas d'un acompte
+   *    ou d'un règlement partiel, que le CPCC prévoit expressément.
+   *
+   * Le drapeau est demandé explicitement plutôt que déduit : créer un partiel
+   * sans que l'utilisateur l'ait voulu masquerait une erreur de sélection.
+   */
+  async lettrerManuel(
+    tenantId: string,
+    compteId: string,
+    ligneIds: string[],
+    userId: string,
+    options: { autoriserPartiel?: boolean } = {},
+  ) {
+    await this.trouverCompteLettrable(tenantId, compteId);
 
     return avecRetrySerialisable(
       this.prisma,
@@ -94,20 +309,7 @@ export class LettrageService {
           where: { id: { in: ligneIds } },
           include: { ecriture: true },
         });
-
-        if (lignes.length !== ligneIds.length) {
-          throw new NotFoundException('Une ou plusieurs lignes sont introuvables');
-        }
-        for (const l of lignes) {
-          if (l.compteId !== compteId || l.ecriture.tenantId !== tenantId) {
-            throw new BadRequestException('Toutes les lignes doivent appartenir au compte et au tenant indiqués');
-          }
-          if (l.lettre) {
-            throw new BadRequestException(
-              `La ligne du ${l.ecriture.date.toISOString().slice(0, 10)} est déjà lettrée (${l.lettre}) · délettrez-la d'abord`,
-            );
-          }
-        }
+        this.verifierLignes(lignes, { compteId, tenantId, nombre: ligneIds.length });
         // Pas de contrôle de clôture d'exercice ici, volontairement : le
         // lettrage porte sur des lignes déjà enregistrées (il ne modifie ni
         // montant ni compte), et reste possible après une clôture partielle
@@ -115,30 +317,135 @@ export class LettrageService {
         // être effectués" après une clôture partielle).
 
         const solde = lignes.reduce((s, l) => s + Number(l.debit) - Number(l.credit), 0);
-        if (Math.abs(solde) > EPSILON) {
+        if (Math.abs(solde) > EPSILON && !options.autoriserPartiel) {
           throw new BadRequestException(
-            `Le solde des lignes sélectionnées n'est pas nul (${solde.toFixed(2)}) · le lettrage est impossible`,
+            `Le solde des lignes sélectionnées n'est pas nul (${solde.toFixed(2)}). ` +
+              "Cochez « lettrage partiel » si l'opération est effectivement réglée en partie seulement.",
           );
         }
 
-        const lettre = await this.prochaineLettre(tx, compteId);
-        await tx.ligneEcriture.updateMany({ where: { id: { in: ligneIds } }, data: { lettre } });
-        return { lettre, nombreLignes: ligneIds.length };
+        const groupe = await this.creerGroupe(tx, {
+          tenantId,
+          compteId,
+          ligneIds,
+          origine: OrigineLettrage.MANUEL,
+          userId,
+        });
+        return {
+          lettre: groupe.statut === StatutLettrage.SOLDE ? groupe.code : groupe.code.toLowerCase(),
+          statut: groupe.statut,
+          solde: Number(groupe.solde),
+          ecartChange: groupe.ecartChange === null ? null : Number(groupe.ecartChange),
+          nombreLignes: ligneIds.length,
+        };
       },
       `Trop de lettrages effectués au même instant sur ce compte · veuillez réessayer.`,
     );
   }
 
+  /**
+   * Complète un groupe PARTIEL avec de nouvelles lignes · le règlement du
+   * solde restant. Si le groupe tombe à zéro, il passe SOLDE, sa `lettre` est
+   * posée sur TOUTES ses lignes (les anciennes comme les nouvelles) et
+   * l'écart de change est calculé sur l'ensemble.
+   */
+  async completer(tenantId: string, lettrageId: string, ligneIds: string[]) {
+    return avecRetrySerialisable(
+      this.prisma,
+      async (tx) => {
+        const groupe = await tx.lettrage.findFirst({ where: { id: lettrageId, tenantId } });
+        if (!groupe) throw new NotFoundException('Lettrage introuvable pour ce dossier');
+        if (groupe.verrouille) {
+          throw new BadRequestException(
+            `Le lettrage ${groupe.code} est verrouillé · déverrouillez-le avant de le compléter.`,
+          );
+        }
+        if (groupe.statut === StatutLettrage.SOLDE) {
+          throw new BadRequestException(`Le lettrage ${groupe.code} est déjà soldé · il n'y a rien à compléter.`);
+        }
+
+        const nouvelles = await tx.ligneEcriture.findMany({
+          where: { id: { in: ligneIds } },
+          include: { ecriture: true },
+        });
+        this.verifierLignes(nouvelles, { compteId: groupe.compteId, tenantId, nombre: ligneIds.length });
+
+        await tx.ligneEcriture.updateMany({ where: { id: { in: ligneIds } }, data: { lettrageId } });
+
+        const toutes = await tx.ligneEcriture.findMany({
+          where: { lettrageId },
+          select: { id: true, debit: true, credit: true, deviseId: true, montantDevise: true },
+        });
+        const solde = toutes.reduce((s, l) => s + Number(l.debit) - Number(l.credit), 0);
+        const soldeNul = Math.abs(solde) <= EPSILON;
+
+        await tx.lettrage.update({
+          where: { id: lettrageId },
+          data: {
+            statut: soldeNul ? StatutLettrage.SOLDE : StatutLettrage.PARTIEL,
+            solde: soldeNul ? 0 : solde,
+            soldeAt: soldeNul ? new Date() : null,
+            ecartChange: soldeNul ? this.ecartChangeRealise(toutes) : null,
+          },
+        });
+        if (soldeNul) {
+          await tx.ligneEcriture.updateMany({ where: { lettrageId }, data: { lettre: groupe.code } });
+        }
+
+        return {
+          lettre: soldeNul ? groupe.code : groupe.code.toLowerCase(),
+          statut: soldeNul ? StatutLettrage.SOLDE : StatutLettrage.PARTIEL,
+          solde: soldeNul ? 0 : solde,
+          nombreLignes: toutes.length,
+        };
+      },
+      'Trop de lettrages effectués au même instant sur ce compte · veuillez réessayer.',
+    );
+  }
+
+  /** « Verrouillage définitif ou non du lettrage » (CPCC, ch. 6). */
+  async verrouiller(tenantId: string, lettrageId: string, verrouille: boolean) {
+    const groupe = await this.prisma.lettrage.findFirst({ where: { id: lettrageId, tenantId } });
+    if (!groupe) throw new NotFoundException('Lettrage introuvable pour ce dossier');
+    await this.prisma.lettrage.update({ where: { id: lettrageId }, data: { verrouille } });
+    return { code: groupe.code, verrouille };
+  }
+
+  /**
+   * Délettrage · par code de lettrage. Refusé sur un groupe verrouillé, ce
+   * qui est tout l'intérêt du verrou.
+   */
   async delettrer(tenantId: string, compteId: string, lettre: string) {
     await this.trouverCompte(tenantId, compteId);
+    // Le code est stocké en majuscules ; l'écran peut renvoyer la minuscule
+    // d'un groupe partiel.
+    const code = lettre.toUpperCase();
+    const groupe = await this.prisma.lettrage.findFirst({ where: { tenantId, compteId, code } });
+
+    if (groupe) {
+      if (groupe.verrouille) {
+        throw new BadRequestException(
+          `Le lettrage ${groupe.code} est verrouillé · déverrouillez-le avant de le défaire.`,
+        );
+      }
+      const { count } = await this.prisma.ligneEcriture.updateMany({
+        where: { lettrageId: groupe.id },
+        data: { lettre: null, lettrageId: null },
+      });
+      await this.prisma.lettrage.delete({ where: { id: groupe.id } });
+      return { lettre: groupe.code, nombreLignes: count };
+    }
+
+    // Aucun groupe : dossier dont un lettrage n'aurait pas été repris par la
+    // migration. On retombe sur l'ancien chemin plutôt que de refuser.
     const resultat = await this.prisma.ligneEcriture.updateMany({
-      where: { compteId, lettre, ecriture: { tenantId } },
-      data: { lettre: null },
+      where: { compteId, lettre: code, ecriture: { tenantId } },
+      data: { lettre: null, lettrageId: null },
     });
     if (resultat.count === 0) {
-      throw new NotFoundException(`Aucune ligne lettrée "${lettre}" trouvée sur ce compte`);
+      throw new NotFoundException(`Aucune ligne lettrée "${code}" trouvée sur ce compte`);
     }
-    return { lettre, nombreLignes: resultat.count };
+    return { lettre: code, nombreLignes: resultat.count };
   }
 
   /**
@@ -231,7 +538,58 @@ export class LettrageService {
   }
 
   /**
-   * Lettrage automatique · mécanisme en deux temps façon Sage :
+   * Appariement « A PRIORI » · CPCC, ch. 6 : « chaque facture saisie est
+   * identifiée par un code unique, généralement le numéro de la pièce
+   * comptable. Et, chaque fois qu'on enregistre un règlement, le système
+   * impose d'enregistrer en même temps le code de la facture objet du
+   * règlement. »
+   *
+   * OmegaX n'impose pas ce code à la saisie (ce serait un frein pour une
+   * petite association qui règle au comptant), mais il le RECONNAÎT : quand
+   * une écriture de règlement porte la même référence de pièce que la
+   * facture, l'appariement ne relève plus de la présomption. Cette passe
+   * s'exécute donc AVANT toutes les passes par montant, et les groupes
+   * qu'elle produit sont tracés AUTOMATIQUE_PIECE.
+   *
+   * Deux garde-fous : une référence vide n'apparie rien, et une référence
+   * partagée par plus de deux lignes n'est pas retenue non plus · un même
+   * numéro sur trois lignes ne dit pas laquelle solde laquelle, et deviner
+   * serait exactement ce que cette passe est censée éviter.
+   */
+  private apparierParReference(
+    lignes: Array<{ id: string; reference: string | null; net: number }>,
+  ): { groupes: string[][]; restantes: Set<string> } {
+    const parReference = new Map<string, typeof lignes>();
+    for (const l of lignes) {
+      const ref = l.reference?.trim();
+      if (!ref) continue;
+      const existantes = parReference.get(ref) ?? [];
+      existantes.push(l);
+      parReference.set(ref, existantes);
+    }
+
+    const groupes: string[][] = [];
+    const consommees = new Set<string>();
+    for (const [, groupe] of parReference) {
+      if (groupe.length !== 2) continue;
+      const [a, b] = groupe;
+      // Un débit et un crédit, et leur somme doit être nulle : deux factures
+      // portant par erreur la même référence ne se soldent pas l'une l'autre.
+      if (Math.sign(a.net) === Math.sign(b.net)) continue;
+      if (Math.abs(a.net + b.net) > EPSILON) continue;
+      groupes.push([a.id, b.id]);
+      consommees.add(a.id);
+      consommees.add(b.id);
+    }
+    return { groupes, restantes: new Set(lignes.filter((l) => !consommees.has(l.id)).map((l) => l.id)) };
+  }
+
+  /**
+   * Lettrage automatique · quatre passes, dans un ordre qui va du plus au
+   * moins probant (CPCC, ch. 6) :
+   * 0. Appariement A PRIORI par référence de pièce · voir
+   *    `apparierParReference`. Seule passe qui ne repose pas sur une
+   *    présomption de montant.
    * 1. Paires exactes 1-pour-1 (une ligne au débit, une au crédit de
    *    exactement le même montant) · le cas le plus fréquent, traité en
    *    premier pour réduire vite le nombre de lignes restantes.
@@ -249,14 +607,18 @@ export class LettrageService {
    *    que le N-pour-1 · au-delà, cette dernière passe est sautée (les
    *    précédentes restent, elles, toujours effectuées).
    */
-  async lettrageAutomatique(tenantId: string, compteId: string) {
-    await this.trouverCompte(tenantId, compteId);
+  async lettrageAutomatique(tenantId: string, compteId: string, userId: string) {
+    await this.trouverCompteLettrable(tenantId, compteId);
 
     const LIMITE_LIGNES_SUBSET_SUM = 25;
     const LIMITE_LIGNES_PARTITION = 16;
 
+    // `lettrageId: null` et non `lettre: null` : une ligne déjà rattachée à un
+    // groupe PARTIEL ne porte pas de lettre mais ne doit pas être réappariée
+    // ailleurs. Elle se solde en complétant son groupe (voir `completer`).
     const nonLettrees = await this.prisma.ligneEcriture.findMany({
-      where: { compteId, lettre: null, ecriture: { tenantId } },
+      where: { compteId, lettrageId: null, ecriture: { tenantId } },
+      include: { ecriture: { select: { reference: true } } },
       orderBy: { ecriture: { date: 'asc' } },
     });
 
@@ -275,6 +637,17 @@ export class LettrageService {
     let creditsRestants = nonLettrees
       .filter((l) => net(l) < -EPSILON)
       .map((l) => ({ id: l.id, montant: -net(l) }));
+
+    // Passe 0 · appariement a priori par référence de pièce, sur toutes les
+    // lignes non nulles. Elle consomme des lignes avant que les passes par
+    // montant ne s'en emparent : un rapprochement fondé sur une référence
+    // saisie prime sur une coïncidence de montants.
+    const toutesNonNulles = nonLettrees
+      .filter((l) => Math.abs(net(l)) > EPSILON)
+      .map((l) => ({ id: l.id, reference: l.ecriture.reference, net: net(l) }));
+    const parPiece = this.apparierParReference(toutesNonNulles);
+    debitsRestants = debitsRestants.filter((d) => parPiece.restantes.has(d.id));
+    creditsRestants = creditsRestants.filter((c) => parPiece.restantes.has(c.id));
 
     const groupes: string[][] = [];
 
@@ -327,20 +700,33 @@ export class LettrageService {
       creditsRestants = creditsRestants.filter((c) => !partition.credits.includes(c.id));
     }
 
-    if (groupes.length === 0) {
-      return { groupes: 0, lettres: [] };
+    if (groupes.length === 0 && parPiece.groupes.length === 0) {
+      return { groupes: 0, parPiece: 0, parMontant: 0, lettres: [] };
     }
 
     return avecRetrySerialisable(
       this.prisma,
       async (tx) => {
         const lettres: string[] = [];
-        for (const ligneIds of groupes) {
-          const lettre = await this.prochaineLettre(tx, compteId);
-          await tx.ligneEcriture.updateMany({ where: { id: { in: ligneIds } }, data: { lettre } });
-          lettres.push(lettre);
+        // L'origine est tracée par passe : un groupe issu de la référence de
+        // pièce n'a pas la même valeur probante qu'un groupe issu d'une
+        // coïncidence de montants, et un auditeur doit pouvoir les
+        // distinguer.
+        for (const [origine, lots] of [
+          [OrigineLettrage.AUTOMATIQUE_PIECE, parPiece.groupes],
+          [OrigineLettrage.AUTOMATIQUE_MONTANT, groupes],
+        ] as const) {
+          for (const ligneIds of lots) {
+            const groupe = await this.creerGroupe(tx, { tenantId, compteId, ligneIds, origine, userId });
+            lettres.push(groupe.code);
+          }
         }
-        return { groupes: groupes.length, lettres };
+        return {
+          groupes: parPiece.groupes.length + groupes.length,
+          parPiece: parPiece.groupes.length,
+          parMontant: groupes.length,
+          lettres,
+        };
       },
       'Trop de lettrages effectués au même instant sur ce compte · veuillez réessayer.',
     );

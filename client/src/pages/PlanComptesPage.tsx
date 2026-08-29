@@ -94,7 +94,10 @@ export function PlanComptesPage() {
     }
   };
 
-  const modifier = async (id: string, corps: { intitule?: string; estActif?: boolean; modeReportANouveau?: ModeReportANouveau }) => {
+  const modifier = async (
+    id: string,
+    corps: { intitule?: string; estActif?: boolean; modeReportANouveau?: ModeReportANouveau; lettrable?: boolean },
+  ) => {
     setErreur(null);
     try {
       await api.patch(`/comptes/${id}`, corps);
@@ -193,6 +196,7 @@ export function PlanComptesPage() {
                 </span>
                 <span className={`text-[10.5px] ${selectionId === c.id ? 'text-white/80' : 'text-text-dim'}`}>
                   {LIBELLE_RAN[c.modeReportANouveau] ?? '·'}
+                  {c.lettrable && <span title="Compte lettrable"> · L</span>}
                 </span>
                 <span className={`text-[10.5px] ${selectionId === c.id ? 'text-white/90' : c.estActif ? 'text-positive' : 'text-warning'}`}>
                   {c.estActif ? 'Actif' : 'Sommeil'}
@@ -272,6 +276,29 @@ export function PlanComptesPage() {
                       <option value="SOLDE">Solde · le solde seul est reporté</option>
                       <option value="DETAIL">Détail · lignes non lettrées reprises</option>
                     </select>
+                  </label>
+
+                  {/* « Liberté de définir la liste des comptes auxquels
+                      s'applique le lettrage » · CPCC, Notes de cours
+                      d'organisation comptable, ch. 6. Le défaut suit le
+                      numéro (classes 4 et comptes 58), mais rien n'oblige à
+                      s'y tenir : le même chapitre illustre le lettrage sur le
+                      compte 585. */}
+                  <label className="flex items-start gap-2 mb-3 text-[11.5px]">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5"
+                      disabled={!estAdmin}
+                      checked={selection.lettrable}
+                      onChange={(e) => modifier(selection.id, { lettrable: e.target.checked })}
+                    />
+                    <span>
+                      Compte lettrable
+                      <span className="block text-[10px] text-text-dim leading-[1.5]">
+                        Autorise le rapprochement débit/crédit sur ce compte. Utile surtout aux comptes de tiers, mais
+                        pas réservé à eux : les virements internes (58) s'y prêtent aussi.
+                      </span>
+                    </span>
                   </label>
                 </>
               )}

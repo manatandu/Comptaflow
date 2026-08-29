@@ -112,6 +112,7 @@ model Tenant {
   reevaluations            Reevaluation[]
   niveauxRelance           NiveauRelance[]
   relances                 Relance[]
+  lettrages                Lettrage[]
 
   @@map("tenants")
 }
@@ -211,6 +212,17 @@ model Compte {
   estActif           Boolean               @default(true)
   modeReportANouveau ModeReportANouveau    @default(SOLDE)
 
+  // « Liberté de définir la liste des comptes auxquels s'applique le
+  // lettrage » · CPCC, Notes de cours d'organisation comptable, ch. 6.
+  // Le même chapitre précise que « les principaux comptes pour lesquels le
+  // lettrage a un intérêt sont principalement les comptes de tiers
+  // (classe 4) », mais son exemple chiffré porte sur le compte 585 Virements
+  // internes : le lettrage n'est donc PAS réservé à la classe 4, et ce
+  // drapeau est modifiable compte par compte. La migration le pose à vrai
+  // pour les classes 4, les comptes 58, et tout compte portant déjà des
+  // lignes lettrées.
+  lettrable Boolean @default(false)
+
   // Rattachement à un Bailleur (§3.7, comptabilité analytique par
   // projet/bailleur · ajouté le 2026-08-28, docs/plan-de-construction.md
   // item 14) : utile principalement pour les sous-comptes 162-164/462-464
@@ -251,6 +263,7 @@ model Compte {
   immobilisationsDotation       Immobilisation[]        @relation("ImmoCompteDotation")
   // Rattachements aux rubriques de notes annexes (voir RattachementNote).
   rattachementsNotes            RattachementNote[]
+  lettrages                     Lettrage[]
 
   @@unique([tenantId, numero])
   @@map("comptes")
@@ -292,12 +305,12 @@ model Journal {
   estActif     Boolean           @default(true) // "mise en sommeil" réversible
   createdAt    DateTime          @default(now())
 
-  ecritures Ecriture[]
-  clotures  Cloture[]
+  ecritures         Ecriture[]
+  clotures          Cloture[]
+  modelesAbonnement ModeleAbonnement[]
 
   @@unique([tenantId, code])
   @@map("journaux")
-  modelesAbonnement ModeleAbonnement[]
 }
 
 enum StatutExercice {
@@ -498,12 +511,30 @@ model LigneEcriture {
   credit     Decimal  @default(0) @db.Decimal(18, 2)
 
   // Lettrage · rapprochement débit/crédit sur un compte (cf.
-  // docs/plan-de-construction.md §3.1). Toutes les lignes d'un même
-  // rapprochement partagent la même lettre (A, B, ..., Z, AA, AB, ...,
-  // générée par compte · voir LettrageService.prochaineLettre) ; null tant
-  // que la ligne n'est pas lettrée. Le lettrage est un prérequis du report
-  // à-nouveau "Détail" et de toute gestion sérieuse des tiers.
-  lettre String?
+  // docs/plan-de-construction.md §3.1).
+  //
+  // DEUX champs, et la distinction est le cœur du modèle :
+  //
+  //  - `lettrageId` rattache la ligne au GROUPE de lettrage, qu'il soit
+  //    soldé ou partiel (voir le modèle Lettrage).
+  //  - `lettre` ne porte le code QUE lorsque le groupe est soldé.
+  //
+  // Pourquoi les deux. Le CPCC pose que « la somme des montants lettrés au
+  // débit peut être égale, SUPÉRIEURE OU INFÉRIEURE à celle des montants
+  // lettrés au crédit », le but étant d'identifier les opérations restées
+  // « totalement ou partiellement ouvertes ». Une facture réglée à moitié
+  // est donc lettrable, et elle reste due pour le solde. Or `lettre != null`
+  // signifie « soldé » partout ailleurs dans le logiciel : report à-nouveau
+  // Détail (seuls les mouvements non lettrés sont reportés), relances, note
+  // annexe des créances, contrôle d'ancienneté des tiers. Laisser une ligne
+  // partiellement réglée porter une lettre la sortirait de tous ces états,
+  // alors qu'elle est encore ouverte. Le groupe partiel est donc rattaché
+  // par `lettrageId` sans que `lettre` soit servi ; le jour où le solde
+  // tombe à zéro, le groupe passe SOLDE et `lettre` est posée sur toutes ses
+  // lignes d'un coup.
+  lettre     String?
+  lettrageId String?
+  lettrage   Lettrage? @relation(fields: [lettrageId], references: [id])
 
   // Taux de TVA appliqué à CETTE ligne (la ligne de TVA elle-même, pas la
   // ligne HT) · posé par la saisie guidée "Achat/Vente avec TVA" de
@@ -552,6 +583,7 @@ model LigneEcriture {
   coursApplique Decimal? @db.Decimal(18, 6)
 
   @@index([compteId, lettre])
+  @@index([lettrageId])
   @@index([compteId, rapprochementId])
   // PostgreSQL ne crée PAS d'index sur une colonne de clé étrangère, et
   // Prisma n'en génère pas non plus. Sans celui-ci, tout chargement des
@@ -576,6 +608,86 @@ model LigneEcriture {
 enum StatutRapprochement {
   EN_COURS
   CLOTURE
+}
+
+// ---------------------------------------------------------------------------
+// Lettrage · CPCC, Notes de cours d'organisation comptable, chapitre 6
+// ---------------------------------------------------------------------------
+
+// « Le lettrage est une opération comptable qui consiste à affecter un seul
+// repère à deux ou plusieurs entrées enregistrées d'un compte, la somme des
+// montants lettrés au débit pouvant être égale, supérieure ou inférieure à
+// celle des montants lettrés au crédit. Le but ainsi poursuivi est d'associer
+// les opérations de manière à identifier celles restées totalement ou
+// partiellement ouvertes. »
+//
+// D'où deux statuts, et non un seul.
+enum StatutLettrage {
+  // Débit et crédit du groupe ne s'équilibrent pas · l'opération reste
+  // partiellement ouverte pour la différence. Les lignes du groupe ne
+  // portent PAS de `lettre` : elles restent visibles de tous les états qui
+  // recensent l'ouvert (voir LigneEcriture.lettre).
+  PARTIEL
+  // Le groupe est soldé · `lettre` est posée sur toutes ses lignes.
+  SOLDE
+}
+
+// Le CPCC distingue le lettrage manuel du lettrage automatique, et au sein de
+// ce dernier le lettrage « a priori » (par le code unique de la pièce, saisi
+// au règlement) du lettrage « a posteriori » (l'ordinateur rapproche par
+// montant ou libellé). Les trois sont tracés, parce qu'ils n'ont pas la même
+// valeur probante : un rapprochement par numéro de pièce s'appuie sur une
+// donnée saisie par un humain, un rapprochement par montant est une
+// présomption du logiciel.
+enum OrigineLettrage {
+  MANUEL
+  AUTOMATIQUE_PIECE // « a priori » · appariement par référence de pièce
+  AUTOMATIQUE_MONTANT // « a posteriori » · appariement par montant
+}
+
+model Lettrage {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+  compteId String
+  compte   Compte @relation(fields: [compteId], references: [id])
+
+  // A, B, ..., Z, AA, AB, ... par compte. Affiché en minuscules tant que le
+  // groupe est PARTIEL, en majuscules une fois SOLDE · c'est la convention
+  // que retient l'exemple chiffré du CPCC (compte 585) et celle des
+  // logiciels de la place.
+  code   String
+  statut StatutLettrage
+
+  // Reste à solder, signé (débit moins crédit). Zéro pour un groupe SOLDE.
+  solde   Decimal         @db.Decimal(18, 2)
+  origine OrigineLettrage
+
+  // « Verrouillage définitif ou non du lettrage » (CPCC, ch. 6). Un lettrage
+  // verrouillé ne peut plus être défait ni complété sans être déverrouillé :
+  // c'est ce qui permet de figer un rapprochement présenté à un auditeur.
+  verrouille Boolean @default(false)
+
+  // « Il facilite également, pour les opérations en monnaies étrangères
+  // dénouées, le calcul des différences de change réalisées » (CPCC, ch. 6).
+  // Renseigné au dénouement (passage à SOLDE) quand les lignes du groupe
+  // portent une devise : c'est l'écart entre la contrevaleur historique et
+  // la contrevaleur au règlement. Null quand aucune ligne n'est en devise,
+  // ce qui n'est PAS la même chose que zéro.
+  ecartChange Decimal? @db.Decimal(18, 2)
+
+  createdAt DateTime  @default(now())
+  createdBy String
+  // Date de passage à SOLDE · « lettrage en continu ou à une date précise ».
+  soldeAt   DateTime?
+
+  lignes LigneEcriture[]
+
+  // Un code de lettrage est unique PAR COMPTE, pas par dossier : deux comptes
+  // de tiers ont chacun leur série A, B, C.
+  @@unique([compteId, code])
+  @@index([tenantId, statut])
+  @@map("lettrages")
 }
 
 model RapprochementBancaire {
@@ -792,7 +904,7 @@ model Bailleur {
   estActif  Boolean  @default(true)
   createdAt DateTime @default(now())
 
-  comptesRattaches   Compte[]
+  comptesRattaches    Compte[]
   sectionsAnalytiques SectionAnalytique[]
 
   @@unique([tenantId, code])
@@ -999,12 +1111,12 @@ model Regularisation {
   compteDiffere         Compte @relation("RegulCompteDiffere", fields: [compteDifferId], references: [id])
 
   // Montant total de la charge ou du produit, tel qu'il a été comptabilisé.
-  montantTotal Decimal @db.Decimal(18, 2)
+  montantTotal   Decimal  @db.Decimal(18, 2)
   // Période que ce montant couvre réellement.
-  periodeDebut DateTime
-  periodeFin   DateTime
+  periodeDebut   DateTime
+  periodeFin     DateTime
   // Part rattachée aux exercices ultérieurs, calculée au prorata des jours.
-  montantDiffere Decimal @db.Decimal(18, 2)
+  montantDiffere Decimal  @db.Decimal(18, 2)
 
   // Écriture de constatation à la clôture, puis de reprise sur l'exercice
   // concerné. Null tant que l'opération n'a pas été passée.
@@ -1047,14 +1159,14 @@ model ModeleAbonnement {
   compteCreditId String
   compteCredit   Compte @relation("AbonnementCompteCredit", fields: [compteCreditId], references: [id])
 
-  periodicite  PeriodiciteAbonnement
-  dateDebut    DateTime
-  dateFin      DateTime
+  periodicite PeriodiciteAbonnement
+  dateDebut   DateTime
+  dateFin     DateTime
   // Montant de CHAQUE échéance, pas du contrat entier.
-  montant      Decimal  @db.Decimal(18, 2)
-  estActif     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  createdBy    String
+  montant     Decimal               @db.Decimal(18, 2)
+  estActif    Boolean               @default(true)
+  createdAt   DateTime              @default(now())
+  createdBy   String
 
   echeances EcheanceAbonnement[]
 
@@ -1108,9 +1220,9 @@ model Devise {
   tenantId String
   tenant   Tenant @relation(fields: [tenantId], references: [id])
 
-  code     String // ISO : USD, EUR, XAF...
-  intitule String
-  estActive Boolean @default(true)
+  code      String // ISO : USD, EUR, XAF...
+  intitule  String
+  estActive Boolean  @default(true)
   createdAt DateTime @default(now())
 
   cours  CoursDevise[]
@@ -1148,15 +1260,15 @@ model Reevaluation {
   dateReevaluation DateTime
 
   // Écarts latents (478/479) et réalisés sur disponibilités (676/776).
-  ecritureEcartsId String?   @unique
-  ecritureEcarts   Ecriture? @relation("ReevalEcarts", fields: [ecritureEcartsId], references: [id])
+  ecritureEcartsId    String?   @unique
+  ecritureEcarts      Ecriture? @relation("ReevalEcarts", fields: [ecritureEcartsId], references: [id])
   // Provision pour perte de change (6971 / 194) sur la seule perte latente.
   ecritureProvisionId String?   @unique
   ecritureProvision   Ecriture? @relation("ReevalProvision", fields: [ecritureProvisionId], references: [id])
   // Contre-passation à l'ouverture de l'exercice suivant · les écarts de
   // conversion sont latents, ils n'ont pas à survivre à la réouverture.
-  ecritureExtourneId String?   @unique
-  ecritureExtourne   Ecriture? @relation("ReevalExtourne", fields: [ecritureExtourneId], references: [id])
+  ecritureExtourneId  String?   @unique
+  ecritureExtourne    Ecriture? @relation("ReevalExtourne", fields: [ecritureExtourneId], references: [id])
 
   createdAt DateTime @default(now())
   createdBy String
@@ -1202,7 +1314,7 @@ model NiveauRelance {
   // Corps de la lettre. Les jetons {tiers}, {montant}, {date}, {entite} et
   // {detail} sont remplacés à la génération.
   modeleTexte        String
-  estActif           Boolean @default(true)
+  estActif           Boolean     @default(true)
 
   relances Relance[]
 
@@ -1218,11 +1330,11 @@ model Relance {
   tenant   Tenant @relation(fields: [tenantId], references: [id])
 
   compteId String
-  compte   Compte @relation(fields: [compteId], references: [id])
+  compte   Compte  @relation(fields: [compteId], references: [id])
   tiersId  String?
   tiers    Tiers?  @relation(fields: [tiersId], references: [id])
 
-  niveauId String
+  niveauId      String
   niveauRelance NiveauRelance @relation(fields: [niveauId], references: [id])
 
   dateRelance DateTime

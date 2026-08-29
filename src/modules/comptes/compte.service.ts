@@ -4,6 +4,22 @@ import { ClasseCompte, Prisma, TypeCompteDetailTotal } from '@prisma/client';
 import { PLAN_COMPTES_SYCEBNL } from './compte-seed';
 import { CreerCompteDto, ModifierCompteDto } from './dto/creer-compte.dto';
 
+/**
+ * Comptes ouverts au lettrage à la création d'un dossier.
+ *
+ * CPCC, Notes de cours d'organisation comptable, ch. 6 : « les principaux
+ * comptes pour lesquels le lettrage a un intérêt sont principalement les
+ * comptes de tiers (classe 4) ». Le même chapitre illustre pourtant le
+ * lettrage sur le compte 585 Virements internes, d'où la classe 58 ici.
+ *
+ * Ce n'est qu'un DÉFAUT : le texte laisse à l'entité « la liberté de définir
+ * la liste des comptes auxquels s'applique le lettrage », et le drapeau reste
+ * modifiable compte par compte depuis le plan comptable.
+ */
+export function estLettrableParDefaut(numero: string): boolean {
+  return numero.startsWith('4') || numero.startsWith('58');
+}
+
 @Injectable()
 export class CompteService {
   constructor(private readonly prisma: PrismaService) {}
@@ -11,7 +27,7 @@ export class CompteService {
   /** Appelé une fois à la création du tenant (voir AuthService.register). */
   async seedPlanSycebnl(tenantId: string) {
     await this.prisma.compte.createMany({
-      data: PLAN_COMPTES_SYCEBNL.map((c) => ({ ...c, tenantId })),
+      data: PLAN_COMPTES_SYCEBNL.map((c) => ({ ...c, tenantId, lettrable: estLettrableParDefaut(c.numero) })),
       skipDuplicates: true,
     });
   }
@@ -54,7 +70,12 @@ export class CompteService {
     if (existant) {
       throw new ConflictException(`Le compte ${dto.numero} existe déjà pour ce tenant`);
     }
-    return this.prisma.compte.create({ data: { ...dto, tenantId } });
+    // `lettrable` omis : on retient le défaut déduit du numéro plutôt que le
+    // `false` du schéma, pour qu'un compte de tiers créé à la main se
+    // comporte comme ceux du plan semé.
+    return this.prisma.compte.create({
+      data: { ...dto, tenantId, lettrable: dto.lettrable ?? estLettrableParDefaut(dto.numero) },
+    });
   }
 
   async modifier(tenantId: string, compteId: string, dto: ModifierCompteDto) {
