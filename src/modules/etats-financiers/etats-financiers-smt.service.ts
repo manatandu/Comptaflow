@@ -764,20 +764,57 @@ export class EtatsFinanciersSmtService {
    * jamais de lui-même un dossier inéligible sur une conversion qu'il aurait
    * inventée.
    */
-  async eligibilite(tenantId: string, exerciceId: string) {
-    const [lignes, tenant] = await Promise.all([
-      this.chargerLignes(tenantId, exerciceId),
-      this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { devise: true } }),
-    ]);
-    const categories = CATEGORIES_RESSOURCES_ART6.map((c) => {
+  /** Ressources par catégorie de l'article 6, sur un exercice donné. */
+  private async ressourcesParCategorie(tenantId: string, exerciceId: string) {
+    const lignes = await this.chargerLignes(tenantId, exerciceId);
+    return CATEGORIES_RESSOURCES_ART6.map((c) => {
       const comptes = lignes
         .filter((l) => correspond(l.numero, c.comptes, c.exclusions))
         .map((l) => ({ numero: l.numero, intitule: l.intitule, montant: -l.solde }));
       return { cle: c.cle, libelle: c.libelle, montant: comptes.reduce((s, x) => s + x.montant, 0), comptes };
     });
+  }
+
+  async eligibilite(tenantId: string, exerciceId: string) {
+    const [categories, tenant, exercice] = await Promise.all([
+      this.ressourcesParCategorie(tenantId, exerciceId),
+      this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { devise: true } }),
+      this.prisma.exercice.findUniqueOrThrow({ where: { id: exerciceId }, select: { dateDebut: true } }),
+    ]);
+
+    /*
+      LE CUMUL SUR DEUX EXERCICES · seconde phrase de l'article 6, citée dans
+      la note ci-dessus mais qui n'était pas calculée : le contrôle ne lisait
+      qu'un seul exercice. Une entité pouvait donc rester au Système minimal
+      alors que le cumul biennal la faisait basculer au Système normal.
+
+      L'exercice précédent est celui qui s'achève avant le début de celui-ci.
+      Absent (première année d'activité), le cumul n'est pas calculé et le dit,
+      plutôt que de valoir un cumul égal au seul exercice courant · ce qui
+      reviendrait à conclure « sous le seuil » sans avoir mesuré.
+    */
+    const precedent = await this.prisma.exercice.findFirst({
+      where: { tenantId, dateFin: { lte: exercice.dateDebut } },
+      orderBy: { dateFin: 'desc' },
+      select: { id: true, dateDebut: true, dateFin: true },
+    });
+    const categoriesPrecedent = precedent ? await this.ressourcesParCategorie(tenantId, precedent.id) : null;
+    const cumulBiennal = categoriesPrecedent
+      ? CATEGORIES_RESSOURCES_ART6.map((c) => {
+          const courant = categories.find((x) => x.cle === c.cle)!.montant;
+          const anterieur = categoriesPrecedent.find((x) => x.cle === c.cle)!.montant;
+          return { cle: c.cle, libelle: c.libelle, exerciceCourant: courant, exercicePrecedent: anterieur, cumule: courant + anterieur };
+        })
+      : null;
+
     return {
       categories,
       totalRessources: categories.reduce((s, c) => s + c.montant, 0),
+      cumulBiennal,
+      exercicePrecedent: precedent ? { id: precedent.id, dateDebut: precedent.dateDebut, dateFin: precedent.dateFin } : null,
+      avertissementCumul: cumulBiennal
+        ? "L'article 6 ajoute que « si, de manière cumulée sur deux exercices, les ressources dépassent trente millions […] l'entité est éligible au Système normal ». Comparez donc AUSSI la colonne cumulée au seuil : une entité sous le seuil chaque année peut le franchir sur deux."
+        : "Aucun exercice antérieur n'est clos dans ce dossier : le cumul sur deux exercices de l'article 6 ne peut pas être mesuré. Il le sera à partir du deuxième exercice.",
       seuilParCategorieFcfa: SEUIL_SMT_FCFA,
       deviseDossier: tenant.devise,
       conversionAppliquee: false,

@@ -67,6 +67,7 @@ function service(
     immobilisations?: unknown[];
     tiersComptes?: Array<{ compteId: string; tiers: { nom: string } }>;
     devise?: string;
+    exercicePrecedent?: { id: string; dateDebut: Date; dateFin: Date } | null;
   } = {},
 ) {
   const ecritureService = {
@@ -98,7 +99,13 @@ function service(
     immobilisation: { findMany: jest.fn().mockResolvedValue(options.immobilisations ?? []) },
     tiersCompte: { findMany: jest.fn().mockResolvedValue(options.tiersComptes ?? []) },
     tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ devise: options.devise ?? 'CDF' }) },
-    exercice: { findFirstOrThrow: jest.fn().mockResolvedValue({ dateFin: new Date('2026-12-31') }) },
+    exercice: {
+      findFirstOrThrow: jest.fn().mockResolvedValue({ dateFin: new Date('2026-12-31') }),
+      findUniqueOrThrow: jest.fn().mockResolvedValue({ dateDebut: new Date('2026-01-01') }),
+      // Exercice antérieur · `null` par défaut, ce qui est le cas d'un premier
+      // exercice. Le cumul biennal de l'article 6 ne se calcule qu'avec lui.
+      findFirst: jest.fn().mockResolvedValue(options.exercicePrecedent ?? null),
+    },
   } as unknown as PrismaService;
 
   return new EtatsFinanciersSmtService(ecritureService, exerciceService, prisma);
@@ -621,5 +628,48 @@ describe('Éligibilité au S.M.T · article 6', () => {
     expect(e.seuilParCategorieFcfa).toBe(30_000_000);
     expect(e.deviseDossier).toBe('CDF');
     expect(e.conversionAppliquee).toBe(false);
+  });
+});
+
+/**
+ * CUMUL SUR DEUX EXERCICES · seconde phrase de l'article 6. Elle était citée
+ * dans le code mais jamais calculée : le contrôle ne lisait qu'un exercice, si
+ * bien qu'une entité sous le seuil chaque année, mais au-dessus sur deux,
+ * restait au Système minimal sans que rien ne le signale.
+ */
+describe('Cumul biennal de l’article 6', () => {
+  // Une recette de cotisations : compte 701 crédité du montant.
+  const cotisations = (montant: number) => [ligne('70100000', ClasseCompte.CLASSE_7, 0, montant)];
+
+  it('additionne les ressources des deux exercices, catégorie par catégorie', async () => {
+    const s = service(
+      { e2026: cotisations(20_000_000), e2025: cotisations(15_000_000) },
+      { exercicePrecedent: { id: 'e2025', dateDebut: new Date('2025-01-01'), dateFin: new Date('2025-12-31') } },
+    );
+    const r = await s.eligibilite('t1', 'e2026');
+    // `categorie` et non `ligne` : `ligne` est déjà le constructeur de ligne
+    // de balance de ce fichier, et le masquer casserait les tests voisins.
+    const categorie = r.cumulBiennal!.find((c) => c.cle === 'cotisationsRevenus')!;
+    expect(categorie.exerciceCourant).toBe(20_000_000);
+    expect(categorie.exercicePrecedent).toBe(15_000_000);
+    // Chaque exercice est sous les 30 millions, le cumul les dépasse.
+    expect(categorie.cumule).toBe(35_000_000);
+    expect(categorie.cumule).toBeGreaterThan(r.seuilParCategorieFcfa);
+  });
+
+  it('sans exercice antérieur, le DIT au lieu de conclure sur un cumul incomplet', async () => {
+    const r = await service({ e2026: cotisations(20_000_000) }).eligibilite('t1', 'e2026');
+    expect(r.cumulBiennal).toBeNull();
+    expect(r.exercicePrecedent).toBeNull();
+    expect(r.avertissementCumul).toContain('ne peut pas être mesuré');
+  });
+
+  it('ne convertit toujours pas le seuil · la règle vaut aussi pour le cumul', async () => {
+    const r = await service(
+      { e2026: cotisations(1), e2025: cotisations(1) },
+      { exercicePrecedent: { id: 'e2025', dateDebut: new Date('2025-01-01'), dateFin: new Date('2025-12-31') } },
+    ).eligibilite('t1', 'e2026');
+    expect(r.conversionAppliquee).toBe(false);
+    expect(r.avertissementCumul).toContain('cumulée sur deux exercices');
   });
 });

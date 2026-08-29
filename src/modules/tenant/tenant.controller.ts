@@ -5,7 +5,8 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { TenantService } from './tenant.service';
-import { ModifierFormeJuridiqueDto, ModifierIdentiteDto, ModifierJeuEtatsDto } from './dto/parametres-dossier.dto';
+import { ModifierFormeJuridiqueDto,
+  ModifierRegimeDto, ModifierIdentiteDto, ModifierJeuEtatsDto } from './dto/parametres-dossier.dto';
 import { RoleUtilisateur } from '@prisma/client';
 
 /**
@@ -39,5 +40,16 @@ export class TenantController {
   @Roles(RoleUtilisateur.ADMIN_CABINET)
   async modifierFormeJuridique(@CurrentUser() user: AuthenticatedUser, @Body() dto: ModifierFormeJuridiqueDto) {
     return this.tenantService.modifierFormeJuridique(user.tenantId, dto.formeJuridique, dto.droitEtranger);
+  }
+
+  /**
+   * Régime de TVA et effectif permanent · voir TenantService.modifierRegime.
+   * Réservé à l'administrateur du dossier comme les autres paramètres : ces
+   * deux données commandent des règles fiscales et légales, pas un affichage.
+   */
+  @Patch('regime')
+  @Roles(RoleUtilisateur.ADMIN_CABINET)
+  async modifierRegime(@CurrentUser() user: AuthenticatedUser, @Body() dto: ModifierRegimeDto) {
+    return this.tenantService.modifierRegime(user.tenantId, dto);
   }
 }

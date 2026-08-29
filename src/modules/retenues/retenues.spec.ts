@@ -1,6 +1,6 @@
 import { RetenuesService } from './retenues.service';
 import { PrismaService } from '../../common/prisma.service';
-import { NATURES_RETENUES } from './correspondance-retenues';
+import { NATURES_RETENUES, OBLIGATIONS_DECLARATIVES } from './correspondance-retenues';
 
 /**
  * REGISTRE DES RETENUES · l'état ne calcule aucun impôt. Ce qu'il doit faire
@@ -34,6 +34,8 @@ const nature = (r: { natures: Array<{ cle: string }> }, cle: string) =>
     moisEnRetard: number;
     mois: Array<{ mois: string; retenu: number; reverse: number; solde: number; echeance: Date; enRetard: boolean }>;
     reserve: string | null;
+    baseLegale: string;
+    echeance: string;
   };
 
 describe('Registre des retenues à la source', () => {
@@ -92,8 +94,11 @@ describe('Registre des retenues à la source', () => {
     ]);
     const r = await s.registre('t1', { exerciceId: 'e1', dateReference: '2026-06-15' });
     expect(nature(r, 'irppSalaires').retenu).toBe(350_000);
-    expect(nature(r, 'cotisationsSociales').retenu).toBe(130_000);
-    expect(r.natures.find((n) => n.cle === 'cotisationsSociales')!.beneficiaire).toBe('ORGANISME_SOCIAL');
+    // 431 « Sécurité sociale » relève désormais de la CNSS nommément, et non
+    // plus d'une ligne « cotisations sociales » qui mêlait trois organismes
+    // aux taux et aux bases légales distincts.
+    expect(nature(r, 'cnss').retenu).toBe(130_000);
+    expect(r.natures.find((n) => n.cle === 'cnss')!.beneficiaire).toBe('ORGANISME_SOCIAL');
   });
 
   it('ne calcule AUCUN impôt et le dit · aucun taux n’est inscrit dans le référentiel', async () => {
@@ -106,9 +111,68 @@ describe('Registre des retenues à la source', () => {
     expect(serialise).not.toMatch(/"taux"/);
   });
 
-  it('porte la réserve sur le compte 4478, qui mélange trois prélèvements aux échéances différentes', async () => {
+  it('porte la réserve sur le compte 4478 non ventilé, dont les échéances diffèrent', async () => {
     const r = await service([]).registre('t1', { exerciceId: 'e1' });
-    expect(nature(r, 'autresRetenues').reserve).toContain('sous-compte');
+    expect(nature(r, 'autresRetenues').reserve).toContain('44781');
+  });
+
+  /*
+    LE BUG QUE CES TESTS FIGENT · la retenue sur les revenus locatifs est due
+    « dans les dix jours du mois suivant » (loi de procédures fiscales,
+    art. 57). Le registre l'écrivait et la datait pourtant au 15, comme les
+    autres : le texte affiché contredisait la date calculée.
+  */
+  it('date la retenue locative au 10 du mois suivant, et non au 15', async () => {
+    const r = await service([ligne('44781000', '2026-06-12', { credit: 100_000 })]).registre('t1', {
+      exerciceId: 'e1',
+    });
+    const mois = nature(r, 'retenueLocative').mois[0];
+    expect(mois.echeance.toISOString().slice(0, 10)).toBe('2026-07-10');
+  });
+
+  it('date les autres prélèvements au 15 du mois suivant', async () => {
+    const r = await service([ligne('44782000', '2026-06-12', { credit: 100_000 })]).registre('t1', {
+      exerciceId: 'e1',
+    });
+    expect(nature(r, 'prestatairesNonResidents').mois[0].echeance.toISOString().slice(0, 10)).toBe('2026-07-15');
+  });
+
+  it('une retenue de décembre s’échoit en janvier suivant', async () => {
+    const r = await service([ligne('44781000', '2026-12-20', { credit: 50_000 })]).registre('t1', {
+      exerciceId: 'e1',
+    });
+    expect(nature(r, 'retenueLocative').mois[0].echeance.toISOString().slice(0, 10)).toBe('2027-01-10');
+  });
+
+  it('le 4478 générique n’absorbe pas les lignes de ses sous-comptes ventilés', async () => {
+    const r = await service([
+      ligne('44781000', '2026-06-12', { credit: 100_000 }),
+      ligne('44780000', '2026-06-12', { credit: 30_000 }),
+    ]).registre('t1', { exerciceId: 'e1' });
+    expect(nature(r, 'retenueLocative').retenu).toBe(100_000);
+    expect(nature(r, 'autresRetenues').retenu).toBe(30_000);
+  });
+
+  it('sépare CNSS, INPP et ONEM · un taux et un bénéficiaire par organisme', async () => {
+    const r = await service([
+      ligne('43110000', '2026-06-12', { credit: 65_000 }),
+      ligne('43340000', '2026-06-12', { credit: 35_000 }),
+      ligne('43350000', '2026-06-12', { credit: 2_000 }),
+    ]).registre('t1', { exerciceId: 'e1' });
+    expect(nature(r, 'cnss').retenu).toBe(65_000);
+    expect(nature(r, 'inpp').retenu).toBe(35_000);
+    expect(nature(r, 'onem').retenu).toBe(2_000);
+  });
+
+  it('n’inscrit AUCUN taux ONEM · aucun texte du corpus ne le porte', async () => {
+    const r = await service([]).registre('t1', { exerciceId: 'e1' });
+    expect(nature(r, 'onem').reserve).toContain('AUCUN TAUX');
+    expect(nature(r, 'onem').baseLegale).not.toMatch(/0[.,]2\s*%/);
+  });
+
+  it('avertit que la retenue omise est personnellement due (art. 96 bis)', async () => {
+    const r = await service([]).registre('t1', { exerciceId: 'e1' });
+    expect(r.avertissements.join(' ')).toContain('96 bis');
   });
 });
 
@@ -116,18 +180,65 @@ describe('Échéancier fiscal et social', () => {
   it('trie par date et garde les natures sans solde · déclarer reste dû', async () => {
     const s = service([ligne('44720000', '2026-06-10', { credit: 200_000 })]);
     const e = await s.echeancierFiscal('t1', { exerciceId: 'e1', dateReference: '2026-06-20' });
-    // Toutes les natures figurent, y compris celles à zéro.
-    expect(e.echeances).toHaveLength(NATURES_RETENUES.length);
+    // Toutes les natures ET toutes les obligations déclaratives figurent.
+    expect(e.echeances).toHaveLength(NATURES_RETENUES.length + OBLIGATIONS_DECLARATIVES.length);
     const dates = e.echeances.map((x) => x.date.getTime());
     expect([...dates].sort((a, b) => a - b)).toEqual(dates);
   });
 
+  /*
+    LES TROIS OBLIGATIONS DE LA LOI DE FINANCES 25/060 · elles ne portent
+    aucun montant sur aucun compte, et c'est pour cela que le registre ne les
+    voyait pas. L'article 47 nomme pourtant les ASBL, et l'amende est chiffrée.
+  */
+  it('porte le relevé trimestriel des sommes versées à des tiers (art. 47)', async () => {
+    const e = await service([]).echeancierFiscal('t1', { exerciceId: 'e1', dateReference: '2026-05-02' });
+    const releve = e.echeances.find((x) => x.cle === 'releveTrimestrielTiers')!;
+    expect(releve.periodicite).toBe('TRIMESTRIELLE');
+    // Trimestre clos le 30 juin → dix jours après.
+    expect(releve.date.toISOString().slice(0, 10)).toBe('2026-07-10');
+    expect(releve.sanction).toContain('500 000');
+  });
+
+  it('le relevé trimestriel bascule au trimestre suivant une fois l’échéance passée', async () => {
+    const e = await service([]).echeancierFiscal('t1', { exerciceId: 'e1', dateReference: '2026-07-20' });
+    const releve = e.echeances.find((x) => x.cle === 'releveTrimestrielTiers')!;
+    expect(releve.date.toISOString().slice(0, 10)).toBe('2026-10-10');
+  });
+
+  it('porte les deux déclarations annuelles du 31 mars (art. 22 ter et 47 ter)', async () => {
+    const e = await service([]).echeancierFiscal('t1', { exerciceId: 'e1', dateReference: '2026-05-02' });
+    for (const cle of ['declarationAnnuelleSalaires', 'listeFournisseurs']) {
+      const o = e.echeances.find((x) => x.cle === cle)!;
+      expect(o.periodicite).toBe('ANNUELLE');
+      // Le 31 mars 2026 est passé au 2 mai : la prochaine est celle de 2027.
+      expect(o.date.toISOString().slice(0, 10)).toBe('2027-03-31');
+    }
+  });
+
+  it('distingue un reversement d’une déclaration · l’un porte un montant, l’autre non', async () => {
+    const e = await service([]).echeancierFiscal('t1', { exerciceId: 'e1' });
+    expect(e.echeances.filter((x) => x.genre === 'DECLARATION')).toHaveLength(OBLIGATIONS_DECLARATIVES.length);
+    for (const d of e.echeances.filter((x) => x.genre === 'DECLARATION')) {
+      expect(d.contenu).toBeTruthy();
+    }
+  });
+
   it('la prochaine échéance passe au mois suivant quand celle du mois est passée', async () => {
     const s = service([]);
+    // Visée par CLÉ et non par position : depuis que la retenue locative est
+    // datée au 10, c'est elle qui ouvre la liste, et un test positionnel
+    // mesurerait le tri plutôt que la règle qu'il prétend vérifier.
+    const quand = (e: { echeances: Array<{ cle: string; date: Date }> }, cle: string) =>
+      e.echeances.find((x) => x.cle === cle)!.date.toISOString().slice(0, 10);
     const avant = await s.echeancierFiscal('t1', { exerciceId: 'e1', dateReference: '2026-06-10' });
     const apres = await s.echeancierFiscal('t1', { exerciceId: 'e1', dateReference: '2026-06-20' });
-    expect(avant.echeances[0].date.toISOString().slice(0, 10)).toBe('2026-06-15');
-    expect(apres.echeances[0].date.toISOString().slice(0, 10)).toBe('2026-07-15');
+    expect(quand(avant, 'irppSalaires')).toBe('2026-06-15');
+    expect(quand(apres, 'irppSalaires')).toBe('2026-07-15');
+    // Et la locative tombe bien au 10 · le 10 au matin, elle est due LE JOUR
+    // MÊME et ne bascule pas encore au mois suivant.
+    expect(quand(avant, 'retenueLocative')).toBe('2026-06-10');
+    expect(quand(apres, 'retenueLocative')).toBe('2026-07-10');
   });
 
   it('expose la date de dernière vérification des échéances · elles changent', async () => {

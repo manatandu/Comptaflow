@@ -81,6 +81,9 @@ export class TenantService {
       formeJuridique: tenant.formeJuridique,
       droitEtranger: tenant.droitEtranger,
       longueurCompte: tenant.longueurCompte,
+      assujettiTva: tenant.assujettiTva,
+      dateOptionTva: tenant.dateOptionTva,
+      effectifPermanent: tenant.effectifPermanent,
       nombreEcritures,
     };
   }
@@ -160,6 +163,40 @@ export class TenantService {
     await this.prisma.tenant.update({
       where: { id: tenantId },
       data: { formeJuridique, ...(droitEtranger === undefined ? {} : { droitEtranger }) },
+    });
+    return this.parametres(tenantId);
+  }
+
+  /**
+   * Régime de TVA et effectif permanent.
+   *
+   * L'ASSUJETTISSEMENT ne se présume pas : l'ordonnance-loi n° 10/001 le lie
+   * au franchissement de 80 000 000 FC de chiffre d'affaires annuel hors taxes
+   * (art. 14), et l'article 15, 2° exonère par ailleurs les opérations
+   * conformes à l'objet d'une entité à but non lucratif. Le logiciel partait
+   * pourtant du principe inverse, en proposant la saisie « avec TVA » à tout
+   * dossier · une association non assujettie collectait alors une taxe sans
+   * droit, et la déduisait sans droit.
+   *
+   * L'EFFECTIF commande deux règles chiffrées : le troisième critère de
+   * l'article 19 du SYCEBNL (au-delà de vingt personnes, l'auditeur devient
+   * obligatoire) et la tranche de cotisation INPP.
+   */
+  async modifierRegime(
+    tenantId: string,
+    dto: { assujettiTva?: boolean; dateOptionTva?: string; effectifPermanent?: number },
+  ) {
+    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
+    if (!tenant) {
+      throw new NotFoundException('Dossier introuvable');
+    }
+    await this.prisma.tenant.update({
+      where: { id: tenantId },
+      data: {
+        ...(dto.assujettiTva === undefined ? {} : { assujettiTva: dto.assujettiTva }),
+        ...(dto.dateOptionTva === undefined ? {} : { dateOptionTva: new Date(dto.dateOptionTva) }),
+        ...(dto.effectifPermanent === undefined ? {} : { effectifPermanent: dto.effectifPermanent }),
+      },
     });
     return this.parametres(tenantId);
   }

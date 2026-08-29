@@ -3,10 +3,13 @@ import { StatutEcriture } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import {
   AVERTISSEMENT_EXONERATION,
+  AVERTISSEMENT_REDEVABLE,
   AVERTISSEMENT_REGISTRE,
   DERNIERE_VERIFICATION,
   NATURES_RETENUES,
   NatureRetenue,
+  OBLIGATIONS_DECLARATIVES,
+  ObligationDeclarative,
 } from './correspondance-retenues';
 
 /**
@@ -24,17 +27,56 @@ export class RetenuesService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Prochaine date d'exigibilité pour une nature donnée, à partir d'une date
-   * de référence.
+   * Échéance de reversement de la retenue d'un mois donné.
    *
-   * Règle : la retenue d'un mois se reverse le `jourEcheance` du mois
-   * SUIVANT. Depuis une date de référence, la prochaine échéance est donc
-   * celle du mois courant si elle n'est pas passée, sinon celle du mois
-   * suivant.
+   * Le délai court à partir de la FIN DU MOIS de la retenue, en jours : dix
+   * jours pour la retenue locative, quinze pour les autres. Écrire « le 15 du
+   * mois suivant » revenait au même pour quinze, mais datait la retenue
+   * locative au 15 alors que le texte dit dix jours · le registre affichait
+   * une échéance et en calculait une autre.
+   */
+  private echeanceDuMois(nature: NatureRetenue, annee: number, moisZeroBase: number): Date {
+    // Le délai part de la fin du mois de la retenue : « dans les dix jours du
+    // mois suivant » tombe donc le 10 du mois suivant, « le 15 du mois
+    // suivant » le 15. Le mois suivant s'écrit `moisZeroBase + 1`, que
+    // `Date` reporte de lui-même sur janvier quand on part de décembre.
+    return new Date(annee, moisZeroBase + 1, nature.joursApresPeriode);
+  }
+
+  /**
+   * Prochaine date d'exigibilité pour une nature donnée, à partir d'une date
+   * de référence · celle du mois courant si elle n'est pas passée, sinon
+   * celle du mois suivant.
    */
   private prochaineEcheance(nature: NatureRetenue, reference: Date): Date {
-    const echeance = new Date(reference.getFullYear(), reference.getMonth(), nature.jourEcheance);
+    const echeance = new Date(reference.getFullYear(), reference.getMonth(), nature.joursApresPeriode);
     if (echeance < reference) echeance.setMonth(echeance.getMonth() + 1);
+    return echeance;
+  }
+
+  /**
+   * Prochaine échéance d'une obligation purement déclarative.
+   *
+   * Trimestrielle : `joursApresPeriode` jours après la fin du trimestre civil.
+   * Annuelle : jour et mois fixes, sur l'année qui suit l'exercice · si la
+   * date de cette année est passée, c'est celle de l'année prochaine.
+   */
+  private prochaineEcheanceDeclarative(obligation: ObligationDeclarative, reference: Date): Date {
+    if (obligation.periodicite === 'TRIMESTRIELLE') {
+      const jours = obligation.joursApresPeriode ?? 10;
+      // Fin du trimestre en cours, puis les suivants tant que l'échéance est
+      // passée. Les trimestres civils finissent en mars, juin, sept., déc.
+      for (let t = Math.floor(reference.getMonth() / 3); t < 8; t++) {
+        const finTrimestre = new Date(reference.getFullYear() + Math.floor(t / 4), ((t % 4) + 1) * 3, 0);
+        const echeance = new Date(finTrimestre);
+        echeance.setDate(echeance.getDate() + jours);
+        if (echeance >= reference) return echeance;
+      }
+    }
+    const mois = (obligation.moisEcheance ?? 3) - 1;
+    const jour = obligation.jourEcheance ?? 31;
+    const echeance = new Date(reference.getFullYear(), mois, jour);
+    if (echeance < reference) echeance.setFullYear(echeance.getFullYear() + 1);
     return echeance;
   }
 
@@ -98,9 +140,9 @@ export class RetenuesService {
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([cle, m]) => {
           const [annee, numeroMois] = cle.split('-').map(Number);
-          // Reversement dû le `jourEcheance` du mois SUIVANT celui de la
-          // retenue.
-          const echeance = new Date(annee, numeroMois, nature.jourEcheance);
+          // Reversement dû `joursApresPeriode` jours après la fin du mois de
+          // la retenue · voir echeanceDuMois.
+          const echeance = this.echeanceDuMois(nature, annee, numeroMois - 1);
           const solde = Math.round((m.retenu - m.reverse) * 100) / 100;
           return {
             mois: cle,
@@ -154,7 +196,7 @@ export class RetenuesService {
       totalReverse: Math.round(natures.reduce((s, n) => s + n.reverse, 0) * 100) / 100,
       totalDu: Math.round(natures.reduce((s, n) => s + n.solde, 0) * 100) / 100,
       comptesNonRattaches,
-      avertissements: [AVERTISSEMENT_REGISTRE, AVERTISSEMENT_EXONERATION],
+      avertissements: [AVERTISSEMENT_REGISTRE, AVERTISSEMENT_EXONERATION, AVERTISSEMENT_REDEVABLE],
     };
   }
 
@@ -169,19 +211,49 @@ export class RetenuesService {
    */
   async echeancierFiscal(tenantId: string, params: { exerciceId: string; dateReference?: string }) {
     const registre = await this.registre(tenantId, params);
-    const echeances = registre.natures
-      .map((n) => ({
-        cle: n.cle,
-        libelle: n.libelle,
-        beneficiaire: n.beneficiaire,
-        date: n.prochaineEcheance,
-        echeance: n.echeance,
-        baseLegale: n.baseLegale,
-        reserve: n.reserve,
-        montantDu: n.solde,
-        moisEnRetard: n.moisEnRetard,
-      }))
-      .sort((a, b) => a.date.getTime() - b.date.getTime());
+
+    const reversements = registre.natures.map((n) => ({
+      cle: n.cle,
+      libelle: n.libelle,
+      genre: 'REVERSEMENT' as const,
+      periodicite: 'MENSUELLE' as const,
+      beneficiaire: n.beneficiaire,
+      date: n.prochaineEcheance,
+      echeance: n.echeance,
+      baseLegale: n.baseLegale,
+      reserve: n.reserve,
+      montantDu: n.solde,
+      moisEnRetard: n.moisEnRetard,
+      contenu: null as string | null,
+      sanction: null as string | null,
+      sourceDonnees: null as string | null,
+    }));
+
+    /*
+      Les obligations PUREMENT DÉCLARATIVES rejoignent le même échéancier.
+      Elles ne portent aucun montant · c'est justement pourquoi elles
+      échappaient au logiciel, qui ne connaissait que ce qu'un compte crédite.
+      Une échéance sans montant n'en est pas moins une échéance : l'amende de
+      l'article 94 tombe pour un relevé non déposé, pas pour un solde impayé.
+    */
+    const declarations = OBLIGATIONS_DECLARATIVES.map((o) => ({
+      cle: o.cle,
+      libelle: o.libelle,
+      genre: 'DECLARATION' as const,
+      periodicite: o.periodicite,
+      beneficiaire: 'ETAT' as const,
+      date: this.prochaineEcheanceDeclarative(o, registre.dateReference),
+      echeance: o.echeance,
+      baseLegale: o.baseLegale,
+      reserve: null as string | null,
+      montantDu: 0,
+      moisEnRetard: 0,
+      contenu: o.contenu,
+      sanction: o.sanction ?? null,
+      sourceDonnees: o.sourceDonnees ?? null,
+    }));
+
+    const echeances = [...reversements, ...declarations].sort((a, b) => a.date.getTime() - b.date.getTime());
 
     return {
       dateReference: registre.dateReference,

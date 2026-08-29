@@ -109,28 +109,174 @@ export class TauxTvaService {
    * (art. 49, non implémentée · la seule option ici est le prorata général).
    */
   async calculerProrata(tenantId: string, dateDebut: Date, dateFin: Date) {
-    const ecrituresTaxables = await this.prisma.ecriture.findMany({
-      where: { tenantId, date: { gte: dateDebut, lte: dateFin }, lignes: { some: { tauxTvaId: { not: null } } } },
-      select: { id: true },
-    });
-    const idsTaxables = ecrituresTaxables.map((e) => e.id);
+    /*
+      NUMÉRATEUR · la base hors taxes des opérations ouvrant droit à déduction.
 
-    const numerateurAgg = await this.prisma.ligneEcriture.aggregate({
-      where: { compte: { tenantId, classe: ClasseCompte.CLASSE_7 }, ecritureId: { in: idsTaxables } },
-      _sum: { credit: true },
+      Elle se DÉDUIT du montant de taxe et du taux (base = TVA / taux), ce qui
+      est exact ligne à ligne. La version antérieure sommait tout le crédit de
+      classe 7 de chaque écriture portant une ligne de TVA : une écriture
+      mixte, qui loge sur la même pièce une vente taxable et une recette
+      exonérée, gonflait alors le numérateur de la part exonérée, et donc le
+      pourcentage de déduction.
+
+      Le taux ZÉRO (exportations) fait exception : la division est impossible,
+      alors que ces opérations ouvrent bien droit à déduction. Leur base est
+      reprise du crédit de classe 7 de leur écriture · c'est l'approximation
+      d'origine, mais confinée au seul cas où elle est inévitable.
+    */
+    const lignesTaxe = await this.prisma.ligneEcriture.findMany({
+      where: { tauxTvaId: { not: null }, ecriture: { tenantId, date: { gte: dateDebut, lte: dateFin } } },
+      select: { credit: true, ecritureId: true, tauxTva: { select: { taux: true } } },
     });
+
+    let numerateur = 0;
+    const ecrituresTauxZero = new Set<string>();
+    for (const l of lignesTaxe) {
+      const taux = Number(l.tauxTva?.taux ?? 0);
+      if (taux <= EPSILON) {
+        ecrituresTauxZero.add(l.ecritureId);
+        continue;
+      }
+      numerateur += Number(l.credit) / (taux / 100);
+    }
+    if (ecrituresTauxZero.size > 0) {
+      const agg = await this.prisma.ligneEcriture.aggregate({
+        where: { compte: { tenantId, classe: ClasseCompte.CLASSE_7 }, ecritureId: { in: [...ecrituresTauxZero] } },
+        _sum: { credit: true },
+      });
+      numerateur += Number(agg._sum.credit ?? 0);
+    }
+
     const denominateurAgg = await this.prisma.ligneEcriture.aggregate({
       where: { compte: { tenantId, classe: ClasseCompte.CLASSE_7 }, ecriture: { tenantId, date: { gte: dateDebut, lte: dateFin } } },
       _sum: { credit: true },
     });
 
-    const numerateur = Number(numerateurAgg._sum.credit ?? 0);
+    numerateur = Math.round(numerateur * 100) / 100;
     const denominateur = Number(denominateurAgg._sum.credit ?? 0);
     // Aucune recette sur la période : rien ne vient limiter la déduction ·
     // 100 % plutôt qu'une division par zéro.
     const pourcentage = denominateur <= EPSILON ? 100 : Math.min(100, Math.ceil((numerateur / denominateur) * 100));
 
     return { numerateur, denominateur, pourcentage };
+  }
+
+  /**
+   * PRORATA APPLICABLE À UNE DÉCLARATION · l'article 45 en commande le rythme,
+   * et c'est là que le logiciel se trompait.
+   *
+   * Le texte impose un prorata PROVISOIRE, calculé sur les recettes de
+   * l'ANNÉE PRÉCÉDENTE, appliqué à toutes les déclarations de l'année en
+   * cours ; puis un prorata DÉFINITIF, arrêté au plus tard le 31 mars de
+   * l'année suivante, qui donne lieu à régularisation des déductions déjà
+   * opérées.
+   *
+   * La déclaration appliquait jusqu'ici un prorata recalculé SUR SA PROPRE
+   * PÉRIODE : chaque mois portait donc un pourcentage différent, alors que la
+   * loi en veut un seul pour toute l'année. Un dossier saisonnier (une
+   * association qui vend à Noël et rien en février) voyait sa déduction varier
+   * du simple au double d'un mois à l'autre.
+   *
+   * PREMIÈRE ANNÉE D'ACTIVITÉ · il n'existe aucune recette de référence. Le
+   * prorata est alors estimé sur la période en cours, et l'estimation est
+   * ANNONCÉE (`base`), pas dissimulée derrière un chiffre d'allure définitive.
+   */
+  async prorataApplicable(tenantId: string, dateDebut: Date, dateFin: Date) {
+    const anneePrecedente = dateDebut.getUTCFullYear() - 1;
+    const provisoire = await this.calculerProrata(
+      tenantId,
+      new Date(Date.UTC(anneePrecedente, 0, 1)),
+      new Date(Date.UTC(anneePrecedente, 11, 31, 23, 59, 59, 999)),
+    );
+    if (provisoire.denominateur > EPSILON) {
+      return {
+        ...provisoire,
+        base: 'ANNEE_PRECEDENTE' as const,
+        anneeReference: anneePrecedente,
+        mention:
+          `Prorata provisoire de ${provisoire.pourcentage} %, calculé sur les recettes de ${anneePrecedente} ` +
+          "(article 45). Il s'applique à toutes les déclarations de l'année, et sera arrêté définitivement au plus " +
+          'tard le 31 mars suivant, avec régularisation des déductions déjà opérées.',
+      };
+    }
+    const estime = await this.calculerProrata(tenantId, dateDebut, dateFin);
+    return {
+      ...estime,
+      base: 'ESTIMATION_PERIODE' as const,
+      anneeReference: null,
+      mention:
+        `Aucune recette n'a été enregistrée en ${anneePrecedente} : le prorata provisoire ne peut pas être calculé ` +
+        `sur l'année précédente comme le veut l'article 45. Celui appliqué ici (${estime.pourcentage} %) est une ` +
+        'ESTIMATION sur la période déclarée, à régulariser lors de l’arrêté définitif du 31 mars.',
+    };
+  }
+
+  /**
+   * PRORATA DÉFINITIF d'une année civile, et régularisation qui en découle.
+   *
+   * À arrêter au plus tard le 31 mars de l'année suivante (art. 45). L'écart
+   * avec le provisoire effectivement appliqué se régularise à l'échéance qui
+   * suit · le sens est donné explicitement, une régularisation dont on ignore
+   * si elle est à payer ou à récupérer ne sert à rien.
+   */
+  async prorataDefinitif(tenantId: string, annee: number) {
+    const definitif = await this.calculerProrata(
+      tenantId,
+      new Date(Date.UTC(annee, 0, 1)),
+      new Date(Date.UTC(annee, 11, 31, 23, 59, 59, 999)),
+    );
+    const provisoireApplique = await this.calculerProrata(
+      tenantId,
+      new Date(Date.UTC(annee - 1, 0, 1)),
+      new Date(Date.UTC(annee - 1, 11, 31, 23, 59, 59, 999)),
+    );
+    const pourcentageApplique =
+      provisoireApplique.denominateur > EPSILON ? provisoireApplique.pourcentage : definitif.pourcentage;
+
+    // TVA déductible brute de l'année · l'assiette de la régularisation.
+    const taux = await this.prisma.tauxTva.findMany({ where: { tenantId }, select: { compteDeductibleId: true } });
+    const comptesDeductibles = taux.map((t) => t.compteDeductibleId).filter((c): c is string => !!c);
+    const brut =
+      comptesDeductibles.length === 0
+        ? 0
+        : Number(
+            (
+              await this.prisma.ligneEcriture.aggregate({
+                where: {
+                  compteId: { in: comptesDeductibles },
+                  ecriture: {
+                    tenantId,
+                    date: {
+                      gte: new Date(Date.UTC(annee, 0, 1)),
+                      lte: new Date(Date.UTC(annee, 11, 31, 23, 59, 59, 999)),
+                    },
+                  },
+                },
+                _sum: { debit: true },
+              })
+            )._sum.debit ?? 0,
+          );
+
+    const admiseDefinitive = Math.round(brut * (definitif.pourcentage / 100) * 100) / 100;
+    const admiseAppliquee = Math.round(brut * (pourcentageApplique / 100) * 100) / 100;
+    const regularisation = Math.round((admiseDefinitive - admiseAppliquee) * 100) / 100;
+
+    return {
+      annee,
+      definitif,
+      pourcentageApplique,
+      tvaDeductibleBrute: brut,
+      admiseDefinitive,
+      admiseAppliquee,
+      regularisation,
+      sens:
+        Math.abs(regularisation) <= EPSILON
+          ? ('AUCUNE' as const)
+          : regularisation > 0
+            ? ('DEDUCTION_COMPLEMENTAIRE' as const)
+            : ('REVERSEMENT' as const),
+      echeance: `À arrêter au plus tard le 31 mars ${annee + 1} (article 45).`,
+    };
   }
 
   /**
@@ -179,7 +325,7 @@ export class TauxTvaService {
 
     const totalCollecte = lignes.reduce((s, l) => s + l.totalCollecte, 0);
     const totalDeductible = lignes.reduce((s, l) => s + l.totalDeductible, 0);
-    const prorata = await this.calculerProrata(tenantId, dateDebut, dateFin);
+    const prorata = await this.prorataApplicable(tenantId, dateDebut, dateFin);
     const totalDeductibleAdmise = Math.round(totalDeductible * (prorata.pourcentage / 100) * 100) / 100;
     const net = totalCollecte - totalDeductibleAdmise;
 

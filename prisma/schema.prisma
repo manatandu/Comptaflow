@@ -139,6 +139,34 @@ model Tenant {
   // sinon des comptes existants deviendraient invalides rétroactivement.
   longueurCompte Int @default(8)
 
+  // ASSUJETTISSEMENT À LA TVA · une ASBL n'est PAS assujettie de plein droit.
+  // L'ordonnance-loi n° 10/001 art. 14 fixe le seuil à 80 000 000 FC de chiffre
+  // d'affaires annuel hors taxes (décret n° 011/42, art. 42-43) ; en deçà,
+  // l'option est possible et devient définitive pour deux ans. Et l'art. 15, 2°
+  // exonère les ventes/importations conformes à l'objet, l'art. 17, 8° les
+  // prestations relevant des activités normales sans distorsion de concurrence.
+  //
+  // Sans ce champ, le logiciel proposait la saisie « avec TVA » à TOUT dossier
+  // et seedait les quatre taux pour tous : une ASBL non assujettie qui facture
+  // de la TVA la collecte sans droit, et la déduit sans droit. Le défaut est
+  // donc `false` · l'assujettissement se déclare, il ne se présume pas.
+  assujettiTva   Boolean   @default(false)
+  // Date d'effet de l'option ou du franchissement du seuil · sert à dater le
+  // début des obligations déclaratives, et à rappeler que l'option prise en
+  // deçà du seuil engage deux ans.
+  dateOptionTva  DateTime?
+
+  // EFFECTIF PERMANENT · nécessaire à DEUX règles chiffrées que le logiciel ne
+  // pouvait pas appliquer faute de connaître ce nombre :
+  //  · SYCEBNL art. 19 · au-delà de vingt personnes, la désignation d'un
+  //    auditeur devient obligatoire (troisième critère, alternatif) ;
+  //  · INPP · le taux de la cotisation dépend de la tranche d'effectif
+  //    (4 % public, 3,5 % de 1 à 50, 3 % de 51 à 300, 2 % au-delà de 300,
+  //    arrêté interministériel n° 002/CAB/MET/2025 du 24 septembre 2025).
+  // Nul par défaut : une entité sans salarié est le cas le plus fréquent, et
+  // un effectif inventé serait pire qu'un effectif absent.
+  effectifPermanent Int @default(0)
+
   licence                  Licence?
   comptes                  Compte[]
   exercices                Exercice[]
@@ -865,6 +893,26 @@ model Tiers {
   code     String // ex : "CLI-0001" · libre, unique par tenant
   nom      String
   estActif Boolean   @default(true)
+
+  // COORDONNÉES · elles manquaient, et cela rendait inutilisable une brique
+  // déjà construite : le module de relances compose des lettres de rappel
+  // complètes (RelancesService.emettre) qu'aucun destinataire ne portait. Un
+  // relevé de compte ou une mise en demeure sans adresse ne part nulle part.
+  //
+  // Toutes optionnelles : un tiers se crée d'un code et d'un nom, comme avant.
+  // `numeroImpot` n'est pas décoratif · la liste annuelle des fournisseurs
+  // (art. 47 ter de la loi de procédures fiscales, au plus tard le 31 mars)
+  // exige nommément « identité, adresse, boîte postale, Numéro Impôt » de
+  // chaque fournisseur, et c'est ici qu'il faut le tenir pour pouvoir la
+  // produire depuis les comptes 401.
+  adresse      String?
+  boitePostale String?
+  ville        String?
+  pays         String?
+  telephone    String?
+  email        String?
+  numeroImpot  String?
+  contact      String? // personne à qui la lettre s'adresse
 
   modeleReglementId String?
   modeleReglement   ModeleReglement? @relation(fields: [modeleReglementId], references: [id])

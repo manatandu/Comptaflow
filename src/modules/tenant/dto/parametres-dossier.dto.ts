@@ -1,4 +1,4 @@
-import { IsBoolean, IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsBoolean, IsEnum, IsOptional, IsString, MaxLength, IsDateString, IsInt, Min } from 'class-validator';
 import { FormeJuridiqueEbnl, JeuEtatsFinanciersSycebnl } from '@prisma/client';
 
 export class ModifierJeuEtatsDto {
@@ -42,4 +42,25 @@ export class ModifierFormeJuridiqueDto {
   @IsOptional()
   @IsBoolean()
   droitEtranger?: boolean;
+}
+
+/**
+ * ASSUJETTISSEMENT À LA TVA et EFFECTIF PERMANENT · deux données que le
+ * logiciel ne détenait pas et sans lesquelles il ne pouvait appliquer ni les
+ * règles de TVA (une ASBL n'est pas assujettie de plein droit) ni le troisième
+ * critère de désignation de l'auditeur (SYCEBNL, art. 19).
+ */
+export class ModifierRegimeDto {
+  @IsOptional()
+  @IsBoolean()
+  assujettiTva?: boolean;
+
+  @IsOptional()
+  @IsDateString()
+  dateOptionTva?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  effectifPermanent?: number;
 }

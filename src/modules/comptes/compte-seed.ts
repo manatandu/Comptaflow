@@ -607,6 +607,19 @@ const classe4Solde: LigneSeed[] = c(ClasseCompte.CLASSE_4, SOLDE, [
   ['43310000', 'Autres organismes sociaux · mutuelle de santé'],
   ['43320000', 'Autres organismes sociaux · assurances retraite'],
   ['43330000', 'Autres organismes sociaux · assurances et organismes de santé'],
+  // INPP et ONEM · subdivisions de 433 « Autres organismes sociaux » ouvertes
+  // par le logiciel, le plan SYCEBNL étant régional et ne nommant aucun
+  // organisme congolais. Sans elles, les trois prélèvements sociaux
+  // atterrissaient sur un compte 43 unique dont l'échéancier ne pouvait
+  // distinguer ni le bénéficiaire ni le taux.
+  //  · INPP · formation professionnelle, taux par tranche d'effectif
+  //    (4 % public, 3,5 % de 1 à 50, 3 % de 51 à 300, 2 % au-delà de 300),
+  //    arrêté interministériel n° 002/CAB/MET/2025 du 24 septembre 2025 ;
+  //  · ONEM · aucun texte ne figure au corpus consulté pour le taux
+  //    couramment pratiqué de 0,2 % : le compte est ouvert, le taux n'est
+  //    PAS inscrit dans le logiciel.
+  ['43340000', 'Autres organismes sociaux · INPP (formation professionnelle)'],
+  ['43350000', 'Autres organismes sociaux · ONEM (emploi)'],
   ['43810000', 'Organismes sociaux · charges sociales sur gratifications à payer'],
   ['43820000', 'Organismes sociaux · charges sociales sur congés à payer'],
   ['43860000', 'Organismes sociaux · autres charges à payer'],
@@ -632,6 +645,17 @@ const classe4Solde: LigneSeed[] = c(ClasseCompte.CLASSE_4, SOLDE, [
   ['44730000', 'État, impôts retenus à la source · contribution nationale'],
   ['44740000', 'État, impôts retenus à la source · contribution nationale de solidarité'],
   ['44780000', 'État, impôts retenus à la source · autres'],
+  // Subdivisions de 4478 ouvertes par le logiciel · le plan SYCEBNL n'ouvre
+  // qu'un compte pour des prélèvements dont les ÉCHÉANCES DIFFÈRENT, si bien
+  // qu'un registre bâti sur le seul 4478 datait tout au 15 alors que la
+  // retenue locative est due dans les dix jours (loi de procédures fiscales,
+  // art. 57). Un compte par échéance, donc, faute de quoi la date affichée
+  // ne peut pas être juste pour tout le monde.
+  ['44781000', 'État, retenue sur les revenus locatifs (20 %)'],
+  ['44782000', 'État, prélèvement sur prestataires non-résidents (14 %)'],
+  ['44783000', 'État, prélèvement exceptionnel sur le personnel expatrié (25 %)'],
+  ['44784000', 'État, retenue sur les revenus de capitaux mobiliers (20 %)'],
+  ['44785000', 'État, retenue sur les plus-values (20 %)'],
   ['44860000', 'État · charges à payer'],
   ['44870000', 'État · produits à recevoir'],
   ['44910000', 'État, subvention à recevoir'],

@@ -2,6 +2,27 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
 import { ClasseCompte, JeuEtatsFinanciersSycebnl, StatutEcriture, TypeCompteDetailTotal } from '@prisma/client';
 
+/**
+ * SEUILS DE DÉSIGNATION DE L'AUDITEUR · Acte uniforme SYCEBNL, article 19.
+ *
+ * Exprimés en FRANCS CFA par le texte, et laissés tels quels : le logiciel ne
+ * connaît pas le taux applicable au dossier, et un seuil converti à un taux
+ * inventé induirait en erreur plus sûrement qu'un seuil brut annoncé comme
+ * tel. Même règle que pour le seuil du Système minimal de trésorerie.
+ */
+export const SEUIL_BILAN_AUDITEUR = 100_000_000;
+export const SEUIL_RESSOURCES_AUDITEUR = 200_000_000;
+export const SEUIL_EFFECTIF_AUDITEUR = 20;
+
+/** Classes du bilan · 1 à 5. Les 6 à 8 sont de gestion, la 9 est hors bilan. */
+const CLASSES_BILAN: ClasseCompte[] = [
+  ClasseCompte.CLASSE_1,
+  ClasseCompte.CLASSE_2,
+  ClasseCompte.CLASSE_3,
+  ClasseCompte.CLASSE_4,
+  ClasseCompte.CLASSE_5,
+];
+
 /** Gravité d'une anomalie · commande la couleur et l'ordre de lecture. */
 export type Gravite = 'BLOQUANT' | 'AVERTISSEMENT' | 'INFORMATION';
 
@@ -380,6 +401,78 @@ export class ControlesService {
       });
   }
 
+  /**
+   * SEUILS DE DÉSIGNATION DE L'AUDITEUR · Acte uniforme SYCEBNL, article 19.
+   *
+   * Les trois critères sont ALTERNATIFS, et le texte les exprime en francs
+   * CFA. Aucune conversion n'est appliquée : le logiciel ne connaît pas le
+   * taux applicable au dossier et un seuil converti à un taux inventé serait
+   * pire qu'un seuil brut. Même discipline que pour le seuil du Système
+   * minimal de trésorerie (voir etats-financiers-smt.service.ts).
+   *
+   * Exposé publiquement : l'écran d'analyse s'en sert pour alerter, mais la
+   * mesure vaut aussi comme diagnostic à part entière, hors anomalie.
+   */
+  async seuilsAuditeur(tenantId: string, exerciceId: string, effectifPermanent: number) {
+    const lignes = await this.prisma.ligneEcriture.findMany({
+      where: { ecriture: { tenantId, exerciceId, statut: StatutEcriture.VALIDEE } },
+      select: { debit: true, credit: true, compte: { select: { classe: true, typeCompte: true } } },
+    });
+
+    let totalBilan = 0;
+    let ressources = 0;
+    for (const l of lignes) {
+      // Les comptes de TOTAL agrègent leurs enfants : les compter reviendrait
+      // à compter deux fois les mêmes montants.
+      if (l.compte.typeCompte === TypeCompteDetailTotal.TOTAL) continue;
+      const solde = Number(l.debit) - Number(l.credit);
+      if (CLASSES_BILAN.includes(l.compte.classe)) {
+        // Total du bilan = somme des soldes DÉBITEURS des classes 1 à 5,
+        // c'est-à-dire l'actif · approximation assumée et annoncée.
+        if (solde > 0) totalBilan += solde;
+      }
+      if (l.compte.classe === ClasseCompte.CLASSE_7) ressources += -solde;
+    }
+    totalBilan = Math.round(totalBilan * 100) / 100;
+    ressources = Math.round(ressources * 100) / 100;
+
+    const criteres = [
+      {
+        critere: 'Total du bilan',
+        valeur: totalBilan,
+        seuil: SEUIL_BILAN_AUDITEUR,
+        franchi: totalBilan > SEUIL_BILAN_AUDITEUR,
+        detail: `Total du bilan approché à ${totalBilan.toLocaleString('fr-FR')} · seuil ${SEUIL_BILAN_AUDITEUR.toLocaleString('fr-FR')} FCFA`,
+      },
+      {
+        critere: 'Ressources annuelles',
+        valeur: ressources,
+        seuil: SEUIL_RESSOURCES_AUDITEUR,
+        franchi: ressources > SEUIL_RESSOURCES_AUDITEUR,
+        detail: `Ressources de l'exercice ${ressources.toLocaleString('fr-FR')} · seuil ${SEUIL_RESSOURCES_AUDITEUR.toLocaleString('fr-FR')} FCFA`,
+      },
+      {
+        critere: 'Effectif permanent',
+        valeur: effectifPermanent,
+        seuil: SEUIL_EFFECTIF_AUDITEUR,
+        franchi: effectifPermanent > SEUIL_EFFECTIF_AUDITEUR,
+        detail:
+          effectifPermanent > 0
+            ? `${effectifPermanent} personnes employées à titre permanent · seuil ${SEUIL_EFFECTIF_AUDITEUR}`
+            : "Effectif non renseigné · à saisir dans Structure > Paramètres du dossier pour que ce critère soit mesuré",
+      },
+    ];
+
+    return {
+      criteres,
+      franchis: criteres.filter((c) => c.franchi),
+      // Le seuil est légalement exprimé en FCFA et n'est PAS converti · voir
+      // la note de tête de cette méthode.
+      conversionAppliquee: false,
+      source: 'Acte uniforme SYCEBNL du 22 décembre 2022, article 19 (sanctions : articles 24 à 27)',
+    };
+  }
+
   async analyser(tenantId: string, exerciceId: string): Promise<RapportControles> {
     const ex = await this.exercice(tenantId, exerciceId);
     // Le jeu d'états commande un contrôle : le S.M.T est une comptabilité de
@@ -685,6 +778,42 @@ export class ControlesService {
           "Les comptes de classe 9 sont hors bilan et hors résultat : ils ne modifient ni le résultat ni la situation nette, et se présentent en note annexe.",
         action: 'Vérifiez que la note annexe des contributions volontaires est renseignée.',
         occurrences: classe9.map((n) => ({ reference: n, detail: 'Compte de classe 9 mouvementé' })),
+      });
+    }
+
+    // --- 10. Seuils de désignation de l'auditeur (SYCEBNL, art. 19) ---------
+    //
+    // Trois critères ALTERNATIFS : total du bilan supérieur à 100 000 000
+    // FCFA, ressources annuelles supérieures à 200 000 000 FCFA, ou effectif
+    // permanent supérieur à vingt personnes. Un seul suffit à rendre la
+    // désignation d'un auditeur OBLIGATOIRE (et l'article 24 assortit le
+    // dispositif de sanctions pénales).
+    //
+    // Le logiciel n'en portait rien : une entité pouvait franchir un seuil,
+    // arrêter ses comptes et les déposer sans que rien ne le signale, alors
+    // que les deux montants sont calculés depuis toujours pour les états
+    // financiers, et que l'effectif est désormais renseigné sur le dossier.
+    //
+    // Le contrôle ne prétend PAS conclure : le total du bilan et les
+    // ressources sont ici approchés depuis la balance (classes 1 à 5 pour le
+    // bilan, classe 7 pour les ressources), pas repris de la liasse arrêtée.
+    // Il alerte, l'expert tranche · d'où la gravité AVERTISSEMENT.
+    const seuils = await this.seuilsAuditeur(tenantId, exerciceId, tenant.effectifPermanent);
+    if (seuils.franchis.length > 0) {
+      anomalies.push({
+        code: 'SEUIL_AUDITEUR_FRANCHI',
+        gravite: 'AVERTISSEMENT',
+        libelle: "Seuil de désignation d'un auditeur franchi",
+        consequence:
+          "L'article 19 de l'Acte uniforme SYCEBNL rend la désignation d'un auditeur OBLIGATOIRE dès qu'un seul des " +
+          'trois critères est franchi : total du bilan supérieur à 100 000 000 FCFA, ressources annuelles supérieures ' +
+          "à 200 000 000 FCFA, ou plus de vingt personnes employées à titre permanent. Les articles 24 à 27 prévoient " +
+          'des sanctions pénales.',
+        action:
+          "Faites désigner un auditeur, et prévoyez de lui remettre les états financiers et le rapport de gestion au " +
+          "moins 45 jours avant l'assemblée générale (art. 19, alinéa 4). Les montants ci-dessous sont approchés " +
+          'depuis la balance : confrontez-les à la liasse arrêtée avant de conclure.',
+        occurrences: seuils.franchis.map((f) => ({ reference: f.critere, detail: f.detail })),
       });
     }
 
