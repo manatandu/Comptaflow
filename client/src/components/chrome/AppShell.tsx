@@ -114,6 +114,10 @@ export function AppShell() {
         { label: 'Notes annexes', onClick: () => navigate('/notes-annexes') },
         { label: 'Documents obligatoires', onClick: () => navigate('/documents-obligatoires') },
         { label: 'Déclaration de TVA', separateurAvant: true, onClick: () => navigate('/declaration-tva') },
+        // Une ASBL exonérée d'impôt sur les sociétés reste redevable de tout
+        // ce qu'elle retient pour autrui, et de la déclaration même à zéro ·
+        // voir docs/fiscalite-asbl-rdc.md.
+        { label: 'Retenues et échéancier fiscal', onClick: () => navigate('/retenues') },
       ],
     },
     {

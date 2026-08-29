@@ -1534,3 +1534,63 @@ export interface Echeancier {
   alerte: { tranche: string; libelle: string; tresorerieProjetee: number; message: string } | null;
   lignesSansEcheance: number;
 }
+
+// --------------------------------------------------------------------------
+// Registre des retenues à la source et échéancier fiscal · voir
+// docs/fiscalite-asbl-rdc.md. Aucun calcul d'impôt : l'état recense ce que la
+// comptabilité porte déjà, en regard de l'échéance légale.
+// --------------------------------------------------------------------------
+
+export interface MoisRetenue {
+  mois: string;
+  retenu: number;
+  reverse: number;
+  solde: number;
+  echeance: string;
+  enRetard: boolean;
+}
+
+export interface NatureRetenueCalculee {
+  cle: string;
+  libelle: string;
+  beneficiaire: 'ETAT' | 'ORGANISME_SOCIAL';
+  echeance: string;
+  baseLegale: string;
+  reserve: string | null;
+  comptes: { numero: string; intitule: string; retenu: number; reverse: number }[];
+  mois: MoisRetenue[];
+  retenu: number;
+  reverse: number;
+  solde: number;
+  moisEnRetard: number;
+  prochaineEcheance: string;
+}
+
+export interface RegistreRetenues {
+  dateReference: string;
+  derniereVerificationEcheances: string;
+  natures: NatureRetenueCalculee[];
+  totalRetenu: number;
+  totalReverse: number;
+  totalDu: number;
+  comptesNonRattaches: { numero: string; intitule: string }[];
+  avertissements: string[];
+}
+
+export interface EcheancierFiscal {
+  dateReference: string;
+  derniereVerificationEcheances: string;
+  echeances: {
+    cle: string;
+    libelle: string;
+    beneficiaire: 'ETAT' | 'ORGANISME_SOCIAL';
+    date: string;
+    echeance: string;
+    baseLegale: string;
+    reserve: string | null;
+    montantDu: number;
+    moisEnRetard: number;
+  }[];
+  totalDu: number;
+  avertissements: string[];
+}
