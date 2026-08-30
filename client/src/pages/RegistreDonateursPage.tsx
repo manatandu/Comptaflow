@@ -228,12 +228,12 @@ export function RegistreDonateursPage() {
   );
 
   return (
-    <div className="p-2.5">
+    <div className="p-2">
       <EnteteImpression titre="Registre des donateurs" />
-      <div className="flex items-center justify-between mb-2.5">
+      <div className="flex items-center justify-between mb-1.5">
         <div>
-          <div className="text-[10.5px] font-mono text-text-dim">TRAITEMENT</div>
-          <h1 className="text-[15px] font-bold flex items-center gap-1.5">
+          <div className="text-[9.5px] font-mono text-text-dim leading-none">TRAITEMENT</div>
+          <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
             Registre des donateurs
             <Aide sujet="registreDonateurs" />
           </h1>

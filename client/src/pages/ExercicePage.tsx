@@ -162,9 +162,9 @@ export function ExercicePage() {
   };
 
   return (
-    <div className="p-2.5">
-      <div className="text-[10.5px] font-mono text-text-dim">TRAITEMENT · FIN D'EXERCICE</div>
-      <h1 className="text-[15px] font-bold mb-2.5 flex items-center gap-1.5">
+    <div className="p-2">
+      <div className="text-[9.5px] font-mono text-text-dim leading-none">TRAITEMENT · FIN D'EXERCICE</div>
+      <h1 className="text-[13px] font-bold leading-tight mb-1.5 flex items-center gap-1.5">
         Clôture d'exercice
         <Aide sujet="exerciceClos" />
       </h1>

@@ -182,12 +182,12 @@ export function PlanComptesPage() {
   };
 
   return (
-    <div className="p-2.5 flex flex-col" style={{ height: 'calc(100vh - 114px)' }}>
+    <div className="p-2 flex flex-col" style={{ height: 'calc(100vh - 96px)' }}>
       <EnteteImpression titre="Plan comptable" />
       <div className="flex items-center justify-between mb-2 shrink-0">
         <div>
-          <div className="text-[10.5px] font-mono text-text-dim">STRUCTURE</div>
-          <h1 className="text-[15px] font-bold">Plan comptable</h1>
+          <div className="text-[9.5px] font-mono text-text-dim leading-none">STRUCTURE</div>
+          <h1 className="text-[13px] font-bold leading-tight">Plan comptable</h1>
         </div>
         <div className="flex items-center gap-2">
           <input

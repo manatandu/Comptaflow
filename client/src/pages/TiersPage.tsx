@@ -364,9 +364,9 @@ export function TiersPage() {
 
   if (!estAdmin) {
     return (
-      <div className="p-2.5">
+      <div className="p-2">
       <EnteteImpression titre="Plan des tiers" />
-        <h1 className="text-[15px] font-bold mb-2.5">Plan des tiers</h1>
+        <h1 className="text-[13px] font-bold leading-tight mb-1.5">Plan des tiers</h1>
         <div className="border border-warning/30 bg-warning-soft px-4 py-3 text-[12.5px] max-w-[480px]">
           La gestion des tiers est réservée aux administrateurs du dossier.
         </div>
@@ -375,11 +375,11 @@ export function TiersPage() {
   }
 
   return (
-    <div className="p-2.5 flex flex-col" style={{ height: 'calc(100vh - 114px)' }}>
+    <div className="p-2 flex flex-col" style={{ height: 'calc(100vh - 96px)' }}>
       <div className="flex items-center justify-between mb-2 shrink-0">
         <div>
-          <div className="text-[10.5px] font-mono text-text-dim">STRUCTURE</div>
-          <h1 className="text-[15px] font-bold flex items-center gap-1.5">
+          <div className="text-[9.5px] font-mono text-text-dim leading-none">STRUCTURE</div>
+          <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
             Plan des tiers
             <Aide sujet="compte41" />
           </h1>
@@ -507,7 +507,7 @@ export function TiersPage() {
           {tiersSelectionne && (
             <div className="p-3 text-[11.5px]">
               {/* Volet Identification */}
-              <div className="font-mono text-[15px] font-bold">{tiersSelectionne.code}</div>
+              <div className="font-mono text-[13px] font-bold leading-tight">{tiersSelectionne.code}</div>
               <div className="text-[12.5px] mb-2.5">{tiersSelectionne.nom}</div>
               <div className="grid grid-cols-[92px_1fr] gap-x-2 gap-y-1.5 items-center mb-3">
                 <span className="text-text-dim text-right">Type :</span>

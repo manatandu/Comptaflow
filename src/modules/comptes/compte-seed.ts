@@ -1062,6 +1062,164 @@ const totauxClasse9: LigneSeed[] = [
   total('91', 'Contributions volontaires en nature', ClasseCompte.CLASSE_9, SOLDE),
 ];
 
+/**
+ * COMPTES DIVISIONNAIRES (3 chiffres) · le tiers intermédiaire entre les
+ * comptes principaux (2 chiffres) et les comptes d'imputation de base
+ * (4-5 chiffres), posé par la Section 1 du chapitre 2 : « les comptes
+ * divisionnaires à trois (03) chiffres ». Ajoutés le 2026-08-29, sur le même
+ * principe que les comptes principaux (voir `total()` ci-dessus) : NON
+ * complétés à huit chiffres, pour la même raison d'agrégation par
+ * `startsWith` — un "401" complété romprait le regroupement de ses enfants
+ * "40110000", "40130000", etc.
+ *
+ * Seuls les codes à 3 chiffres qui ont RÉELLEMENT des comptes de détail en
+ * dessous d'eux dans ce fichier sont repris ici : un code à 3 chiffres sans
+ * subdivision (ex. "103 Droit d'entrée") EST le compte d'imputation lui-même,
+ * déjà semé en "10300000" plus haut · lui donner aussi une ligne à 3 chiffres
+ * créerait un doublon vide, jamais mouvementé.
+ *
+ * Anomalie du texte source, non corrigée silencieusement (comme pour "452",
+ * voir plus haut) : les comptes "832" et "842" annoncent des subdivisions
+ * (8311/8315, 8411/8412/8415) dont la numérotation ne commence PAS par leur
+ * propre préfixe · ces enfants sont numériquement rattachés à 831/841. Un
+ * total à 832/842 n'aurait donc rien à agréger. Ils sont volontairement omis
+ * ici ; voir le commentaire de classe8-comptes80-89.md dans le skill sycebnl.
+ */
+const totauxDivisionnaires: LigneSeed[] = [
+// ===== CLASSE 1 =====
+  total('101', 'Dotation non consomptible sans droit de reprise', ClasseCompte.CLASSE_1, SOLDE),
+  total('102', 'Dotation non consomptible avec droit de reprise', ClasseCompte.CLASSE_1, SOLDE),
+  total('104', 'Dotation consomptible', ClasseCompte.CLASSE_1, SOLDE),
+  total('106', 'Écarts de réévaluation', ClasseCompte.CLASSE_1, SOLDE),
+  total('141', "Subventions d'équipement", ClasseCompte.CLASSE_1, SOLDE),
+  total('167', "Fonds provenant de dons et legs d'immobilisations", ClasseCompte.CLASSE_1, SOLDE),
+  total('185', 'Dépôts et cautionnements reçus', ClasseCompte.CLASSE_1, SOLDE),
+  total('186', 'Intérêts courus', ClasseCompte.CLASSE_1, SOLDE),
+  total('187', 'Dettes de location-acquisition', ClasseCompte.CLASSE_1, SOLDE),
+  total('198', 'Autres provisions pour risques et charges', ClasseCompte.CLASSE_1, SOLDE),
+
+// ===== CLASSE 2 =====
+  total('201', 'Immobilisations incorporelles', ClasseCompte.CLASSE_2, SOLDE),
+  total('212', 'Brevets, licences, concessions et droits similaires', ClasseCompte.CLASSE_2, SOLDE),
+  total('213', 'Logiciels et sites internet', ClasseCompte.CLASSE_2, SOLDE),
+  total('218', 'Autres droits et valeurs incorporels', ClasseCompte.CLASSE_2, SOLDE),
+  total('219', 'Immobilisations incorporelles en cours', ClasseCompte.CLASSE_2, SOLDE),
+  total('221', 'Terrains agricoles et forestiers', ClasseCompte.CLASSE_2, SOLDE),
+  total('222', 'Terrains nus', ClasseCompte.CLASSE_2, SOLDE),
+  total('223', 'Terrains bâtis', ClasseCompte.CLASSE_2, SOLDE),
+  total('224', 'Travaux de mise en valeur des terrains', ClasseCompte.CLASSE_2, SOLDE),
+  total('226', 'Terrains aménagés', ClasseCompte.CLASSE_2, SOLDE),
+  total('228', 'Autres terrains', ClasseCompte.CLASSE_2, SOLDE),
+  total('229', 'Aménagements de terrains en cours', ClasseCompte.CLASSE_2, SOLDE),
+  total('231', 'Bâtiments industriels, agricoles, administratifs, commerciaux, religieux et autres sur sol propre', ClasseCompte.CLASSE_2, SOLDE),
+  total('232', "Bâtiments industriels, agricoles, administratifs, commerciaux, religieux et autres sur sol d'autrui", ClasseCompte.CLASSE_2, SOLDE),
+  total('233', "Ouvrages d'infrastructure", ClasseCompte.CLASSE_2, SOLDE),
+  total('234', 'Aménagements, agencements et installations techniques', ClasseCompte.CLASSE_2, SOLDE),
+  total('235', 'Aménagements de bureaux et assimilés', ClasseCompte.CLASSE_2, SOLDE),
+  total('238', 'Autres installations et agencements', ClasseCompte.CLASSE_2, SOLDE),
+  total('239', 'Bâtiments, aménagements, agencements et installations en cours', ClasseCompte.CLASSE_2, SOLDE),
+  total('241', 'Matériel et outillage industriel et commercial', ClasseCompte.CLASSE_2, SOLDE),
+  total('242', 'Matériel et outillage agricole', ClasseCompte.CLASSE_2, SOLDE),
+  total('244', 'Matériel et mobilier', ClasseCompte.CLASSE_2, SOLDE),
+  total('245', 'Matériel de transport', ClasseCompte.CLASSE_2, SOLDE),
+  total('246', 'Actifs biologiques', ClasseCompte.CLASSE_2, SOLDE),
+  total('247', 'Agencements, aménagements du matériel et des actifs biologiques', ClasseCompte.CLASSE_2, SOLDE),
+  total('248', 'Autres matériels et mobiliers', ClasseCompte.CLASSE_2, SOLDE),
+  total('249', 'Matériels et actifs biologiques en cours', ClasseCompte.CLASSE_2, SOLDE),
+  total('271', 'Prêts et créances', ClasseCompte.CLASSE_2, SOLDE),
+  total('272', 'Prêts au personnel', ClasseCompte.CLASSE_2, SOLDE),
+  total('273', "Créances sur l'Etat", ClasseCompte.CLASSE_2, SOLDE),
+  total('274', 'Titres immobilisés', ClasseCompte.CLASSE_2, SOLDE),
+  total('275', 'Dépôts et cautionnements versés', ClasseCompte.CLASSE_2, SOLDE),
+  total('276', 'Intérêts courus', ClasseCompte.CLASSE_2, SOLDE),
+  total('278', 'Immobilisations financières diverses', ClasseCompte.CLASSE_2, SOLDE),
+  total('281', 'Amortissements des immobilisations incorporelles', ClasseCompte.CLASSE_2, SOLDE),
+  total('282', 'Amortissements des terrains', ClasseCompte.CLASSE_2, SOLDE),
+  total('283', 'Amortissements des bâtiments, installations techniques et agencements', ClasseCompte.CLASSE_2, SOLDE),
+  total('284', 'Amortissements du matériel', ClasseCompte.CLASSE_2, SOLDE),
+  total('290', "Dépréciations des immobilisations destinées à la vente provenant de dons et legs non encore reçus et d'usufruit temporaire", ClasseCompte.CLASSE_2, SOLDE),
+  total('291', 'Dépréciations des immobilisations incorporelles', ClasseCompte.CLASSE_2, SOLDE),
+  total('292', 'Dépréciations des terrains', ClasseCompte.CLASSE_2, SOLDE),
+  total('293', 'Dépréciations des bâtiments, installations techniques et agencements', ClasseCompte.CLASSE_2, SOLDE),
+  total('294', "Dépréciations du matériel, du mobilier et de l'actif biologique", ClasseCompte.CLASSE_2, SOLDE),
+  total('295', 'Dépréciations des avances et acomptes versés sur immobilisations', ClasseCompte.CLASSE_2, SOLDE),
+  total('296', 'Dépréciations des titres de participation', ClasseCompte.CLASSE_2, SOLDE),
+  total('297', 'Dépréciations des autres immobilisations financières', ClasseCompte.CLASSE_2, SOLDE),
+
+// ===== CLASSE 3 =====
+  total('335', 'Emballages', ClasseCompte.CLASSE_3, SOLDE),
+  total('363', 'Actifs biologiques', ClasseCompte.CLASSE_3, SOLDE),
+  total('377', 'Stocks en consignation ou en dépôt', ClasseCompte.CLASSE_3, SOLDE),
+
+// ===== CLASSE 4 =====
+  total('401', 'Fournisseurs, dettes en compte', ClasseCompte.CLASSE_4, DETAIL),
+  total('402', 'Fournisseurs, effets à payer', ClasseCompte.CLASSE_4, DETAIL),
+  total('408', 'Fournisseurs, factures non parvenues', ClasseCompte.CLASSE_4, DETAIL),
+  total('409', 'Fournisseurs débiteurs', ClasseCompte.CLASSE_4, DETAIL),
+  total('413', 'Adhérents, Clients-usagers, chèques, effets et autres valeurs impayés', ClasseCompte.CLASSE_4, DETAIL),
+  total('416', 'Créances, adhérents, clients-usagers litigieuses ou douteuses', ClasseCompte.CLASSE_4, DETAIL),
+  total('418', 'Adhérents, clients-usagers produits à recevoir', ClasseCompte.CLASSE_4, DETAIL),
+  total('419', 'Adhérents, Clients-usagers créditeurs', ClasseCompte.CLASSE_4, DETAIL),
+  total('421', 'Avances et acomptes', ClasseCompte.CLASSE_4, SOLDE),
+  total('423', 'Oppositions, saisies arrêts', ClasseCompte.CLASSE_4, SOLDE),
+  total('424', 'Œuvres sociales internes', ClasseCompte.CLASSE_4, SOLDE),
+  total('425', 'Représentants du personnel', ClasseCompte.CLASSE_4, SOLDE),
+  total('428', 'Personnel, charges à payer et produits à recevoir', ClasseCompte.CLASSE_4, SOLDE),
+  total('431', 'Sécurité sociale', ClasseCompte.CLASSE_4, SOLDE),
+  total('432', 'Caisses de retraite', ClasseCompte.CLASSE_4, SOLDE),
+  total('433', 'Autres organismes sociaux', ClasseCompte.CLASSE_4, SOLDE),
+  total('438', 'Organismes sociaux, charges à payer et produits à recevoir', ClasseCompte.CLASSE_4, SOLDE),
+  total('442', 'Etat, autres impôts et taxes', ClasseCompte.CLASSE_4, SOLDE),
+  total('443', 'Etat, T.V.A. Facturée', ClasseCompte.CLASSE_4, SOLDE),
+  total('444', 'T.V.A. due ou crédit de T.V.A.', ClasseCompte.CLASSE_4, SOLDE),
+  total('445', 'T.V.A. Récupérable', ClasseCompte.CLASSE_4, SOLDE),
+  total('447', 'Etat, impôts retenus à la source', ClasseCompte.CLASSE_4, SOLDE),
+  total('448', 'État, charges à payer et produits à recevoir', ClasseCompte.CLASSE_4, SOLDE),
+  total('449', 'Etat, créances et dettes diverses', ClasseCompte.CLASSE_4, SOLDE),
+  total('451', 'Associations et assimilées', ClasseCompte.CLASSE_4, DETAIL),
+  total('452', 'Fondations et assimilées', ClasseCompte.CLASSE_4, DETAIL),
+  total('453', 'Ordres professionnels', ClasseCompte.CLASSE_4, DETAIL),
+  total('454', 'Organisations politiques', ClasseCompte.CLASSE_4, DETAIL),
+  total('455', 'Organisations syndicales', ClasseCompte.CLASSE_4, DETAIL),
+  total('456', 'Organisations religieuses, apporteurs', ClasseCompte.CLASSE_4, DETAIL),
+  total('457', 'Mécènes, bénévoles et assimilés', ClasseCompte.CLASSE_4, DETAIL),
+  total('469', "Fonds d'administration à recevoir", ClasseCompte.CLASSE_4, DETAIL),
+  total('471', 'Débiteurs et créditeurs divers', ClasseCompte.CLASSE_4, DETAIL),
+  total('472', 'Créances et dettes sur titres de placement', ClasseCompte.CLASSE_4, DETAIL),
+  total('473', 'Organismes nationaux et internationaux – subventions à recevoir', ClasseCompte.CLASSE_4, DETAIL),
+  total('474', 'Compte de répartition périodique des charges et des produits', ClasseCompte.CLASSE_4, DETAIL),
+  total('478', 'Écarts de conversion - actif', ClasseCompte.CLASSE_4, DETAIL),
+  total('481', "Fournisseurs d'investissements", ClasseCompte.CLASSE_4, SOLDE),
+  total('485', "Créances sur cessions d'immobilisations", ClasseCompte.CLASSE_4, SOLDE),
+  total('486', "Dettes et créances des legs et dons d'immobilisations", ClasseCompte.CLASSE_4, SOLDE),
+  total('488', 'Autres créances hors activités ordinaires', ClasseCompte.CLASSE_4, SOLDE),
+  total('491', 'Adhérents et clients-usagers, dépréciations', ClasseCompte.CLASSE_4, SOLDE),
+  total('498', 'Créances H.A.O.', ClasseCompte.CLASSE_4, SOLDE),
+  total('499', 'Provisions pour risques et charges à court terme', ClasseCompte.CLASSE_4, SOLDE),
+
+// ===== CLASSE 5 =====
+  total('502', 'Actions', ClasseCompte.CLASSE_5, SOLDE),
+  total('503', 'Obligations', ClasseCompte.CLASSE_5, SOLDE),
+  total('504', 'Bons de souscription', ClasseCompte.CLASSE_5, SOLDE),
+  total('518', 'Valeurs à encaisser, autres', ClasseCompte.CLASSE_5, SOLDE),
+  total('521', 'Banques locales', ClasseCompte.CLASSE_5, SOLDE),
+  total('526', 'Banques, intérêts courus', ClasseCompte.CLASSE_5, SOLDE),
+  total('536', 'Établissements financiers, intérêts courus', ClasseCompte.CLASSE_5, SOLDE),
+
+// ===== CLASSE 6 =====
+  total('603', 'Variations des stocks de biens achetés et reçus en dons en nature à distribuer', ClasseCompte.CLASSE_6, AUCUN),
+  total('606', 'Achats autres activités', ClasseCompte.CLASSE_6, AUCUN),
+  total('681', "Dotations aux amortissements d'exploitation", ClasseCompte.CLASSE_6, AUCUN),
+
+// ===== CLASSE 7 =====
+  total('704', 'Revenus liés à la générosité', ClasseCompte.CLASSE_7, AUCUN),
+  total('705', 'Ventes de marchandises, de services et de produits finis', ClasseCompte.CLASSE_7, AUCUN),
+  total('708', 'Autres revenus', ClasseCompte.CLASSE_7, AUCUN),
+  total('754', 'Dons en nature courants', ClasseCompte.CLASSE_7, AUCUN),
+  total('758', 'Produits divers', ClasseCompte.CLASSE_7, AUCUN),
+
+];
+
 export const PLAN_COMPTES_SYCEBNL: Array<{
   numero: string;
   intitule: string;
@@ -1071,6 +1229,7 @@ export const PLAN_COMPTES_SYCEBNL: Array<{
 }> = [
   ...totauxClasse1,
   ...classe1,
+  ...totauxDivisionnaires,
   ...totauxClasse2,
   ...classe2,
   ...totauxClasse3,

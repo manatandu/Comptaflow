@@ -1,12 +1,18 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Referentiel } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { LicenceGuard } from '../licence/licence.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { ReferentielGuard } from '../../common/guards/referentiel.guard';
+import { ReferentielsAutorises } from '../../common/decorators/referentiels.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { ExonerationsService } from './exonerations.service';
 import { CreerExonerationDto, ModifierExonerationDto } from './dto/exoneration.dto';
 
-@UseGuards(JwtAuthGuard, LicenceGuard, RolesGuard)
+// Les facilités douanières de l'article 39 de la loi n° 004/2001 sont
+// propres aux ONG et associations · sans objet pour un dossier SYSCOHADA.
+@ReferentielsAutorises(Referentiel.SYCEBNL)
+@UseGuards(JwtAuthGuard, LicenceGuard, RolesGuard, ReferentielGuard)
 @Controller('exonerations')
 export class ExonerationsController {
   constructor(private readonly exonerations: ExonerationsService) {}

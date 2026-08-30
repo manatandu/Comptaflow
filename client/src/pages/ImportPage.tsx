@@ -114,10 +114,10 @@ export function ImportPage() {
   const champsManquants = (analyse?.champs ?? []).filter((c) => c.obligatoire && !mapping[c.cle]);
 
   return (
-    <div className="p-2.5">
+    <div className="p-2">
       <div className="mb-2.5">
-        <div className="text-[10.5px] font-mono text-text-dim">FICHIER</div>
-        <h1 className="text-[15px] font-bold flex items-center gap-1.5">
+        <div className="text-[9.5px] font-mono text-text-dim leading-none">FICHIER</div>
+        <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
           Importer des données
           <Aide sujet="import" />
         </h1>

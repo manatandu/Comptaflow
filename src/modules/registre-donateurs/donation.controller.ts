@@ -1,9 +1,11 @@
 import { BadRequestException, Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
-import { RoleUtilisateur } from '@prisma/client';
+import { RoleUtilisateur, Referentiel } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { LicenceGuard } from '../licence/licence.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { ReferentielGuard } from '../../common/guards/referentiel.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { ReferentielsAutorises } from '../../common/decorators/referentiels.decorator';
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { DonationService } from './donation.service';
 import {
@@ -32,7 +34,10 @@ const EXERCICE_REQUIS = new ParseUUIDPipe({
  * typiquement en LECTURE_SEULE. Tenue réservée à ADMIN_CABINET/COMPTABLE,
  * comme la saisie d'écritures.
  */
-@UseGuards(JwtAuthGuard, LicenceGuard, RolesGuard)
+// Le registre des donateurs (art. 17-18 SYCEBNL) n'a pas d'équivalent
+// SYSCOHADA · une entreprise n'a pas de « donateurs » au sens de l'Acte uniforme.
+@ReferentielsAutorises(Referentiel.SYCEBNL)
+@UseGuards(JwtAuthGuard, LicenceGuard, RolesGuard, ReferentielGuard)
 @Controller('registre-donateurs')
 export class DonationController {
   constructor(private readonly donationService: DonationService) {}

@@ -1466,3 +1466,169 @@ manuel EDM (#7) désormais lu en entier :
   d'outils ouvrent directement le bon état (`?onglet=`).
 
 Rien n'a changé côté API, logique des états financiers, ni exports Excel.
+
+---
+
+## 7. Orientation ERP : plusieurs logiciels, un seul progiciel (29/08/2026)
+
+Décidé après une discussion de fond sur le modèle de licence et l'inspiration
+Odoo (voir `docs/architecture-odoo-inspiration.md`), et confirmé
+explicitement par l'utilisateur : **la vision ERP se construit comme
+plusieurs logiciels distincts, chacun avec sa propre fenêtre à part entière,
+qui partagent les mêmes objets métier.**
+
+Ce que ça veut dire, concrètement, pour tout module futur (Paie, Immobilisations
+avancées, Trésorerie avancée, et tout ce qui suivra) :
+
+- **Distinct dans l'interface** : sa propre icône sur l'accueil, sa propre
+  entrée de menu, sa propre fenêtre MDI, potentiellement sa propre activation
+  ou son propre palier de licence (voir le modèle « Cabinet » en discussion).
+  Ce n'est PAS un onglet de plus dans un écran existant.
+- **Unifié dans la donnée, sans exception** : AUCUNE table parallèle à
+  `Compte`, `Tiers` ou `Journal`. Le salarié d'un futur module Paie EST un
+  `Tiers` de classe 4, pas une entité « Employé » séparée. L'immobilisation
+  d'un module avancé utilise le `Compte` d'immobilisation déjà semé, pas un
+  plan comptable propre au module. Toute écriture générée par un module passe
+  par le même `EcritureService`, dans le même `Journal`, avec le même
+  lettrage — jamais par un export/import vers la comptabilité.
+
+C'est le patron qu'Odoo lui-même a adopté avec ses Apps (Comptabilité, Stock,
+RH séparées à l'écran et à la facturation, un seul `res.partner` derrière
+toutes), et c'est ce qui distingue un vrai progiciel intégré (PGI) d'une
+collection d'outils qui se synchronisent tant bien que mal — le défaut
+précis des concurrents SYCEBNL étroits identifiés dans la recherche
+(GETAFIS, TRACKER, MAASPRO X3 : montage d'états depuis une balance importée,
+pas de tenue de comptes dans le même outil).
+
+**Règle de revue pour tout futur module** : avant d'ajouter une table,
+vérifier si `Compte`, `Tiers`, `Journal` ou `Ecriture`/`LigneEcriture`
+couvrent déjà le besoin. Une nouvelle table métier ne se justifie que pour
+ce qui n'a réellement aucun équivalent dans le socle comptable existant
+(ex. : un bulletin de paie a des rubriques propres qu'aucune table actuelle
+ne modélise — mais son écriture de passation, elle, va dans `Ecriture`
+comme n'importe quelle autre pièce).
+
+---
+
+## 8. Feuille de route : SYCEBNL au complet, puis SYSCOHADA (29/08/2026)
+
+Décidé explicitement par l'utilisateur : « On fini d'abord sycebnl au complet
+puis on passe par OHADA. » Ce qui suit fixe le mécanisme qui rend cette
+séquence réelle dans le logiciel, pas seulement dans ce document, et l'ordre
+qui en découle pour tout le reste de la feuille de route.
+
+### 8.1 Mécanisme : la division SYCEBNL / SYSCOHADA est maintenant appliquée
+
+Suite de la §7 (plusieurs logiciels, un seul progiciel) : un module propre à
+un référentiel doit être **invisible et inaccessible** pour un dossier de
+l'autre référentiel, aux deux bouts de la chaîne — pas seulement absent du
+menu.
+
+- **Backend** : décorateur `@ReferentielsAutorises(Referentiel.SYCEBNL)` +
+  `ReferentielGuard` (`src/common/decorators/referentiels.decorator.ts`,
+  `src/common/guards/referentiel.guard.ts`), posé après `RolesGuard` sur le
+  modèle exact de `@Roles()`/`RolesGuard`. Sans décorateur, une route reste
+  commune aux deux référentiels — c'est le comportement actuel de tout ce qui
+  est déjà livré (comptabilité générale, immobilisations, tiers, trésorerie).
+  Appliqué à `ExonerationsController` et `DonationController` (registre des
+  donateurs), les deux premiers modules réellement propres à une EBNL.
+- **Client** : `referentielsApplicables?: Referentiel[]` sur `DefinitionFenetre`
+  (`client/src/lib/registre-fenetres.tsx`) et `TuileDef`
+  (`client/src/pages/AccueilPage.tsx`), résolu par la fonction pure
+  `fenetreDisponible()` (`client/src/lib/referentiel-fenetre.ts`, isolée en
+  `.ts` pour rester testable sans tirer 30 imports de composants). Absent =
+  disponible pour les deux ; présent = filtré côté menu (`AppShell.tsx`) et
+  accueil. Référentiel du dossier inconnu (pas encore chargé) → rien de propre
+  à un référentiel ne s'affiche, plus sûr que d'afficher puis retirer une
+  fenêtre après coup.
+- **Défense en profondeur, pas redondance** : la garde serveur existe pour la
+  même raison que `RolesGuard` double le masquage des boutons — un appel API
+  construit à la main ne doit pas contourner ce que l'interface cache.
+
+Deux tiles de l'accueil restent volontairement **non filtrées** malgré leur
+regroupement visuel actuel sous « Propre aux entités à but non lucratif » —
+décision à trancher au fil des prochaines phases, pas tranchée ici : « États
+analytiques » et « Bailleurs de fonds » sont bien spécifiques SYCEBNL (fonds
+de bailleurs, comptabilité analytique par projet) et devraient à terme porter
+`referentielsApplicables: ['SYCEBNL']` ; « Retenues et fiscal » concerne les
+obligations d'un employeur/agent de retenue (IRPP, ONEM, CNSS) qui ne
+dépendent pas du référentiel comptable et doit très probablement rester
+commune aux deux.
+
+**Règle pour tout module futur** : dès qu'un module est identifié comme
+propre à un seul référentiel (voir 8.3 et 8.4), il porte
+`@ReferentielsAutorises(...)` côté serveur et `referentielsApplicables`
+côté client **dès son premier commit**, pas en rattrapage.
+
+### 8.2 Ordre : SYCEBNL entièrement avant tout chantier SYSCOHADA
+
+Le référentiel `Tenant.referentiel` existe déjà (choisi à l'inscription,
+item 36 de la §4) : un dossier OmegaX est SYCEBNL ou SYSCOHADA dès sa
+création, jamais les deux. Ça ne change pas. Ce qui change, c'est
+l'**ordre de construction** :
+
+1. **Tout ce qui reste dans `docs/plan-sycebnl-complet.md`** (phases 1 à 8 de
+   son propre séquencement — notes annexes, TFT, registres légaux C1-C5,
+   opérations spécifiques B1-B21, moteur de contrôles D1-D2, états SMT/projets
+   restants, veille de seuils) **avant** d'ouvrir le moindre chantier
+   SYSCOHADA. Ce document reste la référence détaillée ; celui-ci n'en répète
+   pas le contenu.
+2. **Puis** les deux modules identifiés dans la discussion sur les modules
+   pertinents à ajouter (voir 8.3) — eux aussi propres au périmètre SYCEBNL
+   actuel, donc logiquement avant la bascule SYSCOHADA plutôt qu'après.
+3. **Ensuite seulement**, la Phase 3 SYSCOHADA de l'item 16 (§4) : Gestion
+   commerciale/Ventes-Clients d'abord (voir 8.4), OHADA→IFRS et Consolidation
+   plus tard.
+
+Justification : la valeur ajoutée face aux concurrents identifiés dans la
+recherche (`docs/architecture-odoo-inspiration.md`) est précisément la
+profondeur SYCEBNL — aucun des logiciels étroits observés (GETAFIS, TRACKER,
+MAASPRO X3, OdaCompta) ne va jusqu'aux opérations spécifiques EBNL ni au
+moteur de contrôles du référentiel. Diluer l'effort vers SYSCOHADA avant
+d'avoir fini SYCEBNL affaiblirait cet avantage sans en construire un autre à
+la place.
+
+### 8.3 Deux modules SYCEBNL identifiés, pas encore construits
+
+Retenus lors de la discussion sur les modules pertinents à ajouter au groupe
+« Propre aux entités à but non lucratif », à construire **après**
+`plan-sycebnl-complet.md` mais **avant** la Phase 3 SYSCOHADA (8.2, étape 2) :
+
+- **Achats et engagements de dépense** : suivi d'un engagement (bon de
+  commande, contrat signé) avant son exécution comptable — le référentiel
+  lui-même en a déjà besoin pour la colonne « Engagement » du tableau
+  d'exécution budgétaire (voir `plan-sycebnl-complet.md`, A6 : « bons de
+  commande non exécutés et contrats signés non exécutés · données hors
+  comptabilité, à saisir »). Construire ce module maintenant, plutôt qu'une
+  saisie ad hoc dans A6, évite de bâtir deux fois la même notion
+  d'engagement.
+- **Gestion des subventions** : suivi d'une subvention de bout en bout
+  (notification, versements échelonnés, quote-part rapportée au résultat,
+  restitution du solde non utilisé) — le socle comptable existe déjà
+  (comptes 14/71/477/4739, opérations B9/B12 de `plan-sycebnl-complet.md`,
+  déjà livrées comme écritures-types), ce qui manque est le suivi du dossier
+  de subvention *en tant que tel* (échéancier de versements attendus,
+  conditions du bailleur, statut), sur le modèle de ce que `Bailleur` fait
+  déjà pour la comptabilité analytique par projet — donc une extension de ce
+  module existant plutôt qu'une brique neuve, en respectant la règle de
+  revue de la §7 (pas de table parallèle à `Ecriture`).
+
+Ces deux modules restent **à valider explicitement avant d'être attaqués**,
+comme toute brique de la §4 — cette section fixe leur place dans l'ordre, pas
+un feu vert pour les construire.
+
+### 8.4 Aperçu SYSCOHADA (après SYCEBNL, non détaillé ici)
+
+Une fois 8.2 étape 1 et 2 terminées, le premier chantier SYSCOHADA est la
+**Gestion commerciale / Ventes-Clients** (devis, commande client, facturation)
+— le module le plus naturellement demandé par une entité commerciale et sans
+équivalent SYCEBNL (une EBNL ne facture pas de clients au sens SYSCOHADA).
+Comme tout module futur (§7) : ses propres fenêtres, mais les mêmes `Tiers`
+de classe 4 et le même `EcritureService` que le reste — jamais un plan de
+facturation parallèle à la comptabilité. Le détail (structure du devis, cycle
+de validation, lien avec le stock) se planifiera avec le même niveau de
+rigueur que `plan-sycebnl-complet.md`, le moment venu — pas avant, pour ne
+pas retomber dans l'écueil que ce document corrige justement pour SYCEBNL
+(item 15 de la §4 : mélanger une intention et un inventaire réel). OHADA→IFRS
+et la Consolidation (item 16 de la §4) restent plus loin encore sur cette
+même ligne.

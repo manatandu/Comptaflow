@@ -49,6 +49,10 @@ import { AProposModale } from './AProposModale';
  */
 export function AppShell() {
   const { utilisateur, estAdmin, seDeconnecter } = useAuth();
+  // DIVISION SYCEBNL / SYSCOHADA · voir docs/plan-de-construction.md §8.
+  // Absent tant que le dossier n'est pas chargé : rien de propre à un
+  // référentiel ne s'affiche avant qu'on le connaisse.
+  const estSycebnl = utilisateur?.tenant.referentiel === 'SYCEBNL';
   const { exerciceCourant } = useExercice();
   const navigate = useNavigate();
   const location = useLocation();
@@ -158,7 +162,9 @@ export function AppShell() {
         { label: 'Régularisations et abonnements', onClick: () => navigate('/regularisations') },
         { label: 'Devises et réévaluation', onClick: () => navigate('/devises') },
         { label: 'Rappel et relevé', onClick: () => navigate('/relances') },
-        { label: 'Registre des donateurs', separateurAvant: true, onClick: () => navigate('/registre-donateurs') },
+        ...(estSycebnl
+          ? [{ label: 'Registre des donateurs', separateurAvant: true, onClick: () => navigate('/registre-donateurs') }]
+          : []),
         { label: "Fin d'exercice…", onClick: () => navigate('/exercice') },
       ],
     },
@@ -190,7 +196,9 @@ export function AppShell() {
         { label: 'Retenues et échéancier fiscal', onClick: () => navigate('/retenues') },
         // Les facilités douanières de l'article 39 de la loi 004/2001 · un
         // arrêté prévisionnel périmé se découvre d'ordinaire au port.
-        { label: 'Exonérations douanières et fiscales', onClick: () => navigate('/exonerations') },
+        ...(estSycebnl
+          ? [{ label: 'Exonérations douanières et fiscales', onClick: () => navigate('/exonerations') }]
+          : []),
       ],
     },
     {
@@ -239,7 +247,7 @@ export function AppShell() {
         avec lui, et fait ressortir le blanc des fenêtres.
       */}
       <div
-        className="ecran-seul h-[34px] flex items-center justify-between px-3 text-white text-[12px] shrink-0 relative"
+        className="ecran-seul h-[30px] flex items-center justify-between px-3 text-white text-[11.5px] shrink-0 relative"
         style={{ background: 'linear-gradient(180deg, var(--titlebar-from), var(--titlebar-to))' }}
       >
         {/* Filet lumineux en haut : la profondeur vient de là, pas d'une ombre. */}

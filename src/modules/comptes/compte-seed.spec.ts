@@ -53,3 +53,55 @@ describe('comptes principaux (2 chiffres)', () => {
     expect(totaux.every((c) => !/^\d{3,13}$/.test(c.numero))).toBe(true);
   });
 });
+
+/**
+ * COMPTES DIVISIONNAIRES (3 chiffres) · le palier intermédiaire entre les
+ * comptes principaux et les comptes d'imputation de base. Mêmes garanties
+ * que pour les principaux, adaptées : ici, un code à 3 chiffres SANS
+ * subdivision est le compte d'imputation lui-même (déjà semé en 8 chiffres)
+ * et ne doit PAS réapparaître comme Total, sous peine de doublon vide.
+ */
+describe('comptes divisionnaires (3 chiffres)', () => {
+  const divisionnaires = PLAN_COMPTES_SYCEBNL.filter((c) => c.numero.length === 3);
+  const detail = PLAN_COMPTES_SYCEBNL.filter((c) => c.numero.length > 3);
+
+  it('sème un en-tête par regroupement à 3 chiffres réellement subdivisé, tous en type Total', () => {
+    expect(divisionnaires).toHaveLength(118);
+    expect(divisionnaires.every((c) => c.typeCompte === 'TOTAL')).toBe(true);
+  });
+
+  it("n'entre jamais en collision avec le numéro d'un compte Détail", () => {
+    const numerosDetail = new Set(detail.map((c) => c.numero));
+    for (const t of divisionnaires) {
+      expect(numerosDetail.has(t.numero)).toBe(false);
+    }
+  });
+
+  it('regroupe au moins un compte Détail réel, sans quoi l’en-tête serait orphelin', () => {
+    for (const t of divisionnaires) {
+      const enfants = detail.filter((d) => d.numero.startsWith(t.numero) && d.classe === t.classe);
+      expect(enfants.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('un code à 3 chiffres sans subdivision reste un compte de détail, pas un doublon Total', () => {
+    // Contre-exemple direct : "103 Droit d'entrée" n'a aucun sous-compte
+    // dans le texte, il EST le compte d'imputation ("10300000"). Il ne doit
+    // donc jamais apparaître aussi comme Total à 3 chiffres.
+    expect(divisionnaires.some((t) => t.numero === '103')).toBe(false);
+    const droitEntree = PLAN_COMPTES_SYCEBNL.find((c) => c.numero === '10300000');
+    expect(droitEntree?.typeCompte).not.toBe('TOTAL');
+  });
+
+  it('les deux anomalies de numérotation (832, 842) sont volontairement omises', () => {
+    // Leurs enfants annoncés (8311/8315, 8411/8412/8415) ne commencent pas
+    // par leur propre préfixe (831/841 au lieu de 832/842) : un total à
+    // 832/842 n'aurait rien à agréger. Voir le commentaire de compte-seed.ts.
+    expect(divisionnaires.some((t) => t.numero === '832')).toBe(false);
+    expect(divisionnaires.some((t) => t.numero === '842')).toBe(false);
+  });
+
+  it('un compte à 3 chiffres ne peut pas naître autrement que de ce semis', () => {
+    expect(divisionnaires.every((c) => !/^\d{4,13}$/.test(c.numero))).toBe(true);
+  });
+});

@@ -25,7 +25,7 @@ import { FenetreCouranteProvider } from '../../lib/actions-fenetre';
  * bouge vite, défaut classique des implémentations naïves.
  */
 
-const HAUTEUR_TITRE = 30;
+const HAUTEUR_TITRE = 26;
 const MARGE_MIN_VISIBLE = 90; // px de barre de titre toujours attrapables
 const LARGEUR_MIN = 380;
 const HAUTEUR_MIN = 220;

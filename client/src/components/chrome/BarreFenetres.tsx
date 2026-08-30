@@ -19,7 +19,7 @@ export function BarreFenetres() {
   const onglets = [...fenetres];
 
   return (
-    <div className="ecran-seul relative z-20 h-[30px] shrink-0 flex items-center gap-1 px-2 bg-chrome/80 backdrop-blur-md border-t border-border">
+    <div className="ecran-seul relative z-20 h-[26px] shrink-0 flex items-center gap-1 px-2 bg-chrome/80 backdrop-blur-md border-t border-border">
       <div className="flex-1 min-w-0 flex items-center gap-1 overflow-x-auto">
         {onglets.map((f) => {
           const active = f.cle === cleActive;

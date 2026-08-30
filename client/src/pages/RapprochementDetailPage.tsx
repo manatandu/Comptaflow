@@ -79,7 +79,7 @@ export function RapprochementDetailPage({ id: idProp }: { id?: string } = {}) {
   };
 
   return (
-    <div className="p-2.5">
+    <div className="p-2">
       <div className="text-[10.5px] font-mono text-text-dim mb-1">
         <button onClick={() => navigate('/rapprochement')} className="hover:underline">
           Rapprochement bancaire
@@ -92,7 +92,7 @@ export function RapprochementDetailPage({ id: idProp }: { id?: string } = {}) {
 
       {detail && (
         <>
-          <h1 className="text-[15px] font-bold mb-1">
+          <h1 className="text-[13px] font-bold leading-tight mb-1">
             {detail.rapprochement.compte ? `${detail.rapprochement.compte.numero} · ${detail.rapprochement.compte.intitule}` : 'Rapprochement'}
           </h1>
           <div className="text-[11.5px] text-text-dim mb-3">

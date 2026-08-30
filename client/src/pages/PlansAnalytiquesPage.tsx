@@ -180,11 +180,11 @@ export function PlansAnalytiquesPage() {
   };
 
   return (
-    <div className="p-2.5">
-      <div className="flex items-end justify-between mb-2.5 gap-3 flex-wrap">
+    <div className="p-2">
+      <div className="flex items-end justify-between mb-1.5 gap-3 flex-wrap">
         <div>
-          <div className="text-[10.5px] font-mono text-text-dim">STRUCTURE</div>
-          <h1 className="text-[15px] font-bold flex items-center gap-1.5">
+          <div className="text-[9.5px] font-mono text-text-dim leading-none">STRUCTURE</div>
+          <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
             Plans analytiques
             <Aide sujet="analytique" />
           </h1>
@@ -266,7 +266,7 @@ export function PlansAnalytiquesPage() {
             <span>BAILLEUR</span>
             <span>CONVENTION</span>
           </div>
-          <div className="max-h-[calc(100vh-260px)] overflow-y-auto">
+          <div className="max-h-[calc(100vh-240px)] overflow-y-auto">
             {listeFiltree.map((s) => (
               <button
                 key={s.id}

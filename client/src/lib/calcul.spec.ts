@@ -1,4 +1,5 @@
 import { evaluerExpression } from './calcul';
+import { fenetreDisponible } from './referentiel-fenetre';
 
 /**
  * L'analyseur de la calculette est écrit à la main plutôt que confié à
@@ -40,5 +41,25 @@ describe('evaluerExpression', () => {
     expect(evaluerExpression("1;console.log('x')")).toBeNull();
     expect(evaluerExpression('window.location')).toBeNull();
     expect(evaluerExpression('1+a')).toBeNull();
+  });
+});
+
+describe('fenetreDisponible · division SYCEBNL / SYSCOHADA', () => {
+  it("une fenêtre sans référentiel déclaré est disponible pour n'importe quel dossier", () => {
+    expect(fenetreDisponible({ referentielsApplicables: undefined } as never, 'SYSCOHADA')).toBe(true);
+    expect(fenetreDisponible({ referentielsApplicables: undefined } as never, undefined)).toBe(true);
+  });
+
+  it('une fenêtre SYCEBNL est cachée à un dossier SYSCOHADA', () => {
+    expect(fenetreDisponible({ referentielsApplicables: ['SYCEBNL'] } as never, 'SYSCOHADA')).toBe(false);
+  });
+
+  it('une fenêtre SYCEBNL est visible pour un dossier SYCEBNL', () => {
+    expect(fenetreDisponible({ referentielsApplicables: ['SYCEBNL'] } as never, 'SYCEBNL')).toBe(true);
+  });
+
+  it('une fenêtre propre à un référentiel reste cachée tant que le référentiel du dossier est inconnu', () => {
+    // Plus sûr que de l'afficher, puis la retirer, une fois le dossier chargé.
+    expect(fenetreDisponible({ referentielsApplicables: ['SYCEBNL'] } as never, undefined)).toBe(false);
   });
 });

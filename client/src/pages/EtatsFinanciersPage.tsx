@@ -290,12 +290,12 @@ function EtatsSystemeNormalPage() {
   );
 
   return (
-    <div className="p-2.5">
+    <div className="p-2">
       <EnteteImpression titre="États financiers" sousTitre={LIBELLE_ONGLET[onglet]} />
-      <div className="ecran-seul flex items-center justify-between mb-2.5">
+      <div className="ecran-seul flex items-center justify-between mb-1.5">
         <div>
-          <div className="text-[10.5px] font-mono text-text-dim">ÉTAT</div>
-          <h1 className="text-[15px] font-bold flex items-center gap-1.5">
+          <div className="text-[9.5px] font-mono text-text-dim leading-none">ÉTAT</div>
+          <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
             États financiers
             <Aide sujet="jeuEtats" />
           </h1>

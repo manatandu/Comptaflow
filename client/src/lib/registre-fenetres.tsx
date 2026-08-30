@@ -1,4 +1,7 @@
 import type { MetaFenetre } from './fenetres';
+import type { Referentiel } from './types';
+import { fenetreDisponible } from './referentiel-fenetre';
+export { fenetreDisponible };
 
 import { DashboardPage } from '../pages/DashboardPage';
 import { SaisiePage } from '../pages/SaisiePage';
@@ -52,6 +55,17 @@ export interface DefinitionFenetre extends MetaFenetre {
   motif: RegExp;
   /** `capture` = les groupes du motif, dans l'ordre. */
   rendre: (contexte: { capture: string[]; adresse: string }) => JSX.Element;
+  /**
+   * DIVISION SYCEBNL / SYSCOHADA · absent = fenêtre commune aux deux
+   * référentiels (comptabilité générale, immobilisations, trésorerie…).
+   * Présent = fenêtre propre à un référentiel, invisible pour l'autre · le
+   * registre des donateurs (art. 17-18 SYCEBNL) n'a pas de sens pour un
+   * dossier d'entreprise, et l'inverse viendra avec les premiers modules
+   * SYSCOHADA (Gestion commerciale). Le serveur applique la même règle
+   * (`ReferentielGuard`) : ceci cache la fenêtre, lui empêche d'y accéder
+   * même par un appel direct. Voir `docs/plan-de-construction.md` §8.
+   */
+  referentielsApplicables?: Referentiel[];
 }
 
 /**
@@ -127,6 +141,7 @@ export const FENETRES: DefinitionFenetre[] = [
     titre: 'Exonérations douanières et fiscales',
     titreCourt: 'Exonérations',
     rendre: () => <ExonerationsPage />,
+    referentielsApplicables: ['SYCEBNL'],
   },
   {
     motif: /^\/etats-financiers$/,
@@ -140,6 +155,7 @@ export const FENETRES: DefinitionFenetre[] = [
     titre: 'Registre des donateurs',
     titreCourt: 'Registre donateurs',
     rendre: () => <RegistreDonateursPage />,
+    referentielsApplicables: ['SYCEBNL'],
   },
   {
     motif: /^\/documents-obligatoires$/,
@@ -189,6 +205,8 @@ export const FENETRES: DefinitionFenetre[] = [
 export function definitionPour(chemin: string): DefinitionFenetre | null {
   return FENETRES.find((d) => d.motif.test(chemin)) ?? null;
 }
+
+// fenetreDisponible : voir referentiel-fenetre.ts (logique pure, réexportée ci-dessus).
 
 /** Le contenu de la fenêtre, monté à partir de son adresse complète. */
 export function rendreFenetre(adresse: string): JSX.Element | null {

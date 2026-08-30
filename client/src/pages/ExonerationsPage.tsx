@@ -114,11 +114,11 @@ export function ExonerationsPage() {
   const jour = (d: string | null) => (d ? new Date(d).toLocaleDateString('fr-FR') : '·');
 
   return (
-    <div className="p-2.5">
+    <div className="p-2">
       <EnteteImpression titre="Exonérations douanières et fiscales" />
-      <div className="ecran-seul mb-2.5 max-w-[1100px]">
-        <div className="text-[10.5px] font-mono text-text-dim">REGISTRE</div>
-        <h1 className="text-[15px] font-bold">Exonérations douanières et fiscales</h1>
+      <div className="ecran-seul mb-1.5 max-w-[1100px]">
+        <div className="text-[9.5px] font-mono text-text-dim leading-none">REGISTRE</div>
+        <h1 className="text-[13px] font-bold leading-tight">Exonérations douanières et fiscales</h1>
         <div className="text-[10.5px] text-text-dim mt-0.5">
           Les facilités de l’article 39 de la loi n° 004/2001, constatées par arrêté interministériel des Ministres du
           Plan et des Finances.
@@ -209,7 +209,7 @@ export function ExonerationsPage() {
         </div>
 
         {/* --- Dossier sélectionné ------------------------------------------ */}
-        <div className="w-[400px] shrink-0 bg-surface border border-border shadow-posee overflow-auto max-h-[calc(100vh-220px)]">
+        <div className="w-[400px] shrink-0 bg-surface border border-border shadow-posee overflow-auto max-h-[calc(100vh-200px)]">
           <div className="px-3 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
             DOSSIER
           </div>

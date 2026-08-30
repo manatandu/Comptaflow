@@ -108,11 +108,11 @@ export function JournauxPage() {
   };
 
   return (
-    <div className="p-2.5">
+    <div className="p-2">
       <div className="flex items-center justify-between mb-2">
         <div>
-          <div className="text-[10.5px] font-mono text-text-dim">STRUCTURE</div>
-          <h1 className="text-[15px] font-bold">Codes journaux</h1>
+          <div className="text-[9.5px] font-mono text-text-dim leading-none">STRUCTURE</div>
+          <h1 className="text-[13px] font-bold leading-tight">Codes journaux</h1>
         </div>
         <button
           type="button"

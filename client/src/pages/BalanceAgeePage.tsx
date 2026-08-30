@@ -71,12 +71,12 @@ export function BalanceAgeePage() {
   const grille = 'grid grid-cols-[92px_1fr_110px_110px_110px_110px_110px_120px] gap-2.5';
 
   return (
-    <div className="p-2.5">
+    <div className="p-2">
       <EnteteImpression titre="Balance âgée" />
-      <div className="flex items-end justify-between mb-2.5 gap-3 flex-wrap">
+      <div className="flex items-end justify-between mb-1.5 gap-3 flex-wrap">
         <div>
-          <div className="text-[10.5px] font-mono text-text-dim">ÉTAT</div>
-          <h1 className="text-[15px] font-bold flex items-center gap-1.5">
+          <div className="text-[9.5px] font-mono text-text-dim leading-none">ÉTAT</div>
+          <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
             Balance âgée
             <Aide sujet="balanceAgee" />
           </h1>

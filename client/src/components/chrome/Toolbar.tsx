@@ -88,7 +88,7 @@ function BoutonNavigation({
       title={infobulle ?? titre}
       aria-label={titre}
       onClick={onClick}
-      className="flex items-center justify-center w-[34px] h-[34px] self-center rounded-[9px] text-text-dim transition-[background-color,color,transform] duration-150 hover:bg-chrome-alt hover:text-text active:scale-95"
+      className="flex items-center justify-center w-[28px] h-[28px] self-center rounded-[8px] text-text-dim transition-[background-color,color,transform] duration-150 hover:bg-chrome-alt hover:text-text active:scale-95"
     >
       {children}
     </button>
@@ -113,14 +113,14 @@ function BoutonAction({
       aria-label={def.label}
       disabled={!disponible}
       onClick={onClick}
-      className={`group flex flex-col items-center justify-center gap-1 w-[54px] py-1.5 rounded-[9px] transition-[background-color,color,transform] duration-150 ${
+      className={`group flex flex-col items-center justify-center gap-[3px] w-[46px] py-1 rounded-[8px] transition-[background-color,color,transform] duration-150 ${
         disponible ? 'text-text hover:bg-chrome-alt active:scale-95' : 'text-text-dim/35 cursor-not-allowed'
       }`}
     >
       <span className={disponible ? 'transition-transform duration-200 group-hover:-translate-y-[1px]' : ''}>
-        <def.Icon width={16} height={16} />
+        <def.Icon width={15} height={15} />
       </span>
-      <span className="text-[9.5px] leading-none">{def.label}</span>
+      <span className="text-[9px] leading-none">{def.label}</span>
     </button>
   );
 }
@@ -138,16 +138,16 @@ export function Toolbar() {
   const disponibles = new Set((cleActive ? (signatures[cleActive] ?? '') : '').split('|').filter(Boolean));
 
   return (
-    <div className="relative z-30 flex items-stretch gap-0 px-2 py-1.5 bg-chrome/70 backdrop-blur-md border-b border-border">
+    <div className="relative z-30 flex items-stretch gap-0 px-2 py-1 bg-chrome/70 backdrop-blur-md border-b border-border">
       {/* --- Se déplacer : reculer, avancer, revenir à l'accueil ----------- */}
       <div className="flex items-stretch gap-0.5">
         <BoutonNavigation titre="Précédent" onClick={() => navigate(-1)}>
-          <svg viewBox="0 0 20 20" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.7">
+          <svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.7">
             <path d="M12.5 4.5L7 10l5.5 5.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </BoutonNavigation>
         <BoutonNavigation titre="Suivant" onClick={() => navigate(1)}>
-          <svg viewBox="0 0 20 20" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.7">
+          <svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.7">
             <path d="M7.5 4.5L13 10l-5.5 5.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </BoutonNavigation>
@@ -156,7 +156,7 @@ export function Toolbar() {
           infobulle={fenetres.length > 0 ? 'Accueil · referme les fenêtres ouvertes' : 'Accueil'}
           onClick={fermerTout}
         >
-          <svg viewBox="0 0 20 20" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.7">
+          <svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.7">
             <path d="M3.2 9.2L10 3.6l6.8 5.6" strokeLinecap="round" strokeLinejoin="round" />
             <path d="M5 8.6V16h10V8.6" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
@@ -166,7 +166,7 @@ export function Toolbar() {
       {/* --- Agir sur la fenêtre active ------------------------------------ */}
       {GROUPES_ACTIONS.map((groupe, gi) => (
         <div key={gi} className="flex items-stretch gap-0.5">
-          <div className="w-px bg-border mx-1.5 my-1.5" />
+          <div className="w-px bg-border mx-1 my-1" />
           {groupe.map((def) => {
             const disponible = disponibles.has(def.nom);
             return (
@@ -193,18 +193,18 @@ export function Toolbar() {
           Elle ne dépend d'aucune fenêtre : c'est un accessoire, comme la
           « Calculette Sage » qui reste active sur toutes les captures. */}
       <div className="flex items-stretch gap-0.5">
-        <div className="w-px bg-border mx-1.5 my-1.5" />
+        <div className="w-px bg-border mx-1 my-1" />
         <button
           type="button"
           title="Calculette"
           aria-label="Calculette"
           onClick={() => setCalculetteOuverte(true)}
-          className="group flex flex-col items-center justify-center gap-1 w-[54px] py-1.5 rounded-[9px] text-text transition-[background-color,transform] duration-150 hover:bg-chrome-alt active:scale-95"
+          className="group flex flex-col items-center justify-center gap-[3px] w-[46px] py-1 rounded-[8px] text-text transition-[background-color,transform] duration-150 hover:bg-chrome-alt active:scale-95"
         >
           <span className="transition-transform duration-200 group-hover:-translate-y-[1px]">
-            <IconCalculette width={16} height={16} />
+            <IconCalculette width={15} height={15} />
           </span>
-          <span className="text-[9.5px] leading-none">Calculette</span>
+          <span className="text-[9px] leading-none">Calculette</span>
         </button>
       </div>
 

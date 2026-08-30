@@ -538,7 +538,7 @@ export function SaisiePage() {
       <div className="p-3 flex justify-center">
         <div className="w-full max-w-[640px]">
           <div className="text-[10.5px] font-mono text-text-dim mb-1">TRAITEMENT</div>
-          <h1 className="text-[15px] font-bold mb-3">Saisie des journaux</h1>
+          <h1 className="text-[13px] font-bold leading-tight mb-1.5">Saisie des journaux</h1>
 
           <div className="bg-surface border border-border shadow-posee">
             <div className="px-4 py-2 bg-surface-alt border-b border-border text-[11px] font-semibold text-text-dim">
@@ -614,12 +614,12 @@ export function SaisiePage() {
 
   // ============ ÉTAPE 2 · le journal du mois, grille de saisie ============
   return (
-    <div className="p-2.5">
+    <div className="p-2">
       {/* En-tête du journal ouvert */}
       <div className="flex items-center justify-between mb-2">
         <div>
-          <div className="text-[10.5px] font-mono text-text-dim">SAISIE DES JOURNAUX</div>
-          <h1 className="text-[15px] font-bold">
+          <div className="text-[9.5px] font-mono text-text-dim leading-none">SAISIE DES JOURNAUX</div>
+          <h1 className="text-[13px] font-bold leading-tight">
             Journal {journal?.code} · {journal?.intitule} · {periode?.libelle}
           </h1>
         </div>

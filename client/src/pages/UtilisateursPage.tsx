@@ -83,11 +83,11 @@ export function UtilisateursPage() {
   };
 
   return (
-    <div className="p-2.5">
+    <div className="p-2">
       <div className="flex items-center justify-between mb-2">
         <div>
-          <div className="text-[10.5px] font-mono text-text-dim">FICHIER</div>
-          <h1 className="text-[15px] font-bold">Autorisations d'accès · utilisateurs du dossier</h1>
+          <div className="text-[9.5px] font-mono text-text-dim leading-none">FICHIER</div>
+          <h1 className="text-[13px] font-bold leading-tight">Autorisations d'accès · utilisateurs du dossier</h1>
         </div>
         <button type="button" onClick={() => setNouveauOuvert(true)} className="bg-sel text-white px-3.5 py-1 text-[11.5px] font-semibold">
           Nouvel utilisateur

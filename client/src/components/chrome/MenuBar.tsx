@@ -54,7 +54,7 @@ export function MenuBar({ menus }: { menus: MenuDef[] }) {
         contexte. La barre passe donc explicitement au-dessus (voir le
         `relative z-0` de <main> dans AppShell, qui borne l'autre côté).
       */
-      className="relative z-40 h-[32px] flex items-center gap-0.5 px-2 bg-chrome/80 backdrop-blur-md border-b border-border select-none"
+      className="relative z-40 h-[28px] flex items-center gap-0.5 px-2 bg-chrome/80 backdrop-blur-md border-b border-border select-none"
     >
       {menus.map((m) => (
         <div key={m.titre} className="relative h-full flex items-center">
@@ -69,7 +69,7 @@ export function MenuBar({ menus }: { menus: MenuDef[] }) {
             onMouseEnter={() => {
               if (ouvert && ouvert !== m.titre) setOuvert(m.titre);
             }}
-            className={`rounded-[7px] px-2.5 py-1 text-[12px] font-medium ${
+            className={`rounded-[6px] px-2 py-[3px] text-[11.5px] font-medium ${
               ouvert === m.titre ? 'bg-sel-soft text-sel font-semibold' : 'hover:bg-chrome-alt'
             }`}
           >

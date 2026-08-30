@@ -45,8 +45,8 @@ export function TauxTvaPage() {
 
   if (!estAdmin) {
     return (
-      <div className="p-2.5">
-        <h1 className="text-[15px] font-bold mb-2.5">Taux de taxes</h1>
+      <div className="p-2">
+        <h1 className="text-[13px] font-bold leading-tight mb-1.5">Taux de taxes</h1>
         <div className="border border-warning/30 bg-warning-soft px-4 py-3 text-[12.5px] max-w-[480px]">
           Cette fenêtre est réservée aux administrateurs du dossier.
         </div>
@@ -90,11 +90,11 @@ export function TauxTvaPage() {
   };
 
   return (
-    <div className="p-2.5">
+    <div className="p-2">
       <div className="flex items-center justify-between mb-2">
         <div>
-          <div className="text-[10.5px] font-mono text-text-dim">STRUCTURE</div>
-          <h1 className="text-[15px] font-bold">Taux de taxes (TVA)</h1>
+          <div className="text-[9.5px] font-mono text-text-dim leading-none">STRUCTURE</div>
+          <h1 className="text-[13px] font-bold leading-tight">Taux de taxes (TVA)</h1>
         </div>
         <button type="button" onClick={() => setNouveauOuvert(true)} className="bg-sel text-white px-3.5 py-1 text-[11.5px] font-semibold">
           Nouveau taux

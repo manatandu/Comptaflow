@@ -5,7 +5,8 @@ import { useAuth } from '../lib/auth';
 import { useExercice } from '../lib/exercice';
 import { NouveauFichierWizard } from '../components/NouveauFichierWizard';
 import { AProposModale } from '../components/chrome/AProposModale';
-import type { PlanningCloture, RapportControles } from '../lib/types';
+import type { PlanningCloture, RapportControles, Referentiel } from '../lib/types';
+import { fenetreDisponible } from '../lib/referentiel-fenetre';
 import {
   IconBalance,
   IconBanque,
@@ -65,6 +66,8 @@ interface TuileDef {
   Icon: (p: SVGProps<SVGSVGElement>) => JSX.Element;
   /** Réservée aux administrateurs du dossier. */
   admin?: boolean;
+  /** Propre à un référentiel · voir DefinitionFenetre dans registre-fenetres.tsx. */
+  referentielsApplicables?: Referentiel[];
 }
 
 interface GroupeDef {
@@ -127,7 +130,7 @@ const GROUPES: GroupeDef[] = [
   {
     titre: 'Propre aux entités à but non lucratif',
     tuiles: [
-      { label: 'Registre des donateurs', chemin: '/registre-donateurs', Icon: IconBook },
+      { label: 'Registre des donateurs', chemin: '/registre-donateurs', Icon: IconBook, referentielsApplicables: ['SYCEBNL'] },
       { label: 'Bailleurs de fonds', chemin: '/bailleurs', Icon: IconUsers },
       { label: 'États analytiques', chemin: '/etats-analytiques', Icon: IconDashboard },
       { label: 'Retenues et fiscal', chemin: '/retenues', Icon: IconPrint },
@@ -138,6 +141,7 @@ const GROUPES: GroupeDef[] = [
 export function AccueilPage() {
   const navigate = useNavigate();
   const { utilisateur, estAdmin, seDeconnecter } = useAuth();
+  const referentiel = utilisateur?.tenant.referentiel;
   const { exerciceCourant } = useExercice();
   const [wizardOuvert, setWizardOuvert] = useState(false);
   const [aProposOuvert, setAProposOuvert] = useState(false);
@@ -305,6 +309,7 @@ export function AccueilPage() {
           <div className="flex flex-wrap gap-2.5">
             {groupe.tuiles
               .filter((t) => !t.admin || estAdmin)
+              .filter((t) => fenetreDisponible(t, referentiel))
               .map((t, i) => (
                 <Tuile key={t.chemin} tuile={t} rang={i} onClick={() => navigate(t.chemin)} />
               ))}

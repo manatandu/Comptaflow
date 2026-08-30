@@ -24,7 +24,7 @@ export function StatusBar() {
   const titreFenetre = fenetres.find((f) => f.cle === cleActive)?.titre ?? 'Accueil';
 
   return (
-    <div className="h-[24px] bg-chrome/70 backdrop-blur-md border-t border-border flex items-center justify-between px-3 text-[10.5px] text-text-dim shrink-0">
+    <div className="h-[21px] bg-chrome/70 backdrop-blur-md border-t border-border flex items-center justify-between px-3 text-[10px] text-text-dim shrink-0">
       <span className="flex items-center gap-2">
         {/* Pastille de veille · le halo dit « connecté » sans clignoter. */}
         <span className="relative flex w-1.5 h-1.5">

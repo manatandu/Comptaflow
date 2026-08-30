@@ -333,9 +333,9 @@ export function NotesAnnexesPage() {
   // financiers, où elles sont servies directement (Partie 4, ch. 4, Section 3).
   if (jeuSmt) {
     return (
-      <div className="p-2.5">
-        <div className="text-[10.5px] font-mono text-text-dim">ÉTAT</div>
-        <h1 className="text-[15px] font-bold mb-2">Notes annexes</h1>
+      <div className="p-2">
+        <div className="text-[9.5px] font-mono text-text-dim leading-none">ÉTAT</div>
+        <h1 className="text-[13px] font-bold leading-tight mb-2">Notes annexes</h1>
         <div className="border border-border bg-surface px-3.5 py-3 max-w-[620px]">
           <p className="text-[12px] mb-2">
             Ce dossier est tenu au Système minimal de trésorerie. Le SYCEBNL ne lui demande pas les 35 notes des
@@ -352,12 +352,12 @@ export function NotesAnnexesPage() {
     );
   }
   return (
-    <div className="p-2.5">
+    <div className="p-2">
       <EnteteImpression titre="Notes annexes" />
-      <div className="flex items-center justify-between mb-2.5">
+      <div className="flex items-center justify-between mb-1.5">
         <div>
-          <div className="text-[10.5px] font-mono text-text-dim">ÉTAT</div>
-          <h1 className="text-[15px] font-bold flex items-center gap-1.5">
+          <div className="text-[9.5px] font-mono text-text-dim leading-none">ÉTAT</div>
+          <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
             Notes annexes
             <Aide sujet="notesAnnexes" />
           </h1>
@@ -409,7 +409,7 @@ export function NotesAnnexesPage() {
       {resultat && (
         <div className="flex gap-3 items-start">
           {/* --- Fiche récapitulative : NOTES | INTITULES | A / N-A --- */}
-          <div className="w-[360px] shrink-0 border border-border bg-surface max-h-[calc(100vh-220px)] overflow-y-auto">
+          <div className="w-[360px] shrink-0 border border-border bg-surface max-h-[calc(100vh-200px)] overflow-y-auto">
             <div className="grid grid-cols-[52px_1fr_28px] gap-2 px-3 py-1.5 bg-chrome border-b border-border text-[10px] font-bold text-text-dim sticky top-0">
               <span>NOTE</span>
               <span>INTITULÉ</span>

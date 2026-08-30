@@ -161,11 +161,11 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
   const montant = (v: number) => v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   return (
-    <div className="p-2.5">
-      <div className="flex items-end justify-between max-w-[1040px] mb-2.5 gap-3 flex-wrap">
+    <div className="p-2">
+      <div className="flex items-end justify-between max-w-[1040px] mb-1.5 gap-3 flex-wrap">
         <div>
-          <div className="text-[10.5px] font-mono text-text-dim">TRAITEMENT</div>
-          <h1 className="text-[15px] font-bold flex items-center gap-1.5">
+          <div className="text-[9.5px] font-mono text-text-dim leading-none">TRAITEMENT</div>
+          <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
             <span>
               Interrogation et lettrage
               {compte && (

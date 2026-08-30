@@ -119,12 +119,12 @@ export function RelancesPage() {
   const grille = 'grid grid-cols-[28px_110px_1fr_110px_140px_90px_140px] gap-2';
 
   return (
-    <div className="p-2.5">
+    <div className="p-2">
       <EnteteImpression titre="Rappel et relevé" />
-      <div className="flex items-end justify-between mb-2.5 gap-3 flex-wrap">
+      <div className="flex items-end justify-between mb-1.5 gap-3 flex-wrap">
         <div>
-          <div className="text-[10.5px] font-mono text-text-dim">TRAITEMENT</div>
-          <h1 className="text-[15px] font-bold flex items-center gap-1.5">
+          <div className="text-[9.5px] font-mono text-text-dim leading-none">TRAITEMENT</div>
+          <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
             Rappel et relevé
             <Aide sujet="relance" />
           </h1>
