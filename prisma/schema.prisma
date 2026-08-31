@@ -585,6 +585,9 @@ model Ecriture {
   // export balaie l'intégralité des écritures du dossier.
   @@index([tenantId, exerciceId, date])
   @@index([tenantId, statut], map: "ecritures_statut_idx")
+  // Chemin de la numérotation des pièces : à CHAQUE création d'écriture, le
+  // journal agrège ses propres écritures (dernier numéro du mois/exercice).
+  @@index([tenantId, journalId, date])
   @@map("ecritures")
 }
 
@@ -719,6 +722,8 @@ model LigneEcriture {
   // un balayage séquentiel de toute la table · le chemin le plus sollicité
   // de l'application.
   @@index([ecritureId])
+  // Déclaration de TVA : toutes ses sommes filtrent par taux rattaché.
+  @@index([tauxTvaId])
   @@map("lignes_ecriture")
 }
 

@@ -186,7 +186,7 @@ export function DocumentsObligatoiresPage() {
       <EnteteImpression titre="Documents obligatoires" />
       <div className="flex items-center justify-between mb-1.5">
         <div>
-          <div className="text-[9.5px] font-mono text-text-dim leading-none">ÉTAT</div>
+          <div className="text-[10px] font-mono text-text-dim leading-none">ÉTAT</div>
           <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
             Documents obligatoires de clôture
             <Aide sujet="livreInventaire" />

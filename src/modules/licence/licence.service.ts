@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
-import { StatutLicence, TypeLicence } from '@prisma/client';
+import { Licence, StatutLicence, TypeLicence } from '@prisma/client';
 
 /**
  * Logique d'accès dictée par le type de licence :
@@ -19,7 +19,16 @@ export class LicenceService {
 
   async estAccesAutorise(tenantId: string): Promise<{ autorise: boolean; motif?: string }> {
     const licence = await this.prisma.licence.findUnique({ where: { tenantId } });
+    return this.evaluerLicence(licence);
+  }
 
+  /**
+   * Évaluation PURE d'une licence déjà chargée · aucun accès base. C'est ce
+   * qu'appelle LicenceGuard quand JwtStrategy a préchargé la licence avec
+   * l'utilisateur (le cas de toute requête HTTP normale) ; estAccesAutorise
+   * reste la voie de service pour les appels qui partent d'un tenantId seul.
+   */
+  evaluerLicence(licence: Licence | null): { autorise: boolean; motif?: string } {
     if (!licence) {
       return { autorise: false, motif: 'Aucune licence associée à ce tenant' };
     }

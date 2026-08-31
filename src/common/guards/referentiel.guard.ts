@@ -45,7 +45,12 @@ export class ReferentielGuard implements CanActivate {
       throw new ForbiddenException('Tenant non résolu');
     }
 
-    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { referentiel: true } });
+    // Référentiel préchargé par JwtStrategy (le cas normal) : zéro requête.
+    // Absent (tests, appels internes) : lecture directe, comme avant.
+    const prefetch: Referentiel | undefined = request.user?.referentiel;
+    const tenant = prefetch
+      ? { referentiel: prefetch }
+      : await this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { referentiel: true } });
     if (!tenant || !referentielsRequis.includes(tenant.referentiel)) {
       throw new ForbiddenException(
         `Module indisponible pour ce référentiel · requis : ${referentielsRequis.join(', ')}`,

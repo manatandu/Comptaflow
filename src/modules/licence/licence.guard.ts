@@ -18,7 +18,13 @@ export class LicenceGuard implements CanActivate {
       throw new ForbiddenException('Tenant non résolu');
     }
 
-    const { autorise, motif } = await this.licenceService.estAccesAutorise(tenantId);
+    // Licence préchargée par JwtStrategy (le cas normal) : évaluation pure,
+    // zéro requête. Un request.user construit sans elle (tests, appels
+    // internes) retombe sur la lecture directe.
+    const { autorise, motif } =
+      request.user.licence !== undefined
+        ? this.licenceService.evaluerLicence(request.user.licence)
+        : await this.licenceService.estAccesAutorise(tenantId);
     if (!autorise) {
       throw new ForbiddenException(motif ?? 'Accès refusé : licence invalide');
     }

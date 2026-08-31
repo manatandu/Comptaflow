@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../lib/api';
+import { useActionsFenetre } from '../lib/actions-fenetre';
 import type { Compte, EtatLettrage, GroupeLettrage } from '../lib/types';
 import { Aide } from '../components/chrome/Aide';
 
@@ -36,7 +37,13 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
   // que la fenêtre active · elle ne peut donc pas servir de source à toutes).
   // Le repli sur `useParams` garde la page utilisable par une route directe.
   const params = useParams<{ compteId: string }>();
-  const compteId = compteIdProp ?? params.compteId;
+  // Fenêtre ouverte SANS compte (menu Traitement) : le compte choisi vit en
+  // état local, le sélecteur change alors le contenu de CETTE fenêtre au
+  // lieu d'en ouvrir une seconde. Ouverte depuis le plan comptable, chaque
+  // interrogation garde sa propre fenêtre (comportement multi-fenêtres).
+  const [compteChoisi, setCompteChoisi] = useState<string | null>(null);
+  const compteFixe = compteIdProp ?? params.compteId;
+  const compteId = compteFixe ?? compteChoisi ?? undefined;
   const navigate = useNavigate();
   const [comptes, setComptes] = useState<Compte[]>([]);
   const [etat, setEtat] = useState<EtatLettrage | null>(null);
@@ -48,13 +55,19 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
   // Groupe partiel que la sélection viendra compléter · null = créer un
   // nouveau groupe.
   const [completerId, setCompleterId] = useState<string | null>(null);
+  const selecteurCompteRef = useRef<HTMLSelectElement>(null);
+  useActionsFenetre({
+    rechercher: { titre: 'Choisir le compte à interroger', executer: () => selecteurCompteRef.current?.focus() },
+  });
 
   const charger = async () => {
-    if (!compteId) return;
+    // Sans compte choisi (fenêtre ouverte depuis le menu Traitement), la
+    // liste des comptes doit quand même se charger : c'est elle qui permet
+    // de choisir. Seul l'état de lettrage attend un compte.
     try {
       const [tousComptes, resultat] = await Promise.all([
         api.get<Compte[]>('/comptes'),
-        api.get<EtatLettrage>(`/comptes/${compteId}/lettrage`),
+        compteId ? api.get<EtatLettrage>(`/comptes/${compteId}/lettrage`) : Promise.resolve(null),
       ]);
       setComptes(tousComptes.filter((c) => c.typeCompte === 'DETAIL' && c.estActif));
       setEtat(resultat);
@@ -164,7 +177,7 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
     <div className="p-2">
       <div className="flex items-end justify-between max-w-[1040px] mb-1.5 gap-3 flex-wrap">
         <div>
-          <div className="text-[9.5px] font-mono text-text-dim leading-none">TRAITEMENT</div>
+          <div className="text-[10px] font-mono text-text-dim leading-none">TRAITEMENT</div>
           <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
             <span>
               Interrogation et lettrage
@@ -182,10 +195,20 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
           <label className="flex flex-col gap-1">
             <span className="text-[10px] font-bold text-text-dim">COMPTE À CONSULTER</span>
             <select
+              ref={selecteurCompteRef}
               value={compteId ?? ''}
-              onChange={(e) => e.target.value && navigate(`/comptes/${e.target.value}/lettrage`)}
+              onChange={(e) => {
+                if (!e.target.value) return;
+                if (compteFixe) navigate(`/comptes/${e.target.value}/lettrage`);
+                else setCompteChoisi(e.target.value);
+              }}
               className="border border-border-dark bg-surface px-2 py-1 text-[11.5px] font-mono min-w-[280px]"
             >
+              {!compteId && (
+                <option value="" disabled>
+                  Choisir un compte…
+                </option>
+              )}
               {comptes.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.numero} · {c.intitule}
@@ -216,7 +239,15 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
       {erreur && <div className="text-[12px] text-danger bg-danger-soft border border-danger/30 px-3 py-2 mb-3 max-w-[860px]">{erreur}</div>}
       {info && <div className="text-[12px] text-positive bg-positive-soft border border-positive/30 px-3 py-2 mb-3 max-w-[860px]">{info}</div>}
 
-      {!lignes && <div className="text-[12px] text-text-dim">Chargement…</div>}
+      {!lignes &&
+        (compteId ? (
+          <div className="text-[12px] text-text-dim">Chargement…</div>
+        ) : (
+          <div className="text-[12px] text-text-dim bg-chrome border border-border px-3 py-2 max-w-[860px]">
+            Choisissez le compte à interroger dans la liste ci-dessus : ses mouvements et ses lettrages s'afficheront
+            ici.
+          </div>
+        ))}
 
       {lignes && (
         <div className="border border-border bg-surface shadow-posee max-w-[1040px]">

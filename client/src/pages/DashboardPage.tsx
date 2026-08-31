@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useExercice } from '../lib/exercice';
@@ -27,8 +27,11 @@ export function DashboardPage() {
   useEffect(() => {
     if (!exerciceCourant) return;
     let annule = false;
-    api.get<{ ecritures: Ecriture[] }>(`/ecritures?exerciceId=${exerciceCourant.id}`).then((r) => {
-      if (!annule) setEcritures(r.ecritures.slice(-8).reverse());
+    // limite=8 : le serveur renvoie les 8 plus récentes, au lieu de faire
+    // télécharger (puis jeter) l'exercice entier · premier poste de lenteur
+    // du tableau de bord relevé à l'audit.
+    api.get<{ ecritures: Ecriture[] }>(`/ecritures?exerciceId=${exerciceCourant.id}&limite=8`).then((r) => {
+      if (!annule) setEcritures(r.ecritures);
     });
     api.get<{ lignes: LigneBalance[] }>(`/ecritures/balance?exerciceId=${exerciceCourant.id}`).then((r) => {
       if (!annule) setBalance(r.lignes);
@@ -38,15 +41,23 @@ export function DashboardPage() {
     };
   }, [exerciceCourant?.id]);
 
-  const details = (balance ?? []).filter((l) => l.typeCompte !== 'TOTAL');
-  const tresorerie = details
-    .filter((l) => l.numero.startsWith('5') && !l.numero.startsWith('59'))
-    .reduce((s, l) => s + l.solde, 0);
-  const produits = -details.filter((l) => l.numero.startsWith('7')).reduce((s, l) => s + l.solde, 0);
-  const charges = details.filter((l) => l.numero.startsWith('6')).reduce((s, l) => s + l.solde, 0);
-  const resultat = -details
-    .filter((l) => ['6', '7', '8'].includes(l.numero[0]))
-    .reduce((s, l) => s + l.solde, 0);
+  // Une seule passe sur la balance, mémoïsée : les quatre agrégats se
+  // recalculaient à chaque rendu, chacun refiltrant toute la liste.
+  const { tresorerie, produits, charges, resultat } = useMemo(() => {
+    let tres = 0;
+    let prod = 0;
+    let chg = 0;
+    let res = 0;
+    for (const l of balance ?? []) {
+      if (l.typeCompte === 'TOTAL') continue;
+      const c = l.numero[0];
+      if (c === '5' && !l.numero.startsWith('59')) tres += l.solde;
+      if (c === '7') prod -= l.solde;
+      if (c === '6') chg += l.solde;
+      if (c === '6' || c === '7' || c === '8') res -= l.solde;
+    }
+    return { tresorerie: tres, produits: prod, charges: chg, resultat: res };
+  }, [balance]);
 
   const indicateurs: Array<{ label: string; valeur: number; note: string; teinte?: 'auto' }> = [
     { label: 'TRÉSORERIE DISPONIBLE', valeur: tresorerie, note: 'classe 5, hors dépréciations (59)' },
@@ -59,7 +70,7 @@ export function DashboardPage() {
     <div className="p-2">
       <div className="flex items-center justify-between mb-1.5">
         <div>
-          <div className="text-[9.5px] font-mono text-text-dim leading-none">FENÊTRE</div>
+          <div className="text-[10px] font-mono text-text-dim leading-none">FENÊTRE</div>
           <h1 className="text-[13px] font-bold leading-tight">
             Tableau de bord{exerciceCourant && ` · Exercice ${new Date(exerciceCourant.dateDebut).getFullYear()}`}
           </h1>
@@ -80,7 +91,7 @@ export function DashboardPage() {
             ind.teinte === 'auto' ? (ind.valeur >= 0 ? 'text-positive' : 'text-danger') : 'text-text';
           return (
             <div key={ind.label} className="bg-surface border border-border shadow-posee px-3.5 py-2.5">
-              <div className="text-[9.5px] font-bold text-text-dim tracking-wide">{ind.label}</div>
+              <div className="text-[10px] font-bold text-text-dim tracking-wide">{ind.label}</div>
               <div className={`font-mono text-[20px] font-bold leading-tight mt-0.5 ${teinte}`}>
                 {balance ? ind.valeur.toLocaleString('fr-FR') : '…'}
                 <span className="text-[10.5px] font-normal text-text-dim ml-1">CDF</span>

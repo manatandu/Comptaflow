@@ -214,7 +214,7 @@ export function AccueilPage() {
         <div className="relative flex flex-wrap items-end justify-between gap-4">
           <div className="min-w-0">
             <div className="text-[11px] font-semibold uppercase tracking-[0.09em] text-white/55">Dossier ouvert</div>
-            <h1 className="text-[24px] font-semibold leading-tight mt-0.5 truncate">{utilisateur?.tenant.nom}</h1>
+            <h1 className="text-[20px] font-semibold leading-tight mt-0.5 truncate">{utilisateur?.tenant.nom}</h1>
             <div className="text-[12px] text-white/70 mt-1">
               {utilisateur?.tenant.referentiel}
               {jeu && ` · ${jeu}`}

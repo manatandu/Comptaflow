@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { validateEnv } from './config/validate-env';
 import { PrismaModule } from './common/prisma.module';
 import { TenantModule } from './modules/tenant/tenant.module';
@@ -34,6 +36,17 @@ import { ExonerationsModule } from './modules/exonerations/exonerations.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, validate: validateEnv }),
+    // LIMITATION DE DÉBIT · par adresse (X-Forwarded-For, voir `trust proxy`
+    // dans bootstrap.ts). 300 requêtes/min laissent passer n'importe quel
+    // usage réel du logiciel (l'ouverture d'un dossier en déclenche une
+    // vingtaine), et coupent un script qui martèle l'API. Les routes
+    // d'identification portent en plus leur propre limite serrée
+    // (@Throttle sur AuthController) : c'est là que se joue la force brute
+    // sur les mots de passe.
+    ThrottlerModule.forRoot({
+      throttlers: [{ ttl: 60_000, limit: 300 }],
+      errorMessage: 'Trop de tentatives depuis cette adresse · patientez une minute puis réessayez.',
+    }),
     PrismaModule,
     TenantModule,
     LicenceModule,
@@ -64,5 +77,6 @@ import { ExonerationsModule } from './modules/exonerations/exonerations.module';
     RetenuesModule,
     ExonerationsModule,
   ],
+  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule {}

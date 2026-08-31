@@ -75,7 +75,7 @@ export function BalanceAgeePage() {
       <EnteteImpression titre="Balance âgée" />
       <div className="flex items-end justify-between mb-1.5 gap-3 flex-wrap">
         <div>
-          <div className="text-[9.5px] font-mono text-text-dim leading-none">ÉTAT</div>
+          <div className="text-[10px] font-mono text-text-dim leading-none">ÉTAT</div>
           <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
             Balance âgée
             <Aide sujet="balanceAgee" />

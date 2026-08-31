@@ -236,7 +236,7 @@ export function RegularisationPage() {
   return (
     <div className="p-2">
       <div className="mb-1.5">
-        <div className="text-[9.5px] font-mono text-text-dim leading-none">TRAITEMENT</div>
+        <div className="text-[10px] font-mono text-text-dim leading-none">TRAITEMENT</div>
         <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
           Régularisations et abonnements
           <Aide sujet="regularisation" />

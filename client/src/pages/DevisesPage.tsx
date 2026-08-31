@@ -158,7 +158,7 @@ export function DevisesPage() {
     <div className="p-2">
       <EnteteImpression titre="Devises et réévaluation" />
       <div className="mb-1.5">
-        <div className="text-[9.5px] font-mono text-text-dim leading-none">TRAITEMENT</div>
+        <div className="text-[10px] font-mono text-text-dim leading-none">TRAITEMENT</div>
         <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
           Devises et réévaluation
           <Aide sujet="devises" />
@@ -383,7 +383,7 @@ export function DevisesPage() {
                   <span className="font-mono">{p.numero}</span>
                   <span className="truncate">
                     {p.intitule}
-                    <span className="ml-1.5 text-[9.5px] font-bold text-text-dim">
+                    <span className="ml-1.5 text-[10px] font-bold text-text-dim">
                       {p.estTresorerie ? 'RÉALISÉ' : 'LATENT'}
                     </span>
                   </span>

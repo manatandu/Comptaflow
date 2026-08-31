@@ -33,10 +33,23 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
    * (jusqu'à 8h · voir JWT_EXPIRES_IN).
    */
   async validate(payload: JwtPayload): Promise<AuthenticatedUser> {
-    const user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
+    // UNE requête, jointures comprises : le référentiel et la licence du
+    // tenant voyagent avec l'utilisateur, si bien que LicenceGuard et
+    // ReferentielGuard n'ont plus rien à demander à la base.
+    const user = await this.prisma.user.findUnique({
+      where: { id: payload.sub },
+      include: { tenant: { select: { referentiel: true, licence: true } } },
+    });
     if (!user || !user.estActif) {
       throw new UnauthorizedException('Compte désactivé ou introuvable');
     }
-    return { userId: user.id, tenantId: user.tenantId, email: user.email, role: user.role };
+    return {
+      userId: user.id,
+      tenantId: user.tenantId,
+      email: user.email,
+      role: user.role,
+      referentiel: user.tenant.referentiel,
+      licence: user.tenant.licence,
+    };
   }
 }

@@ -86,7 +86,7 @@ export function UtilisateursPage() {
     <div className="p-2">
       <div className="flex items-center justify-between mb-2">
         <div>
-          <div className="text-[9.5px] font-mono text-text-dim leading-none">FICHIER</div>
+          <div className="text-[10px] font-mono text-text-dim leading-none">FICHIER</div>
           <h1 className="text-[13px] font-bold leading-tight">Autorisations d'accès · utilisateurs du dossier</h1>
         </div>
         <button type="button" onClick={() => setNouveauOuvert(true)} className="bg-sel text-white px-3.5 py-1 text-[11.5px] font-semibold">
@@ -116,7 +116,7 @@ export function UtilisateursPage() {
               <option value="COMPTABLE">Comptable</option>
               <option value="LECTURE_SEULE">Lecture seule</option>
             </select>
-            <span className={`font-mono text-[9.5px] font-bold px-1.5 py-0.5 w-fit ${u.estActif ? 'text-positive bg-positive-soft' : 'text-text-dim bg-surface-alt'}`}>
+            <span className={`font-mono text-[10px] font-bold px-1.5 py-0.5 w-fit ${u.estActif ? 'text-positive bg-positive-soft' : 'text-text-dim bg-surface-alt'}`}>
               {u.estActif ? 'ACTIF' : 'INACTIF'}
             </span>
             <button
@@ -137,7 +137,7 @@ export function UtilisateursPage() {
 
       {nouveauOuvert && (
         <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
-          <form onSubmit={onCreer} className="anim-modale w-full max-w-[440px] bg-surface border border-border-dark shadow-flottante">
+          <form onSubmit={onCreer} className="anim-modale w-full max-w-[440px] bg-surface border border-border-dark shadow-flottante max-h-[calc(100dvh-2rem)] overflow-y-auto">
             <div
               className="h-[26px] flex items-center justify-between px-2.5 text-white text-[11.5px]"
               style={{ background: 'linear-gradient(180deg, var(--titlebar-from), var(--titlebar-to))' }}

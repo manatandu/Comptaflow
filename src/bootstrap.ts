@@ -1,5 +1,7 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { json, urlencoded } from 'express';
+import helmet from 'helmet';
+import * as compression from 'compression';
 
 /**
  * Configuration commune de l'application, partagée entre le serveur classique
@@ -11,6 +13,30 @@ import { json, urlencoded } from 'express';
  * métier.
  */
 export function configurerApplication(app: INestApplication) {
+  // DURCISSEMENT · l'API ne sert que du JSON à un client connu, jamais de
+  // pages HTML : la politique la plus stricte ne casse donc rien.
+  //
+  // - helmet pose les en-têtes défensifs (X-Content-Type-Options, HSTS,
+  //   Referrer-Policy, X-Frame-Options…). La CSP est réglée sur `none` pour
+  //   tout : si une réponse de l'API se retrouvait interprétée comme du HTML
+  //   (réflexion d'une erreur, mauvais Content-Type forcé), rien ne pourrait
+  //   s'y exécuter.
+  // - `trust proxy` : derrière Cloud Run, l'adresse du client arrive dans
+  //   X-Forwarded-For. Sans ce réglage, toute limitation par adresse (le
+  //   ThrottlerGuard) compterait l'adresse du proxy Google, donc UNE seule
+  //   adresse pour tous les utilisateurs · le premier arrivé épuiserait le
+  //   quota du monde entier.
+  // - compression : les réponses JSON d'un dossier réel (plan de comptes,
+  //   balance, grand livre) pèsent des centaines de Ko · les compresser
+  //   change la vitesse perçue sur une connexion congolaise typique.
+  app.use(
+    helmet({
+      contentSecurityPolicy: { directives: { defaultSrc: ["'none'"], frameAncestors: ["'none'"] } },
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+    }),
+  );
+  app.getHttpAdapter().getInstance().set('trust proxy', 1);
+  app.use(compression());
   // 12 Mo : l'import de balance et d'écritures envoie le fichier encodé en
   // base64 dans le corps JSON (voir ImportService), ce qui déborde largement
   // la limite de 100 ko d'Express. Le DTO borne le contenu à 8 Mo de fichier ;
@@ -31,7 +57,15 @@ export function configurerApplication(app: INestApplication) {
   // navigateur jette la réponse), donc longue à diagnostiquer.
   const ORIGINES_SITE = ['https://oomega.web.app', 'https://oomega.firebaseapp.com'];
   const configurees = process.env.CORS_ORIGIN?.split(',').map((o) => o.trim()).filter(Boolean);
-  const origines = configurees ? [...new Set([...configurees, ...ORIGINES_SITE])] : undefined;
+  // En production, l'absence de CORS_ORIGIN ne doit JAMAIS vouloir dire
+  // « tout le monde » : le repli est la liste fermée des domaines du site.
+  // Seul le développement local (NODE_ENV ≠ production) reste ouvert.
+  const enProduction = process.env.NODE_ENV === 'production';
+  const origines = configurees
+    ? [...new Set([...configurees, ...ORIGINES_SITE])]
+    : enProduction
+      ? ORIGINES_SITE
+      : undefined;
   app.enableCors(origines ? { origin: origines } : undefined);
   // whitelist: rejette tout champ non déclaré dans un DTO · évite qu'un client
   // injecte silencieusement un champ (ex: tenantId) qui devrait venir du JWT.

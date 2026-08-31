@@ -141,17 +141,19 @@ export function AuthPage({ assistantInitial = false }: { assistantInitial?: bool
     new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
 
   return (
-    <div className="relative min-h-screen overflow-hidden flex flex-col items-center justify-center bg-bg px-4 py-10">
-      <CerclesDecoratifs />
+    <div className="relative min-h-screen overflow-x-clip flex flex-col items-center justify-center bg-bg px-4 py-8">
+      <div aria-hidden className="absolute inset-0 overflow-hidden pointer-events-none">
+        <CerclesDecoratifs />
+      </div>
 
       <div className="relative z-10 flex flex-col items-center mb-7">
         <div
-          className="w-[76px] h-[76px] rounded-[22px] flex items-center justify-center text-white shadow-flottante"
+          className="w-[56px] h-[56px] rounded-[16px] flex items-center justify-center text-white shadow-flottante"
           style={{ background: 'linear-gradient(160deg, var(--titlebar-from), var(--titlebar-to))' }}
         >
-          <IconLogo width={38} height={38} />
+          <IconLogo width={28} height={28} />
         </div>
-        <div className="mt-3 text-[30px] font-extrabold tracking-tight text-sel">OMEGAX</div>
+        <div className="mt-2.5 text-[22px] font-extrabold tracking-tight text-sel">OMEGAX</div>
         <div className="mt-1 text-[12.5px] text-text-dim">Comptabilité des entités à but non lucratif · SYCEBNL</div>
       </div>
 

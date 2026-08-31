@@ -163,7 +163,7 @@ export function ExercicePage() {
 
   return (
     <div className="p-2">
-      <div className="text-[9.5px] font-mono text-text-dim leading-none">TRAITEMENT · FIN D'EXERCICE</div>
+      <div className="text-[10px] font-mono text-text-dim leading-none">TRAITEMENT · FIN D'EXERCICE</div>
       <h1 className="text-[13px] font-bold leading-tight mb-1.5 flex items-center gap-1.5">
         Clôture d'exercice
         <Aide sujet="exerciceClos" />
@@ -405,9 +405,9 @@ export function ExercicePage() {
             <span className="font-mono text-[10.5px] text-text-dim">{new Date(c.createdAt).toLocaleDateString('fr-FR')}</span>
             <span>
               {c.annuleeAt ? (
-                <span className="font-mono text-[9.5px] font-bold px-1.5 py-0.5 bg-surface-alt text-text-dim">ANNULÉE</span>
+                <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 bg-surface-alt text-text-dim">ANNULÉE</span>
               ) : (
-                <span className="font-mono text-[9.5px] font-bold px-1.5 py-0.5 bg-warning-soft text-warning flex items-center gap-1 w-fit">
+                <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 bg-warning-soft text-warning flex items-center gap-1 w-fit">
                   <IconLock width={10} height={10} /> ACTIVE
                 </span>
               )}

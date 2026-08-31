@@ -113,14 +113,14 @@ function BoutonAction({
       aria-label={def.label}
       disabled={!disponible}
       onClick={onClick}
-      className={`group flex flex-col items-center justify-center gap-[3px] w-[46px] py-1 rounded-[8px] transition-[background-color,color,transform] duration-150 ${
+      className={`group flex flex-col items-center justify-center gap-[3px] w-[52px] py-1 rounded-[8px] transition-[background-color,color,transform] duration-150 ${
         disponible ? 'text-text hover:bg-chrome-alt active:scale-95' : 'text-text-dim/35 cursor-not-allowed'
       }`}
     >
       <span className={disponible ? 'transition-transform duration-200 group-hover:-translate-y-[1px]' : ''}>
         <def.Icon width={15} height={15} />
       </span>
-      <span className="text-[9px] leading-none">{def.label}</span>
+      <span className="text-[10px] leading-none">{def.label}</span>
     </button>
   );
 }
@@ -199,12 +199,12 @@ export function Toolbar() {
           title="Calculette"
           aria-label="Calculette"
           onClick={() => setCalculetteOuverte(true)}
-          className="group flex flex-col items-center justify-center gap-[3px] w-[46px] py-1 rounded-[8px] text-text transition-[background-color,transform] duration-150 hover:bg-chrome-alt active:scale-95"
+          className="group flex flex-col items-center justify-center gap-[3px] w-[52px] py-1 rounded-[8px] text-text transition-[background-color,transform] duration-150 hover:bg-chrome-alt active:scale-95"
         >
           <span className="transition-transform duration-200 group-hover:-translate-y-[1px]">
             <IconCalculette width={15} height={15} />
           </span>
-          <span className="text-[9px] leading-none">Calculette</span>
+          <span className="text-[10px] leading-none">Calculette</span>
         </button>
       </div>
 

@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../lib/api';
+import { useActionsFenetre } from '../lib/actions-fenetre';
 import type { Compte, RapprochementBancaire } from '../lib/types';
 
 /**
@@ -13,6 +14,7 @@ export function RapprochementPage() {
   const [comptes, setComptes] = useState<Compte[] | null>(null);
   const [rapprochements, setRapprochements] = useState<RapprochementBancaire[] | null>(null);
   const [afficherFormulaire, setAfficherFormulaire] = useState(false);
+  useActionsFenetre({ ajouter: { titre: 'Nouveau rapprochement', executer: () => setAfficherFormulaire(true) } });
   const [erreur, setErreur] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
 
@@ -55,7 +57,7 @@ export function RapprochementPage() {
 
   return (
     <div className="p-2">
-      <div className="text-[9.5px] font-mono text-text-dim leading-none">TRAITEMENT</div>
+      <div className="text-[10px] font-mono text-text-dim leading-none">TRAITEMENT</div>
       <h1 className="text-[13px] font-bold leading-tight mb-1.5">Rapprochement bancaire</h1>
 
       {afficherFormulaire && (

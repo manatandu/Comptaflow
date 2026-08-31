@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { Suspense, memo, useCallback, useEffect, useRef } from 'react';
 import type { FenetreOuverte } from '../../lib/fenetres';
-import { useFenetres } from '../../lib/fenetres';
+import { useFenetresActions } from '../../lib/fenetres';
 import { rendreFenetre } from '../../lib/registre-fenetres';
 import { LimiteErreur } from './LimiteErreur';
 import { FenetreCouranteProvider } from '../../lib/actions-fenetre';
@@ -42,8 +42,16 @@ const HAUTEUR_MIN = 220;
  */
 const MARGE_AGRANDIE = 8;
 
-export function Fenetre({ fenetre, active }: { fenetre: FenetreOuverte; active: boolean }) {
-  const { activer, fermer, reduire, basculerAgrandissement, deplacer } = useFenetres();
+/**
+ * memo · pendant un déplacement/redimensionnement, chaque pointermove met à
+ * jour le cadre d'UNE fenêtre dans le contexte : sans memo, TOUTES les
+ * fenêtres ouvertes re-rendaient à chaque mouvement de souris (props
+ * inchangées pour elles · l'objet `fenetre` garde la même référence).
+ */
+export const Fenetre = memo(FenetreInterne);
+
+function FenetreInterne({ fenetre, active }: { fenetre: FenetreOuverte; active: boolean }) {
+  const { activer, fermer, reduire, basculerAgrandissement, deplacer } = useFenetresActions();
   const refCadre = useRef<HTMLDivElement>(null);
 
   const agrandie = fenetre.etat === 'agrandie';
@@ -121,6 +129,12 @@ export function Fenetre({ fenetre, active }: { fenetre: FenetreOuverte; active: 
         top: fenetre.cadre.y,
         width: fenetre.cadre.largeur,
         height: fenetre.cadre.hauteur,
+        // Le gabarit par défaut (940×560) peut dépasser un petit espace de
+        // travail : le cadre est borné à la TAILLE de l'espace (jamais à ce
+        // qui reste à droite de sa position · garer une fenêtre contre un
+        // bord, geste MDI voulu, ne doit pas la rétrécir).
+        maxWidth: 'calc(100% - 16px)',
+        maxHeight: 'calc(100% - 16px)',
         zIndex: fenetre.ordre,
       };
 
@@ -195,7 +209,12 @@ export function Fenetre({ fenetre, active }: { fenetre: FenetreOuverte; active: 
           {/* La clé porte le compteur d'Actualiser : l'incrémenter remonte le
               contenu, qui recharge ses données · le F5 de Sage. */}
           <FenetreCouranteProvider key={fenetre.version} cle={fenetre.cle}>
-            {rendreFenetre(fenetre.adresse)}
+            {/* Les pages sont chargées à la demande (registre-fenetres, lazy) :
+                le temps du transfert de son module, la fenêtre affiche le même
+                « Chargement… » que ses données · rien ne clignote deux fois. */}
+            <Suspense fallback={<div className="p-3 text-[12px] text-text-dim">Chargement…</div>}>
+              {rendreFenetre(fenetre.adresse)}
+            </Suspense>
           </FenetreCouranteProvider>
         </LimiteErreur>
       </div>

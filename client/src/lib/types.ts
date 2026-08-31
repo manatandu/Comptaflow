@@ -997,15 +997,6 @@ export interface BudgetSection {
   mensuel: { mois: number; montant: number }[];
 }
 
-export interface VentilationAnalytique {
-  id: string;
-  sectionId: string;
-  planId: string;
-  debit: number;
-  credit: number;
-  section: { id: string; code: string; intitule: string; planId: string };
-}
-
 export interface LigneBalanceAnalytique {
   sectionId: string;
   code: string;

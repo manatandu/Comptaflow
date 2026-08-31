@@ -2,7 +2,7 @@ export function AProposModale({ onFermer }: { onFermer: () => void }) {
   return (
     <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center" onClick={onFermer}>
       <div
-        className="bg-surface border border-border-dark w-[360px] shadow-none"
+        className="bg-surface border border-border-dark w-[360px] shadow-none max-h-[calc(100dvh-2rem)] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="bg-chrome border-b border-border px-3 py-2 flex items-center justify-between">

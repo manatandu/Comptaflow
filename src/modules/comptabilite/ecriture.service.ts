@@ -754,10 +754,16 @@ export class EcritureService {
        * `false` donne le livre-journal seul, tel qu'il sera imprimé.
        */
       inclureBrouillard?: boolean;
+      /**
+       * Nombre maximal d'écritures, les plus récentes d'abord quand il est
+       * posé. Le tableau de bord n'affiche que quelques mouvements : lui
+       * faire télécharger l'exercice entier était le premier poste de
+       * lenteur relevé à l'audit. Absent = comportement historique (tout).
+       */
+      limite?: number;
     },
   ) {
-    const ecritures = await this.prisma.ecriture.findMany({
-      where: {
+    const where = {
         tenantId,
         ...(filtres.inclureBrouillard === false ? { statut: StatutEcriture.VALIDEE } : {}),
         ...(filtres.exerciceId ? { exerciceId: filtres.exerciceId } : {}),
@@ -771,7 +777,11 @@ export class EcritureService {
             }
           : {}),
         ...(filtres.recherche ? { libelle: { contains: filtres.recherche, mode: 'insensitive' as const } } : {}),
-      },
+    };
+
+    const ecritures = await this.prisma.ecriture.findMany({
+      ...(filtres.limite ? { take: filtres.limite } : {}),
+      where,
       include: {
         lignes: { include: { compte: true } },
         journal: true,
@@ -786,9 +796,24 @@ export class EcritureService {
       // Départage explicite : à date égale, l'ordre de sortie serait sinon
       // laissé au plan d'exécution PostgreSQL et pourrait changer d'un export
       // à l'autre (voir TRI_GRAND_LIVRE).
-      orderBy: [{ date: 'asc' }, { numeroPiece: 'asc' }, { id: 'asc' }],
+      orderBy: filtres.limite
+        ? [{ date: 'desc' }, { numeroPiece: 'desc' }, { id: 'desc' }]
+        : [{ date: 'asc' }, { numeroPiece: 'asc' }, { id: 'asc' }],
     });
 
+    // Avec une limite, les totaux calculés sur les lignes tronquées seraient
+    // FAUX (ceux des N dernières écritures, présentés comme ceux du journal) :
+    // ils viennent alors d'un agrégat SQL sur le même périmètre complet.
+    if (filtres.limite) {
+      const agg = await this.prisma.ligneEcriture.aggregate({
+        _sum: { debit: true, credit: true },
+        where: { ecriture: where },
+      });
+      return {
+        ecritures,
+        totaux: { debit: Number(agg._sum.debit ?? 0), credit: Number(agg._sum.credit ?? 0) },
+      };
+    }
     const totalDebit = ecritures.reduce((s, e) => s + e.lignes.reduce((s2, l) => s2 + Number(l.debit), 0), 0);
     const totalCredit = ecritures.reduce((s, e) => s + e.lignes.reduce((s2, l) => s2 + Number(l.credit), 0), 0);
     return { ecritures, totaux: { debit: totalDebit, credit: totalCredit } };

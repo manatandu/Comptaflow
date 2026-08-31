@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Suspense, lazy, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useExercice } from '../lib/exercice';
@@ -6,7 +6,7 @@ import { useAuth } from '../lib/auth';
 import { IconExport, IconCheck } from '../components/chrome/icons';
 import { Aide } from '../components/chrome/Aide';
 import { BlocCertification, EnteteImpression } from '../components/chrome/EnteteImpression';
-import { EtatsSmtPage } from './EtatsSmtPage';
+const EtatsSmtPage = lazy(() => import('./EtatsSmtPage').then((m) => ({ default: m.EtatsSmtPage })));
 import type {
   Bilan,
   BilanProjet,
@@ -294,7 +294,7 @@ function EtatsSystemeNormalPage() {
       <EnteteImpression titre="États financiers" sousTitre={LIBELLE_ONGLET[onglet]} />
       <div className="ecran-seul flex items-center justify-between mb-1.5">
         <div>
-          <div className="text-[9.5px] font-mono text-text-dim leading-none">ÉTAT</div>
+          <div className="text-[10px] font-mono text-text-dim leading-none">ÉTAT</div>
           <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
             États financiers
             <Aide sujet="jeuEtats" />
@@ -1148,7 +1148,9 @@ export function EtatsFinanciersPage() {
     return <div className="p-2.5 text-[12px] text-text-dim">Chargement…</div>;
   }
   return utilisateur.tenant.jeuEtatsFinanciersSycebnl === 'SYSTEME_MINIMAL_TRESORERIE' ? (
-    <EtatsSmtPage />
+    <Suspense fallback={<div className="p-3 text-[12px] text-text-dim">Chargement…</div>}>
+      <EtatsSmtPage />
+    </Suspense>
   ) : (
     <EtatsSystemeNormalPage />
   );

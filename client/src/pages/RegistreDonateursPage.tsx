@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '../lib/api';
+import { useActionsFenetre } from '../lib/actions-fenetre';
 import { useExercice } from '../lib/exercice';
 import { useAuth } from '../lib/auth';
 import { IconExport } from '../components/chrome/icons';
@@ -103,6 +104,15 @@ export function RegistreDonateursPage() {
   const [onglet, setOnglet] = useState<'registre' | 'conformite'>('registre');
   const [form, setForm] = useState<Formulaire>(FORMULAIRE_VIDE);
   const [formOuvert, setFormOuvert] = useState(false);
+  useActionsFenetre({
+    ajouter: {
+      titre: 'Inscrire un don au registre',
+      executer: () => {
+        setOnglet('registre');
+        setFormOuvert(true);
+      },
+    },
+  });
   const [enCours, setEnCours] = useState(false);
   const [exportEnCours, setExportEnCours] = useState(false);
 
@@ -232,7 +242,7 @@ export function RegistreDonateursPage() {
       <EnteteImpression titre="Registre des donateurs" />
       <div className="flex items-center justify-between mb-1.5">
         <div>
-          <div className="text-[9.5px] font-mono text-text-dim leading-none">TRAITEMENT</div>
+          <div className="text-[10px] font-mono text-text-dim leading-none">TRAITEMENT</div>
           <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
             Registre des donateurs
             <Aide sujet="registreDonateurs" />
@@ -525,7 +535,7 @@ function BlocConformite({
         >
           <span className="font-mono">{c.numero}</span>
           <span className="truncate">{c.intitule}</span>
-          <span className="font-mono text-[9.5px] text-text-dim">{c.lecture}</span>
+          <span className="font-mono text-[10px] text-text-dim">{c.lecture}</span>
           <span className="font-mono text-right">{montant(c.montant)}</span>
         </div>
       ))}

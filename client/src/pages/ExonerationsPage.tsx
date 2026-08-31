@@ -117,7 +117,7 @@ export function ExonerationsPage() {
     <div className="p-2">
       <EnteteImpression titre="Exonérations douanières et fiscales" />
       <div className="ecran-seul mb-1.5 max-w-[1100px]">
-        <div className="text-[9.5px] font-mono text-text-dim leading-none">REGISTRE</div>
+        <div className="text-[10px] font-mono text-text-dim leading-none">REGISTRE</div>
         <h1 className="text-[13px] font-bold leading-tight">Exonérations douanières et fiscales</h1>
         <div className="text-[10.5px] text-text-dim mt-0.5">
           Les facilités de l’article 39 de la loi n° 004/2001, constatées par arrêté interministériel des Ministres du
@@ -209,7 +209,7 @@ export function ExonerationsPage() {
         </div>
 
         {/* --- Dossier sélectionné ------------------------------------------ */}
-        <div className="w-[400px] shrink-0 bg-surface border border-border shadow-posee overflow-auto max-h-[calc(100vh-200px)]">
+        <div className="w-[400px] shrink-0 bg-surface border border-border shadow-posee">
           <div className="px-3 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
             DOSSIER
           </div>
@@ -239,7 +239,7 @@ export function ExonerationsPage() {
                   ))}
                 </select>
                 <span
-                  className={`inline-block mt-1 font-mono text-[9px] font-bold px-1.5 py-0.5 ${COULEUR_STATUT[selection.statut]}`}
+                  className={`inline-block mt-1 font-mono text-[10px] font-bold px-1.5 py-0.5 ${COULEUR_STATUT[selection.statut]}`}
                 >
                   {LIBELLE_STATUT[selection.statut].toUpperCase()}
                 </span>
@@ -266,7 +266,7 @@ export function ExonerationsPage() {
                     <span className={p.fournie ? 'text-text-dim line-through' : ''}>
                       {p.libelle}
                       {p.conditionnelle && (
-                        <span className="block text-[9.5px] text-sel italic">Seulement si : {p.conditionnelle}</span>
+                        <span className="block text-[11px] text-sel italic">Seulement si : {p.conditionnelle}</span>
                       )}
                     </span>
                   </label>
@@ -312,7 +312,7 @@ export function ExonerationsPage() {
       {/* --- Création ------------------------------------------------------- */}
       {creation && (
         <div className="fixed inset-0 bg-black/25 flex items-center justify-center z-50" onClick={() => setCreation(null)}>
-          <div className="bg-surface border border-border-dark shadow-dominante w-[520px] p-4" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-surface border border-border-dark shadow-dominante w-[520px] p-4 max-h-[calc(100dvh-2rem)] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="text-[13px] font-bold mb-2.5">Nouveau dossier d’exonération</div>
             <label className="block text-[11.5px] mb-2">
               Type de demande

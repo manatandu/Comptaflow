@@ -210,7 +210,7 @@ export function ParametresDossierPage() {
   return (
     <div className="p-2">
       <div className="mb-2.5">
-        <div className="text-[9.5px] font-mono text-text-dim leading-none">STRUCTURE</div>
+        <div className="text-[10px] font-mono text-text-dim leading-none">STRUCTURE</div>
         <h1 className="text-[13px] font-bold leading-tight">Paramètres du dossier</h1>
       </div>
 

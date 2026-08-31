@@ -1,40 +1,48 @@
+import { lazy } from 'react';
 import type { MetaFenetre } from './fenetres';
 import type { Referentiel } from './types';
 import { fenetreDisponible } from './referentiel-fenetre';
 export { fenetreDisponible };
 
-import { DashboardPage } from '../pages/DashboardPage';
-import { SaisiePage } from '../pages/SaisiePage';
-import { PlanComptesPage } from '../pages/PlanComptesPage';
-import { JournauxPage } from '../pages/JournauxPage';
-import { JournalPage } from '../pages/JournalPage';
-import { BalanceAgeePage } from '../pages/BalanceAgeePage';
-import { EcheancierPage } from '../pages/EcheancierPage';
-import { LettragePage } from '../pages/LettragePage';
-import { RapprochementPage } from '../pages/RapprochementPage';
-import { RapprochementDetailPage } from '../pages/RapprochementDetailPage';
-import { ImmobilisationsPage } from '../pages/ImmobilisationsPage';
-import { ExercicePage } from '../pages/ExercicePage';
-import { TiersPage } from '../pages/TiersPage';
-import { TauxTvaPage } from '../pages/TauxTvaPage';
-import { DeclarationTvaPage } from '../pages/DeclarationTvaPage';
-import { RetenuesPage } from '../pages/RetenuesPage';
-import { ExonerationsPage } from '../pages/ExonerationsPage';
-import { EtatsFinanciersPage } from '../pages/EtatsFinanciersPage';
-import { NotesAnnexesPage } from '../pages/NotesAnnexesPage';
-import { RegistreDonateursPage } from '../pages/RegistreDonateursPage';
-import { DocumentsObligatoiresPage } from '../pages/DocumentsObligatoiresPage';
-import { UtilisateursPage } from '../pages/UtilisateursPage';
-import { ParametresDossierPage } from '../pages/ParametresDossierPage';
-import { PlansAnalytiquesPage } from '../pages/PlansAnalytiquesPage';
-import { BrouillardPage } from '../pages/BrouillardPage';
-import { ImportPage } from '../pages/ImportPage';
-import { ControlesPage } from '../pages/ControlesPage';
-import { RegularisationPage } from '../pages/RegularisationPage';
-import { DevisesPage } from '../pages/DevisesPage';
-import { RelancesPage } from '../pages/RelancesPage';
-import { EtatsAnalytiquesPage } from '../pages/EtatsAnalytiquesPage';
-import { BailleursPage } from '../pages/BailleursPage';
+/*
+ * CHARGEMENT À LA DEMANDE · chaque page ne rejoint le navigateur qu'à
+ * l'ouverture de sa première fenêtre. En eager, les 37 pages partaient
+ * dans un seul bundle de 660 Ko : l'écran d'ouverture payait le poids des
+ * états financiers. Le Suspense qui affiche « Chargement… » pendant le
+ * transfert vit dans Fenetre.tsx, autour de rendreFenetre().
+ */
+const DashboardPage = lazy(() => import('../pages/DashboardPage').then((m) => ({ default: m.DashboardPage })));
+const SaisiePage = lazy(() => import('../pages/SaisiePage').then((m) => ({ default: m.SaisiePage })));
+const PlanComptesPage = lazy(() => import('../pages/PlanComptesPage').then((m) => ({ default: m.PlanComptesPage })));
+const JournauxPage = lazy(() => import('../pages/JournauxPage').then((m) => ({ default: m.JournauxPage })));
+const JournalPage = lazy(() => import('../pages/JournalPage').then((m) => ({ default: m.JournalPage })));
+const BalanceAgeePage = lazy(() => import('../pages/BalanceAgeePage').then((m) => ({ default: m.BalanceAgeePage })));
+const EcheancierPage = lazy(() => import('../pages/EcheancierPage').then((m) => ({ default: m.EcheancierPage })));
+const LettragePage = lazy(() => import('../pages/LettragePage').then((m) => ({ default: m.LettragePage })));
+const RapprochementPage = lazy(() => import('../pages/RapprochementPage').then((m) => ({ default: m.RapprochementPage })));
+const RapprochementDetailPage = lazy(() => import('../pages/RapprochementDetailPage').then((m) => ({ default: m.RapprochementDetailPage })));
+const ImmobilisationsPage = lazy(() => import('../pages/ImmobilisationsPage').then((m) => ({ default: m.ImmobilisationsPage })));
+const ExercicePage = lazy(() => import('../pages/ExercicePage').then((m) => ({ default: m.ExercicePage })));
+const TiersPage = lazy(() => import('../pages/TiersPage').then((m) => ({ default: m.TiersPage })));
+const TauxTvaPage = lazy(() => import('../pages/TauxTvaPage').then((m) => ({ default: m.TauxTvaPage })));
+const DeclarationTvaPage = lazy(() => import('../pages/DeclarationTvaPage').then((m) => ({ default: m.DeclarationTvaPage })));
+const RetenuesPage = lazy(() => import('../pages/RetenuesPage').then((m) => ({ default: m.RetenuesPage })));
+const ExonerationsPage = lazy(() => import('../pages/ExonerationsPage').then((m) => ({ default: m.ExonerationsPage })));
+const EtatsFinanciersPage = lazy(() => import('../pages/EtatsFinanciersPage').then((m) => ({ default: m.EtatsFinanciersPage })));
+const NotesAnnexesPage = lazy(() => import('../pages/NotesAnnexesPage').then((m) => ({ default: m.NotesAnnexesPage })));
+const RegistreDonateursPage = lazy(() => import('../pages/RegistreDonateursPage').then((m) => ({ default: m.RegistreDonateursPage })));
+const DocumentsObligatoiresPage = lazy(() => import('../pages/DocumentsObligatoiresPage').then((m) => ({ default: m.DocumentsObligatoiresPage })));
+const UtilisateursPage = lazy(() => import('../pages/UtilisateursPage').then((m) => ({ default: m.UtilisateursPage })));
+const ParametresDossierPage = lazy(() => import('../pages/ParametresDossierPage').then((m) => ({ default: m.ParametresDossierPage })));
+const PlansAnalytiquesPage = lazy(() => import('../pages/PlansAnalytiquesPage').then((m) => ({ default: m.PlansAnalytiquesPage })));
+const BrouillardPage = lazy(() => import('../pages/BrouillardPage').then((m) => ({ default: m.BrouillardPage })));
+const ImportPage = lazy(() => import('../pages/ImportPage').then((m) => ({ default: m.ImportPage })));
+const ControlesPage = lazy(() => import('../pages/ControlesPage').then((m) => ({ default: m.ControlesPage })));
+const RegularisationPage = lazy(() => import('../pages/RegularisationPage').then((m) => ({ default: m.RegularisationPage })));
+const DevisesPage = lazy(() => import('../pages/DevisesPage').then((m) => ({ default: m.DevisesPage })));
+const RelancesPage = lazy(() => import('../pages/RelancesPage').then((m) => ({ default: m.RelancesPage })));
+const EtatsAnalytiquesPage = lazy(() => import('../pages/EtatsAnalytiquesPage').then((m) => ({ default: m.EtatsAnalytiquesPage })));
+const BailleursPage = lazy(() => import('../pages/BailleursPage').then((m) => ({ default: m.BailleursPage })));
 
 /**
  * REGISTRE DES FENÊTRES · la seule liste qui associe un chemin à ce qui
@@ -87,6 +95,14 @@ export const FENETRES: DefinitionFenetre[] = [
     titre: 'Interrogation et lettrage',
     titreCourt: 'Interrogation',
     rendre: ({ capture }) => <LettragePage compteId={capture[0]} />,
+  },
+  {
+    // Fenêtre ouverte SANS compte (menu Traitement) : le sélecteur intégré
+    // fait le choix · le menu ne doit plus détourner vers le plan comptable.
+    motif: /^\/lettrage$/,
+    titre: 'Interrogation et lettrage',
+    titreCourt: 'Interrogation',
+    rendre: () => <LettragePage />,
   },
   { motif: /^\/comptes$/, titre: 'Plan comptable', titreCourt: 'Plan comptable', rendre: () => <PlanComptesPage /> },
   {

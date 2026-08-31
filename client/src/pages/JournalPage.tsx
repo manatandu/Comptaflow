@@ -131,7 +131,9 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
   // compte sous le nom d'un autre · une faute lourde sur un logiciel
   // comptable, et rien à l'écran ne l'aurait signalée.
   useEffect(() => {
-    if (!exerciceCourant) return;
+    // L'onglet Journal seul charge les écritures · ouvrir la fenêtre sur la
+    // Balance ne doit plus tirer les trois jeux de données d'un coup.
+    if (!exerciceCourant || onglet !== 'journal') return;
     let annule = false;
     const query = versQuery(exerciceCourant.id, filtresAppliques);
     api.get<{ ecritures: Ecriture[]; totaux: { debit: number; credit: number } }>(`/ecritures?${query}`).then(
@@ -145,10 +147,10 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
     return () => {
       annule = true;
     };
-  }, [exerciceCourant?.id, filtresAppliques, rechargement]);
+  }, [exerciceCourant?.id, filtresAppliques, rechargement, onglet]);
 
   useEffect(() => {
-    if (!exerciceCourant) return;
+    if (!exerciceCourant || onglet !== 'balance') return;
     let annule = false;
     api.get<{ lignes: LigneBalance[] }>(`/ecritures/balance?exerciceId=${exerciceCourant.id}`).then(
       (r) => !annule && setBalance(r.lignes),
@@ -157,7 +159,7 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
     return () => {
       annule = true;
     };
-  }, [exerciceCourant?.id, rechargement]);
+  }, [exerciceCourant?.id, rechargement, onglet]);
 
   useEffect(() => {
     if (!exerciceCourant || !compteGrandLivreId) {
@@ -227,7 +229,7 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
   // l'en-tête de page ci-dessous. Ceux du ruban sont explicitement
   // `disabled` : les laisser cliquables sans effet, à l'endroit le plus
   // visible de l'écran, est pire que de les désactiver.
-  const lignesJournal = ecritures.flatMap((e) =>
+  const lignesJournal = useMemo(() => ecritures.flatMap((e) =>
     e.lignes.map((l, indexLigne) => ({
       date: e.date,
       journal: e.journal?.code ?? '',
@@ -258,7 +260,7 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
       estGenereeParCloture: e.estGenereeParCloture ?? false,
       enBrouillard: e.statut === 'BROUILLARD',
     })),
-  );
+  ), [ecritures]);
 
   /**
    * CORRECTION D'ERREUR PAR INSCRIPTION EN NÉGATIF · art. 20 de l'AUDCIF,
@@ -336,7 +338,7 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
       <EnteteImpression titre="Journal, grand livre et balance" />
       <div className="flex items-center justify-between mb-1.5 gap-2">
         <div>
-          <div className="text-[9.5px] font-mono text-text-dim leading-none">ÉTAT</div>
+          <div className="text-[10px] font-mono text-text-dim leading-none">ÉTAT</div>
           <h1 className="text-[13px] font-bold leading-tight">
             {onglet === 'journal' ? 'Journal' : onglet === 'grand-livre' ? 'Grand livre des comptes' : 'Balance des comptes'}
           </h1>
@@ -525,7 +527,7 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
               <span className="text-[10px] no-underline flex items-center gap-1.5 justify-end">
                 {l.premiereLigne && l.enBrouillard && (
                   <span
-                    className="text-[9px] font-bold text-warning bg-warning-soft border border-warning/40 rounded-[3px] px-1"
+                    className="text-[10px] font-bold text-warning bg-warning-soft border border-warning/40 rounded-[3px] px-1"
                     title="En brouillard · pas encore entrée au livre-journal"
                   >
                     BROUILLARD

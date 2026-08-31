@@ -154,10 +154,10 @@ export function AppShell() {
       titre: 'Traitement',
       items: [
         { label: 'Saisie des journaux', onClick: () => navigate('/saisie') },
-        // Interrogation d'un compte = son grand livre + son lettrage ; l'entrée
-        // se fait par le plan comptable (bouton Interroger de chaque compte),
-        // exactement comme le bouton « Gérer » de la fiche compte chez Sage.
-        { label: 'Interrogation et lettrage', separateurAvant: true, onClick: () => navigate('/comptes') },
+        // La fenêtre s'ouvre directement, son sélecteur intégré désigne le
+        // compte · passer par le plan comptable était un détour trompeur
+        // (le menu « Lettrage » ouvrait une autre fenêtre que celle annoncée).
+        { label: 'Interrogation et lettrage', separateurAvant: true, onClick: () => navigate('/lettrage') },
         { label: 'Rapprochement bancaire', onClick: () => navigate('/rapprochement') },
         { label: 'Régularisations et abonnements', onClick: () => navigate('/regularisations') },
         { label: 'Devises et réévaluation', onClick: () => navigate('/devises') },

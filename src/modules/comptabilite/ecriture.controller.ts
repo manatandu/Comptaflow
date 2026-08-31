@@ -103,7 +103,9 @@ export class EcritureController {
     @Query('dateFin') dateFin?: string,
     @Query('recherche') recherche?: string,
     @Query('inclureBrouillard') inclureBrouillard?: string,
+    @Query('limite') limite?: string,
   ) {
+    const limiteN = limite ? Math.min(Math.max(parseInt(limite, 10) || 0, 0), 500) : undefined;
     return this.ecritureService.lister(user.tenantId, {
       exerciceId,
       journalId,
@@ -111,6 +113,7 @@ export class EcritureController {
       dateFin,
       recherche,
       inclureBrouillard: inclureBrouillard !== 'false',
+      ...(limiteN ? { limite: limiteN } : {}),
     });
   }
 

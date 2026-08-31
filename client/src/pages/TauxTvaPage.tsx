@@ -93,7 +93,7 @@ export function TauxTvaPage() {
     <div className="p-2">
       <div className="flex items-center justify-between mb-2">
         <div>
-          <div className="text-[9.5px] font-mono text-text-dim leading-none">STRUCTURE</div>
+          <div className="text-[10px] font-mono text-text-dim leading-none">STRUCTURE</div>
           <h1 className="text-[13px] font-bold leading-tight">Taux de taxes (TVA)</h1>
         </div>
         <button type="button" onClick={() => setNouveauOuvert(true)} className="bg-sel text-white px-3.5 py-1 text-[11.5px] font-semibold">
@@ -149,7 +149,7 @@ export function TauxTvaPage() {
 
       {nouveauOuvert && (
         <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
-          <form onSubmit={onCreer} className="anim-modale w-full max-w-[480px] bg-surface border border-border-dark shadow-flottante">
+          <form onSubmit={onCreer} className="anim-modale w-full max-w-[480px] bg-surface border border-border-dark shadow-flottante max-h-[calc(100dvh-2rem)] overflow-y-auto">
             <div
               className="h-[26px] flex items-center justify-between px-2.5 text-white text-[11.5px]"
               style={{ background: 'linear-gradient(180deg, var(--titlebar-from), var(--titlebar-to))' }}

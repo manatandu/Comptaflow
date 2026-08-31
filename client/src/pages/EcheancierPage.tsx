@@ -46,7 +46,7 @@ export function EcheancierPage() {
       <EnteteImpression titre="Échéancier de trésorerie" />
       <div className="ecran-seul flex items-end justify-between mb-1.5 gap-3 flex-wrap max-w-[1100px]">
         <div>
-          <div className="text-[9.5px] font-mono text-text-dim leading-none">ÉTAT</div>
+          <div className="text-[10px] font-mono text-text-dim leading-none">ÉTAT</div>
           <h1 className="text-[13px] font-bold leading-tight">Échéancier de trésorerie</h1>
           <div className="text-[10.5px] text-text-dim mt-0.5">
             Ce qui vient à échéance et ce qu'il restera en caisse · distinct de la balance âgée, qui recense le retard.

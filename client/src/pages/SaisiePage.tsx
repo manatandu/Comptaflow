@@ -515,15 +515,18 @@ export function SaisiePage() {
     }
   };
 
-  // Totaux du journal (écritures existantes de la période)
-  const totalDebitJournal = ecritures.reduce(
-    (s, e) => s + e.lignes.reduce((s2, l) => s2 + Number(l.debit), 0),
-    0,
-  );
-  const totalCreditJournal = ecritures.reduce(
-    (s, e) => s + e.lignes.reduce((s2, l) => s2 + Number(l.credit), 0),
-    0,
-  );
+  // Totaux du journal (écritures existantes de la période) · mémoïsés : le
+  // double reduce parcourait toutes les lignes à CHAQUE frappe dans la grille.
+  const { totalDebitJournal, totalCreditJournal } = useMemo(() => {
+    let d = 0;
+    let c = 0;
+    for (const e of ecritures)
+      for (const l of e.lignes) {
+        d += Number(l.debit);
+        c += Number(l.credit);
+      }
+    return { totalDebitJournal: d, totalCreditJournal: c };
+  }, [ecritures]);
 
   // La grille gagne une colonne par axe analytique doté de sections · sans
   // axe, elle retrouve exactement sa largeur d'origine.
@@ -618,7 +621,7 @@ export function SaisiePage() {
       {/* En-tête du journal ouvert */}
       <div className="flex items-center justify-between mb-2">
         <div>
-          <div className="text-[9.5px] font-mono text-text-dim leading-none">SAISIE DES JOURNAUX</div>
+          <div className="text-[10px] font-mono text-text-dim leading-none">SAISIE DES JOURNAUX</div>
           <h1 className="text-[13px] font-bold leading-tight">
             Journal {journal?.code} · {journal?.intitule} · {periode?.libelle}
           </h1>
@@ -671,7 +674,7 @@ export function SaisiePage() {
                 <span className="font-mono text-text-dim">
                   {i === 0 ? (e.numeroPiece ?? '·') : ''}
                   {i === 0 && e.statut === 'BROUILLARD' && (
-                    <span className="ml-1 text-[9px] font-bold text-warning" title="En brouillard · pas encore au livre-journal">
+                    <span className="ml-1 text-[10px] font-bold text-warning" title="En brouillard · pas encore au livre-journal">
                       B
                     </span>
                   )}

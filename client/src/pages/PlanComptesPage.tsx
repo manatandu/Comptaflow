@@ -73,6 +73,12 @@ export function PlanComptesPage() {
   };
 
   useEffect(() => {
+    // Montage (recherche vide) : chargement immédiat · attendre 250 ms
+    // n'amortit rien quand personne n'a encore tapé.
+    if (recherche === '') {
+      charger();
+      return;
+    }
     const t = setTimeout(charger, 250);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -182,11 +188,11 @@ export function PlanComptesPage() {
   };
 
   return (
-    <div className="p-2 flex flex-col" style={{ height: 'calc(100vh - 96px)' }}>
+    <div className="p-2 flex flex-col h-full">
       <EnteteImpression titre="Plan comptable" />
       <div className="flex items-center justify-between mb-2 shrink-0">
         <div>
-          <div className="text-[9.5px] font-mono text-text-dim leading-none">STRUCTURE</div>
+          <div className="text-[10px] font-mono text-text-dim leading-none">STRUCTURE</div>
           <h1 className="text-[13px] font-bold leading-tight">Plan comptable</h1>
         </div>
         <div className="flex items-center gap-2">
@@ -461,7 +467,7 @@ export function PlanComptesPage() {
         <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
           <form
             onSubmit={onCreer}
-            className="anim-modale w-full max-w-[460px] bg-surface border border-border-dark shadow-flottante"
+            className="anim-modale w-full max-w-[460px] bg-surface border border-border-dark shadow-flottante max-h-[calc(100dvh-2rem)] overflow-y-auto"
           >
             <div
               className="h-[26px] flex items-center justify-between px-2.5 text-white text-[11.5px]"

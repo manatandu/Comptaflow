@@ -375,10 +375,10 @@ export function TiersPage() {
   }
 
   return (
-    <div className="p-2 flex flex-col" style={{ height: 'calc(100vh - 96px)' }}>
+    <div className="p-2 flex flex-col h-full">
       <div className="flex items-center justify-between mb-2 shrink-0">
         <div>
-          <div className="text-[9.5px] font-mono text-text-dim leading-none">STRUCTURE</div>
+          <div className="text-[10px] font-mono text-text-dim leading-none">STRUCTURE</div>
           <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
             Plan des tiers
             <Aide sujet="compte41" />
@@ -585,7 +585,7 @@ export function TiersPage() {
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-mono font-semibold">{tc.compte.numero}</span>
                       {tc.estPrincipal ? (
-                        <span className="font-mono text-[9px] font-bold px-1.5 py-0.5 bg-positive-soft text-positive flex items-center gap-1">
+                        <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 bg-positive-soft text-positive flex items-center gap-1">
                           <IconCheck width={9} height={9} /> PRINCIPAL
                         </span>
                       ) : (
@@ -653,7 +653,7 @@ export function TiersPage() {
       {/* Boîte de dialogue · Nouveau tiers */}
       {nouveauOuvert && (
         <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
-          <form onSubmit={onCreerTiers} className="anim-modale w-full max-w-[440px] bg-surface border border-border-dark shadow-flottante">
+          <form onSubmit={onCreerTiers} className="anim-modale w-full max-w-[440px] bg-surface border border-border-dark shadow-flottante max-h-[calc(100dvh-2rem)] overflow-y-auto">
             <div
               className="h-[26px] flex items-center justify-between px-2.5 text-white text-[11.5px]"
               style={{ background: 'linear-gradient(180deg, var(--titlebar-from), var(--titlebar-to))' }}

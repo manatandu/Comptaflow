@@ -64,7 +64,7 @@ export function DeclarationTvaPage() {
 
   return (
     <div className="p-2">
-      <div className="text-[9.5px] font-mono text-text-dim leading-none">ÉTAT</div>
+      <div className="text-[10px] font-mono text-text-dim leading-none">ÉTAT</div>
       <h1 className="text-[13px] font-bold leading-tight mb-1.5">Déclaration de TVA</h1>
       <p className="text-[11.5px] text-text-dim mb-3 max-w-[720px]">
         Registre de suivi par taux sur une période : TVA collectée (443) et TVA déductible (445), à partir des

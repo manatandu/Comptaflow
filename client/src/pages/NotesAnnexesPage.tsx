@@ -334,7 +334,7 @@ export function NotesAnnexesPage() {
   if (jeuSmt) {
     return (
       <div className="p-2">
-        <div className="text-[9.5px] font-mono text-text-dim leading-none">ÉTAT</div>
+        <div className="text-[10px] font-mono text-text-dim leading-none">ÉTAT</div>
         <h1 className="text-[13px] font-bold leading-tight mb-2">Notes annexes</h1>
         <div className="border border-border bg-surface px-3.5 py-3 max-w-[620px]">
           <p className="text-[12px] mb-2">
@@ -356,7 +356,7 @@ export function NotesAnnexesPage() {
       <EnteteImpression titre="Notes annexes" />
       <div className="flex items-center justify-between mb-1.5">
         <div>
-          <div className="text-[9.5px] font-mono text-text-dim leading-none">ÉTAT</div>
+          <div className="text-[10px] font-mono text-text-dim leading-none">ÉTAT</div>
           <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
             Notes annexes
             <Aide sujet="notesAnnexes" />
@@ -409,7 +409,7 @@ export function NotesAnnexesPage() {
       {resultat && (
         <div className="flex gap-3 items-start">
           {/* --- Fiche récapitulative : NOTES | INTITULES | A / N-A --- */}
-          <div className="w-[360px] shrink-0 border border-border bg-surface max-h-[calc(100vh-200px)] overflow-y-auto">
+          <div className="w-[360px] shrink-0 border border-border bg-surface">
             <div className="grid grid-cols-[52px_1fr_28px] gap-2 px-3 py-1.5 bg-chrome border-b border-border text-[10px] font-bold text-text-dim sticky top-0">
               <span>NOTE</span>
               <span>INTITULÉ</span>
@@ -426,7 +426,7 @@ export function NotesAnnexesPage() {
                 <span className="font-mono">{f.code}</span>
                 <span className="truncate">{f.titre}</span>
                 <span
-                  className={`font-mono text-[9px] font-bold text-center px-1 py-0.5 w-fit justify-self-end ${
+                  className={`font-mono text-[10px] font-bold text-center px-1 py-0.5 w-fit justify-self-end ${
                     f.applicable ? 'text-positive bg-positive-soft' : 'text-text-dim bg-surface-alt'
                   }`}
                 >

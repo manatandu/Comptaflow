@@ -56,7 +56,7 @@ export function Calculette({
     <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4 anim-voile" onClick={onFermer}>
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-[280px] bg-surface border border-border rounded-[10px] overflow-hidden shadow-flottante anim-modale"
+        className="w-[280px] bg-surface border border-border rounded-[10px] overflow-hidden shadow-flottante anim-modale max-h-[calc(100dvh-2rem)] overflow-y-auto"
       >
         <div
           className="h-[30px] flex items-center justify-between px-3 text-white text-[12px]"

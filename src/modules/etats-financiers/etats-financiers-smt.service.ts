@@ -779,7 +779,9 @@ export class EtatsFinanciersSmtService {
     const [categories, tenant, exercice] = await Promise.all([
       this.ressourcesParCategorie(tenantId, exerciceId),
       this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { devise: true } }),
-      this.prisma.exercice.findUniqueOrThrow({ where: { id: exerciceId }, select: { dateDebut: true } }),
+      // findFirst borné au tenant : un id d'exercice d'un AUTRE dossier ne
+      // doit rien renvoyer (même une date de début est une fuite).
+      this.prisma.exercice.findFirstOrThrow({ where: { id: exerciceId, tenantId }, select: { dateDebut: true } }),
     ]);
 
     /*

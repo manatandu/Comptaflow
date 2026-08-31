@@ -76,7 +76,7 @@ export function MenuBar({ menus }: { menus: MenuDef[] }) {
             {m.titre}
           </button>
           {ouvert === m.titre && (
-            <div className="anim-menu absolute left-0 top-full mt-1 z-30 min-w-[250px] rounded-[12px] bg-surface shadow-flottante p-1.5">
+            <div className="anim-menu absolute left-0 top-full mt-1 z-30 min-w-[250px] max-h-[calc(100dvh-70px)] overflow-y-auto rounded-[12px] bg-surface shadow-flottante p-1.5">
               {m.items.map((it, i) => (
                 <div key={`${it.label}-${i}`}>
                   {it.separateurAvant && <div className="my-1.5 mx-2 border-t border-border" />}

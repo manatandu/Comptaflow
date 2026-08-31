@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
+import { viderCacheReferentiels } from './api';
 
 /**
  * GESTIONNAIRE DE FENÊTRES · le modèle MDI de Sage 100 Comptabilité i7.
@@ -92,6 +93,16 @@ interface ContexteFenetres {
 }
 
 const Contexte = createContext<ContexteFenetres | null>(null);
+
+/**
+ * Les ACTIONS séparées de l'état. Un cadre de fenêtre n'a besoin que d'agir
+ * (activer, fermer, déplacer…), jamais de lire la liste : le brancher sur le
+ * contexte d'état l'aurait re-rendu à chaque pointermove d'une AUTRE fenêtre,
+ * ce qui annulait le React.memo posé sur Fenetre. Ce contexte-ci garde la
+ * même référence pour toute la vie du provider.
+ */
+type ActionsFenetres = Omit<ContexteFenetres, 'fenetres' | 'cleActive'>;
+const ContexteActions = createContext<ActionsFenetres | null>(null);
 
 /**
  * Les fenêtres flottantes se décalent en cascade, comme chez Sage : sans ça,
@@ -210,6 +221,9 @@ export function FenetresProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const actualiser = useCallback((cle: string) => {
+    // Le F5 de Sage recharge les données : le cache des référentiels ne doit
+    // pas resservir la liste qu'on demande justement à revoir.
+    viderCacheReferentiels();
     setFenetres((a) => a.map((f) => (f.cle === cle ? { ...f, version: f.version + 1 } : f)));
   }, []);
 
@@ -236,11 +250,27 @@ export function FenetresProvider({ children }: { children: React.ReactNode }) {
     [fenetres, cleActive, ouvrir, fermer, fermerTout, activer, reduire, basculerAgrandissement, deplacer, reorganiser, actualiser],
   );
 
-  return <Contexte.Provider value={valeur}>{children}</Contexte.Provider>;
+  const actions = useMemo(
+    () => ({ ouvrir, fermer, fermerTout, activer, reduire, basculerAgrandissement, deplacer, reorganiser, actualiser }),
+    [ouvrir, fermer, fermerTout, activer, reduire, basculerAgrandissement, deplacer, reorganiser, actualiser],
+  );
+
+  return (
+    <ContexteActions.Provider value={actions}>
+      <Contexte.Provider value={valeur}>{children}</Contexte.Provider>
+    </ContexteActions.Provider>
+  );
 }
 
 export function useFenetres() {
   const c = useContext(Contexte);
   if (!c) throw new Error('useFenetres doit être utilisé dans un FenetresProvider');
+  return c;
+}
+
+/** Actions seules · ne re-rend jamais son consommateur quand l'état bouge. */
+export function useFenetresActions() {
+  const c = useContext(ContexteActions);
+  if (!c) throw new Error('useFenetresActions doit être utilisé dans un FenetresProvider');
   return c;
 }

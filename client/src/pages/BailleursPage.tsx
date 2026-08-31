@@ -94,7 +94,7 @@ export function BailleursPage() {
     <div className="p-2">
       <div className="flex items-center justify-between mb-1.5">
         <div>
-          <div className="text-[9.5px] font-mono text-text-dim leading-none">STRUCTURE</div>
+          <div className="text-[10px] font-mono text-text-dim leading-none">STRUCTURE</div>
           <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
             Bailleurs de fonds
             <Aide sujet="bailleur" />

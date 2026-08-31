@@ -371,13 +371,13 @@ tbody tr {
   }
 }
 @keyframes voile-in {
+  /* L'opacité seule s'anime : animer backdrop-filter force un re-rendu
+     du plein écran à chaque frame pendant 180 ms. */
   from {
     opacity: 0;
-    backdrop-filter: blur(0);
   }
   to {
     opacity: 1;
-    backdrop-filter: blur(3px);
   }
 }
 @keyframes trait-onglet {

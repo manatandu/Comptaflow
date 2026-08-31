@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '../lib/api';
+import { useActionsFenetre } from '../lib/actions-fenetre';
 import { useAuth } from '../lib/auth';
 import { useExercice } from '../lib/exercice';
 import { Aide } from '../components/chrome/Aide';
@@ -47,6 +48,7 @@ export function PlansAnalytiquesPage() {
   const [recherche, setRecherche] = useState('');
 
   const [nouvelleOuverte, setNouvelleOuverte] = useState(false);
+  useActionsFenetre({ ajouter: { titre: 'Nouvelle section analytique', executer: () => setNouvelleOuverte(true) } });
   const [code, setCode] = useState('');
   const [intitule, setIntitule] = useState('');
   const [type, setType] = useState<'DETAIL' | 'TOTAL'>('DETAIL');
@@ -183,7 +185,7 @@ export function PlansAnalytiquesPage() {
     <div className="p-2">
       <div className="flex items-end justify-between mb-1.5 gap-3 flex-wrap">
         <div>
-          <div className="text-[9.5px] font-mono text-text-dim leading-none">STRUCTURE</div>
+          <div className="text-[10px] font-mono text-text-dim leading-none">STRUCTURE</div>
           <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
             Plans analytiques
             <Aide sujet="analytique" />
@@ -266,7 +268,7 @@ export function PlansAnalytiquesPage() {
             <span>BAILLEUR</span>
             <span>CONVENTION</span>
           </div>
-          <div className="max-h-[calc(100vh-240px)] overflow-y-auto">
+          <div>
             {listeFiltree.map((s) => (
               <button
                 key={s.id}
@@ -408,7 +410,7 @@ export function PlansAnalytiquesPage() {
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4 anim-voile">
           <form
             onSubmit={creerSection}
-            className="w-full max-w-[520px] bg-surface border border-border rounded-[10px] overflow-hidden shadow-flottante anim-modale"
+            className="w-full max-w-[520px] bg-surface border border-border rounded-[10px] overflow-hidden shadow-flottante anim-modale max-h-[calc(100dvh-2rem)] overflow-y-auto"
           >
             <div
               className="h-[34px] flex items-center px-3 text-white text-[12px]"

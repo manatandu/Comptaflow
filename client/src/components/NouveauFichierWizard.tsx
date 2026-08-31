@@ -210,7 +210,7 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
 
   return (
     <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4 anim-voile">
-      <div className="w-full max-w-[700px] bg-surface border border-border rounded-[10px] overflow-hidden shadow-flottante anim-modale">
+      <div className="w-full max-w-[700px] max-h-[calc(100dvh-2rem)] flex flex-col bg-surface border border-border rounded-[10px] overflow-hidden shadow-flottante anim-modale">
         <div
           className="h-[34px] flex items-center justify-between px-3 text-white text-[12px]"
           style={{ background: 'linear-gradient(180deg, var(--titlebar-from), var(--titlebar-to))' }}
@@ -244,16 +244,16 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
             </button>
           </div>
         ) : (
-          <div className="flex">
+          <div className="flex flex-1 min-h-0">
             <div
-              className="w-[172px] flex-shrink-0 p-4"
+              className="w-[172px] flex-shrink-0 p-4 overflow-y-auto"
               style={{ background: 'linear-gradient(180deg, var(--titlebar-from), var(--titlebar-to))' }}
             >
               <div className="text-[11.5px] font-bold text-white mb-4 leading-snug">Nouveau dossier</div>
               {ETAPES.map((label, i) => (
                 <div key={label} className="flex items-center gap-2 py-1">
                   <span
-                    className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0 ${
+                    className={`w-[18px] h-[18px] rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${
                       i < etape
                         ? 'bg-white text-[var(--titlebar-to)]'
                         : i === etape
@@ -281,7 +281,7 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
               }
               className="flex-1 flex flex-col min-w-0"
             >
-              <div className="p-5 flex-1 min-h-[320px]">
+              <div className="p-5 flex-1 min-h-[min(320px,50dvh)] overflow-y-auto">
                 {etape === 0 && (
                   <>
                     <h2 className="text-[14px] font-bold mb-1 flex items-center gap-1.5">
