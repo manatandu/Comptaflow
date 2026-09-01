@@ -94,13 +94,16 @@ sait toujours qui a écrit quoi).
 4. **Onglet Balance agrégée** : vérifiez les trois contrôles · tous les
    dossiers équilibrés, les 58 neutralisés, aucune cellule sans exercice.
    Tant qu'un voyant est rouge, l'agrégat vous le dit · ne forcez jamais.
-5. **Exporter (Excel)** : le classeur contient la balance agrégée, le
-   détail par dossier, et les contrôles.
-6. **La liasse officielle** : dans le dossier de combinaison (un dossier
-   dédié, créé une fois depuis la console VMG), menu Fichier → Importer des
-   données → type Balance → la feuille « Balance agrégée » du classeur.
-   Puis État → États financiers → la liasse complète. C'est CE document,
-   unique pour toute l'entité, qui se dépose.
+5. **La liasse officielle, en un clic** : bouton **Liasse du groupe
+   (Excel)**. OmegaX refuse tant qu'un contrôle est rouge, en vous disant
+   exactement quoi corriger · c'est une protection, pas une panne. Le
+   classeur produit est LE document unique de toute l'entité, celui qui se
+   dépose.
+6. **En complément** : le bouton **Balance (Excel)** exporte la balance
+   agrégée avec le détail par dossier et les contrôles · c'est votre pièce
+   de travail et de révision. Sa feuille « Balance agrégée » se réimporte
+   aussi dans un dossier ordinaire (Fichier → Importer, type Balance) · le
+   chemin de secours si vous voulez refaire la liasse à la main.
 
 ## 6 · Ce qui reste chez VMG Consulting
 
