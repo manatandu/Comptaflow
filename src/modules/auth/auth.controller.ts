@@ -48,7 +48,7 @@ export class AuthController {
     // voulu · fermée à clé, pas démolie.
     if (this.config.get<string>('INSCRIPTION_PUBLIQUE') !== 'true') {
       throw new ForbiddenException(
-        "L'ouverture d'un dossier OmegaX se fait avec VMG Consulting · contactez le cabinet pour démarrer.",
+        "L'ouverture d'un dossier OmegaX se fait avec VMG Consulting · écrivez à admin@vmgconsulting.cd pour démarrer.",
       );
     }
     return this.poserSession(res, await this.authService.register(dto));

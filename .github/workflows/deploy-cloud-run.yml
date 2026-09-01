@@ -78,25 +78,22 @@ jobs:
           # déploiement, une variable posée à la main serait effacée au push
           # suivant. Le secret, s'il existe, PREND LE PAS sur la valeur par
           # défaut · c'est par lui qu'on ajoutera les associés du cabinet
-          # sans toucher au code. L'adresse n'est pas un secret : elle signe
-          # déjà tous les commits du dépôt.
-          OPERATEURS_PLATEFORME: ${{ secrets.API_OPERATEURS_PLATEFORME || 'manyblck@gmail.com' }}
-          # FENÊTRE TEMPORAIRE · rouvre /auth/register le temps de créer le
-          # compte du cabinet (aucun compte n'existe encore avec l'adresse
-          # de l'opérateur). À RETIRER dès la création faite : le retrait
-          # redéploie, et ce redémarrage promeut au passage le compte créé
-          # (le bootstrap des opérateurs ne court qu'au démarrage).
-          INSCRIPTION_PUBLIQUE: 'true'
+          # sans toucher au code. L'adresse du cabinet n'est pas un secret :
+          # c'est celle que le message de refus d'inscription donne à tout
+          # visiteur.
+          OPERATEURS_PLATEFORME: ${{ secrets.API_OPERATEURS_PLATEFORME || 'admin@vmgconsulting.cd' }}
+          # L'auto-inscription est FERMÉE : aucune variable INSCRIPTION_PUBLIQUE
+          # n'est posée, et /auth/register refuse. Elle a été ouverte le temps
+          # de créer le compte du cabinet (1er septembre 2026), puis retirée
+          # · ce retrait a redéployé le service, et ce redémarrage a promu le
+          # compte créé (le bootstrap des opérateurs ne court qu'au démarrage).
+          # Pour rouvrir un jour un canal libre-service, poser ici
+          # `INSCRIPTION_PUBLIQUE: 'true'` et l'ajouter aux variables ci-dessous.
         run: |
           python3 - <<'PY' > /tmp/env-vars.yaml
           import json, os
           cles = ("DATABASE_URL", "JWT_SECRET", "JWT_EXPIRES_IN", "CORS_ORIGIN")
-          if os.environ.get("INSCRIPTION_PUBLIQUE") == "true":
-              variables_temporaires = {"INSCRIPTION_PUBLIQUE": "true"}
-          else:
-              variables_temporaires = {}
           variables = {c: os.environ[c] for c in cles}
-          variables.update(variables_temporaires)
           # Facultative · secret absent ou vide, la variable n'est pas posée
           # (le bootstrap n'accorde alors rien, et ne retire jamais rien).
           if os.environ.get("OPERATEURS_PLATEFORME"):
