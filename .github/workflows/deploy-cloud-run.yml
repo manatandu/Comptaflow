@@ -81,11 +81,22 @@ jobs:
           # sans toucher au code. L'adresse n'est pas un secret : elle signe
           # déjà tous les commits du dépôt.
           OPERATEURS_PLATEFORME: ${{ secrets.API_OPERATEURS_PLATEFORME || 'manyblck@gmail.com' }}
+          # FENÊTRE TEMPORAIRE · rouvre /auth/register le temps de créer le
+          # compte du cabinet (aucun compte n'existe encore avec l'adresse
+          # de l'opérateur). À RETIRER dès la création faite : le retrait
+          # redéploie, et ce redémarrage promeut au passage le compte créé
+          # (le bootstrap des opérateurs ne court qu'au démarrage).
+          INSCRIPTION_PUBLIQUE: 'true'
         run: |
           python3 - <<'PY' > /tmp/env-vars.yaml
           import json, os
           cles = ("DATABASE_URL", "JWT_SECRET", "JWT_EXPIRES_IN", "CORS_ORIGIN")
+          if os.environ.get("INSCRIPTION_PUBLIQUE") == "true":
+              variables_temporaires = {"INSCRIPTION_PUBLIQUE": "true"}
+          else:
+              variables_temporaires = {}
           variables = {c: os.environ[c] for c in cles}
+          variables.update(variables_temporaires)
           # Facultative · secret absent ou vide, la variable n'est pas posée
           # (le bootstrap n'accorde alors rien, et ne retire jamais rien).
           if os.environ.get("OPERATEURS_PLATEFORME"):
