@@ -78,7 +78,20 @@ engagement (classe 4 mouvementée).
   ANOMALIES (gravités BLOQUANT / A_TRAITER / A_VERIFIER / MINEUR / INFO,
   jamais de correction silencieuse) ;
 - notes non documentées à ne pas joindre, lignes non chiffrées à supprimer
-  avant remise (règle de l'Acte uniforme, à faire respecter à l'export).
+  avant remise (règle de l'Acte uniforme, à faire respecter à l'export) ;
+- **présentation « charte ETAFI »** (alignée sur une liasse fiscale réelle,
+  reprise par les moteurs de référence) : cartouche d'identification en
+  tête de chaque page (dénomination, adresse, sigle, NCC, NTD, exercice,
+  durée, numéro de page), en-têtes de colonnes `#CCFFFF`, rubriques
+  `#FFFFCC`, totaux intermédiaires `#C0C0C0`, totaux de section `#008000`
+  (texte blanc), TOTAL GENERAL `#000080`, titres d'états Arial Black vert,
+  corps Arial 9, format comptable avec zéro affiché « - » ; pages
+  Couverture, Garde (documents déposés + zone administration), Fiche 1
+  (cases codes ZA…), Fiche 2 (équipe/dirigeants), CONTROLE BALANCE
+  (équilibre soldes/mouvements avec verdict), Bilan paysage (actif/passif
+  côte à côte), fiche NOTES ANNEXES et TABLE COMMENTAIRE ; ordre des
+  feuilles : balances, CONTROLE BALANCE, Couverture, Garde, fiches,
+  Bilan paysage, états, notes, TABLE COMMENTAIRE, audit.
 
 ## Jeux d'essai
 
