@@ -146,7 +146,8 @@ interface Form {
   telephone: string;
   dateDebutExercice: string;
   dateFinExercice: string;
-  devise: 'CDF' | 'USD' | 'Autre';
+  /** Code ISO 4217 · les deux monnaies proposées, ou celle saisie librement. */
+  devise: string;
   email: string;
   motDePasse: string;
 }
@@ -181,12 +182,57 @@ function formInitial(): Form {
 const champ =
   'mt-1 w-full border border-border rounded-[6px] bg-surface px-2.5 py-1.5 text-[13px] font-normal focus:outline-none focus:ring-2 focus:ring-sel/25 focus:border-sel';
 
+/**
+ * LIGNE DE FORMULAIRE, au modèle Sage · étiquette ALIGNÉE À DROITE dans une
+ * colonne fixe, champ dans la colonne suivante. C'est la disposition de tous
+ * ses écrans de saisie (« Activité », « Adresse », « Date début d'exercice »…)
+ * et elle n'est pas décorative : l'œil descend une seule colonne d'étiquettes
+ * et une seule colonne de champs, au lieu de balayer en zigzag comme avec des
+ * étiquettes posées au-dessus. Sur un écran de dix champs, la différence de
+ * vitesse de lecture est réelle · c'est la raison pour laquelle les
+ * formulaires de gestion Windows sont bâtis ainsi depuis trente ans.
+ */
+function Ligne({
+  label,
+  children,
+  large,
+}: {
+  label: string;
+  children: React.ReactNode;
+  /** Champ étroit (dates, codes) plutôt que pleine largeur. */
+  large?: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-3 mb-1.5">
+      <span className="w-[132px] flex-shrink-0 text-right text-[12.5px] text-text leading-tight">{label}</span>
+      <div className={large ? 'flex-1 min-w-0' : 'w-[190px] flex-shrink-0'}>{children}</div>
+    </div>
+  );
+}
+
+/**
+ * TITRE DE SECTION avec filet · « Longueur d'un compte », « Télécommunication »
+ * chez Sage. Il découpe un écran long en blocs nommés sans ajouter de fenêtre.
+ */
+function SectionTitre({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-3 mt-4 mb-2.5">
+      <span className="text-[13px] text-text-dim">{children}</span>
+      <span className="flex-1 h-px bg-border" />
+    </div>
+  );
+}
+
 export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => void; onTermine?: () => void }) {
   const [etape, setEtape] = useState(0);
   const [form, setForm] = useState<Form>(formInitial());
   const [erreur, setErreur] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
   const [succes, setSucces] = useState(false);
+  // « Autre, à préciser » · la case reste cochée pendant que l'utilisateur
+  // tape son code, y compris quand le champ est encore vide (l'état ne peut
+  // donc pas se déduire de `form.devise` seul).
+  const [autreDevise, setAutreDevise] = useState(false);
   const { seConnecter } = useAuth();
 
   const majer = <K extends keyof Form>(cle: K, valeur: Form[K]) => setForm((f) => ({ ...f, [cle]: valeur }));
@@ -444,78 +490,161 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
 
                 {cle === 'coordonnees' && (
                   <>
-                    <h2 className="text-[15px] font-bold mb-4">Complétez les coordonnées de l'entité</h2>
-                    <div className="grid grid-cols-2 gap-3">
-                      <label className="text-[11.5px] font-semibold text-text-dim col-span-2">
-                        Activité
-                        <input value={form.activite} onChange={(e) => majer('activite', e.target.value)} className={champ} />
-                      </label>
-                      <label className="text-[11.5px] font-semibold text-text-dim col-span-2">
-                        Adresse
-                        <input value={form.adresse} onChange={(e) => majer('adresse', e.target.value)} className={champ} />
-                      </label>
-                      <label className="text-[11.5px] font-semibold text-text-dim">
-                        Ville
-                        <input value={form.ville} onChange={(e) => majer('ville', e.target.value)} className={champ} />
-                      </label>
-                      <label className="text-[11.5px] font-semibold text-text-dim">
-                        Pays
+                    <h2 className="text-[15px] font-bold mb-1.5">Renseignez l'identification du dossier</h2>
+                    {/* La phrase reprend le nom saisi à l'écran précédent · chez
+                        Sage « Renseignez la fiche Identification de la société
+                        DDZCZ ». Le logiciel montre qu'il a retenu. */}
+                    <p className="text-[12.5px] text-text-dim leading-[1.6] mb-4">
+                      Fiche d'identification de {form.nomEntite ? <strong className="text-text">{form.nomEntite}</strong> : "l'entité"}.
+                      Tout est facultatif ici et modifiable plus tard, mais ces éléments sont imprimés en tête des
+                      états financiers.
+                    </p>
+
+                    <Ligne label="Activité" large>
+                      <input value={form.activite} onChange={(e) => majer('activite', e.target.value)} className={champ} />
+                    </Ligne>
+                    <Ligne label="Adresse" large>
+                      <input value={form.adresse} onChange={(e) => majer('adresse', e.target.value)} className={champ} />
+                    </Ligne>
+                    <Ligne label="Ville / Pays" large>
+                      <div className="flex gap-2">
+                        <input
+                          value={form.ville}
+                          onChange={(e) => majer('ville', e.target.value)}
+                          className={champ}
+                          placeholder="Kinshasa"
+                        />
                         <input value={form.pays} onChange={(e) => majer('pays', e.target.value)} className={champ} />
-                      </label>
-                      <label className="text-[11.5px] font-semibold text-text-dim col-span-2">
-                        Téléphone
-                        <input value={form.telephone} onChange={(e) => majer('telephone', e.target.value)} className={champ} />
-                      </label>
-                    </div>
+                      </div>
+                    </Ligne>
+
+                    <SectionTitre>Télécommunication</SectionTitre>
+                    <Ligne label="Téléphone">
+                      <input
+                        value={form.telephone}
+                        onChange={(e) => majer('telephone', e.target.value)}
+                        className={champ}
+                        placeholder="+243 …"
+                      />
+                    </Ligne>
                   </>
                 )}
 
                 {cle === 'exercice' && (
                   <>
                     <h2 className="text-[15px] font-bold mb-1.5">Définissez le premier exercice</h2>
-                    <p className="text-[12px] text-text-dim mb-4">
-                      Aucune modification ne sera possible après la création des écritures.
+                    <p className="text-[12.5px] text-text-dim leading-[1.6] mb-4">
+                      Indiquez les dates de début et de fin de votre exercice comptable.
                     </p>
-                    <div className="grid grid-cols-2 gap-3">
-                      <label className="text-[11.5px] font-semibold text-text-dim">
-                        Date de début
-                        <input
-                          type="date"
-                          value={form.dateDebutExercice}
-                          onChange={(e) => majer('dateDebutExercice', e.target.value)}
-                          className={`${champ} font-mono`}
-                        />
-                      </label>
-                      <label className="text-[11.5px] font-semibold text-text-dim">
-                        Date de fin
-                        <input
-                          type="date"
-                          value={form.dateFinExercice}
-                          onChange={(e) => majer('dateFinExercice', e.target.value)}
-                          className={`${champ} font-mono`}
-                        />
-                      </label>
-                    </div>
+
+                    <Ligne label="Date début d'exercice">
+                      <input
+                        type="date"
+                        value={form.dateDebutExercice}
+                        onChange={(e) => majer('dateDebutExercice', e.target.value)}
+                        className={`${champ} font-mono`}
+                      />
+                    </Ligne>
+                    <Ligne label="Date fin d'exercice">
+                      <input
+                        type="date"
+                        value={form.dateFinExercice}
+                        onChange={(e) => majer('dateFinExercice', e.target.value)}
+                        className={`${champ} font-mono`}
+                      />
+                    </Ligne>
+
+                    {/* Avertissement DANS LE FLUX du texte, comme le
+                        « Important ! » de Sage · une boîte colorée à cet
+                        endroit crie plus fort que le reste de l'écran alors
+                        que c'est une simple mise en garde. */}
+                    <p className="mt-3 text-[12px] text-text leading-[1.6]">
+                      <strong>Important !</strong> Les dates restent modifiables tant qu'aucune écriture n'est saisie.
+                      Après la première écriture, elles sont figées : le report à-nouveau et tous les états s'appuient
+                      dessus.
+                    </p>
                   </>
                 )}
 
                 {cle === 'monnaie' && (
                   <>
-                    <h2 className="text-[15px] font-bold mb-4">Choisissez la monnaie de tenue des comptes</h2>
-                    <div className="flex flex-col gap-2">
-                      {(['CDF', 'USD', 'Autre'] as const).map((d) => (
-                        <label key={d} className="flex items-center gap-2 text-[13px]">
-                          <input type="radio" name="devise" checked={form.devise === d} onChange={() => majer('devise', d)} />
-                          {d === 'CDF' ? 'Franc congolais (CDF)' : d === 'USD' ? 'Dollar américain (USD)' : 'Autre'}
+                    <h2 className="text-[15px] font-bold mb-1.5">Identifiez la monnaie de tenue des comptes</h2>
+                    <p className="text-[12.5px] text-text-dim leading-[1.6] mb-4">Vous tenez votre comptabilité en :</p>
+
+                    <div className="flex flex-col gap-2.5">
+                      <label className="flex items-center gap-2.5 text-[13px] cursor-pointer">
+                        <input
+                          type="radio"
+                          name="devise"
+                          checked={!autreDevise && form.devise === 'CDF'}
+                          onChange={() => {
+                            setAutreDevise(false);
+                            majer('devise', 'CDF');
+                          }}
+                        />
+                        Franc congolais (CDF)
+                      </label>
+                      <label className="flex items-center gap-2.5 text-[13px] cursor-pointer">
+                        <input
+                          type="radio"
+                          name="devise"
+                          checked={!autreDevise && form.devise === 'USD'}
+                          onChange={() => {
+                            setAutreDevise(false);
+                            majer('devise', 'USD');
+                          }}
+                        />
+                        Dollar américain (USD)
+                      </label>
+
+                      {/* « Autre, à préciser » + champ adjacent, désactivé tant
+                          que l'option n'est pas retenue · exactement le motif
+                          de l'écran monnaie de Sage. */}
+                      <div className="flex items-center gap-2.5">
+                        <label className="flex items-center gap-2.5 text-[13px] cursor-pointer whitespace-nowrap">
+                          <input
+                            type="radio"
+                            name="devise"
+                            checked={autreDevise}
+                            onChange={() => {
+                              setAutreDevise(true);
+                              majer('devise', '');
+                            }}
+                          />
+                          Autre, à préciser
                         </label>
-                      ))}
+                        <input
+                          value={autreDevise ? form.devise : ''}
+                          disabled={!autreDevise}
+                          onChange={(e) => majer('devise', e.target.value.toUpperCase().slice(0, 3))}
+                          placeholder="EUR"
+                          aria-label="Code de la monnaie"
+                          className={`${champ} w-[110px] font-mono uppercase disabled:bg-chrome disabled:text-text-dim`}
+                        />
+                      </div>
                     </div>
+
+                    <p className="mt-4 text-[12px] text-text-dim leading-[1.6]">
+                      Le code sur trois lettres (norme ISO 4217) est celui qui s'imprimera en tête des états
+                      financiers. Il ne se change plus une fois des écritures saisies.
+                    </p>
                   </>
                 )}
 
                 {cle === 'reprise' && (
                   <>
-                    <h2 className="text-[15px] font-bold mb-4">Indiquez ce que le dossier doit contenir au départ</h2>
+                    <h2 className="text-[15px] font-bold mb-1.5">Reprise des éléments comptables</h2>
+                    <p className="text-[12.5px] text-text-dim leading-[1.6] mb-3">
+                      Le dossier peut être créé à partir du modèle livré en standard. Vous n'aurez alors plus qu'à
+                      définir les éléments propres à votre entité (tiers, bailleurs, banques) avant de saisir.
+                    </p>
+                    {/* La QUESTION, en toutes lettres, juste avant les options ·
+                        chez Sage « Souhaitez-vous créer votre fichier à partir
+                        du modèle standard ? ». Sans elle, trois phrases
+                        commençant par « Oui » ne répondent à rien de visible. */}
+                    <p className="text-[12.5px] text-text mb-3">
+                      Souhaitez-vous créer le dossier à partir du modèle standard ?
+                    </p>
                     <div className="flex flex-col gap-2.5">
                       <label className="flex items-start gap-2 text-[13px]">
                         <input type="radio" checked readOnly className="mt-0.5" />
@@ -551,26 +680,42 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
 
                 {derniereEtape && (
                   <>
-                    <h2 className="text-[15px] font-bold mb-1.5">Définissez les identifiants d'ouverture du dossier</h2>
-                    <p className="text-[12px] text-text-dim mb-4">
-                      OmegaX est hébergé · pas de fichier local à nommer. Ces identifiants serviront à vous reconnecter
-                      à « {form.nomEntite || 'ce dossier'} », tenu en {form.referentiel} selon les états{' '}
-                      {LIBELLE_JEU[form.jeuEtatsFinanciersSycebnl]}.
+                    <h2 className="text-[15px] font-bold mb-1.5">Création du dossier comptable</h2>
+                    {/* Dernier écran = RÉCAPITULATIF EN PROSE, puis ce qui
+                        reste à saisir, puis ce que fera le bouton · c'est la
+                        forme de l'écran « Création du fichier comptable » de
+                        Sage, qui annonce le traitement avant de le lancer. */}
+                    <p className="text-[12.5px] text-text-dim leading-[1.6] mb-2">
+                      Vous avez terminé la définition des paramètres. Le dossier{' '}
+                      <strong className="text-text">{form.nomEntite || 'sans nom'}</strong> sera tenu en{' '}
+                      {form.referentiel}, selon les états {LIBELLE_JEU[form.jeuEtatsFinanciersSycebnl]}, en{' '}
+                      {form.devise || 'monnaie non précisée'}, sur l'exercice du{' '}
+                      {form.dateDebutExercice.split('-').reverse().join('/')} au{' '}
+                      {form.dateFinExercice.split('-').reverse().join('/')}.
                     </p>
-                    <label className="text-[11.5px] font-semibold text-text-dim block mb-3">
-                      Adresse e-mail de l'administrateur
+                    <p className="text-[12.5px] text-text-dim leading-[1.6] mb-4">
+                      OmegaX est hébergé : il n'y a pas de fichier à nommer ni d'emplacement à choisir. Il reste à
+                      définir les identifiants qui ouvriront ce dossier.
+                    </p>
+
+                    <Ligne label="Adresse e-mail" large>
                       <input type="email" value={form.email} onChange={(e) => majer('email', e.target.value)} className={champ} />
-                    </label>
-                    <label className="text-[11.5px] font-semibold text-text-dim block">
-                      Mot de passe (10 caractères minimum)
+                    </Ligne>
+                    <Ligne label="Mot de passe" large>
                       <input
                         type="password"
                         minLength={10}
                         value={form.motDePasse}
                         onChange={(e) => majer('motDePasse', e.target.value)}
                         className={champ}
+                        placeholder="10 caractères minimum"
                       />
-                    </label>
+                    </Ligne>
+
+                    <p className="mt-4 text-[12.5px] text-text leading-[1.6]">
+                      Cliquez sur <strong>Fin</strong> pour lancer la création : le plan de comptes {form.referentiel}{' '}
+                      sera semé et l'exercice ouvert.
+                    </p>
                     {erreur && (
                       <div className="mt-3 text-[12px] text-danger bg-danger-soft border border-danger/30 rounded-[6px] px-2.5 py-1.5">
                         {erreur}
@@ -606,7 +751,7 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
                   disabled={!peutAvancer || envoi}
                   className="px-5 py-1.5 bg-sel text-white text-[12.5px] font-semibold rounded-[6px] hover:brightness-110 disabled:opacity-50"
                 >
-                  {envoi ? 'Création…' : derniereEtape ? 'Terminer' : 'Suivant >'}
+                  {envoi ? 'Création…' : derniereEtape ? 'Fin' : 'Suivant >'}
                 </button>
               </div>
             </form>
