@@ -1,0 +1,124 @@
+name: Sauvegarde de la base (éprouvée par restauration)
+
+# UNE SAUVEGARDE JAMAIS RESTAURÉE N'EST PAS UNE SAUVEGARDE · chaque
+# exécution exporte la base Neon, la RESTAURE dans un Postgres jetable et
+# vérifie ce qui compte (tables présentes, dossiers présents, balance
+# globale équilibrée) AVANT d'archiver le fichier. Un export corrompu ou
+# vide fait échouer le workflow au lieu de dormir 90 jours en donnant une
+# fausse assurance.
+#
+# Archivage : artefact GitHub (90 jours, aucun réglage requis) et, si la
+# variable de dépôt BUCKET_SAUVEGARDES est définie, copie durable vers
+# Cloud Storage. Procédure de restauration : docs/sauvegardes-et-
+# restauration.md.
+
+on:
+  schedule:
+    # 02:00 UTC · 03:00 à Kinshasa, hors des heures de travail.
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sauvegarder-et-eprouver:
+    runs-on: ubuntu-latest
+    services:
+      # Le Postgres JETABLE de la restauration d'épreuve · détruit avec le
+      # job, il ne sert qu'à prouver que le fichier se restaure.
+      epreuve:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: epreuve
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    steps:
+      # Le client pg_dump doit être AU MOINS de la version du serveur Neon ·
+      # celui des dépôts Ubuntu retarde, on prend le dépôt PostgreSQL officiel.
+      - name: Installer le client PostgreSQL 17
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl --fail -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -y
+          sudo apt-get install -y postgresql-client-17
+
+      - name: Exporter la base (pg_dump)
+        env:
+          # La chaîne DIRECTE (sans -pooler) · pg_dump tient une session
+          # longue, incompatible avec le pooling en mode transaction.
+          DATABASE_URL: ${{ secrets.API_DATABASE_URL }}
+        run: |
+          horodatage=$(date -u +%Y-%m-%d-%H%M)
+          echo "HORODATAGE=$horodatage" >> "$GITHUB_ENV"
+          pg_dump "$DATABASE_URL" \
+            --format=custom \
+            --no-owner \
+            --no-privileges \
+            --file "sauvegarde-omegax-$horodatage.dump"
+          ls -l "sauvegarde-omegax-$horodatage.dump"
+
+      - name: "Restauration d'épreuve"
+        env:
+          PGPASSWORD: epreuve
+        run: |
+          createdb -h localhost -U postgres epreuve
+          pg_restore -h localhost -U postgres --dbname epreuve \
+            --no-owner --no-privileges \
+            "sauvegarde-omegax-$HORODATAGE.dump"
+
+      - name: "Vérifications sur la base restaurée"
+        env:
+          PGPASSWORD: epreuve
+        run: |
+          interroger() { psql -h localhost -U postgres -d epreuve -tAc "$1"; }
+
+          tables=$(interroger "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'")
+          dossiers=$(interroger "SELECT count(*) FROM tenants")
+          utilisateurs=$(interroger "SELECT count(*) FROM users")
+          lignes=$(interroger "SELECT count(*) FROM lignes_ecriture")
+          # L'invariant comptable le plus fondamental doit survivre à
+          # l'aller-retour · une base restaurée déséquilibrée serait pire
+          # qu'inutile.
+          desequilibre=$(interroger "SELECT COALESCE(abs(sum(debit) - sum(credit)), 0) > 0.01 FROM lignes_ecriture")
+
+          echo "Tables : $tables · Dossiers : $dossiers · Utilisateurs : $utilisateurs · Lignes d'écriture : $lignes"
+
+          if [ "$tables" -lt 20 ]; then
+            echo "::error::Restauration suspecte · $tables tables seulement (au moins 20 attendues)"; exit 1
+          fi
+          if [ "$dossiers" -lt 1 ] || [ "$utilisateurs" -lt 1 ]; then
+            echo "::error::Restauration suspecte · aucune donnée (dossiers=$dossiers, utilisateurs=$utilisateurs)"; exit 1
+          fi
+          if [ "$desequilibre" = "t" ]; then
+            echo "::error::La balance globale de la base restaurée est déséquilibrée"; exit 1
+          fi
+          echo "Sauvegarde ÉPROUVÉE · elle se restaure, et la comptabilité restaurée boucle."
+
+      # 90 jours en artefact · opérationnel sans aucun réglage. La copie
+      # Cloud Storage ci-dessous prend le relais pour la conservation longue.
+      - name: Archiver (artefact GitHub, 90 jours)
+        uses: actions/upload-artifact@v4
+        with:
+          name: sauvegarde-omegax-${{ env.HORODATAGE }}
+          path: sauvegarde-omegax-*.dump
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: S'authentifier sur Google Cloud (si bucket configuré)
+        if: ${{ vars.BUCKET_SAUVEGARDES != '' }}
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Copier vers Cloud Storage (si bucket configuré)
+        if: ${{ vars.BUCKET_SAUVEGARDES != '' }}
+        run: |
+          gcloud storage cp "sauvegarde-omegax-$HORODATAGE.dump" "gs://${{ vars.BUCKET_SAUVEGARDES }}/"
