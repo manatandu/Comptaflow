@@ -16,6 +16,18 @@ import type { FormeJuridiqueSyscohada } from './types';
  *
  * L'ordre suit celui du droit : les cinq sociétés commerciales par la forme
  * de l'AUSCGIE art. 6 d'abord, puis ce qui n'est pas une société commerciale.
+ *
+ * CAPITAL MINIMUM DE LA SARL · l'AUSCGIE art. 311 pose un million de FCFA
+ * « sauf dispositions nationales contraires ». La RDC a pris ces dispositions,
+ * par l'arrêté interministériel n° 002/CAB/MIN/JGS&DH/014 et
+ * n° 243/CAB/MIN/FINANCES/2014 du 30 décembre 2014 : le capital de la SARL,
+ * unipersonnelle ou pluripersonnelle, est LIBREMENT FIXÉ par les associés
+ * compte tenu de l'objet social, et les statuts peuvent être établis sous
+ * seing privé. Servir le million de l'article 311 à un client congolais
+ * l'aurait dissuadé de créer une société qu'il pouvait constituer sans
+ * apport minimal. Référence non lue au Journal officiel · confirmée par
+ * plusieurs sources concordantes, à vérifier sur le texte primaire avant de
+ * l'opposer à un tiers.
  */
 export const FORMES_SYSCOHADA: {
   valeur: FormeJuridiqueSyscohada;
@@ -38,7 +50,7 @@ export const FORMES_SYSCOHADA: {
     valeur: 'SOCIETE_RESPONSABILITE_LIMITEE',
     titre: 'Société à responsabilité limitée · SARL',
     detail:
-      "Associés responsables à concurrence de leurs apports, droits représentés par des parts sociales (art. 309). Un seul associé possible. Capital d'un million de FCFA au moins « sauf dispositions nationales contraires » (art. 311) · vérifier le montant fixé en RDC avant de le retenir.",
+      "Associés responsables à concurrence de leurs apports, droits représentés par des parts sociales (art. 309). Un seul associé possible. AUCUN CAPITAL MINIMUM EN RDC : l'article 311 fixe un million de FCFA « sauf dispositions nationales contraires », et la RDC a usé de cette réserve · le capital est librement fixé par les associés compte tenu de l'objet social. Le même texte rend le recours au notaire facultatif, les statuts pouvant être établis sous seing privé.",
   },
   {
     valeur: 'SOCIETE_NOM_COLLECTIF',

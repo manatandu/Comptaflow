@@ -739,10 +739,12 @@ export function ParametresDossierPage() {
                   })}
                 </div>
                 <p className="text-[10.5px] text-text-dim mt-1 leading-[1.55]">
-                  Les montants de capital sont ceux de l’Acte uniforme, exprimés en francs CFA. L’article 311 réserve
-                  expressément le cas de « dispositions nationales contraires » pour la SARL · vérifiez le montant en
-                  vigueur en RDC avant de vous y fier. La transformation d’une société en une autre forme est prévue
-                  par l’article 181 : ce choix se corrige à tout moment.
+                  Les montants de capital sont ceux de l’Acte uniforme, exprimés en francs CFA. Celui de la SARL ne
+                  s’applique PAS en RDC : l’article 311 réserve le cas de « dispositions nationales contraires », et
+                  l’arrêté interministériel n° 002/CAB/MIN/JGS&amp;DH/014 et n° 243/CAB/MIN/FINANCES/2014 du 30
+                  décembre 2014 laisse les associés fixer librement le capital compte tenu de l’objet social. Le même
+                  arrêté rend le notaire facultatif pour les statuts. La transformation d’une société en une autre
+                  forme est par ailleurs prévue par l’article 181 : ce choix se corrige à tout moment.
                 </p>
               </div>
             </>
