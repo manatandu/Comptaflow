@@ -73,10 +73,18 @@ engagement (classe 4 mouvementée).
   feuille ;
 - **traçabilité** : chaque montant est une formule (équivalent SUMIF sur la
   balance) — dans l'application, prévoir le drill-down poste → comptes ;
-- feuilles d'audit : BALANCE (avec affectation de chaque compte),
+- feuilles d'audit : BALANCE N et BALANCE N-1, CONTROLE BALANCE,
   CONTROLES (équilibres et recoupements notes ↔ postes, « doit être 0 »),
   ANOMALIES (gravités BLOQUANT / A_TRAITER / A_VERIFIER / MINEUR / INFO,
   jamais de correction silencieuse) ;
+- **présentation de la balance** (huit colonnes, comptes par numéro
+  croissant) : `Compte | Intitulé | solde d'ouverture débit-crédit |
+  mouvement débit-crédit | solde de clôture débit-crédit`, close par un
+  TOTAL GENERAL (un total par solde, débit et crédit) et sa ligne de
+  contrôle d'équilibre ; le solde d'ouverture vient des colonnes du fichier
+  quand elles existent, sinon de *clôture - mouvements*, jamais approximé
+  au-delà. La feuille CONTROLE BALANCE reprend les trois blocs et rend un
+  verdict d'équilibre par bloc et par exercice ;
 - notes non documentées à ne pas joindre, lignes non chiffrées à supprimer
   avant remise (règle de l'Acte uniforme, à faire respecter à l'export) ;
 - **présentation « charte ETAFI »** (alignée sur une liasse fiscale réelle,
