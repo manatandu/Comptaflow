@@ -28,6 +28,7 @@ const TauxTvaPage = lazy(() => import('../pages/TauxTvaPage').then((m) => ({ def
 const DeclarationTvaPage = lazy(() => import('../pages/DeclarationTvaPage').then((m) => ({ default: m.DeclarationTvaPage })));
 const RetenuesPage = lazy(() => import('../pages/RetenuesPage').then((m) => ({ default: m.RetenuesPage })));
 const ExonerationsPage = lazy(() => import('../pages/ExonerationsPage').then((m) => ({ default: m.ExonerationsPage })));
+const FiscalitePage = lazy(() => import('../pages/FiscalitePage').then((m) => ({ default: m.FiscalitePage })));
 const EtatsFinanciersPage = lazy(() => import('../pages/EtatsFinanciersPage').then((m) => ({ default: m.EtatsFinanciersPage })));
 const NotesAnnexesPage = lazy(() => import('../pages/NotesAnnexesPage').then((m) => ({ default: m.NotesAnnexesPage })));
 const RegistreDonateursPage = lazy(() => import('../pages/RegistreDonateursPage').then((m) => ({ default: m.RegistreDonateursPage })));
@@ -160,6 +161,15 @@ export const FENETRES: DefinitionFenetre[] = [
     titreCourt: 'Exonérations',
     rendre: () => <ExonerationsPage />,
     referentielsApplicables: ['SYCEBNL'],
+  },
+  {
+    // Une entité à but non lucratif est exemptée d'impôt sur les sociétés
+    // (loi n° 23/053, art. 5) · fenêtre SYSCOHADA, refusée côté serveur aussi.
+    motif: /^\/fiscalite$/,
+    titre: 'Résultat fiscal et impôt sur les bénéfices',
+    titreCourt: 'Résultat fiscal',
+    rendre: () => <FiscalitePage />,
+    referentielsApplicables: ['SYSCOHADA'],
   },
   {
     motif: /^\/etats-financiers$/,

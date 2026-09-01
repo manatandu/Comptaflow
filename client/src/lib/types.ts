@@ -1867,3 +1867,72 @@ export interface ReferentielExonerations {
   joursAlerteRenouvellement: number;
   avertissement: string;
 }
+
+// ---------------------------------------------------------------------------
+// RÉSULTAT FISCAL ET IMPÔT SUR LES BÉNÉFICES · dossiers SYSCOHADA (loi
+// n° 23/053 du 30 novembre 2023). Voir src/modules/fiscalite.
+// ---------------------------------------------------------------------------
+
+export type SensRetraitementFiscal = 'REINTEGRATION' | 'DEDUCTION';
+export type NatureActiviteFiscale = 'VENTE' | 'PRESTATIONS';
+export type RegimeImposition =
+  | 'IMPOT_SOCIETES'
+  | 'IRPP_MICRO_ENTREPRISE'
+  | 'IRPP_PETITE_ENTREPRISE'
+  | 'IRPP_REGIME_REEL';
+
+export interface DefinitionRetraitementFiscal {
+  code: string;
+  sens: SensRetraitementFiscal;
+  libelle: string;
+  aide: string;
+  source: string;
+  plafond?: { part: number; assiette: 'CHIFFRE_AFFAIRES' | 'CHARGE'; enonce: string };
+}
+
+export interface CatalogueRetraitements {
+  retraitements: DefinitionRetraitementFiscal[];
+  derniereVerification: string;
+}
+
+export interface RetraitementFiscal {
+  id: string;
+  code: string;
+  sens: SensRetraitementFiscal;
+  libelle: string;
+  montant: number;
+  commentaire: string | null;
+  source: string | null;
+}
+
+export interface ResultatFiscal {
+  exerciceId: string;
+  dateDebut: string;
+  dateFin: string;
+  derniereVerification: string;
+  formeJuridiqueSyscohada: FormeJuridiqueSyscohada | null;
+  devise: string;
+  regime: RegimeImposition;
+  observations: string[];
+  natureActivite: NatureActiviteFiscale | null;
+  resultatComptable: number;
+  sourceResultat: 'CLASSES_6_7_8' | 'COMPTE_13';
+  chiffreAffaires: number;
+  retraitements: RetraitementFiscal[];
+  totalReintegrations: number;
+  totalDeductions: number;
+  resultatFiscalBrut: number;
+  deficitAnterieur: { montant: number; saisi: boolean; detail: { exerciceId: string; dateFin: string; montant: number }[] };
+  deficitImpute: number;
+  resultatFiscal: number;
+  plafonds: { code: string; enonce: string; assiette: 'CHIFFRE_AFFAIRES' | 'CHARGE'; part: number; montantAdmis: number | null }[];
+  impotTheorique: number | null;
+  impotMinimum: number | null;
+  impotDu: number | null;
+  baseImpot: string;
+  minimumApplique: boolean;
+  explication: string;
+  acomptesVerses: number;
+  soldeAPayer: number | null;
+  acomptesProchainExercice: { quotite: number; echeance: string; montant: number }[];
+}

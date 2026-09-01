@@ -33,6 +33,7 @@ import { DevisesModule } from './modules/devises/devises.module';
 import { RelancesModule } from './modules/relances/relances.module';
 import { RetenuesModule } from './modules/retenues/retenues.module';
 import { ExonerationsModule } from './modules/exonerations/exonerations.module';
+import { FiscaliteModule } from './modules/fiscalite/fiscalite.module';
 import { PlateformeModule } from './modules/plateforme/plateforme.module';
 import { GroupeModule } from './modules/groupe/groupe.module';
 
@@ -79,6 +80,7 @@ import { GroupeModule } from './modules/groupe/groupe.module';
     RelancesModule,
     RetenuesModule,
     ExonerationsModule,
+    FiscaliteModule,
     PlateformeModule,
     GroupeModule,
   ],

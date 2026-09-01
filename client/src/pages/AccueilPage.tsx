@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { LIBELLE_SYSTEME } from '../lib/systemes-syscohada';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
@@ -195,7 +196,16 @@ export function AccueilPage() {
   const avertissements = controles?.totaux?.avertissements ?? 0;
   const pireAnomalie = controles?.anomalies?.find((a) => a.gravite !== 'INFORMATION') ?? null;
 
-  const jeu = utilisateur ? JEUX[utilisateur.tenant.jeuEtatsFinanciersSycebnl] : null;
+  // Un dossier SYSCOHADA n'a pas de jeu d'états SYCEBNL : il a un système
+  // comptable (AUDCIF art. 11). La bande affichait « Associations et ordres
+  // professionnels » à une SARL, valeur par défaut du schéma jamais lue.
+  const jeu = !utilisateur
+    ? null
+    : utilisateur.tenant.referentiel === 'SYSCOHADA'
+      ? utilisateur.tenant.systemeComptableSyscohada
+        ? LIBELLE_SYSTEME[utilisateur.tenant.systemeComptableSyscohada]
+        : null
+      : JEUX[utilisateur.tenant.jeuEtatsFinanciersSycebnl];
   const anneeExercice = exerciceCourant ? new Date(exerciceCourant.dateDebut).getFullYear() : null;
 
   const dateCourte = (iso: string) =>

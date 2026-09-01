@@ -175,6 +175,12 @@ export const LEXIQUE = {
       "Le droit OHADA des affaires ne connaît que CINQ sociétés commerciales à raison de leur forme : la société en nom collectif, la société en commandite simple, la société à responsabilité limitée, la société anonyme et la société par actions simplifiée. La liste de l'article 6 est fermée · une entité qui exerce une activité commerciale en société doit choisir l'une d'elles, ou s'associer en groupement d'intérêt économique. S'y ajoutent, hors sociétés commerciales, la société coopérative, le commerçant personne physique, l'entreprenant, la succursale et les entités publiques. Aucune de ces formes n'a de rapport avec celles de la loi congolaise n° 004/2001, qui régit les ASBL et les ONG : ce sont deux référentiels séparés, et une entité à but non lucratif n'est d'ailleurs pas assujettie au SYSCOHADA.",
     source: 'AUSCGIE, art. 3 et 6 ; AUDCG, art. 2 et 30 ; AUDCIF, art. 2 et 5',
   },
+  resultatFiscal: {
+    titre: 'Résultat fiscal et impôt sur les bénéfices',
+    texte:
+      "Le bénéfice imposable est l'excédent des produits sur les charges « en application de la législation comptable, sous réserve des dispositions fiscales contraires ». Il part donc du résultat comptable, auquel s'ajoutent les charges que le fisc n'admet pas (réintégrations) et dont se retranchent les produits qu'il n'impose pas (déductions), puis les déficits des trois exercices précédents. L'impôt sur les sociétés est de 30 % de ce résultat, sans pouvoir être inférieur à 1 % du chiffre d'affaires déclaré. Une entreprise individuelle ou un entreprenant relève d'un autre régime, commandé par son chiffre d'affaires : forfait en dessous de 25 millions de FC, 1 % ou 2 % du chiffre d'affaires jusqu'à 300 millions, régime réel au-delà. L'IPR et l'IBP n'existent plus depuis le 1er janvier 2026. Une entité à but non lucratif est exemptée.",
+    source: 'Loi n° 23/053 du 30 novembre 2023, art. 5, 9, 51, 56, 57, 107 à 128',
+  },
   notesAnnexes: {
     titre: 'Notes annexes',
     texte:

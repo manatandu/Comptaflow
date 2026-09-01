@@ -221,6 +221,11 @@ export function AppShell() {
         // ce qu'elle retient pour autrui, et de la déclaration même à zéro ·
         // voir docs/fiscalite-asbl-rdc.md.
         { label: 'Retenues et échéancier fiscal', onClick: () => navigate('/retenues') },
+        // Le pendant SYSCOHADA : une entreprise commerciale paie l'impôt sur
+        // ses bénéfices, une ASBL en est exemptée (loi n° 23/053, art. 5).
+        ...(estSycebnl
+          ? []
+          : [{ label: 'Résultat fiscal et impôt sur les bénéfices', onClick: () => navigate('/fiscalite') }]),
         // Les facilités douanières de l'article 39 de la loi 004/2001 · un
         // arrêté prévisionnel périmé se découvre d'ordinaire au port.
         ...(estSycebnl

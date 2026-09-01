@@ -314,6 +314,9 @@ model Tenant {
   // c'est lui qui autorise le dossier mère à lire les balances des cellules
   // (voir GroupeService). Un seul niveau · un dossier mère n'a pas de mère,
   // un dossier qui a des cellules ne peut pas devenir cellule.
+  retraitementsFiscaux RetraitementFiscal[]
+  dossiersFiscaux      DossierFiscalExercice[]
+
   dossierMereId String?
   dossierMere   Tenant?  @relation("GroupeEtablissements", fields: [dossierMereId], references: [id])
   cellules      Tenant[] @relation("GroupeEtablissements")
@@ -591,6 +594,102 @@ enum StatutExercice {
   CLOTURE
 }
 
+// ---------------------------------------------------------------------------
+// DÉTERMINATION DU RÉSULTAT FISCAL · dossiers SYSCOHADA uniquement.
+//
+// L'article 9 de la loi n° 23/053 du 30 novembre 2023 pose que le bénéfice
+// imposable est l'excédent des produits sur les charges « en application de
+// la législation comptable, SOUS RÉSERVE DES DISPOSITIONS FISCALES
+// CONTRAIRES ». OmegaX détient le premier terme, il lui manquait le second :
+// le passage du résultat comptable au résultat fiscal.
+//
+// Ce passage n'est pas déduit des écritures, il est SAISI, réintégration par
+// réintégration, depuis un catalogue sourcé article par article
+// (src/modules/fiscalite/catalogue-retraitements.ts). Le logiciel ne décide
+// pas à la place du comptable qu'une charge est non déductible · une
+// qualification fiscale fausse se propagerait en silence sur tous les
+// dossiers et ne se découvrirait qu'au contrôle.
+//
+// Sans objet pour un dossier SYCEBNL : une entité à but non lucratif est
+// EXEMPTÉE d'impôt sur les sociétés par l'article 5 de la même loi.
+// ---------------------------------------------------------------------------
+
+// Nature de l'activité principale d'une PERSONNE PHYSIQUE au régime des
+// petites entreprises · le taux forfaitaire en dépend (art. 127 : 1 % pour
+// la vente, 2 % pour les prestations de services). Sans objet pour une
+// personne morale, imposée sur son bénéfice.
+enum NatureActiviteFiscale {
+  VENTE
+  PRESTATIONS
+}
+
+enum SensRetraitementFiscal {
+  // Charge comptabilisée que le fisc n'admet pas : elle S'AJOUTE au résultat.
+  REINTEGRATION
+  // Produit comptabilisé que le fisc n'impose pas, ou charge admise en plus :
+  // elle SE RETRANCHE du résultat.
+  DEDUCTION
+}
+
+model RetraitementFiscal {
+  id         String   @id @default(uuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  exerciceId String
+  exercice   Exercice @relation(fields: [exerciceId], references: [id], onDelete: Cascade)
+
+  // Code du catalogue, ou `AUTRE` pour une ligne libre. Conservé même si le
+  // catalogue évolue : un retraitement passé ne se réécrit pas.
+  code    String
+  sens    SensRetraitementFiscal
+  libelle String
+  // Toujours POSITIF · c'est `sens` qui donne la direction. Un montant signé
+  // et un sens seraient deux sources de vérité pour la même information.
+  montant Decimal @db.Decimal(18, 2)
+  // Ce que le comptable a retenu comme justification · c'est ce texte qui
+  // sera opposé au vérificateur, pas le libellé du catalogue.
+  commentaire String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId, exerciceId])
+  @@map("retraitements_fiscaux")
+}
+
+// Les deux données fiscales de l'exercice qui ne se déduisent d'aucune
+// écriture : ce qui a déjà été versé, et le déficit venu d'avant OmegaX.
+model DossierFiscalExercice {
+  id         String   @id @default(uuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  exerciceId String   @unique
+  exercice   Exercice @relation(fields: [exerciceId], references: [id], onDelete: Cascade)
+
+  // Acomptes provisionnels déjà versés au titre de l'exercice · art. 57 bis
+  // LPF. Ils ne transitent pas forcément par un compte identifiable, et le
+  // solde à payer n'a aucun sens sans eux.
+  acomptesVerses Decimal @default(0) @db.Decimal(18, 2)
+
+  // Déficit fiscal antérieur reportable, SAISI. Il prime sur le calcul à
+  // partir des exercices précédents · un dossier repris à un confrère porte
+  // un report que la comptabilité tenue ici ne connaît pas. Null = OmegaX
+  // calcule lui-même, sur les trois exercices précédents (art. 51).
+  deficitAnterieurSaisi Decimal? @db.Decimal(18, 2)
+
+  // Personne physique au régime des petites entreprises · en cas d'activité
+  // mixte, la loi cumule les chiffres d'affaires et impose suivant
+  // l'activité PRINCIPALE (art. 127). Null tant que non renseigné : le taux
+  // ne se devine pas.
+  natureActivite NatureActiviteFiscale?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@map("dossiers_fiscaux_exercice")
+}
+
 model Exercice {
   id        String         @id @default(uuid())
   tenantId  String
@@ -610,6 +709,10 @@ model Exercice {
   // d'où des relations 1-N et non 1-1 : voir leurs modèles.
   transcriptionsInventaire TranscriptionInventaire[]
   rapportsActivite         RapportActivite[]
+
+  // Détermination du résultat fiscal · SYSCOHADA seulement.
+  retraitementsFiscaux RetraitementFiscal[]
+  dossierFiscal        DossierFiscalExercice?
 
   @@unique([tenantId, dateDebut, dateFin])
   @@map("exercices")
