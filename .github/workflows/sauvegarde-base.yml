@@ -28,7 +28,7 @@ jobs:
       # Le Postgres JETABLE de la restauration d'épreuve · détruit avec le
       # job, il ne sert qu'à prouver que le fichier se restaure.
       epreuve:
-        image: postgres:17
+        image: postgres:18
         env:
           POSTGRES_PASSWORD: epreuve
         ports:
@@ -40,15 +40,22 @@ jobs:
           --health-retries 12
 
     steps:
-      # Le client pg_dump doit être AU MOINS de la version du serveur Neon ·
-      # celui des dépôts Ubuntu retarde, on prend le dépôt PostgreSQL officiel.
-      - name: Installer le client PostgreSQL 17
+      # Le client pg_dump doit être AU MOINS de la version du serveur Neon
+      # (PostgreSQL 18 · constaté lors de la première exécution d'épreuve, qui
+      # a précisément servi à ça) · celui des dépôts Ubuntu retarde, on prend
+      # le dépôt PostgreSQL officiel. Et on appelle les BINAIRES VERSIONNÉS :
+      # le sélecteur /usr/bin/pg_dump d'Ubuntu a choisi le client 16
+      # préinstallé sur l'image malgré l'installation du bon · c'est lui qui
+      # a fait échouer la première épreuve.
+      - name: Installer le client PostgreSQL 18
         run: |
           sudo install -d /usr/share/postgresql-common/pgdg
           sudo curl --fail -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
           echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
           sudo apt-get update -y
-          sudo apt-get install -y postgresql-client-17
+          sudo apt-get install -y postgresql-client-18
+          echo "PGBIN=/usr/lib/postgresql/18/bin" >> "$GITHUB_ENV"
+          /usr/lib/postgresql/18/bin/pg_dump --version
 
       - name: Exporter la base (pg_dump)
         env:
@@ -58,7 +65,7 @@ jobs:
         run: |
           horodatage=$(date -u +%Y-%m-%d-%H%M)
           echo "HORODATAGE=$horodatage" >> "$GITHUB_ENV"
-          pg_dump "$DATABASE_URL" \
+          "$PGBIN/pg_dump" "$DATABASE_URL" \
             --format=custom \
             --no-owner \
             --no-privileges \
@@ -69,8 +76,8 @@ jobs:
         env:
           PGPASSWORD: epreuve
         run: |
-          createdb -h localhost -U postgres epreuve
-          pg_restore -h localhost -U postgres --dbname epreuve \
+          "$PGBIN/createdb" -h localhost -U postgres epreuve
+          "$PGBIN/pg_restore" -h localhost -U postgres --dbname epreuve \
             --no-owner --no-privileges \
             "sauvegarde-omegax-$HORODATAGE.dump"
 
@@ -78,7 +85,7 @@ jobs:
         env:
           PGPASSWORD: epreuve
         run: |
-          interroger() { psql -h localhost -U postgres -d epreuve -tAc "$1"; }
+          interroger() { "$PGBIN/psql" -h localhost -U postgres -d epreuve -tAc "$1"; }
 
           tables=$(interroger "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'")
           dossiers=$(interroger "SELECT count(*) FROM tenants")

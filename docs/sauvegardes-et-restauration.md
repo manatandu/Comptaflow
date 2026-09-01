@@ -9,7 +9,7 @@ Chaque nuit à 02:00 UTC (03:00 à Kinshasa), le workflow GitHub Actions
 1. exporte la base Neon avec `pg_dump` (format custom, chaîne DIRECTE sans
    `-pooler` · `pg_dump` tient une session longue, incompatible avec le
    pooling en mode transaction) ;
-2. **restaure l'export dans un Postgres 17 jetable** monté pour l'occasion ;
+2. **restaure l'export dans un Postgres 18 jetable** monté pour l'occasion ;
 3. vérifie la base restaurée : au moins 20 tables, au moins un dossier et
    un utilisateur, et la balance globale (somme des débits = somme des
    crédits sur `lignes_ecriture`) équilibrée au centime ;
@@ -56,7 +56,7 @@ L'artefact GitHub expire après 90 jours. Pour la conservation longue :
 
 ## Restaurer (procédure d'urgence)
 
-Prérequis : un poste avec `postgresql-client` version 17 ou plus, le
+Prérequis : un poste avec `postgresql-client` version 18 ou plus (la base Neon est en PostgreSQL 18), le
 fichier `.dump` (téléchargé depuis l'artefact GitHub ou le bucket), et la
 chaîne de connexion DIRECTE de la base cible. **Ne jamais coller la chaîne
 de connexion dans un fichier, un commit ou un chat.**
