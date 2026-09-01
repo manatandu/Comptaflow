@@ -70,11 +70,22 @@ jobs:
           JWT_SECRET: ${{ secrets.API_JWT_SECRET }}
           JWT_EXPIRES_IN: ${{ secrets.API_JWT_EXPIRES_IN }}
           CORS_ORIGIN: https://oomega.web.app,https://oomega.firebaseapp.com
+          # Adresses e-mail des opérateurs de la plateforme (console
+          # « Cabinets clients »), séparées par des virgules. Doit passer par
+          # ICI et non par la console Cloud Run : --env-vars-file REMPLACE
+          # toutes les variables du service à chaque déploiement, une
+          # variable posée à la main serait effacée au push suivant.
+          OPERATEURS_PLATEFORME: ${{ secrets.API_OPERATEURS_PLATEFORME }}
         run: |
           python3 - <<'PY' > /tmp/env-vars.yaml
           import json, os
           cles = ("DATABASE_URL", "JWT_SECRET", "JWT_EXPIRES_IN", "CORS_ORIGIN")
-          print(json.dumps({c: os.environ[c] for c in cles}))
+          variables = {c: os.environ[c] for c in cles}
+          # Facultative · secret absent ou vide, la variable n'est pas posée
+          # (le bootstrap n'accorde alors rien, et ne retire jamais rien).
+          if os.environ.get("OPERATEURS_PLATEFORME"):
+              variables["OPERATEURS_PLATEFORME"] = os.environ["OPERATEURS_PLATEFORME"]
+          print(json.dumps(variables))
           PY
           gcloud run deploy "$SERVICE" \
             --source . \
