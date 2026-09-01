@@ -1,7 +1,8 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
-import { ClasseCompte, Prisma, TypeCompteDetailTotal } from '@prisma/client';
+import { ClasseCompte, Prisma, Referentiel, TypeCompteDetailTotal } from '@prisma/client';
 import { PLAN_COMPTES_SYCEBNL } from './compte-seed';
+import { PLAN_COMPTES_SYSCOHADA } from './compte-seed-syscohada';
 import { CreerCompteDto, ModifierCompteDto } from './dto/creer-compte.dto';
 
 /**
@@ -24,10 +25,16 @@ export function estLettrableParDefaut(numero: string): boolean {
 export class CompteService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Appelé une fois à la création du tenant (voir AuthService.register). */
-  async seedPlanSycebnl(tenantId: string) {
+  /**
+   * Appelé une fois à la création du tenant (voir AuthService.register) ·
+   * sème le plan du référentiel choisi. Les deux plans suivent les mêmes
+   * conventions (feuilles à 8 chiffres, en-têtes TOTAL non complétés), toute
+   * la mécanique en aval (balance, Total/Détail, lettrage) est donc commune.
+   */
+  async seedPlan(tenantId: string, referentiel: Referentiel) {
+    const plan = referentiel === Referentiel.SYSCOHADA ? PLAN_COMPTES_SYSCOHADA : PLAN_COMPTES_SYCEBNL;
     await this.prisma.compte.createMany({
-      data: PLAN_COMPTES_SYCEBNL.map((c) => ({
+      data: plan.map((c) => ({
         ...c,
         tenantId,
         // Un compte Total (les 44 comptes principaux à 2 chiffres, voir

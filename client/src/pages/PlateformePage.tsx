@@ -101,6 +101,7 @@ export function PlateformePage() {
   const [creationMereId, setCreationMereId] = useState('');
   const [nomEntite, setNomEntite] = useState('');
   const [emailAdmin, setEmailAdmin] = useState('');
+  const [referentielChoisi, setReferentielChoisi] = useState<'SYCEBNL' | 'SYSCOHADA'>('SYCEBNL');
   const [jeu, setJeu] = useState<JeuEtatsFinanciersSycebnl>('ASSOCIATIONS_ORDRES_PROFESSIONNELS');
   const [typeLicence, setTypeLicence] = useState<TypeLicence>('ABONNEMENT');
   const [dateExpiration, setDateExpiration] = useState('');
@@ -223,7 +224,10 @@ export function PlateformePage() {
       const resultat = await api.post<CabinetCree>('/plateforme/cabinets', {
         nomEntite,
         emailAdmin,
-        jeuEtatsFinanciersSycebnl: jeu,
+        referentiel: referentielChoisi,
+        // Le jeu d'états est un concept SYCEBNL · le serveur l'ignorerait de
+        // toute façon pour un dossier SYSCOHADA (AuthService.register).
+        ...(referentielChoisi === 'SYCEBNL' ? { jeuEtatsFinanciersSycebnl: jeu } : {}),
         typeLicence,
         ...(typeLicence === 'ABONNEMENT' && dateExpiration ? { dateExpiration } : {}),
         ...(ville ? { ville } : {}),
@@ -290,7 +294,12 @@ export function PlateformePage() {
                   {c.nbCellules > 0 && <span className="text-sel"> · mère de {c.nbCellules} cellule{c.nbCellules > 1 ? 's' : ''}</span>}
                   {c.dossierMere && <span className="text-text-dim"> · cellule de {c.dossierMere.nom}</span>}
                 </span>
-                <span className="text-[10.5px]">{LIBELLE_JEU[c.jeuEtatsFinanciersSycebnl] ?? c.referentiel}</span>
+                <span className="text-[10.5px]">
+                  {/* Le jeu d'états n'a de sens qu'en SYCEBNL · un dossier
+                      SYSCOHADA garde le défaut du schéma, qu'il ne faut pas
+                      afficher comme s'il était une association. */}
+                  {c.referentiel === 'SYSCOHADA' ? 'SYSCOHADA révisé' : (LIBELLE_JEU[c.jeuEtatsFinanciersSycebnl] ?? c.referentiel)}
+                </span>
                 <span className="text-[10.5px] font-mono truncate">{c.numeroImpot ?? '·'}</span>
                 <span className="text-[10.5px] text-right tabular-nums">{c.nbUtilisateurs}</span>
                 <span className="text-[10.5px] text-right tabular-nums">{c.nbEcritures}</span>
@@ -426,12 +435,25 @@ export function PlateformePage() {
                 <input required autoFocus value={nomEntite} onChange={(e) => setNomEntite(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[12px]" />
                 <label className="text-[11px] text-right">E-mail de l'admin :</label>
                 <input type="email" required value={emailAdmin} onChange={(e) => setEmailAdmin(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[12px]" />
-                <label className="text-[11px] text-right">Type d'entité :</label>
-                <select value={jeu} onChange={(e) => setJeu(e.target.value as JeuEtatsFinanciersSycebnl)} className="border border-border-dark px-2.5 py-1.5 text-[11px]">
-                  <option value="ASSOCIATIONS_ORDRES_PROFESSIONNELS">Association / ordre professionnel</option>
-                  <option value="PROJETS_DEVELOPPEMENT">Projet de développement</option>
-                  <option value="SYSTEME_MINIMAL_TRESORERIE">Système minimal de trésorerie</option>
+                <label className="text-[11px] text-right">Référentiel :</label>
+                <select
+                  value={referentielChoisi}
+                  onChange={(e) => setReferentielChoisi(e.target.value as 'SYCEBNL' | 'SYSCOHADA')}
+                  className="border border-border-dark px-2.5 py-1.5 text-[11px]"
+                >
+                  <option value="SYCEBNL">SYCEBNL · entité à but non lucratif</option>
+                  <option value="SYSCOHADA">SYSCOHADA révisé · entreprise (états en construction)</option>
                 </select>
+                {referentielChoisi === 'SYCEBNL' && (
+                  <>
+                    <label className="text-[11px] text-right">Type d'entité :</label>
+                    <select value={jeu} onChange={(e) => setJeu(e.target.value as JeuEtatsFinanciersSycebnl)} className="border border-border-dark px-2.5 py-1.5 text-[11px]">
+                      <option value="ASSOCIATIONS_ORDRES_PROFESSIONNELS">Association / ordre professionnel</option>
+                      <option value="PROJETS_DEVELOPPEMENT">Projet de développement</option>
+                      <option value="SYSTEME_MINIMAL_TRESORERIE">Système minimal de trésorerie</option>
+                    </select>
+                  </>
+                )}
                 <label className="text-[11px] text-right">Licence :</label>
                 <select value={typeLicence} onChange={(e) => setTypeLicence(e.target.value as TypeLicence)} className="border border-border-dark px-2.5 py-1.5 text-[11px]">
                   <option value="ABONNEMENT">Abonnement</option>

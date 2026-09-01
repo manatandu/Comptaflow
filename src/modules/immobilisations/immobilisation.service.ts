@@ -1,8 +1,8 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
-import { ModeAmortissement, Prisma, StatutImmobilisation } from '@prisma/client';
-import { FAMILLES_IMMOBILISATION_DEFAUT } from './famille-immobilisation-seed';
+import { ModeAmortissement, Prisma, Referentiel, StatutImmobilisation } from '@prisma/client';
+import { FAMILLES_IMMOBILISATION_DEFAUT, FAMILLES_IMMOBILISATION_DEFAUT_SYSCOHADA } from './famille-immobilisation-seed';
 import {
   CreerFamilleDto,
   CreerImmobilisationDto,
@@ -61,8 +61,10 @@ export class ImmobilisationService {
   ) {}
 
   /** Appelé une fois à la création du tenant (voir AuthService.register). */
-  async seedFamillesDefaut(tenantId: string) {
-    for (const f of FAMILLES_IMMOBILISATION_DEFAUT) {
+  async seedFamillesDefaut(tenantId: string, referentiel: Referentiel) {
+    const familles =
+      referentiel === Referentiel.SYSCOHADA ? FAMILLES_IMMOBILISATION_DEFAUT_SYSCOHADA : FAMILLES_IMMOBILISATION_DEFAUT;
+    for (const f of familles) {
       const [compteImmo, compteAmort, compteDotation] = await Promise.all([
         this.prisma.compte.findUnique({ where: { tenantId_numero: { tenantId, numero: f.numeroCompteImmobilisation } } }),
         this.prisma.compte.findUnique({ where: { tenantId_numero: { tenantId, numero: f.numeroCompteAmortissement } } }),

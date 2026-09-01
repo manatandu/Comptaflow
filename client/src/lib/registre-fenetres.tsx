@@ -176,12 +176,22 @@ export const FENETRES: DefinitionFenetre[] = [
     referentielsApplicables: ['SYCEBNL'],
   },
   {
+    // Livre d'inventaire et rapport d'activité montés sur les états SYCEBNL
+    // (art. 14 et 16-3) · le pendant SYSCOHADA viendra avec ses états.
     motif: /^\/documents-obligatoires$/,
     titre: 'Documents obligatoires',
     titreCourt: 'Doc. obligatoires',
     rendre: () => <DocumentsObligatoiresPage />,
+    referentielsApplicables: ['SYCEBNL'],
   },
-  { motif: /^\/bailleurs$/, titre: 'Bailleurs de fonds', titreCourt: 'Bailleurs', rendre: () => <BailleursPage /> },
+  {
+    // Notion SYCEBNL (division 46) · en SYSCOHADA le 46 porte les associés.
+    motif: /^\/bailleurs$/,
+    titre: 'Bailleurs de fonds',
+    titreCourt: 'Bailleurs',
+    rendre: () => <BailleursPage />,
+    referentielsApplicables: ['SYCEBNL'],
+  },
   {
     motif: /^\/utilisateurs$/,
     titre: "Autorisations d'accès",

@@ -6,6 +6,7 @@ import { useAuth } from '../lib/auth';
 import { IconExport, IconCheck } from '../components/chrome/icons';
 import { Aide } from '../components/chrome/Aide';
 import { BlocCertification, EnteteImpression } from '../components/chrome/EnteteImpression';
+import { EnConstructionSyscohada } from '../components/chrome/EnConstructionSyscohada';
 const EtatsSmtPage = lazy(() => import('./EtatsSmtPage').then((m) => ({ default: m.EtatsSmtPage })));
 import type {
   Bilan,
@@ -1143,6 +1144,11 @@ export function EtatsFinanciersPage() {
   // interrogerait d'abord les endpoints du Système normal pour rien.
   if (chargement || !utilisateur) {
     return <div className="p-2.5 text-[11px] text-text-dim">Chargement…</div>;
+  }
+  // Les moteurs de cette fenêtre sont ceux de l'Acte uniforme SYCEBNL · voir
+  // EnConstructionSyscohada et le contrôleur serveur, qui refuse pareil.
+  if (utilisateur.tenant.referentiel === 'SYSCOHADA') {
+    return <EnConstructionSyscohada fenetre="États financiers" />;
   }
   return utilisateur.tenant.jeuEtatsFinanciersSycebnl === 'SYSTEME_MINIMAL_TRESORERIE' ? (
     <Suspense fallback={<div className="p-3 text-[11px] text-text-dim">Chargement…</div>}>

@@ -150,8 +150,12 @@ export function AppShell() {
         { label: 'Plans analytiques', onClick: () => navigate('/plans-analytiques') },
         { label: 'Codes journaux', onClick: () => navigate('/journaux') },
         { label: 'Taux de taxes', onClick: () => navigate('/taux-tva') },
-        { label: 'Bailleurs de fonds', separateurAvant: true, onClick: () => navigate('/bailleurs') },
-        { label: 'Immobilisations', onClick: () => navigate('/immobilisations') },
+        // Notion SYCEBNL (division 46) · masqué pour un dossier SYSCOHADA,
+        // comme le registre des donateurs · le serveur refuse pareil.
+        ...(estSycebnl
+          ? [{ label: 'Bailleurs de fonds', separateurAvant: true, onClick: () => navigate('/bailleurs') }]
+          : []),
+        { label: 'Immobilisations', separateurAvant: !estSycebnl, onClick: () => navigate('/immobilisations') },
         // Sage : Fichier > Paramètres société, où l'utilisateur « met à jour le
         // système comptable utilisé ». Ici les paramètres décisifs sont le
         // référentiel et le jeu d'états financiers SYCEBNL (associations et
@@ -202,9 +206,16 @@ export function AppShell() {
         ...((utilisateur?.tenant.nombreCellules ?? 0) > 0
           ? [{ label: 'Balance agrégée du groupe', onClick: () => navigate('/groupe') }]
           : []),
+        // États financiers et Notes annexes restent VISIBLES pour un dossier
+        // SYSCOHADA : leur fenêtre explique « en construction » (niveau 2 à
+        // venir), une entrée disparue ressemblerait à un oubli. Les documents
+        // obligatoires, eux, sont masqués : leur contenu est monté sur les
+        // états SYCEBNL et n'a pas d'équivalent à annoncer.
         { label: 'États financiers', separateurAvant: true, onClick: () => navigate('/etats-financiers') },
         { label: 'Notes annexes', onClick: () => navigate('/notes-annexes') },
-        { label: 'Documents obligatoires', onClick: () => navigate('/documents-obligatoires') },
+        ...(estSycebnl
+          ? [{ label: 'Documents obligatoires', onClick: () => navigate('/documents-obligatoires') }]
+          : []),
         { label: 'Déclaration de TVA', separateurAvant: true, onClick: () => navigate('/declaration-tva') },
         // Une ASBL exonérée d'impôt sur les sociétés reste redevable de tout
         // ce qu'elle retient pour autrui, et de la déclaration même à zéro ·

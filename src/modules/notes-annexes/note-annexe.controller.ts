@@ -1,9 +1,11 @@
 import { BadRequestException, Body, Controller, Delete, Get, ParseUUIDPipe, Post, Query, UseGuards } from '@nestjs/common';
-import { RoleUtilisateur } from '@prisma/client';
+import { Referentiel, RoleUtilisateur } from '@prisma/client';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { LicenceGuard } from '../licence/licence.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { ReferentielGuard } from '../../common/guards/referentiel.guard';
+import { ReferentielsAutorises } from '../../common/decorators/referentiels.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { NoteAnnexeService } from './note-annexe.service';
 import { RattacherDto } from './dto/rattachement.dto';
@@ -13,7 +15,11 @@ const EXERCICE_REQUIS = new ParseUUIDPipe({
     new BadRequestException("Le paramètre exerciceId est requis et doit être un identifiant d'exercice valide"),
 });
 
-@UseGuards(JwtAuthGuard, LicenceGuard, RolesGuard)
+// SYCEBNL SEULEMENT · les 35 notes « associations » et 24 notes « projets »
+// sont celles de l'Acte uniforme SYCEBNL, sans équivalent monté pour le
+// SYSCOHADA (niveau 2 à venir) · même raison qu'au contrôleur des états.
+@ReferentielsAutorises(Referentiel.SYCEBNL)
+@UseGuards(JwtAuthGuard, LicenceGuard, RolesGuard, ReferentielGuard)
 @Controller('notes-annexes')
 export class NoteAnnexeController {
   constructor(private readonly noteAnnexeService: NoteAnnexeService) {}

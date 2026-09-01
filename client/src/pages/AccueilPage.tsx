@@ -127,10 +127,14 @@ const GROUPES: GroupeDef[] = [
     ],
   },
   {
-    titre: 'Propre aux entités à but non lucratif',
+    // « Analytique et obligations » : les tuiles propres au SYCEBNL portent
+    // leur restriction, les deux autres valent pour tout référentiel · un
+    // dossier SYSCOHADA voit donc une bande à deux tuiles, pas une bande
+    // vide sous un titre qui ne le concerne pas.
+    titre: 'Analytique et obligations',
     tuiles: [
       { label: 'Registre des donateurs', chemin: '/registre-donateurs', Icon: IconBook, referentielsApplicables: ['SYCEBNL'] },
-      { label: 'Bailleurs de fonds', chemin: '/bailleurs', Icon: IconUsers },
+      { label: 'Bailleurs de fonds', chemin: '/bailleurs', Icon: IconUsers, referentielsApplicables: ['SYCEBNL'] },
       { label: 'États analytiques', chemin: '/etats-analytiques', Icon: IconDashboard },
       { label: 'Retenues et fiscal', chemin: '/retenues', Icon: IconPrint },
     ],

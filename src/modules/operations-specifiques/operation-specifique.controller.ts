@@ -1,8 +1,10 @@
 import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
-import { RoleUtilisateur } from '@prisma/client';
+import { Referentiel, RoleUtilisateur } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { LicenceGuard } from '../licence/licence.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { ReferentielGuard } from '../../common/guards/referentiel.guard';
+import { ReferentielsAutorises } from '../../common/decorators/referentiels.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { OperationSpecifiqueService } from './operation-specifique.service';
@@ -18,7 +20,12 @@ import { AppliquerModeleDto, ProposerModeleDto } from './dto/operation-specifiqu
  * Seule l'application effective, qui enregistre, est réservée à
  * ADMIN_CABINET/COMPTABLE, comme toute saisie d'écriture.
  */
-@UseGuards(JwtAuthGuard, LicenceGuard, RolesGuard)
+// SYCEBNL SEULEMENT · les écritures-types viennent de la Partie 3 de l'Acte
+// uniforme SYCEBNL et visent ses comptes (165, 704, 475...) · appliquées à
+// un dossier SYSCOHADA elles imputeraient des comptes absents ou d'un autre
+// sens (le 165 SYSCOHADA est un dépôt reçu, pas un fonds affecté).
+@ReferentielsAutorises(Referentiel.SYCEBNL)
+@UseGuards(JwtAuthGuard, LicenceGuard, RolesGuard, ReferentielGuard)
 @Controller('operations-specifiques')
 export class OperationSpecifiqueController {
   constructor(private readonly operations: OperationSpecifiqueService) {}

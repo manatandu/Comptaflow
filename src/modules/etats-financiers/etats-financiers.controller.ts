@@ -1,7 +1,10 @@
 import { BadRequestException, Controller, Get, ParseUUIDPipe, Query, UseGuards } from '@nestjs/common';
+import { Referentiel } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { LicenceGuard } from '../licence/licence.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { ReferentielGuard } from '../../common/guards/referentiel.guard';
+import { ReferentielsAutorises } from '../../common/decorators/referentiels.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { EtatsFinanciersService } from './etats-financiers.service';
 import { EtatsFinanciersProjetService } from './etats-financiers-projet.service';
@@ -21,7 +24,15 @@ const EXERCICE_REQUIS = new ParseUUIDPipe({
 
 // RolesGuard présent pour que tout `@Roles` ajouté plus tard soit réellement
 // appliqué (sans lui, il serait silencieusement ignoré).
-@UseGuards(JwtAuthGuard, LicenceGuard, RolesGuard)
+//
+// SYCEBNL SEULEMENT · tous les moteurs de ce contrôleur (bilan, compte de
+// résultat, TFT, jeu projets, SMT) montent les états de l'Acte uniforme
+// SYCEBNL depuis ses tableaux de correspondance. Les servir à un dossier
+// SYSCOHADA imprimerait des états du mauvais référentiel · la fenêtre client
+// affiche « en construction » (niveau 2 SYSCOHADA à venir), cette garde rend
+// la mention vraie même par appel API direct.
+@ReferentielsAutorises(Referentiel.SYCEBNL)
+@UseGuards(JwtAuthGuard, LicenceGuard, RolesGuard, ReferentielGuard)
 @Controller('etats-financiers')
 export class EtatsFinanciersController {
   constructor(

@@ -1,8 +1,10 @@
 import { BadRequestException, Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
-import { RoleUtilisateur } from '@prisma/client';
+import { Referentiel, RoleUtilisateur } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { LicenceGuard } from '../licence/licence.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { ReferentielGuard } from '../../common/guards/referentiel.guard';
+import { ReferentielsAutorises } from '../../common/decorators/referentiels.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { LivreInventaireService } from './livre-inventaire.service';
@@ -26,8 +28,14 @@ const EXERCICE_REQUIS = new ParseUUIDPipe({
  * Consultation ouverte aux trois rôles : l'auditeur qui constate leur
  * existence est typiquement en LECTURE_SEULE. Établissement réservé à
  * ADMIN_CABINET/COMPTABLE.
+ *
+ * SYCEBNL SEULEMENT · le livre d'inventaire transcrit ici les états SYCEBNL
+ * (art. 14) et le rapport d'activité vient de son art. 16-3 · l'AUDCIF
+ * connaît aussi un livre d'inventaire, mais son contenu SYSCOHADA sera monté
+ * avec les états du niveau 2, pas rempli avec ceux d'une association.
  */
-@UseGuards(JwtAuthGuard, LicenceGuard, RolesGuard)
+@ReferentielsAutorises(Referentiel.SYCEBNL)
+@UseGuards(JwtAuthGuard, LicenceGuard, RolesGuard, ReferentielGuard)
 @Controller('documents-obligatoires')
 export class DocumentsObligatoiresController {
   constructor(

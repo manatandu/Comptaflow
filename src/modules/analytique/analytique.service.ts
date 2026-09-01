@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
-import { ClasseCompte, Prisma, TypeCompteDetailTotal } from '@prisma/client';
+import { ClasseCompte, Prisma, Referentiel, TypeCompteDetailTotal } from '@prisma/client';
 import {
   CreerPlanAnalytiqueDto,
   CreerSectionDto,
@@ -63,8 +63,12 @@ export class AnalytiqueService {
    *
    * Aucune section n'est créée : elles portent les projets et les bailleurs
    * réels du dossier, que nous ne connaissons pas.
+   *
+   * Pour un dossier SYSCOHADA, seul l'axe « Projets » est livré : la notion
+   * de bailleur de fonds est propre aux EBNL (SYCEBNL, division 46) · une
+   * entreprise qui veut suivre ses financeurs crée son axe à la main.
    */
-  async seedPlansDefaut(tenantId: string) {
+  async seedPlansDefaut(tenantId: string, referentiel: Referentiel) {
     const existants = await this.prisma.planAnalytique.count({ where: { tenantId } });
     if (existants > 0) return;
     await this.prisma.planAnalytique.createMany({
@@ -73,20 +77,27 @@ export class AnalytiqueService {
           tenantId,
           code: 'PROJ',
           intitule: 'Projets et programmes',
-          classesVentilees: '2,6,7,9',
+          // La classe 9 ventilée n'a de sens qu'en SYCEBNL (contributions
+          // volontaires en nature, rapportées par projet) · en SYSCOHADA
+          // elle porte les engagements hors bilan, qu'on ne ventile pas.
+          classesVentilees: referentiel === Referentiel.SYCEBNL ? '2,6,7,9' : '2,6,7',
           gererBudgets: true,
           ordre: 1,
         },
-        {
-          tenantId,
-          code: 'BAIL',
-          intitule: 'Bailleurs et financements',
-          classesVentilees: '2,6,7,9',
-          // Le budget se tient par projet ; le bailleur sert à rapporter, pas
-          // à budgéter. Un même projet peut d'ailleurs être cofinancé.
-          gererBudgets: false,
-          ordre: 2,
-        },
+        ...(referentiel === Referentiel.SYCEBNL
+          ? [
+              {
+                tenantId,
+                code: 'BAIL',
+                intitule: 'Bailleurs et financements',
+                classesVentilees: '2,6,7,9',
+                // Le budget se tient par projet ; le bailleur sert à rapporter,
+                // pas à budgéter. Un même projet peut d'ailleurs être cofinancé.
+                gererBudgets: false,
+                ordre: 2,
+              },
+            ]
+          : []),
       ],
     });
   }

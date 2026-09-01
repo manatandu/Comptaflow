@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
-import { NumerotationPiece, Prisma, TypeJournal } from '@prisma/client';
-import { JOURNAUX_DEFAUT } from './journal-seed';
+import { NumerotationPiece, Prisma, Referentiel, TypeJournal } from '@prisma/client';
+import { journauxDefaut } from './journal-seed';
 import { CreerJournalDto, ModifierJournalDto } from './dto/journal.dto';
 
 @Injectable()
@@ -11,10 +11,11 @@ export class JournalService {
   /**
    * Appelé une fois à la création du tenant, juste après le seed du plan de
    * comptes (voir AuthService.register) · les comptes de trésorerie
-   * référencés par JOURNAUX_DEFAUT doivent déjà exister.
+   * référencés par journauxDefaut() doivent déjà exister · le compte de
+   * caisse diffère selon le référentiel, voir journal-seed.ts.
    */
-  async seedJournauxDefaut(tenantId: string) {
-    for (const j of JOURNAUX_DEFAUT) {
+  async seedJournauxDefaut(tenantId: string, referentiel: Referentiel) {
+    for (const j of journauxDefaut(referentiel)) {
       let compteTresorerieId: string | undefined;
       if (j.numeroCompteTresorerie) {
         const compte = await this.prisma.compte.findUnique({

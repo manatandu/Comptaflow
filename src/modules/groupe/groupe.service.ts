@@ -98,12 +98,23 @@ export class GroupeService {
         id: true,
         dossierMereId: true,
         plafondCellules: true,
+        referentiel: true,
         licence: { select: { type: true, dateExpiration: true } },
         _count: { select: { cellules: true } },
       },
     });
     if (!mere || mere.dossierMereId !== null) {
       throw new BadRequestException('Seul un dossier mère peut créer des cellules');
+    }
+    // Tout le circuit du groupe (canevas de trésorerie, rubriques, liasse
+    // combinée) est monté sur le plan et les états SYCEBNL · ouvrir des
+    // cellules sous une mère SYSCOHADA produirait des agrégats du mauvais
+    // référentiel. À reconstruire pour le SYSCOHADA si un groupe commercial
+    // en a l'usage un jour, pas à laisser passer en silence.
+    if (mere.referentiel !== Referentiel.SYCEBNL) {
+      throw new BadRequestException(
+        "Le groupe d'établissements n'est construit que pour les dossiers SYCEBNL pour l'instant",
+      );
     }
     if (mere.plafondCellules === null) {
       throw new BadRequestException(

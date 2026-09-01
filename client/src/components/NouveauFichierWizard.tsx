@@ -88,8 +88,10 @@ const REFERENTIELS: {
     titre: 'SYSCOHADA révisé',
     sousTitre: 'Entreprises · droit comptable OHADA',
     description:
-      "Référentiel de droit commun des entités à but lucratif (AUDCIF). Son plan de comptes et ses états financiers ne sont pas encore construits dans OmegaX : le proposer aujourd'hui produirait un dossier d'entreprise tenu avec la nomenclature d'une association.",
-    disponible: false,
+      "Référentiel de droit commun des entités à but lucratif (AUDCIF). Plan de comptes complet et tenue " +
+      "intégrale (journaux, grand livre, balance, taxes, immobilisations). Les états financiers SYSCOHADA " +
+      "(bilan, compte de résultat, liasse) sont en construction : leurs fenêtres l'indiquent en attendant.",
+    disponible: true,
   },
 ];
 
@@ -378,9 +380,14 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
                       Indiquez le référentiel comptable de l'entité
                       <Aide sujet="jeuEtats" />
                     </h2>
+                    {/* Le plan de comptes est SEMÉ à la création (voir le
+                        commentaire de REFERENTIELS) et aucun écran ne re-sème
+                        un dossier · dire « modifiable plus tard » serait faux.
+                        Seul le jeu d'états SYCEBNL se change après coup, tant
+                        qu'aucune écriture n'existe. */}
                     <p className="text-[11px] text-text-dim leading-[1.6] mb-4">
-                      Il restera modifiable dans Structure &gt; Paramètres du dossier tant qu'aucune écriture n'est
-                      saisie.
+                      Ce choix sème le plan de comptes du dossier et ne se change plus ensuite · pour l'autre
+                      référentiel, on ouvre un autre dossier.
                     </p>
                     <div className="flex flex-col gap-2">
                       {REFERENTIELS.map((r) => {
@@ -688,7 +695,8 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
                     <p className="text-[11px] text-text-dim leading-[1.6] mb-2">
                       Vous avez terminé la définition des paramètres. Le dossier{' '}
                       <strong className="text-text">{form.nomEntite || 'sans nom'}</strong> sera tenu en{' '}
-                      {form.referentiel}, selon les états {LIBELLE_JEU[form.jeuEtatsFinanciersSycebnl]}, en{' '}
+                      {form.referentiel}
+                      {form.referentiel === 'SYCEBNL' ? `, selon les états ${LIBELLE_JEU[form.jeuEtatsFinanciersSycebnl]}` : ''}, en{' '}
                       {form.devise || 'monnaie non précisée'}, sur l'exercice du{' '}
                       {form.dateDebutExercice.split('-').reverse().join('/')} au{' '}
                       {form.dateFinExercice.split('-').reverse().join('/')}.

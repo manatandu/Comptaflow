@@ -6,6 +6,7 @@ import { IconExport } from '../components/chrome/icons';
 import type { Compte, LigneNoteCalculee, NoteCalculee, ResultatNotesJeu } from '../lib/types';
 import { Aide } from '../components/chrome/Aide';
 import { BlocCertification, EnteteImpression } from '../components/chrome/EnteteImpression';
+import { EnConstructionSyscohada } from '../components/chrome/EnConstructionSyscohada';
 
 /**
  * Tri croissant des codes de note (« 1 », « 5A »…« 5H », « 17A », « 17B »,
@@ -67,8 +68,12 @@ export function NotesAnnexesPage() {
   const [compteChoisi, setCompteChoisi] = useState<Record<string, string>>({});
   const [enCours, setEnCours] = useState<string | null>(null); // "codeNote::cle::compteId" en cours d'envoi
 
+  // Dossier SYSCOHADA : rien à charger, le serveur refuse de toute façon ces
+  // routes (ReferentielGuard) · voir l'écran « en construction » ci-dessous.
+  const referentielSyscohada = utilisateur?.tenant.referentiel === 'SYSCOHADA';
+
   const charger = () => {
-    if (jeuSmt) return; // aucun catalogue de notes du Système normal à charger
+    if (jeuSmt || referentielSyscohada) return; // aucun catalogue de notes du Système normal à charger
     if (!exerciceCourant || !utilisateur) return; // même garde qu'EtatsFinanciersPage : utilisateur null au tout premier rendu.
     api
       .get<ResultatNotesJeu>(`/notes-annexes/${chemin}?exerciceId=${exerciceCourant.id}`)
@@ -327,6 +332,10 @@ export function NotesAnnexesPage() {
       </div>
     );
   };
+
+  if (referentielSyscohada) {
+    return <EnConstructionSyscohada fenetre="Notes annexes" />;
+  }
 
   // Dossier au Système minimal de trésorerie : cette fenêtre n'a pas de
   // catalogue à lui présenter. Ses cinq notes sont dans l'écran des états

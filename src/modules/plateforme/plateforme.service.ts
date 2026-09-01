@@ -197,9 +197,9 @@ export class PlateformeService implements OnModuleInit {
     const motDePasseTemporaire = randomBytes(12).toString('base64url');
     const resultat = await this.authService.register({
       nomEntite: dto.nomEntite,
-      // SYCEBNL imposé côté serveur · register() refuse de toute façon le
-      // SYSCOHADA tant que son plan de comptes n'est pas construit.
-      referentiel: Referentiel.SYCEBNL,
+      // SYCEBNL par défaut (clientèle associative) · l'opérateur choisit
+      // SYSCOHADA pour un client commercial, register() sème le bon plan.
+      referentiel: dto.referentiel ?? Referentiel.SYCEBNL,
       email: dto.emailAdmin,
       motDePasse: motDePasseTemporaire,
       jeuEtatsFinanciersSycebnl: dto.jeuEtatsFinanciersSycebnl,

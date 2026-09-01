@@ -1,8 +1,8 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
 import { CreerTauxTvaDto, ModifierTauxTvaDto } from './dto/taux-tva.dto';
-import { TAUX_TVA_DEFAUT } from './taux-tva-seed';
-import { ClasseCompte, TypeJournal } from '@prisma/client';
+import { tauxTvaDefaut } from './taux-tva-seed';
+import { ClasseCompte, Referentiel, TypeJournal } from '@prisma/client';
 import { EcritureService } from '../comptabilite/ecriture.service';
 
 const EPSILON = 0.005;
@@ -25,8 +25,8 @@ export class TauxTvaService {
   ) {}
 
   /** Appelé une fois à la création du tenant (voir AuthService.register). */
-  async seedTauxDefaut(tenantId: string) {
-    for (const t of TAUX_TVA_DEFAUT) {
+  async seedTauxDefaut(tenantId: string, referentiel: Referentiel) {
+    for (const t of tauxTvaDefaut(referentiel)) {
       const compteCollecte = t.numeroCompteCollecte
         ? await this.prisma.compte.findUnique({ where: { tenantId_numero: { tenantId, numero: t.numeroCompteCollecte } } })
         : null;

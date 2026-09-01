@@ -1,12 +1,12 @@
 import { IsDateString, IsEmail, IsEnum, IsIn, IsInt, IsOptional, IsString, IsUUID, Min, ValidateIf } from 'class-validator';
-import { JeuEtatsFinanciersSycebnl, StatutLicence, TypeLicence } from '@prisma/client';
+import { JeuEtatsFinanciersSycebnl, Referentiel, StatutLicence, TypeLicence } from '@prisma/client';
 
 /**
  * Création d'un cabinet client depuis la console plateforme. Même pipeline
- * que l'inscription publique (AuthService.register), à deux différences :
- * le référentiel est fixé SYCEBNL côté serveur, et le mot de passe de
- * l'admin est GÉNÉRÉ (jamais choisi par l'opérateur), renvoyé une seule
- * fois pour être remis au client qui le changera à sa première connexion.
+ * que l'inscription publique (AuthService.register), à une différence près :
+ * le mot de passe de l'admin est GÉNÉRÉ (jamais choisi par l'opérateur),
+ * renvoyé une seule fois pour être remis au client qui le changera à sa
+ * première connexion.
  */
 export class CreerCabinetDto {
   @IsString()
@@ -15,6 +15,14 @@ export class CreerCabinetDto {
   /** Adresse de l'ADMIN_CABINET du client · c'est lui qui ouvrira le dossier. */
   @IsEmail()
   emailAdmin!: string;
+
+  /**
+   * SYCEBNL (défaut : la clientèle historique est associative) ou SYSCOHADA
+   * « niveau tenue » · voir AuthService.register pour ce que chacun sème.
+   */
+  @IsOptional()
+  @IsEnum(Referentiel)
+  referentiel?: Referentiel;
 
   @IsOptional()
   @IsEnum(JeuEtatsFinanciersSycebnl)

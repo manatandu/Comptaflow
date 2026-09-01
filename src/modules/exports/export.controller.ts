@@ -1,10 +1,22 @@
 import { BadRequestException, Controller, Get, Param, ParseUUIDPipe, Query, Res, UseGuards } from '@nestjs/common';
+import { Referentiel } from '@prisma/client';
 import { Response } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { LicenceGuard } from '../licence/licence.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { ReferentielGuard } from '../../common/guards/referentiel.guard';
+import { ReferentielsAutorises } from '../../common/decorators/referentiels.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { ClasseurExporte, ExportService } from './export.service';
+
+/**
+ * Cloisonnement par ROUTE, pas par contrôleur : journal, grand livre et
+ * balance valent pour les deux référentiels, mais tout ce qui reprend un
+ * état SYCEBNL (liasse, états, notes, SMT, registre des donateurs, livre
+ * d'inventaire, rapport d'activité) reste propre au SYCEBNL tant que le
+ * niveau 2 SYSCOHADA n'est pas construit · même division que les
+ * contrôleurs d'états eux-mêmes, décorateur posé route par route ci-dessous.
+ */
 
 /**
  * `exerciceId` doit être validé, pas seulement typé : un `@Query` scalaire
@@ -44,7 +56,7 @@ function envoyerXlsx(res: Response, classeur: ClasseurExporte) {
 // qu'ils reprennent). Sans lui, un futur `@Roles` posé ici serait
 // SILENCIEUSEMENT ignoré · pas d'erreur, pas de 403, la route resterait
 // ouverte à tous. Aligné sur les autres contrôleurs du projet.
-@UseGuards(JwtAuthGuard, LicenceGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, LicenceGuard, RolesGuard, ReferentielGuard)
 @Controller('exports')
 export class ExportController {
   constructor(private readonly exportService: ExportService) {}
@@ -100,6 +112,7 @@ export class ExportController {
    * au CPCC ou s'envoie à un bailleur ; les exports unitaires ci-dessous
    * restent utiles pour retravailler un état isolé.
    */
+  @ReferentielsAutorises(Referentiel.SYCEBNL)
   @Get('etats-financiers/liasse-complete')
   async liasseComplete(
     @CurrentUser() user: AuthenticatedUser,
@@ -118,6 +131,7 @@ export class ExportController {
     );
   }
 
+  @ReferentielsAutorises(Referentiel.SYCEBNL)
   @Get('etats-financiers/bilan')
   async bilan(
     @CurrentUser() user: AuthenticatedUser,
@@ -127,6 +141,7 @@ export class ExportController {
     envoyerXlsx(res, await this.exportService.bilanExcel(user.tenantId, exerciceId));
   }
 
+  @ReferentielsAutorises(Referentiel.SYCEBNL)
   @Get('etats-financiers/compte-de-resultat')
   async compteDeResultat(
     @CurrentUser() user: AuthenticatedUser,
@@ -137,6 +152,7 @@ export class ExportController {
   }
 
   /** Spécifique au jeu associations (Partie 4, ch. 1 § 4) · voir correspondance-tft.ts. */
+  @ReferentielsAutorises(Referentiel.SYCEBNL)
   @Get('etats-financiers/tableau-flux-tresorerie')
   async tableauFluxTresorerie(
     @CurrentUser() user: AuthenticatedUser,
@@ -147,6 +163,7 @@ export class ExportController {
   }
 
   /** Jeu « projets de développement et assimilés » (Partie 4, ch. 3). */
+  @ReferentielsAutorises(Referentiel.SYCEBNL)
   @Get('etats-financiers/projet/bilan')
   async bilanProjet(
     @CurrentUser() user: AuthenticatedUser,
@@ -156,6 +173,7 @@ export class ExportController {
     envoyerXlsx(res, await this.exportService.bilanProjetExcel(user.tenantId, exerciceId));
   }
 
+  @ReferentielsAutorises(Referentiel.SYCEBNL)
   @Get('etats-financiers/projet/compte-exploitation')
   async compteExploitationProjet(
     @CurrentUser() user: AuthenticatedUser,
@@ -166,6 +184,7 @@ export class ExportController {
   }
 
   /** Comptabilité analytique par projet/bailleur (docs/plan-de-construction.md item 14). */
+  @ReferentielsAutorises(Referentiel.SYCEBNL)
   @Get('etats-financiers/projet/note-bailleur')
   async noteBailleur(
     @CurrentUser() user: AuthenticatedUser,
@@ -176,6 +195,7 @@ export class ExportController {
   }
 
   /** Les trois tableaux du point 2 de l'article 14 (guide d'application, ch. 7). */
+  @ReferentielsAutorises(Referentiel.SYCEBNL)
   @Get('etats-financiers/projet/emplois-ressources')
   async emploisRessources(
     @CurrentUser() user: AuthenticatedUser,
@@ -185,6 +205,7 @@ export class ExportController {
     envoyerXlsx(res, await this.exportService.emploisRessourcesExcel(user.tenantId, exerciceId));
   }
 
+  @ReferentielsAutorises(Referentiel.SYCEBNL)
   @Get('etats-financiers/projet/execution-budgetaire')
   async executionBudgetaire(
     @CurrentUser() user: AuthenticatedUser,
@@ -194,6 +215,7 @@ export class ExportController {
     envoyerXlsx(res, await this.exportService.executionBudgetaireExcel(user.tenantId, exerciceId));
   }
 
+  @ReferentielsAutorises(Referentiel.SYCEBNL)
   @Get('etats-financiers/projet/reconciliation-tresorerie')
   async reconciliationTresorerie(
     @CurrentUser() user: AuthenticatedUser,
@@ -217,6 +239,7 @@ export class ExportController {
   // onglet de l'écran, comme les deux autres jeux ont un export par état.
   // -------------------------------------------------------------------------
 
+  @ReferentielsAutorises(Referentiel.SYCEBNL)
   @Get('etats-financiers/smt/bilan')
   async bilanSmt(
     @CurrentUser() user: AuthenticatedUser,
@@ -226,6 +249,7 @@ export class ExportController {
     envoyerXlsx(res, await this.exportService.bilanSmtExcel(user.tenantId, exerciceId));
   }
 
+  @ReferentielsAutorises(Referentiel.SYCEBNL)
   @Get('etats-financiers/smt/compte-de-resultat')
   async compteDeResultatSmt(
     @CurrentUser() user: AuthenticatedUser,
@@ -235,6 +259,7 @@ export class ExportController {
     envoyerXlsx(res, await this.exportService.compteDeResultatSmtExcel(user.tenantId, exerciceId));
   }
 
+  @ReferentielsAutorises(Referentiel.SYCEBNL)
   @Get('etats-financiers/smt/journal-tresorerie')
   async journalTresorerieSmt(
     @CurrentUser() user: AuthenticatedUser,
@@ -244,6 +269,7 @@ export class ExportController {
     envoyerXlsx(res, await this.exportService.journalTresorerieSmtExcel(user.tenantId, exerciceId));
   }
 
+  @ReferentielsAutorises(Referentiel.SYCEBNL)
   @Get('etats-financiers/smt/notes')
   async notesSmt(
     @CurrentUser() user: AuthenticatedUser,
@@ -253,6 +279,7 @@ export class ExportController {
     envoyerXlsx(res, await this.exportService.notesSmtExcel(user.tenantId, exerciceId));
   }
 
+  @ReferentielsAutorises(Referentiel.SYCEBNL)
   @Get('etats-financiers/smt/eligibilite')
   async eligibiliteSmt(
     @CurrentUser() user: AuthenticatedUser,
@@ -263,6 +290,7 @@ export class ExportController {
   }
 
   /** Notes annexes du jeu « associations et ordres professionnels » · 45 notes, une feuille par tableau applicable. */
+  @ReferentielsAutorises(Referentiel.SYCEBNL)
   @Get('notes-annexes/associations')
   async notesAssociations(
     @CurrentUser() user: AuthenticatedUser,
@@ -278,6 +306,7 @@ export class ExportController {
    * « version électronique » mais la version physique reste « cotée, paraphée
    * et numérotée de façon continue par la juridiction compétente ».
    */
+  @ReferentielsAutorises(Referentiel.SYCEBNL)
   @Get('registre-donateurs')
   async registreDonateurs(
     @CurrentUser() user: AuthenticatedUser,
@@ -293,6 +322,7 @@ export class ExportController {
    * produirait, à partir du même livre, deux documents différents à deux
    * dates différentes.
    */
+  @ReferentielsAutorises(Referentiel.SYCEBNL)
   @Get('livre-inventaire')
   async livreInventaire(
     @CurrentUser() user: AuthenticatedUser,
@@ -303,6 +333,7 @@ export class ExportController {
   }
 
   /** Rapport d'activité (art. 16-3) · quatre sections, section vide signalée. */
+  @ReferentielsAutorises(Referentiel.SYCEBNL)
   @Get('rapport-activite')
   async rapportActivite(
     @CurrentUser() user: AuthenticatedUser,
@@ -313,6 +344,7 @@ export class ExportController {
   }
 
   /** Notes annexes du jeu « projets de développement et assimilés » · 26 notes. */
+  @ReferentielsAutorises(Referentiel.SYCEBNL)
   @Get('notes-annexes/projet')
   async notesProjet(
     @CurrentUser() user: AuthenticatedUser,

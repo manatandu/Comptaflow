@@ -17,15 +17,29 @@
  * profession » · COMPTE 28) ; l'arrêté RDC est la source la plus concrète
  * disponible pour un défaut réaliste. Modifiable au cas par cas (art. 4 de
  * l'arrêté : taux dérogatoires possibles si justifiés au contrôle).
+ *
+ * DEUX LISTES, une par référentiel · les numéros coïncident presque partout
+ * (les deux plans descendent de la même ossature OHADA), mais pas partout,
+ * et un numéro copié du mauvais plan est exactement la faute que la règle
+ * « jamais un compte de mémoire » interdit. Divergences vérifiées dans le
+ * plan SYSCOHADA (skill syscohada, plan-comptes.tsv) :
+ *  - mobilier de bureau : 2444 en SYSCOHADA (2441 y est « Matériel de
+ *    bureau »), là où le SYCEBNL le range en 2441 « Matériel et mobilier de
+ *    bureau » ;
+ *  - amortissement des agencements : 2834 en SYSCOHADA (« aménagements,
+ *    agencements et installations techniques », l'exact vis-à-vis du 234),
+ *    là où le semis SYCEBNL passe par 2835.
  */
-export const FAMILLES_IMMOBILISATION_DEFAUT: Array<{
+type FamilleSeed = {
   code: string;
   intitule: string;
   numeroCompteImmobilisation: string;
   numeroCompteAmortissement: string;
   numeroCompteDotation: string;
   dureeAmortissementAns: number;
-}> = [
+};
+
+export const FAMILLES_IMMOBILISATION_DEFAUT: FamilleSeed[] = [
   {
     code: 'LOGICIELS',
     intitule: 'Logiciels et brevets',
@@ -75,3 +89,23 @@ export const FAMILLES_IMMOBILISATION_DEFAUT: Array<{
     dureeAmortissementAns: 10, // arrêté 013/2025, VI.1 "Agencements, aménagements, installations"
   },
 ];
+
+/**
+ * Mêmes familles, mêmes durées (l'arrêté 013/2025 s'applique quel que soit
+ * le référentiel comptable), comptes du plan SYSCOHADA · voir l'en-tête pour
+ * les deux divergences de numérotation.
+ */
+export const FAMILLES_IMMOBILISATION_DEFAUT_SYSCOHADA: FamilleSeed[] = FAMILLES_IMMOBILISATION_DEFAUT.map((f) => {
+  if (f.code === 'MOBILIER') {
+    return { ...f, intitule: 'Mobilier de bureau', numeroCompteImmobilisation: '24440000' };
+  }
+  if (f.code === 'AGENCEMENTS') {
+    return { ...f, numeroCompteAmortissement: '28340000' };
+  }
+  if (f.code === 'INFORMATIQUE') {
+    // 2442 « Matériel informatique » en SYSCOHADA (la bureautique a son
+    // propre 2443) · même numéro qu'en SYCEBNL, intitulé recadré.
+    return { ...f, intitule: 'Matériel informatique' };
+  }
+  return f;
+});

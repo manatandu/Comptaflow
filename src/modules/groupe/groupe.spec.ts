@@ -144,6 +144,7 @@ describe('GroupeService · création de cellules par le siège', () => {
     dossierMereId?: string | null;
     plafondCellules?: number | null;
     cellules?: number;
+    referentiel?: string;
     licence?: { type: string; dateExpiration: Date | null } | null;
   }) => {
     const traces: Record<string, unknown[]> = { register: [], majTenant: [], majLicence: [], majUser: [] };
@@ -154,6 +155,8 @@ describe('GroupeService · création de cellules par le siège', () => {
             id: 'mere',
             dossierMereId: mere.dossierMereId ?? null,
             plafondCellules: mere.plafondCellules ?? null,
+            // Le circuit du groupe est réservé au SYCEBNL (voir creerCellule).
+            referentiel: mere.referentiel ?? 'SYCEBNL',
             licence: mere.licence ?? null,
             _count: { cellules: mere.cellules ?? 0 },
           }),
@@ -219,6 +222,12 @@ describe('GroupeService · création de cellules par le siège', () => {
     await expect(
       service({ dossierMereId: 'grand-mere', plafondCellules: 5 }).s.creerCellule('mere', { nom: 'X', emailAdmin: 'x@x.cd' }),
     ).rejects.toThrow(BadRequestException);
+  });
+
+  it('refuse une mère SYSCOHADA · le circuit du groupe (canevas, liasse) est monté sur le SYCEBNL', async () => {
+    await expect(
+      service({ plafondCellules: 5, referentiel: 'SYSCOHADA' }).s.creerCellule('mere', { nom: 'X', emailAdmin: 'x@x.cd' }),
+    ).rejects.toThrow(/SYCEBNL/);
   });
 });
 

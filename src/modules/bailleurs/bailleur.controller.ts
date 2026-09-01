@@ -1,14 +1,20 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
-import { RoleUtilisateur } from '@prisma/client';
+import { Referentiel, RoleUtilisateur } from '@prisma/client';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { LicenceGuard } from '../licence/licence.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { ReferentielGuard } from '../../common/guards/referentiel.guard';
+import { ReferentielsAutorises } from '../../common/decorators/referentiels.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { BailleurService } from './bailleur.service';
 import { CreerBailleurDto, ModifierBailleurDto } from './dto/bailleur.dto';
 
-@UseGuards(JwtAuthGuard, LicenceGuard, RolesGuard)
+// SYCEBNL SEULEMENT · le bailleur de fonds est une notion de l'Acte uniforme
+// SYCEBNL (division 46, fonds d'administration et d'investissement) · en
+// SYSCOHADA le 46 porte les apporteurs, associés et le groupe.
+@ReferentielsAutorises(Referentiel.SYCEBNL)
+@UseGuards(JwtAuthGuard, LicenceGuard, RolesGuard, ReferentielGuard)
 @Controller('bailleurs')
 export class BailleurController {
   constructor(private readonly bailleurService: BailleurService) {}

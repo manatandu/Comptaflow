@@ -16,16 +16,32 @@
  * ventes, importations et prestations des ASBL conformes à leur objet) ne
  * porte aucune ligne de TVA ; ce n'est pas un taux à 0 %, donc rien à seeder
  * ici (voir le commentaire du modèle TauxTva dans schema.prisma).
+ *
+ * COMPTES PAR RÉFÉRENTIEL · le compte de collecte 44310000 existe dans les
+ * deux plans (SYCEBNL : 4431 « État, T.V.A. facturée » générique ·
+ * SYSCOHADA : 4431 « TVA facturée sur ventes », la subdivision de droit
+ * commun). Le compte déductible, lui, diverge : le 4451 du SYCEBNL est le
+ * compte générique « État, T.V.A. récupérable », mais le 4451 du SYSCOHADA
+ * est réservé aux IMMOBILISATIONS · le défaut d'un achat courant y est le
+ * 4452 « TVA récupérable sur achats ». Prendre 44510000 pour un dossier
+ * SYSCOHADA imputerait chaque achat courant en TVA sur immobilisations.
  */
-export const TAUX_TVA_DEFAUT: Array<{
+import { Referentiel } from '@prisma/client';
+
+type TauxSeed = {
   code: string;
   intitule: string;
   taux: number;
   numeroCompteCollecte?: string;
   numeroCompteDeductible?: string;
-}> = [
-  { code: 'TVA16', intitule: 'Taux normal 16 %', taux: 16, numeroCompteCollecte: '44310000', numeroCompteDeductible: '44510000' },
-  { code: 'TVA1', intitule: 'Taux réduit 1 %', taux: 1, numeroCompteCollecte: '44310000', numeroCompteDeductible: '44510000' },
-  { code: 'TVA5', intitule: 'Taux réduit 5 % (billets d’avion, trafic aérien national)', taux: 5, numeroCompteCollecte: '44310000', numeroCompteDeductible: '44510000' },
-  { code: 'TVA0', intitule: 'Taux zéro (exportations)', taux: 0, numeroCompteCollecte: '44310000' },
-];
+};
+
+export function tauxTvaDefaut(referentiel: Referentiel): TauxSeed[] {
+  const deductible = referentiel === Referentiel.SYSCOHADA ? '44520000' : '44510000';
+  return [
+    { code: 'TVA16', intitule: 'Taux normal 16 %', taux: 16, numeroCompteCollecte: '44310000', numeroCompteDeductible: deductible },
+    { code: 'TVA1', intitule: 'Taux réduit 1 %', taux: 1, numeroCompteCollecte: '44310000', numeroCompteDeductible: deductible },
+    { code: 'TVA5', intitule: 'Taux réduit 5 % (billets d’avion, trafic aérien national)', taux: 5, numeroCompteCollecte: '44310000', numeroCompteDeductible: deductible },
+    { code: 'TVA0', intitule: 'Taux zéro (exportations)', taux: 0, numeroCompteCollecte: '44310000' },
+  ];
+}

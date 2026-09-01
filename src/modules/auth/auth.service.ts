@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { randomBytes } from 'crypto';
 import * as bcrypt from 'bcryptjs';
@@ -33,8 +33,9 @@ export class AuthService {
   ) {}
 
   /**
-   * Crée le tenant, son admin, sa licence, son plan de comptes SYCEBNL et son
-   * exercice courant. Reproduit le parcours de l'écran « Onboarding » du
+   * Crée le tenant, son admin, sa licence, son plan de comptes (SYCEBNL ou
+   * SYSCOHADA, selon le référentiel choisi) et son exercice courant.
+   * Reproduit le parcours de l'écran « Onboarding » du
    * canevas de design : le plan de comptes est prêt dès l'inscription, sans
    * étape de configuration manuelle.
    *
@@ -50,27 +51,22 @@ export class AuthService {
       throw new ConflictException('Un compte existe déjà avec cet email');
     }
 
-    // Le DTO accepte les deux valeurs de l'enum `Referentiel` parce que le
-    // schéma les porte toutes deux, mais `seedPlanSycebnl` ci-dessous n'en
-    // sème qu'UN : le plan SYCEBNL. Sans ce garde-fou, un dossier créé en
-    // SYSCOHADA se retrouverait tenu avec la nomenclature des entités à but
-    // non lucratif tout en s'annonçant en référentiel d'entreprise · un
-    // mensonge silencieux sur chaque état imprimé. L'assistant côté client
-    // présente d'ailleurs le SYSCOHADA comme « bientôt » ; ce refus est ce
-    // qui rend cette mention vraie côté serveur.
-    if (dto.referentiel !== Referentiel.SYCEBNL) {
-      throw new BadRequestException(
-        "Le référentiel SYSCOHADA révisé (entités à but lucratif) n'est pas encore construit dans OmegaX : " +
-          "son plan de comptes et ses états financiers lui sont propres et ne peuvent pas être remplacés par ceux " +
-          'du SYCEBNL. Seul le référentiel SYCEBNL peut être retenu pour l\'instant.',
-      );
-    }
-
+    // Les DEUX référentiels se sèment désormais (SYCEBNL depuis l'origine,
+    // SYSCOHADA « niveau tenue » depuis compte-seed-syscohada.ts) · le refus
+    // historique du SYSCOHADA est levé. Restent propres au SYCEBNL : les
+    // états financiers, notes annexes et documents dérivés, cloisonnés par
+    // @ReferentielsAutorises côté serveur et affichés « en construction »
+    // côté client tant que le niveau 2 SYSCOHADA n'est pas construit · un
+    // dossier SYSCOHADA se TIENT complètement (plan, journaux, taxes,
+    // immobilisations, éditions comptables), il ne s'IMPRIME pas encore en
+    // liasse.
     const tenant = await this.tenantService.creerTenant({
       nom: dto.nomEntite,
       referentiel: dto.referentiel,
       typeLicence: dto.typeLicence ?? TypeLicence.ABONNEMENT,
-      jeuEtatsFinanciersSycebnl: dto.jeuEtatsFinanciersSycebnl,
+      // Le jeu d'états est un concept SYCEBNL (art. 4 à 6) · jamais retenu
+      // pour un dossier SYSCOHADA, même si le DTO en portait un.
+      jeuEtatsFinanciersSycebnl: dto.referentiel === Referentiel.SYCEBNL ? dto.jeuEtatsFinanciersSycebnl : undefined,
       activite: dto.activite,
       adresse: dto.adresse,
       ville: dto.ville,
@@ -89,20 +85,20 @@ export class AuthService {
       },
     });
 
-    await this.compteService.seedPlanSycebnl(tenant.id);
+    await this.compteService.seedPlan(tenant.id, dto.referentiel);
     // Les journaux par défaut référencent des comptes de trésorerie du plan
-    // SYCEBNL (52110000 Banque, 57100000 Caisse) : le seed des comptes doit donc
-    // toujours précéder celui des journaux. Même contrainte pour les taux de
-    // TVA, qui référencent les comptes d'État 44310000/44510000, et pour les
-    // familles d'immobilisations par défaut, qui référencent des comptes de
-    // classe 2/28/68 (voir famille-immobilisation-seed.ts).
-    await this.journalService.seedJournauxDefaut(tenant.id);
-    await this.tauxTvaService.seedTauxDefaut(tenant.id);
-    await this.immobilisationService.seedFamillesDefaut(tenant.id);
-    // Axes analytiques Projets / Bailleurs · aucune dépendance sur les comptes,
-    // mais placés ici pour que le dossier soit prêt à ventiler dès la
-    // première écriture.
-    await this.analytiqueService.seedPlansDefaut(tenant.id);
+    // qui vient d'être semé : le seed des comptes doit donc toujours précéder
+    // celui des journaux. Même contrainte pour les taux de TVA et les
+    // familles d'immobilisations. Les numéros référencés sont PROPRES à
+    // chaque référentiel (caisse 5710/5711, TVA déductible 4451/4452,
+    // mobilier 2441/2444... · voir chaque fichier *-seed.ts).
+    await this.journalService.seedJournauxDefaut(tenant.id, dto.referentiel);
+    await this.tauxTvaService.seedTauxDefaut(tenant.id, dto.referentiel);
+    await this.immobilisationService.seedFamillesDefaut(tenant.id, dto.referentiel);
+    // Axes analytiques Projets (+ Bailleurs en SYCEBNL) · aucune dépendance
+    // sur les comptes, mais placés ici pour que le dossier soit prêt à
+    // ventiler dès la première écriture.
+    await this.analytiqueService.seedPlansDefaut(tenant.id, dto.referentiel);
     // Trois niveaux de relance au ton d'une association à ses membres · voir
     // RelancesService.NIVEAUX_DEFAUT.
     await this.relancesService.seedNiveauxDefaut(tenant.id);
