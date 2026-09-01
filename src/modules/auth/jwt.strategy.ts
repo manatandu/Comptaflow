@@ -50,6 +50,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       role: user.role,
       referentiel: user.tenant.referentiel,
       licence: user.tenant.licence,
+      estOperateurPlateforme: user.estOperateurPlateforme,
     };
   }
 }

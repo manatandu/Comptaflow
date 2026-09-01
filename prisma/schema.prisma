@@ -301,6 +301,13 @@ model User {
   // Désactivé plutôt que supprimé : un utilisateur peut être créateur
   // d'écritures (createdBy) · le supprimer casserait la piste d'audit.
   estActif   Boolean         @default(true)
+  // OPÉRATEUR DE PLATEFORME · l'exploitant du logiciel (le cabinet), au-dessus
+  // des tenants : console /plateforme (cabinets clients, licences). Un BOOLÉEN
+  // et non une valeur de RoleUtilisateur : aucun DTO n'expose ce champ, il est
+  // donc inatteignable par l'API · seul le bootstrap OPERATEURS_PLATEFORME
+  // (variable d'environnement, voir PlateformeService.onModuleInit) l'accorde,
+  // et la révocation est manuelle (SQL). Jamais renvoyé par /utilisateurs.
+  estOperateurPlateforme Boolean @default(false)
   createdAt  DateTime        @default(now())
 
   @@map("users")

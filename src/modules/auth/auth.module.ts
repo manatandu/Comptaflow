@@ -38,5 +38,10 @@ import { JwtAuthModule } from './jwt-auth.module';
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy],
+  // AuthService est réutilisé par PlateformeModule : la création d'un cabinet
+  // client depuis la console passe par LE MÊME pipeline que l'inscription
+  // publique (tenant + licence + admin + seeds + exercice), aucun second
+  // chemin de création à maintenir.
+  exports: [AuthService],
 })
 export class AuthModule {}

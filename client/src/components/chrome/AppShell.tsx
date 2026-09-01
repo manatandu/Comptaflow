@@ -119,6 +119,12 @@ export function AppShell() {
         // Sage : Fichier → Importer. C'est par là qu'une association arrive
         // avec son tableur ou l'export de son logiciel précédent.
         ...(estAdmin ? [{ label: 'Importer des données…', separateurAvant: true, onClick: () => navigate('/import') }] : []),
+        // Console de l'opérateur de la plateforme (le cabinet exploitant) ·
+        // invisible pour tout utilisateur ordinaire, et de toute façon
+        // inaccessible : le serveur relit le drapeau en base à chaque requête.
+        ...(utilisateur?.estOperateurPlateforme
+          ? [{ label: 'Cabinets clients (plateforme)', separateurAvant: true, onClick: () => navigate('/plateforme') }]
+          : []),
         // Sage : Fichier → Mise en page / Format d'impression. Ici, une seule
         // commande : la boîte du navigateur, où « Enregistrer au format PDF »
         // produit le fichier à déposer chez un bailleur ou au greffe. Ce qui

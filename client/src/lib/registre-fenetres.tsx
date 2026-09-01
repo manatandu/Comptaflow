@@ -43,6 +43,7 @@ const DevisesPage = lazy(() => import('../pages/DevisesPage').then((m) => ({ def
 const RelancesPage = lazy(() => import('../pages/RelancesPage').then((m) => ({ default: m.RelancesPage })));
 const EtatsAnalytiquesPage = lazy(() => import('../pages/EtatsAnalytiquesPage').then((m) => ({ default: m.EtatsAnalytiquesPage })));
 const BailleursPage = lazy(() => import('../pages/BailleursPage').then((m) => ({ default: m.BailleursPage })));
+const PlateformePage = lazy(() => import('../pages/PlateformePage').then((m) => ({ default: m.PlateformePage })));
 
 /**
  * REGISTRE DES FENÊTRES · la seule liste qui associe un chemin à ce qui
@@ -185,6 +186,15 @@ export const FENETRES: DefinitionFenetre[] = [
     titre: "Autorisations d'accès",
     titreCourt: 'Utilisateurs',
     rendre: () => <UtilisateursPage />,
+  },
+  {
+    // Console de l'opérateur de plateforme · l'entrée de menu est gated sur
+    // estOperateurPlateforme (AppShell), la page se re-verrouille elle-même,
+    // et le serveur relit le drapeau à chaque requête (OperateurPlateformeGuard).
+    motif: /^\/plateforme$/,
+    titre: 'Cabinets clients · plateforme',
+    titreCourt: 'Cabinets',
+    rendre: () => <PlateformePage />,
   },
   {
     motif: /^\/parametres-dossier$/,

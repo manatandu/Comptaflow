@@ -1,0 +1,396 @@
+import { FormEvent, useEffect, useState } from 'react';
+import { api, ApiError } from '../lib/api';
+import { useAuth } from '../lib/auth';
+import type { JeuEtatsFinanciersSycebnl } from '../lib/types';
+
+/**
+ * CONSOLE DE L'OPÉRATEUR DE PLATEFORME · vue transversale des cabinets
+ * clients (tenants), gestion de leurs licences, création de dossiers.
+ * Fenêtre invisible pour un utilisateur ordinaire (menu Fichier gated sur
+ * estOperateurPlateforme) et de toute façon inaccessible : le serveur relit
+ * le drapeau en base à chaque requête (OperateurPlateformeGuard).
+ */
+
+type TypeLicence = 'ABONNEMENT' | 'PERPETUEL_SAAS' | 'PERPETUEL_ONPREMISE';
+type StatutLicence = 'ACTIVE' | 'EXPIREE' | 'SUSPENDUE';
+
+interface LicenceCabinet {
+  type: TypeLicence;
+  statut: StatutLicence;
+  dateDebut: string;
+  dateExpiration: string | null;
+  dernierHeartbeatAt: string | null;
+}
+
+interface CabinetClient {
+  id: string;
+  nom: string;
+  referentiel: string;
+  jeuEtatsFinanciersSycebnl: JeuEtatsFinanciersSycebnl;
+  ville: string | null;
+  pays: string | null;
+  numeroImpot: string | null;
+  createdAt: string;
+  licence: LicenceCabinet | null;
+  nbUtilisateurs: number;
+  nbEcritures: number;
+}
+
+interface CabinetCree {
+  tenant: { id: string; nom: string };
+  adminEmail: string;
+  motDePasseTemporaire: string;
+}
+
+const LIBELLE_JEU: Record<JeuEtatsFinanciersSycebnl, string> = {
+  ASSOCIATIONS_ORDRES_PROFESSIONNELS: 'Associations',
+  PROJETS_DEVELOPPEMENT: 'Projets',
+  SYSTEME_MINIMAL_TRESORERIE: 'SMT',
+};
+
+const LIBELLE_LICENCE: Record<TypeLicence, string> = {
+  ABONNEMENT: 'Abonnement',
+  PERPETUEL_SAAS: 'Perpétuelle (SaaS)',
+  PERPETUEL_ONPREMISE: 'Perpétuelle (sur site)',
+};
+
+const JOUR_MS = 24 * 60 * 60 * 1000;
+
+/** État réel de la licence, échéance comprise · miroir de l'évaluation
+ *  serveur (LicenceService.evaluerLicence), à titre indicatif seulement. */
+function etatLicence(l: LicenceCabinet | null): { libelle: string; classe: string } {
+  if (!l) return { libelle: 'SANS LICENCE', classe: 'text-text-dim bg-surface-alt' };
+  if (l.statut === 'SUSPENDUE') return { libelle: 'SUSPENDUE', classe: 'text-danger bg-danger-soft' };
+  if (l.type === 'ABONNEMENT' && l.dateExpiration && new Date(l.dateExpiration).getTime() < Date.now()) {
+    return { libelle: 'EXPIRÉE', classe: 'text-danger bg-danger-soft' };
+  }
+  return { libelle: 'ACTIVE', classe: 'text-positive bg-positive-soft' };
+}
+
+function dateCourte(iso: string | null): string {
+  return iso ? new Date(iso).toLocaleDateString('fr-FR') : '·';
+}
+
+export function PlateformePage() {
+  const { utilisateur } = useAuth();
+  const [liste, setListe] = useState<CabinetClient[] | null>(null);
+  const [erreur, setErreur] = useState<string | null>(null);
+
+  // Modale « licence » d'un cabinet
+  const [licenceEnCours, setLicenceEnCours] = useState<CabinetClient | null>(null);
+  const [licType, setLicType] = useState<TypeLicence>('ABONNEMENT');
+  const [licExpiration, setLicExpiration] = useState('');
+  const [licEnvoi, setLicEnvoi] = useState(false);
+  const [licErreur, setLicErreur] = useState<string | null>(null);
+
+  // Modale « nouveau cabinet client »
+  const [nouveauOuvert, setNouveauOuvert] = useState(false);
+  const [nomEntite, setNomEntite] = useState('');
+  const [emailAdmin, setEmailAdmin] = useState('');
+  const [jeu, setJeu] = useState<JeuEtatsFinanciersSycebnl>('ASSOCIATIONS_ORDRES_PROFESSIONNELS');
+  const [typeLicence, setTypeLicence] = useState<TypeLicence>('ABONNEMENT');
+  const [dateExpiration, setDateExpiration] = useState('');
+  const [ville, setVille] = useState('');
+  const [pays, setPays] = useState('RD Congo');
+  const [creationEnvoi, setCreationEnvoi] = useState(false);
+  const [creationErreur, setCreationErreur] = useState<string | null>(null);
+
+  // Résultat de création · le mot de passe temporaire n'est montré qu'ICI,
+  // une seule fois (le serveur ne le stocke que haché).
+  const [cree, setCree] = useState<CabinetCree | null>(null);
+
+  const charger = async () => {
+    try {
+      setListe(await api.get<CabinetClient[]>('/plateforme/cabinets'));
+      setErreur(null);
+    } catch (err) {
+      setErreur(err instanceof ApiError ? err.message : 'Impossible de charger les cabinets');
+    }
+  };
+
+  useEffect(() => {
+    if (utilisateur?.estOperateurPlateforme) charger();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [utilisateur?.estOperateurPlateforme]);
+
+  if (!utilisateur?.estOperateurPlateforme) {
+    return (
+      <div className="p-4">
+        <div className="border border-warning/30 bg-warning-soft px-4 py-3 text-[11px] max-w-[480px]">
+          Cette console est réservée à l'opérateur de la plateforme.
+        </div>
+      </div>
+    );
+  }
+
+  const basculerSuspension = async (c: CabinetClient) => {
+    if (!c.licence) return;
+    try {
+      await api.patch(`/plateforme/cabinets/${c.id}/licence`, {
+        statut: c.licence.statut === 'SUSPENDUE' ? 'ACTIVE' : 'SUSPENDUE',
+      });
+      await charger();
+    } catch (err) {
+      setErreur(err instanceof ApiError ? err.message : 'Action impossible');
+    }
+  };
+
+  const ouvrirLicence = (c: CabinetClient) => {
+    setLicenceEnCours(c);
+    setLicType(c.licence?.type ?? 'ABONNEMENT');
+    setLicExpiration(c.licence?.dateExpiration ? c.licence.dateExpiration.slice(0, 10) : '');
+    setLicErreur(null);
+  };
+
+  const onEnregistrerLicence = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!licenceEnCours) return;
+    setLicEnvoi(true);
+    setLicErreur(null);
+    try {
+      await api.patch(`/plateforme/cabinets/${licenceEnCours.id}/licence`, {
+        type: licType,
+        // '' efface l'échéance (licence perpétuelle) · convention serveur.
+        dateExpiration: licExpiration,
+        // Poser une nouvelle échéance réactive au passage une licence
+        // suspendue serait un effet caché : le statut ne bouge que par le
+        // bouton Suspendre/Réactiver, jamais d'ici.
+      });
+      setLicenceEnCours(null);
+      await charger();
+    } catch (err) {
+      setLicErreur(err instanceof ApiError ? err.message : 'Modification impossible');
+    } finally {
+      setLicEnvoi(false);
+    }
+  };
+
+  const onCreer = async (e: FormEvent) => {
+    e.preventDefault();
+    setCreationEnvoi(true);
+    setCreationErreur(null);
+    try {
+      const resultat = await api.post<CabinetCree>('/plateforme/cabinets', {
+        nomEntite,
+        emailAdmin,
+        jeuEtatsFinanciersSycebnl: jeu,
+        typeLicence,
+        ...(typeLicence === 'ABONNEMENT' && dateExpiration ? { dateExpiration } : {}),
+        ...(ville ? { ville } : {}),
+        ...(pays ? { pays } : {}),
+      });
+      setNouveauOuvert(false);
+      setNomEntite('');
+      setEmailAdmin('');
+      setDateExpiration('');
+      setVille('');
+      setCree(resultat);
+      await charger();
+    } catch (err) {
+      setCreationErreur(err instanceof ApiError ? err.message : 'Création impossible');
+    } finally {
+      setCreationEnvoi(false);
+    }
+  };
+
+  return (
+    <div className="p-2">
+      <div className="flex items-center justify-between mb-2">
+        <div>
+          <div className="text-[10px] font-mono text-text-dim leading-none">PLATEFORME</div>
+          <h1 className="text-[12px] font-bold leading-tight">Cabinets clients · licences et dossiers</h1>
+        </div>
+        <button type="button" onClick={() => setNouveauOuvert(true)} className="bg-sel text-white px-3.5 py-1 text-[10.5px] font-semibold">
+          Nouveau cabinet client
+        </button>
+      </div>
+
+      {erreur && <div className="text-[11px] text-danger bg-danger-soft border border-danger/30 px-3 py-1.5 mb-2 max-w-[980px]">{erreur}</div>}
+
+      <div className="border border-border bg-surface shadow-posee max-w-[1080px] overflow-x-auto">
+        <div className="min-w-[960px]">
+          <div className="grid grid-cols-[1.4fr_100px_1fr_60px_70px_130px_90px_90px_150px] gap-2 px-3.5 py-1.5 bg-chrome border-b border-border text-[10px] font-bold text-text-dim">
+            <span>CABINET</span>
+            <span>JEU</span>
+            <span>NIF</span>
+            <span className="text-right">UTIL.</span>
+            <span className="text-right">ÉCRIT.</span>
+            <span>LICENCE</span>
+            <span>ÉCHÉANCE</span>
+            <span>ÉTAT</span>
+            <span></span>
+          </div>
+          {!liste && <div className="p-3 text-[11px] text-text-dim">Chargement…</div>}
+          {liste?.length === 0 && <div className="p-3 text-[11px] text-text-dim">Aucun cabinet client.</div>}
+          {liste?.map((c, i) => {
+            const etat = etatLicence(c.licence);
+            const expiration = c.licence?.dateExpiration ? new Date(c.licence.dateExpiration).getTime() : null;
+            const expireBientot = expiration !== null && expiration >= Date.now() && expiration - Date.now() < 30 * JOUR_MS;
+            const expiree = expiration !== null && expiration < Date.now();
+            return (
+              <div
+                key={c.id}
+                className={`grid grid-cols-[1.4fr_100px_1fr_60px_70px_130px_90px_90px_150px] gap-2 items-center px-3.5 py-1.5 border-b border-border last:border-b-0 ${i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'}`}
+              >
+                <span className="text-[11px] truncate">
+                  <span className="font-semibold">{c.nom}</span>
+                  {(c.ville || c.pays) && <span className="text-text-dim"> · {[c.ville, c.pays].filter(Boolean).join(', ')}</span>}
+                </span>
+                <span className="text-[10.5px]">{LIBELLE_JEU[c.jeuEtatsFinanciersSycebnl] ?? c.referentiel}</span>
+                <span className="text-[10.5px] font-mono truncate">{c.numeroImpot ?? '·'}</span>
+                <span className="text-[10.5px] text-right tabular-nums">{c.nbUtilisateurs}</span>
+                <span className="text-[10.5px] text-right tabular-nums">{c.nbEcritures}</span>
+                <span className="text-[10.5px]">{c.licence ? LIBELLE_LICENCE[c.licence.type] : '·'}</span>
+                <span className={`text-[10.5px] tabular-nums ${expiree ? 'text-danger font-semibold' : expireBientot ? 'text-warning font-semibold' : ''}`}>
+                  {dateCourte(c.licence?.dateExpiration ?? null)}
+                </span>
+                <span className={`font-mono text-[10px] font-bold px-1.5 py-0.5 w-fit ${etat.classe}`}>{etat.libelle}</span>
+                <span className="flex gap-2.5">
+                  <button type="button" onClick={() => ouvrirLicence(c)} className="text-[10.5px] text-sel">
+                    Licence
+                  </button>
+                  {c.licence && (
+                    <button type="button" onClick={() => basculerSuspension(c)} className="text-[10.5px] text-sel">
+                      {c.licence.statut === 'SUSPENDUE' ? 'Réactiver' : 'Suspendre'}
+                    </button>
+                  )}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      <p className="text-[10.5px] text-text-dim mt-2 max-w-[980px]">
+        L'échéance en orange expire sous 30 jours, en rouge elle est dépassée. Suspendre coupe immédiatement l'accès du
+        cabinet · réactiver le rétablit. « Licence » change le type ou pose une nouvelle échéance (renouvellement).
+      </p>
+
+      {licenceEnCours && (
+        <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
+          <form onSubmit={onEnregistrerLicence} className="anim-modale w-full max-w-[440px] bg-surface border border-border-dark shadow-flottante max-h-[calc(100dvh-2rem)] overflow-y-auto">
+            <div
+              className="h-[26px] flex items-center justify-between px-2.5 text-white text-[10.5px]"
+              style={{ background: 'linear-gradient(180deg, var(--titlebar-from), var(--titlebar-to))' }}
+            >
+              <span>Licence · {licenceEnCours.nom}</span>
+              <button type="button" onClick={() => setLicenceEnCours(null)} className="text-white/85 hover:text-white px-1.5">✕</button>
+            </div>
+            <div className="p-4">
+              <div className="grid grid-cols-[130px_1fr] items-center gap-x-3 gap-y-2.5">
+                <label className="text-[11px] text-right">Type :</label>
+                <select value={licType} onChange={(e) => setLicType(e.target.value as TypeLicence)} className="border border-border-dark px-2.5 py-1.5 text-[11px]">
+                  <option value="ABONNEMENT">Abonnement</option>
+                  <option value="PERPETUEL_SAAS">Perpétuelle (SaaS)</option>
+                  <option value="PERPETUEL_ONPREMISE">Perpétuelle (sur site)</option>
+                </select>
+                <label className="text-[11px] text-right">Échéance :</label>
+                <input type="date" value={licExpiration} onChange={(e) => setLicExpiration(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[12px]" />
+              </div>
+              <p className="text-[10.5px] text-text-dim mt-2.5">
+                Laisser l'échéance vide pour une licence sans date de fin. L'expiration se constate à l'échéance ·
+                renouveler, c'est poser une nouvelle date.
+              </p>
+              {licErreur && <div className="text-[11px] text-danger bg-danger-soft border border-danger/30 px-2.5 py-1.5 mt-3">{licErreur}</div>}
+              <div className="flex justify-end gap-2 mt-4">
+                <button type="button" onClick={() => setLicenceEnCours(null)} className="border border-border-dark bg-chrome hover:bg-chrome-alt px-4 py-1.5 text-[11px]">
+                  Annuler
+                </button>
+                <button type="submit" disabled={licEnvoi} className="bg-sel text-white px-4 py-1.5 text-[11px] font-semibold disabled:opacity-50">
+                  {licEnvoi ? 'Enregistrement…' : 'Enregistrer'}
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {nouveauOuvert && (
+        <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
+          <form onSubmit={onCreer} className="anim-modale w-full max-w-[480px] bg-surface border border-border-dark shadow-flottante max-h-[calc(100dvh-2rem)] overflow-y-auto">
+            <div
+              className="h-[26px] flex items-center justify-between px-2.5 text-white text-[10.5px]"
+              style={{ background: 'linear-gradient(180deg, var(--titlebar-from), var(--titlebar-to))' }}
+            >
+              <span>Nouveau cabinet client</span>
+              <button type="button" onClick={() => setNouveauOuvert(false)} className="text-white/85 hover:text-white px-1.5">✕</button>
+            </div>
+            <div className="p-4">
+              <div className="grid grid-cols-[140px_1fr] items-center gap-x-3 gap-y-2.5">
+                <label className="text-[11px] text-right">Nom de l'entité :</label>
+                <input required autoFocus value={nomEntite} onChange={(e) => setNomEntite(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[12px]" />
+                <label className="text-[11px] text-right">E-mail de l'admin :</label>
+                <input type="email" required value={emailAdmin} onChange={(e) => setEmailAdmin(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[12px]" />
+                <label className="text-[11px] text-right">Type d'entité :</label>
+                <select value={jeu} onChange={(e) => setJeu(e.target.value as JeuEtatsFinanciersSycebnl)} className="border border-border-dark px-2.5 py-1.5 text-[11px]">
+                  <option value="ASSOCIATIONS_ORDRES_PROFESSIONNELS">Association / ordre professionnel</option>
+                  <option value="PROJETS_DEVELOPPEMENT">Projet de développement</option>
+                  <option value="SYSTEME_MINIMAL_TRESORERIE">Système minimal de trésorerie</option>
+                </select>
+                <label className="text-[11px] text-right">Licence :</label>
+                <select value={typeLicence} onChange={(e) => setTypeLicence(e.target.value as TypeLicence)} className="border border-border-dark px-2.5 py-1.5 text-[11px]">
+                  <option value="ABONNEMENT">Abonnement</option>
+                  <option value="PERPETUEL_SAAS">Perpétuelle (SaaS)</option>
+                  <option value="PERPETUEL_ONPREMISE">Perpétuelle (sur site)</option>
+                </select>
+                {typeLicence === 'ABONNEMENT' && (
+                  <>
+                    <label className="text-[11px] text-right">Échéance :</label>
+                    <input type="date" value={dateExpiration} onChange={(e) => setDateExpiration(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[12px]" />
+                  </>
+                )}
+                <label className="text-[11px] text-right">Ville :</label>
+                <input value={ville} onChange={(e) => setVille(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[12px]" />
+                <label className="text-[11px] text-right">Pays :</label>
+                <input value={pays} onChange={(e) => setPays(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[12px]" />
+              </div>
+              <p className="text-[10.5px] text-text-dim mt-2.5">
+                Le dossier est créé complet (plan de comptes SYCEBNL, journaux, taxes, exercice courant). Le mot de
+                passe de l'administrateur est généré et affiché une seule fois à l'étape suivante.
+              </p>
+              {creationErreur && <div className="text-[11px] text-danger bg-danger-soft border border-danger/30 px-2.5 py-1.5 mt-3">{creationErreur}</div>}
+              <div className="flex justify-end gap-2 mt-4">
+                <button type="button" onClick={() => setNouveauOuvert(false)} className="border border-border-dark bg-chrome hover:bg-chrome-alt px-4 py-1.5 text-[11px]">
+                  Annuler
+                </button>
+                <button type="submit" disabled={creationEnvoi} className="bg-sel text-white px-4 py-1.5 text-[11px] font-semibold disabled:opacity-50">
+                  {creationEnvoi ? 'Création…' : 'Créer le cabinet'}
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {cree && (
+        <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
+          <div className="anim-modale w-full max-w-[460px] bg-surface border border-border-dark shadow-flottante">
+            <div
+              className="h-[26px] flex items-center px-2.5 text-white text-[10.5px]"
+              style={{ background: 'linear-gradient(180deg, var(--titlebar-from), var(--titlebar-to))' }}
+            >
+              <span>Cabinet créé · {cree.tenant.nom}</span>
+            </div>
+            <div className="p-4">
+              <p className="text-[11px]">Remettez ces identifiants à l'administrateur du cabinet :</p>
+              <div className="grid grid-cols-[110px_1fr] gap-x-3 gap-y-1.5 mt-2.5 text-[11px]">
+                <span className="text-right text-text-dim">E-mail :</span>
+                <span className="font-mono select-all">{cree.adminEmail}</span>
+                <span className="text-right text-text-dim">Mot de passe :</span>
+                <span className="font-mono select-all font-bold">{cree.motDePasseTemporaire}</span>
+              </div>
+              <div className="border border-warning/30 bg-warning-soft px-3 py-2 text-[10.5px] mt-3">
+                Ce mot de passe n'est affiché qu'UNE SEULE FOIS · le serveur n'en garde qu'une empreinte. Notez-le
+                maintenant, puis invitez le client à le changer à sa première connexion.
+              </div>
+              <div className="flex justify-end mt-4">
+                <button type="button" onClick={() => setCree(null)} className="bg-sel text-white px-4 py-1.5 text-[11px] font-semibold">
+                  J'ai noté le mot de passe
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

@@ -14,6 +14,13 @@ export interface AuthenticatedUser {
    */
   referentiel?: string;
   licence?: import('@prisma/client').Licence | null;
+  /**
+   * Console /plateforme (voir OperateurPlateformeGuard). Relu en base à
+   * chaque requête par JwtStrategy, comme le rôle : une révocation prend
+   * effet immédiatement. Optionnel pour les tests qui construisent
+   * request.user à la main · absent vaut false.
+   */
+  estOperateurPlateforme?: boolean;
 }
 
 /**

@@ -32,6 +32,7 @@ import { DevisesModule } from './modules/devises/devises.module';
 import { RelancesModule } from './modules/relances/relances.module';
 import { RetenuesModule } from './modules/retenues/retenues.module';
 import { ExonerationsModule } from './modules/exonerations/exonerations.module';
+import { PlateformeModule } from './modules/plateforme/plateforme.module';
 
 @Module({
   imports: [
@@ -76,6 +77,7 @@ import { ExonerationsModule } from './modules/exonerations/exonerations.module';
     RelancesModule,
     RetenuesModule,
     ExonerationsModule,
+    PlateformeModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

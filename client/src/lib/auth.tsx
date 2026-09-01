@@ -7,6 +7,12 @@ interface MeResponse {
   id: string;
   email: string;
   role: RoleUtilisateur;
+  /**
+   * Opérateur de la plateforme (l'exploitant du logiciel) · ouvre l'entrée
+   * de menu « Cabinets clients ». Purement cosmétique côté client : le
+   * serveur relit le drapeau en base à chaque requête /plateforme.
+   */
+  estOperateurPlateforme: boolean;
   tenant: {
     id: string;
     nom: string;

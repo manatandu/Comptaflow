@@ -153,6 +153,10 @@ export class AuthService {
       id: user.id,
       email: user.email,
       role: user.role,
+      // Ouvre l'entrée de menu « Cabinets clients » côté client · le serveur
+      // ne se fie jamais à ce que le client en fait : OperateurPlateformeGuard
+      // relit le drapeau à chaque requête (via JwtStrategy).
+      estOperateurPlateforme: user.estOperateurPlateforme,
       tenant: {
         id: user.tenant.id,
         nom: user.tenant.nom,
