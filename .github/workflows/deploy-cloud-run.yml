@@ -4,6 +4,7 @@ name: Déployer le serveur sur Cloud Run
 # client, qui a son propre workflow Firebase Hosting) — évite un redéploiement
 # du serveur pour un simple changement d'écran côté client.
 on:
+  workflow_dispatch:
   push:
     branches: [main]
     paths:
@@ -71,11 +72,15 @@ jobs:
           JWT_EXPIRES_IN: ${{ secrets.API_JWT_EXPIRES_IN }}
           CORS_ORIGIN: https://oomega.web.app,https://oomega.firebaseapp.com
           # Adresses e-mail des opérateurs de la plateforme (console
-          # « Cabinets clients »), séparées par des virgules. Doit passer par
-          # ICI et non par la console Cloud Run : --env-vars-file REMPLACE
-          # toutes les variables du service à chaque déploiement, une
-          # variable posée à la main serait effacée au push suivant.
-          OPERATEURS_PLATEFORME: ${{ secrets.API_OPERATEURS_PLATEFORME }}
+          # « Administration VMG Consulting »), séparées par des virgules.
+          # Doit passer par ICI et non par la console Cloud Run :
+          # --env-vars-file REMPLACE toutes les variables du service à chaque
+          # déploiement, une variable posée à la main serait effacée au push
+          # suivant. Le secret, s'il existe, PREND LE PAS sur la valeur par
+          # défaut · c'est par lui qu'on ajoutera les associés du cabinet
+          # sans toucher au code. L'adresse n'est pas un secret : elle signe
+          # déjà tous les commits du dépôt.
+          OPERATEURS_PLATEFORME: ${{ secrets.API_OPERATEURS_PLATEFORME || 'manyblck@gmail.com' }}
         run: |
           python3 - <<'PY' > /tmp/env-vars.yaml
           import json, os
@@ -96,3 +101,19 @@ jobs:
             --min-instances 1 \
             --cpu-boost \
             --env-vars-file /tmp/env-vars.yaml
+
+      # PREUVE DE VIE · un déploiement n'est fini que si le service répond ET
+      # joint sa base. /health renvoie 503 sinon (voir sante.controller.ts) ·
+      # le déploiement échoue alors en rouge au lieu de laisser croire que
+      # tout va bien.
+      - name: Contrôle de santé du service déployé
+        run: |
+          for i in 1 2 3 4 5 6; do
+            if curl -sf "https://comptaflow-api-968832127045.us-east1.run.app/health"; then
+              echo " · service vivant, base joignable"; exit 0
+            fi
+            echo "tentative $i · pas encore prêt, nouvelle tentative dans 10 s"
+            sleep 10
+          done
+          echo "::error::Le service ne répond pas sainement après déploiement"
+          exit 1
