@@ -44,6 +44,7 @@ const RelancesPage = lazy(() => import('../pages/RelancesPage').then((m) => ({ d
 const EtatsAnalytiquesPage = lazy(() => import('../pages/EtatsAnalytiquesPage').then((m) => ({ default: m.EtatsAnalytiquesPage })));
 const BailleursPage = lazy(() => import('../pages/BailleursPage').then((m) => ({ default: m.BailleursPage })));
 const PlateformePage = lazy(() => import('../pages/PlateformePage').then((m) => ({ default: m.PlateformePage })));
+const GroupePage = lazy(() => import('../pages/GroupePage').then((m) => ({ default: m.GroupePage })));
 
 /**
  * REGISTRE DES FENÊTRES · la seule liste qui associe un chemin à ce qui
@@ -195,6 +196,15 @@ export const FENETRES: DefinitionFenetre[] = [
     titre: 'VMG Consulting · administration de la plateforme',
     titreCourt: 'VMG Consulting',
     rendre: () => <PlateformePage />,
+  },
+  {
+    // Fenêtre du dossier MÈRE d'un groupe d'établissements (une même
+    // personne morale en plusieurs dossiers) · le menu État ne la montre
+    // qu'aux dossiers qui ont des cellules, le serveur re-vérifie le lien.
+    motif: /^\/groupe$/,
+    titre: 'Groupe · balance agrégée',
+    titreCourt: 'Groupe',
+    rendre: () => <GroupePage />,
   },
   {
     motif: /^\/parametres-dossier$/,

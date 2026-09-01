@@ -187,3 +187,51 @@ describe('PlateformeService · création d’un cabinet client', () => {
     expect(motsDePasse[0]).not.toBe(motsDePasse[1]);
   });
 });
+
+describe('PlateformeService · groupe d’établissements', () => {
+  const service = (tenants: Record<string, { id: string; dossierMereId: string | null; cellules: number }>) => {
+    const maj: Array<{ where: unknown; data: unknown }> = [];
+    const s = new PlateformeService(
+      {
+        tenant: {
+          findUnique: async ({ where }: { where: { id: string } }) => {
+            const t = tenants[where.id];
+            return t ? { id: t.id, dossierMereId: t.dossierMereId, _count: { cellules: t.cellules } } : null;
+          },
+          update: async (args: { where: unknown; data: unknown }) => {
+            maj.push(args);
+            return {};
+          },
+        },
+      } as never,
+      { get: () => undefined } as never,
+      undefined as never,
+    );
+    return { s, maj };
+  };
+
+  const TENANTS = {
+    mere: { id: 'mere', dossierMereId: null, cellules: 2 },
+    cellule: { id: 'cellule', dossierMereId: 'mere', cellules: 0 },
+    libre: { id: 'libre', dossierMereId: null, cellules: 0 },
+  };
+
+  it('rattache un dossier libre à une mère, et le détache avec null', async () => {
+    const { s, maj } = service(TENANTS);
+    await s.modifierGroupe('libre', { dossierMereId: 'mere' });
+    expect(maj[0]).toEqual({ where: { id: 'libre' }, data: { dossierMereId: 'mere' } });
+    await s.modifierGroupe('cellule', { dossierMereId: null });
+    expect(maj[1]).toEqual({ where: { id: 'cellule' }, data: { dossierMereId: null } });
+  });
+
+  it('un seul niveau, dans un seul sens : ni sa propre mère, ni une mère qui est cellule, ni une mère rétrogradée en cellule', async () => {
+    const { s } = service(TENANTS);
+    await expect(s.modifierGroupe('libre', { dossierMereId: 'libre' })).rejects.toThrow(BadRequestException);
+    // La mère désignée est elle-même une cellule · deux étages refusés.
+    await expect(s.modifierGroupe('libre', { dossierMereId: 'cellule' })).rejects.toThrow(BadRequestException);
+    // Un dossier qui a des cellules ne devient pas cellule.
+    await expect(s.modifierGroupe('mere', { dossierMereId: 'libre' })).rejects.toThrow(BadRequestException);
+    // Mère inexistante.
+    await expect(s.modifierGroupe('libre', { dossierMereId: 'fantome' })).rejects.toThrow(NotFoundException);
+  });
+});

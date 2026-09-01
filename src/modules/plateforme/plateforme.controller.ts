@@ -2,7 +2,7 @@ import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/co
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { OperateurPlateformeGuard } from './operateur-plateforme.guard';
 import { PlateformeService } from './plateforme.service';
-import { CreerCabinetDto, ModifierLicenceDto } from './dto/plateforme.dto';
+import { CreerCabinetDto, ModifierGroupeDto, ModifierLicenceDto } from './dto/plateforme.dto';
 
 /**
  * Console de l'opérateur de plateforme (fenêtre « Cabinets clients »).
@@ -31,5 +31,10 @@ export class PlateformeController {
   @Patch('cabinets/:tenantId/licence')
   modifierLicence(@Param('tenantId') tenantId: string, @Body() dto: ModifierLicenceDto) {
     return this.plateformeService.modifierLicence(tenantId, dto);
+  }
+
+  @Patch('cabinets/:tenantId/groupe')
+  modifierGroupe(@Param('tenantId') tenantId: string, @Body() dto: ModifierGroupeDto) {
+    return this.plateformeService.modifierGroupe(tenantId, dto);
   }
 }

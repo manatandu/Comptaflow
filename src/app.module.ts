@@ -33,6 +33,7 @@ import { RelancesModule } from './modules/relances/relances.module';
 import { RetenuesModule } from './modules/retenues/retenues.module';
 import { ExonerationsModule } from './modules/exonerations/exonerations.module';
 import { PlateformeModule } from './modules/plateforme/plateforme.module';
+import { GroupeModule } from './modules/groupe/groupe.module';
 
 @Module({
   imports: [
@@ -78,6 +79,7 @@ import { PlateformeModule } from './modules/plateforme/plateforme.module';
     RetenuesModule,
     ExonerationsModule,
     PlateformeModule,
+    GroupeModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

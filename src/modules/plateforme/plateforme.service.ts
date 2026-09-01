@@ -4,7 +4,7 @@ import { randomBytes } from 'crypto';
 import { Referentiel, StatutLicence, TypeLicence } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import { AuthService } from '../auth/auth.service';
-import { CreerCabinetDto, ModifierLicenceDto } from './dto/plateforme.dto';
+import { CreerCabinetDto, ModifierGroupeDto, ModifierLicenceDto } from './dto/plateforme.dto';
 
 /**
  * Console de l'opérateur de plateforme : vue transversale des cabinets
@@ -67,7 +67,8 @@ export class PlateformeService implements OnModuleInit {
         licence: {
           select: { type: true, statut: true, dateDebut: true, dateExpiration: true, dernierHeartbeatAt: true },
         },
-        _count: { select: { users: true, ecritures: true } },
+        dossierMere: { select: { id: true, nom: true } },
+        _count: { select: { users: true, ecritures: true, cellules: true } },
       },
     });
     return tenants.map((t) => ({
@@ -80,6 +81,8 @@ export class PlateformeService implements OnModuleInit {
       numeroImpot: t.numeroImpot,
       createdAt: t.createdAt,
       licence: t.licence,
+      dossierMere: t.dossierMere,
+      nbCellules: t._count.cellules,
       nbUtilisateurs: t._count.users,
       nbEcritures: t._count.ecritures,
     }));
@@ -112,6 +115,45 @@ export class PlateformeService implements OnModuleInit {
       },
       select: { type: true, statut: true, dateDebut: true, dateExpiration: true, dernierHeartbeatAt: true },
     });
+  }
+
+  /**
+   * Rattache un dossier comme cellule d'un dossier mère (null détache).
+   * UN SEUL NIVEAU de groupe, et dans un seul sens : une mère n'a pas de
+   * mère, un dossier qui a des cellules ne devient pas cellule. Deux
+   * hiérarchies imbriquées rendraient l'agrégation ambiguë (qui agrège
+   * qui ?) sans répondre à aucun cas réel · une église et ses cellules,
+   * un siège et ses antennes, c'est toujours un étage.
+   */
+  async modifierGroupe(tenantId: string, dto: ModifierGroupeDto) {
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { id: true, _count: { select: { cellules: true } } },
+    });
+    if (!tenant) {
+      throw new NotFoundException('Cabinet introuvable');
+    }
+    const dossierMereId = dto.dossierMereId ?? null;
+    if (dossierMereId !== null) {
+      if (dossierMereId === tenantId) {
+        throw new BadRequestException('Un dossier ne peut pas être sa propre mère');
+      }
+      if (tenant._count.cellules > 0) {
+        throw new BadRequestException('Ce dossier a des cellules · il ne peut pas devenir lui-même une cellule');
+      }
+      const mere = await this.prisma.tenant.findUnique({
+        where: { id: dossierMereId },
+        select: { id: true, dossierMereId: true },
+      });
+      if (!mere) {
+        throw new NotFoundException('Dossier mère introuvable');
+      }
+      if (mere.dossierMereId !== null) {
+        throw new BadRequestException('Le dossier mère désigné est lui-même une cellule · un groupe n’a qu’un niveau');
+      }
+    }
+    await this.prisma.tenant.update({ where: { id: tenantId }, data: { dossierMereId } });
+    return { id: tenantId, dossierMereId };
   }
 
   /**
@@ -151,6 +193,10 @@ export class PlateformeService implements OnModuleInit {
         where: { tenantId: resultat.tenant.id },
         data: { dateExpiration: new Date(dto.dateExpiration), statut: StatutLicence.ACTIVE },
       });
+    }
+    // Rattachement au groupe à la création · mêmes validations que le PATCH.
+    if (dto.dossierMereId) {
+      await this.modifierGroupe(resultat.tenant.id, { dossierMereId: dto.dossierMereId });
     }
     return {
       tenant: resultat.tenant,

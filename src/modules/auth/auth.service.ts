@@ -144,7 +144,7 @@ export class AuthService {
   async me(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      include: { tenant: true },
+      include: { tenant: { include: { _count: { select: { cellules: true } } } } },
     });
     if (!user) {
       throw new UnauthorizedException('Utilisateur introuvable');
@@ -167,6 +167,10 @@ export class AuthService {
         // Porté jusqu'au front pour l'en-tête d'impression : le n° impôt doit
         // figurer sur chaque page d'un état déposé (CPCC, § 7.4 règle 7-a).
         numeroImpot: user.tenant.numeroImpot,
+        // Dossier mère d'un groupe d'établissements · ouvre l'entrée de menu
+        // « Balance agrégée du groupe » (le serveur re-vérifie de toute façon
+        // le lien à chaque appel /groupe).
+        nombreCellules: user.tenant._count.cellules,
       },
     };
   }

@@ -1,4 +1,4 @@
-import { IsDateString, IsEmail, IsEnum, IsIn, IsOptional, IsString, ValidateIf } from 'class-validator';
+import { IsDateString, IsEmail, IsEnum, IsIn, IsOptional, IsString, IsUUID, ValidateIf } from 'class-validator';
 import { JeuEtatsFinanciersSycebnl, StatutLicence, TypeLicence } from '@prisma/client';
 
 /**
@@ -60,6 +60,15 @@ export class CreerCabinetDto {
   @IsOptional()
   @IsDateString()
   dateFinExercice?: string;
+
+  /**
+   * Rattache le nouveau dossier comme CELLULE d'un dossier mère existant
+   * (groupe d'établissements d'une même personne morale · une église et ses
+   * cellules). Voir GroupeService pour ce que le lien autorise.
+   */
+  @IsOptional()
+  @IsUUID()
+  dossierMereId?: string;
 }
 
 /**
@@ -83,4 +92,15 @@ export class ModifierLicenceDto {
   @ValidateIf((o) => o.dateExpiration !== '')
   @IsDateString()
   dateExpiration?: string;
+}
+
+/**
+ * Rattachement (ou détachement, avec null) d'un dossier à un dossier mère.
+ * Un seul niveau de groupe : les validations vivent dans
+ * PlateformeService.modifierGroupe.
+ */
+export class ModifierGroupeDto {
+  @IsOptional()
+  @IsUUID()
+  dossierMereId?: string | null;
 }

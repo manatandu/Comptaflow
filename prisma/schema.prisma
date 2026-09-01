@@ -235,6 +235,16 @@ model Tenant {
   // un effectif inventé serait pire qu'un effectif absent.
   effectifPermanent Int @default(0)
 
+  // GROUPE D'ÉTABLISSEMENTS · une même personne morale (une église et ses
+  // cellules, un siège et ses antennes) tenue en plusieurs dossiers. Le lien
+  // est posé depuis la console plateforme, JAMAIS par un dossier lui-même :
+  // c'est lui qui autorise le dossier mère à lire les balances des cellules
+  // (voir GroupeService). Un seul niveau · un dossier mère n'a pas de mère,
+  // un dossier qui a des cellules ne peut pas devenir cellule.
+  dossierMereId String?
+  dossierMere   Tenant?  @relation("GroupeEtablissements", fields: [dossierMereId], references: [id])
+  cellules      Tenant[] @relation("GroupeEtablissements")
+
   licence                  Licence?
   comptes                  Compte[]
   exercices                Exercice[]
@@ -265,6 +275,7 @@ model Tenant {
 
   exonerations              Exoneration[]
 
+  @@index([dossierMereId])
   @@map("tenants")
 }
 

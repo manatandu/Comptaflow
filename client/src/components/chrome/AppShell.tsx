@@ -192,6 +192,11 @@ export function AppShell() {
         { label: 'Échéancier de trésorerie', onClick: () => navigate('/echeancier') },
         { label: 'États analytiques et budgétaires', onClick: () => navigate('/etats-analytiques') },
         { label: 'Analyse et contrôles', separateurAvant: true, onClick: () => navigate('/controles') },
+        // Dossier mère d'un groupe d'établissements (une église et ses
+        // cellules) · la balance agrégée du groupe est une édition du siège.
+        ...((utilisateur?.tenant.nombreCellules ?? 0) > 0
+          ? [{ label: 'Balance agrégée du groupe', onClick: () => navigate('/groupe') }]
+          : []),
         { label: 'États financiers', separateurAvant: true, onClick: () => navigate('/etats-financiers') },
         { label: 'Notes annexes', onClick: () => navigate('/notes-annexes') },
         { label: 'Documents obligatoires', onClick: () => navigate('/documents-obligatoires') },

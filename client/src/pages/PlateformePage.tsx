@@ -32,6 +32,10 @@ interface CabinetClient {
   numeroImpot: string | null;
   createdAt: string;
   licence: LicenceCabinet | null;
+  /** Groupe d'établissements · présent = ce dossier est une CELLULE. */
+  dossierMere: { id: string; nom: string } | null;
+  /** > 0 = ce dossier est une MÈRE de groupe. */
+  nbCellules: number;
   nbUtilisateurs: number;
   nbEcritures: number;
 }
@@ -83,8 +87,15 @@ export function PlateformePage() {
   const [licEnvoi, setLicEnvoi] = useState(false);
   const [licErreur, setLicErreur] = useState<string | null>(null);
 
+  // Modale « groupe » d'un cabinet (rattachement à un dossier mère)
+  const [groupeEnCours, setGroupeEnCours] = useState<CabinetClient | null>(null);
+  const [groupeMereId, setGroupeMereId] = useState('');
+  const [groupeEnvoi, setGroupeEnvoi] = useState(false);
+  const [groupeErreur, setGroupeErreur] = useState<string | null>(null);
+
   // Modale « nouveau cabinet client »
   const [nouveauOuvert, setNouveauOuvert] = useState(false);
+  const [creationMereId, setCreationMereId] = useState('');
   const [nomEntite, setNomEntite] = useState('');
   const [emailAdmin, setEmailAdmin] = useState('');
   const [jeu, setJeu] = useState<JeuEtatsFinanciersSycebnl>('ASSOCIATIONS_ORDRES_PROFESSIONNELS');
@@ -165,6 +176,34 @@ export function PlateformePage() {
     }
   };
 
+  // Mères possibles pour un rattachement : un dossier qui n'est pas déjà une
+  // cellule (un groupe n'a qu'un niveau · même règle que le serveur).
+  const meresPossibles = (saufId?: string) => (liste ?? []).filter((c) => !c.dossierMere && c.id !== saufId);
+
+  const ouvrirGroupe = (c: CabinetClient) => {
+    setGroupeEnCours(c);
+    setGroupeMereId(c.dossierMere?.id ?? '');
+    setGroupeErreur(null);
+  };
+
+  const onEnregistrerGroupe = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!groupeEnCours) return;
+    setGroupeEnvoi(true);
+    setGroupeErreur(null);
+    try {
+      await api.patch(`/plateforme/cabinets/${groupeEnCours.id}/groupe`, {
+        dossierMereId: groupeMereId === '' ? null : groupeMereId,
+      });
+      setGroupeEnCours(null);
+      await charger();
+    } catch (err) {
+      setGroupeErreur(err instanceof ApiError ? err.message : 'Rattachement impossible');
+    } finally {
+      setGroupeEnvoi(false);
+    }
+  };
+
   const onCreer = async (e: FormEvent) => {
     e.preventDefault();
     setCreationEnvoi(true);
@@ -178,12 +217,14 @@ export function PlateformePage() {
         ...(typeLicence === 'ABONNEMENT' && dateExpiration ? { dateExpiration } : {}),
         ...(ville ? { ville } : {}),
         ...(pays ? { pays } : {}),
+        ...(creationMereId ? { dossierMereId: creationMereId } : {}),
       });
       setNouveauOuvert(false);
       setNomEntite('');
       setEmailAdmin('');
       setDateExpiration('');
       setVille('');
+      setCreationMereId('');
       setCree(resultat);
       await charger();
     } catch (err) {
@@ -208,8 +249,8 @@ export function PlateformePage() {
       {erreur && <div className="text-[11px] text-danger bg-danger-soft border border-danger/30 px-3 py-1.5 mb-2 max-w-[980px]">{erreur}</div>}
 
       <div className="border border-border bg-surface shadow-posee max-w-[1080px] overflow-x-auto">
-        <div className="min-w-[960px]">
-          <div className="grid grid-cols-[1.4fr_100px_1fr_60px_70px_130px_90px_90px_150px] gap-2 px-3.5 py-1.5 bg-chrome border-b border-border text-[10px] font-bold text-text-dim">
+        <div className="min-w-[1000px]">
+          <div className="grid grid-cols-[1.4fr_100px_1fr_60px_70px_130px_90px_90px_190px] gap-2 px-3.5 py-1.5 bg-chrome border-b border-border text-[10px] font-bold text-text-dim">
             <span>CABINET</span>
             <span>JEU</span>
             <span>NIF</span>
@@ -230,11 +271,13 @@ export function PlateformePage() {
             return (
               <div
                 key={c.id}
-                className={`grid grid-cols-[1.4fr_100px_1fr_60px_70px_130px_90px_90px_150px] gap-2 items-center px-3.5 py-1.5 border-b border-border last:border-b-0 ${i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'}`}
+                className={`grid grid-cols-[1.4fr_100px_1fr_60px_70px_130px_90px_90px_190px] gap-2 items-center px-3.5 py-1.5 border-b border-border last:border-b-0 ${i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'}`}
               >
                 <span className="text-[11px] truncate">
                   <span className="font-semibold">{c.nom}</span>
                   {(c.ville || c.pays) && <span className="text-text-dim"> · {[c.ville, c.pays].filter(Boolean).join(', ')}</span>}
+                  {c.nbCellules > 0 && <span className="text-sel"> · mère de {c.nbCellules} cellule{c.nbCellules > 1 ? 's' : ''}</span>}
+                  {c.dossierMere && <span className="text-text-dim"> · cellule de {c.dossierMere.nom}</span>}
                 </span>
                 <span className="text-[10.5px]">{LIBELLE_JEU[c.jeuEtatsFinanciersSycebnl] ?? c.referentiel}</span>
                 <span className="text-[10.5px] font-mono truncate">{c.numeroImpot ?? '·'}</span>
@@ -248,6 +291,9 @@ export function PlateformePage() {
                 <span className="flex gap-2.5">
                   <button type="button" onClick={() => ouvrirLicence(c)} className="text-[10.5px] text-sel">
                     Licence
+                  </button>
+                  <button type="button" onClick={() => ouvrirGroupe(c)} className="text-[10.5px] text-sel">
+                    Groupe
                   </button>
                   {c.licence && (
                     <button type="button" onClick={() => basculerSuspension(c)} className="text-[10.5px] text-sel">
@@ -304,6 +350,55 @@ export function PlateformePage() {
         </div>
       )}
 
+      {groupeEnCours && (
+        <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
+          <form onSubmit={onEnregistrerGroupe} className="anim-modale w-full max-w-[440px] bg-surface border border-border-dark shadow-flottante">
+            <div
+              className="h-[26px] flex items-center justify-between px-2.5 text-white text-[10.5px]"
+              style={{ background: 'linear-gradient(180deg, var(--titlebar-from), var(--titlebar-to))' }}
+            >
+              <span>Groupe · {groupeEnCours.nom}</span>
+              <button type="button" onClick={() => setGroupeEnCours(null)} className="text-white/85 hover:text-white px-1.5">✕</button>
+            </div>
+            <div className="p-4">
+              {groupeEnCours.nbCellules > 0 ? (
+                <p className="text-[11px]">
+                  Ce dossier est la mère de {groupeEnCours.nbCellules} cellule{groupeEnCours.nbCellules > 1 ? 's' : ''} ·
+                  il ne peut pas devenir lui-même une cellule.
+                </p>
+              ) : (
+                <>
+                  <div className="grid grid-cols-[110px_1fr] items-center gap-x-3 gap-y-2.5">
+                    <label className="text-[11px] text-right">Dossier mère :</label>
+                    <select value={groupeMereId} onChange={(e) => setGroupeMereId(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[11px]">
+                      <option value="">Aucun (dossier indépendant)</option>
+                      {meresPossibles(groupeEnCours.id).map((m) => (
+                        <option key={m.id} value={m.id}>{m.nom}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <p className="text-[10.5px] text-text-dim mt-2.5">
+                    Rattacher ce dossier comme cellule autorise le dossier mère à lire sa balance pour la balance
+                    agrégée du groupe (une même personne morale en plusieurs dossiers). Un groupe n'a qu'un niveau.
+                  </p>
+                </>
+              )}
+              {groupeErreur && <div className="text-[11px] text-danger bg-danger-soft border border-danger/30 px-2.5 py-1.5 mt-3">{groupeErreur}</div>}
+              <div className="flex justify-end gap-2 mt-4">
+                <button type="button" onClick={() => setGroupeEnCours(null)} className="border border-border-dark bg-chrome hover:bg-chrome-alt px-4 py-1.5 text-[11px]">
+                  Annuler
+                </button>
+                {groupeEnCours.nbCellules === 0 && (
+                  <button type="submit" disabled={groupeEnvoi} className="bg-sel text-white px-4 py-1.5 text-[11px] font-semibold disabled:opacity-50">
+                    {groupeEnvoi ? 'Enregistrement…' : 'Enregistrer'}
+                  </button>
+                )}
+              </div>
+            </div>
+          </form>
+        </div>
+      )}
+
       {nouveauOuvert && (
         <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
           <form onSubmit={onCreer} className="anim-modale w-full max-w-[480px] bg-surface border border-border-dark shadow-flottante max-h-[calc(100dvh-2rem)] overflow-y-auto">
@@ -342,6 +437,13 @@ export function PlateformePage() {
                 <input value={ville} onChange={(e) => setVille(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[12px]" />
                 <label className="text-[11px] text-right">Pays :</label>
                 <input value={pays} onChange={(e) => setPays(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[12px]" />
+                <label className="text-[11px] text-right">Dossier mère :</label>
+                <select value={creationMereId} onChange={(e) => setCreationMereId(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[11px]">
+                  <option value="">Aucun (dossier indépendant)</option>
+                  {meresPossibles().map((m) => (
+                    <option key={m.id} value={m.id}>{m.nom}</option>
+                  ))}
+                </select>
               </div>
               <p className="text-[10.5px] text-text-dim mt-2.5">
                 Le dossier est créé complet (plan de comptes SYCEBNL, journaux, taxes, exercice courant). Le mot de
