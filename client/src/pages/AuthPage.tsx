@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { IconLogo, IconFileAdd, IconFolderOpen } from '../components/chrome/icons';
-import { NouveauFichierWizard } from '../components/NouveauFichierWizard';
 import { DossierRecent, lireDossiersRecents, oublierDossier } from '../lib/dossiersRecents';
 import type { AuthResponse } from '../lib/types';
 
@@ -78,7 +77,7 @@ function CerclesDecoratifs() {
   );
 }
 
-export function AuthPage({ assistantInitial = false }: { assistantInitial?: boolean }) {
+export function AuthPage() {
   // Lu une seule fois, au montage : la liste ne change qu'à l'initiative de
   // l'utilisateur (retrait d'un raccourci) ou après une connexion réussie,
   // moment où l'on quitte cette page de toute façon.
@@ -94,7 +93,6 @@ export function AuthPage({ assistantInitial = false }: { assistantInitial?: bool
   const [motDePasseVisible, setMotDePasseVisible] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
-  const [assistantOuvert, setAssistantOuvert] = useState(assistantInitial);
   const { seConnecter } = useAuth();
   const navigate = useNavigate();
 
@@ -193,28 +191,29 @@ export function AuthPage({ assistantInitial = false }: { assistantInitial?: bool
               ouvert), puis ce qu'on peut faire. Entrer directement dans deux
               boutons laisse deviner. */}
           <p className="text-[11px] text-text-dim leading-[1.6] mb-4">
-            Aucun dossier comptable n'est ouvert. Créez un nouveau dossier, ou ouvrez un dossier existant.
+            Aucun dossier comptable n'est ouvert. Ouvrez un dossier existant.
           </p>
 
           {/* Choix EMPILÉS, et non côte à côte : deux colonnes dans un volet
               de cette largeur coupaient chaque titre en deux lignes. */}
           <div className="flex flex-col gap-2">
-            <button
-              type="button"
-              onClick={() => setAssistantOuvert(true)}
-              className="flex items-start gap-3 rounded-[10px] border border-border bg-surface p-3.5 text-left shadow-posee hover:border-sel hover:bg-sel-soft transition-colors"
-            >
-              <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[10px] bg-sel text-white">
+            {/* L'OUVERTURE D'UN DOSSIER PASSE PAR LE CABINET · l'assistant
+                d'auto-inscription est fermé (option A) : chaque dossier naît
+                depuis la console VMG Consulting, avec un contrat derrière.
+                Le serveur refuse de toute façon /auth/register · ceci ne
+                fait qu'annoncer honnêtement la règle. */}
+            <div className="flex items-start gap-3 rounded-[10px] border border-border bg-surface p-3.5 shadow-posee">
+              <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[10px] bg-chrome-alt text-sel">
                 <IconFileAdd width={18} height={18} />
               </span>
               <span className="min-w-0">
-                <span className="block text-[12px] font-bold">Créer un nouveau fichier comptable</span>
+                <span className="block text-[12px] font-bold">Ouvrir un nouveau dossier ?</span>
                 <span className="block text-[10.5px] text-text-dim leading-[1.5] mt-0.5">
-                  L'assistant demande le référentiel, le jeu d'états financiers, l'exercice et la monnaie de tenue,
-                  puis sème le plan de comptes.
+                  L'ouverture d'un dossier OmegaX se fait avec VMG Consulting, qui le prépare, le configure et vous
+                  accompagne. Contactez le cabinet pour démarrer.
                 </span>
               </span>
-            </button>
+            </div>
 
             <button
               type="button"
@@ -347,14 +346,8 @@ export function AuthPage({ assistantInitial = false }: { assistantInitial?: bool
             </div>
           </form>
 
-          <div className="mt-3 text-[11px]">
-            <button
-              type="button"
-              onClick={() => setAssistantOuvert(true)}
-              className="font-semibold text-sel hover:underline"
-            >
-              Créer un nouveau fichier comptable
-            </button>
+          <div className="mt-3 text-[11px] text-text-dim">
+            Pas encore de dossier ? L'ouverture se fait avec VMG Consulting.
           </div>
         </div>
       )}
@@ -362,16 +355,6 @@ export function AuthPage({ assistantInitial = false }: { assistantInitial?: bool
         </div>
       </div>
 
-      {assistantOuvert && (
-        <NouveauFichierWizard
-          onClose={() => setAssistantOuvert(false)}
-          // Sage enchaîne : l'assistant terminé, il ouvre la fiche
-          // « Identification de votre société » pour compléter ce qu'il n'a
-          // pas demandé (forme juridique, régime, identifiants légaux).
-          // On atterrit donc sur cette fenêtre, et non sur un accueil vide.
-          onTermine={() => navigate('/parametres-dossier')}
-        />
-      )}
     </div>
   );
 }

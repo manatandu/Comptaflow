@@ -120,9 +120,12 @@ describe('AuthController · le jeton de session ne sort que par le cookie', () =
 
   it('login pose le cookie httpOnly et le corps ne porte que le jeton CSRF', async () => {
     const { appels, res } = reponse();
-    const controleur = new AuthController({
-      login: async () => ({ accessToken: 'jwt-secret', csrfToken: 'csrf-1' }),
-    } as never);
+    const controleur = new AuthController(
+      {
+        login: async () => ({ accessToken: 'jwt-secret', csrfToken: 'csrf-1' }),
+      } as never,
+      { get: () => undefined } as never,
+    );
     const corps = await controleur.login({ email: 'a@a.cd', motDePasse: 'x' } as never, res);
     expect(corps).toEqual({ csrfToken: 'csrf-1' });
     expect(corps).not.toHaveProperty('accessToken');
@@ -136,9 +139,36 @@ describe('AuthController · le jeton de session ne sort que par le cookie', () =
 
   it('logout efface le cookie de session', async () => {
     const { appels, res } = reponse();
-    const controleur = new AuthController({} as never);
+    const controleur = new AuthController({} as never, { get: () => undefined } as never);
     await controleur.logout(res);
     expect(appels[0].nom).toBe('clearCookie');
     expect((appels[0].args as [string])[0]).toBe(COOKIE_SESSION);
+  });
+});
+
+describe('AuthController · auto-inscription fermée (option A)', () => {
+  const res = { cookie: () => undefined, clearCookie: () => undefined } as never;
+
+  it('refuse /auth/register par défaut · un dossier naît depuis la console VMG, pas tout seul', async () => {
+    let registerAppele = false;
+    const controleur = new AuthController(
+      {
+        register: async () => {
+          registerAppele = true;
+          return { accessToken: 'x', csrfToken: 'y' };
+        },
+      } as never,
+      { get: () => undefined } as never,
+    );
+    await expect(controleur.register({} as never, res)).rejects.toThrow(/VMG Consulting/);
+    expect(registerAppele).toBe(false);
+  });
+
+  it("INSCRIPTION_PUBLIQUE=true rouvre la porte · fermée à clé, pas démolie", async () => {
+    const controleur = new AuthController(
+      { register: async () => ({ accessToken: 'x', csrfToken: 'y' }) } as never,
+      { get: (cle: string) => (cle === 'INSCRIPTION_PUBLIQUE' ? 'true' : undefined) } as never,
+    );
+    await expect(controleur.register({} as never, res)).resolves.toEqual({ csrfToken: 'y' });
   });
 });

@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Post, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, Post, Res, UseGuards } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Throttle } from '@nestjs/throttler';
 import { Response } from 'express';
 import { AuthService } from './auth.service';
@@ -11,7 +12,10 @@ import { COOKIE_SESSION, OPTIONS_COOKIE_SESSION } from './session.constants';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly config: ConfigService,
+  ) {}
 
   /**
    * Pose la session en cookie httpOnly et ne renvoie au corps QUE le jeton
@@ -34,6 +38,19 @@ export class AuthController {
   @Throttle({ default: { ttl: 3_600_000, limit: 30 } })
   @Post('register')
   async register(@Body() dto: RegisterDto, @Res({ passthrough: true }) res: Response) {
+    // AUTO-INSCRIPTION FERMÉE (option A) · un dossier OmegaX naît depuis la
+    // console VMG Consulting (ou par le siège d'un groupe), avec un contrat
+    // derrière : un dossier auto-créé recevait une licence sans échéance,
+    // c'est-à-dire le produit gratuit à vie à côté du produit vendu. Le
+    // POINT D'ENTRÉE HTTP seul est fermé : AuthService.register reste le
+    // pipeline de toutes les créations internes. INSCRIPTION_PUBLIQUE=true
+    // rouvre la porte le jour où un canal libre-service (essai daté) sera
+    // voulu · fermée à clé, pas démolie.
+    if (this.config.get<string>('INSCRIPTION_PUBLIQUE') !== 'true') {
+      throw new ForbiddenException(
+        "L'ouverture d'un dossier OmegaX se fait avec VMG Consulting · contactez le cabinet pour démarrer.",
+      );
+    }
     return this.poserSession(res, await this.authService.register(dto));
   }
 

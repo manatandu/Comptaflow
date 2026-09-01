@@ -1,10 +1,11 @@
 import { AuthPage } from './AuthPage';
 
 /**
- * /inscription ouvre la même page d'ouverture, l'assistant de création de
- * dossier déjà déplié · l'URL reste valide pour un lien envoyé à quelqu'un
- * qui doit créer son dossier.
+ * /inscription reste une adresse valide (liens anciens, favoris) mais mène
+ * à la même porte que /connexion : l'auto-inscription est FERMÉE (option A),
+ * l'ouverture d'un dossier passe par VMG Consulting · le serveur refuse de
+ * toute façon /auth/register.
  */
 export function RegisterPage() {
-  return <AuthPage assistantInitial />;
+  return <AuthPage />;
 }

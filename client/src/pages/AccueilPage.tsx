@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useExercice } from '../lib/exercice';
-import { NouveauFichierWizard } from '../components/NouveauFichierWizard';
 import { AProposModale } from '../components/chrome/AProposModale';
 import type { PlanningCloture, RapportControles, Referentiel } from '../lib/types';
 import { fenetreDisponible } from '../lib/referentiel-fenetre';
@@ -143,7 +142,6 @@ export function AccueilPage() {
   const { utilisateur, estAdmin, seDeconnecter } = useAuth();
   const referentiel = utilisateur?.tenant.referentiel;
   const { exerciceCourant } = useExercice();
-  const [wizardOuvert, setWizardOuvert] = useState(false);
   const [aProposOuvert, setAProposOuvert] = useState(false);
   const [planning, setPlanning] = useState<PlanningCloture | null>(null);
   const [controles, setControles] = useState<RapportControles | null>(null);
@@ -226,14 +224,19 @@ export function AccueilPage() {
                 Exercice {anneeExercice}
               </span>
             )}
-            <button
-              type="button"
-              onClick={() => setWizardOuvert(true)}
-              className="flex items-center gap-1.5 rounded-[10px] bg-white/12 px-3 py-1.5 text-[11px] font-semibold hover:bg-white/20"
-            >
-              <IconFileAdd width={14} height={14} />
-              Nouveau dossier
-            </button>
+            {/* La création de dossiers passe par la console VMG (option A :
+                l'auto-inscription est fermée) · le bouton ne s'affiche que
+                pour l'opérateur de la plateforme, et y mène. */}
+            {utilisateur?.estOperateurPlateforme && (
+              <button
+                type="button"
+                onClick={() => navigate('/plateforme')}
+                className="flex items-center gap-1.5 rounded-[10px] bg-white/12 px-3 py-1.5 text-[11px] font-semibold hover:bg-white/20"
+              >
+                <IconFileAdd width={14} height={14} />
+                Nouveau dossier
+              </button>
+            )}
             <button
               type="button"
               onClick={() => {
@@ -328,7 +331,6 @@ export function AccueilPage() {
         </button>
       </div>
 
-      {wizardOuvert && <NouveauFichierWizard onClose={() => setWizardOuvert(false)} />}
       {aProposOuvert && <AProposModale onFermer={() => setAProposOuvert(false)} />}
     </div>
   );

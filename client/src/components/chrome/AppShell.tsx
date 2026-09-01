@@ -101,7 +101,12 @@ export function AppShell() {
     {
       titre: 'Fichier',
       items: [
-        { label: 'Nouveau fichier comptable…', onClick: () => navigate('/') },
+        // La création de dossiers passe par la console VMG (option A :
+        // l'auto-inscription publique est fermée) · l'entrée n'existe que
+        // pour l'opérateur de la plateforme, et mène à sa console.
+        ...(utilisateur?.estOperateurPlateforme
+          ? [{ label: 'Nouveau fichier comptable…', onClick: () => navigate('/plateforme') }]
+          : []),
         // Sage : Fichier > Ouvrir. Ouvrir un autre fichier ferme d'abord le
         // fichier courant · ici, refermer le dossier c'est se déconnecter, et
         // la porte d'entrée présente ensuite les dossiers récents (l'équivalent
