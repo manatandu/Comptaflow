@@ -6,6 +6,7 @@ import { ExerciceService } from '../exercice/exercice.service';
 import { EtatsFinanciersService } from '../etats-financiers/etats-financiers.service';
 import { EtatsFinanciersProjetService } from '../etats-financiers/etats-financiers-projet.service';
 import { EtatsFinanciersProjetBudgetService } from '../etats-financiers/etats-financiers-projet-budget.service';
+import { EtatsFinanciersSmtService } from '../etats-financiers/etats-financiers-smt.service';
 import { NoteAnnexeService } from '../notes-annexes/note-annexe.service';
 import { PrismaService } from '../../common/prisma.service';
 import { ExportService } from './export.service';
@@ -101,6 +102,14 @@ const BALANCE_PROJET_N: LigneBalanceStub[] = [
 ];
 const BALANCE_PROJET_N1: LigneBalanceStub[] = [];
 
+// Jeu SMT · une caisse, des cotisations encaissées, un achat payé.
+const BALANCE_SMT_N: LigneBalanceStub[] = [
+  ligne('57110000', ClasseCompte.CLASSE_5, 50_000, 0, 300_000, 120_000),
+  ligne('70110000', ClasseCompte.CLASSE_7, 0, 0, 0, 300_000),
+  ligne('60410000', ClasseCompte.CLASSE_6, 0, 0, 120_000, 0),
+  ligne('10110000', ClasseCompte.CLASSE_1, 0, 50_000, 0, 0),
+];
+
 const TENANT = {
   id: 't1',
   nom: 'ASBL GRACE',
@@ -120,7 +129,9 @@ function fabriquerExport(jeu: JeuEtatsFinanciersSycebnl = TENANT.jeuEtatsFinanci
   const balances: Record<string, LigneBalanceStub[]> =
     jeu === JeuEtatsFinanciersSycebnl.PROJETS_DEVELOPPEMENT
       ? { e1: BALANCE_PROJET_N, e0: BALANCE_PROJET_N1 }
-      : { e1: BALANCE_N, e0: BALANCE_N1 };
+      : jeu === JeuEtatsFinanciersSycebnl.SYSTEME_MINIMAL_TRESORERIE
+        ? { e1: BALANCE_SMT_N }
+        : { e1: BALANCE_N, e0: BALANCE_N1 };
   const ecritureService = {
     balance: jest.fn().mockImplementation((_t: string, exerciceId: string) => {
       const lignes = balances[exerciceId] ?? [];
@@ -161,18 +172,21 @@ function fabriquerExport(jeu: JeuEtatsFinanciersSycebnl = TENANT.jeuEtatsFinanci
     // Pas de plan analytique à budgets · la liasse projets doit servir la
     // grille VIERGE du modèle, jamais échouer.
     planAnalytique: { findFirst: jest.fn().mockResolvedValue(null) },
+    immobilisation: { findMany: jest.fn().mockResolvedValue([]) },
+    tiersCompte: { findMany: jest.fn().mockResolvedValue([]) },
   } as unknown as PrismaService;
 
   const etatsFinanciers = new EtatsFinanciersService(ecritureService, exerciceService);
   const etatsProjet = new EtatsFinanciersProjetService(ecritureService, exerciceService, prisma);
   const budgetProjet = new EtatsFinanciersProjetBudgetService(ecritureService, prisma);
+  const etatsSmt = new EtatsFinanciersSmtService(ecritureService, exerciceService, prisma);
   const notes = new NoteAnnexeService(ecritureService, exerciceService, prisma);
   return new ExportService(
     prisma,
     ecritureService,
     etatsFinanciers,
     etatsProjet,
-    {} as never,
+    etatsSmt,
     budgetProjet,
     notes,
     {} as never,
@@ -410,5 +424,69 @@ describe('liasse complète · jeu projets de développement', () => {
       if (row.getCell(1).value === 'XC') rangXc = n;
     });
     expect((ce.getCell(rangXc, 4).value as { formula?: string }).formula).toBe(`D${rangXa}-D${rangXb}`);
+  });
+});
+
+describe('liasse complète · Système minimal de trésorerie', () => {
+  it('reproduit le classeur du modèle SMT, notes 1 à 5 comprises', async () => {
+    const exportService = fabriquerExport(JeuEtatsFinanciersSycebnl.SYSTEME_MINIMAL_TRESORERIE);
+    const { buffer } = await exportService.liasseCompleteExcel('t1', 'e1');
+    const wb = await ouvrir(buffer);
+    const noms = wb.worksheets.map((w) => w.name);
+
+    expect(noms).toEqual([
+      'BALANCE N',
+      // Le dossier synthétique porte un exercice antérieur : sa balance est
+      // jointe, même vide · c'est l'existence de l'exercice qui commande.
+      'BALANCE N-1',
+      'CONTROLE BALANCE',
+      'Couverture',
+      'Garde',
+      'Fiche 1',
+      'Fiche 2',
+      'Bilan paysage',
+      'Bilan-Actif',
+      'Bilan-Passif',
+      'Résultat',
+      'NOTES ANNEXES',
+      'NOTE 1 IMMOBILISATIONS',
+      'NOTE 2 STOCKS',
+      'NOTE 3 CREANCES-DETTES',
+      'NOTE 5 DOTATIONS',
+      'NOTE 4 JOURNAL TRESORERIE',
+      'TABLE COMMENTAIRE',
+      'CONTROLES',
+      'ANOMALIES',
+    ]);
+
+    // Bilan-Actif · GA…GE puis TOTAL ACTIF (GZ) en formule sur bleu nuit.
+    const actif = wb.getWorksheet('Bilan-Actif')!;
+    let rangGz = 0;
+    actif.eachRow((row, n) => {
+      if (row.getCell(1).value === 'GZ') rangGz = n;
+    });
+    expect(rangGz).toBeGreaterThan(8);
+    expect((actif.getCell(rangGz, 4).value as { formula?: string }).formula).toMatch(/^SUM\(D9:D\d+\)$/);
+    const fondGz = actif.getCell(rangGz, 2).fill as { fgColor?: { argb?: string } };
+    expect(fondGz?.fgColor?.argb).toBe('FF000080');
+
+    // Résultat · KZC en formule KZ + VA + VB - VC - JG.
+    const cr = wb.getWorksheet('Résultat')!;
+    const rangs = new Map<string, number>();
+    cr.eachRow((row, n) => {
+      const ref = row.getCell(1).value;
+      if (typeof ref === 'string') rangs.set(ref, n);
+    });
+    expect((cr.getCell(rangs.get('KZC')!, 4).value as { formula?: string }).formula).toBe(
+      `D${rangs.get('KZ')}+D${rangs.get('VA')}+D${rangs.get('VB')}-D${rangs.get('VC')}-D${rangs.get('JG')}`,
+    );
+
+    // NOTE 4 · le journal de la caisse ouvre sur son report à nouveau.
+    const note4 = wb.getWorksheet('NOTE 4 JOURNAL TRESORERIE')!;
+    let reportTrouve = false;
+    note4.eachRow((row) => {
+      if (row.getCell(2).value === 'Report à nouveau' && row.getCell(5).value === 50_000) reportTrouve = true;
+    });
+    expect(reportTrouve).toBe(true);
   });
 });
