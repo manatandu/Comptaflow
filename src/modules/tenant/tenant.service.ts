@@ -78,6 +78,16 @@ export class TenantService {
       numeroImpot: tenant.numeroImpot,
       idNat: tenant.idNat,
       rccm: tenant.rccm,
+      // Identifiants propres aux entités à but non lucratif · voir
+      // docs/identifiants-legaux-ebnl-rdc.md. Le RCCM ci-dessus ne concerne
+      // qu'un dossier SYSCOHADA : l'AUDCG (art. 2) n'assujettit au registre
+      // que les commerçants et les sociétés, pas une ASBL, une ONG ou un
+      // projet de développement.
+      actePersonnaliteJuridique: tenant.actePersonnaliteJuridique,
+      dateActePersonnalite: tenant.dateActePersonnalite,
+      numeroEnregistrementSecteur: tenant.numeroEnregistrementSecteur,
+      certificatEnregistrementPlan: tenant.certificatEnregistrementPlan,
+      attestationExemptionIs: tenant.attestationExemptionIs,
       formeJuridique: tenant.formeJuridique,
       droitEtranger: tenant.droitEtranger,
       longueurCompte: tenant.longueurCompte,
@@ -134,7 +144,19 @@ export class TenantService {
    * stocker `''`, pour que l'en-tête d'impression n'ait qu'un seul cas
    * d'absence à traiter.
    */
-  async modifierIdentite(tenantId: string, dto: { numeroImpot?: string; idNat?: string; rccm?: string }) {
+  async modifierIdentite(
+    tenantId: string,
+    dto: {
+      numeroImpot?: string;
+      idNat?: string;
+      rccm?: string;
+      actePersonnaliteJuridique?: string;
+      dateActePersonnalite?: string;
+      numeroEnregistrementSecteur?: string;
+      certificatEnregistrementPlan?: string;
+      attestationExemptionIs?: string;
+    },
+  ) {
     const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
     if (!tenant) {
       throw new NotFoundException('Dossier introuvable');
@@ -146,6 +168,18 @@ export class TenantService {
         numeroImpot: normaliser(dto.numeroImpot),
         idNat: normaliser(dto.idNat),
         rccm: normaliser(dto.rccm),
+        actePersonnaliteJuridique: normaliser(dto.actePersonnaliteJuridique),
+        // Date vide = pas d'arrêté encore obtenu (autorisation provisoire de
+        // l'art. 5) · c'est un état légitime, pas une saisie incomplète.
+        dateActePersonnalite:
+          dto.dateActePersonnalite === undefined
+            ? undefined
+            : dto.dateActePersonnalite.trim() === ''
+              ? null
+              : new Date(dto.dateActePersonnalite),
+        numeroEnregistrementSecteur: normaliser(dto.numeroEnregistrementSecteur),
+        certificatEnregistrementPlan: normaliser(dto.certificatEnregistrementPlan),
+        attestationExemptionIs: normaliser(dto.attestationExemptionIs),
       },
     });
     return this.parametres(tenantId);

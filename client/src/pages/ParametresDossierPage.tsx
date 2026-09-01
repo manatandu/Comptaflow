@@ -130,6 +130,11 @@ export function ParametresDossierPage() {
   const [numeroImpot, setNumeroImpot] = useState('');
   const [idNat, setIdNat] = useState('');
   const [rccm, setRccm] = useState('');
+  const [actePersonnalite, setActePersonnalite] = useState('');
+  const [dateActe, setDateActe] = useState('');
+  const [enregistrementSecteur, setEnregistrementSecteur] = useState('');
+  const [certificatPlan, setCertificatPlan] = useState('');
+  const [attestationIs, setAttestationIs] = useState('');
 
   const charger = async () => {
     try {
@@ -138,6 +143,11 @@ export function ParametresDossierPage() {
       setNumeroImpot(p.numeroImpot ?? '');
       setIdNat(p.idNat ?? '');
       setRccm(p.rccm ?? '');
+      setActePersonnalite(p.actePersonnaliteJuridique ?? '');
+      setDateActe(p.dateActePersonnalite ? p.dateActePersonnalite.slice(0, 10) : '');
+      setEnregistrementSecteur(p.numeroEnregistrementSecteur ?? '');
+      setCertificatPlan(p.certificatEnregistrementPlan ?? '');
+      setAttestationIs(p.attestationExemptionIs ?? '');
       setErreur(null);
     } catch (e) {
       setErreur(e instanceof ApiError ? e.message : 'Chargement impossible');
@@ -209,13 +219,117 @@ export function ParametresDossierPage() {
     }
   };
 
+  /**
+   * QUELS IDENTIFIANTS POUR QUELLE ENTITÉ · voir
+   * docs/identifiants-legaux-ebnl-rdc.md pour la démonstration textuelle.
+   *
+   * - Le RCCM n'existe que pour un dossier SYSCOHADA : l'AUDCG (art. 2)
+   *   n'assujettit au registre que les commerçants et les sociétés
+   *   commerciales. Une association, une ONG, un établissement d'utilité
+   *   publique ou un projet de développement n'en a pas · le montrer, c'est
+   *   inviter à inventer un numéro qui n'existe pas.
+   * - L'acte de personnalité juridique le remplace : arrêté du ministre de la
+   *   Justice (loi n° 004/2001, art. 5) pour une entité de droit congolais,
+   *   décret présidentiel pour une entité de droit étranger (art. 30).
+   * - L'enregistrement au ministère sectoriel ne concerne que les ONG
+   *   (régime particulier des art. 35 et suivants).
+   * - Le certificat du Ministère du Plan concerne les entités qui passent par
+   *   la procédure d'enregistrement de la note circulaire n° 003/2013 (ONG,
+   *   EUP, projets financés par un bailleur).
+   */
+  const estSycebnl = params?.referentiel === 'SYCEBNL';
+  const champsOng = params?.formeJuridique === 'ORGANISATION_NON_GOUVERNEMENTALE';
+  const champsPlan =
+    champsOng ||
+    params?.formeJuridique === 'ETABLISSEMENT_UTILITE_PUBLIQUE' ||
+    params?.formeJuridique === 'UNITE_GESTION_PROJET';
+
+  /**
+   * Les champs affichés, dans l'ordre. Les intitulés tiennent sur UNE ligne :
+   * la grammaire Sage aligne les étiquettes à droite d'une colonne fixe, et
+   * une étiquette qui passe à la ligne casse l'alignement de toute la colonne.
+   * Ce que l'intitulé ne dit pas (« accordant la personnalité juridique »), la
+   * phrase de la section le dit une fois pour toutes.
+   */
+  type ChampIdentite = {
+    label: string;
+    valeur: string;
+    set: (v: string) => void;
+    exemple: string;
+    date?: boolean;
+  };
+  const champsImmatriculation: ChampIdentite[] = !params
+    ? []
+    : [
+        { label: 'N° impôt (NIF)', valeur: numeroImpot, set: setNumeroImpot, exemple: 'A1234567B' },
+        { label: 'Identification nationale', valeur: idNat, set: setIdNat, exemple: '01-93-K12345C' },
+        ...(estSycebnl
+          ? []
+          : [{ label: 'RCCM', valeur: rccm, set: setRccm, exemple: 'CD/KIN/RCCM/23-B-01234' }]),
+        ...(estSycebnl
+          ? [
+              {
+                label: params.droitEtranger ? 'Décret présidentiel' : 'Arrêté ministériel',
+                valeur: actePersonnalite,
+                set: setActePersonnalite,
+                exemple: params.droitEtranger ? 'Décret n° 12/034' : 'Arrêté n° 087/CAB/MIN/J/2024',
+              },
+              { label: 'Date de l’acte', valeur: dateActe, set: setDateActe, exemple: '', date: true },
+              ...(champsOng
+                ? [
+                    {
+                      label: 'Enregistrement (tutelle)',
+                      valeur: enregistrementSecteur,
+                      set: setEnregistrementSecteur,
+                      exemple: 'MINAS/ONG/2024/0123',
+                    },
+                  ]
+                : []),
+              ...(champsPlan
+                ? [
+                    {
+                      label: 'Certificat (Plan)',
+                      valeur: certificatPlan,
+                      set: setCertificatPlan,
+                      exemple: 'CE/PLAN/2024/0456',
+                    },
+                  ]
+                : []),
+              {
+                label: 'Attestation d’exemption',
+                valeur: attestationIs,
+                set: setAttestationIs,
+                exemple: 'DGI/AE/2026/0789',
+              },
+            ]
+          : []),
+      ];
+
   const enregistrerIdentite = async (e: FormEvent) => {
     e.preventDefault();
     setEnvoi(true);
     setErreur(null);
     setInfo(null);
     try {
-      setParams(await api.patch<ParametresDossier>('/dossier/identite', { numeroImpot, idNat, rccm }));
+      setParams(
+        await api.patch<ParametresDossier>('/dossier/identite', {
+          numeroImpot,
+          idNat,
+          // Le RCCM n'est envoyé que depuis un dossier SYSCOHADA · le champ
+          // n'est même pas affiché ailleurs, et l'omettre évite d'écraser en
+          // aveugle une valeur héritée d'un changement de référentiel.
+          ...(params?.referentiel === 'SYSCOHADA' ? { rccm } : {}),
+          ...(params?.referentiel === 'SYCEBNL'
+            ? {
+                actePersonnaliteJuridique: actePersonnalite,
+                dateActePersonnalite: dateActe,
+                attestationExemptionIs: attestationIs,
+                ...(champsOng ? { numeroEnregistrementSecteur: enregistrementSecteur } : {}),
+                ...(champsPlan ? { certificatEnregistrementPlan: certificatPlan } : {}),
+              }
+            : {}),
+        }),
+      );
       // Le n° impôt part dans l'en-tête de chaque page imprimée, lu depuis
       // /auth/me : sans ce rafraîchissement, les états continueraient de
       // s'imprimer sans lui jusqu'à la prochaine session.
@@ -288,30 +402,36 @@ export function ParametresDossierPage() {
               <SectionTitre>Immatriculation</SectionTitre>
               <form onSubmit={enregistrerIdentite} className="flex flex-col gap-3">
                 <p className="text-[11px] text-text-dim">
-                  Portés en tête de chaque page imprimée. Le numéro d’impôt y est exigé au même titre que la
-                  dénomination, la date de clôture et la durée de l’exercice.
+                  Le numéro d’impôt est porté en tête de chaque page imprimée, au même titre que la dénomination, la
+                  date de clôture et la durée de l’exercice.
+                  {estSycebnl
+                    ? ' L’acte de personnalité juridique est celui qui reconnaît l’entité (loi n° 004/2001) ; les autres identifiants servent aux dossiers déposés auprès des ministères et des bailleurs.'
+                    : ''}
                 </p>
                 <div>
-                  {(
-                    [
-                      ['N° impôt (DGI)', numeroImpot, setNumeroImpot, 'A1234567B'],
-                      ['Identification nationale', idNat, setIdNat, '01-93-K12345C'],
-                      ['RCCM', rccm, setRccm, 'CD/KIN/RCCM/23-B-01234'],
-                    ] as [string, string, (v: string) => void, string][]
-                  ).map(([label, valeur, set, exemple]) => (
+                  {champsImmatriculation.map(({ label, valeur, set, exemple, date }) => (
                     <Ligne key={label} label={label}>
                       <input
+                        type={date ? 'date' : 'text'}
                         value={valeur}
                         onChange={(e) => set(e.target.value)}
                         placeholder={exemple}
                         disabled={!estAdmin || envoi}
-                        maxLength={40}
+                        {...(date ? {} : { maxLength: 120 })}
                         aria-label={label}
-                        className={`${champSage} font-mono`}
+                        className={date ? champSage : `${champSage} font-mono`}
                       />
                     </Ligne>
                   ))}
                 </div>
+                {estSycebnl && (
+                  <p className="text-[11px] text-text-dim">
+                    <span className="font-bold">Important !</span> Une entité à but non lucratif n’est pas
+                    immatriculée au registre du commerce : l’Acte uniforme sur le droit commercial général (art. 2)
+                    n’y assujettit que les commerçants et les sociétés. Le champ RCCM n’est donc pas proposé ici.
+                    L’identification nationale reste facultative, elle n’est requise que des agents économiques.
+                  </p>
+                )}
                 {estAdmin && (
                   <div>
                     <button

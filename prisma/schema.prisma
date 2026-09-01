@@ -138,13 +138,44 @@ model Tenant {
   // N° d'identification fiscale ; Exercice clos le ; Durée (en mois) »).
   // Optionnels : un dossier se crée sans eux, l'en-tête d'impression les
   // omet alors au lieu de bloquer. Voir docs/organisation-comptable-cpcc.md.
-  numeroImpot String? // NIF attribué par la DGI
-  idNat       String? // identification nationale
+  // NIF · le SEUL identifiant que le CPCC impose en en-tête de chaque page
+  // d'état financier (« dénomination sociale, n° d'identification fiscale,
+  // exercice clos le, durée »). Une ASBL exonérée d'impôt sur les sociétés en
+  // détient malgré tout un : elle reste agent de retenue (rémunérations,
+  // loyers) et doit se faire connaître à la DGI dans les quinze jours du
+  // début d'activité. Voir docs/identifiants-legaux-ebnl-rdc.md § 2.1.
+  numeroImpot String?
+  // Identification nationale · l'Ordonnance n° 25/293/2025 la range dans le
+  // « recensement des AGENTS ÉCONOMIQUES ». Aucune source du droit des ASBL
+  // ne l'exige : facultative pour une EBNL, courante en pratique. § 2.5.
+  idNat       String?
   // Une ASBL n'est pas commerçante (art. 1er de la loi 004/2001 : elle « ne se
   // livre pas à des opérations industrielles ou commerciales, si ce n'est à
-  // titre accessoire ») et n'est donc pas immatriculée au RCCM. Le champ reste
-  // pour un dossier tenu en SYSCOHADA, et pour l'entité qui en détient un.
+  // titre accessoire ») et l'AUDCG n'assujettit au RCCM que le commerçant ou
+  // « les groupements que LA LOI soumet à l'immatriculation » · la loi
+  // 004/2001 ne le fait nulle part. Le champ ne sert donc qu'à un dossier
+  // SYSCOHADA, et l'interface ne le montre qu'à celui-là. § 1.
   rccm        String?
+
+  // --- Identifiants propres aux entités à but non lucratif ---------------
+  // Ce qui fonde l'existence d'une ASBL n'est pas un numéro de registre mais
+  // l'ACTE qui lui accorde la personnalité juridique : arrêté du Ministre de
+  // la Justice (loi 004/2001, art. 3), ou décret présidentiel pour une entité
+  // de droit étranger (art. 30). Avant lui, l'entité fonctionne six mois sous
+  // autorisation provisoire (art. 5) : le champ reste donc facultatif, un
+  // dossier peut légitimement s'ouvrir sans. § 2.2.
+  actePersonnaliteJuridique String?
+  dateActePersonnalite      DateTime?
+  // Enregistrement auprès du ministère du secteur (art. 36 pour une ONG de
+  // droit congolais, art. 31 pour une étrangère) et certificat d'enregistrement
+  // du Ministère du Plan, exigé « en cours de validité » pour toute demande de
+  // facilités (note circulaire 003/2013). § 2.3.
+  numeroEnregistrementSecteur String?
+  certificatEnregistrementPlan String?
+  // Attestation d'exemption d'impôt sur les sociétés délivrée par le Directeur
+  // Général des Impôts · depuis l'arrêté n° 007/2025 (art. 2), l'exemption
+  // « n'est pas automatique » et passe par elle. § 2.4.
+  attestationExemptionIs String?
 
   // Forme juridique au sens de la loi n° 004/2001 · commande les obligations
   // annuelles du planning de clôture. Défaut ASSOCIATION, cas le plus fréquent.

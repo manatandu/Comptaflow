@@ -935,7 +935,22 @@ export interface ParametresDossier {
   /** Identifiants légaux congolais · CPCC, § 7.4 règle 7-a. */
   numeroImpot: string | null;
   idNat: string | null;
+  /**
+   * Le RCCM ne concerne qu'un dossier SYSCOHADA · l'AUDCG (art. 2) n'assujettit
+   * au registre que les commerçants et les sociétés. Une entité SYCEBNL
+   * (association, ONG, EUP, projet) n'en a pas · voir
+   * docs/identifiants-legaux-ebnl-rdc.md.
+   */
   rccm: string | null;
+  /** Arrêté (ou décret pour une ONG étrangère) accordant la personnalité juridique · loi n° 004/2001. */
+  actePersonnaliteJuridique: string | null;
+  dateActePersonnalite: string | null;
+  /** Enregistrement auprès du ministère sectoriel de tutelle (ONG). */
+  numeroEnregistrementSecteur: string | null;
+  /** Certificat d'enregistrement du Ministère du Plan · note circulaire n° 003/2013. */
+  certificatEnregistrementPlan: string | null;
+  /** Attestation d'exemption d'impôt sur les sociétés · arrêté n° 007/2025. */
+  attestationExemptionIs: string | null;
   formeJuridique: FormeJuridiqueEbnl;
   droitEtranger: boolean;
   longueurCompte: number;

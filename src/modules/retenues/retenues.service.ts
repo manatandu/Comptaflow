@@ -64,8 +64,14 @@ export class RetenuesService {
   private prochaineEcheanceDeclarative(obligation: ObligationDeclarative, reference: Date): Date {
     if (obligation.periodicite === 'MENSUELLE') {
       // N jours après la fin du mois, et le mois suivant si c'est déjà passé.
+      //
+      // La boucle part du mois PRÉCÉDENT (m = -1) : le 1er septembre, la
+      // déclaration encore due est celle des rémunérations d'août, exigible le
+      // 10 septembre · partir du mois courant l'aurait sautée pour annoncer le
+      // 10 octobre, c'est-à-dire une échéance de plus qu'il n'en reste, et une
+      // déclaration en cours présentée comme déjà réglée.
       const jours = obligation.joursApresPeriode ?? 10;
-      for (let m = 0; m < 2; m++) {
+      for (let m = -1; m < 2; m++) {
         const finDeMois = new Date(reference.getFullYear(), reference.getMonth() + m + 1, 0);
         const echeance = new Date(finDeMois);
         echeance.setDate(echeance.getDate() + jours);
@@ -74,10 +80,16 @@ export class RetenuesService {
     }
     if (obligation.periodicite === 'TRIMESTRIELLE') {
       const jours = obligation.joursApresPeriode ?? 10;
-      // Fin du trimestre en cours, puis les suivants tant que l'échéance est
-      // passée. Les trimestres civils finissent en mars, juin, sept., déc.
-      for (let t = Math.floor(reference.getMonth() / 3); t < 8; t++) {
-        const finTrimestre = new Date(reference.getFullYear() + Math.floor(t / 4), ((t % 4) + 1) * 3, 0);
+      // Fin du trimestre PRÉCÉDENT, puis les suivants tant que l'échéance est
+      // passée · même raison qu'au mensuel : le 5 juillet, le relevé du
+      // deuxième trimestre est encore dû (le 10 juillet). Les trimestres
+      // civils finissent en mars, juin, sept., déc.
+      for (let t = Math.floor(reference.getMonth() / 3) - 1; t < 8; t++) {
+        // Le mois est laissé DÉBORDER volontairement (0 ou > 11) : Date le
+        // reporte sur l'année voisine · un calcul en modulo 4 se trompait
+        // d'un an sur le trimestre précédent quand il est celui de l'année
+        // écoulée (JS rend -1 pour -1 % 4).
+        const finTrimestre = new Date(reference.getFullYear(), (t + 1) * 3, 0);
         const echeance = new Date(finTrimestre);
         echeance.setDate(echeance.getDate() + jours);
         if (echeance >= reference) return echeance;

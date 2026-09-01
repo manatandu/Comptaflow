@@ -1,4 +1,4 @@
-import { IsBoolean, IsEnum, IsOptional, IsString, MaxLength, IsDateString, IsInt, Min } from 'class-validator';
+import { IsBoolean, IsEnum, IsOptional, IsString, MaxLength, IsDateString, IsInt, Min, ValidateIf } from 'class-validator';
 import { FormeJuridiqueEbnl, JeuEtatsFinanciersSycebnl, RegimeExigibiliteTva } from '@prisma/client';
 
 export class ModifierJeuEtatsDto {
@@ -22,10 +22,45 @@ export class ModifierIdentiteDto {
   @MaxLength(40)
   idNat?: string;
 
+  // RCCM · sans objet pour une entité SYCEBNL (elle n'est pas commerçante et
+  // aucune loi ne l'assujettit au registre) · le champ ne sert qu'aux dossiers
+  // SYSCOHADA. Voir docs/identifiants-legaux-ebnl-rdc.md § 1.
   @IsOptional()
   @IsString()
   @MaxLength(40)
   rccm?: string;
+
+  // --- Propres aux entités à but non lucratif -----------------------------
+  // Arrêté du Ministre de la Justice (loi 004/2001, art. 3) ou décret
+  // présidentiel pour une entité de droit étranger (art. 30) · plus long
+  // qu'un numéro : « Arrêté ministériel n° 123/CAB/MIN/J&GS/2024 ».
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  actePersonnaliteJuridique?: string;
+
+  // La chaîne vide est le geste d'EFFACEMENT de la date (le service la
+  // convertit en null) · @IsDateString seul la refuserait, et l'utilisateur
+  // n'aurait aucun moyen de retirer une date saisie par erreur.
+  @IsOptional()
+  @ValidateIf((o: ModifierIdentiteDto) => o.dateActePersonnalite !== '')
+  @IsDateString()
+  dateActePersonnalite?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  numeroEnregistrementSecteur?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  certificatEnregistrementPlan?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  attestationExemptionIs?: string;
 }
 
 

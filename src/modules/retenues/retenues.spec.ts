@@ -227,6 +227,31 @@ describe('Échéancier fiscal et social', () => {
     expect(releve.sanction).toContain('500 000');
   });
 
+  it('le relevé trimestriel du trimestre CLOS reste dû tant que ses dix jours courent', async () => {
+    // Le 5 juillet, le trimestre d'avril-juin est clos mais son relevé n'est
+    // exigible que le 10 · l'échéancier doit encore l'annoncer, et non sauter
+    // directement à celui du trimestre en cours (10 octobre).
+    const e = await service([]).echeancierFiscal('t1', { exerciceId: 'e1', dateReference: '2026-07-05' });
+    const releve = e.echeances.find((x) => x.cle === 'releveTrimestrielTiers')!;
+    expect(releve.date.toISOString().slice(0, 10)).toBe('2026-07-10');
+  });
+
+  it('le relevé trimestriel du 10 janvier est celui du trimestre de l’année écoulée', async () => {
+    // Le trimestre précédent est ici celui de l'AUTRE année · un calcul en
+    // modulo se trompait d'un an sur ce seul cas.
+    const e = await service([]).echeancierFiscal('t1', { exerciceId: 'e1', dateReference: '2026-01-05' });
+    const releve = e.echeances.find((x) => x.cle === 'releveTrimestrielTiers')!;
+    expect(releve.date.toISOString().slice(0, 10)).toBe('2026-01-10');
+  });
+
+  it('la déclaration mensuelle du mois CLOS reste due jusqu’à son dixième jour', async () => {
+    // Le 1er septembre, la déclaration encore due est celle des rémunérations
+    // d'août, exigible le 10 septembre.
+    const e = await service([]).echeancierFiscal('t1', { exerciceId: 'e1', dateReference: '2026-09-01' });
+    const declaration = e.echeances.find((x) => x.cle === 'declarationMensuelleOnem')!;
+    expect(declaration.date.toISOString().slice(0, 10)).toBe('2026-09-10');
+  });
+
   it('le relevé trimestriel bascule au trimestre suivant une fois l’échéance passée', async () => {
     const e = await service([]).echeancierFiscal('t1', { exerciceId: 'e1', dateReference: '2026-07-20' });
     const releve = e.echeances.find((x) => x.cle === 'releveTrimestrielTiers')!;
