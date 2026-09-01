@@ -1,0 +1,316 @@
+import { ClasseCompte, JeuEtatsFinanciersSycebnl, TypeCompteDetailTotal } from '@prisma/client';
+import * as ExcelJS from 'exceljs';
+import { writeFileSync } from 'fs';
+import { EcritureService } from '../comptabilite/ecriture.service';
+import { ExerciceService } from '../exercice/exercice.service';
+import { EtatsFinanciersService } from '../etats-financiers/etats-financiers.service';
+import { NoteAnnexeService } from '../notes-annexes/note-annexe.service';
+import { PrismaService } from '../../common/prisma.service';
+import { ExportService } from './export.service';
+import { NOM_BALANCE } from './theme-etafi';
+
+/**
+ * LIASSE « ETAFI » · vérification de bout en bout sur un dossier synthétique
+ * ÉQUILIBRÉ : les moteurs d'états RÉELS (bilan, compte de résultat, TFT,
+ * notes) tournent sur une balance fabriquée, et l'export produit le classeur
+ * du modèle du skill. Ce test tient les DEUX promesses faites à
+ * l'utilisateur (2026-09-01) :
+ *
+ *  1. l'export individuel est L'ÉTAT SEUL, en valeurs, dans la charte ;
+ *  2. la liasse complète est le classeur ENTIER du modèle, feuille pour
+ *     feuille et dans son ordre.
+ *
+ * Les contrôles portent sur ce qui casserait silencieusement : l'ordre et le
+ * nom des feuilles, le cartouche, la palette (un vert de section qui devient
+ * gris ne lèverait aucune erreur), les formules de totaux, et l'identité
+ * ouverture + mouvements = clôture de la feuille BALANCE N.
+ */
+
+interface LigneBalanceStub {
+  compteId: string;
+  numero: string;
+  intitule: string;
+  classe: ClasseCompte;
+  typeCompte: TypeCompteDetailTotal;
+  reportDebit: number;
+  reportCredit: number;
+  mouvementDebit: number;
+  mouvementCredit: number;
+  totalDebit: number;
+  totalCredit: number;
+  solde: number;
+}
+
+function ligne(
+  numero: string,
+  classe: ClasseCompte,
+  reportDebit: number,
+  reportCredit: number,
+  mouvementDebit: number,
+  mouvementCredit: number,
+): LigneBalanceStub {
+  return {
+    compteId: `id-${numero}`,
+    numero,
+    intitule: `Compte ${numero}`,
+    classe,
+    typeCompte: TypeCompteDetailTotal.DETAIL,
+    reportDebit,
+    reportCredit,
+    mouvementDebit,
+    mouvementCredit,
+    totalDebit: reportDebit + mouvementDebit,
+    totalCredit: reportCredit + mouvementCredit,
+    solde: reportDebit + mouvementDebit - reportCredit - mouvementCredit,
+  };
+}
+
+// Exercice N (2026) · équilibré : actif net 1 085 000 = passif (dotation
+// 800 000 + excédent 240 000 + fournisseurs 45 000).
+const BALANCE_N: LigneBalanceStub[] = [
+  ligne('10110000', ClasseCompte.CLASSE_1, 0, 800_000, 0, 0),
+  ligne('23110000', ClasseCompte.CLASSE_2, 600_000, 0, 150_000, 0),
+  ligne('28310000', ClasseCompte.CLASSE_2, 0, 100_000, 0, 50_000),
+  ligne('40110000', ClasseCompte.CLASSE_4, 0, 0, 145_000, 190_000),
+  ligne('52110000', ClasseCompte.CLASSE_5, 300_000, 0, 600_000, 415_000),
+  ligne('60410000', ClasseCompte.CLASSE_6, 0, 0, 190_000, 0),
+  ligne('66110000', ClasseCompte.CLASSE_6, 0, 0, 120_000, 0),
+  ligne('68110000', ClasseCompte.CLASSE_6, 0, 0, 50_000, 0),
+  ligne('70110000', ClasseCompte.CLASSE_7, 0, 0, 0, 400_000),
+  ligne('71110000', ClasseCompte.CLASSE_7, 0, 0, 0, 200_000),
+];
+
+// Exercice N-1 (2025) · le bilan d'ouverture de N.
+const BALANCE_N1: LigneBalanceStub[] = [
+  ligne('10110000', ClasseCompte.CLASSE_1, 0, 800_000, 0, 0),
+  ligne('23110000', ClasseCompte.CLASSE_2, 600_000, 0, 0, 0),
+  ligne('28310000', ClasseCompte.CLASSE_2, 0, 100_000, 0, 0),
+  ligne('52110000', ClasseCompte.CLASSE_5, 300_000, 0, 0, 0),
+];
+
+const TENANT = {
+  id: 't1',
+  nom: 'ASBL GRACE',
+  numeroImpot: 'A1234567B',
+  adresse: '12 av. de la Justice',
+  ville: 'Kinshasa',
+  pays: 'RD Congo',
+  jeuEtatsFinanciersSycebnl: JeuEtatsFinanciersSycebnl.ASSOCIATIONS_ORDRES_PROFESSIONNELS,
+  actePersonnaliteJuridique: 'Arrêté n° 087/CAB/MIN/J/2024',
+};
+const EXERCICES = [
+  { id: 'e1', tenantId: 't1', dateDebut: new Date('2026-01-01T00:00:00Z'), dateFin: new Date('2026-12-31T00:00:00Z') },
+  { id: 'e0', tenantId: 't1', dateDebut: new Date('2025-01-01T00:00:00Z'), dateFin: new Date('2025-12-31T00:00:00Z') },
+];
+
+function fabriquerExport(): ExportService {
+  const balances: Record<string, LigneBalanceStub[]> = { e1: BALANCE_N, e0: BALANCE_N1 };
+  const ecritureService = {
+    balance: jest.fn().mockImplementation((_t: string, exerciceId: string) => {
+      const lignes = balances[exerciceId] ?? [];
+      return Promise.resolve({
+        lignes,
+        totaux: {
+          debit: lignes.reduce((s, l) => s + l.totalDebit, 0),
+          credit: lignes.reduce((s, l) => s + l.totalCredit, 0),
+        },
+      });
+    }),
+  } as unknown as EcritureService;
+  const exerciceService = {
+    lister: jest.fn().mockResolvedValue([...EXERCICES]),
+  } as unknown as ExerciceService;
+  const prisma = {
+    tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue(TENANT) },
+    exercice: {
+      findFirstOrThrow: jest
+        .fn()
+        .mockImplementation(({ where }: { where: { id: string } }) =>
+          Promise.resolve(EXERCICES.find((e) => e.id === where.id)),
+        ),
+      findFirst: jest.fn().mockImplementation(({ where }: { where: { dateDebut?: { lt: Date } } }) => {
+        if (where?.dateDebut?.lt) {
+          const avant = EXERCICES.filter((e) => e.dateDebut < where.dateDebut!.lt);
+          avant.sort((a, b) => b.dateDebut.getTime() - a.dateDebut.getTime());
+          return Promise.resolve(avant[0] ?? null);
+        }
+        return Promise.resolve(EXERCICES[0]);
+      }),
+    },
+    rattachementNote: { findMany: jest.fn().mockResolvedValue([]) },
+    ecriture: { findMany: jest.fn().mockResolvedValue([]) },
+    ligneEcriture: { findMany: jest.fn().mockResolvedValue([]) },
+  } as unknown as PrismaService;
+
+  const etatsFinanciers = new EtatsFinanciersService(ecritureService, exerciceService);
+  const notes = new NoteAnnexeService(ecritureService, exerciceService, prisma);
+  return new ExportService(
+    prisma,
+    ecritureService,
+    etatsFinanciers,
+    {} as never,
+    {} as never,
+    {} as never,
+    notes,
+    {} as never,
+    {} as never,
+    {} as never,
+  );
+}
+
+async function ouvrir(buffer: Buffer): Promise<ExcelJS.Workbook> {
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(buffer as unknown as ExcelJS.Buffer);
+  return wb;
+}
+
+const fondDe = (cell: ExcelJS.Cell): string => {
+  const f = cell.fill as { pattern?: string; fgColor?: { argb?: string } } | undefined;
+  return f?.fgColor?.argb ?? '';
+};
+
+describe('exports individuels · charte ETAFI, état seul en valeurs', () => {
+  it('le bilan tient sur Bilan-Actif et Bilan-Passif, cartouche et palette du modèle', async () => {
+    const exportService = fabriquerExport();
+    const { buffer } = await exportService.bilanExcel('t1', 'e1');
+    const wb = await ouvrir(buffer);
+
+    expect(wb.worksheets.map((w) => w.name)).toEqual(['Bilan-Actif', 'Bilan-Passif']);
+    const actif = wb.getWorksheet('Bilan-Actif')!;
+    // Cartouche du modèle · dénomination, NIF, exercice, durée.
+    expect(actif.getCell('A3').value).toBe('Dénomination sociale : ASBL GRACE');
+    expect(String(actif.getCell('A5').value)).toContain("N° d'identification fiscale (NIF) : A1234567B");
+    expect(actif.getCell('A1').value).toBe('- 1 -');
+    // Titre en Arial Black vert.
+    expect(actif.getCell('B7').value).toBe('BILAN');
+    expect(actif.getCell('B7').font?.name).toBe('Arial Black');
+    expect(actif.getCell('B7').font?.color?.argb).toBe('FF008000');
+    // Bandeau d'en-têtes CCFFFF sur deux lignes.
+    expect(actif.getCell('A8').value).toBe('REF');
+    expect(fondDe(actif.getCell('A8'))).toBe('FFCCFFFF');
+    expect(actif.getCell('D9').value).toBe('BRUT');
+    // Le TOTAL GENERAL (BZ) est bleu nuit, texte blanc, et porte une FORMULE.
+    let rangBz = 0;
+    actif.eachRow((row, n) => {
+      if (row.getCell(1).value === 'BZ') rangBz = n;
+    });
+    expect(rangBz).toBeGreaterThan(9);
+    expect(fondDe(actif.getCell(rangBz, 2))).toBe('FF000080');
+    const bz = actif.getCell(rangBz, 6).value as { formula?: string };
+    expect(bz.formula).toContain('F');
+    // La case REF du total reste SANS fond · règle du modèle.
+    expect(fondDe(actif.getCell(rangBz, 1))).toBe('');
+  });
+
+  it('le compte de résultat suit ses conventions officielles · XC = XA - XB en formule', async () => {
+    const exportService = fabriquerExport();
+    const { buffer } = await exportService.compteDeResultatExcel('t1', 'e1');
+    const wb = await ouvrir(buffer);
+    const ws = wb.getWorksheet('Résultat')!;
+    const rangs = new Map<string, number>();
+    ws.eachRow((row, n) => {
+      const ref = row.getCell(1).value;
+      if (typeof ref === 'string') rangs.set(ref, n);
+    });
+    const xc = ws.getCell(rangs.get('XC')!, 4).value as { formula?: string };
+    expect(xc.formula).toBe(`D${rangs.get('XA')}-D${rangs.get('XB')}`);
+    // Valeurs : produits 600 000, charges 360 000 · l'excédent XE vaut 240 000
+    // une fois les formules posées (recalcul Excel) ; ici on vérifie les
+    // valeurs sources qui les alimentent.
+    expect(ws.getCell(rangs.get('RA')!, 4).value).toBe(400_000);
+  });
+
+  it('le TFT porte les bandes de sections et la ligne clef ZG sur bleu 003366', async () => {
+    const exportService = fabriquerExport();
+    const { buffer } = await exportService.tableauFluxTresorerieExcel('t1', 'e1');
+    const ws = (await ouvrir(buffer)).getWorksheet('TFT')!;
+    let rangZg = 0;
+    let bandes = 0;
+    ws.eachRow((row, n) => {
+      if (row.getCell(1).value === 'ZG') rangZg = n;
+      if (fondDe(row.getCell(2)) === 'FFC0C0C0' && row.getCell(1).value == null) bandes += 1;
+    });
+    expect(rangZg).toBeGreaterThan(8);
+    expect(fondDe(ws.getCell(rangZg, 2))).toBe('FF003366');
+    expect(bandes).toBeGreaterThanOrEqual(4);
+  });
+});
+
+describe('liasse complète · le classeur entier du modèle', () => {
+  it('reproduit les feuilles du modèle, dans son ordre, et boucle', async () => {
+    const exportService = fabriquerExport();
+    const { buffer, nomFichier } = await exportService.liasseCompleteExcel('t1', 'e1');
+    expect(nomFichier).toBe('liasse-complete-2026.xlsx');
+    const wb = await ouvrir(buffer);
+    const noms = wb.worksheets.map((w) => w.name);
+
+    // L'ossature du modèle, dans son ordre exact · les feuilles de notes
+    // varient avec les données (seules les notes APPLICABLES sont jointes,
+    // § 1.4), donc l'ossature s'affirme en préfixe + suffixe.
+    expect(noms.slice(0, 13)).toEqual([
+      'BALANCE N',
+      'BALANCE N-1',
+      'CONTROLE BALANCE',
+      'Couverture',
+      'Garde',
+      'Fiche 1',
+      'Fiche 2',
+      'Bilan paysage',
+      'Bilan-Actif',
+      'Bilan-Passif',
+      'Résultat',
+      'TFT',
+      'NOTES ANNEXES',
+    ]);
+    expect(noms.slice(-3)).toEqual(['TABLE COMMENTAIRE', 'CONTROLES', 'ANOMALIES']);
+    const feuillesNotes = noms.slice(13, -3);
+    for (const nom of feuillesNotes) expect(nom).toMatch(/^NOTE /);
+    // Une seule feuille par code (les sous-tableaux s'empilent dessus), dans
+    // l'ordre officiel de la fiche récapitulative · jamais « NOTE 13 » avant
+    // « NOTE 2 », jamais de suffixe « .1 ».
+    expect(new Set(feuillesNotes).size).toBe(feuillesNotes.length);
+    const ORDRE = ['1', '2', '3', '4', '5A', '5B', '5C', '5D', '5E', '5F', '5G', '5H', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17A', '17B', '18A', '18B', '19', '20', '21', '22', '23', '24', '25', '26', '27', '28', '29A', '29B', '30', '31', '32', '33', '34', '35'];
+    const rangs = feuillesNotes.map((nom) => ORDRE.indexOf(nom.replace('NOTE ', '')));
+    expect(rangs).not.toContain(-1);
+    expect([...rangs].sort((a, b) => a - b)).toEqual(rangs);
+
+    // BALANCE N · l'identité ouverture + mouvements = clôture, ligne à ligne.
+    const bal = wb.getWorksheet(NOM_BALANCE)!;
+    for (let r = 2; r <= 1 + BALANCE_N.length; r++) {
+      const v = (c: number) => Number(bal.getCell(r, c).value ?? 0);
+      expect(v(3) - v(4) + v(5) - v(6)).toBeCloseTo(v(7) - v(8), 2);
+    }
+    // TOTAL GENERAL en formule, sur bleu nuit.
+    const rTotal = 2 + BALANCE_N.length;
+    expect((bal.getCell(rTotal, 3).value as { formula?: string }).formula).toBe(`SUM(C2:C${rTotal - 1})`);
+    expect(fondDe(bal.getCell(rTotal, 2))).toBe('FF000080');
+
+    // Bilan paysage · chaque montant est un LIEN vers la feuille du bilan.
+    const paysage = wb.getWorksheet('Bilan paysage')!;
+    const lien = paysage.getCell(10, 4).value as { formula?: string };
+    expect(lien.formula).toBe("'Bilan-Actif'!D10");
+
+    // Fiche 1 · la case ZE porte l'acte de personnalité juridique, pas un RCCM.
+    const fiche1 = wb.getWorksheet('Fiche 1')!;
+    let zeValeur = '';
+    fiche1.eachRow((row) => {
+      if (row.getCell(1).value === 'ZE') zeValeur = String(row.getCell(7).value ?? '');
+    });
+    expect(zeValeur).toBe('Arrêté n° 087/CAB/MIN/J/2024');
+
+    // Garde · bandeau du référentiel et système.
+    const garde = wb.getWorksheet('Garde')!;
+    expect(String(garde.getCell(12, 2).value)).toContain('SYCEBNL');
+    expect(String(garde.getCell(32, 2).value)).toBe('SYSTEME NORMAL');
+
+    // CONTROLES · les recoupements croisés du modèle, en formules.
+    const ctl = wb.getWorksheet('CONTROLES')!;
+    expect((ctl.getCell(2, 2).value as { formula?: string }).formula).toContain("'BALANCE N'!G2:G");
+
+    // Les pages porteuses de cartouche sont numérotées en continu.
+    expect(wb.getWorksheet('Fiche 1')!.getCell('A1').value).toMatch(/^- \d+ -$/);
+
+    // Copie d'inspection visuelle (scratchpad) · pas un artefact de test.
+    if (process.env.LIASSE_DEBUG_SORTIE) writeFileSync(process.env.LIASSE_DEBUG_SORTIE, buffer);
+  });
+});
