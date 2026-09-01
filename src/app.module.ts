@@ -4,6 +4,7 @@ import { ConfigModule } from '@nestjs/config';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { validateEnv } from './config/validate-env';
 import { PrismaModule } from './common/prisma.module';
+import { SanteController } from './common/sante.controller';
 import { TenantModule } from './modules/tenant/tenant.module';
 import { LicenceModule } from './modules/licence/licence.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -81,6 +82,7 @@ import { GroupeModule } from './modules/groupe/groupe.module';
     PlateformeModule,
     GroupeModule,
   ],
+  controllers: [SanteController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule {}
