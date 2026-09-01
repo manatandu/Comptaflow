@@ -192,8 +192,8 @@ export const FENETRES: DefinitionFenetre[] = [
     // estOperateurPlateforme (AppShell), la page se re-verrouille elle-même,
     // et le serveur relit le drapeau à chaque requête (OperateurPlateformeGuard).
     motif: /^\/plateforme$/,
-    titre: 'Cabinets clients · plateforme',
-    titreCourt: 'Cabinets',
+    titre: 'VMG Consulting · administration de la plateforme',
+    titreCourt: 'VMG Consulting',
     rendre: () => <PlateformePage />,
   },
   {

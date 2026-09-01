@@ -197,7 +197,7 @@ export function PlateformePage() {
     <div className="p-2">
       <div className="flex items-center justify-between mb-2">
         <div>
-          <div className="text-[10px] font-mono text-text-dim leading-none">PLATEFORME</div>
+          <div className="text-[10px] font-mono text-text-dim leading-none">VMG CONSULTING</div>
           <h1 className="text-[12px] font-bold leading-tight">Cabinets clients · licences et dossiers</h1>
         </div>
         <button type="button" onClick={() => setNouveauOuvert(true)} className="bg-sel text-white px-3.5 py-1 text-[10.5px] font-semibold">
