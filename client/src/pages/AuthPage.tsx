@@ -125,7 +125,7 @@ export function AuthPage({ assistantInitial = false }: { assistantInitial?: bool
       // Le dossier est ajouté aux dossiers récents par `chargerUtilisateur`
       // (lib/auth.tsx), qui lit /auth/me · la réponse de /auth/login ne porte
       // que le jeton, elle ne connaît pas le nom du dossier.
-      await seConnecter(res.accessToken);
+      await seConnecter(res.csrfToken);
       navigate('/');
     } catch (err) {
       setErreur(err instanceof ApiError ? err.message : 'Une erreur est survenue');

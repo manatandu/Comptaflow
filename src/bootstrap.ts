@@ -2,6 +2,7 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { json, urlencoded } from 'express';
 import helmet from 'helmet';
 import * as compression from 'compression';
+import * as cookieParser from 'cookie-parser';
 
 /**
  * Configuration commune de l'application, partagée entre le serveur classique
@@ -43,6 +44,9 @@ export function configurerApplication(app: INestApplication) {
   // cette marge couvre l'encodage et le reste du corps.
   app.use(json({ limit: '12mb' }));
   app.use(urlencoded({ extended: true, limit: '12mb' }));
+  // Session en cookie httpOnly (voir auth/session.constants.ts) · le
+  // parseur rend req.cookies lisible par JwtStrategy.
+  app.use(cookieParser());
   // En développement (CORS_ORIGIN absent), tout est autorisé. En production,
   // restreindre au(x) domaine(s) du client évite qu'un site tiers appelle
   // l'API avec les identifiants d'un utilisateur connecté. Séparateur
@@ -66,7 +70,11 @@ export function configurerApplication(app: INestApplication) {
     : enProduction
       ? ORIGINES_SITE
       : undefined;
-  app.enableCors(origines ? { origin: origines } : undefined);
+  // credentials · le cookie de session ne voyage en inter-site que si le
+  // serveur l'autorise explicitement, ET pour une origine NOMMÉE (jamais
+  // `*`, que les navigateurs refusent avec credentials) · en développement,
+  // `origin: true` reflète l'origine appelante, ce qui reste nominatif.
+  app.enableCors(origines ? { origin: origines, credentials: true } : { origin: true, credentials: true });
   // whitelist: rejette tout champ non déclaré dans un DTO · évite qu'un client
   // injecte silencieusement un champ (ex: tenantId) qui devrait venir du JWT.
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));

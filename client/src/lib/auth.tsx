@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { api, setToken } from './api';
+import { api, setCsrf } from './api';
 import { memoriserDossier } from './dossiersRecents';
 import type { JeuEtatsFinanciersSycebnl, Referentiel, RoleUtilisateur } from './types';
 
@@ -34,7 +34,9 @@ interface AuthContextValue {
   connecte: boolean;
   utilisateur: MeResponse | null;
   estAdmin: boolean;
-  seConnecter: (accessToken: string) => Promise<void>;
+  /** Après /auth/login ou /auth/register · la session est déjà posée en
+   *  cookie httpOnly par le serveur, on ne reçoit ici que le jeton CSRF. */
+  seConnecter: (csrfToken: string) => Promise<void>;
   /** Relit /auth/me · à appeler après avoir changé un paramètre du dossier. */
   rafraichir: () => Promise<void>;
   seDeconnecter: () => void;
@@ -65,7 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         jeuEtatsFinanciersSycebnl: me.tenant.jeuEtatsFinanciersSycebnl,
       });
     } catch {
-      setToken(null);
+      setCsrf(null);
       setUtilisateur(null);
     } finally {
       setChargement(false);
@@ -77,8 +79,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const seConnecter = async (accessToken: string) => {
-    setToken(accessToken);
+  const seConnecter = async (csrfToken: string) => {
+    setCsrf(csrfToken);
     // Ne PAS repasser `chargement` à true ici : ZoneProtegee (App.tsx) affiche
     // un plein écran « Chargement… » à la place de ses enfants tant que
     // `chargement` est vrai, ce qui démonterait tout l'arbre (dont l'écran
@@ -94,7 +96,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const seDeconnecter = () => {
-    setToken(null);
+    // Le cookie httpOnly ne peut pas être effacé d'ici · c'est le serveur
+    // qui le fait tomber. Sans attendre la réponse : l'interface se ferme
+    // tout de suite, et un échec réseau laisse au pire un cookie qui
+    // expirera de lui-même (8 h).
+    api.post('/auth/logout').catch(() => undefined);
+    setCsrf(null);
     setUtilisateur(null);
   };
 

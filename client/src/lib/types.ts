@@ -444,7 +444,12 @@ export interface AuthResponse {
     jeuEtatsFinanciersSycebnl?: JeuEtatsFinanciersSycebnl;
   };
   exercice?: Exercice;
-  accessToken: string;
+  /**
+   * Le jeton de session, lui, arrive en COOKIE httpOnly (jamais lisible par
+   * ce code · c'est le but). Le corps ne porte que le jeton CSRF apparié, à
+   * rejouer en en-tête X-CSRF-Token sur chaque requête (voir lib/api.ts).
+   */
+  csrfToken: string;
 }
 
 // Types de tiers du SYCEBNL : le compte 41 « Adhérents, clients-usagers et

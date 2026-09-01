@@ -6,25 +6,44 @@ export class ApiError extends Error {
   }
 }
 
-function getToken(): string | null {
-  return localStorage.getItem('omegax:token');
+/**
+ * SESSION EN COOKIE httpOnly · le jeton de session n'est PLUS stocké ici :
+ * il vit dans un cookie httpOnly que ce code ne peut pas lire (c'est le
+ * but · une XSS ne peut plus le voler), et le navigateur l'envoie tout seul
+ * grâce à `credentials: 'include'`. Ce qui reste côté JavaScript est le
+ * jeton CSRF apparié, rejoué en en-tête X-CSRF-Token : sans lui, le serveur
+ * refuse toute mutation portée par le cookie. Il est inutilisable seul (il
+ * ne vaut que combiné au cookie), le garder en localStorage est donc sans
+ * danger équivalent à l'ancien jeton de session.
+ */
+const CLE_CSRF = 'omegax:csrf';
+// L'ancien jeton de session en localStorage n'a plus aucun usage · on
+// l'efface pour ne pas laisser traîner un identifiant de session lisible.
+localStorage.removeItem('omegax:token');
+
+function getCsrf(): string | null {
+  return localStorage.getItem(CLE_CSRF);
 }
 
-export function setToken(token: string | null) {
-  if (token) localStorage.setItem('omegax:token', token);
-  else localStorage.removeItem('omegax:token');
+export function setCsrf(token: string | null) {
+  if (token) localStorage.setItem(CLE_CSRF, token);
+  else localStorage.removeItem(CLE_CSRF);
   // Changement de dossier ou déconnexion : rien de ce qui a été chargé pour
-  // l'ancien jeton ne doit être resservi (voir cacheReferentiels plus bas).
+  // l'ancienne session ne doit être resservi (voir cacheReferentiels plus bas).
   cacheReferentiels.clear();
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = getToken();
+  const csrf = getCsrf();
   const res = await fetch(`${API_URL}${path}`, {
     ...options,
+    // Le cookie de session voyage avec chaque appel (origines croisées :
+    // oomega.web.app vers Cloud Run) · le serveur n'admet cela que pour les
+    // origines de sa liste CORS.
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(csrf ? { 'X-CSRF-Token': csrf } : {}),
       ...options.headers,
     },
   });
@@ -45,9 +64,11 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 }
 
 /**
- * Télécharge un export binaire (Excel) protégé par le Bearer token · un
- * <a href> classique ne peut pas porter l'en-tête Authorization, d'où le
- * passage par fetch + Blob + lien temporaire déclenché par script.
+ * Télécharge un export binaire (Excel). Le cookie de session suffit
+ * désormais à l'authentifier, mais le passage par fetch + Blob + lien
+ * temporaire est conservé : c'est lui qui permet de reprendre le nom de
+ * fichier proposé par le serveur et d'afficher une erreur lisible au lieu
+ * d'une page blanche.
  *
  * Le nom de fichier vient du serveur (en-tête Content-Disposition), qui y
  * met l'année de l'exercice et, pour un grand livre, le numéro de compte ·
@@ -55,9 +76,8 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
  * l'en-tête est absent ou illisible.
  */
 async function telecharger(path: string, nomParDefaut: string): Promise<void> {
-  const token = getToken();
   const res = await fetch(`${API_URL}${path}`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    credentials: 'include',
   });
   if (!res.ok) {
     let message = res.statusText;

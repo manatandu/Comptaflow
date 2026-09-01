@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { randomBytes } from 'crypto';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../common/prisma.service';
 import { TenantService } from '../tenant/tenant.service';
@@ -208,8 +209,14 @@ export class AuthService {
   // email/role en base à chaque requête (voir son commentaire) plutôt que
   // de leur faire confiance ici · un rôle changé ou un compte désactivé
   // doit prendre effet immédiatement, pas seulement à l'expiration du token.
+  //
+  // Le claim `csrf` appareille le jeton de session (cookie httpOnly) et le
+  // jeton CSRF (renvoyé au client, qui le rejoue en en-tête X-CSRF-Token sur
+  // chaque mutation) · voir session.constants.ts et jwt.strategy.ts. Aucun
+  // état serveur : la correspondance se vérifie dans le JWT lui-même.
   private signToken(userId: string) {
-    const accessToken = this.jwt.sign({ sub: userId });
-    return { accessToken };
+    const csrfToken = randomBytes(16).toString('hex');
+    const accessToken = this.jwt.sign({ sub: userId, csrf: csrfToken });
+    return { accessToken, csrfToken };
   }
 }

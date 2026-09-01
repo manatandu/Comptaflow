@@ -283,7 +283,7 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
       // faire ressaisir les identifiants qu'on vient de définir. C'est
       // `seConnecter` qui inscrit le dossier dans les dossiers récents de cet
       // appareil (voir lib/auth.tsx).
-      await seConnecter(res.accessToken);
+      await seConnecter(res.csrfToken);
     } catch (err) {
       setErreur(err instanceof ApiError ? err.message : 'Impossible de créer le dossier');
     } finally {
