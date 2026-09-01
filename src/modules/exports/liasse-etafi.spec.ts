@@ -4,6 +4,8 @@ import { writeFileSync } from 'fs';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { ExerciceService } from '../exercice/exercice.service';
 import { EtatsFinanciersService } from '../etats-financiers/etats-financiers.service';
+import { EtatsFinanciersProjetService } from '../etats-financiers/etats-financiers-projet.service';
+import { EtatsFinanciersProjetBudgetService } from '../etats-financiers/etats-financiers-projet-budget.service';
 import { NoteAnnexeService } from '../notes-annexes/note-annexe.service';
 import { PrismaService } from '../../common/prisma.service';
 import { ExportService } from './export.service';
@@ -88,6 +90,17 @@ const BALANCE_N1: LigneBalanceStub[] = [
   ligne('52110000', ClasseCompte.CLASSE_5, 300_000, 0, 0, 0),
 ];
 
+// Jeu PROJETS · fonds bailleur 400 000 reçus (462), 250 000 consommés
+// (702), charges 250 000, trésorerie 150 000 · bilan équilibré.
+const BALANCE_PROJET_N: LigneBalanceStub[] = [
+  ligne('46210000', ClasseCompte.CLASSE_4, 0, 0, 0, 400_000),
+  ligne('70210000', ClasseCompte.CLASSE_7, 0, 0, 250_000, 250_000 + 250_000),
+  ligne('60410000', ClasseCompte.CLASSE_6, 0, 0, 180_000, 0),
+  ligne('66110000', ClasseCompte.CLASSE_6, 0, 0, 70_000, 0),
+  ligne('52110000', ClasseCompte.CLASSE_5, 0, 0, 400_000, 250_000),
+];
+const BALANCE_PROJET_N1: LigneBalanceStub[] = [];
+
 const TENANT = {
   id: 't1',
   nom: 'ASBL GRACE',
@@ -103,8 +116,11 @@ const EXERCICES = [
   { id: 'e0', tenantId: 't1', dateDebut: new Date('2025-01-01T00:00:00Z'), dateFin: new Date('2025-12-31T00:00:00Z') },
 ];
 
-function fabriquerExport(): ExportService {
-  const balances: Record<string, LigneBalanceStub[]> = { e1: BALANCE_N, e0: BALANCE_N1 };
+function fabriquerExport(jeu: JeuEtatsFinanciersSycebnl = TENANT.jeuEtatsFinanciersSycebnl): ExportService {
+  const balances: Record<string, LigneBalanceStub[]> =
+    jeu === JeuEtatsFinanciersSycebnl.PROJETS_DEVELOPPEMENT
+      ? { e1: BALANCE_PROJET_N, e0: BALANCE_PROJET_N1 }
+      : { e1: BALANCE_N, e0: BALANCE_N1 };
   const ecritureService = {
     balance: jest.fn().mockImplementation((_t: string, exerciceId: string) => {
       const lignes = balances[exerciceId] ?? [];
@@ -121,7 +137,7 @@ function fabriquerExport(): ExportService {
     lister: jest.fn().mockResolvedValue([...EXERCICES]),
   } as unknown as ExerciceService;
   const prisma = {
-    tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue(TENANT) },
+    tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ ...TENANT, jeuEtatsFinanciersSycebnl: jeu }) },
     exercice: {
       findFirstOrThrow: jest
         .fn()
@@ -138,19 +154,26 @@ function fabriquerExport(): ExportService {
       }),
     },
     rattachementNote: { findMany: jest.fn().mockResolvedValue([]) },
+    compte: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn().mockResolvedValue(null) },
     ecriture: { findMany: jest.fn().mockResolvedValue([]) },
     ligneEcriture: { findMany: jest.fn().mockResolvedValue([]) },
+    bailleur: { findMany: jest.fn().mockResolvedValue([]) },
+    // Pas de plan analytique à budgets · la liasse projets doit servir la
+    // grille VIERGE du modèle, jamais échouer.
+    planAnalytique: { findFirst: jest.fn().mockResolvedValue(null) },
   } as unknown as PrismaService;
 
   const etatsFinanciers = new EtatsFinanciersService(ecritureService, exerciceService);
+  const etatsProjet = new EtatsFinanciersProjetService(ecritureService, exerciceService, prisma);
+  const budgetProjet = new EtatsFinanciersProjetBudgetService(ecritureService, prisma);
   const notes = new NoteAnnexeService(ecritureService, exerciceService, prisma);
   return new ExportService(
     prisma,
     ecritureService,
     etatsFinanciers,
+    etatsProjet,
     {} as never,
-    {} as never,
-    {} as never,
+    budgetProjet,
     notes,
     {} as never,
     {} as never,
@@ -312,5 +335,80 @@ describe('liasse complète · le classeur entier du modèle', () => {
 
     // Copie d'inspection visuelle (scratchpad) · pas un artefact de test.
     if (process.env.LIASSE_DEBUG_SORTIE) writeFileSync(process.env.LIASSE_DEBUG_SORTIE, buffer);
+  });
+});
+
+describe('liasse complète · jeu projets de développement', () => {
+  it('reproduit le classeur du modèle projets, grille budgétaire vierge comprise', async () => {
+    const exportService = fabriquerExport(JeuEtatsFinanciersSycebnl.PROJETS_DEVELOPPEMENT);
+    const { buffer } = await exportService.liasseCompleteExcel('t1', 'e1');
+    const wb = await ouvrir(buffer);
+    const noms = wb.worksheets.map((w) => w.name);
+
+    expect(noms.slice(0, 14)).toEqual([
+      'BALANCE N',
+      'BALANCE N-1',
+      'CONTROLE BALANCE',
+      'Couverture',
+      'Garde',
+      'Fiche 1',
+      'Fiche 2',
+      'Emplois-Ressources',
+      'Execution budgetaire',
+      'Reconciliation tresorerie',
+      'Bilan paysage',
+      'Bilan-Actif',
+      'Bilan-Passif',
+      'Compte Exploitation',
+    ]);
+    expect(noms.slice(-3)).toEqual(['TABLE COMMENTAIRE', 'CONTROLES', 'ANOMALIES']);
+    expect(noms).toContain('NOTES ANNEXES');
+
+    // Emplois-Ressources · la ligne GR est un total en formule, la colonne E
+    // totalise C+D sur les lignes de détail.
+    const er = wb.getWorksheet('Emplois-Ressources')!;
+    let rangGr = 0;
+    let rangFa = 0;
+    er.eachRow((row, n) => {
+      if (row.getCell(1).value === 'GR') rangGr = n;
+      if (row.getCell(1).value === 'FA') rangFa = n;
+    });
+    expect((er.getCell(rangGr, 4).value as { formula?: string }).formula).toContain(`D${rangFa}`);
+    expect((er.getCell(rangFa, 5).value as { formula?: string }).formula).toBe(`C${rangFa}+D${rangFa}`);
+
+    // Réconciliation · B se lie au tableau emplois-ressources.
+    const recon = wb.getWorksheet('Reconciliation tresorerie')!;
+    let rangB = 0;
+    recon.eachRow((row, n) => {
+      if (row.getCell(2).value === 'B') rangB = n;
+    });
+    expect((recon.getCell(rangB, 3).value as { formula?: string }).formula).toContain("'Emplois-Ressources'!D");
+
+    // Exécution budgétaire vierge · les formules du modèle sont posées.
+    const eb = wb.getWorksheet('Execution budgetaire')!;
+    expect((eb.getCell(9, 6).value as { formula?: string }).formula).toBe('D9+E9');
+
+    // Compte Exploitation · les deux TJ du texte officiel restent affichés
+    // TJ, et XC = XA - XB en formule.
+    const ce = wb.getWorksheet('Compte Exploitation')!;
+    const refs: string[] = [];
+    const rangsCe = new Map<string, number>();
+    ce.eachRow((row, n) => {
+      const ref = row.getCell(1).value;
+      if (typeof ref === 'string') {
+        refs.push(ref);
+        if (!rangsCe.has(ref)) rangsCe.set(ref, n);
+      }
+    });
+    expect(refs.filter((x) => x === 'TJ')).toHaveLength(2);
+    let rangXa = 0;
+    let rangXb = 0;
+    let rangXc = 0;
+    ce.eachRow((row, n) => {
+      if (row.getCell(1).value === 'XA') rangXa = n;
+      if (row.getCell(1).value === 'XB') rangXb = n;
+      if (row.getCell(1).value === 'XC') rangXc = n;
+    });
+    expect((ce.getCell(rangXc, 4).value as { formula?: string }).formula).toBe(`D${rangXa}-D${rangXb}`);
   });
 });

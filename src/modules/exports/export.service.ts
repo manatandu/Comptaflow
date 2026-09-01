@@ -12,6 +12,10 @@ import { DonationService, manquementsArticle17 } from '../registre-donateurs/don
 import { LivreInventaireService } from '../documents-obligatoires/livre-inventaire.service';
 import { RapportActiviteService } from '../documents-obligatoires/rapport-activite.service';
 import { SECTIONS_RAPPORT_ACTIVITE } from '../documents-obligatoires/correspondance-inventaire';
+import {
+  POSTES_CHARGES as POSTES_CHARGES_PROJET,
+  POSTES_REVENUS as POSTES_REVENUS_PROJET,
+} from '../etats-financiers/correspondance-projet-compte-exploitation';
 import { ColonneNote, LigneNoteCalculee, NoteCalculee, TypeColonneNote } from '../notes-annexes/note-annexe.types';
 import {
   cadre,
@@ -34,6 +38,7 @@ import {
   construireGarde,
   construireTableCommentaires,
   ecrireFeuilleBalance,
+  FMT_MONTANT as FMT_MONTANT_ETAFI,
   fusion,
   LigneBalanceLiasse,
   NiveauLigne,
@@ -44,7 +49,14 @@ import {
 } from './theme-etafi';
 import {
   construireFeuilleEtat,
+  NIVEAUX_ETAT_PROJETS,
+  NIVEAUX_RECONCILIATION,
+  NIVEAUX_TER,
+  NOTE_PAR_CLE_PROJETS,
   REP_TFT,
+  TOTAUX_PROJETS_BILAN,
+  TOTAUX_PROJETS_CE,
+  TOTAUX_TER,
   GroupeColonnes,
   LigneEtatEtafi,
   ligneControleSousEtat,
@@ -825,233 +837,140 @@ export class ExportService {
     };
   }
 
+  /** Lignes ETAFI du jeu projets · bilan (en net) et compte d'exploitation. */
+  private lignesProjetEtafi(
+    postes: Array<PosteCalcule & { cle?: string }>,
+  ): LigneEtatEtafi[] {
+    return postes.map((p) => {
+      const cle = p.cle ?? p.ref;
+      return {
+        ref: p.ref,
+        cle,
+        libelle: p.libelle,
+        note: NOTE_PAR_CLE_PROJETS[cle] ?? '',
+        niveau: NIVEAUX_ETAT_PROJETS[cle] ?? (p.estTotal ? 'inter' : 'normal'),
+        montants: [p.montant, p.montantN1 ?? null],
+      };
+    });
+  }
+
+  /**
+   * Feuilles `Bilan-Actif` / `Bilan-Passif` du jeu projets · le modèle les
+   * présente EN NET (le tableau officiel du ch. 3 n'a pas de colonne
+   * amortissements, correction documentée dans le skill) : cinq colonnes,
+   * titre « BILAN (EN NET) ».
+   */
+  private feuillesBilanProjetEtafi(
+    classeur: ExcelJS.Workbook,
+    bilan: Awaited<ReturnType<EtatsFinanciersProjetService['bilan']>>,
+    ident: IdentiteLiasse,
+  ): { rangsActif: Map<string, number>; rangsPassif: Map<string, number> } {
+    const rangsActif = construireFeuilleEtat(classeur, {
+      nom: 'Bilan-Actif',
+      titre: 'BILAN (EN NET)',
+      taille: 16,
+      ident,
+      pageRef: 'BILAN (EN NET)\nPAGE 1/2',
+      libelleColonne: 'ACTIF',
+      groupes: ExportService.GROUPES_NET,
+      lignes: this.lignesProjetEtafi(bilan.actif),
+      totaux: TOTAUX_PROJETS_BILAN,
+    });
+    const rangsPassif = construireFeuilleEtat(classeur, {
+      nom: 'Bilan-Passif',
+      titre: 'BILAN (EN NET)',
+      taille: 16,
+      ident,
+      pageRef: 'BILAN (EN NET)\nPAGE 2/2',
+      libelleColonne: 'PASSIF',
+      groupes: ExportService.GROUPES_NET,
+      lignes: this.lignesProjetEtafi(bilan.passif),
+      totaux: TOTAUX_PROJETS_BILAN,
+    });
+    return { rangsActif, rangsPassif };
+  }
+
+  /** Bilan du jeu projets · export individuel, charte ETAFI, valeurs seules. */
   async bilanProjetExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
-    const bilan = await this.etatsFinanciersProjetService.bilan(tenantId, exerciceId);
-    const suffixeN1 = bilan.exerciceN1Disponible ? '' : ' (aucun exercice antérieur)';
-
+    const [bilan, ident] = await Promise.all([
+      this.etatsFinanciersProjetService.bilan(tenantId, exerciceId),
+      this.identiteLiasse(tenantId, exerciceId),
+    ]);
     const classeur = this.nouveauClasseur();
-    const feuille = classeur.addWorksheet('Bilan (projet de développement)');
-    // DEUX colonnes de valeur par volet, pas quatre : le texte officiel de ce
-    // jeu ne prévoit ni Brut ni Amortissements (contrairement au bilan des
-    // associations). Voir l'en-tête de correspondance-projet-bilan.ts.
-    feuille.columns = [
-      { header: 'Actif · REF', key: 'refActif', width: 10 },
-      { header: 'Actif · libellé', key: 'libelleActif', width: 42 },
-      { header: 'Actif · Exercice au 31/12/N', key: 'montantActif', width: 20 },
-      { header: `Actif · Exercice au 31/12/N-1${suffixeN1}`, key: 'montantActifN1', width: 22 },
-      { header: 'Passif · REF', key: 'refPassif', width: 10 },
-      { header: 'Passif · libellé', key: 'libellePassif', width: 42 },
-      { header: 'Passif · Exercice au 31/12/N', key: 'montantPassif', width: 20 },
-      { header: `Passif · Exercice au 31/12/N-1${suffixeN1}`, key: 'montantPassifN1', width: 22 },
-    ];
-
-    const maxLignes = Math.max(bilan.actif.length, bilan.passif.length);
-    for (let i = 0; i < maxLignes; i++) {
-      const a = bilan.actif[i];
-      const p = bilan.passif[i];
-      const ligne = feuille.addRow({
-        refActif: a?.ref ?? '',
-        libelleActif: a?.libelle ?? '',
-        montantActif: a ? a.montant : null,
-        montantActifN1: a?.montantN1 ?? null,
-        refPassif: p?.ref ?? '',
-        libellePassif: p?.libelle ?? '',
-        montantPassif: p ? p.montant : null,
-        montantPassifN1: p?.montantN1 ?? null,
-      });
-      if (a?.estTotal) {
-        for (const cle of ['refActif', 'libelleActif', 'montantActif', 'montantActifN1']) {
-          ligne.getCell(cle).font = ENTETE_FONT;
-        }
-      }
-      if (p?.estTotal) {
-        for (const cle of ['refPassif', 'libellePassif', 'montantPassif', 'montantPassifN1']) {
-          ligne.getCell(cle).font = ENTETE_FONT;
-        }
-      }
-    }
-
-    this.appliquerFormats(feuille, {
-      montantActif: FORMAT_MONTANT,
-      montantActifN1: FORMAT_MONTANT,
-      montantPassif: FORMAT_MONTANT,
-      montantPassifN1: FORMAT_MONTANT,
-    });
-    styliserEntete(feuille.getRow(1));
-    feuille.views = [{ state: 'frozen', ySplit: 1 }];
-
-    const detail = classeur.addWorksheet('Détail par poste');
-    detail.columns = [
-      { header: 'Sens', key: 'sens', width: 8 },
-      { header: 'REF', key: 'ref', width: 8 },
-      { header: 'Poste', key: 'poste', width: 48 },
-      { header: 'Compte', key: 'numero', width: 12 },
-      { header: 'Intitulé compte', key: 'intitule', width: 44 },
-      { header: 'Montant', key: 'montant', width: 16 },
-    ];
-    for (const [sens, postes] of [['Actif', bilan.actif], ['Passif', bilan.passif]] as const) {
-      for (const p of postes) {
-        for (const c of p.comptes) {
-          detail.addRow({ sens, ref: p.ref, poste: p.libelle, numero: c.numero, intitule: c.intitule, montant: c.montant });
-        }
-      }
-    }
-    this.appliquerFormats(detail, { montant: FORMAT_MONTANT });
-    this.finaliserTableau(detail, detail.columns.length, detail.rowCount);
-
-    const anomalies = classeur.addWorksheet('Contrôles et anomalies');
-    anomalies.columns = [
-      { header: 'Compte', key: 'numero', width: 14 },
-      { header: 'Intitulé', key: 'intitule', width: 48 },
-      { header: 'Montant', key: 'montant', width: 20 },
-      { header: 'Diagnostic', key: 'diagnostic', width: 90 },
-    ];
-
-    const ligneEquilibre = anomalies.addRow({
-      numero: 'CONTRÔLE',
-      intitule: 'Total actif (BZ) = Total passif (DZ) ?',
-      montant: bilan.totalActif - bilan.totalPassif,
-      diagnostic: bilan.equilibre
-        ? `OK · bilan équilibré. Actif = Passif = ${bilan.totalActif.toFixed(2)}.`
-        : `DÉSÉQUILIBRE de ${(bilan.totalActif - bilan.totalPassif).toFixed(2)} · vérifier les écritures et les comptes non rattachés ci-dessous.`,
-    });
-    ligneEquilibre.font = { bold: true, color: { argb: bilan.equilibre ? 'FF1E7B34' : 'FFB00020' } };
-
-    for (const c of bilan.comptesNonRattaches) {
-      anomalies.addRow({
-        numero: c.numero,
-        intitule: c.intitule,
-        montant: c.montant,
-        diagnostic:
-          'Compte de bilan (classe 1 à 5) qu’aucun poste du tableau de correspondance officiel (jeu projets de développement) ne réclame : ' +
-          'son montant n’entre dans AUCUN total de cet état. Vérifier le numéro de compte.',
-      });
-    }
-    if (bilan.comptesNonRattaches.length === 0) {
-      anomalies.addRow({
-        numero: '·',
-        intitule: 'Aucun compte non rattaché : tous les comptes de bilan entrent dans un poste officiel.',
-      });
-    }
-    this.appliquerFormats(anomalies, { montant: FORMAT_MONTANT });
-    this.finaliserTableau(anomalies, anomalies.columns.length, anomalies.rowCount);
-
+    const { rangsActif, rangsPassif } = this.feuillesBilanProjetEtafi(classeur, bilan, ident);
+    const controle = bilan.equilibre
+      ? `Contrôle : bilan équilibré · actif = passif = ${bilan.totalActif.toLocaleString('fr-FR')}.`
+      : `CONTRÔLE : DÉSÉQUILIBRE de ${(bilan.totalActif - bilan.totalPassif).toLocaleString('fr-FR')} entre actif et passif.`;
+    ligneControleSousEtat(classeur.getWorksheet('Bilan-Actif')!, Math.max(...rangsActif.values()) + 2, controle);
+    ligneControleSousEtat(classeur.getWorksheet('Bilan-Passif')!, Math.max(...rangsPassif.values()) + 2, controle);
+    numeroterPages(classeur);
     return {
       buffer: await this.versBuffer(classeur),
-      nomFichier: `bilan-projet-developpement${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
+      nomFichier: `bilan-projet${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
     };
   }
 
   /**
-   * COMPTE D'EXPLOITATION · jeu SYCEBNL « projets de développement et
-   * assimilés » (Partie 4, ch. 3), adossé à
-   * `EtatsFinanciersProjetService`/`correspondance-projet-compte-exploitation.ts`.
-   * Le doublon officiel de REF « TJ »/« TK » (anomalie n° 3, voir ce fichier)
-   * ressort tel quel : deux lignes portant le même REF, comme le fait
-   * l'état officiel.
+   * Feuille `Compte Exploitation` du modèle · les clés TJ2/TK2 distinguent
+   * les deux lignes au ref dupliqué du texte officiel (signalé
+   * `[texte officiel]` dans le skill), l'écran montre TJ et TK.
    */
-  async compteExploitationProjetExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
-    const ce = await this.etatsFinanciersProjetService.compteExploitation(tenantId, exerciceId);
-    const suffixeN1 = ce.exerciceN1Disponible ? '' : ' (aucun exercice antérieur)';
-
-    const classeur = this.nouveauClasseur();
-    const feuille = classeur.addWorksheet("Compte d'exploitation");
-    feuille.columns = [
-      { header: 'REF', key: 'ref', width: 8 },
-      { header: 'Libellé', key: 'libelle', width: 58 },
-      { header: 'Montant (N)', key: 'montant', width: 16 },
-      { header: `Montant (N-1)${suffixeN1}`, key: 'montantN1', width: 17 },
-    ];
-
-    const ajouterTotal = (ref: string, libelle: string, montant: number, montantN1?: number) => {
-      const ligne = feuille.addRow({ ref, libelle, montant, montantN1: montantN1 ?? null });
-      ligne.font = ENTETE_FONT;
-      return ligne;
-    };
-    const ajouterPoste = (p: PosteCalcule) =>
-      feuille.addRow({ ref: p.ref, libelle: p.libelle, montant: p.montant, montantN1: p.montantN1 ?? null });
-
-    ce.revenus.forEach(ajouterPoste);
-    ajouterTotal('XA', 'REVENUS (Somme RA à RE)', ce.totalRevenus, ce.totalRevenusN1);
-    ce.charges.forEach(ajouterPoste);
-    ajouterTotal('XB', 'CHARGES DE FONCTIONNEMENT (Somme TA à TL)', ce.totalCharges, ce.totalChargesN1);
-    ajouterTotal('XC', "SOLDE DES OPERATIONS DE L'EXERCICE (XA − XB)", ce.solde, ce.soldeN1);
-
-    this.appliquerFormats(feuille, { montant: FORMAT_MONTANT, montantN1: FORMAT_MONTANT });
-    styliserEntete(feuille.getRow(1));
-    feuille.views = [{ state: 'frozen', ySplit: 1 }];
-
-    const note = feuille.addRow([
-      'Postes conformes au tableau de correspondance officiel SYCEBNL (Journal officiel OHADA, Partie 4 ch. 3). ' +
-        'RC (subventions, compte 71) et RE (reprises) dans XA : deux anomalies du texte officiel corrigées ' +
-        '(RC absente du modèle vierge, XA limité à « RA à RD » au lieu de RA à RE) · voir ' +
-        'correspondance-projet-compte-exploitation.ts. TJ et TK apparaissent DEUX FOIS chacun : doublon du ' +
-        'texte officiel, reproduit tel quel, non corrigé.',
-    ]);
-    note.font = { italic: true, color: { argb: 'FF555555' } };
-    feuille.mergeCells(`A${note.number}:D${note.number}`);
-
-    const detail = classeur.addWorksheet('Détail par poste');
-    detail.columns = [
-      { header: 'REF', key: 'ref', width: 8 },
-      { header: 'Poste', key: 'poste', width: 52 },
-      { header: 'Compte', key: 'numero', width: 12 },
-      { header: 'Intitulé compte', key: 'intitule', width: 44 },
-      { header: 'Montant', key: 'montant', width: 18 },
-    ];
-    for (const p of [...ce.revenus, ...ce.charges]) {
-      for (const c of p.comptes) {
-        detail.addRow({ ref: p.ref, poste: p.libelle, numero: c.numero, intitule: c.intitule, montant: c.montant });
-      }
-    }
-    this.appliquerFormats(detail, { montant: FORMAT_MONTANT });
-    this.finaliserTableau(detail, detail.columns.length, detail.rowCount);
-
-    const anomalies = classeur.addWorksheet('Contrôles et anomalies');
-    anomalies.columns = [
-      { header: 'Compte', key: 'numero', width: 14 },
-      { header: 'Intitulé', key: 'intitule', width: 48 },
-      { header: 'Montant (crédit − débit)', key: 'montant', width: 24 },
-      { header: 'Diagnostic', key: 'diagnostic', width: 78 },
-    ];
-
-    const ligneControle = anomalies.addRow({
-      numero: 'CONTRÔLE',
-      intitule: "Solde des opérations de l'exercice (XC) boucle-t-il à zéro ?",
-      montant: ce.solde,
-      diagnostic: ce.controle.boucleAZero
-        ? `OK · XC = ${ce.solde.toFixed(2)} (≈ 0), régime normal pour ce jeu.`
-        : `XC = ${ce.solde.toFixed(2)} (≠ 0) · pas nécessairement une erreur : un projet en cours d'exercice ` +
-          `ou dont la clôture n'a pas transféré le solde au compte 13 peut légitimement présenter un écart. ` +
-          `Vérifier les comptes non rattachés ci-dessous et l'état du compte 13.`,
+  private feuilleCompteExploitationEtafi(
+    classeur: ExcelJS.Workbook,
+    ce: Awaited<ReturnType<EtatsFinanciersProjetService['compteExploitation']>>,
+    ident: IdentiteLiasse,
+  ): Map<string, number> {
+    const total = (ref: string, libelle: string): PosteCalcule & { cle?: string } => ({
+      ref,
+      libelle,
+      montant: 0,
+      comptes: [],
+      estTotal: true,
     });
-    ligneControle.font = { bold: true, color: { argb: ce.controle.boucleAZero ? 'FF1E7B34' : 'FFB00020' } };
+    const avecCles = (postes: PosteCalcule[], specs: Array<{ cle: string }>): Array<PosteCalcule & { cle?: string }> =>
+      postes.map((p, i) => ({ ...p, cle: specs[i]?.cle }));
+    const postes: Array<PosteCalcule & { cle?: string }> = [
+      ...avecCles(ce.revenus, POSTES_REVENUS_PROJET),
+      total('XA', 'TOTAL REVENUS'),
+      ...avecCles(ce.charges, POSTES_CHARGES_PROJET),
+      total('XB', 'TOTAL CHARGES'),
+      total('XC', 'SOLDE : EXCEDENT OU PERTE (XA - XB)'),
+    ];
+    return construireFeuilleEtat(classeur, {
+      nom: 'Compte Exploitation',
+      titre: "COMPTE D'EXPLOITATION",
+      taille: 14,
+      ident,
+      pageRef: "COMPTE D'EXPLOITATION\nPROJETS DE\nDEVELOPPEMENT",
+      libelleColonne: 'LIBELLES',
+      groupes: ExportService.GROUPES_NET,
+      lignes: this.lignesProjetEtafi(postes),
+      totaux: TOTAUX_PROJETS_CE,
+    });
+  }
 
-    for (const c of ce.comptesNonRattaches) {
-      anomalies.addRow({
-        numero: c.numero,
-        intitule: c.intitule,
-        montant: c.montant,
-        diagnostic:
-          'Compte de gestion (classe 6/7/8) qu’aucun poste du tableau de correspondance officiel (jeu projets ' +
-          'de développement) ne réclame · le compte 68 (dotations aux amortissements) notamment : absent du ' +
-          'tableau officiel lui-même (anomalie n° 4, voir correspondance-projet-compte-exploitation.ts).',
-      });
-    }
-    if (ce.comptesNonRattaches.length === 0) {
-      anomalies.addRow({
-        numero: '·',
-        intitule: 'Aucun compte non rattaché : tous les comptes de gestion entrent dans un poste officiel.',
-      });
-    }
-    this.appliquerFormats(anomalies, { montant: FORMAT_MONTANT });
-    this.finaliserTableau(anomalies, anomalies.columns.length, anomalies.rowCount);
-
+  /** Compte d'exploitation · export individuel, charte ETAFI. */
+  async compteExploitationProjetExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
+    const [ce, ident] = await Promise.all([
+      this.etatsFinanciersProjetService.compteExploitation(tenantId, exerciceId),
+      this.identiteLiasse(tenantId, exerciceId),
+    ]);
+    const classeur = this.nouveauClasseur();
+    const rangs = this.feuilleCompteExploitationEtafi(classeur, ce, ident);
+    ligneControleSousEtat(
+      classeur.getWorksheet('Compte Exploitation')!,
+      Math.max(...rangs.values()) + 2,
+      ce.controle.boucleAZero
+        ? 'Contrôle : le compte d’exploitation boucle à zéro (XC = 0), régime normal du jeu projets.'
+        : `CONTRÔLE : XC = ${ce.solde.toLocaleString('fr-FR')} · le compte d'exploitation ne boucle pas à zéro (voir Notes).`,
+    );
+    numeroterPages(classeur);
     return {
       buffer: await this.versBuffer(classeur),
-      nomFichier: `compte-exploitation-projet-developpement${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
+      nomFichier: `compte-exploitation-projet${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
     };
   }
+
 
   /**
    * NOTE 9 : FONDS DU BAILLEUR (Partie 4, ch. 3, Section 6) · comptabilité
@@ -1858,212 +1777,284 @@ export class ExportService {
   // l'article 14, dont la correspondance vient du Guide d'application, ch. 7.
   // -------------------------------------------------------------------------
 
-  async emploisRessourcesExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
-    const er = await this.etatsFinanciersProjetService.tableauEmploisRessources(tenantId, exerciceId);
-    const classeur = this.nouveauClasseur();
-
-    const f = classeur.addWorksheet('Emplois-ressources');
-    f.columns = [
-      { header: 'REF', key: 'ref', width: 8 },
-      { header: 'Désignation', key: 'libelle', width: 56 },
-      { header: 'Mouvement brut', key: 'brut', width: 18 },
-      { header: 'Correction (renvois du guide)', key: 'correction', width: 26 },
-      { header: 'Exercice N', key: 'montant', width: 18 },
-    ];
-    for (const l of er.lignes) {
-      // `brut` et `correction` ne figurent que sur les postes d'emploi · les
-      // ressources et les totaux n'en ont pas, d'où la lecture élargie.
-      const p = l as typeof l & { brut?: number; correction?: number };
-      const aCorrection = p.correction !== undefined && Math.abs(p.correction) > 0.005;
-      const ligne = f.addRow({
-        ref: l.ref,
-        libelle: l.libelle,
-        brut: aCorrection ? p.brut : null,
-        correction: aCorrection ? p.correction : null,
-        montant: l.montant,
-      });
-      if (l.estTotal) ligne.font = ENTETE_FONT;
+  /**
+   * Feuille `Emplois-Ressources` du modèle : REF | DESIGNATION | SOLDE CUMULE
+   * DEBUT EXERCICE N | EXERCICE N | SOLDE CUMULE FIN EXERCICE N. La colonne
+   * de l'exercice vient du serveur ; les cumuls de début de projet sont
+   * extra-comptables (une balance d'exercice ne les porte pas) · la colonne
+   * reste à compléter et la colonne de fin la totalise en formule C+D,
+   * exactement comme le modèle. Les totaux I à VII sont en formules.
+   */
+  private feuilleEmploisRessourcesEtafi(
+    classeur: ExcelJS.Workbook,
+    er: Awaited<ReturnType<EtatsFinanciersProjetService['tableauEmploisRessources']>>,
+    ident: IdentiteLiasse,
+  ): Map<string, number> {
+    const ws = classeur.addWorksheet('Emplois-Ressources');
+    ecrireCartouche(ws, ident, 'EMPLOIS-RESSOURCES\nPROJETS DE\nDEVELOPPEMENT', 5);
+    titreEtat(ws, 'TABLEAU EMPLOIS-RESSOURCES', 1, 5, 7, 14);
+    let r = 8;
+    for (const [i, h] of [
+      'REF',
+      'DESIGNATION',
+      'SOLDE CUMULE DEBUT EXERCICE N',
+      'EXERCICE N',
+      'SOLDE CUMULE FIN EXERCICE N',
+    ].entries()) {
+      ws.getCell(r, i + 1).value = h;
     }
-    this.appliquerFormats(f, { brut: FORMAT_MONTANT, correction: FORMAT_MONTANT, montant: FORMAT_MONTANT });
-    styliserEntete(f.getRow(1));
-    f.views = [{ state: 'frozen', ySplit: 1 }];
+    entetesBande(ws, r, r, 1, 5);
+    ws.getRow(r).height = 30;
 
-    const detail = classeur.addWorksheet('Détail par poste');
-    detail.columns = [
-      { header: 'REF', key: 'ref', width: 8 },
-      { header: 'Poste', key: 'poste', width: 50 },
-      { header: 'Compte', key: 'numero', width: 14 },
-      { header: 'Intitulé compte', key: 'intitule', width: 46 },
-      { header: 'Montant', key: 'montant', width: 18 },
-    ];
+    const rangs = new Map<string, number>();
     for (const l of er.lignes) {
-      for (const c of l.comptes) {
-        detail.addRow({ ref: l.ref, poste: l.libelle, numero: c.numero, intitule: c.intitule, montant: c.montant });
+      r += 1;
+      rangs.set(l.ref, r);
+      ws.getCell(r, 1).value = l.ref;
+      ws.getCell(r, 2).value = l.libelle;
+      if (!TOTAUX_TER[l.ref]) {
+        ws.getCell(r, 4).value = l.montant;
+        ws.getCell(r, 5).value = { formula: `C${r}+D${r}` };
+      }
+      styleLigne(ws, r, 1, 5, NIVEAUX_TER[l.ref] ?? 'normal', [3, 4, 5], 1);
+      ws.getRow(r).height = 22;
+    }
+    for (const [ref, expression] of Object.entries(TOTAUX_TER)) {
+      const rang = rangs.get(ref);
+      if (!rang) continue;
+      for (const col of [3, 4, 5]) {
+        const lettre = String.fromCharCode(64 + col);
+        const formule = expression.replace(/[A-Z]{2}/g, (composante) => {
+          const rr = rangs.get(composante);
+          return rr ? `${lettre}${rr}` : '0';
+        });
+        ws.getCell(rang, col).value = { formula: formule };
       }
     }
-    this.appliquerFormats(detail, { montant: FORMAT_MONTANT });
-    this.finaliserTableau(detail, detail.columns.length, detail.rowCount);
-
-    const controles = classeur.addWorksheet('Contrôles et méthode');
-    controles.columns = [
-      { header: 'Point', key: 'point', width: 34 },
-      { header: 'Montant', key: 'montant', width: 18 },
-      { header: 'Ce qui est appliqué', key: 'texte', width: 110 },
-    ];
-    const ctrl = controles.addRow({
-      point: 'CONTRÔLE OFFICIEL GZ',
-      montant: er.controle.ecart,
-      texte: er.controle.boucle
-        ? `OK · « VII. CONTRÔLE : TOTAL V = TOTAL VI » vérifié à ${er.encaisseDisponible.toFixed(2)}.`
-        : "ÉCHEC · l'encaisse reconstituée (V) ne correspond pas aux fonds disponibles en fin d'exercice (VI).",
-    });
-    ctrl.font = { bold: true, color: { argb: er.controle.boucle ? 'FF1E7B34' : 'FFB00020' } };
-    controles.addRow({
-      point: 'Source de la correspondance',
-      texte:
-        "Guide d'application du SYCEBNL, chapitre 7, APPLICATION 21. La Partie 4 ch. 3 donne la maquette du tableau mais aucun rattachement aux comptes ; c'est le guide qui le fournit, poste par poste, renvois compris.",
-    });
-    controles.addRow({
-      point: 'Nature des montants',
-      texte:
-        "Ce tableau lit des MOUVEMENTS de la balance (crédit pour les ressources, débit pour les emplois), corrigés des variations de dettes pour ne retenir que ce qui a été encaissé ou décaissé. Ce n'est pas une lecture de soldes.",
-    });
-    controles.addRow({
-      point: 'Anomalie du guide',
-      texte:
-        "Les renvois (3) à (7) écrivent « solde DÉBITEUR » pour des comptes de dettes (401, 44, 42, 43, 4813), dont le solde normal est créditeur ; le renvoi (2) écrit « créditeur » pour le même mécanisme sur le 481. C'est une coquille du guide : le sens créditeur est retenu partout, et le sens économique le confirme (emploi décaissé = charge + dette N-1 − dette N).",
-    });
-    for (const a of er.avertissements) controles.addRow({ point: 'Réserve', texte: a });
-    this.appliquerFormats(controles, { montant: FORMAT_MONTANT });
-    for (let i = 2; i <= controles.rowCount; i++) {
-      controles.getRow(i).getCell('texte').alignment = { wrapText: true, vertical: 'top' };
-    }
-    this.finaliserTableau(controles, controles.columns.length, controles.rowCount);
-
-    return {
-      buffer: await this.versBuffer(classeur),
-      nomFichier: `emplois-ressources-projet${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
-    };
+    cadre(ws, 8, 1, r, 5, MOYEN);
+    r += 2;
+    ligneControleSousEtat(
+      ws,
+      r,
+      'Les soldes cumulés de début de projet (colonne C, lignes FU à FW et FX à FZ comprises) sont extra-comptables : ' +
+        'à compléter depuis le suivi du projet. La ligne VII contrôle V = VI.',
+    );
+    largeurs(ws, { A: 7, B: 56, C: 19, D: 17, E: 19 });
+    ws.views = [{ state: 'frozen', ySplit: 8, showGridLines: false }];
+    return rangs;
   }
 
-  async executionBudgetaireExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
-    const t = await this.etatsFinanciersProjetBudgetService.executionBudgetaire(tenantId, exerciceId);
+  /** Tableau emplois-ressources · export individuel, charte ETAFI. */
+  async emploisRessourcesExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
+    const [er, ident] = await Promise.all([
+      this.etatsFinanciersProjetService.tableauEmploisRessources(tenantId, exerciceId),
+      this.identiteLiasse(tenantId, exerciceId),
+    ]);
     const classeur = this.nouveauClasseur();
-
-    const f = classeur.addWorksheet('Exécution budgétaire');
-    f.columns = [
-      { header: 'Code', key: 'code', width: 12 },
-      { header: 'Libellé', key: 'libelle', width: 46 },
-      { header: "Budget de l'exercice (1)", key: 'budget', width: 22 },
-      { header: 'Décaissement (2)', key: 'decaissement', width: 18 },
-      { header: 'Engagement (3)', key: 'engagement', width: 18 },
-      { header: 'Réalisation (4 = 2+3)', key: 'realisation', width: 20 },
-      { header: 'Crédit disponible (5 = 1-4)', key: 'creditDisponible', width: 24 },
-      { header: 'Exécution budget (4/1)', key: 'pourcent', width: 20 },
-    ];
-    for (const l of t.lignes) {
-      f.addRow({ ...l, pourcent: l.executionPourcent === null ? null : l.executionPourcent / 100 });
-    }
-    const total = f.addRow({
-      code: 'TOTAL',
-      budget: t.total.budget,
-      decaissement: t.total.decaissement,
-      engagement: t.total.engagement,
-      realisation: t.total.realisation,
-      creditDisponible: t.total.creditDisponible,
-      pourcent: t.total.executionPourcent === null ? null : t.total.executionPourcent / 100,
-    });
-    total.font = ENTETE_FONT;
-    this.appliquerFormats(f, {
-      budget: FORMAT_MONTANT,
-      decaissement: FORMAT_MONTANT,
-      engagement: FORMAT_MONTANT,
-      realisation: FORMAT_MONTANT,
-      creditDisponible: FORMAT_MONTANT,
-      pourcent: '0.0%',
-    });
-    styliserEntete(f.getRow(1));
-    f.views = [{ state: 'frozen', ySplit: 1 }];
-
-    const methode = classeur.addWorksheet('Méthode');
-    methode.columns = [
-      { header: 'Point', key: 'point', width: 34 },
-      { header: 'Ce qui est appliqué', key: 'texte', width: 120 },
-    ];
-    for (const [point, texte] of [
-      ['Source', "Partie 4, ch. 3, Section 2 (et NOTE 24) pour la maquette ; Guide d'application, chapitre 7, APPLICATION 22 pour les règles de remplissage."],
-      ['Nomenclature budgétaire', `Plan analytique ${t.plan.code} · ${t.plan.intitule}. Le guide dit « remplir code et libellé suivant la nomenclature budgétaire du projet » : dans OmegaX cette nomenclature est un plan analytique, et ses sections portent le budget de l'exercice.`],
-      ['Décaissement contre engagement', "Le guide définit l'engagement par « le solde créditeur balance N des comptes fournisseurs d'exploitation (40) et d'investissement (481) ». Cette définition est globale ; le tableau étant par ligne budgétaire, la règle est appliquée écriture par écriture, ce qui donne le même agrégé tout en étant exact par section : une dépense dont l'écriture a touché la trésorerie est décaissée ; une dépense passée en compte de tiers est engagée tant que la ligne de tiers n'est pas lettrée, décaissée une fois lettrée."],
-      ['Engagements hors comptabilité', t.engagementsHorsComptabilite],
-    ] as [string, string][]) {
-      const l = methode.addRow({ point, texte });
-      l.getCell('point').font = ENTETE_FONT;
-      l.getCell('texte').alignment = { wrapText: true, vertical: 'top' };
-    }
-    styliserEntete(methode.getRow(1));
-
+    this.feuilleEmploisRessourcesEtafi(classeur, er, ident);
+    numeroterPages(classeur);
     return {
       buffer: await this.versBuffer(classeur),
-      nomFichier: `execution-budgetaire-projet${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
+      nomFichier: `emplois-ressources${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
     };
   }
 
+  /**
+   * Feuille `Execution budgetaire` du modèle : Code | Libellé | Budget (1) |
+   * Décaissement (2) | Engagement (3) | Réalisation (4 = 2 + 3) | Crédit
+   * disponible (5 = 1 - 4) | Exécution budget % (4/1) · les trois dernières
+   * en formules, comme le modèle. Le serveur remplit code, libellé, budget,
+   * décaissements et engagements réels du plan analytique budgétaire · le
+   * moteur Python du skill, lui, laisse la grille vierge (une balance ne
+   * porte pas la nomenclature budgétaire).
+   */
+  private feuilleExecutionBudgetaireEtafi(
+    classeur: ExcelJS.Workbook,
+    eb: Awaited<ReturnType<EtatsFinanciersProjetBudgetService['executionBudgetaire']>>,
+    ident: IdentiteLiasse,
+  ): number {
+    const ws = classeur.addWorksheet('Execution budgetaire');
+    ecrireCartouche(ws, ident, 'EXECUTION BUDGETAIRE\nPROJETS DE\nDEVELOPPEMENT', 8);
+    titreEtat(ws, "TABLEAU DE SUIVI D'EXECUTION DU BUDGET", 1, 8, 7, 14);
+    let r = 8;
+    for (const [i, h] of [
+      'Code',
+      'Libellé',
+      "Budget de l'exercice (1)",
+      'Décaissement (2)',
+      'Engagement (3)',
+      'Réalisation (4 = 2 + 3)',
+      'Crédit disponible (5 = 1 - 4)',
+      'Exécution budget % (4/1)',
+    ].entries()) {
+      ws.getCell(r, i + 1).value = h;
+    }
+    entetesBande(ws, r, r, 1, 8);
+    ws.getRow(r).height = 34;
+    const debut = r + 1;
+    for (const l of eb.lignes) {
+      r += 1;
+      ws.getCell(r, 1).value = l.code;
+      ws.getCell(r, 2).value = l.libelle;
+      ws.getCell(r, 3).value = l.budget;
+      ws.getCell(r, 4).value = l.decaissement;
+      ws.getCell(r, 5).value = l.engagement;
+      ws.getCell(r, 6).value = { formula: `D${r}+E${r}` };
+      ws.getCell(r, 7).value = { formula: `C${r}-F${r}` };
+      ws.getCell(r, 8).value = { formula: `IF(C${r}=0,"",F${r}/C${r})` };
+      styleLigne(ws, r, 1, 8, 'normal', [3, 4, 5, 6, 7]);
+      ws.getCell(r, 8).numFmt = '0.0%';
+    }
+    r += 1;
+    ws.getCell(r, 2).value = 'TOTAL';
+    for (const col of [3, 4, 5, 6, 7]) {
+      const lettre = String.fromCharCode(64 + col);
+      ws.getCell(r, col).value = { formula: `SUM(${lettre}${debut}:${lettre}${r - 1})` };
+    }
+    ws.getCell(r, 8).value = { formula: `IF(C${r}=0,"",F${r}/C${r})` };
+    styleLigne(ws, r, 1, 8, 'inter', [3, 4, 5, 6, 7]);
+    ws.getCell(r, 8).numFmt = '0.0%';
+    cadre(ws, 8, 1, r, 8, MOYEN);
+    r += 2;
+    ligneControleSousEtat(
+      ws,
+      r,
+      `Nomenclature budgétaire : plan analytique « ${eb.plan.code} · ${eb.plan.intitule} ». ` +
+        'Décaissement = dépense payée (trésorerie touchée ou fournisseur lettré) ; engagement = dépense constatée non payée.',
+    );
+    largeurs(ws, { A: 10, B: 40, C: 16, D: 15, E: 15, F: 16, G: 17, H: 14 });
+    ws.views = [{ state: 'frozen', ySplit: 8, showGridLines: false }];
+    return r;
+  }
+
+  /**
+   * Variante VIERGE de l'exécution budgétaire · quand le dossier n'a pas de
+   * plan analytique à budgets, la liasse livre la grille du modèle à
+   * remplir (14 lignes, formules posées) au lieu d'échouer.
+   */
+  private feuilleExecutionBudgetaireVierge(classeur: ExcelJS.Workbook, ident: IdentiteLiasse, raison: string) {
+    const eb = {
+      plan: { id: '', code: '·', intitule: 'aucun plan analytique à budgets' },
+      lignes: Array.from({ length: 14 }, () => ({
+        code: '',
+        libelle: '',
+        budget: null as unknown as number,
+        decaissement: null as unknown as number,
+        engagement: null as unknown as number,
+        realisation: 0,
+        creditDisponible: 0,
+        executionPourcent: null,
+      })),
+    };
+    const dernier = this.feuilleExecutionBudgetaireEtafi(
+      classeur,
+      eb as unknown as Awaited<ReturnType<EtatsFinanciersProjetBudgetService['executionBudgetaire']>>,
+      ident,
+    );
+    ligneControleSousEtat(classeur.getWorksheet('Execution budgetaire')!, dernier + 1, raison);
+  }
+
+  /** Tableau d'exécution budgétaire · export individuel, charte ETAFI. */
+  async executionBudgetaireExcel(tenantId: string, exerciceId: string, planId?: string): Promise<ClasseurExporte> {
+    const [eb, ident] = await Promise.all([
+      this.etatsFinanciersProjetBudgetService.executionBudgetaire(tenantId, exerciceId, planId),
+      this.identiteLiasse(tenantId, exerciceId),
+    ]);
+    const classeur = this.nouveauClasseur();
+    this.feuilleExecutionBudgetaireEtafi(classeur, eb, ident);
+    numeroterPages(classeur);
+    return {
+      buffer: await this.versBuffer(classeur),
+      nomFichier: `execution-budgetaire${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
+    };
+  }
+
+  /**
+   * Feuille `Reconciliation tresorerie` du modèle : LIBELLE | REP. | MONTANT,
+   * lignes A à I, G en bandeau vert et I en TOTAL bleu nuit, rappel de la
+   * trésorerie de clôture et écart à expliquer sous le cadre.
+   */
+  private feuilleReconciliationEtafi(
+    classeur: ExcelJS.Workbook,
+    recon: Awaited<ReturnType<EtatsFinanciersProjetBudgetService['reconciliationTresorerie']>>,
+    ident: IdentiteLiasse,
+    /** Rangs du tableau emplois-ressources · fournis par la liasse, les
+     *  lignes B, D et F se lient alors à lui, comme dans le modèle. */
+    terRangs?: Map<string, number>,
+  ): { rangs: Map<string, number>; dernier: number } {
+    const ws = classeur.addWorksheet('Reconciliation tresorerie');
+    ecrireCartouche(ws, ident, 'RECONCILIATION\nPROJETS DE\nDEVELOPPEMENT', 3);
+    titreEtat(ws, 'TABLEAU DE RECONCILIATION DE LA TRESORERIE', 1, 3, 7, 14);
+    let r = 8;
+    ws.getCell(r, 1).value = 'LIBELLE';
+    ws.getCell(r, 2).value = 'REP.';
+    ws.getCell(r, 3).value = 'MONTANT';
+    entetesBande(ws, r, r, 1, 3);
+    ws.getRow(r).height = 22;
+    const rangs = new Map<string, number>();
+    for (const l of recon.lignes) {
+      r += 1;
+      rangs.set(l.rep, r);
+      ws.getCell(r, 1).value = l.libelle;
+      ws.getCell(r, 2).value = l.rep;
+      ws.getCell(r, 3).value = l.montant;
+      styleLigne(ws, r, 1, 3, NIVEAUX_RECONCILIATION[l.rep] ?? 'normal', [3], 2);
+      ws.getRow(r).height = 22;
+    }
+    // Dans la liasse, B, D et F se lient au tableau emplois-ressources ·
+    // les deux états ne peuvent alors plus diverger.
+    if (terRangs) {
+      const er = (ref: string) => `'Emplois-Ressources'!D${terRangs.get(ref)}`;
+      if (rangs.has('B')) ws.getCell(rangs.get('B')!, 3).value = { formula: `${er('FA')}+${er('FB')}+${er('FC')}` };
+      if (rangs.has('D')) ws.getCell(rangs.get('D')!, 3).value = { formula: er('FD') };
+      if (rangs.has('F')) ws.getCell(rangs.get('F')!, 3).value = { formula: er('GU') };
+    }
+    // G et I en formules, sur la logique que leur libellé annonce.
+    if (rangs.has('G')) {
+      ws.getCell(rangs.get('G')!, 3).value = {
+        formula: `C${rangs.get('A')}+C${rangs.get('B')}+C${rangs.get('C')}+C${rangs.get('D')}-C${rangs.get('E')}-C${rangs.get('F')}`,
+      };
+    }
+    if (rangs.has('I')) {
+      ws.getCell(rangs.get('I')!, 3).value = { formula: `C${rangs.get('G')}-C${rangs.get('H')}` };
+    }
+    cadre(ws, 8, 1, r, 3, MOYEN);
+    r += 2;
+    ws.getCell(r, 1).value = 'Rappel balance : trésorerie de clôture (classe 5 nette) :';
+    ws.getCell(r, 1).font = { name: 'Arial', size: 9 };
+    ws.getCell(r, 3).value = recon.controle.tresorerieBalance;
+    ws.getCell(r, 3).numFmt = FMT_MONTANT_ETAFI;
+    r += 1;
+    ws.getCell(r, 1).value = 'Écart avec la ligne G (dépenses non décaissées, créances · à expliquer en NOTE 2) :';
+    ws.getCell(r, 1).font = { name: 'Arial', size: 9 };
+    ws.getCell(r, 3).value = recon.controle.ecart;
+    ws.getCell(r, 3).numFmt = FMT_MONTANT_ETAFI;
+    r += 2;
+    ligneControleSousEtat(ws, r, recon.avertissements.join(' '));
+    largeurs(ws, { A: 66, B: 7, C: 20 });
+    ws.views = [{ state: 'frozen', ySplit: 8, showGridLines: false }];
+    return { rangs, dernier: r };
+  }
+
+  /** Tableau de réconciliation de trésorerie · export individuel, charte ETAFI. */
   async reconciliationTresorerieExcel(
     tenantId: string,
     exerciceId: string,
-    paiementsEnInstance: number,
+    paiementsEnInstance = 0,
   ): Promise<ClasseurExporte> {
-    const t = await this.etatsFinanciersProjetBudgetService.reconciliationTresorerie(
-      tenantId,
-      exerciceId,
-      paiementsEnInstance,
-    );
+    const [recon, ident] = await Promise.all([
+      this.etatsFinanciersProjetBudgetService.reconciliationTresorerie(tenantId, exerciceId, paiementsEnInstance),
+      this.identiteLiasse(tenantId, exerciceId),
+    ]);
     const classeur = this.nouveauClasseur();
-
-    const f = classeur.addWorksheet('Réconciliation de trésorerie');
-    f.columns = [
-      { header: 'Libellé', key: 'libelle', width: 60 },
-      { header: 'Rep.', key: 'rep', width: 8 },
-      { header: 'Montant', key: 'montant', width: 20 },
-    ];
-    for (const l of t.lignes) {
-      const ligne = f.addRow(l);
-      if (l.rep === 'G' || l.rep === 'I') ligne.font = ENTETE_FONT;
-    }
-    this.appliquerFormats(f, { montant: FORMAT_MONTANT });
-    styliserEntete(f.getRow(1));
-
-    const methode = classeur.addWorksheet('Contrôles et méthode');
-    methode.columns = [
-      { header: 'Point', key: 'point', width: 34 },
-      { header: 'Montant', key: 'montant', width: 18 },
-      { header: 'Ce qui est appliqué', key: 'texte', width: 115 },
-    ];
-    const ctrl = methode.addRow({
-      point: 'CONTRÔLE',
-      montant: t.controle.ecart,
-      texte: t.controle.boucle
-        ? `OK · la trésorerie reconstituée (repère G) égale le solde des comptes de trésorerie à la balance : ${t.controle.tresorerieBalance.toFixed(2)}.`
-        : `ÉCART · le repère G ne correspond pas au solde des comptes de trésorerie à la balance (${t.controle.tresorerieBalance.toFixed(2)}).`,
-    });
-    ctrl.font = { bold: true, color: { argb: t.controle.boucle ? 'FF1E7B34' : 'FFB00020' } };
-    methode.addRow({
-      point: 'Source',
-      texte:
-        "Partie 4, ch. 3, Section 3. Le texte donne les neuf libellés et les formules (G = A+B+C+D-E-F, I = G-H) mais aucun rattachement aux comptes, et le guide d'application n'en donne pas non plus. Le rattachement est lu dans les contreparties des mouvements de trésorerie.",
-    });
-    for (const a of t.avertissements) methode.addRow({ point: 'Réserve', texte: a });
-    this.appliquerFormats(methode, { montant: FORMAT_MONTANT });
-    for (let i = 2; i <= methode.rowCount; i++) {
-      methode.getRow(i).getCell('texte').alignment = { wrapText: true, vertical: 'top' };
-    }
-    this.finaliserTableau(methode, methode.columns.length, methode.rowCount);
-
+    this.feuilleReconciliationEtafi(classeur, recon, ident);
+    numeroterPages(classeur);
     return {
       buffer: await this.versBuffer(classeur),
-      nomFichier: `reconciliation-tresorerie-projet${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
+      nomFichier: `reconciliation-tresorerie${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
     };
   }
+
 
   // -------------------------------------------------------------------------
   // SYSTÈME MINIMAL DE TRÉSORERIE (Partie 4, ch. 4)
@@ -2611,6 +2602,212 @@ export class ExportService {
       });
   }
 
+  /** Découpage officiel de la fiche récapitulative du jeu projets. */
+  private static readonly PARTIES_NOTES_PROJETS: Array<[string, string[]]> = [
+    ['Partie 1 : Informations générales', ['1']],
+    [
+      "Partie 2 : Notes sur le tableau emplois-ressources, le tableau d'exécution budgétaire et la réconciliation de trésorerie",
+      ['2'],
+    ],
+    ['Partie 3 : Notes sur le bilan', ['3A', '3B', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13']],
+    [
+      "Partie 4 : Notes sur le compte d'exploitation",
+      ['14', '15', '16', '17', '18', '19', '20A', '20B', '21', '22', '23', '24'],
+    ],
+  ];
+
+  /**
+   * LIASSE COMPLÈTE du jeu « projets de développement et assimilés » · le
+   * classeur entier du modèle, dans son ordre : BALANCE N, BALANCE N-1,
+   * CONTROLE BALANCE, Couverture, Garde, Fiche 1, Fiche 2,
+   * Emplois-Ressources, Execution budgetaire, Reconciliation tresorerie,
+   * Bilan paysage, Bilan-Actif, Bilan-Passif, Compte Exploitation, NOTES
+   * ANNEXES, notes applicables, TABLE COMMENTAIRE, CONTROLES, ANOMALIES.
+   */
+  private async liasseProjetsEtafi(
+    tenantId: string,
+    exerciceId: string,
+    paiementsEnInstance: number,
+  ): Promise<ExcelJS.Workbook> {
+    const [ident, tenant, bilan, ce, er, recon, notes, exerciceN1Id] = await Promise.all([
+      this.identiteLiasse(tenantId, exerciceId),
+      this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId } }),
+      this.etatsFinanciersProjetService.bilan(tenantId, exerciceId),
+      this.etatsFinanciersProjetService.compteExploitation(tenantId, exerciceId),
+      this.etatsFinanciersProjetService.tableauEmploisRessources(tenantId, exerciceId),
+      this.etatsFinanciersProjetBudgetService.reconciliationTresorerie(tenantId, exerciceId, paiementsEnInstance),
+      this.noteAnnexeService.notesProjet(tenantId, exerciceId),
+      this.exerciceN1Id(tenantId, exerciceId),
+    ]);
+    const lignesBalN = await this.lignesBalanceLiasse(tenantId, exerciceId);
+    const lignesBalN1 = exerciceN1Id ? await this.lignesBalanceLiasse(tenantId, exerciceN1Id) : [];
+
+    const classeur = this.nouveauClasseur();
+    ecrireFeuilleBalance(classeur, NOM_BALANCE, lignesBalN);
+    if (exerciceN1Id) ecrireFeuilleBalance(classeur, NOM_BALANCE_N1, lignesBalN1);
+    construireControleBalance(classeur, Boolean(exerciceN1Id), lignesBalN.length, lignesBalN1.length);
+
+    construireCouverture(classeur, ident, 'LIASSE PROJETS DE DEVELOPPEMENT', tenant.pays ?? '');
+    construireGarde(classeur, ident, {
+      bandeau: 'ETATS FINANCIERS NORMALISES\nDU SYSTEME COMPTABLE DES ENTITES A BUT NON LUCRATIF (SYCEBNL)',
+      sousBandeau: 'Projets de développement et assimilés',
+      systeme: 'PROJETS DE DEVELOPPEMENT',
+      documents: [
+        "Fiche d'identification et renseignements divers",
+        'Tableau emplois-ressources',
+        "Tableau d'exécution budgétaire",
+        'Tableau de réconciliation de trésorerie',
+        'Bilan (actif et passif)',
+        "Compte d'exploitation",
+        'Notes annexes',
+      ],
+    });
+    construireFiche1(classeur, ident, 'SYCEBNL', 'Projets de développement et assimilés', {
+      ZE: tenant.actePersonnaliteJuridique ?? '',
+    });
+    construireFiche2(classeur, ident, 'EQUIPE DU PROJET DE DEVELOPPEMENT');
+
+    // Les trois tableaux propres au jeu, puis le bilan et le compte
+    // d'exploitation · l'ordre du classeur modèle.
+    const terRangs = this.feuilleEmploisRessourcesEtafi(classeur, er, ident);
+    try {
+      const eb = await this.etatsFinanciersProjetBudgetService.executionBudgetaire(tenantId, exerciceId);
+      this.feuilleExecutionBudgetaireEtafi(classeur, eb, ident);
+    } catch {
+      // Pas de plan analytique à budgets : la grille du modèle, à remplir ·
+      // la liasse ne peut pas échouer pour un tableau à saisie manuelle.
+      this.feuilleExecutionBudgetaireVierge(
+        classeur,
+        ident,
+        "Aucun plan analytique à budgets n'est défini pour ce dossier : remplir code et libellé suivant la nomenclature budgétaire du projet.",
+      );
+    }
+    const { rangs: rangsRecon } = this.feuilleReconciliationEtafi(classeur, recon, ident, terRangs);
+
+    const versCote = (postes: PosteCalcule[], libelle: 'ACTIF' | 'PASSIF') => ({
+      feuille: libelle === 'ACTIF' ? 'Bilan-Actif' : 'Bilan-Passif',
+      libelle,
+      cols: [
+        { entete: 'NET', lettre: 'D' },
+        { entete: 'NET N-1', lettre: 'E' },
+      ],
+      lignes: postes.map((p, i) => ({
+        ref: p.ref,
+        libelle: p.libelle,
+        note: NOTE_PAR_CLE_PROJETS[p.ref] ?? '',
+        rangSource: 10 + i,
+        niveau: NIVEAUX_ETAT_PROJETS[p.ref] ?? ((p.estTotal ? 'inter' : 'normal') as NiveauLigne),
+      })),
+    });
+    construireBilanPaysage(
+      classeur,
+      ident,
+      versCote(bilan.actif, 'ACTIF'),
+      versCote(bilan.passif, 'PASSIF'),
+      'BILAN (EN NET)',
+    );
+    const { rangsActif, rangsPassif } = this.feuillesBilanProjetEtafi(classeur, bilan, ident);
+    const rangsCe = this.feuilleCompteExploitationEtafi(classeur, ce, ident);
+
+    this.construireClasseurNotes(notes, ident, ExportService.PARTIES_NOTES_PROJETS, classeur);
+    const parCode = new Map(
+      (notes.ficheRecapitulative as Array<{ code: string; titre: string }>).map((n) => [n.code, n.titre]),
+    );
+    const parties: PartiesNotes = ExportService.PARTIES_NOTES_PROJETS.map(([titre, codes]) => [
+      titre,
+      codes.filter((c) => parCode.has(c)).map((c) => [`NOTE ${c}`, parCode.get(c)!] as [string, string]),
+    ]);
+    construireTableCommentaires(classeur, parties, ident);
+
+    // CONTROLES · les recoupements croisés propres à ce jeu.
+    const ctl = classeur.addWorksheet('CONTROLES');
+    ctl.getCell(1, 1).value = 'Contrôle';
+    ctl.getCell(1, 2).value = 'Valeur';
+    ctl.getCell(1, 3).value = 'Attendu';
+    entetesBande(ctl, 1, 1, 1, 3);
+    const n = Math.max(lignesBalN.length, 1);
+    const controles: Array<[string, string | number, string | number]> = [
+      ['Total solde de clôture débit balance', `SUM('${NOM_BALANCE}'!G2:G${n + 1})`, ''],
+      ['Total solde de clôture crédit balance', `SUM('${NOM_BALANCE}'!H2:H${n + 1})`, ''],
+      ['Écart balance (doit être 0)', 'B2-B3', 0],
+      ['Total général actif net (BZ)', `'Bilan-Actif'!D${rangsActif.get('BZ')}`, ''],
+      ['Total général passif (DZ)', `'Bilan-Passif'!D${rangsPassif.get('DZ')}`, ''],
+      ['Écart bilan actif - passif (doit être 0)', 'B5-B6', 0],
+      ["Solde du compte d'exploitation (XC · doit boucler à 0 en régime normal)", `'Compte Exploitation'!D${rangsCe.get('XC')}`, 0],
+      ['Contrôle emplois-ressources (VII · V - VI, doit être 0)', `'Emplois-Ressources'!D${terRangs.get('GZ')}`, 0],
+      ['Trésorerie fin (réconciliation, G)', `'Reconciliation tresorerie'!C${rangsRecon.get('G')}`, ''],
+      ['Trésorerie balance (classe 5 nette)', recon.controle.tresorerieBalance, ''],
+      ['Écart réconciliation / balance (doit être 0)', 'B10-B11', 0],
+    ];
+    let rc = 1;
+    for (const [lab, val, attendu] of controles) {
+      rc += 1;
+      ctl.getCell(rc, 1).value = lab;
+      ctl.getCell(rc, 2).value = typeof val === 'string' ? { formula: val } : val;
+      ctl.getCell(rc, 3).value = attendu;
+      styleLigne(ctl, rc, 1, 3, 'normal', [2]);
+    }
+    largeurs(ctl, { A: 62, B: 20, C: 10 });
+
+    // ANOMALIES · les diagnostics du serveur pour ce jeu.
+    const an = classeur.addWorksheet('ANOMALIES');
+    for (const [i, h] of ['Gravité', 'Compte', 'Intitulé', 'Problème', 'Solution proposée'].entries()) {
+      an.getCell(1, i + 1).value = h;
+    }
+    entetesBande(an, 1, 1, 1, 5);
+    const anomalies: Array<[string, string, string, string, string]> = [];
+    if (!bilan.equilibre) {
+      anomalies.push([
+        'BLOQUANT',
+        'BZ / DZ',
+        'Bilan',
+        `Actif et passif diffèrent de ${(bilan.totalActif - bilan.totalPassif).toFixed(2)}.`,
+        'Vérifier les écritures déséquilibrées et les comptes non rattachés.',
+      ]);
+    }
+    if (!ce.controle.boucleAZero) {
+      anomalies.push([
+        'A_VERIFIER',
+        'XC',
+        "Compte d'exploitation",
+        `XC = ${ce.solde.toFixed(2)} · le compte d'exploitation ne boucle pas à zéro.`,
+        'Vérifier la consommation des fonds (Partie 3, ch. 3) et les comptes non rattachés.',
+      ]);
+    }
+    if (!recon.controle.boucle) {
+      anomalies.push([
+        'A_TRAITER',
+        'G',
+        'Réconciliation de trésorerie',
+        `Écart de ${recon.controle.ecart.toFixed(2)} entre G reconstitué et la trésorerie de la balance.`,
+        'Expliquer en NOTE 2 (dépenses non décaissées, créances).',
+      ]);
+    }
+    for (const c of [...bilan.comptesNonRattaches, ...ce.comptesNonRattaches]) {
+      anomalies.push([
+        'A_TRAITER',
+        c.numero,
+        c.intitule,
+        "Compte qu'aucun poste du tableau de correspondance officiel ne réclame.",
+        'Vérifier le numéro de compte.',
+      ]);
+    }
+    if (anomalies.length === 0) anomalies.push(['INFO', '·', '·', 'Aucune anomalie détectée sur cet exercice.', '·']);
+    let ra = 1;
+    for (const ligne of anomalies) {
+      ra += 1;
+      ligne.forEach((v, i) => {
+        an.getCell(ra, i + 1).value = v;
+      });
+      styleLigne(an, ra, 1, 5, 'normal');
+    }
+    largeurs(an, { A: 12, B: 12, C: 26, D: 62, E: 62 });
+    an.views = [{ state: 'frozen', ySplit: 1 }];
+
+    numeroterPages(classeur);
+    return classeur;
+  }
+
   /**
    * LIASSE COMPLÈTE du jeu « associations et ordres professionnels » ·
    * le classeur ENTIER du modèle du skill, feuille pour feuille et dans son
@@ -2831,6 +3028,13 @@ export class ExportService {
     // passage à la charte (projets puis SMT, dans cet ordre).
     if (tenant.jeuEtatsFinanciersSycebnl === JeuEtatsFinanciersSycebnl.ASSOCIATIONS_ORDRES_PROFESSIONNELS) {
       const natif = await this.liasseAssociationsEtafi(tenantId, exerciceId);
+      return {
+        buffer: await this.versBuffer(natif),
+        nomFichier: `liasse-complete${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
+      };
+    }
+    if (tenant.jeuEtatsFinanciersSycebnl === JeuEtatsFinanciersSycebnl.PROJETS_DEVELOPPEMENT) {
+      const natif = await this.liasseProjetsEtafi(tenantId, exerciceId, paiementsEnInstance);
       return {
         buffer: await this.versBuffer(natif),
         nomFichier: `liasse-complete${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,

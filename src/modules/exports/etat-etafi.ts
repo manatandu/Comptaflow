@@ -42,6 +42,13 @@ export interface GroupeColonnes {
 
 export interface LigneEtatEtafi {
   ref: string;
+  /**
+   * Clé UNIQUE de la ligne quand le ref affiché ne l'est pas · le compte
+   * d'exploitation des projets porte deux TJ et deux TK (doublon du texte
+   * officiel, signalé `[texte officiel]` dans le skill) : les formules de
+   * totaux se nouent sur la clé, l'écran montre le ref.
+   */
+  cle?: string;
   libelle: string;
   note: string;
   niveau: NiveauLigne;
@@ -239,11 +246,11 @@ export function construireFeuilleEtat(wb: ExcelJS.Workbook, options: OptionsFeui
   const refVersRang = new Map<string, number>();
   for (const ligne of options.lignes) {
     r += 1;
-    refVersRang.set(ligne.ref, r);
+    refVersRang.set(ligne.cle ?? ligne.ref, r);
     ws.getCell(r, 1).value = ligne.ref;
     ws.getCell(r, 2).value = ligne.libelle;
     ws.getCell(r, 3).value = ligne.note;
-    const estTotal = Boolean(options.totaux?.[ligne.ref]);
+    const estTotal = Boolean(options.totaux?.[ligne.cle ?? ligne.ref]);
     if (!estTotal) {
       for (const [i, montant] of ligne.montants.entries()) {
         if (montant === null || montant === undefined) continue;
@@ -265,7 +272,9 @@ export function construireFeuilleEtat(wb: ExcelJS.Workbook, options: OptionsFeui
     if (!rang) continue;
     for (const col of colsMontant) {
       const lettre = LETTRES[col - 1];
-      const formule = expression.replace(/[A-Z]{2}/g, (composante) => {
+      // [A-Z]{2}\d? · les clés TJ2/TK2 du compte d'exploitation des projets
+      // portent un chiffre : sans lui, « TJ2 » se lirait « TJ » suivi d'un 2.
+      const formule = expression.replace(/[A-Z]{2}[0-9]?/g, (composante) => {
         const rr = refVersRang.get(composante);
         return rr ? `${lettre}${rr}` : '0';
       });
@@ -288,3 +297,127 @@ export function ligneControleSousEtat(ws: ExcelJS.Worksheet, rang: number, texte
   c.font = { ...F_DONNEE, size: 8, italic: true };
   c.alignment = AL_GAUCHE;
 }
+
+// ---------------------------------------------------------------------------
+// Jeu « projets de développement et assimilés » (Partie 4, ch. 3)
+// ---------------------------------------------------------------------------
+
+/** Totaux du bilan projet (présenté EN NET · pas de colonne amortissements). */
+export const TOTAUX_PROJETS_BILAN: Record<string, string> = {
+  AZ: 'AA+AB+AC+AD+AE+AF+AG+AH',
+  BF: 'BA+BB+BC+BD+BE',
+  BX: 'BV+BW',
+  BZ: 'AZ+BF+BX+BY',
+  CZ: 'CA+CB+CC+CD',
+  DC: 'DA+DB',
+  DD: 'CZ+DC',
+  DJ: 'DE+DF+DG+DH+DI',
+  DX: 'DW',
+  DZ: 'DD+DJ+DX+DY',
+};
+
+/**
+ * Totaux du compte d'exploitation · les charges sont servies en POSITIF par
+ * le serveur (même convention que le jeu associations), donc XC = XA - XB.
+ * TJ2/TK2 sont les CLÉS des deux lignes au ref dupliqué du texte officiel.
+ */
+export const TOTAUX_PROJETS_CE: Record<string, string> = {
+  XA: 'RA+RB+RC+RD+RE',
+  XB: 'TA+TB+TC+TD+TG+TH+TI+TJ+TK+TJ2+TK2+TL',
+  XC: 'XA-XB',
+};
+
+export const NIVEAUX_ETAT_PROJETS: Record<string, NiveauLigne> = {
+  AZ: 'section',
+  BF: 'section',
+  BX: 'section',
+  BZ: 'general',
+  CZ: 'inter',
+  DC: 'inter',
+  DD: 'section',
+  DJ: 'section',
+  DX: 'section',
+  DZ: 'general',
+  XA: 'section',
+  XB: 'section',
+  XC: 'section',
+};
+
+/**
+ * Renvois de notes du tableau de correspondance officiel du jeu projets
+ * (`correspondance-projets.tsv` du skill) · indexés par CLÉ (TJ2/TK2 pour
+ * les deux lignes au ref dupliqué).
+ */
+export const NOTE_PAR_CLE_PROJETS: Record<string, string> = {
+  AA: '3A',
+  AB: '3A',
+  AC: '3A',
+  AD: '3A',
+  AE: '3A',
+  AF: '3A',
+  AG: '3A',
+  AH: '3A',
+  BA: '4',
+  BB: '5',
+  BC: '6',
+  BD: '6',
+  BE: '6',
+  BV: '7',
+  BW: '7',
+  BY: '8',
+  CA: '9',
+  CD: '10',
+  DA: '11',
+  DB: '11',
+  DE: '4',
+  DF: '9',
+  DG: '12',
+  DH: '12',
+  DW: '13',
+  DY: '8',
+  RA: '9 et 14',
+  RB: '14',
+  RC: '14',
+  RD: '14',
+  RE: '22',
+  TA: '15',
+  TB: '15',
+  TC: '5',
+  TD: '16',
+  TG: '17',
+  TH: '18',
+  TI: '19',
+  TJ: '20A',
+  TK: '21',
+  TJ2: '22',
+  TK2: '23',
+  TL: '23',
+};
+
+/** Totaux du tableau emplois-ressources · les expressions officielles. */
+export const TOTAUX_TER: Record<string, string> = {
+  GR: 'FA+FB+FC+FD',
+  GS: 'FE+FF+FG+FH+FI+FJ+FK+FL',
+  GT: 'FM+FN+FO+FP+FQ+FR+FS+FT',
+  GU: 'GS+GT',
+  GV: 'GR-GU',
+  GW: 'FU+FV+FW',
+  GX: 'GV+GW',
+  GY: 'FX+FY+FZ',
+  GZ: 'GX-GY',
+};
+
+export const NIVEAUX_TER: Record<string, NiveauLigne> = {
+  GR: 'section',
+  GS: 'inter',
+  GT: 'inter',
+  GU: 'section',
+  GV: 'cle',
+  GW: 'section',
+  GX: 'cle',
+  GY: 'section',
+  GZ: 'general',
+};
+
+export const NIVEAUX_RECONCILIATION: Record<string, NiveauLigne> = { G: 'section', I: 'general' };
+
