@@ -5,15 +5,46 @@ import { IconLogo, IconCheck } from '../components/chrome/icons';
 import { Aide } from '../components/chrome/Aide';
 import type { AuthResponse, JeuEtatsFinanciersSycebnl, Referentiel } from '../lib/types';
 
-const ETAPES = [
-  'Référentiel',
-  'Raison sociale',
-  'Coordonnées',
-  'Exercice',
-  'Monnaie',
-  'Reprise des éléments',
-  'Connexion au dossier',
-] as const;
+/**
+ * ÉTAPES NOMMÉES, et non numérotées · l'assistant de Sage pose UNE question
+ * par écran, et saute les écrans sans objet. Le jeu d'états financiers n'a
+ * de sens que sous SYCEBNL (le SYSCOHADA n'en prévoit qu'un) : il est donc
+ * une étape à part entière, absente de la liste quand elle ne s'applique
+ * pas · une étape conditionnelle ne peut pas se dire avec des index.
+ */
+type CleEtape =
+  | 'referentiel'
+  | 'jeuEtats'
+  | 'raisonSociale'
+  | 'coordonnees'
+  | 'exercice'
+  | 'monnaie'
+  | 'reprise'
+  | 'connexion';
+
+const LIBELLE_ETAPE: Record<CleEtape, string> = {
+  referentiel: 'Référentiel',
+  jeuEtats: "Jeu d'états",
+  raisonSociale: 'Raison sociale',
+  coordonnees: 'Coordonnées',
+  exercice: 'Exercice',
+  monnaie: 'Monnaie',
+  reprise: 'Reprise des éléments',
+  connexion: 'Connexion au dossier',
+};
+
+function etapesApplicables(referentiel: Referentiel): CleEtape[] {
+  return [
+    'referentiel',
+    ...(referentiel === 'SYCEBNL' ? (['jeuEtats'] as const) : []),
+    'raisonSociale',
+    'coordonnees',
+    'exercice',
+    'monnaie',
+    'reprise',
+    'connexion',
+  ];
+}
 
 /**
  * PREMIER écran de l'assistant · le référentiel comptable, puis, pour le
@@ -160,20 +191,26 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
 
   const majer = <K extends keyof Form>(cle: K, valeur: Form[K]) => setForm((f) => ({ ...f, [cle]: valeur }));
 
-  const derniereEtape = etape === ETAPES.length - 1;
+  const etapes = etapesApplicables(form.referentiel);
+  // `etape` est un rang dans `etapes` · borné, car changer de référentiel
+  // peut retirer une étape sous les pieds de l'utilisateur.
+  const rang = Math.min(etape, etapes.length - 1);
+  const cle = etapes[rang];
+  const derniereEtape = cle === 'connexion';
   const peutAvancer =
-    // L'écran 0 (référentiel) a toujours une valeur sélectionnée : rien à
-    // valider. L'écran 1 exige la raison sociale.
-    etape === 0 ||
-    (etape === 1 && form.nomEntite.trim().length > 0) ||
-    (etape > 1 && !derniereEtape) ||
-    (derniereEtape && form.email.trim().length > 0 && form.motDePasse.length >= 10);
+    // Les écrans à choix portent toujours une valeur : rien à valider. Seuls
+    // la raison sociale et les identifiants sont exigés.
+    cle === 'raisonSociale'
+      ? form.nomEntite.trim().length > 0
+      : derniereEtape
+        ? form.email.trim().length > 0 && form.motDePasse.length >= 10
+        : true;
 
   const suivant = () => {
     setErreur(null);
-    if (!derniereEtape) setEtape((e) => e + 1);
+    if (!derniereEtape) setEtape(rang + 1);
   };
-  const precedent = () => setEtape((e) => Math.max(0, e - 1));
+  const precedent = () => setEtape(Math.max(0, rang - 1));
 
   const onTerminer = async (e: FormEvent) => {
     e.preventDefault();
@@ -250,21 +287,21 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
               style={{ background: 'linear-gradient(180deg, var(--titlebar-from), var(--titlebar-to))' }}
             >
               <div className="text-[11.5px] font-bold text-white mb-4 leading-snug">Nouveau dossier</div>
-              {ETAPES.map((label, i) => (
-                <div key={label} className="flex items-center gap-2 py-1">
+              {etapes.map((c, i) => (
+                <div key={c} className="flex items-center gap-2 py-1">
                   <span
                     className={`w-[18px] h-[18px] rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${
-                      i < etape
+                      i < rang
                         ? 'bg-white text-[var(--titlebar-to)]'
-                        : i === etape
+                        : i === rang
                           ? 'border-2 border-white text-white'
                           : 'border border-white/40 text-white/50'
                     }`}
                   >
-                    {i < etape ? '✓' : i + 1}
+                    {i < rang ? '✓' : i + 1}
                   </span>
-                  <span className={`text-[11px] ${i === etape ? 'text-white font-semibold' : 'text-white/60'}`}>
-                    {label}
+                  <span className={`text-[11px] ${i === rang ? 'text-white font-semibold' : 'text-white/60'}`}>
+                    {LIBELLE_ETAPE[c]}
                   </span>
                 </div>
               ))}
@@ -281,16 +318,23 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
               }
               className="flex-1 flex flex-col min-w-0"
             >
-              <div className="p-5 flex-1 min-h-[min(320px,50dvh)] overflow-y-auto">
-                {etape === 0 && (
+              <div className="p-5 h-[400px] max-h-[55dvh] overflow-y-auto">
+                {cle === 'referentiel' && (
                   <>
-                    <h2 className="text-[14px] font-bold mb-1 flex items-center gap-1.5">
-                      Référentiel comptable
+                    {/* Phrase d'accueil · l'assistant de Sage s'ouvre en
+                        disant ce qu'il va faire, avant de demander quoi que
+                        ce soit. */}
+                    <p className="text-[12.5px] text-text-dim leading-[1.6] mb-5">
+                      Cet assistant vous guide dans la mise en place d'un nouveau dossier comptable. Vos réponses
+                      commandent le plan de comptes semé à la création et la présentation des états financiers.
+                    </p>
+                    <h2 className="text-[15px] font-bold mb-1.5 flex items-center gap-1.5">
+                      Indiquez le référentiel comptable de l'entité
                       <Aide sujet="jeuEtats" />
                     </h2>
-                    <p className="text-[12px] text-text-dim mb-3">
-                      Il commande le plan de comptes semé à la création et la présentation des états financiers. Il
-                      restera modifiable dans Structure &gt; Paramètres du dossier tant qu'aucune écriture n'est saisie.
+                    <p className="text-[12.5px] text-text-dim leading-[1.6] mb-4">
+                      Il restera modifiable dans Structure &gt; Paramètres du dossier tant qu'aucune écriture n'est
+                      saisie.
                     </p>
                     <div className="flex flex-col gap-2">
                       {REFERENTIELS.map((r) => {
@@ -331,65 +375,63 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
                       })}
                     </div>
 
-                    {/* Le jeu d'états n'a de sens que sous SYCEBNL : le
-                        SYSCOHADA n'en prévoit qu'un. Il n'apparaît donc que
-                        si le SYCEBNL est retenu. */}
-                    {form.referentiel === 'SYCEBNL' && (
-                      <>
-                        <h3 className="text-[12.5px] font-bold mt-4 mb-1">Jeu d'états financiers</h3>
-                        <p className="text-[11.5px] text-text-dim mb-2">
-                          Le SYCEBNL en prévoit trois. Ce choix ne pourra plus être changé une fois la première
-                          écriture saisie.
-                        </p>
-                        <div className="flex flex-col gap-1.5">
-                          {TYPES_ENTITE.map((t) => {
-                            const actif = form.jeuEtatsFinanciersSycebnl === t.valeur;
-                            return (
-                              <label
-                                key={t.valeur}
-                                className={`flex items-start gap-2.5 rounded-[8px] border p-2.5 cursor-pointer transition-colors ${
-                                  actif ? 'border-sel bg-sel-soft' : 'border-border hover:border-sel/50'
-                                }`}
-                              >
-                                <input
-                                  type="radio"
-                                  name="typeEntite"
-                                  className="mt-0.5"
-                                  checked={actif}
-                                  onChange={() => majer('jeuEtatsFinanciersSycebnl', t.valeur)}
-                                />
-                                <span className="min-w-0">
-                                  <span className="block text-[12.5px] font-semibold flex items-center gap-1.5">
-                                    {t.titre}
-                                    {t.valeur === 'SYSTEME_MINIMAL_TRESORERIE' && <Aide sujet="smt" />}
-                                  </span>
-                                  <span className="block text-[11px] text-text-dim leading-[1.5] mt-0.5">
-                                    {t.description}
-                                  </span>
-                                </span>
-                              </label>
-                            );
-                          })}
-                        </div>
-                        {form.jeuEtatsFinanciersSycebnl === 'SYSTEME_MINIMAL_TRESORERIE' && (
-                          <p className="mt-2 text-[11px] text-warning bg-warning-soft border border-warning/30 rounded-[6px] px-2.5 py-1.5">
-                            Le Système minimal de trésorerie est une exception liée à la taille (art. 5 et 6). Le
-                            dossier ouvrira un onglet « Éligibilité » qui mesure vos ressources contre le seuil, mais
-                            c'est à l'entité de vérifier qu'elle y a droit.
-                          </p>
-                        )}
-                      </>
+                  </>
+                )}
+
+                {cle === 'jeuEtats' && (
+                  <>
+<h2 className="text-[15px] font-bold mb-1.5">Choisissez le jeu d'états financiers</h2>
+                    <p className="text-[11.5px] text-text-dim mb-2">
+                      Le SYCEBNL en prévoit trois. Ce choix ne pourra plus être changé une fois la première
+                      écriture saisie.
+                    </p>
+                    <div className="flex flex-col gap-1.5">
+                      {TYPES_ENTITE.map((t) => {
+                        const actif = form.jeuEtatsFinanciersSycebnl === t.valeur;
+                        return (
+                          <label
+                            key={t.valeur}
+                            className={`flex items-start gap-2.5 rounded-[8px] border p-2.5 cursor-pointer transition-colors ${
+                              actif ? 'border-sel bg-sel-soft' : 'border-border hover:border-sel/50'
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              name="typeEntite"
+                              className="mt-0.5"
+                              checked={actif}
+                              onChange={() => majer('jeuEtatsFinanciersSycebnl', t.valeur)}
+                            />
+                            <span className="min-w-0">
+                              <span className="block text-[12.5px] font-semibold flex items-center gap-1.5">
+                                {t.titre}
+                                {t.valeur === 'SYSTEME_MINIMAL_TRESORERIE' && <Aide sujet="smt" />}
+                              </span>
+                              <span className="block text-[11px] text-text-dim leading-[1.5] mt-0.5">
+                                {t.description}
+                              </span>
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                    {form.jeuEtatsFinanciersSycebnl === 'SYSTEME_MINIMAL_TRESORERIE' && (
+                      <p className="mt-2 text-[11px] text-warning bg-warning-soft border border-warning/30 rounded-[6px] px-2.5 py-1.5">
+                        Le Système minimal de trésorerie est une exception liée à la taille (art. 5 et 6). Le
+                        dossier ouvrira un onglet « Éligibilité » qui mesure vos ressources contre le seuil, mais
+                        c'est à l'entité de vérifier qu'elle y a droit.
+                      </p>
                     )}
                   </>
                 )}
 
-                {etape === 1 && (
+                {cle === 'raisonSociale' && (
                   <>
-                    <h2 className="text-[14px] font-bold mb-1">Raison sociale de l'entité</h2>
-                    <p className="text-[12px] text-text-dim mb-4">
-                      Telle qu'elle figure aux statuts · elle sera portée en tête de chaque état imprimé.
+                    <h2 className="text-[15px] font-bold mb-1.5">Indiquez la raison sociale de l'entité</h2>
+                    <p className="text-[12.5px] text-text-dim leading-[1.6] mb-5">
+                      Telle qu'elle figure aux statuts : elle sera portée en tête de chaque état imprimé, et c'est
+                      sous ce nom que le dossier s'ouvrira.
                     </p>
-                    <label className="text-[11.5px] font-semibold text-text-dim block mb-1">Raison sociale</label>
                     <input
                       autoFocus
                       value={form.nomEntite}
@@ -400,9 +442,9 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
                   </>
                 )}
 
-                {etape === 2 && (
+                {cle === 'coordonnees' && (
                   <>
-                    <h2 className="text-[14px] font-bold mb-3">Coordonnées de l'entité</h2>
+                    <h2 className="text-[15px] font-bold mb-4">Complétez les coordonnées de l'entité</h2>
                     <div className="grid grid-cols-2 gap-3">
                       <label className="text-[11.5px] font-semibold text-text-dim col-span-2">
                         Activité
@@ -428,9 +470,9 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
                   </>
                 )}
 
-                {etape === 3 && (
+                {cle === 'exercice' && (
                   <>
-                    <h2 className="text-[14px] font-bold mb-1">Définition de l'exercice</h2>
+                    <h2 className="text-[15px] font-bold mb-1.5">Définissez le premier exercice</h2>
                     <p className="text-[12px] text-text-dim mb-4">
                       Aucune modification ne sera possible après la création des écritures.
                     </p>
@@ -457,9 +499,9 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
                   </>
                 )}
 
-                {etape === 4 && (
+                {cle === 'monnaie' && (
                   <>
-                    <h2 className="text-[14px] font-bold mb-3">Monnaie de tenue de compte</h2>
+                    <h2 className="text-[15px] font-bold mb-4">Choisissez la monnaie de tenue des comptes</h2>
                     <div className="flex flex-col gap-2">
                       {(['CDF', 'USD', 'Autre'] as const).map((d) => (
                         <label key={d} className="flex items-center gap-2 text-[13px]">
@@ -471,9 +513,9 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
                   </>
                 )}
 
-                {etape === 5 && (
+                {cle === 'reprise' && (
                   <>
-                    <h2 className="text-[14px] font-bold mb-3">Reprise des éléments comptables</h2>
+                    <h2 className="text-[15px] font-bold mb-4">Indiquez ce que le dossier doit contenir au départ</h2>
                     <div className="flex flex-col gap-2.5">
                       <label className="flex items-start gap-2 text-[13px]">
                         <input type="radio" checked readOnly className="mt-0.5" />
@@ -509,7 +551,7 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
 
                 {derniereEtape && (
                   <>
-                    <h2 className="text-[14px] font-bold mb-1">Connexion au dossier</h2>
+                    <h2 className="text-[15px] font-bold mb-1.5">Définissez les identifiants d'ouverture du dossier</h2>
                     <p className="text-[12px] text-text-dim mb-4">
                       OmegaX est hébergé · pas de fichier local à nommer. Ces identifiants serviront à vous reconnecter
                       à « {form.nomEntite || 'ce dossier'} », tenu en {form.referentiel} selon les états{' '}
@@ -547,16 +589,18 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
                 >
                   Annuler
                 </button>
-                {etape > 0 && (
-                  <button
-                    type="button"
-                    onClick={precedent}
-                    disabled={envoi}
-                    className="px-4 py-1.5 border border-border rounded-[6px] bg-surface text-[12.5px] hover:bg-chrome-alt disabled:opacity-50"
-                  >
-                    &lt; Précédent
-                  </button>
-                )}
+                {/* Toujours présent, désactivé sur le premier écran · chez
+                    Sage la rangée de boutons ne se déplace jamais d'une
+                    étape à l'autre : le curseur retrouve « Suivant » au
+                    même endroit. */}
+                <button
+                  type="button"
+                  onClick={precedent}
+                  disabled={envoi || rang === 0}
+                  className="px-4 py-1.5 border border-border rounded-[6px] bg-surface text-[12.5px] hover:bg-chrome-alt disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  &lt; Précédent
+                </button>
                 <button
                   type="submit"
                   disabled={!peutAvancer || envoi}

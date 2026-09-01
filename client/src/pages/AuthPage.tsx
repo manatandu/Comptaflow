@@ -134,8 +134,10 @@ export function AuthPage({ assistantInitial = false }: { assistantInitial?: bool
     }
   };
 
+  // Même gabarit de champ que l'assistant de création : un dialogue et son
+  // assistant ne doivent pas avoir deux styles de saisie.
   const champClasse =
-    'w-full rounded-xl border border-border bg-surface px-4 py-3 text-[14px] focus:outline-none focus:ring-2 focus:ring-sel/30 focus:border-sel';
+    'w-full rounded-[6px] border border-border bg-surface px-2.5 py-1.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-sel/25 focus:border-sel';
 
   const dateCourte = (iso: string) =>
     new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -146,49 +148,87 @@ export function AuthPage({ assistantInitial = false }: { assistantInitial?: bool
         <CerclesDecoratifs />
       </div>
 
-      <div className="relative z-10 flex flex-col items-center mb-7">
+      {/* ------------------------------------------------------------------
+          FENÊTRE DE DIALOGUE, et non page web · chez Sage cet écran est une
+          fenêtre à part entière (barre de titre, panneau de marque, contenu),
+          posée sur le bureau du logiciel. L'assistant de création qu'elle
+          ouvre porte exactement le même cadre : la première seconde
+          d'utilisation dit déjà « logiciel installé », pas « site ».
+          ------------------------------------------------------------------ */}
+      <div className="relative z-10 w-full max-w-[620px] bg-surface border border-border rounded-[10px] overflow-hidden shadow-flottante anim-modale">
         <div
-          className="w-[56px] h-[56px] rounded-[16px] flex items-center justify-center text-white shadow-flottante"
-          style={{ background: 'linear-gradient(160deg, var(--titlebar-from), var(--titlebar-to))' }}
+          className="h-[34px] flex items-center gap-2 px-3 text-white text-[12px]"
+          style={{ background: 'linear-gradient(180deg, var(--titlebar-from), var(--titlebar-to))' }}
         >
-          <IconLogo width={28} height={28} />
+          <IconLogo width={14} height={14} />
+          <span>{ecran === 'porte' ? 'Ouverture du dossier comptable' : 'Identification'}</span>
         </div>
-        <div className="mt-2.5 text-[22px] font-extrabold tracking-tight text-sel">OMEGAX</div>
-        <div className="mt-1 text-[12.5px] text-text-dim">Comptabilité des entités à but non lucratif · SYCEBNL</div>
-      </div>
+
+        <div className="flex">
+          {/* Panneau de marque · le pendant du bandeau vert de Sage. */}
+          <div
+            className="w-[168px] flex-shrink-0 p-4 flex flex-col justify-between"
+            style={{ background: 'linear-gradient(180deg, var(--titlebar-from), var(--titlebar-to))' }}
+          >
+            <div>
+              <div className="w-[38px] h-[38px] rounded-[11px] bg-white/10 flex items-center justify-center text-white">
+                <IconLogo width={22} height={22} />
+              </div>
+              <div className="mt-2.5 text-[17px] font-extrabold tracking-tight text-white">OMEGAX</div>
+              <div className="mt-1 text-[10.5px] text-white/70 leading-[1.5]">
+                Comptabilité des entités à but non lucratif · SYCEBNL
+              </div>
+            </div>
+            <div className="text-[10px] text-white/45">© 2026</div>
+          </div>
+
+          <div className="flex-1 min-w-0 p-5">
 
       {/* ------------------------------------------------------------------ */}
       {/* Écran 1 · la porte : créer, ou ouvrir. Aucun champ d'identifiant.   */}
       {/* ------------------------------------------------------------------ */}
       {ecran === 'porte' && (
-        <div className="relative z-10 w-full max-w-[520px]">
-          <div className="grid grid-cols-2 gap-3">
+        <div className="w-full">
+          {/* Phrase d'accueil · Sage dit d'abord OÙ L'ON EST (aucun fichier
+              ouvert), puis ce qu'on peut faire. Entrer directement dans deux
+              boutons laisse deviner. */}
+          <p className="text-[12.5px] text-text-dim leading-[1.6] mb-4">
+            Aucun dossier comptable n'est ouvert. Créez un nouveau dossier, ou ouvrez un dossier existant.
+          </p>
+
+          {/* Choix EMPILÉS, et non côte à côte : deux colonnes dans un volet
+              de cette largeur coupaient chaque titre en deux lignes. */}
+          <div className="flex flex-col gap-2">
             <button
               type="button"
               onClick={() => setAssistantOuvert(true)}
-              className="flex flex-col items-start gap-2 rounded-xl border border-border bg-surface p-4 text-left shadow-posee hover:border-sel hover:bg-sel-soft"
+              className="flex items-start gap-3 rounded-[10px] border border-border bg-surface p-3.5 text-left shadow-posee hover:border-sel hover:bg-sel-soft transition-colors"
             >
-              <span className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-sel text-white">
+              <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[10px] bg-sel text-white">
                 <IconFileAdd width={18} height={18} />
               </span>
-              <span className="text-[14px] font-bold">Créer un nouveau fichier comptable</span>
-              <span className="text-[11.5px] text-text-dim leading-[1.5]">
-                L'assistant demande le référentiel, le jeu d'états financiers, l'exercice et la monnaie de tenue, puis
-                sème le plan de comptes.
+              <span className="min-w-0">
+                <span className="block text-[13.5px] font-bold">Créer un nouveau fichier comptable</span>
+                <span className="block text-[11.5px] text-text-dim leading-[1.5] mt-0.5">
+                  L'assistant demande le référentiel, le jeu d'états financiers, l'exercice et la monnaie de tenue,
+                  puis sème le plan de comptes.
+                </span>
               </span>
             </button>
 
             <button
               type="button"
               onClick={() => ouvrirDossier(recents[0] ?? null)}
-              className="flex flex-col items-start gap-2 rounded-xl border border-border bg-surface p-4 text-left shadow-posee hover:border-sel hover:bg-sel-soft"
+              className="flex items-start gap-3 rounded-[10px] border border-border bg-surface p-3.5 text-left shadow-posee hover:border-sel hover:bg-sel-soft transition-colors"
             >
-              <span className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-chrome-alt text-sel">
+              <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[10px] bg-chrome-alt text-sel">
                 <IconFolderOpen width={18} height={18} />
               </span>
-              <span className="text-[14px] font-bold">Ouvrir un fichier comptable existant</span>
-              <span className="text-[11.5px] text-text-dim leading-[1.5]">
-                Le dossier s'ouvre sur les identifiants qui lui ont été donnés à sa création.
+              <span className="min-w-0">
+                <span className="block text-[13.5px] font-bold">Ouvrir un fichier comptable existant</span>
+                <span className="block text-[11.5px] text-text-dim leading-[1.5] mt-0.5">
+                  Le dossier s'ouvre sur les identifiants qui lui ont été donnés à sa création.
+                </span>
               </span>
             </button>
           </div>
@@ -232,17 +272,22 @@ export function AuthPage({ assistantInitial = false }: { assistantInitial?: bool
       {/* Écran 2 · l'identification, une fois le dossier désigné.            */}
       {/* ------------------------------------------------------------------ */}
       {ecran === 'identification' && (
-        <div className="relative z-10 w-full max-w-[400px]">
+        <div className="w-full">
+          <p className="text-[12.5px] text-text-dim leading-[1.6] mb-4">
+            {dossierVise
+              ? 'Saisissez les identifiants donnés à ce dossier lors de sa création.'
+              : 'Saisissez les identifiants du dossier comptable à ouvrir.'}
+          </p>
           {dossierVise && (
-            <div className="mb-4 rounded-xl border border-border bg-surface px-3.5 py-2.5">
-              <div className="text-[10.5px] font-bold text-text-dim">DOSSIER</div>
-              <div className="text-[14px] font-bold truncate">{dossierVise.nom}</div>
+            <div className="mb-4 rounded-[8px] border border-border bg-chrome px-3.5 py-2.5">
+              <div className="text-[10px] font-bold text-text-dim">DOSSIER</div>
+              <div className="text-[13.5px] font-bold truncate">{dossierVise.nom}</div>
             </div>
           )}
 
-          <form onSubmit={onSubmit} className="flex flex-col gap-3.5">
+          <form onSubmit={onSubmit} className="flex flex-col gap-3">
             <label className="flex flex-col gap-1.5">
-              <span className="text-[13px] font-semibold text-text px-0.5">Adresse e-mail</span>
+              <span className="text-[12px] font-semibold text-text-dim">Adresse e-mail</span>
               <input
                 type="email"
                 required
@@ -254,7 +299,7 @@ export function AuthPage({ assistantInitial = false }: { assistantInitial?: bool
             </label>
 
             <label className="flex flex-col gap-1.5">
-              <span className="text-[13px] font-semibold text-text px-0.5">Mot de passe</span>
+              <span className="text-[12px] font-semibold text-text-dim">Mot de passe</span>
               <div className="relative">
                 <input
                   type={motDePasseVisible ? 'text' : 'password'}
@@ -262,12 +307,12 @@ export function AuthPage({ assistantInitial = false }: { assistantInitial?: bool
                   autoFocus={Boolean(dossierVise)}
                   value={motDePasse}
                   onChange={(e) => setMotDePasse(e.target.value)}
-                  className={`${champClasse} pr-11`}
+                  className={`${champClasse} pr-9`}
                 />
                 <button
                   type="button"
                   onClick={() => setMotDePasseVisible((v) => !v)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-text-dim hover:text-text"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-dim hover:text-text"
                   tabIndex={-1}
                 >
                   <IconOeil ouvert={motDePasseVisible} />
@@ -276,24 +321,33 @@ export function AuthPage({ assistantInitial = false }: { assistantInitial?: bool
             </label>
 
             {erreur && (
-              <div className="text-[12.5px] text-danger bg-danger-soft border border-danger/30 rounded-xl px-3.5 py-2.5">
+              <div className="text-[12px] text-danger bg-danger-soft border border-danger/30 rounded-[6px] px-3 py-2">
                 {erreur}
               </div>
             )}
 
-            <button
-              type="submit"
-              disabled={envoi}
-              className="mt-1.5 bg-sel text-white text-[14.5px] font-bold py-3 rounded-xl hover:brightness-110 disabled:opacity-60"
-            >
-              {envoi ? 'Un instant…' : 'Ouvrir le dossier'}
-            </button>
+            {/* RANGÉE DE BOUTONS · même gabarit et même ordre que l'assistant
+                (retour à gauche, action à droite) : les deux fenêtres qui
+                s'enchaînent à l'ouverture du logiciel se répondent. */}
+            <div className="mt-2 pt-3 border-t border-border flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() => setEcran('porte')}
+                className="px-3 py-1.5 text-[12.5px] text-text-dim hover:text-sel"
+              >
+                &lt; Ouvrir un autre dossier
+              </button>
+              <button
+                type="submit"
+                disabled={envoi}
+                className="px-4 py-1.5 rounded-[6px] bg-sel text-white text-[12.5px] font-semibold hover:brightness-110 disabled:opacity-50"
+              >
+                {envoi ? 'Un instant…' : 'Ouvrir le dossier'}
+              </button>
+            </div>
           </form>
 
-          <div className="mt-4 flex items-center justify-between text-[12px]">
-            <button type="button" onClick={() => setEcran('porte')} className="text-text-dim hover:text-sel">
-              &lt; Ouvrir un autre dossier
-            </button>
+          <div className="mt-3 text-[12px]">
             <button
               type="button"
               onClick={() => setAssistantOuvert(true)}
@@ -304,8 +358,9 @@ export function AuthPage({ assistantInitial = false }: { assistantInitial?: bool
           </div>
         </div>
       )}
-
-      <p className="relative z-10 mt-8 text-[11px] text-text-dim">OmegaX © 2026</p>
+          </div>
+        </div>
+      </div>
 
       {assistantOuvert && (
         <NouveauFichierWizard onClose={() => setAssistantOuvert(false)} onTermine={() => navigate('/')} />
