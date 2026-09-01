@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { api, setCsrf } from './api';
 import { memoriserDossier } from './dossiersRecents';
-import type { JeuEtatsFinanciersSycebnl, Referentiel, RoleUtilisateur } from './types';
+import type { JeuEtatsFinanciersSycebnl, SystemeComptableSyscohada, Referentiel, RoleUtilisateur } from './types';
 
 interface MeResponse {
   id: string;
@@ -21,6 +21,8 @@ interface MeResponse {
     nom: string;
     referentiel: Referentiel;
     jeuEtatsFinanciersSycebnl: JeuEtatsFinanciersSycebnl;
+    /** Pendant SYSCOHADA · null pour un dossier SYCEBNL. */
+    systemeComptableSyscohada: SystemeComptableSyscohada | null;
     /** N° impôt · exigé en en-tête de chaque page imprimée (CPCC, § 7.4). */
     numeroImpot: string | null;
     /** > 0 = dossier mère d'un groupe d'établissements · ouvre le menu

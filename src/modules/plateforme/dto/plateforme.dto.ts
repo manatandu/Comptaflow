@@ -1,5 +1,5 @@
 import { IsDateString, IsEmail, IsEnum, IsIn, IsInt, IsOptional, IsString, IsUUID, Min, ValidateIf } from 'class-validator';
-import { JeuEtatsFinanciersSycebnl, Referentiel, StatutLicence, TypeLicence } from '@prisma/client';
+import { JeuEtatsFinanciersSycebnl, Referentiel, StatutLicence, SystemeComptableSyscohada, TypeLicence } from '@prisma/client';
 
 /**
  * Création d'un cabinet client depuis la console plateforme. Même pipeline
@@ -27,6 +27,11 @@ export class CreerCabinetDto {
   @IsOptional()
   @IsEnum(JeuEtatsFinanciersSycebnl)
   jeuEtatsFinanciersSycebnl?: JeuEtatsFinanciersSycebnl;
+
+  /** Pendant SYSCOHADA · Système normal ou SMT (AUDCIF art. 11 et 13). */
+  @IsOptional()
+  @IsEnum(SystemeComptableSyscohada)
+  systemeComptableSyscohada?: SystemeComptableSyscohada;
 
   @IsOptional()
   @IsEnum(TypeLicence)

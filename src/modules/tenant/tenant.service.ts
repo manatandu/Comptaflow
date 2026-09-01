@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
-import { FormeJuridiqueEbnl, JeuEtatsFinanciersSycebnl, Referentiel, RegimeExigibiliteTva, TypeLicence } from '@prisma/client';
+import { FormeJuridiqueEbnl, JeuEtatsFinanciersSycebnl, Referentiel, RegimeExigibiliteTva, SystemeComptableSyscohada, TypeLicence } from '@prisma/client';
 
 /**
  * Crée un tenant et sa licence en une transaction. Le référentiel comptable
@@ -23,6 +23,7 @@ export class TenantService {
     referentiel: Referentiel;
     typeLicence: TypeLicence;
     jeuEtatsFinanciersSycebnl?: JeuEtatsFinanciersSycebnl;
+    systemeComptableSyscohada?: SystemeComptableSyscohada;
     dateExpiration?: Date;
     activite?: string;
     adresse?: string;
@@ -36,6 +37,7 @@ export class TenantService {
         nom: params.nom,
         referentiel: params.referentiel,
         jeuEtatsFinanciersSycebnl: params.jeuEtatsFinanciersSycebnl,
+        systemeComptableSyscohada: params.systemeComptableSyscohada,
         activite: params.activite,
         adresse: params.adresse,
         ville: params.ville,
@@ -69,6 +71,7 @@ export class TenantService {
       nom: tenant.nom,
       referentiel: tenant.referentiel,
       jeuEtatsFinanciersSycebnl: tenant.jeuEtatsFinanciersSycebnl,
+      systemeComptableSyscohada: tenant.systemeComptableSyscohada,
       activite: tenant.activite,
       adresse: tenant.adresse,
       ville: tenant.ville,

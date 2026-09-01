@@ -13,7 +13,7 @@ import { AnalytiqueService } from '../analytique/analytique.service';
 import { RelancesService } from '../relances/relances.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
-import { Referentiel, RoleUtilisateur, TypeLicence } from '@prisma/client';
+import { Referentiel, RoleUtilisateur, SystemeComptableSyscohada, TypeLicence } from '@prisma/client';
 
 const SALT_ROUNDS = 12;
 
@@ -67,6 +67,14 @@ export class AuthService {
       // Le jeu d'états est un concept SYCEBNL (art. 4 à 6) · jamais retenu
       // pour un dossier SYSCOHADA, même si le DTO en portait un.
       jeuEtatsFinanciersSycebnl: dto.referentiel === Referentiel.SYCEBNL ? dto.jeuEtatsFinanciersSycebnl : undefined,
+      // Symétriquement, le système comptable de l'AUDCIF ne concerne QUE le
+      // SYSCOHADA · Système normal par défaut, régime de droit commun de
+      // l'art. 11 (« toute entité est, sauf exception liée à sa taille,
+      // soumise au Système normal »).
+      systemeComptableSyscohada:
+        dto.referentiel === Referentiel.SYSCOHADA
+          ? (dto.systemeComptableSyscohada ?? SystemeComptableSyscohada.NORMAL)
+          : undefined,
       activite: dto.activite,
       adresse: dto.adresse,
       ville: dto.ville,
@@ -116,6 +124,7 @@ export class AuthService {
         nom: tenant.nom,
         referentiel: tenant.referentiel,
         jeuEtatsFinanciersSycebnl: tenant.jeuEtatsFinanciersSycebnl,
+        systemeComptableSyscohada: tenant.systemeComptableSyscohada,
         numeroImpot: tenant.numeroImpot,
       },
       exercice,
@@ -190,6 +199,8 @@ export class AuthService {
         // N'a de sens que si referentiel = SYCEBNL (voir prisma/schema.prisma) ·
         // le front s'en sert pour choisir le jeu d'états financiers à afficher.
         jeuEtatsFinanciersSycebnl: user.tenant.jeuEtatsFinanciersSycebnl,
+        // Pendant SYSCOHADA · null pour un dossier SYCEBNL (voir le schéma).
+        systemeComptableSyscohada: user.tenant.systemeComptableSyscohada,
         // Porté jusqu'au front pour l'en-tête d'impression : le n° impôt doit
         // figurer sur chaque page d'un état déposé (CPCC, § 7.4 règle 7-a).
         numeroImpot: user.tenant.numeroImpot,

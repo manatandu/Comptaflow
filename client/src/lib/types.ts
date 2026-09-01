@@ -11,6 +11,18 @@ export type JeuEtatsFinanciersSycebnl =
   | 'ASSOCIATIONS_ORDRES_PROFESSIONNELS'
   | 'PROJETS_DEVELOPPEMENT'
   | 'SYSTEME_MINIMAL_TRESORERIE';
+/**
+ * Pendant SYSCOHADA du type ci-dessus. L'AUDCIF n'admet que DEUX
+ * présentations (art. 11 : Système normal et Système minimal de trésorerie) ·
+ * l'ancien Système allégé de l'art. 12 est abrogé depuis la révision de 2017.
+ * Le SMT est réservé par l'art. 13 aux entités sous seuil de chiffre
+ * d'affaires hors taxes annuel, seuil qui DÉPEND DE L'ACTIVITÉ : 60 millions
+ * de FCFA pour le négoce, 40 pour l'artisanat et assimilés, 30 pour les
+ * services.
+ *
+ * `null` (ou absent) = dossier SYCEBNL, pour lequel la notion est sans objet.
+ */
+export type SystemeComptableSyscohada = 'NORMAL' | 'MINIMAL_TRESORERIE';
 export type RoleUtilisateur = 'ADMIN_CABINET' | 'COMPTABLE' | 'LECTURE_SEULE';
 
 export interface Utilisateur {
@@ -948,6 +960,8 @@ export interface ParametresDossier {
   nom: string;
   referentiel: Referentiel;
   jeuEtatsFinanciersSycebnl: JeuEtatsFinanciersSycebnl;
+  /** Pendant SYSCOHADA · null pour un dossier SYCEBNL. */
+  systemeComptableSyscohada: SystemeComptableSyscohada | null;
   activite: string | null;
   adresse: string | null;
   ville: string | null;

@@ -99,6 +99,25 @@ enum JeuEtatsFinanciersSycebnl {
   SYSTEME_MINIMAL_TRESORERIE
 }
 
+// Le SYSCOHADA révisé a lui aussi DEUX présentations, et non une seule :
+// l'AUDCIF art. 11 pose que « les présentations des états financiers annuels
+// et de tenue de comptes admises par le présent Acte uniforme sont le Système
+// normal et le Système minimal de trésorerie », et que « toute entité est,
+// sauf exception liée à sa taille, soumise au Système normal ». L'ancien
+// Système allégé de l'art. 12 est ABROGÉ par la révision de 2017 · ne pas le
+// proposer.
+//
+// L'art. 13 réserve le SMT aux petites entités, avec un seuil de chiffre
+// d'affaires hors taxes annuel QUI DÉPEND DE L'ACTIVITÉ : 60 millions de
+// FCFA pour le négoce, 40 millions pour l'artisanat et assimilés, 30 millions
+// pour les services. C'est un seuil par nature d'activité, à la différence du
+// SYCEBNL qui plafonne cinq catégories de ressources à 30 millions chacune ·
+// les deux référentiels ne se recopient pas l'un l'autre sur ce point.
+enum SystemeComptableSyscohada {
+  NORMAL
+  MINIMAL_TRESORERIE
+}
+
 enum TypeLicence {
   ABONNEMENT // coupure automatique à échéance
   PERPETUEL_SAAS // payé une fois, hébergé chez nous, sans expiration
@@ -121,6 +140,13 @@ model Tenant {
   // dossier tant que le dossier ne porte aucune écriture · au-delà, changer
   // de jeu changerait rétroactivement la présentation des états déjà arrêtés.
   jeuEtatsFinanciersSycebnl JeuEtatsFinanciersSycebnl @default(ASSOCIATIONS_ORDRES_PROFESSIONNELS)
+  // Pendant SYSCOHADA du champ ci-dessus · Système normal ou SMT (AUDCIF
+  // art. 11 et 13, voir l'enum). NULLABLE, à la différence du jeu SYCEBNL :
+  // `null` dit « sans objet », ce qui est l'état vrai d'un dossier SYCEBNL,
+  // là où une valeur par défaut ferait porter à chaque ASBL un système
+  // d'entreprise qui ne la concerne pas. Renseigné à la création pour un
+  // dossier SYSCOHADA, jamais pour un dossier SYCEBNL.
+  systemeComptableSyscohada SystemeComptableSyscohada?
   createdAt                 DateTime                  @default(now())
 
   // Coordonnées · collectées par l'assistant « Nouveau fichier comptable »,

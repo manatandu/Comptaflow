@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import type { JeuEtatsFinanciersSycebnl } from '../lib/types';
+import type { JeuEtatsFinanciersSycebnl, SystemeComptableSyscohada } from '../lib/types';
 
 /**
  * CONSOLE DE L'OPÉRATEUR DE PLATEFORME · vue transversale des cabinets
@@ -27,6 +27,8 @@ interface CabinetClient {
   nom: string;
   referentiel: string;
   jeuEtatsFinanciersSycebnl: JeuEtatsFinanciersSycebnl;
+  /** Pendant SYSCOHADA · null pour un dossier SYCEBNL. */
+  systemeComptableSyscohada: SystemeComptableSyscohada | null;
   ville: string | null;
   pays: string | null;
   numeroImpot: string | null;
@@ -102,6 +104,7 @@ export function PlateformePage() {
   const [nomEntite, setNomEntite] = useState('');
   const [emailAdmin, setEmailAdmin] = useState('');
   const [referentielChoisi, setReferentielChoisi] = useState<'SYCEBNL' | 'SYSCOHADA'>('SYCEBNL');
+  const [systemeChoisi, setSystemeChoisi] = useState<SystemeComptableSyscohada>('NORMAL');
   const [jeu, setJeu] = useState<JeuEtatsFinanciersSycebnl>('ASSOCIATIONS_ORDRES_PROFESSIONNELS');
   const [typeLicence, setTypeLicence] = useState<TypeLicence>('ABONNEMENT');
   const [dateExpiration, setDateExpiration] = useState('');
@@ -227,7 +230,9 @@ export function PlateformePage() {
         referentiel: referentielChoisi,
         // Le jeu d'états est un concept SYCEBNL · le serveur l'ignorerait de
         // toute façon pour un dossier SYSCOHADA (AuthService.register).
-        ...(referentielChoisi === 'SYCEBNL' ? { jeuEtatsFinanciersSycebnl: jeu } : {}),
+        ...(referentielChoisi === 'SYCEBNL'
+          ? { jeuEtatsFinanciersSycebnl: jeu }
+          : { systemeComptableSyscohada: systemeChoisi }),
         typeLicence,
         ...(typeLicence === 'ABONNEMENT' && dateExpiration ? { dateExpiration } : {}),
         ...(ville ? { ville } : {}),
@@ -298,7 +303,11 @@ export function PlateformePage() {
                   {/* Le jeu d'états n'a de sens qu'en SYCEBNL · un dossier
                       SYSCOHADA garde le défaut du schéma, qu'il ne faut pas
                       afficher comme s'il était une association. */}
-                  {c.referentiel === 'SYSCOHADA' ? 'SYSCOHADA révisé' : (LIBELLE_JEU[c.jeuEtatsFinanciersSycebnl] ?? c.referentiel)}
+                  {c.referentiel === 'SYSCOHADA'
+                    ? c.systemeComptableSyscohada === 'MINIMAL_TRESORERIE'
+                      ? 'SYSCOHADA · SMT'
+                      : 'SYSCOHADA · Système normal'
+                    : (LIBELLE_JEU[c.jeuEtatsFinanciersSycebnl] ?? c.referentiel)}
                 </span>
                 <span className="text-[10.5px] font-mono truncate">{c.numeroImpot ?? '·'}</span>
                 <span className="text-[10.5px] text-right tabular-nums">{c.nbUtilisateurs}</span>
@@ -444,13 +453,29 @@ export function PlateformePage() {
                   <option value="SYCEBNL">SYCEBNL · entité à but non lucratif</option>
                   <option value="SYSCOHADA">SYSCOHADA révisé · entreprise (états en construction)</option>
                 </select>
-                {referentielChoisi === 'SYCEBNL' && (
+                {referentielChoisi === 'SYCEBNL' ? (
                   <>
                     <label className="text-[11px] text-right">Type d'entité :</label>
                     <select value={jeu} onChange={(e) => setJeu(e.target.value as JeuEtatsFinanciersSycebnl)} className="border border-border-dark px-2.5 py-1.5 text-[11px]">
                       <option value="ASSOCIATIONS_ORDRES_PROFESSIONNELS">Association / ordre professionnel</option>
                       <option value="PROJETS_DEVELOPPEMENT">Projet de développement</option>
                       <option value="SYSTEME_MINIMAL_TRESORERIE">Système minimal de trésorerie</option>
+                    </select>
+                  </>
+                ) : (
+                  <>
+                    {/* AUDCIF art. 11 : deux systèmes, pas un · le SMT de
+                        l'art. 13 est réservé aux entités sous seuil de
+                        chiffre d'affaires (60 M négoce, 40 M artisanat,
+                        30 M services). Même question que côté assistant. */}
+                    <label className="text-[11px] text-right">Système comptable :</label>
+                    <select
+                      value={systemeChoisi}
+                      onChange={(e) => setSystemeChoisi(e.target.value as SystemeComptableSyscohada)}
+                      className="border border-border-dark px-2.5 py-1.5 text-[11px]"
+                    >
+                      <option value="NORMAL">Système normal</option>
+                      <option value="MINIMAL_TRESORERIE">Système minimal de trésorerie (sous seuil)</option>
                     </select>
                   </>
                 )}

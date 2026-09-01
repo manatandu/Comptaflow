@@ -163,6 +163,12 @@ export const LEXIQUE = {
       "Régime allégé réservé aux petites entités : comptabilité de trésorerie (le fait générateur est l'encaissement ou le décaissement), journal unique de trésorerie, bilan à cinq lignes d'actif, compte de résultat de caisse et cinq notes annexes. L'article 6 plafonne à 30 millions de FCFA CHACUNE des cinq catégories de ressources annuelles (subventions ; cotisations et autres revenus ; dons et legs ; ressources de projet ; autres) : un seul dépassement, ou un cumul supérieur sur deux exercices, ramène l'entité au Système normal, qui reste la règle.",
     source: 'SYCEBNL, art. 5 et 6, Partie 4 ch. 4',
   },
+  systemeSyscohada: {
+    titre: 'Système comptable SYSCOHADA',
+    texte:
+      "L'AUDCIF n'admet que deux présentations des états financiers et de tenue des comptes : le Système normal et le Système minimal de trésorerie. L'ancien Système allégé a été abrogé par la révision de 2017. Le Système normal est la règle · « toute entité est, sauf exception liée à sa taille, soumise au Système normal ». Le SMT est réservé aux entités dont le chiffre d'affaires hors taxes annuel reste sous 60 millions de FCFA pour le négoce, 40 millions pour l'artisanat et assimilés, 30 millions pour les services. Ces seuils sont propres au SYSCOHADA : ne pas les confondre avec ceux du SYCEBNL, qui plafonne cinq catégories de ressources à 30 millions chacune.",
+    source: 'AUDCIF, art. 11, 12 et 13',
+  },
   notesAnnexes: {
     titre: 'Notes annexes',
     texte:

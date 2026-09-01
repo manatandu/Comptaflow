@@ -1,5 +1,5 @@
 import { IsDateString, IsEmail, IsEnum, IsOptional, IsString, MinLength } from 'class-validator';
-import { JeuEtatsFinanciersSycebnl, Referentiel, TypeLicence } from '@prisma/client';
+import { JeuEtatsFinanciersSycebnl, Referentiel, SystemeComptableSyscohada, TypeLicence } from '@prisma/client';
 
 /**
  * Inscription = création du tenant (cabinet/association) + de son admin +
@@ -35,6 +35,15 @@ export class RegisterDto {
   @IsOptional()
   @IsEnum(JeuEtatsFinanciersSycebnl)
   jeuEtatsFinanciersSycebnl?: JeuEtatsFinanciersSycebnl;
+
+  // Pendant SYSCOHADA · écran « Système comptable » de l'assistant. L'AUDCIF
+  // (art. 11) n'admet que deux présentations, le Système normal et le Système
+  // minimal de trésorerie, et l'art. 13 réserve le second aux entités sous
+  // seuil de chiffre d'affaires. Omis, on retient le Système normal, régime
+  // de droit commun de l'art. 11.
+  @IsOptional()
+  @IsEnum(SystemeComptableSyscohada)
+  systemeComptableSyscohada?: SystemeComptableSyscohada;
 
   @IsOptional()
   @IsEnum(TypeLicence)
