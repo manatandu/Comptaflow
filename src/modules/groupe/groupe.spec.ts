@@ -60,6 +60,7 @@ const service = (surcharges?: { balanceC1?: (typeof BALANCES)['c1'] }) =>
       balance: async (tenantId: string) => (tenantId === 'mere' ? BALANCES.mere : (surcharges?.balanceC1 ?? BALANCES.c1)),
     } as never,
     undefined as never,
+    undefined as never,
   );
 
 describe('GroupeService · balance agrégée', () => {
@@ -110,6 +111,7 @@ describe('GroupeService · balance agrégée', () => {
         tenant: { findUnique: async () => ({ id: 'seul', nom: 'Dossier seul' }), findMany: async () => [] },
       } as never,
       { balance: async () => BALANCES.mere } as never,
+      undefined as never,
       undefined as never,
     );
     await expect(s.balanceAgregee('seul', 'ex-m')).rejects.toThrow(BadRequestException);
@@ -180,6 +182,7 @@ describe('GroupeService · création de cellules par le siège', () => {
           return { tenant: { id: 't-cellule', nom: dto.nomEntite }, exercice: null, accessToken: 'jeton' };
         },
       } as never,
+      undefined as never,
     );
     return { s, traces };
   };
@@ -270,7 +273,7 @@ describe('GroupeService · canevas de trésorerie', () => {
 
   it('aller-retour complet : le canevas généré, rempli, s’importe en écritures équilibrées de brouillard', async () => {
     const creees: Array<{ data: { libelle: string; reference: string; journalId: string; lignes: { create: Array<{ debit: number; credit: number }> } } }> = [];
-    const s = new GroupeService(prismaCanevas(creees), undefined as never, undefined as never);
+    const s = new GroupeService(prismaCanevas(creees), undefined as never, undefined as never, undefined as never);
 
     const canevas = await s.canevas('mere', 'c1');
     expect(canevas.nomFichier).toBe('canevas-cellule-a-2026.xlsx');
@@ -303,7 +306,7 @@ describe('GroupeService · canevas de trésorerie', () => {
 
   it('tout ou rien : une seule ligne fausse fait tout refuser, anomalies nommées ligne par ligne', async () => {
     const creees: unknown[] = [];
-    const s = new GroupeService(prismaCanevas(creees), undefined as never, undefined as never);
+    const s = new GroupeService(prismaCanevas(creees), undefined as never, undefined as never, undefined as never);
     const canevas = await s.canevas('mere', 'c1');
     const rempli = await remplir(canevas.buffer, [
       ['2026-03-01', 'Bonne ligne', 'Dons et offrandes', 100, '', 'Caisse'],
@@ -322,7 +325,7 @@ describe('GroupeService · canevas de trésorerie', () => {
   });
 
   it('un fichier qui n’est pas le canevas officiel est refusé net', async () => {
-    const s = new GroupeService(prismaCanevas([]), undefined as never, undefined as never);
+    const s = new GroupeService(prismaCanevas([]), undefined as never, undefined as never, undefined as never);
     const { Workbook } = await import('exceljs');
     const wb = new Workbook();
     wb.addWorksheet('Feuille1').getCell('A1').value = 'bonjour';
@@ -330,5 +333,133 @@ describe('GroupeService · canevas de trésorerie', () => {
     await expect(
       s.importerCanevas('mere', 'c1', 'u', { nomFichier: 'x.xlsx', contenuBase64: etranger.toString('base64') }),
     ).rejects.toThrow(BadRequestException);
+  });
+});
+
+describe('GroupeService · liasse du groupe en un clic', () => {
+  const prismaCombinaison = (journalDeAppels: Array<{ nom: string; args?: unknown }>) =>
+    ({
+      exercice: {
+        findFirst: async ({ where }: { where: { id?: string; tenantId: string } }) => {
+          // L'exercice de la mère existe · celui de la combinaison, pas encore.
+          if (where.id === 'ex-m' && where.tenantId === 'mere') return EX_MERE;
+          return null;
+        },
+        create: async ({ data }: { data: unknown }) => {
+          journalDeAppels.push({ nom: 'exercice.create', args: data });
+          return { id: 'ex-comb' };
+        },
+      },
+      tenant: {
+        findUnique: async () => ({ id: 'mere', nom: 'Église centrale', dossierCombinaisonId: null }),
+        findMany: async () => [
+          { id: 'c1', nom: 'Cellule A', exercices: [{ id: 'ex-c1', dateDebut: new Date('2026-01-01'), dateFin: new Date('2026-12-31') }] },
+        ],
+        create: async ({ data }: { data: Record<string, unknown> }) => {
+          journalDeAppels.push({ nom: 'tenant.create', args: data });
+          return { id: 't-comb' };
+        },
+        update: async ({ data }: { data: unknown }) => {
+          journalDeAppels.push({ nom: 'tenant.update', args: data });
+          return {};
+        },
+      },
+      ligneEcriture: {
+        deleteMany: async () => {
+          journalDeAppels.push({ nom: 'lignes.deleteMany' });
+          return { count: 0 };
+        },
+      },
+      ecriture: {
+        deleteMany: async () => {
+          journalDeAppels.push({ nom: 'ecritures.deleteMany' });
+          return { count: 0 };
+        },
+        create: async ({ data }: { data: Record<string, unknown> }) => {
+          journalDeAppels.push({ nom: 'ecriture.create', args: data });
+          return {};
+        },
+      },
+      compte: {
+        createMany: async ({ data }: { data: unknown[] }) => {
+          journalDeAppels.push({ nom: 'compte.createMany', args: data });
+          return { count: data.length };
+        },
+        findMany: async ({ where }: { where: { numero: { in: string[] } } }) =>
+          where.numero.in.map((n) => ({ id: `cpt-${n}`, numero: n })),
+      },
+      journal: {
+        findFirst: async () => null,
+        create: async () => ({ id: 'j-od' }),
+      },
+    }) as never;
+
+  it('reverse la balance agrégée dans le dossier de combinaison, régénéré, puis fait produire la liasse aux moteurs existants', async () => {
+    const appels: Array<{ nom: string; args?: unknown }> = [];
+    let liasseDemandee: { tenantId: string; exerciceId: string } | undefined;
+    const s = new GroupeService(
+      prismaCombinaison(appels),
+      { balance: async (tenantId: string) => (tenantId === 'mere' ? BALANCES.mere : BALANCES.c1) } as never,
+      undefined as never,
+      {
+        liasseCompleteExcel: async (tenantId: string, exerciceId: string) => {
+          liasseDemandee = { tenantId, exerciceId };
+          return { buffer: Buffer.from('xlsx'), nomFichier: 'liasse-sycebnl-2026.xlsx' };
+        },
+      } as never,
+    );
+
+    const classeur = await s.liasseGroupe('mere', 'ex-m', 'user-siege');
+
+    // La liasse est produite par les moteurs existants, sur le dossier de
+    // combinaison et son exercice miroir.
+    expect(liasseDemandee).toEqual({ tenantId: 't-comb', exerciceId: 'ex-comb' });
+    expect(classeur.nomFichier).toBe('groupe-liasse-sycebnl-2026.xlsx');
+
+    // Le dossier technique naît SANS dossierMereId · sinon l'agrégat le
+    // compterait et doublerait tout.
+    const creation = appels.find((a) => a.nom === 'tenant.create')!.args as Record<string, unknown>;
+    expect(creation.dossierMereId).toBeUndefined();
+    expect(creation.jeuEtatsFinanciersSycebnl).toBe('ASSOCIATIONS_ORDRES_PROFESSIONNELS');
+
+    // Régénération complète AVANT le reversement · l'ordre des gestes compte.
+    const noms = appels.map((a) => a.nom);
+    expect(noms.indexOf('lignes.deleteMany')).toBeLessThan(noms.indexOf('ecriture.create'));
+    expect(noms.indexOf('ecritures.deleteMany')).toBeLessThan(noms.indexOf('ecriture.create'));
+
+    // L'écriture unique porte la balance agrégée en brut, équilibrée.
+    const ecriture = appels.find((a) => a.nom === 'ecriture.create')!.args as {
+      lignes: { create: Array<{ debit: number; credit: number }> };
+    };
+    const debits = ecriture.lignes.create.reduce((s2, l) => s2 + l.debit, 0);
+    const credits = ecriture.lignes.create.reduce((s2, l) => s2 + l.credit, 0);
+    expect(debits).toBeCloseTo(credits);
+    expect(debits).toBeCloseTo(1700);
+  });
+
+  it('refuse tant qu’un contrôle est rouge · une liasse fausse à l’apparence officielle serait le pire des livrables', async () => {
+    // Le 58 de C1 ne fait pas face à celui de la mère · écart de liaison.
+    const s = new GroupeService(
+      prismaCombinaison([]),
+      {
+        balance: async (tenantId: string) =>
+          tenantId === 'mere'
+            ? BALANCES.mere
+            : {
+                lignes: [
+                  { numero: '571000', intitule: 'Caisse', typeCompte: 'DETAIL', totalDebit: 200, totalCredit: 0, solde: 200 },
+                  { numero: '581000', intitule: 'Virements internes', typeCompte: 'DETAIL', totalDebit: 0, totalCredit: 200, solde: -200 },
+                ],
+                totaux: { debit: 200, credit: 200 },
+              },
+      } as never,
+      undefined as never,
+      {
+        liasseCompleteExcel: async () => {
+          throw new Error('ne doit jamais être appelé');
+        },
+      } as never,
+    );
+    await expect(s.liasseGroupe('mere', 'ex-m', 'u')).rejects.toThrow(/58/);
   });
 });

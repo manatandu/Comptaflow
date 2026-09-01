@@ -248,6 +248,15 @@ model Tenant {
   // commercial de la licence de groupe, fixé par la console plateforme).
   // null = le siège ne crée pas de cellules, tout passe par la console.
   plafondCellules Int?
+  // DOSSIER DE COMBINAISON · le dossier TECHNIQUE dans lequel le serveur
+  // reverse la balance agrégée du groupe pour produire la liasse en un clic
+  // (voir GroupeService.liasseGroupe). Créé et entièrement régénéré par le
+  // serveur à chaque génération · aucun utilisateur n'y vit, il ne porte pas
+  // de dossierMereId (sinon l'agrégat le compterait et doublerait tout), et
+  // il est exclu des listes de la console plateforme via la relation inverse.
+  dossierCombinaisonId String? @unique
+  dossierCombinaison   Tenant? @relation("Combinaison", fields: [dossierCombinaisonId], references: [id])
+  combinaisonPour      Tenant? @relation("Combinaison")
 
   licence                  Licence?
   comptes                  Compte[]

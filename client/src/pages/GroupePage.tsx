@@ -92,6 +92,7 @@ export function GroupePage() {
   const [ongletBalance, setOngletBalance] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
   const [chargement, setChargement] = useState(false);
+  const [liasseEnCours, setLiasseEnCours] = useState(false);
 
   // Modale « nouvelle cellule »
   const [creationOuverte, setCreationOuverte] = useState(false);
@@ -260,7 +261,28 @@ export function GroupePage() {
             onClick={() => exerciceActif && api.telecharger(`/groupe/balance-agregee/excel?exerciceId=${exerciceActif}`, 'balance-agregee.xlsx')}
             className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3.5 py-1 text-[10.5px] font-semibold"
           >
-            Exporter (Excel)
+            Balance (Excel)
+          </button>
+          <button
+            type="button"
+            disabled={!exerciceActif || liasseEnCours}
+            onClick={async () => {
+              if (!exerciceActif) return;
+              setLiasseEnCours(true);
+              setErreur(null);
+              try {
+                // Le serveur refuse tant qu'un contrôle est rouge · son
+                // message dit exactement quoi corriger, on l'affiche tel quel.
+                await api.telecharger(`/groupe/liasse/excel?exerciceId=${exerciceActif}`, 'liasse-groupe.xlsx');
+              } catch (err) {
+                setErreur(err instanceof ApiError ? err.message : 'Liasse impossible');
+              } finally {
+                setLiasseEnCours(false);
+              }
+            }}
+            className="bg-sel text-white px-3.5 py-1 text-[10.5px] font-semibold disabled:opacity-50"
+          >
+            {liasseEnCours ? 'Liasse en cours…' : 'Liasse du groupe (Excel)'}
           </button>
         </div>
       </div>

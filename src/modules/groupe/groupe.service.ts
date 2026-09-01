@@ -1,11 +1,19 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Workbook } from 'exceljs';
 import { createHash, randomBytes } from 'crypto';
-import { Referentiel, StatutEcriture, StatutExercice } from '@prisma/client';
+import {
+  ClasseCompte,
+  JeuEtatsFinanciersSycebnl,
+  NumerotationPiece,
+  Referentiel,
+  StatutEcriture,
+  StatutExercice,
+  TypeJournal,
+} from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { AuthService } from '../auth/auth.service';
-import { ClasseurExporte } from '../exports/export.service';
+import { ClasseurExporte, ExportService } from '../exports/export.service';
 import { CreerCelluleDto, ImporterCanevasDto } from './dto/groupe.dto';
 import {
   DERNIERE_LIGNE_DONNEES,
@@ -39,6 +47,7 @@ export class GroupeService {
     private readonly prisma: PrismaService,
     private readonly ecritureService: EcritureService,
     private readonly authService: AuthService,
+    private readonly exportService: ExportService,
   ) {}
 
   /** Les cellules rattachées à ce dossier, et ce que le siège peut créer. */
@@ -751,5 +760,152 @@ export class GroupeService {
       statut: 'BROUILLARD',
       anomalies: [],
     };
+  }
+
+  /**
+   * LA LIASSE DU GROUPE EN UN CLIC · automatise exactement le chemin manuel
+   * documenté (exporter la balance agrégée, la réimporter dans un dossier de
+   * combinaison, générer la liasse), sans les étapes manuelles : le serveur
+   * reverse la balance agrégée dans un dossier de combinaison TECHNIQUE
+   * (créé une fois, lié par Tenant.dossierCombinaisonId, sans utilisateurs,
+   * sans dossierMereId · sinon l'agrégat le compterait et doublerait tout),
+   * puis fait produire le classeur par les moteurs de liasse existants ·
+   * aucun second moteur d'états, donc aucune divergence possible avec ce
+   * qu'un dossier ordinaire produirait des mêmes soldes.
+   *
+   * REFUS si un contrôle est rouge · une liasse produite sur un agrégat
+   * déséquilibré, des 58 non neutralisés ou des cellules absentes serait
+   * fausse avec l'apparence de l'officiel, le pire des livrables. Le message
+   * dit exactement quoi corriger.
+   *
+   * Limite assumée (identique au chemin manuel) : les états et notes sont
+   * calculés des SOLDES agrégés · les registres de détail (immobilisations,
+   * tiers) vivent dans les dossiers, pas dans la combinaison.
+   */
+  async liasseGroupe(tenantId: string, exerciceId: string, createdBy: string): Promise<ClasseurExporte> {
+    const agregat = await this.balanceAgregee(tenantId, exerciceId);
+
+    const blocages: string[] = [];
+    if (!agregat.controles.tousEquilibres) {
+      const noms = agregat.dossiers.filter((d) => !d.equilibre).map((d) => d.nom);
+      blocages.push(`dossier(s) déséquilibré(s) : ${noms.join(', ')}`);
+    }
+    if (!agregat.controles.liaisonNeutralisee) {
+      blocages.push(
+        `virements internes (58) non neutralisés (écart ${agregat.controles.ecartLiaison.toFixed(2)}) · un transfert est enregistré d'un seul côté`,
+      );
+    }
+    if (agregat.cellulesSansExercice.length > 0) {
+      blocages.push(
+        `cellule(s) sans exercice sur la période : ${agregat.cellulesSansExercice.map((c) => c.nom).join(', ')} · leurs chiffres manqueraient`,
+      );
+    }
+    if (blocages.length > 0) {
+      throw new BadRequestException(
+        `La liasse du groupe ne peut pas être produite tant que l'agrégat n'est pas fiable · ${blocages.join(' ; ')}. Corrigez, puis relancez.`,
+      );
+    }
+
+    // 1 · Le dossier de combinaison, créé une seule fois par groupe.
+    const mere = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { nom: true, dossierCombinaisonId: true },
+    });
+    let combinaisonId = mere!.dossierCombinaisonId;
+    if (!combinaisonId) {
+      const combinaison = await this.prisma.tenant.create({
+        data: {
+          nom: `${mere!.nom} · liasse du groupe`,
+          referentiel: Referentiel.SYCEBNL,
+          // L'entité agrégée relève du Système normal (art. 6 SYCEBNL · le
+          // seuil s'apprécie par entité), quel que soit le jeu des cellules.
+          jeuEtatsFinanciersSycebnl: JeuEtatsFinanciersSycebnl.ASSOCIATIONS_ORDRES_PROFESSIONNELS,
+        },
+        select: { id: true },
+      });
+      combinaisonId = combinaison.id;
+      await this.prisma.tenant.update({ where: { id: tenantId }, data: { dossierCombinaisonId: combinaisonId } });
+    }
+
+    // 2 · L'exercice miroir de celui de la mère.
+    let exercice = await this.prisma.exercice.findFirst({
+      where: { tenantId: combinaisonId, dateDebut: agregat.exercice.dateDebut, dateFin: agregat.exercice.dateFin },
+      select: { id: true },
+    });
+    if (!exercice) {
+      exercice = await this.prisma.exercice.create({
+        data: { tenantId: combinaisonId, dateDebut: agregat.exercice.dateDebut, dateFin: agregat.exercice.dateFin },
+        select: { id: true },
+      });
+    }
+
+    // 3 · Régénération COMPLÈTE : le contenu du dossier de combinaison est
+    // dérivé, jamais source · on repart de zéro à chaque génération, aucune
+    // trace d'un agrégat précédent ne peut subsister.
+    await this.prisma.ligneEcriture.deleteMany({
+      where: { ecriture: { tenantId: combinaisonId, exerciceId: exercice.id } },
+    });
+    await this.prisma.ecriture.deleteMany({ where: { tenantId: combinaisonId, exerciceId: exercice.id } });
+
+    // 4 · Les comptes de l'agrégat (créés au fil des générations · un compte
+    // déjà présent est réutilisé, son intitulé n'est pas réécrit).
+    await this.prisma.compte.createMany({
+      data: agregat.lignes.map((l) => ({
+        tenantId: combinaisonId!,
+        numero: l.numero,
+        intitule: l.intitule,
+        classe: `CLASSE_${l.numero[0]}` as ClasseCompte,
+      })),
+      skipDuplicates: true,
+    });
+    const comptes = await this.prisma.compte.findMany({
+      where: { tenantId: combinaisonId, numero: { in: agregat.lignes.map((l) => l.numero) } },
+      select: { id: true, numero: true },
+    });
+    const compteParNumero = new Map(comptes.map((c) => [c.numero, c.id]));
+
+    let journal = await this.prisma.journal.findFirst({
+      where: { tenantId: combinaisonId, code: 'OD' },
+      select: { id: true },
+    });
+    if (!journal) {
+      journal = await this.prisma.journal.create({
+        data: {
+          tenantId: combinaisonId,
+          code: 'OD',
+          intitule: 'Combinaison du groupe',
+          type: TypeJournal.GENERAL,
+          numerotation: NumerotationPiece.CONTINUE_FICHIER,
+        },
+        select: { id: true },
+      });
+    }
+
+    // 5 · UNE écriture, la balance agrégée en brut (débits et crédits
+    // conservés, pas seulement les soldes) · équilibrée par construction
+    // puisque chaque dossier l'est (contrôlé ci-dessus).
+    await this.prisma.ecriture.create({
+      data: {
+        tenantId: combinaisonId,
+        exerciceId: exercice.id,
+        journalId: journal.id,
+        date: agregat.exercice.dateDebut,
+        libelle: `Combinaison du groupe · ${agregat.dossiers.length} dossiers`,
+        reference: 'GROUPE',
+        createdBy,
+        statut: StatutEcriture.VALIDEE,
+        lignes: {
+          create: agregat.lignes.map((l) => ({
+            compteId: compteParNumero.get(l.numero)!,
+            debit: l.totalDebit,
+            credit: l.totalCredit,
+          })),
+        },
+      },
+    });
+
+    // 6 · Les moteurs existants produisent le classeur.
+    const classeur = await this.exportService.liasseCompleteExcel(combinaisonId, exercice.id);
+    return { ...classeur, nomFichier: `groupe-${classeur.nomFichier}` };
   }
 }

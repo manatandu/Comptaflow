@@ -88,6 +88,21 @@ export class GroupeController {
     return this.groupeService.balanceAgregee(user.tenantId, exerciceId);
   }
 
+  /**
+   * La liasse du groupe en un clic. Un GET qui écrit (dans le dossier de
+   * combinaison technique, régénéré à chaque appel) · réservé aux rôles qui
+   * écrivent, comme le dépôt de canevas.
+   */
+  @Get('liasse/excel')
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  async liasseGroupe(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    envoyerXlsx(res, await this.groupeService.liasseGroupe(user.tenantId, exerciceId, user.userId));
+  }
+
   @Get('balance-agregee/excel')
   async balanceAgregeeExcel(
     @CurrentUser() user: AuthenticatedUser,

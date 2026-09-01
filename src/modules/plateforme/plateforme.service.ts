@@ -54,6 +54,10 @@ export class PlateformeService implements OnModuleInit {
   /** Vue d'ensemble des cabinets clients, licence et volumétrie comprises. */
   async listeCabinets() {
     const tenants = await this.prisma.tenant.findMany({
+      // Les dossiers de combinaison sont TECHNIQUES (voir GroupeService.
+      // liasseGroupe) : régénérés par le serveur, sans utilisateurs · ils
+      // n'ont rien à faire dans la liste des cabinets clients.
+      where: { combinaisonPour: null },
       orderBy: { nom: 'asc' },
       select: {
         id: true,

@@ -13,5 +13,9 @@ import { DocumentsObligatoiresModule } from '../documents-obligatoires/documents
   imports: [LicenceModule, JwtAuthModule, ComptabiliteModule, EtatsFinanciersModule, NotesAnnexesModule, RegistreDonateursModule, DocumentsObligatoiresModule],
   controllers: [ExportController],
   providers: [ExportService],
+  // Exporté pour GroupeModule : la liasse du groupe en un clic reverse la
+  // balance agrégée dans le dossier de combinaison puis fait produire le
+  // classeur par CE service · aucun second moteur de liasse.
+  exports: [ExportService],
 })
 export class ExportsModule {}
