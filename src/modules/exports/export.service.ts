@@ -1209,10 +1209,9 @@ export class ExportService {
    * Fiche récapitulative · Partie 4, section 4 des deux jeux, dans la forme
    * du modèle (feuille « NOTES ANNEXES » : bandes grises de parties,
    * colonnes « A (2) » / « N/A (2) » cochées, renvois (1) et (2) en pied).
-   * Une note non applicable y est cochée « N/A ». Dans le tirage de dépôt
-   * elle n'a pas de feuille propre (renvoi (1) du modèle, voir
-   * `construireClasseurNotes`) et la fiche est sa seule trace ; dans le
-   * tirage de travail elle a aussi sa feuille, portant NEANT.
+   * Une note non applicable y est cochée « N/A » et a AUSSI sa feuille dans
+   * le classeur, portant la mention NEANT · la fiche et la feuille se
+   * recoupent, elles ne se remplacent pas.
    */
   private feuilleFicheRecapitulative(
     classeur: ExcelJS.Workbook,
@@ -1256,7 +1255,6 @@ export class ExportService {
     ident: IdentiteLiasse,
     parties?: Array<[string, string[]]>,
     classeur?: ExcelJS.Workbook,
-    toutesLesNotes = false,
   ): ExcelJS.Workbook {
     const cible = classeur ?? this.nouveauClasseur();
     this.feuilleFicheRecapitulative(cible, resultat.ficheRecapitulative, ident, parties);
@@ -1264,26 +1262,29 @@ export class ExportService {
     // Une feuille par CODE de note, les sous-tableaux empilés dessus, dans
     // l'ordre officiel · le classeur se feuillette comme le texte se lit.
     //
-    // DEUX TIRAGES, et le défaut est celui du texte.
+    // TOUTES LES NOTES DU JEU SONT JOINTES, sans exception, celles que
+    // l'exercice ne chiffre pas portant la mention NEANT (voir
+    // `feuilleNote`). Un seul tirage : il n'y a pas d'option pour masquer
+    // les notes vides, et il ne faut pas en réintroduire une.
     //
-    // Le renvoi (1) au pied de la fiche récapitulative officielle est
-    // explicite, dans les DEUX jeux (Partie 4, ch. 2 pour les associations,
-    // ch. 3 pour les projets) : « les Notes non documentées ne doivent pas
-    // être jointes aux états financiers. [...] Par ailleurs, dans une note,
-    // les lignes non chiffrées doivent être supprimées. » La règle vaut donc
-    // à deux niveaux, la note entière ET la ligne, et une liasse DÉPOSÉE
-    // doit s'y tenir · c'est le comportement par défaut, `toutesLesNotes`
-    // valant faux. La note écartée n'est pas perdue pour autant : la fiche
-    // récapitulative la porte, cochée « N/A ».
+    // C'EST UN ÉCART ASSUMÉ avec le renvoi (1) du modèle officiel, et il est
+    // écrit ici pour qu'un lecteur ne le prenne pas pour un oubli. Ce renvoi,
+    // au pied de la fiche récapitulative des deux jeux (Partie 4, ch. 2 pour
+    // les associations, ch. 3 pour les projets), dit : « les Notes non
+    // documentées ne doivent pas être jointes aux états financiers. [...]
+    // Par ailleurs, dans une note, les lignes non chiffrées doivent être
+    // supprimées. »
     //
-    // `toutesLesNotes` produit l'autre tirage, celui du DOSSIER DE TRAVAIL :
-    // toutes les notes du jeu, celles que l'exercice ne chiffre pas portant
-    // la mention NEANT. Ce tirage-là ne se dépose pas ; il sert à la revue,
-    // où l'on veut voir qu'une note a été examinée et non pas deviner si son
-    // absence vient d'un « sans objet » ou d'un oubli.
+    // Le second membre de phrase reste appliqué : le filtrage des LIGNES non
+    // chiffrées se fait dans `NoteAnnexeService.calculerNote`, il n'a pas
+    // bougé. Seul le premier, qui écarte la note entière, est écarté par
+    // décision du cabinet (Manasse, 2026-09-01, après avoir vu le texte) :
+    // une liasse à laquelle il manque des notes ne dit pas au lecteur si
+    // elles étaient sans objet ou si on les a oubliées, et la mention NEANT
+    // le dit. La fiche récapitulative continue de les cocher « N/A » ·
+    // fiche et feuilles se recoupent au lieu de se remplacer.
     const parCode = new Map<string, NoteCalculee[]>();
     for (const n of resultat.notes) {
-      if (!toutesLesNotes && !n.applicable) continue;
       parCode.set(n.code, [...(parCode.get(n.code) ?? []), n]);
     }
     const comparer = this.comparateurNotes(parties);
@@ -2741,7 +2742,6 @@ export class ExportService {
     tenantId: string,
     exerciceId: string,
     paiementsEnInstance: number,
-    toutesLesNotes = false,
   ): Promise<ExcelJS.Workbook> {
     const [ident, tenant, bilan, ce, er, recon, notes, exerciceN1Id] = await Promise.all([
       this.identiteLiasse(tenantId, exerciceId),
@@ -2823,7 +2823,7 @@ export class ExportService {
     const { rangsActif, rangsPassif } = this.feuillesBilanProjetEtafi(classeur, bilan, ident);
     const rangsCe = this.feuilleCompteExploitationEtafi(classeur, ce, ident);
 
-    this.construireClasseurNotes(notes, ident, ExportService.PARTIES_NOTES_PROJETS, classeur, toutesLesNotes);
+    this.construireClasseurNotes(notes, ident, ExportService.PARTIES_NOTES_PROJETS, classeur);
     const parCode = new Map(
       (notes.ficheRecapitulative as Array<{ code: string; titre: string }>).map((n) => [n.code, n.titre]),
     );
@@ -3114,11 +3114,7 @@ export class ExportService {
    * TFT, NOTES ANNEXES, les notes applicables, TABLE COMMENTAIRE, CONTROLES,
    * ANOMALIES · rempli avec les données réelles du dossier.
    */
-  private async liasseAssociationsEtafi(
-    tenantId: string,
-    exerciceId: string,
-    toutesLesNotes = false,
-  ): Promise<ExcelJS.Workbook> {
+  private async liasseAssociationsEtafi(tenantId: string, exerciceId: string): Promise<ExcelJS.Workbook> {
     const [ident, tenant, bilan, cr, tft, notes, exerciceN1Id] = await Promise.all([
       this.identiteLiasse(tenantId, exerciceId),
       this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId } }),
@@ -3193,7 +3189,7 @@ export class ExportService {
     const { rangs: rangsTft } = this.feuilleTftEtafi(classeur, tft, ident);
 
     // 13 · fiche récapitulative et notes applicables.
-    this.construireClasseurNotes(notes, ident, ExportService.PARTIES_NOTES_ASSOCIATIONS, classeur, toutesLesNotes);
+    this.construireClasseurNotes(notes, ident, ExportService.PARTIES_NOTES_ASSOCIATIONS, classeur);
 
     // 14 · TABLE COMMENTAIRE, sur les mêmes parties que la fiche.
     const parCode = new Map(
@@ -3318,30 +3314,27 @@ export class ExportService {
    * projets), donnée extra-comptable que seul l'utilisateur connaît.
    */
   /**
-   * `toutesLesNotes` choisit le TIRAGE (voir `construireClasseurNotes`) :
-   * faux, celui du dépôt, qui suit le renvoi (1) du modèle et n'y joint pas
-   * les notes non documentées ; vrai, celui du dossier de travail, qui les
-   * joint toutes avec la mention NEANT. Le nom du fichier les distingue, sans
-   * quoi deux tirages du même exercice s'écraseraient dans le dossier de
-   * téléchargement · et surtout, on saurait plus lequel on a sous les yeux.
+   * La liasse entière du jeu retenu par le dossier, TOUTES ses notes annexes
+   * comprises · celles que l'exercice ne chiffre pas portent la mention
+   * NEANT (voir `construireClasseurNotes` pour la décision et son écart
+   * assumé avec le renvoi (1) du modèle).
    */
   async liasseCompleteExcel(
     tenantId: string,
     exerciceId: string,
     paiementsEnInstance = 0,
-    toutesLesNotes = false,
   ): Promise<ClasseurExporte> {
     const tenant = await this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId } });
     const jeu = tenant.jeuEtatsFinanciersSycebnl;
     const natif =
       jeu === JeuEtatsFinanciersSycebnl.ASSOCIATIONS_ORDRES_PROFESSIONNELS
-        ? await this.liasseAssociationsEtafi(tenantId, exerciceId, toutesLesNotes)
+        ? await this.liasseAssociationsEtafi(tenantId, exerciceId)
         : jeu === JeuEtatsFinanciersSycebnl.PROJETS_DEVELOPPEMENT
-          ? await this.liasseProjetsEtafi(tenantId, exerciceId, paiementsEnInstance, toutesLesNotes)
+          ? await this.liasseProjetsEtafi(tenantId, exerciceId, paiementsEnInstance)
           : await this.liasseSmtEtafi(tenantId, exerciceId);
     return {
       buffer: await this.versBuffer(natif),
-      nomFichier: `liasse-complete${toutesLesNotes ? '-travail' : ''}${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
+      nomFichier: `liasse-complete${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
     };
   }
 }

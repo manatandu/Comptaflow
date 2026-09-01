@@ -228,10 +228,13 @@ export function NotesAnnexesPage() {
           )}
         </div>
 
+        {/* Le logiciel JOINT toutes les notes à la liasse, les vides portant
+            la mention NEANT · l'écran doit dire la même chose que le fichier
+            produit, sans quoi l'un des deux ment. */}
         {!note.applicable && (
           <div className="px-4 py-3 text-[10.5px] text-text-dim italic">
-            Non applicable cet exercice · aucune rubrique chiffrée. « les Notes non documentées ne doivent pas être
-            jointes aux états financiers » (texte officiel).
+            Néant cet exercice · aucune rubrique chiffrée. La note est cochée « N/A » sur la fiche récapitulative et
+            reste jointe à la liasse, où elle porte la mention NEANT.
           </div>
         )}
 

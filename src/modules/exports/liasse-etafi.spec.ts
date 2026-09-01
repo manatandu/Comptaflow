@@ -281,10 +281,9 @@ describe('liasse complète · le classeur entier du modèle', () => {
     const wb = await ouvrir(buffer);
     const noms = wb.worksheets.map((w) => w.name);
 
-    // L'ossature du modèle, dans son ordre exact · les feuilles de notes
-    // varient avec les données (tirage de DÉPÔT : les notes non documentées
-    // ne sont pas jointes, renvoi (1) du modèle), donc l'ossature s'affirme
-    // en préfixe + suffixe. Le tirage de TRAVAIL a son propre test.
+    // L'ossature du modèle, dans son ordre exact. Les feuilles de notes ne
+    // varient PAS avec les données : toutes celles du jeu sont jointes,
+    // celles que l'exercice ne chiffre pas portant la mention NEANT.
     expect(noms.slice(0, 13)).toEqual([
       'BALANCE N',
       'BALANCE N-1',
@@ -308,14 +307,24 @@ describe('liasse complète · le classeur entier du modèle', () => {
     // « NOTE 2 », jamais de suffixe « .1 ».
     expect(new Set(feuillesNotes).size).toBe(feuillesNotes.length);
     const ORDRE = ['1', '2', '3', '4', '5A', '5B', '5C', '5D', '5E', '5F', '5G', '5H', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17A', '17B', '18A', '18B', '19', '20', '21', '22', '23', '24', '25', '26', '27', '28', '29A', '29B', '30', '31', '32', '33', '34', '35'];
-    const rangs = feuillesNotes.map((nom) => ORDRE.indexOf(nom.replace('NOTE ', '')));
-    expect(rangs).not.toContain(-1);
-    expect([...rangs].sort((a, b) => a - b)).toEqual(rangs);
-    // TIRAGE DE DÉPÔT · la note 8 (stocks) n'a aucun compte de classe 3 dans
-    // cette balance. Le renvoi (1) du modèle veut qu'elle NE SOIT PAS jointe
-    // aux états financiers ; la fiche récapitulative la coche « N/A », et
-    // c'est sa seule trace.
-    expect(feuillesNotes).not.toContain('NOTE 8');
+    // TOUTES les notes du jeu sont jointes, dans l'ordre officiel · pas
+    // d'option pour masquer les vides, elles portent la mention NEANT.
+    expect(feuillesNotes).toEqual(ORDRE.map((c) => `NOTE ${c}`));
+
+    const texteFeuille = (nom: string) => {
+      const t: string[] = [];
+      wb.getWorksheet(nom)!.eachRow((row) => row.eachCell((c) => t.push(String(c.value ?? ''))));
+      return t;
+    };
+    // Vide dans cette balance (aucun compte de classe 3) · porte la mention.
+    expect(texteFeuille('NOTE 8')).toContain('NEANT');
+    // Chiffrée · ne doit surtout PAS la porter, sans quoi le filigrane
+    // serait posé à l'aveugle et ne voudrait plus rien dire.
+    expect(texteFeuille('NOTE 13')).not.toContain('NEANT');
+    // HORS BALANCE (note 4, changements de méthodes) : en saisie par nature,
+    // elle présente ses rubriques vierges à remplir · un NEANT y préjugerait
+    // de la réponse du préparateur.
+    expect(texteFeuille('NOTE 4')).not.toContain('NEANT');
 
     // BALANCE N · l'identité ouverture + mouvements = clôture, ligne à ligne.
     const bal = wb.getWorksheet(NOM_BALANCE)!;
@@ -358,43 +367,6 @@ describe('liasse complète · le classeur entier du modèle', () => {
   });
 });
 
-describe('liasse de travail · toutes les notes, les vides en NEANT', () => {
-  /**
-   * LE SECOND TIRAGE. Le renvoi (1) du modèle interdit de JOINDRE les notes
-   * non documentées aux états financiers · c'est le tirage de dépôt, testé
-   * plus haut. Un dossier de travail répond à un autre besoin : le réviseur
-   * veut voir qu'une note a été examinée, et une note absente ne se
-   * distingue pas d'une note oubliée. `toutesNotes` produit ce tirage-là,
-   * et le nom du fichier le dit pour qu'on ne le dépose pas par mégarde.
-   */
-  it('joint les 45 notes du jeu associations, la mention posée sur les seules notes vides', async () => {
-    const exportService = fabriquerExport();
-    const { buffer, nomFichier } = await exportService.liasseCompleteExcel('t1', 'e1', 0, true);
-    expect(nomFichier).toBe('liasse-complete-travail-2026.xlsx');
-    const wb = await ouvrir(buffer);
-    const noms = wb.worksheets.map((w) => w.name);
-    const feuillesNotes = noms.filter((n) => n.startsWith('NOTE '));
-
-    const ORDRE = ['1', '2', '3', '4', '5A', '5B', '5C', '5D', '5E', '5F', '5G', '5H', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17A', '17B', '18A', '18B', '19', '20', '21', '22', '23', '24', '25', '26', '27', '28', '29A', '29B', '30', '31', '32', '33', '34', '35'];
-    expect(feuillesNotes).toEqual(ORDRE.map((c) => `NOTE ${c}`));
-
-    const texteFeuille = (nom: string) => {
-      const t: string[] = [];
-      wb.getWorksheet(nom)!.eachRow((row) => row.eachCell((c) => t.push(String(c.value ?? ''))));
-      return t;
-    };
-    // Vide dans cette balance (aucun compte de classe 3) · porte la mention.
-    expect(texteFeuille('NOTE 8')).toContain('NEANT');
-    // Chiffrée · ne doit surtout PAS la porter, sans quoi le filigrane
-    // serait posé à l'aveugle et ne voudrait plus rien dire.
-    expect(texteFeuille('NOTE 13')).not.toContain('NEANT');
-    // HORS BALANCE (note 4, changements de méthodes) : en saisie par nature,
-    // elle présente ses rubriques vierges à remplir · un NEANT y préjugerait
-    // de la réponse du préparateur.
-    expect(texteFeuille('NOTE 4')).not.toContain('NEANT');
-  });
-});
-
 describe('liasse complète · jeu projets de développement', () => {
   it('reproduit le classeur du modèle projets, grille budgétaire vierge comprise', async () => {
     const exportService = fabriquerExport(JeuEtatsFinanciersSycebnl.PROJETS_DEVELOPPEMENT);
@@ -421,14 +393,11 @@ describe('liasse complète · jeu projets de développement', () => {
     expect(noms.slice(-3)).toEqual(['TABLE COMMENTAIRE', 'CONTROLES', 'ANOMALIES']);
     expect(noms).toContain('NOTES ANNEXES');
 
-    // Le jeu projets suit la même règle de tirage · en dépôt, ses notes non
-    // documentées ne sont pas jointes, et celles qui le sont respectent
-    // l'ordre officiel.
+    // Le jeu projets suit la même règle : ses 26 notes sont TOUTES jointes,
+    // dans l'ordre officiel, les vides portant la mention NEANT.
     const ORDRE_PROJETS = ['1', '2', '3A', '3B', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20A', '20B', '21', '22', '23', '24'];
     const notesProjets = noms.filter((n) => n.startsWith('NOTE '));
-    const rangsProjets = notesProjets.map((n) => ORDRE_PROJETS.indexOf(n.replace('NOTE ', '')));
-    expect(rangsProjets).not.toContain(-1);
-    expect([...rangsProjets].sort((a, b) => a - b)).toEqual(rangsProjets);
+    expect(notesProjets).toEqual(ORDRE_PROJETS.map((c) => `NOTE ${c}`));
 
     // Emplois-Ressources · la ligne GR est un total en formule, la colonne E
     // totalise C+D sur les lignes de détail.
