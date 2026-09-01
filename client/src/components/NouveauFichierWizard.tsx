@@ -4,6 +4,7 @@ import { useAuth } from '../lib/auth';
 import { IconLogo, IconCheck } from '../components/chrome/icons';
 import { Aide } from '../components/chrome/Aide';
 import type { AuthResponse, JeuEtatsFinanciersSycebnl, Referentiel, SystemeComptableSyscohada } from '../lib/types';
+import { LIBELLE_SYSTEME, SYSTEMES_SYSCOHADA } from '../lib/systemes-syscohada';
 
 /**
  * ÉTAPES NOMMÉES, et non numérotées · l'assistant de Sage pose UNE question
@@ -144,34 +145,6 @@ const TYPES_ENTITE: {
   },
 ];
 
-/**
- * Les DEUX systèmes du SYSCOHADA révisé · AUDCIF art. 11. Le Système allégé
- * de l'art. 12 n'est PAS proposé : la révision de 2017 l'a abrogé.
- *
- * Comme pour le SMT du SYCEBNL, le second n'est pas une préférence de
- * présentation. L'art. 13 le réserve aux entités dont le chiffre d'affaires
- * hors taxes annuel reste sous un seuil qui dépend de l'activité, et l'écran
- * donne les trois seuils plutôt que de laisser choisir à l'aveugle.
- */
-const SYSTEMES_SYSCOHADA: {
-  valeur: SystemeComptableSyscohada;
-  titre: string;
-  description: string;
-}[] = [
-  {
-    valeur: 'NORMAL',
-    titre: 'Système normal',
-    description:
-      "Le régime de droit commun : « toute entité est, sauf exception liée à sa taille, soumise au Système normal » (art. 11). Bilan, compte de résultat, tableau de flux et notes annexes.",
-  },
-  {
-    valeur: 'MINIMAL_TRESORERIE',
-    titre: 'Système minimal de trésorerie · petite entité',
-    description:
-      "Réservé par l'art. 13 aux entités dont le chiffre d'affaires hors taxes annuel reste sous 60 000 000 FCFA pour le négoce, 40 000 000 pour l'artisanat et assimilés, 30 000 000 pour les services.",
-  },
-];
-
 interface Form {
   referentiel: Referentiel;
   nomEntite: string;
@@ -195,12 +168,6 @@ const LIBELLE_JEU: Record<JeuEtatsFinanciersSycebnl, string> = {
   ASSOCIATIONS_ORDRES_PROFESSIONNELS: 'des associations et ordres professionnels',
   PROJETS_DEVELOPPEMENT: 'des projets de développement et assimilés',
   SYSTEME_MINIMAL_TRESORERIE: 'du Système minimal de trésorerie',
-};
-
-/** Pendant SYSCOHADA de LIBELLE_JEU · écran de succès, dernier écran. */
-const LIBELLE_SYSTEME: Record<SystemeComptableSyscohada, string> = {
-  NORMAL: 'Système normal',
-  MINIMAL_TRESORERIE: 'Système minimal de trésorerie',
 };
 
 const anneeCourante = new Date().getFullYear();
@@ -610,8 +577,8 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
                         DDZCZ ». Le logiciel montre qu'il a retenu. */}
                     <p className="text-[11px] text-text-dim leading-[1.6] mb-4">
                       Fiche d'identification de {form.nomEntite ? <strong className="text-text">{form.nomEntite}</strong> : "l'entité"}.
-                      Tout est facultatif ici et modifiable plus tard, mais ces éléments sont imprimés en tête des
-                      états financiers.
+                      Tout est facultatif ici, et se corrige ensuite dans Structure &gt; Paramètres du dossier ·
+                      l'adresse, la ville et le pays composent l'adresse imprimée en tête de chaque état financier.
                     </p>
 
                     <Ligne label="Activité" large>

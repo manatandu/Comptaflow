@@ -5,8 +5,14 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { TenantService } from './tenant.service';
-import { ModifierFormeJuridiqueDto,
-  ModifierRegimeDto, ModifierIdentiteDto, ModifierJeuEtatsDto } from './dto/parametres-dossier.dto';
+import {
+  ModifierCoordonneesDto,
+  ModifierFormeJuridiqueDto,
+  ModifierIdentiteDto,
+  ModifierJeuEtatsDto,
+  ModifierRegimeDto,
+  ModifierSystemeSyscohadaDto,
+} from './dto/parametres-dossier.dto';
 import { RoleUtilisateur } from '@prisma/client';
 
 /**
@@ -28,6 +34,26 @@ export class TenantController {
   @Roles(RoleUtilisateur.ADMIN_CABINET)
   async modifierJeuEtats(@CurrentUser() user: AuthenticatedUser, @Body() dto: ModifierJeuEtatsDto) {
     return this.tenantService.modifierJeuEtatsFinanciers(user.tenantId, dto.jeuEtatsFinanciersSycebnl);
+  }
+
+  /** Pendant SYSCOHADA du jeu d'états · voir le service. */
+  @Patch('systeme-syscohada')
+  @Roles(RoleUtilisateur.ADMIN_CABINET)
+  async modifierSystemeSyscohada(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: ModifierSystemeSyscohadaDto,
+  ) {
+    return this.tenantService.modifierSystemeSyscohada(user.tenantId, dto.systemeComptableSyscohada);
+  }
+
+  /**
+   * Raison sociale et coordonnées · l'adresse composée ici s'imprime en tête
+   * de chaque état financier, elle doit pouvoir être corrigée.
+   */
+  @Patch('coordonnees')
+  @Roles(RoleUtilisateur.ADMIN_CABINET)
+  async modifierCoordonnees(@CurrentUser() user: AuthenticatedUser, @Body() dto: ModifierCoordonneesDto) {
+    return this.tenantService.modifierCoordonnees(user.tenantId, dto);
   }
 
   @Patch('identite')

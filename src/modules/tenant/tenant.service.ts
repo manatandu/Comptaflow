@@ -138,6 +138,100 @@ export class TenantService {
   }
 
   /**
+   * Système comptable d'un dossier SYSCOHADA (AUDCIF art. 11 et 13).
+   *
+   * Pendant exact de `modifierJeuEtatsFinanciers`, et il manquait : le jeu
+   * SYCEBNL se changeait tant qu'aucune écriture n'existait, le système
+   * SYSCOHADA était figé à la création. Même raison de verrouiller ensuite :
+   * le système commande la présentation des états, en changer après coup
+   * rejouerait les mêmes soldes dans une autre forme.
+   */
+  async modifierSystemeSyscohada(tenantId: string, systeme: SystemeComptableSyscohada) {
+    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
+    if (!tenant) {
+      throw new NotFoundException('Dossier introuvable');
+    }
+    if (tenant.referentiel !== Referentiel.SYSCOHADA) {
+      throw new BadRequestException(
+        'Le système comptable normal / minimal de trésorerie ne concerne que les dossiers tenus en SYSCOHADA',
+      );
+    }
+    if (tenant.systemeComptableSyscohada !== systeme) {
+      const nombreEcritures = await this.prisma.ecriture.count({ where: { tenantId } });
+      if (nombreEcritures > 0) {
+        throw new BadRequestException(
+          `Ce dossier porte déjà ${nombreEcritures} écriture(s) : le système comptable ne peut plus être changé. Créez un nouveau dossier pour l'autre système.`,
+        );
+      }
+    }
+    await this.prisma.tenant.update({
+      where: { id: tenantId },
+      data: { systemeComptableSyscohada: systeme },
+    });
+    return this.parametres(tenantId);
+  }
+
+  /**
+   * Raison sociale et coordonnées · l'écran « Coordonnées » de l'assistant.
+   *
+   * DÉFAUT CORRIGÉ : ces champs n'avaient AUCUNE route de modification, alors
+   * que l'assistant annonçait « modifiable plus tard ». Un cabinet qui
+   * déménage restait à son ancienne adresse, imprimée en tête de chacun de
+   * ses états financiers (`adresse + ville + pays`, voir
+   * ExportService.identiteLiasse) · relevé en le vérifiant plutôt qu'en le
+   * supposant, la phrase de l'assistant a été corrigée dans le même geste.
+   *
+   * Tout est libre SAUF la devise, verrouillée dès la première écriture :
+   * changer l'étiquette monétaire ne convertit aucun montant déjà saisi, et
+   * une liasse qui présenterait des francs congolais sous un sigle « USD »
+   * serait fausse sans que rien ne le signale.
+   */
+  async modifierCoordonnees(
+    tenantId: string,
+    dto: {
+      nom?: string;
+      activite?: string;
+      adresse?: string;
+      ville?: string;
+      pays?: string;
+      telephone?: string;
+      devise?: string;
+    },
+  ) {
+    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
+    if (!tenant) {
+      throw new NotFoundException('Dossier introuvable');
+    }
+    if (dto.devise !== undefined && dto.devise.trim() !== (tenant.devise ?? '')) {
+      const nombreEcritures = await this.prisma.ecriture.count({ where: { tenantId } });
+      if (nombreEcritures > 0) {
+        throw new BadRequestException(
+          `Ce dossier porte déjà ${nombreEcritures} écriture(s) : la monnaie ne peut plus être changée. Les montants déjà saisis ne seraient pas convertis.`,
+        );
+      }
+    }
+    // Chaîne vide = effacement (`null`), sauf pour la raison sociale que le
+    // DTO refuse déjà vide · elle figure en tête de chaque état imprimé.
+    const normaliser = (v: string | undefined) => (v === undefined ? undefined : v.trim() === '' ? null : v.trim());
+    await this.prisma.tenant.update({
+      where: { id: tenantId },
+      data: {
+        nom: dto.nom === undefined ? undefined : dto.nom.trim(),
+        activite: normaliser(dto.activite),
+        adresse: normaliser(dto.adresse),
+        ville: normaliser(dto.ville),
+        pays: normaliser(dto.pays),
+        telephone: normaliser(dto.telephone),
+        // La monnaie ne s'EFFACE pas : elle sert d'unité à tout montant
+        // affiché et imprimé. Une saisie vide laisse donc la valeur en place
+        // au lieu de poser `null`, qui priverait les états d'unité.
+        devise: dto.devise === undefined || dto.devise.trim() === '' ? undefined : dto.devise.trim(),
+      },
+    });
+    return this.parametres(tenantId);
+  }
+
+  /**
    * Identifiants légaux du dossier (n° impôt, id. nat., RCCM). Contrairement
    * au jeu d'états, ils restent modifiables à tout moment : ce sont des
    * données d'identité, pas de structure, et une association les obtient

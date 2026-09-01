@@ -1,9 +1,77 @@
-import { IsBoolean, IsEnum, IsOptional, IsString, MaxLength, IsDateString, IsInt, Min, ValidateIf } from 'class-validator';
-import { FormeJuridiqueEbnl, JeuEtatsFinanciersSycebnl, RegimeExigibiliteTva } from '@prisma/client';
+import { IsBoolean, IsEnum, IsOptional, IsString, MaxLength, MinLength, IsDateString, IsInt, Min, ValidateIf } from 'class-validator';
+import {
+  FormeJuridiqueEbnl,
+  JeuEtatsFinanciersSycebnl,
+  RegimeExigibiliteTva,
+  SystemeComptableSyscohada,
+} from '@prisma/client';
 
 export class ModifierJeuEtatsDto {
   @IsEnum(JeuEtatsFinanciersSycebnl)
   jeuEtatsFinanciersSycebnl!: JeuEtatsFinanciersSycebnl;
+}
+
+/** Pendant SYSCOHADA du jeu d'états · AUDCIF art. 11 et 13. */
+export class ModifierSystemeSyscohadaDto {
+  @IsEnum(SystemeComptableSyscohada)
+  systemeComptableSyscohada!: SystemeComptableSyscohada;
+}
+
+/**
+ * Coordonnées et raison sociale du dossier · ce que l'assistant de création
+ * demande à son écran « Coordonnées ».
+ *
+ * Elles étaient GELÉES à la création, alors que l'écran promettait le
+ * contraire, et que `adresse + ville + pays` compose l'adresse imprimée en
+ * tête de chaque état financier (voir ExportService.identiteLiasse). Un
+ * cabinet qui déménage ne peut pas rester à son ancienne adresse sur des
+ * documents qu'il signe.
+ *
+ * Chaîne vide reçue = effacement du champ (`null` en base), même convention
+ * que les identifiants légaux.
+ */
+export class ModifierCoordonneesDto {
+  /** Raison sociale · imprimée en tête de liasse, elle ne peut pas être vide. */
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(200)
+  nom?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  activite?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  adresse?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  ville?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  pays?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  telephone?: string;
+
+  /**
+   * Code ISO 4217. Verrouillé dès la première écriture, voir le service :
+   * les montants déjà saisis ne changent pas de valeur quand l'étiquette
+   * change, et une liasse qui afficherait des francs en dollars serait fausse.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  devise?: string;
 }
 
 /**

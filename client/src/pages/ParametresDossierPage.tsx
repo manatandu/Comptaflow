@@ -3,7 +3,14 @@ import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { Aide } from '../components/chrome/Aide';
 import { Ligne, OngletsVerticaux, SectionTitre, champSage } from '../components/FormulaireSage';
-import type { FormeJuridiqueEbnl, JeuEtatsFinanciersSycebnl, ParametresDossier, RegimeExigibiliteTva } from '../lib/types';
+import { SYSTEMES_SYSCOHADA } from '../lib/systemes-syscohada';
+import type {
+  FormeJuridiqueEbnl,
+  JeuEtatsFinanciersSycebnl,
+  ParametresDossier,
+  RegimeExigibiliteTva,
+  SystemeComptableSyscohada,
+} from '../lib/types';
 
 /**
  * PARAMÈTRES DU DOSSIER · Structure → Paramètres société chez Sage 100 i7.
@@ -125,8 +132,19 @@ export function ParametresDossierPage() {
   const [info, setInfo] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
 
-  // Identifiants légaux · saisis à part du reste, parce qu'ils sont les seuls
-  // paramètres modifiables à tout moment (voir TenantService.modifierIdentite).
+  // Raison sociale et coordonnées · modifiables depuis la correction du
+  // 2026-09-01 (elles étaient figées à la création, voir
+  // TenantService.modifierCoordonnees).
+  const [nom, setNom] = useState('');
+  const [activite, setActivite] = useState('');
+  const [adresse, setAdresse] = useState('');
+  const [ville, setVille] = useState('');
+  const [pays, setPays] = useState('');
+  const [telephone, setTelephone] = useState('');
+  const [devise, setDevise] = useState('');
+
+  // Identifiants légaux · saisis à part, ils obéissent à une autre règle :
+  // modifiables à tout moment, sans verrou d'écriture (voir modifierIdentite).
   const [numeroImpot, setNumeroImpot] = useState('');
   const [idNat, setIdNat] = useState('');
   const [rccm, setRccm] = useState('');
@@ -140,6 +158,13 @@ export function ParametresDossierPage() {
     try {
       const p = await api.get<ParametresDossier>('/dossier/parametres');
       setParams(p);
+      setNom(p.nom ?? '');
+      setActivite(p.activite ?? '');
+      setAdresse(p.adresse ?? '');
+      setVille(p.ville ?? '');
+      setPays(p.pays ?? '');
+      setTelephone(p.telephone ?? '');
+      setDevise(p.devise ?? '');
       setNumeroImpot(p.numeroImpot ?? '');
       setIdNat(p.idNat ?? '');
       setRccm(p.rccm ?? '');
@@ -170,6 +195,25 @@ export function ParametresDossierPage() {
       // continueraient d'afficher l'ancien jeu jusqu'à la prochaine session.
       await rafraichir();
       setInfo("Jeu d'états financiers enregistré.");
+    } catch (e) {
+      setErreur(e instanceof ApiError ? e.message : 'Modification impossible');
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
+  /** Pendant SYSCOHADA de changerJeu · AUDCIF art. 11 et 13. */
+  const changerSysteme = async (systeme: SystemeComptableSyscohada) => {
+    if (!params || params.systemeComptableSyscohada === systeme) return;
+    setEnvoi(true);
+    setErreur(null);
+    setInfo(null);
+    try {
+      setParams(
+        await api.patch<ParametresDossier>('/dossier/systeme-syscohada', { systemeComptableSyscohada: systeme }),
+      );
+      await rafraichir();
+      setInfo('Système comptable enregistré.');
     } catch (e) {
       setErreur(e instanceof ApiError ? e.message : 'Modification impossible');
     } finally {
@@ -305,6 +349,41 @@ export function ParametresDossierPage() {
           : []),
       ];
 
+  const enregistrerCoordonnees = async (e: FormEvent) => {
+    e.preventDefault();
+    // Contrôle posé ici plutôt que laissé au DTO : le refus de
+    // class-validator arriverait sous la forme « nom must be longer than or
+    // equal to 1 characters », que personne n'a à lire.
+    if (nom.trim() === '') {
+      setErreur('La raison sociale ne peut pas être vide : elle figure en tête de chaque état financier.');
+      return;
+    }
+    setEnvoi(true);
+    setErreur(null);
+    setInfo(null);
+    try {
+      setParams(
+        await api.patch<ParametresDossier>('/dossier/coordonnees', {
+          nom,
+          activite,
+          adresse,
+          ville,
+          pays,
+          telephone,
+          // La monnaie n'est envoyée que si elle peut encore changer · sinon
+          // le serveur refuserait tout l'enregistrement pour un champ que
+          // l'écran affiche de toute façon en lecture seule.
+          ...(params && params.nombreEcritures === 0 ? { devise } : {}),
+        }),
+      );
+      setInfo('Coordonnées enregistrées.');
+    } catch (e) {
+      setErreur(e instanceof ApiError ? e.message : 'Enregistrement impossible');
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
   const enregistrerIdentite = async (e: FormEvent) => {
     e.preventDefault();
     setEnvoi(true);
@@ -378,18 +457,114 @@ export function ParametresDossierPage() {
               {/* Chaque valeur est POSÉE CONTRE son étiquette, et non
                   repoussée au bord opposé : sur une fenêtre large, une liste
                   étirée oblige l'œil à traverser tout l'écran pour relier un
-                  intitulé à sa valeur. Sage colle les deux. */}
+                  intitulé à sa valeur. Sage colle les deux.
+
+                  CES CHAMPS SONT MODIFIABLES, et ils ne l'étaient pas : le
+                  dossier les figeait à sa création alors que l'assistant
+                  annonçait le contraire. Or `adresse + ville + pays` compose
+                  l'adresse imprimée en tête de chaque état financier · un
+                  cabinet qui déménage ne peut pas rester à l'ancienne sur des
+                  documents qu'il signe. */}
+              <form onSubmit={enregistrerCoordonnees} className="flex flex-col gap-3">
+                <div>
+                  <Ligne label="Raison sociale" large>
+                    <input
+                      value={nom}
+                      onChange={(e) => setNom(e.target.value)}
+                      disabled={!estAdmin || envoi}
+                      maxLength={200}
+                      aria-label="Raison sociale"
+                      className={champSage}
+                    />
+                  </Ligne>
+                  <Ligne label="Activité" large>
+                    <input
+                      value={activite}
+                      onChange={(e) => setActivite(e.target.value)}
+                      disabled={!estAdmin || envoi}
+                      maxLength={200}
+                      aria-label="Activité"
+                      className={champSage}
+                    />
+                  </Ligne>
+                  <Ligne label="Adresse" large>
+                    <input
+                      value={adresse}
+                      onChange={(e) => setAdresse(e.target.value)}
+                      disabled={!estAdmin || envoi}
+                      maxLength={200}
+                      aria-label="Adresse"
+                      className={champSage}
+                    />
+                  </Ligne>
+                  <Ligne label="Ville" large>
+                    <input
+                      value={ville}
+                      onChange={(e) => setVille(e.target.value)}
+                      disabled={!estAdmin || envoi}
+                      maxLength={100}
+                      aria-label="Ville"
+                      className={champSage}
+                    />
+                  </Ligne>
+                  <Ligne label="Pays" large>
+                    <input
+                      value={pays}
+                      onChange={(e) => setPays(e.target.value)}
+                      disabled={!estAdmin || envoi}
+                      maxLength={100}
+                      aria-label="Pays"
+                      className={champSage}
+                    />
+                  </Ligne>
+                  <Ligne label="Téléphone" large>
+                    <input
+                      value={telephone}
+                      onChange={(e) => setTelephone(e.target.value)}
+                      disabled={!estAdmin || envoi}
+                      maxLength={50}
+                      aria-label="Téléphone"
+                      className={champSage}
+                    />
+                  </Ligne>
+                  {/* La monnaie se verrouille à la première écriture : changer
+                      l'étiquette ne convertit aucun montant déjà saisi. */}
+                  <Ligne label="Monnaie de tenue" large>
+                    <input
+                      value={devise}
+                      onChange={(e) => setDevise(e.target.value)}
+                      disabled={!estAdmin || envoi || params.nombreEcritures > 0}
+                      maxLength={10}
+                      aria-label="Monnaie de tenue"
+                      className={`${champSage} font-mono`}
+                    />
+                  </Ligne>
+                </div>
+                <p className="text-[10.5px] text-text-dim">
+                  L’adresse, la ville et le pays composent l’adresse imprimée en tête de chaque état financier.
+                  {params.nombreEcritures > 0
+                    ? ' La monnaie est verrouillée : ce dossier porte déjà des écritures, et en changer l’étiquette ne convertirait aucun montant.'
+                    : ''}
+                </p>
+                {estAdmin && (
+                  <div>
+                    <button
+                      type="submit"
+                      disabled={envoi}
+                      className="border border-border rounded-[6px] bg-surface px-3 py-1.5 text-[10.5px] font-bold hover:bg-surface-alt disabled:opacity-60"
+                    >
+                      Enregistrer
+                    </button>
+                  </div>
+                )}
+              </form>
+              {/* Ce qui NE SE CHANGE PAS, et pourquoi · le référentiel sème le
+                  plan de comptes à la création, la longueur des comptes
+                  structure chaque numéro déjà saisi. */}
               <div>
                 {(
                   [
-                    ['Raison sociale', params.nom],
                     ['Référentiel', params.referentiel],
-                    ['Activité', params.activite],
-                    ['Adresse', params.adresse],
-                    ['Ville', params.ville],
-                    ['Pays', params.pays],
-                    ['Téléphone', params.telephone],
-                    ['Monnaie de tenue', params.devise],
                     ['Longueur des comptes', `${params.longueurCompte} caractères`],
                     ['Écritures enregistrées', String(params.nombreEcritures)],
                   ] as [string, string | null][]
@@ -565,7 +740,53 @@ export function ParametresDossierPage() {
             </>
           )}
 
-          {onglet === 'referentiel' && (
+          {/* DEUX CONTENUS pour un même onglet · un dossier SYSCOHADA se
+              voyait proposer les trois jeux du SYCEBNL, qui ne le concernent
+              pas et que le serveur refuse de toute façon. */}
+          {onglet === 'referentiel' && params.referentiel === 'SYSCOHADA' && (
+            <>
+              <SectionTitre>Système comptable SYSCOHADA</SectionTitre>
+              <div className="flex flex-col gap-2">
+                {SYSTEMES_SYSCOHADA.map((c) => {
+                  const actif = params.systemeComptableSyscohada === c.valeur;
+                  const modifiable = estAdmin && !verrouille && !envoi;
+                  return (
+                    <label
+                      key={c.valeur}
+                      className={`flex items-start gap-2.5 rounded-[8px] border p-3 transition-colors ${
+                        actif ? 'border-sel bg-sel-soft' : 'border-border'
+                      } ${modifiable ? 'cursor-pointer hover:border-sel/50' : 'cursor-default'}`}
+                    >
+                      <input
+                        type="radio"
+                        name="systemeSyscohada"
+                        className="mt-0.5"
+                        checked={actif}
+                        disabled={!modifiable}
+                        onChange={() => changerSysteme(c.valeur)}
+                      />
+                      <span className="min-w-0">
+                        <span className="block text-[12px] font-semibold flex items-center gap-1.5">
+                          {c.titre}
+                          <Aide sujet="systemeSyscohada" />
+                        </span>
+                        <span className="block text-[10.5px] text-text-dim mt-1 leading-[1.5]">{c.description}</span>
+                      </span>
+                    </label>
+                  );
+                })}
+                <p className="text-[10.5px] text-text-dim mt-1 leading-[1.55]">
+                  {verrouille
+                    ? `Ce dossier porte ${params.nombreEcritures} écriture(s) : le système comptable est désormais figé. Pour tenir une entité relevant de l'autre système, créez un dossier distinct.`
+                    : estAdmin
+                      ? "Le choix reste modifiable tant qu'aucune écriture n'est saisie. Passé la première écriture, il sera figé."
+                      : 'Seul un administrateur peut modifier le système comptable.'}
+                </p>
+              </div>
+            </>
+          )}
+
+          {onglet === 'referentiel' && params.referentiel === 'SYCEBNL' && (
             <>
               <SectionTitre>Jeu d'états financiers SYCEBNL</SectionTitre>
               <div className="flex flex-col gap-2">
