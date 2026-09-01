@@ -244,6 +244,10 @@ model Tenant {
   dossierMereId String?
   dossierMere   Tenant?  @relation("GroupeEtablissements", fields: [dossierMereId], references: [id])
   cellules      Tenant[] @relation("GroupeEtablissements")
+  // Plafond de cellules que ce dossier mère peut créer LUI-MÊME (paramètre
+  // commercial de la licence de groupe, fixé par la console plateforme).
+  // null = le siège ne crée pas de cellules, tout passe par la console.
+  plafondCellules Int?
 
   licence                  Licence?
   comptes                  Compte[]

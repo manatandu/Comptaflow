@@ -68,6 +68,7 @@ export class PlateformeService implements OnModuleInit {
           select: { type: true, statut: true, dateDebut: true, dateExpiration: true, dernierHeartbeatAt: true },
         },
         dossierMere: { select: { id: true, nom: true } },
+        plafondCellules: true,
         _count: { select: { users: true, ecritures: true, cellules: true } },
       },
     });
@@ -82,6 +83,7 @@ export class PlateformeService implements OnModuleInit {
       createdAt: t.createdAt,
       licence: t.licence,
       dossierMere: t.dossierMere,
+      plafondCellules: t.plafondCellules,
       nbCellules: t._count.cellules,
       nbUtilisateurs: t._count.users,
       nbEcritures: t._count.ecritures,
@@ -102,19 +104,29 @@ export class PlateformeService implements OnModuleInit {
     if (dto.type === undefined && dto.statut === undefined && dto.dateExpiration === undefined) {
       throw new BadRequestException('Aucune modification demandée');
     }
-    return this.prisma.licence.update({
+    const donnees = {
+      ...(dto.type !== undefined ? { type: dto.type } : {}),
+      ...(dto.statut !== undefined ? { statut: dto.statut } : {}),
+      // '' efface l'échéance (passage en perpétuel) · convention partagée
+      // avec les dates des paramètres du dossier.
+      ...(dto.dateExpiration !== undefined
+        ? { dateExpiration: dto.dateExpiration === '' ? null : new Date(dto.dateExpiration) }
+        : {}),
+    };
+    const resultat = await this.prisma.licence.update({
       where: { tenantId },
-      data: {
-        ...(dto.type !== undefined ? { type: dto.type } : {}),
-        ...(dto.statut !== undefined ? { statut: dto.statut } : {}),
-        // '' efface l'échéance (passage en perpétuel) · convention partagée
-        // avec les dates des paramètres du dossier.
-        ...(dto.dateExpiration !== undefined
-          ? { dateExpiration: dto.dateExpiration === '' ? null : new Date(dto.dateExpiration) }
-          : {}),
-      },
+      data: donnees,
       select: { type: true, statut: true, dateDebut: true, dateExpiration: true, dernierHeartbeatAt: true },
     });
+    // CASCADE DE GROUPE · les cellules d'un dossier mère n'ont pas de licence
+    // commerciale propre : elles reflètent celle de la mère. Suspendre,
+    // réactiver ou renouveler la mère fait donc le même geste sur toutes ses
+    // cellules d'un coup · une seule licence vendue, un seul robinet.
+    const cellulesCascade = await this.prisma.licence.updateMany({
+      where: { tenant: { dossierMereId: tenantId } },
+      data: donnees,
+    });
+    return { ...resultat, cellulesEnCascade: cellulesCascade.count };
   }
 
   /**
@@ -132,6 +144,17 @@ export class PlateformeService implements OnModuleInit {
     });
     if (!tenant) {
       throw new NotFoundException('Cabinet introuvable');
+    }
+    // Le plafond de cellules se règle indépendamment du rattachement · un
+    // appel peut ne porter que lui.
+    if (dto.plafondCellules !== undefined) {
+      await this.prisma.tenant.update({
+        where: { id: tenantId },
+        data: { plafondCellules: dto.plafondCellules },
+      });
+    }
+    if (dto.dossierMereId === undefined) {
+      return { id: tenantId, plafondCellules: dto.plafondCellules ?? null };
     }
     const dossierMereId = dto.dossierMereId ?? null;
     if (dossierMereId !== null) {

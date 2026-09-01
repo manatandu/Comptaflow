@@ -1,4 +1,4 @@
-import { IsDateString, IsEmail, IsEnum, IsIn, IsOptional, IsString, IsUUID, ValidateIf } from 'class-validator';
+import { IsDateString, IsEmail, IsEnum, IsIn, IsInt, IsOptional, IsString, IsUUID, Min, ValidateIf } from 'class-validator';
 import { JeuEtatsFinanciersSycebnl, StatutLicence, TypeLicence } from '@prisma/client';
 
 /**
@@ -103,4 +103,14 @@ export class ModifierGroupeDto {
   @IsOptional()
   @IsUUID()
   dossierMereId?: string | null;
+
+  /**
+   * Plafond de cellules que le dossier (mère) peut créer LUI-MÊME · le
+   * paramètre commercial de la licence de groupe. null désactive la
+   * création par le siège (tout repasse par la console).
+   */
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  plafondCellules?: number | null;
 }

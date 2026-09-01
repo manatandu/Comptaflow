@@ -95,6 +95,8 @@ describe('PlateformeService · licences', () => {
             (stubs as { data?: unknown }).data = args.data;
             return { ...stubs.licence, ...args.data };
           },
+          // Cascade de groupe · aucun test de ce bloc n'a de cellules.
+          updateMany: async () => ({ count: 0 }),
         },
       } as never,
       { get: () => undefined } as never,
@@ -233,5 +235,29 @@ describe('PlateformeService · groupe d’établissements', () => {
     await expect(s.modifierGroupe('mere', { dossierMereId: 'libre' })).rejects.toThrow(BadRequestException);
     // Mère inexistante.
     await expect(s.modifierGroupe('libre', { dossierMereId: 'fantome' })).rejects.toThrow(NotFoundException);
+  });
+});
+
+describe('PlateformeService · cascade de licence sur les cellules', () => {
+  it('suspendre ou renouveler la mère fait le même geste sur toutes ses cellules', async () => {
+    let cascade: { where: unknown; data: unknown } | undefined;
+    const s = new PlateformeService(
+      {
+        licence: {
+          findUnique: async () => ({ tenantId: 'mere' }),
+          update: async ({ data }: { data: unknown }) => ({ ...(data as object) }),
+          updateMany: async (args: { where: unknown; data: unknown }) => {
+            cascade = args;
+            return { count: 7 };
+          },
+        },
+      } as never,
+      { get: () => undefined } as never,
+      undefined as never,
+    );
+    const resultat = await s.modifierLicence('mere', { statut: StatutLicence.SUSPENDUE });
+    expect(cascade!.where).toEqual({ tenant: { dossierMereId: 'mere' } });
+    expect(cascade!.data).toEqual({ statut: StatutLicence.SUSPENDUE });
+    expect((resultat as { cellulesEnCascade: number }).cellulesEnCascade).toBe(7);
   });
 });

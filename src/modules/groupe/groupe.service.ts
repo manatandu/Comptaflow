@@ -1,8 +1,19 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Workbook } from 'exceljs';
+import { createHash, randomBytes } from 'crypto';
+import { Referentiel, StatutEcriture, StatutExercice } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
+import { AuthService } from '../auth/auth.service';
 import { ClasseurExporte } from '../exports/export.service';
+import { CreerCelluleDto, ImporterCanevasDto } from './dto/groupe.dto';
+import {
+  DERNIERE_LIGNE_DONNEES,
+  MARQUEUR_CANEVAS,
+  PREMIERE_LIGNE_DONNEES,
+  RUBRIQUES_CANEVAS,
+  TRESORERIES_CANEVAS,
+} from './canevas-tresorerie';
 
 /**
  * GROUPE D'ÉTABLISSEMENTS · une même personne morale tenue en plusieurs
@@ -27,28 +38,103 @@ export class GroupeService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly ecritureService: EcritureService,
+    private readonly authService: AuthService,
   ) {}
 
-  /** Les cellules rattachées à ce dossier · vide si le dossier n'est pas une mère. */
+  /** Les cellules rattachées à ce dossier, et ce que le siège peut créer. */
   async cellules(tenantId: string) {
-    const cellules = await this.prisma.tenant.findMany({
-      where: { dossierMereId: tenantId },
-      orderBy: { nom: 'asc' },
+    const [mere, cellules] = await Promise.all([
+      this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { plafondCellules: true } }),
+      this.prisma.tenant.findMany({
+        where: { dossierMereId: tenantId },
+        orderBy: { nom: 'asc' },
+        select: {
+          id: true,
+          nom: true,
+          jeuEtatsFinanciersSycebnl: true,
+          ville: true,
+          _count: { select: { ecritures: true } },
+        },
+      }),
+    ]);
+    return {
+      plafondCellules: mere?.plafondCellules ?? null,
+      // null = la création par le siège n'est pas activée (console plateforme).
+      peutCreerCellule: mere?.plafondCellules !== null && cellules.length < (mere?.plafondCellules ?? 0),
+      cellules: cellules.map((c) => ({
+        id: c.id,
+        nom: c.nom,
+        jeuEtatsFinanciersSycebnl: c.jeuEtatsFinanciersSycebnl,
+        ville: c.ville,
+        nbEcritures: c._count.ecritures,
+      })),
+    };
+  }
+
+  /**
+   * Création d'une cellule PAR LE SIÈGE · les trois verrous qui empêchent
+   * l'endpoint de devenir une inscription gratuite déguisée :
+   *  1. rattachement FORCÉ : dossierMereId = le tenant appelant, jamais un
+   *     choix du client · et une cellule ne crée pas de cellules (un niveau) ;
+   *  2. licence HÉRITÉE de la mère (type + échéance) · une seule licence
+   *     commerciale, celle que la console plateforme gère sur la mère ;
+   *  3. PLAFOND fixé par la console plateforme (null = création désactivée).
+   * Le dossier naît complet par le même pipeline que l'inscription (plan de
+   * comptes, journaux, taxes, exercice), mot de passe généré rendu une fois.
+   */
+  async creerCellule(tenantId: string, dto: CreerCelluleDto) {
+    const mere = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
       select: {
         id: true,
-        nom: true,
-        jeuEtatsFinanciersSycebnl: true,
-        ville: true,
-        _count: { select: { ecritures: true } },
+        dossierMereId: true,
+        plafondCellules: true,
+        licence: { select: { type: true, dateExpiration: true } },
+        _count: { select: { cellules: true } },
       },
     });
-    return cellules.map((c) => ({
-      id: c.id,
-      nom: c.nom,
-      jeuEtatsFinanciersSycebnl: c.jeuEtatsFinanciersSycebnl,
-      ville: c.ville,
-      nbEcritures: c._count.ecritures,
-    }));
+    if (!mere || mere.dossierMereId !== null) {
+      throw new BadRequestException('Seul un dossier mère peut créer des cellules');
+    }
+    if (mere.plafondCellules === null) {
+      throw new BadRequestException(
+        "La création de cellules n'est pas activée pour ce dossier · rapprochez-vous de VMG Consulting",
+      );
+    }
+    if (mere._count.cellules >= mere.plafondCellules) {
+      throw new BadRequestException(
+        `Plafond de ${mere.plafondCellules} cellules atteint · rapprochez-vous de VMG Consulting pour l'augmenter`,
+      );
+    }
+
+    const motDePasseTemporaire = randomBytes(12).toString('base64url');
+    const resultat = await this.authService.register({
+      nomEntite: dto.nom,
+      referentiel: Referentiel.SYCEBNL,
+      email: dto.emailAdmin,
+      motDePasse: motDePasseTemporaire,
+      jeuEtatsFinanciersSycebnl: dto.jeuEtatsFinanciersSycebnl,
+      typeLicence: mere.licence?.type,
+    });
+    await this.prisma.tenant.update({
+      where: { id: resultat.tenant.id },
+      data: { dossierMereId: tenantId },
+    });
+    // Licence héritée · l'échéance de la mère devient celle de la cellule,
+    // et la cascade de la console plateforme (voir PlateformeService.
+    // modifierLicence) entretient ensuite l'alignement.
+    if (mere.licence?.dateExpiration) {
+      await this.prisma.licence.update({
+        where: { tenantId: resultat.tenant.id },
+        data: { dateExpiration: mere.licence.dateExpiration },
+      });
+    }
+    return {
+      tenant: resultat.tenant,
+      adminEmail: dto.emailAdmin,
+      // Jamais le jeton de session · même règle que la console plateforme.
+      motDePasseTemporaire,
+    };
   }
 
   /**
@@ -270,5 +356,394 @@ export class GroupeService {
 
     const buffer = Buffer.from(await wb.xlsx.writeBuffer());
     return { buffer, nomFichier: `balance-agregee-groupe-${annee}.xlsx` };
+  }
+
+  /** La cellule appartient-elle au groupe de l'appelant ? Borne TOUTE lecture transversale. */
+  private async celluleDuGroupe(tenantId: string, celluleId: string) {
+    const cellule = await this.prisma.tenant.findFirst({
+      where: { id: celluleId, dossierMereId: tenantId },
+      select: { id: true, nom: true },
+    });
+    if (!cellule) {
+      throw new NotFoundException('Cette cellule n’appartient pas à ce groupe');
+    }
+    return cellule;
+  }
+
+  /** L'exercice ouvert d'une cellule · celui que visent canevas et dépôts. */
+  private async exerciceOuvert(celluleId: string) {
+    const exercice = await this.prisma.exercice.findFirst({
+      where: { tenantId: celluleId, statut: StatutExercice.OUVERT },
+      orderBy: { dateDebut: 'desc' },
+      select: { id: true, dateDebut: true, dateFin: true },
+    });
+    if (!exercice) {
+      throw new BadRequestException('Cette cellule n’a aucun exercice ouvert');
+    }
+    return exercice;
+  }
+
+  /**
+   * SUPERVISION EN LECTURE SEULE · l'état d'avancement de chaque cellule,
+   * recalculé à la demande (pas de flux continu : une comptabilité n'évolue
+   * pas à la seconde, et 300 dossiers en flux permanent coûteraient cher
+   * pour rien). Le siège voit tout, ne touche à rien : les corrections se
+   * demandent à la cellule, qui les passe elle-même, tracées.
+   */
+  async supervision(tenantId: string, exerciceId: string) {
+    const exercice = await this.prisma.exercice.findFirst({
+      where: { id: exerciceId, tenantId },
+      select: { id: true, dateDebut: true, dateFin: true },
+    });
+    if (!exercice) {
+      throw new NotFoundException('Exercice introuvable dans ce dossier');
+    }
+    const cellules = await this.prisma.tenant.findMany({
+      where: { dossierMereId: tenantId },
+      orderBy: { nom: 'asc' },
+      select: { id: true, nom: true, jeuEtatsFinanciersSycebnl: true, exercices: { select: { id: true, dateDebut: true, dateFin: true } } },
+    });
+
+    const lignes = [];
+    for (const c of cellules) {
+      const exCellule = this.meilleurExercice(c.exercices, exercice.dateDebut, exercice.dateFin);
+      if (!exCellule) {
+        lignes.push({
+          id: c.id,
+          nom: c.nom,
+          jeuEtatsFinanciersSycebnl: c.jeuEtatsFinanciersSycebnl,
+          exerciceId: null,
+          derniereEcriture: null,
+          nbEcritures: 0,
+          nbBrouillard: 0,
+          tresorerie: 0,
+          solde58: 0,
+          equilibre: true,
+          prete: false,
+        });
+        continue;
+      }
+      const [balance, derniere, nbEcritures, nbBrouillard] = await Promise.all([
+        this.ecritureService.balance(c.id, exCellule.id),
+        this.prisma.ecriture.findFirst({
+          where: { tenantId: c.id, exerciceId: exCellule.id },
+          orderBy: { date: 'desc' },
+          select: { date: true },
+        }),
+        this.prisma.ecriture.count({ where: { tenantId: c.id, exerciceId: exCellule.id } }),
+        this.prisma.ecriture.count({
+          where: { tenantId: c.id, exerciceId: exCellule.id, statut: StatutEcriture.BROUILLARD },
+        }),
+      ]);
+      const detail = balance.lignes.filter((l) => l.typeCompte !== 'TOTAL');
+      const tresorerie = detail
+        .filter((l) => l.numero.startsWith('5') && !l.numero.startsWith('58'))
+        .reduce((s, l) => s + l.solde, 0);
+      const solde58 = detail.filter((l) => l.numero.startsWith('58')).reduce((s, l) => s + l.solde, 0);
+      const equilibre = Math.abs(balance.totaux.debit - balance.totaux.credit) <= 0.005;
+      lignes.push({
+        id: c.id,
+        nom: c.nom,
+        jeuEtatsFinanciersSycebnl: c.jeuEtatsFinanciersSycebnl,
+        exerciceId: exCellule.id,
+        derniereEcriture: derniere?.date ?? null,
+        nbEcritures,
+        nbBrouillard,
+        tresorerie,
+        solde58,
+        equilibre,
+        // « Prête pour l'agrégat » : équilibrée, plus rien en brouillard, et
+        // au moins une écriture (une cellule à zéro n'a rien déposé).
+        prete: equilibre && nbBrouillard === 0 && nbEcritures > 0,
+      });
+    }
+    return { exercice, cellules: lignes };
+  }
+
+  /**
+   * Balance d'UNE cellule, en lecture · le zoom de la supervision quand un
+   * voyant est rouge. Bornée deux fois : la cellule doit appartenir au
+   * groupe, et l'exercice à la cellule.
+   */
+  async balanceCellule(tenantId: string, celluleId: string, exerciceId: string) {
+    const cellule = await this.celluleDuGroupe(tenantId, celluleId);
+    const exercice = await this.prisma.exercice.findFirst({
+      where: { id: exerciceId, tenantId: celluleId },
+      select: { id: true },
+    });
+    if (!exercice) {
+      throw new NotFoundException('Exercice introuvable dans cette cellule');
+    }
+    const balance = await this.ecritureService.balance(celluleId, exerciceId);
+    return { cellule, ...balance };
+  }
+
+  /**
+   * LE CANEVAS DE TRÉSORERIE · le fichier Excel officiel qu'une cellule non
+   * autonome remplit. Liste de rubriques FERMÉE (voir canevas-tresorerie.ts),
+   * cellules verrouillées hors zone de saisie, marqueur de version : c'est
+   * ce triptyque qui rend l'import automatique et fiable. Se remplit très
+   * bien sur un téléphone.
+   */
+  async canevas(tenantId: string, celluleId: string): Promise<ClasseurExporte> {
+    const cellule = await this.celluleDuGroupe(tenantId, celluleId);
+    const exercice = await this.exerciceOuvert(celluleId);
+
+    const wb = new Workbook();
+    const ws = wb.addWorksheet('Journal de trésorerie');
+    ws.getCell('A1').value = MARQUEUR_CANEVAS;
+    ws.getCell('A1').font = { size: 8, color: { argb: 'FFBBBBBB' } };
+    ws.getCell('A2').value = 'Cellule :';
+    ws.getCell('B2').value = cellule.nom;
+    ws.getCell('A3').value = 'Exercice :';
+    ws.getCell('B3').value = `du ${exercice.dateDebut.toISOString().slice(0, 10)} au ${exercice.dateFin.toISOString().slice(0, 10)}`;
+    ws.getRow(2).font = { bold: true };
+    ws.getRow(3).font = { bold: true };
+
+    const entetes = ['Date', 'Libellé', 'Rubrique', 'Encaissement', 'Décaissement', 'Caisse ou banque'];
+    const ligneEntetes = ws.getRow(PREMIERE_LIGNE_DONNEES - 1);
+    entetes.forEach((e, i) => {
+      const cellule = ligneEntetes.getCell(i + 1);
+      cellule.value = e;
+      cellule.font = { bold: true };
+      cellule.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEEEEEE' } };
+    });
+    ws.getColumn(1).width = 12;
+    ws.getColumn(2).width = 42;
+    ws.getColumn(3).width = 40;
+    ws.getColumn(4).width = 16;
+    ws.getColumn(5).width = 16;
+    ws.getColumn(6).width = 18;
+    ws.getColumn(1).numFmt = 'dd/mm/yyyy';
+    ws.getColumn(4).numFmt = '#,##0.00';
+    ws.getColumn(5).numFmt = '#,##0.00';
+
+    const rubriques = wb.addWorksheet('Rubriques');
+    rubriques.columns = [
+      { header: 'Rubrique', key: 'libelle', width: 44 },
+      { header: 'Sens', key: 'sens', width: 12 },
+      { header: 'Compte', key: 'compte', width: 12 },
+    ];
+    rubriques.getRow(1).font = { bold: true };
+    for (const r of RUBRIQUES_CANEVAS) {
+      rubriques.addRow({ libelle: r.libelle, sens: r.sens === 'recette' ? 'Recette' : 'Dépense', compte: r.compte });
+    }
+
+    // Listes déroulantes fermées · un trésorier CHOISIT, il ne tape jamais
+    // un numéro de compte.
+    for (let l = PREMIERE_LIGNE_DONNEES; l <= DERNIERE_LIGNE_DONNEES; l++) {
+      ws.getCell(`C${l}`).dataValidation = {
+        type: 'list',
+        allowBlank: true,
+        formulae: [`Rubriques!$A$2:$A$${RUBRIQUES_CANEVAS.length + 1}`],
+        showErrorMessage: true,
+        errorTitle: 'Rubrique inconnue',
+        error: 'Choisissez une rubrique dans la liste.',
+      };
+      ws.getCell(`F${l}`).dataValidation = {
+        type: 'list',
+        allowBlank: true,
+        formulae: ['"Caisse,Banque"'],
+        showErrorMessage: true,
+        errorTitle: 'Valeur inconnue',
+        error: 'Choisissez Caisse ou Banque.',
+      };
+      // Zone de saisie déverrouillée · tout le reste de la feuille est
+      // protégé (cartouche, en-têtes, marqueur).
+      for (let col = 1; col <= 6; col++) {
+        ws.getRow(l).getCell(col).protection = { locked: false };
+      }
+    }
+    await ws.protect('', { selectLockedCells: true, selectUnlockedCells: true });
+
+    const slug = cellule.nom
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-zA-Z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .toLowerCase();
+    const buffer = Buffer.from(await wb.xlsx.writeBuffer());
+    return { buffer, nomFichier: `canevas-${slug || 'cellule'}-${exercice.dateFin.getFullYear()}.xlsx` };
+  }
+
+  /**
+   * DÉPÔT D'UN CANEVAS REMPLI · l'import est TOUT OU RIEN : la moindre ligne
+   * fausse (date hors exercice, rubrique inconnue, montant des deux côtés)
+   * fait tout refuser avec la liste des anomalies, ligne par ligne · un
+   * dépôt à moitié importé serait introuvable après coup. Chaque ligne
+   * valide devient une écriture équilibrée du journal de trésorerie de la
+   * cellule (statut brouillard : la validation reste un geste distinct,
+   * comme pour toute saisie). Le même fichier ne s'importe pas deux fois
+   * (empreinte du contenu portée en référence).
+   */
+  async importerCanevas(tenantId: string, celluleId: string, createdBy: string, dto: ImporterCanevasDto) {
+    await this.celluleDuGroupe(tenantId, celluleId);
+    const exercice = await this.exerciceOuvert(celluleId);
+
+    const contenu = Buffer.from(dto.contenuBase64, 'base64');
+    const wb = new Workbook();
+    try {
+      await wb.xlsx.load(contenu as never);
+    } catch {
+      throw new BadRequestException('Ce fichier n’est pas un classeur Excel lisible (.xlsx attendu)');
+    }
+    const ws = wb.getWorksheet('Journal de trésorerie');
+    if (!ws || String(ws.getCell('A1').value ?? '') !== MARQUEUR_CANEVAS) {
+      throw new BadRequestException(
+        'Ce fichier n’est pas un canevas OmegaX · téléchargez le canevas officiel de la cellule et remplissez-le',
+      );
+    }
+
+    const empreinte = createHash('sha1').update(contenu).digest('hex').slice(0, 10);
+    const reference = `CANEVAS ${empreinte}`;
+    const dejaImporte = await this.prisma.ecriture.findFirst({
+      where: { tenantId: celluleId, reference },
+      select: { id: true },
+    });
+    if (dejaImporte) {
+      throw new BadRequestException('Ce fichier a déjà été importé dans cette cellule (contenu identique)');
+    }
+
+    const rubriqueParLibelle = new Map(RUBRIQUES_CANEVAS.map((r) => [r.libelle, r]));
+    const anomalies: Array<{ ligne: number; message: string }> = [];
+    const lignesValides: Array<{
+      date: Date;
+      libelle: string;
+      compteRubrique: string;
+      compteTresorerie: string;
+      journal: 'CA' | 'BQ';
+      sens: 'recette' | 'depense';
+      montant: number;
+    }> = [];
+
+    const texte = (v: unknown): string => (v === null || v === undefined ? '' : String(v).trim());
+    const nombre = (v: unknown): number => {
+      if (v === null || v === undefined || v === '') return 0;
+      const n = typeof v === 'number' ? v : Number(String(v).replace(/\s/g, '').replace(',', '.'));
+      return Number.isFinite(n) ? n : NaN;
+    };
+
+    for (let l = PREMIERE_LIGNE_DONNEES; l <= Math.min(ws.rowCount, DERNIERE_LIGNE_DONNEES); l++) {
+      const row = ws.getRow(l);
+      const brutDate = row.getCell(1).value;
+      const libelle = texte(row.getCell(2).value);
+      const rubriqueLibelle = texte(row.getCell(3).value);
+      const encaissement = nombre(row.getCell(4).value);
+      const decaissement = nombre(row.getCell(5).value);
+      const tresorerieLibelle = texte(row.getCell(6).value);
+      if (!brutDate && !libelle && !rubriqueLibelle && !encaissement && !decaissement) continue; // ligne vide
+
+      const date = brutDate instanceof Date ? brutDate : new Date(texte(brutDate));
+      if (Number.isNaN(date.getTime())) {
+        anomalies.push({ ligne: l, message: 'Date illisible' });
+        continue;
+      }
+      if (date < exercice.dateDebut || date > exercice.dateFin) {
+        anomalies.push({ ligne: l, message: `Date hors de l'exercice ouvert de la cellule` });
+        continue;
+      }
+      const rubrique = rubriqueParLibelle.get(rubriqueLibelle);
+      if (!rubrique) {
+        anomalies.push({ ligne: l, message: `Rubrique inconnue « ${rubriqueLibelle} »` });
+        continue;
+      }
+      if (Number.isNaN(encaissement) || Number.isNaN(decaissement) || encaissement < 0 || decaissement < 0) {
+        anomalies.push({ ligne: l, message: 'Montant illisible ou négatif' });
+        continue;
+      }
+      const montant = rubrique.sens === 'recette' ? encaissement : decaissement;
+      const autre = rubrique.sens === 'recette' ? decaissement : encaissement;
+      if (montant <= 0 || autre !== 0) {
+        anomalies.push({
+          ligne: l,
+          message:
+            rubrique.sens === 'recette'
+              ? `« ${rubrique.libelle} » est une recette · montant attendu en Encaissement seulement`
+              : `« ${rubrique.libelle} » est une dépense · montant attendu en Décaissement seulement`,
+        });
+        continue;
+      }
+      const tresorerie = TRESORERIES_CANEVAS[tresorerieLibelle];
+      if (!tresorerie) {
+        anomalies.push({ ligne: l, message: 'Colonne « Caisse ou banque » vide ou inconnue' });
+        continue;
+      }
+      lignesValides.push({
+        date,
+        libelle: libelle || rubrique.libelle,
+        compteRubrique: rubrique.compte,
+        compteTresorerie: tresorerie.compte,
+        journal: tresorerie.journal,
+        sens: rubrique.sens,
+        montant,
+      });
+    }
+
+    if (anomalies.length > 0) {
+      return { importe: false, lignesImportees: 0, anomalies };
+    }
+    if (lignesValides.length === 0) {
+      throw new BadRequestException('Le canevas ne contient aucune ligne remplie');
+    }
+
+    // Référentiels de la cellule · comptes par numéro, journaux CA/BQ.
+    const numeros = [...new Set(lignesValides.flatMap((l) => [l.compteRubrique, l.compteTresorerie]))];
+    const comptes = await this.prisma.compte.findMany({
+      where: { tenantId: celluleId, numero: { in: numeros } },
+      select: { id: true, numero: true },
+    });
+    const compteParNumero = new Map(comptes.map((c) => [c.numero, c.id]));
+    const manquants = numeros.filter((n) => !compteParNumero.has(n));
+    if (manquants.length > 0) {
+      throw new BadRequestException(
+        `Comptes absents du plan de la cellule : ${manquants.join(', ')} · le dossier n'a pas le plan SYCEBNL semé`,
+      );
+    }
+    const journaux = await this.prisma.journal.findMany({
+      where: { tenantId: celluleId, code: { in: ['CA', 'BQ'] } },
+      select: { id: true, code: true },
+    });
+    const journalParCode = new Map(journaux.map((j) => [j.code, j.id]));
+    if (!journalParCode.has('CA') || !journalParCode.has('BQ')) {
+      throw new BadRequestException('Journaux de trésorerie CA/BQ absents du dossier de la cellule');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      for (const l of lignesValides) {
+        await tx.ecriture.create({
+          data: {
+            tenantId: celluleId,
+            exerciceId: exercice.id,
+            journalId: journalParCode.get(l.journal)!,
+            date: l.date,
+            libelle: l.libelle,
+            reference,
+            createdBy,
+            lignes: {
+              create:
+                l.sens === 'recette'
+                  ? [
+                      { compteId: compteParNumero.get(l.compteTresorerie)!, debit: l.montant, credit: 0 },
+                      { compteId: compteParNumero.get(l.compteRubrique)!, debit: 0, credit: l.montant },
+                    ]
+                  : [
+                      { compteId: compteParNumero.get(l.compteRubrique)!, debit: l.montant, credit: 0 },
+                      { compteId: compteParNumero.get(l.compteTresorerie)!, debit: 0, credit: l.montant },
+                    ],
+            },
+          },
+        });
+      }
+    });
+
+    return {
+      importe: true,
+      lignesImportees: lignesValides.length,
+      reference,
+      // Les écritures naissent en brouillard · la validation reste un geste
+      // distinct, dans le dossier de la cellule.
+      statut: 'BROUILLARD',
+      anomalies: [],
+    };
   }
 }

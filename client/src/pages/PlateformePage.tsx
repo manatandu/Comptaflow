@@ -36,6 +36,8 @@ interface CabinetClient {
   dossierMere: { id: string; nom: string } | null;
   /** > 0 = ce dossier est une MÈRE de groupe. */
   nbCellules: number;
+  /** Nombre de cellules que le dossier peut créer LUI-MÊME · null = désactivé. */
+  plafondCellules: number | null;
   nbUtilisateurs: number;
   nbEcritures: number;
 }
@@ -87,9 +89,10 @@ export function PlateformePage() {
   const [licEnvoi, setLicEnvoi] = useState(false);
   const [licErreur, setLicErreur] = useState<string | null>(null);
 
-  // Modale « groupe » d'un cabinet (rattachement à un dossier mère)
+  // Modale « groupe » d'un cabinet (rattachement à un dossier mère, plafond)
   const [groupeEnCours, setGroupeEnCours] = useState<CabinetClient | null>(null);
   const [groupeMereId, setGroupeMereId] = useState('');
+  const [groupePlafond, setGroupePlafond] = useState('');
   const [groupeEnvoi, setGroupeEnvoi] = useState(false);
   const [groupeErreur, setGroupeErreur] = useState<string | null>(null);
 
@@ -183,6 +186,7 @@ export function PlateformePage() {
   const ouvrirGroupe = (c: CabinetClient) => {
     setGroupeEnCours(c);
     setGroupeMereId(c.dossierMere?.id ?? '');
+    setGroupePlafond(c.plafondCellules === null ? '' : String(c.plafondCellules));
     setGroupeErreur(null);
   };
 
@@ -193,7 +197,14 @@ export function PlateformePage() {
     setGroupeErreur(null);
     try {
       await api.patch(`/plateforme/cabinets/${groupeEnCours.id}/groupe`, {
-        dossierMereId: groupeMereId === '' ? null : groupeMereId,
+        // Une cellule ne peut pas porter de plafond · le champ n'est envoyé
+        // que pour un dossier qui n'est pas rattaché.
+        ...(groupeEnCours.nbCellules > 0
+          ? { plafondCellules: groupePlafond === '' ? null : Number(groupePlafond) }
+          : {
+              dossierMereId: groupeMereId === '' ? null : groupeMereId,
+              ...(groupeMereId === '' ? { plafondCellules: groupePlafond === '' ? null : Number(groupePlafond) } : {}),
+            }),
       });
       setGroupeEnCours(null);
       await charger();
