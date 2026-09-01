@@ -144,10 +144,17 @@ describe('PlateformeService · création d’un cabinet client', () => {
       },
     } as never;
     const majLicence: unknown[] = [];
+    const majUser: unknown[] = [];
     const prisma = {
       licence: {
         update: async (args: unknown) => {
           majLicence.push(args);
+          return {};
+        },
+      },
+      user: {
+        update: async (args: unknown) => {
+          majUser.push(args);
           return {};
         },
       },
@@ -173,6 +180,8 @@ describe('PlateformeService · création d’un cabinet client', () => {
     // L'échéance demandée est posée sur la licence créée.
     expect(majLicence).toHaveLength(1);
     expect((majLicence[0] as { where: { tenantId: string } }).where.tenantId).toBe('t-nouveau');
+    // Mot de passe transité par l'opérateur · changement forcé à la première connexion.
+    expect(majUser[0]).toEqual({ where: { email: 'admin@lumiere.cd' }, data: { doitChangerMotDePasse: true } });
   });
 
   it('deux créations ne partagent jamais le même mot de passe', async () => {
@@ -183,7 +192,11 @@ describe('PlateformeService · création d’un cabinet client', () => {
         return { tenant: { id: 't', nom: dto.nomEntite }, exercice: null, accessToken: 'x' };
       },
     } as never;
-    const s = new PlateformeService({} as never, { get: () => undefined } as never, authService);
+    const s = new PlateformeService(
+      { user: { update: async () => ({}) } } as never,
+      { get: () => undefined } as never,
+      authService,
+    );
     await s.creerCabinet({ nomEntite: 'A', emailAdmin: 'a@a.cd' });
     await s.creerCabinet({ nomEntite: 'B', emailAdmin: 'b@b.cd' });
     expect(motsDePasse[0]).not.toBe(motsDePasse[1]);

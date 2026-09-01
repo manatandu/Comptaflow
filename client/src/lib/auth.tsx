@@ -13,6 +13,9 @@ interface MeResponse {
    * serveur relit le drapeau en base à chaque requête /plateforme.
    */
   estOperateurPlateforme: boolean;
+  /** Mot de passe transité par un tiers · l'écran de changement s'impose
+   *  avant l'espace de travail (voir ZoneProtegee, App.tsx). */
+  doitChangerMotDePasse: boolean;
   tenant: {
     id: string;
     nom: string;

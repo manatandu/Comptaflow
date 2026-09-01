@@ -3,6 +3,7 @@ import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { ChangerMotDePasseDto } from './dto/changer-mot-de-passe.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 
@@ -36,5 +37,14 @@ export class AuthController {
   @Get('me')
   async me(@CurrentUser() user: AuthenticatedUser) {
     return this.authService.me(user.userId);
+  }
+
+  // Même limite serrée que login : la vérification du mot de passe actuel
+  // est une surface de force brute au même titre que la connexion.
+  @Throttle({ default: { ttl: 60_000, limit: 20 } })
+  @UseGuards(JwtAuthGuard)
+  @Post('changer-mot-de-passe')
+  async changerMotDePasse(@CurrentUser() user: AuthenticatedUser, @Body() dto: ChangerMotDePasseDto) {
+    return this.authService.changerMotDePasse(user.userId, dto.motDePasseActuel, dto.nouveauMotDePasse);
   }
 }

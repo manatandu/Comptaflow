@@ -316,6 +316,16 @@ model User {
   // Désactivé plutôt que supprimé : un utilisateur peut être créateur
   // d'écritures (createdBy) · le supprimer casserait la piste d'audit.
   estActif   Boolean         @default(true)
+  // MOT DE PASSE À CHANGER À LA PROCHAINE CONNEXION · posé sur tout compte
+  // dont le mot de passe a TRANSITÉ par un tiers : admin créé par la console
+  // plateforme ou par le siège d'un groupe (mot de passe généré, remis en
+  // main propre), utilisateur créé par son ADMIN_CABINET (mot de passe
+  // choisi par l'admin). Tant que le titulaire ne l'a pas remplacé, ce tiers
+  // peut ouvrir le dossier à sa place · le client force donc l'écran de
+  // changement avant l'espace de travail, et /auth/changer-mot-de-passe
+  // efface le drapeau. Jamais posé à l'auto-inscription (mot de passe choisi
+  // par l'intéressé).
+  doitChangerMotDePasse Boolean @default(false)
   // OPÉRATEUR DE PLATEFORME · l'exploitant du logiciel (le cabinet), au-dessus
   // des tenants : console /plateforme (cabinets clients, licences). Un BOOLÉEN
   // et non une valeur de RoleUtilisateur : aucun DTO n'expose ce champ, il est

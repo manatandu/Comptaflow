@@ -141,6 +141,32 @@ export class AuthService {
     return this.signToken(user.id);
   }
 
+  /**
+   * Changement de son propre mot de passe. Vérifie l'ACTUEL avant tout (un
+   * poste laissé ouvert ne permet pas d'évincer le titulaire), et efface
+   * doitChangerMotDePasse : c'est le geste qui clôt la période où un tiers
+   * (console plateforme, siège de groupe, admin du dossier) connaissait le
+   * mot de passe.
+   */
+  async changerMotDePasse(userId: string, motDePasseActuel: string, nouveauMotDePasse: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new UnauthorizedException('Utilisateur introuvable');
+    }
+    const actuelValide = await bcrypt.compare(motDePasseActuel, user.motDePasse);
+    if (!actuelValide) {
+      throw new UnauthorizedException('Le mot de passe actuel est incorrect');
+    }
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        motDePasse: await bcrypt.hash(nouveauMotDePasse, SALT_ROUNDS),
+        doitChangerMotDePasse: false,
+      },
+    });
+    return { change: true };
+  }
+
   async me(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -157,6 +183,9 @@ export class AuthService {
       // ne se fie jamais à ce que le client en fait : OperateurPlateformeGuard
       // relit le drapeau à chaque requête (via JwtStrategy).
       estOperateurPlateforme: user.estOperateurPlateforme,
+      // Le client force l'écran de changement de mot de passe avant
+      // l'espace de travail tant que ce drapeau est vrai.
+      doitChangerMotDePasse: user.doitChangerMotDePasse,
       tenant: {
         id: user.tenant.id,
         nom: user.tenant.nom,

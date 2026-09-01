@@ -144,7 +144,7 @@ describe('GroupeService · création de cellules par le siège', () => {
     cellules?: number;
     licence?: { type: string; dateExpiration: Date | null } | null;
   }) => {
-    const traces: Record<string, unknown[]> = { register: [], majTenant: [], majLicence: [] };
+    const traces: Record<string, unknown[]> = { register: [], majTenant: [], majLicence: [], majUser: [] };
     const s = new GroupeService(
       {
         tenant: {
@@ -163,6 +163,12 @@ describe('GroupeService · création de cellules par le siège', () => {
         licence: {
           update: async (args: unknown) => {
             traces.majLicence.push(args);
+            return {};
+          },
+        },
+        user: {
+          update: async (args: unknown) => {
+            traces.majUser.push(args);
             return {};
           },
         },
@@ -196,6 +202,8 @@ describe('GroupeService · création de cellules par le siège', () => {
     expect((traces.majLicence[0] as { data: { dateExpiration: Date } }).data.dateExpiration).toBe(echeance);
     expect(resultat.motDePasseTemporaire.length).toBeGreaterThanOrEqual(16);
     expect(resultat).not.toHaveProperty('accessToken');
+    // Mot de passe transité par le siège · changement forcé à la première connexion.
+    expect(traces.majUser[0]).toEqual({ where: { email: 'tresorier@eglise.cd' }, data: { doitChangerMotDePasse: true } });
   });
 
   it('plafond nul = création désactivée · plafond atteint = refus · une cellule ne crée pas de cellules', async () => {

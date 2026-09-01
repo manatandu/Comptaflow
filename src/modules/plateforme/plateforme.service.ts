@@ -221,6 +221,12 @@ export class PlateformeService implements OnModuleInit {
     if (dto.dossierMereId) {
       await this.modifierGroupe(resultat.tenant.id, { dossierMereId: dto.dossierMereId });
     }
+    // Le mot de passe a transité par l'opérateur · le client devra le
+    // remplacer à sa première connexion (voir schema.prisma, User).
+    await this.prisma.user.update({
+      where: { email: dto.emailAdmin },
+      data: { doitChangerMotDePasse: true },
+    });
     return {
       tenant: resultat.tenant,
       exercice: resultat.exercice,

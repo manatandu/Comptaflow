@@ -120,6 +120,12 @@ export class GroupeService {
       where: { id: resultat.tenant.id },
       data: { dossierMereId: tenantId },
     });
+    // Le mot de passe a transité par le siège · le responsable de la cellule
+    // devra le remplacer à sa première connexion (voir schema.prisma, User).
+    await this.prisma.user.update({
+      where: { email: dto.emailAdmin },
+      data: { doitChangerMotDePasse: true },
+    });
     // Licence héritée · l'échéance de la mère devient celle de la cellule,
     // et la cascade de la console plateforme (voir PlateformeService.
     // modifierLicence) entretient ensuite l'alignement.

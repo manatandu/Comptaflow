@@ -23,7 +23,11 @@ export class UtilisateurService {
     }
     const motDePasseHache = await bcrypt.hash(dto.motDePasse, SALT_ROUNDS);
     return this.prisma.user.create({
-      data: { tenantId, email: dto.email, motDePasse: motDePasseHache, role: dto.role },
+      // doitChangerMotDePasse : le mot de passe a été choisi par l'ADMIN du
+      // dossier, pas par le titulaire · celui-ci le remplace à sa première
+      // connexion, ce qui clôt la période où l'admin pouvait ouvrir le
+      // dossier à sa place (voir schema.prisma, User).
+      data: { tenantId, email: dto.email, motDePasse: motDePasseHache, role: dto.role, doitChangerMotDePasse: true },
       select: SELECTION,
     });
   }

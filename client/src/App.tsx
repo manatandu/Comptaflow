@@ -5,13 +5,18 @@ import { FenetresProvider } from './lib/fenetres';
 import { AppShell } from './components/chrome/AppShell';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
+import { ChangerMotDePassePage } from './pages/ChangerMotDePassePage';
 
 function ZoneProtegee({ children }: { children: JSX.Element }) {
-  const { chargement, connecte } = useAuth();
+  const { chargement, connecte, utilisateur } = useAuth();
   if (chargement) {
     return <div className="min-h-screen flex items-center justify-center text-[12px] text-text-dim">Chargement…</div>;
   }
   if (!connecte) return <Navigate to="/connexion" replace />;
+  // Mot de passe provisoire (remis par la console VMG, le siège d'un groupe
+  // ou l'admin du dossier) : l'écran de changement s'impose À LA PLACE de
+  // l'espace de travail, il n'y a rien d'autre à voir avant.
+  if (utilisateur?.doitChangerMotDePasse) return <ChangerMotDePassePage />;
   return children;
 }
 
