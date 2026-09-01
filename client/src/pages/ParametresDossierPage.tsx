@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { Aide } from '../components/chrome/Aide';
+import { Ligne, OngletsVerticaux, SectionTitre, champSage } from '../components/FormulaireSage';
 import type { FormeJuridiqueEbnl, JeuEtatsFinanciersSycebnl, ParametresDossier, RegimeExigibiliteTva } from '../lib/types';
 
 /**
@@ -95,7 +96,29 @@ const FORMES: { valeur: FormeJuridiqueEbnl; titre: string; detail: string }[] = 
   { valeur: 'AUTRE', titre: 'Autre', detail: 'Aucune obligation propre déduite' },
 ];
 
+/**
+ * Les onglets de la fenêtre, dans l'ordre où Sage range les siens : ce qui
+ * identifie l'entité d'abord, ce qui commande des règles ensuite.
+ *
+ * Deux onglets de Sage ne sont PAS transposés, et c'est délibéré :
+ * « Fichiers liés » (OmegaX est hébergé · il n'existe aucun fichier sur
+ * disque à rattacher, l'onglet serait vide) et « Contacts » (il demanderait
+ * un modèle Contact côté serveur · c'est une fonctionnalité à construire,
+ * pas un habillage à poser). « IFRS » devient « Référentiel » : même nature
+ * de choix, une norme qui change ce que le logiciel présente, mais c'est le
+ * jeu d'états SYCEBNL qui joue ce rôle ici.
+ */
+const ONGLETS = [
+  { cle: 'identification', libelle: 'Identification' },
+  { cle: 'forme', libelle: 'Forme juridique' },
+  { cle: 'regime', libelle: 'Régime fiscal' },
+  { cle: 'referentiel', libelle: 'Référentiel' },
+] as const;
+
+type CleOnglet = (typeof ONGLETS)[number]['cle'];
+
 export function ParametresDossierPage() {
+  const [onglet, setOnglet] = useState<CleOnglet>('identification');
   const { estAdmin, rafraichir } = useAuth();
   const [params, setParams] = useState<ParametresDossier | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
@@ -208,19 +231,25 @@ export function ParametresDossierPage() {
   const verrouille = !!params && params.nombreEcritures > 0;
 
   return (
-    <div className="p-2">
-      <div className="mb-2.5">
+    <div className="p-2 h-full flex flex-col">
+      <div className="mb-2">
         <div className="text-[10px] font-mono text-text-dim leading-none">STRUCTURE</div>
-        <h1 className="text-[13px] font-bold leading-tight">Paramètres du dossier</h1>
+        {/* Le titre porte l'onglet actif · Sage écrit « Identification de
+            votre société - IFRS » dans sa barre de titre : on sait où l'on
+            se trouve sans relire la liste des onglets. */}
+        <h1 className="text-[13px] font-bold leading-tight">
+          Identification du dossier
+          <span className="font-normal text-text-dim"> · {ONGLETS.find((o) => o.cle === onglet)?.libelle}</span>
+        </h1>
       </div>
 
       {erreur && (
-        <div className="mb-2.5 text-[12px] text-danger bg-danger-soft border border-danger/30 rounded-[6px] px-2.5 py-1.5">
+        <div className="mb-2 text-[12px] text-danger bg-danger-soft border border-danger/30 rounded-[6px] px-2.5 py-1.5">
           {erreur}
         </div>
       )}
       {info && (
-        <div className="mb-2.5 text-[12px] text-positive bg-positive-soft border border-positive/30 rounded-[6px] px-2.5 py-1.5">
+        <div className="mb-2 text-[12px] text-positive bg-positive-soft border border-positive/30 rounded-[6px] px-2.5 py-1.5">
           {info}
         </div>
       )}
@@ -228,267 +257,238 @@ export function ParametresDossierPage() {
       {!params ? (
         <div className="text-[12px] text-text-dim">Chargement…</div>
       ) : (
-        <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-2.5 items-start">
-          <section className="bg-surface border border-border rounded-[10px] shadow-posee overflow-hidden">
-            <header className="px-3 py-2 bg-chrome-alt border-b border-border flex items-center gap-1.5">
-              <span className="text-[11.5px] font-bold">Jeu d'états financiers SYCEBNL</span>
-              <Aide sujet="jeuEtats" />
-            </header>
-            <div className="p-3 flex flex-col gap-2">
-              {CHOIX.map((c) => {
-                const actif = params.jeuEtatsFinanciersSycebnl === c.valeur;
-                const modifiable = estAdmin && !verrouille && !envoi;
-                return (
-                  <label
-                    key={c.valeur}
-                    className={`flex items-start gap-2.5 rounded-[8px] border p-3 transition-colors ${
-                      actif ? 'border-sel bg-sel-soft' : 'border-border'
-                    } ${modifiable ? 'cursor-pointer hover:border-sel/50' : 'cursor-default'}`}
-                  >
-                    <input
-                      type="radio"
-                      name="jeuEtats"
-                      className="mt-0.5"
-                      checked={actif}
-                      disabled={!modifiable}
-                      onChange={() => changerJeu(c.valeur)}
-                    />
-                    <span className="min-w-0">
-                      <span className="block text-[13px] font-semibold flex items-center gap-1.5">
-                        {c.titre}
-                        {c.valeur === 'SYSTEME_MINIMAL_TRESORERIE' && <Aide sujet="smt" />}
-                      </span>
-                      <span className="block text-[11.5px] text-text-dim mt-1">{c.etats.join(' · ')}</span>
+        <OngletsVerticaux onglets={ONGLETS} actif={onglet} onChanger={setOnglet}>
+          {onglet === 'identification' && (
+            <>
+              <SectionTitre>Identification</SectionTitre>
+              {/* Chaque valeur est POSÉE CONTRE son étiquette, et non
+                  repoussée au bord opposé : sur une fenêtre large, une liste
+                  étirée oblige l'œil à traverser tout l'écran pour relier un
+                  intitulé à sa valeur. Sage colle les deux. */}
+              <div>
+                {(
+                  [
+                    ['Raison sociale', params.nom],
+                    ['Référentiel', params.referentiel],
+                    ['Activité', params.activite],
+                    ['Adresse', params.adresse],
+                    ['Ville', params.ville],
+                    ['Pays', params.pays],
+                    ['Téléphone', params.telephone],
+                    ['Monnaie de tenue', params.devise],
+                    ['Longueur des comptes', `${params.longueurCompte} caractères`],
+                    ['Écritures enregistrées', String(params.nombreEcritures)],
+                  ] as [string, string | null][]
+                ).map(([cle, valeur]) => (
+                  <Ligne key={cle} label={cle} large>
+                    <div className="text-[12.5px] leading-[26px] font-medium">{valeur || '·'}</div>
+                  </Ligne>
+                ))}
+              </div>
+              <SectionTitre>Immatriculation</SectionTitre>
+              <form onSubmit={enregistrerIdentite} className="flex flex-col gap-3">
+                <p className="text-[11px] text-text-dim">
+                  Portés en tête de chaque page imprimée. Le numéro d’impôt y est exigé au même titre que la
+                  dénomination, la date de clôture et la durée de l’exercice.
+                </p>
+                <div>
+                  {(
+                    [
+                      ['N° impôt (DGI)', numeroImpot, setNumeroImpot, 'A1234567B'],
+                      ['Identification nationale', idNat, setIdNat, '01-93-K12345C'],
+                      ['RCCM', rccm, setRccm, 'CD/KIN/RCCM/23-B-01234'],
+                    ] as [string, string, (v: string) => void, string][]
+                  ).map(([label, valeur, set, exemple]) => (
+                    <Ligne key={label} label={label}>
+                      <input
+                        value={valeur}
+                        onChange={(e) => set(e.target.value)}
+                        placeholder={exemple}
+                        disabled={!estAdmin || envoi}
+                        maxLength={40}
+                        aria-label={label}
+                        className={`${champSage} font-mono`}
+                      />
+                    </Ligne>
+                  ))}
+                </div>
+                {estAdmin && (
+                  <div>
+                    <button
+                      type="submit"
+                      disabled={envoi}
+                      className="border border-border rounded-[6px] bg-surface px-3 py-1.5 text-[11px] font-bold hover:bg-surface-alt disabled:opacity-60"
+                    >
+                      Enregistrer
+                    </button>
+                  </div>
+                )}
+              </form>
+            </>
+          )}
+
+          {onglet === 'forme' && (
+            <>
+              <SectionTitre>Forme juridique</SectionTitre>
+              <div className="flex flex-col gap-2">
+                <p className="text-[11px] text-text-dim">
+                  Au sens de la loi n° 004/2001 du 20 juillet 2001. Ce choix ne change pas vos états financiers : il
+                  détermine les obligations annuelles proposées par le planning de clôture.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {FORMES.map((f) => {
+                    const actif = params.formeJuridique === f.valeur;
+                    return (
+                      <label
+                        key={f.valeur}
+                        className={`flex items-start gap-2.5 rounded-[8px] border p-2.5 transition-colors ${
+                          actif ? 'border-sel bg-sel-soft' : 'border-border hover:bg-surface-alt'
+                        } ${estAdmin ? 'cursor-pointer' : 'cursor-not-allowed opacity-70'}`}
+                      >
+                        <input
+                          type="radio"
+                          name="formeJuridique"
+                          className="mt-0.5"
+                          checked={actif}
+                          disabled={!estAdmin || envoi}
+                          onChange={() => changerForme(f.valeur)}
+                        />
+                        <span className="min-w-0">
+                          <span className="block text-[12.5px] font-semibold">{f.titre}</span>
+                          <span className="block text-[11px] text-text-dim mt-0.5">{f.detail}</span>
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+                <label className="flex items-center gap-2 text-[11.5px] mt-1">
+                  <input
+                    type="checkbox"
+                    checked={params.droitEtranger}
+                    disabled={!estAdmin || envoi}
+                    onChange={(e) => changerForme(params.formeJuridique, e.target.checked)}
+                  />
+                  Entité de droit étranger (art. 29 à 34 et art. 37 : accord-cadre avec le Ministère du Plan)
+                </label>
+              </div>
+            </>
+          )}
+
+          {onglet === 'regime' && (
+            <>
+              <SectionTitre>Régime fiscal et effectif</SectionTitre>
+              <div className="space-y-3">
+                <label className="flex items-start gap-2 text-[11.5px]">
+                  <input
+                    type="checkbox"
+                    className="mt-[3px]"
+                    checked={params.assujettiTva}
+                    disabled={!estAdmin || envoi}
+                    onChange={(e) => changerRegime({ assujettiTva: e.target.checked })}
+                  />
+                  <span>
+                    Entité assujettie à la TVA
+                    <span className="block text-[10.5px] text-text-dim leading-[1.5] mt-0.5">
+                      Une association ne l’est pas de plein droit. Le seuil est de 80 000 000 FC de chiffre d’affaires
+                      annuel hors taxes (ordonnance-loi n° 10/001, art. 14) ; en deçà, l’option est possible et engage
+                      deux ans. Les opérations conformes à l’objet sont par ailleurs exonérées (art. 15, 2° et 17, 8°).
+                      Décochée, la TVA supportée n’est pas récupérable et se porte en charge.
+                    </span>
+                  </span>
+                </label>
+                {/* RÉGIME D'EXIGIBILITÉ · n'a de sens qu'assujetti. Il ne change
+                    pas le MONTANT de la taxe mais la PÉRIODE où elle est due,
+                    ce qui est la première cause d'écart sur une déclaration. */}
+                {params.assujettiTva && (
+                  <label className="block text-[11.5px]">
+                    Exigibilité de la TVA
+                    <select
+                      value={params.regimeExigibiliteTva}
+                      disabled={!estAdmin || envoi}
+                      onChange={(e) => changerRegime({ regimeExigibiliteTva: e.target.value as RegimeExigibiliteTva })}
+                      className="mt-1 block w-full max-w-[420px] border border-border rounded-[7px] bg-bg px-2 py-1 text-[12px] focus:outline-none focus:border-sel"
+                    >
+                      <option value="LIVRAISONS">Livraisons · taxe due à la livraison du bien (art. 25, 1°)</option>
+                      <option value="ENCAISSEMENTS">Encaissements · taxe due au règlement (art. 25, 2°)</option>
+                      <option value="DEBITS">Débits · sur autorisation du DGI (art. 26)</option>
+                    </select>
+                    <span className="block text-[10.5px] text-text-dim leading-[1.5] mt-1">
+                      Pour les PRESTATIONS DE SERVICES et les travaux immobiliers, le régime de droit commun est celui
+                      de l’<strong>encaissement</strong> : une facture émise en mars et réglée en juin se déclare en
+                      juin. Laisser « Livraisons » sur un dossier de services fait verser chaque mois une taxe qui n’a
+                      pas encore été encaissée. Le régime des débits ne s’ouvre que sur autorisation écrite du Directeur
+                      Général des Impôts, et ne dispense pas de payer à l’encaissement s’il précède la facture.
                     </span>
                   </label>
-                );
-              })}
+                )}
+                <label className="block text-[11.5px]">
+                  Effectif permanent
+                  <input
+                    type="number"
+                    min={0}
+                    defaultValue={params.effectifPermanent}
+                    disabled={!estAdmin || envoi}
+                    onBlur={(e) => {
+                      const valeur = Number(e.target.value);
+                      if (Number.isFinite(valeur) && valeur !== params.effectifPermanent) {
+                        changerRegime({ effectifPermanent: Math.max(0, Math.trunc(valeur)) });
+                      }
+                    }}
+                    className="mt-1 w-32 border border-border rounded-[7px] bg-bg px-2 py-1 text-[12px] focus:outline-none focus:border-sel"
+                  />
+                  <span className="block text-[10.5px] text-text-dim leading-[1.5] mt-1">
+                    Au-delà de vingt personnes, la désignation d’un auditeur devient obligatoire (SYCEBNL, art. 19,
+                    troisième critère). Ce nombre commande aussi la tranche de cotisation INPP.
+                  </span>
+                </label>
+              </div>
+            </>
+          )}
 
-              <p className="text-[11.5px] text-text-dim mt-1 leading-[1.55]">
-                {verrouille
-                  ? `Ce dossier porte ${params.nombreEcritures} écriture(s) : le jeu d'états financiers est désormais figé. Pour tenir une entité de l'autre type, créez un dossier distinct.`
-                  : estAdmin
-                    ? "Le choix reste modifiable tant qu'aucune écriture n'est saisie. Passé la première écriture, il sera figé."
-                    : "Seul un administrateur peut modifier le jeu d'états financiers."}
-              </p>
-            </div>
-          </section>
-
-          <section className="bg-surface border border-border rounded-[10px] shadow-posee overflow-hidden">
-            <header className="px-3 py-2 bg-chrome-alt border-b border-border text-[11.5px] font-bold">
-              Identification
-            </header>
-            <dl className="p-3 text-[12px] flex flex-col gap-2">
-              {(
-                [
-                  ['Raison sociale', params.nom],
-                  ['Référentiel', params.referentiel],
-                  ['Activité', params.activite],
-                  ['Adresse', params.adresse],
-                  ['Ville', params.ville],
-                  ['Pays', params.pays],
-                  ['Téléphone', params.telephone],
-                  ['Monnaie de tenue', params.devise],
-                  ['N° impôt', params.numeroImpot],
-                  ['Identification nationale', params.idNat],
-                  ['RCCM', params.rccm],
-                  ['Longueur des comptes', `${params.longueurCompte} caractères`],
-                  ['Écritures enregistrées', String(params.nombreEcritures)],
-                ] as [string, string | null][]
-              ).map(([cle, valeur]) => (
-                <div key={cle} className="flex justify-between gap-3">
-                  <dt className="text-text-dim">{cle}</dt>
-                  <dd className="text-right font-medium">{valeur || '·'}</dd>
-                </div>
-              ))}
-            </dl>
-          </section>
-
-          {/*
-            Forme juridique · loi n° 004/2001. Elle ne touche à aucun état
-            financier ; elle décide des obligations annuelles que le planning
-            de clôture propose (Fin d'exercice). Une ASBL dépose son compte
-            annuel au Ministère de la Justice et n'est pas immatriculée au
-            RCCM ; une ONG rend compte en plus au Ministère du Plan.
-          */}
-          <section className="bg-surface border border-border rounded-[10px] shadow-posee overflow-hidden lg:col-span-2">
-            <header className="px-3 py-2 bg-chrome-alt border-b border-border text-[11.5px] font-bold">
-              Forme juridique
-            </header>
-            <div className="p-3 flex flex-col gap-2">
-              <p className="text-[11px] text-text-dim">
-                Au sens de la loi n° 004/2001 du 20 juillet 2001. Ce choix ne change pas vos états financiers : il
-                détermine les obligations annuelles proposées par le planning de clôture.
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {FORMES.map((f) => {
-                  const actif = params.formeJuridique === f.valeur;
+          {onglet === 'referentiel' && (
+            <>
+              <SectionTitre>Jeu d'états financiers SYCEBNL</SectionTitre>
+              <div className="flex flex-col gap-2">
+                {CHOIX.map((c) => {
+                  const actif = params.jeuEtatsFinanciersSycebnl === c.valeur;
+                  const modifiable = estAdmin && !verrouille && !envoi;
                   return (
                     <label
-                      key={f.valeur}
-                      className={`flex items-start gap-2.5 rounded-[8px] border p-2.5 transition-colors ${
-                        actif ? 'border-sel bg-sel-soft' : 'border-border hover:bg-surface-alt'
-                      } ${estAdmin ? 'cursor-pointer' : 'cursor-not-allowed opacity-70'}`}
+                      key={c.valeur}
+                      className={`flex items-start gap-2.5 rounded-[8px] border p-3 transition-colors ${
+                        actif ? 'border-sel bg-sel-soft' : 'border-border'
+                      } ${modifiable ? 'cursor-pointer hover:border-sel/50' : 'cursor-default'}`}
                     >
                       <input
                         type="radio"
-                        name="formeJuridique"
+                        name="jeuEtats"
                         className="mt-0.5"
                         checked={actif}
-                        disabled={!estAdmin || envoi}
-                        onChange={() => changerForme(f.valeur)}
+                        disabled={!modifiable}
+                        onChange={() => changerJeu(c.valeur)}
                       />
                       <span className="min-w-0">
-                        <span className="block text-[12.5px] font-semibold">{f.titre}</span>
-                        <span className="block text-[11px] text-text-dim mt-0.5">{f.detail}</span>
+                        <span className="block text-[13px] font-semibold flex items-center gap-1.5">
+                          {c.titre}
+                          {c.valeur === 'SYSTEME_MINIMAL_TRESORERIE' && <Aide sujet="smt" />}
+                        </span>
+                        <span className="block text-[11.5px] text-text-dim mt-1">{c.etats.join(' · ')}</span>
                       </span>
                     </label>
                   );
                 })}
-              </div>
-              <label className="flex items-center gap-2 text-[11.5px] mt-1">
-                <input
-                  type="checkbox"
-                  checked={params.droitEtranger}
-                  disabled={!estAdmin || envoi}
-                  onChange={(e) => changerForme(params.formeJuridique, e.target.checked)}
-                />
-                Entité de droit étranger (art. 29 à 34 et art. 37 : accord-cadre avec le Ministère du Plan)
-              </label>
-            </div>
-          </section>
 
-          {/*
-            RÉGIME FISCAL ET EFFECTIF · deux champs ajoutés après l'audit du
-            29 août 2026, parce que leur absence faisait appliquer au dossier
-            des règles qui ne sont pas les siennes.
-          */}
-          <section className="bg-surface border border-border rounded-[10px] shadow-posee overflow-hidden">
-            <div className="bg-chrome-alt border-b border-border px-4 py-2 text-[11px] font-bold uppercase tracking-[0.06em] text-text-dim">
-              Régime fiscal et effectif
-            </div>
-            <div className="p-4 space-y-3">
-              <label className="flex items-start gap-2 text-[11.5px]">
-                <input
-                  type="checkbox"
-                  className="mt-[3px]"
-                  checked={params.assujettiTva}
-                  disabled={!estAdmin || envoi}
-                  onChange={(e) => changerRegime({ assujettiTva: e.target.checked })}
-                />
-                <span>
-                  Entité assujettie à la TVA
-                  <span className="block text-[10.5px] text-text-dim leading-[1.5] mt-0.5">
-                    Une association ne l’est pas de plein droit. Le seuil est de 80 000 000 FC de chiffre d’affaires
-                    annuel hors taxes (ordonnance-loi n° 10/001, art. 14) ; en deçà, l’option est possible et engage
-                    deux ans. Les opérations conformes à l’objet sont par ailleurs exonérées (art. 15, 2° et 17, 8°).
-                    Décochée, la TVA supportée n’est pas récupérable et se porte en charge.
-                  </span>
-                </span>
-              </label>
-              {/* RÉGIME D'EXIGIBILITÉ · n'a de sens qu'assujetti. Il ne change
-                  pas le MONTANT de la taxe mais la PÉRIODE où elle est due,
-                  ce qui est la première cause d'écart sur une déclaration. */}
-              {params.assujettiTva && (
-                <label className="block text-[11.5px]">
-                  Exigibilité de la TVA
-                  <select
-                    value={params.regimeExigibiliteTva}
-                    disabled={!estAdmin || envoi}
-                    onChange={(e) => changerRegime({ regimeExigibiliteTva: e.target.value as RegimeExigibiliteTva })}
-                    className="mt-1 block w-full max-w-[420px] border border-border rounded-[7px] bg-bg px-2 py-1 text-[12px] focus:outline-none focus:border-sel"
-                  >
-                    <option value="LIVRAISONS">Livraisons · taxe due à la livraison du bien (art. 25, 1°)</option>
-                    <option value="ENCAISSEMENTS">Encaissements · taxe due au règlement (art. 25, 2°)</option>
-                    <option value="DEBITS">Débits · sur autorisation du DGI (art. 26)</option>
-                  </select>
-                  <span className="block text-[10.5px] text-text-dim leading-[1.5] mt-1">
-                    Pour les PRESTATIONS DE SERVICES et les travaux immobiliers, le régime de droit commun est celui
-                    de l’<strong>encaissement</strong> : une facture émise en mars et réglée en juin se déclare en
-                    juin. Laisser « Livraisons » sur un dossier de services fait verser chaque mois une taxe qui n’a
-                    pas encore été encaissée. Le régime des débits ne s’ouvre que sur autorisation écrite du Directeur
-                    Général des Impôts, et ne dispense pas de payer à l’encaissement s’il précède la facture.
-                  </span>
-                </label>
-              )}
-              <label className="block text-[11.5px]">
-                Effectif permanent
-                <input
-                  type="number"
-                  min={0}
-                  defaultValue={params.effectifPermanent}
-                  disabled={!estAdmin || envoi}
-                  onBlur={(e) => {
-                    const valeur = Number(e.target.value);
-                    if (Number.isFinite(valeur) && valeur !== params.effectifPermanent) {
-                      changerRegime({ effectifPermanent: Math.max(0, Math.trunc(valeur)) });
-                    }
-                  }}
-                  className="mt-1 w-32 border border-border rounded-[7px] bg-bg px-2 py-1 text-[12px] focus:outline-none focus:border-sel"
-                />
-                <span className="block text-[10.5px] text-text-dim leading-[1.5] mt-1">
-                  Au-delà de vingt personnes, la désignation d’un auditeur devient obligatoire (SYCEBNL, art. 19,
-                  troisième critère). Ce nombre commande aussi la tranche de cotisation INPP.
-                </span>
-              </label>
-            </div>
-          </section>
-
-          {/*
-            Identifiants légaux · le CPCC (« Notes de cours d'organisation
-            comptable », § 7.4 règle 7-a) exige le n° d'identification fiscale
-            en tête de CHAQUE page d'un état déposé, à côté de la dénomination,
-            de la date de clôture et de la durée en mois. Sans ce champ,
-            OmegaX ne pouvait pas l'imprimer. Voir
-            docs/organisation-comptable-cpcc.md § 2.1.
-            Modifiables à tout moment, contrairement au jeu d'états : une
-            association obtient souvent ses numéros après avoir commencé à
-            tenir ses comptes.
-          */}
-          <section className="bg-surface border border-border rounded-[10px] shadow-posee overflow-hidden lg:col-span-2">
-            <header className="px-3 py-2 bg-chrome-alt border-b border-border text-[11.5px] font-bold">
-              Identifiants légaux
-            </header>
-            <form onSubmit={enregistrerIdentite} className="p-3 flex flex-col gap-3">
-              <p className="text-[11px] text-text-dim">
-                Portés en tête de chaque page imprimée. Le numéro d’impôt y est exigé au même titre que la
-                dénomination, la date de clôture et la durée de l’exercice.
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {(
-                  [
-                    ['N° impôt (DGI)', numeroImpot, setNumeroImpot, 'A1234567B'],
-                    ['Identification nationale', idNat, setIdNat, '01-93-K12345C'],
-                    ['RCCM', rccm, setRccm, 'CD/KIN/RCCM/23-B-01234'],
-                  ] as [string, string, (v: string) => void, string][]
-                ).map(([label, valeur, set, exemple]) => (
-                  <label key={label} className="flex flex-col gap-1 text-[11px]">
-                    <span className="text-text-dim">{label}</span>
-                    <input
-                      value={valeur}
-                      onChange={(e) => set(e.target.value)}
-                      placeholder={exemple}
-                      disabled={!estAdmin || envoi}
-                      maxLength={40}
-                      className="border border-border rounded-[6px] px-2 py-1.5 text-[12px] font-mono bg-bg disabled:opacity-60"
-                    />
-                  </label>
-                ))}
+                <p className="text-[11.5px] text-text-dim mt-1 leading-[1.55]">
+                  {verrouille
+                    ? `Ce dossier porte ${params.nombreEcritures} écriture(s) : le jeu d'états financiers est désormais figé. Pour tenir une entité de l'autre type, créez un dossier distinct.`
+                    : estAdmin
+                      ? "Le choix reste modifiable tant qu'aucune écriture n'est saisie. Passé la première écriture, il sera figé."
+                      : "Seul un administrateur peut modifier le jeu d'états financiers."}
+                </p>
               </div>
-              {estAdmin && (
-                <div>
-                  <button
-                    type="submit"
-                    disabled={envoi}
-                    className="border border-border rounded-[6px] bg-surface px-3 py-1.5 text-[11px] font-bold hover:bg-surface-alt disabled:opacity-60"
-                  >
-                    Enregistrer
-                  </button>
-                </div>
-              )}
-            </form>
-          </section>
-        </div>
+            </>
+          )}
+        </OngletsVerticaux>
       )}
     </div>
   );

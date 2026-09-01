@@ -363,7 +363,14 @@ export function AuthPage({ assistantInitial = false }: { assistantInitial?: bool
       </div>
 
       {assistantOuvert && (
-        <NouveauFichierWizard onClose={() => setAssistantOuvert(false)} onTermine={() => navigate('/')} />
+        <NouveauFichierWizard
+          onClose={() => setAssistantOuvert(false)}
+          // Sage enchaîne : l'assistant terminé, il ouvre la fiche
+          // « Identification de votre société » pour compléter ce qu'il n'a
+          // pas demandé (forme juridique, régime, identifiants légaux).
+          // On atterrit donc sur cette fenêtre, et non sur un accueil vide.
+          onTermine={() => navigate('/parametres-dossier')}
+        />
       )}
     </div>
   );

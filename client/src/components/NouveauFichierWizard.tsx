@@ -323,7 +323,7 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
               onClick={() => (onTermine ? onTermine() : onClose())}
               className="mt-2 bg-sel text-white text-[13px] font-semibold px-6 py-2 rounded-[6px] hover:brightness-110"
             >
-              Ouvrir le dossier
+              Compléter l'identification
             </button>
           </div>
         ) : (
