@@ -44,7 +44,7 @@
  * garde le chiffre. Même règle que src/modules/retenues/correspondance-retenues.ts.
  */
 
-import { FormeJuridiqueEbnl, Referentiel } from '@prisma/client';
+import { FormeJuridiqueEbnl, FormeJuridiqueSyscohada, Referentiel } from '@prisma/client';
 
 /** Toutes les formes relevant de la loi 004/2001 sur les ASBL. */
 const FORMES_ASBL: FormeJuridiqueEbnl[] = [
@@ -53,8 +53,39 @@ const FORMES_ASBL: FormeJuridiqueEbnl[] = [
   FormeJuridiqueEbnl.ASSOCIATION_CONFESSIONNELLE,
 ];
 
+/**
+ * Les formes SYSCOHADA que l'AUSCGIE soumet au circuit « états financiers aux
+ * commissaires aux comptes, puis assemblée générale, puis dépôt au RCCM ».
+ *
+ * L'art. 140 ne nomme que la SA, la SAS et, le cas échéant, la SARL · le
+ * circuit des assemblées suppose des organes que ni l'entreprise
+ * individuelle, ni l'entreprenant, ni la succursale n'ont.
+ */
+const FORMES_SOCIETES_ASSEMBLEE: FormeJuridiqueSyscohada[] = [
+  FormeJuridiqueSyscohada.SOCIETE_ANONYME,
+  FormeJuridiqueSyscohada.SOCIETE_PAR_ACTIONS_SIMPLIFIEE,
+  FormeJuridiqueSyscohada.SOCIETE_RESPONSABILITE_LIMITEE,
+];
+
+/**
+ * Les formes tenues au dépôt de l'art. 269, qui vise « les sociétés
+ * commerciales ». En sont donc dehors, et chacune pour une raison distincte :
+ * l'ENTREPRENANT, expressément DISPENSÉ d'immatriculation au RCCM (AUDCG
+ * art. 30 in fine) ; la SOCIETE_COOPERATIVE, immatriculée au Registre des
+ * Sociétés Coopératives et non au RCCM (AUSCOOP art. 206) ; le GIE,
+ * l'entreprise individuelle, la succursale et l'entité publique, qui sont
+ * immatriculés ou déclarés mais ne sont pas des sociétés commerciales.
+ */
+const FORMES_DEPOT_RCCM: FormeJuridiqueSyscohada[] = [
+  FormeJuridiqueSyscohada.SOCIETE_ANONYME,
+  FormeJuridiqueSyscohada.SOCIETE_PAR_ACTIONS_SIMPLIFIEE,
+  FormeJuridiqueSyscohada.SOCIETE_RESPONSABILITE_LIMITEE,
+  FormeJuridiqueSyscohada.SOCIETE_NOM_COLLECTIF,
+  FormeJuridiqueSyscohada.SOCIETE_COMMANDITE_SIMPLE,
+];
+
 /** Date de dernière vérification des échéances ci-dessous contre leur source. */
-export const DERNIERE_VERIFICATION = '2026-08-29';
+export const DERNIERE_VERIFICATION = '2026-09-03';
 
 /**
  * INTERNE : jalon d'organisation, l'entité fixe elle-même sa date.
@@ -94,6 +125,13 @@ export interface DefinitionJalon {
    * réciproquement.
    */
   formes?: FormeJuridiqueEbnl[];
+  /**
+   * Pendant SYSCOHADA de `formes` · absent = toutes. Un jalon qui porte ce
+   * champ ne s'affiche PAS tant que la forme du dossier n'est pas renseignée :
+   * mieux vaut une liste courte qu'un dépôt au RCCM annoncé à un entreprenant
+   * qui en est dispensé.
+   */
+  formesSyscohada?: FormeJuridiqueSyscohada[];
   /** Référentiels concernés · absent = les deux. */
   referentiels?: Referentiel[];
   /** Jalon propre aux entités de droit étranger (art. 29-34 et 37). */
@@ -279,7 +317,36 @@ export const JALONS_CLOTURE: DefinitionJalon[] = [
     source: 'CENCO, Vade Mecum du gestionnaire (obligations fiscales de l’ASBL) ; loi n° 23/053 ; à confirmer sur texte primaire',
   },
   {
+    /*
+      TROIS JALONS PROPRES AU SYSCOHADA, ajoutés le 03/09/2026 en même temps
+      que la forme juridique OHADA. Le planning ne servait jusque-là aucune
+      obligation de l'AUSCGIE : un dossier SYSCOHADA voyait le tronc commun du
+      CPCC, puis directement le dépôt au RCCM, sans le circuit qui y mène.
+    */
     etape: 15,
+    libelle: 'Rapport de gestion',
+    detail:
+      'Le gérant, le conseil d’administration ou l’administrateur général expose la situation de la société durant l’exercice écoulé, son évolution prévisible, les événements importants survenus entre la clôture et la date d’établissement, et en particulier les perspectives de continuation de l’activité, l’évolution de la trésorerie et le plan de financement. Ces quatre derniers points sont ceux qu’on oublie : un rapport qui se borne au compte rendu de l’exercice écoulé est incomplet.',
+    nature: 'LEGALE',
+    debut: { moisApres: 3, jour: 1 },
+    echeance: { moisApres: 4, jour: 'FIN' },
+    source: 'AUSCGIE, art. 138',
+    referentiels: [Referentiel.SYSCOHADA],
+  },
+  {
+    etape: 16,
+    libelle: 'États financiers et rapport de gestion aux commissaires aux comptes',
+    detail:
+      'Envoi aux commissaires aux comptes des états financiers de synthèse annuels et du rapport de gestion, QUARANTE-CINQ JOURS AU MOINS avant la date de l’assemblée générale ordinaire. Le délai se compte à rebours de l’assemblée, pas de la clôture : une assemblée tenue au dernier jour du sixième mois impose l’envoi vers la mi-quatrième mois. La désignation d’un commissaire aux comptes est obligatoire dans toute société anonyme (art. 702) et, dans la SARL comme dans la SAS, dès que deux des trois critères de taille sont dépassés à la clôture (total du bilan, chiffre d’affaires annuel, effectif permanent au-delà de cinquante personnes) · les deux premiers montants sont donnés par les articles cités, l’écran Paramètres du dossier les reprend.',
+    nature: 'LEGALE',
+    debut: { moisApres: 3, jour: 15 },
+    echeance: { moisApres: 4, jour: 'FIN' },
+    source: 'AUSCGIE, art. 140 al. 1 ; art. 702 (SA) ; art. 376 (SARL) ; art. 853-13 (SAS)',
+    referentiels: [Referentiel.SYSCOHADA],
+    formesSyscohada: FORMES_SOCIETES_ASSEMBLEE,
+  },
+  {
+    etape: 17,
     libelle: 'Mise à disposition de l’auditeur',
     detail:
       'Remise du projet d’états financiers à l’auditeur. Le cours parle du commissaire aux comptes ; pour une EBNL, la désignation d’un auditeur dépend des seuils de l’Acte uniforme (ressources annuelles, total du bilan, effectif salarié) et n’est pas systématique.',
@@ -289,7 +356,7 @@ export const JALONS_CLOTURE: DefinitionJalon[] = [
     source: 'CPCC, § 2.3 (« début mars au 15 mai »), adapté SYCEBNL (art. 19 à 22)',
   },
   {
-    etape: 16,
+    etape: 18,
     libelle: 'Rapport d’activité au Ministère du Plan et au ministère du secteur',
     detail:
       'Une ONG transmet périodiquement son rapport d’activité, pour évaluation physique, au Ministre ayant le Plan dans ses attributions et à celui en charge du secteur où elle opère. Elle l’informe également de ses projets et des ressources financières mobilisées. La loi dit « périodiquement » sans fixer de date : l’échéance retenue ici est un repère de fin de campagne annuelle, à caler sur l’accord-cadre pour une ONG étrangère.',
@@ -300,7 +367,7 @@ export const JALONS_CLOTURE: DefinitionJalon[] = [
     formes: [FormeJuridiqueEbnl.ORGANISATION_NON_GOUVERNEMENTALE],
   },
   {
-    etape: 17,
+    etape: 19,
     libelle: 'Dépôt au Ministère de l’Économie nationale',
     detail:
       'Le cours donne « au plus tard mi-juin » au § 7.3 et « au plus tard 15 juin » au § 2.3, avec une astreinte par jour de retard fixée par l’arrêté interministériel n° 013/CAB/MINECO/2013 et n° CAB/MIN/FINANCES/2013/1055 du 26 novembre 2013, dont le taux n’est pas repris ici. Le cours vise les entités du Système comptable OHADA ; son extension à une EBNL n’a pas pu être confirmée sur texte primaire.',
@@ -310,7 +377,7 @@ export const JALONS_CLOTURE: DefinitionJalon[] = [
     source: 'CPCC, § 2.3 et § 7.3, portée pour une EBNL à confirmer sur texte primaire',
   },
   {
-    etape: 18,
+    etape: 20,
     libelle: 'Rapport d’activité et approbation des comptes',
     detail:
       'Établissement du rapport d’activité et approbation des états financiers par l’organe délibérant. Le cours rappelle que les comptes doivent être mis à la disposition des administrateurs quelques jours avant la réunion.',
@@ -321,7 +388,7 @@ export const JALONS_CLOTURE: DefinitionJalon[] = [
     observation: 'RAPPORT_ACTIVITE',
   },
   {
-    etape: 19,
+    etape: 21,
     libelle: 'Dépôt des états financiers SYCEBNL au CPCC',
     detail:
       'C’est ICI que la liasse se dépose, et nulle part ailleurs. Le CPCC vise toutes les entités à but non lucratif sans exception : ONG, associations, églises, mosquées, fondations, unités de gestion de projets, partis politiques, clubs sportifs, ordres professionnels, fonds de dotation. Pour l’exercice 2024, l’échéance annoncée était le 30 juin 2025. Le retard est sanctionné par une astreinte par jour fixée par l’arrêté ministériel n° 024/CAB/MIN/FINANCES/2010 du 15 avril 2010, dont le taux n’est pas repris ici.',
@@ -333,18 +400,31 @@ export const JALONS_CLOTURE: DefinitionJalon[] = [
     referentiels: [Referentiel.SYCEBNL],
   },
   {
-    etape: 20,
-    libelle: 'Dépôt au RCCM',
+    etape: 22,
+    libelle: 'Assemblée générale statuant sur les états financiers',
     detail:
-      'Ne concerne pas une ASBL : l’article 1er de la loi n° 004/2001 en fait une entité qui « ne se livre pas à des opérations industrielles ou commerciales, si ce n’est à titre accessoire », donc non commerçante et non immatriculée au registre du commerce. Le jalon ne s’affiche que pour un dossier tenu en SYSCOHADA.',
+      'L’assemblée générale qui statue sur les états financiers de synthèse doit OBLIGATOIREMENT se tenir dans les six mois de la clôture de l’exercice. C’est elle qui fait courir le délai d’un mois du dépôt au registre du commerce.',
+    nature: 'LEGALE',
+    debut: { moisApres: 4, jour: 1 },
+    echeance: { moisApres: 6, jour: 'FIN' },
+    source: 'AUSCGIE, art. 140 al. 2',
+    referentiels: [Referentiel.SYSCOHADA],
+    formesSyscohada: FORMES_SOCIETES_ASSEMBLEE,
+  },
+  {
+    etape: 23,
+    libelle: 'Dépôt des états financiers au RCCM',
+    detail:
+      'Dépôt au registre du commerce et du crédit mobilier de l’État partie du siège social, DANS LE MOIS QUI SUIT L’APPROBATION par l’organe compétent · l’échéance ci-dessous suppose donc une assemblée tenue au sixième mois. En cas de REFUS d’approbation, c’est une copie de la décision qui se dépose, dans le même délai. Le dépôt peut être électronique. Passé trente jours de demande amiable restée vaine, tout intéressé peut faire enjoindre le dépôt sous astreinte. Ne concerne pas une ASBL : l’article 1er de la loi n° 004/2001 en fait une entité non commerçante, donc non immatriculée au registre du commerce.',
     nature: 'LEGALE',
     debut: { moisApres: 7, jour: 1 },
     echeance: { moisApres: 7, jour: 'FIN' },
-    source: 'CPCC, § 2.3 et § 7.3 ; loi n° 004/2001, art. 1er (exclusion des ASBL)',
+    source: 'AUSCGIE, art. 269 ; CPCC, § 2.3 et § 7.3 ; loi n° 004/2001, art. 1er (exclusion des ASBL)',
     referentiels: [Referentiel.SYSCOHADA],
+    formesSyscohada: FORMES_DEPOT_RCCM,
   },
   {
-    etape: 21,
+    etape: 24,
     libelle: 'Clôture et réouverture des livres',
     detail:
       'Clôture annuelle de l’exercice, soldant les classes 6 et 7 sur le résultat et générant le report à-nouveau dans l’exercice suivant. Le cours rappelle que la clôture interdit l’ajout, la modification et la suppression d’écritures, mais autorise le lettrage et le pointage : c’est bien le comportement d’OmegaX.',
@@ -469,11 +549,16 @@ export function obligationsEvenementiellesApplicables(contexte: {
 export function jalonsApplicables(contexte: {
   referentiel: Referentiel;
   formeJuridique: FormeJuridiqueEbnl;
+  formeJuridiqueSyscohada?: FormeJuridiqueSyscohada | null;
   droitEtranger: boolean;
 }): DefinitionJalon[] {
   return JALONS_CLOTURE.filter((j) => {
     if (j.referentiels && !j.referentiels.includes(contexte.referentiel)) return false;
     if (j.formes && !j.formes.includes(contexte.formeJuridique)) return false;
+    // Forme OHADA NON renseignée = le jalon ne s'affiche pas. Le silence vaut
+    // mieux qu'une obligation servie à une forme qui n'y est pas tenue.
+    if (j.formesSyscohada && !(contexte.formeJuridiqueSyscohada && j.formesSyscohada.includes(contexte.formeJuridiqueSyscohada)))
+      return false;
     if (j.droitEtrangerSeulement && !contexte.droitEtranger) return false;
     return true;
   });

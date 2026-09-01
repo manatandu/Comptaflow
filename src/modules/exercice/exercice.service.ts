@@ -140,10 +140,12 @@ export class ExerciceService {
       // Le planning n'est pas le même pour une ASBL, une ONG et une entreprise
       // commerciale : voir jalonsApplicables et son commentaire.
       formeJuridique: tenant.formeJuridique,
+      formeJuridiqueSyscohada: tenant.formeJuridiqueSyscohada,
       droitEtranger: tenant.droitEtranger,
       jalons: jalonsApplicables({
         referentiel: tenant.referentiel,
         formeJuridique: tenant.formeJuridique,
+        formeJuridiqueSyscohada: tenant.formeJuridiqueSyscohada,
         droitEtranger: tenant.droitEtranger,
       }).map((j) => {
         const echeance = dateJalon(exercice.dateFin, j.echeance);

@@ -23,6 +23,27 @@ export type JeuEtatsFinanciersSycebnl =
  * `null` (ou absent) = dossier SYCEBNL, pour lequel la notion est sans objet.
  */
 export type SystemeComptableSyscohada = 'NORMAL' | 'MINIMAL_TRESORERIE';
+
+/**
+ * Forme juridique d'un dossier SYSCOHADA · AUSCGIE art. 6 pour les cinq
+ * sociétés commerciales par la forme, art. 869 pour le GIE, AUSCOOP pour la
+ * coopérative, AUDCG art. 2 et 30 pour le commerçant et l'entreprenant,
+ * AUSCGIE art. 116 pour la succursale, AUDCIF art. 2 pour le public.
+ * Sans rapport avec FormeJuridiqueEbnl, qui vient de la loi n° 004/2001.
+ */
+export type FormeJuridiqueSyscohada =
+  | 'SOCIETE_ANONYME'
+  | 'SOCIETE_PAR_ACTIONS_SIMPLIFIEE'
+  | 'SOCIETE_RESPONSABILITE_LIMITEE'
+  | 'SOCIETE_NOM_COLLECTIF'
+  | 'SOCIETE_COMMANDITE_SIMPLE'
+  | 'GROUPEMENT_INTERET_ECONOMIQUE'
+  | 'SOCIETE_COOPERATIVE'
+  | 'ENTREPRISE_INDIVIDUELLE'
+  | 'ENTREPRENANT'
+  | 'SUCCURSALE'
+  | 'ENTITE_PUBLIQUE'
+  | 'AUTRE';
 export type RoleUtilisateur = 'ADMIN_CABINET' | 'COMPTABLE' | 'LECTURE_SEULE';
 
 export interface Utilisateur {
@@ -988,6 +1009,7 @@ export interface ParametresDossier {
   /** Attestation d'exemption d'impôt sur les sociétés · arrêté n° 007/2025. */
   attestationExemptionIs: string | null;
   formeJuridique: FormeJuridiqueEbnl;
+  formeJuridiqueSyscohada: FormeJuridiqueSyscohada | null;
   droitEtranger: boolean;
   longueurCompte: number;
   /**
@@ -1734,6 +1756,7 @@ export interface PlanningCloture {
   derniereVerification: string;
   /** La forme juridique décide des jalons affichés · voir jalonsApplicables. */
   formeJuridique: FormeJuridiqueEbnl;
+  formeJuridiqueSyscohada: FormeJuridiqueSyscohada | null;
   droitEtranger: boolean;
   jalons: JalonCloture[];
 }

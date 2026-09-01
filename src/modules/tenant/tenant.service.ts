@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
-import { FormeJuridiqueEbnl, JeuEtatsFinanciersSycebnl, Referentiel, RegimeExigibiliteTva, SystemeComptableSyscohada, TypeLicence } from '@prisma/client';
+import { FormeJuridiqueEbnl,
+  FormeJuridiqueSyscohada, JeuEtatsFinanciersSycebnl, Referentiel, RegimeExigibiliteTva, SystemeComptableSyscohada, TypeLicence } from '@prisma/client';
 
 /**
  * Crée un tenant et sa licence en une transaction. Le référentiel comptable
@@ -92,6 +93,7 @@ export class TenantService {
       certificatEnregistrementPlan: tenant.certificatEnregistrementPlan,
       attestationExemptionIs: tenant.attestationExemptionIs,
       formeJuridique: tenant.formeJuridique,
+      formeJuridiqueSyscohada: tenant.formeJuridiqueSyscohada,
       droitEtranger: tenant.droitEtranger,
       longueurCompte: tenant.longueurCompte,
       assujettiTva: tenant.assujettiTva,
@@ -297,6 +299,33 @@ export class TenantService {
       where: { id: tenantId },
       data: { formeJuridique, ...(droitEtranger === undefined ? {} : { droitEtranger }) },
     });
+    return this.parametres(tenantId);
+  }
+
+  /**
+   * Pendant SYSCOHADA de modifierFormeJuridique · droit OHADA des affaires.
+   *
+   * Refusée sur un dossier SYCEBNL, et symétriquement : les deux listes ne se
+   * recouvrent nulle part, servir l'une à l'autre proposait « association
+   * confessionnelle » à une SARL et « société anonyme » à une paroisse.
+   *
+   * Modifiable à tout moment, comme son pendant : une transformation de
+   * société (AUSCGIE art. 181) est un événement ordinaire de la vie sociale,
+   * elle ne change ni le plan de comptes ni la présentation des états, mais
+   * elle change les obligations annuelles du planning de clôture.
+   */
+  async modifierFormeSyscohada(tenantId: string, formeJuridiqueSyscohada: FormeJuridiqueSyscohada) {
+    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
+    if (!tenant) {
+      throw new NotFoundException('Dossier introuvable');
+    }
+    if (tenant.referentiel !== Referentiel.SYSCOHADA) {
+      throw new BadRequestException(
+        'La forme juridique OHADA ne concerne que les dossiers tenus en référentiel SYSCOHADA. ' +
+          "Une entité à but non lucratif relève de la loi n° 004/2001, pas de l'AUSCGIE.",
+      );
+    }
+    await this.prisma.tenant.update({ where: { id: tenantId }, data: { formeJuridiqueSyscohada } });
     return this.parametres(tenantId);
   }
 

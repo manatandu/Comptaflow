@@ -1,6 +1,7 @@
 import { IsBoolean, IsEnum, IsOptional, IsString, MaxLength, MinLength, IsDateString, IsInt, Min, ValidateIf } from 'class-validator';
 import {
   FormeJuridiqueEbnl,
+  FormeJuridiqueSyscohada,
   JeuEtatsFinanciersSycebnl,
   RegimeExigibiliteTva,
   SystemeComptableSyscohada,
@@ -145,6 +146,21 @@ export class ModifierFormeJuridiqueDto {
   @IsOptional()
   @IsBoolean()
   droitEtranger?: boolean;
+}
+
+/**
+ * Pendant SYSCOHADA de la forme juridique · droit OHADA des affaires, pas loi
+ * n° 004/2001. Les CINQ sociétés commerciales par la forme de l'AUSCGIE
+ * art. 6, le GIE (art. 869), la société coopérative (AUSCOOP), le commerçant
+ * personne physique et l'entreprenant (AUDCG art. 2 et 30), la succursale
+ * (AUSCGIE art. 116) et les entités publiques (AUDCIF art. 2).
+ *
+ * Refusée sur un dossier SYCEBNL : une ASBL n'a pas de forme OHADA, elle a
+ * une forme de la loi n° 004/2001 (voir ModifierFormeJuridiqueDto).
+ */
+export class ModifierFormeSyscohadaDto {
+  @IsEnum(FormeJuridiqueSyscohada)
+  formeJuridiqueSyscohada!: FormeJuridiqueSyscohada;
 }
 
 /**

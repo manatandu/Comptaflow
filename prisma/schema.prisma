@@ -66,6 +66,47 @@ enum FormeJuridiqueEbnl {
   AUTRE
 }
 
+// FORME JURIDIQUE D'UN DOSSIER SYSCOHADA.
+//
+// Le SYCEBNL et le SYSCOHADA ne partagent PAS cette notion. Une ASBL tient sa
+// forme de la loi congolaise n° 004/2001 ; une entité SYSCOHADA la tient du
+// droit OHADA des affaires, et le logiciel servait pourtant la première liste
+// aux deux, ce qui proposait « association confessionnelle » à une SARL.
+//
+// L'AUDCIF (art. 2) assujettit au SYSCOHADA les entités soumises à l'AUDCG,
+// à l'AUSCGIE et à l'AUSCOOP, les entités publiques, parapubliques et
+// d'économie mixte, et plus généralement les entités produisant des biens et
+// services marchands ou non marchands. Son art. 5 en écarte les banques, la
+// microfinance, les acteurs du marché financier, l'assurance, la sécurité
+// sociale et les entités à but non lucratif · d'où l'absence de ces
+// dernières ici, elles relèvent du SYCEBNL.
+enum FormeJuridiqueSyscohada {
+  // Les CINQ sociétés commerciales à raison de leur forme, AUSCGIE art. 6.
+  // Aucune autre n'existe : la liste de l'article est fermée.
+  SOCIETE_ANONYME
+  SOCIETE_PAR_ACTIONS_SIMPLIFIEE
+  SOCIETE_RESPONSABILITE_LIMITEE
+  SOCIETE_NOM_COLLECTIF
+  SOCIETE_COMMANDITE_SIMPLE
+  // AUSCGIE art. 3 al. 2 et art. 869 à 873 · ni société, ni but lucratif
+  // propre, mais soumis au même Acte uniforme (art. 1 al. 2).
+  GROUPEMENT_INTERET_ECONOMIQUE
+  // AUSCOOP · SCOOPS (art. 204) ou COOP-CA (art. 267). Immatriculée au
+  // Registre des Sociétés Coopératives, PAS au RCCM (art. 206).
+  SOCIETE_COOPERATIVE
+  // Commerçant personne physique · AUDCG art. 2 et 13.
+  ENTREPRISE_INDIVIDUELLE
+  // AUDCG art. 30 · dispensé d'immatriculation au RCCM, il DÉCLARE son
+  // activité (art. 62) et tient les livres des art. 31 et 32.
+  ENTREPRENANT
+  // AUSCGIE art. 116 à 118 · établissement sans personnalité juridique
+  // propre, y compris celui d'une société étrangère.
+  SUCCURSALE
+  // AUDCIF art. 2 · entités publiques, parapubliques et d'économie mixte.
+  ENTITE_PUBLIQUE
+  AUTRE
+}
+
 // RÉGIME D'EXIGIBILITÉ DE LA TVA · ordonnance-loi n° 10/001, art. 25 et 26.
 //
 // L'exigibilité est « le droit dont dispose l'Administration des Impôts de
@@ -206,6 +247,12 @@ model Tenant {
   // Forme juridique au sens de la loi n° 004/2001 · commande les obligations
   // annuelles du planning de clôture. Défaut ASSOCIATION, cas le plus fréquent.
   formeJuridique FormeJuridiqueEbnl @default(ASSOCIATION)
+  // Pendant SYSCOHADA du champ ci-dessus. NULL a deux sens, distingués par le
+  // référentiel du dossier : sans objet pour un dossier SYCEBNL, pas encore
+  // renseignée pour un dossier SYSCOHADA. Aucune valeur par défaut n'est
+  // posée · la forme se lit dans les statuts, elle ne se devine pas, et une
+  // SARL présumée serait un jalon de clôture faux.
+  formeJuridiqueSyscohada FormeJuridiqueSyscohada?
   // Association ou ONG de droit étranger (art. 29-34 et art. 37 de la loi
   // 004/2001) · une ONG étrangère doit en outre conclure un accord-cadre avec
   // le Ministère du Plan, ce qui ajoute un jalon annuel.

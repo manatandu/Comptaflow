@@ -8,6 +8,7 @@ import { TenantService } from './tenant.service';
 import {
   ModifierCoordonneesDto,
   ModifierFormeJuridiqueDto,
+  ModifierFormeSyscohadaDto,
   ModifierIdentiteDto,
   ModifierJeuEtatsDto,
   ModifierRegimeDto,
@@ -66,6 +67,18 @@ export class TenantController {
   @Roles(RoleUtilisateur.ADMIN_CABINET)
   async modifierFormeJuridique(@CurrentUser() user: AuthenticatedUser, @Body() dto: ModifierFormeJuridiqueDto) {
     return this.tenantService.modifierFormeJuridique(user.tenantId, dto.formeJuridique, dto.droitEtranger);
+  }
+
+  /**
+   * Forme juridique OHADA · voir TenantService.modifierFormeSyscohada. Route
+   * distincte de `forme-juridique` plutôt qu'un champ de plus sur celle-ci :
+   * les deux listes n'ont aucune valeur commune, et un DTO qui accepterait les
+   * deux enums laisserait passer le croisement que le service refuse.
+   */
+  @Patch('forme-syscohada')
+  @Roles(RoleUtilisateur.ADMIN_CABINET)
+  async modifierFormeSyscohada(@CurrentUser() user: AuthenticatedUser, @Body() dto: ModifierFormeSyscohadaDto) {
+    return this.tenantService.modifierFormeSyscohada(user.tenantId, dto.formeJuridiqueSyscohada);
   }
 
   /**

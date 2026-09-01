@@ -169,6 +169,12 @@ export const LEXIQUE = {
       "L'AUDCIF n'admet que deux présentations des états financiers et de tenue des comptes : le Système normal et le Système minimal de trésorerie. L'ancien Système allégé a été abrogé par la révision de 2017. Le Système normal est la règle · « toute entité est, sauf exception liée à sa taille, soumise au Système normal ». Le SMT est réservé aux entités dont le chiffre d'affaires hors taxes annuel reste sous 60 millions de FCFA pour le négoce, 40 millions pour l'artisanat et assimilés, 30 millions pour les services. Ces seuils sont propres au SYSCOHADA : ne pas les confondre avec ceux du SYCEBNL, qui plafonne cinq catégories de ressources à 30 millions chacune.",
     source: 'AUDCIF, art. 11, 12 et 13',
   },
+  formeJuridiqueSyscohada: {
+    titre: 'Forme juridique OHADA',
+    texte:
+      "Le droit OHADA des affaires ne connaît que CINQ sociétés commerciales à raison de leur forme : la société en nom collectif, la société en commandite simple, la société à responsabilité limitée, la société anonyme et la société par actions simplifiée. La liste de l'article 6 est fermée · une entité qui exerce une activité commerciale en société doit choisir l'une d'elles, ou s'associer en groupement d'intérêt économique. S'y ajoutent, hors sociétés commerciales, la société coopérative, le commerçant personne physique, l'entreprenant, la succursale et les entités publiques. Aucune de ces formes n'a de rapport avec celles de la loi congolaise n° 004/2001, qui régit les ASBL et les ONG : ce sont deux référentiels séparés, et une entité à but non lucratif n'est d'ailleurs pas assujettie au SYSCOHADA.",
+    source: 'AUSCGIE, art. 3 et 6 ; AUDCG, art. 2 et 30 ; AUDCIF, art. 2 et 5',
+  },
   notesAnnexes: {
     titre: 'Notes annexes',
     texte:

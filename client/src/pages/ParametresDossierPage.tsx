@@ -4,8 +4,10 @@ import { useAuth } from '../lib/auth';
 import { Aide } from '../components/chrome/Aide';
 import { Ligne, OngletsVerticaux, SectionTitre, champSage } from '../components/FormulaireSage';
 import { SYSTEMES_SYSCOHADA } from '../lib/systemes-syscohada';
+import { FORMES_SYSCOHADA } from '../lib/formes-juridiques-syscohada';
 import type {
   FormeJuridiqueEbnl,
+  FormeJuridiqueSyscohada,
   JeuEtatsFinanciersSycebnl,
   ParametresDossier,
   RegimeExigibiliteTva,
@@ -216,6 +218,22 @@ export function ParametresDossierPage() {
       setInfo('Système comptable enregistré.');
     } catch (e) {
       setErreur(e instanceof ApiError ? e.message : 'Modification impossible');
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
+  /** Pendant SYSCOHADA de changerForme · droit OHADA des affaires. */
+  const changerFormeSyscohada = async (forme: FormeJuridiqueSyscohada) => {
+    if (!params || params.formeJuridiqueSyscohada === forme) return;
+    setEnvoi(true);
+    setErreur(null);
+    setInfo(null);
+    try {
+      setParams(await api.patch<ParametresDossier>('/dossier/forme-syscohada', { formeJuridiqueSyscohada: forme }));
+      setInfo('Forme juridique enregistrée.');
+    } catch (err) {
+      setErreur(err instanceof ApiError ? err.message : 'Modification impossible');
     } finally {
       setEnvoi(false);
     }
@@ -622,7 +640,12 @@ export function ParametresDossierPage() {
             </>
           )}
 
-          {onglet === 'forme' && (
+          {/* DEUX LISTES SANS AUCUNE VALEUR COMMUNE · un dossier SYSCOHADA se
+              voyait proposer « association confessionnelle » et « établissement
+              d'utilité publique », qui sont des formes de la loi congolaise sur
+              les ASBL. Une entité SYSCOHADA tient sa forme du droit OHADA des
+              affaires, et le serveur refuse d'ailleurs le croisement. */}
+          {onglet === 'forme' && params.referentiel === 'SYCEBNL' && (
             <>
               <SectionTitre>Forme juridique</SectionTitre>
               <div className="flex flex-col gap-2">
@@ -669,10 +692,104 @@ export function ParametresDossierPage() {
             </>
           )}
 
+          {onglet === 'forme' && params.referentiel === 'SYSCOHADA' && (
+            <>
+              <SectionTitre>
+                Forme juridique OHADA <Aide sujet="formeJuridiqueSyscohada" />
+              </SectionTitre>
+              <div className="flex flex-col gap-2">
+                <p className="text-[10.5px] text-text-dim">
+                  Au sens du droit OHADA des affaires · l’AUSCGIE pour les sociétés commerciales et le groupement
+                  d’intérêt économique, l’AUSCOOP pour les coopératives, l’AUDCG pour le commerçant personne physique
+                  et l’entreprenant. Ce choix ne change pas vos états financiers : il détermine les obligations
+                  annuelles proposées par le planning de clôture, qui ne sont pas les mêmes selon que l’entité tient
+                  une assemblée générale, dépose au registre du commerce, ou ni l’un ni l’autre.
+                </p>
+                {params.formeJuridiqueSyscohada === null && (
+                  <p className="text-[10.5px] text-text-dim border border-border rounded-[7px] p-2.5 leading-[1.55]">
+                    <strong>Aucune forme n’est encore renseignée.</strong> Le planning de clôture n’affiche donc, pour
+                    l’instant, que les jalons communs à toutes les entités · ni l’assemblée générale, ni le dépôt au
+                    registre du commerce, qui dépendent de la forme. Elle se lit dans vos statuts.
+                  </p>
+                )}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {FORMES_SYSCOHADA.map((f) => {
+                    const actif = params.formeJuridiqueSyscohada === f.valeur;
+                    return (
+                      <label
+                        key={f.valeur}
+                        className={`flex items-start gap-2.5 rounded-[8px] border p-2.5 transition-colors ${
+                          actif ? 'border-sel bg-sel-soft' : 'border-border hover:bg-surface-alt'
+                        } ${estAdmin ? 'cursor-pointer' : 'cursor-not-allowed opacity-70'}`}
+                      >
+                        <input
+                          type="radio"
+                          name="formeJuridiqueSyscohada"
+                          className="mt-0.5"
+                          checked={actif}
+                          disabled={!estAdmin || envoi}
+                          onChange={() => changerFormeSyscohada(f.valeur)}
+                        />
+                        <span className="min-w-0">
+                          <span className="block text-[11px] font-semibold">{f.titre}</span>
+                          <span className="block text-[10.5px] text-text-dim mt-0.5 leading-[1.5]">{f.detail}</span>
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+                <p className="text-[10.5px] text-text-dim mt-1 leading-[1.55]">
+                  Les montants de capital sont ceux de l’Acte uniforme, exprimés en francs CFA. L’article 311 réserve
+                  expressément le cas de « dispositions nationales contraires » pour la SARL · vérifiez le montant en
+                  vigueur en RDC avant de vous y fier. La transformation d’une société en une autre forme est prévue
+                  par l’article 181 : ce choix se corrige à tout moment.
+                </p>
+              </div>
+            </>
+          )}
+
           {onglet === 'regime' && (
             <>
               <SectionTitre>Régime fiscal et effectif</SectionTitre>
               <div className="space-y-3">
+                {/* IMPÔT SUR LES BÉNÉFICES · bloc d'information, pas un
+                    réglage : OmegaX ne calcule pas l'impôt, et un régime
+                    stocké sans être utilisé serait une donnée morte. Ce qui
+                    change ici entre les deux référentiels n'est pas la
+                    présentation mais le fond · une ASBL peut être EXEMPTÉE,
+                    une société ne l'est jamais. */}
+                {params.referentiel === 'SYSCOHADA' && (
+                  <div className="border border-border rounded-[7px] p-2.5">
+                    <span className="block text-[11px] font-semibold">Impôt sur les bénéfices</span>
+                    <span className="block text-[10px] text-text-dim leading-[1.55] mt-1">
+                      Depuis le 1<sup>er</sup> janvier 2026, la loi n° 23/053 du 30 novembre 2023 a remplacé l’impôt
+                      professionnel sur les bénéfices par deux impôts distincts, selon que l’entité est une personne
+                      morale ou une personne physique. L’<strong>IPR et l’IBP n’existent plus</strong> : un logiciel ou
+                      un conseil qui les mobilise encore raisonne sous un régime abrogé.
+                    </span>
+                    <ul className="block text-[10px] text-text-dim leading-[1.55] mt-1.5 list-disc pl-4 space-y-1">
+                      <li>
+                        <strong>Personnes morales</strong> · impôt sur les sociétés à 30 % du bénéfice net imposable
+                        (art. 56), avec un impôt minimum de 1 % du chiffre d’affaires déclaré lorsque le résultat est
+                        déficitaire, ou bénéficiaire mais donnant un impôt inférieur (art. 57).
+                      </li>
+                      <li>
+                        <strong>Personnes physiques</strong> · entreprise individuelle et entreprenant relèvent de
+                        l’impôt sur le revenu, dont le régime dépend du chiffre d’affaires annuel hors taxes :
+                        micro-entreprise jusqu’à 25 000 000,00 FC, imposée à un forfait annuel (art. 107 et 128) ;
+                        petite entreprise de 25 000 001,00 à 300 000 000,00 FC, imposée à 1 % du chiffre d’affaires
+                        pour la vente et 2 % pour les prestations de services (art. 109 et 127) ; régime réel au-delà
+                        (art. 112). Le déclassement suppose deux exercices consécutifs sous le seuil, le surclassement
+                        est immédiat (art. 113).
+                      </li>
+                    </ul>
+                    <span className="block text-[10px] text-text-dim leading-[1.55] mt-1.5">
+                      Ces seuils et ce forfait sont réajustables par arrêté du Ministre des Finances · vérifiez-les
+                      avant de les opposer à un client. OmegaX ne calcule pas cet impôt : il tient la comptabilité qui
+                      en donne l’assiette.
+                    </span>
+                  </div>
+                )}
                 <label className="flex items-start gap-2 text-[10.5px]">
                   <input
                     type="checkbox"
@@ -683,12 +800,25 @@ export function ParametresDossierPage() {
                   />
                   <span>
                     Entité assujettie à la TVA
-                    <span className="block text-[10px] text-text-dim leading-[1.5] mt-0.5">
-                      Une association ne l’est pas de plein droit. Le seuil est de 80 000 000 FC de chiffre d’affaires
-                      annuel hors taxes (ordonnance-loi n° 10/001, art. 14) ; en deçà, l’option est possible et engage
-                      deux ans. Les opérations conformes à l’objet sont par ailleurs exonérées (art. 15, 2° et 17, 8°).
-                      Décochée, la TVA supportée n’est pas récupérable et se porte en charge.
-                    </span>
+                    {params.referentiel === 'SYCEBNL' ? (
+                      <span className="block text-[10px] text-text-dim leading-[1.5] mt-0.5">
+                        Une association ne l’est pas de plein droit. Le seuil est de 80 000 000 FC de chiffre
+                        d’affaires annuel hors taxes (ordonnance-loi n° 10/001, art. 14) ; en deçà, l’option est
+                        possible et engage deux ans. Les opérations conformes à l’objet sont par ailleurs exonérées
+                        (art. 15, 2° et 17, 8°). Décochée, la TVA supportée n’est pas récupérable et se porte en
+                        charge.
+                      </span>
+                    ) : (
+                      <span className="block text-[10px] text-text-dim leading-[1.5] mt-0.5">
+                        L’assujettissement est de PLEIN DROIT dès 80 000 000 FC de chiffre d’affaires annuel hors
+                        taxes (ordonnance-loi n° 10/001, art. 14) · à la différence d’une association, une entité
+                        commerciale qui atteint ce seuil n’a rien à choisir. En deçà, l’option reste possible sur
+                        demande expresse à l’administration, et elle est définitive pendant deux ans. Une fois
+                        assujettie, l’entité conserve cette qualité pendant les deux années qui suivent le constat de
+                        la baisse sous le seuil. Décochée, la TVA supportée n’est pas récupérable et se porte en
+                        charge.
+                      </span>
+                    )}
                   </span>
                 </label>
                 {/* RÉGIME D'EXIGIBILITÉ · n'a de sens qu'assujetti. Il ne change
@@ -731,10 +861,21 @@ export function ParametresDossierPage() {
                     }}
                     className="mt-1 w-32 border border-border rounded-[7px] bg-bg px-2 py-1 text-[11px] focus:outline-none focus:border-sel"
                   />
-                  <span className="block text-[10px] text-text-dim leading-[1.5] mt-1">
-                    Au-delà de vingt personnes, la désignation d’un auditeur devient obligatoire (SYCEBNL, art. 19,
-                    troisième critère). Ce nombre commande aussi la tranche de cotisation INPP.
-                  </span>
+                  {params.referentiel === 'SYCEBNL' ? (
+                    <span className="block text-[10px] text-text-dim leading-[1.5] mt-1">
+                      Au-delà de vingt personnes, la désignation d’un auditeur devient obligatoire (SYCEBNL, art. 19,
+                      troisième critère). Ce nombre commande aussi la tranche de cotisation INPP.
+                    </span>
+                  ) : (
+                    <span className="block text-[10px] text-text-dim leading-[1.5] mt-1">
+                      Au-delà de cinquante personnes, l’effectif devient l’un des trois critères de désignation
+                      obligatoire d’un commissaire aux comptes dans une SARL (AUSCGIE, art. 376) et dans une SAS
+                      (art. 853-13) · il en faut DEUX sur trois, les deux autres étant le total du bilan au-delà de
+                      125 000 000 FCFA et le chiffre d’affaires annuel au-delà de 250 000 000 FCFA. Dans une société
+                      anonyme, le commissaire aux comptes est obligatoire sans condition de taille (art. 702). Ce
+                      nombre commande aussi la tranche de cotisation INPP.
+                    </span>
+                  )}
                 </label>
               </div>
             </>

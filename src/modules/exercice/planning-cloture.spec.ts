@@ -1,4 +1,4 @@
-import { FormeJuridiqueEbnl, Referentiel } from '@prisma/client';
+import { FormeJuridiqueEbnl, FormeJuridiqueSyscohada, Referentiel } from '@prisma/client';
 import { JALONS_CLOTURE, dateJalon, jalonsApplicables , obligationsEvenementiellesApplicables, OBLIGATIONS_EVENEMENTIELLES } from './planning-cloture';
 
 /**
@@ -113,10 +113,13 @@ describe('planning de clôture', () => {
       'Accord-cadre et main-d’œuvre nationale (ONG de droit étranger)',
       'Registre des donateurs arrêté',
       'Déclarations fiscales annuelles',
+      'Rapport de gestion',
+      'États financiers et rapport de gestion aux commissaires aux comptes',
       'Rapport d’activité au Ministère du Plan et au ministère du secteur',
       'Dépôt au Ministère de l’Économie nationale',
       'Dépôt des états financiers SYCEBNL au CPCC',
-      'Dépôt au RCCM',
+      'Assemblée générale statuant sur les états financiers',
+      'Dépôt des états financiers au RCCM',
     ]);
   });
 });
@@ -160,13 +163,61 @@ describe('jalons applicables selon la forme juridique', () => {
   });
 
   it('bascule sur le circuit commercial pour un dossier SYSCOHADA', () => {
-    const entreprise = { ...asbl, referentiel: Referentiel.SYSCOHADA };
+    const entreprise = {
+      ...asbl,
+      referentiel: Referentiel.SYSCOHADA,
+      formeJuridiqueSyscohada: FormeJuridiqueSyscohada.SOCIETE_RESPONSABILITE_LIMITEE,
+    };
     const l = libelles(entreprise);
     expect(l.some((x) => x.includes('RCCM'))).toBe(true);
     // Ni compte annuel à la Justice, ni livre d'inventaire ou registre des
     // donateurs SYCEBNL : ce sont des obligations d'EBNL.
     expect(l.some((x) => x.includes('Ministère de la Justice'))).toBe(false);
     expect(l.some((x) => x.includes('donateurs'))).toBe(false);
+  });
+
+  /*
+    FORME OHADA · le pendant SYSCOHADA du test précédent. Trois règles se
+    jouent ici, et chacune répond à une exclusion de texte, pas à un choix
+    d'ergonomie : l'entreprenant est DISPENSÉ d'immatriculation au RCCM
+    (AUDCG art. 30), la coopérative s'immatricule au Registre des Sociétés
+    Coopératives et non au RCCM (AUSCOOP art. 206), et le circuit des
+    assemblées de l'AUSCGIE art. 140 suppose des organes qu'une entreprise
+    individuelle n'a pas.
+  */
+  const syscohada = (forme?: FormeJuridiqueSyscohada) => ({
+    referentiel: Referentiel.SYSCOHADA,
+    formeJuridique: FormeJuridiqueEbnl.ASSOCIATION,
+    formeJuridiqueSyscohada: forme ?? null,
+    droitEtranger: false,
+  });
+
+  it('ne propose le dépôt au RCCM ni à un entreprenant ni à une coopérative', () => {
+    expect(libelles(syscohada(FormeJuridiqueSyscohada.ENTREPRENANT)).some((l) => l.includes('RCCM'))).toBe(false);
+    expect(libelles(syscohada(FormeJuridiqueSyscohada.SOCIETE_COOPERATIVE)).some((l) => l.includes('RCCM'))).toBe(
+      false,
+    );
+    expect(libelles(syscohada(FormeJuridiqueSyscohada.SOCIETE_ANONYME)).some((l) => l.includes('RCCM'))).toBe(true);
+  });
+
+  it('réserve le circuit des assemblées aux SA, SAS et SARL (art. 140)', () => {
+    const avec = libelles(syscohada(FormeJuridiqueSyscohada.SOCIETE_ANONYME));
+    expect(avec.some((l) => l.includes('commissaires aux comptes'))).toBe(true);
+    expect(avec.some((l) => l.includes('Assemblée générale'))).toBe(true);
+    const sans = libelles(syscohada(FormeJuridiqueSyscohada.ENTREPRISE_INDIVIDUELLE));
+    expect(sans.some((l) => l.includes('commissaires aux comptes'))).toBe(false);
+    expect(sans.some((l) => l.includes('Assemblée générale'))).toBe(false);
+  });
+
+  it('n’affiche aucun jalon de forme tant que la forme OHADA n’est pas renseignée', () => {
+    // Le silence vaut mieux qu'une obligation servie à une forme qui n'y est
+    // pas tenue · la forme se lit dans les statuts, elle ne se devine pas.
+    const l = libelles(syscohada());
+    expect(l.some((x) => x.includes('RCCM'))).toBe(false);
+    expect(l.some((x) => x.includes('Assemblée générale'))).toBe(false);
+    // Le tronc commun reste, lui, servi.
+    expect(l).toContain('Clôture et réouverture des livres');
+    expect(l.some((x) => x.includes('Rapport de gestion'))).toBe(true);
   });
 
   it('garde les jalons internes pour toutes les formes', () => {
