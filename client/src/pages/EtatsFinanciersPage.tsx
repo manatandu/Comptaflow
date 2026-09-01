@@ -159,14 +159,16 @@ function EtatsSystemeNormalPage() {
    * seul classeur. C'est ce fichier qui se dépose au CPCC ou s'envoie à un
    * bailleur.
    */
-  const exporterLiasse = async () => {
+  const exporterLiasse = async (toutesNotes = false) => {
     if (!exerciceCourant) return;
     setErreur(null);
     setExportEnCours(true);
     try {
+      const annee = new Date(exerciceCourant.dateDebut).getFullYear();
       await api.telecharger(
-        `/exports/etats-financiers/liasse-complete?exerciceId=${exerciceCourant.id}`,
-        `liasse-complete-${new Date(exerciceCourant.dateDebut).getFullYear()}.xlsx`,
+        `/exports/etats-financiers/liasse-complete?exerciceId=${exerciceCourant.id}` +
+          (toutesNotes ? '&toutesNotes=true' : ''),
+        `liasse-complete${toutesNotes ? '-travail' : ''}-${annee}.xlsx`,
       );
     } catch (e) {
       setErreur(e instanceof Error ? e.message : "Échec de l'export de la liasse");
@@ -317,15 +319,33 @@ function EtatsSystemeNormalPage() {
             puis les recoller à la main, c'est la manipulation où l'on oublie
             une pièce. La liasse complète est donc l'action principale, et
             l'export de l'onglet courant l'action secondaire.
+
+            Le TIRAGE DE TRAVAIL est un troisième bouton, volontairement
+            secondaire : il joint les notes que l'exercice ne chiffre pas,
+            avec la mention NEANT, ce que le renvoi (1) du modèle interdit
+            pour une liasse déposée (« les Notes non documentées ne doivent
+            pas être jointes aux états financiers »). Il sert à la revue, où
+            l'on veut voir qu'une note a été examinée et non deviner si son
+            absence est un « sans objet » ou un oubli. Le fichier sort sous
+            un autre nom pour qu'on ne le dépose pas à la place de l'autre.
           */}
           <button
-            onClick={exporterLiasse}
+            onClick={() => exporterLiasse(false)}
             disabled={exportEnCours}
-            title="Tous les états du jeu dans un seul classeur, précédés d’un sommaire"
+            title="Tous les états du jeu dans un seul classeur, précédés d’un sommaire · à déposer"
             className="flex items-center gap-1.5 border border-sel bg-sel text-white px-3 py-1.5 text-[10.5px] font-bold hover:brightness-110 disabled:opacity-50 disabled:cursor-wait"
           >
             <IconExport width={13} height={13} />
             {exportEnCours ? 'Export en cours…' : 'Exporter la liasse complète'}
+          </button>
+          <button
+            onClick={() => exporterLiasse(true)}
+            disabled={exportEnCours}
+            title="Même liasse, mais avec TOUTES les notes annexes du jeu · les notes sans rien à déclarer portent la mention NEANT. Copie de travail, à ne pas déposer."
+            className="flex items-center gap-1.5 border border-border bg-surface px-3 py-1.5 text-[10.5px] font-bold hover:bg-surface-alt disabled:opacity-50 disabled:cursor-wait"
+          >
+            <IconExport width={13} height={13} />
+            Liasse de travail (toutes les notes)
           </button>
           <button
             onClick={exporter}

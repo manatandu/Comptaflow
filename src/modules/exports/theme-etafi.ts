@@ -235,6 +235,34 @@ export function titreEtat(ws: ExcelJS.Worksheet, texte: string, colMin: number, 
   return row + 1;
 }
 
+/**
+ * BANDE « NEANT » · la mention portée par une note annexe que l'exercice ne
+ * chiffre pas.
+ *
+ * Une note sans rien à déclarer doit quand même FIGURER dans la liasse. Le
+ * modèle officiel le dit par sa fiche : « FICHE RECAPITULATIVE DES NOTES
+ * ANNEXES PRESENTEES », colonnes « A (Applicable) » et « N/A (Non
+ * applicable) » (Partie 4, ch. 2, section 4) · on déclare une note non
+ * applicable, on ne la fait pas disparaître. Une note absente ne se
+ * distingue pas d'une note oubliée, et c'est précisément ce qu'un lecteur
+ * des états, un auditeur ou le CPCC ont besoin de départager.
+ *
+ * Excel n'a pas de vrai filigrane de page accessible par ExcelJS · la
+ * mention est donc rendue par une bande fusionnée sur toute la largeur du
+ * tableau, en gris clair et en gros caractères, qui s'imprime comme un
+ * filigrane et se lit à l'écran sans ambiguïté.
+ */
+export function bandeNeant(ws: ExcelJS.Worksheet, row: number, colMax: number): number {
+  fusion(ws, row, 1, row + 1, colMax);
+  const c = ws.getCell(row, 1);
+  c.value = 'NEANT';
+  c.font = { name: 'Arial Black', size: 26, bold: true, color: argb(C_GRIS) };
+  c.alignment = AL_CENTRE;
+  ws.getRow(row).height = 30;
+  ws.getRow(row + 1).height = 30;
+  return row + 2;
+}
+
 /** Titre de note annexe : Arial Black 11 bleu nuit, centré. */
 export function titreNote(ws: ExcelJS.Worksheet, texte: string, colMax: number, row = 7): number {
   fusion(ws, row, 1, row, colMax);

@@ -119,6 +119,11 @@ export class ExportController {
     @Res() res: Response,
     @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
     @Query('paiementsEnInstance') paiementsEnInstance?: string,
+    // Tirage de TRAVAIL · joint toutes les notes du jeu, celles que
+    // l'exercice ne chiffre pas portant la mention NEANT. Absent ou autre
+    // que 'true', on produit le tirage de DÉPÔT, conforme au renvoi (1) du
+    // modèle · le défaut est celui qu'on peut déposer sans y penser.
+    @Query('toutesNotes') toutesNotes?: string,
   ) {
     const montant = Number(paiementsEnInstance);
     envoyerXlsx(
@@ -127,6 +132,7 @@ export class ExportController {
         user.tenantId,
         exerciceId,
         Number.isFinite(montant) ? montant : 0,
+        toutesNotes === 'true',
       ),
     );
   }

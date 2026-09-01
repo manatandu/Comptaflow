@@ -18,6 +18,7 @@ import {
 } from '../etats-financiers/correspondance-projet-compte-exploitation';
 import { ColonneNote, LigneNoteCalculee, NoteCalculee, TypeColonneNote } from '../notes-annexes/note-annexe.types';
 import {
+  bandeNeant,
   cadre,
   ecrireCartouche,
   entetesBande,
@@ -1146,6 +1147,12 @@ export class ExportService {
         .map((c: ColonneNote, i: number) => (c.type === 'VARIATION_POURCENT' ? 2 + i : -1))
         .filter((x: number) => x > 0);
 
+      // AUCUNE LIGNE · la note existe, l'exercice ne la chiffre pas. On pose
+      // la mention à la place du corps du tableau plutôt que de laisser une
+      // grille vide, qui se lirait comme un tableau tronqué.
+      if (note.lignes.length === 0) {
+        r = bandeNeant(ws, r + 1, ncols) - 1;
+      }
       for (const l of note.lignes) {
         r += 1;
         ws.getCell(r, 1).value = l.libelle;
@@ -1184,8 +1191,8 @@ export class ExportService {
       if (note.commentaire) commentaires.push(`Commentaire officiel : ${note.commentaire}`);
       if (note.lignes.length === 0) {
         commentaires.push(
-          'Aucune rubrique chiffrée cet exercice ; les rubriques en attente de rattachement du dossier sont listées ' +
-            'quand même, pour que le rattachement reste possible.',
+          "NEANT : aucune rubrique de cette note n'est chiffrée sur l'exercice. La note est jointe à la liasse et " +
+            'cochée « N/A » sur la fiche récapitulative · elle figure pour attester qu\'elle a été examinée.',
         );
       }
     }
@@ -1202,8 +1209,10 @@ export class ExportService {
    * Fiche récapitulative · Partie 4, section 4 des deux jeux, dans la forme
    * du modèle (feuille « NOTES ANNEXES » : bandes grises de parties,
    * colonnes « A (2) » / « N/A (2) » cochées, renvois (1) et (2) en pied).
-   * Une note non applicable y figure SANS feuille propre · la fiche est sa
-   * seule trace dans le classeur.
+   * Une note non applicable y est cochée « N/A ». Dans le tirage de dépôt
+   * elle n'a pas de feuille propre (renvoi (1) du modèle, voir
+   * `construireClasseurNotes`) et la fiche est sa seule trace ; dans le
+   * tirage de travail elle a aussi sa feuille, portant NEANT.
    */
   private feuilleFicheRecapitulative(
     classeur: ExcelJS.Workbook,
@@ -1247,15 +1256,34 @@ export class ExportService {
     ident: IdentiteLiasse,
     parties?: Array<[string, string[]]>,
     classeur?: ExcelJS.Workbook,
+    toutesLesNotes = false,
   ): ExcelJS.Workbook {
     const cible = classeur ?? this.nouveauClasseur();
     this.feuilleFicheRecapitulative(cible, resultat.ficheRecapitulative, ident, parties);
 
     // Une feuille par CODE de note, les sous-tableaux empilés dessus, dans
     // l'ordre officiel · le classeur se feuillette comme le texte se lit.
+    //
+    // DEUX TIRAGES, et le défaut est celui du texte.
+    //
+    // Le renvoi (1) au pied de la fiche récapitulative officielle est
+    // explicite, dans les DEUX jeux (Partie 4, ch. 2 pour les associations,
+    // ch. 3 pour les projets) : « les Notes non documentées ne doivent pas
+    // être jointes aux états financiers. [...] Par ailleurs, dans une note,
+    // les lignes non chiffrées doivent être supprimées. » La règle vaut donc
+    // à deux niveaux, la note entière ET la ligne, et une liasse DÉPOSÉE
+    // doit s'y tenir · c'est le comportement par défaut, `toutesLesNotes`
+    // valant faux. La note écartée n'est pas perdue pour autant : la fiche
+    // récapitulative la porte, cochée « N/A ».
+    //
+    // `toutesLesNotes` produit l'autre tirage, celui du DOSSIER DE TRAVAIL :
+    // toutes les notes du jeu, celles que l'exercice ne chiffre pas portant
+    // la mention NEANT. Ce tirage-là ne se dépose pas ; il sert à la revue,
+    // où l'on veut voir qu'une note a été examinée et non pas deviner si son
+    // absence vient d'un « sans objet » ou d'un oubli.
     const parCode = new Map<string, NoteCalculee[]>();
     for (const n of resultat.notes) {
-      if (!n.applicable) continue; // § 1.4 : non jointe, voir en-tête de section.
+      if (!toutesLesNotes && !n.applicable) continue;
       parCode.set(n.code, [...(parCode.get(n.code) ?? []), n]);
     }
     const comparer = this.comparateurNotes(parties);
@@ -2403,6 +2431,9 @@ export class ExportService {
       }
       entetesBande(ws, r, r, 1, 7);
       ws.getRow(r).height = 30;
+      // Le S.M.T crée toujours ses cinq feuilles · quand l'une n'a aucune
+      // ligne, elle porte la mention plutôt qu'un tableau réduit à son total.
+      if (note1.lignes.length === 0) r = bandeNeant(ws, r + 1, 7) - 1;
       for (const l of note1.lignes) {
         r += 1;
         ws.getCell(r, 1).value = new Date(l.dateMiseEnService);
@@ -2437,6 +2468,7 @@ export class ExportService {
         ws.getCell(r, i + 1).value = h;
       }
       entetesBande(ws, r, r, 1, 5);
+      if (note2.lignes.length === 0) r = bandeNeant(ws, r + 1, 5) - 1;
       for (const l of note2.lignes) {
         r += 1;
         ws.getCell(r, 1).value = l.reference;
@@ -2480,6 +2512,9 @@ export class ExportService {
         ws.getCell(r, 1).value = titre;
         fusion(ws, r, 1, r, 6);
         styleLigne(ws, r, 1, 6, 'bande');
+        // Créances et dettes sont deux blocs indépendants : l'un peut être
+        // néant sans l'autre, la mention se pose donc bloc par bloc.
+        if (blocLignes.length === 0) r = bandeNeant(ws, r + 1, 6) - 1;
         for (const l of blocLignes) {
           r += 1;
           ws.getCell(r, 1).value = l.numero;
@@ -2515,6 +2550,7 @@ export class ExportService {
       }
       entetesBande(ws, r, r, 1, 4);
       ws.getRow(r).height = 26;
+      if (note5.rubriques.length === 0 && note5.membres.length === 0) r = bandeNeant(ws, r + 1, 4) - 1;
       for (const rubrique of note5.rubriques) {
         r += 1;
         ws.getCell(r, 1).value = `${rubrique.libelle} · rappel balance`;
@@ -2705,6 +2741,7 @@ export class ExportService {
     tenantId: string,
     exerciceId: string,
     paiementsEnInstance: number,
+    toutesLesNotes = false,
   ): Promise<ExcelJS.Workbook> {
     const [ident, tenant, bilan, ce, er, recon, notes, exerciceN1Id] = await Promise.all([
       this.identiteLiasse(tenantId, exerciceId),
@@ -2786,7 +2823,7 @@ export class ExportService {
     const { rangsActif, rangsPassif } = this.feuillesBilanProjetEtafi(classeur, bilan, ident);
     const rangsCe = this.feuilleCompteExploitationEtafi(classeur, ce, ident);
 
-    this.construireClasseurNotes(notes, ident, ExportService.PARTIES_NOTES_PROJETS, classeur);
+    this.construireClasseurNotes(notes, ident, ExportService.PARTIES_NOTES_PROJETS, classeur, toutesLesNotes);
     const parCode = new Map(
       (notes.ficheRecapitulative as Array<{ code: string; titre: string }>).map((n) => [n.code, n.titre]),
     );
@@ -3077,7 +3114,11 @@ export class ExportService {
    * TFT, NOTES ANNEXES, les notes applicables, TABLE COMMENTAIRE, CONTROLES,
    * ANOMALIES · rempli avec les données réelles du dossier.
    */
-  private async liasseAssociationsEtafi(tenantId: string, exerciceId: string): Promise<ExcelJS.Workbook> {
+  private async liasseAssociationsEtafi(
+    tenantId: string,
+    exerciceId: string,
+    toutesLesNotes = false,
+  ): Promise<ExcelJS.Workbook> {
     const [ident, tenant, bilan, cr, tft, notes, exerciceN1Id] = await Promise.all([
       this.identiteLiasse(tenantId, exerciceId),
       this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId } }),
@@ -3152,7 +3193,7 @@ export class ExportService {
     const { rangs: rangsTft } = this.feuilleTftEtafi(classeur, tft, ident);
 
     // 13 · fiche récapitulative et notes applicables.
-    this.construireClasseurNotes(notes, ident, ExportService.PARTIES_NOTES_ASSOCIATIONS, classeur);
+    this.construireClasseurNotes(notes, ident, ExportService.PARTIES_NOTES_ASSOCIATIONS, classeur, toutesLesNotes);
 
     // 14 · TABLE COMMENTAIRE, sur les mêmes parties que la fiche.
     const parCode = new Map(
@@ -3276,18 +3317,31 @@ export class ExportService {
    * `paiementsEnInstance` : poste H de la réconciliation de trésorerie (jeu
    * projets), donnée extra-comptable que seul l'utilisateur connaît.
    */
-  async liasseCompleteExcel(tenantId: string, exerciceId: string, paiementsEnInstance = 0): Promise<ClasseurExporte> {
+  /**
+   * `toutesLesNotes` choisit le TIRAGE (voir `construireClasseurNotes`) :
+   * faux, celui du dépôt, qui suit le renvoi (1) du modèle et n'y joint pas
+   * les notes non documentées ; vrai, celui du dossier de travail, qui les
+   * joint toutes avec la mention NEANT. Le nom du fichier les distingue, sans
+   * quoi deux tirages du même exercice s'écraseraient dans le dossier de
+   * téléchargement · et surtout, on saurait plus lequel on a sous les yeux.
+   */
+  async liasseCompleteExcel(
+    tenantId: string,
+    exerciceId: string,
+    paiementsEnInstance = 0,
+    toutesLesNotes = false,
+  ): Promise<ClasseurExporte> {
     const tenant = await this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId } });
     const jeu = tenant.jeuEtatsFinanciersSycebnl;
     const natif =
       jeu === JeuEtatsFinanciersSycebnl.ASSOCIATIONS_ORDRES_PROFESSIONNELS
-        ? await this.liasseAssociationsEtafi(tenantId, exerciceId)
+        ? await this.liasseAssociationsEtafi(tenantId, exerciceId, toutesLesNotes)
         : jeu === JeuEtatsFinanciersSycebnl.PROJETS_DEVELOPPEMENT
-          ? await this.liasseProjetsEtafi(tenantId, exerciceId, paiementsEnInstance)
+          ? await this.liasseProjetsEtafi(tenantId, exerciceId, paiementsEnInstance, toutesLesNotes)
           : await this.liasseSmtEtafi(tenantId, exerciceId);
     return {
       buffer: await this.versBuffer(natif),
-      nomFichier: `liasse-complete${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
+      nomFichier: `liasse-complete${toutesLesNotes ? '-travail' : ''}${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
     };
   }
 }
