@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
-import { useActionsFenetre } from '../lib/actions-fenetre';
 import type {
   DossierExoneration,
   ReferentielExonerations,
@@ -64,21 +63,6 @@ export function ExonerationsPage() {
 
   // La barre d'outils agit sur la fenêtre active · « Ajouter » ouvre un
   // dossier, « Supprimer » retire celui qui est sélectionné.
-  useActionsFenetre({
-    ajouter: { titre: 'Nouveau dossier d’exonération', executer: () => setCreation('PONCTUEL') },
-    ...(selection
-      ? {
-          supprimer: {
-            titre: `Supprimer « ${selection.objet} »`,
-            executer: async () => {
-              await api.delete(`/exonerations/${selection.id}`);
-              setSelectionId(null);
-              charger();
-            },
-          },
-        }
-      : {}),
-  });
 
   const creer = async () => {
     if (!creation || !objet.trim()) return;
@@ -118,22 +102,31 @@ export function ExonerationsPage() {
       <EnteteImpression titre="Exonérations douanières et fiscales" />
       <div className="ecran-seul mb-1.5 max-w-[1100px]">
         <div className="text-[10px] font-mono text-text-dim leading-none">REGISTRE</div>
-        <h1 className="text-[13px] font-bold leading-tight">Exonérations douanières et fiscales</h1>
-        <div className="text-[10.5px] text-text-dim mt-0.5">
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="text-[12px] font-bold leading-tight">Exonérations douanières et fiscales</h1>
+          <button
+            type="button"
+            onClick={() => setCreation('PONCTUEL')}
+            className="bg-sel text-white rounded-[6px] px-3 py-[3px] text-[10.5px] font-semibold hover:opacity-90"
+          >
+            Nouvelle demande
+          </button>
+        </div>
+        <div className="text-[10px] text-text-dim mt-0.5">
           Les facilités de l’article 39 de la loi n° 004/2001, constatées par arrêté interministériel des Ministres du
           Plan et des Finances.
         </div>
       </div>
 
       {erreur && (
-        <div className="border border-danger/30 bg-danger-soft px-3.5 py-2 mb-2.5 text-[11.5px] max-w-[1100px]">
+        <div className="border border-danger/30 bg-danger-soft px-3.5 py-2 mb-2.5 text-[10.5px] max-w-[1100px]">
           {erreur}
         </div>
       )}
 
       {registre && (registre.expires > 0 || registre.aRenouveler > 0) && (
         <div
-          className={`border px-3.5 py-2 mb-2.5 text-[11.5px] max-w-[1100px] ${
+          className={`border px-3.5 py-2 mb-2.5 text-[10.5px] max-w-[1100px] ${
             registre.expires > 0 ? 'border-danger/30 bg-danger-soft' : 'border-warning/30 bg-warning-soft'
           }`}
         >
@@ -162,9 +155,9 @@ export function ExonerationsPage() {
             <span>ÉCHÉANCE</span>
             <span>PIÈCES</span>
           </div>
-          {!registre && <div className="px-3.5 py-3 text-[12px] text-text-dim">Chargement…</div>}
+          {!registre && <div className="px-3.5 py-3 text-[11px] text-text-dim">Chargement…</div>}
           {registre?.dossiers.length === 0 && (
-            <div className="px-3.5 py-3 text-[12px] text-text-dim italic">
+            <div className="px-3.5 py-3 text-[11px] text-text-dim italic">
               Aucun dossier. Utilisez « Ajouter » dans la barre d’outils pour en ouvrir un.
             </div>
           )}
@@ -173,15 +166,15 @@ export function ExonerationsPage() {
               key={d.id}
               type="button"
               onClick={() => setSelectionId(d.id)}
-              className={`w-full grid grid-cols-[110px_1fr_120px_100px_92px] gap-2.5 px-3.5 py-[5px] items-center text-left border-b border-border/50 text-[11.5px] ${
+              className={`w-full grid grid-cols-[110px_1fr_120px_100px_92px] gap-2.5 px-3.5 py-[5px] items-center text-left border-b border-border/50 text-[10.5px] ${
                 selectionId === d.id ? 'bg-sel text-white' : 'hover:bg-sel-soft'
               }`}
             >
               <span className="font-mono text-[10px]">{d.type}</span>
               <span className="truncate">{d.objet}</span>
-              <span className="font-mono text-[10.5px] truncate">{d.referenceArrete ?? '·'}</span>
+              <span className="font-mono text-[10px] truncate">{d.referenceArrete ?? '·'}</span>
               <span
-                className={`text-[10.5px] ${
+                className={`text-[10px] ${
                   selectionId === d.id
                     ? 'text-white/90'
                     : d.alerte === 'EXPIRE'
@@ -198,7 +191,7 @@ export function ExonerationsPage() {
                     : `${d.joursAvantExpiration} j`}
               </span>
               <span
-                className={`text-[10.5px] font-mono ${
+                className={`text-[10px] font-mono ${
                   selectionId === d.id ? 'text-white/90' : d.complet ? 'text-positive' : 'text-warning'
                 }`}
               >
@@ -214,15 +207,15 @@ export function ExonerationsPage() {
             DOSSIER
           </div>
           {!selection && (
-            <div className="p-3 text-[11.5px] text-text-dim">
+            <div className="p-3 text-[10.5px] text-text-dim">
               Sélectionnez un dossier pour cocher ses pièces et suivre son échéance.
             </div>
           )}
           {selection && (
-            <div className="p-3 space-y-3 text-[11.5px]">
+            <div className="p-3 space-y-3 text-[10.5px]">
               <div>
-                <div className="font-semibold text-[12.5px]">{selection.objet}</div>
-                <div className="text-[10.5px] text-text-dim mt-0.5">{selection.modele.libelle}</div>
+                <div className="font-semibold text-[11px]">{selection.objet}</div>
+                <div className="text-[10px] text-text-dim mt-0.5">{selection.modele.libelle}</div>
               </div>
 
               <label className="block">
@@ -230,7 +223,7 @@ export function ExonerationsPage() {
                 <select
                   value={selection.statut}
                   onChange={(e) => changerStatut(selection, e.target.value as StatutExoneration)}
-                  className="mt-1 block w-full border border-border-dark bg-bg px-2 py-1 text-[11.5px]"
+                  className="mt-1 block w-full border border-border-dark bg-bg px-2 py-1 text-[10.5px]"
                 >
                   {(Object.keys(LIBELLE_STATUT) as StatutExoneration[]).map((s) => (
                     <option key={s} value={s}>
@@ -256,7 +249,7 @@ export function ExonerationsPage() {
                   PIÈCES · {selection.nombrePiecesFournies}/{selection.nombrePiecesRequises}
                 </div>
                 {selection.pieces.map((p) => (
-                  <label key={p.cle} className="flex items-start gap-1.5 py-[3px] text-[11px]">
+                  <label key={p.cle} className="flex items-start gap-1.5 py-[3px] text-[10.5px]">
                     <input
                       type="checkbox"
                       className="mt-[3px]"
@@ -266,14 +259,14 @@ export function ExonerationsPage() {
                     <span className={p.fournie ? 'text-text-dim line-through' : ''}>
                       {p.libelle}
                       {p.conditionnelle && (
-                        <span className="block text-[11px] text-sel italic">Seulement si : {p.conditionnelle}</span>
+                        <span className="block text-[10.5px] text-sel italic">Seulement si : {p.conditionnelle}</span>
                       )}
                     </span>
                   </label>
                 ))}
               </div>
 
-              <div className="border-t border-border pt-2.5 text-[10.5px] text-text-dim leading-[1.5]">
+              <div className="border-t border-border pt-2.5 text-[10px] text-text-dim leading-[1.5]">
                 <div className="font-semibold text-text mb-1">Base légale</div>
                 {selection.modele.baseLegale}
               </div>
@@ -284,7 +277,7 @@ export function ExonerationsPage() {
 
       {/* --- Rappel de droit, en bas · il vaut pour tout le registre -------- */}
       {registre && (
-        <div className="mt-2.5 border border-border bg-surface-alt px-3.5 py-2 text-[10.5px] text-text-dim leading-[1.5] max-w-[1240px]">
+        <div className="mt-2.5 border border-border bg-surface-alt px-3.5 py-2 text-[10px] text-text-dim leading-[1.5] max-w-[1240px]">
           {registre.avertissement}
         </div>
       )}
@@ -296,10 +289,10 @@ export function ExonerationsPage() {
             CAS DE FRANCHISE INVOCABLES PAR UNE EBNL · CODE DES DOUANES, ART. 339, 1°
           </div>
           {referentiel.franchisesDouanieres.map((f) => (
-            <div key={f.lettre} className="px-3.5 py-1.5 border-b border-border/50 last:border-b-0 text-[11px]">
+            <div key={f.lettre} className="px-3.5 py-1.5 border-b border-border/50 last:border-b-0 text-[10.5px]">
               <span className="font-mono font-bold mr-1.5">{f.lettre})</span>
               <span className="font-semibold">{f.libelle}</span>
-              <div className="text-[10.5px] text-text-dim mt-0.5 leading-[1.45]">{f.texte}</div>
+              <div className="text-[10px] text-text-dim mt-0.5 leading-[1.45]">{f.texte}</div>
             </div>
           ))}
           <div className="px-3.5 py-1.5 bg-surface-alt text-[10px] text-text-dim leading-[1.5] border-t border-border">
@@ -313,13 +306,13 @@ export function ExonerationsPage() {
       {creation && (
         <div className="fixed inset-0 bg-black/25 flex items-center justify-center z-50" onClick={() => setCreation(null)}>
           <div className="bg-surface border border-border-dark shadow-dominante w-[520px] p-4 max-h-[calc(100dvh-2rem)] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="text-[13px] font-bold mb-2.5">Nouveau dossier d’exonération</div>
-            <label className="block text-[11.5px] mb-2">
+            <div className="text-[12px] font-bold mb-2.5">Nouveau dossier d’exonération</div>
+            <label className="block text-[10.5px] mb-2">
               Type de demande
               <select
                 value={creation}
                 onChange={(e) => setCreation(e.target.value as TypeDemandeExoneration)}
-                className="mt-1 block w-full border border-border-dark bg-bg px-2 py-1 text-[11.5px]"
+                className="mt-1 block w-full border border-border-dark bg-bg px-2 py-1 text-[10.5px]"
               >
                 <option value="PONCTUEL">Arrêté ponctuel · une opération d’importation isolée</option>
                 <option value="PREVISIONNEL">Arrêté prévisionnel · flux récurrent, deux ans</option>
@@ -329,23 +322,23 @@ export function ExonerationsPage() {
                 {referentiel?.modeles.find((m) => m.type === creation)?.objet}
               </span>
             </label>
-            <label className="block text-[11.5px] mb-2">
+            <label className="block text-[10.5px] mb-2">
               Objet
               <input
                 value={objet}
                 onChange={(e) => setObjet(e.target.value)}
                 placeholder="Lot de médicaments Kinshasa, don MSF"
-                className="mt-1 block w-full border border-border-dark bg-bg px-2 py-1 text-[11.5px]"
+                className="mt-1 block w-full border border-border-dark bg-bg px-2 py-1 text-[10.5px]"
               />
             </label>
             {creation !== 'PONCTUEL' && (
-              <label className="block text-[11.5px] mb-3">
+              <label className="block text-[10.5px] mb-3">
                 Début de validité
                 <input
                   type="date"
                   value={debutValidite}
                   onChange={(e) => setDebutValidite(e.target.value)}
-                  className="mt-1 block w-full border border-border-dark bg-bg px-2 py-1 text-[11.5px] font-mono"
+                  className="mt-1 block w-full border border-border-dark bg-bg px-2 py-1 text-[10.5px] font-mono"
                 />
                 <span className="block text-[10px] text-text-dim leading-[1.5] mt-1">
                   L’échéance se déduit toute seule : deux ans. Une date de fin saisie à la main est la faute la plus
@@ -354,13 +347,13 @@ export function ExonerationsPage() {
               </label>
             )}
             <div className="flex justify-end gap-2">
-              <button onClick={() => setCreation(null)} className="px-3 py-1.5 text-[11.5px] border border-border">
+              <button onClick={() => setCreation(null)} className="px-3 py-1.5 text-[10.5px] border border-border">
                 Annuler
               </button>
               <button
                 onClick={creer}
                 disabled={!objet.trim()}
-                className="px-3 py-1.5 text-[11.5px] bg-sel text-white font-semibold disabled:opacity-50"
+                className="px-3 py-1.5 text-[10.5px] bg-sel text-white font-semibold disabled:opacity-50"
               >
                 Créer le dossier
               </button>

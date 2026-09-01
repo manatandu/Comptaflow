@@ -55,17 +55,21 @@ function service(
   return { svc, groupBy };
 }
 
+interface LigneBalance {
+  numero: string;
+  totalDebit: number;
+  totalCredit: number;
+  reportDebit: number;
+  reportCredit: number;
+  mouvementDebit: number;
+  mouvementCredit: number;
+  solde: number;
+  typeCompte: string;
+}
+
+const lignes = (r: { lignes: Array<{ numero: string }> }) => r.lignes as unknown as LigneBalance[];
 const ligne = (r: { lignes: Array<{ numero: string }> }, numero: string) =>
-  r.lignes.find((l) => l.numero === numero) as unknown as {
-    numero: string;
-    totalDebit: number;
-    totalCredit: number;
-    reportDebit: number;
-    mouvementDebit: number;
-    mouvementCredit: number;
-    solde: number;
-    typeCompte: string;
-  };
+  lignes(r).find((l) => l.numero === numero)!;
 
 describe('Balance générale', () => {
   it('sépare le report à-nouveau du mouvement de l’exercice', async () => {
@@ -80,6 +84,38 @@ describe('Balance générale', () => {
     expect(l.totalDebit).toBe(500_000);
     expect(l.totalCredit).toBe(120_000);
     expect(l.solde).toBe(380_000);
+  });
+
+  /**
+   * L'IDENTITÉ QUE L'ÉCRAN AFFICHE · la balance est présentée en six
+   * colonnes (solde d'ouverture D/C · mouvements D/C · solde de clôture D/C),
+   * et cette présentation ne vaut que si, LIGNE À LIGNE,
+   *
+   *     solde d'ouverture + mouvement débit − mouvement crédit = solde de clôture
+   *
+   * Sans cette égalité, la balance affichée serait un tableau de chiffres qui
+   * ne se recoupent pas · le premier contrôle qu'un comptable fait à l'œil.
+   */
+  it('ligne à ligne, ouverture + mouvements = clôture · l’identité des six colonnes', async () => {
+    const { svc } = service(
+      [
+        { compteId: 'c1011', debit: 500_000, credit: 0 },
+        { compteId: 'c521', debit: 0, credit: 80_000 },
+      ],
+      [
+        { compteId: 'c1011', debit: 0, credit: 120_000 },
+        { compteId: 'c521', debit: 300_000, credit: 45_000 },
+      ],
+    );
+    const r = await svc.balance('t1', 'e1');
+    for (const l of lignes(r)) {
+      expect(l.reportDebit - l.reportCredit + l.mouvementDebit - l.mouvementCredit).toBe(l.solde);
+    }
+    // Et le cas concret, pour que l'échec soit lisible : 500 000 à l'ouverture,
+    // 120 000 au crédit de l'exercice, 380 000 à la clôture.
+    const c = ligne(r, '10110000');
+    expect(c.reportDebit - c.reportCredit).toBe(500_000);
+    expect(c.solde).toBe(380_000);
   });
 
   it('un compte Total agrège ses enfants de DÉTAIL, à tous les niveaux de préfixe', async () => {

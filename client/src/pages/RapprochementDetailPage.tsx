@@ -80,45 +80,45 @@ export function RapprochementDetailPage({ id: idProp }: { id?: string } = {}) {
 
   return (
     <div className="p-2">
-      <div className="text-[10.5px] font-mono text-text-dim mb-1">
+      <div className="text-[10px] font-mono text-text-dim mb-1">
         <button onClick={() => navigate('/rapprochement')} className="hover:underline">
           Rapprochement bancaire
         </button>{' '}
         / Pointage
       </div>
 
-      {!detail && !erreur && <div className="text-[12px] text-text-dim">Chargement…</div>}
-      {erreur && <div className="text-[12px] text-danger bg-danger-soft border border-danger/30 px-3 py-2 mb-3 max-w-[900px]">{erreur}</div>}
+      {!detail && !erreur && <div className="text-[11px] text-text-dim">Chargement…</div>}
+      {erreur && <div className="text-[11px] text-danger bg-danger-soft border border-danger/30 px-3 py-2 mb-3 max-w-[900px]">{erreur}</div>}
 
       {detail && (
         <>
-          <h1 className="text-[13px] font-bold leading-tight mb-1">
+          <h1 className="text-[12px] font-bold leading-tight mb-1">
             {detail.rapprochement.compte ? `${detail.rapprochement.compte.numero} · ${detail.rapprochement.compte.intitule}` : 'Rapprochement'}
           </h1>
-          <div className="text-[11.5px] text-text-dim mb-3">
+          <div className="text-[10.5px] text-text-dim mb-3">
             Relevé du {new Date(detail.rapprochement.dateReleve).toLocaleDateString('fr-FR')} · solde{' '}
             <span className="font-mono font-semibold">{detail.rapprochement.soldeReleve.toLocaleString('fr-FR')}</span>{' '}
             {detail.rapprochement.statut === 'CLOTURE' && <span className="font-mono font-bold text-text-dim">(CLÔTURÉ)</span>}
           </div>
 
-          {info && <div className="text-[12px] text-positive bg-positive-soft border border-positive/30 px-3 py-2 mb-3 max-w-[900px]">{info}</div>}
+          {info && <div className="text-[11px] text-positive bg-positive-soft border border-positive/30 px-3 py-2 mb-3 max-w-[900px]">{info}</div>}
 
           <div className="flex items-center gap-5 mb-3 max-w-[900px] bg-surface border border-border px-4 py-2.5">
             <div>
               <div className="text-[10px] text-text-dim font-semibold">SOLDE DE DÉPART</div>
-              <div className="font-mono text-[13px]">{detail.soldeDepart.toLocaleString('fr-FR')}</div>
+              <div className="font-mono text-[12px]">{detail.soldeDepart.toLocaleString('fr-FR')}</div>
             </div>
             <div>
               <div className="text-[10px] text-text-dim font-semibold">SOLDE POINTÉ</div>
-              <div className="font-mono text-[13px]">{detail.soldePointe.toLocaleString('fr-FR')}</div>
+              <div className="font-mono text-[12px]">{detail.soldePointe.toLocaleString('fr-FR')}</div>
             </div>
             <div>
               <div className="text-[10px] text-text-dim font-semibold">SOLDE DU RELEVÉ</div>
-              <div className="font-mono text-[13px]">{detail.rapprochement.soldeReleve.toLocaleString('fr-FR')}</div>
+              <div className="font-mono text-[12px]">{detail.rapprochement.soldeReleve.toLocaleString('fr-FR')}</div>
             </div>
             <div>
               <div className="text-[10px] text-text-dim font-semibold">ÉCART</div>
-              <div className={`font-mono text-[13px] font-bold ${detail.equilibre ? 'text-positive' : 'text-danger'}`}>
+              <div className={`font-mono text-[12px] font-bold ${detail.equilibre ? 'text-positive' : 'text-danger'}`}>
                 {detail.ecart.toLocaleString('fr-FR')}
               </div>
             </div>
@@ -136,7 +136,7 @@ export function RapprochementDetailPage({ id: idProp }: { id?: string } = {}) {
             {detail.lignes.map((l, i) => (
               <div
                 key={l.id}
-                className={`grid grid-cols-[26px_70px_46px_1.4fr_100px_100px] gap-2.5 px-3.5 py-1.5 items-center border-b border-border last:border-b-0 text-[11.5px] ${
+                className={`grid grid-cols-[26px_70px_46px_1.4fr_100px_100px] gap-2.5 px-3.5 py-1.5 items-center border-b border-border last:border-b-0 text-[10.5px] ${
                   l.pointee ? 'bg-positive-soft' : i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'
                 }`}
               >
@@ -146,7 +146,7 @@ export function RapprochementDetailPage({ id: idProp }: { id?: string } = {}) {
                   checked={l.pointee}
                   onChange={() => basculerPointage(l.id, l.pointee)}
                 />
-                <span className="font-mono text-[10.5px] text-text-dim">{new Date(l.date).toLocaleDateString('fr-FR')}</span>
+                <span className="font-mono text-[10px] text-text-dim">{new Date(l.date).toLocaleDateString('fr-FR')}</span>
                 <span className="font-mono text-text-dim">{l.journalCode}</span>
                 <span className="truncate">{l.libelle}</span>
                 <span className="font-mono text-right">{l.debit ? l.debit.toLocaleString('fr-FR') : ''}</span>
@@ -154,7 +154,7 @@ export function RapprochementDetailPage({ id: idProp }: { id?: string } = {}) {
               </div>
             ))}
             {detail.lignes.length === 0 && (
-              <div className="p-3 text-[12px] text-text-dim">Aucun mouvement pointable sur ce compte.</div>
+              <div className="p-3 text-[11px] text-text-dim">Aucun mouvement pointable sur ce compte.</div>
             )}
           </div>
 
@@ -164,11 +164,11 @@ export function RapprochementDetailPage({ id: idProp }: { id?: string } = {}) {
                 onClick={cloturer}
                 disabled={!detail.equilibre || envoi}
                 title={detail.equilibre ? undefined : "L'écart doit être nul pour clôturer"}
-                className="bg-sel text-white text-[12.5px] font-semibold px-4 py-1.5 disabled:opacity-40"
+                className="bg-sel text-white text-[11px] font-semibold px-4 py-1.5 disabled:opacity-40"
               >
                 {envoi ? '…' : 'Clôturer le rapprochement'}
               </button>
-              <button onClick={annuler} disabled={envoi} className="text-[12.5px] font-semibold text-danger px-4 py-1.5 disabled:opacity-40">
+              <button onClick={annuler} disabled={envoi} className="text-[11px] font-semibold text-danger px-4 py-1.5 disabled:opacity-40">
                 Annuler ce rapprochement
               </button>
             </div>

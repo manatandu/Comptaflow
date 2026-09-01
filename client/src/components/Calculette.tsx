@@ -59,7 +59,7 @@ export function Calculette({
         className="w-[280px] bg-surface border border-border rounded-[10px] overflow-hidden shadow-flottante anim-modale max-h-[calc(100dvh-2rem)] overflow-y-auto"
       >
         <div
-          className="h-[30px] flex items-center justify-between px-3 text-white text-[12px]"
+          className="h-[30px] flex items-center justify-between px-3 text-white text-[11px]"
           style={{ background: 'linear-gradient(180deg, var(--titlebar-from), var(--titlebar-to))' }}
         >
           <span>Calculette</span>
@@ -77,11 +77,11 @@ export function Calculette({
               if (e.key === 'Enter' && resultat !== null) reporterOuCopier(resultat);
             }}
             placeholder="1250 * 12 + 300"
-            className="w-full border border-border rounded-[6px] px-2.5 py-2 text-[14px] font-mono text-right"
+            className="w-full border border-border rounded-[6px] px-2.5 py-2 text-[13px] font-mono text-right"
           />
           <div
-            className={`mt-1.5 text-right font-mono text-[16px] font-bold h-[22px] ${
-              expression && resultat === null ? 'text-danger text-[12px] font-normal' : ''
+            className={`mt-1.5 text-right font-mono text-[14px] font-bold h-[22px] ${
+              expression && resultat === null ? 'text-danger text-[11px] font-normal' : ''
             }`}
           >
             {resultat !== null
@@ -99,7 +99,7 @@ export function Calculette({
                   setExpression((e) => e + t);
                   champ.current?.focus();
                 }}
-                className="border border-border rounded-[6px] py-1.5 text-[13px] font-mono hover:bg-chrome-alt"
+                className="border border-border rounded-[6px] py-1.5 text-[12px] font-mono hover:bg-chrome-alt"
               >
                 {t}
               </button>
@@ -109,7 +109,7 @@ export function Calculette({
                 setExpression('');
                 champ.current?.focus();
               }}
-              className="border border-border rounded-[6px] py-1.5 text-[12px] hover:bg-chrome-alt"
+              className="border border-border rounded-[6px] py-1.5 text-[11px] hover:bg-chrome-alt"
             >
               C
             </button>
@@ -118,7 +118,7 @@ export function Calculette({
                 setExpression((e) => e.slice(0, -1));
                 champ.current?.focus();
               }}
-              className="border border-border rounded-[6px] py-1.5 text-[12px] hover:bg-chrome-alt"
+              className="border border-border rounded-[6px] py-1.5 text-[11px] hover:bg-chrome-alt"
             >
               ←
             </button>
@@ -127,20 +127,20 @@ export function Calculette({
                 setExpression((e) => e + '+');
                 champ.current?.focus();
               }}
-              className="border border-border rounded-[6px] py-1.5 text-[13px] font-mono hover:bg-chrome-alt"
+              className="border border-border rounded-[6px] py-1.5 text-[12px] font-mono hover:bg-chrome-alt"
             >
               +
             </button>
             <button
               onClick={() => resultat !== null && reporterOuCopier(resultat)}
               disabled={resultat === null}
-              className="bg-sel text-white rounded-[6px] py-1.5 text-[12px] font-bold hover:brightness-110 disabled:opacity-40"
+              className="bg-sel text-white rounded-[6px] py-1.5 text-[11px] font-bold hover:brightness-110 disabled:opacity-40"
             >
               {onReporter ? 'OK' : 'Copier'}
             </button>
           </div>
 
-          <p className="text-[10.5px] text-text-dim mt-2 leading-[1.5]">
+          <p className="text-[10px] text-text-dim mt-2 leading-[1.5]">
             {onReporter
               ? "Le résultat se reporte dans la zone de montant du côté qui manque à l'équilibre de la pièce."
               : 'Le résultat se copie dans le presse-papiers.'}

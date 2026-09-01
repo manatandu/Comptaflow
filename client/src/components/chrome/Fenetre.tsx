@@ -3,7 +3,6 @@ import type { FenetreOuverte } from '../../lib/fenetres';
 import { useFenetresActions } from '../../lib/fenetres';
 import { rendreFenetre } from '../../lib/registre-fenetres';
 import { LimiteErreur } from './LimiteErreur';
-import { FenetreCouranteProvider } from '../../lib/actions-fenetre';
 
 /**
  * CADRE DE FENÊTRE · la fenêtre MDI de Sage 100 i7 : une barre de titre
@@ -165,7 +164,7 @@ function FenetreInterne({ fenetre, active }: { fenetre: FenetreOuverte; active: 
           agrandie ? '' : 'cursor-move'
         } ${active ? 'text-white' : 'bg-chrome-alt text-text-dim border-b border-border'}`}
       >
-        <span className="truncate text-[12px] font-semibold tracking-[0.01em]">{fenetre.titre}</span>
+        <span className="truncate text-[11px] font-semibold tracking-[0.01em]">{fenetre.titre}</span>
         <span className="flex items-center gap-0.5 shrink-0">
           <BoutonTitre
             actif={active}
@@ -203,19 +202,14 @@ function FenetreInterne({ fenetre, active }: { fenetre: FenetreOuverte; active: 
       {/* --- Contenu -------------------------------------------------------- */}
       <div className="flex-1 min-h-0 overflow-auto bg-bg">
         <LimiteErreur titreFenetre={fenetre.titre}>
-          {/* La page apprend ici dans QUELLE fenêtre elle est montée · c'est
-              ce qui lui permet de déclarer ses actions à la barre d'outils
-              sans jamais avoir à connaître le gestionnaire de fenêtres. */}
           {/* La clé porte le compteur d'Actualiser : l'incrémenter remonte le
-              contenu, qui recharge ses données · le F5 de Sage. */}
-          <FenetreCouranteProvider key={fenetre.version} cle={fenetre.cle}>
-            {/* Les pages sont chargées à la demande (registre-fenetres, lazy) :
-                le temps du transfert de son module, la fenêtre affiche le même
-                « Chargement… » que ses données · rien ne clignote deux fois. */}
-            <Suspense fallback={<div className="p-3 text-[12px] text-text-dim">Chargement…</div>}>
-              {rendreFenetre(fenetre.adresse)}
-            </Suspense>
-          </FenetreCouranteProvider>
+              contenu, qui recharge ses données · le F5 de Sage.
+              Les pages sont chargées à la demande (registre-fenetres, lazy) :
+              le temps du transfert de son module, la fenêtre affiche le même
+              « Chargement… » que ses données · rien ne clignote deux fois. */}
+          <Suspense key={fenetre.version} fallback={<div className="p-3 text-[11px] text-text-dim">Chargement…</div>}>
+            {rendreFenetre(fenetre.adresse)}
+          </Suspense>
         </LimiteErreur>
       </div>
 

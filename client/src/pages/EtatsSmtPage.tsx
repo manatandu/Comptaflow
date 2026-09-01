@@ -134,7 +134,7 @@ export function EtatsSmtPage() {
     <div
       key={p.ref}
       title={p.comptes.length > 0 ? `Comptes : ${p.comptes.map((c) => c.numero).join(', ')}` : undefined}
-      className={`grid grid-cols-[40px_1fr_44px_120px_120px] gap-2 px-4 py-1 text-[12px] ${
+      className={`grid grid-cols-[40px_1fr_44px_120px_120px] gap-2 px-4 py-1 text-[11px] ${
         p.estTotal ? 'font-bold bg-surface-alt border-y border-border' : p.montant === 0 ? 'text-text-dim' : ''
       }`}
     >
@@ -150,7 +150,7 @@ export function EtatsSmtPage() {
     <div
       key={p.ref}
       title={p.comptes.length > 0 ? `Comptes : ${p.comptes.map((c) => c.numero).join(', ')}` : undefined}
-      className={`grid grid-cols-[40px_1fr_130px] gap-2 px-4 py-1 text-[12px] ${p.montant === 0 ? 'text-text-dim' : ''}`}
+      className={`grid grid-cols-[40px_1fr_130px] gap-2 px-4 py-1 text-[11px] ${p.montant === 0 ? 'text-text-dim' : ''}`}
     >
       <span className="font-mono text-[10px] text-text-dim">{p.ref}</span>
       <span>{p.libelle}</span>
@@ -159,7 +159,7 @@ export function EtatsSmtPage() {
   );
 
   const ligneTotal = (ref: string, libelle: string, valeur: number) => (
-    <div className="grid grid-cols-[40px_1fr_130px] gap-2 px-4 py-1.5 bg-surface-alt border-y border-border text-[12px] font-bold">
+    <div className="grid grid-cols-[40px_1fr_130px] gap-2 px-4 py-1.5 bg-surface-alt border-y border-border text-[11px] font-bold">
       <span className="font-mono text-[10px]">{ref}</span>
       <span>{libelle}</span>
       <span className="font-mono text-right">{montant(valeur)}</span>
@@ -182,11 +182,11 @@ export function EtatsSmtPage() {
       <div className="ecran-seul flex items-center justify-between mb-1.5">
         <div>
           <div className="text-[10px] font-mono text-text-dim leading-none">ÉTAT</div>
-          <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
+          <h1 className="text-[12px] font-bold leading-tight flex items-center gap-1.5">
             États financiers
             <Aide sujet="jeuEtats" />
           </h1>
-          <div className="text-[10.5px] text-text-dim mt-0.5">
+          <div className="text-[10px] text-text-dim mt-0.5">
             Jeu du Système Minimal de Trésorerie ·{' '}
             <button onClick={() => navigate('/parametres-dossier')} className="underline hover:text-sel">
               paramètres du dossier
@@ -195,7 +195,7 @@ export function EtatsSmtPage() {
         </div>
         <div className="flex items-center gap-2.5">
           {exerciceCourant && (
-            <span className="font-mono text-[11px] border border-border bg-surface px-2.5 py-1.5">
+            <span className="font-mono text-[10.5px] border border-border bg-surface px-2.5 py-1.5">
               Exercice {new Date(exerciceCourant.dateDebut).getFullYear()}
             </span>
           )}
@@ -211,7 +211,7 @@ export function EtatsSmtPage() {
             onClick={exporterLiasse}
             disabled={exportEnCours}
             title="Tous les états du jeu dans un seul classeur, précédés d’un sommaire"
-            className="flex items-center gap-1.5 border border-sel bg-sel text-white px-3 py-1.5 text-[11px] font-bold hover:brightness-110 disabled:opacity-50 disabled:cursor-wait"
+            className="flex items-center gap-1.5 border border-sel bg-sel text-white px-3 py-1.5 text-[10.5px] font-bold hover:brightness-110 disabled:opacity-50 disabled:cursor-wait"
           >
             <IconExport width={13} height={13} />
             {exportEnCours ? 'Export en cours…' : 'Exporter la liasse complète'}
@@ -220,7 +220,7 @@ export function EtatsSmtPage() {
             onClick={exporter}
             disabled={exportEnCours}
             title="Seulement l’état affiché dans cet onglet"
-            className="flex items-center gap-1.5 border border-border bg-surface px-3 py-1.5 text-[11px] font-bold hover:bg-surface-alt disabled:opacity-50 disabled:cursor-wait"
+            className="flex items-center gap-1.5 border border-border bg-surface px-3 py-1.5 text-[10.5px] font-bold hover:bg-surface-alt disabled:opacity-50 disabled:cursor-wait"
           >
             <IconExport width={13} height={13} />
             Cet onglet
@@ -230,8 +230,8 @@ export function EtatsSmtPage() {
 
       {erreur && (
         <div className="flex items-start justify-between gap-3 border border-danger/30 bg-danger-soft px-3.5 py-2 mb-2.5">
-          <span className="text-[11.5px]">{erreur}</span>
-          <button onClick={() => setErreur(null)} className="text-[11px] font-bold shrink-0 hover:underline">
+          <span className="text-[10.5px]">{erreur}</span>
+          <button onClick={() => setErreur(null)} className="text-[10.5px] font-bold shrink-0 hover:underline">
             Fermer
           </button>
         </div>
@@ -242,7 +242,7 @@ export function EtatsSmtPage() {
           <button
             key={o.cle}
             onClick={() => setOnglet(o.cle)}
-            className={`px-4 py-1.5 text-[11px] font-bold ${
+            className={`px-4 py-1.5 text-[10.5px] font-bold ${
               onglet === o.cle ? 'bg-surface border-x border-border' : 'text-text-dim'
             }`}
           >
@@ -271,7 +271,7 @@ export function EtatsSmtPage() {
             }`}
           >
             <IconCheck width={14} height={14} className={bilan.equilibre ? 'text-positive' : 'text-danger'} />
-            <span className="font-mono text-[11.5px] font-medium">
+            <span className="font-mono text-[10.5px] font-medium">
               {bilan.equilibre
                 ? `LE BILAN EST ÉQUILIBRÉ · GZ = HZ = ${montant(bilan.totalActif)}`
                 : 'DÉSÉQUILIBRE DÉTECTÉ · vérifier les écritures de l’exercice'}
@@ -294,7 +294,7 @@ export function EtatsSmtPage() {
               <div
                 key={r.ref}
                 title={r.comptes.length > 0 ? `Comptes : ${r.comptes.map((c) => c.numero).join(', ')}` : undefined}
-                className="grid grid-cols-[40px_1fr_130px] gap-2 px-4 py-1 text-[12px]"
+                className="grid grid-cols-[40px_1fr_130px] gap-2 px-4 py-1 text-[11px]"
               >
                 <span className="font-mono text-[10px] text-text-dim">{r.ref}</span>
                 <span>{r.libelle}</span>
@@ -310,17 +310,17 @@ export function EtatsSmtPage() {
               de trésorerie est complète. */}
           {Math.abs(cr.controle.fluxHorsExploitation) > 0.005 && (
             <div className="border border-border bg-surface px-3.5 py-2.5 mb-2">
-              <div className="text-[11.5px] font-bold mb-1">
+              <div className="text-[10.5px] font-bold mb-1">
                 Flux de trésorerie hors exploitation : {montant(cr.controle.fluxHorsExploitation)}
               </div>
-              <p className="text-[11px] text-text-dim mb-1.5">
+              <p className="text-[10.5px] text-text-dim mb-1.5">
                 Encaissements et décaissements qui ne sont ni un produit ni une charge (apport en dotation, emprunt,
                 acquisition ou cession d'immobilisation). Ils entrent dans le solde de caisse KZ mais pas dans le
                 résultat, et la maquette officielle du Système minimal de trésorerie n'ouvre aucune ligne pour les
                 reprendre. Le montant est donc calculé ici plutôt que laissé en écart inexpliqué.
               </p>
               {cr.controle.comptesHorsExploitation.map((c) => (
-                <div key={c.numero} className="flex justify-between text-[11px] font-mono">
+                <div key={c.numero} className="flex justify-between text-[10.5px] font-mono">
                   <span>
                     {c.numero} · {c.intitule}
                   </span>
@@ -335,7 +335,7 @@ export function EtatsSmtPage() {
               cr.controle.concordant ? 'border-positive/30 bg-positive-soft' : 'border-warning/40 bg-warning-soft'
             }`}
           >
-            <span className="text-[11.5px]">
+            <span className="text-[10.5px]">
               {cr.controle.concordant
                 ? `Résultat net (KZC ${montant(cr.resultatNet)}), une fois retirés les flux hors exploitation, concorde avec le résultat du bilan (HB ${montant(cr.controle.resultatBilan)}).`
                 : `Écart de ${montant(cr.controle.ecart)} entre le résultat reconstitué et le résultat du bilan (HB ${montant(
@@ -350,18 +350,18 @@ export function EtatsSmtPage() {
       {onglet === 'journal' && note4 && (
         <div className="overflow-x-auto">
           {note4.journaux.length === 0 && (
-            <div className="border border-border px-4 py-4 text-[12px] text-text-dim">
+            <div className="border border-border px-4 py-4 text-[11px] text-text-dim">
               Aucun compte de trésorerie mouvementé sur cet exercice.
             </div>
           )}
           {note4.journaux.map((j) => (
             <div key={j.compteId} className="border border-border bg-surface mb-3 min-w-[900px]">
               <div className="flex items-center justify-between bg-surface-alt border-b border-border px-4 py-1.5">
-                <span className="text-[11.5px] font-bold font-mono">
+                <span className="text-[10.5px] font-bold font-mono">
                   {j.numero} · {j.intitule}
                 </span>
                 <span
-                  className={`text-[10.5px] font-mono ${j.boucle ? 'text-text-dim' : 'text-danger font-bold'}`}
+                  className={`text-[10px] font-mono ${j.boucle ? 'text-text-dim' : 'text-danger font-bold'}`}
                   title={
                     j.boucle
                       ? 'Le journal boucle : son solde final est celui du compte à la balance.'
@@ -379,7 +379,7 @@ export function EtatsSmtPage() {
                 <span className="text-right">DÉPENSES</span>
                 <span className="text-right">SOLDE</span>
               </div>
-              <div className="grid grid-cols-[86px_1fr_110px_110px_110px] gap-2 px-4 py-1 text-[12px] text-text-dim">
+              <div className="grid grid-cols-[86px_1fr_110px_110px_110px] gap-2 px-4 py-1 text-[11px] text-text-dim">
                 <span>·</span>
                 <span>Report à nouveau</span>
                 <span className="text-right">·</span>
@@ -399,9 +399,9 @@ export function EtatsSmtPage() {
                             .join(' · ')
                         : 'Écriture partagée entre plusieurs comptes de trésorerie : ventilation non attribuée'
                   }
-                  className="grid grid-cols-[86px_1fr_110px_110px_110px] gap-2 px-4 py-1 text-[12px]"
+                  className="grid grid-cols-[86px_1fr_110px_110px_110px] gap-2 px-4 py-1 text-[11px]"
                 >
-                  <span className="font-mono text-[11px]">{jour(o.date)}</span>
+                  <span className="font-mono text-[10.5px]">{jour(o.date)}</span>
                   <span>
                     {o.libelle}
                     {o.virementInterne && <span className="ml-1.5 text-[10px] text-text-dim">virement interne</span>}
@@ -414,7 +414,7 @@ export function EtatsSmtPage() {
                   <span className="font-mono text-right text-text-dim">{montant(o.solde)}</span>
                 </div>
               ))}
-              <div className="grid grid-cols-[86px_1fr_110px_110px_110px] gap-2 px-4 py-1.5 bg-surface-alt border-t border-border text-[12px] font-bold">
+              <div className="grid grid-cols-[86px_1fr_110px_110px_110px] gap-2 px-4 py-1.5 bg-surface-alt border-t border-border text-[11px] font-bold">
                 <span>·</span>
                 {/* La maquette officielle nomme cette ligne « Solde à reporter ».
                     Les deux colonnes de totaux sont un ajout : les nommer évite
@@ -435,14 +435,14 @@ export function EtatsSmtPage() {
       {onglet === 'notes' && notes && (
         <div className="max-w-[1000px] overflow-x-auto">
           <div className="border border-border bg-surface mb-3">
-            <div className="bg-surface-alt border-b border-border px-4 py-1.5 text-[11.5px] font-bold">
+            <div className="bg-surface-alt border-b border-border px-4 py-1.5 text-[10.5px] font-bold">
               FICHE RÉCAPITULATIVE DES NOTES ANNEXES PRÉSENTÉES
             </div>
             {notes.fiche.map((n) => (
-              <div key={n.numero} className="grid grid-cols-[70px_1fr_180px] gap-2 px-4 py-1 text-[12px]">
-                <span className="font-mono text-[11px] text-text-dim">Note {n.numero}</span>
+              <div key={n.numero} className="grid grid-cols-[70px_1fr_180px] gap-2 px-4 py-1 text-[11px]">
+                <span className="font-mono text-[10.5px] text-text-dim">Note {n.numero}</span>
                 <span>{n.intitule}</span>
-                <span className="text-[10.5px] text-text-dim">
+                <span className="text-[10px] text-text-dim">
                   {n.partie === 'BILAN' ? 'Notes sur le bilan' : 'Notes sur compte de résultat'}
                 </span>
               </div>
@@ -450,7 +450,7 @@ export function EtatsSmtPage() {
           </div>
 
           <div className="border border-border bg-surface mb-3">
-            <div className="bg-surface-alt border-b border-border px-4 py-1.5 text-[11.5px] font-bold">
+            <div className="bg-surface-alt border-b border-border px-4 py-1.5 text-[10.5px] font-bold">
               NOTE 1 · TABLEAU D'ACQUISITION ET DE SUIVI DU MATÉRIEL, DU MOBILIER ET AUTRES IMMOBILISATIONS
             </div>
             <div className="grid grid-cols-[86px_1fr_110px_100px_78px_86px_110px] gap-2 px-4 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
@@ -463,23 +463,23 @@ export function EtatsSmtPage() {
               <span className="text-right">PRIX DE CESSION</span>
             </div>
             {notes.note1.lignes.length === 0 && (
-              <div className="px-4 py-2 text-[11.5px] text-text-dim">Aucune immobilisation enregistrée.</div>
+              <div className="px-4 py-2 text-[10.5px] text-text-dim">Aucune immobilisation enregistrée.</div>
             )}
             {notes.note1.lignes.map((l, i) => (
-              <div key={i} className="grid grid-cols-[86px_1fr_110px_100px_78px_86px_110px] gap-2 px-4 py-1 text-[12px]">
-                <span className="font-mono text-[11px]">{jour(l.dateMiseEnService)}</span>
+              <div key={i} className="grid grid-cols-[86px_1fr_110px_100px_78px_86px_110px] gap-2 px-4 py-1 text-[11px]">
+                <span className="font-mono text-[10.5px]">{jour(l.dateMiseEnService)}</span>
                 <span>{l.designation}</span>
                 <span className="font-mono text-right">{montant(l.montant)}</span>
-                <span className="font-mono text-[11px]">{jour(l.dateAcquisition)}</span>
+                <span className="font-mono text-[10.5px]">{jour(l.dateAcquisition)}</span>
                 <span className="font-mono text-right">{l.dureeUtiliteAns} ans</span>
-                <span className="font-mono text-[11px]">{jour(l.dateSortie)}</span>
+                <span className="font-mono text-[10.5px]">{jour(l.dateSortie)}</span>
                 <span className="font-mono text-right">{montant(l.prixCession)}</span>
               </div>
             ))}
           </div>
 
           <div className="border border-border bg-surface mb-3">
-            <div className="bg-surface-alt border-b border-border px-4 py-1.5 text-[11.5px] font-bold">
+            <div className="bg-surface-alt border-b border-border px-4 py-1.5 text-[10.5px] font-bold">
               NOTE 2 · ÉTAT DES STOCKS
             </div>
             <div className="grid grid-cols-[120px_1fr_90px_100px_120px] gap-2 px-4 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
@@ -490,22 +490,22 @@ export function EtatsSmtPage() {
               <span className="text-right">MONTANT</span>
             </div>
             {notes.note2.lignes.map((l) => (
-              <div key={l.reference} className="grid grid-cols-[120px_1fr_90px_100px_120px] gap-2 px-4 py-1 text-[12px]">
-                <span className="font-mono text-[11px]">{l.reference}</span>
+              <div key={l.reference} className="grid grid-cols-[120px_1fr_90px_100px_120px] gap-2 px-4 py-1 text-[11px]">
+                <span className="font-mono text-[10.5px]">{l.reference}</span>
                 <span>{l.designation}</span>
                 <span className="text-right text-text-dim">·</span>
                 <span className="text-right text-text-dim">·</span>
                 <span className="font-mono text-right">{montant(l.montant)}</span>
               </div>
             ))}
-            <div className="grid grid-cols-[120px_1fr_90px_100px_120px] gap-2 px-4 py-1.5 border-t border-border text-[12px] font-bold">
+            <div className="grid grid-cols-[120px_1fr_90px_100px_120px] gap-2 px-4 py-1.5 border-t border-border text-[11px] font-bold">
               <span>·</span>
               <span>VALEUR DU STOCK FINAL</span>
               <span />
               <span />
               <span className="font-mono text-right">{montant(notes.note2.valeurStockFinal)}</span>
             </div>
-            <div className="grid grid-cols-[120px_1fr_90px_100px_120px] gap-2 px-4 py-1 text-[12px] font-bold">
+            <div className="grid grid-cols-[120px_1fr_90px_100px_120px] gap-2 px-4 py-1 text-[11px] font-bold">
               <span>·</span>
               <span>VALEUR DU STOCK INITIAL</span>
               <span />
@@ -518,7 +518,7 @@ export function EtatsSmtPage() {
           </div>
 
           <div className="border border-border bg-surface mb-3">
-            <div className="bg-surface-alt border-b border-border px-4 py-1.5 text-[11.5px] font-bold">
+            <div className="bg-surface-alt border-b border-border px-4 py-1.5 text-[10.5px] font-bold">
               NOTE 3 · ÉTAT DES CRÉANCES ET DES DETTES NON ÉCHUES
             </div>
             {(
@@ -535,11 +535,11 @@ export function EtatsSmtPage() {
                   <span className="text-right">VARIATION</span>
                   <span className="text-right">VAR. %</span>
                 </div>
-                {lignes.length === 0 && <div className="px-4 py-1.5 text-[11.5px] text-text-dim">Aucune ligne.</div>}
+                {lignes.length === 0 && <div className="px-4 py-1.5 text-[10.5px] text-text-dim">Aucune ligne.</div>}
                 {lignes.map((l) => (
-                  <div key={l.numero} className="grid grid-cols-[1fr_120px_120px_120px_90px] gap-2 px-4 py-1 text-[12px]">
+                  <div key={l.numero} className="grid grid-cols-[1fr_120px_120px_120px_90px] gap-2 px-4 py-1 text-[11px]">
                     <span>
-                      <span className="font-mono text-[11px] text-text-dim">{l.numero}</span> {l.nom}
+                      <span className="font-mono text-[10.5px] text-text-dim">{l.numero}</span> {l.nom}
                     </span>
                     <span className="font-mono text-right">{montant(l.montantCloture)}</span>
                     <span className="font-mono text-right">{montant(l.montantOuverture)}</span>
@@ -549,7 +549,7 @@ export function EtatsSmtPage() {
                     </span>
                   </div>
                 ))}
-                <div className="grid grid-cols-[1fr_120px_120px_120px_90px] gap-2 px-4 py-1.5 text-[12px] font-bold">
+                <div className="grid grid-cols-[1fr_120px_120px_120px_90px] gap-2 px-4 py-1.5 text-[11px] font-bold">
                   <span>TOTAL DES {titre}</span>
                   <span className="font-mono text-right">{montant(total)}</span>
                   <span />
@@ -561,16 +561,16 @@ export function EtatsSmtPage() {
           </div>
 
           <div className="border border-border bg-surface mb-3">
-            <div className="bg-surface-alt border-b border-border px-4 py-1.5 text-[11.5px] font-bold">
+            <div className="bg-surface-alt border-b border-border px-4 py-1.5 text-[10.5px] font-bold">
               NOTE 5 · DOTATION
             </div>
             {notes.note5.rubriques.map((r) => (
-              <div key={r.cle} className="grid grid-cols-[1fr_140px] gap-2 px-4 py-1 text-[12px]">
+              <div key={r.cle} className="grid grid-cols-[1fr_140px] gap-2 px-4 py-1 text-[11px]">
                 <span>{r.libelle}</span>
                 <span className="font-mono text-right">{montant(r.montant)}</span>
               </div>
             ))}
-            <div className="grid grid-cols-[1fr_140px] gap-2 px-4 py-1.5 border-t border-border text-[12px] font-bold">
+            <div className="grid grid-cols-[1fr_140px] gap-2 px-4 py-1.5 border-t border-border text-[11px] font-bold">
               <span>TOTAL</span>
               <span className="font-mono text-right">{montant(notes.note5.total)}</span>
             </div>
@@ -582,7 +582,7 @@ export function EtatsSmtPage() {
                   <span className="text-right">MONTANT</span>
                 </div>
                 {notes.note5.membres.map((m) => (
-                  <div key={m.numero} className="grid grid-cols-[1fr_140px_140px] gap-2 px-4 py-1 text-[12px]">
+                  <div key={m.numero} className="grid grid-cols-[1fr_140px_140px] gap-2 px-4 py-1 text-[11px]">
                     <span>{m.nom}</span>
                     <span className="text-text-dim">·</span>
                     <span className="font-mono text-right">{montant(m.montant)}</span>
@@ -607,22 +607,22 @@ export function EtatsSmtPage() {
               <div
                 key={c.cle}
                 title={c.comptes.length > 0 ? `Comptes : ${c.comptes.map((x) => x.numero).join(', ')}` : undefined}
-                className="grid grid-cols-[1fr_150px] gap-2 px-4 py-1 text-[12px]"
+                className="grid grid-cols-[1fr_150px] gap-2 px-4 py-1 text-[11px]"
               >
                 <span>{c.libelle}</span>
                 <span className="font-mono text-right">{montant(c.montant)}</span>
               </div>
             ))}
-            <div className="grid grid-cols-[1fr_150px] gap-2 px-4 py-1.5 border-t border-border text-[12px] font-bold">
+            <div className="grid grid-cols-[1fr_150px] gap-2 px-4 py-1.5 border-t border-border text-[11px] font-bold">
               <span>TOTAL DES RESSOURCES</span>
               <span className="font-mono text-right">{montant(eligibilite.totalRessources)}</span>
             </div>
           </div>
           <div className="border border-border bg-surface px-3.5 py-2.5">
-            <div className="text-[11.5px] font-bold mb-1">
+            <div className="text-[10.5px] font-bold mb-1">
               Seuil légal : {eligibilite.seuilParCategorieFcfa.toLocaleString('fr-FR')} FCFA par catégorie
             </div>
-            <p className="text-[11px] text-text-dim">
+            <p className="text-[10.5px] text-text-dim">
               Montants exprimés en {eligibilite.deviseDossier ?? 'monnaie de tenue du dossier'}.{' '}
               {eligibilite.avertissement}
             </p>

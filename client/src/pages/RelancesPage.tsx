@@ -124,7 +124,7 @@ export function RelancesPage() {
       <div className="flex items-end justify-between mb-1.5 gap-3 flex-wrap">
         <div>
           <div className="text-[10px] font-mono text-text-dim leading-none">TRAITEMENT</div>
-          <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
+          <h1 className="text-[12px] font-bold leading-tight flex items-center gap-1.5">
             Rappel et relevé
             <Aide sujet="relance" />
           </h1>
@@ -136,7 +136,7 @@ export function RelancesPage() {
               <select
                 value={niveauId}
                 onChange={(e) => setNiveauId(e.target.value)}
-                className="border border-border rounded-[6px] bg-surface px-2 py-1 text-[11.5px] min-w-[200px]"
+                className="border border-border rounded-[6px] bg-surface px-2 py-1 text-[10.5px] min-w-[200px]"
               >
                 {niveaux.map((n) => (
                   <option key={n.id} value={n.id}>
@@ -148,7 +148,7 @@ export function RelancesPage() {
             <button
               onClick={emettre}
               disabled={envoi || selection.size === 0}
-              className="bg-sel text-white text-[11.5px] font-bold px-3.5 py-1.5 rounded-[6px] hover:brightness-110 disabled:opacity-50"
+              className="bg-sel text-white text-[10.5px] font-bold px-3.5 py-1.5 rounded-[6px] hover:brightness-110 disabled:opacity-50"
             >
               Préparer les courriers ({selection.size})
             </button>
@@ -157,12 +157,12 @@ export function RelancesPage() {
       </div>
 
       {erreur && (
-        <div className="mb-2.5 text-[12px] text-danger bg-danger-soft border border-danger/30 rounded-[6px] px-2.5 py-1.5">
+        <div className="mb-2.5 text-[11px] text-danger bg-danger-soft border border-danger/30 rounded-[6px] px-2.5 py-1.5">
           {erreur}
         </div>
       )}
       {info && (
-        <div className="mb-2.5 text-[12px] text-positive bg-positive-soft border border-positive/30 rounded-[6px] px-2.5 py-1.5 flex justify-between">
+        <div className="mb-2.5 text-[11px] text-positive bg-positive-soft border border-positive/30 rounded-[6px] px-2.5 py-1.5 flex justify-between">
           <span>{info}</span>
           <button onClick={() => setInfo(null)} className="font-bold hover:underline">
             Fermer
@@ -176,7 +176,7 @@ export function RelancesPage() {
             key={e.valeur}
             onClick={() => setType(e.valeur)}
             title={e.description}
-            className={`px-4 py-1.5 text-[11px] font-bold ${
+            className={`px-4 py-1.5 text-[10.5px] font-bold ${
               type === e.valeur ? 'bg-surface border-x border-border' : 'text-text-dim'
             }`}
           >
@@ -186,7 +186,7 @@ export function RelancesPage() {
       </div>
 
       <div className="border border-border bg-surface rounded-b-[10px] overflow-hidden">
-        <p className="px-3 py-2 text-[11.5px] text-text-dim border-b border-border/40">
+        <p className="px-3 py-2 text-[10.5px] text-text-dim border-b border-border/40">
           {ETATS.find((e) => e.valeur === type)?.description}
         </p>
 
@@ -208,11 +208,11 @@ export function RelancesPage() {
           <span>DERNIÈRE RELANCE</span>
         </div>
 
-        {!positions && <div className="px-3 py-4 text-[12px] text-text-dim">Chargement…</div>}
+        {!positions && <div className="px-3 py-4 text-[11px] text-text-dim">Chargement…</div>}
         {positions?.map((p) => (
           <div key={p.compteId}>
             <div
-              className={`${grille} px-3 py-1 text-[12px] items-center border-b border-border/40 ${
+              className={`${grille} px-3 py-1 text-[11px] items-center border-b border-border/40 ${
                 p.retardMaxJours > 90 ? 'bg-danger-soft' : p.retardMaxJours > 30 ? 'bg-warning-soft' : ''
               }`}
             >
@@ -239,16 +239,16 @@ export function RelancesPage() {
                   </span>
                 )}
               </button>
-              <span className="text-[11px] text-text-dim">{p.qualite}</span>
+              <span className="text-[10.5px] text-text-dim">{p.qualite}</span>
               <span className="text-right font-mono font-semibold">{montant(p.montantDu)}</span>
               <span
-                className={`text-right font-mono text-[11.5px] ${
+                className={`text-right font-mono text-[10.5px] ${
                   p.retardMaxJours > 90 ? 'text-danger font-bold' : p.retardMaxJours > 0 ? 'text-warning' : 'text-text-dim'
                 }`}
               >
                 {p.retardMaxJours > 0 ? `${p.retardMaxJours} j` : `dans ${-p.retardMaxJours} j`}
               </span>
-              <span className="text-[11px]">
+              <span className="text-[10.5px]">
                 {p.derniereRelance ? (
                   <span className="text-text-dim">
                     niveau {p.derniereRelance.niveau} le {new Date(p.derniereRelance.date).toLocaleDateString('fr-FR')}
@@ -262,7 +262,7 @@ export function RelancesPage() {
             </div>
             {deplie.has(p.compteId) &&
               p.lignes.map((l, i) => (
-                <div key={i} className={`${grille} px-3 py-0.5 text-[11px] bg-chrome-alt/50 border-b border-border/30`}>
+                <div key={i} className={`${grille} px-3 py-0.5 text-[10.5px] bg-chrome-alt/50 border-b border-border/30`}>
                   <span />
                   <span className="font-mono text-text-dim">{l.echeance ?? l.date}</span>
                   <span className="truncate text-text-dim">{l.libelle}</span>
@@ -278,7 +278,7 @@ export function RelancesPage() {
         ))}
 
         {positions && positions.length === 0 && (
-          <div className="px-3 py-5 text-[12px] text-text-dim italic">
+          <div className="px-3 py-5 text-[11px] text-text-dim italic">
             {type === 'PREVENTIVE'
               ? "Aucune échéance à venir sur les comptes d'adhérents et de clients-usagers."
               : type === 'RAPPEL'
@@ -288,7 +288,7 @@ export function RelancesPage() {
         )}
 
         {positions && positions.length > 0 && (
-          <div className={`${grille} px-3 py-1.5 bg-chrome border-t border-border text-[12px] font-bold`}>
+          <div className={`${grille} px-3 py-1.5 bg-chrome border-t border-border text-[11px] font-bold`}>
             <span />
             <span />
             <span>{positions.length} tiers</span>
@@ -303,21 +303,21 @@ export function RelancesPage() {
       {lettres && lettres.length > 0 && (
         <section className="mt-2.5 bg-surface border border-border rounded-[10px] shadow-posee overflow-hidden">
           <header className="px-3 py-2 bg-chrome-alt border-b border-border flex items-center justify-between">
-            <span className="text-[11.5px] font-bold">Courriers préparés</span>
+            <span className="text-[10.5px] font-bold">Courriers préparés</span>
             <button
               onClick={() => navigator.clipboard?.writeText(lettres.map((l) => l.texte).join('\n\n\n'))}
-              className="border border-border rounded-[6px] bg-surface px-3 py-1 text-[11px] font-semibold hover:bg-chrome"
+              className="border border-border rounded-[6px] bg-surface px-3 py-1 text-[10.5px] font-semibold hover:bg-chrome"
             >
               Tout copier
             </button>
           </header>
           {lettres.map((l) => (
             <article key={l.compteId} className="border-b border-border/40">
-              <div className="px-3 py-1.5 bg-chrome text-[11.5px] font-semibold flex justify-between">
+              <div className="px-3 py-1.5 bg-chrome text-[10.5px] font-semibold flex justify-between">
                 <span>{l.tiers}</span>
                 <span className="font-mono">{montant(l.montant)}</span>
               </div>
-              <pre className="px-3 py-2 text-[11.5px] whitespace-pre-wrap font-sans leading-[1.6]">{l.texte}</pre>
+              <pre className="px-3 py-2 text-[10.5px] whitespace-pre-wrap font-sans leading-[1.6]">{l.texte}</pre>
             </article>
           ))}
         </section>

@@ -111,21 +111,21 @@ export function ModaleCorrection({
           className="flex items-center justify-between px-3.5 py-2 text-white rounded-t-[11px]"
           style={{ background: 'linear-gradient(180deg, var(--titlebar-from), var(--titlebar-to))' }}
         >
-          <span className="text-[12px] font-semibold">Correction par inscription en négatif</span>
-          <button onClick={onFermer} className="text-white/70 hover:text-white text-[13px] leading-none px-1">
+          <span className="text-[11px] font-semibold">Correction par inscription en négatif</span>
+          <button onClick={onFermer} className="text-white/70 hover:text-white text-[12px] leading-none px-1">
             ✕
           </button>
         </div>
 
         <div className="p-4 space-y-3.5">
-          <p className="text-[12px] text-text-dim leading-relaxed">
+          <p className="text-[11px] text-text-dim leading-relaxed">
             L’écriture <span className="font-semibold text-text">« {libelleEcriture} »</span> ne sera ni modifiée ni
             supprimée : elle reste au journal, et une écriture de sens identique et de montants négatifs l’annule
             (art. 20 de l’AUDCIF). Passez ensuite l’enregistrement exact.
           </p>
 
           <div>
-            <label className="block text-[11px] font-semibold uppercase tracking-[0.05em] text-text-dim mb-1.5">
+            <label className="block text-[10.5px] font-semibold uppercase tracking-[0.05em] text-text-dim mb-1.5">
               Nature de l’erreur
             </label>
             <div className="grid grid-cols-2 gap-1.5">
@@ -134,7 +134,7 @@ export function ModaleCorrection({
                   key={n.code}
                   type="button"
                   onClick={() => setNature(n)}
-                  className={`rounded-[8px] border px-2.5 py-1.5 text-left text-[11.5px] transition-colors duration-150 ${
+                  className={`rounded-[8px] border px-2.5 py-1.5 text-left text-[10.5px] transition-colors duration-150 ${
                     nature.code === n.code
                       ? 'border-sel bg-sel-soft text-sel font-semibold'
                       : 'border-border hover:bg-chrome-alt'
@@ -147,7 +147,7 @@ export function ModaleCorrection({
           </div>
 
           <div>
-            <label className="block text-[11px] font-semibold uppercase tracking-[0.05em] text-text-dim mb-1.5">
+            <label className="block text-[10.5px] font-semibold uppercase tracking-[0.05em] text-text-dim mb-1.5">
               Précision · ce qui était faux, et ce qui sera enregistré
             </label>
             <textarea
@@ -156,18 +156,18 @@ export function ModaleCorrection({
               value={precision}
               onChange={(e) => setPrecision(e.target.value)}
               placeholder={n_exemple(nature)}
-              className="w-full rounded-[8px] border border-border bg-bg px-2.5 py-2 text-[12.5px] leading-relaxed focus:outline-none focus:border-sel"
+              className="w-full rounded-[8px] border border-border bg-bg px-2.5 py-2 text-[11px] leading-relaxed focus:outline-none focus:border-sel"
             />
-            <p className="mt-1 text-[11px] text-text-dim">
+            <p className="mt-1 text-[10.5px] text-text-dim">
               Exemple : <span className="italic">{nature.exemple}</span>
             </p>
           </div>
 
           <div className="rounded-[8px] border border-border bg-chrome-alt px-3 py-2">
-            <div className="text-[10.5px] font-semibold uppercase tracking-[0.05em] text-text-dim mb-1">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.05em] text-text-dim mb-1">
               Motif tel qu’il figurera au journal
             </div>
-            <div className="text-[12px] font-medium">
+            <div className="text-[11px] font-medium">
               {precisionSuffisante ? motif : <span className="text-text-dim italic">Complétez la précision…</span>}
             </div>
           </div>
@@ -176,14 +176,14 @@ export function ModaleCorrection({
         <div className="border-t border-border px-3.5 py-2.5 flex justify-end gap-2">
           <button
             onClick={onFermer}
-            className="rounded-[8px] border border-border px-3 py-1.5 text-[11.5px] font-semibold hover:bg-chrome-alt"
+            className="rounded-[8px] border border-border px-3 py-1.5 text-[10.5px] font-semibold hover:bg-chrome-alt"
           >
             Annuler
           </button>
           <button
             onClick={() => onValider(motif)}
             disabled={!precisionSuffisante || enCours}
-            className="rounded-[8px] bg-sel px-3.5 py-1.5 text-[11.5px] font-semibold text-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-sel/90"
+            className="rounded-[8px] bg-sel px-3.5 py-1.5 text-[10.5px] font-semibold text-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-sel/90"
           >
             {enCours ? 'Correction…' : 'Passer la correction'}
           </button>

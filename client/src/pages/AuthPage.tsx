@@ -137,7 +137,7 @@ export function AuthPage({ assistantInitial = false }: { assistantInitial?: bool
   // Même gabarit de champ que l'assistant de création : un dialogue et son
   // assistant ne doivent pas avoir deux styles de saisie.
   const champClasse =
-    'w-full rounded-[6px] border border-border bg-surface px-2.5 py-1.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-sel/25 focus:border-sel';
+    'w-full rounded-[6px] border border-border bg-surface px-2.5 py-1.5 text-[12px] focus:outline-none focus:ring-2 focus:ring-sel/25 focus:border-sel';
 
   const dateCourte = (iso: string) =>
     new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -157,7 +157,7 @@ export function AuthPage({ assistantInitial = false }: { assistantInitial?: bool
           ------------------------------------------------------------------ */}
       <div className="relative z-10 w-full max-w-[620px] bg-surface border border-border rounded-[10px] overflow-hidden shadow-flottante anim-modale">
         <div
-          className="h-[34px] flex items-center gap-2 px-3 text-white text-[12px]"
+          className="h-[34px] flex items-center gap-2 px-3 text-white text-[11px]"
           style={{ background: 'linear-gradient(180deg, var(--titlebar-from), var(--titlebar-to))' }}
         >
           <IconLogo width={14} height={14} />
@@ -174,8 +174,8 @@ export function AuthPage({ assistantInitial = false }: { assistantInitial?: bool
               <div className="w-[38px] h-[38px] rounded-[11px] bg-white/10 flex items-center justify-center text-white">
                 <IconLogo width={22} height={22} />
               </div>
-              <div className="mt-2.5 text-[17px] font-extrabold tracking-tight text-white">OMEGAX</div>
-              <div className="mt-1 text-[10.5px] text-white/70 leading-[1.5]">
+              <div className="mt-2.5 text-[15px] font-extrabold tracking-tight text-white">OMEGAX</div>
+              <div className="mt-1 text-[10px] text-white/70 leading-[1.5]">
                 Comptabilité des entités à but non lucratif · SYCEBNL
               </div>
             </div>
@@ -192,7 +192,7 @@ export function AuthPage({ assistantInitial = false }: { assistantInitial?: bool
           {/* Phrase d'accueil · Sage dit d'abord OÙ L'ON EST (aucun fichier
               ouvert), puis ce qu'on peut faire. Entrer directement dans deux
               boutons laisse deviner. */}
-          <p className="text-[12.5px] text-text-dim leading-[1.6] mb-4">
+          <p className="text-[11px] text-text-dim leading-[1.6] mb-4">
             Aucun dossier comptable n'est ouvert. Créez un nouveau dossier, ou ouvrez un dossier existant.
           </p>
 
@@ -208,8 +208,8 @@ export function AuthPage({ assistantInitial = false }: { assistantInitial?: bool
                 <IconFileAdd width={18} height={18} />
               </span>
               <span className="min-w-0">
-                <span className="block text-[13.5px] font-bold">Créer un nouveau fichier comptable</span>
-                <span className="block text-[11.5px] text-text-dim leading-[1.5] mt-0.5">
+                <span className="block text-[12px] font-bold">Créer un nouveau fichier comptable</span>
+                <span className="block text-[10.5px] text-text-dim leading-[1.5] mt-0.5">
                   L'assistant demande le référentiel, le jeu d'états financiers, l'exercice et la monnaie de tenue,
                   puis sème le plan de comptes.
                 </span>
@@ -225,8 +225,8 @@ export function AuthPage({ assistantInitial = false }: { assistantInitial?: bool
                 <IconFolderOpen width={18} height={18} />
               </span>
               <span className="min-w-0">
-                <span className="block text-[13.5px] font-bold">Ouvrir un fichier comptable existant</span>
-                <span className="block text-[11.5px] text-text-dim leading-[1.5] mt-0.5">
+                <span className="block text-[12px] font-bold">Ouvrir un fichier comptable existant</span>
+                <span className="block text-[10.5px] text-text-dim leading-[1.5] mt-0.5">
                   Le dossier s'ouvre sur les identifiants qui lui ont été donnés à sa création.
                 </span>
               </span>
@@ -235,7 +235,7 @@ export function AuthPage({ assistantInitial = false }: { assistantInitial?: bool
 
           {recents.length > 0 && (
             <div className="mt-5">
-              <div className="text-[11px] font-bold text-text-dim mb-1.5 px-0.5">DOSSIERS RÉCENTS</div>
+              <div className="text-[10.5px] font-bold text-text-dim mb-1.5 px-0.5">DOSSIERS RÉCENTS</div>
               <div className="rounded-xl border border-border bg-surface overflow-hidden">
                 {recents.map((d) => (
                   <div key={d.email} className="flex items-center gap-2 border-b border-border last:border-b-0">
@@ -244,8 +244,8 @@ export function AuthPage({ assistantInitial = false }: { assistantInitial?: bool
                       onClick={() => ouvrirDossier(d)}
                       className="flex-1 min-w-0 text-left px-3.5 py-2.5 hover:bg-sel-soft"
                     >
-                      <span className="block text-[13px] font-semibold truncate">{d.nom}</span>
-                      <span className="block text-[11px] text-text-dim truncate">
+                      <span className="block text-[12px] font-semibold truncate">{d.nom}</span>
+                      <span className="block text-[10.5px] text-text-dim truncate">
                         {d.email} · ouvert le {dateCourte(d.derniereOuverture)}
                       </span>
                     </button>
@@ -253,14 +253,14 @@ export function AuthPage({ assistantInitial = false }: { assistantInitial?: bool
                       type="button"
                       onClick={() => retirer(d.email)}
                       title="Retirer ce raccourci de cet appareil"
-                      className="px-3 text-[11px] text-text-dim hover:text-danger"
+                      className="px-3 text-[10.5px] text-text-dim hover:text-danger"
                     >
                       Retirer
                     </button>
                   </div>
                 ))}
               </div>
-              <p className="mt-1.5 px-0.5 text-[10.5px] text-text-dim">
+              <p className="mt-1.5 px-0.5 text-[10px] text-text-dim">
                 Ces raccourcis ne sont enregistrés que sur cet appareil et ne contiennent aucun mot de passe.
               </p>
             </div>
@@ -273,7 +273,7 @@ export function AuthPage({ assistantInitial = false }: { assistantInitial?: bool
       {/* ------------------------------------------------------------------ */}
       {ecran === 'identification' && (
         <div className="w-full">
-          <p className="text-[12.5px] text-text-dim leading-[1.6] mb-4">
+          <p className="text-[11px] text-text-dim leading-[1.6] mb-4">
             {dossierVise
               ? 'Saisissez les identifiants donnés à ce dossier lors de sa création.'
               : 'Saisissez les identifiants du dossier comptable à ouvrir.'}
@@ -281,13 +281,13 @@ export function AuthPage({ assistantInitial = false }: { assistantInitial?: bool
           {dossierVise && (
             <div className="mb-4 rounded-[8px] border border-border bg-chrome px-3.5 py-2.5">
               <div className="text-[10px] font-bold text-text-dim">DOSSIER</div>
-              <div className="text-[13.5px] font-bold truncate">{dossierVise.nom}</div>
+              <div className="text-[12px] font-bold truncate">{dossierVise.nom}</div>
             </div>
           )}
 
           <form onSubmit={onSubmit} className="flex flex-col gap-3">
             <label className="flex flex-col gap-1.5">
-              <span className="text-[12px] font-semibold text-text-dim">Adresse e-mail</span>
+              <span className="text-[11px] font-semibold text-text-dim">Adresse e-mail</span>
               <input
                 type="email"
                 required
@@ -299,7 +299,7 @@ export function AuthPage({ assistantInitial = false }: { assistantInitial?: bool
             </label>
 
             <label className="flex flex-col gap-1.5">
-              <span className="text-[12px] font-semibold text-text-dim">Mot de passe</span>
+              <span className="text-[11px] font-semibold text-text-dim">Mot de passe</span>
               <div className="relative">
                 <input
                   type={motDePasseVisible ? 'text' : 'password'}
@@ -321,7 +321,7 @@ export function AuthPage({ assistantInitial = false }: { assistantInitial?: bool
             </label>
 
             {erreur && (
-              <div className="text-[12px] text-danger bg-danger-soft border border-danger/30 rounded-[6px] px-3 py-2">
+              <div className="text-[11px] text-danger bg-danger-soft border border-danger/30 rounded-[6px] px-3 py-2">
                 {erreur}
               </div>
             )}
@@ -333,21 +333,21 @@ export function AuthPage({ assistantInitial = false }: { assistantInitial?: bool
               <button
                 type="button"
                 onClick={() => setEcran('porte')}
-                className="px-3 py-1.5 text-[12.5px] text-text-dim hover:text-sel"
+                className="px-3 py-1.5 text-[11px] text-text-dim hover:text-sel"
               >
                 &lt; Ouvrir un autre dossier
               </button>
               <button
                 type="submit"
                 disabled={envoi}
-                className="px-4 py-1.5 rounded-[6px] bg-sel text-white text-[12.5px] font-semibold hover:brightness-110 disabled:opacity-50"
+                className="px-4 py-1.5 rounded-[6px] bg-sel text-white text-[11px] font-semibold hover:brightness-110 disabled:opacity-50"
               >
                 {envoi ? 'Un instant…' : 'Ouvrir le dossier'}
               </button>
             </div>
           </form>
 
-          <div className="mt-3 text-[12px]">
+          <div className="mt-3 text-[11px]">
             <button
               type="button"
               onClick={() => setAssistantOuvert(true)}

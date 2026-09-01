@@ -164,18 +164,18 @@ export function ExercicePage() {
   return (
     <div className="p-2">
       <div className="text-[10px] font-mono text-text-dim leading-none">TRAITEMENT · FIN D'EXERCICE</div>
-      <h1 className="text-[13px] font-bold leading-tight mb-1.5 flex items-center gap-1.5">
+      <h1 className="text-[12px] font-bold leading-tight mb-1.5 flex items-center gap-1.5">
         Clôture d'exercice
         <Aide sujet="exerciceClos" />
       </h1>
 
       <div className="mb-3 flex items-center gap-2 max-w-[640px]">
-        <label className="text-[11.5px] font-semibold text-text-dim">
+        <label className="text-[10.5px] font-semibold text-text-dim">
           Exercice
           <select
             value={exerciceId}
             onChange={(e) => setExerciceId(e.target.value)}
-            className="mt-1 ml-2 border border-border-dark px-2.5 py-1 text-[12.5px] font-normal"
+            className="mt-1 ml-2 border border-border-dark px-2.5 py-1 text-[11px] font-normal"
           >
             {exercices.map((e) => (
               <option key={e.id} value={e.id}>
@@ -185,11 +185,11 @@ export function ExercicePage() {
             ))}
           </select>
         </label>
-        {chargementExercices && <span className="text-[11px] text-text-dim">Chargement…</span>}
+        {chargementExercices && <span className="text-[10.5px] text-text-dim">Chargement…</span>}
       </div>
 
-      {erreur && <div className="text-[12px] text-danger bg-danger-soft border border-danger/30 px-2.5 py-1.5 mb-3 max-w-[720px]">{erreur}</div>}
-      {info && <div className="text-[12px] text-positive bg-positive-soft border border-positive/30 px-2.5 py-1.5 mb-3 max-w-[720px]">{info}</div>}
+      {erreur && <div className="text-[11px] text-danger bg-danger-soft border border-danger/30 px-2.5 py-1.5 mb-3 max-w-[720px]">{erreur}</div>}
+      {info && <div className="text-[11px] text-positive bg-positive-soft border border-positive/30 px-2.5 py-1.5 mb-3 max-w-[720px]">{info}</div>}
 
       {/*
         PLANNING DE CLÔTURE · l'état prévisionnel des travaux de fin
@@ -207,17 +207,17 @@ export function ExercicePage() {
             onClick={() => setPlanningOuvert((v) => !v)}
             className="w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-surface-alt"
           >
-            <span className="font-mono text-[11px] font-semibold text-text-dim">
+            <span className="font-mono text-[10.5px] font-semibold text-text-dim">
               PLANNING DE CLÔTURE · {planning.jalons.filter((j) => j.enRetard).length} jalon(s) en retard
             </span>
-            <span className="text-[11px] text-text-dim">{planningOuvert ? 'Réduire' : 'Déployer'}</span>
+            <span className="text-[10.5px] text-text-dim">{planningOuvert ? 'Réduire' : 'Déployer'}</span>
           </button>
 
           {planningOuvert && (
             <div className="border-t border-border">
-              <table className="w-full text-[11.5px] border-collapse">
+              <table className="w-full text-[10.5px] border-collapse">
                 <thead>
-                  <tr className="bg-chrome-alt text-[10.5px] font-mono text-text-dim">
+                  <tr className="bg-chrome-alt text-[10px] font-mono text-text-dim">
                     <th className="text-left px-3 py-1.5 font-semibold w-8">#</th>
                     <th className="text-left px-3 py-1.5 font-semibold">Travaux</th>
                     <th className="text-left px-3 py-1.5 font-semibold w-24">Échéance</th>
@@ -231,7 +231,7 @@ export function ExercicePage() {
                       <td className="px-3 py-2 font-mono text-text-dim">{j.etape}</td>
                       <td className="px-3 py-2">
                         <div className="font-semibold">{j.libelle}</div>
-                        <div className="text-[11px] text-text-dim mt-0.5">{j.detail}</div>
+                        <div className="text-[10.5px] text-text-dim mt-0.5">{j.detail}</div>
                         <div className="text-[10px] text-text-dim mt-1 italic">{j.source}</div>
                       </td>
                       <td className={`px-3 py-2 font-mono ${j.enRetard ? 'text-danger font-bold' : ''}`}>
@@ -246,7 +246,7 @@ export function ExercicePage() {
                           {j.nature === 'LEGALE' ? 'LÉGAL' : 'INTERNE'}
                         </span>
                       </td>
-                      <td className="px-3 py-2 text-[11px]">
+                      <td className="px-3 py-2 text-[10.5px]">
                         {j.observation ? (
                           <span className={j.observation.satisfait ? 'text-positive' : 'text-danger'}>
                             {j.observation.satisfait ? '✓ ' : '! '}
@@ -260,7 +260,7 @@ export function ExercicePage() {
                   ))}
                 </tbody>
               </table>
-              <p className="px-3 py-2.5 text-[10.5px] text-text-dim border-t border-border">
+              <p className="px-3 py-2.5 text-[10px] text-text-dim border-t border-border">
                 Les dates se calculent à partir de la date de clôture de cet exercice. Les échéances légales
                 proviennent des notes de cours d’organisation comptable du CPCC (novembre 2020), antérieures au
                 SYCEBNL et non revérifiées sur texte primaire : ce sont des jalons indicatifs, pas un calcul
@@ -274,27 +274,27 @@ export function ExercicePage() {
 
       {exercice && (
         <div className="mb-5 border border-border max-w-[720px] p-4 bg-surface">
-          <div className="font-mono text-[11px] font-semibold text-text-dim mb-2">CLÔTURE ANNUELLE</div>
-          <p className="text-[12px] text-text-dim mb-3">
+          <div className="font-mono text-[10.5px] font-semibold text-text-dim mb-2">CLÔTURE ANNUELLE</div>
+          <p className="text-[11px] text-text-dim mb-3">
             Solde les comptes de charges/produits (mode « Aucun ») sur le résultat de l'exercice, puis génère le
             report à-nouveau réel dans l'exercice suivant selon le mode de chaque compte (Solde/Détail). Action
             définitive.
           </p>
           {exercice.statut === 'CLOTURE' ? (
-            <span className="font-mono text-[10.5px] font-bold px-2 py-1 bg-surface-alt text-text-dim w-fit inline-block">
+            <span className="font-mono text-[10px] font-bold px-2 py-1 bg-surface-alt text-text-dim w-fit inline-block">
               EXERCICE DÉJÀ CLÔTURÉ
             </span>
           ) : estAdmin ? (
             <button
               onClick={cloturerExercice}
               disabled={envoi}
-              className="bg-danger text-white text-[12.5px] font-semibold px-4 py-1.5 disabled:opacity-50 flex items-center gap-1.5"
+              className="bg-danger text-white text-[11px] font-semibold px-4 py-1.5 disabled:opacity-50 flex items-center gap-1.5"
             >
               <IconLock width={14} height={14} />
               {envoi ? 'Clôture…' : "Clôturer l'exercice"}
             </button>
           ) : (
-            <span className="text-[11.5px] text-text-dim">Réservé aux administrateurs du dossier.</span>
+            <span className="text-[10.5px] text-text-dim">Réservé aux administrateurs du dossier.</span>
           )}
         </div>
       )}
@@ -302,15 +302,15 @@ export function ExercicePage() {
       {estAdmin && exercice && exercice.statut === 'OUVERT' && (
         <div className="grid grid-cols-3 gap-3 mb-5 max-w-[980px]">
           <form onSubmit={clorePartielle} className="bg-surface border border-border p-3">
-            <div className="font-mono text-[10.5px] font-semibold text-text-dim mb-2">CLÔTURE PARTIELLE</div>
-            <p className="text-[11px] text-text-dim mb-2">Verrouille un journal jusqu'à une date · réversible.</p>
-            <label className="block text-[11px] font-semibold text-text-dim mb-2">
+            <div className="font-mono text-[10px] font-semibold text-text-dim mb-2">CLÔTURE PARTIELLE</div>
+            <p className="text-[10.5px] text-text-dim mb-2">Verrouille un journal jusqu'à une date · réversible.</p>
+            <label className="block text-[10.5px] font-semibold text-text-dim mb-2">
               Journal
               <select
                 required
                 value={journalPartielleId}
                 onChange={(e) => setJournalPartielleId(e.target.value)}
-                className="mt-1 w-full border border-border-dark px-2 py-1 text-[12px] font-normal"
+                className="mt-1 w-full border border-border-dark px-2 py-1 text-[11px] font-normal"
               >
                 <option value="">Sélectionner</option>
                 {journaux.map((j) => (
@@ -320,31 +320,31 @@ export function ExercicePage() {
                 ))}
               </select>
             </label>
-            <label className="block text-[11px] font-semibold text-text-dim mb-2">
+            <label className="block text-[10.5px] font-semibold text-text-dim mb-2">
               Date limite
               <input
                 required
                 type="date"
                 value={dateLimitePartielle}
                 onChange={(e) => setDateLimitePartielle(e.target.value)}
-                className="mt-1 w-full border border-border-dark px-2 py-1 text-[12px] font-normal"
+                className="mt-1 w-full border border-border-dark px-2 py-1 text-[11px] font-normal"
               />
             </label>
-            <button type="submit" disabled={envoi} className="bg-sel text-white text-[11.5px] font-semibold px-3 py-1.5 disabled:opacity-50">
+            <button type="submit" disabled={envoi} className="bg-sel text-white text-[10.5px] font-semibold px-3 py-1.5 disabled:opacity-50">
               Clôturer
             </button>
           </form>
 
           <form onSubmit={cloreTotale} className="bg-surface border border-border p-3">
-            <div className="font-mono text-[10.5px] font-semibold text-text-dim mb-2">CLÔTURE TOTALE</div>
-            <p className="text-[11px] text-text-dim mb-2">Fige un journal en entier · définitive.</p>
-            <label className="block text-[11px] font-semibold text-text-dim mb-2">
+            <div className="font-mono text-[10px] font-semibold text-text-dim mb-2">CLÔTURE TOTALE</div>
+            <p className="text-[10.5px] text-text-dim mb-2">Fige un journal en entier · définitive.</p>
+            <label className="block text-[10.5px] font-semibold text-text-dim mb-2">
               Journal
               <select
                 required
                 value={journalTotaleId}
                 onChange={(e) => setJournalTotaleId(e.target.value)}
-                className="mt-1 w-full border border-border-dark px-2 py-1 text-[12px] font-normal"
+                className="mt-1 w-full border border-border-dark px-2 py-1 text-[11px] font-normal"
               >
                 <option value="">Sélectionner</option>
                 {journaux.map((j) => (
@@ -354,25 +354,25 @@ export function ExercicePage() {
                 ))}
               </select>
             </label>
-            <button type="submit" disabled={envoi} className="bg-sel text-white text-[11.5px] font-semibold px-3 py-1.5 disabled:opacity-50 mt-[38px]">
+            <button type="submit" disabled={envoi} className="bg-sel text-white text-[10.5px] font-semibold px-3 py-1.5 disabled:opacity-50 mt-[38px]">
               Clôturer
             </button>
           </form>
 
           <form onSubmit={clorePeriode} className="bg-surface border border-border p-3">
-            <div className="font-mono text-[10.5px] font-semibold text-text-dim mb-2">CLÔTURE DE PÉRIODE</div>
-            <p className="text-[11px] text-text-dim mb-2">Verrouille tous les journaux jusqu'à une date · définitive.</p>
-            <label className="block text-[11px] font-semibold text-text-dim mb-2">
+            <div className="font-mono text-[10px] font-semibold text-text-dim mb-2">CLÔTURE DE PÉRIODE</div>
+            <p className="text-[10.5px] text-text-dim mb-2">Verrouille tous les journaux jusqu'à une date · définitive.</p>
+            <label className="block text-[10.5px] font-semibold text-text-dim mb-2">
               Date limite
               <input
                 required
                 type="date"
                 value={dateLimitePeriode}
                 onChange={(e) => setDateLimitePeriode(e.target.value)}
-                className="mt-1 w-full border border-border-dark px-2 py-1 text-[12px] font-normal"
+                className="mt-1 w-full border border-border-dark px-2 py-1 text-[11px] font-normal"
               />
             </label>
-            <button type="submit" disabled={envoi} className="bg-sel text-white text-[11.5px] font-semibold px-3 py-1.5 disabled:opacity-50 mt-[38px]">
+            <button type="submit" disabled={envoi} className="bg-sel text-white text-[10.5px] font-semibold px-3 py-1.5 disabled:opacity-50 mt-[38px]">
               Clôturer
             </button>
           </form>
@@ -388,12 +388,12 @@ export function ExercicePage() {
           <span>STATUT</span>
           <span>ACTION</span>
         </div>
-        {!clotures && <div className="p-3 text-[12px] text-text-dim">Chargement…</div>}
-        {clotures?.length === 0 && <div className="p-3 text-[12px] text-text-dim">Aucune clôture enregistrée sur cet exercice.</div>}
+        {!clotures && <div className="p-3 text-[11px] text-text-dim">Chargement…</div>}
+        {clotures?.length === 0 && <div className="p-3 text-[11px] text-text-dim">Aucune clôture enregistrée sur cet exercice.</div>}
         {clotures?.map((c, i) => (
           <div
             key={c.id}
-            className={`grid grid-cols-[90px_1fr_100px_110px_90px_100px] gap-2 items-center px-3.5 py-1.5 border-b border-border last:border-b-0 text-[11.5px] ${
+            className={`grid grid-cols-[90px_1fr_100px_110px_90px_100px] gap-2 items-center px-3.5 py-1.5 border-b border-border last:border-b-0 text-[10.5px] ${
               i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'
             }`}
           >
@@ -401,8 +401,8 @@ export function ExercicePage() {
             <span className="font-mono text-text-dim truncate">
               {c.journal ? `${c.journal.code} · ${c.journal.intitule}` : 'Tous journaux'}
             </span>
-            <span className="font-mono text-[10.5px] text-text-dim">{new Date(c.dateLimite).toLocaleDateString('fr-FR')}</span>
-            <span className="font-mono text-[10.5px] text-text-dim">{new Date(c.createdAt).toLocaleDateString('fr-FR')}</span>
+            <span className="font-mono text-[10px] text-text-dim">{new Date(c.dateLimite).toLocaleDateString('fr-FR')}</span>
+            <span className="font-mono text-[10px] text-text-dim">{new Date(c.createdAt).toLocaleDateString('fr-FR')}</span>
             <span>
               {c.annuleeAt ? (
                 <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 bg-surface-alt text-text-dim">ANNULÉE</span>
@@ -414,7 +414,7 @@ export function ExercicePage() {
             </span>
             <span>
               {estAdmin && c.annulable && !c.annuleeAt && (
-                <button onClick={() => annuler(c)} className="text-[10.5px] font-semibold text-sel hover:underline">
+                <button onClick={() => annuler(c)} className="text-[10px] font-semibold text-sel hover:underline">
                   Annuler
                 </button>
               )}

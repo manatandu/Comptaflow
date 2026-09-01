@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../lib/api';
-import { useActionsFenetre } from '../lib/actions-fenetre';
 import type { Compte, EtatLettrage, GroupeLettrage } from '../lib/types';
 import { Aide } from '../components/chrome/Aide';
 
@@ -56,9 +55,6 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
   // nouveau groupe.
   const [completerId, setCompleterId] = useState<string | null>(null);
   const selecteurCompteRef = useRef<HTMLSelectElement>(null);
-  useActionsFenetre({
-    rechercher: { titre: 'Choisir le compte à interroger', executer: () => selecteurCompteRef.current?.focus() },
-  });
 
   const charger = async () => {
     // Sans compte choisi (fenêtre ouverte depuis le menu Traitement), la
@@ -178,7 +174,7 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
       <div className="flex items-end justify-between max-w-[1040px] mb-1.5 gap-3 flex-wrap">
         <div>
           <div className="text-[10px] font-mono text-text-dim leading-none">TRAITEMENT</div>
-          <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
+          <h1 className="text-[12px] font-bold leading-tight flex items-center gap-1.5">
             <span>
               Interrogation et lettrage
               {compte && (
@@ -202,7 +198,7 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
                 if (compteFixe) navigate(`/comptes/${e.target.value}/lettrage`);
                 else setCompteChoisi(e.target.value);
               }}
-              className="border border-border-dark bg-surface px-2 py-1 text-[11.5px] font-mono min-w-[280px]"
+              className="border border-border-dark bg-surface px-2 py-1 text-[10.5px] font-mono min-w-[280px]"
             >
               {!compteId && (
                 <option value="" disabled>
@@ -222,7 +218,7 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
             onClick={lancerLettrageAuto}
             disabled={envoi || !compte?.lettrable}
             title="Apparie d'abord par référence de pièce, puis par montant"
-            className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[11.5px] disabled:opacity-50"
+            className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[10.5px] disabled:opacity-50"
           >
             Lettrage automatique
           </button>
@@ -230,20 +226,20 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
       </div>
 
       {compte && !compte.lettrable && (
-        <div className="text-[12px] bg-warning-soft border border-warning/40 px-3 py-2 mb-3 max-w-[860px]">
+        <div className="text-[11px] bg-warning-soft border border-warning/40 px-3 py-2 mb-3 max-w-[860px]">
           Ce compte n'est pas ouvert au lettrage. Le référentiel laisse à l'entité « la liberté de définir la liste des
           comptes auxquels s'applique le lettrage » : ouvrez-le depuis le plan comptable si vous souhaitez y rapprocher
           des mouvements.
         </div>
       )}
-      {erreur && <div className="text-[12px] text-danger bg-danger-soft border border-danger/30 px-3 py-2 mb-3 max-w-[860px]">{erreur}</div>}
-      {info && <div className="text-[12px] text-positive bg-positive-soft border border-positive/30 px-3 py-2 mb-3 max-w-[860px]">{info}</div>}
+      {erreur && <div className="text-[11px] text-danger bg-danger-soft border border-danger/30 px-3 py-2 mb-3 max-w-[860px]">{erreur}</div>}
+      {info && <div className="text-[11px] text-positive bg-positive-soft border border-positive/30 px-3 py-2 mb-3 max-w-[860px]">{info}</div>}
 
       {!lignes &&
         (compteId ? (
-          <div className="text-[12px] text-text-dim">Chargement…</div>
+          <div className="text-[11px] text-text-dim">Chargement…</div>
         ) : (
-          <div className="text-[12px] text-text-dim bg-chrome border border-border px-3 py-2 max-w-[860px]">
+          <div className="text-[11px] text-text-dim bg-chrome border border-border px-3 py-2 max-w-[860px]">
             Choisissez le compte à interroger dans la liste ci-dessus : ses mouvements et ses lettrages s'afficheront
             ici.
           </div>
@@ -271,7 +267,7 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
               return (
                 <div
                   key={l.id}
-                  className={`${GRILLE} px-3.5 py-[4px] items-center border-b border-border/50 last:border-b-0 text-[11.5px] ${
+                  className={`${GRILLE} px-3.5 py-[4px] items-center border-b border-border/50 last:border-b-0 text-[10.5px] ${
                     selection.has(l.id) ? 'bg-sel-soft' : soldee ? 'opacity-60' : ''
                   }`}
                 >
@@ -285,7 +281,7 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
                     checked={selection.has(l.id)}
                     onChange={() => basculerSelection(l.id)}
                   />
-                  <span className="font-mono text-[10.5px] text-text-dim">{new Date(l.date).toLocaleDateString('fr-FR')}</span>
+                  <span className="font-mono text-[10px] text-text-dim">{new Date(l.date).toLocaleDateString('fr-FR')}</span>
                   <span className="font-mono text-text-dim">{l.journalCode}</span>
                   <span className="truncate" title={l.reference ? `Pièce ${l.reference}` : undefined}>
                     {l.libelle}
@@ -302,7 +298,7 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
                     {l.codeLettrage && (
                       <>
                         <span
-                          className={`font-mono text-[10.5px] font-bold ${soldee ? 'text-sel' : 'text-warning'}`}
+                          className={`font-mono text-[10px] font-bold ${soldee ? 'text-sel' : 'text-warning'}`}
                           title={soldee ? 'Lettrage soldé' : 'Lettrage partiel · la ligne reste ouverte pour le solde'}
                         >
                           {l.codeLettrage}
@@ -315,9 +311,9 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
               );
             });
           })()}
-          {lignes.length === 0 && <div className="p-3 text-[12px] text-text-dim">Aucun mouvement sur ce compte.</div>}
+          {lignes.length === 0 && <div className="p-3 text-[11px] text-text-dim">Aucun mouvement sur ce compte.</div>}
           {lignes.length > 0 && (
-            <div className={`${GRILLE} px-3.5 py-1.5 bg-surface-alt border-t border-border-dark text-[11.5px] font-bold`}>
+            <div className={`${GRILLE} px-3.5 py-1.5 bg-surface-alt border-t border-border-dark text-[10.5px] font-bold`}>
               <span className="col-span-3" />
               <span className="text-right text-[10px] text-text-dim self-center">TOTAL MOUVEMENTS · SOLDE</span>
               <span className="font-mono text-right">{montant(lignes.reduce((t, l) => t + l.debit, 0))}</span>
@@ -332,7 +328,7 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
       {lignes && lignes.length > 0 && compte?.lettrable && (
         <div className="mt-3 max-w-[1040px] border border-border bg-surface px-3.5 py-2.5">
           <div className="flex items-center gap-4 flex-wrap">
-            <span className="text-[11.5px] text-text-dim">
+            <span className="text-[10.5px] text-text-dim">
               {lignesSelectionnees.length} ligne(s) sélectionnée(s) · solde{' '}
               <span className={soldeNul ? 'text-positive font-semibold' : 'text-warning font-semibold'}>
                 {montant(soldeSelection)}
@@ -340,12 +336,12 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
             </span>
 
             {partiels.length > 0 && (
-              <label className="flex items-center gap-1.5 text-[11.5px]">
+              <label className="flex items-center gap-1.5 text-[10.5px]">
                 Compléter
                 <select
                   value={completerId ?? ''}
                   onChange={(e) => setCompleterId(e.target.value || null)}
-                  className="border border-border-dark bg-surface px-2 py-1 text-[11.5px] font-mono"
+                  className="border border-border-dark bg-surface px-2 py-1 text-[10.5px] font-mono"
                 >
                   <option value="">un nouveau lettrage</option>
                   {partiels.map((g) => (
@@ -358,7 +354,7 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
             )}
 
             {!completerId && (
-              <label className="flex items-center gap-1.5 text-[11.5px]" title="« La somme des montants lettrés au débit peut être égale, supérieure ou inférieure à celle des montants lettrés au crédit » (CPCC, ch. 6)">
+              <label className="flex items-center gap-1.5 text-[10.5px]" title="« La somme des montants lettrés au débit peut être égale, supérieure ou inférieure à celle des montants lettrés au crédit » (CPCC, ch. 6)">
                 <input type="checkbox" checked={autoriserPartiel} onChange={(e) => setAutoriserPartiel(e.target.checked)} />
                 Lettrage partiel (règlement d'acompte)
               </label>
@@ -367,7 +363,7 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
             <button
               onClick={valider}
               disabled={!peutValider || envoi}
-              className="bg-sel text-white text-[12px] font-semibold px-3 py-1.5 disabled:opacity-40"
+              className="bg-sel text-white text-[11px] font-semibold px-3 py-1.5 disabled:opacity-40"
             >
               {envoi ? 'Lettrage…' : completerId ? 'Compléter le lettrage' : 'Lettrer la sélection'}
             </button>
@@ -392,27 +388,27 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
           {groupes.map((g) => (
             <div
               key={g.id}
-              className="grid grid-cols-[60px_90px_110px_150px_110px_1fr_130px] gap-2.5 px-3.5 py-1 items-center border-b border-border/50 last:border-b-0 text-[11.5px]"
+              className="grid grid-cols-[60px_90px_110px_150px_110px_1fr_130px] gap-2.5 px-3.5 py-1 items-center border-b border-border/50 last:border-b-0 text-[10.5px]"
             >
               <span className={`font-mono font-bold ${g.statut === 'SOLDE' ? 'text-sel' : 'text-warning'}`}>{g.code}</span>
-              <span className="text-[10.5px]">{g.statut === 'SOLDE' ? 'Soldé' : 'Partiel'}</span>
+              <span className="text-[10px]">{g.statut === 'SOLDE' ? 'Soldé' : 'Partiel'}</span>
               <span className="font-mono text-right">{g.statut === 'SOLDE' ? '·' : montant(g.solde)}</span>
-              <span className="text-[10.5px] text-text-dim">{LIBELLE_ORIGINE[g.origine]}</span>
-              <span className="font-mono text-right text-[10.5px]" title={g.ecartChange === null ? "Aucune ligne en devise, ou position non dénouée en devise · ce n'est pas zéro" : undefined}>
+              <span className="text-[10px] text-text-dim">{LIBELLE_ORIGINE[g.origine]}</span>
+              <span className="font-mono text-right text-[10px]" title={g.ecartChange === null ? "Aucune ligne en devise, ou position non dénouée en devise · ce n'est pas zéro" : undefined}>
                 {g.ecartChange === null ? '·' : montant(g.ecartChange)}
               </span>
-              <span className="text-[10.5px] text-text-dim">
+              <span className="text-[10px] text-text-dim">
                 {new Date(g.createdAt).toLocaleDateString('fr-FR')} · {g.createdBy}
               </span>
               <span className="flex items-center gap-2 justify-end">
-                <button onClick={() => basculerVerrou(g)} disabled={envoi} className="text-[10.5px] hover:underline">
+                <button onClick={() => basculerVerrou(g)} disabled={envoi} className="text-[10px] hover:underline">
                   {g.verrouille ? 'Déverrouiller' : 'Verrouiller'}
                 </button>
                 <button
                   onClick={() => delettrer(g.code)}
                   disabled={envoi || g.verrouille}
                   title={g.verrouille ? 'Lettrage verrouillé' : 'Défaire ce lettrage'}
-                  className="text-[10.5px] text-danger hover:underline disabled:opacity-40 disabled:no-underline"
+                  className="text-[10px] text-danger hover:underline disabled:opacity-40 disabled:no-underline"
                 >
                   Délettrer
                 </button>

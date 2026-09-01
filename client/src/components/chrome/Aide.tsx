@@ -139,9 +139,9 @@ export function Aide(
             style={{ top: pos.top, left: pos.left, width: 320, maxHeight: 'calc(100dvh - 16px)', overflowY: 'auto' }}
             className="fixed z-[60] bg-surface border border-border shadow-flottante rounded-[10px] p-3.5 anim-menu"
           >
-            <div className="text-[12.5px] font-bold text-text mb-1.5">{entree.titre}</div>
-            <p className="text-[12px] leading-[1.55] text-text-dim">{entree.texte}</p>
-            <div className="mt-2.5 pt-2 border-t border-border text-[10.5px] text-text-dim/80">{entree.source}</div>
+            <div className="text-[11px] font-bold text-text mb-1.5">{entree.titre}</div>
+            <p className="text-[11px] leading-[1.55] text-text-dim">{entree.texte}</p>
+            <div className="mt-2.5 pt-2 border-t border-border text-[10px] text-text-dim/80">{entree.source}</div>
           </div>,
           document.body,
         )}

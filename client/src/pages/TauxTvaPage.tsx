@@ -1,6 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
-import { useActionsFenetre } from '../lib/actions-fenetre';
 import { useAuth } from '../lib/auth';
 import type { Compte, TauxTva } from '../lib/types';
 
@@ -18,7 +17,6 @@ export function TauxTvaPage() {
   const [erreur, setErreur] = useState<string | null>(null);
   const [nouveauOuvert, setNouveauOuvert] = useState(false);
 
-  useActionsFenetre({ ajouter: { titre: 'Nouveau taux de taxe', executer: () => setNouveauOuvert(true) } });
 
   const [code, setCode] = useState('');
   const [intitule, setIntitule] = useState('');
@@ -46,8 +44,8 @@ export function TauxTvaPage() {
   if (!estAdmin) {
     return (
       <div className="p-2">
-        <h1 className="text-[13px] font-bold leading-tight mb-1.5">Taux de taxes</h1>
-        <div className="border border-warning/30 bg-warning-soft px-4 py-3 text-[12.5px] max-w-[480px]">
+        <h1 className="text-[12px] font-bold leading-tight mb-1.5">Taux de taxes</h1>
+        <div className="border border-warning/30 bg-warning-soft px-4 py-3 text-[11px] max-w-[480px]">
           Cette fenêtre est réservée aux administrateurs du dossier.
         </div>
       </div>
@@ -94,15 +92,15 @@ export function TauxTvaPage() {
       <div className="flex items-center justify-between mb-2">
         <div>
           <div className="text-[10px] font-mono text-text-dim leading-none">STRUCTURE</div>
-          <h1 className="text-[13px] font-bold leading-tight">Taux de taxes (TVA)</h1>
+          <h1 className="text-[12px] font-bold leading-tight">Taux de taxes (TVA)</h1>
         </div>
-        <button type="button" onClick={() => setNouveauOuvert(true)} className="bg-sel text-white px-3.5 py-1 text-[11.5px] font-semibold">
+        <button type="button" onClick={() => setNouveauOuvert(true)} className="bg-sel text-white px-3.5 py-1 text-[10.5px] font-semibold">
           Nouveau taux
         </button>
       </div>
 
       {erreur && (
-        <div className="text-[12px] text-danger bg-danger-soft border border-danger/30 px-3 py-1.5 mb-2">{erreur}</div>
+        <div className="text-[11px] text-danger bg-danger-soft border border-danger/30 px-3 py-1.5 mb-2">{erreur}</div>
       )}
 
       <div className="border border-border bg-surface shadow-posee">
@@ -114,26 +112,26 @@ export function TauxTvaPage() {
           <span>DÉDUCTIBLE (445 · ACHATS)</span>
           <span>ÉTAT</span>
         </div>
-        {!liste && <div className="px-3.5 py-3 text-[12px] text-text-dim">Chargement…</div>}
+        {!liste && <div className="px-3.5 py-3 text-[11px] text-text-dim">Chargement…</div>}
         {liste?.map((t) => (
           <div
             key={t.id}
-            className={`grid grid-cols-[80px_1fr_78px_210px_210px_80px] gap-2.5 items-center px-3.5 py-[4px] border-b border-border/50 last:border-b-0 text-[11.5px] hover:bg-sel-soft ${
+            className={`grid grid-cols-[80px_1fr_78px_210px_210px_80px] gap-2.5 items-center px-3.5 py-[4px] border-b border-border/50 last:border-b-0 text-[10.5px] hover:bg-sel-soft ${
               !t.estActif ? 'opacity-55' : ''
             }`}
           >
             <span className="font-mono font-semibold">{t.code}</span>
             <span className="truncate">{t.intitule}</span>
             <span className="font-mono text-right">{Number(t.taux).toLocaleString('fr-FR')} %</span>
-            <span className="font-mono text-[10.5px] text-text-dim truncate">
+            <span className="font-mono text-[10px] text-text-dim truncate">
               {t.compteCollecte ? `${t.compteCollecte.numero} ${t.compteCollecte.intitule}` : ''}
             </span>
-            <span className="font-mono text-[10.5px] text-text-dim truncate">
+            <span className="font-mono text-[10px] text-text-dim truncate">
               {t.compteDeductible ? `${t.compteDeductible.numero} ${t.compteDeductible.intitule}` : ''}
             </span>
             <button
               onClick={() => basculerActif(t)}
-              className={`text-[10.5px] text-left ${t.estActif ? 'text-positive hover:underline' : 'text-warning hover:underline'}`}
+              className={`text-[10px] text-left ${t.estActif ? 'text-positive hover:underline' : 'text-warning hover:underline'}`}
             >
               {t.estActif ? 'Actif' : 'Inactif'}
             </button>
@@ -141,7 +139,7 @@ export function TauxTvaPage() {
         ))}
       </div>
 
-      <p className="text-[10.5px] text-text-dim mt-2 max-w-[860px]">
+      <p className="text-[10px] text-text-dim mt-2 max-w-[860px]">
         Taux normal 16 %, réduits 1 % et 5 % (billets d'avion), zéro (exportations) · Ordonnance-Loi n° 10/001
         du 20/08/2010, art. 35 (modifié par la Loi de Finances 2026). Une opération exonérée (ex. activité
         normale d'une ASBL · art. 15.2/17.8) n'utilise aucun taux : ce n'est pas un taux à 0 %.
@@ -151,7 +149,7 @@ export function TauxTvaPage() {
         <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
           <form onSubmit={onCreer} className="anim-modale w-full max-w-[480px] bg-surface border border-border-dark shadow-flottante max-h-[calc(100dvh-2rem)] overflow-y-auto">
             <div
-              className="h-[26px] flex items-center justify-between px-2.5 text-white text-[11.5px]"
+              className="h-[26px] flex items-center justify-between px-2.5 text-white text-[10.5px]"
               style={{ background: 'linear-gradient(180deg, var(--titlebar-from), var(--titlebar-to))' }}
             >
               <span>Nouveau taux de taxe</span>
@@ -161,14 +159,14 @@ export function TauxTvaPage() {
             </div>
             <div className="p-4">
               <div className="grid grid-cols-[150px_1fr] items-center gap-x-3 gap-y-2.5">
-                <label className="text-[12px] text-right">Code :</label>
-                <input required autoFocus value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="TVA16…" className="border border-border-dark px-2.5 py-1.5 text-[13px] font-mono" />
-                <label className="text-[12px] text-right">Intitulé :</label>
-                <input required value={intitule} onChange={(e) => setIntitule(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[13px]" />
-                <label className="text-[12px] text-right">Taux (%) :</label>
-                <input required type="number" min={0} max={100} step="0.01" value={taux} onChange={(e) => setTaux(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[13px] font-mono text-right" />
-                <label className="text-[12px] text-right">Collectée (443) :</label>
-                <select value={compteCollecteId} onChange={(e) => setCompteCollecteId(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[12px]">
+                <label className="text-[11px] text-right">Code :</label>
+                <input required autoFocus value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="TVA16…" className="border border-border-dark px-2.5 py-1.5 text-[12px] font-mono" />
+                <label className="text-[11px] text-right">Intitulé :</label>
+                <input required value={intitule} onChange={(e) => setIntitule(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[12px]" />
+                <label className="text-[11px] text-right">Taux (%) :</label>
+                <input required type="number" min={0} max={100} step="0.01" value={taux} onChange={(e) => setTaux(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[12px] font-mono text-right" />
+                <label className="text-[11px] text-right">Collectée (443) :</label>
+                <select value={compteCollecteId} onChange={(e) => setCompteCollecteId(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[11px]">
                   <option value="">Aucun</option>
                   {comptesClasse4.map((c) => (
                     <option key={c.id} value={c.id}>
@@ -176,8 +174,8 @@ export function TauxTvaPage() {
                     </option>
                   ))}
                 </select>
-                <label className="text-[12px] text-right">Déductible (445) :</label>
-                <select value={compteDeductibleId} onChange={(e) => setCompteDeductibleId(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[12px]">
+                <label className="text-[11px] text-right">Déductible (445) :</label>
+                <select value={compteDeductibleId} onChange={(e) => setCompteDeductibleId(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[11px]">
                   <option value="">Aucun</option>
                   {comptesClasse4.map((c) => (
                     <option key={c.id} value={c.id}>
@@ -187,10 +185,10 @@ export function TauxTvaPage() {
                 </select>
               </div>
               <div className="flex justify-end gap-2 mt-4">
-                <button type="button" onClick={() => setNouveauOuvert(false)} className="border border-border-dark bg-chrome hover:bg-chrome-alt px-4 py-1.5 text-[12px]">
+                <button type="button" onClick={() => setNouveauOuvert(false)} className="border border-border-dark bg-chrome hover:bg-chrome-alt px-4 py-1.5 text-[11px]">
                   Annuler
                 </button>
-                <button type="submit" disabled={envoi} className="bg-sel text-white px-4 py-1.5 text-[12px] font-semibold disabled:opacity-50">
+                <button type="submit" disabled={envoi} className="bg-sel text-white px-4 py-1.5 text-[11px] font-semibold disabled:opacity-50">
                   {envoi ? 'Création…' : 'Créer le taux'}
                 </button>
               </div>

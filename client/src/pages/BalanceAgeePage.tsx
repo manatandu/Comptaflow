@@ -76,7 +76,7 @@ export function BalanceAgeePage() {
       <div className="flex items-end justify-between mb-1.5 gap-3 flex-wrap">
         <div>
           <div className="text-[10px] font-mono text-text-dim leading-none">ÉTAT</div>
-          <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
+          <h1 className="text-[12px] font-bold leading-tight flex items-center gap-1.5">
             Balance âgée
             <Aide sujet="balanceAgee" />
           </h1>
@@ -87,7 +87,7 @@ export function BalanceAgeePage() {
             <select
               value={type}
               onChange={(e) => setType(e.target.value as TypeTiers)}
-              className="border border-border-dark bg-surface px-2 py-1 text-[11.5px] min-w-[190px]"
+              className="border border-border-dark bg-surface px-2 py-1 text-[10.5px] min-w-[190px]"
             >
               {(Object.keys(LIBELLE_TYPE) as TypeTiers[]).map((t) => (
                 <option key={t} value={t}>
@@ -102,14 +102,14 @@ export function BalanceAgeePage() {
               type="date"
               value={dateReference}
               onChange={(e) => setDateReference(e.target.value)}
-              className="border border-border-dark bg-surface px-2 py-1 text-[11.5px] font-mono"
+              className="border border-border-dark bg-surface px-2 py-1 text-[10.5px] font-mono"
             />
           </label>
         </div>
       </div>
 
       {erreur && (
-        <div className="text-[12px] text-danger bg-danger-soft border border-danger/30 px-3 py-2 mb-2.5">{erreur}</div>
+        <div className="text-[11px] text-danger bg-danger-soft border border-danger/30 px-3 py-2 mb-2.5">{erreur}</div>
       )}
 
       <div className="border border-border bg-surface shadow-posee">
@@ -125,7 +125,7 @@ export function BalanceAgeePage() {
         </div>
 
         {donnees && donnees.comptes.length === 0 && (
-          <div className="px-3.5 py-4 text-[11.5px] text-text-dim">
+          <div className="px-3.5 py-4 text-[10.5px] text-text-dim">
             Aucune échéance non lettrée sur les comptes de tiers de cet exercice · soit rien n'est dû, soit
             tout est lettré. Les créances et dettes lettrées sont soldées, donc hors balance âgée.
           </div>
@@ -134,7 +134,7 @@ export function BalanceAgeePage() {
         {donnees?.comptes.map((c) => (
           <div
             key={c.compteId}
-            className={`${grille} px-3.5 py-[4px] items-center border-b border-border/50 text-[11.5px]`}
+            className={`${grille} px-3.5 py-[4px] items-center border-b border-border/50 text-[10.5px]`}
           >
             <span className="font-mono">{c.numero}</span>
             <span className="truncate" title={c.intitule}>
@@ -154,7 +154,7 @@ export function BalanceAgeePage() {
         ))}
 
         {donnees && donnees.comptes.length > 0 && (
-          <div className={`${grille} px-3.5 py-1.5 bg-surface-alt border-t border-border-dark text-[11.5px] font-bold`}>
+          <div className={`${grille} px-3.5 py-1.5 bg-surface-alt border-t border-border-dark text-[10.5px] font-bold`}>
             <span />
             <span className="text-right text-[10px] text-text-dim self-center">TOTAUX</span>
             <span className="font-mono text-right">{montant(donnees.totaux.nonEchu)}</span>
@@ -169,7 +169,7 @@ export function BalanceAgeePage() {
         )}
       </div>
 
-      <p className="text-[10.5px] text-text-dim mt-2 max-w-[860px]">
+      <p className="text-[10px] text-text-dim mt-2 max-w-[860px]">
         Montants signés vus du compte : créances des adhérents/clients au débit (positives), dettes
         fournisseurs au crédit (négatives). Une échéance non renseignée en saisie est rattachée à la date de
         l'écriture. Les lignes lettrées, soldées par définition, n'apparaissent pas.

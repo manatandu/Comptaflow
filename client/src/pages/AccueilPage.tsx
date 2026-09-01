@@ -213,23 +213,23 @@ export function AccueilPage() {
         />
         <div className="relative flex flex-wrap items-end justify-between gap-4">
           <div className="min-w-0">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.09em] text-white/55">Dossier ouvert</div>
-            <h1 className="text-[20px] font-semibold leading-tight mt-0.5 truncate">{utilisateur?.tenant.nom}</h1>
-            <div className="text-[12px] text-white/70 mt-1">
+            <div className="text-[10.5px] font-semibold uppercase tracking-[0.09em] text-white/55">Dossier ouvert</div>
+            <h1 className="text-[17px] font-semibold leading-tight mt-0.5 truncate">{utilisateur?.tenant.nom}</h1>
+            <div className="text-[11px] text-white/70 mt-1">
               {utilisateur?.tenant.referentiel}
               {jeu && ` · ${jeu}`}
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
             {anneeExercice && (
-              <span className="rounded-[10px] bg-white/10 px-3 py-1.5 text-[12px] font-semibold">
+              <span className="rounded-[10px] bg-white/10 px-3 py-1.5 text-[11px] font-semibold">
                 Exercice {anneeExercice}
               </span>
             )}
             <button
               type="button"
               onClick={() => setWizardOuvert(true)}
-              className="flex items-center gap-1.5 rounded-[10px] bg-white/12 px-3 py-1.5 text-[12px] font-semibold hover:bg-white/20"
+              className="flex items-center gap-1.5 rounded-[10px] bg-white/12 px-3 py-1.5 text-[11px] font-semibold hover:bg-white/20"
             >
               <IconFileAdd width={14} height={14} />
               Nouveau dossier
@@ -240,7 +240,7 @@ export function AccueilPage() {
                 seDeconnecter();
                 navigate('/connexion');
               }}
-              className="flex items-center gap-1.5 rounded-[10px] bg-white/12 px-3 py-1.5 text-[12px] font-semibold hover:bg-white/20"
+              className="flex items-center gap-1.5 rounded-[10px] bg-white/12 px-3 py-1.5 text-[11px] font-semibold hover:bg-white/20"
             >
               <IconFolderOpen width={14} height={14} />
               Ouvrir un autre
@@ -321,7 +321,7 @@ export function AccueilPage() {
         <button
           type="button"
           onClick={() => setAProposOuvert(true)}
-          className="flex items-center gap-1.5 text-[11.5px] text-text-dim hover:text-text"
+          className="flex items-center gap-1.5 text-[10.5px] text-text-dim hover:text-text"
         >
           <IconInfo width={13} height={13} />
           À propos d’OmegaX
@@ -336,7 +336,7 @@ export function AccueilPage() {
 
 function TitreBande({ children }: { children: React.ReactNode }) {
   return (
-    <div className="text-[11px] font-semibold uppercase tracking-[0.09em] text-text-dim mb-2 px-0.5">{children}</div>
+    <div className="text-[10.5px] font-semibold uppercase tracking-[0.09em] text-text-dim mb-2 px-0.5">{children}</div>
   );
 }
 
@@ -391,11 +391,11 @@ function CarteEtat({
       onClick={() => navigate(chemin)}
       className="group flex flex-col items-start gap-1.5 rounded-[12px] border border-border bg-surface p-3.5 text-left shadow-plate transition-[transform,box-shadow,border-color] duration-200 ease-sortie hover:-translate-y-[2px] hover:border-border-dark hover:shadow-flottante"
     >
-      <span className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.05em] text-text-dim">
+      <span className="flex items-center gap-2 text-[10.5px] font-semibold uppercase tracking-[0.05em] text-text-dim">
         <span className={`h-1.5 w-1.5 rounded-full ${bon ? 'bg-positive' : 'bg-warning'}`} aria-hidden />
         {titre}
       </span>
-      <span className={`text-[13px] font-medium leading-snug ${bon ? '' : 'text-warning'}`}>{valeur}</span>
+      <span className={`text-[12px] font-medium leading-snug ${bon ? '' : 'text-warning'}`}>{valeur}</span>
     </button>
   );
 }

@@ -1,7 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../lib/api';
-import { useActionsFenetre } from '../lib/actions-fenetre';
 import type { Compte, RapprochementBancaire } from '../lib/types';
 
 /**
@@ -14,7 +13,6 @@ export function RapprochementPage() {
   const [comptes, setComptes] = useState<Compte[] | null>(null);
   const [rapprochements, setRapprochements] = useState<RapprochementBancaire[] | null>(null);
   const [afficherFormulaire, setAfficherFormulaire] = useState(false);
-  useActionsFenetre({ ajouter: { titre: 'Nouveau rapprochement', executer: () => setAfficherFormulaire(true) } });
   const [erreur, setErreur] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
 
@@ -58,18 +56,23 @@ export function RapprochementPage() {
   return (
     <div className="p-2">
       <div className="text-[10px] font-mono text-text-dim leading-none">TRAITEMENT</div>
-      <h1 className="text-[13px] font-bold leading-tight mb-1.5">Rapprochement bancaire</h1>
+      <div className="flex items-center justify-between mb-1.5 max-w-[1100px]">
+        <h1 className="text-[12px] font-bold leading-tight">Rapprochement bancaire</h1>
+        <button type="button" onClick={() => setAfficherFormulaire((v) => !v)} className="bg-sel text-white rounded-[6px] px-3 py-[3px] text-[10.5px] font-semibold hover:opacity-90">
+          Nouveau rapprochement
+        </button>
+      </div>
 
       {afficherFormulaire && (
         <form onSubmit={onOuvrir} className="bg-surface border border-border p-4 mb-4 max-w-[600px]">
-          <div className="font-mono text-[11px] font-semibold text-text-dim mb-3">NOUVEAU RAPPROCHEMENT</div>
+          <div className="font-mono text-[10.5px] font-semibold text-text-dim mb-3">NOUVEAU RAPPROCHEMENT</div>
           <div className="grid grid-cols-2 gap-3 mb-3">
-            <label className="text-[11.5px] font-semibold text-text-dim">
+            <label className="text-[10.5px] font-semibold text-text-dim">
               Compte de trésorerie
               <select
                 value={compteId}
                 onChange={(e) => setCompteId(e.target.value)}
-                className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[13px] font-normal"
+                className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal"
               >
                 {(comptes ?? []).map((c) => (
                   <option key={c.id} value={c.id}>
@@ -78,17 +81,17 @@ export function RapprochementPage() {
                 ))}
               </select>
             </label>
-            <label className="text-[11.5px] font-semibold text-text-dim">
+            <label className="text-[10.5px] font-semibold text-text-dim">
               Date du relevé
               <input
                 type="date"
                 required
                 value={dateReleve}
                 onChange={(e) => setDateReleve(e.target.value)}
-                className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[13px] font-normal font-mono"
+                className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal font-mono"
               />
             </label>
-            <label className="text-[11.5px] font-semibold text-text-dim">
+            <label className="text-[10.5px] font-semibold text-text-dim">
               Solde du relevé
               <input
                 type="number"
@@ -96,27 +99,27 @@ export function RapprochementPage() {
                 required
                 value={soldeReleve}
                 onChange={(e) => setSoldeReleve(e.target.value)}
-                className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[13px] font-normal font-mono"
+                className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal font-mono"
               />
             </label>
           </div>
-          <p className="text-[11px] text-text-dim mb-3">
+          <p className="text-[10.5px] text-text-dim mb-3">
             Le solde à saisir est celui affiché en bas du relevé papier/PDF de la banque à la date choisie · pas un
             solde comptable. L'écart avec le solde pointé sera calculé automatiquement sur l'écran suivant.
           </p>
-          {erreur && <div className="text-[12px] text-danger bg-danger-soft border border-danger/30 px-2.5 py-1.5 mb-3">{erreur}</div>}
+          {erreur && <div className="text-[11px] text-danger bg-danger-soft border border-danger/30 px-2.5 py-1.5 mb-3">{erreur}</div>}
           <div className="flex gap-2">
-            <button type="submit" disabled={envoi || !compteId} className="bg-sel text-white text-[12.5px] font-semibold px-4 py-1.5 disabled:opacity-50">
+            <button type="submit" disabled={envoi || !compteId} className="bg-sel text-white text-[11px] font-semibold px-4 py-1.5 disabled:opacity-50">
               {envoi ? 'Ouverture…' : 'Ouvrir'}
             </button>
-            <button type="button" onClick={() => setAfficherFormulaire(false)} className="text-[12.5px] font-semibold text-text-dim px-4 py-1.5">
+            <button type="button" onClick={() => setAfficherFormulaire(false)} className="text-[11px] font-semibold text-text-dim px-4 py-1.5">
               Annuler
             </button>
           </div>
         </form>
       )}
 
-      {!rapprochements && <div className="text-[12px] text-text-dim">Chargement…</div>}
+      {!rapprochements && <div className="text-[11px] text-text-dim">Chargement…</div>}
 
       {rapprochements && (
         <div className="border border-border bg-surface shadow-posee max-w-[900px]">
@@ -131,14 +134,14 @@ export function RapprochementPage() {
           {rapprochements.map((r, i) => (
             <div
               key={r.id}
-              className={`grid grid-cols-[110px_1.2fr_100px_110px_90px_100px] gap-3 px-3.5 py-1.5 items-center border-b border-border last:border-b-0 text-[12px] ${
+              className={`grid grid-cols-[110px_1.2fr_100px_110px_90px_100px] gap-3 px-3.5 py-1.5 items-center border-b border-border last:border-b-0 text-[11px] ${
                 i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'
               }`}
             >
-              <span className="font-mono text-[10.5px]">{new Date(r.dateReleve).toLocaleDateString('fr-FR')}</span>
+              <span className="font-mono text-[10px]">{new Date(r.dateReleve).toLocaleDateString('fr-FR')}</span>
               <span>{r.compte ? `${r.compte.numero} · ${r.compte.intitule}` : r.compteId}</span>
               <span className="font-mono text-right">{r.soldeReleve.toLocaleString('fr-FR')}</span>
-              <span className="font-mono text-[10.5px] text-text-dim">{new Date(r.createdAt).toLocaleDateString('fr-FR')}</span>
+              <span className="font-mono text-[10px] text-text-dim">{new Date(r.createdAt).toLocaleDateString('fr-FR')}</span>
               <span
                 className={`font-mono text-[10px] font-bold px-1.5 py-0.5 w-fit ${
                   r.statut === 'CLOTURE' ? 'text-text-dim bg-surface-alt' : 'text-sel bg-sel/10'
@@ -146,13 +149,13 @@ export function RapprochementPage() {
               >
                 {r.statut === 'CLOTURE' ? 'CLÔTURÉ' : 'EN COURS'}
               </span>
-              <button onClick={() => navigate(`/rapprochement/${r.id}`)} className="text-[10.5px] text-sel hover:underline text-left">
+              <button onClick={() => navigate(`/rapprochement/${r.id}`)} className="text-[10px] text-sel hover:underline text-left">
                 Ouvrir
               </button>
             </div>
           ))}
           {rapprochements.length === 0 && (
-            <div className="p-3 text-[12px] text-text-dim">Aucun rapprochement pour l'instant.</div>
+            <div className="p-3 text-[11px] text-text-dim">Aucun rapprochement pour l'instant.</div>
           )}
         </div>
       )}

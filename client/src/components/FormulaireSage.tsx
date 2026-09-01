@@ -34,10 +34,10 @@ export function Ligne({
 }) {
   return (
     <div className="flex items-start gap-3 mb-1.5">
-      <span className="w-[158px] flex-shrink-0 text-right text-[12.5px] text-text leading-[26px]">{label}</span>
+      <span className="w-[158px] flex-shrink-0 text-right text-[11px] text-text leading-[26px]">{label}</span>
       <div className={large ? 'flex-1 min-w-0' : 'w-[210px] flex-shrink-0'}>
         {children}
-        {aide && <div className="mt-0.5 text-[11px] text-text-dim leading-[1.5]">{aide}</div>}
+        {aide && <div className="mt-0.5 text-[10.5px] text-text-dim leading-[1.5]">{aide}</div>}
       </div>
     </div>
   );
@@ -51,7 +51,7 @@ export function Ligne({
 export function SectionTitre({ children }: { children: ReactNode }) {
   return (
     <div className="flex items-center gap-3 mt-4 mb-2.5 first:mt-0">
-      <span className="text-[13px] text-text-dim">{children}</span>
+      <span className="text-[12px] text-text-dim">{children}</span>
       <span className="flex-1 h-px bg-border" />
     </div>
   );
@@ -59,7 +59,7 @@ export function SectionTitre({ children }: { children: ReactNode }) {
 
 /** Gabarit de champ commun à toutes les fenêtres de saisie du logiciel. */
 export const champSage =
-  'w-full rounded-[6px] border border-border bg-surface px-2.5 py-1 text-[13px] focus:outline-none focus:ring-2 focus:ring-sel/25 focus:border-sel disabled:bg-chrome disabled:text-text-dim';
+  'w-full rounded-[6px] border border-border bg-surface px-2.5 py-1 text-[12px] focus:outline-none focus:ring-2 focus:ring-sel/25 focus:border-sel disabled:bg-chrome disabled:text-text-dim';
 
 /**
  * DIALOGUE À ONGLETS VERTICAUX · la fenêtre « Identification de votre
@@ -99,7 +99,7 @@ export function OngletsVerticaux<T extends string>({
               type="button"
               onClick={() => onChanger(o.cle)}
               aria-current={estActif ? 'page' : undefined}
-              className={`w-full text-left px-3 py-1.5 text-[12.5px] border-l-[3px] transition-colors ${
+              className={`w-full text-left px-3 py-1.5 text-[11px] border-l-[3px] transition-colors ${
                 estActif
                   ? 'border-sel bg-sel-soft text-text font-semibold'
                   : 'border-transparent text-text-dim hover:bg-chrome-alt hover:text-text'

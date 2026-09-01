@@ -1,14 +1,38 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '../lib/api';
-import { useActionsFenetre } from '../lib/actions-fenetre';
 import { useExercice } from '../lib/exercice';
 import { useAuth } from '../lib/auth';
 import { IconFilter, IconExport } from '../components/chrome/icons';
 import { ModaleCorrection } from '../components/ModaleCorrection';
-import type { Compte, Ecriture, Journal, LigneBalance, LigneGrandLivre } from '../lib/types';
+import type { Ecriture, Journal, LigneBalance, LigneGrandLivre } from '../lib/types';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
 
 type Onglet = 'journal' | 'grand-livre' | 'balance';
+
+/**
+ * Grille de la balance à six colonnes · deux colonnes de repérage (numéro,
+ * intitulé) puis trois couples débit/crédit de largeur égale. Une seule
+ * définition, partagée par l'en-tête, les lignes et le pied : trois copies
+ * d'une même grille finissent toujours par diverger d'une colonne.
+ */
+const GRILLE_BALANCE = 'grid-cols-[80px_1fr_repeat(6,92px)]';
+
+/** Grille du grand livre · même définition pour l'en-tête, les lignes et le pied. */
+const GRILLE_GL = 'grid-cols-[66px_40px_54px_1.8fr_92px_92px_98px_54px_1fr]';
+
+/** Un compte du grand livre complet, tel que le sert `GET /ecritures/grand-livre`. */
+interface SectionGrandLivre {
+  compte: { id: string; numero: string; intitule: string };
+  lignes: LigneGrandLivre[];
+  soldeFinal: number;
+  totalDebit: number;
+  totalCredit: number;
+}
+
+/** Une cellule de montant · le zéro reste VIDE, comme sur une balance imprimée. */
+function Montant({ valeur }: { valeur: number }) {
+  return <span className="font-mono text-right">{valeur ? valeur.toLocaleString('fr-FR') : ''}</span>;
+}
 
 function estOnglet(v: string | null): v is Onglet {
   return v === 'journal' || v === 'grand-livre' || v === 'balance';
@@ -72,10 +96,9 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
   const [ecritures, setEcritures] = useState<Ecriture[]>([]);
   const [totaux, setTotaux] = useState({ debit: 0, credit: 0 });
   const [balance, setBalance] = useState<LigneBalance[]>([]);
-  const [comptes, setComptes] = useState<Compte[]>([]);
   const [journaux, setJournaux] = useState<Journal[]>([]);
   const [compteGrandLivreId, setCompteGrandLivreId] = useState('');
-  const [grandLivre, setGrandLivre] = useState<{ lignes: LigneGrandLivre[]; soldeFinal: number } | null>(null);
+  const [grandLivre, setGrandLivre] = useState<SectionGrandLivre[] | null>(null);
 
   // `filtres` est l'état des champs ; `filtresAppliques` ce qui a réellement
   // été envoyé au serveur. Les séparer évite de relancer une requête à
@@ -88,12 +111,6 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
   // ici, le panneau de filtres du journal (période, compte, montant). Il
   // n'existe que sur l'onglet Journal : sur la balance et le grand livre, le
   // verbe reste grisé, ce qui est exact.
-  useActionsFenetre({
-    rechercher:
-      onglet === 'journal'
-        ? { titre: 'Rechercher des écritures (filtres)', executer: () => setFiltresOuverts(true) }
-        : undefined,
-  });
 
   const [erreur, setErreur] = useState<string | null>(null);
   // Une correction (art. 20 de l'AUDCIF) change à la fois le journal, la
@@ -112,10 +129,6 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
 
   useEffect(() => {
     let annule = false;
-    api.get<Compte[]>('/comptes').then(
-      (r) => !annule && setComptes(r),
-      (e) => !annule && setErreur(e.message),
-    );
     api.get<Journal[]>('/journaux').then(
       (r) => !annule && setJournaux(r),
       (e) => !annule && setErreur(e.message),
@@ -161,27 +174,26 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
     };
   }, [exerciceCourant?.id, rechargement, onglet]);
 
+  // Le grand livre COMPLET est chargé une fois par visite de l'onglet · le
+  // filtre par compte travaille ensuite sur ce qui est déjà là, sans requête
+  // supplémentaire : changer de compte est instantané.
   useEffect(() => {
-    if (!exerciceCourant || !compteGrandLivreId) {
-      setGrandLivre(null);
-      return;
-    }
+    if (!exerciceCourant || onglet !== 'grand-livre') return;
     let annule = false;
-    // Vide l'affichage précédent : sans ça, le grand livre du compte
-    // précédent reste visible sous le nouveau nom pendant le chargement.
     setGrandLivre(null);
-    api
-      .get<{ lignes: LigneGrandLivre[]; soldeFinal: number }>(
-        `/ecritures/grand-livre/${compteGrandLivreId}?exerciceId=${exerciceCourant.id}`,
-      )
-      .then(
-        (r) => !annule && setGrandLivre(r),
-        (e) => !annule && setErreur(e.message),
-      );
+    api.get<SectionGrandLivre[]>(`/ecritures/grand-livre?exerciceId=${exerciceCourant.id}`).then(
+      (r) => !annule && setGrandLivre(r),
+      (e) => !annule && setErreur(e.message),
+    );
     return () => {
       annule = true;
     };
-  }, [exerciceCourant?.id, compteGrandLivreId]);
+  }, [exerciceCourant?.id, onglet, rechargement]);
+
+  const sectionsAffichees = useMemo(
+    () => (grandLivre ?? []).filter((c) => !compteGrandLivreId || c.compte.id === compteGrandLivreId),
+    [grandLivre, compteGrandLivreId],
+  );
 
   const filtreActif = useMemo(
     () => Object.values(filtresAppliques).some((v) => v !== ''),
@@ -223,12 +235,6 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
     lancerExport(`/exports/grand-livre?exerciceId=${exerciceCourant.id}`, 'grand-livre-complet.xlsx');
   };
 
-  // useRibbon n'enregistre les boutons qu'au montage (voir sa doc) : un
-  // onClick posé ici capterait l'onglet initial pour toujours et agirait sur
-  // le mauvais onglet. Les boutons réellement fonctionnels vivent donc dans
-  // l'en-tête de page ci-dessous. Ceux du ruban sont explicitement
-  // `disabled` : les laisser cliquables sans effet, à l'endroit le plus
-  // visible de l'écran, est pire que de les désactiver.
   const lignesJournal = useMemo(() => ecritures.flatMap((e) =>
     e.lignes.map((l, indexLigne) => ({
       date: e.date,
@@ -324,7 +330,7 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
     <button
       onClick={onClick}
       disabled={exportEnCours}
-      className={`flex items-center gap-1.5 border border-border px-3 py-1.5 text-[11px] font-bold hover:bg-surface-alt disabled:opacity-50 disabled:cursor-wait ${
+      className={`flex items-center gap-1.5 border border-border px-3 py-1.5 text-[10.5px] font-bold hover:bg-surface-alt disabled:opacity-50 disabled:cursor-wait ${
         principal ? 'bg-surface' : 'bg-chrome'
       }`}
     >
@@ -339,7 +345,7 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
       <div className="flex items-center justify-between mb-1.5 gap-2">
         <div>
           <div className="text-[10px] font-mono text-text-dim leading-none">ÉTAT</div>
-          <h1 className="text-[13px] font-bold leading-tight">
+          <h1 className="text-[12px] font-bold leading-tight">
             {onglet === 'journal' ? 'Journal' : onglet === 'grand-livre' ? 'Grand livre des comptes' : 'Balance des comptes'}
           </h1>
         </div>
@@ -347,7 +353,7 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
           {onglet === 'journal' && (
             <button
               onClick={() => setFiltresOuverts((v) => !v)}
-              className={`flex items-center gap-1.5 border border-border px-3 py-1.5 text-[11px] font-bold hover:bg-surface-alt ${
+              className={`flex items-center gap-1.5 border border-border px-3 py-1.5 text-[10.5px] font-bold hover:bg-surface-alt ${
                 filtreActif ? 'bg-warning-soft border-warning/40' : 'bg-surface'
               }`}
             >
@@ -357,7 +363,7 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
           )}
           {onglet === 'journal' && (
             <label
-              className="flex items-center gap-1.5 border border-border bg-surface px-3 py-1.5 text-[11px] font-bold cursor-pointer hover:bg-surface-alt"
+              className="flex items-center gap-1.5 border border-border bg-surface px-3 py-1.5 text-[10.5px] font-bold cursor-pointer hover:bg-surface-alt"
               title="Décoché, le journal ne montre que le livre-journal · ce qui fait foi"
             >
               <input
@@ -381,8 +387,8 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
 
       {erreur && (
         <div className="flex items-start justify-between gap-3 border border-danger/30 bg-danger-soft px-3.5 py-2 mb-2.5">
-          <span className="text-[11.5px]">{erreur}</span>
-          <button onClick={() => setErreur(null)} className="text-[11px] font-bold shrink-0 hover:underline">
+          <span className="text-[10.5px]">{erreur}</span>
+          <button onClick={() => setErreur(null)} className="text-[10.5px] font-bold shrink-0 hover:underline">
             Fermer
           </button>
         </div>
@@ -395,7 +401,7 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
             <select
               value={filtres.journalId}
               onChange={(e) => setFiltres({ ...filtres, journalId: e.target.value })}
-              className="border border-border bg-surface px-2 py-1 text-[11.5px] font-mono min-w-[150px]"
+              className="border border-border bg-surface px-2 py-1 text-[10.5px] font-mono min-w-[150px]"
             >
               <option value="">Tous</option>
               {journaux.map((j) => (
@@ -411,7 +417,7 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
               type="date"
               value={filtres.dateDebut}
               onChange={(e) => setFiltres({ ...filtres, dateDebut: e.target.value })}
-              className="border border-border bg-surface px-2 py-1 text-[11.5px] font-mono"
+              className="border border-border bg-surface px-2 py-1 text-[10.5px] font-mono"
             />
           </label>
           <label className="flex flex-col gap-1">
@@ -420,7 +426,7 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
               type="date"
               value={filtres.dateFin}
               onChange={(e) => setFiltres({ ...filtres, dateFin: e.target.value })}
-              className="border border-border bg-surface px-2 py-1 text-[11.5px] font-mono"
+              className="border border-border bg-surface px-2 py-1 text-[10.5px] font-mono"
             />
           </label>
           <label className="flex flex-col gap-1 flex-1 min-w-[180px]">
@@ -431,13 +437,13 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
               onChange={(e) => setFiltres({ ...filtres, recherche: e.target.value })}
               onKeyDown={(e) => e.key === 'Enter' && setFiltresAppliques(filtres)}
               placeholder="ex. cotisation"
-              className="border border-border bg-surface px-2 py-1 text-[11.5px]"
+              className="border border-border bg-surface px-2 py-1 text-[10.5px]"
             />
           </label>
           <div className="flex gap-2">
             <button
               onClick={() => setFiltresAppliques(filtres)}
-              className="border border-border bg-surface px-3 py-1.5 text-[11px] font-bold hover:bg-chrome"
+              className="border border-border bg-surface px-3 py-1.5 text-[10.5px] font-bold hover:bg-chrome"
             >
               Appliquer
             </button>
@@ -446,7 +452,7 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
                 setFiltres(FILTRES_VIDES);
                 setFiltresAppliques(FILTRES_VIDES);
               }}
-              className="border border-border bg-chrome px-3 py-1.5 text-[11px] font-bold hover:bg-surface-alt"
+              className="border border-border bg-chrome px-3 py-1.5 text-[10.5px] font-bold hover:bg-surface-alt"
             >
               Réinitialiser
             </button>
@@ -457,19 +463,19 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
       <div className="flex bg-chrome border border-border border-b-0 rounded-t-[10px] overflow-hidden">
         <button
           onClick={() => setOnglet('journal')}
-          className={`px-4 py-1.5 text-[11px] font-bold ${onglet === 'journal' ? 'bg-surface border-r border-border' : 'text-text-dim'}`}
+          className={`px-4 py-1.5 text-[10.5px] font-bold ${onglet === 'journal' ? 'bg-surface border-r border-border' : 'text-text-dim'}`}
         >
           JOURNAL
         </button>
         <button
           onClick={() => setOnglet('grand-livre')}
-          className={`px-4 py-1.5 text-[11px] font-bold ${onglet === 'grand-livre' ? 'bg-surface border-r border-l border-border' : 'text-text-dim'}`}
+          className={`px-4 py-1.5 text-[10.5px] font-bold ${onglet === 'grand-livre' ? 'bg-surface border-r border-l border-border' : 'text-text-dim'}`}
         >
           GRAND LIVRE
         </button>
         <button
           onClick={() => setOnglet('balance')}
-          className={`px-4 py-1.5 text-[11px] font-bold ${onglet === 'balance' ? 'bg-surface border-r border-l border-border' : 'text-text-dim'}`}
+          className={`px-4 py-1.5 text-[10.5px] font-bold ${onglet === 'balance' ? 'bg-surface border-r border-l border-border' : 'text-text-dim'}`}
         >
           BALANCE
         </button>
@@ -497,22 +503,22 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
             <span>CORRECTION (ART. 20)</span>
           </div>
           {lignesJournal.length === 0 && (
-            <div className="px-3.5 py-4 text-[11.5px] text-text-dim">
+            <div className="px-3.5 py-4 text-[10.5px] text-text-dim">
               {filtreActif ? 'Aucune écriture ne correspond au filtre.' : 'Aucune écriture sur cet exercice.'}
             </div>
           )}
           {lignesJournal.map((l) => (
             <div
               key={l.key}
-              className={`grid grid-cols-[68px_46px_52px_92px_120px_1fr_108px_108px_128px] gap-2.5 px-3.5 py-[3px] items-center text-[11.5px] border-b border-border/50 ${
+              className={`grid grid-cols-[68px_46px_52px_92px_120px_1fr_108px_108px_128px] gap-2.5 px-3.5 py-[3px] items-center text-[10.5px] border-b border-border/50 ${
                 l.premiereLigne ? 'border-t border-t-border' : ''
               } ${l.annuleePar ? 'opacity-55 line-through decoration-danger/60' : ''}`}
             >
-              <span className="font-mono text-[10.5px] text-text-dim">
+              <span className="font-mono text-[10px] text-text-dim">
                 {l.premiereLigne ? new Date(l.date).toLocaleDateString('fr-FR') : ''}
               </span>
               <span className="font-mono text-text-dim">{l.premiereLigne ? l.journal : ''}</span>
-              <span className="font-mono text-[10.5px] text-text-dim text-right">
+              <span className="font-mono text-[10px] text-text-dim text-right">
                 {l.premiereLigne ? (l.numeroPiece ?? '·') : ''}
               </span>
               <span className="font-mono text-[10px] text-text-dim truncate">{l.premiereLigne ? l.reference : ''}</span>
@@ -537,7 +543,7 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
               </span>
             </div>
           ))}
-          <div className="grid grid-cols-[68px_46px_52px_92px_120px_1fr_108px_108px_128px] gap-2.5 px-3.5 py-1.5 bg-surface-alt border-t border-border-dark text-[11.5px] font-bold">
+          <div className="grid grid-cols-[68px_46px_52px_92px_120px_1fr_108px_108px_128px] gap-2.5 px-3.5 py-1.5 bg-surface-alt border-t border-border-dark text-[10.5px] font-bold">
             <span className="col-span-5" />
             <span className="text-right text-[10px] text-text-dim self-center">TOTAUX DE LA PÉRIODE</span>
             <span className="font-mono text-right">{totaux.debit.toLocaleString('fr-FR')}</span>
@@ -549,122 +555,142 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
 
       {onglet === 'grand-livre' && (
         <div className="border border-border">
-          <div className="px-3.5 py-2 bg-surface-alt border-b border-border flex items-center gap-2">
-            <label className="text-[11px] font-bold text-text-dim">COMPTE</label>
+          {/*
+            LE GRAND LIVRE EST COMPLET PAR DÉFAUT · c'est sa définition même :
+            le recueil de TOUS les comptes mouvementés de l'exercice, dans
+            l'ordre des numéros. L'écran exigeait auparavant de choisir un
+            compte avant de rien montrer · autant demander à l'utilisateur de
+            deviner par où commencer. Le choix d'un compte n'est plus qu'un
+            FILTRE, appliqué à l'état déjà chargé (aucune requête de plus).
+          */}
+          <div className="px-3.5 py-1.5 bg-surface-alt border-b border-border flex items-center gap-2 flex-wrap">
+            <label className="text-[10px] font-bold text-text-dim">FILTRER SUR UN COMPTE</label>
             <select
               value={compteGrandLivreId}
               onChange={(e) => setCompteGrandLivreId(e.target.value)}
-              className="border border-border bg-surface px-2 py-1 text-[11.5px] font-mono"
+              className="border border-border rounded-[5px] bg-surface px-2 py-[2px] text-[10.5px] font-mono"
             >
-              <option value="">sélectionner un compte</option>
-              {comptes
-                .filter((c) => c.estActif)
-                .map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.numero} · {c.intitule}
-                  </option>
-                ))}
+              <option value="">tous les comptes mouvementés</option>
+              {(grandLivre ?? []).map((c) => (
+                <option key={c.compte.id} value={c.compte.id}>
+                  {c.compte.numero} · {c.compte.intitule}
+                </option>
+              ))}
             </select>
-            <span className="text-[10.5px] text-text-dim">
-              L'export « tout le grand livre » ne dépend pas de ce choix : il reprend tous les comptes mouvementés.
-            </span>
+            {grandLivre && (
+              <span className="text-[10px] text-text-dim">
+                {sectionsAffichees.length} compte{sectionsAffichees.length > 1 ? 's' : ''} ·{' '}
+                {sectionsAffichees.reduce((n, c) => n + c.lignes.length, 0)} mouvement
+                {sectionsAffichees.reduce((n, c) => n + c.lignes.length, 0) > 1 ? 's' : ''}
+              </span>
+            )}
           </div>
 
-          {!compteGrandLivreId && (
-            <div className="px-3.5 py-4 text-[11.5px] text-text-dim">Choisissez un compte pour afficher son grand livre.</div>
+          {!grandLivre && <div className="px-3.5 py-4 text-[10.5px] text-text-dim">Chargement…</div>}
+          {grandLivre && sectionsAffichees.length === 0 && (
+            <div className="px-3.5 py-4 text-[10.5px] text-text-dim">
+              Aucun mouvement sur cet exercice.
+            </div>
           )}
 
           {/*
-            Présentation « Grand livre · état de base » de Sage : une première
-            ligne en gras porte le numéro et l'intitulé du compte (la rupture),
-            puis chaque mouvement · date, jrn, pièce, libellé, débit, crédit,
-            solde progressif ·, et un pied avec le total des mouvements et le
-            solde final du compte.
+            Présentation « Grand livre · état de base » de Sage : pour chaque
+            compte une ligne de RUPTURE en gras (numéro et intitulé), puis ses
+            mouvements · date, jrn, pièce, libellé, débit, crédit, solde
+            progressif ·, et un pied qui totalise les mouvements du compte et
+            donne son solde final.
           */}
-          {compteGrandLivreId && grandLivre && (
-            <>
-              {(() => {
-                const compteGL = comptes.find((c) => c.id === compteGrandLivreId);
-                return (
-                  <div className="px-3.5 py-1.5 border-b border-border-dark bg-surface font-bold text-[12.5px]">
-                    <span className="font-mono">{compteGL?.numero}</span> · {compteGL?.intitule}
-                  </div>
-                );
-              })()}
-              <div className="grid grid-cols-[68px_46px_52px_1.8fr_100px_100px_110px_64px_1fr] gap-2.5 px-3.5 py-1.5 bg-surface-alt text-[10px] font-bold text-text-dim border-b border-border">
+          {sectionsAffichees.map((section) => (
+            <div key={section.compte.id}>
+              <div className="px-3.5 py-1 border-y border-border-dark bg-chrome font-bold text-[11px]">
+                <span className="font-mono">{section.compte.numero}</span> · {section.compte.intitule}
+              </div>
+              <div className={`grid ${GRILLE_GL} gap-2 px-3.5 py-1 bg-surface-alt text-[10px] font-bold text-text-dim border-b border-border`}>
                 <span>DATE</span>
                 <span>JRN</span>
                 <span className="text-right">PIÈCE</span>
                 <span>LIBELLÉ ÉCRITURE</span>
                 <span className="text-right">DÉBIT</span>
                 <span className="text-right">CRÉDIT</span>
-                <span className="text-right">SOLDE PROGRESSIF</span>
+                <span className="text-right">SOLDE PROGR.</span>
                 <span>LETTRE</span>
                 <span title="Comptes de sens opposé dans la même écriture. Plusieurs comptes = écriture N débits/M crédits, répartition non déterminable sans information de saisie supplémentaire.">
                   CONTREPARTIE
                 </span>
               </div>
-              {grandLivre.lignes.map((l) => (
+              {section.lignes.map((l) => (
                 <div
                   key={l.id}
-                  className="grid grid-cols-[68px_46px_52px_1.8fr_100px_100px_110px_64px_1fr] gap-2.5 px-3.5 py-[3px] items-center border-b border-border/50 text-[11.5px]"
+                  className={`grid ${GRILLE_GL} gap-2 px-3.5 py-[3px] items-center border-b border-border/50 text-[10.5px]`}
                 >
-                  <span className="font-mono text-[10.5px] text-text-dim">{new Date(l.date).toLocaleDateString('fr-FR')}</span>
+                  <span className="font-mono text-[10px] text-text-dim">{new Date(l.date).toLocaleDateString('fr-FR')}</span>
                   <span className="font-mono text-text-dim">{l.journalCode}</span>
-                  <span className="font-mono text-[10.5px] text-text-dim text-right">{l.numeroPiece ?? '·'}</span>
+                  <span className="font-mono text-[10px] text-text-dim text-right">{l.numeroPiece ?? '·'}</span>
                   <span className="truncate" title={l.libelle}>
                     {l.libelle}
                   </span>
-                  <span className="font-mono text-right">{l.debit ? l.debit.toLocaleString('fr-FR') : ''}</span>
-                  <span className="font-mono text-right">{l.credit ? l.credit.toLocaleString('fr-FR') : ''}</span>
+                  <Montant valeur={l.debit} />
+                  <Montant valeur={l.credit} />
                   <span className="font-mono text-right font-semibold">{l.soldeProgressif.toLocaleString('fr-FR')}</span>
                   <span className="font-mono text-text-dim">{l.lettre ?? ''}</span>
-                  <span className="font-mono text-[10.5px] text-text-dim truncate">
+                  <span className="font-mono text-[10px] text-text-dim truncate">
                     {l.contrepartie.length > 0 ? l.contrepartie.join(' + ') : '·'}
                   </span>
                 </div>
               ))}
-              <div className="grid grid-cols-[68px_46px_52px_1.8fr_100px_100px_110px_64px_1fr] gap-2.5 px-3.5 py-1.5 bg-surface-alt border-t border-border-dark text-[11.5px] font-bold">
+              <div className={`grid ${GRILLE_GL} gap-2 px-3.5 py-1 bg-surface-alt border-b border-border-dark text-[10.5px] font-bold`}>
                 <span className="col-span-3" />
                 <span className="text-right text-[10px] text-text-dim self-center">TOTAL MOUVEMENTS · SOLDE FINAL</span>
-                <span className="font-mono text-right">
-                  {grandLivre.lignes.reduce((s, l) => s + l.debit, 0).toLocaleString('fr-FR')}
-                </span>
-                <span className="font-mono text-right">
-                  {grandLivre.lignes.reduce((s, l) => s + l.credit, 0).toLocaleString('fr-FR')}
-                </span>
-                <span className="font-mono text-right">{grandLivre.soldeFinal.toLocaleString('fr-FR')}</span>
+                <Montant valeur={section.totalDebit} />
+                <Montant valeur={section.totalCredit} />
+                <span className="font-mono text-right">{section.soldeFinal.toLocaleString('fr-FR')}</span>
                 <span />
                 <span />
               </div>
-            </>
-          )}
+            </div>
+          ))}
         </div>
       )}
 
       {/*
-        Présentation « Balance · état de base » de Sage : la balance classique
-        à quatre colonnes de montants · mouvements débit et crédit, soldes
-        DÉBITEURS et soldes CRÉDITEURS en colonnes séparées ·, les comptes de
-        type Total tenant lieu de lignes de sous-totalisation (mêmes « niveaux
-        de sous-totaux » que chez Sage), et les totaux généraux en pied,
-        calculés sur les seuls comptes Détail pour ne rien compter deux fois.
+        BALANCE À SIX COLONNES · la présentation normale d'une balance
+        générale OHADA, dans son ordre de lecture :
+
+          solde d'OUVERTURE D/C · MOUVEMENTS de l'exercice D/C · solde de
+          CLÔTURE D/C
+
+        Le solde d'ouverture est celui des à-nouveaux (écritures générées par
+        la clôture précédente), les mouvements sont ceux de l'exercice, et la
+        clôture est leur somme · ligne à ligne, ouverture + mouvements =
+        clôture, ce qui rend la balance vérifiable à l'œil. Les comptes de
+        type Total tiennent lieu de lignes de sous-totalisation (les « niveaux
+        de sous-totaux » de Sage), et les totaux généraux en pied ne comptent
+        que les comptes Détail pour ne rien compter deux fois.
       */}
       {onglet === 'balance' && (
         <div className="border border-border bg-surface shadow-posee rounded-t-none">
-          <div className="grid grid-cols-[86px_1fr_115px_115px_115px_115px] gap-2.5 px-3.5 py-1.5 bg-surface-alt text-[10px] font-bold text-text-dim border-b border-border-dark">
+          <div className={`grid ${GRILLE_BALANCE} gap-2 px-3.5 pt-1.5 text-[10px] font-bold text-text-dim bg-surface-alt`}>
+            <span />
+            <span />
+            <span className="col-span-2 text-center border-b border-border pb-0.5">SOLDE D’OUVERTURE</span>
+            <span className="col-span-2 text-center border-b border-border pb-0.5">MOUVEMENTS</span>
+            <span className="col-span-2 text-center border-b border-border pb-0.5">SOLDE DE CLÔTURE</span>
+          </div>
+          <div className={`grid ${GRILLE_BALANCE} gap-2 px-3.5 py-1 bg-surface-alt text-[10px] font-bold text-text-dim border-b border-border-dark`}>
             <span>N° COMPTE</span>
             <span>INTITULÉ DU COMPTE</span>
-            <span className="text-right">MVTS DÉBIT</span>
-            <span className="text-right">MVTS CRÉDIT</span>
-            <span className="text-right">SOLDE DÉBITEUR</span>
-            <span className="text-right">SOLDE CRÉDITEUR</span>
+            <span className="text-right">DÉBIT</span>
+            <span className="text-right">CRÉDIT</span>
+            <span className="text-right">DÉBIT</span>
+            <span className="text-right">CRÉDIT</span>
+            <span className="text-right">DÉBIT</span>
+            <span className="text-right">CRÉDIT</span>
           </div>
           {balance.map((l) => (
             <div
               key={l.compteId}
               title={l.typeCompte === 'TOTAL' ? 'Compte Total · sous-totalisation des comptes Détail de même racine' : undefined}
-              className={`grid grid-cols-[86px_1fr_115px_115px_115px_115px] gap-2.5 px-3.5 py-[3px] items-center border-b border-border/50 text-[11.5px] ${
+              className={`grid ${GRILLE_BALANCE} gap-2 px-3.5 py-[3px] items-center border-b border-border/50 text-[10.5px] ${
                 l.typeCompte === 'TOTAL' ? 'bg-chrome font-semibold border-b-border' : ''
               }`}
             >
@@ -672,26 +698,41 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
               <span className="truncate" title={l.intitule}>
                 {l.intitule}
               </span>
-              <span className="font-mono text-right">{l.totalDebit.toLocaleString('fr-FR')}</span>
-              <span className="font-mono text-right">{l.totalCredit.toLocaleString('fr-FR')}</span>
-              <span className="font-mono text-right">{l.solde > 0 ? l.solde.toLocaleString('fr-FR') : ''}</span>
-              <span className="font-mono text-right">{l.solde < 0 ? Math.abs(l.solde).toLocaleString('fr-FR') : ''}</span>
+              {(() => {
+                // Ouverture et clôture s'affichent en SOLDE NET, chacun dans
+                // sa colonne de sens · c'est ce que montre une balance, et
+                // c'est ce qui permet de lire ouverture + mouvements =
+                // clôture sur la même ligne. Les mouvements, eux, restent des
+                // CUMULS (le débit et le crédit de l'exercice), jamais nets.
+                const ouverture = l.reportDebit - l.reportCredit;
+                const cloture = l.solde;
+                return (
+                  <>
+                    <Montant valeur={ouverture > 0 ? ouverture : 0} />
+                    <Montant valeur={ouverture < 0 ? -ouverture : 0} />
+                    <Montant valeur={l.mouvementDebit} />
+                    <Montant valeur={l.mouvementCredit} />
+                    <Montant valeur={cloture > 0 ? cloture : 0} />
+                    <Montant valeur={cloture < 0 ? -cloture : 0} />
+                  </>
+                );
+              })()}
             </div>
           ))}
           {(() => {
             const details = balance.filter((l) => l.typeCompte !== 'TOTAL');
-            const tDebit = details.reduce((s, l) => s + l.totalDebit, 0);
-            const tCredit = details.reduce((s, l) => s + l.totalCredit, 0);
-            const tSoldeD = details.reduce((s, l) => s + (l.solde > 0 ? l.solde : 0), 0);
-            const tSoldeC = details.reduce((s, l) => s + (l.solde < 0 ? -l.solde : 0), 0);
+            const cumul = (f: (l: LigneBalance) => number) => details.reduce((s, l) => s + f(l), 0);
+            const ouv = (l: LigneBalance) => l.reportDebit - l.reportCredit;
             return (
-              <div className="grid grid-cols-[86px_1fr_115px_115px_115px_115px] gap-2.5 px-3.5 py-1.5 bg-surface-alt border-t border-border-dark text-[11.5px] font-bold">
+              <div className={`grid ${GRILLE_BALANCE} gap-2 px-3.5 py-1.5 bg-surface-alt border-t border-border-dark text-[10.5px] font-bold`}>
                 <span />
                 <span className="text-right text-[10px] text-text-dim self-center">TOTAUX GÉNÉRAUX</span>
-                <span className="font-mono text-right">{tDebit.toLocaleString('fr-FR')}</span>
-                <span className="font-mono text-right">{tCredit.toLocaleString('fr-FR')}</span>
-                <span className="font-mono text-right">{tSoldeD.toLocaleString('fr-FR')}</span>
-                <span className="font-mono text-right">{tSoldeC.toLocaleString('fr-FR')}</span>
+                <Montant valeur={cumul((l) => Math.max(ouv(l), 0))} />
+                <Montant valeur={cumul((l) => Math.max(-ouv(l), 0))} />
+                <Montant valeur={cumul((l) => l.mouvementDebit)} />
+                <Montant valeur={cumul((l) => l.mouvementCredit)} />
+                <Montant valeur={cumul((l) => Math.max(l.solde, 0))} />
+                <Montant valeur={cumul((l) => Math.max(-l.solde, 0))} />
               </div>
             );
           })()}

@@ -1,7 +1,6 @@
 import { Fragment, FormEvent, useEffect, useMemo, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../lib/api';
-import { useActionsFenetre } from '../lib/actions-fenetre';
 import { useAuth } from '../lib/auth';
 import { useExercice } from '../lib/exercice';
 import { IconCheck } from '../components/chrome/icons';
@@ -197,16 +196,6 @@ export function TiersPage() {
   // Voir PlanComptesPage : les verbes de la barre d'outils prennent leur sens
   // ici. « Consulter » ouvre l'interrogation du compte de rattachement du
   // tiers, seul endroit où l'on voit ce qu'il doit et ce qu'il a réglé.
-  useActionsFenetre({
-    ajouter: { titre: 'Nouveau tiers', executer: () => setNouveauOuvert(true) },
-    rechercher: { titre: 'Rechercher un tiers (code, nom)', executer: () => champRecherche.current?.focus() },
-    consulter: tiersSelectionne?.comptesRattaches?.[0]
-      ? {
-          titre: `Interroger le compte de ${tiersSelectionne.nom}`,
-          executer: () => navigate(`/comptes/${tiersSelectionne.comptesRattaches[0].compteId}/lettrage`),
-        }
-      : undefined,
-  });
   const comptesDisponibles = comptesClasse4.filter(
     (c) => !tiersSelectionne?.comptesRattaches.some((tc) => tc.compteId === c.id),
   );
@@ -366,8 +355,8 @@ export function TiersPage() {
     return (
       <div className="p-2">
       <EnteteImpression titre="Plan des tiers" />
-        <h1 className="text-[13px] font-bold leading-tight mb-1.5">Plan des tiers</h1>
-        <div className="border border-warning/30 bg-warning-soft px-4 py-3 text-[12.5px] max-w-[480px]">
+        <h1 className="text-[12px] font-bold leading-tight mb-1.5">Plan des tiers</h1>
+        <div className="border border-warning/30 bg-warning-soft px-4 py-3 text-[11px] max-w-[480px]">
           La gestion des tiers est réservée aux administrateurs du dossier.
         </div>
       </div>
@@ -379,7 +368,7 @@ export function TiersPage() {
       <div className="flex items-center justify-between mb-2 shrink-0">
         <div>
           <div className="text-[10px] font-mono text-text-dim leading-none">STRUCTURE</div>
-          <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
+          <h1 className="text-[12px] font-bold leading-tight flex items-center gap-1.5">
             Plan des tiers
             <Aide sujet="compte41" />
           </h1>
@@ -390,19 +379,19 @@ export function TiersPage() {
             value={recherche}
             onChange={(e) => setRecherche(e.target.value)}
             placeholder="Rechercher (code, nom)…"
-            className="border border-border-dark bg-surface px-2.5 py-1 text-[12px] w-64"
+            className="border border-border-dark bg-surface px-2.5 py-1 text-[11px] w-64"
           />
           <button
             type="button"
             onClick={() => setModelesOuverts(true)}
-            className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[11.5px]"
+            className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[10.5px]"
           >
             Modèles de règlement…
           </button>
           <button
             type="button"
             onClick={() => setNouveauOuvert(true)}
-            className="bg-sel text-white px-3.5 py-1 text-[11.5px] font-semibold"
+            className="bg-sel text-white px-3.5 py-1 text-[10.5px] font-semibold"
           >
             Nouveau tiers
           </button>
@@ -410,10 +399,10 @@ export function TiersPage() {
       </div>
 
       {erreur && (
-        <div className="text-[12px] text-danger bg-danger-soft border border-danger/30 px-3 py-1.5 mb-2 shrink-0">{erreur}</div>
+        <div className="text-[11px] text-danger bg-danger-soft border border-danger/30 px-3 py-1.5 mb-2 shrink-0">{erreur}</div>
       )}
       {info && !erreur && (
-        <div className="text-[12px] text-positive bg-positive-soft border border-positive/30 px-3 py-1.5 mb-2 shrink-0">{info}</div>
+        <div className="text-[11px] text-positive bg-positive-soft border border-positive/30 px-3 py-1.5 mb-2 shrink-0">{info}</div>
       )}
 
       <div className="flex-1 min-h-0 flex gap-2.5">
@@ -425,7 +414,7 @@ export function TiersPage() {
           <button
             type="button"
             onClick={() => setFiltreType('')}
-            className={`w-full text-left px-3 py-1.5 text-[11.5px] flex justify-between ${
+            className={`w-full text-left px-3 py-1.5 text-[10.5px] flex justify-between ${
               filtreType === '' ? 'bg-sel text-white' : 'hover:bg-chrome-alt'
             }`}
           >
@@ -437,7 +426,7 @@ export function TiersPage() {
               key={t}
               type="button"
               onClick={() => setFiltreType(t)}
-              className={`w-full text-left px-3 py-1.5 text-[11.5px] flex justify-between ${
+              className={`w-full text-left px-3 py-1.5 text-[10.5px] flex justify-between ${
                 filtreType === t ? 'bg-sel text-white' : 'hover:bg-chrome-alt'
               }`}
             >
@@ -464,28 +453,28 @@ export function TiersPage() {
             <span>ÉTAT</span>
           </div>
           <div className="flex-1 overflow-auto">
-            {!liste && <div className="px-3.5 py-3 text-[12px] text-text-dim">Chargement…</div>}
+            {!liste && <div className="px-3.5 py-3 text-[11px] text-text-dim">Chargement…</div>}
             {listeFiltree.map((t) => (
               <button
                 key={t.id}
                 type="button"
                 onClick={() => setSelectionId(t.id)}
-                className={`w-full grid grid-cols-[96px_1fr_150px_86px] gap-2.5 px-3.5 py-[4px] items-center text-left border-b border-border/50 text-[11.5px] ${
+                className={`w-full grid grid-cols-[96px_1fr_150px_86px] gap-2.5 px-3.5 py-[4px] items-center text-left border-b border-border/50 text-[10.5px] ${
                   selectionId === t.id ? 'bg-sel text-white' : 'hover:bg-sel-soft'
                 } ${!t.estActif && selectionId !== t.id ? 'opacity-55' : ''}`}
               >
                 <span className="font-mono font-semibold">{t.code}</span>
                 <span className="truncate">{t.nom}</span>
-                <span className={`text-[10.5px] truncate ${selectionId === t.id ? 'text-white/80' : 'text-text-dim'}`}>
+                <span className={`text-[10px] truncate ${selectionId === t.id ? 'text-white/80' : 'text-text-dim'}`}>
                   {t.modeleReglement?.intitule ?? '·'}
                 </span>
-                <span className={`text-[10.5px] ${selectionId === t.id ? 'text-white/90' : t.estActif ? 'text-positive' : 'text-warning'}`}>
+                <span className={`text-[10px] ${selectionId === t.id ? 'text-white/90' : t.estActif ? 'text-positive' : 'text-warning'}`}>
                   {t.estActif ? 'Actif' : 'Sommeil'}
                 </span>
               </button>
             ))}
             {liste && listeFiltree.length === 0 && (
-              <div className="px-3.5 py-3 text-[12px] text-text-dim italic">Aucun tiers de ce type.</div>
+              <div className="px-3.5 py-3 text-[11px] text-text-dim italic">Aucun tiers de ce type.</div>
             )}
           </div>
           <div className="px-3.5 py-1 bg-surface-alt border-t border-border text-[10px] text-text-dim shrink-0">
@@ -499,21 +488,21 @@ export function TiersPage() {
             FICHE DU TIERS
           </div>
           {!tiersSelectionne && (
-            <div className="px-3 py-3 text-[11.5px] text-text-dim">
+            <div className="px-3 py-3 text-[10.5px] text-text-dim">
               Sélectionnez un tiers dans la liste pour afficher sa fiche : identification, modèle de
               règlement, comptes généraux rattachés (avec le compte Principal proposé en saisie).
             </div>
           )}
           {tiersSelectionne && (
-            <div className="p-3 text-[11.5px]">
+            <div className="p-3 text-[10.5px]">
               {/* Volet Identification */}
-              <div className="font-mono text-[13px] font-bold leading-tight">{tiersSelectionne.code}</div>
-              <div className="text-[12.5px] mb-2.5">{tiersSelectionne.nom}</div>
+              <div className="font-mono text-[12px] font-bold leading-tight">{tiersSelectionne.code}</div>
+              <div className="text-[11px] mb-2.5">{tiersSelectionne.nom}</div>
               <div className="grid grid-cols-[92px_1fr] gap-x-2 gap-y-1.5 items-center mb-3">
                 <span className="text-text-dim text-right">Type :</span>
                 <span className="flex items-center gap-1.5">
                   {LIBELLE_TYPE[tiersSelectionne.type]}
-                  <span className="font-mono text-[10.5px] text-text-dim">
+                  <span className="font-mono text-[10px] text-text-dim">
                     compte {COMPTE_TYPE[tiersSelectionne.type]}
                   </span>
                   {AIDE_TYPE[tiersSelectionne.type] && <Aide sujet={AIDE_TYPE[tiersSelectionne.type]!} />}
@@ -528,7 +517,7 @@ export function TiersPage() {
               <button
                 type="button"
                 onClick={() => basculerActif(tiersSelectionne)}
-                className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[11px] mb-3"
+                className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[10.5px] mb-3"
               >
                 {tiersSelectionne.estActif ? 'Mettre en sommeil' : 'Réactiver'}
               </button>
@@ -549,7 +538,7 @@ export function TiersPage() {
                 <div className="grid grid-cols-[92px_1fr] gap-x-2 gap-y-1 items-center">
                   {CHAMPS_COORDONNEES.map((champ) => (
                     <Fragment key={champ.cle}>
-                      <label className="text-text-dim text-right text-[11px]" htmlFor={`tiers-${champ.cle}`}>
+                      <label className="text-text-dim text-right text-[10.5px]" htmlFor={`tiers-${champ.cle}`}>
                         {champ.libelle} :
                       </label>
                       <input
@@ -562,7 +551,7 @@ export function TiersPage() {
                         // du tiers précédent.
                         key={`${tiersSelectionne.id}-${champ.cle}`}
                         onBlur={(e) => enregistrerCoordonnee(tiersSelectionne, champ.cle, e.target.value)}
-                        className="border border-border rounded-[6px] bg-bg px-2 py-[3px] text-[11.5px] focus:outline-none focus:border-sel"
+                        className="border border-border rounded-[6px] bg-bg px-2 py-[3px] text-[10.5px] focus:outline-none focus:border-sel"
                       />
                     </Fragment>
                   ))}
@@ -578,7 +567,7 @@ export function TiersPage() {
               <div className="border-t border-border pt-2.5">
                 <div className="text-[10px] font-bold text-text-dim mb-1.5">COMPTES GÉNÉRAUX RATTACHÉS</div>
                 {tiersSelectionne.comptesRattaches.length === 0 && (
-                  <div className="text-[11px] text-text-dim mb-2">Aucun compte rattaché.</div>
+                  <div className="text-[10.5px] text-text-dim mb-2">Aucun compte rattaché.</div>
                 )}
                 {tiersSelectionne.comptesRattaches.map((tc) => (
                   <div key={tc.id} className="border border-border mb-1.5 px-2.5 py-1.5">
@@ -597,9 +586,9 @@ export function TiersPage() {
                         </button>
                       )}
                     </div>
-                    <div className="text-[10.5px] text-text-dim truncate">{tc.compte.intitule}</div>
+                    <div className="text-[10px] text-text-dim truncate">{tc.compte.intitule}</div>
                     <div className="flex items-center justify-between mt-1">
-                      <span className="font-mono text-[10.5px]">
+                      <span className="font-mono text-[10px]">
                         Solde : {tc.compteId in soldes ? soldes[tc.compteId].toLocaleString('fr-FR') : '·'}
                       </span>
                       <span className="flex gap-2.5">
@@ -625,7 +614,7 @@ export function TiersPage() {
                     required
                     value={compteARattacher}
                     onChange={(e) => setCompteARattacher(e.target.value)}
-                    className="w-full border border-border-dark px-2 py-1 text-[11.5px] mb-1.5"
+                    className="w-full border border-border-dark px-2 py-1 text-[10.5px] mb-1.5"
                   >
                     <option value="">Rattacher un compte de classe 4</option>
                     {comptesDisponibles.map((c) => (
@@ -635,11 +624,11 @@ export function TiersPage() {
                     ))}
                   </select>
                   <div className="flex items-center justify-between">
-                    <label className="flex items-center gap-1.5 text-[11px]">
+                    <label className="flex items-center gap-1.5 text-[10.5px]">
                       <input type="checkbox" checked={estPrincipal} onChange={(e) => setEstPrincipal(e.target.checked)} />
                       Principal
                     </label>
-                    <button type="submit" className="bg-sel text-white text-[11px] font-semibold px-3 py-1">
+                    <button type="submit" className="bg-sel text-white text-[10.5px] font-semibold px-3 py-1">
                       Rattacher
                     </button>
                   </div>
@@ -655,7 +644,7 @@ export function TiersPage() {
         <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
           <form onSubmit={onCreerTiers} className="anim-modale w-full max-w-[440px] bg-surface border border-border-dark shadow-flottante max-h-[calc(100dvh-2rem)] overflow-y-auto">
             <div
-              className="h-[26px] flex items-center justify-between px-2.5 text-white text-[11.5px]"
+              className="h-[26px] flex items-center justify-between px-2.5 text-white text-[10.5px]"
               style={{ background: 'linear-gradient(180deg, var(--titlebar-from), var(--titlebar-to))' }}
             >
               <span>Nouveau tiers</span>
@@ -663,18 +652,18 @@ export function TiersPage() {
             </div>
             <div className="p-4">
               <div className="grid grid-cols-[110px_1fr] items-center gap-x-3 gap-y-2.5">
-                <label className="text-[12px] text-right">Type :</label>
-                <select value={type} onChange={(e) => setType(e.target.value as TypeTiers)} className="border border-border-dark px-2.5 py-1.5 text-[12.5px]">
+                <label className="text-[11px] text-right">Type :</label>
+                <select value={type} onChange={(e) => setType(e.target.value as TypeTiers)} className="border border-border-dark px-2.5 py-1.5 text-[11px]">
                   {(Object.keys(LIBELLE_TYPE) as TypeTiers[]).map((t) => (
                     <option key={t} value={t}>{`${LIBELLE_TYPE[t]} · compte ${COMPTE_TYPE[t]}`}</option>
                   ))}
                 </select>
-                <label className="text-[12px] text-right">Code :</label>
-                <input required autoFocus value={code} onChange={(e) => setCode(e.target.value)} placeholder="ex. CLI-0001" className="border border-border-dark px-2.5 py-1.5 text-[13px] font-mono" />
-                <label className="text-[12px] text-right">Nom :</label>
-                <input required value={nom} onChange={(e) => setNom(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[13px]" />
-                <label className="text-[12px] text-right">Règlement :</label>
-                <select value={modeleReglementId} onChange={(e) => setModeleReglementId(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[12.5px]">
+                <label className="text-[11px] text-right">Code :</label>
+                <input required autoFocus value={code} onChange={(e) => setCode(e.target.value)} placeholder="ex. CLI-0001" className="border border-border-dark px-2.5 py-1.5 text-[12px] font-mono" />
+                <label className="text-[11px] text-right">Nom :</label>
+                <input required value={nom} onChange={(e) => setNom(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[12px]" />
+                <label className="text-[11px] text-right">Règlement :</label>
+                <select value={modeleReglementId} onChange={(e) => setModeleReglementId(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[11px]">
                   <option value="">Aucun modèle</option>
                   {modeles.map((m) => (
                     <option key={m.id} value={m.id}>{m.intitule}</option>
@@ -682,10 +671,10 @@ export function TiersPage() {
                 </select>
               </div>
               <div className="flex justify-end gap-2 mt-4">
-                <button type="button" onClick={() => setNouveauOuvert(false)} className="border border-border-dark bg-chrome hover:bg-chrome-alt px-4 py-1.5 text-[12px]">
+                <button type="button" onClick={() => setNouveauOuvert(false)} className="border border-border-dark bg-chrome hover:bg-chrome-alt px-4 py-1.5 text-[11px]">
                   Annuler
                 </button>
-                <button type="submit" disabled={envoi} className="bg-sel text-white px-4 py-1.5 text-[12px] font-semibold disabled:opacity-50">
+                <button type="submit" disabled={envoi} className="bg-sel text-white px-4 py-1.5 text-[11px] font-semibold disabled:opacity-50">
                   {envoi ? 'Création…' : 'Créer le tiers'}
                 </button>
               </div>
@@ -699,7 +688,7 @@ export function TiersPage() {
         <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
           <div className="anim-modale w-full max-w-[720px] max-h-[86vh] flex flex-col bg-surface border border-border-dark shadow-flottante">
             <div
-              className="h-[26px] flex items-center justify-between px-2.5 text-white text-[11.5px] shrink-0"
+              className="h-[26px] flex items-center justify-between px-2.5 text-white text-[10.5px] shrink-0"
               style={{ background: 'linear-gradient(180deg, var(--titlebar-from), var(--titlebar-to))' }}
             >
               <span>Modèles de règlement</span>
@@ -707,12 +696,12 @@ export function TiersPage() {
             </div>
             <div className="flex-1 min-h-0 overflow-auto p-4">
               <div className="border border-border mb-3">
-                {modeles.length === 0 && <div className="p-2.5 text-[11.5px] text-text-dim">Aucun modèle de règlement.</div>}
+                {modeles.length === 0 && <div className="p-2.5 text-[10.5px] text-text-dim">Aucun modèle de règlement.</div>}
                 {modeles.map((m) => (
                   <div
                     key={m.id}
                     onClick={() => setModeleSelectionneId(m.id === modeleSelectionneId ? null : m.id)}
-                    className={`grid grid-cols-[1fr_100px_180px_80px] gap-2 items-center px-3 py-1.5 border-b border-border last:border-b-0 text-[11.5px] cursor-pointer ${
+                    className={`grid grid-cols-[1fr_100px_180px_80px] gap-2 items-center px-3 py-1.5 border-b border-border last:border-b-0 text-[10.5px] cursor-pointer ${
                       m.id === modeleSelectionneId ? 'bg-sel-soft' : 'hover:bg-chrome-alt'
                     }`}
                   >
@@ -720,21 +709,21 @@ export function TiersPage() {
                     <span className="text-text-dim">
                       {m.echeances.length > 0 ? `${m.echeances.length} échéances` : `${m.delaiJours} j.`}
                     </span>
-                    <span className="text-[10.5px] text-text-dim">
+                    <span className="text-[10px] text-text-dim">
                       {m.echeances.length > 0 ? 'Fractionné' : LIBELLE_ECHEANCE[m.echeance]}
                     </span>
-                    <span className="text-[10.5px] text-sel">{m.id === modeleSelectionneId ? '▾ fermer' : '▸ détail'}</span>
+                    <span className="text-[10px] text-sel">{m.id === modeleSelectionneId ? '▾ fermer' : '▸ détail'}</span>
                   </div>
                 ))}
               </div>
 
               {modeleSelectionne && (
                 <div className="border border-border mb-3 p-3 bg-surface-alt">
-                  <div className="font-mono text-[10.5px] font-semibold text-text-dim mb-2">
+                  <div className="font-mono text-[10px] font-semibold text-text-dim mb-2">
                     ÉCHÉANCES · {modeleSelectionne.intitule}
                   </div>
                   {modeleSelectionne.echeances.length === 0 && (
-                    <div className="text-[11px] text-text-dim mb-2">
+                    <div className="text-[10.5px] text-text-dim mb-2">
                       Mono-échéance : 100 % à {modeleSelectionne.delaiJours} j. ({LIBELLE_ECHEANCE[modeleSelectionne.echeance]}).
                       Ajoutez une échéance ci-dessous pour fractionner.
                     </div>
@@ -744,7 +733,7 @@ export function TiersPage() {
                       {modeleSelectionne.echeances.map((ech) => (
                         <div
                           key={ech.id}
-                          className="grid grid-cols-[40px_130px_90px_70px_150px_70px] gap-2 items-center px-2.5 py-1 border-b border-border last:border-b-0 text-[11px]"
+                          className="grid grid-cols-[40px_130px_90px_70px_150px_70px] gap-2 items-center px-2.5 py-1 border-b border-border last:border-b-0 text-[10.5px]"
                         >
                           <span className="font-mono">#{ech.ordre}</span>
                           <span>{LIBELLE_TYPE_ECHEANCE[ech.type]}</span>
@@ -760,59 +749,59 @@ export function TiersPage() {
                   )}
 
                   <form onSubmit={onAjouterEcheance} className="grid grid-cols-6 gap-2 items-end mb-4">
-                    <label className="text-[10.5px] font-semibold text-text-dim">
+                    <label className="text-[10px] font-semibold text-text-dim">
                       Ordre
-                      <input required type="number" min={1} value={ordreEch} onChange={(e) => setOrdreEch(Number(e.target.value))} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px]" />
+                      <input required type="number" min={1} value={ordreEch} onChange={(e) => setOrdreEch(Number(e.target.value))} className="mt-1 w-full border border-border-dark px-2 py-1 text-[10.5px]" />
                     </label>
-                    <label className="text-[10.5px] font-semibold text-text-dim">
+                    <label className="text-[10px] font-semibold text-text-dim">
                       Type
-                      <select value={typeEch} onChange={(e) => setTypeEch(e.target.value as TypeEcheance)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px]">
+                      <select value={typeEch} onChange={(e) => setTypeEch(e.target.value as TypeEcheance)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[10.5px]">
                         {(Object.keys(LIBELLE_TYPE_ECHEANCE) as TypeEcheance[]).map((t) => (
                           <option key={t} value={t}>{LIBELLE_TYPE_ECHEANCE[t]}</option>
                         ))}
                       </select>
                     </label>
                     {typeEch !== 'EQUILIBRE' && (
-                      <label className="text-[10.5px] font-semibold text-text-dim">
+                      <label className="text-[10px] font-semibold text-text-dim">
                         {typeEch === 'POURCENTAGE' ? 'Valeur (%)' : 'Valeur (montant)'}
-                        <input required type="number" min={0} step="0.01" value={valeurEch} onChange={(e) => setValeurEch(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px]" />
+                        <input required type="number" min={0} step="0.01" value={valeurEch} onChange={(e) => setValeurEch(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[10.5px]" />
                       </label>
                     )}
-                    <label className="text-[10.5px] font-semibold text-text-dim">
+                    <label className="text-[10px] font-semibold text-text-dim">
                       Délai (j.)
-                      <input required type="number" min={0} value={delaiJoursEch} onChange={(e) => setDelaiJoursEch(Number(e.target.value))} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px]" />
+                      <input required type="number" min={0} value={delaiJoursEch} onChange={(e) => setDelaiJoursEch(Number(e.target.value))} className="mt-1 w-full border border-border-dark px-2 py-1 text-[10.5px]" />
                     </label>
-                    <label className="text-[10.5px] font-semibold text-text-dim">
+                    <label className="text-[10px] font-semibold text-text-dim">
                       Condition
-                      <select value={echeanceEch} onChange={(e) => setEcheanceEch(e.target.value as ConditionEcheance)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11.5px]">
+                      <select value={echeanceEch} onChange={(e) => setEcheanceEch(e.target.value as ConditionEcheance)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[10.5px]">
                         {(Object.keys(LIBELLE_ECHEANCE) as ConditionEcheance[]).map((c) => (
                           <option key={c} value={c}>{LIBELLE_ECHEANCE[c]}</option>
                         ))}
                       </select>
                     </label>
-                    <button type="submit" className="bg-sel text-white text-[11px] font-semibold px-3 py-1.5 h-fit">
+                    <button type="submit" className="bg-sel text-white text-[10.5px] font-semibold px-3 py-1.5 h-fit">
                       Ajouter
                     </button>
                   </form>
 
-                  <div className="font-mono text-[10.5px] font-semibold text-text-dim mb-2">SIMULATEUR D'ÉCHÉANCIER</div>
+                  <div className="font-mono text-[10px] font-semibold text-text-dim mb-2">SIMULATEUR D'ÉCHÉANCIER</div>
                   <form onSubmit={onCalculer} className="flex items-end gap-2 mb-3">
-                    <label className="text-[10.5px] font-semibold text-text-dim">
+                    <label className="text-[10px] font-semibold text-text-dim">
                       Date facture
-                      <input required type="date" value={dateFactureCalc} onChange={(e) => setDateFactureCalc(e.target.value)} className="mt-1 block border border-border-dark px-2 py-1 text-[11.5px]" />
+                      <input required type="date" value={dateFactureCalc} onChange={(e) => setDateFactureCalc(e.target.value)} className="mt-1 block border border-border-dark px-2 py-1 text-[10.5px]" />
                     </label>
-                    <label className="text-[10.5px] font-semibold text-text-dim">
+                    <label className="text-[10px] font-semibold text-text-dim">
                       Montant
-                      <input required type="number" min={0.01} step="0.01" value={montantCalc} onChange={(e) => setMontantCalc(e.target.value)} className="mt-1 block border border-border-dark px-2 py-1 text-[11.5px]" />
+                      <input required type="number" min={0.01} step="0.01" value={montantCalc} onChange={(e) => setMontantCalc(e.target.value)} className="mt-1 block border border-border-dark px-2 py-1 text-[10.5px]" />
                     </label>
-                    <button type="submit" className="bg-sel text-white text-[11px] font-semibold px-3 py-1.5">
+                    <button type="submit" className="bg-sel text-white text-[10.5px] font-semibold px-3 py-1.5">
                       Calculer
                     </button>
                   </form>
                   {resultatCalc && (
                     <div className="border border-border bg-surface shadow-posee">
                       {resultatCalc.map((r) => (
-                        <div key={r.ordre} className="grid grid-cols-3 gap-2 px-2.5 py-1 border-b border-border last:border-b-0 text-[11px] font-mono">
+                        <div key={r.ordre} className="grid grid-cols-3 gap-2 px-2.5 py-1 border-b border-border last:border-b-0 text-[10.5px] font-mono">
                           <span>#{r.ordre}</span>
                           <span className="text-right">{r.montant.toLocaleString('fr-FR')}</span>
                           <span className="text-text-dim">{new Date(r.dateEcheance).toLocaleDateString('fr-FR')}</span>
@@ -824,23 +813,23 @@ export function TiersPage() {
               )}
 
               <form onSubmit={onCreerModele} className="grid grid-cols-4 gap-2 items-end border-t border-border pt-3">
-                <label className="text-[11px] font-semibold text-text-dim col-span-2">
+                <label className="text-[10.5px] font-semibold text-text-dim col-span-2">
                   Nouveau modèle · intitulé
-                  <input required value={intituleModele} onChange={(e) => setIntituleModele(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[12px] font-normal" />
+                  <input required value={intituleModele} onChange={(e) => setIntituleModele(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11px] font-normal" />
                 </label>
-                <label className="text-[11px] font-semibold text-text-dim">
+                <label className="text-[10.5px] font-semibold text-text-dim">
                   Délai (j.)
-                  <input required type="number" min={0} value={delaiJours} onChange={(e) => setDelaiJours(Number(e.target.value))} className="mt-1 w-full border border-border-dark px-2 py-1 text-[12px] font-normal" />
+                  <input required type="number" min={0} value={delaiJours} onChange={(e) => setDelaiJours(Number(e.target.value))} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11px] font-normal" />
                 </label>
-                <label className="text-[11px] font-semibold text-text-dim">
+                <label className="text-[10.5px] font-semibold text-text-dim">
                   Échéance
-                  <select value={echeance} onChange={(e) => setEcheance(e.target.value as ConditionEcheance)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[12px] font-normal">
+                  <select value={echeance} onChange={(e) => setEcheance(e.target.value as ConditionEcheance)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11px] font-normal">
                     {(Object.keys(LIBELLE_ECHEANCE) as ConditionEcheance[]).map((c) => (
                       <option key={c} value={c}>{LIBELLE_ECHEANCE[c]}</option>
                     ))}
                   </select>
                 </label>
-                <button type="submit" className="bg-sel text-white text-[11.5px] font-semibold px-3 py-1.5 col-span-4 w-fit">
+                <button type="submit" className="bg-sel text-white text-[10.5px] font-semibold px-3 py-1.5 col-span-4 w-fit">
                   Ajouter le modèle
                 </button>
               </form>

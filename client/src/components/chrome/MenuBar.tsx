@@ -21,7 +21,17 @@ export interface MenuDef {
  * Comportement Windows : un clic ouvre, le survol fait glisser d'un menu à
  * l'autre tant qu'un menu est ouvert, Échap ou clic dehors referme.
  */
-export function MenuBar({ menus }: { menus: MenuDef[] }) {
+export function MenuBar({
+  menus,
+  avant,
+  apres,
+}: {
+  menus: MenuDef[];
+  /** Commandes posées AVANT les menus (navigation). */
+  avant?: React.ReactNode;
+  /** Commandes posées à l'extrémité droite de la ligne (calculette). */
+  apres?: React.ReactNode;
+}) {
   const [ouvert, setOuvert] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -54,8 +64,9 @@ export function MenuBar({ menus }: { menus: MenuDef[] }) {
         contexte. La barre passe donc explicitement au-dessus (voir le
         `relative z-0` de <main> dans AppShell, qui borne l'autre côté).
       */
-      className="relative z-40 h-[28px] flex items-center gap-0.5 px-2 bg-chrome/80 backdrop-blur-md border-b border-border select-none"
+      className="relative z-40 h-[26px] flex items-center gap-0.5 px-2 bg-chrome/80 backdrop-blur-md border-b border-border select-none"
     >
+      {avant}
       {menus.map((m) => (
         <div key={m.titre} className="relative h-full flex items-center">
           {/*
@@ -69,17 +80,17 @@ export function MenuBar({ menus }: { menus: MenuDef[] }) {
             onMouseEnter={() => {
               if (ouvert && ouvert !== m.titre) setOuvert(m.titre);
             }}
-            className={`rounded-[6px] px-2 py-[3px] text-[11.5px] font-medium ${
+            className={`rounded-[5px] px-2 py-[2px] text-[10.5px] font-medium ${
               ouvert === m.titre ? 'bg-sel-soft text-sel font-semibold' : 'hover:bg-chrome-alt'
             }`}
           >
             {m.titre}
           </button>
           {ouvert === m.titre && (
-            <div className="anim-menu absolute left-0 top-full mt-1 z-30 min-w-[250px] max-h-[calc(100dvh-70px)] overflow-y-auto rounded-[12px] bg-surface shadow-flottante p-1.5">
+            <div className="anim-menu absolute left-0 top-full mt-0.5 z-30 min-w-[178px] max-h-[calc(100dvh-64px)] overflow-y-auto rounded-[8px] border border-border bg-surface shadow-flottante p-1">
               {m.items.map((it, i) => (
                 <div key={`${it.label}-${i}`}>
-                  {it.separateurAvant && <div className="my-1.5 mx-2 border-t border-border" />}
+                  {it.separateurAvant && <div className="my-[3px] mx-1.5 border-t border-border" />}
                   <button
                     type="button"
                     disabled={it.disabled}
@@ -88,7 +99,7 @@ export function MenuBar({ menus }: { menus: MenuDef[] }) {
                       it.onClick?.();
                       setOuvert(null);
                     }}
-                    className="w-full text-left rounded-[8px] px-3 py-[6px] text-[12px] hover:enabled:bg-sel-soft hover:enabled:text-sel hover:enabled:font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="w-full text-left rounded-[5px] px-2.5 py-[3px] text-[10.5px] leading-[16px] hover:enabled:bg-sel-soft hover:enabled:text-sel disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     {it.label}
                   </button>
@@ -98,6 +109,7 @@ export function MenuBar({ menus }: { menus: MenuDef[] }) {
           )}
         </div>
       ))}
+      {apres && <div className="ml-auto flex items-center gap-0.5">{apres}</div>}
     </div>
   );
 }

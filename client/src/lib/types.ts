@@ -242,6 +242,23 @@ export interface LigneBalance {
   intitule: string;
   classe: ClasseCompte;
   typeCompte: TypeCompteDetailTotal;
+  /**
+   * BALANCE À SIX COLONNES · trois couples débit/crédit, dans l'ordre où le
+   * SYCEBNL (Partie 2, ch. 2) et le SYSCOHADA les présentent :
+   *
+   *   solde d'OUVERTURE (report / à-nouveaux) · MOUVEMENTS de l'exercice ·
+   *   solde de CLÔTURE
+   *
+   * `reportDebit`/`reportCredit` viennent des écritures d'à-nouveau (celles
+   * générées par la clôture précédente), `mouvementDebit`/`mouvementCredit`
+   * de toutes les autres, et `totalDebit`/`totalCredit` de leur somme · d'où
+   * le solde de clôture. Le serveur les calcule séparément depuis toujours
+   * (EcritureService.balance) ; l'écran n'en montrait que quatre.
+   */
+  reportDebit: number;
+  reportCredit: number;
+  mouvementDebit: number;
+  mouvementCredit: number;
   totalDebit: number;
   totalCredit: number;
   solde: number;

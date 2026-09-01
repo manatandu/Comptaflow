@@ -148,6 +148,24 @@ export class EcritureController {
     return this.ecritureService.balanceAgee(user.tenantId, { exerciceId, dateReference, type });
   }
 
+  /**
+   * GRAND LIVRE COMPLET · tous les comptes MOUVEMENTÉS de l'exercice, dans
+   * l'ordre des numéros. C'est l'état par défaut : un grand livre est, par
+   * définition, le recueil de tous les comptes · en exiger un avant d'afficher
+   * quoi que ce soit revenait à demander à l'utilisateur de deviner par où
+   * commencer. Le choix d'un compte n'est plus qu'un FILTRE.
+   *
+   * Cette route doit rester déclarée AVANT `grand-livre/:compteId` : sinon un
+   * appel sans identifiant serait capté par la route paramétrée.
+   */
+  @Get('grand-livre')
+  async grandLivreComplet(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('exerciceId') exerciceId?: string,
+  ) {
+    return this.ecritureService.grandLivreComplet(user.tenantId, exerciceId);
+  }
+
   @Get('grand-livre/:compteId')
   async grandLivre(
     @CurrentUser() user: AuthenticatedUser,

@@ -6,7 +6,7 @@ import { useFenetres } from '../../lib/fenetres';
 import { definitionPour } from '../../lib/registre-fenetres';
 import { IconLogo } from './icons';
 import { MenuBar, type MenuDef } from './MenuBar';
-import { Toolbar } from './Toolbar';
+import { CalculetteChrome, NavigationChrome } from './OutilsChrome';
 import { StatusBar } from './StatusBar';
 import { BarreFenetres } from './BarreFenetres';
 import { Fenetre } from './Fenetre';
@@ -247,7 +247,7 @@ export function AppShell() {
         avec lui, et fait ressortir le blanc des fenêtres.
       */}
       <div
-        className="ecran-seul h-[30px] flex items-center justify-between px-3 text-white text-[11.5px] shrink-0 relative"
+        className="ecran-seul h-[30px] flex items-center justify-between px-3 text-white text-[10.5px] shrink-0 relative"
         style={{ background: 'linear-gradient(180deg, var(--titlebar-from), var(--titlebar-to))' }}
       >
         {/* Filet lumineux en haut : la profondeur vient de là, pas d'une ombre. */}
@@ -260,16 +260,16 @@ export function AppShell() {
           <span className="text-white/25">/</span>
           <span className="truncate text-white/85">{utilisateur?.tenant.nom}</span>
           {anneeExercice && (
-            <span className="shrink-0 rounded-full bg-white/10 px-2 py-[1px] text-[10.5px] font-semibold text-white/80">
+            <span className="shrink-0 rounded-full bg-white/10 px-2 py-[1px] text-[10px] font-semibold text-white/80">
               Exercice {anneeExercice}
             </span>
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <span className="text-white/55 text-[11px] hidden sm:inline">{utilisateur?.email}</span>
+          <span className="text-white/55 text-[10.5px] hidden sm:inline">{utilisateur?.email}</span>
           <button
             onClick={seDeconnecter}
-            className="rounded-[7px] px-2.5 py-[3px] text-[11px] font-semibold text-white/75 hover:bg-white/10 hover:text-white"
+            className="rounded-[7px] px-2.5 py-[3px] text-[10.5px] font-semibold text-white/75 hover:bg-white/10 hover:text-white"
           >
             Déconnexion
           </button>
@@ -277,8 +277,10 @@ export function AppShell() {
       </div>
 
       <div className="ecran-seul contents">
-        <MenuBar menus={menus} />
-        <Toolbar />
+        {/* Une SEULE rangée de commandes · l'ancienne barre d'outils et ses
+            dix verbes est supprimée (voir OutilsChrome.tsx), ce qui rend
+            environ 44 px de hauteur à l'espace de travail. */}
+        <MenuBar menus={menus} avant={<NavigationChrome />} apres={<CalculetteChrome />} />
       </div>
 
       {/*

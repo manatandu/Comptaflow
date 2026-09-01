@@ -2,7 +2,6 @@ import { Navigate, Route, HashRouter, Routes } from 'react-router-dom';
 import { AuthProvider, useAuth } from './lib/auth';
 import { ExerciceProvider } from './lib/exercice';
 import { FenetresProvider } from './lib/fenetres';
-import { ActionsFenetreProvider } from './lib/actions-fenetre';
 import { AppShell } from './components/chrome/AppShell';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
@@ -10,7 +9,7 @@ import { RegisterPage } from './pages/RegisterPage';
 function ZoneProtegee({ children }: { children: JSX.Element }) {
   const { chargement, connecte } = useAuth();
   if (chargement) {
-    return <div className="min-h-screen flex items-center justify-center text-[13px] text-text-dim">Chargement…</div>;
+    return <div className="min-h-screen flex items-center justify-center text-[12px] text-text-dim">Chargement…</div>;
   }
   if (!connecte) return <Navigate to="/connexion" replace />;
   return children;
@@ -27,9 +26,7 @@ function Routage() {
           <ZoneProtegee>
             <ExerciceProvider>
               <FenetresProvider>
-                <ActionsFenetreProvider>
-                  <AppShell />
-                </ActionsFenetreProvider>
+                <AppShell />
               </FenetresProvider>
             </ExerciceProvider>
           </ZoneProtegee>

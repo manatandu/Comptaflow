@@ -167,7 +167,7 @@ export function DocumentsObligatoiresPage() {
   ) => (
     <div key={cle} className="border border-border bg-surface mb-2 px-3.5 py-2.5">
       <div className="flex items-baseline justify-between gap-3 mb-1">
-        <span className="text-[12px] font-bold">{titre}</span>
+        <span className="text-[11px] font-bold">{titre}</span>
         {renseignee !== undefined && pastille(renseignee, 'RENSEIGNÉE', 'VIDE')}
       </div>
       <div className="text-[10px] text-text-dim italic mb-1.5">{exigence}</div>
@@ -176,7 +176,7 @@ export function DocumentsObligatoiresPage() {
         onChange={(e) => setForm((f) => ({ ...f, [cle]: e.target.value }))}
         disabled={!peutEtablir}
         rows={3}
-        className="w-full border border-border-dark px-2 py-1 text-[11.5px] disabled:bg-surface-alt"
+        className="w-full border border-border-dark px-2 py-1 text-[10.5px] disabled:bg-surface-alt"
       />
     </div>
   );
@@ -187,27 +187,27 @@ export function DocumentsObligatoiresPage() {
       <div className="flex items-center justify-between mb-1.5">
         <div>
           <div className="text-[10px] font-mono text-text-dim leading-none">ÉTAT</div>
-          <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
+          <h1 className="text-[12px] font-bold leading-tight flex items-center gap-1.5">
             Documents obligatoires de clôture
             <Aide sujet="livreInventaire" />
           </h1>
         </div>
         {exerciceCourant && (
-          <span className="font-mono text-[11px] border border-border bg-surface px-2.5 py-1.5">
+          <span className="font-mono text-[10.5px] border border-border bg-surface px-2.5 py-1.5">
             Exercice {new Date(exerciceCourant.dateDebut).getFullYear()}
           </span>
         )}
       </div>
 
-      <p className="text-[10.5px] text-text-dim mb-2">
+      <p className="text-[10px] text-text-dim mb-2">
         Article 24 : encourent une <strong>sanction pénale</strong> les dirigeants qui « n’ont pas, pour un exercice,
         dressé l’inventaire et établi les états financiers annuels, ainsi que le rapport d’activité ».
       </p>
 
       {erreur && (
         <div className="flex items-start justify-between gap-3 border border-danger/30 bg-danger-soft px-3.5 py-2 mb-2.5">
-          <span className="text-[11.5px]">{erreur}</span>
-          <button onClick={() => setErreur(null)} className="text-[11px] font-bold shrink-0 hover:underline">
+          <span className="text-[10.5px]">{erreur}</span>
+          <button onClick={() => setErreur(null)} className="text-[10.5px] font-bold shrink-0 hover:underline">
             Fermer
           </button>
         </div>
@@ -223,7 +223,7 @@ export function DocumentsObligatoiresPage() {
           <button
             key={cle}
             onClick={() => setOnglet(cle)}
-            className={`px-3.5 py-1.5 text-[11px] font-bold border border-b-0 ${
+            className={`px-3.5 py-1.5 text-[10.5px] font-bold border border-b-0 ${
               onglet === cle ? 'bg-surface border-border' : 'bg-chrome border-transparent text-text-dim hover:bg-surface-alt'
             }`}
           >
@@ -241,7 +241,7 @@ export function DocumentsObligatoiresPage() {
               <button
                 onClick={transcrire}
                 disabled={enCours}
-                className="bg-sel text-white text-[11px] font-semibold px-3 py-1.5 disabled:opacity-50"
+                className="bg-sel text-white text-[10.5px] font-semibold px-3 py-1.5 disabled:opacity-50"
               >
                 {confInv.transcrit ? 'Re-transcrire (nouvelle version)' : 'Transcrire les états financiers'}
               </button>
@@ -249,13 +249,13 @@ export function DocumentsObligatoiresPage() {
             <button
               onClick={() => exporter('livre-inventaire', 'livre-inventaire.xlsx')}
               disabled={exportEnCours !== null || !confInv.transcrit}
-              className="flex items-center gap-1.5 border border-border bg-surface px-3 py-1.5 text-[11px] font-bold hover:bg-surface-alt disabled:opacity-50"
+              className="flex items-center gap-1.5 border border-border bg-surface px-3 py-1.5 text-[10.5px] font-bold hover:bg-surface-alt disabled:opacity-50"
             >
               <IconExport width={13} height={13} />
               Exporter Excel
             </button>
             {confInv.transcrit && (
-              <span className="text-[10.5px] text-text-dim">
+              <span className="text-[10px] text-text-dim">
                 Version {confInv.version} du {date(confInv.transcritLe!)} · {transcriptions.length} version(s)
               </span>
             )}
@@ -276,7 +276,7 @@ export function DocumentsObligatoiresPage() {
             {confInv.etatsExiges.map((e) => (
               <div key={e.cle} className="grid grid-cols-[1fr_110px] gap-2 py-1 border-b border-border last:border-b-0">
                 <div>
-                  <span className="text-[11.5px]">{e.libelle}</span>
+                  <span className="text-[10.5px]">{e.libelle}</span>
                   {e.motifIndisponibilite && (
                     <div className="text-[10px] text-danger italic mt-0.5">{e.motifIndisponibilite}</div>
                   )}
@@ -289,7 +289,7 @@ export function DocumentsObligatoiresPage() {
 
           <div className="border border-border bg-surface px-3.5 py-3">
             <div className="flex items-baseline justify-between gap-3 mb-1">
-              <span className="text-[12px] font-bold">Résumé de l’opération d’inventaire</span>
+              <span className="text-[11px] font-bold">Résumé de l’opération d’inventaire</span>
               {pastille(confInv.resume.renseigne, 'RENSEIGNÉ', 'MANQUANT')}
             </div>
             <div className="text-[10px] text-text-dim italic mb-1.5">
@@ -300,13 +300,13 @@ export function DocumentsObligatoiresPage() {
               onChange={(e) => setResume(e.target.value)}
               disabled={!peutEtablir || !confInv.transcrit}
               rows={4}
-              className="w-full border border-border-dark px-2 py-1 text-[11.5px] disabled:bg-surface-alt"
+              className="w-full border border-border-dark px-2 py-1 text-[10.5px] disabled:bg-surface-alt"
             />
             {peutEtablir && confInv.transcrit && (
               <button
                 onClick={enregistrerResume}
                 disabled={!resume.trim()}
-                className="mt-1.5 bg-sel text-white text-[11px] font-semibold px-3 py-1 disabled:opacity-50"
+                className="mt-1.5 bg-sel text-white text-[10.5px] font-semibold px-3 py-1 disabled:opacity-50"
               >
                 Enregistrer le résumé
               </button>
@@ -325,21 +325,21 @@ export function DocumentsObligatoiresPage() {
       {onglet === 'rapport' && confRap && (
         <div>
           <div className="flex items-center gap-2 mb-2.5">
-            <label className="flex items-center gap-1.5 text-[11px]">
+            <label className="flex items-center gap-1.5 text-[10.5px]">
               <span className="text-[10px] font-bold text-text-dim">Date d’établissement</span>
               <input
                 type="date"
                 value={form.etabliLe}
                 onChange={(e) => setForm((f) => ({ ...f, etabliLe: e.target.value }))}
                 disabled={!peutEtablir}
-                className="border border-border-dark px-2 py-1 text-[11.5px]"
+                className="border border-border-dark px-2 py-1 text-[10.5px]"
               />
             </label>
             {peutEtablir && (
               <button
                 onClick={etablirRapport}
                 disabled={enCours || !form.etabliLe}
-                className="bg-sel text-white text-[11px] font-semibold px-3 py-1.5 disabled:opacity-50"
+                className="bg-sel text-white text-[10.5px] font-semibold px-3 py-1.5 disabled:opacity-50"
               >
                 {confRap.etabli ? 'Établir une nouvelle version' : 'Établir le rapport'}
               </button>
@@ -347,16 +347,16 @@ export function DocumentsObligatoiresPage() {
             <button
               onClick={() => exporter('rapport-activite', 'rapport-activite.xlsx')}
               disabled={exportEnCours !== null || !confRap.etabli}
-              className="flex items-center gap-1.5 border border-border bg-surface px-3 py-1.5 text-[11px] font-bold hover:bg-surface-alt disabled:opacity-50"
+              className="flex items-center gap-1.5 border border-border bg-surface px-3 py-1.5 text-[10.5px] font-bold hover:bg-surface-alt disabled:opacity-50"
             >
               <IconExport width={13} height={13} />
               Exporter Excel
             </button>
-            {confRap.etabli && <span className="text-[10.5px] text-text-dim">Version {confRap.version}</span>}
+            {confRap.etabli && <span className="text-[10px] text-text-dim">Version {confRap.version}</span>}
           </div>
 
           {confRap.fenetreEvenementsPosterieurs && (
-            <div className="text-[10.5px] text-text-dim border border-border bg-surface-alt px-3.5 py-2 mb-2.5">
+            <div className="text-[10px] text-text-dim border border-border bg-surface-alt px-3.5 py-2 mb-2.5">
               Fenêtre des événements postérieurs à mentionner :{' '}
               <strong>
                 du {date(confRap.fenetreEvenementsPosterieurs.du)} au {date(confRap.fenetreEvenementsPosterieurs.au)}
@@ -374,7 +374,7 @@ export function DocumentsObligatoiresPage() {
               <div className="text-[10px] font-bold text-text-dim mb-1">
                 ÉVOLUTION DE LA TRÉSORERIE · figée du Tableau des flux à l’établissement du rapport
               </div>
-              <div className="grid grid-cols-4 gap-4 text-[11.5px]">
+              <div className="grid grid-cols-4 gap-4 text-[10.5px]">
                 <span>
                   Ouverture : <span className="font-mono font-bold">{montant(confRap.tresorerie.ouverture)}</span>
                 </span>
@@ -402,7 +402,7 @@ export function DocumentsObligatoiresPage() {
 
           <div className="border border-border bg-surface px-3.5 py-2.5">
             <div className="flex items-baseline justify-between gap-3 mb-1">
-              <span className="text-[12px] font-bold">Déclaration des dirigeants · registre des donateurs</span>
+              <span className="text-[11px] font-bold">Déclaration des dirigeants · registre des donateurs</span>
               {confRap.etabli &&
                 (confRap.declarationRegistreDonateurs.attendue
                   ? pastille(confRap.declarationRegistreDonateurs.renseignee, 'ANNEXÉE', 'ATTENDUE')
@@ -411,7 +411,7 @@ export function DocumentsObligatoiresPage() {
             <div className="text-[10px] text-text-dim italic mb-1.5">
               {confRap.declarationRegistreDonateurs.exigence}
             </div>
-            <label className="flex items-center gap-1.5 text-[11.5px] mb-1.5">
+            <label className="flex items-center gap-1.5 text-[10.5px] mb-1.5">
               <input
                 type="checkbox"
                 checked={form.entiteAvecAuditeur}
@@ -427,10 +427,10 @@ export function DocumentsObligatoiresPage() {
                   onChange={(e) => setForm((f) => ({ ...f, declarationDirigeants: e.target.value }))}
                   disabled={!peutEtablir}
                   rows={3}
-                  className="w-full border border-border-dark px-2 py-1 text-[11.5px] disabled:bg-surface-alt"
+                  className="w-full border border-border-dark px-2 py-1 text-[10.5px] disabled:bg-surface-alt"
                 />
                 {confRap.etabli && !confRap.declarationRegistreDonateurs.registreConforme && (
-                  <div className="text-[10.5px] text-danger mt-1.5">
+                  <div className="text-[10px] text-danger mt-1.5">
                     ⚠ Le rapport de conformité du{' '}
                     <a href="#/registre-donateurs" className="underline">
                       registre des donateurs

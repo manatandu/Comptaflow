@@ -351,25 +351,25 @@ export function ParametresDossierPage() {
         {/* Le titre porte l'onglet actif · Sage écrit « Identification de
             votre société - IFRS » dans sa barre de titre : on sait où l'on
             se trouve sans relire la liste des onglets. */}
-        <h1 className="text-[13px] font-bold leading-tight">
+        <h1 className="text-[12px] font-bold leading-tight">
           Identification du dossier
           <span className="font-normal text-text-dim"> · {ONGLETS.find((o) => o.cle === onglet)?.libelle}</span>
         </h1>
       </div>
 
       {erreur && (
-        <div className="mb-2 text-[12px] text-danger bg-danger-soft border border-danger/30 rounded-[6px] px-2.5 py-1.5">
+        <div className="mb-2 text-[11px] text-danger bg-danger-soft border border-danger/30 rounded-[6px] px-2.5 py-1.5">
           {erreur}
         </div>
       )}
       {info && (
-        <div className="mb-2 text-[12px] text-positive bg-positive-soft border border-positive/30 rounded-[6px] px-2.5 py-1.5">
+        <div className="mb-2 text-[11px] text-positive bg-positive-soft border border-positive/30 rounded-[6px] px-2.5 py-1.5">
           {info}
         </div>
       )}
 
       {!params ? (
-        <div className="text-[12px] text-text-dim">Chargement…</div>
+        <div className="text-[11px] text-text-dim">Chargement…</div>
       ) : (
         <OngletsVerticaux onglets={ONGLETS} actif={onglet} onChanger={setOnglet}>
           {onglet === 'identification' && (
@@ -395,13 +395,13 @@ export function ParametresDossierPage() {
                   ] as [string, string | null][]
                 ).map(([cle, valeur]) => (
                   <Ligne key={cle} label={cle} large>
-                    <div className="text-[12.5px] leading-[26px] font-medium">{valeur || '·'}</div>
+                    <div className="text-[11px] leading-[26px] font-medium">{valeur || '·'}</div>
                   </Ligne>
                 ))}
               </div>
               <SectionTitre>Immatriculation</SectionTitre>
               <form onSubmit={enregistrerIdentite} className="flex flex-col gap-3">
-                <p className="text-[11px] text-text-dim">
+                <p className="text-[10.5px] text-text-dim">
                   Le numéro d’impôt est porté en tête de chaque page imprimée, au même titre que la dénomination, la
                   date de clôture et la durée de l’exercice.
                   {estSycebnl
@@ -425,7 +425,7 @@ export function ParametresDossierPage() {
                   ))}
                 </div>
                 {estSycebnl && (
-                  <p className="text-[11px] text-text-dim">
+                  <p className="text-[10.5px] text-text-dim">
                     <span className="font-bold">Important !</span> Une entité à but non lucratif n’est pas
                     immatriculée au registre du commerce : l’Acte uniforme sur le droit commercial général (art. 2)
                     n’y assujettit que les commerçants et les sociétés. Le champ RCCM n’est donc pas proposé ici.
@@ -437,7 +437,7 @@ export function ParametresDossierPage() {
                     <button
                       type="submit"
                       disabled={envoi}
-                      className="border border-border rounded-[6px] bg-surface px-3 py-1.5 text-[11px] font-bold hover:bg-surface-alt disabled:opacity-60"
+                      className="border border-border rounded-[6px] bg-surface px-3 py-1.5 text-[10.5px] font-bold hover:bg-surface-alt disabled:opacity-60"
                     >
                       Enregistrer
                     </button>
@@ -451,7 +451,7 @@ export function ParametresDossierPage() {
             <>
               <SectionTitre>Forme juridique</SectionTitre>
               <div className="flex flex-col gap-2">
-                <p className="text-[11px] text-text-dim">
+                <p className="text-[10.5px] text-text-dim">
                   Au sens de la loi n° 004/2001 du 20 juillet 2001. Ce choix ne change pas vos états financiers : il
                   détermine les obligations annuelles proposées par le planning de clôture.
                 </p>
@@ -474,14 +474,14 @@ export function ParametresDossierPage() {
                           onChange={() => changerForme(f.valeur)}
                         />
                         <span className="min-w-0">
-                          <span className="block text-[12.5px] font-semibold">{f.titre}</span>
-                          <span className="block text-[11px] text-text-dim mt-0.5">{f.detail}</span>
+                          <span className="block text-[11px] font-semibold">{f.titre}</span>
+                          <span className="block text-[10.5px] text-text-dim mt-0.5">{f.detail}</span>
                         </span>
                       </label>
                     );
                   })}
                 </div>
-                <label className="flex items-center gap-2 text-[11.5px] mt-1">
+                <label className="flex items-center gap-2 text-[10.5px] mt-1">
                   <input
                     type="checkbox"
                     checked={params.droitEtranger}
@@ -498,7 +498,7 @@ export function ParametresDossierPage() {
             <>
               <SectionTitre>Régime fiscal et effectif</SectionTitre>
               <div className="space-y-3">
-                <label className="flex items-start gap-2 text-[11.5px]">
+                <label className="flex items-start gap-2 text-[10.5px]">
                   <input
                     type="checkbox"
                     className="mt-[3px]"
@@ -508,7 +508,7 @@ export function ParametresDossierPage() {
                   />
                   <span>
                     Entité assujettie à la TVA
-                    <span className="block text-[10.5px] text-text-dim leading-[1.5] mt-0.5">
+                    <span className="block text-[10px] text-text-dim leading-[1.5] mt-0.5">
                       Une association ne l’est pas de plein droit. Le seuil est de 80 000 000 FC de chiffre d’affaires
                       annuel hors taxes (ordonnance-loi n° 10/001, art. 14) ; en deçà, l’option est possible et engage
                       deux ans. Les opérations conformes à l’objet sont par ailleurs exonérées (art. 15, 2° et 17, 8°).
@@ -520,19 +520,19 @@ export function ParametresDossierPage() {
                     pas le MONTANT de la taxe mais la PÉRIODE où elle est due,
                     ce qui est la première cause d'écart sur une déclaration. */}
                 {params.assujettiTva && (
-                  <label className="block text-[11.5px]">
+                  <label className="block text-[10.5px]">
                     Exigibilité de la TVA
                     <select
                       value={params.regimeExigibiliteTva}
                       disabled={!estAdmin || envoi}
                       onChange={(e) => changerRegime({ regimeExigibiliteTva: e.target.value as RegimeExigibiliteTva })}
-                      className="mt-1 block w-full max-w-[420px] border border-border rounded-[7px] bg-bg px-2 py-1 text-[12px] focus:outline-none focus:border-sel"
+                      className="mt-1 block w-full max-w-[420px] border border-border rounded-[7px] bg-bg px-2 py-1 text-[11px] focus:outline-none focus:border-sel"
                     >
                       <option value="LIVRAISONS">Livraisons · taxe due à la livraison du bien (art. 25, 1°)</option>
                       <option value="ENCAISSEMENTS">Encaissements · taxe due au règlement (art. 25, 2°)</option>
                       <option value="DEBITS">Débits · sur autorisation du DGI (art. 26)</option>
                     </select>
-                    <span className="block text-[10.5px] text-text-dim leading-[1.5] mt-1">
+                    <span className="block text-[10px] text-text-dim leading-[1.5] mt-1">
                       Pour les PRESTATIONS DE SERVICES et les travaux immobiliers, le régime de droit commun est celui
                       de l’<strong>encaissement</strong> : une facture émise en mars et réglée en juin se déclare en
                       juin. Laisser « Livraisons » sur un dossier de services fait verser chaque mois une taxe qui n’a
@@ -541,7 +541,7 @@ export function ParametresDossierPage() {
                     </span>
                   </label>
                 )}
-                <label className="block text-[11.5px]">
+                <label className="block text-[10.5px]">
                   Effectif permanent
                   <input
                     type="number"
@@ -554,9 +554,9 @@ export function ParametresDossierPage() {
                         changerRegime({ effectifPermanent: Math.max(0, Math.trunc(valeur)) });
                       }
                     }}
-                    className="mt-1 w-32 border border-border rounded-[7px] bg-bg px-2 py-1 text-[12px] focus:outline-none focus:border-sel"
+                    className="mt-1 w-32 border border-border rounded-[7px] bg-bg px-2 py-1 text-[11px] focus:outline-none focus:border-sel"
                   />
-                  <span className="block text-[10.5px] text-text-dim leading-[1.5] mt-1">
+                  <span className="block text-[10px] text-text-dim leading-[1.5] mt-1">
                     Au-delà de vingt personnes, la désignation d’un auditeur devient obligatoire (SYCEBNL, art. 19,
                     troisième critère). Ce nombre commande aussi la tranche de cotisation INPP.
                   </span>
@@ -588,17 +588,17 @@ export function ParametresDossierPage() {
                         onChange={() => changerJeu(c.valeur)}
                       />
                       <span className="min-w-0">
-                        <span className="block text-[13px] font-semibold flex items-center gap-1.5">
+                        <span className="block text-[12px] font-semibold flex items-center gap-1.5">
                           {c.titre}
                           {c.valeur === 'SYSTEME_MINIMAL_TRESORERIE' && <Aide sujet="smt" />}
                         </span>
-                        <span className="block text-[11.5px] text-text-dim mt-1">{c.etats.join(' · ')}</span>
+                        <span className="block text-[10.5px] text-text-dim mt-1">{c.etats.join(' · ')}</span>
                       </span>
                     </label>
                   );
                 })}
 
-                <p className="text-[11.5px] text-text-dim mt-1 leading-[1.55]">
+                <p className="text-[10.5px] text-text-dim mt-1 leading-[1.55]">
                   {verrouille
                     ? `Ce dossier porte ${params.nombreEcritures} écriture(s) : le jeu d'états financiers est désormais figé. Pour tenir une entité de l'autre type, créez un dossier distinct.`
                     : estAdmin

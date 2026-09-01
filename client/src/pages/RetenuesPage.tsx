@@ -65,8 +65,8 @@ export function RetenuesPage() {
       <div className="ecran-seul flex items-end justify-between mb-1.5 gap-3 flex-wrap max-w-[1100px]">
         <div>
           <div className="text-[10px] font-mono text-text-dim leading-none">ÉTAT</div>
-          <h1 className="text-[13px] font-bold leading-tight">Retenues à la source et échéancier fiscal</h1>
-          <div className="text-[10.5px] text-text-dim mt-0.5">
+          <h1 className="text-[12px] font-bold leading-tight">Retenues à la source et échéancier fiscal</h1>
+          <div className="text-[10px] text-text-dim mt-0.5">
             Ce que vous retenez pour le compte de l'État et des organismes sociaux, et quand il faut le reverser.
           </div>
         </div>
@@ -76,13 +76,13 @@ export function RetenuesPage() {
             type="date"
             value={dateReference}
             onChange={(e) => setDateReference(e.target.value)}
-            className="border border-border-dark bg-surface px-2 py-1 text-[12px] font-mono"
+            className="border border-border-dark bg-surface px-2 py-1 text-[11px] font-mono"
           />
         </label>
       </div>
 
       {erreur && (
-        <div className="border border-danger/30 bg-danger-soft px-3.5 py-2 mb-2.5 text-[11.5px] max-w-[1000px]">{erreur}</div>
+        <div className="border border-danger/30 bg-danger-soft px-3.5 py-2 mb-2.5 text-[10.5px] max-w-[1000px]">{erreur}</div>
       )}
 
       <div className="ecran-seul flex bg-chrome border border-border border-b-0 max-w-[1100px]">
@@ -95,7 +95,7 @@ export function RetenuesPage() {
           <button
             key={cle}
             onClick={() => setOnglet(cle)}
-            className={`px-4 py-1.5 text-[11px] font-bold ${onglet === cle ? 'bg-surface border-x border-border' : 'text-text-dim'}`}
+            className={`px-4 py-1.5 text-[10.5px] font-bold ${onglet === cle ? 'bg-surface border-x border-border' : 'text-text-dim'}`}
           >
             {libelle}
           </button>
@@ -117,11 +117,11 @@ export function RetenuesPage() {
               <div
                 key={e.cle}
                 title={e.echeance}
-                className={`grid grid-cols-[100px_86px_1fr_130px_150px_110px] gap-2 px-4 py-1.5 items-start border-b border-border/50 last:border-b-0 text-[12px] ${
+                className={`grid grid-cols-[100px_86px_1fr_130px_150px_110px] gap-2 px-4 py-1.5 items-start border-b border-border/50 last:border-b-0 text-[11px] ${
                   e.moisEnRetard > 0 ? 'bg-danger-soft' : ''
                 }`}
               >
-                <span className="font-mono text-[11px]">{jour(e.date)}</span>
+                <span className="font-mono text-[10.5px]">{jour(e.date)}</span>
                 <span className="text-[10px] text-text-dim uppercase tracking-[0.04em] pt-[1px]">
                   {RYTHME[e.periodicite]}
                 </span>
@@ -134,7 +134,7 @@ export function RetenuesPage() {
                     échéance dont on ignore l'objet ne sert à rien.
                   */}
                   {e.contenu && (
-                    <span className="block text-[10.5px] leading-[1.5] mt-0.5">{e.contenu}</span>
+                    <span className="block text-[10px] leading-[1.5] mt-0.5">{e.contenu}</span>
                   )}
                   {e.sanction && (
                     <span className="block text-[10px] text-danger leading-[1.5] mt-0.5">{e.sanction}</span>
@@ -146,12 +146,12 @@ export function RetenuesPage() {
                   )}
                   {e.reserve && <span className="block text-[10px] text-warning leading-[1.5] mt-0.5">{e.reserve}</span>}
                 </span>
-                <span className="text-[10.5px] text-text-dim">
+                <span className="text-[10px] text-text-dim">
                   {e.beneficiaire === 'ETAT' ? 'État (DGI)' : 'Organisme social'}
                 </span>
                 <span className={`font-mono text-right ${e.montantDu > 0.005 ? 'font-semibold' : 'text-text-dim'}`}>
                   {e.genre === 'DECLARATION' ? (
-                    <span className="text-[10.5px] text-text-dim not-italic">Déclaration</span>
+                    <span className="text-[10px] text-text-dim not-italic">Déclaration</span>
                   ) : (
                     montant(e.montantDu)
                   )}
@@ -161,7 +161,7 @@ export function RetenuesPage() {
                 </span>
               </div>
             ))}
-            <div className="grid grid-cols-[100px_86px_1fr_130px_150px_110px] gap-2 px-4 py-1.5 bg-surface-alt border-t border-border text-[12px] font-bold">
+            <div className="grid grid-cols-[100px_86px_1fr_130px_150px_110px] gap-2 px-4 py-1.5 bg-surface-alt border-t border-border text-[11px] font-bold">
               <span />
               <span />
               <span>TOTAL RESTANT À REVERSER</span>
@@ -172,11 +172,11 @@ export function RetenuesPage() {
           </div>
 
           {echeancier.avertissements.map((a) => (
-            <p key={a} className="text-[10.5px] text-text-dim mb-1.5 max-w-[900px]">
+            <p key={a} className="text-[10px] text-text-dim mb-1.5 max-w-[900px]">
               {a}
             </p>
           ))}
-          <p className="text-[10.5px] text-text-dim">
+          <p className="text-[10px] text-text-dim">
             Échéances confrontées aux textes le {jour(echeancier.derniereVerificationEcheances)}. Elles changent : la
             loi de finances n° 25/060 du 29 décembre 2025 a par exemple déplacé les acomptes provisionnels du 1er août
             au 25 juillet. Vérifiez avant de vous y fier.
@@ -199,7 +199,7 @@ export function RetenuesPage() {
                   type="button"
                   onClick={() => setNatureOuverte(natureOuverte === n.cle ? null : n.cle)}
                   disabled={n.mois.length === 0}
-                  className={`w-full text-left grid grid-cols-[1fr_140px_140px_140px] gap-2 px-4 py-1.5 text-[12px] border-b border-border/50 ${
+                  className={`w-full text-left grid grid-cols-[1fr_140px_140px_140px] gap-2 px-4 py-1.5 text-[11px] border-b border-border/50 ${
                     n.mois.length === 0 ? 'text-text-dim cursor-default' : 'hover:bg-sel-soft'
                   } ${natureOuverte === n.cle ? 'bg-sel-soft' : ''}`}
                 >
@@ -229,12 +229,12 @@ export function RetenuesPage() {
                     {n.mois.map((m) => (
                       <div
                         key={m.mois}
-                        className={`grid grid-cols-[150px_120px_130px_130px_130px] gap-2 px-6 py-[3px] text-[11.5px] ${
+                        className={`grid grid-cols-[150px_120px_130px_130px_130px] gap-2 px-6 py-[3px] text-[10.5px] ${
                           m.enRetard ? 'text-danger font-semibold' : ''
                         }`}
                       >
                         <span>{moisLong(m.mois)}</span>
-                        <span className="font-mono text-[10.5px]">{jour(m.echeance)}</span>
+                        <span className="font-mono text-[10px]">{jour(m.echeance)}</span>
                         <span className="font-mono text-right">{montant(m.retenu)}</span>
                         <span className="font-mono text-right">{montant(m.reverse)}</span>
                         <span className="font-mono text-right">{montant(m.solde)}</span>
@@ -247,7 +247,7 @@ export function RetenuesPage() {
                 )}
               </div>
             ))}
-            <div className="grid grid-cols-[1fr_140px_140px_140px] gap-2 px-4 py-1.5 bg-surface-alt border-t border-border text-[12px] font-bold">
+            <div className="grid grid-cols-[1fr_140px_140px_140px] gap-2 px-4 py-1.5 bg-surface-alt border-t border-border text-[11px] font-bold">
               <span>TOTAL</span>
               <span className="font-mono text-right">{montant(registre.totalRetenu)}</span>
               <span className="font-mono text-right">{montant(registre.totalReverse)}</span>
@@ -257,16 +257,16 @@ export function RetenuesPage() {
 
           {registre.comptesNonRattaches.length > 0 && (
             <div className="border border-warning/40 bg-warning-soft px-3.5 py-2.5 mb-2.5">
-              <div className="text-[11.5px] font-bold mb-1">
+              <div className="text-[10.5px] font-bold mb-1">
                 Comptes 43 et 44 mouvementés qu'aucune nature de retenue ne réclame
               </div>
-              <p className="text-[10.5px] mb-1.5">
+              <p className="text-[10px] mb-1.5">
                 Leur montant n'entre dans aucun total de cet état. Ce sont souvent des impôts dont l'entité est
                 elle-même redevable (compte 442), qui ne sont pas des retenues à la source · vérifiez qu'ils sont bien
                 à leur place.
               </p>
               {registre.comptesNonRattaches.map((c) => (
-                <div key={c.numero} className="text-[11px] font-mono">
+                <div key={c.numero} className="text-[10.5px] font-mono">
                   {c.numero} · {c.intitule}
                 </div>
               ))}
@@ -274,7 +274,7 @@ export function RetenuesPage() {
           )}
 
           {registre.avertissements.map((a) => (
-            <p key={a} className="text-[10.5px] text-text-dim mb-1.5 max-w-[900px]">
+            <p key={a} className="text-[10px] text-text-dim mb-1.5 max-w-[900px]">
               {a}
             </p>
           ))}

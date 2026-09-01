@@ -71,13 +71,13 @@ export function DashboardPage() {
       <div className="flex items-center justify-between mb-1.5">
         <div>
           <div className="text-[10px] font-mono text-text-dim leading-none">FENÊTRE</div>
-          <h1 className="text-[13px] font-bold leading-tight">
+          <h1 className="text-[12px] font-bold leading-tight">
             Tableau de bord{exerciceCourant && ` · Exercice ${new Date(exerciceCourant.dateDebut).getFullYear()}`}
           </h1>
         </div>
         <button
           onClick={() => navigate('/saisie')}
-          className="flex items-center gap-2 px-4 py-1.5 bg-sel text-white text-[12px] font-semibold"
+          className="flex items-center gap-2 px-4 py-1.5 bg-sel text-white text-[11px] font-semibold"
         >
           <IconNew width={15} height={15} />
           Saisie des journaux
@@ -92,9 +92,9 @@ export function DashboardPage() {
           return (
             <div key={ind.label} className="bg-surface border border-border shadow-posee px-3.5 py-2.5">
               <div className="text-[10px] font-bold text-text-dim tracking-wide">{ind.label}</div>
-              <div className={`font-mono text-[20px] font-bold leading-tight mt-0.5 ${teinte}`}>
+              <div className={`font-mono text-[17px] font-bold leading-tight mt-0.5 ${teinte}`}>
                 {balance ? ind.valeur.toLocaleString('fr-FR') : '…'}
-                <span className="text-[10.5px] font-normal text-text-dim ml-1">CDF</span>
+                <span className="text-[10px] font-normal text-text-dim ml-1">CDF</span>
               </div>
               <div className="text-[10px] text-text-dim mt-0.5">{ind.note}</div>
             </div>
@@ -105,13 +105,13 @@ export function DashboardPage() {
       <div className="bg-surface border border-border shadow-posee">
         <div className="px-3.5 py-1.5 bg-surface-alt border-b border-border-dark flex items-center justify-between">
           <span className="text-[10px] font-bold text-text-dim">DERNIÈRES ÉCRITURES</span>
-          <a href="#/journal" className="text-[10.5px] text-sel hover:underline">
+          <a href="#/journal" className="text-[10px] text-sel hover:underline">
             Ouvrir le journal
           </a>
         </div>
-        {!ecritures && <div className="p-3 text-[12px] text-text-dim">Chargement…</div>}
+        {!ecritures && <div className="p-3 text-[11px] text-text-dim">Chargement…</div>}
         {ecritures?.length === 0 && (
-          <div className="p-3 text-[12px] text-text-dim">
+          <div className="p-3 text-[11px] text-text-dim">
             Aucune écriture sur cet exercice · commencez par la saisie des journaux.
           </div>
         )}
@@ -120,13 +120,13 @@ export function DashboardPage() {
           return (
             <div
               key={e.id}
-              className="grid grid-cols-[76px_52px_56px_1fr_130px] gap-2.5 items-center px-3.5 py-[4px] border-b border-border/50 last:border-b-0 text-[11.5px]"
+              className="grid grid-cols-[76px_52px_56px_1fr_130px] gap-2.5 items-center px-3.5 py-[4px] border-b border-border/50 last:border-b-0 text-[10.5px]"
             >
-              <span className="font-mono text-[10.5px] text-text-dim">
+              <span className="font-mono text-[10px] text-text-dim">
                 {new Date(e.date).toLocaleDateString('fr-FR')}
               </span>
               <span className="font-mono text-text-dim">{e.journal?.code ?? ''}</span>
-              <span className="font-mono text-[10.5px] text-text-dim text-right">{e.numeroPiece ?? '·'}</span>
+              <span className="font-mono text-[10px] text-text-dim text-right">{e.numeroPiece ?? '·'}</span>
               <span className="truncate">{e.libelle}</span>
               <span className="font-mono font-semibold text-right">{totalDebit.toLocaleString('fr-FR')}</span>
             </div>
@@ -134,7 +134,7 @@ export function DashboardPage() {
         })}
       </div>
 
-      <p className="text-[10.5px] text-text-dim mt-2 max-w-[860px]">
+      <p className="text-[10px] text-text-dim mt-2 max-w-[860px]">
         Indicateurs calculés en direct depuis la balance de l'exercice · aucune donnée parallèle. Le résultat
         est provisoire tant que les écritures d'inventaire et de clôture ne sont pas passées ; les états
         financiers SYCEBNL restent la référence (menu État).

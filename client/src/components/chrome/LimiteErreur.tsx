@@ -40,18 +40,18 @@ export class LimiteErreur extends Component<
     return (
       <div className="p-6 max-w-[620px]">
         <div className="rounded-[12px] border border-danger/40 bg-surface p-4">
-          <h2 className="text-[14px] font-semibold text-danger">Cette fenêtre n’a pas pu s’afficher</h2>
-          <p className="mt-2 text-[12.5px] text-text-dim leading-relaxed">
+          <h2 className="text-[13px] font-semibold text-danger">Cette fenêtre n’a pas pu s’afficher</h2>
+          <p className="mt-2 text-[11px] text-text-dim leading-relaxed">
             Les autres fenêtres et vos saisies en cours ne sont pas touchées. Vous pouvez refermer celle-ci et
             continuer ailleurs.
           </p>
-          <pre className="mt-3 overflow-auto rounded-[8px] bg-chrome-alt p-2.5 text-[11px] leading-relaxed text-text">
+          <pre className="mt-3 overflow-auto rounded-[8px] bg-chrome-alt p-2.5 text-[10.5px] leading-relaxed text-text">
             {erreur.message}
           </pre>
           <button
             type="button"
             onClick={() => this.setState({ erreur: null })}
-            className="mt-3 rounded-[8px] border border-border px-3 py-1.5 text-[11.5px] font-semibold hover:bg-chrome-alt"
+            className="mt-3 rounded-[8px] border border-border px-3 py-1.5 text-[10.5px] font-semibold hover:bg-chrome-alt"
           >
             Réessayer l’affichage
           </button>

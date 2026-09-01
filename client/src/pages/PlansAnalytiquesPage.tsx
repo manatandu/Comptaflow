@@ -1,6 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '../lib/api';
-import { useActionsFenetre } from '../lib/actions-fenetre';
 import { useAuth } from '../lib/auth';
 import { useExercice } from '../lib/exercice';
 import { Aide } from '../components/chrome/Aide';
@@ -48,7 +47,6 @@ export function PlansAnalytiquesPage() {
   const [recherche, setRecherche] = useState('');
 
   const [nouvelleOuverte, setNouvelleOuverte] = useState(false);
-  useActionsFenetre({ ajouter: { titre: 'Nouvelle section analytique', executer: () => setNouvelleOuverte(true) } });
   const [code, setCode] = useState('');
   const [intitule, setIntitule] = useState('');
   const [type, setType] = useState<'DETAIL' | 'TOTAL'>('DETAIL');
@@ -186,7 +184,7 @@ export function PlansAnalytiquesPage() {
       <div className="flex items-end justify-between mb-1.5 gap-3 flex-wrap">
         <div>
           <div className="text-[10px] font-mono text-text-dim leading-none">STRUCTURE</div>
-          <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
+          <h1 className="text-[12px] font-bold leading-tight flex items-center gap-1.5">
             Plans analytiques
             <Aide sujet="analytique" />
           </h1>
@@ -196,13 +194,13 @@ export function PlansAnalytiquesPage() {
             value={recherche}
             onChange={(e) => setRecherche(e.target.value)}
             placeholder="Rechercher (code, intitulé)…"
-            className="border border-border rounded-[6px] bg-surface px-2.5 py-1.5 text-[12px] min-w-[240px]"
+            className="border border-border rounded-[6px] bg-surface px-2.5 py-1.5 text-[11px] min-w-[240px]"
           />
           {estAdmin && (
             <button
               onClick={() => setNouvelleOuverte(true)}
               disabled={!planId}
-              className="bg-sel text-white text-[12px] font-bold px-3.5 py-1.5 rounded-[6px] hover:brightness-110 disabled:opacity-50"
+              className="bg-sel text-white text-[11px] font-bold px-3.5 py-1.5 rounded-[6px] hover:brightness-110 disabled:opacity-50"
             >
               Nouvelle section
             </button>
@@ -211,12 +209,12 @@ export function PlansAnalytiquesPage() {
       </div>
 
       {erreur && (
-        <div className="mb-2.5 text-[12px] text-danger bg-danger-soft border border-danger/30 rounded-[6px] px-2.5 py-1.5">
+        <div className="mb-2.5 text-[11px] text-danger bg-danger-soft border border-danger/30 rounded-[6px] px-2.5 py-1.5">
           {erreur}
         </div>
       )}
       {info && (
-        <div className="mb-2.5 text-[12px] text-positive bg-positive-soft border border-positive/30 rounded-[6px] px-2.5 py-1.5 flex justify-between">
+        <div className="mb-2.5 text-[11px] text-positive bg-positive-soft border border-positive/30 rounded-[6px] px-2.5 py-1.5 flex justify-between">
           <span>{info}</span>
           <button onClick={() => setInfo(null)} className="font-bold hover:underline">
             Fermer
@@ -235,7 +233,7 @@ export function PlansAnalytiquesPage() {
               <button
                 key={p.id}
                 onClick={() => setPlanId(p.id)}
-                className={`w-full flex items-center justify-between px-2.5 py-1.5 text-[12px] rounded-[6px] ${
+                className={`w-full flex items-center justify-between px-2.5 py-1.5 text-[11px] rounded-[6px] ${
                   planId === p.id ? 'bg-sel text-white' : 'hover:bg-chrome-alt'
                 }`}
               >
@@ -248,10 +246,10 @@ export function PlansAnalytiquesPage() {
                 <span className={planId === p.id ? 'text-white/70' : 'text-text-dim'}>{p._count?.sections ?? 0}</span>
               </button>
             ))}
-            {plans?.length === 0 && <div className="px-2.5 py-2 text-[11.5px] text-text-dim">Aucun axe</div>}
+            {plans?.length === 0 && <div className="px-2.5 py-2 text-[10.5px] text-text-dim">Aucun axe</div>}
           </div>
           {plan && (
-            <div className="px-3 py-2.5 border-t border-border text-[10.5px] text-text-dim leading-[1.5]">
+            <div className="px-3 py-2.5 border-t border-border text-[10px] text-text-dim leading-[1.5]">
               Ventilation attendue sur les classes{' '}
               <span className="font-mono">{plan.classesVentilees.split(',').join(', ')}</span>
               {plan.ventilationObligatoire ? ' · obligatoire en saisie' : ' · signalée, non bloquante'}
@@ -273,7 +271,7 @@ export function PlansAnalytiquesPage() {
               <button
                 key={s.id}
                 onClick={() => setSectionId(s.id)}
-                className={`w-full grid grid-cols-[100px_1fr_130px_90px] gap-2 px-3 py-1.5 text-[12px] text-left border-b border-border/50 ${
+                className={`w-full grid grid-cols-[100px_1fr_130px_90px] gap-2 px-3 py-1.5 text-[11px] text-left border-b border-border/50 ${
                   sectionId === s.id ? 'bg-sel text-white' : 'hover:bg-chrome-alt'
                 } ${!s.estActive ? 'opacity-50' : ''}`}
               >
@@ -282,18 +280,18 @@ export function PlansAnalytiquesPage() {
                 <span className={`truncate ${sectionId === s.id ? 'text-white/80' : 'text-text-dim'}`}>
                   {s.bailleur?.nom ?? ''}
                 </span>
-                <span className={`font-mono text-[10.5px] ${sectionId === s.id ? 'text-white/80' : 'text-text-dim'}`}>
+                <span className={`font-mono text-[10px] ${sectionId === s.id ? 'text-white/80' : 'text-text-dim'}`}>
                   {s.dateDebut ? `${jour(s.dateDebut).slice(3)} → ${s.dateFin ? jour(s.dateFin).slice(3) : '…'}` : ''}
                 </span>
               </button>
             ))}
             {listeFiltree.length === 0 && (
-              <div className="px-3 py-4 text-[12px] text-text-dim italic">
+              <div className="px-3 py-4 text-[11px] text-text-dim italic">
                 Aucune section. Un axe sans section ne ventile rien : créez vos projets ou vos bailleurs.
               </div>
             )}
           </div>
-          <div className="px-3 py-1.5 border-t border-border bg-chrome text-[10.5px] text-text-dim">
+          <div className="px-3 py-1.5 border-t border-border bg-chrome text-[10px] text-text-dim">
             {listeFiltree.length} section{listeFiltree.length > 1 ? 's' : ''}
           </div>
         </section>
@@ -304,30 +302,30 @@ export function PlansAnalytiquesPage() {
             FICHE DE LA SECTION
           </header>
           {!section ? (
-            <p className="p-3 text-[12px] text-text-dim leading-[1.55]">
+            <p className="p-3 text-[11px] text-text-dim leading-[1.55]">
               Sélectionnez une section pour voir sa fiche : identification, convention de financement et dotation
               budgétaire de l'exercice.
             </p>
           ) : (
             <div className="p-3 flex flex-col gap-3">
               <div>
-                <div className="font-mono text-[13px] font-bold">{section.code}</div>
-                <div className="text-[12.5px]">{section.intitule}</div>
-                <div className="text-[10.5px] text-text-dim mt-1">
+                <div className="font-mono text-[12px] font-bold">{section.code}</div>
+                <div className="text-[11px]">{section.intitule}</div>
+                <div className="text-[10px] text-text-dim mt-1">
                   {section.type === 'TOTAL' ? 'Section Total · regroupe ses sections Détail' : 'Section Détail'}
                   {!section.estActive && ' · en sommeil'}
                 </div>
               </div>
 
               {section.bailleur && (
-                <div className="text-[12px]">
+                <div className="text-[11px]">
                   <span className="text-text-dim">Bailleur </span>
                   <span className="font-medium">{section.bailleur.nom}</span>
                 </div>
               )}
 
               {(section.dateDebut || section.dateFin) && (
-                <div className="text-[12px]">
+                <div className="text-[11px]">
                   <span className="text-text-dim">Convention </span>
                   <span className="font-mono">
                     {jour(section.dateDebut)} au {jour(section.dateFin)}
@@ -347,12 +345,12 @@ export function PlansAnalytiquesPage() {
                         value={dotation}
                         onChange={(e) => setDotation(e.target.value)}
                         placeholder="Montant annuel"
-                        className="flex-1 min-w-0 border border-border rounded-[6px] px-2 py-1 text-[12px] font-mono"
+                        className="flex-1 min-w-0 border border-border rounded-[6px] px-2 py-1 text-[11px] font-mono"
                       />
                       <button
                         onClick={doter}
                         disabled={!dotation}
-                        className="bg-sel text-white text-[11.5px] font-semibold px-2.5 rounded-[6px] hover:brightness-110 disabled:opacity-50"
+                        className="bg-sel text-white text-[10.5px] font-semibold px-2.5 rounded-[6px] hover:brightness-110 disabled:opacity-50"
                       >
                         Répartir
                       </button>
@@ -360,13 +358,13 @@ export function PlansAnalytiquesPage() {
                   )}
                   {budget && budget.mensuel.length > 0 ? (
                     <>
-                      <div className="flex justify-between text-[12px] font-bold mb-1.5">
+                      <div className="flex justify-between text-[11px] font-bold mb-1.5">
                         <span>Exercice</span>
                         <span className="font-mono">{montant(budget.annuel)}</span>
                       </div>
                       <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
                         {budget.mensuel.map((m) => (
-                          <div key={m.mois} className="flex items-center justify-between text-[11.5px]">
+                          <div key={m.mois} className="flex items-center justify-between text-[10.5px]">
                             <span className="text-text-dim">{MOIS[m.mois - 1]}</span>
                             {estAdmin ? (
                               <input
@@ -380,13 +378,13 @@ export function PlansAnalytiquesPage() {
                           </div>
                         ))}
                       </div>
-                      <p className="text-[10.5px] text-text-dim mt-2 leading-[1.5]">
+                      <p className="text-[10px] text-text-dim mt-2 leading-[1.5]">
                         Répartie sur les mois que la convention couvre réellement, et non sur douze : un financement
                         de huit mois étalé sur l'année fausserait tous les écarts.
                       </p>
                     </>
                   ) : (
-                    <p className="text-[11.5px] text-text-dim">Aucune dotation sur cet exercice.</p>
+                    <p className="text-[10.5px] text-text-dim">Aucune dotation sur cet exercice.</p>
                   )}
                 </div>
               )}
@@ -395,7 +393,7 @@ export function PlansAnalytiquesPage() {
                 <div className="border-t border-border pt-3">
                   <button
                     onClick={basculerSommeil}
-                    className="w-full border border-border rounded-[6px] px-3 py-1.5 text-[11.5px] hover:bg-chrome-alt"
+                    className="w-full border border-border rounded-[6px] px-3 py-1.5 text-[10.5px] hover:bg-chrome-alt"
                   >
                     {section.estActive ? 'Mettre en sommeil' : 'Réactiver'}
                   </button>
@@ -413,13 +411,13 @@ export function PlansAnalytiquesPage() {
             className="w-full max-w-[520px] bg-surface border border-border rounded-[10px] overflow-hidden shadow-flottante anim-modale max-h-[calc(100dvh-2rem)] overflow-y-auto"
           >
             <div
-              className="h-[34px] flex items-center px-3 text-white text-[12px]"
+              className="h-[34px] flex items-center px-3 text-white text-[11px]"
               style={{ background: 'linear-gradient(180deg, var(--titlebar-from), var(--titlebar-to))' }}
             >
               Nouvelle section de l'axe {plan?.intitule}
             </div>
             <div className="p-4 grid grid-cols-2 gap-3">
-              <label className="text-[11.5px] font-semibold text-text-dim">
+              <label className="text-[10.5px] font-semibold text-text-dim">
                 Code
                 <input
                   required
@@ -427,36 +425,36 @@ export function PlansAnalytiquesPage() {
                   value={code}
                   onChange={(e) => setCode(e.target.value.toUpperCase())}
                   placeholder="EAU-KIVU"
-                  className="mt-1 w-full border border-border rounded-[6px] px-2.5 py-1.5 text-[13px] font-mono font-normal"
+                  className="mt-1 w-full border border-border rounded-[6px] px-2.5 py-1.5 text-[12px] font-mono font-normal"
                 />
               </label>
-              <label className="text-[11.5px] font-semibold text-text-dim">
+              <label className="text-[10.5px] font-semibold text-text-dim">
                 Type
                 <select
                   value={type}
                   onChange={(e) => setType(e.target.value as 'DETAIL' | 'TOTAL')}
-                  className="mt-1 w-full border border-border rounded-[6px] px-2.5 py-1.5 text-[13px] font-normal"
+                  className="mt-1 w-full border border-border rounded-[6px] px-2.5 py-1.5 text-[12px] font-normal"
                 >
                   <option value="DETAIL">Détail · reçoit les imputations</option>
                   <option value="TOTAL">Total · regroupe dans les états</option>
                 </select>
               </label>
-              <label className="text-[11.5px] font-semibold text-text-dim col-span-2">
+              <label className="text-[10.5px] font-semibold text-text-dim col-span-2">
                 Intitulé
                 <input
                   required
                   value={intitule}
                   onChange={(e) => setIntitule(e.target.value)}
                   placeholder="Accès à l'eau potable · Nord-Kivu"
-                  className="mt-1 w-full border border-border rounded-[6px] px-2.5 py-1.5 text-[13px] font-normal"
+                  className="mt-1 w-full border border-border rounded-[6px] px-2.5 py-1.5 text-[12px] font-normal"
                 />
               </label>
-              <label className="text-[11.5px] font-semibold text-text-dim col-span-2">
+              <label className="text-[10.5px] font-semibold text-text-dim col-span-2">
                 Bailleur (facultatif)
                 <select
                   value={bailleurId}
                   onChange={(e) => setBailleurId(e.target.value)}
-                  className="mt-1 w-full border border-border rounded-[6px] px-2.5 py-1.5 text-[13px] font-normal"
+                  className="mt-1 w-full border border-border rounded-[6px] px-2.5 py-1.5 text-[12px] font-normal"
                 >
                   <option value="">Aucun</option>
                   {bailleurs.map((b) => (
@@ -466,25 +464,25 @@ export function PlansAnalytiquesPage() {
                   ))}
                 </select>
               </label>
-              <label className="text-[11.5px] font-semibold text-text-dim">
+              <label className="text-[10.5px] font-semibold text-text-dim">
                 Début de convention
                 <input
                   type="date"
                   value={dateDebut}
                   onChange={(e) => setDateDebut(e.target.value)}
-                  className="mt-1 w-full border border-border rounded-[6px] px-2.5 py-1.5 text-[13px] font-mono font-normal"
+                  className="mt-1 w-full border border-border rounded-[6px] px-2.5 py-1.5 text-[12px] font-mono font-normal"
                 />
               </label>
-              <label className="text-[11.5px] font-semibold text-text-dim">
+              <label className="text-[10.5px] font-semibold text-text-dim">
                 Fin de convention
                 <input
                   type="date"
                   value={dateFin}
                   onChange={(e) => setDateFin(e.target.value)}
-                  className="mt-1 w-full border border-border rounded-[6px] px-2.5 py-1.5 text-[13px] font-mono font-normal"
+                  className="mt-1 w-full border border-border rounded-[6px] px-2.5 py-1.5 text-[12px] font-mono font-normal"
                 />
               </label>
-              <p className="col-span-2 text-[11px] text-text-dim leading-[1.5]">
+              <p className="col-span-2 text-[10.5px] text-text-dim leading-[1.5]">
                 Les dates de convention commandent la répartition du budget : seuls les mois qu'elles couvrent
                 reçoivent une dotation.
               </p>
@@ -493,14 +491,14 @@ export function PlansAnalytiquesPage() {
               <button
                 type="button"
                 onClick={() => setNouvelleOuverte(false)}
-                className="px-4 py-1.5 border border-border rounded-[6px] bg-surface text-[12.5px] hover:bg-chrome-alt"
+                className="px-4 py-1.5 border border-border rounded-[6px] bg-surface text-[11px] hover:bg-chrome-alt"
               >
                 Annuler
               </button>
               <button
                 type="submit"
                 disabled={envoi}
-                className="px-5 py-1.5 bg-sel text-white text-[12.5px] font-semibold rounded-[6px] hover:brightness-110 disabled:opacity-50"
+                className="px-5 py-1.5 bg-sel text-white text-[11px] font-semibold rounded-[6px] hover:brightness-110 disabled:opacity-50"
               >
                 {envoi ? 'Création…' : 'Créer'}
               </button>

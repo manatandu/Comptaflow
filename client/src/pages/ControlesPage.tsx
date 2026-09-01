@@ -76,21 +76,21 @@ export function ControlesPage() {
     });
 
   const ongletClasse = (o: Onglet) =>
-    `px-4 py-1.5 text-[11px] font-bold ${onglet === o ? 'bg-surface border-x border-border' : 'text-text-dim'}`;
+    `px-4 py-1.5 text-[10.5px] font-bold ${onglet === o ? 'bg-surface border-x border-border' : 'text-text-dim'}`;
 
   return (
     <div className="p-2">
       <EnteteImpression titre="Analyse et contrôles" />
       <div className="mb-2.5">
         <div className="text-[10px] font-mono text-text-dim leading-none">ÉTAT</div>
-        <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
+        <h1 className="text-[12px] font-bold leading-tight flex items-center gap-1.5">
           Analyse et contrôles
           <Aide sujet="controles" />
         </h1>
       </div>
 
       {erreur && (
-        <div className="mb-2.5 text-[12px] text-danger bg-danger-soft border border-danger/30 rounded-[6px] px-2.5 py-1.5">
+        <div className="mb-2.5 text-[11px] text-danger bg-danger-soft border border-danger/30 rounded-[6px] px-2.5 py-1.5">
           {erreur}
         </div>
       )}
@@ -112,12 +112,12 @@ export function ControlesPage() {
 
       {onglet === 'controles' && (
         <div className="border border-border bg-surface rounded-b-[10px] overflow-hidden">
-          {!rapport && <div className="px-4 py-4 text-[12px] text-text-dim">Analyse en cours…</div>}
+          {!rapport && <div className="px-4 py-4 text-[11px] text-text-dim">Analyse en cours…</div>}
 
           {rapport && rapport.anomalies.length === 0 && (
             <div className="px-4 py-6 text-center">
-              <div className="text-[14px] font-bold text-positive">Aucune anomalie</div>
-              <p className="text-[12px] text-text-dim mt-1">
+              <div className="text-[13px] font-bold text-positive">Aucune anomalie</div>
+              <p className="text-[11px] text-text-dim mt-1">
                 Les contrôles de cohérence ne relèvent rien sur cet exercice.
               </p>
             </div>
@@ -125,7 +125,7 @@ export function ControlesPage() {
 
           {rapport && rapport.anomalies.length > 0 && (
             <>
-              <div className="px-4 py-2 bg-chrome-alt border-b border-border flex gap-4 text-[11.5px]">
+              <div className="px-4 py-2 bg-chrome-alt border-b border-border flex gap-4 text-[10.5px]">
                 <span className="text-danger font-bold">{rapport.totaux.bloquants} bloquant(s)</span>
                 <span className="text-warning font-bold">{rapport.totaux.avertissements} à corriger</span>
                 <span className="text-sel font-bold">{rapport.totaux.informations} pour information</span>
@@ -141,14 +141,14 @@ export function ControlesPage() {
                     >
                       <span className="flex items-baseline gap-2.5 min-w-0">
                         <span className={`text-[10px] font-bold uppercase ${c.texte} shrink-0`}>{c.libelle}</span>
-                        <span className="text-[13px] font-semibold truncate">{a.libelle}</span>
+                        <span className="text-[12px] font-semibold truncate">{a.libelle}</span>
                       </span>
                       <span className="flex items-center gap-2 shrink-0">
-                        <span className={`text-[12px] font-mono font-bold ${c.texte}`}>{a.occurrences.length}</span>
+                        <span className={`text-[11px] font-mono font-bold ${c.texte}`}>{a.occurrences.length}</span>
                         <span className="text-[10px] text-text-dim">{ouvert ? '▲' : '▼'}</span>
                       </span>
                     </button>
-                    <div className="px-4 py-2 text-[11.5px] leading-[1.55] border-t border-border/40">
+                    <div className="px-4 py-2 text-[10.5px] leading-[1.55] border-t border-border/40">
                       <p className="text-text-dim">{a.consequence}</p>
                       <p className="mt-1">
                         <span className="font-semibold">À faire : </span>
@@ -160,7 +160,7 @@ export function ControlesPage() {
                         {a.occurrences.map((o, i) => (
                           <div
                             key={i}
-                            className="grid grid-cols-[180px_1fr_100px_130px] gap-2 px-4 py-1 text-[11.5px] border-b border-border/30"
+                            className="grid grid-cols-[180px_1fr_100px_130px] gap-2 px-4 py-1 text-[10.5px] border-b border-border/30"
                           >
                             <span className="font-mono">{o.reference}</span>
                             <span className="truncate">{o.detail}</span>
@@ -182,9 +182,9 @@ export function ControlesPage() {
 
       {onglet === 'caisse' && (
         <div className="border border-border bg-surface rounded-b-[10px] overflow-hidden">
-          {!caisses && <div className="px-4 py-4 text-[12px] text-text-dim">Chargement…</div>}
+          {!caisses && <div className="px-4 py-4 text-[11px] text-text-dim">Chargement…</div>}
           {caisses && caisses.length === 0 && (
-            <div className="px-4 py-5 text-[12px] text-text-dim italic">
+            <div className="px-4 py-5 text-[11px] text-text-dim italic">
               Aucun compte de caisse dans ce dossier. Un compte de caisse est un compte 57, ou le compte rattaché à un
               journal de trésorerie nommé « caisse ».
             </div>
@@ -196,12 +196,12 @@ export function ControlesPage() {
                   c.nombreJoursNegatifs > 0 ? 'bg-danger-soft' : 'bg-positive-soft'
                 }`}
               >
-                <span className="text-[13px] font-semibold">
+                <span className="text-[12px] font-semibold">
                   <span className="font-mono">{c.numero}</span> {c.intitule}
-                  {c.journal && <span className="text-text-dim text-[11px]"> · journal {c.journal}</span>}
+                  {c.journal && <span className="text-text-dim text-[10.5px]"> · journal {c.journal}</span>}
                 </span>
                 <span
-                  className={`text-[11.5px] font-bold ${c.nombreJoursNegatifs > 0 ? 'text-danger' : 'text-positive'}`}
+                  className={`text-[10.5px] font-bold ${c.nombreJoursNegatifs > 0 ? 'text-danger' : 'text-positive'}`}
                 >
                   {c.nombreJoursNegatifs > 0
                     ? `Créditrice ${c.nombreJoursNegatifs} jour(s) · première fois le ${c.premierJourNegatif}`
@@ -210,7 +210,7 @@ export function ControlesPage() {
               </header>
 
               {c.nombreJoursNegatifs > 0 && (
-                <p className="px-4 py-2 text-[11.5px] text-text-dim leading-[1.55] border-b border-border/40">
+                <p className="px-4 py-2 text-[10.5px] text-text-dim leading-[1.55] border-b border-border/40">
                   Une caisse ne peut pas être créditrice : on aurait décaissé de l'argent qu'on n'avait pas. Enregistrez
                   les approvisionnements avant les dépenses du même jour, ou retrouvez la pièce manquante.
                 </p>
@@ -227,12 +227,12 @@ export function ControlesPage() {
                 {c.journees.map((j) => (
                   <div
                     key={j.date}
-                    className={`grid grid-cols-[110px_1fr_140px_140px_150px] gap-2 px-4 py-1 text-[12px] border-b border-border/30 ${
+                    className={`grid grid-cols-[110px_1fr_140px_140px_150px] gap-2 px-4 py-1 text-[11px] border-b border-border/30 ${
                       j.negatif ? 'bg-danger-soft' : ''
                     }`}
                   >
                     <span className="font-mono">{j.date}</span>
-                    <span className="text-[11px] text-danger font-bold">{j.negatif ? 'caisse créditrice' : ''}</span>
+                    <span className="text-[10.5px] text-danger font-bold">{j.negatif ? 'caisse créditrice' : ''}</span>
                     <span className="text-right font-mono">
                       {j.mouvementDebit ? montant(j.mouvementDebit) : ''}
                     </span>
@@ -245,10 +245,10 @@ export function ControlesPage() {
                   </div>
                 ))}
                 {c.journees.length === 0 && (
-                  <div className="px-4 py-3 text-[12px] text-text-dim italic">Aucun mouvement sur cet exercice.</div>
+                  <div className="px-4 py-3 text-[11px] text-text-dim italic">Aucun mouvement sur cet exercice.</div>
                 )}
               </div>
-              <div className="grid grid-cols-[110px_1fr_140px_140px_150px] gap-2 px-4 py-1.5 bg-chrome border-t border-border text-[12px] font-bold">
+              <div className="grid grid-cols-[110px_1fr_140px_140px_150px] gap-2 px-4 py-1.5 bg-chrome border-t border-border text-[11px] font-bold">
                 <span />
                 <span>Solde de clôture</span>
                 <span />
@@ -269,11 +269,11 @@ export function ControlesPage() {
       {onglet === 'evolution' && (
         <div className="border border-border bg-surface rounded-b-[10px] overflow-auto">
           <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
-            <label className="text-[11.5px] text-text-dim">Classe</label>
+            <label className="text-[10.5px] text-text-dim">Classe</label>
             <select
               value={classeEvolution}
               onChange={(e) => setClasseEvolution(e.target.value)}
-              className="border border-border-dark px-2 py-1 text-[11.5px]"
+              className="border border-border-dark px-2 py-1 text-[10.5px]"
             >
               <option value="">Toutes (sans ligne de totaux)</option>
               {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
@@ -282,19 +282,19 @@ export function ControlesPage() {
                 </option>
               ))}
             </select>
-            <span className="text-[11px] text-text-dim">
+            <span className="text-[10.5px] text-text-dim">
               Le total d’une colonne n’a de sens que sur une classe : sur tout le plan, la partie double le ramène
               à zéro.
             </span>
           </div>
-          {!evolution && <div className="px-4 py-4 text-[12px] text-text-dim">Calcul en cours…</div>}
+          {!evolution && <div className="px-4 py-4 text-[11px] text-text-dim">Calcul en cours…</div>}
           {evolution && evolution.comptes.length === 0 && (
-            <div className="px-4 py-6 text-[12px] text-text-dim text-center">
+            <div className="px-4 py-6 text-[11px] text-text-dim text-center">
               Aucun compte mouvementé sur cet exercice.
             </div>
           )}
           {evolution && evolution.comptes.length > 0 && (
-            <table className="w-full text-[11px] border-collapse">
+            <table className="w-full text-[10.5px] border-collapse">
               <thead className="sticky top-0 z-10">
                 <tr className="bg-surface-alt text-[10px] font-semibold uppercase tracking-[0.04em] text-text-dim">
                   <th className="text-left px-2.5 py-2 border-b border-border-dark">Compte</th>
@@ -372,22 +372,22 @@ export function ControlesPage() {
       */}
       {onglet === 'dormants' && (
         <div className="border border-border bg-surface rounded-b-[10px] overflow-auto">
-          {!dormants && <div className="px-4 py-4 text-[12px] text-text-dim">Analyse en cours…</div>}
+          {!dormants && <div className="px-4 py-4 text-[11px] text-text-dim">Analyse en cours…</div>}
           {dormants && dormants.length === 0 && (
             <div className="px-4 py-6 text-center">
-              <div className="text-[14px] font-bold text-positive">Aucun compte dormant</div>
-              <div className="text-[11.5px] text-text-dim mt-1">
+              <div className="text-[13px] font-bold text-positive">Aucun compte dormant</div>
+              <div className="text-[10.5px] text-text-dim mt-1">
                 Tous les comptes actifs ont été mouvementés dans les douze derniers mois.
               </div>
             </div>
           )}
           {dormants && dormants.length > 0 && (
             <>
-              <p className="px-3 py-2 text-[11px] text-text-dim border-b border-border">
+              <p className="px-3 py-2 text-[10.5px] text-text-dim border-b border-border">
                 Comptes actifs sans mouvement depuis plus de douze mois. Ceux qui portent encore un solde sont
                 listés en premier : un compte dormant à solde non nul est une question à poser avant l’arrêté.
               </p>
-              <table className="w-full text-[11.5px] border-collapse">
+              <table className="w-full text-[10.5px] border-collapse">
                 <thead>
                   <tr className="bg-surface-alt text-[10px] font-semibold uppercase tracking-[0.04em] text-text-dim">
                     <th className="text-left px-3 py-2 border-b border-border-dark">Compte</th>

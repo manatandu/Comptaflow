@@ -138,7 +138,7 @@ export function BrouillardPage() {
       <div className="flex items-end justify-between mb-1.5 gap-3 flex-wrap">
         <div>
           <div className="text-[10px] font-mono text-text-dim leading-none">ÉTAT</div>
-          <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
+          <h1 className="text-[12px] font-bold leading-tight flex items-center gap-1.5">
             Brouillard
             <Aide sujet="brouillard" />
           </h1>
@@ -149,7 +149,7 @@ export function BrouillardPage() {
             <select
               value={journalId}
               onChange={(e) => setJournalId(e.target.value)}
-              className="border border-border rounded-[6px] bg-surface px-2 py-1 text-[11.5px] min-w-[170px]"
+              className="border border-border rounded-[6px] bg-surface px-2 py-1 text-[10.5px] min-w-[170px]"
             >
               <option value="">Tous les journaux</option>
               {journaux.map((j) => (
@@ -167,20 +167,20 @@ export function BrouillardPage() {
                   type="date"
                   value={dateLimite}
                   onChange={(e) => setDateLimite(e.target.value)}
-                  className="border border-border rounded-[6px] bg-surface px-2 py-1 text-[11.5px] font-mono"
+                  className="border border-border rounded-[6px] bg-surface px-2 py-1 text-[10.5px] font-mono"
                 />
               </label>
               <button
                 onClick={validerJusqua}
                 disabled={envoi || !dateLimite}
-                className="border border-border rounded-[6px] bg-surface px-3 py-1.5 text-[11.5px] font-semibold hover:bg-chrome-alt disabled:opacity-50"
+                className="border border-border rounded-[6px] bg-surface px-3 py-1.5 text-[10.5px] font-semibold hover:bg-chrome-alt disabled:opacity-50"
               >
                 Valider la période
               </button>
               <button
                 onClick={validerSelection}
                 disabled={envoi || selection.size === 0}
-                className="bg-sel text-white text-[11.5px] font-bold px-3.5 py-1.5 rounded-[6px] hover:brightness-110 disabled:opacity-50"
+                className="bg-sel text-white text-[10.5px] font-bold px-3.5 py-1.5 rounded-[6px] hover:brightness-110 disabled:opacity-50"
               >
                 Valider la sélection ({selection.size})
               </button>
@@ -190,12 +190,12 @@ export function BrouillardPage() {
       </div>
 
       {erreur && (
-        <div className="mb-2.5 text-[12px] text-danger bg-danger-soft border border-danger/30 rounded-[6px] px-2.5 py-1.5">
+        <div className="mb-2.5 text-[11px] text-danger bg-danger-soft border border-danger/30 rounded-[6px] px-2.5 py-1.5">
           {erreur}
         </div>
       )}
       {info && (
-        <div className="mb-2.5 text-[12px] text-positive bg-positive-soft border border-positive/30 rounded-[6px] px-2.5 py-1.5 flex justify-between">
+        <div className="mb-2.5 text-[11px] text-positive bg-positive-soft border border-positive/30 rounded-[6px] px-2.5 py-1.5 flex justify-between">
           <span>{info}</span>
           <button onClick={() => setInfo(null)} className="font-bold hover:underline">
             Fermer
@@ -204,7 +204,7 @@ export function BrouillardPage() {
       )}
 
       {etat && etat.totaux.enRetard > 0 && (
-        <div className="mb-2.5 text-[12px] text-warning bg-warning-soft border border-warning/30 rounded-[6px] px-2.5 py-2 leading-[1.55]">
+        <div className="mb-2.5 text-[11px] text-warning bg-warning-soft border border-warning/30 rounded-[6px] px-2.5 py-2 leading-[1.55]">
           <strong>
             {etat.totaux.enRetard} écriture(s) séjournent au brouillard depuis plus de {etat.delaiCentralisationJours}{' '}
             jours.
@@ -215,7 +215,7 @@ export function BrouillardPage() {
         </div>
       )}
       {etat && etat.totaux.desequilibrees > 0 && (
-        <div className="mb-2.5 text-[12px] text-danger bg-danger-soft border border-danger/30 rounded-[6px] px-2.5 py-2">
+        <div className="mb-2.5 text-[11px] text-danger bg-danger-soft border border-danger/30 rounded-[6px] px-2.5 py-2">
           {etat.totaux.desequilibrees} écriture(s) sont déséquilibrées et ne peuvent pas être validées. Reprenez-les
           dans la saisie.
         </div>
@@ -246,11 +246,11 @@ export function BrouillardPage() {
           <span />
         </div>
 
-        {!etat && <div className="px-3 py-4 text-[12px] text-text-dim">Chargement…</div>}
+        {!etat && <div className="px-3 py-4 text-[11px] text-text-dim">Chargement…</div>}
         {etat?.lignes.map((l) => (
           <div key={l.id}>
             <div
-              className={`${grille} px-3 py-1 text-[12px] items-center border-b border-border/40 ${
+              className={`${grille} px-3 py-1 text-[11px] items-center border-b border-border/40 ${
                 !l.equilibree ? 'bg-danger-soft' : l.retardCentralisation ? 'bg-warning-soft' : ''
               }`}
             >
@@ -280,7 +280,7 @@ export function BrouillardPage() {
               <span className="text-right font-mono">{montant(l.debit)}</span>
               <span className="text-right font-mono">{montant(l.credit)}</span>
               <span
-                className={`text-right font-mono text-[11px] ${
+                className={`text-right font-mono text-[10.5px] ${
                   l.retardCentralisation ? 'text-warning font-bold' : 'text-text-dim'
                 }`}
               >
@@ -291,7 +291,7 @@ export function BrouillardPage() {
                   <button
                     onClick={() => supprimer(l.id)}
                     title="Supprimer du brouillard"
-                    className="text-[11px] text-danger/70 hover:text-danger"
+                    className="text-[10.5px] text-danger/70 hover:text-danger"
                   >
                     Supprimer
                   </button>
@@ -302,7 +302,7 @@ export function BrouillardPage() {
               l.lignes.map((li, i) => (
                 <div
                   key={i}
-                  className={`${grille} px-3 py-0.5 text-[11px] border-b border-border/30 bg-chrome-alt/50`}
+                  className={`${grille} px-3 py-0.5 text-[10.5px] border-b border-border/30 bg-chrome-alt/50`}
                 >
                   <span />
                   <span />
@@ -319,13 +319,13 @@ export function BrouillardPage() {
         ))}
 
         {etat && etat.lignes.length === 0 && (
-          <div className="px-3 py-5 text-[12px] text-text-dim italic">
+          <div className="px-3 py-5 text-[11px] text-text-dim italic">
             Le brouillard est vide : toutes les écritures de cet exercice sont entrées au livre-journal.
           </div>
         )}
 
         {etat && etat.lignes.length > 0 && (
-          <div className={`${grille} px-3 py-1.5 bg-chrome border-t border-border text-[12px] font-bold`}>
+          <div className={`${grille} px-3 py-1.5 bg-chrome border-t border-border text-[11px] font-bold`}>
             <span />
             <span />
             <span />
@@ -339,7 +339,7 @@ export function BrouillardPage() {
         )}
       </div>
 
-      <p className="mt-2 text-[10.5px] text-text-dim leading-[1.55] max-w-[900px]">
+      <p className="mt-2 text-[10px] text-text-dim leading-[1.55] max-w-[900px]">
         Une écriture en brouillard se modifie et se supprime librement : elle n'est pas encore entrée au
         livre-journal. La valider franchit cette frontière, et l'article 20 de l'AUDCIF ne laisse alors plus qu'une
         voie de correction, l'inscription en négatif. La clôture de l'exercice refuse de s'exécuter tant qu'il reste

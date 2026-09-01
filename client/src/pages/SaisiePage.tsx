@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError } from '../lib/api';
-import { useActionsFenetre } from '../lib/actions-fenetre';
 import { useExercice } from '../lib/exercice';
 import { ModelesSaisieModale, type LigneInseree } from '../components/ModelesSaisie';
 import { Calculette } from '../components/Calculette';
@@ -404,9 +403,6 @@ export function SaisiePage() {
     exactement comme le bouton Inverseur de la barre de Sage. La calculette
     reste, elle, à demeure dans la barre : elle ne dépend d'aucune fenêtre.
   */
-  useActionsFenetre({
-    inverseur: { titre: 'Inverser débit et crédit sur la ligne en cours', executer: inverserSaisie },
-  });
 
   const equilibrer = () => {
     if (Math.abs(soldePiece) < 0.005) return;
@@ -540,11 +536,11 @@ export function SaisiePage() {
     return (
       <div className="p-3 flex justify-center">
         <div className="w-full max-w-[640px]">
-          <div className="text-[10.5px] font-mono text-text-dim mb-1">TRAITEMENT</div>
-          <h1 className="text-[13px] font-bold leading-tight mb-1.5">Saisie des journaux</h1>
+          <div className="text-[10px] font-mono text-text-dim mb-1">TRAITEMENT</div>
+          <h1 className="text-[12px] font-bold leading-tight mb-1.5">Saisie des journaux</h1>
 
           <div className="bg-surface border border-border shadow-posee">
-            <div className="px-4 py-2 bg-surface-alt border-b border-border text-[11px] font-semibold text-text-dim">
+            <div className="px-4 py-2 bg-surface-alt border-b border-border text-[10.5px] font-semibold text-text-dim">
               Sélectionnez le journal et la période de saisie
             </div>
             <div className="p-4">
@@ -560,7 +556,7 @@ export function SaisiePage() {
                     key={j.id}
                     type="button"
                     onClick={() => setJournalId(j.id)}
-                    className={`w-full grid grid-cols-[80px_1fr_110px_90px] gap-2 px-3 py-1.5 border-b border-border text-left text-[12px] items-center ${
+                    className={`w-full grid grid-cols-[80px_1fr_110px_90px] gap-2 px-3 py-1.5 border-b border-border text-left text-[11px] items-center ${
                       journalId === j.id ? 'bg-sel text-white' : 'hover:bg-chrome-alt'
                     }`}
                   >
@@ -568,25 +564,25 @@ export function SaisiePage() {
                     <span>{j.intitule}</span>
                     <span className={journalId === j.id ? '' : 'text-text-dim'}>{LIBELLE_TYPE_JOURNAL[j.type]}</span>
                     <span
-                      className={`text-[11px] ${journalId === j.id ? '' : j.estActif ? 'text-positive' : 'text-warning'}`}
+                      className={`text-[10.5px] ${journalId === j.id ? '' : j.estActif ? 'text-positive' : 'text-warning'}`}
                     >
                       {j.estActif ? 'Actif' : 'En sommeil'}
                     </span>
                   </button>
                 ))}
                 {journaux.length === 0 && (
-                  <div className="px-3 py-2 text-[12px] text-text-dim italic">
+                  <div className="px-3 py-2 text-[11px] text-text-dim italic">
                     Aucun journal · créez-les dans Structure → Codes journaux.
                   </div>
                 )}
               </div>
 
               <div className="flex items-center gap-3">
-                <label className="text-[12px]">Période :</label>
+                <label className="text-[11px]">Période :</label>
                 <select
                   value={indexPeriode}
                   onChange={(e) => setIndexPeriode(Number(e.target.value))}
-                  className="border border-border-dark px-2 py-1 text-[12.5px]"
+                  className="border border-border-dark px-2 py-1 text-[11px]"
                 >
                   {periodes.map((p, i) => (
                     <option key={p.libelle} value={i}>
@@ -603,7 +599,7 @@ export function SaisiePage() {
                     setSucces(null);
                     setErreur(null);
                   }}
-                  className="bg-sel text-white px-5 py-1.5 text-[12.5px] font-semibold disabled:opacity-50"
+                  className="bg-sel text-white px-5 py-1.5 text-[11px] font-semibold disabled:opacity-50"
                 >
                   Ouvrir le journal
                 </button>
@@ -622,7 +618,7 @@ export function SaisiePage() {
       <div className="flex items-center justify-between mb-2">
         <div>
           <div className="text-[10px] font-mono text-text-dim leading-none">SAISIE DES JOURNAUX</div>
-          <h1 className="text-[13px] font-bold leading-tight">
+          <h1 className="text-[12px] font-bold leading-tight">
             Journal {journal?.code} · {journal?.intitule} · {periode?.libelle}
           </h1>
         </div>
@@ -632,7 +628,7 @@ export function SaisiePage() {
             setOuvert(false);
             abandonnerPiece();
           }}
-          className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[11.5px]"
+          className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[10.5px]"
         >
           Changer de journal / période
         </button>
@@ -666,7 +662,7 @@ export function SaisiePage() {
             return e.lignes.map((l, i) => (
               <div
                 key={l.id}
-                style={grilleStyle} className={`${grille} px-3 py-[3px] border-b border-border/60 text-[11.5px] items-center ${
+                style={grilleStyle} className={`${grille} px-3 py-[3px] border-b border-border/60 text-[10.5px] items-center ${
                   annulee ? 'opacity-50 line-through decoration-danger/60' : ''
                 } ${i === 0 ? 'border-t border-border' : ''}`}
               >
@@ -679,7 +675,7 @@ export function SaisiePage() {
                     </span>
                   )}
                 </span>
-                <span className="font-mono text-[10.5px] text-text-dim truncate">
+                <span className="font-mono text-[10px] text-text-dim truncate">
                   {i === 0 ? (e.reference ?? '') : ''}
                 </span>
                 <span className="font-mono">{l.compte?.numero ?? ''}</span>
@@ -700,14 +696,14 @@ export function SaisiePage() {
             ));
           })}
           {ecritures.length === 0 && (
-            <div className="px-3 py-2.5 text-[11.5px] text-text-dim italic">
+            <div className="px-3 py-2.5 text-[10.5px] text-text-dim italic">
               Aucune écriture sur ce journal pour {periode?.libelle}.
             </div>
           )}
         </div>
 
         {/* Totaux du journal */}
-        <div style={grilleStyle} className={`${grille} px-3 py-1.5 bg-surface-alt border-t border-border-dark text-[11.5px] font-bold`}>
+        <div style={grilleStyle} className={`${grille} px-3 py-1.5 bg-surface-alt border-t border-border-dark text-[10.5px] font-bold`}>
           <span style={{ gridColumn: `span ${4 + axesGrille.length}` }} />
           <span className="text-right text-[10px] text-text-dim self-center">TOTAUX JOURNAL</span>
           <span className="font-mono text-right">{totalDebitJournal.toLocaleString('fr-FR')}</span>
@@ -719,8 +715,8 @@ export function SaisiePage() {
       {/* ------- Pièce en cours ------- */}
       <div className="bg-surface border border-border-dark mt-2.5 rounded-[10px]">
         <div className="flex items-center justify-between px-3 py-1.5 bg-chrome border-b border-border rounded-t-[10px]">
-          <span className="text-[11px] font-bold text-text-dim">PIÈCE EN COURS DE SAISIE</span>
-          <div className="flex items-center gap-2.5 text-[11.5px]">
+          <span className="text-[10.5px] font-bold text-text-dim">PIÈCE EN COURS DE SAISIE</span>
+          <div className="flex items-center gap-2.5 text-[10.5px]">
             <label className="flex items-center gap-1.5">
               <span className="text-text-dim">Jour :</span>
               <input
@@ -756,18 +752,18 @@ export function SaisiePage() {
         {lignes.map((l, i) => (
           <div
             key={i}
-            style={grilleStyle} className={`${grille} px-3 py-[3px] border-b border-border/60 text-[11.5px] items-center bg-positive-soft/40`}
+            style={grilleStyle} className={`${grille} px-3 py-[3px] border-b border-border/60 text-[10.5px] items-center bg-positive-soft/40`}
           >
             <span className="font-mono text-text-dim">{i === 0 ? String(jour).padStart(2, '0') : ''}</span>
             <span className="font-mono text-text-dim">{i === 0 ? '(auto)' : ''}</span>
-            <span className="font-mono text-[10.5px] text-text-dim truncate">{i === 0 ? reference : ''}</span>
+            <span className="font-mono text-[10px] text-text-dim truncate">{i === 0 ? reference : ''}</span>
             <span className="font-mono" title={l.intitule}>
               {l.numero}
             </span>
             {axesGrille.map((p) => {
               const section = (sectionsParPlan[p.id] ?? []).find((sc) => sc.id === l.sections?.[p.id]);
               return (
-                <span key={p.id} className="font-mono text-[10.5px] text-text-dim truncate" title={section?.intitule}>
+                <span key={p.id} className="font-mono text-[10px] text-text-dim truncate" title={section?.intitule}>
                   {section?.code ?? ''}
                 </span>
               );
@@ -798,7 +794,7 @@ export function SaisiePage() {
                 type="button"
                 onClick={() => retirerLigne(i)}
                 title="Retirer cette ligne"
-                className="text-danger/70 hover:text-danger text-[11px] leading-none"
+                className="text-danger/70 hover:text-danger text-[10.5px] leading-none"
               >
                 ✕
               </button>
@@ -808,8 +804,8 @@ export function SaisiePage() {
 
         {/* Zone de saisie de la ligne · Tab de zone en zone, Entrée valide. */}
         <div style={grilleStyle} className={`${grille} px-3 py-1.5 items-center border-b border-border bg-surface`}>
-          <span className="font-mono text-[11px] text-text-dim text-center">·</span>
-          <span className="font-mono text-[11px] text-text-dim">(auto)</span>
+          <span className="font-mono text-[10.5px] text-text-dim text-center">·</span>
+          <span className="font-mono text-[10.5px] text-text-dim">(auto)</span>
           <span />
           <div className="relative">
             <input
@@ -844,7 +840,7 @@ export function SaisiePage() {
               }}
               onBlur={() => setTimeout(() => setPickerOuvert(false), 150)}
               placeholder="n° ou F4"
-              className="w-full border border-border-dark px-1.5 py-1 font-mono text-[12px]"
+              className="w-full border border-border-dark px-1.5 py-1 font-mono text-[11px]"
             />
             {pickerOuvert && comptesFiltres.length > 0 && (
               <div className="anim-menu absolute left-0 top-full z-20 w-[380px] max-h-[240px] overflow-auto bg-surface border border-border-dark shadow-flottante">
@@ -856,7 +852,7 @@ export function SaisiePage() {
                       e.preventDefault();
                       choisirCompte(c);
                     }}
-                    className={`w-full text-left px-2.5 py-1 text-[11.5px] flex gap-2 ${
+                    className={`w-full text-left px-2.5 py-1 text-[10.5px] flex gap-2 ${
                       i === pickerIndex ? 'bg-sel text-white' : 'hover:bg-chrome-alt'
                     }`}
                   >
@@ -885,7 +881,7 @@ export function SaisiePage() {
                     : `${p.intitule} · ne ventile que les classes ${p.classesVentilees.split(',').join(', ')}`
                 }
                 onChange={(e) => setSectionsSaisie((prev) => ({ ...prev, [p.id]: e.target.value }))}
-                className="w-full border border-border-dark px-1 py-1 text-[11px] font-mono disabled:opacity-40 disabled:bg-chrome-alt"
+                className="w-full border border-border-dark px-1 py-1 text-[10.5px] font-mono disabled:opacity-40 disabled:bg-chrome-alt"
               >
                 <option value="">{actif ? '·' : ''}</option>
                 {(sectionsParPlan[p.id] ?? []).map((sc) => (
@@ -907,7 +903,7 @@ export function SaisiePage() {
               }
             }}
             placeholder={libellePiece || 'libellé de la ligne'}
-            className="w-full border border-border-dark px-1.5 py-1 text-[12px]"
+            className="w-full border border-border-dark px-1.5 py-1 text-[11px]"
           />
           <input
             ref={debitRef}
@@ -925,7 +921,7 @@ export function SaisiePage() {
                 validerLigne();
               }
             }}
-            className={`w-full border border-border-dark px-1.5 py-1 font-mono text-[12px] text-right ${
+            className={`w-full border border-border-dark px-1.5 py-1 font-mono text-[11px] text-right ${
               journal && compteChoisi && sensConseille(journal.type, compteChoisi.numero) === 'debit'
                 ? 'bg-positive-soft'
                 : ''
@@ -947,7 +943,7 @@ export function SaisiePage() {
                 validerLigne();
               }
             }}
-            className={`w-full border border-border-dark px-1.5 py-1 font-mono text-[12px] text-right ${
+            className={`w-full border border-border-dark px-1.5 py-1 font-mono text-[11px] text-right ${
               journal && compteChoisi && sensConseille(journal.type, compteChoisi.numero) === 'credit'
                 ? 'bg-positive-soft'
                 : ''
@@ -957,14 +953,14 @@ export function SaisiePage() {
             type="button"
             onClick={validerLigne}
             title="Valider la ligne (Entrée)"
-            className="text-sel hover:text-text text-[13px] font-bold text-center"
+            className="text-sel hover:text-text text-[12px] font-bold text-center"
           >
             ↵
           </button>
         </div>
 
         {/* Pied de la pièce : totaux, équilibre, boutons de bas d'écran Sage */}
-        <div style={grilleStyle} className={`${grille} px-3 py-1.5 bg-surface-alt text-[11.5px] font-bold border-b border-border`}>
+        <div style={grilleStyle} className={`${grille} px-3 py-1.5 bg-surface-alt text-[10.5px] font-bold border-b border-border`}>
           <span className="col-span-4" />
           <span className="text-right text-[10px] text-text-dim self-center">TOTAUX PIÈCE</span>
           <span className="font-mono text-right">{totalDebitPiece.toLocaleString('fr-FR')}</span>
@@ -974,7 +970,7 @@ export function SaisiePage() {
 
         <div className="flex items-center gap-2 px-3 py-2 flex-wrap">
           <span
-            className={`text-[11px] font-mono px-2 py-0.5 border ${
+            className={`text-[10.5px] font-mono px-2 py-0.5 border ${
               equilibree
                 ? 'text-positive border-positive/40 bg-positive-soft'
                 : 'text-warning border-warning/40 bg-warning-soft'
@@ -992,7 +988,7 @@ export function SaisiePage() {
           <button
             type="button"
             onClick={() => setModaleModeles(true)}
-            className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[11.5px]"
+            className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[10.5px]"
           >
             Modèle de saisie…
           </button>
@@ -1000,7 +996,7 @@ export function SaisiePage() {
             type="button"
             onClick={() => setCalculetteOuverte(true)}
             title="Calculette · son résultat se reporte dans la zone de montant (Ctrl+K)"
-            className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[11.5px]"
+            className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[10.5px]"
           >
             Calculette
           </button>
@@ -1009,7 +1005,7 @@ export function SaisiePage() {
             onClick={inverserSaisie}
             disabled={!debitSaisie && !creditSaisie}
             title="Inverse débit et crédit sur la ligne en cours de frappe"
-            className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[11.5px] disabled:opacity-45"
+            className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[10.5px] disabled:opacity-45"
           >
             Inverseur
           </button>
@@ -1018,7 +1014,7 @@ export function SaisiePage() {
             onClick={equilibrer}
             disabled={Math.abs(soldePiece) < 0.005}
             title="Reporte le montant manquant dans la zone débit ou crédit de la ligne en cours"
-            className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[11.5px] disabled:opacity-45"
+            className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[10.5px] disabled:opacity-45"
           >
             Équilibrer
           </button>
@@ -1028,7 +1024,7 @@ export function SaisiePage() {
               onClick={contrepartieTresorerie}
               disabled={Math.abs(soldePiece) < 0.005}
               title="Ajoute la ligne de contrepartie sur le compte de trésorerie rattaché au journal"
-              className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[11.5px] disabled:opacity-45"
+              className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[10.5px] disabled:opacity-45"
             >
               Contrepartie trésorerie
             </button>
@@ -1037,7 +1033,7 @@ export function SaisiePage() {
             type="button"
             onClick={abandonnerPiece}
             disabled={lignes.length === 0 && !libellePiece && !reference}
-            className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[11.5px] disabled:opacity-45"
+            className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[10.5px] disabled:opacity-45"
           >
             Abandonner
           </button>
@@ -1045,7 +1041,7 @@ export function SaisiePage() {
             type="button"
             onClick={enregistrerPiece}
             disabled={envoi || !equilibree}
-            className="bg-sel text-white px-4 py-1 text-[11.5px] font-semibold disabled:opacity-50"
+            className="bg-sel text-white px-4 py-1 text-[10.5px] font-semibold disabled:opacity-50"
           >
             {envoi ? 'Enregistrement…' : 'Enregistrer la pièce'}
           </button>
@@ -1053,10 +1049,10 @@ export function SaisiePage() {
       </div>
 
       {erreur && (
-        <div className="text-[12px] text-danger bg-danger-soft border border-danger/30 px-3 py-2 mt-2.5">{erreur}</div>
+        <div className="text-[11px] text-danger bg-danger-soft border border-danger/30 px-3 py-2 mt-2.5">{erreur}</div>
       )}
       {succes && !erreur && (
-        <div className="text-[12px] text-positive bg-positive-soft border border-positive/30 px-3 py-2 mt-2.5">
+        <div className="text-[11px] text-positive bg-positive-soft border border-positive/30 px-3 py-2 mt-2.5">
           {succes}
         </div>
       )}
