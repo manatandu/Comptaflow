@@ -84,12 +84,18 @@ que ça compile ».
 ## 4. Ce qui est interdit
 
 - **JAMAIS** écrire, afficher, journaliser ou committer la chaîne de connexion
-  Neon (`DATABASE_URL`). La masquer même dans une sortie de commande.
+  Neon (`DATABASE_URL`). La masquer même dans une sortie de commande. Les valeurs
+  factices de `.env.example` et les gabarits `<mot-de-passe>` de la
+  documentation sont voulus : ce sont des modèles, pas des fuites.
 - **JAMAIS** désactiver `commit.gpgsign` ni utiliser `--no-gpg-sign`. Tous les
   commits du dépôt sont signés.
 - **JAMAIS** de tiret cadratin (—) nulle part : code, commentaires, interface,
   documentation, messages de commit. Utiliser « · » ou une ponctuation
   ordinaire. Le dépôt en est nettoyé, ne pas en réintroduire.
+  *Seule exception, à ne pas « corriger »* : la migration
+  `20260829033943_retire_cadratins` porte le caractère comme DONNÉE, puisque
+  c'est elle qui le remplace en base. Et de toute façon, une migration déjà
+  appliquée ne se modifie jamais, Prisma en vérifie l'empreinte.
 - **JAMAIS** de nom de modèle d'IA dans un commit, une PR, un commentaire ou
   quoi que ce soit de poussé.
 - **JAMAIS** de « bientôt disponible » qui soit faux. Une fenêtre annoncée en

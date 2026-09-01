@@ -1069,7 +1069,7 @@ const totauxClasse9: LigneSeed[] = [
  * divisionnaires à trois (03) chiffres ». Ajoutés le 2026-08-29, sur le même
  * principe que les comptes principaux (voir `total()` ci-dessus) : NON
  * complétés à huit chiffres, pour la même raison d'agrégation par
- * `startsWith` — un "401" complété romprait le regroupement de ses enfants
+ * `startsWith` · un "401" complété romprait le regroupement de ses enfants
  * "40110000", "40130000", etc.
  *
  * Seuls les codes à 3 chiffres qui ont RÉELLEMENT des comptes de détail en

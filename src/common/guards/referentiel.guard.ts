@@ -11,7 +11,7 @@ import { REFERENTIELS_KEY } from '../decorators/referentiels.decorator';
  * donateurs ou des exonérations douanières propres aux ASBL (loi 004/2001,
  * art. 39). Voir `docs/plan-de-construction.md` §8.
  *
- * Cette garde ne filtre PAS l'interface — `client/src/lib/registre-fenetres.tsx`
+ * Cette garde ne filtre PAS l'interface · `client/src/lib/registre-fenetres.tsx`
  * et le menu (`AppShell.tsx`) le font déjà, en cachant la fenêtre à un
  * dossier du mauvais référentiel. Elle existe pour la même raison que
  * RolesGuard double le masquage des boutons côté client : un accès direct

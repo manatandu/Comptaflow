@@ -1,7 +1,7 @@
 name: Déployer le serveur sur Cloud Run
 
 # Se déclenche à chaque push sur main qui touche le code du serveur (pas le
-# client, qui a son propre workflow Firebase Hosting) — évite un redéploiement
+# client, qui a son propre workflow Firebase Hosting) · évite un redéploiement
 # du serveur pour un simple changement d'écran côté client.
 on:
   workflow_dispatch:

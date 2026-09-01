@@ -8,7 +8,7 @@ import { PrismaService } from '../prisma.service';
  * recours (défense en profondeur, l'interface filtre déjà). Ce qui doit
  * tenir : sans décorateur, tout passe (comportement des modules communs) ;
  * avec décorateur, seul le référentiel du dossier compte, jamais son rôle
- * ni sa licence — ce n'est pas son rayon.
+ * ni sa licence · ce n'est pas son rayon.
  */
 
 function contexte(referentielsRequis: string[] | undefined, tenantId = 't1') {

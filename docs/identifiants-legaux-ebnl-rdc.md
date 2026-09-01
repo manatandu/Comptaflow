@@ -119,7 +119,7 @@ recensement des agents économiques** ». Le champ vise donc les **agents
 des sources ASBL lues (loi 004/2001, guide Kahasha, CENCO, note circulaire
 003/2013) ne l'exige.
 
-En pratique, beaucoup d'ASBL congolaises en détiennent un — notamment celles
+En pratique, beaucoup d'ASBL congolaises en détiennent un · notamment celles
 qui importent ou qui exercent une activité accessoire. **Conclusion retenue :
 champ facultatif pour une entité SYCEBNL, jamais présenté comme requis.**
 
@@ -134,11 +134,11 @@ Un projet **n'a pas nécessairement de personnalité juridique propre** : il est
 souvent porté par une unité de gestion, un ministère ou une ONG hôte. Ce qui
 l'identifie n'est donc pas un arrêté mais :
 
-- la **date de début du projet** et la **nature du projet** — exigées
+- la **date de début du projet** et la **nature du projet** · exigées
   nommément par la **Note 1-A « Identité, organisation »** du jeu projets :
   « décrire brièvement l'identité de l'entité (date de début du projet, nature
   du projet de développement, activité ou mission réalisée) » ;
-- le ou les **bailleurs**, avec leurs sous-projets — la **Note 9 « Fonds du
+- le ou les **bailleurs**, avec leurs sous-projets · la **Note 9 « Fonds du
   bailleur »** porte une colonne par bailleur ou sous-projet, « le nombre de
   colonnes est fonction du nombre de bailleurs et/ou sous projets ». OmegaX
   modélise déjà cela (modèle `Bailleur`, rattachement des sous-comptes
@@ -149,21 +149,21 @@ peut l'être si le projet est immatriculé, ou être celui de l'entité hôte.
 
 ## 4. Tableau de synthèse · quel identifiant pour quelle entité
 
-Légende : ● exigé · ○ facultatif · — sans objet.
+Légende : ● exigé · ○ facultatif · · sans objet.
 
 | Identifiant | Association / confessionnelle | ONG congolaise | ONG / ASBL étrangère | EUP | Projet de développement | Dossier SYSCOHADA |
 |---|:--:|:--:|:--:|:--:|:--:|:--:|
 | Numéro impôt (NIF) | ● | ● | ● | ● | ○ | ● |
-| Arrêté de personnalité juridique (Min. Justice) | ● | ● | — | ● | — | — |
-| Décret présidentiel d'autorisation | — | — | ● | — | — | — |
-| Enregistrement au ministère du secteur | ○ | ● | ● | ○ | — | — |
-| Certificat d'enregistrement (Min. Plan) | ○ | ● | ● | ○ | ○ | — |
-| Accord-cadre (Min. Plan) | — | — | ● | — | ○ | — |
-| Attestation d'exemption IS (DGI) | ○ | ○ | ○ | ○ | — | — |
+| Arrêté de personnalité juridique (Min. Justice) | ● | ● | · | ● | · | · |
+| Décret présidentiel d'autorisation | · | · | ● | · | · | · |
+| Enregistrement au ministère du secteur | ○ | ● | ● | ○ | · | · |
+| Certificat d'enregistrement (Min. Plan) | ○ | ● | ● | ○ | ○ | · |
+| Accord-cadre (Min. Plan) | · | · | ● | · | ○ | · |
+| Attestation d'exemption IS (DGI) | ○ | ○ | ○ | ○ | · | · |
 | Identification nationale (Id. Nat.) | ○ | ○ | ○ | ○ | ○ | ● |
-| **RCCM** | **—** | **—** | **—** | **—** | **—** | ● |
-| Date de début et nature du projet | — | — | — | — | ● | — |
-| Bailleurs et sous-projets | — | — | — | — | ● | — |
+| **RCCM** | **·** | **·** | **·** | **·** | **·** | ● |
+| Date de début et nature du projet | · | · | · | · | ● | · |
+| Bailleurs et sous-projets | · | · | · | · | ● | · |
 
 ## 5. Ce que cela change dans OmegaX
 
