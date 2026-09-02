@@ -65,7 +65,9 @@ describe('planning de clôture', () => {
   it('ordonne les jalons et fait tenir chaque échéance après son début', () => {
     const etapes = JALONS_CLOTURE.map((j) => j.etape);
     expect(etapes).toEqual([...etapes].sort((a, b) => a - b));
-    expect(new Set(etapes).size).toBe(etapes.length);
+    // L'unicité du numéro d'étape ne vaut plus sur la table entière : sept
+    // étapes portent deux jalons, un par référentiel, sous le même numéro.
+    // Elle est vérifiée référentiel par référentiel plus bas.
     for (const j of JALONS_CLOTURE) {
       expect(dateJalon(finExerciceCivil, j.echeance).getTime()).toBeGreaterThanOrEqual(
         dateJalon(finExerciceCivil, j.debut).getTime(),
@@ -108,16 +110,24 @@ describe('planning de clôture', () => {
     expect(legaux).toEqual([
       'Compte annuel et liste des membres effectifs au Ministère de la Justice',
       'Déclaration semestrielle relative aux ressources',
+      // Deux fois : l'AUDCIF art. 19 impose lui aussi le livre d'inventaire.
+      'Livre d’inventaire',
       'Livre d’inventaire',
       'Budget et comptes annuels au ministre du secteur (établissement d’utilité publique)',
       'Accord-cadre et main-d’œuvre nationale (ONG de droit étranger)',
       'Registre des donateurs arrêté',
+      // Deux fois : la déclaration de l'IS et ses états joints n'ont rien de
+      // commun avec la déclaration d'une association exemptée.
+      'Déclarations fiscales annuelles',
       'Déclarations fiscales annuelles',
       'Rapport de gestion',
       'États financiers et rapport de gestion aux commissaires aux comptes',
       'Rapport d’activité au Ministère du Plan et au ministère du secteur',
       'Dépôt au Ministère de l’Économie nationale',
+      'Dépôt au Ministère de l’Économie nationale',
+      'Approbation des états financiers et du rapport de gestion',
       'Dépôt des états financiers SYCEBNL au CPCC',
+      'Dépôt des états financiers au CPCC',
       'Assemblée générale statuant sur les états financiers',
       'Dépôt des états financiers au RCCM',
     ]);
@@ -299,6 +309,7 @@ describe('obligations déclenchées par un événement', () => {
 
   it('filtre selon la forme juridique, comme les jalons', () => {
     const cles = obligationsEvenementiellesApplicables({
+      referentiel: Referentiel.SYCEBNL,
       formeJuridique: FormeJuridiqueEbnl.UNITE_GESTION_PROJET,
       droitEtranger: false,
     }).map((o) => o.cle);
@@ -306,5 +317,151 @@ describe('obligations déclenchées par un événement', () => {
     // 004/2001 : ses articles 11 et 15 ne la visent pas.
     expect(cles).not.toContain('changementAdministrateur');
     expect(cles).toContain('numeroImpot');
+  });
+});
+
+/**
+ * CLOISONNEMENT DES DEUX RÉFÉRENTIELS · le test qui aurait attrapé le bug.
+ *
+ * Le planning avait un « tronc commun » qui n'en était pas un : sept jalons
+ * partagés portaient dans leur `detail` et dans leur `source` le vocabulaire,
+ * les comptes et les articles du SYCEBNL, et étaient servis tels quels à une
+ * société commerciale. Rien ne cassait : un texte faux compile.
+ *
+ * Les assertions ci-dessous sont donc écrites sur le TEXTE, seul endroit où le
+ * défaut était visible.
+ */
+describe('planning de clôture · cloisonnement des référentiels', () => {
+  const syscohada = JALONS_CLOTURE.filter((j) => !j.referentiels || j.referentiels.includes(Referentiel.SYSCOHADA));
+  const sycebnl = JALONS_CLOTURE.filter((j) => !j.referentiels || j.referentiels.includes(Referentiel.SYCEBNL));
+
+  it('donne à chaque référentiel un numéro d’étape par jalon, jamais deux', () => {
+    // Les paires SYCEBNL/SYSCOHADA partagent volontairement leur numéro
+    // d'étape · elles ne peuvent jamais coexister, et ExercicePage s'en sert
+    // comme clé de ligne React.
+    for (const [nom, jalons] of [
+      ['SYCEBNL', sycebnl],
+      ['SYSCOHADA', syscohada],
+    ] as const) {
+      const etapes = jalons.map((j) => j.etape);
+      expect(`${nom}: ${etapes.length}`).toBe(`${nom}: ${new Set(etapes).size}`);
+    }
+  });
+
+  it('ne sert aucun compte, article ou mot du SYCEBNL à un dossier SYSCOHADA', () => {
+    // Chaque motif ci-dessous a été lu dans un jalon réellement servi au
+    // mauvais référentiel avant correction.
+    const motifsSycebnl = [
+      /fonds affectés/i,
+      /fonds reportés/i,
+      /emplois-ressources/i,
+      /compte d’exploitation/i,
+      /excédent ou déficit/i,
+      /dons en nature/i,
+      /projet de développement/i,
+      /rapport d’activité/i,
+      /impôt sur les sociétés ne paie pas/i,
+    ];
+    for (const j of syscohada) {
+      for (const motif of motifsSycebnl) {
+        // Le libellé sert de repère dans le message d'échec, et il ne peut
+        // pas contenir le motif lui-même (sinon l'assertion se mordrait la
+        // queue, ce qu'une première rédaction de ce test faisait).
+        const fautif = motif.test(j.detail) ? `étape ${j.etape} « ${j.libelle} » : ${j.detail}` : 'aucun';
+        expect(fautif).toBe('aucun');
+      }
+    }
+  });
+
+  it('ne fonde aucun jalon SYSCOHADA sur un texte propre aux entités à but non lucratif', () => {
+    for (const j of syscohada) {
+      // Étape 23 exceptée : le dépôt au RCCM cite la loi n° 004/2001 pour dire
+      // qu'elle en EXCLUT les associations, ce qui est le contraire d'un
+      // fondement emprunté.
+      if (j.etape === 23) continue;
+      expect(`${j.etape} ${j.source}`).not.toMatch(/SYCEBNL|004\/2001/);
+    }
+  });
+
+  it('ne pose sur aucun jalon SYSCOHADA une observation que seul le SYCEBNL peut satisfaire', () => {
+    // INVENTAIRE, RAPPORT_ACTIVITE et DONATEURS comptent des tables servies
+    // par le module documents-obligatoires, @ReferentielsAutorises(SYCEBNL).
+    // Un jalon SYSCOHADA qui les porterait passerait « en retard » sans
+    // pouvoir jamais être satisfait.
+    const reserveesSycebnl = ['INVENTAIRE', 'RAPPORT_ACTIVITE', 'DONATEURS'];
+    for (const j of syscohada) {
+      expect(`${j.etape} ${j.observation ?? 'aucune'}`).not.toMatch(new RegExp(reserveesSycebnl.join('|')));
+    }
+  });
+
+  it('rend au SYSCOHADA les deux jalons dont l’AUDCIF et le cours le rendent débiteur', () => {
+    const libelles = syscohada.map((j) => j.libelle);
+    // AUDCIF art. 19 : le livre d'inventaire n'est pas propre au SYCEBNL.
+    expect(libelles).toContain('Livre d’inventaire');
+    // CPCC § 7.3 : « toute entité astreinte à tenir une comptabilité financière ».
+    expect(libelles.some((l) => l.includes('CPCC'))).toBe(true);
+  });
+
+  it('vise le bon compte de fonds affectés au jalon d’écritures d’inventaire', () => {
+    const inventaireSycebnl = sycebnl.find((j) => j.etape === 6)!;
+    // SYCEBNL Partie 2 ch. 3 : les fonds affectés à un projet spécifique sont
+    // au compte 165, le 17 étant « Fonds reportés ». La première rédaction
+    // donnait 17 aux deux.
+    expect(inventaireSycebnl.detail).toContain('compte 165');
+    expect(inventaireSycebnl.detail).toContain('fonds reportés (compte 17)');
+
+    const inventaireSyscohada = syscohada.find((j) => j.etape === 6)!;
+    // SYSCOHADA : le compte 17 est « Dettes de location acquisition ».
+    expect(inventaireSyscohada.detail).toContain('compte 14');
+    expect(inventaireSyscohada.detail).toContain('799');
+  });
+
+  it('refuse à une entreprise le rapport d’activité de la loi n° 004/2001, même sous forme d’ONG', () => {
+    // Tout dossier porte une forme EBNL (ASSOCIATION par défaut en base), y
+    // compris tenu en SYSCOHADA : `formes` seul ne protégeait rien.
+    const jalons = jalonsApplicables({
+      referentiel: Referentiel.SYSCOHADA,
+      formeJuridique: FormeJuridiqueEbnl.ORGANISATION_NON_GOUVERNEMENTALE,
+      formeJuridiqueSyscohada: FormeJuridiqueSyscohada.SOCIETE_ANONYME,
+      droitEtranger: false,
+    });
+    expect(jalons.some((j) => j.source.includes('004/2001, art. 44'))).toBe(false);
+  });
+
+  it('donne un jalon de remise au contrôleur à toute forme SYSCOHADA, pas seulement aux sociétés à assemblée', () => {
+    // Le jalon 16 (envoi à quarante-cinq jours) est filtré par forme ; une SNC
+    // se serait retrouvée sans aucun jalon de remise si le jalon 17 avait été
+    // simplement retiré au SYSCOHADA.
+    const snc = jalonsApplicables({
+      referentiel: Referentiel.SYSCOHADA,
+      formeJuridique: FormeJuridiqueEbnl.ASSOCIATION,
+      formeJuridiqueSyscohada: FormeJuridiqueSyscohada.SOCIETE_NOM_COLLECTIF,
+      droitEtranger: false,
+    });
+    expect(snc.some((j) => j.libelle.includes('commissaire aux comptes'))).toBe(true);
+    expect(snc.some((j) => j.libelle === 'Mise à disposition de l’auditeur')).toBe(false);
+  });
+
+  it('ne sert aucune obligation événementielle de la loi n° 004/2001 à un dossier SYSCOHADA', () => {
+    const cles = obligationsEvenementiellesApplicables({
+      referentiel: Referentiel.SYSCOHADA,
+      formeJuridique: FormeJuridiqueEbnl.ASSOCIATION,
+      droitEtranger: false,
+    }).map((o) => o.cle);
+    expect(cles).not.toContain('changementAdministrateur');
+    expect(cles).not.toContain('mouvementImmeuble');
+    expect(cles).not.toContain('renouvellementFacilites');
+    // Les obligations fiscales et sociales, elles, visent tout le monde.
+    expect(cles).toContain('numeroImpot');
+    expect(cles).toContain('engagementTravailleur');
+  });
+
+  it('ne porte toujours aucun montant, dans les jalons ajoutés comme dans les autres', () => {
+    for (const j of JALONS_CLOTURE) {
+      // Les numéros d'arrêtés et d'articles restent permis, et le quota de
+      // main-d'œuvre nationale de l'art. 37 non plus n'est pas un montant :
+      // ce que la règle vise, ce sont les taux d'astreinte et les sommes.
+      expect(`${j.etape} ${j.detail}`).not.toMatch(/\d[\d\s.]*\s?(FC|francs congolais|FCFA)/i);
+    }
   });
 });

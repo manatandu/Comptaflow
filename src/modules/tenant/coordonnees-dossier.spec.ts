@@ -1,6 +1,6 @@
 import { validate } from 'class-validator';
 import { plainToInstance } from 'class-transformer';
-import { FormeJuridiqueSyscohada, Referentiel, SystemeComptableSyscohada } from '@prisma/client';
+import { FormeJuridiqueEbnl, FormeJuridiqueSyscohada, Referentiel, SystemeComptableSyscohada } from '@prisma/client';
 import { TenantService } from './tenant.service';
 import { ModifierCoordonneesDto } from './dto/parametres-dossier.dto';
 
@@ -107,6 +107,24 @@ describe('Coordonnées du dossier', () => {
       /SYSCOHADA/,
     );
     expect(capture.data).toBeUndefined();
+  });
+
+  it('la forme juridique de la loi n° 004/2001 est refusée à un dossier SYSCOHADA', async () => {
+    const capture: { data?: Record<string, unknown> } = {};
+    // LA PORTE N'ÉTAIT FERMÉE QUE DANS UN SENS. Un dossier SYSCOHADA pouvait
+    // recevoir une forme EBNL, et le planning de clôture lui servait alors le
+    // rapport d'activité au Ministère du Plan (loi n° 004/2001, art. 44-45),
+    // qui ne vise qu'une ONG.
+    const societe = service(capture, { id: 't2', referentiel: Referentiel.SYSCOHADA });
+    await expect(
+      societe.modifierFormeJuridique('t2', FormeJuridiqueEbnl.ORGANISATION_NON_GOUVERNEMENTALE),
+    ).rejects.toThrow(/SYCEBNL/);
+    expect(capture.data).toBeUndefined();
+
+    // Et elle reste ouverte là où elle a un sens.
+    const asbl = service(capture, { id: 't1', referentiel: Referentiel.SYCEBNL });
+    await asbl.modifierFormeJuridique('t1', FormeJuridiqueEbnl.ORGANISATION_NON_GOUVERNEMENTALE);
+    expect(capture.data!.formeJuridique).toBe(FormeJuridiqueEbnl.ORGANISATION_NON_GOUVERNEMENTALE);
   });
 
   it('la forme juridique OHADA se pose et se corrige à tout moment sur un dossier SYSCOHADA', async () => {

@@ -300,6 +300,18 @@ export class TenantService {
     if (!tenant) {
       throw new NotFoundException('Dossier introuvable');
     }
+    // SYMÉTRIE EXACTE DE modifierFormeSyscohada, et elle manquait. La porte
+    // était ouverte dans un seul sens : une entreprise pouvait se voir poser
+    // une forme EBNL, et le planning de clôture lui servait alors les
+    // obligations de la loi n° 004/2001 (rapport d'activité au Ministère du
+    // Plan, déclarations d'administrateur et de mouvement d'immeuble) dont
+    // aucune ne la vise.
+    if (tenant.referentiel !== Referentiel.SYCEBNL) {
+      throw new BadRequestException(
+        'La forme juridique de la loi n° 004/2001 ne concerne que les dossiers tenus en référentiel SYCEBNL. ' +
+          "Une société commerciale relève de l'AUSCGIE : utilisez la forme juridique OHADA.",
+      );
+    }
     await this.prisma.tenant.update({
       where: { id: tenantId },
       data: { formeJuridique, ...(droitEtranger === undefined ? {} : { droitEtranger }) },
