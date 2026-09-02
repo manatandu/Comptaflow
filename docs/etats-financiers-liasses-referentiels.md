@@ -88,10 +88,10 @@ engagement (classe 4 mouvementée).
 - notes non documentées à ne pas joindre, lignes non chiffrées à supprimer
   avant remise (règle de l'Acte uniforme, à faire respecter à l'export) ;
 - **toutes les notes du référentiel sont produites**, y compris celles qui
-  ressortent à zéro, et chacune porte un **filigrane** : « NÉANT - NOTE NON
-  RENSEIGNÉE » calculé (il ne s'affiche que si la somme des montants de la
-  note est nulle, et s'efface au recalcul dès qu'un montant apparaît) pour
-  une note chiffrable, « NOTE À COMPLÉTER » pour une note déclarative ;
+  ressortent à zéro, et chacune porte un **filigrane** : « NÉANT » calculé
+  (il ne s'affiche que si la somme des montants de la note est nulle, et
+  s'efface au recalcul dès qu'un montant apparaît) pour une note
+  chiffrable, « NOTE À COMPLÉTER » pour une note déclarative ;
 - **présentation « charte ETAFI »** (alignée sur une liasse fiscale réelle,
   reprise par les moteurs de référence) : cartouche d'identification en
   tête de chaque page (dénomination, adresse, sigle, NCC, NTD, exercice,
