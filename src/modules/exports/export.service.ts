@@ -237,49 +237,27 @@ export class ExportService {
   }
 
   /**
-   * IDENTIFICATION D'UN ÉTAT PÉRIODIQUE · trois lignes posées AU-DESSUS du
-   * tableau.
+   * IDENTIFICATION D'UN ÉTAT PÉRIODIQUE · en PIED DE PAGE IMPRIMÉ, pas en
+   * cellules.
    *
-   * Un classeur « balance-2026.xlsx » déposé chez un auditeur ne disait ni de
-   * quelle entité ni de quelle période il émanait : ni dénomination, ni NIF,
-   * ni unité monétaire, ni date d'édition. L'AUDCIF art. 22, 7° veut que « les
-   * états périodiques fournis soient numérotés et datés », et le Titre IX
-   * porte le nom de l'entité, la période et l'unité monétaire sur chaque page
-   * des états.
-   *
-   * CE N'EST PAS LE CARTOUCHE ETAFI, et c'est délibéré : celui-là est le
-   * modèle des IMPRIMÉS d'états financiers, il n'a pas à coiffer un journal.
-   * Trois lignes suffisent, et elles laissent le tableau intact · le décalage
-   * se fait par `spliceRows` juste avant la finalisation, si bien que les clés
-   * de colonnes, les largeurs et les formats déjà posés restent valables.
+   * L'AUDCIF art. 22, 7° veut que « les états périodiques fournis soient
+   * numérotés et datés ». Une coiffe de trois lignes posée au-dessus du
+   * tableau satisfaisait la règle, mais elle n'existe dans aucun des modèles
+   * de cabinet relevés : leurs classeurs commencent en A1 par l'en-tête des
+   * colonnes, sans titre ni cartouche. Le pied de page imprimé porte la même
+   * information sans ajouter une seule cellule · la grille reste celle du
+   * modèle, l'état fourni reste numéroté et daté.
    */
-  private coifferEtat(
+  private piedDePageEtat(
     feuille: ExcelJS.Worksheet,
     identite: { entite: string; nif: string; periode: string; devise: string },
-    titre: string,
-    nbColonnes: number,
-  ): number {
-    feuille.spliceRows(1, 0, [], [], []);
-
-    const ligneTitre = feuille.getRow(1);
-    ligneTitre.getCell(1).value = `${titre} · ${identite.entite}`;
-    ligneTitre.getCell(1).font = { bold: true, size: 12 };
-    if (nbColonnes > 1) feuille.mergeCells(1, 1, 1, nbColonnes);
-
-    const ligneIdent = feuille.getRow(2);
+  ) {
     const edite = new Date().toLocaleDateString('fr-FR');
-    ligneIdent.getCell(1).value =
-      `${identite.nif ? `NIF ${identite.nif} · ` : ''}${identite.periode} · montants en ${identite.devise} · ` +
-      `édité le ${edite}`;
-    ligneIdent.getCell(1).font = { size: 9, italic: true };
-    if (nbColonnes > 1) feuille.mergeCells(2, 1, 2, nbColonnes);
-
-    // La numérotation et la date sont aussi portées en pied de page imprimé :
-    // l'art. 22, 7° vise l'état FOURNI, qui est souvent celui qu'on imprime.
     feuille.headerFooter = {
-      oddFooter: `&L${identite.entite} · ${identite.periode}&RPage &P / &N · édité le ${edite}`,
+      oddFooter:
+        `&L${identite.entite}${identite.nif ? ` · NIF ${identite.nif}` : ''} · ${identite.periode} · ` +
+        `montants en ${identite.devise}&RPage &P / &N · édité le ${edite}`,
     };
-    return 4;
   }
 
   /**
@@ -344,6 +322,7 @@ export class ExportService {
     );
 
     const { ecritures, totaux } = await this.ecritureService.lister(tenantId, filtres);
+    const identiteJournal = await this.identiteEtat(tenantId, filtres);
 
     const classeur = this.nouveauClasseur();
     const feuille = classeur.addWorksheet('Journal');
@@ -402,9 +381,8 @@ export class ExportService {
     ligneTotal.font = ENTETE_FONT;
 
     this.appliquerFormats(feuille, { date: FORMAT_DATE, debit: FORMAT_MONTANT, credit: FORMAT_MONTANT });
-    const identiteJournal = await this.identiteEtat(tenantId, filtres);
-    const enteteJournal = this.coifferEtat(feuille, identiteJournal, 'JOURNAL', feuille.columns.length);
-    this.finaliserTableau(feuille, feuille.columns.length, derniereLigneDonnees + 3, enteteJournal);
+    this.piedDePageEtat(feuille, identiteJournal);
+    this.finaliserTableau(feuille, feuille.columns.length, derniereLigneDonnees);
 
     return {
       buffer: await this.versBuffer(classeur),
@@ -413,25 +391,51 @@ export class ExportService {
   }
 
   /** Colonnes communes au grand livre d'un compte et au grand livre complet. */
-  private colonnesGrandLivre(avecCompte: boolean): Partial<ExcelJS.Column>[] {
+  /**
+   * Colonnes du grand livre, aux LIBELLÉS du dossier de révision réel
+   * (« GD LIVRES au 31/12/2025 CARRIGRES », ouvert sur le Drive) : Compte
+   * général, Journal, Date écriture, Libellé, Réf. pièce, N° pièce, Code
+   * lettrage.
+   *
+   * Leur export porte trente-quatre colonnes, dont la plupart n'ont aucun
+   * équivalent ici (Etablissement, Norme, N° lot, Société groupe, Profil TVA,
+   * Marquée…). Elles ne sont PAS reproduites : une colonne vide est pire
+   * qu'une colonne absente, elle donne à croire que la donnée manque.
+   *
+   * Deux écarts assumés, et il faut le dire plutôt que le taire. Leur ERP
+   * porte un « Montant » et un « Sens » là où nous portons Débit et Crédit ·
+   * c'est la présentation OHADA du grand livre, et c'est celle que le
+   * comptable additionne. Et nous gardons le SOLDE PROGRESSIF, qu'ils n'ont
+   * pas : un grand livre sans solde courant oblige à recalculer à la main
+   * pour retrouver le solde d'un compte à une date.
+   *
+   * La colonne « Compte contrepartie » n'existe dans aucun de leurs états :
+   * elle est retirée du grand livre COMPLET. Elle reste sur le grand livre
+   * d'UN compte, où elle avait été demandée nommément pour retracer une
+   * écriture sans connaître son journal · une demande explicite ne se révoque
+   * pas au détour d'un alignement de présentation.
+   */
+  private colonnesGrandLivre(avecCompte: boolean, avecContrepartie = false): Partial<ExcelJS.Column>[] {
     const colonnesCompte: Partial<ExcelJS.Column>[] = avecCompte
       ? [
-          { header: 'Compte', key: 'compteNumero', width: 12 },
+          { header: 'Compte général', key: 'compteNumero', width: 14 },
           { header: 'Intitulé compte', key: 'compteIntitule', width: 30 },
         ]
       : [];
     return [
       ...colonnesCompte,
-      { header: 'Date', key: 'date', width: 12 },
       { header: 'Journal', key: 'journal', width: 10 },
+      { header: 'Date écriture', key: 'date', width: 13 },
       { header: 'N° pièce', key: 'numeroPiece', width: 10 },
-      { header: 'Référence', key: 'reference', width: 16 },
+      { header: 'Réf. pièce', key: 'reference', width: 16 },
       { header: 'Libellé', key: 'libelle', width: 34 },
       { header: 'Débit', key: 'debit', width: 14 },
       { header: 'Crédit', key: 'credit', width: 14 },
       { header: 'Solde progressif', key: 'solde', width: 16 },
-      { header: 'Lettrage', key: 'lettre', width: 10 },
-      { header: 'Compte contrepartie', key: 'contrepartie', width: 28 },
+      { header: 'Code lettrage', key: 'lettre', width: 13 },
+      ...(avecContrepartie
+        ? [{ header: 'Compte contrepartie', key: 'contrepartie', width: 28 }]
+        : []),
     ];
   }
 
@@ -456,7 +460,7 @@ export class ExportService {
 
     const classeur = this.nouveauClasseur();
     const feuille = classeur.addWorksheet('Grand livre');
-    feuille.columns = this.colonnesGrandLivre(false);
+    feuille.columns = this.colonnesGrandLivre(false, true);
     this.noteContrepartie(feuille, 'J1');
 
     for (const l of lignes) {
@@ -528,11 +532,11 @@ export class ExportService {
     );
 
     const comptes = await this.ecritureService.grandLivreComplet(tenantId, exerciceId);
+    const identiteGrandLivre = await this.identiteEtat(tenantId, { exerciceId });
 
     const classeur = this.nouveauClasseur();
     const feuille = classeur.addWorksheet('Grand livre');
     feuille.columns = this.colonnesGrandLivre(true);
-    this.noteContrepartie(feuille, 'L1');
 
     for (const c of comptes) {
       for (const l of c.lignes) {
@@ -548,54 +552,18 @@ export class ExportService {
           credit: l.credit || null,
           solde: l.soldeProgressif,
           lettre: l.lettre ?? '',
-          contrepartie: l.contrepartie.join(' + '),
         });
       }
     }
 
-    const derniereLigneDonnees = feuille.rowCount;
     this.appliquerFormats(feuille, {
       date: FORMAT_DATE,
       debit: FORMAT_MONTANT,
       credit: FORMAT_MONTANT,
       solde: FORMAT_MONTANT,
     });
-    const identiteGrandLivre = await this.identiteEtat(tenantId, { exerciceId });
-    const enteteGrandLivre = this.coifferEtat(feuille, identiteGrandLivre, 'GRAND LIVRE', feuille.columns.length);
-    this.finaliserTableau(feuille, feuille.columns.length, derniereLigneDonnees + 3, enteteGrandLivre);
-
-    const sommaire = classeur.addWorksheet('Sommaire');
-    sommaire.columns = [
-      { header: 'Compte', key: 'numero', width: 12 },
-      { header: 'Intitulé', key: 'intitule', width: 40 },
-      { header: 'Nb lignes', key: 'nbLignes', width: 11 },
-      { header: 'Total débit', key: 'totalDebit', width: 16 },
-      { header: 'Total crédit', key: 'totalCredit', width: 16 },
-      { header: 'Solde final', key: 'solde', width: 16 },
-    ];
-    for (const c of comptes) {
-      sommaire.addRow({
-        numero: c.compte.numero,
-        intitule: c.compte.intitule,
-        nbLignes: c.lignes.length,
-        totalDebit: c.totalDebit || null,
-        totalCredit: c.totalCredit || null,
-        solde: c.soldeFinal,
-      });
-    }
-    const derniereLigneSommaire = sommaire.rowCount;
-    const ligneTotalSommaire = sommaire.addRow({
-      intitule: 'TOTAUX GÉNÉRAUX',
-      totalDebit: comptes.reduce((s, c) => s + c.totalDebit, 0),
-      totalCredit: comptes.reduce((s, c) => s + c.totalCredit, 0),
-    });
-    ligneTotalSommaire.font = ENTETE_FONT;
-    this.appliquerFormats(sommaire, {
-      totalDebit: FORMAT_MONTANT,
-      totalCredit: FORMAT_MONTANT,
-      solde: FORMAT_MONTANT,
-    });
-    this.finaliserTableau(sommaire, sommaire.columns.length, derniereLigneSommaire);
+    this.piedDePageEtat(feuille, identiteGrandLivre);
+    this.finaliserTableau(feuille, feuille.columns.length, feuille.rowCount);
 
     return {
       buffer: await this.versBuffer(classeur),
@@ -603,9 +571,10 @@ export class ExportService {
     };
   }
 
-  /** Balance générale, comptes Détail et Total (regroupement affiché en gras). */
+  /** Balance générale · la présentation des dossiers de révision réels. */
   async balanceExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
-    const { lignes, totaux } = await this.ecritureService.balance(tenantId, exerciceId);
+    const { lignes } = await this.ecritureService.balance(tenantId, exerciceId);
+    const identiteBalance = await this.identiteEtat(tenantId, { exerciceId });
 
     const classeur = this.nouveauClasseur();
     const feuille = classeur.addWorksheet('Balance');
@@ -618,51 +587,55 @@ export class ExportService {
      * englobe le report à-nouveau, et un bâtiment détenu depuis 2020 y est
      * indiscernable d'une acquisition de l'exercice.
      *
-     * Les six colonnes reprennent celles d'un dossier d'audit congolais réel
-     * (balance générale CARRIGRES au 31/12/2025, analysée sur le Drive) :
-     * « Solde débit avant période, Solde crédit avant période, Débit, Crédit,
-     * Débit cumulé, Crédit cumulé ». Un réviseur lit cette balance-là ; celle
-     * à trois colonnes l'oblige à retourner au grand livre.
+     * Les six colonnes, LEURS LIBELLÉS et l'ordre des colonnes reprennent
+     * exactement ceux d'un dossier d'audit congolais réel (balance générale
+     * CARRIGRES au 31/12/2025, ouverte cellule par cellule sur le Drive) :
+     * « Code compte, LIBELLE, Solde débit avant période, Solde crédit avant
+     * période, Débit, Crédit, Débit cumulé, Crédit cumulé, Devise, Société ».
+     * Un réviseur lit cette balance-là.
+     *
+     * CE QUE CE FICHIER NE PORTE PAS, ET POURQUOI. Rien au-dessus de la ligne
+     * 1 : leur balance commence directement par ses en-têtes, sans titre, sans
+     * fusion, sans ligne d'identification · un bandeau décale le tableau et
+     * casse le tri et les filtres. L'identification passe par les colonnes
+     * Devise et Société, comme chez eux, et la numérotation avec la date
+     * qu'exige l'AUDCIF (art. 22, 7° : « les états périodiques fournis
+     * soient numérotés et datés ») reste au pied de page imprimé, invisible
+     * à l'écran.
+     *
+     * Pas de colonne « Type » : elle distinguait les comptes Total, que la
+     * balance ne porte plus. Pas de colonne « Solde » signée ni de ligne de
+     * totaux : leur balance générale n'en a pas, elle s'arrête sur le dernier
+     * compte. L'égalité des colonnes se lit à l'écran, où les totaux sont
+     * affichés.
      */
     feuille.columns = [
       { header: 'N° compte', key: 'numero', width: 12 },
       { header: 'Intitulé', key: 'intitule', width: 36 },
-      { header: 'Type', key: 'type', width: 10 },
-      { header: 'Solde débit à l’ouverture', key: 'reportDebit', width: 17 },
-      { header: 'Solde crédit à l’ouverture', key: 'reportCredit', width: 17 },
-      { header: 'Mouvements débit', key: 'mouvementDebit', width: 16 },
-      { header: 'Mouvements crédit', key: 'mouvementCredit', width: 16 },
-      { header: 'Débit cumulé', key: 'totalDebit', width: 16 },
+      { header: 'Solde débit avant période', key: 'reportDebit', width: 24 },
+      { header: 'Solde crédit avant période', key: 'reportCredit', width: 25 },
+      { header: 'Débit', key: 'mouvementDebit', width: 12 },
+      { header: 'Crédit', key: 'mouvementCredit', width: 12 },
+      { header: 'Débit cumulé', key: 'totalDebit', width: 15 },
       { header: 'Crédit cumulé', key: 'totalCredit', width: 16 },
-      { header: 'Solde', key: 'solde', width: 16 },
+      { header: 'Devise', key: 'devise', width: 10 },
+      { header: 'Société', key: 'societe', width: 18 },
     ];
 
     for (const l of lignes) {
-      const ligne = feuille.addRow({
+      feuille.addRow({
         numero: l.numero,
         intitule: l.intitule,
-        // Colonne explicite plutôt que le seul gras : un compte Total est un
-        // agrégat des comptes Détail de même racine, jamais un mouvement
-        // propre · sommer les deux doublerait les montants, et cette
-        // distinction doit rester lisible même après tri ou filtre.
-        type: l.typeCompte === 'TOTAL' ? 'Total' : 'Détail',
         reportDebit: l.reportDebit || null,
         reportCredit: l.reportCredit || null,
         mouvementDebit: l.mouvementDebit || null,
         mouvementCredit: l.mouvementCredit || null,
         totalDebit: l.totalDebit || null,
         totalCredit: l.totalCredit || null,
-        solde: l.solde,
+        devise: identiteBalance.devise,
+        societe: identiteBalance.entite,
       });
     }
-
-    const derniereLigneDonnees = feuille.rowCount;
-    const ligneTotal = feuille.addRow({
-      intitule: 'TOTAUX GÉNÉRAUX',
-      totalDebit: totaux.debit,
-      totalCredit: totaux.credit,
-    });
-    ligneTotal.font = ENTETE_FONT;
 
     this.appliquerFormats(feuille, {
       reportDebit: FORMAT_MONTANT,
@@ -671,11 +644,9 @@ export class ExportService {
       mouvementCredit: FORMAT_MONTANT,
       totalDebit: FORMAT_MONTANT,
       totalCredit: FORMAT_MONTANT,
-      solde: FORMAT_MONTANT,
     });
-    const identiteBalance = await this.identiteEtat(tenantId, { exerciceId });
-    const enteteBalance = this.coifferEtat(feuille, identiteBalance, 'BALANCE GÉNÉRALE', feuille.columns.length);
-    this.finaliserTableau(feuille, feuille.columns.length, derniereLigneDonnees + 3, enteteBalance);
+    this.piedDePageEtat(feuille, identiteBalance);
+    this.finaliserTableau(feuille, feuille.columns.length, feuille.rowCount);
 
     return {
       buffer: await this.versBuffer(classeur),

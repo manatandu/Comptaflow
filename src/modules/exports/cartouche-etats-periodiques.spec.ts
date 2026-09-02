@@ -2,42 +2,42 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 /**
- * UN CLASSEUR DÉPOSÉ CHEZ UN AUDITEUR DOIT DIRE D'OÙ IL VIENT.
+ * L'IDENTIFICATION D'UN ÉTAT SE PORTE AU PIED DE PAGE, PAS DANS LA GRILLE.
  *
- * « balance-2026.xlsx » ne portait ni dénomination, ni NIF, ni période, ni
- * unité monétaire, ni date d'édition. L'AUDCIF art. 22, 7° veut que « les
- * états périodiques fournis soient numérotés et datés », et le Titre IX porte
- * le nom de l'entité, la période et l'unité monétaire sur chaque page.
+ * Ce spec a d'abord exigé l'inverse : une coiffe de trois lignes posée
+ * au-dessus du tableau du journal, du grand livre et de la balance. Elle
+ * satisfaisait l'AUDCIF art. 22, 7° · « les états périodiques fournis soient
+ * numérotés et datés » · mais elle n'existe dans aucun des classeurs de
+ * cabinet relevés : les leurs commencent en A1 par l'en-tête des colonnes.
+ * Une coiffe décale la grille, casse un tri collé depuis un autre classeur, et
+ * force un `spliceRows` que rien d'autre ne justifie.
  *
- * Ce spec lit le service plutôt que le classeur produit : ce qu'on vérifie est
- * qu'aucun des trois états communs ne repart sans son identification, et que
- * le décalage de trois lignes est bien répercuté sur le figeage et le filtre ·
- * une coiffe posée sans décaler l'en-tête casserait la grille en silence.
+ * Le pied de page imprimé porte la même information sans ajouter de cellule.
+ * Ce que ce spec verrouille désormais, c'est les DEUX sens : que l'obligation
+ * légale soit toujours servie, et qu'elle ne redescende pas dans la grille.
  */
 
 const service = readFileSync(join(__dirname, 'export.service.ts'), 'utf8');
 
 describe('exports périodiques · identification de l’état', () => {
-  it('coiffe le journal, le grand livre complet et la balance', () => {
-    for (const titre of ['JOURNAL', 'GRAND LIVRE', 'BALANCE GÉNÉRALE']) {
-      expect(`${titre}: ${service.includes(`this.coifferEtat(feuille, identite`)}`).toContain('true');
-      expect(service).toContain(`'${titre}'`);
+  it('porte l’identification en pied de page sur les trois livres obligatoires', () => {
+    expect((service.match(/this\.piedDePageEtat\(/g) ?? []).length).toBe(3);
+    for (const identite of ['identiteJournal', 'identiteGrandLivre', 'identiteBalance']) {
+      expect(service).toContain(`this.piedDePageEtat(feuille, ${identite});`);
     }
-    expect((service.match(/this\.coifferEtat\(/g) ?? []).length).toBe(3);
   });
 
-  it('décale l’en-tête du tableau du même nombre de lignes que la coiffe', () => {
-    // La coiffe insère trois lignes ; l'en-tête passe donc en ligne 4, et la
-    // dernière ligne de données glisse d'autant. Sans ce report, le figeage
-    // resterait sur la ligne 1 et l'autofiltre couvrirait le titre.
-    expect(service).toContain('feuille.spliceRows(1, 0, [], [], []);');
-    expect(service).toContain('return 4;');
-    expect((service.match(/derniereLigneDonnees \+ 3, entete/g) ?? []).length).toBe(3);
+  it('ne remet aucune coiffe dans la grille du journal, du grand livre ni de la balance', () => {
+    // La régression à craindre n'est pas l'absence de la coiffe · c'est son
+    // retour « pour faire propre ». Le tableau commence en ligne 1.
+    expect(service).not.toContain('coifferEtat');
+    expect(service).not.toContain('feuille.spliceRows(1, 0, [], [], []);');
+    expect(service).not.toContain('derniereLigneDonnees + 3, entete');
   });
 
   it('porte les cinq mentions que l’AUDCIF art. 22, 7° et le Titre IX demandent', () => {
     // Dénomination, NIF, période, unité monétaire, date d'édition · plus la
-    // numérotation de page, en pied de page imprimé.
+    // numérotation de page, le tout en pied de page imprimé.
     expect(service).toContain('identite.entite');
     expect(service).toContain('NIF ${identite.nif}');
     expect(service).toContain('identite.periode');
