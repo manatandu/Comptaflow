@@ -68,6 +68,24 @@ export class CreerImmobilisationDto {
   @IsPositive()
   dureeAmortissementAns?: number; // sinon, valeur par défaut de la famille
 
+  /**
+   * AMORTISSEMENT DÉJÀ PRATIQUÉ AVANT L'ENTRÉE DANS LE LOGICIEL.
+   *
+   * Un bien mis en service en 2020 et repris dans un dossier ouvert en 2026
+   * porte déjà six annuités au compte 28. Sans ce chiffre, le logiciel ne
+   * connaît que les dotations qu'il a lui-même passées · aucune · et repart
+   * de zéro : il amortirait le bien sur cinq ans DE PLUS, et la valeur nette
+   * comptable des états ne correspondrait plus au solde du compte 28 repris
+   * par le bilan d'ouverture.
+   *
+   * L'erreur est silencieuse : rien ne casse, les écritures s'équilibrent, et
+   * le bien reste sous-amorti aussi longtemps que personne ne recoupe.
+   */
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  amortissementAnterieur?: number;
+
   // Financement de l'acquisition · l'écriture générée débite le compte
   // d'immobilisation (valeurOrigine) et crédite ce compte de contrepartie
   // (trésorerie, fournisseur d'investissement, emprunt, capital par dotation,

@@ -1965,8 +1965,19 @@ model Immobilisation {
   // Déduite de la base amortissable (skill sycebnl, COMPTE 28).
   valeurResiduelle Decimal @default(0) @db.Decimal(18, 2)
 
-  dureeAmortissementAns Int
-  modeAmortissement     ModeAmortissement @default(LINEAIRE)
+  dureeAmortissementAns  Int
+  modeAmortissement      ModeAmortissement @default(LINEAIRE)
+  /// Amortissement déjà pratiqué AVANT l'entrée du bien dans le logiciel.
+  ///
+  /// Un bien mis en service en 2020 et repris dans un dossier ouvert en 2026
+  /// porte déjà six annuités au compte 28. Sans ce chiffre, le calcul de la
+  /// dotation ne connaît que les dotations passées PAR le logiciel · aucune ·
+  /// et repart de zéro : le bien s'amortirait cinq ans de plus, et la valeur
+  /// nette comptable des états cesserait de correspondre au solde du compte 28
+  /// repris par le bilan d'ouverture.
+  ///
+  /// Zéro par défaut, ce qui est juste pour un bien acquis dans le logiciel.
+  amortissementAnterieur Decimal           @default(0) @db.Decimal(18, 2)
 
   statut      StatutImmobilisation @default(EN_SERVICE)
   dateSortie  DateTime?

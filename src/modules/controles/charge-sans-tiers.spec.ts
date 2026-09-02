@@ -50,6 +50,9 @@ function service(
     ligneEcriture: { findMany: jest.fn().mockResolvedValue([]) },
     // Aucun arrêté d'exonération dans ce dossier de test · le contrôle des
     // échéances douanières n'a rien à signaler, et n'interfère donc pas.
+    // Aucun bien repris dans ce dossier de test · le contrôle des
+    // immobilisations mises en service avant l'ouverture n'a rien à signaler.
+    immobilisation: { findMany: jest.fn().mockResolvedValue([]) },
     exoneration: { findMany: jest.fn().mockResolvedValue([]) },
   } as unknown as PrismaService;
   return new ControlesService(prisma);

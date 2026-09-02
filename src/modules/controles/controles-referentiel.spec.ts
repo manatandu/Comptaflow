@@ -69,6 +69,9 @@ function service(referentiel: Referentiel, ecritures: ReturnType<typeof ecriture
     ecriture: { findMany: jest.fn().mockResolvedValue(ecritures) },
     compte: { findMany: jest.fn().mockResolvedValue([]) },
     ligneEcriture: { findMany: jest.fn().mockResolvedValue([]) },
+    // Aucun bien repris dans ce dossier de test · le contrôle des
+    // immobilisations mises en service avant l'ouverture n'a rien à signaler.
+    immobilisation: { findMany: jest.fn().mockResolvedValue([]) },
     exoneration,
   } as unknown as PrismaService;
   return { svc: new ControlesService(prisma), exoneration };

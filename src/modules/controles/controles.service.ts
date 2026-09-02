@@ -1089,6 +1089,54 @@ export class ControlesService {
       });
     }
 
+    // --- 12. Bien repris sans son amortissement antérieur --------------------
+    //
+    // Un bien mis en service AVANT le premier exercice du dossier a été amorti
+    // ailleurs, et ce cumul doit être repris sur sa fiche. À défaut, le calcul
+    // de la dotation repart de zéro : le bien s'amortit sa durée entière une
+    // seconde fois, et la valeur nette comptable des états s'écarte du solde du
+    // compte 28 porté par le bilan d'ouverture.
+    //
+    // Rien ne casse · les écritures s'équilibrent, aucun total ne bouge. C'est
+    // pourquoi ce contrôle existe : l'erreur ne se signale jamais d'elle-même.
+    const premierExercice = await this.prisma.exercice.findFirst({
+      where: { tenantId },
+      orderBy: { dateDebut: 'asc' },
+      select: { dateDebut: true },
+    });
+    if (premierExercice) {
+      const reprises = await this.prisma.immobilisation.findMany({
+        where: {
+          tenantId,
+          statut: 'EN_SERVICE',
+          dateMiseEnService: { lt: premierExercice.dateDebut },
+          amortissementAnterieur: 0,
+        },
+        select: { designation: true, dateMiseEnService: true, valeurOrigine: true },
+        orderBy: { dateMiseEnService: 'asc' },
+      });
+      if (reprises.length > 0) {
+        anomalies.push({
+          code: 'IMMO_REPRISE_SANS_ANTERIEUR',
+          gravite: 'AVERTISSEMENT',
+          libelle: 'Bien mis en service avant le dossier, sans amortissement antérieur repris',
+          consequence:
+            "Le calcul de la dotation ne connaît que les annuités passées dans ce logiciel : il repart de zéro et " +
+            "amortira le bien sa durée entière une seconde fois. La valeur nette comptable des états s'écartera " +
+            'alors du solde du compte 28 repris par le bilan d’ouverture, sans qu’aucun total ne le signale.',
+          action:
+            "Renseignez l'amortissement déjà pratiqué sur la fiche du bien (Structure > Immobilisations) · c'est le " +
+            'cumul porté au compte 28 pour ce bien à la date de reprise.',
+          occurrences: reprises.slice(0, 200).map((i) => ({
+            reference: i.designation,
+            detail: `Mis en service le ${i.dateMiseEnService.toISOString().slice(0, 10)}, avant l'ouverture du dossier`,
+            montant: Number(i.valeurOrigine),
+            date: i.dateMiseEnService.toISOString().slice(0, 10),
+          })),
+        });
+      }
+    }
+
     const ordre: Record<Gravite, number> = { BLOQUANT: 0, AVERTISSEMENT: 1, INFORMATION: 2 };
     anomalies.sort((a, b) => ordre[a.gravite] - ordre[b.gravite]);
 

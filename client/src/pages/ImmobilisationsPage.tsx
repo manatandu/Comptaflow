@@ -47,6 +47,10 @@ export function ImmobilisationsPage() {
   const [iDateMiseEnService, setIDateMiseEnService] = useState(() => new Date().toISOString().slice(0, 10));
   const [iValeurOrigine, setIValeurOrigine] = useState('');
   const [iValeurResiduelle, setIValeurResiduelle] = useState('0');
+  // Bien REPRIS · ce qui a été amorti avant l'entrée dans le logiciel. Zéro
+  // pour un bien acquis ici, ce qui est le cas courant · d'où le champ en
+  // dernier et non en évidence.
+  const [iAmortissementAnterieur, setIAmortissementAnterieur] = useState('0');
   const [iCompteContrepartie, setICompteContrepartie] = useState('');
   const [iJournalId, setIJournalId] = useState('');
 
@@ -123,6 +127,7 @@ export function ImmobilisationsPage() {
         dateMiseEnService: iDateMiseEnService,
         valeurOrigine: Number(iValeurOrigine),
         valeurResiduelle: Number(iValeurResiduelle || 0),
+        amortissementAnterieur: Number(iAmortissementAnterieur || 0),
         compteContrepartieId: iCompteContrepartie,
         exerciceId: exerciceCourant?.id,
         journalId: iJournalId,
@@ -304,6 +309,22 @@ export function ImmobilisationsPage() {
             <label className="text-[10.5px] font-semibold text-text-dim">
               Valeur résiduelle
               <input type="number" step="0.01" min={0} value={iValeurResiduelle} onChange={(e) => setIValeurResiduelle(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal font-mono" />
+            </label>
+            <label className="text-[10.5px] font-semibold text-text-dim">
+              Amortissement déjà pratiqué
+              <input
+                type="number"
+                step="0.01"
+                min={0}
+                value={iAmortissementAnterieur}
+                onChange={(e) => setIAmortissementAnterieur(e.target.value)}
+                className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal font-mono"
+              />
+              <span className="block mt-1 text-[10px] font-normal text-text-dim leading-[1.45]">
+                Pour un bien REPRIS, mis en service avant l'ouverture du dossier : le cumul déjà porté au compte 28
+                à la date de reprise. Sans lui, le bien s'amortirait sa durée entière une seconde fois. Zéro pour un
+                bien acquis dans le logiciel.
+              </span>
             </label>
             <label className="text-[10.5px] font-semibold text-text-dim">
               Financement (contrepartie)

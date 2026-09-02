@@ -332,6 +332,18 @@ export class ImmobilisationService {
     //
     // Le compte n'est pas contraint ici : EcritureService valide déjà qu'il
     // est mouvementable et qu'il appartient au dossier.
+    // L'AMORTISSEMENT ANTÉRIEUR NE PEUT PAS DÉPASSER CE QU'IL Y A À AMORTIR ·
+    // au-delà, le bien serait plus qu'amorti, la valeur nette comptable
+    // deviendrait négative et la sortie créditerait un 28 supérieur au 2.
+    const baseAmortissable = this.baseAmortissable(dto.valeurOrigine, dto.valeurResiduelle ?? 0);
+    if ((dto.amortissementAnterieur ?? 0) - baseAmortissable > EPSILON) {
+      throw new BadRequestException(
+        `L'amortissement antérieur (${(dto.amortissementAnterieur ?? 0).toFixed(2)}) dépasse la base ` +
+          `amortissable du bien (${baseAmortissable.toFixed(2)}, soit la valeur d'origine diminuée de la valeur ` +
+          'résiduelle) : un bien ne peut pas être amorti au-delà de ce qu’il y a à amortir.',
+      );
+    }
+
     const ecritureAcquisition = await this.ecritureService.creer(tenantId, userId, {
       exerciceId: dto.exerciceId,
       journalId: dto.journalId,
@@ -357,6 +369,7 @@ export class ImmobilisationService {
         valeurOrigine: dto.valeurOrigine,
         valeurResiduelle: dto.valeurResiduelle ?? 0,
         dureeAmortissementAns: dto.dureeAmortissementAns ?? famille.dureeAmortissementAns,
+        amortissementAnterieur: dto.amortissementAnterieur ?? 0,
         modeAmortissement: ModeAmortissement.LINEAIRE,
         ecritureAcquisitionId: ecritureAcquisition.id,
         createdBy: userId,
@@ -396,6 +409,21 @@ export class ImmobilisationService {
    * amortissable · un bien totalement amorti reste inscrit au bilan
    * (COMPTE 20-29, dernier paragraphe) mais ne génère plus de dotation.
    */
+  /**
+   * LE CUMUL AMORTI N'EST PAS SEULEMENT CE QUE LE LOGICIEL A DOTÉ.
+   *
+   * `amortissementAnterieur` porte ce qui a été amorti AVANT l'entrée du bien
+   * dans OmegaX. Un bien mis en service en 2020 et repris dans un dossier
+   * ouvert en 2026 porte déjà six annuités au compte 28 ; sans ce chiffre, le
+   * calcul repartait de zéro et l'amortissait cinq ans de plus, pendant que la
+   * valeur nette comptable des états s'écartait du solde du 28 repris par le
+   * bilan d'ouverture.
+   *
+   * Il compte aussi pour savoir si l'annuité doit être PRORATISÉE : la
+   * proratisation ne vaut que pour la PREMIÈRE annuité du bien, et un bien
+   * repris a déjà passé la sienne, ailleurs. Se fier au seul nombre de
+   * dotations enregistrées ici lui aurait fait subir un second prorata.
+   */
   private calculerDotation(
     valeurOrigine: number,
     valeurResiduelle: number,
@@ -403,15 +431,18 @@ export class ImmobilisationService {
     dateMiseEnService: Date,
     dotationsAnterieures: Array<{ montant: number }>,
     exercice: { dateDebut: Date; dateFin: Date },
+    amortissementAnterieur = 0,
   ): number {
     const base = this.baseAmortissable(valeurOrigine, valeurResiduelle);
     const annuitePleine = base / dureeAns;
-    const cumulAnterieur = dotationsAnterieures.reduce((s, d) => s + d.montant, 0);
+    const cumulAnterieur =
+      dotationsAnterieures.reduce((s, d) => s + d.montant, 0) + Math.max(0, amortissementAnterieur);
     const reliquat = Math.max(0, base - cumulAnterieur);
     if (reliquat <= EPSILON) return 0;
 
+    const premiereAnnuite = dotationsAnterieures.length === 0 && amortissementAnterieur <= EPSILON;
     let montant: number;
-    if (dotationsAnterieures.length === 0) {
+    if (premiereAnnuite) {
       const premierJourMoisMES = new Date(Date.UTC(dateMiseEnService.getUTCFullYear(), dateMiseEnService.getUTCMonth(), 1));
       const debutProrata = premierJourMoisMES < exercice.dateDebut ? exercice.dateDebut : premierJourMoisMES;
       const moisEcoules =
@@ -448,6 +479,7 @@ export class ImmobilisationService {
       immo.dateMiseEnService,
       immo.dotations.map((d) => ({ montant: Number(d.montant) })),
       exercice,
+      Number(immo.amortissementAnterieur ?? 0),
     );
     if (montant <= EPSILON) {
       throw new BadRequestException('Aucun montant à doter · le bien est déjà entièrement amorti ou hors période');
@@ -560,7 +592,12 @@ export class ImmobilisationService {
     // 28 : "la dotation complémentaire en cas de cession"), seulement si
     // aucune dotation n'a déjà été passée sur cet exercice pour ce bien ·
     // sinon le cumul est déjà à jour, pas de complément à ajouter.
-    let cumulAmorti = immo.dotations.reduce((s, d) => s + Number(d.montant), 0);
+    // L'AMORTISSEMENT ANTÉRIEUR COMPTE DANS LA VALEUR COMPTABLE NETTE. Sans
+    // lui, la sortie d'un bien repris sortirait une VCN gonflée de tout ce qui
+    // avait été amorti avant l'entrée dans le logiciel · et le compte 28 soldé
+    // à la sortie ne correspondrait pas à ce que le bilan portait.
+    let cumulAmorti =
+      immo.dotations.reduce((s, d) => s + Number(d.montant), 0) + Number(immo.amortissementAnterieur ?? 0);
     const dejaDoteCetExercice = immo.dotations.some((d) => d.exerciceId === dto.exerciceId);
     if (!dejaDoteCetExercice) {
       const montantComplement = this.calculerDotation(
@@ -570,6 +607,7 @@ export class ImmobilisationService {
         immo.dateMiseEnService,
         immo.dotations.map((d) => ({ montant: Number(d.montant) })),
         { dateDebut: exercice.dateDebut, dateFin: dateSortie },
+        Number(immo.amortissementAnterieur ?? 0),
       );
       if (montantComplement > EPSILON) {
         const ecritureComplement = await this.ecritureService.creer(tenantId, userId, {
