@@ -1379,14 +1379,27 @@ export class EcritureService {
    *    par l'écriture et non par la ligne : le groupement se fait donc une
    *    fois de chaque côté du filtre.
    *
-   * 2. L'AGRÉGATION DES COMPTES TOTAL ÉTAIT EN N². Chaque compte Total
-   *    balayait la liste ENTIÈRE des comptes pour trouver ses enfants par
-   *    `startsWith`. Avec les 76 comptes principaux à deux chiffres du plan
-   *    SYCEBNL et un millier de comptes de détail, cela faisait des dizaines
-   *    de milliers de comparaisons de chaînes à chaque appel. On parcourt
-   *    maintenant les comptes de détail UNE fois, en remontant les préfixes
-   *    de chacun (au plus la longueur du numéro, soit huit) vers les comptes
-   *    Total qui existent · même résultat, temps linéaire.
+   * 2. ELLE AGRÉGEAIT LES COMPTES TOTAL, ET PLUS PERSONNE N'EN VOULAIT.
+   *    Chaque compte Total balayait la liste entière des comptes pour trouver
+   *    ses enfants par `startsWith` · un travail en N² qui a d'abord été rendu
+   *    linéaire, puis retiré.
+   *
+   * UNE BALANCE GÉNÉRALE LISTE LES COMPTES MOUVEMENTÉS, PAS UNE HIÉRARCHIE.
+   *
+   * Les lignes de sous-totalisation par compte principal (10, 40, 60…) ont
+   * été retirées à la demande du cabinet : une balance se lit compte par
+   * compte, dans l'ordre croissant des numéros, et les sous-totaux d'une
+   * arborescence y ajoutent des lignes que personne ne pointe. Ils n'étaient
+   * d'ailleurs consommés NULLE PART · les six appelants internes (états
+   * financiers, fiscalité, groupe, exports) les écartaient tous par le même
+   * `filter(l => l.typeCompte !== TOTAL)`, chacun pour la même raison :
+   * additionner un agrégat déjà compté dans ses enfants double les montants.
+   *
+   * CE QUI RESTE DANS LA LISTE, et pourquoi : tout compte de détail qui a un
+   * mouvement, y compris ceux dont le solde retombe à zéro (un débit de 100
+   * et un crédit de 100). Les exclure casserait l'égalité de la balance
+   * elle-même, dont les colonnes de totaux additionnent des MOUVEMENTS et non
+   * des soldes · un compte soldé a bougé, et sa ligne le prouve.
    */
   async balance(tenantId: string, exerciceId: string, inclureBrouillard = true) {
     const filtreEcriture = {
@@ -1440,32 +1453,15 @@ export class EcritureService {
     accumuler(reports, 'reportDebit', 'reportCredit');
     accumuler(mouvements, 'mouvementDebit', 'mouvementCredit');
 
-    // Agrégation des comptes Total · un seul passage sur les comptes de
-    // détail, en remontant les préfixes de chaque numéro. Un compte Total ne
-    // s'agrège JAMAIS dans un autre compte Total : ses propres enfants de
-    // détail y sont déjà comptés, l'ajouter compterait deux fois les mêmes
-    // mouvements dans une hiérarchie à plusieurs niveaux.
-    const totauxParNumero = new Map<string, Agregats>();
-    for (const c of comptes) {
-      if (c.typeCompte === TypeCompteDetailTotal.TOTAL) totauxParNumero.set(c.numero, zero());
-    }
-    for (const c of comptes) {
-      if (c.typeCompte === TypeCompteDetailTotal.TOTAL) continue;
-      const direct = soldeDirectParCompte.get(c.id);
-      if (!direct) continue;
-      for (let l = 1; l < c.numero.length; l++) {
-        const parent = totauxParNumero.get(c.numero.slice(0, l));
-        if (!parent) continue;
-        for (const f of CHAMPS) parent[f] += direct[f];
-      }
-    }
-
+    // Les comptes Total sont écartés d'emblée · ils ne reçoivent jamais
+    // d'écriture (un numéro à deux ou trois chiffres est structurellement
+    // impossible à saisir, CreerCompteDto en exige trois à treize) et ne
+    // portaient qu'une sous-totalisation d'affichage dont plus personne ne
+    // veut. Le tri croissant vient du `orderBy` de la requête.
     const lignesBalance = comptes
+      .filter((c) => c.typeCompte !== TypeCompteDetailTotal.TOTAL)
       .map((c) => {
-        const agregats =
-          c.typeCompte === TypeCompteDetailTotal.TOTAL
-            ? totauxParNumero.get(c.numero)!
-            : (soldeDirectParCompte.get(c.id) ?? zero());
+        const agregats = soldeDirectParCompte.get(c.id) ?? zero();
         return {
           compteId: c.id,
           numero: c.numero,
@@ -1478,16 +1474,11 @@ export class EcritureService {
       })
       .filter((l) => l.totalDebit !== 0 || l.totalCredit !== 0);
 
-    // Les comptes Total n'entrent pas dans les totaux généraux : leur solde
-    // n'est qu'un agrégat d'affichage des comptes Détail déjà comptés à côté
-    // · les additionner aussi doublerait les montants.
-    const lignesDetailSeules = lignesBalance.filter((l) => l.typeCompte !== TypeCompteDetailTotal.TOTAL);
-
     return {
       lignes: lignesBalance,
       totaux: {
-        debit: lignesDetailSeules.reduce((s, l) => s + l.totalDebit, 0),
-        credit: lignesDetailSeules.reduce((s, l) => s + l.totalCredit, 0),
+        debit: lignesBalance.reduce((s, l) => s + l.totalDebit, 0),
+        credit: lignesBalance.reduce((s, l) => s + l.totalCredit, 0),
       },
     };
   }

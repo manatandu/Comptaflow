@@ -77,8 +77,10 @@ export async function chargerLignes(
   // entrée · un bilan bâti dessus n'engagerait personne (voir
   // EcritureService.balance et StatutEcriture dans le schéma).
   const { lignes } = await ecritureService.balance(tenantId, exerciceId, false);
-  // Comptes Total (§3.1) exclus : leur solde n'est qu'un agrégat
-  // d'affichage des comptes Détail de même racine, déjà comptés
-  // individuellement ailleurs · les inclure doublerait le montant.
+  // GARDE-FOU CONSERVÉ, ET REDONDANT PAR CONSTRUCTION · la balance ne rend
+  // plus que des comptes de détail depuis qu'elle a cessé de sous-totaliser
+  // par compte principal. Le filtre reste parce qu'un agrégat compté en plus
+  // de ses enfants double des montants EN SILENCE · une assurance d'une ligne
+  // contre la catégorie de bug que ce projet ne peut pas se permettre.
   return lignes.filter((l) => l.typeCompte !== TypeCompteDetailTotal.TOTAL);
 }

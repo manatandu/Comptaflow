@@ -689,10 +689,7 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
           {balance.map((l) => (
             <div
               key={l.compteId}
-              title={l.typeCompte === 'TOTAL' ? 'Compte Total · sous-totalisation des comptes Détail de même racine' : undefined}
-              className={`grid ${GRILLE_BALANCE} gap-2 px-3.5 py-[3px] items-center border-b border-border/50 text-[10.5px] ${
-                l.typeCompte === 'TOTAL' ? 'bg-chrome font-semibold border-b-border' : ''
-              }`}
+              className={`grid ${GRILLE_BALANCE} gap-2 px-3.5 py-[3px] items-center border-b border-border/50 text-[10.5px]`}
             >
               <span className="font-mono">{l.numero}</span>
               <span className="truncate" title={l.intitule}>
@@ -720,8 +717,10 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
             </div>
           ))}
           {(() => {
-            const details = balance.filter((l) => l.typeCompte !== 'TOTAL');
-            const cumul = (f: (l: LigneBalance) => number) => details.reduce((s, l) => s + f(l), 0);
+            // Toutes les lignes entrent dans les totaux · la balance ne rend
+            // plus de sous-totalisation par compte principal, il n'y a donc
+            // plus d'agrégat à écarter pour ne pas compter deux fois.
+            const cumul = (f: (l: LigneBalance) => number) => balance.reduce((s, l) => s + f(l), 0);
             const ouv = (l: LigneBalance) => l.reportDebit - l.reportCredit;
             return (
               <div className={`grid ${GRILLE_BALANCE} gap-2 px-3.5 py-1.5 bg-surface-alt border-t border-border-dark text-[10.5px] font-bold`}>

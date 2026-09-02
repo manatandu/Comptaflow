@@ -247,6 +247,8 @@ export class GroupeService {
       const balance = await this.ecritureService.balance(d.id, d.exerciceId);
       let solde58 = 0;
       for (const l of balance.lignes) {
+        // Redondant par construction (la balance ne rend que du détail), gardé
+        // contre le double comptage · voir EcritureService.balance.
         if (l.typeCompte === 'TOTAL') continue;
         const existante = parNumero.get(l.numero);
         if (existante) {

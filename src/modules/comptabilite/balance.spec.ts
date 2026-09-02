@@ -15,11 +15,14 @@ import { AnalytiqueService } from '../analytique/analytique.service';
  *  · le report à-nouveau et le mouvement de l'exercice se distinguent par
  *    `estGenereeParCloture`, porté par l'écriture · les confondre fausse les
  *    colonnes « à-nouveau » de tous les états ;
- *  · un compte Total agrège ses enfants de DÉTAIL, jamais un autre Total ·
- *    sinon une hiérarchie à trois niveaux compte deux fois les mêmes
- *    mouvements ;
- *  · les comptes Total n'entrent pas dans les totaux généraux, pour la même
- *    raison.
+ *  · UNE BALANCE LISTE DES COMPTES MOUVEMENTÉS, PAS UNE HIÉRARCHIE. Les
+ *    lignes de sous-totalisation par compte principal (10, 40, 60…) ont été
+ *    retirées : une balance se lit compte par compte, dans l'ordre croissant
+ *    des numéros. Aucun des six appelants internes ne les utilisait, tous les
+ *    écartaient ;
+ *  · un compte MOUVEMENTÉ dont le solde retombe à zéro reste dans la liste.
+ *    L'exclure casserait l'égalité de la balance, dont les colonnes de totaux
+ *    additionnent des mouvements et non des soldes.
  */
 
 function comptes() {
@@ -118,7 +121,7 @@ describe('Balance générale', () => {
     expect(c.solde).toBe(380_000);
   });
 
-  it('un compte Total agrège ses enfants de DÉTAIL, à tous les niveaux de préfixe', async () => {
+  it('ne porte AUCUNE ligne de sous-totalisation par compte principal', async () => {
     const { svc } = service(
       [],
       [
@@ -127,28 +130,27 @@ describe('Balance générale', () => {
       ],
     );
     const r = await svc.balance('t1', 'e1');
-    // « 101 » ne voit que 1011 et 1015 · les deux commencent par 101.
-    expect(ligne(r, '101').totalDebit).toBe(500_000);
-    // « 10 » les voit aussi, par un préfixe plus court.
-    expect(ligne(r, '10').totalDebit).toBe(500_000);
+    // « 10 » et « 101 » sont des comptes Total du plan · ils ne recevront
+    // jamais d'écriture (un numéro à deux ou trois chiffres est impossible à
+    // saisir) et n'ont plus à figurer dans une balance.
+    expect(r.lignes.map((l) => l.numero)).toEqual(['10110000', '10150000']);
+    expect(r.lignes.every((l) => l.typeCompte === 'DETAIL')).toBe(true);
   });
 
-  it('un compte Total ne s’agrège JAMAIS dans un autre Total · sinon on compte deux fois', async () => {
-    // « 10 » vaut 500 000 par ses deux enfants de détail, et non 1 000 000 :
-    // le sous-total « 101 » porte déjà les mêmes mouvements. C'est la faute
-    // classique d'une hiérarchie à plusieurs niveaux.
+  it('liste les comptes dans l’ordre croissant de leur numéro', async () => {
     const { svc } = service(
       [],
       [
-        { compteId: 'c1011', debit: 300_000, credit: 0 },
-        { compteId: 'c1015', debit: 200_000, credit: 0 },
+        { compteId: 'c521', debit: 400_000, credit: 0 },
+        { compteId: 'c1011', debit: 0, credit: 400_000 },
       ],
     );
     const r = await svc.balance('t1', 'e1');
-    expect(ligne(r, '10').totalDebit).toBe(500_000);
+    // L'ordre vient du plan, pas de l'ordre d'arrivée des mouvements.
+    expect(r.lignes.map((l) => l.numero)).toEqual(['10110000', '52100000']);
   });
 
-  it('les comptes Total n’entrent pas dans les totaux généraux', async () => {
+  it('totalise sur toutes les lignes rendues, sans rien à écarter', async () => {
     const { svc } = service(
       [],
       [
@@ -158,16 +160,29 @@ describe('Balance générale', () => {
     );
     const r = await svc.balance('t1', 'e1');
     // Débit et crédit s'équilibrent : 400 000 de part et d'autre, et non le
-    // double, alors que « 10 », « 101 » et « 52 » portent les mêmes montants.
+    // double comme lorsque « 10 », « 101 » et « 52 » portaient les mêmes
+    // montants en sous-total.
     expect(r.totaux.debit).toBe(400_000);
     expect(r.totaux.credit).toBe(400_000);
   });
 
-  it('un compte sans mouvement disparaît de la balance · y compris un Total vide', async () => {
+  it('garde un compte mouvementé dont le solde retombe à zéro', async () => {
+    // Un débit de 400 000 et un crédit de 400 000 sur le même compte : son
+    // solde est nul, mais il a bougé, et ses mouvements entrent dans
+    // l'égalité de la balance. L'exclure la casserait.
+    const { svc } = service([], [{ compteId: 'c521', debit: 400_000, credit: 400_000 }]);
+    const r = await svc.balance('t1', 'e1');
+    expect(r.lignes.map((l) => l.numero)).toEqual(['52100000']);
+    expect(ligne(r, '52100000').solde).toBe(0);
+    expect(r.totaux).toEqual({ debit: 400_000, credit: 400_000 });
+  });
+
+  it('un compte sans mouvement disparaît de la balance', async () => {
     const { svc } = service([], [{ compteId: 'c521', debit: 90_000, credit: 0 }]);
     const r = await svc.balance('t1', 'e1');
-    expect(r.lignes.map((l) => l.numero).sort()).toEqual(['52', '52100000']);
-    // « 60 », « 10 », « 101 » n'ont rien : ils ne s'affichent pas.
+    expect(r.lignes.map((l) => l.numero)).toEqual(['52100000']);
+    // « 60 », « 10 », « 101 » n'ont rien : ils ne s'affichent pas · et ne
+    // s'afficheraient plus même s'ils portaient un agrégat.
     expect(ligne(r, '60')).toBeUndefined();
   });
 

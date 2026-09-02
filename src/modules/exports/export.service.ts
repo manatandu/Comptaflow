@@ -654,14 +654,11 @@ export class ExportService {
         totalCredit: l.totalCredit || null,
         solde: l.solde,
       });
-      if (l.typeCompte === 'TOTAL') {
-        ligne.font = ENTETE_FONT;
-      }
     }
 
     const derniereLigneDonnees = feuille.rowCount;
     const ligneTotal = feuille.addRow({
-      intitule: 'TOTAUX GÉNÉRAUX (comptes Détail seuls)',
+      intitule: 'TOTAUX GÉNÉRAUX',
       totalDebit: totaux.debit,
       totalCredit: totaux.credit,
     });
@@ -2834,6 +2831,7 @@ export class ExportService {
   private async lignesBalanceLiasse(tenantId: string, exerciceId: string): Promise<LigneBalanceLiasse[]> {
     const balance = await this.ecritureService.balance(tenantId, exerciceId, false);
     return balance.lignes
+      // Redondant par construction, gardé contre le double comptage.
       .filter((l) => l.typeCompte !== 'TOTAL')
       .map((l) => {
         const ouverture = l.reportDebit - l.reportCredit;

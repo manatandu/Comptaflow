@@ -501,8 +501,9 @@ export function GroupePage() {
               <button type="button" onClick={() => setBalanceCellule(null)} className="text-white/85 hover:text-white px-1.5">✕</button>
             </div>
             <div className="overflow-y-auto">
+              {/* Plus de filtre : la balance ne rend que des comptes de
+                  détail mouvementés (voir EcritureService.balance). */}
               {balanceCellule.lignes
-                .filter((l) => l.typeCompte !== 'TOTAL')
                 .map((l, i) => (
                   <div key={l.numero} className={`grid grid-cols-[100px_1fr_110px_110px] gap-2 px-3.5 py-1 text-[10.5px] border-b border-border ${i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'}`}>
                     <span className="font-mono">{l.numero}</span>

@@ -91,6 +91,11 @@ export class FiscaliteService {
    */
   private async lireBalance(tenantId: string, exerciceId: string) {
     const balance = await this.ecritureService.balance(tenantId, exerciceId);
+    // GARDE-FOU CONSERVÉ, ET REDONDANT PAR CONSTRUCTION · la balance ne rend
+    // plus que des comptes de détail depuis qu'elle a cessé de sous-totaliser
+    // par compte principal. Le filtre reste parce qu'un agrégat compté en plus
+    // de ses enfants double des montants EN SILENCE · une assurance d'une ligne
+    // contre la catégorie de bug que ce projet ne peut pas se permettre.
     const details = balance.lignes.filter((l) => l.typeCompte !== TypeCompteDetailTotal.TOTAL);
     const gestion = details.filter((l) => /^[678]/.test(l.numero));
     const resultatClasses678 = gestion.reduce((s, l) => s - l.solde, 0);
