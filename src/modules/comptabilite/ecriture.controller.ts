@@ -185,6 +185,21 @@ export class EcritureController {
   }
 
   /**
+   * ÉVOLUTION PLURIANNUELLE · le même compte sur plusieurs exercices. Ce que
+   * deux colonnes N / N-1 ne montrent pas : une provision figée depuis quatre
+   * ans, un compte d'attente qui gonfle.
+   */
+  @Get('evolution-soldes')
+  async evolutionSoldes(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('nbExercices') nbExercices?: string,
+  ) {
+    return this.ecritureService.evolutionSoldes(user.tenantId, {
+      nbExercices: nbExercices ? Number(nbExercices) : undefined,
+    });
+  }
+
+  /**
    * GRAND LIVRE COMPLET · tous les comptes MOUVEMENTÉS de l'exercice, dans
    * l'ordre des numéros. C'est l'état par défaut : un grand livre est, par
    * définition, le recueil de tous les comptes · en exiger un avant d'afficher

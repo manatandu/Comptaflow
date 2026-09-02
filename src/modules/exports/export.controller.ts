@@ -158,6 +158,22 @@ export class ExportController {
   }
 
   /**
+   * ÉVOLUTION PLURIANNUELLE DES SOLDES · sans `EXERCICE_REQUIS` : l'état
+   * porte SUR les exercices, il n'en choisit pas un.
+   */
+  @Get('evolution-soldes')
+  async evolutionSoldes(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('nbExercices') nbExercices?: string,
+  ) {
+    envoyerXlsx(
+      res,
+      await this.exportService.evolutionSoldesExcel(user.tenantId, nbExercices ? Number(nbExercices) : undefined),
+    );
+  }
+
+  /**
    * LA LIASSE COMPLÈTE · tous les états du jeu retenu par le dossier dans un
    * seul classeur, précédés d'un sommaire. C'est ce fichier-là qui se dépose
    * au CPCC ou s'envoie à un bailleur ; les exports unitaires ci-dessous

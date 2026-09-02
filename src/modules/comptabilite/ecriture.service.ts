@@ -1462,6 +1462,86 @@ export class EcritureService {
     };
   }
 
+  /**
+   * ÉVOLUTION PLURIANNUELLE DES SOLDES · le même compte sur plusieurs
+   * exercices, côte à côte.
+   *
+   * Le logiciel ne comparait jamais que N et N-1, parce que c'est ce que les
+   * états financiers publient. Un réviseur, lui, regarde plus loin : le
+   * fichier de préparation de liasse ouvert sur le Drive porte une feuille
+   * « Evolution balances » qui aligne HUIT exercices. C'est ce qui fait voir
+   * une provision qui ne bouge plus depuis quatre ans, une créance douteuse
+   * jamais apurée, un compte d'attente qui gonfle d'année en année · aucune de
+   * ces trois anomalies n'est visible sur deux colonnes.
+   *
+   * LE SOLDE RETENU EST CELUI DE CLÔTURE DE CHAQUE EXERCICE, à-nouveaux
+   * compris · c'est la définition de la balance (report + mouvements), et
+   * c'est ce qui rend la colonne comparable à la balance de l'année. Ne
+   * prendre que les mouvements donnerait, sur un compte de bilan, une colonne
+   * qui ne veut rien dire.
+   *
+   * Un exercice où le compte n'a jamais été mouvementé rend `null`, pas zéro.
+   * La nuance compte : zéro dit « soldé », null dit « n'existait pas encore »,
+   * et les confondre fait lire une extinction là où il n'y a qu'une création.
+   */
+  async evolutionSoldes(tenantId: string, params: { nbExercices?: number } = {}) {
+    const nb = Math.min(Math.max(params.nbExercices ?? 8, 2), 20);
+    const exercices = await this.prisma.exercice.findMany({
+      where: { tenantId },
+      orderBy: { dateDebut: 'desc' },
+      take: nb,
+      select: { id: true, dateDebut: true, dateFin: true, statut: true },
+    });
+
+    // Une agrégation par exercice · `exerciceId` vit sur l'écriture, pas sur
+    // la ligne, donc un `groupBy` unique sur les deux dimensions n'est pas
+    // possible. Vingt requêtes au maximum, lancées ensemble.
+    const [comptes, ...agregats] = await Promise.all([
+      this.prisma.compte.findMany({
+        where: { tenantId, typeCompte: { not: TypeCompteDetailTotal.TOTAL } },
+        orderBy: { numero: 'asc' },
+        select: { id: true, numero: true, intitule: true, classe: true },
+      }),
+      ...exercices.map((e) =>
+        this.prisma.ligneEcriture.groupBy({
+          by: ['compteId'],
+          where: { ecriture: { tenantId, exerciceId: e.id } },
+          _sum: { debit: true, credit: true },
+        }),
+      ),
+    ]);
+
+    const arrondir = (x: number) => Math.round(x * 100) / 100;
+    const parExercice = agregats.map(
+      (groupes) =>
+        new Map(
+          groupes.map((g) => [g.compteId, arrondir(Number(g._sum.debit ?? 0) - Number(g._sum.credit ?? 0))]),
+        ),
+    );
+
+    const annee = (d: Date) => d.toISOString().slice(0, 4);
+    const colonnes = exercices.map((e) => ({
+      id: e.id,
+      libelle: annee(e.dateFin),
+      dateFin: e.dateFin.toISOString().slice(0, 10),
+      statut: e.statut,
+    }));
+
+    const lignes = comptes
+      .map((c) => ({
+        compteId: c.id,
+        numero: c.numero,
+        intitule: c.intitule,
+        classe: c.classe,
+        soldes: parExercice.map((m) => (m.has(c.id) ? (m.get(c.id) as number) : null)),
+      }))
+      // Un compte que rien n'a jamais touché sur la fenêtre n'apporte rien ·
+      // le plan entier noierait les comptes réellement mouvementés.
+      .filter((l) => l.soldes.some((s) => s !== null));
+
+    return { exercices: colonnes, lignes };
+  }
+
   /** Grand livre d'un compte : ses lignes avec solde progressif. */
   async grandLivre(tenantId: string, compteId: string, exerciceId?: string) {
     const compte = await this.prisma.compte.findFirst({ where: { id: compteId, tenantId } });

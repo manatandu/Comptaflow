@@ -989,6 +989,48 @@ export class ExportService {
   }
 
   /**
+   * ÉVOLUTION PLURIANNUELLE DES SOLDES · une colonne par exercice, la plus
+   * récente en premier, comme la feuille « Evolution balances » du fichier de
+   * préparation de liasse relevé sur le Drive.
+   *
+   * Une case VIDE n'est pas un zéro · elle dit que le compte n'était pas
+   * mouvementé cet exercice-là. Écrire zéro ferait lire une extinction là où
+   * il n'y a qu'une création, et c'est le genre de faux signal qui envoie un
+   * réviseur chercher une écriture qui n'existe pas.
+   */
+  async evolutionSoldesExcel(tenantId: string, nbExercices?: number): Promise<ClasseurExporte> {
+    const { exercices, lignes } = await this.ecritureService.evolutionSoldes(tenantId, { nbExercices });
+    const identite = await this.identiteEtat(tenantId, {});
+
+    const classeur = this.nouveauClasseur();
+    const feuille = classeur.addWorksheet('Évolution des soldes');
+
+    const entetes = ['N° compte', 'Intitulé', ...exercices.map((e) => e.libelle)];
+    feuille.getRow(1).values = entetes;
+    feuille.getColumn(1).width = 14;
+    feuille.getColumn(2).width = 42;
+    for (let i = 3; i <= entetes.length; i++) feuille.getColumn(i).width = 18;
+
+    for (const l of lignes) {
+      const r = feuille.addRow([]);
+      r.getCell(1).value = l.numero;
+      r.getCell(2).value = l.intitule;
+      l.soldes.forEach((s, i) => {
+        r.getCell(i + 3).value = s;
+      });
+    }
+
+    for (let i = 3; i <= entetes.length; i++) feuille.getColumn(i).numFmt = FORMAT_MONTANT;
+    this.piedDePageEtat(feuille, identite);
+    this.finaliserTableau(feuille, entetes.length, feuille.rowCount);
+
+    return {
+      buffer: await this.versBuffer(classeur),
+      nomFichier: 'evolution-soldes.xlsx',
+    };
+  }
+
+  /**
    * IDENTITÉ DU CARTOUCHE · les six lignes d'en-tête que la charte ETAFI
    * pose sur chaque page (voir theme-etafi.ts). Le NIF est l'identifiant que
    * le CPCC impose en tête de chaque page d'état financier · le sigle et le
