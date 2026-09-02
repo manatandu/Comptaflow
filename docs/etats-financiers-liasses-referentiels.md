@@ -81,10 +81,17 @@ engagement (classe 4 mouvementée).
   croissant) : `Compte | Intitulé | solde d'ouverture débit-crédit |
   mouvement débit-crédit | solde de clôture débit-crédit`, close par un
   TOTAL GENERAL (un total par solde, débit et crédit) et sa ligne de
-  contrôle d'équilibre ; le solde d'ouverture vient des colonnes du fichier
-  quand elles existent, sinon de *clôture - mouvements*, jamais approximé
-  au-delà. La feuille CONTROLE BALANCE reprend les trois blocs et rend un
-  verdict d'équilibre par bloc et par exercice ;
+  contrôle d'équilibre. Le solde d'ouverture ne porte que les **comptes de
+  bilan (classes 1 à 5)** : les comptes de gestion (classes 6 à 8) sont
+  soldés à la clôture par le compte 13 « pour solde » (AUDCIF art. 18 et
+  Titre VII, ch. 1 ; SYCEBNL Partie 2, ch. 1) et n'ont donc pas
+  d'à-nouveau, la classe 9 étant hors bilan — le bloc d'ouverture reprend
+  le seul bilan d'ouverture, et une ouverture portée par un compte de
+  classe 6 à 9 dans le fichier source est ramenée à zéro et signalée dans
+  ANOMALIES. Pour les comptes de bilan, l'ouverture vient des colonnes du
+  fichier quand elles existent, sinon de *clôture - mouvements*, jamais
+  approximé au-delà. La feuille CONTROLE BALANCE reprend les trois blocs et
+  rend un verdict d'équilibre par bloc et par exercice ;
 - notes non documentées à ne pas joindre, lignes non chiffrées à supprimer
   avant remise (règle de l'Acte uniforme, à faire respecter à l'export) ;
 - **toutes les notes du référentiel sont produites**, y compris celles qui
