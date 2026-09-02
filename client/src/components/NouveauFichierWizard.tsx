@@ -413,7 +413,19 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
                     </p>
                     <h2 className="text-[13px] font-bold mb-1 flex items-center gap-1.5">
                       Indiquez le référentiel comptable de l'entité
-                      <Aide sujet="jeuEtats" />
+                      {/*
+                        PAS `sujet="jeuEtats"` ICI · cette entrée n'explique que
+                        l'article 4 du SYCEBNL (35 notes pour une association,
+                        24 pour un projet), et la bulle est posée AVANT le
+                        choix, donc aussi devant qui crée un dossier SYSCOHADA.
+                        Le lexique s'aiguille sur le référentiel du dossier
+                        OUVERT · il n'y en a pas encore.
+                      */}
+                      <Aide
+                        titre="Référentiel comptable"
+                        texte="Le SYCEBNL vise les entités à but non lucratif au sens de son article 2 : celles qui poursuivent un but désintéressé et dont les ressources servent au fonctionnement et à la réalisation de leur objet social · associations, ordres professionnels, entités gérant un projet de développement. Le SYSCOHADA révisé vise les entités de l'article 2 de l'AUDCIF, qui exercent des activités économiques fondées sur des actes répétitifs. Le choix commande le plan de comptes semé et la présentation des états financiers, et ne se refait pas ensuite."
+                        source="SYCEBNL, art. premier et 2 · AUDCIF, art. 2 et 5"
+                      />
                     </h2>
                     {/* Le plan de comptes est SEMÉ à la création (voir le
                         commentaire de REFERENTIELS) et aucun écran ne re-sème
@@ -563,7 +575,10 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
                       autoFocus
                       value={form.nomEntite}
                       onChange={(e) => majer('nomEntite', e.target.value)}
-                      placeholder="Espoir pour Tous asbl"
+                      // L'AUSCGIE art. 17 veut la dénomination suivie de
+                      // l'indication de la forme : proposer « asbl » à une
+                      // SARL n'est pas seulement dépaysant, c'est faux.
+                      placeholder={form.referentiel === 'SYSCOHADA' ? 'Kivu Négoce SARL' : 'Espoir pour Tous asbl'}
                       className={champ}
                     />
                   </>
@@ -717,7 +732,11 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
                     <h2 className="text-[13px] font-bold mb-1.5">Reprise des éléments comptables</h2>
                     <p className="text-[11px] text-text-dim leading-[1.6] mb-3">
                       Le dossier peut être créé à partir du modèle livré en standard. Vous n'aurez alors plus qu'à
-                      définir les éléments propres à votre entité (tiers, bailleurs, banques) avant de saisir.
+                      définir les éléments propres à votre entité{' '}
+                      {form.referentiel === 'SYSCOHADA'
+                        ? '(tiers clients et fournisseurs, banques)'
+                        : '(tiers, bailleurs, banques)'}{' '}
+                      avant de saisir.
                     </p>
                     {/* La QUESTION, en toutes lettres, juste avant les options ·
                         chez Sage « Souhaitez-vous créer votre fichier à partir
@@ -730,8 +749,8 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
                       <label className="flex items-start gap-2 text-[12px]">
                         <input type="radio" checked readOnly className="mt-0.5" />
                         <span>
-                          Oui, le dossier sera prêt à l'emploi : plan de comptes SYCEBNL standard et exercice généré
-                          automatiquement
+                          Oui, le dossier sera prêt à l'emploi : plan de comptes {form.referentiel} standard et
+                          exercice généré automatiquement
                           <span className="block text-[10.5px] text-text-dim">
                             (recommandé · c'est la seule option disponible pour l'instant)
                           </span>

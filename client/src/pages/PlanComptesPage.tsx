@@ -7,7 +7,7 @@ import { EnteteImpression } from '../components/chrome/EnteteImpression';
 
 /**
  * PLAN COMPTABLE · la fenêtre Structure → Plan comptable de Sage 100 i7 :
- * à gauche le classement par classe (1 à 9, SYCEBNL), au centre la liste
+ * à gauche le classement par classe (1 à 9), au centre la liste
  * dense des comptes (numéro · intitulé · type · report à-nouveau · état),
  * à droite la FICHE du compte sélectionné, en volet « Identification »
  * (numéro, type Détail/Total, intitulé, classe, report à-nouveau à trois
@@ -15,8 +15,28 @@ import { EnteteImpression } from '../components/chrome/EnteteImpression';
  * et le lettrage du compte · exactement le bouton Gérer de la fiche Sage.
  */
 
-const LIBELLE_CLASSE: Record<ClasseCompte, string> = {
-  CLASSE_1: 'Fonds propres et ressources durables',
+/**
+ * LES NEUF CLASSES N'ONT PAS LE MÊME NOM DANS LES DEUX PLANS, et la fenêtre
+ * n'en connaissait qu'un jeu. Deux écarts sur neuf, mais ils portent sur les
+ * deux classes les plus caractéristiques de chaque référentiel :
+ *
+ *  · classe 1 · « Fonds propres » est le vocabulaire des EBNL. Les deux
+ *    cadres comptables l'intitulent en réalité « comptes de ressources
+ *    durables » ; c'est leur CONTENU qui diffère · « ressources propres et
+ *    dettes financières » au SYCEBNL (Partie 2 ch. 1), « capitaux propres et
+ *    dettes financières » à l'AUDCIF (Titre VII ch. 2, section 1) ;
+ *  · classe 9 · « comptes des contributions volontaires en nature et comptes
+ *    de la comptabilité analytique » au SYCEBNL (Partie 2 ch. 1), « comptes
+ *    des engagements hors bilan et comptabilité analytique de gestion » à
+ *    l'AUDCIF (Titre VII ch. 1). Une entreprise lisait donc, sur sa propre
+ *    classe 9, le nom d'une notion qui n'existe pas chez elle.
+ *
+ * Les sept autres portent le même intitulé de part et d'autre, et le tableau
+ * SYSCOHADA les reprend explicitement plutôt que d'hériter : un libellé qui
+ * changerait d'un seul côté doit se voir.
+ */
+const LIBELLE_CLASSE_SYCEBNL: Record<ClasseCompte, string> = {
+  CLASSE_1: 'Ressources durables (fonds propres et dettes financières)',
   CLASSE_2: 'Immobilisations',
   CLASSE_3: 'Stocks',
   CLASSE_4: 'Tiers',
@@ -27,6 +47,18 @@ const LIBELLE_CLASSE: Record<ClasseCompte, string> = {
   CLASSE_9: 'Contributions volontaires · analytique',
 };
 
+const LIBELLE_CLASSE_SYSCOHADA: Record<ClasseCompte, string> = {
+  CLASSE_1: 'Ressources durables (capitaux propres et dettes financières)',
+  CLASSE_2: 'Immobilisations',
+  CLASSE_3: 'Stocks',
+  CLASSE_4: 'Tiers',
+  CLASSE_5: 'Trésorerie',
+  CLASSE_6: 'Charges',
+  CLASSE_7: 'Produits',
+  CLASSE_8: 'Autres charges/produits (H.A.O.)',
+  CLASSE_9: 'Engagements hors bilan · analytique',
+};
+
 const LIBELLE_RAN: Record<ModeReportANouveau, string> = {
   AUCUN: 'Aucun',
   SOLDE: 'Solde',
@@ -34,8 +66,9 @@ const LIBELLE_RAN: Record<ModeReportANouveau, string> = {
 };
 
 /**
- * Compte principal officiel (2 chiffres) · les 76 en-têtes de division
- * semés par compte-seed.ts (total()). Un numéro à 2 chiffres est
+ * Compte principal officiel (2 chiffres) · les en-têtes de division du plan,
+ * 76 semés par compte-seed.ts (SYCEBNL, total()) ou 77 par
+ * compte-seed-syscohada.ts (SYSCOHADA, t()). Un numéro à 2 chiffres est
  * structurellement impossible à obtenir autrement : CreerCompteDto exige
  * 3 à 13 chiffres. Cette propriété sert ici à verrouiller ces lignes en
  * édition, sans marqueur ni champ supplémentaire côté base.
@@ -46,7 +79,9 @@ const estComptePrincipalOfficiel = (c: Pick<Compte, 'typeCompte' | 'numero'>) =>
 export function PlanComptesPage() {
   const [tauxTva, setTauxTva] = useState<TauxTva[]>([]);
   const navigate = useNavigate();
-  const { estAdmin } = useAuth();
+  const { estAdmin, utilisateur } = useAuth();
+  const libelleClasse =
+    utilisateur?.tenant.referentiel === 'SYSCOHADA' ? LIBELLE_CLASSE_SYSCOHADA : LIBELLE_CLASSE_SYCEBNL;
   const [comptes, setComptes] = useState<Compte[] | null>(null);
   const [recherche, setRecherche] = useState('');
   const [classeFiltre, setClasseFiltre] = useState<ClasseCompte>('CLASSE_1');
@@ -187,7 +222,7 @@ export function PlanComptesPage() {
           <div className="px-3 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
             CLASSEMENT
           </div>
-          {(Object.keys(LIBELLE_CLASSE) as ClasseCompte[]).map((cl) => (
+          {(Object.keys(libelleClasse) as ClasseCompte[]).map((cl) => (
             <button
               key={cl}
               type="button"
@@ -198,7 +233,7 @@ export function PlanComptesPage() {
             >
               <span className="font-mono font-semibold">Classe {cl.replace('CLASSE_', '')}</span>
               <span className={`block text-[10px] leading-tight truncate ${classeFiltre === cl ? 'text-white/75' : 'text-text-dim'}`}>
-                {LIBELLE_CLASSE[cl]}
+                {libelleClasse[cl]}
               </span>
             </button>
           ))}
@@ -225,7 +260,7 @@ export function PlanComptesPage() {
                 /*
                   TROIS NIVEAUX DE LECTURE, et non deux · le compte principal
                   officiel à deux chiffres (10 Dotation, 40 Fournisseurs…) est
-                  la TÊTE d'une division du plan SYCEBNL. Il portait la même
+                  la TÊTE d'une division du plan. Il portait la même
                   graisse qu'un compte Total ordinaire créé à la main, ce qui
                   noyait l'ossature du plan dans les regroupements de confort.
                   Il s'écrit donc en GRAS franc, un cran plus grand, sur un
@@ -287,7 +322,7 @@ export function PlanComptesPage() {
               <div className="grid grid-cols-[92px_1fr] gap-x-2 gap-y-1.5 items-center mb-3">
                 <span className="text-text-dim text-right">Classe :</span>
                 <span>
-                  {selection.classe.replace('CLASSE_', '')} · {LIBELLE_CLASSE[selection.classe]}
+                  {selection.classe.replace('CLASSE_', '')} · {libelleClasse[selection.classe]}
                 </span>
                 <span className="text-text-dim text-right">Type :</span>
                 <span>
@@ -305,9 +340,11 @@ export function PlanComptesPage() {
 
               {estComptePrincipalOfficiel(selection) && (
                 <p className="mb-3 rounded-[6px] border border-border bg-surface-alt px-2.5 py-2 text-[10.5px] text-text-dim leading-[1.5]">
-                  Compte principal du plan SYCEBNL (Partie 2, ch. 2) : son numéro, son intitulé et son rattachement
-                  ne se modifient pas. Il regroupe automatiquement les comptes Détail de sa division · aucune
-                  écriture ne s'y saisit jamais.
+                  {utilisateur?.tenant.referentiel === 'SYSCOHADA'
+                    ? 'Compte principal du plan SYSCOHADA (AUDCIF art. 18 · Titre VII, ch. 1 pour la liste des comptes à deux chiffres, ch. 2 pour le caractère impératif de la codification)'
+                    : 'Compte principal du plan SYCEBNL (Partie 2, ch. 2)'}{' '}
+                  : son numéro, son intitulé et son rattachement ne se modifient pas. Il regroupe automatiquement les
+                  comptes Détail de sa division · aucune écriture ne s'y saisit jamais.
                 </p>
               )}
 
@@ -463,9 +500,9 @@ export function PlanComptesPage() {
                   onChange={(e) => setClasse(e.target.value as ClasseCompte)}
                   className="border border-border-dark px-2.5 py-1.5 text-[11px]"
                 >
-                  {(Object.keys(LIBELLE_CLASSE) as ClasseCompte[]).map((cl) => (
+                  {(Object.keys(libelleClasse) as ClasseCompte[]).map((cl) => (
                     <option key={cl} value={cl}>
-                      {cl.replace('CLASSE_', 'Classe ')} · {LIBELLE_CLASSE[cl]}
+                      {cl.replace('CLASSE_', 'Classe ')} · {libelleClasse[cl]}
                     </option>
                   ))}
                 </select>
