@@ -281,6 +281,54 @@ export class ExportService {
    * de la période réellement filtrée · un export ne doit pas échouer faute
    * d'exercice.
    */
+  /**
+   * CARTOUCHE D'ÉTAT · les trois lignes d'en-tête posées au-dessus du tableau,
+   * plus le pied de page imprimé.
+   *
+   * Il avait été retiré du journal, du grand livre et de la balance parce que
+   * les livres du dossier de révision ouvert sur le Drive commencent en ligne
+   * 1, sans titre. C'était généraliser une observation en règle : le cabinet
+   * travaille sur SES propres fichiers, qu'il sait nommer ; un état sorti d'un
+   * logiciel et envoyé à un tiers doit se nommer lui-même. Il est donc rétabli
+   * PARTOUT, sur les livres comme sur les feuilles de travail.
+   *
+   * L'AUDCIF art. 22, 7° exige que « les états périodiques fournis soient
+   * numérotés et datés ». La numérotation vit au pied de page imprimé, où elle
+   * ne décale aucune colonne ; le cartouche, lui, porte l'identification que
+   * le pied ne peut pas tenir · entité, NIF, période, devise.
+   *
+   * Il est posé APRÈS le remplissage : `spliceRows` insère les trois lignes en
+   * tête et pousse le tableau vers le bas, ce qui évite de compter des
+   * décalages à chaque `addRow`. `ligneEnteteAvant` dit où était la ligne
+   * d'en-têtes avant l'insertion · un état qui porte sa propre ligne au-dessus
+   * du tableau (horodatage, âges des tranches) ne l'a pas en 1, et figer 4
+   * poserait le figeage et l'autofiltre sur la mauvaise ligne, en silence.
+   */
+  private coifferEtat(
+    feuille: ExcelJS.Worksheet,
+    identite: { entite: string; nif: string; periode: string; devise: string },
+    titre: string,
+    nbColonnes: number,
+    ligneEnteteAvant = 1,
+  ): number {
+    feuille.spliceRows(1, 0, [], [], []);
+
+    const ligneTitre = feuille.getRow(1);
+    ligneTitre.getCell(1).value = `${titre} · ${identite.entite}`;
+    ligneTitre.getCell(1).font = { bold: true, size: 12 };
+    if (nbColonnes > 1) feuille.mergeCells(1, 1, 1, nbColonnes);
+
+    const ligneIdent = feuille.getRow(2);
+    const edite = new Date().toLocaleDateString('fr-FR');
+    ligneIdent.getCell(1).value =
+      `${identite.nif ? `NIF ${identite.nif} · ` : ''}${identite.periode} · montants en ${identite.devise} · ` +
+      `édité le ${edite}`;
+    ligneIdent.getCell(1).font = { size: 9, italic: true };
+    if (nbColonnes > 1) feuille.mergeCells(2, 1, 2, nbColonnes);
+
+    return ligneEnteteAvant + 3;
+  }
+
   private async identiteEtat(
     tenantId: string,
     periode: { exerciceId?: string; dateDebut?: string; dateFin?: string },
@@ -394,7 +442,8 @@ export class ExportService {
 
     this.appliquerFormats(feuille, { date: FORMAT_DATE, debit: FORMAT_MONTANT, credit: FORMAT_MONTANT });
     this.piedDePageEtat(feuille, identiteJournal);
-    this.finaliserTableau(feuille, feuille.columns.length, derniereLigneDonnees);
+    const enteteJournal = this.coifferEtat(feuille, identiteJournal, 'JOURNAL', feuille.columns.length);
+    this.finaliserTableau(feuille, feuille.columns.length, derniereLigneDonnees + 3, enteteJournal);
 
     return {
       buffer: await this.versBuffer(classeur),
@@ -509,7 +558,14 @@ export class ExportService {
       credit: FORMAT_MONTANT,
       solde: FORMAT_MONTANT,
     });
-    this.finaliserTableau(feuille, feuille.columns.length, derniereLigneDonnees);
+    const identiteGrandLivreCompte = await this.identiteEtat(tenantId, { exerciceId });
+    const enteteGL = this.coifferEtat(
+      feuille,
+      identiteGrandLivreCompte,
+      `GRAND LIVRE · ${compte.numero} ${compte.intitule}`,
+      feuille.columns.length,
+    );
+    this.finaliserTableau(feuille, feuille.columns.length, derniereLigneDonnees + 3, enteteGL);
     // `&` introduit un code de mise en forme dans un en-tête Excel : un
     // intitulé « Achats & fournitures » donnerait `&f`, qu'Excel remplace par
     // le nom du fichier. On le double pour l'échapper.
@@ -575,7 +631,9 @@ export class ExportService {
       solde: FORMAT_MONTANT,
     });
     this.piedDePageEtat(feuille, identiteGrandLivre);
-    this.finaliserTableau(feuille, feuille.columns.length, feuille.rowCount);
+    const derniereLigneGL = feuille.rowCount;
+    const enteteGLComplet = this.coifferEtat(feuille, identiteGrandLivre, 'GRAND LIVRE', feuille.columns.length);
+    this.finaliserTableau(feuille, feuille.columns.length, derniereLigneGL + 3, enteteGLComplet);
 
     return {
       buffer: await this.versBuffer(classeur),
@@ -677,7 +735,8 @@ export class ExportService {
       totalCredit: FORMAT_MONTANT,
     });
     this.piedDePageEtat(feuille, identiteBalance);
-    this.finaliserTableau(feuille, feuille.columns.length, derniereLigneDonnees);
+    const enteteBalance = this.coifferEtat(feuille, identiteBalance, 'BALANCE GÉNÉRALE', feuille.columns.length);
+    this.finaliserTableau(feuille, feuille.columns.length, derniereLigneDonnees + 3, enteteBalance);
 
     return {
       buffer: await this.versBuffer(classeur),
@@ -802,7 +861,10 @@ export class ExportService {
       solde: FORMAT_MONTANT,
     });
     this.piedDePageEtat(feuille, identite);
-    this.finaliserTableau(feuille, colonnes.length, derniereLigneDonnees, 2);
+    // L'horodatage occupe la ligne 1 et les en-têtes la 2 · le cartouche les
+    // pousse en 4 et 5, et c'est la 5 qui porte figeage et autofiltre.
+    const enteteAux = this.coifferEtat(feuille, identite, `BALANCE AUXILIAIRE · ${titre.toUpperCase()}`, colonnes.length, 2);
+    this.finaliserTableau(feuille, colonnes.length, derniereLigneDonnees + 3, enteteAux);
 
     const suffixe = type === 'TOUS' ? 'tiers' : type.toLowerCase();
     return {
@@ -890,7 +952,9 @@ export class ExportService {
 
     for (let i = 2; i <= nbColonnes; i++) feuille.getColumn(i).numFmt = FORMAT_MONTANT;
     this.piedDePageEtat(feuille, identite);
-    this.finaliserTableau(feuille, nbColonnes, derniereLigneDonnees, 2);
+    // Ligne 1 les âges, ligne 2 les périodes · l'en-tête utile est la 2.
+    const enteteAgee = this.coifferEtat(feuille, identite, 'BALANCE ÂGÉE', nbColonnes, 2);
+    this.finaliserTableau(feuille, nbColonnes, derniereLigneDonnees + 3, enteteAgee);
 
     return {
       buffer: await this.versBuffer(classeur),
@@ -992,7 +1056,14 @@ export class ExportService {
       credit: FORMAT_MONTANT,
     });
     this.piedDePageEtat(feuille, identite);
-    this.finaliserTableau(feuille, colonnes.length, derniereLigneDonnees, 2);
+    const enteteJustif = this.coifferEtat(
+      feuille,
+      identite,
+      `JUSTIFICATIF DE SOLDE · ${j.compte.numero} ${j.compte.intitule}`,
+      colonnes.length,
+      2,
+    );
+    this.finaliserTableau(feuille, colonnes.length, derniereLigneDonnees + 3, enteteJustif);
 
     return {
       buffer: await this.versBuffer(classeur),
@@ -1034,7 +1105,9 @@ export class ExportService {
 
     for (let i = 3; i <= entetes.length; i++) feuille.getColumn(i).numFmt = FORMAT_MONTANT;
     this.piedDePageEtat(feuille, identite);
-    this.finaliserTableau(feuille, entetes.length, feuille.rowCount);
+    const derniereLigneDonnees = feuille.rowCount;
+    const enteteEvolution = this.coifferEtat(feuille, identite, 'ÉVOLUTION DES SOLDES', entetes.length);
+    this.finaliserTableau(feuille, entetes.length, derniereLigneDonnees + 3, enteteEvolution);
 
     return {
       buffer: await this.versBuffer(classeur),
@@ -1065,12 +1138,6 @@ export class ExportService {
     const classeur = this.nouveauClasseur();
     const feuille = classeur.addWorksheet('Immobilisations');
 
-    feuille.getRow(1).getCell(1).value = identite.entite;
-    feuille.getRow(1).getCell(1).font = { bold: true, size: 12 };
-    feuille.getRow(2).getCell(1).value = 'TABLEAU DES IMMOBILISATIONS';
-    feuille.getRow(2).getCell(1).font = { bold: true };
-    feuille.getRow(2).getCell(5).value = t.dateArret ? `Au ${new Date(t.dateArret).toLocaleDateString('fr-FR')}` : identite.periode;
-
     const colonnes = [
       { header: 'Libellé', key: 'libelle', width: 52 },
       { header: "Date d'acquisition", key: 'date', width: 18 },
@@ -1080,7 +1147,7 @@ export class ExportService {
       { header: 'Val. nette', key: 'net', width: 18 },
       { header: 'Observations', key: 'obs', width: 44 },
     ];
-    feuille.getRow(4).values = colonnes.map((c) => c.header);
+    feuille.getRow(1).values = colonnes.map((c) => c.header);
     colonnes.forEach((c, i) => {
       feuille.getColumn(i + 1).key = c.key;
       feuille.getColumn(i + 1).width = c.width;
@@ -1127,7 +1194,11 @@ export class ExportService {
       net: FORMAT_MONTANT,
     });
     this.piedDePageEtat(feuille, identite);
-    this.finaliserTableau(feuille, colonnes.length, derniereLigneDonnees, 4);
+    const titreImmo = t.dateArret
+      ? `TABLEAU DES IMMOBILISATIONS AU ${new Date(t.dateArret).toLocaleDateString('fr-FR')}`
+      : 'TABLEAU DES IMMOBILISATIONS';
+    const enteteImmo = this.coifferEtat(feuille, identite, titreImmo, colonnes.length);
+    this.finaliserTableau(feuille, colonnes.length, derniereLigneDonnees + 3, enteteImmo);
 
     return {
       buffer: await this.versBuffer(classeur),
@@ -1151,11 +1222,6 @@ export class ExportService {
     const classeur = this.nouveauClasseur();
     const feuille = classeur.addWorksheet('Amortissements');
 
-    feuille.getRow(1).getCell(1).value = identite.entite;
-    feuille.getRow(1).getCell(1).font = { bold: true, size: 12 };
-    feuille.getRow(2).getCell(1).value = `TABLEAU DES AMORTISSEMENTS · ${identite.periode}`;
-    feuille.getRow(2).getCell(1).font = { bold: true };
-
     const entetes = [
       'Libellé',
       "Date d'acquisition",
@@ -1168,7 +1234,7 @@ export class ExportService {
       'Val. nette',
       'Dotation',
     ];
-    feuille.getRow(4).values = entetes;
+    feuille.getRow(1).values = entetes;
     feuille.getColumn(1).width = 52;
     feuille.getColumn(2).width = 18;
     for (let i = 3; i <= entetes.length; i++) feuille.getColumn(i).width = 15;
@@ -1238,7 +1304,8 @@ export class ExportService {
     feuille.getColumn(4).numFmt = '0.00%';
     for (let i = PREMIER_MOIS; i <= COL_DOTATION + 3; i++) feuille.getColumn(i).numFmt = FORMAT_MONTANT;
     this.piedDePageEtat(feuille, identite);
-    this.finaliserTableau(feuille, entetes.length, derniereLigneDonnees, 4);
+    const enteteAmort = this.coifferEtat(feuille, identite, 'TABLEAU DES AMORTISSEMENTS', entetes.length);
+    this.finaliserTableau(feuille, entetes.length, derniereLigneDonnees + 3, enteteAmort);
 
     return {
       buffer: await this.versBuffer(classeur),

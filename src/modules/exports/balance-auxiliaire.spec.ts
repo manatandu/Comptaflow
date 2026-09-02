@@ -44,11 +44,17 @@ describe('balance auxiliaire · l’état qui manquait', () => {
     expect(service).toContain("{ header: 'SOLDE', key: 'solde'");
   });
 
-  it('reprend la présentation relevée · horodatage en ligne 1, en-têtes en ligne 2', () => {
-    // Le figeage et l'autofiltre doivent porter sur la ligne 2, pas la 1 :
-    // sinon le filtre couvre l'horodatage et le tri emporte les en-têtes.
-    expect(service).toContain('this.finaliserTableau(feuille, colonnes.length, derniereLigneDonnees, 2)');
+  it('reprend la présentation relevée · horodatage au-dessus des en-têtes', () => {
+    // Chez eux l'horodatage tient la ligne 1 et les en-têtes la 2. Depuis que
+    // la coiffe d'identification est rétablie, elle les pousse en 4 et 5 · ce
+    // qui compte est que le figeage et l'autofiltre suivent les EN-TÊTES et
+    // non l'horodatage, sinon le filtre couvre une ligne de texte libre et le
+    // tri emporte les titres de colonnes.
     expect(service).toContain('feuille.getRow(2).values = colonnes.map((c) => c.header);');
+    expect(service).toContain(
+      "const enteteAux = this.coifferEtat(feuille, identite, `BALANCE AUXILIAIRE · ${titre.toUpperCase()}`, colonnes.length, 2);",
+    );
+    expect(service).toContain('this.finaliserTableau(feuille, colonnes.length, derniereLigneDonnees + 3, enteteAux)');
   });
 
   it('suffixe chaque libellé de montant du code devise du dossier', () => {

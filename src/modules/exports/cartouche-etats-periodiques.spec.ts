@@ -2,19 +2,28 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 /**
- * L'IDENTIFICATION D'UN ÉTAT SE PORTE AU PIED DE PAGE, PAS DANS LA GRILLE.
+ * UN ÉTAT S'IDENTIFIE DEUX FOIS · en tête de grille et au pied de page.
  *
- * Ce spec a d'abord exigé l'inverse : une coiffe de trois lignes posée
- * au-dessus du tableau du journal, du grand livre et de la balance. Elle
- * satisfaisait l'AUDCIF art. 22, 7° · « les états périodiques fournis soient
- * numérotés et datés » · mais elle n'existe dans aucun des classeurs de
- * cabinet relevés : les leurs commencent en A1 par l'en-tête des colonnes.
- * Une coiffe décale la grille, casse un tri collé depuis un autre classeur, et
- * force un `spliceRows` que rien d'autre ne justifie.
+ * L'histoire de ce spec vaut d'être écrite, parce qu'elle s'est retournée deux
+ * fois. Il a d'abord exigé une coiffe de trois lignes au-dessus du tableau.
+ * Puis il l'a interdite, au motif que les classeurs du dossier de révision
+ * ouvert sur le Drive commencent en A1 par l'en-tête des colonnes. C'était
+ * généraliser une observation en règle : le cabinet travaille sur SES fichiers,
+ * qu'il sait nommer et qu'il ne confond pas ; un état sorti d'un logiciel et
+ * envoyé à un tiers doit se nommer lui-même. Le propriétaire a tranché · la
+ * coiffe revient PARTOUT.
  *
- * Le pied de page imprimé porte la même information sans ajouter de cellule.
- * Ce que ce spec verrouille désormais, c'est les DEUX sens : que l'obligation
- * légale soit toujours servie, et qu'elle ne redescende pas dans la grille.
+ * Ce que le spec garde désormais, c'est les deux portes ensemble. Le pied de
+ * page imprimé sert l'AUDCIF art. 22, 7° (« les états périodiques fournis
+ * soient numérotés et datés ») sans consommer de cellule. La coiffe porte
+ * l'identification que le pied ne peut pas tenir à l'écran. Aucun état
+ * exportable ne doit sortir sans les deux.
+ *
+ * Le piège technique, lui, ne dépend d'aucune décision de présentation : la
+ * coiffe insère trois lignes en tête, donc la ligne d'en-têtes DESCEND. Un
+ * `finaliserTableau` resté sur la ligne 1 figerait le titre au lieu des
+ * en-têtes et poserait l'autofiltre sur une ligne fusionnée · l'état
+ * s'ouvrirait sans erreur, et se trierait faux.
  */
 
 const service = readFileSync(join(__dirname, 'export.service.ts'), 'utf8');
@@ -34,17 +43,52 @@ describe('exports périodiques · identification de l’état', () => {
     for (const pose of poses) expect(pose).toMatch(/identite/i);
   });
 
-  it('ne remet aucune coiffe dans la grille du journal, du grand livre ni de la balance', () => {
-    // La régression à craindre n'est pas l'absence de la coiffe · c'est son
-    // retour « pour faire propre ». Le tableau commence en ligne 1.
-    expect(service).not.toContain('coifferEtat');
-    expect(service).not.toContain('feuille.spliceRows(1, 0, [], [], []);');
-    expect(service).not.toContain('derniereLigneDonnees + 3, entete');
+  it('coiffe TOUS les états périodiques, sans exception', () => {
+    // Onze états exportables aujourd'hui. Le compte n'est pas figé · ce qui
+    // l'est, c'est qu'aucun n'échappe à la coiffe.
+    const coiffes = service.match(/this\.coifferEtat\(/g) ?? [];
+    expect(coiffes.length).toBeGreaterThanOrEqual(9);
+    for (const titre of [
+      "'JOURNAL'",
+      "'GRAND LIVRE'",
+      "'BALANCE GÉNÉRALE'",
+      'BALANCE AUXILIAIRE',
+      "'BALANCE ÂGÉE'",
+      'JUSTIFICATIF DE SOLDE',
+      "'ÉVOLUTION DES SOLDES'",
+      'TABLEAU DES IMMOBILISATIONS',
+      "'TABLEAU DES AMORTISSEMENTS'",
+    ]) {
+      expect(service).toContain(titre);
+    }
+  });
+
+  it('décale la ligne d’en-têtes de trois, partout où la coiffe est posée', () => {
+    // C'est LE défaut silencieux de cette mécanique. `spliceRows` pousse le
+    // tableau de trois lignes : un `finaliserTableau` laissé sur la ligne 1
+    // figerait le titre au lieu des en-têtes et poserait l'autofiltre sur une
+    // cellule fusionnée. Le fichier s'ouvre sans erreur et se trie faux.
+    //
+    // Chaque appel à `coifferEtat` doit donc être suivi d'un
+    // `finaliserTableau` qui reçoit `+ 3` ET la ligne d'en-tête rendue.
+    const finalisations = service.match(/this\.finaliserTableau\([^;]*?entete\w*\)/gs) ?? [];
+    const coiffes = service.match(/this\.coifferEtat\(/g) ?? [];
+    expect(finalisations.length).toBe(coiffes.length);
+    for (const f of finalisations) expect(f).toContain('+ 3');
+  });
+
+  it('rend la ligne d’en-tête d’AVANT la coiffe, pas une constante', () => {
+    // Un état qui porte sa propre ligne au-dessus du tableau (l'horodatage de
+    // la balance auxiliaire, les âges de la balance âgée) n'a pas ses en-têtes
+    // en ligne 1. Renvoyer 4 en dur les figerait au mauvais endroit.
+    expect(service).toContain('ligneEnteteAvant = 1');
+    expect(service).toContain('return ligneEnteteAvant + 3;');
   });
 
   it('porte les cinq mentions que l’AUDCIF art. 22, 7° et le Titre IX demandent', () => {
     // Dénomination, NIF, période, unité monétaire, date d'édition · plus la
-    // numérotation de page, le tout en pied de page imprimé.
+    // numérotation de page. La coiffe les porte à l'écran, le pied de page à
+    // l'impression : les deux lisent la MÊME identité résolue.
     expect(service).toContain('identite.entite');
     expect(service).toContain('NIF ${identite.nif}');
     expect(service).toContain('identite.periode');
