@@ -671,6 +671,41 @@ export const JALONS_CLOTURE: DefinitionJalon[] = [
     source: 'CPCC, § 7.1 point 10 et § 2.3 ; AUDCIF art. 24 (conservation dix ans), non exclu par l’art. 3 du SYCEBNL',
     observation: 'CLOTURE_ANNUELLE',
   },
+  {
+    /*
+      APRÈS la clôture, et c'est volontaire.
+
+      La DÉCISION d'affecter est prise à l'assemblée qui approuve les comptes
+      (jalons 20 et 22, au plus tard au sixième mois). Sa COMPTABILISATION,
+      elle, suppose que l'exercice soit clos dans le logiciel : c'est la
+      clôture qui porte le résultat au compte 13, et l'écriture d'affectation
+      se passe dans l'exercice SUIVANT. Ce jalon suit donc le jalon 24 plutôt
+      que d'accompagner l'assemblée, sans quoi il inviterait à un geste que le
+      logiciel refuserait encore.
+    */
+    etape: 25,
+    libelle: 'Affectation du résultat',
+    detail:
+      'Comptabilisation de la décision d’affectation prise par l’organe compétent : le compte 13 est SOLDÉ par le crédit des réserves (11), du report à nouveau (12), du capital (101 ou 103) ou des dividendes à payer (465) selon la décision. La dotation à la réserve légale, d’un dixième au moins du bénéfice diminué des pertes antérieures, est obligatoire tant que la réserve n’atteint pas le cinquième du capital social · une délibération contraire est NULLE. Sans cette écriture, le résultat reste au compte 13 et s’y empile d’exercice en exercice.',
+    nature: 'LEGALE',
+    debut: { moisApres: 6, jour: 1 },
+    echeance: { moisApres: 8, jour: 'FIN' },
+    source:
+      'AUDCIF, Titre VII, compte 13 (« le compte 13 est soldé lors de la comptabilisation de cette affectation ») ; AUSCGIE, art. 142 et 143, art. 346 (SARL) et art. 546, 2° (SA)',
+    referentiels: [Referentiel.SYSCOHADA],
+  },
+  {
+    etape: 25,
+    libelle: 'Affectation du résultat',
+    detail:
+      'Comptabilisation de la décision d’affectation prise par l’organe compétent : le compte 13 est SOLDÉ par le crédit des réserves (11), du report à nouveau (12) ou de la dotation (10). Une entité à but non lucratif ne distribue rien · aucune part de l’excédent ne va à ses membres. Le texte précise que l’excédent non affecté à un compte de réserves est viré au compte 12. Sans cette écriture, l’excédent reste au compte 13 et s’y empile d’exercice en exercice.',
+    nature: 'LEGALE',
+    debut: { moisApres: 6, jour: 1 },
+    echeance: { moisApres: 8, jour: 'FIN' },
+    source:
+      'SYCEBNL, Partie 2 ch. 3, compte 13 (« L’affectation du résultat net d’un exercice résulte des dispositions statutaires, réglementaires ou de la décision des organes compétents »)',
+    referentiels: [Referentiel.SYCEBNL],
+  },
 ];
 
 /**

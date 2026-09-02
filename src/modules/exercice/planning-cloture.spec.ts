@@ -130,6 +130,11 @@ describe('planning de clôture', () => {
       'Dépôt des états financiers au CPCC',
       'Assemblée générale statuant sur les états financiers',
       'Dépôt des états financiers au RCCM',
+      // Deux fois : l'AUSCGIE impose une réserve légale à la société, le
+      // SYCEBNL renvoie aux statuts d'une association · même geste, deux
+      // sources, et rien de commun entre un dividende et une dotation.
+      'Affectation du résultat',
+      'Affectation du résultat',
     ]);
   });
 });

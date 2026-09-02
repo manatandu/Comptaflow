@@ -2457,3 +2457,50 @@ export interface EligibiliteSmtSyscohada {
   rappelArticle11: string;
   avertissementConversion: string;
 }
+
+/**
+ * AFFECTATION DU RÉSULTAT · ce que devient le résultat une fois l'exercice
+ * clos. Commun aux deux référentiels : les deux imposent de solder le
+ * compte 13. Ce sont les DESTINATIONS qui diffèrent, et le serveur les sert
+ * déjà filtrées dans `destinations`.
+ */
+export interface DotationReserveLegale {
+  /** `null` = aucune dotation obligatoire · le motif dit toujours pourquoi. */
+  dotation: number | null;
+  motif: string;
+}
+
+export interface LigneAffectation {
+  id: string;
+  compteId: string;
+  montant: string | number;
+  libelle: string | null;
+  compte: { numero: string; intitule: string };
+}
+
+export interface AffectationResultat {
+  id: string;
+  exerciceId: string;
+  dateDecision: string;
+  organe: string;
+  reference: string | null;
+  montant: string | number;
+  estBenefice: boolean;
+  lignes: LigneAffectation[];
+  ecriture: { id: string; numeroPiece: number | null; date: string; statut: StatutEcriture } | null;
+  exercice?: { id: string; dateDebut: string; dateFin: string };
+}
+
+export interface PreparationAffectation {
+  exercice: { id: string; dateDebut: string; dateFin: string };
+  referentiel: Referentiel;
+  /** Résultat PROPRE de l'exercice · le mouvement du compte 13, pas son solde. */
+  montant: number;
+  estBenefice: boolean;
+  pertesAnterieures: number;
+  capitalSocial: number;
+  reserveLegaleExistante: number;
+  reserveLegale: DotationReserveLegale;
+  destinations: { id: string; numero: string; intitule: string }[];
+  existante: AffectationResultat | null;
+}

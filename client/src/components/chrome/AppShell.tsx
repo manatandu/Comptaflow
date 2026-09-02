@@ -189,6 +189,9 @@ export function AppShell() {
         { label: 'Interrogation et lettrage', separateurAvant: true, onClick: () => navigate('/lettrage') },
         { label: 'Rapprochement bancaire', onClick: () => navigate('/rapprochement') },
         { label: 'Régularisations et abonnements', onClick: () => navigate('/regularisations') },
+        // Geste ANNUEL, décidé par un organe · rangé avec les traitements de
+        // fin d'exercice plutôt qu'avec la saisie courante.
+        { label: 'Affectation du résultat', onClick: () => navigate('/affectation-resultat') },
         { label: 'Devises et réévaluation', onClick: () => navigate('/devises') },
         { label: 'Rappel et relevé', onClick: () => navigate('/relances') },
         ...(estSycebnl

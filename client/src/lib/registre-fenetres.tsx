@@ -39,6 +39,7 @@ const PlansAnalytiquesPage = lazy(() => import('../pages/PlansAnalytiquesPage').
 const BrouillardPage = lazy(() => import('../pages/BrouillardPage').then((m) => ({ default: m.BrouillardPage })));
 const ImportPage = lazy(() => import('../pages/ImportPage').then((m) => ({ default: m.ImportPage })));
 const ControlesPage = lazy(() => import('../pages/ControlesPage').then((m) => ({ default: m.ControlesPage })));
+const AffectationPage = lazy(() => import('../pages/AffectationPage').then((m) => ({ default: m.AffectationPage })));
 const RegularisationPage = lazy(() => import('../pages/RegularisationPage').then((m) => ({ default: m.RegularisationPage })));
 const DevisesPage = lazy(() => import('../pages/DevisesPage').then((m) => ({ default: m.DevisesPage })));
 const RelancesPage = lazy(() => import('../pages/RelancesPage').then((m) => ({ default: m.RelancesPage })));
@@ -260,6 +261,14 @@ export const FENETRES: DefinitionFenetre[] = [
     titre: 'Régularisations et abonnements',
     titreCourt: 'Régularisations',
     rendre: () => <RegularisationPage />,
+  },
+  {
+    // Commune aux deux référentiels · les deux imposent de solder le compte 13,
+    // seules les destinations diffèrent, et le serveur les sert filtrées.
+    motif: /^\/affectation-resultat$/,
+    titre: 'Affectation du résultat',
+    titreCourt: 'Affectation',
+    rendre: () => <AffectationPage />,
   },
   { motif: /^\/devises$/, titre: 'Devises et réévaluation', titreCourt: 'Devises', rendre: () => <DevisesPage /> },
   { motif: /^\/relances$/, titre: 'Rappel et relevé', titreCourt: 'Rappel et relevé', rendre: () => <RelancesPage /> },
