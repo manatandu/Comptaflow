@@ -1,15 +1,16 @@
 import { Injectable } from '@nestjs/common';
-import { StatutEcriture } from '@prisma/client';
+import { Referentiel, StatutEcriture } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import {
-  AVERTISSEMENT_EXONERATION,
   AVERTISSEMENT_REDEVABLE,
   AVERTISSEMENT_REGISTRE,
   DERNIERE_VERIFICATION,
   NATURES_RETENUES,
   NatureRetenue,
-  OBLIGATIONS_DECLARATIVES,
   ObligationDeclarative,
+  avertissementRegimeImpot,
+  obligationsDeclarativesApplicables,
+  reservePourReferentiel,
 } from './correspondance-retenues';
 
 /**
@@ -114,6 +115,14 @@ export class RetenuesService {
     const reference = params.dateReference ? new Date(params.dateReference) : new Date();
     reference.setHours(0, 0, 0, 0);
 
+    // LE RÉGIME D'IMPÔT DU DOSSIER COMMANDE CE QUI EST ÉCRIT EN TÊTE DE CET
+    // ÉTAT. Une société est redevable de l'IS, une ASBL en est exemptée : le
+    // registre annonçait l'exemption à tout le monde.
+    const { referentiel } = await this.prisma.tenant.findUniqueOrThrow({
+      where: { id: tenantId },
+      select: { referentiel: true },
+    });
+
     const lignes = await this.prisma.ligneEcriture.findMany({
       where: {
         ecriture: { tenantId, exerciceId: params.exerciceId, statut: StatutEcriture.VALIDEE },
@@ -186,7 +195,7 @@ export class RetenuesService {
         beneficiaire: nature.beneficiaire,
         echeance: nature.echeance,
         baseLegale: nature.baseLegale,
-        reserve: nature.reserve ?? null,
+        reserve: reservePourReferentiel(nature, referentiel) ?? null,
         comptes: [...parCompte.values()].sort((a, b) => a.numero.localeCompare(b.numero)),
         mois,
         retenu: Math.round(retenu * 100) / 100,
@@ -218,7 +227,8 @@ export class RetenuesService {
       totalReverse: Math.round(natures.reduce((s, n) => s + n.reverse, 0) * 100) / 100,
       totalDu: Math.round(natures.reduce((s, n) => s + n.solde, 0) * 100) / 100,
       comptesNonRattaches,
-      avertissements: [AVERTISSEMENT_REGISTRE, AVERTISSEMENT_EXONERATION, AVERTISSEMENT_REDEVABLE],
+      referentiel,
+      avertissements: [AVERTISSEMENT_REGISTRE, avertissementRegimeImpot(referentiel), AVERTISSEMENT_REDEVABLE],
     };
   }
 
@@ -258,7 +268,10 @@ export class RetenuesService {
       Une échéance sans montant n'en est pas moins une échéance : l'amende de
       l'article 94 tombe pour un relevé non déposé, pas pour un solde impayé.
     */
-    const declarations = OBLIGATIONS_DECLARATIVES.map((o) => ({
+    // Toutes ne visent pas tout le monde : l'article 47, alinéa 1er énumère
+    // des entités publiques et non lucratives, et l'échéancier servait son
+    // amende de 500 000 FC à une société commerciale privée.
+    const declarations = obligationsDeclarativesApplicables(registre.referentiel).map((o: ObligationDeclarative) => ({
       cle: o.cle,
       libelle: o.libelle,
       genre: 'DECLARATION' as const,

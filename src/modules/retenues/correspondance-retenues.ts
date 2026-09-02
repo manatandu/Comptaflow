@@ -1,15 +1,27 @@
+import { Referentiel } from '@prisma/client';
+
 /**
  * REGISTRE DES RETENUES À LA SOURCE ET ÉCHÉANCIER FISCAL.
  *
  * ## Pourquoi cet état existe
  *
  * Une ASBL congolaise régulièrement constituée est exemptée d'impôt sur les
- * sociétés (loi n° 23/053, art. 5 point 5 ; arrêté ministériel
+ * sociétés (loi n° 23/053, art. 5 ; arrêté ministériel
  * n° 007/CAB/MIN/FINANCES/2025 du 19 février 2025). Elle n'est dispensée
  * d'AUCUN impôt qu'elle retient pour le compte d'autrui, ni d'aucune
  * cotisation sociale. C'est là qu'une association se met en défaut, et
  * précisément parce qu'elle croit que « ne rien payer » vaut « ne rien
  * devoir ». Voir `docs/fiscalite-asbl-rdc.md`, section 6.
+ *
+ * CETTE EXEMPTION NE VISE QUE LE DOSSIER SYCEBNL, et l'écran l'annonçait à
+ * tout le monde. L'article 5 exempte l'État, les provinces, les ETD, les
+ * établissements publics, les coopératives agricoles de forme civile, les
+ * ASBL, les établissements d'utilité publique et les ONG, et certains
+ * établissements privés d'enseignement · pas une société commerciale, qui est
+ * au contraire redevable de l'IS par sa forme même (art. 3). Une entreprise
+ * lisait donc, en tête de son registre, qu'elle bénéficiait d'une exemption
+ * qui n'existe pas. Les textes servis dépendent désormais du référentiel du
+ * dossier · voir `avertissementRegimeImpot` et les champs `reserveSyscohada`.
  *
  * Cet état ne calcule aucun impôt. Il recense ce que la comptabilité porte
  * DÉJÀ sur les comptes de retenue et de cotisation, en regard de l'échéance
@@ -52,6 +64,14 @@ export interface NatureRetenue {
   baseLegale: string;
   /** Précision à afficher quand elle change la lecture de la ligne. */
   reserve?: string;
+  /**
+   * Variante de `reserve` pour un dossier SYSCOHADA · absente = `reserve` est
+   * servie aux deux. Plusieurs réserves étaient rédigées POUR une association
+   * et affichées à une entreprise, dont l'une exactement à l'envers : celle du
+   * prélèvement sur expatriés laissait entendre à une société que son
+   * assujettissement était douteux, alors qu'elle est la cible même du texte.
+   */
+  reserveSyscohada?: string;
 }
 
 /**
@@ -84,6 +104,13 @@ export interface ObligationDeclarative {
   sanction?: string;
   /** D'où le logiciel peut tirer la matière de la déclaration. */
   sourceDonnees?: string;
+  /**
+   * Référentiels concernés · absent = les deux. L'article 47, alinéa 1er ne
+   * vise que des entités publiques et non lucratives : une société
+   * commerciale privée n'y est PAS tenue, et l'échéancier lui servait
+   * pourtant l'obligation et son amende.
+   */
+  referentiels?: Referentiel[];
 }
 
 /**
@@ -151,6 +178,12 @@ export const NATURES_RETENUES: NatureRetenue[] = [
       'Articles 145 à 149 de la loi n° 23/053 ; article 19 de la loi de procédures fiscales. Prélèvement de 25 % du brut.',
     reserve:
       "L'article 145 ne vise que « les entreprises individuelles ou sociétaires », et une ASBL n'est ni l'une ni l'autre : l'assujettissement d'une association à ce prélèvement est une tension du texte, à faire trancher par un conseil et non par ce logiciel. À noter aussi que l'article 147 étend au prélèvement les immunités des articles 64 et 69, et que l'article 50, 2° le rend non déductible.",
+    // LA MÊME TENSION, LUE À L'ENVERS. Pour une société, l'article 145 n'a
+    // rien d'incertain : « les entreprises individuelles ou sociétaires », ce
+    // sont elles. Servir la réserve d'une ASBL à une entreprise lui suggérait
+    // de faire trancher un point qui ne se discute pas.
+    reserveSyscohada:
+      "Prélèvement dû par toute entreprise individuelle ou sociétaire située en RDC employant du personnel expatrié (art. 145), assis sur le montant brut des rémunérations de l'article 68 (art. 146), les exemptions et immunités des articles 64 et 69 s'y appliquant (art. 147). Il est dû lorsque les revenus sont payés ou mis à la disposition de leurs bénéficiaires (art. 149), non lorsque la charge est engagée. Il reste à charge de l'entreprise et n'est pas déductible du bénéfice imposable (art. 50, 2°). Le taux réduit du secteur minier, le plancher au SMIG du pays d'origine et l'assimilation des ressortissants des pays limitrophes sont MORTS avec l'ordonnance-loi n° 69/007, abrogée par l'article 152 : les pages en ligne qui les mentionnent encore décrivent un régime abrogé.",
   },
   {
     cle: 'capitauxMobiliers',
@@ -163,6 +196,8 @@ export const NATURES_RETENUES: NatureRetenue[] = [
       "Article 120 de la loi n° 23/053 ; article 18 bis de la loi de procédures fiscales ; arrêté ministériel n° 008/CAB/MIN/FINANCES/2025 du 19 février 2025.",
     reserve:
       "Cas réel pour une association qui place sa trésorerie à terme ou qui sert des intérêts sur un emprunt reçu d'un membre.",
+    reserveSyscohada:
+      "Cas réel pour une entreprise qui place sa trésorerie à terme, qui distribue des dividendes ou qui sert des intérêts à ses associés.",
   },
   {
     cle: 'plusValues',
@@ -213,7 +248,9 @@ export const NATURES_RETENUES: NatureRetenue[] = [
     echeance: 'Le 15 du mois suivant',
     baseLegale: "Ordonnance-loi n° 10/001 du 20 août 2010 instituant la TVA et son décret d'application n° 011/42.",
     reserve:
-      "Le régime dépend du référentiel du dossier. Une ASBL dont les opérations sont conformes à son objet est exonérée de TVA (art. 15.2 et 17.8), et l'exonération d'impôt sur les sociétés ne l'emporte pas : les deux régimes s'apprécient séparément, l'arrêté n° 007/2025 le dit lui-même. Une entreprise, elle, est assujettie de plein droit dès qu'elle franchit le seuil de l'art. 14 · cette réserve ne la concerne pas.",
+      "Une ASBL dont les opérations sont conformes à son objet est exonérée de TVA (art. 15.2 et 17.8), et l'exonération d'impôt sur les sociétés ne l'emporte pas : les deux régimes s'apprécient séparément, l'arrêté n° 007/2025 le dit lui-même.",
+    reserveSyscohada:
+      "L'entreprise est assujettie de plein droit dès qu'elle franchit le seuil de chiffre d'affaires de l'article 14, et le reste tant qu'elle n'en est pas sortie dans les formes. Le solde affiché ici est la TVA DUE seule : le crédit de TVA à reporter (compte 4449) en est exclu, parce que c'est une créance sur l'État et non une dette, et l'y mêler ferait paraître la dette fiscale plus faible qu'elle n'est.",
   },
   {
     cle: 'cnss',
@@ -268,11 +305,24 @@ export const NATURES_RETENUES: NatureRetenue[] = [
  * LES OBLIGATIONS DÉCLARATIVES · celles qui ne portent aucun montant sur un
  * compte, et que le registre ne pouvait donc pas voir.
  *
- * Les trois premières viennent de la loi de finances n° 25/060 du 29 décembre
- * 2025. Elles ne sont ni annexes ni théoriques : l'article 47 nomme
- * expressément « les associations sans but lucratif et les établissements
- * d'utilité publique », et l'amende de l'article 94 est chiffrée. Le logiciel
- * les ignorait toutes les trois.
+ * ELLES NE VIENNENT PAS TOUTES DU MÊME TEXTE, et l'en-tête l'affirmait à
+ * tort. L'article 47 a été modifié par la loi de finances n° 24/011 du
+ * 20 décembre 2024, article 40 ; seul l'article 47 ter est de la loi de
+ * finances n° 25/060 du 29 décembre 2025, article 30.
+ *
+ * Et surtout, elles ne visent pas toutes les mêmes redevables :
+ *
+ *  · art. 47, alinéa 1er · les provinces, les ETD, les services publics, les
+ *    établissements publics, les organismes semi-publics, les entreprises
+ *    publiques, les ASBL et les établissements d'utilité publique. Une
+ *    société commerciale privée n'y est PAS tenue, et le logiciel lui servait
+ *    l'obligation avec son amende ;
+ *  · art. 47, alinéa 2 · « les entreprises et les associations qui procèdent
+ *    au versement des droits d'auteurs ou d'inventeurs », pour les sommes
+ *    versées à leurs membres ou mandants · celui-là vise bien les deux ;
+ *  · art. 47 ter · « toute personne physique ou morale, soumise à l'impôt sur
+ *    les sociétés et à l'impôt sur le revenu des personnes physiques,
+ *    exonérée ou non » · les deux également, et sans exception.
  */
 export const OBLIGATIONS_DECLARATIVES: ObligationDeclarative[] = [
   {
@@ -301,12 +351,39 @@ export const OBLIGATIONS_DECLARATIVES: ObligationDeclarative[] = [
     joursApresPeriode: 10,
     echeance: 'Dans les dix jours suivant la fin de chaque trimestre',
     baseLegale:
-      "Article 47 de la loi n° 004/2003 portant réforme des procédures fiscales, qui vise nommément les associations sans but lucratif et les établissements d'utilité publique.",
+      "Article 47, alinéa 1er, de la loi n° 004/2003 portant réforme des procédures fiscales, tel que modifié par la loi de finances n° 24/011 du 20 décembre 2024, article 40. Il vise nommément les associations sans but lucratif et les établissements d'utilité publique.",
     contenu:
-      'Relevé des sommes de toute nature versées à des tiers en dehors des rémunérations salariales : honoraires, commissions, courtages, ristournes, vacations, droits d’auteur, loyers.',
+      'Relevé, sur support papier ET numérique, des sommes de toute nature versées à des tiers en dehors des rémunérations salariales : honoraires, commissions, courtages, ristournes, vacations, droits d’auteur, loyers. Le modèle du relevé est fixé par l’Administration des Impôts.',
     sanction: "Amende de 500 000 francs congolais pour une personne morale (article 94 de la loi de procédures fiscales).",
     sourceDonnees:
       'Comptes de tiers 40 (fournisseurs) et 47 (débiteurs et créditeurs divers), et charges des comptes 62-63 (services extérieurs) et 65.',
+    // L'alinéa 1er énumère limitativement des entités publiques et non
+    // lucratives. Une société commerciale privée n'y figure pas · c'est
+    // l'alinéa 2 qui peut l'atteindre, et seulement pour les droits d'auteurs
+    // ou d'inventeurs. Un dossier SYSCOHADA qui serait entreprise publique ou
+    // semi-publique y reste tenu, mais le logiciel ne connaît pas ce
+    // caractère : il ne l'invente pas, il sert l'obligation qu'il peut
+    // fonder.
+    referentiels: [Referentiel.SYCEBNL],
+  },
+  {
+    cle: 'releveTrimestrielDroitsAuteur',
+    libelle: 'Relevé trimestriel des droits d’auteurs ou d’inventeurs versés aux membres ou mandants',
+    periodicite: 'TRIMESTRIELLE',
+    joursApresPeriode: 10,
+    echeance: 'Dans les dix jours suivant la fin de chaque trimestre',
+    baseLegale:
+      "Article 47, alinéa 2, de la loi n° 004/2003 portant réforme des procédures fiscales, tel que modifié par la loi de finances n° 24/011 du 20 décembre 2024, article 40.",
+    contenu:
+      'Relevé des sommes versées à ses membres ou mandants au titre des droits d’auteurs ou d’inventeurs, dans les mêmes conditions et sur les mêmes supports que le relevé de l’alinéa 1er.',
+    sanction: "Amende de 500 000 francs congolais pour une personne morale (article 94 de la loi de procédures fiscales).",
+    sourceDonnees:
+      'Comptes de redevances et de droits versés, et comptes de tiers 40 et 47 pour les bénéficiaires.',
+    // Celui-là vise « les entreprises ET les associations » : il n'est donc
+    // filtré pour personne. Il est posé à part parce que son ASSIETTE est
+    // beaucoup plus étroite que celle de l'alinéa 1er · les fondre en une
+    // ligne aurait annoncé à une entreprise un relevé de toutes ses sommes
+    // versées à des tiers.
   },
   {
     cle: 'declarationAnnuelleSalaires',
@@ -363,10 +440,48 @@ export const AVERTISSEMENT_REGISTRE =
   "les comptes de retenue et de cotisation, en regard de l'échéance légale de reversement. Les montants viennent de " +
   'vos écritures ; les échéances viennent des textes cités, à la date de vérification indiquée.';
 
-export const AVERTISSEMENT_EXONERATION =
-  "L'exemption d'impôt sur les sociétés dont bénéficie une ASBL régulièrement constituée (loi n° 23/053, art. 5 " +
-  "point 5) ne dispense d'aucun impôt retenu pour le compte d'autrui, ni d'aucune cotisation sociale. Elle ne " +
-  'dispense pas non plus de DÉCLARER aux échéances prévues, même lorsque rien n\'est dû.';
+/**
+ * LE RÉGIME D'IMPÔT DU DOSSIER, ET C'EST L'AVERTISSEMENT LE PLUS FAUX QU'ON
+ * PUISSE SERVIR AU MAUVAIS RÉFÉRENTIEL.
+ *
+ * Le texte annonçait à TOUT dossier une exemption d'impôt sur les sociétés.
+ * L'article 5 de la loi n° 23/053 ne l'accorde qu'à l'État, aux provinces, aux
+ * ETD, aux établissements publics, aux coopératives agricoles de forme civile,
+ * aux ASBL, aux établissements d'utilité publique et aux ONG, et à certains
+ * établissements privés d'enseignement. Une société commerciale y est au
+ * contraire soumise par sa forme même (art. 3) : lui dire l'inverse en tête de
+ * son registre fiscal est la pire chose que cet écran puisse faire.
+ *
+ * La conclusion, elle, est la même des deux côtés, et c'est tout l'objet de
+ * l'état : payer ou ne pas payer son propre impôt ne dispense de rien de ce
+ * qu'on retient pour le compte d'autrui.
+ */
+export function avertissementRegimeImpot(referentiel: Referentiel): string {
+  if (referentiel === Referentiel.SYSCOHADA) {
+    return (
+      "La société est redevable de l'impôt sur les sociétés (loi n° 23/053, art. 3). Sa déclaration est due au plus " +
+      "tard le 30 avril de l'année qui suit celle de la réalisation des revenus (loi n° 004/2003, art. 12), et ses " +
+      'trois acomptes provisionnels au plus tard les 25 juillet, 25 septembre et 25 novembre (art. 57 bis, tel que ' +
+      "modifié par la loi de finances n° 25/060 du 29 décembre 2025). Cet impôt ne dispense d'aucun impôt retenu " +
+      "pour le compte d'autrui, ni d'aucune cotisation sociale, ni de DÉCLARER aux échéances prévues."
+    );
+  }
+  return (
+    "L'exemption d'impôt sur les sociétés dont bénéficie une ASBL régulièrement constituée (loi n° 23/053, art. 5) " +
+    "ne dispense d'aucun impôt retenu pour le compte d'autrui, ni d'aucune cotisation sociale. Elle ne dispense pas " +
+    "non plus de DÉCLARER aux échéances prévues, même lorsque rien n'est dû."
+  );
+}
+
+/** Obligations déclaratives applicables au référentiel d'un dossier. */
+export function obligationsDeclarativesApplicables(referentiel: Referentiel): ObligationDeclarative[] {
+  return OBLIGATIONS_DECLARATIVES.filter((o) => !o.referentiels || o.referentiels.includes(referentiel));
+}
+
+/** Réserve à afficher pour une nature, selon le référentiel du dossier. */
+export function reservePourReferentiel(nature: NatureRetenue, referentiel: Referentiel): string | undefined {
+  return referentiel === Referentiel.SYSCOHADA ? (nature.reserveSyscohada ?? nature.reserve) : nature.reserve;
+}
 
 /**
  * L'argument qui fait comprendre l'enjeu à un trésorier plus vite que tout le

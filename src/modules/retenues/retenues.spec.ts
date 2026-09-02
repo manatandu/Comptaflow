@@ -18,8 +18,11 @@ function ligne(numero: string, date: string, montant: { debit?: number; credit?:
   };
 }
 
-function service(lignes: ReturnType<typeof ligne>[]) {
+function service(lignes: ReturnType<typeof ligne>[], referentiel = 'SYCEBNL') {
   const prisma = {
+    // Le référentiel du dossier commande l'avertissement de régime d'impôt,
+    // les réserves de chaque nature et la liste des obligations déclaratives.
+    tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ referentiel }) },
     ligneEcriture: { findMany: jest.fn().mockResolvedValue(lignes) },
   } as unknown as PrismaService;
   return new RetenuesService(prisma);
@@ -349,5 +352,109 @@ describe('registre des retenues · le crédit de TVA reporté n’est pas un rev
     // encore un dossier SYSCOHADA qui n'aurait pas ouvert son 4441.
     expect(tva.comptes).toEqual(['444']);
     expect(tva.exclusions).toEqual(['4449']);
+  });
+});
+
+/**
+ * LE RÉGIME D'IMPÔT DU DOSSIER · l'avertissement le plus faux qu'on puisse
+ * servir au mauvais référentiel.
+ *
+ * L'écran annonçait à TOUT dossier « l'exemption d'impôt sur les sociétés dont
+ * bénéficie une ASBL régulièrement constituée ». L'article 5 de la loi
+ * n° 23/053 ne l'accorde qu'à l'État, aux provinces, aux ETD, aux
+ * établissements publics, aux coopératives agricoles de forme civile, aux
+ * ASBL, aux EUP et ONG, et à certains établissements privés d'enseignement.
+ * Une société commerciale y est au contraire soumise par sa forme même
+ * (art. 3) : lui écrire l'inverse en tête de son registre fiscal est la pire
+ * chose que cet état puisse faire.
+ *
+ * Rien ne cassait, là non plus : un avertissement faux s'affiche comme un vrai.
+ */
+describe('registre des retenues · le régime d’impôt suit le référentiel', () => {
+  const params = { exerciceId: 'ex1' };
+
+  it('annonce l’exemption d’IS à une ASBL et la redevabilité à une société', async () => {
+    const asbl = await service([], 'SYCEBNL').registre('t1', params);
+    expect(asbl.avertissements.join(' ')).toContain("L'exemption d'impôt sur les sociétés");
+    expect(asbl.avertissements.join(' ')).not.toContain('est redevable');
+
+    const societe = await service([], 'SYSCOHADA').registre('t2', params);
+    expect(societe.avertissements.join(' ')).toContain("redevable de l'impôt sur les sociétés");
+    expect(societe.avertissements.join(' ')).not.toContain("L'exemption d'impôt sur les sociétés");
+  });
+
+  it('garde des deux côtés la conclusion, qui est tout l’objet de l’état', async () => {
+    for (const referentiel of ['SYCEBNL', 'SYSCOHADA'] as const) {
+      const r = await service([], referentiel).registre('t1', params);
+      // Payer ou ne pas payer son propre impôt ne dispense de rien de ce qu'on
+      // retient pour le compte d'autrui.
+      expect(`${referentiel}: ${r.avertissements.join(' ')}`).toContain("pour le compte d'autrui");
+    }
+  });
+
+  it('sert à une société la réserve du prélèvement expatriés dans le bon sens', async () => {
+    // Celle de l'ASBL dit que son assujettissement est une tension du texte ·
+    // pour une société, « les entreprises individuelles ou sociétaires », ce
+    // sont elles, et il n'y a rien à faire trancher.
+    const asbl = await service([], 'SYCEBNL').registre('t1', params);
+    expect(nature(asbl, 'prelevementExpatries').reserve).toContain('tension du texte');
+
+    const societe = await service([], 'SYSCOHADA').registre('t2', params);
+    const reserve = nature(societe, 'prelevementExpatries').reserve ?? '';
+    expect(reserve).not.toContain('tension du texte');
+    expect(reserve).toContain('art. 145');
+    // Trois règles mortes avec l'abrogation de l'O.-L. 69/007 : le registre ne
+    // doit pas les ressusciter, il doit dire qu'elles sont mortes.
+    expect(reserve).toContain('69/007');
+  });
+
+  it('ne parle plus d’ASBL exonérée de TVA à un dossier assujetti', async () => {
+    const asbl = await service([], 'SYCEBNL').registre('t1', params);
+    expect(nature(asbl, 'tva').reserve).toContain('exonérée de TVA');
+
+    const societe = await service([], 'SYSCOHADA').registre('t2', params);
+    const reserve = nature(societe, 'tva').reserve ?? '';
+    expect(reserve).toContain('assujettie de plein droit');
+    expect(reserve).not.toContain('exonérée de TVA');
+  });
+
+  it('retombe sur la réserve commune quand il n’y a pas de variante', async () => {
+    // `autresRetenues` n'a qu'une réserve, valable des deux côtés : elle doit
+    // continuer d'être servie, et pas disparaître au motif qu'il n'y a pas de
+    // `reserveSyscohada`.
+    const societe = await service([], 'SYSCOHADA').registre('t2', params);
+    expect(nature(societe, 'autresRetenues').reserve).toContain('retenue locative');
+  });
+});
+
+describe('échéancier · l’article 47 ne vise pas les mêmes redevables selon son alinéa', () => {
+  const params = { exerciceId: 'ex1' };
+  const cles = async (referentiel: 'SYCEBNL' | 'SYSCOHADA') =>
+    (await service([], referentiel).echeancierFiscal('t1', params)).echeances.map((e) => e.cle);
+
+  it('réserve le relevé général de l’alinéa 1er aux entités qu’il énumère', async () => {
+    // « Les provinces, les ETD, les services publics, les établissements
+    // publics, les organismes semi-publics, les entreprises publiques, les
+    // ASBL et les établissements d'utilité publique ». Une société commerciale
+    // privée n'y figure pas · l'échéancier lui servait pourtant l'obligation
+    // ET son amende de 500 000 FC.
+    expect(await cles('SYCEBNL')).toContain('releveTrimestrielTiers');
+    expect(await cles('SYSCOHADA')).not.toContain('releveTrimestrielTiers');
+  });
+
+  it('sert aux deux le relevé de l’alinéa 2, qui vise « les entreprises ET les associations »', async () => {
+    // Restreint aux droits d'auteurs ou d'inventeurs versés aux membres ou
+    // mandants · une assiette bien plus étroite que celle de l'alinéa 1er,
+    // d'où une ligne distincte plutôt qu'un élargissement de la première.
+    for (const referentiel of ['SYCEBNL', 'SYSCOHADA'] as const) {
+      expect(`${referentiel}`).toBe(referentiel);
+      expect(await cles(referentiel)).toContain('releveTrimestrielDroitsAuteur');
+    }
+  });
+
+  it('sert aux deux l’article 47 ter, qui vise « exonérée ou non »', async () => {
+    for (const referentiel of ['SYCEBNL', 'SYSCOHADA'] as const) {
+      expect(await cles(referentiel)).toContain('listeFournisseurs');
+    }
   });
 });

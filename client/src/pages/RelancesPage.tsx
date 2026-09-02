@@ -11,12 +11,18 @@ import { EnteteImpression } from '../components/chrome/EnteteImpression';
  * distingue trois états : la relance préventive avant l'échéance, le rappel
  * gradué après, et le relevé de tout ce qui est dû.
  *
- * La structure est reprise, le vocabulaire non. Une EBNL ne relance pas des
- * clients en retard : elle rappelle à ses ADHÉRENTS (compte 411) une
- * cotisation appelée et non payée, et à ses clients-usagers (412) une facture
- * due. La colonne « Qualité » le dit à chaque ligne, et les modèles de lettre
- * livrés parlent d'une association à ses membres, pas d'un créancier à son
- * débiteur.
+ * La structure est reprise, LE VOCABULAIRE DÉPEND DU RÉFÉRENTIEL · c'est ce
+ * que cet écran ne faisait pas. Une EBNL ne relance pas des clients en retard :
+ * elle rappelle à ses ADHÉRENTS (compte 411) une cotisation appelée et non
+ * payée, et à ses clients-usagers (412) une facture due. Une entreprise, elle,
+ * relance des CLIENTS (411 du plan SYSCOHADA), et son 412 ne porte pas des
+ * clients-usagers mais des effets à recevoir en portefeuille · un effet en
+ * portefeuille n'est pas un impayé.
+ *
+ * La colonne « Qualité » vient du serveur, qui la nomme selon le plan du
+ * dossier (`qualiteDuCompte`, relances.service.ts). Les modèles de lettre
+ * livrés, eux, sont volontairement NEUTRES et servent aux deux : ils
+ * s'adressent au « cher {tiers} » et ne nomment ni cotisation ni facture.
  */
 
 const ETATS: { valeur: TypeRelance; titre: string; description: string }[] = [
@@ -126,6 +132,8 @@ export function RelancesPage() {
           <div className="text-[10px] font-mono text-text-dim leading-none">TRAITEMENT</div>
           <h1 className="text-[12px] font-bold leading-tight flex items-center gap-1.5">
             Rappel et relevé
+            {/* Le lexique s'aiguille tout seul sur le référentiel du dossier
+                (`entreeLexique`) · l'entrée `relanceSyscohada` existe. */}
             <Aide sujet="relance" />
           </h1>
         </div>
@@ -280,7 +288,9 @@ export function RelancesPage() {
         {positions && positions.length === 0 && (
           <div className="px-3 py-5 text-[11px] text-text-dim italic">
             {type === 'PREVENTIVE'
-              ? "Aucune échéance à venir sur les comptes d'adhérents et de clients-usagers."
+              ? utilisateur?.tenant.referentiel === 'SYSCOHADA'
+                ? 'Aucune échéance à venir sur les comptes clients (41).'
+                : "Aucune échéance à venir sur les comptes d'adhérents et de clients-usagers."
               : type === 'RAPPEL'
                 ? 'Aucun retard de paiement. Tout ce qui est échu a été lettré.'
                 : 'Rien de dû sur cet exercice.'}
