@@ -604,10 +604,15 @@ export class ExportService {
      * à l'écran.
      *
      * Pas de colonne « Type » : elle distinguait les comptes Total, que la
-     * balance ne porte plus. Pas de colonne « Solde » signée ni de ligne de
-     * totaux : leur balance générale n'en a pas, elle s'arrête sur le dernier
-     * compte. L'égalité des colonnes se lit à l'écran, où les totaux sont
-     * affichés.
+     * balance ne porte plus. Pas de colonne « Solde » signée : leur balance
+     * générale n'en a pas.
+     *
+     * La ligne de TOTAUX GÉNÉRAUX, elle, reste · elle avait été retirée avec
+     * le reste et c'était une erreur. Ce n'est pas de l'ornement : la balance
+     * est l'état où se VÉRIFIE la partie double, et l'égalité des six colonnes
+     * de montants est le contrôle qu'un réviseur fait en premier. Elle est
+     * posée SOUS le tableau, hors de l'autofiltre, pour ne pas être triée avec
+     * les comptes.
      */
     feuille.columns = [
       { header: 'N° compte', key: 'numero', width: 12 },
@@ -637,6 +642,20 @@ export class ExportService {
       });
     }
 
+    const derniereLigneDonnees = feuille.rowCount;
+    const somme = (cle: keyof (typeof lignes)[number]) =>
+      Math.round(lignes.reduce((t, l) => t + (Number(l[cle]) || 0), 0) * 100) / 100;
+    const ligneTotal = feuille.addRow({
+      intitule: 'TOTAUX GÉNÉRAUX',
+      reportDebit: somme('reportDebit') || null,
+      reportCredit: somme('reportCredit') || null,
+      mouvementDebit: somme('mouvementDebit') || null,
+      mouvementCredit: somme('mouvementCredit') || null,
+      totalDebit: somme('totalDebit') || null,
+      totalCredit: somme('totalCredit') || null,
+    });
+    ligneTotal.font = ENTETE_FONT;
+
     this.appliquerFormats(feuille, {
       reportDebit: FORMAT_MONTANT,
       reportCredit: FORMAT_MONTANT,
@@ -646,11 +665,137 @@ export class ExportService {
       totalCredit: FORMAT_MONTANT,
     });
     this.piedDePageEtat(feuille, identiteBalance);
-    this.finaliserTableau(feuille, feuille.columns.length, feuille.rowCount);
+    this.finaliserTableau(feuille, feuille.columns.length, derniereLigneDonnees);
 
     return {
       buffer: await this.versBuffer(classeur),
       nomFichier: `balance${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
+    };
+  }
+
+  /**
+   * BALANCE AUXILIAIRE CLIENTS / FOURNISSEURS · l'état que le logiciel ne
+   * savait pas produire.
+   *
+   * Il produisait la balance ÂGÉE, qui ventile un solde par tranche de retard,
+   * et l'on croyait la balance des tiers couverte. Elle ne l'était pas : un
+   * réviseur qui circularise a besoin des MOUVEMENTS de la période tiers par
+   * tiers et du solde qui en résulte, pas d'un profil d'antériorité. Les deux
+   * états coexistent dans tout dossier de révision réel · ils répondent à deux
+   * questions différentes.
+   *
+   * La présentation reprend celle des balances auxiliaires du dossier de
+   * révision ouvert sur le Drive (« Balance clients-CARRIGRES au 31 12 2025 »
+   * et « Balance auxiliaire fournisseurs-CARRIGRES au 31 12 2025 »), relevées
+   * cellule par cellule :
+   *
+   *  - ligne 1 : l'HORODATAGE d'édition seul, en A1. C'est leur seule
+   *    concession à un en-tête, et elle sert : deux tirages du même état à
+   *    deux heures d'écart ne donnent pas les mêmes soldes tant que
+   *    l'exercice n'est pas clos.
+   *  - ligne 2 : les en-têtes, dont les libellés de montant portent le CODE
+   *    DEVISE (« Solde débit avant période EUR » chez eux, la devise du
+   *    dossier ici).
+   *  - dernière ligne : « SOLDE » et les totaux de chaque colonne.
+   *
+   * Deux colonnes de solde qui s'excluent (« Solde Debit » / « Solde Credit »)
+   * puis une colonne « SOLDE » signée : c'est leur présentation, et elle a une
+   * raison · les deux premières se totalisent pour rapprocher la balance
+   * générale, la troisième se trie pour classer les tiers par exposition.
+   */
+  async balanceAuxiliaireExcel(
+    tenantId: string,
+    exerciceId: string,
+    type: 'CLIENTS' | 'FOURNISSEURS' | 'TOUS' = 'TOUS',
+  ): Promise<ClasseurExporte> {
+    const { comptes, totaux } = await this.ecritureService.balanceAuxiliaire(tenantId, { exerciceId, type });
+    const identite = await this.identiteEtat(tenantId, { exerciceId });
+    const tenant = await this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId } });
+    const dev = identite.devise;
+
+    // Le 41 ne se nomme pas pareil dans les deux plans · « Clients » au
+    // SYSCOHADA (AUDCIF compte 41), « Adhérents et clients-usagers » au
+    // SYCEBNL, dont le 411 est le compte des adhérents. Le 40 est
+    // « Fournisseurs » dans les deux.
+    const nomClients =
+      tenant.referentiel === Referentiel.SYCEBNL ? 'Adhérents et clients-usagers' : 'Clients';
+    const titre =
+      type === 'CLIENTS' ? nomClients : type === 'FOURNISSEURS' ? 'Fournisseurs' : 'Tiers';
+
+    const classeur = this.nouveauClasseur();
+    const feuille = classeur.addWorksheet(titre.slice(0, 31));
+
+    // L'horodatage tient la ligne 1 à lui seul ; les en-têtes suivent en
+    // ligne 2, et c'est sur elle que portent le figeage et l'autofiltre.
+    const maintenant = new Date();
+    feuille.getRow(1).getCell(1).value =
+      `${maintenant.toLocaleDateString('fr-FR')} ${maintenant.getHours()}h${String(maintenant.getMinutes()).padStart(2, '0')}`;
+    feuille.getRow(1).getCell(1).font = { size: 9, italic: true };
+
+    const colonnes: Array<{ header: string; key: string; width: number }> = [
+      { header: 'Code compte', key: 'numero', width: 14 },
+      { header: 'Code tiers', key: 'codeTiers', width: 14 },
+      { header: 'Libellé tiers', key: 'nomTiers', width: 36 },
+      { header: `Solde débit avant période ${dev}`, key: 'reportDebit', width: 26 },
+      { header: `Solde crédit avant période ${dev}`, key: 'reportCredit', width: 27 },
+      { header: `Débit Période ${dev}`, key: 'mouvementDebit', width: 18 },
+      { header: `Crédit Période ${dev}`, key: 'mouvementCredit', width: 18 },
+      { header: `Solde Debit ${dev}`, key: 'soldeDebit', width: 17 },
+      { header: `Solde Credit ${dev}`, key: 'soldeCredit', width: 17 },
+      { header: 'SOLDE', key: 'solde', width: 16 },
+    ];
+    feuille.getRow(2).values = colonnes.map((c) => c.header);
+    colonnes.forEach((c, i) => {
+      feuille.getColumn(i + 1).key = c.key;
+      feuille.getColumn(i + 1).width = c.width;
+    });
+
+    for (const c of comptes) {
+      feuille.addRow({
+        numero: c.numero,
+        // Un compte de tiers sans tiers rattaché ne se tait pas · il se
+        // nomme, parce que c'est lui qui échappera à la circularisation.
+        codeTiers: c.codeTiers,
+        nomTiers: c.sansTiers ? `${c.intitule} · aucun tiers rattaché` : c.nomTiers,
+        reportDebit: c.reportDebit || null,
+        reportCredit: c.reportCredit || null,
+        mouvementDebit: c.mouvementDebit || null,
+        mouvementCredit: c.mouvementCredit || null,
+        soldeDebit: c.soldeDebit || null,
+        soldeCredit: c.soldeCredit || null,
+        solde: c.solde || null,
+      });
+    }
+
+    const derniereLigneDonnees = feuille.rowCount;
+    const ligneTotal = feuille.addRow({
+      numero: 'SOLDE',
+      reportDebit: totaux.reportDebit || null,
+      reportCredit: totaux.reportCredit || null,
+      mouvementDebit: totaux.mouvementDebit || null,
+      mouvementCredit: totaux.mouvementCredit || null,
+      soldeDebit: totaux.soldeDebit || null,
+      soldeCredit: totaux.soldeCredit || null,
+      solde: totaux.solde || null,
+    });
+    ligneTotal.font = ENTETE_FONT;
+
+    this.appliquerFormats(feuille, {
+      reportDebit: FORMAT_MONTANT,
+      reportCredit: FORMAT_MONTANT,
+      mouvementDebit: FORMAT_MONTANT,
+      mouvementCredit: FORMAT_MONTANT,
+      soldeDebit: FORMAT_MONTANT,
+      soldeCredit: FORMAT_MONTANT,
+      solde: FORMAT_MONTANT,
+    });
+    this.piedDePageEtat(feuille, identite);
+    this.finaliserTableau(feuille, colonnes.length, derniereLigneDonnees, 2);
+
+    const suffixe = type === 'TOUS' ? 'tiers' : type.toLowerCase();
+    return {
+      buffer: await this.versBuffer(classeur),
+      nomFichier: `balance-auxiliaire-${suffixe}${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
     };
   }
 

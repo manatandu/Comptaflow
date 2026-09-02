@@ -112,6 +112,21 @@ export class ExportController {
   }
 
   /**
+   * BALANCE AUXILIAIRE · un état par famille de tiers, ou les deux d'un coup.
+   * Pas de `@ReferentielsAutorises` : les comptes 40 et 41 existent dans les
+   * deux plans, seul le libellé du 41 change (voir le service).
+   */
+  @Get('balance-auxiliaire')
+  async balanceAuxiliaire(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+    @Query('type') type?: 'CLIENTS' | 'FOURNISSEURS' | 'TOUS',
+  ) {
+    envoyerXlsx(res, await this.exportService.balanceAuxiliaireExcel(user.tenantId, exerciceId, type ?? 'TOUS'));
+  }
+
+  /**
    * LA LIASSE COMPLÈTE · tous les états du jeu retenu par le dossier dans un
    * seul classeur, précédés d'un sommaire. C'est ce fichier-là qui se dépose
    * au CPCC ou s'envoie à un bailleur ; les exports unitaires ci-dessous

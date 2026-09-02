@@ -1482,4 +1482,87 @@ export class EcritureService {
       },
     };
   }
+
+  /**
+   * BALANCE AUXILIAIRE · la balance des comptes de tiers, tiers par tiers.
+   *
+   * Ce n'est pas la balance âgée, et la confusion coûte cher : la balance
+   * âgée ventile un solde par tranche de retard, la balance auxiliaire porte
+   * les MOUVEMENTS de la période et le solde qui en résulte, tiers par tiers.
+   * Un réviseur lit la seconde pour circulariser et rapprocher, la première
+   * pour apprécier le risque de non-recouvrement. Le logiciel savait produire
+   * la balance âgée et pas la balance auxiliaire.
+   *
+   * Ce que le SYSCOHADA appelle « comptes rattachés » (AUDCIF, comptes 40 et
+   * 41) est ici la table TiersCompte : un compte de détail par tiers, rattaché
+   * à un compte collectif par sa racine. La balance auxiliaire est donc la
+   * balance générale restreinte à ces racines, augmentée du code et du nom du
+   * tiers.
+   *
+   * UN COMPTE DE TIERS SANS TIERS RATTACHÉ N'EST PAS ÉCARTÉ. C'est même la
+   * ligne la plus utile de l'état : un 411 mouvementé que personne ne
+   * réclame est soit un tiers non créé, soit une imputation directe sur le
+   * compte collectif · dans les deux cas la circularisation passera à côté.
+   * Il ressort avec un code et un nom vides, et le drapeau `sansTiers`.
+   */
+  async balanceAuxiliaire(
+    tenantId: string,
+    params: { exerciceId: string; type?: 'CLIENTS' | 'FOURNISSEURS' | 'TOUS'; inclureBrouillard?: boolean },
+  ) {
+    const type = params.type ?? 'TOUS';
+    const racines = type === 'CLIENTS' ? ['41'] : type === 'FOURNISSEURS' ? ['40'] : ['40', '41'];
+
+    const [{ lignes }, rattachements] = await Promise.all([
+      this.balance(tenantId, params.exerciceId, params.inclureBrouillard ?? true),
+      this.prisma.tiersCompte.findMany({
+        where: { tiers: { tenantId } },
+        select: { compteId: true, tiers: { select: { code: true, nom: true, type: true } } },
+      }),
+    ]);
+    const parCompte = new Map(rattachements.map((r) => [r.compteId, r.tiers]));
+
+    const arrondi = (x: number) => Math.round(x * 100) / 100;
+    const comptes = lignes
+      .filter((l) => racines.some((r) => l.numero.startsWith(r)))
+      .map((l) => {
+        const tiers = parCompte.get(l.compteId);
+        const solde = arrondi(l.totalDebit - l.totalCredit);
+        return {
+          compteId: l.compteId,
+          numero: l.numero,
+          intitule: l.intitule,
+          codeTiers: tiers?.code ?? '',
+          nomTiers: tiers?.nom ?? '',
+          sansTiers: !tiers,
+          reportDebit: arrondi(l.reportDebit),
+          reportCredit: arrondi(l.reportCredit),
+          mouvementDebit: arrondi(l.mouvementDebit),
+          mouvementCredit: arrondi(l.mouvementCredit),
+          // Les deux colonnes de solde s'excluent · un compte est débiteur OU
+          // créditeur, jamais les deux. C'est la présentation des dossiers de
+          // révision : « Solde Debit » et « Solde Credit » en regard.
+          soldeDebit: solde > 0 ? solde : 0,
+          soldeCredit: solde < 0 ? -solde : 0,
+          solde,
+        };
+      })
+      .sort((a, b) => a.numero.localeCompare(b.numero) || a.codeTiers.localeCompare(b.codeTiers));
+
+    const somme = (cle: 'reportDebit' | 'reportCredit' | 'mouvementDebit' | 'mouvementCredit' | 'soldeDebit' | 'soldeCredit' | 'solde') =>
+      arrondi(comptes.reduce((t, c) => t + c[cle], 0));
+
+    return {
+      type,
+      comptes,
+      totaux: {
+        reportDebit: somme('reportDebit'),
+        reportCredit: somme('reportCredit'),
+        mouvementDebit: somme('mouvementDebit'),
+        mouvementCredit: somme('mouvementCredit'),
+        soldeDebit: somme('soldeDebit'),
+        soldeCredit: somme('soldeCredit'),
+        solde: somme('solde'),
+      },
+    };
+  }
 }

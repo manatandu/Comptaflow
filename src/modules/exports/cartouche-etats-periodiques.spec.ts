@@ -21,10 +21,17 @@ const service = readFileSync(join(__dirname, 'export.service.ts'), 'utf8');
 
 describe('exports périodiques · identification de l’état', () => {
   it('porte l’identification en pied de page sur les trois livres obligatoires', () => {
-    expect((service.match(/this\.piedDePageEtat\(/g) ?? []).length).toBe(3);
     for (const identite of ['identiteJournal', 'identiteGrandLivre', 'identiteBalance']) {
       expect(service).toContain(`this.piedDePageEtat(feuille, ${identite});`);
     }
+    // Chaque pose passe une identité résolue par `identiteEtat`, jamais un
+    // littéral bricolé sur place · une nouvelle feuille exportable doit être
+    // identifiée de la même façon que les trois autres. Le compte n'est pas
+    // figé à trois : d'autres états s'ajoutent (la balance auxiliaire l'a
+    // fait), mais aucun ne doit se poser sans identité.
+    const poses = service.match(/this\.piedDePageEtat\(feuille, (\w+)\)/g) ?? [];
+    expect(poses.length).toBeGreaterThanOrEqual(3);
+    for (const pose of poses) expect(pose).toMatch(/identite/i);
   });
 
   it('ne remet aucune coiffe dans la grille du journal, du grand livre ni de la balance', () => {

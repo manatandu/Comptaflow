@@ -215,6 +215,7 @@ export function AppShell() {
         // RETARD, l'échéancier annonce ce qui VIENT. Sage les distingue de la
         // même façon.
         { label: 'Balance âgée', separateurAvant: true, onClick: () => navigate('/balance-agee') },
+        { label: 'Balance auxiliaire', onClick: () => navigate('/balance-auxiliaire') },
         { label: 'Échéancier de trésorerie', onClick: () => navigate('/echeancier') },
         { label: 'États analytiques et budgétaires', onClick: () => navigate('/etats-analytiques') },
         { label: 'Analyse et contrôles', separateurAvant: true, onClick: () => navigate('/controles') },

@@ -149,6 +149,21 @@ export class EcritureController {
   }
 
   /**
+   * BALANCE AUXILIAIRE · à ne pas confondre avec la balance âgée ci-dessus.
+   * L'âgée ventile un solde par tranche de retard ; l'auxiliaire porte les
+   * mouvements de la période tiers par tiers, et c'est elle qu'un réviseur
+   * rapproche des circularisations.
+   */
+  @Get('balance-auxiliaire')
+  async balanceAuxiliaire(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('exerciceId') exerciceId: string,
+    @Query('type') type?: 'CLIENTS' | 'FOURNISSEURS' | 'TOUS',
+  ) {
+    return this.ecritureService.balanceAuxiliaire(user.tenantId, { exerciceId, type });
+  }
+
+  /**
    * GRAND LIVRE COMPLET · tous les comptes MOUVEMENTÉS de l'exercice, dans
    * l'ordre des numéros. C'est l'état par défaut : un grand livre est, par
    * définition, le recueil de tous les comptes · en exiger un avant d'afficher
