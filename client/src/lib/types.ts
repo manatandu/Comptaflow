@@ -599,6 +599,38 @@ export interface DeclarationTva {
   totalDeductibleAdmise: number;
   net: number;
   sens: 'A_PAYER' | 'CREDIT';
+  /**
+   * État de liquidation de la période · rendu AVEC la déclaration pour que
+   * l'écran sache avant de proposer le bouton. Un verrou qui ne se manifeste
+   * qu'au clic fait travailler l'utilisateur pour rien, puis le contredit.
+   */
+  liquidation: EtatLiquidationTva;
+}
+
+export type EtatLiquidationTva =
+  | { faite: false }
+  | {
+      faite: true;
+      id: string;
+      dateDebut: string;
+      dateFin: string;
+      ecritureId: string;
+      libelleEcriture: string;
+      /** Faux quand la liquidation RECOUVRE la période sans lui correspondre. */
+      memePeriode: boolean;
+    };
+
+/** Prorata définitif d'une année civile et régularisation qui en découle (art. 45). */
+export interface ProrataDefinitifTva {
+  annee: number;
+  definitif: ProrataTva;
+  pourcentageApplique: number;
+  tvaDeductibleBrute: number;
+  admiseDefinitive: number;
+  admiseAppliquee: number;
+  regularisation: number;
+  sens: 'AUCUNE' | 'DEDUCTION_COMPLEMENTAIRE' | 'REVERSEMENT';
+  echeance: string;
 }
 
 export interface Tiers {

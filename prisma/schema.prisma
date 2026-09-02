@@ -372,6 +372,7 @@ model Tenant {
   rapportsActivite         RapportActivite[]
   modelesReglement         ModeleReglement[]
   tauxTva                  TauxTva[]
+  liquidationsTva          LiquidationTva[]
   rapprochements           RapprochementBancaire[]
   famillesImmobilisation   FamilleImmobilisation[]
   immobilisations          Immobilisation[]
@@ -863,6 +864,7 @@ model Ecriture {
   // une relation 1-N et non 1-1.
   donations           Donation[]
   affectationResultat AffectationResultat? @relation("AffectationEcriture")
+  liquidationTva      LiquidationTva?      @relation("LiquidationEcriture")
 
   // Chemin de filtrage de TOUS les états (journal, grand livre, balance,
   // états financiers) : tenant + exercice, trié par date. Sans index, chaque
@@ -1828,6 +1830,49 @@ model Relance {
 // saisie libre multi-lignes générale (SaisiePage reste une saisie guidée,
 // pas un éditeur d'écriture quelconque).
 // ---------------------------------------------------------------------------
+
+/// LIQUIDATION DE TVA D'UNE PÉRIODE · le marqueur qui interdit de liquider
+/// deux fois la même période.
+///
+/// Le bouton « Comptabiliser » posait une écriture de solde des comptes 443 et
+/// 445 sans laisser aucune trace de la période traitée. Le presser deux fois
+/// posait DEUX écritures identiques : la première solde les comptes de taxe,
+/// la seconde les rend débiteurs ou créditeurs du même montant en sens
+/// inverse, et le compte 444 porte le double de la dette réelle. Rien ne le
+/// signalait · ni à l'écran, ni au contrôle, ni dans la déclaration suivante,
+/// dont les comptes de taxe repartent alors d'un solde faux.
+///
+/// Le marqueur porte les DEUX bornes de la période, et pas seulement son
+/// libellé : c'est le CHEVAUCHEMENT qu'il faut interdire, pas la répétition à
+/// l'identique. Liquider janvier, puis liquider le premier trimestre, est le
+/// même double comptage qu'une double liquidation de janvier.
+///
+/// La suppression est possible et emporte l'écriture · un verrou sans marche
+/// arrière transforme une erreur de date en impasse.
+model LiquidationTva {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  dateDebut DateTime
+  dateFin   DateTime
+
+  /// L'écriture de solde. Unique : une liquidation, une écriture.
+  ecritureId String   @unique
+  ecriture   Ecriture @relation("LiquidationEcriture", fields: [ecritureId], references: [id], onDelete: Cascade)
+
+  /// Net liquidé, signé comme la déclaration : positif = TVA due.
+  net Decimal @db.Decimal(18, 2)
+
+  /// Prorata effectivement appliqué, pour retrouver la base d'une régularisation.
+  prorataApplique Decimal @db.Decimal(5, 2)
+
+  createdAt DateTime @default(now())
+  createdBy String
+
+  @@index([tenantId, dateDebut, dateFin])
+  @@map("liquidations_tva")
+}
 
 model TauxTva {
   id       String  @id @default(uuid())

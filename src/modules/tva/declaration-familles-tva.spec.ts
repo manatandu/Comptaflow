@@ -74,6 +74,7 @@ function service(lignes: LigneTva[]) {
       }),
       findMany: jest.fn().mockResolvedValue([]),
     },
+    liquidationTva: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({}) },
   } as unknown as PrismaService;
   return { svc: new TauxTvaService(prisma, {} as EcritureService), agregations };
 }

@@ -402,6 +402,7 @@ export class TauxTvaService {
     // change rien ici : sur une facture, le débit précède l'encaissement.
     const alEncaissement = tenant?.regimeExigibiliteTva === 'ENCAISSEMENTS';
     const taux = await this.prisma.tauxTva.findMany({ where: { tenantId }, orderBy: { taux: 'desc' } });
+    const dejaLiquidee = await this.liquidationChevauchante(tenantId, dateDebut, dateFin);
 
     const lignes = [];
     let enAttente = 0;
@@ -519,6 +520,25 @@ export class TauxTvaService {
       totalDeductibleAdmise,
       net,
       sens: net >= 0 ? ('A_PAYER' as const) : ('CREDIT' as const),
+      // ÉTAT DE LIQUIDATION · rendu avec la déclaration pour que l'écran sache
+      // avant de proposer le bouton. Un verrou qui ne se manifeste qu'au clic
+      // fait travailler l'utilisateur pour rien, puis le contredit.
+      liquidation: dejaLiquidee
+        ? {
+            faite: true as const,
+            id: dejaLiquidee.id,
+            dateDebut: dejaLiquidee.dateDebut.toISOString().slice(0, 10),
+            dateFin: dejaLiquidee.dateFin.toISOString().slice(0, 10),
+            ecritureId: dejaLiquidee.ecriture.id,
+            libelleEcriture: dejaLiquidee.ecriture.libelle,
+            // Une liquidation dont les bornes ne sont pas celles demandées
+            // recouvre la période sans lui correspondre · le dire évite de
+            // chercher une écriture au libellé attendu qui n'existe pas.
+            memePeriode:
+              dejaLiquidee.dateDebut.getTime() === dateDebut.getTime() &&
+              dejaLiquidee.dateFin.getTime() === dateFin.getTime(),
+          }
+        : { faite: false as const },
     };
   }
 
@@ -530,10 +550,20 @@ export class TauxTvaService {
    * différence sur le compte 44410000 (crédit = TVA due, débit = crédit de TVA
    * à reporter). Pose une écriture NORMALE via EcritureService.creer · mêmes
    * contrôles que n'importe quelle saisie (équilibre, exercice ouvert,
-   * clôtures Partielle/Totale/Période). Aucun verrou anti-double-liquidation
-   * pour l'instant : reposter la même période créerait une seconde écriture
-   * · à la charge de l'utilisateur de ne pas le faire (enrichissement futur
-   * possible : marquer la période comme liquidée).
+   * clôtures Partielle/Totale/Période).
+   *
+   * VERROU ANTI-DOUBLE-LIQUIDATION. Il n'y en avait pas, et le code le disait
+   * sans que personne n'agisse : reposter la même période créait une seconde
+   * écriture identique. La première solde les comptes de taxe, la seconde les
+   * rend débiteurs ou créditeurs du même montant en sens inverse, et le compte
+   * 444 porte le double de la dette réelle. Rien ne le signalait · ni à
+   * l'écran, ni au contrôle, ni dans la déclaration suivante, dont les comptes
+   * de taxe repartent alors d'un solde faux.
+   *
+   * Ce qui est interdit est le CHEVAUCHEMENT, pas la répétition à l'identique.
+   * Liquider janvier puis liquider le premier trimestre est le même double
+   * comptage qu'une double liquidation de janvier, et un verrou qui ne
+   * regarderait que l'égalité des bornes le laisserait passer.
    */
   async comptabiliserLiquidation(
     tenantId: string,
@@ -542,6 +572,18 @@ export class TauxTvaService {
   ) {
     const dateDebut = new Date(dto.dateDebut);
     const dateFin = new Date(dto.dateFin);
+
+    const chevauchante = await this.liquidationChevauchante(tenantId, dateDebut, dateFin);
+    if (chevauchante) {
+      const jour = (d: Date) => d.toLocaleDateString('fr-FR');
+      throw new BadRequestException(
+        `Une liquidation couvre déjà tout ou partie de cette période (du ${jour(chevauchante.dateDebut)} au ` +
+          `${jour(chevauchante.dateFin)}, écriture « ${chevauchante.ecriture.libelle} »). La comptabiliser une ` +
+          'seconde fois porterait le double de la dette sur le compte 444. Supprimez la liquidation existante ' +
+          'si elle est erronée, ou choisissez une période non encore liquidée.',
+      );
+    }
+
     const decl = await this.declaration(tenantId, dateDebut, dateFin);
 
     if (decl.totalCollecte <= EPSILON && decl.totalDeductibleAdmise <= EPSILON) {
@@ -637,6 +679,83 @@ export class TauxTvaService {
       lignes: lignesEcriture,
     });
 
+    // La trace est posée APRÈS l'écriture, et son échec la reprend · une
+    // écriture de liquidation sans marqueur rouvrirait le trou qu'on vient de
+    // fermer, en silence. `EcritureService.creer` ne participe pas à une
+    // transaction (voir sa signature), d'où la compensation explicite.
+    try {
+      await this.prisma.liquidationTva.create({
+        data: {
+          tenantId,
+          dateDebut,
+          dateFin,
+          ecritureId: ecriture.id,
+          net: decl.net,
+          prorataApplique: decl.prorata.pourcentage,
+          createdBy: userId,
+        },
+      });
+    } catch (e) {
+      await this.prisma.ecriture.delete({ where: { id: ecriture.id } }).catch(() => undefined);
+      throw e;
+    }
+
     return { ecriture, declaration: decl };
+  }
+
+  /**
+   * La liquidation qui recouvre tout ou partie d'une période, s'il y en a une.
+   *
+   * Deux intervalles se chevauchent quand chacun commence avant que l'autre ne
+   * finisse · c'est le test complet, et il attrape les quatre cas (identique,
+   * inclus, incluant, à cheval) là où une comparaison d'égalité n'en attrape
+   * qu'un.
+   */
+  private async liquidationChevauchante(tenantId: string, dateDebut: Date, dateFin: Date) {
+    return this.prisma.liquidationTva.findFirst({
+      where: { tenantId, dateDebut: { lte: dateFin }, dateFin: { gte: dateDebut } },
+      include: { ecriture: { select: { id: true, libelle: true, date: true } } },
+      orderBy: { dateDebut: 'asc' },
+    });
+  }
+
+  /** Les liquidations d'un dossier, la plus récente en tête. */
+  async listerLiquidations(tenantId: string) {
+    const liquidations = await this.prisma.liquidationTva.findMany({
+      where: { tenantId },
+      include: { ecriture: { select: { id: true, libelle: true, date: true, numeroPiece: true } } },
+      orderBy: { dateDebut: 'desc' },
+    });
+    return liquidations.map((l) => ({
+      id: l.id,
+      dateDebut: l.dateDebut.toISOString().slice(0, 10),
+      dateFin: l.dateFin.toISOString().slice(0, 10),
+      net: Number(l.net),
+      prorataApplique: Number(l.prorataApplique),
+      ecriture: l.ecriture,
+      createdAt: l.createdAt,
+    }));
+  }
+
+  /**
+   * ANNULE une liquidation : supprime le marqueur ET son écriture.
+   *
+   * Un verrou sans marche arrière transforme une erreur de date en impasse ·
+   * l'utilisateur qui a liquidé « janvier » au lieu de « janvier à mars » ne
+   * pourrait plus jamais liquider février ni mars. La suppression de
+   * l'écriture passe par `EcritureService`, donc par ses contrôles : un
+   * exercice clos ou une période verrouillée la refuse, comme pour n'importe
+   * quelle écriture.
+   */
+  async annulerLiquidation(tenantId: string, id: string) {
+    const liquidation = await this.prisma.liquidationTva.findFirst({ where: { id, tenantId } });
+    if (!liquidation) {
+      throw new BadRequestException('Liquidation introuvable pour ce dossier.');
+    }
+    // L'écriture d'abord · la contrainte ON DELETE CASCADE emporte le marqueur,
+    // si bien qu'aucun état intermédiaire ne laisse un marqueur orphelin
+    // interdisant une période dont l'écriture n'existe plus.
+    await this.ecritureService.supprimer(tenantId, liquidation.ecritureId);
+    return { supprime: true, ecritureId: liquidation.ecritureId };
   }
 }

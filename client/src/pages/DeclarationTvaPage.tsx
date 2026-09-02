@@ -2,7 +2,7 @@ import { FormEvent, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useExercice } from '../lib/exercice';
 import { IconCheck } from '../components/chrome/icons';
-import type { DeclarationTva } from '../lib/types';
+import type { DeclarationTva, ProrataDefinitifTva } from '../lib/types';
 
 function premierJourDuMois(): string {
   const d = new Date();
@@ -18,6 +18,8 @@ export function DeclarationTvaPage() {
   const [info, setInfo] = useState<string | null>(null);
   const [chargement, setChargement] = useState(false);
   const [comptabilisation, setComptabilisation] = useState(false);
+  const [annee, setAnnee] = useState(new Date().getFullYear() - 1);
+  const [definitif, setDefinitif] = useState<ProrataDefinitifTva | null>(null);
 
   const calculer = async (e?: FormEvent) => {
     e?.preventDefault();
@@ -59,6 +61,41 @@ export function DeclarationTvaPage() {
       setErreur(err instanceof ApiError ? err.message : 'Impossible de comptabiliser la liquidation');
     } finally {
       setComptabilisation(false);
+    }
+  };
+
+  const annulerLiquidation = async () => {
+    if (!declaration?.liquidation.faite) return;
+    if (
+      !confirm(
+        `Annuler la liquidation du ${declaration.liquidation.dateDebut} au ${declaration.liquidation.dateFin} ?\n\n` +
+          "Son écriture est supprimée, et la période redevient liquidable. C'est la marche arrière d'une " +
+          "erreur de période · sans elle, une liquidation posée sur les mauvaises bornes bloquerait " +
+          'définitivement les mois qu\'elle recouvre.',
+      )
+    ) {
+      return;
+    }
+    setComptabilisation(true);
+    setErreur(null);
+    setInfo(null);
+    try {
+      await api.delete(`/taux-tva/liquidations/${declaration.liquidation.id}`);
+      setInfo('Liquidation annulée · la période est de nouveau liquidable.');
+      await calculer();
+    } catch (err) {
+      setErreur(err instanceof ApiError ? err.message : "Impossible d'annuler la liquidation");
+    } finally {
+      setComptabilisation(false);
+    }
+  };
+
+  const arreterProrataDefinitif = async () => {
+    setErreur(null);
+    try {
+      setDefinitif(await api.get<ProrataDefinitifTva>(`/taux-tva/prorata-definitif?annee=${annee}`));
+    } catch (err) {
+      setErreur(err instanceof ApiError ? err.message : 'Impossible de calculer le prorata définitif');
     }
   };
 
@@ -200,16 +237,92 @@ export function DeclarationTvaPage() {
             </div>
           </div>
 
-          {(declaration.totalCollecte > 0 || declaration.totalDeductibleAdmise > 0) && (
-            <button
-              onClick={comptabiliserLiquidation}
-              disabled={comptabilisation || !exerciceCourant}
-              className="mt-4 bg-sel text-white text-[11px] font-semibold px-4 py-2 disabled:opacity-50 flex items-center gap-1.5"
-            >
-              <IconCheck width={14} height={14} />
-              {comptabilisation ? 'Comptabilisation…' : 'Comptabiliser la liquidation'}
-            </button>
+          {declaration.liquidation.faite ? (
+            <div className="mt-4 border border-border bg-surface-alt max-w-[780px] px-4 py-3 text-[10.5px]">
+              <div className="font-semibold mb-1">Période déjà liquidée</div>
+              <p className="text-text-dim">
+                {declaration.liquidation.memePeriode
+                  ? 'Cette période a été liquidée : '
+                  : 'Une liquidation recouvre cette période sans lui correspondre exactement (du ' +
+                    `${declaration.liquidation.dateDebut} au ${declaration.liquidation.dateFin}) : `}
+                « {declaration.liquidation.libelleEcriture} ». La comptabiliser une seconde fois porterait le
+                double de la dette sur le compte 444, sans que rien ne le signale.
+              </p>
+              <button
+                onClick={annulerLiquidation}
+                disabled={comptabilisation}
+                className="mt-2 border border-border-dark bg-surface px-3 py-1 text-[10.5px] font-semibold disabled:opacity-50"
+              >
+                {comptabilisation ? 'Annulation…' : 'Annuler cette liquidation'}
+              </button>
+            </div>
+          ) : (
+            (declaration.totalCollecte > 0 || declaration.totalDeductibleAdmise > 0) && (
+              <button
+                onClick={comptabiliserLiquidation}
+                disabled={comptabilisation || !exerciceCourant}
+                className="mt-4 bg-sel text-white text-[11px] font-semibold px-4 py-2 disabled:opacity-50 flex items-center gap-1.5"
+              >
+                <IconCheck width={14} height={14} />
+                {comptabilisation ? 'Comptabilisation…' : 'Comptabiliser la liquidation'}
+              </button>
+            )
           )}
+
+          {/*
+            PRORATA DÉFINITIF · le calcul existait, complet et testé, et aucune
+            route ne l'appelait : il était rigoureusement inaccessible depuis le
+            logiciel. Une obligation annuelle que le produit sait calculer mais
+            ne montre pas est une obligation que le cabinet oublie.
+          */}
+          <div className="mt-5 border border-border max-w-[780px] p-4 bg-surface">
+            <div className="text-[11px] font-bold mb-1">Arrêté du prorata définitif</div>
+            <p className="text-[10.5px] text-text-dim mb-2">
+              L'article 45 impose un prorata provisoire, calculé sur les recettes de l'année précédente et
+              appliqué à toutes les déclarations de l'année, puis un prorata définitif arrêté au plus tard le
+              31 mars suivant, qui donne lieu à régularisation des déductions déjà opérées.
+            </p>
+            <div className="flex items-end gap-3">
+              <label className="flex flex-col gap-1">
+                <span className="text-[10px] font-bold text-text-dim">ANNÉE CIVILE</span>
+                <input
+                  type="number"
+                  value={annee}
+                  onChange={(e) => setAnnee(Number(e.target.value))}
+                  className="border border-border-dark bg-surface px-2 py-1 text-[10.5px] font-mono w-[110px]"
+                />
+              </label>
+              <button
+                onClick={arreterProrataDefinitif}
+                className="border border-border-dark bg-surface-alt px-3 py-1 text-[10.5px] font-semibold"
+              >
+                Arrêter le prorata définitif
+              </button>
+            </div>
+
+            {definitif && (
+              <div className="mt-3 font-mono text-[10.5px] text-text-dim space-y-0.5">
+                <div>
+                  Prorata définitif {definitif.annee} :{' '}
+                  <span className="font-semibold text-text">{definitif.definitif.pourcentage} %</span> · prorata
+                  provisoire appliqué : <span className="font-semibold text-text">{definitif.pourcentageApplique} %</span>
+                </div>
+                <div>
+                  TVA déductible brute : {definitif.tvaDeductibleBrute.toLocaleString('fr-FR')} CDF · admise au
+                  définitif : {definitif.admiseDefinitive.toLocaleString('fr-FR')} CDF · déjà déduite :{' '}
+                  {definitif.admiseAppliquee.toLocaleString('fr-FR')} CDF
+                </div>
+                <div className="pt-1 text-[11px] text-text font-semibold">
+                  {definitif.sens === 'AUCUNE'
+                    ? 'Aucune régularisation · le définitif rejoint le provisoire.'
+                    : definitif.sens === 'DEDUCTION_COMPLEMENTAIRE'
+                      ? `Déduction complémentaire de ${Math.abs(definitif.regularisation).toLocaleString('fr-FR')} CDF.`
+                      : `Reversement de ${Math.abs(definitif.regularisation).toLocaleString('fr-FR')} CDF.`}
+                </div>
+                <div className="text-text-dim">{definitif.echeance}</div>
+              </div>
+            )}
+          </div>
         </>
       )}
     </div>

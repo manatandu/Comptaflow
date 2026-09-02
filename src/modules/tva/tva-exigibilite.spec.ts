@@ -74,6 +74,9 @@ function service(regime: 'LIVRAISONS' | 'ENCAISSEMENTS' | 'DEBITS', lignesTva: u
       aggregate: jest.fn().mockResolvedValue({ _sum: { credit: 0, debit: 0 } }),
       groupBy: jest.fn().mockResolvedValue([]),
     },
+    // La déclaration rend désormais l'état de liquidation de la période · sans
+    // ce faux, elle chercherait un marqueur dans un client absent.
+    liquidationTva: { findFirst: jest.fn().mockResolvedValue(null) },
   } as unknown as PrismaService;
   return new TauxTvaService(prisma, {} as EcritureService);
 }

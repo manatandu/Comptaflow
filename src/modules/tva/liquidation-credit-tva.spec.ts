@@ -36,6 +36,9 @@ function service(net: number, referentiel: 'SYCEBNL' | 'SYSCOHADA') {
       ),
     },
     journal: { findFirst: jest.fn().mockResolvedValue({ id: 'j-od', code: 'OD' }) },
+    // Le verrou anti-double-liquidation interroge ce marqueur avant tout · ici
+    // aucune période n'est liquidée, le test porte sur le compte d'arrivée.
+    liquidationTva: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({}) },
   } as Faux;
   const ecritureService = {
     creer: jest.fn((_t: string, _u: string, dto: { lignes: { compteId: string; debit?: number; credit?: number; libelle?: string }[] }) => {
