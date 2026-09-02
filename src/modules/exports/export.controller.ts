@@ -126,6 +126,18 @@ export class ExportController {
     envoyerXlsx(res, await this.exportService.balanceAuxiliaireExcel(user.tenantId, exerciceId, type ?? 'TOUS'));
   }
 
+  /** Balance âgée · l'état s'affichait sans pouvoir s'annexer à une circularisation. */
+  @Get('balance-agee')
+  async balanceAgee(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+    @Query('dateReference') dateReference?: string,
+    @Query('type') type?: 'CLIENTS_41' | 'FOURNISSEURS' | 'TOUS',
+  ) {
+    envoyerXlsx(res, await this.exportService.balanceAgeeExcel(user.tenantId, exerciceId, { dateReference, type }));
+  }
+
   /**
    * LA LIASSE COMPLÈTE · tous les états du jeu retenu par le dossier dans un
    * seul classeur, précédés d'un sommaire. C'est ce fichier-là qui se dépose

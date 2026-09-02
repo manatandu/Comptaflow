@@ -6,32 +6,44 @@ import { Aide } from '../components/chrome/Aide';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
 
 /**
- * BALANCE ÂGÉE · État → Balance âgée de Sage 100 i7 : « état prévisionnel
- * des échéances à venir, ventilées par tranches de dates, en fonction d'une
- * date de référence saisie ». Assiette : les échéances NON LETTRÉES des
- * comptes de tiers (40 fournisseurs, 41 adhérents/clients · SYCEBNL) ; une
- * ligne sans échéance saisie est rattachée à sa date d'écriture, comme chez
- * Sage. Les tranches en retard s'assombrissent à mesure que le retard
- * grandit · la colonne « + de 90 jours » est celle qui doit faire réagir.
+ * BALANCE ÂGÉE · l'antériorité des créances et dettes non lettrées, tiers par
+ * tiers, dans la présentation des dossiers de révision réels.
+ *
+ * L'écran ventilait en tranches glissantes de trente jours (1 à 30, 31 à 60,
+ * 61 à 90, + 90) depuis une date de référence. Un réviseur qui veut retrouver
+ * la facture derrière un montant doit alors refaire les dates de tête. Les
+ * colonnes sont désormais des PÉRIODES CALENDAIRES, avec l'âge rappelé
+ * au-dessus · cinq mois entiers un par un, le reste de l'exercice en un bloc,
+ * et l'antérieur à l'ouverture à part.
+ *
+ * Les tiers dont le solde est à l'envers ne sont pas ventilés : un client
+ * créditeur n'a pas d'antériorité de créance. Ils sont rendus à part, et le
+ * solde net des deux populations recoupe la balance auxiliaire.
  */
 
+interface TrancheAgee {
+  cle: string;
+  libellePeriode: string;
+  libelleAge: string;
+}
+
 interface LigneAgee {
-  compteId: string;
+  cle: string;
+  libelle: string;
+  codeTiers: string;
   numero: string;
-  intitule: string;
-  nonEchu: number;
-  j1a30: number;
-  j31a60: number;
-  j61a90: number;
-  plus90: number;
-  total: number;
+  montants: number[];
+  solde: number;
 }
 
 interface BalanceAgee {
   dateReference: string;
+  debutExercice: string;
   type: string;
-  comptes: LigneAgee[];
-  totaux: LigneAgee;
+  tranches: TrancheAgee[];
+  debiteurs: LigneAgee[];
+  crediteurs: LigneAgee[];
+  totaux: { parTranche: number[]; debiteurs: number; crediteurs: number; net: number };
 }
 
 type TypeTiers = 'TOUS' | 'CLIENTS_41' | 'FOURNISSEURS';
@@ -39,8 +51,7 @@ type TypeTiers = 'TOUS' | 'CLIENTS_41' | 'FOURNISSEURS';
 /**
  * Le compte 41 porte le même NUMÉRO dans les deux plans et pas le même
  * INTITULÉ · « Adhérents, clients-usagers et comptes rattachés » au SYCEBNL,
- * « Clients et comptes rattachés » à l'AUDCIF. Le sélecteur annonçait le
- * premier aux deux, et la valeur d'API elle-même s'appelait ADHERENTS_CLIENTS.
+ * « Clients et comptes rattachés » à l'AUDCIF.
  */
 const LIBELLE_TYPE_SYCEBNL: Record<TypeTiers, string> = {
   TOUS: 'Tous les tiers (40 et 41)',
@@ -55,7 +66,7 @@ const LIBELLE_TYPE_SYSCOHADA: Record<TypeTiers, string> = {
 };
 
 function montant(n: number): string {
-  return n !== 0 ? n.toLocaleString('fr-FR') : '';
+  return n !== 0 ? n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '';
 }
 
 export function BalanceAgeePage() {
@@ -71,6 +82,7 @@ export function BalanceAgeePage() {
   useEffect(() => {
     if (!exerciceCourant) return;
     let annule = false;
+    setErreur(null);
     api
       .get<BalanceAgee>(
         `/ecritures/balance-agee?exerciceId=${exerciceCourant.id}&dateReference=${dateReference}&type=${type}`,
@@ -84,7 +96,41 @@ export function BalanceAgeePage() {
     };
   }, [exerciceCourant?.id, dateReference, type]);
 
-  const grille = 'grid grid-cols-[92px_1fr_110px_110px_110px_110px_110px_120px] gap-2.5';
+  const exporter = () => {
+    if (!exerciceCourant) return;
+    void api.telecharger(
+      `/exports/balance-agee?exerciceId=${exerciceCourant.id}&dateReference=${dateReference}&type=${type}`,
+      'balance-agee.xlsx',
+    );
+  };
+
+  // La grille suit le NOMBRE de tranches renvoyé · il varie avec la longueur
+  // de l'exercice (un exercice de moins de cinq mois n'a pas de bloc « reste
+  // de l'exercice »), et le figer casserait l'alignement en silence.
+  const nbTranches = donnees?.tranches.length ?? 0;
+  const grille = {
+    display: 'grid',
+    gridTemplateColumns: `minmax(220px,1fr) repeat(${nbTranches + 1}, 116px)`,
+    gap: '10px',
+  } as const;
+
+  const ligne = (l: LigneAgee, ventile: boolean) => (
+    <div
+      key={l.cle}
+      style={grille}
+      className="px-3.5 py-[4px] items-center border-b border-border/50 text-[10.5px]"
+    >
+      <span className="truncate" title={l.libelle}>
+        {l.libelle}
+      </span>
+      {donnees!.tranches.map((t, i) => (
+        <span key={t.cle} className="font-mono text-right">
+          {ventile ? montant(l.montants[i] ?? 0) : ''}
+        </span>
+      ))}
+      <span className="font-mono text-right font-semibold">{montant(l.solde)}</span>
+    </div>
+  );
 
   return (
     <div className="p-2">
@@ -121,6 +167,13 @@ export function BalanceAgeePage() {
               className="border border-border-dark bg-surface px-2 py-1 text-[10.5px] font-mono"
             />
           </label>
+          <button
+            type="button"
+            onClick={exporter}
+            className="border border-border-dark bg-surface-alt px-3 py-1 text-[10.5px] font-semibold"
+          >
+            Exporter en Excel
+          </button>
         </div>
       </div>
 
@@ -128,67 +181,93 @@ export function BalanceAgeePage() {
         <div className="text-[11px] text-danger bg-danger-soft border border-danger/30 px-3 py-2 mb-2.5">{erreur}</div>
       )}
 
-      <div className="border border-border bg-surface shadow-posee">
-        <div className={`${grille} px-3.5 py-1.5 bg-surface-alt text-[10px] font-bold text-text-dim border-b border-border-dark`}>
-          <span>N° COMPTE</span>
-          <span>INTITULÉ DU COMPTE</span>
-          <span className="text-right">NON ÉCHU</span>
-          <span className="text-right">1 À 30 J</span>
-          <span className="text-right">31 À 60 J</span>
-          <span className="text-right">61 À 90 J</span>
-          <span className="text-right text-danger">+ DE 90 J</span>
-          <span className="text-right">TOTAL</span>
-        </div>
+      <div className="border border-border bg-surface shadow-posee overflow-x-auto">
+        {donnees && (
+          <>
+            <div
+              style={grille}
+              className="px-3.5 pt-1.5 text-[9.5px] italic text-text-dim border-b border-border/40"
+            >
+              <span />
+              {donnees.tranches.map((t) => (
+                <span key={t.cle} className="text-right">
+                  {t.libelleAge}
+                </span>
+              ))}
+              <span />
+            </div>
+            <div
+              style={grille}
+              className="px-3.5 py-1.5 bg-surface-alt text-[10px] font-bold text-text-dim border-b border-border-dark"
+            >
+              <span>TIERS</span>
+              {donnees.tranches.map((t) => (
+                <span key={t.cle} className="text-right">
+                  {t.libellePeriode}
+                </span>
+              ))}
+              <span className="text-right">SOLDE</span>
+            </div>
+          </>
+        )}
 
-        {donnees && donnees.comptes.length === 0 && (
+        {donnees && donnees.debiteurs.length === 0 && donnees.crediteurs.length === 0 && (
           <div className="px-3.5 py-4 text-[10.5px] text-text-dim">
             Aucune échéance non lettrée sur les comptes de tiers de cet exercice · soit rien n'est dû, soit
             tout est lettré. Les créances et dettes lettrées sont soldées, donc hors balance âgée.
           </div>
         )}
 
-        {donnees?.comptes.map((c) => (
-          <div
-            key={c.compteId}
-            className={`${grille} px-3.5 py-[4px] items-center border-b border-border/50 text-[10.5px]`}
-          >
-            <span className="font-mono">{c.numero}</span>
-            <span className="truncate" title={c.intitule}>
-              {c.intitule}
-            </span>
-            <span className="font-mono text-right text-text-dim">{montant(c.nonEchu)}</span>
-            <span className="font-mono text-right">{montant(c.j1a30)}</span>
-            <span className={`font-mono text-right ${c.j31a60 !== 0 ? 'bg-warning-soft' : ''}`}>{montant(c.j31a60)}</span>
-            <span className={`font-mono text-right ${c.j61a90 !== 0 ? 'bg-warning-soft font-semibold' : ''}`}>
-              {montant(c.j61a90)}
-            </span>
-            <span className={`font-mono text-right ${c.plus90 !== 0 ? 'bg-danger-soft text-danger font-bold' : ''}`}>
-              {montant(c.plus90)}
-            </span>
-            <span className="font-mono text-right font-semibold">{montant(c.total)}</span>
-          </div>
-        ))}
+        {donnees?.debiteurs.map((l) => ligne(l, true))}
 
-        {donnees && donnees.comptes.length > 0 && (
-          <div className={`${grille} px-3.5 py-1.5 bg-surface-alt border-t border-border-dark text-[10.5px] font-bold`}>
-            <span />
-            <span className="text-right text-[10px] text-text-dim self-center">TOTAUX</span>
-            <span className="font-mono text-right">{montant(donnees.totaux.nonEchu)}</span>
-            <span className="font-mono text-right">{montant(donnees.totaux.j1a30)}</span>
-            <span className="font-mono text-right">{montant(donnees.totaux.j31a60)}</span>
-            <span className="font-mono text-right">{montant(donnees.totaux.j61a90)}</span>
-            <span className={`font-mono text-right ${donnees.totaux.plus90 !== 0 ? 'text-danger' : ''}`}>
-              {montant(donnees.totaux.plus90)}
-            </span>
-            <span className="font-mono text-right">{montant(donnees.totaux.total)}</span>
+        {donnees && donnees.crediteurs.length > 0 && (
+          <div className="px-3.5 py-1 text-[9.5px] italic text-text-dim bg-surface-alt border-y border-border/60">
+            Soldes en sens inverse · non ventilés par antériorité
           </div>
+        )}
+        {donnees?.crediteurs.map((l) => ligne(l, false))}
+
+        {donnees && (donnees.debiteurs.length > 0 || donnees.crediteurs.length > 0) && (
+          <>
+            <div
+              style={grille}
+              className="px-3.5 py-1.5 bg-surface-alt border-t border-border-dark text-[10.5px] font-bold"
+            >
+              <span>TOTAL DÉBITEURS</span>
+              {donnees.tranches.map((t, i) => (
+                <span key={t.cle} className="font-mono text-right">
+                  {montant(donnees.totaux.parTranche[i] ?? 0)}
+                </span>
+              ))}
+              <span className="font-mono text-right">{montant(donnees.totaux.debiteurs)}</span>
+            </div>
+            <div style={grille} className="px-3.5 py-1 text-[10.5px] font-bold">
+              <span>TOTAL SOLDES EN SENS INVERSE</span>
+              {donnees.tranches.map((t) => (
+                <span key={t.cle} />
+              ))}
+              <span className="font-mono text-right">{montant(donnees.totaux.crediteurs)}</span>
+            </div>
+            <div
+              style={grille}
+              className="px-3.5 py-1.5 bg-surface-alt border-t border-border-dark text-[10.5px] font-bold"
+            >
+              <span>SOLDE NET</span>
+              {donnees.tranches.map((t) => (
+                <span key={t.cle} />
+              ))}
+              <span className="font-mono text-right">{montant(donnees.totaux.net)}</span>
+            </div>
+          </>
         )}
       </div>
 
-      <p className="text-[10px] text-text-dim mt-2 max-w-[860px]">
-        Montants signés vus du compte : créances des adhérents/clients au débit (positives), dettes
-        fournisseurs au crédit (négatives). Une échéance non renseignée en saisie est rattachée à la date de
-        l'écriture. Les lignes lettrées, soldées par définition, n'apparaissent pas.
+      <p className="text-[10px] text-text-dim mt-2 max-w-[900px]">
+        Une ligne par tiers, pas par compte : un tiers qui porte plusieurs comptes rattachés (un compte
+        d'exploitation et un compte douteux, par exemple) présente ici son exposition entière. Une échéance
+        non renseignée en saisie est rattachée à la date de l'écriture. Les lignes lettrées, soldées par
+        définition, n'apparaissent pas. Le solde net doit recouper celui de la balance auxiliaire des mêmes
+        comptes.
       </p>
     </div>
   );

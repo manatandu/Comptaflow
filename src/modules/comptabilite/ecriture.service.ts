@@ -22,16 +22,30 @@ function estLigneDebit(l: { debit: Prisma.Decimal | number }): boolean {
 }
 
 /** Une ligne de la balance âgée : un compte de tiers, ses tranches de retard. */
+/**
+ * Une tranche d'antériorité · elle porte SES DEUX libellés.
+ *
+ * Les dossiers de révision réels titrent chaque colonne deux fois : la période
+ * calendaire exacte (« Du 01/09/2025 au 30/09/2025 ») et l'âge qu'elle
+ * représente à la date de référence (« moins de 120 jours »). Les deux
+ * servent · la première pour retrouver la facture, la seconde pour apprécier
+ * le retard sans compter les mois sur ses doigts.
+ */
+export interface TrancheAgee {
+  cle: string;
+  libellePeriode: string;
+  libelleAge: string;
+}
+
+/** Une ligne de balance âgée · un TIERS, pas un compte. */
 export interface LigneAgee {
-  compteId: string;
+  cle: string;
+  libelle: string;
+  codeTiers: string;
   numero: string;
-  intitule: string;
-  nonEchu: number;
-  j1a30: number;
-  j31a60: number;
-  j61a90: number;
-  plus90: number;
-  total: number;
+  /** Un montant par tranche, dans l'ordre de `tranches`. Vide pour un créditeur. */
+  montants: number[];
+  solde: number;
 }
 
 /** Une échéance à venir, ligne à ligne · le détail de l'échéancier. */
@@ -1125,112 +1139,197 @@ export class EcritureService {
   }
 
   /**
-   * BALANCE ÂGÉE · état prévisionnel des échéances (Sage : État → Balance
-   * âgée : « état prévisionnel des échéances à venir, ventilées par tranches
-   * de dates, en fonction d'une date de référence »).
+   * BALANCE ÂGÉE · l'antériorité des créances et dettes non lettrées, tiers
+   * par tiers, dans la présentation des dossiers de révision réels.
    *
-   * Assiette : les lignes NON LETTRÉES des comptes de tiers de l'exercice ·
-   * racine 40 fournisseurs, racine 41 clients. Le NUMÉRO est le même dans les
-   * deux plans, l'INTITULÉ non : « Adhérents, clients-usagers et comptes
-   * rattachés » au SYCEBNL, « Clients et comptes rattachés » à l'AUDCIF. La
-   * valeur d'API s'appelle donc CLIENTS_41 et non plus ADHERENTS_CLIENTS, et
-   * c'est l'écran qui nomme la famille selon le référentiel du dossier. Une ligne lettrée est soldée par définition : elle n'a plus
-   * d'échéance à suivre. L'échéance retenue est LigneEcriture.dateEcheance ;
-   * à défaut, la date de l'écriture (même règle que Sage : « le programme
-   * reprend la date d'écriture comme échéance si celle-ci n'a pas été saisie »).
+   * ELLE NE VENTILE PLUS PAR TRANCHES GLISSANTES DE TRENTE JOURS, et c'est le
+   * cœur de la correction. Un état « 1 à 30 j / 31 à 60 j / 61 à 90 j / + 90 »
+   * calculé depuis une date de référence est illisible pour qui doit retrouver
+   * la facture : il faut refaire les dates de tête. Le modèle relevé sur un
+   * dossier congolais réel (« Balance âgée Client - CARRIGRES au 31-12-2025 »,
+   * ouvert cellule par cellule) titre chaque colonne par une PÉRIODE
+   * CALENDAIRE, et rappelle l'âge correspondant au-dessus :
    *
-   * Chaque ligne pèse son montant NET (débit − crédit) : une correction par
-   * inscription en négatif (art. 20 AUDCIF) annule ainsi sa ligne d'origine
-   * dans la même tranche au lieu de gonfler deux tranches en sens opposés.
-   * Les montants restent signés · créances au débit positives (41), dettes
-   * au crédit négatives (40) vues du compte : le client présente les deux
-   * familles séparément.
+   *     |            | 180 j et + | < 150 j | < 120 j | < 90 j | < 60 j | < 30 j |
+   *     | avant le   | Du 01/01   | Du 01/08| Du 01/09| Du 01/10|Du 01/11|Du 01/12|
+   *     | 01/01/2025 | au 31/07   | au 31/08| au 30/09| au 31/10|au 30/11|au 31/12|
+   *
+   * Soit sept tranches : les CINQ derniers mois entiers un par un, le reste de
+   * l'exercice en un bloc, et tout ce qui précède l'exercice dans une colonne
+   * d'ouverture. Un mois est une unité que le comptable manipule ; trente
+   * jours glissants n'en sont pas une.
+   *
+   * DEUXIÈME CORRECTION · la ligne est un TIERS, pas un compte. Un tiers peut
+   * porter plusieurs comptes rattachés (un 411 d'exploitation et un 416
+   * douteux, typiquement) ; les présenter sur deux lignes éclate son
+   * exposition. À défaut de tiers rattaché, la ligne reste le compte, nommé
+   * comme tel · c'est encore une anomalie à voir, pas une ligne à masquer.
+   *
+   * TROISIÈME CORRECTION · les tiers dont le solde est À L'ENVERS ne sont pas
+   * ventilés. Un client créditeur n'a pas d'antériorité de créance : le
+   * ventiler par âge de retard est un contresens, et il pollue chaque colonne.
+   * Ils sont rendus à part, avec leur seul solde et leur propre total. D'où
+   * trois totaux, comme chez eux : débiteurs, créditeurs, et le net qui doit
+   * RECOUPER la balance auxiliaire des mêmes comptes · c'est le contrôle
+   * croisé que le réviseur fait en premier, et il était impossible tant que
+   * les deux sens étaient mélangés.
+   *
+   * Assiette inchangée : les lignes NON LETTRÉES des comptes de tiers, chacune
+   * rattachée à son échéance saisie ou, à défaut, à sa date d'écriture (Sage
+   * 100 i7 : « reprend la date d'écriture comme échéance si celle-ci n'a pas
+   * été saisie »). Chaque ligne pèse son montant NET (débit − crédit) : une
+   * correction par inscription en négatif (art. 20 AUDCIF) annule ainsi sa
+   * ligne d'origine dans la même tranche au lieu de gonfler deux tranches en
+   * sens opposés.
    */
   async balanceAgee(
     tenantId: string,
     params: { exerciceId: string; dateReference?: string; type?: 'CLIENTS_41' | 'FOURNISSEURS' | 'TOUS' },
   ) {
-    const ref = params.dateReference ? new Date(params.dateReference) : new Date();
+    const exercice = await this.prisma.exercice.findFirstOrThrow({
+      where: { id: params.exerciceId, tenantId },
+      select: { dateDebut: true, dateFin: true },
+    });
+    // La date de référence ne peut pas sortir de l'exercice : au-delà, les
+    // colonnes mensuelles n'auraient plus d'écriture à recevoir.
+    const demande = params.dateReference ? new Date(params.dateReference) : new Date();
+    const ref = demande > exercice.dateFin ? exercice.dateFin : demande;
     const type = params.type ?? 'TOUS';
     const racines = type === 'CLIENTS_41' ? ['41'] : type === 'FOURNISSEURS' ? ['40'] : ['40', '41'];
 
-    const lignes = await this.prisma.ligneEcriture.findMany({
-      where: {
-        ecriture: { tenantId, exerciceId: params.exerciceId },
-        lettre: null,
-        OR: racines.map((r) => ({ compte: { numero: { startsWith: r } } })),
-      },
-      include: {
-        compte: { select: { id: true, numero: true, intitule: true } },
-        ecriture: { select: { date: true } },
-      },
+    // --- Les sept tranches ---------------------------------------------
+    const jour = (d: Date) => d.toLocaleDateString('fr-FR');
+    const MOIS_DETAILLES = 5;
+    // Premier jour du mois de la date de référence, puis on remonte.
+    const debutsDeMois: Date[] = [];
+    for (let i = 0; i < MOIS_DETAILLES; i++) {
+      debutsDeMois.unshift(new Date(Date.UTC(ref.getUTCFullYear(), ref.getUTCMonth() - i, 1)));
+    }
+    const debutFenetre = debutsDeMois[0];
+    const tranches: TrancheAgee[] = [];
+    const bornes: Array<{ min: Date | null; max: Date | null }> = [];
+
+    tranches.push({
+      cle: 'ouverture',
+      libellePeriode: `Avant le ${jour(exercice.dateDebut)}`,
+      libelleAge: "Antérieur à l'exercice",
+    });
+    bornes.push({ min: null, max: exercice.dateDebut });
+
+    // Le bloc « reste de l'exercice » n'existe que si l'exercice commence
+    // avant la fenêtre mensuelle · sur un exercice de moins de cinq mois, ou
+    // une date de référence proche de l'ouverture, il serait vide et faux.
+    if (exercice.dateDebut < debutFenetre) {
+      const veille = new Date(debutFenetre.getTime() - 86_400_000);
+      tranches.push({
+        cle: 'ancien',
+        libellePeriode: `Du ${jour(exercice.dateDebut)} au ${jour(veille)}`,
+        libelleAge: `${MOIS_DETAILLES * 30 + 30} jours et plus`,
+      });
+      bornes.push({ min: exercice.dateDebut, max: debutFenetre });
+    }
+
+    debutsDeMois.forEach((debut, i) => {
+      const finMois = new Date(Date.UTC(debut.getUTCFullYear(), debut.getUTCMonth() + 1, 1));
+      const dernierJour = new Date(finMois.getTime() - 86_400_000);
+      // Le mois le plus récent est le moins de 30 jours ; on remonte de 30 en
+      // 30, comme dans le modèle relevé.
+      const age = (MOIS_DETAILLES - i) * 30;
+      tranches.push({
+        cle: debut.toISOString().slice(0, 7),
+        libellePeriode: `Du ${jour(debut)} au ${jour(dernierJour)}`,
+        libelleAge: `Moins de ${age} jours`,
+      });
+      bornes.push({ min: debut, max: finMois });
     });
 
-    type Tranche = 'nonEchu' | 'j1a30' | 'j31a60' | 'j61a90' | 'plus90';
-    const trancheDe = (echeance: Date): Tranche => {
-      const retardJours = Math.floor((ref.getTime() - echeance.getTime()) / 86_400_000);
-      if (retardJours <= 0) return 'nonEchu';
-      if (retardJours <= 30) return 'j1a30';
-      if (retardJours <= 60) return 'j31a60';
-      if (retardJours <= 90) return 'j61a90';
-      return 'plus90';
+    const indexTranche = (echeance: Date): number => {
+      for (let i = bornes.length - 1; i >= 0; i--) {
+        const { min, max } = bornes[i];
+        if ((min === null || echeance >= min) && (max === null || echeance < max)) return i;
+      }
+      // Une échéance postérieure à la fenêtre (saisie en avance) rejoint le
+      // mois le plus récent plutôt que de disparaître de l'état.
+      return bornes.length - 1;
     };
 
-    const parCompte = new Map<string, LigneAgee>();
+    // --- Les lignes -----------------------------------------------------
+    const [lignes, rattachements] = await Promise.all([
+      this.prisma.ligneEcriture.findMany({
+        where: {
+          ecriture: { tenantId, exerciceId: params.exerciceId },
+          lettre: null,
+          OR: racines.map((r) => ({ compte: { numero: { startsWith: r } } })),
+        },
+        include: {
+          compte: { select: { id: true, numero: true, intitule: true } },
+          ecriture: { select: { date: true } },
+        },
+      }),
+      this.prisma.tiersCompte.findMany({
+        where: { tiers: { tenantId } },
+        select: { compteId: true, tiers: { select: { id: true, code: true, nom: true } } },
+      }),
+    ]);
+    const tiersDuCompte = new Map(rattachements.map((r) => [r.compteId, r.tiers]));
+
+    const parCle = new Map<string, LigneAgee>();
     for (const l of lignes) {
       const net = Number(l.debit) - Number(l.credit);
       if (Math.abs(net) < 0.005) continue;
+      const tiers = tiersDuCompte.get(l.compte.id);
+      const cle = tiers ? `tiers:${tiers.id}` : `compte:${l.compte.id}`;
       const entree =
-        parCompte.get(l.compte.id) ??
+        parCle.get(cle) ??
         ({
-          compteId: l.compte.id,
+          cle,
+          // « 410038 - CREC 8 » chez eux · code du tiers, puis son nom.
+          libelle: tiers ? `${tiers.code} - ${tiers.nom}` : `${l.compte.numero} - ${l.compte.intitule}`,
+          codeTiers: tiers?.code ?? '',
           numero: l.compte.numero,
-          intitule: l.compte.intitule,
-          nonEchu: 0,
-          j1a30: 0,
-          j31a60: 0,
-          j61a90: 0,
-          plus90: 0,
-          total: 0,
+          montants: tranches.map(() => 0),
+          solde: 0,
         } satisfies LigneAgee);
-      const tranche = trancheDe(l.dateEcheance ?? l.ecriture.date);
-      entree[tranche] += net;
-      entree.total += net;
-      parCompte.set(l.compte.id, entree);
+      entree.montants[indexTranche(l.dateEcheance ?? l.ecriture.date)] += net;
+      entree.solde += net;
+      parCle.set(cle, entree);
     }
 
-    const arrondir = (x: LigneAgee): LigneAgee => ({
-      ...x,
-      nonEchu: Math.round(x.nonEchu * 100) / 100,
-      j1a30: Math.round(x.j1a30 * 100) / 100,
-      j31a60: Math.round(x.j31a60 * 100) / 100,
-      j61a90: Math.round(x.j61a90 * 100) / 100,
-      plus90: Math.round(x.plus90 * 100) / 100,
-      total: Math.round(x.total * 100) / 100,
-    });
-    // Un compte dont toutes les tranches se compensent à zéro (avances égales
-    // aux factures, corrections) n'apporte rien à l'état : écarté.
-    const comptes = [...parCompte.values()]
-      .map(arrondir)
-      .filter((c) => Math.abs(c.total) >= 0.005 || [c.nonEchu, c.j1a30, c.j31a60, c.j61a90, c.plus90].some((t) => Math.abs(t) >= 0.005))
-      .sort((a, b) => a.numero.localeCompare(b.numero));
+    const arrondir = (x: number) => Math.round(x * 100) / 100;
+    const toutes = [...parCle.values()]
+      .map((c) => ({ ...c, montants: c.montants.map(arrondir), solde: arrondir(c.solde) }))
+      .filter((c) => Math.abs(c.solde) >= 0.005 || c.montants.some((m) => Math.abs(m) >= 0.005));
 
-    const totaux = comptes.reduce(
-      (acc, c) => ({
-        compteId: '',
-        numero: '',
-        intitule: '',
-        nonEchu: acc.nonEchu + c.nonEchu,
-        j1a30: acc.j1a30 + c.j1a30,
-        j31a60: acc.j31a60 + c.j31a60,
-        j61a90: acc.j61a90 + c.j61a90,
-        plus90: acc.plus90 + c.plus90,
-        total: acc.total + c.total,
-      }),
-      { compteId: '', numero: '', intitule: '', nonEchu: 0, j1a30: 0, j31a60: 0, j61a90: 0, plus90: 0, total: 0 },
-    );
+    // Les plus exposés en tête · c'est l'ordre du dossier de révision, et le
+    // premier écran doit porter ce qui fait réagir.
+    const debiteurs = toutes.filter((c) => c.solde > 0).sort((a, b) => b.solde - a.solde);
+    const crediteurs = toutes
+      .filter((c) => c.solde <= 0)
+      // Un créditeur n'a pas d'antériorité de créance · ses tranches sont
+      // vidées plutôt que rendues, pour qu'aucune lecture ne les additionne.
+      .map((c) => ({ ...c, montants: [] as number[] }))
+      .sort((a, b) => b.solde - a.solde);
 
-    return { dateReference: ref.toISOString().slice(0, 10), type, comptes, totaux: arrondir(totaux) };
+    const parTranche = tranches.map((_, i) => arrondir(debiteurs.reduce((t, c) => t + c.montants[i], 0)));
+    const totalDebiteurs = arrondir(debiteurs.reduce((t, c) => t + c.solde, 0));
+    const totalCrediteurs = arrondir(crediteurs.reduce((t, c) => t + c.solde, 0));
+
+    return {
+      dateReference: ref.toISOString().slice(0, 10),
+      debutExercice: exercice.dateDebut.toISOString().slice(0, 10),
+      type,
+      tranches,
+      debiteurs,
+      crediteurs,
+      totaux: {
+        parTranche,
+        debiteurs: totalDebiteurs,
+        crediteurs: totalCrediteurs,
+        // Ce net doit recouper le solde de la balance auxiliaire des mêmes
+        // comptes · c'est le contrôle croisé du réviseur.
+        net: arrondir(totalDebiteurs + totalCrediteurs),
+      },
+    };
   }
 
   /** Grand livre d'un compte : ses lignes avec solde progressif. */

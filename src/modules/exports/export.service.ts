@@ -800,6 +800,93 @@ export class ExportService {
   }
 
   /**
+   * BALANCE ÂGÉE · l'état existait à l'écran mais ne s'exportait pas, alors
+   * que c'est la pièce qu'on annexe à une circularisation.
+   *
+   * Présentation relevée sur le dossier de révision ouvert sur le Drive :
+   * DEUX lignes d'en-tête superposées · l'âge au-dessus (« Moins de 90
+   * jours »), la période calendaire en dessous (« Du 01/10/2025 au
+   * 31/10/2025 »). Puis les débiteurs ventilés, les créditeurs groupés sans
+   * ventilation, et trois totaux.
+   */
+  async balanceAgeeExcel(
+    tenantId: string,
+    exerciceId: string,
+    params: { dateReference?: string; type?: 'CLIENTS_41' | 'FOURNISSEURS' | 'TOUS' } = {},
+  ): Promise<ClasseurExporte> {
+    const etat = await this.ecritureService.balanceAgee(tenantId, { exerciceId, ...params });
+    const identite = await this.identiteEtat(tenantId, { exerciceId });
+    const tenant = await this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId } });
+
+    const nomClients = tenant.referentiel === Referentiel.SYCEBNL ? 'ADHÉRENTS / CLIENTS-USAGERS' : 'CLIENTS';
+    const enTeteTiers =
+      etat.type === 'CLIENTS_41' ? nomClients : etat.type === 'FOURNISSEURS' ? 'FOURNISSEURS' : 'TIERS';
+
+    const classeur = this.nouveauClasseur();
+    const feuille = classeur.addWorksheet('Balance âgée');
+    const nbColonnes = etat.tranches.length + 2;
+
+    // Ligne 1 · les âges, alignés sur les colonnes de tranches (à partir de B).
+    const ligneAges = feuille.getRow(1);
+    etat.tranches.forEach((t, i) => {
+      ligneAges.getCell(i + 2).value = t.libelleAge;
+    });
+    ligneAges.font = { size: 9, italic: true };
+
+    // Ligne 2 · les périodes, plus le nom de la famille de tiers et le solde.
+    const ligneEntete = feuille.getRow(2);
+    ligneEntete.getCell(1).value = enTeteTiers;
+    etat.tranches.forEach((t, i) => {
+      ligneEntete.getCell(i + 2).value = t.libellePeriode;
+    });
+    ligneEntete.getCell(nbColonnes).value = 'Solde';
+
+    feuille.getColumn(1).width = 42;
+    for (let i = 2; i <= nbColonnes; i++) feuille.getColumn(i).width = 20;
+
+    const ligneMontants = (libelle: string, montants: number[], solde: number) => {
+      const r = feuille.addRow([]);
+      r.getCell(1).value = libelle;
+      montants.forEach((m, i) => {
+        r.getCell(i + 2).value = m || null;
+      });
+      r.getCell(nbColonnes).value = solde || null;
+      return r;
+    };
+
+    for (const d of etat.debiteurs) ligneMontants(d.libelle, d.montants, d.solde);
+
+    if (etat.crediteurs.length > 0) {
+      // La bascule de sens se voit · sans elle, un lecteur croit lire la suite
+      // des débiteurs et additionne deux populations contraires.
+      const separateur = feuille.addRow([]);
+      separateur.getCell(1).value = 'SOLDES EN SENS INVERSE · non ventilés par antériorité';
+      separateur.font = { size: 9, italic: true };
+      for (const c of etat.crediteurs) ligneMontants(c.libelle, [], c.solde);
+    }
+
+    const derniereLigneDonnees = feuille.rowCount;
+
+    const totalDebiteurs = ligneMontants('TOTAL DÉBITEURS', etat.totaux.parTranche, etat.totaux.debiteurs);
+    totalDebiteurs.font = ENTETE_FONT;
+    const totalCrediteurs = ligneMontants('TOTAL SOLDES EN SENS INVERSE', [], etat.totaux.crediteurs);
+    totalCrediteurs.font = ENTETE_FONT;
+    // Le net recoupe la balance auxiliaire des mêmes comptes · le dire dans
+    // l'état évite qu'on refasse l'addition à la main pour s'en assurer.
+    const net = ligneMontants('SOLDE NET · recoupe la balance auxiliaire', [], etat.totaux.net);
+    net.font = ENTETE_FONT;
+
+    for (let i = 2; i <= nbColonnes; i++) feuille.getColumn(i).numFmt = FORMAT_MONTANT;
+    this.piedDePageEtat(feuille, identite);
+    this.finaliserTableau(feuille, nbColonnes, derniereLigneDonnees, 2);
+
+    return {
+      buffer: await this.versBuffer(classeur),
+      nomFichier: `balance-agee${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
+    };
+  }
+
+  /**
    * IDENTITÉ DU CARTOUCHE · les six lignes d'en-tête que la charte ETAFI
    * pose sur chaque page (voir theme-etafi.ts). Le NIF est l'identifiant que
    * le CPCC impose en tête de chaque page d'état financier · le sigle et le
