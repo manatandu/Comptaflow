@@ -14,7 +14,19 @@ jobs:
       # firebase.json vit dans client/, pas à la racine du dépôt (le dépôt
       # contient aussi le serveur NestJS) : sans ce dossier de travail, npm
       # construisait le serveur et l'action ne trouvait pas firebase.json.
-      - run: npm ci && npm run build
+      # `vite build` ne vérifie PAS les types et ne lance aucun test · sans
+      # ces deux étapes, un client qui ne compile pas au sens TypeScript,
+      # ou dont les tests tombent, partait quand même en production. Elles
+      # précèdent la construction : rien ne se construit sur du rouge.
+      - run: npm ci
+        working-directory: client
+      - name: Typage du client
+        run: npx tsc --noEmit
+        working-directory: client
+      - name: Tests du client
+        run: npx vitest run
+        working-directory: client
+      - run: npm run build
         working-directory: client
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:

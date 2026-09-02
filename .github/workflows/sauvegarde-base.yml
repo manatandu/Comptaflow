@@ -7,10 +7,20 @@ name: Sauvegarde de la base (éprouvée par restauration)
 # vide fait échouer le workflow au lieu de dormir 90 jours en donnant une
 # fausse assurance.
 #
-# Archivage : artefact GitHub (90 jours, aucun réglage requis) et, si la
-# variable de dépôt BUCKET_SAUVEGARDES est définie, copie durable vers
-# Cloud Storage. Procédure de restauration : docs/sauvegardes-et-
-# restauration.md.
+# Archivage : le fichier est CHIFFRÉ avant de quitter le job. Il partait
+# auparavant en artefact GitHub en clair, conservé 90 jours · quiconque a
+# l'accès en lecture aux Actions du dépôt téléchargeait la comptabilité
+# complète de tous les cabinets. Le chiffrement est ASYMÉTRIQUE (age) : la
+# CI ne détient que la clé publique du destinataire, jamais de quoi
+# déchiffrer. Un dépôt compromis ne donne donc aucune donnée.
+#
+# La clé publique se pose en VARIABLE de dépôt CLE_AGE_SAUVEGARDES (une
+# clé publique n'est pas un secret). Sans elle, le workflow ÉCHOUE au lieu
+# d'archiver en clair · un échec bruyant vaut mieux qu'une fuite muette.
+#
+# Destinations : artefact GitHub (90 jours) et, si BUCKET_SAUVEGARDES est
+# définie, copie durable vers Cloud Storage. Procédure de restauration et
+# de génération de la clé : docs/sauvegardes-et-restauration.md.
 
 on:
   schedule:
@@ -109,13 +119,80 @@ jobs:
           fi
           echo "Sauvegarde ÉPROUVÉE · elle se restaure, et la comptabilité restaurée boucle."
 
-      # 90 jours en artefact · opérationnel sans aucun réglage. La copie
-      # Cloud Storage ci-dessous prend le relais pour la conservation longue.
-      - name: Archiver (artefact GitHub, 90 jours)
+      # LE CHIFFREMENT N'EST PAS FACULTATIF · sans clé publique configurée,
+      # le job s'arrête ici. Il ne retombe JAMAIS sur un archivage en clair :
+      # c'est exactement le comportement qui a fait dormir quatre-vingt-dix
+      # jours de comptabilité en clair dans les artefacts du dépôt.
+      - name: "Exiger la clé publique de chiffrement"
+        env:
+          CLE_AGE: ${{ vars.CLE_AGE_SAUVEGARDES }}
+        run: |
+          if [ -z "$CLE_AGE" ]; then
+            echo "::error::Variable de dépôt CLE_AGE_SAUVEGARDES absente · la sauvegarde ne sera PAS archivée en clair. Générer la clé et poser la variable : voir docs/sauvegardes-et-restauration.md"
+            exit 1
+          fi
+          case "$CLE_AGE" in
+            age1*) ;;
+            *) echo "::error::CLE_AGE_SAUVEGARDES ne ressemble pas à une clé publique age (attendu : age1...)"; exit 1 ;;
+          esac
+          sudo apt-get install -y age
+          age --version
+
+      # Deux destinataires · la clé de l'exploitant, et une clé ÉPHÉMÈRE
+      # générée ici même. La seconde ne sert qu'à prouver, dans la foulée,
+      # que le fichier chiffré se déchiffre et rend l'original octet pour
+      # octet ; elle meurt avec le job. Sans elle, on archiverait un
+      # chiffré que personne n'a jamais ouvert · la même faute que la
+      # sauvegarde jamais restaurée, d'un cran plus haut.
+      - name: "Chiffrer, puis éprouver le chiffré"
+        env:
+          CLE_AGE: ${{ vars.CLE_AGE_SAUVEGARDES }}
+        run: |
+          clair="sauvegarde-omegax-$HORODATAGE.dump"
+          chiffre="$clair.age"
+
+          age-keygen -o /tmp/epreuve.key 2>/dev/null
+          publique_epreuve=$(grep -oE 'age1[0-9a-z]+' /tmp/epreuve.key | head -1)
+
+          age --encrypt --recipient "$CLE_AGE" --recipient "$publique_epreuve" \
+            --output "$chiffre" "$clair"
+
+          # Le fichier doit VRAIMENT être chiffré · l'en-tête age le dit.
+          if ! head -c 21 "$chiffre" | grep -q 'age-encryption.org'; then
+            echo "::error::Le fichier archivé ne porte pas l'en-tête age · refus d'archiver"; exit 1
+          fi
+
+          # Aller-retour complet : déchiffré avec l'identité éphémère, il
+          # doit rendre exactement l'original.
+          age --decrypt --identity /tmp/epreuve.key --output /tmp/verifie.dump "$chiffre"
+          empreinte_clair=$(sha256sum "$clair" | cut -d' ' -f1)
+          empreinte_tour=$(sha256sum /tmp/verifie.dump | cut -d' ' -f1)
+          if [ "$empreinte_clair" != "$empreinte_tour" ]; then
+            echo "::error::Le chiffré ne rend pas l'original · refus d'archiver"; exit 1
+          fi
+
+          shred -u /tmp/verifie.dump /tmp/epreuve.key "$clair"
+          echo "Chiffré ÉPROUVÉ · $(ls -l "$chiffre" | awk '{print $5}') octets, déchiffrable, identique à l'original."
+
+      # Garde-fou d'archivage · si un .dump en clair traîne encore dans le
+      # répertoire de travail, le motif d'archivage ci-dessous pourrait le
+      # ramasser. On le vérifie au lieu de l'espérer.
+      - name: "Vérifier qu'aucun fichier en clair ne subsiste"
+        run: |
+          restants=$(find . -maxdepth 1 -name '*.dump' -not -name '*.age' | wc -l)
+          if [ "$restants" -ne 0 ]; then
+            echo "::error::Un export en clair subsiste dans le répertoire de travail · refus d'archiver"
+            find . -maxdepth 1 -name '*.dump' -not -name '*.age'
+            exit 1
+          fi
+
+      # 90 jours en artefact. Le motif ne prend QUE le chiffré · le clair
+      # n'existe plus à ce stade, et l'étape précédente le prouve.
+      - name: Archiver (artefact GitHub chiffré, 90 jours)
         uses: actions/upload-artifact@v4
         with:
           name: sauvegarde-omegax-${{ env.HORODATAGE }}
-          path: sauvegarde-omegax-*.dump
+          path: sauvegarde-omegax-*.dump.age
           retention-days: 90
           if-no-files-found: error
 
@@ -128,4 +205,4 @@ jobs:
       - name: Copier vers Cloud Storage (si bucket configuré)
         if: ${{ vars.BUCKET_SAUVEGARDES != '' }}
         run: |
-          gcloud storage cp "sauvegarde-omegax-$HORODATAGE.dump" "gs://${{ vars.BUCKET_SAUVEGARDES }}/"
+          gcloud storage cp "sauvegarde-omegax-$HORODATAGE.dump.age" "gs://${{ vars.BUCKET_SAUVEGARDES }}/"

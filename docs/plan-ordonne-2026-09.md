@@ -95,18 +95,42 @@ locataire A. La discipline actuelle est réelle et vérifiée, mais tenue à la
 main dans plus de trente modules : c'est le seul risque dont la probabilité
 AUGMENTE avec le temps, à chaque module ajouté.
 
-**B3 · Une CI qui lance les tests avant de déployer.** `.github/workflows/` ne
-contient que deux déploiements et une sauvegarde : rien n'empêche aujourd'hui
-un test rouge d'atteindre la production. Ajouter Dependabot (inclus). Nuance
-de coût vérifiée : CodeQL sur dépôt privé suppose GitHub Advanced Security,
-qui est payant · Dependabot ne l'est pas.
+**B3 · Une CI qui lance les tests avant de déployer.** FAIT le 2026-09-02. Le
+déploiement serveur passe par un job « verifier » (typage, tests, build, des
+deux côtés) dont il dépend par `needs`. L'ordre importait plus qu'il n'y
+paraissait : le job appliquait `prisma migrate deploy` AVANT de déployer, donc
+un push cassé migrait la production puis déployait le code cassé par-dessus ·
+une migration appliquée ne se reprend pas d'un `git revert`. Le portillon ne
+porte NI la chaîne de connexion NI la clé de compte de service, sans quoi il
+serait une seconde porte d'entrée plutôt qu'un contrôle.
 
-**B4 · Sauvegardes chiffrées, secrets, identité.** L'export complet de toutes
-les comptabilités part aujourd'hui en artefact GitHub EN CLAIR pour 90 jours,
-et la copie durable vers Cloud Storage est conditionnée à une variable non
-posée. À traiter avec le passage des secrets Cloud Run par Secret Manager et
-le remplacement de la clé de compte de service JSON permanente par une
-fédération d'identité.
+Défaut voisin trouvé au passage : le déploiement du client ne faisait que
+`npm run build` · or `vite build` ne vérifie pas les types et ne lance aucun
+test. Typage et tests ajoutés avant la construction. Dependabot posé sur les
+trois écosystèmes (serveur, client, actions GitHub). Nuance de coût vérifiée :
+CodeQL sur dépôt privé suppose GitHub Advanced Security, qui est payant ·
+Dependabot ne l'est pas.
+
+**B4 · Sauvegardes chiffrées.** FAIT le 2026-09-02 pour la partie sauvegarde.
+L'export partait en artefact GitHub EN CLAIR pour 90 jours · quiconque avait
+l'accès en lecture aux Actions du dépôt téléchargeait la comptabilité complète
+de tous les cabinets. Le fichier est désormais chiffré par `age` avant de
+quitter le job, en ASYMÉTRIQUE : la CI ne détient que la clé publique, jamais
+de quoi déchiffrer. Le job chiffre pour deux destinataires (l'exploitant et
+une clé éphémère créée sur place), déchiffre aussitôt avec l'éphémère et
+compare l'empreinte SHA-256 à l'original · chiffrer sans jamais déchiffrer
+serait la faute de la sauvegarde jamais restaurée, d'un cran plus haut. Sans
+clé publique configurée le workflow ÉCHOUE, il ne retombe jamais sur du clair.
+
+RESTE À FAIRE, et c'est une ACTION DE MANASSE, pas de code : générer la paire
+de clés et poser `CLE_AGE_SAUVEGARDES` en variable de dépôt (procédure dans
+`docs/sauvegardes-et-restauration.md`). Tant qu'elle n'est pas posée, la
+sauvegarde nocturne est rouge · c'est voulu, mais cela veut dire qu'il n'y a
+pas de sauvegarde nouvelle pendant ce temps.
+
+Restent aussi, non traités : le passage des secrets Cloud Run par Secret
+Manager, et le remplacement de la clé de compte de service JSON permanente
+(`GCP_SA_KEY`) par une fédération d'identité.
 
 **B5 · Cycle de vie des accès.** Révocation de session côté serveur,
 application serveur de `doitChangerMotDePasse`, verrouillage par compte,

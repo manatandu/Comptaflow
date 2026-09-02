@@ -1,0 +1,53 @@
+# Veille des dépendances · le dépôt porte la comptabilité de cabinets
+# clients, une faille connue dans une dépendance transitive n'a pas à
+# attendre qu'on y pense. Dependabot ouvre la demande de tirage, et le
+# portillon de `deploy-cloud-run.yml` (job « verifier ») dit si elle passe.
+#
+# Le regroupement évite une demande de tirage par paquet : une par
+# écosystème et par semaine, ce qui reste lisible pour un cabinet de la
+# taille de VMG Consulting. Les montées de version MAJEURES restent
+# séparées · elles cassent, et elles se relisent une par une.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '05:00'
+      timezone: Africa/Kinshasa
+    open-pull-requests-limit: 5
+    groups:
+      serveur-mineur:
+        patterns: ['*']
+        update-types: [minor, patch]
+    commit-message:
+      prefix: 'deps(serveur)'
+
+  - package-ecosystem: npm
+    directory: /client
+    schedule:
+      interval: weekly
+      day: monday
+      time: '05:00'
+      timezone: Africa/Kinshasa
+    open-pull-requests-limit: 5
+    groups:
+      client-mineur:
+        patterns: ['*']
+        update-types: [minor, patch]
+    commit-message:
+      prefix: 'deps(client)'
+
+  # Les actions GitHub aussi · une action épinglée sur une version
+  # abandonnée est un chemin d'exécution dans la CI, qui détient les
+  # secrets de déploiement ET la chaîne de connexion à la base.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '05:00'
+      timezone: Africa/Kinshasa
+    commit-message:
+      prefix: 'deps(actions)'

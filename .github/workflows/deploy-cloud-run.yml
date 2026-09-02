@@ -24,7 +24,55 @@ env:
   SERVICE: comptaflow-api
 
 jobs:
+  # PORTILLON · rien ne part en production sans que tout soit vert. L'ordre
+  # comptait : le job de déploiement applique `prisma migrate deploy` AVANT
+  # de déployer, donc un push cassé migrait la base de production, puis
+  # déployait le code cassé par-dessus. Une migration appliquée ne se
+  # reprend pas d'un `git revert`.
+  #
+  # Ce job ne touche NI la base NI Cloud Run · il n'a aucun secret, aucune
+  # authentification Google. Il compile, teste et construit les deux côtés.
+  verifier:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # `npm ci` déclenche le postinstall `prisma generate` · le client
+      # Prisma doit exister avant que tsc ne lise le code qui l'importe.
+      - name: Installer et engendrer le client Prisma (serveur)
+        run: npm ci
+
+      - name: Typage du serveur
+        run: npx tsc --noEmit
+
+      - name: Tests du serveur
+        run: npx jest --ci
+
+      - name: Construction du serveur
+        run: npm run build
+
+      - name: Installer le client
+        working-directory: client
+        run: npm ci
+
+      - name: Typage du client
+        working-directory: client
+        run: npx tsc --noEmit
+
+      - name: Tests du client
+        working-directory: client
+        run: npx vitest run
+
+      - name: Construction du client
+        working-directory: client
+        run: npm run build
+
   migrer-et-deployer:
+    needs: verifier
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
