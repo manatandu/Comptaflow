@@ -23,6 +23,10 @@ interface MeResponse {
     jeuEtatsFinanciersSycebnl: JeuEtatsFinanciersSycebnl;
     /** Pendant SYSCOHADA · null pour un dossier SYCEBNL. */
     systemeComptableSyscohada: SystemeComptableSyscohada | null;
+    /** Monnaie de tenue · l'unité monétaire est l'une des trois mentions
+     *  obligatoires de chaque page d'états financiers publiés (AUDCIF
+     *  Titre IX ch. 1 § 2.4). */
+    devise: string | null;
     /** N° impôt · exigé en en-tête de chaque page imprimée (CPCC, § 7.4). */
     numeroImpot: string | null;
     /** > 0 = dossier mère d'un groupe d'établissements · ouvre le menu

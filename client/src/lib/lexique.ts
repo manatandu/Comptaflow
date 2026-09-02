@@ -1,16 +1,29 @@
 /**
- * LEXIQUE SYCEBNL · le contenu des bulles d'aide « ? » posées dans les
- * fenêtres. Chaque entrée reprend la définition du référentiel (Acte uniforme
- * relatif au système comptable des entités à but non lucratif, Niamey,
- * 22 décembre 2022, applicable au 1er janvier 2024) : glossaire de la
- * Partie 1 ch. 1, fonctionnement des comptes de la Partie 2 ch. 3, et
- * présentation des états financiers de la Partie 4.
+ * LEXIQUE · le contenu des bulles d'aide « ? » posées dans les fenêtres.
  *
  * C'est la valeur ajoutée qu'aucun logiciel généraliste n'apporte : le
  * comptable d'une association n'a pas à ouvrir le Journal officiel pour
  * savoir ce qu'est un fonds affecté ou pourquoi le TFT est en méthode
  * directe · la réponse est dans l'écran, à l'endroit exact où la question
  * se pose.
+ *
+ * DEUX RÉFÉRENTIELS DANS UN SEUL FICHIER, ET AUCUN MÉLANGE POSSIBLE.
+ *
+ *  · SYCEBNL · Acte uniforme relatif au système comptable des entités à but
+ *    non lucratif (Niamey, 22 décembre 2022, applicable au 1er janvier
+ *    2024) : glossaire de la Partie 1 ch. 1, fonctionnement des comptes de
+ *    la Partie 2 ch. 3, présentation des états financiers de la Partie 4.
+ *  · SYSCOHADA · AUDCIF (Acte uniforme portant organisation et harmonisation
+ *    des comptabilités des entités, révision de 2017) : articles 8, 11 et
+ *    13, Titre IX pour le Système normal, Titre X pour le Système minimal
+ *    de trésorerie.
+ *
+ * Les entrées propres au SYSCOHADA portent toutes le suffixe `Syscohada`.
+ * Une entrée d'un référentiel ne doit JAMAIS être servie à un écran de
+ * l'autre : les deux ne partagent ni états, ni postes, ni vocabulaire
+ * (CLAUDE.md §6), et une bulle qui compterait « 35 notes » sur un état
+ * SYSCOHADA se déposerait telle quelle chez un tiers. Un écran commun aux
+ * deux dossiers choisit donc sa clé d'après `tenant.referentiel`.
  *
  * Règle de rédaction : deux à quatre phrases, sans jargon inutile, avec la
  * référence du texte à la fin. Ne jamais inventer une règle qui n'est pas
@@ -228,6 +241,47 @@ export const LEXIQUE = {
     texte:
       "Organisme qui finance tout ou partie d'un projet, avec une obligation de rendre compte de l'emploi des fonds. Ses versements transitent par les comptes 46 (bailleurs, fonds d'administration) et alimentent, côté états financiers, le tableau d'exécution budgétaire.",
     source: 'SYCEBNL, Partie 2 ch. 3, compte 46 · Partie 3 ch. 3',
+  },
+  // -------------------------------------------------------------------------
+  // SYSCOHADA · AUDCIF. Le Système normal (Titre IX) puis le Système minimal
+  // de trésorerie (Titre X). Aucune de ces entrées ne doit être servie à un
+  // dossier SYCEBNL, et réciproquement.
+  // -------------------------------------------------------------------------
+  jeuEtatsSyscohada: {
+    titre: "Jeu complet d'états financiers annuels",
+    texte:
+      "« Un jeu complet d'états financiers annuels comprend le Bilan, le Compte de résultat, le Tableau des flux de trésorerie ainsi que les Notes annexes. » Les états financiers forment un TOUT INDISSOCIABLE : les trois onglets de cette fenêtre plus la fenêtre des notes annexes, jamais l'un sans les autres. Ils sont présentés de façon à permettre leur comparaison dans le temps, exercice par exercice, d'où la colonne N-1 de chaque état. Une entité cotée, ou qui sollicite un financement par appel public à l'épargne, établit EN SUS des états en normes IFRS, destinés aux seuls marchés financiers.",
+    source: 'AUDCIF, art. 8',
+  },
+  bilanSyscohada: {
+    titre: 'Bilan du Système normal',
+    texte:
+      "État de synthèse qui décrit en termes d'actif et de passif la situation patrimoniale de l'entité à une date donnée. Le Système comptable OHADA préconise un bilan AVANT répartition du résultat et un classement FONCTIONNEL, qui range les postes selon les trois fonctions investissement, financement et exploitation, en six grandes masses : actif immobilisé face aux capitaux propres et dettes financières, actif circulant face au passif circulant, trésorerie-actif face à trésorerie-passif. L'actif se lit en trois colonnes (brut, amortissements et dépréciations, net), le passif en net seulement, et chaque poste porte le code REF officiel qui commande son emplacement. Cette structure étant déjà fonctionnelle, le seul retraitement à opérer pour en tirer le fonds de roulement, le besoin de financement et la trésorerie nette porte sur les écarts de conversion.",
+    source: 'AUDCIF, Titre IX ch. 3 sections 1 et 2',
+  },
+  compteResultatSyscohada: {
+    titre: 'Compte de résultat du Système normal',
+    texte:
+      "Il recense, pour une période donnée, les ressources produites par l'activité et les charges consommées ou occasionnées par les moyens mis en oeuvre, en deux rubriques : activité ordinaire (exploitation et financier) et activité hors activités ordinaires, celle des flux non récurrents à caractère accidentel ou extraordinaire. Leur différence donne le résultat de l'exercice, bénéfice ou perte, qui traduit l'enrichissement ou l'appauvrissement de l'entité. Le Plan Comptable OHADA le présente EN LISTE pour mettre en cascade les soldes intermédiaires de gestion : marge commerciale, valeur ajoutée, excédent brut d'exploitation, résultat d'exploitation, résultat financier, résultat des activités ordinaires, résultat H.A.O. et résultat net.",
+    source: 'AUDCIF, Titre IX ch. 4 sections 1 et 2',
+  },
+  tftSyscohada: {
+    titre: 'Tableau des flux de trésorerie',
+    texte:
+      "Il présente les entrées et sorties de trésorerie et d'équivalents de trésorerie en trois catégories : activités opérationnelles, activités d'investissement, activités de financement. Le point d'entrée est la capacité d'autofinancement globale, calculée À PARTIR DE L'EXCÉDENT BRUT D'EXPLOITATION et non du résultat net. Le bouclage imposé par le modèle est celui de la dernière ligne, qui doit égaler la trésorerie-actif moins la trésorerie-passif du bilan. Attention à la lettre-clé : le schéma de la section 1 attribue deux fois la lettre F et note la clôture G ; c'est le modèle de la section 2 qui fait foi (F = D + E, G = B + C + F, H = G + A), et c'est lui que la colonne CLÉ de l'écran affiche.",
+    source: 'AUDCIF, Titre IX ch. 5 sections 1 et 2',
+  },
+  notesSyscohada: {
+    titre: 'Notes annexes du Système normal',
+    texte:
+      "Elles font partie intégrante des états financiers : elles complètent et commentent l'information donnée par le Bilan, le Compte de résultat et le Tableau des flux de trésorerie, en vertu de la convention de l'importance significative. Une information portée aux notes ne peut pas se substituer à une inscription au bilan ou au compte de résultat, et une information déjà portée à l'un des deux n'a pas à y être reprise. Chaque élément des états financiers de synthèse doit faire l'objet d'une référence croisée vers l'information liée figurant dans les notes, et les notes comportent obligatoirement une déclaration explicite de conformité au Plan Comptable OHADA. La liste officielle va de la NOTE 1 à la NOTE 36, mais la numérotation n'est pas continue : les subdivisions (3A à 3F, 15A et 15B, 16A à 16C, 27A et 27B) portent le nombre de codes à 46.",
+    source: 'AUDCIF, Titre IX ch. 6 section 1 (§ 1.1 et 1.2) et section 2',
+  },
+  smtSyscohada: {
+    titre: 'Système minimal de trésorerie · SYSCOHADA',
+    texte:
+      "Il repose sur un état des recettes et des dépenses dégageant le résultat de l'exercice (recette nette ou perte nette), dressé à partir d'une COMPTABILITÉ DE TRÉSORERIE : un journal unique de trésorerie, un journal de suivi des créances impayées, un journal de suivi des dettes à payer, et la conservation des pièces justificatives. Son jeu d'états ne compte que TROIS documents · le Bilan, le Compte de résultat et les Notes annexes, ces dernières composées du tableau de suivi du matériel, du mobilier et des cautions (NOTE 1), de l'état des stocks (NOTE 2) et de l'état des créances et des dettes non échues (NOTE 3) : pas de tableau des flux de trésorerie, qui est propre au Système normal. En fin d'exercice, le responsable de l'entité procède à un inventaire EXTRA-COMPTABLE de quatre éléments : créances et dettes d'exploitation, stocks et travaux en cours, immobilisations acquises ou cédées, emprunts souscrits ou remboursés. Les immobilisations s'amortissent en mode linéaire SANS prorata temporis, simplification propre au SMT. Il est réservé aux entités dont le chiffre d'affaires hors taxes annuel reste sous 60 millions de F CFA pour le négoce, 40 pour l'artisanat et assimilés, 30 pour les services.",
+    source: 'AUDCIF, art. 11 et 13 · Titre X ch. 1 sections 1 et 2',
   },
 } satisfies Record<string, EntreeLexique>;
 

@@ -137,11 +137,20 @@ comptes, ni états financiers, ni vocabulaire.
 - **SYCEBNL** · complet. Trois jeux d'états (`jeuEtatsFinanciersSycebnl`) :
   associations et ordres professionnels (45 notes), projets de développement
   (26 notes), Système minimal de trésorerie (5 notes).
-- **SYSCOHADA** · niveau 1 seulement, dit « tenue ». Plan de comptes complet
-  (1401 lignes semées), journaux, taxes, immobilisations, éditions comptables.
-  Deux systèmes (`systemeComptableSyscohada`) : normal et SMT, AUDCIF art. 11
-  et 13. **Ses états financiers ne sont pas construits** · leurs fenêtres
-  affichent « en construction » et les routes sont refusées côté serveur.
+- **SYSCOHADA** · complet lui aussi. Tenue : plan de comptes (1401 lignes
+  semées), journaux, taxes, immobilisations, éditions comptables. États
+  financiers : deux systèmes (`systemeComptableSyscohada`), AUDCIF art. 11 et
+  13, l'art. 12 (Système allégé) étant abrogé depuis la révision de 2017.
+  **Système normal** · bilan, compte de résultat et tableau des flux de
+  trésorerie (AUDCIF Titre IX ch. 3 à 5, correspondance postes/comptes du
+  ch. 7), plus les 36 notes annexes du ch. 6 (46 codes, la numérotation
+  n'étant pas continue). **Système minimal de trésorerie** · bilan, compte de
+  résultat et notes 1 à 3, plus le journal de trésorerie (NOTE 4) et le
+  contrôle d'éligibilité de l'art. 13 (Titre X). Rien n'est plus « en
+  construction » : les fenêtres États financiers et Notes annexes aiguillent
+  sur le référentiel du dossier, puis sur son système, vers l'un des quatre
+  écrans (`EtatsFinanciersPage`, `NotesAnnexesPage`, aiguillage en fin de
+  fichier).
 
 Le cloisonnement se fait à DEUX endroits, toujours les deux :
 `referentielsApplicables` côté client (registre des fenêtres, menus) et
@@ -149,8 +158,20 @@ Le cloisonnement se fait à DEUX endroits, toujours les deux :
 refuser laisse la route ouverte à un appel direct.
 
 Propres au SYCEBNL : registre des donateurs, bailleurs, exonérations
-douanières, opérations spécifiques, documents obligatoires, états financiers,
-notes annexes, module groupe.
+douanières, opérations spécifiques, documents obligatoires, module groupe. Les
+documents obligatoires restent SYCEBNL non parce que l'AUDCIF n'en exige pas
+(son art. 19 impose livre-journal, grand-livre, balance générale et livre
+d'inventaire) mais parce que cette fenêtre est montée sur les états et les
+textes du SYCEBNL : son pendant SYSCOHADA reste à écrire.
+
+Propres au SYSCOHADA : résultat fiscal et impôt sur les bénéfices (une entité
+à but non lucratif en est exemptée, loi n° 23/053 art. 5).
+
+Communes aux deux, mais avec un écran par référentiel derrière l'aiguillage :
+états financiers et notes annexes. Les deux jeux ne partagent que les aides
+techniques (`etats-financiers.communs.ts`, `note-annexe.types.ts` côté
+serveur, `components/NotesAnnexesRendu.tsx` côté client) · aucun poste, aucun
+compte, aucun libellé.
 
 ## 7. Conventions du plan de comptes semé
 

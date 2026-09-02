@@ -34,27 +34,11 @@ import type { Compte, LigneFicheRecapitulative, LigneNoteCalculee, NoteCalculee 
  */
 
 /**
- * Tri croissant des codes de note. Les deux référentiels numérotent leurs
- * notes dans l'ordre officiel, mais rien côté serveur ne garantit que
- * `ficheRecapitulative` sorte déjà ainsi (l'ordre de déclaration de la table
- * est libre). Numéro d'abord, puis suffixe.
- *
- * Le suffixe admet des ESPACES, et ce n'est pas de la coquetterie : la liste
- * de l'AUDCIF Titre IX ch. 6 section 2 contient un code « 16B bis ». Avec un
- * suffixe restreint aux lettres, il ne serait reconnu par aucune des deux
- * branches et se retrouverait rejeté en fin de liste, entre la note 36 et
- * rien. Les codes SYCEBNL (« 5A », « 17B », « 29B ») n'ont pas d'espace : ce
- * tri leur rend exactement l'ordre qu'ils avaient.
+ * Tri des codes de note · réexporté depuis `lib/tri-notes.ts` pour que les
+ * deux écrans n'aient qu'un seul import à faire, la fonction elle-même
+ * vivant hors du JSX (elle est testée seule, sans React).
  */
-export function compareCodesNotes(a: string, b: string): number {
-  const decouper = (s: string) => {
-    const m = /^(\d+)\s*([A-Za-z ]*)$/.exec(s);
-    return m ? { num: Number(m[1]), suffixe: m[2].trim() } : { num: Number.MAX_SAFE_INTEGER, suffixe: s };
-  };
-  const pa = decouper(a);
-  const pb = decouper(b);
-  return pa.num !== pb.num ? pa.num - pb.num : pa.suffixe.localeCompare(pb.suffixe);
-}
+export { compareCodesNotes } from '../lib/tri-notes';
 
 /** Montant d'une cellule de note · « · » quand la colonne n'a pas de valeur,
  *  ce qui ne se confond pas avec un zéro comptable. */

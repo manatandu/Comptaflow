@@ -97,8 +97,8 @@ const REFERENTIELS: {
     titre: 'SYSCOHADA révisé',
     sousTitre: 'Entreprises · droit comptable OHADA',
     description:
-      "Entreprises et entités à but lucratif (AUDCIF). Plan de comptes complet et tenue intégrale · " +
-      "les états financiers sont en construction, leurs fenêtres l'indiquent.",
+      "Entreprises et entités à but lucratif (AUDCIF). Plan de comptes complet, tenue intégrale et états " +
+      "financiers des deux systèmes de l'article 11 : Système normal ou Système minimal de trésorerie.",
     disponible: true,
   },
 ];

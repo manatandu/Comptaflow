@@ -6,8 +6,17 @@ import { useAuth } from '../lib/auth';
 import { IconExport, IconCheck } from '../components/chrome/icons';
 import { Aide } from '../components/chrome/Aide';
 import { BlocCertification, EnteteImpression } from '../components/chrome/EnteteImpression';
-import { EnConstructionSyscohada } from '../components/chrome/EnConstructionSyscohada';
 const EtatsSmtPage = lazy(() => import('./EtatsSmtPage').then((m) => ({ default: m.EtatsSmtPage })));
+// Les deux écrans du SYSCOHADA, chargés à la demande comme l'écran S.M.T du
+// SYCEBNL ci-dessus : un dossier n'ouvre jamais que l'un des trois, et les
+// faire venir en eager ferait payer à chaque dossier le poids des jeux des
+// deux autres référentiels (voir registre-fenetres.tsx, même raison).
+const EtatsFinanciersSyscohadaPage = lazy(() =>
+  import('./EtatsFinanciersSyscohadaPage').then((m) => ({ default: m.EtatsFinanciersSyscohadaPage })),
+);
+const EtatsSmtSyscohadaPage = lazy(() =>
+  import('./EtatsSmtSyscohadaPage').then((m) => ({ default: m.EtatsSmtSyscohadaPage })),
+);
 import type {
   Bilan,
   BilanProjet,
@@ -1133,30 +1142,53 @@ function EtatsSystemeNormalPage() {
 }
 
 /**
- * Aiguillage entre les trois jeux d'états financiers SYCEBNL. Le Système
- * Minimal de Trésorerie a son écran propre ; les deux jeux du Système normal
- * partagent celui-ci, qui bascule ses onglets selon le dossier.
+ * AIGUILLAGE DE LA FENÊTRE « ÉTATS FINANCIERS » · elle est commune aux deux
+ * référentiels (le registre ne lui pose pas de `referentielsApplicables`),
+ * et c'est ici que le dossier trouve SON jeu d'états. Quatre destinations,
+ * jamais deux à la fois :
  *
- * L'aiguillage est fait ICI, au-dessus des hooks des deux écrans, et non par
- * un `if` à l'intérieur d'un composant unique : les deux jeux n'appellent pas
- * les mêmes endpoints, et un rendu conditionnel après les hooks les lancerait
- * tous les deux.
+ *   SYCEBNL   · Système normal (associations et ordres professionnels, ou
+ *               projets de développement) · cet écran, qui bascule ses
+ *               onglets sur `jeuEtatsFinanciersSycebnl` ;
+ *   SYCEBNL   · Système Minimal de Trésorerie · `EtatsSmtPage` ;
+ *   SYSCOHADA · Système normal · `EtatsFinanciersSyscohadaPage` (AUDCIF
+ *               Titre IX : bilan, compte de résultat, tableau des flux) ;
+ *   SYSCOHADA · Système minimal de trésorerie · `EtatsSmtSyscohadaPage`
+ *               (AUDCIF Titre X : bilan, compte de résultat, notes 1 à 3).
+ *
+ * Le SYSCOHADA déclare son système dans `systemeComptableSyscohada`
+ * (AUDCIF art. 11 : Système normal ou Système minimal de trésorerie, le
+ * Système allégé de l'art. 12 étant abrogé depuis la révision de 2017) ·
+ * exactement comme le SYCEBNL déclare son jeu. Les deux référentiels ne
+ * partagent aucun poste : ce sont quatre écrans, pas un écran paramétré.
+ *
+ * L'aiguillage est fait ICI, au-dessus des hooks des quatre écrans, et non
+ * par un `if` à l'intérieur d'un composant unique : ils n'appellent pas les
+ * mêmes routes, et un rendu conditionnel placé après les hooks les lancerait
+ * tous.
  */
 export function EtatsFinanciersPage() {
   const { utilisateur, chargement } = useAuth();
-  // Tant que le profil n'est pas chargé, aucun des deux écrans ne doit partir :
+  // Tant que le profil n'est pas chargé, aucun des écrans ne doit partir :
   // le jeu par défaut est celui des associations, et un dossier S.M.T
   // interrogerait d'abord les endpoints du Système normal pour rien.
   if (chargement || !utilisateur) {
     return <div className="p-2.5 text-[11px] text-text-dim">Chargement…</div>;
   }
-  // Les moteurs de cette fenêtre sont ceux de l'Acte uniforme SYCEBNL · voir
-  // EnConstructionSyscohada et le contrôleur serveur, qui refuse pareil.
+  const attente = <div className="p-3 text-[11px] text-text-dim">Chargement…</div>;
   if (utilisateur.tenant.referentiel === 'SYSCOHADA') {
-    return <EnConstructionSyscohada fenetre="États financiers" />;
+    return (
+      <Suspense fallback={attente}>
+        {utilisateur.tenant.systemeComptableSyscohada === 'MINIMAL_TRESORERIE' ? (
+          <EtatsSmtSyscohadaPage />
+        ) : (
+          <EtatsFinanciersSyscohadaPage />
+        )}
+      </Suspense>
+    );
   }
   return utilisateur.tenant.jeuEtatsFinanciersSycebnl === 'SYSTEME_MINIMAL_TRESORERIE' ? (
-    <Suspense fallback={<div className="p-3 text-[11px] text-text-dim">Chargement…</div>}>
+    <Suspense fallback={attente}>
       <EtatsSmtPage />
     </Suspense>
   ) : (

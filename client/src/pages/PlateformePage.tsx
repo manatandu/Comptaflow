@@ -451,7 +451,7 @@ export function PlateformePage() {
                   className="border border-border-dark px-2.5 py-1.5 text-[11px]"
                 >
                   <option value="SYCEBNL">SYCEBNL · entité à but non lucratif</option>
-                  <option value="SYSCOHADA">SYSCOHADA révisé · entreprise (états en construction)</option>
+                  <option value="SYSCOHADA">SYSCOHADA révisé · entreprise</option>
                 </select>
                 {referentielChoisi === 'SYCEBNL' ? (
                   <>

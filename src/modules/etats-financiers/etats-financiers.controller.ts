@@ -29,8 +29,10 @@ const EXERCICE_REQUIS = new ParseUUIDPipe({
 // résultat, TFT, jeu projets, SMT) montent les états de l'Acte uniforme
 // SYCEBNL depuis ses tableaux de correspondance. Les servir à un dossier
 // SYSCOHADA imprimerait des états du mauvais référentiel · la fenêtre client
-// affiche « en construction » (niveau 2 SYSCOHADA à venir), cette garde rend
-// la mention vraie même par appel API direct.
+// aiguille un tel dossier vers son propre écran (voir la fin de
+// EtatsFinanciersPage.tsx), et cette garde rend l'aiguillage vrai même par
+// appel API direct. Le pendant SYSCOHADA est le contrôleur
+// `etats-financiers-syscohada`, gardé symétriquement.
 @ReferentielsAutorises(Referentiel.SYCEBNL)
 @UseGuards(JwtAuthGuard, LicenceGuard, RolesGuard, ReferentielGuard)
 @Controller('etats-financiers')

@@ -5,6 +5,7 @@ import { useExercice } from '../lib/exercice';
 import { useAuth } from '../lib/auth';
 import { IconExport, IconCheck } from '../components/chrome/icons';
 import { Aide } from '../components/chrome/Aide';
+import type { CleLexique } from '../lib/lexique';
 import { BlocCertification, EnteteImpression } from '../components/chrome/EnteteImpression';
 import { LIBELLE_SYSTEME } from '../lib/systemes-syscohada';
 import {
@@ -16,7 +17,7 @@ import {
   type LigneCompteResultatSyscohada,
   type LigneFluxSyscohada,
   type TableauFluxTresorerieSyscohada,
-} from '../lib/types-syscohada';
+} from '../lib/types';
 
 /**
  * ÉTATS FINANCIERS DU SYSCOHADA RÉVISÉ · Système normal.
@@ -65,41 +66,16 @@ const CHEMIN_EXPORT: Record<Onglet, string> = {
 };
 
 /**
- * Aide de l'onglet. Rédigée ici plutôt que dans `lexique.ts` : ce lexique-là
- * est celui du SYCEBNL (son en-tête le dit), et y verser des définitions
- * AUDCIF mélangerait les deux référentiels dans un même fichier. Chaque
- * entrée cite le chapitre du Titre IX dont elle est tirée.
+ * Aide de chaque onglet · les textes vivent dans `lib/lexique.ts`, qui porte
+ * les entrées des DEUX référentiels et cite pour chacune son texte officiel.
+ * Cette table ne fait que dire quelle entrée va avec quel onglet : les clés
+ * SYSCOHADA y sont suffixées, et servir ici une clé SYCEBNL afficherait la
+ * règle d'un autre référentiel sur un état déposable (CLAUDE.md §6).
  */
-const AIDE_ONGLET: Record<Onglet, { titre: string; texte: string; source: string }> = {
-  bilan: {
-    titre: 'Bilan du Système normal',
-    texte:
-      "État de synthèse qui décrit en termes d'actif et de passif la situation patrimoniale de l'entité à une date donnée. Le Système comptable OHADA préconise un bilan AVANT répartition du résultat et un classement FONCTIONNEL en six grandes masses : actif immobilisé face aux capitaux propres et dettes financières, actif circulant face au passif circulant, trésorerie-actif face à trésorerie-passif. L'actif se lit en trois colonnes (brut, amortissements et dépréciations, net) et le passif en net seulement.",
-    source: 'AUDCIF, Titre IX ch. 3 sections 1 et 2',
-  },
-  'compte-de-resultat': {
-    titre: 'Compte de résultat du Système normal',
-    texte:
-      "Il recense pour la période les ressources produites et les charges consommées, en deux rubriques : activité ordinaire (exploitation et financier) et activité hors activités ordinaires. Leur différence donne le résultat de l'exercice, bénéfice ou perte. Le Plan Comptable OHADA le présente EN LISTE pour mettre en cascade les soldes intermédiaires de gestion : marge commerciale, valeur ajoutée, excédent brut d'exploitation, résultat d'exploitation, résultat financier, résultat des activités ordinaires, résultat H.A.O. et résultat net.",
-    source: 'AUDCIF, Titre IX ch. 4 sections 1 et 2',
-  },
-  'flux-tresorerie': {
-    titre: 'Tableau des flux de trésorerie',
-    texte:
-      "Il présente les entrées et sorties de trésorerie et d'équivalents de trésorerie en trois catégories : activités opérationnelles, activités d'investissement, activités de financement. Le point d'entrée est la capacité d'autofinancement globale, calculée À PARTIR DE L'EXCÉDENT BRUT D'EXPLOITATION et non du résultat net : c'est une méthode indirecte. Le seul bouclage imposé par le modèle est le contrôle de ZH, qui doit égaler la trésorerie-actif moins la trésorerie-passif du bilan.",
-    source: 'AUDCIF, Titre IX ch. 5 sections 1 et 2',
-  },
-};
-
-/**
- * Le jeu complet, rappelé au-dessus des onglets. C'est la mention qui évite
- * qu'on dépose un bilan seul en croyant avoir déposé des états financiers.
- */
-const AIDE_JEU_COMPLET = {
-  titre: "Jeu complet d'états financiers annuels",
-  texte:
-    "« Un jeu complet d'états financiers annuels comprend le Bilan, le Compte de résultat, le Tableau des flux de trésorerie ainsi que les Notes annexes. » Les états financiers forment un TOUT INDISSOCIABLE : les trois onglets de cette fenêtre plus les notes annexes, jamais l'un sans les autres. Ils sont présentés de façon à permettre leur comparaison dans le temps, exercice par exercice, d'où la colonne N-1 de chaque état.",
-  source: 'AUDCIF, art. 8',
+const AIDE_ONGLET: Record<Onglet, CleLexique> = {
+  bilan: 'bilanSyscohada',
+  'compte-de-resultat': 'compteResultatSyscohada',
+  'flux-tresorerie': 'tftSyscohada',
 };
 
 function EtatsSyscohadaSystemeNormal() {
@@ -381,7 +357,7 @@ function EtatsSyscohadaSystemeNormal() {
           <div className="text-[10px] font-mono text-text-dim leading-none">ÉTAT</div>
           <h1 className="text-[12px] font-bold leading-tight flex items-center gap-1.5">
             États financiers
-            <Aide {...AIDE_JEU_COMPLET} />
+            <Aide sujet="jeuEtatsSyscohada" />
           </h1>
           <div className="text-[10px] text-text-dim mt-0.5">
             SYSCOHADA révisé · Système normal <Aide sujet="systemeSyscohada" /> ·{' '}
@@ -471,7 +447,7 @@ function EtatsSyscohadaSystemeNormal() {
       {/* La définition AUDCIF de l'état affiché, à portée de clic. */}
       <div className="ecran-seul flex items-center gap-1.5 border-x border-t border-border bg-surface px-4 pt-2 text-[10px] text-text-dim">
         <span>Ce que dit le référentiel</span>
-        <Aide {...AIDE_ONGLET[onglet]} />
+        <Aide sujet={AIDE_ONGLET[onglet]} />
       </div>
 
       {/* ------------------------------------------------------------------ */}

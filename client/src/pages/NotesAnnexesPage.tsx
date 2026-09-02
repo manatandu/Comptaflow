@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useExercice } from '../lib/exercice';
 import { useAuth } from '../lib/auth';
@@ -6,7 +6,12 @@ import { IconExport } from '../components/chrome/icons';
 import type { Compte, JeuNotesAnnexes, ResultatNotesJeu } from '../lib/types';
 import { Aide } from '../components/chrome/Aide';
 import { BlocCertification, EnteteImpression } from '../components/chrome/EnteteImpression';
-import { EnConstructionSyscohada } from '../components/chrome/EnConstructionSyscohada';
+// Écran jumeau du SYSCOHADA · chargé à la demande : un dossier n'ouvre que
+// l'un des deux, et les 36 notes du Titre IX n'ont rien à faire dans le
+// bundle d'un dossier SYCEBNL (même raison que registre-fenetres.tsx).
+const NotesAnnexesSyscohadaPage = lazy(() =>
+  import('./NotesAnnexesSyscohadaPage').then((m) => ({ default: m.NotesAnnexesSyscohadaPage })),
+);
 // Rendu partagé avec l'écran SYSCOHADA · voir NotesAnnexesRendu.tsx : seule
 // la forme d'une NoteCalculee y est connue, aucune note ni aucun compte.
 import {
@@ -37,8 +42,11 @@ import {
  *    dans note-annexe.types.ts). D'où l'usage de `note.rubriquesEnAttente`
  *    (calculé indépendamment de `applicable`) plutôt que de dériver la liste
  *    depuis `note.lignes`, qui peut être vide.
+ *
+ * Cet écran ne sert QUE les dossiers SYCEBNL · l'aiguillage vers l'écran
+ * SYSCOHADA est en fin de fichier, au-dessus des hooks des deux écrans.
  */
-export function NotesAnnexesPage() {
+function NotesAnnexesSycebnlPage() {
   const { exerciceCourant } = useExercice();
   const { utilisateur, estAdmin } = useAuth();
   const jeuProjet = utilisateur?.tenant.jeuEtatsFinanciersSycebnl === 'PROJETS_DEVELOPPEMENT';
@@ -59,22 +67,17 @@ export function NotesAnnexesPage() {
   const [compteChoisi, setCompteChoisi] = useState<Record<string, string>>({});
   const [enCours, setEnCours] = useState<string | null>(null); // "codeNote::cle::compteId" en cours d'envoi
 
-  // Dossier SYSCOHADA : rien à charger, le serveur refuse de toute façon ces
-  // routes (ReferentielGuard) · voir l'écran « en construction » ci-dessous.
-  const referentielSyscohada = utilisateur?.tenant.referentiel === 'SYSCOHADA';
-
   // Jeu de notes visé par un rattachement · distinct du jeu d'états du
   // dossier (voir `JeuNotesAnnexes`). Le serveur refuse un jeu étranger au
   // référentiel : le calculer ici plutôt que de répéter deux littéraux
-  // évite qu'un des deux appels parte avec le mauvais.
-  const jeuRattachement: JeuNotesAnnexes = referentielSyscohada
-    ? 'SYSCOHADA_SYSTEME_NORMAL'
-    : jeuProjet
-      ? 'PROJETS_DEVELOPPEMENT'
-      : 'ASSOCIATIONS_ORDRES_PROFESSIONNELS';
+  // évite qu'un des deux appels parte avec le mauvais. Le jeu SYSCOHADA
+  // n'apparaît pas ici · il appartient à l'écran SYSCOHADA, qui l'envoie.
+  const jeuRattachement: JeuNotesAnnexes = jeuProjet
+    ? 'PROJETS_DEVELOPPEMENT'
+    : 'ASSOCIATIONS_ORDRES_PROFESSIONNELS';
 
   const charger = () => {
-    if (jeuSmt || referentielSyscohada) return; // aucun catalogue de notes du Système normal à charger
+    if (jeuSmt) return; // aucun catalogue de notes du Système normal à charger
     if (!exerciceCourant || !utilisateur) return; // même garde qu'EtatsFinanciersPage : utilisateur null au tout premier rendu.
     api
       .get<ResultatNotesJeu>(`/notes-annexes/${chemin}?exerciceId=${exerciceCourant.id}`)
@@ -179,10 +182,6 @@ export function NotesAnnexesPage() {
     detacher,
   };
 
-  if (referentielSyscohada) {
-    return <EnConstructionSyscohada fenetre="Notes annexes" />;
-  }
-
   // Dossier au Système minimal de trésorerie : cette fenêtre n'a pas de
   // catalogue à lui présenter. Ses cinq notes sont dans l'écran des états
   // financiers, où elles sont servies directement (Partie 4, ch. 4, Section 3).
@@ -286,4 +285,40 @@ export function NotesAnnexesPage() {
       <BlocCertification />
     </div>
   );
+}
+
+/**
+ * AIGUILLAGE DE LA FENÊTRE « NOTES ANNEXES » · elle est commune aux deux
+ * référentiels, et chacun a SA liste de notes, servie par SA route :
+ *
+ *   SYCEBNL   · 35 notes des associations et ordres professionnels, ou 24
+ *               notes des projets de développement · l'écran ci-dessus ;
+ *   SYSCOHADA · les 36 notes du Système normal (AUDCIF Titre IX ch. 6),
+ *               dont l'écran porte aussi la garde du Système minimal de
+ *               trésorerie, qui relève du Titre X et non de cette liste.
+ *
+ * L'aiguillage est fait ICI, au-dessus des hooks des deux écrans : ils
+ * n'appellent ni les mêmes routes de chargement, ni les mêmes routes
+ * d'export, ni le même jeu de rattachement, et un rendu conditionnel placé
+ * après les hooks les lancerait tous les deux (un 403 rouge à la clé).
+ * Le verrou client double celui du serveur, jamais l'inverse : les routes
+ * SYSCOHADA sont refusées à un dossier SYCEBNL par `@ReferentielsAutorises`
+ * et réciproquement (CLAUDE.md §6).
+ */
+export function NotesAnnexesPage() {
+  const { utilisateur, chargement } = useAuth();
+  // Tant que le profil n'est pas chargé, aucun des deux écrans ne part : le
+  // référentiel n'est pas encore connu, et interroger la mauvaise route ne
+  // produirait qu'un 403 affiché en rouge.
+  if (chargement || !utilisateur) {
+    return <div className="p-2.5 text-[11px] text-text-dim">Chargement…</div>;
+  }
+  if (utilisateur.tenant.referentiel === 'SYSCOHADA') {
+    return (
+      <Suspense fallback={<div className="p-3 text-[11px] text-text-dim">Chargement…</div>}>
+        <NotesAnnexesSyscohadaPage />
+      </Suspense>
+    );
+  }
+  return <NotesAnnexesSycebnlPage />;
 }

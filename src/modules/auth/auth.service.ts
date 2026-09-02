@@ -52,14 +52,16 @@ export class AuthService {
     }
 
     // Les DEUX référentiels se sèment désormais (SYCEBNL depuis l'origine,
-    // SYSCOHADA « niveau tenue » depuis compte-seed-syscohada.ts) · le refus
-    // historique du SYSCOHADA est levé. Restent propres au SYCEBNL : les
-    // états financiers, notes annexes et documents dérivés, cloisonnés par
-    // @ReferentielsAutorises côté serveur et affichés « en construction »
-    // côté client tant que le niveau 2 SYSCOHADA n'est pas construit · un
-    // dossier SYSCOHADA se TIENT complètement (plan, journaux, taxes,
-    // immobilisations, éditions comptables), il ne s'IMPRIME pas encore en
-    // liasse.
+    // SYSCOHADA depuis compte-seed-syscohada.ts) · le refus historique du
+    // SYSCOHADA est levé. Un dossier SYSCOHADA se TIENT et s'IMPRIME
+    // complètement : plan, journaux, taxes, immobilisations, éditions, puis
+    // les états des deux systèmes de l'AUDCIF art. 11 (Système normal du
+    // Titre IX, Système minimal de trésorerie du Titre X) et les notes
+    // annexes du Titre IX ch. 6, servis par leur PROPRE contrôleur
+    // (etats-financiers-syscohada). Chaque jeu reste cloisonné sur son
+    // référentiel par @ReferentielsAutorises : les deux ne partagent aucun
+    // poste, aucun compte, aucun libellé. Restent propres au SYCEBNL les
+    // documents obligatoires et les fenêtres bâties sur ses textes.
     const tenant = await this.tenantService.creerTenant({
       nom: dto.nomEntite,
       referentiel: dto.referentiel,
@@ -201,6 +203,14 @@ export class AuthService {
         jeuEtatsFinanciersSycebnl: user.tenant.jeuEtatsFinanciersSycebnl,
         // Pendant SYSCOHADA · null pour un dossier SYCEBNL (voir le schéma).
         systemeComptableSyscohada: user.tenant.systemeComptableSyscohada,
+        // Monnaie de tenue du dossier · portée jusqu'au front pour l'en-tête
+        // d'impression : « l'unité monétaire dans laquelle sont exprimés les
+        // états financiers » est l'une des trois mentions que les états
+        // doivent comporter obligatoirement, et elle doit figurer « dans
+        // chacune des pages des états financiers publiés » (AUDCIF Titre IX
+        // ch. 1 § 2.4). Nullable : un dossier ancien peut ne pas la porter,
+        // l'en-tête omet alors la mention au lieu d'inventer une monnaie.
+        devise: user.tenant.devise,
         // Porté jusqu'au front pour l'en-tête d'impression : le n° impôt doit
         // figurer sur chaque page d'un état déposé (CPCC, § 7.4 règle 7-a).
         numeroImpot: user.tenant.numeroImpot,

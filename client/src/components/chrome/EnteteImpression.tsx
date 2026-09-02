@@ -1,5 +1,6 @@
 import { useAuth } from '../../lib/auth';
 import { useExercice } from '../../lib/exercice';
+import { LIBELLE_SYSTEME } from '../../lib/systemes-syscohada';
 
 /**
  * En-tête officiel des états imprimés · invisible à l'écran, présent sur
@@ -20,6 +21,26 @@ import { useExercice } from '../../lib/exercice';
  * n'est imprimé que si le dossier le porte (Structure > Paramètres du
  * dossier) : une association qui ne l'a pas encore obtenu doit pouvoir
  * imprimer ses états de travail. Voir docs/organisation-comptable-cpcc.md.
+ *
+ * UN DOSSIER SYSCOHADA EXIGE LES MÊMES MENTIONS, et le texte de l'AUDCIF les
+ * répète mot pour mot : l'en-tête obligatoire des modèles du Titre IX (ch. 3
+ * section 2 pour le bilan, ch. 4 section 2 pour le compte de résultat) et
+ * celui du Titre X pour le Système minimal de trésorerie s'écrivent
+ * « Désignation entité … / Numéro d'identification … / Exercice clos le
+ * 31-12-… / Durée (en mois) … ». Les quatre sont ci-dessous, et la fiche R1
+ * du ch. 2 les reprend à l'identique.
+ *
+ * S'y ajoute, pour les deux référentiels, l'unité monétaire : les états
+ * financiers « doivent comporter obligatoirement » le nom de l'entité, la
+ * date d'arrêté et la période couverte, et l'unité monétaire dans laquelle
+ * ils sont exprimés, « dans chacune des pages des états financiers publiés »
+ * (Titre IX ch. 1 § 2.4). D'où la ligne de monnaie, servie par /auth/me.
+ *
+ * Enfin, le référentiel ne suffit pas à nommer un état SYSCOHADA : la page de
+ * garde du ch. 2 porte la mention « SYSTÈME NORMAL », et les deux systèmes de
+ * l'art. 11 n'ont ni les mêmes états ni les mêmes maquettes (Titre IX contre
+ * Titre X). Le système est donc imprimé à côté du référentiel, comme le jeu
+ * d'états l'est pour un dossier SYCEBNL.
  */
 export function EnteteImpression({ titre, sousTitre }: { titre: string; sousTitre?: string }) {
   const { utilisateur } = useAuth();
@@ -43,6 +64,9 @@ export function EnteteImpression({ titre, sousTitre }: { titre: string; sousTitr
     ASSOCIATIONS_ORDRES_PROFESSIONNELS: 'Associations et ordres professionnels',
   };
   const jeu = JEUX[tenant?.jeuEtatsFinanciersSycebnl ?? ''] ?? JEUX.ASSOCIATIONS_ORDRES_PROFESSIONNELS;
+  // Système d'un dossier SYSCOHADA · non renseigné, rien n'est imprimé plutôt
+  // que d'affirmer un système que le dossier n'a pas déclaré.
+  const systeme = tenant?.systemeComptableSyscohada ? LIBELLE_SYSTEME[tenant.systemeComptableSyscohada] : null;
 
   return (
     <header className="impression-seul mb-4 pb-2 border-b-2 border-black">
@@ -52,8 +76,10 @@ export function EnteteImpression({ titre, sousTitre }: { titre: string; sousTitr
           <div className="text-[10px]">
             Référentiel {tenant?.referentiel}
             {tenant?.referentiel === 'SYCEBNL' && ` · ${jeu}`}
+            {tenant?.referentiel === 'SYSCOHADA' && systeme && ` · ${systeme}`}
           </div>
-          {tenant?.numeroImpot && <div className="text-[10px]">N° impôt {tenant.numeroImpot}</div>}
+          {tenant?.numeroImpot && <div className="text-[10px]">N° d'identification fiscale {tenant.numeroImpot}</div>}
+          {tenant?.devise && <div className="text-[10px]">Montants exprimés en {tenant.devise}</div>}
         </div>
         <div className="text-right">
           <div className="text-[13px] font-bold">{titre}</div>

@@ -206,11 +206,22 @@ export function AppShell() {
         ...((utilisateur?.tenant.nombreCellules ?? 0) > 0
           ? [{ label: 'Balance agrégée du groupe', onClick: () => navigate('/groupe') }]
           : []),
-        // États financiers et Notes annexes restent VISIBLES pour un dossier
-        // SYSCOHADA : leur fenêtre explique « en construction » (niveau 2 à
-        // venir), une entrée disparue ressemblerait à un oubli. Les documents
-        // obligatoires, eux, sont masqués : leur contenu est monté sur les
-        // états SYCEBNL et n'a pas d'équivalent à annoncer.
+        // États financiers et Notes annexes servent les DEUX référentiels :
+        // chaque fenêtre aiguille sur le référentiel du dossier et, pour un
+        // dossier SYSCOHADA, sur son système (AUDCIF art. 11 · Système normal
+        // ou Système minimal de trésorerie). Voir l'aiguillage en fin de
+        // EtatsFinanciersPage.tsx et de NotesAnnexesPage.tsx · plus rien n'est
+        // « en construction » derrière ces deux entrées.
+        //
+        // Les documents obligatoires, eux, restent MASQUÉS pour un dossier
+        // SYSCOHADA · non que le référentiel n'en exige pas (l'AUDCIF art. 19
+        // impose le livre-journal, le grand-livre, la balance générale et le
+        // livre d'inventaire, ce dernier transcrivant le Bilan, le Compte de
+        // résultat et le Tableau des flux), mais parce que cette fenêtre-ci
+        // est montée sur les états et les textes du SYCEBNL (art. 14 et 16-3).
+        // La montrer imprimerait à une entreprise les documents d'une ASBL ·
+        // son pendant SYSCOHADA reste à écrire, et le serveur refuse déjà ses
+        // routes à un dossier SYSCOHADA (ReferentielGuard).
         { label: 'États financiers', separateurAvant: true, onClick: () => navigate('/etats-financiers') },
         { label: 'Notes annexes', onClick: () => navigate('/notes-annexes') },
         ...(estSycebnl

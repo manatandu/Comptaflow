@@ -5,16 +5,16 @@ import { useExercice } from '../lib/exercice';
 import { IconCheck, IconExport } from '../components/chrome/icons';
 import { Aide } from '../components/chrome/Aide';
 import { BlocCertification, EnteteImpression } from '../components/chrome/EnteteImpression';
-import type { CompteDuPoste } from '../lib/types';
 import type {
   BilanSmtSyscohada,
   CompteDeResultatSmtSyscohada,
+  CompteDuPoste,
   EligibiliteSmtSyscohada,
   JournalTresorerieSmtSyscohada,
   Note4SmtSyscohada,
   NotesSmtSyscohada,
   PosteSmtSyscohada,
-} from '../lib/types-smt-syscohada';
+} from '../lib/types';
 
 /**
  * ÉTATS FINANCIERS DU SYSTÈME MINIMAL DE TRÉSORERIE · SYSCOHADA RÉVISÉ
@@ -101,6 +101,18 @@ const ONGLETS: { cle: Onglet; libelle: string }[] = [
   { cle: 'eligibilite', libelle: 'ÉLIGIBILITÉ' },
 ];
 
+/**
+ * OÙ EST LE VERROU DE RÉFÉRENTIEL DE CET ÉCRAN · il n'est pas ici, et ce
+ * n'est pas un oubli : l'écran n'est monté que par l'aiguillage en fin de
+ * `EtatsFinanciersPage`, qui a déjà vérifié `tenant.referentiel` ET
+ * `tenant.systemeComptableSyscohada` avant d'appeler ses hooks. Le doubler
+ * ici ferait un second `useAuth` pour rien.
+ *
+ * Conséquence à tenir : ne PAS déclarer cet écran directement dans le
+ * registre des fenêtres sans lui donner sa propre garde · côté client, ce
+ * serait la seule (côté serveur, le contrôleur refuse déjà ses routes à un
+ * dossier SYCEBNL, `@ReferentielsAutorises(SYSCOHADA)`, CLAUDE.md §6).
+ */
 export function EtatsSmtSyscohadaPage() {
   const { exerciceCourant } = useExercice();
   const navigate = useNavigate();
@@ -276,7 +288,7 @@ export function EtatsSmtSyscohadaPage() {
             <Aide sujet="systemeSyscohada" />
           </h1>
           <div className="text-[10px] text-text-dim mt-0.5">
-            Système minimal de trésorerie ·{' '}
+            Système minimal de trésorerie <Aide sujet="smtSyscohada" /> ·{' '}
             <button onClick={() => navigate('/parametres-dossier')} className="underline hover:text-sel">
               paramètres du dossier
             </button>

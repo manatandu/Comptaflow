@@ -71,8 +71,12 @@ export interface DefinitionFenetre extends MetaFenetre {
    * référentiels (comptabilité générale, immobilisations, trésorerie…).
    * Présent = fenêtre propre à un référentiel, invisible pour l'autre · le
    * registre des donateurs (art. 17-18 SYCEBNL) n'a pas de sens pour un
-   * dossier d'entreprise, et l'inverse viendra avec les premiers modules
-   * SYSCOHADA (Gestion commerciale). Le serveur applique la même règle
+   * dossier d'entreprise, et l'impôt sur les bénéfices n'en a pas pour une
+   * ASBL, qui en est exemptée (loi n° 23/053 art. 5). Une fenêtre commune aux
+   * deux, comme les états financiers ou les notes annexes, reste SANS
+   * `referentielsApplicables` : c'est la page elle-même qui aiguille vers
+   * l'écran du référentiel du dossier, puis de son système. Le serveur
+   * applique la même règle
    * (`ReferentielGuard`) : ceci cache la fenêtre, lui empêche d'y accéder
    * même par un appel direct. Voir `docs/plan-de-construction.md` §8.
    */
@@ -187,7 +191,12 @@ export const FENETRES: DefinitionFenetre[] = [
   },
   {
     // Livre d'inventaire et rapport d'activité montés sur les états SYCEBNL
-    // (art. 14 et 16-3) · le pendant SYSCOHADA viendra avec ses états.
+    // (art. 14 et 16-3). Reste SYCEBNL même depuis que les états SYSCOHADA
+    // existent : l'AUDCIF impose bien ces livres (art. 19 · livre-journal,
+    // grand-livre, balance générale, livre d'inventaire) mais cette fenêtre
+    // est montée sur les textes du SYCEBNL, et son pendant SYSCOHADA reste à
+    // écrire · la montrer imprimerait à une entreprise les documents d'une
+    // ASBL.
     motif: /^\/documents-obligatoires$/,
     titre: 'Documents obligatoires',
     titreCourt: 'Doc. obligatoires',
