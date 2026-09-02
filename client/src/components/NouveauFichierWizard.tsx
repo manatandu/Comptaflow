@@ -36,7 +36,16 @@ type CleEtape =
 const LIBELLE_ETAPE: Record<CleEtape, string> = {
   referentiel: 'Référentiel',
   systeme: 'Système comptable',
-  raisonSociale: 'Raison sociale',
+  // « DÉNOMINATION » ET NON « RAISON SOCIALE », dans les deux référentiels ·
+  // AUSCGIE art. 17 (« La dénomination sociale doit figurer sur tous les actes
+  // et documents émanant de la société ») et loi n° 004/2001 art. 7, 1° (« la
+  // dénomination suivie ou précédée des mots association sans but lucratif »)
+  // et art. 16 (« doivent mentionner la dénomination sociale »). La « raison
+  // sociale » désigne en droit des sociétés le nom formé du nom des associés,
+  // propre aux sociétés de personnes · le terme ne convient à aucun des deux
+  // référentiels. La clé interne `raisonSociale` reste inchangée : c'est un
+  // identifiant de formulaire, pas un texte lu par quelqu'un.
+  raisonSociale: 'Dénomination',
   coordonnees: 'Coordonnées',
   exercice: 'Exercice',
   monnaie: 'Monnaie',
@@ -258,7 +267,7 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
   const derniereEtape = cle === 'connexion';
   const peutAvancer =
     // Les écrans à choix portent toujours une valeur : rien à valider. Seuls
-    // la raison sociale et les identifiants sont exigés.
+    // la dénomination et les identifiants sont exigés.
     cle === 'raisonSociale'
       ? form.nomEntite.trim().length > 0
       : derniereEtape
@@ -566,7 +575,7 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
 
                 {cle === 'raisonSociale' && (
                   <>
-                    <h2 className="text-[13px] font-bold mb-1.5">Indiquez la raison sociale de l'entité</h2>
+                    <h2 className="text-[13px] font-bold mb-1.5">Indiquez la dénomination de l'entité</h2>
                     <p className="text-[11px] text-text-dim leading-[1.6] mb-5">
                       Telle qu'elle figure aux statuts : elle sera portée en tête de chaque état imprimé, et c'est
                       sous ce nom que le dossier s'ouvrira.

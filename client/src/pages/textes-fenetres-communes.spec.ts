@@ -78,6 +78,21 @@ describe('Textes des fenêtres communes aux deux référentiels', () => {
     expect(lire('pages/DevisesPage.tsx')).not.toContain('Aucune devise. Une association');
   });
 
+  it('nomme la DÉNOMINATION, jamais la « raison sociale »', () => {
+    // Les deux textes disent « dénomination » · AUSCGIE art. 17 (« La
+    // dénomination sociale doit figurer sur tous les actes et documents
+    // émanant de la société ») et loi n° 004/2001 art. 7, 1° et art. 16
+    // (« doivent mentionner la dénomination sociale »). La « raison sociale »
+    // désigne en droit des sociétés le nom formé du nom des associés : elle
+    // ne convient à aucun des deux référentiels. Aucune branche ici, donc ·
+    // le terme est le même des deux côtés, c'est le mot choisi qui était faux.
+    for (const fichier of ['pages/ParametresDossierPage.tsx', 'components/NouveauFichierWizard.tsx']) {
+      const source = lire(fichier);
+      expect(source).not.toMatch(/[Rr]aison sociale/);
+      expect(source).toMatch(/[Dd]énomination/);
+    }
+  });
+
   it('la console de plateforme n’annonce pas le plan SYCEBNL quand SYSCOHADA est choisi', () => {
     // Le référentiel est choisi juste au-dessus dans le même formulaire · la
     // phrase doit le reprendre, pas l'écrire en dur.

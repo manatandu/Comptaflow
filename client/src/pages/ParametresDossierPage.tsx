@@ -134,7 +134,7 @@ export function ParametresDossierPage() {
   const [info, setInfo] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
 
-  // Raison sociale et coordonnées · modifiables depuis la correction du
+  // Dénomination et coordonnées · modifiables depuis la correction du
   // 2026-09-01 (elles étaient figées à la création, voir
   // TenantService.modifierCoordonnees).
   const [nom, setNom] = useState('');
@@ -373,7 +373,7 @@ export function ParametresDossierPage() {
     // class-validator arriverait sous la forme « nom must be longer than or
     // equal to 1 characters », que personne n'a à lire.
     if (nom.trim() === '') {
-      setErreur('La raison sociale ne peut pas être vide : elle figure en tête de chaque état financier.');
+      setErreur('La dénomination ne peut pas être vide : elle figure en tête de chaque état financier.');
       return;
     }
     setEnvoi(true);
@@ -485,13 +485,13 @@ export function ParametresDossierPage() {
                   documents qu'il signe. */}
               <form onSubmit={enregistrerCoordonnees} className="flex flex-col gap-3">
                 <div>
-                  <Ligne label="Raison sociale" large>
+                  <Ligne label="Dénomination sociale" large>
                     <input
                       value={nom}
                       onChange={(e) => setNom(e.target.value)}
                       disabled={!estAdmin || envoi}
                       maxLength={200}
-                      aria-label="Raison sociale"
+                      aria-label="Dénomination sociale"
                       className={champSage}
                     />
                   </Ligne>
