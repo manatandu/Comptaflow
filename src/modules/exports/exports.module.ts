@@ -8,9 +8,24 @@ import { EtatsFinanciersModule } from '../etats-financiers/etats-financiers.modu
 import { NotesAnnexesModule } from '../notes-annexes/notes-annexes.module';
 import { RegistreDonateursModule } from '../registre-donateurs/registre-donateurs.module';
 import { DocumentsObligatoiresModule } from '../documents-obligatoires/documents-obligatoires.module';
+import { EtatsFinanciersSyscohadaModule } from '../etats-financiers-syscohada/etats-financiers-syscohada.module';
 
 @Module({
-  imports: [LicenceModule, JwtAuthModule, ComptabiliteModule, EtatsFinanciersModule, NotesAnnexesModule, RegistreDonateursModule, DocumentsObligatoiresModule],
+  // `EtatsFinanciersSyscohadaModule` fournit les DEUX moteurs SYSCOHADA
+  // (Système normal, Titre IX · Système minimal de trésorerie, Titre X) que
+  // les exports et la liasse SYSCOHADA consomment. Il est importé en entier
+  // et non recréé ici : un second moteur d'états serait un second endroit où
+  // un poste peut diverger de sa table de correspondance.
+  imports: [
+    LicenceModule,
+    JwtAuthModule,
+    ComptabiliteModule,
+    EtatsFinanciersModule,
+    EtatsFinanciersSyscohadaModule,
+    NotesAnnexesModule,
+    RegistreDonateursModule,
+    DocumentsObligatoiresModule,
+  ],
   controllers: [ExportController],
   providers: [ExportService],
   // Exporté pour GroupeModule : la liasse du groupe en un clic reverse la

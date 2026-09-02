@@ -13,6 +13,18 @@ import {
   styleLigne,
   titreEtat,
 } from './theme-etafi';
+import {
+  POSTES_ACTIF_SYSCOHADA,
+  POSTES_PASSIF_SYSCOHADA,
+  TOTAUX_ACTIF_SYSCOHADA,
+  TOTAUX_PASSIF_SYSCOHADA,
+} from '../etats-financiers-syscohada/correspondance-bilan-syscohada';
+import {
+  POSTES_COMPTE_RESULTAT_SYSCOHADA,
+  resoudreRenvoiNote,
+  SOLDES_INTERMEDIAIRES,
+} from '../etats-financiers-syscohada/correspondance-compte-resultat-syscohada';
+import { TOTAUX_FLUX_SYSCOHADA } from '../etats-financiers-syscohada/correspondance-tft-syscohada';
 
 /**
  * FEUILLES D'ÉTAT « ETAFI » · la disposition commune des états financiers du
@@ -421,3 +433,170 @@ export const NIVEAUX_TER: Record<string, NiveauLigne> = {
 
 export const NIVEAUX_RECONCILIATION: Record<string, NiveauLigne> = { G: 'section', I: 'general' };
 
+
+// ---------------------------------------------------------------------------
+// Jeu SYSCOHADA révisé · Système normal (AUDCIF Titre IX)
+// ---------------------------------------------------------------------------
+//
+// RIEN n'est repris du SYCEBNL ici : autres postes, autres codes, autres
+// renvois de notes, autres articles. Seule la MISE EN PAGE est commune (la
+// charte ETAFI et `construireFeuilleEtat` ci-dessus), comme le sont les
+// aides techniques de `etats-financiers.communs.ts` et le moteur déclaratif
+// de notes · CLAUDE.md §6.
+//
+// Les quatre tables qui suivent sont DÉRIVÉES des tables de correspondance
+// SYSCOHADA, jamais retranscrites : un renvoi de note ou une formule de
+// totalisation recopié ici vivrait sa vie et finirait par contredire l'état
+// que le serveur calcule, sans qu'aucun test ne le voie. La source reste
+// `correspondance-bilan-syscohada.ts`, `correspondance-compte-resultat-
+// syscohada.ts` et `correspondance-tft-syscohada.ts`, qui portent chacune
+// leur citation de l'AUDCIF et leur section ANOMALIES.
+
+
+/**
+ * TOTAUX du Système normal SYSCOHADA · bilan (AD, AI, AQ, AZ, BG, BK, BT, BZ
+ * à l'actif ; CP, DD, DF, DP, DT, DZ au passif · AUDCIF Titre IX ch. 3
+ * section 2) et soldes intermédiaires XA à XI (ch. 4 section 2).
+ *
+ * Chaque expression est la liste des `deRefs` de la table, jointe par « + ».
+ * Ce sont des SOMMES et rien d'autre, y compris au compte de résultat :
+ * « Les postes de charges (préfixe R) sont saisis en négatif ; les formules
+ * de totalisation sont des sommes, jamais des différences. XA = TA + RA + RB,
+ * avec RA et RB négatifs. […] ne jamais soustraire deux fois » (ch. 4
+ * section 2, logique de signe). Le serveur sert les montants dans cette même
+ * convention (`montantSigne` = crédit − débit, charge comprise), donc la
+ * formule Excel se lit littéralement.
+ *
+ * C'est L'INVERSE de la convention du jeu associations SYCEBNL, où les
+ * charges sont présentées en positif et où XC s'écrit « XA − XB » : ne pas
+ * transposer une formule d'un jeu à l'autre.
+ */
+export const TOTAUX_SYSCOHADA: Record<string, string> = (() => {
+  const table: Record<string, string> = {};
+  for (const t of [...TOTAUX_ACTIF_SYSCOHADA, ...TOTAUX_PASSIF_SYSCOHADA]) table[t.ref] = t.deRefs.join('+');
+  for (const s of SOLDES_INTERMEDIAIRES) table[s.ref] = s.deRefs.join('+');
+  return table;
+})();
+
+/**
+ * Niveau visuel de chaque ligne remarquable du bilan et du compte de résultat.
+ *
+ * La hiérarchie suit la GRAISSE du modèle officiel (ch. 3 et ch. 4 section 2,
+ * qui impriment en gras les rubriques en capitales et toutes les lignes de
+ * totalisation) :
+ *  - `rubrique` · les rubriques en capitales du modèle, qu'elles totalisent
+ *    (AD, AI, AQ, BG) ou qu'elles portent directement leurs comptes
+ *    (AP, BA, BB, BU, DV) ;
+ *  - `inter` · CP et DD, que DF additionne ; les soldes en cascade XA à XF
+ *    et XH ;
+ *  - `section` · les totaux de masse (AZ, BK, BT, DF, DP, DT) et XG, terme du
+ *    « résultat courant » ;
+ *  - `general` · BZ et DZ (« TOTAL GÉNÉRAL ») et XI (« RÉSULTAT NET »).
+ */
+export const NIVEAUX_ETAT_SYSCOHADA: Record<string, NiveauLigne> = {
+  // Bilan · actif (ch. 3 section 2).
+  AD: 'rubrique',
+  AI: 'rubrique',
+  AP: 'rubrique',
+  AQ: 'rubrique',
+  AZ: 'section',
+  BA: 'rubrique',
+  BB: 'rubrique',
+  BG: 'rubrique',
+  BK: 'section',
+  BT: 'section',
+  BU: 'rubrique',
+  BZ: 'general',
+  // Bilan · passif.
+  CP: 'inter',
+  DD: 'inter',
+  DF: 'section',
+  DP: 'section',
+  DT: 'section',
+  DV: 'rubrique',
+  DZ: 'general',
+  // Compte de résultat · les neuf lignes X* (ch. 4 section 2).
+  XA: 'inter',
+  XB: 'inter',
+  XC: 'inter',
+  XD: 'inter',
+  XE: 'inter',
+  XF: 'inter',
+  XG: 'section',
+  XH: 'inter',
+  XI: 'general',
+};
+
+/**
+ * Renvois de la colonne NOTE, tels que le modèle du ch. 3 (bilan) et du
+ * ch. 4 (compte de résultat) les imprime · lus dans les tables, jamais
+ * recopiés.
+ *
+ * Une seule transformation, et elle est prescrite par la table elle-même :
+ * les renvois que le ch. 6 subdivise passent par `resoudreRenvoiNote`, si
+ * bien que le « 27 » de RK s'imprime « 27A et 27B ». ANOMALIE DU TEXTE
+ * OFFICIEL (n° 11 de `correspondance-compte-resultat-syscohada.ts`) : le
+ * ch. 4 renvoie à une note « 27 » que le ch. 6 ne connaît pas, puisqu'il
+ * n'a que 27A (charges de personnel) et 27B (effectifs, masse salariale).
+ * Imprimer « 27 » pointerait sur une feuille absente du classeur.
+ *
+ * Le renvoi de CE reste « 3e », en minuscule : c'est ainsi que le ch. 3
+ * l'imprime, « seul renvoi du bilan écrit en minuscule ». Transcrit tel
+ * quel, pas normalisé en « 3E ».
+ */
+export const NOTE_PAR_REF_SYSCOHADA: Record<string, string> = (() => {
+  const table: Record<string, string> = {};
+  for (const p of [...POSTES_ACTIF_SYSCOHADA, ...POSTES_PASSIF_SYSCOHADA]) {
+    if (p.note) table[p.ref] = p.note;
+  }
+  for (const t of [...TOTAUX_ACTIF_SYSCOHADA, ...TOTAUX_PASSIF_SYSCOHADA]) {
+    if (t.note) table[t.ref] = t.note;
+  }
+  const renvois = (notes: readonly string[]) => notes.flatMap((n) => resoudreRenvoiNote(n)).join(' et ');
+  for (const p of POSTES_COMPTE_RESULTAT_SYSCOHADA) {
+    if (p.notes.length) table[p.ref] = renvois(p.notes);
+  }
+  for (const s of SOLDES_INTERMEDIAIRES) {
+    if (s.notes.length) table[s.ref] = renvois(s.notes);
+  }
+  return table;
+})();
+
+/**
+ * Colonne « Clé » du tableau des flux (ch. 5 section 2) · A à H.
+ *
+ * ZA porte la clé A sans être une ligne de totalisation : c'est le poste
+ * d'ouverture lui-même qui l'affiche dans le modèle, d'où l'entrée écrite en
+ * dur, les sept autres venant de la table.
+ *
+ * ANOMALIE DU TEXTE OFFICIEL, signalée dans `correspondance-tft-syscohada.ts`
+ * (n° 1) : le schéma de la section 1 attribue DEUX FOIS la lettre F et
+ * numérote la clôture G. C'est le MODÈLE de la section 2 qui fait foi
+ * (F = D + E, G = B + C + F, H = G + A), et c'est lui que cette table sert.
+ * Le jeu associations SYCEBNL a ses propres lettres (`REP_TFT`) : elles ne
+ * coïncident pas, ne pas les échanger.
+ */
+export const REP_TFT_SYSCOHADA: Record<string, string> = (() => {
+  const table: Record<string, string> = { ZA: 'A' };
+  for (const t of TOTAUX_FLUX_SYSCOHADA) {
+    if (t.cle) table[t.ref] = t.cle;
+  }
+  return table;
+})();
+
+/**
+ * Niveaux visuels du tableau des flux · les trois lignes que le modèle met en
+ * évidence (ouverture ZA, variation ZG, clôture ZH) sur le bleu nuit des
+ * lignes clefs, les flux de rubrique en vert, ZD et ZE en gris puisque ZF les
+ * additionne.
+ */
+export const NIVEAUX_TFT_SYSCOHADA: Record<string, NiveauLigne> = {
+  ZA: 'cle',
+  ZB: 'section',
+  ZC: 'section',
+  ZD: 'inter',
+  ZE: 'inter',
+  ZF: 'section',
+  ZG: 'cle',
+  ZH: 'cle',
+};

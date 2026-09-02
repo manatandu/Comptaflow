@@ -12,10 +12,15 @@ import { ClasseurExporte, ExportService } from './export.service';
 /**
  * Cloisonnement par ROUTE, pas par contrôleur : journal, grand livre et
  * balance valent pour les deux référentiels, mais tout ce qui reprend un
- * état SYCEBNL (liasse, états, notes, SMT, registre des donateurs, livre
- * d'inventaire, rapport d'activité) reste propre au SYCEBNL tant que le
- * niveau 2 SYSCOHADA n'est pas construit · même division que les
- * contrôleurs d'états eux-mêmes, décorateur posé route par route ci-dessous.
+ * ÉTAT porte le décorateur du référentiel dont il vient, route par route.
+ *
+ * Les routes `etats-financiers/...` servent les états SYCEBNL (liasse,
+ * bilan, résultat, TFT, jeu projets, SMT, notes) ainsi que les pièces qui
+ * n'existent que là (registre des donateurs, livre d'inventaire, rapport
+ * d'activité) ; les routes `etats-financiers-syscohada/...` servent les
+ * états SYSCOHADA (Titre IX et Titre X de l'AUDCIF). Aucune route n'accepte
+ * les deux : c'est le verrou serveur qu'exige CLAUDE.md §6, celui qui rend
+ * vrai le cloisonnement affiché côté client.
  */
 
 /**
@@ -352,5 +357,134 @@ export class ExportController {
     @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
   ) {
     envoyerXlsx(res, await this.exportService.notesProjetExcel(user.tenantId, exerciceId));
+  }
+
+  // ==========================================================================
+  // EXPORTS SYSCOHADA RÉVISÉ · préfixe `etats-financiers-syscohada/`, comme le
+  // contrôleur d'états du même nom.
+  //
+  // POURQUOI UN JEU DE ROUTES SÉPARÉ, ET NON UNE ROUTE COMMUNE QUI BRANCHE ·
+  // décision prise ici, et documentée pour ne pas être défaite par
+  // simplification : `etats-financiers/liasse-complete` RESTE réservée au
+  // SYCEBNL, `etats-financiers-syscohada/liasse-complete` est sa jumelle
+  // SYSCOHADA. Une route unique ouverte aux deux référentiels obligerait sa
+  // garde à les accepter tous les deux, et le seul verrou serveur du
+  // cloisonnement (CLAUDE.md §6) tomberait au profit d'un `if` dans le
+  // service ; un dossier SYCEBNL pourrait alors appeler la route et se voir
+  // servir une liasse dont il ne pourrait constater l'erreur qu'au dépôt.
+  // Deux routes, deux gardes, aucun croisement possible.
+  //
+  // Le SERVICE, lui, branche bel et bien sur `tenant.referentiel` : les deux
+  // routes appellent le même `liasseCompleteExcel`, parce que
+  // `GroupeService.liasseGroupe` l'appelle sans passer par aucune route.
+  // ==========================================================================
+
+  /**
+   * LA LIASSE SYSCOHADA COMPLÈTE · Système normal (AUDCIF Titre IX) ou
+   * Système minimal de trésorerie (Titre X) selon
+   * `tenant.systemeComptableSyscohada`, art. 11 et 13. Le service tranche ·
+   * ni le client ni un paramètre de requête, pour qu'un dossier ne puisse pas
+   * déposer un jeu d'états qui n'est pas le sien.
+   */
+  @ReferentielsAutorises(Referentiel.SYSCOHADA)
+  @Get('etats-financiers-syscohada/liasse-complete')
+  async liasseCompleteSyscohada(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    envoyerXlsx(res, await this.exportService.liasseCompleteExcel(user.tenantId, exerciceId));
+  }
+
+  /** Bilan · modèle et codes AD à DZ du Titre IX ch. 3, correspondance du ch. 7. */
+  @ReferentielsAutorises(Referentiel.SYSCOHADA)
+  @Get('etats-financiers-syscohada/bilan')
+  async bilanSyscohada(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    envoyerXlsx(res, await this.exportService.bilanSyscohadaExcel(user.tenantId, exerciceId));
+  }
+
+  /** Compte de résultat · postes TA à XI et conventions de signe du Titre IX ch. 4. */
+  @ReferentielsAutorises(Referentiel.SYSCOHADA)
+  @Get('etats-financiers-syscohada/compte-de-resultat')
+  async compteDeResultatSyscohada(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    envoyerXlsx(res, await this.exportService.compteDeResultatSyscohadaExcel(user.tenantId, exerciceId));
+  }
+
+  /** Tableau des flux de trésorerie · repères ZA à ZH et FA à FQ du Titre IX ch. 5. */
+  @ReferentielsAutorises(Referentiel.SYSCOHADA)
+  @Get('etats-financiers-syscohada/tableau-flux-tresorerie')
+  async tableauFluxTresorerieSyscohada(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    envoyerXlsx(res, await this.exportService.tableauFluxTresorerieSyscohadaExcel(user.tenantId, exerciceId));
+  }
+
+  /** Les 36 notes annexes de la liste officielle du Titre IX ch. 6. */
+  @ReferentielsAutorises(Referentiel.SYSCOHADA)
+  @Get('etats-financiers-syscohada/notes-annexes')
+  async notesSyscohada(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    envoyerXlsx(res, await this.exportService.notesSyscohadaExcel(user.tenantId, exerciceId));
+  }
+
+  // --- Système minimal de trésorerie (Titre X) -------------------------------
+  // Pas de route `smt/tableau-flux-tresorerie` · le Titre X ch. 1 § 2 n'énumère
+  // que trois documents et ne donne aucune maquette de TFT (voir l'anomalie
+  // signalée sur `liasseSmtSyscohadaEtafi`).
+
+  @ReferentielsAutorises(Referentiel.SYSCOHADA)
+  @Get('etats-financiers-syscohada/smt/bilan')
+  async bilanSmtSyscohada(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    envoyerXlsx(res, await this.exportService.bilanSmtSyscohadaExcel(user.tenantId, exerciceId));
+  }
+
+  @ReferentielsAutorises(Referentiel.SYSCOHADA)
+  @Get('etats-financiers-syscohada/smt/compte-de-resultat')
+  async compteDeResultatSmtSyscohada(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    envoyerXlsx(res, await this.exportService.compteDeResultatSmtSyscohadaExcel(user.tenantId, exerciceId));
+  }
+
+  /** NOTE 4 · journal de trésorerie SMT, une route à part : c'est une pièce de
+   *  TENUE, aussi longue que l'exercice compte de mouvements de trésorerie. */
+  @ReferentielsAutorises(Referentiel.SYSCOHADA)
+  @Get('etats-financiers-syscohada/smt/journal-tresorerie')
+  async journalTresorerieSmtSyscohada(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    envoyerXlsx(res, await this.exportService.journalTresorerieSmtSyscohadaExcel(user.tenantId, exerciceId));
+  }
+
+  /** Notes annexes SMT · fiche récapitulative et notes 1 à 4 du Titre X ch. 3. */
+  @ReferentielsAutorises(Referentiel.SYSCOHADA)
+  @Get('etats-financiers-syscohada/smt/notes')
+  async notesSmtSyscohada(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    envoyerXlsx(res, await this.exportService.notesSmtSyscohadaExcel(user.tenantId, exerciceId));
   }
 }

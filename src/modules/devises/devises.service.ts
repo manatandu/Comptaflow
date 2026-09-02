@@ -1,19 +1,104 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
-import { Prisma, StatutExercice } from '@prisma/client';
+import { Prisma, Referentiel, StatutExercice } from '@prisma/client';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { CreerDeviseDto, ModifierDeviseDto, PoserCoursDto, ReevaluerDto } from './dto/devises.dto';
 
-/** Comptes de la réévaluation, par racine du plan SYCEBNL. */
+/**
+ * Comptes de la réévaluation, par racine du plan SYCEBNL.
+ *
+ * Le SYCEBNL ne subdivise NI 478 NI 479 (Partie 2 ch. 3, compte 47) et ne
+ * connaît qu'un seul couple de provision pour perte de change. Ces racines
+ * génériques y résolvent donc sans ambiguïté. Le SYSCOHADA, lui, subdivise
+ * les deux comptes en quatre chacun ET fait dépendre le couple de provision
+ * de la nature de la position · voir plus bas. Servir ces racines-ci à un
+ * dossier SYSCOHADA imputait tout sur la première subdivision venue.
+ */
 const RACINE = {
   ecartActif: '478', // Écarts de conversion-Actif · perte probable
   ecartPassif: '479', // Écarts de conversion-Passif · gain probable
   provision: '194', // Provisions pour pertes de change
   dotationProvision: '6971', // Dotations aux provisions pour risques et charges (financières)
-  reprisProvision: '7971', // Reprises de provisions pour risques et charges (financières)
   perteRealisee: '676', // Pertes de change financières
   gainRealise: '776', // Gains de change financiers
 } as const;
+
+/**
+ * Nature d'une position en devise au sens du SYSCOHADA · elle commande À LA
+ * FOIS la subdivision de l'écart de conversion et le couple de provision.
+ *
+ * AUDCIF Titre VIII ch. 22 § 2.3 sépare les deux mondes explicitement :
+ * « Créances et dettes commerciales → résultat d'exploitation » d'un côté,
+ * « Opérations à caractère financier (emprunt bancaire en devise, liquidités
+ * en devises…) → résultat financier » de l'autre.
+ *
+ * La nature se lit sur la RACINE du compte réévalué, faute de mieux : la
+ * position est un agrégat (compte, devise) et ne porte aucune échéance. Les
+ * comptes de tiers de la classe 4 sont d'exploitation ; les emprunts et
+ * dettes financières (16, 17, 18) et les immobilisations financières (26, 27)
+ * sont financiers. Les disponibilités de la classe 5 ne passent jamais ici :
+ * leur écart est RÉALISÉ, pas latent (voir `estTresorerie`).
+ */
+type NaturePosition = 'EXPLOITATION' | 'FINANCIER';
+
+/** Racines financières · tout le reste des positions latentes est d'exploitation. */
+const RACINES_FINANCIERES = /^(16|17|18|26|27)/;
+
+function naturePosition(numero: string): NaturePosition {
+  return RACINES_FINANCIERES.test(numero) ? 'FINANCIER' : 'EXPLOITATION';
+}
+
+/**
+ * Subdivision de l'écart de conversion SYSCOHADA, plan de comptes compte 47 :
+ *
+ *   478 Écarts de conversion-actif   · 4781 diminution des créances d'exploitation
+ *                                      4782 diminution des créances financières
+ *                                      4783 augmentation des dettes d'exploitation
+ *                                      4784 augmentation des dettes financières
+ *   479 Écarts de conversion-passif  · 4791 augmentation des créances d'exploitation
+ *                                      4792 augmentation des créances financières
+ *                                      4793 diminution des dettes d'exploitation
+ *                                      4794 diminution des dettes financières
+ *
+ * Les intitulés disent le SENS de la position autant que celui de l'écart :
+ * une perte sur une CRÉANCE est une diminution de créance, une perte sur une
+ * DETTE est une augmentation de dette. Les deux lectures doivent donc être
+ * croisées, et c'est ce que faisait perdre la résolution par racine à trois
+ * chiffres · elle rendait toujours 4781 et 4791, si bien qu'une dette
+ * fournisseur en devise s'imputait sur la subdivision des créances.
+ */
+function racineEcartSyscohada(estCreance: boolean, estPerte: boolean, nature: NaturePosition): string {
+  if (estPerte) return estCreance ? (nature === 'EXPLOITATION' ? '4781' : '4782') : nature === 'EXPLOITATION' ? '4783' : '4784';
+  return estCreance ? (nature === 'EXPLOITATION' ? '4791' : '4792') : nature === 'EXPLOITATION' ? '4793' : '4794';
+}
+
+/**
+ * Couple dotation / provision de la perte probable de change, SYSCOHADA.
+ *
+ * AUDCIF Titre VIII ch. 22 § 2.3, mot pour mot : « S'agissant d'une créance
+ * de nature commerciale, la provision relative à la perte probable de change
+ * s'analyse comme une CHARGE D'EXPLOITATION : débit du 6591 […] par le crédit
+ * du 4991 ». Et pour les opérations financières : « risques à long terme :
+ * débit 6971 · crédit 194 ; risques à court terme : débit 6791 · crédit
+ * 4997 ».
+ *
+ * Doter 6971/194 sur une créance client, comme le faisait le chemin unique
+ * hérité du SYCEBNL, gonfle le résultat FINANCIER au détriment du résultat
+ * d'EXPLOITATION · deux soldes intermédiaires faux, sans qu'aucun total du
+ * compte de résultat ne bouge.
+ *
+ * LIMITE ASSUMÉE · le couple court terme 6791/4997 n'est pas servi. Le
+ * distinguer de 6971/194 suppose l'échéance de la position, que l'agrégat
+ * (compte, devise) ne porte pas. Les seules racines financières qui arrivent
+ * ici (16, 17, 18, 26, 27) sont des ressources et emplois DURABLES par
+ * construction du plan, donc à plus d'un an : le long terme est le bon
+ * défaut, et le seul cas qu'il manquerait suppose une dette financière à
+ * moins d'un an logée hors de la classe 5.
+ */
+const PROVISION_SYSCOHADA: Record<NaturePosition, { dotation: string; provision: string }> = {
+  EXPLOITATION: { dotation: '6591', provision: '4991' },
+  FINANCIER: { dotation: '6971', provision: '194' },
+};
 
 /** Une position en devise à réévaluer : un compte, une devise, son écart. */
 export interface PositionDevise {
@@ -257,16 +342,34 @@ export class DevisesService {
     const journal = await this.journalGeneral(tenantId);
     const compte = (racine: string) => this.compteParRacine(tenantId, racine);
 
+    // Le référentiel du dossier décide des comptes à servir · il ne décide
+    // PAS du calcul, qui est identique des deux côtés (l'écart se mesure de
+    // la même façon). Seule l'imputation change, et elle change beaucoup.
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { referentiel: true },
+    });
+    const estSyscohada = tenant?.referentiel === Referentiel.SYSCOHADA;
+
     // --- Écriture des écarts ------------------------------------------------
     const lignes: { compteId: string; debit?: number; credit?: number; libelle: string }[] = [];
     for (const p of rapport.positions) {
       const contrepartie = p.estTresorerie
-        ? p.ecart < 0
+        ? // Disponibilités · l'écart est RÉALISÉ et va droit au résultat
+          // financier, dans les deux référentiels (676 / 776).
+          p.ecart < 0
           ? await compte(RACINE.perteRealisee)
           : await compte(RACINE.gainRealise)
-        : p.ecart < 0
-          ? await compte(RACINE.ecartActif)
-          : await compte(RACINE.ecartPassif);
+        : estSyscohada
+          ? // Créance ou dette · le SYSCOHADA veut la subdivision qui croise
+            // le sens de la POSITION (créance = solde débiteur) et celui de
+            // l'ÉCART. `valeurComptable` est un débit moins un crédit : un
+            // solde nul est traité comme une créance, cas sans conséquence
+            // puisqu'une position nulle est écartée en amont.
+            await compte(racineEcartSyscohada(p.valeurComptable >= 0, p.ecart < 0, naturePosition(p.numero)))
+          : p.ecart < 0
+            ? await compte(RACINE.ecartActif)
+            : await compte(RACINE.ecartPassif);
       const abs = Math.abs(p.ecart);
       const libelle = `Réévaluation ${p.deviseCode} au ${rapport.dateReevaluation}`;
       if (p.ecart > 0) {
@@ -288,23 +391,43 @@ export class DevisesService {
     });
 
     // --- Provision sur la perte latente ------------------------------------
+    //
+    // La provision se VENTILE par nature de position en SYSCOHADA : une perte
+    // sur créance client est une charge d'exploitation (6591 / 4991), une
+    // perte sur emprunt en devise une charge financière (6971 / 194). Une
+    // dotation unique, comme le faisait le chemin hérité du SYCEBNL, range
+    // tout au financier et fausse les deux soldes intermédiaires sans qu'un
+    // seul total du compte de résultat ne bouge. En SYCEBNL, toutes les
+    // positions retombent sur l'unique couple du référentiel.
     let ecritureProvision: { id: string } | null = null;
     if (rapport.provision > 0.005) {
-      const [dotation, provision] = await Promise.all([
-        compte(RACINE.dotationProvision),
-        compte(RACINE.provision),
-      ]);
-      ecritureProvision = await this.ecritureService.creer(tenantId, createdBy, {
-        exerciceId: dto.exerciceId,
-        journalId: journal.id,
-        date: rapport.dateReevaluation,
-        libelle: `Provision pour perte de change au ${rapport.dateReevaluation}`,
-        reference: 'REEVAL',
-        lignes: [
-          { compteId: dotation.id, debit: rapport.provision, libelle: 'Dotation provision perte de change' },
-          { compteId: provision.id, credit: rapport.provision, libelle: 'Provision pour pertes de change' },
-        ],
-      });
+      const parNature = new Map<NaturePosition, number>();
+      for (const p of rapport.positions) {
+        if (p.estTresorerie || p.ecart >= 0) continue; // seule la perte LATENTE se provisionne
+        const nature = estSyscohada ? naturePosition(p.numero) : 'FINANCIER';
+        parNature.set(nature, Math.round(((parNature.get(nature) ?? 0) - p.ecart) * 100) / 100);
+      }
+      const lignesProvision: { compteId: string; debit?: number; credit?: number; libelle: string }[] = [];
+      for (const [nature, montant] of parNature) {
+        if (montant <= 0.005) continue;
+        const couple = estSyscohada
+          ? PROVISION_SYSCOHADA[nature]
+          : { dotation: RACINE.dotationProvision, provision: RACINE.provision };
+        const [dotation, provision] = await Promise.all([compte(couple.dotation), compte(couple.provision)]);
+        const suffixe = estSyscohada ? ` (${nature === 'EXPLOITATION' ? 'exploitation' : 'financier'})` : '';
+        lignesProvision.push({ compteId: dotation.id, debit: montant, libelle: `Dotation provision perte de change${suffixe}` });
+        lignesProvision.push({ compteId: provision.id, credit: montant, libelle: `Provision pour pertes de change${suffixe}` });
+      }
+      if (lignesProvision.length > 0) {
+        ecritureProvision = await this.ecritureService.creer(tenantId, createdBy, {
+          exerciceId: dto.exerciceId,
+          journalId: journal.id,
+          date: rapport.dateReevaluation,
+          libelle: `Provision pour perte de change au ${rapport.dateReevaluation}`,
+          reference: 'REEVAL',
+          lignes: lignesProvision,
+        });
+      }
     }
 
     const reevaluation = await this.prisma.reevaluation.create({

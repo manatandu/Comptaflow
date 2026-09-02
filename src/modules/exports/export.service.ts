@@ -1,5 +1,5 @@
 import { Injectable, PayloadTooLargeException } from '@nestjs/common';
-import { JeuEtatsFinanciersSycebnl, Prisma } from '@prisma/client';
+import { JeuEtatsFinanciersSycebnl, Prisma, Referentiel, SystemeComptableSyscohada } from '@prisma/client';
 import * as ExcelJS from 'exceljs';
 import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
@@ -8,6 +8,14 @@ import { EtatsFinanciersProjetService } from '../etats-financiers/etats-financie
 import { EtatsFinanciersSmtService } from '../etats-financiers/etats-financiers-smt.service';
 import { EtatsFinanciersProjetBudgetService } from '../etats-financiers/etats-financiers-projet-budget.service';
 import { NoteAnnexeService } from '../notes-annexes/note-annexe.service';
+import { EtatsFinanciersSyscohadaService } from '../etats-financiers-syscohada/etats-financiers-syscohada.service';
+import { EtatsFinanciersSmtSyscohadaService } from '../etats-financiers-syscohada/etats-financiers-smt-syscohada.service';
+import { CODES_NOTES_CH6 } from '../etats-financiers-syscohada/correspondance-compte-resultat-syscohada';
+import { LETTRES_D_E_SMT_SYSCOHADA } from '../etats-financiers-syscohada/correspondance-smt-syscohada';
+import {
+  RENVOI_1_TFT_SYSCOHADA,
+  TOTAUX_FLUX_SYSCOHADA,
+} from '../etats-financiers-syscohada/correspondance-tft-syscohada';
 import { DonationService, manquementsArticle17 } from '../registre-donateurs/donation.service';
 import { LivreInventaireService } from '../documents-obligatoires/livre-inventaire.service';
 import { RapportActiviteService } from '../documents-obligatoires/rapport-activite.service';
@@ -65,6 +73,11 @@ import {
   NIVEAUX_TFT,
   NOTE_PAR_REF_ASSOCIATIONS,
   TOTAUX_ASSOCIATIONS,
+  NIVEAUX_ETAT_SYSCOHADA,
+  NIVEAUX_TFT_SYSCOHADA,
+  NOTE_PAR_REF_SYSCOHADA,
+  REP_TFT_SYSCOHADA,
+  TOTAUX_SYSCOHADA,
 } from './etat-etafi';
 
 const ENTETE_FONT = { bold: true } as const;
@@ -116,7 +129,29 @@ export class ExportService {
     private readonly donationService: DonationService,
     private readonly livreInventaire: LivreInventaireService,
     private readonly rapportActivite: RapportActiviteService,
+    // MOTEURS SYSCOHADA · en exécution, Nest les injecte toujours
+    // (`ExportsModule` importe `EtatsFinanciersSyscohadaModule`). Ils sont
+    // déclarés optionnels pour qu'un harnais de test qui n'exerce QUE les
+    // états SYCEBNL puisse instancier ce service sans les fournir · les
+    // accesseurs `syscohada` / `smtSyscohada` ci-dessous refusent alors
+    // bruyamment, plutôt que de laisser un export partir sans moteur.
+    private readonly etatsFinanciersSyscohadaService?: EtatsFinanciersSyscohadaService,
+    private readonly etatsFinanciersSmtSyscohadaService?: EtatsFinanciersSmtSyscohadaService,
   ) {}
+
+  private get syscohada(): EtatsFinanciersSyscohadaService {
+    if (!this.etatsFinanciersSyscohadaService) {
+      throw new Error("Moteur des états financiers SYSCOHADA absent de l'injection : export impossible");
+    }
+    return this.etatsFinanciersSyscohadaService;
+  }
+
+  private get smtSyscohada(): EtatsFinanciersSmtSyscohadaService {
+    if (!this.etatsFinanciersSmtSyscohadaService) {
+      throw new Error("Moteur du Système minimal de trésorerie SYSCOHADA absent de l'injection : export impossible");
+    }
+    return this.etatsFinanciersSmtSyscohadaService;
+  }
 
   private nouveauClasseur(): ExcelJS.Workbook {
     const classeur = new ExcelJS.Workbook();
@@ -3306,6 +3341,1433 @@ export class ExportService {
     return classeur;
   }
 
+
+  // =========================================================================
+  // SYSCOHADA RÉVISÉ · SYSTÈME NORMAL (AUDCIF Titre IX)
+  //
+  // Même ARCHITECTURE que les exports SYCEBNL ci-dessus · même charte ETAFI,
+  // même `construireFeuilleEtat`, mêmes règles (montants de détail en
+  // VALEURS, totaux en FORMULES, contrôle discret sous le cadre, comptes non
+  // rattachés jamais masqués). Et AUCUN contenu commun : autres postes,
+  // autres codes, autres comptes, autres notes, autres articles. Le
+  // cloisonnement des deux référentiels (CLAUDE.md §6) tient à ce que ces
+  // méthodes ne lisent QUE les moteurs et les tables SYSCOHADA.
+  // =========================================================================
+
+  /**
+   * Colonnes du bilan SYSCOHADA · « exercice N en BRUT, AMORT. et DÉPREC.,
+   * NET · exercice N-1 en NET » à l'actif, N et N-1 en NET au passif
+   * (Titre IX ch. 3 section 2). Ce sont les mêmes colonnes que le jeu
+   * associations SYCEBNL, ce qui est une coïncidence de maquette et non un
+   * partage : elles sont redéclarées ici pour qu'une évolution de l'une
+   * n'emporte pas l'autre.
+   */
+  private static readonly GROUPES_ACTIF_SYSCOHADA: GroupeColonnes[] = [
+    { titre: 'EXERCICE AU 31/12/N', sousTitres: ['BRUT', 'AMORT. et DEPREC.', 'NET'] },
+    { titre: 'EXERCICE AU 31/12/N-1', sousTitres: ['NET'] },
+  ];
+  private static readonly GROUPES_NET_SYSCOHADA: GroupeColonnes[] = [
+    { titre: 'EXERCICE AU 31/12/N', sousTitres: ['NET'] },
+    { titre: 'EXERCICE AU 31/12/N-1', sousTitres: ['NET'] },
+  ];
+
+  /** Lignes ETAFI d'un côté du bilan SYSCOHADA. */
+  private lignesBilanSyscohadaEtafi(
+    postes: Awaited<ReturnType<EtatsFinanciersSyscohadaService['bilan']>>['actif'],
+    actif: boolean,
+  ): LigneEtatEtafi[] {
+    return postes.map((p) => ({
+      ref: p.ref,
+      libelle: p.libelle,
+      // Le moteur porte déjà le renvoi du modèle sur chaque poste ; la table
+      // de mise en page ne sert que de filet (un poste ajouté au modèle sans
+      // renvoi servi resterait annoté).
+      note: p.note ?? NOTE_PAR_REF_SYSCOHADA[p.ref] ?? '',
+      niveau: NIVEAUX_ETAT_SYSCOHADA[p.ref] ?? (p.estTotal ? 'inter' : 'normal'),
+      montants: actif
+        ? [
+            p.brut ?? p.montant,
+            p.amortissement ?? 0,
+            // NET = BRUT - AMORT. et DÉPREC., en formule sur la ligne.
+            { formule: 'D{r}-E{r}' },
+            p.montantN1 ?? null,
+          ]
+        : [p.montant, p.montantN1 ?? null],
+    }));
+  }
+
+  /**
+   * Feuilles `Bilan-Actif` et `Bilan-Passif` du Système normal SYSCOHADA ·
+   * modèle 2 du ch. 3 section 2 (« Bilan actif puis Bilan passif, une page
+   * par côté »), titre officiel « BILAN AU 31 DÉCEMBRE N ».
+   */
+  private feuillesBilanSyscohadaEtafi(
+    classeur: ExcelJS.Workbook,
+    bilan: Awaited<ReturnType<EtatsFinanciersSyscohadaService['bilan']>>,
+    ident: IdentiteLiasse,
+  ): { rangsActif: Map<string, number>; rangsPassif: Map<string, number> } {
+    const rangsActif = construireFeuilleEtat(classeur, {
+      nom: 'Bilan-Actif',
+      titre: 'BILAN AU 31 DECEMBRE N',
+      taille: 16,
+      ident,
+      pageRef: 'BILAN SYSTEME NORMAL\nSYSCOHADA - PAGE 1/2',
+      libelleColonne: 'ACTIF',
+      groupes: ExportService.GROUPES_ACTIF_SYSCOHADA,
+      lignes: this.lignesBilanSyscohadaEtafi(bilan.actif, true),
+      totaux: TOTAUX_SYSCOHADA,
+    });
+    const rangsPassif = construireFeuilleEtat(classeur, {
+      nom: 'Bilan-Passif',
+      titre: 'BILAN AU 31 DECEMBRE N',
+      taille: 16,
+      ident,
+      pageRef: 'BILAN SYSTEME NORMAL\nSYSCOHADA - PAGE 2/2',
+      libelleColonne: 'PASSIF',
+      groupes: ExportService.GROUPES_NET_SYSCOHADA,
+      lignes: this.lignesBilanSyscohadaEtafi(bilan.passif, false),
+      totaux: TOTAUX_SYSCOHADA,
+    });
+    return { rangsActif, rangsPassif };
+  }
+
+  /**
+   * Ce que le bilan SYSCOHADA doit dire sous son cadre · l'équilibre, les
+   * comptes de bilan qu'aucun poste du ch. 7 ne réclame (jamais masqués :
+   * leur montant n'entre dans aucun total, il faut donc qu'il se voie), et
+   * le double comptage du résultat quand les classes 6/7/8 ET le compte 13
+   * portent tous deux un solde.
+   */
+  private controlesBilanSyscohada(bilan: Awaited<ReturnType<EtatsFinanciersSyscohadaService['bilan']>>): string {
+    const equilibre = bilan.equilibre
+      ? `Contrôle : bilan équilibré · actif = passif = ${bilan.totalActif.toLocaleString('fr-FR')}.`
+      : `CONTRÔLE : DÉSÉQUILIBRE de ${(bilan.totalActif - bilan.totalPassif).toLocaleString('fr-FR')} entre actif et passif.`;
+    const nonRattaches =
+      bilan.comptesNonRattaches.length > 0
+        ? ` ${bilan.comptesNonRattaches.length} compte(s) de bilan non rattaché(s) à un poste du tableau de correspondance officiel (Titre IX ch. 7), montants hors totaux : ` +
+          bilan.comptesNonRattaches
+            .slice(0, 6)
+            .map((c) => c.numero)
+            .join(', ') +
+          (bilan.comptesNonRattaches.length > 6 ? '…' : '') +
+          '.'
+        : '';
+    const doubleComptage = bilan.controle.doubleComptageProbable
+      ? ` DOUBLE COMPTAGE PROBABLE du résultat : les classes 6/7/8 portent ${bilan.controle.resultatClasses678.toLocaleString('fr-FR')} et le compte 13 ${bilan.controle.resultatCompte13.toLocaleString('fr-FR')} · le CJ du bilan ne peut pas venir des deux à la fois.`
+      : '';
+    return equilibre + nonRattaches + doubleComptage;
+  }
+
+  /** Bilan SYSCOHADA · export individuel, charte ETAFI, valeurs seules. */
+  async bilanSyscohadaExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
+    const [bilan, ident] = await Promise.all([
+      this.syscohada.bilan(tenantId, exerciceId),
+      this.identiteLiasse(tenantId, exerciceId),
+    ]);
+    const classeur = this.nouveauClasseur();
+    const { rangsActif, rangsPassif } = this.feuillesBilanSyscohadaEtafi(classeur, bilan, ident);
+    const controle = this.controlesBilanSyscohada(bilan);
+    // Renvois de bas de poste du modèle (« (1) dont Placement en Net » sur AJ
+    // et AK) · chaînes d'affichage, jamais des valeurs calculées : le ch. 7
+    // ne donne aucune correspondance pour eux (anomalie n° 8 de la table).
+    const renvois = [...bilan.actif, ...bilan.passif]
+      .filter((p) => p.renvoi)
+      .map((p) => `${p.ref} : ${p.renvoi}`)
+      .join(' ');
+    ligneControleSousEtat(
+      classeur.getWorksheet('Bilan-Actif')!,
+      Math.max(...rangsActif.values()) + 2,
+      `${controle}${renvois ? ` ${renvois}` : ''}`,
+    );
+    ligneControleSousEtat(classeur.getWorksheet('Bilan-Passif')!, Math.max(...rangsPassif.values()) + 2, controle);
+    numeroterPages(classeur);
+    return {
+      buffer: await this.versBuffer(classeur),
+      nomFichier: `bilan-syscohada${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
+    };
+  }
+
+  /**
+   * Feuille `Résultat` du Système normal SYSCOHADA · le modèle du ch. 4
+   * section 2, postes de produits (T) et de charges (R) et soldes X
+   * entrelacés dans l'ordre officiel
+   * (le moteur les sert déjà ainsi, `ORDRE_AFFICHAGE_COMPTE_RESULTAT`).
+   *
+   * Le libellé d'un solde reprend la formule telle que le modèle l'imprime
+   * (« MARGE COMMERCIALE (Somme TA à RB) ») ; la formule Excel posée dans la
+   * cellule est la MÊME somme, écrite sur les refs (TOTAUX_SYSCOHADA). Les
+   * charges étant servies en négatif, la somme se lit littéralement · ne
+   * jamais soustraire deux fois (ch. 4, logique de signe).
+   */
+  private feuilleResultatSyscohadaEtafi(
+    classeur: ExcelJS.Workbook,
+    cr: Awaited<ReturnType<EtatsFinanciersSyscohadaService['compteDeResultat']>>,
+    ident: IdentiteLiasse,
+  ): Map<string, number> {
+    const lignes: LigneEtatEtafi[] = cr.lignes.map((l) => ({
+      ref: l.ref,
+      libelle: l.estSolde && l.formuleOfficielle ? `${l.libelle} (${l.formuleOfficielle})` : l.libelle,
+      note: NOTE_PAR_REF_SYSCOHADA[l.ref] ?? '',
+      niveau: NIVEAUX_ETAT_SYSCOHADA[l.ref] ?? 'normal',
+      montants: [l.montant, l.montantN1 ?? null],
+    }));
+    return construireFeuilleEtat(classeur, {
+      nom: 'Résultat',
+      titre: 'COMPTE DE RESULTAT AU 31 DECEMBRE N',
+      taille: 14,
+      ident,
+      pageRef: 'COMPTE DE RESULTAT\nSYSTEME NORMAL SYSCOHADA',
+      libelleColonne: 'LIBELLES',
+      groupes: ExportService.GROUPES_NET_SYSCOHADA,
+      lignes,
+      totaux: TOTAUX_SYSCOHADA,
+      largeurLibelle: 62,
+    });
+  }
+
+  /** Compte de résultat SYSCOHADA · export individuel, charte ETAFI. */
+  async compteDeResultatSyscohadaExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
+    const [cr, ident] = await Promise.all([
+      this.syscohada.compteDeResultat(tenantId, exerciceId),
+      this.identiteLiasse(tenantId, exerciceId),
+    ]);
+    const classeur = this.nouveauClasseur();
+    const rangs = this.feuilleResultatSyscohadaEtafi(classeur, cr, ident);
+    const nonRattaches =
+      cr.comptesNonRattaches.length > 0
+        ? ` ${cr.comptesNonRattaches.length} compte(s) de gestion hors poste officiel (montants hors totaux) : ` +
+          cr.comptesNonRattaches
+            .slice(0, 6)
+            .map((c) => c.numero)
+            .join(', ') +
+          (cr.comptesNonRattaches.length > 6 ? '…' : '') +
+          '.'
+        : '';
+    ligneControleSousEtat(
+      classeur.getWorksheet('Résultat')!,
+      Math.max(...rangs.values()) + 2,
+      (cr.controle.coherent
+        ? 'Contrôle : le résultat net (XI) recoupe le solde de TOUS les comptes de gestion, celui que le bilan loge en CJ.'
+        : `CONTRÔLE : écart de ${cr.controle.ecart.toLocaleString('fr-FR')} entre le résultat net (XI) et le solde de toutes les classes de gestion.`) +
+        nonRattaches,
+    );
+    numeroterPages(classeur);
+    return {
+      buffer: await this.versBuffer(classeur),
+      nomFichier: `compte-de-resultat-syscohada${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
+    };
+  }
+
+  /**
+   * Feuille `TFT` du Système normal SYSCOHADA · modèle du ch. 5 section 2 :
+   * REF, LIBELLÉS, Note, EXERCICE N, EXERCICE N-1, et la colonne de droite
+   * qui porte les clés A à H.
+   *
+   * La colonne NOTE est ouverte parce que le modèle l'énumère, et elle reste
+   * VIDE : le ch. 5 n'attribue aucun renvoi de note annexe à une ligne du
+   * tableau. Signalé sous le cadre plutôt que comblé par un renvoi inventé.
+   *
+   * La ligne « Variation du BF lié aux activités opérationnelles » du modèle
+   * n'a PAS de code REF ([texte officiel]) : sa cellule REF reste vide et sa
+   * formule se noue sur son rang, jamais sur un code qu'on lui aurait donné.
+   */
+  private feuilleTftSyscohadaEtafi(
+    classeur: ExcelJS.Workbook,
+    tft: Awaited<ReturnType<EtatsFinanciersSyscohadaService['tableauFluxTresorerie']>>,
+    ident: IdentiteLiasse,
+  ): { rangs: Map<string, number>; dernier: number } {
+    const NB = 6;
+    const rangs = new Map<string, number>();
+    const ws = classeur.addWorksheet('TFT');
+    ecrireCartouche(ws, ident, 'TABLEAU DES FLUX\nDE TRESORERIE - SYSCOHADA', NB);
+    titreEtat(ws, 'TABLEAU DES FLUX DE TRESORERIE', 1, NB, 7, 14);
+    let r = 8;
+    for (const [i, h] of ['REF', 'LIBELLES', 'NOTE', 'EXERCICE N', 'EXERCICE N-1', 'Clé'].entries()) {
+      ws.getCell(r, i + 1).value = h;
+    }
+    entetesBande(ws, r, r, 1, NB);
+    ws.getRow(r).height = 22;
+
+    let rangVariationBf = 0;
+    for (const l of tft.lignes) {
+      r += 1;
+      ws.getRow(r).height = 22;
+      if ('section' in l) {
+        ws.getCell(r, 2).value = l.section;
+        styleLigne(ws, r, 2, NB, 'bande', [4, 5]);
+        styleLigne(ws, r, 1, 1, 'normal');
+        continue;
+      }
+      if (l.ref) rangs.set(l.ref, r);
+      else rangVariationBf = r;
+      ws.getCell(r, 1).value = l.ref;
+      ws.getCell(r, 2).value = l.libelle;
+      ws.getCell(r, 4).value = l.montant;
+      if (l.montantN1 !== undefined) ws.getCell(r, 5).value = l.montantN1;
+      ws.getCell(r, 6).value = l.repere ?? REP_TFT_SYSCOHADA[l.ref] ?? '';
+      styleLigne(ws, r, 1, NB, NIVEAUX_TFT_SYSCOHADA[l.ref] ?? (l.estTotal ? 'inter' : 'normal'), [4, 5], 1);
+      for (const c of [3, 6]) ws.getCell(r, c).alignment = { horizontal: 'center', vertical: 'middle' };
+    }
+
+    // Totaux en FORMULES, comme partout ailleurs dans la liasse : la
+    // hiérarchie du tableau se vérifie dans Excel et ZH ne peut pas diverger
+    // de ZA + ZB + ZC + ZF. Les colonnes sont traitées séparément · la
+    // colonne N-1 n'est écrite que si l'exercice antérieur existe, sinon une
+    // somme de cellules vides afficherait un faux zéro.
+    const colonnes: Array<[string, number]> = tft.exerciceN1Disponible
+      ? [
+          ['D', 4],
+          ['E', 5],
+        ]
+      : [['D', 4]];
+    for (const total of TOTAUX_FLUX_SYSCOHADA) {
+      const rang = total.ref ? rangs.get(total.ref) : rangVariationBf;
+      if (!rang) continue;
+      for (const [lettre, col] of colonnes) {
+        const termes = total.deRefs.map((ref) => (rangs.has(ref) ? `${lettre}${rangs.get(ref)}` : '0'));
+        ws.getCell(rang, col).value = { formula: termes.join('+') };
+      }
+    }
+
+    cadre(ws, 8, 1, r, NB, MOYEN);
+    r += 2;
+    ligneControleSousEtat(
+      ws,
+      r,
+      'Méthode indirecte (Titre IX ch. 5 § 1.2.1 : « le point d’entrée est l’EBE, jamais le résultat net »). ' +
+        'La colonne NOTE est celle du modèle ; le ch. 5 n’attribue aucun renvoi de note annexe aux lignes du tableau, ' +
+        'elle reste donc vide. ' +
+        RENVOI_1_TFT_SYSCOHADA,
+    );
+    largeurs(ws, { A: 5.5, B: 70, C: 6.5, D: 15.7, E: 15.7, F: 5.5 });
+    ws.views = [{ state: 'frozen', ySplit: 8, showGridLines: false }];
+    return { rangs, dernier: r };
+  }
+
+  /** Ce que le TFT SYSCOHADA doit dire sous son cadre. */
+  private controlesTftSyscohada(
+    tft: Awaited<ReturnType<EtatsFinanciersSyscohadaService['tableauFluxTresorerie']>>,
+  ): string {
+    const bouclage = tft.controle.coherent
+      ? `Contrôle du modèle : ZH = Trésorerie actif N - Trésorerie passif N (BT - DT) = ${tft.controle.tresorerieClotureParBilan.toLocaleString('fr-FR')}.`
+      : `CONTRÔLE : ZH par les flux (${tft.controle.tresorerieClotureParFlux.toLocaleString('fr-FR')}) diffère de BT - DT du bilan (${tft.controle.tresorerieClotureParBilan.toLocaleString('fr-FR')}) de ${tft.controle.ecart.toLocaleString('fr-FR')} · l'écart chiffre ce que la ventilation FA à FQ ne couvre pas, il n'est pas corrigé.`;
+    const nonVentiles =
+      tft.comptesNonVentiles.length > 0
+        ? ` ${tft.comptesNonVentiles.length} compte(s) de trésorerie non ventilé(s) : ` +
+          tft.comptesNonVentiles
+            .slice(0, 6)
+            .map((c) => c.numero)
+            .join(', ') +
+          (tft.comptesNonVentiles.length > 6 ? '…' : '') +
+          '.'
+        : '';
+    const nonCalculables =
+      tft.postesNonCalculables.length > 0
+        ? ` Postes non calculables sur cet exercice : ${tft.postesNonCalculables.map((p) => p.ref).join(', ')}.`
+        : '';
+    return bouclage + nonVentiles + nonCalculables;
+  }
+
+  /** Tableau des flux de trésorerie SYSCOHADA · export individuel. */
+  async tableauFluxTresorerieSyscohadaExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
+    const [tft, ident] = await Promise.all([
+      this.syscohada.tableauFluxTresorerie(tenantId, exerciceId),
+      this.identiteLiasse(tenantId, exerciceId),
+    ]);
+    const classeur = this.nouveauClasseur();
+    const { dernier } = this.feuilleTftSyscohadaEtafi(classeur, tft, ident);
+    ligneControleSousEtat(classeur.getWorksheet('TFT')!, dernier + 1, this.controlesTftSyscohada(tft));
+    numeroterPages(classeur);
+    return {
+      buffer: await this.versBuffer(classeur),
+      nomFichier: `tableau-flux-tresorerie-syscohada${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
+    };
+  }
+
+  /**
+   * Découpage de la fiche récapitulative des notes SYSCOHADA · UNE seule
+   * partie, et c'est voulu.
+   *
+   * Le jeu SYCEBNL découpe sa fiche en « Partie 1 : Informations générales »,
+   * « Partie 2 : Notes sur le bilan », etc., parce que son texte le fait. Le
+   * Titre IX ch. 6 section 2, lui, donne UNE liste continue de NOTE 1 à
+   * NOTE 36 et ne la partitionne nulle part ; la fiche R4 du ch. 2 la reprend
+   * telle quelle (« La liste des notes portée sur la fiche R4 est celle du
+   * chapitre 6 »). Inventer des parties reviendrait à écrire une structure
+   * que le texte n'a pas.
+   *
+   * Les codes viennent de `CODES_NOTES_CH6`, transcription des en-têtes du
+   * ch. 6 : 46 codes pour 36 numéros de tête, la note 3 se subdivisant de 3A
+   * à 3F (pas de 3G), la 15 en 15A et 15B (pas de 15C), la 16 en 16A, 16B,
+   * « 16B bis » et 16C (pas de 16D), la 27 en 27A et 27B. Le « 16B bis » est
+   * transcrit tel quel · [texte officiel] les NOTE 16B et NOTE 16B bis
+   * portent le MÊME intitulé au ch. 6 et ne se distinguent que par leur
+   * contenu.
+   *
+   * TOUTES les notes sont jointes, celles que l'exercice ne chiffre pas
+   * portant la mention NEANT · même écart assumé qu'au SYCEBNL, et pour la
+   * même raison. Le ch. 6 § 1.2 dit ici aussi que « les modèles de Notes non
+   * documentés ne doivent pas être joints aux états financiers », et la
+   * fiche R4 le répète en renvoi (1). La décision du cabinet (voir
+   * `construireClasseurNotes`, qui la porte et la motive) est d'écarter ce
+   * seul membre de phrase : une liasse à laquelle il manque des notes ne dit
+   * pas au lecteur si elles étaient sans objet ou si on les a oubliées.
+   */
+  private static readonly PARTIES_NOTES_SYSCOHADA: Array<[string, string[]]> = [
+    ['Liste officielle des Notes annexes · AUDCIF Titre IX ch. 6 section 2 (NOTE 1 à NOTE 36)', [...CODES_NOTES_CH6]],
+  ];
+
+  /** Notes annexes du Système normal SYSCOHADA · les 36 notes du ch. 6. */
+  async notesSyscohadaExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
+    const [resultat, ident] = await Promise.all([
+      this.noteAnnexeService.notesSyscohada(tenantId, exerciceId),
+      this.identiteLiasse(tenantId, exerciceId),
+    ]);
+    const classeur = this.construireClasseurNotes(resultat, ident, ExportService.PARTIES_NOTES_SYSCOHADA);
+    numeroterPages(classeur);
+    return {
+      buffer: await this.versBuffer(classeur),
+      nomFichier: `notes-annexes-syscohada${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
+    };
+  }
+
+  // =========================================================================
+  // SYSCOHADA RÉVISÉ · SYSTÈME MINIMAL DE TRÉSORERIE (AUDCIF Titre X)
+  //
+  // AUCUN CODE REF n'est imprimé sur ces états, et c'est délibéré : le
+  // Titre X ch. 2 n'en donne aucun (à la différence du Titre IX, dont les
+  // codes AD à DZ et TA à XI sont officiels, et à la différence du SMT
+  // SYCEBNL, dont les GA à HZ le sont aussi). Les refs SA1, SP4, SR1, SG…
+  // sont des clés INTERNES d'OmegaX, stables mais sans valeur normative :
+  // les afficher dans un état déposé les ferait passer pour officielles.
+  // Elles restent dans le logiciel, la maquette imprimée reste celle du
+  // texte · rubrique, note, montants (et la lettre A à G au compte de
+  // résultat, que la maquette, elle, imprime).
+  // =========================================================================
+
+  /**
+   * Feuilles `Bilan-Actif` et `Bilan-Passif` du SMT SYSCOHADA · maquette du
+   * Titre X ch. 2 section 1 : rubrique, NOTE, Exercice N, Exercice N-1, puis
+   * « Total actif » / « Total passif » en formule de somme.
+   */
+  private feuillesBilanSmtSyscohadaEtafi(
+    classeur: ExcelJS.Workbook,
+    bilan: Awaited<ReturnType<EtatsFinanciersSmtSyscohadaService['bilan']>>,
+    ident: IdentiteLiasse,
+  ): { rangsActif: Map<string, number>; rangsPassif: Map<string, number> } {
+    const NB = 4;
+    const construire = (
+      nom: string,
+      cote: 'ACTIF' | 'PASSIF',
+      postes: typeof bilan.actif,
+      page: string,
+      renvoi: string,
+    ): Map<string, number> => {
+      const ws = classeur.addWorksheet(nom);
+      ecrireCartouche(ws, ident, `BILAN SMT SYSCOHADA\n${page}`, NB);
+      titreEtat(ws, 'BILAN SMT AU 31 DECEMBRE N', 1, NB, 7, 16);
+      let r = 8;
+      for (const [i, h] of [cote, 'NOTE', 'EXERCICE N', 'EXERCICE N-1'].entries()) ws.getCell(r, i + 1).value = h;
+      entetesBande(ws, r, r, 1, NB);
+      ws.getRow(r).height = 22;
+      const premiere = r + 1;
+      const rangs = new Map<string, number>();
+      for (const p of postes) {
+        // Le total du moteur est refait en formule en pied de tableau : il
+        // doit se recalculer dans Excel, pas être recopié.
+        if (p.estTotal) continue;
+        r += 1;
+        rangs.set(p.ref, r);
+        ws.getCell(r, 1).value = p.libelle;
+        ws.getCell(r, 2).value = p.note ?? '';
+        ws.getCell(r, 3).value = p.montant;
+        if (p.montantN1 !== undefined) ws.getCell(r, 4).value = p.montantN1;
+        styleLigne(ws, r, 1, NB, 'normal', [3, 4]);
+        ws.getCell(r, 2).alignment = { horizontal: 'center', vertical: 'middle' };
+        ws.getRow(r).height = 22;
+      }
+      const total = postes.find((p) => p.estTotal);
+      r += 1;
+      if (total) rangs.set(total.ref, r);
+      ws.getCell(r, 1).value = total?.libelle ?? (cote === 'ACTIF' ? 'Total actif' : 'Total passif');
+      ws.getCell(r, 3).value = { formula: `SUM(C${premiere}:C${r - 1})` };
+      ws.getCell(r, 4).value = { formula: `SUM(D${premiere}:D${r - 1})` };
+      styleLigne(ws, r, 1, NB, 'general', [3, 4]);
+      ws.getRow(r).height = 22;
+      cadre(ws, 8, 1, r, NB, MOYEN);
+      ligneControleSousEtat(ws, r + 2, renvoi);
+      largeurs(ws, { A: 54, B: 7, C: 17, D: 17 });
+      ws.views = [{ state: 'frozen', ySplit: 8, showGridLines: false }];
+      return rangs;
+    };
+    const rangsActif = construire('Bilan-Actif', 'ACTIF', bilan.actif, 'PAGE 1/2', bilan.renvoiImmobilisations);
+    const rangsPassif = construire(
+      'Bilan-Passif',
+      'PASSIF',
+      bilan.passif,
+      'PAGE 2/2',
+      "Le poste « Banque (en + ou en –) » figure à l'ACTIF et peut être négatif : le bilan SMT n'ouvre aucun poste de banques créditrices au passif (Titre X ch. 2 § 1).",
+    );
+    return { rangsActif, rangsPassif };
+  }
+
+  /** Bilan SMT SYSCOHADA · export individuel. */
+  async bilanSmtSyscohadaExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
+    const [bilan, ident] = await Promise.all([
+      this.smtSyscohada.bilan(tenantId, exerciceId),
+      this.identiteLiasse(tenantId, exerciceId),
+    ]);
+    const classeur = this.nouveauClasseur();
+    const { rangsActif, rangsPassif } = this.feuillesBilanSmtSyscohadaEtafi(classeur, bilan, ident);
+    const controle = bilan.equilibre
+      ? `Contrôle : bilan équilibré · actif = passif = ${bilan.totalActif.toLocaleString('fr-FR')}.`
+      : `CONTRÔLE : DÉSÉQUILIBRE de ${(bilan.totalActif - bilan.totalPassif).toLocaleString('fr-FR')} entre actif et passif.`;
+    const nonRattaches =
+      bilan.comptesNonRattaches.length > 0
+        ? ` ${bilan.comptesNonRattaches.length} compte(s) de bilan hors maquette SMT : ` +
+          bilan.comptesNonRattaches
+            .slice(0, 6)
+            .map((c) => c.numero)
+            .join(', ') +
+          '.'
+        : '';
+    ligneControleSousEtat(classeur.getWorksheet('Bilan-Actif')!, Math.max(...rangsActif.values()) + 3, controle + nonRattaches);
+    ligneControleSousEtat(classeur.getWorksheet('Bilan-Passif')!, Math.max(...rangsPassif.values()) + 3, controle);
+    numeroterPages(classeur);
+    return {
+      buffer: await this.versBuffer(classeur),
+      nomFichier: `bilan-smt-syscohada${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
+    };
+  }
+
+  /**
+   * Feuille `Résultat` du SMT SYSCOHADA · maquette du Titre X ch. 2
+   * section 2 : Rubriques, Note, Exercice N, Exercice N-1, et la lettre que
+   * la maquette imprime en regard des lignes de total et de solde.
+   *
+   * A et B sont des SOMMES, donc des formules Excel de somme. C = A - B se
+   * pose de même. G, en revanche, est la formule SIGNÉE G = C - D + E - F,
+   * dont l'unique implémentation est `calculerResultatSmt` : la formule
+   * Excel ne la réinvente pas, elle lit la composition de D et de E dans la
+   * table (`LETTRES_D_E_SMT_SYSCOHADA`), qui est la lecture fixée pour
+   * l'anomalie n° 1 (la maquette invoque D et E dans sa formule sans les
+   * attribuer à aucune ligne).
+   */
+  private feuilleResultatSmtSyscohadaEtafi(
+    classeur: ExcelJS.Workbook,
+    cr: Awaited<ReturnType<EtatsFinanciersSmtSyscohadaService['compteDeResultat']>>,
+    ident: IdentiteLiasse,
+  ): Map<string, number> {
+    const NB = 5;
+    const ws = classeur.addWorksheet('Résultat');
+    ecrireCartouche(ws, ident, 'COMPTE DE RESULTAT\nSMT SYSCOHADA', NB);
+    titreEtat(ws, 'COMPTE DE RESULTAT SMT AU 31 DECEMBRE N', 1, NB, 7, 14);
+    let r = 8;
+    for (const [i, h] of ['RUBRIQUES', 'NOTE', 'EXERCICE N', 'EXERCICE N-1', 'Lettre'].entries()) {
+      ws.getCell(r, i + 1).value = h;
+    }
+    entetesBande(ws, r, r, 1, NB);
+    ws.getRow(r).height = 22;
+
+    const NIVEAUX: Record<string, NiveauLigne> = { SRA: 'inter', SDB: 'inter', SC: 'section', SG: 'general' };
+    const rangs = new Map<string, number>();
+    for (const l of cr.lignes) {
+      r += 1;
+      rangs.set(l.ref, r);
+      ws.getCell(r, 1).value = l.libelle;
+      ws.getCell(r, 2).value = l.note ?? '';
+      if (!l.estTotal) ws.getCell(r, 3).value = l.montant;
+      if (!l.estTotal && l.montantN1 !== undefined) ws.getCell(r, 4).value = l.montantN1;
+      ws.getCell(r, 5).value = l.lettre ?? '';
+      styleLigne(ws, r, 1, NB, NIVEAUX[l.ref] ?? 'normal', [3, 4]);
+      for (const c of [2, 5]) ws.getCell(r, c).alignment = { horizontal: 'center', vertical: 'middle' };
+      ws.getRow(r).height = 22;
+    }
+
+    const colonnes: Array<[string, number]> = cr.exerciceN1Disponible
+      ? [
+          ['C', 3],
+          ['D', 4],
+        ]
+      : [['C', 3]];
+    const cellule = (lettre: string, ref: string) => `${lettre}${rangs.get(ref)}`;
+    for (const [lettre, col] of colonnes) {
+      ws.getCell(rangs.get('SRA')!, col).value = {
+        formula: cr.recettes.map((p) => cellule(lettre, p.ref)).join('+'),
+      };
+      ws.getCell(rangs.get('SDB')!, col).value = {
+        formula: cr.depenses.map((p) => cellule(lettre, p.ref)).join('+'),
+      };
+      ws.getCell(rangs.get('SC')!, col).value = {
+        formula: `${cellule(lettre, 'SRA')}-${cellule(lettre, 'SDB')}`,
+      };
+      const d = LETTRES_D_E_SMT_SYSCOHADA.D.map((ref) => cellule(lettre, ref)).join('+');
+      const e = LETTRES_D_E_SMT_SYSCOHADA.E.map((ref) => cellule(lettre, ref)).join('+');
+      ws.getCell(rangs.get('SG')!, col).value = {
+        formula: `${cellule(lettre, 'SC')}-(${d})+(${e})-${cellule(lettre, 'SF')}`,
+      };
+    }
+
+    cadre(ws, 8, 1, r, NB, MOYEN);
+    ligneControleSousEtat(
+      ws,
+      r + 2,
+      "Comptabilité de trésorerie corrigée des variations d'inventaire et des amortissements (Titre X ch. 2 § 2), " +
+        'formule officielle G = C - D + E - F, avec C = A - B. ANOMALIE DU TEXTE, signalée et non corrigée : la maquette ' +
+        "invoque D et E sans les attribuer à aucune ligne · D regroupe ici les corrections soustraites (stocks, créances) " +
+        "et E la correction ajoutée (dettes d'exploitation). La « Variation N / N-1 » est prise dans le sens (N-1) - N, " +
+        'celui du compte 603.',
+    );
+    largeurs(ws, { A: 58, B: 7, C: 17, D: 17, E: 8 });
+    ws.views = [{ state: 'frozen', ySplit: 8, showGridLines: false }];
+    return rangs;
+  }
+
+  /** Compte de résultat SMT SYSCOHADA · export individuel. */
+  async compteDeResultatSmtSyscohadaExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
+    const [cr, ident] = await Promise.all([
+      this.smtSyscohada.compteDeResultat(tenantId, exerciceId),
+      this.identiteLiasse(tenantId, exerciceId),
+    ]);
+    const classeur = this.nouveauClasseur();
+    const rangs = this.feuilleResultatSmtSyscohadaEtafi(classeur, cr, ident);
+    ligneControleSousEtat(
+      classeur.getWorksheet('Résultat')!,
+      Math.max(...rangs.values()) + 4,
+      cr.controle.concordant
+        ? 'Contrôle : le résultat G recoupe le résultat logé au bilan (poste « Résultat exercice »).'
+        : `CONTRÔLE : écart de ${cr.controle.ecart.toLocaleString('fr-FR')} avec le résultat du bilan · voir les flux de trésorerie hors résultat (financement, investissement) que le compte de résultat SMT écarte.`,
+    );
+    numeroterPages(classeur);
+    return {
+      buffer: await this.versBuffer(classeur),
+      nomFichier: `compte-de-resultat-smt-syscohada${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
+    };
+  }
+
+  /**
+   * NOTE 4 · JOURNAL DE TRÉSORERIE SMT SYSCOHADA (Titre X ch. 3), un journal
+   * PAR COMPTE de trésorerie (« NB : prévoir un journal par banque et un
+   * journal pour la caisse »), ouvert sur son report à nouveau et clos sur
+   * son solde à reporter, solde progressif en formules.
+   */
+  private feuilleJournalTresorerieSmtSyscohadaEtafi(
+    classeur: ExcelJS.Workbook,
+    journal: Awaited<ReturnType<EtatsFinanciersSmtSyscohadaService['journalTresorerie']>>,
+    ident: IdentiteLiasse,
+    nomFeuille = 'NOTE 4 JOURNAL TRESORERIE',
+  ) {
+    const ws = classeur.addWorksheet(nomFeuille);
+    const colonnes = [...journal.colonnesRecettes, ...journal.colonnesDepenses];
+    const ncols = 5 + colonnes.length;
+    ecrireCartouche(ws, ident, 'NOTE 4\nSMT SYSCOHADA', ncols);
+    titreNote(ws, 'NOTE 4 : JOURNAL DE TRESORERIE SMT', ncols);
+    let r = 7;
+    for (const j of journal.journaux) {
+      r += 1;
+      const c = ws.getCell(r, 1);
+      c.value = `${j.numero} · ${j.intitule}`;
+      c.font = { name: 'Arial', size: 9, bold: true };
+      fusion(ws, r, 1, r, ncols);
+      r += 1;
+      for (const [i, h] of ['Date', 'Libellés', 'Recettes', 'Dépenses', 'Solde'].entries()) {
+        ws.getCell(r, i + 1).value = h;
+      }
+      colonnes.forEach((col, i) => {
+        ws.getCell(r, 6 + i).value = col.rajoutAutorise ? `${col.libelle} (rajout NB)` : col.libelle;
+      });
+      entetesBande(ws, r, r, 1, ncols);
+      ws.getRow(r).height = 30;
+      const debutTableau = r;
+      r += 1;
+      ws.getCell(r, 2).value = 'Report à nouveau';
+      ws.getCell(r, 5).value = j.reportANouveau;
+      styleLigne(ws, r, 1, ncols, 'rubrique', [3, 4, 5]);
+      const colsMontant = [3, 4, 5, ...colonnes.map((_, i) => 6 + i)];
+      for (const operation of j.operations) {
+        r += 1;
+        ws.getCell(r, 1).value = new Date(operation.date);
+        ws.getCell(r, 1).numFmt = 'DD/MM/YYYY';
+        ws.getCell(r, 2).value = operation.virementInterne
+          ? `${operation.libelle} (virement interne)`
+          : operation.libelle;
+        if (operation.recette) ws.getCell(r, 3).value = operation.recette;
+        if (operation.depense) ws.getCell(r, 4).value = operation.depense;
+        ws.getCell(r, 5).value = { formula: `E${r - 1}+C${r}-D${r}` };
+        colonnes.forEach((col, i) => {
+          const v = operation.ventilation[col.cle];
+          if (v) ws.getCell(r, 6 + i).value = v;
+        });
+        styleLigne(ws, r, 1, ncols, 'normal', colsMontant);
+      }
+      r += 1;
+      ws.getCell(r, 2).value = 'Solde à reporter';
+      ws.getCell(r, 5).value = { formula: `E${r - 1}` };
+      styleLigne(ws, r, 1, ncols, 'inter', [3, 4, 5]);
+      cadre(ws, debutTableau, 1, r, ncols, MOYEN);
+      if (!j.boucle) {
+        r += 1;
+        ligneControleSousEtat(
+          ws,
+          r,
+          `CONTRÔLE : le solde à reporter diverge du solde balance du compte (${j.soldeBalance.toLocaleString('fr-FR')}).`,
+        );
+      }
+      if (j.lignesNonVentilees > 0) {
+        r += 1;
+        ligneControleSousEtat(
+          ws,
+          r,
+          `${j.lignesNonVentilees} opération(s) touchant plusieurs comptes de trésorerie : comptées en Recettes, Dépenses et Solde, laissées hors ventilation faute de clé de répartition portée par l'écriture.`,
+        );
+      }
+      r += 1; // une ligne d'air entre deux journaux
+    }
+    if (journal.journaux.length === 0) {
+      r += 1;
+      ligneControleSousEtat(ws, r, 'Aucun compte de trésorerie mouvementé sur cet exercice.');
+    }
+    r += 1;
+    ligneControleSousEtat(ws, r, journal.nb);
+    const spec: Record<string, number> = { A: 11, B: 32, C: 13, D: 13, E: 13 };
+    colonnes.forEach((_, i) => {
+      spec[String.fromCharCode(70 + i)] = 14;
+    });
+    largeurs(ws, spec);
+    return ws;
+  }
+
+  /** Journal de trésorerie SMT SYSCOHADA · export individuel (la NOTE 4 seule). */
+  async journalTresorerieSmtSyscohadaExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
+    const [journal, ident] = await Promise.all([
+      this.smtSyscohada.journalTresorerie(tenantId, exerciceId),
+      this.identiteLiasse(tenantId, exerciceId),
+    ]);
+    const classeur = this.nouveauClasseur();
+    this.feuilleJournalTresorerieSmtSyscohadaEtafi(classeur, journal, ident);
+    numeroterPages(classeur);
+    return {
+      buffer: await this.versBuffer(classeur),
+      nomFichier: `journal-tresorerie-smt-syscohada${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
+    };
+  }
+
+  /**
+   * Les NOTES 1, 2 et 3 du SMT SYSCOHADA (Titre X ch. 3), chacune sur sa
+   * feuille et dans la maquette du texte, remplies des données réelles du
+   * dossier. Une note qu'aucune ligne ne chiffre porte la bande NEANT
+   * plutôt qu'une grille réduite à son total.
+   */
+  private feuillesNotesSmtSyscohadaEtafi(
+    classeur: ExcelJS.Workbook,
+    donnees: {
+      note1: Awaited<ReturnType<EtatsFinanciersSmtSyscohadaService['note1MaterielMobilierCautions']>>;
+      note2: Awaited<ReturnType<EtatsFinanciersSmtSyscohadaService['note2Stocks']>>;
+      note3: Awaited<ReturnType<EtatsFinanciersSmtSyscohadaService['note3CreancesDettes']>>;
+    },
+    ident: IdentiteLiasse,
+  ) {
+    const { note1, note2, note3 } = donnees;
+
+    // --- NOTE 1 · matériel, mobilier ET CAUTIONS --------------------------
+    {
+      const NB = 5;
+      const ws = classeur.addWorksheet('NOTE 1 MATERIEL-CAUTIONS');
+      ecrireCartouche(ws, ident, 'NOTE 1\nSMT SYSCOHADA', NB);
+      titreNote(ws, 'NOTE 1 : TABLEAU SMT DE SUIVI DU MATERIEL, DU MOBILIER ET DES CAUTIONS', NB);
+      let r = 8;
+      for (const [i, h] of ['Date', 'Désignation', 'Montant', 'Date de sortie', 'Prix de cession'].entries()) {
+        ws.getCell(r, i + 1).value = h;
+      }
+      entetesBande(ws, r, r, 1, NB);
+      ws.getRow(r).height = 26;
+      if (note1.lignes.length === 0) r = bandeNeant(ws, r + 1, NB) - 1;
+      for (const l of note1.lignes) {
+        r += 1;
+        if (l.date) {
+          ws.getCell(r, 1).value = new Date(l.date);
+          ws.getCell(r, 1).numFmt = 'DD/MM/YYYY';
+        }
+        ws.getCell(r, 2).value = l.designation;
+        ws.getCell(r, 3).value = l.montant;
+        if (l.dateSortie) {
+          ws.getCell(r, 4).value = new Date(l.dateSortie);
+          ws.getCell(r, 4).numFmt = 'DD/MM/YYYY';
+        }
+        if (l.prixCession !== null && l.prixCession !== undefined) ws.getCell(r, 5).value = l.prixCession;
+        styleLigne(ws, r, 1, NB, 'normal', [3, 5]);
+        // Une caution relevée au compte 275 n'a ni date d'entrée ni prix de
+        // cession : l'origine est portée en commentaire de cellule plutôt
+        // que par une date inventée.
+        if (l.origine === 'BALANCE') ws.getCell(r, 2).note = note1.motifCautions;
+      }
+      r += 1;
+      ws.getCell(r, 2).value = 'TOTAL';
+      ws.getCell(r, 3).value = note1.total;
+      styleLigne(ws, r, 1, NB, 'inter', [3]);
+      cadre(ws, 8, 1, r, NB, MOYEN);
+      ligneControleSousEtat(
+        ws,
+        r + 2,
+        `Registre des immobilisations (${note1.totalRegistre.toLocaleString('fr-FR')}) et cautions relevées au compte 275 (${note1.totalCautions.toLocaleString('fr-FR')}). ` +
+          `Amortissement ${note1.amortissement.mode.toLowerCase()}${note1.amortissement.prorataTemporis ? '' : ' sans prorata temporis'} (Titre X ch. 1 § 1). ${note1.motifCautions}`,
+      );
+      largeurs(ws, { A: 15, B: 52, C: 17, D: 15, E: 17 });
+    }
+
+    // --- NOTE 2 · état des stocks ----------------------------------------
+    {
+      const NB = 5;
+      const ws = classeur.addWorksheet('NOTE 2 STOCKS');
+      ecrireCartouche(ws, ident, 'NOTE 2\nSMT SYSCOHADA', NB);
+      titreNote(ws, 'NOTE 2 : ETAT DES STOCKS AU 31 DECEMBRE', NB);
+      let r = 8;
+      for (const [i, h] of ['Référence', 'Désignation', 'Quantité', 'Prix unitaire', 'Montant'].entries()) {
+        ws.getCell(r, i + 1).value = h;
+      }
+      entetesBande(ws, r, r, 1, NB);
+      ws.getRow(r).height = 26;
+      if (note2.lignes.length === 0) r = bandeNeant(ws, r + 1, NB) - 1;
+      for (const l of note2.lignes) {
+        r += 1;
+        ws.getCell(r, 1).value = l.reference;
+        ws.getCell(r, 2).value = l.designation;
+        // Quantité et prix unitaire restent VIDES : OmegaX ne tient pas
+        // d'inventaire physique, et un « 1 » laisserait croire le contraire.
+        ws.getCell(r, 5).value = l.montant;
+        styleLigne(ws, r, 1, NB, 'normal', [4, 5]);
+      }
+      for (const [libelle, montant] of [
+        [note2.lignesSynthese[0], note2.valeurStockFinal],
+        [note2.lignesSynthese[1], note2.valeurStockInitial],
+      ] as Array<[string, number]>) {
+        r += 1;
+        ws.getCell(r, 2).value = libelle;
+        ws.getCell(r, 5).value = montant;
+        styleLigne(ws, r, 1, NB, 'inter', [5]);
+      }
+      cadre(ws, 8, 1, r, NB, MOYEN);
+      ligneControleSousEtat(
+        ws,
+        r + 2,
+        `Variation portée au compte de résultat (ligne « Variation des stocks N / N-1 ») : ${note2.variationSv1.toLocaleString('fr-FR')}, sens (N-1) - N. ${note2.motifQuantites}`,
+      );
+      largeurs(ws, { A: 14, B: 48, C: 12, D: 15, E: 17 });
+    }
+
+    // --- NOTE 3 · créances et dettes non échues ---------------------------
+    {
+      const NB = 5;
+      const ws = classeur.addWorksheet('NOTE 3 CREANCES-DETTES');
+      ecrireCartouche(ws, ident, 'NOTE 3\nSMT SYSCOHADA', NB);
+      titreNote(ws, 'NOTE 3 : ETAT DES CREANCES ET DES DETTES NON ECHUES AU 31 DECEMBRE', NB);
+      let r = 7;
+      // DEUX tableaux, chacun avec ses colonnes et sa ligne de total · le
+      // ch. 3 les donne séparément (« Nom du client » / « Nom du
+      // fournisseur »), les fondre en un seul inventerait un libellé.
+      const tableau = (
+        intitule: string,
+        nomColonne: string,
+        lignes: typeof note3.creances,
+        libelleTotal: string,
+        total: number,
+      ) => {
+        r += 1;
+        const c = ws.getCell(r, 1);
+        c.value = intitule;
+        c.font = { name: 'Arial', size: 9, bold: true };
+        fusion(ws, r, 1, r, NB);
+        r += 1;
+        const debut = r;
+        for (const [i, h] of [
+          'Date',
+          nomColonne,
+          'Montant au 31 décembre',
+          'Montant au 1er janvier',
+          'Variation %',
+        ].entries()) {
+          ws.getCell(r, i + 1).value = h;
+        }
+        entetesBande(ws, r, r, 1, NB);
+        ws.getRow(r).height = 30;
+        if (lignes.length === 0) r = bandeNeant(ws, r + 1, NB) - 1;
+        for (const l of lignes) {
+          r += 1;
+          // Colonne « Date » laissée vide : un compte de tiers agrège des
+          // pièces de dates différentes (le détail est au journal de suivi).
+          ws.getCell(r, 2).value = `${l.numero} ${l.nom}`;
+          ws.getCell(r, 3).value = l.montantCloture;
+          ws.getCell(r, 4).value = l.montantOuverture;
+          styleLigne(ws, r, 1, NB, 'normal', [3, 4]);
+          if (l.variationPourcent !== null && l.variationPourcent !== undefined) {
+            ws.getCell(r, 5).value = l.variationPourcent;
+            ws.getCell(r, 5).numFmt = '#,##0.00"%"';
+          }
+          ws.getCell(r, 5).note = `Variation EN VALEUR portée au compte de résultat : ${l.variationValeur.toFixed(2)} (sens (N-1) - N).`;
+        }
+        r += 1;
+        ws.getCell(r, 2).value = libelleTotal;
+        ws.getCell(r, 3).value = total;
+        styleLigne(ws, r, 1, NB, 'inter', [3]);
+        cadre(ws, debut, 1, r, NB, MOYEN);
+        r += 1;
+      };
+      tableau('Créances', 'Nom du client', note3.creances, 'TOTAL DES CRÉANCES', note3.totalCreances);
+      tableau('Dettes', 'Nom du fournisseur', note3.dettes, 'TOTAL DES DETTES', note3.totalDettes);
+      ligneControleSousEtat(
+        ws,
+        r + 1,
+        `Variations portées au compte de résultat : créances ${note3.variationSv2.toLocaleString('fr-FR')}, dettes ${note3.variationSv3.toLocaleString('fr-FR')}. ${note3.reserveVariationPourcent}`,
+      );
+      largeurs(ws, { A: 13, B: 46, C: 19, D: 19, E: 13 });
+    }
+  }
+
+  /**
+   * Fiche NOTES ANNEXES du SMT SYSCOHADA · les quatre notes du ch. 3,
+   * rangées selon l'état qu'elles détaillent. La NOTE 4 y figure bien que le
+   * ch. 1 § 2 ne l'énumère pas parmi les composantes des Notes annexes :
+   * le ch. 3 la NUMÉROTE comme note et le compte de résultat y renvoie en
+   * colonne « Note ». Anomalie du texte, signalée dans la table.
+   */
+  private ficheNotesSmtSyscohadaEtafi(
+    classeur: ExcelJS.Workbook,
+    fiche: ReturnType<EtatsFinanciersSmtSyscohadaService['ficheNotes']>,
+    ident: IdentiteLiasse,
+  ): PartiesNotes {
+    const parties: PartiesNotes = [
+      [
+        'Notes sur le bilan (Titre X ch. 3)',
+        fiche.notes
+          .filter((n) => n.partie === 'BILAN')
+          .map((n) => [`NOTE ${n.numero}`, n.intitule] as [string, string]),
+      ],
+      [
+        'Notes sur le compte de résultat (Titre X ch. 3)',
+        fiche.notes
+          .filter((n) => n.partie !== 'BILAN')
+          .map((n) => [`NOTE ${n.numero}`, n.intitule] as [string, string]),
+      ],
+      [
+        'Pièces de suivi non numérotées comme notes (Titre X ch. 1 § 1 et ch. 3)',
+        fiche.journauxDeSuivi.map((j) => [j.intitule, j.colonnes.join(' · ')] as [string, string]),
+      ],
+    ];
+    construireFicheNotes(
+      classeur,
+      parties,
+      ident,
+      undefined,
+      'NOTES ANNEXES',
+      "Inventaire extra-comptable de fin d'exercice exigé par le Titre X ch. 1 § 1 : " +
+        `${fiche.inventaireExtraComptable.join(' · ')}. Chaque immobilisation fait l'objet d'un tableau d'amortissement ` +
+        `${fiche.amortissement.mode.toLowerCase()}${fiche.amortissement.prorataTemporis ? '' : ' sans prorata temporis'}.`,
+    );
+    return parties;
+  }
+
+  /** Notes annexes SMT SYSCOHADA · export individuel : fiche + notes 1 à 4. */
+  async notesSmtSyscohadaExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
+    const [ident, note1, note2, note3, journal] = await Promise.all([
+      this.identiteLiasse(tenantId, exerciceId),
+      this.smtSyscohada.note1MaterielMobilierCautions(tenantId, exerciceId),
+      this.smtSyscohada.note2Stocks(tenantId, exerciceId),
+      this.smtSyscohada.note3CreancesDettes(tenantId, exerciceId),
+      this.smtSyscohada.journalTresorerie(tenantId, exerciceId),
+    ]);
+    const classeur = this.nouveauClasseur();
+    this.ficheNotesSmtSyscohadaEtafi(classeur, this.smtSyscohada.ficheNotes(), ident);
+    this.feuillesNotesSmtSyscohadaEtafi(classeur, { note1, note2, note3 }, ident);
+    this.feuilleJournalTresorerieSmtSyscohadaEtafi(classeur, journal, ident);
+    numeroterPages(classeur);
+    return {
+      buffer: await this.versBuffer(classeur),
+      nomFichier: `notes-annexes-smt-syscohada${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
+    };
+  }
+
+  /**
+   * LIASSE COMPLÈTE du SYSTÈME NORMAL SYSCOHADA · le classeur entier,
+   * dans l'ordre du modèle ETAFI : BALANCE N, BALANCE N-1, CONTROLE BALANCE,
+   * Couverture, Garde, Fiche 1, Fiche 2, Bilan paysage, Bilan-Actif,
+   * Bilan-Passif, Résultat, TFT, NOTES ANNEXES, les 36 notes, TABLE
+   * COMMENTAIRE, CONTROLES, ANOMALIES.
+   *
+   * L'ordre des quatre états est celui de l'art. 8 : « Un jeu complet d'états
+   * financiers annuels comprend le Bilan, le Compte de résultat, le Tableau
+   * des flux de trésorerie ainsi que les Notes annexes », qui « forment un
+   * tout indissociable ». C'est pourquoi la liasse est le seul export qui les
+   * réunit tous, et pourquoi aucune de ses feuilles n'est optionnelle.
+   */
+  private async liasseSyscohadaEtafi(tenantId: string, exerciceId: string): Promise<ExcelJS.Workbook> {
+    const [ident, tenant, bilan, cr, tft, notes, exerciceN1Id] = await Promise.all([
+      this.identiteLiasse(tenantId, exerciceId),
+      this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId } }),
+      this.syscohada.bilan(tenantId, exerciceId),
+      this.syscohada.compteDeResultat(tenantId, exerciceId),
+      this.syscohada.tableauFluxTresorerie(tenantId, exerciceId),
+      this.noteAnnexeService.notesSyscohada(tenantId, exerciceId),
+      this.exerciceN1Id(tenantId, exerciceId),
+    ]);
+    const lignesBalN = await this.lignesBalanceLiasse(tenantId, exerciceId);
+    const lignesBalN1 = exerciceN1Id ? await this.lignesBalanceLiasse(tenantId, exerciceN1Id) : [];
+
+    const classeur = this.nouveauClasseur();
+
+    // 1-3 · balances et leur contrôle d'équilibre.
+    ecrireFeuilleBalance(classeur, NOM_BALANCE, lignesBalN);
+    if (exerciceN1Id) ecrireFeuilleBalance(classeur, NOM_BALANCE_N1, lignesBalN1);
+    construireControleBalance(classeur, Boolean(exerciceN1Id), lignesBalN.length, lignesBalN1.length);
+
+    // 4-7 · pages d'identification (Titre IX ch. 2 : page de garde,
+    // fiches R1 à R4).
+    construireCouverture(classeur, ident, 'LIASSE SYSTEME NORMAL', tenant.pays ?? '');
+    construireGarde(classeur, ident, {
+      bandeau: 'ETATS FINANCIERS NORMALISES\nDU SYSTEME COMPTABLE OHADA (SYSCOHADA)',
+      // AUDCIF art. 2 · le champ d'application, dit par le texte plutôt que
+      // par une formule de circonstance. L'art. 5 en exclut expressément les
+      // entités à but non lucratif, qui relèvent du SYCEBNL.
+      sousBandeau: 'Entités astreintes à la comptabilité financière (AUDCIF art. 2)',
+      systeme: 'SYSTEME NORMAL',
+      // Liste exacte des « Documents déposés » de la page de garde du ch. 2.
+      documents: [
+        "Fiche d'identification et renseignements divers",
+        'Bilan',
+        'Compte de résultat',
+        'Tableau des flux de trésorerie',
+        'Notes annexes',
+      ],
+    });
+    construireFiche1(classeur, ident, 'SYSCOHADA', 'Système normal', {
+      // Une société commerciale EST immatriculée au RCCM, et l'AUDCG art. 14
+      // impose d'en porter le numéro sur les livres de commerce. La case ZE
+      // du gabarit ETAFI est celle du numéro de registre.
+      //
+      // ÉCART DE CODIFICATION, signalé et non corrigé : la fiche R1 de
+      // l'AUDCIF (Titre IX ch. 2) code le registre en ZD (« Greffe ; n°
+      // Registre du Commerce ; n° Répertoire des entreprises ») et réserve
+      // ZE au « n° de caisse sociale, n° Code Importateur, code activité
+      // principale ». Les lettres du gabarit ETAFI, reprises d'une liasse
+      // fiscale réelle, ne coïncident donc pas avec celles de la fiche R1.
+      // Le gabarit est conservé tel quel · c'est lui qui fait la
+      // présentation de toute la liasse, et le LIBELLÉ de la case dit ce
+      // qu'elle contient. Ne pas lire ZE ici comme le ZE de la fiche R1.
+      ZE: tenant.rccm ?? '',
+    });
+    construireFiche2(classeur, ident, 'DIRIGEANTS');
+
+    // 8 · Bilan paysage · c'est le « Modèle 1 » du ch. 3 section 2 (actif et
+    // passif en vis-à-vis), les deux modèles portant « les mêmes rubriques,
+    // les mêmes codes et les mêmes renvois de notes ». Les rangs des feuilles
+    // du bilan sont déterministes (données à partir de la ligne 10, dans
+    // l'ordre du moteur), ce qui permet de créer le paysage AVANT elles.
+    const versCote = (postes: typeof bilan.actif, libelle: 'ACTIF' | 'PASSIF') => ({
+      feuille: libelle === 'ACTIF' ? 'Bilan-Actif' : 'Bilan-Passif',
+      libelle,
+      cols:
+        libelle === 'ACTIF'
+          ? [
+              { entete: 'BRUT', lettre: 'D' },
+              { entete: 'AMORT. et DEPREC.', lettre: 'E' },
+              { entete: 'NET', lettre: 'F' },
+              { entete: 'NET N-1', lettre: 'G' },
+            ]
+          : [
+              { entete: 'NET', lettre: 'D' },
+              { entete: 'NET N-1', lettre: 'E' },
+            ],
+      lignes: postes.map((p, i) => ({
+        ref: p.ref,
+        libelle: p.libelle,
+        note: p.note ?? NOTE_PAR_REF_SYSCOHADA[p.ref] ?? '',
+        rangSource: 10 + i,
+        niveau: NIVEAUX_ETAT_SYSCOHADA[p.ref] ?? ((p.estTotal ? 'inter' : 'normal') as NiveauLigne),
+      })),
+    });
+    construireBilanPaysage(
+      classeur,
+      ident,
+      versCote(bilan.actif, 'ACTIF'),
+      versCote(bilan.passif, 'PASSIF'),
+      'BILAN AU 31 DECEMBRE N',
+    );
+
+    // 9-12 · les quatre états de l'art. 8 (les Notes annexes suivent).
+    const { rangsActif, rangsPassif } = this.feuillesBilanSyscohadaEtafi(classeur, bilan, ident);
+    const rangsCr = this.feuilleResultatSyscohadaEtafi(classeur, cr, ident);
+    const { rangs: rangsTft, dernier } = this.feuilleTftSyscohadaEtafi(classeur, tft, ident);
+    ligneControleSousEtat(classeur.getWorksheet('TFT')!, dernier + 1, this.controlesTftSyscohada(tft));
+
+    // 13 · fiche récapitulative (fiche R4) et les 36 notes du ch. 6.
+    this.construireClasseurNotes(notes, ident, ExportService.PARTIES_NOTES_SYSCOHADA, classeur);
+
+    // 14 · TABLE COMMENTAIRE, sur la même liste que la fiche.
+    const parCode = new Map(
+      (notes.ficheRecapitulative as Array<{ code: string; titre: string }>).map((n) => [n.code, n.titre]),
+    );
+    const parties: PartiesNotes = ExportService.PARTIES_NOTES_SYSCOHADA.map(([titre, codes]) => [
+      titre,
+      codes.filter((c) => parCode.has(c)).map((c) => [`NOTE ${c}`, parCode.get(c)!] as [string, string]),
+    ]);
+    construireTableCommentaires(classeur, parties, ident);
+
+    // 15 · CONTROLES · les recoupements du modèle, en formules cross-feuilles.
+    const ctl = classeur.addWorksheet('CONTROLES');
+    ctl.getCell(1, 1).value = 'Contrôle';
+    ctl.getCell(1, 2).value = 'Valeur';
+    ctl.getCell(1, 3).value = 'Attendu';
+    entetesBande(ctl, 1, 1, 1, 3);
+    const n = Math.max(lignesBalN.length, 1);
+    const controles: Array<[string, string | number, string | number]> = [
+      ['Total solde de clôture débit balance', `SUM('${NOM_BALANCE}'!G2:G${n + 1})`, ''],
+      ['Total solde de clôture crédit balance', `SUM('${NOM_BALANCE}'!H2:H${n + 1})`, ''],
+      ['Écart balance (doit être 0)', 'B2-B3', 0],
+      ['TOTAL GÉNÉRAL actif net (BZ)', `'Bilan-Actif'!F${rangsActif.get('BZ')}`, ''],
+      ['TOTAL GÉNÉRAL passif (DZ)', `'Bilan-Passif'!D${rangsPassif.get('DZ')}`, ''],
+      ['Écart bilan actif - passif (doit être 0)', 'B5-B6', 0],
+      ['RÉSULTAT NET du compte de résultat (XI)', `Résultat!D${rangsCr.get('XI')}`, ''],
+      ["Résultat net logé au bilan (CJ)", `'Bilan-Passif'!D${rangsPassif.get('CJ')}`, ''],
+      ['Écart résultat CR / bilan (doit être 0)', 'B8-B9', 0],
+      ['Trésorerie nette au 31 Décembre par les flux (TFT, ZH)', `TFT!D${rangsTft.get('ZH')}`, ''],
+      [
+        'Contrôle du modèle : Trésorerie actif N - Trésorerie passif N (BT - DT)',
+        `'Bilan-Actif'!F${rangsActif.get('BT')}-'Bilan-Passif'!D${rangsPassif.get('DT')}`,
+        '',
+      ],
+      ['Écart de bouclage du TFT (doit être 0)', 'B11-B12', 0],
+      [
+        'Résultat par les classes 6/7/8 (avant clôture)',
+        bilan.controle.resultatClasses678,
+        '',
+      ],
+      ['Résultat par le compte 13 (après clôture)', bilan.controle.resultatCompte13, ''],
+      [
+        'Une seule des deux sources doit être servie (double comptage sinon)',
+        bilan.controle.doubleComptageProbable ? 'DOUBLE COMPTAGE PROBABLE' : 'OK',
+        'OK',
+      ],
+    ];
+    let rc = 1;
+    for (const [lab, val, attendu] of controles) {
+      rc += 1;
+      ctl.getCell(rc, 1).value = lab;
+      ctl.getCell(rc, 2).value = typeof val === 'string' && /[A-Z]!|SUM\(|^B\d/.test(val) ? { formula: val } : val;
+      ctl.getCell(rc, 3).value = attendu;
+      styleLigne(ctl, rc, 1, 3, 'normal', [2]);
+    }
+    largeurs(ctl, { A: 68, B: 24, C: 14 });
+
+    // 16 · ANOMALIES · tout ce que les moteurs savent déjà signaler. Un
+    // compte non rattaché n'entre dans AUCUN total : s'il ne se voyait pas
+    // ici, un état faux passerait pour un état juste.
+    const an = classeur.addWorksheet('ANOMALIES');
+    for (const [i, h] of ['Gravité', 'Compte / poste', 'Intitulé', 'Problème', 'Solution proposée'].entries()) {
+      an.getCell(1, i + 1).value = h;
+    }
+    entetesBande(an, 1, 1, 1, 5);
+    const anomalies: Array<[string, string, string, string, string]> = [];
+    if (!bilan.equilibre) {
+      anomalies.push([
+        'BLOQUANT',
+        'BZ / DZ',
+        'Bilan',
+        `Actif et passif diffèrent de ${(bilan.totalActif - bilan.totalPassif).toFixed(2)}.`,
+        'Vérifier les écritures déséquilibrées et les comptes non rattachés ci-dessous.',
+      ]);
+    }
+    if (bilan.controle.doubleComptageProbable) {
+      anomalies.push([
+        'A_TRAITER',
+        'CJ',
+        'Résultat net de l’exercice',
+        `Les classes 6/7/8 portent ${bilan.controle.resultatClasses678.toFixed(2)} ET le compte 13 porte ${bilan.controle.resultatCompte13.toFixed(2)} : le résultat viendrait de deux sources à la fois.`,
+        'Solder les comptes de gestion à la clôture, ou reprendre l’écriture de détermination du résultat (Titre VII COMPTE 13).',
+      ]);
+    }
+    if (!cr.controle.coherent) {
+      anomalies.push([
+        'A_TRAITER',
+        'XI',
+        'Compte de résultat',
+        `Écart de ${cr.controle.ecart.toFixed(2)} entre le résultat net des postes officiels et le solde de toutes les classes de gestion.`,
+        'Rattacher les comptes de gestion listés ci-dessous à un poste du ch. 7.',
+      ]);
+    }
+    if (!tft.controle.coherent) {
+      anomalies.push([
+        'A_TRAITER',
+        'ZH',
+        'Tableau des flux de trésorerie',
+        `Écart de ${tft.controle.ecart.toFixed(2)} entre ZH par les flux et BT - DT du bilan · l’écart chiffre ce que la ventilation FA à FQ ne couvre pas.`,
+        'Examiner les comptes non ventilés ci-dessous.',
+      ]);
+    }
+    for (const c of bilan.comptesNonRattaches) {
+      anomalies.push([
+        'A_TRAITER',
+        c.numero,
+        c.intitule,
+        "Compte de bilan qu'aucun poste du tableau de correspondance officiel (Titre IX ch. 7) ne réclame · son montant n'entre dans aucun total.",
+        'Vérifier le numéro de compte, ou créer le compte au bon niveau du plan.',
+      ]);
+    }
+    for (const c of cr.comptesNonRattaches) {
+      anomalies.push([
+        'A_TRAITER',
+        c.numero,
+        c.intitule,
+        "Compte de gestion qu'aucun poste officiel du compte de résultat ne réclame.",
+        'Vérifier le numéro de compte.',
+      ]);
+    }
+    for (const c of tft.comptesNonVentiles) {
+      anomalies.push([
+        'A_VERIFIER',
+        c.numero,
+        c.intitule,
+        `Mouvement de trésorerie qu'aucun poste FA à FQ ne ventile (${c.montant.toFixed(2)}).`,
+        'Rapprocher l’opération de la ventilation du ch. 5 ; l’écart de bouclage de ZH en dépend.',
+      ]);
+    }
+    for (const p of tft.postesNonCalculables) {
+      anomalies.push(['INFO', p.ref, 'Tableau des flux de trésorerie', p.raison, 'Aucune action : la donnée manque, elle n’est pas approximée.']);
+    }
+    if (anomalies.length === 0) anomalies.push(['INFO', '·', '·', 'Aucune anomalie détectée sur cet exercice.', '·']);
+    let ra = 1;
+    for (const ligne of anomalies) {
+      ra += 1;
+      ligne.forEach((v, i) => {
+        an.getCell(ra, i + 1).value = v;
+      });
+      styleLigne(an, ra, 1, 5, 'normal');
+    }
+    largeurs(an, { A: 12, B: 16, C: 30, D: 70, E: 62 });
+    an.views = [{ state: 'frozen', ySplit: 1 }];
+
+    numeroterPages(classeur);
+    return classeur;
+  }
+
+  /**
+   * LIASSE COMPLÈTE du SYSTÈME MINIMAL DE TRÉSORERIE SYSCOHADA (Titre X).
+   *
+   * PAS DE TABLEAU DES FLUX DE TRÉSORERIE · anomalie du texte officiel,
+   * signalée et non corrigée : l'art. 28 range un « Tableau de flux de
+   * trésorerie » dans le jeu SMT, alors que le Titre X ch. 1 § 2 n'énumère
+   * que trois documents (Bilan, Compte de résultat, Notes annexes) et ne
+   * donne aucune maquette de TFT. On sert le jeu du Titre X, qui seul
+   * fournit les modèles ; aucun état n'est inventé (même arbitrage que le
+   * contrôleur des états SYSCOHADA).
+   */
+  private async liasseSmtSyscohadaEtafi(tenantId: string, exerciceId: string): Promise<ExcelJS.Workbook> {
+    const [ident, tenant, bilan, cr, journal, note1, note2, note3, eligibilite, exerciceN1Id] = await Promise.all([
+      this.identiteLiasse(tenantId, exerciceId),
+      this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId } }),
+      this.smtSyscohada.bilan(tenantId, exerciceId),
+      this.smtSyscohada.compteDeResultat(tenantId, exerciceId),
+      this.smtSyscohada.journalTresorerie(tenantId, exerciceId),
+      this.smtSyscohada.note1MaterielMobilierCautions(tenantId, exerciceId),
+      this.smtSyscohada.note2Stocks(tenantId, exerciceId),
+      this.smtSyscohada.note3CreancesDettes(tenantId, exerciceId),
+      this.smtSyscohada.eligibilite(tenantId, exerciceId),
+      this.exerciceN1Id(tenantId, exerciceId),
+    ]);
+    const lignesBalN = await this.lignesBalanceLiasse(tenantId, exerciceId);
+    const lignesBalN1 = exerciceN1Id ? await this.lignesBalanceLiasse(tenantId, exerciceN1Id) : [];
+
+    const classeur = this.nouveauClasseur();
+    ecrireFeuilleBalance(classeur, NOM_BALANCE, lignesBalN);
+    if (exerciceN1Id) ecrireFeuilleBalance(classeur, NOM_BALANCE_N1, lignesBalN1);
+    construireControleBalance(classeur, Boolean(exerciceN1Id), lignesBalN.length, lignesBalN1.length);
+
+    construireCouverture(classeur, ident, 'LIASSE SMT', tenant.pays ?? '');
+    construireGarde(classeur, ident, {
+      bandeau: 'ETATS FINANCIERS NORMALISES\nDU SYSTEME COMPTABLE OHADA (SYSCOHADA)',
+      sousBandeau: 'Entités astreintes à la comptabilité financière (AUDCIF art. 2)',
+      systeme: 'SYSTEME MINIMAL DE TRESORERIE',
+      // Titre X ch. 1 § 2 · les TROIS documents du jeu SMT, et rien d'autre.
+      documents: [
+        "Fiche d'identification et renseignements divers",
+        'Bilan',
+        'Compte de résultat',
+        'Notes annexes 1 à 3',
+      ],
+    });
+    construireFiche1(classeur, ident, 'SYSCOHADA', 'Système minimal de trésorerie', { ZE: tenant.rccm ?? '' });
+    construireFiche2(classeur, ident, 'DIRIGEANTS');
+
+    // Bilan paysage · c'est la présentation même du bilan SMT (« tableau à
+    // deux colonnes, Actif / Passif », ch. 2 § 1). La colonne REF du gabarit
+    // reste VIDE : le Titre X n'imprime aucun code de poste, et y mettre les
+    // clés internes d'OmegaX les ferait passer pour officielles.
+    const versCote = (postes: typeof bilan.actif, libelle: 'ACTIF' | 'PASSIF') => {
+      const details = postes.filter((p) => !p.estTotal);
+      const total = postes.find((p) => p.estTotal);
+      return {
+        feuille: libelle === 'ACTIF' ? 'Bilan-Actif' : 'Bilan-Passif',
+        libelle,
+        cols: [
+          { entete: 'EXERCICE N', lettre: 'C' },
+          { entete: 'EXERCICE N-1', lettre: 'D' },
+        ],
+        lignes: [
+          ...details.map((p, i) => ({
+            ref: '',
+            libelle: p.libelle,
+            note: p.note ?? '',
+            rangSource: 9 + i,
+            niveau: 'normal' as NiveauLigne,
+          })),
+          {
+            ref: '',
+            libelle: total?.libelle ?? (libelle === 'ACTIF' ? 'Total actif' : 'Total passif'),
+            note: '',
+            rangSource: 9 + details.length,
+            niveau: 'general' as NiveauLigne,
+          },
+        ],
+      };
+    };
+    construireBilanPaysage(
+      classeur,
+      ident,
+      versCote(bilan.actif, 'ACTIF'),
+      versCote(bilan.passif, 'PASSIF'),
+      'BILAN SMT AU 31 DECEMBRE N',
+    );
+
+    const { rangsActif, rangsPassif } = this.feuillesBilanSmtSyscohadaEtafi(classeur, bilan, ident);
+    const rangsCr = this.feuilleResultatSmtSyscohadaEtafi(classeur, cr, ident);
+
+    const parties = this.ficheNotesSmtSyscohadaEtafi(classeur, this.smtSyscohada.ficheNotes(), ident);
+    this.feuillesNotesSmtSyscohadaEtafi(classeur, { note1, note2, note3 }, ident);
+    this.feuilleJournalTresorerieSmtSyscohadaEtafi(classeur, journal, ident);
+    construireTableCommentaires(classeur, parties, ident);
+
+    const ctl = classeur.addWorksheet('CONTROLES');
+    ctl.getCell(1, 1).value = 'Contrôle';
+    ctl.getCell(1, 2).value = 'Valeur';
+    ctl.getCell(1, 3).value = 'Attendu';
+    entetesBande(ctl, 1, 1, 1, 3);
+    const n = Math.max(lignesBalN.length, 1);
+    const controles: Array<[string, string | number, string | number]> = [
+      ['Total solde de clôture débit balance', `SUM('${NOM_BALANCE}'!G2:G${n + 1})`, ''],
+      ['Total solde de clôture crédit balance', `SUM('${NOM_BALANCE}'!H2:H${n + 1})`, ''],
+      ['Écart balance (doit être 0)', 'B2-B3', 0],
+      ['Total actif', `'Bilan-Actif'!C${rangsActif.get('SAZ')}`, ''],
+      ['Total passif', `'Bilan-Passif'!C${rangsPassif.get('SPZ')}`, ''],
+      ['Écart bilan actif - passif (doit être 0)', 'B5-B6', 0],
+      ['RÉSULTAT EXERCICE du compte de résultat (G = C - D + E - F)', `Résultat!C${rangsCr.get('SG')}`, ''],
+      ['Résultat logé au bilan (poste « Résultat exercice »)', `'Bilan-Passif'!C${rangsPassif.get('SP2')}`, ''],
+      ['Écart résultat CR / bilan (doit être 0)', 'B8-B9', 0],
+      [
+        "Chiffre d'affaires de l'exercice (art. 13, compte 70)",
+        eligibilite.chiffreAffaires,
+        `${eligibilite.deviseDossier ?? 'monnaie de tenue'}`,
+      ],
+      ...eligibilite.seuils.map(
+        (s) =>
+          [`Seuil art. 13 · ${s.categorie}`, s.montantFcfa, `F CFA, ${s.clause}`] as [string, string | number, string | number],
+      ),
+    ];
+    let rc = 1;
+    for (const [lab, val, attendu] of controles) {
+      rc += 1;
+      ctl.getCell(rc, 1).value = lab;
+      ctl.getCell(rc, 2).value = typeof val === 'string' ? { formula: val } : val;
+      ctl.getCell(rc, 3).value = attendu;
+      styleLigne(ctl, rc, 1, 3, 'normal', [2]);
+    }
+    rc += 2;
+    ligneControleSousEtat(ctl, rc, eligibilite.avertissementConversion);
+    rc += 1;
+    ligneControleSousEtat(ctl, rc, eligibilite.qualificationParLEntite);
+    rc += 1;
+    ligneControleSousEtat(ctl, rc, eligibilite.rappelArticle11);
+    largeurs(ctl, { A: 68, B: 24, C: 46 });
+
+    const an = classeur.addWorksheet('ANOMALIES');
+    for (const [i, h] of ['Gravité', 'Compte / poste', 'Intitulé', 'Problème', 'Solution proposée'].entries()) {
+      an.getCell(1, i + 1).value = h;
+    }
+    entetesBande(an, 1, 1, 1, 5);
+    const anomalies: Array<[string, string, string, string, string]> = [];
+    if (!bilan.equilibre) {
+      anomalies.push([
+        'BLOQUANT',
+        'Total actif / Total passif',
+        'Bilan SMT',
+        `Actif et passif diffèrent de ${(bilan.totalActif - bilan.totalPassif).toFixed(2)}.`,
+        'Vérifier les écritures déséquilibrées et les comptes hors maquette.',
+      ]);
+    }
+    if (!cr.controle.concordant) {
+      anomalies.push([
+        'A_TRAITER',
+        'G',
+        'Compte de résultat SMT',
+        `Écart de ${cr.controle.ecart.toFixed(2)} avec le résultat du bilan (résidu inexpliqué : ${cr.controle.residuel.toFixed(2)}).`,
+        'Examiner les flux de trésorerie hors résultat (financement, investissement) que le compte de résultat SMT écarte.',
+      ]);
+    }
+    for (const c of bilan.comptesNonRattaches) {
+      anomalies.push([
+        'A_TRAITER',
+        c.numero,
+        c.intitule,
+        "Compte de bilan qu'aucun poste de la maquette SMT ne capte · son montant n'entre dans aucun total.",
+        'Vérifier le numéro de compte, ou créer le compte au bon niveau du plan.',
+      ]);
+    }
+    for (const j of journal.journaux) {
+      if (!j.boucle) {
+        anomalies.push([
+          'A_TRAITER',
+          j.numero,
+          j.intitule,
+          `Le journal de trésorerie ne boucle pas avec la balance (écart ${(j.soldeAReporter - j.soldeBalance).toFixed(2)}).`,
+          'Vérifier les écritures du compte.',
+        ]);
+      }
+    }
+    for (const c of cr.contrepartiesNonRattachees) {
+      anomalies.push([
+        'A_VERIFIER',
+        c.numero,
+        c.intitule,
+        `Contrepartie de trésorerie qu'aucun poste A / B ni aucune rubrique hors résultat ne capte (${c.montant.toFixed(2)}).`,
+        'Vérifier le numéro de compte de la contrepartie.',
+      ]);
+    }
+    // Éligibilité · l'art. 13 fixe TROIS seuils selon la qualification de
+    // l'activité, qu'OmegaX ne porte pas, et le dossier n'est pas tenu en
+    // F CFA : la comparaison est présentée, jamais tranchée.
+    const plusBasSeuil = Math.min(...eligibilite.seuils.map((s) => s.montantFcfa));
+    if (eligibilite.chiffreAffaires > plusBasSeuil) {
+      anomalies.push([
+        'A_VERIFIER',
+        'art. 13',
+        'Éligibilité au Système minimal de trésorerie',
+        `Chiffre d'affaires de ${eligibilite.chiffreAffaires.toLocaleString('fr-FR')} ${eligibilite.deviseDossier ?? ''} face à des seuils exprimés en F CFA (30 à 60 millions selon la catégorie). ${eligibilite.avertissementConversion}`,
+        eligibilite.qualificationParLEntite,
+      ]);
+    }
+    if (anomalies.length === 0) anomalies.push(['INFO', '·', '·', 'Aucune anomalie détectée sur cet exercice.', '·']);
+    let ra = 1;
+    for (const ligne of anomalies) {
+      ra += 1;
+      ligne.forEach((v, i) => {
+        an.getCell(ra, i + 1).value = v;
+      });
+      styleLigne(an, ra, 1, 5, 'normal');
+    }
+    largeurs(an, { A: 12, B: 22, C: 30, D: 70, E: 62 });
+    an.views = [{ state: 'frozen', ySplit: 1 }];
+
+    numeroterPages(classeur);
+    return classeur;
+  }
+
   /**
    * LIASSE COMPLÈTE · le classeur ENTIER du modèle du skill, construit
    * nativement pour le jeu du dossier (art. 4 de l'Acte uniforme) ·
@@ -3325,6 +4787,27 @@ export class ExportService {
     paiementsEnInstance = 0,
   ): Promise<ClasseurExporte> {
     const tenant = await this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId } });
+    // LE RÉFÉRENTIEL D'ABORD · `jeuEtatsFinanciersSycebnl` n'a de sens que
+    // pour un dossier SYCEBNL (il porte une valeur par défaut même sur un
+    // dossier SYSCOHADA, où il ne veut rien dire) : le lire sans avoir
+    // tranché le référentiel produirait une liasse SYCEBNL pour une société
+    // commerciale, sans qu'aucun total cesse de boucler.
+    //
+    // Le branchement vit ICI et non dans le contrôleur parce que
+    // `GroupeService.liasseGroupe` appelle cette méthode DIRECTEMENT, sans
+    // passer par une route ni par `ReferentielGuard` : un aiguillage posé
+    // seulement sur la route laisserait la liasse du groupe au mauvais
+    // référentiel.
+    if (tenant.referentiel === Referentiel.SYSCOHADA) {
+      const natifSyscohada =
+        tenant.systemeComptableSyscohada === SystemeComptableSyscohada.MINIMAL_TRESORERIE
+          ? await this.liasseSmtSyscohadaEtafi(tenantId, exerciceId)
+          : await this.liasseSyscohadaEtafi(tenantId, exerciceId);
+      return {
+        buffer: await this.versBuffer(natifSyscohada),
+        nomFichier: `liasse-complete${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
+      };
+    }
     const jeu = tenant.jeuEtatsFinanciersSycebnl;
     const natif =
       jeu === JeuEtatsFinanciersSycebnl.ASSOCIATIONS_ORDRES_PROFESSIONNELS
