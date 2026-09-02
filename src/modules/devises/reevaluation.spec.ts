@@ -366,3 +366,103 @@ describe('imputation des écritures de réévaluation · SYCEBNL inchangé', () 
     expect(provision!.lignes.map((l) => l.numero)).toEqual(['6971', '194']);
   });
 });
+
+/**
+ * QU'EST-CE QU'UNE DISPONIBILITÉ ?
+ *
+ * La question décide de tout : une disponibilité en devise donne un écart
+ * RÉALISÉ, qui va droit au résultat financier ; une créance ou une dette
+ * donne un écart LATENT, qui passe par les écarts de conversion et appelle
+ * une provision.
+ *
+ * Le test portait sur la classe ENTIÈRE (`numero.startsWith('5')`), ce qui
+ * rangeait en disponibilités trois familles qui n'en sont pas · 50 titres de
+ * placement, 54 instruments de trésorerie, et surtout 56 « Banques, crédits
+ * de trésorerie et d'escompte », qui est une DETTE bancaire. Un découvert en
+ * devise passait donc directement en 676, sans écart de conversion et sans
+ * provision : le résultat financier portait une perte que l'AUDCIF veut
+ * latente.
+ */
+const DECOUVERT = '56100000';
+const PLACEMENT = '50100000';
+const BANQUE = '52100000';
+
+describe('disponibilités contre trésorerie financière', () => {
+  it('un DÉCOUVERT bancaire en devise donne un écart LATENT, pas une perte réalisée', async () => {
+    // Découvert de 1 000 USD inscrit à 2 500 000, clôture à 2 800 : la dette
+    // s'alourdit de 300 000. Perte PROBABLE, pas supportée.
+    const r = await service(
+      [{ compteNumero: DECOUVERT, deviseCode: 'USD', debit: 0, credit: 2_500_000, montantDevise: 1000 }],
+      2800,
+    ).calculer('t1', { exerciceId: 'ex1' });
+    expect(r.perteLatente).toBe(300_000);
+    expect(r.perteRealisee).toBe(0);
+    // Et la prudence s'applique : la perte probable se provisionne.
+    expect(r.provision).toBe(300_000);
+  });
+
+  it('un TITRE DE PLACEMENT en devise donne lui aussi un écart latent', async () => {
+    const r = await service(
+      [{ compteNumero: PLACEMENT, deviseCode: 'USD', debit: 2_800_000, credit: 0, montantDevise: 1000 }],
+      2500,
+    ).calculer('t1', { exerciceId: 'ex1' });
+    expect(r.perteLatente).toBe(300_000);
+    expect(r.perteRealisee).toBe(0);
+  });
+
+  it('une BANQUE, elle, reste une disponibilité · écart réalisé, aucune provision', async () => {
+    const r = await service(
+      [{ compteNumero: BANQUE, deviseCode: 'USD', debit: 2_800_000, credit: 0, montantDevise: 1000 }],
+      2500,
+    ).calculer('t1', { exerciceId: 'ex1' });
+    expect(r.perteRealisee).toBe(300_000);
+    expect(r.perteLatente).toBe(0);
+    expect(r.provision).toBe(0);
+  });
+});
+
+describe('les TROIS couples de provision du texte sont servis', () => {
+  it('un découvert bancaire est un risque financier à COURT terme · 6791 par 4997', async () => {
+    const { svc, ecrites } = serviceEcritures(
+      [{ compteNumero: DECOUVERT, deviseCode: 'USD', debit: 0, credit: 2_500_000, montantDevise: 1000 }],
+      2800,
+      'SYSCOHADA',
+    );
+    await svc.reevaluer('t1', 'u1', { exerciceId: 'ex1' });
+    const provision = ecrites.find((e) => e.libelle.startsWith('Provision'))!;
+    // AUDCIF Titre VIII ch. 22 § 2.3 : « risques à court terme : débit 6791
+    // Charges pour provisions sur risques financiers · crédit 4997 ».
+    expect(provision.lignes.map((l) => l.numero)).toEqual(['6791', '4997']);
+  });
+
+  it('son écart va en 4784 · augmentation d’une dette FINANCIÈRE', async () => {
+    const { svc, ecrites } = serviceEcritures(
+      [{ compteNumero: DECOUVERT, deviseCode: 'USD', debit: 0, credit: 2_500_000, montantDevise: 1000 }],
+      2800,
+      'SYSCOHADA',
+    );
+    await svc.reevaluer('t1', 'u1', { exerciceId: 'ex1' });
+    expect(ecrites[0].lignes.map((l) => l.numero)).toContain('4784');
+  });
+
+  it('exploitation, court terme et long terme cohabitent dans UNE écriture équilibrée', async () => {
+    const { svc, ecrites } = serviceEcritures(
+      [
+        { compteNumero: CLIENT, deviseCode: 'USD', debit: 2_800_000, credit: 0, montantDevise: 1000 },
+        { compteNumero: DECOUVERT, deviseCode: 'USD', debit: 0, credit: 2_400_000, montantDevise: 1000 },
+        { compteNumero: EMPRUNT, deviseCode: 'USD', debit: 0, credit: 2_400_000, montantDevise: 1000 },
+      ],
+      2500,
+      'SYSCOHADA',
+    );
+    await svc.reevaluer('t1', 'u1', { exerciceId: 'ex1' });
+    const provision = ecrites.find((e) => e.libelle.startsWith('Provision'))!;
+    const numeros = provision.lignes.map((l) => l.numero);
+    expect(numeros).toContain('6591'); // créance client · exploitation
+    expect(numeros).toContain('6791'); // découvert · financier court terme
+    expect(numeros).toContain('6971'); // emprunt · financier long terme
+    const debits = provision.lignes.reduce((s, l) => s + (l.debit ?? 0), 0);
+    const credits = provision.lignes.reduce((s, l) => s + (l.credit ?? 0), 0);
+    expect(Math.round(debits * 100)).toBe(Math.round(credits * 100));
+  });
+});

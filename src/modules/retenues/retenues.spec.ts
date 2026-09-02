@@ -298,3 +298,56 @@ describe('Échéancier fiscal et social', () => {
     expect(e.derniereVerificationEcheances).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 });
+
+/**
+ * LE CRÉDIT DE TVA N'EST PAS UN REVERSEMENT.
+ *
+ * Ce registre compte les CRÉDITS comme des retenues constituées et les DÉBITS
+ * comme des reversements. La nature « TVA due » captait le préfixe « 444 » en
+ * entier · exact en SYCEBNL, dont le plan ne subdivise pas ce compte, faux en
+ * SYSCOHADA, qui en tire « 4441 État, TVA due » et « 4449 État, crédit de TVA
+ * à reporter ».
+ *
+ * Le 4449 est une CRÉANCE sur l'État : ses débits n'ont jamais été versés à
+ * personne. Les compter comme des reversements minorait la TVA due du montant
+ * du crédit reporté · le registre annonçait une dette fiscale plus faible
+ * qu'elle n'est, et l'échéancier s'en trouvait faussé dans le sens le plus
+ * dangereux, celui qui rassure.
+ */
+describe('registre des retenues · le crédit de TVA reporté n’est pas un reversement', () => {
+  it('compte la TVA due du 4441 et ignore le 4449', async () => {
+    const s = service([
+      // TVA due de janvier, constituée puis non reversée.
+      ligne('44410000', '2026-01-31', { credit: 500_000 }),
+      // Crédit de TVA reporté, porté au débit du 4449 · le registre ne doit
+      // PAS le lire comme un reversement de 200 000.
+      ligne('44490000', '2026-01-31', { debit: 200_000 }),
+    ]);
+    const r = await s.registre('t1', { exerciceId: 'e1', dateReference: '2026-06-15' });
+    const tva = nature(r as never, 'tva');
+    expect(tva.retenu).toBe(500_000);
+    expect(tva.reverse).toBe(0);
+    // 300 000 serait le solde si le crédit avait été pris pour un versement.
+    expect(tva.solde).toBe(500_000);
+  });
+
+  it('reste exact en SYCEBNL, dont le plan n’a pas de 4449 · l’exclusion y est inerte', async () => {
+    const s = service([
+      ligne('44410000', '2026-01-31', { credit: 500_000 }),
+      ligne('44410000', '2026-02-15', { debit: 500_000 }),
+    ]);
+    const r = await s.registre('t1', { exerciceId: 'e1', dateReference: '2026-06-15' });
+    const tva = nature(r as never, 'tva');
+    expect(tva.retenu).toBe(500_000);
+    expect(tva.reverse).toBe(500_000);
+    expect(tva.solde).toBe(0);
+  });
+
+  it('la nature TVA porte bien la forme commune aux deux référentiels', () => {
+    const tva = NATURES_RETENUES.find((n) => n.cle === 'tva')!;
+    // `['444']` + exclusion plutôt que `['4441']` : la première forme couvre
+    // encore un dossier SYSCOHADA qui n'aurait pas ouvert son 4441.
+    expect(tva.comptes).toEqual(['444']);
+    expect(tva.exclusions).toEqual(['4449']);
+  });
+});

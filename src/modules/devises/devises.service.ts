@@ -24,6 +24,42 @@ const RACINE = {
 } as const;
 
 /**
+ * Une position en devise est-elle une DISPONIBILITÉ ?
+ *
+ * La question décide de tout : une disponibilité en devise donne un écart
+ * RÉALISÉ, qui va droit au résultat financier (676 / 776) ; une créance ou
+ * une dette donne un écart LATENT, qui passe par les écarts de conversion et
+ * appelle une provision. L'AUDCIF le pose explicitement en excluant les
+ * disponibilités de la position globale de change, « les écarts de change
+ * étant comptabilisés immédiatement en résultat » (Titre VIII ch. 22 § 2.2).
+ *
+ * Le test portait sur la CLASSE ENTIÈRE (`numero.startsWith('5')`), ce qui
+ * rangeait en disponibilités trois familles qui n'en sont pas :
+ *
+ *  · 50 « Titres de placement » · un placement, pas de la monnaie ;
+ *  · 54 « Instruments de trésorerie » (SYSCOHADA seulement) ;
+ *  · 56 « Banques, crédits de trésorerie et d'escompte » · une DETTE
+ *    bancaire, dont l'alourdissement en devise est une perte PROBABLE à
+ *    provisionner, pas une perte supportée.
+ *
+ * Un découvert bancaire en devise passait donc directement en 676, sans
+ * écart de conversion et sans provision : le résultat financier de
+ * l'exercice portait une perte que le texte veut latente.
+ *
+ * Les vraies disponibilités sont les mêmes dans les deux référentiels · 52
+ * Banques, 53 Établissements financiers et assimilés, 55 Instruments de
+ * monnaie électronique, 57 Caisse, 58 (régies d'avances et accréditifs en
+ * SYSCOHADA, virements internes dans les deux, toujours soldés à la
+ * clôture). Le SYCEBNL n'a pas de 54, et le 55 porte chez lui le même
+ * intitulé qu'en SYSCOHADA : une seule liste suffit.
+ */
+const RACINES_DISPONIBILITES = /^(52|53|55|57|58)/;
+
+function estDisponibilite(numero: string): boolean {
+  return RACINES_DISPONIBILITES.test(numero);
+}
+
+/**
  * Nature d'une position en devise au sens du SYSCOHADA · elle commande À LA
  * FOIS la subdivision de l'écart de conversion et le couple de provision.
  *
@@ -39,13 +75,30 @@ const RACINE = {
  * sont financiers. Les disponibilités de la classe 5 ne passent jamais ici :
  * leur écart est RÉALISÉ, pas latent (voir `estTresorerie`).
  */
-type NaturePosition = 'EXPLOITATION' | 'FINANCIER';
+type NaturePosition = 'EXPLOITATION' | 'FINANCIER_COURT' | 'FINANCIER_LONG';
 
-/** Racines financières · tout le reste des positions latentes est d'exploitation. */
-const RACINES_FINANCIERES = /^(16|17|18|26|27)/;
+/**
+ * Ressources et emplois DURABLES · classe 1 (emprunts et dettes financières)
+ * et immobilisations financières. Ils sont à plus d'un an par construction du
+ * plan, d'où le long terme.
+ */
+const RACINES_FINANCIERES_LONGUES = /^(16|17|18|26|27)/;
+
+/**
+ * Financier à MOINS d'un an · 50 titres de placement, 54 instruments de
+ * trésorerie (SYSCOHADA seulement, le SYCEBNL n'a pas de 54) et 56 banques,
+ * crédits de trésorerie et d'escompte, qui est une DETTE bancaire à court
+ * terme et non une disponibilité.
+ */
+const RACINES_FINANCIERES_COURTES = /^(50|54|56)/;
 
 function naturePosition(numero: string): NaturePosition {
-  return RACINES_FINANCIERES.test(numero) ? 'FINANCIER' : 'EXPLOITATION';
+  if (RACINES_FINANCIERES_LONGUES.test(numero)) return 'FINANCIER_LONG';
+  if (RACINES_FINANCIERES_COURTES.test(numero)) return 'FINANCIER_COURT';
+  // Tout le reste est d'exploitation, y compris le 51 « Valeurs à encaisser » :
+  // un chèque ou un effet reçu d'un client est la queue d'une créance
+  // COMMERCIALE, pas une opération financière.
+  return 'EXPLOITATION';
 }
 
 /**
@@ -68,8 +121,11 @@ function naturePosition(numero: string): NaturePosition {
  * fournisseur en devise s'imputait sur la subdivision des créances.
  */
 function racineEcartSyscohada(estCreance: boolean, estPerte: boolean, nature: NaturePosition): string {
-  if (estPerte) return estCreance ? (nature === 'EXPLOITATION' ? '4781' : '4782') : nature === 'EXPLOITATION' ? '4783' : '4784';
-  return estCreance ? (nature === 'EXPLOITATION' ? '4791' : '4792') : nature === 'EXPLOITATION' ? '4793' : '4794';
+  // Les subdivisions ne distinguent que exploitation / financier · la
+  // distinction court terme / long terme ne joue que sur la PROVISION.
+  const exploitation = nature === 'EXPLOITATION';
+  if (estPerte) return estCreance ? (exploitation ? '4781' : '4782') : exploitation ? '4783' : '4784';
+  return estCreance ? (exploitation ? '4791' : '4792') : exploitation ? '4793' : '4794';
 }
 
 /**
@@ -87,17 +143,19 @@ function racineEcartSyscohada(estCreance: boolean, estPerte: boolean, nature: Na
  * d'EXPLOITATION · deux soldes intermédiaires faux, sans qu'aucun total du
  * compte de résultat ne bouge.
  *
- * LIMITE ASSUMÉE · le couple court terme 6791/4997 n'est pas servi. Le
- * distinguer de 6971/194 suppose l'échéance de la position, que l'agrégat
- * (compte, devise) ne porte pas. Les seules racines financières qui arrivent
- * ici (16, 17, 18, 26, 27) sont des ressources et emplois DURABLES par
- * construction du plan, donc à plus d'un an : le long terme est le bon
- * défaut, et le seul cas qu'il manquerait suppose une dette financière à
- * moins d'un an logée hors de la classe 5.
+ * Les trois couples du texte sont servis. Le court terme (6791 / 4997) l'a
+ * été à partir du moment où `estTresorerie` a cessé de prendre TOUTE la
+ * classe 5 : le compte 56 « Banques, crédits de trésorerie et d'escompte »,
+ * qui est une dette bancaire à court terme et non une disponibilité, atteint
+ * désormais ce code. La distinction court/long ne se lit pas sur une
+ * échéance, que l'agrégat (compte, devise) ne porte pas, mais sur la NATURE
+ * du compte : la classe 1 et les immobilisations financières sont durables
+ * par construction du plan, la trésorerie financière ne l'est pas.
  */
 const PROVISION_SYSCOHADA: Record<NaturePosition, { dotation: string; provision: string }> = {
   EXPLOITATION: { dotation: '6591', provision: '4991' },
-  FINANCIER: { dotation: '6971', provision: '194' },
+  FINANCIER_COURT: { dotation: '6791', provision: '4997' },
+  FINANCIER_LONG: { dotation: '6971', provision: '194' },
 };
 
 /** Une position en devise à réévaluer : un compte, une devise, son écart. */
@@ -260,7 +318,7 @@ export class DevisesService {
           coursCloture: 0,
           valeurReevaluee: 0,
           ecart: 0,
-          estTresorerie: l.compte.numero.startsWith('5'),
+          estTresorerie: estDisponibilite(l.compte.numero),
         } satisfies PositionDevise);
       // Le montant en devise est stocké sans signe : c'est le sens de la ligne
       // (débit ou crédit) qui le donne.
@@ -404,7 +462,7 @@ export class DevisesService {
       const parNature = new Map<NaturePosition, number>();
       for (const p of rapport.positions) {
         if (p.estTresorerie || p.ecart >= 0) continue; // seule la perte LATENTE se provisionne
-        const nature = estSyscohada ? naturePosition(p.numero) : 'FINANCIER';
+        const nature = estSyscohada ? naturePosition(p.numero) : 'FINANCIER_LONG';
         parNature.set(nature, Math.round(((parNature.get(nature) ?? 0) - p.ecart) * 100) / 100);
       }
       const lignesProvision: { compteId: string; debit?: number; credit?: number; libelle: string }[] = [];

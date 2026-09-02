@@ -194,13 +194,26 @@ export const NATURES_RETENUES: NatureRetenue[] = [
     // 444 « Etat, T.V.A. due ou crédit de T.V.A. ». Le registre de TVA
     // proprement dit vit dans le module TVA ; il figure ici parce que
     // l'échéancier doit être complet.
+    //
+    // 4449 EXCLU · le SYCEBNL ne subdivise pas son 444, mais le plan
+    // SYSCOHADA en tire « 4441 État, TVA due » et « 4449 État, crédit de TVA
+    // à reporter ». Or ce registre compte les DÉBITS comme des reversements :
+    // le 4449 est un compte de CRÉANCE sur l'État, ses débits n'ont jamais
+    // été versés à personne, et les inclure minorait la TVA due du montant du
+    // crédit reporté · une dette fiscale annoncée plus faible qu'elle n'est.
+    //
+    // L'exclusion plutôt qu'un `['4441']` par référentiel, à dessein : elle
+    // est INERTE en SYCEBNL, dont le plan n'a pas de 4449, et elle couvre
+    // encore un dossier SYSCOHADA qui n'aurait pas ouvert son 4441 · ce que
+    // `['4441']` seul aurait perdu. Une seule forme pour les deux.
     comptes: ['444'],
+    exclusions: ['4449'],
     beneficiaire: 'ETAT',
     joursApresPeriode: 15,
     echeance: 'Le 15 du mois suivant',
     baseLegale: "Ordonnance-loi n° 10/001 du 20 août 2010 instituant la TVA et son décret d'application n° 011/42.",
     reserve:
-      "Une ASBL dont les opérations sont conformes à son objet est exonérée de TVA (art. 15.2 et 17.8), mais l'exonération d'impôt sur les sociétés ne l'emporte pas : les deux régimes s'apprécient séparément, l'arrêté n° 007/2025 le dit lui-même.",
+      "Le régime dépend du référentiel du dossier. Une ASBL dont les opérations sont conformes à son objet est exonérée de TVA (art. 15.2 et 17.8), et l'exonération d'impôt sur les sociétés ne l'emporte pas : les deux régimes s'apprécient séparément, l'arrêté n° 007/2025 le dit lui-même. Une entreprise, elle, est assujettie de plein droit dès qu'elle franchit le seuil de l'art. 14 · cette réserve ne la concerne pas.",
   },
   {
     cle: 'cnss',
