@@ -29,16 +29,26 @@ export function qualiteDuCompte(numero: string, referentiel: Referentiel): strin
 }
 
 /**
- * Trois niveaux livrés par défaut, LES MÊMES POUR LES DEUX RÉFÉRENTIELS.
+ * TROIS NIVEAUX LIVRÉS PAR DÉFAUT, UN JEU PAR RÉFÉRENTIEL.
  *
- * Le ton monte, mais reste celui d'un courrier de gestion, pas celui d'un
- * service contentieux · c'est la seule chose qu'un modèle de lettre commercial
- * ne saurait pas faire à notre place. Les textes sont volontairement neutres :
- * ils s'adressent au « cher {tiers} », ne nomment ni cotisation ni facture, et
- * conviennent donc aussi bien à une association qu'à une entreprise. Ce sont
- * de simples modèles, entièrement réécrits par le dossier.
+ * Ces lettres partent VRAIMENT, à un adhérent ou à un client, sous la
+ * signature du dossier · c'est le seul endroit du logiciel dont le texte sort
+ * de l'écran. Un jeu unique tenait par un accident de rédaction : à force de
+ * chercher des mots qui conviennent aux deux, on écrit une lettre qui ne
+ * convient bien à personne. « Votre règlement permet à notre entité de
+ * poursuivre ses activités » se dit à un membre, pas à un client d'une SARL,
+ * qui attend une référence de facture et une échéance.
+ *
+ * Le ton monte d'un niveau à l'autre, mais reste celui d'un courrier de
+ * gestion et non d'un service contentieux · c'est ce qu'un modèle générique ne
+ * saurait pas faire à notre place. Ce ne sont que des modèles : le dossier les
+ * réécrit entièrement depuis la fenêtre Rappel et relevé.
+ *
+ * Aucune mention d'intérêts de retard n'est écrite d'office : ils ne sont dus
+ * que si une convention les prévoit, et une lettre type qui les annonce sans
+ * base ferait dire au logiciel ce que le contrat ne dit pas.
  */
-const NIVEAUX_DEFAUT: Omit<CreerNiveauDto, never>[] = [
+const NIVEAUX_SYCEBNL: Omit<CreerNiveauDto, never>[] = [
   {
     niveau: 1,
     libelle: 'Invitation à régler',
@@ -64,6 +74,38 @@ const NIVEAUX_DEFAUT: Omit<CreerNiveauDto, never>[] = [
       "Cher {tiers},\n\nMalgré notre précédent courrier, la somme de {montant} reste impayée au {date}.\n\n{detail}\n\nNous vous serions reconnaissants de bien vouloir régulariser votre situation, ou de prendre contact avec nous pour convenir d'un échelonnement.\n\n{entite}",
   },
 ];
+
+const NIVEAUX_SYSCOHADA: Omit<CreerNiveauDto, never>[] = [
+  {
+    niveau: 1,
+    libelle: 'Avis d’échéance',
+    type: TypeRelance.PREVENTIVE,
+    joursApresEcheance: -7,
+    modeleTexte:
+      "Madame, Monsieur,\n\nNous vous informons que la somme de {montant} viendra à échéance le {date}.\n\n{detail}\n\nNous vous remercions de bien vouloir procéder au règlement à cette date.\n\n{entite}",
+  },
+  {
+    niveau: 2,
+    libelle: 'Premier rappel',
+    type: TypeRelance.RAPPEL,
+    joursApresEcheance: 15,
+    modeleTexte:
+      "Madame, Monsieur,\n\nSauf erreur de notre part, la somme de {montant} demeure impayée à ce jour, {date}.\n\n{detail}\n\nSi votre règlement nous est parvenu entre-temps, ce rappel est sans objet. Dans le cas contraire, nous vous remercions de le régulariser sans délai.\n\n{entite}",
+  },
+  {
+    niveau: 3,
+    libelle: 'Mise en demeure préalable',
+    type: TypeRelance.RAPPEL,
+    joursApresEcheance: 45,
+    modeleTexte:
+      "Madame, Monsieur,\n\nMalgré notre précédent rappel, la somme de {montant} reste impayée au {date}.\n\n{detail}\n\nNous vous invitons à régulariser sous quinzaine, ou à nous contacter pour convenir d'un échéancier. À défaut, nous serons contraints d'envisager le recouvrement de cette créance par les voies de droit.\n\n{entite}",
+  },
+];
+
+const NIVEAUX_DEFAUT: Record<Referentiel, Omit<CreerNiveauDto, never>[]> = {
+  [Referentiel.SYCEBNL]: NIVEAUX_SYCEBNL,
+  [Referentiel.SYSCOHADA]: NIVEAUX_SYSCOHADA,
+};
 
 /** Une position à relancer : un compte de tiers, ce qu'il doit, son retard. */
 export interface PositionRelance {
@@ -127,11 +169,15 @@ export class RelancesService {
    * fait partie d'une création de dossier · hors de ce cas il vaut
    * `this.prisma` et rien ne change pour les autres appelants.
    */
-  async seedNiveauxDefaut(tenantId: string, client: Prisma.TransactionClient = this.prisma) {
+  async seedNiveauxDefaut(
+    tenantId: string,
+    referentiel: Referentiel,
+    client: Prisma.TransactionClient = this.prisma,
+  ) {
     const existants = await client.niveauRelance.count({ where: { tenantId } });
     if (existants > 0) return;
     await client.niveauRelance.createMany({
-      data: NIVEAUX_DEFAUT.map((n) => ({ ...n, tenantId })),
+      data: NIVEAUX_DEFAUT[referentiel].map((n) => ({ ...n, tenantId })),
     });
   }
 

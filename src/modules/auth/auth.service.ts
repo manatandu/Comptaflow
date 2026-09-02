@@ -126,9 +126,12 @@ export class AuthService {
         // sur les comptes, mais placés ici pour que le dossier soit prêt à
         // ventiler dès la première écriture.
         await this.analytiqueService.seedPlansDefaut(tenant.id, dto.referentiel, tx);
-        // Trois niveaux de relance au ton d'une association à ses membres · voir
-        // RelancesService.NIVEAUX_DEFAUT.
-        await this.relancesService.seedNiveauxDefaut(tenant.id, tx);
+        // Trois niveaux de relance, au ton d'une association à ses membres ou
+        // d'une entreprise à ses clients selon le référentiel · voir
+        // RelancesService.NIVEAUX_DEFAUT. Ces lettres partent vraiment, sous
+        // la signature du dossier : c'est le seul texte du logiciel qui sort
+        // de l'écran.
+        await this.relancesService.seedNiveauxDefaut(tenant.id, dto.referentiel, tx);
         const exercice =
           dto.dateDebutExercice && dto.dateFinExercice
             ? await this.exerciceService.creer(

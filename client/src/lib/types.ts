@@ -1,7 +1,11 @@
 export type Referentiel = 'SYCEBNL' | 'SYSCOHADA';
 /**
- * N'a de sens que si `Referentiel` = 'SYCEBNL' (le SYSCOHADA n'a qu'un seul
- * jeu). SYCEBNL en prévoit 3 (Partie 4, ch. 2 à 4 du texte officiel), et les
+ * N'a de sens que si `Referentiel` = 'SYCEBNL' · son pendant SYSCOHADA est
+ * `SystemeComptableSyscohada`, plus bas dans ce fichier : l'AUDCIF admet lui
+ * aussi deux présentations (art. 11 · Système normal, Système minimal de
+ * trésorerie), et raisonner comme si le SYSCOHADA n'en avait qu'une avait
+ * fait sauter l'étape « système » du nouveau fichier comptable. SYCEBNL en
+ * prévoit 3 (Partie 4, ch. 2 à 4 du texte officiel), et les
  * trois sont désormais construits. Le Système Minimal de Trésorerie n'est
  * toutefois pas un choix libre : l'article 6 le réserve aux entités dont
  * chacune des cinq catégories de ressources annuelles reste sous 30 000 000
@@ -503,9 +507,15 @@ export interface AuthResponse {
   csrfToken: string;
 }
 
-// Types de tiers du SYCEBNL : le compte 41 « Adhérents, clients-usagers et
-// comptes rattachés » couvre deux populations que le texte officiel
-// subdivise (411 Adhérents, 412 Clients-usagers). Voir prisma/schema.prisma.
+// Types de tiers HÉRITÉS DU SYCEBNL, dont le compte 41 « Adhérents,
+// clients-usagers et comptes rattachés » couvre deux populations que le texte
+// officiel subdivise (411 Adhérents, 412 Clients-usagers).
+//
+// En SYSCOHADA la division 41 est « Clients et comptes rattachés » : le 411
+// y est « Clients » et le 412 « Clients, effets à recevoir en portefeuille ».
+// ADHERENT n'y existe donc pas · le serveur refuse d'en créer un
+// (TiersService) et TiersPage ne propose pas le type. Les numéros coïncident,
+// les notions non. Voir prisma/schema.prisma.
 export type TypeTiers = 'ADHERENT' | 'CLIENT' | 'FOURNISSEUR' | 'SALARIE' | 'AUTRE';
 export type ConditionEcheance = 'NET' | 'FIN_DE_MOIS';
 export type TypeEcheance = 'POURCENTAGE' | 'MONTANT' | 'EQUILIBRE';

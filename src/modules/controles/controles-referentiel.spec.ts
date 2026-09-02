@@ -176,6 +176,20 @@ describe('Contrôles · 409 et 419 ont un sens normalement inversé, dans les de
         expect(lignes.sort()).toEqual(['40910000', '41910000']);
       });
 
+      it('dit le reclassement, et pas seulement d’aller regarder', async () => {
+        // La non-compensation (AUDCIF art. 34 · SYCEBNL art. 16, 5°) commande
+        // la correction : un 401 débiteur laissé tel quel vient en diminution
+        // des dettes au passif, ce qui est la compensation même que le texte
+        // interdit. Le message doit nommer les deux comptes d'arrivée.
+        const { svc } = service(referentiel, [
+          ecriture('Avance au 401', [ligne('40110000', 400_000), ligne('52110000', 0, 400_000)]),
+        ]);
+        const a = await anomalie(svc, 'TIERS_SOLDE_INVERSE');
+        expect(a!.action).toMatch(/4091/);
+        expect(a!.action).toMatch(/4191/);
+        expect(a!.action).toMatch(/compensation/i);
+      });
+
       it('signale toujours un 411 créditeur et un 401 débiteur', async () => {
         const lignes = await numeros([
           ecriture('Client créditeur', [ligne('52110000', 500_000), ligne('41100000', 0, 500_000)]),

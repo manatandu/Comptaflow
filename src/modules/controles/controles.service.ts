@@ -738,7 +738,20 @@ export class ControlesService {
         // « Adhérents, clients-usagers et comptes rattachés » en SYCEBNL ·
         // parler d'adhérents à une entreprise commerciale n'a pas de sens.
         consequence: `Un ${qualite41} (41) créditeur, ou un fournisseur (40) débiteur, traduit le plus souvent un règlement imputé au mauvais compte, un double encaissement, ou une avance à reclasser. Sur un 409 ou un 419, c'est l'inverse : leur sens normal est celui de l'avance.`,
-        action: 'Interrogez le compte et lettrez-le : le solde non lettré dira ce qui reste réellement dû.',
+        // LA NON-COMPENSATION COMMANDE LA CORRECTION · « aucune compensation ne
+        // pourrait s'effectuer entre les comptes fournisseurs à solde débiteur
+        // et les comptes fournisseurs à solde créditeur : les premiers
+        // figurent à l'actif du bilan, les seconds au passif » (plan de
+        // comptes, COMPTE 40, dans les deux référentiels ; AUDCIF art. 34 et
+        // SYCEBNL art. 16, 5°). Un 401 débiteur laissé tel quel se retrouve
+        // au passif en diminution des dettes · c'est la compensation même que
+        // le texte interdit. Le message doit donc dire le reclassement, pas
+        // seulement inviter à regarder.
+        action:
+          'Interrogez le compte et lettrez-le : le solde non lettré dira ce qui reste réellement dû. ' +
+          "S'il s'agit d'une avance, reclassez-la à l'arrêté (401 débiteur vers 4091 avances versées, " +
+          '411 créditeur vers 4191 avances reçues) : la compensation entre un poste d’actif et un poste ' +
+          'de passif est interdite, et l’avance doit figurer en clair de son côté du bilan.',
         occurrences: inverses.map(([numero, solde]) => ({
           reference: numero,
           detail: numero.startsWith('409')
