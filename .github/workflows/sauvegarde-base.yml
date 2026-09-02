@@ -125,16 +125,38 @@ jobs:
       # jours de comptabilité en clair dans les artefacts du dépôt.
       - name: "Exiger la clé publique de chiffrement"
         env:
-          CLE_AGE: ${{ vars.CLE_AGE_SAUVEGARDES }}
+          CLE_AGE_BRUTE: ${{ vars.CLE_AGE_SAUVEGARDES }}
         run: |
-          if [ -z "$CLE_AGE" ]; then
+          if [ -z "$CLE_AGE_BRUTE" ]; then
             echo "::error::Variable de dépôt CLE_AGE_SAUVEGARDES absente · la sauvegarde ne sera PAS archivée en clair. Générer la clé et poser la variable : voir docs/sauvegardes-et-restauration.md"
             exit 1
           fi
-          case "$CLE_AGE" in
-            age1*) ;;
-            *) echo "::error::CLE_AGE_SAUVEGARDES ne ressemble pas à une clé publique age (attendu : age1...)"; exit 1 ;;
-          esac
+
+          # NETTOYAGE AVANT CONTRÔLE, et ce n'est pas de la coquetterie.
+          # La clé se copie depuis un éditeur de texte, et sous Windows le
+          # presse-papiers emporte le retour chariot avec : la variable
+          # arrive alors en « age1...\r\n ». L'œil ne le voit pas, la
+          # console GitHub ne le montre pas, et `age` refuse le destinataire
+          # au milieu du job avec « malformed recipient ». Vécu le 2026-09-02,
+          # première pose de la clé.
+          cle=$(printf '%s' "$CLE_AGE_BRUTE" | tr -d '[:space:]')
+
+          # La forme est vérifiée EN ENTIER, pas seulement son début. Le
+          # contrôle précédent ne regardait que le préfixe `age1`, si bien
+          # qu'il laissait passer tout ce qui suivait · un contrôle qui
+          # rassure sans protéger. Une clé publique age fait exactement 62
+          # caractères : « age1 » puis 58 de bech32 (52 de clé, 6 de somme de
+          # contrôle).
+          if ! printf '%s' "$cle" | grep -qE '^age1[0-9a-z]{58}$'; then
+            echo "::error::CLE_AGE_SAUVEGARDES n'est pas une clé publique age valide. Attendu : age1 suivi de 58 caractères (62 en tout), reçu ${#cle} caractères. Recopier la ligne « # public key: » du fichier de clé, sans le retour à la ligne."
+            exit 1
+          fi
+
+          # La valeur NETTOYÉE est passée aux étapes suivantes · elles ne
+          # doivent jamais relire la variable brute.
+          echo "CLE_AGE=$cle" >> "$GITHUB_ENV"
+          echo "Clé publique acceptée · $cle"
+
           sudo apt-get install -y age
           age --version
 
@@ -145,8 +167,9 @@ jobs:
       # chiffré que personne n'a jamais ouvert · la même faute que la
       # sauvegarde jamais restaurée, d'un cran plus haut.
       - name: "Chiffrer, puis éprouver le chiffré"
-        env:
-          CLE_AGE: ${{ vars.CLE_AGE_SAUVEGARDES }}
+        # `CLE_AGE` vient de l'étape précédente (GITHUB_ENV), NETTOYÉE · ne
+        # jamais relire `vars.CLE_AGE_SAUVEGARDES` ici, ce serait reprendre la
+        # valeur brute et son retour chariot.
         run: |
           clair="sauvegarde-omegax-$HORODATAGE.dump"
           chiffre="$clair.age"
