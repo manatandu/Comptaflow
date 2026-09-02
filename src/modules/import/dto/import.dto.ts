@@ -54,6 +54,26 @@ export class ExecuterImportDto extends AnalyserImportDto {
   @IsBoolean()
   creerComptesManquants?: boolean;
 
+  /**
+   * BILAN D'OUVERTURE · la balance importée est-elle celle du bilan
+   * d'ouverture, ou une reprise en cours d'exercice ?
+   *
+   * Vrai (le défaut pour une balance) : l'écriture produite est un À-NOUVEAU.
+   * Elle se range dans la colonne « solde d'ouverture » de la balance
+   * générale, reste hors des mouvements de l'exercice, et ne porte que des
+   * comptes de bilan · « le bilan d'ouverture d'un exercice doit correspondre
+   * au bilan de clôture de l'exercice précédent » (AUDCIF art. 34 · SYCEBNL
+   * art. 16, 4°), et un bilan ne contient aucun compte de gestion : les
+   * classes 6, 7 et 8 ont été soldées sur le compte 13 à la clôture.
+   *
+   * Faux : reprise en cours d'exercice (on récupère un dossier au 30 juin).
+   * Les charges et les produits déjà courus sont alors légitimes, et
+   * l'écriture est un mouvement ordinaire.
+   */
+  @IsOptional()
+  @IsBoolean()
+  bilanDOuverture?: boolean;
+
   /** Simulation : contrôle tout, n'écrit rien. */
   @IsOptional()
   @IsBoolean()

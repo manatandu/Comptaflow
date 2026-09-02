@@ -801,11 +801,20 @@ model Ecriture {
   reevaluationProvision   Reevaluation?       @relation("ReevalProvision")
   reevaluationExtourne    Reevaluation?       @relation("ReevalExtourne")
 
-  // Écriture générée automatiquement par la clôture de l'exercice (clôture des
-  // classes 6/7 sur le résultat, ou report à-nouveau dans l'exercice suivant) ·
-  // voir ExerciceService.cloturer. Purement informatif pour l'instant (affichage),
-  // ces écritures sont de toute façon déjà protégées comme les autres par le
-  // statut CLOTURE de leur exercice.
+  // À-NOUVEAU · l'écriture porte le solde d'OUVERTURE de l'exercice, et non un
+  // mouvement de l'année. Deux sources la posent, pour la même raison :
+  //
+  //  · ExerciceService.cloturer, quand elle génère le report à-nouveau dans
+  //    l'exercice suivant (après avoir soldé les classes 6, 7 et 8 sur le
+  //    compte 13) ;
+  //  · ImportService, quand la balance importée est le BILAN D'OUVERTURE du
+  //    dossier · c'est ainsi qu'entre dans le logiciel une entité qui existait
+  //    avant lui.
+  //
+  // Le drapeau n'est PAS informatif : EcritureService.balance s'en sert pour
+  // séparer les colonnes « solde d'ouverture » et « mouvements », et les états
+  // financiers l'excluent de l'activité de l'exercice. Le nommer d'après la
+  // clôture est un reste de sa première version · il dit « à-nouveau ».
   estGenereeParCloture Boolean @default(false)
 
   // ---------------------------------------------------------------------

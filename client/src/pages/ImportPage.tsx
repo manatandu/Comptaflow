@@ -27,9 +27,9 @@ const TYPES: { valeur: TypeImport; titre: string; description: string }[] = [
   },
   {
     valeur: 'BALANCE',
-    titre: 'Balance de reprise',
+    titre: "Bilan d'ouverture · balance de reprise",
     description:
-      "Crée une écriture d'à-nouveau équilibrée, datée de l'ouverture de l'exercice. Un déséquilibre arrête l'import.",
+      "C'est ainsi qu'entre dans le logiciel un dossier qui existait avant lui : une écriture d'à-nouveau équilibrée, datée de l'ouverture de l'exercice, qui se range dans la colonne « solde d'ouverture » de la balance. Un déséquilibre arrête l'import.",
   },
   {
     valeur: 'ECRITURES',
@@ -51,6 +51,10 @@ export function ImportPage() {
   const [analyse, setAnalyse] = useState<AnalyseImport | null>(null);
   const [mapping, setMapping] = useState<Record<string, string>>({});
   const [creerComptesManquants, setCreerComptesManquants] = useState(false);
+  // Défaut : la balance importée est le bilan d'ouverture · le cas de très
+  // loin le plus fréquent, et le seul qui justifie d'ouvrir cette fenêtre
+  // plutôt que de saisir une pièce.
+  const [bilanDOuverture, setBilanDOuverture] = useState(true);
   const [rapport, setRapport] = useState<RapportImport | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
@@ -101,6 +105,7 @@ export function ImportPage() {
         mapping,
         exerciceId: exerciceCourant?.id,
         creerComptesManquants,
+        bilanDOuverture,
         simulation,
       });
       setRapport(r);
@@ -223,6 +228,27 @@ export function ImportPage() {
                   </label>
                 ))}
               </div>
+
+              {type === 'BALANCE' && (
+                <label className="flex items-start gap-2 text-[11px]">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5"
+                    checked={bilanDOuverture}
+                    onChange={(e) => setBilanDOuverture(e.target.checked)}
+                  />
+                  <span>
+                    Bilan d'ouverture
+                    <span className="block text-[10.5px] text-text-dim">
+                      Coché, l'écriture est un à-nouveau : elle alimente la colonne « solde d'ouverture » de la
+                      balance et reste hors des mouvements de l'exercice. Elle ne peut alors porter que des comptes
+                      de bilan · un bilan d'ouverture correspond au bilan de clôture précédent, où les classes 6, 7
+                      et 8 ont déjà été soldées sur le résultat. Décochez pour une reprise en cours d'exercice, où
+                      les charges et les produits déjà courus sont légitimes.
+                    </span>
+                  </span>
+                </label>
+              )}
 
               {type !== 'PLAN_COMPTES' && (
                 <label className="flex items-start gap-2 text-[11px]">

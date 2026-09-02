@@ -88,6 +88,24 @@ export interface RapportImport {
  *     soldes posés d'autorité sur les comptes. Le SYCEBNL ne connaît pas de
  *     solde sans écriture : la reprise doit laisser une trace au journal,
  *     datée, équilibrée, et corrigeable comme n'importe quelle autre.
+ *
+ *  4. UN BILAN D'OUVERTURE N'EST PAS UNE REPRISE EN COURS D'EXERCICE. C'est
+ *     par là qu'on entre dans le logiciel un dossier qui existait avant lui, et
+ *     le drapeau `bilanDOuverture` du DTO distingue les deux cas :
+ *
+ *      · bilan d'ouverture · l'écriture est un À-NOUVEAU. Elle se range dans
+ *        la colonne « solde d'ouverture » de la balance générale et reste hors
+ *        des mouvements de l'exercice · sans quoi le premier compte de
+ *        résultat du dossier afficherait la reprise comme une activité de
+ *        l'année. Et elle ne porte QUE des comptes de bilan : « le bilan
+ *        d'ouverture d'un exercice doit correspondre au bilan de clôture de
+ *        l'exercice précédent » (AUDCIF art. 34 · SYCEBNL art. 16, 4°), et un
+ *        bilan ne contient aucun compte de gestion, les classes 6, 7 et 8
+ *        ayant été soldées sur le compte 13 à la clôture ;
+ *
+ *      · reprise en cours d'exercice (on récupère un dossier au 30 juin) · les
+ *        charges et produits déjà courus sont légitimes, et l'écriture est un
+ *        mouvement ordinaire de l'exercice.
  */
 /**
  * Mode de report à-nouveau d'un compte créé par un IMPORT, déduit de sa classe.
@@ -302,6 +320,10 @@ export class ImportService {
     const iDebit = this.indexDe(tableau, dto.mapping, 'debit');
     const iCredit = this.indexDe(tableau, dto.mapping, 'credit');
 
+    // Défaut : une balance importée est le bilan d'ouverture du dossier · c'est
+    // le cas de très loin le plus fréquent, et le seul pour lequel il faut
+    // ouvrir une fenêtre d'import plutôt que saisir une pièce.
+    const bilanDOuverture = dto.bilanDOuverture !== false;
     const anomalies: AnomalieImport[] = [];
     const comptesParNumero = new Map(comptes.map((c) => [c.numero, c]));
     const comptesACreer: Prisma.CompteCreateManyInput[] = [];
@@ -349,6 +371,22 @@ export class ImportService {
         });
         return;
       }
+      // UN BILAN NE PORTE PAS DE COMPTE DE GESTION · les classes 6, 7 et 8 ont
+      // été soldées sur le compte 13 à la clôture précédente. Une ligne de
+      // gestion dans un bilan d'ouverture vient d'une balance de CLÔTURE
+      // reprise telle quelle : la retenir ferait naître le nouvel exercice
+      // avec les charges et les produits de l'ancien.
+      if (bilanDOuverture && /^[678]/.test(numero)) {
+        anomalies.push({
+          ligne: numeroLigne,
+          message:
+            `Le compte ${numero} est un compte de gestion : il n'a pas sa place dans un bilan d'ouverture. ` +
+            'Les classes 6, 7 et 8 ont été soldées sur le compte 13 à la clôture précédente ' +
+            "(AUDCIF art. 34 · SYCEBNL art. 16, 4° : le bilan d'ouverture correspond au bilan de clôture). " +
+            "S'il s'agit d'une reprise en cours d'exercice, décochez « Bilan d'ouverture ».",
+        });
+        return;
+      }
       lignes.push({ numero, debit, credit });
     });
 
@@ -382,9 +420,17 @@ export class ImportService {
             exerciceId: exercice.id,
             journalId: journal.id,
             date,
-            libelle: `Reprise de balance · ${dto.nomFichier}`,
+            libelle: bilanDOuverture
+              ? `Bilan d'ouverture · ${dto.nomFichier}`
+              : `Reprise de balance · ${dto.nomFichier}`,
             reference: 'IMPORT',
             createdBy,
+            // Le drapeau qui range l'écriture dans la colonne « solde
+            // d'ouverture » de la balance générale, et l'écarte des mouvements
+            // de l'exercice · c'est le même que celui posé par la clôture sur
+            // le report à-nouveau qu'elle génère, et pour la même raison : un
+            // à-nouveau n'est pas une opération de l'année.
+            estGenereeParCloture: bilanDOuverture,
             lignes: {
               create: lignes.map((l) => ({
                 compteId: parNumero.get(l.numero)!,
