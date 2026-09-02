@@ -1,6 +1,19 @@
 import { RetenuesService } from './retenues.service';
 import { PrismaService } from '../../common/prisma.service';
-import { NATURES_RETENUES, OBLIGATIONS_DECLARATIVES } from './correspondance-retenues';
+import {
+  NATURES_RETENUES,
+  OBLIGATIONS_DECLARATIVES,
+  obligationsDeclarativesApplicables,
+} from './correspondance-retenues';
+
+/**
+ * Les obligations SERVIES à un dossier SYCEBNL · toutes n'y sont pas. Les
+ * quatre échéances de l'impôt sur les sociétés (déclaration du 30 avril et
+ * trois acomptes) ne visent qu'une société, une ASBL en étant exemptée
+ * (loi n° 23/053, art. 5). Compter `OBLIGATIONS_DECLARATIVES` en entier
+ * reviendrait à réclamer à l'association l'impôt dont la loi la dispense.
+ */
+const OBLIGATIONS_SYCEBNL = obligationsDeclarativesApplicables('SYCEBNL' as never);
 
 /**
  * REGISTRE DES RETENUES · l'état ne calcule aucun impôt. Ce qu'il doit faire
@@ -211,7 +224,7 @@ describe('Échéancier fiscal et social', () => {
     const s = service([ligne('44720000', '2026-06-10', { credit: 200_000 })]);
     const e = await s.echeancierFiscal('t1', { exerciceId: 'e1', dateReference: '2026-06-20' });
     // Toutes les natures ET toutes les obligations déclaratives figurent.
-    expect(e.echeances).toHaveLength(NATURES_RETENUES.length + OBLIGATIONS_DECLARATIVES.length);
+    expect(e.echeances).toHaveLength(NATURES_RETENUES.length + OBLIGATIONS_SYCEBNL.length);
     const dates = e.echeances.map((x) => x.date.getTime());
     expect([...dates].sort((a, b) => a - b)).toEqual(dates);
   });
@@ -273,7 +286,7 @@ describe('Échéancier fiscal et social', () => {
 
   it('distingue un reversement d’une déclaration · l’un porte un montant, l’autre non', async () => {
     const e = await service([]).echeancierFiscal('t1', { exerciceId: 'e1' });
-    expect(e.echeances.filter((x) => x.genre === 'DECLARATION')).toHaveLength(OBLIGATIONS_DECLARATIVES.length);
+    expect(e.echeances.filter((x) => x.genre === 'DECLARATION')).toHaveLength(OBLIGATIONS_SYCEBNL.length);
     for (const d of e.echeances.filter((x) => x.genre === 'DECLARATION')) {
       expect(d.contenu).toBeTruthy();
     }

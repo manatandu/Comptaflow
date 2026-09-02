@@ -8,6 +8,37 @@ import { EcritureService } from '../comptabilite/ecriture.service';
 const EPSILON = 0.005;
 
 /**
+ * LA DÉCLARATION SE LIT SUR LA FAMILLE DU COMPTE, PAS SUR CELUI DU TAUX.
+ *
+ * Chaque `TauxTva` porte un compte de collecte et un compte de déduction ·
+ * commodité de saisie, qui pré-remplit la contrepartie. La DÉCLARATION, elle,
+ * agrégeait sur ces deux identifiants exactement, et c'était une hypothèse
+ * fausse dès que le plan subdivise :
+ *
+ *   443 État, TVA facturée   · 4431 sur ventes · 4432 sur prestations de
+ *     services · 4433 sur travaux · 4434 sur production livrée à soi-même ·
+ *     4435 sur factures à établir ;
+ *   445 État, TVA récupérable · 4451 sur immobilisations · 4452 sur achats ·
+ *     4453 sur transport · 4454 sur services extérieurs et autres charges ·
+ *     4455 sur factures non parvenues.
+ *
+ * (AUDCIF, Titre VII, COMPTE 44. Le SYCEBNL ne subdivise ni l'un ni l'autre,
+ * et ses deux comptes portent les mêmes racines · une seule règle suffit.)
+ *
+ * Une TVA sur prestation de services correctement imputée en 4432 n'était donc
+ * PAS déclarée, le taux à 16 % pointant sur 4431. Le compte de la TVA dépend
+ * de la nature de l'opération, jamais de son taux : les deux ne peuvent pas
+ * être rattachés l'un à l'autre. Ce qui identifie la ligne, c'est le TAUX
+ * (`tauxTvaId`, posé à la saisie) et la FAMILLE du compte · d'où ces deux
+ * racines, qui restent justes quel que soit le degré de subdivision du plan.
+ *
+ * Une TVA omise d'une déclaration est un redressement · c'est la raison pour
+ * laquelle ce chemin ne s'appuie plus sur un compte unique.
+ */
+const RACINE_COLLECTEE = '443';
+const RACINE_RECUPERABLE = '445';
+
+/**
  * TVA (cf. docs/plan-de-construction.md §3.1/§5) : entité "Taux" paramétrable,
  * fondée sur l'O.-L. n° 10/001 du 20/08/2010 modifiée par la LF 2026 (skill
  * `fiscalite-rdc/tva`). Couvre désormais, en plus du référentiel (taux +
@@ -239,8 +270,14 @@ export class TauxTvaService {
       provisoireApplique.denominateur > EPSILON ? provisoireApplique.pourcentage : definitif.pourcentage;
 
     // TVA déductible brute de l'année · l'assiette de la régularisation.
-    const taux = await this.prisma.tauxTva.findMany({ where: { tenantId }, select: { compteDeductibleId: true } });
-    const comptesDeductibles = taux.map((t) => t.compteDeductibleId).filter((c): c is string => !!c);
+    // Assiette lue par FAMILLE (445x) et non sur le compte porté par chaque
+    // taux · même raison que pour la déclaration, voir RACINE_RECUPERABLE.
+    const comptesDeductibles = (
+      await this.prisma.compte.findMany({
+        where: { tenantId, numero: { startsWith: RACINE_RECUPERABLE } },
+        select: { id: true },
+      })
+    ).map((c) => c.id);
     const brut =
       comptesDeductibles.length === 0
         ? 0
@@ -382,10 +419,11 @@ export class TauxTvaService {
         const candidates = await this.prisma.ligneEcriture.findMany({
           where: {
             tauxTvaId: t.id,
-            compteId: { in: [t.compteCollecteId, t.compteDeductibleId].filter(Boolean) as string[] },
+            compte: { OR: [{ numero: { startsWith: RACINE_COLLECTEE } }, { numero: { startsWith: RACINE_RECUPERABLE } }] },
             ecriture: { tenantId, date: { lte: dateFin } },
           },
           include: {
+            compte: { select: { numero: true } },
             ecriture: {
               include: {
                 lignes: {
@@ -398,7 +436,7 @@ export class TauxTvaService {
         });
         for (const l of candidates) {
           const { date, fraction } = this.exigibilite(l, l.ecriture.lignes, l.ecriture.date);
-          const estCollecte = l.compteId === t.compteCollecteId;
+          const estCollecte = l.compte.numero.startsWith(RACINE_COLLECTEE);
           const montant = estCollecte ? Number(l.credit) : Number(l.debit);
           if (montant <= EPSILON) continue;
           // Part non encore exigible d'une facture de la période · c'est le
@@ -413,20 +451,26 @@ export class TauxTvaService {
           else totalDeductible += exigible;
         }
       } else {
-        if (t.compteCollecteId) {
-          const agg = await this.prisma.ligneEcriture.aggregate({
-            where: { tauxTvaId: t.id, compteId: t.compteCollecteId, ecriture: { tenantId, date: { gte: dateDebut, lte: dateFin } } },
+        const [aggCollecte, aggDeductible] = await Promise.all([
+          this.prisma.ligneEcriture.aggregate({
+            where: {
+              tauxTvaId: t.id,
+              compte: { numero: { startsWith: RACINE_COLLECTEE } },
+              ecriture: { tenantId, date: { gte: dateDebut, lte: dateFin } },
+            },
             _sum: { credit: true },
-          });
-          totalCollecte = Number(agg._sum.credit ?? 0);
-        }
-        if (t.compteDeductibleId) {
-          const agg = await this.prisma.ligneEcriture.aggregate({
-            where: { tauxTvaId: t.id, compteId: t.compteDeductibleId, ecriture: { tenantId, date: { gte: dateDebut, lte: dateFin } } },
+          }),
+          this.prisma.ligneEcriture.aggregate({
+            where: {
+              tauxTvaId: t.id,
+              compte: { numero: { startsWith: RACINE_RECUPERABLE } },
+              ecriture: { tenantId, date: { gte: dateDebut, lte: dateFin } },
+            },
             _sum: { debit: true },
-          });
-          totalDeductible = Number(agg._sum.debit ?? 0);
-        }
+          }),
+        ]);
+        totalCollecte = Number(aggCollecte._sum.credit ?? 0);
+        totalDeductible = Number(aggDeductible._sum.debit ?? 0);
       }
 
       enAttente += attenteDuTaux;

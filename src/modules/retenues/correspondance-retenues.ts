@@ -324,6 +324,31 @@ export const NATURES_RETENUES: NatureRetenue[] = [
  *    les sociétés et à l'impôt sur le revenu des personnes physiques,
  *    exonérée ou non » · les deux également, et sans exception.
  */
+/**
+ * ACOMPTES PROVISIONNELS · les trois échéances viennent de l'article 57 bis
+ * de la loi de procédures fiscales TEL QUE MODIFIÉ par la loi de finances
+ * n° 25/060 du 29 décembre 2025.
+ *
+ * La rédaction de 2023 disait « avant le 1er août, avant le 1er octobre et
+ * avant le 1er décembre » : elle est périmée, et c'est elle qu'un praticien
+ * risque de citer de mémoire. Le numéro d'article de la loi de finances qui
+ * opère la modification n'est PAS repris ici · la source consultée porte une
+ * réserve expresse sur sa numérotation, et un numéro faux serait pire qu'une
+ * référence par l'intitulé.
+ */
+const BASE_ACOMPTES =
+  "Article 57 bis de la loi de procédures fiscales n° 004/2003, tel que modifié par la loi de finances " +
+  'n° 25/060 du 29 décembre 2025 pour l’exercice 2026.';
+
+const SOURCE_ACOMPTES =
+  "Impôt déclaré au titre de l'exercice PRÉCÉDENT, augmenté des suppléments établis par l'Administration, ou " +
+  "impôt reconstitué d'office à défaut de déclaration · que ces sommes soient contestées ou non. Il ne se lit " +
+  "donc dans aucun solde de compte de l'exercice en cours.";
+
+const CONTENU_ACOMPTE = (quotite: string) =>
+  `Versement de ${quotite} de l'impôt de référence, au moyen du bordereau de versement d'acomptes ` +
+  "provisionnels dont le modèle est défini par l'Administration des Impôts.";
+
 export const OBLIGATIONS_DECLARATIVES: ObligationDeclarative[] = [
   {
     // La DÉCLARATION ONEM (le 10) est distincte du PAIEMENT (le 15, porté par
@@ -384,6 +409,77 @@ export const OBLIGATIONS_DECLARATIVES: ObligationDeclarative[] = [
     // beaucoup plus étroite que celle de l'alinéa 1er · les fondre en une
     // ligne aurait annoncé à une entreprise un relevé de toutes ses sommes
     // versées à des tiers.
+  },
+  /*
+    L'IMPÔT PROPRE DE L'ENTITÉ, QUE L'ÉCHÉANCIER OMETTAIT.
+
+    Le registre et l'échéancier ont été bâtis pour une ASBL, exemptée d'impôt
+    sur les sociétés (loi n° 23/053, art. 5). Servis à une société commerciale,
+    ils énuméraient scrupuleusement tout ce qu'elle retient POUR AUTRUI, et
+    passaient sous silence les quatre échéances de son impôt principal.
+
+    Ces quatre-là sont des obligations DÉCLARATIVES et non des retenues : leur
+    montant ne se lit dans aucun solde de compte. L'IS se liquide sur le
+    résultat fiscal (fenêtre État > Résultat fiscal), les acomptes se calculent
+    sur l'impôt de l'exercice PRÉCÉDENT · aucun des deux n'est déductible d'une
+    balance. Elles entrent donc ici, où une échéance sans montant reste une
+    échéance, et non dans les natures de retenue, qui lisent un crédit de
+    compte et n'ont d'ailleurs qu'une périodicité mensuelle.
+  */
+  {
+    cle: 'declarationImpotSocietes',
+    libelle: 'Déclaration de l’impôt sur les sociétés',
+    periodicite: 'ANNUELLE',
+    moisEcheance: 4,
+    jourEcheance: 30,
+    echeance: "Au plus tard le 30 avril de l'année qui suit celle de la réalisation des revenus",
+    baseLegale:
+      "Article 12 de la loi de procédures fiscales n° 004/2003, modifié par la loi n° 23/052 du 30 novembre 2023 : " +
+      '« Les sociétés et autres personnes morales soumises à l’Impôt sur les Sociétés sont tenues de souscrire ' +
+      'chaque année une déclaration de leurs revenus, au plus tard le 30 avril de l’année qui suit celle de la ' +
+      'réalisation des revenus. »',
+    contenu:
+      "Déclaration auto-liquidative des revenus de l'exercice, accompagnée des états financiers certifiés par un " +
+      "membre de l'Ordre national des experts-comptables (art. 13 et 14).",
+    sourceDonnees:
+      "Résultat fiscal de la fenêtre État > Résultat fiscal et impôt sur les bénéfices, et liasse de la fenêtre États financiers.",
+    referentiels: [Referentiel.SYSCOHADA],
+  },
+  {
+    cle: 'premierAcompteIs',
+    libelle: 'Premier acompte provisionnel (30 %)',
+    periodicite: 'ANNUELLE',
+    moisEcheance: 7,
+    jourEcheance: 25,
+    echeance: 'Au plus tard le 25 juillet',
+    baseLegale: BASE_ACOMPTES,
+    contenu: CONTENU_ACOMPTE('30 %'),
+    sourceDonnees: SOURCE_ACOMPTES,
+    referentiels: [Referentiel.SYSCOHADA],
+  },
+  {
+    cle: 'deuxiemeAcompteIs',
+    libelle: 'Deuxième acompte provisionnel (30 %)',
+    periodicite: 'ANNUELLE',
+    moisEcheance: 9,
+    jourEcheance: 25,
+    echeance: 'Au plus tard le 25 septembre',
+    baseLegale: BASE_ACOMPTES,
+    contenu: CONTENU_ACOMPTE('30 %'),
+    sourceDonnees: SOURCE_ACOMPTES,
+    referentiels: [Referentiel.SYSCOHADA],
+  },
+  {
+    cle: 'troisiemeAcompteIs',
+    libelle: 'Troisième acompte provisionnel (20 %)',
+    periodicite: 'ANNUELLE',
+    moisEcheance: 11,
+    jourEcheance: 25,
+    echeance: 'Au plus tard le 25 novembre',
+    baseLegale: BASE_ACOMPTES,
+    contenu: CONTENU_ACOMPTE('20 %'),
+    sourceDonnees: SOURCE_ACOMPTES,
+    referentiels: [Referentiel.SYSCOHADA],
   },
   {
     cle: 'declarationAnnuelleSalaires',

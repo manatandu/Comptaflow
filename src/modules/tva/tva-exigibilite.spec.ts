@@ -39,6 +39,11 @@ function facture(opts: {
   return {
     id: `l-${opts.date}`,
     compteId: 'c443',
+    // La déclaration sélectionne désormais sur la FAMILLE du compte (443
+    // collectée, 445 récupérable) et non sur le compte porté par le taux · une
+    // TVA sur prestation de services, correctement imputée en 4432, n'était
+    // sinon pas déclarée. Le faux doit donc porter son numéro.
+    compte: { numero: '44310000' },
     debit: 0,
     credit: opts.tva,
     ecriture: {
