@@ -101,7 +101,17 @@ export interface ClasseurExporte {
  * complet), Balance, Bilan et Compte de résultat. Objectif explicite
  * (demande utilisateur, séance du 2026-08-28) : produire des documents
  * exploitables pour l'audit, un PDF étant difficile à recouper ligne à
- * ligne. Chaque feuille reste strictement SYCEBNL/OHADA · pas d'emprunt de
+ * ligne.
+ *
+ * CE SERVICE SERT LES DEUX RÉFÉRENTIELS, et le cartouche disait le contraire.
+ * Le journal, le grand livre et la balance sont les livres obligatoires de
+ * l'AUDCIF art. 19 · communs aux deux, servis aux deux, et leurs routes ne
+ * portent volontairement pas de `@ReferentielsAutorises`. Les états financiers
+ * et les notes annexes sont, eux, propres à chaque référentiel : le même
+ * service les produit depuis les moteurs dédiés, SYCEBNL d'un côté, SYSCOHADA
+ * de l'autre.
+ *
+ * Reste vrai de la MISE EN FORME · pas d'emprunt de
  * mise en forme SYSCOHADA, même si des dossiers d'audit réels (SYSCOHADA)
  * ont inspiré la richesse des colonnes de traçabilité (voir
  * docs/plan-de-construction.md, analyse CARRIGRES).
@@ -210,15 +220,97 @@ export class ExportService {
    * `dernereLigneDonnees` : y inclure une ligne de totaux ferait remonter
    * celle-ci dans les résultats de n'importe quel filtre.
    */
-  private finaliserTableau(feuille: ExcelJS.Worksheet, nbColonnes: number, derniereLigneDonnees: number) {
-    styliserEntete(feuille.getRow(1));
-    feuille.views = [{ state: 'frozen', ySplit: 1 }];
-    if (derniereLigneDonnees > 1) {
+  private finaliserTableau(
+    feuille: ExcelJS.Worksheet,
+    nbColonnes: number,
+    derniereLigneDonnees: number,
+    ligneEntete = 1,
+  ) {
+    styliserEntete(feuille.getRow(ligneEntete));
+    feuille.views = [{ state: 'frozen', ySplit: ligneEntete }];
+    if (derniereLigneDonnees > ligneEntete) {
       feuille.autoFilter = {
-        from: { row: 1, column: 1 },
+        from: { row: ligneEntete, column: 1 },
         to: { row: derniereLigneDonnees, column: nbColonnes },
       };
     }
+  }
+
+  /**
+   * IDENTIFICATION D'UN ÉTAT PÉRIODIQUE · trois lignes posées AU-DESSUS du
+   * tableau.
+   *
+   * Un classeur « balance-2026.xlsx » déposé chez un auditeur ne disait ni de
+   * quelle entité ni de quelle période il émanait : ni dénomination, ni NIF,
+   * ni unité monétaire, ni date d'édition. L'AUDCIF art. 22, 7° veut que « les
+   * états périodiques fournis soient numérotés et datés », et le Titre IX
+   * porte le nom de l'entité, la période et l'unité monétaire sur chaque page
+   * des états.
+   *
+   * CE N'EST PAS LE CARTOUCHE ETAFI, et c'est délibéré : celui-là est le
+   * modèle des IMPRIMÉS d'états financiers, il n'a pas à coiffer un journal.
+   * Trois lignes suffisent, et elles laissent le tableau intact · le décalage
+   * se fait par `spliceRows` juste avant la finalisation, si bien que les clés
+   * de colonnes, les largeurs et les formats déjà posés restent valables.
+   */
+  private coifferEtat(
+    feuille: ExcelJS.Worksheet,
+    identite: { entite: string; nif: string; periode: string; devise: string },
+    titre: string,
+    nbColonnes: number,
+  ): number {
+    feuille.spliceRows(1, 0, [], [], []);
+
+    const ligneTitre = feuille.getRow(1);
+    ligneTitre.getCell(1).value = `${titre} · ${identite.entite}`;
+    ligneTitre.getCell(1).font = { bold: true, size: 12 };
+    if (nbColonnes > 1) feuille.mergeCells(1, 1, 1, nbColonnes);
+
+    const ligneIdent = feuille.getRow(2);
+    const edite = new Date().toLocaleDateString('fr-FR');
+    ligneIdent.getCell(1).value =
+      `${identite.nif ? `NIF ${identite.nif} · ` : ''}${identite.periode} · montants en ${identite.devise} · ` +
+      `édité le ${edite}`;
+    ligneIdent.getCell(1).font = { size: 9, italic: true };
+    if (nbColonnes > 1) feuille.mergeCells(2, 1, 2, nbColonnes);
+
+    // La numérotation et la date sont aussi portées en pied de page imprimé :
+    // l'art. 22, 7° vise l'état FOURNI, qui est souvent celui qu'on imprime.
+    feuille.headerFooter = {
+      oddFooter: `&L${identite.entite} · ${identite.periode}&RPage &P / &N · édité le ${edite}`,
+    };
+    return 4;
+  }
+
+  /**
+   * Identité d'un état périodique · elle ne dépend PAS d'un exercice.
+   *
+   * `identiteLiasse` exige un exerciceId et lève si l'exercice n'existe pas ;
+   * or le journal et le grand livre complet s'exportent aussi sans exercice
+   * borné (filtres de dates libres). Cette variante se contente du dossier et
+   * de la période réellement filtrée · un export ne doit pas échouer faute
+   * d'exercice.
+   */
+  private async identiteEtat(
+    tenantId: string,
+    periode: { exerciceId?: string; dateDebut?: string; dateFin?: string },
+  ): Promise<{ entite: string; nif: string; periode: string; devise: string }> {
+    const tenant = await this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId } });
+    const exercice = periode.exerciceId
+      ? await this.prisma.exercice.findFirst({ where: { id: periode.exerciceId, tenantId } })
+      : null;
+    const jour = (d: Date | string) => new Date(d).toLocaleDateString('fr-FR');
+    const libellePeriode = periode.dateDebut || periode.dateFin
+      ? `Période du ${periode.dateDebut ? jour(periode.dateDebut) : '…'} au ${periode.dateFin ? jour(periode.dateFin) : '…'}`
+      : exercice
+        ? `Exercice du ${jour(exercice.dateDebut)} au ${jour(exercice.dateFin)}`
+        : 'Toutes périodes';
+    return {
+      entite: tenant.nom,
+      nif: tenant.numeroImpot ?? '',
+      periode: libellePeriode,
+      devise: tenant.devise ?? 'CDF',
+    };
   }
 
   private appliquerFormats(feuille: ExcelJS.Worksheet, formats: Record<string, string>) {
@@ -270,7 +362,8 @@ export class ExportService {
       // Un journal d'audit qui tairait les annulations laisserait additionner
       // une erreur et sa correction sans savoir laquelle est laquelle. Les
       // deux écritures RESTENT au journal · « sans blanc ni altération
-      // d'aucune sorte » (Partie 2 ch. 2) · mais chacune se nomme.
+      // d'aucune sorte » (AUDCIF art. 20, repris par le SYCEBNL Partie 2
+      // ch. 2) · mais chacune se nomme.
       { header: 'Correction (art. 20 AUDCIF)', key: 'correction', width: 30 },
       { header: 'Motif de la correction', key: 'motifCorrection', width: 46 },
     ];
@@ -309,7 +402,9 @@ export class ExportService {
     ligneTotal.font = ENTETE_FONT;
 
     this.appliquerFormats(feuille, { date: FORMAT_DATE, debit: FORMAT_MONTANT, credit: FORMAT_MONTANT });
-    this.finaliserTableau(feuille, feuille.columns.length, derniereLigneDonnees);
+    const identiteJournal = await this.identiteEtat(tenantId, filtres);
+    const enteteJournal = this.coifferEtat(feuille, identiteJournal, 'JOURNAL', feuille.columns.length);
+    this.finaliserTableau(feuille, feuille.columns.length, derniereLigneDonnees + 3, enteteJournal);
 
     return {
       buffer: await this.versBuffer(classeur),
@@ -465,7 +560,9 @@ export class ExportService {
       credit: FORMAT_MONTANT,
       solde: FORMAT_MONTANT,
     });
-    this.finaliserTableau(feuille, feuille.columns.length, derniereLigneDonnees);
+    const identiteGrandLivre = await this.identiteEtat(tenantId, { exerciceId });
+    const enteteGrandLivre = this.coifferEtat(feuille, identiteGrandLivre, 'GRAND LIVRE', feuille.columns.length);
+    this.finaliserTableau(feuille, feuille.columns.length, derniereLigneDonnees + 3, enteteGrandLivre);
 
     const sommaire = classeur.addWorksheet('Sommaire');
     sommaire.columns = [
@@ -579,7 +676,9 @@ export class ExportService {
       totalCredit: FORMAT_MONTANT,
       solde: FORMAT_MONTANT,
     });
-    this.finaliserTableau(feuille, feuille.columns.length, derniereLigneDonnees);
+    const identiteBalance = await this.identiteEtat(tenantId, { exerciceId });
+    const enteteBalance = this.coifferEtat(feuille, identiteBalance, 'BALANCE GÉNÉRALE', feuille.columns.length);
+    this.finaliserTableau(feuille, feuille.columns.length, derniereLigneDonnees + 3, enteteBalance);
 
     return {
       buffer: await this.versBuffer(classeur),

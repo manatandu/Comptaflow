@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
+import { refuserBailleurHorsSycebnl } from '../../common/bailleur-referentiel';
 import { ClasseCompte, Prisma, Referentiel, TypeCompteDetailTotal } from '@prisma/client';
 import { PLAN_COMPTES_SYCEBNL } from './compte-seed';
 import { PLAN_COMPTES_SYSCOHADA } from './compte-seed-syscohada';
@@ -42,11 +43,17 @@ export class CompteService {
       data: plan.map((c) => ({
         ...c,
         tenantId,
-        // Un compte Total (les 44 comptes principaux à 2 chiffres, voir
-        // compte-seed.ts) ne peut jamais recevoir d'écriture, donc jamais de
-        // lettrage : une case cochée sur une ligne qui ne mouvementera
-        // jamais rien serait trompeuse. Le défaut par numéro (classes 4 et
-        // 58) ne s'applique donc qu'aux comptes Détail.
+        // Un compte Total (tout en-tête de division semé NON complété par
+        // compte-seed.ts ou compte-seed-syscohada.ts · voir CLAUDE.md § 7) ne
+        // peut jamais recevoir d'écriture, donc jamais de lettrage : une case
+        // cochée sur une ligne qui ne mouvementera jamais rien serait
+        // trompeuse. Le défaut par numéro (classes 4 et 58) ne s'applique donc
+        // qu'aux comptes Détail.
+        //
+        // Le compte de « 44 comptes principaux à 2 chiffres » qui figurait ici
+        // ne correspondait à aucun des deux plans, et il aurait de toute façon
+        // vieilli à chaque régénération : la règle se dit par la CONVENTION de
+        // semis, pas par un décompte.
         lettrable: c.typeCompte === 'TOTAL' ? false : estLettrableParDefaut(c.numero),
       })),
       skipDuplicates: true,
@@ -121,6 +128,7 @@ export class CompteService {
     // `null` = détacher explicitement ; une chaîne = doit être un bailleur du
     // même tenant (jamais un simple id accepté sans vérification, sinon un
     // compte pourrait se retrouver rattaché à un bailleur d'un autre dossier).
+    await refuserBailleurHorsSycebnl(this.prisma, tenantId, dto.bailleurId);
     if (dto.bailleurId) {
       const bailleur = await this.prisma.bailleur.findFirst({ where: { id: dto.bailleurId, tenantId } });
       if (!bailleur) {

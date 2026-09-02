@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
+import { refuserBailleurHorsSycebnl } from '../../common/bailleur-referentiel';
 import { ClasseCompte, Prisma, Referentiel, TypeCompteDetailTotal } from '@prisma/client';
 import {
   CreerPlanAnalytiqueDto,
@@ -180,6 +181,7 @@ export class AnalytiqueService {
     if (existante) {
       throw new ConflictException(`Une section porte déjà le code ${dto.code} dans ce plan`);
     }
+    await refuserBailleurHorsSycebnl(this.prisma, tenantId, dto.bailleurId);
     if (dto.bailleurId) {
       const bailleur = await this.prisma.bailleur.findFirst({ where: { id: dto.bailleurId, tenantId } });
       if (!bailleur) throw new BadRequestException('Bailleur introuvable pour ce dossier');
@@ -206,6 +208,7 @@ export class AnalytiqueService {
 
   async modifierSection(tenantId: string, sectionId: string, dto: ModifierSectionDto) {
     await this.trouverSection(tenantId, sectionId);
+    await refuserBailleurHorsSycebnl(this.prisma, tenantId, dto.bailleurId);
     if (dto.bailleurId) {
       const bailleur = await this.prisma.bailleur.findFirst({ where: { id: dto.bailleurId, tenantId } });
       if (!bailleur) throw new BadRequestException('Bailleur introuvable pour ce dossier');

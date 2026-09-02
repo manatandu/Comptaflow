@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../lib/api';
 import { useExercice } from '../lib/exercice';
+import { useAuth } from '../lib/auth';
 import { Aide } from '../components/chrome/Aide';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
 import type {
@@ -36,6 +37,11 @@ function montant(n: number): string {
 
 export function EtatsAnalytiquesPage() {
   const { exerciceCourant } = useExercice();
+  // Bailleur, financeur et convention sont du vocabulaire d'EBNL · une
+  // entreprise SYSCOHADA n'en a aucun. Le mot « projet », lui, reste : le
+  // semis SYSCOHADA nomme lui-même son axe « Projets et programmes ».
+  const { utilisateur } = useAuth();
+  const estSyscohada = utilisateur?.tenant.referentiel === 'SYSCOHADA';
   const navigate = useNavigate();
   const [onglet, setOnglet] = useState<Onglet>('balance');
   const [plans, setPlans] = useState<PlanAnalytique[]>([]);
@@ -206,7 +212,7 @@ export function EtatsAnalytiquesPage() {
           ))}
           {balance && balance.lignes.length === 0 && (
             <div className="px-4 py-4 text-[11px] text-text-dim italic">
-              Aucune section sur cet axe. Créez vos projets dans Structure → Plans analytiques.
+              Aucune section sur cet axe. Créez vos sections dans Structure → Plans analytiques.
             </div>
           )}
           {balance && (
@@ -229,7 +235,8 @@ export function EtatsAnalytiquesPage() {
               {grandLivre.section.dateDebut && (
                 <span className="text-text-dim">
                   {' '}
-                  · convention du {new Date(grandLivre.section.dateDebut).toLocaleDateString('fr-FR')} au{' '}
+                  · {estSyscohada ? 'période du' : 'convention du'}{' '}
+                  {new Date(grandLivre.section.dateDebut).toLocaleDateString('fr-FR')} au{' '}
                   {grandLivre.section.dateFin ? new Date(grandLivre.section.dateFin).toLocaleDateString('fr-FR') : '…'}
                 </span>
               )}
@@ -342,8 +349,10 @@ export function EtatsAnalytiquesPage() {
         <div className="border border-border bg-surface rounded-b-[10px] overflow-hidden">
           {plan && !plan.gererBudgets ? (
             <div className="px-4 py-4 text-[11px] text-text-dim">
-              L'axe {plan.intitule} ne porte pas de budget. Le budget se tient sur l'axe des projets : un projet
-              cofinancé n'a pas un budget par bailleur, il a un budget et plusieurs financeurs.
+              L'axe {plan.intitule} ne porte pas de budget. Le budget se tient sur l'axe des projets :{' '}
+              {estSyscohada
+                ? "un projet n'a pas un budget par source de financement, il a un budget et plusieurs sources."
+                : "un projet cofinancé n'a pas un budget par bailleur, il a un budget et plusieurs financeurs."}
             </div>
           ) : (
             <>
@@ -393,8 +402,9 @@ export function EtatsAnalytiquesPage() {
                 </div>
               )}
               <p className="px-4 py-2 text-[10px] text-text-dim border-t border-border leading-[1.5]">
-                Une section mouvementée sans dotation apparaît en rouge, marquée « hors budget » : pour un financeur,
-                c'est la ligne la plus importante de l'état. Un écart négatif signale un dépassement.
+                Une section mouvementée sans dotation apparaît en rouge, marquée « hors budget » :{' '}
+                {estSyscohada ? 'pour la direction' : 'pour un financeur'}, c'est la ligne la plus importante de
+                l'état. Un écart négatif signale un dépassement.
               </p>
             </>
           )}

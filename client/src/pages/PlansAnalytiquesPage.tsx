@@ -33,7 +33,19 @@ function montant(n: number): string {
 }
 
 export function PlansAnalytiquesPage() {
-  const { estAdmin } = useAuth();
+  const { estAdmin, utilisateur } = useAuth();
+  /*
+    LE BAILLEUR N'EXISTE QU'EN SYCEBNL, et cette page l'affichait aux deux.
+    Le serveur ne sème l'axe Bailleurs qu'en SYCEBNL et refuse la route
+    /bailleurs au SYSCOHADA ; la page appelait quand même la route, avalait le
+    403, puis montrait une colonne BAILLEUR toujours vide, un champ « Bailleur
+    (facultatif) » dont le sélecteur ne pouvait rien contenir, et des libellés
+    de « convention de financement » qu'une entreprise n'a pas. Le
+    cloisonnement se fait aux deux endroits (CLAUDE.md § 6).
+  */
+  const estSyscohada = utilisateur?.tenant.referentiel === 'SYSCOHADA';
+  const motPeriode = estSyscohada ? 'période de validité' : 'convention';
+  const grilleSections = estSyscohada ? 'grid-cols-[100px_1fr_90px]' : 'grid-cols-[100px_1fr_130px_90px]';
   const { exerciceCourant } = useExercice();
 
   const [plans, setPlans] = useState<PlanAnalytique[] | null>(null);
@@ -68,7 +80,9 @@ export function PlansAnalytiquesPage() {
       },
       (e) => setErreur(e instanceof ApiError ? e.message : 'Chargement impossible'),
     );
-    api.get<Bailleur[]>('/bailleurs').then(setBailleurs, () => setBailleurs([]));
+    // Ne pas appeler une route que le référentiel du dossier ferme : le 403
+    // était avalé, mais il partait quand même à chaque ouverture de la page.
+    if (!estSyscohada) api.get<Bailleur[]>('/bailleurs').then(setBailleurs, () => setBailleurs([]));
   }, []);
 
   const chargerSections = async (id: string) => {
@@ -147,7 +161,7 @@ export function PlansAnalytiquesPage() {
           montantAnnuel: Number(dotation),
         }),
       );
-      setInfo('Dotation répartie sur les mois couverts par la convention.');
+      setInfo(`Dotation répartie sur les mois couverts par la ${motPeriode}.`);
       setDotation('');
     } catch (e) {
       setErreur(e instanceof ApiError ? e.message : 'Dotation impossible');
@@ -260,26 +274,28 @@ export function PlansAnalytiquesPage() {
 
         {/* Sections */}
         <section className="bg-surface border border-border rounded-[10px] shadow-posee overflow-hidden">
-          <div className="grid grid-cols-[100px_1fr_130px_90px] gap-2 px-3 py-1.5 bg-chrome-alt border-b border-border text-[10px] font-bold text-text-dim">
+          <div className={`grid ${grilleSections} gap-2 px-3 py-1.5 bg-chrome-alt border-b border-border text-[10px] font-bold text-text-dim`}>
             <span>CODE</span>
             <span>INTITULÉ</span>
-            <span>BAILLEUR</span>
-            <span>CONVENTION</span>
+            {!estSyscohada && <span>BAILLEUR</span>}
+            <span>{estSyscohada ? 'PÉRIODE' : 'CONVENTION'}</span>
           </div>
           <div>
             {listeFiltree.map((s) => (
               <button
                 key={s.id}
                 onClick={() => setSectionId(s.id)}
-                className={`w-full grid grid-cols-[100px_1fr_130px_90px] gap-2 px-3 py-1.5 text-[11px] text-left border-b border-border/50 ${
+                className={`w-full grid ${grilleSections} gap-2 px-3 py-1.5 text-[11px] text-left border-b border-border/50 ${
                   sectionId === s.id ? 'bg-sel text-white' : 'hover:bg-chrome-alt'
                 } ${!s.estActive ? 'opacity-50' : ''}`}
               >
                 <span className={`font-mono ${s.type === 'TOTAL' ? 'font-bold' : ''}`}>{s.code}</span>
                 <span className={s.type === 'TOTAL' ? 'font-bold' : ''}>{s.intitule}</span>
-                <span className={`truncate ${sectionId === s.id ? 'text-white/80' : 'text-text-dim'}`}>
-                  {s.bailleur?.nom ?? ''}
-                </span>
+                {!estSyscohada && (
+                  <span className={`truncate ${sectionId === s.id ? 'text-white/80' : 'text-text-dim'}`}>
+                    {s.bailleur?.nom ?? ''}
+                  </span>
+                )}
                 <span className={`font-mono text-[10px] ${sectionId === s.id ? 'text-white/80' : 'text-text-dim'}`}>
                   {s.dateDebut ? `${jour(s.dateDebut).slice(3)} → ${s.dateFin ? jour(s.dateFin).slice(3) : '…'}` : ''}
                 </span>
@@ -287,7 +303,8 @@ export function PlansAnalytiquesPage() {
             ))}
             {listeFiltree.length === 0 && (
               <div className="px-3 py-4 text-[11px] text-text-dim italic">
-                Aucune section. Un axe sans section ne ventile rien : créez vos projets ou vos bailleurs.
+                Aucune section. Un axe sans section ne ventile rien :{' '}
+                {estSyscohada ? 'créez vos sections.' : 'créez vos projets ou vos bailleurs.'}
               </div>
             )}
           </div>
@@ -303,7 +320,7 @@ export function PlansAnalytiquesPage() {
           </header>
           {!section ? (
             <p className="p-3 text-[11px] text-text-dim leading-[1.55]">
-              Sélectionnez une section pour voir sa fiche : identification, convention de financement et dotation
+              Sélectionnez une section pour voir sa fiche : identification, {estSyscohada ? 'période de validité' : 'convention de financement'} et dotation
               budgétaire de l'exercice.
             </p>
           ) : (
@@ -317,7 +334,7 @@ export function PlansAnalytiquesPage() {
                 </div>
               </div>
 
-              {section.bailleur && (
+              {!estSyscohada && section.bailleur && (
                 <div className="text-[11px]">
                   <span className="text-text-dim">Bailleur </span>
                   <span className="font-medium">{section.bailleur.nom}</span>
@@ -326,7 +343,7 @@ export function PlansAnalytiquesPage() {
 
               {(section.dateDebut || section.dateFin) && (
                 <div className="text-[11px]">
-                  <span className="text-text-dim">Convention </span>
+                  <span className="text-text-dim">{estSyscohada ? 'Période ' : 'Convention '}</span>
                   <span className="font-mono">
                     {jour(section.dateDebut)} au {jour(section.dateFin)}
                   </span>
@@ -379,7 +396,7 @@ export function PlansAnalytiquesPage() {
                         ))}
                       </div>
                       <p className="text-[10px] text-text-dim mt-2 leading-[1.5]">
-                        Répartie sur les mois que la convention couvre réellement, et non sur douze : un financement
+                        Répartie sur les mois que la {motPeriode} couvre réellement, et non sur douze : un financement
                         de huit mois étalé sur l'année fausserait tous les écarts.
                       </p>
                     </>
@@ -424,7 +441,7 @@ export function PlansAnalytiquesPage() {
                   autoFocus
                   value={code}
                   onChange={(e) => setCode(e.target.value.toUpperCase())}
-                  placeholder="EAU-KIVU"
+                  placeholder={estSyscohada ? 'CHANTIER-01' : 'EAU-KIVU'}
                   className="mt-1 w-full border border-border rounded-[6px] px-2.5 py-1.5 text-[12px] font-mono font-normal"
                 />
               </label>
@@ -445,27 +462,32 @@ export function PlansAnalytiquesPage() {
                   required
                   value={intitule}
                   onChange={(e) => setIntitule(e.target.value)}
-                  placeholder="Accès à l'eau potable · Nord-Kivu"
+                  placeholder={estSyscohada ? 'Chantier de Lubumbashi' : "Accès à l'eau potable · Nord-Kivu"}
                   className="mt-1 w-full border border-border rounded-[6px] px-2.5 py-1.5 text-[12px] font-normal"
                 />
               </label>
-              <label className="text-[10.5px] font-semibold text-text-dim col-span-2">
-                Bailleur (facultatif)
-                <select
-                  value={bailleurId}
-                  onChange={(e) => setBailleurId(e.target.value)}
-                  className="mt-1 w-full border border-border rounded-[6px] px-2.5 py-1.5 text-[12px] font-normal"
-                >
-                  <option value="">Aucun</option>
-                  {bailleurs.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.code} · {b.nom}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              {/* Champ MORT en SYSCOHADA, et pas seulement inutile : aucun
+                  bailleur ne peut y être créé, la route l'étant. Le serveur
+                  refuse désormais le champ, l'écran ne le montre plus. */}
+              {!estSyscohada && (
+                <label className="text-[10.5px] font-semibold text-text-dim col-span-2">
+                  Bailleur (facultatif)
+                  <select
+                    value={bailleurId}
+                    onChange={(e) => setBailleurId(e.target.value)}
+                    className="mt-1 w-full border border-border rounded-[6px] px-2.5 py-1.5 text-[12px] font-normal"
+                  >
+                    <option value="">Aucun</option>
+                    {bailleurs.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.code} · {b.nom}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
               <label className="text-[10.5px] font-semibold text-text-dim">
-                Début de convention
+                Début de {motPeriode}
                 <input
                   type="date"
                   value={dateDebut}
@@ -474,7 +496,7 @@ export function PlansAnalytiquesPage() {
                 />
               </label>
               <label className="text-[10.5px] font-semibold text-text-dim">
-                Fin de convention
+                Fin de {motPeriode}
                 <input
                   type="date"
                   value={dateFin}
@@ -483,7 +505,7 @@ export function PlansAnalytiquesPage() {
                 />
               </label>
               <p className="col-span-2 text-[10.5px] text-text-dim leading-[1.5]">
-                Les dates de convention commandent la répartition du budget : seuls les mois qu'elles couvrent
+                Les dates de {motPeriode} commandent la répartition du budget : seuls les mois qu'elles couvrent
                 reçoivent une dotation.
               </p>
             </div>
