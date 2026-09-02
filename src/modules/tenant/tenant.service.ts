@@ -239,14 +239,32 @@ export class TenantService {
   }
 
   /**
-   * Identifiants légaux du dossier (n° impôt, id. nat., RCCM). Contrairement
-   * au jeu d'états, ils restent modifiables à tout moment : ce sont des
-   * données d'identité, pas de structure, et une association les obtient
-   * souvent APRÈS avoir commencé à tenir ses comptes.
+   * Identifiants légaux du dossier. Contrairement au jeu d'états, ils restent
+   * modifiables à tout moment : ce sont des données d'identité, pas de
+   * structure, et une association les obtient souvent APRÈS avoir commencé à
+   * tenir ses comptes.
    *
    * Une chaîne vide efface l'identifiant (`null` en base) plutôt que de
    * stocker `''`, pour que l'en-tête d'impression n'ait qu'un seul cas
    * d'absence à traiter.
+   *
+   * TOUS NE SONT PAS COMMUNS AUX DEUX RÉFÉRENTIELS, et la route les acceptait
+   * tous pour tout dossier · seul l'écran filtrait, ce qui laisse la route
+   * ouverte à un appel direct (CLAUDE.md § 6).
+   *
+   *  · le RCCM immatricule les commerçants, les sociétés commerciales, les GIE
+   *    et les succursales (AUDCG art. 35, 1°), un commerçant étant celui qui
+   *    fait des actes de commerce par nature sa profession (art. 2). Une ASBL
+   *    n'est pas commerçante · elle n'a pas de RCCM ;
+   *  · l'arrêté de personnalité juridique, l'enregistrement sectoriel, le
+   *    certificat du Ministère du Plan et l'attestation d'exemption d'impôt
+   *    sur les sociétés sont les identifiants d'une ASBL, d'une ONG ou d'un
+   *    EUP · une société n'en a aucun ;
+   *  · le numéro impôt et l'id. nat. sont communs.
+   *
+   * SEULES LES VALEURS NON VIDES SONT REFUSÉES. La chaîne vide est le geste
+   * d'effacement voulu : un refus sec empêcherait de nettoyer un identifiant
+   * hérité d'une conversion de référentiel.
    */
   async modifierIdentite(
     tenantId: string,
@@ -266,6 +284,31 @@ export class TenantService {
       throw new NotFoundException('Dossier introuvable');
     }
     const normaliser = (v: string | undefined) => (v === undefined ? undefined : v.trim() === '' ? null : v.trim());
+
+    const renseigne = (v: string | undefined) => v !== undefined && v.trim() !== '';
+    if (tenant.referentiel === Referentiel.SYCEBNL && renseigne(dto.rccm)) {
+      throw new BadRequestException(
+        "Une entité à but non lucratif n'est pas commerçante : elle n'est pas immatriculée au registre du commerce " +
+          "et du crédit mobilier, qui immatricule les commerçants, les sociétés commerciales, les GIE et les " +
+          'succursales (AUDCG, art. 2 et art. 35, 1°).',
+      );
+    }
+    if (tenant.referentiel === Referentiel.SYSCOHADA) {
+      const propresAuxEbnl: [string, string | undefined][] = [
+        ['arrêté de personnalité juridique', dto.actePersonnaliteJuridique],
+        ['date de cet arrêté', dto.dateActePersonnalite],
+        ["numéro d'enregistrement sectoriel", dto.numeroEnregistrementSecteur],
+        ["certificat d'enregistrement du Ministère du Plan", dto.certificatEnregistrementPlan],
+        ["attestation d'exemption d'impôt sur les sociétés", dto.attestationExemptionIs],
+      ];
+      const fautif = propresAuxEbnl.find(([, v]) => renseigne(v));
+      if (fautif) {
+        throw new BadRequestException(
+          `Le champ « ${fautif[0]} » est un identifiant d'entité à but non lucratif (loi n° 004/2001) · une société ` +
+            "commerciale n'en a pas. Son immatriculation est le RCCM.",
+        );
+      }
+    }
     await this.prisma.tenant.update({
       where: { id: tenantId },
       data: {

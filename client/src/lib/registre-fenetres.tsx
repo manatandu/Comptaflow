@@ -234,6 +234,11 @@ export const FENETRES: DefinitionFenetre[] = [
     titre: 'Groupe · balance agrégée',
     titreCourt: 'Groupe',
     rendre: () => <GroupePage />,
+    // Module monté sur le plan et les états SYCEBNL de bout en bout · la
+    // liasse du groupe crée un tenant de combinaison SYCEBNL en jeu
+    // ASSOCIATIONS. Le contrôleur porte le même filtre (CLAUDE.md § 6 · les
+    // deux endroits, toujours).
+    referentielsApplicables: ['SYCEBNL'],
   },
   {
     motif: /^\/parametres-dossier$/,

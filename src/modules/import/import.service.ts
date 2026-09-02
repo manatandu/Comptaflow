@@ -244,7 +244,7 @@ export class ImportService {
       if (!classe) {
         anomalies.push({
           ligne: numeroLigne,
-          message: `Le compte ${numero} ne commence pas par un chiffre de classe SYCEBNL (1 à 9).`,
+          message: `Le compte ${numero} ne commence pas par un chiffre de classe (1 à 9).`,
         });
         return;
       }

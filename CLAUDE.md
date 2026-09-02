@@ -182,7 +182,9 @@ Valables pour les deux référentiels (`compte-seed.ts`,
   par des zéros jusqu'à 8 chiffres** : `5211` devient `52110000` ;
 - un compte à 2 ou 3 chiffres **qui a des subdivisions** est semé **NON
   complété**, en type `TOTAL`. Deux raisons, chacune suffisante : compléter
-  provoquerait des collisions (`90` complété vaut `900` complété), et casserait
+  provoquerait des collisions · en SYCEBNL `90` complété vaut `900` complété,
+  en SYSCOHADA (qui n'a pas de compte 900) c'est `49` contre `490` et `59`
+  contre `590`. Et cela casserait
   l'agrégation par `numero.startsWith()` de `EcritureService.balance()` ;
 - un compte à 3 chiffres **sans** subdivision EST le compte d'imputation, donc
   complété.

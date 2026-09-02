@@ -10,9 +10,11 @@ import { SensRetraitementFiscal } from '@prisma/client';
  *
  * Pourquoi une saisie, et non une déduction automatique depuis la balance ·
  * la qualification fiscale d'une charge ne se lit pas dans son numéro de
- * compte. Le compte 6581 reçoit des dons déductibles dans la limite de 0,5 %
- * du chiffre d'affaires ET des libéralités qui ne le sont pas ; le 631 reçoit
- * des frais bancaires déductibles et des amendes qui ne le sont pas. Un
+ * compte. Le compte 6582 « Dons » et le 835 « Dons et libéralités accordés »
+ * reçoivent des versements déductibles dans la limite de 0,5 % du chiffre
+ * d'affaires (art. 44) ET d'autres qui ne le sont pas ; le 647 mêle des
+ * pénalités de recouvrement et des amendes fiscales, que l'article 50, 3°
+ * exclut toutes de la déduction. Un
  * logiciel qui trancherait seul se tromperait en silence, et l'erreur ne se
  * découvrirait qu'au contrôle. Le comptable saisit, OmegaX calcule et
  * justifie.

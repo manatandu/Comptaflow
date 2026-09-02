@@ -37,6 +37,7 @@ export interface LigneInseree {
  */
 
 import { MODELES_SIMPLES_SYCEBNL, MODELES_SIMPLES_SYSCOHADA, type ModeleSimple } from '../lib/modeles-saisie';
+import { compteTvaPourContrepartie } from '../lib/tva-syscohada';
 
 type ModeleTva = { code: 'vente_tva' | 'achat_tva'; libelle: string; sens: 'recette' | 'depense' };
 const MODELES_TVA: ModeleTva[] = [
@@ -88,6 +89,9 @@ export function ModelesSaisieModale({
   );
   const comptesCharges = useMemo(() => comptes.filter((c) => c.numero.startsWith('6')), [comptes]);
   const comptesProduits = useMemo(() => comptes.filter((c) => c.numero.startsWith('7')), [comptes]);
+  // Le routage de TVA ne vise un compte que s'il est OUVERT dans le plan du
+  // dossier · un plan élagué doit retomber sur le compte du taux, pas échouer.
+  const numerosDuPlan = useMemo(() => new Set(comptes.map((c) => c.numero)), [comptes]);
 
   useEffect(() => {
     // Les écritures-types de la Partie 3 sont PROPRES au SYCEBNL, et leur
@@ -232,7 +236,20 @@ export function ModelesSaisieModale({
       return;
     }
     const recette = m.sens === 'recette';
-    const compteTaxeId = recette ? taux.compteCollecteId : taux.compteDeductibleId;
+    // ROUTAGE PAR NATURE D'OPÉRATION · le plan SYSCOHADA subdivise 443 et 445,
+    // et la modale imputait le compte générique du taux quelle qu'ait été la
+    // contrepartie : une prestation vendue collectait en « TVA facturée sur
+    // VENTES », un service extérieur déduisait en « TVA récupérable sur
+    // ACHATS ». Voir lib/tva-syscohada.ts pour la table et ses sources.
+    // `null` = rien à router, le compte du taux fait foi.
+    const numeroRoute = compteTvaPourContrepartie(
+      utilisateur?.tenant.referentiel,
+      recette ? 'recette' : 'depense',
+      contrepartie.numero,
+      numerosDuPlan,
+    );
+    const compteRoute = numeroRoute ? comptes.find((c) => c.numero === numeroRoute) : undefined;
+    const compteTaxeId = compteRoute?.id ?? (recette ? taux.compteCollecteId : taux.compteDeductibleId);
     const compteTaxe = comptes.find((c) => c.id === compteTaxeId);
     if (!compteTaxeId || !compteTaxe) {
       setErreur(`Le taux ${taux.code} n'a pas de compte de TVA rattaché pour ce sens.`);

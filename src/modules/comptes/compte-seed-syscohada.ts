@@ -13,7 +13,11 @@ import { ClasseCompte, ModeReportANouveau, TypeCompteDetailTotal } from '@prisma
  *  - les comptes à 2 et 3 chiffres qui ONT des subdivisions sont semés NON
  *    complétés, en type TOTAL · le complètement casserait l'agrégation par
  *    `numero.startsWith` d'EcritureService.balance() et créerait des
- *    collisions ("90" complété = "900" complété) ;
+ *    collisions · dans CE plan, « 49 » complété vaudrait 49000000, déjà pris
+ *    par le compte 490 « Dépréciations des comptes fournisseurs », et « 59 »
+ *    entrerait de même en collision avec 590. (L'exemple 90/900 de CLAUDE.md
+ *    § 7 est celui du plan SYCEBNL : le plan SYSCOHADA n'a pas de compte 900,
+ *    sa classe 9 commençant à 901.) ;
  *  - un compte à 3 chiffres SANS subdivision est lui-même le compte
  *    d'imputation, complété à 8 chiffres ("335" → "33500000").
  *

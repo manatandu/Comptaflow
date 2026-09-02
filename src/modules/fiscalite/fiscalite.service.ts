@@ -31,8 +31,9 @@ import { PREFIXES_CHIFFRE_AFFAIRES_SYSCOHADA as PREFIXES_CHIFFRE_AFFAIRES } from
  * retraitements saisis depuis le catalogue (catalogue-retraitements.ts).
  *
  * Ce que ce service NE FAIT PAS, et pourquoi · il ne qualifie aucune charge
- * de non déductible à partir de son compte. Le 6581 reçoit des dons
- * déductibles et des libéralités qui ne le sont pas ; un tri automatique se
+ * de non déductible à partir de son compte. Le 6582 « Dons » reçoit des
+ * versements déductibles dans la limite de l'article 44 et des libéralités
+ * qui ne le sont pas ; un tri automatique se
  * tromperait en silence sur tous les dossiers. Il ne produit pas non plus le
  * formulaire de déclaration de la DGI, dont le modèle n'est pas en main.
  *

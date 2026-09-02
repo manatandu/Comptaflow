@@ -14,7 +14,12 @@ export class CreerRegularisationDto {
   @IsUUID()
   compteChargeProduitId!: string;
 
-  /** Compte 476 ou 477 · à défaut, le service prend celui du plan SYCEBNL. */
+  /**
+   * Compte 476 ou 477 · à défaut, le service prend le premier compte 476/477
+   * de type DETAIL actif du PLAN DU DOSSIER, quel que soit son référentiel.
+   * Les deux plans portent ces comptes aux mêmes numéros (AUDCIF, Titre VII,
+   * compte 47 ; SYCEBNL, Partie 2 ch. 3, COMPTE 47).
+   */
   @IsOptional()
   @IsUUID()
   compteDifferId?: string;

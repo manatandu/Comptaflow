@@ -41,12 +41,39 @@ type FamilleSeed = {
 
 export const FAMILLES_IMMOBILISATION_DEFAUT: FamilleSeed[] = [
   {
+    /*
+      LE LIBELLÉ POUSSAIT À UNE IMPUTATION FAUSSE. « Logiciels et brevets »
+      imputait sur 2131 « Logiciels », amorti en 2813 « Amortissements des
+      logiciels et sites internet » : un brevet rangé dans cette famille
+      partait donc en logiciel. Les brevets ont leur propre compte, 2121, et
+      leur propre compte d'amortissement, 2812.
+
+      Les deux plans portent ces comptes aux mêmes numéros, la correction vaut
+      donc pour les deux référentiels. Elle ne déplace aucun montant AU BILAN ·
+      le poste AF « Brevets, licences, logiciels et droits similaires » agrège
+      212, 213, 214 et leurs amortissements · elle rétablit le détail par
+      nature des immobilisations incorporelles, qui est ce que la note annexe
+      des immobilisations donne à lire.
+    */
     code: 'LOGICIELS',
-    intitule: 'Logiciels et brevets',
+    intitule: 'Logiciels',
     numeroCompteImmobilisation: '21310000',
     numeroCompteAmortissement: '28130000',
     numeroCompteDotation: '68120000',
     dureeAmortissementAns: 5, // arrêté 013/2025, I.1 "Brevets, licences et logiciels"
+  },
+  {
+    code: 'BREVETS',
+    intitule: 'Brevets et licences',
+    numeroCompteImmobilisation: '21210000',
+    numeroCompteAmortissement: '28120000',
+    numeroCompteDotation: '68120000',
+    // Même ligne I.1 de l'arrêté 013/2025 que les logiciels. Le durée
+    // COMPTABLE, elle, ne peut pas excéder celle de la protection juridique
+    // du titre (AUDCIF, Titre VII, commentaire du compte 212) : cinq ans est
+    // un défaut, à raccourcir dossier par dossier quand le titre est plus
+    // court.
+    dureeAmortissementAns: 5,
   },
   {
     code: 'BATIMENTS',

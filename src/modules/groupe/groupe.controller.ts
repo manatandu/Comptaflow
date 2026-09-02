@@ -1,9 +1,11 @@
 import { BadRequestException, Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, Res, UseGuards } from '@nestjs/common';
 import { Response } from 'express';
-import { RoleUtilisateur } from '@prisma/client';
+import { Referentiel, RoleUtilisateur } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { LicenceGuard } from '../licence/licence.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { ReferentielGuard } from '../../common/guards/referentiel.guard';
+import { ReferentielsAutorises } from '../../common/decorators/referentiels.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { GroupeService } from './groupe.service';
@@ -34,7 +36,23 @@ function envoyerXlsx(res: Response, classeur: { buffer: Buffer; nomFichier: stri
  * lien dossierMereId (voir GroupeService) : chaque route part du tenant de
  * l'appelant.
  */
-@UseGuards(JwtAuthGuard, LicenceGuard, RolesGuard)
+/*
+  MODULE PROPRE AU SYCEBNL, et il ne le disait nulle part côté serveur.
+
+  Le groupe d'établissements est monté de bout en bout sur le plan et les
+  états SYCEBNL : le canevas de trésorerie, la balance agrégée, et surtout
+  `liasseGroupe`, qui crée un tenant de combinaison SYCEBNL en jeu
+  ASSOCIATIONS. CLAUDE.md § 6 le range parmi les modules propres au SYCEBNL.
+
+  Les deux portes de rattachement (GroupeService.creerCellule et
+  PlateformeService.modifierGroupe) refusent déjà une mère ou une cellule non
+  SYCEBNL : aucun état du mauvais référentiel n'est donc réellement produit
+  aujourd'hui. Ce qui manquait est la DÉFENSE EN PROFONDEUR du § 6 · sans
+  décorateur, /groupe s'ouvre par URL directe et ses routes répondent une
+  erreur métier au lieu d'un refus de référentiel franc.
+*/
+@UseGuards(JwtAuthGuard, LicenceGuard, RolesGuard, ReferentielGuard)
+@ReferentielsAutorises(Referentiel.SYCEBNL)
 @Controller('groupe')
 export class GroupeController {
   constructor(private readonly groupeService: GroupeService) {}
