@@ -22,6 +22,29 @@ import { RoleUtilisateur, StatutImmobilisation } from '@prisma/client';
 export class ImmobilisationController {
   constructor(private readonly immobilisationService: ImmobilisationService) {}
 
+  /**
+   * TABLEAU DES IMMOBILISATIONS · une ligne par bien, groupée par compte
+   * d'imputation avec sous-totaux. C'est le groupement qui permet de recouper
+   * l'état avec la balance, compte par compte.
+   */
+  @Get('tableau')
+  async tableau(@CurrentUser() user: AuthenticatedUser, @Query('dateArret') dateArret?: string) {
+    return this.immobilisationService.tableauImmobilisations(user.tenantId, { dateArret });
+  }
+
+  /**
+   * TABLEAU DES AMORTISSEMENTS · douze colonnes mensuelles. Un total annuel
+   * cache le mois d'entrée du bien, celui de sa sortie, et celui où il achève
+   * de s'amortir.
+   */
+  @Get('tableau-amortissements')
+  async tableauAmortissements(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('exerciceId') exerciceId: string,
+  ) {
+    return this.immobilisationService.tableauAmortissements(user.tenantId, exerciceId);
+  }
+
   @Get('familles')
   async listerFamilles(@CurrentUser() user: AuthenticatedUser) {
     return this.immobilisationService.listerFamilles(user.tenantId);

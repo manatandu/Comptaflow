@@ -3,6 +3,7 @@ import { JeuEtatsFinanciersSycebnl, Prisma, Referentiel, SystemeComptableSyscoha
 import * as ExcelJS from 'exceljs';
 import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
+import { ImmobilisationService } from '../immobilisations/immobilisation.service';
 import { EtatsFinanciersService, PosteCalcule } from '../etats-financiers/etats-financiers.service';
 import { EtatsFinanciersProjetService } from '../etats-financiers/etats-financiers-projet.service';
 import { EtatsFinanciersSmtService } from '../etats-financiers/etats-financiers-smt.service';
@@ -147,7 +148,18 @@ export class ExportService {
     // bruyamment, plutôt que de laisser un export partir sans moteur.
     private readonly etatsFinanciersSyscohadaService?: EtatsFinanciersSyscohadaService,
     private readonly etatsFinanciersSmtSyscohadaService?: EtatsFinanciersSmtSyscohadaService,
+    // Même raison d'être optionnel que les deux moteurs ci-dessus, et même
+    // garde-fou : l'accesseur refuse bruyamment plutôt que de laisser partir
+    // un tableau vide.
+    private readonly immobilisationService?: ImmobilisationService,
   ) {}
+
+  private get immos(): ImmobilisationService {
+    if (!this.immobilisationService) {
+      throw new Error("Service des immobilisations absent de l'injection : export impossible");
+    }
+    return this.immobilisationService;
+  }
 
   private get syscohada(): EtatsFinanciersSyscohadaService {
     if (!this.etatsFinanciersSyscohadaService) {
@@ -1027,6 +1039,210 @@ export class ExportService {
     return {
       buffer: await this.versBuffer(classeur),
       nomFichier: 'evolution-soldes.xlsx',
+    };
+  }
+
+  /**
+   * TABLEAU DES IMMOBILISATIONS · l'état que le cabinet classe en tête du
+   * cycle, et que le logiciel ne produisait pas.
+   *
+   * Présentation relevée sur le dossier de révision ouvert sur le Drive
+   * (« Fichier immos et AMORTIS ») : un cartouche de trois lignes (entité,
+   * titre, date d'arrêté), puis une ligne par bien GROUPÉE PAR COMPTE
+   * D'IMPUTATION, un S/TOTAL par groupe, un TOTAL GÉNÉRAL.
+   *
+   * Le cartouche est ici conservé alors qu'il a été retiré du journal, du
+   * grand livre et de la balance · et ce n'est pas une incohérence. Leurs
+   * livres comptables commencent en ligne 1 sans titre ; LEUR tableau des
+   * immobilisations, lui, en porte un, parce que c'est une feuille de travail
+   * qu'on classe et qu'on relit hors de son classeur. On copie ce qu'ils font,
+   * pas une règle qu'on leur prête.
+   */
+  async tableauImmobilisationsExcel(tenantId: string, dateArret?: string): Promise<ClasseurExporte> {
+    const t = await this.immos.tableauImmobilisations(tenantId, { dateArret });
+    const identite = await this.identiteEtat(tenantId, {});
+
+    const classeur = this.nouveauClasseur();
+    const feuille = classeur.addWorksheet('Immobilisations');
+
+    feuille.getRow(1).getCell(1).value = identite.entite;
+    feuille.getRow(1).getCell(1).font = { bold: true, size: 12 };
+    feuille.getRow(2).getCell(1).value = 'TABLEAU DES IMMOBILISATIONS';
+    feuille.getRow(2).getCell(1).font = { bold: true };
+    feuille.getRow(2).getCell(5).value = t.dateArret ? `Au ${new Date(t.dateArret).toLocaleDateString('fr-FR')}` : identite.periode;
+
+    const colonnes = [
+      { header: 'Libellé', key: 'libelle', width: 52 },
+      { header: "Date d'acquisition", key: 'date', width: 18 },
+      { header: 'Durée', key: 'duree', width: 8 },
+      { header: `Val. brute (${identite.devise})`, key: 'brut', width: 18 },
+      { header: 'Amort. cumulés', key: 'amort', width: 18 },
+      { header: 'Val. nette', key: 'net', width: 18 },
+      { header: 'Observations', key: 'obs', width: 44 },
+    ];
+    feuille.getRow(4).values = colonnes.map((c) => c.header);
+    colonnes.forEach((c, i) => {
+      feuille.getColumn(i + 1).key = c.key;
+      feuille.getColumn(i + 1).width = c.width;
+    });
+
+    for (const g of t.groupes) {
+      const titre = feuille.addRow({ libelle: `(${g.numero}) ${g.intitule}` });
+      titre.font = { bold: true };
+      for (const l of g.lignes) {
+        feuille.addRow({
+          libelle: l.designation,
+          date: new Date(l.dateAcquisition),
+          duree: l.dureeAns,
+          brut: l.valeurBrute || null,
+          amort: l.amortissements || null,
+          net: l.valeurNette || null,
+          // Un bien SORTI reste au tableau à sa date d'arrêté s'il y était · le
+          // taire ferait chercher un bien qu'on croit encore détenu.
+          obs: l.dateSortie ? `Sorti le ${new Date(l.dateSortie).toLocaleDateString('fr-FR')}` : '',
+        });
+      }
+      const sousTotal = feuille.addRow({
+        libelle: 'S/TOTAL',
+        brut: g.brut || null,
+        amort: g.amortissements || null,
+        net: g.net || null,
+      });
+      sousTotal.font = ENTETE_FONT;
+    }
+
+    const derniereLigneDonnees = feuille.rowCount;
+    const total = feuille.addRow({
+      libelle: 'TOTAL GÉNÉRAL',
+      brut: t.totaux.brut || null,
+      amort: t.totaux.amortissements || null,
+      net: t.totaux.net || null,
+    });
+    total.font = ENTETE_FONT;
+
+    this.appliquerFormats(feuille, {
+      date: FORMAT_DATE,
+      brut: FORMAT_MONTANT,
+      amort: FORMAT_MONTANT,
+      net: FORMAT_MONTANT,
+    });
+    this.piedDePageEtat(feuille, identite);
+    this.finaliserTableau(feuille, colonnes.length, derniereLigneDonnees, 4);
+
+    return {
+      buffer: await this.versBuffer(classeur),
+      nomFichier: `tableau-immobilisations${t.dateArret ? `-au-${t.dateArret}` : ''}.xlsx`,
+    };
+  }
+
+  /**
+   * TABLEAU DES AMORTISSEMENTS · douze colonnes mensuelles, à leur modèle.
+   *
+   * Ce que le découpage mensuel montre et qu'un total annuel cache : le mois
+   * d'ENTRÉE du bien, celui de sa SORTIE, et celui où il ACHÈVE de s'amortir.
+   * Une ligne dont la dotation n'est pas encore comptabilisée est signalée ·
+   * un tableau qui mêlerait sans le dire du comptabilisé et du prévisionnel
+   * ne se recouperait avec aucun compte.
+   */
+  async tableauAmortissementsExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
+    const t = await this.immos.tableauAmortissements(tenantId, exerciceId);
+    const identite = await this.identiteEtat(tenantId, { exerciceId });
+
+    const classeur = this.nouveauClasseur();
+    const feuille = classeur.addWorksheet('Amortissements');
+
+    feuille.getRow(1).getCell(1).value = identite.entite;
+    feuille.getRow(1).getCell(1).font = { bold: true, size: 12 };
+    feuille.getRow(2).getCell(1).value = `TABLEAU DES AMORTISSEMENTS · ${identite.periode}`;
+    feuille.getRow(2).getCell(1).font = { bold: true };
+
+    const entetes = [
+      'Libellé',
+      "Date d'acquisition",
+      `Val. brute (${identite.devise})`,
+      'Taux',
+      ...t.mois.map((m) => m.libelle),
+      "Dotations de l'exercice",
+      'Amort. cum. N-1',
+      'Amort. cum. N',
+      'Val. nette',
+      'Dotation',
+    ];
+    feuille.getRow(4).values = entetes;
+    feuille.getColumn(1).width = 52;
+    feuille.getColumn(2).width = 18;
+    for (let i = 3; i <= entetes.length; i++) feuille.getColumn(i).width = 15;
+
+    const PREMIER_MOIS = 5; // A libellé, B date, C brut, D taux, puis les mois.
+    const COL_DOTATION = PREMIER_MOIS + t.mois.length;
+
+    const poser = (
+      libelle: string,
+      valeurs: { date?: Date; brut?: number | null; taux?: number | null; parMois: number[]; dotation: number; cumulN1: number; cumulN: number; net: number; etat?: string },
+    ) => {
+      const r = feuille.addRow([]);
+      r.getCell(1).value = libelle;
+      if (valeurs.date) r.getCell(2).value = valeurs.date;
+      r.getCell(3).value = valeurs.brut ?? null;
+      if (valeurs.taux !== undefined && valeurs.taux !== null) r.getCell(4).value = valeurs.taux / 100;
+      valeurs.parMois.forEach((m, i) => {
+        r.getCell(PREMIER_MOIS + i).value = m || null;
+      });
+      r.getCell(COL_DOTATION).value = valeurs.dotation || null;
+      r.getCell(COL_DOTATION + 1).value = valeurs.cumulN1 || null;
+      r.getCell(COL_DOTATION + 2).value = valeurs.cumulN || null;
+      r.getCell(COL_DOTATION + 3).value = valeurs.net || null;
+      if (valeurs.etat) r.getCell(COL_DOTATION + 4).value = valeurs.etat;
+      return r;
+    };
+
+    for (const g of t.groupes) {
+      const titre = feuille.addRow([]);
+      titre.getCell(1).value = `(${g.numero}) ${g.intitule}`;
+      titre.font = { bold: true };
+      for (const l of g.lignes) {
+        poser(l.designation, {
+          date: new Date(l.dateAcquisition),
+          brut: l.valeurBrute,
+          taux: l.taux,
+          parMois: l.parMois,
+          dotation: l.dotation,
+          cumulN1: l.cumulN1,
+          cumulN: l.cumulN,
+          net: l.valeurNette,
+          etat: l.dotationPassee ? 'Comptabilisée' : 'À passer',
+        });
+      }
+      const st = poser('S/TOTAL', {
+        parMois: g.parMois,
+        dotation: g.dotation,
+        cumulN1: g.cumulN1,
+        cumulN: g.cumulN,
+        net: g.net,
+      });
+      st.font = ENTETE_FONT;
+    }
+
+    const derniereLigneDonnees = feuille.rowCount;
+    const total = poser('TOTAL GÉNÉRAL', {
+      parMois: t.totaux.parMois,
+      dotation: t.totaux.dotation,
+      cumulN1: t.totaux.cumulN1,
+      cumulN: t.totaux.cumulN,
+      net: t.totaux.net,
+    });
+    total.font = ENTETE_FONT;
+
+    feuille.getColumn(2).numFmt = FORMAT_DATE;
+    feuille.getColumn(3).numFmt = FORMAT_MONTANT;
+    feuille.getColumn(4).numFmt = '0.00%';
+    for (let i = PREMIER_MOIS; i <= COL_DOTATION + 3; i++) feuille.getColumn(i).numFmt = FORMAT_MONTANT;
+    this.piedDePageEtat(feuille, identite);
+    this.finaliserTableau(feuille, entetes.length, derniereLigneDonnees, 4);
+
+    return {
+      buffer: await this.versBuffer(classeur),
+      nomFichier: `tableau-amortissements${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
     };
   }
 

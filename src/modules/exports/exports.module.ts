@@ -9,6 +9,7 @@ import { NotesAnnexesModule } from '../notes-annexes/notes-annexes.module';
 import { RegistreDonateursModule } from '../registre-donateurs/registre-donateurs.module';
 import { DocumentsObligatoiresModule } from '../documents-obligatoires/documents-obligatoires.module';
 import { EtatsFinanciersSyscohadaModule } from '../etats-financiers-syscohada/etats-financiers-syscohada.module';
+import { ImmobilisationsModule } from '../immobilisations/immobilisations.module';
 
 @Module({
   // `EtatsFinanciersSyscohadaModule` fournit les DEUX moteurs SYSCOHADA
@@ -25,6 +26,10 @@ import { EtatsFinanciersSyscohadaModule } from '../etats-financiers-syscohada/et
     NotesAnnexesModule,
     RegistreDonateursModule,
     DocumentsObligatoiresModule,
+    // Le tableau des immobilisations et celui des amortissements sont calculés
+    // par le service du module, pas recalculés ici · un second calcul de
+    // dotation serait un second endroit où l'annuité peut diverger.
+    ImmobilisationsModule,
   ],
   controllers: [ExportController],
   providers: [ExportService],

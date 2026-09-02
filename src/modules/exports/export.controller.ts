@@ -173,6 +173,26 @@ export class ExportController {
     );
   }
 
+  /** Tableau des immobilisations · sans `EXERCICE_REQUIS` : il s'arrête à une DATE, pas à un exercice. */
+  @Get('tableau-immobilisations')
+  async tableauImmobilisations(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('dateArret') dateArret?: string,
+  ) {
+    envoyerXlsx(res, await this.exportService.tableauImmobilisationsExcel(user.tenantId, dateArret));
+  }
+
+  /** Tableau des amortissements de l'exercice · douze colonnes mensuelles. */
+  @Get('tableau-amortissements')
+  async tableauAmortissements(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    envoyerXlsx(res, await this.exportService.tableauAmortissementsExcel(user.tenantId, exerciceId));
+  }
+
   /**
    * LA LIASSE COMPLÈTE · tous les états du jeu retenu par le dossier dans un
    * seul classeur, précédés d'un sommaire. C'est ce fichier-là qui se dépose

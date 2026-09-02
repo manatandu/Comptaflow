@@ -14,6 +14,37 @@ import {
 
 const EPSILON = 0.005;
 
+/** Une ligne du tableau des immobilisations · six colonnes, comme le modèle. */
+export interface LigneTableauImmo {
+  id: string;
+  designation: string;
+  numeroInventaire: string;
+  dateAcquisition: string;
+  dureeAns: number;
+  valeurBrute: number;
+  amortissements: number;
+  valeurNette: number;
+  statut: StatutImmobilisation;
+  dateSortie: string | null;
+}
+
+/** Une ligne du tableau des amortissements · douze colonnes mensuelles. */
+export interface LigneTableauAmortissement {
+  id: string;
+  designation: string;
+  dateAcquisition: string;
+  valeurBrute: number;
+  taux: number;
+  base: number;
+  parMois: number[];
+  dotation: number;
+  cumulN1: number;
+  cumulN: number;
+  valeurNette: number;
+  /** Vraie quand la dotation est COMPTABILISÉE, fausse quand elle est calculée. */
+  dotationPassee: boolean;
+}
+
 /**
  * Les champs Decimal de Prisma (valeurOrigine, valeurResiduelle,
  * prixCession, montant) sérialisent en CHAÎNES sur le JSON de réponse ·
@@ -455,6 +486,264 @@ export class ImmobilisationService {
       montant = annuitePleine;
     }
     return Math.min(montant, reliquat);
+  }
+
+  /**
+   * TABLEAU DES IMMOBILISATIONS · l'état que le cabinet classe en tête du
+   * cycle immobilisations, et que le logiciel ne produisait pas.
+   *
+   * Présentation relevée sur le dossier de révision ouvert sur le Drive
+   * (« Fichier immos et AMORTIS », feuille « TABLEAU DES IMMOBILISATIONS ») :
+   * une ligne par bien, GROUPÉE PAR COMPTE D'IMPUTATION avec un sous-total par
+   * groupe, et un total général. Le groupement n'est pas décoratif · c'est lui
+   * qui permet de recouper le tableau avec la balance compte par compte, ce
+   * qu'une liste à plat ne permet pas.
+   *
+   * Six colonnes : libellé, date d'acquisition, durée, valeur brute,
+   * amortissements cumulés, valeur nette.
+   *
+   * L'AMORTISSEMENT ANTÉRIEUR ENTRE DANS LE CUMUL. Un bien repris d'un dossier
+   * antérieur porte un cumul que nos dotations ne contiennent pas ; l'omettre
+   * afficherait une valeur nette égale au brut sur un matériel de vingt ans.
+   */
+  async tableauImmobilisations(tenantId: string, params: { dateArret?: string } = {}) {
+    const arret = params.dateArret ? new Date(params.dateArret) : null;
+    const immos = await this.prisma.immobilisation.findMany({
+      where: {
+        tenantId,
+        ...(arret ? { dateAcquisition: { lte: arret } } : {}),
+      },
+      include: {
+        compteImmobilisation: { select: { id: true, numero: true, intitule: true } },
+        dotations: {
+          select: { montant: true, exercice: { select: { dateFin: true } } },
+        },
+      },
+      orderBy: [{ compteImmobilisation: { numero: 'asc' } }, { dateAcquisition: 'asc' }],
+    });
+
+    const arrondir = (x: number) => Math.round(x * 100) / 100;
+    const groupes = new Map<
+      string,
+      { numero: string; intitule: string; lignes: LigneTableauImmo[]; brut: number; amortissements: number; net: number }
+    >();
+
+    for (const immo of immos) {
+      // Les dotations POSTÉRIEURES à la date d'arrêté sont écartées · un
+      // tableau au 30/09 ne peut pas porter la dotation de décembre.
+      const cumulDotations = immo.dotations
+        .filter((d) => !arret || d.exercice.dateFin <= arret)
+        .reduce((t, d) => t + Number(d.montant), 0);
+      const amortissements = arrondir(cumulDotations + Math.max(0, Number(immo.amortissementAnterieur ?? 0)));
+      const brut = Number(immo.valeurOrigine);
+      const cle = immo.compteImmobilisation.id;
+      const groupe =
+        groupes.get(cle) ??
+        {
+          numero: immo.compteImmobilisation.numero,
+          intitule: immo.compteImmobilisation.intitule,
+          lignes: [] as LigneTableauImmo[],
+          brut: 0,
+          amortissements: 0,
+          net: 0,
+        };
+      const net = arrondir(brut - amortissements);
+      groupe.lignes.push({
+        id: immo.id,
+        designation: immo.designation,
+        numeroInventaire: immo.numeroInventaire ?? '',
+        dateAcquisition: immo.dateAcquisition.toISOString().slice(0, 10),
+        dureeAns: immo.dureeAmortissementAns,
+        valeurBrute: brut,
+        amortissements,
+        valeurNette: net,
+        statut: immo.statut,
+        dateSortie: immo.dateSortie ? immo.dateSortie.toISOString().slice(0, 10) : null,
+      });
+      groupe.brut = arrondir(groupe.brut + brut);
+      groupe.amortissements = arrondir(groupe.amortissements + amortissements);
+      groupe.net = arrondir(groupe.net + net);
+      groupes.set(cle, groupe);
+    }
+
+    const listeGroupes = [...groupes.values()].sort((a, b) => a.numero.localeCompare(b.numero));
+    return {
+      dateArret: arret ? arret.toISOString().slice(0, 10) : null,
+      groupes: listeGroupes,
+      totaux: {
+        brut: arrondir(listeGroupes.reduce((t, g) => t + g.brut, 0)),
+        amortissements: arrondir(listeGroupes.reduce((t, g) => t + g.amortissements, 0)),
+        net: arrondir(listeGroupes.reduce((t, g) => t + g.net, 0)),
+      },
+    };
+  }
+
+  /**
+   * TABLEAU DES AMORTISSEMENTS DE L'EXERCICE · douze colonnes mensuelles.
+   *
+   * Modèle relevé sur la seconde feuille du même fichier (« TABLEAU DES
+   * AMORTISSEMENTS 2025 ») : libellé, date d'acquisition, valeur brute, TAUX,
+   * puis JANV à DÉCEMBRE, puis dotation de l'exercice, cumul N-1, cumul N et
+   * valeur nette. Groupé par compte avec sous-totaux, comme le premier.
+   *
+   * POURQUOI DOUZE COLONNES ET PAS UN CHIFFRE ANNUEL. Le logiciel calcule une
+   * dotation d'exercice, ce qui suffit à l'écriture mais pas au dossier. Le
+   * découpage mensuel montre trois choses qu'un total annuel cache : le mois
+   * d'ENTRÉE du bien (une acquisition de juin ne porte que sept douzièmes), le
+   * mois de SORTIE (un bien cédé en septembre s'arrête là), et le mois où un
+   * bien ACHÈVE de s'amortir (sa dernière colonne est un reliquat, pas une
+   * mensualité pleine). C'est aussi ce qui permet de recouper la dotation avec
+   * les écritures mensuelles quand le dossier dote au mois.
+   *
+   * LA RÉPARTITION EST CALCULÉE, PAS INVENTÉE : la dotation de l'exercice,
+   * telle que `calculerDotation` la produit, est répartie sur les mois pendant
+   * lesquels le bien est effectivement en service dans l'exercice · le
+   * reliquat d'arrondi tombe sur le dernier mois servi, pour que la somme des
+   * douze colonnes soit EXACTEMENT la dotation, au centime.
+   */
+  async tableauAmortissements(tenantId: string, exerciceId: string) {
+    const exercice = await this.prisma.exercice.findFirstOrThrow({
+      where: { id: exerciceId, tenantId },
+      select: { id: true, dateDebut: true, dateFin: true },
+    });
+    const immos = await this.prisma.immobilisation.findMany({
+      where: { tenantId, dateAcquisition: { lte: exercice.dateFin } },
+      include: {
+        compteImmobilisation: { select: { id: true, numero: true, intitule: true } },
+        dotations: { select: { montant: true, exerciceId: true, exercice: { select: { dateFin: true } } } },
+      },
+      orderBy: [{ compteImmobilisation: { numero: 'asc' } }, { dateAcquisition: 'asc' }],
+    });
+
+    const arrondir = (x: number) => Math.round(x * 100) / 100;
+    const moisDeLExercice: Array<{ annee: number; mois: number }> = [];
+    for (
+      let d = new Date(Date.UTC(exercice.dateDebut.getUTCFullYear(), exercice.dateDebut.getUTCMonth(), 1));
+      d <= exercice.dateFin;
+      d = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1))
+    ) {
+      moisDeLExercice.push({ annee: d.getUTCFullYear(), mois: d.getUTCMonth() });
+    }
+
+    const groupes = new Map<
+      string,
+      { numero: string; intitule: string; lignes: LigneTableauAmortissement[]; parMois: number[]; dotation: number; cumulN1: number; cumulN: number; net: number }
+    >();
+
+    for (const immo of immos) {
+      const dotationsAnterieures = immo.dotations.filter((d) => d.exercice.dateFin < exercice.dateFin);
+      const cumulN1 = arrondir(
+        dotationsAnterieures.reduce((t, d) => t + Number(d.montant), 0) +
+          Math.max(0, Number(immo.amortissementAnterieur ?? 0)),
+      );
+
+      // La dotation retenue est celle DÉJÀ PASSÉE si elle l'a été · un tableau
+      // qui recalculerait ce qui est comptabilisé afficherait autre chose que
+      // les comptes, et c'est le tableau qu'on croirait.
+      const dejaPassee = immo.dotations.find((d) => d.exerciceId === exercice.id);
+      const dotation = dejaPassee
+        ? Number(dejaPassee.montant)
+        : this.calculerDotation(
+            Number(immo.valeurOrigine),
+            Number(immo.valeurResiduelle),
+            immo.dureeAmortissementAns,
+            immo.dateMiseEnService,
+            dotationsAnterieures.map((d) => ({ montant: Number(d.montant) })),
+            exercice,
+            Number(immo.amortissementAnterieur ?? 0),
+          );
+
+      // Mois effectivement servis : depuis le mois de mise en service (ou le
+      // début de l'exercice si elle est antérieure) jusqu'au mois de sortie
+      // (ou la fin de l'exercice).
+      const finService = immo.dateSortie && immo.dateSortie < exercice.dateFin ? immo.dateSortie : exercice.dateFin;
+      const servis = moisDeLExercice.map(({ annee, mois }) => {
+        const premierJour = new Date(Date.UTC(annee, mois, 1));
+        const dernierJour = new Date(Date.UTC(annee, mois + 1, 0));
+        const debutService = new Date(
+          Date.UTC(immo.dateMiseEnService.getUTCFullYear(), immo.dateMiseEnService.getUTCMonth(), 1),
+        );
+        return debutService <= dernierJour && premierJour <= finService;
+      });
+      const nbServis = servis.filter(Boolean).length;
+
+      const parMois = moisDeLExercice.map(() => 0);
+      if (nbServis > 0 && Math.abs(dotation) > EPSILON) {
+        const mensualite = arrondir(dotation / nbServis);
+        let cumul = 0;
+        let dernierServi = -1;
+        servis.forEach((sert, i) => {
+          if (!sert) return;
+          parMois[i] = mensualite;
+          cumul = arrondir(cumul + mensualite);
+          dernierServi = i;
+        });
+        // Le reliquat d'arrondi tombe sur le dernier mois servi · sans quoi la
+        // somme des douze colonnes ne serait pas la dotation, et le tableau
+        // afficherait un écart que personne ne saurait expliquer.
+        if (dernierServi >= 0) parMois[dernierServi] = arrondir(parMois[dernierServi] + (dotation - cumul));
+      }
+
+      const cumulN = arrondir(cumulN1 + dotation);
+      const net = arrondir(Number(immo.valeurOrigine) - cumulN);
+      const base = this.baseAmortissable(Number(immo.valeurOrigine), Number(immo.valeurResiduelle));
+
+      const cle = immo.compteImmobilisation.id;
+      const groupe =
+        groupes.get(cle) ??
+        {
+          numero: immo.compteImmobilisation.numero,
+          intitule: immo.compteImmobilisation.intitule,
+          lignes: [] as LigneTableauAmortissement[],
+          parMois: moisDeLExercice.map(() => 0),
+          dotation: 0,
+          cumulN1: 0,
+          cumulN: 0,
+          net: 0,
+        };
+      groupe.lignes.push({
+        id: immo.id,
+        designation: immo.designation,
+        dateAcquisition: immo.dateAcquisition.toISOString().slice(0, 10),
+        valeurBrute: Number(immo.valeurOrigine),
+        // Le taux, pas seulement la durée · c'est ce que leur tableau affiche,
+        // et c'est ce qu'on relit pour vérifier une annuité de tête.
+        taux: immo.dureeAmortissementAns > 0 ? arrondir(100 / immo.dureeAmortissementAns) : 0,
+        base: arrondir(base),
+        parMois,
+        dotation: arrondir(dotation),
+        cumulN1,
+        cumulN,
+        valeurNette: net,
+        dotationPassee: Boolean(dejaPassee),
+      });
+      parMois.forEach((m, i) => {
+        groupe.parMois[i] = arrondir(groupe.parMois[i] + m);
+      });
+      groupe.dotation = arrondir(groupe.dotation + dotation);
+      groupe.cumulN1 = arrondir(groupe.cumulN1 + cumulN1);
+      groupe.cumulN = arrondir(groupe.cumulN + cumulN);
+      groupe.net = arrondir(groupe.net + net);
+      groupes.set(cle, groupe);
+    }
+
+    const listeGroupes = [...groupes.values()].sort((a, b) => a.numero.localeCompare(b.numero));
+    const NOMS_MOIS = ['Janv.', 'Févr.', 'Mars', 'Avril', 'Mai', 'Juin', 'Juill.', 'Août', 'Sept.', 'Oct.', 'Nov.', 'Déc.'];
+    return {
+      exercice: {
+        dateDebut: exercice.dateDebut.toISOString().slice(0, 10),
+        dateFin: exercice.dateFin.toISOString().slice(0, 10),
+      },
+      mois: moisDeLExercice.map(({ annee, mois }) => ({ cle: `${annee}-${String(mois + 1).padStart(2, '0')}`, libelle: NOMS_MOIS[mois] })),
+      groupes: listeGroupes,
+      totaux: {
+        parMois: moisDeLExercice.map((_, i) => arrondir(listeGroupes.reduce((t, g) => t + g.parMois[i], 0))),
+        dotation: arrondir(listeGroupes.reduce((t, g) => t + g.dotation, 0)),
+        cumulN1: arrondir(listeGroupes.reduce((t, g) => t + g.cumulN1, 0)),
+        cumulN: arrondir(listeGroupes.reduce((t, g) => t + g.cumulN, 0)),
+        net: arrondir(listeGroupes.reduce((t, g) => t + g.net, 0)),
+      },
+    };
   }
 
   async passerDotation(tenantId: string, userId: string, id: string, dto: PasserDotationDto) {

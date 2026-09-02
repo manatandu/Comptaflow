@@ -218,6 +218,7 @@ export function AppShell() {
         { label: 'Balance auxiliaire', onClick: () => navigate('/balance-auxiliaire') },
         { label: 'Justificatif de solde', onClick: () => navigate('/justificatif-solde') },
         { label: 'Évolution des soldes', onClick: () => navigate('/evolution-soldes') },
+        { label: 'Immobilisations et amortissements', onClick: () => navigate('/tableaux-immobilisations') },
         { label: 'Échéancier de trésorerie', onClick: () => navigate('/echeancier') },
         { label: 'États analytiques et budgétaires', onClick: () => navigate('/etats-analytiques') },
         { label: 'Analyse et contrôles', separateurAvant: true, onClick: () => navigate('/controles') },
