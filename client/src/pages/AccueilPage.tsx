@@ -106,6 +106,7 @@ const GROUPES: GroupeDef[] = [
       { label: 'Plan des tiers', chemin: '/tiers', Icon: IconUsers },
       { label: 'Balance âgée', chemin: '/balance-agee', Icon: IconSearch },
       { label: 'Balance auxiliaire', chemin: '/balance-auxiliaire', Icon: IconSearch },
+      { label: 'Justificatif de solde', chemin: '/justificatif-solde', Icon: IconSearch },
       { label: 'Rappel et relevé', chemin: '/relances', Icon: IconPrint },
       { label: 'Rapprochement', chemin: '/rapprochement', Icon: IconBanque },
     ],

@@ -164,6 +164,27 @@ export class EcritureController {
   }
 
   /**
+   * JUSTIFICATIF DE SOLDE · le détail qui compose le solde d'un compte à une
+   * date. À ne pas confondre avec le grand livre du compte, borné à
+   * l'exercice : celui-ci remonte aussi loin que le solde le demande.
+   */
+  @Get('justificatif-solde/:compteId')
+  async justificatifSolde(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('compteId') compteId: string,
+    @Query('exerciceId') exerciceId: string,
+    @Query('dateArret') dateArret?: string,
+    @Query('masquerLettrees') masquerLettrees?: string,
+  ) {
+    return this.ecritureService.justificatifSolde(user.tenantId, {
+      compteId,
+      exerciceId,
+      dateArret,
+      masquerLettrees: masquerLettrees === 'true',
+    });
+  }
+
+  /**
    * GRAND LIVRE COMPLET · tous les comptes MOUVEMENTÉS de l'exercice, dans
    * l'ordre des numéros. C'est l'état par défaut : un grand livre est, par
    * définition, le recueil de tous les comptes · en exiger un avant d'afficher

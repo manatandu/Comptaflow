@@ -1332,6 +1332,136 @@ export class EcritureService {
     };
   }
 
+  /**
+   * JUSTIFICATIF DE SOLDE · le détail qui compose le solde d'un compte à une
+   * date, et son recoupement avec la balance.
+   *
+   * C'est la pièce maîtresse d'un dossier de révision, et le logiciel n'en
+   * produisait aucune. Le dossier ouvert sur le Drive la répète pour une
+   * dizaine de comptes (471100 factures à recevoir, 471500 provision fiscale,
+   * 472300 charges constatées d'avance, 469150 débiteurs divers, 230000 immos
+   * en cours, 270000 immos financières, 360100 stock à l'extérieur, 417000
+   * clients douteux…). Sans elle, il faut sortir le grand livre du compte et
+   * le retravailler à la main.
+   *
+   * CE N'EST PAS LE GRAND LIVRE DU COMPTE, et la différence est tout le sujet.
+   * Le grand livre est borné à l'exercice ; le justificatif remonte AUSSI LOIN
+   * QUE NÉCESSAIRE. Leur détail du compte 469150 arrêté au 31/12/2025 part de
+   * 2020 · une créance sur un tiers divers ouverte il y a cinq ans compose
+   * encore le solde d'aujourd'hui, et le grand livre de 2025 ne la montre pas.
+   *
+   * LE PIÈGE DE L'À-NOUVEAU. Remonter tout l'historique et garder les
+   * écritures d'à-nouveau double le solde : l'à-nouveau reprend le cumul des
+   * exercices antérieurs, qu'on est déjà en train de lister ligne à ligne. Ils
+   * sont donc écartés · SAUF ceux du PREMIER exercice du dossier, qui ne
+   * reprennent rien mais portent le bilan d'ouverture, c'est-à-dire la
+   * position de départ. Les écarter tous ferait disparaître le point de
+   * départ d'un dossier repris en cours de vie, silencieusement.
+   *
+   * LE RECOUPEMENT est calculé par un AUTRE CHEMIN que la liste : report
+   * (à-nouveaux) plus mouvements de l'exercice, comme la balance. Recouper la
+   * liste contre elle-même ne prouverait rien ; la recouper contre la balance
+   * attrape précisément le double comptage ci-dessus.
+   */
+  async justificatifSolde(
+    tenantId: string,
+    params: { compteId: string; exerciceId: string; dateArret?: string; masquerLettrees?: boolean },
+  ) {
+    const [compte, exercice, premierExercice] = await Promise.all([
+      this.prisma.compte.findFirstOrThrow({
+        where: { id: params.compteId, tenantId },
+        select: { id: true, numero: true, intitule: true },
+      }),
+      this.prisma.exercice.findFirstOrThrow({
+        where: { id: params.exerciceId, tenantId },
+        select: { id: true, dateDebut: true, dateFin: true },
+      }),
+      this.prisma.exercice.findFirstOrThrow({
+        where: { tenantId },
+        orderBy: { dateDebut: 'asc' },
+        select: { id: true },
+      }),
+    ]);
+    const demande = params.dateArret ? new Date(params.dateArret) : exercice.dateFin;
+    const arret = demande > exercice.dateFin ? exercice.dateFin : demande;
+
+    const lignes = await this.prisma.ligneEcriture.findMany({
+      where: {
+        compteId: compte.id,
+        ...(params.masquerLettrees ? { lettre: null } : {}),
+        ecriture: {
+          tenantId,
+          date: { lte: arret },
+          // Les à-nouveaux de clôture sont exclus · voir le piège ci-dessus.
+          // Ceux du premier exercice portent le bilan d'ouverture et restent.
+          NOT: { AND: [{ estGenereeParCloture: true }, { exerciceId: { not: premierExercice.id } }] },
+        },
+      },
+      include: {
+        devise: { select: { code: true } },
+        ecriture: {
+          select: {
+            date: true,
+            libelle: true,
+            reference: true,
+            numeroPiece: true,
+            estGenereeParCloture: true,
+            journal: { select: { code: true } },
+          },
+        },
+      },
+      orderBy: [{ ecriture: { date: 'asc' } }, { id: 'asc' }],
+    });
+
+    const arrondir = (x: number) => Math.round(x * 100) / 100;
+    const detail = lignes.map((l) => ({
+      ligneId: l.id,
+      date: l.ecriture.date,
+      journal: l.ecriture.journal.code,
+      numeroPiece: l.ecriture.numeroPiece,
+      reference: l.ecriture.reference ?? '',
+      // Le libellé de la ligne prime · c'est lui qui nomme l'opération. À
+      // défaut, celui de l'écriture, jamais rien.
+      libelle: l.libelle ?? l.ecriture.libelle,
+      debit: Number(l.debit),
+      credit: Number(l.credit),
+      deviseTransaction: l.devise?.code ?? '',
+      montantDevise: l.montantDevise === null ? null : Number(l.montantDevise),
+      lettre: l.lettre ?? '',
+      estANouveau: l.ecriture.estGenereeParCloture,
+    }));
+
+    const totalDebit = arrondir(detail.reduce((t, l) => t + l.debit, 0));
+    const totalCredit = arrondir(detail.reduce((t, l) => t + l.credit, 0));
+    const solde = arrondir(totalDebit - totalCredit);
+
+    // --- Recoupement, par l'autre chemin ---------------------------------
+    const agregat = await this.prisma.ligneEcriture.aggregate({
+      where: { compteId: compte.id, ecriture: { tenantId, exerciceId: params.exerciceId } },
+      _sum: { debit: true, credit: true },
+    });
+    const soldeBalance = arrondir(Number(agregat._sum.debit ?? 0) - Number(agregat._sum.credit ?? 0));
+    const ecart = arrondir(solde - soldeBalance);
+    // Le recoupement n'a de sens qu'à la clôture · à une date intermédiaire,
+    // la balance de l'exercice porte des mouvements postérieurs à l'arrêté, et
+    // annoncer un écart serait une fausse alerte.
+    const arreteALaCloture = arret.getTime() === exercice.dateFin.getTime();
+
+    return {
+      compte,
+      dateArret: arret.toISOString().slice(0, 10),
+      masquerLettrees: params.masquerLettrees ?? false,
+      lignes: detail,
+      totaux: { debit: totalDebit, credit: totalCredit, solde },
+      recoupement: {
+        applicable: arreteALaCloture && !params.masquerLettrees,
+        soldeBalance,
+        ecart,
+        concordant: Math.abs(ecart) < 0.005,
+      },
+    };
+  }
+
   /** Grand livre d'un compte : ses lignes avec solde progressif. */
   async grandLivre(tenantId: string, compteId: string, exerciceId?: string) {
     const compte = await this.prisma.compte.findFirst({ where: { id: compteId, tenantId } });

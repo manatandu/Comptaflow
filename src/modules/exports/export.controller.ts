@@ -138,6 +138,25 @@ export class ExportController {
     envoyerXlsx(res, await this.exportService.balanceAgeeExcel(user.tenantId, exerciceId, { dateReference, type }));
   }
 
+  /** Justificatif de solde d'un compte · la pièce du dossier de révision. */
+  @Get('justificatif-solde/:compteId')
+  async justificatifSolde(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Param('compteId') compteId: string,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+    @Query('dateArret') dateArret?: string,
+    @Query('masquerLettrees') masquerLettrees?: string,
+  ) {
+    envoyerXlsx(
+      res,
+      await this.exportService.justificatifSoldeExcel(user.tenantId, compteId, exerciceId, {
+        dateArret,
+        masquerLettrees: masquerLettrees === 'true',
+      }),
+    );
+  }
+
   /**
    * LA LIASSE COMPLÈTE · tous les états du jeu retenu par le dossier dans un
    * seul classeur, précédés d'un sommaire. C'est ce fichier-là qui se dépose

@@ -18,6 +18,7 @@ const JournauxPage = lazy(() => import('../pages/JournauxPage').then((m) => ({ d
 const JournalPage = lazy(() => import('../pages/JournalPage').then((m) => ({ default: m.JournalPage })));
 const BalanceAgeePage = lazy(() => import('../pages/BalanceAgeePage').then((m) => ({ default: m.BalanceAgeePage })));
 const BalanceAuxiliairePage = lazy(() => import('../pages/BalanceAuxiliairePage').then((m) => ({ default: m.BalanceAuxiliairePage })));
+const JustificatifSoldePage = lazy(() => import('../pages/JustificatifSoldePage').then((m) => ({ default: m.JustificatifSoldePage })));
 const EcheancierPage = lazy(() => import('../pages/EcheancierPage').then((m) => ({ default: m.EcheancierPage })));
 const LettragePage = lazy(() => import('../pages/LettragePage').then((m) => ({ default: m.LettragePage })));
 const RapprochementPage = lazy(() => import('../pages/RapprochementPage').then((m) => ({ default: m.RapprochementPage })));
@@ -145,6 +146,12 @@ export const FENETRES: DefinitionFenetre[] = [
     titre: 'Balance auxiliaire',
     titreCourt: 'Bal. auxiliaire',
     rendre: () => <BalanceAuxiliairePage />,
+  },
+  {
+    motif: /^\/justificatif-solde$/,
+    titre: 'Justificatif de solde',
+    titreCourt: 'Justificatif',
+    rendre: () => <JustificatifSoldePage />,
   },
   {
     motif: /^\/echeancier$/,

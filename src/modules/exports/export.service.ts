@@ -887,6 +887,108 @@ export class ExportService {
   }
 
   /**
+   * JUSTIFICATIF DE SOLDE · le classeur qu'un réviseur classe dans son
+   * dossier, sous l'intercalaire du compte.
+   *
+   * Présentation relevée sur les justificatifs du dossier ouvert sur le Drive
+   * (« Facture à recevoir (Compte 471100) », « Débiteurs divers (Compte
+   * 469150) ») : le compte nommé en ligne 1, les en-têtes en ligne 2, une
+   * ligne d'écriture par ligne, un « Total » en pied.
+   *
+   * S'y ajoute UNE chose qu'ils font à la main et de tête : le recoupement.
+   * Leur total, ils le comparent au solde de la balance en le lisant à côté.
+   * Ici il est calculé par l'autre chemin et écrit sous le total, avec l'écart
+   * · un justificatif qui ne recoupe pas est un justificatif qui ment, et le
+   * dire dans le fichier vaut mieux que l'espérer.
+   */
+  async justificatifSoldeExcel(
+    tenantId: string,
+    compteId: string,
+    exerciceId: string,
+    params: { dateArret?: string; masquerLettrees?: boolean } = {},
+  ): Promise<ClasseurExporte> {
+    const j = await this.ecritureService.justificatifSolde(tenantId, { compteId, exerciceId, ...params });
+    const identite = await this.identiteEtat(tenantId, { exerciceId });
+
+    const classeur = this.nouveauClasseur();
+    const feuille = classeur.addWorksheet('Justificatif');
+
+    feuille.getRow(1).getCell(1).value = `${j.compte.numero} ${j.compte.intitule} · ${identite.entite}`;
+    feuille.getRow(1).getCell(1).font = { bold: true, size: 11 };
+
+    const colonnes: Array<{ header: string; key: string; width: number }> = [
+      { header: 'Date', key: 'date', width: 12 },
+      { header: 'Journal', key: 'journal', width: 10 },
+      { header: 'N° pièce', key: 'numeroPiece', width: 12 },
+      { header: 'Réf. pièce', key: 'reference', width: 20 },
+      { header: 'Libellé écriture', key: 'libelle', width: 52 },
+      { header: 'Devise TR', key: 'deviseTransaction', width: 11 },
+      { header: 'Montant devise', key: 'montantDevise', width: 16 },
+      { header: `Débit (${identite.devise})`, key: 'debit', width: 16 },
+      { header: `Crédit (${identite.devise})`, key: 'credit', width: 16 },
+      { header: 'Lettrage', key: 'lettre', width: 10 },
+    ];
+    feuille.getRow(2).values = colonnes.map((c) => c.header);
+    colonnes.forEach((c, i) => {
+      feuille.getColumn(i + 1).key = c.key;
+      feuille.getColumn(i + 1).width = c.width;
+    });
+
+    for (const l of j.lignes) {
+      const r = feuille.addRow({
+        date: l.date,
+        journal: l.journal,
+        numeroPiece: l.numeroPiece,
+        reference: l.reference,
+        // Une ligne d'à-nouveau se nomme · sinon on la prend pour une
+        // opération de l'exercice et on cherche une pièce qui n'existe pas.
+        libelle: l.estANouveau ? `${l.libelle} · à-nouveau` : l.libelle,
+        deviseTransaction: l.deviseTransaction,
+        montantDevise: l.montantDevise,
+        debit: l.debit || null,
+        credit: l.credit || null,
+        lettre: l.lettre,
+      });
+      if (l.estANouveau) r.font = { italic: true };
+    }
+
+    const derniereLigneDonnees = feuille.rowCount;
+    const total = feuille.addRow({
+      libelle: 'Total',
+      debit: j.totaux.debit || null,
+      credit: j.totaux.credit || null,
+    });
+    total.font = ENTETE_FONT;
+    const ligneSolde = feuille.addRow({ libelle: 'Solde', debit: j.totaux.solde || null });
+    ligneSolde.font = ENTETE_FONT;
+
+    if (j.recoupement.applicable) {
+      const r = feuille.addRow({
+        libelle: j.recoupement.concordant
+          ? 'Recoupement avec la balance · concordant'
+          : "ÉCART AVEC LA BALANCE · le justificatif ne couvre pas tout le solde",
+        debit: j.recoupement.soldeBalance || null,
+        credit: j.recoupement.ecart || null,
+      });
+      r.font = { bold: true, italic: true };
+    }
+
+    this.appliquerFormats(feuille, {
+      date: FORMAT_DATE,
+      montantDevise: FORMAT_MONTANT,
+      debit: FORMAT_MONTANT,
+      credit: FORMAT_MONTANT,
+    });
+    this.piedDePageEtat(feuille, identite);
+    this.finaliserTableau(feuille, colonnes.length, derniereLigneDonnees, 2);
+
+    return {
+      buffer: await this.versBuffer(classeur),
+      nomFichier: `justificatif-${j.compte.numero}-au-${j.dateArret}.xlsx`,
+    };
+  }
+
+  /**
    * IDENTITÉ DU CARTOUCHE · les six lignes d'en-tête que la charte ETAFI
    * pose sur chaque page (voir theme-etafi.ts). Le NIF est l'identifiant que
    * le CPCC impose en tête de chaque page d'état financier · le sigle et le
