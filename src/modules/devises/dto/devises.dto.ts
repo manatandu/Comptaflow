@@ -42,6 +42,22 @@ export class ReevaluerDto {
   @IsDateString()
   dateReevaluation?: string;
 
+  /**
+   * POSITION GLOBALE DE CHANGE · art. 58 de l'AUDCIF, repris par le cadre
+   * conceptuel du SYCEBNL. Retenue, la dotation à la provision est limitée,
+   * DEVISE PAR DEVISE, à l'excédent des pertes probables sur les gains
+   * latents.
+   *
+   * Faux par défaut, et ce n'est pas un oubli : le texte subordonne cette
+   * limitation à une justification par l'entité, elle ne vaut qu'entre
+   * éléments dont l'échéance tombe dans le même exercice (Titre VIII ch. 22
+   * § 2.2.3), et elle DIMINUE une provision · un réglage qui allège la
+   * prudence ne s'installe pas tout seul.
+   */
+  @IsOptional()
+  @IsBoolean()
+  positionGlobale?: boolean;
+
   /** Simulation : calcule et n'écrit rien. */
   @IsOptional()
   @IsBoolean()

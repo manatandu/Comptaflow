@@ -1395,6 +1395,11 @@ export interface RapportReevaluation {
   perteRealisee: number;
   gainRealise: number;
   provision: number;
+  /** Dotation avant limitation par la position globale de change (AUDCIF art. 58). */
+  provisionSansPositionGlobale: number;
+  positionGlobaleRetenue: boolean;
+  /** Étalement de l'art. 56 · ce que le logiciel ne peut pas calculer seul. */
+  avertissements: string[];
   coursManquants: string[];
 }
 

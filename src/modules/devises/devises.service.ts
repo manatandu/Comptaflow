@@ -175,6 +175,12 @@ export interface PositionDevise {
   ecart: number;
   /** Vrai pour un compte de classe 5 · l'écart y est réalisé, non latent. */
   estTresorerie: boolean;
+  /**
+   * Part de la perte latente RÉELLEMENT dotée en provision. Égale à la perte
+   * hors position globale de change ; réduite au prorata quand la position
+   * globale est retenue (art. 58), nulle sur un gain ou une disponibilité.
+   */
+  provisionnable: number;
 }
 
 export interface RapportReevaluation {
@@ -188,6 +194,19 @@ export interface RapportReevaluation {
   gainRealise: number;
   /** Provision à doter sur la perte latente (194 par 6971). */
   provision: number;
+  /**
+   * Provision qui serait dotée SANS position globale de change · égale à
+   * `provision` quand l'option n'est pas retenue. Sert à montrer à l'écran ce
+   * que l'option a retiré, plutôt que de faire varier un chiffre en silence.
+   */
+  provisionSansPositionGlobale: number;
+  /** Vrai si la dotation a été limitée au titre de l'art. 58. */
+  positionGlobaleRetenue: boolean;
+  /**
+   * Ce que le logiciel ne sait pas calculer et que le comptable doit trancher ·
+   * l'étalement de l'art. 56, faute de tableau d'amortissement de l'emprunt.
+   */
+  avertissements: string[];
   coursManquants: string[];
 }
 
@@ -319,6 +338,7 @@ export class DevisesService {
           valeurReevaluee: 0,
           ecart: 0,
           estTresorerie: estDisponibilite(l.compte.numero),
+          provisionnable: 0,
         } satisfies PositionDevise);
       // Le montant en devise est stocké sans signe : c'est le sens de la ligne
       // (débit ou crédit) qui le donne.
@@ -355,6 +375,82 @@ export class DevisesService {
     const perteRealisee = tresorerie.filter((p) => p.ecart < 0).reduce((s, p) => s - p.ecart, 0);
     const gainRealise = tresorerie.filter((p) => p.ecart > 0).reduce((s, p) => s + p.ecart, 0);
 
+    // --- POSITION GLOBALE DE CHANGE · art. 58 --------------------------------
+    //
+    // « Lorsque les opérations en monnaies étrangères concourent à une position
+    // globale de change au sein de l'entité, le montant de la dotation à la
+    // provision pour pertes de change est limité à l'excédent des pertes
+    // probables sur les gains latents afférents aux éléments inclus dans cette
+    // position. La position globale de change s'entend de la situation,
+    // DEVISE PAR DEVISE, de toutes les opérations engagées contractuellement
+    // par l'entité » (AUDCIF art. 58 ; le cadre conceptuel du SYCEBNL reprend
+    // la même limitation, ch. 2).
+    //
+    // TROIS RAISONS DE NE PAS L'APPLIQUER D'OFFICE, et c'est pourquoi elle est
+    // une OPTION et non le comportement par défaut :
+    //
+    //  · le texte la subordonne à une justification par l'entité · elle « peut
+    //    justifier » d'une position globale, ce n'est pas un automatisme ;
+    //  · elle ne vaut qu'entre éléments dont l'échéance tombe dans le même
+    //    exercice (Titre VIII ch. 22 § 2.2.3), et le logiciel ne connaît pas
+    //    l'échéance d'une position · elle agrège un compte et une devise ;
+    //  · elle DIMINUE une provision. Un défaut qui allège la prudence ne doit
+    //    jamais s'installer sans que quelqu'un l'ait demandé.
+    //
+    // Les disponibilités en sont exclues de toute façon : leur écart est déjà
+    // au résultat, il n'y a rien à provisionner (art. 57).
+    const positionGlobale = dto.positionGlobale === true;
+    const perteParDevise = new Map<string, number>();
+    const gainParDevise = new Map<string, number>();
+    for (const p of latentes) {
+      const table = p.ecart < 0 ? perteParDevise : gainParDevise;
+      table.set(p.deviseCode, (table.get(p.deviseCode) ?? 0) + Math.abs(p.ecart));
+    }
+    for (const p of resultat) {
+      if (p.estTresorerie || p.ecart >= 0) {
+        p.provisionnable = 0;
+        continue;
+      }
+      const perteDevise = perteParDevise.get(p.deviseCode) ?? 0;
+      const gainDevise = gainParDevise.get(p.deviseCode) ?? 0;
+      // Ratio appliqué à CHAQUE position de la devise, pour que la ventilation
+      // par nature (exploitation / financier) reste proportionnelle. Sans lui,
+      // il faudrait décider arbitrairement quelle position absorbe la
+      // réduction, et le compte de résultat s'en ressentirait.
+      const ratio =
+        positionGlobale && perteDevise > 0 ? Math.max(0, perteDevise - gainDevise) / perteDevise : 1;
+      p.provisionnable = Math.round(-p.ecart * ratio * 100) / 100;
+    }
+    const provision = resultat.reduce((s, p) => s + p.provisionnable, 0);
+
+    // --- ÉTALEMENT DE L'ART. 56 · ce que le logiciel ne peut pas calculer ----
+    //
+    // « Lorsqu'un emprunt est contracté ou qu'un prêt est consenti à
+    // l'étranger pour une période supérieure à un an, la perte ou le gain
+    // résultant à la clôture DOIT être étalé sur la durée restant à courir
+    // jusqu'au dernier remboursement, en proportion des remboursements à venir
+    // prévus au contrat » (AUDCIF art. 56 ; repris par le cadre conceptuel du
+    // SYCEBNL). Le montant potentiel total se mentionne dans les Notes annexes.
+    //
+    // Cette proportion se lit dans le TABLEAU D'AMORTISSEMENT de l'emprunt, que
+    // le logiciel ne détient pas : une position est un agrégat (compte, devise)
+    // sans échéancier. Il ne peut donc pas la calculer, et il ne l'invente pas ·
+    // il dote la totalité, ce qui est prudent mais dépasse ce que le texte
+    // demande, et il le DIT, position par position, avec le montant à ventiler.
+    const avertissements: string[] = [];
+    for (const p of resultat) {
+      if (p.estTresorerie || p.ecart >= 0) continue;
+      if (!RACINES_FINANCIERES_LONGUES.test(p.numero)) continue;
+      avertissements.push(
+        `${p.numero} ${p.intitule} (${p.deviseCode}) · perte de change de ` +
+          `${Math.abs(p.ecart).toFixed(2)} sur un emprunt, un prêt ou une immobilisation financière. ` +
+          "Si l'échéance dépasse un an, l'AUDCIF (art. 56) impose d'ÉTALER cette perte sur la durée " +
+          'restant à courir, en proportion des remboursements à venir prévus au contrat. La totalité est ' +
+          "dotée ici, faute de tableau d'amortissement : ajustez la dotation et portez le montant " +
+          'potentiel total dans les Notes annexes.',
+      );
+    }
+
     return {
       dateReevaluation: date.toISOString().slice(0, 10),
       positions: resultat,
@@ -363,8 +459,12 @@ export class DevisesService {
       perteRealisee: Math.round(perteRealisee * 100) / 100,
       gainRealise: Math.round(gainRealise * 100) / 100,
       // Prudence : la perte probable est provisionnée, le gain probable ne
-      // l'est pas · un gain latent ne se constate jamais en résultat.
-      provision: Math.round(perteLatente * 100) / 100,
+      // l'est pas · un gain latent ne se constate jamais en résultat. La
+      // position globale de change est la seule exception, et sur option.
+      provision: Math.round(provision * 100) / 100,
+      provisionSansPositionGlobale: Math.round(perteLatente * 100) / 100,
+      positionGlobaleRetenue: positionGlobale,
+      avertissements,
       coursManquants: [...coursManquants],
     };
   }
@@ -461,9 +561,12 @@ export class DevisesService {
     if (rapport.provision > 0.005) {
       const parNature = new Map<NaturePosition, number>();
       for (const p of rapport.positions) {
-        if (p.estTresorerie || p.ecart >= 0) continue; // seule la perte LATENTE se provisionne
+        // `provisionnable` et non `-ecart` : la position globale de change
+        // (art. 58) a pu réduire la dotation, et la réduction doit se répartir
+        // sur les natures au prorata, pas s'imputer sur l'une d'elles.
+        if (p.provisionnable <= 0.005) continue; // seule la perte LATENTE se provisionne
         const nature = estSyscohada ? naturePosition(p.numero) : 'FINANCIER_LONG';
-        parNature.set(nature, Math.round(((parNature.get(nature) ?? 0) - p.ecart) * 100) / 100);
+        parNature.set(nature, Math.round(((parNature.get(nature) ?? 0) + p.provisionnable) * 100) / 100);
       }
       const lignesProvision: { compteId: string; debit?: number; credit?: number; libelle: string }[] = [];
       for (const [nature, montant] of parNature) {

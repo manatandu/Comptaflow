@@ -37,6 +37,10 @@ export function DevisesPage() {
   const [exercices, setExercices] = useState<Exercice[]>([]);
   const [reevaluations, setReevaluations] = useState<Reevaluation[]>([]);
   const [rapport, setRapport] = useState<RapportReevaluation | null>(null);
+  // Position globale de change · décochée par défaut. Voir le libellé de la
+  // case : le texte la subordonne à une justification par l'entité, et elle
+  // DIMINUE une provision.
+  const [positionGlobale, setPositionGlobale] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
@@ -119,6 +123,7 @@ export function DevisesPage() {
         await api.post<RapportReevaluation>('/devises/reevaluation/calcul', {
           exerciceId: exerciceCourant.id,
           dateReevaluation: dateReeval,
+          positionGlobale,
         }),
       );
     } catch (e) {
@@ -135,6 +140,7 @@ export function DevisesPage() {
       await api.post('/devises/reevaluation', {
         exerciceId: exerciceCourant.id,
         dateReevaluation: dateReeval,
+        positionGlobale,
       });
       setInfo('Réévaluation passée · ses écritures sont dans le brouillard.');
       setRapport(null);
@@ -318,6 +324,20 @@ export function DevisesPage() {
                 }}
                 className="border border-border rounded-[6px] px-2 py-1 text-[10.5px] font-mono"
               />
+              <label
+                className="flex items-center gap-1.5 text-[10.5px]"
+                title="AUDCIF art. 58 · la dotation est limitée à l'excédent des pertes probables sur les gains latents, devise par devise. Le texte la subordonne à une justification par l'entité, et elle ne vaut qu'entre éléments dont l'échéance tombe dans le même exercice."
+              >
+                <input
+                  type="checkbox"
+                  checked={positionGlobale}
+                  onChange={(e) => {
+                    setPositionGlobale(e.target.checked);
+                    setRapport(null);
+                  }}
+                />
+                Position globale de change
+              </label>
               <button
                 onClick={calculer}
                 className="border border-border rounded-[6px] bg-surface px-3 py-1 text-[10.5px] font-semibold hover:bg-chrome"
@@ -350,6 +370,25 @@ export function DevisesPage() {
 
           {rapport && (
             <>
+              {rapport.avertissements.length > 0 && (
+                <div className="mx-3 mt-3 text-[11px] text-warning bg-warning-soft border border-warning/30 rounded-[6px] px-2.5 py-2 leading-[1.55]">
+                  <strong>Étalement à décider · AUDCIF art. 56.</strong>
+                  <ul className="mt-1 list-disc pl-4 flex flex-col gap-1">
+                    {rapport.avertissements.map((a) => (
+                      <li key={a}>{a}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {rapport.positionGlobaleRetenue && rapport.provisionSansPositionGlobale > rapport.provision && (
+                <div className="mx-3 mt-3 text-[11px] text-text-dim bg-chrome-alt border border-border rounded-[6px] px-2.5 py-1.5 leading-[1.55]">
+                  Position globale de change retenue : la dotation est limitée à l'excédent des pertes probables
+                  sur les gains latents, devise par devise (AUDCIF art. 58). Sans elle, elle serait de{' '}
+                  {montant(rapport.provisionSansPositionGlobale)}.
+                </div>
+              )}
+
               {rapport.coursManquants.length > 0 && (
                 <div className="mx-3 mt-3 text-[11px] text-warning bg-warning-soft border border-warning/30 rounded-[6px] px-2.5 py-1.5">
                   Aucun cours coté au {jour(rapport.dateReevaluation)} ou avant pour :{' '}
