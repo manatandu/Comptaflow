@@ -91,7 +91,24 @@ export class FiscaliteService {
     const details = balance.lignes.filter((l) => l.typeCompte !== TypeCompteDetailTotal.TOTAL);
     const gestion = details.filter((l) => /^[678]/.test(l.numero));
     const resultatClasses678 = gestion.reduce((s, l) => s - l.solde, 0);
-    const resultatCompte13 = details.filter((l) => l.numero.startsWith('13')).reduce((s, l) => s - l.solde, 0);
+    // 131 « Résultat net : bénéfice » et 139 « Résultat net : perte », et EUX
+    // SEULS. Le raccourci « tout ce qui commence par 13 » vient du SYCEBNL,
+    // dont le compte 13 n'a que ces deux subdivisions. Le plan SYSCOHADA en
+    // porte neuf de plus, et deux familles y feraient des dégâts opposés :
+    //
+    //  · 130 / 1301 / 1309 « Résultat en instance d'affectation » tient le
+    //    résultat de l'exercice PRÉCÉDENT tant que l'assemblée n'a pas
+    //    statué · l'additionner ferait payer l'impôt deux fois sur le même
+    //    bénéfice ;
+    //  · 132 à 138 sont les soldes intermédiaires de gestion (marge
+    //    commerciale, valeur ajoutée, EBE, résultat d'exploitation,
+    //    financier, des activités ordinaires, hors activités ordinaires) ·
+    //    ce sont des étapes du MÊME résultat, et les cumuler le compterait
+    //    autant de fois qu'il y a d'étapes.
+    //
+    // Aucun de ces deux dégâts ne se voit : le résultat fiscal sort d'un
+    // calcul qui a l'air normal, et c'est l'impôt qui est faux.
+    const resultatCompte13 = details.filter((l) => /^13[19]/.test(l.numero)).reduce((s, l) => s - l.solde, 0);
     const avantCloture = Math.abs(resultatClasses678) > 0.005;
     // Un produit est un solde créditeur, donc négatif dans la convention
     // `solde = débit - crédit` de la balance · d'où le signe.

@@ -100,6 +100,54 @@ describe('Résultat fiscal · lecture de la balance', () => {
     expect(r.sourceResultat).toBe('COMPTE_13');
     expect(r.resultatComptable).toBe(800);
   });
+
+  /**
+   * LE COMPTE 13 N'EST PAS ENTIÈREMENT LE RÉSULTAT, EN SYSCOHADA.
+   *
+   * Le compte 13 du SYCEBNL n'a que deux subdivisions, 131 bénéfice et 139
+   * perte : y sommer tout ce qui commence par « 13 » y est exact. Le plan
+   * SYSCOHADA en porte neuf de plus, et deux familles font des dégâts
+   * opposés · les tests qui suivent figent chacune.
+   */
+  it('IGNORE le résultat en instance d’affectation (130) · sinon l’impôt est payé deux fois', async () => {
+    const { s } = service({
+      balances: {
+        // Bénéfice de l'exercice : 800. Et 5 000 encore en instance
+        // d'affectation, qui sont le résultat de l'exercice PRÉCÉDENT tant
+        // que l'assemblée n'a pas statué · déjà imposés une fois.
+        N: [ligne('13100000', -800), ligne('13010000', -5_000)],
+      },
+    });
+    const r = await s.resultatFiscal('t1', 'N');
+    expect(r.resultatComptable).toBe(800);
+  });
+
+  it('IGNORE les soldes intermédiaires de gestion (132 à 138) · ce sont des étapes du même résultat', async () => {
+    const { s } = service({
+      balances: {
+        N: [
+          ligne('13100000', -800), // résultat net
+          ligne('13200000', -12_000), // marge commerciale
+          ligne('13300000', -9_000), // valeur ajoutée
+          ligne('13400000', -5_000), // excédent brut d'exploitation
+          ligne('13500000', -2_000), // résultat d'exploitation
+          ligne('13600000', -300), // résultat financier
+          ligne('13700000', -1_700), // résultat des activités ordinaires
+          ligne('13800000', 900), // résultat hors activités ordinaires
+        ],
+      },
+    });
+    const r = await s.resultatFiscal('t1', 'N');
+    // Sommer les neuf donnerait 29 900 au lieu de 800 · un impôt trente-sept
+    // fois trop élevé, au terme d'un calcul qui a l'air parfaitement normal.
+    expect(r.resultatComptable).toBe(800);
+  });
+
+  it('retient la PERTE portée au 139', async () => {
+    const { s } = service({ balances: { N: [ligne('13900000', 1_500)] } });
+    const r = await s.resultatFiscal('t1', 'N');
+    expect(r.resultatComptable).toBe(-1_500);
+  });
 });
 
 describe('Impôt sur les sociétés · art. 56 et 57', () => {

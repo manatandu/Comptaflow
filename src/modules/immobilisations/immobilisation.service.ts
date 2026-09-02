@@ -53,6 +53,43 @@ function estConflitUnicite(err: unknown): boolean {
  * familles seedées · voir famille-immobilisation-seed.ts pour le détail des
  * citations.
  */
+/**
+ * Nature d'une immobilisation, lue sur la RACINE de son compte d'actif · elle
+ * décide du compte de classe 8 servi à la sortie.
+ *
+ * Le PCGO (AUDCIF Titre VII ch. 3, section 8) subdivise les deux comptes de
+ * sortie de la même façon, et les deux semis les portent :
+ *
+ *   81 Valeurs comptables des cessions · 811 incorporelles
+ *                                        812 corporelles
+ *                                        816 financières
+ *   82 Produits des cessions           · 821 incorporelles
+ *                                        822 corporelles
+ *                                        826 financières
+ *
+ * Le code servait 812 et 822 à TOUTE sortie, en assumant le cas le plus
+ * fréquent. La cession d'un logiciel (compte 2131, incorporel) sortait donc
+ * sur « immobilisations corporelles ». L'écriture reste équilibrée et le
+ * résultat exact · seule la ventilation des cessions dans les notes annexes
+ * est fausse, ce que rien ne signale.
+ */
+export type NatureImmobilisation = 'INCORPORELLE' | 'CORPORELLE' | 'FINANCIERE';
+
+export const COMPTES_SORTIE: Record<NatureImmobilisation, { valeurComptable: string; produitCession: string }> = {
+  INCORPORELLE: { valeurComptable: '81100000', produitCession: '82100000' },
+  CORPORELLE: { valeurComptable: '81200000', produitCession: '82200000' },
+  FINANCIERE: { valeurComptable: '81600000', produitCession: '82600000' },
+};
+
+export function natureImmobilisation(numeroCompte: string): NatureImmobilisation {
+  // Classe 2 : 20 et 21 incorporelles, 22 à 24 corporelles, 26 et 27
+  // financières. 25 (avances sur immobilisations) ne se cède pas · il se
+  // solde à la réception du bien, il n'atteint donc jamais cette sortie.
+  if (/^2[01]/.test(numeroCompte)) return 'INCORPORELLE';
+  if (/^2[67]/.test(numeroCompte)) return 'FINANCIERE';
+  return 'CORPORELLE';
+}
+
 @Injectable()
 export class ImmobilisationService {
   constructor(
@@ -108,6 +145,20 @@ export class ImmobilisationService {
    * partagent la même classe · d'où la vérification sur le préfixe
    * numérique en plus de la classe.
    */
+  /**
+   * Compte de classe 8 de la sortie · absent du plan, on le NOMME plutôt que
+   * de retomber en silence sur un compte voisin.
+   */
+  private async compteDeSortie(tenantId: string, numero: string) {
+    const compte = await this.prisma.compte.findUnique({ where: { tenantId_numero: { tenantId, numero } } });
+    if (!compte) {
+      throw new BadRequestException(
+        `Compte ${numero} introuvable pour ce dossier · nécessaire pour enregistrer la sortie de cette immobilisation.`,
+      );
+    }
+    return compte;
+  }
+
   private async verifierComptesFamille(tenantId: string, dto: { compteImmobilisationId: string; compteAmortissementId: string; compteDotationId: string }) {
     const [compteImmo, compteAmort, compteDotation] = await Promise.all([
       this.prisma.compte.findFirst({ where: { id: dto.compteImmobilisationId, tenantId } }),
@@ -189,7 +240,13 @@ export class ImmobilisationService {
   private async trouver(tenantId: string, id: string) {
     const immo = await this.prisma.immobilisation.findFirst({
       where: { id, tenantId },
-      include: { famille: true, dotations: { orderBy: { exercice: { dateDebut: 'asc' } }, include: { exercice: true } } },
+      // `compteImmobilisation` est chargé pour sa NATURE : c'est son numéro
+      // qui décide du compte de classe 8 à servir à la sortie (811 / 812 / 816).
+      include: {
+        famille: true,
+        compteImmobilisation: true,
+        dotations: { orderBy: { exercice: { dateDebut: 'asc' } }, include: { exercice: true } },
+      },
     });
     if (!immo) throw new NotFoundException('Immobilisation introuvable pour ce tenant');
     return immo;
@@ -464,20 +521,9 @@ export class ImmobilisationService {
       lignesSortie.push({ compteId: immo.compteAmortissementId, debit: cumulAmorti, credit: 0 });
     }
     if (valeurComptableNette > EPSILON) {
-      // 811-818 selon la nature · la classe 8 exacte dépend du type de
-      // bien ; on utilise ici le compte générique "Valeurs comptables des
-      // cessions · immobilisations corporelles" (812), le cas le plus
-      // fréquent pour une association (matériel, mobilier, véhicules,
-      // bâtiments) ; un compte incorporel (811) resterait à choisir
-      // manuellement pour un logiciel/brevet · limite du MVP, non couverte
-      // par une résolution automatique par classe de bien.
-      const compte812 = await this.prisma.compte.findUnique({ where: { tenantId_numero: { tenantId, numero: '81200000' } } });
-      if (!compte812) {
-        throw new BadRequestException(
-          "Compte 81200000 (Valeurs comptables des cessions · immobilisations corporelles) introuvable pour ce dossier.",
-        );
-      }
-      lignesSortie.push({ compteId: compte812.id, debit: valeurComptableNette, credit: 0 });
+      const nature = natureImmobilisation(immo.compteImmobilisation.numero);
+      const compteVNC = await this.compteDeSortie(tenantId, COMPTES_SORTIE[nature].valeurComptable);
+      lignesSortie.push({ compteId: compteVNC.id, debit: valeurComptableNette, credit: 0 });
     }
 
     const ecritureSortie = await this.ecritureService.creer(tenantId, userId, {
@@ -492,10 +538,10 @@ export class ImmobilisationService {
     // l'actif (skill sycebnl distingue clairement 81 "valeur comptable" et
     // 82 "produit de cession").
     if (dto.type === TypeSortie.CESSION && dto.prixCession && dto.compteContrepartieId) {
-      const compte822 = await this.prisma.compte.findUnique({ where: { tenantId_numero: { tenantId, numero: '82200000' } } });
-      if (!compte822) {
-        throw new BadRequestException("Compte 82200000 (Produits des cessions · immobilisations corporelles) introuvable pour ce dossier.");
-      }
+      const compte822 = await this.compteDeSortie(
+        tenantId,
+        COMPTES_SORTIE[natureImmobilisation(immo.compteImmobilisation.numero)].produitCession,
+      );
       await this.ecritureService.creer(tenantId, userId, {
         exerciceId: dto.exerciceId,
         journalId: dto.journalId,
