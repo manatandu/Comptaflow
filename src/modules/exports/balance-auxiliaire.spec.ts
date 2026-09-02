@@ -78,9 +78,13 @@ describe('balance auxiliaire · l’état qui manquait', () => {
     expect(service).toContain('Referentiel.SYCEBNL');
   });
 
-  it('se termine sur une ligne SOLDE hors de l’autofiltre', () => {
+  it('se termine sur une ligne SOLDE hors de l’autofiltre, totalisée par formule', () => {
     // Les totaux triés avec les tiers, c'est un état faux au premier clic.
-    expect(service).toContain("numero: 'SOLDE',");
+    expect(service).toContain("const ligneTotal = feuille.addRow({ numero: 'SOLDE' });");
     expect(service).toContain('const derniereLigneDonnees = feuille.rowCount;');
+    // Et les totaux sont des SOMMES Excel, pas des chiffres figés · un total
+    // écrit en dur ne se vérifie pas et se désaccorde dès qu'on retire une
+    // ligne du classeur.
+    expect(service).toContain('`SUM(${col}${premiereAux}:${col}${derniereAux})`');
   });
 });

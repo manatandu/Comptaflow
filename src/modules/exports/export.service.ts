@@ -232,6 +232,44 @@ export class ExportService {
    * `dernereLigneDonnees` : y inclure une ligne de totaux ferait remonter
    * celle-ci dans les résultats de n'importe quel filtre.
    */
+  /**
+   * FORMULES · un total écrit en dur est un chiffre que personne ne peut
+   * vérifier.
+   *
+   * Les classeurs du dossier de révision portent des formules : le réviseur
+   * clique un total, voit la plage additionnée, et étend le tableau sans que
+   * rien ne se désaccorde. Un export qui pose des valeurs figées oblige à
+   * refaire l'addition à la main pour s'assurer qu'elle est juste, et se
+   * désaccorde silencieusement dès qu'une ligne est ajoutée ou supprimée.
+   *
+   * Le résultat calculé est TOUJOURS joint. Excel recalcule à l'ouverture,
+   * mais tout ce qui lit le fichier sans moteur de calcul (un import, un
+   * convertisseur, une prévisualisation) ne verrait qu'une cellule vide.
+   */
+  private formule(expression: string, resultat: number): ExcelJS.CellFormulaValue {
+    return { formula: expression, result: resultat };
+  }
+
+  /**
+   * DÉCALAGE DE LA COIFFE · trois lignes, insérées APRÈS le remplissage.
+   *
+   * `coifferEtat` appelle `spliceRows`, et ExcelJS NE RÉÉCRIT PAS les
+   * références des formules déjà posées : une somme écrite `SUM(D2:D40)` avant
+   * la coiffe additionnerait, après elle, deux lignes plus haut que ses
+   * données. Toute formule posée avant la coiffe doit donc viser des lignes
+   * DÉJÀ décalées, ce que fait `ligneCoiffee`.
+   */
+  private static readonly DECALAGE_COIFFE = 3;
+
+  private ligneCoiffee(ligne: number): number {
+    return ligne + ExportService.DECALAGE_COIFFE;
+  }
+
+  /** La lettre de colonne d'une clé, pour composer une référence lisible. */
+  private colonne(feuille: ExcelJS.Worksheet, cle: string): string {
+    return feuille.getColumn(cle).letter;
+  }
+
   private finaliserTableau(
     feuille: ExcelJS.Worksheet,
     nbColonnes: number,
@@ -433,11 +471,18 @@ export class ExportService {
     }
 
     const derniereLigneDonnees = feuille.rowCount;
-    const ligneTotal = feuille.addRow({
-      libelleEcriture: 'TOTAUX DE LA PÉRIODE',
-      debit: totaux.debit,
-      credit: totaux.credit,
-    });
+    const ligneTotal = feuille.addRow({ libelleEcriture: 'TOTAUX DE LA PÉRIODE' });
+    // Somme Excel, pas un chiffre figé · le lecteur voit la plage additionnée,
+    // et le total suit si une ligne est ajoutée ou retirée.
+    const premiereJ = this.ligneCoiffee(2);
+    const derniereJ = this.ligneCoiffee(derniereLigneDonnees);
+    for (const [cle, valeur] of [
+      ['debit', totaux.debit],
+      ['credit', totaux.credit],
+    ] as const) {
+      const col = this.colonne(feuille, cle);
+      ligneTotal.getCell(cle).value = this.formule(`SUM(${col}${premiereJ}:${col}${derniereJ})`, valeur);
+    }
     ligneTotal.font = ENTETE_FONT;
 
     this.appliquerFormats(feuille, { date: FORMAT_DATE, debit: FORMAT_MONTANT, credit: FORMAT_MONTANT });
@@ -715,15 +760,22 @@ export class ExportService {
     const derniereLigneDonnees = feuille.rowCount;
     const somme = (cle: keyof (typeof lignes)[number]) =>
       Math.round(lignes.reduce((t, l) => t + (Number(l[cle]) || 0), 0) * 100) / 100;
-    const ligneTotal = feuille.addRow({
-      intitule: 'TOTAUX GÉNÉRAUX',
-      reportDebit: somme('reportDebit') || null,
-      reportCredit: somme('reportCredit') || null,
-      mouvementDebit: somme('mouvementDebit') || null,
-      mouvementCredit: somme('mouvementCredit') || null,
-      totalDebit: somme('totalDebit') || null,
-      totalCredit: somme('totalCredit') || null,
-    });
+    const ligneTotal = feuille.addRow({ intitule: 'TOTAUX GÉNÉRAUX' });
+    // Les six colonnes se totalisent par formule · c'est sur cette ligne que
+    // se vérifie la partie double, et un chiffre figé ne se vérifie pas.
+    const premiereB = this.ligneCoiffee(2);
+    const derniereB = this.ligneCoiffee(derniereLigneDonnees);
+    for (const cle of [
+      'reportDebit',
+      'reportCredit',
+      'mouvementDebit',
+      'mouvementCredit',
+      'totalDebit',
+      'totalCredit',
+    ] as const) {
+      const col = this.colonne(feuille, cle);
+      ligneTotal.getCell(cle).value = this.formule(`SUM(${col}${premiereB}:${col}${derniereB})`, somme(cle));
+    }
     ligneTotal.font = ENTETE_FONT;
 
     this.appliquerFormats(feuille, {
@@ -821,6 +873,9 @@ export class ExportService {
       feuille.getColumn(i + 1).width = c.width;
     });
 
+    // Première ligne de données : les en-têtes sont en 2, la coiffe les
+    // poussera de trois · les formules visent donc déjà les lignes décalées.
+    const premiereAux = this.ligneCoiffee(3);
     for (const c of comptes) {
       feuille.addRow({
         numero: c.numero,
@@ -834,21 +889,34 @@ export class ExportService {
         mouvementCredit: c.mouvementCredit || null,
         soldeDebit: c.soldeDebit || null,
         soldeCredit: c.soldeCredit || null,
-        solde: c.solde || null,
       });
+      // Le solde signé n'est pas un troisième chiffre indépendant : c'est la
+      // différence des deux colonnes qui le précèdent, et l'écrire en formule
+      // le dit. Un lecteur qui corrige un montant voit le solde suivre.
+      const ligne = feuille.lastRow!;
+      const cd = this.colonne(feuille, 'soldeDebit');
+      const cc = this.colonne(feuille, 'soldeCredit');
+      ligne.getCell('solde').value = this.formule(`${cd}${ligne.number + 3}-${cc}${ligne.number + 3}`, c.solde);
     }
 
     const derniereLigneDonnees = feuille.rowCount;
-    const ligneTotal = feuille.addRow({
-      numero: 'SOLDE',
-      reportDebit: totaux.reportDebit || null,
-      reportCredit: totaux.reportCredit || null,
-      mouvementDebit: totaux.mouvementDebit || null,
-      mouvementCredit: totaux.mouvementCredit || null,
-      soldeDebit: totaux.soldeDebit || null,
-      soldeCredit: totaux.soldeCredit || null,
-      solde: totaux.solde || null,
-    });
+    const ligneTotal = feuille.addRow({ numero: 'SOLDE' });
+    const derniereAux = this.ligneCoiffee(derniereLigneDonnees);
+    for (const cle of [
+      'reportDebit',
+      'reportCredit',
+      'mouvementDebit',
+      'mouvementCredit',
+      'soldeDebit',
+      'soldeCredit',
+      'solde',
+    ] as const) {
+      const col = this.colonne(feuille, cle);
+      ligneTotal.getCell(cle).value = this.formule(
+        `SUM(${col}${premiereAux}:${col}${derniereAux})`,
+        totaux[cle],
+      );
+    }
     ligneTotal.font = ENTETE_FONT;
 
     this.appliquerFormats(feuille, {
@@ -918,16 +986,28 @@ export class ExportService {
     feuille.getColumn(1).width = 42;
     for (let i = 2; i <= nbColonnes; i++) feuille.getColumn(i).width = 20;
 
+    const lettre = (colonne: number) => feuille.getColumn(colonne).letter;
+    const premiereTranche = lettre(2);
+    const derniereTranche = lettre(etat.tranches.length + 1);
+
     const ligneMontants = (libelle: string, montants: number[], solde: number) => {
       const r = feuille.addRow([]);
       r.getCell(1).value = libelle;
       montants.forEach((m, i) => {
         r.getCell(i + 2).value = m || null;
       });
-      r.getCell(nbColonnes).value = solde || null;
+      // Le solde d'un débiteur EST la somme de ses tranches · l'écrire en
+      // formule rend le rapprochement visible et fait suivre la ligne si une
+      // tranche est corrigée à la main. Un créditeur n'a pas de tranches : son
+      // solde reste une valeur, il n'y a rien à additionner.
+      const ligneCoiffee = r.number + 3;
+      r.getCell(nbColonnes).value = montants.length
+        ? this.formule(`SUM(${premiereTranche}${ligneCoiffee}:${derniereTranche}${ligneCoiffee})`, solde)
+        : solde || null;
       return r;
     };
 
+    const premiereAgee = this.ligneCoiffee(3);
     for (const d of etat.debiteurs) ligneMontants(d.libelle, d.montants, d.solde);
 
     if (etat.crediteurs.length > 0) {
@@ -941,13 +1021,47 @@ export class ExportService {
 
     const derniereLigneDonnees = feuille.rowCount;
 
-    const totalDebiteurs = ligneMontants('TOTAL DÉBITEURS', etat.totaux.parTranche, etat.totaux.debiteurs);
+    // Les débiteurs occupent les premières lignes, les créditeurs suivent
+    // après le séparateur · deux plages disjointes, donc deux sommes.
+    const derniereDebiteur = this.ligneCoiffee(2 + etat.debiteurs.length);
+    const premierCrediteur = this.ligneCoiffee(4 + etat.debiteurs.length);
+    const derniereAgee = this.ligneCoiffee(derniereLigneDonnees);
+    const colSolde = lettre(nbColonnes);
+
+    const totalDebiteurs = feuille.addRow([]);
+    totalDebiteurs.getCell(1).value = 'TOTAL DÉBITEURS';
+    etat.tranches.forEach((_, i) => {
+      const col = lettre(i + 2);
+      totalDebiteurs.getCell(i + 2).value = this.formule(
+        `SUM(${col}${premiereAgee}:${col}${derniereDebiteur})`,
+        etat.totaux.parTranche[i],
+      );
+    });
+    totalDebiteurs.getCell(nbColonnes).value = this.formule(
+      `SUM(${colSolde}${premiereAgee}:${colSolde}${derniereDebiteur})`,
+      etat.totaux.debiteurs,
+    );
     totalDebiteurs.font = ENTETE_FONT;
-    const totalCrediteurs = ligneMontants('TOTAL SOLDES EN SENS INVERSE', [], etat.totaux.crediteurs);
+
+    const totalCrediteurs = feuille.addRow([]);
+    totalCrediteurs.getCell(1).value = 'TOTAL SOLDES EN SENS INVERSE';
+    totalCrediteurs.getCell(nbColonnes).value = etat.crediteurs.length
+      ? this.formule(
+          `SUM(${colSolde}${premierCrediteur}:${colSolde}${derniereAgee})`,
+          etat.totaux.crediteurs,
+        )
+      : etat.totaux.crediteurs || null;
     totalCrediteurs.font = ENTETE_FONT;
-    // Le net recoupe la balance auxiliaire des mêmes comptes · le dire dans
-    // l'état évite qu'on refasse l'addition à la main pour s'en assurer.
-    const net = ligneMontants('SOLDE NET · recoupe la balance auxiliaire', [], etat.totaux.net);
+
+    // Le net recoupe la balance auxiliaire des mêmes comptes · en formule, on
+    // voit qu'il est bien la somme des deux populations et pas un troisième
+    // chiffre calculé ailleurs.
+    const net = feuille.addRow([]);
+    net.getCell(1).value = 'SOLDE NET · recoupe la balance auxiliaire';
+    net.getCell(nbColonnes).value = this.formule(
+      `${colSolde}${totalDebiteurs.number + 3}+${colSolde}${totalCrediteurs.number + 3}`,
+      etat.totaux.net,
+    );
     net.font = ENTETE_FONT;
 
     for (let i = 2; i <= nbColonnes; i++) feuille.getColumn(i).numFmt = FORMAT_MONTANT;
@@ -1029,13 +1143,29 @@ export class ExportService {
     }
 
     const derniereLigneDonnees = feuille.rowCount;
-    const total = feuille.addRow({
-      libelle: 'Total',
-      debit: j.totaux.debit || null,
-      credit: j.totaux.credit || null,
-    });
+    const premiereJustif = this.ligneCoiffee(3);
+    const derniereJustif = this.ligneCoiffee(derniereLigneDonnees);
+    const colDebit = this.colonne(feuille, 'debit');
+    const colCredit = this.colonne(feuille, 'credit');
+
+    const total = feuille.addRow({ libelle: 'Total' });
+    total.getCell('debit').value = this.formule(
+      `SUM(${colDebit}${premiereJustif}:${colDebit}${derniereJustif})`,
+      j.totaux.debit,
+    );
+    total.getCell('credit').value = this.formule(
+      `SUM(${colCredit}${premiereJustif}:${colCredit}${derniereJustif})`,
+      j.totaux.credit,
+    );
     total.font = ENTETE_FONT;
-    const ligneSolde = feuille.addRow({ libelle: 'Solde', debit: j.totaux.solde || null });
+
+    // Le solde est la différence des deux totaux qui le précèdent · en
+    // formule, il ne peut pas diverger d'eux.
+    const ligneSolde = feuille.addRow({ libelle: 'Solde' });
+    ligneSolde.getCell('debit').value = this.formule(
+      `${colDebit}${total.number + 3}-${colCredit}${total.number + 3}`,
+      j.totaux.solde,
+    );
     ligneSolde.font = ENTETE_FONT;
 
     if (j.recoupement.applicable) {
@@ -1044,8 +1174,13 @@ export class ExportService {
           ? 'Recoupement avec la balance · concordant'
           : "ÉCART AVEC LA BALANCE · le justificatif ne couvre pas tout le solde",
         debit: j.recoupement.soldeBalance || null,
-        credit: j.recoupement.ecart || null,
       });
+      // L'écart se CALCULE dans le fichier · un écart affiché en dur ne prouve
+      // rien, c'est précisément la ligne qu'un lecteur veut recalculer.
+      r.getCell('credit').value = this.formule(
+        `${colDebit}${ligneSolde.number + 3}-${colDebit}${r.number + 3}`,
+        j.recoupement.ecart,
+      );
       r.font = { bold: true, italic: true };
     }
 
@@ -1153,38 +1288,61 @@ export class ExportService {
       feuille.getColumn(i + 1).width = c.width;
     });
 
+    const colBrut = this.colonne(feuille, 'brut');
+    const colAmort = this.colonne(feuille, 'amort');
+    const colNet = this.colonne(feuille, 'net');
+    // Les lignes de S/TOTAL, retenues pour que le total général les additionne
+    // ELLES plutôt que de refaire la somme des biens · c'est ainsi que leur
+    // classeur est bâti, et cela rend le contrôle de cohérence visible.
+    const lignesSousTotal: number[] = [];
+
     for (const g of t.groupes) {
       const titre = feuille.addRow({ libelle: `(${g.numero}) ${g.intitule}` });
       titre.font = { bold: true };
+      const premiere = titre.number + 1;
       for (const l of g.lignes) {
-        feuille.addRow({
+        const r = feuille.addRow({
           libelle: l.designation,
           date: new Date(l.dateAcquisition),
           duree: l.dureeAns,
           brut: l.valeurBrute || null,
           amort: l.amortissements || null,
-          net: l.valeurNette || null,
           // Un bien SORTI reste au tableau à sa date d'arrêté s'il y était · le
           // taire ferait chercher un bien qu'on croit encore détenu.
           obs: l.dateSortie ? `Sorti le ${new Date(l.dateSortie).toLocaleDateString('fr-FR')}` : '',
         });
+        // Valeur nette = brut − amortissements. C'est une soustraction, pas un
+        // troisième chiffre : l'écrire en formule interdit qu'ils divergent.
+        const ligne = r.number + 3;
+        r.getCell('net').value = this.formule(`${colBrut}${ligne}-${colAmort}${ligne}`, l.valeurNette);
       }
-      const sousTotal = feuille.addRow({
-        libelle: 'S/TOTAL',
-        brut: g.brut || null,
-        amort: g.amortissements || null,
-        net: g.net || null,
-      });
+      const sousTotal = feuille.addRow({ libelle: 'S/TOTAL' });
+      const de = this.ligneCoiffee(premiere);
+      const a = this.ligneCoiffee(sousTotal.number - 1);
+      for (const [cle, col, valeur] of [
+        ['brut', colBrut, g.brut],
+        ['amort', colAmort, g.amortissements],
+        ['net', colNet, g.net],
+      ] as const) {
+        sousTotal.getCell(cle).value = g.lignes.length
+          ? this.formule(`SUM(${col}${de}:${col}${a})`, valeur)
+          : valeur || null;
+      }
       sousTotal.font = ENTETE_FONT;
+      lignesSousTotal.push(this.ligneCoiffee(sousTotal.number));
     }
 
     const derniereLigneDonnees = feuille.rowCount;
-    const total = feuille.addRow({
-      libelle: 'TOTAL GÉNÉRAL',
-      brut: t.totaux.brut || null,
-      amort: t.totaux.amortissements || null,
-      net: t.totaux.net || null,
-    });
+    const total = feuille.addRow({ libelle: 'TOTAL GÉNÉRAL' });
+    for (const [cle, col, valeur] of [
+      ['brut', colBrut, t.totaux.brut],
+      ['amort', colAmort, t.totaux.amortissements],
+      ['net', colNet, t.totaux.net],
+    ] as const) {
+      total.getCell(cle).value = lignesSousTotal.length
+        ? this.formule(lignesSousTotal.map((n) => `${col}${n}`).join('+'), valeur)
+        : valeur || null;
+    }
     total.font = ENTETE_FONT;
 
     this.appliquerFormats(feuille, {
@@ -1242,9 +1400,39 @@ export class ExportService {
     const PREMIER_MOIS = 5; // A libellé, B date, C brut, D taux, puis les mois.
     const COL_DOTATION = PREMIER_MOIS + t.mois.length;
 
+    const lettre = (colonne: number) => feuille.getColumn(colonne).letter;
+    const colBrut = lettre(3);
+    const colPremierMois = lettre(PREMIER_MOIS);
+    const colDernierMois = lettre(PREMIER_MOIS + t.mois.length - 1);
+    const colDotation = lettre(COL_DOTATION);
+    const colCumulN1 = lettre(COL_DOTATION + 1);
+    const colCumulN = lettre(COL_DOTATION + 2);
+    const colNet = lettre(COL_DOTATION + 3);
+
+    /**
+     * Une ligne du tableau. Les quatre dernières colonnes sont des FORMULES,
+     * parce que ce sont des relations, pas des chiffres indépendants :
+     *
+     *   dotation N   = somme des douze mois
+     *   cumul N      = cumul N-1 + dotation N
+     *   valeur nette = valeur brute − cumul N
+     *
+     * Les écrire en dur laisserait quatre chiffres pouvoir se contredire dans
+     * le même fichier ; en formule, une correction d'un mois se propage.
+     */
     const poser = (
       libelle: string,
-      valeurs: { date?: Date; brut?: number | null; taux?: number | null; parMois: number[]; dotation: number; cumulN1: number; cumulN: number; net: number; etat?: string },
+      valeurs: {
+        date?: Date;
+        brut?: number | null;
+        taux?: number | null;
+        parMois: number[];
+        dotation: number;
+        cumulN1: number;
+        cumulN: number;
+        net: number;
+        etat?: string;
+      },
     ) => {
       const r = feuille.addRow([]);
       r.getCell(1).value = libelle;
@@ -1254,18 +1442,29 @@ export class ExportService {
       valeurs.parMois.forEach((m, i) => {
         r.getCell(PREMIER_MOIS + i).value = m || null;
       });
-      r.getCell(COL_DOTATION).value = valeurs.dotation || null;
+      const n = r.number + 3;
+      r.getCell(COL_DOTATION).value = valeurs.parMois.length
+        ? this.formule(`SUM(${colPremierMois}${n}:${colDernierMois}${n})`, valeurs.dotation)
+        : valeurs.dotation || null;
       r.getCell(COL_DOTATION + 1).value = valeurs.cumulN1 || null;
-      r.getCell(COL_DOTATION + 2).value = valeurs.cumulN || null;
-      r.getCell(COL_DOTATION + 3).value = valeurs.net || null;
+      r.getCell(COL_DOTATION + 2).value = this.formule(
+        `${colCumulN1}${n}+${colDotation}${n}`,
+        valeurs.cumulN,
+      );
+      r.getCell(COL_DOTATION + 3).value =
+        valeurs.brut !== undefined && valeurs.brut !== null
+          ? this.formule(`${colBrut}${n}-${colCumulN}${n}`, valeurs.net)
+          : valeurs.net || null;
       if (valeurs.etat) r.getCell(COL_DOTATION + 4).value = valeurs.etat;
       return r;
     };
 
+    const lignesSousTotal: number[] = [];
     for (const g of t.groupes) {
       const titre = feuille.addRow([]);
       titre.getCell(1).value = `(${g.numero}) ${g.intitule}`;
       titre.font = { bold: true };
+      const premiere = this.ligneCoiffee(titre.number + 1);
       for (const l of g.lignes) {
         poser(l.designation, {
           date: new Date(l.dateAcquisition),
@@ -1279,24 +1478,41 @@ export class ExportService {
           etat: l.dotationPassee ? 'Comptabilisée' : 'À passer',
         });
       }
-      const st = poser('S/TOTAL', {
-        parMois: g.parMois,
-        dotation: g.dotation,
-        cumulN1: g.cumulN1,
-        cumulN: g.cumulN,
-        net: g.net,
-      });
+      const st = feuille.addRow([]);
+      st.getCell(1).value = 'S/TOTAL';
+      const derniere = this.ligneCoiffee(st.number - 1);
+      const sommeColonne = (colonne: number, valeur: number) => {
+        const col = lettre(colonne);
+        st.getCell(colonne).value = g.lignes.length
+          ? this.formule(`SUM(${col}${premiere}:${col}${derniere})`, valeur)
+          : valeur || null;
+      };
+      g.parMois.forEach((m, i) => sommeColonne(PREMIER_MOIS + i, m));
+      sommeColonne(COL_DOTATION, g.dotation);
+      sommeColonne(COL_DOTATION + 1, g.cumulN1);
+      sommeColonne(COL_DOTATION + 2, g.cumulN);
+      sommeColonne(COL_DOTATION + 3, g.net);
       st.font = ENTETE_FONT;
+      lignesSousTotal.push(this.ligneCoiffee(st.number));
     }
 
     const derniereLigneDonnees = feuille.rowCount;
-    const total = poser('TOTAL GÉNÉRAL', {
-      parMois: t.totaux.parMois,
-      dotation: t.totaux.dotation,
-      cumulN1: t.totaux.cumulN1,
-      cumulN: t.totaux.cumulN,
-      net: t.totaux.net,
-    });
+    const total = feuille.addRow([]);
+    total.getCell(1).value = 'TOTAL GÉNÉRAL';
+    // Le total général additionne les S/TOTAL, pas les biens · c'est ainsi que
+    // leur classeur est bâti, et une divergence entre les deux niveaux devient
+    // visible au lieu d'être masquée par une seconde somme des mêmes lignes.
+    const totalColonne = (colonne: number, valeur: number) => {
+      const col = lettre(colonne);
+      total.getCell(colonne).value = lignesSousTotal.length
+        ? this.formule(lignesSousTotal.map((n) => `${col}${n}`).join('+'), valeur)
+        : valeur || null;
+    };
+    t.totaux.parMois.forEach((m, i) => totalColonne(PREMIER_MOIS + i, m));
+    totalColonne(COL_DOTATION, t.totaux.dotation);
+    totalColonne(COL_DOTATION + 1, t.totaux.cumulN1);
+    totalColonne(COL_DOTATION + 2, t.totaux.cumulN);
+    totalColonne(COL_DOTATION + 3, t.totaux.net);
     total.font = ENTETE_FONT;
 
     feuille.getColumn(2).numFmt = FORMAT_DATE;
