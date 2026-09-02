@@ -204,14 +204,23 @@ describe('PlateformeService · création d’un cabinet client', () => {
 });
 
 describe('PlateformeService · groupe d’établissements', () => {
-  const service = (tenants: Record<string, { id: string; dossierMereId: string | null; cellules: number }>) => {
+  const service = (
+    tenants: Record<string, { id: string; dossierMereId: string | null; cellules: number; referentiel?: Referentiel }>,
+  ) => {
     const maj: Array<{ where: unknown; data: unknown }> = [];
     const s = new PlateformeService(
       {
         tenant: {
           findUnique: async ({ where }: { where: { id: string } }) => {
             const t = tenants[where.id];
-            return t ? { id: t.id, dossierMereId: t.dossierMereId, _count: { cellules: t.cellules } } : null;
+            return t
+              ? {
+                  id: t.id,
+                  dossierMereId: t.dossierMereId,
+                  referentiel: t.referentiel ?? Referentiel.SYCEBNL,
+                  _count: { cellules: t.cellules },
+                }
+              : null;
           },
           update: async (args: { where: unknown; data: unknown }) => {
             maj.push(args);
@@ -248,6 +257,48 @@ describe('PlateformeService · groupe d’établissements', () => {
     await expect(s.modifierGroupe('mere', { dossierMereId: 'libre' })).rejects.toThrow(BadRequestException);
     // Mère inexistante.
     await expect(s.modifierGroupe('libre', { dossierMereId: 'fantome' })).rejects.toThrow(NotFoundException);
+  });
+
+  /**
+   * DEUX PORTES VERS LE MÊME ÉTAT, UNE SEULE SERRURE.
+   *
+   * Un dossier devient cellule par deux chemins : le siège qui crée sa
+   * cellule (`GroupeService.creerCellule`), et l'opérateur qui rattache ici
+   * un dossier existant. Le premier refusait déjà une mère non SYCEBNL, avec
+   * sa raison écrite sur place ; le second ne regardait aucun référentiel.
+   *
+   * Ce que la porte ouverte produisait ensuite, sans un message : la balance
+   * agrégée additionne des comptes de deux plans qui ne coïncident pas, le
+   * canevas de trésorerie du groupe reste figé sur les rubriques SYCEBNL, et
+   * la liasse combinée monte un dossier de combinaison SYCEBNL pour des
+   * cellules d'entreprise.
+   */
+  const AVEC_SYSCOHADA = {
+    ...TENANTS,
+    mereEntreprise: { id: 'mereEntreprise', dossierMereId: null, cellules: 0, referentiel: Referentiel.SYSCOHADA },
+    celluleEntreprise: { id: 'celluleEntreprise', dossierMereId: null, cellules: 0, referentiel: Referentiel.SYSCOHADA },
+  };
+
+  it('refuse de rattacher une cellule SYSCOHADA à une mère SYCEBNL', async () => {
+    const { s, maj } = service(AVEC_SYSCOHADA);
+    await expect(s.modifierGroupe('celluleEntreprise', { dossierMereId: 'mere' })).rejects.toThrow(BadRequestException);
+    // Et surtout : rien n'a été écrit en base.
+    expect(maj).toEqual([]);
+  });
+
+  it('refuse de donner des cellules à une mère SYSCOHADA', async () => {
+    const { s, maj } = service(AVEC_SYSCOHADA);
+    await expect(s.modifierGroupe('libre', { dossierMereId: 'mereEntreprise' })).rejects.toThrow(BadRequestException);
+    expect(maj).toEqual([]);
+  });
+
+  it('laisse DÉTACHER une cellule quel que soit son référentiel · on ne piège pas un dossier mal rattaché', async () => {
+    const { s, maj } = service({
+      ...AVEC_SYSCOHADA,
+      celluleEntreprise: { id: 'celluleEntreprise', dossierMereId: 'mere', cellules: 0, referentiel: Referentiel.SYSCOHADA },
+    });
+    await s.modifierGroupe('celluleEntreprise', { dossierMereId: null });
+    expect(maj[0]).toEqual({ where: { id: 'celluleEntreprise' }, data: { dossierMereId: null } });
   });
 });
 

@@ -3,27 +3,18 @@ import { api, ApiError } from '../lib/api';
 import { useExercice } from '../lib/exercice';
 import { useAuth } from '../lib/auth';
 import { IconExport } from '../components/chrome/icons';
-import type { Compte, JeuNotesAnnexes, LigneNoteCalculee, NoteCalculee, ResultatNotesJeu } from '../lib/types';
+import type { Compte, JeuNotesAnnexes, ResultatNotesJeu } from '../lib/types';
 import { Aide } from '../components/chrome/Aide';
 import { BlocCertification, EnteteImpression } from '../components/chrome/EnteteImpression';
 import { EnConstructionSyscohada } from '../components/chrome/EnConstructionSyscohada';
-
-/**
- * Tri croissant des codes de note (« 1 », « 5A »…« 5H », « 17A », « 17B »,
- * « 29A », « 29B »…« 35 ») · le texte officiel les numérote dans cet ordre,
- * mais rien côté serveur ne garantit que `ficheRecapitulative` sorte déjà
- * ainsi (l'ordre de déclaration du référentiel est libre). Numéro d'abord,
- * puis suffixe alphabétique.
- */
-function compareCodesNotes(a: string, b: string): number {
-  const decouper = (s: string) => {
-    const m = /^(\d+)([A-Za-z]*)$/.exec(s);
-    return m ? { num: Number(m[1]), suffixe: m[2] } : { num: Number.MAX_SAFE_INTEGER, suffixe: s };
-  };
-  const pa = decouper(a);
-  const pb = decouper(b);
-  return pa.num !== pb.num ? pa.num - pb.num : pa.suffixe.localeCompare(pb.suffixe);
-}
+// Rendu partagé avec l'écran SYSCOHADA · voir NotesAnnexesRendu.tsx : seule
+// la forme d'une NoteCalculee y est connue, aucune note ni aucun compte.
+import {
+  BlocTableauNote,
+  FicheRecapitulativeNotes,
+  compareCodesNotes,
+  type RattachementNotes,
+} from '../components/NotesAnnexesRendu';
 
 /**
  * Notes annexes SYCEBNL · les deux jeux (45 notes « associations et ordres
@@ -109,9 +100,6 @@ export function NotesAnnexesPage() {
     }
   };
 
-  const montant = (v: number | undefined) =>
-    v === undefined ? '·' : v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
   // Comptes DÉTAIL seulement : un compte Total est refusé par le back (il n'a
   // jamais de mouvement propre, la rubrique resterait vide) · inutile de le
   // proposer et de laisser l'utilisateur essuyer un 400.
@@ -178,172 +166,17 @@ export function NotesAnnexesPage() {
     }
   };
 
-  // --- Une ligne de tableau, colonnes dynamiques selon `note.colonnes` ---
-  const valeurColonne = (l: LigneNoteCalculee, type: string): number | undefined => {
-    switch (type) {
-      case 'EXERCICE_N':
-        return l.montantN;
-      case 'EXERCICE_N1':
-        return l.montantN1;
-      case 'VARIATION_VALEUR':
-        return l.variationValeur;
-      case 'VARIATION_POURCENT':
-        return l.variationPourcent;
-      case 'LIBRE':
-        return undefined;
-      default:
-        return l.valeurs?.[type as keyof typeof l.valeurs];
-    }
-  };
-
-  const ligneTableau = (note: NoteCalculee, l: LigneNoteCalculee, i: number) => (
-    <div
-      key={`${l.cle ?? l.libelle}-${i}`}
-      title={l.comptes.length > 0 ? `Comptes : ${l.comptes.map((c) => c.numero).join(', ')}` : undefined}
-      className={`grid gap-2 px-4 py-1 text-[11px] ${l.estTotal ? 'font-bold bg-surface-alt border-y border-border' : ''}`}
-      style={{ gridTemplateColumns: `1.6fr repeat(${note.colonnes.length}, 108px)` }}
-    >
-      <span className={l.enAttenteDeRattachement ? 'text-danger italic' : ''}>
-        {l.libelle}
-        {l.enAttenteDeRattachement && ' ⚠'}
-      </span>
-      {note.colonnes.map((c, ci) => {
-        const v = valeurColonne(l, c.type);
-        return (
-          <span key={ci} className="font-mono text-right text-text-dim">
-            {c.type === 'LIBRE' ? '' : c.type === 'VARIATION_POURCENT' ? (v === undefined ? '' : `${montant(v)} %`) : montant(v)}
-          </span>
-        );
-      })}
-    </div>
-  );
-
-  // --- Un tableau complet (une note ou l'un des sous-tableaux d'une note) ---
-  const blocTableau = (note: NoteCalculee) => {
-    // Rubriques déjà rattachées par le dossier : lues sur les LIGNES (pas la
-    // fiche récapitulative, qui ne porte que ce qui reste EN ATTENTE) · pour
-    // une rubrique `subdivisionAttendue`, le plan officiel ne lui donne
-    // aucun compte propre, donc tout `l.comptes` vient du rattachement.
-    const rattachees = note.lignes.filter((l) => l.cle && l.rattachementDuDossier);
-
-    return (
-      <div key={note.sousTableau ?? note.code} className="border border-border bg-surface mb-4">
-        <div className="px-4 py-2 border-b border-border bg-chrome">
-          <div className="text-[11px] font-bold">
-            NOTE {note.code}
-            {note.sousTableau ? ` ${note.sousTableau}` : ''} {note.titre}
-          </div>
-          {note.renvoyeeDepuis && note.renvoyeeDepuis.length > 0 && (
-            <div className="text-[10px] text-text-dim mt-0.5">Renvoyée depuis les postes : {note.renvoyeeDepuis.join(', ')}</div>
-          )}
-        </div>
-
-        {/* Le logiciel JOINT toutes les notes à la liasse, les vides portant
-            la mention NEANT · l'écran doit dire la même chose que le fichier
-            produit, sans quoi l'un des deux ment. */}
-        {!note.applicable && (
-          <div className="px-4 py-3 text-[10.5px] text-text-dim italic">
-            Néant cet exercice · aucune rubrique chiffrée. La note est cochée « N/A » sur la fiche récapitulative et
-            reste jointe à la liasse, où elle porte la mention NEANT.
-          </div>
-        )}
-
-        {note.applicable && note.lignes.length > 0 && (
-          <div className="overflow-x-auto">
-            <div
-              className="grid gap-2 px-4 py-1.5 bg-chrome border-b border-border text-[10px] font-bold text-text-dim"
-              style={{ gridTemplateColumns: `1.6fr repeat(${note.colonnes.length}, 108px)` }}
-            >
-              <span>LIBELLÉ</span>
-              {note.colonnes.map((c, i) => (
-                <span key={i} className="text-right">
-                  {c.libelle}
-                </span>
-              ))}
-            </div>
-            {note.lignes.map((l, i) => ligneTableau(note, l, i))}
-          </div>
-        )}
-
-        {(note.commentaire || note.renvoiOfficiel) && (
-          <div className="px-4 py-2 text-[10px] text-text-dim border-t border-border italic">
-            {note.renvoiOfficiel && <div className="mb-1">{note.renvoiOfficiel}</div>}
-            {note.commentaire && <div>Commentaire officiel : {note.commentaire}</div>}
-          </div>
-        )}
-
-        {/* --- Rattachement : rubriques en attente + comptes déjà rattachés --- */}
-        {(note.rubriquesEnAttente.length > 0 || rattachees.length > 0) && (
-          <div className="border-t border-border px-4 py-3 bg-surface-alt">
-            <div className="text-[10px] font-bold text-text-dim mb-2">RATTACHEMENT DES SOUS-COMPTES DU DOSSIER</div>
-
-            {rattachees.map((l) => (
-              <div key={l.cle} className="mb-2 text-[10.5px]">
-                <span className="font-semibold">{l.libelle}</span>
-                <div className="flex flex-wrap gap-1.5 mt-1">
-                  {l.comptes.map((c) => (
-                    <span
-                      key={c.numero}
-                      className="inline-flex items-center gap-1.5 border border-border bg-surface px-2 py-0.5 font-mono text-[10px]"
-                    >
-                      {c.numero} · {c.intitule}
-                      {estAdmin && (
-                        <button
-                          onClick={() => {
-                            const compte = compteParNumero.get(c.numero);
-                            if (compte) detacher(note.code, l.cle!, compte.id);
-                          }}
-                          disabled={enCours !== null}
-                          className="text-danger hover:underline disabled:opacity-50"
-                          title="Détacher"
-                        >
-                          ✕
-                        </button>
-                      )}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            ))}
-
-            {note.rubriquesEnAttente.map((r) => {
-              const cleForm = `${note.code}::${r.cle}`;
-              return (
-                <div key={r.cle} className="mb-2.5 pb-2.5 border-b border-border last:border-b-0 last:pb-0 last:mb-0">
-                  <div className="text-[10.5px] font-semibold text-danger">{r.libelle}</div>
-                  <div className="text-[10px] text-text-dim mb-1.5">{r.attendu}</div>
-                  {estAdmin ? (
-                    <div className="flex items-center gap-2">
-                      <select
-                        value={compteChoisi[cleForm] ?? ''}
-                        onChange={(e) => setCompteChoisi((v) => ({ ...v, [cleForm]: e.target.value }))}
-                        className="border border-border-dark px-2 py-1 text-[10.5px] max-w-[360px]"
-                      >
-                        <option value="">choisir un sous-compte</option>
-                        {comptesDetail.map((c) => (
-                          <option key={c.id} value={c.numero}>
-                            {c.numero} · {c.intitule}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        onClick={() => rattacher(note.code, r.cle)}
-                        disabled={!compteChoisi[cleForm] || enCours !== null}
-                        className="bg-sel text-white text-[10.5px] font-semibold px-3 py-1 disabled:opacity-50"
-                      >
-                        Rattacher
-                      </button>
-                    </div>
-                  ) : (
-                    <span className="text-[10px] text-text-dim italic">Réservé à l'administrateur du cabinet.</span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    );
+  // Rattachement des sous-comptes du dossier · l'état vit ici (c'est cet
+  // écran qui appelle le serveur), le rendu est celui de NotesAnnexesRendu.
+  const rattachement: RattachementNotes = {
+    estAdmin,
+    comptesDetail,
+    compteParNumero,
+    compteChoisi,
+    setCompteChoisi,
+    enCours,
+    rattacher,
+    detacher,
   };
 
   if (referentielSyscohada) {
@@ -431,39 +264,20 @@ export function NotesAnnexesPage() {
       {resultat && (
         <div className="flex gap-3 items-start">
           {/* --- Fiche récapitulative : NOTES | INTITULES | A / N-A --- */}
-          <div className="w-[360px] shrink-0 border border-border bg-surface">
-            <div className="grid grid-cols-[52px_1fr_28px] gap-2 px-3 py-1.5 bg-chrome border-b border-border text-[10px] font-bold text-text-dim sticky top-0">
-              <span>NOTE</span>
-              <span>INTITULÉ</span>
-              <span />
-            </div>
-            {ficheTriee.map((f) => (
-              <button
-                key={f.code}
-                onClick={() => setCodeSelectionne(f.code)}
-                className={`w-full text-left grid grid-cols-[52px_1fr_28px] gap-2 px-3 py-1.5 border-b border-border last:border-b-0 text-[10.5px] ${
-                  codeSelectionne === f.code ? 'bg-sel-soft' : f.applicable ? 'hover:bg-surface-alt' : 'text-text-dim'
-                }`}
-              >
-                <span className="font-mono">{f.code}</span>
-                <span className="truncate">{f.titre}</span>
-                <span
-                  className={`font-mono text-[10px] font-bold text-center px-1 py-0.5 w-fit justify-self-end ${
-                    f.applicable ? 'text-positive bg-positive-soft' : 'text-text-dim bg-surface-alt'
-                  }`}
-                >
-                  {f.applicable ? 'A' : 'N/A'}
-                </span>
-              </button>
-            ))}
-          </div>
+          <FicheRecapitulativeNotes
+            fiche={ficheTriee}
+            codeSelectionne={codeSelectionne}
+            onSelectionner={setCodeSelectionne}
+          />
 
           {/* --- Détail du/des tableau(x) du code sélectionné --- */}
           <div className="flex-1 min-w-0">
             {tableaux.length === 0 && (
               <div className="border border-border px-4 py-4 text-[11px] text-text-dim">Sélectionnez une note.</div>
             )}
-            {tableaux.map(blocTableau)}
+            {tableaux.map((n) => (
+              <BlocTableauNote key={n.sousTableau ?? n.code} note={n} rattachement={rattachement} />
+            ))}
           </div>
         </div>
       )}

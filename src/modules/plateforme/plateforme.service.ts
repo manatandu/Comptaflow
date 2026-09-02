@@ -146,7 +146,7 @@ export class PlateformeService implements OnModuleInit {
   async modifierGroupe(tenantId: string, dto: ModifierGroupeDto) {
     const tenant = await this.prisma.tenant.findUnique({
       where: { id: tenantId },
-      select: { id: true, _count: { select: { cellules: true } } },
+      select: { id: true, referentiel: true, _count: { select: { cellules: true } } },
     });
     if (!tenant) {
       throw new NotFoundException('Cabinet introuvable');
@@ -172,13 +172,32 @@ export class PlateformeService implements OnModuleInit {
       }
       const mere = await this.prisma.tenant.findUnique({
         where: { id: dossierMereId },
-        select: { id: true, dossierMereId: true },
+        select: { id: true, dossierMereId: true, referentiel: true },
       });
       if (!mere) {
         throw new NotFoundException('Dossier mère introuvable');
       }
       if (mere.dossierMereId !== null) {
         throw new BadRequestException('Le dossier mère désigné est lui-même une cellule · un groupe n’a qu’un niveau');
+      }
+      // MÊME RÈGLE DE RÉFÉRENTIEL QUE `GroupeService.creerCellule`, et pour la
+      // même raison. Il y a DEUX portes vers l'état « ce dossier est une
+      // cellule » : le siège qui crée sa cellule, et l'opérateur qui rattache
+      // ici un dossier existant. La première vérifiait le référentiel, la
+      // seconde non · un dossier SYSCOHADA pouvait donc devenir cellule d'une
+      // mère SYCEBNL, ou une mère SYSCOHADA recevoir des cellules, par le
+      // seul chemin qui ne regardait rien.
+      //
+      // Ce que ça produisait ensuite : la balance agrégée additionne des
+      // comptes de deux plans qui ne coïncident pas, le canevas de trésorerie
+      // du groupe est figé sur les rubriques SYCEBNL, et la liasse combinée
+      // monte un dossier de combinaison SYCEBNL. Trois états faux, aucun
+      // message.
+      if (mere.referentiel !== Referentiel.SYCEBNL || tenant.referentiel !== Referentiel.SYCEBNL) {
+        throw new BadRequestException(
+          "Le groupe d'établissements n'est construit que pour les dossiers SYCEBNL pour l'instant · " +
+            'la mère et la cellule doivent toutes deux relever de ce référentiel.',
+        );
       }
     }
     await this.prisma.tenant.update({ where: { id: tenantId }, data: { dossierMereId } });
