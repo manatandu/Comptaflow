@@ -189,7 +189,7 @@ jobs:
       # 90 jours en artefact. Le motif ne prend QUE le chiffré · le clair
       # n'existe plus à ce stade, et l'étape précédente le prouve.
       - name: Archiver (artefact GitHub chiffré, 90 jours)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sauvegarde-omegax-${{ env.HORODATAGE }}
           path: sauvegarde-omegax-*.dump.age
