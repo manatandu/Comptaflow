@@ -4,6 +4,7 @@ import {
   ClasseCompte,
   PeriodiciteAbonnement,
   Prisma,
+  Referentiel,
   StatutExercice,
   TypeRegularisation,
 } from '@prisma/client';
@@ -17,6 +18,30 @@ import {
 
 /** Un jour, en millisecondes. */
 const JOUR = 86_400_000;
+
+/**
+ * DATE DE REPRISE DE LA PART DIFFÉRÉE · voir le commentaire de `reprendre`.
+ *
+ * Le SYCEBNL impose la clôture de l'exercice concerné (Partie 3 ch. 6). Le
+ * SYSCOHADA permet les deux et RECOMMANDE VIVEMENT l'ouverture (§ 5.5 pour les
+ * charges, § 6.5 pour les produits) · une part différée reprise seulement à la
+ * clôture reste au bilan douze mois de plus et fausse toutes les situations
+ * intermédiaires de l'année.
+ *
+ * La subvention pluriannuelle reste à la clôture des deux côtés : c'est le
+ * texte SYCEBNL qui la traite nommément, et le § 5.5 du SYSCOHADA tolère
+ * expressément « à la fin de n+1 ».
+ */
+export function dateReprise(
+  referentiel: Referentiel,
+  type: TypeRegularisation,
+  cible: { dateDebut: Date; dateFin: Date },
+): Date {
+  if (referentiel === Referentiel.SYSCOHADA && type !== TypeRegularisation.SUBVENTION_PLURIANNUELLE) {
+    return cible.dateDebut;
+  }
+  return cible.dateFin;
+}
 
 /** Compte de report par défaut selon le type de régularisation. */
 const RACINE_DIFFERE: Record<TypeRegularisation, string> = {
@@ -236,10 +261,24 @@ export class RegularisationService {
   }
 
   /**
-   * Reprend la part différée sur l'exercice qu'elle concerne, À SA FIN, comme
-   * le veut la Partie 3 ch. 6 : « A la fin de chaque exercice ultérieur
-   * concerné, la quote-part est reprise au débit du compte 477 par le crédit
-   * du compte 71. » Ce n'est pas une contre-passation d'ouverture.
+   * Reprend la part différée sur l'exercice qu'elle concerne · À QUELLE DATE
+   * DÉPEND DU RÉFÉRENTIEL, et c'est ce que le service ignorait.
+   *
+   *  · SYCEBNL, Partie 3 ch. 6 · « A la fin de chaque exercice ultérieur
+   *    concerné, la quote-part est reprise au débit du compte 477 par le
+   *    crédit du compte 71. » Ce n'est pas une contre-passation d'ouverture,
+   *    et c'est explicite ;
+   *  · SYSCOHADA, § 5.5 et 6.5 · les deux dates sont permises, « au début
+   *    (immédiate) ou à la fin de n+1 », mais la CONTRE-PASSATION À
+   *    L'OUVERTURE est « vivement recommandée ». Elle l'est pour une raison
+   *    pratique : reprise à la clôture, la part différée reste au bilan douze
+   *    mois de plus et fausse toutes les situations intermédiaires de l'année.
+   *
+   * Le dossier SYSCOHADA reprend donc ses charges et produits constatés
+   * d'avance à l'OUVERTURE de l'exercice cible. La subvention pluriannuelle
+   * fait exception et reste à la clôture : sa mécanique vient du texte SYCEBNL
+   * qui la traite nommément, et le § 5.5 du SYSCOHADA tolère expressément
+   * cette date. Les deux référentiels restent donc dans leur texte.
    */
   async reprendre(tenantId: string, createdBy: string, regularisationId: string, exerciceCibleId: string) {
     const regul = await this.prisma.regularisation.findFirst({
@@ -253,6 +292,11 @@ export class RegularisationService {
     if (!regul.ecritureConstatationId) {
       throw new BadRequestException("La constatation n'a pas été passée : il n'y a rien à reprendre.");
     }
+
+    const { referentiel } = await this.prisma.tenant.findUniqueOrThrow({
+      where: { id: tenantId },
+      select: { referentiel: true },
+    });
 
     const cible = await this.prisma.exercice.findFirst({ where: { id: exerciceCibleId, tenantId } });
     if (!cible) throw new BadRequestException('Exercice de reprise introuvable pour ce dossier');
@@ -284,9 +328,7 @@ export class RegularisationService {
     const ecriture = await this.ecritureService.creer(tenantId, createdBy, {
       exerciceId: cible.id,
       journalId: journal.id,
-      // « À la fin de chaque exercice ultérieur concerné » · date de clôture
-      // de l'exercice de reprise, et non son ouverture.
-      date: cible.dateFin.toISOString().slice(0, 10),
+      date: dateReprise(referentiel, regul.type, cible).toISOString().slice(0, 10),
       libelle: `Reprise de régularisation · ${regul.libelle}`,
       reference: 'REGUL',
       lignes,
@@ -353,10 +395,11 @@ export class RegularisationService {
     const dateFin = new Date(dto.dateFin);
     if (dateFin < dateDebut) throw new BadRequestException('La fin du contrat précède son début.');
 
-    const [journal, debit, credit] = await Promise.all([
+    const [journal, debit, credit, tenant] = await Promise.all([
       this.prisma.journal.findFirst({ where: { id: dto.journalId, tenantId } }),
       this.prisma.compte.findFirst({ where: { id: dto.compteDebitId, tenantId } }),
       this.prisma.compte.findFirst({ where: { id: dto.compteCreditId, tenantId } }),
+      this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { referentiel: true } }),
     ]);
     if (!journal) throw new BadRequestException('Journal introuvable pour ce dossier');
     if (!debit || !credit) throw new BadRequestException('Compte introuvable pour ce dossier');
@@ -395,7 +438,10 @@ export class RegularisationService {
           `(${credit.numero}). Une charge se constate d'abord contre le TIERS à qui elle est due : créditez le ` +
           `compte fournisseur (40), personnel (42), organismes sociaux (43) ou État (44) concerné. Le règlement ` +
           `se saisira ensuite, à sa date réelle, en débitant ce tiers par le crédit de la trésorerie. ` +
-          `SYCEBNL, Partie 3, ch. 3, § 2.2 et 2.4.`,
+          (tenant.referentiel === Referentiel.SYSCOHADA
+            ? `AUDCIF, art. 17, 3° et 5° (justification et imputation des écritures) · Titre VII, COMPTE 40 ` +
+              `« Fournisseurs et comptes rattachés », auquel se rattachent toutes les opérations le concernant.`
+            : `SYCEBNL, Partie 3, ch. 3, § 2.2 et 2.4.`),
       );
     }
 

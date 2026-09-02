@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useExercice } from '../lib/exercice';
+import { useAuth } from '../lib/auth';
 import { Aide } from '../components/chrome/Aide';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
 
@@ -33,11 +34,23 @@ interface BalanceAgee {
   totaux: LigneAgee;
 }
 
-type TypeTiers = 'TOUS' | 'ADHERENTS_CLIENTS' | 'FOURNISSEURS';
+type TypeTiers = 'TOUS' | 'CLIENTS_41' | 'FOURNISSEURS';
 
-const LIBELLE_TYPE: Record<TypeTiers, string> = {
+/**
+ * Le compte 41 porte le même NUMÉRO dans les deux plans et pas le même
+ * INTITULÉ · « Adhérents, clients-usagers et comptes rattachés » au SYCEBNL,
+ * « Clients et comptes rattachés » à l'AUDCIF. Le sélecteur annonçait le
+ * premier aux deux, et la valeur d'API elle-même s'appelait ADHERENTS_CLIENTS.
+ */
+const LIBELLE_TYPE_SYCEBNL: Record<TypeTiers, string> = {
   TOUS: 'Tous les tiers (40 et 41)',
-  ADHERENTS_CLIENTS: 'Adhérents, clients-usagers (41)',
+  CLIENTS_41: 'Adhérents, clients-usagers (41)',
+  FOURNISSEURS: 'Fournisseurs (40)',
+};
+
+const LIBELLE_TYPE_SYSCOHADA: Record<TypeTiers, string> = {
+  TOUS: 'Tous les tiers (40 et 41)',
+  CLIENTS_41: 'Clients et comptes rattachés (41)',
   FOURNISSEURS: 'Fournisseurs (40)',
 };
 
@@ -47,6 +60,9 @@ function montant(n: number): string {
 
 export function BalanceAgeePage() {
   const { exerciceCourant } = useExercice();
+  const { utilisateur } = useAuth();
+  const libelleType =
+    utilisateur?.tenant.referentiel === 'SYSCOHADA' ? LIBELLE_TYPE_SYSCOHADA : LIBELLE_TYPE_SYCEBNL;
   const [type, setType] = useState<TypeTiers>('TOUS');
   const [dateReference, setDateReference] = useState(new Date().toISOString().slice(0, 10));
   const [donnees, setDonnees] = useState<BalanceAgee | null>(null);
@@ -89,9 +105,9 @@ export function BalanceAgeePage() {
               onChange={(e) => setType(e.target.value as TypeTiers)}
               className="border border-border-dark bg-surface px-2 py-1 text-[10.5px] min-w-[190px]"
             >
-              {(Object.keys(LIBELLE_TYPE) as TypeTiers[]).map((t) => (
+              {(Object.keys(libelleType) as TypeTiers[]).map((t) => (
                 <option key={t} value={t}>
-                  {LIBELLE_TYPE[t]}
+                  {libelleType[t]}
                 </option>
               ))}
             </select>

@@ -31,6 +31,14 @@ import type {
  * comptent : le report va au compte 477 et non à un compte d'attente, que le
  * texte interdit ; et la reprise se fait À LA FIN de l'exercice concerné, non
  * par contre-passation à son ouverture comme le ferait un progiciel français.
+ *
+ * LA DATE DE REPRISE, ELLE, DÉPEND DU RÉFÉRENTIEL, et le service la calcule
+ * (voir `dateReprise`). Le SYCEBNL impose la clôture de l'exercice concerné ;
+ * le SYSCOHADA permet les deux et RECOMMANDE VIVEMENT l'ouverture (§ 5.5 pour
+ * les charges, § 6.5 pour les produits), parce qu'une part différée reprise
+ * seulement à la clôture reste au bilan douze mois de plus et fausse toutes
+ * les situations intermédiaires de l'année. La subvention pluriannuelle reste
+ * à la clôture des deux côtés · le § 5.5 tolère expressément cette date.
  */
 
 const TYPES: { valeur: TypeRegularisation; titre: string; aide: string }[] = [
@@ -185,7 +193,11 @@ export function RegularisationPage() {
     setErreur(null);
     try {
       await api.post(`/regularisations/${id}/reprise`, { exerciceCibleId });
-      setInfo("Reprise passée à la clôture de l'exercice concerné.");
+      setInfo(
+        utilisateur?.tenant.referentiel === 'SYSCOHADA'
+          ? "Reprise passée à l'ouverture de l'exercice concerné."
+          : "Reprise passée à la clôture de l'exercice concerné.",
+      );
       await chargerRegularisations();
     } catch (e) {
       setErreur(e instanceof ApiError ? e.message : 'Reprise impossible');
@@ -465,10 +477,9 @@ export function RegularisationPage() {
               </div>
             )}
             <p className="px-3 py-2 border-t border-border text-[10px] text-text-dim leading-[1.55]">
-              La reprise se passe À LA FIN de l'exercice concerné, et non par contre-passation à son ouverture
               {utilisateur?.tenant.referentiel === 'SYSCOHADA'
-                ? " · c'est ce qu'impose l'indépendance des exercices (AUDCIF, art. 59)."
-                : ', comme le veut la Partie 3 ch. 6 du SYCEBNL.'}
+                ? "La reprise se passe À L'OUVERTURE de l'exercice concerné : le référentiel permet les deux dates, mais recommande vivement la contre-passation à l'ouverture · reprise seulement à la clôture, la part différée reste au bilan douze mois de plus et fausse toutes les situations intermédiaires de l'année."
+                : "La reprise se passe À LA FIN de l'exercice concerné, comme le veut la Partie 3 ch. 6 du SYCEBNL, et non par contre-passation à son ouverture."}
             </p>
           </div>
         </div>

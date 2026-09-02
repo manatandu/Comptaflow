@@ -721,8 +721,9 @@ export class EcritureService {
     if (e.estGenereeParCloture) {
       throw new BadRequestException(
         "Cette écriture a été générée par la clôture (solde des classes 6/7, report à-nouveau). La corriger à la main " +
-          "désaccorderait le report à-nouveau du bilan d'ouverture, alors que « le Bilan d'ouverture d'un exercice doit " +
-          "correspondre au Bilan de clôture de l'exercice précédent » (art. 16-4). Annulez la clôture pour la refaire.",
+          "désaccorderait le report à-nouveau du bilan d'ouverture, alors que le bilan d'ouverture d'un exercice doit " +
+          "correspondre au bilan de clôture de l'exercice précédent (SYCEBNL art. 16, 4 ; AUDCIF art. 34). Annulez " +
+          'la clôture pour la refaire.',
       );
     }
     if (e.immobilisationAcquisition || e.immobilisationSortie) {
@@ -1128,9 +1129,12 @@ export class EcritureService {
    * âgée : « état prévisionnel des échéances à venir, ventilées par tranches
    * de dates, en fonction d'une date de référence »).
    *
-   * Assiette : les lignes NON LETTRÉES des comptes de tiers (racine 40
-   * fournisseurs, 41 adhérents/clients-usagers · nomenclature SYCEBNL) de
-   * l'exercice. Une ligne lettrée est soldée par définition : elle n'a plus
+   * Assiette : les lignes NON LETTRÉES des comptes de tiers de l'exercice ·
+   * racine 40 fournisseurs, racine 41 clients. Le NUMÉRO est le même dans les
+   * deux plans, l'INTITULÉ non : « Adhérents, clients-usagers et comptes
+   * rattachés » au SYCEBNL, « Clients et comptes rattachés » à l'AUDCIF. La
+   * valeur d'API s'appelle donc CLIENTS_41 et non plus ADHERENTS_CLIENTS, et
+   * c'est l'écran qui nomme la famille selon le référentiel du dossier. Une ligne lettrée est soldée par définition : elle n'a plus
    * d'échéance à suivre. L'échéance retenue est LigneEcriture.dateEcheance ;
    * à défaut, la date de l'écriture (même règle que Sage : « le programme
    * reprend la date d'écriture comme échéance si celle-ci n'a pas été saisie »).
@@ -1144,11 +1148,11 @@ export class EcritureService {
    */
   async balanceAgee(
     tenantId: string,
-    params: { exerciceId: string; dateReference?: string; type?: 'ADHERENTS_CLIENTS' | 'FOURNISSEURS' | 'TOUS' },
+    params: { exerciceId: string; dateReference?: string; type?: 'CLIENTS_41' | 'FOURNISSEURS' | 'TOUS' },
   ) {
     const ref = params.dateReference ? new Date(params.dateReference) : new Date();
     const type = params.type ?? 'TOUS';
-    const racines = type === 'ADHERENTS_CLIENTS' ? ['41'] : type === 'FOURNISSEURS' ? ['40'] : ['40', '41'];
+    const racines = type === 'CLIENTS_41' ? ['41'] : type === 'FOURNISSEURS' ? ['40'] : ['40', '41'];
 
     const lignes = await this.prisma.ligneEcriture.findMany({
       where: {

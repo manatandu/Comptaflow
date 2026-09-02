@@ -110,10 +110,17 @@ describe('échéancier d’abonnement', () => {
 describe('abonnement · contrepartie de la charge', () => {
   const compte = (id: string, numero: string) => ({ id, numero, intitule: `Compte ${numero}` });
 
-  function service(debit: { id: string; numero: string }, credit: { id: string; numero: string }) {
+  function service(
+    debit: { id: string; numero: string },
+    credit: { id: string; numero: string },
+    referentiel = 'SYCEBNL',
+  ) {
     const prisma = {
       modeleAbonnement: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn() },
       journal: { findFirst: jest.fn().mockResolvedValue({ id: 'j', code: 'OD' }) },
+      // Le message de refus cite l'article du référentiel du dossier · voir
+      // le test « cite le texte du dossier » plus bas.
+      tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ referentiel }) },
       compte: {
         findFirst: jest.fn(({ where }: { where: { id: string } }) =>
           Promise.resolve(where.id === debit.id ? debit : credit),

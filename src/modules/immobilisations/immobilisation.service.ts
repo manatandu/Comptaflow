@@ -46,12 +46,19 @@ function estConflitUnicite(err: unknown): boolean {
 }
 
 /**
- * Immobilisations (§3.3, docs/plan-de-construction.md) · ancré au skill
- * `sycebnl` (COMPTE 21 à 29, Partie 2 ch.3 §2) pour la mécanique
- * d'acquisition/amortissement/cession, et au skill `fiscalite-rdc/socle`
- * (arrêté n° 013/2025) pour les durées d'amortissement par défaut des
- * familles seedées · voir famille-immobilisation-seed.ts pour le détail des
- * citations.
+ * Immobilisations (§3.3, docs/plan-de-construction.md) · CE MODULE SERT LES
+ * DEUX RÉFÉRENTIELS, et sa documentation ne connaissait que l'un des deux.
+ *
+ * Mécanique d'acquisition, d'amortissement et de cession :
+ *  · dossier SYCEBNL · skill `sycebnl`, COMPTE 21 à 29, Partie 2 ch. 3 § 2 ;
+ *  · dossier SYSCOHADA · AUDCIF, Titre VII classes 2 et 8 (COMPTE 28 pour
+ *    l'amortissement, COMPTE 81 et COMPTE 82 pour la sortie), et art. 45 pour
+ *    la date de début d'amortissement. Les deux rédactions sont identiques sur
+ *    ce point, ce qui est la raison pour laquelle le code est commun.
+ *
+ * Durées d'amortissement par défaut des familles semées : skill
+ * `fiscalite-rdc/socle`, arrêté n° 013/2025 · voir famille-immobilisation-seed.ts
+ * pour le détail des citations.
  */
 /**
  * Nature d'une immobilisation, lue sur la RACINE de son compte d'actif · elle
@@ -79,6 +86,36 @@ export const COMPTES_SORTIE: Record<NatureImmobilisation, { valeurComptable: str
   INCORPORELLE: { valeurComptable: '81100000', produitCession: '82100000' },
   CORPORELLE: { valeurComptable: '81200000', produitCession: '82200000' },
   FINANCIERE: { valeurComptable: '81600000', produitCession: '82600000' },
+};
+
+/**
+ * CESSION COURANTE · LE NIVEAU H.A.O. N'EST PAS TOUJOURS LE BON, ET LE
+ * LOGICIEL N'OFFRAIT AUCUN CHOIX.
+ *
+ * L'AUDCIF exclut expressément du niveau H.A.O. les cessions « considérées
+ * comme courantes (fréquentes et récurrentes) » et les impute en exploitation :
+ * « exemples : transporteurs, loueurs de matériels » (Titre VII, COMPTE 81,
+ * Exclusions ; COMPTE 82, Commentaires). Un transporteur qui renouvelle sa
+ * flotte voyait donc chaque cession en hors activités ordinaires, ce qui
+ * déplace du résultat d'exploitation vers le résultat H.A.O. un flux qui est
+ * précisément son activité.
+ *
+ * DEUX REFUS, POUR DEUX RAISONS DIFFÉRENTES, ET AUCUN N'EST COSMÉTIQUE :
+ *
+ *  · en SYCEBNL, le compte 654 est « Dons en nature courants reçus à
+ *    distribuer » et le 7542 son pendant (Partie 2 ch. 3, COMPTE 65). Y porter
+ *    une valeur comptable de cession écrirait une cession dans le compte des
+ *    dons reçus · l'option est refusée pour ce référentiel ;
+ *  · les comptes 654 et 754 n'ont que deux subdivisions, 6541/7541
+ *    incorporelles et 6542/7542 corporelles. Il n'existe AUCUNE subdivision
+ *    financière : une immobilisation financière reste en 816/826, quelle que
+ *    soit la fréquence des cessions.
+ */
+export const COMPTES_CESSION_COURANTE: Partial<
+  Record<NatureImmobilisation, { valeurComptable: string; produitCession: string }>
+> = {
+  INCORPORELLE: { valeurComptable: '65410000', produitCession: '75410000' },
+  CORPORELLE: { valeurComptable: '65420000', produitCession: '75420000' },
 };
 
 export function natureImmobilisation(numeroCompte: string): NatureImmobilisation {
@@ -284,9 +321,17 @@ export class ImmobilisationService {
     // Écriture d'acquisition : débit du compte d'immobilisation (skill
     // sycebnl, COMPTE 21-27, "utilisation au débit" · apport, acquisition ou
     // création) ; crédit du compte de contrepartie choisi par l'utilisateur
-    // (trésorerie, fournisseur, dotation/fonds affectés selon le mode de
-    // financement réel · le texte cite indifféremment 10/16/45/40/48 ou
-    // trésorerie, EcritureService se charge déjà de valider ce compte).
+    // selon le mode de financement réel.
+    //
+    // Les contreparties ne sont pas les mêmes de part et d'autre, et le
+    // commentaire n'en connaissait qu'une famille. Communes : trésorerie,
+    // fournisseur d'investissement, emprunt, capital par dotation (le compte
+    // 102 existe dans les deux plans). Propres au SYCEBNL : les fonds affectés
+    // du compte 16, qui n'ont pas d'équivalent au plan SYSCOHADA, dont le 17
+    // porte des dettes de location acquisition.
+    //
+    // Le compte n'est pas contraint ici : EcritureService valide déjà qu'il
+    // est mouvementable et qu'il appartient au dossier.
     const ecritureAcquisition = await this.ecritureService.creer(tenantId, userId, {
       exerciceId: dto.exerciceId,
       journalId: dto.journalId,
@@ -325,10 +370,21 @@ export class ImmobilisationService {
    * Annuité de dotation pour `exercice`, compte tenu du cumul déjà passé.
    *
    * Première dotation (aucune dotation antérieure) : prorata temporis à
-   * compter du premier jour du mois de mise en service (arrêté RDC
-   * n° 013/2025, art. 30 ; confirmé par le skill sycebnl, COMPTE 28 · "la
-   * date de début d'amortissement est la date à laquelle l'actif est en
-   * état de fonctionner..."), borné à 12 mois pour CET exercice · limite du
+   * compter du premier jour du mois de mise en service.
+   *
+   * CITATION CORRIGÉE · la règle vient de la LOI n° 23/053, article 34 (« la
+   * première annuité est calculée prorata temporis à compter du premier jour
+   * du mois de mise en service »), l'article 30 posant seulement le linéaire
+   * comme régime de droit commun. L'arrêté n° 013/2025 ne porte ni l'un ni
+   * l'autre : il fixe les taux linéaires par famille (art. 2), les taux
+   * dérogatoires (art. 4) et le plancher de location-acquisition (art. 5).
+   *
+   * La date COMPTABLE de début d'amortissement est celle où l'actif est en
+   * état de fonctionner · AUDCIF art. 45 pour un dossier SYSCOHADA, skill
+   * `sycebnl` COMPTE 28 pour un dossier SYCEBNL, en termes identiques. Le
+   * calcul est donc le même des deux côtés.
+   *
+   * Borné à 12 mois pour CET exercice · limite du
    * MVP assumée : si la mise en service est antérieure au début de
    * l'exercice choisi pour la première dotation (dotation en retard, jamais
    * passée pour l'exercice réel de mise en service), le calcul ne rattrape
@@ -453,6 +509,34 @@ export class ImmobilisationService {
       throw new BadRequestException('Une cession nécessite un prix et un compte de contrepartie (trésorerie ou tiers)');
     }
 
+    // CESSION COURANTE · exploitation (654 / 754) au lieu de H.A.O. (81 / 82).
+    // Les deux refus ci-dessous sont posés côté SERVEUR : l'écran peut cacher
+    // la case, un appel direct la poserait quand même.
+    const nature = natureImmobilisation(immo.compteImmobilisation.numero);
+    let comptes = COMPTES_SORTIE[nature];
+    if (dto.cessionCourante) {
+      const { referentiel } = await this.prisma.tenant.findUniqueOrThrow({
+        where: { id: tenantId },
+        select: { referentiel: true },
+      });
+      if (referentiel !== Referentiel.SYSCOHADA) {
+        throw new BadRequestException(
+          "La cession courante impute la sortie aux comptes 654 et 754, qui portent au plan SYCEBNL les dons en " +
+            "nature courants reçus à distribuer. Sur un dossier SYCEBNL, une cession se comptabilise en hors " +
+            'activités ordinaires (comptes 81 et 82).',
+        );
+      }
+      const courants = COMPTES_CESSION_COURANTE[nature];
+      if (!courants) {
+        throw new BadRequestException(
+          "Les comptes 654 et 754 n'ont que deux subdivisions, incorporelles et corporelles : une immobilisation " +
+            'financière se cède en hors activités ordinaires (comptes 816 et 826), quelle que soit la fréquence ' +
+            'des cessions.',
+        );
+      }
+      comptes = courants;
+    }
+
     // Verrou par écriture conditionnelle AVANT tout effet de bord (même
     // risque de course que passerDotation, trouvé en l'approfondissant ·
     // deux sorties simultanées sur le même bien liraient toutes deux
@@ -526,8 +610,7 @@ export class ImmobilisationService {
       lignesSortie.push({ compteId: immo.compteAmortissementId, debit: cumulAmorti, credit: 0 });
     }
     if (valeurComptableNette > EPSILON) {
-      const nature = natureImmobilisation(immo.compteImmobilisation.numero);
-      const compteVNC = await this.compteDeSortie(tenantId, COMPTES_SORTIE[nature].valeurComptable);
+      const compteVNC = await this.compteDeSortie(tenantId, comptes.valeurComptable);
       lignesSortie.push({ compteId: compteVNC.id, debit: valeurComptableNette, credit: 0 });
     }
 
@@ -543,10 +626,7 @@ export class ImmobilisationService {
     // l'actif (skill sycebnl distingue clairement 81 "valeur comptable" et
     // 82 "produit de cession").
     if (dto.type === TypeSortie.CESSION && dto.prixCession && dto.compteContrepartieId) {
-      const compte822 = await this.compteDeSortie(
-        tenantId,
-        COMPTES_SORTIE[natureImmobilisation(immo.compteImmobilisation.numero)].produitCession,
-      );
+      const compteProduit = await this.compteDeSortie(tenantId, comptes.produitCession);
       await this.ecritureService.creer(tenantId, userId, {
         exerciceId: dto.exerciceId,
         journalId: dto.journalId,
@@ -554,7 +634,7 @@ export class ImmobilisationService {
         libelle: `Produit de cession · ${immo.designation}`,
         lignes: [
           { compteId: dto.compteContrepartieId, debit: dto.prixCession, credit: 0 },
-          { compteId: compte822.id, debit: 0, credit: dto.prixCession },
+          { compteId: compteProduit.id, debit: 0, credit: dto.prixCession },
         ],
       });
     }

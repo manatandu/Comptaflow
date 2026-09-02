@@ -1,4 +1,4 @@
-import { IsDateString, IsEnum, IsNumber, IsOptional, IsPositive, IsString, IsUUID, Min } from 'class-validator';
+import { IsBoolean, IsDateString, IsEnum, IsNumber, IsOptional, IsPositive, IsString, IsUUID, Min } from 'class-validator';
 import { ModeAmortissement } from '@prisma/client';
 
 export class CreerFamilleDto {
@@ -70,8 +70,9 @@ export class CreerImmobilisationDto {
 
   // Financement de l'acquisition · l'écriture générée débite le compte
   // d'immobilisation (valeurOrigine) et crédite ce compte de contrepartie
-  // (trésorerie, fournisseur, dotation/fonds selon le mode de financement ·
-  // voir le commentaire de ImmobilisationService.creer).
+  // (trésorerie, fournisseur d'investissement, emprunt, capital par dotation,
+  // ou fonds affectés en SYCEBNL · voir le commentaire de
+  // ImmobilisationService.creer).
   @IsUUID('4')
   compteContrepartieId!: string;
 
@@ -118,4 +119,22 @@ export class SortirImmobilisationDto {
   @IsOptional()
   @IsUUID('4')
   compteContrepartieId?: string;
+
+  /**
+   * CESSION COURANTE · sortie imputée en EXPLOITATION (654 / 754) plutôt qu'en
+   * hors activités ordinaires (81 / 82).
+   *
+   * L'AUDCIF exclut du niveau H.A.O. les cessions « fréquentes et
+   * récurrentes », dont il donne pour exemples les transporteurs et les
+   * loueurs de matériels (Titre VII, COMPTE 81, Exclusions). C'est une
+   * qualification de FAIT, propre à l'activité de l'entité : le logiciel ne
+   * peut pas la deviner, il la demande.
+   *
+   * Refusée sur un dossier SYCEBNL (son 654 porte les dons en nature courants
+   * reçus à distribuer) et sur une immobilisation financière (654 et 754 n'ont
+   * pas de subdivision financière) · voir ImmobilisationService.sortir.
+   */
+  @IsOptional()
+  @IsBoolean()
+  cessionCourante?: boolean;
 }

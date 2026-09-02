@@ -1939,10 +1939,12 @@ model Immobilisation {
   compteDotation         Compte @relation("ImmoCompteDotation", fields: [compteDotationId], references: [id])
 
   // Distinctes : l'amortissement démarre à la mise en service, pas à
-  // l'acquisition (skill sycebnl, COMPTE 28 · "la date de début
-  // d'amortissement est la date à laquelle l'actif est en état de
-  // fonctionner..." ; confirmé par l'arrêté RDC n° 013/2025 art. 30 ·
-  // prorata temporis à compter du premier jour du mois de mise en service).
+  // l'acquisition. La date comptable de début est celle où l'actif est en
+  // état de fonctionner · skill sycebnl COMPTE 28 pour un dossier SYCEBNL,
+  // AUDCIF art. 45 pour un dossier SYSCOHADA, en termes identiques. Le
+  // prorata temporis de la première annuité, à compter du premier jour du
+  // mois de mise en service, vient de la LOI n° 23/053, art. 34 · et non de
+  // l'arrêté n° 013/2025, qui ne porte que les taux.
   dateAcquisition   DateTime
   dateMiseEnService DateTime
 

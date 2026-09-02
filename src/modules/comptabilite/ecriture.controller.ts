@@ -143,7 +143,7 @@ export class EcritureController {
     @CurrentUser() user: AuthenticatedUser,
     @Query('exerciceId') exerciceId: string,
     @Query('dateReference') dateReference?: string,
-    @Query('type') type?: 'ADHERENTS_CLIENTS' | 'FOURNISSEURS' | 'TOUS',
+    @Query('type') type?: 'CLIENTS_41' | 'FOURNISSEURS' | 'TOUS',
   ) {
     return this.ecritureService.balanceAgee(user.tenantId, { exerciceId, dateReference, type });
   }
