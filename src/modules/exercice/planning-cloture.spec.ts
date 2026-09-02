@@ -379,7 +379,14 @@ describe('planning de clôture · cloisonnement des référentiels', () => {
       // qu'elle en EXCLUT les associations, ce qui est le contraire d'un
       // fondement emprunté.
       if (j.etape === 23) continue;
-      expect(`${j.etape} ${j.source}`).not.toMatch(/SYCEBNL|004\/2001/);
+      // Même logique pour un jalon COMMUN aux deux référentiels dont la source
+      // explique pourquoi il l'est : l'art. 3 du SYCEBNL énumère les articles
+      // de l'AUDCIF qu'il écarte, et les art. 23 et 24 n'y sont pas. Nommer le
+      // SYCEBNL pour dire qu'il n'exclut pas cet article est un raisonnement,
+      // pas un emprunt · la formule exacte est exigée, un simple « SYCEBNL »
+      // dans la source ne suffit pas à passer.
+      const source = j.source.replace(/, non exclu par l’art\. 3 du SYCEBNL/g, '');
+      expect(`${j.etape} ${source}`).not.toMatch(/SYCEBNL|004\/2001/);
     }
   });
 

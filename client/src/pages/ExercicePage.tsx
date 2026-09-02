@@ -261,11 +261,12 @@ export function ExercicePage() {
                 </tbody>
               </table>
               <p className="px-3 py-2.5 text-[10px] text-text-dim border-t border-border">
-                Les dates se calculent à partir de la date de clôture de cet exercice. Les échéances légales
-                proviennent des notes de cours d’organisation comptable du CPCC (novembre 2020), antérieures au
-                SYCEBNL et non revérifiées sur texte primaire : ce sont des jalons indicatifs, pas un calcul
-                d’obligation. Dernière vérification de la table : {planning.derniereVerification}. Aucune astreinte
-                n’est chiffrée ici.
+                Les dates se calculent à partir de la date de clôture de cet exercice. Chaque jalon porte sa
+                source : ceux qui citent un acte uniforme, une loi ou un article ont été lus sur texte primaire ;
+                ceux qui citent les notes de cours d’organisation comptable du CPCC (novembre 2020) en viennent, et
+                n’ont pas été revérifiés sur texte primaire. Dans tous les cas ce sont des jalons indicatifs, pas un
+                calcul d’obligation. Dernière vérification de la table : {planning.derniereVerification}. Aucune
+                astreinte n’est chiffrée ici.
               </p>
             </div>
           )}

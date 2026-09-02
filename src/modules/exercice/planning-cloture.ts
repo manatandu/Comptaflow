@@ -380,11 +380,15 @@ export const JALONS_CLOTURE: DefinitionJalon[] = [
     etape: 12,
     libelle: 'États financiers et notes annexes',
     detail:
-      'Bilan, compte de résultat ou d’exploitation, tableau de flux de trésorerie ou tableau emplois-ressources, et les notes annexes du jeu retenu (35 pour une association ou un ordre professionnel, 24 pour un projet de développement, 5 pour le Système minimal de trésorerie). Le cours note que le tableau de flux ne s’applique pas au SMT.',
+      'Bilan, compte de résultat ou d’exploitation, tableau de flux de trésorerie ou tableau emplois-ressources, et les notes annexes du jeu retenu (35 pour une association ou un ordre professionnel, 24 pour un projet de développement, 5 pour le Système minimal de trésorerie). Le cours note que le tableau de flux ne s’applique pas au SMT. Les états financiers annuels sont arrêtés au plus tard dans les QUATRE MOIS qui suivent la clôture, et la date d’arrêté doit être mentionnée dans toute transmission.',
     nature: 'INTERNE',
     debut: { moisApres: 3, jour: 1 },
-    echeance: { moisApres: 4, jour: 15 },
-    source: 'CPCC, § 7.1 point 8, adapté SYCEBNL (art. 4 à 13)',
+    echeance: { moisApres: 4, jour: 'FIN' },
+    // L'art. 23 de l'AUDCIF n'est PAS dans la liste d'exclusion de l'art. 3 du
+    // SYCEBNL (art. 5, 8, 10 à 13, 17 al. 7-8, 18, 19 4e tiret, 21, 25 à 34,
+    // 49, 69, 70, 71, 73 à 113) : le délai de quatre mois vaut donc aussi pour
+    // une EBNL. Le réserver au SYSCOHADA aurait créé la fuite inverse.
+    source: 'CPCC, § 7.1 point 8, adapté SYCEBNL (art. 4 à 13) ; AUDCIF art. 23 (arrêté dans les quatre mois), non exclu par l’art. 3 du SYCEBNL',
     referentiels: [Referentiel.SYCEBNL],
   },
   {
@@ -658,11 +662,13 @@ export const JALONS_CLOTURE: DefinitionJalon[] = [
     etape: 24,
     libelle: 'Clôture et réouverture des livres',
     detail:
-      'Clôture annuelle de l’exercice, soldant les classes 6 et 7 sur le résultat et générant le report à-nouveau dans l’exercice suivant. Le cours rappelle que la clôture interdit l’ajout, la modification et la suppression d’écritures, mais autorise le lettrage et le pointage : c’est bien le comportement d’OmegaX.',
+      'Clôture annuelle de l’exercice, soldant les classes 6 et 7 sur le résultat et générant le report à-nouveau dans l’exercice suivant. Le cours rappelle que la clôture interdit l’ajout, la modification et la suppression d’écritures, mais autorise le lettrage et le pointage : c’est bien le comportement d’OmegaX. Une fois l’exercice clos, les livres comptables et les pièces justificatives se conservent DIX ANS.',
     nature: 'INTERNE',
     debut: { moisApres: 7, jour: 1 },
     echeance: { moisApres: 8, jour: 'FIN' },
-    source: 'CPCC, § 7.1 point 10 et § 2.3',
+    // Comme l'art. 23, l'art. 24 n'est pas exclu par l'art. 3 du SYCEBNL : la
+    // conservation décennale vaut pour les deux référentiels.
+    source: 'CPCC, § 7.1 point 10 et § 2.3 ; AUDCIF art. 24 (conservation dix ans), non exclu par l’art. 3 du SYCEBNL',
     observation: 'CLOTURE_ANNUELLE',
   },
 ];

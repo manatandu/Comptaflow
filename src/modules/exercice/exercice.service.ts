@@ -7,7 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
-import { GranulariteCloture, ModeReportANouveau, Prisma, StatutEcriture, StatutExercice, TypeJournal } from '@prisma/client';
+import { GranulariteCloture, ModeReportANouveau, Prisma, Referentiel, StatutEcriture, StatutExercice, TypeJournal } from '@prisma/client';
 import { CreerExerciceDto } from './dto/creer-exercice.dto';
 import { ClorePartielleDto, CloreTotaleDto, ClorePeriodeDto } from './dto/cloture.dto';
 import { JournalService } from '../journaux/journal.service';
@@ -25,6 +25,39 @@ const EPSILON = 0.005;
  *   classes 6/7 sur le résultat et génère le report à-nouveau réel dans
  *   l'exercice suivant selon le mode de chaque compte (Aucun/Solde/Détail).
  */
+/**
+ * LE COMPTE 13 PORTE LES MÊMES NUMÉROS DANS LES DEUX PLANS, ET PAS LES MÊMES
+ * INTITULÉS · c'est exactement le genre d'écart qui ne casse rien et qui
+ * s'imprime au livre-journal.
+ *
+ *  · SYCEBNL, Partie 2 ch. 2 · 131 Excédent, 139 Déficit ;
+ *  · AUDCIF, Titre VII § COMPTE 13 · 131 Résultat net : Bénéfice, 139
+ *    Résultat net : Perte ; art. 29 · « le bénéfice net ou la perte nette de
+ *    l'exercice ».
+ *
+ * Le vocabulaire suit le dossier jusque dans le libellé de la ligne de
+ * clôture et dans le message d'erreur, qui annonçait « le plan de comptes
+ * SYCEBNL de ce dossier » à une entreprise.
+ */
+export function libellesResultat(referentiel: Referentiel) {
+  return referentiel === Referentiel.SYSCOHADA
+    ? {
+        excedent: 'Résultat net : bénéfice (131)',
+        deficit: 'Résultat net : perte (139)',
+        ligneExcedent: "Bénéfice net de l'exercice",
+        ligneDeficit: "Perte nette de l'exercice",
+        plan: 'SYSCOHADA',
+      }
+    : {
+        excedent: "Excédent de l'exercice (131)",
+        deficit: "Déficit de l'exercice (139)",
+        ligneExcedent: "Excédent de l'exercice",
+        ligneDeficit: "Déficit de l'exercice",
+        plan: 'SYCEBNL',
+      };
+}
+
+
 @Injectable()
 export class ExerciceService {
   constructor(
@@ -75,11 +108,24 @@ export class ExerciceService {
    * Elle ne couvre que les jalons vérifiables en base ; les autres restent
    * des cases que le comptable coche dans sa tête, et le disent.
    *
-   * Les échéances légales sont indicatives et sourcées : elles viennent d'un
-   * cours du CPCC de novembre 2020, antérieur au SYCEBNL, et n'ont pas été
-   * reverifiées sur texte primaire (les textes congolais ne sont pas
-   * accessibles depuis cet environnement). Voir docs/organisation-comptable-cpcc.md
-   * § 6. Le logiciel ne calcule aucune astreinte.
+   * LES JALONS N'ONT PAS TOUS LE MÊME DEGRÉ DE CERTITUDE, et l'annoncer en
+   * bloc comme « antérieur au SYCEBNL et non revérifié » était faux pour la
+   * moitié d'entre eux. Trois familles, chacune marquée par sa source dans
+   * planning-cloture.ts :
+   *
+   *  · lus sur texte primaire · AUSCGIE art. 138, 140 et 269 ; AUDCIF art. 19,
+   *    23, 24, 66, 69 à 72 ; loi n° 004/2001 ; SYCEBNL art. 14, 17 et 18 ;
+   *    loi de procédures fiscales art. 12 à 15 ;
+   *  · tirés du cours du CPCC de novembre 2020, antérieur au SYCEBNL, non
+   *    revérifiés sur texte primaire · les dépôts congolais au CPCC et au
+   *    Ministère de l'Économie nationale, et le calendrier interne du § 2.3 ;
+   *  · sans date fixée par le texte · le rapport d'activité des ONG, que la
+   *    loi dit « périodiquement ».
+   *
+   * Le logiciel ne calcule en revanche AUCUNE astreinte, dans aucun cas : les
+   * arrêtés de 2010 et 2013 sont nommés, leurs taux ne sont pas repris, et un
+   * taux non revérifié n'a rien à faire dans un logiciel de 2026. Voir
+   * docs/organisation-comptable-cpcc.md § 6.
    */
   async planningCloture(tenantId: string, exerciceId: string) {
     const exercice = await this.trouverExercice(tenantId, exerciceId);
@@ -294,10 +340,18 @@ export class ExerciceService {
   }
 
   /**
-   * Compte 13 réel (§ COMPTE 13, skill sycebnl `partie2-ch3-classe1-comptes10-19.md`) :
-   * "131 Résultat net de l'exercice : Excédent" (solde créditeur) ou "139 ...
-   * Déficit" (solde débiteur) · il n'existe PAS de compte 130 générique dans
-   * le plan officiel. Choisi par le signe une fois `deltaResultat` connu.
+   * Compte 13 réel · "131" (solde créditeur) ou "139" (solde débiteur) · il
+   * n'existe PAS de compte 130 générique dans le plan SYCEBNL, et le 130 du
+   * plan SYSCOHADA (Résultat en instance d'affectation) n'est qu'une
+   * possibilité offerte À LA RÉOUVERTURE, pas le compte de clôture. Le compte
+   * est choisi par le signe une fois `deltaResultat` connu.
+   *
+   * Les deux textes énoncent le MÊME fonctionnement, et c'est pour cela que la
+   * logique de clôture est commune : le compte 13 est crédité à la clôture par
+   * le débit de la classe 7 et des comptes créditeurs de la classe 8, débité
+   * par le crédit de la classe 6 et des comptes débiteurs de la classe 8
+   * (SYCEBNL, Partie 2 ch. 3, § COMPTE 13 ; AUDCIF, Titre VII § COMPTE 13,
+   * Fonctionnement). Seuls les INTITULÉS diffèrent · voir libellesResultat.
    *
    * ⚠️ Trouvé et corrigé lors de l'audit rétroactif "chaque brique ancrée aux
    * référentiels" (docs/plan-de-construction.md §2.6) : la clôture postait
@@ -309,13 +363,19 @@ export class ExerciceService {
    * c'est une anomalie de configuration du dossier à signaler clairement,
    * pas à corriger silencieusement en recréant un compte hors nomenclature.
    */
-  private async trouverCompteResultat(tenantId: string, tx: Prisma.TransactionClient, deficitaire: boolean) {
+  private async trouverCompteResultat(
+    tenantId: string,
+    tx: Prisma.TransactionClient,
+    deficitaire: boolean,
+    referentiel: Referentiel,
+  ) {
+    const mots = libellesResultat(referentiel);
     const numero = deficitaire ? '13900000' : '13100000';
-    const intitule = deficitaire ? "Déficit de l'exercice (139)" : "Excédent de l'exercice (131)";
+    const intitule = deficitaire ? mots.deficit : mots.excedent;
     const compte = await tx.compte.findUnique({ where: { tenantId_numero: { tenantId, numero } } });
     if (!compte) {
       throw new BadRequestException(
-        `Compte ${numero} (${intitule}) introuvable pour ce dossier · nécessaire pour clôturer l'exercice. Le plan de comptes SYCEBNL de ce dossier semble incomplet ou avoir été modifié.`,
+        `Compte ${numero} (${intitule}) introuvable pour ce dossier · nécessaire pour clôturer l'exercice. Le plan de comptes ${mots.plan} de ce dossier semble incomplet ou avoir été modifié.`,
       );
     }
     return compte;
@@ -334,17 +394,41 @@ export class ExerciceService {
    * pas une donnée utilisateur invalide, d'où l'InternalServerErrorException
    * plutôt qu'un simple rejet de saisie.
    *
-   * Limite connue, non corrigée à ce stade (à traiter par une future brique
-   * "Affectation du résultat", pas construite) : le texte officiel prévoit
-   * que le compte 13 soit soldé par virement vers 12/11/10 sur décision des
-   * organes compétents, pas reporté indéfiniment sur lui-même. Faute de cette
-   * brique, le solde de 131/139 continue aujourd'hui à s'accumuler d'exercice
-   * en exercice via le report à-nouveau (mode SOLDE, comme tout compte de
-   * bilan) au lieu d'être remis à zéro par une affectation · signalé ici
-   * explicitement plutôt que laissé silencieux (règle §2.6).
+   * LIMITE CONNUE, NON CORRIGÉE À CE STADE, et la même dans les deux
+   * référentiels : le compte 13 doit être soldé par une AFFECTATION décidée
+   * par les organes compétents au cours de l'exercice suivant, pas reporté
+   * indéfiniment sur lui-même. Faute de cette brique, le solde de 131/139
+   * continue à s'accumuler d'exercice en exercice via le report à-nouveau
+   * (mode SOLDE, comme tout compte de bilan) au lieu d'être remis à zéro ·
+   * signalé ici explicitement plutôt que laissé silencieux (règle §2.6).
+   *
+   * Les contreparties de cette affectation ne sont pas les mêmes de part et
+   * d'autre, ce qui est précisément pourquoi la brique reste à écrire :
+   *
+   *  · SYCEBNL, Partie 3 ch. 1 · affectation aux fonds propres de l'entité ;
+   *  · AUDCIF, Titre VII § COMPTE 13, Commentaires et Fonctionnement · 12
+   *    Report à nouveau, 11 Réserves, 101 Capital social, 103 Capital
+   *    personnel, ou 465 Associés, dividendes à payer. « Dans les entités
+   *    individuelles, le solde du compte 13 est viré au compte 103 (Capital
+   *    personnel) », ce qui suppose de connaître la forme juridique OHADA du
+   *    dossier · une raison de plus de traiter l'affectation à part.
+   *
+   * Le compte 130 « Résultat en instance d'affectation » (1301 bénéfice, 1309
+   * perte) existe au plan SYSCOHADA et pas au plan SYCEBNL. L'AUDCIF n'en
+   * fait qu'une POSSIBILITÉ offerte à la réouverture des comptes, pas une
+   * obligation : la clôture ne l'utilise donc pas, et ne doit pas l'utiliser
+   * tant que l'affectation n'est pas construite.
    */
   async cloturer(tenantId: string, exerciceId: string, userId: string) {
     const exercice = await this.trouverExercice(tenantId, exerciceId);
+    // Le référentiel ne change RIEN à la mécanique de clôture · les deux
+    // textes énoncent le même fonctionnement du compte 13. Il commande les
+    // seuls intitulés, qui s'impriment au livre-journal.
+    const { referentiel } = await this.prisma.tenant.findUniqueOrThrow({
+      where: { id: tenantId },
+      select: { referentiel: true },
+    });
+    const mots = libellesResultat(referentiel);
     if (exercice.statut === StatutExercice.CLOTURE) {
       throw new ForbiddenException('Cet exercice est déjà clôturé');
     }
@@ -420,13 +504,13 @@ export class ExerciceService {
           // si elle était au crédit. Un compte de résultat sans montant n'a
           // de toute façon rien à enregistrer.
           if (Math.abs(deltaResultat) > EPSILON) {
-            const compteResultat = await this.trouverCompteResultat(tenantId, tx, deltaResultat > 0);
+            const compteResultat = await this.trouverCompteResultat(tenantId, tx, deltaResultat > 0, referentiel);
             compteResultatId = compteResultat.id;
             lignesCloture.push({
               compteId: compteResultat.id,
               debit: deltaResultat > 0 ? deltaResultat : 0,
               credit: deltaResultat < 0 ? -deltaResultat : 0,
-              libelle: deltaResultat > 0 ? "Déficit de l'exercice" : "Excédent de l'exercice",
+              libelle: deltaResultat > 0 ? mots.ligneDeficit : mots.ligneExcedent,
             });
           }
 
