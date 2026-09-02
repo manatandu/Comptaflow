@@ -2,20 +2,30 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
 import {
   ClasseCompte,
+  FormeJuridiqueSyscohada,
   JeuEtatsFinanciersSycebnl,
+  Referentiel,
   StatutEcriture,
   StatutExoneration,
+  SystemeComptableSyscohada,
   TypeCompteDetailTotal,
 } from '@prisma/client';
 import { JOURS_ALERTE_RENOUVELLEMENT } from '../exonerations/correspondance-exonerations';
+import { regleAuditeur, type RegleAuditeur } from './regles-auditeur';
+import { PREFIXES_CHIFFRE_AFFAIRES_SYSCOHADA } from '../etats-financiers-syscohada/correspondance-compte-resultat-syscohada';
 
 /**
- * SEUILS DE DÉSIGNATION DE L'AUDITEUR · Acte uniforme SYCEBNL, article 19.
+ * SEUILS DE DÉSIGNATION DU CONTRÔLEUR DES COMPTES · ils ne sont PLUS ici.
  *
- * Exprimés en FRANCS CFA par le texte, et laissés tels quels : le logiciel ne
- * connaît pas le taux applicable au dossier, et un seuil converti à un taux
- * inventé induirait en erreur plus sûrement qu'un seuil brut annoncé comme
- * tel. Même règle que pour le seuil du Système minimal de trésorerie.
+ * Ils dépendent du référentiel et, en SYSCOHADA, de la forme juridique · voir
+ * `regles-auditeur.ts`, qui porte les quatre règles lues à leur source. Ces
+ * trois constantes restent exportées parce que des écrans les citent, mais
+ * elles ne valent que pour le SYCEBNL et le disent.
+ *
+ * Exprimés en FRANCS CFA par les textes, et laissés tels quels : le logiciel
+ * ne connaît pas le taux applicable au dossier, et un seuil converti à un
+ * taux inventé induirait en erreur plus sûrement qu'un seuil brut annoncé
+ * comme tel. Même règle que pour le seuil du Système minimal de trésorerie.
  */
 export const SEUIL_BILAN_AUDITEUR = 100_000_000;
 export const SEUIL_RESSOURCES_AUDITEUR = 200_000_000;
@@ -29,6 +39,15 @@ const CLASSES_BILAN: ClasseCompte[] = [
   ClasseCompte.CLASSE_4,
   ClasseCompte.CLASSE_5,
 ];
+
+/** Un critère de désignation du contrôleur des comptes, mesuré et comparé à son seuil. */
+export interface CritereAuditeur {
+  critere: string;
+  valeur: number;
+  seuil: number;
+  franchi: boolean;
+  detail: string;
+}
 
 /** Gravité d'une anomalie · commande la couleur et l'ordre de lecture. */
 export type Gravite = 'BLOQUANT' | 'AVERTISSEMENT' | 'INFORMATION';
@@ -109,8 +128,19 @@ export interface ControleCaisse {
 export class ControlesService {
   /** Au-delà, une créance ou une dette non lettrée mérite qu'on la regarde. */
   private static readonly JOURS_ANCIENNETE_TIERS = 180;
-  /** Délai de centralisation du brouillard · SYCEBNL, Partie 2 ch. 2. */
-  private static readonly JOURS_CENTRALISATION = 7;
+  /**
+   * Délai de centralisation du brouillard · il DIFFÈRE selon le référentiel,
+   * et servir le plus strict des deux à tout le monde n'est pas prudent, c'est
+   * faux : on reprochait à une entreprise un retard que sa loi n'a jamais
+   * exigé, en citant un texte qui n'est pas le sien.
+   *
+   *  · SYCEBNL, Partie 2 ch. 2 · centralisation au moins CHAQUE SEMAINE ;
+   *  · AUDCIF, art. 19 · centralisation au moins une fois par MOIS.
+   */
+  private static readonly JOURS_CENTRALISATION: Record<Referentiel, number> = {
+    [Referentiel.SYCEBNL]: 7,
+    [Referentiel.SYSCOHADA]: 30,
+  };
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -420,14 +450,60 @@ export class ControlesService {
    * Exposé publiquement : l'écran d'analyse s'en sert pour alerter, mais la
    * mesure vaut aussi comme diagnostic à part entière, hors anomalie.
    */
-  async seuilsAuditeur(tenantId: string, exerciceId: string, effectifPermanent: number) {
+  async seuilsAuditeur(
+    tenantId: string,
+    exerciceId: string,
+    effectifPermanent: number,
+  ): Promise<{
+    criteres: CritereAuditeur[];
+    franchis: CritereAuditeur[];
+    obligationDeclenchee: boolean;
+    obligationSansSeuil: boolean;
+    regle: RegleAuditeur;
+    conversionAppliquee: boolean;
+    source: string | null;
+  }> {
+    const tenant = await this.prisma.tenant.findUniqueOrThrow({
+      where: { id: tenantId },
+      select: { referentiel: true, formeJuridiqueSyscohada: true },
+    });
+    const regle = regleAuditeur(tenant.referentiel, tenant.formeJuridiqueSyscohada);
+
+    // Une forme sans règle lue ne mesure RIEN · annoncer un seuil emprunté à
+    // une autre forme serait pire que se taire.
+    if (regle.genre === 'AUCUNE_REGLE_LUE') {
+      return {
+        criteres: [],
+        franchis: [],
+        obligationDeclenchee: false,
+        obligationSansSeuil: false,
+        regle,
+        conversionAppliquee: false,
+        source: null,
+      };
+    }
+    // La société anonyme désigne un commissaire aux comptes sans condition de
+    // taille : mesurer ses seuils n'aurait aucun sens.
+    if (regle.genre === 'TOUJOURS') {
+      return {
+        criteres: [],
+        franchis: [],
+        obligationDeclenchee: false,
+        obligationSansSeuil: true,
+        regle,
+        conversionAppliquee: false,
+        source: regle.source,
+      };
+    }
+
     const lignes = await this.prisma.ligneEcriture.findMany({
       where: { ecriture: { tenantId, exerciceId, statut: StatutEcriture.VALIDEE } },
-      select: { debit: true, credit: true, compte: { select: { classe: true, typeCompte: true } } },
+      select: { debit: true, credit: true, compte: { select: { numero: true, classe: true, typeCompte: true } } },
     });
 
+    const estSyscohada = tenant.referentiel === Referentiel.SYSCOHADA;
     let totalBilan = 0;
-    let ressources = 0;
+    let produits = 0;
     for (const l of lignes) {
       // Les comptes de TOTAL agrègent leurs enfants : les compter reviendrait
       // à compter deux fois les mêmes montants.
@@ -438,45 +514,67 @@ export class ControlesService {
         // c'est-à-dire l'actif · approximation assumée et annoncée.
         if (solde > 0) totalBilan += solde;
       }
-      if (l.compte.classe === ClasseCompte.CLASSE_7) ressources += -solde;
+      // LA MESURE DES PRODUITS DIFFÈRE, et c'est le fond de l'affaire.
+      // Le SYCEBNL parle de RESSOURCES annuelles, qui embrassent toute la
+      // classe 7 (cotisations, dons, subventions, produits financiers).
+      // L'AUSCGIE parle de CHIFFRE D'AFFAIRES, qui est le poste XB du compte
+      // de résultat, soit les seuls comptes 701 à 707 · dérivés du modèle, pas
+      // réécrits. Mesurer la classe 7 entière pour une entreprise gonflerait
+      // son chiffre d'affaires de ses produits financiers et de ses reprises,
+      // et la déclarerait au-dessus d'un seuil qu'elle n'a pas franchi.
+      if (estSyscohada) {
+        if (PREFIXES_CHIFFRE_AFFAIRES_SYSCOHADA.some((p) => l.compte.numero.startsWith(p))) produits += -solde;
+      } else if (l.compte.classe === ClasseCompte.CLASSE_7) {
+        produits += -solde;
+      }
     }
     totalBilan = Math.round(totalBilan * 100) / 100;
-    ressources = Math.round(ressources * 100) / 100;
+    produits = Math.round(produits * 100) / 100;
 
     const criteres = [
       {
         critere: 'Total du bilan',
         valeur: totalBilan,
-        seuil: SEUIL_BILAN_AUDITEUR,
-        franchi: totalBilan > SEUIL_BILAN_AUDITEUR,
-        detail: `Total du bilan approché à ${totalBilan.toLocaleString('fr-FR')} · seuil ${SEUIL_BILAN_AUDITEUR.toLocaleString('fr-FR')} FCFA`,
+        seuil: regle.seuilBilan,
+        franchi: totalBilan > regle.seuilBilan,
+        detail: `Total du bilan approché à ${totalBilan.toLocaleString('fr-FR')} · seuil ${regle.seuilBilan.toLocaleString('fr-FR')} FCFA`,
       },
       {
-        critere: 'Ressources annuelles',
-        valeur: ressources,
-        seuil: SEUIL_RESSOURCES_AUDITEUR,
-        franchi: ressources > SEUIL_RESSOURCES_AUDITEUR,
-        detail: `Ressources de l'exercice ${ressources.toLocaleString('fr-FR')} · seuil ${SEUIL_RESSOURCES_AUDITEUR.toLocaleString('fr-FR')} FCFA`,
+        critere: regle.libelleProduits,
+        valeur: produits,
+        seuil: regle.seuilProduits,
+        franchi: produits > regle.seuilProduits,
+        detail: `${regle.libelleProduits} de l'exercice ${produits.toLocaleString('fr-FR')} · seuil ${regle.seuilProduits.toLocaleString('fr-FR')} FCFA`,
       },
       {
         critere: 'Effectif permanent',
         valeur: effectifPermanent,
-        seuil: SEUIL_EFFECTIF_AUDITEUR,
-        franchi: effectifPermanent > SEUIL_EFFECTIF_AUDITEUR,
+        seuil: regle.seuilEffectif,
+        franchi: effectifPermanent > regle.seuilEffectif,
         detail:
           effectifPermanent > 0
-            ? `${effectifPermanent} personnes employées à titre permanent · seuil ${SEUIL_EFFECTIF_AUDITEUR}`
+            ? `${effectifPermanent} personnes employées à titre permanent · seuil ${regle.seuilEffectif}`
             : "Effectif non renseigné · à saisir dans Structure > Paramètres du dossier pour que ce critère soit mesuré",
       },
     ];
 
+    const franchis = criteres.filter((c) => c.franchi);
+    // LE NOMBRE DE CRITÈRES REQUIS EST LE POINT. Le SYCEBNL en demande UN
+    // (« l'un des trois »), l'AUSCGIE en demande DEUX sur trois. Alerter une
+    // entreprise sur un seul critère l'aurait envoyée chercher un commissaire
+    // aux comptes qu'elle n'est pas tenue de désigner.
+    const obligationDeclenchee = regle.genre === 'ALTERNATIF' ? franchis.length >= 1 : franchis.length >= 2;
+
     return {
       criteres,
-      franchis: criteres.filter((c) => c.franchi),
+      franchis,
+      obligationDeclenchee,
+      obligationSansSeuil: false,
+      regle,
       // Le seuil est légalement exprimé en FCFA et n'est PAS converti · voir
-      // la note de tête de cette méthode.
+      // la note de tête de `regles-auditeur.ts`.
       conversionAppliquee: false,
-      source: 'Acte uniforme SYCEBNL du 22 décembre 2022, article 19 (sanctions : articles 24 à 27)',
+      source: regle.source,
     };
   }
 
@@ -568,18 +666,23 @@ export class ControlesService {
 
     // --- 4. Brouillard en retard de centralisation ---------------------------
     const maintenant = Date.now();
+    const joursCentralisation = ControlesService.JOURS_CENTRALISATION[tenant.referentiel];
     const brouillardEnRetard = ecritures.filter(
       (e) =>
         e.statut === StatutEcriture.BROUILLARD &&
-        (maintenant - e.createdAt.getTime()) / 86_400_000 > ControlesService.JOURS_CENTRALISATION,
+        (maintenant - e.createdAt.getTime()) / 86_400_000 > joursCentralisation,
     );
     if (brouillardEnRetard.length > 0) {
+      const estSycebnlCentralisation = tenant.referentiel === Referentiel.SYCEBNL;
       anomalies.push({
         code: 'BROUILLARD_EN_RETARD',
         gravite: 'AVERTISSEMENT',
-        libelle: 'Brouillard non centralisé depuis plus de sept jours',
-        consequence:
-          "Le SYCEBNL veut les journaux auxiliaires centralisés au moins chaque semaine dans le journal ou le grand-livre (Partie 2, ch. 2). Au-delà, ce n'est plus un document de travail.",
+        libelle: estSycebnlCentralisation
+          ? 'Brouillard non centralisé depuis plus de sept jours'
+          : "Brouillard non centralisé depuis plus d'un mois",
+        consequence: estSycebnlCentralisation
+          ? "Le SYCEBNL veut les journaux auxiliaires centralisés au moins chaque semaine dans le journal ou le grand-livre (Partie 2, ch. 2). Au-delà, ce n'est plus un document de travail."
+          : "L'AUDCIF veut les journaux auxiliaires centralisés au moins une fois par mois (art. 19). Au-delà, ce n'est plus un document de travail.",
         action: 'Relisez ces écritures dans État → Brouillard et validez-les.',
         occurrences: brouillardEnRetard.slice(0, 200).map((e) => ({
           reference: `${e.journal.code} n° ${e.numeroPiece ?? '·'}`,
@@ -598,10 +701,17 @@ export class ControlesService {
         soldesTiers.set(n, (soldesTiers.get(n) ?? 0) + Number(l.debit) - Number(l.credit));
       }
     }
-    const inverses = [...soldesTiers.entries()].filter(
-      ([numero, solde]) =>
-        (numero.startsWith('41') && solde < -0.005) || (numero.startsWith('40') && solde > 0.005),
-    );
+    // 409 « Fournisseurs débiteurs » et 419 « Clients créditeurs » (« Adhérents,
+    // Clients-usagers créditeurs » au SYCEBNL) portent des AVANCES : leur sens
+    // est inversé par construction, dans les deux plans. Les signaler était une
+    // fausse alerte systématique, sur tous les dossiers qui reçoivent ou versent
+    // un acompte · et une fausse alerte répétée apprend à ignorer le contrôle,
+    // ce qui coûte plus qu'elle ne rapporte.
+    const SENS_INVERSE_PAR_NATURE = ['409', '419'];
+    const inverses = [...soldesTiers.entries()].filter(([numero, solde]) => {
+      if (SENS_INVERSE_PAR_NATURE.some((p) => numero.startsWith(p))) return false;
+      return (numero.startsWith('41') && solde < -0.005) || (numero.startsWith('40') && solde > 0.005);
+    });
     if (inverses.length > 0) {
       anomalies.push({
         code: 'TIERS_SOLDE_INVERSE',
@@ -699,7 +809,18 @@ export class ControlesService {
      *    vouloir passer. C'est à lui de trancher, pas au logiciel · mais il
      *    doit le voir.
      */
-    if (tenant.jeuEtatsFinanciersSycebnl !== JeuEtatsFinanciersSycebnl.SYSTEME_MINIMAL_TRESORERIE) {
+    // Le Système minimal de trésorerie existe DANS LES DEUX RÉFÉRENTIELS, et
+    // le test ne regardait que celui du SYCEBNL. Or un dossier SYSCOHADA au
+    // SMT garde par défaut `jeuEtatsFinanciersSycebnl` à
+    // ASSOCIATIONS_ORDRES_PROFESSIONNELS (valeur par défaut du schéma, sans
+    // signification pour lui) : il passait donc le test et subissait un
+    // contrôle que l'AUDCIF Titre X écarte, puisque le SMT est une
+    // comptabilité de trésorerie par construction.
+    const auSystemeMinimal =
+      tenant.referentiel === Referentiel.SYSCOHADA
+        ? tenant.systemeComptableSyscohada === SystemeComptableSyscohada.MINIMAL_TRESORERIE
+        : tenant.jeuEtatsFinanciersSycebnl === JeuEtatsFinanciersSycebnl.SYSTEME_MINIMAL_TRESORERIE;
+    if (!auSystemeMinimal) {
       const chargesDirectes = ecritures.filter((e) => {
         const aUneCharge = e.lignes.some(
           (l) =>
@@ -806,21 +927,41 @@ export class ControlesService {
     // bilan, classe 7 pour les ressources), pas repris de la liasse arrêtée.
     // Il alerte, l'expert tranche · d'où la gravité AVERTISSEMENT.
     const seuils = await this.seuilsAuditeur(tenantId, exerciceId, tenant.effectifPermanent);
-    if (seuils.franchis.length > 0) {
+    if (seuils.obligationDeclenchee) {
+      const alternatif = seuils.regle.genre === 'ALTERNATIF';
       anomalies.push({
         code: 'SEUIL_AUDITEUR_FRANCHI',
         gravite: 'AVERTISSEMENT',
-        libelle: "Seuil de désignation d'un auditeur franchi",
-        consequence:
-          "L'article 19 de l'Acte uniforme SYCEBNL rend la désignation d'un auditeur OBLIGATOIRE dès qu'un seul des " +
-          'trois critères est franchi : total du bilan supérieur à 100 000 000 FCFA, ressources annuelles supérieures ' +
-          "à 200 000 000 FCFA, ou plus de vingt personnes employées à titre permanent. Les articles 24 à 27 prévoient " +
-          'des sanctions pénales.',
-        action:
-          "Faites désigner un auditeur, et prévoyez de lui remettre les états financiers et le rapport de gestion au " +
-          "moins 45 jours avant l'assemblée générale (art. 19, alinéa 4). Les montants ci-dessous sont approchés " +
-          'depuis la balance : confrontez-les à la liasse arrêtée avant de conclure.',
+        libelle: alternatif
+          ? "Seuil de désignation d'un auditeur franchi"
+          : 'Deux des trois seuils de désignation du commissaire aux comptes sont franchis',
+        consequence: alternatif
+          ? "L'article 19 de l'Acte uniforme SYCEBNL rend la désignation d'un auditeur OBLIGATOIRE dès qu'un SEUL des " +
+            'trois critères est franchi : total du bilan supérieur à 100 000 000 FCFA, ressources annuelles supérieures ' +
+            "à 200 000 000 FCFA, ou plus de vingt personnes employées à titre permanent. Les articles 24 à 27 prévoient " +
+            'des sanctions pénales.'
+          : `${seuils.source} rend la désignation d'un commissaire aux comptes obligatoire dès que DEUX des trois ` +
+            'conditions sont remplies à la clôture. Le dossier en remplit deux ou plus.',
+        action: alternatif
+          ? "Faites désigner un auditeur, et prévoyez de lui remettre les états financiers et le rapport de gestion au " +
+            "moins 45 jours avant l'assemblée générale (art. 19, alinéa 4). Les montants ci-dessous sont approchés " +
+            'depuis la balance : confrontez-les à la liasse arrêtée avant de conclure.'
+          : "Faites désigner un commissaire aux comptes. La sortie de l'obligation suppose DEUX exercices consécutifs " +
+            "sous les seuils, que ce contrôle ne mesure pas · il ne regarde qu'un exercice. Les montants ci-dessous " +
+            'sont approchés depuis la balance : confrontez-les à la liasse arrêtée avant de conclure.',
         occurrences: seuils.franchis.map((f) => ({ reference: f.critere, detail: f.detail })),
+      });
+    }
+    // La société anonyme n'a pas de seuil à franchir · son obligation est
+    // permanente, et un dossier qui l'ignore ne verrait jamais rien passer.
+    if (seuils.obligationSansSeuil && seuils.regle.genre === 'TOUJOURS') {
+      anomalies.push({
+        code: 'COMMISSAIRE_AUX_COMPTES_OBLIGATOIRE',
+        gravite: 'INFORMATION',
+        libelle: 'Commissaire aux comptes obligatoire, sans condition de taille',
+        consequence: `${seuils.regle.source} · ${seuils.regle.motif}`,
+        action: "Vérifiez que le mandat est en cours et que le commissaire recevra les comptes en temps utile.",
+        occurrences: [],
       });
     }
 

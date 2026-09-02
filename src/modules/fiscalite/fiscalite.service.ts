@@ -15,6 +15,10 @@ import {
   IMPOT_SOCIETES,
 } from './parametres-fiscaux';
 import { CreerRetraitementDto, ModifierDossierFiscalDto, ModifierRetraitementDto } from './dto/fiscalite.dto';
+// Le chiffre d'affaires n'est plus écrit ici : il se DÉRIVE du poste XB du
+// modèle du ch. 4 (voir correspondance-compte-resultat-syscohada.ts). Une
+// liste officielle recopiée dans deux modules est une divergence en attente.
+import { PREFIXES_CHIFFRE_AFFAIRES_SYSCOHADA as PREFIXES_CHIFFRE_AFFAIRES } from '../etats-financiers-syscohada/correspondance-compte-resultat-syscohada';
 
 /**
  * DÉTERMINATION DU RÉSULTAT FISCAL ET DE L'IMPÔT SUR LES BÉNÉFICES ·
@@ -37,8 +41,6 @@ import { CreerRetraitementDto, ModifierDossierFiscalDto, ModifierRetraitementDto
  * revérifie, la double barrière étant la règle du dépôt.
  */
 
-/** Comptes qui composent le chiffre d'affaires · postes TA à TD du compte de résultat, AUDCIF Titre IX ch. 7. */
-const PREFIXES_CHIFFRE_AFFAIRES = ['701', '702', '703', '704', '705', '706', '707'];
 
 const arrondir = (n: number) => Math.round(n * 100) / 100;
 

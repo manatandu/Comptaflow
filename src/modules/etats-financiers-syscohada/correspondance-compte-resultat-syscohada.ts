@@ -477,6 +477,29 @@ export const ORDRE_AFFICHAGE_COMPTE_RESULTAT: string[] = [
   'RQ', 'RS', 'XI',
 ];
 
+/**
+ * Préfixes de comptes qui composent le CHIFFRE D'AFFAIRES, DÉRIVÉS du poste
+ * XB et jamais réécrits à la main.
+ *
+ * XB vaut « A + B + C + D », c'est-à-dire les postes TA à TD, et le ch. 7
+ * souligne que « le poste XB est une somme de POSTES, pas de comptes ». La
+ * liste qui en sort est donc 701 à 707 · mais elle en sort, elle n'y est pas
+ * posée. Deux modules en ont besoin (le résultat fiscal, et la mesure du
+ * seuil de désignation du commissaire aux comptes) et chacun l'avait
+ * recopiée : deux copies d'une liste officielle, c'est une occasion de
+ * divergence de plus, sur exactement le genre de donnée que ce dépôt
+ * s'interdit d'écrire de mémoire.
+ */
+export const PREFIXES_CHIFFRE_AFFAIRES_SYSCOHADA: readonly string[] = (() => {
+  const xb = SOLDES_INTERMEDIAIRES.find((s) => s.ref === 'XB');
+  if (!xb) throw new Error("Le solde XB (chiffre d'affaires) a disparu du modèle du ch. 4.");
+  return xb.deRefs.flatMap((ref) => {
+    const poste = POSTES_COMPTE_RESULTAT_SYSCOHADA.find((p) => p.ref === ref);
+    if (!poste) throw new Error(`Le poste ${ref}, sommé par XB, n'existe pas au modèle.`);
+    return poste.comptes ?? [];
+  });
+})();
+
 export function trouvePosteCompteResultat(ref: string): PosteCompteResultatSyscohada | undefined {
   return POSTES_COMPTE_RESULTAT_SYSCOHADA.find((p) => p.ref === ref);
 }
