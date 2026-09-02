@@ -768,9 +768,18 @@ export const OBLIGATIONS_EVENEMENTIELLES: ObligationEvenementielle[] = [
   },
   {
     cle: 'assujettissementTva',
-    evenement: 'Franchissement du seuil de 80 000 000 FC de chiffre d’affaires annuel hors taxes',
+    evenement:
+      'Franchissement du seuil de 80 000 000 FC de chiffre d’affaires annuel hors taxes · ou DÉBUT D’ACTIVITÉ pour une entreprise nouvelle',
     libelle: 'Déclaration d’assujettissement à la TVA',
-    delai: 'Avant le 15 du mois qui suit le dépassement',
+    // DEUX FAITS GÉNÉRATEURS, et non un seul · l'imprimé de la DGI le porte
+    // en tête : « à souscrire en double exemplaire avant le quinze du mois
+    // suivant celui au cours duquel le seuil d'assujettissement est atteint,
+    // pour les entreprises existantes ; à souscrire au plus tard le quinze du
+    // mois suivant celui du début d'activités, pour les entreprises
+    // nouvelles ». Le second cas manquait, et c'est celui d'un dossier qui
+    // vient d'être créé · exactement la situation où l'on consulte cette liste.
+    delai:
+      'Avant le 15 du mois qui suit le dépassement · pour une entreprise nouvelle, au plus tard le 15 du mois qui suit celui du début d’activités. La déclaration se souscrit en DOUBLE EXEMPLAIRE.',
     destinataire: 'Direction générale des impôts',
     source: 'Ordonnance-loi n° 10/001, art. 14 et 55 ; décret n° 011/42, art. 42-43',
     ecranDeclencheur: 'Structure > Paramètres du dossier · assujettissement à la TVA',

@@ -65,6 +65,16 @@ export interface NatureRetenue {
   /** Précision à afficher quand elle change la lecture de la ligne. */
   reserve?: string;
   /**
+   * Code de l'imprimé de la Direction générale des impôts, quand il est connu.
+   *
+   * Ce n'est pas décoratif : le comptable qui va déposer demande le formulaire
+   * par son code au guichet, et l'imprimé porte les cases dans un ordre que le
+   * logiciel n'a pas à deviner. Ne le renseigner QUE d'après un imprimé
+   * réellement lu · un code inventé enverrait chercher un papier qui n'existe
+   * pas.
+   */
+  imprime?: string;
+  /**
    * Variante de `reserve` pour un dossier SYSCOHADA · absente = `reserve` est
    * servie aux deux. Plusieurs réserves étaient rédigées POUR une association
    * et affichées à une entreprise, dont l'une exactement à l'envers : celle du
@@ -131,6 +141,11 @@ export const NATURES_RETENUES: NatureRetenue[] = [
     beneficiaire: 'ETAT',
     joursApresPeriode: 15,
     echeance: 'Le 15 du mois suivant le versement des rémunérations',
+    // Imprimé lu à la source · « DECLARATION DE LA RETENUE DE L'IMPOT SUR LE
+    // REVENU DES PERSONNES PHYSIQUES DANS LA CATEGORIE DE REVENUS SALARIAUX ET
+    // REVENUS ASSIMILES (IRPPDR1) », Ministère des Finances. La déclaration est
+    // rattachée au MOIS des rémunérations, ce que le registre fait déjà.
+    imprime: 'IRPPDR1',
     baseLegale:
       "Article 18 de la loi n° 004/2003 portant réforme des procédures fiscales, tel que modifié par la loi n° 23/052 du 30 novembre 2023.",
     reserve:
