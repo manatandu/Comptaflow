@@ -89,7 +89,7 @@ export class EtatsAnalytiquesService {
     const { du, au } = await this.bornes(tenantId, params.exerciceId, params.dateDebut, params.dateFin);
 
     const sections = await this.prisma.sectionAnalytique.findMany({
-      where: { planId: params.planId },
+      where: { planId: params.planId, tenantId },
       orderBy: { code: 'asc' },
     });
     const ventilations = await this.prisma.ventilationAnalytique.groupBy({
@@ -306,7 +306,7 @@ export class EtatsAnalytiquesService {
     }
 
     const sections = await this.prisma.sectionAnalytique.findMany({
-      where: { planId: params.planId, type: TypeCompteDetailTotal.DETAIL },
+      where: { planId: params.planId, type: TypeCompteDetailTotal.DETAIL, tenantId },
       orderBy: { code: 'asc' },
     });
     const budgets = await this.prisma.budgetSection.findMany({

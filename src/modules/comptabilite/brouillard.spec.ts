@@ -174,8 +174,11 @@ describe('validation', () => {
     } as Faux;
     const resultat = await service(prisma).valider('t1', 'u1', ['e1', 'e2']);
     expect(resultat).toEqual({ validees: 1, dejaValidees: 1 });
+    // La borne de dossier est exigée dans le filtre, pas seulement supposée
+    // depuis la sélection qui précède · c'est ce que vérifie la garde de
+    // cloisonnement au moteur (src/common/cloisonnement).
     expect(updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: { in: ['e1'] } } }),
+      expect.objectContaining({ where: { id: { in: ['e1'] }, tenantId: 't1' } }),
     );
   });
 });

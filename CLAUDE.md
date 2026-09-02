@@ -213,7 +213,13 @@ avant de l'écrire ; un spec (`compte-seed-syscohada.spec.ts`) le contrôle.
 - Mot de passe transmis par un tiers (console, siège) : `doitChangerMotDePasse`
   force le changement à la première connexion.
 - Toute requête est filtrée par `tenantId`. Une requête Prisma sans `tenantId`
-  sur une table multi-locataire est un défaut de cloisonnement.
+  sur une table multi-locataire est un défaut de cloisonnement. Ce n'est plus
+  seulement une règle de discipline : `src/common/cloisonnement/` porte une
+  extension Prisma qui REFUSE une collection non bornée, refuse d'écrire sur
+  la ligne d'un autre dossier, et rend inexistante la ligne lue d'un autre
+  dossier. Elle ne réécrit jamais une requête · réécrire masquerait le défaut.
+  La seule échappatoire est `horsCloisonnement('raison', ...)`, dont la liste
+  des utilisateurs est gelée par un test.
 - **Journal d'audit** (`src/common/audit/`) · posé sur le client Prisma par
   une extension, pas par des appels dans les services : un contrôle qu'on peut
   oublier d'appeler n'est pas un contrôle. Il couvre les modèles de

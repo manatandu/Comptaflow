@@ -456,7 +456,7 @@ export class EcritureService {
 
     const valideeAt = new Date();
     await this.prisma.ecriture.updateMany({
-      where: { id: { in: aValider.map((e) => e.id) } },
+      where: { id: { in: aValider.map((e) => e.id) }, tenantId },
       data: { statut: StatutEcriture.VALIDEE, valideeAt, valideeBy },
     });
     return { validees: aValider.length, dejaValidees: dejaValidees.length };

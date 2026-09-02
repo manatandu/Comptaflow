@@ -100,13 +100,43 @@ vaut pire qu'un trou dans le journal) ; et les lignes engendrées en masse
 l'information.
 
 
-**B2 · Cloisonnement multi-locataire garanti structurellement.** Une extension
-du client Prisma qui refuse toute requête sur un modèle porteur de `tenantId`
-sans `tenantId` dans le `where`, plus un test d'intégration qui appelle une
-dizaine de routes avec un jeton du locataire B sur des identifiants du
-locataire A. La discipline actuelle est réelle et vérifiée, mais tenue à la
-main dans plus de trente modules : c'est le seul risque dont la probabilité
-AUGMENTE avec le temps, à chaque module ajouté.
+**B2 · Cloisonnement multi-locataire garanti structurellement.** FAIT le
+2026-09-02. Le balayage préalable a porté sur les 361 appels Prisma des 33
+modèles qui portent un `tenantId` · AUCUNE fuite trouvée, le code est
+discipliné de bout en bout, les 72 appels sans borne explicite portant tous
+leur contrôle de propriété juste avant. Ce que B2 change n'est donc pas une
+faille : c'est la NATURE de la garantie, qui passe de « quelqu'un y a pensé »
+à « le moteur refuse ».
+
+Extension Prisma à trois règles, choisies pour ne rien coûter sur les chemins
+chauds. LECTURE d'une ligne · le résultat est vérifié APRÈS coup, la ligne
+étant déjà en main, et une ligne d'un autre dossier est rendue INEXISTANTE
+plutôt qu'en erreur (une erreur distincte apprendrait que l'identifiant existe
+ailleurs). ÉCRITURE d'une ligne désignée par identifiant · relecture avant, la
+seule règle qui coûte une requête, sur un chemin qui n'est pas chaud.
+COLLECTION · le filtre doit porter la borne, sans quoi la requête est refusée.
+
+La garde ne RÉÉCRIT jamais une requête, elle la refuse · réécrire masquerait
+le défaut au lieu de le montrer, et le cloisonnement resterait aux deux bouts
+(CLAUDE.md §6) sans que personne ne sache lequel tient.
+
+Neuf collections bornées par un parent vérifié plutôt que par le dossier ont
+reçu leur borne explicite · sans changement de résultat, le parent étant déjà
+contrôlé. Quatre sorties légitimes déclarées par `horsCloisonnement('raison',
+...)` : connexion et inscription (recherche par courriel, avant de savoir de
+quel dossier relève le compte), promotion des opérateurs au démarrage, mot de
+passe temporaire du dossier créé depuis la console, et de la cellule ouverte
+par le siège. Le module groupe n'en a pas eu besoin : il portait déjà son
+`tenantId` partout.
+
+Deux tests, parce qu'un seul ne suffisait pas : la garde elle-même (règle par
+règle), et un BALAYAGE DU CODE. Les tests du dépôt montent des clients Prisma
+factices, qui ne passent pas par l'extension · une requête non bornée ne
+serait donc découverte qu'en production, sur le dossier d'un client. Le
+balayage la refuse à l'écriture. Il gèle aussi la liste des fichiers qui
+sortent du cloisonnement : une sortie ajoutée ailleurs fait tomber le test,
+elle doit se discuter et non se glisser.
+
 
 **B3 · Une CI qui lance les tests avant de déployer.** FAIT le 2026-09-02. Le
 déploiement serveur passe par un job « verifier » (typage, tests, build, des

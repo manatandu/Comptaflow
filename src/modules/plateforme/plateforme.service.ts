@@ -6,6 +6,7 @@ import { siSycebnl } from '../../common/reponse-referentiel';
 import { PrismaService } from '../../common/prisma.service';
 import { AuthService } from '../auth/auth.service';
 import { CreerCabinetDto, ModifierGroupeDto, ModifierLicenceDto } from './dto/plateforme.dto';
+import { horsCloisonnement } from '../../common/cloisonnement/contexte-cloisonnement';
 
 /**
  * Console de l'opérateur de plateforme : vue transversale des cabinets
@@ -40,12 +41,17 @@ export class PlateformeService implements OnModuleInit {
       .map((e) => e.trim())
       .filter((e) => e.length > 0);
     for (const email of emails) {
-      const { count } = await this.prisma.user.updateMany({
+      // SORTIE DE CLOISONNEMENT · la promotion court au DÉMARRAGE, hors de
+      // toute requête et donc hors de tout dossier, et vise une adresse sur
+      // l'ensemble de la plateforme.
+      const { count } = await horsCloisonnement('démarrage · promotion des opérateurs de la plateforme', () =>
+        this.prisma.user.updateMany({
         // insensitive : l'adresse saisie à l'inscription peut différer en
         // casse de celle de la variable d'environnement.
-        where: { email: { equals: email, mode: 'insensitive' }, estOperateurPlateforme: false },
-        data: { estOperateurPlateforme: true },
-      });
+          where: { email: { equals: email, mode: 'insensitive' }, estOperateurPlateforme: false },
+          data: { estOperateurPlateforme: true },
+        }),
+      );
       if (count > 0) {
         this.logger.log(`Opérateur de plateforme accordé : ${email}`);
       }
@@ -250,10 +256,14 @@ export class PlateformeService implements OnModuleInit {
     }
     // Le mot de passe a transité par l'opérateur · le client devra le
     // remplacer à sa première connexion (voir schema.prisma, User).
-    await this.prisma.user.update({
-      where: { email: dto.emailAdmin },
-      data: { doitChangerMotDePasse: true },
-    });
+    // SORTIE DE CLOISONNEMENT · le compte visé est celui du dossier QUI VIENT
+    // D'ÊTRE CRÉÉ, pas celui de l'opérateur dont la session porte le contexte.
+    await horsCloisonnement('console · dossier créé par l’opérateur', () =>
+      this.prisma.user.update({
+        where: { email: dto.emailAdmin },
+        data: { doitChangerMotDePasse: true },
+      }),
+    );
     return {
       tenant: resultat.tenant,
       exercice: resultat.exercice,

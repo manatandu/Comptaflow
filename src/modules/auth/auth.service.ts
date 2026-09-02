@@ -15,6 +15,7 @@ import { RelancesService } from '../relances/relances.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { Referentiel, RoleUtilisateur, SystemeComptableSyscohada, TypeLicence } from '@prisma/client';
+import { horsCloisonnement } from '../../common/cloisonnement/contexte-cloisonnement';
 
 const SALT_ROUNDS = 12;
 
@@ -54,7 +55,14 @@ export class AuthService {
    * ouverte pendant ce temps ne servirait à rien.
    */
   async register(dto: RegisterDto) {
-    const emailExistant = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    // SORTIE DE CLOISONNEMENT · la recherche se fait par COURRIEL, qui est
+    // unique sur toute la plateforme et ne relève encore d'aucun dossier. Sans
+    // cette déclaration, une création lancée depuis la console de l'opérateur
+    // (dont la session porte SON dossier) verrait la garde traiter le compte
+    // cherché comme inexistant, et le doublon passerait.
+    const emailExistant = await horsCloisonnement('inscription · unicité du courriel sur toute la plateforme', () =>
+      this.prisma.user.findUnique({ where: { email: dto.email } }),
+    );
     if (emailExistant) {
       throw new ConflictException('Un compte existe déjà avec cet email');
     }
@@ -161,7 +169,11 @@ export class AuthService {
   }
 
   async login(dto: LoginDto) {
-    const user = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    // SORTIE DE CLOISONNEMENT · à la connexion, on ne sait pas encore de quel
+    // dossier relève celui qui se présente. C'est cette requête qui l'apprend.
+    const user = await horsCloisonnement('connexion · le dossier n’est pas encore connu', () =>
+      this.prisma.user.findUnique({ where: { email: dto.email } }),
+    );
     if (!user) {
       throw new UnauthorizedException('Identifiants invalides');
     }

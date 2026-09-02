@@ -15,6 +15,7 @@ import { EcritureService } from '../comptabilite/ecriture.service';
 import { AuthService } from '../auth/auth.service';
 import { ClasseurExporte, ExportService } from '../exports/export.service';
 import { CreerCelluleDto, ImporterCanevasDto } from './dto/groupe.dto';
+import { horsCloisonnement } from '../../common/cloisonnement/contexte-cloisonnement';
 import {
   DERNIERE_LIGNE_DONNEES,
   MARQUEUR_CANEVAS,
@@ -142,10 +143,15 @@ export class GroupeService {
     });
     // Le mot de passe a transité par le siège · le responsable de la cellule
     // devra le remplacer à sa première connexion (voir schema.prisma, User).
-    await this.prisma.user.update({
-      where: { email: dto.emailAdmin },
-      data: { doitChangerMotDePasse: true },
-    });
+    // SORTIE DE CLOISONNEMENT · le compte visé est celui de la CELLULE qui
+    // vient d'être ouverte, pas celui du siège dont la session porte le
+    // contexte. Le rattachement au siège a été vérifié juste au-dessus.
+    await horsCloisonnement('siège · cellule ouverte à l’instant', () =>
+      this.prisma.user.update({
+        where: { email: dto.emailAdmin },
+        data: { doitChangerMotDePasse: true },
+      }),
+    );
     // Licence héritée · l'échéance de la mère devient celle de la cellule,
     // et la cascade de la console plateforme (voir PlateformeService.
     // modifierLicence) entretient ensuite l'alignement.

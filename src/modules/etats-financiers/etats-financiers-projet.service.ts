@@ -578,7 +578,7 @@ export class EtatsFinanciersProjetService {
     const compteIdsParBailleur = new Map<string, Set<string>>();
     if (lignesFonds.length > 0) {
       const rattachements = await this.prisma.compte.findMany({
-        where: { id: { in: lignesFonds.map((l) => l.compteId) }, bailleurId: { not: null } },
+        where: { id: { in: lignesFonds.map((l) => l.compteId) }, bailleurId: { not: null }, tenantId },
         select: { id: true, bailleurId: true },
       });
       for (const r of rattachements) {
@@ -703,7 +703,7 @@ export class EtatsFinanciersProjetService {
     const tresorerieBailleur = new Set<string>();
     if (lignesTresorerie.length > 0) {
       const rattachees = await this.prisma.compte.findMany({
-        where: { id: { in: lignesTresorerie.map((l) => l.compteId) }, bailleurId: { not: null } },
+        where: { id: { in: lignesTresorerie.map((l) => l.compteId) }, bailleurId: { not: null }, tenantId },
         select: { id: true },
       });
       for (const r of rattachees) tresorerieBailleur.add(r.id);

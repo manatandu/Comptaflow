@@ -151,7 +151,7 @@ export class AnalytiqueService {
         `Ce plan porte ${ventilations} ventilation(s) : il ne peut plus être supprimé. Mettez-le en sommeil.`,
       );
     }
-    await this.prisma.sectionAnalytique.deleteMany({ where: { planId } });
+    await this.prisma.sectionAnalytique.deleteMany({ where: { planId, tenantId } });
     await this.prisma.planAnalytique.delete({ where: { id: planId } });
     return { supprime: true };
   }
@@ -169,7 +169,7 @@ export class AnalytiqueService {
   async listerSections(tenantId: string, planId: string) {
     await this.trouverPlan(tenantId, planId);
     return this.prisma.sectionAnalytique.findMany({
-      where: { planId },
+      where: { planId, tenantId },
       orderBy: { code: 'asc' },
       include: { bailleur: { select: { id: true, code: true, nom: true } } },
     });
@@ -498,7 +498,7 @@ export class AnalytiqueService {
       select: { id: true, numero: true, classe: true },
     });
     const sectionsUtilisees = await this.prisma.sectionAnalytique.findMany({
-      where: { id: { in: lignes.flatMap((l) => (l.ventilations ?? []).map((v) => v.sectionId)) } },
+      where: { id: { in: lignes.flatMap((l) => (l.ventilations ?? []).map((v) => v.sectionId)) }, tenantId },
       select: { id: true, planId: true },
     });
 

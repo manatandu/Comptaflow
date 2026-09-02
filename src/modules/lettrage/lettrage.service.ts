@@ -179,9 +179,9 @@ export class LettrageService {
    * Lettrage, dont la migration a recréé les groupes mais dont un code
    * pourrait, en théorie, ne pas avoir été repris.
    */
-  private async prochaineLettre(tx: Prisma.TransactionClient, compteId: string): Promise<string> {
+  private async prochaineLettre(tx: Prisma.TransactionClient, tenantId: string, compteId: string): Promise<string> {
     const [groupes, lignes] = await Promise.all([
-      tx.lettrage.findMany({ where: { compteId }, select: { code: true } }),
+      tx.lettrage.findMany({ where: { compteId, tenantId }, select: { code: true } }),
       tx.ligneEcriture.findMany({
         where: { compteId, lettre: { not: null } },
         select: { lettre: true },
@@ -252,7 +252,7 @@ export class LettrageService {
     const solde = lignes.reduce((s, l) => s + Number(l.debit) - Number(l.credit), 0);
     const soldeNul = Math.abs(solde) <= EPSILON;
     const statut = soldeNul ? StatutLettrage.SOLDE : StatutLettrage.PARTIEL;
-    const code = await this.prochaineLettre(tx, params.compteId);
+    const code = await this.prochaineLettre(tx, params.tenantId, params.compteId);
 
     const groupe = await tx.lettrage.create({
       data: {
