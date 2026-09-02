@@ -140,6 +140,29 @@ enum JeuEtatsFinanciersSycebnl {
   SYSTEME_MINIMAL_TRESORERIE
 }
 
+// Jeu de notes annexes auquel un RattachementNote se rapporte. DISTINCT de
+// JeuEtatsFinanciersSycebnl, qui décrit le jeu d'états financiers d'un
+// dossier SYCEBNL : les deux listes ne coïncident pas et n'ont pas la même
+// raison d'être.
+//
+//  · le SMT n'y figure pas · ni le SMT SYCEBNL (5 notes, Partie 4 ch. 4) ni
+//    le SMT SYSCOHADA (notes 1 à 4, AUDCIF Titre X) ne comportent de
+//    rubrique que le plan normalisé ne détermine pas : rien à rattacher, et
+//    le moteur déclaratif ne transcrit aucun de ces deux jeux ;
+//  · SYSCOHADA_SYSTEME_NORMAL couvre les 36 notes de l'AUDCIF Titre IX
+//    ch. 6, propres au SYSCOHADA · elles ne partagent avec les notes
+//    SYCEBNL que le moteur déclaratif (CLAUDE.md §6).
+//
+// Le cloisonnement jeu/référentiel n'est PAS exprimable en SQL (il dépend de
+// Tenant.referentiel) : NoteAnnexeService.rattacher et .detacher le
+// vérifient et refusent explicitement un jeu étranger au référentiel du
+// dossier.
+enum JeuNotesAnnexes {
+  ASSOCIATIONS_ORDRES_PROFESSIONNELS
+  PROJETS_DEVELOPPEMENT
+  SYSCOHADA_SYSTEME_NORMAL
+}
+
 // Le SYSCOHADA révisé a lui aussi DEUX présentations, et non une seule :
 // l'AUDCIF art. 11 pose que « les présentations des états financiers annuels
 // et de tenue de comptes admises par le présent Acte uniforme sont le Système
@@ -1258,14 +1281,21 @@ model TiersCompte {
 // ce que toute la discipline du projet vise à empêcher. Imposé par
 // NoteAnnexeService, pas par une contrainte SQL (Prisma ne sait pas exprimer
 // une contrainte qui dépend d'une table de référence en TypeScript).
+//
+// GÉNÉRALISÉ AU SYSCOHADA le 2026-09-02 : le même besoin s'y pose mot pour
+// mot. L'AUDCIF ne donne de tableau de correspondance poste/comptes que pour
+// le bilan et le compte de résultat (Titre IX ch. 7) ; ses 36 notes annexes
+// (Titre IX ch. 6) n'énumèrent que des libellés, dont plusieurs réclament une
+// finesse que le plan SYSCOHADA n'a pas. D'où `jeu` typé JeuNotesAnnexes et
+// non plus JeuEtatsFinanciersSycebnl · voir cet enum.
 model RattachementNote {
   id       String @id @default(uuid())
   tenantId String
   tenant   Tenant @relation(fields: [tenantId], references: [id])
 
-  jeu JeuEtatsFinanciersSycebnl
+  jeu JeuNotesAnnexes
 
-  /// Code officiel de la note : « 24 », « 5A », « 29B ».
+  /// Code officiel de la note : « 24 », « 5A », « 29B », « 16B bis ».
   codeNote    String
   /// Clé stable de la rubrique dans la note (RubriqueNote.cle), jamais son libellé.
   cleRubrique String

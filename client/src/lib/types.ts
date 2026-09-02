@@ -25,6 +25,24 @@ export type JeuEtatsFinanciersSycebnl =
 export type SystemeComptableSyscohada = 'NORMAL' | 'MINIMAL_TRESORERIE';
 
 /**
+ * Jeu de notes annexes visé par un RATTACHEMENT de sous-compte (pendant de
+ * l'enum Prisma `JeuNotesAnnexes`). À ne pas confondre avec
+ * `JeuEtatsFinanciersSycebnl`, qui décrit le jeu d'états d'un dossier :
+ *
+ *  · aucun Système minimal de trésorerie ici · ni celui du SYCEBNL ni celui
+ *    du SYSCOHADA (AUDCIF Titre X) n'a de rubrique que le plan normalisé ne
+ *    détermine pas, donc rien à y rattacher ;
+ *  · le SYSCOHADA en a un, et un seul : les 36 notes du Système normal
+ *    (AUDCIF Titre IX ch. 6).
+ *
+ * Le serveur refuse un jeu étranger au référentiel du dossier.
+ */
+export type JeuNotesAnnexes =
+  | 'ASSOCIATIONS_ORDRES_PROFESSIONNELS'
+  | 'PROJETS_DEVELOPPEMENT'
+  | 'SYSCOHADA_SYSTEME_NORMAL';
+
+/**
  * Forme juridique d'un dossier SYSCOHADA · AUSCGIE art. 6 pour les cinq
  * sociétés commerciales par la forme, art. 869 pour le GIE, AUSCOOP pour la
  * coopérative, AUDCG art. 2 et 30 pour le commerçant et l'entreprenant,
