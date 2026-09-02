@@ -195,15 +195,15 @@ enum StatutLicence {
 }
 
 model Tenant {
-  id                        String                    @id @default(uuid())
+  id                        String                     @id @default(uuid())
   nom                       String
-  referentiel               Referentiel               @default(SYCEBNL)
+  referentiel               Referentiel                @default(SYCEBNL)
   // N'a de sens que si referentiel = SYCEBNL, ignoré pour SYSCOHADA. Choisi
   // à la création du dossier (assistant « Nouveau fichier comptable », écran
   // « Type d'entité ») et modifiable ensuite dans Structure > Paramètres du
   // dossier tant que le dossier ne porte aucune écriture · au-delà, changer
   // de jeu changerait rétroactivement la présentation des états déjà arrêtés.
-  jeuEtatsFinanciersSycebnl JeuEtatsFinanciersSycebnl @default(ASSOCIATIONS_ORDRES_PROFESSIONNELS)
+  jeuEtatsFinanciersSycebnl JeuEtatsFinanciersSycebnl  @default(ASSOCIATIONS_ORDRES_PROFESSIONNELS)
   // Pendant SYSCOHADA du champ ci-dessus · Système normal ou SMT (AUDCIF
   // art. 11 et 13, voir l'enum). NULLABLE, à la différence du jeu SYCEBNL :
   // `null` dit « sans objet », ce qui est l'état vrai d'un dossier SYCEBNL,
@@ -211,7 +211,7 @@ model Tenant {
   // d'entreprise qui ne la concerne pas. Renseigné à la création pour un
   // dossier SYSCOHADA, jamais pour un dossier SYCEBNL.
   systemeComptableSyscohada SystemeComptableSyscohada?
-  createdAt                 DateTime                  @default(now())
+  createdAt                 DateTime                   @default(now())
 
   // Coordonnées · collectées par l'assistant « Nouveau fichier comptable »,
   // toutes optionnelles pour ne pas bloquer une inscription rapide.
@@ -254,22 +254,22 @@ model Tenant {
   // de droit étranger (art. 30). Avant lui, l'entité fonctionne six mois sous
   // autorisation provisoire (art. 5) : le champ reste donc facultatif, un
   // dossier peut légitimement s'ouvrir sans. § 2.2.
-  actePersonnaliteJuridique String?
-  dateActePersonnalite      DateTime?
+  actePersonnaliteJuridique    String?
+  dateActePersonnalite         DateTime?
   // Enregistrement auprès du ministère du secteur (art. 36 pour une ONG de
   // droit congolais, art. 31 pour une étrangère) et certificat d'enregistrement
   // du Ministère du Plan, exigé « en cours de validité » pour toute demande de
   // facilités (note circulaire 003/2013). § 2.3.
-  numeroEnregistrementSecteur String?
+  numeroEnregistrementSecteur  String?
   certificatEnregistrementPlan String?
   // Attestation d'exemption d'impôt sur les sociétés délivrée par le Directeur
   // Général des Impôts · depuis l'arrêté n° 007/2025 (art. 2), l'exemption
   // « n'est pas automatique » et passe par elle. § 2.4.
-  attestationExemptionIs String?
+  attestationExemptionIs       String?
 
   // Forme juridique au sens de la loi n° 004/2001 · commande les obligations
   // annuelles du planning de clôture. Défaut ASSOCIATION, cas le plus fréquent.
-  formeJuridique FormeJuridiqueEbnl @default(ASSOCIATION)
+  formeJuridique          FormeJuridiqueEbnl       @default(ASSOCIATION)
   // Pendant SYSCOHADA du champ ci-dessus. NULL a deux sens, distingués par le
   // référentiel du dossier : sans objet pour un dossier SYCEBNL, pas encore
   // renseignée pour un dossier SYSCOHADA. Aucune valeur par défaut n'est
@@ -279,7 +279,7 @@ model Tenant {
   // Association ou ONG de droit étranger (art. 29-34 et art. 37 de la loi
   // 004/2001) · une ONG étrangère doit en outre conclure un accord-cadre avec
   // le Ministère du Plan, ce qui ajoute un jalon annuel.
-  droitEtranger  Boolean            @default(false)
+  droitEtranger           Boolean                  @default(false)
 
   // Longueur du numéro de compte · paramètre "longueur du plan comptable"
   // chez Sage 100 (dossier > Structure > Paramètres), 3 à 13 caractères,
@@ -304,11 +304,11 @@ model Tenant {
   // et seedait les quatre taux pour tous : une ASBL non assujettie qui facture
   // de la TVA la collecte sans droit, et la déduit sans droit. Le défaut est
   // donc `false` · l'assujettissement se déclare, il ne se présume pas.
-  assujettiTva   Boolean   @default(false)
+  assujettiTva  Boolean   @default(false)
   // Date d'effet de l'option ou du franchissement du seuil · sert à dater le
   // début des obligations déclaratives, et à rappeler que l'option prise en
   // deçà du seuil engage deux ans.
-  dateOptionTva  DateTime?
+  dateOptionTva DateTime?
 
   // RÉGIME D'EXIGIBILITÉ DE LA TVA · voir l'enum RegimeExigibiliteTva.
   // LIVRAISONS par défaut : c'est le régime des ventes de biens, le plus
@@ -340,22 +340,22 @@ model Tenant {
   retraitementsFiscaux RetraitementFiscal[]
   dossiersFiscaux      DossierFiscalExercice[]
 
-  dossierMereId String?
-  dossierMere   Tenant?  @relation("GroupeEtablissements", fields: [dossierMereId], references: [id])
-  cellules      Tenant[] @relation("GroupeEtablissements")
+  dossierMereId        String?
+  dossierMere          Tenant?  @relation("GroupeEtablissements", fields: [dossierMereId], references: [id])
+  cellules             Tenant[] @relation("GroupeEtablissements")
   // Plafond de cellules que ce dossier mère peut créer LUI-MÊME (paramètre
   // commercial de la licence de groupe, fixé par la console plateforme).
   // null = le siège ne crée pas de cellules, tout passe par la console.
-  plafondCellules Int?
+  plafondCellules      Int?
   // DOSSIER DE COMBINAISON · le dossier TECHNIQUE dans lequel le serveur
   // reverse la balance agrégée du groupe pour produire la liasse en un clic
   // (voir GroupeService.liasseGroupe). Créé et entièrement régénéré par le
   // serveur à chaque génération · aucun utilisateur n'y vit, il ne porte pas
   // de dossierMereId (sinon l'agrégat le compterait et doublerait tout), et
   // il est exclu des listes de la console plateforme via la relation inverse.
-  dossierCombinaisonId String? @unique
-  dossierCombinaison   Tenant? @relation("Combinaison", fields: [dossierCombinaisonId], references: [id])
-  combinaisonPour      Tenant? @relation("Combinaison")
+  dossierCombinaisonId String?  @unique
+  dossierCombinaison   Tenant?  @relation("Combinaison", fields: [dossierCombinaisonId], references: [id])
+  combinaisonPour      Tenant?  @relation("Combinaison")
 
   licence                  Licence?
   comptes                  Compte[]
@@ -385,7 +385,8 @@ model Tenant {
   relances                 Relance[]
   lettrages                Lettrage[]
 
-  exonerations              Exoneration[]
+  exonerations         Exoneration[]
+  affectationsResultat AffectationResultat[]
 
   @@index([dossierMereId])
   @@map("tenants")
@@ -415,15 +416,15 @@ enum RoleUtilisateur {
 }
 
 model User {
-  id         String          @id @default(uuid())
-  tenantId   String
-  tenant     Tenant          @relation(fields: [tenantId], references: [id])
-  email      String          @unique
-  motDePasse String
-  role       RoleUtilisateur @default(COMPTABLE)
+  id                     String          @id @default(uuid())
+  tenantId               String
+  tenant                 Tenant          @relation(fields: [tenantId], references: [id])
+  email                  String          @unique
+  motDePasse             String
+  role                   RoleUtilisateur @default(COMPTABLE)
   // Désactivé plutôt que supprimé : un utilisateur peut être créateur
   // d'écritures (createdBy) · le supprimer casserait la piste d'audit.
-  estActif   Boolean         @default(true)
+  estActif               Boolean         @default(true)
   // MOT DE PASSE À CHANGER À LA PROCHAINE CONNEXION · posé sur tout compte
   // dont le mot de passe a TRANSITÉ par un tiers : admin créé par la console
   // plateforme ou par le siège d'un groupe (mot de passe généré, remis en
@@ -433,15 +434,15 @@ model User {
   // changement avant l'espace de travail, et /auth/changer-mot-de-passe
   // efface le drapeau. Jamais posé à l'auto-inscription (mot de passe choisi
   // par l'intéressé).
-  doitChangerMotDePasse Boolean @default(false)
+  doitChangerMotDePasse  Boolean         @default(false)
   // OPÉRATEUR DE PLATEFORME · l'exploitant du logiciel (le cabinet), au-dessus
   // des tenants : console /plateforme (cabinets clients, licences). Un BOOLÉEN
   // et non une valeur de RoleUtilisateur : aucun DTO n'expose ce champ, il est
   // donc inatteignable par l'API · seul le bootstrap OPERATEURS_PLATEFORME
   // (variable d'environnement, voir PlateformeService.onModuleInit) l'accorde,
   // et la révocation est manuelle (SQL). Jamais renvoyé par /utilisateurs.
-  estOperateurPlateforme Boolean @default(false)
-  createdAt  DateTime        @default(now())
+  estOperateurPlateforme Boolean         @default(false)
+  createdAt              DateTime        @default(now())
 
   @@map("users")
 }
@@ -563,6 +564,7 @@ model Compte {
   // Rattachements aux rubriques de notes annexes (voir RattachementNote).
   rattachementsNotes            RattachementNote[]
   lettrages                     Lettrage[]
+  lignesAffectation             LigneAffectation[]
 
   @@unique([tenantId, numero])
   @@map("comptes")
@@ -663,12 +665,12 @@ model RetraitementFiscal {
 
   // Code du catalogue, ou `AUTRE` pour une ligne libre. Conservé même si le
   // catalogue évolue : un retraitement passé ne se réécrit pas.
-  code    String
-  sens    SensRetraitementFiscal
-  libelle String
+  code        String
+  sens        SensRetraitementFiscal
+  libelle     String
   // Toujours POSITIF · c'est `sens` qui donne la direction. Un montant signé
   // et un sens seraient deux sources de vérité pour la même information.
-  montant Decimal @db.Decimal(18, 2)
+  montant     Decimal                @db.Decimal(18, 2)
   // Ce que le comptable a retenu comme justification · c'est ce texte qui
   // sera opposé au vérificateur, pas le libellé du catalogue.
   commentaire String?
@@ -727,6 +729,7 @@ model Exercice {
   budgetsSection         BudgetSection[]
   regularisations        Regularisation[]
   reevaluations          Reevaluation[]
+  affectationResultat    AffectationResultat?
 
   // Documents obligatoires de l'exercice (art. 14 et 16-3) · versionnés,
   // d'où des relations 1-N et non 1-1 : voir leurs modèles.
@@ -858,7 +861,8 @@ model Ecriture {
   // Registre des donateurs (art. 17) · une écriture d'encaissement peut porter
   // PLUSIEURS libéralités (une remise de chèques, une collecte de quête), d'où
   // une relation 1-N et non 1-1.
-  donations Donation[]
+  donations           Donation[]
+  affectationResultat AffectationResultat? @relation("AffectationEcriture")
 
   // Chemin de filtrage de TOUS les états (journal, grand livre, balance,
   // états financiers) : tenant + exercice, trié par date. Sans index, chaque
@@ -1846,11 +1850,11 @@ model TauxTva {
 
   lignesEcriture LigneEcriture[]
 
-  @@unique([tenantId, code])
-  @@map("taux_tva")
-
   // Comptes de charge ou de produit qui proposent ce taux en saisie.
   comptesAvecCeTauxParDefaut Compte[] @relation("CompteTauxTvaDefaut")
+
+  @@unique([tenantId, code])
+  @@map("taux_tva")
 }
 
 // ---------------------------------------------------------------------------
@@ -2357,4 +2361,70 @@ model Exoneration {
   @@index([tenantId, statut])
   @@index([tenantId, dateFinValidite])
   @@map("exonerations")
+}
+
+/// AFFECTATION DU RÉSULTAT · ce que devient le résultat une fois l'exercice clos.
+///
+/// « L'affectation du résultat d'un exercice est décidée par les organes
+/// compétents au cours de l'exercice suivant ; le compte 13 est donc SOLDÉ lors
+/// de la comptabilisation de cette affectation » (AUDCIF, Titre VII, COMPTE 13 ·
+/// le SYCEBNL dit la même chose de son compte 13). Sans ce module, le résultat
+/// restait sur 131 ou 139 et s'y empilait d'exercice en exercice : après deux
+/// clôtures, la ventilation des fonds propres du bilan était fausse, sans
+/// qu'aucun total ne bouge · le passif restait juste, sa décomposition non.
+///
+/// L'affectation appartient à l'exercice DONT le résultat est affecté (celui
+/// qui est clos), mais son écriture est passée dans l'exercice SUIVANT, à la
+/// date de la décision · c'est ce que dit le texte, et c'est aussi la seule
+/// place possible, un exercice clôturé n'acceptant plus d'écriture.
+model AffectationResultat {
+  id         String   @id @default(uuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  /// L'exercice CLOS dont le résultat est affecté · un seul par exercice.
+  exerciceId String   @unique
+  exercice   Exercice @relation(fields: [exerciceId], references: [id])
+
+  /// Date de la décision · assemblée générale, conseil, organe statutaire.
+  dateDecision DateTime
+  /// L'organe qui a décidé, tel qu'il se nomme dans les statuts.
+  organe       String
+  /// Référence du procès-verbal · la pièce justificative de l'écriture.
+  reference    String?
+
+  /// Résultat affecté, en valeur absolue, et son sens.
+  montant     Decimal @db.Decimal(18, 2)
+  estBenefice Boolean
+
+  /// L'écriture qui solde le compte 13 · passée dans l'exercice suivant.
+  ecritureId String?   @unique
+  ecriture   Ecriture? @relation("AffectationEcriture", fields: [ecritureId], references: [id])
+
+  lignes LigneAffectation[]
+
+  createdAt DateTime @default(now())
+  createdBy String
+
+  @@index([tenantId])
+  @@map("affectations_resultat")
+}
+
+/// Une destination du résultat · un compte de fonds propres, un montant.
+///
+/// Aucune nature n'est codée en dur : c'est le COMPTE qui dit la destination,
+/// et les deux plans n'offrent pas les mêmes. Le contrôle de la réserve légale
+/// (AUSCGIE art. 142, 346 et 546 · un dixième au moins du bénéfice diminué des
+/// pertes antérieures, jusqu'à ce que la réserve atteigne le cinquième du
+/// capital) se fait donc sur le NUMÉRO du compte, pas sur une étiquette.
+model LigneAffectation {
+  id            String              @id @default(uuid())
+  affectationId String
+  affectation   AffectationResultat @relation(fields: [affectationId], references: [id], onDelete: Cascade)
+  compteId      String
+  compte        Compte              @relation(fields: [compteId], references: [id])
+  montant       Decimal             @db.Decimal(18, 2)
+  libelle       String?
+
+  @@index([affectationId])
+  @@map("lignes_affectation")
 }
