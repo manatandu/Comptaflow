@@ -322,13 +322,21 @@ const COLONNES_NOTE_28 = [
 /** Colonne unique des notes purement déclaratives (35). */
 const COLONNE_INFORMATIONS = [{ type: 'LIBRE' as const, libelle: 'Informations' }];
 
-/** NOTE 31 · cinq exercices, aucun n'étant lu en balance (anomalie n° 8). */
+/**
+ * NOTE 31 · cinq exercices, aucun n'étant lu en balance (anomalie n° 8).
+ * Le renvoi (¹) est imprimé sur l'en-tête de la SEULE colonne « N-4 »
+ * (ch. 6 : « `N` · `N-1` · `N-2` · `N-3` · `N-4` (¹) ») ; il est donc porté
+ * là, tel quel. Son texte (« y compris l'exercice dont les états financiers
+ * sont soumis à l'approbation de l'Assemblée ») qualifie pourtant les CINQ
+ * colonnes, pas la dernière : marque transcrite à sa place imprimée,
+ * portée non déduite [texte officiel].
+ */
 const COLONNES_CINQ_EXERCICES = [
   { type: 'LIBRE' as const, libelle: 'N' },
   { type: 'LIBRE' as const, libelle: 'N-1' },
   { type: 'LIBRE' as const, libelle: 'N-2' },
   { type: 'LIBRE' as const, libelle: 'N-3' },
-  { type: 'LIBRE' as const, libelle: 'N-4' },
+  { type: 'LIBRE' as const, libelle: 'N-4 (¹)' },
 ];
 
 /** Une colonne « Quantité / Valeur » des notes 32 et 33, préfixée de son groupe. */
@@ -525,6 +533,14 @@ export interface TermeFicheSynthese {
   solde?: 'DEBITEUR' | 'CREDITEUR';
   /** Pourquoi ce terme, avec sa source. */
   motif?: string;
+  /**
+   * Terme ABSENT de la formule imprimée (anomalie n° 10). Le marqueur est
+   * porté par le terme lui-même et pas seulement par la ligne qu'il vise :
+   * un service qui sommerait `termes` sans le lire obtiendrait une CAFG
+   * différente de `formuleOfficielle` SANS que rien ne le dise. Retenir ou
+   * écarter le terme est un choix, il doit rester un choix visible.
+   */
+  horsMaquette?: boolean;
 }
 
 export type SectionFicheSynthese =
@@ -568,7 +584,9 @@ const flux = (signe: 1 | -1, ref: string, motif?: string): TermeFicheSynthese =>
 const compte = (signe: 1 | -1, ref: string, solde: 'DEBITEUR' | 'CREDITEUR', motif?: string): TermeFicheSynthese => ({
   signe, source: 'COMPTE', ref, solde, motif,
 });
-const ligne = (signe: 1 | -1, ref: string): TermeFicheSynthese => ({ signe, source: 'LIGNE', ref });
+const ligne = (signe: 1 | -1, ref: string, horsMaquette?: true, motif?: string): TermeFicheSynthese => ({
+  signe, source: 'LIGNE', ref, horsMaquette, motif,
+});
 
 /** Renvoi (b) du texte, reproduit mot pour mot ; porté par chaque ligne qui l'appelle. */
 export const RENVOI_B_NOTE_34 =
@@ -576,6 +594,15 @@ export const RENVOI_B_NOTE_34 =
   'leur valeur initiale.';
 
 export const RENVOI_A_NOTE_34 = '(a) Résultat d’exploitation après impôt théorique sur le bénéfice.';
+
+/**
+ * Marque portée par toute rubrique de la note 34 que la maquette officielle
+ * n'imprime PAS (anomalie n° 10). Elle vaut pour le lecteur du tableau, là
+ * où `horsMaquette` ne vaut que pour le service.
+ */
+export const MARQUE_HORS_MAQUETTE_NOTE_34 =
+  '[hors maquette] Ligne absente du modèle officiel de la note 34, ajoutée pour que la CAFG puisse égaler le ' +
+  'poste FA du tableau des flux ; le service la retient ou l’écarte, en le disant.';
 
 export const RENVOI_DETTES_FINANCIERES_NOTE_34 =
   'Dettes financières* = emprunts et dettes financières diverses + dettes de location acquisition (DA + DB).';
@@ -687,7 +714,17 @@ export const FICHE_SYNTHESE_SYSCOHADA: LigneFicheSynthese[] = [
       ligne(1, 'caf-transferts-charges-hao'),
       ligne(1, 'caf-frais-financiers'),
       ligne(1, 'caf-pertes-change'),
-      ligne(1, 'caf-autres-charges-hao'),
+      // HORS MAQUETTE : ce terme n'est pas dans `formuleOfficielle` ci-dessus
+      // (anomalie n° 10). Sans le marqueur, une somme naïve des `termes`
+      // donnerait une CAFG différente de la formule imprimée sans le dire.
+      ligne(
+        1,
+        'caf-autres-charges-hao',
+        true,
+        'Absent de la formule énumérée du ch. 5 § 1.2.1.1, exigé par sa définition (« charges décaissables ' +
+          'restantes ») et retenu par FA du TFT : le retenir aligne la CAFG de la note sur celle du tableau des ' +
+          'flux, l’écarter la ramène à la formule imprimée. Choix du service, à dire dans les deux cas.',
+      ),
       ligne(1, 'caf-participation'),
       ligne(1, 'caf-impots'),
     ],
@@ -717,7 +754,18 @@ export const FICHE_SYNTHESE_SYSCOHADA: LigneFicheSynthese[] = [
     // texte comptable ; le service l'applique depuis la fiscalité du dossier.
     ratio: {
       numerateur: [cr(1, 'XE', 'Avant l’impôt théorique du renvoi (a).')],
-      denominateur: [bilan(1, 'CP'), bilan(1, 'DA'), bilan(1, 'DB')],
+      denominateur: [
+        bilan(1, 'CP'),
+        bilan(
+          1,
+          'DA',
+          '[texte officiel] La formule écrit ici « dettes financières » SANS astérisque, seule occurrence de la ' +
+            'fiche ; la définition étoilée (DA + DB) lui est assimilée par cohérence avec les lignes de structure ' +
+            'financière et d’endettement. L’autre lecture serait DD, qui inclut les provisions DC. Assimilation ' +
+            'dite, non faite en silence.',
+        ),
+        bilan(1, 'DB', 'Même assimilation que DA : voir le motif porté par ce terme.'),
+      ],
     },
   },
   {
@@ -802,6 +850,17 @@ export const FICHE_SYNTHESE_SYSCOHADA: LigneFicheSynthese[] = [
     libelle: 'CONTRÔLE : TRÉSORERIE NETTE = (TRÉSORERIE-ACTIF) – (TRÉSORERIE-PASSIF)',
     formuleOfficielle: 'BT – DT',
     controleDe: 'tresorerie-nette',
+    // Anomalie n° 10 : ce contrôle ne peut pas boucler exactement, et l'écart
+    // est CALCULABLE, donc à annoncer plutôt qu'à découvrir. Du bilan
+    // AZ + BK + BT + BU = DF + DP + DT + DV avec DF = CP + DA + DB + DC, et de
+    // (1) = CP + DA + DB – AZ, (4) = BK – DP, il vient
+    // (5) = (BT – DT) + (BU – DV) – DC.
+    renvoi:
+      '[texte officiel] Ce contrôle ne boucle que si les provisions pour risques et charges (DC) sont nulles. ' +
+      '« Dettes financières* » valant DA + DB, les ressources stables de la note excluent DC alors que le bilan ' +
+      'l’inclut dans DF : la trésorerie nette (5) vaut (BT – DT) + (BU – DV) – DC. Le renvoi (b) élimine les ' +
+      'écarts de conversion (BU, DV) ; l’écart résiduel est exactement DC. Écart STRUCTUREL du texte, ni un défaut ' +
+      'du calcul ni une anomalie du dossier.',
     termes: [bilan(1, 'BT'), bilan(-1, 'DT')],
   },
 
@@ -864,14 +923,42 @@ export const NOTES_SYSCOHADA_3: SpecificationNote[] = [
     rubriques: [
       // Premier bloc · CM = « 15 », DC = « 19 » (ch. 7 passif) ; 29 = colonne
       // « amortissements et dépréciations » de AE à AS (ch. 7 actif).
-      { libelle: 'Provisions réglementées', comptes: ['15'] },
-      { libelle: 'Provisions financières pour risques et charges', comptes: ['19'] },
+      {
+        libelle: 'Provisions réglementées',
+        comptes: ['15'],
+        // Anomalie n° 13 : le libellé de la ligne est plus étroit que le compte.
+        renvoi:
+          '[texte officiel] Le ch. 7 pose CM = « 15 » en bloc et le compte 15 s’intitule « Provisions réglementées ' +
+          'ET FONDS ASSIMILÉS » : le 153 « Fonds réglementés » (1531, 1532) n’est pas une provision, mais il est au ' +
+          'bilan et n’a pas d’autre note. Colonnes HAO conformes au Titre VII COMPTE 15 (« exclusivement par ' +
+          'Dotations H.A.O. », repris « exclusivement par Reprises H.A.O. »).',
+      },
+      {
+        libelle: 'Provisions financières pour risques et charges',
+        comptes: ['19'],
+        // Anomalie n° 14 : un compte d'actif logé dans le 19 par le ch. 7.
+        renvoi:
+          '[texte officiel] Le ch. 7 pose DC = « 19 » en bloc, or le 1962 « Actif du régime de retraite » est ' +
+          'DÉBITEUR (Titre VII COMPTE 19 : « la prime versée est enregistrée au débit du 1962 par le crédit d’un ' +
+          'compte de trésorerie »). Dans ce tableau au crédit ses primes versées ressortent en diminution, avec une ' +
+          'contrepartie de classe 5 : elles tombent en part non ventilée par nature, ce qui est la lacune du texte, ' +
+          'pas celle du dossier.',
+      },
       { libelle: 'Dépréciation des immobilisations', comptes: ['29'] },
       { libelle: 'TOTAL : DOTATIONS', totalDeRubriques: [0, 1, 2] }, // anomalie n° 2
       // Second bloc · numérotation corrompue, anomalie n° 1.
       { libelle: 'Dépréciations des stocks', comptes: ['39'] }, // BB
       // 498 (BA) ; 4998 sans ligne, DH → ici (anomalie n° 3).
-      { libelle: 'Dépréciations actif circulant HAO', comptes: ['498', '4998'] },
+      {
+        libelle: 'Dépréciations actif circulant HAO',
+        comptes: ['498', '4998'],
+        renvoi:
+          '[texte officiel] Le 4998 « Provisions pour risques à court terme sur opérations HAO » est une PROVISION ' +
+          'DE PASSIF que le ch. 7 sort du 499 pour le porter en DH ; la note n’a pas d’autre ligne HAO dans ce bloc, ' +
+          'il est donc rattaché ici, sur une ligne de dépréciation d’actif. Colonnes HAO conformes (dotation 839, ' +
+          'reprise 849 · Titre VII COMPTE 84). Le moteur Python du skill l’exclut de la note (« 499!4998 ») : le ' +
+          'laisser dehors ferait diverger la note du bilan.',
+      },
       { libelle: 'Dépréciations fournisseurs', comptes: ['490'] }, // BH · une seule fois (anomalie n° 1)
       { libelle: 'Dépréciations clients', comptes: ['491'] }, // BI
       { libelle: 'Dépréciations autres créances', comptes: ['492', '493', '494', '495', '496', '497'] }, // BJ
@@ -881,7 +968,20 @@ export const NOTES_SYSCOHADA_3: SpecificationNote[] = [
       // DN = « 499 (sauf 4998), 599 » (ch. 7) : 4991 exploitation ; 4997 et
       // 599 à caractère financier (anomalie n° 3).
       { libelle: 'Dépréciations et provisions pour risques à court termes exploitation', comptes: ['4991'] },
-      { libelle: 'Dépréciations et provisions pour risques à court termes à caractère financier', comptes: ['4997', '599'] },
+      {
+        libelle: 'Dépréciations et provisions pour risques à court termes à caractère financier',
+        comptes: ['4997', '599'],
+        // Anomalie n° 3 : le texte officiel se contredit sur la nature du 4997.
+        renvoi:
+          '[texte officiel] Le 4997 est rangé au financier d’après le Titre VIII ch. 22 § 2.3, qui écrit ' +
+          '« risques à court terme : débit 6791 Charges pour provisions sur risques financiers · crédit 4997 ». Le ' +
+          'Titre VII COMPTE 49, Fonctionnement, dit l’inverse pour le compte 49 entier : ses seules contreparties y ' +
+          'sont 659 et 839, et « les dépréciations et les provisions pour risques à court terme correspondent à des ' +
+          'charges d’exploitation ou H.A.O. selon leur nature ». Contradiction signalée, non tranchée en silence. ' +
+          'Deux suites : la ventilation B et C suit la CONTREPARTIE RÉELLE de l’écriture, donc un dossier qui ' +
+          'crédite le 4997 par le débit du 659 verra sa dotation en colonne « d’exploitation » sur cette ligne ; et ' +
+          'le moteur Python du skill range le 4997 avec le 4991 en exploitation, ne laissant ici que le 599.',
+      },
       {
         libelle: 'TOTAL : CHARGES POUR DÉPRÉCIATIONS ET PROVISIONS À COURT TERME',
         totalDeRubriques: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
@@ -980,7 +1080,10 @@ export const NOTES_SYSCOHADA_3: SpecificationNote[] = [
         presenterEnNegatif: true,
         renvoi:
           '[texte officiel] produit (compte 88, poste TO) rangé par la note parmi les charges HAO ; présenté en ' +
-          'négatif dans ce bloc.',
+          'négatif dans ce bloc, pour que le sous-total reste le solde réel du bloc et non une charge gonflée d’un ' +
+          'produit. Divergence assumée avec le moteur Python du skill, qui DÉPLACE le 88 dans le bloc des produits ' +
+          '(sous-total « B31 = SUM(B22:B30) ») : le TOTAL est le même dans les deux lectures (TO – RP – RQ), seuls ' +
+          'les deux sous-totaux diffèrent, et la ligne reste ici à la place que le texte lui donne.',
       },
       { libelle: 'SOUS TOTAL : AUTRES CHARGES HAO', totalDeRubriques: [0, 1, 2, 3, 4, 5, 6, 7] },
       // Autres produits HAO · Titre VII COMPTE 84 ; 843, 844, 847 sans
@@ -1019,24 +1122,34 @@ export const NOTES_SYSCOHADA_3: SpecificationNote[] = [
     titre: 'RÉPARTITION DU RÉSULTAT ET AUTRES ÉLÉMENTS CARACTÉRISTIQUES DES CINQ DERNIERS EXERCICES',
     horsBalance: true,
     colonnes: COLONNES_CINQ_EXERCICES,
+    // Chaque renvoi appelé par une rubrique porte son TEXTE COMPLET et non sa
+    // seule marque : l'export met `renvoi` en commentaire de cellule, où un
+    // « (²) » isolé n'apprendrait rien au lecteur. Le bas de tableau
+    // (`renvoiOfficiel`) les reprend tous, dans l'ordre du texte.
     rubriques: [
-      saisie("STRUCTURE DU CAPITAL À LA CLÔTURE DE L'EXERCICE (²)", '(²)'),
+      saisie(
+        "STRUCTURE DU CAPITAL À LA CLÔTURE DE L'EXERCICE (²)",
+        '(²) Indication, en cas de libération partielle du capital, du montant du capital non appelé.',
+      ),
       saisie('Capital social'),
       saisie('Actions ordinaires'),
       saisie('Actions à dividendes prioritaires (A.D.P) sans droit de vote'),
       saisie("Actions nouvelles à émettre : par conversion d'obligations"),
       saisie('Actions nouvelles à émettre : par exercice de droits de souscription'),
-      saisie("OPÉRATIONS ET RÉSULTATS DE L'EXERCICE (³)", '(³)'),
+      saisie(
+        "OPÉRATIONS ET RÉSULTATS DE L'EXERCICE (³)",
+        '(³) Les éléments de cette rubrique sont ceux figurant au compte de résultat.',
+      ),
       saisie("Chiffre d'affaires hors taxes"),
       saisie('Résultat des activités ordinaires (R.A.O) hors dotations et reprises (exploitation et financières)'),
       saisie('Participation des travailleurs aux bénéfices'),
       saisie('Impôt sur le résultat'),
-      saisie('Résultat net (⁴)', '(⁴)'),
+      saisie('Résultat net (⁴)', '(⁴) Le résultat, lorsqu’il est négatif, doit être mis entre parenthèses.'),
       saisie('RÉSULTAT ET DIVIDENDE DISTRIBUÉS'),
-      saisie('Résultat distribué (⁵)', '(⁵)'),
+      saisie('Résultat distribué (⁵)', '(⁵) L’exercice N correspond au dividende proposé du dernier exercice.'),
       saisie('Dividende attribué à chaque action'),
       saisie('PERSONNEL ET POLITIQUE SALARIALE'),
-      saisie("Effectif moyen des travailleurs au cours de l'exercice (⁶)", '(⁶)'),
+      saisie("Effectif moyen des travailleurs au cours de l'exercice (⁶)", '(⁶) Personnel propre.'),
       saisie('Effectif moyen de personnel extérieur'),
       saisie("Masse salariale distribuée au cours de l'exercice (⁷)", '(⁷) Total des comptes 661, 662, 663.'),
       saisie(
@@ -1108,11 +1221,15 @@ export const NOTES_SYSCOHADA_3: SpecificationNote[] = [
     // inventer ici.
     horsBalance: true,
     colonnes: COLONNES_N_N1_POURCENT,
+    // Le marqueur `horsMaquette` ne survivrait pas à ce map : il est reversé
+    // dans le `renvoi`, que l'export rend en commentaire de cellule. Sans
+    // quoi la ligne ajoutée à la CAFG s'afficherait comme les autres, sans
+    // rien qui dise qu'elle n'est pas dans la maquette officielle.
     rubriques: FICHE_SYNTHESE_SYSCOHADA.map((l) => ({
       cle: l.cle,
       libelle: l.libelle,
       saisie: true as const,
-      renvoi: l.renvoi,
+      renvoi: l.horsMaquette ? `${MARQUE_HORS_MAQUETTE_NOTE_34}${l.renvoi ? ` ${l.renvoi}` : ''}` : l.renvoi,
     })),
     renvoiOfficiel:
       'EN MILLIERS DE FRANCS. (a) Résultat d’exploitation après impôt théorique sur le bénéfice. (b) Les écarts de ' +

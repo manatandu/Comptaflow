@@ -17,6 +17,7 @@ import {
   CODES_REGIME_FISCAL_SYSCOHADA,
   FICHE_SYNTHESE_SYSCOHADA,
   GROUPES_ACTIVITES_SYSCOHADA,
+  MARQUE_HORS_MAQUETTE_NOTE_34,
   NOTES_SYSCOHADA_3,
   SEUILS_NOTE_35,
 } from './correspondance-notes-syscohada-3';
@@ -242,6 +243,34 @@ describe('correspondance des notes annexes SYSCOHADA · tranche 3 (AUDCIF Titre 
       expect(ligne('Dépréciations et provisions pour risques à court termes exploitation')).toEqual(['4991']);
       expect(ligne('Dépréciations actif circulant HAO')).toEqual(['498', '4998']);
     });
+
+    it('le 4997 est sourcé par le Titre VIII ch. 22, et la contradiction du Titre VII COMPTE 49 est dite sur la ligne', () => {
+      // Le seul intitulé de la subdivision (« 4997 sur opérations financières »)
+      // ne suffit pas : le FONCTIONNEMENT du compte 49 ne connaît que 659 et
+      // 839. C'est le ch. 22 § 2.3 (débit 6791 · crédit 4997) qui tranche, et
+      // la contradiction doit se lire sur la rubrique, pas seulement en tête.
+      const r = n28.rubriques.find((x) => x.libelle.endsWith('à caractère financier'));
+      expect(r?.renvoi).toContain('[texte officiel]');
+      expect(r?.renvoi).toContain('Titre VIII ch. 22');
+      expect(r?.renvoi).toContain('6791');
+      expect(r?.renvoi).toContain('659');
+      expect(r?.renvoi).toContain('839');
+      // La divergence avec le moteur Python (4997 rangé en exploitation) est dite.
+      expect(r?.renvoi).toContain('4991');
+    });
+
+    it('anomalies n° 13 et 14 : les libellés plus étroits que leurs comptes (15 et 19) sont signalés sur place', () => {
+      const reglementees = n28.rubriques.find((x) => x.libelle === 'Provisions réglementées');
+      expect(reglementees?.renvoi).toContain('[texte officiel]');
+      expect(reglementees?.renvoi).toContain('153');
+      const provisions19 = n28.rubriques.find((x) => x.libelle === 'Provisions financières pour risques et charges');
+      expect(provisions19?.renvoi).toContain('1962');
+      expect(provisions19?.renvoi).toContain('DÉBITEUR');
+      // Le 4998, provision de passif portée sur une ligne de dépréciation d'actif.
+      const hao = n28.rubriques.find((x) => x.libelle === 'Dépréciations actif circulant HAO');
+      expect(hao?.renvoi).toContain('4998');
+      expect(hao?.renvoi).toContain('DH');
+    });
   });
 
   describe('NOTE 29 · charges et revenus financiers', () => {
@@ -296,6 +325,9 @@ describe('correspondance des notes annexes SYSCOHADA · tranche 3 (AUDCIF Titre 
       const sub = n30.rubriques.find((r) => r.libelle === "Subventions d'équilibre");
       expect(sub).toEqual(expect.objectContaining({ comptes: ['88'], presenterEnNegatif: true }));
       expect(sub?.renvoi).toContain('[texte officiel]');
+      // La divergence avec le moteur Python (88 déplacé chez les produits) est
+      // dite sur la ligne : l'en-tête promet que toute divergence l'est.
+      expect(sub?.renvoi).toContain('bloc des produits');
       expect(n30.rubriques.find((r) => r.libelle === 'Participation des travailleurs')).toEqual({ libelle: 'Participation des travailleurs', comptes: ['87'] });
       expect(n30.renvoiOfficiel).toContain('compte 88');
       expect(n30.renvoiOfficiel).toContain('compte 87');
@@ -313,16 +345,37 @@ describe('correspondance des notes annexes SYSCOHADA · tranche 3 (AUDCIF Titre 
   });
 
   describe('NOTE 31 · cinq derniers exercices (anomalie n° 8)', () => {
-    it('cinq colonnes libres N à N-4, tout en saisie, renvois (⁷) à (⁹) reproduits avec leurs comptes', () => {
-      const n31 = noteUnique('31');
+    const n31 = noteUnique('31');
+    const renvoi = (fragment: string) => n31.rubriques.find((r) => r.libelle.includes(fragment))?.renvoi;
+
+    it('cinq colonnes libres N à N-4, la marque (¹) portée où le texte l’imprime · sur N-4', () => {
+      // Ch. 6 : « `N` · `N-1` · `N-2` · `N-3` · `N-4` (¹) ». La marque est sur
+      // la dernière colonne ; la porter ailleurs, ou nulle part, serait une
+      // correction silencieuse du texte.
       expect(n31.colonnes.map((c) => [c.type, c.libelle])).toEqual([
-        ['LIBRE', 'N'], ['LIBRE', 'N-1'], ['LIBRE', 'N-2'], ['LIBRE', 'N-3'], ['LIBRE', 'N-4'],
+        ['LIBRE', 'N'], ['LIBRE', 'N-1'], ['LIBRE', 'N-2'], ['LIBRE', 'N-3'], ['LIBRE', 'N-4 (¹)'],
       ]);
-      const renvoi = (fragment: string) => n31.rubriques.find((r) => r.libelle.includes(fragment))?.renvoi;
+      expect(n31.renvoiOfficiel).toContain('(¹)');
+    });
+
+    it('chaque renvoi appelé par une rubrique porte son TEXTE, jamais sa seule marque', () => {
+      // L'export rend `renvoi` en commentaire de cellule : un « (²) » isolé
+      // n'y apprendrait rien. Présentation uniforme de (²) à (⁹).
+      expect(renvoi('STRUCTURE DU CAPITAL')).toBe(
+        '(²) Indication, en cas de libération partielle du capital, du montant du capital non appelé.',
+      );
+      expect(renvoi('OPÉRATIONS ET RÉSULTATS')).toBe(
+        '(³) Les éléments de cette rubrique sont ceux figurant au compte de résultat.',
+      );
+      expect(renvoi('Résultat net')).toContain('entre parenthèses');
+      expect(renvoi('Résultat distribué')).toContain('dividende proposé');
+      expect(renvoi('Effectif moyen des travailleurs')).toBe('(⁶) Personnel propre.');
       expect(renvoi('Masse salariale')).toContain('661, 662, 663');
       expect(renvoi('Avantages sociaux')).toContain('664, 668');
       expect(renvoi('Personnel extérieur facturé')).toContain('667');
-      expect(n31.renvoiOfficiel).toContain('(¹)');
+      // Aucune rubrique ne se contente de la marque nue.
+      const nus = n31.rubriques.filter((r) => r.renvoi !== undefined && r.renvoi.trim().length <= 4);
+      expect(nus.map((r) => r.libelle)).toEqual([]);
     });
   });
 
@@ -382,6 +435,45 @@ describe('correspondance des notes annexes SYSCOHADA · tranche 3 (AUDCIF Titre 
       const controle = FICHE_SYNTHESE_SYSCOHADA.find((l) => l.controleDe);
       expect(controle).toEqual(expect.objectContaining({ cle: 'controle-tresorerie-nette', controleDe: 'tresorerie-nette' }));
       expect(controle?.termes?.map((t) => [t.signe, t.ref])).toEqual([[1, 'BT'], [-1, 'DT']]);
+    });
+
+    it('le terme hors maquette de la CAFG est marqué SUR LE TERME · une somme naïve ne peut plus diverger en silence', () => {
+      // Sans ce marqueur, additionner `termes` donnerait une CAFG différente
+      // de `formuleOfficielle` sans que rien ne le signale au service.
+      const cafg = FICHE_SYNTHESE_SYSCOHADA.find((l) => l.cle === 'cafg');
+      const hors = (cafg?.termes ?? []).filter((t) => t.horsMaquette);
+      expect(hors.map((t) => t.ref)).toEqual(['caf-autres-charges-hao']);
+      expect(hors[0].motif).toBeDefined();
+      // Le reste de la fiche ne porte aucun terme hors maquette.
+      const tous = FICHE_SYNTHESE_SYSCOHADA.flatMap((l) => [
+        ...(l.termes ?? []), ...(l.ratio?.numerateur ?? []), ...(l.ratio?.denominateur ?? []),
+      ]);
+      expect(tous.filter((t) => t.horsMaquette)).toHaveLength(1);
+      // Et la ligne elle-même reste reconnaissable APRÈS le map de la note 34,
+      // que `horsMaquette` ne traverse pas.
+      const n34 = noteUnique('34');
+      const rubrique = n34.rubriques.find((r) => r.cle === 'caf-autres-charges-hao');
+      expect(rubrique?.renvoi).toContain(MARQUE_HORS_MAQUETTE_NOTE_34);
+      expect(n34.rubriques.filter((r) => r.renvoi?.includes('[hors maquette]'))).toHaveLength(1);
+    });
+
+    it('la ligne de contrôle annonce son écart structurel de DC · sinon il passerait pour un défaut de calcul', () => {
+      // (5) = (BT – DT) + (BU – DV) – DC : « Dettes financières* » exclut DC
+      // que DF inclut. Le renvoi (b) élimine BU et DV, jamais DC.
+      const controle = FICHE_SYNTHESE_SYSCOHADA.find((l) => l.cle === 'controle-tresorerie-nette');
+      expect(controle?.renvoi).toContain('[texte officiel]');
+      expect(controle?.renvoi).toContain('DC');
+      expect(controle?.renvoi).toContain('STRUCTUREL');
+    });
+
+    it('la rentabilité économique dit que l’astérisque manque à cet endroit du texte, au lieu de l’assimiler en silence', () => {
+      const eco = FICHE_SYNTHESE_SYSCOHADA.find((l) => l.cle === 'rentabilite-economique');
+      expect(eco?.formuleOfficielle).not.toContain('*');
+      const da = eco?.ratio?.denominateur.find((t) => t.ref === 'DA');
+      expect(da?.motif).toContain('[texte officiel]');
+      expect(da?.motif).toContain('SANS astérisque');
+      expect(da?.motif).toContain('DD');
+      expect(eco?.ratio?.denominateur.find((t) => t.ref === 'DB')?.motif).toBeDefined();
     });
 
     it('les lignes (b) portent le renvoi sur les écarts de conversion', () => {
