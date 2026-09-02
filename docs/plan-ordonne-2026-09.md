@@ -208,6 +208,20 @@ jusqu'ici par un UPDATE SQL en production. La route pose un mot de passe
 provisoire, ferme les sessions du compte et lève le verrou, et le geste est
 inscrit au journal d'audit de B1 (mot de passe masqué).
 
+CHAÎNE DE RECOURS, trouvée en répondant à une question de l'exploitant sur les
+courriels de confirmation : elle s'arrêtait trop tôt. Un comptable est
+réinitialisé par SON administrateur, mais l'ADMINISTRATEUR qui oublie le sien
+n'avait personne au-dessus · on retombait sur l'UPDATE SQL, remonté d'un cran.
+La console de l'opérateur porte désormais ce dernier recours, borné aux seuls
+comptes ADMIN_CABINET · sans cette borne elle deviendrait un passe-partout sur
+tous les comptes de tous les cabinets.
+
+PAS DE COURRIEL, et c'est un choix · aucun envoi dans OmegaX, aucune
+dépendance à un fournisseur d'envoi, aucun lien « mot de passe oublié ». Un
+tel lien déplacerait la sécurité du logiciel vers la boîte mail : qui tient la
+boîte tiendrait la comptabilité. Le mot de passe provisoire se remet en main
+propre, par le canal que l'administrateur juge sûr.
+
 
 **B6 · Livre d'inventaire, rapport de gestion, contrôles par référentiel.**
 L'AUDCIF art. 19 impose le livre d'inventaire à tout commerçant, et la fenêtre

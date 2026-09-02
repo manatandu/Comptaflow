@@ -1,4 +1,4 @@
-import { IsDateString, IsEmail, IsEnum, IsIn, IsInt, IsOptional, IsString, IsUUID, Min, ValidateIf } from 'class-validator';
+import { IsDateString, IsEmail, IsEnum, IsIn, IsInt, IsOptional, IsString, IsUUID, Min, MinLength, ValidateIf } from 'class-validator';
 import { JeuEtatsFinanciersSycebnl, Referentiel, StatutLicence, SystemeComptableSyscohada, TypeLicence } from '@prisma/client';
 
 /**
@@ -126,4 +126,14 @@ export class ModifierGroupeDto {
   @IsInt()
   @Min(0)
   plafondCellules?: number | null;
+}
+
+export class ReinitialiserAdminDto {
+  @IsEmail()
+  email!: string;
+
+  // Même exigence qu'ailleurs · l'opérateur ne pose pas un mot de passe plus
+  // faible que celui qu'on demande au titulaire.
+  @MinLength(10, { message: 'Le mot de passe doit contenir au moins 10 caractères' })
+  motDePasseProvisoire!: string;
 }

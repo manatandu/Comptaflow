@@ -99,6 +99,15 @@ export function PlateformePage() {
   const [groupeErreur, setGroupeErreur] = useState<string | null>(null);
 
   // Modale « nouveau cabinet client »
+  // Dernier recours · quand c'est l'ADMINISTRATEUR d'un cabinet qui a oublié
+  // son mot de passe, plus personne dans son dossier ne peut le réinitialiser.
+  // Sans cet écran on retombait sur un UPDATE SQL en production.
+  const [reinitEnCours, setReinitEnCours] = useState<CabinetClient | null>(null);
+  const [reinitEmail, setReinitEmail] = useState('');
+  const [reinitMotDePasse, setReinitMotDePasse] = useState('');
+  const [reinitErreur, setReinitErreur] = useState<string | null>(null);
+  const [reinitFait, setReinitFait] = useState<string | null>(null);
+
   const [nouveauOuvert, setNouveauOuvert] = useState(false);
   const [creationMereId, setCreationMereId] = useState('');
   const [nomEntite, setNomEntite] = useState('');
@@ -150,6 +159,24 @@ export function PlateformePage() {
       await charger();
     } catch (err) {
       setErreur(err instanceof ApiError ? err.message : 'Action impossible');
+    }
+  };
+
+  const onReinitialiserAdmin = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!reinitEnCours) return;
+    setReinitErreur(null);
+    try {
+      const r = await api.post<{ reinitialise: boolean; email: string }>(
+        `/plateforme/cabinets/${reinitEnCours.id}/reinitialiser-admin`,
+        { email: reinitEmail, motDePasseProvisoire: reinitMotDePasse },
+      );
+      setReinitFait(r.email);
+      setReinitEnCours(null);
+      setReinitEmail('');
+      setReinitMotDePasse('');
+    } catch (err) {
+      setReinitErreur(err instanceof ApiError ? err.message : 'Réinitialisation impossible');
     }
   };
 
@@ -331,6 +358,19 @@ export function PlateformePage() {
                       {c.licence.statut === 'SUSPENDUE' ? 'Réactiver' : 'Suspendre'}
                     </button>
                   )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReinitEnCours(c);
+                      setReinitEmail('');
+                      setReinitMotDePasse('');
+                      setReinitErreur(null);
+                      setReinitFait(null);
+                    }}
+                    className="text-[10.5px] text-sel"
+                  >
+                    Mot de passe admin
+                  </button>
                 </span>
               </div>
             );
@@ -341,6 +381,73 @@ export function PlateformePage() {
         L'échéance en orange expire sous 30 jours, en rouge elle est dépassée. Suspendre coupe immédiatement l'accès du
         cabinet · réactiver le rétablit. « Licence » change le type ou pose une nouvelle échéance (renouvellement).
       </p>
+
+      {reinitFait && (
+        <div className="border border-positive/30 bg-positive-soft px-3.5 py-2 text-[11px] mb-2">
+          Mot de passe administrateur réinitialisé pour <strong>{reinitFait}</strong>. Remettez-le en main propre · il
+          est PROVISOIRE, les sessions ouvertes du compte sont fermées, et le logiciel lui restera fermé tant qu'il ne
+          l'aura pas remplacé.
+        </div>
+      )}
+
+      {reinitEnCours && (
+        <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
+          <form
+            onSubmit={onReinitialiserAdmin}
+            className="anim-fenetre bg-surface border border-border-dark shadow-flottant w-[460px] max-w-full"
+          >
+            <div className="px-3.5 py-2 bg-chrome border-b border-border-dark text-[11px] font-bold">
+              Mot de passe administrateur · {reinitEnCours.nom}
+            </div>
+            <div className="p-3.5 flex flex-col gap-2.5">
+              <p className="text-[10.5px] text-text-dim">
+                Dernier recours, quand l'administrateur du cabinet a perdu son mot de passe et que personne dans son
+                dossier ne peut le lui rendre. Vous ne pouvez réinitialiser QUE des administrateurs · un comptable
+                relève de l'administrateur de son cabinet. Le geste est inscrit au journal d'audit.
+              </p>
+              <label className="flex flex-col gap-1">
+                <span className="text-[10px] font-bold text-text-dim">ADRESSE DE L'ADMINISTRATEUR</span>
+                <input
+                  type="email"
+                  value={reinitEmail}
+                  onChange={(e) => setReinitEmail(e.target.value)}
+                  required
+                  autoFocus
+                  className="border border-border-dark px-2.5 py-1.5 text-[11px]"
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-[10px] font-bold text-text-dim">MOT DE PASSE PROVISOIRE</span>
+                <input
+                  value={reinitMotDePasse}
+                  onChange={(e) => setReinitMotDePasse(e.target.value)}
+                  minLength={10}
+                  required
+                  className="border border-border-dark px-2.5 py-1.5 text-[11px]"
+                />
+                <span className="text-[10px] text-text-dim">Dix caractères au minimum.</span>
+              </label>
+              {reinitErreur && (
+                <div className="text-[11px] text-danger bg-danger-soft border border-danger/30 px-2.5 py-1.5">
+                  {reinitErreur}
+                </div>
+              )}
+            </div>
+            <div className="px-3.5 py-2 bg-surface-alt border-t border-border flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setReinitEnCours(null)}
+                className="border border-border-dark px-3 py-1 text-[10.5px]"
+              >
+                Annuler
+              </button>
+              <button type="submit" className="border border-border-dark bg-chrome px-3 py-1 text-[10.5px] font-semibold">
+                Réinitialiser
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {licenceEnCours && (
         <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">

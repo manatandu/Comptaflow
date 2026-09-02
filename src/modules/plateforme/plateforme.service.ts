@@ -1,12 +1,13 @@
 import { BadRequestException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomBytes } from 'crypto';
-import { Referentiel, StatutLicence, TypeLicence } from '@prisma/client';
+import { Referentiel, RoleUtilisateur, StatutLicence, TypeLicence } from '@prisma/client';
 import { siSycebnl } from '../../common/reponse-referentiel';
 import { PrismaService } from '../../common/prisma.service';
 import { AuthService } from '../auth/auth.service';
 import { CreerCabinetDto, ModifierGroupeDto, ModifierLicenceDto } from './dto/plateforme.dto';
 import { horsCloisonnement } from '../../common/cloisonnement/contexte-cloisonnement';
+import * as bcrypt from 'bcryptjs';
 
 /**
  * Console de l'opérateur de plateforme : vue transversale des cabinets
@@ -273,4 +274,52 @@ export class PlateformeService implements OnModuleInit {
       motDePasseTemporaire,
     };
   }
+
+  /**
+   * RÉINITIALISATION DU MOT DE PASSE DE L'ADMINISTRATEUR D'UN CABINET.
+   *
+   * B5 a donné à l'administrateur d'un dossier de quoi réinitialiser ses
+   * collaborateurs. La chaîne s'arrêtait là : quand c'est L'ADMINISTRATEUR
+   * lui-même qui oublie son mot de passe, plus personne ne pouvait rien, et on
+   * retombait sur un UPDATE SQL en production · c'est-à-dire exactement ce que
+   * B5 devait supprimer, remonté d'un cran.
+   *
+   * L'opérateur de la plateforme est le dernier recours, et il ne doit pas y
+   * en avoir d'autre au-dessus. Les mêmes trois effets qu'à l'étage du dossier :
+   * mot de passe PROVISOIRE, sessions fermées, verrou levé. Et la même trace au
+   * journal d'audit, mot de passe masqué.
+   *
+   * Le compte visé doit être ADMIN_CABINET du dossier désigné · l'opérateur
+   * n'a pas à réinitialiser un comptable, c'est l'affaire de l'administrateur
+   * de son cabinet. Restreindre ainsi n'est pas une politesse : c'est ce qui
+   * empêche la console de devenir un passe-partout sur tous les comptes de
+   * tous les cabinets.
+   */
+  async reinitialiserAdmin(tenantId: string, dto: { email: string; motDePasseProvisoire: string }) {
+    const admin = await this.prisma.user.findFirst({
+      where: { tenantId, email: dto.email, role: RoleUtilisateur.ADMIN_CABINET },
+    });
+    if (!admin) {
+      throw new NotFoundException(
+        "Aucun administrateur avec cette adresse dans ce dossier · l'opérateur ne réinitialise que les administrateurs.",
+      );
+    }
+    // SORTIE DE CLOISONNEMENT · le compte visé relève du dossier CLIENT, pas
+    // de celui de l'opérateur dont la session porte le contexte.
+    await horsCloisonnement('console · réinitialisation de l’administrateur d’un cabinet client', () =>
+      this.prisma.user.update({
+        where: { id: admin.id },
+        data: {
+          motDePasse: bcrypt.hashSync(dto.motDePasseProvisoire, 12),
+          doitChangerMotDePasse: true,
+          sessionsInvalidesAvant: new Date(),
+          tentativesEchouees: 0,
+          verrouilleJusqua: null,
+        },
+      }),
+    );
+    this.logger.log(`Mot de passe administrateur réinitialisé · ${dto.email}`);
+    return { reinitialise: true, email: admin.email };
+  }
+
 }

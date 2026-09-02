@@ -2,7 +2,7 @@ import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/co
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { OperateurPlateformeGuard } from './operateur-plateforme.guard';
 import { PlateformeService } from './plateforme.service';
-import { CreerCabinetDto, ModifierGroupeDto, ModifierLicenceDto } from './dto/plateforme.dto';
+import { CreerCabinetDto, ModifierGroupeDto, ModifierLicenceDto, ReinitialiserAdminDto } from './dto/plateforme.dto';
 
 /**
  * Console de l'opérateur de plateforme (fenêtre « Cabinets clients »).
@@ -36,5 +36,15 @@ export class PlateformeController {
   @Patch('cabinets/:tenantId/groupe')
   modifierGroupe(@Param('tenantId') tenantId: string, @Body() dto: ModifierGroupeDto) {
     return this.plateformeService.modifierGroupe(tenantId, dto);
+  }
+
+  /**
+   * DERNIER RECOURS · quand c'est l'administrateur d'un cabinet qui a oublié
+   * son mot de passe, plus personne dans le dossier ne peut le réinitialiser.
+   * Sans cette route on retombait sur un UPDATE SQL en production.
+   */
+  @Post('cabinets/:tenantId/reinitialiser-admin')
+  reinitialiserAdmin(@Param('tenantId') tenantId: string, @Body() dto: ReinitialiserAdminDto) {
+    return this.plateformeService.reinitialiserAdmin(tenantId, dto);
   }
 }

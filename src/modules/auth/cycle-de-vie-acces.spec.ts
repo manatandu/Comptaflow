@@ -251,3 +251,55 @@ describe('4 · la réinitialisation par l’administrateur du dossier', () => {
     expect(capture.data!.sessionsInvalidesAvant).toBeUndefined();
   });
 });
+
+describe('5 · la chaîne de recours va jusqu’au bout', () => {
+  /**
+   * Trouvé en répondant à une question de l'exploitant sur les courriels de
+   * confirmation : la chaîne s'arrêtait trop tôt. Un comptable qui oublie son
+   * mot de passe est réinitialisé par SON administrateur · mais
+   * l'ADMINISTRATEUR qui oublie le sien n'avait personne au-dessus, et on
+   * retombait sur un UPDATE SQL en production, c'est-à-dire exactement ce que
+   * B5 devait supprimer, remonté d'un cran.
+   */
+  const service = (admin: unknown, capture: { data?: Record<string, unknown> }) =>
+    new (require('../plateforme/plateforme.service').PlateformeService)(
+      {
+        user: {
+          findFirst: async () => admin,
+          update: async ({ data }: { data: Record<string, unknown> }) => {
+            capture.data = data;
+            return {};
+          },
+        },
+      } as never,
+      { get: () => undefined } as never,
+      undefined as never,
+    );
+
+  it('l’opérateur réinitialise l’administrateur d’un cabinet, avec les trois mêmes effets', async () => {
+    const capture: { data?: Record<string, unknown> } = {};
+    const resultat = await service({ id: 'u1', email: 'chef@cabinet.cd' }, capture).reinitialiserAdmin('d-1', {
+      email: 'chef@cabinet.cd',
+      motDePasseProvisoire: 'provisoire-tres-long',
+    });
+    expect(resultat).toEqual({ reinitialise: true, email: 'chef@cabinet.cd' });
+    expect(capture.data!.doitChangerMotDePasse).toBe(true);
+    expect(capture.data!.sessionsInvalidesAvant).toBeInstanceOf(Date);
+    expect(capture.data!.verrouilleJusqua).toBeNull();
+    expect(await bcrypt.compare('provisoire-tres-long', capture.data!.motDePasse as string)).toBe(true);
+  });
+
+  it('refuse un compte qui n’est PAS administrateur du dossier visé', async () => {
+    // Sans cette borne, la console deviendrait un passe-partout sur tous les
+    // comptes de tous les cabinets · réinitialiser un comptable est l'affaire
+    // de l'administrateur de son cabinet, pas de l'exploitant.
+    const capture: { data?: Record<string, unknown> } = {};
+    await expect(
+      service(null, capture).reinitialiserAdmin('d-1', {
+        email: 'comptable@cabinet.cd',
+        motDePasseProvisoire: 'provisoire-tres-long',
+      }),
+    ).rejects.toThrow(/administrateur/);
+    expect(capture.data).toBeUndefined();
+  });
+});
