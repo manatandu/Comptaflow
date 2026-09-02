@@ -48,16 +48,49 @@ donne accès aux données.
 ### Générer la paire de clés (sur VOTRE poste, pas dans la CI)
 
 Installer `age` (https://github.com/FiloSottile/age · `brew install age`,
-`sudo apt install age`, ou le binaire Windows), puis :
+`sudo apt install age`, ou l'archive `windows-amd64.zip` de la page des
+versions), puis :
 
     age-keygen -o cle-sauvegardes-omegax.txt
 
-La commande affiche la clé **publique** (`age1...`) et écrit le fichier
-complet, qui contient la clé **privée**.
+**La commande n'affiche que la clé PUBLIQUE.** C'est une confirmation, pas
+le contenu du fichier. Ouvrir le fichier pour voir les trois lignes :
 
-**Le fichier `cle-sauvegardes-omegax.txt` est la seule chose au monde qui
-ouvre les sauvegardes.** Le perdre rend TOUTES les sauvegardes chiffrées
-définitivement illisibles · aucun recours, c'est le principe. Le ranger
+    notepad cle-sauvegardes-omegax.txt      # Windows
+    cat cle-sauvegardes-omegax.txt          # macOS, Linux
+
+    # created: 2026-09-02T23:23:04Z
+    # public key: age1w7cvj9d0282qnwmda...          <- LA PUBLIQUE, sur GitHub
+    AGE-SECRET-KEY-1XXXXXXXXXXXXXXXXXXX...          <- LA PRIVÉE, sur papier
+
+### L'ORDRE DES GESTES, et il n'est pas négociable
+
+**IMPRIMER D'ABORD. EFFACER ENSUITE. Jamais l'inverse.**
+
+Vécu le 2026-09-02 : la marche à suivre disait d'effacer le fichier sans
+dire d'imprimer avant. Le fichier a été effacé, et il a fallu vérifier
+après coup que la clé existait encore quelque part. Elle existait. Elle
+aurait pu ne pas exister, et la sauvegarde du soir aurait été perdue avec
+elle.
+
+`Remove-Item` sous Windows ne passe PAS par la corbeille. Une fois la
+commande lancée, il n'y a rien à récupérer.
+
+Deux autres pièges du même passage, tous deux rencontrés :
+
+- **Le copier-coller sous Windows emporte le retour chariot.** Coller la
+  clé publique dans GitHub y ajoute un `\r\n` invisible, que `age` refuse
+  au milieu du job (« malformed recipient »). Le workflow nettoie désormais
+  la valeur avant de la contrôler · voir l'étape « Exiger la clé publique ».
+- **Ne jamais coller la ligne `AGE-SECRET-KEY-1` ailleurs que sur le
+  papier.** Une clé privée qui a transité par une conversation, un courriel
+  ou un message n'est plus secrète : on regénère une paire, on met la
+  variable à jour, on relance la sauvegarde. Cela prend cinq minutes tant
+  qu'aucune sauvegarde utile n'a encore été chiffrée avec.
+
+**La ligne `AGE-SECRET-KEY-1...` est la seule chose au monde qui ouvre les
+sauvegardes.** La perdre rend TOUTES les sauvegardes chiffrées
+définitivement illisibles · aucun recours, c'est le principe. La ranger
 comme on range un acte notarié :
 
 - une copie dans le gestionnaire de mots de passe du cabinet ;
