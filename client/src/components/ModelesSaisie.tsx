@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '../lib/api';
+import { useAuth } from '../lib/auth';
 import type {
   CatalogueOperations,
   Compte,
@@ -35,19 +36,7 @@ export interface LigneInseree {
  *    l'API /operations-specifiques qui les chiffre contre le référentiel.
  */
 
-type ModeleSimple = {
-  code: string;
-  libelle: string;
-  numeroContrepartie: string;
-  sens: 'recette' | 'depense';
-};
-
-const MODELES_SIMPLES: ModeleSimple[] = [
-  { code: 'don', libelle: 'Don reçu en numéraire', numeroContrepartie: '70410000', sens: 'recette' },
-  { code: 'cotisation', libelle: 'Cotisation reçue', numeroContrepartie: '70100000', sens: 'recette' },
-  { code: 'achat', libelle: 'Achat payé', numeroContrepartie: '60500000', sens: 'depense' },
-  { code: 'salaire', libelle: 'Salaire payé', numeroContrepartie: '66100000', sens: 'depense' },
-];
+import { MODELES_SIMPLES_SYCEBNL, MODELES_SIMPLES_SYSCOHADA, type ModeleSimple } from '../lib/modeles-saisie';
 
 type ModeleTva = { code: 'vente_tva' | 'achat_tva'; libelle: string; sens: 'recette' | 'depense' };
 const MODELES_TVA: ModeleTva[] = [
@@ -73,6 +62,9 @@ export function ModelesSaisieModale({
   onInserer: (lignes: LigneInseree[], libelleSuggere: string) => void;
   onFermer: () => void;
 }) {
+  const { utilisateur } = useAuth();
+  const estSyscohada = utilisateur?.tenant.referentiel === 'SYSCOHADA';
+  const modelesSimples = estSyscohada ? MODELES_SIMPLES_SYSCOHADA : MODELES_SIMPLES_SYCEBNL;
   const [catalogue, setCatalogue] = useState<CatalogueOperations | null>(null);
   const [tauxTvaListe, setTauxTvaListe] = useState<TauxTva[]>([]);
   const [selection, setSelection] = useState<Selection | null>(null);
@@ -98,9 +90,16 @@ export function ModelesSaisieModale({
   const comptesProduits = useMemo(() => comptes.filter((c) => c.numero.startsWith('7')), [comptes]);
 
   useEffect(() => {
-    api.get<CatalogueOperations>('/operations-specifiques').then(setCatalogue).catch(() => setCatalogue(null));
+    // Les écritures-types de la Partie 3 sont PROPRES au SYCEBNL, et leur
+    // route est gardée côté serveur. On ne l'appelait quand même, pour
+    // avaler le 403 en silence · un dossier d'entreprise voyait alors une
+    // famille « ÉCRITURES-TYPES SYCEBNL » qui restait éternellement en
+    // « Chargement… ». On ne la demande plus, et on ne l'affiche plus.
+    if (!estSyscohada) {
+      api.get<CatalogueOperations>('/operations-specifiques').then(setCatalogue).catch(() => setCatalogue(null));
+    }
     api.get<TauxTva[]>('/taux-tva?actifsSeuls=true').then(setTauxTvaListe).catch(() => setTauxTvaListe([]));
-  }, []);
+  }, [estSyscohada]);
 
   useEffect(() => {
     if (comptesTresorerie[0] && !compteTresorerieId) setCompteTresorerieId(comptesTresorerie[0].id);
@@ -295,7 +294,7 @@ export function ModelesSaisieModale({
           {/* Liste des modèles */}
           <div className="w-[300px] shrink-0 border-r border-border overflow-auto bg-surface-alt">
             <div className="px-3 pt-2.5 pb-1 text-[10px] font-bold text-text-dim">OPÉRATIONS COURANTES</div>
-            {MODELES_SIMPLES.map((m) => (
+            {modelesSimples.map((m) => (
               <button
                 key={m.code}
                 type="button"
@@ -330,10 +329,15 @@ export function ModelesSaisieModale({
                 {m.libelle}
               </button>
             ))}
-            <div className="px-3 pt-2.5 pb-1 text-[10px] font-bold text-text-dim">
-              ÉCRITURES-TYPES SYCEBNL (PARTIE 3 · GUIDE)
-            </div>
-            {!catalogue && <div className="px-3 py-1.5 text-[10.5px] text-text-dim italic">Chargement…</div>}
+            {/* Famille propre au SYCEBNL · sa route serveur l'est aussi. */}
+            {!estSyscohada && (
+              <div className="px-3 pt-2.5 pb-1 text-[10px] font-bold text-text-dim">
+                ÉCRITURES-TYPES SYCEBNL (PARTIE 3 · GUIDE)
+              </div>
+            )}
+            {!estSyscohada && !catalogue && (
+              <div className="px-3 py-1.5 text-[10.5px] text-text-dim italic">Chargement…</div>
+            )}
             {catalogue &&
               [...catalogue.operations, ...catalogue.operationsAutreJeu].map((op) => (
                 <div key={op.code}>
