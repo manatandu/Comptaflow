@@ -31,6 +31,7 @@ import { ImportModule } from './modules/import/import.module';
 import { ControlesModule } from './modules/controles/controles.module';
 import { RegularisationModule } from './modules/regularisation/regularisation.module';
 import { DevisesModule } from './modules/devises/devises.module';
+import { AffectationModule } from './modules/affectation/affectation.module';
 import { RelancesModule } from './modules/relances/relances.module';
 import { RetenuesModule } from './modules/retenues/retenues.module';
 import { ExonerationsModule } from './modules/exonerations/exonerations.module';
@@ -79,6 +80,7 @@ import { GroupeModule } from './modules/groupe/groupe.module';
     ControlesModule,
     RegularisationModule,
     DevisesModule,
+    AffectationModule,
     RelancesModule,
     RetenuesModule,
     ExonerationsModule,
