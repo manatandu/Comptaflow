@@ -187,7 +187,11 @@ export const POSTES_IMMOBILISATIONS: PosteEmploisRessources[] = [
   },
   {
     ref: 'FK',
-    libelle: 'Avances et acomptes versés sur immobilisations',
+    // Le libellé est celui du POSTE, pas celui du compte. Le plan intitule le
+    // compte 25 « Avances et acomptes VERSÉS sur immobilisations » ; la
+    // maquette du tableau emplois-ressources écrit « Avances et acomptes sur
+    // immobilisations ». C'est la maquette qui s'imprime et part au bailleur.
+    libelle: 'Avances et acomptes sur immobilisations',
     section: 'IMMOBILISATIONS',
     sens: 'DEBIT',
     comptes: ['25'],
