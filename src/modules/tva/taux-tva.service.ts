@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { PrismaService } from '../../common/prisma.service';
 import { CreerTauxTvaDto, ModifierTauxTvaDto } from './dto/taux-tva.dto';
 import { tauxTvaDefaut } from './taux-tva-seed';
-import { ClasseCompte, Referentiel, TypeJournal } from '@prisma/client';
+import { Prisma, ClasseCompte, Referentiel, TypeJournal } from '@prisma/client';
 import { EcritureService } from '../comptabilite/ecriture.service';
 
 const EPSILON = 0.005;
@@ -25,15 +25,20 @@ export class TauxTvaService {
   ) {}
 
   /** Appelé une fois à la création du tenant (voir AuthService.register). */
-  async seedTauxDefaut(tenantId: string, referentiel: Referentiel) {
+  /**
+   * `client` reçoit la transaction de `AuthService.register` quand le semis
+   * fait partie d'une création de dossier · hors de ce cas il vaut
+   * `this.prisma` et rien ne change pour les autres appelants.
+   */
+  async seedTauxDefaut(tenantId: string, referentiel: Referentiel, client: Prisma.TransactionClient = this.prisma) {
     for (const t of tauxTvaDefaut(referentiel)) {
       const compteCollecte = t.numeroCompteCollecte
-        ? await this.prisma.compte.findUnique({ where: { tenantId_numero: { tenantId, numero: t.numeroCompteCollecte } } })
+        ? await client.compte.findUnique({ where: { tenantId_numero: { tenantId, numero: t.numeroCompteCollecte } } })
         : null;
       const compteDeductible = t.numeroCompteDeductible
-        ? await this.prisma.compte.findUnique({ where: { tenantId_numero: { tenantId, numero: t.numeroCompteDeductible } } })
+        ? await client.compte.findUnique({ where: { tenantId_numero: { tenantId, numero: t.numeroCompteDeductible } } })
         : null;
-      await this.prisma.tauxTva.upsert({
+      await client.tauxTva.upsert({
         where: { tenantId_code: { tenantId, code: t.code } },
         update: {},
         create: {

@@ -89,10 +89,15 @@ export class RelancesService {
     return this.prisma.niveauRelance.findMany({ where: { tenantId }, orderBy: { niveau: 'asc' } });
   }
 
-  async seedNiveauxDefaut(tenantId: string) {
-    const existants = await this.prisma.niveauRelance.count({ where: { tenantId } });
+  /**
+   * `client` reçoit la transaction de `AuthService.register` quand le semis
+   * fait partie d'une création de dossier · hors de ce cas il vaut
+   * `this.prisma` et rien ne change pour les autres appelants.
+   */
+  async seedNiveauxDefaut(tenantId: string, client: Prisma.TransactionClient = this.prisma) {
+    const existants = await client.niveauRelance.count({ where: { tenantId } });
     if (existants > 0) return;
-    await this.prisma.niveauRelance.createMany({
+    await client.niveauRelance.createMany({
       data: NIVEAUX_DEFAUT.map((n) => ({ ...n, tenantId })),
     });
   }

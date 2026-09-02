@@ -13,10 +13,11 @@ describe('AuthService.register · système comptable par référentiel', () => {
     const creations: Array<Record<string, unknown>> = [];
     const s = new AuthService(
       {
-        user: {
-          findUnique: async () => null,
-          create: async () => ({ id: 'u1' }),
-        },
+        user: { findUnique: async () => null },
+        // `register` crée tout dans une transaction · le faux Prisma doit donc
+        // en fournir une, sinon rien de ce que ce spec observe n'est atteint.
+        $transaction: async (fn: (tx: unknown) => Promise<unknown>) =>
+          fn({ user: { create: async () => ({ id: 'u1' }) } }),
       } as never,
       { sign: () => 'jeton' } as never,
       {

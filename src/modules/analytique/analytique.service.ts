@@ -68,10 +68,15 @@ export class AnalytiqueService {
    * de bailleur de fonds est propre aux EBNL (SYCEBNL, division 46) · une
    * entreprise qui veut suivre ses financeurs crée son axe à la main.
    */
-  async seedPlansDefaut(tenantId: string, referentiel: Referentiel) {
-    const existants = await this.prisma.planAnalytique.count({ where: { tenantId } });
+  /**
+   * `client` reçoit la transaction de `AuthService.register` quand le semis
+   * fait partie d'une création de dossier · hors de ce cas il vaut
+   * `this.prisma` et rien ne change pour les autres appelants.
+   */
+  async seedPlansDefaut(tenantId: string, referentiel: Referentiel, client: Prisma.TransactionClient = this.prisma) {
+    const existants = await client.planAnalytique.count({ where: { tenantId } });
     if (existants > 0) return;
-    await this.prisma.planAnalytique.createMany({
+    await client.planAnalytique.createMany({
       data: [
         {
           tenantId,

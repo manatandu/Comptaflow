@@ -14,16 +14,21 @@ export class JournalService {
    * référencés par journauxDefaut() doivent déjà exister · le compte de
    * caisse diffère selon le référentiel, voir journal-seed.ts.
    */
-  async seedJournauxDefaut(tenantId: string, referentiel: Referentiel) {
+  /**
+   * `client` reçoit la transaction de `AuthService.register` quand le semis
+   * fait partie d'une création de dossier · hors de ce cas il vaut
+   * `this.prisma` et rien ne change pour les autres appelants.
+   */
+  async seedJournauxDefaut(tenantId: string, referentiel: Referentiel, client: Prisma.TransactionClient = this.prisma) {
     for (const j of journauxDefaut(referentiel)) {
       let compteTresorerieId: string | undefined;
       if (j.numeroCompteTresorerie) {
-        const compte = await this.prisma.compte.findUnique({
+        const compte = await client.compte.findUnique({
           where: { tenantId_numero: { tenantId, numero: j.numeroCompteTresorerie } },
         });
         compteTresorerieId = compte?.id;
       }
-      await this.prisma.journal.upsert({
+      await client.journal.upsert({
         where: { tenantId_code: { tenantId, code: j.code } },
         update: {},
         create: {

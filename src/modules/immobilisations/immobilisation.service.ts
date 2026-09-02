@@ -98,21 +98,26 @@ export class ImmobilisationService {
   ) {}
 
   /** Appelé une fois à la création du tenant (voir AuthService.register). */
-  async seedFamillesDefaut(tenantId: string, referentiel: Referentiel) {
+  /**
+   * `client` reçoit la transaction de `AuthService.register` quand le semis
+   * fait partie d'une création de dossier · hors de ce cas il vaut
+   * `this.prisma` et rien ne change pour les autres appelants.
+   */
+  async seedFamillesDefaut(tenantId: string, referentiel: Referentiel, client: Prisma.TransactionClient = this.prisma) {
     const familles =
       referentiel === Referentiel.SYSCOHADA ? FAMILLES_IMMOBILISATION_DEFAUT_SYSCOHADA : FAMILLES_IMMOBILISATION_DEFAUT;
     for (const f of familles) {
       const [compteImmo, compteAmort, compteDotation] = await Promise.all([
-        this.prisma.compte.findUnique({ where: { tenantId_numero: { tenantId, numero: f.numeroCompteImmobilisation } } }),
-        this.prisma.compte.findUnique({ where: { tenantId_numero: { tenantId, numero: f.numeroCompteAmortissement } } }),
-        this.prisma.compte.findUnique({ where: { tenantId_numero: { tenantId, numero: f.numeroCompteDotation } } }),
+        client.compte.findUnique({ where: { tenantId_numero: { tenantId, numero: f.numeroCompteImmobilisation } } }),
+        client.compte.findUnique({ where: { tenantId_numero: { tenantId, numero: f.numeroCompteAmortissement } } }),
+        client.compte.findUnique({ where: { tenantId_numero: { tenantId, numero: f.numeroCompteDotation } } }),
       ]);
       // Défensif plutôt que silencieux : si le plan de comptes du tenant ne
       // contient pas (encore) ces numéros · dossier créé avant l'import
       // complet du plan SYCEBNL, ou compte supprimé entre-temps · on saute
       // cette famille plutôt que de planter tout le seed de l'inscription.
       if (!compteImmo || !compteAmort || !compteDotation) continue;
-      await this.prisma.familleImmobilisation.upsert({
+      await client.familleImmobilisation.upsert({
         where: { tenantId_code: { tenantId, code: f.code } },
         update: {},
         create: {

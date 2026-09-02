@@ -31,9 +31,14 @@ export class CompteService {
    * conventions (feuilles à 8 chiffres, en-têtes TOTAL non complétés), toute
    * la mécanique en aval (balance, Total/Détail, lettrage) est donc commune.
    */
-  async seedPlan(tenantId: string, referentiel: Referentiel) {
+  /**
+   * `client` reçoit la transaction de `AuthService.register` quand le semis
+   * fait partie d'une création de dossier · hors de ce cas il vaut
+   * `this.prisma` et rien ne change pour les autres appelants.
+   */
+  async seedPlan(tenantId: string, referentiel: Referentiel, client: Prisma.TransactionClient = this.prisma) {
     const plan = referentiel === Referentiel.SYSCOHADA ? PLAN_COMPTES_SYSCOHADA : PLAN_COMPTES_SYCEBNL;
-    await this.prisma.compte.createMany({
+    await client.compte.createMany({
       data: plan.map((c) => ({
         ...c,
         tenantId,

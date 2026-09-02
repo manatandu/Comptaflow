@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
-import { FormeJuridiqueEbnl,
+import { Prisma, FormeJuridiqueEbnl,
   FormeJuridiqueSyscohada, JeuEtatsFinanciersSycebnl, Referentiel, RegimeExigibiliteTva, SystemeComptableSyscohada, TypeLicence } from '@prisma/client';
 
 /**
@@ -19,6 +19,11 @@ import { FormeJuridiqueEbnl,
 export class TenantService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /**
+   * `client` reçoit la transaction de `AuthService.register` quand la
+   * création fait partie d'une inscription · hors de ce cas il vaut
+   * `this.prisma` et rien ne change pour les autres appelants.
+   */
   async creerTenant(params: {
     nom: string;
     referentiel: Referentiel;
@@ -32,8 +37,8 @@ export class TenantService {
     pays?: string;
     telephone?: string;
     devise?: string;
-  }) {
-    return this.prisma.tenant.create({
+  }, client: Prisma.TransactionClient = this.prisma) {
+    return client.tenant.create({
       data: {
         nom: params.nom,
         referentiel: params.referentiel,

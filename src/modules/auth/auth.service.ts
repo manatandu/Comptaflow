@@ -39,11 +39,18 @@ export class AuthService {
    * canevas de design : le plan de comptes est prêt dès l'inscription, sans
    * étape de configuration manuelle.
    *
-   * NB : la création tenant+licence+user et le seed du plan de comptes ne
-   * sont pas dans la même transaction DB · un échec du seed après un tenant
-   * créé est un état incohérent possible en MVP, acceptable pour l'instant
-   * mais à durcir (transaction interactive Prisma) avant une mise en prod
-   * réelle.
+   * TOUT SE FAIT DANS UNE SEULE TRANSACTION · tenant, licence, admin, plan de
+   * comptes, journaux, taxes, familles d'immobilisations, plans analytiques,
+   * niveaux de relance et exercice. Le commentaire qui vivait ici annonçait
+   * l'inverse comme une limite du MVP « à durcir avant une mise en prod
+   * réelle » : la mise en production a eu lieu, et l'état incohérent qu'il
+   * décrivait est un dossier ouvert SANS PLAN DE COMPTES · on s'y connecte,
+   * rien n'y fonctionne, et aucun message ne dit pourquoi. Le tenant n'existe
+   * désormais que si tout le reste existe.
+   *
+   * Le hachage du mot de passe reste DEHORS : bcrypt à 12 tours occupe le
+   * processeur une centaine de millisecondes, et tenir une transaction
+   * ouverte pendant ce temps ne servirait à rien.
    */
   async register(dto: RegisterDto) {
     const emailExistant = await this.prisma.user.findUnique({ where: { email: dto.email } });
@@ -51,74 +58,89 @@ export class AuthService {
       throw new ConflictException('Un compte existe déjà avec cet email');
     }
 
-    // Les DEUX référentiels se sèment désormais (SYCEBNL depuis l'origine,
-    // SYSCOHADA depuis compte-seed-syscohada.ts) · le refus historique du
-    // SYSCOHADA est levé. Un dossier SYSCOHADA se TIENT et s'IMPRIME
-    // complètement : plan, journaux, taxes, immobilisations, éditions, puis
-    // les états des deux systèmes de l'AUDCIF art. 11 (Système normal du
-    // Titre IX, Système minimal de trésorerie du Titre X) et les notes
-    // annexes du Titre IX ch. 6, servis par leur PROPRE contrôleur
-    // (etats-financiers-syscohada). Chaque jeu reste cloisonné sur son
-    // référentiel par @ReferentielsAutorises : les deux ne partagent aucun
-    // poste, aucun compte, aucun libellé. Restent propres au SYCEBNL les
-    // documents obligatoires et les fenêtres bâties sur ses textes.
-    const tenant = await this.tenantService.creerTenant({
-      nom: dto.nomEntite,
-      referentiel: dto.referentiel,
-      typeLicence: dto.typeLicence ?? TypeLicence.ABONNEMENT,
-      // Le jeu d'états est un concept SYCEBNL (art. 4 à 6) · jamais retenu
-      // pour un dossier SYSCOHADA, même si le DTO en portait un.
-      jeuEtatsFinanciersSycebnl: dto.referentiel === Referentiel.SYCEBNL ? dto.jeuEtatsFinanciersSycebnl : undefined,
-      // Symétriquement, le système comptable de l'AUDCIF ne concerne QUE le
-      // SYSCOHADA · Système normal par défaut, régime de droit commun de
-      // l'art. 11 (« toute entité est, sauf exception liée à sa taille,
-      // soumise au Système normal »).
-      systemeComptableSyscohada:
-        dto.referentiel === Referentiel.SYSCOHADA
-          ? (dto.systemeComptableSyscohada ?? SystemeComptableSyscohada.NORMAL)
-          : undefined,
-      activite: dto.activite,
-      adresse: dto.adresse,
-      ville: dto.ville,
-      pays: dto.pays,
-      telephone: dto.telephone,
-      devise: dto.devise,
-    });
-
     const motDePasseHache = await bcrypt.hash(dto.motDePasse, SALT_ROUNDS);
-    const user = await this.prisma.user.create({
-      data: {
-        tenantId: tenant.id,
-        email: dto.email,
-        motDePasse: motDePasseHache,
-        role: RoleUtilisateur.ADMIN_CABINET,
-      },
-    });
 
-    await this.compteService.seedPlan(tenant.id, dto.referentiel);
-    // Les journaux par défaut référencent des comptes de trésorerie du plan
-    // qui vient d'être semé : le seed des comptes doit donc toujours précéder
-    // celui des journaux. Même contrainte pour les taux de TVA et les
-    // familles d'immobilisations. Les numéros référencés sont PROPRES à
-    // chaque référentiel (caisse 5710/5711, TVA déductible 4451/4452,
-    // mobilier 2441/2444... · voir chaque fichier *-seed.ts).
-    await this.journalService.seedJournauxDefaut(tenant.id, dto.referentiel);
-    await this.tauxTvaService.seedTauxDefaut(tenant.id, dto.referentiel);
-    await this.immobilisationService.seedFamillesDefaut(tenant.id, dto.referentiel);
-    // Axes analytiques Projets (+ Bailleurs en SYCEBNL) · aucune dépendance
-    // sur les comptes, mais placés ici pour que le dossier soit prêt à
-    // ventiler dès la première écriture.
-    await this.analytiqueService.seedPlansDefaut(tenant.id, dto.referentiel);
-    // Trois niveaux de relance au ton d'une association à ses membres · voir
-    // RelancesService.NIVEAUX_DEFAUT.
-    await this.relancesService.seedNiveauxDefaut(tenant.id);
-    const exercice =
-      dto.dateDebutExercice && dto.dateFinExercice
-        ? await this.exerciceService.creer(tenant.id, {
-            dateDebut: dto.dateDebutExercice,
-            dateFin: dto.dateFinExercice,
-          })
-        : await this.exerciceService.creerExerciceCourant(tenant.id);
+    // `timeout` généreux et assumé : le semis enchaîne environ quatre-vingts
+    // allers-retours vers Neon (1401 comptes en une passe, puis journaux,
+    // taxes et familles compte par compte), ce qui dépasse largement les cinq
+    // secondes par défaut de Prisma. Une inscription est un geste rare : la
+    // tenir trente secondes ne coûte rien, et échouer à mi-chemin coûterait
+    // un dossier inutilisable.
+    const { tenant, user, exercice } = await this.prisma.$transaction(
+      async (tx) => {
+        // Les DEUX référentiels se sèment désormais (SYCEBNL depuis l'origine,
+        // SYSCOHADA depuis compte-seed-syscohada.ts) · le refus historique du
+        // SYSCOHADA est levé. Un dossier SYSCOHADA se TIENT et s'IMPRIME
+        // complètement : plan, journaux, taxes, immobilisations, éditions, puis
+        // les états des deux systèmes de l'AUDCIF art. 11 (Système normal du
+        // Titre IX, Système minimal de trésorerie du Titre X) et les notes
+        // annexes du Titre IX ch. 6, servis par leur PROPRE contrôleur
+        // (etats-financiers-syscohada). Chaque jeu reste cloisonné sur son
+        // référentiel par @ReferentielsAutorises : les deux ne partagent aucun
+        // poste, aucun compte, aucun libellé. Restent propres au SYCEBNL les
+        // documents obligatoires et les fenêtres bâties sur ses textes.
+        const tenant = await this.tenantService.creerTenant({
+          nom: dto.nomEntite,
+          referentiel: dto.referentiel,
+          typeLicence: dto.typeLicence ?? TypeLicence.ABONNEMENT,
+          // Le jeu d'états est un concept SYCEBNL (art. 4 à 6) · jamais retenu
+          // pour un dossier SYSCOHADA, même si le DTO en portait un.
+          jeuEtatsFinanciersSycebnl: dto.referentiel === Referentiel.SYCEBNL ? dto.jeuEtatsFinanciersSycebnl : undefined,
+          // Symétriquement, le système comptable de l'AUDCIF ne concerne QUE le
+          // SYSCOHADA · Système normal par défaut, régime de droit commun de
+          // l'art. 11 (« toute entité est, sauf exception liée à sa taille,
+          // soumise au Système normal »).
+          systemeComptableSyscohada:
+            dto.referentiel === Referentiel.SYSCOHADA
+              ? (dto.systemeComptableSyscohada ?? SystemeComptableSyscohada.NORMAL)
+              : undefined,
+          activite: dto.activite,
+          adresse: dto.adresse,
+          ville: dto.ville,
+          pays: dto.pays,
+          telephone: dto.telephone,
+          devise: dto.devise,
+        }, tx);
+
+        const user = await tx.user.create({
+          data: {
+            tenantId: tenant.id,
+            email: dto.email,
+            motDePasse: motDePasseHache,
+            role: RoleUtilisateur.ADMIN_CABINET,
+          },
+        });
+
+        await this.compteService.seedPlan(tenant.id, dto.referentiel, tx);
+        // Les journaux par défaut référencent des comptes de trésorerie du plan
+        // qui vient d'être semé : le seed des comptes doit donc toujours précéder
+        // celui des journaux. Même contrainte pour les taux de TVA et les
+        // familles d'immobilisations. Les numéros référencés sont PROPRES à
+        // chaque référentiel (caisse 5710/5711, TVA déductible 4451/4452,
+        // mobilier 2441/2444... · voir chaque fichier *-seed.ts).
+        await this.journalService.seedJournauxDefaut(tenant.id, dto.referentiel, tx);
+        await this.tauxTvaService.seedTauxDefaut(tenant.id, dto.referentiel, tx);
+        await this.immobilisationService.seedFamillesDefaut(tenant.id, dto.referentiel, tx);
+        // Axes analytiques Projets (+ Bailleurs en SYCEBNL) · aucune dépendance
+        // sur les comptes, mais placés ici pour que le dossier soit prêt à
+        // ventiler dès la première écriture.
+        await this.analytiqueService.seedPlansDefaut(tenant.id, dto.referentiel, tx);
+        // Trois niveaux de relance au ton d'une association à ses membres · voir
+        // RelancesService.NIVEAUX_DEFAUT.
+        await this.relancesService.seedNiveauxDefaut(tenant.id, tx);
+        const exercice =
+          dto.dateDebutExercice && dto.dateFinExercice
+            ? await this.exerciceService.creer(
+                tenant.id,
+                { dateDebut: dto.dateDebutExercice, dateFin: dto.dateFinExercice },
+                tx,
+              )
+            : await this.exerciceService.creerExerciceCourant(tenant.id, tx);
+
+        return { tenant, user, exercice };
+      },
+      { maxWait: 10_000, timeout: 30_000 },
+    );
 
     return {
       tenant: {
