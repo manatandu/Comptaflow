@@ -132,21 +132,29 @@ dédié : `correspondance-tft.ts` (599 lignes), `correspondance-smt.ts` (480) et
 correspondance poste/comptes vérifiées par rien d'autre que les tests de
 moteur, qui attrapent une table cassée mais pas un compte faux dans un poste.
 
-Et le balayage des orphelins, écrit pour le SYSCOHADA, a déjà trouvé quatre
-comptes SEMÉS que le SYCEBNL ne capte nulle part · confrontation faite le
-2026-09-02 aux tableaux de correspondance vérifiés du référentiel :
+### Rectification du 2026-09-02 · le constat « quatre orphelins » était faux
 
-| Compte | Ce qu'il est | Où il manque |
+Une version antérieure de ce plan annonçait quatre comptes semés que le
+SYCEBNL ne capterait nulle part, présentés comme un défaut de nos tables.
+Confrontation faite aux tableaux de correspondance officiels (Partie 4, ch. 2
+et 3) et aux fiches de comptes (Partie 2, ch. 3) : le constat était faux sur
+le premier et mal attribué sur les trois autres.
+
+| Compte | Ce que disait le plan | Ce que dit le texte |
 |---|---|---|
-| 46 (462, 463, 464, 469) | Bailleurs, fonds d'administration | bilan des associations · le texte le place en BE et DI |
-| 68 (681, 6812, 6813) | Dotations aux amortissements | compte d'exploitation projets · le poste ne porte que 69 |
-| 706, 708 | produits | poste RD du compte d'exploitation projets |
-| 499, 599 | provisions pour risques à court terme | poste DI du bilan projets, qui porte à la place le compte 20 |
+| 46 | manque au bilan des associations | réservé aux PROJETS (fiche COMPTE 46), et rattaché au poste DF du bilan projets · notre table le porte. Son absence du jeu associations est correcte |
+| 68 | manque au compte d'exploitation projets | exact, mais c'est le TABLEAU OFFICIEL qui ne le cite pas · déjà documenté en anomalie n° 4, non comblé à dessein |
+| 706, 708 | manquent au poste RD | RD officiel = « 707, 72, 73 (+/-), 75, 77, 78 ». Six subdivisions du 70 sont sans poste, pas deux · documenté en anomalie n° 5 |
+| 499, 599 | DI porte à la place le compte 20 | le texte officiel écrit bien « DI · 20 », très probablement une corruption de scan · anomalie déjà documentée et transcrite telle quelle |
 
-Un compte orphelin ne déclenche rien : il disparaît de l'état. Une ASBL
-financée par bailleurs a un solde en 46, et son bilan ne boucle pas de ce
-montant. Le catalogue d'anomalies du référentiel lui-même classe ce cas « à
-régler avant remise ».
+Aucune de ces lacunes n'est comblée, et c'est la bonne décision : les
+rattacher d'office inventerait un poste que le référentiel ne donne pas
+(CLAUDE.md §1). Le mécanisme qui les rend visibles existe déjà ·
+`comptesNonRattaches`, calculé à l'exécution et rendu à l'écran comme dans
+l'export. Ce qui manquait était la GARDE : `lacunes-texte-officiel-sycebnl.spec.ts`
+nomme chacune, vérifie qu'elle reste non rattachée et qu'elle est signalée sur
+place, pour qu'un futur « nettoyage des orphelins » ne fasse pas disparaître
+dans un poste voisin un montant que le référentiel ne sait pas classer.
 
 S'y ajoute le recoupement note ↔ poste de bilan, jamais passé sur les 71 notes
 SYCEBNL · c'est lui qui, côté SYSCOHADA, a trouvé le compte 478 présent dans

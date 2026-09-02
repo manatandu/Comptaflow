@@ -1515,6 +1515,52 @@ export class ExportService {
     totalColonne(COL_DOTATION + 3, t.totaux.net);
     total.font = ENTETE_FONT;
 
+    /*
+     * CONTRÔLE DE BOUCLAGE · le bas de leur feuille, et c'est le seul endroit
+     * du classeur qui VÉRIFIE quelque chose.
+     *
+     * Ils y écrivent le cumul d'amortissements de clôture, celui d'ouverture,
+     * leur différence, la dotation de la période, et l'écart entre les deux ·
+     * annoté « ok parfait » quand il tombe à zéro. C'est le rapprochement des
+     * deux feuilles du dossier : le tableau des immobilisations donne le cumul,
+     * le tableau des amortissements donne la dotation, et l'un doit expliquer
+     * l'autre.
+     *
+     * En formule, pas en valeur : un contrôle dont le résultat est écrit en dur
+     * ne contrôle rien, il affirme. Celui-ci se recalcule à l'ouverture, et
+     * bouge si un montant est corrigé à la main dans le classeur.
+     */
+    feuille.addRow([]);
+    const ligneTotalCoiffee = total.number + 3;
+    const controles: Array<[string, ExcelJS.CellValue]> = [
+      ['Cumul amortissements à la clôture', this.formule(`${colCumulN}${ligneTotalCoiffee}`, t.totaux.cumulN)],
+      ["Cumul amortissements à l'ouverture", this.formule(`${colCumulN1}${ligneTotalCoiffee}`, t.totaux.cumulN1)],
+      ['Dotation de la période', this.formule(`${colDotation}${ligneTotalCoiffee}`, t.totaux.dotation)],
+    ];
+    const lignesControle: number[] = [];
+    for (const [libelle, valeur] of controles) {
+      const r = feuille.addRow([]);
+      r.getCell(1).value = libelle;
+      r.getCell(3).value = valeur;
+      lignesControle.push(r.number + 3);
+      r.font = { size: 9, italic: true };
+    }
+    const [ligneCloture, ligneOuverture, ligneDotation] = lignesControle;
+    const ecart = Math.round((t.totaux.cumulN - t.totaux.cumulN1 - t.totaux.dotation) * 100) / 100;
+    const ligneEcart = feuille.addRow([]);
+    ligneEcart.getCell(1).value =
+      Math.abs(ecart) < 0.005
+        ? 'Écart · le cumul de clôture est bien celui d’ouverture augmenté de la dotation'
+        : "ÉCART · le cumul de clôture ne s'explique pas par la dotation de la période";
+    // Les trois valeurs du contrôle sont posées en colonne C · l'écart les
+    // soustrait là où elles sont, pas là où elles seraient dans le tableau.
+    const colControle = feuille.getColumn(3).letter;
+    ligneEcart.getCell(3).value = this.formule(
+      `${colControle}${ligneCloture}-${colControle}${ligneOuverture}-${colControle}${ligneDotation}`,
+      ecart,
+    );
+    ligneEcart.font = ENTETE_FONT;
+
     feuille.getColumn(2).numFmt = FORMAT_DATE;
     feuille.getColumn(3).numFmt = FORMAT_MONTANT;
     feuille.getColumn(4).numFmt = '0.00%';
