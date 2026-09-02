@@ -755,11 +755,12 @@ export function ParametresDossierPage() {
               <SectionTitre>Régime fiscal et effectif</SectionTitre>
               <div className="space-y-3">
                 {/* IMPÔT SUR LES BÉNÉFICES · bloc d'information, pas un
-                    réglage : OmegaX ne calcule pas l'impôt, et un régime
-                    stocké sans être utilisé serait une donnée morte. Ce qui
-                    change ici entre les deux référentiels n'est pas la
-                    présentation mais le fond · une ASBL peut être EXEMPTÉE,
-                    une société ne l'est jamais. */}
+                    réglage : le régime ne se stocke pas ici, il se déduit du
+                    chiffre d'affaires de l'exercice dans la fenêtre Fiscalité,
+                    et un régime figé au dossier se périmerait dès le
+                    franchissement d'un seuil. Ce qui change ici entre les deux
+                    référentiels n'est pas la présentation mais le fond · une
+                    ASBL peut être EXEMPTÉE, une société ne l'est jamais. */}
                 {params.referentiel === 'SYSCOHADA' && (
                   <div className="border border-border rounded-[7px] p-2.5">
                     <span className="block text-[11px] font-semibold">Impôt sur les bénéfices</span>
@@ -787,8 +788,10 @@ export function ParametresDossierPage() {
                     </ul>
                     <span className="block text-[10px] text-text-dim leading-[1.55] mt-1.5">
                       Ces seuils et ce forfait sont réajustables par arrêté du Ministre des Finances · vérifiez-les
-                      avant de les opposer à un client. OmegaX ne calcule pas cet impôt : il tient la comptabilité qui
-                      en donne l’assiette.
+                      avant de les opposer à un client. La fenêtre <strong>Fiscalité</strong> monte le tableau de
+                      passage du résultat comptable au résultat fiscal, liquide l’impôt et calcule les acomptes ·
+                      l’imprimé officiel de déclaration, lui, reste à remplir à la main tant que le modèle n’est pas
+                      en notre possession.
                     </span>
                   </div>
                 )}
