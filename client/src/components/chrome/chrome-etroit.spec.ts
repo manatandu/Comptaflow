@@ -1,6 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+
+// AUCUN import de « vitest » ici, volontairement · c'est la convention du
+// dépôt (voir client/vitest.config.ts et calcul.spec.ts) : describe/it/expect
+// arrivent par les globales, ce qui rend le fichier exécutable par les DEUX
+// lanceurs. Le jest du serveur ramasse aussi client/src (clé `roots` de
+// package.json) : importer de vitest y cassait la compilation du spec, donc
+// `npx jest` à la racine, que CLAUDE.md §3 exige avant chaque commit.
 
 /**
  * Garde-fous du chrome sur un écran étroit (360 px).

@@ -1,10 +1,11 @@
-import { ClasseCompte, TypeCompteDetailTotal } from '@prisma/client';
+import { ClasseCompte, JeuNotesAnnexes, Referentiel, TypeCompteDetailTotal } from '@prisma/client';
 import { NoteAnnexeService } from './note-annexe.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { ExerciceService } from '../exercice/exercice.service';
 import { NOTES_ASSOCIATIONS } from './correspondance-notes-associations';
 import { NOTES_PROJETS } from './correspondance-notes-projets';
 import { PrismaService } from '../../common/prisma.service';
+import { NOTES_SYSCOHADA } from '../etats-financiers-syscohada/correspondance-notes-syscohada';
 
 /**
  * Une ligne de balance. `report` porte le report à-nouveau (débit, crédit) ·
@@ -43,8 +44,12 @@ function prismaAvec(
   comptes: any[] = [],
   lignesEch: LigneEch[] = [],
   ecritures: EcritureFixture[] = [],
+  // Référentiel du dossier · le rattachement le lit pour refuser un jeu de
+  // notes étranger au référentiel (NoteAnnexeService.verifierJeuDuDossier).
+  referentiel: Referentiel = Referentiel.SYCEBNL,
 ) {
   return {
+    tenant: { findUnique: jest.fn().mockResolvedValue({ referentiel }) },
     rattachementNote: {
       findMany: jest.fn().mockResolvedValue(rattachements),
       upsert: jest.fn().mockImplementation(({ create }: any) => Promise.resolve({ id: 'r1', ...create })),
@@ -917,7 +922,7 @@ describe('tableaux de situations et mouvements (notes 5A-5F, 30)', () => {
 });
 
 describe('rattachement des comptes du dossier aux rubriques', () => {
-  const JEU = 'ASSOCIATIONS_ORDRES_PROFESSIONNELS' as any;
+  const JEU = JeuNotesAnnexes.ASSOCIATIONS_ORDRES_PROFESSIONNELS;
 
   it('REFUSE un rattachement sur une rubrique que le plan officiel détermine déjà', async () => {
     // Garde-fou central : laisser modifier ces rubriques permettrait de défaire
@@ -1022,5 +1027,104 @@ describe('rattachement des comptes du dossier aux rubriques', () => {
     const n24 = note(await s.notesAssociations('t', 'e1'), '24');
     expect(ligneDe(n24, 'Achats autres activités').montantN).toBe(700);
     expect(ligneDe(n24, 'Matières consommables').montantN).toBe(300);
+  });
+});
+
+
+/**
+ * GÉNÉRALISATION AU SYSCOHADA (2026-09-02) · le moteur de notes était indexé
+ * par `JeuEtatsFinanciersSycebnl`, ce qui interdisait matériellement d'y loger
+ * les 36 notes de l'AUDCIF Titre IX ch. 6. Il l'est désormais par
+ * `JeuNotesAnnexes`, un enum propre au rattachement.
+ *
+ * Ce que ces tests protègent, et qui casserait en silence :
+ *  · le cloisonnement des deux référentiels (CLAUDE.md §6) sur des routes de
+ *    rattachement volontairement ouvertes aux deux ;
+ *  · le décompte de couverture, que la subdivision des codes SYSCOHADA
+ *    (3A à 3F, 16A à 16C…) fausserait de dix notes.
+ */
+describe('jeu de notes SYSCOHADA · Système normal', () => {
+  const dossier = (referentiel: Referentiel, rattachements: Rattachement[] = [], comptes: any[] = []) =>
+    service({ e1: [] }, [], prismaAvec(rattachements, comptes, [], [], referentiel));
+
+  it('les 36 notes officielles sont servies, et la couverture les compte comme 36 et non 46', async () => {
+    // AUDCIF Titre IX ch. 6 section 2 : la liste va de NOTE 1 à NOTE 36, mais
+    // subdivise plusieurs numéros en codes distincts (3A à 3F, 15A/15B, 16A à
+    // 16C, 27A/27B). Compter les CODES donnerait 46 transcrites pour 36
+    // attendues · un jeu complet passerait pour un jeu en excédent.
+    const r = await dossier(Referentiel.SYSCOHADA).notesSyscohada('t', 'e1');
+    expect(r.couverture).toEqual({ transcrites: 36, attendues: 36 });
+    expect(new Set(NOTES_SYSCOHADA.map((n) => n.code)).size).toBe(46);
+  });
+
+  it('sert les notes SYSCOHADA et AUCUNE note SYCEBNL · les deux jeux ne se recopient pas', async () => {
+    const r = await dossier(Referentiel.SYSCOHADA).notesSyscohada('t', 'e1');
+    const titresServis = new Set(r.notes.map((n) => `${n.code}::${n.titre}`));
+    expect(titresServis).toEqual(new Set(NOTES_SYSCOHADA.map((n) => `${n.code}::${n.titre}`)));
+    // Un titre propre au SYCEBNL ne doit jamais apparaître ici. « Fonds du
+    // bailleur » et « Générosités » n'existent que dans son texte.
+    for (const n of r.notes) {
+      expect(n.titre.toUpperCase()).not.toContain('BAILLEUR');
+      expect(n.titre.toUpperCase()).not.toContain('GÉNÉROSIT');
+    }
+  });
+
+  it('un dossier SYSCOHADA rattache un de ses sous-comptes à une rubrique SYSCOHADA en attente', async () => {
+    // Note 15B « AUTRES FONDS PROPRES », rubrique « Titres participatifs » :
+    // le plan SYSCOHADA n'isole pas ces titres, le dossier doit subdiviser.
+    const s = dossier(Referentiel.SYSCOHADA, [], [{ id: 'c1', typeCompte: 'DETAIL', numero: '16610000' }]);
+    const r = await s.rattacher('t', 'u', JeuNotesAnnexes.SYSCOHADA_SYSTEME_NORMAL, '15B', 'titres-participatifs', 'c1');
+    expect(r).toMatchObject({ codeNote: '15B', cleRubrique: 'titres-participatifs', compteId: 'c1' });
+  });
+
+  it('le garde-fou des rubriques officielles vaut aussi pour le SYSCOHADA', async () => {
+    // « Avances conditionnées » est rattachée au compte 167 par l'AUDCIF :
+    // elle ne porte pas de clé et n'est pas modifiable.
+    const s = dossier(Referentiel.SYSCOHADA, [], [{ id: 'c1', typeCompte: 'DETAIL', numero: '16700000' }]);
+    await expect(
+      s.rattacher('t', 'u', JeuNotesAnnexes.SYSCOHADA_SYSTEME_NORMAL, '15B', 'avances-conditionnees', 'c1'),
+    ).rejects.toThrow(/pas de rubrique rattachable/);
+  });
+
+  it('CLOISONNEMENT · un dossier SYSCOHADA ne rattache pas à un jeu SYCEBNL', async () => {
+    const s = dossier(Referentiel.SYSCOHADA, [], [{ id: 'c1', typeCompte: 'DETAIL', numero: '60410000' }]);
+    await expect(
+      s.rattacher('t', 'u', JeuNotesAnnexes.ASSOCIATIONS_ORDRES_PROFESSIONNELS, '24', 'matieres-consommables', 'c1'),
+    ).rejects.toThrow(/relève du référentiel SYCEBNL.*ce dossier est en SYSCOHADA/s);
+  });
+
+  it('CLOISONNEMENT · un dossier SYCEBNL ne rattache pas au jeu SYSCOHADA', async () => {
+    const s = dossier(Referentiel.SYCEBNL, [], [{ id: 'c1', typeCompte: 'DETAIL', numero: '16610000' }]);
+    await expect(
+      s.rattacher('t', 'u', JeuNotesAnnexes.SYSCOHADA_SYSTEME_NORMAL, '15B', 'titres-participatifs', 'c1'),
+    ).rejects.toThrow(/relève du référentiel SYSCOHADA.*ce dossier est en SYCEBNL/s);
+  });
+
+  it('CLOISONNEMENT · le détachement est gardé comme le rattachement', async () => {
+    // Sans ce contrôle, un dossier pourrait supprimer les rattachements d'un
+    // jeu qui n'est pas le sien · sans effet visible chez lui, bien réel en base.
+    const s = dossier(Referentiel.SYCEBNL);
+    await expect(
+      s.detacher('t', JeuNotesAnnexes.SYSCOHADA_SYSTEME_NORMAL, '15B', 'titres-participatifs', 'c1'),
+    ).rejects.toThrow(/relève du référentiel SYSCOHADA/);
+  });
+
+  it('le rattachement du dossier chiffre bien la rubrique SYSCOHADA', async () => {
+    const s = service(
+      { e1: [ligne('16610000', ClasseCompte.CLASSE_1, 0, 4000)] },
+      [],
+      prismaAvec(
+        [{ codeNote: '15B', cleRubrique: 'titres-participatifs', compte: { numero: '16610000' } }],
+        [],
+        [],
+        [],
+        Referentiel.SYSCOHADA,
+      ),
+    );
+    const n15b = note(await s.notesSyscohada('t', 'e1'), '15B');
+    const l = ligneDe(n15b, 'Titres participatifs');
+    expect(l.enAttenteDeRattachement).toBeUndefined();
+    expect(l.rattachementDuDossier).toBe(true);
+    expect(Math.abs(l.montantN)).toBe(4000);
   });
 });

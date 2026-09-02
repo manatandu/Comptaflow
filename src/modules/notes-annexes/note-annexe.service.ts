@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { JeuEtatsFinanciersSycebnl } from '@prisma/client';
+import { JeuNotesAnnexes, Referentiel } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { ExerciceService } from '../exercice/exercice.service';
@@ -15,16 +15,76 @@ import {
 } from './note-annexe.types';
 import { NOTES_ASSOCIATIONS } from './correspondance-notes-associations';
 import { NOTES_PROJETS } from './correspondance-notes-projets';
+import {
+  NOMBRE_NOTES_SYSCOHADA,
+  NOTES_SYSCOHADA,
+  numeroDeTeteNoteSyscohada,
+} from '../etats-financiers-syscohada/correspondance-notes-syscohada';
 
-/** Spécifications du jeu, indexées par `JeuEtatsFinanciersSycebnl` · un seul point d'entrée pour les deux jeux transcrits. */
-const NOTES_PAR_JEU: Partial<Record<JeuEtatsFinanciersSycebnl, SpecificationNote[]>> = {
-  [JeuEtatsFinanciersSycebnl.ASSOCIATIONS_ORDRES_PROFESSIONNELS]: NOTES_ASSOCIATIONS,
-  [JeuEtatsFinanciersSycebnl.PROJETS_DEVELOPPEMENT]: NOTES_PROJETS,
+/**
+ * Spécifications du jeu, indexées par `JeuNotesAnnexes` · un seul point
+ * d'entrée pour les trois jeux transcrits.
+ *
+ * `Record` COMPLET et non `Partial` : ajouter une valeur à l'enum sans lui
+ * donner ses notes casse alors la compilation, au lieu de produire un jeu
+ * silencieusement vide. Les trois autres tables de ce fichier suivent la même
+ * règle pour la même raison.
+ *
+ * Le SYSCOHADA n'emprunte RIEN au SYCEBNL ici · seul le moteur déclaratif
+ * (`note-annexe.types.ts`) est commun, comme le pose CLAUDE.md §6. Ses notes
+ * viennent de l'AUDCIF Titre IX ch. 6, celles du SYCEBNL de la Partie 4 de
+ * son propre texte.
+ */
+const NOTES_PAR_JEU: Record<JeuNotesAnnexes, SpecificationNote[]> = {
+  [JeuNotesAnnexes.ASSOCIATIONS_ORDRES_PROFESSIONNELS]: NOTES_ASSOCIATIONS,
+  [JeuNotesAnnexes.PROJETS_DEVELOPPEMENT]: NOTES_PROJETS,
+  [JeuNotesAnnexes.SYSCOHADA_SYSTEME_NORMAL]: NOTES_SYSCOHADA,
 };
+
 /** Nombre de notes que le texte officiel attend pour ce jeu · sert à `couverture`. */
-const NOTES_ATTENDUES_PAR_JEU: Partial<Record<JeuEtatsFinanciersSycebnl, number>> = {
-  [JeuEtatsFinanciersSycebnl.ASSOCIATIONS_ORDRES_PROFESSIONNELS]: 45,
-  [JeuEtatsFinanciersSycebnl.PROJETS_DEVELOPPEMENT]: 26,
+const NOTES_ATTENDUES_PAR_JEU: Record<JeuNotesAnnexes, number> = {
+  [JeuNotesAnnexes.ASSOCIATIONS_ORDRES_PROFESSIONNELS]: 45,
+  [JeuNotesAnnexes.PROJETS_DEVELOPPEMENT]: 26,
+  // AUDCIF Titre IX ch. 6 section 2 « Liste officielle des Notes annexes » :
+  // NOTE 1 à NOTE 36. Voir NOMBRE_NOTES_SYSCOHADA, qui porte la valeur et sa
+  // source · on ne la réécrit pas ici de mémoire.
+  [JeuNotesAnnexes.SYSCOHADA_SYSTEME_NORMAL]: NOMBRE_NOTES_SYSCOHADA,
+};
+
+/**
+ * Ce qui compte pour UNE note officielle dans `couverture.transcrites`.
+ *
+ * Les deux jeux SYCEBNL donnent un code unique par note et rangent leurs
+ * tableaux multiples sous ce même code (`sousTableau`) : compter les codes
+ * distincts suffit. Le SYSCOHADA, lui, SUBDIVISE le numéro officiel en codes
+ * distincts · la NOTE 3 se décline en 3A à 3F, la 15 en 15A et 15B, la 16 en
+ * 16A, 16B, 16B bis et 16C, la 27 en 27A et 27B (AUDCIF Titre IX ch. 6,
+ * section 2). Ses 46 codes ne valent donc que 36 notes : sans cette
+ * réduction, `transcrites` afficherait 46 contre 36 attendues et ferait
+ * passer un jeu complet pour un jeu en excédent.
+ */
+const NUMERO_OFFICIEL_PAR_JEU: Record<JeuNotesAnnexes, (code: string) => string> = {
+  [JeuNotesAnnexes.ASSOCIATIONS_ORDRES_PROFESSIONNELS]: (code) => code,
+  [JeuNotesAnnexes.PROJETS_DEVELOPPEMENT]: (code) => code,
+  [JeuNotesAnnexes.SYSCOHADA_SYSTEME_NORMAL]: (code) => String(numeroDeTeteNoteSyscohada(code)),
+};
+
+/**
+ * Référentiel du dossier auquel chaque jeu de notes appartient.
+ *
+ * CLAUDE.md §6 : « les deux référentiels ne partagent ni plan de comptes, ni
+ * états financiers, ni vocabulaire ». Un rattachement croisé (un dossier
+ * SYSCOHADA qui viserait une rubrique de note SYCEBNL, ou l'inverse) est donc
+ * un défaut de cloisonnement, pas une commodité · il est refusé
+ * explicitement. Ce contrôle vit ici, et non dans une garde de route, parce
+ * que les routes de rattachement servent LES DEUX référentiels : les fermer à
+ * l'un ou à l'autre par `@ReferentielsAutorises` fermerait la fonction à
+ * moitié des dossiers.
+ */
+const REFERENTIEL_DU_JEU: Record<JeuNotesAnnexes, Referentiel> = {
+  [JeuNotesAnnexes.ASSOCIATIONS_ORDRES_PROFESSIONNELS]: Referentiel.SYCEBNL,
+  [JeuNotesAnnexes.PROJETS_DEVELOPPEMENT]: Referentiel.SYCEBNL,
+  [JeuNotesAnnexes.SYSCOHADA_SYSTEME_NORMAL]: Referentiel.SYSCOHADA,
 };
 
 /**
@@ -140,14 +200,11 @@ export class NoteAnnexeService {
    * projet vise à empêcher. Un rattachement sur une rubrique officielle est
    * refusé explicitement, jamais ignoré.
    */
-  private rubriqueRattachable(jeu: JeuEtatsFinanciersSycebnl, codeNote: string, cleRubrique: string) {
+  private rubriqueRattachable(jeu: JeuNotesAnnexes, codeNote: string, cleRubrique: string) {
+    // `NOTES_PAR_JEU` est un Record COMPLET : tout jeu de l'enum a ses notes,
+    // et le compilateur l'exige. Le repli « jeu non transcrit » qui vivait ici
+    // ne pouvait donc plus se produire.
     const specs = NOTES_PAR_JEU[jeu];
-    if (!specs) {
-      throw new BadRequestException(
-        'Seules les notes des jeux « associations et ordres professionnels » et « projets de développement » ' +
-          'sont transcrites à ce jour.',
-      );
-    }
     // Un code de note peut désigner plusieurs TABLEAUX (note 1, note 7,
     // note 29B…) · ils ne partagent jamais de clé de rubrique entre eux
     // (test structurel dédié), donc chercher la clé dans TOUS les tableaux
@@ -179,15 +236,45 @@ export class NoteAnnexeService {
     return rubrique;
   }
 
+  /**
+   * Vérifie que le jeu de notes visé est bien celui du référentiel du dossier.
+   *
+   * Les routes de rattachement sont OUVERTES aux deux référentiels · elles
+   * servent aussi bien les notes SYCEBNL que les 36 notes SYSCOHADA, et une
+   * garde `@ReferentielsAutorises` ne saurait laisser passer que l'un des
+   * deux. Le cloisonnement de CLAUDE.md §6 se joue donc ici, sur le couple
+   * (référentiel du dossier, jeu demandé) : un dossier SYSCOHADA ne rattache
+   * qu'au jeu SYSCOHADA, un dossier SYCEBNL qu'à ses deux jeux. Un croisement
+   * est refusé explicitement, jamais ignoré · le laisser passer stockerait un
+   * rattachement que le moteur du dossier ne relira jamais, donc une rubrique
+   * qui reste vide sans que rien ne le dise.
+   */
+  private async verifierJeuDuDossier(tenantId: string, jeu: JeuNotesAnnexes) {
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { referentiel: true },
+    });
+    if (!tenant) throw new NotFoundException('Dossier introuvable.');
+    const attendu = REFERENTIEL_DU_JEU[jeu];
+    if (tenant.referentiel !== attendu) {
+      throw new BadRequestException(
+        `Le jeu de notes « ${jeu} » relève du référentiel ${attendu}, alors que ce dossier est en ` +
+          `${tenant.referentiel}. Les deux référentiels ne partagent ni plan de comptes, ni états ` +
+          `financiers, ni notes annexes : un rattachement croisé n'aurait aucun sens comptable.`,
+      );
+    }
+  }
+
   /** Rattache un compte du dossier à une rubrique en attente. */
   async rattacher(
     tenantId: string,
     userId: string,
-    jeu: JeuEtatsFinanciersSycebnl,
+    jeu: JeuNotesAnnexes,
     codeNote: string,
     cleRubrique: string,
     compteId: string,
   ) {
+    await this.verifierJeuDuDossier(tenantId, jeu);
     this.rubriqueRattachable(jeu, codeNote, cleRubrique);
     const compte = await this.prisma.compte.findFirst({ where: { id: compteId, tenantId } });
     if (!compte) throw new NotFoundException('Compte introuvable pour ce dossier.');
@@ -206,7 +293,11 @@ export class NoteAnnexeService {
     });
   }
 
-  async detacher(tenantId: string, jeu: JeuEtatsFinanciersSycebnl, codeNote: string, cleRubrique: string, compteId: string) {
+  async detacher(tenantId: string, jeu: JeuNotesAnnexes, codeNote: string, cleRubrique: string, compteId: string) {
+    // Même contrôle qu'au rattachement : sans lui, un dossier pourrait
+    // supprimer des rattachements d'un jeu qui n'est pas le sien · sans effet
+    // visible chez lui, mais bien réel en base.
+    await this.verifierJeuDuDossier(tenantId, jeu);
     const supprimes = await this.prisma.rattachementNote.deleteMany({
       where: { tenantId, jeu, codeNote, cleRubrique, compteId },
     });
@@ -620,7 +711,7 @@ export class NoteAnnexeService {
    * portant les NUMÉROS de comptes (pas les identifiants) · le résolveur
    * travaille sur les numéros de la balance.
    */
-  private async chargerRattachements(tenantId: string, jeu: JeuEtatsFinanciersSycebnl): Promise<Map<string, string[]>> {
+  private async chargerRattachements(tenantId: string, jeu: JeuNotesAnnexes): Promise<Map<string, string[]>> {
     const lignes = await this.prisma.rattachementNote.findMany({
       where: { tenantId, jeu },
       select: { codeNote: true, cleRubrique: true, compte: { select: { numero: true } } },
@@ -641,13 +732,12 @@ export class NoteAnnexeService {
   /**
    * Toutes les notes d'un jeu pour un exercice, plus la fiche récapitulative
    * · qui fait partie de la liasse : elle déclare, note par note, si elle
-   * est applicable ou non. Commune aux deux jeux transcrits : la seule
+   * est applicable ou non. Commune aux trois jeux transcrits : la seule
    * différence entre eux est la spécification (`NOTES_PAR_JEU`) et le
    * nombre de notes attendu par le texte officiel (`NOTES_ATTENDUES_PAR_JEU`).
    */
-  private async notesDuJeu(tenantId: string, exerciceId: string, jeu: JeuEtatsFinanciersSycebnl) {
+  private async notesDuJeu(tenantId: string, exerciceId: string, jeu: JeuNotesAnnexes) {
     const specs = NOTES_PAR_JEU[jeu];
-    if (!specs) throw new BadRequestException(`Jeu d'états financiers non transcrit : ${jeu}.`);
 
     const exerciceN1Id = await trouverExerciceN1(this.exerciceService, tenantId, exerciceId);
     const [lignesN, lignesN1] = await Promise.all([
@@ -680,15 +770,19 @@ export class NoteAnnexeService {
         };
       }),
       couverture: {
-        transcrites: new Set(specs.map((n) => n.code)).size,
-        attendues: NOTES_ATTENDUES_PAR_JEU[jeu] ?? 0,
+        // On compte les NOTES officielles, pas les tableaux ni les codes ·
+        // voir NUMERO_OFFICIEL_PAR_JEU : le SYSCOHADA subdivise ses numéros
+        // (3A à 3F, 16A à 16C…) et compter ses codes donnerait 46 pour 36
+        // notes attendues.
+        transcrites: new Set(specs.map((n) => NUMERO_OFFICIEL_PAR_JEU[jeu](n.code))).size,
+        attendues: NOTES_ATTENDUES_PAR_JEU[jeu],
       },
     };
   }
 
   /** Notes annexes du jeu « associations et ordres professionnels ». */
   async notesAssociations(tenantId: string, exerciceId: string) {
-    return this.notesDuJeu(tenantId, exerciceId, JeuEtatsFinanciersSycebnl.ASSOCIATIONS_ORDRES_PROFESSIONNELS);
+    return this.notesDuJeu(tenantId, exerciceId, JeuNotesAnnexes.ASSOCIATIONS_ORDRES_PROFESSIONNELS);
   }
 
   /**
@@ -705,6 +799,22 @@ export class NoteAnnexeService {
    * restent exactes sans dupliquer un calcul qui existe déjà.
    */
   async notesProjet(tenantId: string, exerciceId: string) {
-    return this.notesDuJeu(tenantId, exerciceId, JeuEtatsFinanciersSycebnl.PROJETS_DEVELOPPEMENT);
+    return this.notesDuJeu(tenantId, exerciceId, JeuNotesAnnexes.PROJETS_DEVELOPPEMENT);
+  }
+
+  /**
+   * Notes annexes du SYSTÈME NORMAL SYSCOHADA · les 36 notes de l'AUDCIF
+   * Titre IX ch. 6, section 2 « Liste officielle des Notes annexes »,
+   * transcrites dans `NOTES_SYSCOHADA`.
+   *
+   * Rien n'y est repris du SYCEBNL : autres postes, autres comptes, autres
+   * renvois. Seul le moteur déclaratif est commun (CLAUDE.md §6).
+   *
+   * Le Système minimal de trésorerie SYSCOHADA n'a PAS de méthode ici : ses
+   * notes 1 à 4 (AUDCIF Titre X) sont servies avec ses états, comme le SMT
+   * SYCEBNL l'est déjà.
+   */
+  async notesSyscohada(tenantId: string, exerciceId: string) {
+    return this.notesDuJeu(tenantId, exerciceId, JeuNotesAnnexes.SYSCOHADA_SYSTEME_NORMAL);
   }
 }

@@ -3,7 +3,7 @@ import { api, ApiError } from '../lib/api';
 import { useExercice } from '../lib/exercice';
 import { useAuth } from '../lib/auth';
 import { IconExport } from '../components/chrome/icons';
-import type { Compte, LigneNoteCalculee, NoteCalculee, ResultatNotesJeu } from '../lib/types';
+import type { Compte, JeuNotesAnnexes, LigneNoteCalculee, NoteCalculee, ResultatNotesJeu } from '../lib/types';
 import { Aide } from '../components/chrome/Aide';
 import { BlocCertification, EnteteImpression } from '../components/chrome/EnteteImpression';
 import { EnConstructionSyscohada } from '../components/chrome/EnConstructionSyscohada';
@@ -72,6 +72,16 @@ export function NotesAnnexesPage() {
   // routes (ReferentielGuard) · voir l'écran « en construction » ci-dessous.
   const referentielSyscohada = utilisateur?.tenant.referentiel === 'SYSCOHADA';
 
+  // Jeu de notes visé par un rattachement · distinct du jeu d'états du
+  // dossier (voir `JeuNotesAnnexes`). Le serveur refuse un jeu étranger au
+  // référentiel : le calculer ici plutôt que de répéter deux littéraux
+  // évite qu'un des deux appels parte avec le mauvais.
+  const jeuRattachement: JeuNotesAnnexes = referentielSyscohada
+    ? 'SYSCOHADA_SYSTEME_NORMAL'
+    : jeuProjet
+      ? 'PROJETS_DEVELOPPEMENT'
+      : 'ASSOCIATIONS_ORDRES_PROFESSIONNELS';
+
   const charger = () => {
     if (jeuSmt || referentielSyscohada) return; // aucun catalogue de notes du Système normal à charger
     if (!exerciceCourant || !utilisateur) return; // même garde qu'EtatsFinanciersPage : utilisateur null au tout premier rendu.
@@ -136,7 +146,7 @@ export function NotesAnnexesPage() {
     setEnCours(`${codeNote}::${cleRubrique}::${compte.id}`);
     try {
       await api.post('/notes-annexes/rattachements', {
-        jeu: jeuProjet ? 'PROJETS_DEVELOPPEMENT' : 'ASSOCIATIONS_ORDRES_PROFESSIONNELS',
+        jeu: jeuRattachement,
         codeNote,
         cleRubrique,
         compteId: compte.id,
@@ -155,7 +165,7 @@ export function NotesAnnexesPage() {
     setEnCours(`${codeNote}::${cleRubrique}::${compteId}`);
     try {
       await api.delete('/notes-annexes/rattachements', {
-        jeu: jeuProjet ? 'PROJETS_DEVELOPPEMENT' : 'ASSOCIATIONS_ORDRES_PROFESSIONNELS',
+        jeu: jeuRattachement,
         codeNote,
         cleRubrique,
         compteId,
