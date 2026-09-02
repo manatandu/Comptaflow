@@ -2,6 +2,7 @@ import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/co
 import { JwtService } from '@nestjs/jwt';
 import { randomBytes } from 'crypto';
 import * as bcrypt from 'bcryptjs';
+import { siSycebnl } from '../../common/reponse-referentiel';
 import { PrismaService } from '../../common/prisma.service';
 import { TenantService } from '../tenant/tenant.service';
 import { CompteService } from '../comptes/compte.service';
@@ -147,7 +148,7 @@ export class AuthService {
         id: tenant.id,
         nom: tenant.nom,
         referentiel: tenant.referentiel,
-        jeuEtatsFinanciersSycebnl: tenant.jeuEtatsFinanciersSycebnl,
+        jeuEtatsFinanciersSycebnl: siSycebnl(tenant.referentiel, tenant.jeuEtatsFinanciersSycebnl),
         systemeComptableSyscohada: tenant.systemeComptableSyscohada,
         numeroImpot: tenant.numeroImpot,
       },
@@ -222,7 +223,7 @@ export class AuthService {
         referentiel: user.tenant.referentiel,
         // N'a de sens que si referentiel = SYCEBNL (voir prisma/schema.prisma) ·
         // le front s'en sert pour choisir le jeu d'états financiers à afficher.
-        jeuEtatsFinanciersSycebnl: user.tenant.jeuEtatsFinanciersSycebnl,
+        jeuEtatsFinanciersSycebnl: siSycebnl(user.tenant.referentiel, user.tenant.jeuEtatsFinanciersSycebnl),
         // Pendant SYSCOHADA · null pour un dossier SYCEBNL (voir le schéma).
         systemeComptableSyscohada: user.tenant.systemeComptableSyscohada,
         // Monnaie de tenue du dossier · portée jusqu'au front pour l'en-tête

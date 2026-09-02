@@ -26,7 +26,7 @@ interface CabinetClient {
   id: string;
   nom: string;
   referentiel: string;
-  jeuEtatsFinanciersSycebnl: JeuEtatsFinanciersSycebnl;
+  jeuEtatsFinanciersSycebnl: JeuEtatsFinanciersSycebnl | null;
   /** Pendant SYSCOHADA · null pour un dossier SYCEBNL. */
   systemeComptableSyscohada: SystemeComptableSyscohada | null;
   ville: string | null;
@@ -307,7 +307,9 @@ export function PlateformePage() {
                     ? c.systemeComptableSyscohada === 'MINIMAL_TRESORERIE'
                       ? 'SYSCOHADA · SMT'
                       : 'SYSCOHADA · Système normal'
-                    : (LIBELLE_JEU[c.jeuEtatsFinanciersSycebnl] ?? c.referentiel)}
+                    : (c.jeuEtatsFinanciersSycebnl
+                        ? LIBELLE_JEU[c.jeuEtatsFinanciersSycebnl]
+                        : c.referentiel)}
                 </span>
                 <span className="text-[10.5px] font-mono truncate">{c.numeroImpot ?? '·'}</span>
                 <span className="text-[10.5px] text-right tabular-nums">{c.nbUtilisateurs}</span>

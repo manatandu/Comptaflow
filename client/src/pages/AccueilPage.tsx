@@ -205,7 +205,9 @@ export function AccueilPage() {
       ? utilisateur.tenant.systemeComptableSyscohada
         ? LIBELLE_SYSTEME[utilisateur.tenant.systemeComptableSyscohada]
         : null
-      : JEUX[utilisateur.tenant.jeuEtatsFinanciersSycebnl];
+      : utilisateur.tenant.jeuEtatsFinanciersSycebnl
+        ? JEUX[utilisateur.tenant.jeuEtatsFinanciersSycebnl]
+        : null;
   const anneeExercice = exerciceCourant ? new Date(exerciceCourant.dateDebut).getFullYear() : null;
 
   const dateCourte = (iso: string) =>

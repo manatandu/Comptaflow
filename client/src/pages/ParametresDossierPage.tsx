@@ -682,9 +682,11 @@ export function ParametresDossierPage() {
                 <label className="flex items-center gap-2 text-[10.5px] mt-1">
                   <input
                     type="checkbox"
-                    checked={params.droitEtranger}
+                    checked={params.droitEtranger ?? false}
                     disabled={!estAdmin || envoi}
-                    onChange={(e) => changerForme(params.formeJuridique, e.target.checked)}
+                    // Bloc rendu sous `params.referentiel === 'SYCEBNL'` · la forme
+                    // juridique de la loi n° 004/2001 y est nécessairement servie.
+                    onChange={(e) => params.formeJuridique && changerForme(params.formeJuridique, e.target.checked)}
                   />
                   Entité de droit étranger (art. 29 à 34 et art. 37 : accord-cadre avec le Ministère du Plan)
                 </label>

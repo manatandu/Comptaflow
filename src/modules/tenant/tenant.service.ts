@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { siSycebnl } from '../../common/reponse-referentiel';
 import { PrismaService } from '../../common/prisma.service';
 import { Prisma, FormeJuridiqueEbnl,
   FormeJuridiqueSyscohada, JeuEtatsFinanciersSycebnl, Referentiel, RegimeExigibiliteTva, SystemeComptableSyscohada, TypeLicence } from '@prisma/client';
@@ -76,7 +77,7 @@ export class TenantService {
       id: tenant.id,
       nom: tenant.nom,
       referentiel: tenant.referentiel,
-      jeuEtatsFinanciersSycebnl: tenant.jeuEtatsFinanciersSycebnl,
+      jeuEtatsFinanciersSycebnl: siSycebnl(tenant.referentiel, tenant.jeuEtatsFinanciersSycebnl),
       systemeComptableSyscohada: tenant.systemeComptableSyscohada,
       activite: tenant.activite,
       adresse: tenant.adresse,
@@ -97,9 +98,9 @@ export class TenantService {
       numeroEnregistrementSecteur: tenant.numeroEnregistrementSecteur,
       certificatEnregistrementPlan: tenant.certificatEnregistrementPlan,
       attestationExemptionIs: tenant.attestationExemptionIs,
-      formeJuridique: tenant.formeJuridique,
+      formeJuridique: siSycebnl(tenant.referentiel, tenant.formeJuridique),
       formeJuridiqueSyscohada: tenant.formeJuridiqueSyscohada,
-      droitEtranger: tenant.droitEtranger,
+      droitEtranger: siSycebnl(tenant.referentiel, tenant.droitEtranger),
       longueurCompte: tenant.longueurCompte,
       assujettiTva: tenant.assujettiTva,
       dateOptionTva: tenant.dateOptionTva,

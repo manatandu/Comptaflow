@@ -20,7 +20,8 @@ interface MeResponse {
     id: string;
     nom: string;
     referentiel: Referentiel;
-    jeuEtatsFinanciersSycebnl: JeuEtatsFinanciersSycebnl;
+    /** `null` hors SYCEBNL · voir src/common/reponse-referentiel.ts côté serveur. */
+    jeuEtatsFinanciersSycebnl: JeuEtatsFinanciersSycebnl | null;
     /** Pendant SYSCOHADA · null pour un dossier SYCEBNL. */
     systemeComptableSyscohada: SystemeComptableSyscohada | null;
     /** Monnaie de tenue · l'unité monétaire est l'une des trois mentions
@@ -70,7 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         nom: me.tenant.nom,
         email: me.email,
         referentiel: me.tenant.referentiel,
-        jeuEtatsFinanciersSycebnl: me.tenant.jeuEtatsFinanciersSycebnl,
+        jeuEtatsFinanciersSycebnl: me.tenant.jeuEtatsFinanciersSycebnl ?? undefined,
       });
     } catch {
       setCsrf(null);

@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, Logger, NotFoundException, OnModuleIni
 import { ConfigService } from '@nestjs/config';
 import { randomBytes } from 'crypto';
 import { Referentiel, StatutLicence, TypeLicence } from '@prisma/client';
+import { siSycebnl } from '../../common/reponse-referentiel';
 import { PrismaService } from '../../common/prisma.service';
 import { AuthService } from '../auth/auth.service';
 import { CreerCabinetDto, ModifierGroupeDto, ModifierLicenceDto } from './dto/plateforme.dto';
@@ -81,7 +82,7 @@ export class PlateformeService implements OnModuleInit {
       id: t.id,
       nom: t.nom,
       referentiel: t.referentiel,
-      jeuEtatsFinanciersSycebnl: t.jeuEtatsFinanciersSycebnl,
+      jeuEtatsFinanciersSycebnl: siSycebnl(t.referentiel, t.jeuEtatsFinanciersSycebnl),
       systemeComptableSyscohada: t.systemeComptableSyscohada,
       ville: t.ville,
       pays: t.pays,

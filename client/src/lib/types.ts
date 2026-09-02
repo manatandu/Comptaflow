@@ -998,7 +998,12 @@ export interface ParametresDossier {
   id: string;
   nom: string;
   referentiel: Referentiel;
-  jeuEtatsFinanciersSycebnl: JeuEtatsFinanciersSycebnl;
+  /**
+   * Jeu d'états financiers · `null` hors SYCEBNL. La colonne porte une valeur
+   * par défaut en base (ASSOCIATIONS_ORDRES_PROFESSIONNELS) que l'API ne sert
+   * plus à un dossier SYSCOHADA : voir `src/common/reponse-referentiel.ts`.
+   */
+  jeuEtatsFinanciersSycebnl: JeuEtatsFinanciersSycebnl | null;
   /** Pendant SYSCOHADA · null pour un dossier SYCEBNL. */
   systemeComptableSyscohada: SystemeComptableSyscohada | null;
   activite: string | null;
@@ -1026,9 +1031,11 @@ export interface ParametresDossier {
   certificatEnregistrementPlan: string | null;
   /** Attestation d'exemption d'impôt sur les sociétés · arrêté n° 007/2025. */
   attestationExemptionIs: string | null;
-  formeJuridique: FormeJuridiqueEbnl;
+  /** Forme juridique de la loi n° 004/2001 · `null` hors SYCEBNL. */
+  formeJuridique: FormeJuridiqueEbnl | null;
   formeJuridiqueSyscohada: FormeJuridiqueSyscohada | null;
-  droitEtranger: boolean;
+  /** Entité de droit étranger (loi n° 004/2001, art. 29 à 34) · `null` hors SYCEBNL. */
+  droitEtranger: boolean | null;
   longueurCompte: number;
   /**
    * Assujettissement à la TVA · une ASBL ne l'est PAS de plein droit
