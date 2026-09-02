@@ -89,6 +89,33 @@ export interface RapportImport {
  *     solde sans écriture : la reprise doit laisser une trace au journal,
  *     datée, équilibrée, et corrigeable comme n'importe quelle autre.
  */
+/**
+ * Mode de report à-nouveau d'un compte créé par un IMPORT, déduit de sa classe.
+ *
+ * La règle est la même que celle des deux semis (`compte-seed.ts` et
+ * `compte-seed-syscohada.ts`), et c'est bien pour ça qu'elle vit désormais
+ * dans UNE fonction : elle était écrite deux fois ici, à l'identique, et les
+ * deux copies avaient le même trou.
+ *
+ * Ne se reportent PAS · les classes 6, 7 ET 8. La classe 8 manquait. Le
+ * PCGO (AUDCIF Titre VII ch. 3, section 8) répète pour chacun de ses comptes
+ * qu'il est « crédité pour solde à la clôture de l'exercice, par le débit du
+ * compte 13 » ou « débité pour solde […] par le crédit du compte 13 » · un
+ * compte H.A.O. se solde donc sur le résultat exactement comme une charge ou
+ * un produit ordinaire, et les deux semis le posent bien en AUCUN.
+ *
+ * L'oubli était muet et durable : un 81 « valeurs comptables des cessions » ou
+ * un 82 « produits des cessions » reçu d'une balance externe était créé en
+ * report SOLDE, donc reporté au 1er janvier suivant. L'à-nouveau de l'exercice
+ * d'après portait alors une charge et un produit de l'exercice clos, et le
+ * bilan d'ouverture ne correspondait plus au bilan de clôture · ce que la
+ * convention de correspondance bilan clôture / bilan ouverture interdit.
+ */
+export function modeReportPourClasse(classe: ClasseCompte): ModeReportANouveau {
+  const soldeesSurLeResultat: ClasseCompte[] = [ClasseCompte.CLASSE_6, ClasseCompte.CLASSE_7, ClasseCompte.CLASSE_8];
+  return soldeesSurLeResultat.includes(classe) ? ModeReportANouveau.AUCUN : ModeReportANouveau.SOLDE;
+}
+
 @Injectable()
 export class ImportService {
   constructor(private readonly prisma: PrismaService) {}
@@ -233,12 +260,7 @@ export class ImportService {
         intitule,
         classe,
         typeCompte,
-        // Charges et produits ne se reportent pas : ils se soldent sur le
-        // résultat à la clôture (voir ModeReportANouveau).
-        modeReportANouveau:
-          classe === ClasseCompte.CLASSE_6 || classe === ClasseCompte.CLASSE_7
-            ? ModeReportANouveau.AUCUN
-            : ModeReportANouveau.SOLDE,
+        modeReportANouveau: modeReportPourClasse(classe),
       });
     });
 
@@ -316,10 +338,7 @@ export class ImportService {
           numero,
           intitule: this.valeur(ligne, iIntitule) || `Compte ${numero}`,
           classe,
-          modeReportANouveau:
-            classe === ClasseCompte.CLASSE_6 || classe === ClasseCompte.CLASSE_7
-              ? ModeReportANouveau.AUCUN
-              : ModeReportANouveau.SOLDE,
+          modeReportANouveau: modeReportPourClasse(classe),
         });
       } else if (compte.typeCompte === TypeCompteDetailTotal.TOTAL) {
         // Une balance exportée porte souvent ses lignes de totalisation : les

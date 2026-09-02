@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type KeyboardEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useExercice } from '../lib/exercice';
@@ -125,6 +125,34 @@ function EtatsSyscohadaSystemeNormal() {
   const [posteDeplie, setPosteDeplie] = useState<string | null>(null);
   const basculerPoste = (cle: string) => setPosteDeplie((p) => (p === cle ? null : cle));
 
+  /**
+   * Attributs communs d'une ligne dépliable · factorisés pour que les quatre
+   * rendus de ligne restent réellement identiques. Une ligne sans compte n'est
+   * ni cliquable ni tabulable : un poste de totalisation, ou un poste que la
+   * balance ne chiffre pas, n'a rien à déplier, et lui donner l'apparence d'un
+   * bouton ferait chercher un détail qui n'existe pas.
+   *
+   * Le survol garde en plus la liste des numéros en info-bulle : c'est la
+   * lecture rapide, le dépliage est la lecture chiffrée.
+   */
+  const attributsDrill = (cle: string, comptes: CompteDuPosteSyscohada[]) => {
+    if (comptes.length === 0) return { classe: '' };
+    return {
+      classe: 'cursor-pointer hover:bg-surface-alt',
+      role: 'button' as const,
+      tabIndex: 0,
+      'aria-expanded': posteDeplie === cle,
+      title: `Comptes : ${comptes.map((c) => c.numero).join(', ')}`,
+      onClick: () => basculerPoste(cle),
+      onKeyDown: (e: KeyboardEvent) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          basculerPoste(cle);
+        }
+      },
+    };
+  };
+
   // Drapeau `annule` : une réponse lente ne doit pas écraser un état plus
   // récent après un changement d'exercice.
   useEffect(() => {
@@ -195,20 +223,22 @@ function EtatsSyscohadaSystemeNormal() {
   const montant = (v: number | undefined) =>
     v === undefined ? '·' : v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  /** Détail des comptes d'un poste, déplié sous la ligne. */
-  const detailComptes = (comptes: CompteDuPosteSyscohada[], colonnes: string) => (
-    <div className={`${colonnes} gap-2 px-4 py-1.5 bg-surface-alt border-y border-border`}>
-      <span />
-      <div className="col-span-full pl-0">
-        {comptes.map((c) => (
-          <div key={c.numero} className="flex justify-between gap-3 text-[10px] font-mono text-text-dim py-0.5">
-            <span>
-              {c.numero} · {c.intitule}
-            </span>
-            <span className="shrink-0">{montant(c.montant)}</span>
-          </div>
-        ))}
-      </div>
+  /**
+   * Détail des comptes d'un poste, déplié sous la ligne. Volontairement hors
+   * de la grille de l'état : ses colonnes sont celles du modèle officiel, et
+   * y glisser un tableau de comptes ferait passer une donnée de travail pour
+   * une ligne de la maquette.
+   */
+  const detailComptes = (comptes: CompteDuPosteSyscohada[]) => (
+    <div className="pl-12 pr-4 py-1.5 bg-surface-alt border-y border-border">
+      {comptes.map((c) => (
+        <div key={c.numero} className="flex justify-between gap-3 text-[10px] font-mono text-text-dim py-0.5">
+          <span className="min-w-0 break-words">
+            {c.numero} · {c.intitule}
+          </span>
+          <span className="shrink-0">{montant(c.montant)}</span>
+        </div>
+      ))}
     </div>
   );
 
@@ -218,14 +248,14 @@ function EtatsSyscohadaSystemeNormal() {
   const ligneActif = (l: LigneBilanSyscohada) => {
     const cle = `bilan-actif-${l.ref}`;
     const deplie = posteDeplie === cle;
+    const { classe, ...drill } = attributsDrill(cle, l.comptes);
     return (
       <div key={l.ref}>
         <div
-          onClick={() => l.comptes.length > 0 && basculerPoste(cle)}
-          title={l.comptes.length > 0 ? `Comptes : ${l.comptes.map((c) => c.numero).join(', ')}` : undefined}
+          {...drill}
           className={`${COLONNES_ACTIF} gap-2 px-4 py-1 text-[11px] items-baseline ${
             l.estTotal ? 'font-bold bg-surface-alt border-y border-border' : ''
-          } ${l.comptes.length > 0 ? 'cursor-pointer hover:bg-surface-alt' : ''} ${deplie ? 'bg-surface-alt' : ''}`}
+          } ${classe} ${deplie ? 'bg-surface-alt' : ''}`}
         >
           <span className="font-mono text-[10px] text-text-dim">{l.ref}</span>
           <span>
@@ -243,7 +273,7 @@ function EtatsSyscohadaSystemeNormal() {
           <span className="font-mono text-right">{montant(l.montant)}</span>
           <span className="font-mono text-right text-text-dim font-normal">{montant(l.montantN1)}</span>
         </div>
-        {deplie && detailComptes(l.comptes, COLONNES_ACTIF)}
+        {deplie && detailComptes(l.comptes)}
       </div>
     );
   };
@@ -255,14 +285,14 @@ function EtatsSyscohadaSystemeNormal() {
   const lignePassif = (l: LigneBilanSyscohada) => {
     const cle = `bilan-passif-${l.ref}`;
     const deplie = posteDeplie === cle;
+    const { classe, ...drill } = attributsDrill(cle, l.comptes);
     return (
       <div key={l.ref}>
         <div
-          onClick={() => l.comptes.length > 0 && basculerPoste(cle)}
-          title={l.comptes.length > 0 ? `Comptes : ${l.comptes.map((c) => c.numero).join(', ')}` : undefined}
+          {...drill}
           className={`${COLONNES_PASSIF} gap-2 px-4 py-1 text-[11px] items-baseline ${
             l.estTotal ? 'font-bold bg-surface-alt border-y border-border' : ''
-          } ${l.comptes.length > 0 ? 'cursor-pointer hover:bg-surface-alt' : ''} ${deplie ? 'bg-surface-alt' : ''}`}
+          } ${classe} ${deplie ? 'bg-surface-alt' : ''}`}
         >
           <span className="font-mono text-[10px] text-text-dim">{l.ref}</span>
           <span>
@@ -273,7 +303,7 @@ function EtatsSyscohadaSystemeNormal() {
           <span className="font-mono text-right">{montant(l.montant)}</span>
           <span className="font-mono text-right text-text-dim font-normal">{montant(l.montantN1)}</span>
         </div>
-        {deplie && detailComptes(l.comptes, COLONNES_PASSIF)}
+        {deplie && detailComptes(l.comptes)}
       </div>
     );
   };
@@ -283,18 +313,18 @@ function EtatsSyscohadaSystemeNormal() {
   const ligneCr = (l: LigneCompteResultatSyscohada) => {
     const cle = `cr-${l.ref}`;
     const deplie = posteDeplie === cle;
+    const { classe, ...drill } = attributsDrill(cle, l.comptes);
     return (
       <div key={l.ref}>
         <div
-          onClick={() => l.comptes.length > 0 && basculerPoste(cle)}
-          title={l.comptes.length > 0 ? `Comptes : ${l.comptes.map((c) => c.numero).join(', ')}` : undefined}
+          {...drill}
           className={`${COLONNES_CR} gap-2 px-4 py-1 text-[11px] items-baseline ${
             // Les lignes X* sont le cœur de la présentation « en liste » : le
             // ch. 4 les met « en cascade », l'écran les met en évidence.
             l.estSolde ? 'font-bold bg-surface-alt border-y border-border' : ''
-          } ${l.montant === 0 && !l.estSolde ? 'text-text-dim' : ''} ${
-            l.comptes.length > 0 ? 'cursor-pointer hover:bg-surface-alt' : ''
-          } ${deplie ? 'bg-surface-alt' : ''}`}
+          } ${l.montant === 0 && !l.estSolde ? 'text-text-dim' : ''} ${classe} ${
+            deplie ? 'bg-surface-alt' : ''
+          }`}
         >
           <span className="font-mono text-[10.5px] text-text-dim">{l.ref}</span>
           <span>
@@ -309,7 +339,7 @@ function EtatsSyscohadaSystemeNormal() {
           <span className={`font-mono text-right ${l.montant < 0 ? 'text-danger' : ''}`}>{montant(l.montant)}</span>
           <span className="font-mono text-right text-text-dim font-normal">{montant(l.montantN1)}</span>
         </div>
-        {deplie && detailComptes(l.comptes, COLONNES_CR)}
+        {deplie && detailComptes(l.comptes)}
       </div>
     );
   };
@@ -319,14 +349,14 @@ function EtatsSyscohadaSystemeNormal() {
   const ligneFlux = (l: LigneFluxSyscohada) => {
     const cle = `tft-${l.ref}`;
     const deplie = posteDeplie === cle;
+    const { classe, ...drill } = attributsDrill(cle, l.comptes);
     return (
       <div key={l.ref}>
         <div
-          onClick={() => l.comptes.length > 0 && basculerPoste(cle)}
-          title={l.comptes.length > 0 ? `Comptes : ${l.comptes.map((c) => c.numero).join(', ')}` : undefined}
+          {...drill}
           className={`${COLONNES_TFT} gap-2 px-4 py-1 text-[11px] items-baseline ${
             l.estTotal || l.repere ? 'font-bold bg-surface-alt border-y border-border' : ''
-          } ${l.comptes.length > 0 ? 'cursor-pointer hover:bg-surface-alt' : ''} ${deplie ? 'bg-surface-alt' : ''}`}
+          } ${classe} ${deplie ? 'bg-surface-alt' : ''}`}
         >
           <span className="font-mono text-[10.5px] text-text-dim">{l.ref}</span>
           <span>{l.libelle}</span>
@@ -336,7 +366,7 @@ function EtatsSyscohadaSystemeNormal() {
               imprimées (« somme FA à FE », « G + A ») ne désignent rien. */}
           <span className="font-mono text-[10px] text-center">{l.repere ?? ''}</span>
         </div>
-        {deplie && detailComptes(l.comptes, COLONNES_TFT)}
+        {deplie && detailComptes(l.comptes)}
       </div>
     );
   };
@@ -503,7 +533,7 @@ function EtatsSyscohadaSystemeNormal() {
                   height={14}
                   className={`mt-0.5 shrink-0 ${bilan.equilibre ? 'text-positive' : 'text-danger'}`}
                 />
-                <span className="font-mono text-[10.5px] font-medium">
+                <span className="font-mono text-[10.5px] font-medium min-w-0 break-words">
                   {bilan.equilibre
                     ? `LE BILAN EST ÉQUILIBRÉ · BZ = DZ = ${montant(bilan.totalActif)}`
                     : `DÉSÉQUILIBRE DÉTECTÉ · total actif BZ ${montant(bilan.totalActif)} contre total passif DZ ${montant(
@@ -533,16 +563,19 @@ function EtatsSyscohadaSystemeNormal() {
                   </div>
                   {bilan.comptesNonRattaches.map((c) => (
                     <div key={c.numero} className="flex justify-between gap-3 text-[10.5px] font-mono">
-                      <span>
+                      <span className="min-w-0 break-words">
                         {c.numero} · {c.intitule}
                       </span>
                       <span className="shrink-0">{montant(c.montant)}</span>
                     </div>
                   ))}
                   <p className="text-[10px] text-text-dim mt-1.5 font-sans">
-                    Saisir sur la subdivision prévue par le plan officiel, ou vérifier le numéro de compte. Le compte
-                    130, résultat de l'exercice précédent en instance d'affectation, ressort ici volontairement : le
-                    poste CJ ne prend que les soldes 132 à 138.
+                    Saisir sur la subdivision prévue par le plan officiel, ou vérifier le numéro de compte. Cinq
+                    familles y figurent par construction du texte et non par erreur de saisie : le 130 (résultat de
+                    l'exercice précédent en instance d'affectation, que ni CJ, qui prend les 131 à 139, ni CH ne
+                    reçoit tant que l'assemblée n'a pas statué), les 186 à 188 (comptes de liaison, auxquels le ch. 7
+                    ne donne aucun poste) et les 585 et 588 (virements internes, que le Titre VII impose de solder à
+                    la clôture).
                   </p>
                 </div>
               )}
@@ -599,7 +632,7 @@ function EtatsSyscohadaSystemeNormal() {
                   height={14}
                   className={`mt-0.5 shrink-0 ${cr.controle.coherent ? 'text-positive' : 'text-danger'}`}
                 />
-                <span className="font-mono text-[10.5px] font-medium">
+                <span className="font-mono text-[10.5px] font-medium min-w-0 break-words">
                   {cr.controle.coherent
                     ? `L'ÉTAT BOUCLE · résultat net XI ${montant(cr.soldes.resultatNet)} (${
                         cr.soldes.resultatNet < 0 ? 'perte' : 'bénéfice'
@@ -619,7 +652,7 @@ function EtatsSyscohadaSystemeNormal() {
                   </div>
                   {cr.comptesNonRattaches.map((c) => (
                     <div key={c.numero} className="flex justify-between gap-3 text-[10.5px] font-mono">
-                      <span>
+                      <span className="min-w-0 break-words">
                         {c.numero} · {c.intitule}
                       </span>
                       <span className="shrink-0">{montant(c.montant)}</span>
@@ -693,7 +726,7 @@ function EtatsSyscohadaSystemeNormal() {
                     height={14}
                     className={`mt-0.5 shrink-0 ${tft.controle.coherent ? 'text-positive' : 'text-danger'}`}
                   />
-                  <span className="font-mono text-[10.5px] font-medium">
+                  <span className="font-mono text-[10.5px] font-medium min-w-0 break-words">
                     {tft.controle.coherent
                       ? "CONTRÔLE ZH VÉRIFIÉ · trésorerie nette au 31 décembre identique par le cumul des flux et par lecture du bilan"
                       : `ÉCART DE ${montant(tft.controle.ecart)} · la ventilation FA à FQ ne couvre pas tout le mouvement de trésorerie`}
@@ -726,11 +759,11 @@ function EtatsSyscohadaSystemeNormal() {
               {tft.comptesNonVentiles.length > 0 && (
                 <div className="border border-danger/30 bg-danger-soft mt-2 px-3.5 py-2.5">
                   <div className="text-[10.5px] font-bold mb-1.5">
-                    Comptes de trésorerie rattachés à aucun poste de flux · cause probable de l'écart
+                    Comptes de bilan mouvementés que le tableau ne ventile nulle part · cause probable de l'écart
                   </div>
                   {tft.comptesNonVentiles.map((c) => (
                     <div key={c.numero} className="flex justify-between gap-3 text-[10.5px] font-mono">
-                      <span>
+                      <span className="min-w-0 break-words">
                         {c.numero} · {c.intitule}
                       </span>
                       <span className="shrink-0">{montant(c.montant)}</span>

@@ -512,12 +512,44 @@ export class TauxTvaService {
       }
     }
 
-    const compte444 = await this.prisma.compte.findFirst({ where: { tenantId, numero: '44410000' } });
-    if (!compte444) {
-      throw new BadRequestException(
-        "Compte 44410000 (État, TVA due ou crédit de TVA) introuvable pour ce tenant · nécessaire pour comptabiliser la liquidation.",
-      );
-    }
+    // Le compte d'arrivée de la liquidation DÉPEND DU SENS du solde, et le
+    // SYSCOHADA lui donne deux comptes là où le SYCEBNL n'en a qu'un.
+    //
+    // Plan SYSCOHADA, compte 44 : « 444 État, TVA due ou crédit de TVA » se
+    // subdivise en « 4441 État, TVA due » et « 4449 État, crédit de TVA à
+    // reporter ». Le semis SYSCOHADA pose les deux (44410000 et 44490000). Le
+    // SYCEBNL, lui, ne subdivise pas son 444 et ne sème que 44410000, qui
+    // porte alors les deux sens.
+    //
+    // Écrire un crédit de TVA au débit du 4441 « TVA due » est un contresens :
+    // le compte finit débiteur alors que son intitulé annonce une dette, et le
+    // poste de bilan qui le lit range une créance sur l'État parmi les dettes
+    // fiscales. Rien ne le signale · l'écriture reste équilibrée.
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { referentiel: true },
+    });
+    const estSyscohada = tenant?.referentiel === Referentiel.SYSCOHADA;
+
+    const chercherCompte = async (numero: string, intitule: string) => {
+      const c = await this.prisma.compte.findFirst({ where: { tenantId, numero } });
+      if (!c) {
+        throw new BadRequestException(
+          `Compte ${numero} (${intitule}) introuvable pour ce dossier · nécessaire pour comptabiliser la liquidation.`,
+        );
+      }
+      return c;
+    };
+
+    const compteTvaDue = await chercherCompte(
+      '44410000',
+      estSyscohada ? 'État, TVA due' : 'État, TVA due ou crédit de TVA',
+    );
+    // En SYCEBNL le crédit de TVA retombe sur le même compte, faute d'un 4449
+    // à son plan · ce n'est pas un pis-aller, c'est ce que son texte prévoit.
+    const compteCreditTva = estSyscohada
+      ? await chercherCompte('44490000', 'État, crédit de TVA à reporter')
+      : compteTvaDue;
 
     const lignesEcriture: Array<{ compteId: string; debit?: number; credit?: number; libelle?: string }> = [];
     for (const [compteId, montant] of parCompteCollecte) {
@@ -528,9 +560,9 @@ export class TauxTvaService {
     }
     if (Math.abs(decl.net) > EPSILON) {
       if (decl.net > 0) {
-        lignesEcriture.push({ compteId: compte444.id, debit: 0, credit: decl.net, libelle: 'TVA due' });
+        lignesEcriture.push({ compteId: compteTvaDue.id, debit: 0, credit: decl.net, libelle: 'TVA due' });
       } else {
-        lignesEcriture.push({ compteId: compte444.id, debit: -decl.net, credit: 0, libelle: 'Crédit de TVA à reporter' });
+        lignesEcriture.push({ compteId: compteCreditTva.id, debit: -decl.net, credit: 0, libelle: 'Crédit de TVA à reporter' });
       }
     }
 
