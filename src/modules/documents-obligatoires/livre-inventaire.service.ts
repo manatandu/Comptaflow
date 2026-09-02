@@ -1,11 +1,14 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { JeuEtatsFinanciersSycebnl, Prisma } from '@prisma/client';
+import { JeuEtatsFinanciersSycebnl, Prisma, Referentiel, SystemeComptableSyscohada } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import { EtatsFinanciersService } from '../etats-financiers/etats-financiers.service';
 import { EtatsFinanciersProjetService } from '../etats-financiers/etats-financiers-projet.service';
 import { EtatsFinanciersSmtService } from '../etats-financiers/etats-financiers-smt.service';
 import { EtatsFinanciersProjetBudgetService } from '../etats-financiers/etats-financiers-projet-budget.service';
 import { CleEtatInventaire, EtatATranscrire, etatsExigesPar } from './correspondance-inventaire';
+import { etatsExigesParSysteme } from './correspondance-inventaire-syscohada';
+import { EtatsFinanciersSyscohadaService } from '../etats-financiers-syscohada/etats-financiers-syscohada.service';
+import { EtatsFinanciersSmtSyscohadaService } from '../etats-financiers-syscohada/etats-financiers-smt-syscohada.service';
 import { ResumeInventaireDto, TranscrireInventaireDto } from './dto/documents-obligatoires.dto';
 
 /** Un état exigé par l'art. 14 que la transcription ne porte pas, et pourquoi. */
@@ -51,7 +54,36 @@ export class LivreInventaireService {
     private readonly etatsFinanciersProjet: EtatsFinanciersProjetService,
     private readonly etatsFinanciersSmt: EtatsFinanciersSmtService,
     private readonly etatsFinanciersProjetBudget: EtatsFinanciersProjetBudgetService,
+    private readonly etatsSyscohada: EtatsFinanciersSyscohadaService,
+    private readonly etatsSmtSyscohada: EtatsFinanciersSmtSyscohadaService,
   ) {}
+
+  /**
+   * Ce que le dossier doit transcrire, et sous quel article.
+   *
+   * Les deux référentiels imposent le livre d'inventaire, mais par des textes
+   * distincts qui n'énumèrent PAS les mêmes états · SYCEBNL art. 14 (point 1
+   * ou 2 selon le jeu), AUDCIF art. 19 pour le SYSCOHADA. Aucun n'est
+   * transposé sur l'autre.
+   */
+  private async regimeInventaire(tenantId: string) {
+    const tenant = await this.prisma.tenant.findUniqueOrThrow({
+      where: { id: tenantId },
+      select: { referentiel: true, jeuEtatsFinanciersSycebnl: true, systemeComptableSyscohada: true },
+    });
+    const syscohada = tenant.referentiel === Referentiel.SYSCOHADA;
+    return {
+      syscohada,
+      jeu: syscohada ? null : tenant.jeuEtatsFinanciersSycebnl,
+      systeme: syscohada ? tenant.systemeComptableSyscohada : null,
+      exiges: syscohada
+        ? etatsExigesParSysteme(tenant.systemeComptableSyscohada)
+        : etatsExigesPar(tenant.jeuEtatsFinanciersSycebnl),
+      exigence: syscohada
+        ? "AUDCIF art. 19 : « le livre d'inventaire, sur lequel sont transcrits le Bilan, le Compte de résultat et le Tableau des flux de trésorerie de chaque exercice, ainsi que le résumé de l'opération d'inventaire. »"
+        : "Art. 14 : « Le livre d'inventaire est un document obligatoire sur lequel sont transcrits [les états financiers] de chaque exercice ainsi que le résumé de l'opération d'inventaire. »",
+    };
+  }
 
   /** Toutes les versions transcrites d'un exercice, la plus récente en tête. */
   async lister(tenantId: string, exerciceId: string) {
@@ -84,22 +116,19 @@ export class LivreInventaireService {
    */
   async transcrire(tenantId: string, userId: string, dto: TranscrireInventaireDto) {
     const exercice = await this.exercice(tenantId, dto.exerciceId);
-    const tenant = await this.prisma.tenant.findUniqueOrThrow({
-      where: { id: tenantId },
-      select: { jeuEtatsFinanciersSycebnl: true },
-    });
-    const jeu = tenant.jeuEtatsFinanciersSycebnl;
+    const regime = await this.regimeInventaire(tenantId);
 
-    const exiges = etatsExigesPar(jeu);
     const etats: Partial<Record<CleEtatInventaire, unknown>> = {};
     const manquants: DocumentManquant[] = [];
 
-    for (const etat of exiges) {
+    for (const etat of regime.exiges) {
       if (!etat.disponible) {
         manquants.push({ cle: etat.cle, libelle: etat.libelle, motif: etat.motifIndisponibilite! });
         continue;
       }
-      etats[etat.cle] = await this.produire(etat.cle, jeu, tenantId, exercice.id);
+      etats[etat.cle] = regime.syscohada
+        ? await this.produireSyscohada(etat.cle, regime.systeme, tenantId, exercice.id)
+        : await this.produire(etat.cle, regime.jeu!, tenantId, exercice.id);
     }
 
     const dernier = await this.prisma.transcriptionInventaire.findFirst({
@@ -113,7 +142,8 @@ export class LivreInventaireService {
         tenantId,
         exerciceId: exercice.id,
         version: (dernier?.version ?? 0) + 1,
-        jeu,
+        jeu: regime.jeu,
+        systemeSyscohada: regime.systeme,
         etats: etats as Prisma.InputJsonValue,
         documentsManquants: manquants as unknown as Prisma.InputJsonValue,
         resumeOperationInventaire: dto.resumeOperationInventaire?.trim() || null,
@@ -143,19 +173,16 @@ export class LivreInventaireService {
    */
   async conformite(tenantId: string, exerciceId: string) {
     const exercice = await this.exercice(tenantId, exerciceId);
-    const tenant = await this.prisma.tenant.findUniqueOrThrow({
-      where: { id: tenantId },
-      select: { jeuEtatsFinanciersSycebnl: true },
-    });
+    const regime = await this.regimeInventaire(tenantId);
     const courante = await this.courante(tenantId, exerciceId);
-    const exiges = etatsExigesPar(tenant.jeuEtatsFinanciersSycebnl);
+    const exiges = regime.exiges;
     const manquants = (courante?.documentsManquants ?? []) as unknown as DocumentManquant[];
 
     return {
       exercice: { id: exercice.id, dateDebut: exercice.dateDebut, dateFin: exercice.dateFin },
-      jeu: tenant.jeuEtatsFinanciersSycebnl,
-      exigence:
-        "Art. 14 : « Le livre d'inventaire est un document obligatoire sur lequel sont transcrits [les états financiers] de chaque exercice ainsi que le résumé de l'opération d'inventaire. »",
+      jeu: regime.jeu,
+      systemeSyscohada: regime.systeme,
+      exigence: regime.exigence,
       /** L'exercice a-t-il été transcrit, ne serait-ce qu'une fois ? */
       transcrit: courante !== null,
       version: courante?.version ?? null,
@@ -173,10 +200,15 @@ export class LivreInventaireService {
        * définissant pas le contenu, le logiciel ne peut que le réclamer.
        */
       resume: {
-        exigence: "Art. 14 : « … ainsi que le résumé de l'opération d'inventaire ».",
+        exigence: regime.syscohada
+          ? "AUDCIF art. 19 : « … ainsi que le résumé de l'opération d'inventaire »."
+          : "Art. 14 : « … ainsi que le résumé de l'opération d'inventaire ».",
         renseigne: Boolean(courante?.resumeOperationInventaire?.trim()),
+        // Les DEUX textes exigent ce résumé sans en définir ni le contenu ni
+        // la forme · c'est la même lacune des deux côtés, et elle se comble
+        // par la rédaction du dossier, jamais par le logiciel.
         remarque:
-          "Le référentiel exige ce résumé mais n'en définit ni le contenu ni la forme (ni le glossaire, ni le cadre conceptuel, ni la Partie 2 ch. 2). Il relève de la rédaction du dossier.",
+          "Le référentiel exige ce résumé mais n'en définit ni le contenu ni la forme. Il relève de la rédaction du dossier.",
       },
       complete:
         courante !== null &&
@@ -194,6 +226,42 @@ export class LivreInventaireService {
    * deux lectures produirait un livre dont les états ne correspondraient plus
    * au point de l'article 14 qu'il déclare appliquer.
    */
+  /**
+   * Les trois états de l'AUDCIF art. 19, chemin SYSCOHADA.
+   *
+   * Le système est PASSÉ, jamais rechargé · même raison qu'au jeu du SYCEBNL :
+   * deux lectures donneraient deux sources de vérité pour une même
+   * transcription.
+   */
+  private async produireSyscohada(
+    cle: CleEtatInventaire,
+    systeme: SystemeComptableSyscohada | null,
+    tenantId: string,
+    exerciceId: string,
+  ) {
+    const smt = systeme === SystemeComptableSyscohada.MINIMAL_TRESORERIE;
+    switch (cle) {
+      case 'bilan':
+        // Le bilan du SMT n'est pas une présentation abrégée du Système
+        // normal · il est bâti sur une comptabilité de trésorerie (Titre X,
+        // ch. 2), l'autre sur une comptabilité d'engagement.
+        return smt ? this.etatsSmtSyscohada.bilan(tenantId, exerciceId) : this.etatsSyscohada.bilan(tenantId, exerciceId);
+      case 'compteDeResultat':
+        return smt
+          ? this.etatsSmtSyscohada.compteDeResultat(tenantId, exerciceId)
+          : this.etatsSyscohada.compteDeResultat(tenantId, exerciceId);
+      case 'tableauFluxTresorerie':
+        // Jamais atteint au SMT · `etatsExigesParSysteme` ne l'y demande pas
+        // (voir correspondance-inventaire-syscohada.ts, et la lecture qui y
+        // est écrite pour être discutée).
+        return this.etatsSyscohada.tableauFluxTresorerie(tenantId, exerciceId);
+      default:
+        throw new BadRequestException(
+          `L'article 19 de l'AUDCIF n'énumère pas l'état « ${cle} » · il ne se transcrit pas sur ce chemin.`,
+        );
+    }
+  }
+
   private async produire(
     cle: CleEtatInventaire,
     jeu: JeuEtatsFinanciersSycebnl,

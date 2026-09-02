@@ -224,12 +224,49 @@ propre, par le canal que l'administrateur juge sûr.
 
 
 **B6 · Livre d'inventaire, rapport de gestion, contrôles par référentiel.**
-L'AUDCIF art. 19 impose le livre d'inventaire à tout commerçant, et la fenêtre
-est fermée au SYCEBNL. Le jalon du rapport de gestion (AUSCGIE art. 138) est
-servi à l'utilisateur SYSCOHADA sans qu'aucun service ne le produise.
-`controles.service.ts` ne lit jamais `tenant.referentiel` et sert à une
-ENTREPRISE les seuils de désignation d'auditeur de l'art. 19 SYCEBNL, au lieu
-des critères AUSCGIE que `planning-cloture.ts` cite pourtant déjà.
+FAIT le 2026-09-02, avec une rectification du plan lui-même.
+
+RECTIFICATION · le troisième point (« `controles.service.ts` ne lit jamais
+`tenant.referentiel` ») était PÉRIMÉ quand ce plan a été relu : le service lit
+bien le référentiel et la forme juridique, et `regles-auditeur.ts` porte les
+quatre règles lues à leur source (SYCEBNL art. 19, AUSCGIE art. 702, 376 et
+853-13, 289-1). Le plan était en retard sur le code.
+
+LIVRE D'INVENTAIRE · la fenêtre était fermée au SYSCOHADA. Non parce que
+l'AUDCIF n'exige rien, mais parce qu'elle était montée sur les seuls articles
+du SYCEBNL. L'AUDCIF art. 19 transcrit « le Bilan, le Compte de résultat et le
+Tableau des flux de trésorerie de chaque exercice, ainsi que le résumé de
+l'opération d'inventaire ».
+
+Une LECTURE y est écrite pour pouvoir être discutée : l'article 19 nomme le
+tableau des flux sans prévoir d'exception, mais le jeu du Système minimal de
+trésorerie n'en comporte pas, reposant sur une comptabilité de trésorerie
+(art. 13, Titre X). Un tableau des flux dressé là-dessus n'aurait rien à
+expliquer. La lacune est celle du texte, qui n'a pas articulé son art. 19 avec
+son art. 13 · elle est signalée, jamais comblée en silence.
+
+RAPPORT DE GESTION · trois textes, jamais transposés l'un sur l'autre. SYCEBNL
+art. 16-3 (rapport d'activité, quatre sections), AUSCGIE art. 138 (rapport de
+gestion, six), AUSCOOP art. 108 (six autres). Les écarts sont réels et vont
+dans les DEUX sens : l'AUSCOOP ne demande PAS les événements postérieurs à la
+clôture que les deux autres exigent, et demande EN PLUS l'état de promotion
+des coopérateurs, qui n'a aucun équivalent en société commerciale. Servir
+l'article 138 à une coopérative lui inventerait une exigence et lui en
+cacherait une autre.
+
+Deux formes sans règle lue, déclarées telles : le GIE, à qui l'AUSCGIE ne
+donne pas de rapport de gestion mais renvoie au contrat constitutif (« le
+contrôle de la gestion et le contrôle des états financiers de synthèse sont
+exercés dans les conditions prévues par le contrat ») ; le commerçant personne
+physique et l'entreprenant, que l'article 138 ne nomme pas (il vise « le
+gérant, le conseil d'administration ou l'administrateur général »). Le livre
+d'inventaire, lui, leur reste dû : l'AUDCIF s'applique à raison de l'activité,
+pas de la forme juridique.
+
+Trouvé par le spec du lexique en cours de route : la fenêtre servait la
+définition SYCEBNL du livre d'inventaire à un dossier SYSCOHADA. L'aiguillage
+du lexique existait, l'entrée manquait.
+
 
 ## Phase C · Rendre le SYCEBNL aussi vérifié que le SYSCOHADA
 

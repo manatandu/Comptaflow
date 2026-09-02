@@ -212,6 +212,18 @@ export const LEXIQUE = {
       "Document obligatoire où sont transcrits, à chaque clôture, les états financiers de l'exercice et le détail des éléments d'actif et de passif recensés lors de l'inventaire. Une fois arrêté, il fige la situation : c'est la pièce qu'un auditeur demande en premier.",
     source: 'SYCEBNL, art. 14',
   },
+  livreInventaireSyscohada: {
+    titre: "Livre d'inventaire",
+    texte:
+      "Document obligatoire sur lequel sont transcrits le Bilan, le Compte de résultat et le Tableau des flux de trésorerie de chaque exercice, ainsi que le résumé de l'opération d'inventaire. Une fois arrêté, il fige la situation : c'est la pièce qu'un auditeur demande en premier.",
+    source: 'AUDCIF, art. 19',
+  },
+  rapportGestion: {
+    titre: 'Rapport de gestion',
+    texte:
+      "Le gérant, le conseil d'administration ou l'administrateur général y expose la situation de la société durant l'exercice écoulé, son évolution prévisible, les événements importants survenus depuis la clôture et, en particulier, les perspectives de continuation de l'activité, l'évolution de la trésorerie et le plan de financement. Une société coopérative relève de son propre texte, qui y ajoute l'état de promotion des coopérateurs.",
+    source: 'AUSCGIE, art. 138 · AUSCOOP, art. 108 pour la coopérative',
+  },
   balanceAgee: {
     titre: 'Balance âgée',
     texte:

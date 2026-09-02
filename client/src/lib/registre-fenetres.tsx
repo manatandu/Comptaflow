@@ -229,18 +229,16 @@ export const FENETRES: DefinitionFenetre[] = [
     referentielsApplicables: ['SYCEBNL'],
   },
   {
-    // Livre d'inventaire et rapport d'activité montés sur les états SYCEBNL
-    // (art. 14 et 16-3). Reste SYCEBNL même depuis que les états SYSCOHADA
-    // existent : l'AUDCIF impose bien ces livres (art. 19 · livre-journal,
-    // grand-livre, balance générale, livre d'inventaire) mais cette fenêtre
-    // est montée sur les textes du SYCEBNL, et son pendant SYSCOHADA reste à
-    // écrire · la montrer imprimerait à une entreprise les documents d'une
-    // ASBL.
+    // LES DEUX RÉFÉRENTIELS, depuis le 2026-09-02. Elle était fermée au
+    // SYSCOHADA non parce que l'AUDCIF n'exige rien · son art. 19 impose le
+    // livre d'inventaire, et l'AUSCGIE art. 138 le rapport de gestion · mais
+    // parce que la fenêtre était montée sur les seuls articles du SYCEBNL.
+    // Chaque document est désormais lu dans SON texte, aucun n'est transposé
+    // (voir correspondance-inventaire-syscohada.ts côté serveur).
     motif: /^\/documents-obligatoires$/,
     titre: 'Documents obligatoires',
     titreCourt: 'Doc. obligatoires',
     rendre: () => <DocumentsObligatoiresPage />,
-    referentielsApplicables: ['SYCEBNL'],
   },
   {
     // Notion SYCEBNL (division 46) · en SYSCOHADA le 46 porte les associés.

@@ -29,12 +29,21 @@ const EXERCICE_REQUIS = new ParseUUIDPipe({
  * existence est typiquement en LECTURE_SEULE. Établissement réservé à
  * ADMIN_CABINET/COMPTABLE.
  *
- * SYCEBNL SEULEMENT · le livre d'inventaire transcrit ici les états SYCEBNL
- * (art. 14) et le rapport d'activité vient de son art. 16-3 · l'AUDCIF
- * connaît aussi un livre d'inventaire, mais son contenu SYSCOHADA sera monté
- * avec les états du niveau 2, pas rempli avec ceux d'une association.
+ * LES DEUX RÉFÉRENTIELS, depuis le 2026-09-02 · et par des textes distincts,
+ * jamais transposés l'un sur l'autre :
+ *
+ *  · livre d'inventaire · SYCEBNL art. 14 (contenu selon le jeu d'états),
+ *    AUDCIF art. 19 (Bilan, Compte de résultat, Tableau des flux de
+ *    trésorerie, plus le résumé de l'opération d'inventaire) ;
+ *  · rapport · SYCEBNL art. 16-3 « rapport d'activité » à quatre sections,
+ *    AUSCGIE art. 138 « rapport de gestion » à six, AUSCOOP art. 108 à six
+ *    autres dont l'état de promotion des coopérateurs.
+ *
+ * La fenêtre était fermée au SYSCOHADA non parce que l'AUDCIF n'exige rien,
+ * mais parce qu'elle était montée sur les seuls articles du SYCEBNL. Chaque
+ * table est désormais lue dans SON texte · voir
+ * correspondance-inventaire-syscohada.ts.
  */
-@ReferentielsAutorises(Referentiel.SYCEBNL)
 @UseGuards(JwtAuthGuard, LicenceGuard, RolesGuard, ReferentielGuard)
 @Controller('documents-obligatoires')
 export class DocumentsObligatoiresController {
@@ -91,7 +100,12 @@ export class DocumentsObligatoiresController {
     @CurrentUser() user: AuthenticatedUser,
     @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
   ) {
-    return this.rapportActivite.conformite(user.tenantId, exerciceId);
+    // Deux documents distincts sous deux actes distincts · l'aiguillage se
+    // fait ici, sur le référentiel du dossier, et non par des champs
+    // facultatifs dans une réponse commune.
+    return user.referentiel === Referentiel.SYSCOHADA
+      ? this.rapportActivite.conformiteRapportGestion(user.tenantId, exerciceId)
+      : this.rapportActivite.conformite(user.tenantId, exerciceId);
   }
 
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)

@@ -54,7 +54,7 @@ Racine = serveur. `client/` = interface. Un seul dépôt.
 src/modules/     30 modules métier (auth, comptes, ecritures, etats-financiers,
                  notes-annexes, exports, groupe, plateforme, licence…)
 src/common/      gardes, décorateurs, Prisma, journal d'audit, /health
-prisma/          schema.prisma + 51 migrations SQL écrites à la main
+prisma/          schema.prisma + 52 migrations SQL écrites à la main
 client/src/      pages/, components/chrome/, lib/
 docs/            plan de construction, audits, guides pilote, notes de droit
 .github/workflows/  déploiement et sauvegardes
@@ -158,11 +158,15 @@ Le cloisonnement se fait à DEUX endroits, toujours les deux :
 refuser laisse la route ouverte à un appel direct.
 
 Propres au SYCEBNL : registre des donateurs, bailleurs, exonérations
-douanières, opérations spécifiques, documents obligatoires, module groupe. Les
-documents obligatoires restent SYCEBNL non parce que l'AUDCIF n'en exige pas
-(son art. 19 impose livre-journal, grand-livre, balance générale et livre
-d'inventaire) mais parce que cette fenêtre est montée sur les états et les
-textes du SYCEBNL : son pendant SYSCOHADA reste à écrire.
+douanières, opérations spécifiques, module groupe.
+
+Les **documents obligatoires** sont COMMUNS depuis le 2026-09-02, chacun lu
+dans son texte et jamais transposé : livre d'inventaire (SYCEBNL art. 14 selon
+le jeu · AUDCIF art. 19 pour le SYSCOHADA) et rapport (SYCEBNL art. 16-3,
+quatre sections · AUSCGIE art. 138, six · AUSCOOP art. 108, six autres dont
+l'état de promotion des coopérateurs). Les écarts entre les trois sont
+verrouillés par `documents-obligatoires-syscohada.spec.ts` : c'est la
+transposition, pas l'absence, qui est le risque de cette fenêtre.
 
 Propres au SYSCOHADA : résultat fiscal et impôt sur les bénéfices (une entité
 à but non lucratif en est exemptée, loi n° 23/053 art. 5).

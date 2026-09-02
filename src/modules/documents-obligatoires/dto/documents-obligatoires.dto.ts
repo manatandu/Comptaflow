@@ -1,4 +1,4 @@
-import { IsBoolean, IsDateString, IsOptional, IsString, IsNotEmpty, IsUUID } from 'class-validator';
+import { IsBoolean, IsDateString, IsObject, IsOptional, IsString, IsNotEmpty, IsUUID } from 'class-validator';
 
 /**
  * Transcription au livre d'inventaire (art. 14). Aucun état n'est transmis
@@ -60,6 +60,19 @@ export class EtablirRapportActiviteDto {
   @IsOptional()
   @IsString()
   evenementsPosterieurs?: string;
+
+  /**
+   * SECTIONS DU RAPPORT DE GESTION · chemin SYSCOHADA seulement.
+   *
+   * Un objet libre indexé par la clé de section (voir
+   * SECTIONS_RAPPORT_GESTION_AUSCGIE et SECTIONS_RAPPORT_GESTION_AUSCOOP).
+   * Les quatre champs nommés ci-dessus, eux, portent chacun la citation d'un
+   * point de l'article 16-3 du SYCEBNL : les réutiliser pour l'AUSCGIE aurait
+   * fait porter à une SARL le nom d'un point d'un texte qui ne la régit pas.
+   */
+  @IsOptional()
+  @IsObject()
+  sections?: Record<string, string>;
 
   /** Art. 18 : commande la présence attendue de la déclaration des dirigeants. */
   @IsOptional()

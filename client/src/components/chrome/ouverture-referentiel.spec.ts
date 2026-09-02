@@ -48,7 +48,11 @@ describe('Ouverture d’une fenêtre réservée à un référentiel', () => {
   const reservees = adressesReservees();
 
   it('le registre porte bien des fenêtres réservées · sinon ce spec ne teste rien', () => {
-    expect(reservees.size).toBeGreaterThanOrEqual(6);
+    // Cinq depuis le 2026-09-02 · « Documents obligatoires » a cessé d'être
+    // réservée au SYCEBNL, l'AUDCIF art. 19 imposant le livre d'inventaire à
+    // toute entité et l'AUSCGIE art. 138 le rapport de gestion à toute
+    // société commerciale (voir correspondance-inventaire-syscohada.ts).
+    expect(reservees.size).toBeGreaterThanOrEqual(5);
     expect(reservees.get('/groupe')).toBe('SYCEBNL');
     expect(reservees.get('/fiscalite')).toBe('SYSCOHADA');
   });

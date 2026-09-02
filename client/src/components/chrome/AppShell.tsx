@@ -248,9 +248,9 @@ export function AppShell() {
         // routes à un dossier SYSCOHADA (ReferentielGuard).
         { label: 'États financiers', separateurAvant: true, onClick: () => navigate('/etats-financiers') },
         { label: 'Notes annexes', onClick: () => navigate('/notes-annexes') },
-        ...(estSycebnl
-          ? [{ label: 'Documents obligatoires', onClick: () => navigate('/documents-obligatoires') }]
-          : []),
+        // Les deux référentiels · AUDCIF art. 19 pour le livre d'inventaire,
+        // AUSCGIE art. 138 (ou AUSCOOP art. 108) pour le rapport de gestion.
+        { label: 'Documents obligatoires', onClick: () => navigate('/documents-obligatoires') },
         { label: 'Déclaration de TVA', separateurAvant: true, onClick: () => navigate('/declaration-tva') },
         // Une ASBL exonérée d'impôt sur les sociétés reste redevable de tout
         // ce qu'elle retient pour autrui, et de la déclaration même à zéro ·

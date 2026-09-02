@@ -92,8 +92,21 @@ function services(
     executionBudgetaire: jest.fn().mockResolvedValue({ etat: 'execution-budgetaire' }),
     reconciliationTresorerie: jest.fn().mockResolvedValue({ etat: 'reconciliation-tresorerie' }),
   } as unknown as EtatsFinanciersProjetBudgetService;
+  // Chemin SYSCOHADA · AUDCIF art. 19. Les trois états y sont produits par
+  // d'autres services que ceux du SYCEBNL, aucun n'étant transposable.
+  const esc = {
+    bilan: jest.fn().mockResolvedValue({ etat: 'bilan-syscohada' }),
+    compteDeResultat: jest.fn().mockResolvedValue({ etat: 'compte-resultat-syscohada' }),
+    tableauFluxTresorerie: jest.fn().mockResolvedValue({ etat: 'tft-syscohada' }),
+  } as never;
+  const escSmt = {
+    bilan: jest.fn().mockResolvedValue({ etat: 'bilan-smt-syscohada' }),
+    compteDeResultat: jest.fn().mockResolvedValue({ etat: 'compte-resultat-smt-syscohada' }),
+  } as never;
   return {
-    inventaire: new LivreInventaireService(prisma, ef, efp, efs, efb),
+    inventaire: new LivreInventaireService(prisma, ef, efp, efs, efb, esc, escSmt),
+    esc,
+    escSmt,
     rapport: new RapportActiviteService(prisma, ef, donations),
     prisma,
     ef,

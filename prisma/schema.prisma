@@ -2255,7 +2255,17 @@ model TranscriptionInventaire {
   /// Le jeu applicable à la DATE DE TRANSCRIPTION : c'est lui qui décide de
   /// la liste des états exigés par l'art. 14 (point 1 ou point 2). Figé
   /// aussi, car un dossier peut en changer.
-  jeu JeuEtatsFinanciersSycebnl
+  ///
+  /// NUL sur le chemin SYSCOHADA, où c'est `systemeSyscohada` qui commande ·
+  /// les deux référentiels n'ont ni le même article ni la même liste d'états,
+  /// et ranger l'un dans l'énumération de l'autre aurait fait porter au livre
+  /// d'inventaire d'une SARL le nom d'un jeu d'états d'association.
+  jeu JeuEtatsFinanciersSycebnl?
+
+  /// Le système applicable à la date de transcription, chemin SYSCOHADA ·
+  /// c'est lui qui décide de la liste de l'AUDCIF art. 19 (voir
+  /// correspondance-inventaire-syscohada.ts). Nul sur le chemin SYCEBNL.
+  systemeSyscohada SystemeComptableSyscohada?
 
   /// Les états financiers figés, indexés par leur clé (`bilan`,
   /// `compteDeResultat`, `tableauFluxTresorerie`…). Un état exigé par
@@ -2347,6 +2357,25 @@ model RapportActivite {
   /// texte le dise expressément.
   entiteAvecAuditeur    Boolean @default(false)
   declarationDirigeants String?
+
+  /// SECTIONS DU RAPPORT DE GESTION · chemin SYSCOHADA seulement.
+  ///
+  /// Les quatre colonnes nommées ci-dessus portent chacune la citation de
+  /// l'article 16-3 du SYCEBNL : elles ne sont pas des cases génériques, leur
+  /// NOM est la règle. Le rapport de gestion de l'AUSCGIE (art. 138) en
+  /// compte six, celui de l'AUSCOOP (art. 108) six autres dont l'« état de
+  /// promotion des coopérateurs », qui n'a aucun équivalent ailleurs. Les
+  /// fondre dans les mêmes colonnes aurait effacé ce que chaque texte demande
+  /// en propre · elles cohabitent donc, chacune sur son chemin.
+  ///
+  /// Indexé par la clé de section (voir SECTIONS_RAPPORT_GESTION_AUSCGIE et
+  /// SECTIONS_RAPPORT_GESTION_AUSCOOP).
+  sections Json?
+
+  /// L'article qui fonde CE rapport, figé à l'établissement · « AUSCGIE,
+  /// article 138 » ou « AUSCOOP, article 108 ». Un dossier peut changer de
+  /// forme juridique ; le rapport déjà arrêté garde le sien.
+  sourceRegle String?
 
   /// Chiffres de trésorerie figés à l'établissement du rapport, repris du
   /// Tableau des flux de trésorerie (ouverture, variation, clôture, et le

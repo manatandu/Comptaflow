@@ -91,7 +91,7 @@ describe('plus rien n\'est « en construction » côté SYSCOHADA', () => {
     }
   });
 
-  it('le menu État annonce les deux fenêtres sans réserve, et garde les documents obligatoires en SYCEBNL', () => {
+  it('le menu État annonce ses fenêtres sans réserve, documents obligatoires compris', () => {
     // Les deux entrées ne sont PAS gardées par `estSycebnl` : elles servent
     // les deux référentiels, chacune aiguillant derrière elle. Les gater
     // ferait disparaître du menu les états d'un dossier SYSCOHADA, qui
@@ -100,13 +100,18 @@ describe('plus rien n\'est « en construction » côté SYSCOHADA', () => {
     expect(appShell).toContain("{ label: 'Notes annexes', onClick:");
     expect(appShell).not.toMatch(/estSycebnl[\s\S]{0,40}label: '(États financiers|Notes annexes)'/);
     expect(appShell).not.toContain('à venir');
-    // Fenêtre montée sur les états et les textes du SYCEBNL (art. 14 et
-    // 16-3) · son pendant SYSCOHADA reste à écrire, la montrer imprimerait à
-    // une entreprise les documents d'une ASBL.
-    expect(appShell).toMatch(/\.\.\.\(estSycebnl\s*\?\s*\[\{ label: 'Documents obligatoires'/);
+    // DEPUIS LE 2026-09-02 · la fenêtre n'est plus réservée au SYCEBNL. Elle
+    // l'était parce qu'elle était montée sur les seuls articles du SYCEBNL
+    // (art. 14 et 16-3), pas parce que l'AUDCIF n'exige rien : son art. 19
+    // impose le livre d'inventaire à toute entité, et l'AUSCGIE art. 138 le
+    // rapport de gestion à toute société commerciale. Chaque document est
+    // désormais lu dans SON texte, aucun n'est transposé (voir
+    // correspondance-inventaire-syscohada.ts côté serveur).
+    expect(appShell).toContain("{ label: 'Documents obligatoires', onClick:");
+    expect(appShell).not.toMatch(/estSycebnl[\s\S]{0,40}label: 'Documents obligatoires'/);
     const registre = lireClient('lib/registre-fenetres.tsx');
     const bloc = /motif: \/\^\\\/documents-obligatoires\$\/,[\s\S]*?\},/.exec(registre);
-    expect(bloc?.[0]).toContain("referentielsApplicables: ['SYCEBNL']");
+    expect(bloc?.[0]).not.toContain('referentielsApplicables');
   });
 });
 
