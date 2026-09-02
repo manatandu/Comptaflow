@@ -1,5 +1,5 @@
 import { FormEvent, useState } from 'react';
-import { api, ApiError } from '../lib/api';
+import { api, ApiError, setCsrf } from '../lib/api';
 import { useAuth } from '../lib/auth';
 
 /**
@@ -30,7 +30,16 @@ export function ChangerMotDePassePage() {
     }
     setEnvoi(true);
     try {
-      await api.post('/auth/changer-mot-de-passe', { motDePasseActuel: actuel, nouveauMotDePasse: nouveau });
+      // Le serveur RÉVOQUE toutes les sessions du compte au changement (un mot
+      // de passe change souvent parce qu'il a fuité) et repose aussitôt une
+      // session neuve. Le jeton CSRF apparié change donc lui aussi · sans
+      // cette ligne, la mutation suivante partirait avec l'ancien et se
+      // ferait refuser.
+      const { csrfToken } = await api.post<{ change: boolean; csrfToken: string }>(
+        '/auth/changer-mot-de-passe',
+        { motDePasseActuel: actuel, nouveauMotDePasse: nouveau },
+      );
+      setCsrf(csrfToken);
       // /auth/me relu · le drapeau est tombé, ZoneProtegee laisse entrer.
       await rafraichir();
     } catch (err) {

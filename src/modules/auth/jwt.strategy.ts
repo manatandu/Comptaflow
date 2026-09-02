@@ -11,6 +11,26 @@ interface JwtPayload {
   sub: string; // userId
   /** Jeton CSRF apparié · absent des jetons émis avant la migration cookie. */
   csrf?: string;
+  /** Émission, en SECONDES depuis l'époque · posé par jsonwebtoken. */
+  iat?: number;
+}
+
+/**
+ * Le jeton a-t-il été émis AVANT la révocation des sessions du compte ?
+ *
+ * `iat` est en SECONDES, `sessionsInvalidesAvant` en millisecondes. Comparer
+ * directement rejetterait un jeton fraîchement signé : un changement de mot de
+ * passe qui révoque à 10:00:00.400 et resigne à 10:00:00.401 produit un jeton
+ * d'iat 10:00:00, donc « antérieur » de 400 ms à sa propre révocation · le
+ * titulaire serait éjecté par son propre geste. On tronque donc la révocation
+ * à la seconde. La précision perdue est sans effet : un jeton volé date de
+ * bien plus d'une seconde.
+ */
+export function sessionRevoquee(iat: number | undefined, sessionsInvalidesAvant: Date | null): boolean {
+  if (!sessionsInvalidesAvant) return false;
+  // Un jeton sans `iat` ne peut pas prouver qu'il est postérieur · révoqué.
+  if (iat === undefined) return true;
+  return iat < Math.floor(sessionsInvalidesAvant.getTime() / 1000);
 }
 
 /** Lit le jeton de session dans le cookie httpOnly (voir session.constants.ts). */
@@ -79,11 +99,19 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (!user || !user.estActif) {
       throw new UnauthorizedException('Compte désactivé ou introuvable');
     }
+    // RÉVOCATION DE SESSION · un jeton vit jusqu'à huit heures. Sans ce
+    // contrôle, changer un mot de passe volé, réinitialiser un compte ou
+    // fermer ses sessions ne prenait effet qu'à l'expiration, c'est-à-dire
+    // pas pendant la seule période où cela comptait.
+    if (sessionRevoquee(payload.iat, user.sessionsInvalidesAvant)) {
+      throw new UnauthorizedException('Session close · reconnectez-vous');
+    }
     return {
       userId: user.id,
       tenantId: user.tenantId,
       email: user.email,
       role: user.role,
+      doitChangerMotDePasse: user.doitChangerMotDePasse,
       referentiel: user.tenant.referentiel,
       licence: user.tenant.licence,
       estOperateurPlateforme: user.estOperateurPlateforme,

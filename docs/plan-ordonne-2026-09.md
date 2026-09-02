@@ -175,10 +175,39 @@ Restent aussi, non traités : le passage des secrets Cloud Run par Secret
 Manager, et le remplacement de la clé de compte de service JSON permanente
 (`GCP_SA_KEY`) par une fédération d'identité.
 
-**B5 · Cycle de vie des accès.** Révocation de session côté serveur,
-application serveur de `doitChangerMotDePasse`, verrouillage par compte,
-réinitialisation de mot de passe par l'ADMIN_CABINET. Aujourd'hui un oubli de
-mot de passe se règle par un UPDATE SQL en production.
+**B5 · Cycle de vie des accès.** FAIT le 2026-09-02. Quatre manques, dont le
+plus sérieux n'était pas celui que ce plan citait en premier.
+
+`doitChangerMotDePasse` n'était appliqué QUE PAR L'ÉCRAN. Le client imposait
+bien la page de changement avant l'espace de travail, mais le serveur ne
+refusait rien : un appel direct à l'API travaillait normalement, et le tiers
+qui avait remis le mot de passe n'avait qu'à ne pas ouvrir le navigateur.
+C'est le « masquer sans refuser » que CLAUDE.md §4 interdit, et il vivait là
+depuis la phase 1a. Une garde GLOBALE le ferme désormais, avec trois sorties
+marquées (se voir, changer son mot de passe, fermer ses sessions) et un test
+qui fige cette liste à trois.
+
+RÉVOCATION DE SESSION · un jeton vit jusqu'à huit heures. Changer un mot de
+passe volé, réinitialiser un compte ou rétrograder un rôle ne prenait donc
+effet qu'à l'expiration, c'est-à-dire pas pendant la seule période où cela
+comptait. Un instant `sessionsInvalidesAvant` suffit, sans table de sessions
+ni purge : la comparaison se fait sur l'`iat` que le JWT porte déjà. Piège de
+précision réglé au passage · `iat` est en secondes et la révocation en
+millisecondes, si bien qu'une comparaison naïve éjectait le titulaire par son
+propre changement de mot de passe.
+
+VERROUILLAGE PAR COMPTE · le limiteur global est par adresse IP, il ne voit
+pas une attaque distribuée contre un seul compte. Le verrou est TEMPORAIRE et
+croissant (1, 5, 15, 30, 60 minutes), jamais définitif : l'adresse d'un
+comptable figure sur ses courriels, et un verrou définitif se retournerait en
+refus de service. Il se vérifie avant bcrypt, sans quoi le verrou lui-même
+deviendrait le levier d'un épuisement du processeur.
+
+RÉINITIALISATION PAR L'ADMINISTRATEUR · un oubli de mot de passe se réglait
+jusqu'ici par un UPDATE SQL en production. La route pose un mot de passe
+provisoire, ferme les sessions du compte et lève le verrou, et le geste est
+inscrit au journal d'audit de B1 (mot de passe masqué).
+
 
 **B6 · Livre d'inventaire, rapport de gestion, contrôles par référentiel.**
 L'AUDCIF art. 19 impose le livre d'inventaire à tout commerçant, et la fenêtre

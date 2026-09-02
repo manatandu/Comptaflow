@@ -8,6 +8,7 @@ import { LoginDto } from './dto/login.dto';
 import { ChangerMotDePasseDto } from './dto/changer-mot-de-passe.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
+import { SortieMotDePasseProvisoire } from '../../common/decorators/sortie-mot-de-passe.decorator';
 import { COOKIE_SESSION, OPTIONS_COOKIE_SESSION } from './session.constants';
 
 @Controller('auth')
@@ -72,6 +73,7 @@ export class AuthController {
     return { deconnecte: true };
   }
 
+  @SortieMotDePasseProvisoire()
   @UseGuards(JwtAuthGuard)
   @Get('me')
   async me(@CurrentUser() user: AuthenticatedUser) {
@@ -81,9 +83,36 @@ export class AuthController {
   // Même limite serrée que login : la vérification du mot de passe actuel
   // est une surface de force brute au même titre que la connexion.
   @Throttle({ default: { ttl: 60_000, limit: 20 } })
+  @SortieMotDePasseProvisoire()
   @UseGuards(JwtAuthGuard)
   @Post('changer-mot-de-passe')
-  async changerMotDePasse(@CurrentUser() user: AuthenticatedUser, @Body() dto: ChangerMotDePasseDto) {
-    return this.authService.changerMotDePasse(user.userId, dto.motDePasseActuel, dto.nouveauMotDePasse);
+  async changerMotDePasse(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: ChangerMotDePasseDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    // Le changement RÉVOQUE toutes les sessions du compte, celle-ci comprise ·
+    // rien ne distingue côté serveur la session du titulaire de celle de qui
+    // détenait le mot de passe. Une session neuve est donc reposée dans la
+    // foulée, faute de quoi le titulaire serait éjecté par son propre geste.
+    return this.poserSession(res, await this.authService.changerMotDePasse(
+      user.userId,
+      dto.motDePasseActuel,
+      dto.nouveauMotDePasse,
+    ));
+  }
+
+  /**
+   * Ferme toutes les sessions du compte, y compris celle qui appelle · le
+   * geste « j'ai laissé ma session ouverte sur un poste ». Sans état serveur :
+   * l'instant de révocation suffit (voir schema.prisma, User).
+   */
+  @SortieMotDePasseProvisoire()
+  @UseGuards(JwtAuthGuard)
+  @Post('deconnecter-partout')
+  async deconnecterPartout(@CurrentUser() user: AuthenticatedUser, @Res({ passthrough: true }) res: Response) {
+    const resultat = await this.authService.deconnecterPartout(user.userId);
+    res.clearCookie(COOKIE_SESSION, { ...OPTIONS_COOKIE_SESSION, maxAge: undefined });
+    return resultat;
   }
 }

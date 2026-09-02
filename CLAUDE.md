@@ -54,7 +54,7 @@ Racine = serveur. `client/` = interface. Un seul dépôt.
 src/modules/     30 modules métier (auth, comptes, ecritures, etats-financiers,
                  notes-annexes, exports, groupe, plateforme, licence…)
 src/common/      gardes, décorateurs, Prisma, journal d'audit, /health
-prisma/          schema.prisma + 50 migrations SQL écrites à la main
+prisma/          schema.prisma + 51 migrations SQL écrites à la main
 client/src/      pages/, components/chrome/, lib/
 docs/            plan de construction, audits, guides pilote, notes de droit
 .github/workflows/  déploiement et sauvegardes
@@ -210,8 +210,20 @@ avant de l'écrire ; un spec (`compte-seed-syscohada.spec.ts`) le contrôle.
 - `estOperateurPlateforme` n'apparaît dans **aucun** DTO. Il s'accorde au
   démarrage depuis `OPERATEURS_PLATEFORME`, en accord seulement, jamais en
   retrait.
-- Mot de passe transmis par un tiers (console, siège) : `doitChangerMotDePasse`
-  force le changement à la première connexion.
+- Mot de passe transmis par un tiers (console, siège, admin du dossier) :
+  `doitChangerMotDePasse` force le changement à la première connexion, et
+  `MotDePasseAChangerGuard` (global) FERME le serveur jusque-là · trois routes
+  de sortie seulement, marquées `@SortieMotDePasseProvisoire()`, liste figée
+  par un test. Le client seul ne suffisait pas.
+- **Révocation de session** · `User.sessionsInvalidesAvant`. Tout jeton émis
+  avant cet instant est refusé par `JwtStrategy`. Posé au changement de mot de
+  passe, à la réinitialisation, à la désactivation et au changement de rôle ·
+  un jeton vit huit heures, sans cela un mot de passe volé restait utile
+  jusqu'à son expiration. La comparaison tronque à la SECONDE (l'`iat` du JWT
+  est en secondes) · sans quoi le titulaire est éjecté par son propre geste.
+- **Verrouillage par compte** temporaire et croissant (`src/modules/auth/
+  verrouillage.ts`), vérifié AVANT bcrypt. Jamais définitif : un verrou
+  définitif se retourne en refus de service.
 - Toute requête est filtrée par `tenantId`. Une requête Prisma sans `tenantId`
   sur une table multi-locataire est un défaut de cloisonnement. Ce n'est plus
   seulement une règle de discipline : `src/common/cloisonnement/` porte une

@@ -21,3 +21,11 @@ export class ModifierUtilisateurDto {
   @IsBoolean()
   estActif?: boolean;
 }
+
+export class ReinitialiserMotDePasseDto {
+  // Même longueur minimale qu'à la création · l'administrateur ne doit pas
+  // pouvoir poser un mot de passe plus faible que celui qu'on exige du
+  // titulaire.
+  @MinLength(10, { message: 'Le mot de passe doit contenir au moins 10 caractères' })
+  motDePasseProvisoire!: string;
+}

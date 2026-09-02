@@ -73,6 +73,10 @@ export interface Utilisateur {
   email: string;
   role: RoleUtilisateur;
   estActif: boolean;
+  /** Mot de passe encore provisoire · le titulaire ne l'a pas remplacé. */
+  doitChangerMotDePasse: boolean;
+  /** Verrou de force brute en cours, ou null · voir auth/verrouillage.ts. */
+  verrouilleJusqua: string | null;
   createdAt: string;
 }
 export type ClasseCompte =

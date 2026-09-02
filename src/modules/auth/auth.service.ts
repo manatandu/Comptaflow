@@ -16,6 +16,7 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { Referentiel, RoleUtilisateur, SystemeComptableSyscohada, TypeLicence } from '@prisma/client';
 import { horsCloisonnement } from '../../common/cloisonnement/contexte-cloisonnement';
+import { instantDeverrouillage, messageVerrou } from './verrouillage';
 
 const SALT_ROUNDS = 12;
 
@@ -177,12 +178,48 @@ export class AuthService {
     if (!user) {
       throw new UnauthorizedException('Identifiants invalides');
     }
+
+    const maintenant = new Date();
+    // Le verrou se vérifie AVANT bcrypt · un compte verrouillé ne doit pas
+    // faire tourner une centaine de millisecondes de hachage à chaque essai,
+    // sans quoi le verrou lui-même devient le levier d'un épuisement du
+    // processeur.
+    if (user.verrouilleJusqua && user.verrouilleJusqua > maintenant) {
+      throw new UnauthorizedException(messageVerrou(user.verrouilleJusqua, maintenant));
+    }
+
     const motDePasseValide = await bcrypt.compare(dto.motDePasse, user.motDePasse);
     if (!motDePasseValide) {
+      // Le compteur repart de zéro si le verrou précédent est ÉCHU · sinon
+      // une faute de frappe six mois plus tard hériterait de la sévérité d'un
+      // incident oublié.
+      const echecs = (user.verrouilleJusqua && user.verrouilleJusqua <= maintenant ? 0 : user.tentativesEchouees) + 1;
+      await horsCloisonnement('connexion · décompte des échecs sur un compte non encore identifié', () =>
+        this.prisma.user.update({
+          where: { id: user.id },
+          data: { tentativesEchouees: echecs, verrouilleJusqua: instantDeverrouillage(echecs, maintenant) },
+        }),
+      );
+      // Le message reste le MÊME que pour un compte inexistant · dire « mot de
+      // passe faux » apprendrait que l'adresse existe.
       throw new UnauthorizedException('Identifiants invalides');
     }
+
     if (!user.estActif) {
       throw new UnauthorizedException('Ce compte a été désactivé');
+    }
+
+    // Connexion réussie · le compteur d'échecs et le verrou tombent.
+    // `> 0` et non `!== 0` · le compteur vaut 0 par défaut en base, mais
+    // écrire l'inégalité stricte ferait tourner une écriture inutile à chaque
+    // connexion sur tout compte dont le champ n'est pas encore servi.
+    if (user.tentativesEchouees > 0 || user.verrouilleJusqua) {
+      await horsCloisonnement('connexion · remise à zéro du décompte', () =>
+        this.prisma.user.update({
+          where: { id: user.id },
+          data: { tentativesEchouees: 0, verrouilleJusqua: null },
+        }),
+      );
     }
     return this.signToken(user.id);
   }
@@ -208,9 +245,33 @@ export class AuthService {
       data: {
         motDePasse: await bcrypt.hash(nouveauMotDePasse, SALT_ROUNDS),
         doitChangerMotDePasse: false,
+        // RÉVOCATION · un mot de passe change souvent PARCE QU'IL A FUITÉ.
+        // Sans cette ligne, celui qui le détenait gardait sa session ouverte
+        // jusqu'à huit heures, et le changement ne servait à rien pour la
+        // seule période où il aurait servi.
+        sessionsInvalidesAvant: new Date(),
+        // Un mot de passe changé délie aussi le verrou · le titulaire a
+        // prouvé qui il est en donnant l'ancien.
+        tentativesEchouees: 0,
+        verrouilleJusqua: null,
       },
     });
-    return { change: true };
+    // La session COURANTE est révoquée elle aussi · c'est voulu. Le client
+    // redemande un jeton juste après (voir AuthController), et rien ne
+    // distingue, côté serveur, la session du titulaire de celle du voleur.
+    return { change: true, ...this.signToken(userId) };
+  }
+
+  /**
+   * Ferme toutes les sessions du compte. Un seul champ à poser · aucune table
+   * de sessions à tenir, aucune purge à programmer.
+   */
+  async deconnecterPartout(userId: string) {
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { sessionsInvalidesAvant: new Date() },
+    });
+    return { sessionsFermees: true };
   }
 
   async me(userId: string) {

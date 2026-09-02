@@ -12,6 +12,12 @@ export interface AuthenticatedUser {
    * un test qui construit request.user à la main sans eux fait retomber les
    * gardes sur leur lecture directe.
    */
+  /**
+   * Posé quand le mot de passe a transité par un tiers · MotDePasseAChangerGuard
+   * ferme alors toutes les routes sauf celles qui permettent d'en sortir.
+   * Optionnel pour les tests qui construisent request.user à la main.
+   */
+  doitChangerMotDePasse?: boolean;
   referentiel?: string;
   licence?: import('@prisma/client').Licence | null;
   /**

@@ -22,6 +22,14 @@ export function UtilisateursPage() {
   const [erreurForm, setErreurForm] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
 
+  // Réinitialisation · l'administrateur pose un mot de passe provisoire, que
+  // le titulaire devra remplacer avant de travailler. Sans cette fenêtre, un
+  // oubli de mot de passe se réglait par un UPDATE SQL en production.
+  const [reinitCible, setReinitCible] = useState<Utilisateur | null>(null);
+  const [reinitMotDePasse, setReinitMotDePasse] = useState('');
+  const [reinitErreur, setReinitErreur] = useState<string | null>(null);
+  const [reinitFait, setReinitFait] = useState<string | null>(null);
+
   const charger = async () => {
     try {
       setListe(await api.get<Utilisateur[]>('/utilisateurs'));
@@ -45,6 +53,28 @@ export function UtilisateursPage() {
       </div>
     );
   }
+
+  const deverrouiller = async (u: Utilisateur) => {
+    await api.post(`/utilisateurs/${u.id}/deverrouiller`, {});
+    await charger();
+  };
+
+  const onReinitialiser = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!reinitCible) return;
+    setReinitErreur(null);
+    try {
+      await api.post(`/utilisateurs/${reinitCible.id}/reinitialiser-mot-de-passe`, {
+        motDePasseProvisoire: reinitMotDePasse,
+      });
+      setReinitFait(reinitCible.email);
+      setReinitCible(null);
+      setReinitMotDePasse('');
+      await charger();
+    } catch (err) {
+      setReinitErreur(err instanceof ApiError ? err.message : 'Réinitialisation impossible');
+    }
+  };
 
   const onCreer = async (e: FormEvent) => {
     e.preventDefault();
@@ -92,13 +122,21 @@ export function UtilisateursPage() {
 
       {erreurChargement && <div className="text-[11px] text-danger bg-danger-soft border border-danger/30 px-3 py-1.5 mb-2 max-w-[720px]">{erreurChargement}</div>}
 
-      <div className="border border-border bg-surface shadow-posee max-w-[760px]">
-        <div className="grid grid-cols-[1fr_150px_90px_100px] gap-2 px-3.5 py-1.5 bg-chrome border-b border-border text-[10px] font-bold text-text-dim">
-          <span>E-MAIL</span><span>RÔLE</span><span>STATUT</span><span></span>
+      {reinitFait && (
+        <div className="border border-positive/30 bg-positive-soft px-3.5 py-2 text-[11px] mb-2 max-w-[940px]">
+          Mot de passe réinitialisé pour <strong>{reinitFait}</strong>. Remettez-le en main propre · il est
+          PROVISOIRE, ses sessions ouvertes sont fermées, et le logiciel lui restera fermé tant qu'il ne l'aura pas
+          remplacé.
+        </div>
+      )}
+
+      <div className="border border-border bg-surface shadow-posee max-w-[940px]">
+        <div className="grid grid-cols-[1fr_150px_90px_100px_190px] gap-2 px-3.5 py-1.5 bg-chrome border-b border-border text-[10px] font-bold text-text-dim">
+          <span>E-MAIL</span><span>RÔLE</span><span>STATUT</span><span></span><span>MOT DE PASSE</span>
         </div>
         {!liste && <div className="p-3 text-[11px] text-text-dim">Chargement…</div>}
         {liste?.map((u, i) => (
-          <div key={u.id} className={`grid grid-cols-[1fr_150px_90px_100px] gap-2 items-center px-3.5 py-1.5 border-b border-border last:border-b-0 ${i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'}`}>
+          <div key={u.id} className={`grid grid-cols-[1fr_150px_90px_100px_190px] gap-2 items-center px-3.5 py-1.5 border-b border-border last:border-b-0 ${i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'}`}>
             <span className="text-[11px] truncate">
               {u.email}
               {u.id === utilisateur?.id && <span className="text-text-dim"> (vous)</span>}
@@ -123,6 +161,36 @@ export function UtilisateursPage() {
             >
               {u.estActif ? 'Désactiver' : 'Réactiver'}
             </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              {u.doitChangerMotDePasse && (
+                <span
+                  className="font-mono text-[9.5px] font-bold px-1.5 py-0.5 text-warning bg-warning-soft"
+                  title="Le mot de passe a transité par un tiers · le logiciel reste fermé à ce compte tant qu'il ne l'a pas remplacé."
+                >
+                  PROVISOIRE
+                </span>
+              )}
+              {u.verrouilleJusqua && new Date(u.verrouilleJusqua) > new Date() && (
+                <button
+                  onClick={() => deverrouiller(u)}
+                  className="font-mono text-[9.5px] font-bold px-1.5 py-0.5 text-danger bg-danger-soft"
+                  title={`Verrouillé après plusieurs tentatives infructueuses, jusqu'à ${new Date(u.verrouilleJusqua).toLocaleTimeString('fr-FR')}. Cliquez pour lever le verrou.`}
+                >
+                  VERROUILLÉ · lever
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  setReinitCible(u);
+                  setReinitMotDePasse('');
+                  setReinitErreur(null);
+                  setReinitFait(null);
+                }}
+                className="text-[10.5px] text-sel"
+              >
+                Réinitialiser
+              </button>
+            </div>
           </div>
         ))}
       </div>
@@ -130,6 +198,55 @@ export function UtilisateursPage() {
         {LIBELLE_ROLE.ADMIN_CABINET} : accès complet, y compris cette fenêtre. {LIBELLE_ROLE.COMPTABLE} : saisie et
         consultation. {LIBELLE_ROLE.LECTURE_SEULE} : consultation uniquement.
       </p>
+
+      {reinitCible && (
+        <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
+          <form
+            onSubmit={onReinitialiser}
+            className="anim-fenetre bg-surface border border-border-dark shadow-flottant w-[440px] max-w-full"
+          >
+            <div className="px-3.5 py-2 bg-chrome border-b border-border-dark text-[11px] font-bold">
+              Réinitialiser le mot de passe · {reinitCible.email}
+            </div>
+            <div className="p-3.5 flex flex-col gap-2.5">
+              <p className="text-[10.5px] text-text-dim">
+                Vous posez un mot de passe PROVISOIRE, que vous remettez en main propre. Il ferme aussitôt les
+                sessions ouvertes du compte, lève un éventuel verrou, et le logiciel restera fermé à ce compte tant
+                que son titulaire ne l'aura pas remplacé. Le geste est inscrit au journal d'audit.
+              </p>
+              <label className="flex flex-col gap-1">
+                <span className="text-[10px] font-bold text-text-dim">MOT DE PASSE PROVISOIRE</span>
+                <input
+                  value={reinitMotDePasse}
+                  onChange={(e) => setReinitMotDePasse(e.target.value)}
+                  minLength={10}
+                  required
+                  autoFocus
+                  className="border border-border-dark px-2.5 py-1.5 text-[11px]"
+                />
+                <span className="text-[10px] text-text-dim">Dix caractères au minimum.</span>
+              </label>
+              {reinitErreur && (
+                <div className="text-[11px] text-danger bg-danger-soft border border-danger/30 px-2.5 py-1.5">
+                  {reinitErreur}
+                </div>
+              )}
+            </div>
+            <div className="px-3.5 py-2 bg-surface-alt border-t border-border flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setReinitCible(null)}
+                className="border border-border-dark px-3 py-1 text-[10.5px]"
+              >
+                Annuler
+              </button>
+              <button type="submit" className="border border-border-dark bg-chrome px-3 py-1 text-[10.5px] font-semibold">
+                Réinitialiser
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {nouveauOuvert && (
         <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">

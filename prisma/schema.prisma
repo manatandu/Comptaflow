@@ -444,6 +444,30 @@ model User {
   // (variable d'environnement, voir PlateformeService.onModuleInit) l'accorde,
   // et la révocation est manuelle (SQL). Jamais renvoyé par /utilisateurs.
   estOperateurPlateforme Boolean         @default(false)
+
+  /// RÉVOCATION DE SESSION · toute session émise AVANT cet instant cesse
+  /// d'être valable. Un jeton JWT vit jusqu'à huit heures (JWT_EXPIRES_IN) ;
+  /// sans ce champ, changer un mot de passe volé laissait le voleur travailler
+  /// jusqu'à l'expiration. Posé au changement de mot de passe, à la
+  /// réinitialisation par l'administrateur, à la désactivation du compte, et
+  /// par la déconnexion de tous les postes.
+  ///
+  /// Un instant plutôt qu'une table de sessions : aucun état serveur à tenir,
+  /// aucune session à purger, et la comparaison se fait sur l'`iat` que le JWT
+  /// porte déjà.
+  sessionsInvalidesAvant DateTime?
+
+  /// VERROUILLAGE PAR COMPTE · le limiteur global est par adresse IP, il ne
+  /// voit donc pas une attaque lancée depuis plusieurs adresses contre UN
+  /// compte. Ces deux champs comptent les échecs consécutifs et ferment le
+  /// compte pour une durée qui croît (voir AuthService.login).
+  ///
+  /// Le verrou est TEMPORAIRE, jamais définitif : un verrou définitif se
+  /// retournerait en refus de service · il suffirait de saisir n'importe quoi
+  /// sur le compte d'un comptable pour l'empêcher de travailler.
+  tentativesEchouees     Int             @default(0)
+  verrouilleJusqua       DateTime?
+
   createdAt              DateTime        @default(now())
 
   @@map("users")
