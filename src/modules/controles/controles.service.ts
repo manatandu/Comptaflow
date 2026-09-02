@@ -121,7 +121,8 @@ export interface ControleCaisse {
  *
  * Ils cherchent ce qu'aucun total ne montre : un compte de tiers dont le solde
  * est du mauvais côté, une créance lettrée depuis trop longtemps, une écriture
- * sans pièce justificative, un compte hors nomenclature SYCEBNL. Un logiciel
+ * sans pièce justificative, un compte hors nomenclature (celle du SYCEBNL ou
+ * celle du SYSCOHADA, selon le dossier). Un logiciel
  * qui se contente d'enregistrer laisse ces anomalies dormir jusqu'à l'audit.
  */
 @Injectable()
@@ -160,7 +161,8 @@ export class ControlesService {
   async controleCaisse(tenantId: string, exerciceId: string): Promise<ControleCaisse[]> {
     await this.exercice(tenantId, exerciceId);
 
-    // Comptes de caisse : le 57 du SYCEBNL, plus tout compte rattaché à un
+    // Comptes de caisse : le 57 des DEUX plans (« Caisse » au SYCEBNL comme
+    // au SYSCOHADA), plus tout compte rattaché à un
     // journal de trésorerie dont le code ou l'intitulé parle de caisse.
     const comptes = await this.prisma.compte.findMany({
       where: {
@@ -693,6 +695,11 @@ export class ControlesService {
     }
 
     // --- 5. Comptes de tiers au solde inversé --------------------------------
+    // Intitulé officiel de la division 41 · « Clients et comptes rattachés »
+    // (SYSCOHADA) ou « Adhérents, clients-usagers et comptes rattachés »
+    // (SYCEBNL, Partie 2 ch. 3, COMPTE 41).
+    const qualite41 = tenant.referentiel === Referentiel.SYCEBNL ? 'adhérent ou client-usager' : 'client';
+    const qualite41Capitale = tenant.referentiel === Referentiel.SYCEBNL ? 'Adhérent / client-usager' : 'Client';
     const soldesTiers = new Map<string, number>();
     for (const e of ecritures) {
       for (const l of e.lignes) {
@@ -702,14 +709,24 @@ export class ControlesService {
       }
     }
     // 409 « Fournisseurs débiteurs » et 419 « Clients créditeurs » (« Adhérents,
-    // Clients-usagers créditeurs » au SYCEBNL) portent des AVANCES : leur sens
-    // est inversé par construction, dans les deux plans. Les signaler était une
-    // fausse alerte systématique, sur tous les dossiers qui reçoivent ou versent
-    // un acompte · et une fausse alerte répétée apprend à ignorer le contrôle,
-    // ce qui coûte plus qu'elle ne rapporte.
-    const SENS_INVERSE_PAR_NATURE = ['409', '419'];
+    // clients-usagers créditeurs » au SYCEBNL) portent des AVANCES : leur sens
+    // est inversé par construction, dans les deux plans, et toutes leurs
+    // subdivisions suivent · 4091 avances et acomptes versés, 4092 groupe,
+    // 4093 sous-traitants, 4094 emballages et matériels à rendre, 4098 avoirs
+    // à obtenir ; en face 4191 avances et acomptes reçus, 4192 groupe, 4194
+    // emballages consignés, 4198 avoirs à accorder. Les signaler était une
+    // fausse alerte systématique, sur tous les dossiers qui reçoivent ou
+    // versent un acompte · et une fausse alerte répétée apprend à ignorer le
+    // contrôle, ce qui coûte plus qu'elle ne rapporte.
+    //
+    // On INVERSE leur sens attendu plutôt que de les exclure : un 409
+    // créditeur ou un 419 débiteur reste une anomalie, et l'exclusion pure
+    // l'aurait rendue invisible. Ce défaut-là n'est propre à aucun
+    // référentiel · les deux plans portent les mêmes racines, il se corrige
+    // une seule fois, sans branche.
     const inverses = [...soldesTiers.entries()].filter(([numero, solde]) => {
-      if (SENS_INVERSE_PAR_NATURE.some((p) => numero.startsWith(p))) return false;
+      if (numero.startsWith('409')) return solde < -0.005; // débiteur par nature
+      if (numero.startsWith('419')) return solde > 0.005; // créditeur par nature
       return (numero.startsWith('41') && solde < -0.005) || (numero.startsWith('40') && solde > 0.005);
     });
     if (inverses.length > 0) {
@@ -717,12 +734,20 @@ export class ControlesService {
         code: 'TIERS_SOLDE_INVERSE',
         gravite: 'AVERTISSEMENT',
         libelle: 'Compte de tiers au solde inversé',
-        consequence:
-          "Un adhérent ou client-usager (41) créditeur, ou un fournisseur (40) débiteur, traduit le plus souvent un règlement imputé au mauvais compte, un double encaissement, ou une avance à reclasser.",
+        // Le 41 est « Clients et comptes rattachés » en SYSCOHADA et
+        // « Adhérents, clients-usagers et comptes rattachés » en SYCEBNL ·
+        // parler d'adhérents à une entreprise commerciale n'a pas de sens.
+        consequence: `Un ${qualite41} (41) créditeur, ou un fournisseur (40) débiteur, traduit le plus souvent un règlement imputé au mauvais compte, un double encaissement, ou une avance à reclasser. Sur un 409 ou un 419, c'est l'inverse : leur sens normal est celui de l'avance.`,
         action: 'Interrogez le compte et lettrez-le : le solde non lettré dira ce qui reste réellement dû.',
         occurrences: inverses.map(([numero, solde]) => ({
           reference: numero,
-          detail: numero.startsWith('41') ? 'Adhérent / client-usager créditeur' : 'Fournisseur débiteur',
+          detail: numero.startsWith('409')
+            ? 'Fournisseur débiteur (409) au solde créditeur'
+            : numero.startsWith('419')
+              ? `${qualite41Capitale} créditeur (419) au solde débiteur`
+              : numero.startsWith('41')
+                ? `${qualite41Capitale} créditeur`
+                : 'Fournisseur débiteur',
           montant: solde,
         })),
       });
@@ -747,7 +772,13 @@ export class ControlesService {
         gravite: 'INFORMATION',
         libelle: `Mouvement de tiers non lettré depuis plus de ${ControlesService.JOURS_ANCIENNETE_TIERS} jours`,
         consequence:
-          "Une créance ancienne non lettrée est soit déjà réglée sans que le rapprochement ait été fait, soit douteuse · dans le second cas elle appelle une dépréciation (compte 416, note annexe).",
+          // Le 416 RECLASSE la créance (« Créances clients litigieuses ou
+          // douteuses » · « Créances adhérents, clients-usagers litigieuses ou
+          // douteuses » au SYCEBNL). La DÉPRÉCIATION se constate au 491, dans
+          // les deux plans. Le message envoyait vers un compte qui n'en porte
+          // aucune. Le compte de charge n'est pas nommé : son intitulé diffère
+          // d'un référentiel à l'autre.
+          "Une créance ancienne non lettrée est soit déjà réglée sans que le rapprochement ait été fait, soit douteuse · dans le second cas elle se reclasse au 416 (créances litigieuses ou douteuses) et appelle une dépréciation au 491 (note annexe).",
         action: 'Lettrez ce qui est réglé ; pour le reste, appréciez le risque et dépréciez si nécessaire.',
         occurrences: anciennes.slice(0, 200).map((e) => ({
           reference: `${e.journal.code} n° ${e.numeroPiece ?? '·'}`,
@@ -847,10 +878,18 @@ export class ControlesService {
           code: 'CHARGE_SANS_TIERS',
           gravite: 'AVERTISSEMENT',
           libelle: 'Charge imputée directement sur la trésorerie, sans passer par un tiers',
+          // Le postulat de la comptabilité d'engagement existe dans les deux
+          // référentiels, sous deux références différentes · citer la Partie 3
+          // ch. 3 du SYCEBNL (projets de développement) à une entreprise
+          // renverrait à un chapitre qui ne la concerne pas.
           consequence:
-            "On ne saura jamais à qui cette dépense a été payée : ni relevé fournisseur, ni balance âgée, ni lettrage, ni circularisation possible. La charge et son règlement sont confondus en une seule écriture, ce que le postulat de la comptabilité d'engagement écarte (SYCEBNL, Partie 1, ch. 2).",
+            'On ne saura jamais à qui cette dépense a été payée : ni relevé fournisseur, ni balance âgée, ni lettrage, ni circularisation possible. La charge et son règlement sont confondus en une seule écriture, ce que le postulat de la comptabilité d’engagement écarte ' +
+            (tenant.referentiel === Referentiel.SYCEBNL
+              ? '(SYCEBNL, Partie 1, ch. 2).'
+              : '(AUDCIF, Titre V · cadre conceptuel).'),
           action:
-            "Passez deux écritures : la charge par le crédit du tiers (compte 40 fournisseur, 42 personnel, 43 organismes sociaux, 44 État selon le cas), puis le règlement par le débit de ce tiers et le crédit de la trésorerie. C'est le schéma des § 2.2 et 2.4 de la Partie 3, ch. 3.",
+            'Passez deux écritures : la charge par le crédit du tiers (compte 40 fournisseur, 42 personnel, 43 organismes sociaux, 44 État selon le cas), puis le règlement par le débit de ce tiers et le crédit de la trésorerie.' +
+            (tenant.referentiel === Referentiel.SYCEBNL ? ' C’est le schéma des § 2.2 et 2.4 de la Partie 3, ch. 3.' : ''),
           occurrences: chargesDirectes.slice(0, 200).map((e) => ({
             reference: `${e.journal.code} n° ${e.numeroPiece ?? '·'}`,
             detail: `${e.libelle} · ${e.lignes
@@ -866,7 +905,7 @@ export class ControlesService {
       }
     }
 
-    // --- 7. Comptes hors nomenclature SYCEBNL --------------------------------
+    // --- 7. Comptes hors nomenclature (SYCEBNL ou SYSCOHADA selon le dossier) --------------------------------
     // La classe 8 existe (H.A.O.) mais un compte dont le premier chiffre n'est
     // pas cohérent avec sa classe enregistrée signale un plan bricolé, souvent
     // par import.
@@ -891,20 +930,35 @@ export class ControlesService {
     }
 
     // --- 8. Comptes mouvementés absents des états ---------------------------
-    // Un compte de classe 9 mouvementé est normal (contributions volontaires),
-    // mais il ne doit jamais peser sur le résultat : le signaler évite qu'on
-    // s'étonne de ne pas le retrouver au compte de résultat.
+    // Un compte de classe 9 mouvementé est normal, mais il ne doit jamais
+    // peser sur le résultat : le signaler évite qu'on s'étonne de ne pas le
+    // retrouver au compte de résultat.
+    //
+    // LA CLASSE 9 NE PORTE PAS LA MÊME CHOSE DANS LES DEUX PLANS. En SYCEBNL
+    // ce sont les contributions volontaires en nature (900 à 914). En
+    // SYSCOHADA ce sont les engagements hors bilan (90 · obtenus au débit des
+    // 901-904, accordés au crédit des 905-908, contreparties 911-918) ET la
+    // comptabilité analytique de gestion (92 à 99). Annoncer des
+    // « contributions volontaires en nature » à une entreprise qui vient
+    // d'enregistrer une caution, et la renvoyer à une note annexe absente de
+    // sa liasse, était faux deux fois.
     const classe9 = [...new Set(ecritures.flatMap((e) => e.lignes.map((l) => l.compte.numero)))].filter((n) =>
       n.startsWith('9'),
     );
     if (classe9.length > 0) {
+      const estSycebnlClasse9 = tenant.referentiel === Referentiel.SYCEBNL;
       anomalies.push({
         code: 'CLASSE_9_MOUVEMENTEE',
         gravite: 'INFORMATION',
-        libelle: 'Contributions volontaires en nature enregistrées',
-        consequence:
-          "Les comptes de classe 9 sont hors bilan et hors résultat : ils ne modifient ni le résultat ni la situation nette, et se présentent en note annexe.",
-        action: 'Vérifiez que la note annexe des contributions volontaires est renseignée.',
+        libelle: estSycebnlClasse9
+          ? 'Contributions volontaires en nature enregistrées'
+          : 'Comptes de classe 9 mouvementés (engagements hors bilan ou comptabilité analytique)',
+        consequence: estSycebnlClasse9
+          ? 'Les comptes de classe 9 sont hors bilan et hors résultat : ils ne modifient ni le résultat ni la situation nette, et se présentent en note annexe.'
+          : 'Les comptes de classe 9 sont hors bilan et hors compte de résultat. Les engagements des comptes 90 et 91 se portent aux Notes annexes · ils supposent une convention écrite. Les comptes 92 à 99 relèvent de la comptabilité analytique de gestion et n’entrent dans aucun état de synthèse.',
+        action: estSycebnlClasse9
+          ? 'Vérifiez que la note annexe des contributions volontaires est renseignée.'
+          : 'Vérifiez que la note annexe des engagements hors bilan est renseignée.',
         occurrences: classe9.map((n) => ({ reference: n, detail: 'Compte de classe 9 mouvementé' })),
       });
     }
@@ -977,15 +1031,23 @@ export class ControlesService {
     //
     // Soixante jours d'avance, parce que le renouvellement exige un rapport
     // d'évaluation SUR TERRAIN, qui suppose une descente à organiser.
+    // Le module des exonérations douanières est réservé au SYCEBNL côté
+    // serveur (ExonerationsController · @ReferentielsAutorises) : le contrôle
+    // porte la même borne, sans quoi le cloisonnement ne serait fait que d'un
+    // côté et une exonération arrivée par un autre chemin servirait la
+    // procédure ASBL de la note circulaire 003/2013 à une entreprise.
     const aujourdhui = new Date();
-    const exonerations = await this.prisma.exoneration.findMany({
+    const exonerations =
+      tenant.referentiel !== Referentiel.SYCEBNL
+        ? []
+        : await this.prisma.exoneration.findMany({
       where: {
         tenantId,
         statut: StatutExoneration.ACCORDE,
         dateFinValidite: { not: null, lte: new Date(aujourdhui.getTime() + JOURS_ALERTE_RENOUVELLEMENT * 86_400_000) },
       },
-      orderBy: { dateFinValidite: 'asc' },
-    });
+            orderBy: { dateFinValidite: 'asc' },
+          });
     if (exonerations.length > 0) {
       const perimes = exonerations.filter((e) => e.dateFinValidite! < aujourdhui);
       anomalies.push({

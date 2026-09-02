@@ -1,4 +1,19 @@
+import { useAuth } from '../../lib/auth';
+
+/**
+ * DIVISION SYCEBNL / SYSCOHADA · la boîte annonçait « référentiel SYCEBNL »
+ * à tout dossier, y compris à une société commerciale tenue en SYSCOHADA.
+ * OmegaX sert les deux référentiels de l'OHADA · la ligne nomme celui du
+ * dossier ouvert, et se contente de « OHADA » tant qu'aucun dossier ne l'est.
+ */
+const LIBELLE_REFERENTIEL: Record<string, string> = {
+  SYCEBNL: 'référentiel SYCEBNL (entités à but non lucratif)',
+  SYSCOHADA: 'référentiel SYSCOHADA révisé (entités à but lucratif)',
+};
+
 export function AProposModale({ onFermer }: { onFermer: () => void }) {
+  const { utilisateur } = useAuth();
+  const referentiel = utilisateur?.tenant.referentiel;
   return (
     <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center" onClick={onFermer}>
       <div
@@ -13,7 +28,10 @@ export function AProposModale({ onFermer }: { onFermer: () => void }) {
         </div>
         <div className="p-4 text-[11px] space-y-2">
           <p className="font-semibold">OmegaX</p>
-          <p className="text-text-dim">Logiciel de comptabilité OHADA · référentiel SYCEBNL.</p>
+          <p className="text-text-dim">
+            Logiciel de comptabilité OHADA
+            {referentiel && LIBELLE_REFERENTIEL[referentiel] ? ` · ${LIBELLE_REFERENTIEL[referentiel]}` : ''}.
+          </p>
           <p className="text-text-dim">Version de développement.</p>
         </div>
         <div className="border-t border-border px-3 py-2 flex justify-end">

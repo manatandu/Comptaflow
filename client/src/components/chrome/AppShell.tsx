@@ -4,6 +4,7 @@ import { useAuth } from '../../lib/auth';
 import { useExercice } from '../../lib/exercice';
 import { useFenetres } from '../../lib/fenetres';
 import { definitionPour } from '../../lib/registre-fenetres';
+import { fenetreDisponible } from '../../lib/referentiel-fenetre';
 import { IconLogo } from './icons';
 import { MenuBar, type MenuDef } from './MenuBar';
 import { CalculetteChrome, NavigationChrome } from './OutilsChrome';
@@ -74,8 +75,21 @@ export function AppShell() {
     if (location.pathname === '/') return; // l'accueil est le fond, pas une fenêtre
     const def = definitionPour(location.pathname);
     if (!def) return;
+    // DIVISION SYCEBNL / SYSCOHADA · le point de passage OBLIGÉ de toute
+    // ouverture. Cacher l'entrée de menu ne suffit pas : l'adresse se tape,
+    // se colle depuis un courriel, ou reste dans l'historique du navigateur
+    // après un changement de dossier. Une fenêtre propre à l'autre
+    // référentiel n'ouvre donc pas · on retombe sur l'accueil plutôt que de
+    // laisser une fenêtre vide ou, pire, un écran d'ASBL dans une SARL.
+    //
+    // Le serveur refuse déjà ces routes (ReferentielGuard) · c'est la même
+    // défense en profondeur, prise du côté qui décide de ce qui s'affiche.
+    if (!fenetreDisponible(def, utilisateur?.tenant.referentiel)) {
+      navigate('/', { replace: true });
+      return;
+    }
     ouvrir(location.pathname + location.search, { titre: def.titre, titreCourt: def.titreCourt });
-  }, [location.pathname, location.search, ouvrir]);
+  }, [location.pathname, location.search, ouvrir, navigate, utilisateur?.tenant.referentiel]);
 
   /**
    * … ET RÉCIPROQUEMENT : donner le premier plan à une fenêtre remet l'URL
@@ -203,7 +217,10 @@ export function AppShell() {
         { label: 'Analyse et contrôles', separateurAvant: true, onClick: () => navigate('/controles') },
         // Dossier mère d'un groupe d'établissements (une église et ses
         // cellules) · la balance agrégée du groupe est une édition du siège.
-        ...((utilisateur?.tenant.nombreCellules ?? 0) > 0
+        // Le module est monté sur le plan SYCEBNL (canevas de trésorerie et
+        // liasse combinée, cf. groupe.service.ts) et son contrôleur est
+        // réservé à ce référentiel · le compte des cellules ne suffit pas.
+        ...(estSycebnl && (utilisateur?.tenant.nombreCellules ?? 0) > 0
           ? [{ label: 'Balance agrégée du groupe', onClick: () => navigate('/groupe') }]
           : []),
         // États financiers et Notes annexes servent les DEUX référentiels :
