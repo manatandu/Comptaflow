@@ -391,6 +391,7 @@ model Tenant {
 
   @@index([dossierMereId])
   @@map("tenants")
+  evenementsAudit EvenementAudit[]
 }
 
 // Une licence par tenant. Le champ dateExpiration est nul pour les deux formes
@@ -2483,4 +2484,71 @@ model LigneAffectation {
 
   @@index([affectationId])
   @@map("lignes_affectation")
+}
+
+// ---------------------------------------------------------------------------
+// Journal d'audit technique
+// ---------------------------------------------------------------------------
+
+enum ActionAudit {
+  CREATION
+  MODIFICATION
+  SUPPRESSION
+}
+
+/// CHEMIN DE RÉVISION · AUDCIF art. 22, 6° : « l'organisation garantisse toutes
+/// les possibilités de contrôle en PERMETTANT LA RECONSTITUTION DU CHEMIN DE
+/// RÉVISION ». Sur les quarante-deux modèles de ce schéma, aucun ne disait qui
+/// avait modifié quoi ni quand · seul `createdBy` disait qui avait créé.
+///
+/// La chaîne d'empreintes répond au 5° du même article : « est réputée intègre
+/// toute transcription indélébile entraînant une MODIFICATION IRRÉVERSIBLE du
+/// support ». Chaque événement porte l'empreinte du précédent · retirer,
+/// insérer ou retoucher une ligne rompt la chaîne et se voit. Le journal n'est
+/// pas rendu physiquement immuable (une base reste une base), il est rendu
+/// VÉRIFIABLE, ce qui est ce qu'un auditeur peut effectivement contrôler.
+///
+/// La chaîne est PAR DOSSIER, pas globale · deux raisons, chacune suffisante :
+/// un auditeur ne vérifie jamais que le dossier qu'il révise, et un verrou
+/// d'ajout global sérialiserait les écritures de tous les cabinets entre elles.
+model EvenementAudit {
+  id String @id @default(uuid())
+
+  /// Nul pour les actes de la plateforme (console VMG), qui ne relèvent
+  /// d'aucun dossier · ils forment leur propre chaîne.
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  /// Rang dans la chaîne du dossier, à partir de 1. C'est lui qui donne
+  /// l'ordre, jamais l'horodatage : deux événements peuvent partager la même
+  /// milliseconde.
+  rang Int
+
+  horodatage DateTime @default(now())
+
+  /// L'acteur est DÉNORMALISÉ (courriel copié) et n'est pas une clé étrangère
+  /// vers User : un utilisateur supprimé ne doit pas emporter la trace de ce
+  /// qu'il a fait, ni la rendre anonyme après coup.
+  acteurId    String?
+  acteurEmail String
+  adresseIp   String?
+
+  action   ActionAudit
+  entite   String
+  entiteId String?
+
+  /// Avant / après. Les champs sensibles (mot de passe, jeton, secret) sont
+  /// REMPLACÉS par un marqueur avant d'arriver ici · un journal d'audit qui
+  /// recopie les empreintes de mots de passe est une seconde base de mots de
+  /// passe, moins surveillée que la première.
+  avant Json?
+  apres Json?
+
+  empreintePrecedente String
+  empreinte           String @unique
+
+  @@unique([tenantId, rang])
+  @@index([tenantId, horodatage])
+  @@index([tenantId, entite, entiteId])
+  @@map("evenements_audit")
 }

@@ -53,8 +53,8 @@ Racine = serveur. `client/` = interface. Un seul dépôt.
 ```
 src/modules/     30 modules métier (auth, comptes, ecritures, etats-financiers,
                  notes-annexes, exports, groupe, plateforme, licence…)
-src/common/      gardes, décorateurs, Prisma, /health
-prisma/          schema.prisma + 49 migrations SQL écrites à la main
+src/common/      gardes, décorateurs, Prisma, journal d'audit, /health
+prisma/          schema.prisma + 50 migrations SQL écrites à la main
 client/src/      pages/, components/chrome/, lib/
 docs/            plan de construction, audits, guides pilote, notes de droit
 .github/workflows/  déploiement et sauvegardes
@@ -214,6 +214,15 @@ avant de l'écrire ; un spec (`compte-seed-syscohada.spec.ts`) le contrôle.
   force le changement à la première connexion.
 - Toute requête est filtrée par `tenantId`. Une requête Prisma sans `tenantId`
   sur une table multi-locataire est un défaut de cloisonnement.
+- **Journal d'audit** (`src/common/audit/`) · posé sur le client Prisma par
+  une extension, pas par des appels dans les services : un contrôle qu'on peut
+  oublier d'appeler n'est pas un contrôle. Il couvre les modèles de
+  `MODELES_AUDITES` (accès, configuration, actes d'exercice) et jamais les
+  lignes engendrées en masse. Chaque événement porte l'empreinte du précédent
+  (chaîne par dossier) · c'est ce qui rend une retouche visible, AUDCIF
+  art. 22, 5° et 6°. Deux règles à ne pas défaire : aucune route d'écriture
+  sur `/journal-audit`, et aucun champ sensible recopié (`masquer()` remplace
+  mot de passe, jeton et secret par un marqueur).
 
 ## 9. Style de code
 

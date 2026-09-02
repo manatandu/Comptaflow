@@ -73,19 +73,32 @@ laisse un dossier sans plan de comptes.
 
 Modèle et effort : **Opus 5, `high`** · motif établi, périmètre technique.
 
-**B1 · Journal d'audit général.** Sur 39 modèles Prisma, aucun ne trace les
-connexions, les changements de paramètres du dossier, les exports de données,
-la création ou la suppression d'un utilisateur. La piste d'audit COMPTABLE
-existe et est bonne (`createdBy`, `valideeBy`, correction par inscription en
-négatif avec motif obligatoire, art. 20 AUDCIF) · c'est la piste TECHNIQUE qui
-manque. Deux raisons de le placer ici plutôt qu'en confort :
+**B1 · Journal d'audit général.** FAIT le 2026-09-02. Sur quarante-deux
+modèles Prisma, aucun ne disait qui avait modifié quoi ni quand · seul
+`createdBy` disait qui avait créé. C'est la première chose qu'un réviseur
+demande, et l'AUDCIF art. 22, 6° en fait une obligation : « l'organisation
+garantisse toutes les possibilités de contrôle en permettant la reconstitution
+du chemin de révision ».
 
-- c'est la première chose qu'un commissaire aux comptes ou un auditeur de
-  bailleur demande ;
-- le Code du numérique congolais impose la notification sans délai des
-  violations de données (art. 244 du corpus lu, à faire qualifier par un
-  juriste, voir Décisions) · sans journal, cette notification est
-  matériellement impossible à produire.
+Le journal est posé sur le CLIENT PRISMA par une extension, pas par des appels
+dans les services · un journal qu'on peut oublier d'appeler serait oublié le
+jour où l'on ajoute un service. L'acteur circule par un `AsyncLocalStorage`
+alimenté par un intercepteur global (et non un middleware, qui court avant les
+gardes et ne verrait jamais qui agit).
+
+Chaque événement porte l'empreinte du précédent, chaîne par dossier · c'est la
+réponse au 5° du même article, « toute transcription indélébile entraînant une
+modification irréversible du support ». Une table Postgres n'est pas indélébile ;
+ce qu'on garantit, c'est que la retouche SE VOIE. La vérification distingue
+trois ruptures : ligne supprimée, ligne insérée, contenu retouché.
+
+Deux limites énoncées plutôt que masquées : la chaîne détecte la falsification
+d'un maillon, pas l'absence d'un maillon jamais écrit (si l'écriture du journal
+échoue, l'opération métier passe quand même · une écriture comptable en double
+vaut pire qu'un trou dans le journal) ; et les lignes engendrées en masse
+(`LigneEcriture`, dotations, ventilations) sont hors périmètre, la tête portant
+l'information.
+
 
 **B2 · Cloisonnement multi-locataire garanti structurellement.** Une extension
 du client Prisma qui refuse toute requête sur un modèle porteur de `tenantId`

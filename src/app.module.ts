@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { AuditContexteInterceptor } from './common/audit/audit-contexte.interceptor';
+import { JournalAuditModule } from './common/audit/journal-audit.module';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { validateEnv } from './config/validate-env';
@@ -41,6 +43,7 @@ import { GroupeModule } from './modules/groupe/groupe.module';
 
 @Module({
   imports: [
+    JournalAuditModule,
     ConfigModule.forRoot({ isGlobal: true, validate: validateEnv }),
     // LIMITATION DE DÉBIT · par adresse (X-Forwarded-For, voir `trust proxy`
     // dans bootstrap.ts). 300 requêtes/min laissent passer n'importe quel
@@ -89,6 +92,11 @@ import { GroupeModule } from './modules/groupe/groupe.module';
     GroupeModule,
   ],
   controllers: [SanteController],
-  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
+  providers: [
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    // GLOBAL, à dessein · le journal d'audit ne saurait pas qui agit si un
+    // seul contrôleur oubliait de poser le contexte.
+    { provide: APP_INTERCEPTOR, useClass: AuditContexteInterceptor },
+  ],
 })
 export class AppModule {}

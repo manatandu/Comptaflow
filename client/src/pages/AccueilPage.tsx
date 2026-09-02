@@ -128,6 +128,11 @@ const GROUPES: GroupeDef[] = [
       { label: 'États financiers', chemin: '/etats-financiers', Icon: IconEtats },
       { label: 'Notes annexes', chemin: '/notes-annexes', Icon: IconBook },
       { label: "Fin d'exercice", chemin: '/exercice', Icon: IconCheck },
+      // Le journal dit qui a fait quoi · il expose l'activité de chaque
+      // collaborateur, d'où la réserve à l'administrateur du dossier. La
+      // route serveur porte la même (@Roles ADMIN_CABINET) · masquer sans
+      // refuser laisserait la route ouverte à un appel direct.
+      { label: "Journal d'audit", chemin: '/journal-audit', Icon: IconCheck, admin: true },
       { label: 'Tableau de bord', chemin: '/tableau-de-bord', Icon: IconDashboard },
     ],
   },

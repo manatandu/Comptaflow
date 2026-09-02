@@ -17,6 +17,7 @@ const PlanComptesPage = lazy(() => import('../pages/PlanComptesPage').then((m) =
 const JournauxPage = lazy(() => import('../pages/JournauxPage').then((m) => ({ default: m.JournauxPage })));
 const JournalPage = lazy(() => import('../pages/JournalPage').then((m) => ({ default: m.JournalPage })));
 const BalanceAgeePage = lazy(() => import('../pages/BalanceAgeePage').then((m) => ({ default: m.BalanceAgeePage })));
+const JournalAuditPage = lazy(() => import('../pages/JournalAuditPage').then((m) => ({ default: m.JournalAuditPage })));
 const BalanceAuxiliairePage = lazy(() => import('../pages/BalanceAuxiliairePage').then((m) => ({ default: m.BalanceAuxiliairePage })));
 const JustificatifSoldePage = lazy(() => import('../pages/JustificatifSoldePage').then((m) => ({ default: m.JustificatifSoldePage })));
 const EvolutionSoldesPage = lazy(() => import('../pages/EvolutionSoldesPage').then((m) => ({ default: m.EvolutionSoldesPage })));
@@ -143,6 +144,15 @@ export const FENETRES: DefinitionFenetre[] = [
     rendre: ({ adresse }) => <JournalPage adresse={adresse} />,
   },
   { motif: /^\/balance-agee$/, titre: 'Balance âgée', titreCourt: 'Balance âgée', rendre: () => <BalanceAgeePage /> },
+  {
+    // Commun aux deux référentiels · le chemin de révision de l'AUDCIF art. 22
+    // vaut pour toute entité tenant une comptabilité informatisée, EBNL
+    // comprise (le SYCEBNL n'écarte pas cet article, cf. son art. 3).
+    motif: /^\/journal-audit$/,
+    titre: "Journal d'audit",
+    titreCourt: 'Journal audit',
+    rendre: () => <JournalAuditPage />,
+  },
   {
     motif: /^\/balance-auxiliaire$/,
     titre: 'Balance auxiliaire',
