@@ -123,19 +123,32 @@ function FenetreInterne({ fenetre, active }: { fenetre: FenetreOuverte; active: 
 
   const style: React.CSSProperties = agrandie
     ? { inset: MARGE_AGRANDIE, zIndex: fenetre.ordre }
-    : {
-        left: fenetre.cadre.x,
-        top: fenetre.cadre.y,
-        width: fenetre.cadre.largeur,
-        height: fenetre.cadre.hauteur,
+    : (() => {
         // Le gabarit par défaut (940×560) peut dépasser un petit espace de
         // travail : le cadre est borné à la TAILLE de l'espace (jamais à ce
         // qui reste à droite de sa position · garer une fenêtre contre un
         // bord, geste MDI voulu, ne doit pas la rétrécir).
-        maxWidth: 'calc(100% - 16px)',
-        maxHeight: 'calc(100% - 16px)',
-        zIndex: fenetre.ordre,
-      };
+        const largeur = `min(${fenetre.cadre.largeur}px, calc(100% - 16px))`;
+        const hauteur = `min(${fenetre.cadre.hauteur}px, calc(100% - 16px))`;
+        return {
+          // La POSITION doit être bornée elle aussi, et pas seulement la
+          // taille. À 360 px, une fenêtre restaurée gardait son `x` de
+          // bureau : rétrécie à la largeur de l'espace mais posée à 48 px du
+          // bord, elle sortait de l'écran par la droite · ses boutons
+          // Réduire / Agrandir / Fermer devenaient inatteignables, sans
+          // aucun moyen de la rattraper puisqu'on ne peut pas la saisir par
+          // une barre de titre qu'on ne voit pas.
+          //
+          // `clamp(a, v, b)` vaut `max(a, min(v, b))` par définition : si
+          // l'espace est si étroit que la borne haute passe sous 8 px, le
+          // cadre se cale à 8 px au lieu de produire une valeur absurde.
+          left: `clamp(8px, ${fenetre.cadre.x}px, calc(100% - 8px - ${largeur}))`,
+          top: `clamp(0px, ${fenetre.cadre.y}px, calc(100% - 8px - ${hauteur}))`,
+          width: largeur,
+          height: hauteur,
+          zIndex: fenetre.ordre,
+        };
+      })();
 
   return (
     <div

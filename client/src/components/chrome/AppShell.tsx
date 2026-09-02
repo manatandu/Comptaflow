@@ -270,7 +270,10 @@ export function AppShell() {
   ];
 
   return (
-    <div className="h-screen flex flex-col bg-bg text-text">
+    // `overflow-x-hidden` : garde-fou de dernier rang. Aucun élément du
+    // chrome ne doit dépasser en largeur, mais si l'un le fait un jour, il
+    // sera rogné au lieu d'emmener toute l'application sur le côté.
+    <div className="h-screen flex flex-col bg-bg text-text overflow-x-hidden">
       {/*
         Barre de titre · elle porte l'identité du dossier ouvert, comme la
         barre de titres de Sage (« Le nouvel exercice s'affiche dans la barre
@@ -288,8 +291,14 @@ export function AppShell() {
           <span className="flex items-center justify-center w-[20px] h-[20px] rounded-[6px] bg-white/10">
             <IconLogo width={13} height={13} />
           </span>
-          <span className="font-semibold tracking-[0.01em]">OmegaX</span>
-          <span className="text-white/25">/</span>
+          {/*
+            Le nom du logiciel et sa barre oblique s'effacent sous `sm` : à
+            360 px ils prenaient 60 px sur les 360 disponibles et le nom du
+            DOSSIER, seule information qui change d'un écran à l'autre,
+            tombait à 38 px. Le logo à gauche continue de porter l'identité.
+          */}
+          <span className="hidden sm:inline font-semibold tracking-[0.01em]">OmegaX</span>
+          <span className="hidden sm:inline text-white/25">/</span>
           <span className="truncate text-white/85">{utilisateur?.tenant.nom}</span>
           {anneeExercice && (
             <span className="shrink-0 rounded-full bg-white/10 px-2 py-[1px] text-[10px] font-semibold text-white/80">

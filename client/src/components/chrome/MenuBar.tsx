@@ -64,11 +64,28 @@ export function MenuBar({
         contexte. La barre passe donc explicitement au-dessus (voir le
         `relative z-0` de <main> dans AppShell, qui borne l'autre côté).
       */
-      className="relative z-40 h-[26px] flex items-center gap-0.5 px-2 bg-chrome/80 backdrop-blur-md border-b border-border select-none"
+      /*
+        `flex-wrap` + `min-h` plutôt que `h-[26px]` : à 360 px, les huit
+        titres de menus mesurent 427 px. Sans retour à la ligne, la barre
+        débordait et entraînait TOUTE l'application sur le côté · le dossier
+        et les boutons de droite sortaient de l'écran. On ne peut pas s'en
+        tirer par `overflow-x-auto` ici : un conteneur qui défile en X
+        rogne aussi en Y, et les menus déroulés seraient coupés.
+      */
+      className="relative z-40 min-h-[26px] flex flex-wrap items-center gap-0.5 px-2 py-px sm:py-0 bg-chrome/80 backdrop-blur-md border-b border-border select-none"
     >
       {avant}
       {menus.map((m) => (
-        <div key={m.titre} className="relative h-full flex items-center">
+        // `static` sous `sm` : le menu déroulé se cale alors sur la BARRE
+        // et non sur son titre. Ancré au titre, un menu de droite (« État »,
+        // « Fenêtre ») partait 103 px hors de l'écran à 360 px.
+        // `self-stretch` et NON `h-full` : `height:100%` se mesure sur la
+        // BARRE entière, si bien qu'une fois celle-ci repliée sur deux rangs
+        // chaque titre réclamait 49 px pour un rang qui en fait 24 · le
+        // second rang débordait par le bas, jusque sur l'espace de travail.
+        // `align-self: stretch` se mesure sur le RANG, ce qui est la mesure
+        // voulue dans les deux cas.
+        <div key={m.titre} className="static sm:relative self-stretch flex items-center">
           {/*
             Le menu ouvert prend la forme d'une pastille et non d'un pavé
             bleu pleine hauteur : la barre reste calme quand un menu est
@@ -87,7 +104,7 @@ export function MenuBar({
             {m.titre}
           </button>
           {ouvert === m.titre && (
-            <div className="anim-menu absolute left-0 top-full mt-0.5 z-30 min-w-[178px] max-h-[calc(100dvh-64px)] overflow-y-auto rounded-[8px] border border-border bg-surface shadow-flottante p-1">
+            <div className="anim-menu absolute left-2 right-2 sm:left-0 sm:right-auto top-full mt-0.5 z-30 sm:min-w-[178px] max-h-[calc(100dvh-64px)] overflow-y-auto rounded-[8px] border border-border bg-surface shadow-flottante p-1">
               {m.items.map((it, i) => (
                 <div key={`${it.label}-${i}`}>
                   {it.separateurAvant && <div className="my-[3px] mx-1.5 border-t border-border" />}

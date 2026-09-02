@@ -232,7 +232,13 @@ export function AccueilPage() {
               {jeu && ` · ${jeu}`}
             </div>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          {/*
+            `flex-wrap` et non `shrink-0` seul : avec trois boutons (exercice,
+            nouveau dossier, console), le groupe mesurait plus que 360 px et,
+            refusant de rétrécir, débordait du bandeau. Il se replie
+            maintenant sur deux lignes au lieu de sortir de l'écran.
+          */}
+          <div className="flex flex-wrap items-center gap-2 min-w-0">
             {anneeExercice && (
               <span className="rounded-[10px] bg-white/10 px-3 py-1.5 text-[11px] font-semibold">
                 Exercice {anneeExercice}

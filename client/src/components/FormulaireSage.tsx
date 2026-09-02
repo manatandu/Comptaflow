@@ -33,9 +33,19 @@ export function Ligne({
   aide?: ReactNode;
 }) {
   return (
-    <div className="flex items-start gap-3 mb-1.5">
-      <span className="w-[158px] flex-shrink-0 text-right text-[11px] text-text leading-[26px]">{label}</span>
-      <div className={large ? 'flex-1 min-w-0' : 'w-[210px] flex-shrink-0'}>
+    /*
+      Le libellé passe AU-DESSUS du champ sous `sm`. Côte à côte, la paire
+      réclame 158 + 12 + 210 = 380 px alors que le volet d'une fenêtre à
+      360 px n'en offre que 152 : le champ était comprimé à quelques pixels
+      et le libellé se brisait mot par mot. Empilée, la ligne redevient
+      lisible sans rien changer au rendu de bureau, où l'alignement à droite
+      des libellés fait toute la tenue du formulaire façon Sage.
+    */
+    <div className="flex flex-col sm:flex-row items-stretch sm:items-start gap-1 sm:gap-3 mb-1.5">
+      <span className="w-full sm:w-[158px] sm:flex-shrink-0 text-left sm:text-right text-[11px] text-text leading-[18px] sm:leading-[26px]">
+        {label}
+      </span>
+      <div className={large ? 'flex-1 min-w-0' : 'w-full sm:w-[210px] sm:flex-shrink-0'}>
         {children}
         {aide && <div className="mt-0.5 text-[10.5px] text-text-dim leading-[1.5]">{aide}</div>}
       </div>
@@ -90,7 +100,14 @@ export function OngletsVerticaux<T extends string>({
 }) {
   return (
     <div className="flex flex-1 min-h-0 border border-border bg-surface">
-      <div className="w-[172px] flex-shrink-0 border-r border-border bg-chrome overflow-y-auto py-1">
+      {/*
+        Le rail d'onglets se resserre sous `sm`. À 172 px il prenait la
+        moitié d'une fenêtre de 344 px, et le formulaire tombait à 155 px ·
+        les valeurs saisies étaient coupées avant d'être lisibles. Les
+        libellés d'onglets (« Identification », « Forme juridique ») tiennent
+        sur deux lignes à 124 px, ce que le formulaire ne pouvait pas faire.
+      */}
+      <div className="w-[124px] sm:w-[172px] flex-shrink-0 border-r border-border bg-chrome overflow-y-auto py-1">
         {onglets.map((o) => {
           const estActif = o.cle === actif;
           return (

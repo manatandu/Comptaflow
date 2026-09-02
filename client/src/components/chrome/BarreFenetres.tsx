@@ -51,7 +51,15 @@ export function BarreFenetres() {
                 title={`Fermer ${f.titre}`}
                 aria-label={`Fermer ${f.titre}`}
                 onClick={() => fermer(f.cle)}
-                className="mr-1 flex items-center justify-center w-[16px] h-[16px] rounded-[4px] text-text-dim opacity-0 group-hover:opacity-100 hover:bg-danger hover:text-white transition-opacity duration-150"
+                /*
+                  La croix ne s'efface QUE là où un survol existe. Sur un
+                  écran tactile, `group-hover` ne se déclenche jamais : la
+                  croix restait invisible et le seul moyen de fermer une
+                  fenêtre depuis la barre disparaissait. On garde donc le
+                  dévoilement au survol sur les pointeurs fins, et on affiche
+                  la croix en permanence partout ailleurs.
+                */
+                className="mr-1 flex items-center justify-center w-[16px] h-[16px] rounded-[4px] text-text-dim opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 hover:bg-danger hover:text-white transition-opacity duration-150"
               >
                 <svg viewBox="0 0 16 16" width="9" height="9">
                   <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" fill="none" />

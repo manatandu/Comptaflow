@@ -162,19 +162,34 @@ export function AuthPage() {
           <span>{ecran === 'porte' ? 'Ouverture du dossier comptable' : 'Identification'}</span>
         </div>
 
-        <div className="flex">
+        {/*
+          Le panneau de marque passe AU-DESSUS du formulaire sous `sm`. Fixé
+          à 168 px sur un écran de 360, il ne laissait que 118 px au volet de
+          droite, et 40 px au texte une fois les marges retirées : les
+          libellés se brisaient lettre par lettre. Empilé, il redevient un
+          simple bandeau et le formulaire reprend toute la largeur.
+        */}
+        <div className="flex flex-col sm:flex-row">
           {/* Panneau de marque · le pendant du bandeau vert de Sage. */}
           <div
-            className="w-[168px] flex-shrink-0 p-4 flex flex-col justify-between"
+            className="w-full sm:w-[168px] sm:flex-shrink-0 p-4 flex flex-row sm:flex-col items-center sm:items-stretch gap-3 sm:gap-0 justify-between"
             style={{ background: 'linear-gradient(180deg, var(--titlebar-from), var(--titlebar-to))' }}
           >
-            <div>
+            <div className="min-w-0">
               <div className="w-[38px] h-[38px] rounded-[11px] bg-white/10 flex items-center justify-center text-white">
                 <IconLogo width={22} height={22} />
               </div>
               <div className="mt-2.5 text-[15px] font-extrabold tracking-tight text-white">OMEGAX</div>
+              {/*
+                Aucun dossier n'est ouvert à cet écran : le référentiel est
+                donc INCONNU, et annoncer « entités à but non lucratif ·
+                SYCEBNL » mentait à tout dossier SYSCOHADA · la porte
+                d'entrée d'un logiciel qui tient les deux ne peut pas se
+                réclamer d'un seul. Les deux référentiels relèvent de
+                l'OHADA, c'est le seul dénominateur exact.
+              */}
               <div className="mt-1 text-[10px] text-white/70 leading-[1.5]">
-                Comptabilité des entités à but non lucratif · SYCEBNL
+                Comptabilité OHADA · SYCEBNL et SYSCOHADA
               </div>
             </div>
             <div className="text-[10px] text-white/45">© 2026</div>

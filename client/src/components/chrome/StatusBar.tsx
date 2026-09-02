@@ -24,16 +24,22 @@ export function StatusBar() {
   const titreFenetre = fenetres.find((f) => f.cle === cleActive)?.titre ?? 'Accueil';
 
   return (
-    <div className="h-[21px] bg-chrome/70 backdrop-blur-md border-t border-border flex items-center justify-between px-3 text-[10px] text-text-dim shrink-0">
-      <span className="flex items-center gap-2">
+    <div className="h-[21px] bg-chrome/70 backdrop-blur-md border-t border-border flex items-center justify-between gap-3 px-3 text-[10px] text-text-dim shrink-0">
+      {/*
+        `min-w-0` des deux côtés et `truncate` sur les textes : sans eux, un
+        élément flex refuse de descendre sous la largeur de son contenu, et
+        les deux libellés débordaient de 21 px hors de la barre à 360 px ·
+        ils s'imprimaient par-dessus le bord de l'écran.
+      */}
+      <span className="flex items-center gap-2 min-w-0">
         {/* Pastille de veille · le halo dit « connecté » sans clignoter. */}
-        <span className="relative flex w-1.5 h-1.5">
+        <span className="relative flex w-1.5 h-1.5 shrink-0">
           <span className="absolute -inset-[2.5px] rounded-full bg-positive/25" />
           <span className="relative inline-flex w-1.5 h-1.5 rounded-full bg-positive" />
         </span>
-        <span className="font-medium text-text">{titreFenetre}</span>
+        <span className="font-medium text-text truncate">{titreFenetre}</span>
       </span>
-      <span>
+      <span className="min-w-0 truncate">
         {utilisateur?.tenant.nom} · {utilisateur?.tenant.referentiel}
         {utilisateur && ` · ${LIBELLE_ROLE[utilisateur.role]}`}
         {exerciceCourant && ` · Exercice ${new Date(exerciceCourant.dateDebut).getFullYear()}`}
