@@ -339,7 +339,6 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     code: '5B',
     titre: 'IMMOBILISATIONS BRUTES',
     colonnes: COLONNES_MOUVEMENTS,
-    renvoyeeDepuis: ['AE', 'AF', 'AG', 'AH', 'AI', 'AJ', 'AK', 'AL', 'AM'],
     rubriques: [
       { libelle: 'Brevets, licences et droits similaires', comptes: ['212'] },
       { libelle: 'Logiciels et sites internet', comptes: ['213'] },
@@ -404,7 +403,6 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
       { type: 'LIBRE' as const, libelle: 'D · Virements de poste à poste' },
       { type: 'CLOTURE' as const, libelle: 'E = A + B - C - D (Cumuls des amortissements à la clôture)' },
     ],
-    renvoyeeDepuis: ['AE', 'AF', 'AG', 'AH', 'AI', 'AJ', 'AK', 'AL', 'AM'],
     rubriques: [
       { libelle: 'Brevets, licences et droits similaires', comptes: ['2812'] },
       { libelle: 'Logiciels et sites internet', comptes: ['2813'] },
@@ -446,7 +444,7 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
       { type: 'DIMINUTIONS' as const, libelle: "C · Diminutions : reprises de l'exercice" },
       { type: 'CLOTURE' as const, libelle: 'D = A + B - C (Cumul des dépréciations à la clôture)' },
     ],
-    renvoyeeDepuis: ['AE', 'AF', 'AG', 'AH', 'AI', 'AJ', 'AK', 'AL', 'AM'],
+    renvoyeeDepuis: ['AE', 'CE'],
     rubriques: [
       { libelle: 'Brevets, licences et droits similaires', comptes: ['2912'] },
       { libelle: 'Logiciels et sites internet', comptes: ['2913'] },
@@ -491,7 +489,7 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     code: '16',
     titre: 'RESERVES',
     colonnes: COLONNES_STANDARD,
-    renvoyeeDepuis: ['CD', 'CE'],
+    renvoyeeDepuis: ['CF', 'CG'],
     rubriques: [
       { libelle: 'Réserves statutaires ou contractuelles', comptes: ['112'], natureCreditrice: true },
       { libelle: 'Autres réserves', comptes: ['118'], natureCreditrice: true },
@@ -511,7 +509,7 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     // La colonne « Note » du modèle officiel est un renvoi croisé (art. 15),
     // pas un montant : elle est déclarée en saisie.
     colonnes: [{ type: 'LIBRE' as const, libelle: 'Note' }, ...COLONNES_STANDARD],
-    renvoyeeDepuis: ['CJ', 'CK'],
+    renvoyeeDepuis: ['CW', 'CX'],
     rubriques: [
       // 162 bailleurs, 163 l'État, 164 autres organismes assimilés : les trois
       // comptes d'investissement du plan (161 est une avance à justifier, 169
@@ -564,7 +562,7 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
       { type: 'VARIATION_VALEUR' as const, libelle: 'Variation en valeur' },
       { type: 'VARIATION_POURCENT' as const, libelle: 'Variation en %' },
     ],
-    renvoyeeDepuis: ['BB'],
+    renvoyeeDepuis: ['BB', 'TB', 'TE'],
     rubriques: [
       { libelle: "Biens et services liés à l'activité", comptes: ['31', '371'] },
       { libelle: 'Marchandises, Matières premières', comptes: ['32', '372'] },
@@ -622,7 +620,7 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     code: '23',
     titre: 'REVENUS ET AUTRES PRODUITS',
     colonnes: COLONNES_STANDARD,
-    renvoyeeDepuis: ['TA', 'TB', 'TC', 'TD', 'TE', 'TF'],
+    renvoyeeDepuis: ['RA', 'RB', 'RC', 'RD', 'RE', 'RF', 'RG'],
     rubriques: [
       { libelle: 'Cotisations des adhérents', comptes: ['701'], natureCreditrice: true },
       { libelle: 'Quote-part de dotation consomptible transférée', comptes: ['703'], natureCreditrice: true },
@@ -650,7 +648,7 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     code: '25',
     titre: 'TRANSPORTS',
     colonnes: COLONNES_STANDARD,
-    renvoyeeDepuis: ['TH'],
+    renvoyeeDepuis: ['TF'],
     rubriques: [
       { libelle: 'Transports sur ventes', comptes: ['612'] },
       { libelle: 'Transports pour le compte de tiers', comptes: ['613'] },
@@ -691,7 +689,7 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     code: '26',
     titre: 'SERVICES EXTERIEURS',
     colonnes: COLONNES_STANDARD,
-    renvoyeeDepuis: ['TI'],
+    renvoyeeDepuis: ['TG'],
     rubriques: [
       { libelle: 'Sous-traitance générale', comptes: ['621'] },
       { libelle: 'Locations et charges locatives', comptes: ['622'] },
@@ -720,7 +718,7 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     code: '27',
     titre: 'IMPOTS ET TAXES',
     colonnes: COLONNES_STANDARD,
-    renvoyeeDepuis: ['TJ'],
+    renvoyeeDepuis: ['TH'],
     rubriques: [
       { libelle: 'Impôts et taxes directs', comptes: ['641'] },
       { libelle: 'Impôts et taxes indirects', comptes: ['645'] },
@@ -744,7 +742,7 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     code: '28',
     titre: 'AUTRES CHARGES',
     colonnes: COLONNES_STANDARD,
-    renvoyeeDepuis: ['TK'],
+    renvoyeeDepuis: ['TI'],
     rubriques: [
       // 651 est subdivisé au plan : 6511 clients-usagers, 6512 adhérents,
       // 6515 autres débiteurs. Les deux rubriques du modèle s'y rattachent
@@ -770,7 +768,7 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     code: '29A',
     titre: 'CHARGES DE PERSONNEL',
     colonnes: COLONNES_STANDARD,
-    renvoyeeDepuis: ['TL'],
+    renvoyeeDepuis: ['TJ'],
     rubriques: [
       { libelle: 'Rémunérations directes versées au personnel national', comptes: ['661'] },
       { libelle: 'Rémunérations directes versées au personnel non national', comptes: ['662'] },
@@ -796,7 +794,7 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     code: '31',
     titre: 'CHARGES ET REVENUS FINANCIERS',
     colonnes: COLONNES_STANDARD,
-    renvoyeeDepuis: ['TQ', 'UF'],
+    renvoyeeDepuis: ['TK'],
     rubriques: [
       { libelle: 'Intérêts des emprunts', comptes: ['671'] },
       { libelle: 'Intérêts dans loyers de location-acquisition', comptes: ['672'] },
@@ -856,7 +854,7 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     code: '32',
     titre: 'AUTRES CHARGES ET PRODUITS HAO',
     colonnes: COLONNES_STANDARD,
-    renvoyeeDepuis: ['TS', 'UH'],
+    renvoyeeDepuis: ['TM', 'TN'],
     rubriques: [
       // [texte officiel] Le plan numérote les subdivisions du compte 832
       // « Dons en nature H.A.O. à distribuer » 8311 et 8315 · c'est-à-dire
@@ -926,7 +924,7 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     code: '5A',
     titre: "DONS ET LEGS D'IMMOBILISATIONS NON REÇUS DESTINES A LA VENTE ET USUFRUIT TEMPORAIRE",
     colonnes: COLONNES_MOUVEMENTS,
-    renvoyeeDepuis: ['AA'],
+    renvoyeeDepuis: ['AA', 'AD', 'AH'],
     // Le modèle groupe les rubriques sous des intitulés de section
     // (IMMOBILISATIONS INCORPORELLES, CORPORELLES, FINANCIERES) sans en
     // faire des lignes de sous-total · contrairement aux notes 5B et 5F, qui
@@ -978,6 +976,7 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
   },
   {
     code: '5D',
+    renvoyeeDepuis: ['RH', 'TL'],
     titre:
       "DONS ET LEGS D'IMMOBILISATIONS NON REÇUS DESTINES A LA VENTE ET USUFRUIT TEMPORAIRE " +
       '(AMORTISSEMENTS ET DEPRECIATIONS)',
@@ -1047,7 +1046,7 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
       { type: 'ECHEANCE_2ANS' as const, libelle: "Créances à plus d'un an et à deux ans au plus" },
       { type: 'ECHEANCE_PLUS_2ANS' as const, libelle: 'Créances à plus de deux ans' },
     ],
-    renvoyeeDepuis: ['AN', 'AP'],
+    renvoyeeDepuis: ['AO'],
     rubriques: [
       { libelle: 'Titres de participation', comptes: ['26'] },
       { libelle: 'Prêts et créances', comptes: ['271'] },
@@ -1075,7 +1074,7 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     code: '10',
     titre: 'AUTRES CREANCES',
     colonnes: COLONNES_AVEC_ECHEANCES_CREANCES,
-    renvoyeeDepuis: ['BH'],
+    renvoyeeDepuis: ['BE'],
     // Comptes de tiers POLYVALENTS : les classes 42 à 47 portent aussi bien
     // des créances que des dettes. `sens: 'DEBITEUR'` ne retient donc que
     // les soldes débiteurs · leur pendant créditeur relève des notes 20 et 21.
@@ -1207,7 +1206,7 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     code: '19',
     titre: "FOURNISSEURS D'EXPLOITATION",
     colonnes: COLONNES_AVEC_ECHEANCES_DETTES,
-    renvoyeeDepuis: ['DJ'],
+    renvoyeeDepuis: ['BC', 'DH'],
     rubriques: [
       { libelle: 'Fournisseurs, dettes en compte', comptes: ['4011', '4013'], sens: 'CREDITEUR' },
       { libelle: 'Fournisseurs, réserve de propriété', comptes: ['4016'], sens: 'CREDITEUR' },
@@ -1228,7 +1227,7 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     code: '20',
     titre: 'DETTES FISCALES ET SOCIALES',
     colonnes: COLONNES_AVEC_ECHEANCES_DETTES,
-    renvoyeeDepuis: ['DK', 'DL'],
+    renvoyeeDepuis: ['DI'],
     rubriques: [
       { libelle: 'Personnel, rémunérations dues', comptes: ['422'], sens: 'CREDITEUR' },
       { libelle: 'Personnel, congés à payer', comptes: ['4281'], sens: 'CREDITEUR' },
@@ -1261,7 +1260,7 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     code: '21',
     titre: 'AUTRES DETTES ET PROVISIONS POUR RISQUES ET CHARGES A COURT TERME',
     colonnes: COLONNES_AVEC_ECHEANCES_DETTES,
-    renvoyeeDepuis: ['DM', 'DN'],
+    renvoyeeDepuis: ['DI'],
     rubriques: [
       { libelle: "Fonds d'administration des projets · Bailleurs de fonds", comptes: ['462'], sens: 'CREDITEUR' },
       { libelle: "Fonds d'administration des projets · Etat", comptes: ['463'], sens: 'CREDITEUR' },
@@ -1332,7 +1331,7 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
       { type: 'DIMINUTION_HAO' as const, libelle: 'C · Diminutions : reprises hors activités ordinaires' },
       { type: 'CLOTURE' as const, libelle: "D = A + B - C (Provisions à la clôture de l'exercice)" },
     ],
-    renvoyeeDepuis: ['TN', 'TR', 'TT', 'UD', 'UG', 'UI'],
+    renvoyeeDepuis: ['RH', 'TL'],
     rubriques: [
       { libelle: 'Provisions réglementées', comptes: ['15'] },
       { libelle: 'Provisions pour risques et charges', comptes: ['19'] },
@@ -1540,6 +1539,7 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
   },
   {
     code: '14',
+    renvoyeeDepuis: ['BY', 'DY'],
     titre: 'ECARTS DE CONVERSION',
     // La devise, le montant en devise et les deux cours ne sont portés par
     // aucun compte : la comptabilité est tenue en monnaie légale. Seul
@@ -1577,7 +1577,7 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
       { type: 'EXERCICE_N' as const, libelle: 'Montant' },
       { type: 'LIBRE' as const, libelle: 'Préciser avec ou sans droit de reprise' },
     ],
-    renvoyeeDepuis: ['CA'],
+    renvoyeeDepuis: ['CA', 'CB', 'CC', 'CD'],
     rubriques: [
       { libelle: 'Dotation non consomptible', comptes: ['101', '102'], natureCreditrice: true },
       { libelle: "Droit d'entrée", comptes: ['103'], natureCreditrice: true },
@@ -1596,7 +1596,7 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
       { type: 'LIBRE' as const, libelle: 'Régime fiscal' },
       { type: 'LIBRE' as const, libelle: 'Echéances' },
     ],
-    renvoyeeDepuis: ['CF', 'CG'],
+    renvoyeeDepuis: ['CI', 'CJ'],
     // Le compte 141 « Subventions d'équipement » est subdivisé par ORIGINE
     // (1411 État à 1418 Autres), exactement les rubriques du modèle.
     rubriques: [
