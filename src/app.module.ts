@@ -12,6 +12,7 @@ import { ComptesModule } from './modules/comptes/comptes.module';
 import { ExerciceModule } from './modules/exercice/exercice.module';
 import { ComptabiliteModule } from './modules/comptabilite/comptabilite.module';
 import { EtatsFinanciersModule } from './modules/etats-financiers/etats-financiers.module';
+import { EtatsFinanciersSyscohadaModule } from './modules/etats-financiers-syscohada/etats-financiers-syscohada.module';
 import { UtilisateursModule } from './modules/utilisateurs/utilisateurs.module';
 import { JournauxModule } from './modules/journaux/journaux.module';
 import { LettrageModule } from './modules/lettrage/lettrage.module';
@@ -65,6 +66,7 @@ import { GroupeModule } from './modules/groupe/groupe.module';
     RapprochementModule,
     ImmobilisationsModule,
     EtatsFinanciersModule,
+    EtatsFinanciersSyscohadaModule,
     ExportsModule,
     UtilisateursModule,
     BailleursModule,
