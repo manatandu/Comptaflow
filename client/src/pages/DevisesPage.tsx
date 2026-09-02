@@ -10,11 +10,16 @@ import { EnteteImpression } from '../components/chrome/EnteteImpression';
  * DEVISES ET RÉÉVALUATION · Structure → devises et Traitement → Réévaluation
  * des dettes et créances en devise chez Sage 100 i7, calés sur la RDC.
  *
- * L'écran affiche séparément ce que le SYCEBNL sépare, et qu'un progiciel
- * généraliste écrase : l'écart LATENT d'une créance ou d'une dette, qui va au
- * 478 ou au 479 et appelle une provision s'il est défavorable, et l'écart
- * RÉALISÉ d'une disponibilité en devise, qui va droit au résultat en 676 ou
- * 776. Cette distinction commande deux postes du bilan, BY et DY, que le
+ * L'écran affiche séparément ce que LES DEUX RÉFÉRENTIELS séparent, et qu'un
+ * progiciel généraliste écrase : l'écart LATENT d'une créance ou d'une dette,
+ * qui va au 478 ou au 479 et appelle une provision s'il est défavorable, et
+ * l'écart RÉALISÉ d'une disponibilité en devise, qui va droit au résultat en
+ * 676 ou 776. Les comptes portent les mêmes numéros dans les deux plans ; la
+ * source, non · SYCEBNL Partie 3 d'un côté, AUDCIF art. 54 (« écarts de
+ * conversion actif ou passif », « les gains latents n'interviennent pas dans
+ * la formation du résultat ») et art. 57 (« les disponibilités en devises …
+ * les écarts constatés sont inscrits directement dans les produits et charges
+ * de l'exercice ») de l'autre. Cette distinction commande deux postes du bilan, BY et DY, que le
  * logiciel affichait jusqu'ici à zéro faute de mécanisme.
  */
 
@@ -293,7 +298,7 @@ export function DevisesPage() {
             ))}
             {devises.length === 0 && (
               <div className="px-3 py-3 text-[11px] text-text-dim italic">
-                Aucune devise. Une association qui encaisse en dollars et paie en francs en a besoin pour justifier
+                Aucune devise. Une entité qui encaisse en dollars et paie en francs en a besoin pour justifier
                 ses écarts de change.
               </div>
             )}
@@ -334,8 +339,12 @@ export function DevisesPage() {
           {!rapport && (
             <p className="p-3 text-[11px] text-text-dim leading-[1.55]">
               Le calcul reprend chaque position non lettrée portant une devise, la convertit au cours de la date
-              retenue, et sépare ce que le SYCEBNL sépare : l'écart d'une créance ou d'une dette est LATENT et va au
-              478 ou au 479, celui d'une disponibilité est RÉALISÉ et va droit au résultat en 676 ou 776.
+              retenue, et sépare ce que{' '}
+              {utilisateur?.tenant.referentiel === 'SYSCOHADA'
+                ? "l'AUDCIF sépare (art. 54 et 57)"
+                : 'le SYCEBNL sépare'}{' '}
+              : l'écart d'une créance ou d'une dette est LATENT et va au 478 ou au 479, celui d'une disponibilité est
+              RÉALISÉ et va droit au résultat en 676 ou 776.
             </p>
           )}
 

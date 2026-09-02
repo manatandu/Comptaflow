@@ -29,6 +29,40 @@ export function qualiteDuCompte(numero: string, referentiel: Referentiel): strin
 }
 
 /**
+ * L'ASSIETTE DES RAPPELS · quelles subdivisions du 41 se relancent.
+ *
+ * Toute la racine 41 était retenue. En SYCEBNL cela passait presque, sa
+ * division 41 ne portant guère que des créances à réclamer. En SYSCOHADA
+ * l'AUDCIF la subdivise beaucoup plus finement, et trois de ces subdivisions
+ * n'ont RIEN à réclamer :
+ *
+ *  · 412 « Clients, effets à recevoir en portefeuille » · l'effet est accepté
+ *    et daté. Il se présente à l'échéance, il ne se rappelle pas · relancer un
+ *    client sur un effet qu'il a déjà signé est une faute commerciale ;
+ *  · 415 « Clients, effets escomptés non échus » · l'effet est à la banque.
+ *    C'est elle qui présentera, et le rappel n'a pas de destinataire ;
+ *  · 418 « Clients, produits à recevoir » · factures à établir et intérêts
+ *    courus. La facture n'est pas partie · rien n'est encore exigible, et ces
+ *    écritures sont contre-passées à l'ouverture (AUDCIF, Titre VII COMPTE 41).
+ *
+ * Ce qui se relance : 411 les clients (adhérents en SYCEBNL), 413 les chèques
+ * et effets IMPAYÉS · les plus urgents de tous, et 416 les créances
+ * litigieuses ou douteuses. Le 419 est créditeur par nature (avances reçues) :
+ * il ne doit rien. Le 414, créances sur cessions courantes d'immobilisations,
+ * n'est pas une créance d'exploitation et suit son propre suivi.
+ *
+ * Sur-relancer coûte cher : le tiers qui reçoit un rappel injustifié cesse de
+ * lire les suivants.
+ */
+export const RACINES_RELANCABLES: Record<Referentiel, string[]> = {
+  // 411 Adhérents, 412 Clients-usagers, 413 impayés, 416 litigieuses ·
+  // 418 produits à recevoir et 419 créditeurs sont écartés pour les mêmes
+  // raisons qu'au SYSCOHADA (SYCEBNL, Partie 2 ch. 3, COMPTE 41).
+  [Referentiel.SYCEBNL]: ['411', '412', '413', '416'],
+  [Referentiel.SYSCOHADA]: ['411', '413', '416'],
+};
+
+/**
  * TROIS NIVEAUX LIVRÉS PAR DÉFAUT, UN JEU PAR RÉFÉRENTIEL.
  *
  * Ces lettres partent VRAIMENT, à un adhérent ou à un client, sous la
@@ -208,17 +242,21 @@ export class RelancesService {
   ): Promise<PositionRelance[]> {
     const ref = params.dateReference ? new Date(params.dateReference) : new Date();
     const type = params.type ?? TypeRelance.RAPPEL;
-    const racine = params.racine ?? '41';
     const { referentiel } = await this.prisma.tenant.findUniqueOrThrow({
       where: { id: tenantId },
       select: { referentiel: true },
     });
+    // `racine` explicite : l'appelant sait ce qu'il demande (une racine 40
+    // pour un relevé fournisseur, une subdivision précise). À défaut, on
+    // retient les seules subdivisions du 41 qui portent une créance à
+    // réclamer · voir RACINES_RELANCABLES.
+    const racines = params.racine ? [params.racine] : RACINES_RELANCABLES[referentiel];
 
     const lignes = await this.prisma.ligneEcriture.findMany({
       where: {
         ecriture: { tenantId, exerciceId: params.exerciceId },
         lettre: null,
-        compte: { numero: { startsWith: racine } },
+        OR: racines.map((r) => ({ compte: { numero: { startsWith: r } } })),
       },
       include: {
         compte: {

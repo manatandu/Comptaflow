@@ -20,7 +20,8 @@ import type { Compte, Ecriture, Journal, PlanAnalytique, SectionAnalytique } fro
  *     le montant manquant ; dans un journal de trésorerie, la contrepartie
  *     s'enregistre en un clic sur le compte rattaché au journal.
  *
- * Les modèles de saisie (opérations courantes, TVA, écritures-types SYCEBNL)
+ * Les modèles de saisie (opérations courantes, TVA, et les écritures-types du
+ * référentiel du dossier)
  * s'appellent DEPUIS cette fenêtre et ne font que pré-remplir la pièce ·
  * jamais l'inverse : la saisie libre est la règle, le modèle un accélérateur.
  */
@@ -80,7 +81,8 @@ function joursDansMois(annee: number, mois: number): number {
  * et la racine du compte · la règle exacte des codes journaux Sage (« Achats :
  * le curseur se place dans la colonne crédit si le compte mouvementé est de
  * nature Fournisseur…, débit s'il est de nature Charges », etc.), transposée
- * aux racines SYCEBNL (40 fournisseurs, 41 adhérents/clients, 42 personnel).
+ * aux racines COMMUNES AUX DEUX PLANS (40 fournisseurs, 41 clients · adhérents
+ * et clients-usagers en SYCEBNL, 42 personnel).
  */
 function sensConseille(typeJournal: Journal['type'], numero: string): 'debit' | 'credit' | null {
   const deux = numero.slice(0, 2);
@@ -189,7 +191,8 @@ export function SaisiePage() {
   }, []);
 
   /**
-   * Un axe ne ventile que certaines classes du plan SYCEBNL · la colonne reste
+   * Un axe ne ventile que certaines classes du plan de comptes, les mêmes dans
+   * les deux référentiels · la colonne reste
    * grisée sur une ligne de trésorerie ou de tiers, exactement comme la zone
    * « ligne budgétaire » du guide Sage, active « seulement lorsqu'un compte
    * d'immobilisation, de charges ou de produits est utilisé ».
@@ -379,8 +382,8 @@ export function SaisiePage() {
    * réciproquement.
    *
    * Attention à ne pas le confondre avec l'extourne des progiciels français,
-   * que le SYCEBNL proscrit comme mode de CORRECTION : l'article 20 de
-   * l'AUDCIF n'admet que l'inscription en négatif. Ici, rien n'est corrigé ·
+   * que les deux référentiels proscrivent comme mode de CORRECTION : l'article
+   * 20 de l'AUDCIF, repris par le SYCEBNL, n'admet que l'inscription en négatif. Ici, rien n'est corrigé ·
    * on redresse le sens d'une ligne d'une pièce EN COURS DE COMPOSITION, qui
    * n'est pas encore enregistrée et n'existe donc pour personne.
    */

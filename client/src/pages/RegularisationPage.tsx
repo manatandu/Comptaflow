@@ -41,7 +41,12 @@ import type {
  * à la clôture des deux côtés · le § 5.5 tolère expressément cette date.
  */
 
-const TYPES: { valeur: TypeRegularisation; titre: string; aide: string }[] = [
+/**
+ * `aideSyscohada` : présente uniquement là où l'EXEMPLE change d'un
+ * référentiel à l'autre. Le mécanisme, lui, est commun · seuls les cas
+ * concrets qui l'illustrent ne se rencontrent pas dans les deux mondes.
+ */
+const TYPES: { valeur: TypeRegularisation; titre: string; aide: string; aideSyscohada?: string }[] = [
   {
     valeur: 'CHARGE_CONSTATEE_AVANCE',
     titre: "Charge constatée d'avance (476)",
@@ -50,7 +55,11 @@ const TYPES: { valeur: TypeRegularisation; titre: string; aide: string }[] = [
   {
     valeur: 'PRODUIT_CONSTATE_AVANCE',
     titre: "Produit constaté d'avance (477)",
+    // L'exemple est choisi sur le référentiel du dossier · une cotisation
+    // appelée d'avance ne se rencontre pas dans une société commerciale.
     aide: "Un produit encaissé sur cet exercice qui se rapporte au suivant : cotisation appelée d'avance, location perçue.",
+    aideSyscohada:
+      "Un produit encaissé sur cet exercice qui se rapporte au suivant : facture émise avec livraison différée, abonnement facturé au client, loyer perçu d'avance.",
   },
   {
     valeur: 'SUBVENTION_PLURIANNUELLE',
@@ -111,6 +120,7 @@ export function RegularisationPage() {
   const [envoi, setEnvoi] = useState(false);
 
   const peutEcrire = estAdmin || utilisateur?.role === 'COMPTABLE';
+  const estSycebnl = utilisateur?.tenant.referentiel !== 'SYSCOHADA';
 
   useEffect(() => {
     api.get<Compte[]>('/comptes?actifsSeuls=true&typeCompte=DETAIL').then(setComptes, () => setComptes([]));
@@ -316,7 +326,9 @@ export function RegularisationPage() {
                       />
                       <span>
                         <span className="font-semibold block">{t.titre}</span>
-                        <span className="text-[10.5px] text-text-dim leading-[1.45] block">{t.aide}</span>
+                        <span className="text-[10.5px] text-text-dim leading-[1.45] block">
+                          {estSycebnl ? t.aide : (t.aideSyscohada ?? t.aide)}
+                        </span>
                       </span>
                     </label>
                   ))}
@@ -661,8 +673,8 @@ export function RegularisationPage() {
             })}
             {abonnements.length === 0 && (
               <div className="border border-border rounded-[8px] px-3 py-4 text-[11px] text-text-dim italic">
-                Aucun abonnement. Un abonnement automatise une écriture répétitive : loyer, assurance, versement
-                périodique d'une convention de financement.
+                Aucun abonnement. Un abonnement automatise une écriture répétitive : loyer, assurance,{' '}
+                {estSycebnl ? "versement périodique d'une convention de financement" : 'redevance ou honoraires mensuels'}.
               </div>
             )}
           </div>

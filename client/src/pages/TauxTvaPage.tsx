@@ -11,7 +11,7 @@ import type { Compte, TauxTva } from '../lib/types';
  * rattachement qui permet le calcul automatique en saisie et la déclaration.
  */
 export function TauxTvaPage() {
-  const { estAdmin } = useAuth();
+  const { estAdmin, utilisateur } = useAuth();
   const [liste, setListe] = useState<TauxTva[] | null>(null);
   const [comptesClasse4, setComptesClasse4] = useState<Compte[]>([]);
   const [erreur, setErreur] = useState<string | null>(null);
@@ -141,8 +141,11 @@ export function TauxTvaPage() {
 
       <p className="text-[10px] text-text-dim mt-2 max-w-[860px]">
         Taux normal 16 %, réduits 1 % et 5 % (billets d'avion), zéro (exportations) · Ordonnance-Loi n° 10/001
-        du 20/08/2010, art. 35 (modifié par la Loi de Finances 2026). Une opération exonérée (ex. activité
-        normale d'une ASBL · art. 15.2/17.8) n'utilise aucun taux : ce n'est pas un taux à 0 %.
+        du 20/08/2010, art. 35 (modifié par la Loi de Finances 2026). Une opération exonérée{' '}
+        {utilisateur?.tenant.referentiel === 'SYSCOHADA'
+          ? "(ex. la vente d'un bien meuble d'occasion ayant servi à l'exploitation et n'ayant pas ouvert droit à déduction · art. 15, 1°)"
+          : "(ex. activité normale d'une ASBL · art. 15, 2° et 17, 8°)"}{' '}
+        n'utilise aucun taux : ce n'est pas un taux à 0 %.
       </p>
 
       {nouveauOuvert && (

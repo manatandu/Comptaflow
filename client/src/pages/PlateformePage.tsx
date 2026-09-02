@@ -506,8 +506,9 @@ export function PlateformePage() {
                 </select>
               </div>
               <p className="text-[10.5px] text-text-dim mt-2.5">
-                Le dossier est créé complet (plan de comptes SYCEBNL, journaux, taxes, exercice courant). Le mot de
-                passe de l'administrateur est généré et affiché une seule fois à l'étape suivante.
+                Le dossier est créé complet (plan de comptes {referentielChoisi}, journaux, taxes, exercice
+                courant). Le mot de passe de l'administrateur est généré et affiché une seule fois à l'étape
+                suivante.
               </p>
               {creationErreur && <div className="text-[11px] text-danger bg-danger-soft border border-danger/30 px-2.5 py-1.5 mt-3">{creationErreur}</div>}
               <div className="flex justify-end gap-2 mt-4">

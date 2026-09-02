@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useExercice } from '../lib/exercice';
+import { useAuth } from '../lib/auth';
 import { IconNew } from '../components/chrome/icons';
 import type { Ecriture, LigneBalance } from '../lib/types';
 
@@ -20,6 +21,7 @@ import type { Ecriture, LigneBalance } from '../lib/types';
  */
 export function DashboardPage() {
   const { exerciceCourant } = useExercice();
+  const { utilisateur } = useAuth();
   const [ecritures, setEcritures] = useState<Ecriture[] | null>(null);
   const [balance, setBalance] = useState<LigneBalance[] | null>(null);
   const navigate = useNavigate();
@@ -137,7 +139,8 @@ export function DashboardPage() {
       <p className="text-[10px] text-text-dim mt-2 max-w-[860px]">
         Indicateurs calculés en direct depuis la balance de l'exercice · aucune donnée parallèle. Le résultat
         est provisoire tant que les écritures d'inventaire et de clôture ne sont pas passées ; les états
-        financiers SYCEBNL restent la référence (menu État).
+        financiers {utilisateur?.tenant.referentiel === 'SYSCOHADA' ? 'SYSCOHADA' : 'SYCEBNL'} restent la
+        référence (menu État).
       </p>
     </div>
   );
