@@ -1,6 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
-import { Prisma, StatutEcriture, StatutExercice, TypeCompteDetailTotal } from '@prisma/client';
+import { Prisma, Referentiel, StatutEcriture, StatutExercice, TypeCompteDetailTotal } from '@prisma/client';
 import { CreerEcritureDto } from './dto/creer-ecriture.dto';
 import { CorrigerEcritureDto } from './dto/corriger-ecriture.dto';
 import { ModifierEcritureDto, ValiderJusquaDto } from './dto/brouillard.dto';
@@ -283,15 +283,26 @@ export class EcritureService {
   // contre-écriture. Le brouillard réconcilie l'ergonomie et l'intangibilité,
   // sans rien céder sur la seconde.
   //
-  // Le SYCEBNL borne ce séjour. La Partie 2 ch. 2 impose que « les données des
-  // documents auxiliaires sont centralisées au moins chaque semaine dans le
-  // journal ou le grand-livre » : au-delà de sept jours, une écriture laissée
-  // en brouillard n'est plus un document de travail, c'est un retard de
-  // centralisation. L'état du brouillard le signale nommément.
+  // Les deux référentiels bornent ce séjour, mais PAS AU MÊME DÉLAI, et le
+  // logiciel servait le plus court aux deux. Une entreprise voyait donc
+  // signalées « en retard de centralisation » des écritures qui ne l'étaient
+  // pas, trois semaines avant de l'être :
+  //
+  //  · SYCEBNL, Partie 2 ch. 2 · « les données des documents auxiliaires sont
+  //    centralisées au moins chaque semaine dans le journal ou le grand-livre » ;
+  //  · AUDCIF, art. 19 · « les totaux de ces supports sont périodiquement et au
+  //    moins une fois par mois centralisés dans le livre-journal et le
+  //    grand-livre ».
+  //
+  // Au-delà, une écriture laissée en brouillard n'est plus un document de
+  // travail, c'est un retard de centralisation. L'état du brouillard le
+  // signale nommément, et ControlesService applique le même barème.
   // ==========================================================================
 
-  /** Sept jours · délai de centralisation du SYCEBNL, Partie 2 ch. 2. */
-  private static readonly JOURS_CENTRALISATION = 7;
+  private static readonly JOURS_CENTRALISATION: Record<Referentiel, number> = {
+    [Referentiel.SYCEBNL]: 7,
+    [Referentiel.SYSCOHADA]: 30,
+  };
 
   private async trouverEnBrouillard(tenantId: string, ecritureId: string) {
     const ecriture = await this.prisma.ecriture.findFirst({
@@ -461,13 +472,19 @@ export class EcritureService {
 
   /**
    * État du brouillard · État → Brouillard de Sage, augmenté du retard de
-   * centralisation qu'impose le SYCEBNL. Chaque écriture porte son ancienneté
-   * en jours et un drapeau au-delà de sept.
+   * centralisation qu'impose le référentiel du dossier. Chaque écriture porte
+   * son ancienneté en jours et un drapeau au-delà du délai applicable, sept
+   * jours en SYCEBNL et un mois en SYSCOHADA.
    */
   async brouillard(
     tenantId: string,
     params: { exerciceId: string; journalId?: string; dateDebut?: string; dateFin?: string },
   ) {
+    const tenant = await this.prisma.tenant.findUniqueOrThrow({
+      where: { id: tenantId },
+      select: { referentiel: true },
+    });
+    const joursCentralisation = EcritureService.JOURS_CENTRALISATION[tenant.referentiel];
     const ecritures = await this.prisma.ecriture.findMany({
       where: {
         tenantId,
@@ -508,7 +525,7 @@ export class EcritureService {
         credit,
         equilibree: Math.abs(debit - credit) <= 0.005,
         ancienneteJours,
-        retardCentralisation: ancienneteJours > EcritureService.JOURS_CENTRALISATION,
+        retardCentralisation: ancienneteJours > joursCentralisation,
         lignes: e.lignes.map((l) => ({
           compteNumero: l.compte.numero,
           compteIntitule: l.compte.intitule,
@@ -528,7 +545,7 @@ export class EcritureService {
         desequilibrees: lignes.filter((l) => !l.equilibree).length,
         enRetard: lignes.filter((l) => l.retardCentralisation).length,
       },
-      delaiCentralisationJours: EcritureService.JOURS_CENTRALISATION,
+      delaiCentralisationJours: joursCentralisation,
     };
   }
 

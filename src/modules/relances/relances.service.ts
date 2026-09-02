@@ -1,15 +1,42 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
-import { Prisma, TypeRelance } from '@prisma/client';
+import { Prisma, Referentiel, TypeRelance } from '@prisma/client';
 import { CreerNiveauDto, EmettreRelancesDto, ModifierNiveauDto } from './dto/relances.dto';
 
 const JOUR = 86_400_000;
 
 /**
- * Trois niveaux livrés par défaut. Le ton monte, mais reste celui d'une
- * association qui s'adresse à ses membres, pas celui d'un service
- * contentieux · c'est la seule chose qu'un modèle de lettre commercial ne
- * saurait pas faire à notre place.
+ * QUALITÉ DU TIERS DERRIÈRE UN COMPTE 41, SELON LE RÉFÉRENTIEL.
+ *
+ *  · SYCEBNL, Partie 2 ch. 3, compte 41 « Adhérents, clients-usagers et
+ *    comptes rattachés » · 411 Adhérents, 412 Clients-usagers ;
+ *  · AUDCIF, Titre VII ch. 3, compte 41 « Clients et comptes rattachés » ·
+ *    411 Clients, 412 Clients, effets à recevoir en portefeuille.
+ *
+ * Un effet en portefeuille n'est pas un impayé : la liste le nomme pour ce
+ * qu'il est plutôt que de le présenter comme un client-usager en retard.
+ */
+export function qualiteDuCompte(numero: string, referentiel: Referentiel): string {
+  if (referentiel === Referentiel.SYSCOHADA) {
+    if (numero.startsWith('411')) return 'Client';
+    if (numero.startsWith('412')) return 'Effet à recevoir';
+    if (numero.startsWith('419')) return 'Client créditeur';
+    return 'Tiers';
+  }
+  if (numero.startsWith('411')) return 'Adhérent';
+  if (numero.startsWith('412')) return 'Client-usager';
+  return 'Tiers';
+}
+
+/**
+ * Trois niveaux livrés par défaut, LES MÊMES POUR LES DEUX RÉFÉRENTIELS.
+ *
+ * Le ton monte, mais reste celui d'un courrier de gestion, pas celui d'un
+ * service contentieux · c'est la seule chose qu'un modèle de lettre commercial
+ * ne saurait pas faire à notre place. Les textes sont volontairement neutres :
+ * ils s'adressent au « cher {tiers} », ne nomment ni cotisation ni facture, et
+ * conviennent donc aussi bien à une association qu'à une entreprise. Ce sont
+ * de simples modèles, entièrement réécrits par le dossier.
  */
 const NIVEAUX_DEFAUT: Omit<CreerNiveauDto, never>[] = [
   {
@@ -45,7 +72,13 @@ export interface PositionRelance {
   intitule: string;
   tiersId: string | null;
   tiersNom: string | null;
-  /** Adhérent (411) ou client-usager (412) · le vocabulaire du SYCEBNL. */
+  /**
+   * Qualité du tiers derrière le compte · elle DÉPEND DU RÉFÉRENTIEL, et
+   * c'est ce que le calcul ignorait : en SYCEBNL le 411 porte les adhérents
+   * et le 412 les clients-usagers, en SYSCOHADA le 411 porte les clients et
+   * le 412 des effets à recevoir en portefeuille. La liste des positions
+   * annonçait donc « Adhérent » à une entreprise.
+   */
   qualite: string;
   montantDu: number;
   /** Retard du plus ancien mouvement non lettré, en jours. */
@@ -130,6 +163,10 @@ export class RelancesService {
     const ref = params.dateReference ? new Date(params.dateReference) : new Date();
     const type = params.type ?? TypeRelance.RAPPEL;
     const racine = params.racine ?? '41';
+    const { referentiel } = await this.prisma.tenant.findUniqueOrThrow({
+      where: { id: tenantId },
+      select: { referentiel: true },
+    });
 
     const lignes = await this.prisma.ligneEcriture.findMany({
       where: {
@@ -180,12 +217,7 @@ export class RelancesService {
           intitule: l.compte.intitule,
           tiersId: tiers?.id ?? null,
           tiersNom: tiers?.nom ?? null,
-          // Vocabulaire du SYCEBNL : 411 Adhérents, 412 Clients-usagers.
-          qualite: l.compte.numero.startsWith('411')
-            ? 'Adhérent'
-            : l.compte.numero.startsWith('412')
-              ? 'Client-usager'
-              : 'Tiers',
+          qualite: qualiteDuCompte(l.compte.numero, referentiel),
           montantDu: 0,
           retardMaxJours: 0,
           echeancePlusAncienne: null,

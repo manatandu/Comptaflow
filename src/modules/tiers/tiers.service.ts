@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
-import { ClasseCompte, ConditionEcheance, Prisma, TypeEcheance, TypeTiers } from '@prisma/client';
+import { ClasseCompte, ConditionEcheance, Prisma, Referentiel, TypeEcheance, TypeTiers } from '@prisma/client';
 import { CreerTiersDto, ModifierTiersDto, RattacherCompteDto } from './dto/tiers.dto';
 import {
   CreerModeleReglementDto,
@@ -71,6 +71,7 @@ export class TiersService {
   }
 
   async creer(tenantId: string, dto: CreerTiersDto) {
+    await this.refuserAdherentHorsSycebnl(tenantId, dto.type);
     const existant = await this.prisma.tiers.findUnique({ where: { tenantId_code: { tenantId, code: dto.code } } });
     if (existant) {
       throw new ConflictException(`Le tiers ${dto.code} existe déjà pour ce tenant`);
@@ -79,6 +80,29 @@ export class TiersService {
       await this.trouverModeleReglement(tenantId, dto.modeleReglementId);
     }
     return this.prisma.tiers.create({ data: { ...dto, tenantId } });
+  }
+
+  /**
+   * L'ADHÉRENT EST UNE NOTION DU SYCEBNL, ET LE REFUS EST CÔTÉ SERVEUR.
+   *
+   * Le compte 41 du SYCEBNL loge deux populations distinctes, 411 Adhérents et
+   * 412 Clients-usagers ; le plan SYSCOHADA n'en connaît qu'une, ses 411
+   * Clients, le 412 y portant des effets à recevoir. Masquer le type dans
+   * l'écran ne suffit pas : la route resterait ouverte à un appel direct
+   * (CLAUDE.md § 6).
+   */
+  private async refuserAdherentHorsSycebnl(tenantId: string, type?: TypeTiers) {
+    if (type !== TypeTiers.ADHERENT) return;
+    const tenant = await this.prisma.tenant.findUniqueOrThrow({
+      where: { id: tenantId },
+      select: { referentiel: true },
+    });
+    if (tenant.referentiel !== Referentiel.SYCEBNL) {
+      throw new BadRequestException(
+        "Le type « adhérent » relève du compte 411 du SYCEBNL, qui distingue les membres cotisants des " +
+          'clients-usagers. Le plan SYSCOHADA ne porte que des clients : utilisez le type « client ».',
+      );
+    }
   }
 
   async modifier(tenantId: string, tiersId: string, dto: ModifierTiersDto) {

@@ -12,12 +12,19 @@ import { EnteteImpression } from '../components/chrome/EnteteImpression';
  * journal ». Ici, il fait un peu plus que conserver une trace, il donne le
  * bouton qui fait entrer les écritures au livre-journal.
  *
- * La colonne ANCIENNETÉ est la part proprement SYCEBNL de cet écran. La
- * Partie 2 ch. 2 admet la tenue de journaux auxiliaires mais impose que
- * « les données des documents auxiliaires sont centralisées AU MOINS CHAQUE
- * SEMAINE dans le journal ou le grand-livre ». Une écriture qui séjourne au
- * brouillard depuis plus de sept jours n'est donc plus un document de travail,
- * c'est un retard de centralisation · le logiciel le dit au lieu de le taire.
+ * La colonne ANCIENNETÉ est la part réglementaire de cet écran, et son délai
+ * N'EST PAS LE MÊME DANS LES DEUX RÉFÉRENTIELS · le serveur le calcule et
+ * l'écran l'affiche, il n'est écrit en dur nulle part ici :
+ *
+ *  · SYCEBNL, Partie 2 ch. 2 · « les données des documents auxiliaires sont
+ *    centralisées AU MOINS CHAQUE SEMAINE dans le journal ou le grand-livre » ;
+ *  · AUDCIF, art. 19 · « les totaux de ces supports sont périodiquement et AU
+ *    MOINS UNE FOIS PAR MOIS centralisés dans le livre-journal et le
+ *    grand-livre ».
+ *
+ * Au-delà du délai applicable, une écriture qui séjourne au brouillard n'est
+ * plus un document de travail, c'est un retard de centralisation · le logiciel
+ * le dit au lieu de le taire.
  *
  * Sage, lui, se contente d'exiger qu'un journal soit imprimé avant d'être
  * clôturé. C'est moins exigeant, et sans rapport avec un délai.
@@ -209,9 +216,9 @@ export function BrouillardPage() {
             {etat.totaux.enRetard} écriture(s) séjournent au brouillard depuis plus de {etat.delaiCentralisationJours}{' '}
             jours.
           </strong>{' '}
-          Le SYCEBNL veut les journaux auxiliaires centralisés au moins chaque semaine dans le journal ou le
-          grand-livre (Partie 2, ch. 2) : au-delà, ce n'est plus un document de travail, c'est un retard de
-          centralisation.
+          {utilisateur?.tenant.referentiel === 'SYSCOHADA'
+            ? "L'AUDCIF veut les journaux auxiliaires centralisés au moins une fois par mois dans le livre-journal et le grand-livre (art. 19) : au-delà, ce n'est plus un document de travail, c'est un retard de centralisation."
+            : "Le SYCEBNL veut les journaux auxiliaires centralisés au moins chaque semaine dans le journal ou le grand-livre (Partie 2, ch. 2) : au-delà, ce n'est plus un document de travail, c'est un retard de centralisation."}
         </div>
       )}
       {etat && etat.totaux.desequilibrees > 0 && (

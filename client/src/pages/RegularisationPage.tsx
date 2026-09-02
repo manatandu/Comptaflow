@@ -19,8 +19,14 @@ import type {
  * des charges et produits, et Traitement → Écritures d'abonnement chez Sage
  * 100 i7, réunis dans une fenêtre à deux onglets.
  *
- * Le premier onglet applique la Partie 3 ch. 6, section 1 du SYCEBNL, qui
- * traite nommément la subvention pluriannuelle · le cas de très loin le plus
+ * Le premier onglet repose sur le report au compte 476 des charges constatées
+ * d'avance et au 477 des produits constatés d'avance · deux comptes que les
+ * DEUX plans portent aux mêmes numéros, l'indépendance des exercices étant
+ * commune aux deux référentiels (AUDCIF art. 59 ; SYCEBNL, postulat de
+ * spécialisation des exercices).
+ *
+ * Le modèle SUBVENTION PLURIANNUELLE, lui, est propre au SYCEBNL : c'est sa
+ * Partie 3 ch. 6, section 1 qui traite nommément le cas, de très loin le plus
  * fréquent chez une association financée par convention. Deux détails y
  * comptent : le report va au compte 477 et non à un compte d'attente, que le
  * texte interdit ; et la reprise se fait À LA FIN de l'exercice concerné, non
@@ -41,7 +47,11 @@ const TYPES: { valeur: TypeRegularisation; titre: string; aide: string }[] = [
   {
     valeur: 'SUBVENTION_PLURIANNUELLE',
     titre: 'Subvention pluriannuelle (477 / 71)',
-    aide: "Une convention accordée pour toute la durée d'un projet à cheval sur plusieurs exercices. Cas traité nommément par la Partie 3 ch. 6 du SYCEBNL.",
+    // Mécanique valable dans les deux référentiels · les comptes 477 et 71
+    // portent les mêmes intitulés dans les deux plans. Seule la SOURCE qui la
+    // traite nommément est propre au SYCEBNL, et elle est citée plus bas, où
+    // le référentiel du dossier est connu.
+    aide: "Une convention accordée pour toute la durée d'un projet à cheval sur plusieurs exercices.",
   },
 ];
 
@@ -455,8 +465,10 @@ export function RegularisationPage() {
               </div>
             )}
             <p className="px-3 py-2 border-t border-border text-[10px] text-text-dim leading-[1.55]">
-              La reprise se passe À LA FIN de l'exercice concerné, comme le veut la Partie 3 ch. 6 du SYCEBNL, et non
-              par contre-passation à son ouverture.
+              La reprise se passe À LA FIN de l'exercice concerné, et non par contre-passation à son ouverture
+              {utilisateur?.tenant.referentiel === 'SYSCOHADA'
+                ? " · c'est ce qu'impose l'indépendance des exercices (AUDCIF, art. 59)."
+                : ', comme le veut la Partie 3 ch. 6 du SYCEBNL.'}
             </p>
           </div>
         </div>

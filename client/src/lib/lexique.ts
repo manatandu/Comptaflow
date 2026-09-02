@@ -72,7 +72,7 @@ export const LEXIQUE = {
     titre: 'Analyse et contrôles',
     texte:
       "Une batterie de contrôles cherche ce qu'aucun total ne montre : une caisse créditrice, un compte de tiers au solde inversé, une créance ancienne jamais lettrée, une écriture sans pièce justificative, un compte mal classé. Chaque anomalie dit ce qu'elle risque et ce qu'il faut faire, plutôt que de laisser le diagnostic à faire.",
-    source: 'Contrôles de cohérence · SYCEBNL et AUDCIF',
+    source: 'Contrôles de cohérence · SYCEBNL',
   },
   caisse: {
     titre: 'Contrôle de caisse',
@@ -283,6 +283,98 @@ export const LEXIQUE = {
       "Il repose sur un état des recettes et des dépenses dégageant le résultat de l'exercice (recette nette ou perte nette), dressé à partir d'une COMPTABILITÉ DE TRÉSORERIE : un journal unique de trésorerie, un journal de suivi des créances impayées, un journal de suivi des dettes à payer, et la conservation des pièces justificatives. Son jeu d'états ne compte que TROIS documents · le Bilan, le Compte de résultat et les Notes annexes, ces dernières composées du tableau de suivi du matériel, du mobilier et des cautions (NOTE 1), de l'état des stocks (NOTE 2) et de l'état des créances et des dettes non échues (NOTE 3) : pas de tableau des flux de trésorerie, qui est propre au Système normal. En fin d'exercice, le responsable de l'entité procède à un inventaire EXTRA-COMPTABLE de quatre éléments : créances et dettes d'exploitation, stocks et travaux en cours, immobilisations acquises ou cédées, emprunts souscrits ou remboursés. Les immobilisations s'amortissent en mode linéaire SANS prorata temporis, simplification propre au SMT. Il est réservé aux entités dont le chiffre d'affaires hors taxes annuel reste sous 60 millions de F CFA pour le négoce, 40 pour l'artisanat et assimilés, 30 pour les services.",
     source: 'AUDCIF, art. 11 et 13 · Titre X ch. 1 sections 1 et 2',
   },
+  // -------------------------------------------------------------------------
+  // SYSCOHADA · les pendants des entrées des écrans COMMUNS aux deux
+  // référentiels. Ce sont elles qui manquaient : douze fenêtres servaient la
+  // définition SYCEBNL à un dossier SYSCOHADA, comptes et articles compris,
+  // faute d'un aiguillage. `entreeLexique` le fait maintenant tout seul.
+  // -------------------------------------------------------------------------
+  analytiqueSyscohada: {
+    titre: 'Comptabilité analytique',
+    texte:
+      "Les comptes 92 à 99 portent la comptabilité analytique de gestion (comptes réfléchis, reclassements, coûts, stocks, écarts sur coûts préétablis, différences de traitement, résultats, liaisons internes). Leur usage est facultatif, et la ventilation se fait sur les axes d'exploitation : activité, centre de coûts, produit. Attention à ne pas confondre avec les comptes 90 et 91 de la même classe, qui portent les engagements hors bilan et exigent, eux, une convention écrite.",
+    source: 'AUDCIF, Titre VII ch. 3, classe 9',
+  },
+  budgetSyscohada: {
+    titre: 'Dotation budgétaire',
+    texte:
+      "Le budget se porte sur les sections analytiques : centre de coûts, activité, produit. Le montant annuel est réparti sur les mois de l'exercice, puis chaque mois reste modifiable. C'est un outil de contrôle de gestion interne : il n'alimente aucun des quatre états du jeu complet, qui sont le bilan, le compte de résultat, le tableau des flux de trésorerie et les notes annexes.",
+    source: 'AUDCIF, art. 8 · Titre VII ch. 3, classe 9',
+  },
+  controleCumulsSyscohada: {
+    titre: 'Contrôle des cumuls',
+    texte:
+      "Il compare, pour chaque axe, les mouvements comptables des comptes censés être ventilés aux mouvements effectivement ventilés, et liste les écritures restées sans répartition. Un écart n'est pas une panne : c'est du travail de ventilation qui reste à faire. Sans cet état, une analyse par centre de coûts ou un rapport d'exécution n'est pas défendable en audit.",
+    source: 'Suivi analytique · rapprochement général / analytique',
+  },
+  brouillardSyscohada: {
+    titre: 'Brouillard',
+    texte:
+      "Une écriture y naît modifiable et supprimable : elle n'est pas encore entrée au livre-journal. La valider franchit cette frontière, et l'article 20 ne laisse alors plus qu'une voie de correction, l'inscription en négatif. L'AUDCIF borne ce séjour : les totaux des journaux et livres auxiliaires sont centralisés au moins une fois par mois dans le livre-journal et le grand-livre, donc une écriture qui reste plus d'un mois au brouillard est signalée.",
+    source: 'AUDCIF, art. 19 (centralisation mensuelle) · art. 20 (correction en négatif)',
+  },
+  importSyscohada: {
+    titre: 'Import de données',
+    texte:
+      "Trois règles gouvernent l'import. La correspondance entre les colonnes du fichier et les champs attendus est proposée, jamais imposée : un import qui se trompe de colonne de montants est pire que pas d'import du tout. Tout ce qui entre atterrit au brouillard, pour être relu avant de rejoindre le livre-journal. Et une balance de reprise devient une écriture d'à-nouveau équilibrée, datée, corrigeable : la partie double ne connaît pas de solde sans écriture.",
+    source: 'AUDCIF, art. 17, 2° (partie double) et art. 20',
+  },
+  regularisationSyscohada: {
+    titre: 'Régularisation des charges et des produits',
+    texte:
+      "Le résultat de chaque exercice est indépendant de celui qui le précède et de celui qui le suit : il ne lui est rattaché que les événements et les opérations qui lui sont propres, et ceux-là seulement. Une charge payée cette année qui couvre en partie la suivante est donc différée au compte 476 « Charges constatées d'avance », un produit encaissé d'avance au compte 477 « Produits constatés d'avance ». La part différée revient en charge ou en produit de l'exercice qu'elle concerne réellement.",
+    source: 'AUDCIF, art. 59 (indépendance des exercices) · Titre VII ch. 3, comptes 476 et 477',
+  },
+  devisesSyscohada: {
+    titre: 'Écarts de conversion',
+    texte:
+      "À la clôture, les créances et dettes en devises sont converties au dernier cours de change connu. L'écart est LATENT : perte probable au 478, gain latent au 479. La perte probable est provisionnée, mais pas toujours au même compte · 194 « Provisions pour pertes de change » pour un risque à long terme, 4991 pour une créance d'exploitation, 4997 pour une opération financière à court terme. Les disponibilités en devises suivent une autre règle : leur écart est inscrit DIRECTEMENT dans les produits et charges de l'exercice, 676 ou 776. Enfin, si les opérations concourent à une position globale de change, la dotation est limitée à l'excédent des pertes probables sur les gains latents.",
+    source: 'AUDCIF, art. 54 (écarts de conversion), art. 57 (disponibilités en devises), art. 58 (position globale)',
+  },
+  relanceSyscohada: {
+    titre: 'Rappel et relevé',
+    texte:
+      "Trois états distincts, et non un seul : la relance préventive avant l'échéance, le rappel gradué après, et le relevé de tout ce qui est dû. L'assiette est celle de la balance âgée, les lignes non lettrées des comptes 41 « Clients et comptes rattachés » · une ligne lettrée est soldée, il n'y a rien à réclamer. Le rappel porte sur une facture échue et impayée, pas sur un effet en portefeuille (412) ni sur un client créditeur (419), qui ne sont pas des retards.",
+    source: 'AUDCIF, Titre VII ch. 3, compte 41',
+  },
+  controlesSyscohada: {
+    titre: 'Analyse et contrôles',
+    texte:
+      "Une batterie de contrôles cherche ce qu'aucun total ne montre : une caisse créditrice, un compte de tiers au solde inversé, une créance ancienne jamais lettrée, une écriture sans pièce justificative, un compte mal classé. Chaque anomalie dit ce qu'elle risque et ce qu'il faut faire, plutôt que de laisser le diagnostic à faire.",
+    source: 'Contrôles de cohérence · AUDCIF',
+  },
+  compte41Syscohada: {
+    titre: 'Compte 41 · Clients et comptes rattachés',
+    texte:
+      "Il porte les créances nées de la vente des biens et des services objet de l'activité. Ses subdivisions : 411 Clients (dont 417 Clients, retenues de garantie), 412 Clients, effets à recevoir en portefeuille, 413 Clients, chèques, effets et autres valeurs impayées, 414 Créances sur cessions courantes d'immobilisations, 415 Clients, effets escomptés non échus, 416 Créances clients litigieuses ou douteuses, 418 Clients, produits à recevoir, 419 Clients créditeurs. Un même tiers peut être client et fournisseur : seules ses opérations de vente figurent ici.",
+    source: 'AUDCIF, Titre VII ch. 3, compte 41',
+  },
 } satisfies Record<string, EntreeLexique>;
 
 export type CleLexique = keyof typeof LEXIQUE;
+
+/**
+ * L'ENTRÉE À SERVIR POUR UN SUJET DONNÉ, SELON LE RÉFÉRENTIEL DU DOSSIER.
+ *
+ * Douze fenêtres sont communes aux deux référentiels (brouillard, import,
+ * régularisation, devises, relances, tiers, plans et états analytiques…) et
+ * appelaient toutes `LEXIQUE[sujet]` en dur. Une entreprise lisait donc, dans
+ * la bulle de son propre écran, que « le SYCEBNL veut les journaux centralisés
+ * chaque semaine », que le compte 41 porte des adhérents, ou qu'on ne relance
+ * pas des clients mais des membres pour une cotisation. Rien ne cassait : une
+ * définition fausse s'affiche aussi bien qu'une vraie.
+ *
+ * La convention est volontairement mécanique : pour un sujet `x`, si le
+ * dossier est tenu en SYSCOHADA et qu'une entrée `xSyscohada` existe, c'est
+ * elle qui sort. Un écran commun n'a donc rien à changer à son appel, et un
+ * sujet sans pendant reste servi tel quel · c'est le cas voulu des entrées
+ * neutres (contrôle de caisse, lettrage, exercice clos) comme des entrées
+ * propres à un seul référentiel, qui ne sont posées que sur ses écrans.
+ */
+export function entreeLexique(cle: CleLexique, referentiel?: string): EntreeLexique {
+  if (referentiel === 'SYSCOHADA') {
+    const pendant = `${cle}Syscohada`;
+    if (pendant in LEXIQUE) return LEXIQUE[pendant as CleLexique];
+  }
+  return LEXIQUE[cle];
+}

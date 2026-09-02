@@ -28,42 +28,81 @@ import type {
  * Les modèles de règlement Structure → Modèles chez Sage s'ouvrent dans
  * leur propre boîte de dialogue, avec le simulateur d'échéancier.
  *
- * DIFFÉRENCE ASSUMÉE AVEC SAGE. Le plan français de Sage ne connaît que le
- * « Client ». Le SYCEBNL, lui, loge au compte 41 « Adhérents, clients-usagers
- * et comptes rattachés » DEUX populations qu'il subdivise explicitement :
- * 411 Adhérents (les membres qui doivent leur cotisation conformément aux
- * statuts) et 412 Clients-usagers (les tiers auxquels l'entité vend biens et
- * services). Les fondre en un seul type ferait perdre le suivi des appels de
- * cotisations, qui est l'activité même d'une EBNL · d'où un type ADHERENT à
- * part entière, et le rappel du compte de rattachement sur chaque type.
+ * DIFFÉRENCE ASSUMÉE AVEC SAGE, MAIS POUR LE SEUL SYCEBNL. Le plan français
+ * de Sage ne connaît que le « Client ». Le SYCEBNL, lui, loge au compte 41
+ * « Adhérents, clients-usagers et comptes rattachés » DEUX populations qu'il
+ * subdivise explicitement : 411 Adhérents (les membres qui doivent leur
+ * cotisation conformément aux statuts) et 412 Clients-usagers (les tiers
+ * auxquels l'entité vend biens et services). Les fondre en un seul type ferait
+ * perdre le suivi des appels de cotisations, qui est l'activité même d'une
+ * EBNL · d'où un type ADHERENT à part entière.
+ *
+ * CE PARTAGE NE VAUT PAS EN SYSCOHADA, et la page le servait pourtant aux deux.
+ * Le compte 41 du plan SYSCOHADA est « Clients et comptes rattachés » : 411
+ * Clients, 412 Clients, effets à recevoir en portefeuille. Une entreprise
+ * lisait donc un type « adhérent » qui n'existe pas chez elle, et surtout on
+ * lui indiquait de rattacher ses clients au 412, c'est-à-dire à un compte
+ * d'effets à recevoir. Les quatre tables ci-dessous sont donc doublées, et le
+ * type ADHERENT est aussi refusé côté serveur (TiersService.creer) · masquer
+ * sans refuser laisserait la route ouverte à un appel direct.
  */
 
-const LIBELLE_TYPE: Record<TypeTiers, string> = {
-  ADHERENT: 'Adhérent',
-  CLIENT: 'Client-usager',
-  FOURNISSEUR: 'Fournisseur',
-  SALARIE: 'Salarié',
-  AUTRE: 'Autre',
+interface TableauxTiers {
+  /** Types proposés à la création et au filtre, dans l'ordre d'affichage. */
+  ordre: TypeTiers[];
+  libelle: Record<TypeTiers, string>;
+  pluriel: Record<TypeTiers, string>;
+  /** Compte de rattachement, rappelé à côté de chaque type. */
+  compte: Record<TypeTiers, string>;
+  /** Bulle « ? » du lexique, par type · absente = pas de bulle. */
+  aide: Partial<Record<TypeTiers, 'adherent' | 'clientUsager'>>;
+}
+
+/** SYCEBNL, Partie 2 ch. 3, compte 41 « Adhérents, clients-usagers ». */
+const TABLEAUX_SYCEBNL: TableauxTiers = {
+  ordre: ['ADHERENT', 'CLIENT', 'FOURNISSEUR', 'SALARIE', 'AUTRE'],
+  libelle: {
+    ADHERENT: 'Adhérent',
+    CLIENT: 'Client-usager',
+    FOURNISSEUR: 'Fournisseur',
+    SALARIE: 'Salarié',
+    AUTRE: 'Autre',
+  },
+  pluriel: {
+    ADHERENT: 'Adhérents',
+    CLIENT: 'Clients-usagers',
+    FOURNISSEUR: 'Fournisseurs',
+    SALARIE: 'Salariés',
+    AUTRE: 'Autres',
+  },
+  compte: { ADHERENT: '411', CLIENT: '412', FOURNISSEUR: '40', SALARIE: '42', AUTRE: '47' },
+  aide: { ADHERENT: 'adherent', CLIENT: 'clientUsager' },
 };
-const PLURIEL_TYPE: Record<TypeTiers, string> = {
-  ADHERENT: 'Adhérents',
-  CLIENT: 'Clients-usagers',
-  FOURNISSEUR: 'Fournisseurs',
-  SALARIE: 'Salariés',
-  AUTRE: 'Autres',
-};
-/** Compte de rattachement SYCEBNL, rappelé à côté de chaque type. */
-const COMPTE_TYPE: Record<TypeTiers, string> = {
-  ADHERENT: '411',
-  CLIENT: '412',
-  FOURNISSEUR: '40',
-  SALARIE: '42',
-  AUTRE: '47',
-};
-/** Bulle d'aide « ? » du lexique SYCEBNL, par type de tiers. */
-const AIDE_TYPE: Partial<Record<TypeTiers, 'adherent' | 'clientUsager'>> = {
-  ADHERENT: 'adherent',
-  CLIENT: 'clientUsager',
+
+/**
+ * AUDCIF, Titre VII ch. 3, compte 41 « Clients et comptes rattachés ».
+ * Pas d'adhérent, et le client va au 411 · le 412 y porte les effets à
+ * recevoir en portefeuille. ADHERENT reste dans les tables (un dossier
+ * converti pourrait en porter d'anciens) mais n'est ni proposé, ni filtrable.
+ */
+const TABLEAUX_SYSCOHADA: TableauxTiers = {
+  ordre: ['CLIENT', 'FOURNISSEUR', 'SALARIE', 'AUTRE'],
+  libelle: {
+    ADHERENT: 'Adhérent',
+    CLIENT: 'Client',
+    FOURNISSEUR: 'Fournisseur',
+    SALARIE: 'Salarié',
+    AUTRE: 'Autre',
+  },
+  pluriel: {
+    ADHERENT: 'Adhérents',
+    CLIENT: 'Clients',
+    FOURNISSEUR: 'Fournisseurs',
+    SALARIE: 'Salariés',
+    AUTRE: 'Autres',
+  },
+  compte: { ADHERENT: '411', CLIENT: '411', FOURNISSEUR: '40', SALARIE: '42', AUTRE: '47' },
+  aide: {},
 };
 
 const LIBELLE_ECHEANCE: Record<ConditionEcheance, string> = {
@@ -98,7 +137,9 @@ const CHAMPS_COORDONNEES: Array<{
 ];
 
 export function TiersPage() {
-  const { estAdmin } = useAuth();
+  const { estAdmin, utilisateur } = useAuth();
+  const estSyscohada = utilisateur?.tenant.referentiel === 'SYSCOHADA';
+  const tableaux = estSyscohada ? TABLEAUX_SYSCOHADA : TABLEAUX_SYCEBNL;
   const { exerciceCourant } = useExercice();
   const navigate = useNavigate();
   const [liste, setListe] = useState<Tiers[] | null>(null);
@@ -421,7 +462,7 @@ export function TiersPage() {
             <span>Tous les tiers</span>
             <span className={filtreType === '' ? 'text-white/70' : 'text-text-dim'}>{liste?.length ?? '…'}</span>
           </button>
-          {(Object.keys(PLURIEL_TYPE) as TypeTiers[]).map((t) => (
+          {tableaux.ordre.map((t) => (
             <button
               key={t}
               type="button"
@@ -438,7 +479,7 @@ export function TiersPage() {
                 sélecteur de type au moment de la création, où il éclaire le
                 choix qu'on est en train de faire.
               */}
-              <span>{PLURIEL_TYPE[t]}</span>
+              <span>{tableaux.pluriel[t]}</span>
               <span className={filtreType === t ? 'text-white/70' : 'text-text-dim'}>{nombresParType.get(t) ?? 0}</span>
             </button>
           ))}
@@ -478,7 +519,7 @@ export function TiersPage() {
             )}
           </div>
           <div className="px-3.5 py-1 bg-surface-alt border-t border-border text-[10px] text-text-dim shrink-0">
-            {listeFiltree.length} tiers{filtreType && ` · ${PLURIEL_TYPE[filtreType].toLowerCase()}`}
+            {listeFiltree.length} tiers{filtreType && ` · ${tableaux.pluriel[filtreType].toLowerCase()}`}
           </div>
         </div>
 
@@ -501,11 +542,11 @@ export function TiersPage() {
               <div className="grid grid-cols-[92px_1fr] gap-x-2 gap-y-1.5 items-center mb-3">
                 <span className="text-text-dim text-right">Type :</span>
                 <span className="flex items-center gap-1.5">
-                  {LIBELLE_TYPE[tiersSelectionne.type]}
+                  {tableaux.libelle[tiersSelectionne.type]}
                   <span className="font-mono text-[10px] text-text-dim">
-                    compte {COMPTE_TYPE[tiersSelectionne.type]}
+                    compte {tableaux.compte[tiersSelectionne.type]}
                   </span>
-                  {AIDE_TYPE[tiersSelectionne.type] && <Aide sujet={AIDE_TYPE[tiersSelectionne.type]!} />}
+                  {tableaux.aide[tiersSelectionne.type] && <Aide sujet={tableaux.aide[tiersSelectionne.type]!} />}
                 </span>
                 <span className="text-text-dim text-right">Règlement :</span>
                 <span>{tiersSelectionne.modeleReglement?.intitule ?? 'aucun modèle'}</span>
@@ -654,8 +695,8 @@ export function TiersPage() {
               <div className="grid grid-cols-[110px_1fr] items-center gap-x-3 gap-y-2.5">
                 <label className="text-[11px] text-right">Type :</label>
                 <select value={type} onChange={(e) => setType(e.target.value as TypeTiers)} className="border border-border-dark px-2.5 py-1.5 text-[11px]">
-                  {(Object.keys(LIBELLE_TYPE) as TypeTiers[]).map((t) => (
-                    <option key={t} value={t}>{`${LIBELLE_TYPE[t]} · compte ${COMPTE_TYPE[t]}`}</option>
+                  {tableaux.ordre.map((t) => (
+                    <option key={t} value={t}>{`${tableaux.libelle[t]} · compte ${tableaux.compte[t]}`}</option>
                   ))}
                 </select>
                 <label className="text-[11px] text-right">Code :</label>

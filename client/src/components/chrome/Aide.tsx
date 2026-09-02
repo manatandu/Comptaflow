@@ -1,10 +1,17 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { LEXIQUE, type CleLexique, type EntreeLexique } from '../../lib/lexique';
+import { entreeLexique, type CleLexique, type EntreeLexique } from '../../lib/lexique';
+import { useAuth } from '../../lib/auth';
 
 /**
  * BULLE D'AIDE « ? ». Un petit rond posé à côté d'une notion comptable ;
- * au survol ou au clic, il déplie la définition SYCEBNL correspondante.
+ * au survol ou au clic, il déplie la définition du référentiel du dossier.
+ *
+ * LE RÉFÉRENTIEL SE LIT ICI, ET NULLE PART AILLEURS. Douze fenêtres sont
+ * communes aux deux référentiels ; tant que la bulle prenait `LEXIQUE[sujet]`
+ * en dur, chacune servait la définition SYCEBNL à une entreprise. Le choix est
+ * fait dans `entreeLexique`, une fois, plutôt que dans chaque appel · un écran
+ * commun n'a rien à faire de plus que poser son sujet.
  *
  * Deux usages :
  *   <Aide sujet="fondsAffectes" />              · texte pris dans le lexique
@@ -18,7 +25,9 @@ import { LEXIQUE, type CleLexique, type EntreeLexique } from '../../lib/lexique'
 export function Aide(
   props: ({ sujet: CleLexique } | EntreeLexique) & { className?: string },
 ) {
-  const entree: EntreeLexique = 'sujet' in props ? LEXIQUE[props.sujet] : props;
+  const { utilisateur } = useAuth();
+  const entree: EntreeLexique =
+    'sujet' in props ? entreeLexique(props.sujet, utilisateur?.tenant.referentiel) : props;
   const [ouvert, setOuvert] = useState(false);
   // Épinglée = ouverte au clic. Elle ne se referme alors plus au passage de
   // la souris, seulement au second clic, à Échap ou au clic à l'extérieur ·

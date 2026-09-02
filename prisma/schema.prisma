@@ -1130,9 +1130,16 @@ model RapprochementBancaire {
 // l'entité vend des biens ou services). Les confondre sous un seul type
 // « Client » ferait perdre le suivi des cotisations, qui est le coeur de
 // l'activité d'une EBNL.
+// L'ÉQUATION CI-DESSUS EST CELLE DU SYCEBNL, ET D'ELLE SEULE. Le plan
+// SYSCOHADA loge au compte 41 « Clients et comptes rattachés » : 411 Clients,
+// 412 Clients, effets à recevoir en portefeuille. Un dossier SYSCOHADA n'a
+// donc pas d'adhérents, et son client se rattache au 411 · pas au 412, qui y
+// porte des effets. Le type ADHERENT est refusé côté serveur pour un tel
+// dossier (TiersService.creer) et masqué côté écran (TiersPage), les deux,
+// comme le veut le cloisonnement.
 enum TypeTiers {
-  ADHERENT // 411 · membre cotisant
-  CLIENT // 412 · client-usager
+  ADHERENT // SYCEBNL 411 · membre cotisant · refusé en SYSCOHADA
+  CLIENT // SYCEBNL 412 client-usager · SYSCOHADA 411 client
   FOURNISSEUR // 40
   SALARIE // 42
   AUTRE

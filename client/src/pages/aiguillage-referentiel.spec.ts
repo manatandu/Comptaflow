@@ -203,13 +203,16 @@ describe('lexique des bulles d\'aide', () => {
     // SYSCOHADA ne doit renvoyer au texte SYCEBNL.
     const entrees = lexique.split(/\n  (?=[a-zA-Z0-9]+: \{)/).filter((b) => /^[a-zA-Z0-9]+Syscohada: \{/.test(b));
     expect(entrees.length).toBeGreaterThanOrEqual(6);
+    // Une entrée ne code AUCUNE règle du référentiel · elle décrit un outil du
+    // logiciel, le rapprochement général / analytique. Lui imposer une
+    // citation de l'AUDCIF reviendrait à en inventer une, ce que la règle §1
+    // interdit avant tout.
+    const SANS_TEXTE_LEGAL = ['controleCumulsSyscohada'];
     for (const bloc of entrees) {
       const source = /source: '([^']*)'/.exec(bloc)?.[1] ?? '';
-      expect({ bloc: bloc.slice(0, 24), source, ohada: /AUDCIF/.test(source) }).toEqual({
-        bloc: bloc.slice(0, 24),
-        source,
-        ohada: true,
-      });
+      const cle = /^([a-zA-Z0-9]+)Syscohada: \{/.exec(bloc)![1] + 'Syscohada';
+      const attendu = !SANS_TEXTE_LEGAL.includes(cle);
+      expect({ cle, source, ohada: /AUDCIF/.test(source) }).toEqual({ cle, source, ohada: attendu });
       expect(source).not.toContain('SYCEBNL');
     }
   });

@@ -23,7 +23,7 @@ const TYPES: { valeur: TypeImport; titre: string; description: string }[] = [
     valeur: 'PLAN_COMPTES',
     titre: 'Plan de comptes',
     description:
-      'Ajoute au plan du dossier les comptes absents. La classe SYCEBNL se déduit du premier chiffre du numéro.',
+      'Ajoute au plan du dossier les comptes absents. La classe se déduit du premier chiffre du numéro, dans les deux plans.',
   },
   {
     valeur: 'BALANCE',

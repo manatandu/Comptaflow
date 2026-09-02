@@ -11,8 +11,13 @@ import { AnalytiqueService } from '../analytique/analytique.service';
  * est entrée au livre-journal et l'article 20 de l'AUDCIF ne laisse plus que
  * l'inscription en négatif.
  *
- * Ces tests figent aussi la lecture SYCEBNL du délai de séjour : la Partie 2
- * ch. 2 impose une centralisation au moins hebdomadaire, donc sept jours.
+ * Ces tests figent aussi LES DEUX délais de séjour, et le fait qu'ils
+ * diffèrent · le service servait sept jours aux deux référentiels, si bien
+ * qu'une entreprise voyait « en retard de centralisation » des écritures qui
+ * ne l'étaient pas, trois semaines avant de l'être :
+ *
+ *  · SYCEBNL, Partie 2 ch. 2 · centralisation au moins hebdomadaire, sept jours ;
+ *  · AUDCIF, art. 19 · centralisation au moins mensuelle, trente jours.
  */
 
 type Faux = Record<string, unknown>;
@@ -176,8 +181,9 @@ describe('validation', () => {
 });
 
 describe('état du brouillard · retard de centralisation', () => {
-  function prismaAvec(createdAt: Date) {
+  function prismaAvec(createdAt: Date, referentiel = 'SYCEBNL') {
     return {
+      tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ referentiel }) },
       ecriture: {
         findMany: jest.fn().mockResolvedValue([
           {
@@ -214,8 +220,26 @@ describe('état du brouillard · retard de centralisation', () => {
     expect(r.totaux.enRetard).toBe(0);
   });
 
+  it('laisse un mois à un dossier SYSCOHADA, comme le veut l’article 19', async () => {
+    const vieille = new Date(Date.now() - 9 * 86_400_000);
+    const r = await service(prismaAvec(vieille, 'SYSCOHADA')).brouillard('t1', { exerciceId: 'ex1' });
+    expect(r.delaiCentralisationJours).toBe(30);
+    // Neuf jours : en retard pour une association, parfaitement en règle pour
+    // une entreprise. C'est exactement ce que le service confondait.
+    expect(r.lignes[0].retardCentralisation).toBe(false);
+    expect(r.totaux.enRetard).toBe(0);
+  });
+
+  it('signale tout de même une écriture qui dépasse le mois en SYSCOHADA', async () => {
+    const tresVieille = new Date(Date.now() - 40 * 86_400_000);
+    const r = await service(prismaAvec(tresVieille, 'SYSCOHADA')).brouillard('t1', { exerciceId: 'ex1' });
+    expect(r.lignes[0].retardCentralisation).toBe(true);
+    expect(r.totaux.enRetard).toBe(1);
+  });
+
   it('compte les écritures déséquilibrées du brouillard', async () => {
     const prisma = {
+      tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ referentiel: 'SYCEBNL' }) },
       ecriture: {
         findMany: jest.fn().mockResolvedValue([
           {
