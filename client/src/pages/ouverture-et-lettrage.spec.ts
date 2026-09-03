@@ -55,3 +55,22 @@ describe('lettrage · la fenêtre ne s’ouvre plus sur du vide', () => {
     expect(controleur).toContain('listerGroupesDuDossier');
   });
 });
+
+describe('journal · la tranche affichée se dit', () => {
+  const page = lire('pages/JournalPage.tsx');
+
+  it('l’écran lit le drapeau de troncature du serveur', () => {
+    expect(page).toContain('tronque');
+    expect(page).toContain('setTroncature');
+  });
+
+  it('il annonce combien d’écritures sur combien', () => {
+    // Sans cette phrase, un journal de 2 000 écritures sur 500 000 se lit
+    // comme un journal de 2 000 écritures.
+    expect(page).toContain('écritures affichées sur');
+  });
+
+  it('il prévient que les totaux, eux, sont ceux du journal entier', () => {
+    expect(page).toContain('totaux restent ceux du journal entier');
+  });
+});

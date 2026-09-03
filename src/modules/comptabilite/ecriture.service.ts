@@ -85,6 +85,35 @@ export interface TrancheEcheancier {
  * vivent ici, pas côté client, pour rester valables quel que soit le canal
  * d'entrée (UI web, import CSV, API partenaire...).
  */
+/**
+ * PLAFONDS DE FENÊTRE · mesurés, pas devinés.
+ *
+ * Banc d'essai du 2026-09-03, dossier d'un million de lignes, tas de 460 Mio
+ * (la taille par défaut d'un conteneur Cloud Run) :
+ *
+ *  · journal sur 15 jours, 41 000 lignes · 6,2 s et 44 Mo de JSON, à la limite
+ *  · journal sur 45 jours, 123 000 lignes · `JavaScript heap out of memory`,
+ *    PROCESSUS MORT, et avec lui tous les autres dossiers servis par la même
+ *    instance
+ *  · grand livre complet et liasse Excel complète · morts eux aussi
+ *
+ * Les états financiers, eux, tiennent en une demi-seconde à un million de
+ * lignes : ils sont agrégés par la base (`groupBy`). Le plafond n'est donc
+ * pas le volume du dossier, c'est le nombre de lignes qu'UNE fenêtre réclame
+ * d'un coup.
+ *
+ * Deux traitements différents, et la différence est comptable, pas technique :
+ *
+ *  · le JOURNAL est un écran de TRAVAIL · on peut n'en montrer qu'une tranche,
+ *    à condition de le DIRE (`tronque`) et de garder des totaux justes, pris
+ *    sur le périmètre entier par un agrégat SQL ;
+ *  · le GRAND LIVRE est un livre obligatoire (AUDCIF art. 22, 6° · chemin de
+ *    révision). Un grand livre amputé en silence est un document FAUX. On le
+ *    REFUSE au-delà du plafond, en disant par où passer.
+ */
+export const PLAFOND_ECRITURES_PAR_FENETRE = 2000;
+export const PLAFOND_LIGNES_GRAND_LIVRE = 20000;
+
 @Injectable()
 export class EcritureService {
   constructor(
@@ -811,8 +840,12 @@ export class EcritureService {
         ...(filtres.recherche ? { libelle: { contains: filtres.recherche, mode: 'insensitive' as const } } : {}),
     };
 
+    // AUCUNE COLLECTION SANS BORNE · sans ce plafond, la fenêtre Journal
+    // d'un gros dossier tuait le serveur (voir PLAFOND_ECRITURES_PAR_FENETRE).
+    // Une limite explicite (le tableau de bord) garde la sienne.
+    const take = filtres.limite ?? PLAFOND_ECRITURES_PAR_FENETRE;
     const ecritures = await this.prisma.ecriture.findMany({
-      ...(filtres.limite ? { take: filtres.limite } : {}),
+      take,
       where,
       include: {
         lignes: { include: { compte: true } },
@@ -833,22 +866,31 @@ export class EcritureService {
         : [{ date: 'asc' }, { numeroPiece: 'asc' }, { id: 'asc' }],
     });
 
-    // Avec une limite, les totaux calculés sur les lignes tronquées seraient
-    // FAUX (ceux des N dernières écritures, présentés comme ceux du journal) :
-    // ils viennent alors d'un agrégat SQL sur le même périmètre complet.
-    if (filtres.limite) {
-      const agg = await this.prisma.ligneEcriture.aggregate({
+    // LES TOTAUX SONT CEUX DU JOURNAL, PAS CEUX DE L'ÉCRAN · additionner les
+    // seules écritures rendues donnerait un total juste pour la tranche et
+    // faux pour le journal, sans que rien ne le dise. Ils viennent donc
+    // toujours d'un agrégat SQL sur le périmètre complet · c'est aussi ce
+    // qu'affiche Sage en pied de fenêtre (« Totaux journal »).
+    const [agg, total] = await Promise.all([
+      this.prisma.ligneEcriture.aggregate({
         _sum: { debit: true, credit: true },
         where: { ecriture: where },
-      });
-      return {
-        ecritures,
-        totaux: { debit: Number(agg._sum.debit ?? 0), credit: Number(agg._sum.credit ?? 0) },
-      };
-    }
-    const totalDebit = ecritures.reduce((s, e) => s + e.lignes.reduce((s2, l) => s2 + Number(l.debit), 0), 0);
-    const totalCredit = ecritures.reduce((s, e) => s + e.lignes.reduce((s2, l) => s2 + Number(l.credit), 0), 0);
-    return { ecritures, totaux: { debit: totalDebit, credit: totalCredit } };
+      }),
+      // `tenantId` répété alors que `where` le porte déjà · le balayage de
+      // cloisonnement lit le CODE, pas la valeur d'une variable, et une borne
+      // qu'il ne voit pas est une borne qu'un relecteur ne voit pas non plus.
+      this.prisma.ecriture.count({ where: { ...where, tenantId } }),
+    ]);
+
+    return {
+      ecritures,
+      totaux: { debit: Number(agg._sum.debit ?? 0), credit: Number(agg._sum.credit ?? 0) },
+      /** Nombre d'écritures du périmètre, tranche ou pas. */
+      total,
+      /** Vrai quand l'écran ne montre pas tout · l'interface DOIT le dire. */
+      tronque: total > ecritures.length,
+      plafond: take,
+    };
   }
 
   /**
@@ -1588,6 +1630,20 @@ export class EcritureService {
    */
   async grandLivreComplet(tenantId: string, exerciceId?: string) {
     const perimetreEcriture = { tenantId, ...(exerciceId ? { exerciceId } : {}) };
+
+    // UN GRAND LIVRE NE SE TRONQUE PAS · c'est un livre obligatoire, et un
+    // livre amputé en silence est un document faux. Au-delà du plafond on
+    // refuse, en disant par où passer · le grand livre d'un compte, lui,
+    // reste ouvert quel que soit le volume du dossier (mesuré à 0,6 s sur un
+    // million de lignes).
+    const nombreLignes = await this.prisma.ligneEcriture.count({ where: { ecriture: perimetreEcriture } });
+    if (nombreLignes > PLAFOND_LIGNES_GRAND_LIVRE) {
+      throw new BadRequestException(
+        `Ce grand livre porte ${nombreLignes.toLocaleString('fr-FR')} lignes, au-delà de ce qu'une fenêtre peut ` +
+          `afficher (${PLAFOND_LIGNES_GRAND_LIVRE.toLocaleString('fr-FR')}). Ouvrez le grand livre compte par ` +
+          `compte, ou restreignez l'exercice.`,
+      );
+    }
 
     const [lignes, contreparties] = await Promise.all([
       this.prisma.ligneEcriture.findMany({

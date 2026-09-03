@@ -95,6 +95,8 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
   }, [adresse]);
   const [ecritures, setEcritures] = useState<Ecriture[]>([]);
   const [totaux, setTotaux] = useState({ debit: 0, credit: 0 });
+  /** Servi quand la fenêtre ne montre qu'une tranche du journal. */
+  const [troncature, setTroncature] = useState<{ montrees: number; total: number } | null>(null);
   const [balance, setBalance] = useState<LigneBalance[]>([]);
   const [journaux, setJournaux] = useState<Journal[]>([]);
   const [compteGrandLivreId, setCompteGrandLivreId] = useState('');
@@ -149,11 +151,25 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
     if (!exerciceCourant || onglet !== 'journal') return;
     let annule = false;
     const query = versQuery(exerciceCourant.id, filtresAppliques);
-    api.get<{ ecritures: Ecriture[]; totaux: { debit: number; credit: number } }>(`/ecritures?${query}`).then(
+    api
+      .get<{
+        ecritures: Ecriture[];
+        totaux: { debit: number; credit: number };
+        total: number;
+        tronque: boolean;
+        plafond: number;
+      }>(`/ecritures?${query}`)
+      .then(
       (r) => {
         if (annule) return;
         setEcritures(r.ecritures);
         setTotaux(r.totaux);
+        // LE DIRE, TOUJOURS · un journal qui montre 2 000 écritures sur
+        // 40 000 sans le signaler fait conclure à un journal de 2 000
+        // écritures. Les totaux, eux, restent ceux du journal entier (agrégat
+        // SQL côté serveur), donc l'écran est cohérent : la tranche ne les
+        // explique pas, et c'est justement ce que cette phrase annonce.
+        setTroncature(r.tronque ? { montrees: r.ecritures.length, total: r.total } : null);
       },
       (e) => !annule && setErreur(e.message),
     );
@@ -489,6 +505,18 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
         ligne, un filet sépare chaque pièce, les mouvements sont totalisés en
         fin d'édition.
       */}
+      {/* TRANCHE AFFICHÉE · le serveur plafonne le nombre d'écritures rendues
+          (mesure du 2026-09-03 : au-delà, la fenêtre faisait tomber le
+          serveur). Le taire ferait lire un journal amputé comme un journal
+          complet. Les totaux ci-dessous restent ceux du journal ENTIER. */}
+      {onglet === 'journal' && troncature && (
+        <div className="border border-warning/40 bg-warning-soft text-[11px] px-3.5 py-2 mb-2">
+          {troncature.montrees.toLocaleString('fr-FR')} écritures affichées sur{' '}
+          {troncature.total.toLocaleString('fr-FR')}. Les totaux restent ceux du journal entier. Restreignez les dates
+          ou le journal pour tout voir à l'écran, ou passez par l'export Excel.
+        </div>
+      )}
+
       {onglet === 'journal' && (
         <div className="border border-border bg-surface shadow-posee rounded-t-none">
           <div className="grid grid-cols-[68px_46px_52px_92px_120px_1fr_108px_108px_128px] gap-2.5 px-3.5 py-1.5 bg-surface-alt text-[10px] font-bold text-text-dim border-b border-border-dark">

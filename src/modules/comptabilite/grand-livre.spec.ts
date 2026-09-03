@@ -54,6 +54,10 @@ function serviceAvec(
       ),
     },
     ligneEcriture: {
+      // Le grand livre COMPLET compte d'abord ses lignes · au-delà du
+      // plafond de fenêtre il refuse plutôt que d'amputer un livre
+      // obligatoire (voir plafonds-de-fenetre.spec.ts).
+      count: jest.fn().mockResolvedValue(lignes.length),
       findMany: jest.fn().mockImplementation((args: { select?: unknown }) => {
         // Requête « contreparties » : toutes les lignes, forme plate.
         if (args.select) {
