@@ -239,7 +239,7 @@ jobs:
           # `INSCRIPTION_PUBLIQUE: 'true'` et l'ajouter aux variables ci-dessous.
         run: |
           python3 - <<'PY' > /tmp/env-vars.yaml
-          import json, os
+          import json, os, sys
           from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
 
           cles = ("DATABASE_URL", "JWT_SECRET", "JWT_EXPIRES_IN", "CORS_ORIGIN")
@@ -272,6 +272,34 @@ jobs:
               return urlunsplit(parties._replace(query=urlencode(parametres)))
 
           variables["DATABASE_URL"] = regler_le_pooling(variables["DATABASE_URL"])
+
+          # LE RÉGIME DE CONNEXION, DIT ICI · c'est ce fichier, et lui seul,
+          # qui donne ses variables au service (`--env-vars-file` REMPLACE
+          # tout). Ce qu'on écrit dedans est donc exactement ce que le serveur
+          # recevra : l'affirmer ici ne demande aucun droit de lecture, à la
+          # différence des journaux Cloud Run · le compte de service du
+          # déploiement peut déployer, pas lire (PERMISSION_DENIED du
+          # 2026-09-03). La ligne reprend mot pour mot celle que le serveur
+          # écrit à son démarrage, et n'en dit pas plus : ni hôte, ni base, ni
+          # utilisateur, ni mot de passe (src/common/pooling-base.ts).
+          parties = urlsplit(variables["DATABASE_URL"])
+          parametres = dict(parse_qsl(parties.query, keep_blank_values=True))
+          plafond = parametres.get("connection_limit")
+          regime = "POOLÉ" if "-pooler" in (parties.hostname or "") else "DIRECT (non poolé)"
+          print(
+              f"Base · endpoint {regime}, plafond de connexions "
+              f"{plafond + ' par instance' if plafond else 'défaut Prisma'}",
+              file=sys.stderr,
+          )
+          if regime.startswith("POOLÉ"):
+              print("::notice::Le service recevra l'endpoint POOLÉ", file=sys.stderr)
+          else:
+              print(
+                  "::warning::Le service recevra l'endpoint DIRECT · le secret "
+                  "API_DATABASE_URL_POOLED est absent ou ne porte pas un hôte -pooler "
+                  "(voir docs/connexions-et-plafonds.md)",
+                  file=sys.stderr,
+              )
 
           # Facultative · secret absent ou vide, la variable n'est pas posée
           # (le bootstrap n'accorde alors rien, et ne retire jamais rien).
@@ -308,47 +336,40 @@ jobs:
       # instant, et le compte de service peut ne pas avoir le droit de les
       # lire. Faire tomber un déploiement réussi pour une ligne pas encore
       # indexée serait une panne fabriquée.
-      - name: Régime de connexion à la base
+      # CONFIRMATION PAR LE SERVEUR LUI-MÊME · facultative, et c'est assumé.
+      #
+      # L'étape précédente dit ce que le service REÇOIT, ce qui suffit :
+      # `--env-vars-file` remplace toutes ses variables, il n'y a pas d'autre
+      # source. Cette étape-ci lit ce que le service DIT au démarrage, ce qui
+      # est une confirmation de plus, pas la preuve principale.
+      #
+      # Elle ne marche que si le compte de service a `roles/logging.viewer`,
+      # ce qui n'est pas le cas aujourd'hui (il peut déployer, pas lire). Une
+      # SEULE tentative, donc, et un message qui dit quoi accorder à qui ·
+      # faire attendre quarante-cinq secondes un contrôle qu'on sait refusé
+      # apprend surtout à ignorer les avertissements.
+      - name: Confirmation par le journal du service
         continue-on-error: true
         run: |
           filtre='resource.type="cloud_run_revision"'
           filtre="$filtre AND resource.labels.service_name=\"$SERVICE\""
-          # TROIS TENTATIVES · le premier essai tombait systématiquement à
-          # vide, une seconde après la fin du déploiement : Cloud Logging
-          # n'avait pas encore indexé la ligne de démarrage de la nouvelle
-          # révision. Chercher une fois et renoncer, c'est ne jamais lire.
-          ligne=""
-          erreur=""
-          for essai in 1 2 3; do
-            journal=$(gcloud logging read "$filtre" \
-              --project "$PROJECT_ID" \
-              --limit 300 \
-              --freshness 30m \
-              --format='value(textPayload,jsonPayload.message)' 2>/tmp/gcloud-logging.err) || true
-            erreur=$(cat /tmp/gcloud-logging.err)
-            ligne=$(printf '%s\n' "$journal" | grep -m1 'Base ·' || true)
-            [ -n "$ligne" ] && break
-            echo "tentative $essai · ligne pas encore indexée, nouvelle lecture dans 15 s"
-            sleep 15
-          done
-          if [ -z "$ligne" ]; then
-            # L'ERREUR DE GCLOUD EST REMONTÉE, pas jetée · sans elle,
-            # « non lu » recouvrait aussi bien un droit manquant qu'une
-            # attente, et ne disait donc rien.
-            if [ -n "$erreur" ]; then
-              echo "sortie d'erreur de gcloud logging :"
-              printf '%s\n' "$erreur"
-            fi
-            echo "::warning::Régime de connexion non lu · le déploiement reste valide. Si l'erreur ci-dessus parle de permission, accorder roles/logging.viewer au compte de service ; sinon la ligne n'était pas encore indexée."
+          journal=$(gcloud logging read "$filtre" \
+            --project "$PROJECT_ID" \
+            --limit 300 \
+            --freshness 30m \
+            --format='value(textPayload,jsonPayload.message)' 2>/tmp/gcloud-logging.err) || true
+          ligne=$(printf '%s\n' "$journal" | grep -m1 'Base ·' || true)
+          if [ -n "$ligne" ]; then
+            echo "le serveur confirme · $ligne"
             exit 0
           fi
-          echo "$ligne"
-          case "$ligne" in
-            *"POOLÉ"*)
-              echo "::notice::Le service passe par l'endpoint POOLÉ" ;;
-            *)
-              echo "::warning::Le service passe par l'endpoint DIRECT · le secret API_DATABASE_URL_POOLED est absent ou ne porte pas un hôte -pooler (voir docs/connexions-et-plafonds.md)" ;;
-          esac
+          if grep -q 'PERMISSION_DENIED' /tmp/gcloud-logging.err 2>/dev/null; then
+            echo "Journal non lisible par le compte de service du déploiement · confirmation sautée."
+            echo "Pour l'activer : console Google Cloud > IAM > le compte github-deploy > accorder le rôle « Lecteur de journaux » (roles/logging.viewer)."
+            exit 0
+          fi
+          cat /tmp/gcloud-logging.err 2>/dev/null || true
+          echo "Ligne pas encore indexée · sans conséquence, le régime est déjà affirmé à l'envoi."
 
       # PREUVE DE VIE · un déploiement n'est fini que si le service répond ET
       # joint sa base. /health renvoie 503 sinon (voir sante.controller.ts) ·

@@ -95,17 +95,27 @@ ces deux réglages n'auraient pas de sens.
 
 ### Vérifier que le secret a bien pris
 
-Le serveur écrit **au démarrage** une ligne qui dit son régime de connexion,
-sans jamais montrer la chaîne :
+**Dans l'onglet Actions, à la fin du déploiement**, l'étape *Déployer sur Cloud
+Run* écrit :
 
 ```
 Base · endpoint POOLÉ, plafond de connexions 10 par instance
 ```
 
-Elle se lit dans les journaux Cloud Run du service `comptaflow-api`. Avant la
-bascule, elle dit `endpoint DIRECT (non poolé)`. Si elle porte
-`ATTENTION : pgbouncer=true absent`, la chaîne copiée n'est pas la bonne :
-reprendre l'étape 2.
+et pose une annotation verte. Si elle dit `endpoint DIRECT (non poolé)`, le
+secret est absent ou son hôte ne porte pas `-pooler` · reprendre l'étape 2.
+
+C'est la preuve qui compte : ce fichier de variables est la SEULE source des
+variables du service (`--env-vars-file` remplace toutes les autres), donc ce
+qui y est écrit est exactement ce que le serveur reçoit. Et l'affirmer là ne
+demande aucun droit particulier.
+
+Le serveur écrit la même ligne à son démarrage, dans les journaux Cloud Run.
+Le déploiement essaie de l'y relire en confirmation, mais le compte de service
+`github-deploy` peut déployer sans pouvoir lire les journaux · il l'annonce et
+passe. Pour activer cette confirmation : console Google Cloud → **IAM** → le
+compte `github-deploy` → accorder le rôle **Lecteur de journaux**
+(`roles/logging.viewer`). Facultatif.
 
 ---
 
