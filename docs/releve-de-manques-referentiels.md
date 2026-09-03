@@ -855,6 +855,75 @@ Trois chapitres de plus. Restent notamment les ch. 1 à 3, 7, 10 à 15, 17 à 21
 
 ---
 
+## Passe 10 · Titre VIII, stocks (ch. 14, 29) et abonnement (ch. 24)
+
+Lu à la source : AUDCIF, Titre VIII ch. 24 « Abonnement des charges et des
+produits » (sections 1 et 2) ; art. 44 (évaluation des stocks) déjà lu à la
+passe 7 ; et, côté logiciel, `docs/plan-de-construction.md` § 16 et le module
+`regularisation`.
+
+### Périmètre déclaré · les stocks
+
+Le logiciel n'a **aucun module de stocks** : ni modèle Prisma, ni service, ni
+écran. Ce n'est pas un oubli · le plan de construction range **Stocks** au
+point 16, dans la liste des briques « au choix selon opportunité business »,
+aux côtés de la trésorerie avancée et de la paie. Vérifié avant d'écrire.
+
+Ce qui existe malgré tout, et qui rend le périmètre tenable : la classe 3 est
+semée dans les deux plans (86 comptes au SYSCOHADA, 13 au SYCEBNL), le compte
+de résultat sait recevoir la variation de stocks (6031 des deux côtés, 73 au
+SYSCOHADA), et les notes de stocks existent dans les deux jeux. Une entité qui
+tient des stocks peut donc passer ses écritures d'inventaire à la main et
+obtenir des états justes.
+
+**Ce qu'il faut avoir en tête, et qui n'est écrit nulle part près du code.**
+Sans module, rien ne rappelle l'inventaire de fin d'exercice, et une variation
+de stocks oubliée ne se signale jamais : la balance boucle, puisque le compte
+de charge porte les ACHATS de la période au lieu des CONSOMMATIONS. Le résultat
+est faux du montant de la variation, et aucun total ne le trahit. Le jalon 6
+« Écritures d'inventaire » du planning de clôture nomme bien les écarts
+d'inventaire, ce qui est le rappel minimal ; il n'y a pas de contrôle. À
+mesurer si un dossier à stocks entre au portefeuille.
+
+**Gravité · périmètre, pas manque.** Écrit ici pour que la prochaine passe ne
+le rouvre pas comme une découverte.
+
+### Confort · « abonnement » désigne deux techniques, le logiciel n'en fait qu'une
+
+**Ce que le texte prévoit.** Le ch. 24 appelle « abonnement des charges et des
+produits » une technique de RÉPARTITION : étaler une charge ou un produit
+annuel connu d'avance « par fractions égales entre les périodes comptables de
+l'exercice », afin que les situations intermédiaires soient justes. Elle passe
+par le compte 474, subdivisé en **4746** pour les charges et **4747** pour les
+produits. À la fin de chaque période, le 4746 est crédité de la fraction
+abonnée par le débit du compte de charge ; à réception de la facture réelle, il
+est débité par le crédit du tiers. Le 4747 fonctionne symétriquement. Les
+dotations aux amortissements peuvent s'y abonner de la même manière.
+
+**Ce que le logiciel fait.** Le module `regularisation` porte des
+« abonnements » au sens des progiciels : des MODÈLES d'écriture récurrente,
+engendrés à chaque échéance d'un contrat. C'est un confort de saisie, utile,
+mais ce n'est pas la technique du ch. 24. Les comptes 4746 et 4747 sont semés
+dans les deux plans et **aucun code ne les mouvemente**.
+
+**Lacune du logiciel · mais sur une option, pas sur une obligation.** Le texte
+écrit que le Système comptable OHADA « préconise LA POSSIBILITÉ » d'y recourir,
+et la réserve aux entités qui établissent des comptes de résultat périodiques.
+
+**Gravité · confort.** Aucun état n'est faux. Le risque est de vocabulaire :
+lire « Abonnement » dans le menu et croire la technique du ch. 24 servie.
+
+**Ce qui a été fait ici.** Le module dit désormais en tête laquelle des deux
+techniques il implémente, décrit l'autre avec ses comptes, et précise qu'elle
+est offerte et non imposée.
+
+### Portée de cette passe
+
+Restent notamment les ch. 1 à 3, 7, 10 à 13, 15, 17 à 21, 23, 25, 26, 28, 30 et
+32 à 41.
+
+---
+
 ## Ce qui n'a pas encore été ouvert
 
 À traiter dans les passes suivantes, dans cet ordre :
@@ -862,5 +931,5 @@ Trois chapitres de plus. Restent notamment les ch. 1 à 3, 7, 10 à 15, 17 à 21
 1. **AUDCIF Titre VIII** · les chapitres restants. Ouverts à ce jour : le
    ch. 16 (passe 2), le ch. 31 (passe 3), les ch. 4 à 6 (passe 8), les ch. 8,
    9 et 27 (passe 9), et le ch. 22 vérifié à la passe 7 par le module devises.
-   Restent notamment les ch. 1 à 3, 7, 10 à 15, 17 à 21, 23 à 26, 28 à 30 et
-   32 à 41.
+   Restent notamment les ch. 1 à 3, 7, 10 à 13, 15, 17 à 21, 23, 25, 26, 28,
+   30 et 32 à 41.

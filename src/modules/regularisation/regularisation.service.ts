@@ -53,6 +53,36 @@ const RACINE_DIFFERE: Record<TypeRegularisation, string> = {
 /**
  * RÉGULARISATION DES CHARGES ET DES PRODUITS, ET ÉCRITURES D'ABONNEMENT.
  *
+ * ## « Abonnement » désigne ici DEUX choses, et ce module n'en fait qu'une
+ *
+ * Le mot recouvre deux techniques distinctes, et les confondre ferait croire
+ * à une conformité qui n'existe pas.
+ *
+ *  1. L'ÉCRITURE D'ABONNEMENT au sens des progiciels · un MODÈLE d'écriture
+ *     récurrente, engendré à chaque échéance d'un contrat (loyer, prime,
+ *     forfait). C'est CE module, et c'est un confort de saisie.
+ *
+ *  2. L'ABONNEMENT DES CHARGES ET DES PRODUITS au sens de l'AUDCIF, Titre
+ *     VIII ch. 24 · une technique de RÉPARTITION qui étale une charge ou un
+ *     produit annuel connu d'avance « par fractions égales entre les périodes
+ *     comptables de l'exercice », pour que les situations intermédiaires
+ *     (mensuelles, trimestrielles) soient justes. Elle passe par le compte
+ *     474 « Comptes de répartition périodique des charges et des produits »,
+ *     subdivisé en 4746 pour les charges et 4747 pour les produits : à la fin
+ *     de chaque période, le 4746 est CRÉDITÉ de la fraction abonnée par le
+ *     débit du compte de charge ; à réception de la facture réelle, le 4746
+ *     est DÉBITÉ par le crédit du tiers. Le 4747 fonctionne symétriquement.
+ *
+ * CE MODULE NE FAIT PAS LE SECOND. Les comptes 4746 et 4747 sont semés dans
+ * les deux plans, mais aucun code ne les mouvemente · qui voudrait la
+ * technique du ch. 24 doit passer ses écritures à la main.
+ *
+ * Ce n'est pas un manquement : le texte écrit que le Système comptable OHADA
+ * « préconise LA POSSIBILITÉ » d'y recourir, et la réserve aux entités qui
+ * établissent des comptes de résultat périodiques. C'est une option offerte,
+ * pas une obligation. Mais le nom partagé est un piège, d'où ce paragraphe.
+ * Relevé dans docs/releve-de-manques-referentiels.md, passe 10.
+ *
  * ## Ce que le SYCEBNL dit, et qui diffère de la pratique française
  *
  * Le cas de référence pour une EBNL est la subvention pluriannuelle, traitée
