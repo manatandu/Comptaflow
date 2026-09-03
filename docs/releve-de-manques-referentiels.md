@@ -120,14 +120,101 @@ expire à cette assemblée ». Lacune du LOGICIEL, sans effet sur les comptes.
 
 ---
 
+## Passe 2 · Cadre conceptuel · changements de méthode et corrections d'erreurs (2026-09-03)
+
+Lu : SYCEBNL Partie 1 ch. 2 § 3.3.1 (postulat de permanence des méthodes,
+a/ changements de méthodes, b/ changements d'estimation, c/ corrections
+d'erreurs) et son pendant AUDCIF Titre V, plus l'AUDCIF Titre VIII ch. 16
+§ 2.3 sur l'usage du compte de report à nouveau.
+
+**Les deux textes disent EXACTEMENT la même chose**, jusqu'au vocabulaire :
+la correspondance « bilan de clôture, bilan d'ouverture » souffre **DEUX
+exceptions**, et deux seulement, où l'imputation se fait directement sur les
+capitaux propres.
+
+### Ce qui produit un état FAUX
+
+**1 · La correction d'une erreur significative d'un exercice antérieur n'a
+aucun chemin dans le logiciel.**
+
+- **Ce que le texte exige** · SYCEBNL Partie 1 ch. 2 § 3.3.1 c), repris
+  identiquement par l'AUDCIF Titre V : « La correction d'une erreur
+  significative commise au cours d'un exercice antérieur doit être opérée par
+  ajustement des capitaux propres d'ouverture (diminution ou augmentation du
+  report à nouveau). Il s'agit là de la **seconde exception** à la convention
+  de correspondance bilan de clôture, bilan d'ouverture. » L'AUDCIF Titre VIII
+  ch. 16 § 2.3 le confirme côté compte : « À titre exceptionnel, le compte
+  report à nouveau sera utilisé pour enregistrer les imputations sur les
+  capitaux propres résultant des changements de méthodes et des corrections
+  d'erreurs significatives. »
+  Le texte distingue par ailleurs deux cas que le logiciel confond : l'erreur
+  **de l'exercice en cours** se corrige « exclusivement par inscription en
+  négatif » (art. 20), l'erreur **non significative** d'un exercice antérieur
+  se corrige dans les comptes de l'exercice en cours, et l'erreur
+  **significative** d'un exercice antérieur passe par le report à nouveau.
+- **Ce que le logiciel fait** · il n'offre qu'une seule voie, l'inscription en
+  négatif, et refuse toute écriture sur un exercice clôturé.
+- **Fichiers** · `src/modules/comptabilite/ecriture.service.ts` (la correction
+  par inscription en négatif, et le refus sur exercice clôturé).
+- **Nature** · lacune du LOGICIEL, dans les DEUX référentiels.
+- **Pourquoi c'est un état faux, et non un simple manque** · privé de ce
+  chemin, le cabinet corrigera dans l'exercice en cours. Deux états deviennent
+  alors faux d'un coup : le **résultat de l'exercice**, qui absorbe une erreur
+  qui ne lui appartient pas, et le **report à nouveau**, qui reste erroné.
+  L'erreur ne disparaît pas · elle change de ligne.
+- **Comptes lus à la source** · SYCEBNL, compte 12 Report à nouveau
+  (121 excédents, 128 résultat en instance d'affectation, 129 déficits) ·
+  SYSCOHADA, compte 12 également (121 créditeur, 129 débiteur), tel que semé
+  depuis le TSV officiel.
+
+**2 · Le changement de méthode à impact fort significatif : même absence.**
+
+- **Ce que le texte exige** · « L'impact du changement déterminé à l'ouverture
+  est imputé en report à nouveau dès l'ouverture de l'exercice […]. Il s'agit
+  là d'une **première exception** à la convention de correspondance. » Et,
+  pour les exercices ultérieurs, « des informations **pro-forma** des exercices
+  antérieurs présentés sont établies suivant la nouvelle méthode afin
+  d'assurer la comparabilité ».
+- **Ce que le logiciel fait** · rien pour l'imputation. La note 4
+  « Changements de méthodes comptables » existe et est désormais **stockée**
+  (depuis le 2026-09-03) : l'obligation d'INFORMATION en annexe est donc
+  satisfaite. Ce qui manque est l'ÉCRITURE d'imputation, et les états
+  pro-forma.
+- **Nature** · lacune du LOGICIEL, dans les DEUX référentiels.
+
+**3 · Le code énonce la règle SANS ses exceptions, et c'est ainsi que le
+manque se perpétue.**
+
+`ecriture.service.ts` refuse la correction d'une écriture de clôture au motif
+que « le bilan d'ouverture d'un exercice doit correspondre au bilan de clôture
+de l'exercice précédent (SYCEBNL art. 16, 4 ; AUDCIF art. 34) ». La citation
+est exacte, mais **incomplète** : le cadre conceptuel des deux référentiels
+ouvre deux exceptions à cette convention. Un développeur qui lit ce
+commentaire conclut que la règle est absolue et n'ouvrira jamais le chemin
+manquant. Le commentaire doit porter les deux exceptions, même tant que le
+chemin n'existe pas.
+
+### Ce qui est conforme, et vérifié
+
+- **Changements d'estimation** (§ 3.3.1 b) · « n'ont qu'un effet sur l'exercice
+  en cours et les exercices futurs », l'incidence est enregistrée dans les
+  comptes de l'exercice. C'est exactement ce que fait le logiciel · une
+  révision de durée d'amortissement ou de dépréciation joue en avant, sans
+  retraitement. Aucun écart.
+- **Erreur de l'exercice en cours** · corrigée exclusivement par inscription
+  en négatif, puis enregistrement exact. Implémenté, et le service refuse
+  explicitement de corriger une correction, ce que le texte impose sans le
+  dire (« l'enregistrement exact sera ENSUITE opéré »).
+
+---
+
 ## Ce qui n'a pas encore été ouvert
 
 À traiter dans les passes suivantes, dans cet ordre :
 
-1. **SYCEBNL Partie 1 ch. 2** · cadre conceptuel · les cinq postulats et les
-   cinq conventions, et surtout le traitement des changements de méthode, des
-   changements d'estimation et des corrections d'erreurs (§ 3.3.1), qui
-   commandent des retraitements rétrospectifs.
+1. **SYCEBNL Partie 1 ch. 2** · le reste du cadre conceptuel · les cinq
+   postulats hors permanence des méthodes, les cinq conventions, et les quatre
+   applications de la prééminence de la réalité sur l'apparence.
 2. **SYCEBNL Partie 3** · les six chapitres d'opérations spécifiques, contre le
    catalogue `catalogue-operations*.ts`.
 3. **AUDCIF** · articles 1 à 113, en particulier l'organisation comptable

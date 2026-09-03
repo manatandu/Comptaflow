@@ -761,6 +761,24 @@ export class EcritureService {
           "écriture pour l'enregistrement exact (« l'enregistrement exact est ensuite opéré »).",
       );
     }
+    // LA CONVENTION A DEUX EXCEPTIONS, ET LE MESSAGE CI-DESSOUS NE LES DIT PAS.
+    //
+    // Le refus est juste : une écriture de clôture ne se retouche pas à la
+    // main. Mais la règle citée n'est pas absolue. Le cadre conceptuel des
+    // DEUX référentiels (SYCEBNL Partie 1 ch. 2 § 3.3.1 ; AUDCIF Titre V)
+    // ouvre deux exceptions à la correspondance « bilan de clôture, bilan
+    // d'ouverture », et deux seulement, où l'imputation se fait directement
+    // sur les capitaux propres, par le compte de report à nouveau :
+    //
+    //  1. l'incidence d'un changement de méthodes ayant un impact FORT
+    //     significatif, imputée dès l'ouverture de l'exercice ;
+    //  2. la correction d'une erreur SIGNIFICATIVE commise au cours d'un
+    //     exercice antérieur.
+    //
+    // Aucune des deux n'a de chemin dans le logiciel aujourd'hui · relevé le
+    // 2026-09-03, voir docs/releve-de-manques-referentiels.md. Ce commentaire
+    // est là pour que le prochain lecteur ne conclue pas de ce refus que la
+    // convention ne souffre aucune exception, et ne referme pas le sujet.
     if (e.estGenereeParCloture) {
       throw new BadRequestException(
         "Cette écriture a été générée par la clôture (solde des classes 6/7, report à-nouveau). La corriger à la main " +
