@@ -291,6 +291,46 @@ jobs:
             --max-instances 4 \
             --env-vars-file /tmp/env-vars.yaml
 
+      # PREUVE DU RÉGIME DE CONNEXION · le déploiement le dit lui-même.
+      #
+      # Un déploiement vert ne prouve PAS que l'endpoint poolé est en service :
+      # le repli sur la chaîne directe passe au vert exactement pareil. La
+      # seule preuve est la ligne que le serveur écrit à son démarrage, et
+      # elle vivait jusqu'ici dans les journaux Cloud Run · c'est-à-dire hors
+      # d'atteinte de l'environnement de développement (politique réseau) et
+      # à deux consoles de distance pour l'exploitant.
+      #
+      # Elle est donc relue ICI, où les deux la voient. Elle ne porte ni hôte,
+      # ni base, ni utilisateur, ni mot de passe · c'est tout l'objet de
+      # `src/common/pooling-base.ts`, et un test le verrouille.
+      #
+      # AVERTISSEMENT, JAMAIS ÉCHEC · l'ingestion des journaux prend un
+      # instant, et le compte de service peut ne pas avoir le droit de les
+      # lire. Faire tomber un déploiement réussi pour une ligne pas encore
+      # indexée serait une panne fabriquée.
+      - name: Régime de connexion à la base
+        continue-on-error: true
+        run: |
+          filtre='resource.type="cloud_run_revision"'
+          filtre="$filtre AND resource.labels.service_name=\"$SERVICE\""
+          journal=$(gcloud logging read "$filtre" \
+            --project "$PROJECT_ID" \
+            --limit 300 \
+            --freshness 20m \
+            --format='value(textPayload,jsonPayload.message)' 2>/dev/null || true)
+          ligne=$(printf '%s\n' "$journal" | grep -m1 'Base ·' || true)
+          if [ -z "$ligne" ]; then
+            echo "::warning::Régime de connexion non lu · journal pas encore indexé, ou droit de lecture manquant sur le compte de service (roles/logging.viewer). Le déploiement reste valide."
+            exit 0
+          fi
+          echo "$ligne"
+          case "$ligne" in
+            *"POOLÉ"*)
+              echo "::notice::Le service passe par l'endpoint POOLÉ" ;;
+            *)
+              echo "::warning::Le service passe par l'endpoint DIRECT · le secret API_DATABASE_URL_POOLED est absent ou ne porte pas un hôte -pooler (voir docs/connexions-et-plafonds.md)" ;;
+          esac
+
       # PREUVE DE VIE · un déploiement n'est fini que si le service répond ET
       # joint sa base. /health renvoie 503 sinon (voir sante.controller.ts) ·
       # le déploiement échoue alors en rouge au lieu de laisser croire que
