@@ -26,7 +26,15 @@ import { ExerciceService, exerciceSuivantApres } from './exercice.service';
 
 const service = (nombreDExercicesExistants: number) =>
   new ExerciceService(
-    { exercice: { count: async () => nombreDExercicesExistants, create: async (a: unknown) => a } } as never,
+    {
+      exercice: {
+        count: async () => nombreDExercicesExistants,
+        // Le chevauchement se teste dans son propre spec · ici le dossier
+        // n'a jamais d'exercice qui couvre déjà la période demandée.
+        findFirst: async () => null,
+        create: async (a: unknown) => a,
+      },
+    } as never,
     {} as never,
   );
 

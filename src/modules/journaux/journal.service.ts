@@ -3,6 +3,7 @@ import { PrismaService } from '../../common/prisma.service';
 import { NumerotationPiece, Prisma, Referentiel, TypeJournal } from '@prisma/client';
 import { journauxDefaut } from './journal-seed';
 import { CreerJournalDto, ModifierJournalDto } from './dto/journal.dto';
+import { prochainNumeroPiece } from './numerotation-piece';
 
 @Injectable()
 export class JournalService {
@@ -95,18 +96,10 @@ export class JournalService {
   }
 
   /**
-   * Calcule le numéro de pièce de la prochaine écriture selon le mode de
-   * numérotation du journal (voir docs/plan-de-construction.md §3.1) :
-   * - MANUELLE : pas d'auto-numérotation, retourne null.
-   * - CONTINUE_JOURNAL : incrémenté par journal, sur l'exercice.
-   * - CONTINUE_FICHIER : incrémenté tous journaux confondus, sur l'exercice.
-   * - MENSUELLE : incrémenté par journal, remis à zéro chaque mois civil.
-   *
-   * Prend un client Prisma optionnel (`tx`) pour pouvoir être appelé DANS la
-   * transaction sérialisable qui crée l'écriture (voir
-   * EcritureService.creer) : lu et écrit hors transaction, ce calcul serait
-   * une lecture-puis-écriture non atomique · deux écritures créées en même
-   * temps sur le même journal pourraient recevoir le même numéro de pièce.
+   * Numéro de pièce · le calcul vit dans `numerotation-piece.ts`, appelable
+   * sans injecter ce service · quatre chemins de création d'écriture ne
+   * l'appelaient pas du tout (voir le commentaire de ce fichier). La méthode
+   * reste ici pour les appelants qui ont déjà le service en main.
    */
   async prochainNumeroPiece(
     tenantId: string,
@@ -115,35 +108,6 @@ export class JournalService {
     date: Date,
     tx: Prisma.TransactionClient | PrismaService = this.prisma,
   ): Promise<number | null> {
-    switch (journal.numerotation) {
-      case NumerotationPiece.MANUELLE:
-        return null;
-
-      case NumerotationPiece.CONTINUE_JOURNAL: {
-        const max = await tx.ecriture.aggregate({
-          where: { tenantId, journalId: journal.id, exerciceId },
-          _max: { numeroPiece: true },
-        });
-        return (max._max.numeroPiece ?? 0) + 1;
-      }
-
-      case NumerotationPiece.CONTINUE_FICHIER: {
-        const max = await tx.ecriture.aggregate({
-          where: { tenantId, exerciceId },
-          _max: { numeroPiece: true },
-        });
-        return (max._max.numeroPiece ?? 0) + 1;
-      }
-
-      case NumerotationPiece.MENSUELLE: {
-        const debutMois = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
-        const debutMoisSuivant = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1));
-        const max = await tx.ecriture.aggregate({
-          where: { tenantId, journalId: journal.id, date: { gte: debutMois, lt: debutMoisSuivant } },
-          _max: { numeroPiece: true },
-        });
-        return (max._max.numeroPiece ?? 0) + 1;
-      }
-    }
+    return prochainNumeroPiece(tx, tenantId, journal, exerciceId, date);
   }
 }

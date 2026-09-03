@@ -175,6 +175,31 @@ export class ExerciceService {
     const premier = (await client.exercice.count({ where: { tenantId } })) === 0;
     const debutLe1erJanvier = dateDebut.getUTCMonth() === 0 && dateDebut.getUTCDate() === 1;
 
+    // DEUX EXERCICES SUR LA MÊME ANNÉE CIVILE · l'art. 7 impose la durée, pas
+    // l'unicité, et rien ne l'imposait ailleurs. Les deux passaient donc, et
+    // le dossier se retrouvait avec deux exercices 2026 dans son sélecteur.
+    // Aucun total n'est faux pour autant : les écritures se répartissent entre
+    // les deux, chaque bilan boucle sur SON exercice, et il faut additionner
+    // mentalement deux liasses pour voir que l'année est coupée en deux. Le
+    // postulat de spécialisation suppose UN exercice par période (SYCEBNL
+    // cadre conceptuel § 3.3.1.2.3), et le glossaire du SYCEBNL définit
+    // l'exercice comme « la période couverte », au singulier.
+    const anneeDejaOuverte = await client.exercice.findFirst({
+      where: {
+        tenantId,
+        dateDebut: { lte: dateFin },
+        dateFin: { gte: dateDebut },
+      },
+      select: { dateDebut: true, dateFin: true },
+    });
+    if (anneeDejaOuverte) {
+      throw new BadRequestException(
+        `Un exercice couvre déjà cette période (${anneeDejaOuverte.dateDebut.toISOString().slice(0, 10)} au ` +
+          `${anneeDejaOuverte.dateFin.toISOString().slice(0, 10)}) · une période n'est couverte que par un seul ` +
+          'exercice, sans quoi les écritures se répartiraient entre deux liasses qui bouclent chacune de son côté.',
+      );
+    }
+
     if (!premier) {
       if (!debutLe1erJanvier || dateDebut.getUTCFullYear() !== dateFin.getUTCFullYear()) {
         throw new BadRequestException(

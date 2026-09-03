@@ -669,6 +669,40 @@ classeur produit plutôt que d'affirmer qu'il est correct.
 Quand un bug est corrigé, le test qui l'aurait attrapé est écrit dans le même
 commit.
 
+## 10 bis. Ce qui casse en silence
+
+Un défaut qui laisse l'écriture ÉQUILIBRÉE et la balance BOUCLÉE ne se voit
+nulle part en aval, parce que tout en aval est cohérent avec la mauvaise
+racine. Il se refuse donc à la racine, par un message nommé · un contrôle en
+aval arriverait toujours trop tard. Quatre refus posés le 2026-09-03, gelés
+par `casse-en-silence.spec.ts` :
+
+- **La date de l'écriture tombe dans son exercice.** `modifier` l'exigeait,
+  `creer` non · une écriture datée de l'année précédente mais rattachée à
+  l'exercice courant entrait au bilan et au compte de résultat de cet
+  exercice, puisque tous les états filtrent sur `exerciceId`. C'est la faute
+  de janvier. Postulat de spécialisation des exercices · SYCEBNL cadre
+  conceptuel § 3.3.1.2.3, AUDCIF Titre I.
+- **Toute écriture porte le numéro que son journal impose.** Quatre chemins
+  de création n'appelaient pas la numérotation · les deux imports et les deux
+  écritures du module Groupe. Le calcul vit maintenant dans
+  `journaux/numerotation-piece.ts`, appelable sans injecter le service, et le
+  spec compte les `ecriture.create(` contre les `numeroPiece,` de chaque
+  fichier.
+- **Une écriture qu'un module tient ne se supprime pas depuis le journal.**
+  Dix tables la référencent, et sur un lien FACULTATIF Prisma pose
+  `ON DELETE SET NULL` · le lien se dénoue sans erreur. La pire est
+  l'affectation du résultat : elle resterait enregistrée sans son écriture, le
+  report à nouveau n'aurait jamais bougé, et le contrôle 22 ne peut rien y
+  voir puisque le défaut est une ABSENCE de mouvement.
+- **Une période n'est couverte que par un seul exercice.** L'art. 7 impose la
+  durée, pas l'unicité · deux exercices sur la même année passaient, chacun
+  bouclant sa liasse de son côté.
+
+La liste des modules qui retiennent une écriture est écrite à la main, jamais
+déduite du schéma : une relation nouvelle doit obliger quelqu'un à décider si
+son module retient l'écriture ou la laisse partir.
+
 ## 11. Compétences et rôles
 
 Les compétences (`skills`) ne sont déployées que par **Manasse**, à la main,

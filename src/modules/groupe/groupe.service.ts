@@ -11,6 +11,7 @@ import {
   TypeJournal,
 } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
+import { prochainNumeroPiece } from '../journaux/numerotation-piece';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { AuthService } from '../auth/auth.service';
 import { ClasseurExporte, ExportService } from '../exports/export.service';
@@ -735,20 +736,27 @@ export class GroupeService {
     }
     const journaux = await this.prisma.journal.findMany({
       where: { tenantId: celluleId, code: { in: ['CA', 'BQ'] } },
-      select: { id: true, code: true },
+      select: { id: true, code: true, numerotation: true },
     });
-    const journalParCode = new Map(journaux.map((j) => [j.code, j.id]));
+    const journalParCode = new Map(journaux.map((j) => [j.code, j]));
     if (!journalParCode.has('CA') || !journalParCode.has('BQ')) {
       throw new BadRequestException('Journaux de trésorerie CA/BQ absents du dossier de la cellule');
     }
 
     await this.prisma.$transaction(async (tx) => {
       for (const l of lignesValides) {
+        // Le canevas alimente les journaux de trésorerie de la cellule · ses
+        // pièces se numérotent comme celles saisies à la main dans ces mêmes
+        // journaux, sans quoi le livre-journal de la cellule mélange des
+        // pièces numérotées et des pièces sans numéro.
+        const jal = journalParCode.get(l.journal)!;
+        const numeroPiece = await prochainNumeroPiece(tx, celluleId, jal, exercice.id, l.date);
         await tx.ecriture.create({
           data: {
             tenantId: celluleId,
             exerciceId: exercice.id,
-            journalId: journalParCode.get(l.journal)!,
+            journalId: jal.id,
+            numeroPiece,
             date: l.date,
             libelle: l.libelle,
             reference,
@@ -885,7 +893,7 @@ export class GroupeService {
 
     let journal = await this.prisma.journal.findFirst({
       where: { tenantId: combinaisonId, code: 'OD' },
-      select: { id: true },
+      select: { id: true, numerotation: true },
     });
     if (!journal) {
       journal = await this.prisma.journal.create({
@@ -896,18 +904,28 @@ export class GroupeService {
           type: TypeJournal.GENERAL,
           numerotation: NumerotationPiece.CONTINUE_FICHIER,
         },
-        select: { id: true },
+        select: { id: true, numerotation: true },
       });
     }
 
     // 5 · UNE écriture, la balance agrégée en brut (débits et crédits
     // conservés, pas seulement les soldes) · équilibrée par construction
     // puisque chaque dossier l'est (contrôlé ci-dessus).
+    // Le dossier de combinaison est un dossier comme les autres · son journal
+    // OD est déclaré à numérotation continue, et sa pièce doit la porter.
+    const numeroPiece = await prochainNumeroPiece(
+      this.prisma,
+      combinaisonId,
+      journal,
+      exercice.id,
+      agregat.exercice.dateDebut,
+    );
     await this.prisma.ecriture.create({
       data: {
         tenantId: combinaisonId,
         exerciceId: exercice.id,
         journalId: journal.id,
+        numeroPiece,
         date: agregat.exercice.dateDebut,
         libelle: `Combinaison du groupe · ${agregat.dossiers.length} dossiers`,
         reference: 'GROUPE',

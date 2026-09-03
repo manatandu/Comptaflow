@@ -253,6 +253,29 @@ export class EcritureService {
       throw new ForbiddenException("Impossible d'enregistrer une écriture sur un exercice clôturé");
     }
 
+    // LA DATE DOIT TOMBER DANS L'EXERCICE, et c'est `modifier` qui le disait
+    // déjà · pas `creer`. L'asymétrie était le défaut : on ne pouvait pas
+    // DÉPLACER une écriture hors de son exercice, on pouvait l'y CRÉER.
+    //
+    // Rien ne le signalait ensuite. Tous les états filtrent sur
+    // `exerciceId` · une écriture datée du 04 novembre 2025 mais rattachée à
+    // l'exercice 2026 entre au bilan et au compte de résultat 2026, s'équilibre
+    // comme les autres, et la balance boucle. Seule la lecture du journal
+    // laisserait voir la date étrangère. C'est la faute de janvier, celle où
+    // l'on tape l'année qui vient de finir.
+    //
+    // Le postulat de la SPÉCIALISATION DES EXERCICES l'interdit des deux
+    // côtés · SYCEBNL cadre conceptuel § 3.3.1.2.3 et AUDCIF, Titre I : les
+    // charges et les produits sont rattachés à l'exercice qui les concerne.
+    const dateEcriture = new Date(dto.date);
+    if (dateEcriture < exercice.dateDebut || dateEcriture > exercice.dateFin) {
+      throw new BadRequestException(
+        `La date ${dto.date.slice(0, 10)} sort de l'exercice sélectionné ` +
+          `(${exercice.dateDebut.toISOString().slice(0, 10)} au ${exercice.dateFin.toISOString().slice(0, 10)}) · ` +
+          "une écriture est rattachée à l'exercice qu'elle concerne.",
+      );
+    }
+
     const journal = await this.journalService.trouver(tenantId, dto.journalId);
     if (!journal.estActif) {
       throw new BadRequestException(`Le journal ${journal.code} est en sommeil`);
@@ -561,14 +584,77 @@ export class EcritureService {
     });
   }
 
-  /** Supprime une écriture en brouillard. Une écriture validée ne se supprime pas. */
+  /**
+   * Supprime une écriture en brouillard. Une écriture validée ne se supprime
+   * pas · et une écriture qu'un AUTRE MODULE tient ne se supprime pas non plus.
+   *
+   * CE QUE RIEN NE VOYAIT. Onze tables portent un lien facultatif vers une
+   * écriture · l'immobilisation vers son écriture de sortie, la réévaluation
+   * vers ses écarts, sa provision et son extourne, la régularisation vers sa
+   * constatation et sa reprise, l'échéance d'abonnement, la donation, et
+   * l'affectation du résultat. Sur une relation FACULTATIVE, PostgreSQL ne
+   * refuse pas la suppression : Prisma y pose `ON DELETE SET NULL` par défaut.
+   * Le lien se dénoue donc SANS ERREUR.
+   *
+   * La conséquence n'est visible nulle part. L'immobilisation reste marquée
+   * sortie sans l'écriture qui l'a sortie, la réévaluation reste inscrite sans
+   * ses écarts, et surtout l'affectation du résultat reste enregistrée alors
+   * que le report à nouveau n'a jamais bougé · le bilan d'ouverture de
+   * l'exercice suivant cesse de correspondre à la clôture du précédent
+   * (SYCEBNL art. 16, 4) · AUDCIF art. 34), et le contrôle qui surveille les
+   * mouvements du compte 12 ne peut rien y voir, puisque le défaut est une
+   * ABSENCE de mouvement. Les deux lignes disparaissant ensemble, la balance
+   * boucle toujours.
+   *
+   * On refuse donc, en nommant le module qui tient l'écriture · c'est chez lui
+   * que l'opération se défait, jamais par la suppression de sa contrepartie
+   * comptable.
+   */
   async supprimer(tenantId: string, ecritureId: string) {
     await this.trouverEnBrouillard(tenantId, ecritureId);
+    await this.verifierAucunModuleNeLaTient(tenantId, ecritureId);
     await this.prisma.$transaction(async (tx) => {
       await tx.ligneEcriture.deleteMany({ where: { ecritureId } });
       await tx.ecriture.delete({ where: { id: ecritureId } });
     });
     return { supprime: true };
+  }
+
+  private async verifierAucunModuleNeLaTient(tenantId: string, ecritureId: string) {
+    // Le `tenantId` accompagne l'id de l'écriture partout, alors même que cet
+    // id est déjà unique · le cloisonnement se pose aux DEUX bouts, et un
+    // comptage qui ne le porte pas est un comptage qui traverserait les
+    // dossiers si l'id venait d'ailleurs que de la ligne du dessus.
+    // Trois de ces tables n'ont PAS de `tenantId` · elles sont portées par
+    // leur parent (voir MODELES_PORTES_PAR_LEUR_PARENT), et c'est l'écriture
+    // elle-même, déjà vérifiée pour ce dossier, qui les cloisonne.
+    const parLEcriture = { ecritureId };
+    const detenteursPossibles: Array<[string, Promise<number>]> = [
+      ['une immobilisation (acquisition)', this.prisma.immobilisation.count({ where: { tenantId, ecritureAcquisitionId: ecritureId } })],
+      ['une immobilisation (sortie)', this.prisma.immobilisation.count({ where: { tenantId, ecritureSortieId: ecritureId } })],
+      ["une dotation aux amortissements", this.prisma.dotationAmortissement.count({ where: parLEcriture })],
+      ["une dépréciation d'immobilisation", this.prisma.depreciationImmobilisation.count({ where: parLEcriture })],
+      ['une réévaluation de devise', this.prisma.reevaluation.count({
+        where: { tenantId, OR: [{ ecritureEcartsId: ecritureId }, { ecritureProvisionId: ecritureId }, { ecritureExtourneId: ecritureId }] },
+      })],
+      ['une régularisation', this.prisma.regularisation.count({
+        where: { tenantId, OR: [{ ecritureConstatationId: ecritureId }, { ecritureRepriseId: ecritureId }] },
+      })],
+      ["une échéance d'abonnement", this.prisma.echeanceAbonnement.count({ where: parLEcriture })],
+      ['une liquidation de TVA', this.prisma.liquidationTva.count({ where: { tenantId, ecritureId } })],
+      ['une donation', this.prisma.donation.count({ where: { tenantId, ecritureId } })],
+      ['une affectation du résultat', this.prisma.affectationResultat.count({ where: { tenantId, ecritureId } })],
+    ];
+    const resultats = await Promise.all(detenteursPossibles.map(([, p]) => p));
+    const detenteurs = detenteursPossibles.filter((_, i) => resultats[i] > 0).map(([nom]) => nom);
+    if (detenteurs.length > 0) {
+      throw new BadRequestException(
+        `Cette écriture est la contrepartie comptable de ${detenteurs.join(' et ')} · ` +
+          "elle ne se supprime pas d'ici. Défaites l'opération dans son module : " +
+          "supprimée seule, elle laisserait l'opération enregistrée sans son écriture, " +
+          'et rien ne le signalerait.',
+      );
+    }
   }
 
   /**

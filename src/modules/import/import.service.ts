@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
+import { prochainNumeroPiece } from '../journaux/numerotation-piece';
 import { ClasseCompte, ModeReportANouveau, Prisma, StatutExercice, TypeCompteDetailTotal } from '@prisma/client';
 import { AnalyserImportDto, ExecuterImportDto, TypeImport } from './dto/import.dto';
 import { lireDate, lireFichier, lireMontant, type Tableau } from './lecture-fichier';
@@ -414,11 +415,16 @@ export class ImportService {
         }
         const tous = await tx.compte.findMany({ where: { tenantId }, select: { id: true, numero: true } });
         const parNumero = new Map(tous.map((c) => [c.numero, c.id]));
+        // Le journal a un mode de numérotation, et la reprise doit s'y plier
+        // comme la saisie · sans ça la toute première pièce d'un dossier
+        // repris entre au livre-journal sans numéro.
+        const numeroPiece = await prochainNumeroPiece(tx, tenantId, journal, exercice.id, date);
         await tx.ecriture.create({
           data: {
             tenantId,
             exerciceId: exercice.id,
             journalId: journal.id,
+            numeroPiece,
             date,
             libelle: bilanDOuverture
               ? `Bilan d'ouverture · ${dto.nomFichier}`
@@ -486,6 +492,7 @@ export class ImportService {
 
     const comptesParNumero = new Map(comptes.map((c) => [c.numero, c]));
     const journauxParCode = new Map(journaux.map((j) => [j.code.toUpperCase(), j]));
+    const journauxParId = new Map(journaux.map((j) => [j.id, j]));
     const anomalies: AnomalieImport[] = [];
 
     interface Piece {
@@ -579,11 +586,17 @@ export class ImportService {
     if (!dto.simulation && valides.length > 0) {
       await this.prisma.$transaction(async (tx) => {
         for (const piece of valides) {
+          // Une pièce à la fois, dans l'ordre : chaque agrégat voit les
+          // écritures déjà insérées dans CETTE transaction, donc les numéros
+          // se suivent au lieu de se répéter.
+          const jal = journauxParId.get(piece.journalId)!;
+          const numeroPiece = await prochainNumeroPiece(tx, tenantId, jal, exercice.id, piece.date);
           await tx.ecriture.create({
             data: {
               tenantId,
               exerciceId: exercice.id,
               journalId: piece.journalId,
+              numeroPiece,
               date: piece.date,
               libelle: piece.libelle,
               reference: piece.reference,
