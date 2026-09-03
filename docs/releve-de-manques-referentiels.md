@@ -751,11 +751,116 @@ sont pas couverts par ce qui précède.
 
 ---
 
+## Passe 9 · Titre VIII, les trois autres applications de la prééminence (ch. 8, 9, 27)
+
+Lu à la source : AUDCIF, Titre VIII ch. 8 « Contrat de location » (sections 1
+et 2), ch. 9 « Réserve de propriété », ch. 27 « Personnel intérimaire » ; et,
+côté SYCEBNL, les fiches des COMPTES 63 et 66 de la Partie 2 ch. 3.
+
+Cette passe revient sur une affirmation de la passe 3. J'y avais conclu que les
+quatre applications de la prééminence de la réalité sur l'apparence étaient
+conformes. Cette conclusion reposait sur l'existence des comptes et des postes,
+ce qui est vrai mais ne dit rien du TRAITEMENT. Vérification faite, l'une des
+quatre manquait bel et bien.
+
+### Écart 9.1 · le virement 637 vers 667 n'était ni fait, ni signalé
+
+**Ce que les deux textes exigent, chacun dans le sien.** Ce n'est pas une
+transposition d'un référentiel vers l'autre : chaque texte l'écrit.
+
+- SYCEBNL, Partie 2 ch. 3, fiche du COMPTE 63 : « en cours d'exercice, l'entité
+  utilisatrice enregistre les factures reçues […] au débit du compte 637
+  Rémunérations de personnel extérieur à l'entité ; à la clôture de l'exercice,
+  le compte 637 est viré, POUR SOLDE, au débit du compte 667 Rémunération
+  transférée de personnel extérieur. » La fiche du COMPTE 66 le redit : « ce
+  virement solde le compte 637 ».
+- AUDCIF, Titre VIII ch. 27 § 2 : « à la clôture de l'exercice, les comptes
+  6371 et 6372 sont virés, pour solde, au débit du compte 667 ».
+
+La raison est la prééminence elle-même : la facture d'un intérimaire est
+juridiquement un service extérieur, économiquement du travail. « L'apparence
+juridique des prestations de services masque la réalité économique d'un apport
+de travail. »
+
+**Ce que le logiciel faisait.** Les comptes existent des deux côtés et portent
+les bons intitulés (6371, 6372, 6671, 6672 au plan SYSCOHADA ; 637 et 667 au
+plan SYCEBNL). La clôture annuelle solde les classes 6 et 7 sur le compte 13
+sans passer par ce virement, et aucun contrôle ne le réclamait.
+
+**Fichiers.** `src/modules/controles/controles.service.ts`,
+`src/modules/exercice/exercice.service.ts`.
+
+**Lacune du logiciel.**
+
+**Gravité · état faux, sur la présentation, et parfaitement muet.** Le résultat
+net ne bouge pas d'un franc : 637 et 667 sont tous deux en classe 6. La balance
+boucle, le bilan boucle, aucun contrôle d'équilibre ne peut se déclencher. Ce
+qui est faux est la ventilation du compte de résultat · la charge s'imprime sur
+« Services extérieurs » (TG au SYCEBNL, RH au SYSCOHADA) au lieu de « Charges
+de personnel ». Au SYSCOHADA s'y ajoute la cascade des soldes intermédiaires
+que l'art. 31 de l'AUDCIF impose de faire apparaître : la valeur ajoutée se
+calcule après les services extérieurs et avant les charges de personnel, elle
+est donc minorée du montant non viré.
+
+**Ce qui a été fait ici.** Un quatorzième contrôle,
+`PERSONNEL_EXTERIEUR_NON_VIRE`, en AVERTISSEMENT : il additionne les soldes des
+sous-comptes 637 sur l'exercice, cite le texte DU RÉFÉRENTIEL DU DOSSIER, et
+rappelle la mention aux notes annexes que le ch. 27 demande « afin de ne pas
+fausser l'assiette des taxes, impôts ou cotisations calculés à partir de la
+masse salariale ». Avertissement et non virement automatique, ni refus de
+clôturer : le montant, sa date et son journal appartiennent au comptable, et un
+virement passé d'office serait exactement le logiciel qui décide. Le test vérifie
+aussi qu'un dossier SYCEBNL ne se voit jamais citer le texte SYSCOHADA, ni
+l'inverse.
+
+### Ce qui est conforme, et vérifié
+
+- **Ch. 9 · réserve de propriété.** Le principe directeur est que « malgré
+  l'existence de la clause, l'achat-vente est enregistré comme une vente
+  ordinaire et en produit tous les effets ». Le suivi en comptes ad hoc (un
+  4116 « Clients, réserve de propriété ») est présenté comme utile, jamais
+  obligatoire, et le plan de comptes du logiciel permet de les ouvrir. Rien ne
+  manque.
+
+### Confort · la qualification d'un contrat de location n'est pas outillée
+
+**Ce que le texte prévoit.** Le ch. 8 § 1.5 distingue la location acquisition
+(crédit-bail, location-vente, tout contrat avec option d'achat dont le preneur
+est raisonnablement certain de lever l'option) de la location simple, définie
+par trois cas précis : durée inférieure ou égale à douze mois ; levée d'option
+hypothétique, le texte citant l'exemple d'un prix de levée à 30 % du prix
+d'achat ; montant non significatif, la faible valeur s'appréciant sur la valeur
+À NEUF, contrat par contrat et indépendamment de la taille de l'entité · le
+texte tranche lui-même deux cas, l'ordinateur de bureau en faible valeur,
+l'automobile jamais. Une location acquisition se comptabilise ensuite comme une
+acquisition financée par emprunt, la dette étant évaluée à la valeur actualisée
+des paiements locatifs au taux implicite du contrat.
+
+**Ce que le logiciel fait.** Les comptes 172 à 178 et leurs intérêts courus
+sont semés, la note 3B « Biens pris en location acquisition » existe, et le
+tableau des flux neutralise correctement le crédit du 17. Ce qui n'existe pas
+est l'aide : rien ne guide la qualification, rien ne calcule l'actualisation ni
+le tableau d'amortissement de la dette. Tout se passe en écritures manuelles.
+
+**Gravité · confort.** Aucun état n'est faux du fait du logiciel, et la
+qualification relève du jugement du comptable. Mais les critères sont
+inhabituellement précis et directement citables · c'est exactement la matière
+d'un avertissement d'imputation, sur le modèle des fiches par compte déjà en
+place.
+
+### Portée de cette passe
+
+Trois chapitres de plus. Restent notamment les ch. 1 à 3, 7, 10 à 15, 17 à 21,
+23 à 26, 28 à 30 et 32 à 41.
+
+---
+
 ## Ce qui n'a pas encore été ouvert
 
 À traiter dans les passes suivantes, dans cet ordre :
 
 1. **AUDCIF Titre VIII** · les chapitres restants. Ouverts à ce jour : le
-   ch. 16 (passe 2), le ch. 31 (passe 3), les ch. 4 à 6 (passe 8), et le
-   ch. 22 vérifié à la passe 7 par le module devises. Restent notamment les
-   ch. 1 à 3, 7, 8 à 15, 17 à 21, 23 à 30 et 32 à 41.
+   ch. 16 (passe 2), le ch. 31 (passe 3), les ch. 4 à 6 (passe 8), les ch. 8,
+   9 et 27 (passe 9), et le ch. 22 vérifié à la passe 7 par le module devises.
+   Restent notamment les ch. 1 à 3, 7, 10 à 15, 17 à 21, 23 à 26, 28 à 30 et
+   32 à 41.

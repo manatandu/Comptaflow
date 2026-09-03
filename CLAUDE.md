@@ -241,6 +241,18 @@ transposition, pas l'absence, qui est le risque de cette fenêtre.
 Propres au SYSCOHADA : résultat fiscal et impôt sur les bénéfices (une entité
 à but non lucratif en est exemptée, loi n° 23/053 art. 5).
 
+**Personnel extérieur · le virement que les deux textes écrivent chacun.** À la
+clôture, le compte 637 est viré POUR SOLDE au débit du 667 (SYCEBNL, Partie 2
+ch. 3, fiches des comptes 63 et 66 · AUDCIF, Titre VIII ch. 27 § 2). C'est la
+quatrième application de la prééminence de la réalité sur l'apparence : la
+facture d'un intérimaire est juridiquement un service, économiquement du
+travail. Oublié, le virement ne déséquilibre RIEN · les deux comptes sont en
+classe 6 et le résultat net est identique. Seule la ventilation du compte de
+résultat est fausse, et au SYSCOHADA la cascade des soldes intermédiaires de
+l'art. 31, la valeur ajoutée se calculant entre les deux. D'où le contrôle
+`PERSONNEL_EXTERIEUR_NON_VIRE`, qui signale sans virer d'office : le montant,
+la date et le journal appartiennent au comptable.
+
 **Rubriques de notes en saisie · ce que le logiciel ne peut pas calculer.**
 322 rubriques des trois jeux portent `saisie: true` : engagements donnés et
 reçus, effectifs, informations sociales et environnementales, événements

@@ -1248,6 +1248,79 @@ export class ControlesService {
       });
     }
 
+    // --- 14. Personnel extérieur resté au compte 637 à la clôture ------------
+    //
+    // LES DEUX RÉFÉRENTIELS ÉCRIVENT LE MÊME VIREMENT, CHACUN DANS SON TEXTE ·
+    // ce n'est pas une transposition de l'un vers l'autre.
+    //
+    //  · SYCEBNL, Partie 2 ch. 3, fiche du COMPTE 63 : « en cours d'exercice,
+    //    l'entité utilisatrice enregistre les factures reçues […] au débit du
+    //    compte 637 ; À LA CLÔTURE DE L'EXERCICE, LE COMPTE 637 EST VIRÉ, POUR
+    //    SOLDE, AU DÉBIT DU COMPTE 667 » ; la fiche du COMPTE 66 le redit :
+    //    « ce virement solde le compte 637 ».
+    //  · AUDCIF, Titre VIII ch. 27 § 2 : « à la clôture de l'exercice, les
+    //    comptes 6371 et 6372 sont virés, pour solde, au débit du compte
+    //    667 ».
+    //
+    // POURQUOI · c'est l'une des quatre applications de la prééminence de la
+    // réalité sur l'apparence. La facture est juridiquement un service
+    // extérieur ; économiquement, c'est du travail. Le texte range donc la
+    // charge en personnel malgré l'absence de contrat de travail.
+    //
+    // CE QUI EST FAUX SI PERSONNE NE LE FAIT · la charge reste sur la ligne
+    // « Services extérieurs » du compte de résultat au lieu de la ligne
+    // « Charges de personnel » (TG contre TJ au SYCEBNL, RH contre le poste
+    // de personnel au SYSCOHADA). Le résultat net ne bouge pas d'un franc :
+    // les deux comptes sont en classe 6. Rien ne se déséquilibre, la balance
+    // boucle, et c'est pour cela que l'oubli ne se signale jamais seul. Au
+    // SYSCOHADA il fausse en outre la cascade des soldes intermédiaires que
+    // l'art. 31 de l'AUDCIF impose de faire apparaître, la valeur ajoutée se
+    // calculant après les services extérieurs et avant les charges de
+    // personnel.
+    const lignes637 = await this.prisma.ligneEcriture.findMany({
+      where: {
+        compte: { tenantId, numero: { startsWith: '637' } },
+        ecriture: { tenantId, exerciceId },
+      },
+      select: { debit: true, credit: true, compte: { select: { numero: true, intitule: true } } },
+    });
+    const soldes637 = new Map<string, { intitule: string; solde: number }>();
+    for (const l of lignes637) {
+      const acc = soldes637.get(l.compte.numero) ?? { intitule: l.compte.intitule, solde: 0 };
+      acc.solde += Number(l.debit) - Number(l.credit);
+      soldes637.set(l.compte.numero, acc);
+    }
+    const restes637 = [...soldes637.entries()]
+      .filter(([, v]) => Math.abs(v.solde) > 0.005)
+      .sort(([a], [b]) => a.localeCompare(b));
+    if (restes637.length > 0) {
+      const sourceVirement =
+        tenant.referentiel === Referentiel.SYCEBNL
+          ? 'SYCEBNL, Partie 2 ch. 3, fiches des comptes 63 et 66'
+          : 'AUDCIF, Titre VIII ch. 27 § 2';
+      anomalies.push({
+        code: 'PERSONNEL_EXTERIEUR_NON_VIRE',
+        gravite: 'AVERTISSEMENT',
+        libelle: 'Personnel extérieur resté au compte 637 à la clôture',
+        consequence:
+          `Le texte (${sourceVirement}) veut qu'à la clôture le compte 637 soit viré, POUR SOLDE, au débit du ` +
+          "compte 667 : c'est l'une des quatre applications de la prééminence de la réalité sur l'apparence, la " +
+          "facture étant juridiquement un service extérieur mais économiquement du travail. Tant que le virement " +
+          "n'est pas passé, la charge s'imprime sur la ligne « Services extérieurs » au lieu de « Charges de " +
+          'personnel ». Le résultat net ne bouge pas, les deux comptes étant en classe 6 : rien ne se ' +
+          "déséquilibre et l'oubli ne se signale jamais de lui-même.",
+        action:
+          'Passez le virement de fin d’exercice : débit 667 « Rémunération transférée de personnel extérieur », ' +
+          'crédit 637 pour le solde. Pensez à indiquer aux notes annexes l’origine des charges ainsi transférées, ' +
+          'afin de ne pas fausser l’assiette des prélèvements assis sur la masse salariale.',
+        occurrences: restes637.slice(0, 200).map(([numero, v]) => ({
+          reference: `${numero} ${v.intitule}`,
+          detail: 'Solde débiteur non viré au compte 667',
+          montant: Math.round(v.solde * 100) / 100,
+        })),
+      });
+    }
+
     const ordre: Record<Gravite, number> = { BLOQUANT: 0, AVERTISSEMENT: 1, INFORMATION: 2 };
     anomalies.sort((a, b) => ordre[a.gravite] - ordre[b.gravite]);
 
