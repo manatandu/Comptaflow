@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../lib/api';
-import type { Compte, EtatLettrage, GroupeLettrage } from '../lib/types';
+import type { Compte, EtatLettrage, GroupeLettrage, GroupeLettrageDossier } from '../lib/types';
 import { Aide } from '../components/chrome/Aide';
 
 /**
@@ -28,6 +28,8 @@ const LIBELLE_ORIGINE: Record<GroupeLettrage['origine'], string> = {
 };
 
 const GRILLE = 'grid grid-cols-[26px_70px_46px_1.3fr_96px_96px_100px_78px] gap-2.5';
+/** Vue d'ensemble · le compte remplace la date, il n'y a pas de solde progressif. */
+const GRILLE_DOSSIER = 'grid grid-cols-[92px_1.3fr_54px_110px_60px_110px_140px] gap-2.5';
 
 export function LettragePage({ compteId: compteIdProp }: { compteId?: string } = {}) {
   // `compteId` arrive en propriété quand la page est montée comme FENÊTRE
@@ -46,6 +48,10 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
   const navigate = useNavigate();
   const [comptes, setComptes] = useState<Compte[]>([]);
   const [etat, setEtat] = useState<EtatLettrage | null>(null);
+  // LA VUE D'ENSEMBLE · chargée quoi qu'il arrive. La fenêtre s'ouvrait vide
+  // tant qu'un compte n'était pas choisi, alors que la première question du
+  // comptable qui l'ouvre est « où en est le lettrage du dossier ».
+  const [tousGroupes, setTousGroupes] = useState<GroupeLettrageDossier[] | null>(null);
   const [selection, setSelection] = useState<Set<string>>(new Set());
   const [erreur, setErreur] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -61,12 +67,14 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
     // liste des comptes doit quand même se charger : c'est elle qui permet
     // de choisir. Seul l'état de lettrage attend un compte.
     try {
-      const [tousComptes, resultat] = await Promise.all([
+      const [tousComptes, resultat, groupesDuDossier] = await Promise.all([
         api.get<Compte[]>('/comptes'),
         compteId ? api.get<EtatLettrage>(`/comptes/${compteId}/lettrage`) : Promise.resolve(null),
+        api.get<GroupeLettrageDossier[]>('/lettrage'),
       ]);
       setComptes(tousComptes.filter((c) => c.typeCompte === 'DETAIL' && c.estActif));
       setEtat(resultat);
+      setTousGroupes(groupesDuDossier);
       setErreur(null);
     } catch (err) {
       setErreur(err instanceof ApiError ? err.message : 'Impossible de charger le lettrage');
@@ -235,15 +243,60 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
       {erreur && <div className="text-[11px] text-danger bg-danger-soft border border-danger/30 px-3 py-2 mb-3 max-w-[860px]">{erreur}</div>}
       {info && <div className="text-[11px] text-positive bg-positive-soft border border-positive/30 px-3 py-2 mb-3 max-w-[860px]">{info}</div>}
 
-      {!lignes &&
-        (compteId ? (
-          <div className="text-[11px] text-text-dim">Chargement…</div>
-        ) : (
+      {!lignes && compteId && <div className="text-[11px] text-text-dim">Chargement…</div>}
+
+      {/* ------------------------------------------------------------------
+          VUE D'ENSEMBLE · tant qu'aucun compte n'est désigné, la fenêtre
+          montre TOUS les lettrages du dossier plutôt qu'un message d'attente.
+          Les partiels d'abord : ce sont les seuls qui portent encore un
+          solde, donc les seuls sur lesquels il reste quelque chose à faire.
+          ------------------------------------------------------------------ */}
+      {!lignes && !compteId && tousGroupes && (
+        tousGroupes.length === 0 ? (
           <div className="text-[11px] text-text-dim bg-chrome border border-border px-3 py-2 max-w-[860px]">
-            Choisissez le compte à interroger dans la liste ci-dessus : ses mouvements et ses lettrages s'afficheront
-            ici.
+            Aucun lettrage n'a encore été posé dans ce dossier. Choisissez un compte dans la liste ci-dessus pour
+            interroger ses mouvements et commencer.
           </div>
-        ))}
+        ) : (
+          <div className="border border-border bg-surface shadow-posee max-w-[1040px]">
+            <div className={`${GRILLE_DOSSIER} px-3.5 py-1.5 bg-surface-alt border-b border-border-dark text-[10px] font-bold text-text-dim`}>
+              <span>COMPTE</span>
+              <span>INTITULÉ</span>
+              <span>LETTRE</span>
+              <span>ÉTAT</span>
+              <span className="text-right">LIGNES</span>
+              <span className="text-right">RESTE DÛ</span>
+              <span>ORIGINE</span>
+            </div>
+            {[...tousGroupes]
+              .sort((a, b) => (a.statut === b.statut ? 0 : a.statut === 'PARTIEL' ? -1 : 1))
+              .map((g) => (
+                <button
+                  key={g.id}
+                  type="button"
+                  onClick={() => setCompteChoisi(g.compteId)}
+                  title="Ouvrir ce compte"
+                  className={`${GRILLE_DOSSIER} w-full text-left px-3.5 py-[4px] items-center border-b border-border/50 last:border-b-0 text-[10.5px] hover:bg-sel-soft`}
+                >
+                  <span className="font-mono">{g.compteNumero}</span>
+                  <span className="truncate">{g.compteIntitule}</span>
+                  <span className={`font-mono font-bold ${g.statut === 'SOLDE' ? 'text-sel' : 'text-warning'}`}>
+                    {g.code}
+                  </span>
+                  <span>
+                    {g.statut === 'SOLDE' ? 'Soldé' : 'Partiel'}
+                    {g.verrouille ? ' · verrouillé' : ''}
+                  </span>
+                  <span className="text-right font-mono">{g.nombreLignes}</span>
+                  {/* Un groupe soldé ne doit plus rien · afficher « 0,00 »
+                      ferait chercher un centime qui n'existe pas. */}
+                  <span className="text-right font-mono">{g.statut === 'SOLDE' ? '·' : montant(g.solde)}</span>
+                  <span className="truncate text-text-dim">{LIBELLE_ORIGINE[g.origine]}</span>
+                </button>
+              ))}
+          </div>
+        )
+      )}
 
       {lignes && (
         <div className="border border-border bg-surface shadow-posee max-w-[1040px]">

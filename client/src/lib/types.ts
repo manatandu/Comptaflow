@@ -241,6 +241,27 @@ export interface LigneLettrage {
   montantDevise: number | null;
 }
 
+/**
+ * Un groupe de lettrage vu depuis le DOSSIER, tous comptes confondus · c'est
+ * ce que sert /lettrage, et ce qu'affiche la fenêtre Lettrage à l'ouverture.
+ */
+export interface GroupeLettrageDossier {
+  id: string;
+  compteId: string;
+  compteNumero: string;
+  compteIntitule: string;
+  code: string;
+  statut: StatutLettrage;
+  solde: number;
+  origine: OrigineLettrage;
+  verrouille: boolean;
+  ecartChange: number | null;
+  nombreLignes: number;
+  createdAt: string;
+  createdBy: string;
+  soldeAt: string | null;
+}
+
 export interface GroupeLettrage {
   id: string;
   code: string;

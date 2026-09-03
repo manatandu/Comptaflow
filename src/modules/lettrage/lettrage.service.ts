@@ -169,6 +169,49 @@ export class LettrageService {
   }
 
   /**
+   * TOUS les groupes de lettrage du dossier, comptes confondus.
+   *
+   * La fenêtre Lettrage s'ouvrait VIDE : elle ne montrait rien tant qu'un
+   * compte n'avait pas été désigné, alors que la question du comptable qui
+   * l'ouvre est d'abord « où en est le lettrage du dossier ». Le choix d'un
+   * compte devient donc un filtre, plus une condition d'affichage.
+   *
+   * Le solde d'un groupe PARTIEL est ce qui reste dû · c'est la seule colonne
+   * qui compte ici, et c'est elle qui dit quelles factures sont encore
+   * ouvertes (CPCC : le lettrage sert à identifier les opérations restées
+   * « totalement ou partiellement ouvertes »).
+   */
+  async listerGroupesDuDossier(tenantId: string, statut?: StatutLettrage) {
+    const groupes = await this.prisma.lettrage.findMany({
+      where: { tenantId, ...(statut ? { statut } : {}) },
+      include: {
+        compte: { select: { id: true, numero: true, intitule: true } },
+        _count: { select: { lignes: true } },
+      },
+      // Par compte, puis dans l'ordre où les groupes ont été posés · c'est
+      // l'ordre du grand livre, celui que le comptable a en tête.
+      orderBy: [{ compte: { numero: 'asc' } }, { createdAt: 'asc' }],
+    });
+
+    return groupes.map((g) => ({
+      id: g.id,
+      compteId: g.compteId,
+      compteNumero: g.compte.numero,
+      compteIntitule: g.compte.intitule,
+      code: g.statut === StatutLettrage.SOLDE ? g.code : g.code.toLowerCase(),
+      statut: g.statut,
+      solde: Number(g.solde),
+      origine: g.origine,
+      verrouille: g.verrouille,
+      ecartChange: g.ecartChange === null ? null : Number(g.ecartChange),
+      nombreLignes: g._count.lignes,
+      createdAt: g.createdAt,
+      createdBy: g.createdBy,
+      soldeAt: g.soldeAt,
+    }));
+  }
+
+  /**
    * Prochain code disponible pour ce compte · même risque de condition de
    * course que le numéro de pièce des journaux (deux lettrages simultanés sur
    * le même compte pourraient lire le même « dernier code »), donc toujours

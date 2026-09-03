@@ -6,7 +6,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { LettrageService } from './lettrage.service';
 import { CompleterLettrageDto, LettrerDto, VerrouillerLettrageDto } from './dto/lettrage.dto';
-import { RoleUtilisateur } from '@prisma/client';
+import { RoleUtilisateur, StatutLettrage } from '@prisma/client';
 
 // Même règle que la saisie d'écritures : LECTURE_SEULE consulte, seuls
 // ADMIN_CABINET et COMPTABLE peuvent lettrer/délettrer.
@@ -76,5 +76,27 @@ export class LettrageController {
     @Param('lettre') lettre: string,
   ) {
     return this.lettrageService.delettrer(user.tenantId, compteId, lettre);
+  }
+}
+
+/**
+ * VUE D'ENSEMBLE · route à part, hors du chemin `comptes/:compteId`, parce
+ * qu'elle ne parle d'aucun compte en particulier. Elle sert l'ouverture de la
+ * fenêtre Lettrage, qui montrait un écran vide tant qu'un compte n'avait pas
+ * été choisi.
+ *
+ * LECTURE SEULE · aucune écriture ici, donc aucun rôle exigé au-delà de la
+ * session : le lettrage se pose toujours par les routes du compte.
+ */
+@UseGuards(JwtAuthGuard, LicenceGuard, RolesGuard)
+@Controller('lettrage')
+export class LettrageDossierController {
+  constructor(private readonly lettrageService: LettrageService) {}
+
+  @Get()
+  async listerTout(@CurrentUser() user: AuthenticatedUser, @Query('statut') statut?: string) {
+    const filtre =
+      statut === 'SOLDE' ? StatutLettrage.SOLDE : statut === 'PARTIEL' ? StatutLettrage.PARTIEL : undefined;
+    return this.lettrageService.listerGroupesDuDossier(user.tenantId, filtre);
   }
 }

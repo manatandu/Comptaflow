@@ -2,7 +2,7 @@ import { FormEvent, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { IconLogo, IconFileAdd, IconFolderOpen } from '../components/chrome/icons';
+import { IconLogo } from '../components/chrome/icons';
 import { DossierRecent, lireDossiersRecents, oublierDossier } from '../lib/dossiersRecents';
 import type { AuthResponse } from '../lib/types';
 
@@ -29,10 +29,14 @@ import type { AuthResponse } from '../lib/types';
  * Transposition, et ses limites, dites franchement :
  *
  *  - OmegaX est hébergé. Il n'y a ni fichier, ni chemin sur un disque, et un
- *    compte n'ouvre aujourd'hui qu'un seul dossier. « Ouvrir un fichier
- *    existant » se réduit donc à s'identifier · mais l'ordre des écrans, lui,
- *    est celui de Sage : d'abord la porte (créer ou ouvrir), ensuite les
- *    identifiants.
+ *    compte n'ouvre aujourd'hui qu'un seul dossier.
+ *  - L'ÉCRAN DE PORTE A ÉTÉ RETIRÉ le 2026-09-03. Il proposait « créer » ou
+ *    « ouvrir », mais l'auto-inscription est fermée (option A) : la création
+ *    n'était plus qu'un pavé de texte sans bouton, et « ouvrir » ne faisait
+ *    que passer à l'écran suivant. Un écran entier pour un clic obligatoire
+ *    n'est pas une transposition de Sage, c'est une survivance. Ce que Sage
+ *    fait vraiment ici, c'est demander « quel dossier, et qui êtes-vous » ·
+ *    une seule fenêtre y suffit.
  *  - Les Favoris deviennent les DOSSIERS RÉCENTS, mémorisés dans le
  *    navigateur (voir `lib/dossiersRecents.ts`) · un nom et une adresse,
  *    jamais un mot de passe.
@@ -41,8 +45,6 @@ import type { AuthResponse } from '../lib/types';
  *    fenêtre d'identification de son dernier dossier, avec un retour possible
  *    vers les deux choix.
  */
-
-type Ecran = 'porte' | 'identification';
 
 function IconOeil({ ouvert }: { ouvert: boolean }) {
   return ouvert ? (
@@ -83,11 +85,6 @@ export function AuthPage() {
   // moment où l'on quitte cette page de toute façon.
   const [recents, setRecents] = useState<DossierRecent[]>(() => lireDossiersRecents());
   const [dossierVise, setDossierVise] = useState<DossierRecent | null>(() => lireDossiersRecents()[0] ?? null);
-  // Quelqu'un qui revient va droit à l'identification de son dernier dossier ·
-  // c'est la « prochaine exécution » du manuel Sage. Un premier passage voit
-  // la porte : créer, ou ouvrir.
-  const [ecran, setEcran] = useState<Ecran>(() => (lireDossiersRecents().length > 0 ? 'identification' : 'porte'));
-
   const [email, setEmail] = useState(() => lireDossiersRecents()[0]?.email ?? '');
   const [motDePasse, setMotDePasse] = useState('');
   const [motDePasseVisible, setMotDePasseVisible] = useState(false);
@@ -96,12 +93,12 @@ export function AuthPage() {
   const { seConnecter } = useAuth();
   const navigate = useNavigate();
 
+  /** Choisir un dossier récent · cela ne change plus d'écran, cela remplit. */
   const ouvrirDossier = (d: DossierRecent | null) => {
     setErreur(null);
     setDossierVise(d);
     setEmail(d?.email ?? '');
     setMotDePasse('');
-    setEcran('identification');
   };
 
   const retirer = (email: string) => {
@@ -111,7 +108,6 @@ export function AuthPage() {
       setDossierVise(null);
       setEmail('');
     }
-    if (restants.length === 0) setEcran('porte');
   };
 
   const onSubmit = async (e: FormEvent) => {
@@ -159,7 +155,7 @@ export function AuthPage() {
           style={{ background: 'linear-gradient(180deg, var(--titlebar-from), var(--titlebar-to))' }}
         >
           <IconLogo width={14} height={14} />
-          <span>{ecran === 'porte' ? 'Ouverture du dossier comptable' : 'Identification'}</span>
+          <span>Ouverture du dossier comptable</span>
         </div>
 
         {/*
@@ -198,174 +194,129 @@ export function AuthPage() {
           <div className="flex-1 min-w-0 p-5">
 
       {/* ------------------------------------------------------------------ */}
-      {/* Écran 1 · la porte : créer, ou ouvrir. Aucun champ d'identifiant.   */}
+      {/* Un seul écran · quel dossier, et qui êtes-vous.                     */}
       {/* ------------------------------------------------------------------ */}
-      {ecran === 'porte' && (
-        <div className="w-full">
-          {/* Phrase d'accueil · Sage dit d'abord OÙ L'ON EST (aucun fichier
-              ouvert), puis ce qu'on peut faire. Entrer directement dans deux
-              boutons laisse deviner. */}
-          <p className="text-[11px] text-text-dim leading-[1.6] mb-4">
-            Aucun dossier comptable n'est ouvert. Ouvrez un dossier existant.
-          </p>
-
-          {/* Choix EMPILÉS, et non côte à côte : deux colonnes dans un volet
-              de cette largeur coupaient chaque titre en deux lignes. */}
-          <div className="flex flex-col gap-2">
-            {/* L'OUVERTURE D'UN DOSSIER PASSE PAR LE CABINET · l'assistant
-                d'auto-inscription est fermé (option A) : chaque dossier naît
-                depuis la console VMG Consulting, avec un contrat derrière.
-                Le serveur refuse de toute façon /auth/register · ceci ne
-                fait qu'annoncer honnêtement la règle. */}
-            <div className="flex items-start gap-3 rounded-[10px] border border-border bg-surface p-3.5 shadow-posee">
-              <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[10px] bg-chrome-alt text-sel">
-                <IconFileAdd width={18} height={18} />
-              </span>
-              <span className="min-w-0">
-                <span className="block text-[12px] font-bold">Ouvrir un nouveau dossier ?</span>
-                <span className="block text-[10.5px] text-text-dim leading-[1.5] mt-0.5">
-                  L'ouverture d'un dossier OmegaX se fait avec VMG Consulting, qui le prépare, le configure et vous
-                  accompagne. Contactez le cabinet pour démarrer.
-                </span>
-              </span>
-            </div>
-
+      <div className="w-full">
+        <p className="text-[11px] text-text-dim leading-[1.6] mb-4">
+          {dossierVise
+            ? 'Saisissez les identifiants donnés à ce dossier lors de sa création.'
+            : 'Saisissez les identifiants du dossier comptable à ouvrir.'}
+        </p>
+        {dossierVise && (
+          <div className="mb-4 flex items-center justify-between gap-2 rounded-[8px] border border-border bg-chrome px-3.5 py-2.5">
+            <span className="min-w-0">
+              <span className="block text-[10px] font-bold text-text-dim">DOSSIER</span>
+              <span className="block text-[12px] font-bold truncate">{dossierVise.nom}</span>
+            </span>
+            {/* Remplace l'ancien « &lt; Ouvrir un autre dossier » qui renvoyait à
+                la porte · il n'y a plus d'écran derrière, seulement un champ
+                à vider. */}
             <button
               type="button"
-              onClick={() => ouvrirDossier(recents[0] ?? null)}
-              className="flex items-start gap-3 rounded-[10px] border border-border bg-surface p-3.5 text-left shadow-posee hover:border-sel hover:bg-sel-soft transition-colors"
+              onClick={() => ouvrirDossier(null)}
+              className="flex-shrink-0 px-2 py-1 text-[10.5px] text-text-dim hover:text-sel"
             >
-              <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[10px] bg-chrome-alt text-sel">
-                <IconFolderOpen width={18} height={18} />
-              </span>
-              <span className="min-w-0">
-                <span className="block text-[12px] font-bold">Ouvrir un fichier comptable existant</span>
-                <span className="block text-[10.5px] text-text-dim leading-[1.5] mt-0.5">
-                  Le dossier s'ouvre sur les identifiants qui lui ont été donnés à sa création.
-                </span>
-              </span>
+              Un autre dossier
             </button>
           </div>
+        )}
 
-          {recents.length > 0 && (
-            <div className="mt-5">
-              <div className="text-[10.5px] font-bold text-text-dim mb-1.5 px-0.5">DOSSIERS RÉCENTS</div>
-              <div className="rounded-xl border border-border bg-surface overflow-hidden">
-                {recents.map((d) => (
-                  <div key={d.email} className="flex items-center gap-2 border-b border-border last:border-b-0">
-                    <button
-                      type="button"
-                      onClick={() => ouvrirDossier(d)}
-                      className="flex-1 min-w-0 text-left px-3.5 py-2.5 hover:bg-sel-soft"
-                    >
-                      <span className="block text-[12px] font-semibold truncate">{d.nom}</span>
-                      <span className="block text-[10.5px] text-text-dim truncate">
-                        {d.email} · ouvert le {dateCourte(d.derniereOuverture)}
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => retirer(d.email)}
-                      title="Retirer ce raccourci de cet appareil"
-                      className="px-3 text-[10.5px] text-text-dim hover:text-danger"
-                    >
-                      Retirer
-                    </button>
-                  </div>
-                ))}
-              </div>
-              <p className="mt-1.5 px-0.5 text-[10px] text-text-dim">
-                Ces raccourcis ne sont enregistrés que sur cet appareil et ne contiennent aucun mot de passe.
-              </p>
-            </div>
-          )}
-        </div>
-      )}
+        <form onSubmit={onSubmit} className="flex flex-col gap-3">
+          <label className="flex flex-col gap-1.5">
+            <span className="text-[11px] font-semibold text-text-dim">Adresse e-mail</span>
+            <input
+              type="email"
+              required
+              autoFocus={!dossierVise}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className={champClasse}
+            />
+          </label>
 
-      {/* ------------------------------------------------------------------ */}
-      {/* Écran 2 · l'identification, une fois le dossier désigné.            */}
-      {/* ------------------------------------------------------------------ */}
-      {ecran === 'identification' && (
-        <div className="w-full">
-          <p className="text-[11px] text-text-dim leading-[1.6] mb-4">
-            {dossierVise
-              ? 'Saisissez les identifiants donnés à ce dossier lors de sa création.'
-              : 'Saisissez les identifiants du dossier comptable à ouvrir.'}
-          </p>
-          {dossierVise && (
-            <div className="mb-4 rounded-[8px] border border-border bg-chrome px-3.5 py-2.5">
-              <div className="text-[10px] font-bold text-text-dim">DOSSIER</div>
-              <div className="text-[12px] font-bold truncate">{dossierVise.nom}</div>
-            </div>
-          )}
-
-          <form onSubmit={onSubmit} className="flex flex-col gap-3">
-            <label className="flex flex-col gap-1.5">
-              <span className="text-[11px] font-semibold text-text-dim">Adresse e-mail</span>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-[11px] font-semibold text-text-dim">Mot de passe</span>
+            <div className="relative">
               <input
-                type="email"
+                type={motDePasseVisible ? 'text' : 'password'}
                 required
-                autoFocus={!dossierVise}
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className={champClasse}
+                autoFocus={Boolean(dossierVise)}
+                value={motDePasse}
+                onChange={(e) => setMotDePasse(e.target.value)}
+                className={`${champClasse} pr-9`}
               />
-            </label>
-
-            <label className="flex flex-col gap-1.5">
-              <span className="text-[11px] font-semibold text-text-dim">Mot de passe</span>
-              <div className="relative">
-                <input
-                  type={motDePasseVisible ? 'text' : 'password'}
-                  required
-                  autoFocus={Boolean(dossierVise)}
-                  value={motDePasse}
-                  onChange={(e) => setMotDePasse(e.target.value)}
-                  className={`${champClasse} pr-9`}
-                />
-                <button
-                  type="button"
-                  onClick={() => setMotDePasseVisible((v) => !v)}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-dim hover:text-text"
-                  tabIndex={-1}
-                >
-                  <IconOeil ouvert={motDePasseVisible} />
-                </button>
-              </div>
-            </label>
-
-            {erreur && (
-              <div className="text-[11px] text-danger bg-danger-soft border border-danger/30 rounded-[6px] px-3 py-2">
-                {erreur}
-              </div>
-            )}
-
-            {/* RANGÉE DE BOUTONS · même gabarit et même ordre que l'assistant
-                (retour à gauche, action à droite) : les deux fenêtres qui
-                s'enchaînent à l'ouverture du logiciel se répondent. */}
-            <div className="mt-2 pt-3 border-t border-border flex items-center justify-between gap-2">
               <button
                 type="button"
-                onClick={() => setEcran('porte')}
-                className="px-3 py-1.5 text-[11px] text-text-dim hover:text-sel"
+                onClick={() => setMotDePasseVisible((v) => !v)}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-dim hover:text-text"
+                tabIndex={-1}
               >
-                &lt; Ouvrir un autre dossier
-              </button>
-              <button
-                type="submit"
-                disabled={envoi}
-                className="px-4 py-1.5 rounded-[6px] bg-sel text-white text-[11px] font-semibold hover:brightness-110 disabled:opacity-50"
-              >
-                {envoi ? 'Un instant…' : 'Ouvrir le dossier'}
+                <IconOeil ouvert={motDePasseVisible} />
               </button>
             </div>
-          </form>
+          </label>
 
-          <div className="mt-3 text-[11px] text-text-dim">
-            Pas encore de dossier ? L'ouverture se fait avec VMG Consulting.
+          {erreur && (
+            <div className="text-[11px] text-danger bg-danger-soft border border-danger/30 rounded-[6px] px-3 py-2">
+              {erreur}
+            </div>
+          )}
+
+          <div className="mt-2 pt-3 border-t border-border flex items-center justify-end">
+            <button
+              type="submit"
+              disabled={envoi}
+              className="px-4 py-1.5 rounded-[6px] bg-sel text-white text-[11px] font-semibold hover:brightness-110 disabled:opacity-50"
+            >
+              {envoi ? 'Un instant…' : 'Ouvrir le dossier'}
+            </button>
           </div>
+        </form>
+
+        {/* LES FAVORIS DE SAGE · ils étaient sur l'écran de porte, ils sont
+            maintenant ici, sous le formulaire, là où ils servent : un clic
+            remplit l'adresse au lieu de la retaper. */}
+        {recents.length > 0 && (
+          <div className="mt-5">
+            <div className="text-[10.5px] font-bold text-text-dim mb-1.5 px-0.5">DOSSIERS RÉCENTS</div>
+            <div className="rounded-xl border border-border bg-surface overflow-hidden">
+              {recents.map((d) => (
+                <div key={d.email} className="flex items-center gap-2 border-b border-border last:border-b-0">
+                  <button
+                    type="button"
+                    onClick={() => ouvrirDossier(d)}
+                    className={`flex-1 min-w-0 text-left px-3.5 py-2.5 hover:bg-sel-soft ${
+                      dossierVise?.email === d.email ? 'bg-sel-soft' : ''
+                    }`}
+                  >
+                    <span className="block text-[12px] font-semibold truncate">{d.nom}</span>
+                    <span className="block text-[10.5px] text-text-dim truncate">
+                      {d.email} · ouvert le {dateCourte(d.derniereOuverture)}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => retirer(d.email)}
+                    title="Retirer ce raccourci de cet appareil"
+                    className="px-3 text-[10.5px] text-text-dim hover:text-danger"
+                  >
+                    Retirer
+                  </button>
+                </div>
+              ))}
+            </div>
+            <p className="mt-1.5 px-0.5 text-[10px] text-text-dim">
+              Ces raccourcis ne sont enregistrés que sur cet appareil et ne contiennent aucun mot de passe.
+            </p>
+          </div>
+        )}
+
+        {/* L'auto-inscription est fermée · la règle doit rester dite, mais une
+            ligne y suffit : elle occupait un tiers de l'écran. */}
+        <div className="mt-4 text-[11px] text-text-dim">
+          Pas encore de dossier ? L'ouverture se fait avec VMG Consulting.
         </div>
-      )}
+      </div>
           </div>
         </div>
       </div>
