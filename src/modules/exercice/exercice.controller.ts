@@ -7,6 +7,7 @@ import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-
 import { ExerciceService } from './exercice.service';
 import { CreerExerciceDto } from './dto/creer-exercice.dto';
 import { ClorePartielleDto, CloreTotaleDto, ClorePeriodeDto } from './dto/cloture.dto';
+import { ArreterComptesDto } from './dto/arrete-comptes.dto';
 import { RoleUtilisateur } from '@prisma/client';
 
 @UseGuards(JwtAuthGuard, LicenceGuard, RolesGuard)
@@ -30,6 +31,25 @@ export class ExerciceController {
   @Post(':id/cloturer')
   async cloturer(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return this.exerciceService.cloturer(user.tenantId, id, user.userId);
+  }
+
+  /**
+   * DATE D'ARRÊTÉ DES COMPTES · la quatrième mention obligatoire de chaque
+   * page publiée (AUDCIF Titre IX ch. 1 § 2.4), exigée « dans toute
+   * publication des états financiers » par l'art. 23.
+   *
+   * ADMIN_CABINET seulement · l'arrêté est un acte des organes dirigeants, pas
+   * une saisie comptable. C'est cette date qui ferme la fenêtre des événements
+   * postérieurs et qui date le document opposable.
+   */
+  @Roles(RoleUtilisateur.ADMIN_CABINET)
+  @Post(':id/arrete-comptes')
+  async arreterComptes(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: ArreterComptesDto,
+  ) {
+    return this.exerciceService.arreterComptes(user.tenantId, id, dto);
   }
 
   @Get(':id/planning-cloture')

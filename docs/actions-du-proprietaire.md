@@ -175,6 +175,18 @@ position de l'ONEC sur les outils informatiques, son site étant bloqué.
 
 ## Ce qui est déjà réglé, pour mémoire
 
+- **Réévaluation · les coefficients** · tranché par Manasse le 2026-09-03. Le
+  Ministre des Finances publie le coefficient CHAQUE ANNÉE, et pour l'exercice
+  en cours il n'y a pas eu de réévaluation. Il n'y a donc rien à coder tant
+  qu'un arrêté n'est pas publié : la réévaluation reste une opération
+  possible, jamais une obligation à rappeler. Le contrôle
+  `REEVALUATION_IMMO_HORS_MODULE` continue de signaler un écart porté à la
+  main, ce qui est le bon niveau. À rouvrir le jour où un coefficient paraît.
+- **Notes 54 et 55 de la liasse fiscale** · tranché par Manasse le 2026-09-03.
+  Elles se remplissent en EXTRA-COMPTABLE, hors du jeu d'états. Rien à ajouter
+  aux notes annexes du logiciel, qui s'arrêtent légitimement à la 44. Manasse
+  fournira les modèles plus tard si un besoin apparaît.
+
 - **Clé de chiffrement des sauvegardes** (`CLE_AGE_SAUVEGARDES`) · posée. La
   sauvegarde nocturne du 2026-09-03 est verte de bout en bout.
 - **Endpoint Neon poolé** (`API_DATABASE_URL_POOLED`) · posé. Le déploiement

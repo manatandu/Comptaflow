@@ -1601,6 +1601,11 @@ export class ExportService {
       adresse: [tenant.adresse, tenant.ville, tenant.pays].filter(Boolean).join(', '),
       sigle: '',
       ntd: '',
+      // Quatrième mention obligatoire du § 2.4 · chaîne vide tant qu'aucun
+      // arrêté n'a eu lieu, le cartouche écrivant alors qu'elle manque.
+      dateArrete: exercice.dateArreteComptes
+        ? exercice.dateArreteComptes.toLocaleDateString('fr-FR')
+        : '',
     };
   }
 

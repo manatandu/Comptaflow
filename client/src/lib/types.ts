@@ -157,6 +157,16 @@ export interface Exercice {
   dateDebut: string;
   dateFin: string;
   statut: StatutExercice;
+  /**
+   * Date à laquelle les organes dirigeants ont ARRÊTÉ les comptes · quatrième
+   * mention obligatoire de chaque page publiée (AUDCIF Titre IX ch. 1 § 2.4),
+   * exigée dans toute publication par l'art. 23, non exclu par l'art. 3 du
+   * SYCEBNL. Ce n'est pas la clôture : elle lui est postérieure de plusieurs
+   * semaines, dans la limite de quatre mois. Null tant qu'aucun arrêté n'a eu
+   * lieu · la déduire de la clôture ferait imprimer une date que personne n'a
+   * décidée.
+   */
+  dateArreteComptes: string | null;
 }
 
 export type GranulariteCloture = 'PARTIELLE' | 'TOTALE' | 'PERIODE';

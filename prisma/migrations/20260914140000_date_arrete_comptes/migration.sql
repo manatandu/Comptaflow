@@ -1,0 +1,26 @@
+-- LA QUATRIÈME MENTION OBLIGATOIRE DE CHAQUE PAGE PUBLIÉE.
+--
+-- AUDCIF, Titre IX ch. 1 § 2.4 · « les états financiers doivent comporter
+-- obligatoirement les mentions suivantes : le nom de l'entité […] ; LA DATE
+-- D'ARRÊTÉ et la période couverte […] ; l'unité monétaire […]. Ces
+-- informations doivent être indiquées DANS CHACUNE DES PAGES des états
+-- financiers publiés. » Le logiciel en servait trois.
+--
+-- CE N'EST PAS « EXERCICE CLOS LE ». Titre VIII ch. 31 § 1.3 : « l'arrêté par
+-- les organes dirigeants, légalement responsables, ne peut être que postérieur
+-- de plusieurs semaines, voire plusieurs mois, à la date de clôture. La limite
+-- fixée par l'Acte uniforme est de quatre mois après la clôture. » Et l'article
+-- 23 exige qu'elle « soit mentionnée dans toute publication des états
+-- financiers ».
+--
+-- ELLE VAUT DES DEUX CÔTÉS, mais pas par le même chemin · l'article 23 n'est
+-- pas dans la liste d'exclusion de l'art. 3 du SYCEBNL, qui rend applicables
+-- aux EBNL les dispositions de l'AUDCIF sauf les articles qu'il énumère. En
+-- revanche, la règle « dans chacune des pages » du Titre IX ch. 1 § 2.4 n'est
+-- PAS reprise par le § 1.4 de la Partie 4 du SYCEBNL, qui reprend pourtant le
+-- reste du même paragraphe. Lacune du texte SYCEBNL, signalée et non comblée.
+--
+-- NULLABLE ET SANS DÉFAUT. La déduire de la clôture, ou la poser d'office à
+-- quatre mois, ferait imprimer sur un document opposable une date que personne
+-- n'a décidée.
+ALTER TABLE "exercices" ADD COLUMN "dateArreteComptes" TIMESTAMP(3);

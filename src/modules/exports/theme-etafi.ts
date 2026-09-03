@@ -110,6 +110,18 @@ export interface IdentiteLiasse {
   sigle: string;
   /** N° de télédéclarant · ligne du modèle, vide tant qu'il n'existe pas. */
   ntd: string;
+  /**
+   * DATE D'ARRÊTÉ DES COMPTES · quatrième mention obligatoire de chaque page
+   * publiée (AUDCIF Titre IX ch. 1 § 2.4), exigée dans toute publication par
+   * l'art. 23. Vide tant que les organes dirigeants n'ont pas arrêté : le
+   * cartouche le DIT alors, plutôt que de laisser une ligne muette passer pour
+   * une page complète.
+   *
+   * Portée sur la ligne 6, à côté du NTD, et non sur une septième ligne · le
+   * cartouche à six lignes reproduit le modèle officiel, et lui ajouter une
+   * ligne décalerait toutes les références de page du classeur.
+   */
+  dateArrete: string;
 }
 
 export function texteExercice(exercice: string): string {
@@ -218,6 +230,15 @@ export function ecrireCartouche(ws: ExcelJS.Worksheet, ident: IdentiteLiasse, pa
 
   c = ws.getCell(6, 1);
   c.value = `N° de télédéclarant (NTD) : ${ident.ntd}`.trimEnd();
+  c.font = F_CARTOUCHE;
+
+  // La quatrième mention · § 2.4. Elle est écrite même absente, parce qu'une
+  // page publiée sans elle est une page incomplète, et que le silence se lit
+  // comme une page complète.
+  c = ws.getCell(6, Math.max(3, colMax - 3));
+  c.value = ident.dateArrete
+    ? `Comptes arrêtés le ${ident.dateArrete}`
+    : "Date d'arrêté des comptes non renseignée";
   c.font = F_CARTOUCHE;
 
   hauteurs(ws, { 1: 12, 2: 26, 3: 15, 4: 15, 5: 15, 6: 15, 7: 28 });

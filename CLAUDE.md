@@ -329,6 +329,35 @@ abrogés au 1er janvier 2026 et remplacés par l'IS et l'IRPP. Seuls les
 mécanismes d'écriture sont retenus, et aucun ne dépend d'un taux. Un test le
 vérifie sur les messages produits.
 
+**Date d'arrêté des comptes · la quatrième mention, et le chemin par lequel
+chaque texte l'impose.** L'AUDCIF (Titre IX ch. 1 § 2.4) exige QUATRE mentions
+« dans chacune des pages des états financiers publiés » : nom de l'entité,
+date d'arrêté, période couverte, unité monétaire. Le logiciel en servait trois.
+Ce n'est PAS « Exercice clos le » · le § 2.4 les énumère séparément, et le
+Titre VIII ch. 31 § 1.3 pose l'arrêté comme postérieur de plusieurs semaines à
+la clôture, dans la limite de quatre mois.
+
+`Exercice.dateArreteComptes`, saisie dans la fenêtre Exercices, imprimée par
+`EnteteImpression` et portée ligne 6 du cartouche ETAFI. NULLABLE et sans
+défaut : la déduire de la clôture, ou la poser d'office à quatre mois, ferait
+imprimer sur un document opposable une date que personne n'a décidée. Tant
+qu'elle manque, l'en-tête et le cartouche LE DISENT · une ligne muette se lit
+comme une page complète.
+
+LE CHEMIN N'EST PAS LE MÊME DES DEUX CÔTÉS, et le contrôle
+`DATE_ARRETE_NON_RENSEIGNEE` cite celui du dossier. Côté SYSCOHADA, le Titre IX
+ch. 1 § 2.4 et l'art. 23. Côté SYCEBNL, l'art. 23 SEUL, par le renvoi de son
+art. 3 (qui exclut 5, 8, 10-13, 17 al. 7-8, 18, 19 4e tiret, 21, 25-34, 49, 69,
+70, 71, 73-113 · pas le 23). La règle « dans chacune des pages » n'est pas
+reprise par le § 1.4 de la Partie 4 du SYCEBNL, qui reprend pourtant le reste
+du même paragraphe : LACUNE DU TEXTE, signalée et non comblée. Les quatre
+mentions sont servies aux deux, les dire obligatoires des deux serait faux.
+
+Le délai de quatre mois n'est PAS un refus de saisie · un dossier réel arrête
+parfois en retard, et bloquer effacerait le retard au lieu de le montrer. Seul
+un arrêté antérieur à la clôture est refusé. Et null efface : le § 1.6 prévoit
+expressément un nouvel arrêté si une information remet les comptes en cause.
+
 **Approche par composants · le rattachement, et les deux listes qui ne se
 ferment pas pareil.** Un composant est une immobilisation à part entière,
 rattachée à son principal (`Immobilisation.immobilisationPrincipaleId`), avec

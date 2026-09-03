@@ -36,15 +36,31 @@ import { LIBELLE_SYSTEME } from '../../lib/systemes-syscohada';
  * ils sont exprimés, « dans chacune des pages des états financiers publiés »
  * (Titre IX ch. 1 § 2.4). D'où la ligne de monnaie, servie par /auth/me.
  *
- * TROIS MENTIONS SUR QUATRE · la date d'arrêté MANQUE, et ce n'est pas
- * « Exercice clos le », qui est la fin de la période couverte. Le § 2.4 les
- * énumère séparément, et l'AUDCIF Titre VIII ch. 31 § 1.3 définit la date
- * d'arrêté comme celle où les organes dirigeants arrêtent les comptes,
- * postérieure de plusieurs semaines à la clôture ; l'art. 23 exige qu'elle
- * figure dans toute publication. Le dossier ne la porte nulle part : la seule
- * saisie qui existe est une cellule libre de la NOTE 3 du jeu SYCEBNL, hors
- * d'atteinte de cet en-tête et sans équivalent sur le chemin SYSCOHADA.
- * Relevé dans docs/releve-de-manques-referentiels.md, passe 3.
+ * LES QUATRE MENTIONS Y SONT DEPUIS LE 2026-09-03. La date d'arrêté manquait,
+ * et ce n'est PAS « Exercice clos le », qui est la fin de la période couverte :
+ * le § 2.4 les énumère séparément, et l'AUDCIF Titre VIII ch. 31 § 1.3 définit
+ * la date d'arrêté comme celle où les organes dirigeants arrêtent les comptes,
+ * postérieure de plusieurs semaines à la clôture, dans la limite de quatre
+ * mois. L'article 23 exige qu'elle figure dans toute publication, et il n'est
+ * pas dans la liste d'exclusion de l'art. 3 du SYCEBNL : elle vaut des deux
+ * côtés. Elle est désormais portée par l'exercice lui-même
+ * (`Exercice.dateArreteComptes`), et non plus par une cellule libre de la
+ * NOTE 3 du seul jeu SYCEBNL.
+ *
+ * TANT QU'ELLE N'EST PAS RENSEIGNÉE, L'EN-TÊTE LE DIT. Une ligne muette
+ * laisserait croire à une page complète ; le contrôle
+ * DATE_ARRETE_NON_RENSEIGNEE le signale par ailleurs, mais c'est sur le
+ * document lui-même que le manque doit se voir, puisque c'est le document qui
+ * sera déposé.
+ *
+ * UNE NUANCE DE CLOISONNEMENT, à ne pas effacer · la règle « dans chacune des
+ * pages » vient du Titre IX ch. 1 § 2.4, écrit pour le SYSCOHADA. Le § 1.4 de
+ * la Partie 4 du SYCEBNL reprend le reste du même paragraphe (chiffres N-1,
+ * codes alphabétiques, interdiction de compensation) mais PAS les quatre
+ * mentions. Côté SYCEBNL, c'est donc l'art. 23, par le renvoi de l'art. 3, qui
+ * porte l'obligation de la date d'arrêté ; la règle de répétition sur chaque
+ * page n'y est pas écrite. Lacune du texte SYCEBNL, signalée et non comblée :
+ * les servir aux deux ne nuit pas, les DIRE obligatoires des deux serait faux.
  *
  * Enfin, le référentiel ne suffit pas à nommer un état SYSCOHADA : la page de
  * garde du ch. 2 porte la mention « SYSTÈME NORMAL », et les deux systèmes de
@@ -62,6 +78,7 @@ export function EnteteImpression({ titre, sousTitre }: { titre: string; sousTitr
   // un exercice du 01/01 au 31/12 fait douze mois, un premier exercice ouvert
   // au 01/09 en fait quatre, et c'est bien ce que demande l'imprimé.
   const clos = exerciceCourant ? new Date(exerciceCourant.dateFin) : null;
+  const arrete = exerciceCourant?.dateArreteComptes ? new Date(exerciceCourant.dateArreteComptes) : null;
   const debut = exerciceCourant ? new Date(exerciceCourant.dateDebut) : null;
   const dureeMois =
     clos && debut
@@ -100,6 +117,13 @@ export function EnteteImpression({ titre, sousTitre }: { titre: string; sousTitr
               {dureeMois !== null && ` · durée ${dureeMois} mois`}
             </div>
           )}
+          <div className="text-[10px]">
+            {arrete ? (
+              <>Comptes arrêtés le {arrete.toLocaleDateString('fr-FR')}</>
+            ) : (
+              <span className="font-semibold">Date d’arrêté des comptes non renseignée</span>
+            )}
+          </div>
           <div className="text-[10px] text-neutral-600">
             Édité le {new Date().toLocaleDateString('fr-FR')} à{' '}
             {new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}

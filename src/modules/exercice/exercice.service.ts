@@ -10,6 +10,7 @@ import { PrismaService } from '../../common/prisma.service';
 import { GranulariteCloture, ModeReportANouveau, Prisma, Referentiel, StatutEcriture, StatutExercice, TypeJournal } from '@prisma/client';
 import { CreerExerciceDto } from './dto/creer-exercice.dto';
 import { ClorePartielleDto, CloreTotaleDto, ClorePeriodeDto } from './dto/cloture.dto';
+import { ArreterComptesDto } from './dto/arrete-comptes.dto';
 import { JournalService } from '../journaux/journal.service';
 import { avecRetrySerialisable } from '../../common/prisma-retry.util';
 import { DERNIERE_VERIFICATION, dateJalon, jalonsApplicables } from './planning-cloture';
@@ -325,6 +326,49 @@ export class ExerciceService {
         };
       }),
     };
+  }
+
+
+  /**
+   * ARRÊTÉ DES COMPTES · la quatrième mention obligatoire de chaque page
+   * publiée, et la seule que le dossier ne portait nulle part.
+   *
+   * AUDCIF, Titre IX ch. 1 § 2.4 · les états financiers « doivent comporter
+   * obligatoirement » le nom de l'entité, LA DATE D'ARRÊTÉ et la période
+   * couverte, et l'unité monétaire, « dans chacune des pages des états
+   * financiers publiés ». L'article 23 la réclame en outre « dans toute
+   * publication des états financiers », et il n'est PAS dans la liste
+   * d'exclusion de l'art. 3 du SYCEBNL : la mention vaut des deux côtés.
+   *
+   * CE N'EST PAS LA CLÔTURE. Titre VIII ch. 31 § 1.3 · « l'arrêté par les
+   * organes dirigeants, légalement responsables, ne peut être que postérieur
+   * de plusieurs semaines, voire plusieurs mois, à la date de clôture ». D'où
+   * le seul refus posé ici, celui d'une date antérieure à la clôture : arrêter
+   * des comptes avant la fin de la période qu'ils couvrent n'a pas de sens.
+   *
+   * LE DÉLAI DE QUATRE MOIS N'EST PAS UN REFUS. Le § 1.3 le donne comme
+   * limite, mais un dossier réel arrête parfois en retard, et bloquer la
+   * saisie effacerait le retard au lieu de le montrer · c'est le jalon de
+   * clôture et le contrôle qui le signalent, en laissant la date vraie.
+   *
+   * NULL EFFACE. Le § 1.6 prévoit expressément le nouvel arrêté : « si
+   * certaines informations susceptibles de remettre profondément en cause les
+   * états financiers n'étaient connues qu'après l'arrêté, il appartiendrait
+   * aux dirigeants de procéder à un NOUVEL ARRÊTÉ des comptes modifiés ».
+   */
+  async arreterComptes(tenantId: string, exerciceId: string, dto: ArreterComptesDto) {
+    const exercice = await this.trouverExercice(tenantId, exerciceId);
+    const date = dto.dateArreteComptes ? new Date(dto.dateArreteComptes) : null;
+    if (date && date < exercice.dateFin) {
+      throw new BadRequestException(
+        "La date d'arrêté des comptes ne peut pas précéder la clôture de l'exercice : les organes dirigeants " +
+          'arrêtent des comptes déjà clos (AUDCIF, Titre VIII ch. 31 § 1.3).',
+      );
+    }
+    return this.prisma.exercice.update({
+      where: { id: exerciceId },
+      data: { dateArreteComptes: date },
+    });
   }
 
   private async trouverExercice(tenantId: string, exerciceId: string) {

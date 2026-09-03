@@ -30,6 +30,7 @@ export function ExercicePage() {
   const [dateLimitePartielle, setDateLimitePartielle] = useState('');
   const [journalTotaleId, setJournalTotaleId] = useState('');
   const [dateLimitePeriode, setDateLimitePeriode] = useState('');
+  const [dateArrete, setDateArrete] = useState('');
 
   useEffect(() => {
     if (!exerciceId && exercices.length > 0) {
@@ -39,6 +40,13 @@ export function ExercicePage() {
   }, [exercices, exerciceId]);
 
   const exercice = exercices.find((e) => e.id === exerciceId) ?? null;
+
+  // Le champ suit l'exercice sélectionné · sans cela, changer d'exercice
+  // laisserait la date du précédent dans la case, prête à être enregistrée
+  // sur le mauvais exercice.
+  useEffect(() => {
+    setDateArrete(exercice?.dateArreteComptes ? exercice.dateArreteComptes.slice(0, 10) : '');
+  }, [exercice?.id, exercice?.dateArreteComptes]);
 
   const charger = async () => {
     if (!exerciceId) return;
@@ -100,6 +108,39 @@ export function ExercicePage() {
       await charger();
     } catch (err) {
       setErreur(err instanceof ApiError ? err.message : 'Impossible d’enregistrer cette clôture totale');
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
+  /**
+   * ARRÊTÉ DES COMPTES · quatrième mention obligatoire de chaque page publiée
+   * (AUDCIF Titre IX ch. 1 § 2.4) et exigée dans toute publication par
+   * l'art. 23, non exclu par l'art. 3 du SYCEBNL.
+   *
+   * Ce n'est pas la clôture : l'arrêté par les organes dirigeants lui est
+   * postérieur de plusieurs semaines, dans la limite de quatre mois (Titre
+   * VIII ch. 31 § 1.3). Il se DÉCLARE, il ne se déduit pas · d'où une saisie
+   * et non un calcul.
+   */
+  const arreterComptes = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!exerciceId) return;
+    setEnvoi(true);
+    setErreur(null);
+    setInfo(null);
+    try {
+      await api.post(`/exercices/${exerciceId}/arrete-comptes`, {
+        dateArreteComptes: dateArrete || null,
+      });
+      setInfo(
+        dateArrete
+          ? 'Date d’arrêté enregistrée · elle figure désormais sur chaque page des états.'
+          : 'Date d’arrêté effacée · un nouvel arrêté peut être enregistré.',
+      );
+      await charger();
+    } catch (err) {
+      setErreur(err instanceof ApiError ? err.message : 'Impossible d’enregistrer la date d’arrêté');
     } finally {
       setEnvoi(false);
     }
@@ -187,6 +228,45 @@ export function ExercicePage() {
         </label>
         {chargementExercices && <span className="text-[10.5px] text-text-dim">Chargement…</span>}
       </div>
+
+      {/*
+        DATE D'ARRÊTÉ DES COMPTES · la quatrième mention obligatoire de chaque
+        page publiée (AUDCIF Titre IX ch. 1 § 2.4) et la seule que le dossier
+        ne portait nulle part. Elle est ici et non dans les paramètres du
+        dossier parce qu'elle appartient à L'EXERCICE : chaque exercice a la
+        sienne, et un nouvel arrêté peut la remplacer (ch. 31 § 1.6).
+      */}
+      {exercice && (
+        <form onSubmit={arreterComptes} className="mb-4 border border-border bg-surface px-4 py-3 max-w-[720px]">
+          <div className="font-mono text-[10.5px] font-semibold text-text-dim mb-1">ARRÊTÉ DES COMPTES</div>
+          <p className="text-[10px] text-text-dim leading-[1.55] mb-2">
+            Date à laquelle les organes dirigeants ont arrêté les comptes. Ce n’est pas la clôture : elle lui est
+            postérieure de plusieurs semaines, dans la limite de quatre mois. Elle doit figurer sur chaque page des
+            états financiers publiés, et le logiciel l’imprime dès qu’elle est renseignée.
+          </p>
+          <div className="flex items-end gap-2 flex-wrap">
+            <label className="text-[10.5px] font-semibold text-text-dim">
+              Comptes arrêtés le
+              <input
+                type="date"
+                value={dateArrete}
+                onChange={(e) => setDateArrete(e.target.value)}
+                className="mt-1 block border border-border-dark px-2 py-1 text-[11px] font-mono"
+              />
+            </label>
+            <button type="submit" disabled={envoi} className="bg-sel text-white text-[11px] font-semibold px-3 py-1.5 disabled:opacity-50">
+              {envoi ? '…' : 'Enregistrer'}
+            </button>
+            {exercice.dateArreteComptes ? (
+              <span className="text-[10.5px] text-positive">
+                Actuellement : {new Date(exercice.dateArreteComptes).toLocaleDateString('fr-FR')}
+              </span>
+            ) : (
+              <span className="text-[10.5px] text-danger">Non renseignée · les états s’impriment sans elle</span>
+            )}
+          </div>
+        </form>
+      )}
 
       {erreur && <div className="text-[11px] text-danger bg-danger-soft border border-danger/30 px-2.5 py-1.5 mb-3 max-w-[720px]">{erreur}</div>}
       {info && <div className="text-[11px] text-positive bg-positive-soft border border-positive/30 px-2.5 py-1.5 mb-3 max-w-[720px]">{info}</div>}

@@ -1711,6 +1711,55 @@ export class ControlesService {
       }
     }
 
+    // --- 20. Date d'arrêté des comptes non renseignée -------------------------
+    //
+    // LA QUATRIÈME MENTION OBLIGATOIRE DE CHAQUE PAGE PUBLIÉE.
+    //
+    // AUDCIF, Titre IX ch. 1 § 2.4 · les états financiers « doivent comporter
+    // OBLIGATOIREMENT » le nom de l'entité, la DATE D'ARRÊTÉ et la période
+    // couverte, et l'unité monétaire, « dans chacune des pages des états
+    // financiers publiés ». L'article 23 la réclame « dans toute publication
+    // des états financiers », et cet article n'est PAS dans la liste
+    // d'exclusion de l'art. 3 du SYCEBNL · d'où un contrôle commun.
+    //
+    // CE QUE RIEN NE VOYAIT. Un état sans date d'arrêté s'imprime, s'exporte et
+    // se dépose exactement comme un autre : tous les totaux sont justes, la
+    // balance boucle, et il manque seulement une mention que le texte dit
+    // obligatoire. Le défaut ne se découvre qu'au dépôt, ou devant l'auditeur.
+    //
+    // AVERTISSEMENT et non BLOQUANT · la date n'existe qu'une fois que les
+    // organes dirigeants ont arrêté les comptes. Bloquer l'analyse d'un
+    // exercice en cours de travaux serait refuser le brouillon parce qu'il
+    // n'est pas encore définitif.
+    if (!ex.dateArreteComptes) {
+      const sourceArrete =
+        tenant.referentiel === Referentiel.SYCEBNL
+          ? "AUDCIF art. 23, rendu applicable aux entités à but non lucratif par l'art. 3 du SYCEBNL, qui ne " +
+            "l'exclut pas"
+          : 'AUDCIF art. 23 et Titre IX ch. 1 § 2.4';
+      anomalies.push({
+        code: 'DATE_ARRETE_NON_RENSEIGNEE',
+        gravite: 'AVERTISSEMENT',
+        libelle: 'Date d’arrêté des comptes non renseignée',
+        consequence:
+          `Le texte (${sourceArrete}) exige que la date d’arrêté figure dans toute publication des états ` +
+          'financiers. Ce n’est pas la date de clôture : l’arrêté par les organes dirigeants lui est postérieur ' +
+          'de plusieurs semaines, dans la limite de quatre mois (Titre VIII ch. 31 § 1.3). Tant qu’elle manque, ' +
+          'les états s’impriment et s’exportent sans elle, avec des totaux justes et une mention obligatoire en ' +
+          'moins · rien ne le signale avant le dépôt.',
+        action:
+          'Renseignez la date à laquelle les organes dirigeants ont arrêté les comptes, dans la fenêtre ' +
+          'Exercices. Elle s’imprimera ensuite sur chaque page des états.',
+        occurrences: [
+          {
+            reference: `Exercice clos le ${ex.dateFin.toISOString().slice(0, 10)}`,
+            detail: 'Aucune date d’arrêté enregistrée pour cet exercice',
+            date: ex.dateFin.toISOString().slice(0, 10),
+          },
+        ],
+      });
+    }
+
     const ordre: Record<Gravite, number> = { BLOQUANT: 0, AVERTISSEMENT: 1, INFORMATION: 2 };
     anomalies.sort((a, b) => ordre[a.gravite] - ordre[b.gravite]);
 
