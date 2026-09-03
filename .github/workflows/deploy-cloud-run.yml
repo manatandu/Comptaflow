@@ -313,14 +313,33 @@ jobs:
         run: |
           filtre='resource.type="cloud_run_revision"'
           filtre="$filtre AND resource.labels.service_name=\"$SERVICE\""
-          journal=$(gcloud logging read "$filtre" \
-            --project "$PROJECT_ID" \
-            --limit 300 \
-            --freshness 20m \
-            --format='value(textPayload,jsonPayload.message)' 2>/dev/null || true)
-          ligne=$(printf '%s\n' "$journal" | grep -m1 'Base ·' || true)
+          # TROIS TENTATIVES · le premier essai tombait systématiquement à
+          # vide, une seconde après la fin du déploiement : Cloud Logging
+          # n'avait pas encore indexé la ligne de démarrage de la nouvelle
+          # révision. Chercher une fois et renoncer, c'est ne jamais lire.
+          ligne=""
+          erreur=""
+          for essai in 1 2 3; do
+            journal=$(gcloud logging read "$filtre" \
+              --project "$PROJECT_ID" \
+              --limit 300 \
+              --freshness 30m \
+              --format='value(textPayload,jsonPayload.message)' 2>/tmp/gcloud-logging.err) || true
+            erreur=$(cat /tmp/gcloud-logging.err)
+            ligne=$(printf '%s\n' "$journal" | grep -m1 'Base ·' || true)
+            [ -n "$ligne" ] && break
+            echo "tentative $essai · ligne pas encore indexée, nouvelle lecture dans 15 s"
+            sleep 15
+          done
           if [ -z "$ligne" ]; then
-            echo "::warning::Régime de connexion non lu · journal pas encore indexé, ou droit de lecture manquant sur le compte de service (roles/logging.viewer). Le déploiement reste valide."
+            # L'ERREUR DE GCLOUD EST REMONTÉE, pas jetée · sans elle,
+            # « non lu » recouvrait aussi bien un droit manquant qu'une
+            # attente, et ne disait donc rien.
+            if [ -n "$erreur" ]; then
+              echo "sortie d'erreur de gcloud logging :"
+              printf '%s\n' "$erreur"
+            fi
+            echo "::warning::Régime de connexion non lu · le déploiement reste valide. Si l'erreur ci-dessus parle de permission, accorder roles/logging.viewer au compte de service ; sinon la ligne n'était pas encore indexée."
             exit 0
           fi
           echo "$ligne"
