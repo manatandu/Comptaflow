@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { api, setCsrf } from './api';
+import { api, ApiError, setCsrf } from './api';
 import { memoriserDossier } from './dossiersRecents';
 import type { JeuEtatsFinanciersSycebnl, SystemeComptableSyscohada, Referentiel, RoleUtilisateur } from './types';
 
@@ -55,7 +55,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [utilisateur, setUtilisateur] = useState<MeResponse | null>(null);
   const [chargement, setChargement] = useState(true);
 
-  const chargerUtilisateur = async () => {
+  /**
+   * `exigeante` · la session VIENT d'être ouverte, /auth/me doit donc
+   * répondre. S'il refuse, on ne peut pas se contenter de revenir à l'écran
+   * d'accueil en silence : c'est ce qui s'est passé le 2026-09-02, où une
+   * connexion pourtant acceptée par le serveur renvoyait à la porte sans un
+   * mot, et où il a fallu lire le code pour comprendre.
+   *
+   * Le cas le plus courant n'est même pas une panne : le cookie de session
+   * vient d'un autre site que l'interface (Cloud Run contre Firebase
+   * Hosting), c'est donc un COOKIE TIERS, et un navigateur qui les bloque
+   * (Chrome en navigation privée, par défaut) le jette aussitôt posé. La
+   * connexion réussit, la requête suivante n'est plus authentifiée. Il faut
+   * le DIRE, sinon le logiciel paraît cassé alors qu'il obéit au navigateur.
+   */
+  const chargerUtilisateur = async (exigeante = false) => {
     try {
       const me = await api.get<MeResponse>('/auth/me');
       setUtilisateur(me);
@@ -73,9 +87,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         referentiel: me.tenant.referentiel,
         jeuEtatsFinanciersSycebnl: me.tenant.jeuEtatsFinanciersSycebnl ?? undefined,
       });
-    } catch {
+    } catch (erreur) {
       setCsrf(null);
       setUtilisateur(null);
+      if (exigeante) {
+        throw new Error(
+          erreur instanceof ApiError && erreur.status !== 401
+            ? `Session refusée · ${erreur.message}`
+            : 'Session ouverte mais aussitôt perdue · votre navigateur bloque probablement les cookies tiers. ' +
+              'Essayez une fenêtre normale plutôt que privée, ou autorisez les cookies pour ce site.',
+        );
+      }
     } finally {
       setChargement(false);
     }
@@ -95,7 +117,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // et donc, par ex., ferait disparaître la confirmation du wizard
     // « Nouveau fichier » avant que l'utilisateur ne la voie. `chargement`
     // ne sert qu'à la toute première vérification de session au montage.
-    await chargerUtilisateur();
+    await chargerUtilisateur(true);
   };
 
   const rafraichir = async () => {
