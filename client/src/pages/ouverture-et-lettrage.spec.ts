@@ -74,3 +74,41 @@ describe('journal · la tranche affichée se dit', () => {
     expect(page).toContain('totaux restent ceux du journal entier');
   });
 });
+
+describe('modèles de saisie · la barre de Sage, dans la fenêtre du journal', () => {
+  const saisie = lire('pages/SaisiePage.tsx');
+
+  it('la barre vit DANS la grille, pas dans une boîte à part', () => {
+    // Chez Sage on ne quitte jamais la fenêtre du journal : on choisit un
+    // modèle, on applique, on saisit les montants.
+    expect(saisie).toContain('Appeler un modèle');
+    expect(saisie).toContain('appliquerModele');
+  });
+
+  it('les modèles sont filtrés sur le journal ouvert', () => {
+    // Tout l'intérêt : un journal d'achats propose ses opérations d'achat.
+    expect(saisie).toContain('/modeles-saisie?journalId=');
+  });
+
+  it('appliquer AJOUTE à la pièce, il ne la remplace pas', () => {
+    // Écraser une grille déjà commencée ferait perdre une saisie en cours
+    // sans confirmation.
+    expect(saisie).toMatch(/appliquerModele[\s\S]{0,400}setLignes\(\(prev\) => \[\s*\.\.\.prev,/);
+  });
+
+  it('une ligne sans montant arrive à zéro, prête à être chiffrée', () => {
+    expect(saisie).toContain("l.sens === 'DEBIT' ? (l.montant ?? 0) : 0");
+  });
+
+  it('l’écran de gestion n’offre que des comptes d’imputation', () => {
+    // Un compte de totalisation ne reçoit jamais d'écriture (CLAUDE.md §7) ·
+    // l'offrir ferait découvrir le refus du serveur après coup.
+    const page = lire('pages/ModelesSaisiePage.tsx');
+    expect(page).toContain("x.typeCompte === 'DETAIL'");
+  });
+
+  it('la fenêtre est inscrite au registre et au menu', () => {
+    expect(lire('lib/registre-fenetres.tsx')).toContain('/modeles-saisie$');
+    expect(lire('components/chrome/AppShell.tsx')).toContain("navigate('/modeles-saisie')");
+  });
+});

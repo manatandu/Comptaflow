@@ -27,6 +27,7 @@ export const MODELES_AUDITES = new Set<string>([
   'PlanAnalytique',
   'SectionAnalytique',
   'FamilleImmobilisation',
+  'ModeleSaisie',
   'Tiers',
   'Bailleur',
   // Les actes qui font ou défont un exercice.

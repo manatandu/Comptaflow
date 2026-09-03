@@ -45,6 +45,23 @@ interface LignePiece {
   sections?: Record<string, string>;
 }
 
+/** Un modèle de saisie du dossier, servi par /modeles-saisie. */
+interface ModeleSaisie {
+  id: string;
+  intitule: string;
+  journalId: string | null;
+  journalCode: string | null;
+  lignes: Array<{
+    ordre: number;
+    compteId: string;
+    compteNumero: string;
+    compteIntitule: string;
+    sens: 'DEBIT' | 'CREDIT';
+    libelle: string | null;
+    montant: number | null;
+  }>;
+}
+
 interface Periode {
   annee: number;
   mois: number; // 0-11
@@ -154,6 +171,10 @@ export function SaisiePage() {
   const [succes, setSucces] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
   const [modaleModeles, setModaleModeles] = useState(false);
+  // LES MODÈLES DU JOURNAL OUVERT · la barre « Appeler un modèle » de Sage.
+  // Le serveur rend ceux du journal PLUS ceux qui ne visent aucun journal.
+  const [modeles, setModeles] = useState<ModeleSaisie[]>([]);
+  const [modeleChoisi, setModeleChoisi] = useState('');
   const [calculetteOuverte, setCalculetteOuverte] = useState(false);
 
   const compteRef = useRef<HTMLInputElement>(null);
@@ -440,6 +461,47 @@ export function SaisiePage() {
     ]);
   };
 
+  useEffect(() => {
+    if (!journal) {
+      setModeles([]);
+      return;
+    }
+    let annule = false;
+    api
+      .get<ModeleSaisie[]>(`/modeles-saisie?journalId=${journal.id}`)
+      .then((r) => !annule && setModeles(r), () => !annule && setModeles([]));
+    return () => {
+      annule = true;
+    };
+  }, [journal?.id]);
+
+  /**
+   * APPLIQUER UN MODÈLE · on ajoute ses lignes à la pièce en cours, on ne la
+   * remplace pas. Chez Sage, appliquer un modèle sur une grille déjà commencée
+   * complète la pièce · écraser ferait perdre une saisie en cours sans
+   * confirmation.
+   *
+   * Les montants du modèle sont facultatifs : une ligne sans montant arrive à
+   * zéro, le comptable la chiffre. C'est le cas le plus fréquent, et c'est
+   * pour cela que le modèle sert.
+   */
+  const appliquerModele = () => {
+    const modele = modeles.find((m) => m.id === modeleChoisi);
+    if (!modele) return;
+    setLignes((prev) => [
+      ...prev,
+      ...modele.lignes.map((l) => ({
+        compteId: l.compteId,
+        numero: l.compteNumero,
+        intitule: l.compteIntitule,
+        libelle: l.libelle ?? '',
+        debit: l.sens === 'DEBIT' ? (l.montant ?? 0) : 0,
+        credit: l.sens === 'CREDIT' ? (l.montant ?? 0) : 0,
+      })),
+    ]);
+    if (!libellePiece) setLibellePiece(modele.intitule);
+  };
+
   const insererModele = (nouvelles: LigneInseree[], libelleSuggere: string) => {
     setLignes((prev) => [
       ...prev,
@@ -636,6 +698,37 @@ export function SaisiePage() {
           Changer de journal / période
         </button>
       </div>
+
+      {/* APPELER UN MODÈLE · la barre de Sage, DANS la fenêtre du journal et
+          non dans une boîte de dialogue à part : on ne quitte pas la grille.
+          Absente tant que le dossier n'a défini aucun modèle · une liste vide
+          n'apprend rien et prend une ligne. */}
+      {modeles.length > 0 && (
+        <div className="flex items-center gap-2 mb-2 bg-chrome border border-border px-2.5 py-1.5">
+          <span className="text-[10.5px] text-text-dim flex-shrink-0">Appeler un modèle</span>
+          <select
+            value={modeleChoisi}
+            onChange={(e) => setModeleChoisi(e.target.value)}
+            className="flex-1 min-w-0 border border-border bg-surface px-2 py-1 text-[11px]"
+          >
+            <option value="">Modèle de saisie…</option>
+            {modeles.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.intitule}
+                {m.journalCode ? '' : ' · tous journaux'}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={appliquerModele}
+            disabled={!modeleChoisi}
+            className="flex-shrink-0 border border-border-dark bg-chrome-alt hover:bg-sel-soft disabled:opacity-40 px-3 py-1 text-[10.5px]"
+          >
+            Appliquer
+          </button>
+        </div>
+      )}
 
       <div className="bg-surface border border-border shadow-posee">
         {/* En-tête de colonnes · la grille Sage : Jour · Pièce · Référence · Compte · Libellé · Débit · Crédit */}

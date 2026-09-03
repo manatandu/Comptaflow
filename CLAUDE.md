@@ -54,7 +54,7 @@ Racine = serveur. `client/` = interface. Un seul dépôt.
 src/modules/     30 modules métier (auth, comptes, ecritures, etats-financiers,
                  notes-annexes, exports, groupe, plateforme, licence…)
 src/common/      gardes, décorateurs, Prisma, journal d'audit, /health
-prisma/          schema.prisma + 52 migrations SQL écrites à la main
+prisma/          schema.prisma + 59 migrations SQL écrites à la main
 client/src/      pages/, components/chrome/, lib/
 docs/            plan de construction, audits, guides pilote, notes de droit
 .github/workflows/  déploiement et sauvegardes
@@ -206,6 +206,24 @@ Communes aux deux, mais avec un écran par référentiel derrière l'aiguillage 
 techniques (`etats-financiers.communs.ts`, `note-annexe.types.ts` côté
 serveur, `components/NotesAnnexesRendu.tsx` côté client) · aucun poste, aucun
 compte, aucun libellé.
+
+### Migrations écrites à la main
+
+Une migration écrite à la main peut DIVERGER du schéma sans que rien ne le
+dise : Prisma applique la SQL telle quelle et ne la compare pas au modèle.
+Après toute migration ajoutée, passer
+
+```bash
+npx prisma migrate diff --from-migrations prisma/migrations \
+  --to-schema-datamodel prisma/schema.prisma \
+  --shadow-database-url "$DATABASE_URL" --exit-code
+```
+
+sur une base jetable. Le 2026-09-03, ce contrôle a trouvé une dérive réelle :
+Prisma pose `ON DELETE SET NULL` par défaut sur une relation FACULTATIVE, là
+où la migration disait `RESTRICT`. La règle voulue était bien `RESTRICT` · le
+schéma la déclare désormais explicitement, plutôt que d'aligner la SQL sur un
+défaut qu'on ne voulait pas.
 
 ## 7. Conventions du plan de comptes semé
 

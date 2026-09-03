@@ -26,6 +26,7 @@ export const MODELES_CLOISONNES = new Set<string>([
   'LiquidationTva',
   'ModeleAbonnement',
   'ModeleReglement',
+  'ModeleSaisie',
   'NiveauRelance',
   'PlanAnalytique',
   'RapportActivite',
@@ -63,6 +64,7 @@ export const MODELES_PORTES_PAR_LEUR_PARENT = new Set<string>([
   'EcheanceReglement',
   'LigneAffectation',
   'LigneEcriture',
+  'LigneModeleSaisie',
   'TiersCompte',
   'VentilationAnalytique',
 ]);

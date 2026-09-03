@@ -380,6 +380,7 @@ model Tenant {
   sectionsAnalytiques      SectionAnalytique[]
   regularisations          Regularisation[]
   modelesAbonnement        ModeleAbonnement[]
+  modelesSaisie            ModeleSaisie[]
   devises                  Devise[]
   reevaluations            Reevaluation[]
   niveauxRelance           NiveauRelance[]
@@ -388,10 +389,10 @@ model Tenant {
 
   exonerations         Exoneration[]
   affectationsResultat AffectationResultat[]
+  evenementsAudit      EvenementAudit[]
 
   @@index([dossierMereId])
   @@map("tenants")
-  evenementsAudit EvenementAudit[]
 }
 
 // Une licence par tenant. Le champ dateExpiration est nul pour les deux formes
@@ -465,10 +466,10 @@ model User {
   /// Le verrou est TEMPORAIRE, jamais définitif : un verrou définitif se
   /// retournerait en refus de service · il suffirait de saisir n'importe quoi
   /// sur le compte d'un comptable pour l'empêcher de travailler.
-  tentativesEchouees     Int             @default(0)
-  verrouilleJusqua       DateTime?
+  tentativesEchouees Int       @default(0)
+  verrouilleJusqua   DateTime?
 
-  createdAt              DateTime        @default(now())
+  createdAt DateTime @default(now())
 
   @@map("users")
 }
@@ -586,6 +587,7 @@ model Compte {
   regularisationsDiffere        Regularisation[]        @relation("RegulCompteDiffere")
   abonnementsDebit              ModeleAbonnement[]      @relation("AbonnementCompteDebit")
   abonnementsCredit             ModeleAbonnement[]      @relation("AbonnementCompteCredit")
+  lignesModeleSaisie            LigneModeleSaisie[]
   immobilisationsDotation       Immobilisation[]        @relation("ImmoCompteDotation")
   // Rattachements aux rubriques de notes annexes (voir RattachementNote).
   rattachementsNotes            RattachementNote[]
@@ -635,6 +637,7 @@ model Journal {
   ecritures         Ecriture[]
   clotures          Cloture[]
   modelesAbonnement ModeleAbonnement[]
+  modelesSaisie     ModeleSaisie[]
 
   @@unique([tenantId, code])
   @@map("journaux")
@@ -1667,6 +1670,96 @@ model EcheanceAbonnement {
   @@unique([abonnementId, date])
   @@index([abonnementId])
   @@map("echeances_abonnement")
+}
+
+// ---------------------------------------------------------------------------
+// MODÈLES DE SAISIE · les « opérations courantes » d'un journal.
+//
+// Ce que fait Sage, et que nous n'avions pas : dans la fenêtre d'un journal,
+// une barre « Appeler un modèle · [modèle] · Appliquer » remplit la grille
+// d'un SQUELETTE d'écriture nommé · les comptes et les libellés sont posés,
+// les montants restent au comptable.
+//
+// Trois écarts avec ce que le logiciel savait déjà faire, et c'est pour eux
+// que ce modèle existe :
+//
+//  1. Les écritures-types du logiciel sont ÉCRITES DANS LE CODE. Une ONG qui
+//     passe chaque mois la même écriture de subvention bailleur ne peut pas
+//     se la fabriquer. Ici, le modèle est une donnée du dossier.
+//  2. Elles ne sont rattachées à aucun JOURNAL, alors que tout l'intérêt est
+//     qu'un journal d'achats propose ses opérations d'achat.
+//  3. Elles vivent dans une fenêtre à part ; chez Sage on ne quitte jamais la
+//     grille.
+//
+// À ne pas confondre avec ModeleAbonnement, qui est un contrat périodique à
+// deux comptes et son échéancier : un modèle de saisie n'a ni périodicité ni
+// échéance, il ne s'applique que sur demande, et il porte autant de lignes
+// qu'il faut.
+// ---------------------------------------------------------------------------
+
+enum SensModeleSaisie {
+  DEBIT
+  CREDIT
+}
+
+model ModeleSaisie {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  /// Le nom qui s'affiche dans la barre du journal, et que Sage reprend dans
+  /// le titre de la fenêtre (« Journal : Ventes/sept.26/Avoir facture »).
+  intitule String
+
+  /// Le journal auquel le modèle appartient. NULL = disponible dans tous les
+  /// journaux · un dossier qui débute n'a pas envie de recréer le même
+  /// squelette dans chacun de ses journaux.
+  /// `Restrict` et NON le `SetNull` que Prisma poserait par défaut : à la
+  /// suppression d'un journal, mettre `journalId` à NULL transformerait en
+  /// silence un modèle propre à ce journal en modèle « tous journaux », qui
+  /// se mettrait à apparaître partout. Mieux vaut refuser la suppression et
+  /// laisser décider.
+  journalId String?
+  journal   Journal? @relation(fields: [journalId], references: [id], onDelete: Restrict)
+
+  estActif  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  createdBy String
+
+  lignes LigneModeleSaisie[]
+
+  /// Deux modèles de même nom dans le même dossier rendraient la liste
+  /// déroulante indéchiffrable · c'est le nom que le comptable choisit.
+  @@unique([tenantId, intitule])
+  @@index([tenantId, journalId])
+  @@map("modeles_saisie")
+}
+
+model LigneModeleSaisie {
+  id       String       @id @default(uuid())
+  modeleId String
+  modele   ModeleSaisie @relation(fields: [modeleId], references: [id], onDelete: Cascade)
+
+  /// L'ordre d'insertion dans la grille · une écriture se lit dans un ordre,
+  /// et le laisser au plan d'exécution le ferait changer d'un appel à
+  /// l'autre.
+  ordre    Int
+  compteId String
+  compte   Compte           @relation(fields: [compteId], references: [id])
+  sens     SensModeleSaisie
+
+  /// Libellé pré-rempli · dans la capture Sage, « Avoir facture n° », que le
+  /// comptable complète.
+  libelle String?
+
+  /// Montant pré-rempli, FACULTATIF et c'est le point : un modèle sert à
+  /// poser les comptes, pas à figer une somme. Il n'est servi que pour les
+  /// écritures dont le montant ne varie pas.
+  montant Decimal? @db.Decimal(18, 2)
+
+  @@unique([modeleId, ordre])
+  @@index([modeleId])
+  @@map("lignes_modele_saisie")
 }
 
 // ---------------------------------------------------------------------------

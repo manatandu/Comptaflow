@@ -164,6 +164,7 @@ export function AppShell() {
         { label: 'Plans analytiques', onClick: () => navigate('/plans-analytiques') },
         { label: 'Codes journaux', onClick: () => navigate('/journaux') },
         { label: 'Taux de taxes', onClick: () => navigate('/taux-tva') },
+        { label: 'Modèles de saisie', onClick: () => navigate('/modeles-saisie') },
         // Notion SYCEBNL (division 46) · masqué pour un dossier SYSCOHADA,
         // comme le registre des donateurs · le serveur refuse pareil.
         ...(estSycebnl

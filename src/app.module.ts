@@ -41,6 +41,7 @@ import { ExonerationsModule } from './modules/exonerations/exonerations.module';
 import { FiscaliteModule } from './modules/fiscalite/fiscalite.module';
 import { PlateformeModule } from './modules/plateforme/plateforme.module';
 import { GroupeModule } from './modules/groupe/groupe.module';
+import { ModelesSaisieModule } from './modules/modeles-saisie/modeles-saisie.module';
 
 @Module({
   imports: [
@@ -91,6 +92,7 @@ import { GroupeModule } from './modules/groupe/groupe.module';
     FiscaliteModule,
     PlateformeModule,
     GroupeModule,
+    ModelesSaisieModule,
   ],
   controllers: [SanteController],
   providers: [

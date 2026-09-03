@@ -30,6 +30,9 @@ const ImmobilisationsPage = lazy(() => import('../pages/ImmobilisationsPage').th
 const ExercicePage = lazy(() => import('../pages/ExercicePage').then((m) => ({ default: m.ExercicePage })));
 const TiersPage = lazy(() => import('../pages/TiersPage').then((m) => ({ default: m.TiersPage })));
 const TauxTvaPage = lazy(() => import('../pages/TauxTvaPage').then((m) => ({ default: m.TauxTvaPage })));
+const ModelesSaisiePage = lazy(() =>
+  import('../pages/ModelesSaisiePage').then((m) => ({ default: m.ModelesSaisiePage })),
+);
 const DeclarationTvaPage = lazy(() => import('../pages/DeclarationTvaPage').then((m) => ({ default: m.DeclarationTvaPage })));
 const RetenuesPage = lazy(() => import('../pages/RetenuesPage').then((m) => ({ default: m.RetenuesPage })));
 const ExonerationsPage = lazy(() => import('../pages/ExonerationsPage').then((m) => ({ default: m.ExonerationsPage })));
@@ -186,6 +189,12 @@ export const FENETRES: DefinitionFenetre[] = [
   { motif: /^\/exercice$/, titre: "Fin d'exercice", titreCourt: "Fin d'exercice", rendre: () => <ExercicePage /> },
   { motif: /^\/tiers$/, titre: 'Plan des tiers', titreCourt: 'Plan tiers', rendre: () => <TiersPage /> },
   { motif: /^\/taux-tva$/, titre: 'Taux de taxes', titreCourt: 'Taux de taxes', rendre: () => <TauxTvaPage /> },
+  {
+    motif: /^\/modeles-saisie$/,
+    titre: 'Modèles de saisie',
+    titreCourt: 'Modèles',
+    rendre: () => <ModelesSaisiePage />,
+  },
   {
     motif: /^\/declaration-tva$/,
     titre: 'Déclaration de TVA',
