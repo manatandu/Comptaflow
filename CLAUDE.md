@@ -239,6 +239,21 @@ dit d'où il vient. Et les lignes en saisie sont présentées même quand la not
 n'est pas applicable : le filtre du § 1.4 les retirait, ce qui faisait de
 toute note vide un cul-de-sac impossible à remplir.
 
+**Cotisations · l'appel ou l'encaissement, et c'est le dossier qui répond.**
+Cadre conceptuel § 5.4.2.1 : le fait générateur est l'APPEL, « toutefois, si
+l'entité ne peut justifier d'un droit d'agir en recouvrement, les cotisations
+et le droit d'entrée sont comptabilisés lors de leur encaissement effectif »,
+et « l'entité doit préciser dans les notes annexes, la méthode retenue ». Ce
+n'est pas une préférence de présentation : c'est l'existence, dans les
+STATUTS, d'une voie de recouvrement. `Tenant.methodeCotisations` enregistre ce
+que le cabinet a constaté, sans valeur par défaut · un APPEL présumé ferait
+inscrire à l'actif des créances que l'entité ne peut pas poursuivre. Le choix
+commande ensuite les écritures (les modèles `exigeDroitDAgir` sont refusés à
+un dossier à l'encaissement) et le contrôle
+`METHODE_COTISATIONS_NON_PRECISEE` rappelle la mention obligatoire, mais
+seulement à un dossier qui a mouvementé le 701 ou le 103. Un dossier qui n'a
+rien tranché n'est PAS bloqué à la saisie : le texte fait de l'appel la règle.
+
 **Retraitements fiscaux · le logiciel se souvient, il ne qualifie pas.** Le
 catalogue (`catalogue-retraitements.ts`) refuse de déduire la qualification
 fiscale d'une charge de son numéro de compte, et il a raison : le 6582

@@ -11,6 +11,7 @@ import {
   ModifierFormeSyscohadaDto,
   ModifierIdentiteDto,
   ModifierJeuEtatsDto,
+  ModifierMethodeCotisationsDto,
   ModifierRegimeDto,
   ModifierSystemeSyscohadaDto,
 } from './dto/parametres-dossier.dto';
@@ -90,5 +91,21 @@ export class TenantController {
   @Roles(RoleUtilisateur.ADMIN_CABINET)
   async modifierRegime(@CurrentUser() user: AuthenticatedUser, @Body() dto: ModifierRegimeDto) {
     return this.tenantService.modifierRegime(user.tenantId, dto);
+  }
+
+  /**
+   * Fait générateur des cotisations et du droit d'entrée · voir
+   * `TenantService.modifierMethodeCotisations`. Réservé à l'administrateur du
+   * dossier : ce choix commande les écritures de cotisation de tous les
+   * exercices et une mention obligatoire en notes annexes (§ 5.4.2.1), ce
+   * n'est pas un réglage d'affichage.
+   */
+  @Patch('methode-cotisations')
+  @Roles(RoleUtilisateur.ADMIN_CABINET)
+  async modifierMethodeCotisations(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: ModifierMethodeCotisationsDto,
+  ) {
+    return this.tenantService.modifierMethodeCotisations(user.tenantId, dto.methodeCotisations);
   }
 }

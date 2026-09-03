@@ -194,6 +194,25 @@ enum StatutLicence {
   SUSPENDUE
 }
 
+/// Fait générateur retenu par le dossier pour les cotisations et le droit
+/// d'entrée · cadre conceptuel SYCEBNL § 5.4.2.1 : « Le fait générateur de la
+/// comptabilisation des cotisations et du droit d'entrée est l'appel de
+/// cotisation ou de paiement du droit d'entrée. Toutefois, si l'entité ne peut
+/// justifier d'un droit d'agir en recouvrement, les cotisations et le droit
+/// d'entrée sont comptabilisés lors de leur encaissement effectif. »
+///
+/// Ce n'est donc PAS une préférence de méthode : c'est l'existence, dans les
+/// statuts, d'une voie de recouvrement. Le logiciel ne peut pas la lire · il
+/// enregistre ce que le cabinet a constaté, et le lui oppose ensuite.
+enum MethodeCotisations {
+  /// L'entité justifie d'un droit d'agir · la créance est constatée à l'appel
+  /// (411 Adhérents par le crédit du 701).
+  APPEL
+  /// Pas de voie de recouvrement · le produit n'est constaté qu'à
+  /// l'encaissement effectif, sans passer par le 411.
+  ENCAISSEMENT
+}
+
 model Tenant {
   id                        String                     @id @default(uuid())
   nom                       String
@@ -292,6 +311,14 @@ model Tenant {
   // la longueur du plus long numéro de compte déjà créé pour ce tenant ·
   // sinon des comptes existants deviendraient invalides rétroactivement.
   longueurCompte Int @default(8)
+
+  /// Fait générateur des cotisations et du droit d'entrée (§ 5.4.2.1) ·
+  /// SYCEBNL, jeu associations et ordres professionnels. NULL = pas encore
+  /// tranché : aucune valeur par défaut n'est posée, la réponse se lit dans
+  /// les STATUTS et pas dans un logiciel. Le § 5.4.2.1 ajoute que « l'entité
+  /// doit préciser dans les notes annexes, la méthode retenue » · d'où le
+  /// contrôle qui signale un dossier qui ne l'a pas fait.
+  methodeCotisations MethodeCotisations?
 
   // ASSUJETTISSEMENT À LA TVA · une ASBL n'est PAS assujettie de plein droit.
   // L'ordonnance-loi n° 10/001 art. 14 fixe le seuil à 80 000 000 FC de chiffre

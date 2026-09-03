@@ -367,6 +367,24 @@ export function ParametresDossierPage() {
           : []),
       ];
 
+  /**
+   * Fait générateur des cotisations et du droit d'entrée · cadre conceptuel
+   * SYCEBNL § 5.4.2.1. Aucune valeur par défaut n'est proposée : la réponse
+   * se lit dans les STATUTS, et un choix préposé serait pris pour un
+   * constat.
+   */
+  const changerMethodeCotisations = async (methodeCotisations: 'APPEL' | 'ENCAISSEMENT') => {
+    setErreur(null);
+    setEnvoi(true);
+    try {
+      setParams(await api.patch<ParametresDossier>('/dossier/methode-cotisations', { methodeCotisations }));
+    } catch (e) {
+      setErreur(e instanceof ApiError ? e.message : 'Enregistrement impossible');
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
   const enregistrerCoordonnees = async (e: FormEvent) => {
     e.preventDefault();
     // Contrôle posé ici plutôt que laissé au DTO : le refus de
@@ -884,6 +902,41 @@ export function ParametresDossierPage() {
                     </span>
                   )}
                 </label>
+
+                {/* COTISATIONS · propre au jeu associations et ordres
+                    professionnels. Un projet de développement est financé par
+                    un bailleur, il n'appelle pas de cotisation, et le serveur
+                    refuse le réglage · le montrer serait une promesse fausse. */}
+                {params.referentiel === 'SYCEBNL' &&
+                  params.jeuEtatsFinanciersSycebnl === 'ASSOCIATIONS_ORDRES_PROFESSIONNELS' && (
+                    <label className="block text-[10.5px]">
+                      Comptabilisation des cotisations et du droit d’entrée
+                      <select
+                        value={params.methodeCotisations ?? ''}
+                        disabled={!estAdmin || envoi}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          if (v === 'APPEL' || v === 'ENCAISSEMENT') changerMethodeCotisations(v);
+                        }}
+                        className="mt-1 block w-full max-w-[420px] border border-border rounded-[7px] bg-bg px-2 py-1 text-[11px] focus:outline-none focus:border-sel"
+                      >
+                        <option value="" disabled>
+                          À trancher · lire les statuts
+                        </option>
+                        <option value="APPEL">À l’appel · l’entité justifie d’un droit d’agir en recouvrement</option>
+                        <option value="ENCAISSEMENT">À l’encaissement effectif · aucune voie de recouvrement</option>
+                      </select>
+                      <span className="block text-[10px] text-text-dim leading-[1.5] mt-1">
+                        Cadre conceptuel § 5.4.2.1 : le fait générateur est l’<strong>appel</strong>, « toutefois, si
+                        l’entité ne peut justifier d’un droit d’agir en recouvrement, les cotisations et le droit
+                        d’entrée sont comptabilisés lors de leur encaissement effectif ». Ce n’est donc pas une
+                        préférence de méthode mais un fait à vérifier dans les statuts. Le même paragraphe impose de
+                        « préciser dans les notes annexes, la méthode retenue ». À l’encaissement, les modèles
+                        d’appel de cotisation sont refusés : ils inscriraient au 411 des créances que l’entité n’a
+                        aucun moyen de poursuivre.
+                      </span>
+                    </label>
+                  )}
               </div>
             </>
           )}

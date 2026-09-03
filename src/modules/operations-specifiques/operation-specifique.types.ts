@@ -129,6 +129,19 @@ export interface ModeleEcriture {
    * même régularisation.
    */
   aExtourner?: boolean;
+  /**
+   * Modèle qui suppose que l'entité JUSTIFIE D'UN DROIT D'AGIR en
+   * recouvrement · il débite le 411 Adhérents pour constater la créance dès
+   * l'appel. Le cadre conceptuel § 5.4.2.1 le réserve à ce cas : « si
+   * l'entité ne peut justifier d'un droit d'agir en recouvrement, les
+   * cotisations et le droit d'entrée sont comptabilisés lors de leur
+   * encaissement effectif ».
+   *
+   * Le service refuse alors le modèle sur un dossier qui a déclaré
+   * `ENCAISSEMENT` · sans quoi le logiciel inscrirait à l'actif des créances
+   * que l'entité n'a aucun moyen de poursuivre, et gonflerait son bilan.
+   */
+  exigeDroitDAgir?: boolean;
 }
 
 /** Le jeu d'états financiers auquel l'opération se rattache. */

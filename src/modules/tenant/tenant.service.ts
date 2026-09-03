@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { siSycebnl } from '../../common/reponse-referentiel';
 import { PrismaService } from '../../common/prisma.service';
 import { Prisma, FormeJuridiqueEbnl,
-  FormeJuridiqueSyscohada, JeuEtatsFinanciersSycebnl, Referentiel, RegimeExigibiliteTva, SystemeComptableSyscohada, TypeLicence } from '@prisma/client';
+  FormeJuridiqueSyscohada, JeuEtatsFinanciersSycebnl, MethodeCotisations, Referentiel, RegimeExigibiliteTva, SystemeComptableSyscohada, TypeLicence } from '@prisma/client';
 
 /**
  * Crée un tenant et sa licence en une transaction. Le référentiel comptable
@@ -107,6 +107,11 @@ export class TenantService {
       regimeExigibiliteTva: tenant.regimeExigibiliteTva,
       dateAutorisationDebitsTva: tenant.dateAutorisationDebitsTva,
       effectifPermanent: tenant.effectifPermanent,
+      // Fait générateur des cotisations · SYCEBNL seulement (§ 5.4.2.1) ·
+      // `null` pour un dossier SYSCOHADA veut dire « sans objet », et pour un
+      // dossier SYCEBNL « pas encore tranché ». Le référentiel du dossier
+      // distingue les deux, comme pour la forme juridique.
+      methodeCotisations: siSycebnl(tenant.referentiel, tenant.methodeCotisations),
       nombreEcritures,
     };
   }
@@ -387,6 +392,47 @@ export class TenantService {
       );
     }
     await this.prisma.tenant.update({ where: { id: tenantId }, data: { formeJuridiqueSyscohada } });
+    return this.parametres(tenantId);
+  }
+
+  /**
+   * Fait générateur des cotisations et du droit d'entrée.
+   *
+   * Cadre conceptuel SYCEBNL § 5.4.2.1 : « Le fait générateur de la
+   * comptabilisation des cotisations et du droit d'entrée est l'appel de
+   * cotisation ou de paiement du droit d'entrée. Toutefois, si l'entité ne
+   * peut justifier d'un droit d'agir en recouvrement, les cotisations et le
+   * droit d'entrée sont comptabilisés lors de leur encaissement effectif. »
+   *
+   * LE LOGICIEL NE TRANCHE PAS · la réponse est dans les statuts (existence
+   * d'une voie de recouvrement), pas dans la comptabilité. Il enregistre ce
+   * que le cabinet a constaté, le REPROPOSE aux écritures de cotisation, et
+   * rappelle la mention que le même paragraphe rend obligatoire en notes
+   * annexes. Poser APPEL par défaut ferait constater des créances sur des
+   * adhérents que l'entité n'a aucun moyen de poursuivre.
+   *
+   * Modifiable à tout moment : une modification des statuts est un événement
+   * ordinaire, et la méthode ne vaut que pour les écritures à venir · celles
+   * déjà passées se corrigent par contre-écriture, comme toujours.
+   */
+  async modifierMethodeCotisations(tenantId: string, methodeCotisations: MethodeCotisations) {
+    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
+    if (!tenant) {
+      throw new NotFoundException('Dossier introuvable');
+    }
+    if (tenant.referentiel !== Referentiel.SYCEBNL) {
+      throw new BadRequestException(
+        'Les cotisations et le droit d’entrée relèvent du SYCEBNL (cadre conceptuel § 5.4.2.1) · ' +
+          "un dossier d'entreprise n'en a pas.",
+      );
+    }
+    if (tenant.jeuEtatsFinanciersSycebnl !== JeuEtatsFinanciersSycebnl.ASSOCIATIONS_ORDRES_PROFESSIONNELS) {
+      throw new BadRequestException(
+        "Les cotisations sont celles des ADHÉRENTS d'une association ou d'un ordre professionnel · " +
+          "un projet de développement est financé par un bailleur, il n'appelle pas de cotisation.",
+      );
+    }
+    await this.prisma.tenant.update({ where: { id: tenantId }, data: { methodeCotisations } });
     return this.parametres(tenantId);
   }
 

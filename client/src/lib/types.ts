@@ -1028,6 +1028,12 @@ export interface ModeleEcriture {
   anomalie?: string;
   /** Écriture d'inventaire à extourner à l'ouverture de l'exercice suivant. */
   aExtourner?: boolean;
+  /**
+   * Modèle qui débite le 411 Adhérents dès l'appel · réservé au dossier qui
+   * justifie d'un droit d'agir en recouvrement (§ 5.4.2.1). Le serveur le
+   * refuse à un dossier qui constate à l'encaissement.
+   */
+  exigeDroitDAgir?: boolean;
 }
 
 export interface OperationSpecifique {
@@ -1042,6 +1048,12 @@ export interface OperationSpecifique {
 
 export interface CatalogueOperations {
   jeu: 'ASSOCIATIONS' | 'PROJETS';
+  /**
+   * Fait générateur retenu par le dossier pour les cotisations et le droit
+   * d'entrée (cadre conceptuel § 5.4.2.1), ou `null` s'il n'a pas été
+   * tranché. Les modèles d'APPEL en dépendent · voir `exigeDroitDAgir`.
+   */
+  methodeCotisations: 'APPEL' | 'ENCAISSEMENT' | null;
   operations: OperationSpecifique[];
   operationsAutreJeu: OperationSpecifique[];
 }
@@ -1135,6 +1147,12 @@ export interface ParametresDossier {
    * (SYCEBNL, art. 19) et tranche de cotisation INPP.
    */
   effectifPermanent: number;
+  /**
+   * Fait générateur des cotisations et du droit d'entrée · cadre conceptuel
+   * SYCEBNL § 5.4.2.1. `null` = pas encore tranché pour une association, sans
+   * objet pour un projet de développement ou un dossier SYSCOHADA.
+   */
+  methodeCotisations: 'APPEL' | 'ENCAISSEMENT' | null;
   /** Au-delà de zéro, le jeu d'états financiers est verrouillé. */
   nombreEcritures: number;
 }

@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { TypeCompteDetailTotal } from '@prisma/client';
+import { MethodeCotisations, TypeCompteDetailTotal } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { OPERATIONS_FONDS_PROPRES } from './catalogue-operations';
@@ -57,11 +57,17 @@ export class OperationSpecifiqueService {
   async catalogue(tenantId: string) {
     const tenant = await this.prisma.tenant.findUniqueOrThrow({
       where: { id: tenantId },
-      select: { jeuEtatsFinanciersSycebnl: true },
+      select: { jeuEtatsFinanciersSycebnl: true, methodeCotisations: true },
     });
     const jeu = tenant.jeuEtatsFinanciersSycebnl === 'PROJETS_DEVELOPPEMENT' ? 'PROJETS' : 'ASSOCIATIONS';
     return {
       jeu,
+      /**
+       * Fait générateur retenu par le dossier pour les cotisations
+       * (§ 5.4.2.1), ou `null` s'il n'a pas été tranché · l'écran le rappelle
+       * au-dessus de l'opération B6, dont la moitié des modèles en dépend.
+       */
+      methodeCotisations: tenant.methodeCotisations,
       operations: CATALOGUE.filter((o) => o.portee === 'TOUS' || o.portee === jeu),
       /**
        * Les opérations de l'AUTRE jeu ne sont pas cachées : un dossier peut
@@ -78,6 +84,38 @@ export class OperationSpecifiqueService {
       if (modele) return { operation, modele };
     }
     throw new NotFoundException(`Modèle d'écriture « ${codeModele} » inconnu du catalogue.`);
+  }
+
+  /**
+   * Refuse un modèle d'APPEL de cotisation sur un dossier qui a déclaré
+   * constater ses cotisations à l'ENCAISSEMENT.
+   *
+   * Cadre conceptuel SYCEBNL § 5.4.2.1 : « si l'entité ne peut justifier d'un
+   * droit d'agir en recouvrement, les cotisations et le droit d'entrée sont
+   * comptabilisés lors de leur encaissement effectif ». Passer quand même
+   * l'écriture d'appel inscrirait à l'actif du 411 des créances que l'entité
+   * n'a aucun moyen de poursuivre : un bilan gonflé, et une dépréciation à
+   * inventer chaque année pour le dégonfler.
+   *
+   * Un dossier qui n'a RIEN déclaré n'est pas bloqué : le § 5.4.2.1 pose
+   * l'appel comme la règle et l'encaissement comme l'exception. C'est le
+   * contrôle de cohérence, pas la saisie, qui lui rappelle de trancher et de
+   * porter la mention en notes annexes.
+   */
+  private async verifierDroitDAgir(modele: ModeleEcriture, tenantId: string) {
+    if (!modele.exigeDroitDAgir) return;
+    const tenant = await this.prisma.tenant.findUniqueOrThrow({
+      where: { id: tenantId },
+      select: { methodeCotisations: true },
+    });
+    if (tenant.methodeCotisations === MethodeCotisations.ENCAISSEMENT) {
+      throw new BadRequestException(
+        `Ce dossier constate ses cotisations à l'ENCAISSEMENT : il ne peut pas justifier d'un droit d'agir en ` +
+          `recouvrement (cadre conceptuel § 5.4.2.1). Le modèle « ${modele.libelle} » débite le 411 Adhérents ` +
+          `pour constater la créance dès l'appel · il inscrirait à l'actif une créance non recouvrable. ` +
+          `Comptabiliser le produit à l'encaissement, ou corriger la méthode dans Structure > Paramètres du dossier.`,
+      );
+    }
   }
 
   /**
@@ -135,6 +173,7 @@ export class OperationSpecifiqueService {
    */
   async proposer(tenantId: string, dto: ProposerModeleDto): Promise<EcritureProposee> {
     const { modele } = this.trouverModele(dto.codeModele);
+    await this.verifierDroitDAgir(modele, tenantId);
     const valeurs = dto.parametres ?? {};
     const choix = dto.comptesChoisis ?? {};
     const comptes = await this.resoudreComptes(tenantId);

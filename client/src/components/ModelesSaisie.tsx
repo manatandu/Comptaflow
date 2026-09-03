@@ -472,6 +472,35 @@ export function ModelesSaisieModale({
                   {selection.modele.applicationGuide && ` · ${selection.modele.applicationGuide}`}
                 </p>
 
+                {/* MODÈLE D'APPEL · il débite le 411 Adhérents, ce que le
+                    § 5.4.2.1 réserve au dossier qui justifie d'un droit d'agir
+                    en recouvrement. Le serveur refuse un dossier à
+                    l'encaissement ; le dire AVANT la saisie vaut mieux que de
+                    laisser essuyer un 400 après avoir rempli les montants. */}
+                {selection.modele.exigeDroitDAgir && catalogue?.methodeCotisations !== 'APPEL' && (
+                  <div
+                    className={`mb-3 px-2.5 py-2 text-[10.5px] leading-[1.5] border ${
+                      catalogue?.methodeCotisations === 'ENCAISSEMENT'
+                        ? 'border-danger text-danger'
+                        : 'border-border text-text-dim'
+                    }`}
+                  >
+                    {catalogue?.methodeCotisations === 'ENCAISSEMENT' ? (
+                      <>
+                        Ce dossier constate ses cotisations à l’ENCAISSEMENT · ce modèle sera refusé. Il inscrirait
+                        au 411 Adhérents une créance que l’entité n’a aucun moyen de poursuivre (cadre conceptuel
+                        § 5.4.2.1).
+                      </>
+                    ) : (
+                      <>
+                        Ce modèle constate la créance dès l’appel. Le § 5.4.2.1 le réserve à l’entité qui justifie
+                        d’un droit d’agir en recouvrement · la méthode du dossier n’est pas encore renseignée
+                        (Structure &gt; Paramètres du dossier).
+                      </>
+                    )}
+                  </div>
+                )}
+
                 {selection.modele.parametres.length > 0 && (
                   <div className="grid grid-cols-[220px_180px] items-center gap-x-3 gap-y-2 mb-3">
                     {selection.modele.parametres.map((p) => (

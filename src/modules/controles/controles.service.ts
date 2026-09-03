@@ -918,6 +918,47 @@ export class ControlesService {
       }
     }
 
+    // --- 6 bis. Méthode de comptabilisation des cotisations non précisée ----
+    // Cadre conceptuel SYCEBNL § 5.4.2.1 : « Le fait générateur de la
+    // comptabilisation des cotisations et du droit d'entrée est l'appel [...]
+    // Toutefois, si l'entité ne peut justifier d'un droit d'agir en
+    // recouvrement, [...] lors de leur encaissement effectif », et
+    // « L'entité doit préciser dans les notes annexes, la méthode retenue ».
+    //
+    // Le contrôle ne se déclenche QUE si le dossier a mouvementé des
+    // cotisations ou un droit d'entrée : une association qui n'en appelle pas
+    // n'a rien à préciser, et un contrôle qui crie sans objet finit ignoré.
+    if (
+      tenant.referentiel === Referentiel.SYCEBNL &&
+      tenant.jeuEtatsFinanciersSycebnl === JeuEtatsFinanciersSycebnl.ASSOCIATIONS_ORDRES_PROFESSIONNELS &&
+      !tenant.methodeCotisations
+    ) {
+      const mouvementees = ecritures.filter((e) =>
+        e.lignes.some((l) => l.compte.numero.startsWith('701') || l.compte.numero.startsWith('103')),
+      );
+      if (mouvementees.length > 0) {
+        anomalies.push({
+          code: 'METHODE_COTISATIONS_NON_PRECISEE',
+          gravite: 'AVERTISSEMENT',
+          libelle: "Méthode de comptabilisation des cotisations et du droit d'entrée non précisée",
+          consequence:
+            "Le cadre conceptuel (§ 5.4.2.1) impose de préciser en notes annexes la méthode retenue, et " +
+            "conditionne l'appel au fait que l'entité puisse justifier d'un droit d'agir en recouvrement. " +
+            'Sans ce choix, rien ne dit si les créances portées au 411 Adhérents sont recouvrables, et la ' +
+            'mention obligatoire manque à la liasse.',
+          action:
+            'Lire les statuts : ouvrent-ils une voie de recouvrement de la cotisation en cas de défaillance ? ' +
+            'Porter la réponse dans Structure > Paramètres du dossier, puis la reprendre dans la note ' +
+            '« Règles et méthodes comptables ».',
+          occurrences: mouvementees.slice(0, 200).map((e) => ({
+            reference: `${e.journal.code} n° ${e.numeroPiece ?? '·'}`,
+            detail: `${e.libelle} · cotisations ou droit d'entrée mouvementés`,
+            date: e.date.toISOString().slice(0, 10),
+          })),
+        });
+      }
+    }
+
     // --- 7. Comptes hors nomenclature (SYCEBNL ou SYSCOHADA selon le dossier) --------------------------------
     // La classe 8 existe (H.A.O.) mais un compte dont le premier chiffre n'est
     // pas cohérent avec sa classe enregistrée signale un plan bricolé, souvent

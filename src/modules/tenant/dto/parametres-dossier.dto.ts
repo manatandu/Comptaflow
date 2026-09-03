@@ -3,6 +3,7 @@ import {
   FormeJuridiqueEbnl,
   FormeJuridiqueSyscohada,
   JeuEtatsFinanciersSycebnl,
+  MethodeCotisations,
   RegimeExigibiliteTva,
   SystemeComptableSyscohada,
 } from '@prisma/client';
@@ -196,4 +197,15 @@ export class ModifierRegimeDto {
   @IsOptional()
   @IsDateString()
   dateAutorisationDebitsTva?: string;
+}
+
+/**
+ * Fait générateur des cotisations et du droit d'entrée · cadre conceptuel
+ * SYCEBNL § 5.4.2.1. Pas de valeur par défaut, ici comme en base : le champ
+ * est obligatoire dans la requête, et l'absence de choix reste l'état `null`
+ * du dossier · un défaut ferait trancher le logiciel à la place des statuts.
+ */
+export class ModifierMethodeCotisationsDto {
+  @IsEnum(MethodeCotisations)
+  methodeCotisations!: MethodeCotisations;
 }

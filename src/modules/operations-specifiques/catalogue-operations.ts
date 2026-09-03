@@ -115,6 +115,9 @@ const B6: OperationSpecifique = {
   modeles: [
     {
       code: 'B6-APPEL-DROIT-ENTREE',
+      // Débite le 411 : réservé au dossier qui justifie d'un droit d'agir
+      // (§ 5.4.2.1). Voir Tenant.methodeCotisations.
+      exigeDroitDAgir: true,
       libelle: "Appel du droit d'entrée, du dépôt restituable et des cotisations",
       objet: 'Constate la créance sur les nouveaux membres et la ventile selon les statuts.',
       source:
@@ -141,6 +144,9 @@ const B6: OperationSpecifique = {
     },
     {
       code: 'B6-APPEL-COTISATION',
+      // Débite le 411 : réservé au dossier qui justifie d'un droit d'agir
+      // (§ 5.4.2.1). Voir Tenant.methodeCotisations.
+      exigeDroitDAgir: true,
       libelle: 'Appel de cotisation périodique',
       objet: 'Constate la cotisation appelée sur la période, quand les statuts ouvrent une voie de recouvrement.',
       source: 'Partie 3 ch. 5 § 1 : compte 411 Adhérents par le crédit du 701 Cotisations des adhérents.',
