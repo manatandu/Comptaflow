@@ -156,3 +156,35 @@ describe('différenciateur SYCEBNL · les fiches du référentiel, mises au trav
     expect(page).toContain("jamais transposées de l'autre");
   });
 });
+
+describe('réintégrations fiscales · le logiciel se souvient, il ne qualifie pas', () => {
+  it('le plan comptable laisse DÉCLARER le traitement fiscal d’un compte', () => {
+    const page = lire('pages/PlanComptesPage.tsx');
+    expect(page).toContain('TRAITEMENT FISCAL DE CE COMPTE');
+    expect(page).toContain('codeRetraitementFiscal');
+  });
+
+  it('le sélecteur n’apparaît QUE si le catalogue fiscal répond', () => {
+    // Une entité à but non lucratif est exemptée d'impôt sur les sociétés
+    // (loi n° 23/053, art. 5) · la route fiscale lui est fermée, et proposer
+    // un traitement fiscal à un dossier SYCEBNL n'aurait aucun sens.
+    expect(lire('pages/PlanComptesPage.tsx')).toContain('catalogueFiscal.length > 0 &&');
+  });
+
+  it('les propositions se REPRENNENT, elles ne s’inscrivent pas seules', () => {
+    // Une réintégration inscrite d'office serait le « logiciel qui tranche
+    // seul » que le catalogue des retraitements refuse explicitement.
+    const page = lire('pages/FiscalitePage.tsx');
+    expect(page).toContain('PROPOSITIONS À REPRENDRE');
+    expect(page).toContain("Rien n'est inscrit tant que");
+    expect(page).toContain('reprendre(p)');
+  });
+
+  it('une proposition plafonnée montre son mouvement ET la part admise', () => {
+    // Sans ces deux chiffres, le comptable ne peut pas vérifier l'excédent
+    // avant de le reprendre · c'est pourtant sur lui que l'impôt se calcule.
+    const page = lire('pages/FiscalitePage.tsx');
+    expect(page).toContain('plafondEnonce');
+    expect(page).toContain('montantAdmis');
+  });
+});

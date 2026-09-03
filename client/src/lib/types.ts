@@ -104,6 +104,12 @@ export interface Compte {
   lettrable: boolean;
   /** Taux de TVA proposé automatiquement en saisie quand ce compte est choisi. */
   tauxTvaDefautId: string | null;
+  /**
+   * Code du catalogue des retraitements fiscaux, déclaré par le cabinet · le
+   * résultat fiscal le repropose chaque exercice, il ne l'inscrit jamais
+   * d'office.
+   */
+  codeRetraitementFiscal?: string | null;
 }
 
 /**

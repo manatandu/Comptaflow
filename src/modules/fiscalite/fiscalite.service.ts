@@ -4,6 +4,7 @@ import {
   NatureActiviteFiscale,
   Referentiel,
   SensRetraitementFiscal,
+  StatutEcriture,
   TypeCompteDetailTotal,
 } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
@@ -135,6 +136,98 @@ export class FiscaliteService {
    * valeur qui dit si un exercice est bénéficiaire ou déficitaire, « abstraction
    * faite des déficits reportables antérieurs » (art. 52 in fine).
    */
+  /**
+   * PROPOSITIONS DE RETRAITEMENT, tirées des comptes que le cabinet a
+   * qualifiés lui-même (`Compte.codeRetraitementFiscal`).
+   *
+   * Le catalogue explique pourquoi le logiciel ne DÉDUIT pas la qualification
+   * fiscale d'un numéro de compte : le 6582 « Dons » reçoit des versements
+   * déductibles dans la limite de l'article 44 et d'autres qui ne le sont
+   * pas. Cette règle reste vraie du plan NORMALISÉ, et rien ici ne la défait.
+   *
+   * Ce que fait cette méthode est autre chose : un cabinet qui a ouvert son
+   * propre sous-compte « Amendes fiscales » a déjà tranché, une fois. Le
+   * logiciel lui REPROPOSE chaque exercice le montant et l'article, au lieu
+   * de le lui faire ressaisir. Il ne qualifie pas · il se souvient.
+   *
+   * ET IL NE CRÉE RIEN. La méthode rend des PROPOSITIONS : le comptable les
+   * reprend, les corrige ou les ignore. Une réintégration inscrite d'office
+   * serait exactement le « logiciel qui tranche seul » que le catalogue
+   * refuse.
+   */
+  async propositionsRetraitements(tenantId: string, exerciceId: string) {
+    await this.tenantSyscohada(tenantId);
+    await this.exerciceDuDossier(tenantId, exerciceId);
+
+    const comptes = await this.prisma.compte.findMany({
+      where: { tenantId, codeRetraitementFiscal: { not: null } },
+      select: { id: true, numero: true, intitule: true, codeRetraitementFiscal: true },
+      orderBy: { numero: 'asc' },
+    });
+    if (!comptes.length) return { propositions: [], chiffreAffaires: 0 };
+
+    const [mouvements, brut] = await Promise.all([
+      this.prisma.ligneEcriture.groupBy({
+        by: ['compteId'],
+        where: {
+          compteId: { in: comptes.map((c) => c.id) },
+          // LE LIVRE-JOURNAL SEUL · une écriture restée en brouillard n'est
+          // pas entrée en comptabilité, et un impôt ne se calcule pas sur du
+          // provisoire.
+          ecriture: { tenantId, exerciceId, statut: StatutEcriture.VALIDEE },
+        },
+        _sum: { debit: true, credit: true },
+      }),
+      this.lireBalance(tenantId, exerciceId),
+    ]);
+    const parCompte = new Map(mouvements.map((m) => [m.compteId, m]));
+
+    const propositions = comptes.flatMap((c) => {
+      const definition = CATALOGUE_RETRAITEMENTS.find((d) => d.code === c.codeRetraitementFiscal);
+      // Un code devenu inconnu (catalogue remanié) est IGNORÉ, pas rendu ·
+      // proposer un retraitement sans article ni libellé ne veut rien dire.
+      if (!definition) return [];
+      const m = parCompte.get(c.id);
+      const debit = Number(m?._sum.debit ?? 0);
+      const credit = Number(m?._sum.credit ?? 0);
+      // Le mouvement NET du compte, dans son sens naturel · une charge est
+      // débitrice. Un compte qui finit créditeur (avoir supérieur à la
+      // charge) ne porte plus rien à réintégrer.
+      const mouvement = arrondir(debit - credit);
+      if (mouvement <= 0) return [];
+
+      const plafond = definition.plafond;
+      const montantAdmis = !plafond
+        ? null
+        : plafond.assiette === 'CHIFFRE_AFFAIRES'
+          ? arrondir(plafond.part * brut.chiffreAffaires)
+          : arrondir(plafond.part * mouvement);
+      // Sans plafond, tout le mouvement se retraite. Avec plafond, SEUL
+      // L'EXCÉDENT · réintégrer la charge entière ferait payer l'impôt sur
+      // une somme que la loi admet en déduction.
+      const montant = montantAdmis === null ? mouvement : arrondir(Math.max(mouvement - montantAdmis, 0));
+      if (montant <= 0) return [];
+
+      return [
+        {
+          compteId: c.id,
+          numero: c.numero,
+          intitule: c.intitule,
+          code: definition.code,
+          sens: definition.sens,
+          libelle: definition.libelle,
+          source: definition.source,
+          mouvement,
+          plafondEnonce: plafond?.enonce ?? null,
+          montantAdmis,
+          montant,
+        },
+      ];
+    });
+
+    return { propositions, chiffreAffaires: brut.chiffreAffaires };
+  }
+
   private async resultatFiscalBrut(tenantId: string, exerciceId: string) {
     const [lecture, retraitements] = await Promise.all([
       this.lireBalance(tenantId, exerciceId),

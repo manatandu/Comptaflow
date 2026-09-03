@@ -26,6 +26,16 @@ export class FiscaliteController {
     return this.fiscalite.catalogue();
   }
 
+  /**
+   * Ce que les comptes qualifiés par le cabinet appellent comme retraitement
+   * sur cet exercice · des PROPOSITIONS, que le comptable reprend ou ignore.
+   * Rien n'est créé ici : les routes d'écriture restent celles ci-dessous.
+   */
+  @Get('exercices/:exerciceId/propositions-retraitements')
+  async propositions(@CurrentUser() user: AuthenticatedUser, @Param('exerciceId') exerciceId: string) {
+    return this.fiscalite.propositionsRetraitements(user.tenantId, exerciceId);
+  }
+
   @Get('resultat-fiscal')
   async resultatFiscal(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId') exerciceId: string) {
     return this.fiscalite.resultatFiscal(user.tenantId, exerciceId);

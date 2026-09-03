@@ -54,7 +54,7 @@ Racine = serveur. `client/` = interface. Un seul dépôt.
 src/modules/     30 modules métier (auth, comptes, ecritures, etats-financiers,
                  notes-annexes, exports, groupe, plateforme, licence…)
 src/common/      gardes, décorateurs, Prisma, journal d'audit, /health
-prisma/          schema.prisma + 59 migrations SQL écrites à la main
+prisma/          schema.prisma + 60 migrations SQL écrites à la main
 client/src/      pages/, components/chrome/, lib/
 docs/            plan de construction, audits, guides pilote, notes de droit
 .github/workflows/  déploiement et sauvegardes
@@ -220,6 +220,19 @@ transposition, pas l'absence, qui est le risque de cette fenêtre.
 
 Propres au SYSCOHADA : résultat fiscal et impôt sur les bénéfices (une entité
 à but non lucratif en est exemptée, loi n° 23/053 art. 5).
+
+**Retraitements fiscaux · le logiciel se souvient, il ne qualifie pas.** Le
+catalogue (`catalogue-retraitements.ts`) refuse de déduire la qualification
+fiscale d'une charge de son numéro de compte, et il a raison : le 6582
+« Dons » reçoit des versements déductibles dans la limite de l'art. 44 et
+d'autres qui ne le sont pas. Cette règle N'EST PAS DÉFAITE. Ce qui a été
+ajouté le 2026-09-03 est autre chose : `Compte.codeRetraitementFiscal`
+enregistre ce que le CABINET a décidé une fois sur son propre sous-compte, et
+le résultat fiscal le lui REPROPOSE chaque exercice avec le montant et
+l'article. Les propositions ne sont jamais inscrites d'office · une
+réintégration créée seule serait exactement le logiciel qui tranche. Un
+compte plafonné ne propose que l'EXCÉDENT : réintégrer la charge entière
+ferait payer l'impôt sur une somme que la loi admet en déduction.
 
 Communes aux deux, mais avec un écran par référentiel derrière l'aiguillage :
 états financiers et notes annexes. Les deux jeux ne partagent que les aides

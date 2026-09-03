@@ -78,6 +78,10 @@ const estComptePrincipalOfficiel = (c: Pick<Compte, 'typeCompte' | 'numero'>) =>
 
 export function PlanComptesPage() {
   const [tauxTva, setTauxTva] = useState<TauxTva[]>([]);
+  // CATALOGUE FISCAL · chargé seulement pour un dossier SYSCOHADA · une
+  // entité à but non lucratif est exemptée d'impôt sur les sociétés (loi
+  // n° 23/053, art. 5), la question du retraitement ne s'y pose pas.
+  const [catalogueFiscal, setCatalogueFiscal] = useState<Array<{ code: string; libelle: string; source: string }>>([]);
   const navigate = useNavigate();
   const { estAdmin, utilisateur } = useAuth();
   const libelleClasse =
@@ -122,6 +126,9 @@ export function PlanComptesPage() {
   // de la fiche compte. Chargés une fois, ils changent rarement.
   useEffect(() => {
     api.get<TauxTva[]>('/taux-tva?actifsSeuls=true').then(setTauxTva).catch(() => setTauxTva([]));
+    api
+      .get<{ retraitements: Array<{ code: string; libelle: string; source: string }> }>('/fiscalite/catalogue')
+      .then((r) => setCatalogueFiscal(r.retraitements), () => setCatalogueFiscal([]));
   }, []);
 
   // Une recherche en cours affiche ses résultats toutes classes confondues ·
@@ -171,6 +178,7 @@ export function PlanComptesPage() {
       modeReportANouveau?: ModeReportANouveau;
       lettrable?: boolean;
       tauxTvaDefautId?: string | null;
+      codeRetraitementFiscal?: string | null;
     },
   ) => {
     setErreur(null);
@@ -409,6 +417,36 @@ export function PlanComptesPage() {
                         {tauxTva.map((t) => (
                           <option key={t.id} value={t.id}>
                             {t.code} · {t.intitule} ({t.taux} %)
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+
+                  {/* TRAITEMENT FISCAL DÉCLARÉ · le logiciel ne devine PAS la
+                      qualification fiscale d'une charge, le catalogue explique
+                      pourquoi. Mais un cabinet qui ouvre son propre sous-compte
+                      « Amendes fiscales » a déjà tranché : il le déclare ici une
+                      fois, et le résultat fiscal le lui repropose chaque
+                      exercice avec le montant et l'article. */}
+                  {catalogueFiscal.length > 0 && (
+                    <label className="block mb-3">
+                      <span
+                        className="text-[10px] font-bold text-text-dim"
+                        title="Ce que TOUT ce qui passe par ce compte devient au résultat fiscal · proposé chaque exercice, jamais inscrit d'office"
+                      >
+                        TRAITEMENT FISCAL DE CE COMPTE
+                      </span>
+                      <select
+                        value={selection.codeRetraitementFiscal ?? ''}
+                        disabled={!estAdmin}
+                        onChange={(e) => modifier(selection.id, { codeRetraitementFiscal: e.target.value || null })}
+                        className="mt-0.5 w-full border border-border-dark px-2 py-1 text-[11px]"
+                      >
+                        <option value="">Aucun · rien n'est proposé pour ce compte</option>
+                        {catalogueFiscal.map((d) => (
+                          <option key={d.code} value={d.code}>
+                            {d.libelle} · {d.source}
                           </option>
                         ))}
                       </select>

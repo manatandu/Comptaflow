@@ -41,6 +41,26 @@ export function FiscalitePage() {
   const [exerciceId, setExerciceId] = useState<string | null>(null);
   const [resultat, setResultat] = useState<ResultatFiscal | null>(null);
   const [catalogue, setCatalogue] = useState<CatalogueRetraitements | null>(null);
+  /**
+   * PROPOSITIONS · ce que les comptes qualifiés par le cabinet appellent
+   * comme retraitement sur cet exercice. Le logiciel ne les inscrit PAS · il
+   * rappelle ce que le comptable a décidé une fois, à lui de reprendre.
+   */
+  const [propositions, setPropositions] = useState<
+    Array<{
+      compteId: string;
+      numero: string;
+      intitule: string;
+      code: string;
+      sens: string;
+      libelle: string;
+      source: string;
+      mouvement: number;
+      plafondEnonce: string | null;
+      montantAdmis: number | null;
+      montant: number;
+    }>
+  >([]);
   const [erreur, setErreur] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
 
@@ -68,6 +88,7 @@ export function FiscalitePage() {
     api
       .get<ResultatFiscal>(`/fiscalite/resultat-fiscal?exerciceId=${encodeURIComponent(id)}`)
       .then(setResultat, (e: Error) => setErreur(e.message));
+    chargerPropositions(id);
   };
 
   useEffect(() => {
@@ -112,6 +133,36 @@ export function FiscalitePage() {
       setLibelleLibre('');
     } catch (e) {
       setErreur(e instanceof ApiError ? e.message : 'Enregistrement impossible');
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
+  const chargerPropositions = (id: string) => {
+    api
+      .get<{ propositions: typeof propositions }>(`/fiscalite/exercices/${encodeURIComponent(id)}/propositions-retraitements`)
+      .then((r) => setPropositions(r.propositions), () => setPropositions([]));
+  };
+
+  /**
+   * REPRENDRE une proposition · elle devient un retraitement ordinaire, avec
+   * son compte d'origine en commentaire. Modifiable et supprimable comme
+   * tous les autres · rien n'est verrouillé du fait de venir d'un compte.
+   */
+  const reprendre = async (p: (typeof propositions)[number]) => {
+    setEnvoi(true);
+    setErreur(null);
+    try {
+      setResultat(
+        await api.post<ResultatFiscal>(`/fiscalite/exercices/${exerciceId}/retraitements`, {
+          code: p.code,
+          montant: p.montant,
+          commentaire: `Compte ${p.numero} · ${p.intitule}`,
+        }),
+      );
+      setPropositions((prev) => prev.filter((x) => x.compteId !== p.compteId));
+    } catch (e) {
+      setErreur(e instanceof ApiError ? e.message : 'Reprise impossible');
     } finally {
       setEnvoi(false);
     }
@@ -249,6 +300,53 @@ export function FiscalitePage() {
               </tbody>
             </table>
           </section>
+
+          {/* PROPOSITIONS · tirées des comptes que le cabinet a qualifiés
+              lui-même. Le logiciel ne les inscrit pas : la qualification
+              fiscale d'une charge ne se lit pas dans son numéro de compte, et
+              un logiciel qui trancherait seul se tromperait en silence. Il
+              rappelle ce que le comptable a décidé une fois. */}
+          {propositions.length > 0 && (
+            <section className="border border-warning/40 bg-warning-soft rounded-[8px] p-3">
+              <div className="text-[10px] font-mono text-text-dim leading-none">PROPOSITIONS À REPRENDRE</div>
+              <p className="text-[10.5px] text-text-dim mt-1 mb-2 leading-[1.5]">
+                Ces comptes portent un traitement fiscal déclaré dans le plan comptable. Rien n'est inscrit tant que
+                vous ne reprenez pas la ligne · vérifiez le montant avant.
+              </p>
+              <table className="w-full text-[10.5px]">
+                <tbody>
+                  {propositions.map((p) => (
+                    <tr key={p.compteId} className="border-t border-border/60">
+                      <td className="py-1 font-mono whitespace-nowrap pr-2">{p.numero}</td>
+                      <td className="py-1 pr-2">
+                        {p.libelle}
+                        <span className="text-text-dim"> · {p.source}</span>
+                        {p.plafondEnonce && (
+                          <span className="block text-[10px] text-text-dim">
+                            Mouvement {p.mouvement.toLocaleString('fr-FR')} · admis{' '}
+                            {(p.montantAdmis ?? 0).toLocaleString('fr-FR')} ({p.plafondEnonce})
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-1 font-mono text-right whitespace-nowrap pr-2">
+                        {p.montant.toLocaleString('fr-FR')}
+                      </td>
+                      <td className="py-1 text-right">
+                        <button
+                          type="button"
+                          onClick={() => reprendre(p)}
+                          disabled={envoi}
+                          className="border border-border-dark bg-chrome hover:bg-chrome-alt px-2 py-0.5 text-[10px] disabled:opacity-40"
+                        >
+                          Reprendre
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </section>
+          )}
 
           {/* RETRAITEMENTS */}
           <section className="border border-border rounded-[8px] p-3">

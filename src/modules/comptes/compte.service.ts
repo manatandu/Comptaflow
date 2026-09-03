@@ -3,6 +3,7 @@ import { PrismaService } from '../../common/prisma.service';
 import { refuserBailleurHorsSycebnl } from '../../common/bailleur-referentiel';
 import { ClasseCompte, Prisma, Referentiel, TypeCompteDetailTotal } from '@prisma/client';
 import { PLAN_COMPTES_SYCEBNL } from './compte-seed';
+import { CATALOGUE_RETRAITEMENTS } from '../fiscalite/catalogue-retraitements';
 import { PLAN_COMPTES_SYSCOHADA } from './compte-seed-syscohada';
 import { CreerCompteDto, ModifierCompteDto } from './dto/creer-compte.dto';
 
@@ -92,6 +93,7 @@ export class CompteService {
         `Le numéro de compte "${dto.numero}" dépasse la longueur autorisée pour ce dossier (${tenant.longueurCompte} chiffres) · voir Structure > Paramètres du dossier.`,
       );
     }
+    this.verifierCodeRetraitement(dto.codeRetraitementFiscal);
     const existant = await this.prisma.compte.findUnique({
       where: { tenantId_numero: { tenantId, numero: dto.numero } },
     });
@@ -106,7 +108,28 @@ export class CompteService {
     });
   }
 
+  /**
+   * Le code de retraitement fiscal doit exister au catalogue.
+   *
+   * Pas de clé étrangère : le catalogue est une table de code, pas une table
+   * de base. La garde est donc ICI · un code inconnu enregistré en base
+   * produirait, à chaque exercice, une proposition sans libellé ni article,
+   * c'est-à-dire une réintégration que personne ne peut justifier.
+   *
+   * La chaîne vide vaut EFFACEMENT du traitement · c'est ce que rend une
+   * liste déroulante qu'on remet à « aucun ».
+   */
+  private verifierCodeRetraitement(code: string | null | undefined) {
+    if (code === undefined || code === null || code === '') return;
+    if (!CATALOGUE_RETRAITEMENTS.some((d) => d.code === code)) {
+      throw new BadRequestException(
+        `Code de retraitement fiscal inconnu : ${code}. Voir le catalogue de la fenêtre Fiscalité.`,
+      );
+    }
+  }
+
   async modifier(tenantId: string, compteId: string, dto: ModifierCompteDto) {
+    this.verifierCodeRetraitement(dto.codeRetraitementFiscal);
     const compte = await this.prisma.compte.findFirst({ where: { id: compteId, tenantId } });
     if (!compte) {
       throw new NotFoundException('Compte introuvable pour ce tenant');

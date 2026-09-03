@@ -40,12 +40,30 @@ export class CreerCompteDto {
   @IsOptional()
   @IsString()
   tauxTvaDefautId?: string | null;
+
+  /**
+   * Code du catalogue des retraitements fiscaux · voir
+   * Compte.codeRetraitementFiscal. Déclaré dès la création pour le cabinet
+   * qui ouvre un sous-compte dont il sait déjà le sort fiscal.
+   */
+  @IsOptional()
+  @IsString()
+  codeRetraitementFiscal?: string;
 }
 
 export class ModifierCompteDto {
   @IsOptional()
   @IsString()
   intitule?: string;
+
+  /**
+   * Code du catalogue des retraitements fiscaux · le cabinet déclare ici que
+   * TOUT ce qui passe par ce compte se réintègre (ou se déduit). Le logiciel
+   * ne le devine pas, il s'en souvient · voir Compte.codeRetraitementFiscal.
+   */
+  @IsOptional()
+  @IsString()
+  codeRetraitementFiscal?: string;
 
   @IsOptional()
   @IsBoolean()

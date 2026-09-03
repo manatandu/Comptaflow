@@ -550,6 +550,27 @@ model Compte {
   tauxTvaDefautId String?
   tauxTvaDefaut   TauxTva? @relation("CompteTauxTvaDefaut", fields: [tauxTvaDefautId], references: [id])
 
+  /// TRAITEMENT FISCAL DÉCLARÉ PAR LE CABINET · code du catalogue des
+  /// retraitements (`catalogue-retraitements.ts`), ou NULL.
+  ///
+  /// Ce champ ne fait PAS trancher le logiciel. Le catalogue explique
+  /// pourquoi la qualification fiscale d'une charge ne se lit pas dans son
+  /// numéro : le 6582 « Dons » reçoit des versements déductibles dans la
+  /// limite de 0,5 % du chiffre d'affaires ET d'autres qui ne le sont pas.
+  /// Cette règle-là reste vraie du plan NORMALISÉ.
+  ///
+  /// Mais un cabinet qui ouvre son propre sous-compte « Amendes fiscales »
+  /// SAIT que tout ce qui y passe se réintègre. Le champ enregistre ce que
+  /// le comptable a décidé une fois, pour que le logiciel le lui REPROPOSE
+  /// chaque exercice avec le montant et l'article, au lieu de le lui faire
+  /// ressaisir. Le logiciel ne qualifie rien · il se souvient.
+  ///
+  /// Aucune clé étrangère : le catalogue est une table de code, pas une
+  /// table de base. Un code inconnu est refusé à l'écriture (voir
+  /// CompteService) et ignoré à la lecture · un catalogue qui bouge ne doit
+  /// pas rendre un dossier illisible.
+  codeRetraitementFiscal String?
+
   // Rattachement à un Bailleur (§3.7, comptabilité analytique par
   // projet/bailleur · ajouté le 2026-08-28, docs/plan-de-construction.md
   // item 14) : utile principalement pour les sous-comptes 162-164/462-464
@@ -595,6 +616,9 @@ model Compte {
   lignesAffectation             LigneAffectation[]
 
   @@unique([tenantId, numero])
+  // Le résultat fiscal ne cherche que les comptes qui portent un code de
+  // retraitement · sans cet index il balaie tout le plan du dossier.
+  @@index([tenantId, codeRetraitementFiscal])
   @@map("comptes")
 }
 
