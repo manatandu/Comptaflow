@@ -239,6 +239,20 @@ dit d'où il vient. Et les lignes en saisie sont présentées même quand la not
 n'est pas applicable : le filtre du § 1.4 les retirait, ce qui faisait de
 toute note vide un cul-de-sac impossible à remplir.
 
+**Note 33 · la fiche de synthèse ne se ressaisit pas.** Les vingt-quatre
+indicateurs calculables sont produits par `indicateurs-note-33.ts` depuis le
+bilan, le compte de résultat et le TFT · cellules verrouillées. Deux lectures
+que le texte laisse ouvertes y sont tranchées et expliquées : « + Fonds
+propres et assimilés » vaut **CZ** et non CK, parce que l'arithmétique que la
+note pose elle-même (fonds propres + dettes financières = ressources stables)
+l'exige et que la ligne CONTRÔLE tomberait sinon en faux chez toute
+association portant des fonds affectés ; et les écarts de conversion (renvoi
+c) restent HORS des agrégats, faute que le bilan dise à quelles créances ils
+se rapportent · l'écart qu'ils créent se lit alors sur la ligne CONTRÔLE, ce
+pour quoi elle existe. Le ratio d'utilisation des dons reste en SAISIE : le
+texte ne le rattache à aucun compte. Et les variations de ratio sont en
+POINTS, la colonne « variation en % » restant vide pour eux · renvoi (b).
+
 **Exécution budgétaire · un seul tableau, sous deux numéros.** Les notes 35
 (associations) et 24 (projets) portent le même TABLEAU D'EXÉCUTION
 BUDGÉTAIRE, et il n'est plus saisi : `NoteAnnexeService`

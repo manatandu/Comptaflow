@@ -8,6 +8,7 @@ import { EtatsFinanciersSmtSyscohadaService } from '../etats-financiers-syscohad
 import { CODES_NOTES_CH6 } from '../etats-financiers-syscohada/correspondance-compte-resultat-syscohada';
 import { NoteAnnexeService } from '../notes-annexes/note-annexe.service';
 import { EtatsFinanciersProjetBudgetService } from '../etats-financiers/etats-financiers-projet-budget.service';
+import { EtatsFinanciersService } from '../etats-financiers/etats-financiers.service';
 import { PrismaService } from '../../common/prisma.service';
 import { ExportService } from './export.service';
 import { NOM_BALANCE } from './theme-etafi';
@@ -238,7 +239,9 @@ function fabriquerExport(systeme: SystemeComptableSyscohada = SystemeComptableSy
   // demande pas) · le service budgétaire n'est jamais appelé par ce chemin.
   const notes = new NoteAnnexeService(ecritureService, exerciceService, prisma, {
     executionBudgetaire: jest.fn(),
-  } as unknown as EtatsFinanciersProjetBudgetService);
+  } as unknown as EtatsFinanciersProjetBudgetService,
+    // Idem pour la note 33 : elle n'existe que dans le jeu associations.
+    { bilan: jest.fn(), compteDeResultat: jest.fn(), tableauFluxTresorerie: jest.fn() } as unknown as EtatsFinanciersService);
   return new ExportService(
     prisma,
     ecritureService,

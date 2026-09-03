@@ -1783,17 +1783,21 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
   {
     code: '33',
     titre: 'FICHE DE SYNTHESE DES PRINCIPAUX INDICATEURS FINANCIERS',
-    // TRANSCRITE, PAS ENCORE CALCULÉE · et c'est délibéré.
+    // CALCULÉE depuis le 2026-09-03 · le tableau de flux de trésorerie, dont
+    // elle attendait le dernier bloc, existe.
     //
-    // Cette fiche est une SYNTHÈSE des trois autres états : elle reprend des
-    // agrégats du bilan (fonds propres, ressources stables, actif immobilisé),
-    // du compte de résultat (résultats, CAFG) et du TABLEAU DE FLUX DE
-    // TRÉSORERIE, qui n'est pas construit (phase 2). La calculer maintenant
-    // reviendrait à livrer une fiche d'apparence complète dont le dernier
-    // bloc resterait vide, puis à la refaire.
+    // Cette fiche est une SYNTHÈSE des trois autres états : agrégats du bilan
+    // (fonds propres, ressources stables, actif immobilisé, circulants), du
+    // compte de résultat (résultats, CAFG) et du tableau de flux. Les
+    // rubriques ci-dessous gardent leur `saisie: true` comme REPLI : le
+    // moteur remplace vingt-quatre d'entre elles par les indicateurs
+    // calculés, cellules verrouillées · voir
+    // `NoteAnnexeService.injecterIndicateursFinanciers` et
+    // `indicateurs-note-33.ts`, qui portent les choix de lecture que le texte
+    // laisse ouverts.
     //
-    // Sa structure et ses formules officielles sont transcrites ici pour
-    // qu'elle soit branchée d'un bloc quand le TFT existera.
+    // La vingt-cinquième, le ratio d'utilisation des dons, reste saisie : le
+    // texte ne la rattache à aucun poste ni à aucun compte.
     horsBalance: true,
     colonnes: [
       { type: 'LIBRE' as const, libelle: 'Année N' },

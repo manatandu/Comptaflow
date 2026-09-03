@@ -3,6 +3,44 @@ import { NoteAnnexeService } from './note-annexe.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { ExerciceService } from '../exercice/exercice.service';
 import { EtatsFinanciersProjetBudgetService } from '../etats-financiers/etats-financiers-projet-budget.service';
+import { EtatsFinanciersService } from '../etats-financiers/etats-financiers.service';
+
+/**
+ * Trois états à zéro · le strict nécessaire pour que la note 33 se calcule
+ * sans rien affirmer. `etatsAvec` sert aux tests qui la regardent vraiment.
+ */
+function etatsVides(): EtatsFinanciersService {
+  return etatsAvec({});
+}
+
+function etatsAvec(postes: Record<string, { montant: number; montantN1?: number }>): EtatsFinanciersService {
+  const poste = (ref: string) => ({ ref, montant: postes[ref]?.montant ?? 0, montantN1: postes[ref]?.montantN1 ?? 0 });
+  const refsBilan = ['AZ', 'BA', 'BC', 'BD', 'BE', 'BT', 'BX'];
+  const refsPassif = ['CZ', 'DD', 'DF', 'DV', 'DX'];
+  return {
+    bilan: jest.fn().mockResolvedValue({
+      actif: refsBilan.map(poste),
+      passif: refsPassif.map(poste),
+    }),
+    compteDeResultat: jest.fn().mockResolvedValue({
+      produits: ['RA', 'RH'].map(poste),
+      charges: ['TL'].map(poste),
+      totalCharges: postes.XB?.montant ?? 0,
+      totalChargesN1: postes.XB?.montantN1 ?? 0,
+      resultatActivitesOrdinaires: postes.XC?.montant ?? 0,
+      resultatActivitesOrdinairesN1: postes.XC?.montantN1 ?? 0,
+      resultatHao: postes.XD?.montant ?? 0,
+      resultatHaoN1: postes.XD?.montantN1 ?? 0,
+      resultatNet: postes.XE?.montant ?? 0,
+      resultatNetN1: postes.XE?.montantN1 ?? 0,
+    }),
+    tableauFluxTresorerie: jest.fn().mockResolvedValue({
+      // Le vrai tableau intercale des lignes de SECTION sans code REF · les
+      // reproduire ici, c'est vérifier que le lecteur les ignore.
+      lignes: [{ section: 'Flux opérationnels' }, ...['ZB', 'ZC', 'ZD', 'ZE', 'ZF'].map(poste)],
+    }),
+  } as unknown as EtatsFinanciersService;
+}
 import { NOTES_ASSOCIATIONS } from './correspondance-notes-associations';
 import { NOTES_PROJETS } from './correspondance-notes-projets';
 import { PrismaService } from '../../common/prisma.service';
@@ -93,6 +131,10 @@ function service(
   budget: { executionBudgetaire: jest.Mock } = {
     executionBudgetaire: jest.fn().mockRejectedValue(new Error('aucun plan à budgets')),
   },
+  // Bilan, compte de résultat et tableau de flux · la note 33 les résume.
+  // Par DÉFAUT ils sont vides : la fiche de synthèse sort alors à zéro, sans
+  // rien changer pour les tests qui ne s'y intéressent pas.
+  etats: EtatsFinanciersService = etatsVides(),
 ) {
   const ecriture = {
     balance: jest.fn().mockImplementation((_t: string, e: string) =>
@@ -101,7 +143,7 @@ function service(
   const exercice = {
     lister: jest.fn().mockResolvedValue([...exercices].sort((a, b) => b.dateDebut.getTime() - a.dateDebut.getTime())),
   } as unknown as ExerciceService;
-  return new NoteAnnexeService(ecriture, exercice, prisma, budget as unknown as EtatsFinanciersProjetBudgetService);
+  return new NoteAnnexeService(ecriture, exercice, prisma, budget as unknown as EtatsFinanciersProjetBudgetService, etats);
 }
 const note = (r: { notes: any[] }, code: string, sousTableau?: string) =>
   r.notes.find((n) => n.code === code && (sousTableau === undefined || n.sousTableau === sousTableau))!;
@@ -1334,5 +1376,142 @@ describe('tableau d’exécution budgétaire · la note reprend l’état, elle 
     const s = service({ e1: [] }, [], prismaAvec([], [], [], [], Referentiel.SYSCOHADA), appele);
     await s.notesSyscohada('t', 'e1');
     expect(appele.executionBudgetaire).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// NOTE 33 · FICHE DE SYNTHESE DES PRINCIPAUX INDICATEURS FINANCIERS
+// ---------------------------------------------------------------------------
+describe('note 33 · la fiche de synthèse résume les trois états, elle ne les ressaisit pas', () => {
+  /*
+    Un dossier lisible à l'œil nu, choisi pour que chaque agrégat de la note
+    tombe rond et que la ligne CONTRÔLE puisse être vérifiée à la main.
+
+      ACTIF        immobilisé AZ 600 · circulant BT 300 (dont HAO BA 50,
+                   créances BC+BD+BE 250) · trésorerie BX 200   = 1 100
+      PASSIF       ressources propres CZ 700 · dettes fin. DD 100 ·
+                   circulant DV 250 (dont HAO DF 40) · trésorerie DX 50 = 1 100
+
+      Ressources stables = 700 + 100 = 800
+      Fonds de roulement = 800 - 600 = 200
+      BF exploitation    = (300 - 50) - (250 - 40) = 250 - 210 = 40
+      BF H.A.O.          = 50 - 40 = 10
+      BF global          = 50
+      Trésorerie nette   = 200 - 50 = 150
+      CONTRÔLE           = 200 - 50 = 150   (les deux concordent)
+  */
+  const DOSSIER = {
+    AZ: { montant: 600 }, BT: { montant: 300 }, BA: { montant: 50 },
+    BC: { montant: 100 }, BD: { montant: 100 }, BE: { montant: 50 },
+    BX: { montant: 200 },
+    CZ: { montant: 700 }, DD: { montant: 100 }, DV: { montant: 250 }, DF: { montant: 40 },
+    DX: { montant: 50 },
+    XC: { montant: 120 }, XD: { montant: -20 }, XE: { montant: 100 },
+    XB: { montant: 400 }, RA: { montant: 80 },
+    TL: { montant: 60 }, RH: { montant: 10 },
+    ZB: { montant: 90 }, ZC: { montant: -40 }, ZD: { montant: 30 }, ZE: { montant: 20 }, ZF: { montant: 100 },
+  };
+  const valeurs = (n: any) => new Map(n.lignes.map((l: any) => [l.cle, l.saisie]));
+
+  it('calcule les vingt-quatre indicateurs, et la ligne CONTRÔLE concorde', async () => {
+    const s = service({ e1: [] }, [], prismaAvec(), undefined, etatsAvec(DOSSIER));
+    const n = note(await s.notesAssociations('t', 'e1'), '33');
+    const v = valeurs(n) as Map<string, any[]>;
+
+    expect(v.get('resultat-des-activites-ordinaires')![0]).toBe(120);
+    expect(v.get('resultat-hors-activites-ordinaires')![0]).toBe(-20);
+    expect(v.get('resultat-net')![0]).toBe(100);
+    expect(v.get('ressources-stables')![0]).toBe(800);
+    expect(v.get('fonds-de-roulement-1')![0]).toBe(200);
+    expect(v.get('actif-circulant-d-exploitation')![0]).toBe(250);
+    expect(v.get('passif-circulant-d-exploitation')![0]).toBe(210);
+    expect(v.get('besoin-de-financement-d-exploitation-2')![0]).toBe(40);
+    expect(v.get('besoin-de-financement-hao-3')![0]).toBe(10);
+    expect(v.get('besoin-de-financement-global-4-2-3')![0]).toBe(50);
+    expect(v.get('tresorerie-nette-5-1-4')![0]).toBe(150);
+    // La ligne que le texte prescrit comme CONTRÔLE : elle est calculée
+    // autrement (trésorerie actif - trésorerie passif) et doit tomber pareil.
+    expect(v.get('controle-tresorerie-nette-tresorerie-actif-treso')![0]).toBe(150);
+    expect(v.get('flux-de-tresorerie-des-activites-operationnelles')![0]).toBe(90);
+    // « Activités de financement (D + E) » · la maquette du TFT n'en fait
+    // qu'un intitulé de section, les deux totaux ZD et ZE le composent.
+    expect(v.get('flux-de-tresorerie-des-activites-de-financement')![0]).toBe(50);
+    expect(v.get('variation-de-la-tresorerie-nette-de-la-periode')![0]).toBe(100);
+  });
+
+  it('applique le renvoi (a) pour la CAFG, cessions d’immobilisations comprises', async () => {
+    // CAFG = résultat net + dotations - reprises + valeur comptable des
+    // cessions - produits des cessions = 100 + 60 - 10 + 35 - 50 = 135.
+    // Les comptes 81 et 82 ne sont pas des postes : le compte de résultat les
+    // fond dans TN et TM avec le reste du H.A.O., d'où leur lecture directe.
+    const lignes81et82 = [
+      ligne('81100000', ClasseCompte.CLASSE_8, 35, 0),
+      ligne('82100000', ClasseCompte.CLASSE_8, 0, 50),
+    ];
+    const s = service({ e1: lignes81et82 }, [], prismaAvec(), undefined, etatsAvec(DOSSIER));
+    const n = note(await s.notesAssociations('t', 'e1'), '33');
+    expect((valeurs(n) as Map<string, any[]>).get('capacite-d-autofinancement-globale-cafg')![0]).toBe(135);
+  });
+
+  it('rend les ratios en POURCENTAGE et leur variation en POINTS, jamais en pourcentage de pourcentage', async () => {
+    // Renvoi (b) : « Les variations des ratios doivent être exprimées en
+    // nombre de points (par exemple de 2% à 5% = 3 points). »
+    // Cotisations 80 / charges 400 = 20 % en N ; 50 / 500 = 10 % en N-1.
+    const avecN1 = {
+      ...DOSSIER,
+      RA: { montant: 80, montantN1: 50 },
+      XB: { montant: 400, montantN1: 500 },
+    };
+    const s = service({ e1: [], e0: [] }, [
+      { id: 'e1', dateDebut: new Date('2026-01-01') },
+      { id: 'e0', dateDebut: new Date('2025-01-01') },
+    ], prismaAvec(), undefined, etatsAvec(avecN1));
+    const n = note(await s.notesAssociations('t', 'e1'), '33');
+    const ratio = (valeurs(n) as Map<string, any[]>).get('ratio-de-cotisations-acquises-cotisations-charge')!;
+    expect(ratio[0]).toBeCloseTo(20, 6);
+    expect(ratio[1]).toBeCloseTo(10, 6);
+    // Variation en valeur = 10 POINTS. Et la colonne « variation en % » reste
+    // VIDE : 10 points valent aussi « + 100 % du ratio », et c'est exactement
+    // le nombre que le renvoi (b) interdit d'afficher là.
+    expect(ratio[2]).toBeCloseTo(10, 6);
+    expect(ratio[3]).toBeNull();
+  });
+
+  it('un ratio sans dénominateur n’est pas zéro · il n’a pas de valeur', async () => {
+    const sansCharges = { ...DOSSIER, XB: { montant: 0 }, DV: { montant: 0 } };
+    const s = service({ e1: [] }, [], prismaAvec(), undefined, etatsAvec(sansCharges));
+    const v = valeurs(note(await s.notesAssociations('t', 'e1'), '33')) as Map<string, any[]>;
+    expect(v.get('ratio-de-cotisations-acquises-cotisations-charge')![0]).toBeNull();
+    expect(v.get('ratio-de-liquidite-generale-creances-tresorerie')![0]).toBeNull();
+  });
+
+  it('LAISSE en saisie le seul ratio que le texte ne rattache à aucun compte', async () => {
+    const s = service({ e1: [] }, [], prismaAvec(), undefined, etatsAvec(DOSSIER));
+    const n = note(await s.notesAssociations('t', 'e1'), '33');
+    const enSaisie = n.lignes.filter((l: any) => !l.saisieVerrouillee).map((l: any) => l.cle);
+    // « Sommes versées directement aux bénéficiaires / Sommes collectées
+    // brutes » ne correspond à aucun poste ni à aucun compte du plan · le
+    // calculer publierait un ratio d'efficacité que personne n'a défini.
+    expect(enSaisie).toEqual(['ratio-d-utilisation-des-dons-sommes-versees-dire']);
+    expect(n.lignes.filter((l: any) => l.saisieVerrouillee)).toHaveLength(24);
+  });
+
+  it('AUCUNE colonne N-1 quand le dossier n’a pas d’exercice précédent', async () => {
+    const s = service({ e1: [] }, [], prismaAvec(), undefined, etatsAvec(DOSSIER));
+    const n = note(await s.notesAssociations('t', 'e1'), '33');
+    const v = (valeurs(n) as Map<string, any[]>).get('resultat-net')!;
+    // Un premier exercice n'a pas de comparatif · un zéro y serait une
+    // affirmation fausse, et la variation qui en découlerait aussi.
+    expect(v[1]).toBeNull();
+    expect(v[2]).toBeNull();
+    expect(v[3]).toBeNull();
+  });
+
+  it('le jeu PROJETS n’a pas de note 33 · les trois états ne sont même pas demandés', async () => {
+    const etats = etatsAvec(DOSSIER);
+    const s = service({ e1: [] }, [], prismaAvec(), undefined, etats);
+    const r = await s.notesProjet('t', 'e1');
+    expect(r.notes.find((n: any) => n.code === '33')).toBeUndefined();
+    expect((etats.bilan as unknown as jest.Mock)).not.toHaveBeenCalled();
   });
 });

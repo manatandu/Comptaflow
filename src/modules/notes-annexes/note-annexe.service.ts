@@ -4,6 +4,12 @@ import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { ExerciceService } from '../exercice/exercice.service';
 import { EtatsFinanciersProjetBudgetService } from '../etats-financiers/etats-financiers-projet-budget.service';
+import { EtatsFinanciersService } from '../etats-financiers/etats-financiers.service';
+import {
+  INDICATEURS_LAISSES_EN_SAISIE,
+  cessionsDeLExercice,
+  indicateursNote33,
+} from './indicateurs-note-33';
 import { LigneBalancePourEtat, chargerLignes, correspond, trouverExerciceN1 } from '../etats-financiers/etats-financiers.communs';
 import {
   CompteDeRubrique,
@@ -245,6 +251,9 @@ export class NoteAnnexeService {
     // (projets) est CELUI de la fenêtre États financiers · le recalculer ici
     // donnerait deux chiffres pour un seul état.
     private readonly budgetService: EtatsFinanciersProjetBudgetService,
+    // Bilan, compte de résultat et tableau de flux · la note 33 les résume,
+    // elle ne les recalcule pas (voir `indicateurs-note-33.ts`).
+    private readonly etatsFinanciersService: EtatsFinanciersService,
   ) {}
 
   /**
@@ -978,6 +987,7 @@ export class NoteAnnexeService {
     );
 
     await this.injecterExecutionBudgetaire(notes, tenantId, exerciceId, jeu);
+    await this.injecterIndicateursFinanciers(notes, tenantId, exerciceId, jeu, lignesN, lignesN1, exerciceN1Id !== null);
 
     return {
       notes,
@@ -1093,6 +1103,91 @@ export class NoteAnnexeService {
     // Un tableau chiffré rend la note applicable · sans quoi elle sortirait
     // avec la mention NEANT tout en portant des lignes.
     note.applicable = lignes.some((l) => (l.saisie ?? []).some((v) => typeof v === 'number' && Math.abs(v) > 0.005));
+  }
+
+  /**
+   * Remplit la NOTE 33 « FICHE DE SYNTHESE DES PRINCIPAUX INDICATEURS
+   * FINANCIERS » · jeu associations et ordres professionnels seulement, c'est
+   * le seul des trois jeux à la porter.
+   *
+   * La note était transcrite en saisie au motif que le tableau de flux de
+   * trésorerie n'existait pas. Il existe depuis, et la fiche n'a jamais eu
+   * d'autre matière que les trois états : la laisser saisie faisait ressaisir
+   * à la main vingt-quatre nombres déjà calculés, avec le risque qu'ils
+   * cessent de correspondre aux états qu'ils résument.
+   *
+   * Vingt-quatre lignes sont donc calculées et VERROUILLÉES. La
+   * vingt-cinquième, le ratio d'utilisation des dons, reste saisie : le texte
+   * ne la rattache à aucun compte (voir `indicateurs-note-33.ts`).
+   */
+  private async injecterIndicateursFinanciers(
+    notes: NoteCalculee[],
+    tenantId: string,
+    exerciceId: string,
+    jeu: JeuNotesAnnexes,
+    lignesN: LigneBalancePourEtat[],
+    lignesN1: LigneBalancePourEtat[],
+    exerciceN1Disponible: boolean,
+  ) {
+    if (jeu !== JeuNotesAnnexes.ASSOCIATIONS_ORDRES_PROFESSIONNELS) return;
+    const note = notes.find((n) => n.code === '33');
+    if (!note) return;
+
+    const [bilan, compteDeResultat, fluxTresorerie] = await Promise.all([
+      this.etatsFinanciersService.bilan(tenantId, exerciceId),
+      this.etatsFinanciersService.compteDeResultat(tenantId, exerciceId),
+      this.etatsFinanciersService.tableauFluxTresorerie(tenantId, exerciceId),
+    ]);
+
+    const indicateurs = new Map(
+      indicateursNote33(
+        { bilan, compteDeResultat, fluxTresorerie },
+        cessionsDeLExercice(lignesN),
+        cessionsDeLExercice(lignesN1),
+        exerciceN1Disponible,
+      ).map((i) => [i.cle, i]),
+    );
+
+    note.lignes = note.lignes.map((ligne) => {
+      const i = ligne.cle ? indicateurs.get(ligne.cle) : undefined;
+      if (!i) return ligne;
+      const { valeurN, valeurN1 } = i;
+      // Colonnes de la maquette : Année N, Année N-1, variation en valeur,
+      // variation en %.
+      const variationValeur = valeurN !== null && valeurN1 !== null ? valeurN - valeurN1 : null;
+      // RENVOI (b) · « Les variations des ratios doivent être exprimées en
+      // NOMBRE DE POINTS ». La variation d'un ratio est donc déjà donnée par
+      // la colonne « variation en valeur », en points ; remplir en plus une
+      // variation en pourcentage donnerait le pourcentage d'un pourcentage,
+      // c'est-à-dire l'erreur exacte que ce renvoi existe pour empêcher.
+      const variationPourcent =
+        i.unite === 'POURCENT' || valeurN === null || valeurN1 === null || Math.abs(valeurN1) < 0.005
+          ? null
+          : ((valeurN - valeurN1) / Math.abs(valeurN1)) * 100;
+      return {
+        ...ligne,
+        saisie: [valeurN, exerciceN1Disponible ? valeurN1 : null, variationValeur, variationPourcent],
+        saisieVerrouillee: true,
+      };
+    });
+
+    // La note devient applicable dès qu'un indicateur est chiffré · les
+    // lignes laissées en saisie ne comptent pas, sans quoi une fiche vide
+    // paraîtrait applicable parce qu'elle attend une saisie.
+    note.applicable = note.lignes.some(
+      (l) => l.saisieVerrouillee && (l.saisie ?? []).some((v) => typeof v === 'number' && Math.abs(v) > 0.005),
+    );
+    // Garde-fou de transcription : la seule rubrique attendue en saisie est
+    // celle que le texte ne rattache à rien. Si une autre le devenait, c'est
+    // qu'une clé aurait changé et qu'un indicateur ne serait plus calculé ·
+    // en silence, et dans une fiche de synthèse publiée.
+    const enSaisie = note.lignes.filter((l) => !l.saisieVerrouillee).map((l) => l.cle);
+    if (enSaisie.length !== INDICATEURS_LAISSES_EN_SAISIE.length) {
+      throw new Error(
+        `Note 33 : ${enSaisie.length} rubriques non calculées (${enSaisie.join(', ')}) au lieu des ` +
+          `${INDICATEURS_LAISSES_EN_SAISIE.length} attendues. Une clé de rubrique a changé.`,
+      );
+    }
   }
 
   /** Notes annexes du jeu « associations et ordres professionnels ». */
