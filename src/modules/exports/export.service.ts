@@ -21,6 +21,7 @@ import { DonationService, manquementsArticle17 } from '../registre-donateurs/don
 import { LivreInventaireService } from '../documents-obligatoires/livre-inventaire.service';
 import { RapportActiviteService } from '../documents-obligatoires/rapport-activite.service';
 import { SECTIONS_RAPPORT_ACTIVITE } from '../documents-obligatoires/correspondance-inventaire';
+import { regleRapportGestion } from '../documents-obligatoires/correspondance-inventaire-syscohada';
 import {
   POSTES_CHARGES as POSTES_CHARGES_PROJET,
   POSTES_REVENUS as POSTES_REVENUS_PROJET,
@@ -2756,14 +2757,51 @@ export class ExportService {
    * 16-3, avec la citation qui fonde chacune et la mention explicite d'une
    * section vide · un rapport amputé d'un contenu exigé n'est pas « établi ».
    */
+  /**
+   * LE RAPPORT N'A PAS LES MÊMES SECTIONS DES DEUX CÔTÉS, et cet export les
+   * servait toutes deux sur le gabarit SYCEBNL.
+   *
+   * Les documents obligatoires sont communs depuis le 2026-09-02, mais chacun
+   * dans SON texte : quatre sections au SYCEBNL (art. 16-3), six à l'AUSCGIE
+   * (art. 138) et six autres à l'AUSCOOP (art. 108), dont l'état de promotion
+   * des coopérateurs. Cette méthode lisait la constante SYCEBNL, sans
+   * aiguillage · un dossier SYSCOHADA aurait exporté un rapport à quatre
+   * sections avec les exigences d'un texte qui ne le régit pas. C'est
+   * exactement la transposition que le dépôt s'interdit.
+   *
+   * La route était fermée au SYSCOHADA, ce qui masquait le défaut plutôt que
+   * de le corriger : un dossier SYSCOHADA pouvait ÉTABLIR son rapport de
+   * gestion et ne pouvait pas l'exporter. La porte est ouverte maintenant que
+   * les sections suivent le référentiel.
+   */
   async rapportActiviteExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
+    const { referentiel, formeJuridiqueSyscohada } = await this.prisma.tenant.findUniqueOrThrow({
+      where: { id: tenantId },
+      select: { referentiel: true, formeJuridiqueSyscohada: true },
+    });
     const [rapport, conformite] = await Promise.all([
       this.rapportActivite.courant(tenantId, exerciceId),
-      this.rapportActivite.conformite(tenantId, exerciceId),
+      referentiel === Referentiel.SYSCOHADA
+        ? this.rapportActivite.conformiteRapportGestion(tenantId, exerciceId)
+        : this.rapportActivite.conformite(tenantId, exerciceId),
     ]);
 
+    // Les sections du dossier, jamais celles de l'autre référentiel. Un
+    // SYSCOHADA dont la forme juridique n'appelle aucun rapport (commerçant
+    // personne physique, entreprenant, groupement d'intérêt économique) n'a
+    // aucune section : le classeur le dira au lieu d'en inventer.
+    const regleSyscohada = regleRapportGestion(formeJuridiqueSyscohada);
+    const sections: Array<{ cle: string; titre: string; exigence: string }> =
+      referentiel === Referentiel.SYSCOHADA
+        ? regleSyscohada.genre === 'EXIGE'
+          ? regleSyscohada.sections
+          : []
+        : SECTIONS_RAPPORT_ACTIVITE;
+
     const classeur = this.nouveauClasseur();
-    const feuille = classeur.addWorksheet("Rapport d'activité");
+    const feuille = classeur.addWorksheet(
+      referentiel === Referentiel.SYSCOHADA ? 'Rapport de gestion' : "Rapport d'activité",
+    );
     feuille.columns = [
       { header: 'Section', key: 'titre', width: 46 },
       { header: 'État', key: 'etat', width: 14 },
@@ -2771,8 +2809,8 @@ export class ExportService {
       { header: 'Exigence (texte officiel)', key: 'exigence', width: 96 },
     ];
 
-    for (const s of SECTIONS_RAPPORT_ACTIVITE) {
-      const contenu = (rapport?.[s.cle] as string | null) ?? null;
+    for (const s of sections) {
+      const contenu = ((rapport as Record<string, unknown> | null)?.[s.cle] as string | null) ?? null;
       const rang = feuille.addRow({
         titre: s.titre,
         etat: contenu ? 'RENSEIGNÉE' : 'VIDE',
@@ -2782,7 +2820,7 @@ export class ExportService {
       rang.getCell('etat').font = { bold: true, color: { argb: contenu ? 'FF1B7F3B' : 'FFB3261E' } };
       for (const cle of ['contenu', 'exigence']) rang.getCell(cle).alignment = { wrapText: true, vertical: 'top' };
     }
-    this.finaliserTableau(feuille, 4, SECTIONS_RAPPORT_ACTIVITE.length + 1);
+    this.finaliserTableau(feuille, 4, sections.length + 1);
 
     feuille.addRow([]);
     const f = conformite.fenetreEvenementsPosterieurs;
@@ -2801,15 +2839,29 @@ export class ExportService {
             (conformite.tresorerie.boucle ? ' · tableau bouclé' : ' · ⚠ TABLEAU NON BOUCLÉ à cette date')
           : '·',
       ],
-      [
+    ];
+
+    // LA DÉCLARATION DE L'ART. 18 EST PROPRE AU SYCEBNL · elle porte sur le
+    // registre des donateurs, que l'AUDCIF ne connaît pas. La servir à un
+    // dossier SYSCOHADA lui opposerait un article qui ne le régit pas.
+    const declaration =
+      referentiel === Referentiel.SYCEBNL && 'declarationRegistreDonateurs' in conformite
+        ? (conformite.declarationRegistreDonateurs as {
+            attendue: boolean;
+            renseignee: boolean;
+            registreConforme: boolean;
+          })
+        : null;
+    if (declaration) {
+      meta.push([
         'Déclaration des dirigeants (registre des donateurs, art. 18)',
-        conformite.declarationRegistreDonateurs.attendue
-          ? conformite.declarationRegistreDonateurs.renseignee
-            ? `Annexée. Registre ${conformite.declarationRegistreDonateurs.registreConforme ? 'conforme' : '⚠ NON CONFORME au rapport de l’art. 18'}.`
+        declaration.attendue
+          ? declaration.renseignee
+            ? `Annexée. Registre ${declaration.registreConforme ? 'conforme' : '⚠ NON CONFORME au rapport de l’art. 18'}.`
             : "⚠ ATTENDUE et absente : l'entité déclare n'avoir pas d'auditeur."
           : "Non attendue : l'entité déclare avoir un auditeur, qui produit son propre rapport (art. 18).",
-      ],
-    ];
+      ]);
+    }
     for (const [libelle, valeur] of meta) {
       const rang = feuille.addRow({ titre: libelle, contenu: valeur });
       rang.font = ENTETE_FONT;

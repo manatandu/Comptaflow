@@ -538,6 +538,24 @@ où la migration disait `RESTRICT`. La règle voulue était bien `RESTRICT` · l
 schéma la déclare désormais explicitement, plutôt que d'aligner la SQL sur un
 défaut qu'on ne voulait pas.
 
+**Un document dû des deux côtés doit SORTIR des deux côtés.** Le cloisonnement
+d'une route d'export (`@ReferentielsAutorises`) ne se pose que sur un document
+qu'UN SEUL texte impose. Le livre d'inventaire (SYCEBNL art. 14 · AUDCIF
+art. 19) et le rapport (SYCEBNL art. 16-3 · AUSCGIE art. 138 · AUSCOOP
+art. 108) sont dus par tous : leurs routes sont ouvertes aux deux. Restent
+fermées les routes propres à un seul texte · le registre des donateurs, les
+états du jeu « projets de développement », et l'éligibilité au Système minimal
+(les deux textes n'y mesurent pas la même chose · le SYCEBNL compare les
+RESSOURCES, art. 5 et 6, l'AUDCIF le CHIFFRE D'AFFAIRES, art. 13).
+
+Ouvrir une porte ne suffit pas : le service derrière doit aiguiller. Le
+2026-09-03, l'export du rapport lisait la constante SYCEBNL sans aucun
+aiguillage · la porte fermée ne protégeait pas d'un oubli, elle en MASQUAIT un.
+Ouvrir sans corriger aurait servi à une société commerciale un rapport à quatre
+sections portant les exigences d'un article qui ne la régit pas. Gelé par
+`parite-documents-obligatoires.spec.ts`, qui relit le classeur produit et lit
+la métadonnée des routes.
+
 ## 7. Conventions du plan de comptes semé
 
 Valables pour les deux référentiels (`compte-seed.ts`,

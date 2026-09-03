@@ -404,12 +404,17 @@ export class ExportController {
   }
 
   /**
-   * Livre d'inventaire (art. 14). Les états y sont RELUS depuis la
-   * transcription, jamais recalculés : un classeur qui les régénérerait
-   * produirait, à partir du même livre, deux documents différents à deux
-   * dates différentes.
+   * Livre d'inventaire. Les états y sont RELUS depuis la transcription, jamais
+   * recalculés : un classeur qui les régénérerait produirait, à partir du même
+   * livre, deux documents différents à deux dates différentes.
+   *
+   * PAS DE `@ReferentielsAutorises` · le livre est dû des DEUX côtés, chacun
+   * dans son texte (SYCEBNL art. 14 · AUDCIF art. 19), et le service comme la
+   * conformité aiguillent déjà sur le référentiel du dossier depuis le
+   * 2026-09-02. La porte était restée fermée au SYSCOHADA : un dossier
+   * commercial pouvait ÉTABLIR son livre d'inventaire sans pouvoir l'exporter,
+   * c'est-à-dire sans pouvoir le sortir du logiciel.
    */
-  @ReferentielsAutorises(Referentiel.SYCEBNL)
   @Get('livre-inventaire')
   async livreInventaire(
     @CurrentUser() user: AuthenticatedUser,
@@ -419,8 +424,16 @@ export class ExportController {
     envoyerXlsx(res, await this.exportService.livreInventaireExcel(user.tenantId, exerciceId));
   }
 
-  /** Rapport d'activité (art. 16-3) · quatre sections, section vide signalée. */
-  @ReferentielsAutorises(Referentiel.SYCEBNL)
+  /**
+   * Rapport d'activité ou de gestion · section vide signalée.
+   *
+   * PAS DE `@ReferentielsAutorises`, pour la même raison que le livre
+   * d'inventaire · le rapport est dû des deux côtés, mais PAS avec les mêmes
+   * sections : quatre au SYCEBNL (art. 16-3), six à l'AUSCGIE (art. 138), six
+   * autres à l'AUSCOOP (art. 108). Le service les aiguille désormais sur le
+   * référentiel et la forme juridique du dossier · c'est cet aiguillage qui
+   * manquait, et la porte fermée le masquait au lieu de le corriger.
+   */
   @Get('rapport-activite')
   async rapportActivite(
     @CurrentUser() user: AuthenticatedUser,
