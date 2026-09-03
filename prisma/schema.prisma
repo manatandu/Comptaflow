@@ -2172,6 +2172,23 @@ model TauxTva {
 //   linéaire est couvert ; plus pertinent pour SYSCOHADA (Phase 3).
 // - Dépréciation (compte 29, perte de valeur exceptionnelle distincte de
 //   l'amortissement) · non couverte, à traiter par un futur enrichissement.
+//
+//   ET « NON COUVERTE » NE VEUT PAS DIRE « SANS CONSÉQUENCE ». Les deux textes
+//   OBLIGENT à doter dès qu'un indice de perte de valeur existe, même sans
+//   bénéfice (SYCEBNL, Partie 2 ch. 3, fiche du compte 29 · AUDCIF art. 46 et
+//   Titre VIII ch. 12), et les comptes 29 sont semés et mouvementables. Un
+//   cabinet qui dote donc à la main installe deux divergences muettes :
+//    · `baseAmortissable` reste valeur d'origine moins valeur résiduelle · elle
+//      ignore la dépréciation, alors que l'art. 46 impose de recalculer le plan
+//      sur la valeur brute diminuée AUSSI de la dépréciation ;
+//    · `sortir` crédite le compte d'immobilisation pour la valeur d'origine et
+//      débite l'amortissement cumulé SANS solder le 29 · la valeur comptable
+//      nette portée au 81 est surévaluée du montant déprécié, la plus ou
+//      moins-value de cession fausse d'autant, et le 29 garde un solde pour un
+//      bien qui n'existe plus.
+//   Le contrôle `DEPRECIATION_IMMO_HORS_MODULE` signale la situation tant que
+//   le module ne la porte pas. Relevé : docs/releve-de-manques-referentiels.md,
+//   passe 13.
 // - Plans d'amortissement multiples (National/IFRS) · vision §3.6.
 // ---------------------------------------------------------------------------
 

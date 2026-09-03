@@ -1321,6 +1321,94 @@ export class ControlesService {
       });
     }
 
+    // --- 15. Dépréciation d'immobilisation que le module ignore ---------------
+    //
+    // LES DEUX TEXTES IMPOSENT LA DÉPRÉCIATION, chacun dans le sien.
+    //
+    //  · SYCEBNL, Partie 2 ch. 3, fiche du COMPTE 29 : « à la clôture de chaque
+    //    exercice une entité doit apprécier s'il existe un quelconque indice
+    //    qu'un actif a subi une perte de valeur […] l'actif doit être déprécié
+    //    lorsque la valeur nette comptable est supérieure à la valeur actuelle
+    //    […] même en cas d'absence ou d'insuffisance d'excédent, il doit être
+    //    procédé aux dotations nécessaires ». Et : « les dépréciations sont
+    //    inscrites distinctement à l'actif, EN DIMINUTION DE LA VALEUR BRUTE
+    //    des biens correspondants pour donner leur valeur comptable nette ».
+    //  · AUDCIF art. 46 et Titre VIII ch. 12, en termes identiques, avec en
+    //    plus la règle de recalcul : « après la comptabilisation d'une perte de
+    //    valeur, l'amortissement de l'actif doit être calculé sur la base de la
+    //    valeur comptable brute diminuée de la valeur résiduelle
+    //    prévisionnelle, des amortissements cumulés ET DE LA DÉPRÉCIATION ».
+    //
+    // CE QUE LE MODULE FAIT, ET QUI DIVERGE. Le schéma déclare la dépréciation
+    // hors périmètre, ce qui est un choix assumé · mais les comptes 29 sont
+    // semés et mouvementables, et un cabinet qui constate un indice DOIT doter.
+    // Dans ce cas, deux divergences s'installent sans bruit :
+    //
+    //  1. la base amortissable du module reste « valeur d'origine moins valeur
+    //     résiduelle » · elle ignore la dépréciation, et le plan d'amortissement
+    //     s'écarte de la règle de recalcul dès l'exercice suivant ;
+    //  2. la SORTIE du bien crédite le compte d'immobilisation pour sa valeur
+    //     d'origine et débite l'amortissement cumulé, sans jamais solder le 29 ·
+    //     la valeur comptable nette portée au compte 81 est alors surévaluée du
+    //     montant déprécié, la plus ou moins-value de cession est fausse
+    //     d'autant, et le compte 29 garde un solde pour un bien qui n'existe
+    //     plus.
+    //
+    // Le contrôle ne se déclenche que si le dossier fait LES DEUX : porter une
+    // dépréciation ET tenir des immobilisations dans le module. Une
+    // dépréciation seule (titres, dossier sans module) ne diverge de rien.
+    const lignes29 = await this.prisma.ligneEcriture.findMany({
+      where: {
+        compte: { tenantId, numero: { startsWith: '29' } },
+        ecriture: { tenantId, exerciceId },
+      },
+      select: { debit: true, credit: true, compte: { select: { numero: true, intitule: true } } },
+    });
+    const soldes29 = new Map<string, { intitule: string; solde: number }>();
+    for (const l of lignes29) {
+      const acc = soldes29.get(l.compte.numero) ?? { intitule: l.compte.intitule, solde: 0 };
+      // Une dépréciation est CRÉDITRICE · le solde retenu est donc crédit
+      // moins débit, la reprise venant en diminution.
+      acc.solde += Number(l.credit) - Number(l.debit);
+      soldes29.set(l.compte.numero, acc);
+    }
+    const depreciations = [...soldes29.entries()]
+      .filter(([, v]) => v.solde > 0.005)
+      .sort(([a], [b]) => a.localeCompare(b));
+    if (depreciations.length > 0) {
+      const immosDuModule = await this.prisma.immobilisation.count({
+        where: { tenantId, statut: 'EN_SERVICE' },
+      });
+      if (immosDuModule > 0) {
+        const sourceDepreciation =
+          tenant.referentiel === Referentiel.SYCEBNL
+            ? 'SYCEBNL, Partie 2 ch. 3, fiche du compte 29'
+            : 'AUDCIF art. 46 et Titre VIII ch. 12';
+        anomalies.push({
+          code: 'DEPRECIATION_IMMO_HORS_MODULE',
+          gravite: 'AVERTISSEMENT',
+          libelle: 'Dépréciation d’immobilisation que le module ne connaît pas',
+          consequence:
+            `Le texte (${sourceDepreciation}) inscrit la dépréciation en diminution de la valeur brute pour ` +
+            'donner la valeur comptable nette. Le module d’immobilisations ne la connaît pas : sa base ' +
+            'amortissable reste la valeur d’origine diminuée de la seule valeur résiduelle, et sa SORTIE de bien ' +
+            'ne solde pas le compte 29. Sur un bien déprécié, la valeur comptable nette portée au compte 81 sera ' +
+            'donc surévaluée du montant déprécié, la plus ou moins-value de cession fausse d’autant, et le ' +
+            'compte 29 gardera un solde pour un bien qui n’existe plus. Rien ne se déséquilibre : l’écriture ' +
+            'reste équilibrée et la balance boucle.',
+          action:
+            'Avant de sortir un bien déprécié, passez la reprise de sa dépréciation à la main (débit 29, crédit ' +
+            '79 ou 863 selon le caractère de l’opération), puis sortez le bien. Vérifiez aussi le plan ' +
+            'd’amortissement des biens dépréciés, que le module continue de calculer sur la base d’origine.',
+          occurrences: depreciations.slice(0, 200).map(([numero, v]) => ({
+            reference: `${numero} ${v.intitule}`,
+            detail: 'Dépréciation portée hors du module d’immobilisations',
+            montant: Math.round(v.solde * 100) / 100,
+          })),
+        });
+      }
+    }
+
     const ordre: Record<Gravite, number> = { BLOQUANT: 0, AVERTISSEMENT: 1, INFORMATION: 2 };
     anomalies.sort((a, b) => ordre[a.gravite] - ordre[b.gravite]);
 

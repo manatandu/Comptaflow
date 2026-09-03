@@ -1094,6 +1094,71 @@ garantie ». Lacune du texte, pas du logiciel.
 
 ---
 
+## Passe 13 · Titre VIII ch. 12 · la dépréciation que le module ignore
+
+Lu à la source : AUDCIF, Titre VIII ch. 12 « Dépréciation des immobilisations »
+(sections 1 et 2) et art. 46 ; SYCEBNL, Partie 2 ch. 3, fiche du COMPTE 29.
+
+### Écart 13.1 · « hors périmètre » ne voulait pas dire « sans conséquence »
+
+**Ce que les deux textes exigent**, chacun dans le sien, en termes très
+proches. SYCEBNL, fiche du compte 29 : « à la clôture de chaque exercice une
+entité doit apprécier s'il existe un quelconque indice qu'un actif a subi une
+perte de valeur […] l'actif doit être déprécié lorsque la valeur nette
+comptable est supérieure à la valeur actuelle […] même en cas d'absence ou
+d'insuffisance d'excédent, il doit être procédé aux dotations nécessaires ». Et
+surtout : « les dépréciations sont inscrites distinctement à l'actif, EN
+DIMINUTION DE LA VALEUR BRUTE des biens correspondants pour donner leur valeur
+comptable nette ». L'AUDCIF ajoute la règle de recalcul (art. 46) : après une
+perte de valeur, l'amortissement se calcule sur la valeur brute diminuée de la
+valeur résiduelle, des amortissements cumulés ET DE LA DÉPRÉCIATION.
+
+Le déclenchement, lui, reste un jugement : « s'il n'existe pas d'indice de
+perte de valeur, aucun test de dépréciation n'est requis ». Un logiciel ne peut
+pas connaître un indice · ni la valeur de marché, ni l'obsolescence.
+
+**Ce que le logiciel fait.** Le schéma déclare la dépréciation hors périmètre du
+module, ce qui est un choix assumé et écrit. Mais les comptes 29 sont semés dans
+les deux plans et parfaitement mouvementables, et le texte OBLIGE à doter dès
+qu'un indice existe. Le cabinet qui le fait à la main installe alors deux
+divergences que rien ne signale :
+
+1. `baseAmortissable` reste « valeur d'origine moins valeur résiduelle » · elle
+   ignore la dépréciation, et le plan d'amortissement s'écarte de la règle de
+   recalcul dès l'exercice suivant ;
+2. `sortir` crédite le compte d'immobilisation pour sa valeur d'origine et
+   débite l'amortissement cumulé **sans jamais solder le 29**. La valeur
+   comptable nette portée au compte 81 est alors surévaluée du montant
+   déprécié, la plus ou moins-value de cession est fausse d'autant, et le
+   compte 29 garde un solde pour un bien qui n'existe plus.
+
+**Fichiers.** `src/modules/immobilisations/immobilisation.service.ts`
+(`baseAmortissable`, `sortir`), `prisma/schema.prisma` (modèle
+`Immobilisation`, sans champ de dépréciation).
+
+**Lacune du logiciel.** Le périmètre était déclaré ; sa conséquence ne l'était
+pas.
+
+**Gravité · état faux à la cession, et muet.** L'écriture de sortie reste
+équilibrée et la balance boucle · c'est la répartition entre le 81 et le 82 qui
+est fausse, donc le résultat H.A.O. Rien ne peut s'en apercevoir.
+
+**Ce qui a été fait ici.** Un quinzième contrôle,
+`DEPRECIATION_IMMO_HORS_MODULE`, en AVERTISSEMENT. Il ne se déclenche que si le
+dossier fait LES DEUX : porter un solde créditeur sur un compte 29 et tenir des
+immobilisations dans le module · une dépréciation de titres dans un dossier sans
+module ne diverge de rien. Il cite le texte du référentiel du dossier, nomme les
+deux divergences et donne la manœuvre de contournement : reprendre la
+dépréciation à la main avant de sortir le bien. Le commentaire du schéma, qui
+disait seulement « non couverte », porte désormais la conséquence. Le module
+lui-même est la tâche 103 · accueillir la dépréciation, jamais la décider.
+
+### Portée de cette passe
+
+Restent les ch. 3, 7, 10, 11, 13, 15, 19 à 21, 25, 26, 28 et 32 à 41.
+
+---
+
 ## Ce qui n'a pas encore été ouvert
 
 À traiter dans les passes suivantes, dans cet ordre :
@@ -1101,7 +1166,7 @@ garantie ». Lacune du texte, pas du logiciel.
 1. **AUDCIF Titre VIII** · les chapitres restants. Ouverts à ce jour : le
    ch. 16 (passe 2), le ch. 31 (passe 3), les ch. 4 à 6 (passe 8), les ch. 8,
    9 et 27 (passe 9), et le ch. 22 vérifié à la passe 7 par le module devises.
-   Restent les ch. 3, 7, 10 à 13, 15, 19 à 21, 25, 26, 28 et 32 à 41. La plupart visent des opérations hors du portefeuille actuel du
+   Restent les ch. 3, 7, 10, 11, 13, 15, 19 à 21, 25, 26, 28 et 32 à 41. La plupart visent des opérations hors du portefeuille actuel du
    cabinet (concessions, franchise, agricole, fusions, liquidation, GIE,
    comptabilité par établissement, pluri-monétaire) · à trier avec Manasse
    plutôt qu'à ouvrir un par un.
