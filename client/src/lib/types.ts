@@ -788,6 +788,12 @@ export interface LigneNoteCalculee {
   natureNonVentilee?: { augmentation: number; diminution: number };
   comptes: CompteDeRubrique[];
   renvoi?: string;
+  /**
+   * Rubrique renseignée HORS comptabilité · une case par colonne, dans
+   * l'ordre de `NoteCalculee.colonnes`. `null` = jamais renseignée, ce qui
+   * n'est pas un zéro. Absent sur une rubrique chiffrée par la balance.
+   */
+  saisie?: (string | number | null)[];
 }
 
 export interface RubriqueEnAttente {

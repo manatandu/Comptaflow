@@ -9,6 +9,7 @@ import { ReferentielsAutorises } from '../../common/decorators/referentiels.deco
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { NoteAnnexeService } from './note-annexe.service';
 import { RattacherDto } from './dto/rattachement.dto';
+import { SaisirNoteDto } from './dto/saisie-note.dto';
 
 const EXERCICE_REQUIS = new ParseUUIDPipe({
   exceptionFactory: () =>
@@ -86,5 +87,34 @@ export class NoteAnnexeController {
   @Delete('rattachements')
   async detacher(@CurrentUser() user: AuthenticatedUser, @Body() dto: RattacherDto) {
     return this.noteAnnexeService.detacher(user.tenantId, dto.jeu, dto.codeNote, dto.cleRubrique, dto.compteId);
+  }
+
+  /**
+   * Écrit une cellule d'une rubrique renseignée hors comptabilité :
+   * engagements, effectifs, informations sociales et environnementales,
+   * événements postérieurs à la clôture. Une valeur vide efface la cellule.
+   *
+   * OUVERTE AUX DEUX RÉFÉRENTIELS, comme le rattachement et pour la même
+   * raison · le cloisonnement se fait dans le service, sur le couple
+   * (référentiel du dossier, jeu demandé).
+   *
+   * Le COMPTABLE y a accès, à la différence du rattachement : rattacher un
+   * compte à une rubrique engage la lecture du plan de comptes pour tous les
+   * exercices à venir, alors qu'écrire un effectif ou un engagement dans la
+   * note de l'exercice est un acte de tenue, comme passer une écriture.
+   */
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Post('saisies')
+  async saisir(@CurrentUser() user: AuthenticatedUser, @Body() dto: SaisirNoteDto) {
+    return this.noteAnnexeService.enregistrerSaisie(
+      user.tenantId,
+      user.userId,
+      dto.exerciceId,
+      dto.jeu,
+      dto.codeNote,
+      dto.cleRubrique,
+      dto.colonne,
+      dto.valeur ?? null,
+    );
   }
 }

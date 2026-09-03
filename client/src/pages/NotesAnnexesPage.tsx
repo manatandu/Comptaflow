@@ -19,6 +19,7 @@ import {
   FicheRecapitulativeNotes,
   compareCodesNotes,
   type RattachementNotes,
+  type SaisieNotes,
 } from '../components/NotesAnnexesRendu';
 
 /**
@@ -169,6 +170,41 @@ function NotesAnnexesSycebnlPage() {
     }
   };
 
+  /**
+   * Enregistre une cellule d'une rubrique renseignée hors comptabilité.
+   *
+   * Recharge après coup, comme le rattachement : le serveur décide seul de
+   * l'applicabilité de la note (§ 1.4), et une cellule qui vient d'être
+   * remplie peut la faire basculer. Recalculer côté client dupliquerait la
+   * règle et la ferait diverger.
+   */
+  const enregistrerSaisie = async (codeNote: string, cleRubrique: string, colonne: number, valeur: string) => {
+    if (!exerciceCourant) return;
+    setErreur(null);
+    setEnCours(`${codeNote}::${cleRubrique}::${colonne}`);
+    try {
+      await api.post('/notes-annexes/saisies', {
+        exerciceId: exerciceCourant.id,
+        jeu: jeuRattachement,
+        codeNote,
+        cleRubrique,
+        colonne,
+        valeur,
+      });
+      charger();
+    } catch (e) {
+      setErreur(e instanceof ApiError ? e.message : "Impossible d'enregistrer cette saisie");
+    } finally {
+      setEnCours(null);
+    }
+  };
+
+  // LECTURE_SEULE n'écrit rien · le serveur le refuserait de toute façon
+  // (`@Roles`), mais un champ ouvert qui rend un 403 est une promesse fausse.
+  const saisie: SaisieNotes | undefined = utilisateur?.role === 'LECTURE_SEULE'
+    ? undefined
+    : { enCours, enregistrer: enregistrerSaisie };
+
   // Rattachement des sous-comptes du dossier · l'état vit ici (c'est cet
   // écran qui appelle le serveur), le rendu est celui de NotesAnnexesRendu.
   const rattachement: RattachementNotes = {
@@ -275,7 +311,7 @@ function NotesAnnexesSycebnlPage() {
               <div className="border border-border px-4 py-4 text-[11px] text-text-dim">Sélectionnez une note.</div>
             )}
             {tableaux.map((n) => (
-              <BlocTableauNote key={n.sousTableau ?? n.code} note={n} rattachement={rattachement} />
+              <BlocTableauNote key={n.sousTableau ?? n.code} note={n} rattachement={rattachement} saisie={saisie} />
             ))}
           </div>
         </div>

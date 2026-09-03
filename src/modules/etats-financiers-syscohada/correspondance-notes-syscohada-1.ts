@@ -473,14 +473,14 @@ export const NOTES_SYSCOHADA_1: SpecificationNote[] = [
       { type: 'LIBRE' as const, libelle: 'Engagements reçus' },
     ],
     rubriques: [
-      { libelle: 'Engagements consentis à des entités liées', saisie: true },
-      { libelle: 'Primes de remboursement non échues', saisie: true },
-      { libelle: 'Avals, cautions, garanties', saisie: true },
-      { libelle: 'Hypothèques, nantissements, gages, autres', saisie: true },
-      { libelle: 'Effets escomptés non échus', saisie: true },
-      { libelle: 'Créances commerciales et professionnelles cédées', saisie: true },
-      { libelle: 'Abandons de créances conditionnels', saisie: true },
-      { libelle: 'TOTAL', saisie: true },
+      { cle: 'engagements-consentis-a-des-entites-liees', libelle: 'Engagements consentis à des entités liées', saisie: true },
+      { cle: 'primes-de-remboursement-non-echues', libelle: 'Primes de remboursement non échues', saisie: true },
+      { cle: 'avals-cautions-garanties', libelle: 'Avals, cautions, garanties', saisie: true },
+      { cle: 'hypotheques-nantissements-gages-autres', libelle: 'Hypothèques, nantissements, gages, autres', saisie: true },
+      { cle: 'effets-escomptes-non-echus', libelle: 'Effets escomptés non échus', saisie: true },
+      { cle: 'creances-commerciales-et-professionnelles-cedees', libelle: 'Créances commerciales et professionnelles cédées', saisie: true },
+      { cle: 'abandons-de-creances-conditionnels', libelle: 'Abandons de créances conditionnels', saisie: true },
+      { cle: 'total', libelle: 'TOTAL', saisie: true },
     ],
   },
 
@@ -493,11 +493,11 @@ export const NOTES_SYSCOHADA_1: SpecificationNote[] = [
     horsBalance: true,
     colonnes: [{ type: 'LIBRE' as const, libelle: 'Informations' }],
     rubriques: [
-      { libelle: 'A - DÉCLARATION DE CONFORMITÉ AU SYSCOHADA', saisie: true },
-      { libelle: 'B - RÈGLES ET MÉTHODES COMPTABLES', saisie: true },
-      { libelle: 'C - DÉROGATION AUX POSTULATS ET CONVENTIONS COMPTABLES', saisie: true },
+      { cle: 'a-declaration-de-conformite-au-syscohada', libelle: 'A - DÉCLARATION DE CONFORMITÉ AU SYSCOHADA', saisie: true },
+      { cle: 'b-regles-et-methodes-comptables', libelle: 'B - RÈGLES ET MÉTHODES COMPTABLES', saisie: true },
+      { cle: 'c-derogation-aux-postulats-et-conventions-compta', libelle: 'C - DÉROGATION AUX POSTULATS ET CONVENTIONS COMPTABLES', saisie: true },
       {
-        libelle:
+        cle: 'd-informations-complementaires-relatives-au-bila', libelle:
           'D - INFORMATIONS COMPLÉMENTAIRES RELATIVES AU BILAN, AU COMPTE DE RÉSULTAT ET AU TABLEAU DES FLUX DE ' +
           'TRÉSORERIE',
         saisie: true,
@@ -615,9 +615,9 @@ export const NOTES_SYSCOHADA_1: SpecificationNote[] = [
     rubriques: [
       // Anomalie n° 3 : lignes incorporelles de la maquette, sans compte
       // possible ; en saisie et non en attente.
-      { libelle: 'Brevets, licences, logiciels et droits similaires', saisie: true },
-      { libelle: 'Fonds commercial et droit au bail', saisie: true },
-      { libelle: 'Autres immobilisations incorporelles', saisie: true },
+      { cle: 'brevets-licences-logiciels-et-droits-similaires', libelle: 'Brevets, licences, logiciels et droits similaires', saisie: true },
+      { cle: 'fonds-commercial-et-droit-au-bail', libelle: 'Fonds commercial et droit au bail', saisie: true },
+      { cle: 'autres-immobilisations-incorporelles', libelle: 'Autres immobilisations incorporelles', saisie: true },
       { libelle: 'SOUS TOTAL : IMMOBILISATIONS INCORPORELLES', totalDeRubriques: [0, 1, 2] },
       { libelle: 'Terrains', comptes: ['2286'] },
       { libelle: 'Bâtiments', comptes: ['2316', '2326'] },
@@ -677,7 +677,7 @@ export const NOTES_SYSCOHADA_1: SpecificationNote[] = [
       // en saisie, avec le motif porté sur la ligne.
       { libelle: 'Terrains hors immeuble de placement', comptes: ['282'] },
       {
-        libelle: 'Terrains - immeuble de placement',
+        cle: 'terrains-immeuble-de-placement', libelle: 'Terrains - immeuble de placement',
         saisie: true,
         renvoi:
           'Le compte 282 « Amortissements des terrains » n’est pas subdivisé par destination (seul 2824 ' +
@@ -686,7 +686,7 @@ export const NOTES_SYSCOHADA_1: SpecificationNote[] = [
       },
       { libelle: 'Bâtiments hors immeuble de placement', comptes: ['2831', '2832', '2833', '2837'] },
       {
-        libelle: 'Bâtiments - immeuble de placement',
+        cle: 'batiments-immeuble-de-placement', libelle: 'Bâtiments - immeuble de placement',
         saisie: true,
         renvoi:
           'Les comptes 2831 et 2832 ne sont pas subdivisés (contrairement au brut, 2315 et 2325) et la ligne ' +
@@ -716,21 +716,21 @@ export const NOTES_SYSCOHADA_1: SpecificationNote[] = [
     ],
     renvoyeeDepuis: ['TN', 'RO'],
     rubriques: [
-      { libelle: 'Frais de développement et de prospection', saisie: true },
-      { libelle: 'Brevets, licences, logiciels et droits similaires', saisie: true },
-      { libelle: 'Fonds commercial et droit au bail', saisie: true },
-      { libelle: 'Autres immobilisations incorporelles', saisie: true },
-      { libelle: 'SOUS TOTAL : IMMOBILISATIONS INCORPORELLES', saisie: true },
-      { libelle: 'Terrains', saisie: true },
-      { libelle: 'Bâtiments', saisie: true },
-      { libelle: 'Aménagements, agencements et installations', saisie: true },
-      { libelle: 'Matériel, mobilier et actifs biologiques', saisie: true },
-      { libelle: 'Matériel de transport', saisie: true },
-      { libelle: 'SOUS TOTAL : IMMOBILISATIONS CORPORELLES', saisie: true },
-      { libelle: 'Titres de participations', saisie: true },
-      { libelle: 'Autres immobilisations financières', saisie: true },
-      { libelle: 'SOUS TOTAL : IMMOBILISATIONS FINANCIÈRES', saisie: true },
-      { libelle: 'TOTAL GÉNÉRAL', saisie: true },
+      { cle: 'frais-de-developpement-et-de-prospection', libelle: 'Frais de développement et de prospection', saisie: true },
+      { cle: 'brevets-licences-logiciels-et-droits-similaires', libelle: 'Brevets, licences, logiciels et droits similaires', saisie: true },
+      { cle: 'fonds-commercial-et-droit-au-bail', libelle: 'Fonds commercial et droit au bail', saisie: true },
+      { cle: 'autres-immobilisations-incorporelles', libelle: 'Autres immobilisations incorporelles', saisie: true },
+      { cle: 'sous-total-immobilisations-incorporelles', libelle: 'SOUS TOTAL : IMMOBILISATIONS INCORPORELLES', saisie: true },
+      { cle: 'terrains', libelle: 'Terrains', saisie: true },
+      { cle: 'batiments', libelle: 'Bâtiments', saisie: true },
+      { cle: 'amenagements-agencements-et-installations', libelle: 'Aménagements, agencements et installations', saisie: true },
+      { cle: 'materiel-mobilier-et-actifs-biologiques', libelle: 'Matériel, mobilier et actifs biologiques', saisie: true },
+      { cle: 'materiel-de-transport', libelle: 'Matériel de transport', saisie: true },
+      { cle: 'sous-total-immobilisations-corporelles', libelle: 'SOUS TOTAL : IMMOBILISATIONS CORPORELLES', saisie: true },
+      { cle: 'titres-de-participations', libelle: 'Titres de participations', saisie: true },
+      { cle: 'autres-immobilisations-financieres', libelle: 'Autres immobilisations financières', saisie: true },
+      { cle: 'sous-total-immobilisations-financieres', libelle: 'SOUS TOTAL : IMMOBILISATIONS FINANCIÈRES', saisie: true },
+      { cle: 'total-general', libelle: 'TOTAL GÉNÉRAL', saisie: true },
     ],
     commentaire: "mentionner la justification de la cession ainsi que la date d'acquisition et la date de sortie.",
   },
@@ -747,14 +747,14 @@ export const NOTES_SYSCOHADA_1: SpecificationNote[] = [
     ],
     renvoyeeDepuis: ['CE'],
     rubriques: [
-      { libelle: 'Nature et date des réévaluations', saisie: true },
-      { libelle: 'Éléments réévalués par postes du bilan', saisie: true },
-      { libelle: 'Méthode de réévaluation utilisée', saisie: true },
+      { cle: 'nature-et-date-des-reevaluations', libelle: 'Nature et date des réévaluations', saisie: true },
+      { cle: 'elements-reevalues-par-postes-du-bilan', libelle: 'Éléments réévalués par postes du bilan', saisie: true },
+      { cle: 'methode-de-reevaluation-utilisee', libelle: 'Méthode de réévaluation utilisée', saisie: true },
       {
-        libelle: "Traitement fiscal de l'écart de réévaluation et des amortissements supplémentaires",
+        cle: 'traitement-fiscal-de-l-ecart-de-reevaluation-et', libelle: "Traitement fiscal de l'écart de réévaluation et des amortissements supplémentaires",
         saisie: true,
       },
-      { libelle: "Montant de l'écart incorporé au capital", saisie: true },
+      { cle: 'montant-de-l-ecart-incorpore-au-capital', libelle: "Montant de l'écart incorporé au capital", saisie: true },
     ],
   },
   {
@@ -774,18 +774,18 @@ export const NOTES_SYSCOHADA_1: SpecificationNote[] = [
       { type: 'LIBRE' as const, libelle: 'Primes de remboursement des obligations' },
     ],
     rubriques: [
-      { libelle: 'Montant global à étaler au 1er janvier 2018', saisie: true },
-      { libelle: "Durée d'étalement retenue", saisie: true },
+      { cle: 'montant-global-a-etaler-au-1er-janvier-2018', libelle: 'Montant global à étaler au 1er janvier 2018', saisie: true },
+      { cle: 'duree-d-etalement-retenue', libelle: "Durée d'étalement retenue", saisie: true },
       {
-        libelle: 'Exercice 2018 · Comptes / Montants (comptes 60…, 61…, 62…, 63… ; compte 6714 pour les primes)',
+        cle: 'exercice-2018-comptes-montants-comptes-60-61-62', libelle: 'Exercice 2018 · Comptes / Montants (comptes 60…, 61…, 62…, 63… ; compte 6714 pour les primes)',
         saisie: true,
       },
-      { libelle: 'Total exercice 2018', saisie: true },
-      { libelle: 'Total exercice 2019', saisie: true },
-      { libelle: 'Total exercice 2020', saisie: true },
-      { libelle: 'Total exercice 2021', saisie: true },
-      { libelle: 'Total exercice 2022', saisie: true },
-      { libelle: 'TOTAL GÉNÉRAL', saisie: true },
+      { cle: 'total-exercice-2018', libelle: 'Total exercice 2018', saisie: true },
+      { cle: 'total-exercice-2019', libelle: 'Total exercice 2019', saisie: true },
+      { cle: 'total-exercice-2020', libelle: 'Total exercice 2020', saisie: true },
+      { cle: 'total-exercice-2021', libelle: 'Total exercice 2021', saisie: true },
+      { cle: 'total-exercice-2022', libelle: 'Total exercice 2022', saisie: true },
+      { cle: 'total-general', libelle: 'TOTAL GÉNÉRAL', saisie: true },
     ],
   },
 
@@ -855,7 +855,7 @@ export const NOTES_SYSCOHADA_1: SpecificationNote[] = [
       { type: 'LIBRE' as const, libelle: 'Montant des capitaux propres filiale' },
       { type: 'LIBRE' as const, libelle: 'Résultat dernier exercice filiale' },
     ],
-    rubriques: [{ libelle: 'Filiales et participations (une ligne par entité)', saisie: true }],
+    rubriques: [{ cle: 'filiales-et-participations-une-ligne-par-entite', libelle: 'Filiales et participations (une ligne par entité)', saisie: true }],
   },
 
   // ======================================================================
@@ -1222,7 +1222,7 @@ export const NOTES_SYSCOHADA_1: SpecificationNote[] = [
     ],
     renvoyeeDepuis: ['CA', 'CB'],
     rubriques: [
-      { libelle: 'Apporteurs (une ligne par apporteur : nom et prénoms, nationalité, nature, nombre)', saisie: true },
+      { cle: 'apporteurs-une-ligne-par-apporteur-nom-et-prenom', libelle: 'Apporteurs (une ligne par apporteur : nom et prénoms, nationalité, nature, nombre)', saisie: true },
       // CB = « 109 », débiteur, présenté en moins comme au bilan. Lu au
       // CRÉDIT (`natureCreditrice`), exactement comme le bilan lit CB au
       // passif : le solde débiteur du 109 ressort alors en négatif, ce que

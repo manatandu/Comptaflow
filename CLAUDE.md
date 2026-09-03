@@ -221,6 +221,24 @@ transposition, pas l'absence, qui est le risque de cette fenêtre.
 Propres au SYSCOHADA : résultat fiscal et impôt sur les bénéfices (une entité
 à but non lucratif en est exemptée, loi n° 23/053 art. 5).
 
+**Rubriques de notes en saisie · ce que le logiciel ne peut pas calculer.**
+322 rubriques des trois jeux portent `saisie: true` : engagements donnés et
+reçus, effectifs, informations sociales et environnementales, événements
+postérieurs à la clôture, règles et méthodes comptables. Elles sont
+OBLIGATOIRES (SYCEBNL art. 15, AUDCIF art. 33) et aucune balance ne les porte.
+Depuis le 2026-09-03 elles sont stockées (`SaisieNote`, table
+`saisies_notes`), par exercice, et l'écran des notes les rend modifiables.
+
+Trois règles à ne pas défaire. L'ancre est le couple (code de note, CLÉ de
+rubrique) et le RANG de la colonne, jamais un libellé ni un index de ligne ·
+`rubriques-en-saisie.spec.ts` gèle les deux (unicité des clés dans un code,
+sous-tableaux compris, et nombre de colonnes par tableau). Une rubrique en
+saisie n'est JAMAIS rattachable, et une rubrique rattachable n'est jamais en
+saisie · deux sources pour une même cellule, ce serait un montant dont rien ne
+dit d'où il vient. Et les lignes en saisie sont présentées même quand la note
+n'est pas applicable : le filtre du § 1.4 les retirait, ce qui faisait de
+toute note vide un cul-de-sac impossible à remplir.
+
 **Retraitements fiscaux · le logiciel se souvient, il ne qualifie pas.** Le
 catalogue (`catalogue-retraitements.ts`) refuse de déduire la qualification
 fiscale d'une charge de son numéro de compte, et il a raison : le 6582

@@ -11,6 +11,7 @@ import {
   FicheRecapitulativeNotes,
   compareCodesNotes,
   type RattachementNotes,
+  type SaisieNotes,
 } from '../components/NotesAnnexesRendu';
 
 /**
@@ -70,7 +71,7 @@ const MENTION_NEANT_SYSCOHADA = (
 
 function NotesSyscohadaSystemeNormal() {
   const { exerciceCourant } = useExercice();
-  const { estAdmin } = useAuth();
+  const { utilisateur, estAdmin } = useAuth();
 
   const [resultat, setResultat] = useState<ResultatNotesJeu | null>(null);
   const [comptes, setComptes] = useState<Compte[] | null>(null);
@@ -179,6 +180,41 @@ function NotesSyscohadaSystemeNormal() {
     }
   };
 
+  /**
+   * Écrit une cellule d'une rubrique renseignée hors comptabilité. Les notes
+   * 2, 16C, 27B, 31, 32, 34, 35 et 36 du Titre IX ch. 6 ne vivent que de
+   * cela · aucune balance ne les porte.
+   *
+   * Recharge après coup : l'applicabilité de la note (§ 1.4) est décidée par
+   * le serveur, une cellule remplie peut la faire basculer.
+   */
+  const enregistrerSaisie = async (codeNote: string, cleRubrique: string, colonne: number, valeur: string) => {
+    if (!exerciceCourant) return;
+    setErreur(null);
+    setEnCours(`${codeNote}::${cleRubrique}::${colonne}`);
+    try {
+      await api.post('/notes-annexes/saisies', {
+        exerciceId: exerciceCourant.id,
+        jeu: 'SYSCOHADA_SYSTEME_NORMAL',
+        codeNote,
+        cleRubrique,
+        colonne,
+        valeur,
+      });
+      charger();
+    } catch (e) {
+      setErreur(e instanceof ApiError ? e.message : "Impossible d'enregistrer cette saisie");
+    } finally {
+      setEnCours(null);
+    }
+  };
+
+  // LECTURE_SEULE n'écrit rien · le serveur le refuserait (`@Roles`), et un
+  // champ ouvert qui rend un 403 est une promesse fausse.
+  const saisie: SaisieNotes | undefined = utilisateur?.role === 'LECTURE_SEULE'
+    ? undefined
+    : { enCours, enregistrer: enregistrerSaisie };
+
   const rattachement: RattachementNotes = {
     estAdmin,
     comptesDetail,
@@ -271,6 +307,7 @@ function NotesSyscohadaSystemeNormal() {
                 key={n.sousTableau ?? n.code}
                 note={n}
                 rattachement={rattachement}
+                saisie={saisie}
                 mentionNonApplicable={MENTION_NEANT_SYSCOHADA}
                 afficherHorsBalance
               />

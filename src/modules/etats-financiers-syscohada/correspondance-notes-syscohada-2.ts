@@ -565,15 +565,15 @@ export const NOTES_SYSCOHADA_2: SpecificationNote[] = [
     colonnes: COLONNES_SAISIE_N_N1,
     renvoyeeDepuis: ['DC'],
     rubriques: [
-      { libelle: "Taux d'augmentation des salaires", saisie: true },
-      { libelle: "Taux d'actualisation", saisie: true },
-      { libelle: "Taux d'inflation", saisie: true },
+      { cle: 'taux-d-augmentation-des-salaires', libelle: "Taux d'augmentation des salaires", saisie: true },
+      { cle: 'taux-d-actualisation', libelle: "Taux d'actualisation", saisie: true },
+      { cle: 'taux-d-inflation', libelle: "Taux d'inflation", saisie: true },
       {
-        libelle: "Probabilité d'être présent dans l'entité à la date de départ à la retraite (expérience passée)",
+        cle: 'probabilite-d-etre-present-dans-l-entite-a-la-da', libelle: "Probabilité d'être présent dans l'entité à la date de départ à la retraite (expérience passée)",
         saisie: true,
       },
-      { libelle: "Probabilité d'être en vie à l'âge de départ à la retraite (table de mortalité)", saisie: true },
-      { libelle: 'Taux de rendement effectif des actifs du régime', saisie: true },
+      { cle: 'probabilite-d-etre-en-vie-a-l-age-de-depart-a-la', libelle: "Probabilité d'être en vie à l'âge de départ à la retraite (table de mortalité)", saisie: true },
+      { cle: 'taux-de-rendement-effectif-des-actifs-du-regime', libelle: 'Taux de rendement effectif des actifs du régime', saisie: true },
     ],
     commentaire: "commenter les variations d'hypothèses actuarielles utilisées pour le calcul.",
   },
@@ -590,13 +590,13 @@ export const NOTES_SYSCOHADA_2: SpecificationNote[] = [
     // méthode (Titre VII COMPTE 19, dérogation ouverte aux entités non
     // cotées). Le déduire du compte serait un jugement sur la méthode.
     rubriques: [
-      { libelle: "Obligation au titre des engagements de retraite à l'ouverture", saisie: true },
-      { libelle: "Coût des services rendus au cours de l'exercice", saisie: true },
-      { libelle: 'Coût financier', saisie: true },
-      { libelle: 'Pertes actuarielles / (gain)', saisie: true },
-      { libelle: "Prestations payées au cours de l'exercice", saisie: true },
-      { libelle: 'Coût des services passés', saisie: true },
-      { libelle: 'Obligation au titre des engagements de retraite à la clôture', saisie: true },
+      { cle: 'obligation-au-titre-des-engagements-de-retraite', libelle: "Obligation au titre des engagements de retraite à l'ouverture", saisie: true },
+      { cle: 'cout-des-services-rendus-au-cours-de-l-exercice', libelle: "Coût des services rendus au cours de l'exercice", saisie: true },
+      { cle: 'cout-financier', libelle: 'Coût financier', saisie: true },
+      { cle: 'pertes-actuarielles-gain', libelle: 'Pertes actuarielles / (gain)', saisie: true },
+      { cle: 'prestations-payees-au-cours-de-l-exercice', libelle: "Prestations payées au cours de l'exercice", saisie: true },
+      { cle: 'cout-des-services-passes', libelle: 'Coût des services passés', saisie: true },
+      { cle: 'obligation-au-titre-des-engagements-de-retraite-2', libelle: 'Obligation au titre des engagements de retraite à la clôture', saisie: true },
     ],
     commentaire: "indiquer le montant de la charge par nature comptabilisée au cours de l'exercice.",
   },
@@ -613,9 +613,9 @@ export const NOTES_SYSCOHADA_2: SpecificationNote[] = [
     ],
     renvoyeeDepuis: ['DC'],
     rubriques: [
-      { libelle: "Taux d'actualisation (variation de …%)", saisie: true },
-      { libelle: 'Taux de progression des salaires (variation de …%)', saisie: true },
-      { libelle: 'Taux de départ du personnel (variation de …%)', saisie: true },
+      { cle: 'taux-d-actualisation-variation-de', libelle: "Taux d'actualisation (variation de …%)", saisie: true },
+      { cle: 'taux-de-progression-des-salaires-variation-de', libelle: 'Taux de progression des salaires (variation de …%)', saisie: true },
+      { cle: 'taux-de-depart-du-personnel-variation-de', libelle: 'Taux de départ du personnel (variation de …%)', saisie: true },
     ],
     commentaire: "indiquer l'impact des variations obtenues sur le montant des engagements de retraite.",
   },
@@ -635,9 +635,9 @@ export const NOTES_SYSCOHADA_2: SpecificationNote[] = [
     // le 1962 est débité des PRIMES VERSÉES (Titre VII COMPTE 19), pas d'une
     // juste valeur. Saisie, pas rattachement.
     rubriques: [
-      { libelle: "Valeur actuelle de l'obligation résultant de régimes financés", saisie: true },
-      { libelle: 'Valeur actuelle des actifs affectés aux plans de retraite', saisie: true },
-      { libelle: 'Excédent / déficit de régime', saisie: true },
+      { cle: 'valeur-actuelle-de-l-obligation-resultant-de-reg', libelle: "Valeur actuelle de l'obligation résultant de régimes financés", saisie: true },
+      { cle: 'valeur-actuelle-des-actifs-affectes-aux-plans-de', libelle: 'Valeur actuelle des actifs affectés aux plans de retraite', saisie: true },
+      { cle: 'excedent-deficit-de-regime', libelle: 'Excédent / déficit de régime', saisie: true },
     ],
     commentaire: "indiquer le montant comptabilisé au passif (ou actif) à la clôture de l'exercice.",
   },
@@ -654,10 +654,10 @@ export const NOTES_SYSCOHADA_2: SpecificationNote[] = [
     ],
     renvoyeeDepuis: ['DC'],
     rubriques: [
-      { libelle: 'Actions', saisie: true },
-      { libelle: 'Obligations', saisie: true },
-      { libelle: 'Autres', saisie: true },
-      { libelle: 'Total', saisie: true },
+      { cle: 'actions', libelle: 'Actions', saisie: true },
+      { cle: 'obligations', libelle: 'Obligations', saisie: true },
+      { cle: 'autres', libelle: 'Autres', saisie: true },
+      { cle: 'total', libelle: 'Total', saisie: true },
     ],
     commentaire:
       "expliquer comment les taux de rendement par catégorie d'actifs et global ont été déterminés ; indiquer " +
@@ -681,11 +681,11 @@ export const NOTES_SYSCOHADA_2: SpecificationNote[] = [
     horsBalance: true,
     colonnes: COLONNES_SAISIE_N_N1,
     rubriques: [
-      { libelle: 'Litiges', saisie: true },
+      { cle: 'litiges', libelle: 'Litiges', saisie: true },
       // Les deux lignes en pointillés du modèle : l'entité y écrit la nature
       // de l'actif éventuel. Reproduites telles quelles, à deux exemplaires.
-      { libelle: '…', saisie: true },
-      { libelle: '…', saisie: true },
+      { cle: 'rubrique', libelle: '…', saisie: true },
+      { cle: 'rubrique-2', libelle: '…', saisie: true },
     ],
     commentaire:
       "décrire les principales caractéristiques des actifs / passifs éventuels, l'horizon de temps auquel les " +
@@ -697,10 +697,13 @@ export const NOTES_SYSCOHADA_2: SpecificationNote[] = [
     titre: 'ACTIFS ET PASSIFS ÉVENTUELS',
     horsBalance: true,
     colonnes: COLONNES_SAISIE_N_N1,
+    // Clés SUFFIXÉES · les deux sous-tableaux de la 16C vivent sous un seul
+    // code, et l'ancre de saisie est le couple (code, clé) : reprendre ici
+    // « litiges » ferait écrire le passif éventuel par-dessus l'actif.
     rubriques: [
-      { libelle: 'Litiges', saisie: true },
-      { libelle: '…', saisie: true },
-      { libelle: '…', saisie: true },
+      { cle: 'litiges-passif', libelle: 'Litiges', saisie: true },
+      { cle: 'rubrique-passif', libelle: '…', saisie: true },
+      { cle: 'rubrique-passif-2', libelle: '…', saisie: true },
     ],
     commentaire:
       "décrire les principales caractéristiques des actifs / passifs éventuels, l'horizon de temps auquel les " +

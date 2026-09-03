@@ -2108,7 +2108,13 @@ export class ExportService {
    * `note-annexe.types.ts`. `LIBRE` n'a rien à calculer : c'est une colonne
    * de saisie (devise, cours, identité d'un apporteur…), jamais un oubli.
    */
-  private valeurColonneNote(ligne: LigneNoteCalculee, type: TypeColonneNote): number | null {
+  private valeurColonneNote(ligne: LigneNoteCalculee, type: TypeColonneNote, index: number): number | string | null {
+    // Rubrique renseignée HORS comptabilité : la cellule vient de ce que le
+    // dossier a saisi (`SaisieNote`), jamais d'un calcul · c'est la seule
+    // source qu'elle ait. Sans ce branchement, les 322 rubriques en saisie
+    // sortaient vides de la liasse et n'étaient remplissables qu'à la main
+    // dans le classeur exporté.
+    if (ligne.saisie) return ligne.saisie[index] ?? null;
     switch (type) {
       case 'EXERCICE_N':
         return ligne.montantN;
@@ -2180,7 +2186,7 @@ export class ExportService {
         r += 1;
         ws.getCell(r, 1).value = l.libelle;
         note.colonnes.forEach((c: ColonneNote, i: number) => {
-          const v = this.valeurColonneNote(l, c.type);
+          const v = this.valeurColonneNote(l, c.type, i);
           if (v !== null && v !== undefined) ws.getCell(r, 2 + i).value = v;
         });
         styleLigne(ws, r, 1, ncols, l.estTotal ? 'inter' : 'normal', colsMontant);

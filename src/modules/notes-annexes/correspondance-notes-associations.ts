@@ -1186,10 +1186,10 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
       { type: 'EXERCICE_N1' as const, libelle: 'Année N-1' },
     ],
     rubriques: [
-      { libelle: 'Actif éventuel · Litiges', saisie: true },
-      { libelle: 'Actif éventuel · Autres', saisie: true },
-      { libelle: 'Passif éventuel · Litiges', saisie: true },
-      { libelle: 'Passif éventuel · Autres', saisie: true },
+      { cle: 'actif-eventuel-litiges', libelle: 'Actif éventuel · Litiges', saisie: true },
+      { cle: 'actif-eventuel-autres', libelle: 'Actif éventuel · Autres', saisie: true },
+      { cle: 'passif-eventuel-litiges', libelle: 'Passif éventuel · Litiges', saisie: true },
+      { cle: 'passif-eventuel-autres', libelle: 'Passif éventuel · Autres', saisie: true },
     ],
     commentaire:
       'décrire les principales caractéristiques des actifs / passifs éventuels, l’horizon de temps auquel les ' +
@@ -1445,10 +1445,10 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
       { type: 'LIBRE' as const, libelle: 'Engagements reçus' },
     ],
     rubriques: [
-      { libelle: 'Avals, cautions, garanties', saisie: true },
-      { libelle: 'Hypothèques, nantissements, gages, autres', saisie: true },
-      { libelle: 'Effets escomptés non échus', saisie: true },
-      { libelle: 'TOTAL', saisie: true },
+      { cle: 'avals-cautions-garanties', libelle: 'Avals, cautions, garanties', saisie: true },
+      { cle: 'hypotheques-nantissements-gages-autres', libelle: 'Hypothèques, nantissements, gages, autres', saisie: true },
+      { cle: 'effets-escomptes-non-echus', libelle: 'Effets escomptés non échus', saisie: true },
+      { cle: 'total', libelle: 'TOTAL', saisie: true },
     ],
   },
   {
@@ -1520,20 +1520,20 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     ],
     horsBalance: true,
     rubriques: [
-      { libelle: 'Brevets, licences et droits similaires', saisie: true },
-      { libelle: 'Logiciel et sites internet', saisie: true },
-      { libelle: 'Autres immobilisations incorporelles', saisie: true },
-      { libelle: 'SOUS TOTAL : IMMOBILISATIONS INCORPORELLES', saisie: true },
-      { libelle: 'Terrains', saisie: true },
-      { libelle: 'Bâtiments', saisie: true },
-      { libelle: 'Aménagements, agencements et installations', saisie: true },
-      { libelle: 'Matériel, mobilier et actifs biologiques', saisie: true },
-      { libelle: 'Matériel de transport', saisie: true },
-      { libelle: 'SOUS TOTAL : IMMOBILISATIONS CORPORELLES', saisie: true },
-      { libelle: 'Titres de participations', saisie: true },
-      { libelle: 'Autres immobilisations financières', saisie: true },
-      { libelle: 'SOUS TOTAL : IMMOBILISATIONS FINANCIERES', saisie: true },
-      { libelle: 'TOTAL GENERAL', saisie: true },
+      { cle: 'brevets-licences-et-droits-similaires', libelle: 'Brevets, licences et droits similaires', saisie: true },
+      { cle: 'logiciel-et-sites-internet', libelle: 'Logiciel et sites internet', saisie: true },
+      { cle: 'autres-immobilisations-incorporelles', libelle: 'Autres immobilisations incorporelles', saisie: true },
+      { cle: 'sous-total-immobilisations-incorporelles', libelle: 'SOUS TOTAL : IMMOBILISATIONS INCORPORELLES', saisie: true },
+      { cle: 'terrains', libelle: 'Terrains', saisie: true },
+      { cle: 'batiments', libelle: 'Bâtiments', saisie: true },
+      { cle: 'amenagements-agencements-et-installations', libelle: 'Aménagements, agencements et installations', saisie: true },
+      { cle: 'materiel-mobilier-et-actifs-biologiques', libelle: 'Matériel, mobilier et actifs biologiques', saisie: true },
+      { cle: 'materiel-de-transport', libelle: 'Matériel de transport', saisie: true },
+      { cle: 'sous-total-immobilisations-corporelles', libelle: 'SOUS TOTAL : IMMOBILISATIONS CORPORELLES', saisie: true },
+      { cle: 'titres-de-participations', libelle: 'Titres de participations', saisie: true },
+      { cle: 'autres-immobilisations-financieres', libelle: 'Autres immobilisations financières', saisie: true },
+      { cle: 'sous-total-immobilisations-financieres', libelle: 'SOUS TOTAL : IMMOBILISATIONS FINANCIERES', saisie: true },
+      { cle: 'total-general', libelle: 'TOTAL GENERAL', saisie: true },
     ],
     commentaire: 'mentionner la justification de la cession ainsi que la date d’acquisition et la date de sortie.',
   },
@@ -1637,16 +1637,16 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     horsBalance: true,
     colonnes: [{ type: 'LIBRE' as const, libelle: 'Informations' }],
     rubriques: [
-      { libelle: 'A - IDENTITE, ORGANISATION', saisie: true },
+      { cle: 'a-identite-organisation', libelle: 'A - IDENTITE, ORGANISATION', saisie: true },
       {
-        libelle:
+        cle: 'b-declaration-de-conformite-au-systeme-comptable', libelle:
           "B - DECLARATION DE CONFORMITE AU SYSTEME COMPTABLE DES ENTITÉS À BUT NON LUCRATIF ET FAITS " +
           "MARQUANTS DE L'EXERCICE",
         saisie: true,
       },
-      { libelle: 'C - REGLES, METHODES COMPTABLES ET DEROGATION AUX PRINCIPES COMPTABLES', saisie: true },
+      { cle: 'c-regles-methodes-comptables-et-derogation-aux-p', libelle: 'C - REGLES, METHODES COMPTABLES ET DEROGATION AUX PRINCIPES COMPTABLES', saisie: true },
       {
-        libelle:
+        cle: 'd-informations-complementaires-relatives-au-bila', libelle:
           'D - INFORMATIONS COMPLEMENTAIRES RELATIVES AU BILAN, AU COMPTE DE RESULTAT ET AU TABLEAU DES ' +
           'FLUX DE TRESORERIE',
         saisie: true,
@@ -1665,21 +1665,21 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     horsBalance: true,
     colonnes: [{ type: 'LIBRE' as const, libelle: 'Informations' }],
     rubriques: [
-      { libelle: "Date d'arrêté des états financiers", saisie: true },
-      { libelle: 'Organe ayant autorisé la publication des comptes', saisie: true },
+      { cle: 'date-d-arrete-des-etats-financiers', libelle: "Date d'arrêté des états financiers", saisie: true },
+      { cle: 'organe-ayant-autorise-la-publication-des-comptes', libelle: 'Organe ayant autorisé la publication des comptes', saisie: true },
       {
-        libelle:
+        cle: 'a-evenements-posterieurs-a-la-date-de-cloture-do', libelle:
           'A - EVENEMENTS POSTERIEURS A LA DATE DE CLOTURE DONNANT LIEU A DES AJUSTEMENTS DES ETATS FINANCIERS',
         saisie: true,
       },
       {
-        libelle:
+        cle: 'b-evenements-posterieurs-a-la-date-de-cloture-ne', libelle:
           'B - EVENEMENTS POSTERIEURS A LA DATE DE CLOTURE NE DONNANT PAS LIEU A DES AJUSTEMENTS DES ETATS ' +
           'FINANCIERS',
         saisie: true,
       },
       {
-        libelle: "C - EVENEMENTS REMETTANT EN CAUSE L'HYPOTHESE DE BASE DE CONTINUITE DE L'EXPLOITATION",
+        cle: 'c-evenements-remettant-en-cause-l-hypothese-de-b', libelle: "C - EVENEMENTS REMETTANT EN CAUSE L'HYPOTHESE DE BASE DE CONTINUITE DE L'EXPLOITATION",
         saisie: true,
       },
     ],
@@ -1695,15 +1695,15 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     horsBalance: true,
     colonnes: [{ type: 'LIBRE' as const, libelle: 'Informations' }],
     rubriques: [
-      { libelle: 'A - CHANGEMENTS DE METHODES COMPTABLES · 1. Changement de réglementation comptable', saisie: true },
+      { cle: 'a-changements-de-methodes-comptables-1-changemen', libelle: 'A - CHANGEMENTS DE METHODES COMPTABLES · 1. Changement de réglementation comptable', saisie: true },
       {
-        libelle:
+        cle: 'a-changements-de-methodes-comptables-2-changemen', libelle:
           "A - CHANGEMENTS DE METHODES COMPTABLES · 2. Changement de méthode comptable à l'initiative de " +
           "l'entité (impact à l'ouverture, retraitement rétrospectif ou application prospective)",
         saisie: true,
       },
-      { libelle: "B - CHANGEMENTS D'ESTIMATIONS", saisie: true },
-      { libelle: "C - CORRECTIONS D'ERREURS", saisie: true },
+      { cle: 'b-changements-d-estimations', libelle: "B - CHANGEMENTS D'ESTIMATIONS", saisie: true },
+      { cle: 'c-corrections-d-erreurs', libelle: "C - CORRECTIONS D'ERREURS", saisie: true },
     ],
     commentaire:
       "B : l'entité doit indiquer et justifier le changement d'estimation. C : nature des erreurs corrigées " +
@@ -1720,15 +1720,15 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
       { type: 'LIBRE' as const, libelle: 'Ecarts et provisions spéciales réévaluation' },
     ],
     rubriques: [
-      { libelle: 'Nature et date des réévaluations', saisie: true },
-      { libelle: 'Eléments réévalués par postes du bilan', saisie: true },
-      { libelle: 'TOTAL GENERAL', saisie: true },
-      { libelle: 'Méthode de réévaluation utilisée', saisie: true },
+      { cle: 'nature-et-date-des-reevaluations', libelle: 'Nature et date des réévaluations', saisie: true },
+      { cle: 'elements-reevalues-par-postes-du-bilan', libelle: 'Eléments réévalués par postes du bilan', saisie: true },
+      { cle: 'total-general', libelle: 'TOTAL GENERAL', saisie: true },
+      { cle: 'methode-de-reevaluation-utilisee', libelle: 'Méthode de réévaluation utilisée', saisie: true },
       {
-        libelle: "Traitement fiscal de l'écart de réévaluation et des amortissements supplémentaires",
+        cle: 'traitement-fiscal-de-l-ecart-de-reevaluation-et', libelle: "Traitement fiscal de l'écart de réévaluation et des amortissements supplémentaires",
         saisie: true,
       },
-      { libelle: "Montant de l'écart incorporé à la dotation", saisie: true },
+      { cle: 'montant-de-l-ecart-incorpore-a-la-dotation', libelle: "Montant de l'écart incorporé à la dotation", saisie: true },
     ],
   },
   {
@@ -1752,13 +1752,13 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
       { type: 'LIBRE' as const, libelle: 'MASSE SALARIALE · Total (M / F)' },
     ],
     rubriques: [
-      { libelle: 'YA. 1. Cadres supérieurs', saisie: true },
-      { libelle: 'YB. 2. Techniciens supérieurs et cadres moyens', saisie: true },
-      { libelle: 'YC. 3. Techniciens, agents de maîtrise et ouvriers qualifiés', saisie: true },
-      { libelle: 'YD. 4. Employés, manœuvres, ouvriers et apprentis', saisie: true },
-      { libelle: 'YE. TOTAL (1)', saisie: true },
-      { libelle: 'YF. Permanents', saisie: true },
-      { libelle: 'YG. Saisonniers', saisie: true },
+      { cle: 'ya-1-cadres-superieurs', libelle: 'YA. 1. Cadres supérieurs', saisie: true },
+      { cle: 'yb-2-techniciens-superieurs-et-cadres-moyens', libelle: 'YB. 2. Techniciens supérieurs et cadres moyens', saisie: true },
+      { cle: 'yc-3-techniciens-agents-de-maitrise-et-ouvriers', libelle: 'YC. 3. Techniciens, agents de maîtrise et ouvriers qualifiés', saisie: true },
+      { cle: 'yd-4-employes-man-uvres-ouvriers-et-apprentis', libelle: 'YD. 4. Employés, manœuvres, ouvriers et apprentis', saisie: true },
+      { cle: 'ye-total-1', libelle: 'YE. TOTAL (1)', saisie: true },
+      { cle: 'yf-permanents', libelle: 'YF. Permanents', saisie: true },
+      { cle: 'yg-saisonniers', libelle: 'YG. Saisonniers', saisie: true },
     ],
     renvoiOfficiel: 'M : Masculin ; F : Féminin.',
     commentaire: 'faire un commentaire si nécessaire en cas de mouvement significatif du personnel.',
@@ -1770,14 +1770,14 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     horsBalance: true,
     colonnes: [{ type: 'LIBRE' as const, libelle: "Facturation à l'entité" }],
     rubriques: [
-      { libelle: 'YH. 1. Cadres supérieurs', saisie: true },
-      { libelle: 'YI. 2. Techniciens supérieurs et cadres moyens', saisie: true },
-      { libelle: 'YJ. 3. Techniciens, agents de maîtrise et ouvriers qualifiés', saisie: true },
-      { libelle: 'YK. 4. Employés, manœuvres, ouvriers et apprentis', saisie: true },
-      { libelle: 'YL. TOTAL (2)', saisie: true },
-      { libelle: 'YM. Permanents', saisie: true },
-      { libelle: 'YN. Saisonniers', saisie: true },
-      { libelle: 'YO. TOTAL (1 + 2)', saisie: true },
+      { cle: 'yh-1-cadres-superieurs', libelle: 'YH. 1. Cadres supérieurs', saisie: true },
+      { cle: 'yi-2-techniciens-superieurs-et-cadres-moyens', libelle: 'YI. 2. Techniciens supérieurs et cadres moyens', saisie: true },
+      { cle: 'yj-3-techniciens-agents-de-maitrise-et-ouvriers', libelle: 'YJ. 3. Techniciens, agents de maîtrise et ouvriers qualifiés', saisie: true },
+      { cle: 'yk-4-employes-man-uvres-ouvriers-et-apprentis', libelle: 'YK. 4. Employés, manœuvres, ouvriers et apprentis', saisie: true },
+      { cle: 'yl-total-2', libelle: 'YL. TOTAL (2)', saisie: true },
+      { cle: 'ym-permanents', libelle: 'YM. Permanents', saisie: true },
+      { cle: 'yn-saisonniers', libelle: 'YN. Saisonniers', saisie: true },
+      { cle: 'yo-total-1-2', libelle: 'YO. TOTAL (1 + 2)', saisie: true },
     ],
   },
   {
@@ -1802,42 +1802,42 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
       { type: 'LIBRE' as const, libelle: 'Variation en %' },
     ],
     rubriques: [
-      { libelle: 'Résultat des activités ordinaires', saisie: true },
-      { libelle: 'Résultat hors activités ordinaires', saisie: true },
-      { libelle: 'Résultat net', saisie: true },
-      { libelle: "Capacité d'autofinancement globale (CAFG)", saisie: true, renvoi: '(a)' },
-      { libelle: "Ratio de cotisations acquises = Cotisations / Charges de l'exercice", saisie: true, renvoi: '(b)' },
+      { cle: 'resultat-des-activites-ordinaires', libelle: 'Résultat des activités ordinaires', saisie: true },
+      { cle: 'resultat-hors-activites-ordinaires', libelle: 'Résultat hors activités ordinaires', saisie: true },
+      { cle: 'resultat-net', libelle: 'Résultat net', saisie: true },
+      { cle: 'capacite-d-autofinancement-globale-cafg', libelle: "Capacité d'autofinancement globale (CAFG)", saisie: true, renvoi: '(a)' },
+      { cle: 'ratio-de-cotisations-acquises-cotisations-charge', libelle: "Ratio de cotisations acquises = Cotisations / Charges de l'exercice", saisie: true, renvoi: '(b)' },
       {
-        libelle:
+        cle: 'ratio-d-utilisation-des-dons-sommes-versees-dire', libelle:
           "Ratio d'utilisation des dons = Sommes versées directement aux bénéficiaires / Sommes collectées brutes",
         saisie: true,
       },
-      { libelle: '+ Fonds propres et assimilés', saisie: true },
-      { libelle: '+ Dettes financières et ressources assimilées', saisie: true, renvoi: '(c)' },
-      { libelle: '= RESSOURCES STABLES', saisie: true },
-      { libelle: '- Actif immobilisé', saisie: true, renvoi: '(c)' },
-      { libelle: '= FONDS DE ROULEMENT (1)', saisie: true },
-      { libelle: "+ Actif circulant d'exploitation", saisie: true, renvoi: '(c)' },
-      { libelle: "- Passif circulant d'exploitation", saisie: true, renvoi: '(c)' },
-      { libelle: "= BESOIN DE FINANCEMENT D'EXPLOITATION (2)", saisie: true },
-      { libelle: '+ Actif circulant HAO', saisie: true, renvoi: '(c)' },
-      { libelle: '- Passif circulant HAO', saisie: true, renvoi: '(c)' },
-      { libelle: '= BESOIN DE FINANCEMENT HAO (3)', saisie: true },
-      { libelle: 'BESOIN DE FINANCEMENT GLOBAL (4) = (2) + (3)', saisie: true },
-      { libelle: 'TRESORERIE NETTE (5) = (1) - (4)', saisie: true },
+      { cle: 'fonds-propres-et-assimiles', libelle: '+ Fonds propres et assimilés', saisie: true },
+      { cle: 'dettes-financieres-et-ressources-assimilees', libelle: '+ Dettes financières et ressources assimilées', saisie: true, renvoi: '(c)' },
+      { cle: 'ressources-stables', libelle: '= RESSOURCES STABLES', saisie: true },
+      { cle: 'actif-immobilise', libelle: '- Actif immobilisé', saisie: true, renvoi: '(c)' },
+      { cle: 'fonds-de-roulement-1', libelle: '= FONDS DE ROULEMENT (1)', saisie: true },
+      { cle: 'actif-circulant-d-exploitation', libelle: "+ Actif circulant d'exploitation", saisie: true, renvoi: '(c)' },
+      { cle: 'passif-circulant-d-exploitation', libelle: "- Passif circulant d'exploitation", saisie: true, renvoi: '(c)' },
+      { cle: 'besoin-de-financement-d-exploitation-2', libelle: "= BESOIN DE FINANCEMENT D'EXPLOITATION (2)", saisie: true },
+      { cle: 'actif-circulant-hao', libelle: '+ Actif circulant HAO', saisie: true, renvoi: '(c)' },
+      { cle: 'passif-circulant-hao', libelle: '- Passif circulant HAO', saisie: true, renvoi: '(c)' },
+      { cle: 'besoin-de-financement-hao-3', libelle: '= BESOIN DE FINANCEMENT HAO (3)', saisie: true },
+      { cle: 'besoin-de-financement-global-4-2-3', libelle: 'BESOIN DE FINANCEMENT GLOBAL (4) = (2) + (3)', saisie: true },
+      { cle: 'tresorerie-nette-5-1-4', libelle: 'TRESORERIE NETTE (5) = (1) - (4)', saisie: true },
       {
-        libelle: 'CONTRÔLE : TRESORERIE NETTE = (TRESORERIE - ACTIF) - (TRESORERIE - PASSIF)',
+        cle: 'controle-tresorerie-nette-tresorerie-actif-treso', libelle: 'CONTRÔLE : TRESORERIE NETTE = (TRESORERIE - ACTIF) - (TRESORERIE - PASSIF)',
         saisie: true,
       },
       {
-        libelle: 'Ratio de liquidité générale = Créances + Trésorerie-actif / Passif circulant',
+        cle: 'ratio-de-liquidite-generale-creances-tresorerie', libelle: 'Ratio de liquidité générale = Créances + Trésorerie-actif / Passif circulant',
         saisie: true,
         renvoi: '(**)',
       },
-      { libelle: 'Flux de trésorerie des activités opérationnelles', saisie: true },
-      { libelle: "Flux de trésorerie des activités d'investissement", saisie: true },
-      { libelle: 'Flux de trésorerie des activités de financement', saisie: true },
-      { libelle: '= VARIATION DE LA TRESORERIE NETTE DE LA PERIODE', saisie: true },
+      { cle: 'flux-de-tresorerie-des-activites-operationnelles', libelle: 'Flux de trésorerie des activités opérationnelles', saisie: true },
+      { cle: 'flux-de-tresorerie-des-activites-d-investissemen', libelle: "Flux de trésorerie des activités d'investissement", saisie: true },
+      { cle: 'flux-de-tresorerie-des-activites-de-financement', libelle: 'Flux de trésorerie des activités de financement', saisie: true },
+      { cle: 'variation-de-la-tresorerie-nette-de-la-periode', libelle: '= VARIATION DE LA TRESORERIE NETTE DE LA PERIODE', saisie: true },
     ],
     renvoiOfficiel:
       "(EN MILLIERS DE FRANCS) · a) capacité d'autofinancement globale = Résultat net + Dotations aux " +
@@ -1857,33 +1857,33 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     horsBalance: true,
     colonnes: [{ type: 'LIBRE' as const, libelle: 'Informations' }],
     rubriques: [
-      { libelle: 'INFORMATIONS SOCIALES · Emploi', saisie: true },
-      { libelle: 'INFORMATIONS SOCIALES · Relations sociales', saisie: true },
-      { libelle: 'INFORMATIONS SOCIALES · Santé et sécurité', saisie: true },
-      { libelle: 'INFORMATIONS SOCIALES · Formation', saisie: true },
-      { libelle: 'INFORMATIONS SOCIALES · Égalité de traitement', saisie: true },
-      { libelle: 'INFORMATIONS ENVIRONNEMENTALES · Politique générale en matière environnementale', saisie: true },
-      { libelle: 'INFORMATIONS ENVIRONNEMENTALES · Pollution et gestion des déchets', saisie: true },
-      { libelle: 'INFORMATIONS ENVIRONNEMENTALES · Utilisation durable des ressources', saisie: true },
+      { cle: 'informations-sociales-emploi', libelle: 'INFORMATIONS SOCIALES · Emploi', saisie: true },
+      { cle: 'informations-sociales-relations-sociales', libelle: 'INFORMATIONS SOCIALES · Relations sociales', saisie: true },
+      { cle: 'informations-sociales-sante-et-securite', libelle: 'INFORMATIONS SOCIALES · Santé et sécurité', saisie: true },
+      { cle: 'informations-sociales-formation', libelle: 'INFORMATIONS SOCIALES · Formation', saisie: true },
+      { cle: 'informations-sociales-egalite-de-traitement', libelle: 'INFORMATIONS SOCIALES · Égalité de traitement', saisie: true },
+      { cle: 'informations-environnementales-politique-general', libelle: 'INFORMATIONS ENVIRONNEMENTALES · Politique générale en matière environnementale', saisie: true },
+      { cle: 'informations-environnementales-pollution-et-gest', libelle: 'INFORMATIONS ENVIRONNEMENTALES · Pollution et gestion des déchets', saisie: true },
+      { cle: 'informations-environnementales-utilisation-durab', libelle: 'INFORMATIONS ENVIRONNEMENTALES · Utilisation durable des ressources', saisie: true },
       {
-        libelle: 'INFORMATIONS ENVIRONNEMENTALES · Changement climatique (rejets de gaz à effet de serre)',
+        cle: 'informations-environnementales-changement-climat', libelle: 'INFORMATIONS ENVIRONNEMENTALES · Changement climatique (rejets de gaz à effet de serre)',
         saisie: true,
       },
-      { libelle: 'INFORMATIONS ENVIRONNEMENTALES · Protection de la biodiversité', saisie: true },
+      { cle: 'informations-environnementales-protection-de-la', libelle: 'INFORMATIONS ENVIRONNEMENTALES · Protection de la biodiversité', saisie: true },
       {
-        libelle:
+        cle: 'engagements-societaux-impact-territorial-economi', libelle:
           "ENGAGEMENTS SOCIÉTAUX · Impact territorial, économique et social de l'activité (emploi et " +
           'développement régional ; populations riveraines ou locales)',
         saisie: true,
       },
       {
-        libelle:
+        cle: 'engagements-societaux-relations-entretenues-avec', libelle:
           "ENGAGEMENTS SOCIÉTAUX · Relations entretenues avec les personnes ou organisations intéressées par " +
           "l'activité de l'entité",
         saisie: true,
       },
       {
-        libelle:
+        cle: 'engagements-societaux-sous-traitance-et-fourniss', libelle:
           'ENGAGEMENTS SOCIÉTAUX · Sous-traitance et fournisseurs (prise en compte des enjeux sociaux et ' +
           "environnementaux dans la politique d'achat)",
         saisie: true,
@@ -1912,8 +1912,8 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
       { type: 'LIBRE' as const, libelle: 'Exécution budget (%) (4/1)' },
     ],
     rubriques: [
-      { libelle: 'Lignes de la nomenclature budgétaire du projet', saisie: true },
-      { libelle: 'TOTAL', saisie: true },
+      { cle: 'lignes-de-la-nomenclature-budgetaire-du-projet', libelle: 'Lignes de la nomenclature budgétaire du projet', saisie: true },
+      { cle: 'total', libelle: 'TOTAL', saisie: true },
     ],
     renvoiOfficiel: 'Remplir, code et libellé, suivant la nomenclature budgétaire du projet.',
   },

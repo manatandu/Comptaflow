@@ -47,9 +47,18 @@ function prismaAvec(
   // Référentiel du dossier · le rattachement le lit pour refuser un jeu de
   // notes étranger au référentiel (NoteAnnexeService.verifierJeuDuDossier).
   referentiel: Referentiel = Referentiel.SYCEBNL,
+  // Cellules déjà saisies dans les rubriques renseignées hors comptabilité.
+  saisies: Array<{ codeNote: string; cleRubrique: string; colonne: number; valeurTexte?: string | null; valeurNombre?: unknown }> = [],
 ) {
   return {
     tenant: { findUnique: jest.fn().mockResolvedValue({ referentiel }) },
+    saisieNote: {
+      findMany: jest.fn().mockResolvedValue(
+        saisies.map((s) => ({ valeurTexte: null, valeurNombre: null, ...s })),
+      ),
+      upsert: jest.fn().mockImplementation(({ create }: any) => Promise.resolve({ id: 's1', ...create })),
+      deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+    },
     rattachementNote: {
       findMany: jest.fn().mockResolvedValue(rattachements),
       upsert: jest.fn().mockImplementation(({ create }: any) => Promise.resolve({ id: 'r1', ...create })),
@@ -1126,5 +1135,113 @@ describe('jeu de notes SYSCOHADA · Système normal', () => {
     expect(l.enAttenteDeRattachement).toBeUndefined();
     expect(l.rattachementDuDossier).toBe(true);
     expect(Math.abs(l.montantN)).toBe(4000);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// SAISIE DES RUBRIQUES RENSEIGNÉES HORS COMPTABILITÉ
+// ---------------------------------------------------------------------------
+describe('rubriques en saisie · ce que le dossier écrit lui-même', () => {
+  const JEU_ASSO = JeuNotesAnnexes.ASSOCIATIONS_ORDRES_PROFESSIONNELS;
+
+  it('rend la valeur saisie, colonne par colonne, et `null` là où rien n’a été écrit', async () => {
+    // Note 18B « Actifs et passifs éventuels » · deux colonnes chiffrées, quatre
+    // rubriques entièrement en saisie.
+    const s = service({ e1: [] }, [], prismaAvec([], [], [], [], Referentiel.SYCEBNL, [
+      { codeNote: '18B', cleRubrique: 'actif-eventuel-litiges', colonne: 0, valeurNombre: 4_500 },
+      { codeNote: '18B', cleRubrique: 'passif-eventuel-autres', colonne: 1, valeurNombre: 900 },
+    ]));
+    const r = await s.notesAssociations('t', 'e1');
+    const n = note(r, '18B');
+    expect(ligneDe(n, 'Actif éventuel · Litiges').saisie).toEqual([4500, null]);
+    expect(ligneDe(n, 'Passif éventuel · Autres').saisie).toEqual([null, 900]);
+    // Une cellule jamais renseignée n'est PAS un zéro · la note doit pouvoir
+    // laisser la case vide dans la liasse.
+    expect(ligneDe(n, 'Actif éventuel · Autres').saisie).toEqual([null, null]);
+  });
+
+  it('une note que rien ne chiffre devient APPLICABLE dès qu’une cellule est renseignée', async () => {
+    // Les notes en saisie des DEUX jeux SYCEBNL sont toutes `horsBalance` et
+    // donc toujours présentées ; c'est le SYSCOHADA qui mêle les deux, et sa
+    // note 13 « Apporteurs » le montre : une seule rubrique en saisie au
+    // milieu de rubriques chiffrées. Sans le signal de saisie, une note dont
+    // la seule information est saisie resterait « non applicable », donc
+    // cochée N/A sur la fiche récapitulative alors qu'elle porte un contenu.
+    const vide = service({ e1: [] }, [], prismaAvec([], [], [], [], Referentiel.SYSCOHADA));
+    expect(note(await vide.notesSyscohada('t', 'e1'), '13').applicable).toBe(false);
+
+    const remplie = service({ e1: [] }, [], prismaAvec([], [], [], [], Referentiel.SYSCOHADA, [
+      { codeNote: '13', cleRubrique: 'apporteurs-une-ligne-par-apporteur-nom-et-prenom', colonne: 0, valeurTexte: 'MUKENDI Jean' },
+    ]));
+    expect(note(await remplie.notesSyscohada('t', 'e1'), '13').applicable).toBe(true);
+  });
+
+  it('les lignes en saisie sont présentées MÊME quand la note n’est pas applicable', async () => {
+    // Le § 1.4 retire les lignes non chiffrées. Appliqué aux rubriques en
+    // saisie, il laissait une note SANS AUCUNE ligne à remplir : un
+    // cul-de-sac, la note ne pouvait plus être alimentée depuis le logiciel.
+    const s = service({ e1: [] }, [], prismaAvec([], [], [], [], Referentiel.SYSCOHADA));
+    const n = note(await s.notesSyscohada('t', 'e1'), '13');
+    expect(n.applicable).toBe(false);
+    expect(n.lignes.map((l: any) => l.saisie !== undefined)).toEqual([true]);
+    expect(n.lignes[0].saisie).toEqual([null, null, null, null, null, null]);
+  });
+
+  it('enregistre une colonne LIBRE en texte et une colonne chiffrée en montant', async () => {
+    const prisma = prismaAvec();
+    const s = service({ e1: [] }, [], prisma);
+    // Note 2 · une seule colonne, de type LIBRE.
+    const texte = await s.enregistrerSaisie('t', 'u', 'e1', JEU_ASSO, '2', 'a-identite-organisation', 0, 'ASBL VMG, Kinshasa');
+    expect(texte).toMatchObject({ valeurTexte: 'ASBL VMG, Kinshasa' });
+    const montant = await s.enregistrerSaisie('t', 'u', 'e1', JEU_ASSO, '18B', 'actif-eventuel-litiges', 0, '12 500,50');
+    expect(montant).toMatchObject({ valeurNombre: 12500.5 });
+  });
+
+  it('REFUSE un texte dans une colonne de montant · il sortirait tel quel dans une cellule qu’on additionne', async () => {
+    const s = service({ e1: [] }, [], prismaAvec());
+    await expect(
+      s.enregistrerSaisie('t', 'u', 'e1', JEU_ASSO, '18B', 'actif-eventuel-litiges', 0, 'environ 3 000'),
+    ).rejects.toThrow(/attend un montant/);
+  });
+
+  it('REFUSE d’écrire dans une rubrique que la comptabilité chiffre', async () => {
+    const s = service({ e1: [] }, [], prismaAvec());
+    // Note 24 « Achats » · rubrique en ATTENTE DE RATTACHEMENT, donc chiffrée
+    // dès qu'un compte lui est rattaché. Deux sources pour une même cellule,
+    // c'est exactement ce que le garde-fou empêche.
+    await expect(
+      s.enregistrerSaisie('t', 'u', 'e1', JEU_ASSO, '24', 'matieres-consommables', 0, '10'),
+    ).rejects.toThrow(/chiffrée par la comptabilité/);
+  });
+
+  it('REFUSE une colonne qui n’existe pas · le rang est l’ancre du stockage', async () => {
+    const s = service({ e1: [] }, [], prismaAvec());
+    await expect(
+      s.enregistrerSaisie('t', 'u', 'e1', JEU_ASSO, '18B', 'actif-eventuel-litiges', 7, '10'),
+    ).rejects.toThrow(/pas de colonne/);
+  });
+
+  it('une valeur vide EFFACE la cellule au lieu de l’enregistrer à blanc', async () => {
+    const prisma = prismaAvec();
+    const s = service({ e1: [] }, [], prisma);
+    expect(await s.enregistrerSaisie('t', 'u', 'e1', JEU_ASSO, '2', 'a-identite-organisation', 0, '   ')).toEqual({ efface: true });
+    expect((prisma as any).saisieNote.deleteMany).toHaveBeenCalled();
+    expect((prisma as any).saisieNote.upsert).not.toHaveBeenCalled();
+  });
+
+  it('CLOISONNEMENT · un dossier SYSCOHADA ne saisit pas dans un jeu SYCEBNL', async () => {
+    const s = service({ e1: [] }, [], prismaAvec([], [], [], [], Referentiel.SYSCOHADA));
+    await expect(
+      s.enregistrerSaisie('t', 'u', 'e1', JEU_ASSO, '2', 'a-identite-organisation', 0, 'x'),
+    ).rejects.toThrow(/relève du référentiel/);
+  });
+
+  it('REFUSE un exercice qui n’est pas celui du dossier', async () => {
+    const prisma = prismaAvec();
+    (prisma as any).exercice.findFirst = jest.fn().mockResolvedValue(null);
+    const s = service({ e1: [] }, [], prisma);
+    await expect(
+      s.enregistrerSaisie('t', 'u', 'e-ailleurs', JEU_ASSO, '2', 'a-identite-organisation', 0, 'x'),
+    ).rejects.toThrow(/Exercice introuvable/);
   });
 });

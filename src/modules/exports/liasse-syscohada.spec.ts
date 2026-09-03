@@ -223,6 +223,7 @@ function fabriquerExport(systeme: SystemeComptableSyscohada = SystemeComptableSy
       }),
     },
     rattachementNote: { findMany: jest.fn().mockResolvedValue([]) },
+    saisieNote: { findMany: jest.fn().mockResolvedValue([]) },
     compte: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn().mockResolvedValue(null) },
     ecriture: { findMany: jest.fn().mockResolvedValue(smt ? ECRITURES_SMT : []) },
     ligneEcriture: { findMany: jest.fn().mockResolvedValue([]) },

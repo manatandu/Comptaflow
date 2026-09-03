@@ -906,7 +906,13 @@ export const FICHE_SYNTHESE_SYSCOHADA: LigneFicheSynthese[] = [
 // --------------------------------------------------------------------------
 
 /** Rubrique de note déclarative : un libellé, une saisie, rien à rattacher. */
-const saisie = (libelle: string, renvoi?: string) => ({ libelle, saisie: true as const, renvoi });
+/**
+ * Rubrique renseignée hors comptabilité. La CLÉ vient en premier · c'est elle
+ * qui ancre la saisie du dossier (`SaisieNote`), le libellé n'ancre rien : une
+ * correction de transcription ne doit pas effacer un texte d'annexe rédigé par
+ * le cabinet.
+ */
+const saisie = (cle: string, libelle: string, renvoi?: string) => ({ cle, libelle, saisie: true as const, renvoi });
 
 export const NOTES_SYSCOHADA_3: SpecificationNote[] = [
   // ======================================================================
@@ -1128,35 +1134,38 @@ export const NOTES_SYSCOHADA_3: SpecificationNote[] = [
     // (`renvoiOfficiel`) les reprend tous, dans l'ordre du texte.
     rubriques: [
       saisie(
+        'structure-du-capital-a-la-cloture-de-l-exercice',
         "STRUCTURE DU CAPITAL À LA CLÔTURE DE L'EXERCICE (²)",
         '(²) Indication, en cas de libération partielle du capital, du montant du capital non appelé.',
       ),
-      saisie('Capital social'),
-      saisie('Actions ordinaires'),
-      saisie('Actions à dividendes prioritaires (A.D.P) sans droit de vote'),
-      saisie("Actions nouvelles à émettre : par conversion d'obligations"),
-      saisie('Actions nouvelles à émettre : par exercice de droits de souscription'),
+      saisie('capital-social', 'Capital social'),
+      saisie('actions-ordinaires', 'Actions ordinaires'),
+      saisie('actions-a-dividendes-prioritaires-a-d-p-sans-dro', 'Actions à dividendes prioritaires (A.D.P) sans droit de vote'),
+      saisie('actions-nouvelles-a-emettre-par-conversion-d-obl', "Actions nouvelles à émettre : par conversion d'obligations"),
+      saisie('actions-nouvelles-a-emettre-par-exercice-de-droi', 'Actions nouvelles à émettre : par exercice de droits de souscription'),
       saisie(
+        'operations-et-resultats-de-l-exercice',
         "OPÉRATIONS ET RÉSULTATS DE L'EXERCICE (³)",
         '(³) Les éléments de cette rubrique sont ceux figurant au compte de résultat.',
       ),
-      saisie("Chiffre d'affaires hors taxes"),
-      saisie('Résultat des activités ordinaires (R.A.O) hors dotations et reprises (exploitation et financières)'),
-      saisie('Participation des travailleurs aux bénéfices'),
-      saisie('Impôt sur le résultat'),
-      saisie('Résultat net (⁴)', '(⁴) Le résultat, lorsqu’il est négatif, doit être mis entre parenthèses.'),
-      saisie('RÉSULTAT ET DIVIDENDE DISTRIBUÉS'),
-      saisie('Résultat distribué (⁵)', '(⁵) L’exercice N correspond au dividende proposé du dernier exercice.'),
-      saisie('Dividende attribué à chaque action'),
-      saisie('PERSONNEL ET POLITIQUE SALARIALE'),
-      saisie("Effectif moyen des travailleurs au cours de l'exercice (⁶)", '(⁶) Personnel propre.'),
-      saisie('Effectif moyen de personnel extérieur'),
-      saisie("Masse salariale distribuée au cours de l'exercice (⁷)", '(⁷) Total des comptes 661, 662, 663.'),
+      saisie('chiffre-d-affaires-hors-taxes', "Chiffre d'affaires hors taxes"),
+      saisie('resultat-des-activites-ordinaires-r-a-o-hors-dot', 'Résultat des activités ordinaires (R.A.O) hors dotations et reprises (exploitation et financières)'),
+      saisie('participation-des-travailleurs-aux-benefices', 'Participation des travailleurs aux bénéfices'),
+      saisie('impot-sur-le-resultat', 'Impôt sur le résultat'),
+      saisie('resultat-net', 'Résultat net (⁴)', '(⁴) Le résultat, lorsqu’il est négatif, doit être mis entre parenthèses.'),
+      saisie('resultat-et-dividende-distribues', 'RÉSULTAT ET DIVIDENDE DISTRIBUÉS'),
+      saisie('resultat-distribue', 'Résultat distribué (⁵)', '(⁵) L’exercice N correspond au dividende proposé du dernier exercice.'),
+      saisie('dividende-attribue-a-chaque-action', 'Dividende attribué à chaque action'),
+      saisie('personnel-et-politique-salariale', 'PERSONNEL ET POLITIQUE SALARIALE'),
+      saisie('effectif-moyen-des-travailleurs-au-cours-de-l-ex', "Effectif moyen des travailleurs au cours de l'exercice (⁶)", '(⁶) Personnel propre.'),
+      saisie('effectif-moyen-de-personnel-exterieur', 'Effectif moyen de personnel extérieur'),
+      saisie('masse-salariale-distribuee-au-cours-de-l-exercic', "Masse salariale distribuée au cours de l'exercice (⁷)", '(⁷) Total des comptes 661, 662, 663.'),
       saisie(
+        'avantages-sociaux-verses-au-cours-de-l-exercice',
         "Avantages sociaux versés au cours de l'exercice (⁸) [Sécurité sociale, œuvres sociales]",
         '(⁸) Total des comptes 664, 668.',
       ),
-      saisie("Personnel extérieur facturé à l'entité (⁹)", '(⁹) Compte 667.'),
+      saisie('personnel-exterieur-facture-a-l-entite', "Personnel extérieur facturé à l'entité (⁹)", '(⁹) Compte 667.'),
     ],
     renvoiOfficiel:
       '(¹) Y compris l’exercice dont les états financiers sont soumis à l’approbation de l’Assemblée. ' +
@@ -1187,7 +1196,7 @@ export const NOTES_SYSCOHADA_3: SpecificationNote[] = [
     ],
     // La maquette est une grille vide par produit ; seules ses deux lignes
     // finales sont nommées.
-    rubriques: [saisie('NON VENTILÉ'), saisie('TOTAL')],
+    rubriques: [saisie('non-ventile', 'NON VENTILÉ'), saisie('total', 'TOTAL')],
   },
   {
     code: '33',
@@ -1202,7 +1211,7 @@ export const NOTES_SYSCOHADA_3: SpecificationNote[] = [
       ...quantiteValeur("ACHATS EFFECTUÉS AU COURS DE L'EXERCICE · [sans intitulé, texte officiel]"),
       { type: 'LIBRE' as const, libelle: 'VARIATION DES STOCKS (en valeur)' },
     ],
-    rubriques: [saisie('NON VENTILÉS'), saisie('TOTAL')],
+    rubriques: [saisie('non-ventiles', 'NON VENTILÉS'), saisie('total', 'TOTAL')],
     renvoiOfficiel:
       '[texte officiel] Les en-têtes des notes 32 et 33 sont désalignés : la note 33 annonce trois couples ' +
       'Quantité/Valeur pour deux origines déclarées (« dans l’État » / « hors de l’État »).',
@@ -1249,73 +1258,85 @@ export const NOTES_SYSCOHADA_3: SpecificationNote[] = [
     horsBalance: true,
     colonnes: COLONNE_INFORMATIONS,
     rubriques: [
-      saisie('INFORMATIONS SOCIALES'),
-      saisie('Emploi : effectif total et répartition des salariés par sexe, âge et zone géographique'),
-      saisie('Emploi : embauches et licenciements'),
-      saisie('Emploi : rémunérations et leur évolution'),
-      saisie('Relations sociales : organisation du dialogue social'),
-      saisie('Relations sociales : bilan des accords collectifs'),
-      saisie('Santé et sécurité : conditions de santé et de sécurité au travail'),
+      saisie('informations-sociales', 'INFORMATIONS SOCIALES'),
+      saisie('emploi-effectif-total-et-repartition-des-salarie', 'Emploi : effectif total et répartition des salariés par sexe, âge et zone géographique'),
+      saisie('emploi-embauches-et-licenciements', 'Emploi : embauches et licenciements'),
+      saisie('emploi-remunerations-et-leur-evolution', 'Emploi : rémunérations et leur évolution'),
+      saisie('relations-sociales-organisation-du-dialogue-soci', 'Relations sociales : organisation du dialogue social'),
+      saisie('relations-sociales-bilan-des-accords-collectifs', 'Relations sociales : bilan des accords collectifs'),
+      saisie('sante-et-securite-conditions-de-sante-et-de-secu', 'Santé et sécurité : conditions de santé et de sécurité au travail'),
       saisie(
+        'sante-et-securite-bilan-des-accords-signes-avec',
         'Santé et sécurité : bilan des accords signés avec les organisations syndicales ou les représentants du ' +
           'personnel en matière de santé et de sécurité au travail',
       ),
-      saisie('Formation : politiques mises en œuvre en matière de formation'),
-      saisie("Formation : nombre total d'heures de formation"),
-      saisie("Égalité de traitement : mesures prises en faveur de l'égalité entre les femmes et les hommes"),
-      saisie("Égalité de traitement : mesures prises en faveur de l'emploi et de l'insertion des personnes handicapées"),
-      saisie('INFORMATIONS ENVIRONNEMENTALES'),
+      saisie('formation-politiques-mises-en-uvre-en-matiere-de', 'Formation : politiques mises en œuvre en matière de formation'),
+      saisie('formation-nombre-total-d-heures-de-formation', "Formation : nombre total d'heures de formation"),
+      saisie('egalite-de-traitement-mesures-prises-en-faveur-d', "Égalité de traitement : mesures prises en faveur de l'égalité entre les femmes et les hommes"),
+      saisie('egalite-de-traitement-mesures-prises-en-faveur-d-2', "Égalité de traitement : mesures prises en faveur de l'emploi et de l'insertion des personnes handicapées"),
+      saisie('informations-environnementales', 'INFORMATIONS ENVIRONNEMENTALES'),
       saisie(
+        'politique-generale-en-matiere-environnementale-o',
         'Politique générale en matière environnementale : organisation de la société pour prendre en compte les ' +
           "questions environnementales et, le cas échéant, les démarches d'évaluation ou de certification",
       ),
       saisie(
+        'politique-generale-en-matiere-environnementale-a',
         "Politique générale en matière environnementale : actions de formation et d'information des salariés " +
           "menées en matière de protection de l'environnement",
       ),
       saisie(
+        'politique-generale-en-matiere-environnementale-m',
         'Politique générale en matière environnementale : moyens consacrés à la prévention des risques ' +
           'environnementaux et des pollutions',
       ),
       saisie(
+        'pollution-et-gestion-des-dechets-mesures-de-prev',
         "Pollution et gestion des déchets : mesures de prévention, de réduction ou de réparation de rejets dans l'air, " +
           "l'eau et le sol affectant gravement l'environnement",
       ),
-      saisie("Pollution et gestion des déchets : mesures de prévention, de recyclage et d'élimination des déchets"),
+      saisie('pollution-et-gestion-des-dechets-mesures-de-prev-2', "Pollution et gestion des déchets : mesures de prévention, de recyclage et d'élimination des déchets"),
       saisie(
+        'pollution-et-gestion-des-dechets-prise-en-compte',
         'Pollution et gestion des déchets : prise en compte des nuisances sonores et de toute autre forme de ' +
           'pollution spécifique à une activité',
       ),
       saisie(
+        'utilisation-durable-des-ressources-consommation',
         "Utilisation durable des ressources : consommation d'eau et approvisionnement en eau en fonction des " +
           'contraintes locales',
       ),
       saisie(
+        'utilisation-durable-des-ressources-consommation-2',
         'Utilisation durable des ressources : consommation de matières premières et mesures prises pour améliorer ' +
           "l'efficacité dans leur utilisation",
       ),
       saisie(
+        'utilisation-durable-des-ressources-consommation-3',
         "Utilisation durable des ressources : consommation d'énergie, mesures prises pour améliorer l'efficacité " +
           'énergétique et recours aux énergies renouvelables',
       ),
-      saisie('Changement climatique : rejets de gaz à effet de serre'),
-      saisie('Protection de la biodiversité : mesures prises pour préserver ou développer la biodiversité'),
-      saisie('INFORMATIONS RELATIVES AUX ENGAGEMENTS SOCIÉTAUX EN FAVEUR DU DÉVELOPPEMENT DURABLE'),
+      saisie('changement-climatique-rejets-de-gaz-a-effet-de-s', 'Changement climatique : rejets de gaz à effet de serre'),
+      saisie('protection-de-la-biodiversite-mesures-prises-pou', 'Protection de la biodiversité : mesures prises pour préserver ou développer la biodiversité'),
+      saisie('informations-relatives-aux-engagements-societaux', 'INFORMATIONS RELATIVES AUX ENGAGEMENTS SOCIÉTAUX EN FAVEUR DU DÉVELOPPEMENT DURABLE'),
       saisie(
+        'impact-territorial-economique-et-social-de-l-act',
         "Impact territorial, économique et social de l'activité de la société : en matière d'emploi et de " +
           'développement régional',
       ),
-      saisie("Impact territorial, économique et social de l'activité de la société : sur les populations riveraines ou locales"),
+      saisie('impact-territorial-economique-et-social-de-l-act-2', "Impact territorial, économique et social de l'activité de la société : sur les populations riveraines ou locales"),
       saisie(
+        'relations-entretenues-avec-les-personnes-ou-les',
         "Relations entretenues avec les personnes ou les organisations intéressées par l'activité de la société " +
           "(associations d'insertion, établissements d'enseignement…) : conditions du dialogue avec ces personnes ou " +
           'organisations',
       ),
       saisie(
+        'relations-entretenues-avec-les-personnes-ou-les-2',
         "Relations entretenues avec les personnes ou les organisations intéressées par l'activité de la société : " +
           'actions de partenariat ou de mécénat',
       ),
-      saisie("Sous-traitance et fournisseurs : prise en compte dans la politique d'achat des enjeux sociaux et environnementaux"),
+      saisie('sous-traitance-et-fournisseurs-prise-en-compte-d', "Sous-traitance et fournisseurs : prise en compte dans la politique d'achat des enjeux sociaux et environnementaux"),
     ],
     renvoiOfficiel:
       `Note obligatoire pour les entités ayant un effectif de plus de ${SEUILS_NOTE_35.effectifNote35TitreIX} salariés. ` +
@@ -1339,10 +1360,10 @@ export const NOTES_SYSCOHADA_3: SpecificationNote[] = [
     // dit « NOTE 34 » [texte officiel], anomalie n° 12.
     renvoyeeDepuis: ['ZK', 'ZL', 'ZM', 'ZE'],
     rubriques: [
-      saisie('1 · Code forme juridique (1)', RENVOI_1_FORME_JURIDIQUE_SYSCOHADA),
-      saisie('2 · Code régime fiscal'),
-      saisie('3 · Code pays du siège social (2)', `(2) Pays OHADA : Congo RDC = ${CODE_PAYS_OHADA_RDC}.`),
-      saisie('Codes activités économiques (44 groupes, nomenclature à six chiffres)'),
+      saisie('1-code-forme-juridique-1', '1 · Code forme juridique (1)', RENVOI_1_FORME_JURIDIQUE_SYSCOHADA),
+      saisie('2-code-regime-fiscal', '2 · Code régime fiscal'),
+      saisie('3-code-pays-du-siege-social-2', '3 · Code pays du siège social (2)', `(2) Pays OHADA : Congo RDC = ${CODE_PAYS_OHADA_RDC}.`),
+      saisie('codes-activites-economiques-44-groupes-nomenclat', 'Codes activités économiques (44 groupes, nomenclature à six chiffres)'),
     ],
     renvoiOfficiel:
       '[texte officiel] La table 3 est lacunaire : elle saute de 00 à 21, puis de 23 à 39, de 41 à 49, de 50 à 99 ; ' +

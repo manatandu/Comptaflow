@@ -237,20 +237,32 @@ describe('notes SYSCOHADA, tranche 2 · intégrité des spécifications', () => 
     }
   });
 
-  it('les seules clés de la tranche sont celles documentées, et AUCUNE n’ouvre un rattachement', () => {
+  it('une clé désigne une rubrique EN ATTENTE ou EN SAISIE, et n’ouvre jamais un rattachement à elle seule', () => {
     // `note-annexe.service.ts` pose la convention qu'une rubrique déterminée
-    // par le plan ne porte pas de clé ; cette tranche en pose deux fois hors
-    // attente (en-tête, section « Une note sur le champ `cle` »). Ce qui
-    // doit rester vrai, et que ce test verrouille : aucune de ces clés ne
-    // porte `subdivisionAttendue`, donc `rubriqueRattachable` les refuse
-    // toutes · une clé n'est jamais une porte ouverte sur le rattachement.
-    const avecCle = NOTES_SYSCOHADA_2.flatMap((n) => n.rubriques.filter((r) => r.cle).map((r) => ({ note: n.code, r })));
-    expect(avecCle.map((x) => `${x.note}:${x.r.cle}`)).toEqual([
-      '16A:interets-courus-emprunts', '16A:interets-courus-location',
-      '27B:YA', '27B:YB', '27B:YC', '27B:YD', '27B:YE', '27B:YF', '27B:YG',
-      '27B:YH', '27B:YI', '27B:YJ', '27B:YK', '27B:YL', '27B:YM', '27B:YN', '27B:YO',
-    ]);
-    for (const x of avecCle) expect({ cle: x.r.cle, attendue: x.r.subdivisionAttendue }).toEqual({ cle: x.r.cle, attendue: undefined });
+    // par le plan ne porte pas de clé : rien n'a besoin de la désigner. Deux
+    // familles en portent une · celles en attente de rattachement, et depuis
+    // le 2026-09-03 celles en SAISIE, dont la clé ancre ce que le dossier
+    // écrit dans la note (`SaisieNote`). La liste exhaustive qui était gelée
+    // ici a été remplacée par la RÈGLE : une liste de 200 clés ne se relit
+    // pas, et le seul défaut qu'elle attrapait était son propre vieillissement.
+    for (const note of NOTES_SYSCOHADA_2) {
+      for (const r of note.rubriques) {
+        // Obligatoire dès qu'un stockage l'ancre. Facultative ailleurs, où
+        // elle sert à distinguer deux homonymes (note 16A, « Intérêts courus »
+        // du bloc emprunts et du bloc location).
+        if (r.subdivisionAttendue !== undefined || r.saisie === true) {
+          expect({ note: note.code, libelle: r.libelle, cle: r.cle }).toEqual({
+            note: note.code,
+            libelle: r.libelle,
+            cle: expect.any(String),
+          });
+        }
+        // Et une clé n'est jamais une porte ouverte sur le rattachement :
+        // `rubriqueRattachable` refuse tout ce qui ne porte pas
+        // `subdivisionAttendue`, saisie comprise.
+        if (r.saisie) expect(r.subdivisionAttendue).toBeUndefined();
+      }
+    }
   });
 
   it('le champ `renvoi` ne porte QUE des renvois du texte officiel · les lignes hors maquette sont listées à part', () => {

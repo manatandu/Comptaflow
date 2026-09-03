@@ -68,6 +68,17 @@ export interface RattachementNotes {
 }
 
 /**
+ * Ce dont le bloc a besoin pour rendre MODIFIABLES les rubriques renseignées
+ * hors comptabilité. Absent = lecture seule · c'est le cas des écrans qui ne
+ * portent pas d'exercice modifiable, et du rôle LECTURE_SEULE.
+ */
+export interface SaisieNotes {
+  /** `codeNote::cleRubrique::colonne` en cours d'envoi, ou null. */
+  enCours: string | null;
+  enregistrer: (codeNote: string, cleRubrique: string, colonne: number, valeur: string) => void;
+}
+
+/**
  * Ce que l'écran dit d'une note que l'exercice ne chiffre pas. Le texte par
  * défaut est celui de l'écran SYCEBNL, et il vaut aussi pour le SYSCOHADA :
  * dans les deux cas l'export JOINT la note, avec la mention NEANT
@@ -97,18 +108,59 @@ function valeurColonne(l: LigneNoteCalculee, type: string): number | undefined {
 }
 
 /** Une ligne de tableau · colonnes dynamiques selon `note.colonnes`. */
-function LigneTableauNote({ note, ligne }: { note: NoteCalculee; ligne: LigneNoteCalculee }) {
+function LigneTableauNote({
+  note,
+  ligne,
+  saisie,
+}: {
+  note: NoteCalculee;
+  ligne: LigneNoteCalculee;
+  saisie?: SaisieNotes;
+}) {
+  // Rubrique renseignée hors comptabilité : ses cellules ne se calculent pas,
+  // elles s'écrivent. `ligne.saisie` porte une case par colonne, `null` là où
+  // le dossier n'a rien mis · une case vide n'est pas un zéro.
+  const cellules = ligne.saisie;
   return (
     <div
       title={ligne.comptes.length > 0 ? `Comptes : ${ligne.comptes.map((c) => c.numero).join(', ')}` : undefined}
       className={`grid gap-2 px-4 py-1 text-[11px] ${ligne.estTotal ? 'font-bold bg-surface-alt border-y border-border' : ''}`}
-      style={{ gridTemplateColumns: `1.6fr repeat(${note.colonnes.length}, 108px)` }}
+      style={{ gridTemplateColumns: `1.6fr repeat(${note.colonnes.length}, ${cellules ? '1fr' : '108px'})` }}
     >
       <span className={ligne.enAttenteDeRattachement ? 'text-danger italic' : ''}>
         {ligne.libelle}
         {ligne.enAttenteDeRattachement && ' ⚠'}
       </span>
       {note.colonnes.map((c, ci) => {
+        if (cellules) {
+          const valeur = cellules[ci];
+          const texte = valeur === null || valeur === undefined ? '' : String(valeur);
+          if (!saisie || !ligne.cle) {
+            return (
+              <span key={ci} className="text-right text-text-dim whitespace-pre-wrap">
+                {texte}
+              </span>
+            );
+          }
+          const ancre = `${note.code}::${ligne.cle}::${ci}`;
+          return (
+            <input
+              key={`${ancre}-${texte}`}
+              // NON contrôlé, enregistré à la SORTIE du champ : une requête par
+              // frappe saturerait le serveur et perdrait l'ordre des réponses
+              // sur une note à seize colonnes.
+              defaultValue={texte}
+              onBlur={(e) => {
+                if (e.target.value !== texte) saisie.enregistrer(note.code, ligne.cle!, ci, e.target.value);
+              }}
+              disabled={saisie.enCours !== null}
+              placeholder={c.type === 'LIBRE' ? '' : '0,00'}
+              className={`border border-border bg-surface px-1 py-0.5 text-[10.5px] disabled:opacity-50 ${
+                c.type === 'LIBRE' ? '' : 'font-mono text-right'
+              }`}
+            />
+          );
+        }
         const v = valeurColonne(ligne, c.type);
         return (
           <span key={ci} className="font-mono text-right text-text-dim">
@@ -135,11 +187,14 @@ function LigneTableauNote({ note, ligne }: { note: NoteCalculee; ligne: LigneNot
 export function BlocTableauNote({
   note,
   rattachement,
+  saisie,
   mentionNonApplicable = MENTION_NEANT_PAR_DEFAUT,
   afficherHorsBalance = false,
 }: {
   note: NoteCalculee;
   rattachement: RattachementNotes;
+  /** Absent = lecture seule sur les rubriques renseignées hors comptabilité. */
+  saisie?: SaisieNotes;
   mentionNonApplicable?: ReactNode;
   /**
    * Annonce qu'une note `horsBalance` ne se calcule pas depuis la comptabilité.
@@ -184,7 +239,11 @@ export function BlocTableauNote({
         </div>
       )}
 
-      {note.applicable && note.lignes.length > 0 && (
+      {/* La grille est présentée dès qu'il y a des lignes, applicable ou non ·
+          une note non applicable ne garde que ses rubriques EN SAISIE, et les
+          masquer la rendrait impossible à remplir, donc à rendre applicable.
+          C'est le cul-de-sac corrigé le 2026-09-03. */}
+      {note.lignes.length > 0 && (
         <div className="overflow-x-auto">
           <div
             className="grid gap-2 px-4 py-1.5 bg-chrome border-b border-border text-[10px] font-bold text-text-dim"
@@ -198,7 +257,7 @@ export function BlocTableauNote({
             ))}
           </div>
           {note.lignes.map((l, i) => (
-            <LigneTableauNote key={`${l.cle ?? l.libelle}-${i}`} note={note} ligne={l} />
+            <LigneTableauNote key={`${l.cle ?? l.libelle}-${i}`} note={note} ligne={l} saisie={saisie} />
           ))}
         </div>
       )}

@@ -165,6 +165,7 @@ function fabriquerExport(jeu: JeuEtatsFinanciersSycebnl = TENANT.jeuEtatsFinanci
       }),
     },
     rattachementNote: { findMany: jest.fn().mockResolvedValue([]) },
+    saisieNote: { findMany: jest.fn().mockResolvedValue([]) },
     compte: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn().mockResolvedValue(null) },
     ecriture: { findMany: jest.fn().mockResolvedValue([]) },
     ligneEcriture: { findMany: jest.fn().mockResolvedValue([]) },

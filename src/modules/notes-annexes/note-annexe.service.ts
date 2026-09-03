@@ -508,6 +508,7 @@ export class NoteAnnexeService {
     rattachements: Map<string, string[]>,
     echeancesParCompte: Map<string, Echeances>,
     ventilationParCompte: Map<string, VentilationNature>,
+    saisies: Map<string, (string | number | null)[]> = new Map(),
   ): NoteCalculee {
     const resN = this.resoudreRubriques(spec, lignesN, rattachements, echeancesParCompte, ventilationParCompte);
     // N-1 n'est pas ventilé par échéance : le texte ne demande les colonnes
@@ -586,6 +587,11 @@ export class NoteAnnexeService {
             : undefined,
         comptes: resN[i].comptes,
         renvoi: rubrique.renvoi,
+        // Rubrique renseignée hors comptabilité : une cellule par colonne,
+        // `null` là où le dossier n'a rien écrit.
+        saisie: rubrique.saisie
+          ? spec.colonnes.map((_, ci) => saisies.get(`${spec.code}::${rubrique.cle}`)?.[ci] ?? null)
+          : undefined,
       };
     });
 
@@ -601,7 +607,12 @@ export class NoteAnnexeService {
       Math.abs(l.montantN1 ?? 0) > 0.005 ||
       Object.values(l.valeurs ?? {}).some((v) => Math.abs(v) > 0.005);
     const applicableChiffree = toutes.some((l) => !l.estTotal && chiffree(l));
-    const applicable = applicableChiffree || (spec.horsBalance ?? false);
+    // Une note qui n'est chiffrée par aucune balance devient applicable dès
+    // que le dossier a RENSEIGNÉ une de ses cellules · c'est le seul signal
+    // qu'elle porte (note 18B « Actifs et passifs éventuels », par exemple,
+    // n'est pas `horsBalance` mais n'est alimentée que par la saisie).
+    const saisieRenseignee = toutes.some((l) => (l.saisie ?? []).some((v) => v !== null && v !== ''));
+    const applicable = applicableChiffree || saisieRenseignee || (spec.horsBalance ?? false);
     // DÉFAUT CORRIGÉ : une note `horsBalance` (informations obligatoires,
     // effectifs, note 9 « fonds du bailleur »…) ne porte QUE des rubriques en
     // saisie, jamais chiffrées par construction · `chiffree()` vaut donc
@@ -612,11 +623,16 @@ export class NoteAnnexeService {
     // filtre du § 1.4 (retirer les lignes non chiffrées) n'a de sens que pour
     // une note qui PEUT être chiffrée ; une note hors balance est entièrement
     // en saisie par nature, donc entièrement montrée.
+    // Les rubriques EN SAISIE échappent au filtre, applicable ou non : ce sont
+    // des lignes à REMPLIR, et les masquer tant qu'elles sont vides rendrait
+    // la note impossible à alimenter depuis le logiciel · c'est précisément
+    // ce que la liasse reprochait à l'écran avant le 2026-09-03.
+    const enSaisie = toutes.filter((l) => l.saisie !== undefined);
     const lignes = !applicable
-      ? []
+      ? enSaisie
       : spec.horsBalance
         ? toutes
-        : toutes.filter((l) => chiffree(l) || l.estTotal || l.enAttenteDeRattachement);
+        : toutes.filter((l) => l.saisie !== undefined || chiffree(l) || l.estTotal || l.enAttenteDeRattachement);
 
     return {
       code: spec.code,
@@ -795,6 +811,122 @@ export class NoteAnnexeService {
   }
 
   /**
+   * Ce que le dossier a saisi dans les rubriques renseignées hors
+   * comptabilité, indexé par `code::cleRubrique`, chaque entrée portant un
+   * tableau indexé par RANG DE COLONNE.
+   *
+   * Les trous sont conservés en `null` : une cellule jamais renseignée n'est
+   * pas une cellule à zéro, et l'écran comme l'export doivent pouvoir faire
+   * la différence.
+   */
+  private async chargerSaisies(
+    tenantId: string,
+    exerciceId: string,
+    jeu: JeuNotesAnnexes,
+  ): Promise<Map<string, (string | number | null)[]>> {
+    const lignes = await this.prisma.saisieNote.findMany({
+      where: { tenantId, exerciceId, jeu },
+      select: { codeNote: true, cleRubrique: true, colonne: true, valeurTexte: true, valeurNombre: true },
+    });
+    const parRubrique = new Map<string, (string | number | null)[]>();
+    for (const l of lignes) {
+      const cle = `${l.codeNote}::${l.cleRubrique}`;
+      const cellules = parRubrique.get(cle) ?? [];
+      cellules[l.colonne] = l.valeurNombre !== null ? Number(l.valeurNombre) : l.valeurTexte;
+      parRubrique.set(cle, cellules);
+    }
+    return parRubrique;
+  }
+
+  /**
+   * Retrouve une rubrique EN SAISIE et la colonne visée, ou refuse.
+   *
+   * Même garde-fou que `rubriqueRattachable`, pour la même raison et en sens
+   * inverse : on n'écrit à la main que dans une cellule qu'aucune balance ne
+   * chiffre. Écrire dans une rubrique calculée donnerait deux sources pour un
+   * même montant, dont l'une invisible dans le grand livre · exactement le
+   * genre d'écart qui ne se découvre qu'au contrôle.
+   */
+  private celluleSaisissable(jeu: JeuNotesAnnexes, codeNote: string, cleRubrique: string, colonne: number) {
+    const tableaux = NOTES_PAR_JEU[jeu].filter((n) => n.code === codeNote);
+    if (tableaux.length === 0) throw new NotFoundException(`Aucune note « ${codeNote} » dans ce jeu d'états financiers.`);
+    // Les clés sont uniques DANS UN CODE, sous-tableaux compris
+    // (`rubriques-en-saisie.spec.ts`) : chercher dans tous les tableaux du
+    // code reste sans ambiguïté.
+    const spec = tableaux.find((n) => n.rubriques.some((r) => r.cle === cleRubrique));
+    const rubrique = spec?.rubriques.find((r) => r.cle === cleRubrique);
+    if (!spec || !rubrique) {
+      throw new NotFoundException(`La note ${codeNote} n'a pas de rubrique « ${cleRubrique} ».`);
+    }
+    if (!rubrique.saisie) {
+      throw new BadRequestException(
+        `La rubrique « ${rubrique.libelle} » de la note ${codeNote} est chiffrée par la comptabilité : ` +
+          `elle ne se saisit pas à la main. Corriger l'écriture, ou rattacher les comptes du dossier.`,
+      );
+    }
+    const colonneSpec = spec.colonnes[colonne];
+    if (!colonneSpec) {
+      throw new BadRequestException(
+        `La note ${codeNote} n'a pas de colonne n° ${colonne} · elle en compte ${spec.colonnes.length}.`,
+      );
+    }
+    return { spec, rubrique, colonneSpec };
+  }
+
+  /**
+   * Enregistre une cellule saisie. Une valeur vide EFFACE la cellule plutôt
+   * que d'enregistrer une chaîne vide : sans cela, une cellule qu'on vide
+   * resterait « renseignée à rien », indistinguable d'une cellule remplie
+   * pour l'écran comme pour la note.
+   */
+  async enregistrerSaisie(
+    tenantId: string,
+    userId: string,
+    exerciceId: string,
+    jeu: JeuNotesAnnexes,
+    codeNote: string,
+    cleRubrique: string,
+    colonne: number,
+    valeur: string | number | null,
+  ) {
+    await this.verifierJeuDuDossier(tenantId, jeu);
+    const exercice = await this.prisma.exercice.findFirst({ where: { id: exerciceId, tenantId } });
+    if (!exercice) throw new NotFoundException('Exercice introuvable pour ce dossier.');
+    const { colonneSpec } = this.celluleSaisissable(jeu, codeNote, cleRubrique, colonne);
+
+    const ou = { tenantId_exerciceId_jeu_codeNote_cleRubrique_colonne: { tenantId, exerciceId, jeu, codeNote, cleRubrique, colonne } };
+    const vide = valeur === null || valeur === undefined || (typeof valeur === 'string' && valeur.trim() === '');
+    if (vide) {
+      await this.prisma.saisieNote.deleteMany({ where: { tenantId, exerciceId, jeu, codeNote, cleRubrique, colonne } });
+      return { efface: true };
+    }
+
+    // Le TYPE DE LA COLONNE commande, pas le type reçu : une colonne de
+    // montant qui accepterait « environ 3 000 » sortirait telle quelle dans
+    // la liasse, dans une cellule que le lecteur additionne.
+    const chiffree = colonneSpec.type !== 'LIBRE';
+    if (chiffree) {
+      const nombre = typeof valeur === 'number' ? valeur : Number(String(valeur).replace(/\s/g, '').replace(',', '.'));
+      if (!Number.isFinite(nombre)) {
+        throw new BadRequestException(
+          `La colonne « ${colonneSpec.libelle} » de la note ${codeNote} attend un montant · « ${valeur} » n'en est pas un.`,
+        );
+      }
+      return this.prisma.saisieNote.upsert({
+        where: ou,
+        create: { tenantId, exerciceId, jeu, codeNote, cleRubrique, colonne, valeurNombre: nombre, updatedBy: userId },
+        update: { valeurNombre: nombre, valeurTexte: null, updatedBy: userId },
+      });
+    }
+    const texte = String(valeur);
+    return this.prisma.saisieNote.upsert({
+      where: ou,
+      create: { tenantId, exerciceId, jeu, codeNote, cleRubrique, colonne, valeurTexte: texte, updatedBy: userId },
+      update: { valeurTexte: texte, valeurNombre: null, updatedBy: userId },
+    });
+  }
+
+  /**
    * Toutes les notes du jeu associations pour un exercice, plus la fiche
    * récapitulative · qui fait partie de la liasse : elle déclare, note par
    * note, si elle est applicable ou non.
@@ -815,13 +947,14 @@ export class NoteAnnexeService {
       chargerLignes(this.ecritureService, tenantId, exerciceN1Id),
     ]);
 
-    const [rattachements, echeances, ventilation] = await Promise.all([
+    const [rattachements, echeances, ventilation, saisies] = await Promise.all([
       this.chargerRattachements(tenantId, jeu),
       this.chargerEcheances(tenantId, exerciceId),
       this.chargerVentilationParNature(tenantId, exerciceId),
+      this.chargerSaisies(tenantId, exerciceId, jeu),
     ]);
     const notes = specs.map((spec) =>
-      this.calculerNote(spec, lignesN, lignesN1, exerciceN1Id !== null, rattachements, echeances, ventilation),
+      this.calculerNote(spec, lignesN, lignesN1, exerciceN1Id !== null, rattachements, echeances, ventilation, saisies),
     );
 
     return {

@@ -124,15 +124,15 @@ export const NOTES_PROJETS: SpecificationNote[] = [
     horsBalance: true,
     colonnes: [{ type: 'LIBRE' as const, libelle: 'Informations' }],
     rubriques: [
-      { libelle: 'A - IDENTITE, ORGANISATION', saisie: true },
+      { cle: 'a-identite-organisation', libelle: 'A - IDENTITE, ORGANISATION', saisie: true },
       {
-        libelle:
+        cle: 'b-declaration-de-conformite-au-systeme-comptable', libelle:
           'B - DECLARATION DE CONFORMITE AU SYSTEME COMPTABLE DES ENTITES A BUT NON LUCRATIF ET FAITS ' +
           "MARQUANTS DE L'EXERCICE",
         saisie: true,
       },
-      { libelle: 'C - REGLES, METHODES COMPTABLES ET DEROGATION AUX PRINCIPES COMPTABLES', saisie: true },
-      { libelle: "D - INFORMATIONS COMPLEMENTAIRES RELATIVES AU BILAN ET AU COMPTE D'EXPLOITATION", saisie: true },
+      { cle: 'c-regles-methodes-comptables-et-derogation-aux-p', libelle: 'C - REGLES, METHODES COMPTABLES ET DEROGATION AUX PRINCIPES COMPTABLES', saisie: true },
+      { cle: 'd-informations-complementaires-relatives-au-bila', libelle: "D - INFORMATIONS COMPLEMENTAIRES RELATIVES AU BILAN ET AU COMPTE D'EXPLOITATION", saisie: true },
     ],
     commentaire:
       'ne mentionner que les éléments ayant une incidence comptable significative ou nuisant à la ' +
@@ -149,9 +149,9 @@ export const NOTES_PROJETS: SpecificationNote[] = [
     horsBalance: true,
     colonnes: [{ type: 'LIBRE' as const, libelle: 'Informations' }],
     rubriques: [
-      { libelle: 'A - TABLEAU EMPLOIS RESSOURCES', saisie: true },
-      { libelle: "B - TABLEAU D'EXECUTION BUDGÉTAIRE", saisie: true },
-      { libelle: 'C - TABLEAU DE RECONCILIATION DE TRESORERIE', saisie: true },
+      { cle: 'a-tableau-emplois-ressources', libelle: 'A - TABLEAU EMPLOIS RESSOURCES', saisie: true },
+      { cle: 'b-tableau-d-execution-budgetaire', libelle: "B - TABLEAU D'EXECUTION BUDGÉTAIRE", saisie: true },
+      { cle: 'c-tableau-de-reconciliation-de-tresorerie', libelle: 'C - TABLEAU DE RECONCILIATION DE TRESORERIE', saisie: true },
     ],
     commentaire:
       "indiquer les faits marquants pour chaque état financier ; expliquer les écarts significatifs entre " +
@@ -386,7 +386,7 @@ export const NOTES_PROJETS: SpecificationNote[] = [
     colonnes: [{ type: 'LIBRE' as const, libelle: 'Voir GET /etats-financiers/projet/note-bailleur' }],
     rubriques: [
       {
-        libelle:
+        cle: 'cette-note-a-des-colonnes-dynamiques-une-par-bai', libelle:
           'Cette note a des colonnes dynamiques (une par bailleur/sous-projet) que ce moteur ne représente ' +
           'pas. Elle est servie par EtatsFinanciersProjetService.noteBailleur(), déjà construite, testée et ' +
           "cumulée depuis l'origine du projet.",
@@ -780,13 +780,13 @@ export const NOTES_PROJETS: SpecificationNote[] = [
       { type: 'LIBRE' as const, libelle: 'MASSE SALARIALE · Total (M / F)' },
     ],
     rubriques: [
-      { libelle: 'YA. 1. Cadres supérieurs', saisie: true },
-      { libelle: 'YB. 2. Techniciens supérieurs et cadres moyens', saisie: true },
-      { libelle: 'YC. 3. Techniciens, agents de maîtrise et ouvriers qualifiés', saisie: true },
-      { libelle: 'YD. 4. Employés, manœuvres, ouvriers et apprentis', saisie: true },
-      { libelle: 'YE. TOTAL (1)', saisie: true },
-      { libelle: 'YF. Permanents', saisie: true },
-      { libelle: 'YG. Saisonniers', saisie: true },
+      { cle: 'ya-1-cadres-superieurs', libelle: 'YA. 1. Cadres supérieurs', saisie: true },
+      { cle: 'yb-2-techniciens-superieurs-et-cadres-moyens', libelle: 'YB. 2. Techniciens supérieurs et cadres moyens', saisie: true },
+      { cle: 'yc-3-techniciens-agents-de-maitrise-et-ouvriers', libelle: 'YC. 3. Techniciens, agents de maîtrise et ouvriers qualifiés', saisie: true },
+      { cle: 'yd-4-employes-man-uvres-ouvriers-et-apprentis', libelle: 'YD. 4. Employés, manœuvres, ouvriers et apprentis', saisie: true },
+      { cle: 'ye-total-1', libelle: 'YE. TOTAL (1)', saisie: true },
+      { cle: 'yf-permanents', libelle: 'YF. Permanents', saisie: true },
+      { cle: 'yg-saisonniers', libelle: 'YG. Saisonniers', saisie: true },
     ],
     renvoiOfficiel: 'M : Masculin ; F : Féminin.',
     commentaire: 'faire un commentaire si nécessaire en cas de mouvement significatif du personnel.',
@@ -798,14 +798,14 @@ export const NOTES_PROJETS: SpecificationNote[] = [
     horsBalance: true,
     colonnes: [{ type: 'LIBRE' as const, libelle: "Facturation à l'entité" }],
     rubriques: [
-      { libelle: 'YH. 1. Cadres supérieurs', saisie: true },
-      { libelle: 'YI. 2. Techniciens supérieurs et cadres moyens', saisie: true },
-      { libelle: 'YJ. 3. Techniciens, agents de maîtrise et ouvriers qualifiés', saisie: true },
-      { libelle: 'YK. 4. Employés, manœuvres, ouvriers et apprentis', saisie: true },
-      { libelle: 'YL. TOTAL (2)', saisie: true },
-      { libelle: 'YM. Permanents', saisie: true },
-      { libelle: 'YN. Saisonniers', saisie: true },
-      { libelle: 'YO. TOTAL (1 + 2)', saisie: true },
+      { cle: 'yh-1-cadres-superieurs', libelle: 'YH. 1. Cadres supérieurs', saisie: true },
+      { cle: 'yi-2-techniciens-superieurs-et-cadres-moyens', libelle: 'YI. 2. Techniciens supérieurs et cadres moyens', saisie: true },
+      { cle: 'yj-3-techniciens-agents-de-maitrise-et-ouvriers', libelle: 'YJ. 3. Techniciens, agents de maîtrise et ouvriers qualifiés', saisie: true },
+      { cle: 'yk-4-employes-man-uvres-ouvriers-et-apprentis', libelle: 'YK. 4. Employés, manœuvres, ouvriers et apprentis', saisie: true },
+      { cle: 'yl-total-2', libelle: 'YL. TOTAL (2)', saisie: true },
+      { cle: 'ym-permanents', libelle: 'YM. Permanents', saisie: true },
+      { cle: 'yn-saisonniers', libelle: 'YN. Saisonniers', saisie: true },
+      { cle: 'yo-total-1-2', libelle: 'YO. TOTAL (1 + 2)', saisie: true },
     ],
   },
   {
@@ -859,7 +859,7 @@ export const NOTES_PROJETS: SpecificationNote[] = [
     colonnes: [{ type: 'LIBRE' as const, libelle: '[texte officiel] Colonnes non données par la source' }],
     rubriques: [
       {
-        libelle:
+        cle: 'texte-officiel-le-referentiel-ne-donne-ni-colonn', libelle:
           '[texte officiel] Le référentiel ne donne ni colonnes ni rubriques pour cette note · seulement le ' +
           'commentaire ci-dessous. Non comblé depuis la note 30 du jeu associations, qui traite le même ' +
           'sujet mais reste un jeu distinct (règle §2.6). Le compte 69 « Dotations aux provisions » est déjà ' +
@@ -936,8 +936,8 @@ export const NOTES_PROJETS: SpecificationNote[] = [
       { type: 'LIBRE' as const, libelle: 'Exécution budget (%) (4/1)' },
     ],
     rubriques: [
-      { libelle: 'Lignes de la nomenclature budgétaire du projet', saisie: true },
-      { libelle: 'TOTAL', saisie: true },
+      { cle: 'lignes-de-la-nomenclature-budgetaire-du-projet', libelle: 'Lignes de la nomenclature budgétaire du projet', saisie: true },
+      { cle: 'total', libelle: 'TOTAL', saisie: true },
     ],
     renvoiOfficiel: 'Remplir, code et libellé, suivant la nomenclature budgétaire du projet.',
   },

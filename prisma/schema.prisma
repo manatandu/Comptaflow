@@ -367,6 +367,7 @@ model Tenant {
   tiers                    Tiers[]
   bailleurs                Bailleur[]
   rattachementsNotes       RattachementNote[]
+  saisiesNotes             SaisieNote[]
   donations                Donation[]
   transcriptionsInventaire TranscriptionInventaire[]
   rapportsActivite         RapportActivite[]
@@ -783,6 +784,7 @@ model Exercice {
   regularisations        Regularisation[]
   reevaluations          Reevaluation[]
   affectationResultat    AffectationResultat?
+  saisiesNotes           SaisieNote[]
 
   // Documents obligatoires de l'exercice (art. 14 et 16-3) · versionnés,
   // d'où des relations 1-N et non 1-1 : voir leurs modèles.
@@ -1387,6 +1389,59 @@ model RattachementNote {
   @@unique([tenantId, jeu, codeNote, cleRubrique, compteId])
   @@index([tenantId, jeu, codeNote])
   @@map("rattachements_notes")
+}
+
+/// Ce que le dossier SAISIT dans une rubrique de note renseignée hors
+/// comptabilité (`RubriqueNote.saisie`) : engagements donnés et reçus,
+/// effectifs, informations sociales et environnementales, événements
+/// postérieurs à la clôture, règles et méthodes comptables.
+///
+/// POURQUOI UNE TABLE · ces rubriques sont OBLIGATOIRES (SYCEBNL art. 15,
+/// AUDCIF art. 33) et aucune balance ne les porte. Sans stockage, elles
+/// sortaient vides dans la liasse et n'étaient remplissables que dans le
+/// classeur exporté · la liasse n'était donc pas éditable depuis le logiciel,
+/// et la saisie de l'exercice précédent était perdue à chaque exercice.
+///
+/// ANCRAGE · (jeu, codeNote, cleRubrique, colonne). La clé de rubrique, jamais
+/// son libellé, pour la raison déjà écrite sur `RattachementNote`. La colonne
+/// est son RANG dans la note : les colonnes sont celles de la maquette
+/// officielle et ne changent pas sans révision du référentiel, là où les
+/// rubriques bougent au fil des corrections de transcription. Un test gèle
+/// les colonnes de chaque note qui porte des rubriques en saisie.
+///
+/// PAR EXERCICE · le texte demande l'information de l'exercice présenté ; les
+/// colonnes « Année N-1 » d'une note en saisie sont saisies elles aussi, sur
+/// l'exercice présenté, et non lues sur le dossier de l'an dernier, qui peut
+/// n'avoir jamais existé dans le logiciel.
+model SaisieNote {
+  id         String   @id @default(uuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  exerciceId String
+  exercice   Exercice @relation(fields: [exerciceId], references: [id])
+
+  jeu JeuNotesAnnexes
+
+  /// Code officiel de la note : « 24 », « 5A », « 29B », « 16B bis ».
+  codeNote    String
+  /// Clé stable de la rubrique dans la note (RubriqueNote.cle).
+  cleRubrique String
+  /// Rang de la colonne dans `SpecificationNote.colonnes`, à partir de 0.
+  colonne     Int
+
+  /// Colonne LIBRE · le texte tel que le cabinet l'a rédigé.
+  valeurTexte  String?
+  /// Colonne chiffrée · le montant. Les deux champs ne sont jamais renseignés
+  /// ensemble : le type de la colonne dit lequel des deux vaut, et le service
+  /// refuse un texte dans une colonne de montant comme l'inverse.
+  valeurNombre Decimal? @db.Decimal(20, 2)
+
+  updatedAt DateTime @updatedAt
+  updatedBy String
+
+  @@unique([tenantId, exerciceId, jeu, codeNote, cleRubrique, colonne])
+  @@index([tenantId, exerciceId, jeu])
+  @@map("saisies_notes")
 }
 
 // ---------------------------------------------------------------------------

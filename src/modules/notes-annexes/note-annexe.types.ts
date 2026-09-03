@@ -269,6 +269,14 @@ export interface LigneNoteCalculee {
   natureNonVentilee?: { augmentation: number; diminution: number };
   comptes: CompteDeRubrique[];
   renvoi?: string;
+  /**
+   * Rubrique renseignée HORS comptabilité (`RubriqueNote.saisie`). Aucune
+   * balance ne la porte : ce que le dossier y a écrit vient de `SaisieNote`,
+   * colonne par colonne, dans l'ordre de `SpecificationNote.colonnes` ·
+   * `null` pour une cellule jamais renseignée, qui n'est pas la même chose
+   * qu'un zéro. Absent sur une rubrique chiffrée.
+   */
+  saisie?: (string | number | null)[];
 }
 
 /**
