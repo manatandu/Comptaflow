@@ -112,3 +112,40 @@ describe('modèles de saisie · la barre de Sage, dans la fenêtre du journal', 
     expect(lire('components/chrome/AppShell.tsx')).toContain("navigate('/modeles-saisie')");
   });
 });
+
+describe('différenciateur SYCEBNL · les fiches du référentiel, mises au travail', () => {
+  it('la saisie AVERTIT sur les exclusions du compte choisi', () => {
+    // Le texte est cité, jamais reformulé · c'est sa citation qui le rend
+    // opposable devant un réviseur.
+    const saisie = lire('pages/SaisiePage.tsx');
+    expect(saisie).toContain('/controles/regles-comptes');
+    expect(saisie).toContain('exclusions du référentiel');
+    expect(saisie).toContain('comptes à utiliser à la place');
+  });
+
+  it('l’avertissement n’EMPÊCHE pas la saisie', () => {
+    // Le logiciel ne connaît pas la nature de l'opération : « le compte 40 ne
+    // doit pas enregistrer les fournisseurs d'immobilisations » ne se vérifie
+    // qu'en sachant ce qu'on achète. Refuser bloquerait des écritures justes.
+    const saisie = lire('pages/SaisiePage.tsx');
+    expect(saisie).not.toMatch(/regleDuCompte[\s\S]{0,200}(disabled|throw|return false)/);
+  });
+
+  it('la fiche retenue est la PLUS PRÉCISE, pas la première venue', () => {
+    // Trois fiches descendent à trois chiffres (603, 659, 759) · un compte
+    // 65910000 relève de 659, pas de 65 qui dit autre chose.
+    const saisie = lire('pages/SaisiePage.tsx');
+    expect(saisie).toContain('.sort((a, b) => b.numero.length - a.numero.length)[0]');
+  });
+
+  it('le dossier de révision ne s’ouvre qu’au SYCEBNL, menu compris', () => {
+    // Les fiches du SYSCOHADA existent dans l'AUDCIF mais ne sont pas
+    // transcrites · les transposer serait la faute que CLAUDE.md §6 interdit.
+    expect(lire('lib/registre-fenetres.tsx')).toMatch(
+      /dossier-revision[\s\S]{0,600}referentielsApplicables: \['SYCEBNL'\]/,
+    );
+    expect(lire('components/chrome/AppShell.tsx')).toMatch(
+      /estSycebnl[\s\S]{0,200}navigate\('\/dossier-revision'\)/,
+    );
+  });
+});

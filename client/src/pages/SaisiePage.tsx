@@ -45,6 +45,15 @@ interface LignePiece {
   sections?: Record<string, string>;
 }
 
+/** Une fiche du référentiel, servie par /controles/regles-comptes. */
+interface RegleCompte {
+  numero: string;
+  intitule: string;
+  exclusions: string | null;
+  comptesAUtiliser: string[];
+  elementsDeControle: string | null;
+}
+
 /** Un modèle de saisie du dossier, servi par /modeles-saisie. */
 interface ModeleSaisie {
   id: string;
@@ -175,6 +184,9 @@ export function SaisiePage() {
   // Le serveur rend ceux du journal PLUS ceux qui ne visent aucun journal.
   const [modeles, setModeles] = useState<ModeleSaisie[]>([]);
   const [modeleChoisi, setModeleChoisi] = useState('');
+  // LES FICHES DU RÉFÉRENTIEL · chargées une fois par ouverture de la
+  // fenêtre, pas à chaque ligne saisie (78 entrées, quelques dizaines de Ko).
+  const [regles, setRegles] = useState<RegleCompte[]>([]);
   const [calculetteOuverte, setCalculetteOuverte] = useState(false);
 
   const compteRef = useRef<HTMLInputElement>(null);
@@ -460,6 +472,30 @@ export function SaisiePage() {
       },
     ]);
   };
+
+  useEffect(() => {
+    let annule = false;
+    api
+      .get<RegleCompte[]>('/controles/regles-comptes')
+      .then((r) => !annule && setRegles(r), () => !annule && setRegles([]));
+    return () => {
+      annule = true;
+    };
+  }, []);
+
+  /**
+   * LA FICHE QUI GOUVERNE LE COMPTE CHOISI · la PLUS PRÉCISE qui le préfixe.
+   *
+   * Les fiches sont à deux chiffres, sauf trois qui descendent à trois (603,
+   * 659, 759) parce que le texte y descend. Un compte 65910000 relève de la
+   * fiche 659 et non de la fiche 65, qui dit autre chose · prendre la
+   * première trouvée afficherait l'avertissement du compte père.
+   */
+  const regleDuCompte = compteChoisi
+    ? regles
+        .filter((r) => compteChoisi.numero.startsWith(r.numero))
+        .sort((a, b) => b.numero.length - a.numero.length)[0]
+    : undefined;
 
   useEffect(() => {
     if (!journal) {
@@ -797,6 +833,29 @@ export function SaisiePage() {
             </div>
           )}
         </div>
+
+        {/* AVERTISSEMENT D'IMPUTATION · le bloc « Exclusions » de la fiche du
+            compte choisi, CITÉ et non reformulé. C'est une règle du texte,
+            pas un conseil du logiciel : sa citation est ce qui la rend
+            opposable devant un réviseur.
+
+            Il n'EMPÊCHE PAS la saisie, et c'est voulu. Le logiciel ne connaît
+            pas la nature de l'opération : « le compte 40 ne doit pas servir à
+            enregistrer les fournisseurs d'immobilisations » ne se vérifie
+            qu'en sachant ce qu'on achète. Refuser sur cette base bloquerait
+            des écritures correctes ; avertir laisse le comptable trancher. */}
+        {regleDuCompte?.exclusions && (
+          <div className="border-t border-warning/40 bg-warning-soft px-3 py-1.5 text-[10px] leading-[1.5]">
+            <span className="font-bold">Compte {regleDuCompte.numero} · exclusions du référentiel : </span>
+            {regleDuCompte.exclusions}
+            {regleDuCompte.comptesAUtiliser.length > 0 && (
+              <span className="text-text-dim">
+                {' '}
+                (comptes à utiliser à la place : {regleDuCompte.comptesAUtiliser.join(', ')})
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Totaux du journal */}
         <div style={grilleStyle} className={`${grille} px-3 py-1.5 bg-surface-alt border-t border-border-dark text-[10.5px] font-bold`}>

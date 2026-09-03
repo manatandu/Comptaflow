@@ -47,6 +47,9 @@ const PlansAnalytiquesPage = lazy(() => import('../pages/PlansAnalytiquesPage').
 const BrouillardPage = lazy(() => import('../pages/BrouillardPage').then((m) => ({ default: m.BrouillardPage })));
 const ImportPage = lazy(() => import('../pages/ImportPage').then((m) => ({ default: m.ImportPage })));
 const ControlesPage = lazy(() => import('../pages/ControlesPage').then((m) => ({ default: m.ControlesPage })));
+const DossierRevisionPage = lazy(() =>
+  import('../pages/DossierRevisionPage').then((m) => ({ default: m.DossierRevisionPage })),
+);
 const AffectationPage = lazy(() => import('../pages/AffectationPage').then((m) => ({ default: m.AffectationPage })));
 const RegularisationPage = lazy(() => import('../pages/RegularisationPage').then((m) => ({ default: m.RegularisationPage })));
 const DevisesPage = lazy(() => import('../pages/DevisesPage').then((m) => ({ default: m.DevisesPage })));
@@ -301,6 +304,18 @@ export const FENETRES: DefinitionFenetre[] = [
   { motif: /^\/brouillard$/, titre: 'Brouillard', titreCourt: 'Brouillard', rendre: () => <BrouillardPage /> },
   { motif: /^\/import$/, titre: 'Importer des données', titreCourt: 'Import', rendre: () => <ImportPage /> },
   { motif: /^\/controles$/, titre: 'Analyse et contrôles', titreCourt: 'Contrôles', rendre: () => <ControlesPage /> },
+  {
+    motif: /^\/dossier-revision$/,
+    titre: 'Dossier de révision',
+    titreCourt: 'Révision',
+    rendre: () => <DossierRevisionPage />,
+    // Les fiches par compte ne sont transcrites que pour le SYCEBNL · celles
+    // du SYSCOHADA existent dans l'AUDCIF (Titre VII) et restent à faire.
+    // Ouvrir la fenêtre à un dossier SYSCOHADA montrerait un état vide sans
+    // dire pourquoi (CLAUDE.md §6 · masquer ET refuser, jamais l'un sans
+    // l'autre · ici la route rend une liste vide plutôt qu'une erreur).
+    referentielsApplicables: ['SYCEBNL'],
+  },
   {
     motif: /^\/regularisations$/,
     titre: 'Régularisations et abonnements',

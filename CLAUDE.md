@@ -92,10 +92,15 @@ que ça compile ».
 - **JAMAIS** de tiret cadratin (—) nulle part : code, commentaires, interface,
   documentation, messages de commit. Utiliser « · » ou une ponctuation
   ordinaire. Le dépôt en est nettoyé, ne pas en réintroduire.
-  *Seule exception, à ne pas « corriger »* : la migration
+  *Deux exceptions, à ne pas « corriger »* : la migration
   `20260829033943_retire_cadratins` porte le caractère comme DONNÉE, puisque
-  c'est elle qui le remplace en base. Et de toute façon, une migration déjà
-  appliquée ne se modifie jamais, Prisma en vérifie l'empreinte.
+  c'est elle qui le remplace en base (et une migration appliquée ne se modifie
+  jamais, Prisma en vérifie l'empreinte) ; et les fichiers ENGENDRÉS qui
+  transcrivent le texte officiel VERBATIM · `regles-comptes-sycebnl.ts` en
+  porte 97, tous dans des citations du type « 481 — Fournisseurs
+  d'investissements ». Les remplacer falsifierait la citation, et c'est
+  justement sa fidélité qui rend l'avertissement opposable devant un
+  réviseur.
 - **JAMAIS** de nom de modèle d'IA dans un commit, une PR, un commentaire ou
   quoi que ce soit de poussé.
 - **JAMAIS** de « bientôt disponible » qui soit faux. Une fenêtre annoncée en
@@ -186,6 +191,17 @@ différents (« TRANSPORTS » est la 25 chez les associations et la 16 chez les
 projets) : c'est normal, chaque chapitre numérote les siennes. Ce qui est
 surveillé, c'est le partage d'OBJET, qui ferait qu'une correction faite pour
 un jeu s'appliquerait en silence à l'autre.
+
+**Différenciateur SYCEBNL** · le référentiel décrit chaque compte par une
+fiche, et deux de ses rubriques sont mises au travail depuis le 2026-09-03
+(`regles-comptes-sycebnl.ts`, engendré par `scripts/extraire-regles-comptes.cjs`,
+78 fiches) : « Exclusions » avertit à la saisie de ce que le compte ne doit
+pas enregistrer et du compte à utiliser, « Éléments de contrôle » alimente la
+fenêtre Dossier de révision, compte mouvementé par compte mouvementé. Le
+texte est CITÉ, jamais reformulé. L'avertissement n'empêche pas la saisie ·
+le logiciel ne connaît pas la nature de l'opération, refuser bloquerait des
+écritures justes. L'AUDCIF porte les mêmes rubriques pour le SYSCOHADA
+(Titre VII) : même extraction à faire, surtout pas une transposition.
 
 Propres au SYCEBNL : registre des donateurs, bailleurs, exonérations
 douanières, opérations spécifiques, module groupe.
