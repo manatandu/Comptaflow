@@ -329,6 +329,23 @@ abrogés au 1er janvier 2026 et remplacés par l'IS et l'IRPP. Seuls les
 mécanismes d'écriture sont retenus, et aucun ne dépend d'un taux. Un test le
 vérifie sur les messages produits.
 
+**Acomptes provisionnels · les dates ET la base viennent de la loi de
+finances.** L'article 57 bis de la loi de procédures fiscales, TEL QUE MODIFIÉ
+par la loi de finances n° 25/060 du 29 décembre 2025, fixe les trois versements
+au plus tard les 25 juillet, 25 septembre et 25 novembre. La rédaction de 2023
+(« avant le 1er août, avant le 1er octobre, avant le 1er décembre ») est
+périmée, et c'est elle qu'un praticien cite de mémoire : ne pas la
+« rétablir ». Le même article assoit les acomptes sur « l'impôt déclaré au
+titre de l'exercice précédent, AUGMENTÉ des suppléments éventuels établis par
+l'Administration des Impôts […] que ces sommes fassent ou non l'objet de
+contestation ». Un supplément naît d'un avis de redressement, jamais d'une
+écriture : aucun solde ne le porte, d'où
+`DossierFiscalExercice.supplementsAdministration`, saisi. Il entre dans la base
+des acomptes du prochain exercice et SEULEMENT là · l'imputer sur l'impôt de
+l'exercice ferait payer deux fois le même redressement. Sans lui, les trois
+acomptes proposés à un dossier redressé sont sous-évalués, et une insuffisance
+de versement se paie même contestation pendante.
+
 **Retraitements fiscaux · le logiciel se souvient, il ne qualifie pas.** Le
 catalogue (`catalogue-retraitements.ts`) refuse de déduire la qualification
 fiscale d'une charge de son numéro de compte, et il a raison : le 6582

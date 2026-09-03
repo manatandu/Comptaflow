@@ -2063,6 +2063,10 @@ export interface ResultatFiscal {
   explication: string;
   acomptesVerses: number;
   soldeAPayer: number | null;
+  /** Suppléments établis par l'Administration · entrent dans la base des acomptes (art. 57 bis LPF). */
+  supplementsAdministration: number;
+  /** Impôt dû + suppléments · la base sur laquelle les trois acomptes sont assis. */
+  baseAcomptes: number | null;
   acomptesProchainExercice: { quotite: number; echeance: string; montant: number }[];
 }
 

@@ -45,6 +45,15 @@ export class ModifierDossierFiscalDto {
   @Min(0)
   acomptesVerses?: number;
 
+  /**
+   * Suppléments d'impôt établis par l'Administration · art. 57 bis LPF. Ils
+   * entrent dans la base des acomptes du prochain exercice, contestés ou non.
+   */
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  supplementsAdministration?: number;
+
   /** null = OmegaX recalcule depuis les exercices précédents. */
   @IsOptional()
   @ValidateIf((_, v) => v !== null)

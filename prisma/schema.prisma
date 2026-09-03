@@ -783,6 +783,14 @@ model DossierFiscalExercice {
   // calcule lui-même, sur les trois exercices précédents (art. 51).
   deficitAnterieurSaisi Decimal? @db.Decimal(18, 2)
 
+  // Suppléments d'impôt établis par l'Administration · art. 57 bis LPF, tel
+  // que modifié par la loi de finances n° 25/060. Ils ENTRENT dans la base
+  // des acomptes du prochain exercice, « que ces sommes fassent ou non
+  // l'objet de contestation ». Aucun compte ne les porte : ils naissent d'un
+  // avis de redressement, pas d'une écriture. Sans eux, les acomptes proposés
+  // sont sous-évalués.
+  supplementsAdministration Decimal @default(0) @db.Decimal(18, 2)
+
   // Personne physique au régime des petites entreprises · en cas d'activité
   // mixte, la loi cumule les chiffres d'affaires et impose suivant
   // l'activité PRINCIPALE (art. 127). Null tant que non renseigné : le taux

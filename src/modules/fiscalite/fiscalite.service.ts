@@ -363,6 +363,7 @@ export class FiscaliteService {
       this.prisma.dossierFiscalExercice.findUnique({ where: { exerciceId } }),
     ]);
     const acomptesVerses = Number(dossier?.acomptesVerses ?? 0);
+    const supplementsAdministration = Number(dossier?.supplementsAdministration ?? 0);
     const deficitSaisi = dossier?.deficitAnterieurSaisi === null || dossier?.deficitAnterieurSaisi === undefined
       ? null
       : Number(dossier.deficitAnterieurSaisi);
@@ -419,10 +420,25 @@ export class FiscaliteService {
       ...impot,
       acomptesVerses,
       soldeAPayer: impot.impotDu === null ? null : arrondir(impot.impotDu - acomptesVerses),
+      // BASE DES ACOMPTES · art. 57 bis LPF, tel que modifié par la loi de
+      // finances n° 25/060 : « l'impôt déclaré au titre de l'exercice
+      // précédent, AUGMENTÉ des suppléments éventuels établis par
+      // l'Administration des Impôts […] que ces sommes fassent ou non l'objet
+      // de contestation ». L'impôt calculé ici est le premier terme ; le
+      // second ne se lit dans aucun compte, il naît d'un avis de
+      // redressement, d'où sa saisie. L'assoir sur le seul impôt déclaré
+      // proposerait trois acomptes insuffisants à tout dossier redressé, et
+      // l'insuffisance de versement se paie même quand le redressement est
+      // contesté.
+      supplementsAdministration,
+      baseAcomptes: impot.impotDu === null ? null : arrondir(impot.impotDu + supplementsAdministration),
       acomptesProchainExercice:
         impot.impotDu === null
           ? []
-          : IMPOT_SOCIETES.acomptes.map((a) => ({ ...a, montant: arrondir(a.quotite * impot.impotDu!) })),
+          : IMPOT_SOCIETES.acomptes.map((a) => ({
+              ...a,
+              montant: arrondir(a.quotite * (impot.impotDu! + supplementsAdministration)),
+            })),
     };
   }
 
@@ -569,6 +585,9 @@ export class FiscaliteService {
     await this.exerciceDuDossier(tenantId, exerciceId);
     const data = {
       ...(dto.acomptesVerses === undefined ? {} : { acomptesVerses: arrondir(dto.acomptesVerses) }),
+      ...(dto.supplementsAdministration === undefined
+        ? {}
+        : { supplementsAdministration: arrondir(dto.supplementsAdministration) }),
       ...(dto.deficitAnterieurSaisi === undefined
         ? {}
         : { deficitAnterieurSaisi: dto.deficitAnterieurSaisi === null ? null : arrondir(dto.deficitAnterieurSaisi) }),

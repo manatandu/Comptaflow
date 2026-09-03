@@ -181,6 +181,7 @@ export function FiscalitePage() {
 
   const modifierDossier = async (dto: {
     acomptesVerses?: number;
+    supplementsAdministration?: number;
     deficitAnterieurSaisi?: number | null;
     natureActivite?: NatureActiviteFiscale | null;
   }) => {
@@ -600,11 +601,39 @@ export function FiscalitePage() {
             </table>
             {resultat.acomptesProchainExercice.length > 0 && (
               <div className="px-3 pb-3 pt-2 text-[10px] text-text-dim leading-[1.55]">
-                Acomptes du prochain exercice, assis sur cet impôt :{' '}
-                {resultat.acomptesProchainExercice
-                  .map((a) => `${nombre(a.montant)} ${devise} au plus tard le ${a.echeance}`)
-                  .join(' · ')}
-                .
+                {/* La base des acomptes n'est PAS le seul impôt déclaré · art. 57 bis
+                    LPF, tel que modifié par la loi de finances n° 25/060, y ajoute les
+                    suppléments établis par l'Administration, contestés ou non. Ils
+                    naissent d'un avis de redressement et ne se lisent dans aucun
+                    compte : d'où cette saisie, sans laquelle les trois acomptes
+                    proposés seraient insuffisants pour tout dossier redressé. */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span>Suppléments établis par l’Administration, à ajouter à la base des acomptes :</span>
+                  {lectureSeule ? (
+                    <span className="font-mono">{nombre(resultat.supplementsAdministration)}</span>
+                  ) : (
+                    <input
+                      key={`supplements-${resultat.exerciceId}-${resultat.supplementsAdministration}`}
+                      defaultValue={String(resultat.supplementsAdministration)}
+                      inputMode="decimal"
+                      disabled={envoi}
+                      onBlur={(e) => {
+                        const n = lireNombre(e.target.value);
+                        if (n !== null && n >= 0 && n !== resultat.supplementsAdministration)
+                          modifierDossier({ supplementsAdministration: n });
+                      }}
+                      className="w-32 text-right border border-border rounded-[7px] bg-bg px-2 py-0.5 text-[10.5px] font-mono"
+                    />
+                  )}
+                  <span className="font-mono">{devise}</span>
+                </div>
+                <div className="mt-1">
+                  Acomptes du prochain exercice, assis sur une base de {nombre(resultat.baseAcomptes)} {devise} :{' '}
+                  {resultat.acomptesProchainExercice
+                    .map((a) => `${nombre(a.montant)} ${devise} au plus tard le ${a.echeance}`)
+                    .join(' · ')}
+                  .
+                </div>
               </div>
             )}
           </section>

@@ -23,7 +23,12 @@ function service(options: {
   balances: Record<string, Ligne[]>;
   exercices?: { id: string; dateDebut: Date; dateFin: Date }[];
   retraitements?: Record<string, { sens: SensRetraitementFiscal; montant: number }[]>;
-  dossier?: { acomptesVerses?: number; deficitAnterieurSaisi?: number | null; natureActivite?: 'VENTE' | 'PRESTATIONS' | null };
+  dossier?: {
+    acomptesVerses?: number;
+    supplementsAdministration?: number;
+    deficitAnterieurSaisi?: number | null;
+    natureActivite?: 'VENTE' | 'PRESTATIONS' | null;
+  };
 }) {
   const exercices = options.exercices ?? [
     { id: 'N', dateDebut: new Date(Date.UTC(2026, 0, 1)), dateFin: new Date(Date.UTC(2026, 11, 31)) },
@@ -62,7 +67,13 @@ function service(options: {
     dossierFiscalExercice: {
       findUnique: async () =>
         options.dossier
-          ? { acomptesVerses: 0, deficitAnterieurSaisi: null, natureActivite: null, ...options.dossier }
+          ? {
+              acomptesVerses: 0,
+              supplementsAdministration: 0,
+              deficitAnterieurSaisi: null,
+              natureActivite: null,
+              ...options.dossier,
+            }
           : null,
     },
   };
@@ -185,6 +196,64 @@ describe('Impôt sur les sociétés · art. 56 et 57', () => {
     // Les acomptes du prochain exercice se calent sur l'impôt de celui-ci ·
     // 30 %, 30 %, 20 % (art. 57 bis LPF).
     expect(r.acomptesProchainExercice.map((a) => a.montant)).toEqual([3_000, 3_000, 2_000]);
+  });
+});
+
+/**
+ * BASE DES ACOMPTES PROVISIONNELS · art. 57 bis de la loi de procédures
+ * fiscales, TEL QUE MODIFIÉ par la loi de finances n° 25/060 du 29 décembre
+ * 2025 : les acomptes sont calculés « sur base de l'impôt déclaré au titre de
+ * l'exercice précédent, AUGMENTÉ DES SUPPLÉMENTS ÉVENTUELS ÉTABLIS PAR
+ * L'ADMINISTRATION DES IMPÔTS […] QUE CES SOMMES FASSENT OU NON L'OBJET DE
+ * CONTESTATION ».
+ *
+ * CE QUE RIEN NE VOYAIT. Un supplément naît d'un avis de redressement, jamais
+ * d'une écriture : aucun solde de compte ne le porte, et le logiciel ne peut
+ * que le recevoir. Assis sur le seul impôt calculé, les trois acomptes
+ * proposés à un dossier redressé sont sous-évalués, et l'insuffisance de
+ * versement se paie même quand le redressement est contesté. Rien dans le
+ * calcul ne se déséquilibre : les trois montants restent 30/30/20 d'une base,
+ * mais de la mauvaise.
+ *
+ * Les ÉCHÉANCES elles-mêmes viennent de la loi de finances et non de la
+ * rédaction de 2023 (« avant le 1er août… »), périmée · d'où le dernier test.
+ */
+describe('Base des acomptes provisionnels · art. 57 bis LPF', () => {
+  const dossierRedresse = (supplements: number) =>
+    service({
+      balances: { N: [ligne('70110000', -1_000_000), ligne('60110000', 1_200_000)] },
+      dossier: { supplementsAdministration: supplements },
+    });
+
+  it('ajoute les suppléments de l’Administration à la base des trois acomptes', async () => {
+    const { s } = dossierRedresse(5_000);
+    const r = await s.resultatFiscal('t1', 'N');
+    // Impôt minimum de 10 000, plus 5 000 de supplément : la base est 15 000.
+    expect(r.impotDu).toBe(10_000);
+    expect(r.baseAcomptes).toBe(15_000);
+    expect(r.acomptesProchainExercice.map((a) => a.montant)).toEqual([4_500, 4_500, 3_000]);
+  });
+
+  it('ne touche NI le solde à payer NI l’impôt dû de l’exercice', async () => {
+    // Le supplément porte sur un exercice ANTÉRIEUR · l'imputer ici ferait
+    // payer deux fois le même redressement.
+    const { s } = dossierRedresse(5_000);
+    const r = await s.resultatFiscal('t1', 'N');
+    expect(r.impotDu).toBe(10_000);
+    expect(r.soldeAPayer).toBe(10_000);
+  });
+
+  it('sans supplément, la base est l’impôt dû seul', async () => {
+    const { s } = dossierRedresse(0);
+    const r = await s.resultatFiscal('t1', 'N');
+    expect(r.baseAcomptes).toBe(10_000);
+    expect(r.acomptesProchainExercice.map((a) => a.montant)).toEqual([3_000, 3_000, 2_000]);
+  });
+
+  it('porte les échéances de la loi de finances, pas celles de la rédaction de 2023', async () => {
+    const { s } = dossierRedresse(0);
+    const r = await s.resultatFiscal('t1', 'N');
+    expect(r.acomptesProchainExercice.map((a) => a.echeance)).toEqual(['25 juillet', '25 septembre', '25 novembre']);
   });
 });
 
