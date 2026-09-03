@@ -1178,6 +1178,76 @@ export class ControlesService {
       }
     }
 
+    // --- 13. Immobilisation amortissable sans dotation sur l'exercice --------
+    //
+    // « LA CONSTATATION DE LA DOTATION AUX AMORTISSEMENTS D'UNE IMMOBILISATION
+    // AMORTISSABLE EST OBLIGATOIRE MÊME EN CAS D'ABSENCE OU D'INSUFFISANCE DE
+    // BÉNÉFICE » · AUDCIF art. 45, dernier alinéa. L'article n'est pas dans la
+    // liste d'exclusion de l'art. 3 du SYCEBNL, dont la fiche du COMPTE 28 dit
+    // la même chose : le contrôle vaut pour les deux référentiels.
+    //
+    // Ce qui se passe quand on l'oublie · le résultat est surévalué du montant
+    // de la dotation non passée, la valeur nette comptable reste à sa valeur
+    // brute, et RIEN NE LE SIGNALE : les écritures s'équilibrent, la balance
+    // boucle, le bilan boucle. Pire, l'oubli devient irréparable à la clôture,
+    // qui ferme l'exercice à toute écriture nouvelle.
+    //
+    // AVERTISSEMENT et non BLOQUANT, et la clôture ne refuse pas · un cabinet
+    // peut avoir passé ses dotations à la main, par une écriture directe 68/28,
+    // sans passer par le module. Dans ce cas la comptabilité est juste et la
+    // table des dotations vide : bloquer serait refuser une clôture régulière.
+    // Le logiciel signale ce qu'il voit et laisse le comptable trancher.
+    const amortissables = await this.prisma.immobilisation.findMany({
+      where: {
+        tenantId,
+        statut: 'EN_SERVICE',
+        // Un bien pas encore en service ne s'amortit pas · l'amortissement
+        // court de la mise en état de fonctionner (art. 45), pas de l'achat.
+        dateMiseEnService: { lte: ex.dateFin },
+      },
+      select: {
+        designation: true,
+        dateMiseEnService: true,
+        valeurOrigine: true,
+        valeurResiduelle: true,
+        amortissementAnterieur: true,
+        dotations: { select: { exerciceId: true, montant: true } },
+      },
+      orderBy: { dateMiseEnService: 'asc' },
+    });
+    const sansDotation = amortissables.filter((i) => {
+      if (i.dotations.some((d) => d.exerciceId === exerciceId)) return false;
+      // Un bien intégralement amorti n'a plus rien à doter · l'absence de
+      // dotation y est la situation normale, pas un oubli.
+      const base = Number(i.valeurOrigine) - Number(i.valeurResiduelle);
+      const cumul =
+        Number(i.amortissementAnterieur) +
+        i.dotations.reduce((t, d) => t + Number(d.montant), 0);
+      return base - cumul > 0.005;
+    });
+    if (sansDotation.length > 0) {
+      anomalies.push({
+        code: 'IMMO_SANS_DOTATION',
+        gravite: 'AVERTISSEMENT',
+        libelle: 'Immobilisation amortissable sans dotation sur cet exercice',
+        consequence:
+          "L'AUDCIF, art. 45, rend la dotation obligatoire « même en cas d'absence ou d'insuffisance de bénéfice ». " +
+          'Sans elle, le résultat est surévalué du montant non doté et la valeur nette comptable reste à la valeur ' +
+          'brute, sans qu’aucun total ne le signale : les écritures s’équilibrent et la balance boucle. La clôture ' +
+          'rendra l’oubli irréparable, l’exercice n’acceptant plus aucune écriture.',
+        action:
+          'Passez les dotations de l’exercice (Structure > Immobilisations > Dotations) avant de clôturer. Si vos ' +
+          'dotations ont été saisies à la main par une écriture 68/28 sans passer par le module, ce signalement est ' +
+          'sans objet pour les biens concernés.',
+        occurrences: sansDotation.slice(0, 200).map((i) => ({
+          reference: i.designation,
+          detail: `Mis en service le ${i.dateMiseEnService.toISOString().slice(0, 10)}, aucune dotation sur cet exercice`,
+          montant: Number(i.valeurOrigine),
+          date: i.dateMiseEnService.toISOString().slice(0, 10),
+        })),
+      });
+    }
+
     const ordre: Record<Gravite, number> = { BLOQUANT: 0, AVERTISSEMENT: 1, INFORMATION: 2 };
     anomalies.sort((a, b) => ordre[a.gravite] - ordre[b.gravite]);
 

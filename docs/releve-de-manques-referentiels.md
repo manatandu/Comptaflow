@@ -562,11 +562,119 @@ régularisé par la clôture plutôt que perpétué.
 
 ---
 
+## Passe 7 · AUDCIF, articles 35 à 113
+
+Lu à la source : AUDCIF, Titre I ch. 4 (art. 35 à 65, le 60 abrogé) et ch. 5
+(art. 66 à 73-1) ; Titre II (art. 74 à 110) et Titres III-IV (art. 111 à 113).
+
+Rappel de portée · l'art. 3 du SYCEBNL écarte pour les EBNL les articles 49,
+69, 70, 71, 73 et 73 à 113. Tout le reste de cette plage, y compris les règles
+d'évaluation des art. 35 à 48 et 50 à 65, leur est applicable.
+
+### Écart 7.1 · rien ne signalait une dotation aux amortissements oubliée
+
+**Ce que le texte exige.** Art. 45, dernier alinéa : « la constatation de la
+dotation aux amortissements d'une immobilisation amortissable est OBLIGATOIRE
+même en cas d'absence ou d'insuffisance de bénéfice ». La fiche du COMPTE 28 du
+SYCEBNL dit la même chose, et l'art. 45 n'est pas dans la liste d'exclusion de
+son art. 3.
+
+**Ce que le logiciel faisait.** Le module d'immobilisations sait calculer et
+passer les dotations. Rien ne vérifiait qu'elles l'avaient été. La clôture
+annuelle refuse une écriture restée en brouillard, parce qu'elle serait perdue
+du résultat ; elle ne disait rien d'une dotation jamais passée, qui l'est tout
+autant.
+
+**Fichier.** `src/modules/controles/controles.service.ts`.
+
+**Lacune du logiciel.**
+
+**Gravité · état faux, et muet.** Le résultat est surévalué du montant non
+doté, la valeur nette comptable reste à la valeur brute, et aucun total ne
+bouge : les écritures s'équilibrent, la balance boucle, le bilan boucle. Puis
+la clôture rend l'oubli irréparable, l'exercice n'acceptant plus aucune
+écriture.
+
+**Ce qui a été fait ici.** Un treizième contrôle, `IMMO_SANS_DOTATION`, en
+AVERTISSEMENT. Il liste les biens en service à la clôture, amortissables au
+sens de l'art. 45 (valeur d'entrée moins valeur résiduelle prévisionnelle,
+diminuée du cumul déjà amorti), et sans dotation sur l'exercice. Il se tait sur
+les trois cas où l'absence est normale : bien pas encore en service, bien
+intégralement amorti, dotation déjà passée.
+
+**Pourquoi un avertissement et non un refus de clôturer.** Un cabinet peut
+avoir passé ses dotations à la main, par une écriture directe 68 / 28, sans
+passer par le module : la comptabilité est alors juste et la table des dotations
+vide. Bloquer reviendrait à refuser une clôture régulière. Le logiciel signale
+ce qu'il voit, dit ce que la clôture rendra irréparable, et laisse le comptable
+trancher.
+
+### Ce qui est conforme, et vérifié
+
+- **Art. 36 et 37** · coût d'entrée · acquisition, apport, titre gratuit,
+  échange, production. La contrepartie de l'écriture d'acquisition reste
+  libre, ce qui couvre les cinq cas.
+- **Art. 43 et 47** · valeur d'inventaire comparée à la valeur d'entrée,
+  amoindrissement constaté en amortissement ou en dépréciation selon qu'il est
+  définitif, les deux inscrits distinctement en diminution du brut.
+- **Art. 45** · montant amortissable = valeur d'entrée moins valeur résiduelle
+  prévisionnelle ; date de début à la mise en état de fonctionner, pas à
+  l'acquisition ; prorata temporis. Tous portés par le module, avec le
+  garde-fou qui interdit un amortissement antérieur supérieur à la base.
+- **Art. 46, 48 et 49** · dépréciations et provisions, obligatoires même sans
+  bénéfice · nommées au jalon 6 « Écritures d'inventaire », dans les deux
+  référentiels.
+- **Art. 50 à 58-4** · opérations en devises · le module `devises` couvre la
+  conversion à la date d'accord, les écarts de conversion actif et passif (478
+  et 479, avec la subdivision SYSCOHADA et la racine unique du SYCEBNL), la
+  provision pour pertes de change (194), la position globale de change de
+  l'art. 58 et l'étalement de l'art. 56, avec leurs specs.
+- **Art. 59 et 61** · indépendance des exercices, et charges ou produits d'un
+  exercice antérieur qui n'avaient pas pu être pris en compte, enregistrés dans
+  l'exercice en cours avec mention aux notes. À ne pas confondre avec l'art. 20
+  al. 3, qui vise l'ERREUR significative et l'impute au report à nouveau · la
+  distinction est celle que la tâche 99 devra tenir.
+- **Art. 66 et 67** · livre-journal et livre d'inventaire cotés, paraphés,
+  numérotés ; tenus par informatique, identifiés, numérotés et datés dès leur
+  établissement, avec garantie de chronologie, d'irréversibilité et
+  d'intégrité · repris mot pour mot au jalon du livre d'inventaire.
+- **Art. 70, 71 et 72** · opinion du commissaire aux comptes, rapport de
+  gestion, transmission quarante-cinq jours au moins avant l'assemblée,
+  approbation dans les six mois · tous portés par des jalons LÉGAUX.
+
+### Hors du logiciel, et assumé
+
+- **Art. 74 à 110 · consolidation et combinaison.** Exclus pour les EBNL par
+  l'art. 3 du SYCEBNL. Côté SYSCOHADA, le module `groupe` agrège les balances
+  des cellules et monte un dossier de combinaison, mais il ne fait PAS une
+  consolidation au sens du Titre II : ni élimination des opérations
+  réciproques, ni écarts d'acquisition, ni intérêts minoritaires, ni méthodes
+  d'intégration proportionnelle et de mise en équivalence. Ce n'est pas un
+  manque caché · c'est un périmètre, et il vaut d'être écrit ici pour que
+  personne ne prenne la combinaison du module pour une consolidation.
+- **Art. 8 al. 4, 73 et 73-1 · états IFRS des entités cotées.** Hors périmètre
+  déclaré. Aucun dossier du cabinet n'est coté ni ne fait appel public à
+  l'épargne, et un référentiel IFRS ne se transpose pas.
+- **Art. 111 à 113 · dispositions pénales et finales.** Elles ne créent aucune
+  obligation de tenue : elles sanctionnent le manquement à celles déjà relevées.
+
+### Confort · les modes d'amortissement
+
+L'art. 45 énumère le linéaire, le dégressif à taux décroissant, les unités de
+production ou d'œuvre, « et tout autre mode mieux adapté », et interdit
+expressément deux modes : celui fondé sur les revenus générés par l'actif, pour
+les corporelles, et l'amortissement financier. Le logiciel n'offre que le
+linéaire · le dégressif est écarté par un commentaire explicite du schéma, les
+unités d'œuvre ne sont pas nommées. Aucun des deux modes interdits n'est
+proposé, donc rien de faux ; ce qui manque est un choix, pour un dossier
+industriel, minier ou de transport qui amortirait au kilomètre ou à l'heure de
+fonctionnement. À verser au relevé des améliorations.
+
+---
+
 ## Ce qui n'a pas encore été ouvert
 
 À traiter dans les passes suivantes, dans cet ordre :
 
-1. **AUDCIF** · les articles 35 à 113 · consolidation, combinaison, comptes
-   des groupes et dispositions pénales.
-2. **AUDCIF Titre VIII** · les 41 chapitres d'opérations spécifiques, dont le
-   ch. 31 déjà ouvert à la passe 3.
+1. **AUDCIF Titre VIII** · les 41 chapitres d'opérations spécifiques, dont le
+   ch. 31 déjà ouvert à la passe 3 et le ch. 16 à la passe 2.
