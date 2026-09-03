@@ -1,7 +1,8 @@
-import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { extensionAudit } from './audit/extension-audit';
 import { extensionCloisonnement } from './cloisonnement/extension-cloisonnement';
+import { lireEtatDuPooling, messageDePooling } from './pooling-base';
 
 /**
  * Le client Prisma de l'application, ÉTENDU par le CLOISONNEMENT puis par le
@@ -30,6 +31,12 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
 
   async onModuleInit() {
     await this.$connect();
+    // CE QUE LE JOURNAL DE DÉMARRAGE DOIT DIRE · rien sur la chaîne, tout sur
+    // le RÉGIME de connexion. Le jour où l'endpoint poolé sera posé en
+    // production, c'est cette ligne qui prouvera qu'il a bien pris ; et si un
+    // déploiement le perd (--env-vars-file remplace TOUTES les variables,
+    // CLAUDE.md §5), c'est elle qui le dira, au lieu d'attendre la saturation.
+    new Logger(PrismaService.name).log(messageDePooling(lireEtatDuPooling(process.env.DATABASE_URL)));
   }
 
   async onModuleDestroy() {

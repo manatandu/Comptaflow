@@ -121,6 +121,26 @@ Un push sur `main` déclenche deux chaînes indépendantes :
 | `firebase-hosting-merge.yml` | tout push sur main | Firebase Hosting, site `oomega` |
 | `sauvegarde-base.yml` | nocturne | `pg_dump` + restauration de contrôle |
 
+**DEUX chaînes de connexion, et elles ne s'échangent pas.**
+`API_DATABASE_URL` est l'endpoint DIRECT · migrations (`prisma migrate
+deploy`) et `pg_dump`, qui tiennent une session longue, des verrous et du DDL.
+`API_DATABASE_URL_POOLED` est l'endpoint POOLÉ (hôte suffixé `-pooler`,
+PgBouncer en mode transaction) · c'est LUI que le service reçoit, parce que
+chaque instance Cloud Run ouvre son propre pool Prisma et que sans
+multiplexage la base tombe pour tous les cabinets à la fois. Tant que le
+second secret n'existe pas, le premier sert : repli VOULU, un workflow qui
+exigerait un secret absent couperait le service. Le déploiement complète
+lui-même la chaîne poolée (`pgbouncer=true`, `connection_limit`) sans jamais
+l'afficher, et n'écrase jamais un paramètre déjà présent. Le serveur écrit au
+démarrage son RÉGIME de connexion, jamais sa chaîne
+(`src/common/pooling-base.ts`) · c'est cette ligne qui prouve que la bascule a
+pris, et qui le dira si un déploiement la perd. Plafonds posés dans le
+workflow, jamais dans la console : `--max-instances 4`, `--concurrency 80`. La
+MÉMOIRE n'est pas touchée · les plafonds de fenêtre sont mesurés sur un tas de
+460 Mio (§ 8 bis), la relever sans refaire le banc ferait mentir
+`docs/capacite-mesuree.md`. Marche à suivre complète :
+`docs/connexions-et-plafonds.md`.
+
 **Piège du déploiement** · Cloud Run reçoit ses variables par
 `--env-vars-file`, qui **remplace TOUTES** les variables du service. Une
 variable posée à la main dans la console Google est effacée au push suivant.

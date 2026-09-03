@@ -150,6 +150,10 @@ jobs:
 
       # La base se met à jour AVANT le serveur : une migration en attente ne
       # doit jamais arriver après du code qui en dépend déjà.
+      # ENDPOINT DIRECT, et jamais le poolé · `migrate deploy` pose un verrou
+      # consultatif de session et exécute du DDL, deux choses qu'un pooling en
+      # mode transaction ne sait pas tenir. C'est la même raison qui fait
+      # passer pg_dump par la chaîne directe (workflow de sauvegarde).
       - name: Appliquer les migrations Prisma
         run: |
           npm ci
@@ -164,6 +168,18 @@ jobs:
 
       - uses: google-github-actions/setup-gcloud@v2
 
+      # PLAFOND D'INSTANCES · `--max-instances 4` avec `--concurrency 80`
+      # (la valeur par défaut de Cloud Run, posée ICI pour qu'elle cesse
+      # d'être implicite) : quatre instances au plus, chacune servant jusqu'à
+      # quatre-vingts requêtes en parallèle, soit trois cent vingt requêtes
+      # simultanées · très au-delà de ce qu'un cabinet et ses dossiers
+      # produisent. Ce qui est borné ici, ce n'est pas le trafic, ce sont les
+      # CONNEXIONS : sans plafond, Cloud Run peut monter à cent instances,
+      # chacune ouvrant son pool Prisma, et la base tombe pour tout le monde.
+      # La mémoire n'est PAS touchée : les plafonds de fenêtre du logiciel ont
+      # été mesurés sur un tas de 460 Mio (docs/capacite-mesuree.md), et la
+      # changer sans re-mesurer laisserait ce document mentir.
+      #
       # DÉMARRAGE À FROID · `--min-instances 1` garde une instance chaude.
       # Sans elle, Cloud Run éteint le service après quelques minutes
       # d'inactivité, et la requête suivante attend le démarrage complet de
@@ -182,7 +198,24 @@ jobs:
       # secret ne peut casser ni la commande ni le fichier.
       - name: Déployer sur Cloud Run
         env:
-          DATABASE_URL: ${{ secrets.API_DATABASE_URL }}
+          # DEUX CHAÎNES, DEUX USAGES · voir docs/connexions-et-plafonds.md.
+          #
+          # `API_DATABASE_URL` est l'endpoint DIRECT : il sert aux migrations
+          # (étape précédente) et à pg_dump (workflow de sauvegarde), qui
+          # tiennent tous deux une session longue et des verrous, ce qu'un
+          # pooling en mode transaction ne permet pas.
+          #
+          # `API_DATABASE_URL_POOLED` est l'endpoint POOLÉ, et c'est LUI que
+          # le service doit recevoir : Cloud Run multiplie les instances sous
+          # la charge, chacune ouvre son propre pool Prisma, et sans
+          # multiplexage quelques dossiers actifs en même temps épuisent les
+          # connexions de la base pour TOUS les cabinets à la fois.
+          #
+          # REPLI VOULU · tant que le second secret n'existe pas, le premier
+          # sert, et le déploiement se comporte exactement comme avant. Un
+          # workflow qui exigerait un secret absent couperait le service au
+          # push suivant, pour un progrès qui n'est pas encore possible.
+          DATABASE_URL: ${{ secrets.API_DATABASE_URL_POOLED || secrets.API_DATABASE_URL }}
           JWT_SECRET: ${{ secrets.API_JWT_SECRET }}
           JWT_EXPIRES_IN: ${{ secrets.API_JWT_EXPIRES_IN }}
           CORS_ORIGIN: https://oomega.web.app,https://oomega.firebaseapp.com
@@ -207,8 +240,39 @@ jobs:
         run: |
           python3 - <<'PY' > /tmp/env-vars.yaml
           import json, os
+          from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
+
           cles = ("DATABASE_URL", "JWT_SECRET", "JWT_EXPIRES_IN", "CORS_ORIGIN")
           variables = {c: os.environ[c] for c in cles}
+
+          def regler_le_pooling(chaine):
+              """Pose les deux paramètres qu'un endpoint poolé exige, sans jamais
+              rendre la chaîne lisible.
+
+              `pgbouncer=true` · PgBouncer en mode TRANSACTION ne conserve pas
+              les requêtes préparées d'une transaction à l'autre ; sans ce
+              drapeau, Prisma les réutilise et la base répond « prepared
+              statement already exists » à la DEUXIÈME requête · donc en
+              production, jamais au premier essai.
+
+              `connection_limit` · borne le pool de CHAQUE instance Cloud Run.
+              Sans elle, Prisma prend son défaut (lié au nombre de cœurs) et
+              le total dépend du hasard du dimensionnement.
+
+              RIEN N'EST ÉCRASÉ : un paramètre déjà présent dans le secret est
+              le choix de l'exploitant, et il prime. Rien n'est ajouté non
+              plus à un endpoint direct, où ces deux réglages n'auraient pas
+              de sens (le repli ci-dessus passe par là)."""
+              parties = urlsplit(chaine)
+              if "-pooler" not in (parties.hostname or ""):
+                  return chaine
+              parametres = dict(parse_qsl(parties.query, keep_blank_values=True))
+              parametres.setdefault("pgbouncer", "true")
+              parametres.setdefault("connection_limit", "10")
+              return urlunsplit(parties._replace(query=urlencode(parametres)))
+
+          variables["DATABASE_URL"] = regler_le_pooling(variables["DATABASE_URL"])
+
           # Facultative · secret absent ou vide, la variable n'est pas posée
           # (le bootstrap n'accorde alors rien, et ne retire jamais rien).
           if os.environ.get("OPERATEURS_PLATEFORME"):
@@ -223,6 +287,8 @@ jobs:
             --quiet \
             --min-instances 1 \
             --cpu-boost \
+            --concurrency 80 \
+            --max-instances 4 \
             --env-vars-file /tmp/env-vars.yaml
 
       # PREUVE DE VIE · un déploiement n'est fini que si le service répond ET
