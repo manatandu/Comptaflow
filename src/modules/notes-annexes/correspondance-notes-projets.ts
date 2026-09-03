@@ -142,10 +142,15 @@ export const NOTES_PROJETS: SpecificationNote[] = [
   {
     code: '2',
     titre: 'INFORMATIONS SPECIFIQUES',
-    // Chaque sous-rubrique renvoie à un état qui n'est pas encore construit
-    // (tableau emplois-ressources, tableau d'exécution budgétaire, tableau
-    // de réconciliation de trésorerie · phase 2). Transcrite en saisie,
-    // jamais calculée à moitié.
+    // Les trois états auxquels ces sous-rubriques renvoient EXISTENT depuis
+    // le 2026-08 (tableau emplois-ressources, tableau d'exécution
+    // budgétaire, tableau de réconciliation de trésorerie, fenêtre États
+    // financiers). Cette note reste pourtant en SAISIE, et ce n'est plus un
+    // ajournement : son commentaire officiel demande « les faits marquants
+    // pour chaque état financier » et « les écarts significatifs entre
+    // budget et réalisation ». Ce sont des explications rédigées, pas des
+    // chiffres · aucune balance et aucun tableau ne les portent. Elles sont
+    // stockées depuis le 2026-09-03 (`SaisieNote`).
     horsBalance: true,
     colonnes: [{ type: 'LIBRE' as const, libelle: 'Informations' }],
     rubriques: [
@@ -922,8 +927,14 @@ export const NOTES_PROJETS: SpecificationNote[] = [
   {
     code: '24',
     titre: "TABLEAU D'EXECUTION BUDGETAIRE",
-    // Le budget n'est pas une donnée comptable · même situation que la note
-    // 35 associations. Suppose la brique budgétaire (phase 8).
+    // Le budget n'est pas une donnée comptable, mais il EST dans le logiciel
+    // depuis la brique budgétaire (`BudgetSection`, plan analytique à
+    // budgets). Les rubriques ci-dessous ne servent plus que de repli : le
+    // moteur remplace les lignes par celles de
+    // `EtatsFinanciersProjetBudgetService.executionBudgetaire()`, cellules
+    // verrouillées, dès que le dossier a une nomenclature budgétaire · voir
+    // `NoteAnnexeService.injecterExecutionBudgetaire`. Même tableau que la
+    // note 35 des associations, sous un autre numéro.
     horsBalance: true,
     colonnes: [
       { type: 'LIBRE' as const, libelle: 'Code' },

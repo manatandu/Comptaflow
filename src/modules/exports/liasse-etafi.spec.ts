@@ -181,7 +181,7 @@ function fabriquerExport(jeu: JeuEtatsFinanciersSycebnl = TENANT.jeuEtatsFinanci
   const etatsProjet = new EtatsFinanciersProjetService(ecritureService, exerciceService, prisma);
   const budgetProjet = new EtatsFinanciersProjetBudgetService(ecritureService, prisma);
   const etatsSmt = new EtatsFinanciersSmtService(ecritureService, exerciceService, prisma);
-  const notes = new NoteAnnexeService(ecritureService, exerciceService, prisma);
+  const notes = new NoteAnnexeService(ecritureService, exerciceService, prisma, budgetProjet);
   return new ExportService(
     prisma,
     ecritureService,

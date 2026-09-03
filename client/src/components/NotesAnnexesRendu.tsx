@@ -134,8 +134,21 @@ function LigneTableauNote({
       {note.colonnes.map((c, ci) => {
         if (cellules) {
           const valeur = cellules[ci];
-          const texte = valeur === null || valeur === undefined ? '' : String(valeur);
-          if (!saisie || !ligne.cle) {
+          // Une cellule CALCULÉE se présente comme un montant ; une cellule
+          // SAISIE se rend telle qu'elle a été écrite · la formater
+          // remettrait dans le champ un texte différent de celui que le
+          // dossier a tapé, et le moindre aller-retour le réenregistrerait.
+          const texte =
+            valeur === null || valeur === undefined
+              ? ''
+              : typeof valeur === 'number' && ligne.saisieVerrouillee
+                ? montantNote(valeur)
+                : String(valeur);
+          // Cellule CALCULÉE (tableau d'exécution budgétaire) : présentée,
+          // jamais modifiable · le tableau est celui de la fenêtre États
+          // financiers, le retoucher ici donnerait deux chiffres pour un
+          // seul état.
+          if (!saisie || !ligne.cle || ligne.saisieVerrouillee) {
             return (
               <span key={ci} className="text-right text-text-dim whitespace-pre-wrap">
                 {texte}

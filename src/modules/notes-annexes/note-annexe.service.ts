@@ -3,6 +3,7 @@ import { JeuNotesAnnexes, Referentiel } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { ExerciceService } from '../exercice/exercice.service';
+import { EtatsFinanciersProjetBudgetService } from '../etats-financiers/etats-financiers-projet-budget.service';
 import { LigneBalancePourEtat, chargerLignes, correspond, trouverExerciceN1 } from '../etats-financiers/etats-financiers.communs';
 import {
   CompteDeRubrique,
@@ -63,6 +64,21 @@ const NOTES_ATTENDUES_PAR_JEU: Record<JeuNotesAnnexes, number> = {
  * réduction, `transcrites` afficherait 46 contre 36 attendues et ferait
  * passer un jeu complet pour un jeu en excédent.
  */
+/**
+ * Code de la note qui porte le TABLEAU D'EXÉCUTION BUDGÉTAIRE, par jeu.
+ *
+ * C'est le MÊME tableau sous deux numéros · la 35 chez les associations
+ * (Partie 4 ch. 2), la 24 chez les projets de développement (ch. 3), chaque
+ * chapitre numérotant ses propres notes. Le SYSCOHADA n'en a pas : l'AUDCIF
+ * ne demande aucun état budgétaire, et lui en servir un serait exactement la
+ * transposition que CLAUDE.md §6 interdit.
+ */
+const CODE_NOTE_EXECUTION_BUDGETAIRE: Record<JeuNotesAnnexes, string | null> = {
+  [JeuNotesAnnexes.ASSOCIATIONS_ORDRES_PROFESSIONNELS]: '35',
+  [JeuNotesAnnexes.PROJETS_DEVELOPPEMENT]: '24',
+  [JeuNotesAnnexes.SYSCOHADA_SYSTEME_NORMAL]: null,
+};
+
 const NUMERO_OFFICIEL_PAR_JEU: Record<JeuNotesAnnexes, (code: string) => string> = {
   [JeuNotesAnnexes.ASSOCIATIONS_ORDRES_PROFESSIONNELS]: (code) => code,
   [JeuNotesAnnexes.PROJETS_DEVELOPPEMENT]: (code) => code,
@@ -225,6 +241,10 @@ export class NoteAnnexeService {
     private readonly ecritureService: EcritureService,
     private readonly exerciceService: ExerciceService,
     private readonly prisma: PrismaService,
+    // Le tableau d'exécution budgétaire des notes 35 (associations) et 24
+    // (projets) est CELUI de la fenêtre États financiers · le recalculer ici
+    // donnerait deux chiffres pour un seul état.
+    private readonly budgetService: EtatsFinanciersProjetBudgetService,
   ) {}
 
   /**
@@ -957,6 +977,8 @@ export class NoteAnnexeService {
       this.calculerNote(spec, lignesN, lignesN1, exerciceN1Id !== null, rattachements, echeances, ventilation, saisies),
     );
 
+    await this.injecterExecutionBudgetaire(notes, tenantId, exerciceId, jeu);
+
     return {
       notes,
       exerciceN1Disponible: exerciceN1Id !== null,
@@ -981,6 +1003,96 @@ export class NoteAnnexeService {
         attendues: NOTES_ATTENDUES_PAR_JEU[jeu],
       },
     };
+  }
+
+  /**
+   * Remplit le TABLEAU D'EXÉCUTION BUDGÉTAIRE de la note qui le porte · la 35
+   * pour les associations, la 24 pour les projets de développement. C'est le
+   * même tableau sous deux numéros, chaque chapitre numérotant les siennes.
+   *
+   * POURQUOI IL N'EST PAS SAISI · le budget n'est pas une donnée comptable,
+   * c'est vrai, mais il est DANS le logiciel depuis la brique budgétaire
+   * (`BudgetSection`, plan analytique à budgets), et la fenêtre États
+   * financiers sert déjà ce tableau. Le laisser en saisie donnait deux
+   * chiffres pour un seul état, dont un ressaisi à la main.
+   *
+   * Une ligne par section de la nomenclature budgétaire, plus le TOTAL, dans
+   * les huit colonnes de la maquette. Les cellules sont VERROUILLÉES : elles
+   * viennent d'un calcul, pas du clavier.
+   *
+   * REPLI SILENCIEUX · un dossier sans plan analytique à budgets n'a pas de
+   * nomenclature budgétaire ; le service lève alors, et la note reste telle
+   * que le texte la donne, en saisie. Ce n'est pas une erreur à remonter :
+   * une association qui ne suit aucun budget n'a rien à exécuter.
+   */
+  private async injecterExecutionBudgetaire(
+    notes: NoteCalculee[],
+    tenantId: string,
+    exerciceId: string,
+    jeu: JeuNotesAnnexes,
+  ) {
+    const code = CODE_NOTE_EXECUTION_BUDGETAIRE[jeu];
+    if (!code) return;
+    const note = notes.find((n) => n.code === code);
+    if (!note) return;
+
+    let tableau: Awaited<ReturnType<EtatsFinanciersProjetBudgetService['executionBudgetaire']>>;
+    try {
+      tableau = await this.budgetService.executionBudgetaire(tenantId, exerciceId);
+    } catch {
+      return;
+    }
+
+    const cellules = (l: {
+      code: string;
+      libelle: string;
+      budget: number;
+      decaissement: number;
+      engagement: number;
+      realisation: number;
+      creditDisponible: number;
+      executionPourcent: number | null;
+    }): (string | number | null)[] => [
+      l.code,
+      l.libelle,
+      l.budget,
+      l.decaissement,
+      l.engagement,
+      l.realisation,
+      l.creditDisponible,
+      l.executionPourcent,
+    ];
+
+    const lignes: LigneNoteCalculee[] = tableau.lignes.map((l) => ({
+      libelle: `${l.code} · ${l.libelle}`,
+      montantN: 0,
+      estTotal: false,
+      comptes: [],
+      saisie: cellules(l),
+      saisieVerrouillee: true,
+    }));
+    lignes.push({
+      libelle: 'TOTAL',
+      montantN: 0,
+      estTotal: true,
+      comptes: [],
+      saisie: cellules({
+        code: '',
+        libelle: 'TOTAL',
+        ...tableau.total,
+        // Le pourcentage d'exécution du total se recalcule sur les totaux ·
+        // la moyenne des pourcentages de ligne serait un autre nombre, et un
+        // nombre faux.
+        executionPourcent:
+          Math.abs(tableau.total.budget) < 0.005 ? null : (tableau.total.realisation / tableau.total.budget) * 100,
+      }),
+      saisieVerrouillee: true,
+    });
+
+    note.lignes = lignes;
+    // Un tableau chiffré rend la note applicable · sans quoi elle sortirait
+    // avec la mention NEANT tout en portant des lignes.
+    note.applicable = lignes.some((l) => (l.saisie ?? []).some((v) => typeof v === 'number' && Math.abs(v) > 0.005));
   }
 
   /** Notes annexes du jeu « associations et ordres professionnels ». */

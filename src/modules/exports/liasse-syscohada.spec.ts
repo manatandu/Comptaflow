@@ -7,6 +7,7 @@ import { EtatsFinanciersSyscohadaService } from '../etats-financiers-syscohada/e
 import { EtatsFinanciersSmtSyscohadaService } from '../etats-financiers-syscohada/etats-financiers-smt-syscohada.service';
 import { CODES_NOTES_CH6 } from '../etats-financiers-syscohada/correspondance-compte-resultat-syscohada';
 import { NoteAnnexeService } from '../notes-annexes/note-annexe.service';
+import { EtatsFinanciersProjetBudgetService } from '../etats-financiers/etats-financiers-projet-budget.service';
 import { PrismaService } from '../../common/prisma.service';
 import { ExportService } from './export.service';
 import { NOM_BALANCE } from './theme-etafi';
@@ -233,7 +234,11 @@ function fabriquerExport(systeme: SystemeComptableSyscohada = SystemeComptableSy
 
   const syscohada = new EtatsFinanciersSyscohadaService(ecritureService, exerciceService);
   const smtSyscohada = new EtatsFinanciersSmtSyscohadaService(ecritureService, exerciceService, prisma);
-  const notes = new NoteAnnexeService(ecritureService, exerciceService, prisma);
+  // Un dossier SYSCOHADA n'a aucune note d'exécution budgétaire (l'AUDCIF n'en
+  // demande pas) · le service budgétaire n'est jamais appelé par ce chemin.
+  const notes = new NoteAnnexeService(ecritureService, exerciceService, prisma, {
+    executionBudgetaire: jest.fn(),
+  } as unknown as EtatsFinanciersProjetBudgetService);
   return new ExportService(
     prisma,
     ecritureService,

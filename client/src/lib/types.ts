@@ -794,6 +794,8 @@ export interface LigneNoteCalculee {
    * n'est pas un zéro. Absent sur une rubrique chiffrée par la balance.
    */
   saisie?: (string | number | null)[];
+  /** Cellules calculées par le logiciel · présentées, jamais modifiables. */
+  saisieVerrouillee?: boolean;
 }
 
 export interface RubriqueEnAttente {

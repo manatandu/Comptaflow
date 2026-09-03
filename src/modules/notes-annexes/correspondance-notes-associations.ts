@@ -1896,10 +1896,14 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
     code: '35',
     titre: "TABLEAU D'EXECUTION BUDGETAIRE",
     // Le budget n'est pas une donnée comptable : rien dans la balance ne
-    // porte un montant BUDGÉTÉ. Ce tableau suppose une brique budgétaire ·
-    // saisie du budget par ligne de nomenclature, puis rapprochement avec les
-    // décaissements et les engagements. Les colonnes (4) et (5) et le
-    // pourcentage se déduisent alors des trois premières.
+    // porte un montant BUDGÉTÉ. Il est en revanche DANS le logiciel depuis la
+    // brique budgétaire (`BudgetSection`, plan analytique à budgets), et la
+    // fenêtre États financiers sert déjà ce tableau. Les rubriques ci-dessous
+    // ne sont donc qu'un repli : le moteur remplace les lignes par celles de
+    // `EtatsFinanciersProjetBudgetService.executionBudgetaire()`, cellules
+    // verrouillées, dès que le dossier a une nomenclature budgétaire · voir
+    // `NoteAnnexeService.injecterExecutionBudgetaire`. Les laisser en saisie
+    // donnait deux chiffres pour un seul état, dont un ressaisi à la main.
     horsBalance: true,
     colonnes: [
       { type: 'LIBRE' as const, libelle: 'Code' },

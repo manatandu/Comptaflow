@@ -277,6 +277,14 @@ export interface LigneNoteCalculee {
    * qu'un zéro. Absent sur une rubrique chiffrée.
    */
   saisie?: (string | number | null)[];
+  /**
+   * Cellules `saisie` que le logiciel a CALCULÉES et que le dossier ne doit
+   * donc pas retoucher · les lignes du tableau d'exécution budgétaire, prises
+   * sur la nomenclature du plan analytique à budgets. Le tableau y est le
+   * même que celui de la fenêtre États financiers : le laisser saisir à côté
+   * donnerait deux chiffres pour un seul état.
+   */
+  saisieVerrouillee?: boolean;
 }
 
 /**

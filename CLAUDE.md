@@ -239,6 +239,16 @@ dit d'où il vient. Et les lignes en saisie sont présentées même quand la not
 n'est pas applicable : le filtre du § 1.4 les retirait, ce qui faisait de
 toute note vide un cul-de-sac impossible à remplir.
 
+**Exécution budgétaire · un seul tableau, sous deux numéros.** Les notes 35
+(associations) et 24 (projets) portent le même TABLEAU D'EXÉCUTION
+BUDGÉTAIRE, et il n'est plus saisi : `NoteAnnexeService`
+(`injecterExecutionBudgetaire`) remplace leurs lignes par celles de
+`EtatsFinanciersProjetBudgetService.executionBudgetaire()`, cellules
+verrouillées, quand le dossier a un plan analytique à budgets. Sans plan à
+budgets, le service lève et la note reste en saisie · repli VOULU, une entité
+qui ne suit aucun budget n'a rien à exécuter. Le SYSCOHADA n'a pas cette note :
+l'AUDCIF ne demande aucun état budgétaire.
+
 **Cotisations · l'appel ou l'encaissement, et c'est le dossier qui répond.**
 Cadre conceptuel § 5.4.2.1 : le fait générateur est l'APPEL, « toutefois, si
 l'entité ne peut justifier d'un droit d'agir en recouvrement, les cotisations

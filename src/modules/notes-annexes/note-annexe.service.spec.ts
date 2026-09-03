@@ -2,6 +2,7 @@ import { ClasseCompte, JeuNotesAnnexes, Referentiel, TypeCompteDetailTotal } fro
 import { NoteAnnexeService } from './note-annexe.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { ExerciceService } from '../exercice/exercice.service';
+import { EtatsFinanciersProjetBudgetService } from '../etats-financiers/etats-financiers-projet-budget.service';
 import { NOTES_ASSOCIATIONS } from './correspondance-notes-associations';
 import { NOTES_PROJETS } from './correspondance-notes-projets';
 import { PrismaService } from '../../common/prisma.service';
@@ -85,6 +86,13 @@ function service(
   lignesParExercice: Record<string, ReturnType<typeof ligne>[]>,
   exercices: Array<{ id: string; dateDebut: Date }> = [],
   prisma: PrismaService = prismaAvec(),
+  // Tableau d'exécution budgétaire des notes 35 et 24. Par DÉFAUT il lève,
+  // comme le vrai service sur un dossier sans plan analytique à budgets · la
+  // note reste alors en saisie, et c'est le cas de tous les tests qui ne
+  // s'intéressent pas au budget.
+  budget: { executionBudgetaire: jest.Mock } = {
+    executionBudgetaire: jest.fn().mockRejectedValue(new Error('aucun plan à budgets')),
+  },
 ) {
   const ecriture = {
     balance: jest.fn().mockImplementation((_t: string, e: string) =>
@@ -93,7 +101,7 @@ function service(
   const exercice = {
     lister: jest.fn().mockResolvedValue([...exercices].sort((a, b) => b.dateDebut.getTime() - a.dateDebut.getTime())),
   } as unknown as ExerciceService;
-  return new NoteAnnexeService(ecriture, exercice, prisma);
+  return new NoteAnnexeService(ecriture, exercice, prisma, budget as unknown as EtatsFinanciersProjetBudgetService);
 }
 const note = (r: { notes: any[] }, code: string, sousTableau?: string) =>
   r.notes.find((n) => n.code === code && (sousTableau === undefined || n.sousTableau === sousTableau))!;
@@ -1243,5 +1251,88 @@ describe('rubriques en saisie · ce que le dossier écrit lui-même', () => {
     await expect(
       s.enregistrerSaisie('t', 'u', 'e-ailleurs', JEU_ASSO, '2', 'a-identite-organisation', 0, 'x'),
     ).rejects.toThrow(/Exercice introuvable/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// TABLEAU D'EXÉCUTION BUDGÉTAIRE · notes 35 (associations) et 24 (projets)
+// ---------------------------------------------------------------------------
+describe('tableau d’exécution budgétaire · la note reprend l’état, elle ne le ressaisit pas', () => {
+  const TABLEAU = {
+    lignes: [
+      {
+        code: 'A1', libelle: 'Formation des animateurs', budget: 10_000, decaissement: 4_000,
+        engagement: 1_000, realisation: 5_000, creditDisponible: 5_000, executionPourcent: 50,
+      },
+      {
+        code: 'A2', libelle: 'Équipement', budget: 30_000, decaissement: 6_000,
+        engagement: 0, realisation: 6_000, creditDisponible: 24_000, executionPourcent: 20,
+      },
+    ],
+    total: { budget: 40_000, decaissement: 10_000, engagement: 1_000, realisation: 11_000, creditDisponible: 29_000 },
+  };
+  const budget = () => ({ executionBudgetaire: jest.fn().mockResolvedValue(TABLEAU) });
+
+  it('remplit la note 35 du jeu associations, TOTAL compris', async () => {
+    const s = service({ e1: [] }, [], prismaAvec(), budget());
+    const n = note(await s.notesAssociations('t', 'e1'), '35');
+    expect(n.applicable).toBe(true);
+    expect(n.lignes.map((l: any) => l.libelle)).toEqual([
+      'A1 · Formation des animateurs',
+      'A2 · Équipement',
+      'TOTAL',
+    ]);
+    // Les huit colonnes de la maquette, dans leur ordre.
+    expect(n.lignes[0].saisie).toEqual(['A1', 'Formation des animateurs', 10_000, 4_000, 1_000, 5_000, 5_000, 50]);
+    // Le pourcentage du TOTAL se recalcule sur les totaux · 11 000 / 40 000.
+    // La moyenne des pourcentages de ligne (35 %) serait un autre nombre, et
+    // un nombre faux.
+    expect(n.lignes[2].saisie?.[7]).toBeCloseTo(27.5, 6);
+    // Cellules VERROUILLÉES : elles viennent d'un calcul, pas du clavier.
+    expect(n.lignes.every((l: any) => l.saisieVerrouillee)).toBe(true);
+  });
+
+  it('remplit la note 24 du jeu projets · même tableau, autre numéro', async () => {
+    const s = service({ e1: [] }, [], prismaAvec(), budget());
+    const n = note(await s.notesProjet('t', 'e1'), '24');
+    expect(n.lignes).toHaveLength(3);
+    expect(n.lignes[1].saisie?.[0]).toBe('A2');
+  });
+
+  it('LAISSE la note en saisie quand le dossier n’a pas de nomenclature budgétaire', async () => {
+    // Le service budgétaire lève quand aucun plan analytique à budgets
+    // n'existe. Ce n'est pas une erreur à remonter : une association qui ne
+    // suit aucun budget n'a rien à exécuter, et la note reste telle que le
+    // texte la donne.
+    const s = service({ e1: [] }, [], prismaAvec());
+    const n = note(await s.notesAssociations('t', 'e1'), '35');
+    expect(n.lignes.map((l: any) => l.libelle)).toEqual([
+      'Lignes de la nomenclature budgétaire du projet',
+      'TOTAL',
+    ]);
+    expect(n.lignes.every((l: any) => l.saisieVerrouillee)).toBe(false);
+  });
+
+  it('un tableau entièrement à zéro ne rend PAS la note applicable', async () => {
+    const vide = {
+      executionBudgetaire: jest.fn().mockResolvedValue({
+        lignes: [
+          {
+            code: 'A1', libelle: 'Formation', budget: 0, decaissement: 0, engagement: 0,
+            realisation: 0, creditDisponible: 0, executionPourcent: null,
+          },
+        ],
+        total: { budget: 0, decaissement: 0, engagement: 0, realisation: 0, creditDisponible: 0 },
+      }),
+    };
+    const s = service({ e1: [] }, [], prismaAvec(), vide);
+    expect(note(await s.notesAssociations('t', 'e1'), '35').applicable).toBe(false);
+  });
+
+  it('AUCUNE note d’exécution budgétaire pour un dossier SYSCOHADA · l’AUDCIF n’en demande pas', async () => {
+    const appele = budget();
+    const s = service({ e1: [] }, [], prismaAvec([], [], [], [], Referentiel.SYSCOHADA), appele);
+    await s.notesSyscohada('t', 'e1');
+    expect(appele.executionBudgetaire).not.toHaveBeenCalled();
   });
 });
