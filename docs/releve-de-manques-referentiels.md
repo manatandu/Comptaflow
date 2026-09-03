@@ -385,10 +385,91 @@ la NOTE 2 B, dans les deux jeux SYCEBNL.
 
 ---
 
+## Passe 5 · AUDCIF, organisation comptable (art. 14 à 24)
+
+Lu à la source : AUDCIF, Titre I ch. 2, articles 14 à 24, alinéa par alinéa.
+
+### Écart 5.1 · le manuel des procédures comptables n'a aucune place
+
+**Ce que le texte exige.** Art. 16 al. 1 : « toute entité établit un manuel
+décrivant les procédures et l'organisation comptables. Ce manuel, mis à jour
+périodiquement, est destiné à garantir le caractère définitif de
+l'enregistrement des mouvements. Il est conservé aussi longtemps qu'est exigée
+la présentation des états financiers successifs auxquels il se rapporte. »
+L'art. 17, 3° y renvoie : les pièces sont classées « dans un ordre défini dans
+le manuel ». Ce n'est donc pas un document de confort · c'est lui qui définit
+l'ordre opposable du classement.
+
+**Ce que le logiciel fait.** Rien. Le module `documents-obligatoires` tient le
+livre d'inventaire et le rapport de gestion ou d'activité ; le registre des
+donateurs a le sien. Le manuel, qui est le quatrième document obligatoire de
+l'organisation comptable et le seul qui soit permanent plutôt qu'annuel, n'a ni
+table, ni écran, ni jalon. Il n'est nommé que dans
+`docs/organisation-comptable-cpcc.md`, une note de travail.
+
+**Fichiers.** `src/modules/documents-obligatoires/`, `prisma/schema.prisma`,
+`src/modules/exercice/planning-cloture.ts`.
+
+**Lacune du logiciel**, pas du texte.
+
+**Gravité · état incomplet, côté dossier permanent.** Les états financiers sont
+justes ; c'est le dossier qui est incomplet, et l'entité n'a nulle part où tenir
+un document dont l'art. 17 fait la référence du classement de ses pièces. Un
+auditeur le demande le premier jour · voir la tâche 97.
+
+**Ce qui a été fait ici.** Rien encore. Tâche 101 · une table versionnée, sur le
+modèle du rapport de gestion (un manuel arrêté ne se réécrit pas, il se
+remplace), et un jalon de mise à jour périodique.
+
+### Constat 5.2 · la « clôture informatique » trimestrielle n'existe pas sous ce nom
+
+**Ce que le texte exige.** Art. 22, 3° : « une procédure périodique dite
+"clôture informatique" au moins trimestrielle est prévue, mise en œuvre au plus
+tard à la fin du trimestre qui suit la fin de chaque période », afin que la
+chronologie « écarte toute insertion intercalaire ou addition ultérieure ».
+
+**Ce que le logiciel fait.** L'effet exigé est obtenu, et plus strictement que
+le texte ne le demande : la validation du brouillard rend l'écriture
+irréversible, et le retard de centralisation est signalé au-delà de sept jours
+en SYCEBNL, d'un mois en SYSCOHADA (art. 22, 2°). Une insertion intercalaire est
+donc impossible bien avant le trimestre. Ce qui n'existe pas, c'est la procédure
+NOMMÉE et DATÉE : rien ne trace « clôture informatique du 1er trimestre,
+effectuée le … ».
+
+**Lacune du logiciel**, mais mineure · le fond est servi, la preuve ne l'est pas.
+
+**Gravité · confort, versant preuve.** À un auditeur qui demande le journal des
+clôtures informatiques, le logiciel n'a rien à montrer, alors qu'il fait mieux
+que ce que la procédure garantit. C'est une trace manquante, pas un contrôle
+manquant.
+
+### Ce qui est conforme, et vérifié
+
+- **Art. 17, 2°** · partie double, débit égal au crédit sur chaque écriture ·
+  contrôlé au service, pas seulement à l'écran.
+- **Art. 19** · les quatre livres obligatoires existent : livre-journal,
+  grand-livre, balance générale (avec solde à l'ouverture, cumuls et solde à la
+  date), livre d'inventaire.
+- **Art. 20** · correction d'erreur de l'exercice en cours par inscription en
+  négatif puis enregistrement exact · implémenté. L'alinéa 3 (erreur
+  significative antérieure par ajustement du report à nouveau) reste la tâche 99,
+  déjà relevée à la passe 2.
+- **Art. 22, 6°** · reconstitution du chemin de révision · journal d'audit avec
+  chaînage et route de vérification.
+- **Art. 22, 7°** · états périodiques numérotés et datés · cartouche de pied de
+  page « Page P / N · édité le … », avec sa spec.
+- **Art. 23** · arrêté dans les quatre mois · jalon 13, les deux référentiels.
+  La mention de la date d'arrêté dans toute transmission reste l'écart 3.1.
+- **Art. 24** · conservation dix ans · portée par le jalon de clôture annuelle,
+  pour les deux référentiels.
+
+---
+
 ## Ce qui n'a pas encore été ouvert
 
 À traiter dans les passes suivantes, dans cet ordre :
 
-1. **AUDCIF** · articles 1 à 113, en particulier l'organisation comptable
-   (art. 14 à 24) et les délais.
+1. **AUDCIF** · le reste des articles 1 à 113 · le champ d'application
+   (art. 1 à 13), le jeu complet d'états financiers (art. 25 à 34) et les
+   dispositions pénales.
 2. **AUDCIF Titre VIII** · les 41 chapitres d'opérations spécifiques.
