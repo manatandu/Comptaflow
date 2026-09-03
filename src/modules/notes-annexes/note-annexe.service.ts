@@ -182,6 +182,43 @@ interface RubriqueResolue {
  *   colonne N-1 systématique, `undefined` jamais 0 s'il n'y a pas
  *   d'exercice antérieur.
  */
+/**
+ * Taille d'un lot de lecture. Cinq mille éléments pèsent quelques mégaoctets
+ * et tiennent dans n'importe quel conteneur · l'intérêt n'est pas la vitesse,
+ * c'est que la mémoire ne dépende PLUS de la taille du dossier.
+ */
+export const LOT_LECTURE = 5000;
+
+/**
+ * Parcourt une collection par tranches, curseur sur l'identifiant · sortie au
+ * niveau du module pour être éprouvée telle quelle, comme l'interception du
+ * journal d'audit. Un parcours qu'on ne peut pas tester est un parcours qu'on
+ * croit juste.
+ *
+ * DEUX PIÈGES, et chacun donne une note annexe FAUSSE sans lever d'erreur :
+ *
+ *  · sans `skip: 1` chez l'appelant, Prisma rend de nouveau la ligne du
+ *    curseur à chaque tranche · son montant est compté deux fois ;
+ *  · s'arrêter sur un lot VIDE plutôt que sur un lot INCOMPLET fait une
+ *    requête de plus à chaque appel, pour rien.
+ *
+ * L'arrêt se fait donc sur un lot plus court que la taille demandée, et le
+ * curseur avance sur le DERNIER élément rendu.
+ */
+export async function lireParLots<T extends { id: string }>(
+  charger: (curseur: string | undefined) => Promise<T[]>,
+  traiter: (element: T) => void,
+  taille = LOT_LECTURE,
+): Promise<void> {
+  let curseur: string | undefined;
+  for (;;) {
+    const lot = await charger(curseur);
+    for (const element of lot) traiter(element);
+    if (lot.length < taille) return;
+    curseur = lot[lot.length - 1].id;
+  }
+}
+
 @Injectable()
 export class NoteAnnexeService {
   constructor(
@@ -616,13 +653,28 @@ export class NoteAnnexeService {
    * le report à-nouveau est l'ouverture, pas un mouvement de l'exercice.
    */
   private async chargerVentilationParNature(tenantId: string, exerciceId: string): Promise<Map<string, VentilationNature>> {
-    const ecritures = await this.prisma.ecriture.findMany({
-      where: { tenantId, exerciceId, estGenereeParCloture: false },
-      select: { lignes: { select: { debit: true, credit: true, compte: { select: { numero: true } } } } },
-    });
-
     const parCompte = new Map<string, VentilationNature>();
-    for (const e of ecritures) {
+
+    // PAR LOTS, ET NON D'UN SEUL COUP · ce chargement ramenait TOUTES les
+    // écritures de l'exercice avec toutes leurs lignes. Mesuré le
+    // 2026-09-03 sur un dossier d'un million de lignes : la liasse complète
+    // mourait ici, `JavaScript heap out of memory`, processus arrêté et tous
+    // les autres dossiers de l'instance avec lui.
+    //
+    // L'algorithme n'est PAS touché · l'accumulateur est une carte par
+    // compte, minuscule, et la ventilation au prorata se joue à l'intérieur
+    // d'une écriture. Lire par tranches donne donc exactement le même
+    // résultat, à mémoire constante.
+    await this.parLots(
+      (curseur) =>
+        this.prisma.ecriture.findMany({
+          where: { tenantId, exerciceId, estGenereeParCloture: false },
+          select: { id: true, lignes: { select: { debit: true, credit: true, compte: { select: { numero: true } } } } },
+          orderBy: { id: 'asc' },
+          take: NoteAnnexeService.LOT_LECTURE,
+          ...(curseur ? { cursor: { id: curseur }, skip: 1 } : {}),
+        }),
+      (e) => {
       const lignes = e.lignes.map((l) => ({
         numero: l.compte.numero,
         debit: Number(l.debit),
@@ -661,7 +713,8 @@ export class NoteAnnexeService {
         }
         parCompte.set(ligne.numero, v);
       }
-    }
+      },
+    );
     return parCompte;
   }
 
@@ -679,31 +732,48 @@ export class NoteAnnexeService {
     const exercice = await this.prisma.exercice.findFirst({ where: { id: exerciceId, tenantId } });
     if (!exercice) return new Map();
 
-    const lignes = await this.prisma.ligneEcriture.findMany({
-      // Comme la balance qui alimente les autres notes : les notes annexes
-      // font partie intégrante des états financiers (art. 15) et ne lisent que
-      // le livre-journal, pas le brouillard.
-      where: { ecriture: { tenantId, exerciceId, statut: 'VALIDEE' }, lettre: null },
-      select: { debit: true, credit: true, dateEcheance: true, compte: { select: { numero: true } } },
-    });
-
     const unAn = new Date(exercice.dateFin);
     unAn.setUTCFullYear(unAn.getUTCFullYear() + 1);
     const deuxAns = new Date(exercice.dateFin);
     deuxAns.setUTCFullYear(deuxAns.getUTCFullYear() + 2);
 
     const parCompte = new Map<string, Echeances>();
-    for (const l of lignes) {
-      const montant = Number(l.debit) - Number(l.credit);
-      if (montant === 0) continue;
-      const e = parCompte.get(l.compte.numero) ?? { ...ECHEANCES_NULLES };
-      if (!l.dateEcheance) e.nonVentile += montant;
-      else if (l.dateEcheance <= unAn) e.unAn += montant;
-      else if (l.dateEcheance <= deuxAns) e.deuxAns += montant;
-      else e.plusDeDeuxAns += montant;
-      parCompte.set(l.compte.numero, e);
-    }
+    // PAR LOTS · seconde source de l'étouffement mesuré le 2026-09-03. Sur un
+    // dossier dont rien n'est encore lettré, ce filtre ne retire RIEN : il
+    // ramenait la totalité des lignes de l'exercice.
+    await this.parLots(
+      (curseur) =>
+        this.prisma.ligneEcriture.findMany({
+          // Comme la balance qui alimente les autres notes : les notes annexes
+          // font partie intégrante des états financiers (art. 15) et ne lisent que
+          // le livre-journal, pas le brouillard.
+          where: { ecriture: { tenantId, exerciceId, statut: 'VALIDEE' }, lettre: null },
+          select: { id: true, debit: true, credit: true, dateEcheance: true, compte: { select: { numero: true } } },
+          orderBy: { id: 'asc' },
+          take: NoteAnnexeService.LOT_LECTURE,
+          ...(curseur ? { cursor: { id: curseur }, skip: 1 } : {}),
+        }),
+      (l) => {
+        const montant = Number(l.debit) - Number(l.credit);
+        if (montant === 0) return;
+        const e = parCompte.get(l.compte.numero) ?? { ...ECHEANCES_NULLES };
+        if (!l.dateEcheance) e.nonVentile += montant;
+        else if (l.dateEcheance <= unAn) e.unAn += montant;
+        else if (l.dateEcheance <= deuxAns) e.deuxAns += montant;
+        else e.plusDeDeuxAns += montant;
+        parCompte.set(l.compte.numero, e);
+      },
+    );
     return parCompte;
+  }
+
+  private static readonly LOT_LECTURE = LOT_LECTURE;
+
+  private parLots<T extends { id: string }>(
+    charger: (curseur: string | undefined) => Promise<T[]>,
+    traiter: (element: T) => void,
+  ): Promise<void> {
+    return lireParLots(charger, traiter);
   }
 
   /**

@@ -71,12 +71,42 @@ Vérifié sur le même banc après correction : journal sur l'exercice entier,
 2,0 s, 2 000 écritures sur 500 000 annoncées comme telles, totaux justes,
 serveur vivant à 223 Mo de RSS.
 
+## La liasse complète · le coupable n'était pas celui qu'on croyait
+
+La première hypothèse était ExcelJS, qui construit tout le classeur en
+mémoire avant de l'envoyer. Elle était fausse : le classeur produit ne pèse
+que 148 Ko.
+
+Les vrais coupables étaient DEUX calculs de notes annexes, qui chargeaient en
+mémoire l'exercice entier :
+
+- `chargerVentilationParNature` · toutes les écritures avec toutes leurs
+  lignes, pour ventiler les provisions au prorata des contreparties ;
+- `chargerEcheances` · toutes les lignes non lettrées, pour les répartir en
+  « à un an », « à deux ans », « au-delà ». Sur un dossier dont rien n'est
+  encore lettré, ce filtre ne retire RIEN.
+
+Les deux lisent désormais par tranches de 5 000, curseur sur l'identifiant.
+L'algorithme n'a pas bougé · seul le chemin de lecture. Sur le même banc,
+après correction :
+
+| | avant | après |
+|---|---|---|
+| Notes annexes | serveur mort | **200 en 43 s**, RSS 292 Mo |
+| Liasse complète Excel | serveur mort à 61 s | **200 en 48 s**, RSS 335 Mo, 148 Ko |
+
+Quarante-huit secondes pour une liasse annuelle d'un million de lignes est
+long mais tenable. Le temps restant est celui de la lecture ligne à ligne ;
+il tomberait en poussant la ventilation des échéances dans un agrégat SQL,
+ce qui n'a pas été fait ce soir pour ne pas risquer de changer un montant
+sans son propre test.
+
 ## Ce qui reste
 
-Les exports Excel construisent encore tout le classeur en mémoire. La liasse
-complète d'un gros dossier tue toujours le serveur. Le remède est le
-`WorkbookWriter` en flux · c'est aussi lui qui rendra de nouveau accessible le
-grand livre complet d'un gros dossier.
+Les exports de journal et de grand livre gardent leur refus au-delà de
+50 000 lignes (`MAX_LIGNES_EXPORT`), eux construisent bien tout le classeur
+en mémoire. Le `WorkbookWriter` en flux lèverait cette borne · c'est lui qui
+rendrait de nouveau exportable le grand livre complet d'un gros dossier.
 
 ## Refaire la mesure
 
