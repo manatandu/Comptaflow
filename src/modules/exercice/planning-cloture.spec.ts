@@ -577,3 +577,72 @@ describe('événements postérieurs à la clôture · les deux branches du tri',
     }
   });
 });
+
+/*
+  LA SANCTION PÉNALE DE L'INVENTAIRE, ET LE PIÈGE DE TRANSPOSITION.
+
+  Les deux textes punissent la même omission, chacun dans le sien :
+
+   · SYCEBNL, art. 24 · « encourent une sanction pénale les dirigeants des
+     entités à but non lucratif qui n'ont pas, pour un exercice, dressé
+     l'inventaire et établi les états financiers annuels, ainsi que le rapport
+     d'activité », plus un troisième tiret que l'AUDCIF n'a pas : le registre
+     des donateurs.
+   · AUDCIF, art. 111 · « encourent une sanction pénale les dirigeants
+     d'entités […] qui n'auront pas, pour chaque exercice, dressé l'inventaire
+     et établi les états financiers annuels, consolidés ou combinés ainsi que
+     le rapport de gestion et, le cas échéant, le bilan social ».
+
+  L'article 111 est dans la liste d'exclusion de l'art. 3 du SYCEBNL (art. 73 à
+  113) : le citer à une EBNL serait lui opposer un texte qui ne lui est pas
+  applicable. C'est ce que les deux derniers tests interdisent.
+
+  Et la sanction ne fait PAS du jalon un jalon légal : `nature: 'LEGALE'`
+  qualifie une échéance opposable à un tiers, alors qu'ici c'est l'omission qui
+  est punie, quelle qu'ait été la date. Un inventaire dressé en retard reste un
+  inventaire dressé.
+*/
+describe('inventaires extracomptables · la sanction et le PV', () => {
+  const jalon = (referentiel: Referentiel) =>
+    JALONS_CLOTURE.find(
+      (j) => j.libelle === 'Inventaires extracomptables' && (j.referentiels ?? []).includes(referentiel),
+    )!;
+
+  for (const referentiel of [Referentiel.SYCEBNL, Referentiel.SYSCOHADA] as const) {
+    it(`${referentiel} · le PV d’inventaire physique signé est attendu`, () => {
+      // CPCC, § 7.1 point 3 · « l'établissement d'un PV d'inventaire physique,
+      // signé par ceux qui ont inventorié et assisté, est nécessaire ». Un
+      // comptage sans PV signé ne se prouve pas.
+      const j = jalon(referentiel);
+      expect(j.detail).toContain('PV d’inventaire physique');
+      expect(j.detail).toContain('signé');
+      expect(j.source).toContain('CPCC');
+    });
+
+    it(`${referentiel} · le jalon reste INTERNE malgré la sanction`, () => {
+      expect(jalon(referentiel).nature).toBe('INTERNE');
+      expect(jalon(referentiel).sanction).toBeDefined();
+    });
+  }
+
+  it('le SYCEBNL cite son art. 24, jamais l’art. 111 que son art. 3 exclut', () => {
+    const s = jalon(Referentiel.SYCEBNL).sanction!;
+    expect(s).toContain('Article 24');
+    expect(s).toContain('SYCEBNL');
+    expect(s).not.toContain('111');
+    expect(s).not.toContain('AUDCIF');
+    // Le troisième tiret est propre au SYCEBNL · l'AUDCIF ne connaît pas le
+    // registre des donateurs.
+    expect(s).toContain('registre des donateurs');
+  });
+
+  it('le SYSCOHADA cite l’art. 111 de l’AUDCIF, jamais l’art. 24 du SYCEBNL', () => {
+    const s = jalon(Referentiel.SYSCOHADA).sanction!;
+    expect(s).toContain('Article 111');
+    expect(s).toContain('AUDCIF');
+    expect(s).not.toContain('SYCEBNL');
+    expect(s).not.toContain('registre des donateurs');
+    // Ce que l'AUDCIF ajoute et que le SYCEBNL n'a pas.
+    expect(s).toContain('rapport de gestion');
+  });
+});

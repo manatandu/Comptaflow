@@ -1872,6 +1872,12 @@ export interface JalonCloture {
   debut: string;
   echeance: string;
   enRetard: boolean;
+  /**
+   * Ce que les dirigeants encourent si le travail du jalon n'est pas fait du
+   * tout · null sur la plupart. À ne pas confondre avec `nature`, qui qualifie
+   * l'échéance : ici c'est l'OMISSION qui est punie, pas le retard.
+   */
+  sanction: string | null;
   /** Ce qu'OmegaX sait vérifier seul sur ce jalon · absent sinon. */
   observation?: { libelle: string; satisfait: boolean };
 }

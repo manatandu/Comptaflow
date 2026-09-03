@@ -232,6 +232,13 @@ export function ExercicePage() {
                       <td className="px-3 py-2">
                         <div className="font-semibold">{j.libelle}</div>
                         <div className="text-[10.5px] text-text-dim mt-0.5">{j.detail}</div>
+                        {/* La sanction est affichée SOUS le détail et non dans la
+                            colonne « Nature » · l'étiquette LÉGAL y qualifie une
+                            échéance opposable à un tiers, alors qu'ici c'est
+                            l'omission qui est punie, quelle qu'ait été la date. */}
+                        {j.sanction && (
+                          <div className="text-[10px] text-danger mt-1 leading-[1.5]">{j.sanction}</div>
+                        )}
                         <div className="text-[10px] text-text-dim mt-1 italic">{j.source}</div>
                       </td>
                       <td className={`px-3 py-2 font-mono ${j.enRetard ? 'text-danger font-bold' : ''}`}>

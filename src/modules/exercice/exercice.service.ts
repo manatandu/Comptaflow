@@ -312,6 +312,10 @@ export class ExerciceService {
           detail: j.detail,
           nature: j.nature,
           source: j.source,
+          // Absent sur la plupart des jalons · seuls ceux dont l'OMISSION est
+          // pénalement sanctionnée le portent, chacun citant l'article de SON
+          // référentiel.
+          sanction: j.sanction ?? null,
           debut: dateJalon(exercice.dateFin, j.debut),
           echeance,
           // « En retard » n'a de sens que pour un jalon non satisfait : une

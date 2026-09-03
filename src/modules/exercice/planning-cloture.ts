@@ -156,6 +156,21 @@ export interface DefinitionJalon {
   /** Jalon propre aux entités de droit étranger (art. 29-34 et 37). */
   droitEtrangerSeulement?: boolean;
   /**
+   * Ce que les DIRIGEANTS encourent si le travail du jalon n'est pas fait du
+   * tout · à ne pas confondre avec `nature`. `nature: 'LEGALE'` qualifie une
+   * ÉCHÉANCE opposable à un tiers, dont le dépassement se sanctionne ; ici
+   * c'est l'OMISSION qui est punie, quelle qu'ait été la date. Un inventaire
+   * dressé en retard reste un inventaire dressé ; un inventaire jamais dressé
+   * est une infraction pénale, et le jalon reste pourtant interne parce
+   * qu'aucun tiers n'en fixe la date.
+   *
+   * Chaque référentiel porte SON article · les articles 73 à 113 de l'AUDCIF,
+   * dont l'art. 111, sont exclus du SYCEBNL par son art. 3, et le SYCEBNL a
+   * ses propres articles 24 à 27. Servir l'un pour l'autre serait une
+   * transposition.
+   */
+  sanction?: string;
+  /**
    * Ce qu'OmegaX sait observer tout seul sur ce jalon. Renseigné par le
    * service, pas ici : cette table reste une table de références.
    */
@@ -194,11 +209,13 @@ export const JALONS_CLOTURE: DefinitionJalon[] = [
     etape: 3,
     libelle: 'Inventaires extracomptables',
     detail:
-      'Prise d’inventaire physique des stocks, des immobilisations, de la caisse et des dons en nature. C’est cet inventaire qui donne la situation réelle, parfois différente de celle de la comptabilité.',
+      'Prise d’inventaire physique des stocks, des immobilisations, de la caisse et des dons en nature. C’est cet inventaire qui donne la situation réelle, parfois différente de celle de la comptabilité. Le cours en attend une trace signée : un PV d’inventaire physique, signé par ceux qui ont inventorié ET par ceux qui ont assisté. Un comptage sans PV signé ne se prouve pas ; c’est le premier document qu’un auditeur réclame.',
     nature: 'INTERNE',
     debut: { moisApres: -1, jour: 1 },
     echeance: { moisApres: 1, jour: 'FIN' },
-    source: 'CPCC, § 7.1 point 3 et § 2.3',
+    source: 'CPCC, § 7.1 point 3 et § 2.3 (PV d’inventaire physique signé) ; SYCEBNL, art. 24',
+    sanction:
+      'Article 24 de l’Acte uniforme SYCEBNL · encourent une sanction pénale les dirigeants qui n’ont pas, pour un exercice, dressé l’inventaire et établi les états financiers annuels ainsi que le rapport d’activité, ou qui n’ont pas tenu et mis à jour le registre des donateurs. L’article 27 renvoie au droit pénal de chaque État partie pour la peine.',
     referentiels: [Referentiel.SYCEBNL],
   },
   {
@@ -212,11 +229,14 @@ export const JALONS_CLOTURE: DefinitionJalon[] = [
     etape: 3,
     libelle: 'Inventaires extracomptables',
     detail:
-      'Relevé physique de tous les éléments du patrimoine · stocks, immobilisations, caisse, créances et dettes · avec la nature, la quantité et la valeur de chacun à la date de l’inventaire. C’est ce relevé qui donne la situation réelle, parfois différente de celle de la comptabilité ; les données d’inventaire sont conservées de manière à justifier le contenu de chaque élément recensé.',
+      'Relevé physique de tous les éléments du patrimoine · stocks, immobilisations, caisse, créances et dettes · avec la nature, la quantité et la valeur de chacun à la date de l’inventaire. C’est ce relevé qui donne la situation réelle, parfois différente de celle de la comptabilité ; les données d’inventaire sont conservées de manière à justifier le contenu de chaque élément recensé. Le cours en attend une trace signée : un PV d’inventaire physique, signé par ceux qui ont inventorié ET par ceux qui ont assisté.',
     nature: 'INTERNE',
     debut: { moisApres: -1, jour: 1 },
     echeance: { moisApres: 1, jour: 'FIN' },
-    source: 'AUDCIF, art. 16 (relevé physique) et art. 17, 6° (contrôle par inventaire) ; CPCC, § 7.1 point 3 et § 2.3',
+    source:
+      'AUDCIF, art. 16 (relevé physique), art. 17, 6° (contrôle par inventaire) et art. 111 (sanction pénale) ; CPCC, § 7.1 point 3 et § 2.3 (PV d’inventaire physique signé)',
+    sanction:
+      'Article 111 de l’AUDCIF · encourent une sanction pénale les dirigeants qui n’auront pas, pour chaque exercice, dressé l’inventaire et établi les états financiers annuels, consolidés ou combinés, ainsi que le rapport de gestion et, le cas échéant, le bilan social. Le même article renvoie au droit pénal de chaque État partie pour la peine.',
     referentiels: [Referentiel.SYSCOHADA],
   },
   {
