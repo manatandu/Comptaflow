@@ -376,8 +376,43 @@ export const JALONS_CLOTURE: DefinitionJalon[] = [
     referentiels: [Referentiel.SYCEBNL],
     droitEtrangerSeulement: true,
   },
+  /*
+    LA FENÊTRE DES ÉVÉNEMENTS POSTÉRIEURS N'ÉTAIT NOMMÉE NULLE PART sur le
+    chemin comptable. Le planning menait de la révision des comptes à l'arrêté
+    des états sans jamais demander de regarder ce qui s'était produit entre
+    les deux, alors que c'est précisément là qu'une créance devient douteuse
+    et qu'un litige se tranche. La note 3 du jeu SYCEBNL recueille bien le
+    récit une fois le travail fait ; rien n'invitait à le faire.
+
+    Le jalon est un jalon INTERNE, pas légal : ni le SYCEBNL ni l'AUDCIF n'en
+    font une formalité datée. Ce qu'ils imposent, c'est l'ajustement lui-même,
+    et son échéance est celle de l'arrêté · d'où une fenêtre qui se ferme au
+    même jour que l'étape suivante.
+  */
   {
     etape: 12,
+    libelle: 'Événements postérieurs à la clôture',
+    detail:
+      'Recenser les événements survenus entre la clôture et la date d’arrêté, puis les trier. Ceux qui CONFIRMENT une situation existant à la clôture donnent lieu à AJUSTEMENT des comptes : créance devenue douteuse, stock vendu en dessous de sa valeur, litige tranché. Ceux qui révèlent une situation APPARUE APRÈS ne s’ajustent pas et se mentionnent seulement, sauf s’ils remettent en cause la continuité de l’exploitation, auquel cas les états sont établis en valeurs liquidatives. Le tri se transcrit à la NOTE 3, avec la date d’arrêté et l’organe ayant autorisé la publication.',
+    nature: 'INTERNE',
+    debut: { moisApres: 2, jour: 1 },
+    echeance: { moisApres: 4, jour: 'FIN' },
+    source: 'SYCEBNL, cadre conceptuel § 3.3.1.1.4 (postulat de la spécialisation des exercices) ; Partie 4 ch. 2, NOTE 3 (sections A, B et C)',
+    referentiels: [Referentiel.SYCEBNL],
+  },
+  {
+    etape: 12,
+    libelle: 'Événements postérieurs à la clôture',
+    detail:
+      'Recenser les événements, favorables et défavorables, survenus entre la clôture et la date d’arrêté, puis les trier. Ceux qui CONFIRMENT une situation existant à la clôture donnent lieu à AJUSTEMENT des comptes : faillite d’un client confirmant une perte sur créance, vente de stocks révélant leur valeur nette de réalisation, litige tranché, fraude ou erreur découverte. Ceux qui révèlent une situation APPARUE APRÈS ne s’ajustent pas et se mentionnent aux notes annexes s’ils sont significatifs, sauf s’ils remettent en cause la continuité de l’exploitation, auquel cas les états sont établis en valeurs liquidatives. Les dividendes déclarés après la clôture ne sont pas un passif de l’exercice. Tous les événements importants sont en outre exposés au rapport de gestion.',
+    nature: 'INTERNE',
+    debut: { moisApres: 2, jour: 1 },
+    echeance: { moisApres: 4, jour: 'FIN' },
+    source: 'AUDCIF, Titre VIII ch. 31 (sections 1 à 3) et art. 23 (date d’arrêté) ; AUSCGIE art. 138 (rapport de gestion)',
+    referentiels: [Referentiel.SYSCOHADA],
+  },
+  {
+    etape: 13,
     libelle: 'États financiers et notes annexes',
     detail:
       'Bilan, compte de résultat ou d’exploitation, tableau de flux de trésorerie ou tableau emplois-ressources, et les notes annexes du jeu retenu (35 pour une association ou un ordre professionnel, 24 pour un projet de développement, 5 pour le Système minimal de trésorerie). Le cours note que le tableau de flux ne s’applique pas au SMT. Les états financiers annuels sont arrêtés au plus tard dans les QUATRE MOIS qui suivent la clôture, et la date d’arrêté doit être mentionnée dans toute transmission.',
@@ -406,7 +441,7 @@ export const JALONS_CLOTURE: DefinitionJalon[] = [
       décrit les tracés effectivement à remplir, et le dit ici plutôt que de
       laisser croire à un oubli.
     */
-    etape: 12,
+    etape: 13,
     libelle: 'États financiers et notes annexes',
     detail:
       'Au Système normal, jeu complet indissociable : Bilan, Compte de résultat, Tableau des flux de trésorerie et Notes annexes (36 notes). Au Système minimal de trésorerie, bilan, compte de résultat et notes 1 à 3, plus le journal de trésorerie de la NOTE 4. Les états financiers annuels sont arrêtés au plus tard dans les QUATRE MOIS qui suivent la clôture, et la date d’arrêté doit être mentionnée dans toute transmission.',
@@ -417,7 +452,7 @@ export const JALONS_CLOTURE: DefinitionJalon[] = [
     referentiels: [Referentiel.SYSCOHADA],
   },
   {
-    etape: 13,
+    etape: 14,
     libelle: 'Registre des donateurs arrêté',
     detail:
       'Arrêté du registre des donateurs de l’exercice, dont la tenue est obligatoire pour une EBNL. Obligation propre au SYCEBNL, absente du cours.',
@@ -429,7 +464,7 @@ export const JALONS_CLOTURE: DefinitionJalon[] = [
     observation: 'DONATEURS',
   },
   {
-    etape: 14,
+    etape: 15,
     libelle: 'Déclarations fiscales annuelles',
     detail:
       'Déclarations dues à l’administration fiscale, y compris à zéro : une entité exemptée d’impôt sur les sociétés ne paie pas, mais elle déclare. S’y ajoute la déclaration trimestrielle des sommes versées à des tiers hors salaires. Ce jalon N’EST PAS un dépôt d’états financiers : l’ASBL ne dépose pas sa liasse à la DGI, qui dispose en revanche d’un droit de contrôle sur sa comptabilité et ses déclarations. Voir docs/fiscalite-asbl-rdc.md et docs/obligations-annuelles-ebnl-rdc.md.',
@@ -453,7 +488,7 @@ export const JALONS_CLOTURE: DefinitionJalon[] = [
       amendé au Parlement et la numérotation relevée étant celle du projet.
       La loi se cite donc par son numéro et son objet.
     */
-    etape: 14,
+    etape: 15,
     libelle: 'Déclarations fiscales annuelles',
     detail:
       'Déclaration de l’Impôt sur les Sociétés au plus tard le 30 avril de l’année qui suit celle de la réalisation des revenus, à souscrire MÊME en cas de perte ou d’absence de revenus imposables. Pour une entreprise relevant du Système normal, elle est appuyée du bilan, du compte de résultat, du tableau des flux de trésorerie, du tableau de variation des capitaux propres et des notes annexes, contresignés par le conseil ou le comptable du redevable, et, sous peine de rejet, certifiés par un expert-comptable inscrit au tableau de l’ONEC. S’y ajoute le relevé récapitulatif des ventes de l’année aux personnes réputées commerçants ou fabricants. Les trois acomptes provisionnels de l’exercice se versent en juillet, septembre et novembre, hors calendrier de clôture.',
@@ -471,7 +506,7 @@ export const JALONS_CLOTURE: DefinitionJalon[] = [
       obligation de l'AUSCGIE : un dossier SYSCOHADA voyait le tronc commun du
       CPCC, puis directement le dépôt au RCCM, sans le circuit qui y mène.
     */
-    etape: 15,
+    etape: 16,
     libelle: 'Rapport de gestion',
     detail:
       'Le gérant, le conseil d’administration ou l’administrateur général expose la situation de la société durant l’exercice écoulé, son évolution prévisible, les événements importants survenus entre la clôture et la date d’établissement, et en particulier les perspectives de continuation de l’activité, l’évolution de la trésorerie et le plan de financement. Ces quatre derniers points sont ceux qu’on oublie : un rapport qui se borne au compte rendu de l’exercice écoulé est incomplet.',
@@ -482,7 +517,7 @@ export const JALONS_CLOTURE: DefinitionJalon[] = [
     referentiels: [Referentiel.SYSCOHADA],
   },
   {
-    etape: 16,
+    etape: 17,
     libelle: 'États financiers et rapport de gestion aux commissaires aux comptes',
     detail:
       'Envoi aux commissaires aux comptes des états financiers de synthèse annuels et du rapport de gestion, QUARANTE-CINQ JOURS AU MOINS avant la date de l’assemblée générale ordinaire. Le délai se compte à rebours de l’assemblée, pas de la clôture : une assemblée tenue au dernier jour du sixième mois impose l’envoi vers la mi-quatrième mois. La désignation d’un commissaire aux comptes est obligatoire dans toute société anonyme (art. 702) et, dans la SARL comme dans la SAS, dès que deux des trois critères de taille sont dépassés à la clôture (total du bilan, chiffre d’affaires annuel, effectif permanent au-delà de cinquante personnes) · les deux premiers montants sont donnés par les articles cités, l’écran Paramètres du dossier les reprend.',
@@ -517,7 +552,7 @@ export const JALONS_CLOTURE: DefinitionJalon[] = [
       le logiciel ne connaît pas la date réelle de l'assemblée. Ce qui change,
       c'est que le délai est DIT, et que le jalon est ce qu'il est : légal.
     */
-    etape: 17,
+    etape: 18,
     libelle: 'Mise à disposition de l’auditeur',
     detail:
       'Transmission des états financiers et du rapport d’activité annuels à l’auditeur, QUARANTE-CINQ JOURS AU MOINS avant la date de l’assemblée générale ordinaire ou de l’instance qui en tient lieu · ou, pour un projet de développement qui ne tient pas d’assemblée, avant la date de transmission du rapport de l’auditeur aux bailleurs de fonds et/ou à l’État bénéficiaire. Le délai se compte À REBOURS de cette date, pas de la clôture : une assemblée tenue à la fin du sixième mois impose la remise vers le 15 du cinquième. La désignation d’un auditeur n’est pas systématique · elle dépend des trois critères ALTERNATIFS de l’article 19 (total du bilan, ressources annuelles, effectif permanent), dont un seul suffit.',
@@ -539,7 +574,7 @@ export const JALONS_CLOTURE: DefinitionJalon[] = [
       décident de la désignation sont servis par le contrôle des seuils
       (regles-auditeur.ts), pas par le planning.
     */
-    etape: 17,
+    etape: 18,
     libelle: 'Mise à disposition du commissaire aux comptes',
     detail:
       'Remise du projet d’états financiers, du rapport de gestion et, le cas échéant, du bilan social au commissaire aux comptes, QUARANTE-CINQ JOURS AU MOINS avant la date de l’assemblée générale ordinaire. Le commissaire aux comptes émet une opinion sur la régularité, la sincérité et l’image fidèle des comptes, et se prononce sur la concordance avec les états financiers des informations données dans le rapport de gestion. Sa désignation est obligatoire dans toute société anonyme, et dans la SARL comme dans la SAS au-delà de deux des trois critères de taille.',
@@ -551,7 +586,7 @@ export const JALONS_CLOTURE: DefinitionJalon[] = [
     referentiels: [Referentiel.SYSCOHADA],
   },
   {
-    etape: 18,
+    etape: 19,
     libelle: 'Rapport d’activité au Ministère du Plan et au ministère du secteur',
     detail:
       'Une ONG transmet périodiquement son rapport d’activité, pour évaluation physique, au Ministre ayant le Plan dans ses attributions et à celui en charge du secteur où elle opère. Elle l’informe également de ses projets et des ressources financières mobilisées. La loi dit « périodiquement » sans fixer de date : l’échéance retenue ici est un repère de fin de campagne annuelle, à caler sur l’accord-cadre pour une ONG étrangère.',
@@ -569,7 +604,7 @@ export const JALONS_CLOTURE: DefinitionJalon[] = [
     referentiels: [Referentiel.SYCEBNL],
   },
   {
-    etape: 19,
+    etape: 20,
     libelle: 'Dépôt au Ministère de l’Économie nationale',
     detail:
       'Le cours donne « au plus tard mi-juin » au § 7.3 et « au plus tard 15 juin » au § 2.3, avec une astreinte par jour de retard fixée par l’arrêté interministériel n° 013/CAB/MINECO/2013 et n° CAB/MIN/FINANCES/2013/1055 du 26 novembre 2013, dont le taux n’est pas repris ici. Le cours vise les entités du Système comptable OHADA ; son extension à une EBNL n’a pas pu être confirmée sur texte primaire.',
@@ -585,7 +620,7 @@ export const JALONS_CLOTURE: DefinitionJalon[] = [
       confirmer » n'a pas lieu d'être affichée à une entreprise : le cours
       vise précisément les entités du Système comptable OHADA.
     */
-    etape: 19,
+    etape: 20,
     libelle: 'Dépôt au Ministère de l’Économie nationale',
     detail:
       'Transmission des états financiers annuels au Ministère de l’Économie nationale, au plus tard mi-juin, sur les imprimés diffusés par le CPCC. Le défaut de transmission dans le délai prescrit est puni d’une astreinte par jour de retard fixée par l’arrêté interministériel n° 013/CAB/MINECO/2013 et n° CAB/MIN/FINANCES/2013/1055 du 26 novembre 2013, dont le taux n’est pas repris ici.',
@@ -596,7 +631,7 @@ export const JALONS_CLOTURE: DefinitionJalon[] = [
     referentiels: [Referentiel.SYSCOHADA],
   },
   {
-    etape: 20,
+    etape: 21,
     libelle: 'Rapport d’activité et approbation des comptes',
     detail:
       'Établissement du rapport d’activité et approbation des états financiers par l’organe délibérant. Le cours rappelle que les comptes doivent être mis à la disposition des administrateurs quelques jours avant la réunion.',
@@ -616,7 +651,7 @@ export const JALONS_CLOTURE: DefinitionJalon[] = [
       passait « en retard » sans pouvoir jamais satisfaire le jalon. Le
       pendant SYSCOHADA se pose donc SANS observation.
     */
-    etape: 20,
+    etape: 21,
     libelle: 'Approbation des états financiers et du rapport de gestion',
     detail:
       'Les états financiers annuels et le rapport de gestion établis par les organes d’administration ou de direction sont soumis à l’approbation des actionnaires, des associés ou des membres dans le délai de SIX MOIS à compter de la date de clôture de l’exercice.',
@@ -627,7 +662,7 @@ export const JALONS_CLOTURE: DefinitionJalon[] = [
     referentiels: [Referentiel.SYSCOHADA],
   },
   {
-    etape: 21,
+    etape: 22,
     libelle: 'Dépôt des états financiers SYCEBNL au CPCC',
     detail:
       'C’est ICI que la liasse se dépose, et nulle part ailleurs. Le CPCC vise toutes les entités à but non lucratif sans exception : ONG, associations, églises, mosquées, fondations, unités de gestion de projets, partis politiques, clubs sportifs, ordres professionnels, fonds de dotation. Pour l’exercice 2024, l’échéance annoncée était le 30 juin 2025. Le retard est sanctionné par une astreinte par jour fixée par l’arrêté ministériel n° 024/CAB/MIN/FINANCES/2010 du 15 avril 2010, dont le taux n’est pas repris ici.',
@@ -647,7 +682,7 @@ export const JALONS_CLOTURE: DefinitionJalon[] = [
       dossier SYSCOHADA n'avait donc AUCUN jalon de dépôt au CPCC, qui est
       pourtant celui que le cours documente le mieux.
     */
-    etape: 21,
+    etape: 22,
     libelle: 'Dépôt des états financiers au CPCC',
     detail:
       'Transmission des états financiers annuels au CPCC, au plus tard fin juin, EXCLUSIVEMENT sur les imprimés qu’il diffuse. Au Système normal, deux volets : le volet 1 « États financiers & notes aux comptes » (bilan, compte de résultat, tableau des flux de trésorerie, 36 notes annexes) et le volet 2 « Données statistiques et fiscales » (19 notes). Au Système minimal de trésorerie, bilan, compte de résultat et 3 notes annexes, accompagnés des journaux de suivi des dettes à payer, des créances impayées et de trésorerie. Les imprimés doivent être complets, chaque tableau inutilisé portant la mention « NÉANT ». Le défaut ou le retard est puni d’une astreinte par jour fixée par l’arrêté ministériel n° 024/CAB/MIN/FINANCES/2010 du 15 avril 2010, dont le taux n’est pas repris ici.',
@@ -658,7 +693,7 @@ export const JALONS_CLOTURE: DefinitionJalon[] = [
     referentiels: [Referentiel.SYSCOHADA],
   },
   {
-    etape: 22,
+    etape: 23,
     libelle: 'Assemblée générale statuant sur les états financiers',
     detail:
       'L’assemblée générale qui statue sur les états financiers de synthèse doit OBLIGATOIREMENT se tenir dans les six mois de la clôture de l’exercice. C’est elle qui fait courir le délai d’un mois du dépôt au registre du commerce.',
@@ -670,7 +705,7 @@ export const JALONS_CLOTURE: DefinitionJalon[] = [
     formesSyscohada: FORMES_SOCIETES_ASSEMBLEE,
   },
   {
-    etape: 23,
+    etape: 24,
     libelle: 'Dépôt des états financiers au RCCM',
     detail:
       'Dépôt au registre du commerce et du crédit mobilier de l’État partie du siège social, DANS LE MOIS QUI SUIT L’APPROBATION par l’organe compétent · l’échéance ci-dessous suppose donc une assemblée tenue au sixième mois. En cas de REFUS d’approbation, c’est une copie de la décision qui se dépose, dans le même délai. Le dépôt peut être électronique. Passé trente jours de demande amiable restée vaine, tout intéressé peut faire enjoindre le dépôt sous astreinte. Ne concerne pas une ASBL : l’article 1er de la loi n° 004/2001 en fait une entité non commerçante, donc non immatriculée au registre du commerce.',
@@ -682,7 +717,7 @@ export const JALONS_CLOTURE: DefinitionJalon[] = [
     formesSyscohada: FORMES_DEPOT_RCCM,
   },
   {
-    etape: 24,
+    etape: 25,
     libelle: 'Clôture et réouverture des livres',
     detail:
       'Clôture annuelle de l’exercice, soldant les classes 6 et 7 sur le résultat et générant le report à-nouveau dans l’exercice suivant. Le cours rappelle que la clôture interdit l’ajout, la modification et la suppression d’écritures, mais autorise le lettrage et le pointage : c’est bien le comportement d’OmegaX. Une fois l’exercice clos, les livres comptables et les pièces justificatives se conservent DIX ANS.',
@@ -706,7 +741,7 @@ export const JALONS_CLOTURE: DefinitionJalon[] = [
       que d'accompagner l'assemblée, sans quoi il inviterait à un geste que le
       logiciel refuserait encore.
     */
-    etape: 25,
+    etape: 26,
     libelle: 'Affectation du résultat',
     detail:
       'Comptabilisation de la décision d’affectation prise par l’organe compétent : le compte 13 est SOLDÉ par le crédit des réserves (11), du report à nouveau (12), du capital (101 ou 103) ou des dividendes à payer (465) selon la décision. La dotation à la réserve légale, d’un dixième au moins du bénéfice diminué des pertes antérieures, est obligatoire tant que la réserve n’atteint pas le cinquième du capital social · une délibération contraire est NULLE. Sans cette écriture, le résultat reste au compte 13 et s’y empile d’exercice en exercice.',
@@ -718,7 +753,7 @@ export const JALONS_CLOTURE: DefinitionJalon[] = [
     referentiels: [Referentiel.SYSCOHADA],
   },
   {
-    etape: 25,
+    etape: 26,
     libelle: 'Affectation du résultat',
     detail:
       'Comptabilisation de la décision d’affectation prise par l’organe compétent : le compte 13 est SOLDÉ par le crédit des réserves (11), du report à nouveau (12) ou de la dotation (10). Une entité à but non lucratif ne distribue rien · aucune part de l’excédent ne va à ses membres. Le texte précise que l’excédent non affecté à un compte de réserves est viré au compte 12. Sans cette écriture, l’excédent reste au compte 13 et s’y empile d’exercice en exercice.',

@@ -36,6 +36,16 @@ import { LIBELLE_SYSTEME } from '../../lib/systemes-syscohada';
  * ils sont exprimés, « dans chacune des pages des états financiers publiés »
  * (Titre IX ch. 1 § 2.4). D'où la ligne de monnaie, servie par /auth/me.
  *
+ * TROIS MENTIONS SUR QUATRE · la date d'arrêté MANQUE, et ce n'est pas
+ * « Exercice clos le », qui est la fin de la période couverte. Le § 2.4 les
+ * énumère séparément, et l'AUDCIF Titre VIII ch. 31 § 1.3 définit la date
+ * d'arrêté comme celle où les organes dirigeants arrêtent les comptes,
+ * postérieure de plusieurs semaines à la clôture ; l'art. 23 exige qu'elle
+ * figure dans toute publication. Le dossier ne la porte nulle part : la seule
+ * saisie qui existe est une cellule libre de la NOTE 3 du jeu SYCEBNL, hors
+ * d'atteinte de cet en-tête et sans équivalent sur le chemin SYSCOHADA.
+ * Relevé dans docs/releve-de-manques-referentiels.md, passe 3.
+ *
  * Enfin, le référentiel ne suffit pas à nommer un état SYSCOHADA : la page de
  * garde du ch. 2 porte la mention « SYSTÈME NORMAL », et les deux systèmes de
  * l'art. 11 n'ont ni les mêmes états ni les mêmes maquettes (Titre IX contre

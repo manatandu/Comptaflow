@@ -208,15 +208,131 @@ chemin n'existe pas.
 
 ---
 
+## Passe 3 · le reste du cadre conceptuel
+
+Lu à la source : SYCEBNL, Partie 1 ch. 2 § 3.3.1 en entier (les cinq postulats,
+les cinq conventions, les quatre applications de la prééminence de la réalité
+sur l'apparence) ; AUDCIF, Titre VIII ch. 31 « Évènements postérieurs à la
+clôture de l'exercice », sections 1 à 3 ; AUDCIF, Titre IX ch. 1 § 2.4
+« Dispositions communes à l'ensemble des états financiers » ; SYCEBNL, Partie 4
+ch. 2, NOTE 3.
+
+### Écart 3.1 · la date d'arrêté ne figure sur aucune page publiée
+
+**Ce que le texte exige.** L'AUDCIF, Titre IX ch. 1 § 2.4, énumère quatre
+mentions que les états financiers « doivent comporter obligatoirement » : le
+nom de l'entité, **la date d'arrêté**, la période couverte, et l'unité
+monétaire. Il ajoute que « ces informations doivent être indiquées dans chacune
+des pages des états financiers publiés ». L'art. 23 exige la même mention dans
+toute publication. La date d'arrêté n'est pas la date de clôture : le Titre VIII
+ch. 31 § 1.3 la définit comme celle où les organes dirigeants arrêtent les
+comptes, « postérieur de plusieurs semaines, voire plusieurs mois, à la date de
+clôture », dans la limite de quatre mois. Côté SYCEBNL, la NOTE 3 la demande en
+première ligne, avec l'organe ayant autorisé la publication.
+
+**Ce que le logiciel fait.** `EnteteImpression` imprime le nom, l'identification,
+« Exercice clos le », la durée en mois, la monnaie, le référentiel et le
+système. Trois mentions sur quatre : « Exercice clos le » est la fin de la
+période couverte, pas la date d'arrêté. Le modèle `Exercice` n'a aucun champ
+pour la porter (le `dateArrete` du schéma est celui d'un arrêté interministériel
+d'exonération, un homonyme sans rapport). La seule saisie qui existe est une
+cellule de texte libre de la NOTE 3, dans le jeu SYCEBNL seulement : hors
+d'atteinte de l'en-tête, et sans équivalent sur le chemin SYSCOHADA.
+
+**Fichiers.** `client/src/components/chrome/EnteteImpression.tsx`,
+`prisma/schema.prisma` (modèle `Exercice`), `src/modules/exports/theme-etafi.ts`.
+
+**Lacune du logiciel**, pas du texte · les deux référentiels sont clairs et
+concordants.
+
+**Gravité · état incomplet.** Les chiffres sont justes ; il manque à chaque page
+publiée une mention que le texte rend obligatoire, et le lecteur ne peut pas
+savoir de quand datent les comptes qu'il lit.
+
+**Ce qui a été fait ici.** Rien sur le fond : porter la date d'arrêté suppose un
+champ, une saisie, une reprise dans les trois chemins de publication (écran,
+PDF, Excel) et une décision sur ce qu'on imprime tant qu'elle est inconnue.
+C'est la tâche 100. Ce qui est corrigé, c'est ce qui perpétuait le manque : le
+commentaire de `EnteteImpression` citait le § 2.4 en entier juste avant de
+n'implémenter que la monnaie, ce qui laissait croire les quatre mentions
+servies. Il dit désormais laquelle manque et pourquoi ce n'est pas « Exercice
+clos le ».
+
+### Écart 3.2 · la fenêtre des événements postérieurs n'était nommée nulle part
+
+**Ce que le texte exige.** Postulat de la spécialisation des exercices, SYCEBNL
+§ 3.3.1.1.4 : l'entité « doit ajuster les montants comptabilisés dans ses états
+financiers » pour les événements survenus entre la clôture et l'arrêté qui
+« contribuent à confirmer des situations qui existaient à la clôture » ; ceux
+qui indiquent des situations apparues après ne donnent pas lieu à ajustement.
+L'AUDCIF Titre VIII ch. 31 dit la même chose en la détaillant : faillite d'un
+client confirmant une perte sur créance, vente de stocks révélant leur valeur
+nette de réalisation, litige tranché, fraude ou erreur découverte, du côté des
+ajustements ; incendie, restructuration, cession de filiale du côté des
+mentions ; et, dans tous les cas, valeurs liquidatives si la continuité est
+remise en cause.
+
+**Ce que le logiciel faisait.** Le planning de clôture, trente et quelques
+jalons, menait de la révision des comptes (étape 8) à l'arrêté des états
+financiers sans jamais nommer la fenêtre qui les sépare. Le dossier de révision
+non plus. Côté SYCEBNL, la NOTE 3 recueille le récit une fois le tri fait ;
+rien n'invitait à le faire. Côté SYSCOHADA, le rapport de gestion l'exige
+(art. 16-3, servi par `rapport-activite.service.ts`), mais c'est le récit, pas
+la comptabilisation.
+
+**Fichier.** `src/modules/exercice/planning-cloture.ts`.
+
+**Lacune du logiciel.**
+
+**Gravité · état faux possible.** Une créance dont le débiteur fait faillite en
+février reste à sa valeur nominale au bilan du 31 décembre si personne n'y
+pense. Le logiciel n'affirmait rien de faux ; il n'invitait pas à regarder.
+
+**Ce qui a été fait ici.** Le jalon est ajouté, un par référentiel, avec les
+deux branches du tri et le cas de la continuité, échéance à quatre mois comme
+l'arrêté qu'il précède. C'est une transcription, pas une invention. Le test qui
+aurait attrapé l'absence part de la règle et exige les deux branches, pour les
+deux référentiels · une table de références ne se teste pas seulement sur sa
+cohérence interne.
+
+### Lacune du texte officiel, pas du logiciel
+
+- **Aucune note « événements postérieurs » au modèle SYSCOHADA.** Les 36 notes
+  du Titre IX ch. 6 n'en comportent pas ; le jeu SYCEBNL, lui, a sa NOTE 3.
+  L'information passe par la NOTE 2 « Informations obligatoires » et par le
+  rapport de gestion (ch. 31 § 3.2), qui n'exige d'ailleurs ni le tri entre les
+  deux catégories ni l'exhaustivité, seulement les événements importants. Le
+  logiciel ne crée pas la note manquante : il ne lui appartient pas d'ajouter
+  au modèle officiel.
+
+### Ce qui est conforme, et vérifié
+
+- **Les quatre applications de la prééminence de la réalité** (§ 3.3.1.1.6).
+  Réserve de propriété, location-acquisition, effets escomptés non échus,
+  personnel facturé par d'autres entités : les quatre ont leur compte au plan
+  semé et leur poste aux états. Le compte 667 « Rémunération transférée de
+  personnel extérieur » range bien la quatrième en charges de personnel, et non
+  en services extérieurs ; les effets escomptés non échus ont leur rubrique à la
+  note 16 et leur dette de trésorerie au 565. Aucun écart.
+- **Convention de régularité et sincérité · non-compensation.** Contrôlée,
+  sourcée (AUDCIF art. 34, SYCEBNL art. 16, 5°), avec sa spec.
+- **Valeur d'entrée** (§ 3.3.1.2.1) · acquisition à titre onéreux, production,
+  acquisition à titre gratuit, échange. L'écriture d'acquisition d'une
+  immobilisation laisse la contrepartie au choix, ce qui permet le don en
+  nature (crédit d'un compte 16 ou 167) aussi bien que l'achat. Le logiciel ne
+  guide pas ce choix, mais il ne l'empêche ni ne le fausse.
+- **Postulat de l'entité, comptabilité d'engagement.** Servis par construction ·
+  cloisonnement par dossier, et comptabilisation à l'engagement partout sauf au
+  Système minimal de trésorerie, où le texte le prévoit lui-même.
+
+---
+
 ## Ce qui n'a pas encore été ouvert
 
 À traiter dans les passes suivantes, dans cet ordre :
 
-1. **SYCEBNL Partie 1 ch. 2** · le reste du cadre conceptuel · les cinq
-   postulats hors permanence des méthodes, les cinq conventions, et les quatre
-   applications de la prééminence de la réalité sur l'apparence.
-2. **SYCEBNL Partie 3** · les six chapitres d'opérations spécifiques, contre le
+1. **SYCEBNL Partie 3** · les six chapitres d'opérations spécifiques, contre le
    catalogue `catalogue-operations*.ts`.
-3. **AUDCIF** · articles 1 à 113, en particulier l'organisation comptable
+2. **AUDCIF** · articles 1 à 113, en particulier l'organisation comptable
    (art. 14 à 24) et les délais.
-4. **AUDCIF Titre VIII** · les 41 chapitres d'opérations spécifiques.
+3. **AUDCIF Titre VIII** · les 41 chapitres d'opérations spécifiques.

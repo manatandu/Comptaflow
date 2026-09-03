@@ -385,10 +385,11 @@ describe('planning de clôture · cloisonnement des référentiels', () => {
 
   it('ne fonde aucun jalon SYSCOHADA sur un texte propre aux entités à but non lucratif', () => {
     for (const j of syscohada) {
-      // Étape 23 exceptée : le dépôt au RCCM cite la loi n° 004/2001 pour dire
+      // Le dépôt au RCCM excepté : il cite la loi n° 004/2001 pour dire
       // qu'elle en EXCLUT les associations, ce qui est le contraire d'un
-      // fondement emprunté.
-      if (j.etape === 23) continue;
+      // fondement emprunté. Repéré par son libellé, pas par son numéro
+      // d'étape, qui n'est qu'un rang dans la liste.
+      if (j.libelle === 'Dépôt des états financiers au RCCM') continue;
       // Même logique pour un jalon COMMUN aux deux référentiels dont la source
       // explique pourquoi il l'est : l'art. 3 du SYCEBNL énumère les articles
       // de l'AUDCIF qu'il écarte, et les art. 23 et 24 n'y sont pas. Nommer le
@@ -493,11 +494,18 @@ describe('SYCEBNL art. 19 al. 4 · le délai de quarante-cinq jours', () => {
     art. 140. Une association lisait donc un jalon plus tiède que celui d'une
     SARL, sur une obligation que son propre Acte uniforme énonce.
   */
-  const jalon = (referentiel: Referentiel, etape: number) =>
-    JALONS_CLOTURE.find((j) => j.etape === etape && (j.referentiels ?? []).includes(referentiel))!;
+  /*
+    REPÉRAGE PAR LIBELLÉ, PAS PAR NUMÉRO D'ÉTAPE. La première rédaction visait
+    les étapes 17 et 16 ; l'insertion d'un jalon en amont les a décalées d'un
+    rang et a fait tomber ces deux tests, alors que rien de ce qu'ils vérifient
+    n'avait bougé. Le numéro d'étape est une position dans une liste, pas
+    l'identité d'un jalon.
+  */
+  const jalon = (referentiel: Referentiel, libelle: string) =>
+    JALONS_CLOTURE.find((j) => j.libelle === libelle && (j.referentiels ?? []).includes(referentiel))!;
 
   it('le jalon SYCEBNL de mise à disposition de l’auditeur porte le délai et le dit LÉGAL', () => {
-    const j = jalon(Referentiel.SYCEBNL, 17);
+    const j = jalon(Referentiel.SYCEBNL, 'Mise à disposition de l’auditeur');
     expect(j.detail).toContain('QUARANTE-CINQ JOURS AU MOINS');
     // Le délai se compte à rebours de l'assemblée · un jalon qui ne le dit
     // pas laisse croire qu'il part de la clôture.
@@ -510,13 +518,61 @@ describe('SYCEBNL art. 19 al. 4 · le délai de quarante-cinq jours', () => {
   });
 
   it('les DEUX référentiels portent le délai · c’est la même règle sous deux textes', () => {
-    for (const [referentiel, etape] of [
-      [Referentiel.SYCEBNL, 17],
-      [Referentiel.SYSCOHADA, 16],
+    for (const [referentiel, libelle] of [
+      [Referentiel.SYCEBNL, 'Mise à disposition de l’auditeur'],
+      [Referentiel.SYSCOHADA, 'Mise à disposition du commissaire aux comptes'],
     ] as const) {
-      expect({ referentiel, delai: jalon(referentiel, etape).detail.includes('QUARANTE-CINQ JOURS AU MOINS') }).toEqual({
+      expect({ referentiel, delai: jalon(referentiel, libelle).detail.includes('QUARANTE-CINQ JOURS AU MOINS') }).toEqual({
         referentiel,
         delai: true,
+      });
+    }
+  });
+});
+
+/*
+  LE TEST QUI AURAIT ATTRAPÉ L'ABSENCE. Le planning menait de la révision des
+  comptes à l'arrêté des états sans jamais nommer la fenêtre qui les sépare,
+  celle où une créance devient douteuse et où un litige se tranche. Aucune
+  assertion ne pouvait échouer, puisqu'aucune ne portait sur ce qui MANQUE :
+  les tests d'une table de références vérifiaient sa cohérence interne, jamais
+  sa complétude au regard du texte.
+
+  Celui-ci est écrit dans l'autre sens · il part de la règle (SYCEBNL, cadre
+  conceptuel § 3.3.1.1.4 ; AUDCIF, Titre VIII ch. 31) et exige que les deux
+  branches du tri figurent, pour les deux référentiels.
+*/
+describe('événements postérieurs à la clôture · les deux branches du tri', () => {
+  const jalon = (referentiel: Referentiel) =>
+    JALONS_CLOTURE.find(
+      (j) => j.libelle === 'Événements postérieurs à la clôture' && (j.referentiels ?? []).includes(referentiel),
+    );
+
+  for (const referentiel of [Referentiel.SYCEBNL, Referentiel.SYSCOHADA] as const) {
+    it(`${referentiel} · le jalon existe et porte l’ajustement, la mention et la continuité`, () => {
+      const j = jalon(referentiel);
+      expect(j).toBeDefined();
+      // Ce qui CONFIRME une situation de la clôture s'ajuste · c'est la
+      // branche dont l'oubli rend les états faux, pas seulement incomplets.
+      expect(j!.detail).toContain('CONFIRMENT');
+      expect(j!.detail).toContain('AJUSTEMENT');
+      // Ce qui est APPARU APRÈS ne s'ajuste pas · la branche inverse, dont
+      // l'oubli fait corriger des comptes qui n'avaient pas à l'être.
+      expect(j!.detail).toContain('APPARUE APRÈS');
+      // Sauf remise en cause de la continuité · valeurs liquidatives.
+      expect(j!.detail).toContain('continuité de l’exploitation');
+      expect(j!.detail).toContain('valeurs liquidatives');
+    });
+  }
+
+  it('la fenêtre se ferme à l’arrêté, comme les états financiers eux-mêmes', () => {
+    // Quatre mois après la clôture · AUDCIF art. 23, non exclu par l'art. 3
+    // du SYCEBNL. Une fenêtre qui se fermerait plus tôt inviterait à cesser
+    // de regarder avant l'arrêté ; plus tard, à ajuster après.
+    for (const referentiel of [Referentiel.SYCEBNL, Referentiel.SYSCOHADA] as const) {
+      expect({ referentiel, echeance: jalon(referentiel)!.echeance }).toEqual({
+        referentiel,
+        echeance: { moisApres: 4, jour: 'FIN' },
       });
     }
   });
