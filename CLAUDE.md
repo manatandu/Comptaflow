@@ -329,6 +329,36 @@ abrogés au 1er janvier 2026 et remplacés par l'IS et l'IRPP. Seuls les
 mécanismes d'écriture sont retenus, et aucun ne dépend d'un taux. Un test le
 vérifie sur les messages produits.
 
+**Manuel des procédures et de l'organisation comptables · le quatrième document
+obligatoire, qui n'avait aucune place.** AUDCIF art. 16 al. 1 : « toute entité
+établit un manuel décrivant les procédures et l'organisation comptables », mis
+à jour périodiquement, conservé aussi longtemps qu'est exigée la présentation
+des états financiers auxquels il se rapporte. Et l'art. 17, 3° y renvoie pour
+l'ORDRE DE CLASSEMENT des pièces : sans manuel, cet ordre n'est écrit nulle
+part.
+
+DEUX ARTICLES 16, à ne jamais confondre · celui de l'AUDCIF porte le manuel ;
+celui du SYCEBNL porte les règles de présentation des états financiers, et son
+2) exige de son côté « la mise en place de procédures nécessaires à une
+organisation comptable permettant un contrôle interne fiable et le contrôle
+externe ». L'art. 16 de l'AUDCIF n'étant pas exclu par l'art. 3 du SYCEBNL,
+l'obligation vaut des deux côtés · `sourceManuel()` écrit à chaque dossier LE
+CHEMIN par lequel elle lui parvient, et un test l'interdit dans les deux sens.
+
+`ManuelProcedures` est PAR TENANT, jamais par exercice, contrairement au livre
+d'inventaire et au rapport : il vit avec l'entité. Une VERSION par mise à jour,
+jamais un écrasement · sinon le manuel en vigueur au moment d'un exercice
+encore opposable disparaîtrait, et personne ne pourrait plus dire selon quelles
+procédures cet exercice a été tenu.
+
+NI LA FORME NI LE CONTENU ne sont fixés (CPCC § 0.1.4, expressément). Les
+sections sont donc du JSON libre, et `SQUELETTE_MANUEL` ne propose que les sept
+rubriques que le CPCC énumère comme « informations POUVANT y figurer », toutes
+VIDES · un gabarit prérempli ferait passer une proposition pour une exigence.
+Deux contrôles : `MANUEL_PROCEDURES_ABSENT` (avertissement) et
+`MANUEL_SANS_ORDRE_DE_CLASSEMENT` (information · le manuel existe, c'est
+l'art. 17, 3° qui reste sans objet).
+
 **Date d'arrêté des comptes · la quatrième mention, et le chemin par lequel
 chaque texte l'impose.** L'AUDCIF (Titre IX ch. 1 § 2.4) exige QUATRE mentions
 « dans chacune des pages des états financiers publiés » : nom de l'entité,

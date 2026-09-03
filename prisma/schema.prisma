@@ -398,6 +398,7 @@ model Tenant {
   donations                Donation[]
   transcriptionsInventaire TranscriptionInventaire[]
   rapportsActivite         RapportActivite[]
+  manuelsProcedures        ManuelProcedures[]
   modelesReglement         ModeleReglement[]
   tauxTva                  TauxTva[]
   liquidationsTva          LiquidationTva[]
@@ -2721,6 +2722,66 @@ model TranscriptionInventaire {
 // passer pour une exigence légale ce qui n'en est pas une ; en fondre deux
 // en un masquerait un manquement.
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// MANUEL DES PROCÉDURES ET DE L'ORGANISATION COMPTABLES · AUDCIF art. 16,
+// alinéa premier.
+//
+// « Pour maintenir la continuité dans le temps de l'accès à l'information,
+// TOUTE ENTITÉ ÉTABLIT UN MANUEL décrivant les procédures et l'organisation
+// comptables. Ce manuel, MIS À JOUR PÉRIODIQUEMENT, est destiné à garantir le
+// caractère définitif de l'enregistrement des mouvements. Il est CONSERVÉ
+// AUSSI LONGTEMPS qu'est exigée la présentation des états financiers
+// successifs auxquels il se rapporte. »
+//
+// L'art. 17, 3° en fait la référence du classement : les pièces sont
+// « conservées, classées dans un ordre défini dans le manuel décrivant les
+// procédures et l'organisation comptables ». Sans manuel, cet ordre n'existe
+// nulle part, et la justification des écritures perd son point d'appui.
+//
+// ATTENTION À LA COLLISION DE NUMÉROS · l'article 16 dont il s'agit est celui
+// de l'AUDCIF. Le SYCEBNL a AUSSI un article 16, qui porte sur les règles de
+// présentation des états financiers, et dont le 2) exige de son côté « la mise
+// en place de PROCÉDURES nécessaires à une organisation comptable permettant
+// un contrôle interne fiable et le contrôle externe ». Les deux se rejoignent
+// mais ne se citent pas l'un pour l'autre.
+//
+// IL N'EST PAS RATTACHÉ À UN EXERCICE, contrairement au livre d'inventaire et
+// au rapport d'activité · il vit avec l'entité et se met à jour quand
+// l'organisation change, pas à chaque clôture. D'où une version par mise à
+// jour, jamais un écrasement : le manuel en vigueur au moment d'un exercice
+// donné doit rester lisible aussi longtemps que cet exercice est opposable.
+//
+// NI LA FORME NI LE CONTENU NE SONT FIXÉS par le texte. Le CPCC le dit
+// expressément (« Notes de cours d'organisation comptable », § 0.1.4) : « la
+// législation OHADA ne définit ni la forme ni le contenu du manuel : les
+// entités sont libres de le définir en fonction de leur taille, de la
+// complexité de leur système d'information, de leur métier et de leur
+// culture ». Les sections sont donc libres, stockées telles quelles, et le
+// logiciel ne propose qu'un squelette de départ.
+model ManuelProcedures {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  /// Une par mise à jour · « mis à jour périodiquement ». Jamais réécrite.
+  version Int
+
+  /// Date à partir de laquelle cette version décrit l'organisation réelle.
+  dateApplication DateTime
+
+  /// Sections libres · tableau de { cle, titre, texte }. Le texte ne fixe ni
+  /// la forme ni le contenu ; imposer un gabarit rigide serait ajouter une
+  /// exigence que ni l'AUDCIF ni le SYCEBNL n'écrivent.
+  sections Json
+
+  createdAt DateTime @default(now())
+  createdBy String
+
+  @@unique([tenantId, version])
+  @@index([tenantId])
+  @@map("manuels_procedures")
+}
 
 model RapportActivite {
   id         String   @id @default(uuid())

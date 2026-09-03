@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { LivreInventaireService } from './livre-inventaire.service';
 import { RapportActiviteService } from './rapport-activite.service';
+import { ManuelProceduresService } from './manuel-procedures.service';
 import { DocumentsObligatoiresController } from './documents-obligatoires.controller';
 import { LicenceModule } from '../licence/licence.module';
 import { JwtAuthModule } from '../auth/jwt-auth.module';
@@ -11,7 +12,7 @@ import { EtatsFinanciersSyscohadaModule } from '../etats-financiers-syscohada/et
 @Module({
   imports: [LicenceModule, JwtAuthModule, EtatsFinanciersModule, RegistreDonateursModule, EtatsFinanciersSyscohadaModule],
   controllers: [DocumentsObligatoiresController],
-  providers: [LivreInventaireService, RapportActiviteService],
-  exports: [LivreInventaireService, RapportActiviteService],
+  providers: [LivreInventaireService, RapportActiviteService, ManuelProceduresService],
+  exports: [LivreInventaireService, RapportActiviteService, ManuelProceduresService],
 })
 export class DocumentsObligatoiresModule {}

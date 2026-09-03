@@ -178,6 +178,7 @@ function controles(ecritures: ReturnType<typeof ecriture>[], methodeCotisations:
     ligneEcriture: { findMany: jest.fn().mockResolvedValue([]) },
     immobilisation: { findMany: jest.fn().mockResolvedValue([]) },
     exoneration: { findMany: jest.fn().mockResolvedValue([]) },
+    manuelProcedures: { findFirst: jest.fn().mockResolvedValue(null) },
   } as unknown as PrismaService;
   return new ControlesService(prisma);
 }

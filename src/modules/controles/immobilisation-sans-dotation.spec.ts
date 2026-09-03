@@ -51,6 +51,9 @@ function service(immobilisations: Immo[]) {
     compte: { findMany: jest.fn().mockResolvedValue([]) },
     ligneEcriture: { findMany: jest.fn().mockResolvedValue([]) },
     exoneration: { findMany: jest.fn().mockResolvedValue([]) },
+    // Le contrôle 21 lit le manuel des procédures (AUDCIF art. 16 al. 1) ·
+    // sans ce faux, il croirait la table absente plutôt que le manuel.
+    manuelProcedures: { findFirst: jest.fn().mockResolvedValue(null) },
     // Le contrôle 12 (bien repris sans amortissement antérieur) interroge la
     // même table · il filtre sur dateMiseEnService < ouverture du dossier, que
     // ce faux ignore. Ses signalements éventuels ne gênent pas : on ne lit ici

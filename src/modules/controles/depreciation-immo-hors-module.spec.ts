@@ -51,6 +51,9 @@ function service(
     compte: { findMany: jest.fn().mockResolvedValue([]) },
     ligneEcriture: { findMany: jest.fn().mockResolvedValue(lignes) },
     exoneration: { findMany: jest.fn().mockResolvedValue([]) },
+    // Le contrôle 21 lit le manuel des procédures (AUDCIF art. 16 al. 1) ·
+    // sans ce faux, il croirait la table absente plutôt que le manuel.
+    manuelProcedures: { findFirst: jest.fn().mockResolvedValue(null) },
     depreciationImmobilisation: {
       findMany: jest.fn().mockResolvedValue(
         duModule.map((d) => ({ sens: d.sens, montant: d.montant, compteDepreciation: { numero: d.numero } })),

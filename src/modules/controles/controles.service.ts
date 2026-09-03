@@ -13,6 +13,7 @@ import {
 } from '@prisma/client';
 import { JOURS_ALERTE_RENOUVELLEMENT } from '../exonerations/correspondance-exonerations';
 import { regleAuditeur, type RegleAuditeur } from './regles-auditeur';
+import { sourceManuel } from '../documents-obligatoires/manuel-procedures.service';
 import { PREFIXES_CHIFFRE_AFFAIRES_SYSCOHADA } from '../etats-financiers-syscohada/correspondance-compte-resultat-syscohada';
 
 /**
@@ -1756,6 +1757,75 @@ export class ControlesService {
             detail: 'Aucune date d’arrêté enregistrée pour cet exercice',
             date: ex.dateFin.toISOString().slice(0, 10),
           },
+        ],
+      });
+    }
+
+    // --- 21. Manuel des procédures et de l'organisation comptables ------------
+    //
+    // LE QUATRIÈME DOCUMENT OBLIGATOIRE, et le seul qui n'avait aucune place.
+    //
+    // AUDCIF, art. 16 al. 1 · « pour maintenir la continuité dans le temps de
+    // l'accès à l'information, TOUTE ENTITÉ ÉTABLIT UN MANUEL décrivant les
+    // procédures et l'organisation comptables ». Et l'art. 17, 3° en fait la
+    // référence du classement : les pièces sont « classées dans un ordre défini
+    // dans le manuel ». Sans manuel, cet ordre n'existe nulle part.
+    //
+    // DEUX ARTICLES 16, à ne pas confondre · celui-ci est de l'AUDCIF ; le
+    // SYCEBNL a le sien, sur les règles de présentation, dont le 2) exige de
+    // son côté « la mise en place de procédures nécessaires à une organisation
+    // comptable ». L'art. 16 de l'AUDCIF n'étant pas exclu par l'art. 3 du
+    // SYCEBNL, l'obligation vaut des deux côtés · chacun par son chemin, ce que
+    // `sourceManuel` écrit.
+    //
+    // CE QUE RIEN NE VOYAIT. Un dossier sans manuel tient une comptabilité
+    // parfaitement équilibrée : aucun total ne bouge, aucun état ne manque. Le
+    // défaut ne se voit que le jour où un auditeur demande selon quelles
+    // procédures les comptes ont été tenus, et dans quel ordre les pièces sont
+    // classées.
+    const manuel = await this.prisma.manuelProcedures.findFirst({
+      where: { tenantId },
+      orderBy: { version: 'desc' },
+      select: { version: true, sections: true },
+    });
+    if (!manuel) {
+      anomalies.push({
+        code: 'MANUEL_PROCEDURES_ABSENT',
+        gravite: 'AVERTISSEMENT',
+        libelle: 'Manuel des procédures et de l’organisation comptables absent',
+        consequence:
+          `Le texte (${sourceManuel(tenant.referentiel)}) impose ce manuel à toute entité, et l’article 17, 3° y ` +
+          'renvoie pour l’ordre de classement des pièces justificatives. Sans lui, cet ordre n’est écrit nulle ' +
+          'part, et la justification des écritures perd son point d’appui. Rien ne le signale par ailleurs : la ' +
+          'comptabilité reste équilibrée et les états se produisent normalement.',
+        action:
+          'Établissez le manuel dans la fenêtre Documents obligatoires · un squelette des sept rubriques ' +
+          'proposées par le CPCC vous y attend, à compléter et à adapter. Ni la forme ni le contenu ne sont ' +
+          'imposés par le texte.',
+        occurrences: [
+          { reference: tenant.nom ?? 'Dossier', detail: 'Aucune version de manuel enregistrée pour ce dossier' },
+        ],
+      });
+    } else if (!(manuel.sections as unknown as Array<{ cle: string; texte: string }>).some(
+      (sec) => sec.cle === 'classement-archivage' && sec.texte.trim().length > 0,
+    )) {
+      // La seule vérification de FOND que le texte permette · l'art. 17, 3° se
+      // réfère au manuel pour l'ordre de classement. Un manuel muet sur ce
+      // point prive cet article de son objet, alors qu'il existe bien.
+      anomalies.push({
+        code: 'MANUEL_SANS_ORDRE_DE_CLASSEMENT',
+        gravite: 'INFORMATION',
+        libelle: 'Le manuel ne décrit pas l’ordre de classement des pièces',
+        consequence:
+          'L’article 17, 3° de l’AUDCIF exige que les pièces justificatives soient « conservées, classées dans ' +
+          'un ordre DÉFINI DANS LE MANUEL décrivant les procédures et l’organisation comptables ». La version ' +
+          `${manuel.version} du manuel existe mais laisse cette section vide : l’article renvoie alors à un ` +
+          'ordre que personne n’a écrit.',
+        action:
+          'Complétez la section « Système de classement et d’archivage des documents et pièces comptables » du ' +
+          'manuel, puis enregistrez une nouvelle version.',
+        occurrences: [
+          { reference: `Manuel version ${manuel.version}`, detail: 'Section de classement et d’archivage vide' },
         ],
       });
     }

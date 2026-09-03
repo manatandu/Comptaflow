@@ -9,6 +9,8 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { LivreInventaireService } from './livre-inventaire.service';
 import { RapportActiviteService } from './rapport-activite.service';
+import { ManuelProceduresService, SQUELETTE_MANUEL } from './manuel-procedures.service';
+import { EnregistrerManuelDto } from './dto/manuel-procedures.dto';
 import {
   EtablirRapportActiviteDto,
   ResumeInventaireDto,
@@ -50,6 +52,7 @@ export class DocumentsObligatoiresController {
   constructor(
     private readonly livreInventaire: LivreInventaireService,
     private readonly rapportActivite: RapportActiviteService,
+    private readonly manuelProcedures: ManuelProceduresService,
   ) {}
 
   // --- Livre d'inventaire (art. 14) ---
@@ -112,5 +115,45 @@ export class DocumentsObligatoiresController {
   @Post('rapport-activite')
   async etablir(@CurrentUser() user: AuthenticatedUser, @Body() dto: EtablirRapportActiviteDto) {
     return this.rapportActivite.etablir(user.tenantId, user.userId, dto);
+  }
+
+  // --- Manuel des procédures et de l'organisation comptables (AUDCIF art. 16
+  //     al. 1 et art. 17, 3°) ---
+  //
+  // AUCUN exerciceId sur ces trois routes, et c'est la différence de fond avec
+  // les deux documents ci-dessus : le manuel vit avec l'ENTITÉ, pas avec un
+  // exercice. Il se met à jour quand l'organisation change, et la version en
+  // vigueur au moment d'un exercice reste lisible aussi longtemps que cet
+  // exercice est opposable.
+  //
+  // OUVERT AUX DEUX RÉFÉRENTIELS · l'art. 16 de l'AUDCIF n'est pas dans la
+  // liste d'exclusion de l'art. 3 du SYCEBNL. C'est le SERVICE qui cite à
+  // chaque dossier le chemin par lequel l'obligation lui parvient.
+
+  @Get('manuel-procedures')
+  async manuels(@CurrentUser() user: AuthenticatedUser) {
+    return this.manuelProcedures.lister(user.tenantId);
+  }
+
+  @Get('manuel-procedures/conformite')
+  async conformiteManuel(@CurrentUser() user: AuthenticatedUser) {
+    return this.manuelProcedures.conformite(user.tenantId);
+  }
+
+  /**
+   * Le squelette proposé à un dossier qui n'a pas encore de manuel · les sept
+   * rubriques que le CPCC énumère comme « informations POUVANT y figurer »
+   * (§ 0.1.4). Une page blanche est la raison ordinaire pour laquelle ce
+   * document n'existe pas dans les dossiers.
+   */
+  @Get('manuel-procedures/squelette')
+  async squeletteManuel() {
+    return SQUELETTE_MANUEL;
+  }
+
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Post('manuel-procedures')
+  async enregistrerManuel(@CurrentUser() user: AuthenticatedUser, @Body() dto: EnregistrerManuelDto) {
+    return this.manuelProcedures.enregistrer(user.tenantId, user.userId, dto);
   }
 }

@@ -42,6 +42,9 @@ function service(lignes: Ligne[], referentiel: Referentiel, avecExercicePreceden
     compte: { findMany: jest.fn().mockResolvedValue([]) },
     ligneEcriture: { findMany: jest.fn().mockResolvedValue(lignes) },
     exoneration: { findMany: jest.fn().mockResolvedValue([]) },
+    // Le contrôle 21 lit le manuel des procédures (AUDCIF art. 16 al. 1) ·
+    // sans ce faux, il croirait la table absente plutôt que le manuel.
+    manuelProcedures: { findFirst: jest.fn().mockResolvedValue(null) },
     // Le contrôle 15 retranche du solde des comptes 29 ce que le module
     // d'immobilisations y a lui-même posté · sans ce faux, il croirait la
     // table absente.

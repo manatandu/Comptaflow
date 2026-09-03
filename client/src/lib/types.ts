@@ -1020,6 +1020,42 @@ export interface RapportActivite {
   tresorerie: TresorerieDuRapport | null;
 }
 
+/**
+ * MANUEL DES PROCÉDURES ET DE L'ORGANISATION COMPTABLES · AUDCIF art. 16 al. 1.
+ *
+ * Une section porte un titre et un texte LIBRES · le CPCC rappelle que « la
+ * législation OHADA ne définit ni la forme ni le contenu du manuel » (§ 0.1.4).
+ * La `cle` est l'ancre stable : c'est elle, et non le titre, qui permet de
+ * retrouver la section du classement à laquelle l'art. 17, 3° renvoie.
+ */
+export interface SectionManuel {
+  cle: string;
+  titre: string;
+  texte: string;
+}
+
+export interface ManuelProcedures {
+  id: string;
+  /** Une par mise à jour · les précédentes ne sont jamais effacées. */
+  version: number;
+  dateApplication: string;
+  sections: SectionManuel[];
+  createdAt: string;
+  createdBy: string;
+}
+
+export interface ConformiteManuel {
+  /** Le chemin par lequel l'obligation atteint CE référentiel · voir sourceManuel. */
+  source: string;
+  existe: boolean;
+  versionEnVigueur: number | null;
+  dateApplication: string | null;
+  nombreVersions: number;
+  sectionsVides: string[];
+  /** Art. 17, 3° · les pièces sont classées « dans un ordre défini dans le manuel ». */
+  classementRenseigne: boolean;
+}
+
 export interface ConformiteRapportActivite {
   exercice: { id: string; dateDebut: string; dateFin: string };
   exigence: string;

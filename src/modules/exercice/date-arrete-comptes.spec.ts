@@ -105,6 +105,7 @@ function serviceControles(referentiel: Referentiel, dateArreteComptes: Date | nu
     compte: { findMany: jest.fn().mockResolvedValue([]) },
     ligneEcriture: { findMany: jest.fn().mockResolvedValue([]) },
     exoneration: { findMany: jest.fn().mockResolvedValue([]) },
+    manuelProcedures: { findFirst: jest.fn().mockResolvedValue(null) },
     immobilisation: { findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0) },
   } as Faux;
   return new ControlesService(prisma as unknown as PrismaService);

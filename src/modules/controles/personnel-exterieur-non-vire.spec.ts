@@ -45,6 +45,9 @@ function service(lignes637: ReturnType<typeof ligne>[], referentiel: Referentiel
     // compte · les autres passent par ecriture/compte, servis à vide ci-dessus.
     ligneEcriture: { findMany: jest.fn().mockResolvedValue(lignes637) },
     exoneration: { findMany: jest.fn().mockResolvedValue([]) },
+    // Le contrôle 21 lit le manuel des procédures (AUDCIF art. 16 al. 1) ·
+    // sans ce faux, il croirait la table absente plutôt que le manuel.
+    manuelProcedures: { findFirst: jest.fn().mockResolvedValue(null) },
     immobilisation: { findMany: jest.fn().mockResolvedValue([]) },
   } as unknown as PrismaService;
   return new ControlesService(prisma);

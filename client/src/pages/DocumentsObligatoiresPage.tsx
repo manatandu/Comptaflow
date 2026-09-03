@@ -7,8 +7,11 @@ import { Aide } from '../components/chrome/Aide';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
 import type {
   ConformiteInventaire,
+  ConformiteManuel,
   ConformiteRapportActivite,
+  ManuelProcedures,
   RapportActivite,
+  SectionManuel,
   TranscriptionInventaire,
 } from '../lib/types';
 
@@ -28,7 +31,21 @@ export function DocumentsObligatoiresPage() {
   const { utilisateur } = useAuth();
   const peutEtablir = utilisateur?.role === 'ADMIN_CABINET' || utilisateur?.role === 'COMPTABLE';
 
-  const [onglet, setOnglet] = useState<'inventaire' | 'rapport'>('inventaire');
+  const [onglet, setOnglet] = useState<'inventaire' | 'rapport' | 'manuel'>('inventaire');
+
+  /*
+    MANUEL DES PROCÉDURES ET DE L'ORGANISATION COMPTABLES · AUDCIF art. 16
+    al. 1, et art. 17, 3° pour l'ordre de classement des pièces.
+
+    Troisième onglet, mais document d'une autre nature que les deux premiers :
+    il n'est PAS rattaché à un exercice. Il vit avec l'entité et se met à jour
+    quand l'organisation change · d'où l'absence d'exerciceId sur ses appels,
+    et une version par mise à jour plutôt qu'un écrasement.
+  */
+  const [confManuel, setConfManuel] = useState<ConformiteManuel | null>(null);
+  const [manuels, setManuels] = useState<ManuelProcedures[]>([]);
+  const [sectionsManuel, setSectionsManuel] = useState<SectionManuel[]>([]);
+  const [dateApplication, setDateApplication] = useState(() => new Date().toISOString().slice(0, 10));
   const [erreur, setErreur] = useState<string | null>(null);
   const [exportEnCours, setExportEnCours] = useState<string | null>(null);
 
@@ -49,7 +66,45 @@ export function DocumentsObligatoiresPage() {
     declarationDirigeants: '',
   });
 
+  /**
+   * Enregistre une NOUVELLE VERSION · jamais une mise à jour de la précédente.
+   * « Mis à jour périodiquement » et « conservé aussi longtemps qu'est exigée
+   * la présentation des états financiers successifs » (AUDCIF art. 16 al. 1)
+   * ne se concilient que par la version.
+   */
+  const enregistrerManuel = async () => {
+    setErreur(null);
+    setEnCours(true);
+    try {
+      await api.post('/documents-obligatoires/manuel-procedures', {
+        dateApplication,
+        sections: sectionsManuel,
+      });
+      charger();
+    } catch (err) {
+      setErreur(err instanceof ApiError ? err.message : 'Impossible d’enregistrer le manuel');
+    } finally {
+      setEnCours(false);
+    }
+  };
+
   const charger = () => {
+    // Le manuel ne dépend PAS de l'exercice · il se charge même quand aucun
+    // exercice n'est sélectionné, ce qui est le cas d'un dossier tout neuf,
+    // précisément celui qui n'a pas encore de manuel.
+    api.get<ConformiteManuel>('/documents-obligatoires/manuel-procedures/conformite').then(setConfManuel, () => {});
+    api.get<ManuelProcedures[]>('/documents-obligatoires/manuel-procedures').then((versions) => {
+      setManuels(versions);
+      if (versions[0]) {
+        setSectionsManuel(versions[0].sections);
+      } else {
+        // Pas de manuel · on part du squelette proposé par le CPCC plutôt que
+        // d'une page blanche, qui est la raison ordinaire pour laquelle ce
+        // document n'existe pas dans les dossiers.
+        api.get<SectionManuel[]>('/documents-obligatoires/manuel-procedures/squelette').then(setSectionsManuel, () => {});
+      }
+    }, () => {});
+
     if (!exerciceCourant) return;
     const q = `exerciceId=${exerciceCourant.id}`;
     api.get<ConformiteInventaire>(`/documents-obligatoires/livre-inventaire/conformite?${q}`).then(setConfInv, () => {});
@@ -218,6 +273,7 @@ export function DocumentsObligatoiresPage() {
           [
             ['inventaire', "LIVRE D'INVENTAIRE (ART. 14)", confInv?.complete],
             ['rapport', "RAPPORT D'ACTIVITÉ (ART. 16-3)", confRap?.complet],
+            ['manuel', 'MANUEL DES PROCÉDURES (AUDCIF ART. 16)', confManuel?.existe],
           ] as const
         ).map(([cle, libelle, complet]) => (
           <button
@@ -449,6 +505,87 @@ export function DocumentsObligatoiresPage() {
           {rapport && (
             <div className="text-[10px] text-text-dim italic mt-2.5">
               Dernière version établie le {date(rapport.etabliLe)}. Une nouvelle version ne l’efface pas.
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ------------------- MANUEL DES PROCÉDURES (AUDCIF ART. 16) ------------------- */}
+      {onglet === 'manuel' && confManuel && (
+        <div>
+          <p className="text-[10.5px] text-text-dim leading-[1.55] mb-2.5 max-w-[900px]">
+            « Pour maintenir la continuité dans le temps de l’accès à l’information, toute entité établit un manuel
+            décrivant les procédures et l’organisation comptables. » Il est mis à jour périodiquement et conservé
+            aussi longtemps qu’est exigée la présentation des états financiers auxquels il se rapporte. L’article
+            17, 3° y renvoie pour l’ordre de classement des pièces justificatives.
+            <span className="block mt-1 italic">Source : {confManuel.source}.</span>
+            <span className="block mt-1">
+              Ni la forme ni le contenu ne sont fixés par le texte. Les sections ci-dessous sont une PROPOSITION,
+              librement modifiable et complétable.
+            </span>
+          </p>
+
+          <div className="flex items-center gap-3 flex-wrap mb-2.5">
+            {confManuel.existe ? (
+              <span className="text-[10.5px] text-positive">
+                Version {confManuel.versionEnVigueur} en vigueur · {confManuel.nombreVersions} version(s) conservée(s)
+              </span>
+            ) : (
+              <span className="text-[10.5px] text-danger">Aucun manuel enregistré pour ce dossier</span>
+            )}
+            {confManuel.existe && !confManuel.classementRenseigne && (
+              <span className="text-[10.5px] text-danger">
+                L’ordre de classement des pièces n’est pas décrit · art. 17, 3°
+              </span>
+            )}
+          </div>
+
+          {peutEtablir && (
+            <div className="flex items-end gap-2 mb-3">
+              <label className="text-[10.5px] font-semibold text-text-dim">
+                Applicable à partir du
+                <input
+                  type="date"
+                  value={dateApplication}
+                  onChange={(e) => setDateApplication(e.target.value)}
+                  className="mt-1 block border border-border-dark px-2 py-1 text-[11px] font-mono"
+                />
+              </label>
+              <button
+                onClick={enregistrerManuel}
+                disabled={enCours}
+                className="bg-sel text-white text-[11px] font-semibold px-3 py-1.5 disabled:opacity-50"
+              >
+                {enCours ? '…' : confManuel.existe ? 'Enregistrer une nouvelle version' : 'Établir le manuel'}
+              </button>
+            </div>
+          )}
+
+          <div className="space-y-3 max-w-[900px]">
+            {sectionsManuel.map((sec, i) => (
+              <div key={sec.cle} className="border border-border bg-surface p-3">
+                <div className="font-mono text-[10px] font-semibold text-text-dim mb-1.5">
+                  {sec.titre.toUpperCase()}
+                </div>
+                <textarea
+                  rows={4}
+                  disabled={!peutEtablir}
+                  value={sec.texte}
+                  onChange={(e) =>
+                    setSectionsManuel((prev) =>
+                      prev.map((s2, j) => (i === j ? { ...s2, texte: e.target.value } : s2)),
+                    )
+                  }
+                  className="w-full border border-border-dark px-2 py-1.5 text-[11px] leading-[1.5] disabled:bg-surface-alt"
+                />
+              </div>
+            ))}
+          </div>
+
+          {manuels.length > 1 && (
+            <div className="text-[10px] text-text-dim italic mt-2.5">
+              Les {manuels.length} versions précédentes restent conservées · le manuel en vigueur au moment d’un
+              exercice doit rester lisible aussi longtemps que cet exercice est opposable.
             </div>
           )}
         </div>
