@@ -998,6 +998,102 @@ Restent, tous non ouverts : les ch. 1 à 3, 7, 10 à 13, 15, 19 à 21, 23, 25, 2
 
 ---
 
+## Passe 12 · Titre VIII, ch. 1, 2, 23 et 30 (choisis avec Manasse)
+
+Quatre chapitres ouverts sur demande, retenus parce qu'ils ont une chance
+réelle de concerner un dossier du cabinet. Lu à la source : ch. 1 « Frais de
+recherche et de développement », ch. 2 « Brevets, licences, marques, logiciels,
+sites internet », ch. 23 « Contrats pluri-exercices » (sections 1 à 3), ch. 30
+« Engagements financiers et passifs éventuels ».
+
+Un seul écart, au ch. 23. Les trois autres sont servis.
+
+### Écart 12.1 · les contrats pluri-exercices n'ont ni module ni mention
+
+**Ce que le texte exige.** La règle n'est pas une préférence, et c'est ce qui la
+rend importante : « l'entité doit EN PRINCIPE utiliser la méthode à
+l'avancement dès lors qu'elle est en mesure d'évaluer le résultat à terminaison
+de manière fiable. Lorsqu'elle n'est pas en mesure de l'évaluer de manière
+fiable, elle DOIT utiliser la méthode à l'achèvement. Par conséquent,
+l'application de la méthode à l'achèvement NE RÉSULTE PAS D'UN CHOIX OPÉRÉ PAR
+L'ENTITÉ MAIS D'UNE OBLIGATION. » L'avancement est « la principale méthode de
+comptabilisation des contrats pluri-exercices retenue par le Système comptable
+OHADA ».
+
+S'y ajoute une règle que la conjugaison des art. 49 et 59 impose : « toute
+perte probable sur un contrat pluri-exercices doit être provisionnée POUR SA
+TOTALITÉ. Le montant de cette provision n'est pas lié à celui des travaux ou
+services effectivement réalisés à la date de l'arrêté des comptes, mais à la
+connaissance de la perte probable qui peut résulter de l'exécution totale du
+contrat. »
+
+**Ce que le logiciel fait.** Rien, et il ne le dit nulle part. Le mot
+« pluri-exercices » n'apparaît ni dans `src/`, ni dans le plan de construction.
+Contrairement aux stocks, qui sont un périmètre écrit au point 16 du plan, cette
+absence n'est déclarée nulle part.
+
+**Lacune du logiciel**, non déclarée.
+
+**Gravité · état faux possible, sur un dossier concerné.** Sans module et sans
+rappel, le comptable enregistre les factures à mesure qu'il les émet · le
+produit est alors rattaché à la facturation et non à l'avancement, ce que
+l'art. 59 interdit. Et rien ne rappelle la provision intégrale d'une perte
+probable, dont le texte prend soin de préciser qu'elle ne se proratise pas.
+Aucun dossier du portefeuille n'est aujourd'hui concerné à ma connaissance ·
+c'est ce qui distingue cet écart d'un défaut actif.
+
+**Ce qui a été fait ici.** Le relevé, et rien d'autre. Construire la
+reconnaissance à l'avancement suppose de tenir des contrats, leur budget à
+terminaison et leur pourcentage d'avancement · c'est un module, et il ne se
+décide qu'au vu du portefeuille. À trier avec les stocks plutôt qu'à ouvrir
+d'office.
+
+### Ch. 1 et 2 · servis, et par le mécanisme des exclusions
+
+La règle centrale du ch. 1 est que les dépenses de RECHERCHE « ne peuvent être
+immobilisées », doivent être « systématiquement comptabilisées en charges » et
+« ne peuvent être activées à une date ultérieure » ; que la phase de
+DÉVELOPPEMENT s'immobilise au compte 211 si six critères sont réunis
+simultanément ; et que si la distinction entre les deux phases est impossible,
+tout part en charges.
+
+Vérifié dans le fichier engendré : la fiche du compte 21 porte ses exclusions
+officielles, « le compte 21 ne sert pas à enregistrer : les frais
+d'établissement, les frais de recherche, les frais de pré-exploitation →
+charges de la classe 6 ». Le comptable qui tenterait d'activer des frais de
+recherche voit donc le texte lui-même. Les comptes de la chaîne sont tous semés :
+211, 2121 brevets, 2122 licences, 213 logiciels et sites internet, 721
+production immobilisée incorporelle, 2811 et 6812 pour l'amortissement.
+
+Les six critères, la frontière entre les deux phases et l'évaluation de la part
+variable d'une redevance de licence sont des jugements. Le logiciel n'a pas à
+les rendre.
+
+### Ch. 30 · servi, et le cloisonnement l'était déjà
+
+Le point décisif est dans le texte : « le Système comptable OHADA N'IMPOSE PAS
+la tenue d'une comptabilité des engagements. » Il n'y a donc aucune obligation
+à laquelle le logiciel manquerait. Ce qui est obligatoire est la MENTION, et
+elle est servie : les rubriques « Engagements donnés » et « Engagements reçus »
+existent en saisie dans les deux jeux.
+
+Les comptes d'engagement de la classe 9 sont semés côté SYSCOHADA (901
+financement obtenus, 902 garantie obtenus, 906 garantie accordés et leurs
+subdivisions). Et le contrôle `CLASSE_9_MOUVEMENTEE` distingue déjà les deux
+référentiels, ce qui n'est pas anodin : la classe 9 du SYCEBNL porte les
+contributions volontaires en nature, celle du SYSCOHADA les engagements et
+l'analytique. Le commentaire du code garde la trace de la version qui annonçait
+des « contributions volontaires » à une entreprise venant d'enregistrer une
+caution, et la renvoyait à une note absente de sa liasse.
+
+**Anomalie du texte officiel, signalée.** La typologie du ch. 30 annonce quatre
+catégories d'engagements et n'en développe que deux : les engagements de
+FINANCEMENT sont listés puis jamais traités, le § 1.2 confirmant que le
+chapitre ne propose que « les règles de comptabilisation des engagements de
+garantie ». Lacune du texte, pas du logiciel.
+
+---
+
 ## Ce qui n'a pas encore été ouvert
 
 À traiter dans les passes suivantes, dans cet ordre :
@@ -1005,8 +1101,7 @@ Restent, tous non ouverts : les ch. 1 à 3, 7, 10 à 13, 15, 19 à 21, 23, 25, 2
 1. **AUDCIF Titre VIII** · les chapitres restants. Ouverts à ce jour : le
    ch. 16 (passe 2), le ch. 31 (passe 3), les ch. 4 à 6 (passe 8), les ch. 8,
    9 et 27 (passe 9), et le ch. 22 vérifié à la passe 7 par le module devises.
-   Restent les ch. 1 à 3, 7, 10 à 13, 15, 19 à 21, 23, 25, 26, 28, 30 et 32
-   à 41. La plupart visent des opérations hors du portefeuille actuel du
+   Restent les ch. 3, 7, 10 à 13, 15, 19 à 21, 25, 26, 28 et 32 à 41. La plupart visent des opérations hors du portefeuille actuel du
    cabinet (concessions, franchise, agricole, fusions, liquidation, GIE,
    comptabilité par établissement, pluri-monétaire) · à trier avec Manasse
    plutôt qu'à ouvrir un par un.
