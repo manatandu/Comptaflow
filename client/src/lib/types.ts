@@ -733,6 +733,22 @@ export interface Immobilisation {
   dateSortie: string | null;
   prixCession: number | null;
   dotations: DotationAmortissement[];
+  /**
+   * Dépréciations · AUDCIF art. 46 et Titre VIII ch. 12 ; SYCEBNL, fiche du
+   * COMPTE 29. Elles viennent EN DIMINUTION DE LA VALEUR BRUTE : la valeur
+   * nette affichée doit les retrancher, sans quoi la fiche du bien et la
+   * balance se contrediraient sans qu'on sache laquelle a tort.
+   */
+  depreciations: DepreciationImmobilisation[];
+}
+
+export interface DepreciationImmobilisation {
+  id: string;
+  sens: 'DOTATION' | 'REPRISE';
+  montant: number;
+  exerciceId: string;
+  /** L'indice de perte de valeur retenu · sans indice, aucun test n'est requis. */
+  indice: string;
 }
 
 // --------------------------------------------------------------------------

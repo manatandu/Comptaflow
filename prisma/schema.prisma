@@ -629,6 +629,8 @@ model Compte {
   famillesImmoDotation          FamilleImmobilisation[] @relation("FamilleCompteDotation")
   immobilisationsImmobilisation Immobilisation[]        @relation("ImmoCompteImmobilisation")
   immobilisationsAmortissement  Immobilisation[]        @relation("ImmoCompteAmortissement")
+  depreciationsImmoCompte29     DepreciationImmobilisation[] @relation("DepreciationCompte29")
+  depreciationsImmoContrepartie DepreciationImmobilisation[] @relation("DepreciationContrepartie")
   // Régularisation des charges et produits (476/477) et abonnements ·
   // voir Regularisation et ModeleAbonnement.
   relances                      Relance[]
@@ -815,6 +817,7 @@ model Exercice {
   ecritures              Ecriture[]
   clotures               Cloture[]
   dotationsAmortissement DotationAmortissement[]
+  depreciationsImmo      DepreciationImmobilisation[]
   budgetsSection         BudgetSection[]
   regularisations        Regularisation[]
   reevaluations          Reevaluation[]
@@ -947,6 +950,7 @@ model Ecriture {
   immobilisationAcquisition Immobilisation?        @relation("ImmoEcritureAcquisition")
   immobilisationSortie      Immobilisation?        @relation("ImmoEcritureSortie")
   dotationAmortissement     DotationAmortissement?
+  depreciationImmobilisation DepreciationImmobilisation? @relation("DepreciationEcriture")
 
   // Registre des donateurs (art. 17) · une écriture d'encaissement peut porter
   // PLUSIEURS libéralités (une remise de chèques, une collecte de quête), d'où
@@ -2318,7 +2322,8 @@ model Immobilisation {
   createdAt DateTime @default(now())
   createdBy String
 
-  dotations DotationAmortissement[]
+  dotations      DotationAmortissement[]
+  depreciations  DepreciationImmobilisation[]
 
   @@map("immobilisations")
 }
@@ -2339,6 +2344,71 @@ model DotationAmortissement {
 
   @@unique([immobilisationId, exerciceId])
   @@map("dotations_amortissement")
+}
+
+// ---------------------------------------------------------------------------
+// DÉPRÉCIATION DES IMMOBILISATIONS · les deux textes l'imposent dans le leur.
+//
+//  · SYCEBNL, Partie 2 ch. 3, fiche du COMPTE 29 · « l'actif doit être déprécié
+//    lorsque la valeur nette comptable est supérieure à la valeur actuelle » ;
+//    « les dépréciations sont inscrites distinctement à l'actif, EN DIMINUTION
+//    DE LA VALEUR BRUTE des biens correspondants pour donner leur valeur
+//    comptable nette » ; « même en cas d'absence ou d'insuffisance d'excédent
+//    au cours de l'exercice, il doit être procédé aux dotations nécessaires ».
+//  · AUDCIF, art. 46 et Titre VIII ch. 12, dans les mêmes termes, avec deux
+//    règles que le SYCEBNL renvoie au SYSCOHADA plutôt que de les écrire :
+//    l'ajustement du plan d'amortissement après la perte de valeur (§ 2.4.1) et
+//    le plafond des reprises (§ 2.4.2).
+//
+// UNE LIGNE PAR EXERCICE ET PAR BIEN, comme la dotation aux amortissements.
+// Le test de dépréciation se fait à la clôture, et deux tests contradictoires
+// sur le même exercice n'auraient pas de sens · d'où la contrainte d'unicité,
+// qui sert aussi de verrou contre deux enregistrements concurrents.
+//
+// LE SENS EST PORTÉ, LE MONTANT RESTE POSITIF. Un montant signé se serait lu à
+// l'envers une fois sur deux dans un état ; et le sens commande les comptes
+// mouvementés, qui ne sont pas les mêmes (69 au débit pour une dotation, 79 au
+// crédit pour une reprise).
+enum SensDepreciation {
+  DOTATION
+  REPRISE
+}
+
+model DepreciationImmobilisation {
+  id               String         @id @default(uuid())
+  immobilisationId String
+  immobilisation   Immobilisation @relation(fields: [immobilisationId], references: [id])
+  exerciceId       String
+  exercice         Exercice       @relation(fields: [exerciceId], references: [id])
+
+  sens    SensDepreciation
+  montant Decimal          @db.Decimal(18, 2)
+
+  // Le compte 29 mouvementé · crédité par la dotation, débité par la reprise.
+  // Il est choisi par le comptable et non déduit du compte d'immobilisation :
+  // le module ne connaît pas la subdivision que le dossier a ouverte, et un
+  // 29 deviné serait un compte faux dans une balance juste.
+  compteDepreciationId String
+  compteDepreciation   Compte @relation("DepreciationCompte29", fields: [compteDepreciationId], references: [id])
+  // La contrepartie de gestion · 69 pour une dotation, 79 pour une reprise
+  // (fiche du COMPTE 29, « fonctionnement »). Même raison : elle est choisie.
+  compteContrepartieId String
+  compteContrepartie   Compte @relation("DepreciationContrepartie", fields: [compteContrepartieId], references: [id])
+
+  // La justification de l'indice de perte de valeur. Les deux textes énumèrent
+  // les indices externes et internes à considérer AU MINIMUM ; sans indice,
+  // aucun test n'est requis, et donc aucune dotation n'est justifiable. La
+  // consigner est ce qui rend la dépréciation opposable à un réviseur.
+  indice String
+
+  ecritureId String   @unique
+  ecriture   Ecriture @relation("DepreciationEcriture", fields: [ecritureId], references: [id])
+  createdAt  DateTime @default(now())
+  createdBy  String
+
+  @@unique([immobilisationId, exerciceId])
+  @@index([exerciceId])
+  @@map("depreciations_immobilisation")
 }
 
 // ---------------------------------------------------------------------------

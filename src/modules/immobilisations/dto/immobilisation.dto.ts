@@ -1,5 +1,16 @@
-import { IsBoolean, IsDateString, IsEnum, IsNumber, IsOptional, IsPositive, IsString, IsUUID, Min } from 'class-validator';
-import { ModeAmortissement } from '@prisma/client';
+import {
+  IsBoolean,
+  IsDateString,
+  IsEnum,
+  IsNumber,
+  IsOptional,
+  IsPositive,
+  IsString,
+  IsUUID,
+  MaxLength,
+  Min,
+} from 'class-validator';
+import { ModeAmortissement, SensDepreciation } from '@prisma/client';
 
 export class CreerFamilleDto {
   @IsString()
@@ -107,6 +118,50 @@ export class PasserDotationDto {
 
   @IsUUID('4')
   journalId!: string;
+}
+
+/**
+ * DÉPRÉCIATION D'UNE IMMOBILISATION · AUDCIF art. 46 et Titre VIII ch. 12 ;
+ * SYCEBNL, Partie 2 ch. 3, fiche du COMPTE 29.
+ *
+ * Les deux comptes sont CHOISIS et non déduits. Le module ne connaît pas la
+ * subdivision du 29 que le dossier a ouverte, ni le sous-compte de 69 ou de 79
+ * qu'il sert · un compte deviné serait un compte faux dans une balance juste.
+ * Le seul contrôle posé côté serveur est le préfixe du compte de dépréciation,
+ * que les deux textes écrivent : c'est le 29, jamais le 39 des stocks, le 49
+ * des tiers ni le 59 de la trésorerie (fiche du COMPTE 29, « exclusions »).
+ */
+export class DepreciationDto {
+  @IsUUID('4')
+  exerciceId!: string;
+
+  @IsUUID('4')
+  journalId!: string;
+
+  @IsEnum(SensDepreciation)
+  sens!: SensDepreciation;
+
+  /** Toujours positif · le sens porte la direction. */
+  @IsNumber()
+  @IsPositive()
+  montant!: number;
+
+  /** Compte 29 mouvementé · crédité par la dotation, débité par la reprise. */
+  @IsUUID('4')
+  compteDepreciationId!: string;
+
+  /** Contrepartie de gestion · 69 pour une dotation, 79 pour une reprise. */
+  @IsUUID('4')
+  compteContrepartieId!: string;
+
+  /**
+   * L'indice de perte de valeur retenu. OBLIGATOIRE : sans indice, aucun test
+   * n'est requis (ch. 12 § 2.1), donc aucune dotation n'est justifiable, et
+   * c'est cette phrase qu'un réviseur demandera.
+   */
+  @IsString()
+  @MaxLength(500)
+  indice!: string;
 }
 
 export enum TypeSortie {

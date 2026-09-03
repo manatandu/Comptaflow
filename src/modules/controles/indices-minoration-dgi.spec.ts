@@ -42,6 +42,10 @@ function service(lignes: Ligne[], referentiel: Referentiel, avecExercicePreceden
     compte: { findMany: jest.fn().mockResolvedValue([]) },
     ligneEcriture: { findMany: jest.fn().mockResolvedValue(lignes) },
     exoneration: { findMany: jest.fn().mockResolvedValue([]) },
+    // Le contrôle 15 retranche du solde des comptes 29 ce que le module
+    // d'immobilisations y a lui-même posté · sans ce faux, il croirait la
+    // table absente.
+    depreciationImmobilisation: { findMany: jest.fn().mockResolvedValue([]) },
     immobilisation: { findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0) },
   } as unknown as PrismaService;
   return new ControlesService(prisma);

@@ -11,6 +11,7 @@ import {
   ModifierFamilleDto,
   PasserDotationDto,
   SortirImmobilisationDto,
+  DepreciationDto,
 } from './dto/immobilisation.dto';
 import { RoleUtilisateur, StatutImmobilisation } from '@prisma/client';
 
@@ -81,6 +82,21 @@ export class ImmobilisationController {
     @Body() dto: PasserDotationDto,
   ) {
     return this.immobilisationService.passerDotation(user.tenantId, user.userId, id, dto);
+  }
+
+  /**
+   * DÉPRÉCIATION · dotation ou reprise, AUDCIF art. 46 et Titre VIII ch. 12 ;
+   * SYCEBNL, Partie 2 ch. 3, fiche du COMPTE 29. Commune aux deux
+   * référentiels : chacun l'impose dans son texte, aucun n'est transposé.
+   */
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Post(':id/depreciation')
+  async deprecier(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: DepreciationDto,
+  ) {
+    return this.immobilisationService.enregistrerDepreciation(user.tenantId, user.userId, id, dto);
   }
 
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)

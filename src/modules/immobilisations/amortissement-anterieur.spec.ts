@@ -1,3 +1,4 @@
+import { SensDepreciation } from '@prisma/client';
 import { ImmobilisationService } from './immobilisation.service';
 import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
@@ -30,6 +31,8 @@ interface Cas {
   dateMiseEnService: string;
   amortissementAnterieur?: number;
   dotations?: number[];
+  /** Dépréciations ANTÉRIEURES · sens et montant, plus la clôture qui les date. */
+  depreciations?: Array<{ sens: SensDepreciation; montant: number; exercice: { dateFin: Date } }>;
   exercice?: { dateDebut: string; dateFin: string };
 }
 
@@ -51,6 +54,10 @@ async function dotation(c: Cas): Promise<number> {
         compteDotationId: 'cd',
         compteAmortissementId: 'ca',
         dotations: (c.dotations ?? []).map((m, i) => ({ montant: m, exerciceId: `ex${i}` })),
+        // Le module charge désormais les dépréciations avec le bien · elles
+        // changent la base amortissable (AUDCIF Titre VIII ch. 12 § 2.4.1).
+        // Un faux qui les omettrait ferait passer le service pour cassé.
+        depreciations: c.depreciations ?? [],
       }),
     },
     exercice: {

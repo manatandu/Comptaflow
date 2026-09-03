@@ -35,6 +35,8 @@ function service(
   lignes: ReturnType<typeof ligne>[],
   nombreImmobilisations: number,
   referentiel: Referentiel = Referentiel.SYCEBNL,
+  // Ce que le MODULE a lui-même posté au compte 29 sur cet exercice.
+  duModule: Array<{ sens: 'DOTATION' | 'REPRISE'; montant: number; numero: string }> = [],
 ) {
   const prisma = {
     exercice: {
@@ -49,6 +51,11 @@ function service(
     compte: { findMany: jest.fn().mockResolvedValue([]) },
     ligneEcriture: { findMany: jest.fn().mockResolvedValue(lignes) },
     exoneration: { findMany: jest.fn().mockResolvedValue([]) },
+    depreciationImmobilisation: {
+      findMany: jest.fn().mockResolvedValue(
+        duModule.map((d) => ({ sens: d.sens, montant: d.montant, compteDepreciation: { numero: d.numero } })),
+      ),
+    },
     immobilisation: {
       findMany: jest.fn().mockResolvedValue([]),
       count: jest.fn().mockResolvedValue(nombreImmobilisations),
@@ -61,8 +68,9 @@ const signale = async (
   lignes: ReturnType<typeof ligne>[],
   nombreImmobilisations = 3,
   referentiel: Referentiel = Referentiel.SYCEBNL,
+  duModule: Array<{ sens: 'DOTATION' | 'REPRISE'; montant: number; numero: string }> = [],
 ) => {
-  const rapport = await service(lignes, nombreImmobilisations, referentiel).analyser('t', 'ex');
+  const rapport = await service(lignes, nombreImmobilisations, referentiel, duModule).analyser('t', 'ex');
   return rapport.anomalies.find((a) => a.code === 'DEPRECIATION_IMMO_HORS_MODULE');
 };
 
@@ -106,5 +114,39 @@ describe('dépréciation d’immobilisation hors module', () => {
     const syscohada = await signale([ligne('29310000', 'Dépréciations', 1)], 3, Referentiel.SYSCOHADA);
     expect(syscohada!.consequence).toContain('AUDCIF art. 46');
     expect(syscohada!.consequence).not.toContain('SYCEBNL');
+  });
+});
+
+/*
+  DEPUIS QUE LA DÉPRÉCIATION EST PORTÉE DANS LE MODULE, ce contrôle ne doit
+  plus voir que ce qui a été passé À LA MAIN. Ses propres écritures mouvementent
+  le compte 29 comme les autres ; les compter ferait crier l'avertissement sur
+  le dossier qui fait exactement ce qu'on lui demande, et un avertissement qui
+  se trompe est un avertissement qu'on apprend à ignorer.
+*/
+describe('ce que le module a lui-même posté ne compte pas', () => {
+  it('se tait quand la dépréciation vient entièrement du module', async () => {
+    const a = await signale([ligne('29310000', 'Dépréciations des bâtiments', 8_000_000)], 3, Referentiel.SYCEBNL, [
+      { sens: 'DOTATION', montant: 8_000_000, numero: '29310000' },
+    ]);
+    expect(a).toBeUndefined();
+  });
+
+  it('signale le seul excédent passé à la main', async () => {
+    const a = await signale([ligne('29310000', 'Dépréciations des bâtiments', 8_000_000)], 3, Referentiel.SYCEBNL, [
+      { sens: 'DOTATION', montant: 5_000_000, numero: '29310000' },
+    ]);
+    expect(a).toBeDefined();
+    expect(a!.occurrences[0].montant).toBe(3_000_000);
+  });
+
+  it('une reprise du module se retranche dans le bon sens', async () => {
+    // Le module a doté 8 000 000 puis repris 2 000 000 · il porte 6 000 000, et
+    // le compte 29 en porte autant. Rien à signaler.
+    const a = await signale([ligne('29310000', 'Dépréciations des bâtiments', 6_000_000)], 3, Referentiel.SYCEBNL, [
+      { sens: 'DOTATION', montant: 8_000_000, numero: '29310000' },
+      { sens: 'REPRISE', montant: 2_000_000, numero: '29310000' },
+    ]);
+    expect(a).toBeUndefined();
   });
 });

@@ -329,6 +329,37 @@ abrogés au 1er janvier 2026 et remplacés par l'IS et l'IRPP. Seuls les
 mécanismes d'écriture sont retenus, et aucun ne dépend d'un taux. Un test le
 vérifie sur les messages produits.
 
+**Dépréciation des immobilisations · portée par le module depuis le
+2026-09-03.** Les comptes 29 étaient semés et mouvementables, mais le module
+tenait le bien au coût historique. Deux divergences muettes en sortaient, que
+le contrôle `DEPRECIATION_IMMO_HORS_MODULE` ne pouvait que signaler. Elles sont
+fermées, chacune dans son texte (SYCEBNL, fiche du COMPTE 29 · AUDCIF art. 46
+et Titre VIII ch. 12, dont l'art. 46 n'est pas exclu par l'art. 3 du SYCEBNL) :
+
+- **le plan se ré-étale** après une perte de valeur, sur la durée RESTANT À
+  COURIR (ch. 12 § 2.4.1, chiffré au § 2.3.2 : 1 200 000 et non 2 000 000).
+  Sans dépréciation, l'annuité ne bouge pas · ré-étaler partout modifierait le
+  plan de tout le parc, ce qu'aucun texte ne demande ;
+- **la sortie solde le 29** et le retranche de la valeur comptable nette. Un 29
+  laissé au bilan est une correction d'actif sans actif, et la VCN portée au 81
+  était surévaluée d'autant · une moins-value se présentait en plus-value sans
+  qu'aucune écriture ne se déséquilibre.
+
+Le logiciel ne décide NI le montant NI l'indice. Le § 2.1 est explicite :
+« s'il n'existe pas d'indice de perte de valeur, aucun test n'est requis ».
+L'indice est donc saisi et conservé (`DepreciationImmobilisation.indice`) ·
+c'est lui qui rend la dépréciation opposable à un réviseur. Le seul contrôle de
+compte posé est le préfixe **29**, que les deux textes écrivent, avec ses
+exclusions (39 stocks, 49 tiers, 59 trésorerie). Et le contrôle 15 retranche
+désormais ce que le module a lui-même posté : un avertissement qui crie sur le
+dossier exemplaire est un avertissement qu'on apprend à ignorer.
+
+Une limite est ASSUMÉE et écrite dans le code : le plafond de reprise appliqué
+est le cumul encore inscrit, pas le plafond plus fin du § 2.4.2 (la valeur
+comptable après reprise ne doit pas dépasser celle qui aurait existé sans
+dépréciation), dont le calcul supposerait de rejouer le plan d'origine exercice
+par exercice.
+
 **Acomptes provisionnels · les dates ET la base viennent de la loi de
 finances.** L'article 57 bis de la loi de procédures fiscales, TEL QUE MODIFIÉ
 par la loi de finances n° 25/060 du 29 décembre 2025, fixe les trois versements

@@ -1,11 +1,12 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
-import { ModeAmortissement, Prisma, Referentiel, StatutImmobilisation } from '@prisma/client';
+import { ModeAmortissement, Prisma, Referentiel, SensDepreciation, StatutImmobilisation } from '@prisma/client';
 import { FAMILLES_IMMOBILISATION_DEFAUT, FAMILLES_IMMOBILISATION_DEFAUT_SYSCOHADA } from './famille-immobilisation-seed';
 import {
   CreerFamilleDto,
   CreerImmobilisationDto,
+  DepreciationDto,
   ModifierFamilleDto,
   PasserDotationDto,
   SortirImmobilisationDto,
@@ -58,15 +59,28 @@ export interface LigneTableauAmortissement {
 function versDotation<T extends { montant: unknown }>(d: T) {
   return { ...d, montant: Number(d.montant) };
 }
-function versImmobilisation<T extends { valeurOrigine: unknown; valeurResiduelle: unknown; prixCession: unknown; dotations?: unknown[] }>(
-  immo: T,
-) {
+function versImmobilisation<
+  T extends {
+    valeurOrigine: unknown;
+    valeurResiduelle: unknown;
+    prixCession: unknown;
+    dotations?: unknown[];
+    depreciations?: unknown[];
+  },
+>(immo: T) {
   return {
     ...immo,
     valeurOrigine: Number(immo.valeurOrigine),
     valeurResiduelle: Number(immo.valeurResiduelle),
     prixCession: immo.prixCession === null || immo.prixCession === undefined ? null : Number(immo.prixCession),
     dotations: (immo.dotations ?? []).map((d) => versDotation(d as { montant: unknown })),
+    // Servies à l'écran pour que la valeur nette affichée soit celle du bilan.
+    // Une VCN calculée sans elles se lirait comme un désaccord entre la fiche
+    // du bien et la balance, sans qu'on sache lequel des deux a tort.
+    depreciations: (immo.depreciations ?? []).map((d) => {
+      const dep = d as { id: string; sens: SensDepreciation; montant: unknown; exerciceId: string; indice: string };
+      return { id: dep.id, sens: dep.sens, montant: Number(dep.montant), exerciceId: dep.exerciceId, indice: dep.indice };
+    }),
   };
 }
 
@@ -280,6 +294,7 @@ export class ImmobilisationService {
         compteImmobilisation: true,
         compteAmortissement: true,
         dotations: true,
+        depreciations: true,
       },
       orderBy: { dateAcquisition: 'desc' },
     });
@@ -319,6 +334,11 @@ export class ImmobilisationService {
         famille: true,
         compteImmobilisation: true,
         dotations: { orderBy: { exercice: { dateDebut: 'asc' } }, include: { exercice: true } },
+        // Chargées systématiquement · la dépréciation change la base
+        // amortissable ET la valeur comptable nette de sortie. Les charger à
+        // la demande aurait laissé un chemin où le module continue de
+        // raisonner au coût historique sans que rien ne le signale.
+        depreciations: { orderBy: { exercice: { dateDebut: 'asc' } }, include: { exercice: true } },
       },
     });
     if (!immo) throw new NotFoundException('Immobilisation introuvable pour ce tenant');
@@ -334,6 +354,41 @@ export class ImmobilisationService {
    */
   private baseAmortissable(valeurOrigine: number, valeurResiduelle: number) {
     return Math.max(0, valeurOrigine - valeurResiduelle);
+  }
+
+  /**
+   * Cumul net des dépréciations · dotations moins reprises. Positif ou nul :
+   * une reprise ne peut jamais dépasser ce qui a été doté (voir
+   * `enregistrerDepreciation`), sans quoi le compte 29 deviendrait débiteur,
+   * ce qui n'a pas de sens pour une correction d'actif « de sens négatif »
+   * (SYCEBNL, fiche du COMPTE 29).
+   */
+  private cumulDepreciation(depreciations: Array<{ sens: SensDepreciation; montant: number }>) {
+    return depreciations.reduce(
+      (total, d) => total + (d.sens === SensDepreciation.DOTATION ? d.montant : -d.montant),
+      0,
+    );
+  }
+
+  /**
+   * ANNÉES DÉJÀ ÉCOULÉES du plan, comptées depuis le premier jour du mois de
+   * mise en service · la même origine que le prorata de la première annuité
+   * (loi n° 23/053, art. 34). Sert à connaître la durée RESTANT À COURIR, sur
+   * laquelle le plan se ré-étale après une perte de valeur.
+   *
+   * Comptées sur les DATES et non sur le nombre de dotations enregistrées : un
+   * bien repris porte un amortissement antérieur sans qu'aucune dotation ne
+   * figure ici, et un exercice sauté ne rallonge pas la durée d'utilité.
+   */
+  private anneesEcoulees(dateMiseEnService: Date, debutExercice: Date) {
+    const origine = new Date(
+      Date.UTC(dateMiseEnService.getUTCFullYear(), dateMiseEnService.getUTCMonth(), 1),
+    );
+    if (debutExercice <= origine) return 0;
+    const mois =
+      (debutExercice.getUTCFullYear() - origine.getUTCFullYear()) * 12 +
+      (debutExercice.getUTCMonth() - origine.getUTCMonth());
+    return Math.max(0, Math.floor(mois / 12));
   }
 
   async creer(tenantId: string, userId: string, dto: CreerImmobilisationDto) {
@@ -463,13 +518,40 @@ export class ImmobilisationService {
     dotationsAnterieures: Array<{ montant: number }>,
     exercice: { dateDebut: Date; dateFin: Date },
     amortissementAnterieur = 0,
+    cumulDepreciation = 0,
   ): number {
     const base = this.baseAmortissable(valeurOrigine, valeurResiduelle);
-    const annuitePleine = base / dureeAns;
     const cumulAnterieur =
       dotationsAnterieures.reduce((s, d) => s + d.montant, 0) + Math.max(0, amortissementAnterieur);
-    const reliquat = Math.max(0, base - cumulAnterieur);
+    // Le reliquat tient compte de la dépréciation : ce qui a été déprécié n'a
+    // plus à être amorti, sans quoi le bien s'amortirait au-delà de sa valeur.
+    const reliquat = Math.max(0, base - cumulAnterieur - Math.max(0, cumulDepreciation));
     if (reliquat <= EPSILON) return 0;
+
+    /*
+      LE PLAN SE RÉ-ÉTALE APRÈS UNE PERTE DE VALEUR.
+
+      AUDCIF, Titre VIII ch. 12 § 2.4.1 · « après la comptabilisation d'une
+      perte de valeur, le plan d'amortissement de l'actif doit être ajusté pour
+      les exercices suivants, afin que la valeur comptable révisée, diminuée de
+      sa valeur résiduelle, puisse être répartie de façon systématique sur sa
+      durée d'utilité restant à courir ». Le § 2.3.2 le chiffre : un matériel
+      de 10 000 000 amorti linéairement sur 5 ans, déprécié de 1 600 000 à la
+      fin de la 3e année, porte une VNC de 2 400 000 « qui constitue la
+      nouvelle base amortissable, amortie sur la durée restant à courir (deux
+      ans) » · 1 200 000 par an, et non plus 2 000 000.
+
+      SANS DÉPRÉCIATION, RIEN NE CHANGE · l'annuité reste base / durée. C'est
+      volontaire : la ré-étalement n'a de sens qu'après une perte de valeur, et
+      l'appliquer partout modifierait le plan de tous les biens du parc.
+    */
+    let annuitePleine: number;
+    if (cumulDepreciation > EPSILON) {
+      const restantes = Math.max(1, dureeAns - this.anneesEcoulees(dateMiseEnService, exercice.dateDebut));
+      annuitePleine = reliquat / restantes;
+    } else {
+      annuitePleine = base / dureeAns;
+    }
 
     const premiereAnnuite = dotationsAnterieures.length === 0 && amortissementAnterieur <= EPSILON;
     let montant: number;
@@ -611,6 +693,12 @@ export class ImmobilisationService {
       include: {
         compteImmobilisation: { select: { id: true, numero: true, intitule: true } },
         dotations: { select: { montant: true, exerciceId: true, exercice: { select: { dateFin: true } } } },
+        // La dépréciation change l'annuité de tous les exercices SUIVANTS ·
+        // un tableau qui l'ignorerait annoncerait une dotation que
+        // passerDotation refuserait ensuite de poster.
+        depreciations: {
+          select: { sens: true, montant: true, exercice: { select: { dateFin: true } } },
+        },
       },
       orderBy: [{ compteImmobilisation: { numero: 'asc' } }, { dateAcquisition: 'asc' }],
     });
@@ -651,6 +739,11 @@ export class ImmobilisationService {
             dotationsAnterieures.map((d) => ({ montant: Number(d.montant) })),
             exercice,
             Number(immo.amortissementAnterieur ?? 0),
+            this.cumulDepreciation(
+              immo.depreciations
+                .filter((d) => d.exercice.dateFin < exercice.dateFin)
+                .map((d) => ({ sens: d.sens, montant: Number(d.montant) })),
+            ),
           );
 
       // Mois effectivement servis : depuis le mois de mise en service (ou le
@@ -769,6 +862,14 @@ export class ImmobilisationService {
       immo.dotations.map((d) => ({ montant: Number(d.montant) })),
       exercice,
       Number(immo.amortissementAnterieur ?? 0),
+      // Les dépréciations ANTÉRIEURES à cet exercice · celle de l'exercice en
+      // cours, si elle existe, se constate à la clôture après la dotation et
+      // ne peut donc pas déjà ré-étaler le plan de la même annuité.
+      this.cumulDepreciation(
+        immo.depreciations
+          .filter((d) => d.exercice.dateFin < exercice.dateFin)
+          .map((d) => ({ sens: d.sens, montant: Number(d.montant) })),
+      ),
     );
     if (montant <= EPSILON) {
       throw new BadRequestException('Aucun montant à doter · le bien est déjà entièrement amorti ou hors période');
@@ -796,6 +897,122 @@ export class ImmobilisationService {
       if (estConflitUnicite(err)) {
         await this.annulerEcritureOrpheline(ecriture.id);
         throw new ConflictException('Une dotation a déjà été passée pour cette immobilisation sur cet exercice');
+      }
+      throw err;
+    }
+  }
+
+
+  /**
+   * DÉPRÉCIATION D'UNE IMMOBILISATION · dotation ou reprise.
+   *
+   * Le module tenait le bien au coût historique et ne savait rien des comptes
+   * 29, pourtant semés et mouvementables à la main. Un dossier qui dépréciait
+   * installait alors deux divergences muettes, et le contrôle
+   * DEPRECIATION_IMMO_HORS_MODULE ne pouvait que les signaler :
+   * la base amortissable ignorait la perte de valeur, et la sortie du bien ne
+   * soldait pas le 29. Aucune écriture ne se déséquilibrait.
+   *
+   * CE QUE LE LOGICIEL NE DÉCIDE PAS. Ni la valeur actuelle, ni l'existence
+   * d'un indice. Le ch. 12 § 2.1 est explicite : « s'il n'existe pas d'indice
+   * de perte de valeur, aucun test de dépréciation n'est requis ». Le montant
+   * et l'indice sont donc saisis ; le logiciel vérifie ce qui est vérifiable.
+   */
+  async enregistrerDepreciation(tenantId: string, userId: string, id: string, dto: DepreciationDto) {
+    const immo = await this.trouver(tenantId, id);
+    if (immo.statut !== StatutImmobilisation.EN_SERVICE) {
+      throw new BadRequestException("Cette immobilisation n'est plus en service · aucune dépréciation possible");
+    }
+    const exercice = await this.prisma.exercice.findFirst({ where: { id: dto.exerciceId, tenantId } });
+    if (!exercice) throw new BadRequestException('Exercice introuvable pour ce tenant');
+
+    const [compte29, contrepartie] = await Promise.all([
+      this.prisma.compte.findFirst({ where: { id: dto.compteDepreciationId, tenantId } }),
+      this.prisma.compte.findFirst({ where: { id: dto.compteContrepartieId, tenantId } }),
+    ]);
+    if (!compte29) throw new BadRequestException('Compte de dépréciation introuvable pour ce tenant');
+    if (!contrepartie) throw new BadRequestException('Compte de contrepartie introuvable pour ce tenant');
+    // La seule règle de compte que les DEUX textes écrivent · le 29 et rien
+    // d'autre. La fiche du COMPTE 29 énumère ses exclusions : 39 pour les
+    // stocks, 49 pour les tiers, 59 pour la trésorerie. Le sous-compte exact
+    // reste libre, il dépend du plan que le dossier a ouvert.
+    if (!compte29.numero.startsWith('29')) {
+      throw new BadRequestException(
+        "La dépréciation d'une immobilisation s'inscrit au compte 29. Le compte 39 est celui des stocks, le 49 " +
+          'celui des tiers et le 59 celui de la trésorerie.',
+      );
+    }
+
+    const cumul = this.cumulDepreciation(
+      immo.depreciations.map((d) => ({ sens: d.sens, montant: Number(d.montant) })),
+    );
+    if (dto.sens === SensDepreciation.REPRISE && dto.montant > cumul + EPSILON) {
+      // Une reprise supérieure au cumul rendrait le compte 29 DÉBITEUR, ce qui
+      // ferait de la correction d'actif « de sens négatif » (fiche du COMPTE
+      // 29) une majoration de valeur déguisée. Le ch. 12 § 2.4.2 pose en outre
+      // un plafond plus fin, que ce contrôle n'atteint pas : la valeur
+      // comptable après reprise ne doit pas dépasser celle qui aurait existé
+      // sans dépréciation. Le reconstituer supposerait de rejouer le plan
+      // d'origine exercice par exercice · non fait, et dit ici plutôt que
+      // laissé croire.
+      throw new BadRequestException(
+        `La reprise ne peut pas dépasser la dépréciation encore inscrite (${cumul.toFixed(2)})`,
+      );
+    }
+    if (dto.sens === SensDepreciation.DOTATION) {
+      // Une dépréciation ne peut pas descendre la valeur nette sous zéro.
+      const cumulAmorti =
+        immo.dotations.reduce((t, d) => t + Number(d.montant), 0) + Math.max(0, Number(immo.amortissementAnterieur ?? 0));
+      const valeurNette = Number(immo.valeurOrigine) - cumulAmorti - cumul;
+      if (dto.montant > valeurNette + EPSILON) {
+        throw new BadRequestException(
+          `La dépréciation ne peut pas dépasser la valeur comptable nette du bien (${Math.max(0, valeurNette).toFixed(2)})`,
+        );
+      }
+    }
+
+    // Fiche du COMPTE 29, « fonctionnement » · la dotation CRÉDITE le 29 par le
+    // débit du 69 ; la reprise le DÉBITE par le crédit du 79.
+    const dotation = dto.sens === SensDepreciation.DOTATION;
+    const ecriture = await this.ecritureService.creer(tenantId, userId, {
+      exerciceId: dto.exerciceId,
+      journalId: dto.journalId,
+      date: exercice.dateFin.toISOString().slice(0, 10),
+      libelle: `${dotation ? 'Dotation' : 'Reprise'} de dépréciation · ${immo.designation}`,
+      lignes: dotation
+        ? [
+            { compteId: contrepartie.id, debit: dto.montant, credit: 0 },
+            { compteId: compte29.id, debit: 0, credit: dto.montant },
+          ]
+        : [
+            { compteId: compte29.id, debit: dto.montant, credit: 0 },
+            { compteId: contrepartie.id, debit: 0, credit: dto.montant },
+          ],
+    });
+
+    try {
+      return await this.prisma.depreciationImmobilisation.create({
+        data: {
+          immobilisationId: id,
+          exerciceId: dto.exerciceId,
+          sens: dto.sens,
+          montant: dto.montant,
+          compteDepreciationId: compte29.id,
+          compteContrepartieId: contrepartie.id,
+          indice: dto.indice,
+          ecritureId: ecriture.id,
+          createdBy: userId,
+        },
+      });
+    } catch (err) {
+      // Même compensation que passerDotation · l'écriture existe déjà quand la
+      // contrainte d'unicité tombe, et une écriture orpheline au grand livre
+      // gonflerait le compte 29 sans qu'aucune ligne ne la porte.
+      if (estConflitUnicite(err)) {
+        await this.annulerEcritureOrpheline(ecriture.id);
+        throw new ConflictException(
+          'Une dépréciation a déjà été enregistrée pour cette immobilisation sur cet exercice',
+        );
       }
       throw err;
     }
@@ -897,6 +1114,11 @@ export class ImmobilisationService {
         immo.dotations.map((d) => ({ montant: Number(d.montant) })),
         { dateDebut: exercice.dateDebut, dateFin: dateSortie },
         Number(immo.amortissementAnterieur ?? 0),
+        this.cumulDepreciation(
+          immo.depreciations
+            .filter((d) => d.exercice.dateFin < exercice.dateFin)
+            .map((d) => ({ sens: d.sens, montant: Number(d.montant) })),
+        ),
       );
       if (montantComplement > EPSILON) {
         const ecritureComplement = await this.ecritureService.creer(tenantId, userId, {
@@ -928,13 +1150,36 @@ export class ImmobilisationService {
       }
     }
 
-    const valeurComptableNette = Math.max(0, Number(immo.valeurOrigine) - cumulAmorti);
+    /*
+      LA DÉPRÉCIATION SORT AVEC LE BIEN.
+
+      Les deux textes rangent le compte 29 « distinctement à l'actif, EN
+      DIMINUTION DE LA VALEUR BRUTE des biens correspondants pour donner leur
+      valeur comptable nette » (SYCEBNL, fiche du COMPTE 29 · AUDCIF art. 46 et
+      Titre VIII ch. 12). Le sortir suppose donc de le solder comme le 28, et
+      de retrancher son cumul de la valeur comptable nette.
+
+      C'ÉTAIT LA SECONDE DIVERGENCE MUETTE. Un 29 laissé au bilan après la
+      sortie du bien qu'il corrigeait est une correction d'actif sans actif ; et
+      la valeur comptable nette portée au 81 était surévaluée du même montant,
+      ce qui transformait une moins-value en plus-value sans qu'aucune écriture
+      ne se déséquilibre.
+    */
+    const cumulDepreciation = this.cumulDepreciation(
+      immo.depreciations.map((d) => ({ sens: d.sens, montant: Number(d.montant) })),
+    );
+    const compteDepreciationSortie = immo.depreciations.at(-1)?.compteDepreciationId ?? null;
+
+    const valeurComptableNette = Math.max(0, Number(immo.valeurOrigine) - cumulAmorti - cumulDepreciation);
 
     const lignesSortie: Array<{ compteId: string; debit: number; credit: number }> = [
       { compteId: immo.compteImmobilisationId, debit: 0, credit: Number(immo.valeurOrigine) },
     ];
     if (cumulAmorti > EPSILON) {
       lignesSortie.push({ compteId: immo.compteAmortissementId, debit: cumulAmorti, credit: 0 });
+    }
+    if (cumulDepreciation > EPSILON && compteDepreciationSortie) {
+      lignesSortie.push({ compteId: compteDepreciationSortie, debit: cumulDepreciation, credit: 0 });
     }
     if (valeurComptableNette > EPSILON) {
       const compteVNC = await this.compteDeSortie(tenantId, comptes.valeurComptable);

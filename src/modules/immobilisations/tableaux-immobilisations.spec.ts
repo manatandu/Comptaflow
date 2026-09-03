@@ -1,3 +1,4 @@
+import { SensDepreciation } from '@prisma/client';
 import { ImmobilisationService } from './immobilisation.service';
 import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
@@ -34,6 +35,7 @@ function bien(opts: {
   dateMiseEnService?: string;
   amortissementAnterieur?: number;
   dotations?: Array<{ montant: number; exerciceId: string; dateFin: string }>;
+  depreciations?: Array<{ sens: SensDepreciation; montant: number; dateFin: string }>;
   dateSortie?: string;
 }) {
   return {
@@ -52,6 +54,13 @@ function bien(opts: {
     dotations: (opts.dotations ?? []).map((d) => ({
       montant: d.montant,
       exerciceId: d.exerciceId,
+      exercice: { dateFin: new Date(d.dateFin) },
+    })),
+    // Voir amortissement-anterieur.spec.ts · les dépréciations accompagnent
+    // désormais le bien partout où l'annuité est calculée.
+    depreciations: (opts.depreciations ?? []).map((d) => ({
+      sens: d.sens,
+      montant: d.montant,
       exercice: { dateFin: new Date(d.dateFin) },
     })),
   };

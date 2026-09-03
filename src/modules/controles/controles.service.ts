@@ -5,6 +5,7 @@ import {
   FormeJuridiqueSyscohada,
   JeuEtatsFinanciersSycebnl,
   Referentiel,
+  SensDepreciation,
   StatutEcriture,
   StatutExoneration,
   SystemeComptableSyscohada,
@@ -1372,6 +1373,29 @@ export class ControlesService {
       acc.solde += Number(l.credit) - Number(l.debit);
       soldes29.set(l.compte.numero, acc);
     }
+    /*
+      CE QUE LE MODULE A LUI-MÊME POSTÉ NE COMPTE PAS.
+
+      Depuis que la dépréciation est portée dans le module, ses propres
+      écritures mouvementent elles aussi le compte 29. Les compter ici ferait
+      crier le contrôle sur le dossier qui fait exactement ce qu'on lui
+      demande · et un avertissement qui se trompe est un avertissement qu'on
+      apprend à ignorer. On retranche donc, compte 29 par compte 29, ce que la
+      table DepreciationImmobilisation porte pour cet exercice ; ne reste que
+      ce qui a été passé à la main, qui est le seul cas divergent.
+    */
+    if ([...soldes29.values()].some((v) => v.solde > 0.005)) {
+      const duModule = await this.prisma.depreciationImmobilisation.findMany({
+        where: { exerciceId, immobilisation: { tenantId } },
+        select: { sens: true, montant: true, compteDepreciation: { select: { numero: true } } },
+      });
+      for (const d of duModule) {
+        const acc = soldes29.get(d.compteDepreciation.numero);
+        if (!acc) continue;
+        acc.solde -= d.sens === SensDepreciation.DOTATION ? Number(d.montant) : -Number(d.montant);
+      }
+    }
+
     const depreciations = [...soldes29.entries()]
       .filter(([, v]) => v.solde > 0.005)
       .sort(([a], [b]) => a.localeCompare(b));

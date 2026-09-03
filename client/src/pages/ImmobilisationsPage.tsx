@@ -61,6 +61,17 @@ export function ImmobilisationsPage() {
   const [sCompteContrepartie, setSCompteContrepartie] = useState('');
   const [sJournalId, setSJournalId] = useState('');
 
+  // Dépréciation · AUDCIF art. 46 et Titre VIII ch. 12 ; SYCEBNL, fiche du
+  // COMPTE 29. Rien n'est prérempli : ni le montant, qui suppose une valeur
+  // actuelle estimée hors du logiciel, ni l'indice, sans lequel aucun test
+  // n'est requis et donc aucune dotation n'est justifiable (ch. 12 § 2.1).
+  const [depreciationOuvertePour, setDepreciationOuvertePour] = useState<string | null>(null);
+  const [dSens, setDSens] = useState<'DOTATION' | 'REPRISE'>('DOTATION');
+  const [dMontant, setDMontant] = useState('');
+  const [dCompte29, setDCompte29] = useState('');
+  const [dContrepartie, setDContrepartie] = useState('');
+  const [dIndice, setDIndice] = useState('');
+
   const charger = async () => {
     const [f, i, c2, ctrésorerie, jrn] = await Promise.all([
       api.get<FamilleImmobilisation[]>('/immobilisations/familles'),
@@ -187,8 +198,45 @@ export function ImmobilisationsPage() {
     }
   };
 
+  const onDeprecier = async (e: FormEvent, immoId: string) => {
+    e.preventDefault();
+    if (!exerciceCourant) return;
+    setErreur(null);
+    setEnvoi(true);
+    try {
+      const od = journaux.find((j) => j.code === 'OD');
+      await api.post(`/immobilisations/${immoId}/depreciation`, {
+        exerciceId: exerciceCourant.id,
+        journalId: od?.id ?? journaux[0]?.id,
+        sens: dSens,
+        montant: Number(dMontant),
+        compteDepreciationId: dCompte29,
+        compteContrepartieId: dContrepartie,
+        indice: dIndice,
+      });
+      setDepreciationOuvertePour(null);
+      setDMontant('');
+      setDIndice('');
+      setInfo(
+        dSens === 'DOTATION'
+          ? 'Dépréciation enregistrée · le plan d’amortissement se ré-étale sur la durée restant à courir.'
+          : 'Reprise enregistrée.',
+      );
+      await charger();
+    } catch (err) {
+      setErreur(err instanceof ApiError ? err.message : 'Impossible d’enregistrer cette dépréciation');
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
   const cumulAmorti = (immo: Immobilisation) => immo.dotations.reduce((s, d) => s + d.montant, 0);
-  const vcn = (immo: Immobilisation) => immo.valeurOrigine - cumulAmorti(immo);
+  // Les deux textes inscrivent la dépréciation EN DIMINUTION DE LA VALEUR
+  // BRUTE · l'omettre ici afficherait une valeur nette que le bilan ne porte
+  // pas (SYCEBNL, fiche du COMPTE 29 · AUDCIF art. 46).
+  const cumulDeprecie = (immo: Immobilisation) =>
+    immo.depreciations.reduce((s, d) => s + (d.sens === 'DOTATION' ? d.montant : -d.montant), 0);
+  const vcn = (immo: Immobilisation) => immo.valeurOrigine - cumulAmorti(immo) - cumulDeprecie(immo);
   const dejaDoteeCetExercice = (immo: Immobilisation) =>
     !!exerciceCourant && immo.dotations.some((d) => d.exerciceId === exerciceCourant.id);
 
@@ -393,6 +441,15 @@ export function ImmobilisationsPage() {
                         Doter
                       </button>
                       <button
+                        onClick={() =>
+                          setDepreciationOuvertePour(depreciationOuvertePour === immo.id ? null : immo.id)
+                        }
+                        title="Constater une perte de valeur, ou en reprendre une"
+                        className="text-[10px] text-sel hover:underline"
+                      >
+                        Déprécier
+                      </button>
+                      <button
                         onClick={() => setSortieOuvertePour(sortieOuvertePour === immo.id ? null : immo.id)}
                         className="text-[10px] text-sel hover:underline"
                       >
@@ -402,6 +459,63 @@ export function ImmobilisationsPage() {
                   )}
                 </span>
               </div>
+              {depreciationOuvertePour === immo.id && (
+                <form onSubmit={(e) => onDeprecier(e, immo.id)} className="bg-chrome border-b border-border px-4 py-3">
+                  <p className="text-[10px] text-text-dim leading-[1.55] mb-2">
+                    L’actif se déprécie lorsque sa valeur nette comptable dépasse sa valeur actuelle. Le montant et
+                    l’indice sont saisis : le logiciel ne connaît ni le marché, ni l’usage du bien. Une dotation
+                    ré-étale le plan d’amortissement sur la durée restant à courir.
+                  </p>
+                  <div className="grid grid-cols-4 gap-3 items-end">
+                    <label className="text-[10.5px] font-semibold text-text-dim">
+                      Sens
+                      <select value={dSens} onChange={(e) => setDSens(e.target.value as 'DOTATION' | 'REPRISE')} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11px]">
+                        <option value="DOTATION">Dotation</option>
+                        <option value="REPRISE">Reprise</option>
+                      </select>
+                    </label>
+                    <label className="text-[10.5px] font-semibold text-text-dim">
+                      Montant
+                      <input required type="number" step="0.01" min={0.01} value={dMontant} onChange={(e) => setDMontant(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11px] font-mono" />
+                    </label>
+                    <label className="text-[10.5px] font-semibold text-text-dim">
+                      Compte de dépréciation (29)
+                      <select required value={dCompte29} onChange={(e) => setDCompte29(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11px]">
+                        <option value="" />
+                        {comptesFinancement.filter((c) => c.numero.startsWith('29')).map((c) => (
+                          <option key={c.id} value={c.id}>{c.numero} · {c.intitule}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="text-[10.5px] font-semibold text-text-dim">
+                      Contrepartie ({dSens === 'DOTATION' ? '69' : '79'})
+                      <select required value={dContrepartie} onChange={(e) => setDContrepartie(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11px]">
+                        <option value="" />
+                        {comptesFinancement
+                          .filter((c) => c.numero.startsWith(dSens === 'DOTATION' ? '69' : '79'))
+                          .map((c) => (
+                            <option key={c.id} value={c.id}>{c.numero} · {c.intitule}</option>
+                          ))}
+                      </select>
+                    </label>
+                  </div>
+                  <label className="block text-[10.5px] font-semibold text-text-dim mt-3">
+                    Indice de perte de valeur
+                    <input
+                      required
+                      maxLength={500}
+                      value={dIndice}
+                      onChange={(e) => setDIndice(e.target.value)}
+                      placeholder="Baisse du prix du marché, obsolescence, dégradation physique, mise hors service prévue…"
+                      className="mt-1 w-full border border-border-dark px-2 py-1 text-[11px]"
+                    />
+                  </label>
+                  <div className="flex gap-2 mt-3">
+                    <button type="submit" disabled={envoi} className="bg-sel text-white text-[11px] font-semibold px-3 py-1.5 disabled:opacity-50">{envoi ? '…' : 'Enregistrer'}</button>
+                    <button type="button" onClick={() => setDepreciationOuvertePour(null)} className="text-[11px] font-semibold text-text-dim px-3 py-1.5">Annuler</button>
+                  </div>
+                </form>
+              )}
               {sortieOuvertePour === immo.id && (
                 <form onSubmit={(e) => onSortir(e, immo.id)} className="bg-chrome border-b border-border px-4 py-3">
                   <div className="grid grid-cols-4 gap-3 items-end">

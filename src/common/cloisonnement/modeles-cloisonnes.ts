@@ -60,6 +60,11 @@ export const MODELES_CLOISONNES = new Set<string>([
 export const MODELES_PORTES_PAR_LEUR_PARENT = new Set<string>([
   'BudgetSection',
   'CoursDevise',
+  // Portée par son immobilisation, comme la dotation aux amortissements · le
+  // service ne l'atteint jamais autrement que par un bien déjà borné au
+  // dossier (`trouver`), et lui donner un tenantId à elle ouvrirait la porte à
+  // deux réponses possibles à la même question.
+  'DepreciationImmobilisation',
   'DotationAmortissement',
   'EcheanceAbonnement',
   'EcheanceReglement',
