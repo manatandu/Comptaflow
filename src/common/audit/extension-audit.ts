@@ -44,7 +44,12 @@ async function ajouterMaillon(
 ): Promise<void> {
   await base.$transaction(async (tx) => {
     const cle = evenement.tenantId ?? 'plateforme';
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${cle}))`;
+    // `$executeRaw` et NON `$queryRaw` · `pg_advisory_xact_lock` rend le type
+    // `void`, que le moteur Prisma ne sait pas désérialiser en colonne · le
+    // verrou levait alors une erreur, rattrapée plus haut, et AUCUN maillon
+    // n'était jamais écrit. Le journal paraissait posé, il ne l'était pas.
+    // `$executeRaw` ne lit aucune colonne, seulement un nombre de lignes.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${cle}))`;
 
     const precedent = await tx.evenementAudit.findFirst({
       where: { tenantId: evenement.tenantId },

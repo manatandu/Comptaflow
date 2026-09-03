@@ -204,7 +204,15 @@ describe('l’interception, telle qu’elle est branchée', () => {
   function baseFactice(precedent: { rang: number; empreinte: string } | null = null) {
     const maillons: any[] = [];
     const tx = {
-      $queryRaw: jest.fn().mockResolvedValue([{}]),
+      // Le VRAI moteur ÉCHOUE ici · `pg_advisory_xact_lock` rend le type
+      // `void`, que Prisma ne sait pas désérialiser en colonne. Le factice
+      // rendait auparavant `[{}]` sans broncher : le test passait au vert
+      // pendant qu'en production AUCUN maillon n'était écrit. Il reproduit
+      // désormais l'échec, ce qui oblige le code à passer par `$executeRaw`.
+      $queryRaw: jest.fn().mockRejectedValue(
+        new Error("Raw query failed. Message: `Failed to deserialize column of type 'void'`"),
+      ),
+      $executeRaw: jest.fn().mockResolvedValue(1),
       evenementAudit: {
         findFirst: jest.fn().mockResolvedValue(precedent),
         create: jest.fn().mockImplementation(async ({ data }: any) => {
@@ -252,6 +260,24 @@ describe('l’interception, telle qu’elle est branchée', () => {
     });
     expect(maillons[0].avant).toEqual({ id: 'c-1', tenantId: 'd-1', intitule: 'Caisse' });
     expect(maillons[0].apres).toEqual({ id: 'c-1', tenantId: 'd-1', intitule: 'Caisse siège' });
+  });
+
+  it('prend le verrou par `$executeRaw` · `$queryRaw` ne sait pas lire un `void`', async () => {
+    // L'INCIDENT DU 2026-09-02 · le verrou consultatif passait par
+    // `$queryRaw`. Le moteur refusait de désérialiser la colonne `void`,
+    // l'erreur était rattrapée par le filet de `intercepterEcriture`, et le
+    // journal d'audit restait VIDE sans que rien ne le signale ailleurs que
+    // dans les journaux d'exploitation.
+    const { client, tx, maillons } = baseFactice();
+    await intercepterEcriture(client, {
+      model: 'Compte',
+      operation: 'update',
+      args: { where: { id: 'c-1' }, data: { intitule: 'Caisse siège' } },
+      query: async () => ({ id: 'c-1', tenantId: 'd-1', intitule: 'Caisse siège' }),
+    });
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
+    expect(tx.$queryRaw).not.toHaveBeenCalled();
+    expect(maillons).toHaveLength(1);
   });
 
   it('n’écrit RIEN pour un modèle hors périmètre', async () => {

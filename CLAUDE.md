@@ -135,6 +135,16 @@ avec un client à jour sur un serveur d'avant. La panne était rouge dans
 Actions depuis le début · personne ne l'avait ouverte. Un « poussé » sans
 déploiement vérifié est un « poussé » qui ne veut rien dire.
 
+Le job `verifier` fait en plus **démarrer le serveur pour de bon**, contre un
+Postgres jetable monté en service, et interroge `/health`. Compiler et tester
+ne prouve pas qu'un serveur démarre : les tests tournent sur des Prisma
+factices, qui rendent des promesses déjà lancées et ne désérialisent aucune
+colonne. Les deux pannes du 2026-09-02 (sortie de cloisonnement muette,
+verrou d'audit illisible) sont passées au vert dans 1696 tests et sont tombées
+à la première seconde de vie réelle. Ce contrôle relit aussi le journal de
+démarrage : un maillon d'audit non écrit ne fait tomber aucune requête, il ne
+se voit que là.
+
 Pour pousser : `git push -u origin main`, avec quelques tentatives espacées en
 cas d'échec réseau.
 

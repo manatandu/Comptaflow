@@ -18,8 +18,36 @@ import { AsyncLocalStorage } from 'node:async_hooks';
  */
 const stockage = new AsyncLocalStorage<{ raison: string }>();
 
+/**
+ * PIÈGE DE LA PROMESSE PARESSEUSE · une requête Prisma n'est PAS lancée quand
+ * on l'écrit. Une écriture de masse sur un modèle rend une `PrismaPromise` qui ne
+ * déclenche ses crochets d'extension qu'au premier `.then()`. Or ce `.then()`
+ * est appelé par le `await` de l'appelant, DEHORS de la portée ouverte ici :
+ * `stockage.run` avait déjà rendu la main. La garde de cloisonnement lisait
+ * donc un magasin vide et refusait la requête, sortie déclarée ou non.
+ *
+ * Le 2026-09-02, cela a fait tomber le serveur au démarrage (promotion des
+ * opérateurs) et aurait de toute façon rendu la connexion impossible. On
+ * appelle donc `.then` NOUS-MÊMES, de façon synchrone, tant que la portée est
+ * ouverte · on ne se repose pas sur la propagation du contexte à travers une
+ * micro-tâche, on la rend inutile.
+ */
+function estThenable(valeur: unknown): valeur is PromiseLike<unknown> {
+  return (
+    typeof valeur === 'object' &&
+    valeur !== null &&
+    typeof (valeur as PromiseLike<unknown>).then === 'function'
+  );
+}
+
 export function horsCloisonnement<T>(raison: string, suite: () => T): T {
-  return stockage.run({ raison }, suite);
+  return stockage.run({ raison }, () => {
+    const resultat = suite();
+    if (!estThenable(resultat)) return resultat;
+    return new Promise((resoudre, rejeter) =>
+      (resultat as PromiseLike<unknown>).then(resoudre, rejeter),
+    ) as unknown as T;
+  });
 }
 
 export function raisonHorsCloisonnement(): string | undefined {

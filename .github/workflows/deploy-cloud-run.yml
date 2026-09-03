@@ -34,6 +34,28 @@ jobs:
   # authentification Google. Il compile, teste et construit les deux côtés.
   verifier:
     runs-on: ubuntu-latest
+
+    # UNE VRAIE BASE, JETABLE · le 2026-09-02, sept déploiements de suite ont
+    # été refusés par Cloud Run parce que le serveur mourait au démarrage, et
+    # rien dans la chaîne ne l'avait vu : tous les tests tournaient sur des
+    # Prisma factices, qui rendent des promesses déjà lancées et ne
+    # désérialisent aucune colonne. Compiler et tester ne prouve pas que le
+    # serveur démarre. Cette base-là le prouve.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: omega
+          POSTGRES_PASSWORD: omega
+          POSTGRES_DB: omegatest
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -54,6 +76,51 @@ jobs:
 
       - name: Construction du serveur
         run: npm run build
+
+      # PREUVE DE DÉMARRAGE · migrations appliquées sur une base vierge, puis
+      # le serveur lancé pour de bon et interrogé sur /health. Les valeurs
+      # ci-dessous sont des valeurs de contrôle, jetables avec la base · ce
+      # job n'a toujours aucun secret.
+      - name: "Démarrage réel du serveur contre une vraie base"
+        env:
+          DATABASE_URL: postgresql://omega:omega@127.0.0.1:5432/omegatest
+          JWT_SECRET: controle-de-demarrage-jetable-0123456789abcdef
+          JWT_EXPIRES_IN: 8h
+          PORT: '8080'
+          CORS_ORIGIN: https://exemple.invalid
+          # Non vide EXPRÈS · c'est cette promotion au démarrage qui traverse
+          # la sortie de cloisonnement et l'extension d'audit, donc le chemin
+          # exact qui tombait en production.
+          OPERATEURS_PLATEFORME: controle@exemple.invalid
+        run: |
+          npx prisma migrate deploy
+          point=dist/main.js
+          [ -f "$point" ] || point=dist/src/main.js
+          echo "point d'entrée · $point"
+          node "$point" > /tmp/demarrage.log 2>&1 &
+          pid=$!
+          vivant=0
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:8080/health > /dev/null; then vivant=1; break; fi
+            if ! kill -0 "$pid" 2>/dev/null; then break; fi
+            sleep 2
+          done
+          kill "$pid" 2>/dev/null || true
+          if [ "$vivant" != "1" ]; then
+            echo "::error::Le serveur n'a pas démarré · Cloud Run le refuserait de la même façon"
+            tail -60 /tmp/demarrage.log
+            exit 1
+          fi
+          # UN MAILLON NON ÉCRIT NE FAIT PAS TOMBER LA REQUÊTE (choix assumé
+          # dans extension-audit.ts) · il ne se voit donc que là. Sans cette
+          # ligne, le journal d'audit pourrait redevenir muet sans que rien
+          # ne rougisse.
+          if grep -q "Maillon d'audit NON écrit" /tmp/demarrage.log; then
+            echo "::error::Le journal d'audit n'écrit plus · la chaîne est muette"
+            grep -A4 "Maillon d'audit NON écrit" /tmp/demarrage.log | head -20
+            exit 1
+          fi
+          echo "serveur vivant, base jointe, journal d'audit écrit"
 
       - name: Installer le client
         working-directory: client
