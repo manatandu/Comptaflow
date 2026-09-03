@@ -1159,6 +1159,78 @@ Restent les ch. 3, 7, 10, 11, 13, 15, 19 à 21, 25, 26, 28 et 32 à 41.
 
 ---
 
+## Passe 14 · Titre VIII ch. 7 et 28 · la réévaluation, même mécanisme qu'à la passe 13
+
+Lu à la source : AUDCIF, Titre VIII ch. 7 « Coûts d'emprunts » (sections 1 et
+2) et ch. 28 « Réévaluation des bilans » (sections 1, 2 et 6), avec les
+art. 62 à 65 déjà lus à la passe 7 ; SYCEBNL, cadre conceptuel § 3.3.1.2.1 et
+fiche du COMPTE 106.
+
+### Écart 14.1 · l'écart de réévaluation subit le même sort que la dépréciation
+
+**Le mécanisme est celui de la passe 13**, et c'est ce qui le rend intéressant :
+le module range la valeur d'entrée dans `valeurOrigine`, et rien d'extérieur ne
+peut la mettre à jour. Une réévaluation passée à la main augmente la valeur au
+bilan (débit du compte 2x, crédit du 106) sans que le module en sache rien · il
+continue d'amortir et de sortir le bien au coût historique.
+
+**Ce que chaque texte dit, et seulement lui** · c'est le point délicat.
+
+- SYCEBNL · le cadre conceptuel prévoit « le recours à la réévaluation qui peut
+  être libre ou légale », portant « exclusivement sur les immobilisations
+  corporelles et financières », et la fiche du compte 106 en fait « la
+  contrepartie au passif du bilan des augmentations de valeur d'éléments
+  actifs ».
+- AUDCIF · art. 62 à 65 et Titre VIII ch. 28, qui ajoutent DEUX règles que le
+  texte SYCEBNL n'écrit pas : « la valeur réévaluée des immobilisations
+  amortissables sert de base au calcul des amortissements sur la durée
+  d'utilité restant à courir depuis l'ouverture de l'exercice de réévaluation »
+  (art. 64) ; et « le solde de l'écart de réévaluation d'un bien cédé ou mis
+  hors service doit faire l'objet d'un transfert à un poste de réserve non
+  distribuable » (ch. 28 § 6).
+
+Les prêter au SYCEBNL serait exactement la transposition que le dépôt
+s'interdit · un test le vérifie dans les deux sens.
+
+**Gravité · état faux, et muet.** Le bilan porte la valeur réévaluée, le module
+la valeur ancienne. La dotation de l'exercice suivant et la valeur comptable
+nette de sortie divergent, sans qu'aucune écriture ne se déséquilibre.
+
+**Ce qui a été fait ici.** Un seizième contrôle,
+`REEVALUATION_IMMO_HORS_MODULE`, sur le même patron que le quinzième : il ne se
+déclenche que si le dossier porte un solde créditeur au 106 ET tient des biens
+dans le module, cite le texte du référentiel du dossier, et rappelle dans son
+action l'interdiction de la réévaluation partielle, qui est le piège le plus
+courant du chapitre. Le portage dans le module rejoint la tâche 103, dont c'est
+le même correctif de fond.
+
+### Ch. 7 · rien à corriger, une nuance à ne pas gommer
+
+Le chapitre définit l'actif qualifié (celui qui « exige une longue période de
+préparation »), donne le seuil indicatif d'un an, et détaille le calcul des
+coûts incorporables selon que l'emprunt est spécifique ou général, avec un
+plafond : « le montant des coûts incorporés au cours d'un exercice ne doit
+toutefois pas excéder le total des coûts d'emprunt supportés au cours de ce
+même exercice ».
+
+Rien de cela ne tombe sur le logiciel : la valeur d'entrée d'une immobilisation
+est saisie, pas calculée · le comptable y incorpore ce qu'il a déterminé.
+
+**Une nuance de rédaction, signalée et non tranchée.** L'AUDCIF, art. 37, écrit
+que les coûts d'emprunt d'un actif qualifié « FONT PARTIE du coût du bien
+lorsqu'ils concernent la période de production » ; le SYCEBNL, Partie 2 ch. 3,
+introduction de la classe 2, écrit qu'ils « PEUVENT être inclus dans le coût du
+bien ». Obligation d'un côté, faculté de l'autre, sur la même opération. Aucun
+code ne dépend aujourd'hui de cette lecture · elle est notée ici pour qu'elle
+soit tranchée le jour où un module de valorisation en dépendra, et surtout pour
+qu'elle ne soit pas harmonisée en silence.
+
+### Portée de cette passe
+
+Restent les ch. 3, 10, 11, 13, 15, 19 à 21, 25, 26 et 32 à 41.
+
+---
+
 ## Ce qui n'a pas encore été ouvert
 
 À traiter dans les passes suivantes, dans cet ordre :
@@ -1166,7 +1238,7 @@ Restent les ch. 3, 7, 10, 11, 13, 15, 19 à 21, 25, 26, 28 et 32 à 41.
 1. **AUDCIF Titre VIII** · les chapitres restants. Ouverts à ce jour : le
    ch. 16 (passe 2), le ch. 31 (passe 3), les ch. 4 à 6 (passe 8), les ch. 8,
    9 et 27 (passe 9), et le ch. 22 vérifié à la passe 7 par le module devises.
-   Restent les ch. 3, 7, 10, 11, 13, 15, 19 à 21, 25, 26, 28 et 32 à 41. La plupart visent des opérations hors du portefeuille actuel du
+   Restent les ch. 3, 10, 11, 13, 15, 19 à 21, 25, 26 et 32 à 41. La plupart visent des opérations hors du portefeuille actuel du
    cabinet (concessions, franchise, agricole, fusions, liquidation, GIE,
    comptabilité par établissement, pluri-monétaire) · à trier avec Manasse
    plutôt qu'à ouvrir un par un.

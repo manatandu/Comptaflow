@@ -1409,6 +1409,84 @@ export class ControlesService {
       }
     }
 
+    // --- 16. Réévaluation portée hors du module d'immobilisations -------------
+    //
+    // MÊME FAMILLE QUE LE CONTRÔLE 15, ET LE MÊME MÉCANISME · le module range
+    // la valeur d'entrée dans `valeurOrigine`, et rien d'extérieur ne peut la
+    // mettre à jour. Une réévaluation passée à la main augmente la valeur au
+    // bilan (débit du compte 2x, crédit du 106) sans que le module en sache
+    // rien : il continue d'amortir et de sortir le bien au coût historique.
+    //
+    // CE QUE CHAQUE TEXTE DIT, ET SEULEMENT LUI.
+    //
+    //  · SYCEBNL · le cadre conceptuel (§ 3.3.1.2.1) prévoit « le recours à la
+    //    réévaluation qui peut être libre ou légale », portant « exclusivement
+    //    sur les immobilisations corporelles et financières », et la fiche du
+    //    COMPTE 106 en fait « la contrepartie au passif du bilan des
+    //    augmentations de valeur d'éléments actifs ».
+    //  · AUDCIF · art. 62 à 65 et Titre VIII ch. 28, qui ajoutent DEUX règles
+    //    que le texte SYCEBNL n'écrit pas et qu'il ne faut donc pas lui prêter :
+    //    l'art. 64, « la valeur réévaluée des immobilisations amortissables
+    //    sert de base au calcul des amortissements sur la durée d'utilité
+    //    restant à courir depuis l'ouverture de l'exercice de réévaluation » ;
+    //    et le ch. 28 § 6, « le solde de l'écart de réévaluation d'un bien
+    //    cédé ou mis hors service doit faire l'objet d'un transfert à un poste
+    //    de réserve non distribuable ».
+    //
+    // La conséquence logicielle, elle, est la même des deux côtés : le bilan
+    // porte la valeur réévaluée, le module la valeur historique. Sa dotation
+    // et sa sortie divergent, sans qu'aucune écriture ne se déséquilibre.
+    const lignes106 = await this.prisma.ligneEcriture.findMany({
+      where: {
+        compte: { tenantId, numero: { startsWith: '106' } },
+        ecriture: { tenantId, exerciceId },
+      },
+      select: { debit: true, credit: true, compte: { select: { numero: true, intitule: true } } },
+    });
+    const soldes106 = new Map<string, { intitule: string; solde: number }>();
+    for (const l of lignes106) {
+      const acc = soldes106.get(l.compte.numero) ?? { intitule: l.compte.intitule, solde: 0 };
+      // L'écart de réévaluation est CRÉDITEUR · c'est une contrepartie de passif.
+      acc.solde += Number(l.credit) - Number(l.debit);
+      soldes106.set(l.compte.numero, acc);
+    }
+    const ecartsReevaluation = [...soldes106.entries()]
+      .filter(([, v]) => v.solde > 0.005)
+      .sort(([a], [b]) => a.localeCompare(b));
+    if (ecartsReevaluation.length > 0) {
+      const immosReevaluees = await this.prisma.immobilisation.count({
+        where: { tenantId, statut: 'EN_SERVICE' },
+      });
+      if (immosReevaluees > 0) {
+        const estSycebnlReevaluation = tenant.referentiel === Referentiel.SYCEBNL;
+        anomalies.push({
+          code: 'REEVALUATION_IMMO_HORS_MODULE',
+          gravite: 'AVERTISSEMENT',
+          libelle: 'Écart de réévaluation que le module d’immobilisations ne connaît pas',
+          consequence:
+            (estSycebnlReevaluation
+              ? 'Le SYCEBNL (cadre conceptuel § 3.3.1.2.1 et fiche du compte 106) fait de l’écart de ' +
+                'réévaluation la contrepartie au passif de l’augmentation de valeur portée à l’actif. '
+              : 'L’AUDCIF (art. 62 à 65 et Titre VIII ch. 28) impose en outre que la valeur RÉÉVALUÉE serve de ' +
+                'base aux amortissements sur la durée restant à courir (art. 64), et que le solde de l’écart ' +
+                'd’un bien cédé soit transféré à une réserve non distribuable (ch. 28 § 6). ') +
+            'Or le module d’immobilisations garde la valeur d’origine historique : il continue d’amortir et de ' +
+            'sortir le bien sur cette base. Le bilan porte la valeur réévaluée, le module la valeur ancienne, et ' +
+            'aucune écriture ne se déséquilibre · la balance boucle des deux façons.',
+          action:
+            'Reprenez à la main le plan d’amortissement des biens réévalués, et, avant toute cession, la sortie ' +
+            'de l’écart de réévaluation correspondant. Vérifiez aussi que la réévaluation porte bien sur ' +
+            'l’ENSEMBLE des immobilisations corporelles et financières : une réévaluation partielle est ' +
+            'interdite.',
+          occurrences: ecartsReevaluation.slice(0, 200).map(([numero, v]) => ({
+            reference: `${numero} ${v.intitule}`,
+            detail: 'Écart de réévaluation porté hors du module d’immobilisations',
+            montant: Math.round(v.solde * 100) / 100,
+          })),
+        });
+      }
+    }
+
     const ordre: Record<Gravite, number> = { BLOQUANT: 0, AVERTISSEMENT: 1, INFORMATION: 2 };
     anomalies.sort((a, b) => ordre[a.gravite] - ordre[b.gravite]);
 
