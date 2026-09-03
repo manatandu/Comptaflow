@@ -192,16 +192,20 @@ projets) : c'est normal, chaque chapitre numérote les siennes. Ce qui est
 surveillé, c'est le partage d'OBJET, qui ferait qu'une correction faite pour
 un jeu s'appliquerait en silence à l'autre.
 
-**Différenciateur SYCEBNL** · le référentiel décrit chaque compte par une
-fiche, et deux de ses rubriques sont mises au travail depuis le 2026-09-03
-(`regles-comptes-sycebnl.ts`, engendré par `scripts/extraire-regles-comptes.cjs`,
-78 fiches) : « Exclusions » avertit à la saisie de ce que le compte ne doit
-pas enregistrer et du compte à utiliser, « Éléments de contrôle » alimente la
-fenêtre Dossier de révision, compte mouvementé par compte mouvementé. Le
-texte est CITÉ, jamais reformulé. L'avertissement n'empêche pas la saisie ·
+**Fiches par compte, les deux référentiels** · chaque texte décrit ses
+comptes par une fiche, et deux de ses rubriques sont mises au travail depuis
+le 2026-09-03 (`regles-comptes-sycebnl.ts`, 78 fiches, Partie 2 ch. 3 ·
+`regles-comptes-syscohada.ts`, 115 fiches, AUDCIF Titre VII · les deux
+engendrés par `scripts/extraire-regles-comptes.cjs`) : « Exclusions » avertit
+à la saisie de ce que le compte ne doit pas enregistrer et du compte à
+utiliser, « Éléments de contrôle » alimente la fenêtre Dossier de révision,
+compte mouvementé par compte mouvementé.
+
+Le texte est CITÉ, jamais reformulé. L'avertissement n'empêche pas la saisie ·
 le logiciel ne connaît pas la nature de l'opération, refuser bloquerait des
-écritures justes. L'AUDCIF porte les mêmes rubriques pour le SYSCOHADA
-(Titre VII) : même extraction à faire, surtout pas une transposition.
+écritures justes. Et LES DEUX TEXTES N'ÉCRIVENT PAS LA RÈGLE PAREIL : le
+SYCEBNL dit « (utiliser 104) », l'AUDCIF « → 481 ». Deux lecteurs distincts
+dans l'extracteur, et jamais une table servie pour l'autre référentiel.
 
 Propres au SYCEBNL : registre des donateurs, bailleurs, exonérations
 douanières, opérations spécifiques, module groupe.

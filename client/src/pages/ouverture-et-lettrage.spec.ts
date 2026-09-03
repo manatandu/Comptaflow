@@ -138,14 +138,21 @@ describe('différenciateur SYCEBNL · les fiches du référentiel, mises au trav
     expect(saisie).toContain('.sort((a, b) => b.numero.length - a.numero.length)[0]');
   });
 
-  it('le dossier de révision ne s’ouvre qu’au SYCEBNL, menu compris', () => {
-    // Les fiches du SYSCOHADA existent dans l'AUDCIF mais ne sont pas
-    // transcrites · les transposer serait la faute que CLAUDE.md §6 interdit.
-    expect(lire('lib/registre-fenetres.tsx')).toMatch(
-      /dossier-revision[\s\S]{0,600}referentielsApplicables: \['SYCEBNL'\]/,
-    );
-    expect(lire('components/chrome/AppShell.tsx')).toMatch(
-      /estSycebnl[\s\S]{0,200}navigate\('\/dossier-revision'\)/,
-    );
+  it('le dossier de révision s’ouvre aux DEUX référentiels', () => {
+    // Depuis que les fiches de l'AUDCIF (Titre VII) sont extraites à côté de
+    // celles du SYCEBNL, la fenêtre n'a plus de raison d'être réservée · elle
+    // sert à chaque dossier les fiches de SON texte.
+    const registre = lire('lib/registre-fenetres.tsx');
+    const entree = registre.slice(registre.indexOf('dossier-revision'), registre.indexOf('dossier-revision') + 700);
+    expect(entree).not.toContain('referentielsApplicables');
+  });
+
+  it('la page nomme le texte dont viennent les fiches', () => {
+    // Un réviseur doit savoir de quel référentiel il lit la règle · les deux
+    // ne disent pas la même chose du même numéro.
+    const page = lire('pages/DossierRevisionPage.tsx');
+    expect(page).toContain('AUDCIF, Titre VII');
+    expect(page).toContain('SYCEBNL, Partie 2 chapitre 3');
+    expect(page).toContain("jamais transposées de l'autre");
   });
 });

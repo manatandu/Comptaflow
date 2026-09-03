@@ -1,4 +1,7 @@
 import { REGLES_COMPTES_SYCEBNL } from './regles-comptes-sycebnl';
+import { REGLES_COMPTES_SYSCOHADA } from './regles-comptes-syscohada';
+import { PLAN_COMPTES_SYSCOHADA } from '../comptes/compte-seed-syscohada';
+import { DossierRevisionService } from './dossier-revision.service';
 import { PLAN_COMPTES_SYCEBNL } from '../comptes/compte-seed';
 
 /**
@@ -118,5 +121,71 @@ describe('le texte est cité, jamais reformulé', () => {
         expect([r.numero, r.elementsDeControle.length > 30]).toEqual([r.numero, true]);
       }
     }
+  });
+});
+
+describe('règles par compte du SYSCOHADA · AUDCIF, Titre VII', () => {
+  const numeros = PLAN_COMPTES_SYSCOHADA.map((c) => c.numero);
+  const existeSyscohada = (n: string) => numeros.some((p) => p.startsWith(n) || n.startsWith(p));
+
+  it('porte les 115 fiches des neuf classes', () => {
+    // Dont les 31 comptes d'engagements hors bilan de la classe 9, à QUATRE
+    // chiffres (9011 Crédits confirmés obtenus…) · un motif à trois chiffres
+    // perdait la classe entière en silence.
+    expect(REGLES_COMPTES_SYSCOHADA).toHaveLength(115);
+    expect(REGLES_COMPTES_SYSCOHADA.filter((r) => r.numero.length === 4).length).toBe(31);
+  });
+
+  it('l’AUDCIF écrit la règle AUTREMENT, et l’extraction le sait', () => {
+    // Le SYCEBNL dit « … (utiliser 104) », l'AUDCIF « … → 481 ». Appliquer
+    // la règle de lecture de l'un à l'autre ne rendrait rien, ou pire.
+    const quarante = REGLES_COMPTES_SYSCOHADA.find((r) => r.numero === '40')!;
+    expect(quarante.exclusions).toContain('→ 481');
+    expect(quarante.comptesAUtiliser).toEqual(['25', '481']);
+  });
+
+  it('un renvoi vers des CLASSES ne produit aucun numéro de compte', () => {
+    // « … → classes 6, 7 et 8 » ne nomme aucun compte · en fabriquer un
+    // enverrait le comptable vers une imputation inventée.
+    const treize = REGLES_COMPTES_SYSCOHADA.find((r) => r.numero === '13')!;
+    expect(treize.exclusions).toContain('classes 6, 7 et 8');
+    expect(treize.comptesAUtiliser).toEqual([]);
+  });
+
+  it('chaque compte à utiliser existe au plan SYSCOHADA', () => {
+    const fantomes = [
+      ...new Set(
+        REGLES_COMPTES_SYSCOHADA.flatMap((r) => r.comptesAUtiliser).filter((n) => !existeSyscohada(n)),
+      ),
+    ].sort();
+    expect(fantomes).toEqual([]);
+  });
+
+  it('aucune fiche ne se cite elle-même en remplacement', () => {
+    const boucles = REGLES_COMPTES_SYSCOHADA.filter((r) => r.comptesAUtiliser.includes(r.numero)).map((r) => r.numero);
+    expect(boucles).toEqual([]);
+  });
+});
+
+describe('les deux tables ne se servent jamais l’une pour l’autre', () => {
+  it('un dossier reçoit les fiches de SON texte, et rien pour un référentiel inconnu', () => {
+    // Servir les fiches SYCEBNL à une société commerciale ferait avertir sur
+    // un plan qui n'est pas le sien · les numéros se ressemblent sans se
+    // recouvrir (CLAUDE.md §6).
+    const svc = new DossierRevisionService({} as never);
+    expect(svc.regles('SYCEBNL')).toBe(REGLES_COMPTES_SYCEBNL);
+    expect(svc.regles('SYSCOHADA')).toBe(REGLES_COMPTES_SYSCOHADA);
+    expect(svc.regles(undefined)).toEqual([]);
+    expect(svc.regles('AUTRE')).toEqual([]);
+  });
+
+  it('la fiche retenue est la plus PRÉCISE de la table donnée', () => {
+    // Trois fiches SYCEBNL descendent à trois chiffres (603, 659, 759) · un
+    // compte 65910000 relève de 659, pas de 65 qui dit autre chose.
+    const fiche = DossierRevisionService.regleDe('65910000', REGLES_COMPTES_SYCEBNL);
+    expect(fiche?.numero).toBe('659');
+    // Et côté SYSCOHADA, les engagements à quatre chiffres.
+    const engagement = DossierRevisionService.regleDe('90110000', REGLES_COMPTES_SYSCOHADA);
+    expect(engagement?.numero).toBe('9011');
   });
 });

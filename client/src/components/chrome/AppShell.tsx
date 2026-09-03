@@ -223,13 +223,7 @@ export function AppShell() {
         { label: 'Échéancier de trésorerie', onClick: () => navigate('/echeancier') },
         { label: 'États analytiques et budgétaires', onClick: () => navigate('/etats-analytiques') },
         { label: 'Analyse et contrôles', separateurAvant: true, onClick: () => navigate('/controles') },
-        // Les fiches par compte du référentiel ne sont transcrites que pour
-        // le SYCEBNL · celles du SYSCOHADA existent dans l'AUDCIF (Titre VII)
-        // et restent à faire. Une entrée de menu qui mène à une fenêtre vide
-        // vaut moins que pas d'entrée du tout.
-        ...(estSycebnl
-          ? [{ label: 'Dossier de révision', onClick: () => navigate('/dossier-revision') }]
-          : []),
+        { label: 'Dossier de révision', onClick: () => navigate('/dossier-revision') },
         // Dossier mère d'un groupe d'établissements (une église et ses
         // cellules) · la balance agrégée du groupe est une édition du siège.
         // Le module est monté sur le plan SYCEBNL (canevas de trésorerie et

@@ -65,16 +65,13 @@ export function DossierRevisionPage() {
         <p className="text-[10.5px] text-text-dim mt-1 max-w-[980px] leading-[1.5]">
           Un bloc par compte mouvementé de l'exercice, avec son solde et les pièces à partir desquelles le référentiel
           dit qu'il se contrôle. Les comptes sans mouvement n'y figurent pas : la révision ne porte que sur ce qui a
-          bougé.
+          bougé. Les fiches sont celles du texte de CE dossier
+          {utilisateur?.tenant.referentiel === 'SYSCOHADA'
+            ? ' (AUDCIF, Titre VII)'
+            : ' (SYCEBNL, Partie 2 chapitre 3)'}
+          , jamais transposées de l'autre.
         </p>
       </div>
-
-      {utilisateur?.tenant.referentiel !== 'SYCEBNL' && (
-        <div className="text-[11px] bg-chrome border border-border px-3 py-2 mb-2 max-w-[980px]">
-          Les fiches par compte ne sont pour l'instant transcrites que pour le SYCEBNL. Celles du SYSCOHADA existent
-          dans l'AUDCIF (Titre VII) et restent à transcrire · elles ne se transposent pas d'un référentiel à l'autre.
-        </div>
-      )}
 
       {erreur && (
         <div className="text-[11px] text-danger bg-danger-soft border border-danger/30 px-3 py-2 mb-2 max-w-[980px]">

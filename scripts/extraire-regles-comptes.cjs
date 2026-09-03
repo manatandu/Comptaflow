@@ -137,6 +137,112 @@ for (const [numero, intitule] of [
 
 regles.sort((a, b) => a.numero.localeCompare(b.numero, 'fr', { numeric: true }));
 
+// ---------------------------------------------------------------------------
+// SYSCOHADA · AUDCIF, Titre VII. MÊMES RUBRIQUES, AUTRE ÉCRITURE.
+//
+// Le SYCEBNL écrit « … (utiliser 104) » ; l'AUDCIF écrit « … → **481**
+// (Fournisseurs d'investissements) ». La flèche remplace le verbe, et une
+// exclusion peut s'étendre sur une liste à puces sous un deux-points. Deux
+// lecteurs distincts, donc · appliquer la règle de l'un à l'autre ne
+// rendrait rien, ou pire, rendrait n'importe quoi.
+// ---------------------------------------------------------------------------
+const dossierAudcif = path.join(racine, 'audcif-acte-uniforme/references');
+
+/** Une rubrique de l'AUDCIF · jusqu'à la rubrique suivante ou au filet. */
+function rubriqueAudcif(corps, nom) {
+  const debut = corps.indexOf(`**${nom}.**`);
+  if (debut < 0) return null;
+  const suite = corps.slice(debut + `**${nom}.**`.length);
+  const lignes = [];
+  for (const l of suite.split('\n')) {
+    if (/^\*\*[A-ZÉÀ]/.test(l.trim()) || l.trim() === '---' || /^#{2,4} /.test(l)) break;
+    lignes.push(l);
+  }
+  // Le gras est un ajout de transcription, pas du texte officiel · on rend
+  // la phrase telle qu'elle se lit.
+  const texte = lignes.join(' ').replace(/\*\*/g, '').replace(/^\s*[-•]\s*/gm, '').replace(/\s+/g, ' ').trim();
+  return texte.length ? texte : null;
+}
+
+/**
+ * Les comptes de remplacement de l'AUDCIF · ceux qui SUIVENT une flèche.
+ *
+ * « → 481 (Fournisseurs d'investissements) ». Prendre tous les nombres du
+ * bloc rendrait ici aussi les comptes exclus eux-mêmes.
+ */
+function comptesApresFleche(texte) {
+  const trouves = [];
+  for (const m of texte.matchAll(/→\s*([^→]{0,60})/g)) {
+    for (const n of m[1].matchAll(/\b(\d{2,5})\b/g)) trouves.push(n[1]);
+  }
+  return [...new Set(trouves)].sort();
+}
+
+const reglesSyscohada = [];
+for (const nom of fs.readdirSync(dossierAudcif).filter((n) => /^titre-7-comptes-classe-/.test(n)).sort()) {
+  const texte = fs.readFileSync(path.join(dossierAudcif, nom), 'utf8');
+  const lignes = texte.split('\n');
+  let courant = null;
+  const fiches = [];
+  for (const l of lignes) {
+    // QUATRE chiffres · les comptes d'engagements hors bilan de la classe 9
+    // (9011 Crédits confirmés obtenus, 9021 Avals obtenus…) descendent à ce
+    // niveau. Un motif à trois chiffres perdait les 31 fiches de la classe.
+    const m = l.match(/^#{2,4} COMPTE (\d{1,4})\s*:\s*(.*)$/);
+    if (m) {
+      if (courant) fiches.push(courant);
+      courant = { numero: m[1], intitule: m[2].trim(), corps: [] };
+    } else if (courant) {
+      courant.corps.push(l);
+    }
+  }
+  if (courant) fiches.push(courant);
+
+  for (const f of fiches) {
+    const corps = f.corps.join('\n');
+    const exclusions = rubriqueAudcif(corps, 'Exclusions');
+    reglesSyscohada.push({
+      numero: f.numero,
+      intitule: f.intitule,
+      exclusions,
+      comptesAUtiliser: exclusions ? comptesApresFleche(exclusions) : [],
+      elementsDeControle: rubriqueAudcif(corps, 'Éléments de contrôle'),
+    });
+  }
+}
+reglesSyscohada.sort((a, b) => a.numero.localeCompare(b.numero, 'fr', { numeric: true }));
+
+function ecrire(chemin, constante, referentiel, source, table) {
+  const lignes = table
+    .map(
+      (r) =>
+        `  {\n    numero: ${JSON.stringify(r.numero)},\n    intitule: ${JSON.stringify(r.intitule)},\n` +
+        `    exclusions: ${JSON.stringify(r.exclusions)},\n    comptesAUtiliser: ${JSON.stringify(r.comptesAUtiliser)},\n` +
+        `    elementsDeControle: ${JSON.stringify(r.elementsDeControle)},\n  },`,
+    )
+    .join('\n');
+  fs.writeFileSync(
+    chemin,
+    `/**
+ * RÈGLES PAR COMPTE · ${referentiel}, ${source}.
+ *
+ * FICHIER ENGENDRÉ · ne pas retoucher à la main. Il se régénère par
+ * \`node scripts/extraire-regles-comptes.cjs <racine des compétences>\`.
+ *
+ * Deux rubriques du texte officiel, transcrites VERBATIM · le texte n'est
+ * jamais reformulé : un avertissement qui paraphrase la règle cesse d'être
+ * opposable, et c'est sa citation qui vaut.
+ */
+import type { RegleCompte } from './regles-comptes-sycebnl';
+
+export const ${constante}: RegleCompte[] = [
+${lignes}
+];
+`,
+    'utf8',
+  );
+}
+
 const corps = regles
   .map(
     (r) =>
@@ -186,7 +292,16 @@ ${corps}
   'utf8',
 );
 
-console.log(
-  `${regles.length} comptes · ${regles.filter((r) => r.exclusions).length} exclusions · ` +
-    `${regles.filter((r) => r.elementsDeControle).length} éléments de contrôle`,
+ecrire(
+  'src/modules/controles/regles-comptes-syscohada.ts',
+  'REGLES_COMPTES_SYSCOHADA',
+  'SYSCOHADA',
+  'AUDCIF Titre VII',
+  reglesSyscohada,
 );
+
+const bilan = (t) =>
+  `${t.length} comptes · ${t.filter((r) => r.exclusions).length} exclusions · ` +
+  `${t.filter((r) => r.elementsDeControle).length} éléments de contrôle`;
+console.log('SYCEBNL   ·', bilan(regles));
+console.log('SYSCOHADA ·', bilan(reglesSyscohada));

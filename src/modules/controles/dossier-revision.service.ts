@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Referentiel, StatutEcriture } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import { REGLES_COMPTES_SYCEBNL, RegleCompte } from './regles-comptes-sycebnl';
+import { REGLES_COMPTES_SYSCOHADA } from './regles-comptes-syscohada';
 
 /**
  * DOSSIER DE RÉVISION · ce que le SYCEBNL dit de chaque compte, appliqué au
@@ -21,9 +22,11 @@ import { REGLES_COMPTES_SYCEBNL, RegleCompte } from './regles-comptes-sycebnl';
  * Le texte est CITÉ, jamais reformulé · un avertissement qui paraphrase la
  * règle cesse d'être opposable devant un réviseur.
  *
- * Propre au SYCEBNL pour l'instant. L'AUDCIF porte les mêmes rubriques pour
- * le SYSCOHADA (Titre VII) · même travail d'extraction à faire, et surtout
- * pas une transposition (CLAUDE.md §6).
+ * LES DEUX RÉFÉRENTIELS ONT LEUR TABLE, extraite de LEUR texte · SYCEBNL
+ * Partie 2 ch. 3 (78 fiches), SYSCOHADA AUDCIF Titre VII (115 fiches). Elles
+ * ne se transposent pas : les deux textes n'écrivent même pas la règle de la
+ * même façon, le SYCEBNL disant « (utiliser 104) » là où l'AUDCIF écrit
+ * « → 481 » (CLAUDE.md §6).
  */
 @Injectable()
 export class DossierRevisionService {
@@ -38,9 +41,9 @@ export class DossierRevisionService {
    * la fiche 659 et non de la fiche 65 : prendre la première trouvée
    * afficherait la règle du compte père, qui dit autre chose.
    */
-  static regleDe(numero: string): RegleCompte | null {
+  static regleDe(numero: string, table: RegleCompte[]): RegleCompte | null {
     let choisie: RegleCompte | null = null;
-    for (const r of REGLES_COMPTES_SYCEBNL) {
+    for (const r of table) {
       if (!numero.startsWith(r.numero)) continue;
       if (!choisie || r.numero.length > choisie.numero.length) choisie = r;
     }
@@ -49,10 +52,13 @@ export class DossierRevisionService {
 
   /** Toutes les fiches · servies au client pour l'avertissement de saisie. */
   regles(referentiel: string | undefined): RegleCompte[] {
-    // Rendre les fiches SYCEBNL à un dossier SYSCOHADA ferait avertir sur un
+    // Servir les fiches SYCEBNL à un dossier SYSCOHADA ferait avertir sur un
     // plan qui n'est pas le sien · les numéros se ressemblent sans se
-    // recouvrir (CLAUDE.md §6).
-    return referentiel === Referentiel.SYCEBNL ? REGLES_COMPTES_SYCEBNL : [];
+    // recouvrir (CLAUDE.md §6). Un référentiel inconnu ne rend RIEN plutôt
+    // que le jeu par défaut.
+    if (referentiel === Referentiel.SYCEBNL) return REGLES_COMPTES_SYCEBNL;
+    if (referentiel === Referentiel.SYSCOHADA) return REGLES_COMPTES_SYSCOHADA;
+    return [];
   }
 
   /**
@@ -62,7 +68,8 @@ export class DossierRevisionService {
    * listerait les 1 400 comptes du plan ne se lit pas, et la révision ne
    * porte que sur ce qui a bougé.
    */
-  async dossier(tenantId: string, exerciceId: string) {
+  async dossier(tenantId: string, exerciceId: string, referentiel?: string) {
+    const table = this.regles(referentiel);
     const mouvements = await this.prisma.ligneEcriture.groupBy({
       by: ['compteId'],
       where: { ecriture: { tenantId, exerciceId, statut: StatutEcriture.VALIDEE } },
@@ -82,7 +89,7 @@ export class DossierRevisionService {
         const m = parId.get(c.id)!;
         const debit = Number(m._sum.debit ?? 0);
         const credit = Number(m._sum.credit ?? 0);
-        const regle = DossierRevisionService.regleDe(c.numero);
+        const regle = DossierRevisionService.regleDe(c.numero, table);
         return {
           compteId: c.id,
           numero: c.numero,

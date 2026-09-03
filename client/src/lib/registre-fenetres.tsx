@@ -309,12 +309,10 @@ export const FENETRES: DefinitionFenetre[] = [
     titre: 'Dossier de révision',
     titreCourt: 'Révision',
     rendre: () => <DossierRevisionPage />,
-    // Les fiches par compte ne sont transcrites que pour le SYCEBNL · celles
-    // du SYSCOHADA existent dans l'AUDCIF (Titre VII) et restent à faire.
-    // Ouvrir la fenêtre à un dossier SYSCOHADA montrerait un état vide sans
-    // dire pourquoi (CLAUDE.md §6 · masquer ET refuser, jamais l'un sans
-    // l'autre · ici la route rend une liste vide plutôt qu'une erreur).
-    referentielsApplicables: ['SYCEBNL'],
+    // COMMUNE AUX DEUX RÉFÉRENTIELS depuis que les fiches de l'AUDCIF
+    // (Titre VII, 115 comptes) sont extraites à côté de celles du SYCEBNL
+    // (Partie 2 ch. 3, 78 comptes). Chaque dossier reçoit les fiches de SON
+    // texte · le serveur ne rend rien pour un référentiel inconnu.
   },
   {
     motif: /^\/regularisations$/,

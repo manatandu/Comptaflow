@@ -30,7 +30,7 @@ export class ControlesController {
   /** Dossier de révision · un bloc par compte mouvementé de l'exercice. */
   @Get('dossier-revision')
   async dossierRevision(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId') exerciceId: string) {
-    return this.revision.dossier(user.tenantId, exerciceId);
+    return this.revision.dossier(user.tenantId, exerciceId, user.referentiel);
   }
 
   @Get()
