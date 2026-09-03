@@ -176,6 +176,17 @@ Le cloisonnement se fait à DEUX endroits, toujours les deux :
 `@ReferentielsAutorises(...)` + `ReferentielGuard` côté serveur. Masquer sans
 refuser laisse la route ouverte à un appel direct.
 
+Les deux tables de notes SYCEBNL portent chacune leur balayage
+(`correspondance-notes-associations.spec.ts`, 45 tableaux ·
+`correspondance-notes-projets.spec.ts`, 26 tableaux) : couverture de la liste
+officielle, existence de chaque compte cité, cohérence des totaux et des clés,
+liste gelée des tableaux hors balance, et non-contamination d'un jeu par
+l'autre. Les deux jeux partagent des TITRES de note sous des numéros
+différents (« TRANSPORTS » est la 25 chez les associations et la 16 chez les
+projets) : c'est normal, chaque chapitre numérote les siennes. Ce qui est
+surveillé, c'est le partage d'OBJET, qui ferait qu'une correction faite pour
+un jeu s'appliquerait en silence à l'autre.
+
 Propres au SYCEBNL : registre des donateurs, bailleurs, exonérations
 douanières, opérations spécifiques, module groupe.
 
