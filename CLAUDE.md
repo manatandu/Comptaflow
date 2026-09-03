@@ -310,6 +310,25 @@ un dossier à l'encaissement) et le contrôle
 seulement à un dossier qui a mouvementé le 701 ou le 103. Un dossier qui n'a
 rien tranché n'est PAS bloqué à la saisie : le texte fait de l'appel la règle.
 
+**Trois indices de minoration relevés par la DGI.** Le séminaire CPCC sur
+l'arrêté des comptes 2024 énumère des écritures dont l'ABSENCE est lue par
+l'administration comme une intention de minorer la base imposable. Trois sont
+mécaniquement détectables et posés depuis le 2026-09-03 :
+`TRANSPORT_TIERS_SANS_TRANSFERT` (613 débité sans aucun 781 mouvementé),
+`EXTOURNE_REGULARISATION_INCOHERENTE` (extourne du 476 ou du 477 d'un montant
+différent du solde repris · le cas le plus fin, car le solde de clôture
+redevient normal et ne trahit rien) et `AVANCE_CLIENT_REPORTEE` (419 créditeur
+à la clôture précédente). Les deux premiers avertissent, le troisième informe ·
+il porte une position de contrôle, pas une règle de l'AUDCIF. Le 613 et le 419
+ne s'adressent qu'au SYSCOHADA, une EBNL étant exemptée d'IS (loi n° 23/053,
+art. 5) ; l'extourne vaut pour les deux, ce n'est pas un risque d'assiette mais
+une régularisation fausse.
+
+**AUCUN TAUX DE CE SÉMINAIRE N'EST REPRIS** · il raisonne en IBP et en IPR,
+abrogés au 1er janvier 2026 et remplacés par l'IS et l'IRPP. Seuls les
+mécanismes d'écriture sont retenus, et aucun ne dépend d'un taux. Un test le
+vérifie sur les messages produits.
+
 **Retraitements fiscaux · le logiciel se souvient, il ne qualifie pas.** Le
 catalogue (`catalogue-retraitements.ts`) refuse de déduire la qualification
 fiscale d'une charge de son numéro de compte, et il a raison : le 6582

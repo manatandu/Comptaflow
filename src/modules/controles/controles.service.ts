@@ -1487,6 +1487,206 @@ export class ControlesService {
       }
     }
 
+    // --- 17 à 19. Les trois indices de minoration relevés par la DGI ----------
+    //
+    // SOURCE · séminaire CPCC sur l'arrêté des comptes 2024, module « Travaux
+    // de fin d'exercice : détermination du résultat comptable et du résultat
+    // fiscal », animé par la Division chargée de la Formation de la DGI. Le
+    // module présente une série d'écritures dont l'absence est lue par
+    // l'administration comme une « intention de MINORER la base imposable ».
+    //
+    // CE QUE CES TROIS CONTRÔLES NE SONT PAS · une accusation. Chacun des cas
+    // a une explication innocente possible, et c'est pourquoi ils avertissent
+    // au lieu de bloquer. Ce qu'ils apportent, c'est de montrer au cabinet ce
+    // qu'un vérificateur regardera, AVANT qu'il ne le regarde.
+    //
+    // LES TAUX ET LES NOMS D'IMPÔT DE CE SÉMINAIRE NE SONT PAS REPRIS · il
+    // décrit l'IBP, abrogé au 1er janvier 2026 par la loi n° 23/053 et
+    // remplacé par l'IS et l'IRPP. Seuls les MÉCANISMES d'écriture sont
+    // retenus ici, et aucun d'eux ne dépend d'un taux.
+    //
+    // Le filtrage par préfixe est refait EN JAVASCRIPT après la requête. Ce
+    // n'est pas une redondance inutile : il rend chaque contrôle indépendant
+    // de ce que les autres demandent à la même table, ce qui compte autant en
+    // test qu'en lecture.
+    const lignesFiscales = await this.prisma.ligneEcriture.findMany({
+      where: {
+        compte: { tenantId, OR: [{ numero: { startsWith: '613' } }, { numero: { startsWith: '781' } }] },
+        ecriture: { tenantId, exerciceId },
+      },
+      select: { debit: true, credit: true, compte: { select: { numero: true, intitule: true } } },
+    });
+    const mouvement = (prefixe: string) =>
+      lignesFiscales
+        .filter((l) => l.compte.numero.startsWith(prefixe))
+        .reduce((t, l) => t + Number(l.debit) + Number(l.credit), 0);
+    const solde613 = lignesFiscales
+      .filter((l) => l.compte.numero.startsWith('613'))
+      .reduce((t, l) => t + Number(l.debit) - Number(l.credit), 0);
+
+    // --- 17. Transport pour le compte de tiers, jamais transféré -------------
+    //
+    // Le compte 613 enregistre un transport que l'entité AVANCE pour le compte
+    // d'un tiers et refacture. Tant que le transfert de charges n'est pas
+    // passé, la charge reste chez elle : le résultat est minoré du montant
+    // refacturé, et la contrepartie attendue au compte 781 n'existe pas.
+    // Contrôle réservé au SYSCOHADA · une entité à but non lucratif est
+    // exemptée d'impôt sur les sociétés (loi n° 23/053, art. 5), le risque
+    // d'assiette n'a donc pas d'objet pour elle.
+    if (tenant.referentiel === Referentiel.SYSCOHADA && solde613 > 0.005 && mouvement('781') <= 0.005) {
+      anomalies.push({
+        code: 'TRANSPORT_TIERS_SANS_TRANSFERT',
+        gravite: 'AVERTISSEMENT',
+        libelle: 'Transport pour le compte de tiers sans transfert de charges',
+        consequence:
+          'Le compte 613 porte un solde débiteur alors qu’aucun compte 781 « Transferts de charges » n’a été ' +
+          'mouvementé de l’exercice. Un transport avancé pour le compte d’un tiers se refacture : sans le ' +
+          'transfert, la charge reste dans le résultat de l’entité, qui s’en trouve minoré du montant refacturé. ' +
+          'L’administration fiscale lit cette absence comme un indice de minoration de la base imposable.',
+        action:
+          'Si ces transports ont bien été refacturés, passez le transfert de charges au crédit du compte 781. ' +
+          'S’ils sont restés à votre charge, le compte 613 n’est pas le bon : ils relèvent alors du compte 61 ' +
+          'correspondant à la nature du transport.',
+        occurrences: [{ reference: '613 Transports pour le compte de tiers', detail: 'Solde débiteur non transféré', montant: Math.round(solde613 * 100) / 100 }],
+      });
+    }
+
+    // --- 18. Extourne de régularisation d'un montant différent ---------------
+    //
+    // LE CAS LE PLUS FIN DES TROIS, et celui que la balance ne trahit jamais.
+    // Le module de la DGI le démontre par un extrait : à la clôture, le 476 a
+    // bien un solde DÉBITEUR et le 477 un solde CRÉDITEUR, tout paraît sain ·
+    // mais les MOUVEMENTS de la période portent un crédit de 50 000 sur le 476
+    // qui ne correspond à rien. « À la clôture, les soldes normaux de ces
+    // comptes cachent leurs mouvements anormaux. »
+    //
+    // Le vice est l'extourne d'ouverture passée pour un montant AUTRE que le
+    // solde de clôture de l'exercice précédent : extourner moins qu'on n'avait
+    // constaté laisse une charge d'avance au bilan, extourner plus crée une
+    // charge qui n'existe pas. Dans les deux sens le résultat est faux, et rien
+    // ne se déséquilibre.
+    //
+    // Le contrôle compare donc l'extourne au solde repris, et non les soldes
+    // entre eux. Il vaut pour LES DEUX RÉFÉRENTIELS : ce n'est pas un risque
+    // d'assiette, c'est une régularisation fausse.
+    const exercicePrecedent = await this.prisma.exercice.findFirst({
+      where: { tenantId, dateFin: { lt: ex.dateDebut } },
+      orderBy: { dateFin: 'desc' },
+      select: { id: true, dateFin: true },
+    });
+    // Le faux Prisma des tests rend l'exercice courant pour toute recherche ·
+    // sans cette garde, le contrôle se comparerait à lui-même.
+    if (exercicePrecedent && exercicePrecedent.dateFin < ex.dateDebut) {
+      const lignesRegul = await this.prisma.ligneEcriture.findMany({
+        where: {
+          compte: { tenantId, OR: [{ numero: { startsWith: '476' } }, { numero: { startsWith: '477' } }] },
+          ecriture: { tenantId, exerciceId: { in: [exerciceId, exercicePrecedent.id] } },
+        },
+        select: {
+          debit: true,
+          credit: true,
+          ecriture: { select: { exerciceId: true } },
+          compte: { select: { numero: true, intitule: true } },
+        },
+      });
+      const ecarts: Array<{ numero: string; intitule: string; repris: number; extourne: number }> = [];
+      for (const prefixe of ['476', '477']) {
+        const duCompte = lignesRegul.filter((l) => l.compte.numero.startsWith(prefixe));
+        const numeros = [...new Set(duCompte.map((l) => l.compte.numero))];
+        for (const numero of numeros) {
+          const lignes = duCompte.filter((l) => l.compte.numero === numero);
+          // Solde de clôture de l'exercice précédent, dans son sens naturel ·
+          // débiteur pour une charge constatée d'avance, créditeur pour un
+          // produit constaté d'avance.
+          const soldePrecedent = lignes
+            .filter((l) => l.ecriture.exerciceId === exercicePrecedent.id)
+            .reduce(
+              (t, l) => t + (prefixe === '476' ? Number(l.debit) - Number(l.credit) : Number(l.credit) - Number(l.debit)),
+              0,
+            );
+          // Ce qui a été EXTOURNÉ sur l'exercice · le sens inverse.
+          const extourne = lignes
+            .filter((l) => l.ecriture.exerciceId === exerciceId)
+            .reduce((t, l) => t + (prefixe === '476' ? Number(l.credit) : Number(l.debit)), 0);
+          if (soldePrecedent > 0.005 && Math.abs(extourne - soldePrecedent) > 0.005) {
+            ecarts.push({ numero, intitule: lignes[0].compte.intitule, repris: soldePrecedent, extourne });
+          }
+        }
+      }
+      if (ecarts.length > 0) {
+        anomalies.push({
+          code: 'EXTOURNE_REGULARISATION_INCOHERENTE',
+          gravite: 'AVERTISSEMENT',
+          libelle: 'Extourne de régularisation d’un montant différent du solde repris',
+          consequence:
+            'Une charge ou un produit constaté d’avance à la clôture précédente doit être extourné à l’ouverture ' +
+            'POUR SON MONTANT EXACT. Extourner moins laisse au bilan une régularisation qui n’a plus d’objet ; ' +
+            'extourner plus crée une charge ou un produit qui n’a jamais existé. Dans les deux sens le résultat ' +
+            'de l’exercice est faux, et rien ne le signale : l’écriture s’équilibre et le solde de clôture peut ' +
+            'redevenir parfaitement normal. C’est précisément ce que l’administration fiscale recherche sur ces ' +
+            'deux comptes.',
+          action:
+            'Rapprochez l’extourne du solde repris, compte par compte, et corrigez l’écart. Si l’écart est ' +
+            'volontaire (une part de la régularisation court encore), la reprise doit être étalée par une ' +
+            'écriture explicite, pas par une extourne partielle silencieuse.',
+          occurrences: ecarts.slice(0, 200).map((e) => ({
+            reference: `${e.numero} ${e.intitule}`,
+            detail: `Solde repris ${e.repris.toFixed(2)}, extourné ${e.extourne.toFixed(2)}`,
+            montant: Math.round((e.extourne - e.repris) * 100) / 100,
+          })),
+        });
+      }
+
+      // --- 19. Avance client reportée d'un exercice à l'autre ----------------
+      //
+      // « Les avances et acomptes reçus des clients au cours de l'exercice N-1
+      // doivent être considérés à juste titre le CHIFFRE D'AFFAIRES de
+      // l'exercice N. » C'est la lecture de l'administration, pas une règle de
+      // l'AUDCIF · d'où un contrôle qui INFORME et n'accuse pas, et qui ne
+      // s'adresse qu'aux dossiers SYSCOHADA, une entité à but non lucratif
+      // étant exemptée d'impôt sur les sociétés (loi n° 23/053, art. 5).
+      if (tenant.referentiel === Referentiel.SYSCOHADA) {
+        const lignes419 = await this.prisma.ligneEcriture.findMany({
+          where: {
+            compte: { tenantId, numero: { startsWith: '419' } },
+            ecriture: { tenantId, exerciceId: exercicePrecedent.id },
+          },
+          select: { debit: true, credit: true, compte: { select: { numero: true, intitule: true } } },
+        });
+        const soldes419 = new Map<string, { intitule: string; solde: number }>();
+        for (const l of lignes419.filter((x) => x.compte.numero.startsWith('419'))) {
+          const acc = soldes419.get(l.compte.numero) ?? { intitule: l.compte.intitule, solde: 0 };
+          acc.solde += Number(l.credit) - Number(l.debit);
+          soldes419.set(l.compte.numero, acc);
+        }
+        const avancesReportees = [...soldes419.entries()]
+          .filter(([, v]) => v.solde > 0.005)
+          .sort(([a], [b]) => a.localeCompare(b));
+        if (avancesReportees.length > 0) {
+          anomalies.push({
+            code: 'AVANCE_CLIENT_REPORTEE',
+            gravite: 'INFORMATION',
+            libelle: 'Avances clients reçues à l’exercice précédent, à rattacher au chiffre d’affaires',
+            consequence:
+              'Des avances et acomptes reçus des clients figuraient au compte 419 à la clôture précédente. ' +
+              'L’administration fiscale considère que ces avances constituent le chiffre d’affaires de ' +
+              'l’exercice suivant : maintenues au passif sans que la vente soit constatée, elles minorent le ' +
+              'produit imposable. Ce n’est pas une règle de l’AUDCIF mais une position de contrôle, d’où un ' +
+              'simple signalement.',
+            action:
+              'Vérifiez, avance par avance, que la livraison ou la prestation a été facturée sur cet exercice et ' +
+              'que le compte 419 a été soldé en conséquence. Une avance qui subsiste doit pouvoir être ' +
+              'justifiée par une commande encore en cours.',
+            occurrences: avancesReportees.slice(0, 200).map(([numero, v]) => ({
+              reference: `${numero} ${v.intitule}`,
+              detail: 'Solde créditeur à la clôture de l’exercice précédent',
+              montant: Math.round(v.solde * 100) / 100,
+            })),
+          });
+        }
+      }
+    }
+
     const ordre: Record<Gravite, number> = { BLOQUANT: 0, AVERTISSEMENT: 1, INFORMATION: 2 };
     anomalies.sort((a, b) => ordre[a.gravite] - ordre[b.gravite]);
 
