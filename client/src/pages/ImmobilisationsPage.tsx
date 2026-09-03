@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useExercice } from '../lib/exercice';
-import type { Compte, FamilleImmobilisation, Immobilisation, Journal } from '../lib/types';
+import type { Compte, FamilleImmobilisation, Immobilisation, Journal, TypeComposant } from '../lib/types';
 
 /**
  * Immobilisations (§3.3) : familles (gabarits, comptes + durée par défaut ·
@@ -71,6 +71,19 @@ export function ImmobilisationsPage() {
   const [dCompte29, setDCompte29] = useState('');
   const [dContrepartie, setDContrepartie] = useState('');
   const [dIndice, setDIndice] = useState('');
+
+  // Approche par composants · AUDCIF Titre VIII ch. 4 ; SYCEBNL, Partie 2
+  // ch. 3, classe 2. Tout est facultatif : sans principal désigné, le bien
+  // créé est une structure ordinaire, exactement comme avant.
+  const [iPrincipal, setIPrincipal] = useState('');
+  const [iTypeComposant, setITypeComposant] = useState<TypeComposant>('COMPOSANT');
+  const [iJustification, setIJustification] = useState('');
+  const [renouvellementOuvertPour, setRenouvellementOuvertPour] = useState<string | null>(null);
+  const [rDesignation, setRDesignation] = useState('');
+  const [rCout, setRCout] = useState('');
+  const [rDuree, setRDuree] = useState('');
+  const [rDate, setRDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [rContrepartie, setRContrepartie] = useState('');
 
   const charger = async () => {
     const [f, i, c2, ctrésorerie, jrn] = await Promise.all([
@@ -142,8 +155,13 @@ export function ImmobilisationsPage() {
         compteContrepartieId: iCompteContrepartie,
         exerciceId: exerciceCourant?.id,
         journalId: iJournalId,
+        immobilisationPrincipaleId: iPrincipal || undefined,
+        typeComposant: iPrincipal ? iTypeComposant : undefined,
+        justificationDecomposition: iPrincipal ? iJustification : undefined,
       });
       setIDesignation('');
+      setIPrincipal('');
+      setIJustification('');
       setINumeroInventaire('');
       setIValeurOrigine('');
       setIValeurResiduelle('0');
@@ -229,6 +247,40 @@ export function ImmobilisationsPage() {
       setEnvoi(false);
     }
   };
+
+  const onRenouveler = async (e: FormEvent, composantId: string) => {
+    e.preventDefault();
+    if (!exerciceCourant) return;
+    setErreur(null);
+    setEnvoi(true);
+    try {
+      const od = journaux.find((j) => j.code === 'OD');
+      await api.post(`/immobilisations/${composantId}/renouvellement`, {
+        dateRenouvellement: rDate,
+        exerciceId: exerciceCourant.id,
+        journalId: od?.id ?? journaux[0]?.id,
+        designation: rDesignation,
+        coutRenouvellement: Number(rCout),
+        dureeAmortissementAns: Number(rDuree),
+        compteContrepartieId: rContrepartie,
+      });
+      setRenouvellementOuvertPour(null);
+      setRDesignation('');
+      setRCout('');
+      setInfo('Composant renouvelé · l’ancien est sorti de l’actif et le nouveau porté au même principal.');
+      await charger();
+    } catch (err) {
+      setErreur(err instanceof ApiError ? err.message : 'Impossible de renouveler ce composant');
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
+  const principaux = (immobilisations ?? []).filter(
+    (i) => !i.immobilisationPrincipaleId && i.statut === 'EN_SERVICE',
+  );
+  const nomPrincipal = (id: string | null) =>
+    (immobilisations ?? []).find((i) => i.id === id)?.designation ?? null;
 
   const cumulAmorti = (immo: Immobilisation) => immo.dotations.reduce((s, d) => s + d.montant, 0);
   // Les deux textes inscrivent la dépréciation EN DIMINUTION DE LA VALEUR
@@ -384,6 +436,57 @@ export function ImmobilisationsPage() {
               </select>
             </label>
           </div>
+          {/* APPROCHE PAR COMPOSANTS · facultative. Laisser le principal vide crée
+              une immobilisation ordinaire, c'est-à-dire une STRUCTURE au sens du
+              ch. 4 § 1. Le renseigner rattache le bien et lui garde son PROPRE
+              plan d'amortissement, ce qui est tout l'objet du chapitre. */}
+          <div className="border-t border-border pt-3 mb-3">
+            <div className="font-mono text-[10px] font-semibold text-text-dim mb-2">
+              COMPOSANT D’UNE AUTRE IMMOBILISATION (facultatif)
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <label className="text-[10.5px] font-semibold text-text-dim">
+                Immobilisation principale
+                <select value={iPrincipal} onChange={(e) => setIPrincipal(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal">
+                  <option value="">Aucune · bien autonome</option>
+                  {principaux.map((i) => (
+                    <option key={i.id} value={i.id}>{i.designation}</option>
+                  ))}
+                </select>
+              </label>
+              {iPrincipal && (
+                <label className="text-[10.5px] font-semibold text-text-dim">
+                  Nature
+                  <select value={iTypeComposant} onChange={(e) => setITypeComposant(e.target.value as TypeComposant)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal">
+                    <option value="COMPOSANT">Composant</option>
+                    <option value="DEMANTELEMENT">Démantèlement et remise en état du site</option>
+                    <option value="REVISION_MAJEURE">Révision majeure</option>
+                    <option value="PIECE_DE_RECHANGE">Pièce de rechange</option>
+                    <option value="PIECE_DE_SECURITE">Pièce de sécurité</option>
+                  </select>
+                </label>
+              )}
+            </div>
+            {iPrincipal && (
+              <>
+                <label className="block text-[10.5px] font-semibold text-text-dim mt-3">
+                  Pourquoi ce bien est décomposable
+                  <input
+                    maxLength={500}
+                    value={iJustification}
+                    onChange={(e) => setIJustification(e.target.value)}
+                    placeholder="Durées d’utilité distinctes, coût significatif, informations disponibles sur chaque élément…"
+                    className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal"
+                  />
+                </label>
+                <p className="text-[10px] text-text-dim mt-1.5 leading-[1.55]">
+                  Une pièce de SÉCURITÉ s’amortit dès l’acquisition du bien principal, qu’elle serve ou non ; une
+                  pièce de RECHANGE seulement à partir du jour où elle y est intégrée. Un composant ne porte pas de
+                  valeur résiduelle, sauf s’il s’agit du dernier renouvellement avant la fin d’utilisation du bien.
+                </p>
+              </>
+            )}
+          </div>
           <p className="text-[10.5px] text-text-dim mb-3">
             En dessous de l'équivalent de 500 USD (arrêté RDC n° 014/2025), le bien peut être passé
             directement en charge plutôt qu'immobilisé · à votre appréciation, non vérifié automatiquement ici.
@@ -416,7 +519,16 @@ export function ImmobilisationsPage() {
                   i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'
                 }`}
               >
-                <span className="truncate">{immo.designation}{immo.numeroInventaire ? ` (${immo.numeroInventaire})` : ''}</span>
+                <span className="truncate">
+                  {immo.designation}{immo.numeroInventaire ? ` (${immo.numeroInventaire})` : ''}
+                  {/* Le rattachement est ce qui manquait · le montrer sur la ligne
+                      évite qu'un composant se lise comme un bien autonome. */}
+                  {immo.immobilisationPrincipaleId && (
+                    <span className="block text-[10px] text-text-dim">
+                      composant de {nomPrincipal(immo.immobilisationPrincipaleId) ?? '…'}
+                    </span>
+                  )}
+                </span>
                 <span className="font-mono text-[10px] text-text-dim">{new Date(immo.dateMiseEnService).toLocaleDateString('fr-FR')}</span>
                 <span className="font-mono text-right">{immo.valeurOrigine.toLocaleString('fr-FR')}</span>
                 <span className="font-mono text-right">{cumulAmorti(immo).toLocaleString('fr-FR')}</span>
@@ -440,6 +552,17 @@ export function ImmobilisationsPage() {
                       >
                         Doter
                       </button>
+                      {immo.immobilisationPrincipaleId && (
+                        <button
+                          onClick={() =>
+                            setRenouvellementOuvertPour(renouvellementOuvertPour === immo.id ? null : immo.id)
+                          }
+                          title="Sortir ce composant de l’actif et porter son remplaçant"
+                          className="text-[10px] text-sel hover:underline"
+                        >
+                          Renouveler
+                        </button>
+                      )}
                       <button
                         onClick={() =>
                           setDepreciationOuvertePour(depreciationOuvertePour === immo.id ? null : immo.id)
@@ -459,6 +582,49 @@ export function ImmobilisationsPage() {
                   )}
                 </span>
               </div>
+              {renouvellementOuvertPour === immo.id && (
+                <form onSubmit={(e) => onRenouveler(e, immo.id)} className="bg-chrome border-b border-border px-4 py-3">
+                  {/* Les deux mouvements vont ensemble · AUDCIF ch. 4 § 4.1. Porter le
+                      nouveau sans sortir l'ancien laisse deux ascenseurs au bilan pour
+                      une seule cage, et l'écriture reste pourtant équilibrée. */}
+                  <p className="text-[10px] text-text-dim leading-[1.55] mb-2">
+                    La valeur nette comptable de « {immo.designation} » sort de l’actif, et le remplaçant est porté
+                    au même bien principal avec son propre plan. La durée est saisie : elle court jusqu’au prochain
+                    remplacement, ou jusqu’à la fin d’utilisation de la structure si celui-ci est le dernier.
+                  </p>
+                  <div className="grid grid-cols-4 gap-3 items-end">
+                    <label className="text-[10.5px] font-semibold text-text-dim">
+                      Désignation du remplaçant
+                      <input required value={rDesignation} onChange={(e) => setRDesignation(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11px]" />
+                    </label>
+                    <label className="text-[10.5px] font-semibold text-text-dim">
+                      Coût
+                      <input required type="number" step="0.01" min={0.01} value={rCout} onChange={(e) => setRCout(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11px] font-mono" />
+                    </label>
+                    <label className="text-[10.5px] font-semibold text-text-dim">
+                      Durée (ans)
+                      <input required type="number" min={1} value={rDuree} onChange={(e) => setRDuree(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11px] font-mono" />
+                    </label>
+                    <label className="text-[10.5px] font-semibold text-text-dim">
+                      Date
+                      <input required type="date" value={rDate} onChange={(e) => setRDate(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11px] font-mono" />
+                    </label>
+                    <label className="text-[10.5px] font-semibold text-text-dim col-span-2">
+                      Réglé par
+                      <select required value={rContrepartie} onChange={(e) => setRContrepartie(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11px]">
+                        <option value="" />
+                        {comptesFinancement.map((c) => (
+                          <option key={c.id} value={c.id}>{c.numero} · {c.intitule}</option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                  <div className="flex gap-2 mt-3">
+                    <button type="submit" disabled={envoi} className="bg-sel text-white text-[11px] font-semibold px-3 py-1.5 disabled:opacity-50">{envoi ? '…' : 'Renouveler'}</button>
+                    <button type="button" onClick={() => setRenouvellementOuvertPour(null)} className="text-[11px] font-semibold text-text-dim px-3 py-1.5">Annuler</button>
+                  </div>
+                </form>
+              )}
               {depreciationOuvertePour === immo.id && (
                 <form onSubmit={(e) => onDeprecier(e, immo.id)} className="bg-chrome border-b border-border px-4 py-3">
                   <p className="text-[10px] text-text-dim leading-[1.55] mb-2">

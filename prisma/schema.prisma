@@ -2322,9 +2322,47 @@ model Immobilisation {
   createdAt DateTime @default(now())
   createdBy String
 
+  // ---------------------------------------------------------------------
+  // APPROCHE PAR COMPOSANTS · AUDCIF Titre VIII ch. 4 ; SYCEBNL, Partie 2
+  // ch. 3, règles générales de la classe 2.
+  //
+  // « Lorsqu'un ou plusieurs éléments constitutifs d'un actif ont chacun des
+  // utilisations différentes […] chaque élément PEUT ÊTRE COMPTABILISÉ
+  // SÉPARÉMENT DANS UN SOUS-COMPTE DE L'IMMOBILISATION PRINCIPALE et un plan
+  // d'amortissement propre à chacun de ces éléments est retenu. » Un composant
+  // est donc une immobilisation à part entière, rattachée à son principal :
+  // c'est ce rattachement qui manquait, et sans lui un ascenseur amorti sur
+  // 10 ans dans un immeuble amorti sur 40 était une ligne de plus, sans lien.
+  //
+  // Le RELIQUAT, « les parties de l'immobilisation qui n'ont pas été
+  // comptabilisées distinctement », est la STRUCTURE · c'est l'immobilisation
+  // principale elle-même, qui ne porte pas ce champ.
+  immobilisationPrincipaleId String?
+  immobilisationPrincipale   Immobilisation?  @relation("ImmoComposants", fields: [immobilisationPrincipaleId], references: [id])
+  composants                 Immobilisation[] @relation("ImmoComposants")
+
+  // Null pour une structure. Les quatre valeurs nommées viennent du texte
+  // SYCEBNL, qui donne à trois d'entre elles une règle d'amortissement PROPRE
+  // (voir TypeComposant).
+  typeComposant TypeComposant?
+
+  // Pourquoi ce bien est décomposable · les deux textes posent des conditions
+  // que le logiciel ne peut pas vérifier (durées d'utilité distinctes,
+  // caractère significatif, statistiques disponibles). Il ne les devine donc
+  // pas : il les fait écrire, et les conserve. C'est le même parti que
+  // l'indice de perte de valeur.
+  justificationDecomposition String?
+
+  // Le composant remplacé, quand celui-ci est le renouvellement d'un autre ·
+  // AUDCIF ch. 4 § 4.1. Sert à retrouver la chaîne des remplacements.
+  composantRemplaceId String?         @unique
+  composantRemplace   Immobilisation? @relation("ImmoRenouvellement", fields: [composantRemplaceId], references: [id])
+  renouvelePar        Immobilisation? @relation("ImmoRenouvellement")
+
   dotations      DotationAmortissement[]
   depreciations  DepreciationImmobilisation[]
 
+  @@index([immobilisationPrincipaleId])
   @@map("immobilisations")
 }
 
@@ -2369,6 +2407,36 @@ model DotationAmortissement {
 // l'envers une fois sur deux dans un état ; et le sens commande les comptes
 // mouvementés, qui ne sont pas les mêmes (69 au débit pour une dotation, 79 au
 // crédit pour une reprise).
+// TYPE DE COMPOSANT · les quatre que le texte SYCEBNL nomme, plus le cas
+// général de l'AUDCIF.
+//
+//  · COMPOSANT · le cas de l'AUDCIF ch. 4 § 1 · un élément à durée d'utilité
+//    propre (l'ascenseur d'un immeuble, le moteur d'un avion, le revêtement
+//    intérieur d'un four).
+//  · DEMANTELEMENT · « l'estimation initiale des coûts relatifs au
+//    démantèlement, à l'enlèvement de l'immobilisation et à la remise en état
+//    du site », comptabilisée dans un sous-compte composant par le biais du
+//    compte 79, la provision ayant été dotée au préalable (débit 6914, crédit
+//    1984). Il naît d'une OBLIGATION de l'entité, pas d'un choix.
+//  · REVISION_MAJEURE · « lorsqu'une inspection majeure est réalisée, son coût
+//    est comptabilisé dans un sous-compte composant appelé Révisions majeures.
+//    Cette révision est amortie sur LA DURÉE SÉPARANT DEUX RÉVISIONS. »
+//  · PIECE_DE_RECHANGE · immobilisée si elle sert plus d'un exercice, mais
+//    « l'amortissement ne débute qu'à la date d'UTILISATION de la pièce,
+//    c'est-à-dire au moment où elle est intégrée dans l'immobilisation
+//    principale ».
+//  · PIECE_DE_SECURITE · même nature, règle inverse · « l'amortissement doit
+//    démarrer DÈS L'ACQUISITION DE L'IMMOBILISATION PRINCIPALE », qu'elle
+//    serve ou non. C'est la seule des cinq dont la date de départ soit
+//    entièrement déterminée par le principal, donc la seule vérifiable.
+enum TypeComposant {
+  COMPOSANT
+  DEMANTELEMENT
+  REVISION_MAJEURE
+  PIECE_DE_RECHANGE
+  PIECE_DE_SECURITE
+}
+
 enum SensDepreciation {
   DOTATION
   REPRISE

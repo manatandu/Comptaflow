@@ -740,7 +740,24 @@ export interface Immobilisation {
    * balance se contrediraient sans qu'on sache laquelle a tort.
    */
   depreciations: DepreciationImmobilisation[];
+  /**
+   * APPROCHE PAR COMPOSANTS · AUDCIF Titre VIII ch. 4 ; SYCEBNL, Partie 2
+   * ch. 3, classe 2. Null pour une STRUCTURE, c'est-à-dire « les parties de
+   * l'immobilisation qui n'ont pas été comptabilisées distinctement ».
+   */
+  immobilisationPrincipaleId: string | null;
+  typeComposant: TypeComposant | null;
+  justificationDecomposition: string | null;
+  /** Le composant que celui-ci remplace · chaîne des renouvellements (§ 4.1). */
+  composantRemplaceId: string | null;
 }
+
+export type TypeComposant =
+  | 'COMPOSANT'
+  | 'DEMANTELEMENT'
+  | 'REVISION_MAJEURE'
+  | 'PIECE_DE_RECHANGE'
+  | 'PIECE_DE_SECURITE';
 
 export interface DepreciationImmobilisation {
   id: string;

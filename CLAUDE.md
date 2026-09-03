@@ -329,6 +329,38 @@ abrogés au 1er janvier 2026 et remplacés par l'IS et l'IRPP. Seuls les
 mécanismes d'écriture sont retenus, et aucun ne dépend d'un taux. Un test le
 vérifie sur les messages produits.
 
+**Approche par composants · le rattachement, et les deux listes qui ne se
+ferment pas pareil.** Un composant est une immobilisation à part entière,
+rattachée à son principal (`Immobilisation.immobilisationPrincipaleId`), avec
+son PROPRE plan : c'est l'objet du ch. 4 § 1 de l'AUDCIF. Le module savait déjà
+tenir un ascenseur sur dix ans dans un immeuble sur quarante ; ce qui manquait
+est le LIEN, et sans lui le renouvellement créait un second bien sans sortir le
+premier · deux ascenseurs au bilan pour une cage, l'écriture équilibrée et la
+balance qui boucle. D'où l'opération unique `renouveler` : la VCN de l'ancien
+sort au 812 (ou 654 en cession courante) et le remplaçant est porté au même
+principal, § 4.1.
+
+CE QUI DIFFÈRE ENTRE LES DEUX TEXTES, ET QU'IL NE FAUT PAS HARMONISER · le
+SYCEBNL écrit « la décomposition N'EST AUTORISÉE QUE POUR » et ferme sa liste ;
+l'AUDCIF donne la même énumération « par exemple » puis exclut nommément les
+matériels informatiques, les véhicules de tourisme et les matériels et
+mobiliers. Les messages de refus citent chacun SON texte, un test le vérifie
+dans les deux sens.
+
+CE QUE LE LOGICIEL NE DEVINE PAS. « Véhicule de tourisme » et « matériel
+industriel » ne se lisent pas dans un numéro de compte, les deux plans les
+logeant au même 245 et au même 241. Le seul refus mécanique porte donc sur le
+2442, que les deux plans isolent. Le reste des conditions (durées d'utilité
+distinctes, caractère significatif, statistiques disponibles) est demandé PAR
+ÉCRIT et conservé · même parti que l'indice de perte de valeur.
+
+Deux règles de dates opposées sur des objets voisins, et une seule est
+vérifiable : la pièce de SÉCURITÉ s'amortit dès l'acquisition du principal
+(contrôlé), la pièce de RECHANGE seulement à son intégration, date que nul
+autre que le comptable ne connaît (non contrôlé, et dit comme tel). Enfin un
+composant ne porte pas de valeur résiduelle, sauf s'il est le DERNIER
+renouvellement avant la fin d'utilisation de la structure (§ 3.3 et § 4.3).
+
 **Dépréciation des immobilisations · portée par le module depuis le
 2026-09-03.** Les comptes 29 étaient semés et mouvementables, mais le module
 tenait le bien au coût historique. Deux divergences muettes en sortaient, que

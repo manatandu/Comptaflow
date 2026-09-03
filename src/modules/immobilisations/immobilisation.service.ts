@@ -1,12 +1,20 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
-import { ModeAmortissement, Prisma, Referentiel, SensDepreciation, StatutImmobilisation } from '@prisma/client';
+import {
+  ModeAmortissement,
+  Prisma,
+  Referentiel,
+  SensDepreciation,
+  StatutImmobilisation,
+  TypeComposant,
+} from '@prisma/client';
 import { FAMILLES_IMMOBILISATION_DEFAUT, FAMILLES_IMMOBILISATION_DEFAUT_SYSCOHADA } from './famille-immobilisation-seed';
 import {
   CreerFamilleDto,
   CreerImmobilisationDto,
   DepreciationDto,
+  RenouvelerComposantDto,
   ModifierFamilleDto,
   PasserDotationDto,
   SortirImmobilisationDto,
@@ -391,7 +399,116 @@ export class ImmobilisationService {
     return Math.max(0, Math.floor(mois / 12));
   }
 
-  async creer(tenantId: string, userId: string, dto: CreerImmobilisationDto) {
+
+  /*
+    LA DÉCOMPOSITION N'EST PAS OUVERTE À TOUT · et les deux textes ne la
+    ferment PAS DE LA MÊME FAÇON. C'est le point délicat de ce chapitre.
+
+     · SYCEBNL, Partie 2 ch. 3, règles générales de la classe 2 · « la
+       décomposition de ces immobilisations N'EST AUTORISÉE QUE POUR les
+       bâtiments et autres ouvrages, les avions, les bateaux, les camions, les
+       autocars, les bus, les véhicules blindés de transport de fonds, certains
+       matériels et outillages des entités industrielles, minières, agricoles,
+       hospitalières et pétrolières, dès lors que l'entité dispose de
+       statistiques et autres informations lui permettant de bien appréhender
+       la durée d'utilité de chaque élément. » Liste FERMÉE.
+     · AUDCIF, Titre VIII ch. 4 § 2 · la même énumération, mais introduite par
+       « par exemple », donc OUVERTE, suivie d'une liste NÉGATIVE : « ne peuvent
+       faire l'objet d'une décomposition certaines immobilisations de faible
+       valeur et/ou de durée d'utilisation courte telles que les matériels
+       informatiques, les véhicules de tourisme, les matériels et mobiliers ».
+
+    CE QUE LE LOGICIEL PEUT VÉRIFIER, ET RIEN DE PLUS. « Véhicule de tourisme »
+    et « matériel industriel » ne se lisent pas dans un numéro de compte : les
+    deux plans les logent au même 245 et au même 241. Le seul refus mécanique
+    possible porte donc sur le matériel informatique, que les deux plans isolent
+    au 2442, et que l'AUDCIF exclut nommément. Le reste des conditions est
+    demandé PAR ÉCRIT (justificationDecomposition) plutôt que deviné · un refus
+    fondé sur une devinette bloquerait des décompositions justes, et une
+    autorisation silencieuse en laisserait passer de fausses.
+  */
+  private verifierDecomposition(
+    principal: { compteImmobilisation: { numero: string; intitule: string } },
+    referentiel: Referentiel,
+  ) {
+    if (principal.compteImmobilisation.numero.startsWith('2442')) {
+      throw new BadRequestException(
+        referentiel === Referentiel.SYCEBNL
+          ? "Le matériel informatique ne figure pas dans la liste des immobilisations décomposables du SYCEBNL " +
+            '(Partie 2 ch. 3, règles générales de la classe 2), qui n’autorise la décomposition que pour les ' +
+            'bâtiments et autres ouvrages, les avions, les bateaux, les camions, les autocars, les bus, les ' +
+            'véhicules blindés de transport de fonds et certains matériels et outillages industriels, miniers, ' +
+            'agricoles, hospitaliers et pétroliers.'
+          : "L'AUDCIF exclut nommément le matériel informatique de la décomposition (Titre VIII ch. 4 § 2), avec " +
+            'les véhicules de tourisme et les matériels et mobiliers, en raison de leur faible valeur ou de leur ' +
+            'durée d’utilisation courte. Le coût de leur remplacement est une charge de l’exercice.',
+      );
+    }
+  }
+
+  /**
+   * Contrôles propres à un COMPOSANT, une fois son principal connu.
+   *
+   * Deux seulement sont mécaniques, et c'est voulu :
+   *  · la valeur résiduelle · ch. 4 § 3.3, « s'agissant d'un composant
+   *    identifié à l'origine, sa base amortissable NE PEUT ÊTRE DIMINUÉE d'une
+   *    valeur résiduelle, puisque, par définition, il est prévu qu'il soit
+   *    remplacé avant la fin de l'utilisation de la structure ». Le § 4.3
+   *    ouvre l'exception du DERNIER remplacement, d'où le drapeau ;
+   *  · la pièce de sécurité · SYCEBNL, classe 2, « pour les pièces de
+   *    sécurité, l'amortissement doit démarrer DÈS L'ACQUISITION DE
+   *    L'IMMOBILISATION PRINCIPALE ». C'est la seule des cinq natures dont la
+   *    date de départ soit entièrement déterminée par le principal, donc la
+   *    seule vérifiable.
+   *
+   * La pièce de RECHANGE obéit à la règle inverse (« l'amortissement ne débute
+   * qu'à la date d'utilisation de la pièce, au moment où elle est intégrée
+   * dans l'immobilisation principale »), mais cette date n'est connue de
+   * personne d'autre que du comptable : elle est simplement la date de mise en
+   * service saisie, et aucun contrôle ne peut la contredire. Dit ici plutôt
+   * que laissé croire.
+   */
+  private verifierComposant(
+    dto: {
+      typeComposant?: TypeComposant;
+      valeurResiduelle?: number;
+      dernierRenouvellement?: boolean;
+      dateMiseEnService: string;
+    },
+    principal: { dateAcquisition: Date },
+  ) {
+    if ((dto.valeurResiduelle ?? 0) > EPSILON && dto.dernierRenouvellement !== true) {
+      throw new BadRequestException(
+        "Un composant identifié à l'origine ne porte pas de valeur résiduelle : il est prévu qu'il soit remplacé " +
+          "avant la fin de l'utilisation de la structure (AUDCIF, Titre VIII ch. 4 § 3.3). Si celui-ci est le " +
+          'DERNIER renouvellement avant la fin d’utilisation du bien principal, indiquez-le explicitement.',
+      );
+    }
+    if (dto.typeComposant === TypeComposant.PIECE_DE_SECURITE) {
+      const debut = new Date(dto.dateMiseEnService);
+      if (debut.getTime() !== principal.dateAcquisition.getTime()) {
+        throw new BadRequestException(
+          "Une pièce de sécurité s'amortit à compter de l'acquisition de l'immobilisation principale, qu'elle " +
+            `serve ou non (SYCEBNL, Partie 2 ch. 3, classe 2) : sa date de début est le ` +
+            `${principal.dateAcquisition.toISOString().slice(0, 10)}. Une pièce dont l'amortissement ne commence ` +
+            "qu'à son intégration est une pièce de RECHANGE, pas une pièce de sécurité.",
+        );
+      }
+    }
+  }
+
+  async creer(
+    tenantId: string,
+    userId: string,
+    dto: CreerImmobilisationDto,
+    /**
+     * Réservé à `renouveler` · le composant que celui-ci remplace. Il n'est
+     * PAS exposé au DTO : la chaîne des remplacements se constate, elle ne se
+     * déclare pas, et un client qui la poserait à la main pourrait relier deux
+     * biens qui n'ont rien à voir.
+     */
+    interne: { composantRemplaceId?: string } = {},
+  ) {
     const famille = await this.prisma.familleImmobilisation.findFirst({ where: { id: dto.familleId, tenantId } });
     if (!famille) throw new BadRequestException('Famille introuvable pour ce tenant');
 
@@ -402,6 +519,36 @@ export class ImmobilisationService {
     const dateMiseEnService = new Date(dto.dateMiseEnService);
     if (dateMiseEnService < dateAcquisition) {
       throw new BadRequestException("La date de mise en service ne peut pas précéder la date d'acquisition");
+    }
+
+    // APPROCHE PAR COMPOSANTS · seulement si un principal est désigné. Sans
+    // lui, rien ne change : le bien est une structure ordinaire.
+    let principal: { id: string; dateAcquisition: Date; compteImmobilisation: { numero: string; intitule: string } } | null =
+      null;
+    if (dto.immobilisationPrincipaleId) {
+      principal = await this.prisma.immobilisation.findFirst({
+        where: { id: dto.immobilisationPrincipaleId, tenantId },
+        select: { id: true, dateAcquisition: true, compteImmobilisation: { select: { numero: true, intitule: true } } },
+      });
+      if (!principal) throw new BadRequestException('Immobilisation principale introuvable pour ce tenant');
+      const { referentiel } = await this.prisma.tenant.findUniqueOrThrow({
+        where: { id: tenantId },
+        select: { referentiel: true },
+      });
+      this.verifierDecomposition(principal, referentiel);
+      this.verifierComposant(dto, principal);
+      if (!dto.justificationDecomposition?.trim()) {
+        throw new BadRequestException(
+          'Indiquez pourquoi ce bien est décomposable : durées d’utilité distinctes, caractère significatif du ' +
+            'coût, informations disponibles sur la durée de chaque élément. Les deux textes posent ces conditions ' +
+            'et aucun logiciel ne peut les vérifier à votre place.',
+        );
+      }
+    } else if (dto.typeComposant || dto.justificationDecomposition) {
+      throw new BadRequestException(
+        'Un composant se rattache à une immobilisation principale · indiquez-la, ou laissez ces champs vides pour ' +
+          'créer une immobilisation ordinaire.',
+      );
     }
 
     // Écriture d'acquisition : débit du compte d'immobilisation (skill
@@ -459,6 +606,14 @@ export class ImmobilisationService {
         modeAmortissement: ModeAmortissement.LINEAIRE,
         ecritureAcquisitionId: ecritureAcquisition.id,
         createdBy: userId,
+        // Rattachement au principal · null pour une structure. Le composant
+        // garde son PROPRE plan d'amortissement, c'est tout l'objet du
+        // chapitre 4 : « un plan d'amortissement propre à chacun de ces
+        // éléments est retenu ».
+        immobilisationPrincipaleId: principal?.id ?? null,
+        typeComposant: principal ? (dto.typeComposant ?? TypeComposant.COMPOSANT) : null,
+        justificationDecomposition: principal ? (dto.justificationDecomposition ?? null) : null,
+        composantRemplaceId: interne.composantRemplaceId ?? null,
       },
       include: { dotations: true },
     });
@@ -1016,6 +1171,76 @@ export class ImmobilisationService {
       }
       throw err;
     }
+  }
+
+
+  /**
+   * RENOUVELLEMENT D'UN COMPOSANT · AUDCIF Titre VIII ch. 4 § 4.1.
+   *
+   * Deux mouvements indissociables : la valeur nette comptable du composant
+   * REMPLACÉ sort de l'actif (compte 812, ou 654 en cession courante), et le
+   * coût du renouvellement entre à l'actif dans un sous-compte de
+   * l'immobilisation principale, avec son propre plan.
+   *
+   * CE QUE RIEN NE VOYAIT AVANT. Les deux opérations étaient possibles
+   * séparément · créer le nouveau bien, et oublier de sortir l'ancien. Le
+   * bilan portait alors deux ascenseurs pour une seule cage, l'écriture
+   * d'acquisition restait équilibrée, la balance bouclait, et le parc
+   * continuait d'amortir un composant qui n'existe plus. Les lier en une seule
+   * opération est le seul moyen de rendre l'oubli impossible.
+   *
+   * La durée du nouveau composant est SAISIE et non déduite · le § 4.4 la fait
+   * dépendre de ce qui vient après (un nouveau remplacement, ou la fin
+   * d'utilisation de la structure), que le logiciel ne connaît pas.
+   */
+  async renouveler(tenantId: string, userId: string, composantId: string, dto: RenouvelerComposantDto) {
+    const ancien = await this.trouver(tenantId, composantId);
+    if (!ancien.immobilisationPrincipaleId) {
+      throw new BadRequestException(
+        "Ce bien n'est pas un composant · le renouvellement d'un composant suppose une immobilisation principale " +
+          'à laquelle rattacher le remplaçant (AUDCIF, Titre VIII ch. 4 § 4.1). Pour un bien autonome, utilisez ' +
+          'la sortie puis une nouvelle acquisition.',
+      );
+    }
+
+    // 1. La sortie de l'ancien · elle porte déjà la dotation complémentaire de
+    //    l'exercice, le solde du 28, celui du 29 et le calcul de la VCN.
+    await this.sortir(tenantId, userId, composantId, {
+      dateSortie: dto.dateRenouvellement,
+      type: TypeSortie.MISE_HORS_SERVICE,
+      exerciceId: dto.exerciceId,
+      journalId: dto.journalId,
+      cessionCourante: dto.cessionCourante,
+    } as SortirImmobilisationDto);
+
+    // 2. Le remplaçant, rattaché au MÊME principal et à la même famille · le
+    //    texte dit « dans un sous-compte de l'immobilisation principale », donc
+    //    au même compte d'imputation que celui qu'il remplace.
+    return this.creer(
+      tenantId,
+      userId,
+      {
+        familleId: ancien.familleId,
+        designation: dto.designation,
+        dateAcquisition: dto.dateRenouvellement,
+        dateMiseEnService: dto.dateRenouvellement,
+        valeurOrigine: dto.coutRenouvellement,
+        valeurResiduelle: dto.valeurResiduelle ?? 0,
+        dureeAmortissementAns: dto.dureeAmortissementAns,
+        compteContrepartieId: dto.compteContrepartieId,
+        exerciceId: dto.exerciceId,
+        journalId: dto.journalId,
+        immobilisationPrincipaleId: ancien.immobilisationPrincipaleId,
+        typeComposant: ancien.typeComposant ?? undefined,
+        // La justification du bien remplacé vaut pour son remplaçant · elle
+        // porte sur la décomposition du principal, pas sur la pièce.
+        justificationDecomposition:
+          ancien.justificationDecomposition ??
+          `Renouvellement du composant « ${ancien.designation} » (AUDCIF, Titre VIII ch. 4 § 4.1)`,
+        dernierRenouvellement: dto.dernierRenouvellement,
+      } as CreerImmobilisationDto,
+      { composantRemplaceId: composantId },
+    );
   }
 
   /**

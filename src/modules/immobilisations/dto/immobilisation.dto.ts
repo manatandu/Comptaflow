@@ -10,7 +10,7 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
-import { ModeAmortissement, SensDepreciation } from '@prisma/client';
+import { ModeAmortissement, SensDepreciation, TypeComposant } from '@prisma/client';
 
 export class CreerFamilleDto {
   @IsString()
@@ -110,6 +110,24 @@ export class CreerImmobilisationDto {
 
   @IsUUID('4')
   journalId!: string;
+
+  // --- Approche par composants · facultatif, voir RattachementComposantDto ---
+  @IsOptional()
+  @IsUUID('4')
+  immobilisationPrincipaleId?: string;
+
+  @IsOptional()
+  @IsEnum(TypeComposant)
+  typeComposant?: TypeComposant;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  justificationDecomposition?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  dernierRenouvellement?: boolean;
 }
 
 export class PasserDotationDto {
@@ -131,6 +149,49 @@ export class PasserDotationDto {
  * que les deux textes écrivent : c'est le 29, jamais le 39 des stocks, le 49
  * des tiers ni le 59 de la trésorerie (fiche du COMPTE 29, « exclusions »).
  */
+/**
+ * RATTACHEMENT D'UN COMPOSANT · AUDCIF Titre VIII ch. 4 ; SYCEBNL, Partie 2
+ * ch. 3, règles générales de la classe 2.
+ *
+ * Ces champs sont facultatifs et vont ENSEMBLE : une immobilisation créée sans
+ * eux est une structure ordinaire, exactement comme avant.
+ */
+export class RattachementComposantDto {
+  /** L'immobilisation principale · absente pour une structure. */
+  @IsOptional()
+  @IsUUID('4')
+  immobilisationPrincipaleId?: string;
+
+  @IsOptional()
+  @IsEnum(TypeComposant)
+  typeComposant?: TypeComposant;
+
+  /**
+   * POURQUOI ce bien est décomposable. Les deux textes posent des conditions
+   * qu'aucun logiciel ne peut vérifier · éléments dissociables, utilisations
+   * différentes, durées d'utilité différentes, coût évaluable de façon fiable
+   * ET significatif, et pour les matériels industriels « des statistiques et
+   * autres informations » permettant d'apprécier la durée de chaque élément.
+   * Le logiciel ne les devine pas : il les fait écrire.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  justificationDecomposition?: string;
+
+  /**
+   * DERNIER RENOUVELLEMENT du composant avant la fin d'utilisation de la
+   * structure · c'est le seul cas où le texte admet une valeur résiduelle sur
+   * un composant (AUDCIF ch. 4 § 3.3 et § 4.3). Hors ce cas, « la base
+   * amortissable NE PEUT ÊTRE DIMINUÉE d'une valeur résiduelle, puisque, par
+   * définition, il est prévu qu'il soit remplacé avant la fin de l'utilisation
+   * de la structure ».
+   */
+  @IsOptional()
+  @IsBoolean()
+  dernierRenouvellement?: boolean;
+}
+
 export class DepreciationDto {
   @IsUUID('4')
   exerciceId!: string;
@@ -162,6 +223,71 @@ export class DepreciationDto {
   @IsString()
   @MaxLength(500)
   indice!: string;
+}
+
+/**
+ * RENOUVELLEMENT D'UN COMPOSANT · AUDCIF Titre VIII ch. 4 § 4.1.
+ *
+ * « Lorsqu'un composant identifié à l'origine est renouvelé, le coût de ce
+ * renouvellement, dès lors qu'il est significatif, est enregistré à l'actif
+ * dans un sous-compte de l'immobilisation principale, et LA VALEUR NETTE
+ * COMPTABLE DU COMPOSANT REMPLACÉ EST COMPTABILISÉE au compte 812 Valeurs
+ * comptables des cessions d'immobilisations corporelles ou 654 Valeurs
+ * comptables des cessions courantes d'immobilisations, selon le cas. »
+ *
+ * Les deux mouvements vont ensemble · c'est là tout l'intérêt de l'opération.
+ * Enregistrer le nouveau sans sortir l'ancien laisse au bilan deux ascenseurs
+ * pour une seule cage, et l'écriture reste pourtant équilibrée.
+ */
+export class RenouvelerComposantDto {
+  @IsDateString()
+  dateRenouvellement!: string;
+
+  @IsUUID('4')
+  exerciceId!: string;
+
+  @IsUUID('4')
+  journalId!: string;
+
+  @IsString()
+  designation!: string;
+
+  /** Coût du renouvellement · c'est la valeur d'entrée du nouveau composant. */
+  @IsNumber()
+  @IsPositive()
+  coutRenouvellement!: number;
+
+  @IsUUID('4')
+  compteContrepartieId!: string;
+
+  /**
+   * Durée d'amortissement du nouveau composant · ch. 4 § 4.4 · elle dépend de
+   * ce qui vient après, et le logiciel ne le sait pas : durée jusqu'au
+   * prochain remplacement, ou durée d'utilisation résiduelle de la structure
+   * s'il n'est plus renouvelé.
+   */
+  @IsNumber()
+  @IsPositive()
+  dureeAmortissementAns!: number;
+
+  /** Voir RattachementComposantDto · seul le dernier remplacement en porte une. */
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  valeurResiduelle?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  dernierRenouvellement?: boolean;
+
+  /**
+   * Sortie de l'ancien en EXPLOITATION (654) plutôt qu'en H.A.O. (812) · voir
+   * SortirImmobilisationDto.cessionCourante, même arbitrage et même refus côté
+   * serveur pour un dossier SYCEBNL.
+   */
+  @IsOptional()
+  @IsBoolean()
+  cessionCourante?: boolean;
 }
 
 export enum TypeSortie {

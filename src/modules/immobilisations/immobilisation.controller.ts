@@ -12,6 +12,7 @@ import {
   PasserDotationDto,
   SortirImmobilisationDto,
   DepreciationDto,
+  RenouvelerComposantDto,
 } from './dto/immobilisation.dto';
 import { RoleUtilisateur, StatutImmobilisation } from '@prisma/client';
 
@@ -97,6 +98,21 @@ export class ImmobilisationController {
     @Body() dto: DepreciationDto,
   ) {
     return this.immobilisationService.enregistrerDepreciation(user.tenantId, user.userId, id, dto);
+  }
+
+  /**
+   * RENOUVELLEMENT D'UN COMPOSANT · AUDCIF Titre VIII ch. 4 § 4.1. Une seule
+   * route pour les deux mouvements : sortir l'ancien de l'actif ET porter le
+   * nouveau. Les séparer laisserait deux ascenseurs au bilan pour une cage.
+   */
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Post(':id/renouvellement')
+  async renouveler(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: RenouvelerComposantDto,
+  ) {
+    return this.immobilisationService.renouveler(user.tenantId, user.userId, id, dto);
   }
 
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
