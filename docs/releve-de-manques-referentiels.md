@@ -465,11 +465,108 @@ manquant.
 
 ---
 
+## Passe 6 · AUDCIF, articles 1 à 13 et 25 à 34
+
+Lu à la source : AUDCIF, Titre I ch. 1 (art. 1 à 13, en notant que le 12 est
+abrogé) et ch. 3 (art. 25 à 34, le 27 abrogé) ; SYCEBNL, art. 3 (liste
+d'exclusion) et Partie 1 ch. 1, entrée EXERCICE du glossaire.
+
+C'est la passe qui a rapporté les deux défauts les plus graves du relevé, tous
+deux à la racine, tous deux muets.
+
+### Écart 6.1 · l'exercice pouvait être n'importe quelle période
+
+**Ce que le texte exige.** Art. 7 : « L'exercice coïncide avec l'année
+civile. » Trois cas seulement s'en écartent, tous nommés dans l'article : le
+premier exercice débutant au premier semestre, dont la durée « EST
+exceptionnellement inférieure à douze mois » ; le premier exercice commencé au
+deuxième semestre, dont la durée « PEUT être supérieure à douze mois » ; et la
+liquidation, dont « la durée des opérations est comptée pour un seul
+exercice ». L'art. 7 n'est pas dans la liste d'exclusion de l'art. 3 du
+SYCEBNL, et le glossaire de celui-ci réécrit la règle mot pour mot : elle vaut
+des deux côtés, sans transposition.
+
+**Ce que le logiciel faisait.** `ExerciceService.creer` n'exigeait qu'une chose,
+que la fin suive le début. Un exercice du 15 mars au 20 août était accepté, à la
+création du dossier comme plus tard.
+
+**Fichiers.** `src/modules/exercice/exercice.service.ts`,
+`src/modules/exercice/dto/creer-exercice.dto.ts`.
+
+**Lacune du logiciel.**
+
+**Gravité · état faux, et silencieux.** Rien en aval ne pouvait rattraper la
+racine, parce que tout en aval était cohérent avec elle : l'en-tête obligatoire
+publiait « Exercice clos le 20-08 », le planning de clôture calculait ses
+échéances depuis cette date, la liasse entière reposait sur une période que le
+texte n'autorise pas. Aucun contrôle n'avait de raison de se déclencher.
+
+**Ce qui a été fait ici.** Le garde-fou est posé, avec les trois cas de
+l'article et l'échappatoire de liquidation en drapeau explicite du DTO, jamais
+par défaut : un exercice hors année civile est une exception que le cabinet
+déclare. Le message d'erreur cite l'article, parce qu'un refus sans son fondement
+ressemble à un caprice de logiciel.
+
+### Écart 6.2 · la clôture engendrait un exercice suivant faux une année sur deux
+
+**Ce que le texte exige.** Le même art. 7.
+
+**Ce que le logiciel faisait.** La clôture créait l'exercice suivant en
+RECOPIANT la durée du précédent en millisecondes : début au lendemain de la
+clôture, fin à début plus la durée écoulée. Sur deux années de même longueur le
+compte tombait juste. Dès qu'une année bissextile entrait dans le calcul, il
+tombait faux :
+
+| Exercice clos | Exercice engendré | Attendu |
+|---|---|---|
+| 2023 | 01/01/2024 au **30/12/2024** | 31/12/2024 |
+| 2024 | 01/01/2025 au **01/01/2026** | 31/12/2025 |
+| 2027 | 01/01/2028 au **30/12/2028** | 31/12/2028 |
+
+**Fichier.** `src/modules/exercice/exercice.service.ts`, dans la transaction de
+clôture annuelle.
+
+**Lacune du logiciel.**
+
+**Gravité · état faux, et le plus silencieux de tous.** Un exercice qui finit le
+30 décembre laisse une écriture du 31 sans exercice où aller. Un exercice qui
+finit le 1er janvier mord sur le suivant. Et rien ne le signalait : l'en-tête
+imprime la durée en mois entamés, qui restait douze dans les deux cas. Le défaut
+ne pouvait apparaître que sur un dossier réel franchissant une année
+bissextile, c'est-à-dire une fois sur quatre, plusieurs mois après.
+
+**Ce qui a été fait ici.** Le calcul est sorti de la transaction de clôture,
+qui fait plusieurs centaines de lignes, pour devenir une fonction pure
+éprouvable seule · `exerciceSuivantApres`. L'exercice suivant part du lendemain
+de la clôture et va au 31 décembre de son année, comme l'article le dit. Le
+test parcourt six années consécutives, dont deux bissextiles ; il vérifie aussi
+qu'un dossier repris portant un exercice illégal antérieur au garde-fou est
+régularisé par la clôture plutôt que perpétué.
+
+### Ce qui est conforme, et vérifié
+
+- **Art. 5 al. 3** · les entités à but non lucratif ne sont pas assujetties au
+  SYSCOHADA · c'est le cloisonnement des deux chemins, contrôlé aux deux bouts.
+- **Art. 13** · seuils du Système minimal de trésorerie · 60 millions pour le
+  négoce, 40 pour l'artisanat, 30 pour les services, servis par
+  `EtatsFinanciersSmtSyscohadaService.eligibilite` ; côté SYCEBNL, les cinq
+  seuils de 30 millions de l'art. 6 et la règle cumulée sur deux exercices.
+- **Art. 8, 26, 28 à 33** · jeu complet indissociable, tracés du Système normal
+  et du SMT, grandes masses du bilan, cascade des soldes du compte de résultat,
+  structure du tableau des flux, notes annexes à référence croisée · tous servis
+  par les modules d'états, avec leurs specs de correspondance.
+- **Art. 34** · non-compensation, permanence de présentation, colonne de
+  l'exercice précédent · contrôlés. Le dernier alinéa (poste non comparable,
+  adaptation signalée aux notes) reste l'écart déjà relevé à la passe 1 sous
+  l'art. 16 al. 2 du SYCEBNL, qui l'énonce dans les mêmes termes.
+
+---
+
 ## Ce qui n'a pas encore été ouvert
 
 À traiter dans les passes suivantes, dans cet ordre :
 
-1. **AUDCIF** · le reste des articles 1 à 113 · le champ d'application
-   (art. 1 à 13), le jeu complet d'états financiers (art. 25 à 34) et les
-   dispositions pénales.
-2. **AUDCIF Titre VIII** · les 41 chapitres d'opérations spécifiques.
+1. **AUDCIF** · les articles 35 à 113 · consolidation, combinaison, comptes
+   des groupes et dispositions pénales.
+2. **AUDCIF Titre VIII** · les 41 chapitres d'opérations spécifiques, dont le
+   ch. 31 déjà ouvert à la passe 3.

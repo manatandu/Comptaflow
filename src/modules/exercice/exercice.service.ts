@@ -58,6 +58,27 @@ export function libellesResultat(referentiel: Referentiel) {
 }
 
 
+/**
+ * DATES DE L'EXERCICE QUI SUIT CELUI QUI VIENT D'ÊTRE CLOS.
+ *
+ * Extraite du corps de la clôture pour être éprouvable seule : la version
+ * précédente vivait au milieu d'une transaction de plusieurs centaines de
+ * lignes, et son erreur d'un jour ne pouvait être vue que par un dossier réel
+ * franchissant une année bissextile.
+ *
+ * L'art. 7 de l'AUDCIF, non exclu par l'art. 3 du SYCEBNL et repris mot pour
+ * mot au glossaire de celui-ci, fait coïncider l'exercice avec l'année civile.
+ * Le suivant part donc du lendemain de la clôture et va au 31 décembre de son
+ * année · jamais d'une durée recopiée, qui dérive dès qu'une année compte
+ * 366 jours.
+ */
+export function exerciceSuivantApres(dateFinClos: Date): { dateDebut: Date; dateFin: Date } {
+  const dateDebut = new Date(dateFinClos);
+  dateDebut.setUTCDate(dateDebut.getUTCDate() + 1);
+  const dateFin = new Date(Date.UTC(dateDebut.getUTCFullYear(), 11, 31));
+  return { dateDebut, dateFin };
+}
+
 @Injectable()
 export class ExerciceService {
   constructor(
@@ -95,7 +116,88 @@ export class ExerciceService {
     if (dateFin <= dateDebut) {
       throw new BadRequestException("La date de fin doit être postérieure à la date de début");
     }
+    await this.validerArticle7(tenantId, dateDebut, dateFin, dto.liquidation === true, client);
     return client.exercice.create({ data: { tenantId, dateDebut, dateFin } });
+  }
+
+  /**
+   * ARTICLE 7 · « L'EXERCICE COÏNCIDE AVEC L'ANNÉE CIVILE. »
+   *
+   * Le service acceptait n'importe quel couple de dates pourvu que la fin
+   * suive le début. Un exercice du 15 mars au 20 août passait, et rien ensuite
+   * ne pouvait le rattraper : l'en-tête obligatoire imprimait « Exercice clos
+   * le 20-08 », le planning de clôture calculait ses échéances depuis cette
+   * date, et la liasse entière reposait sur une période que le texte
+   * n'autorise pas. Un garde-fou absent à la racine ne se voit nulle part en
+   * aval, parce que tout en aval est cohérent avec la mauvaise racine.
+   *
+   * La règle est la même sous les deux référentiels, et ce n'est pas une
+   * transposition : l'art. 7 n'est PAS dans la liste d'exclusion de l'art. 3
+   * du SYCEBNL (art. 5, 8, 10 à 13, 17 al. 7-8, 18, 19 4e tiret, 21, 25 à 34,
+   * 49, 69, 70, 71, 73 à 113), et le glossaire du SYCEBNL, Partie 1 ch. 1,
+   * la réécrit mot pour mot à l'entrée EXERCICE.
+   *
+   * Trois cas, et un seul échappatoire :
+   *  · exercice courant · du 1er janvier au 31 décembre, sans exception ;
+   *  · PREMIER exercice débutant au premier semestre · il « est
+   *    exceptionnellement inférieur à douze mois », donc il finit le
+   *    31 décembre de la MÊME année ;
+   *  · PREMIER exercice débutant au deuxième semestre · sa durée « PEUT être
+   *    supérieure à douze mois », donc le 31 décembre de la même année ou de
+   *    la suivante, au choix du cabinet ;
+   *  · liquidation (al. 4) · seul cas hors année civile, déclaré explicitement.
+   *
+   * Dans tous les cas non liquidatifs, l'exercice finit un 31 décembre. C'est
+   * l'invariant, et c'est lui que l'en-tête des états publie.
+   */
+  private async validerArticle7(
+    tenantId: string,
+    dateDebut: Date,
+    dateFin: Date,
+    liquidation: boolean,
+    client: Prisma.TransactionClient,
+  ) {
+    if (liquidation) return;
+
+    const finLe31Decembre = dateFin.getUTCMonth() === 11 && dateFin.getUTCDate() === 31;
+    if (!finLe31Decembre) {
+      throw new BadRequestException(
+        "L'exercice coïncide avec l'année civile (AUDCIF art. 7, repris au glossaire SYCEBNL) : il se " +
+          'termine un 31 décembre. Seul un exercice de liquidation y échappe, et il doit être déclaré ' +
+          'comme tel.',
+      );
+    }
+
+    // Premier exercice du dossier · c'est le seul qui puisse ne pas couvrir
+    // l'année civile entière. Compté dans la transaction appelante, sans quoi
+    // l'exercice créé avec le dossier se croirait le second.
+    const premier = (await client.exercice.count({ where: { tenantId } })) === 0;
+    const debutLe1erJanvier = dateDebut.getUTCMonth() === 0 && dateDebut.getUTCDate() === 1;
+
+    if (!premier) {
+      if (!debutLe1erJanvier || dateDebut.getUTCFullYear() !== dateFin.getUTCFullYear()) {
+        throw new BadRequestException(
+          "Seul le PREMIER exercice d'un dossier peut s'écarter de l'année civile (AUDCIF art. 7). " +
+            'Celui-ci doit courir du 1er janvier au 31 décembre de la même année.',
+        );
+      }
+      return;
+    }
+
+    const premierSemestre = dateDebut.getUTCMonth() <= 5;
+    const anneesEcart = dateFin.getUTCFullYear() - dateDebut.getUTCFullYear();
+    if (premierSemestre && anneesEcart !== 0) {
+      throw new BadRequestException(
+        "Un premier exercice débutant au cours du premier semestre est exceptionnellement INFÉRIEUR à " +
+          'douze mois (AUDCIF art. 7) : il se termine le 31 décembre de la même année.',
+      );
+    }
+    if (!premierSemestre && anneesEcart > 1) {
+      throw new BadRequestException(
+        "Un premier exercice débutant au cours du deuxième semestre se termine le 31 décembre de la " +
+          "même année ou de la suivante (AUDCIF art. 7) : sa durée peut dépasser douze mois, pas vingt-quatre.",
+      );
+    }
   }
 
   /**
@@ -542,10 +644,25 @@ export class ExerciceService {
           orderBy: { dateDebut: 'asc' },
         });
         if (!exerciceSuivant) {
-          const dateDebut = new Date(exercice.dateFin);
-          dateDebut.setUTCDate(dateDebut.getUTCDate() + 1);
-          const dureeMs = exercice.dateFin.getTime() - exercice.dateDebut.getTime();
-          const dateFin = new Date(dateDebut.getTime() + dureeMs);
+          /*
+            L'EXERCICE SUIVANT EST UNE ANNÉE CIVILE, PAS UNE DURÉE RECOPIÉE.
+            La version précédente reportait la durée de l'exercice clos en
+            millisecondes : dateFin = (dateFin + 1 jour) + (dateFin - dateDebut).
+            Sur deux années de longueur égale le compte tombait juste, et il
+            tombait faux dès qu'une année bissextile entrait dans le calcul.
+            Clôture de 2023 · l'exercice 2024 se terminait le 30 décembre 2024,
+            et une écriture du 31 décembre n'avait plus d'exercice où aller.
+            Clôture de 2024 · l'exercice 2025 se terminait le 1er janvier 2026,
+            et mordait sur l'exercice suivant. Rien ne le signalait : l'en-tête
+            imprime la durée en mois entamés, qui restait douze dans les deux
+            cas, et tout l'aval était cohérent avec la mauvaise date.
+
+            L'art. 7 de l'AUDCIF, non exclu par l'art. 3 du SYCEBNL et repris
+            mot pour mot au glossaire de celui-ci, ne laisse pas le choix :
+            l'exercice coïncide avec l'année civile. Le suivant part donc du
+            lendemain de la clôture et va au 31 décembre de son année.
+          */
+          const { dateDebut, dateFin } = exerciceSuivantApres(exercice.dateFin);
           exerciceSuivant = await tx.exercice.create({ data: { tenantId, dateDebut, dateFin } });
         }
 
