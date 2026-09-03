@@ -924,6 +924,80 @@ Restent notamment les ch. 1 à 3, 7, 10 à 13, 15, 17 à 21, 23, 25, 26, 28, 30 
 
 ---
 
+## Passe 11 · Titre VIII, subventions (ch. 17) et provisions (ch. 18)
+
+Lu à la source : AUDCIF, Titre VIII ch. 17 « Subventions et aides publiques »
+(sections 1 à 3) et ch. 18 « Provisions, passifs éventuels et actifs
+éventuels » (sections 1 et 2).
+
+**Aucun écart.** Les deux chapitres sont servis, et par un mécanisme déjà en
+place plutôt que par du code écrit pour eux : les avertissements d'imputation
+engendrés depuis les rubriques « Exclusions » du texte officiel.
+
+### Ch. 17 · la distinction des trois destinations est déjà opposable
+
+Le chapitre range les subventions reçues selon leur DESTINATION : compte 14
+(investissement), 71 (exploitation), 88 (équilibre). Il met en garde contre
+deux voisins qui n'en sont pas : le 163 « Avances reçues de l'État », qui est
+remboursable, et le 102 « Capital par dotation », qui a pour une entité
+publique « le même caractère que le capital social dans les entités privées »
+et arrive « parfois d'ailleurs sous une fausse dénomination de subventions ».
+
+Vérifié dans le fichier engendré : la fiche du compte 14 porte ses exclusions
+officielles, « le compte 14 ne sert pas à enregistrer : les subventions
+d'exploitation reçues → 71 ; les subventions d'équilibre reçues → 88 ». Le
+comptable qui impute au 14 une subvention d'exploitation voit donc le texte
+lui-même, cité, pas une paraphrase.
+
+Ce que le logiciel ne fait pas, et ne doit pas faire : trancher la nature du
+versement. Le texte le dit lui-même · « il est indispensable pour les entités
+de se référer aux décisions notifiées par l'autorité publique pour déterminer
+la nature, l'objet et les conditions d'emploi des biens et fonds attribués ».
+C'est une lecture de convention, pas un calcul.
+
+Côté SYCEBNL, les subventions ont leur propre traitement, déjà vérifié à la
+passe 4 (opérations B15, B9, B12 du catalogue).
+
+### Ch. 18 · les trois conditions relèvent du jugement, l'imputation est gardée
+
+Les trois conditions cumulatives de comptabilisation d'une provision
+(obligation actuelle née d'un événement passé, sortie de ressources probable,
+montant estimable de façon fiable) sont un jugement, et le texte pousse même
+jusqu'au seuil de 50 % pour l'existence de l'obligation. Rien de tout cela ne
+s'automatise, et un logiciel qui prétendrait le faire déciderait à la place du
+comptable.
+
+Ce qui est automatisable est l'imputation, et elle est gardée :
+
+- la distinction entre provision à PLUS d'un an (compte de dotation aux
+  provisions) et risque à MOINS d'un an (« charges pour provisions pour risques
+  à court terme », traitées comme charges décaissables) passe par les
+  exclusions officielles des comptes concernés, déjà servies ;
+- l'interdiction de comptabiliser un ACTIF ÉVENTUEL, qui « fera l'objet d'une
+  note en annexe lorsque l'entrée d'avantages économiques est probable et le
+  montant significatif », est servie par la note « Actifs et passifs
+  éventuels », présente dans les deux jeux et en saisie.
+
+### Vérification de non-revendication
+
+Une passe a été faite sur les chapitres de niche pour s'assurer qu'aucun n'est
+faussement revendiqué par le logiciel : fusions (ch. 38), liquidation (ch. 40),
+concessions de service public (ch. 25), franchise (ch. 35), affacturage et
+titrisation (ch. 15), immeubles de placement (ch. 10), groupement d'intérêt
+économique (ch. 26). Aucun module ne les implémente et aucun écran ne les
+annonce · les occurrences trouvées dans le code sont des homonymes (une
+fonction `fusionner` de postes du SMT, la « liquidation de l'impôt » du module
+fiscal, le drapeau d'exercice de liquidation posé à la passe 6). C'est le
+contrôle qui comptait : une fonction absente est un périmètre, une fonction
+annoncée et absente serait un mensonge.
+
+### Portée de cette passe
+
+Restent, tous non ouverts : les ch. 1 à 3, 7, 10 à 13, 15, 19 à 21, 23, 25, 26,
+28, 30 et 32 à 41.
+
+---
+
 ## Ce qui n'a pas encore été ouvert
 
 À traiter dans les passes suivantes, dans cet ordre :
@@ -931,5 +1005,8 @@ Restent notamment les ch. 1 à 3, 7, 10 à 13, 15, 17 à 21, 23, 25, 26, 28, 30 
 1. **AUDCIF Titre VIII** · les chapitres restants. Ouverts à ce jour : le
    ch. 16 (passe 2), le ch. 31 (passe 3), les ch. 4 à 6 (passe 8), les ch. 8,
    9 et 27 (passe 9), et le ch. 22 vérifié à la passe 7 par le module devises.
-   Restent notamment les ch. 1 à 3, 7, 10 à 13, 15, 17 à 21, 23, 25, 26, 28,
-   30 et 32 à 41.
+   Restent les ch. 1 à 3, 7, 10 à 13, 15, 19 à 21, 23, 25, 26, 28, 30 et 32
+   à 41. La plupart visent des opérations hors du portefeuille actuel du
+   cabinet (concessions, franchise, agricole, fusions, liquidation, GIE,
+   comptabilité par établissement, pluri-monétaire) · à trier avec Manasse
+   plutôt qu'à ouvrir un par un.
