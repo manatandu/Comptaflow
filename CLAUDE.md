@@ -126,6 +126,15 @@ qu'il joint sa base · un déploiement vert prouve les deux. L'environnement de
 développement n'atteint pas Cloud Run (politique réseau) : ne jamais affirmer
 l'état du service depuis un `curl` local, se fier au workflow.
 
+**APRÈS CHAQUE PUSH qui touche `src/**` ou `prisma/**`, RELIRE LE RÉSULTAT DU
+DÉPLOIEMENT.** Pousser n'est pas déployer. Le 2026-09-02, six poussées de
+suite ont été annoncées comme faites alors que le conteneur refusait de
+démarrer à chaque fois : Cloud Run garde l'ancienne révision quand la
+nouvelle ne répond pas, si bien que le logiciel a tourné une soirée entière
+avec un client à jour sur un serveur d'avant. La panne était rouge dans
+Actions depuis le début · personne ne l'avait ouverte. Un « poussé » sans
+déploiement vérifié est un « poussé » qui ne veut rien dire.
+
 Pour pousser : `git push -u origin main`, avec quelques tentatives espacées en
 cas d'échec réseau.
 
