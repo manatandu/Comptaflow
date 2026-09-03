@@ -329,6 +329,39 @@ abrogés au 1er janvier 2026 et remplacés par l'IS et l'IRPP. Seuls les
 mécanismes d'écriture sont retenus, et aucun ne dépend d'un taux. Un test le
 vérifie sur les messages produits.
 
+**Correspondance bilan de clôture / bilan d'ouverture · la convention et ses
+DEUX seules exceptions.** « Le bilan d'ouverture d'un exercice doit
+correspondre au bilan de clôture de l'exercice précédent » (AUDCIF art. 34 et
+Titre V · SYCEBNL art. 16, 4) et cadre conceptuel § 3.3.1.2.4). Conséquence
+écrite dans les deux textes : on ne peut PAS imputer directement sur les
+capitaux propres les incidences d'un changement de méthode ni les charges et
+produits d'exercices antérieurs omis · ils transitent par le compte de résultat
+du nouvel exercice.
+
+DEUX EXCEPTIONS, ET DEUX SEULEMENT, chacune nommée par les deux textes : le
+CHANGEMENT DE MÉTHODE à impact fort significatif, et la CORRECTION D'ERREUR
+SIGNIFICATIVE d'un exercice antérieur. Elles ont un chemin déclaré depuis le
+2026-09-03 (`EcritureService.imputerAuxCapitauxPropresDOuverture`, fenêtre
+Exercices, ADMIN_CABINET seulement), qui porte le motif et la JUSTIFICATION ·
+obligatoire, parce que les deux textes exigent l'information en Notes annexes.
+
+Le refus de modifier une écriture de clôture existait déjà et citait la
+convention. Ce qui manquait est l'inverse : rien n'empêchait de mouvementer le
+compte 12 par une écriture ORDINAIRE. Elle s'équilibre, la balance boucle, le
+bilan d'ouverture cesse de correspondre sans qu'aucun total ne bouge, et elle
+est indiscernable d'une erreur d'imputation. D'où le contrôle
+`IMPUTATION_REPORT_A_NOUVEAU_NON_DECLAREE`, qui liste ce qui a touché le 12
+hors clôture et hors exception déclarée, en citant l'article du dossier.
+
+Trois refus, chacun sourcé : la destination doit être un 12 (seul compte de
+report à nouveau des deux plans) ; la contrepartie doit être un poste de BILAN,
+une contrepartie de gestion ferait transiter l'impact par le résultat et
+redeviendrait le traitement ordinaire ; et l'écriture est datée de l'OUVERTURE
+de l'exercice, les deux textes parlant des capitaux propres d'ouverture. Le
+MONTANT n'est jamais calculé · l'impact d'un changement de méthode se détermine
+« de façon rétrospective, comme si la méthode avait toujours été appliquée »,
+reconstitution qu'aucun logiciel ne fait à la place du comptable.
+
 **Manuel des procédures et de l'organisation comptables · le quatrième document
 obligatoire, qui n'avait aucune place.** AUDCIF art. 16 al. 1 : « toute entité
 établit un manuel décrivant les procédures et l'organisation comptables », mis

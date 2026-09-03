@@ -1,7 +1,14 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
-import { Prisma, Referentiel, StatutEcriture, StatutExercice, TypeCompteDetailTotal } from '@prisma/client';
-import { CreerEcritureDto } from './dto/creer-ecriture.dto';
+import {
+  MotifImputationOuverture,
+  Prisma,
+  Referentiel,
+  StatutEcriture,
+  StatutExercice,
+  TypeCompteDetailTotal,
+} from '@prisma/client';
+import { CreerEcritureDto, ImputationOuvertureDto } from './dto/creer-ecriture.dto';
 import { CorrigerEcritureDto } from './dto/corriger-ecriture.dto';
 import { ModifierEcritureDto, ValiderJusquaDto } from './dto/brouillard.dto';
 import { JournalService } from '../journaux/journal.service';
@@ -122,6 +129,118 @@ export class EcritureService {
     private readonly exerciceService: ExerciceService,
     private readonly analytiqueService: AnalytiqueService,
   ) {}
+
+
+  /**
+   * IMPUTATION DIRECTE AUX CAPITAUX PROPRES D'OUVERTURE · l'une des deux
+   * seules exceptions à la correspondance bilan de clôture / bilan
+   * d'ouverture, et la seule façon légitime de rompre cette correspondance.
+   *
+   * AUDCIF art. 34 et Titre V ; SYCEBNL art. 16, 4) et cadre conceptuel
+   * § 3.3.1.2.4. La convention interdit d'imputer directement sur les capitaux
+   * propres les incidences d'un changement de méthode et les charges et
+   * produits d'exercices antérieurs omis · ils transitent par le compte de
+   * résultat. Deux exceptions seulement :
+   *
+   *  1. CHANGEMENT_METHODE · « l'impact du changement déterminé à l'ouverture
+   *     est imputé en report à nouveau dès l'ouverture de l'exercice », et
+   *     seulement pour un changement à IMPACT FORT SIGNIFICATIF ;
+   *  2. CORRECTION_ERREUR_SIGNIFICATIVE · « la correction d'une erreur
+   *     significative commise au cours d'un exercice antérieur doit être
+   *     opérée par ajustement des capitaux propres d'ouverture ».
+   *
+   * POURQUOI UNE ROUTE À PART, et non une écriture ordinaire sur le compte 12.
+   * Parce qu'une imputation directe aux capitaux propres passée comme une
+   * écriture quelconque est INDISCERNABLE d'une erreur d'imputation : elle
+   * s'équilibre, la balance boucle, et rien ne dit que la rupture de
+   * correspondance était voulue ni au titre de quelle exception. Le motif et
+   * la justification transforment un mouvement suspect en exception motivée,
+   * et c'est précisément ce que les deux textes demandent de dire en Notes
+   * annexes.
+   *
+   * CE QUE LE LOGICIEL NE JUGE PAS · le caractère « fort significatif » du
+   * changement, le caractère significatif de l'erreur, et le montant. Le
+   * premier est une appréciation, le second aussi, et le troisième suppose de
+   * reconstituer les comptes « comme si la méthode avait toujours été
+   * appliquée ». Trois choses qu'un logiciel ne peut pas faire à la place du
+   * comptable, et dont un calcul deviné vaudrait pire que rien.
+   */
+  async imputerAuxCapitauxPropresDOuverture(
+    tenantId: string,
+    createdBy: string,
+    dto: ImputationOuvertureDto,
+  ) {
+    if (!dto.justification.trim()) {
+      throw new BadRequestException(
+        'La justification est obligatoire : les deux textes exigent que le changement de méthode ou la correction ' +
+          "d'erreur soit exposé dans les Notes annexes, et c'est elle qui rend l'exception vérifiable.",
+      );
+    }
+    if (Math.abs(dto.montant) <= 0.005) {
+      throw new BadRequestException("Une imputation d'ouverture de montant nul ne corrige rien");
+    }
+
+    const exercice = await this.prisma.exercice.findFirst({ where: { id: dto.exerciceId, tenantId } });
+    if (!exercice) throw new BadRequestException('Exercice introuvable pour ce tenant');
+
+    const [ran, contrepartie] = await Promise.all([
+      this.prisma.compte.findFirst({ where: { id: dto.compteReportANouveauId, tenantId } }),
+      this.prisma.compte.findFirst({ where: { id: dto.compteContrepartieId, tenantId } }),
+    ]);
+    if (!ran) throw new BadRequestException('Compte de report à nouveau introuvable pour ce tenant');
+    if (!contrepartie) throw new BadRequestException('Compte de contrepartie introuvable pour ce tenant');
+    // Le compte 12 porte le report à nouveau dans les DEUX plans semés · c'est
+    // la seule vérification de compte que les textes permettent de poser ici,
+    // et elle empêche de faire passer pour une imputation d'ouverture un
+    // mouvement sur un tout autre poste de capitaux propres.
+    if (!ran.numero.startsWith('12')) {
+      throw new BadRequestException(
+        "L'imputation d'ouverture se porte au compte 12 « Report à nouveau ». Les deux textes parlent d'un " +
+          'ajustement des capitaux propres D\'OUVERTURE, que le report à nouveau est le seul compte à porter.',
+      );
+    }
+    if (contrepartie.numero.startsWith('6') || contrepartie.numero.startsWith('7')) {
+      // Une contrepartie de gestion ferait transiter l'impact par le RÉSULTAT,
+      // ce qui est exactement le traitement ORDINAIRE dont ces deux cas sont
+      // l'exception. L'opération serait alors juste, mais ne serait plus une
+      // imputation d'ouverture · autant la saisir comme une écriture normale.
+      throw new BadRequestException(
+        "La contrepartie d'une imputation d'ouverture est un poste de BILAN. Une contrepartie de charge ou de " +
+          'produit ferait transiter l’impact par le résultat de l’exercice, ce qui est le traitement ordinaire ' +
+          'auquel ces deux cas font exception.',
+      );
+    }
+
+    const motifs: Record<MotifImputationOuverture, string> = {
+      CHANGEMENT_METHODE: 'Changement de méthode comptable',
+      CORRECTION_ERREUR_SIGNIFICATIVE: "Correction d'erreur significative d'un exercice antérieur",
+    };
+    const montant = Math.abs(dto.montant);
+    const ecriture = await this.creer(tenantId, createdBy, {
+      exerciceId: dto.exerciceId,
+      journalId: dto.journalId,
+      date: exercice.dateDebut.toISOString().slice(0, 10),
+      libelle: `${motifs[dto.motif]} · imputation aux capitaux propres d'ouverture`,
+      lignes:
+        dto.montant > 0
+          ? [
+              { compteId: ran.id, debit: montant, credit: 0 },
+              { compteId: contrepartie.id, debit: 0, credit: montant },
+            ]
+          : [
+              { compteId: contrepartie.id, debit: montant, credit: 0 },
+              { compteId: ran.id, debit: 0, credit: montant },
+            ],
+    } as CreerEcritureDto);
+
+    return this.prisma.ecriture.update({
+      where: { id: ecriture.id },
+      data: {
+        motifImputationOuverture: dto.motif,
+        justificationImputationOuverture: dto.justification.trim(),
+      },
+    });
+  }
 
   async creer(tenantId: string, createdBy: string, dto: CreerEcritureDto) {
     const exercice = await this.prisma.exercice.findFirst({

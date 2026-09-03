@@ -3,7 +3,7 @@ import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useExercice } from '../lib/exercice';
 import { IconLock, IconCheck } from '../components/chrome/icons';
-import type { Cloture, GranulariteCloture, Journal, PlanningCloture } from '../lib/types';
+import type { Cloture, Compte, GranulariteCloture, Journal, PlanningCloture } from '../lib/types';
 import { Aide } from '../components/chrome/Aide';
 
 const LIBELLE_GRANULARITE: Record<GranulariteCloture, string> = {
@@ -21,6 +21,7 @@ export function ExercicePage() {
   const [planning, setPlanning] = useState<PlanningCloture | null>(null);
   const [planningOuvert, setPlanningOuvert] = useState(true);
   const [journaux, setJournaux] = useState<Journal[]>([]);
+  const [comptes, setComptes] = useState<Compte[]>([]);
   const [erreur, setErreur] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
@@ -31,6 +32,14 @@ export function ExercicePage() {
   const [journalTotaleId, setJournalTotaleId] = useState('');
   const [dateLimitePeriode, setDateLimitePeriode] = useState('');
   const [dateArrete, setDateArrete] = useState('');
+
+  // Imputation aux capitaux propres d'ouverture · voir imputerOuverture.
+  const [imputationOuverte, setImputationOuverte] = useState(false);
+  const [iMotif, setIMotif] = useState<'CHANGEMENT_METHODE' | 'CORRECTION_ERREUR_SIGNIFICATIVE'>('CHANGEMENT_METHODE');
+  const [iMontant, setIMontant] = useState('');
+  const [iJustification, setIJustification] = useState('');
+  const [iCompteRan, setICompteRan] = useState('');
+  const [iCompteContrepartie, setICompteContrepartie] = useState('');
 
   useEffect(() => {
     if (!exerciceId && exercices.length > 0) {
@@ -71,6 +80,8 @@ export function ExercicePage() {
   useEffect(() => {
     if (!estAdmin) return;
     api.get<Journal[]>('/journaux').then(setJournaux);
+    // Comptes d'imputation, pour l'imputation aux capitaux propres d'ouverture.
+    api.get<Compte[]>('/comptes?typeCompte=DETAIL').then(setComptes, () => {});
   }, [estAdmin]);
 
   const clorePartielle = async (e: FormEvent) => {
@@ -141,6 +152,45 @@ export function ExercicePage() {
       await charger();
     } catch (err) {
       setErreur(err instanceof ApiError ? err.message : 'Impossible d’enregistrer la date d’arrêté');
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
+  /**
+   * IMPUTATION AUX CAPITAUX PROPRES D'OUVERTURE · l'une des DEUX seules
+   * exceptions à la correspondance bilan de clôture / bilan d'ouverture
+   * (AUDCIF art. 34 et Titre V ; SYCEBNL art. 16, 4) et cadre conceptuel
+   * § 3.3.1.2.4).
+   *
+   * Ici et non dans la saisie ordinaire, pour la même raison que l'arrêté des
+   * comptes : rompre la correspondance entre deux bilans n'est pas un geste de
+   * saisie, c'est une décision sur les méthodes de l'entité ou l'aveu d'une
+   * erreur significative.
+   */
+  const imputerOuverture = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!exerciceId) return;
+    setEnvoi(true);
+    setErreur(null);
+    setInfo(null);
+    try {
+      const od = journaux.find((j) => j.code === 'OD');
+      await api.post('/ecritures/imputation-ouverture', {
+        exerciceId,
+        journalId: od?.id ?? journaux[0]?.id,
+        motif: iMotif,
+        justification: iJustification,
+        compteReportANouveauId: iCompteRan,
+        compteContrepartieId: iCompteContrepartie,
+        montant: Number(iMontant),
+      });
+      setInfo('Imputation enregistrée · elle porte son motif et sa justification, à reprendre en Notes annexes.');
+      setIMontant('');
+      setIJustification('');
+      await charger();
+    } catch (err) {
+      setErreur(err instanceof ApiError ? err.message : 'Impossible d’enregistrer cette imputation');
     } finally {
       setEnvoi(false);
     }
@@ -266,6 +316,84 @@ export function ExercicePage() {
             )}
           </div>
         </form>
+      )}
+
+      {/*
+        LES DEUX SEULES EXCEPTIONS À LA CORRESPONDANCE BILAN DE CLÔTURE /
+        BILAN D'OUVERTURE. Repliée par défaut : c'est une opération rare, et
+        l'ouvrir d'emblée inviterait à s'en servir comme d'une saisie
+        ordinaire, ce qu'elle n'est pas.
+      */}
+      {exercice && (
+        <div className="mb-4 border border-border bg-surface max-w-[720px]">
+          <button
+            onClick={() => setImputationOuverte((v) => !v)}
+            className="w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-surface-alt"
+          >
+            <span className="font-mono text-[10.5px] font-semibold text-text-dim">
+              IMPUTATION AUX CAPITAUX PROPRES D’OUVERTURE
+            </span>
+            <span className="text-[10.5px] text-text-dim">{imputationOuverte ? 'Réduire' : 'Déployer'}</span>
+          </button>
+          {imputationOuverte && (
+            <form onSubmit={imputerOuverture} className="px-4 pb-3 border-t border-border pt-3">
+              <p className="text-[10px] text-text-dim leading-[1.55] mb-2.5">
+                Le bilan d’ouverture d’un exercice doit correspondre au bilan de clôture du précédent. Les
+                incidences d’un changement de méthode et les charges ou produits d’exercices antérieurs omis
+                transitent par le compte de résultat, jamais directement par les capitaux propres.
+                <span className="block mt-1 font-semibold">
+                  Deux exceptions seulement, et elles se justifient en Notes annexes.
+                </span>
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="text-[10.5px] font-semibold text-text-dim col-span-2">
+                  Motif
+                  <select value={iMotif} onChange={(e) => setIMotif(e.target.value as typeof iMotif)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11px]">
+                    <option value="CHANGEMENT_METHODE">Changement de méthode à impact fort significatif</option>
+                    <option value="CORRECTION_ERREUR_SIGNIFICATIVE">Correction d’une erreur significative d’un exercice antérieur</option>
+                  </select>
+                </label>
+                <label className="text-[10.5px] font-semibold text-text-dim">
+                  Report à nouveau (compte 12)
+                  <select required value={iCompteRan} onChange={(e) => setICompteRan(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11px]">
+                    <option value="" />
+                    {comptes.filter((c) => c.numero.startsWith('12')).map((c) => (
+                      <option key={c.id} value={c.id}>{c.numero} · {c.intitule}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="text-[10.5px] font-semibold text-text-dim">
+                  Contrepartie (poste de bilan)
+                  <select required value={iCompteContrepartie} onChange={(e) => setICompteContrepartie(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11px]">
+                    <option value="" />
+                    {comptes.filter((c) => !/^[67]/.test(c.numero)).map((c) => (
+                      <option key={c.id} value={c.id}>{c.numero} · {c.intitule}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="text-[10.5px] font-semibold text-text-dim col-span-2">
+                  Montant · positif pour DÉBITER le report à nouveau, négatif pour le créditer
+                  <input required type="number" step="0.01" value={iMontant} onChange={(e) => setIMontant(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11px] font-mono" />
+                </label>
+                <label className="text-[10.5px] font-semibold text-text-dim col-span-2">
+                  Justification · reprise en Notes annexes
+                  <textarea
+                    required
+                    rows={3}
+                    maxLength={2000}
+                    value={iJustification}
+                    onChange={(e) => setIJustification(e.target.value)}
+                    placeholder="Nature du changement ou de l’erreur, exercice concerné, méthode de détermination de l’impact…"
+                    className="mt-1 w-full border border-border-dark px-2 py-1 text-[11px] leading-[1.5]"
+                  />
+                </label>
+              </div>
+              <button type="submit" disabled={envoi} className="mt-3 bg-sel text-white text-[11px] font-semibold px-3 py-1.5 disabled:opacity-50">
+                {envoi ? '…' : 'Enregistrer l’imputation'}
+              </button>
+            </form>
+          )}
+        </div>
       )}
 
       {erreur && <div className="text-[11px] text-danger bg-danger-soft border border-danger/30 px-2.5 py-1.5 mb-3 max-w-[720px]">{erreur}</div>}

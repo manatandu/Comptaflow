@@ -5,7 +5,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { EcritureService } from './ecriture.service';
-import { CreerEcritureDto } from './dto/creer-ecriture.dto';
+import { CreerEcritureDto, ImputationOuvertureDto } from './dto/creer-ecriture.dto';
 import { CorrigerEcritureDto } from './dto/corriger-ecriture.dto';
 import { ModifierEcritureDto, ValiderEcrituresDto, ValiderJusquaDto } from './dto/brouillard.dto';
 import { RoleUtilisateur } from '@prisma/client';
@@ -20,6 +20,23 @@ export class EcritureController {
   @Post()
   async creer(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreerEcritureDto) {
     return this.ecritureService.creer(user.tenantId, user.userId, dto);
+  }
+
+  /**
+   * IMPUTATION DIRECTE AUX CAPITAUX PROPRES D'OUVERTURE · l'une des deux
+   * seules exceptions à la correspondance bilan de clôture / bilan
+   * d'ouverture (AUDCIF art. 34 et Titre V ; SYCEBNL art. 16, 4) et cadre
+   * conceptuel § 3.3.1.2.4).
+   *
+   * ADMIN_CABINET seulement, à la différence de la saisie ordinaire. Rompre
+   * la correspondance entre deux bilans n'est pas un geste de saisie : c'est
+   * une décision sur les méthodes de l'entité ou l'aveu d'une erreur
+   * significative, et les deux se justifient en Notes annexes.
+   */
+  @Roles(RoleUtilisateur.ADMIN_CABINET)
+  @Post('imputation-ouverture')
+  async imputerOuverture(@CurrentUser() user: AuthenticatedUser, @Body() dto: ImputationOuvertureDto) {
+    return this.ecritureService.imputerAuxCapitauxPropresDOuverture(user.tenantId, user.userId, dto);
   }
 
   /**

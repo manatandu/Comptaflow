@@ -1830,6 +1830,75 @@ export class ControlesService {
       });
     }
 
+    // --- 22. Imputation directe au report à nouveau, non déclarée -------------
+    //
+    // LA CORRESPONDANCE BILAN DE CLÔTURE / BILAN D'OUVERTURE, ET SES DEUX
+    // SEULES EXCEPTIONS.
+    //
+    // Les deux textes écrivent la convention, chacun dans le sien : « le bilan
+    // d'ouverture d'un exercice doit correspondre au bilan de clôture de
+    // l'exercice précédent » (AUDCIF art. 34 et Titre V · SYCEBNL art. 16, 4)
+    // et cadre conceptuel § 3.3.1.2.4). Sa conséquence est qu'on ne peut PAS
+    // imputer directement sur les capitaux propres les incidences d'un
+    // changement de méthode ni les charges et produits d'exercices antérieurs
+    // omis : ils transitent par le compte de résultat du nouvel exercice.
+    //
+    // Deux exceptions seulement, et le logiciel leur donne désormais un chemin
+    // déclaré (`imputerAuxCapitauxPropresDOuverture`). Ce contrôle regarde ce
+    // qui a mouvementé le compte 12 EN DEHORS de ce chemin et de la clôture.
+    //
+    // CE QUE RIEN NE VOYAIT. Une écriture ordinaire sur le report à nouveau
+    // s'équilibre comme les autres, la balance boucle, et le bilan d'ouverture
+    // cesse de correspondre à la clôture précédente sans qu'aucun total ne
+    // bouge. Elle est de surcroît indiscernable d'une simple erreur
+    // d'imputation · c'est exactement ce que le motif déclaré résout.
+    const brut12 = await this.prisma.ligneEcriture.findMany({
+      where: {
+        compte: { tenantId, numero: { startsWith: '12' } },
+        ecriture: { tenantId, exerciceId, estGenereeParCloture: false, motifImputationOuverture: null },
+      },
+      select: {
+        debit: true,
+        credit: true,
+        compte: { select: { numero: true, intitule: true } },
+        ecriture: { select: { numeroPiece: true, date: true, libelle: true } },
+      },
+    });
+    // Le préfixe est REVÉRIFIÉ ici, et l'écriture doit être présente · même
+    // raison que pour les contrôles 14 à 19 : une seule fonction sert toutes
+    // les lectures de lignes dans les faux de test, et un contrôle qui se
+    // fierait au filtre de la requête se déclencherait sur les données d'un
+    // autre. La vérification en JavaScript le rend indépendant.
+    const lignes12 = brut12.filter((l) => l.compte?.numero?.startsWith('12') && l.ecriture);
+    if (lignes12.length > 0) {
+      anomalies.push({
+        code: 'IMPUTATION_REPORT_A_NOUVEAU_NON_DECLAREE',
+        gravite: 'AVERTISSEMENT',
+        libelle: 'Report à nouveau mouvementé hors clôture et hors exception déclarée',
+        consequence:
+          `Le bilan d’ouverture d’un exercice doit correspondre au bilan de clôture du précédent (${
+            tenant.referentiel === Referentiel.SYCEBNL
+              ? 'SYCEBNL art. 16, 4) et cadre conceptuel § 3.3.1.2.4'
+              : 'AUDCIF art. 34 et Titre V'
+          }). Les incidences d’un changement de méthode et les charges ou produits d’exercices antérieurs omis ` +
+          'transitent par le compte de résultat, JAMAIS directement par les capitaux propres. Deux exceptions ' +
+          'seulement : un changement de méthode à impact fort significatif, et la correction d’une erreur ' +
+          'significative d’un exercice antérieur. Ces écritures n’en déclarent aucune · elles rompent donc la ' +
+          'correspondance sans qu’aucun total ne bouge, et rien ne les distingue d’une erreur d’imputation.',
+        action:
+          'Si l’imputation relève de l’une des deux exceptions, refaites-la depuis la fenêtre Exercices, bloc ' +
+          '« Imputation aux capitaux propres d’ouverture », en indiquant le motif et sa justification (les deux ' +
+          'textes exigent l’information en Notes annexes). Sinon, extournez et passez l’opération par le compte ' +
+          'de résultat.',
+        occurrences: lignes12.slice(0, 200).map((l) => ({
+          reference: `${l.compte.numero} ${l.compte.intitule}`,
+          detail: `Pièce ${l.ecriture.numeroPiece} · ${l.ecriture.libelle}`,
+          montant: Math.round((Number(l.debit) - Number(l.credit)) * 100) / 100,
+          date: l.ecriture.date.toISOString().slice(0, 10),
+        })),
+      });
+    }
+
     const ordre: Record<Gravite, number> = { BLOQUANT: 0, AVERTISSEMENT: 1, INFORMATION: 2 };
     anomalies.sort((a, b) => ordre[a.gravite] - ordre[b.gravite]);
 

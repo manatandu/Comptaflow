@@ -1,5 +1,17 @@
 import { Type } from 'class-transformer';
-import { IsArray, IsDateString, IsNumber, IsOptional, IsString, IsUUID, Min, ValidateNested } from 'class-validator';
+import {
+  IsArray,
+  IsDateString,
+  IsEnum,
+  IsNumber,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+  Min,
+  ValidateNested,
+} from 'class-validator';
+import { MotifImputationOuverture } from '@prisma/client';
 
 /**
  * Ventilation analytique posée directement en saisie · c'est ainsi que le
@@ -100,4 +112,56 @@ export class CreerEcritureDto {
   @ValidateNested({ each: true })
   @Type(() => LigneEcritureDto)
   lignes!: LigneEcritureDto[];
+}
+
+/**
+ * IMPUTATION DIRECTE AUX CAPITAUX PROPRES D'OUVERTURE · l'une des DEUX seules
+ * exceptions à la correspondance bilan de clôture / bilan d'ouverture.
+ *
+ * AUDCIF art. 34 et Titre V ; SYCEBNL art. 16, 4) et cadre conceptuel
+ * § 3.3.1.2.4. La règle est qu'on ne peut PAS imputer directement sur les
+ * capitaux propres : ni les incidences d'un changement de méthode, ni les
+ * charges et produits d'exercices antérieurs omis, qui transitent par le
+ * compte de résultat du nouvel exercice. Deux exceptions, et deux seulement,
+ * portées par `motif`.
+ *
+ * LE MONTANT N'EST PAS CALCULÉ ICI. L'impact d'un changement de méthode se
+ * détermine « de façon rétrospective, comme si la méthode avait toujours été
+ * appliquée » · c'est un travail de reconstitution que le logiciel ne peut pas
+ * faire à la place du comptable, et un montant deviné vaudrait pire que rien.
+ */
+export class ImputationOuvertureDto {
+  @IsUUID()
+  exerciceId!: string;
+
+  @IsUUID()
+  journalId!: string;
+
+  @IsEnum(MotifImputationOuverture)
+  motif!: MotifImputationOuverture;
+
+  /**
+   * OBLIGATOIRE · les deux textes exigent l'information en Notes annexes, et
+   * c'est elle qui rend l'exception vérifiable. Sans elle, une imputation
+   * directe aux capitaux propres est indiscernable d'une erreur d'imputation.
+   */
+  @IsString()
+  @MaxLength(2000)
+  justification!: string;
+
+  /** Le compte 12 mouvementé · report à nouveau, dans les deux plans. */
+  @IsUUID()
+  compteReportANouveauId!: string;
+
+  /** La contrepartie · le poste de bilan que le changement ou l'erreur affecte. */
+  @IsUUID()
+  compteContrepartieId!: string;
+
+  /**
+   * Positif = le report à nouveau est DÉBITÉ (diminution des capitaux propres),
+   * négatif = crédité. Le signe est porté ici plutôt que par deux champs :
+   * une imputation d'ouverture n'a qu'un montant et un sens.
+   */
+  @IsNumber()
+  montant!: number;
 }

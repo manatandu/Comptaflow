@@ -933,6 +933,35 @@ model Ecriture {
   estGenereeParCloture Boolean @default(false)
 
   // ---------------------------------------------------------------------
+  // LES DEUX SEULES EXCEPTIONS À LA CORRESPONDANCE BILAN DE CLÔTURE ·
+  // BILAN D'OUVERTURE.
+  //
+  // La convention est écrite des deux côtés, chacun dans son texte :
+  // « le bilan d'ouverture d'un exercice doit correspondre au bilan de clôture
+  // de l'exercice précédent » (AUDCIF art. 34 et Titre V ; SYCEBNL art. 16, 4)
+  // et cadre conceptuel § 3.3.1.2.4). Sa conséquence est qu'on ne peut PAS
+  // imputer directement sur les capitaux propres les incidences d'un
+  // changement de méthode ni les charges et produits d'exercices antérieurs
+  // omis : ils transitent par le compte de résultat du nouvel exercice.
+  //
+  // DEUX EXCEPTIONS, et deux seulement, chacune nommée par les deux textes :
+  //  1. l'incidence d'un CHANGEMENT DE MÉTHODE comptable à impact fort
+  //     significatif, imputée en report à nouveau dès l'ouverture ;
+  //  2. la correction d'une ERREUR SIGNIFICATIVE d'un exercice antérieur, par
+  //     ajustement des capitaux propres d'ouverture.
+  //
+  // Elles n'avaient AUCUN chemin dans le logiciel, et le refus de modifier une
+  // écriture de clôture le disait déjà en commentaire. Une imputation directe
+  // au compte 12 se faisait donc comme une écriture ordinaire, indiscernable
+  // d'une erreur d'imputation. Ces deux champs la déclarent pour ce qu'elle
+  // est · null sur toute écriture ordinaire.
+  motifImputationOuverture        MotifImputationOuverture?
+  /// Ce que le texte impose de dire en Notes annexes · sans elle, l'exception
+  /// est invérifiable et le lecteur ne peut pas juger du « caractère fort
+  /// significatif » ni du caractère significatif de l'erreur.
+  justificationImputationOuverture String?
+
+  // ---------------------------------------------------------------------
   // CORRECTION D'ERREUR PAR INSCRIPTION EN NÉGATIF · art. 20 de l'AUDCIF,
   // repris par la Partie 2 ch. 2 du SYCEBNL :
   //
@@ -2454,6 +2483,25 @@ enum TypeComposant {
   REVISION_MAJEURE
   PIECE_DE_RECHANGE
   PIECE_DE_SECURITE
+}
+
+// LES DEUX EXCEPTIONS À LA CORRESPONDANCE BILAN DE CLÔTURE / BILAN D'OUVERTURE
+// · AUDCIF Titre V et art. 34 ; SYCEBNL cadre conceptuel § 3.3.1.1.4 (fixité
+// des méthodes) et § 3.3.1.2.4, art. 16, 4).
+//
+// Il n'y en a pas de troisième, et c'est le point de l'énumération : tout le
+// reste transite par le compte de résultat du nouvel exercice.
+enum MotifImputationOuverture {
+  /// « L'impact du changement déterminé à l'ouverture est imputé en report à
+  /// nouveau dès l'ouverture de l'exercice » · première exception. Réservée
+  /// aux changements à IMPACT FORT SIGNIFICATIF.
+  CHANGEMENT_METHODE
+  /// « La correction d'une erreur significative commise au cours d'un exercice
+  /// antérieur doit être opérée par ajustement des capitaux propres
+  /// d'ouverture » · seconde exception. Une erreur NON significative se
+  /// corrige dans les comptes de l'exercice en cours, et une erreur de
+  /// l'exercice EN COURS s'annule par inscription en négatif (AUDCIF art. 20).
+  CORRECTION_ERREUR_SIGNIFICATIVE
 }
 
 enum SensDepreciation {
