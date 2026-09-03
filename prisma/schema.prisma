@@ -2142,6 +2142,32 @@ model TauxTva {
 //   camions, autocars, bus, véhicules blindés, matériels d'entités
 //   industrielles/minières/agricoles/hospitalières/pétrolières · pas un
 //   mécanisme généralisable à toute immobilisation).
+//
+//   CE QUE CETTE LIGNE DISAIT TROP PEU · la liste est juste, mais « autorisé »
+//   l'est moins : DANS ces catégories, le texte écrit « une entité VENTILE …
+//   dès lors que » les quatre conditions sont réunies, et « chaque élément
+//   DOIT être comptabilisé séparément dès son acquisition ou son
+//   remplacement » (SYCEBNL, Partie 2 ch. 3, introduction de la classe 2 ;
+//   AUDCIF art. 38-1 et Titre VIII ch. 4, en termes identiques). Un bâtiment
+//   suffit à y entrer, et le plan SYCEBNL en porte plusieurs (231 bâtiments,
+//   2381 édifices religieux) : ce n'est pas un cas de niche pour transporteurs.
+//
+//   TROIS MÉCANISMES OBLIGATOIRES REPOSENT SUR CE SOUS-COMPTE COMPOSANT, et
+//   n'ont donc aujourd'hui aucune place dans le module :
+//    · coûts de démantèlement, d'enlèvement et de remise en état du site ·
+//      entrent dans la valeur d'entrée, « comptabilisés dans un sous-compte
+//      composant de l'immobilisation principale », provision 1984 dotée par
+//      6914 (Titre VIII ch. 6). Le tableau des flux SYSCOHADA les connaît
+//      déjà (correspondance-tft-syscohada.ts) · le module qui devrait les
+//      produire, non ;
+//    · révisions majeures · sous-compte composant amorti sur la durée
+//      séparant deux révisions, la valeur résiduelle de la précédente étant
+//      décomptabilisée (Titre VIII ch. 5) ;
+//    · pièces de rechange principales et de sécurité · immobilisations dès
+//      lors qu'elles servent plus d'un exercice, avec deux départs
+//      d'amortissement distincts selon leur nature.
+//
+//   Relevé dans docs/releve-de-manques-referentiels.md, passe 8.
 // - Amortissement dégressif et dérogatoire (fiscal vs comptable) · seul le
 //   linéaire est couvert ; plus pertinent pour SYSCOHADA (Phase 3).
 // - Dépréciation (compte 29, perte de valeur exceptionnelle distincte de

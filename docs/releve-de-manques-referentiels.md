@@ -672,9 +672,90 @@ fonctionnement. À verser au relevé des améliorations.
 
 ---
 
+## Passe 8 · AUDCIF Titre VIII, l'approche par composants (ch. 4 à 6)
+
+Lu à la source : AUDCIF, Titre VIII ch. 4 « Approche par composants »
+(sections 1 à 3), et son pendant SYCEBNL, Partie 2 ch. 3, introduction de la
+classe 2, qui reprend la règle mot pour mot. Croisé avec les ch. 5 (révisions
+majeures) et 6 (démantèlement), et avec l'art. 38-1 déjà lu à la passe 7.
+
+**Ce n'est pas un manque caché · c'est un périmètre déclaré, mais déclaré trop
+étroitement.** Le schéma porte depuis l'origine un commentaire « hors scope
+MVP » qui nomme la gestion des composants et donne la bonne liste de catégories
+éligibles. J'ai vérifié cette liste contre les deux textes avant d'écrire quoi
+que ce soit : elle est exacte, et l'attribution au texte SYCEBNL l'est aussi.
+
+### Ce que le commentaire disait trop peu
+
+**Premier point · « autorisé » n'est pas le bon mot.** Le texte écrit : « une
+entité VENTILE le montant d'une immobilisation corporelle en ses parties
+significatives DÈS LORS QUE » les quatre conditions sont réunies (éléments
+dissociables, utilisations différentes, durées d'utilité différentes, coût
+évaluable de façon fiable et significatif), et « chaque élément DOIT être
+comptabilisé séparément dès son acquisition ou son remplacement ». La liste
+limite le CHAMP ; à l'intérieur du champ, la décomposition est une obligation,
+pas une option. Et le champ n'est pas une niche de transporteurs : un bâtiment
+y entre, et le plan SYCEBNL en porte plusieurs, dont le 231 et le 2381
+« édifices religieux » · c'est-à-dire le patrimoine ordinaire d'une bonne part
+des ASBL du cabinet.
+
+**Second point, plus concret · trois mécanismes obligatoires reposent sur le
+sous-compte composant, et le commentaire n'en nommait aucun.**
+
+1. **Coûts de démantèlement, d'enlèvement et de remise en état du site.** Ils
+   entrent dans la valeur d'entrée et sont « comptabilisés dans un sous-compte
+   composant de l'immobilisation principale », la provision 1984 étant dotée
+   par le 6914 (Titre VIII ch. 6 ; SYCEBNL, valeur d'entrée des
+   immobilisations). Le tableau des flux SYSCOHADA les connaît déjà, jusqu'à
+   la désactualisation de la provision · le module qui devrait les produire,
+   non.
+2. **Révisions majeures.** Sous-compte composant amorti sur la durée séparant
+   deux révisions, la valeur comptable résiduelle de la précédente étant
+   décomptabilisée (Titre VIII ch. 5).
+3. **Pièces de rechange principales et de sécurité.** Immobilisations
+   corporelles dès lors qu'elles servent plus d'un exercice, avec deux départs
+   d'amortissement distincts : dès l'acquisition de l'immobilisation
+   principale pour les pièces de sécurité, à la date d'intégration pour celles
+   destinées à remplacer un composant.
+
+**Fichiers.** `prisma/schema.prisma` (modèle `Immobilisation`, sans relation
+sur elle-même), `src/modules/immobilisations/`.
+
+**Lacune du logiciel**, assumée quant au principe, sous-évaluée quant à sa
+portée.
+
+**Gravité · état incomplet, et état faux au remplacement.** Tant qu'aucun
+composant n'est remplacé, un bâtiment amorti d'un seul tenant produit une
+dotation approximative, pas fausse au sens strict. Le jour où le composant est
+remplacé, le texte impose de sortir de l'actif la valeur nette comptable du
+composant remplacé : sans composants, cette valeur reste au bilan et le
+remplacement s'ajoute par-dessus · l'actif est alors surévalué du reliquat de
+ce qui n'existe plus.
+
+**Ce qui a été fait ici.** Rien sur le fond · une relation d'une immobilisation
+sur elle-même, la ventilation du coût d'entrée, les plans d'amortissement par
+composant et la décomptabilisation au remplacement forment un module, et le
+seuil de significativité qui déclenche la décomposition appartient au cabinet.
+C'est la tâche 102. Ce qui est corrigé, c'est ce qui perpétuait la
+sous-évaluation : le commentaire du schéma dit maintenant que la règle est une
+obligation dans son champ, que ce champ inclut un simple bâtiment, et nomme les
+trois mécanismes qui n'ont aujourd'hui aucune place.
+
+### Portée de cette passe
+
+Trois chapitres sur quarante et un. Les chapitres 1 à 3 (frais de recherche et
+développement, brevets et logiciels, prospection minière), 7 (coûts d'emprunts)
+et 8 à 11 (contrat de location, réserve de propriété, immeubles de placement,
+constructions sur sol d'autrui et rentes viagères) n'ont pas été ouverts et ne
+sont pas couverts par ce qui précède.
+
+---
+
 ## Ce qui n'a pas encore été ouvert
 
 À traiter dans les passes suivantes, dans cet ordre :
 
-1. **AUDCIF Titre VIII** · les 41 chapitres d'opérations spécifiques, dont le
-   ch. 31 déjà ouvert à la passe 3 et le ch. 16 à la passe 2.
+1. **AUDCIF Titre VIII** · les chapitres restants. Ouverts à ce jour : le
+   ch. 16 (passe 2), le ch. 31 (passe 3), les ch. 4 à 6 (passe 8), et le
+   ch. 22 vérifié à la passe 7 par le module devises. Restent notamment les
+   ch. 1 à 3, 7, 8 à 15, 17 à 21, 23 à 30 et 32 à 41.
