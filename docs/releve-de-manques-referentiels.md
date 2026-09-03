@@ -327,12 +327,68 @@ cohérence interne.
 
 ---
 
+## Passe 4 · les six chapitres d'opérations spécifiques du SYCEBNL
+
+Lu à la source : SYCEBNL, Partie 3, chapitres 1 à 6, section par section, plus
+les 22 applications chiffrées du Guide d'application. Confronté à
+`src/modules/operations-specifiques/catalogue-operations.ts` et
+`catalogue-operations-dons.ts`, dix-neuf opérations mères (B1 à B19).
+
+**Aucun écart d'état faux ni d'état incomplet.** C'est le résultat de la passe,
+et il vaut d'être écrit : les six chapitres sont couverts, section par section,
+et chaque opération porte sa source au chapitre et à l'application du guide.
+
+Correspondance vérifiée une à une :
+
+| Chapitre | Sections | Opérations |
+|---|---|---|
+| ch. 1 · fonds propres des associations | 2.1 dotation, 2.5 subventions d'investissement | B14, B15 |
+| ch. 1 · 2.2 réserves, 2.3 report à nouveau, 2.4 résultat net | | module `affectation` (tâche 89) |
+| ch. 2 · fonds affectés et reportés | 1, 2.2, 2.3 | B1, B16, B17, B18 |
+| ch. 3 · projets de développement | tout le chapitre | B19 |
+| ch. 4 · dons | 1 à 4 | B2, B3, B4, B5 |
+| ch. 5 · cotisations et fondateurs | 1, 2, 3 | B6, B7, B8 |
+| ch. 6 · autres opérations | 1 à 5 | B9, B10, B11, B12, B13 |
+
+Les applications 21 et 22 du guide ne sont pas des écritures : ce sont les
+tableaux de correspondance emplois-ressources et exécution budgétaire du ch. 7,
+servis par les modules d'états, pas par le catalogue.
+
+### Confort · les provisions réglementées ne sont pas au catalogue guidé
+
+**Ce que le texte prévoit.** Partie 3 ch. 1 § 2.6 : dotation par le débit du 851
+et le crédit du 15 ; reprise par le débit du 15 et le crédit du 861. La règle
+qui compte est la raison : tout passe en classe 8 « pour éviter de perturber le
+résultat d'exploitation », et le 15 reste au passif pour ne pas fausser la
+valeur nette comptable des immobilisations.
+
+**Ce que le logiciel fait.** Les comptes existent au plan semé (154, 158, 851,
+861) et l'avertissement d'imputation du compte 15 sert son texte d'exclusions
+officiel, qui renvoie au 19, au 29, au 39 et au 59. L'écriture est donc
+passable et gardée ; elle n'est simplement pas proposée comme opération guidée.
+
+**Gravité · confort.** Rien n'est faux, rien ne manque aux états. Ce qui manque
+est l'aide : une entité qui doterait une provision réglementée par un 69 plutôt
+qu'un 851 fausserait son résultat d'exploitation, et c'est précisément l'erreur
+qu'une opération guidée éviterait. À verser au relevé des améliorations, pas des
+manques.
+
+### Pas une opération, et servi ailleurs
+
+**Première année d'application** (ch. 6 § 6) · le texte demande un bilan
+d'ouverture au premier jour, un inventaire complet reclassé au plan SYCEBNL, et
+de ne pas comptabiliser ce que le référentiel n'autorise pas. C'est une
+procédure de reprise, pas une écriture-type : elle est servie par l'import de
+balance et de plan de comptes. La « déclaration explicite et sans réserve de
+conformité » qui fait des états les « premiers états financiers » a sa ligne à
+la NOTE 2 B, dans les deux jeux SYCEBNL.
+
+---
+
 ## Ce qui n'a pas encore été ouvert
 
 À traiter dans les passes suivantes, dans cet ordre :
 
-1. **SYCEBNL Partie 3** · les six chapitres d'opérations spécifiques, contre le
-   catalogue `catalogue-operations*.ts`.
-2. **AUDCIF** · articles 1 à 113, en particulier l'organisation comptable
+1. **AUDCIF** · articles 1 à 113, en particulier l'organisation comptable
    (art. 14 à 24) et les délais.
-3. **AUDCIF Titre VIII** · les 41 chapitres d'opérations spécifiques.
+2. **AUDCIF Titre VIII** · les 41 chapitres d'opérations spécifiques.
