@@ -122,6 +122,11 @@ describe('planning de clôture', () => {
       'Déclarations fiscales annuelles',
       'Rapport de gestion',
       'États financiers et rapport de gestion aux commissaires aux comptes',
+      // AJOUTÉ le 2026-09-03 · ce jalon était classé INTERNE, sur le
+      // calendrier du CPCC. L'article 19 al. 4 du SYCEBNL en fait une
+      // obligation (« quarante-cinq jours au moins »), au même titre que
+      // l'art. 140 de l'AUSCGIE pour la ligne précédente.
+      'Mise à disposition de l’auditeur',
       'Rapport d’activité au Ministère du Plan et au ministère du secteur',
       'Dépôt au Ministère de l’Économie nationale',
       'Dépôt au Ministère de l’Économie nationale',
@@ -474,6 +479,45 @@ describe('planning de clôture · cloisonnement des référentiels', () => {
       // main-d'œuvre nationale de l'art. 37 non plus n'est pas un montant :
       // ce que la règle vise, ce sont les taux d'astreinte et les sommes.
       expect(`${j.etape} ${j.detail}`).not.toMatch(/\d[\d\s.]*\s?(FC|francs congolais|FCFA)/i);
+    }
+  });
+});
+
+describe('SYCEBNL art. 19 al. 4 · le délai de quarante-cinq jours', () => {
+  /*
+    L'ASYMÉTRIE QUE CE TEST FIGE. Le jalon SYSCOHADA de l'envoi aux
+    commissaires aux comptes portait « QUARANTE-CINQ JOURS AU MOINS » depuis
+    toujours ; son pendant SYCEBNL vivait sur le calendrier du CPCC et était
+    classé INTERNE. Or les deux textes disent la même chose : l'article 19,
+    alinéa 4 du SYCEBNL pose le délai dans les mêmes termes que l'AUSCGIE
+    art. 140. Une association lisait donc un jalon plus tiède que celui d'une
+    SARL, sur une obligation que son propre Acte uniforme énonce.
+  */
+  const jalon = (referentiel: Referentiel, etape: number) =>
+    JALONS_CLOTURE.find((j) => j.etape === etape && (j.referentiels ?? []).includes(referentiel))!;
+
+  it('le jalon SYCEBNL de mise à disposition de l’auditeur porte le délai et le dit LÉGAL', () => {
+    const j = jalon(Referentiel.SYCEBNL, 17);
+    expect(j.detail).toContain('QUARANTE-CINQ JOURS AU MOINS');
+    // Le délai se compte à rebours de l'assemblée · un jalon qui ne le dit
+    // pas laisse croire qu'il part de la clôture.
+    expect(j.detail).toContain('À REBOURS');
+    // Un projet de développement ne tient pas d'assemblée · l'article prévoit
+    // pour lui la date de transmission du rapport au bailleur.
+    expect(j.detail).toContain('bailleurs de fonds');
+    expect(j.nature).toBe('LEGALE');
+    expect(j.source).toContain('art. 19 al. 4');
+  });
+
+  it('les DEUX référentiels portent le délai · c’est la même règle sous deux textes', () => {
+    for (const [referentiel, etape] of [
+      [Referentiel.SYCEBNL, 17],
+      [Referentiel.SYSCOHADA, 16],
+    ] as const) {
+      expect({ referentiel, delai: jalon(referentiel, etape).detail.includes('QUARANTE-CINQ JOURS AU MOINS') }).toEqual({
+        referentiel,
+        delai: true,
+      });
     }
   });
 });

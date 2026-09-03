@@ -494,14 +494,37 @@ export const JALONS_CLOTURE: DefinitionJalon[] = [
     formesSyscohada: FORMES_SOCIETES_ASSEMBLEE,
   },
   {
+    /*
+      LE DÉLAI DE QUARANTE-CINQ JOURS MANQUAIT ICI, et c'était une asymétrie
+      entre deux textes qui disent la MÊME chose.
+
+      Le jalon vivait sur le calendrier du CPCC (« début mars au 15 mai ») et
+      était classé INTERNE, comme un usage de cabinet. Or l'article 19,
+      alinéa 4 du SYCEBNL pose une obligation, dans les mêmes termes que
+      l'AUSCGIE art. 140 pour les sociétés : « Les états financiers et le
+      rapport de gestion annuels sont transmis à l'auditeur s'il en a été
+      désigné, QUARANTE-CINQ JOURS AU MOINS avant la date de l'assemblée
+      générale ordinaire ou de l'instance qui en tient lieu […] ou la date de
+      transmission du rapport de l'auditeur aux bailleurs de fonds et/ou à
+      l'État bénéficiaire du Projet de développement. »
+
+      Le pendant SYSCOHADA (étape 16) le portait déjà, en toutes lettres. Une
+      association lisait donc un jalon plus tiède que celui d'une SARL, sur
+      une règle que son propre Acte uniforme énonce aussi nettement.
+
+      L'ÉCHÉANCE NE CHANGE PAS · le 15 du cinquième mois est précisément
+      quarante-cinq jours avant une assemblée tenue à la fin du sixième, et
+      le logiciel ne connaît pas la date réelle de l'assemblée. Ce qui change,
+      c'est que le délai est DIT, et que le jalon est ce qu'il est : légal.
+    */
     etape: 17,
     libelle: 'Mise à disposition de l’auditeur',
     detail:
-      'Remise du projet d’états financiers à l’auditeur. Le cours parle du commissaire aux comptes ; pour une EBNL, la désignation d’un auditeur dépend des seuils de l’Acte uniforme (ressources annuelles, total du bilan, effectif salarié) et n’est pas systématique.',
-    nature: 'INTERNE',
+      'Transmission des états financiers et du rapport d’activité annuels à l’auditeur, QUARANTE-CINQ JOURS AU MOINS avant la date de l’assemblée générale ordinaire ou de l’instance qui en tient lieu · ou, pour un projet de développement qui ne tient pas d’assemblée, avant la date de transmission du rapport de l’auditeur aux bailleurs de fonds et/ou à l’État bénéficiaire. Le délai se compte À REBOURS de cette date, pas de la clôture : une assemblée tenue à la fin du sixième mois impose la remise vers le 15 du cinquième. La désignation d’un auditeur n’est pas systématique · elle dépend des trois critères ALTERNATIFS de l’article 19 (total du bilan, ressources annuelles, effectif permanent), dont un seul suffit.',
+    nature: 'LEGALE',
     debut: { moisApres: 3, jour: 1 },
     echeance: { moisApres: 5, jour: 15 },
-    source: 'CPCC, § 2.3 (« début mars au 15 mai »), adapté SYCEBNL (art. 19 à 22)',
+    source: 'SYCEBNL, art. 19 al. 4 (délai de 45 jours) et art. 19 à 22 ; calendrier CPCC § 2.3',
     referentiels: [Referentiel.SYCEBNL],
   },
   {
