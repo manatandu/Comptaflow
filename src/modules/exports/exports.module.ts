@@ -10,6 +10,7 @@ import { RegistreDonateursModule } from '../registre-donateurs/registre-donateur
 import { DocumentsObligatoiresModule } from '../documents-obligatoires/documents-obligatoires.module';
 import { EtatsFinanciersSyscohadaModule } from '../etats-financiers-syscohada/etats-financiers-syscohada.module';
 import { ImmobilisationsModule } from '../immobilisations/immobilisations.module';
+import { ControlesModule } from '../controles/controles.module';
 
 @Module({
   // `EtatsFinanciersSyscohadaModule` fournit les DEUX moteurs SYSCOHADA
@@ -30,6 +31,9 @@ import { ImmobilisationsModule } from '../immobilisations/immobilisations.module
     // par le service du module, pas recalculés ici · un second calcul de
     // dotation serait un second endroit où l'annuité peut diverger.
     ImmobilisationsModule,
+    // La sélection ISA 240 est calculée par le module Contrôles · l'export
+    // n'en refait pas les critères, il les met en forme.
+    ControlesModule,
   ],
   controllers: [ExportController],
   providers: [ExportService],

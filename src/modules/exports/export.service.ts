@@ -4,6 +4,7 @@ import * as ExcelJS from 'exceljs';
 import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { ImmobilisationService } from '../immobilisations/immobilisation.service';
+import { TestEcrituresJournalService } from '../controles/test-ecritures-journal.service';
 import { EtatsFinanciersService, PosteCalcule } from '../etats-financiers/etats-financiers.service';
 import { EtatsFinanciersProjetService } from '../etats-financiers/etats-financiers-projet.service';
 import { EtatsFinanciersSmtService } from '../etats-financiers/etats-financiers-smt.service';
@@ -91,6 +92,13 @@ const ENTETE_FILL = {
 
 const FORMAT_MONTANT = '#,##0.00';
 const FORMAT_DATE = 'DD/MM/YYYY';
+/**
+ * L'HEURE COMPTE dans la piste d'audit · l'ISA 240 § A44 c) vise les écritures
+ * « inscrites en fin de période ou après la date de clôture », et une saisie
+ * du 31 décembre à 23 h 50 ne se lit pas comme une saisie du 31 décembre au
+ * matin. La date comptable, elle, reste sans heure : elle n'en a pas.
+ */
+const FORMAT_DATE_HEURE = 'DD/MM/YYYY HH:mm';
 
 /** Un classeur produit, avec le nom de fichier que le contrôleur doit servir. */
 export interface ClasseurExporte {
@@ -153,6 +161,10 @@ export class ExportService {
     // garde-fou : l'accesseur refuse bruyamment plutôt que de laisser partir
     // un tableau vide.
     private readonly immobilisationService?: ImmobilisationService,
+    // Même raison d'être optionnel que les précédents · la sélection ISA 240
+    // vient du module Contrôles, et un harnais qui n'exerce que les états
+    // n'a pas à la fournir.
+    private readonly testEcrituresJournal?: TestEcrituresJournalService,
   ) {}
 
   private get immos(): ImmobilisationService {
@@ -444,7 +456,35 @@ export class ExportService {
       // ch. 2) · mais chacune se nomme.
       { header: 'Correction (art. 20 AUDCIF)', key: 'correction', width: 30 },
       { header: 'Motif de la correction', key: 'motifCorrection', width: 46 },
+      // LA PISTE, RESTITUÉE · AUDCIF art. 22, 1° : les données « comprennent,
+      // lors de leur entrée, l'indication de l'ORIGINE, du contenu et de
+      // l'imputation, et puissent être RESTITUÉES sur papier ou sous une forme
+      // directement intelligible ». La seconde moitié de la phrase est aussi
+      // normative que la première · OmegaX capturait l'origine depuis toujours
+      // et ne la rendait nulle part, ni à l'écran ni dans le classeur remis.
+      // L'article 22 n'est pas dans la liste d'exclusion de l'art. 3 du
+      // SYCEBNL : il vaut des deux côtés.
+      //
+      // La DATE DE SAISIE n'est pas la date comptable, et l'écart entre les
+      // deux est ce que l'art. 22, 4° appelle la date de valeur, « mentionnée
+      // distinctement ». C'est aussi l'axe du test de l'ISA 240 § 33 a) ii).
+      { header: 'Statut', key: 'statut', width: 12 },
+      { header: 'Saisie le', key: 'saisieLe', width: 18 },
+      { header: 'Saisie par', key: 'saisiePar', width: 28 },
+      { header: 'Validée le', key: 'valideeLe', width: 18 },
+      { header: 'Validée par', key: 'valideePar', width: 28 },
     ];
+
+    // L'auteur est un identifiant en base · un auditeur ne lit pas un uuid.
+    const auteurs = await this.prisma.user.findMany({
+      where: { tenantId },
+      select: { id: true, email: true },
+    });
+    const courrielParId = new Map(auteurs.map((u) => [u.id, u.email]));
+    // Un utilisateur retiré du dossier ne rend pas sa trace anonyme · on le
+    // dit, plutôt que de laisser une case vide qui se lit comme « personne ».
+    const courriel = (id: string | null) =>
+      id ? (courrielParId.get(id) ?? 'utilisateur retiré du dossier') : '';
 
     for (const e of ecritures) {
       const etatCorrection = e.correction
@@ -467,6 +507,11 @@ export class ExportService {
           lettre: l.lettre ?? '',
           correction: etatCorrection,
           motifCorrection: e.motifCorrection ?? '',
+          statut: e.statut === 'VALIDEE' ? 'Validée' : 'Brouillard',
+          saisieLe: e.createdAt,
+          saisiePar: courriel(e.createdBy),
+          valideeLe: e.valideeAt,
+          valideePar: courriel(e.valideeBy),
         });
       }
     }
@@ -486,7 +531,13 @@ export class ExportService {
     }
     ligneTotal.font = ENTETE_FONT;
 
-    this.appliquerFormats(feuille, { date: FORMAT_DATE, debit: FORMAT_MONTANT, credit: FORMAT_MONTANT });
+    this.appliquerFormats(feuille, {
+      date: FORMAT_DATE,
+      debit: FORMAT_MONTANT,
+      credit: FORMAT_MONTANT,
+      saisieLe: FORMAT_DATE_HEURE,
+      valideeLe: FORMAT_DATE_HEURE,
+    });
     this.piedDePageEtat(feuille, identiteJournal);
     const enteteJournal = this.coifferEtat(feuille, identiteJournal, 'JOURNAL', feuille.columns.length);
     this.finaliserTableau(feuille, feuille.columns.length, derniereLigneDonnees + 3, enteteJournal);
@@ -2579,6 +2630,122 @@ export class ExportService {
    * régénérerait les états à l'export produirait, à partir du même livre,
    * deux documents différents à deux dates différentes.
    */
+  private get testIsa240(): TestEcrituresJournalService {
+    if (!this.testEcrituresJournal) {
+      throw new Error("Sélection ISA 240 absente de l'injection : export impossible");
+    }
+    return this.testEcrituresJournal;
+  }
+
+  /**
+   * TEST DES ÉCRITURES DE JOURNAL · le classeur que le réviseur emporte.
+   *
+   * Deux feuilles, et l'ordre n'est pas indifférent. La première porte les
+   * CRITÈRES, chacun avec le texte cité de l'ISA 240 et ce que le logiciel a
+   * mesuré exactement · une sélection dont on ne peut pas dire à quoi elle
+   * tient n'est pas un élément probant. La seconde porte les écritures
+   * retenues, avec leur piste (AUDCIF art. 22, 1°).
+   *
+   * Le classeur ne dit nulle part « anomalie » · voir le commentaire de
+   * `test-ecritures-journal.ts` sur ce que la norme demande, qui est de
+   * SÉLECTIONNER.
+   */
+  async testEcrituresJournalExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
+    const r = await this.testIsa240.selection(tenantId, exerciceId);
+    const identite = await this.identiteEtat(tenantId, { exerciceId });
+    const classeur = this.nouveauClasseur();
+
+    const garde = classeur.addWorksheet('Critères');
+    garde.columns = [
+      { header: 'Critère', key: 'titre', width: 38 },
+      { header: 'Source', key: 'source', width: 26 },
+      { header: 'Texte cité', key: 'citation', width: 60 },
+      { header: 'Ce qui est mesuré', key: 'mesure', width: 60 },
+      { header: 'Écritures retenues', key: 'nombre', width: 18 },
+    ];
+    for (const c of r.criteres) {
+      const rang = garde.addRow({
+        titre: c.titre,
+        source: c.source,
+        citation: `« ${c.citation} »`,
+        mesure: c.mesure,
+        nombre: r.parCritere.find((p) => p.cle === c.cle)?.nombre ?? 0,
+      });
+      for (const cle of ['citation', 'mesure']) {
+        rang.getCell(cle).alignment = { wrapText: true, vertical: 'top' };
+      }
+    }
+    const pied = garde.addRow([
+      `${r.selection.length} écriture(s) retenue(s) sur ${r.totalEcritures} · une écriture peut relever ` +
+        'de plusieurs critères. Aucune n\'est présentée comme douteuse : la norme demande de SÉLECTIONNER ' +
+        "(ISA 240, § 33 a) ii)), le test reste celui de l'auditeur. Les seuils sont des conventions de " +
+        "lecture d'OmegaX · la norme n'en fixe aucun.",
+    ]);
+    pied.font = { italic: true, color: { argb: 'FF555555' } };
+    pied.alignment = { wrapText: true, vertical: 'top' };
+    garde.mergeCells(`A${pied.number}:E${pied.number}`);
+    this.finaliserTableau(garde, 5, r.criteres.length + 1);
+
+    const feuille = classeur.addWorksheet('Écritures sélectionnées');
+    feuille.columns = [
+      { header: 'Date comptable', key: 'date', width: 15 },
+      { header: 'Journal', key: 'journal', width: 10 },
+      { header: 'N° pièce', key: 'numeroPiece', width: 10 },
+      { header: 'Référence', key: 'reference', width: 16 },
+      { header: 'Libellé', key: 'libelle', width: 40 },
+      { header: 'Montant', key: 'montant', width: 16 },
+      { header: 'Statut', key: 'statut', width: 12 },
+      { header: 'Saisie le', key: 'saisieLe', width: 18 },
+      { header: 'Saisie par', key: 'saisiePar', width: 30 },
+      { header: 'Rôle', key: 'roleAuteur', width: 16 },
+      { header: 'Validée le', key: 'valideeLe', width: 18 },
+      { header: 'Validée par', key: 'valideePar', width: 30 },
+      { header: 'Jours entre date et saisie', key: 'ecart', width: 24 },
+      { header: 'Comptes rarement utilisés', key: 'comptesRares', width: 28 },
+      { header: 'Critères', key: 'criteres', width: 44 },
+    ];
+    for (const e of r.selection) {
+      const rang = feuille.addRow({
+        date: e.date,
+        journal: e.journal,
+        numeroPiece: e.numeroPiece,
+        reference: e.reference ?? '',
+        libelle: e.libelle,
+        montant: e.montant,
+        statut: e.statut === 'VALIDEE' ? 'Validée' : 'Brouillard',
+        saisieLe: e.saisieLe,
+        saisiePar: e.saisiePar,
+        roleAuteur: e.roleAuteur ?? '',
+        valideeLe: e.valideeLe,
+        valideePar: e.valideePar ?? '',
+        ecart: e.joursEntreDateEtSaisie,
+        comptesRares: e.comptesRares.join(', '),
+        criteres: e.criteres
+          .map((c) => r.criteres.find((k) => k.cle === c)?.titre ?? c)
+          .join(' · '),
+      });
+      rang.getCell('criteres').alignment = { wrapText: true, vertical: 'top' };
+    }
+    this.appliquerFormats(feuille, {
+      date: FORMAT_DATE,
+      montant: FORMAT_MONTANT,
+      saisieLe: FORMAT_DATE_HEURE,
+      valideeLe: FORMAT_DATE_HEURE,
+    });
+    this.piedDePageEtat(feuille, identite);
+    // La dernière ligne de données AVANT la coiffe · `coifferEtat` pousse
+    // ensuite le tableau de trois lignes, d'où le « + 3 » que
+    // `cartouche-etats-periodiques.spec.ts` exige de chaque appel.
+    const derniereLigneDonnees = feuille.rowCount;
+    const entete = this.coifferEtat(feuille, identite, 'TEST DES ÉCRITURES DE JOURNAL · ISA 240', feuille.columns.length);
+    this.finaliserTableau(feuille, feuille.columns.length, derniereLigneDonnees + 3, entete);
+
+    return {
+      buffer: await this.versBuffer(classeur),
+      nomFichier: `test-ecritures-journal-isa-240${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
+    };
+  }
+
   async livreInventaireExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
     const [transcription, conformite] = await Promise.all([
       this.livreInventaire.courante(tenantId, exerciceId),

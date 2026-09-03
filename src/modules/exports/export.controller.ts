@@ -404,6 +404,28 @@ export class ExportController {
   }
 
   /**
+   * TEST DES ÉCRITURES DE JOURNAL · la sélection de l'ISA 240, § 33 a).
+   *
+   * C'est ce qu'un auditeur demande le premier jour, et OmegaX n'avait rien à
+   * lui donner : ni la piste (qui a saisi, quand · restituée depuis dans le
+   * journal exporté, AUDCIF art. 22, 1°), ni la sélection des écritures que la
+   * norme lui impose de tester « indépendamment de son évaluation des
+   * risques ».
+   *
+   * PAS DE `@ReferentielsAutorises` · l'ISA 240 ne connaît pas les
+   * référentiels comptables, et l'art. 22 de l'AUDCIF n'est pas dans la liste
+   * d'exclusion de l'art. 3 du SYCEBNL.
+   */
+  @Get('test-ecritures-journal')
+  async testEcrituresJournal(
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+  ) {
+    envoyerXlsx(res, await this.exportService.testEcrituresJournalExcel(user.tenantId, exerciceId));
+  }
+
+  /**
    * Livre d'inventaire. Les états y sont RELUS depuis la transcription, jamais
    * recalculés : un classeur qui les régénérerait produirait, à partir du même
    * livre, deux documents différents à deux dates différentes.

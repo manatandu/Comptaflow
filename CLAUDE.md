@@ -703,6 +703,39 @@ La liste des modules qui retiennent une écriture est écrite à la main, jamais
 déduite du schéma : une relation nouvelle doit obliger quelqu'un à décider si
 son module retient l'écriture ou la laisse partir.
 
+## 10 ter. Le regard du réviseur
+
+Un auditeur demande le journal, et il le demande AVEC SA PISTE. OmegaX
+capturait `createdBy`, `createdAt`, `valideeBy` et `valideeAt` depuis toujours
+et n'en restituait aucun · ni à l'écran, ni dans le classeur remis. C'était un
+manque de RESTITUTION, pas de collecte, et l'AUDCIF art. 22, 1° demande les
+deux moitiés de la phrase : les données « comprennent, lors de leur entrée,
+l'indication de l'ORIGINE, du contenu et de l'imputation, et puissent être
+RESTITUÉES sur papier ou sous une forme directement intelligible ». L'article
+22 n'est pas dans la liste d'exclusion de l'art. 3 du SYCEBNL : il vaut des
+deux côtés.
+
+La DATE DE SAISIE n'est pas la date comptable. L'écart entre les deux est ce
+que l'art. 22, 4° appelle la date de valeur, « mentionnée distinctement », et
+c'est l'axe du test de l'ISA 240. Le journal exporté porte donc désormais
+Statut, Saisie le, Saisie par, Validée le, Validée par · l'auteur résolu en
+COURRIEL, un auditeur ne lisant pas un uuid, et un utilisateur retiré du
+dossier nommé comme tel plutôt que laissé en case vide.
+
+**Le test des écritures de journal** (`controles/test-ecritures-journal.ts`)
+rend la sélection de l'ISA 240 § 33 a), que l'auditeur conduit
+« indépendamment de son évaluation des risques de contournement des contrôles
+par la direction ». Les six critères sont ceux que la norme énumère elle-même
+au § A44, cités et non paraphrasés. Deux règles tiennent ce module :
+
+- **il sélectionne, il ne conclut pas.** Une écriture retenue n'est ni
+  douteuse ni frauduleuse · le test reste celui de l'auditeur. Un logiciel qui
+  écrirait « anomalie » sur un montant rond ferait dire à la norme le contraire
+  de ce qu'elle dit ;
+- **les seuils sont déclarés, jamais enfouis dans une requête.** La norme n'en
+  fixe aucun : ce sont des conventions de lecture d'OmegaX, et le classeur les
+  annonce comme telles, avec le dénombrement par critère.
+
 ## 11. Compétences et rôles
 
 Les compétences (`skills`) ne sont déployées que par **Manasse**, à la main,

@@ -35,6 +35,31 @@ export function DossierRevisionPage() {
   const [erreur, setErreur] = useState<string | null>(null);
   const [recherche, setRecherche] = useState('');
   const [sansFicheSeulement, setSansFicheSeulement] = useState(false);
+  const [exportEnCours, setExportEnCours] = useState(false);
+
+  /**
+   * LE TEST DES ÉCRITURES DE JOURNAL · ISA 240, § 33 a).
+   *
+   * Le bouton est ICI, et pas dans les exports, parce que c'est ici que le
+   * réviseur travaille : le dossier de révision dit compte par compte ce qu'il
+   * faut demander, ce classeur dit quelles ÉCRITURES tester. La norme lui
+   * impose la seconde « indépendamment de son évaluation des risques ».
+   */
+  const exporterTestIsa240 = async () => {
+    if (!exerciceCourant) return;
+    setErreur(null);
+    setExportEnCours(true);
+    try {
+      await api.telecharger(
+        `/exports/test-ecritures-journal?exerciceId=${exerciceCourant.id}`,
+        'test-ecritures-journal-isa-240.xlsx',
+      );
+    } catch (e) {
+      setErreur(e instanceof Error ? e.message : "Échec de l'export");
+    } finally {
+      setExportEnCours(false);
+    }
+  };
 
   useEffect(() => {
     if (!exerciceCourant) return;
@@ -97,6 +122,15 @@ export function DossierRevisionPage() {
         <span className="text-[10.5px] text-text-dim ml-auto">
           {affichees.length} compte{affichees.length > 1 ? 's' : ''}
         </span>
+        <button
+          type="button"
+          onClick={exporterTestIsa240}
+          disabled={exportEnCours || !exerciceCourant}
+          title="Écritures sélectionnées selon les caractéristiques de l'ISA 240, § A44, avec leur piste : qui a saisi, et quand"
+          className="border border-border bg-surface hover:bg-surface-alt disabled:opacity-50 px-2 py-1 text-[10.5px]"
+        >
+          {exportEnCours ? 'Export…' : 'Test des écritures de journal · ISA 240'}
+        </button>
       </div>
 
       {!lignes && !erreur && <div className="text-[11px] text-text-dim">Chargement…</div>}
