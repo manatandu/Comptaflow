@@ -1231,6 +1231,91 @@ Restent les ch. 3, 10, 11, 13, 15, 19 à 21, 25, 26 et 32 à 41.
 
 ---
 
+## Passe 15 · Titre VIII ch. 21 (engagements de retraite) et ch. 13 (portefeuille-titres)
+
+Lu à la source : AUDCIF, Titre VIII ch. 21 (sections 1 et 2) et art. 48 ;
+ch. 13 « Portefeuille-titres » ; SYCEBNL, Partie 2 ch. 3, fiche du COMPTE 29
+(règles d'évaluation des titres) et plan des comptes, compte 196.
+
+### Écart 15.1 · les engagements de retraite se PROVISIONNENT, et rien ne le porte
+
+**Ce que le texte exige, et ce n'est pas une mention.** Art. 48 : « les entités
+doivent évaluer et comptabiliser sous forme de provisions à inscrire au passif
+externe du bilan les engagements de retraite ». Le ch. 21 § 1.2 le répète et
+ajoute la mention aux notes : les deux, pas l'une ou l'autre. Le texte précise
+aussi que « les indemnités de fin de carrière que doit verser l'entité lorsque
+le salarié part à la retraite CONCERNENT TOUTES LES ENTITÉS ».
+
+La MÉTHODE, elle, est graduée : actuarielle obligatoire pour les entités
+faisant appel public à l'épargne ; pour les autres, méthode actuarielle sur
+option ou méthodes simplifiées, qui « font abstraction des hypothèses
+démographiques et/ou financières » · ne pas tenir compte de la probabilité de
+départ ou de décès avant l'âge, négliger la croissance des rémunérations à
+condition d'en tenir compte dans le taux d'actualisation.
+
+**Ce que le logiciel fait.** Les comptes existent des deux côtés : 1961
+« Provisions pour pensions et obligations similaires · engagement de retraite »
+et 1962 « Actif du régime de retraite » au plan SYSCOHADA, 196 « Provisions
+pour pensions et obligations similaires » au plan SYCEBNL. Le bilan et le
+tableau des flux SYSCOHADA les traitent correctement, et la NOTE 16B recueille
+la variation de l'engagement en saisie. Ce qui n'existe nulle part, c'est un
+rappel que la PROVISION est due, ni un contrôle de son absence.
+
+**Lacune du logiciel**, mais avec une réserve que je ne peux pas lever seul.
+
+**Ce que je n'ai PAS pu établir, et qui commande la suite.** Une règle qui
+vaudrait « toute entité ayant du personnel doit porter une provision » ferait
+un contrôle simple · je ne l'ai pas écrite, parce que je ne peux pas la fonder.
+Le texte OHADA suppose l'existence d'une indemnité de fin de carrière due par
+l'employeur, née « de dispositions législatives, d'une convention collective,
+d'un accord d'entité ou d'une clause du contrat de travail ». Or la source de
+droit du travail congolais dont je dispose ne mentionne la retraite que sous
+l'angle des cotisations CNSS du décompte final · elle n'établit aucune
+indemnité de fin de carrière générale à la charge de l'employeur. Un régime de
+cotisations n'est pas un engagement de l'entité.
+
+Il en résulte qu'un contrôle qui se déclencherait sur tout dossier ayant des
+charges de personnel reposerait sur une prémisse non vérifiée, et crierait à
+tort sur la majorité des dossiers. **La question à trancher avec Manasse** est
+donc : en RDC, quels dossiers portent effectivement un engagement de retraite
+au sens du ch. 21 · par leur convention collective, leur accord d'entité ou
+leurs contrats de travail ? La réponse conditionne le contrôle, et elle
+n'appartient pas au logiciel.
+
+**Gravité · état incomplet pour les dossiers concernés.** Un engagement non
+provisionné laisse le passif externe minoré et le résultat majoré. Mais tant
+que le champ n'est pas établi, le relevé s'arrête à la règle et à la question.
+
+### Ch. 13 · les règles d'évaluation des titres sont déjà citées, là où il faut
+
+Le chapitre traite l'évaluation du portefeuille-titres. Ses règles pratiques
+sont reprises mot pour mot dans la fiche du COMPTE 29 du SYCEBNL, que le
+logiciel sert déjà en avertissement d'imputation : « les titres cotés sont
+évalués au cours moyen boursier du dernier mois ; les titres non cotés sont
+estimés à leur valeur probable de négociation. Les plus-values apparaissant à
+la suite de cette estimation ne sont pas comptabilisées. En revanche, les
+moins-values sont inscrites au compte de dépréciations […] aucune compensation
+n'étant établie avec les plus-values des titres en hausse. […] La dépréciation
+éventuelle doit en outre être calculée sur la base de la valeur libérée des
+titres. »
+
+La non-compensation entre titres en hausse et titres en baisse est le piège du
+chapitre, et c'est précisément ce que la citation porte. Les comptes de
+dépréciation des titres (296, 297 pour les immobilisations financières, 590
+pour les titres de placement) sont semés, et le contrôle
+`DEPRECIATION_IMMO_HORS_MODULE` posé à la passe 13 couvre ceux des
+immobilisations financières · il se tait, à raison, sur un dossier qui déprécie
+des titres sans tenir d'immobilisations dans le module, puisque rien ne diverge
+alors.
+
+**Aucun écart.**
+
+### Portée de cette passe
+
+Restent les ch. 3, 10, 11, 15, 19, 20, 25, 26 et 32 à 41.
+
+---
+
 ## Ce qui n'a pas encore été ouvert
 
 À traiter dans les passes suivantes, dans cet ordre :
@@ -1238,7 +1323,7 @@ Restent les ch. 3, 10, 11, 13, 15, 19 à 21, 25, 26 et 32 à 41.
 1. **AUDCIF Titre VIII** · les chapitres restants. Ouverts à ce jour : le
    ch. 16 (passe 2), le ch. 31 (passe 3), les ch. 4 à 6 (passe 8), les ch. 8,
    9 et 27 (passe 9), et le ch. 22 vérifié à la passe 7 par le module devises.
-   Restent les ch. 3, 10, 11, 13, 15, 19 à 21, 25, 26 et 32 à 41. La plupart visent des opérations hors du portefeuille actuel du
+   Restent les ch. 3, 10, 11, 15, 19, 20, 25, 26 et 32 à 41. La plupart visent des opérations hors du portefeuille actuel du
    cabinet (concessions, franchise, agricole, fusions, liquidation, GIE,
    comptabilité par établissement, pluri-monétaire) · à trier avec Manasse
    plutôt qu'à ouvrir un par un.

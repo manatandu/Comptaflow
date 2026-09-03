@@ -10,6 +10,39 @@ l'inaction coûte, pas par la difficulté du geste.
 
 ---
 
+
+## Engagements de retraite · quels dossiers en portent un ?
+
+**Ce qui est certain.** L'AUDCIF, art. 48 et Titre VIII ch. 21, oblige les
+entités à « évaluer et comptabiliser SOUS FORME DE PROVISIONS à inscrire au
+passif externe du bilan les engagements de retraite », ET à en porter mention
+aux notes annexes. Ce n'est pas une mention au choix : c'est une provision plus
+une mention. La méthode est graduée · actuarielle obligatoire pour les entités
+faisant appel public à l'épargne, actuarielle sur option ou simplifiée pour les
+autres.
+
+**Ce qui ne l'est pas, et qui vous revient.** Le texte suppose une indemnité de
+fin de carrière due par l'employeur, née « de dispositions législatives, d'une
+convention collective, d'un accord d'entité ou d'une clause du contrat de
+travail ». La source de droit du travail congolais dont dispose le logiciel ne
+mentionne la retraite que sous l'angle des cotisations CNSS du décompte final ·
+elle n'établit aucune indemnité de fin de carrière générale à la charge de
+l'employeur, et un régime de cotisations n'est pas un engagement de l'entité.
+
+**La question.** Parmi vos dossiers, lesquels portent effectivement un
+engagement de retraite au sens du ch. 21, par leur convention collective, leur
+accord d'entité ou leurs contrats de travail ?
+
+**Ce que la réponse débloque.** Un contrôle qui signalerait l'absence de
+provision sur les dossiers concernés. Tant que le champ n'est pas établi, aucun
+contrôle n'est écrit : il crierait à tort sur la majorité des dossiers, et un
+avertissement qui se trompe souvent est un avertissement qu'on apprend à
+ignorer.
+
+Relevé : docs/releve-de-manques-referentiels.md, passe 15, écart 15.1.
+
+---
+
 ## 1. Ce qui casse une vente le jour où elle se fait
 
 ### La licence « Perpétuelle (sur site) » est vendable et ne marche pas
