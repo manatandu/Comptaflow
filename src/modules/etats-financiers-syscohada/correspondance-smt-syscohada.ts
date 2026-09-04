@@ -460,9 +460,23 @@ export const INVENTAIRE_EXTRA_COMPTABLE_SMT = [
 /**
  * Titre X ch. 1 § 1 : « Chaque immobilisation doit faire l'objet d'un
  * tableau d'amortissement basé sur le mode linéaire sans prorata
- * temporis. » Règle propre au SMT, distincte du prorata à la journée du
- * Système normal (art. 45) · le module immobilisations la lit ici pour un
- * dossier SMT plutôt que de la réécrire.
+ * temporis. » Le point de vigilance du même paragraphe le chiffre : « une
+ * année entière la première année, quelle que soit la date d'acquisition ».
+ * Règle propre au SMT, distincte du prorata du Système normal (art. 45).
+ *
+ * CE COMMENTAIRE A LONGTEMPS MENTI · il annonçait que « le module
+ * immobilisations la lit ici pour un dossier SMT plutôt que de la
+ * réécrire », alors que la constante n'était consommée qu'en AFFICHAGE (pied
+ * de la NOTE 1, fiche SMT, export). `ImmobilisationService.calculerDotation`
+ * proratisait sans condition : l'écran disait « sans prorata temporis » et
+ * l'écriture 681/28 portait 3/12 à la balance. C'est désormais vrai :
+ * `ImmobilisationService.sansProrataTemporis` lit `prorataTemporis` ici, et
+ * `amortissement-anterieur.spec.ts` gèle le chiffre.
+ *
+ * PORTÉE SYSCOHADA. Le SYCEBNL a son propre Système minimal de trésorerie
+ * (Partie 4 ch. 4), dont le chapitre n'est pas encodé dans le skill
+ * `sycebnl` · sa règle d'amortissement n'a donc PAS été transposée ici, et
+ * un dossier SYCEBNL garde le prorata (CLAUDE.md §1 et §6).
  */
 export const AMORTISSEMENT_SMT = { mode: 'LINEAIRE', prorataTemporis: false } as const;
 

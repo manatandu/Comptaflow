@@ -170,28 +170,74 @@ export class GroupeService {
     };
   }
 
+  /** Une date d'exercice telle qu'un message la porte · sans heure ni fuseau. */
+  private static jour(d: Date) {
+    return d.toISOString().slice(0, 10);
+  }
+
   /**
-   * L'exercice d'un dossier qui recouvre le mieux la période demandée. Les
-   * cellules créées depuis la console partagent le calendrier du siège, mais
-   * une cellule reprise en cours de route peut avoir des dates décalées ·
-   * on prend le recouvrement maximal plutôt que d'exiger l'égalité stricte.
+   * L'EXERCICE D'UNE CELLULE POUR LA PÉRIODE DU SIÈGE · deux réponses
+   * distinctes, et c'est toute la correction : l'exercice CONCORDANT (mêmes
+   * dates de début et de fin, au jour près) est le seul qui puisse entrer
+   * dans un agrégat ; un exercice qui ne fait que recouvrir la période est
+   * rendu à part, pour être NOMMÉ et refusé.
+   *
+   * Ce qui se faisait avant · la méthode retenait l'exercice au recouvrement
+   * MAXIMAL, avec pour seule condition un recouvrement non nul : un seul jour
+   * de chevauchement suffisait. Une cellule clôturant au 30 juin entrait donc
+   * dans la liasse d'un siège clôturant au 31 décembre, en silence, et le
+   * total obtenu ne correspondait à AUCUNE période réelle. Rien en aval ne
+   * pouvait le rattraper : l'agrégat s'équilibre quand même (chaque livre est
+   * équilibré séparément), la liasse sort sans réserve, et l'en-tête imprime
+   * la période du siège sur des chiffres qui ne sont pas les siens.
+   *
+   * POURQUOI L'ÉGALITÉ, ET NON UNE TOLÉRANCE · les états financiers
+   * « décrivent les événements, opérations et situations DE L'EXERCICE »
+   * (SYCEBNL, art. 4), et le postulat de la spécialisation des
+   * exercices veut qu'on rattache à chaque exercice « tous les produits et
+   * les charges qui le concernent, et ceux-là seulement » (SYCEBNL, cadre
+   * conceptuel § 3.3.1.1.4). Additionner deux périodes différentes viole les
+   * deux. La tolérance de trois mois de l'AUDCIF art. 97 ne s'invoque pas
+   * ici : elle vise la CONSOLIDATION d'entités juridiquement distinctes, or
+   * un groupe d'établissements est une entité UNIQUE tenue en plusieurs
+   * dossiers (voir l'en-tête de ce service) · pour une entité unique
+   * l'exigence est plus stricte encore, ses états couvrent UNE période.
+   *
+   * La règle vaut sous les deux référentiels, et ce n'est pas une
+   * transposition : l'AUDCIF art. 7 (« l'exercice coïncide avec l'année
+   * civile ») n'est PAS dans la liste d'exclusion de l'art. 3 du SYCEBNL
+   * (art. 5, 8, 10 à 13, 17 al. 7-8, 18, 19 4e tiret, 21, 25 à 34, 49, 69,
+   * 70, 71, 73 à 113), et le glossaire du SYCEBNL le réécrit mot pour mot à
+   * l'entrée EXERCICE. Conséquence pratique, et c'est ce que dit le refus :
+   * un exercice non liquidatif court du 1er janvier au 31 décembre, donc une
+   * discordance ne peut venir que d'un PREMIER exercice (art. 7 al. 3, durée
+   * exceptionnellement inférieure ou supérieure à douze mois) ou d'un
+   * exercice de LIQUIDATION (art. 7 al. 4).
    */
-  private meilleurExercice(
+  private exercicePourLaPeriode(
     exercices: Array<{ id: string; dateDebut: Date; dateFin: Date }>,
     debut: Date,
     fin: Date,
-  ) {
-    let meilleur: { id: string; dateDebut: Date; dateFin: Date } | null = null;
+  ): {
+    concordant: { id: string; dateDebut: Date; dateFin: Date } | null;
+    discordant: { id: string; dateDebut: Date; dateFin: Date } | null;
+  } {
+    let discordant: { id: string; dateDebut: Date; dateFin: Date } | null = null;
     let recouvrementMax = 0;
     for (const e of exercices) {
+      if (e.dateDebut.getTime() === debut.getTime() && e.dateFin.getTime() === fin.getTime()) {
+        return { concordant: e, discordant: null };
+      }
+      // Le recouvrement ne sert plus à choisir un exercice à agréger · il
+      // sert à désigner CELUI qu'il faudra aligner, dans le message de refus.
       const recouvrement =
         Math.min(e.dateFin.getTime(), fin.getTime()) - Math.max(e.dateDebut.getTime(), debut.getTime());
       if (recouvrement > 0 && recouvrement > recouvrementMax) {
         recouvrementMax = recouvrement;
-        meilleur = e;
+        discordant = e;
       }
     }
-    return meilleur;
+    return { concordant: null, discordant };
   }
 
   /**
@@ -201,8 +247,13 @@ export class GroupeService {
    * Seuls les comptes Détail entrent dans l'agrégat, les comptes Total ne
    * sont que des lignes d'affichage déjà comptées par leurs enfants.
    *
-   * Trois contrôles accompagnent le résultat, car une agrégation sans
+   * Quatre contrôles accompagnent le résultat, car une agrégation sans
    * contrôle est un piège :
+   *  · CONCORDANCE DES PÉRIODES · seul un exercice de cellule qui couvre
+   *    exactement la période du siège entre dans l'agrégat. Une cellule dont
+   *    l'exercice est décalé est écartée ET nommée, avec ses dates : un total
+   *    qui mêle deux périodes ne correspond à aucune (voir
+   *    `exercicePourLaPeriode` pour la règle et sa source) ;
    *  · équilibre de CHAQUE dossier (une cellule déséquilibrée fausse tout) ;
    *  · neutralisation des comptes 58 Virements internes · dans une entité
    *    unique, un transfert siège vers cellule est un virement interne :
@@ -229,14 +280,29 @@ export class GroupeService {
       throw new BadRequestException("Ce dossier n'a aucune cellule rattachée · le rattachement se fait depuis la console plateforme");
     }
 
-    const dossiers: Array<{ id: string; nom: string; estMere: boolean; exerciceId: string | null }> = [
-      { id: tenantId, nom: mere!.nom, estMere: true, exerciceId: exercice.id },
-      ...cellules.map((c) => ({
-        id: c.id,
-        nom: c.nom,
-        estMere: false,
-        exerciceId: this.meilleurExercice(c.exercices, exercice.dateDebut, exercice.dateFin)?.id ?? null,
-      })),
+    const dossiers: Array<{
+      id: string;
+      nom: string;
+      estMere: boolean;
+      exerciceId: string | null;
+      // Renseigné quand la cellule A un exercice sur la période mais qu'il ne
+      // la couvre pas exactement · ses chiffres restent DEHORS, et ses dates
+      // servent à le dire.
+      periodeDiscordante: { dateDebut: Date; dateFin: Date } | null;
+    }> = [
+      { id: tenantId, nom: mere!.nom, estMere: true, exerciceId: exercice.id, periodeDiscordante: null },
+      ...cellules.map((c) => {
+        const choix = this.exercicePourLaPeriode(c.exercices, exercice.dateDebut, exercice.dateFin);
+        return {
+          id: c.id,
+          nom: c.nom,
+          estMere: false,
+          exerciceId: choix.concordant?.id ?? null,
+          periodeDiscordante: choix.discordant
+            ? { dateDebut: choix.discordant.dateDebut, dateFin: choix.discordant.dateFin }
+            : null,
+        };
+      }),
     ];
 
     interface LigneAgregee {
@@ -304,7 +370,19 @@ export class GroupeService {
     return {
       exercice,
       dossiers: equilibres,
-      cellulesSansExercice: dossiers.filter((d) => !d.exerciceId).map((d) => ({ id: d.id, nom: d.nom })),
+      // ABSENCE et DISCORDANCE sont deux manques distincts, et ils appellent
+      // deux gestes différents : ouvrir l'exercice, ou l'aligner.
+      cellulesSansExercice: dossiers
+        .filter((d) => !d.exerciceId && !d.periodeDiscordante)
+        .map((d) => ({ id: d.id, nom: d.nom })),
+      cellulesPeriodeDiscordante: dossiers
+        .filter((d) => d.periodeDiscordante)
+        .map((d) => ({
+          id: d.id,
+          nom: d.nom,
+          dateDebut: d.periodeDiscordante!.dateDebut,
+          dateFin: d.periodeDiscordante!.dateFin,
+        })),
       lignes,
       totaux,
       controles: {
@@ -313,6 +391,9 @@ export class GroupeService {
         ecartLiaison: Math.round(ecartLiaison * 100) / 100,
         liaisonNeutralisee: Math.abs(ecartLiaison) <= 0.005,
         tousEquilibres: equilibres.every((e) => e.equilibre),
+        // Faux dès qu'une cellule a été écartée pour cause de période · c'est
+        // ce drapeau qui bloque la liasse (voir liasseGroupe).
+        periodesConcordantes: dossiers.every((d) => !d.periodeDiscordante),
       },
       detailParDossier,
     };
@@ -388,6 +469,15 @@ export class GroupeService {
     for (const c of agregat.cellulesSansExercice) {
       controles.addRow({ nom: c.nom, equilibre: 'SANS EXERCICE · chiffres absents de l’agrégat' });
     }
+    // Le classeur circule seul (il se réimporte dans un dossier de
+    // combinaison) · si la feuille de contrôles taisait les cellules écartées
+    // pour période, l'absence redeviendrait silencieuse à l'export.
+    for (const c of agregat.cellulesPeriodeDiscordante) {
+      controles.addRow({
+        nom: c.nom,
+        equilibre: `PÉRIODE DISCORDANTE (${GroupeService.jour(c.dateDebut)} au ${GroupeService.jour(c.dateFin)}) · chiffres absents de l’agrégat`,
+      });
+    }
 
     const buffer = Buffer.from(await wb.xlsx.writeBuffer());
     return { buffer, nomFichier: `balance-agregee-groupe-${annee}.xlsx` };
@@ -441,13 +531,20 @@ export class GroupeService {
 
     const lignes = [];
     for (const c of cellules) {
-      const exCellule = this.meilleurExercice(c.exercices, exercice.dateDebut, exercice.dateFin);
+      // La supervision est un écran de LECTURE : on y montre l'exercice
+      // recouvrant s'il n'y a pas de concordant, pour que le siège voie
+      // quand même l'activité de la cellule et puisse ouvrir sa balance.
+      // Mais une cellule décalée n'est jamais « prête » pour l'agrégat, et
+      // ses dates sont rendues pour que l'écart soit dicible.
+      const choix = this.exercicePourLaPeriode(c.exercices, exercice.dateDebut, exercice.dateFin);
+      const exCellule = choix.concordant ?? choix.discordant;
       if (!exCellule) {
         lignes.push({
           id: c.id,
           nom: c.nom,
           jeuEtatsFinanciersSycebnl: c.jeuEtatsFinanciersSycebnl,
           exerciceId: null,
+          periodeDiscordante: null,
           derniereEcriture: null,
           nbEcritures: 0,
           nbBrouillard: 0,
@@ -481,15 +578,21 @@ export class GroupeService {
         nom: c.nom,
         jeuEtatsFinanciersSycebnl: c.jeuEtatsFinanciersSycebnl,
         exerciceId: exCellule.id,
+        periodeDiscordante: choix.concordant
+          ? null
+          : { dateDebut: exCellule.dateDebut, dateFin: exCellule.dateFin },
         derniereEcriture: derniere?.date ?? null,
         nbEcritures,
         nbBrouillard,
         tresorerie,
         solde58,
         equilibre,
-        // « Prête pour l'agrégat » : équilibrée, plus rien en brouillard, et
-        // au moins une écriture (une cellule à zéro n'a rien déposé).
-        prete: equilibre && nbBrouillard === 0 && nbEcritures > 0,
+        // « Prête pour l'agrégat » : sur la MÊME période que le siège,
+        // équilibrée, plus rien en brouillard, et au moins une écriture (une
+        // cellule à zéro n'a rien déposé). La période vient en tête : une
+        // cellule décalée a beau être irréprochable, ses chiffres n'entrent
+        // pas dans cet agrégat.
+        prete: choix.concordant !== null && equilibre && nbBrouillard === 0 && nbEcritures > 0,
       });
     }
     return { exercice, cellules: lignes };
@@ -820,6 +923,19 @@ export class GroupeService {
     if (!agregat.controles.liaisonNeutralisee) {
       blocages.push(
         `virements internes (58) non neutralisés (écart ${agregat.controles.ecartLiaison.toFixed(2)}) · un transfert est enregistré d'un seul côté`,
+      );
+    }
+    if (agregat.cellulesPeriodeDiscordante.length > 0) {
+      const nommees = agregat.cellulesPeriodeDiscordante
+        .map((c) => `${c.nom} (du ${GroupeService.jour(c.dateDebut)} au ${GroupeService.jour(c.dateFin)})`)
+        .join(', ');
+      blocages.push(
+        `cellule(s) dont l'exercice ne couvre pas la période du siège (du ${GroupeService.jour(agregat.exercice.dateDebut)} au ` +
+          `${GroupeService.jour(agregat.exercice.dateFin)}) : ${nommees} · leurs chiffres ont été laissés hors de l'agrégat, ` +
+          "car une liasse qui additionne deux périodes ne correspond à aucune. L'exercice coïncide avec l'année civile " +
+          "(AUDCIF art. 7, non exclu par l'art. 3 du SYCEBNL et repris à l'entrée EXERCICE de son glossaire) : seuls un " +
+          'PREMIER exercice ou un exercice de LIQUIDATION peuvent être décalés · clôturez la cellule sur la période du ' +
+          "siège, puis relancez, ou attendez qu'elle soit revenue à l'année civile",
       );
     }
     if (agregat.cellulesSansExercice.length > 0) {

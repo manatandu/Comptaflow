@@ -7,8 +7,10 @@ import {
   Referentiel,
   SensDepreciation,
   StatutImmobilisation,
+  SystemeComptableSyscohada,
   TypeComposant,
 } from '@prisma/client';
+import { AMORTISSEMENT_SMT } from '../etats-financiers-syscohada/correspondance-smt-syscohada';
 import { FAMILLES_IMMOBILISATION_DEFAUT, FAMILLES_IMMOBILISATION_DEFAUT_SYSCOHADA } from './famille-immobilisation-seed';
 import {
   CreerFamilleDto,
@@ -133,13 +135,108 @@ function estConflitUnicite(err: unknown): boolean {
  * résultat exact · seule la ventilation des cessions dans les notes annexes
  * est fausse, ce que rien ne signale.
  */
-export type NatureImmobilisation = 'INCORPORELLE' | 'CORPORELLE' | 'FINANCIERE';
+/*
+  LA RACINE DU COMPTE NE SUFFIT PAS · IL FAUT LE RÉFÉRENTIEL AVEC ELLE.
+
+  La règle « 20 et 21 incorporelles » a été écrite pour le seul plan
+  SYSCOHADA, où la classe 2 commence à 21 · aucun compte 20x n'y est semé, la
+  branche y est donc inatteignable et inoffensive.
+
+  AU SYCEBNL, LA DIVISION 20 N'EST PAS INCORPORELLE. Elle porte en entier les
+  « Immobilisations destinées à la vente (dons et legs non encore reçus) et
+  usufruit temporaire » · skill `sycebnl`, Partie 2 ch. 3, COMPTE 20, dont les
+  subdivisions semées sont 202 Terrains, 203 Bâtiments, 204 Matériels et 205
+  Titres de participations, toutes « destinés à la vente ». Un bâtiment légué
+  sortait donc en 811 « immobilisations incorporelles ».
+
+  Et le texte leur donne LEURS PROPRES comptes de sortie, que le semis porte
+  déjà sans que rien ne les atteigne :
+    COMPTE 81, Subdivisions · « 811 Immobilisations incorporelles ; 812
+    Immobilisations corporelles ; 816 Immobilisations financières ; 818
+    Immobilisations reçues en dons et legs destinées à la vente » ;
+    COMPTE 82, Subdivisions · « … 828 Immobilisations reçues en dons et legs
+    destinées à la vente ».
+  La fiche AUDCIF du COMPTE 81 n'énumère, elle, que 811, 812 et 816 : le 818
+  n'existe PAS au SYSCOHADA, et cette nature n'y est jamais rendue.
+*/
+export type NatureImmobilisation = 'INCORPORELLE' | 'CORPORELLE' | 'FINANCIERE' | 'DONS_LEGS_VENTE';
 
 export const COMPTES_SORTIE: Record<NatureImmobilisation, { valeurComptable: string; produitCession: string }> = {
   INCORPORELLE: { valeurComptable: '81100000', produitCession: '82100000' },
   CORPORELLE: { valeurComptable: '81200000', produitCession: '82200000' },
   FINANCIERE: { valeurComptable: '81600000', produitCession: '82600000' },
+  // SYCEBNL SEULEMENT · 818 et 828 sont absents du plan SYSCOHADA (fiche
+  // AUDCIF du COMPTE 81 : 811, 812, 816 et rien d'autre). `natureImmobilisation`
+  // ne rend cette nature que pour un dossier SYCEBNL.
+  DONS_LEGS_VENTE: { valeurComptable: '81800000', produitCession: '82800000' },
 };
+
+/*
+  CE QUE LE COMPTE 81 PORTE, ET CE QU'IL NE PORTE PAS.
+
+  Les DEUX fiches disent la même chose, mot pour mot, et le module faisait
+  l'inverse :
+
+   · Contenu · « Pour les biens NON AMORTISSABLES, cette valeur est la valeur
+     d'entrée, SANS DÉDUCTION DES ÉVENTUELLES DÉPRÉCIATIONS. Pour les biens
+     amortissables, elle est la différence entre la valeur d'entrée brute des
+     immobilisations cédées et LE CUMUL DES AMORTISSEMENTS pratiqués » ·
+     skill `sycebnl`, COMPTE 81 · skill `audcif-acte-uniforme`, Titre VII
+     COMPTE 81. Dans les deux cas la dépréciation n'entre pas dans le calcul ;
+   · Exclusions · « Le compte 81 ne doit pas servir à enregistrer : LES
+     DÉPRÉCIATIONS AFFÉRENTES AUX ÉLÉMENTS D'ACTIF IMMOBILISÉ CÉDÉS. Il
+     convient dans les cas d'espèce d'utiliser les comptes ci-après : 29 » ·
+     même fiche, dans les deux référentiels.
+
+  LA DÉPRÉCIATION SORT DONC PAR SA REPRISE, PAS EN MOINS DU 81. L'AUDCIF le
+  montre sur un cas complet, Titre VIII ch. 13 section 4.1 (décomptabilisation
+  de titres, une cession H.A.O.) : « La valeur comptable est égale au coût
+  d'acquisition, NON DIMINUÉ PAR UNE ÉVENTUELLE DÉPRÉCIATION » au débit du
+  816, et « Dans les cas où une dépréciation avait été constituée, cette
+  dernière est REPRISE par le crédit du compte 7972 Reprises pour dépréciation
+  des immobilisations financières ». Le dépôt encode déjà cette application
+  telle quelle (`schemas-guide-syscohada.ts`, Application 50 : débits 2974,
+  4856, 816 · crédits 274, 7972, 826).
+
+  LE COMPTE DE REPRISE SUIT LA NATURE DU BIEN, comme le 81 lui-même · fiche du
+  COMPTE 79, Subdivisions :
+   · SYSCOHADA · « 791 … 7913 des immobilisations incorporelles · 7914 des
+     immobilisations corporelles » et « 797 … 7972 des immobilisations
+     financières » (Titre VII, COMPTE 79) · le plan semé porte les trois en
+     compte de détail ;
+   · SYCEBNL · mêmes 791 et 797, mais le plan semé s'arrête au compte de
+     détail 79100000 et 79700000 ; et il ouvre en plus 795 « Reprises des
+     dépréciations d'immobilisations reçues provenant des dons et legs et
+     d'usufruit temporaire », qui est le pendant exact du 290 déprécié et du
+     818 cédé (skill `sycebnl`, COMPTE 79 et COMPTE 29).
+
+  UNE SEULE EXCEPTION, ÉCRITE ELLE AUSSI · la fiche du COMPTE 29 donne deux
+  contreparties à la reprise, « par le crédit du compte 79 – Reprises de
+  dépréciations ; ou du compte 863 – Reprises de dépréciations H.A.O. », et la
+  fiche du COMPTE 79 tranche laquelle : « Exclusions · les reprises HAO → 86 ».
+  Une dépréciation dotée en H.A.O. (compte 853) se reprend donc en 863, et
+  c'est le compte de contrepartie de la DOTATION qui le dit · voir
+  `compteRepriseDepreciation`.
+*/
+export const REPRISE_DEPRECIATION_SORTIE: Record<
+  Referentiel,
+  Partial<Record<NatureImmobilisation, string>>
+> = {
+  [Referentiel.SYCEBNL]: {
+    INCORPORELLE: '79100000',
+    CORPORELLE: '79100000',
+    FINANCIERE: '79700000',
+    DONS_LEGS_VENTE: '79500000',
+  },
+  [Referentiel.SYSCOHADA]: {
+    INCORPORELLE: '79130000',
+    CORPORELLE: '79140000',
+    FINANCIERE: '79720000',
+  },
+};
+
+/** Reprise d'une dépréciation qui avait été DOTÉE en H.A.O. (853) · semé des deux côtés. */
+export const REPRISE_DEPRECIATION_HAO = '86300000';
 
 /**
  * CESSION COURANTE · LE NIVEAU H.A.O. N'EST PAS TOUJOURS LE BON, ET LE
@@ -171,10 +268,19 @@ export const COMPTES_CESSION_COURANTE: Partial<
   CORPORELLE: { valeurComptable: '65420000', produitCession: '75420000' },
 };
 
-export function natureImmobilisation(numeroCompte: string): NatureImmobilisation {
-  // Classe 2 : 20 et 21 incorporelles, 22 à 24 corporelles, 26 et 27
-  // financières. 25 (avances sur immobilisations) ne se cède pas · il se
-  // solde à la réception du bien, il n'atteint donc jamais cette sortie.
+export function natureImmobilisation(numeroCompte: string, referentiel: Referentiel): NatureImmobilisation {
+  // Le référentiel est EXIGÉ, sans valeur par défaut : c'est la division 20
+  // qui se lit différemment de part et d'autre, et un défaut aurait rendu
+  // l'oubli silencieux · exactement le genre d'erreur que ce module produit
+  // sans déséquilibrer une seule écriture.
+  if (referentiel === Referentiel.SYCEBNL && numeroCompte.startsWith('20')) return 'DONS_LEGS_VENTE';
+  // Classe 2 : 21 incorporelles, 22 à 24 corporelles, 26 et 27 financières.
+  // Le 20 reste rangé ici avec le 21 pour le SYSCOHADA, où aucun compte 20x
+  // n'est semé (la classe 2 y commence à 21) · la branche n'y est jamais
+  // atteinte, et la retirer changerait le comportement d'un plan importé à la
+  // main sans qu'aucun texte ne le demande.
+  // 25 (avances sur immobilisations) ne se cède pas · il se solde à la
+  // réception du bien, il n'atteint donc jamais cette sortie.
   if (/^2[01]/.test(numeroCompte)) return 'INCORPORELLE';
   if (/^2[67]/.test(numeroCompte)) return 'FINANCIERE';
   return 'CORPORELLE';
@@ -252,6 +358,95 @@ export class ImmobilisationService {
       );
     }
     return compte;
+  }
+
+  /**
+   * RÉGIME COMPTABLE DU DOSSIER · référentiel, et pour un dossier SYSCOHADA
+   * son système (Système normal ou Système minimal de trésorerie, AUDCIF
+   * art. 11 et 13). Les deux entrent dans la mécanique des immobilisations :
+   * le référentiel décide du compte de sortie de la division 20, le système
+   * décide du prorata de la première annuité.
+   *
+   * Le module ignorait entièrement le second · `grep systemeComptableSyscohada`
+   * n'y rendait aucune ligne, alors que le Titre X le contraint.
+   */
+  private async regimeComptable(tenantId: string) {
+    return this.prisma.tenant.findUniqueOrThrow({
+      where: { id: tenantId },
+      select: { referentiel: true, systemeComptableSyscohada: true },
+    });
+  }
+
+  /**
+   * LE SYSTÈME MINIMAL DE TRÉSORERIE INTERDIT LE PRORATA TEMPORIS.
+   *
+   * AUDCIF Titre X ch. 1 § 1 · « Les entités possédant des immobilisations
+   * doivent tenir un registre des immobilisations (NOTE 1). Chaque
+   * immobilisation doit faire l'objet d'un TABLEAU D'AMORTISSEMENT BASÉ SUR
+   * LE MODE LINÉAIRE SANS PRORATA TEMPORIS. » Le point de vigilance du même
+   * paragraphe le chiffre : « une année entière la première année, quelle que
+   * soit la date d'acquisition ». C'est une simplification PROPRE AU SMT,
+   * distincte de la règle du Système normal (art. 45).
+   *
+   * La règle était déjà transcrite (`AMORTISSEMENT_SMT`) et son commentaire
+   * annonçait que « le module immobilisations la lit ici » · ce n'était pas
+   * vrai, elle n'était qu'imprimée en pied de la NOTE 1. Elle est lue ici
+   * pour de bon, plutôt que réécrite.
+   *
+   * PORTÉE STRICTEMENT SYSCOHADA. Le SYCEBNL a lui aussi un Système minimal
+   * de trésorerie (Partie 4 ch. 4), mais son chapitre n'est PAS encodé dans
+   * le skill `sycebnl`, qui avertit en tête de la Partie 4 : « ne jamais
+   * reconstituer un modèle … par analogie avec le SYSCOHADA, demander les
+   * pages manquantes ». Rien n'autorise donc à lui étendre la règle : un
+   * dossier SYCEBNL garde le prorata, et le dira le jour où la source
+   * arrivera (CLAUDE.md §1 et §6).
+   */
+  private sansProrataTemporis(regime: {
+    referentiel: Referentiel;
+    systemeComptableSyscohada: SystemeComptableSyscohada | null;
+  }): boolean {
+    return (
+      regime.referentiel === Referentiel.SYSCOHADA &&
+      regime.systemeComptableSyscohada === SystemeComptableSyscohada.MINIMAL_TRESORERIE &&
+      !AMORTISSEMENT_SMT.prorataTemporis
+    );
+  }
+
+  /**
+   * COMPTE DE REPRISE DE LA DÉPRÉCIATION SORTIE AVEC LE BIEN.
+   *
+   * Fiche du COMPTE 29, « utilisation au débit » : la reprise débite le 29
+   * « par le crédit du compte 79 – Reprises de dépréciations ; ou du compte
+   * 863 – Reprises de dépréciations H.A.O. ». La fiche du COMPTE 79 dit
+   * laquelle des deux : « Exclusions · les reprises HAO → 86 ». Le critère
+   * est donc le NIVEAU DE LA DOTATION d'origine, que le module a conservé
+   * (`DepreciationImmobilisation.compteContrepartieId`) : dotée en 853, la
+   * dépréciation se reprend en 863 ; dotée en 69, elle se reprend en 79,
+   * sur la subdivision de la NATURE du bien.
+   */
+  private async compteRepriseDepreciation(
+    tenantId: string,
+    referentiel: Referentiel,
+    nature: NatureImmobilisation,
+    compteContrepartieDotationId: string | null,
+  ) {
+    let numero: string | undefined;
+    if (compteContrepartieDotationId) {
+      const contrepartie = await this.prisma.compte.findFirst({
+        where: { id: compteContrepartieDotationId, tenantId },
+        select: { numero: true },
+      });
+      if (contrepartie?.numero.startsWith('85')) numero = REPRISE_DEPRECIATION_HAO;
+    }
+    numero ??= REPRISE_DEPRECIATION_SORTIE[referentiel][nature];
+    if (!numero) {
+      // Inatteignable en l'état (seul le SYCEBNL rend DONS_LEGS_VENTE, et il
+      // porte son 795) · nommé plutôt que laissé retomber sur un compte voisin.
+      throw new BadRequestException(
+        `Aucun compte de reprise de dépréciation n'est défini pour une immobilisation ${nature} au référentiel ${referentiel}.`,
+      );
+    }
+    return this.compteDeSortie(tenantId, numero);
   }
 
   private async verifierComptesFamille(tenantId: string, dto: { compteImmobilisationId: string; compteAmortissementId: string; compteDotationId: string }) {
@@ -674,6 +869,13 @@ export class ImmobilisationService {
     exercice: { dateDebut: Date; dateFin: Date },
     amortissementAnterieur = 0,
     cumulDepreciation = 0,
+    /**
+     * SMT SYSCOHADA · « tableau d'amortissement basé sur le mode linéaire
+     * SANS PRORATA TEMPORIS » (AUDCIF Titre X ch. 1 § 1). Voir
+     * `sansProrataTemporis`, qui décide seul de sa valeur · jamais posé à la
+     * main par un appelant.
+     */
+    sansProrata = false,
   ): number {
     const base = this.baseAmortissable(valeurOrigine, valeurResiduelle);
     const cumulAnterieur =
@@ -718,7 +920,20 @@ export class ImmobilisationService {
         (exercice.dateFin.getUTCMonth() - debutProrata.getUTCMonth()) +
         1;
       const mois = Math.min(12, Math.max(0, moisEcoules));
-      montant = annuitePleine * (mois / 12);
+      /*
+        AU SMT, LA PREMIÈRE ANNÉE EST PLEINE.
+
+        AUDCIF Titre X ch. 1 § 1 · « une année entière la première année,
+        quelle que soit la date d'acquisition ». Le prorata reste appliqué
+        partout ailleurs (Système normal, art. 45).
+
+        `mois` GARDE SON RÔLE DE GARDE-FOU même au SMT : il vaut 0 quand le
+        bien entre en service APRÈS la clôture de l'exercice demandé, et il
+        n'y a alors rien à doter · une annuité pleine sur un bien pas encore
+        entré serait une dotation d'avance, que le texte ne demande nulle
+        part.
+      */
+      montant = mois <= 0 ? 0 : sansProrata ? annuitePleine : annuitePleine * (mois / 12);
     } else {
       montant = annuitePleine;
     }
@@ -839,6 +1054,10 @@ export class ImmobilisationService {
    * douze colonnes soit EXACTEMENT la dotation, au centime.
    */
   async tableauAmortissements(tenantId: string, exerciceId: string) {
+    // Le tableau doit annoncer ce que `passerDotation` postera · au SMT c'est
+    // l'annuité pleine, sans quoi l'état affiché et l'écriture se
+    // contrediraient sur la première annuité.
+    const sansProrata = this.sansProrataTemporis(await this.regimeComptable(tenantId));
     const exercice = await this.prisma.exercice.findFirstOrThrow({
       where: { id: exerciceId, tenantId },
       select: { id: true, dateDebut: true, dateFin: true },
@@ -899,6 +1118,7 @@ export class ImmobilisationService {
                 .filter((d) => d.exercice.dateFin < exercice.dateFin)
                 .map((d) => ({ sens: d.sens, montant: Number(d.montant) })),
             ),
+            sansProrata,
           );
 
       // Mois effectivement servis : depuis le mois de mise en service (ou le
@@ -1001,6 +1221,7 @@ export class ImmobilisationService {
     }
     const exercice = await this.prisma.exercice.findFirst({ where: { id: dto.exerciceId, tenantId } });
     if (!exercice) throw new BadRequestException('Exercice introuvable pour ce tenant');
+    const sansProrata = this.sansProrataTemporis(await this.regimeComptable(tenantId));
 
     const dejaPassee = await this.prisma.dotationAmortissement.findUnique({
       where: { immobilisationId_exerciceId: { immobilisationId: id, exerciceId: dto.exerciceId } },
@@ -1025,6 +1246,7 @@ export class ImmobilisationService {
           .filter((d) => d.exercice.dateFin < exercice.dateFin)
           .map((d) => ({ sens: d.sens, montant: Number(d.montant) })),
       ),
+      sansProrata,
     );
     if (montant <= EPSILON) {
       throw new BadRequestException('Aucun montant à doter · le bien est déjà entièrement amorti ou hors période');
@@ -1275,13 +1497,16 @@ export class ImmobilisationService {
     // CESSION COURANTE · exploitation (654 / 754) au lieu de H.A.O. (81 / 82).
     // Les deux refus ci-dessous sont posés côté SERVEUR : l'écran peut cacher
     // la case, un appel direct la poserait quand même.
-    const nature = natureImmobilisation(immo.compteImmobilisation.numero);
+    // Le régime du dossier est lu UNE FOIS, en tête : le référentiel entre
+    // dans la lecture de la nature (division 20 du SYCEBNL) et dans le compte
+    // de reprise de dépréciation, le système dans le prorata de la dotation
+    // complémentaire. Il était jusqu'ici lu seulement dans la branche
+    // « cession courante ».
+    const regime = await this.regimeComptable(tenantId);
+    const { referentiel } = regime;
+    const nature = natureImmobilisation(immo.compteImmobilisation.numero, referentiel);
     let comptes = COMPTES_SORTIE[nature];
     if (dto.cessionCourante) {
-      const { referentiel } = await this.prisma.tenant.findUniqueOrThrow({
-        where: { id: tenantId },
-        select: { referentiel: true },
-      });
       if (referentiel !== Referentiel.SYSCOHADA) {
         throw new BadRequestException(
           "La cession courante impute la sortie aux comptes 654 et 754, qui portent au plan SYCEBNL les dons en " +
@@ -1344,6 +1569,7 @@ export class ImmobilisationService {
             .filter((d) => d.exercice.dateFin < exercice.dateFin)
             .map((d) => ({ sens: d.sens, montant: Number(d.montant) })),
         ),
+        this.sansProrataTemporis(regime),
       );
       if (montantComplement > EPSILON) {
         const ecritureComplement = await this.ecritureService.creer(tenantId, userId, {
@@ -1376,26 +1602,46 @@ export class ImmobilisationService {
     }
 
     /*
-      LA DÉPRÉCIATION SORT AVEC LE BIEN.
+      LA DÉPRÉCIATION SORT AVEC LE BIEN · MAIS PAS EN MOINS DU COMPTE 81.
 
       Les deux textes rangent le compte 29 « distinctement à l'actif, EN
       DIMINUTION DE LA VALEUR BRUTE des biens correspondants pour donner leur
       valeur comptable nette » (SYCEBNL, fiche du COMPTE 29 · AUDCIF art. 46 et
-      Titre VIII ch. 12). Le sortir suppose donc de le solder comme le 28, et
-      de retrancher son cumul de la valeur comptable nette.
+      Titre VIII ch. 12). Le sortir suppose donc de le SOLDER comme le 28.
+      C'est acquis, et c'est la première divergence qui avait été corrigée : un
+      29 laissé au bilan après la sortie du bien qu'il corrigeait est une
+      correction d'actif sans actif.
 
-      C'ÉTAIT LA SECONDE DIVERGENCE MUETTE. Un 29 laissé au bilan après la
-      sortie du bien qu'il corrigeait est une correction d'actif sans actif ; et
-      la valeur comptable nette portée au 81 était surévaluée du même montant,
-      ce qui transformait une moins-value en plus-value sans qu'aucune écriture
-      ne se déséquilibre.
+      CE QUI ÉTAIT FAUX, C'ÉTAIT SA CONTREPARTIE. Le 29 était débité SANS
+      reprise, et c'est la ligne 81 · réduite d'autant · qui équilibrait
+      l'écriture. Or la fiche du COMPTE 81 l'exclut nommément, dans les deux
+      référentiels : « ne doit pas servir à enregistrer les DÉPRÉCIATIONS
+      AFFÉRENTES AUX ÉLÉMENTS D'ACTIF IMMOBILISÉ CÉDÉS · utiliser le compte
+      29 », et son Contenu ne retranche de la valeur d'entrée que « le cumul
+      des AMORTISSEMENTS pratiqués » (pour un bien non amortissable, la valeur
+      d'entrée « SANS DÉDUCTION des éventuelles dépréciations »).
+
+      L'ÉCRITURE ÉTAIT ÉQUILIBRÉE ET LE RÉSULTAT NET EXACT · c'est pourquoi
+      rien ne le signalait. Ce qui était faux, c'est la VENTILATION : la charge
+      H.A.O. du 81 minorée du cumul de dépréciation, et le produit de reprise
+      absent du résultat d'exploitation. Les notes de cessions et de reprises
+      s'en trouvaient fausses du même montant, des deux côtés.
+
+      LE MODÈLE COMPLET EST DANS L'AUDCIF, Titre VIII ch. 13 § 4.1 (cession de
+      titres, une sortie H.A.O. elle aussi) : la valeur comptable portée au 816
+      est « égale au coût d'acquisition, NON DIMINUÉ PAR UNE ÉVENTUELLE
+      DÉPRÉCIATION », et « dans les cas où une dépréciation avait été
+      constituée, cette dernière est REPRISE par le crédit du compte 7972 ».
     */
     const cumulDepreciation = this.cumulDepreciation(
       immo.depreciations.map((d) => ({ sens: d.sens, montant: Number(d.montant) })),
     );
-    const compteDepreciationSortie = immo.depreciations.at(-1)?.compteDepreciationId ?? null;
+    const derniereDepreciation = immo.depreciations.at(-1) ?? null;
+    const compteDepreciationSortie = derniereDepreciation?.compteDepreciationId ?? null;
 
-    const valeurComptableNette = Math.max(0, Number(immo.valeurOrigine) - cumulAmorti - cumulDepreciation);
+    // Valeur d'entrée MOINS LES SEULS AMORTISSEMENTS · fiche du COMPTE 81,
+    // « Contenu », dans les deux référentiels.
+    const valeurComptableNette = Math.max(0, Number(immo.valeurOrigine) - cumulAmorti);
 
     const lignesSortie: Array<{ compteId: string; debit: number; credit: number }> = [
       { compteId: immo.compteImmobilisationId, debit: 0, credit: Number(immo.valeurOrigine) },
@@ -1404,7 +1650,16 @@ export class ImmobilisationService {
       lignesSortie.push({ compteId: immo.compteAmortissementId, debit: cumulAmorti, credit: 0 });
     }
     if (cumulDepreciation > EPSILON && compteDepreciationSortie) {
+      // Le 29 au débit pour solde, et sa REPRISE au crédit · les deux
+      // ensemble, jamais le premier seul.
+      const compteReprise = await this.compteRepriseDepreciation(
+        tenantId,
+        referentiel,
+        nature,
+        derniereDepreciation?.compteContrepartieId ?? null,
+      );
       lignesSortie.push({ compteId: compteDepreciationSortie, debit: cumulDepreciation, credit: 0 });
+      lignesSortie.push({ compteId: compteReprise.id, debit: 0, credit: cumulDepreciation });
     }
     if (valeurComptableNette > EPSILON) {
       const compteVNC = await this.compteDeSortie(tenantId, comptes.valeurComptable);

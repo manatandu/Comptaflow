@@ -7,6 +7,7 @@ import {
   TOTAUX_ACTIF,
   TOTAUX_PASSIF,
 } from './correspondance-projet-bilan';
+import { correspond } from './etats-financiers.communs';
 
 /**
  * Intégrité structurelle du tableau de correspondance du bilan « projets de
@@ -104,5 +105,50 @@ describe('correspondance bilan projet (SYCEBNL, Partie 4 ch. 3)', () => {
     const dw = POSTES_PASSIF.find((p) => p.ref === 'DW')!;
     expect(dw.comptes).toEqual(['56']);
     expect(COMPTES_TRESORERIE_PASSIF_SI_CREDITEUR).toEqual(['52', '53']);
+  });
+
+  // Le garde-fou d'actif ci-dessus compare des préfixes à l'IDENTIQUE : il
+  // n'aurait jamais vu '47' avaler '479'. Or c'est bien par recouvrement de
+  // préfixes que le poste DH mangeait l'écart de conversion du poste DY
+  // (anomalie n° 4, audit RE-176 du 2026-09-04). Ce test-ci raisonne donc
+  // avec le MÊME filtre que le service (`correspond`, § etats-financiers.
+  // communs.ts) et dans les deux sens : le préfixe de chaque poste est
+  // confronté à tous les autres postes du même côté du bilan.
+  it('aucun compte n’est réclamé par DEUX postes de PASSIF · comparaison par préfixes, pas à l’identique', () => {
+    const collisions: string[] = [];
+    for (const p of POSTES_PASSIF) {
+      for (const prefixe of p.comptes) {
+        for (const autre of POSTES_PASSIF) {
+          if (autre.ref === p.ref) continue;
+          if (correspond(prefixe, autre.comptes, autre.exclusions)) {
+            collisions.push(`${prefixe} (${p.ref}) capté aussi par ${autre.ref}`);
+          }
+        }
+      }
+    }
+    expect(collisions).toEqual([]);
+  });
+
+  it('DH exclut 478 ET 479 : DY porte seul l’écart de conversion-passif (anomalie n° 4)', () => {
+    const dh = POSTES_PASSIF.find((p) => p.ref === 'DH')!;
+    const dy = POSTES_PASSIF.find((p) => p.ref === 'DY')!;
+    expect(dh.exclusions).toEqual(['478', '479']);
+    expect(dy.comptes).toEqual(['479']);
+    // Le comportement réellement en jeu, avec un numéro de compte complet.
+    expect(correspond('47910000', dh.comptes, dh.exclusions)).toBe(false);
+    expect(correspond('47910000', dy.comptes, dy.exclusions)).toBe(true);
+    // 47 hors 478/479 reste bien dans DH : l'exclusion ne doit rien amputer
+    // d'autre (471 Débiteurs et créditeurs divers, Partie 2 ch. 3 COMPTE 47).
+    expect(correspond('47120000', dh.comptes, dh.exclusions)).toBe(true);
+  });
+
+  it('4998 n’est PAS exclu de DH · il n’est capté que par DE, l’exclusion du jeu associations serait morte ici', () => {
+    // Le jeu associations doit exclure 4998 de son poste « Autres dettes »
+    // parce que celui-ci liste '499' parmi ses préfixes ; DH n'en a pas.
+    const dh = POSTES_PASSIF.find((p) => p.ref === 'DH')!;
+    const de = POSTES_PASSIF.find((p) => p.ref === 'DE')!;
+    expect(dh.exclusions).not.toContain('4998');
+    expect(correspond('49980000', dh.comptes, dh.exclusions)).toBe(false);
+    expect(correspond('49980000', de.comptes, de.exclusions)).toBe(true);
   });
 });

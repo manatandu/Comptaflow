@@ -433,6 +433,47 @@ describe('EtatsFinanciersSyscohadaService', () => {
       expect(cr.controle.coherent).toBe(false);
     });
 
+    /**
+     * QUOTE-PART DE RÉSULTAT PARTAGÉ · AUDCIF Titre VIII ch. 33 section 7.2 :
+     * les deux postes supplémentaires sont « à la fin du niveau
+     * "Exploitation" ». De bout en bout, sur une vraie balance : ce que le
+     * texte protège, ce sont la valeur ajoutée et l'excédent brut, où le
+     * rattachement en bloc du 65 et du 75 (ch. 7) faisait entrer la
+     * quote-part sans que rien ne le signale. Le bilan, lui, doit continuer
+     * de boucler avec le compte de résultat · c'est la moitié du test.
+     */
+    it('sort la quote-part de résultat partagé de la valeur ajoutée et de l’EBE, sans rompre le bouclage (ch. 33)', async () => {
+      // Coparticipant NON GÉRANT : 1 000 de ventes encaissées, et le gérant
+      // lui impute 400 de perte (débit 6525 par crédit 463, ch. 33 § 6.3).
+      const service = serviceAvecBalance([
+        ligne('52110000', C5, 1000, 0),
+        ligne('70110000', C7, 0, 1000),
+        ligne('65250000', C6, 400, 0),
+        ligne('46310000', C4, 0, 400),
+      ]);
+
+      const cr = await service.compteDeResultat('t1', 'e1');
+      const montantDe = (ref: string) => cr.lignes.find((l) => l.ref === ref)!.montant;
+
+      expect(montantDe('RQP')).toBe(-400);
+      expect(montantDe('RJ')).toBe(0); // le 652 n'est plus absorbé par « Autres charges »
+      expect(cr.soldes.valeurAjoutee).toBe(1000);
+      expect(cr.soldes.excedentBrutExploitation).toBe(1000);
+      expect(cr.soldes.resultatExploitation).toBe(600);
+      expect(cr.soldes.resultatNet).toBe(600);
+      // Le compte est bien rattaché : aucun compte de gestion orphelin, et XI
+      // vaut le solde de toutes les classes de gestion.
+      expect(cr.comptesNonRattaches).toEqual([]);
+      expect(cr.controle.ecart).toBe(0);
+      expect(cr.controle.coherent).toBe(true);
+
+      // Et le bilan répond : CJ porte le même résultat, actif = passif.
+      const bilan = await service.bilan('t1', 'e1');
+      expect([...bilan.actif, ...bilan.passif].find((p) => p.ref === 'CJ')?.montant).toBe(600);
+      expect(bilan.totalActif).toBe(1000);
+      expect(bilan.totalPassif).toBe(1000);
+    });
+
     it('rend la colonne N-1 seulement quand l’exercice antérieur existe', async () => {
       const avecN1 = await serviceDeReference().compteDeResultat('t1', 'e2');
       expect(avecN1.exerciceN1Disponible).toBe(true);

@@ -1387,29 +1387,40 @@ describe('note 33 · la fiche de synthèse résume les trois états, elle ne les
     Un dossier lisible à l'œil nu, choisi pour que chaque agrégat de la note
     tombe rond et que la ligne CONTRÔLE puisse être vérifiée à la main.
 
-      ACTIF        immobilisé AZ 600 · circulant BT 300 (dont HAO BA 50,
-                   créances BC+BD+BE 250) · trésorerie BX 200   = 1 100
-      PASSIF       ressources propres CZ 700 · dettes fin. DD 100 ·
-                   circulant DV 250 (dont HAO DF 40) · trésorerie DX 50 = 1 100
+    LES POSTES SONT EN FRANCS, LA NOTE EN MILLIERS. Le bilan, le compte de
+    résultat et le tableau de flux n'ont aucune échelle de présentation dans
+    le texte : ils sortent en unités. La note 33, elle, porte en tête « (EN
+    MILLIERS DE FRANCS) » (Partie 4, ch. 2, NOTE 33) · c'est la seule du
+    chapitre. Le facteur mille entre les deux colonnes ci-dessous n'est donc
+    pas un ornement du test : c'est la conversion elle-même, et si elle
+    disparaissait, les attentes en francs ci-dessous tomberaient d'un coup.
 
-      Ressources stables = 700 + 100 = 800
-      Fonds de roulement = 800 - 600 = 200
-      BF exploitation    = (300 - 50) - (250 - 40) = 250 - 210 = 40
-      BF H.A.O.          = 50 - 40 = 10
-      BF global          = 50
-      Trésorerie nette   = 200 - 50 = 150
-      CONTRÔLE           = 200 - 50 = 150   (les deux concordent)
+      ACTIF        immobilisé AZ 600 000 · circulant BT 300 000 (dont HAO
+                   BA 50 000, créances BC+BD+BE 250 000) ·
+                   trésorerie BX 200 000                        = 1 100 000
+      PASSIF       ressources propres CZ 700 000 · dettes fin. DD 100 000 ·
+                   circulant DV 250 000 (dont HAO DF 40 000) ·
+                   trésorerie DX 50 000                         = 1 100 000
+
+      Ressources stables = 700 + 100 = 800 milliers
+      Fonds de roulement = 800 - 600 = 200 milliers
+      BF exploitation    = (300 - 50) - (250 - 40) = 250 - 210 = 40 milliers
+      BF H.A.O.          = 50 - 40 = 10 milliers
+      BF global          = 50 milliers
+      Trésorerie nette   = 200 - 50 = 150 milliers
+      CONTRÔLE           = 200 - 50 = 150 milliers  (les deux concordent)
   */
   const DOSSIER = {
-    AZ: { montant: 600 }, BT: { montant: 300 }, BA: { montant: 50 },
-    BC: { montant: 100 }, BD: { montant: 100 }, BE: { montant: 50 },
-    BX: { montant: 200 },
-    CZ: { montant: 700 }, DD: { montant: 100 }, DV: { montant: 250 }, DF: { montant: 40 },
-    DX: { montant: 50 },
-    XC: { montant: 120 }, XD: { montant: -20 }, XE: { montant: 100 },
-    XB: { montant: 400 }, RA: { montant: 80 },
-    TL: { montant: 60 }, RH: { montant: 10 },
-    ZB: { montant: 90 }, ZC: { montant: -40 }, ZD: { montant: 30 }, ZE: { montant: 20 }, ZF: { montant: 100 },
+    AZ: { montant: 600_000 }, BT: { montant: 300_000 }, BA: { montant: 50_000 },
+    BC: { montant: 100_000 }, BD: { montant: 100_000 }, BE: { montant: 50_000 },
+    BX: { montant: 200_000 },
+    CZ: { montant: 700_000 }, DD: { montant: 100_000 }, DV: { montant: 250_000 }, DF: { montant: 40_000 },
+    DX: { montant: 50_000 },
+    XC: { montant: 120_000 }, XD: { montant: -20_000 }, XE: { montant: 100_000 },
+    XB: { montant: 400_000 }, RA: { montant: 80_000 },
+    TL: { montant: 60_000 }, RH: { montant: 10_000 },
+    ZB: { montant: 90_000 }, ZC: { montant: -40_000 }, ZD: { montant: 30_000 }, ZE: { montant: 20_000 },
+    ZF: { montant: 100_000 },
   };
   const valeurs = (n: any) => new Map(n.lignes.map((l: any) => [l.cle, l.saisie]));
 
@@ -1441,12 +1452,13 @@ describe('note 33 · la fiche de synthèse résume les trois états, elle ne les
 
   it('applique le renvoi (a) pour la CAFG, cessions d’immobilisations comprises', async () => {
     // CAFG = résultat net + dotations - reprises + valeur comptable des
-    // cessions - produits des cessions = 100 + 60 - 10 + 35 - 50 = 135.
+    // cessions - produits des cessions, en francs :
+    // 100 000 + 60 000 - 10 000 + 35 000 - 50 000 = 135 000, soit 135 milliers.
     // Les comptes 81 et 82 ne sont pas des postes : le compte de résultat les
     // fond dans TN et TM avec le reste du H.A.O., d'où leur lecture directe.
     const lignes81et82 = [
-      ligne('81100000', ClasseCompte.CLASSE_8, 35, 0),
-      ligne('82100000', ClasseCompte.CLASSE_8, 0, 50),
+      ligne('81100000', ClasseCompte.CLASSE_8, 35_000, 0),
+      ligne('82100000', ClasseCompte.CLASSE_8, 0, 50_000),
     ];
     const s = service({ e1: lignes81et82 }, [], prismaAvec(), undefined, etatsAvec(DOSSIER));
     const n = note(await s.notesAssociations('t', 'e1'), '33');
@@ -1456,11 +1468,12 @@ describe('note 33 · la fiche de synthèse résume les trois états, elle ne les
   it('rend les ratios en POURCENTAGE et leur variation en POINTS, jamais en pourcentage de pourcentage', async () => {
     // Renvoi (b) : « Les variations des ratios doivent être exprimées en
     // nombre de points (par exemple de 2% à 5% = 3 points). »
-    // Cotisations 80 / charges 400 = 20 % en N ; 50 / 500 = 10 % en N-1.
+    // Cotisations 80 000 / charges 400 000 = 20 % en N ;
+    // 50 000 / 500 000 = 10 % en N-1.
     const avecN1 = {
       ...DOSSIER,
-      RA: { montant: 80, montantN1: 50 },
-      XB: { montant: 400, montantN1: 500 },
+      RA: { montant: 80_000, montantN1: 50_000 },
+      XB: { montant: 400_000, montantN1: 500_000 },
     };
     const s = service({ e1: [], e0: [] }, [
       { id: 'e1', dateDebut: new Date('2026-01-01') },
@@ -1483,6 +1496,38 @@ describe('note 33 · la fiche de synthèse résume les trois états, elle ne les
     const v = valeurs(note(await s.notesAssociations('t', 'e1'), '33')) as Map<string, any[]>;
     expect(v.get('ratio-de-cotisations-acquises-cotisations-charge')![0]).toBeNull();
     expect(v.get('ratio-de-liquidite-generale-creances-tresorerie')![0]).toBeNull();
+  });
+
+  it('l’en-tête « (EN MILLIERS DE FRANCS) » et les montants disent la MÊME unité', async () => {
+    // LE DÉFAUT QUI NE LÈVE RIEN. La maquette de la note 33 est la seule du
+    // chapitre à porter une échelle de présentation (Partie 4, ch. 2, NOTE 33 :
+    // FICHE DE SYNTHESE DES PRINCIPAUX INDICATEURS FINANCIERS · « (EN MILLIERS
+    // DE FRANCS) »), et cette mention est transcrite telle quelle dans le
+    // `renvoiOfficiel`, imprimée à l'écran comme au classeur Excel. Servir les
+    // agrégats en unités sous cet en-tête ne faussait AUCUN calcul : ni un
+    // total, ni la ligne CONTRÔLE, ni le recoupement avec les trois états ne
+    // pouvaient le révéler. Cela publiait seulement chaque montant de la fiche
+    // mille fois trop grand pour qui lit l'unité annoncée.
+    const s = service({ e1: [] }, [], prismaAvec(), undefined, etatsAvec(DOSSIER));
+    const n = note(await s.notesAssociations('t', 'e1'), '33');
+    expect(String(n.renvoiOfficiel).startsWith('(EN MILLIERS DE FRANCS)')).toBe(true);
+
+    const v = valeurs(n) as Map<string, any[]>;
+    // Le poste XE « Résultat net » vaut 100 000 francs au compte de résultat ·
+    // la note en dit 100, la même somme dans l'unité qu'elle annonce.
+    expect(DOSSIER.XE.montant).toBe(100_000);
+    expect(v.get('resultat-net')![0]).toBe(DOSSIER.XE.montant / 1000);
+    expect(v.get('actif-immobilise')![0]).toBe(DOSSIER.AZ.montant / 1000);
+    expect(v.get('flux-de-tresorerie-des-activites-operationnelles')![0]).toBe(DOSSIER.ZB.montant / 1000);
+
+    // Un RATIO n'a pas de dimension : lui appliquer l'échelle le rendrait faux.
+    // Cotisations RA 80 000 / charges XB 400 000 = 20 %, en milliers comme en
+    // unités · le renvoi (b), qui veut leurs variations « en nombre de points »,
+    // suppose justement que le ratio reste un pourcentage.
+    expect(v.get('ratio-de-cotisations-acquises-cotisations-charge')![0]).toBeCloseTo(20, 6);
+    // Créances (BC + BD + BE = 250 000) + trésorerie-actif (BX 200 000) sur
+    // passif circulant (DV 250 000) = 180 %.
+    expect(v.get('ratio-de-liquidite-generale-creances-tresorerie')![0]).toBeCloseTo(180, 6);
   });
 
   it('LAISSE en saisie le seul ratio que le texte ne rattache à aucun compte', async () => {

@@ -1,9 +1,15 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, Referentiel, StatutEcriture, StatutExercice } from '@prisma/client';
+import {
+  FormeJuridiqueSyscohada,
+  Prisma,
+  Referentiel,
+  StatutEcriture,
+  StatutExercice,
+} from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { EnregistrerAffectationDto } from './dto/affectation.dto';
-import { REGLES, dotationReserveLegale } from './regles-affectation';
+import { REGLES, dotationReserveLegale, racineCapital } from './regles-affectation';
 
 const EPSILON = 0.005;
 
@@ -50,12 +56,13 @@ export class AffectationService {
    * référentiel autorise, et la dotation à la réserve légale que la loi impose.
    */
   async preparer(tenantId: string, exerciceId: string) {
-    const { exercice, referentiel } = await this.contexte(tenantId, exerciceId);
+    const { exercice, referentiel, forme } = await this.contexte(tenantId, exerciceId);
     const regles = REGLES[referentiel];
-    const soldes = await this.soldesDuBilan(tenantId, exerciceId);
+    const soldes = await this.soldesDuBilan(tenantId, exerciceId, referentiel, forme);
 
     const reserveLegale = dotationReserveLegale({
       referentiel,
+      forme,
       benefice: soldes.estBenefice ? soldes.montant : 0,
       pertesAnterieures: soldes.pertesAnterieures,
       reserveExistante: soldes.reserveLegale,
@@ -84,6 +91,12 @@ export class AffectationService {
     return {
       exercice: { id: exercice.id, dateDebut: exercice.dateDebut, dateFin: exercice.dateFin },
       referentiel,
+      // La forme juridique et la racine où SON capital a été lu · servies à
+      // l'écran, parce qu'un capital affiché sans dire d'où il vient se prend
+      // pour le 101 de tout le monde, et que c'est précisément l'erreur qui a
+      // fait réclamer sans fin une dotation à une entreprise individuelle.
+      formeJuridiqueSyscohada: forme,
+      capitalRacine: soldes.capitalRacine,
       montant: soldes.montant,
       estBenefice: soldes.estBenefice,
       pertesAnterieures: soldes.pertesAnterieures,
@@ -114,7 +127,7 @@ export class AffectationService {
    * plein, ce qui est exactement le défaut de départ.
    */
   async enregistrer(tenantId: string, createdBy: string, dto: EnregistrerAffectationDto) {
-    const { exercice, referentiel } = await this.contexte(tenantId, dto.exerciceId);
+    const { exercice, referentiel, forme } = await this.contexte(tenantId, dto.exerciceId);
     const regles = REGLES[referentiel];
 
     const dejaFaite = await this.prisma.affectationResultat.findUnique({
@@ -127,7 +140,7 @@ export class AffectationService {
       );
     }
 
-    const soldes = await this.soldesDuBilan(tenantId, dto.exerciceId);
+    const soldes = await this.soldesDuBilan(tenantId, dto.exerciceId, referentiel, forme);
     if (soldes.montant < EPSILON) {
       throw new BadRequestException(
         "Cet exercice ne dégage aucun résultat à affecter : le compte 13 n'a pas bougé.",
@@ -197,6 +210,7 @@ export class AffectationService {
     if (soldes.estBenefice && regles.reserveLegale) {
       const exigee = dotationReserveLegale({
         referentiel,
+        forme,
         benefice: soldes.montant,
         pertesAnterieures: soldes.pertesAnterieures,
         reserveExistante: soldes.reserveLegale,
@@ -321,19 +335,37 @@ export class AffectationService {
         "Le résultat ne s'affecte qu'après la clôture de l'exercice : c'est elle qui le porte au compte 13.",
       );
     }
+    // LA FORME JURIDIQUE SE LIT ICI, ET PAS SEULEMENT LE RÉFÉRENTIEL. Le
+    // référentiel commande le PLAN DE COMPTES ; la réserve légale, elle, est
+    // une règle du droit des sociétés, que l'AUSCGIE n'impose qu'à la SARL
+    // (art. 346) et à la SA (art. 546, 2°). Ne lire que le référentiel
+    // revenait à l'imposer aux douze formes · voir regles-affectation.ts.
     const tenant = await this.prisma.tenant.findUniqueOrThrow({
       where: { id: tenantId },
-      select: { referentiel: true },
+      select: { referentiel: true, formeJuridiqueSyscohada: true },
     });
-    return { exercice, referentiel: tenant.referentiel as Referentiel };
+    return {
+      exercice,
+      referentiel: tenant.referentiel as Referentiel,
+      // `null` a deux sens (sans objet en SYCEBNL, non renseignée en
+      // SYSCOHADA) et les deux conduisent à ne rien exiger : aucune forme n'est
+      // présumée, la forme se lit dans les statuts.
+      forme: (tenant.formeJuridiqueSyscohada ?? null) as FormeJuridiqueSyscohada | null,
+    };
   }
 
   /**
    * Les quatre chiffres dont l'affectation a besoin, lus dans la balance de
    * l'exercice clos · résultat PROPRE de l'exercice (mouvement du 13, pas son
-   * solde), pertes antérieures, réserve légale déjà constituée, capital social.
+   * solde), pertes antérieures, réserve légale déjà constituée, et CAPITAL, lu
+   * sur la racine que la forme juridique commande (voir `racineCapital`).
    */
-  private async soldesDuBilan(tenantId: string, exerciceId: string) {
+  private async soldesDuBilan(
+    tenantId: string,
+    exerciceId: string,
+    referentiel: Referentiel,
+    forme: FormeJuridiqueSyscohada | null,
+  ) {
     // Brouillard exclu : un exercice clôturé n'a plus d'écriture en attente, et
     // une affectation se décide sur des comptes arrêtés.
     const balance = await this.ecritureService.balance(tenantId, exerciceId, false);
@@ -343,6 +375,8 @@ export class AffectationService {
     const mouvement = (racine: string) =>
       parRacine(racine).reduce((s, l) => s + l.mouvementDebit - l.mouvementCredit, 0);
     const solde = (racine: string) => parRacine(racine).reduce((s, l) => s + l.solde, 0);
+
+    const racine = racineCapital(referentiel, forme);
 
     // 131 bénéfice (créditeur) · 139 perte (débiteur). Les deux numéros sont les
     // mêmes dans les deux plans, seuls les intitulés diffèrent.
@@ -356,7 +390,14 @@ export class AffectationService {
       // Report à nouveau DÉBITEUR · les pertes antérieures de l'AUSCGIE.
       pertesAnterieures: Math.max(0, Math.round(solde('12') * 100) / 100),
       reserveLegale: Math.max(0, Math.round(-solde('111') * 100) / 100),
-      capitalSocial: Math.max(0, Math.round(-solde('101') * 100) / 100),
+      // LE CAPITAL SE LIT LÀ OÙ LA FORME LE PORTE · 101 Capital social pour
+      // les sociétés, 102 Capital par dotation pour une entité publique, 103
+      // Capital personnel pour une entité individuelle (AUDCIF, Titre VII,
+      // COMPTE 101, 102 et 103). Le lire au seul 101 donnait un capital NUL à
+      // une entreprise individuelle : le plafond du cinquième n'était alors
+      // jamais atteint et la dotation était réclamée indéfiniment.
+      capitalRacine: racine,
+      capitalSocial: racine ? Math.max(0, Math.round(-solde(racine) * 100) / 100) : 0,
     };
   }
 

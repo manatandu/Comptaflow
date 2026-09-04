@@ -729,6 +729,12 @@ export const NOTES_PROJETS: SpecificationNote[] = [
     rubriques: [
       // 651 est subdivisé au plan : 6511 clients-usagers, 6515 autres
       // débiteurs (pas de 6512 « adhérents » utile ici, ce jeu n'en a pas).
+      //
+      // MÊME ÉCART QU'AU JEU ASSOCIATIONS · le semis n'ouvre que 65100000, et
+      // son solde, pris en TI au compte de résultat, ne tombe dans aucune de
+      // ces deux lignes. Le manque est au PLAN (`compte-seed.ts`), pas à la
+      // transcription : les rabattre sur '651' inventerait une ventilation.
+      // Gelé par `rattachement-des-notes-au-semis.spec.ts`.
       { libelle: 'Pertes sur créances', comptes: ['6511'] },
       { libelle: 'Pertes sur autres débiteurs', comptes: ['6515'] },
       { libelle: 'Perte de change sur créances', comptes: ['676'] },
@@ -753,6 +759,9 @@ export const NOTES_PROJETS: SpecificationNote[] = [
       { libelle: 'Rémunérations directes versées au personnel national', comptes: ['661'] },
       { libelle: 'Rémunérations directes versées au personnel non national', comptes: ['662'] },
       { libelle: 'Indemnités forfaitaires versées au personnel', comptes: ['663'] },
+      // 664 subdivisé au plan en 6641 national / 6642 non national · le semis
+      // n'ouvre que 66400000 « Charges sociales », dont le solde est pris en TJ
+      // et perdu ici. Défaut de plan, pas de transcription (voir note 19).
       { libelle: 'Charges sociales (personnel national)', comptes: ['6641'] },
       { libelle: 'Charges sociales (personnel non national)', comptes: ['6642'] },
       { libelle: 'Rémunération transférée de personnel extérieur', comptes: ['667'] },

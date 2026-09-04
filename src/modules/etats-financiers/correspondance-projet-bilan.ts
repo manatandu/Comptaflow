@@ -69,6 +69,47 @@
  *    texte affecte les soldes 52/53 CRÉDITEURS à DW ; si BW les capte aussi
  *    (en négatif), le découvert est compté des deux côtés et le bilan ne
  *    boucle plus. Voir `comptesTransferesSiCrediteur`.
+ * 4. **DH / DY · double comptage de l'écart de conversion-Passif (479)** :
+ *    même nature que le n° 3 · pas une anomalie du texte, un piège
+ *    d'implémentation, mais celui-ci naît d'une omission du tableau. Le
+ *    texte projet écrit « DH | Autres dettes | 419, Soldes créditeurs : 42,
+ *    43, 44, 47 (sauf 478) » (l. 557) et, quatre lignes plus bas, « DY |
+ *    Ecart de conversion-Passif | 479 » (l. 562). Il ne retranche de DH que
+ *    478 · l'écart de conversion ACTIF, qui a son propre poste BY · et se
+ *    tait sur 479, que DY réclame pourtant pour lui seul. Lu au pied de la
+ *    lettre, le préfixe « 47 » de DH avale 479 (479 commence par 47 et non
+ *    par 478) et le gain latent de change est porté DEUX fois au passif :
+ *    une fois dans DJ (TOTAL PASSIF CIRCULANT, qui somme DE à DI) et une
+ *    fois dans DY, les deux entrant dans DZ (TOTAL GENERAL = DD + DJ + DX +
+ *    DY). Le passif est gonflé du double de l'écart de conversion.
+ *
+ *    Que le carve-out manque ici et pas ailleurs est une lacune de
+ *    rédaction, pas une règle différente : le tableau ASSOCIATIONS du
+ *    chapitre voisin, écrit par les mêmes rédacteurs et pour le même poste
+ *    « Autres dettes », l'écrit noir sur blanc · « DI | Autres dettes | 42,
+ *    43, 44, 45, 47 (sauf 479), 499 (sauf 4998), 599 »
+ *    (`partie4-ch2-etats-associations.md`, l. 855). L'exclusion de 479 est
+ *    donc ajoutée à DH · elle n'ajoute aucun compte, elle en retire un que
+ *    DY porte déjà. Corrigé le 2026-09-04 (audit, RE-176).
+ *
+ *    En revanche 4998 n'est PAS exclu ici, bien que le jeu associations
+ *    l'exclue : là-bas, le poste DI liste « 499 » parmi ses préfixes et
+ *    devait donc en retrancher 4998 (que DF réclame) ; DH n'a pas de
+ *    préfixe « 499 » · le texte projet ne lui en donne pas · et 4998 n'est
+ *    capté que par DE (« Dettes circulantes HAO | 481, 484, 4998 »,
+ *    l. 554). Recopier l'exclusion serait une exclusion morte, et laisserait
+ *    croire à un chevauchement qui n'existe pas.
+ *
+ *    Reste hors de cette correction, faute de fondement dans le texte : un
+ *    479 de solde DÉBITEUR serait capté à la fois par BE (« Soldes
+ *    débiteurs : 42, 43, 44, 47 (sauf 478) », l. 533) et par DY, qui ne
+ *    qualifie aucun sens. Les DEUX tableaux officiels · projet (l. 533) et
+ *    associations (l. 818) · n'excluent que 478 du poste actif « Autres
+ *    créances », et jamais 479 : le carve-out de 479 n'est écrit qu'au
+ *    passif. Un 479 débiteur est de toute façon une anomalie en soi (le
+ *    compte n'enregistre que des gains latents de change, Partie 2 ch. 3,
+ *    COMPTE 47). Signalé, pas corrigé en silence dans un sens que le texte
+ *    n'écrit pas.
  *
  * ## Ce qui n'est PAS une anomalie (contrairement au jeu associations)
  *
@@ -181,7 +222,17 @@ export const POSTES_PASSIF: PosteBilanProjetDeBase[] = [
     libelle: 'Autres dettes',
     sens: 'PASSIF',
     comptes: ['419', '42', '43', '44', '47'],
-    exclusions: ['478'],
+    // Le texte projet n'écrit que « (sauf 478) » · voir anomalie n° 4 en tête
+    // de fichier. 479 est retranché en plus parce que le poste DY « Ecart de
+    // conversion-Passif | 479 » du MÊME tableau le reprend pour lui seul, et
+    // que DJ (qui somme DH) comme DY entrent tous deux dans DZ. Sans cette
+    // exclusion, '47' capte 479 et l'écart de conversion compte deux fois au
+    // passif. Fondement : le tableau associations écrit explicitement
+    // « 47 (sauf 479) » pour son poste « Autres dettes »
+    // (partie4-ch2-etats-associations.md, l. 855). 4998 n'est PAS exclu ici,
+    // contrairement à ce jeu-là : DH n'a pas de préfixe '499', 4998 n'est
+    // capté que par DE · l'exclusion serait morte.
+    exclusions: ['478', '479'],
     sens_qualificatif: 'CREDITEUR', // « Soldes créditeurs : » au texte officiel
   },
   // Anomalie n° 1 (voir en-tête) : le texte dit « 20 », un compte d'ACTIF.

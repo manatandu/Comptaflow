@@ -747,6 +747,15 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
       // 651 est subdivisé au plan : 6511 clients-usagers, 6512 adhérents,
       // 6515 autres débiteurs. Les deux rubriques du modèle s'y rattachent
       // donc sans jugement.
+      //
+      // MAIS LE SEMIS N'OUVRE PAS CES SOUS-COMPTES · `compte-seed.ts` s'arrête
+      // à 65100000 « Pertes sur créances adhérents/clients-usagers et autres
+      // débiteurs ». Un solde porté là n'alimente donc AUCUNE des deux lignes,
+      // alors que le compte de résultat le prend en TI (comptes ['65']) d'où
+      // cette note est renvoyée. Le défaut est au PLAN, pas ici : rabattre ces
+      // deux rubriques sur '651' rangerait d'office des pertes indifférenciées
+      // chez les adhérents ou chez les clients, ce que ni la maquette ni le
+      // plan ne disent. Gelé par `rattachement-des-notes-au-semis.spec.ts`.
       { libelle: 'Pertes sur créances adhérents', comptes: ['6512'] },
       { libelle: 'Pertes sur Clients et autres débiteurs', comptes: ['6511', '6515'] },
       { libelle: "Subventions versées par l'entité", comptes: ['652'] },
@@ -773,7 +782,12 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
       { libelle: 'Rémunérations directes versées au personnel national', comptes: ['661'] },
       { libelle: 'Rémunérations directes versées au personnel non national', comptes: ['662'] },
       { libelle: 'Indemnités forfaitaires versées au personnel', comptes: ['663'] },
-      // 664 est subdivisé au plan : 6641 national, 6642 non national.
+      // 664 est subdivisé au plan : 6641 national, 6642 non national. Même
+      // situation qu'à la note 28 · le semis n'ouvre que 66400000 « Charges
+      // sociales », dont le solde est pris en TJ (comptes ['66']) au compte de
+      // résultat et perdu par ces deux lignes. Ranger d'office un montant
+      // indifférencié chez le personnel national serait une invention : le
+      // texte ne le dit nulle part. Voir `rattachement-des-notes-au-semis.spec.ts`.
       { libelle: 'Charges sociales (personnel national)', comptes: ['6641'] },
       { libelle: 'Charges sociales (personnel non national)', comptes: ['6642'] },
       { libelle: 'Habillement et équipement du personnel', comptes: ['665'] },
@@ -1843,6 +1857,13 @@ export const NOTES_ASSOCIATIONS: SpecificationNote[] = [
       { cle: 'flux-de-tresorerie-des-activites-de-financement', libelle: 'Flux de trésorerie des activités de financement', saisie: true },
       { cle: 'variation-de-la-tresorerie-nette-de-la-periode', libelle: '= VARIATION DE LA TRESORERIE NETTE DE LA PERIODE', saisie: true },
     ],
+    // L'en-tête « (EN MILLIERS DE FRANCS) » est une TRANSCRIPTION du texte
+    // (Partie 4, ch. 2, NOTE 33) : ne pas la retoucher. C'est la seule échelle
+    // de présentation de tout le chapitre, et elle est OPPOSABLE · les
+    // montants qui remplissent la note sont donc convertis en milliers par
+    // `indicateurs-note-33.ts`, qui porte la justification du choix. Les deux
+    // vont ensemble : modifier l'un sans l'autre republierait une fiche dont
+    // l'unité annoncée et les montants se contredisent d'un facteur mille.
     renvoiOfficiel:
       "(EN MILLIERS DE FRANCS) · a) capacité d'autofinancement globale = Résultat net + Dotations aux " +
       'amortissements aux dépréciations, provisions et autres - Reprises d’amortissements, de dépréciations ' +

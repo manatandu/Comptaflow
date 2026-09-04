@@ -1,4 +1,4 @@
-import { Referentiel } from '@prisma/client';
+import { FormeJuridiqueSyscohada, Referentiel } from '@prisma/client';
 import { AffectationService } from './affectation.service';
 import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
@@ -45,10 +45,19 @@ const COMPTES = [
   { id: 'c10', numero: '10110000', intitule: 'Dotation', typeCompte: 'DETAIL' },
   { id: 'c12', numero: '12', intitule: 'Report à nouveau', typeCompte: 'TOTAL' },
   { id: 'c60', numero: '60100000', intitule: 'Achats', typeCompte: 'DETAIL' },
+  { id: 'c103', numero: '10300000', intitule: 'Capital personnel', typeCompte: 'DETAIL' },
 ];
 
 interface Options {
   referentiel?: Referentiel;
+  /**
+   * Forme juridique du dossier · `null` pour « non renseignée ». Par défaut la
+   * SARL, seule forme (avec la SA) que l'AUSCGIE astreint à la réserve légale :
+   * les cas historiques de ce fichier ont été écrits sous cette hypothèse, il
+   * fallait la rendre explicite plutôt que de la laisser dans l'ombre du
+   * référentiel.
+   */
+  forme?: FormeJuridiqueSyscohada | null;
   balance?: LigneBalance[];
   statutExercice?: 'OUVERT' | 'CLOTURE';
   suivant?: { id: string; statut: string; dateDebut: Date; dateFin: Date } | null;
@@ -77,7 +86,11 @@ function service(o: Options = {}) {
       ),
     },
     tenant: {
-      findUniqueOrThrow: jest.fn().mockResolvedValue({ referentiel: o.referentiel ?? Referentiel.SYSCOHADA }),
+      findUniqueOrThrow: jest.fn().mockResolvedValue({
+        referentiel: o.referentiel ?? Referentiel.SYSCOHADA,
+        formeJuridiqueSyscohada:
+          o.forme === undefined ? FormeJuridiqueSyscohada.SOCIETE_RESPONSABILITE_LIMITEE : o.forme,
+      }),
     },
     compte: {
       findMany: jest.fn().mockImplementation(({ where }: { where: { id?: { in: string[] } } }) =>
@@ -351,6 +364,144 @@ describe('Affectation · la réserve légale bloque, elle n’avertit pas', () =
       lignes: [{ compteId: 'c129', montant: 400_000 }],
     });
     expect(creerEcriture).toHaveBeenCalled();
+  });
+});
+
+/**
+ * LA FORME JURIDIQUE COMMANDE LE CONTRÔLE, PAS LE SEUL RÉFÉRENTIEL.
+ *
+ * Le module indexait ses règles sur le seul référentiel : tout dossier
+ * SYSCOHADA se voyait réclamer la dotation d'un dixième au compte 111, à peine
+ * de nullité, et l'affectation était REFUSÉE sans elle. Or l'AUSCGIE ne
+ * l'impose qu'à la SARL (art. 346) et à la SA (art. 546, 2°).
+ *
+ * Ces cas ne cassaient pas « bruyamment » : le dossier partait en erreur 400 à
+ * l'enregistrement, l'utilisateur dotait pour s'en sortir, et la coopérative,
+ * le GIE ou l'entreprise individuelle se retrouvaient avec au bilan une
+ * « réserve légale » qu'aucun texte ne leur impose · un poste faux, sur un
+ * document opposable, obtenu sans qu'aucune écriture ne se déséquilibre.
+ */
+describe('Affectation · la réserve légale ne frappe que les formes que le texte vise', () => {
+  const avecCapital = (montant: number, capital: number, racine = '10110000') =>
+    benefice(montant, [
+      { numero: racine, mouvementDebit: 0, mouvementCredit: 0, solde: -capital },
+      { numero: '11100000', mouvementDebit: 0, mouvementCredit: 0, solde: 0 },
+    ]);
+
+  it('laisse passer l’affectation d’un GIE, qui peut n’avoir aucun capital', async () => {
+    // AUSCGIE art. 869 al. 3 « Il peut être constitué sans capital » et art. 870
+    // « ne donne pas lieu par lui-même à réalisation et à partage des
+    // bénéfices ». Capital nul : l'ancien calcul sautait le plafond du
+    // cinquième et exigeait le dixième PLEIN, indéfiniment. Le dossier ne
+    // pouvait plus affecter, donc plus solder son compte 13.
+    const { svc, creerEcriture } = service({
+      forme: FormeJuridiqueSyscohada.GROUPEMENT_INTERET_ECONOMIQUE,
+      balance: benefice(1_000_000),
+    });
+    await svc.enregistrer('t1', 'u1', {
+      ...DECISION,
+      exerciceId: 'ex2026',
+      lignes: [{ compteId: 'c121', montant: 1_000_000 }],
+    });
+    expect(creerEcriture).toHaveBeenCalledTimes(1);
+  });
+
+  it('laisse passer l’affectation d’une société coopérative', async () => {
+    // AUSCOOP art. 1 al. 3 : la coopérative relève de l'AUSCOOP « nonobstant
+    // les dispositions des articles 1er et 6 » de l'AUSCGIE. Sa cascade est
+    // propre (art. 114, vingt pour cent, plafonnée au capital des statuts) et
+    // le logiciel ne la contrôle pas · il ne peut donc pas bloquer au nom d'un
+    // texte qui ne s'applique pas.
+    const { svc, creerEcriture } = service({
+      forme: FormeJuridiqueSyscohada.SOCIETE_COOPERATIVE,
+      balance: avecCapital(1_000_000, 10_000_000),
+    });
+    await svc.enregistrer('t1', 'u1', {
+      ...DECISION,
+      exerciceId: 'ex2026',
+      lignes: [{ compteId: 'c121', montant: 1_000_000 }],
+    });
+    expect(creerEcriture).toHaveBeenCalledTimes(1);
+  });
+
+  it('laisse passer l’affectation quand la forme n’est pas renseignée', async () => {
+    // `formeJuridiqueSyscohada` n'a AUCUNE valeur par défaut au schéma : la
+    // forme se lit dans les statuts. Présumer une SARL pour bloquer serait
+    // inventer la règle applicable au dossier.
+    const { svc, creerEcriture } = service({ forme: null, balance: benefice(1_000_000) });
+    await svc.enregistrer('t1', 'u1', {
+      ...DECISION,
+      exerciceId: 'ex2026',
+      lignes: [{ compteId: 'c121', montant: 1_000_000 }],
+    });
+    expect(creerEcriture).toHaveBeenCalledTimes(1);
+  });
+
+  it('continue de REFUSER une SARL sous-dotée · la règle n’est pas désarmée', async () => {
+    const { svc } = service({
+      forme: FormeJuridiqueSyscohada.SOCIETE_RESPONSABILITE_LIMITEE,
+      balance: avecCapital(1_000_000, 10_000_000),
+    });
+    await expect(
+      svc.enregistrer('t1', 'u1', {
+        ...DECISION,
+        exerciceId: 'ex2026',
+        lignes: [{ compteId: 'c121', montant: 1_000_000 }],
+      }),
+    ).rejects.toThrow(/au moins 100000.00/);
+  });
+
+  it('sert à chaque forme SON article, jamais celui de la voisine', async () => {
+    const sarl = await service({
+      forme: FormeJuridiqueSyscohada.SOCIETE_RESPONSABILITE_LIMITEE,
+      balance: avecCapital(1_000_000, 10_000_000),
+    }).svc.preparer('t1', 'ex2026');
+    expect(sarl.reserveLegale.motif).toContain('art. 346');
+    expect(sarl.reserveLegale.motif).not.toContain('546');
+
+    const sa = await service({
+      forme: FormeJuridiqueSyscohada.SOCIETE_ANONYME,
+      balance: avecCapital(1_000_000, 10_000_000),
+    }).svc.preparer('t1', 'ex2026');
+    expect(sa.reserveLegale.motif).toContain('art. 546, 2°');
+
+    const gie = await service({
+      forme: FormeJuridiqueSyscohada.GROUPEMENT_INTERET_ECONOMIQUE,
+      balance: benefice(1_000_000),
+    }).svc.preparer('t1', 'ex2026');
+    expect(gie.reserveLegale.dotation).toBeNull();
+    expect(gie.reserveLegale.motif).toContain('art. 869');
+  });
+
+  it('lit le capital d’une entreprise individuelle au 103, pas au 101', async () => {
+    // AUDCIF, COMPTE 103 « Capital personnel » · le 101 est le capital SOCIAL.
+    // Lu au seul 101, le capital d'une entité individuelle valait zéro : le
+    // plafond du cinquième n'était jamais atteint, et rien dans les états ne
+    // trahissait l'erreur · le bilan reste équilibré avec un capital au 103.
+    const { svc } = service({
+      forme: FormeJuridiqueSyscohada.ENTREPRISE_INDIVIDUELLE,
+      balance: avecCapital(1_000_000, 4_000_000, '10300000'),
+    });
+    const p = await svc.preparer('t1', 'ex2026');
+    expect(p.capitalRacine).toBe('103');
+    expect(p.capitalSocial).toBe(4_000_000);
+    expect(p.reserveLegale.dotation).toBeNull();
+  });
+
+  it('ne lit aucun capital social à une entité à but non lucratif', async () => {
+    // Le compte 10 du SYCEBNL est une DOTATION, pas un capital social · le
+    // servir sous ce nom ferait passer pour un capital une donnée qui n'en est
+    // pas une.
+    const { svc } = service({
+      referentiel: Referentiel.SYCEBNL,
+      forme: null,
+      balance: benefice(1_000_000, [
+        { numero: '10110000', mouvementDebit: 0, mouvementCredit: 0, solde: -8_000_000 },
+      ]),
+    });
+    const p = await svc.preparer('t1', 'ex2026');
+    expect(p.capitalRacine).toBeNull();
+    expect(p.capitalSocial).toBe(0);
   });
 });
 

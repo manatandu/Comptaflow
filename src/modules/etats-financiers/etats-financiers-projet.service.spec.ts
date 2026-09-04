@@ -104,6 +104,38 @@ describe('EtatsFinanciersProjetService', () => {
       expect(bilan.equilibre).toBe(true);
     });
 
+    // Régression audit RE-176 (2026-09-04) · anomalie n° 4 de
+    // correspondance-projet-bilan.ts. Le tableau officiel donne « DH | Autres
+    // dettes | 419, Soldes créditeurs : 42, 43, 44, 47 (sauf 478) » et « DY |
+    // Ecart de conversion-Passif | 479 » : sans exclusion de 479 sur DH, le
+    // préfixe '47' avale 479 et le gain latent de change entre à la fois dans
+    // DJ (donc DZ) et dans DY. Le passif ressortait au double.
+    it('un écart de conversion-passif (479) n’est porté QUE par DY, jamais aussi par DH', async () => {
+      const service = serviceAvecBalance([
+        ligne('41200000', ClasseCompte.CLASSE_4, 500, 0), // BD · clients-usagers
+        ligne('47910000', ClasseCompte.CLASSE_4, 0, 500), // DY · écart de conversion-passif
+      ]);
+      const bilan = await service.bilan('t1', 'e1');
+
+      expect(poste(bilan, 'DY')!.montant).toBe(500);
+      expect(poste(bilan, 'DH')!.montant).toBe(0);
+      expect(poste(bilan, 'DH')!.comptes.map((c: any) => c.numero)).not.toContain('47910000');
+      expect(poste(bilan, 'DJ')!.montant).toBe(0); // TOTAL PASSIF CIRCULANT, qui somme DH
+      expect(bilan.totalPassif).toBe(500); // et non 1000
+      expect(bilan.totalActif).toBe(500);
+      expect(bilan.equilibre).toBe(true);
+    });
+
+    it('l’exclusion de 479 n’ampute rien d’autre du poste DH · un 471 créditeur y reste', async () => {
+      // 471 « Débiteurs et créditeurs divers » (Partie 2 ch. 3, COMPTE 47) :
+      // il doit continuer à alimenter DH, sinon la correction aurait déplacé
+      // de vraies dettes en « comptes non rattachés ».
+      const service = serviceAvecBalance([ligne('47120000', ClasseCompte.CLASSE_4, 0, 300)]);
+      const bilan = await service.bilan('t1', 'e1');
+      expect(poste(bilan, 'DH')!.montant).toBe(300);
+      expect(bilan.comptesNonRattaches.map((c: any) => c.numero)).not.toContain('47120000');
+    });
+
     it('AZ (total actif immobilisé) additionne AA à AH', async () => {
       const service = serviceAvecBalance([
         ligne('21000000', ClasseCompte.CLASSE_2, 1000, 0), // AA

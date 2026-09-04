@@ -1119,6 +1119,13 @@ export class NoteAnnexeService {
    * Vingt-quatre lignes sont donc calculées et VERROUILLÉES. La
    * vingt-cinquième, le ratio d'utilisation des dons, reste saisie : le texte
    * ne la rattache à aucun compte (voir `indicateurs-note-33.ts`).
+   *
+   * Les valeurs arrivent déjà À L'ÉCHELLE de la maquette · « (EN MILLIERS DE
+   * FRANCS) », en tête de la note 33 et nulle part ailleurs dans le chapitre.
+   * `indicateursNote33` divise les lignes monétaires et laisse les ratios
+   * intacts ; rien n'est à convertir ici, et surtout pas une deuxième fois.
+   * La variation en valeur calculée plus bas est donc en milliers elle aussi,
+   * et la variation en % est insensible à l'échelle.
    */
   private async injecterIndicateursFinanciers(
     notes: NoteCalculee[],

@@ -73,9 +73,9 @@ describe('sortie d’immobilisation · cession courante', () => {
   });
 
   it('range chaque nature sur sa racine de compte', () => {
-    expect(natureImmobilisation('21100000')).toBe('INCORPORELLE');
-    expect(natureImmobilisation('24410000')).toBe('CORPORELLE');
-    expect(natureImmobilisation('26100000')).toBe('FINANCIERE');
+    expect(natureImmobilisation('21100000', Referentiel.SYSCOHADA)).toBe('INCORPORELLE');
+    expect(natureImmobilisation('24410000', Referentiel.SYSCOHADA)).toBe('CORPORELLE');
+    expect(natureImmobilisation('26100000', Referentiel.SYSCOHADA)).toBe('FINANCIERE');
   });
 });
 

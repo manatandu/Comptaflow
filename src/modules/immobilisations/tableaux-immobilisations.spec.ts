@@ -1,4 +1,4 @@
-import { SensDepreciation } from '@prisma/client';
+import { Referentiel, SensDepreciation, SystemeComptableSyscohada } from '@prisma/client';
 import { ImmobilisationService } from './immobilisation.service';
 import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
@@ -68,6 +68,14 @@ function bien(opts: {
 
 function service(biens: ReturnType<typeof bien>[]) {
   const prisma = {
+    // Le tableau des amortissements lit le régime du dossier · au SMT
+    // SYSCOHADA l'annuité affichée est pleine (AUDCIF Titre X ch. 1 § 1).
+    tenant: {
+      findUniqueOrThrow: jest.fn().mockResolvedValue({
+        referentiel: Referentiel.SYSCOHADA,
+        systemeComptableSyscohada: SystemeComptableSyscohada.NORMAL,
+      }),
+    },
     immobilisation: { findMany: jest.fn().mockResolvedValue(biens) },
     exercice: { findFirstOrThrow: jest.fn().mockResolvedValue(EXERCICE) },
   } as unknown as PrismaService;

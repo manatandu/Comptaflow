@@ -46,7 +46,10 @@ function service() {
     ecriture: { create: creerEcriture },
   };
   const prisma = {
-    tenant: { findUnique: jest.fn().mockResolvedValue({ id: 't', longueurCompte: 8 }) },
+    // Le référentiel du dossier · l'import le confronte désormais à l'intitulé
+    // lu (voir referentiel-import.spec.ts). Aucun des libellés de ce fichier
+    // n'est l'intitulé officiel du plan SYSCOHADA, la garde ne bouge donc pas.
+    tenant: { findUnique: jest.fn().mockResolvedValue({ id: 't', longueurCompte: 8, referentiel: 'SYCEBNL' }) },
     exercice: {
       findFirst: jest.fn().mockResolvedValue({
         id: 'ex',

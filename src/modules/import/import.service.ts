@@ -1,7 +1,9 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
 import { prochainNumeroPiece } from '../journaux/numerotation-piece';
-import { ClasseCompte, ModeReportANouveau, Prisma, StatutExercice, TypeCompteDetailTotal } from '@prisma/client';
+import { ClasseCompte, ModeReportANouveau, Prisma, Referentiel, StatutExercice, TypeCompteDetailTotal } from '@prisma/client';
+import { PLAN_COMPTES_SYCEBNL } from '../comptes/compte-seed';
+import { PLAN_COMPTES_SYSCOHADA } from '../comptes/compte-seed-syscohada';
 import { AnalyserImportDto, ExecuterImportDto, TypeImport } from './dto/import.dto';
 import { lireDate, lireFichier, lireMontant, type Tableau } from './lecture-fichier';
 
@@ -45,6 +47,111 @@ function normaliser(texte: string): string {
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
     .replace(/[^a-z0-9]/g, '');
+}
+
+/**
+ * INTITULÉS OFFICIELS DES DEUX PLANS NORMALISÉS · l'index qui permet de
+ * reconnaître, dans un fichier importé, une ligne écrite dans l'AUTRE
+ * référentiel que celui du dossier.
+ *
+ * POURQUOI CETTE GARDE EXISTE. Chaque référentiel impose SON plan : « le
+ * recours, pour la tenue de la comptabilité de l'entité, à un plan de comptes
+ * normalisé dont la liste figure dans le Système comptable OHADA » (AUDCIF
+ * art. 17, 7°) · « […] dont la liste figure dans le Système comptable des
+ * entités à but non lucratif » (SYCEBNL art. 16, 1°). Et les deux plans
+ * portent des numéros qui se ressemblent sans dire la même chose : le 701 est
+ * « Ventes de marchandises » à l'AUDCIF (Titre VII ch. 3, section 7, compte
+ * 70 · « 701 Ventes de marchandises ») et « Cotisations des adhérents » au
+ * SYCEBNL (Partie 2 ch. 3, section 7, compte 70 · « Subdivisions. 701
+ * Cotisations des adhérents »). Sur les 659 numéros que les deux semis ont en
+ * commun, 418 disent autre chose une fois la typographie écartée (477
+ * diffèrent à la lettre, mais 59 de ces écarts ne sont que de ponctuation ou
+ * d'abréviation · « G.I.E. » contre « GIE », « Fournisseurs · sous-traitants »
+ * contre « Fournisseurs sous-traitants »).
+ *
+ * CE QUE ÇA CASSE, ET EN SILENCE. « Les opérations sont enregistrées dans les
+ * comptes dont les intitulés correspondent à leur nature » (AUDCIF art. 18,
+ * dernier alinéa). Toute la chaîne en aval rattache par le NUMÉRO, jamais par
+ * l'intitulé : `posteDuCompte()` (correspondance-compte-resultat.ts) prend le
+ * plus long préfixe, si bien qu'un 10300000 repris sous l'intitulé SYSCOHADA
+ * « Capital personnel » dans un dossier SYCEBNL alimente le « Droit d'entrée »
+ * sans qu'une seule ligne le dise. Le contrôle COMPTE_HORS_NOMENCLATURE
+ * (controles.service.ts) ne compare que le premier chiffre à la classe
+ * enregistrée : il ne voit rien non plus.
+ *
+ * CE QUI EST REFUSÉ, ET RIEN DE PLUS. Uniquement la ligne dont l'intitulé LU
+ * EST, mot pour mot, l'intitulé officiel de l'autre référentiel pour ce
+ * numéro, alors que ce n'est pas celui du référentiel du dossier. C'est le
+ * seul cas certain. Un numéro absent du plan du dossier n'est PAS refusé pour
+ * autant : « lorsque les comptes prévus par le Système comptable OHADA ne
+ * suffisent pas, l'entité peut ouvrir toutes subdivisions nécessaires »
+ * (AUDCIF art. 18, alinéa 3), et un intitulé librement rédigé par le cabinet
+ * ne prouve rien.
+ */
+const INTITULES_OFFICIELS: Record<Referentiel, Map<string, string>> = {
+  [Referentiel.SYCEBNL]: new Map(PLAN_COMPTES_SYCEBNL.map((c) => [c.numero, c.intitule])),
+  [Referentiel.SYSCOHADA]: new Map(PLAN_COMPTES_SYSCOHADA.map((c) => [c.numero, c.intitule])),
+};
+
+/**
+ * Comparaison d'intitulés · même normalisation que les en-têtes, plus le
+ * retrait des renvois de bas de page du plan SYSCOHADA (« Associés [2],
+ * comptes courants », « Dans la Région [7] »). Ces renvois appartiennent au
+ * texte officiel, pas au libellé qu'un logiciel exporte : les garder ferait
+ * manquer 34 comptes à la comparaison.
+ */
+function normaliserIntitule(texte: string): string {
+  return normaliser(texte.replace(/\[\d+\]/g, ' '));
+}
+
+export interface EcartReferentiel {
+  autre: Referentiel;
+  intituleAutre: string;
+  /** Intitulé officiel du même numéro dans le référentiel du dossier, s'il y figure. */
+  intituleDuDossier: string | null;
+}
+
+/**
+ * La ligne importée porte-t-elle l'intitulé officiel de l'AUTRE référentiel ?
+ *
+ * Rend `null` dès qu'il y a le moindre doute · c'est une garde, pas une
+ * présomption. En particulier, les deux plans donnent parfois le MÊME intitulé
+ * au même numéro (241 des 659 numéros communs, « 40110000 Fournisseurs » par
+ * exemple) : rien n'est alors transposé, et refuser la ligne serait un faux
+ * positif.
+ */
+export function intituleDUnAutreReferentiel(
+  numero: string,
+  intitule: string,
+  referentiel: Referentiel,
+): EcartReferentiel | null {
+  const lu = normaliserIntitule(intitule);
+  if (!lu) return null;
+  const autre = referentiel === Referentiel.SYSCOHADA ? Referentiel.SYCEBNL : Referentiel.SYSCOHADA;
+  const intituleAutre = INTITULES_OFFICIELS[autre]?.get(numero);
+  if (!intituleAutre || normaliserIntitule(intituleAutre) !== lu) return null;
+  const intituleDuDossier = INTITULES_OFFICIELS[referentiel]?.get(numero) ?? null;
+  if (intituleDuDossier && normaliserIntitule(intituleDuDossier) === lu) return null;
+  return { autre, intituleAutre, intituleDuDossier };
+}
+
+/** Le message d'anomalie qui va avec · il nomme les deux plans et les deux textes. */
+export function messageEcartReferentiel(
+  numero: string,
+  referentiel: Referentiel,
+  ecart: EcartReferentiel,
+): string {
+  return (
+    `Le compte ${numero} porte l'intitulé « ${ecart.intituleAutre} », qui est celui du plan ` +
+    `${ecart.autre} et non du plan ${referentiel} de ce dossier` +
+    (ecart.intituleDuDossier
+      ? `, où ${numero} est « ${ecart.intituleDuDossier} ». `
+      : `, qui ne connaît pas ce numéro. `) +
+    "Le fichier semble venir de l'autre référentiel : chaque référentiel impose son propre plan " +
+    'normalisé (AUDCIF art. 17, 7° · SYCEBNL art. 16, 1°) et « les opérations sont enregistrées ' +
+    'dans les comptes dont les intitulés correspondent à leur nature » (AUDCIF art. 18). ' +
+    "Vérifiez le référentiel du fichier avant de reprendre cette ligne."
+  );
 }
 
 export interface AnomalieImport {
@@ -267,6 +374,16 @@ export class ImportService {
         });
         return;
       }
+      // LE RÉFÉRENTIEL DU DOSSIER, AVANT TOUT LE RESTE · et avant le test
+      // d'existence, parce que le compte DÉJÀ présent est le cas le plus
+      // sournois : la ligne était comptée « reconnue » et son intitulé
+      // abandonné sans un mot, alors que c'est lui qui trahit un fichier venu
+      // de l'autre plan.
+      const ecart = intituleDUnAutreReferentiel(numero, intitule, tenant.referentiel);
+      if (ecart) {
+        anomalies.push({ ligne: numeroLigne, message: messageEcartReferentiel(numero, tenant.referentiel, ecart) });
+        return;
+      }
       if (existants.has(numero) || aCreer.some((c) => c.numero === numero)) {
         reconnus++;
         return;
@@ -341,6 +458,24 @@ export class ImportService {
         return;
       }
       if (Math.abs(debit) < 0.005 && Math.abs(credit) < 0.005) return;
+
+      // Même garde que pour l'import de plan, et pour la même raison · elle
+      // vaut ici AUSSI quand le compte existe déjà : le montant serait alors
+      // porté sans création, donc sans rien qui signale que la ligne vient de
+      // l'autre référentiel. La colonne « Intitulé » est facultative dans une
+      // balance ; quand elle manque, il n'y a rien à confronter.
+      const ecartReferentiel = intituleDUnAutreReferentiel(
+        numero,
+        this.valeur(ligne, iIntitule),
+        tenant.referentiel,
+      );
+      if (ecartReferentiel) {
+        anomalies.push({
+          ligne: numeroLigne,
+          message: messageEcartReferentiel(numero, tenant.referentiel, ecartReferentiel),
+        });
+        return;
+      }
 
       const compte = comptesParNumero.get(numero);
       if (!compte) {

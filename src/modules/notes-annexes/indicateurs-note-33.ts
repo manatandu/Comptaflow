@@ -41,6 +41,38 @@
  * peut aussi passer par d'autres comptes. Le calculer reviendrait à publier un
  * ratio d'efficacité que personne n'a défini. Il reste saisi par le cabinet,
  * qui sait ce qu'il a versé.
+ *
+ * **Les montants sont rendus EN MILLIERS, parce que la maquette le dit.** La
+ * note 33 porte en tête, dans le texte officiel, la mention « (EN MILLIERS DE
+ * FRANCS) » (Partie 4, ch. 2, section 4, NOTE 33 : FICHE DE SYNTHESE DES
+ * PRINCIPAUX INDICATEURS FINANCIERS · c'est la SEULE échelle de présentation
+ * de tout le chapitre, aucun autre état ni aucune autre note n'en porte). Ce
+ * n'est pas un ornement : la mention est reproduite mot pour mot dans le
+ * `renvoiOfficiel` de la note (`correspondance-notes-associations.ts`), elle
+ * s'imprime à l'écran comme au classeur Excel, et un lecteur qui s'y fie lit
+ * l'unité qu'elle annonce. Servir des unités sous cet en-tête publiait donc
+ * chaque montant de la fiche MILLE FOIS trop grand, sans qu'aucun calcul soit
+ * faux · le défaut ne se voyait nulle part ailleurs que dans l'en-tête.
+ *
+ * Deux issues étaient possibles : convertir, ou écrire dans la note que le
+ * dossier présente en unités. La seconde a été écartée · elle contredirait
+ * l'en-tête officiel, que le dépôt transcrit sans le reformuler (CLAUDE.md
+ * §1), et remplacerait une mention du texte par une mention de notre cru. La
+ * commodité était pourtant de son côté : en milliers, la fiche ne se recoupe
+ * plus à l'œil nu avec le bilan et le compte de résultat, qui restent en
+ * unités faute que le texte leur donne une échelle. Le texte officiel prime.
+ *
+ * Deux précisions sur la conversion. Elle ne touche QUE les lignes monétaires
+ * (`unite: 'MONTANT'`) : les deux ratios sont des pourcentages, sans
+ * dimension, et une échelle n'a pas de sens sur eux · le renvoi (b) le
+ * confirme en exigeant leurs variations « en nombre de points ». Et elle
+ * n'ARRONDIT pas : arrondir chaque ligne au millier entier ferait tomber en
+ * faux l'arithmétique que la note pose elle-même (RESSOURCES STABLES = fonds
+ * propres + dettes financières, FONDS DE ROULEMENT, la ligne CONTRÔLE), une
+ * somme d'arrondis n'étant pas l'arrondi de la somme. La division est
+ * linéaire : tous les sous-totaux et le contrôle continuent de boucler
+ * exactement. La présentation du nombre de décimales appartient à l'écran et
+ * à l'export, pas à ce calcul.
  */
 import { LigneBalancePourEtat, correspond } from '../etats-financiers/etats-financiers.communs';
 
@@ -80,6 +112,13 @@ export interface EtatsPourIndicateurs {
  * = 3 points). »
  */
 export type UniteIndicateur = 'MONTANT' | 'POURCENT';
+
+/**
+ * Échelle de présentation de la note 33 · « (EN MILLIERS DE FRANCS) », en tête
+ * de la maquette officielle (voir l'en-tête de ce fichier). Les lignes
+ * monétaires sont divisées par elle ; les ratios, non.
+ */
+export const MILLIERS_DE_FRANCS = 1000;
 
 export interface IndicateurCalcule {
   /** Clé de la rubrique dans `NOTES_ASSOCIATIONS`, note 33. */
@@ -247,10 +286,14 @@ export function indicateursNote33(
     'ratio-de-liquidite-generale-creances-tresorerie',
   ]);
 
-  return Object.keys(n).map((cle) => ({
-    cle,
-    unite: RATIOS.has(cle) ? ('POURCENT' as const) : ('MONTANT' as const),
-    valeurN: n[cle],
-    valeurN1: n1 ? n1[cle] : null,
-  }));
+  return Object.keys(n).map((cle) => {
+    const unite = RATIOS.has(cle) ? ('POURCENT' as const) : ('MONTANT' as const);
+    // « (EN MILLIERS DE FRANCS) » · l'en-tête de la maquette, honoré ici
+    // plutôt que démenti. Un ratio est sans dimension : il n'a pas d'échelle.
+    const echelle = unite === 'POURCENT' ? 1 : MILLIERS_DE_FRANCS;
+    // `null` reste `null` · un ratio sans dénominateur et un exercice N-1
+    // absent n'ont pas de valeur, et 0 / 1000 en fabriquerait une.
+    const aLEchelle = (v: number | null | undefined) => (v === null || v === undefined ? null : v / echelle);
+    return { cle, unite, valeurN: aLEchelle(n[cle]), valeurN1: n1 ? aLEchelle(n1[cle]) : null };
+  });
 }

@@ -51,9 +51,13 @@
  * 61xxxxxx) ; un jeton de 3 ou 4 chiffres ne vaut que pour lui-même et ses
  * subdivisions (« 6031 » couvre 6031xxxx, pas 6032). Le rapprochement se fait
  * par PRÉFIXE et, en cas de chevauchement, le préfixe le PLUS LONG l'emporte
- * (`posteDuCompteSyscohada()`). Les jetons du ch. 7 sont disjoints ; la
- * règle du préfixe le plus long protège d'un plan de comptes personnalisé
- * qui ajouterait une subdivision plus fine.
+ * (`posteDuCompteSyscohada()`). Les jetons du ch. 7 sont disjoints entre
+ * eux ; les DEUX SEULS emboîtements de la table sont voulus et viennent du
+ * Titre VIII ch. 33 (« 652 » dans le « 65 » de RJ, « 752 » dans le « 75 » de
+ * TH · complément n° 12) : c'est la règle du préfixe le plus long qui les
+ * tranche, et le spec vérifie qu'il n'y en a pas d'autres. Cette même règle
+ * protège d'un plan de comptes personnalisé qui ajouterait une subdivision
+ * plus fine.
  *
  * ## Convention de signe · CELLE DU MODÈLE OFFICIEL, pas celle du SYCEBNL
  *
@@ -168,6 +172,69 @@
  *    c'est par cette fonction, et non par un split ad hoc, que le moteur
  *    de notes et l'export doivent passer, sinon le renvoi imprimé ne
  *    pointe sur aucune note existante.
+ * 12. **Le modèle général est COMPLÉTÉ par deux postes de quote-part de
+ *    résultat partagé** · ce n'est pas une correction du modèle, c'est le
+ *    texte officiel qui le prescrit. AUDCIF Titre VIII, ch. 33 « Opérations
+ *    faites en commun », section 7.2 (skill `audcif-acte-uniforme`,
+ *    `references/titre-8-ch31-41-evenements-tiers-fusions-liquidation/`
+ *    `03-chapitre-33-operations-faites-en-commun.md`, lignes 168 et 170) :
+ *    « le modèle de Compte de résultat du Système comptable OHADA doit être
+ *    complété pour intégrer les quotes-parts de résultat sur opérations
+ *    faites en commun, qui ne sont pas prévues dans le modèle général […]
+ *    Dès lors que l'entité réalise de telles opérations, elle utilise un
+ *    poste supplémentaire de charges et un de produits, à la fin du niveau
+ *    "Exploitation" : (charges) Quote-part de résultat partagé et (produits)
+ *    Quote-part de résultat partagé ». D'où RQP (charges) et TQP (produits),
+ *    portant le 652 et le 752 (Titre VII, COMPTE 65 et COMPTE 75 : « Quote-
+ *    part de résultat sur opérations faites en commun » ; ch. 33 section 6.3
+ *    pour les écritures, section 7.3 pour les sous-comptes 6521/6525 et
+ *    7521/7525).
+ *    PLACEMENT ET EFFET, qui sont tout l'objet du texte : « à la fin du
+ *    niveau Exploitation » veut dire APRÈS RL et AVANT XE, le niveau
+ *    exploitation du ch. 4 se terminant sur le RÉSULTAT D'EXPLOITATION. Le
+ *    652 et le 752 quittent donc RJ et TH, où le rattachement en bloc du 65
+ *    et du 75 (ch. 7) les faisait entrer dans la VALEUR AJOUTÉE (XC) et dans
+ *    l'EXCÉDENT BRUT D'EXPLOITATION (XD) : une quote-part de résultat n'est
+ *    ni de la valeur ajoutée, ni de l'excédent brut. Ils n'entrent plus que
+ *    dans XE, et par lui dans XG et XI : le résultat net est INCHANGÉ et le
+ *    compte de résultat continue de boucler avec le bilan (contrôle « XI =
+ *    résultat de toutes les classes de gestion »).
+ *    RQP et TQP sont des CLÉS INTERNES, pas des codes REF déposés : le ch. 33
+ *    n'en donne aucun et le ch. 4 ferme sa série (« Pas de code TP, TQ, TR,
+ *    TS ; pas de RT ; RR n'existe pas »). Trois lettres, donc, qu'aucun REF
+ *    officiel ne peut porter. `REFS_POSTES_SUPPLEMENTAIRES` les expose.
+ * 13. **Le ch. 33 nomme ces postes de deux façons** · section 7.2, la phrase
+ *    qui les crée, écrit « Quote-part de résultat partagé » ; section 7.3
+ *    écrit « le poste "Quote-part de résultat sur opérations faites en
+ *    commun" », qui est l'intitulé des comptes 652 et 752 (Titre VII).
+ *    Retenu comme LIBELLÉ : celui de la section 7.2.
+ * 14. **Ce que le complément n° 12 entraîne HORS de ce fichier · déclaré,
+ *    non corrigé ici** (ces fichiers relèvent d'autres chantiers) :
+ *    a) TABLEAU DES FLUX · le poste FA (CAFG) part de XD (« le point
+ *       d'entrée est l'EBE, jamais le résultat net », ch. 5 § 1.2.1) et ne
+ *       reprend aucun des deux nouveaux postes. Le 652 et le 752 ayant
+ *       quitté XD, la quote-part n'est plus dans la CAFG, alors que sa
+ *       contrepartie (compte 463 Associés, opérations faites en commun ·
+ *       ch. 33 section 3.2) continue d'être lue par la variation des
+ *       créances et des dettes (FD et FE, qui n'excluent pas le 46). Pour un
+ *       coparticipant, le flux de trésorerie opérationnel s'en trouve décalé
+ *       du montant de la quote-part. Remède : deux termes
+ *       `poste(1, 'COMPTE_RESULTAT', 'RQP' | 'TQP', 'N')` dans FA, à écrire
+ *       dans `correspondance-tft-syscohada.ts`.
+ *    b) NOTES ANNEXES · les deux postes renvoient aux notes du ch. 6 qui
+ *       portent déjà le 652 et le 752 : la note 26 « AUTRES CHARGES », dont
+ *       une rubrique est précisément « Quote-part de résultat sur opérations
+ *       faites en commun » (comptes 652), et la note 21, qui prend le 75 en
+ *       bloc. Deux conséquences : le total de la note 26 vaut désormais
+ *       RJ + RQP et non plus RJ seul (son `renvoyeeDepuis` reste ['RJ']), et
+ *       l'analyse en composantes que la section 7.3 du ch. 33 exige (6521 /
+ *       6525 en charges, 7521 / 7525 en produits) n'est pas servie : la note
+ *       26 ne descend pas sous le 652, la note 21 ne descend pas sous le 752.
+ *    c) AFFICHAGE · « Dès lors que l'entité réalise de telles opérations »
+ *       (section 7.2) : les deux lignes ne sont à imprimer que si l'entité en
+ *       fait. `REFS_POSTES_SUPPLEMENTAIRES` existe pour qu'un consommateur
+ *       puisse les masquer quand elles sont nulles en N et en N-1 ; le
+ *       service les sert aujourd'hui comme toutes les autres lignes.
  */
 
 export type SensPosteSyscohada = 'PRODUIT' | 'CHARGE';
@@ -188,13 +255,29 @@ export interface PosteCompteResultatSyscohada {
   comptes: string[];
   /** Renvois de la colonne NOTE du ch. 4 (« 3C & 28 » devient ['3C', '28']). */
   notes: string[];
+  /**
+   * Poste ABSENT du modèle général du ch. 4, ajouté par un chapitre du Titre
+   * VIII qui prescrit lui-même de compléter la maquette · aujourd'hui les
+   * deux quotes-parts de résultat partagé du ch. 33 (complément n° 12).
+   * Marqué pour deux usages, et deux seulement : imprimer la maquette telle
+   * que le ch. 4 la dépose (en filtrant ces postes) et masquer les lignes
+   * nulles, le ch. 33 ne les prévoyant que « dès lors que l'entité réalise de
+   * telles opérations ». JAMAIS pour les exclure d'un total : XE, XG et XI
+   * les contiennent, faute de quoi le compte de résultat cesserait de boucler
+   * avec le bilan.
+   */
+  supplementaire?: true;
 }
 
 /**
- * Les 33 postes portant des comptes, dans l'ORDRE DU MODÈLE (ch. 4) · les
+ * Les 35 postes portant des comptes, dans l'ORDRE DU MODÈLE (ch. 4) · les
  * produits (T*) et les charges (R*) y sont entrelacés, ce n'est pas une
  * liste par nature. Les soldes X* sont à part (`SOLDES_INTERMEDIAIRES`) et
  * `ORDRE_AFFICHAGE_COMPTE_RESULTAT` recompose la maquette complète.
+ *
+ * 33 postes viennent du modèle général du ch. 4 ; les DEUX derniers du niveau
+ * exploitation, RQP et TQP, viennent du Titre VIII ch. 33, qui prescrit de
+ * compléter ce modèle (complément n° 12) et qui les marque `supplementaire`.
  */
 export const POSTES_COMPTE_RESULTAT_SYSCOHADA: PosteCompteResultatSyscohada[] = [
   // ---- Marge commerciale ---------------------------------------------------
@@ -287,6 +370,43 @@ export const POSTES_COMPTE_RESULTAT_SYSCOHADA: PosteCompteResultatSyscohada[] = 
     comptes: ['681', '691'],
     notes: ['3C', '28'],
   },
+  // ---- Fin du niveau « Exploitation » · les deux postes que le ch. 33 ajoute
+  // au modèle général (complément n° 12 en tête de fichier). Ils sont placés
+  // APRÈS RL, donc hors de XC et de XD et dans XE : c'est ce que « à la fin du
+  // niveau "Exploitation" » veut dire, et c'est tout l'effet recherché par le
+  // texte. L'ordre charges puis produits est celui de la phrase du ch. 33
+  // (« un poste supplémentaire de charges et un de produits »).
+  {
+    ref: 'RQP',
+    libelle: 'Quote-part de résultat partagé', // ch. 33 section 7.2 · anomalie n° 13
+    sens: 'CHARGE',
+    signe: '-',
+    // 652 et ses deux subdivisions : 6521 quote-part transférée de bénéfices
+    // (comptabilité du gérant), 6525 pertes imputées par transfert
+    // (comptabilité des associés non gérants) · Titre VII COMPTE 65, ch. 33
+    // sections 6.3 et 7.3. Le préfixe le plus long l'emporte sur le « 65 »
+    // que RJ prend en bloc.
+    comptes: ['652'],
+    // Note 26 « AUTRES CHARGES » : la seule note du ch. 6 qui porte une
+    // rubrique « Quote-part de résultat sur opérations faites en commun »
+    // (comptes 652) · complément n° 14 b pour ce qu'elle ne fait pas.
+    notes: ['26'],
+    supplementaire: true,
+  },
+  {
+    ref: 'TQP',
+    libelle: 'Quote-part de résultat partagé', // même libellé que RQP, c'est le texte
+    sens: 'PRODUIT',
+    signe: '+',
+    // 752 et ses deux subdivisions : 7521 quote-part transférée de pertes
+    // (gérant), 7525 bénéfices attribués par transfert (non-gérants) · Titre
+    // VII COMPTE 75. Le préfixe le plus long l'emporte sur le « 75 » de TH.
+    comptes: ['752'],
+    // Note 21 « CHIFFRE D'AFFAIRES ET AUTRES PRODUITS », qui porte le 75 en
+    // bloc, 752 compris · complément n° 14 b.
+    notes: ['21'],
+    supplementaire: true,
+  },
   // ---- Résultat financier --------------------------------------------------
   { ref: 'TK', libelle: 'Revenus financiers et assimilés', sens: 'PRODUIT', signe: '+', comptes: ['77'], notes: ['29'] },
   { ref: 'TL', libelle: 'Reprises de provisions et dépréciations financières', sens: 'PRODUIT', signe: '+', comptes: ['797'], notes: ['28'] },
@@ -307,6 +427,18 @@ export const POSTES_COMPTE_RESULTAT_SYSCOHADA: PosteCompteResultatSyscohada[] = 
 /** Vue par nature, pour les consommateurs qui veulent produits d'un côté et charges de l'autre. */
 export const POSTES_PRODUITS_SYSCOHADA = POSTES_COMPTE_RESULTAT_SYSCOHADA.filter((p) => p.sens === 'PRODUIT');
 export const POSTES_CHARGES_SYSCOHADA = POSTES_COMPTE_RESULTAT_SYSCOHADA.filter((p) => p.sens === 'CHARGE');
+
+/**
+ * Les postes qui ne sont PAS au modèle général du ch. 4, DÉRIVÉS du drapeau
+ * `supplementaire` et jamais réécrits à la main (complément n° 12). Deux
+ * usages, et deux seulement : imprimer la maquette déposée telle quelle, et
+ * masquer ces lignes quand elles sont nulles, le ch. 33 ne les prévoyant que
+ * « dès lors que l'entité réalise de telles opérations ». Les retrancher d'un
+ * total romprait le bouclage du compte de résultat avec le bilan.
+ */
+export const REFS_POSTES_SUPPLEMENTAIRES: readonly string[] = POSTES_COMPTE_RESULTAT_SYSCOHADA.filter(
+  (p) => p.supplementaire,
+).map((p) => p.ref);
 
 /**
  * Un solde intermédiaire de gestion = somme signée de refs déjà résolues
@@ -378,8 +510,13 @@ export const SOLDES_INTERMEDIAIRES: SoldeIntermediaire[] = [
   {
     ref: 'XE',
     libelle: "RÉSULTAT D'EXPLOITATION",
-    formuleOfficielle: 'XD + TJ + RL',
-    deRefs: ['XD', 'TJ', 'RL'],
+    // Le ch. 4 imprime « XD + TJ + RL ». Le ch. 33 plaçant ses deux postes à
+    // la FIN du niveau exploitation, le résultat d'exploitation du modèle
+    // COMPLÉTÉ les additionne (complément n° 12) : imprimer la formule du
+    // ch. 4 seule la mettrait en contradiction avec la somme des lignes
+    // situées juste au-dessus.
+    formuleOfficielle: 'XD + TJ + RL + RQP + TQP',
+    deRefs: ['XD', 'TJ', 'RL', 'RQP', 'TQP'],
     compte13: '135',
     notes: [],
   },
@@ -463,14 +600,16 @@ export function resoudreRenvoiNote(renvoi: string): string[] {
 
 /**
  * Ordre d'affichage officiel · postes et soldes entrelacés comme au modèle
- * du ch. 4. C'est la maquette complète, ligne par ligne.
+ * du ch. 4. C'est la maquette complète, ligne par ligne, RQP et TQP compris :
+ * le ch. 33 les veut « à la fin du niveau "Exploitation" », donc entre RL et
+ * XE (complément n° 12).
  */
 export const ORDRE_AFFICHAGE_COMPTE_RESULTAT: string[] = [
   'TA', 'RA', 'RB', 'XA',
   'TB', 'TC', 'TD', 'XB',
   'TE', 'TF', 'TG', 'TH', 'TI', 'RC', 'RD', 'RE', 'RF', 'RG', 'RH', 'RI', 'RJ', 'XC',
   'RK', 'XD',
-  'TJ', 'RL', 'XE',
+  'TJ', 'RL', 'RQP', 'TQP', 'XE',
   'TK', 'TL', 'TM', 'RM', 'RN', 'XF',
   'XG',
   'TN', 'TO', 'RO', 'RP', 'XH',
