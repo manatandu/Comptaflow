@@ -8,6 +8,51 @@ avec une base **Cloud SQL PostgreSQL**. Les deux services sont dans le même
 projet Google Cloud que le projet Firebase (Firebase Hosting/Functions/Cloud
 Run partagent le même projet GCP).
 
+## Ce qui a été retenu, et ce qui a été écarté
+
+Consigné le 2026-09-04, parce que le basculement de la base n'était documenté
+nulle part · un choix sans source ne se revérifie jamais, et c'est le même
+défaut que celui qu'on traque partout ailleurs dans ce dépôt.
+
+**Trois étages, DEUX fournisseurs.** Firebase Hosting et Cloud Run vivent dans
+le MÊME projet Google Cloud · l'architecture n'est donc pas éparpillée entre
+trois maisons, elle est répartie entre Google, qui sert le client et fait
+tourner l'API, et Neon, qui tient la base.
+
+**Le client sur Firebase Hosting.** C'est un site statique de 0,9 Mo, cinquante
+fichiers. Firebase le sert bien, depuis un réseau mondial, pour un coût qui
+restera négligeable : ce qui se facture là est le volume TRANSFÉRÉ, et un
+comptable qui ouvre le logiciel chaque matin télécharge un mégaoctet mis en
+cache. Le stockage, lui, ne bougera pas · la taille du client ne dépend pas du
+nombre de dossiers ni du nombre d'écritures.
+
+**L'API sur Cloud Run**, et pas sur Firebase Functions. Firebase Hosting ne sert
+que des fichiers ; il ne peut pas faire tourner NestJS. Les Functions le
+pourraient, mais elles démarrent à froid à chaque appel et rouvrent leur pool
+Prisma à chaque fois · c'est exactement ce que `docs/connexions-et-plafonds.md`
+apprend à éviter. Cloud Run tient un conteneur, garde son pool, et se borne par
+`--max-instances`.
+
+**La base sur Neon, et pas sur Cloud SQL** · c'est le seul basculement par
+rapport à l'architecture d'origine décrite plus haut. La raison est mesurable :
+**Cloud SQL ne s'endort pas.** Une instance, même minuscule, se facture en
+continu. Neon se met en veille après cinq minutes d'inactivité, et le relevé du
+2026-09-04 le montre en clair · 4,58 heures de calcul consommées en trois jours,
+soit une base qui dort 94 % du temps. Sur Cloud SQL, ces trois jours auraient
+été facturés en entier.
+
+**Et surtout : PAS Firestore.** C'est le point qui ferme le débat, et il n'est
+pas une préférence mais une contrainte de nature. Firestore n'est pas
+relationnel · ni jointure, ni intégrité référentielle, ni transaction
+multi-tables au sens SQL. Or tout ce dépôt repose là-dessus : l'écriture
+équilibrée en partie double, le cloisonnement par `tenantId` vérifié aux deux
+bouts, le `RESTRICT` qui interdit de supprimer un compte mouvementé, le refus de
+supprimer une écriture qu'un module tient, les cinquante-huit migrations Prisma.
+Un logiciel comptable ne s'accommode pas d'une base sans transaction.
+
+**Ce qu'il faudra surveiller**, et ce n'est ni Firebase ni le stockage : les
+HEURES DE CALCUL de Neon. Voir `docs/capacite-mesuree.md`.
+
 ⚠️ Les étapes ci-dessous demandent une connexion interactive (navigateur,
 compte Google) : je ne peux pas les exécuter à votre place depuis cette
 session distante. Ce document est le guide pas-à-pas à suivre de votre côté ;
