@@ -638,6 +638,23 @@ export interface DeclarationTva {
   totalCollecte: number;
   totalDeductible: number;
   totalDeductibleAdmise: number;
+  /**
+   * Net de la SEULE période, avant report du crédit antérieur. C'est le
+   * chiffre qu'un contrôleur rapproche des comptes de la période ; `net` en
+   * diffère dès qu'un crédit s'impute.
+   */
+  netAvantImputation: number;
+  /**
+   * Crédit de TVA venu de la dernière liquidation · art. 63 O.-L. 10/001 :
+   * « l'excédent constitue un crédit d'impôt imputable sur la taxe exigible
+   * du ou des mois suivants jusqu'à l'épuisement ». Il ne se rembourse pas
+   * et ne se cède pas.
+   */
+  creditAnterieur: number;
+  /** La liquidation d'où vient ce crédit, `null` quand il n'y en a pas. */
+  creditAnterieurOrigine: { id: string; dateDebut: string; dateFin: string; ecritureId: string } | null;
+  /** Part de ce crédit qui éteint la taxe de la période, jamais au-delà. */
+  creditImpute: number;
   net: number;
   sens: 'A_PAYER' | 'CREDIT';
   /**
@@ -666,7 +683,24 @@ export interface ProrataDefinitifTva {
   annee: number;
   definitif: ProrataTva;
   pourcentageApplique: number;
+  /** Assiette régularisable · la seule sur laquelle on a effectivement déduit. */
   tvaDeductibleBrute: number;
+  /** Toute la TVA d'amont de l'année, liquidée ou non, en solde. */
+  tvaDeductibleBruteAnnee: number;
+  /**
+   * Part de l'année qu'aucune liquidation ne couvre. Aucune déduction n'y a
+   * été opérée, donc rien n'y est régularisé · l'écran doit le dire au lieu
+   * de laisser croire à une régularisation nulle.
+   */
+  tvaDeductibleNonLiquidee: number;
+  /** Le prorata RÉELLEMENT appliqué, liquidation par liquidation. */
+  periodes: {
+    dateDebut: string;
+    dateFin: string;
+    pourcentageApplique: number;
+    tvaDeductibleBrute: number;
+    deduite: number;
+  }[];
   admiseDefinitive: number;
   admiseAppliquee: number;
   regularisation: number;
@@ -2153,6 +2187,27 @@ export interface ResultatFiscal {
   /** Impôt dû + suppléments · la base sur laquelle les trois acomptes sont assis. */
   baseAcomptes: number | null;
   acomptesProchainExercice: { quotite: number; echeance: string; montant: number }[];
+  /**
+   * ART. 57, AL. 3 ET 57 QUATER LPF · les deux quotités de 60 % et 40 % par
+   * lesquelles une PETITE ENTREPRISE acquitte l'impôt DE CET EXERCICE. Ce
+   * n'est pas un acompte sur l'exercice suivant, et le tableau ci-dessus
+   * reste vide pour elle : les acomptes de l'art. 57 bis ne visent que
+   * l'alinéa 2, c'est-à-dire l'IS et l'IRPP au régime réel. Liste vide pour
+   * tout autre régime, ou quand l'impôt n'a pas pu être calculé.
+   *
+   * `reserve` porte le doute du texte lui-même sur la seconde échéance et
+   * doit être affichée avec elle : l'art. 57 quater, al. 3 écrit une seconde
+   * fois « La 1ère quotité », faute de rédaction du législateur reprise telle
+   * quelle par la compilation DGI.
+   */
+  quotitesPetiteEntreprise: {
+    rang: number;
+    quotite: number;
+    echeance: string;
+    source: string;
+    reserve: string | null;
+    montant: number;
+  }[];
 }
 
 // ---------------------------------------------------------------------------

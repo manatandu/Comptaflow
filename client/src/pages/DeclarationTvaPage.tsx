@@ -223,9 +223,44 @@ export function DeclarationTvaPage() {
           </div>
 
           <div className="border border-border max-w-[780px] p-4 bg-surface flex items-center justify-between">
+            {/* L'IMPUTATION DU CRÉDIT REPORTÉ · art. 63 O.-L. 10/001. Le net
+                affiché à droite est celui d'APRÈS imputation ; sans ces trois
+                lignes, l'écart entre la taxe de la période et le montant à
+                payer ne s'explique nulle part, et le crédit du mois précédent
+                semble s'être évaporé. Elles ne s'affichent que lorsqu'un
+                crédit existe : une déclaration ordinaire garde ses deux
+                lignes d'origine. */}
             <div className="font-mono text-[10.5px] text-text-dim">
               <div>Total TVA collectée : <span className="font-semibold text-text">{declaration.totalCollecte.toLocaleString('fr-FR')} CDF</span></div>
               <div>Total TVA déductible admise : <span className="font-semibold text-text">{declaration.totalDeductibleAdmise.toLocaleString('fr-FR')} CDF</span></div>
+              {declaration.creditAnterieur > 0 && (
+                <>
+                  <div className="mt-1 pt-1 border-t border-border">
+                    Taxe de la période, avant report :{' '}
+                    <span className="font-semibold text-text">
+                      {declaration.netAvantImputation.toLocaleString('fr-FR')} CDF
+                    </span>
+                  </div>
+                  <div>
+                    Crédit de TVA reporté (art. 63) :{' '}
+                    <span className="font-semibold text-text">
+                      {declaration.creditAnterieur.toLocaleString('fr-FR')} CDF
+                    </span>
+                    {declaration.creditAnterieurOrigine && (
+                      <span className="text-text-dim">
+                        {' '}· liquidation du {declaration.creditAnterieurOrigine.dateDebut} au{' '}
+                        {declaration.creditAnterieurOrigine.dateFin}
+                      </span>
+                    )}
+                  </div>
+                  <div>
+                    Imputé sur la taxe de la période :{' '}
+                    <span className="font-semibold text-positive">
+                      {declaration.creditImpute.toLocaleString('fr-FR')} CDF
+                    </span>
+                  </div>
+                </>
+              )}
             </div>
             <div className="text-right">
               <div className="font-mono text-[10px] font-semibold text-text-dim mb-1">
@@ -312,13 +347,39 @@ export function DeclarationTvaPage() {
                   définitif : {definitif.admiseDefinitive.toLocaleString('fr-FR')} CDF · déjà déduite :{' '}
                   {definitif.admiseAppliquee.toLocaleString('fr-FR')} CDF
                 </div>
+                {/* « AUCUNE RÉGULARISATION » NE VEUT PAS DIRE LA MÊME CHOSE
+                    DANS LES DEUX CAS. Quand une déduction a été opérée et que
+                    le définitif rejoint le provisoire, il n'y a rien à
+                    régulariser · c'est le premier message. Quand AUCUNE
+                    liquidation ne porte de prorata appliqué, l'assiette
+                    régularisable est nulle par construction, et l'écrire
+                    « le définitif rejoint le provisoire » est faux : il n'y a
+                    pas de provisoire. C'est exactement le cas du nouvel
+                    assujetti. */}
                 <div className="pt-1 text-[11px] text-text font-semibold">
-                  {definitif.sens === 'AUCUNE'
-                    ? 'Aucune régularisation · le définitif rejoint le provisoire.'
-                    : definitif.sens === 'DEDUCTION_COMPLEMENTAIRE'
-                      ? `Déduction complémentaire de ${Math.abs(definitif.regularisation).toLocaleString('fr-FR')} CDF.`
-                      : `Reversement de ${Math.abs(definitif.regularisation).toLocaleString('fr-FR')} CDF.`}
+                  {definitif.tvaDeductibleBrute <= 0
+                    ? 'Rien à régulariser · aucune liquidation de l’année ne porte de prorata appliqué, donc aucune déduction n’a été opérée.'
+                    : definitif.sens === 'AUCUNE'
+                      ? 'Aucune régularisation · le définitif rejoint le provisoire.'
+                      : definitif.sens === 'DEDUCTION_COMPLEMENTAIRE'
+                        ? `Déduction complémentaire de ${Math.abs(definitif.regularisation).toLocaleString('fr-FR')} CDF.`
+                        : `Reversement de ${Math.abs(definitif.regularisation).toLocaleString('fr-FR')} CDF.`}
                 </div>
+                {definitif.tvaDeductibleNonLiquidee > 0 && (
+                  <div className="text-warning">
+                    {definitif.tvaDeductibleNonLiquidee.toLocaleString('fr-FR')} CDF de TVA d’amont de l’année ne
+                    sont couverts par aucune liquidation et restent hors de cette régularisation.
+                  </div>
+                )}
+                {definitif.periodes.length > 0 && (
+                  <div className="pt-1 text-text-dim">
+                    Prorata réellement appliqué, période par période :{' '}
+                    {definitif.periodes
+                      .map((x) => `${x.pourcentageApplique} % du ${x.dateDebut} au ${x.dateFin}`)
+                      .join(' · ')}
+                    .
+                  </div>
+                )}
                 <div className="text-text-dim">{definitif.echeance}</div>
               </div>
             )}

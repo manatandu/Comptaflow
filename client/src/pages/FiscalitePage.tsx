@@ -4,6 +4,7 @@ import { useAuth } from '../lib/auth';
 import { useExercice } from '../lib/exercice';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
 import { Aide } from '../components/chrome/Aide';
+import { mentionCalendrierPaiement } from '../lib/calendrier-paiement-fiscal';
 import type {
   CatalogueRetraitements,
   DefinitionRetraitementFiscal,
@@ -204,6 +205,13 @@ export function FiscalitePage() {
 
   const jour = (d: string) => new Date(d).toLocaleDateString('fr-FR');
   const physique = resultat?.regime !== 'IMPOT_SOCIETES';
+  /**
+   * Libellé et calendrier légal des versements, indexés sur le régime · voir
+   * `client/src/lib/calendrier-paiement-fiscal.ts` pour les textes. Le repli
+   * sur l'IS ne sert que le rendu d'avant chargement, quand `resultat` est
+   * encore nul et qu'aucune ligne n'est affichée.
+   */
+  const calendrier = mentionCalendrierPaiement(resultat?.regime ?? 'IMPOT_SOCIETES');
 
   return (
     <div className="p-2">
@@ -572,10 +580,21 @@ export function FiscalitePage() {
                     note={resultat.minimumApplique ? 'retenu · supérieur à l’impôt sur le bénéfice' : undefined} />
                 )}
                 <Ligne libelle="IMPÔT DÛ" montant={resultat.impotDu} devise={devise} gras total />
+                {/* LE CALENDRIER SUIT LE RÉGIME · l'art. 57 bis ne vise que
+                    l'alinéa 2 de l'art. 57, donc l'IS et l'IRPP au régime réel.
+                    Cette mention était écrite en dur ici, hors de toute
+                    condition, et annonçait trois acomptes de juillet, septembre
+                    et novembre à une petite entreprise qui n'en doit aucun :
+                    elle paie en deux quotités (art. 57, al. 3 et 57 quater),
+                    servies ci-dessous. Le libellé et l'article viennent
+                    désormais de `mentionCalendrierPaiement`, qui est testée
+                    régime par régime. */}
                 <tr className="border-t border-border">
                   <td className="px-3 py-1.5">
-                    Acomptes provisionnels déjà versés
-                    <span className="block text-[10px] text-text-dim">art. 57 bis LPF · 30 % le 25 juillet, 30 % le 25 septembre, 20 % le 25 novembre</span>
+                    {calendrier.libelleVersements}
+                    {calendrier.calendrier && (
+                      <span className="block text-[10px] text-text-dim">{calendrier.calendrier}</span>
+                    )}
                   </td>
                   <td className="px-3 py-1.5 text-right font-mono whitespace-nowrap">
                     {lectureSeule ? (
@@ -634,6 +653,28 @@ export function FiscalitePage() {
                     .join(' · ')}
                   .
                 </div>
+              </div>
+            )}
+            {/* LES DEUX QUOTITÉS DE LA PETITE ENTREPRISE · art. 57, al. 3 et
+                57 quater LPF. Ce n'est PAS un acompte sur l'exercice suivant :
+                c'est le paiement de l'impôt de CET exercice, fractionné en
+                60 % puis 40 %. Le serveur les calculait déjà ; elles
+                n'apparaissaient nulle part. La réserve du second versement est
+                celle du texte lui-même et s'affiche avec lui. */}
+            {resultat.quotitesPetiteEntreprise.length > 0 && (
+              <div className="px-3 pb-3 pt-2 text-[10px] text-text-dim leading-[1.55] border-t border-border">
+                <div className="font-semibold text-text">
+                  Paiement de l’impôt de cet exercice en deux quotités
+                </div>
+                {resultat.quotitesPetiteEntreprise.map((q) => (
+                  <div key={q.rang} className="mt-1">
+                    <span className="font-mono text-text">
+                      {Math.round(q.quotite * 100)} % · {nombre(q.montant)} {devise}
+                    </span>{' '}
+                    au plus tard le {q.echeance} <span className="text-text-dim">({q.source})</span>
+                    {q.reserve && <div className="text-warning mt-0.5">{q.reserve}</div>}
+                  </div>
+                ))}
               </div>
             )}
           </section>
