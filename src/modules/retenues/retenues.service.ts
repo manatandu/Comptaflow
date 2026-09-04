@@ -122,9 +122,12 @@ export class RetenuesService {
     // LE RÉGIME D'IMPÔT DU DOSSIER COMMANDE CE QUI EST ÉCRIT EN TÊTE DE CET
     // ÉTAT. Une société est redevable de l'IS, une ASBL en est exemptée : le
     // registre annonçait l'exemption à tout le monde.
-    const { referentiel } = await this.prisma.tenant.findUniqueOrThrow({
+    const { referentiel, formeJuridiqueSyscohada } = await this.prisma.tenant.findUniqueOrThrow({
       where: { id: tenantId },
-      select: { referentiel: true },
+      // LA FORME OHADA commande le calendrier de paiement de l'impôt · voir
+      // `obligationsDeclarativesApplicables`. Une entreprise individuelle ne
+      // doit pas les trois acomptes de l'impôt sur les sociétés.
+      select: { referentiel: true, formeJuridiqueSyscohada: true },
     });
 
     const lignes = await this.prisma.ligneEcriture.findMany({
@@ -351,6 +354,7 @@ export class RetenuesService {
       totalDu: Math.round(natures.reduce((s, n) => s + n.solde, 0) * 100) / 100,
       comptesNonRattaches,
       referentiel,
+      formeJuridiqueSyscohada,
       signalementsDeductibilite,
       avertissements: [
         AVERTISSEMENT_REGISTRE,
@@ -409,7 +413,10 @@ export class RetenuesService {
     // Toutes ne visent pas tout le monde : l'article 47, alinéa 1er énumère
     // des entités publiques et non lucratives, et l'échéancier servait son
     // amende de 500 000 FC à une société commerciale privée.
-    const declarations = obligationsDeclarativesApplicables(registre.referentiel).map((o: ObligationDeclarative) => ({
+    const declarations = obligationsDeclarativesApplicables(
+      registre.referentiel,
+      registre.formeJuridiqueSyscohada,
+    ).map((o) => ({
       cle: o.cle,
       libelle: o.libelle,
       genre: 'DECLARATION' as const,
@@ -418,7 +425,7 @@ export class RetenuesService {
       date: this.prochaineEcheanceDeclarative(o, registre.dateReference),
       echeance: o.echeance,
       baseLegale: o.baseLegale,
-      reserve: null as string | null,
+      reserve: o.reserve,
       montantDu: 0,
       moisEnRetard: 0,
       imprime: null as string | null,

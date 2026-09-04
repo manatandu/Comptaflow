@@ -95,6 +95,18 @@ const FORMES_SOCIETES_ASSEMBLEE: FormeJuridiqueSyscohada[] = [
  * l'entreprise individuelle, la succursale et l'entité publique, qui sont
  * immatriculés ou déclarés mais ne sont pas des sociétés commerciales.
  */
+/**
+ * LES DEUX FORMES SYSCOHADA QUI SONT DES PERSONNES PHYSIQUES · le commerçant
+ * personne physique de l'AUDCG art. 2 et 13, et l'entreprenant de l'art. 30.
+ * Elles ne relèvent PAS de l'impôt sur les sociétés mais de l'Impôt sur le
+ * Revenu des Personnes Physiques, et leur déclaration annuelle n'est pas la
+ * même : art. 17 de la loi n° 004/2003 et non art. 12 et 13.
+ */
+const FORMES_PERSONNES_PHYSIQUES: FormeJuridiqueSyscohada[] = [
+  FormeJuridiqueSyscohada.ENTREPRISE_INDIVIDUELLE,
+  FormeJuridiqueSyscohada.ENTREPRENANT,
+];
+
 const FORMES_DEPOT_RCCM: FormeJuridiqueSyscohada[] = [
   FormeJuridiqueSyscohada.SOCIETE_ANONYME,
   FormeJuridiqueSyscohada.SOCIETE_PAR_ACTIONS_SIMPLIFIEE,
@@ -151,6 +163,19 @@ export interface DefinitionJalon {
    * qui en est dispensé.
    */
   formesSyscohada?: FormeJuridiqueSyscohada[];
+  /**
+   * L'INVERSE de `formesSyscohada`, et il ne s'y ramène pas · le jalon
+   * s'affiche pour toute forme SAUF celles-ci, Y COMPRIS quand la forme du
+   * dossier n'est pas renseignée.
+   *
+   * La distinction compte. `formesSyscohada` tait le jalon tant que la forme
+   * est inconnue, ce qui est juste pour une obligation que peu de formes
+   * portent (le dépôt au RCCM). Elle serait fausse pour une obligation que
+   * PRESQUE TOUTES portent : taire la déclaration annuelle de revenus à un
+   * dossier dont la forme n'est pas encore saisie ferait disparaître du
+   * planning l'échéance fiscale la plus lourde de l'année.
+   */
+  formesSyscohadaExclues?: FormeJuridiqueSyscohada[];
   /** Référentiels concernés · absent = les deux. */
   referentiels?: Referentiel[];
   /** Jalon propre aux entités de droit étranger (art. 29-34 et 37). */
@@ -518,6 +543,51 @@ export const JALONS_CLOTURE: DefinitionJalon[] = [
     source:
       'Loi n° 004/2003 portant réforme des procédures fiscales, art. 12 (échéance), 13 (états joints), 14 (certification ONEC) et 15 (déclaration en cas de perte), modifiés par la loi n° 23/052 ; art. 57 bis LPF tel que modifié par la loi de finances n° 25/060 du 29 décembre 2025',
     referentiels: [Referentiel.SYSCOHADA],
+    formesSyscohadaExclues: FORMES_PERSONNES_PHYSIQUES,
+  },
+  {
+    /*
+      LA DÉCLARATION D'UNE PERSONNE PHYSIQUE N'EST PAS CELLE D'UNE SOCIÉTÉ, et
+      le jalon précédent servait la seconde à l'une comme à l'autre.
+
+      Une entreprise individuelle et un entreprenant ne sont pas redevables de
+      l'impôt sur les sociétés : ils relèvent de l'IRPP, et leur déclaration
+      annuelle est celle de l'ARTICLE 17, non celle des articles 12 et 13. Le
+      dossier lisait donc « Déclaration de l'Impôt sur les Sociétés », un impôt
+      qu'il ne doit pas, appuyée d'annexes auxquelles il n'est pas toujours
+      tenu, et suivie de trois acomptes qui ne le visent peut-être pas.
+
+      CE QUI SE SCINDE, ET SUR QUOI. L'échéance du 30 avril est COMMUNE : elle
+      vaut pour l'IS par l'art. 12 et pour l'IRPP par l'art. 17, alinéa 1er,
+      qui l'impose à toute personne physique soumise à cet impôt. Les ANNEXES,
+      elles, ne suivent pas la forme juridique mais le SYSTÈME COMPTABLE :
+      l'art. 17, alinéa 2, ne les exige que « pour les personnes physiques
+      relevant du système normal de comptabilité » exerçant dans les catégories
+      qu'il énumère. Un dossier au Système minimal de trésorerie n'y est pas
+      tenu, et le jalon le dit au lieu de réclamer une liasse certifiée à qui
+      n'en produit pas.
+
+      LE CALENDRIER DE PAIEMENT DÉPEND DU RÉGIME, QUE CE FICHIER NE DÉTIENT
+      PAS. Les trois acomptes de l'art. 57 bis ne visent que l'alinéa 2 de
+      l'art. 57, c'est-à-dire l'IS et l'IRPP au RÉGIME RÉEL ; une petite
+      entreprise relève de l'alinéa 3 et paie en deux quotités. Le régime se
+      déduit du chiffre d'affaires sur plusieurs exercices (art. 113), donnée
+      qui vit dans le module fiscal et non dans un calendrier de clôture. Le
+      jalon ÉNONCE donc les deux branches avec leur condition et renvoie à la
+      fenêtre qui tranche · il n'en choisit aucune. Poser une seule branche
+      ici, ce serait deviner.
+    */
+    etape: 15,
+    libelle: 'Déclaration annuelle des revenus (personne physique)',
+    detail:
+      'Déclaration des revenus de l’exercice au plus tard le 30 avril de l’année qui suit celle de leur réalisation, au Service des Impôts du lieu de résidence. Elle n’est PAS une déclaration d’impôt sur les sociétés : une entreprise individuelle et un entreprenant relèvent de l’Impôt sur le Revenu des Personnes Physiques. Elle n’est appuyée des annexes de l’article 13, contresignées par le conseil ou le comptable, que si le dossier relève du SYSTÈME NORMAL de comptabilité et réalise des revenus dans les catégories énumérées par l’article 17, alinéa 2 ; un dossier au Système minimal de trésorerie n’y est pas tenu. S’y ajoute alors le relevé récapitulatif des ventes de l’année aux personnes réputées commerçants ou fabricants. LE CALENDRIER DE PAIEMENT DÉPEND DU RÉGIME : au régime réel, trois acomptes provisionnels aux 25 juillet, 25 septembre et 25 novembre ; au régime des petites entreprises, deux quotités, la première au plus tard le 31 janvier ; au régime des micro-entreprises, ni acompte ni quotité. Le régime applicable se lit dans État > Résultat fiscal et impôt sur les bénéfices, ce calendrier ne le tranche pas.',
+    nature: 'LEGALE',
+    debut: { moisApres: 3, jour: 1 },
+    echeance: { moisApres: 4, jour: 'FIN' },
+    source:
+      'Loi n° 004/2003 portant réforme des procédures fiscales, art. 17 (déclaration des personnes physiques, modifié par la loi n° 23/052 et par la loi de finances n° 25/060), art. 13 (annexes) et art. 57, al. 2 et 3, et 57 bis',
+    referentiels: [Referentiel.SYSCOHADA],
+    formesSyscohada: FORMES_PERSONNES_PHYSIQUES,
   },
   {
     /*
@@ -940,6 +1010,14 @@ export function jalonsApplicables(contexte: {
     // Forme OHADA NON renseignée = le jalon ne s'affiche pas. Le silence vaut
     // mieux qu'une obligation servie à une forme qui n'y est pas tenue.
     if (j.formesSyscohada && !(contexte.formeJuridiqueSyscohada && j.formesSyscohada.includes(contexte.formeJuridiqueSyscohada)))
+      return false;
+    // Exclusion · la forme NON renseignée ne fait sortir personne, voir le
+    // commentaire de `formesSyscohadaExclues`.
+    if (
+      j.formesSyscohadaExclues &&
+      contexte.formeJuridiqueSyscohada &&
+      j.formesSyscohadaExclues.includes(contexte.formeJuridiqueSyscohada)
+    )
       return false;
     if (j.droitEtrangerSeulement && !contexte.droitEtranger) return false;
     return true;

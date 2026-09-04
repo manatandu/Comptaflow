@@ -1,3 +1,4 @@
+import { FormeJuridiqueSyscohada, Referentiel } from '@prisma/client';
 import { RetenuesService } from './retenues.service';
 import { PrismaService } from '../../common/prisma.service';
 import { obligationsDeclarativesApplicables } from './correspondance-retenues';
@@ -106,5 +107,102 @@ describe('Échéances de l’impôt sur les sociétés', () => {
     const sycebnl = obligationsDeclarativesApplicables('SYCEBNL' as never).map((o) => o.cle);
     expect(CLES_IS.every((c) => syscohada.includes(c))).toBe(true);
     expect(CLES_IS.some((c) => sycebnl.includes(c))).toBe(false);
+  });
+});
+
+/**
+ * LE CALENDRIER DE PAIEMENT SUIT LA FORME, ET L'ÉCHÉANCIER L'IGNORAIT.
+ *
+ * Le test ci-dessus verrouillait les quatre échéances de l'impôt sur les
+ * sociétés. Il ne disait rien de QUI les doit · et l'échéancier les servait à
+ * tout dossier SYSCOHADA, entreprise individuelle et entreprenant compris.
+ *
+ * Or l'article 57 bis vise « les acomptes provisionnels visés à l'article 57,
+ * ALINÉA 2 », et cet alinéa ne couvre que l'impôt sur les sociétés et l'IRPP
+ * au régime réel. Une petite entreprise relève de l'alinéa 3 et paie en DEUX
+ * quotités (art. 57 quater), que l'échéancier taisait entièrement. Un
+ * entrepreneur individuel lisait donc trois versements aux mauvaises dates et
+ * ignorait les deux qu'il doit vraiment.
+ *
+ * CE QUE LE MODULE NE TRANCHE PAS, ET POURQUOI C'EST TESTÉ AUSSI. Le régime se
+ * déduit du chiffre d'affaires sur plusieurs exercices (art. 113) et vit dans
+ * le module fiscal. L'échéancier sert donc les DEUX calendriers à une personne
+ * physique, chacun avec sa condition en réserve. Les assertions ci-dessous
+ * gèlent ce choix : servir un seul calendrier ici serait une devinette, et
+ * recalculer l'article 113 dans ce module le ferait diverger de l'autre.
+ */
+describe('Calendrier de paiement de l’impôt · art. 57, al. 2 et 3', () => {
+  const cles = (forme: FormeJuridiqueSyscohada | null) =>
+    obligationsDeclarativesApplicables(Referentiel.SYSCOHADA, forme).map((o) => o.cle);
+
+  const QUOTITES = ['premiereQuotitePetiteEntreprise', 'secondeQuotitePetiteEntreprise'];
+  const ACOMPTES = ['premierAcompteIs', 'deuxiemeAcompteIs', 'troisiemeAcompteIs'];
+
+  it('NE SERT AUCUNE quotité à une personne morale · c’est l’impôt sur les sociétés', () => {
+    for (const forme of [
+      FormeJuridiqueSyscohada.SOCIETE_ANONYME,
+      FormeJuridiqueSyscohada.SOCIETE_RESPONSABILITE_LIMITEE,
+      FormeJuridiqueSyscohada.SOCIETE_COOPERATIVE,
+    ]) {
+      const servies = cles(forme);
+      expect(servies).toEqual(expect.arrayContaining(ACOMPTES));
+      expect(`${forme}: ${servies.filter((c) => QUOTITES.includes(c)).join(', ')}`).toBe(`${forme}: `);
+    }
+  });
+
+  it('SERT les deux quotités à une personne physique · c’est le défaut corrigé', () => {
+    for (const forme of [
+      FormeJuridiqueSyscohada.ENTREPRISE_INDIVIDUELLE,
+      FormeJuridiqueSyscohada.ENTREPRENANT,
+    ]) {
+      const servies = cles(forme);
+      expect(servies).toEqual(expect.arrayContaining(QUOTITES));
+      // Les acomptes RESTENT servis : une personne physique au régime réel les
+      // doit. C'est le sens de la réserve, pas d'une suppression.
+      expect(servies).toEqual(expect.arrayContaining(ACOMPTES));
+    }
+  });
+
+  it('accompagne CHAQUE calendrier de sa condition quand la forme est physique', () => {
+    const servies = obligationsDeclarativesApplicables(
+      Referentiel.SYSCOHADA,
+      FormeJuridiqueSyscohada.ENTREPRISE_INDIVIDUELLE,
+    );
+    for (const cle of [...ACOMPTES, ...QUOTITES]) {
+      const o = servies.find((x) => x.cle === cle)!;
+      expect(`${cle}: ${o.reserve === null ? 'sans réserve' : 'avec réserve'}`).toBe(`${cle}: avec réserve`);
+      expect(o.reserve).toMatch(/RÉGIME/);
+    }
+    // La réserve renvoie à la fenêtre qui tranche, jamais à une devinette.
+    expect(servies.find((x) => x.cle === 'premierAcompteIs')!.reserve).toContain('Résultat fiscal');
+  });
+
+  it('ne pose AUCUNE réserve à une personne morale, dont le régime est certain', () => {
+    const servies = obligationsDeclarativesApplicables(
+      Referentiel.SYSCOHADA,
+      FormeJuridiqueSyscohada.SOCIETE_ANONYME,
+    );
+    for (const cle of ACOMPTES) expect(servies.find((x) => x.cle === cle)!.reserve).toBeNull();
+  });
+
+  it('FORME NON RENSEIGNÉE · rien n’est retranché de ce qui était servi, rien n’est ajouté', () => {
+    const servies = cles(null);
+    expect(servies).toEqual(expect.arrayContaining(ACOMPTES));
+    expect(servies.filter((c) => QUOTITES.includes(c))).toEqual([]);
+  });
+
+  it('date la première quotité au 31 janvier et la seconde au 30 avril, réserve du texte comprise', () => {
+    const servies = obligationsDeclarativesApplicables(
+      Referentiel.SYSCOHADA,
+      FormeJuridiqueSyscohada.ENTREPRENANT,
+    );
+    const premiere = servies.find((o) => o.cle === 'premiereQuotitePetiteEntreprise')!;
+    const seconde = servies.find((o) => o.cle === 'secondeQuotitePetiteEntreprise')!;
+    expect([premiere.moisEcheance, premiere.jourEcheance]).toEqual([1, 31]);
+    expect([seconde.moisEcheance, seconde.jourEcheance]).toEqual([4, 30]);
+    // La coquille de l'art. 57 quater, al. 3 est SIGNALÉE, pas corrigée en
+    // silence · le même alinéa ne peut pas fixer deux dates à la 1ère quotité.
+    expect(seconde.contenu).toContain('À CONFIRMER');
+    expect(seconde.baseLegale).toContain('57 quater');
   });
 });

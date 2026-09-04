@@ -120,6 +120,11 @@ describe('planning de clôture', () => {
       // commun avec la déclaration d'une association exemptée.
       'Déclarations fiscales annuelles',
       'Déclarations fiscales annuelles',
+      // AJOUTÉ · une entreprise individuelle et un entreprenant ne doivent pas
+      // l'impôt sur les sociétés. Leur déclaration annuelle est celle de
+      // l'art. 17 de la loi n° 004/2003, avec ses propres annexes et son
+      // propre calendrier de paiement.
+      'Déclaration annuelle des revenus (personne physique)',
       'Rapport de gestion',
       'États financiers et rapport de gestion aux commissaires aux comptes',
       // AJOUTÉ le 2026-09-03 · ce jalon était classé INTERNE, sur le
@@ -345,17 +350,88 @@ describe('planning de clôture · cloisonnement des référentiels', () => {
   const syscohada = JALONS_CLOTURE.filter((j) => !j.referentiels || j.referentiels.includes(Referentiel.SYSCOHADA));
   const sycebnl = JALONS_CLOTURE.filter((j) => !j.referentiels || j.referentiels.includes(Referentiel.SYCEBNL));
 
-  it('donne à chaque référentiel un numéro d’étape par jalon, jamais deux', () => {
-    // Les paires SYCEBNL/SYSCOHADA partagent volontairement leur numéro
-    // d'étape · elles ne peuvent jamais coexister, et ExercicePage s'en sert
-    // comme clé de ligne React.
-    for (const [nom, jalons] of [
-      ['SYCEBNL', sycebnl],
-      ['SYSCOHADA', syscohada],
-    ] as const) {
-      const etapes = jalons.map((j) => j.etape);
+  it('donne à chaque DOSSIER un numéro d’étape par jalon, jamais deux', () => {
+    /*
+      CE QUE CE TEST MESURE, ET POURQUOI IL A CHANGÉ DE SUJET.
+
+      Il comparait les jalons d'un RÉFÉRENTIEL, ce qui n'est pas la propriété
+      qui compte : ExercicePage se sert du numéro d'étape comme clé de ligne
+      React, et une clé n'a besoin d'être unique que dans la liste RÉELLEMENT
+      affichée, c'est-à-dire celle d'un dossier. Deux jalons peuvent donc
+      partager un numéro tant qu'aucun dossier ne les reçoit ensemble · c'est
+      déjà le cas des paires SYCEBNL/SYSCOHADA, que l'ancienne rédaction devait
+      justifier en commentaire, et c'est désormais aussi celui des deux
+      déclarations annuelles de l'étape 15, l'une pour les personnes morales et
+      l'autre pour les personnes physiques.
+
+      La version qui suit passe par `jalonsApplicables`, donc par le filtre lui
+      même, et balaie TOUTES les formes juridiques des deux référentiels plus
+      le cas de la forme non renseignée. Elle est strictement plus forte que
+      celle qu'elle remplace : elle attraperait deux jalons de même étape
+      servis au même dossier, ce que la comparaison par référentiel laissait
+      passer.
+    */
+    const formesSyscohada: (FormeJuridiqueSyscohada | null)[] = [null, ...Object.values(FormeJuridiqueSyscohada)];
+    const contextes: { nom: string; contexte: Parameters<typeof jalonsApplicables>[0] }[] = [];
+    for (const forme of Object.values(FormeJuridiqueEbnl)) {
+      for (const droitEtranger of [false, true]) {
+        contextes.push({
+          nom: `SYCEBNL ${forme}${droitEtranger ? ' (droit étranger)' : ''}`,
+          contexte: { referentiel: Referentiel.SYCEBNL, formeJuridique: forme, droitEtranger },
+        });
+      }
+    }
+    for (const forme of formesSyscohada) {
+      contextes.push({
+        nom: `SYSCOHADA ${forme ?? 'forme non renseignée'}`,
+        contexte: {
+          referentiel: Referentiel.SYSCOHADA,
+          formeJuridique: FormeJuridiqueEbnl.ASSOCIATION,
+          formeJuridiqueSyscohada: forme,
+          droitEtranger: false,
+        },
+      });
+    }
+    for (const { nom, contexte } of contextes) {
+      const etapes = jalonsApplicables(contexte).map((j) => j.etape);
       expect(`${nom}: ${etapes.length}`).toBe(`${nom}: ${new Set(etapes).size}`);
     }
+  });
+
+  it('sert la déclaration de l’art. 17 à une personne physique, et jamais celle de l’IS', () => {
+    /*
+      LE TEST QUI AURAIT ATTRAPÉ LE DÉFAUT · une entreprise individuelle lisait
+      « Déclaration de l'Impôt sur les Sociétés », un impôt qu'elle ne doit pas,
+      suivie de trois acomptes qui ne visent que le régime réel.
+    */
+    const pour = (forme: FormeJuridiqueSyscohada | null) =>
+      jalonsApplicables({
+        referentiel: Referentiel.SYSCOHADA,
+        formeJuridique: FormeJuridiqueEbnl.ASSOCIATION,
+        formeJuridiqueSyscohada: forme,
+        droitEtranger: false,
+      }).filter((j) => j.etape === 15);
+
+    for (const forme of [FormeJuridiqueSyscohada.ENTREPRISE_INDIVIDUELLE, FormeJuridiqueSyscohada.ENTREPRENANT]) {
+      const jalons = pour(forme);
+      expect(jalons).toHaveLength(1);
+      expect(jalons[0].libelle).toContain('personne physique');
+      expect(jalons[0].detail).not.toMatch(/Déclaration de l’Impôt sur les Sociétés/);
+      // Le calendrier de paiement est ÉNONCÉ conditionnellement, pas tranché.
+      expect(jalons[0].detail).toContain('DÉPEND DU RÉGIME');
+      expect(jalons[0].detail).toContain('31 janvier');
+      expect(jalons[0].source).toMatch(/art\. 17/);
+    }
+
+    const sa = pour(FormeJuridiqueSyscohada.SOCIETE_ANONYME);
+    expect(sa).toHaveLength(1);
+    expect(sa[0].libelle).toBe('Déclarations fiscales annuelles');
+
+    // FORME NON RENSEIGNÉE · le jalon de l'IS reste servi. Le taire ferait
+    // disparaître l'échéance fiscale la plus lourde de l'année.
+    const inconnue = pour(null);
+    expect(inconnue).toHaveLength(1);
+    expect(inconnue[0].libelle).toBe('Déclarations fiscales annuelles');
   });
 
   it('ne sert aucun compte, article ou mot du SYCEBNL à un dossier SYSCOHADA', () => {

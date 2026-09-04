@@ -1,4 +1,4 @@
-import { Referentiel } from '@prisma/client';
+import { FormeJuridiqueSyscohada, Referentiel } from '@prisma/client';
 
 /**
  * REGISTRE DES RETENUES À LA SOURCE ET ÉCHÉANCIER FISCAL.
@@ -138,6 +138,17 @@ export interface ObligationDeclarative {
   sanction?: string;
   /** D'où le logiciel peut tirer la matière de la déclaration. */
   sourceDonnees?: string;
+  /**
+   * Obligation réservée aux PERSONNES PHYSIQUES · l'entreprise individuelle
+   * et l'entreprenant. Absent = toutes les formes.
+   */
+  personnesPhysiquesSeulement?: boolean;
+  /**
+   * Réserve à servir avec cette obligation QUAND le dossier est une personne
+   * physique · voir `obligationsDeclarativesApplicables`. Elle dit ce que
+   * l'échéancier ne peut pas trancher, faute de connaître le régime.
+   */
+  reserveRegimePhysique?: string;
   /**
    * Référentiels concernés · absent = les deux. L'article 47, alinéa 1er ne
    * vise que des entités publiques et non lucratives : une société
@@ -674,6 +685,11 @@ export const OBLIGATIONS_DECLARATIVES: ObligationDeclarative[] = [
     contenu: CONTENU_ACOMPTE('30 %'),
     sourceDonnees: SOURCE_ACOMPTES,
     referentiels: [Referentiel.SYSCOHADA],
+    reserveRegimePhysique: "Ces trois acomptes ne sont dus qu'au RÉGIME RÉEL · l'article 57 bis ne vise que les acomptes de " +
+  "l'article 57, ALINÉA 2, et une personne physique au régime des petites entreprises relève de l'alinéa 3, " +
+  "qui la fait payer en deux quotités (ci-dessous). Le régime se déduit du chiffre d'affaires sur plusieurs " +
+  "exercices (art. 113) et se lit dans État > Résultat fiscal et impôt sur les bénéfices · cet échéancier ne " +
+  'le tranche pas, il sert les deux calendriers et vous laisse retenir le vôtre.',
   },
   {
     cle: 'deuxiemeAcompteIs',
@@ -686,6 +702,11 @@ export const OBLIGATIONS_DECLARATIVES: ObligationDeclarative[] = [
     contenu: CONTENU_ACOMPTE('30 %'),
     sourceDonnees: SOURCE_ACOMPTES,
     referentiels: [Referentiel.SYSCOHADA],
+    reserveRegimePhysique: "Ces trois acomptes ne sont dus qu'au RÉGIME RÉEL · l'article 57 bis ne vise que les acomptes de " +
+  "l'article 57, ALINÉA 2, et une personne physique au régime des petites entreprises relève de l'alinéa 3, " +
+  "qui la fait payer en deux quotités (ci-dessous). Le régime se déduit du chiffre d'affaires sur plusieurs " +
+  "exercices (art. 113) et se lit dans État > Résultat fiscal et impôt sur les bénéfices · cet échéancier ne " +
+  'le tranche pas, il sert les deux calendriers et vous laisse retenir le vôtre.',
   },
   {
     cle: 'troisiemeAcompteIs',
@@ -698,6 +719,68 @@ export const OBLIGATIONS_DECLARATIVES: ObligationDeclarative[] = [
     contenu: CONTENU_ACOMPTE('20 %'),
     sourceDonnees: SOURCE_ACOMPTES,
     referentiels: [Referentiel.SYSCOHADA],
+    reserveRegimePhysique: "Ces trois acomptes ne sont dus qu'au RÉGIME RÉEL · l'article 57 bis ne vise que les acomptes de " +
+  "l'article 57, ALINÉA 2, et une personne physique au régime des petites entreprises relève de l'alinéa 3, " +
+  "qui la fait payer en deux quotités (ci-dessous). Le régime se déduit du chiffre d'affaires sur plusieurs " +
+  "exercices (art. 113) et se lit dans État > Résultat fiscal et impôt sur les bénéfices · cet échéancier ne " +
+  'le tranche pas, il sert les deux calendriers et vous laisse retenir le vôtre.',
+  },
+  /*
+    LES DEUX QUOTITÉS DE LA PETITE ENTREPRISE · ce que l'échéancier ne servait
+    à personne, alors qu'il servait à tout le monde les trois acomptes.
+
+    L'article 57 bis vise « les acomptes provisionnels visés à l'article 57,
+    ALINÉA 2 », et cet alinéa ne couvre que l'impôt sur les sociétés et l'IRPP
+    au régime réel. Une petite entreprise relève de l'alinéa 3 : elle acquitte
+    son impôt en deux quotités, 60 % puis 40 %. L'échéancier lui réclamait donc
+    trois versements aux mauvaises dates et taisait les deux qu'elle doit.
+
+    POURQUOI LES DEUX CALENDRIERS SONT SERVIS ENSEMBLE À UNE PERSONNE PHYSIQUE.
+    Le régime ne se lit pas dans une forme juridique : il se déduit du chiffre
+    d'affaires sur plusieurs exercices (art. 113), donnée qui vit dans le
+    module fiscal. Ce fichier ne la détient pas et ne la recalculera pas · une
+    règle fiscale dupliquée dans deux modules finit par diverger. Il sert donc
+    les deux calendriers AVEC LEUR CONDITION ÉCRITE, plutôt que d'en deviner
+    un. Une personne MORALE, elle, est toujours à l'IS : elle ne reçoit que les
+    trois acomptes, sans réserve.
+  */
+  {
+    cle: 'premiereQuotitePetiteEntreprise',
+    libelle: 'Première quotité de l’impôt (60 %)',
+    periodicite: 'ANNUELLE',
+    moisEcheance: 1,
+    jourEcheance: 31,
+    echeance: 'Au plus tard le 31 janvier',
+    baseLegale:
+      'Article 57, alinéa 3, et article 57 quater, alinéa 2, de la loi de procédures fiscales n° 004/2003.',
+    contenu:
+      "Versement de 60 % de l'impôt dû au titre de l'exercice, au plus tard le 31 janvier de l'année qui suit celle de la réalisation des revenus. Ce n'est PAS un acompte sur l'exercice suivant : c'est le paiement de cet impôt-ci, fractionné.",
+    sourceDonnees:
+      "Impôt dû de la fenêtre État > Résultat fiscal et impôt sur les bénéfices, qui sert les deux quotités chiffrées.",
+    referentiels: [Referentiel.SYSCOHADA],
+    personnesPhysiquesSeulement: true,
+    reserveRegimePhysique: "Ces deux quotités ne sont dues qu'au RÉGIME DES PETITES ENTREPRISES (art. 57, al. 3 et art. 57 quater) · " +
+  "au régime réel, ce sont les trois acomptes ci-dessus qui s'appliquent, et le régime des micro-entreprises " +
+  "n'en doit aucun. Le régime se lit dans État > Résultat fiscal et impôt sur les bénéfices.",
+  },
+  {
+    cle: 'secondeQuotitePetiteEntreprise',
+    libelle: 'Seconde quotité de l’impôt (40 %)',
+    periodicite: 'ANNUELLE',
+    moisEcheance: 4,
+    jourEcheance: 30,
+    echeance: 'Au plus tard le 30 avril',
+    baseLegale:
+      'Article 57, alinéa 3, et article 57 quater, alinéa 3, de la loi de procédures fiscales n° 004/2003.',
+    contenu:
+      "Versement du solde de 40 % de l'impôt dû au titre de l'exercice. ÉCHÉANCE À CONFIRMER auprès du service gestionnaire : l'alinéa 3 de l'article 57 quater écrit une seconde fois « La 1ère quotité est acquittée [...] au plus tard le 30 avril de la même année ». Le même alinéa ne peut pas fixer deux dates à la même quotité · le défaut de rédaction est celui du texte officiel, repris tel quel par la compilation DGI au 19 juillet 2026, et il est signalé ici plutôt que corrigé en silence.",
+    sourceDonnees:
+      "Impôt dû de la fenêtre État > Résultat fiscal et impôt sur les bénéfices, qui sert les deux quotités chiffrées.",
+    referentiels: [Referentiel.SYSCOHADA],
+    personnesPhysiquesSeulement: true,
+    reserveRegimePhysique: "Ces deux quotités ne sont dues qu'au RÉGIME DES PETITES ENTREPRISES (art. 57, al. 3 et art. 57 quater) · " +
+  "au régime réel, ce sont les trois acomptes ci-dessus qui s'appliquent, et le régime des micro-entreprises " +
+  "n'en doit aucun. Le régime se lit dans État > Résultat fiscal et impôt sur les bénéfices.",
   },
   {
     cle: 'declarationAnnuelleSalaires',
@@ -787,9 +870,51 @@ export function avertissementRegimeImpot(referentiel: Referentiel): string {
   );
 }
 
-/** Obligations déclaratives applicables au référentiel d'un dossier. */
-export function obligationsDeclarativesApplicables(referentiel: Referentiel): ObligationDeclarative[] {
-  return OBLIGATIONS_DECLARATIVES.filter((o) => !o.referentiels || o.referentiels.includes(referentiel));
+/**
+ * LES DEUX FORMES SYSCOHADA QUI SONT DES PERSONNES PHYSIQUES · commerçant
+ * personne physique (AUDCG art. 2 et 13) et entreprenant (art. 30). Elles ne
+ * sont pas redevables de l'impôt sur les sociétés mais de l'IRPP, et leur
+ * calendrier de paiement dépend d'un RÉGIME que ce module ne détermine pas.
+ */
+const FORMES_PERSONNES_PHYSIQUES: FormeJuridiqueSyscohada[] = [
+  FormeJuridiqueSyscohada.ENTREPRISE_INDIVIDUELLE,
+  FormeJuridiqueSyscohada.ENTREPRENANT,
+];
+
+/** Obligation servie à l'échéancier, avec la réserve qui l'accompagne. */
+export type ObligationServie = ObligationDeclarative & { reserve: string | null };
+
+/**
+ * Obligations déclaratives applicables à un dossier.
+ *
+ * LA FORME JURIDIQUE COMMANDE LE CALENDRIER DE PAIEMENT DE L'IMPÔT, et
+ * l'échéancier l'ignorait : il servait les trois acomptes de l'article 57 bis
+ * à TOUT dossier SYSCOHADA, entreprise individuelle et entreprenant compris,
+ * alors que ces acomptes ne visent que l'alinéa 2 de l'article 57, c'est-à-dire
+ * l'impôt sur les sociétés et l'IRPP au régime réel.
+ *
+ * CE QUE LA FORME ÉTABLIT AVEC CERTITUDE, ET CE QU'ELLE N'ÉTABLIT PAS. Une
+ * personne MORALE est à l'impôt sur les sociétés : ses trois acomptes sont dus,
+ * et les quotités de la petite entreprise ne la concernent jamais. Une personne
+ * PHYSIQUE relève de l'IRPP, et son régime (micro, petite entreprise, réel) se
+ * déduit du chiffre d'affaires sur plusieurs exercices selon l'article 113 ·
+ * cette donnée vit dans le module fiscal, pas ici. Les deux calendriers lui
+ * sont donc servis AVEC LEUR CONDITION ÉCRITE en réserve, plutôt qu'un seul
+ * choisi au jugé. Avertir vaut mieux que deviner, et recalculer ici la règle
+ * de l'article 113 la ferait exister à deux endroits, donc diverger.
+ *
+ * FORME NON RENSEIGNÉE = on ne retranche rien de ce qui était servi jusqu'ici
+ * et on n'ajoute pas les quotités : le comportement d'avant, exactement, pour
+ * un dossier qui n'a pas encore rempli ses paramètres.
+ */
+export function obligationsDeclarativesApplicables(
+  referentiel: Referentiel,
+  formeSyscohada?: FormeJuridiqueSyscohada | null,
+): ObligationServie[] {
+  const physique = !!formeSyscohada && FORMES_PERSONNES_PHYSIQUES.includes(formeSyscohada);
+  return OBLIGATIONS_DECLARATIVES.filter(
+    (o) => (!o.referentiels || o.referentiels.includes(referentiel)) && (!o.personnesPhysiquesSeulement || physique),
+  ).map((o) => ({ ...o, reserve: physique ? (o.reserveRegimePhysique ?? null) : null }));
 }
 
 /** Réserve à afficher pour une nature, selon le référentiel du dossier. */
