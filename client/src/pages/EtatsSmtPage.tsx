@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
+import { lacuneEcheancesNote3 } from '../lib/note3-echeances-smt';
 import { useExercice } from '../lib/exercice';
 import { IconCheck, IconExport } from '../components/chrome/icons';
 import { Aide } from '../components/chrome/Aide';
@@ -66,6 +67,10 @@ export function EtatsSmtPage() {
   const [eligibilite, setEligibilite] = useState<EligibiliteSmt | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [exportEnCours, setExportEnCours] = useState(false);
+
+  // Ce que la Note 3 ne sait pas dater · null quand la ventilation est
+  // complète, auquel cas l'écran est exactement celui d'avant.
+  const lacuneEcheances = notes ? lacuneEcheancesNote3(notes.note3) : null;
 
   useEffect(() => {
     if (!exerciceCourant) return;
@@ -517,31 +522,75 @@ export function EtatsSmtPage() {
             )}
           </div>
 
-          <div className="border border-border bg-surface mb-3">
+          <div className="border border-border bg-surface mb-3 overflow-x-auto">
+            <div className="min-w-[960px]">
             <div className="bg-surface-alt border-b border-border px-4 py-1.5 text-[10.5px] font-bold">
               NOTE 3 · ÉTAT DES CRÉANCES ET DES DETTES NON ÉCHUES
             </div>
+            {/* LA PART QUE LA NOTE NE SAIT PAS DATER · elle n'est pas une
+                catégorie de plus, c'est une lacune de tenue, et sur un dossier
+                qui n'a jamais saisi d'échéance elle porte la totalité du
+                solde. Elle passe donc avant les tableaux, jamais après. Le
+                texte est monté par `lacuneEcheancesNote3`. */}
+            {lacuneEcheances && (
+              <div className="bg-warning-soft border-b border-warning/30 px-4 py-2 text-[10.5px]">
+                <div className="font-bold">ÉCHÉANCES NON RENSEIGNÉES</div>
+                <p className="mt-1">{lacuneEcheances.phrase}</p>
+                <div className="mt-1.5 flex flex-wrap gap-x-6 gap-y-1">
+                  <span>
+                    Créances non datées : <span className="font-mono font-bold">{montant(lacuneEcheances.creances)}</span>
+                  </span>
+                  <span>
+                    Dettes non datées : <span className="font-mono font-bold">{montant(lacuneEcheances.dettes)}</span>
+                  </span>
+                </div>
+                {lacuneEcheances.resteNegatif && <p className="mt-1.5">{lacuneEcheances.resteNegatif}</p>}
+                <p className="mt-1.5">{lacuneEcheances.geste}</p>
+              </div>
+            )}
             {(
               [
-                ['CRÉANCES', notes.note3.creances, notes.note3.totalCreances],
-                ['DETTES', notes.note3.dettes, notes.note3.totalDettes],
+                [
+                  'CRÉANCES',
+                  notes.note3.creances,
+                  notes.note3.totalCreances,
+                  notes.note3.totalCreancesNonEchues,
+                  notes.note3.totalCreancesEchues,
+                  notes.note3.totalCreancesNonVentilees,
+                ],
+                [
+                  'DETTES',
+                  notes.note3.dettes,
+                  notes.note3.totalDettes,
+                  notes.note3.totalDettesNonEchues,
+                  notes.note3.totalDettesEchues,
+                  notes.note3.totalDettesNonVentilees,
+                ],
               ] as const
-            ).map(([titre, lignes, total]) => (
+            ).map(([titre, lignes, total, totalNonEchu, totalEchu, totalNonDate]) => (
               <div key={titre}>
-                <div className="grid grid-cols-[1fr_120px_120px_120px_90px] gap-2 px-4 py-1.5 bg-surface-alt border-y border-border text-[10px] font-bold text-text-dim">
+                <div className="grid grid-cols-[minmax(170px,1fr)_105px_105px_105px_105px_105px_105px_74px] gap-2 px-4 py-1.5 bg-surface-alt border-y border-border text-[10px] font-bold text-text-dim">
                   <span>{titre}</span>
                   <span className="text-right">AU 31/12/N</span>
+                  <span className="text-right">DONT NON ÉCHU</span>
+                  <span className="text-right">DONT ÉCHU</span>
+                  <span className="text-right text-warning">NON DATÉ</span>
                   <span className="text-right">AU 01/01/N</span>
                   <span className="text-right">VARIATION</span>
                   <span className="text-right">VAR. %</span>
                 </div>
                 {lignes.length === 0 && <div className="px-4 py-1.5 text-[10.5px] text-text-dim">Aucune ligne.</div>}
                 {lignes.map((l) => (
-                  <div key={l.numero} className="grid grid-cols-[1fr_120px_120px_120px_90px] gap-2 px-4 py-1 text-[11px]">
+                  <div key={l.numero} className="grid grid-cols-[minmax(170px,1fr)_105px_105px_105px_105px_105px_105px_74px] gap-2 px-4 py-1 text-[11px]">
                     <span>
                       <span className="font-mono text-[10.5px] text-text-dim">{l.numero}</span> {l.nom}
                     </span>
                     <span className="font-mono text-right">{montant(l.montantCloture)}</span>
+                    <span className="font-mono text-right">{montant(l.montantNonEchu)}</span>
+                    <span className="font-mono text-right">{montant(l.montantEchu)}</span>
+                    <span className={`font-mono text-right ${Math.abs(l.montantNonVentile) >= 0.005 ? 'text-warning' : 'text-text-dim'}`}>
+                      {montant(l.montantNonVentile)}
+                    </span>
                     <span className="font-mono text-right">{montant(l.montantOuverture)}</span>
                     <span className="font-mono text-right">{montant(l.variationValeur)}</span>
                     <span className="font-mono text-right text-text-dim">
@@ -549,15 +598,30 @@ export function EtatsSmtPage() {
                     </span>
                   </div>
                 ))}
-                <div className="grid grid-cols-[1fr_120px_120px_120px_90px] gap-2 px-4 py-1.5 text-[11px] font-bold">
+                <div className="grid grid-cols-[minmax(170px,1fr)_105px_105px_105px_105px_105px_105px_74px] gap-2 px-4 py-1.5 text-[11px] font-bold">
                   <span>TOTAL DES {titre}</span>
                   <span className="font-mono text-right">{montant(total)}</span>
+                  <span className="font-mono text-right">{montant(totalNonEchu)}</span>
+                  <span className="font-mono text-right">{montant(totalEchu)}</span>
+                  <span className={`font-mono text-right ${Math.abs(totalNonDate) >= 0.005 ? 'text-warning' : 'text-text-dim'}`}>
+                    {montant(totalNonDate)}
+                  </span>
                   <span />
                   <span />
                   <span />
                 </div>
               </div>
             ))}
+            {/* La ventilation S'AJOUTE à la maquette, elle ne l'ampute pas :
+                la colonne officielle « Montant au 31 décembre N » reste le
+                solde entier, faute de quoi la note cesserait de justifier les
+                postes GC et HD du bilan qu'elle accompagne. */}
+            <p className="px-4 py-2 text-[10px] text-text-dim border-t border-border">
+              La colonne « au 31/12/N » porte le solde ENTIER du compte, comme la maquette officielle · c'est « dont non
+              échu » qui répond au titre de la note. Les trois parts la totalisent toujours.
+              {notes.note3.motifEcheances ? ` ${notes.note3.motifEcheances}` : ''}
+            </p>
+            </div>
           </div>
 
           <div className="border border-border bg-surface mb-3">

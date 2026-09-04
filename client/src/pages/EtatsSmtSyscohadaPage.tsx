@@ -843,17 +843,45 @@ export function EtatsSmtSyscohadaPage() {
                   le texte ne porte pas. */}
               {(
                 [
-                  ['CRÉANCES', 'NOM DU CLIENT', notes.note3.creances, notes.note3.totalCreances, 'TOTAL DES CRÉANCES'],
-                  ['DETTES', 'NOM DU FOURNISSEUR', notes.note3.dettes, notes.note3.totalDettes, 'TOTAL DES DETTES'],
+                  [
+                    'CRÉANCES',
+                    'NOM DU CLIENT',
+                    notes.note3.creances,
+                    notes.note3.totalCreances,
+                    'TOTAL DES CRÉANCES',
+                    notes.note3.totalCreancesNonEchues,
+                    notes.note3.totalCreancesEchues,
+                    notes.note3.totalCreancesNonVentilees,
+                  ],
+                  [
+                    'DETTES',
+                    'NOM DU FOURNISSEUR',
+                    notes.note3.dettes,
+                    notes.note3.totalDettes,
+                    'TOTAL DES DETTES',
+                    notes.note3.totalDettesNonEchues,
+                    notes.note3.totalDettesEchues,
+                    notes.note3.totalDettesNonVentilees,
+                  ],
                 ] as const
-              ).map(([titre, colonneNom, lignes, total, libelleTotal]) => (
+              ).map(([titre, colonneNom, lignes, total, libelleTotal, totalNonEchu, totalEchu, totalNonDate]) => (
                 <div key={titre}>
-                  <div className="grid grid-cols-[minmax(150px,1fr)_110px_110px_110px_80px] min-w-[600px] gap-2 px-3 py-1.5 bg-surface-alt border-y border-border text-[10px] font-bold text-text-dim">
+                  <div className="grid grid-cols-[minmax(160px,1fr)_100px_100px_100px_100px_100px_100px_72px] min-w-[900px] gap-2 px-3 py-1.5 bg-surface-alt border-y border-border text-[10px] font-bold text-text-dim">
+                    {/* LA VENTILATION S'AJOUTE À LA MAQUETTE, ELLE NE L'AMPUTE
+                        PAS · « AU 31 DÉCEMBRE » reste le solde ENTIER, comme
+                        le ch. 3 l'imprime, faute de quoi la note cesserait de
+                        justifier les postes SA3 et SP4 du bilan et les lignes
+                        SV2 et SV3 du compte de résultat. Ce sont les colonnes
+                        DONT qui répondent au titre « non échues », que l'écran
+                        affirmait jusqu'ici sur un total qui mêlait les deux. */}
                     <span>{colonneNom}</span>
                     <span className="text-right">AU 31 DÉCEMBRE</span>
+                    <span className="text-right">DONT NON ÉCHU</span>
+                    <span className="text-right">DONT ÉCHU</span>
+                    <span className="text-right text-warning">NON DATÉ</span>
                     <span className="text-right">AU 1ER JANVIER</span>
                     <span className="text-right">VARIATION</span>
-                    <span className="text-right">VARIATION %</span>
+                    <span className="text-right">VAR. %</span>
                   </div>
                   {lignes.length === 0 && (
                     <div className="px-3 py-1.5 text-[10.5px] text-text-dim">Aucune ligne.</div>
@@ -861,12 +889,19 @@ export function EtatsSmtSyscohadaPage() {
                   {lignes.map((l) => (
                     <div
                       key={l.numero}
-                      className="grid grid-cols-[minmax(150px,1fr)_110px_110px_110px_80px] min-w-[600px] gap-2 px-3 py-1 text-[11px]"
+                      className="grid grid-cols-[minmax(160px,1fr)_100px_100px_100px_100px_100px_100px_72px] min-w-[900px] gap-2 px-3 py-1 text-[11px]"
                     >
                       <span className="break-words">
                         <span className="font-mono text-[10.5px] text-text-dim">{l.numero}</span> {l.nom}
                       </span>
                       <span className="font-mono text-right">{montant(l.montantCloture)}</span>
+                      <span className="font-mono text-right">{montant(l.montantNonEchu)}</span>
+                      <span className="font-mono text-right">{montant(l.montantEchu)}</span>
+                      <span
+                        className={`font-mono text-right ${Math.abs(l.montantNonVentile) >= 0.005 ? 'text-warning' : 'text-text-dim'}`}
+                      >
+                        {montant(l.montantNonVentile)}
+                      </span>
                       <span className="font-mono text-right">{montant(l.montantOuverture)}</span>
                       <span className="font-mono text-right">{montant(l.variationValeur)}</span>
                       <span className="font-mono text-right text-text-dim">
@@ -874,15 +909,27 @@ export function EtatsSmtSyscohadaPage() {
                       </span>
                     </div>
                   ))}
-                  <div className="grid grid-cols-[minmax(150px,1fr)_110px_110px_110px_80px] min-w-[600px] gap-2 px-3 py-1.5 text-[11px] font-bold">
+                  <div className="grid grid-cols-[minmax(160px,1fr)_100px_100px_100px_100px_100px_100px_72px] min-w-[900px] gap-2 px-3 py-1.5 text-[11px] font-bold">
                     <span>{libelleTotal}</span>
                     <span className="font-mono text-right">{montant(total)}</span>
+                    <span className="font-mono text-right">{montant(totalNonEchu)}</span>
+                    <span className="font-mono text-right">{montant(totalEchu)}</span>
+                    <span
+                      className={`font-mono text-right ${Math.abs(totalNonDate) >= 0.005 ? 'text-warning' : 'text-text-dim'}`}
+                    >
+                      {montant(totalNonDate)}
+                    </span>
                     <span />
                     <span />
                     <span />
                   </div>
                 </div>
               ))}
+              <p className="px-3 py-2 text-[10px] text-text-dim border-t border-border">
+                La colonne « au 31 décembre » porte le solde ENTIER du compte, comme la maquette officielle · c'est
+                « dont non échu » qui répond au titre de la note. Les trois parts la totalisent toujours.
+                {notes.note3.motifEcheances ? ` ${notes.note3.motifEcheances}` : ''}
+              </p>
               <p className="px-3 py-2 text-[10px] text-text-dim border-t border-border">
                 Variations portées au compte de résultat : créances {montant(notes.note3.variationSv2)}, dettes
                 d'exploitation {montant(notes.note3.variationSv3)}. {notes.note3.reserveVariationPourcent}

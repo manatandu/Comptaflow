@@ -72,6 +72,10 @@ import {
   GroupeColonnes,
   LigneEtatEtafi,
   ligneControleSousEtat,
+  ecrireVentilationEcheance,
+  ENTETES_VENTILATION_ECHEANCE,
+  texteControleEcheances,
+  VentilationEcheance,
   NIVEAUX_ETAT_ASSOCIATIONS,
   NIVEAUX_TFT,
   NOTE_PAR_REF_ASSOCIATIONS,
@@ -3745,10 +3749,26 @@ export class ExportService {
 
     // --- NOTE 3 · créances et dettes non échues ---------------------------
     {
+      // NEUF colonnes : les SIX de la maquette officielle, intactes et dans
+      // leur ordre, puis les TROIS de la ventilation par échéance. Le moteur
+      // ventile depuis la correction de la NOTE 3 · sans ces trois colonnes,
+      // le classeur imprimait la note d'AVANT la correction et le réviseur
+      // décidait sans voir ce que le logiciel savait (AUDCIF art. 22, 1° :
+      // les données doivent pouvoir « être restituées sur papier ou sous une
+      // forme directement intelligible »). Voir `ecrireVentilationEcheance`.
+      const NB = 9;
+      const COL_VENTILATION = 7;
       const ws = classeur.addWorksheet('NOTE 3 CREANCES-DETTES');
-      ecrireCartouche(ws, ident, 'NOTE 3\nSYCEBNL - SMT', 6);
-      titreNote(ws, 'NOTE 3 : ETAT DES CREANCES ET DES DETTES NON ECHUES', 6);
-      let r = 8;
+      ecrireCartouche(ws, ident, 'NOTE 3\nSYCEBNL - SMT', NB);
+      titreNote(ws, 'NOTE 3 : ETAT DES CREANCES ET DES DETTES NON ECHUES', NB);
+      // Bandeau de groupe · le lecteur doit voir où finit la maquette du
+      // texte et où commence ce que le logiciel y ajoute. Les six colonnes
+      // officielles sont celles du SYCEBNL, Partie 4, ch. 4, section 3.
+      ws.getCell(8, 1).value = 'MAQUETTE OFFICIELLE · SYCEBNL, Partie 4, ch. 4, section 3';
+      fusion(ws, 8, 1, 8, 6);
+      ws.getCell(8, COL_VENTILATION).value = 'VENTILATION DU MONTANT AU 31/12/N PAR ÉCHÉANCE · ajout hors maquette';
+      fusion(ws, 8, COL_VENTILATION, 8, NB);
+      let r = 9;
       for (const [i, h] of [
         'Compte',
         'Nom',
@@ -3756,19 +3776,25 @@ export class ExportService {
         'Montant au 01/01/N',
         'Variation en valeur',
         'Variation en %',
+        ...ENTETES_VENTILATION_ECHEANCE,
       ].entries()) {
         ws.getCell(r, i + 1).value = h;
       }
-      entetesBande(ws, r, r, 1, 6);
+      entetesBande(ws, 8, r, 1, NB);
       ws.getRow(r).height = 30;
-      const bloc = (titre: string, blocLignes: typeof note3.creances, totalLibelle: string, total: number) => {
+      const bloc = (
+        titre: string,
+        blocLignes: typeof note3.creances,
+        totalLibelle: string,
+        totaux: { montant: number } & VentilationEcheance,
+      ) => {
         r += 1;
         ws.getCell(r, 1).value = titre;
-        fusion(ws, r, 1, r, 6);
-        styleLigne(ws, r, 1, 6, 'bande');
+        fusion(ws, r, 1, r, NB);
+        styleLigne(ws, r, 1, NB, 'bande');
         // Créances et dettes sont deux blocs indépendants : l'un peut être
         // néant sans l'autre, la mention se pose donc bloc par bloc.
-        if (blocLignes.length === 0) r = bandeNeant(ws, r + 1, 6) - 1;
+        if (blocLignes.length === 0) r = bandeNeant(ws, r + 1, NB) - 1;
         for (const l of blocLignes) {
           r += 1;
           ws.getCell(r, 1).value = l.numero;
@@ -3776,7 +3802,12 @@ export class ExportService {
           ws.getCell(r, 3).value = l.montantCloture;
           if (l.montantOuverture !== undefined) ws.getCell(r, 4).value = l.montantOuverture;
           if (l.variationValeur !== undefined) ws.getCell(r, 5).value = l.variationValeur;
-          styleLigne(ws, r, 1, 6, 'normal', [3, 4, 5]);
+          ecrireVentilationEcheance(ws, r, COL_VENTILATION, {
+            nonEchu: l.montantNonEchu,
+            echu: l.montantEchu,
+            nonVentile: l.montantNonVentile,
+          });
+          styleLigne(ws, r, 1, NB, 'normal', [3, 4, 5, 7, 8, 9]);
           if (l.variationPourcent !== undefined && l.variationPourcent !== null) {
             ws.getCell(r, 6).value = l.variationPourcent;
             ws.getCell(r, 6).numFmt = '#,##0.00"%"';
@@ -3784,13 +3815,34 @@ export class ExportService {
         }
         r += 1;
         ws.getCell(r, 2).value = totalLibelle;
-        ws.getCell(r, 3).value = total;
-        styleLigne(ws, r, 1, 6, 'inter', [3]);
+        ws.getCell(r, 3).value = totaux.montant;
+        // Le total de la ligne reste celui de la maquette · les trois parts
+        // s'y ajoutent sans le modifier, puisqu'elles somment au solde par
+        // construction (la part non ventilée est le RESTE des deux autres).
+        ecrireVentilationEcheance(ws, r, COL_VENTILATION, totaux);
+        styleLigne(ws, r, 1, NB, 'inter', [3, 7, 8, 9]);
       };
-      bloc('CRÉANCES', note3.creances, 'TOTAL DES CRÉANCES', note3.totalCreances);
-      bloc('DETTES', note3.dettes, 'TOTAL DES DETTES', note3.totalDettes);
-      cadre(ws, 8, 1, r, 6, MOYEN);
-      largeurs(ws, { A: 13, B: 42, C: 18, D: 18, E: 18, F: 14 });
+      bloc('CRÉANCES', note3.creances, 'TOTAL DES CRÉANCES', {
+        montant: note3.totalCreances,
+        nonEchu: note3.totalCreancesNonEchues,
+        echu: note3.totalCreancesEchues,
+        nonVentile: note3.totalCreancesNonVentilees,
+      });
+      bloc('DETTES', note3.dettes, 'TOTAL DES DETTES', {
+        montant: note3.totalDettes,
+        nonEchu: note3.totalDettesNonEchues,
+        echu: note3.totalDettesEchues,
+        nonVentile: note3.totalDettesNonVentilees,
+      });
+      cadre(ws, 8, 1, r, NB, MOYEN);
+      // Le motif s'imprime, le commentaire de cellule non · c'est cette
+      // ligne qui porte la lacune de tenue jusque sur le papier.
+      ligneControleSousEtat(
+        ws,
+        r + 2,
+        texteControleEcheances(note3.motifEcheances, note3.totalCreancesNonVentilees, note3.totalDettesNonVentilees),
+      );
+      largeurs(ws, { A: 13, B: 42, C: 18, D: 18, E: 18, F: 14, G: 18, H: 18, I: 20 });
     }
 
     // --- NOTE 5 · dotations ------------------------------------------------
@@ -5376,7 +5428,16 @@ export class ExportService {
 
     // --- NOTE 3 · créances et dettes non échues ---------------------------
     {
-      const NB = 5;
+      // HUIT colonnes : les CINQ de la maquette du Titre X, intactes et dans
+      // leur ordre (« Date | Nom du client | Montant au 31 décembre |
+      // Montant au 1er janvier | Variation % », ch. 3), puis les TROIS de la
+      // ventilation par échéance · MÊMES colonnes, mêmes en-têtes et même
+      // ligne de contrôle que la NOTE 3 du S.M.T SYCEBNL, par
+      // `ecrireVentilationEcheance`. Les deux référentiels portent la même
+      // note sous deux maquettes : ce qui s'y ajoute ne doit pas se lire
+      // différemment de l'un à l'autre.
+      const NB = 8;
+      const COL_VENTILATION = 6;
       const ws = classeur.addWorksheet('NOTE 3 CREANCES-DETTES');
       ecrireCartouche(ws, ident, 'NOTE 3\nSMT SYSCOHADA', NB);
       titreNote(ws, 'NOTE 3 : ETAT DES CREANCES ET DES DETTES NON ECHUES AU 31 DECEMBRE', NB);
@@ -5389,7 +5450,7 @@ export class ExportService {
         nomColonne: string,
         lignes: typeof note3.creances,
         libelleTotal: string,
-        total: number,
+        totaux: { montant: number } & VentilationEcheance,
       ) => {
         r += 1;
         const c = ws.getCell(r, 1);
@@ -5398,16 +5459,24 @@ export class ExportService {
         fusion(ws, r, 1, r, NB);
         r += 1;
         const debut = r;
+        // Bandeau de groupe · le lecteur doit voir où finit la maquette du
+        // texte et où commence ce que le logiciel y ajoute.
+        ws.getCell(r, 1).value = 'MAQUETTE OFFICIELLE · AUDCIF, Titre X, ch. 3';
+        fusion(ws, r, 1, r, COL_VENTILATION - 1);
+        ws.getCell(r, COL_VENTILATION).value = 'VENTILATION DU MONTANT AU 31/12/N PAR ÉCHÉANCE · ajout hors maquette';
+        fusion(ws, r, COL_VENTILATION, r, NB);
+        r += 1;
         for (const [i, h] of [
           'Date',
           nomColonne,
           'Montant au 31 décembre',
           'Montant au 1er janvier',
           'Variation %',
+          ...ENTETES_VENTILATION_ECHEANCE,
         ].entries()) {
           ws.getCell(r, i + 1).value = h;
         }
-        entetesBande(ws, r, r, 1, NB);
+        entetesBande(ws, debut, r, 1, NB);
         ws.getRow(r).height = 30;
         if (lignes.length === 0) r = bandeNeant(ws, r + 1, NB) - 1;
         for (const l of lignes) {
@@ -5417,7 +5486,12 @@ export class ExportService {
           ws.getCell(r, 2).value = `${l.numero} ${l.nom}`;
           ws.getCell(r, 3).value = l.montantCloture;
           ws.getCell(r, 4).value = l.montantOuverture;
-          styleLigne(ws, r, 1, NB, 'normal', [3, 4]);
+          ecrireVentilationEcheance(ws, r, COL_VENTILATION, {
+            nonEchu: l.montantNonEchu,
+            echu: l.montantEchu,
+            nonVentile: l.montantNonVentile,
+          });
+          styleLigne(ws, r, 1, NB, 'normal', [3, 4, 6, 7, 8]);
           if (l.variationPourcent !== null && l.variationPourcent !== undefined) {
             ws.getCell(r, 5).value = l.variationPourcent;
             ws.getCell(r, 5).numFmt = '#,##0.00"%"';
@@ -5426,19 +5500,40 @@ export class ExportService {
         }
         r += 1;
         ws.getCell(r, 2).value = libelleTotal;
-        ws.getCell(r, 3).value = total;
-        styleLigne(ws, r, 1, NB, 'inter', [3]);
+        ws.getCell(r, 3).value = totaux.montant;
+        // Le total de la maquette ne bouge pas · les trois parts s'y
+        // ajoutent, elles somment au solde par construction.
+        ecrireVentilationEcheance(ws, r, COL_VENTILATION, totaux);
+        styleLigne(ws, r, 1, NB, 'inter', [3, 6, 7, 8]);
         cadre(ws, debut, 1, r, NB, MOYEN);
         r += 1;
       };
-      tableau('Créances', 'Nom du client', note3.creances, 'TOTAL DES CRÉANCES', note3.totalCreances);
-      tableau('Dettes', 'Nom du fournisseur', note3.dettes, 'TOTAL DES DETTES', note3.totalDettes);
+      tableau('Créances', 'Nom du client', note3.creances, 'TOTAL DES CRÉANCES', {
+        montant: note3.totalCreances,
+        nonEchu: note3.totalCreancesNonEchues,
+        echu: note3.totalCreancesEchues,
+        nonVentile: note3.totalCreancesNonVentilees,
+      });
+      tableau('Dettes', 'Nom du fournisseur', note3.dettes, 'TOTAL DES DETTES', {
+        montant: note3.totalDettes,
+        nonEchu: note3.totalDettesNonEchues,
+        echu: note3.totalDettesEchues,
+        nonVentile: note3.totalDettesNonVentilees,
+      });
       ligneControleSousEtat(
         ws,
         r + 1,
         `Variations portées au compte de résultat : créances ${note3.variationSv2.toLocaleString('fr-FR')}, dettes ${note3.variationSv3.toLocaleString('fr-FR')}. ${note3.reserveVariationPourcent}`,
       );
-      largeurs(ws, { A: 13, B: 46, C: 19, D: 19, E: 13 });
+      // Ligne de contrôle DISTINCTE · la réserve ci-dessus porte sur une
+      // anomalie du texte officiel, celle-ci sur la tenue du dossier. Les
+      // confondre en une seule phrase ferait lire l'une pour l'autre.
+      ligneControleSousEtat(
+        ws,
+        r + 2,
+        texteControleEcheances(note3.motifEcheances, note3.totalCreancesNonVentilees, note3.totalDettesNonVentilees),
+      );
+      largeurs(ws, { A: 13, B: 46, C: 19, D: 19, E: 13, F: 18, G: 18, H: 20 });
     }
   }
 

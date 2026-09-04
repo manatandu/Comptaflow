@@ -1,7 +1,8 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useExercice } from '../lib/exercice';
-import type { JeuEtatsFinanciersSycebnl } from '../lib/types';
+import { controlesDeLAgregat } from '../lib/controles-agregat-groupe';
+import type { BalanceAgregeeGroupe, JeuEtatsFinanciersSycebnl } from '../lib/types';
 
 /**
  * GROUPE D'ÉTABLISSEMENTS · fenêtre du dossier MÈRE (le siège). Une même
@@ -42,15 +43,6 @@ interface LigneSupervision {
   prete: boolean;
 }
 
-interface BalanceAgregee {
-  exercice: { id: string; dateDebut: string; dateFin: string };
-  dossiers: Array<{ id: string; nom: string; estMere: boolean; totalDebit: number; totalCredit: number; solde58: number; equilibre: boolean }>;
-  cellulesSansExercice: Array<{ id: string; nom: string }>;
-  lignes: Array<{ numero: string; intitule: string; totalDebit: number; totalCredit: number; solde: number }>;
-  totaux: { debit: number; credit: number };
-  controles: { ecartLiaison: number; liaisonNeutralisee: boolean; tousEquilibres: boolean };
-}
-
 interface BalanceCellule {
   cellule: { id: string; nom: string };
   lignes: Array<{ numero: string; intitule: string; typeCompte: string; totalDebit: number; totalCredit: number; solde: number }>;
@@ -88,7 +80,7 @@ export function GroupePage() {
   const [exerciceId, setExerciceId] = useState<string | null>(null);
   const [meta, setMeta] = useState<ReponseCellules | null>(null);
   const [supervision, setSupervision] = useState<LigneSupervision[] | null>(null);
-  const [agregat, setAgregat] = useState<BalanceAgregee | null>(null);
+  const [agregat, setAgregat] = useState<BalanceAgregeeGroupe | null>(null);
   const [ongletBalance, setOngletBalance] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
   const [chargement, setChargement] = useState(false);
@@ -151,7 +143,7 @@ export function GroupePage() {
     setOngletBalance(true);
     if (agregat) return;
     try {
-      setAgregat(await api.get<BalanceAgregee>(`/groupe/balance-agregee?exerciceId=${exerciceActif}`));
+      setAgregat(await api.get<BalanceAgregeeGroupe>(`/groupe/balance-agregee?exerciceId=${exerciceActif}`));
     } catch (err) {
       setErreur(err instanceof ApiError ? err.message : "Impossible de calculer l'agrégat");
     }
@@ -376,39 +368,190 @@ export function GroupePage() {
       )}
 
       {ongletBalance && (
-        <div className="border border-border bg-surface shadow-posee max-w-[820px]">
-          <div className="grid grid-cols-[110px_1fr_130px_130px] gap-2 px-3.5 py-1.5 bg-chrome border-b border-border text-[10px] font-bold text-text-dim">
-            <span>COMPTE</span>
-            <span>INTITULÉ</span>
-            <span className="text-right">DÉBIT</span>
-            <span className="text-right">CRÉDIT</span>
-          </div>
-          {!agregat && <div className="p-3 text-[11px] text-text-dim">Calcul de l'agrégat…</div>}
-          {agregat && !agregat.controles.liaisonNeutralisee && (
-            <div className="text-[11px] bg-warning-soft border-b border-warning/30 px-3 py-1.5">
-              Les virements internes (58) ne se neutralisent pas · écart de {montant(agregat.controles.ecartLiaison)} : un
-              transfert a été enregistré d'un seul côté.
+        <div className="max-w-[1120px]">
+          {!agregat && <div className="border border-border bg-surface p-3 text-[11px] text-text-dim">Calcul de l'agrégat…</div>}
+
+          {/* CE QUE L'AGRÉGAT A VÉRIFIÉ · une agrégation sans contrôle est un
+              piège, et un contrôle qui reste dans la réponse du serveur n'en
+              est pas un : l'AUDCIF art. 22, 1° veut que les données « puissent
+              être restituées sur papier ou sous une forme directement
+              intelligible ». Le libellé et le détail sont montés par
+              `controlesDeLAgregat`, qui nomme les dossiers en cause. */}
+          {agregat && (
+            <div className="border border-border bg-surface shadow-posee mb-2">
+              <div className="bg-chrome border-b border-border px-3.5 py-1.5 text-[10px] font-bold text-text-dim">
+                CONTRÔLES DE L'AGRÉGAT
+              </div>
+              {controlesDeLAgregat(agregat).map((c) => (
+                <div
+                  key={c.cle}
+                  className="grid grid-cols-[20px_1fr] gap-2 px-3.5 py-1 border-b border-border last:border-b-0 text-[10.5px]"
+                >
+                  <span className={`font-mono font-bold ${c.ok ? 'text-positive' : 'text-warning'}`}>{c.ok ? '✓' : '!'}</span>
+                  <span>
+                    <span className={c.ok ? '' : 'font-semibold'}>{c.libelle}</span>
+                    {c.detail && <span className="block text-text-dim mt-0.5">{c.detail}</span>}
+                  </span>
+                </div>
+              ))}
             </div>
           )}
-          <div className="max-h-[52vh] overflow-y-auto">
-            {agregat?.lignes.map((l, i) => (
-              <div
-                key={l.numero}
-                className={`grid grid-cols-[110px_1fr_130px_130px] gap-2 px-3.5 py-1 border-b border-border last:border-b-0 text-[10.5px] ${i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'}`}
-              >
-                <span className="font-mono">{l.numero}</span>
-                <span className="truncate">{l.intitule}</span>
-                <span className="text-right tabular-nums">{montant(l.totalDebit)}</span>
-                <span className="text-right tabular-nums">{montant(l.totalCredit)}</span>
+
+          {/* LA RÉCIPROCITÉ QUI NE SE BOUCLE PAS · le D4C fait de la
+              « procédure de confirmation de solde pour toutes les opérations »
+              (AUDCIF ch. XII-5) le préalable de toute élimination. L'écart
+              désigne une opération enregistrée d'un seul côté, ou pour deux
+              montants différents · il est nommé, jamais corrigé d'office, et
+              les deux soldes sont donnés pour qu'on voie lequel manque. */}
+          {agregat && agregat.ecartsReciprocite.length > 0 && (
+            <div className="border border-warning/40 bg-surface shadow-posee mb-2">
+              <div className="bg-warning-soft border-b border-warning/30 px-3.5 py-1.5 text-[10.5px]">
+                <span className="font-bold">ÉCARTS DE RÉCIPROCITÉ</span> · la créance chez l'un ne répond pas à la dette
+                chez l'autre. Une opération est enregistrée d'un seul côté, ou pour deux montants différents · rien n'a
+                été corrigé, la confirmation de solde se fait entre les deux dossiers.
               </div>
-            ))}
-          </div>
+              <div className="grid grid-cols-[1fr_1fr_130px_130px_130px] gap-2 px-3.5 py-1.5 bg-chrome border-b border-border text-[10px] font-bold text-text-dim">
+                <span>DOSSIER</span>
+                <span>CONTREPARTIE</span>
+                <span className="text-right">SOLDE CHEZ LUI</span>
+                <span className="text-right">SOLDE EN FACE</span>
+                <span className="text-right">ÉCART</span>
+              </div>
+              {agregat.ecartsReciprocite.map((e) => (
+                <div
+                  key={`${e.dossier}|${e.contrepartie}`}
+                  className="grid grid-cols-[1fr_1fr_130px_130px_130px] gap-2 px-3.5 py-1 border-b border-border last:border-b-0 text-[10.5px]"
+                >
+                  <span className="truncate">{e.dossier}</span>
+                  <span className="truncate">{e.contrepartie}</span>
+                  <span className="text-right tabular-nums">{montant(e.solde)}</span>
+                  <span className="text-right tabular-nums">{montant(e.soldeContrepartie)}</span>
+                  <span className="text-right tabular-nums font-semibold text-warning">{montant(e.ecart)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* UN RATTACHEMENT HORS GROUPE N'ÉLIMINE RIEN · éliminer sur sa foi
+              retirerait de l'agrégat une vente RÉELLE, faite à une entité qui
+              n'est pas l'entité. Le refus est silencieux sur les chiffres, il
+              doit être bruyant ici. */}
+          {agregat && agregat.rattachementsRefuses.length > 0 && (
+            <div className="border border-warning/40 bg-surface shadow-posee mb-2">
+              <div className="bg-warning-soft border-b border-warning/30 px-3.5 py-1.5 text-[10.5px]">
+                <span className="font-bold">RATTACHEMENTS IGNORÉS</span> · ces tiers désignent un dossier qui n'appartient
+                pas à ce groupe. Rien n'a été éliminé sur leur foi, et leurs opérations restent dans l'agrégat.
+              </div>
+              <div className="grid grid-cols-[1fr_1.4fr_1.4fr] gap-2 px-3.5 py-1.5 bg-chrome border-b border-border text-[10px] font-bold text-text-dim">
+                <span>DOSSIER</span>
+                <span>TIERS</span>
+                <span>MOTIF</span>
+              </div>
+              {agregat.rattachementsRefuses.map((r) => (
+                <div
+                  key={`${r.dossier}|${r.codeTiers}`}
+                  className="grid grid-cols-[1fr_1.4fr_1.4fr] gap-2 px-3.5 py-1 border-b border-border last:border-b-0 text-[10.5px]"
+                >
+                  <span className="truncate">{r.dossier}</span>
+                  <span className="truncate">
+                    <span className="font-mono text-[10px] text-text-dim">{r.codeTiers}</span> {r.nomTiers}
+                  </span>
+                  <span className="text-text-dim">{r.motif}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* CE QUE L'AGRÉGAT NE SAIT PAS FAIRE, et refuse d'inventer · deux
+              retraitements du D4C (cession interne d'immobilisation, marge
+              interne en stock) demandent des registres que l'agrégat n'a pas. */}
+          {agregat?.avertissements.map((a) => (
+            <div key={a} className="text-[10.5px] bg-warning-soft border border-warning/30 px-3 py-1.5 mb-2">
+              {a}
+            </div>
+          ))}
+
           {agregat && (
-            <div className="grid grid-cols-[110px_1fr_130px_130px] gap-2 px-3.5 py-1.5 border-t border-border-dark bg-chrome text-[10.5px] font-bold">
-              <span></span>
-              <span>TOTAL AGRÉGÉ</span>
-              <span className="text-right tabular-nums">{montant(agregat.totaux.debit)}</span>
-              <span className="text-right tabular-nums">{montant(agregat.totaux.credit)}</span>
+            <div className="border border-border bg-surface shadow-posee max-w-[820px] mb-2">
+              <div className="grid grid-cols-[110px_1fr_130px_130px] gap-2 px-3.5 py-1.5 bg-chrome border-b border-border text-[10px] font-bold text-text-dim">
+                <span>COMPTE</span>
+                <span>INTITULÉ</span>
+                <span className="text-right">DÉBIT</span>
+                <span className="text-right">CRÉDIT</span>
+              </div>
+              <div className="max-h-[52vh] overflow-y-auto">
+                {agregat.lignes.map((l, i) => (
+                  <div
+                    key={l.numero}
+                    className={`grid grid-cols-[110px_1fr_130px_130px] gap-2 px-3.5 py-1 border-b border-border last:border-b-0 text-[10.5px] ${i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'}`}
+                  >
+                    <span className="font-mono">{l.numero}</span>
+                    <span className="truncate">{l.intitule}</span>
+                    <span className="text-right tabular-nums">{montant(l.totalDebit)}</span>
+                    <span className="text-right tabular-nums">{montant(l.totalCredit)}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="grid grid-cols-[110px_1fr_130px_130px] gap-2 px-3.5 py-1.5 border-t border-border-dark bg-chrome text-[10.5px] font-bold">
+                <span></span>
+                {/* Le libellé ne promet une déduction que s'il y en a eu une ·
+                    un groupe sans tiers-cellule n'a rien à éliminer, et son
+                    total est au centime celui d'avant. */}
+                <span>{agregat.eliminations.length > 0 ? 'TOTAL AGRÉGÉ, ÉLIMINATIONS DÉDUITES' : 'TOTAL AGRÉGÉ'}</span>
+                <span className="text-right tabular-nums">{montant(agregat.totaux.debit)}</span>
+                <span className="text-right tabular-nums">{montant(agregat.totaux.credit)}</span>
+              </div>
+            </div>
+          )}
+
+          {/* CE QUI A ÉTÉ RETIRÉ, ligne à ligne · un agrégat dont on ne voit
+              pas ce qui a été retiré ne se vérifie pas. Le D4C impose
+              l'« élimination des comptes réciproques (actifs/passifs,
+              charges/produits) » (AUDCIF ch. XIII-4) : une vente du siège à une
+              antenne n'est pas une vente, l'entité n'a rien vendu à personne. */}
+          {agregat && agregat.eliminations.length > 0 && (
+            <div className="border border-border bg-surface shadow-posee overflow-x-auto">
+              <div className="min-w-[980px]">
+                <div className="bg-chrome border-b border-border px-3.5 py-1.5 text-[10.5px]">
+                  <span className="font-bold text-text-dim">OPÉRATIONS RÉCIPROQUES ÉLIMINÉES</span> · retirées du cumul
+                  parce qu'un groupe d'établissements est une seule personne morale. Le total agrégé ci-dessus est le
+                  cumul des balances MOINS ces lignes.
+                </div>
+                <div className="grid grid-cols-[1fr_1fr_80px_1.3fr_170px_120px_120px] gap-2 px-3.5 py-1.5 bg-chrome border-b border-border text-[10px] font-bold text-text-dim">
+                  <span>DOSSIER</span>
+                  <span>CONTREPARTIE</span>
+                  <span>COMPTE</span>
+                  <span>INTITULÉ</span>
+                  <span>MOTIF</span>
+                  <span className="text-right">RETIRÉ AU DÉBIT</span>
+                  <span className="text-right">RETIRÉ AU CRÉDIT</span>
+                </div>
+                <div className="max-h-[40vh] overflow-y-auto">
+                  {agregat.eliminations.map((e, i) => (
+                    <div
+                      key={`${e.dossier}|${e.contrepartie}|${e.numero}|${e.motif}`}
+                      className={`grid grid-cols-[1fr_1fr_80px_1.3fr_170px_120px_120px] gap-2 px-3.5 py-1 border-b border-border last:border-b-0 text-[10.5px] ${i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'}`}
+                    >
+                      <span className="truncate">{e.dossier}</span>
+                      <span className="truncate">{e.contrepartie}</span>
+                      <span className="font-mono">{e.numero}</span>
+                      <span className="truncate">{e.intitule}</span>
+                      <span className="text-text-dim truncate">{e.motif}</span>
+                      <span className="text-right tabular-nums">{montant(e.debit)}</span>
+                      <span className="text-right tabular-nums">{montant(e.credit)}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-[1fr_1fr_80px_1.3fr_170px_120px_120px] gap-2 px-3.5 py-1.5 border-t border-border-dark bg-chrome text-[10.5px] font-bold">
+                  <span>TOTAL ÉLIMINÉ</span>
+                  <span />
+                  <span />
+                  <span />
+                  <span />
+                  <span className="text-right tabular-nums">{montant(agregat.totauxEliminations.debit)}</span>
+                  <span className="text-right tabular-nums">{montant(agregat.totauxEliminations.credit)}</span>
+                </div>
+              </div>
             </div>
           )}
         </div>

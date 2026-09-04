@@ -311,6 +311,117 @@ export function ligneControleSousEtat(ws: ExcelJS.Worksheet, rang: number, texte
 }
 
 // ---------------------------------------------------------------------------
+// Ventilation par échéance de la NOTE 3 du S.M.T · commune aux deux jeux
+// ---------------------------------------------------------------------------
+
+/**
+ * LES TROIS COLONNES QUE LA NOTE 3 DU S.M.T AJOUTE À SA MAQUETTE.
+ *
+ * La maquette officielle du SYCEBNL donne SIX colonnes et pas une de plus :
+ * « DATE | NOM CLIENTS-USAGERS ET AUTRES DEBITEURS | Montant au 31 décembre N
+ * | Montant au 1er janvier N | Variation en valeur | Variation en % »
+ * (Partie 4, ch. 4, section 3). Aucune ne dit ce qui est échu, alors que la
+ * note s'intitule « Etat des créances et des dettes NON ECHUES » · le moteur
+ * calcule la ventilation, et une feuille qui ne l'imprime pas laisse le
+ * réviseur décider sans elle. L'AUDCIF art. 22, 1° veut que les données
+ * « puissent être restituées sur papier ou sous une forme directement
+ * intelligible » : la seconde moitié de la phrase est aussi normative que la
+ * première.
+ *
+ * Les six colonnes officielles ne bougent donc pas d'une case, et les trois
+ * ajoutées se posent APRÈS, sous leur propre bandeau qui les nomme comme un
+ * ajout. Un dossier qui n'a saisi aucune échéance rend exactement les mêmes
+ * six colonnes qu'avant, et voit sa part non ventilée porter la totalité de
+ * ses soldes · ce qui est précisément le constat à faire.
+ *
+ * CETTE FORME EST COMMUNE AUX DEUX JEUX. Le S.M.T du SYSCOHADA (Titre X,
+ * ch. 3) porte la même note sous une maquette à cinq colonnes ; son moteur
+ * n'expose pas encore la ventilation. Le jour où il l'expose, sa feuille
+ * appelle ces deux mêmes fonctions et les deux classeurs disent la même
+ * chose de la même façon.
+ */
+export interface VentilationEcheance {
+  nonEchu: number;
+  echu: number;
+  /** LE RESTE, jamais une mesure autonome · voir `NOTE_PART_NON_VENTILEE`. */
+  nonVentile: number;
+}
+
+/** En-têtes des trois colonnes ajoutées, dans leur ordre. */
+export const ENTETES_VENTILATION_ECHEANCE = [
+  'Dont non échu au 31/12/N',
+  'Dont échu au 31/12/N',
+  'Part non ventilée · signal de tenue',
+] as const;
+
+const NOTE_PART_NON_VENTILEE =
+  "Part du solde qu'aucune date d'échéance ne permet de qualifier : ni échue, ni non échue. Ce n'est pas une " +
+  "catégorie de créance ou de dette, c'est ce que la tenue n'a pas daté. Saisir la date d'échéance des lignes de " +
+  'tiers, et tenir ces comptes en report à-nouveau mode DÉTAIL.';
+
+const NOTE_PART_NON_VENTILEE_NEGATIVE =
+  'Part non ventilée NÉGATIVE · un règlement non lettré fait face à une facture datée. Signal de tenue, pas un ' +
+  "montant : rien n'est dû ni recouvrable de ce fait. Lettrer les mouvements du compte pour la résorber.";
+
+/**
+ * Pose les trois montants de la ventilation à partir de `colDebut`, et
+ * ACCROCHE SON SENS à la part non ventilée dès qu'elle n'est pas nulle.
+ *
+ * La part non ventilée est le seul des trois nombres qu'un lecteur peut
+ * mal lire : elle peut être NÉGATIVE, et un montant négatif sous un total de
+ * créances se lit spontanément comme une créance négative. Elle n'en est pas
+ * une · c'est un résidu de tenue. Le commentaire de cellule le dit à l'écran,
+ * et `texteControleEcheances` le redit sous le cadre, où l'impression le
+ * garde (un commentaire de cellule ne s'imprime pas).
+ *
+ * Le format monétaire n'est PAS posé ici : il vient de `styleLigne`, à qui
+ * l'appelant passe ces trois colonnes en colonnes de montant, pour que la
+ * ligne reste habillée d'un seul tenant.
+ */
+export function ecrireVentilationEcheance(
+  ws: ExcelJS.Worksheet,
+  rang: number,
+  colDebut: number,
+  v: VentilationEcheance,
+) {
+  ws.getCell(rang, colDebut).value = v.nonEchu;
+  ws.getCell(rang, colDebut + 1).value = v.echu;
+  const c = ws.getCell(rang, colDebut + 2);
+  c.value = v.nonVentile;
+  // Le seuil du demi-centime est celui que les moteurs d'états emploient
+  // partout pour décider qu'un montant est nul · une note posée sur un zéro
+  // d'arrondi n'apprendrait rien et encombrerait toutes les lignes tenues.
+  if (Math.abs(v.nonVentile) < 0.005) return;
+  c.note = v.nonVentile < -0.005 ? NOTE_PART_NON_VENTILEE_NEGATIVE : NOTE_PART_NON_VENTILEE;
+}
+
+/**
+ * Le texte de la ligne de contrôle sous le cadre de la NOTE 3.
+ *
+ * Il DIT TOUJOURS QUELQUE CHOSE, y compris quand la ventilation est
+ * complète : une feuille muette ne se distingue pas d'une feuille dont
+ * personne n'a lancé le contrôle, et c'est cette confusion-là que la ligne
+ * de contrôle existe pour lever (même parti que la bande NEANT, qui déclare
+ * une note non applicable au lieu de la faire disparaître).
+ *
+ * `motif` est celui que le moteur d'états rend · il porte la citation de la
+ * maquette et la conduite à tenir, et n'est pas réécrit ici.
+ */
+export function texteControleEcheances(
+  motif: string | null,
+  creancesNonVentilees: number,
+  dettesNonVentilees: number,
+): string {
+  const phrases = [
+    motif ??
+      "Ventilation complète : toute ligne de tiers non lettrée porte une date d'échéance, les colonnes « dont non " +
+        "échu » et « dont échu » couvrent donc l'intégralité des soldes.",
+  ];
+  if (creancesNonVentilees < -0.005 || dettesNonVentilees < -0.005) phrases.push(NOTE_PART_NON_VENTILEE_NEGATIVE);
+  return phrases.join(' ');
+}
+
+// ---------------------------------------------------------------------------
 // Jeu « projets de développement et assimilés » (Partie 4, ch. 3)
 // ---------------------------------------------------------------------------
 

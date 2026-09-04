@@ -3,7 +3,11 @@ import { EtatsFinanciersSmtSyscohadaService } from './etats-financiers-smt-sysco
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { ExerciceService } from '../exercice/exercice.service';
 import { PrismaService } from '../../common/prisma.service';
-import { SEUILS_SMT_ART13_FCFA } from './correspondance-smt-syscohada';
+import {
+  POSTES_BILAN_ACTIF_SMT_SYSCOHADA,
+  POSTES_BILAN_PASSIF_SMT_SYSCOHADA,
+  SEUILS_SMT_ART13_FCFA,
+} from './correspondance-smt-syscohada';
 
 /**
  * SERVICE S.M.T SYSCOHADA · ce spec ne relit pas la table (son propre spec
@@ -60,6 +64,39 @@ function ligne(
 
 type LigneTest = ReturnType<typeof ligne>;
 
+/** La classe d'un compte se lit sur son premier chiffre (plan SYSCOHADA). */
+const CLASSE_PAR_CHIFFRE: Record<string, ClasseCompte> = {
+  '1': ClasseCompte.CLASSE_1,
+  '2': ClasseCompte.CLASSE_2,
+  '3': ClasseCompte.CLASSE_3,
+  '4': ClasseCompte.CLASSE_4,
+  '5': ClasseCompte.CLASSE_5,
+  '6': ClasseCompte.CLASSE_6,
+  '7': ClasseCompte.CLASSE_7,
+  '8': ClasseCompte.CLASSE_8,
+};
+
+/**
+ * Une ligne d'écriture telle que `partsParEcheance` la lit · c'est la seule
+ * source de la ventilation par échéance de la NOTE 3, la balance ne portant
+ * aucune date. `echeance` absente = ligne non datée, cas de TOUS les dossiers
+ * réels aujourd'hui.
+ */
+function ligneTiers(
+  numero: string,
+  montant: { debit?: number; credit?: number },
+  options: { echeance?: string; lettre?: string } = {},
+) {
+  return {
+    compteId: `id-${numero}`,
+    classe: CLASSE_PAR_CHIFFRE[numero[0]],
+    debit: montant.debit ?? 0,
+    credit: montant.credit ?? 0,
+    dateEcheance: options.echeance ? new Date(options.echeance) : null,
+    lettre: options.lettre ?? null,
+  };
+}
+
 /** Une écriture telle que le service la lit via Prisma. */
 function ecriture(
   id: string,
@@ -91,6 +128,7 @@ function service(
     ecritures?: ReturnType<typeof ecriture>[];
     immobilisations?: unknown[];
     tiersComptes?: Array<{ compteId: string; tiers: { nom: string } }>;
+    lignesTiers?: ReturnType<typeof ligneTiers>[];
     devise?: string;
   } = {},
 ) {
@@ -118,6 +156,28 @@ function service(
           ),
         ),
       ),
+    },
+    // La doublure respecte les TROIS filtres du `where` de
+    // `partsParEcheance` · sans quoi le test du périmètre (postes SA3/SP4 et
+    // non « classe 4 ») et celui du lettrage ne testeraient que la doublure.
+    ligneEcriture: {
+      findMany: jest
+        .fn()
+        .mockImplementation(
+          ({
+            where,
+          }: {
+            where: { lettre?: null; compteId?: { in: string[] }; compte?: { classe: ClasseCompte } };
+          }) =>
+            Promise.resolve(
+              (options.lignesTiers ?? []).filter((l) => {
+                if (where.lettre === null && l.lettre !== null) return false;
+                if (where.compteId && !where.compteId.in.includes(l.compteId)) return false;
+                if (where.compte && l.classe !== where.compte.classe) return false;
+                return true;
+              }),
+            ),
+        ),
     },
     immobilisation: { findMany: jest.fn().mockResolvedValue(options.immobilisations ?? []) },
     tiersCompte: { findMany: jest.fn().mockResolvedValue(options.tiersComptes ?? []) },
@@ -748,6 +808,123 @@ describe('Notes annexes S.M.T SYSCOHADA', () => {
     );
     const note = await s.note3CreancesDettes('t1', 'e1');
     expect(note.creances[0].nom).toBe('Ets Kabila');
+  });
+
+  it("NOTE 3 · le dossier qui n'a saisi AUCUNE échéance rend ce qu'il rendait, et le dit", async () => {
+    // Le cas de TOUS les dossiers réels : `dateEcheance` existe au schéma
+    // depuis longtemps, aucun ne la renseigne. La note doit donc porter
+    // exactement les mêmes montants qu'avant · ventiler d'office viderait
+    // ou remplirait la note à tort chez tout le monde.
+    const note = await negoce().note3CreancesDettes('t1', 'e2026');
+    expect(note.totalCreances).toBe(200_000);
+    expect(note.totalDettes).toBe(50_000);
+    // Rien n'est daté : rien n'est affirmé échu, rien n'est affirmé non échu.
+    expect(note.totalCreancesNonEchues).toBe(0);
+    expect(note.totalCreancesEchues).toBe(0);
+    expect(note.totalDettesNonEchues).toBe(0);
+    expect(note.totalDettesEchues).toBe(0);
+    // Tout le solde reste au bilan, NOMMÉ comme non ventilé.
+    expect(note.totalCreancesNonVentilees).toBe(200_000);
+    expect(note.totalDettesNonVentilees).toBe(50_000);
+    expect(note.creances[0].montantNonVentile).toBe(200_000);
+    expect(note.echeancesTenues).toBe(false);
+    expect(note.motifEcheances).toContain('non échues');
+  });
+
+  it("NOTE 3 · ventile à la CLÔTURE, et les trois parts somment toujours au solde", async () => {
+    const s = service(
+      { e1: [ligne('41110000', ClasseCompte.CLASSE_4, 300_000, 0)] },
+      {
+        lignesTiers: [
+          ligneTiers('41110000', { debit: 120_000 }, { echeance: '2027-01-31' }), // terme à venir
+          ligneTiers('41110000', { debit: 100_000 }, { echeance: '2026-11-30' }), // terme passé
+          ligneTiers('41110000', { debit: 80_000 }), // aucun terme saisi
+        ],
+      },
+    );
+    const note = await s.note3CreancesDettes('t1', 'e1');
+    const c = note.creances[0];
+    // « État des créances et des dettes NON ÉCHUES AU 31 DÉCEMBRE » : la date
+    // de référence est la clôture, pas le jour de la consultation.
+    expect(c.montantNonEchu).toBe(120_000);
+    expect(c.montantEchu).toBe(100_000);
+    // La part non ventilée est un RESTE, jamais une mesure autonome.
+    expect(c.montantNonVentile).toBe(80_000);
+    expect(c.montantNonEchu + c.montantEchu + c.montantNonVentile).toBe(c.montantCloture);
+    // Une seule ligne non datée suffit à retirer à la note le droit
+    // d'affirmer que son total est celui du non échu.
+    expect(note.echeancesTenues).toBe(false);
+  });
+
+  it("NOTE 3 · l'échéance tombant LE JOUR de la clôture est échue, le terme est atteint", async () => {
+    const s = service(
+      { e1: [ligne('41110000', ClasseCompte.CLASSE_4, 50_000, 0)] },
+      { lignesTiers: [ligneTiers('41110000', { debit: 50_000 }, { echeance: '2026-12-31' })] },
+    );
+    const note = await s.note3CreancesDettes('t1', 'e1');
+    expect(note.creances[0].montantEchu).toBe(50_000);
+    expect(note.creances[0].montantNonEchu).toBe(0);
+    // Tout est daté : la ventilation est complète et la note peut le dire.
+    expect(note.echeancesTenues).toBe(true);
+    expect(note.motifEcheances).toBeNull();
+  });
+
+  it('NOTE 3 · une ligne lettrée est soldée et sort de la ventilation', async () => {
+    const s = service(
+      { e1: [ligne('41110000', ClasseCompte.CLASSE_4, 200_000, 0)] },
+      {
+        lignesTiers: [
+          ligneTiers('41110000', { debit: 200_000 }, { echeance: '2027-02-28' }),
+          // Facture encaissée : plus aucune échéance à porter. La compter
+          // gonflerait le non échu de 500 000 et rendrait le reste négatif.
+          ligneTiers('41110000', { debit: 500_000 }, { echeance: '2027-05-31', lettre: 'A' }),
+        ],
+      },
+    );
+    const note = await s.note3CreancesDettes('t1', 'e1');
+    expect(note.creances[0].montantNonEchu).toBe(200_000);
+    expect(note.creances[0].montantNonVentile).toBe(0);
+    expect(note.echeancesTenues).toBe(true);
+  });
+
+  it('NOTE 3 · une dette non échue se lit en POSITIF sous un total de dettes', async () => {
+    const s = service(
+      { e1: [ligne('40110000', ClasseCompte.CLASSE_4, 0, 150_000)] },
+      { lignesTiers: [ligneTiers('40110000', { credit: 150_000 }, { echeance: '2027-03-31' })] },
+    );
+    const note = await s.note3CreancesDettes('t1', 'e1');
+    // Même signe que le poste SP4 du bilan · sans lui, la maquette imprimerait
+    // -150 000 de dettes non échues sous un total de dettes de +150 000.
+    expect(note.dettes[0].montantCloture).toBe(150_000);
+    expect(note.dettes[0].montantNonEchu).toBe(150_000);
+    expect(note.dettes[0].montantNonVentile).toBe(0);
+    expect(note.totalDettesNonEchues).toBe(150_000);
+  });
+
+  it('NOTE 3 · ventile les 50 et 51 que SA3 joint, que la classe 4 aurait manqués', async () => {
+    // Anomalie n° 6 : SA3 « Clients et débiteurs divers » joint les titres de
+    // placement et les valeurs à encaisser, qui ne sont ni caisse ni banque.
+    // C'est ce qui distingue ce jumeau du SYCEBNL, dont le bilan lit la seule
+    // classe 4 · une ventilation bornée à la classe 4 rendrait ici « non
+    // ventilé » un effet à encaisser parfaitement daté.
+    const s = service(
+      { e1: [ligne('51210000', ClasseCompte.CLASSE_5, 400_000, 0)] },
+      { lignesTiers: [ligneTiers('51210000', { debit: 400_000 }, { echeance: '2027-06-30' })] },
+    );
+    const note = await s.note3CreancesDettes('t1', 'e1');
+    expect(note.creances.map((c) => c.numero)).toEqual(['51210000']);
+    expect(note.creances[0].montantNonEchu).toBe(400_000);
+    expect(note.echeancesTenues).toBe(true);
+  });
+
+  it("NOTE 3 · la table ne renvoie à la note 3 que les deux postes SA3 et SP4", () => {
+    // Prémisse de `REFS_NOTE_3_SMT_SYSCOHADA` dans le service : si un renvoi
+    // bougeait dans la table sans bouger là-bas, la note imprimerait un
+    // tableau qui ne justifie plus le poste du bilan qu'il accompagne.
+    const refs = [...POSTES_BILAN_ACTIF_SMT_SYSCOHADA, ...POSTES_BILAN_PASSIF_SMT_SYSCOHADA]
+      .filter((p) => p.note === '3')
+      .map((p) => p.ref);
+    expect(refs).toEqual(['SA3', 'SP4']);
   });
 
   it('la fiche récapitulative porte les quatre notes et les deux journaux de suivi', () => {

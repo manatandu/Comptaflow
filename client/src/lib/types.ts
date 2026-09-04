@@ -1816,11 +1816,27 @@ export interface NotesSmt {
     quantitesTenues: boolean;
     motifQuantites: string;
   };
+  /**
+   * NOTE 3 · la maquette officielle intitule cette note « Etat des créances
+   * et des dettes non échues » (SYCEBNL, Partie 4, ch. 4, section 3) · un
+   * total qui mêle l'échu et le non échu sous ce titre dit autre chose que
+   * ce qu'il annonce, d'où la ventilation servie ligne à ligne.
+   */
   note3: {
     creances: LigneCreanceDetteSmt[];
     totalCreances: number;
+    totalCreancesNonEchues: number;
+    totalCreancesEchues: number;
+    totalCreancesNonVentilees: number;
     dettes: LigneCreanceDetteSmt[];
     totalDettes: number;
+    totalDettesNonEchues: number;
+    totalDettesEchues: number;
+    totalDettesNonVentilees: number;
+    /** Faux dès qu'un centime échappe à la ventilation · voir `montantNonVentile`. */
+    echeancesTenues: boolean;
+    /** Servi par le serveur quand la ventilation est incomplète, null sinon. */
+    motifEcheances: string | null;
   };
   note5: {
     rubriques: { cle: string; libelle: string; montant: number; comptes: CompteDuPoste[] }[];
@@ -1834,10 +1850,25 @@ export interface NotesSmt {
 export interface LigneCreanceDetteSmt {
   numero: string;
   nom: string;
+  /** Solde ENTIER du compte · la ventilation s'y ajoute, elle ne l'ampute pas. */
   montantCloture: number;
   montantOuverture: number;
   variationValeur: number;
   variationPourcent: number | null;
+  /** Échéance postérieure à la clôture · la seule part que le titre de la note annonce. */
+  montantNonEchu: number;
+  /** Échéance atteinte à la clôture · présente au bilan, mais pas « non échue ». */
+  montantEchu: number;
+  /**
+   * LE RESTE, jamais une mesure autonome · `montantCloture` moins les deux
+   * parts datées. Une ligne sans date d'échéance y tombe, et le reste peut
+   * être NÉGATIF (un règlement non lettré en face d'une facture datée). Ce
+   * n'est pas une troisième catégorie de créance : c'est une lacune de tenue,
+   * et l'art. 15 al. 3 de l'Acte uniforme SYCEBNL veut que les Notes annexes
+   * comportent « tous les éléments à caractère significatif qui ne sont pas
+   * mis en évidence dans les autres états financiers ».
+   */
+  montantNonVentile: number;
 }
 
 export interface EligibiliteSmt {
@@ -2716,7 +2747,27 @@ export interface LigneNote3SmtSyscohada {
   date: string | null;
   numero: string;
   nom: string;
+  /**
+   * Colonne officielle · le solde ENTIER du compte. La ventilation ci-dessous
+   * s'AJOUTE à la maquette, elle ne l'ampute pas : ce montant justifie les
+   * postes SA3 et SP4 du bilan et les lignes SV2 et SV3 du compte de résultat,
+   * et l'amputer les ferait diverger.
+   */
   montantCloture: number;
+  /** Part dont le terme n'est pas atteint à la clôture · ce que le titre vise. */
+  montantNonEchu: number;
+  /** Part dont le terme est passé, que la note ne devrait pas couvrir. */
+  montantEchu: number;
+  /**
+   * Ni l'un ni l'autre · une ligne sans date d'échéance n'est pas « échue »,
+   * et pas « non échue » non plus : on ne sait pas. Elle n'est donc rangée
+   * d'office nulle part, et cette part est le RESTE des deux autres, seule
+   * définition qui garantisse qu'aucun montant ne s'évapore. S'y ajoutent par
+   * nature les dépréciations et provisions, qui n'ont aucun terme à porter.
+   * Peut être négative · c'est alors un signal de tenue, pas un montant à
+   * additionner.
+   */
+  montantNonVentile: number;
   montantOuverture: number;
   /** Ce qui alimente réellement les lignes de variation du compte de résultat. */
   variationValeur: number;
@@ -2748,8 +2799,18 @@ export interface NotesSmtSyscohada {
   note3: {
     creances: LigneNote3SmtSyscohada[];
     totalCreances: number;
+    totalCreancesNonEchues: number;
+    totalCreancesEchues: number;
+    totalCreancesNonVentilees: number;
     dettes: LigneNote3SmtSyscohada[];
     totalDettes: number;
+    totalDettesNonEchues: number;
+    totalDettesEchues: number;
+    totalDettesNonVentilees: number;
+    /** Faux dès qu'UNE part reste non ventilée · l'état ne peut alors pas tenir son titre. */
+    echeancesTenues: boolean;
+    /** Ce qu'il faut saisir pour que la note dise ce que son intitulé annonce. */
+    motifEcheances: string;
     variationSv2: number;
     variationSv3: number;
     /** Anomalie du texte officiel : « la variation en pourcentage » alimenterait le compte de résultat. */
@@ -2835,4 +2896,100 @@ export interface PreparationAffectation {
   reserveLegale: DotationReserveLegale;
   destinations: { id: string; numero: string; intitule: string }[];
   existante: AffectationResultat | null;
+}
+
+// ---------------------------------------------------------------------------
+// GROUPE D'ÉTABLISSEMENTS · forme de retour de
+// `GroupeService.balanceAgregee` (GET /groupe/balance-agregee), qui fait foi.
+// Une même personne morale tenue en plusieurs dossiers : l'agrégat n'est donc
+// pas une simple addition, il ÉLIMINE les opérations réciproques. L'AUDCIF
+// art. 22, 1° exige que les données « puissent être restituées sur papier ou
+// sous une forme directement intelligible » · un agrégat dont on ne voit pas
+// ce qui a été retiré, ni ce qui n'a pas été confirmé, n'est pas restitué.
+// ---------------------------------------------------------------------------
+
+/**
+ * Une ligne SORTIE de l'agrégat. Le D4C énumère ce que la réunion des comptes
+ * suppose : « élimination des comptes réciproques (actifs/passifs,
+ * charges/produits) ; neutralisation des résultats provenant d'opérations
+ * entre entités du périmètre » (AUDCIF, ch. XIII-4, section 1).
+ */
+export interface EliminationReciproqueGroupe {
+  dossier: string;
+  /** Le ou les dossiers du groupe mis en face par l'écriture. */
+  contrepartie: string;
+  numero: string;
+  intitule: string;
+  /** « Créance ou dette réciproque » ou « Charge ou produit réciproque ». */
+  motif: string;
+  debit: number;
+  credit: number;
+}
+
+/**
+ * Une réciprocité QUI NE SE BOUCLE PAS · la créance chez l'un ne répond pas à
+ * la dette chez l'autre. Le D4C fait de la « procédure de
+ * confirmation de solde pour toutes les opérations » (AUDCIF, ch. XII-5,
+ * section 2) le préalable de toute élimination intra-groupe : l'écart dit
+ * que cette confirmation a échoué. Il est nommé, jamais corrigé d'office.
+ */
+export interface EcartReciprociteGroupe {
+  dossier: string;
+  contrepartie: string;
+  solde: number;
+  soldeContrepartie: number;
+  ecart: number;
+}
+
+/**
+ * Un tiers rattaché à un dossier qui n'appartient PAS à ce groupe · rien n'a
+ * été éliminé sur sa foi. Éliminer aurait retiré de l'agrégat une opération
+ * réellement externe.
+ */
+export interface RattachementRefuseGroupe {
+  dossier: string;
+  codeTiers: string;
+  nomTiers: string;
+  motif: string;
+}
+
+/** Les huit contrôles qui accompagnent l'agrégat · une agrégation sans contrôle est un piège. */
+export interface ControlesAgregatGroupe {
+  ecartLiaison: number;
+  liaisonNeutralisee: boolean;
+  tousEquilibres: boolean;
+  periodesConcordantes: boolean;
+  reciprocitesEquilibrees: boolean;
+  ecartElimination: number;
+  eliminationsSymetriques: boolean;
+  rattachementsValides: boolean;
+}
+
+export interface BalanceAgregeeGroupe {
+  exercice: { id: string; dateDebut: string; dateFin: string };
+  dossiers: Array<{
+    id: string;
+    nom: string;
+    estMere: boolean;
+    totalDebit: number;
+    totalCredit: number;
+    solde58: number;
+    equilibre: boolean;
+  }>;
+  /** Cellule dont l'exercice MANQUE sur la période · ses chiffres sont absents. */
+  cellulesSansExercice: Array<{ id: string; nom: string }>;
+  /** Cellule dont l'exercice existe mais ne couvre pas la période · écartée elle aussi. */
+  cellulesPeriodeDiscordante: Array<{ id: string; nom: string; dateDebut: string; dateFin: string }>;
+  /** Le cumul NET des éliminations · c'est lui qui se réimporte en dossier de combinaison. */
+  lignes: Array<{ numero: string; intitule: string; totalDebit: number; totalCredit: number; solde: number }>;
+  totaux: { debit: number; credit: number };
+  eliminations: EliminationReciproqueGroupe[];
+  totauxEliminations: { debit: number; credit: number };
+  ecartsReciprocite: EcartReciprociteGroupe[];
+  rattachementsRefuses: RattachementRefuseGroupe[];
+  /** Ce que l'agrégat ne SAIT pas faire et refuse d'inventer (cession interne, marge en stock). */
+  avertissements: string[];
+  controles: ControlesAgregatGroupe;
+  /** Le cumul BRUT dossier par dossier · agrégat = détail par dossier moins éliminations. */
+  detailParDossier: Array<{ dossier: string; numero: string; intitule: string; totalDebit: number; totalCredit: number }>;
 }
