@@ -4,6 +4,8 @@ import { PrismaService } from '../../common/prisma.service';
 import {
   AVERTISSEMENT_REDEVABLE,
   AVERTISSEMENT_REGISTRE,
+  AVERTISSEMENT_REVERSEMENT_ANTERIEUR,
+  AVERTISSEMENT_REVERSEMENT_EXERCICE_SUIVANT,
   DERNIERE_VERIFICATION,
   NATURES_RETENUES,
   NatureRetenue,
@@ -145,7 +147,7 @@ export class RetenuesService {
       const siennes = lignes.filter((l) => correspond(l.compte.numero, nature));
 
       // Par mois d'écriture · l'unité de l'obligation de reversement.
-      const parMois = new Map<string, { retenu: number; reverse: number }>();
+      const parMois = new Map<string, { retenu: number; reverseEcritures: number }>();
       const parCompte = new Map<string, { numero: string; intitule: string; retenu: number; reverse: number }>();
       for (const l of siennes) {
         const mois = `${l.ecriture.date.getFullYear()}-${String(l.ecriture.date.getMonth() + 1).padStart(2, '0')}`;
@@ -153,9 +155,9 @@ export class RetenuesService {
         // débit = reversement effectué.
         const retenu = Number(l.credit);
         const reverse = Number(l.debit);
-        const m = parMois.get(mois) ?? { retenu: 0, reverse: 0 };
+        const m = parMois.get(mois) ?? { retenu: 0, reverseEcritures: 0 };
         m.retenu += retenu;
-        m.reverse += reverse;
+        m.reverseEcritures += reverse;
         parMois.set(mois, m);
 
         const c = parCompte.get(l.compte.numero) ?? {
@@ -169,6 +171,46 @@ export class RetenuesService {
         parCompte.set(l.compte.numero, c);
       }
 
+      const retenu = [...parMois.values()].reduce((s, m) => s + m.retenu, 0);
+      const reverse = [...parMois.values()].reduce((s, m) => s + m.reverseEcritures, 0);
+
+      /*
+        LE REVERSEMENT S'IMPUTE SUR LE MOIS DE LA RETENUE QU'IL ÉTEINT, ET NON
+        SUR LE MOIS DE SA PROPRE ÉCRITURE · c'est ici que l'état accusait un
+        contribuable à jour.
+
+        Un reversement tombe NÉCESSAIREMENT après le mois de la retenue :
+        l'article 18 de la loi n° 004/2003 portant réforme des procédures
+        fiscales donne jusqu'au « 15 du mois qui suit celui du versement de
+        ces revenus aux bénéficiaires ou de leur mise à disposition »
+        (compilation DGI au 19 juillet 2026,
+        `17-procedures-titre1-obligations-declaratives.md`, lignes 281 à 284).
+        Ranger le débit dans le mois de son écriture laissait donc mars
+        éternellement crédité, et avril porteur d'un solde négatif que rien ne
+        compensait : une entité qui reverse le 14 avril, la veille de
+        l'échéance, lisait sur le même écran « solde 0 » et « 1 mois en
+        retard ». Sur douze mois de paie régulièrement reversés, l'état criait
+        douze fois · un signal qui crie toujours n'est plus lu, et le mois
+        réellement impayé passait avec les autres.
+
+        L'IMPUTATION VA AUX MOIS LES PLUS ANCIENS D'ABORD. Aucun texte ne fixe
+        d'ordre d'imputation, et le registre ne connaît pas l'intention du
+        payeur · un débit ne dit pas quel mois il acquitte. L'ordre
+        chronologique est celui dans lequel une dette s'éteint ordinairement,
+        et le seul qui ne fasse pas dépendre le résultat de l'ordre de saisie.
+        Il ne peut pas grossir le MONTANT échu resté dû · en servant les mois
+        échus avant les autres, il le minimise. Ce qu'il peut faire, en
+        revanche, c'est répartir ce montant sur d'autres mois que ceux que le
+        payeur visait : le drapeau dit COMBIEN reste dû après échéance, pas
+        laquelle des échéances le payeur croyait acquitter.
+
+        CE QU'ELLE NE DIT PAS · elle constate ce qui RESTE dû, pas ce qui a
+        été payé en retard. Un reversement passé le 20 mai pour la retenue de
+        mars éteint mars, et le mois cesse d'être signalé. Établir le retard
+        PASSÉ supposerait la date de PAIEMENT, que ce registre n'a pas : il
+        lit la date de l'ÉCRITURE, et les deux ne coïncident pas toujours.
+      */
+      let aImputer = reverse;
       const mois = [...parMois.entries()]
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([cle, m]) => {
@@ -176,54 +218,57 @@ export class RetenuesService {
           // Reversement dû `joursApresPeriode` jours après la fin du mois de
           // la retenue · voir echeanceDuMois.
           const echeance = this.echeanceDuMois(nature, annee, numeroMois - 1);
-          const solde = Math.round((m.retenu - m.reverse) * 100) / 100;
+          const impute = Math.max(0, Math.min(aImputer, m.retenu));
+          aImputer -= impute;
+          const solde = Math.round((m.retenu - impute) * 100) / 100;
           return {
             mois: cle,
             retenu: Math.round(m.retenu * 100) / 100,
-            reverse: Math.round(m.reverse * 100) / 100,
+            // Ce qui a été reversé AU TITRE de ce mois · pas ce qui a été
+            // débité pendant ce mois-là, qui acquitte le mois d'avant.
+            reverse: Math.round(impute * 100) / 100,
+            // Le débit tel qu'il a été écrit, gardé pour la piste : c'est la
+            // seule trace de l'écriture que l'imputation vient de déplacer.
+            reverseEcritures: Math.round(m.reverseEcritures * 100) / 100,
             solde,
             echeance,
             // Un solde encore dû après l'échéance est un retard de
-            // reversement · c'est ce que l'état doit crier.
+            // reversement · c'est ce que l'état doit crier, et seulement là.
             enRetard: solde > 0.005 && echeance < reference,
           };
         });
 
-      const retenu = mois.reduce((s, m) => s + m.retenu, 0);
-      const reverse = mois.reduce((s, m) => s + m.reverse, 0);
+      /*
+        CE QU'AUCUN MOIS DE L'EXERCICE N'A ABSORBÉ · un reversement qui éteint
+        la retenue d'un exercice ANTÉRIEUR, ou un versement excédentaire.
+
+        Il reste compté dans `reverse`, qui est l'arithmétique du compte, mais
+        il ne s'impute sur aucun mois affiché · la colonne des mois totalise
+        alors moins que la ligne de la nature. L'écart est réel et il est dit
+        (voir AVERTISSEMENT_REVERSEMENT_ANTERIEUR) plutôt que lissé.
+      */
+      const reverseNonImpute = Math.round(Math.max(0, aImputer) * 100) / 100;
+
       /*
         LA RETENUE ÉCHUE QUI RESTE NON REVERSÉE · l'assiette du signalement de
-        l'article 20, et elle ne se lit NI dans le solde total, NI dans les
-        soldes mensuels.
+        l'article 20. Elle ne se lit PAS dans le solde total, qui englobe le
+        mois en cours, non encore exigible et dont personne n'a à rendre
+        compte.
 
-        Pas le solde total : il englobe le mois en cours, qui n'est pas encore
-        exigible et dont personne n'a à rendre compte.
-
-        Pas les soldes mensuels non plus, et c'est le piège · le débit de
-        reversement est rangé dans le mois de SA PROPRE écriture, jamais
-        imputé sur le mois de la retenue qu'il éteint. Or le reversement d'une
-        retenue de mars intervient nécessairement en avril : le mois de mars
-        reste crédité et ressort `enRetard`, chez une entité qui a pourtant
-        payé le 14 avril, la veille de l'échéance. Bâtir là-dessus un
-        avertissement de non-déductibilité reviendrait à accuser le
-        contribuable à jour · exactement ce qu'il ne faut pas faire avec une
-        règle de cette portée.
-
-        D'où une assiette CUMULÉE, propre à ce signalement : les retenues des
-        mois dont l'échéance est passée, diminuées de tout ce que la nature a
-        déjà reversé, imputation faite sur les plus anciennes. Elle ne peut
-        que sous-estimer, jamais surestimer · un reversement anticipé du mois
-        en cours vient en déduction de l'échu. C'est le bon sens de l'erreur
-        pour un avertissement de cette gravité.
+        Elle se lit maintenant dans les mois eux-mêmes. C'était l'objet d'un
+        calcul cumulé à part, tenu séparément parce que les soldes mensuels
+        étaient faux ; depuis que le reversement s'impute sur le mois qu'il
+        éteint, la somme des soldes échus EST cette assiette, et la tenir deux
+        fois n'aurait fait que deux chances de diverger.
 
         LIMITE ASSUMÉE · la requête ne lit que les écritures de l'EXERCICE. Le
         reversement de la retenue de décembre, passé en janvier suivant, n'y
         est pas : ce dernier mois peut donc ressortir non reversé alors qu'il
         a été payé. La réserve est portée dans le message.
       */
-      const retenuEchu = mois.filter((m) => m.echeance < reference).reduce((s, m) => s + m.retenu, 0);
-      const retenuEchuNonReverse = Math.max(0, retenuEchu - reverse);
-      const echeancesEchues = mois.filter((m) => m.echeance < reference).map((m) => m.echeance);
+      const moisEchus = mois.filter((m) => m.echeance < reference);
+      const retenuEchuNonReverse = moisEchus.reduce((s, m) => s + m.solde, 0);
+      const echeancesEchues = moisEchus.map((m) => m.echeance);
       return {
         cle: nature.cle,
         libelle: nature.libelle,
@@ -240,6 +285,7 @@ export class RetenuesService {
         solde: Math.round((retenu - reverse) * 100) / 100,
         moisEnRetard: mois.filter((m) => m.enRetard).length,
         retenuEchuNonReverse: Math.round(retenuEchuNonReverse * 100) / 100,
+        reverseNonImpute,
         derniereEcheanceEchue: echeancesEchues.length > 0 ? echeancesEchues[echeancesEchues.length - 1] : null,
         // La charge dont la déduction est suspendue à la preuve du
         // reversement · null quand le lien n'est pas établi (TVA, cotisations
@@ -310,9 +356,14 @@ export class RetenuesService {
         AVERTISSEMENT_REGISTRE,
         avertissementRegimeImpot(referentiel),
         AVERTISSEMENT_REDEVABLE,
-        // Conditionnel, et en dernier · un avertissement qui ne vise personne
-        // affaibli ceux qui visent tout le monde. Il n'apparaît que lorsque
-        // le registre a réellement une retenue échue et non reversée.
+        // Conditionnels, et en dernier · un avertissement qui ne vise
+        // personne affaibli ceux qui visent tout le monde. Les deux premiers
+        // disent la seule fausse alerte, et le seul écart de colonne, que le
+        // rapprochement mensuel ne peut pas lever depuis l'exercice affiché.
+        ...(natures.some((n) => n.moisEnRetard > 0) ? [AVERTISSEMENT_REVERSEMENT_EXERCICE_SUIVANT] : []),
+        ...(natures.some((n) => n.reverseNonImpute > 0.005) ? [AVERTISSEMENT_REVERSEMENT_ANTERIEUR] : []),
+        // Il n'apparaît que lorsque le registre a réellement une retenue
+        // échue et non reversée sur une charge de l'entité.
         ...(avertissementDeductibilite ? [avertissementDeductibilite] : []),
       ],
     };

@@ -80,6 +80,10 @@ function service(net: number, referentiel: 'SYCEBNL' | 'SYSCOHADA', creditAnteri
     netAvantImputation: net,
     creditAnterieur,
     creditImpute,
+    // Aucune récupération de l'article 52 ici · ce spec n'observe que le
+    // compte d'arrivée du solde et le report du crédit. Le champ est servi
+    // pour que le faux reste conforme à ce que la déclaration rend vraiment.
+    recuperationArt52: 0,
     net: net - creditAnterieur,
     prorata: { pourcentage: 100 },
     lignes: [
@@ -88,6 +92,7 @@ function service(net: number, referentiel: 'SYCEBNL' | 'SYSCOHADA', creditAnteri
         totalCollecte: collecte,
         compteDeductibleId: 'c-445',
         totalDeductible: deductibleAdmise,
+        recuperationArt52: 0,
       },
     ],
   } as never);

@@ -23,6 +23,13 @@ function service(options: {
   comptes?: Array<{ id: string; numero: string; intitule: string; codeRetraitementFiscal: string | null }>;
   mouvements?: Array<{ compteId: string; debit: number; credit: number }>;
   chiffreAffaires?: number;
+  /**
+   * Charges comptabilisées · elles seules font le SIGNE du résultat, et
+   * l'art. 44 en fait une condition d'ouverture du droit à déduction.
+   */
+  chargesComptables?: number;
+  /** Retraitements déjà saisis · ce qui a déjà été réintégré ne l'est pas deux fois. */
+  retraitements?: Array<{ code: string; sens: SensRetraitementFiscal; montant: number }>;
 }) {
   const prisma = {
     tenant: {
@@ -36,14 +43,22 @@ function service(options: {
         (options.mouvements ?? []).map((m) => ({ compteId: m.compteId, _sum: { debit: m.debit, credit: m.credit } })),
       ),
     },
+    retraitementFiscal: {
+      findMany: jest.fn().mockResolvedValue(
+        (options.retraitements ?? []).map((r, i) => ({ id: `r${i}`, libelle: 'x', commentaire: null, ...r })),
+      ),
+    },
   } as unknown as PrismaService;
 
-  // La balance n'est pas rejouée ici · seul le chiffre d'affaires compte,
-  // c'est l'assiette des plafonds légaux.
+  // La balance porte le chiffre d'affaires · assiette des plafonds légaux ·
+  // ET les charges, qui donnent au résultat son signe.
   const ecritures = {
     balance: jest.fn().mockResolvedValue({
       lignes: [
         { numero: '70110000', intitule: 'Ventes', typeCompte: 'DETAIL', solde: -(options.chiffreAffaires ?? 0) },
+        ...(options.chargesComptables
+          ? [{ numero: '60110000', intitule: 'Achats', typeCompte: 'DETAIL', solde: options.chargesComptables }]
+          : []),
       ],
     }),
   } as unknown as EcritureService;
@@ -278,5 +293,145 @@ describe('plafond en pourcentage du chiffre d’affaires · global par nature', 
     const { propositions } = await svc.propositionsRetraitements('t-1', 'ex-1');
     expect(propositions.map((p) => p.montant)).toEqual([40_000, 80_000]);
     expect(propositions.map((p) => p.mouvementNature)).toEqual([null, null]);
+  });
+});
+
+/**
+ * ART. 44 · LE PLAFOND N'EST QUE LA MOITIÉ DE L'ARTICLE.
+ *
+ * Loi n° 23/053, art. 44, al. 2 : « Le bénéfice de cette disposition est
+ * subordonné à la double condition que : 1. un relevé indiquant les montants,
+ * la date des versements et l'identité des bénéficiaires soit joint à la
+ * déclaration des résultats ; 2. le résultat net imposable avant déduction de
+ * ces versements soit positif. »
+ *
+ * Le module ne connaissait que la limite de 0,5 % du chiffre d'affaires. Un
+ * dossier déficitaire se voyait donc offrir une déduction que la loi ne lui
+ * ouvre pas, et le déficit reportable déclaré était trop élevé d'autant · un
+ * report fictif qui ne se découvre qu'à l'exercice où il s'impute.
+ */
+describe('condition d’ouverture du droit à déduction · art. 44, al. 2, 2°', () => {
+  it('un dossier DÉFICITAIRE ne conserve AUCUN don en déduction · la totalité se réintègre', async () => {
+    // CA 100 000 000, charges 102 800 000 : résultat comptable −2 800 000,
+    // dont 800 000 de dons. Résultat AVANT déduction des versements :
+    // −2 800 000 + 800 000 = −2 000 000, donc négatif · aucune déduction.
+    // Le module offrait 500 000 (0,5 % du CA) et ne réintégrait que 300 000.
+    const svc = service({
+      comptes: [compte('c-1', '65820000', 'DONS_EXCEDENT')],
+      mouvements: [{ compteId: 'c-1', debit: 800_000, credit: 0 }],
+      chiffreAffaires: 100_000_000,
+      chargesComptables: 102_800_000,
+    });
+    const { propositions } = await svc.propositionsRetraitements('t-1', 'ex-1');
+    expect(propositions[0]).toMatchObject({
+      mouvement: 800_000,
+      montant: 800_000,
+      montantAdmis: 0,
+      montantAdmisNature: 0,
+    });
+    expect(propositions[0].plafondEnonce).toContain('SANS EFFET ICI');
+    expect(propositions[0].plafondEnonce).toContain(
+      'le résultat net imposable avant déduction de ces versements soit positif',
+    );
+  });
+
+  it('le résultat se juge AVANT déduction des versements · des dons qui le rendent positif ouvrent le droit', async () => {
+    // Résultat comptable −300 000, dons 900 000 · avant déduction des
+    // versements le résultat vaut +600 000, la condition est REMPLIE et le
+    // plafond de 0,5 % joue normalement. Un test du seul signe du résultat
+    // fiscal réintégrerait ici 900 000 au lieu de 400 000.
+    const svc = service({
+      comptes: [compte('c-1', '65820000', 'DONS_EXCEDENT')],
+      mouvements: [{ compteId: 'c-1', debit: 900_000, credit: 0 }],
+      chiffreAffaires: 100_000_000,
+      chargesComptables: 100_300_000,
+    });
+    const { propositions } = await svc.propositionsRetraitements('t-1', 'ex-1');
+    expect(propositions[0]).toMatchObject({ montantAdmis: 500_000, montant: 400_000 });
+    expect(propositions[0].plafondEnonce).not.toContain('SANS EFFET ICI');
+  });
+
+  it('ce qui a DÉJÀ été réintégré sous le même code ne compte pas deux fois', async () => {
+    // Même dossier que le premier cas, mais 300 000 ont déjà été réintégrés
+    // sous DONS_EXCEDENT : le résultat fiscal brut vaut −2 500 000, et le
+    // résultat avant déduction des versements reste −2 000 000. Sans le
+    // retrait du déjà-réintégré, il remonterait à −1 700 000 et la condition
+    // basculerait sur un chiffre compté deux fois.
+    const svc = service({
+      comptes: [compte('c-1', '65820000', 'DONS_EXCEDENT')],
+      mouvements: [{ compteId: 'c-1', debit: 800_000, credit: 0 }],
+      chiffreAffaires: 100_000_000,
+      chargesComptables: 102_800_000,
+      retraitements: [{ code: 'DONS_EXCEDENT', sens: SensRetraitementFiscal.REINTEGRATION, montant: 300_000 }],
+    });
+    const { propositions } = await svc.propositionsRetraitements('t-1', 'ex-1');
+    // Les séparateurs de milliers de `toLocaleString('fr-FR')` sont des
+    // espaces insécables étroites · normalisées avant comparaison.
+    expect(propositions[0].plafondEnonce!.replace(/[\u202f\u00a0]/g, ' ')).toContain('-2 000 000');
+    expect(propositions[0]).toMatchObject({ montantAdmis: 0, montant: 800_000 });
+  });
+
+  it('la condition ne touche QUE le code qui la porte · les cadeaux gardent leur plafond', async () => {
+    // Art. 49, 1° ne pose aucune condition de résultat : 2 ‰ de 100 000 000
+    // = 200 000 admis, l'excédent seul se réintègre, déficit ou non.
+    const svc = service({
+      comptes: [compte('c-1', '62340000', 'CADEAUX_EXCEDENT')],
+      mouvements: [{ compteId: 'c-1', debit: 500_000, credit: 0 }],
+      chiffreAffaires: 100_000_000,
+      chargesComptables: 150_000_000,
+    });
+    const { propositions } = await svc.propositionsRetraitements('t-1', 'ex-1');
+    expect(propositions[0]).toMatchObject({ montantAdmis: 200_000, montant: 300_000 });
+  });
+});
+
+/**
+ * QUAND L'ASSIETTE DU REDRESSEMENT N'EST PAS LE MOUVEMENT DU COMPTE.
+ *
+ * Loi n° 23/053, art. 28, al. 1er : « Les amortissements des immobilisations
+ * servant à l'exercice de l'activité […] sont déductibles du bénéfice
+ * imposable », le taux étant « fixé par Arrêté du Ministre ayant les Finances
+ * dans ses attributions ». La dotation conforme au barème EST déductible :
+ * proposer le mouvement entier du compte de dotations, c'est proposer de
+ * réintégrer une charge que la loi admet.
+ */
+describe('propositions sans assiette · le module s’abstient et le dit', () => {
+  it('un compte de DOTATIONS AUX AMORTISSEMENTS ne propose aucun montant', async () => {
+    const svc = service({
+      comptes: [compte('c-1', '68130000', 'AMORTISSEMENTS_EXCEDENT')],
+      mouvements: [{ compteId: 'c-1', debit: 25_000_000, credit: 0 }],
+      chiffreAffaires: 200_000_000,
+    });
+    const { propositions, avertissements } = await svc.propositionsRetraitements('t-1', 'ex-1');
+    // Le module proposait 25 000 000 de réintégration, soit 7 500 000 d'impôt
+    // indu au taux de l'art. 56 si la ligne était reprise sans réflexion.
+    expect(propositions).toEqual([]);
+    expect(avertissements).toHaveLength(1);
+    expect(avertissements[0]).toMatchObject({ numero: '68130000', code: 'AMORTISSEMENTS_EXCEDENT', mouvement: 25_000_000 });
+    expect(avertissements[0].motif).toContain('EXCÉDENT');
+    expect(avertissements[0].source).toContain('art. 28');
+  });
+
+  it('le supplément d’annuité des immobilisations réévaluées non plus · art. 133', async () => {
+    const svc = service({
+      comptes: [compte('c-1', '68131000', 'REEVALUATION_SUPPLEMENT_ANNUITE')],
+      mouvements: [{ compteId: 'c-1', debit: 8_000_000, credit: 0 }],
+      chiffreAffaires: 200_000_000,
+    });
+    const { propositions, avertissements } = await svc.propositionsRetraitements('t-1', 'ex-1');
+    expect(propositions).toEqual([]);
+    expect(avertissements[0].source).toContain('art. 133');
+  });
+
+  it('un compte SANS assiette hors portée continue de proposer tout son mouvement', async () => {
+    // Art. 50, 3° · une amende n'est pas déductible pour un franc : là, le
+    // mouvement EST l'assiette, et l'abstention serait une régression.
+    const svc = service({
+      comptes: [compte('c-1', '64710000', 'AMENDES_PENALITES')],
+      mouvements: [{ compteId: 'c-1', debit: 500_000, credit: 0 }],
+    });
+    const { propositions, avertissements } = await svc.propositionsRetraitements('t-1', 'ex-1');
+    expect(propositions[0]).toMatchObject({ montant: 500_000 });
+    expect(avertissements).toEqual([]);
   });
 });

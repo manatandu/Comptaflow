@@ -18,6 +18,7 @@ import {
   QUOTITES_PETITE_ENTREPRISE,
 } from './parametres-fiscaux';
 import { CreerRetraitementDto, ModifierDossierFiscalDto, ModifierRetraitementDto } from './dto/fiscalite.dto';
+import { qualifierExemptionIs } from './exemption-is-ebnl';
 // Le chiffre d'affaires n'est plus écrit ici : il se DÉRIVE du poste XB du
 // modèle du ch. 4 (voir correspondance-compte-resultat-syscohada.ts). Une
 // liste officielle recopiée dans deux modules est une divergence en attente.
@@ -40,19 +41,85 @@ import { PREFIXES_CHIFFRE_AFFAIRES_SYSCOHADA as PREFIXES_CHIFFRE_AFFAIRES } from
  * tromperait en silence sur tous les dossiers. Il ne produit pas non plus le
  * formulaire de déclaration de la DGI, dont le modèle n'est pas en main.
  *
- * Une entité à but non lucratif est EXEMPTÉE d'impôt sur les sociétés
- * (art. 5) · le contrôleur refuse les dossiers SYCEBNL, et le service le
- * revérifie, la double barrière étant la règle du dépôt.
+ * CE QUE CE SERVICE NE DIT PLUS · il refusait tout dossier SYCEBNL avec la
+ * phrase « Une entité à but non lucratif est exemptée d'impôt sur les
+ * sociétés (loi n° 23/053, art. 5) », qui affirmait un droit à partir du seul
+ * RÉFÉRENTIEL COMPTABLE. L'art. 5 porte trois exemptions distinctes (points
+ * 3, 4 et 5) et le point 5, celui des établissements d'utilité publique et
+ * des ONG, renvoie « aux conditions définies par voie réglementaire » que
+ * l'arrêté n° 007/2025 a fixées. Le refus du module demeure, sa raison ne
+ * change pas (ce module lit une balance SYSCOHADA), mais la qualification est
+ * désormais posée par exemption-is-ebnl.ts à partir de la FORME JURIDIQUE et
+ * de l'attestation du dossier, et non plus supposée.
+ *
+ * Le contrôleur refuse les dossiers SYCEBNL, et le service le revérifie, la
+ * double barrière étant la règle du dépôt.
  */
 
 
 const arrondir = (n: number) => Math.round(n * 100) / 100;
+
+/**
+ * ARRONDI LÉGAL DE L'IMPÔT · art. 150 de la loi n° 23/053, TITRE VI,
+ * chapitre 1 « DES DISPOSITIONS RELATIVES AUX ARRONDIS » :
+ *
+ *   « Lorsque le montant de l'Impôt sur les Sociétés, de l'Impôt minimum, de
+ *   l'Impôt sur le Revenu des Personnes Physiques et de tous autres
+ *   prélèvements prévus dans la présente Loi comprend une décimale, cette
+ *   fraction est arrondie à l'unité supérieure si la première décimale est
+ *   supérieure ou égale à 5. Dans le cas contraire, elle est ramenée à
+ *   l'unité inférieure.
+ *   Lorsque le montant arrondi comprend une tranche supérieure ou égale à 50
+ *   Francs congolais, celle-ci est ramenée à la centaine de Francs congolais
+ *   supérieure.
+ *   Lorsque cette tranche est inférieure à 50 Francs congolais, elle est
+ *   ramenée à la centaine de Francs congolais inférieure. »
+ *
+ * CE N'EST PAS `arrondir`, ET C'EST TOUT L'ÉCART. `arrondir` est l'arrondi
+ * COMPTABLE au centime, celui d'un solde ou d'un retraitement ; l'art. 150
+ * est l'arrondi FISCAL, en deux temps, et il finit à la centaine de francs.
+ * Le module liquidait au centime : sur un chiffre d'affaires de
+ * 123 456 789 FC, l'impôt minimum de 1 % vaut 1 234 567,89 FC au centime et
+ * 1 234 600 FC selon la loi. L'écart est borné à moins de cent francs, mais
+ * le montant affiché n'était pas celui qui se déclare, et il servait ensuite
+ * d'assiette aux acomptes de l'exercice suivant.
+ *
+ * PORTÉE VOLONTAIREMENT ÉTROITE · l'article vise « l'Impôt sur les Sociétés,
+ * l'Impôt minimum, l'Impôt sur le Revenu des Personnes Physiques et tous
+ * autres prélèvements prévus dans la présente Loi ». Les acomptes
+ * provisionnels et les quotités ne sont pas prévus par cette loi-ci mais par
+ * la loi de procédures fiscales (art. 57 bis et 57 quater) : ils restent au
+ * centime, et leur base est l'impôt DÉJÀ arrondi.
+ */
+export function arrondirImpotArt150(montant: number): number {
+  if (!Number.isFinite(montant)) return montant;
+  const entier = Math.floor(montant);
+  // La « première décimale », littéralement · l'epsilon protège du cas où la
+  // représentation binaire rend 0,5 sous la forme 0,4999999999999999.
+  const premiereDecimale = Math.floor((montant - entier) * 10 + 1e-9);
+  const unite = premiereDecimale >= 5 ? entier + 1 : entier;
+  // « La tranche » est ce qui reste sous la centaine · le modulo est ramené
+  // dans [0, 100[ pour qu'un montant négatif ne remonte pas la centaine du
+  // mauvais côté. Un impôt n'est jamais négatif ici, mais la fonction est
+  // exportée et sera appelée ailleurs.
+  const tranche = ((unite % 100) + 100) % 100;
+  return tranche >= 50 ? unite - tranche + 100 : unite - tranche;
+}
 
 type RegimeImposition =
   | 'IMPOT_SOCIETES'
   | 'IRPP_MICRO_ENTREPRISE'
   | 'IRPP_PETITE_ENTREPRISE'
   | 'IRPP_REGIME_REEL';
+
+/**
+ * Ce que la condition de l'art. 44 a besoin de lire · le résultat fiscal
+ * BRUT et les retraitements déjà saisis, rien de plus.
+ */
+type LectureFiscaleBrute = {
+  resultatFiscalBrut: number;
+  retraitements: { code: string; sens: SensRetraitementFiscal; montant: unknown }[];
+};
 
 /** Les trois régimes d'une personne physique, du plus bas au plus haut. */
 type RegimePhysique = 'IRPP_MICRO_ENTREPRISE' | 'IRPP_PETITE_ENTREPRISE' | 'IRPP_REGIME_REEL';
@@ -81,15 +148,59 @@ export class FiscaliteService {
     return { retraitements: CATALOGUE_RETRAITEMENTS, derniereVerification: DERNIERE_VERIFICATION_FISCALE };
   }
 
+  /**
+   * LE REFUS DU MODULE, ET LA PHRASE QUI L'ACCOMPAGNE.
+   *
+   * Le refus reste entier : ce service lit une balance SYSCOHADA (préfixes de
+   * chiffre d'affaires 701 à 707 du modèle du ch. 4, catalogue de
+   * retraitements de la loi n° 23/053) et un dossier SYCEBNL n'en a pas.
+   *
+   * Ce qui change est la phrase servie avec lui. Elle affirmait l'exemption
+   * de l'art. 5 pour TOUT dossier SYCEBNL. Or l'exemption d'un établissement
+   * d'utilité publique ou d'une ONG relève du point 5, « dans les conditions
+   * définies par voie réglementaire », et l'arrêté n° 007/2025 subordonne son
+   * bénéfice à une attestation (art. 2) et à quatre conditions de fond
+   * (art. 3), l'impôt étant dû « au titre de l'exercice concerné » en cas de
+   * manquement (art. 5). Affirmer l'exemption à un tel dossier, c'est lui
+   * dire qu'il est en règle sans en rien savoir.
+   */
   private async tenantSyscohada(tenantId: string) {
     const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
     if (!tenant) throw new NotFoundException('Dossier introuvable');
     if (tenant.referentiel !== Referentiel.SYSCOHADA) {
+      const qualification = qualifierExemptionIs(tenant);
       throw new BadRequestException(
-        "La détermination du résultat fiscal ne concerne que les dossiers tenus en SYSCOHADA. Une entité à but non lucratif est exemptée d'impôt sur les sociétés (loi n° 23/053, art. 5).",
+        `La détermination du résultat fiscal ne concerne que les dossiers tenus en SYSCOHADA. ${qualification.enonce}`,
       );
     }
     return tenant;
+  }
+
+  /**
+   * LE STATUT D'EXEMPTION D'IS D'UN DOSSIER NON LUCRATIF · la seule route de
+   * ce module ouverte au SYCEBNL, et elle ne calcule rien.
+   *
+   * Elle existe parce que fermer une fenêtre n'avertit personne. Le dossier
+   * porte déjà la forme juridique (loi n° 004/2001), l'acte de personnalité
+   * juridique et l'attestation d'exemption de l'art. 2 de l'arrêté
+   * n° 007/2025 ; jusqu'ici le module fiscal ne les lisait pas. Ils sont lus
+   * ici pour poser la qualification et les avertissements dus, sans jamais en
+   * tirer un impôt : les quatre conditions de l'art. 3 sont des faits de
+   * gestion et de marché, hors de portée d'une comptabilité.
+   */
+  async exemptionIs(tenantId: string) {
+    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
+    if (!tenant) throw new NotFoundException('Dossier introuvable');
+    if (tenant.referentiel !== Referentiel.SYCEBNL) {
+      throw new BadRequestException(
+        "Le statut d'exemption d'impôt sur les sociétés de l'article 5 de la loi n° 23/053 ne concerne que les dossiers tenus en SYCEBNL.",
+      );
+    }
+    return {
+      formeJuridique: tenant.formeJuridique ?? null,
+      droitEtranger: tenant.droitEtranger ?? false,
+      ...qualifierExemptionIs(tenant),
+    };
   }
 
   private async exerciceDuDossier(tenantId: string, exerciceId: string) {
@@ -181,7 +292,7 @@ export class FiscaliteService {
       select: { id: true, numero: true, intitule: true, codeRetraitementFiscal: true },
       orderBy: { numero: 'asc' },
     });
-    if (!comptes.length) return { propositions: [], chiffreAffaires: 0 };
+    if (!comptes.length) return { propositions: [], avertissements: [], chiffreAffaires: 0 };
 
     const [mouvements, brut] = await Promise.all([
       this.prisma.ligneEcriture.groupBy({
@@ -195,7 +306,12 @@ export class FiscaliteService {
         },
         _sum: { debit: true, credit: true },
       }),
-      this.lireBalance(tenantId, exerciceId),
+      // PAS `lireBalance` MAIS `resultatFiscalBrut` · la condition d'ouverture
+      // de l'art. 44 se juge sur le RÉSULTAT NET IMPOSABLE, donc après les
+      // réintégrations et déductions déjà saisies, et non sur le seul
+      // chiffre d'affaires. C'est le seul plafond du Titre II dont l'assiette
+      // dépend de l'ordre des opérations.
+      this.resultatFiscalBrut(tenantId, exerciceId),
     ]);
     const parCompte = new Map(mouvements.map((m) => [m.compteId, m]));
 
@@ -214,23 +330,71 @@ export class FiscaliteService {
       return [{ compte: c, definition, mouvement }];
     });
 
+    // CE QUI NE SE PROPOSE PAS, ET POURQUOI ON LE DIT QUAND MÊME.
+    //
+    // Pour un code sans plafond, le service posait `montant = mouvement` :
+    // tout le mouvement se réintègre. C'est juste pour une amende (art. 50,
+    // 3°), dont la charge entière est non déductible. Ce l'est exactement
+    // A REBOURS pour l'amortissement : l'art. 28 admet en déduction toute
+    // dotation conforme au barème de l'arrêté n° 013/CAB/MIN/FINANCES/2025,
+    // et seul l'EXCÉDENT se réintègre. Un cabinet qui taguait son 6813 ·
+    // geste naturel, c'est le compte où vit l'écart, et rien ne l'en
+    // empêchait · se voyait proposer la dotation ENTIÈRE.
+    //
+    // L'annuité fiscale ne se lit pas dans une balance. Plutôt que de
+    // proposer un montant faux, le module N'EN PROPOSE AUCUN et rend la
+    // ligne comme un avertissement, avec son article et ce que le comptable
+    // doit établir lui-même. S'abstenir en disant pourquoi vaut mieux que
+    // deviner : un montant repris sans réflexion se retrouve dans une
+    // déclaration.
+    const horsPortee = lignes.filter((l) => l.definition.assietteHorsPortee);
+    const proposables = lignes.filter((l) => !l.definition.assietteHorsPortee);
+    const avertissements = horsPortee.map((l) => ({
+      compteId: l.compte.id,
+      numero: l.compte.numero,
+      intitule: l.compte.intitule,
+      code: l.definition.code,
+      libelle: l.definition.libelle,
+      source: l.definition.source,
+      mouvement: l.mouvement,
+      motif: l.definition.assietteHorsPortee!,
+    }));
+
     // CUMUL PAR NATURE DE CHARGE · c'est lui, et non le mouvement d'un
     // compte, que les plafonds assis sur le chiffre d'affaires viennent
     // limiter (voir `repartirExcedentPlafonne` et le commentaire de
     // `AssiettePlafond`).
     const cumulParCode = new Map<string, number>();
-    for (const l of lignes) {
+    for (const l of proposables) {
       if (l.definition.plafond?.assiette !== 'CHIFFRE_AFFAIRES') continue;
       cumulParCode.set(l.definition.code, arrondir((cumulParCode.get(l.definition.code) ?? 0) + l.mouvement));
     }
-    const excedentsRepartis = this.repartirExcedentPlafonne(lignes, cumulParCode, brut.chiffreAffaires);
+    // ART. 44, AL. 2, 2° · le plafond ne joue que si le droit à déduction est
+    // OUVERT. Ici, et ici seulement, les deux termes de la condition sont
+    // connus : les versements sont le cumul de la nature, et ce qui en a déjà
+    // été réintégré se lit dans les retraitements saisis.
+    const plafondsFermes = new Set<string>();
+    for (const [code, cumul] of cumulParCode) {
+      const definition = RETRAITEMENT_PAR_CODE.get(code);
+      if (!definition?.conditionResultatNetPositif) continue;
+      if (!this.droitADeductionOuvert(brut, code, cumul).ouvert) plafondsFermes.add(code);
+    }
+    const excedentsRepartis = this.repartirExcedentPlafonne(
+      proposables,
+      cumulParCode,
+      brut.chiffreAffaires,
+      plafondsFermes,
+    );
 
-    const propositions = lignes.flatMap((l) => {
+    const propositions = proposables.flatMap((l) => {
       const plafond = l.definition.plafond;
       const cumulNature = cumulParCode.get(l.definition.code) ?? null;
+      const conditionFermee = plafondsFermes.has(l.definition.code);
       // Sans plafond, tout le mouvement se retraite. Avec plafond, SEUL
       // L'EXCÉDENT · réintégrer la charge entière ferait payer l'impôt sur
-      // une somme que la loi admet en déduction.
+      // une somme que la loi admet en déduction. Condition d'ouverture non
+      // remplie, en revanche, il n'y a PAS d'excédent : il n'y a aucune
+      // déduction, et le versement entier se réintègre.
       const montant = !plafond
         ? l.mouvement
         : plafond.assiette === 'CHIFFRE_AFFAIRES'
@@ -248,11 +412,21 @@ export class FiscaliteService {
           libelle: l.definition.libelle,
           source: l.definition.source,
           mouvement: l.mouvement,
+          // L'ÉNONCÉ EST LE SEUL CANAL QUI ATTEIGNE L'ÉCRAN AUJOURD'HUI · la
+          // condition d'ouverture y est donc jointe, plutôt que servie dans
+          // un champ que la page de saisie ne lit pas encore.
           plafondEnonce: !plafond
             ? null
-            : partagee
-              ? `${plafond.enonce} · plafond commun à ${cumulNature!.toLocaleString('fr-FR')} de charges de cette nature, réparti au prorata`
-              : plafond.enonce,
+            : [
+                conditionFermee
+                  ? `${plafond.enonce} · SANS EFFET ICI`
+                  : partagee
+                    ? `${plafond.enonce} · plafond commun à ${cumulNature!.toLocaleString('fr-FR')} de charges de cette nature, réparti au prorata`
+                    : plafond.enonce,
+                conditionFermee ? this.enonceConditionFermee(l.definition.code, brut, cumulNature ?? 0) : null,
+              ]
+                .filter(Boolean)
+                .join(' · '),
           // Ce que la ligne conserve en déduction. Pour un plafond global
           // réparti, c'est sa quote-part du plafond, pas le plafond entier ·
           // afficher le plafond entier sur chaque ligne serait exactement
@@ -262,13 +436,113 @@ export class FiscaliteService {
           mouvementNature: plafond?.assiette === 'CHIFFRE_AFFAIRES' ? cumulNature : null,
           /** Plafond légal de la NATURE, avant répartition entre ses comptes. */
           montantAdmisNature:
-            plafond?.assiette === 'CHIFFRE_AFFAIRES' ? arrondir(plafond.part * brut.chiffreAffaires) : null,
+            plafond?.assiette === 'CHIFFRE_AFFAIRES'
+              ? conditionFermee
+                ? 0
+                : arrondir(plafond.part * brut.chiffreAffaires)
+              : null,
           montant,
         },
       ];
     });
 
-    return { propositions, chiffreAffaires: brut.chiffreAffaires };
+    return { propositions, avertissements, chiffreAffaires: brut.chiffreAffaires };
+  }
+
+  /**
+   * CONDITION D'OUVERTURE DU DROIT À DÉDUCTION · art. 44, al. 2, 2° de la loi
+   * n° 23/053 : « le résultat net imposable avant déduction de ces versements
+   * soit positif ».
+   *
+   * L'article pose DEUX choses et le module n'en connaissait qu'une. Le
+   * plafond de 0,5 % du chiffre d'affaires dit COMBIEN est admis ; cette
+   * condition dit SI quelque chose l'est. Sur un dossier déficitaire, la loi
+   * n'admet AUCUN versement en déduction : le module offrait 0,5 % du chiffre
+   * d'affaires, et le contribuable déclarait un déficit reportable trop élevé
+   * d'autant · un report fictif qui ne se découvre qu'à l'exercice où il
+   * s'impute, deux ou trois ans plus tard.
+   *
+   * LE CALCUL, ET POURQUOI IL EST CE QU'IL EST. Les versements sont en charge
+   * dans le résultat comptable, donc déjà déduits ; ce que la loi veut, c'est
+   * le résultat AVANT cette déduction. On les rajoute donc · moins ce qui en
+   * a déjà été réintégré par une ligne saisie sous le même code, faute de
+   * quoi cette réintégration compterait deux fois.
+   *
+   * Le résultat pris est le résultat fiscal BRUT, réintégrations et
+   * déductions saisies comprises, et non le résultat comptable : c'est le
+   * « résultat net IMPOSABLE » que l'article nomme. Il est pris avant
+   * imputation des déficits antérieurs, comme l'art. 52, 2° le commande pour
+   * apprécier le caractère bénéficiaire d'un exercice.
+   */
+  private droitADeductionOuvert(
+    brut: LectureFiscaleBrute,
+    code: string,
+    versements: number,
+  ): { ouvert: boolean; resultatAvantVersements: number; dejaReintegre: number } {
+    const dejaReintegre = arrondir(
+      brut.retraitements
+        .filter((r) => r.code === code && r.sens === SensRetraitementFiscal.REINTEGRATION)
+        .reduce((somme, r) => somme + Number(r.montant), 0),
+    );
+    const resultatAvantVersements = arrondir(brut.resultatFiscalBrut + versements - dejaReintegre);
+    return { ouvert: resultatAvantVersements > 0.005, resultatAvantVersements, dejaReintegre };
+  }
+
+  /**
+   * LA CONDITION DE L'ART. 44 VUE DEPUIS L'ÉCRAN DE SAISIE, où le montant des
+   * versements N'EST PAS ENCORE CONNU · le comptable est en train de le
+   * taper. Le serveur ne peut donc pas trancher comme il le fait pour une
+   * proposition, où le cumul des comptes qualifiés lui donne le montant.
+   *
+   * CE QU'IL PEUT DIRE, EN REVANCHE, EST EXACT. La condition s'écrit
+   * `résultat fiscal brut + versements − déjà réintégré > 0`, soit
+   * `versements > déjà réintégré − résultat fiscal brut`. Le membre de droite
+   * ne dépend pas des versements : c'est un SEUIL, et il se calcule.
+   *
+   *  · seuil négatif ou nul · la condition est remplie quel que soit le
+   *    montant saisi, le plafond joue normalement ;
+   *  · seuil positif · elle ne l'est qu'au-dessus de ce seuil. Le plafond est
+   *    alors servi à ZÉRO, et le seuil est dit. Ce sens-là est celui de la
+   *    loi : la déduction est SUBORDONNÉE à la condition, elle n'est pas
+   *    acquise tant que la condition n'est pas établie. L'écran affiche donc
+   *    la réintégration totale, et la phrase dit exactement à partir de quel
+   *    montant de versements il faut la corriger à la main.
+   *
+   * La première branche de la double condition · le relevé joint à la
+   * déclaration · n'est jamais calculée : une pièce jointe à un imprimé ne se
+   * lit dans aucune comptabilité. Elle est RAPPELÉE, ce qui est tout ce qu'un
+   * logiciel peut honnêtement en faire.
+   */
+  private conditionPlafondPourEcran(
+    definition: { code: string; conditionResultatNetPositif?: { enonce: string; source: string } },
+    brut: LectureFiscaleBrute,
+  ): { ouverte: boolean; enonce: string | null } {
+    const condition = definition.conditionResultatNetPositif;
+    if (!condition) return { ouverte: true, enonce: null };
+    const { dejaReintegre } = this.droitADeductionOuvert(brut, definition.code, 0);
+    const seuilVersements = arrondir(dejaReintegre - brut.resultatFiscalBrut);
+    if (seuilVersements < 0.005) {
+      return {
+        ouverte: true,
+        enonce: `${condition.source} : « ${condition.enonce} » La condition de résultat (2°) est remplie sur cet exercice. Celle du relevé (1°) ne se lit dans aucune comptabilité · OmegaX ne peut pas la vérifier, elle reste à joindre à la déclaration.`,
+      };
+    }
+    return {
+      ouverte: false,
+      enonce: `${condition.source} : « ${condition.enonce} » Le résultat fiscal de cet exercice, retraitements saisis compris, est de ${brut.resultatFiscalBrut.toLocaleString('fr-FR')} : la déduction n'est ouverte que si ces versements dépassent ${seuilVersements.toLocaleString('fr-FR')}. Au-dessous, AUCUN n'est déductible et la totalité se réintègre · le plafond est servi à zéro pour cette raison.`,
+    };
+  }
+
+  /** La phrase servie au comptable quand la condition de l'art. 44 est fermée. */
+  private enonceConditionFermee(
+    code: string,
+    brut: LectureFiscaleBrute,
+    versements: number,
+  ): string {
+    const definition = RETRAITEMENT_PAR_CODE.get(code);
+    const condition = definition?.conditionResultatNetPositif;
+    const { resultatAvantVersements } = this.droitADeductionOuvert(brut, code, versements);
+    return `${condition?.source ?? 'Loi n° 23/053, art. 44, al. 2'} : « ${condition?.enonce ?? ''} » Le résultat net imposable avant déduction de ces versements est de ${resultatAvantVersements.toLocaleString('fr-FR')} : la condition n'est PAS remplie, aucun versement n'est déductible et la totalité se réintègre. Le plafond ne joue pas.`;
   }
 
   /**
@@ -302,12 +576,18 @@ export class FiscaliteService {
     lignes: { compte: { id: string }; definition: { code: string; plafond?: { part: number; assiette: string } }; mouvement: number }[],
     cumulParCode: Map<string, number>,
     chiffreAffaires: number,
+    /**
+     * Codes dont la CONDITION D'OUVERTURE n'est pas remplie · art. 44, al. 2,
+     * 2°. Leur plafond en francs vaut zéro : la loi n'admet aucun versement
+     * en déduction, l'excédent est donc le versement entier.
+     */
+    plafondsFermes: Set<string> = new Set(),
   ): Map<string, number> {
     const excedents = new Map<string, number>();
     for (const [code, cumul] of cumulParCode) {
       const definition = RETRAITEMENT_PAR_CODE.get(code);
       if (!definition?.plafond) continue;
-      const admisNature = arrondir(definition.plafond.part * chiffreAffaires);
+      const admisNature = plafondsFermes.has(code) ? 0 : arrondir(definition.plafond.part * chiffreAffaires);
       const excedentNature = arrondir(Math.max(cumul - admisNature, 0));
       const comptes = lignes.filter((l) => l.definition.code === code);
       let reparti = 0;
@@ -502,6 +782,23 @@ export class FiscaliteService {
         "Aucun exercice antérieur n'est tenu dans ce dossier : le régime est déterminé sur le seul chiffre d'affaires de l'exercice. Si l'entreprise était suivie ailleurs, vérifier l'art. 113 avant de conclure · un déclassement suppose deux exercices consécutifs sous le seuil, une montée de régime est en revanche immédiate.",
       );
     }
+    if (regime === 'IRPP_MICRO_ENTREPRISE') {
+      // ART. 64, 3° ET ART. 108 · ce n'est pas une nuance de régime, c'est une
+      // EXEMPTION. Le module classait tout dossier de personne physique à
+      // faible chiffre d'affaires en micro-entreprise et lui annonçait le
+      // forfait de l'art. 128 ; pour les cinq figures que l'art. 108 énumère,
+      // la loi ne pose aucun impôt du tout.
+      //
+      // La dispense de patente est un FAIT ADMINISTRATIF · elle se lit dans la
+      // législation sur le petit commerce et dans la situation du redevable,
+      // jamais dans une balance. Le logiciel ne la devine donc pas : il la
+      // rappelle, avec la liste limitative du texte, qui est elle-même la
+      // meilleure réponse (aucune de ces cinq figures ne tient une
+      // comptabilité en partie double).
+      observations.push(
+        "Art. 64, 3° et art. 108 : sont EXEMPTÉS de l'Impôt sur le Revenu des Personnes Physiques, et exclus du régime des micro-entreprises, « les contribuables dispensés de l'obligation d'obtenir la patente conformément à la législation sur le petit commerce ». L'art. 108 les énumère : petits cultivateurs et petits éleveurs qui viennent occasionnellement vendre sur les marchés publics, petits marchands ambulants de produits de consommation courante, cireurs de chaussures, vendeurs de journaux à la criée, petits vendeurs à domicile. Cette dispense est un fait administratif qu'aucune écriture ne porte · OmegaX ne peut pas la connaître. Si le dossier relève de l'une de ces figures, il n'y a ni régime ni impôt, et le forfait annoncé ici ne lui est pas dû.",
+      );
+    }
     if (regime === 'IRPP_PETITE_ENTREPRISE') {
       observations.push(
         "Art. 110 et 111 : si l'entreprise a opté par écrit pour le régime réel auprès de son service gestionnaire avant le 1er février, cette option prime · elle vaut pour l'année et les deux suivantes et demeure irrévocable pendant cette période. OmegaX ne peut pas la connaître, aucune écriture ne la porte : dans ce cas, ni l'impôt ci-dessous ni le calendrier de paiement ne sont ceux du dossier. En cas de non-respect des obligations du régime réel, l'art. 111 ramène d'office au régime des petites entreprises.",
@@ -650,25 +947,52 @@ export class FiscaliteService {
    * première échéance de l'année, la plus précoce de tout le calendrier de ce
    * contribuable, était donc la première à être manquée.
    */
-  private observationsCalendrierPaiement(regime: RegimeImposition, impotDu: number | null): string[] {
+  private observationsCalendrierPaiement(
+    regime: RegimeImposition,
+    impotDu: number | null,
+    contexte: { acomptesDus: boolean; sansExerciceAnterieur: boolean },
+  ): string[] {
+    // LES DEUX BRANCHES D'ASSIETTE QUE LE MODULE NE SERT PAS · art. 57 bis,
+    // al. 1er, dans sa rédaction issue de la L.F. n° 25/060 du 29 décembre
+    // 2025. L'article en pose trois : l'impôt déclaré de l'exercice
+    // précédent, ce même impôt augmenté des suppléments de l'Administration,
+    // « ou, en cas d'absence de déclaration, [l']impôt reconstitué d'office ».
+    // Le module sert les deux premières · la troisième REMPLACE l'impôt
+    // déclaré au lieu de s'y ajouter, et rien dans une comptabilité ne dit
+    // qu'un exercice n'a pas été déclaré. Elle est donc DITE, pas calculée :
+    // inventer la base d'un acompte, c'est inventer un versement.
+    const acomptes: string[] = [];
+    if (contexte.acomptesDus && impotDu !== null) {
+      if (contexte.sansExerciceAnterieur) {
+        acomptes.push(
+          "Art. 57 bis, al. 1er : les acomptes sont « calculés sur base de l'impôt déclaré au titre de l'exercice précédent ». Aucun exercice antérieur n'est tenu dans ce dossier · à défaut d'exercice précédent, cette base n'existe pas et AUCUN acompte n'est dû au titre de la présente année. Les trois montants ci-dessous sont ceux du PROCHAIN exercice. Si l'entreprise était suivie ailleurs, l'exercice précédent existe hors du dossier et ses acomptes restent dus : le vérifier avant de conclure. La fenêtre Retenues et déclarations présente pour sa part les trois échéances d'acompte à tout dossier SYSCOHADA, sans montant · ce sont des dates de calendrier, pas une somme à verser.",
+        );
+      }
+      acomptes.push(
+        "Art. 57 bis, al. 1er : la base des acomptes est l'impôt déclaré au titre de l'exercice précédent, augmenté des suppléments établis par l'Administration, « ou, en cas d'absence de déclaration, [de] l'impôt reconstitué d'office, que ces sommes fassent ou non l'objet de contestation ». La base servie ci-dessous est la première branche · l'impôt liquidé ici, plus les suppléments saisis. SI L'EXERCICE PRÉCÉDENT N'A PAS ÉTÉ DÉCLARÉ, la base légale est l'impôt reconstitué d'office par l'Administration, qui REMPLACE l'impôt déclaré au lieu de s'y ajouter : OmegaX ne peut pas le connaître, aucune écriture ne le porte, et le champ « suppléments » est additif. Dans ce cas, calculer les acomptes sur l'impôt reconstitué hors du logiciel · l'art. 98 bis punit « le défaut ou l'insuffisance de paiement de l'acompte provisionnel » d'une amende de 50 % de l'acompte non versé.",
+      );
+    }
     if (regime === 'IRPP_PETITE_ENTREPRISE') {
       const [premiere, seconde] = QUOTITES_PETITE_ENTREPRISE;
       return [
         `Art. 57, al. 3 et 57 quater : l'impôt d'une petite entreprise est payé en DEUX QUOTITÉS, ${premiere.quotite * 100} % et ${seconde.quotite * 100} % de l'impôt dû, et non par acomptes provisionnels. La première est payée à la souscription de la déclaration auto liquidative, au plus tard le ${premiere.echeance} de l'année qui suit celle de la réalisation des revenus. Les acomptes des 25 juillet, 25 septembre et 25 novembre (art. 57 bis) ne visent que l'alinéa 2 de l'art. 57, c'est-à-dire l'impôt sur les sociétés et l'IRPP au régime réel : ils ne sont pas dus ici.`,
         ...(seconde.reserve ? [seconde.reserve] : []),
+        ...acomptes,
       ];
     }
     if (regime === 'IRPP_MICRO_ENTREPRISE') {
       return [
         "Art. 57 : une micro-entreprise acquitte le forfait annuel de l'art. 128 et ne verse ni acompte provisionnel (art. 57, al. 2) ni quotité (art. 57, al. 3), ces deux modes visant d'autres régimes.",
+        ...acomptes,
       ];
     }
     if (regime === 'IRPP_REGIME_REEL' && impotDu === null) {
       return [
+        ...acomptes,
         "Art. 57, al. 2 et 57 bis : l'IRPP au régime réel se paie bien par acomptes provisionnels, mais leur base est l'impôt DÉCLARÉ de l'exercice précédent, augmenté des suppléments établis par l'Administration. Cet impôt dépend du barème progressif appliqué au revenu net global du contribuable, que ce dossier ne détient pas · les trois montants ne sont donc pas calculés ici, seule leur date est certaine (25 juillet, 25 septembre, 25 novembre).",
       ];
     }
-    return [];
+    return acomptes;
   }
 
   /** L'état complet · lecture, retraitements, report, impôt, solde. */
@@ -684,6 +1008,16 @@ export class FiscaliteService {
     const deficitSaisi = dossier?.deficitAnterieurSaisi === null || dossier?.deficitAnterieurSaisi === undefined
       ? null
       : Number(dossier.deficitAnterieurSaisi);
+
+    // UN SEUL EXERCICE ANTÉRIEUR SUFFIT À RÉPONDRE · art. 57 bis, al. 1er, dont
+    // la base est « l'impôt déclaré au titre de l'exercice PRÉCÉDENT ». Sans
+    // exercice précédent dans le dossier, il n'y a pas de base, et le dire
+    // vaut mieux que laisser un échéancier annoncer des versements.
+    const anterieurs = await this.prisma.exercice.findMany({
+      where: { tenantId, dateFin: { lt: exercice.dateDebut } },
+      orderBy: { dateDebut: 'desc' },
+      take: 1,
+    });
 
     const calcules = deficitSaisi === null ? await this.deficitsAnterieursCalcules(tenantId, exercice) : null;
     const deficitAnterieur = deficitSaisi ?? calcules!.total;
@@ -709,13 +1043,30 @@ export class FiscaliteService {
 
     // Plafonds exprimés en francs pour cet exercice · l'écran s'en sert pour
     // calculer l'excédent à réintégrer à partir de la charge engagée.
-    const plafonds = CATALOGUE_RETRAITEMENTS.filter((r) => r.plafond).map((r) => ({
-      code: r.code,
-      enonce: r.plafond!.enonce,
-      assiette: r.plafond!.assiette,
-      part: r.plafond!.part,
-      montantAdmis: r.plafond!.assiette === 'CHIFFRE_AFFAIRES' ? arrondir(r.plafond!.part * brut.chiffreAffaires) : null,
-    }));
+    // LES PLAFONDS SERVIS À L'ÉCRAN DE SAISIE · c'est à partir d'eux que la
+    // page calcule l'excédent à réintégrer depuis la charge que le comptable
+    // vient de taper. Un plafond dont la CONDITION D'OUVERTURE n'est pas
+    // remplie doit donc valoir zéro ici, sans quoi l'écran continuerait
+    // d'offrir 0,5 % du chiffre d'affaires à un dossier déficitaire.
+    const plafonds = CATALOGUE_RETRAITEMENTS.filter((r) => r.plafond).map((r) => {
+      const condition = this.conditionPlafondPourEcran(r, brut);
+      return {
+        code: r.code,
+        // La condition est jointe à l'énoncé · c'est le seul champ que la
+        // page de saisie affiche aujourd'hui (« Plafond : … »).
+        enonce: condition.enonce ? `${r.plafond!.enonce} · ${condition.enonce}` : r.plafond!.enonce,
+        assiette: r.plafond!.assiette,
+        part: r.plafond!.part,
+        montantAdmis:
+          r.plafond!.assiette !== 'CHIFFRE_AFFAIRES'
+            ? null
+            : condition.ouverte
+              ? arrondir(r.plafond!.part * brut.chiffreAffaires)
+              : 0,
+        /** Null quand le code ne porte aucune condition d'ouverture. */
+        conditionOuverte: r.conditionResultatNetPositif ? condition.ouverte : null,
+      };
+    });
 
     const impot = this.calculerImpot(regime, resultatFiscal, brut.chiffreAffaires, dossier?.natureActivite ?? null);
 
@@ -726,7 +1077,12 @@ export class FiscaliteService {
     // deux quotités, et les micro-entreprises acquittent un forfait annuel
     // (art. 128) : ni les unes ni les autres ne versent d'acompte.
     const acomptesDus = regime === 'IMPOT_SOCIETES' || regime === 'IRPP_REGIME_REEL';
-    observations.push(...this.observationsCalendrierPaiement(regime, impot.impotDu));
+    observations.push(
+      ...this.observationsCalendrierPaiement(regime, impot.impotDu, {
+        acomptesDus,
+        sansExerciceAnterieur: anterieurs.length === 0,
+      }),
+    );
 
     return {
       exerciceId,
@@ -824,8 +1180,11 @@ export class FiscaliteService {
     const pp = IMPOT_REVENU_PERSONNES_PHYSIQUES;
     switch (regime) {
       case 'IMPOT_SOCIETES': {
-        const theorique = arrondir(is.taux * Math.max(resultatFiscal, 0));
-        const minimum = arrondir(is.tauxMinimum * chiffreAffaires);
+        // ART. 150 · l'arrondi légal s'applique aux montants d'impôt
+        // eux-mêmes, DONC AVANT la comparaison de l'art. 57 : c'est le
+        // montant arrondi qui est dû, et c'est lui qui doit être comparé.
+        const theorique = arrondirImpotArt150(is.taux * Math.max(resultatFiscal, 0));
+        const minimum = arrondirImpotArt150(is.tauxMinimum * chiffreAffaires);
         const minimumApplique = minimum > theorique;
         return {
           impotTheorique: theorique,
@@ -860,7 +1219,8 @@ export class FiscaliteService {
           };
         }
         const taux = pp.tauxPetiteEntreprise[natureActivite];
-        const du = arrondir(taux * chiffreAffaires);
+        // Art. 150 · l'IRPP est nommément visé par l'arrondi légal.
+        const du = arrondirImpotArt150(taux * chiffreAffaires);
         return {
           impotTheorique: du,
           impotMinimum: null,
@@ -872,7 +1232,8 @@ export class FiscaliteService {
         };
       }
       case 'IRPP_REGIME_REEL': {
-        const minimum = arrondir(pp.tauxMinimumRegimeReel * chiffreAffaires);
+        // Art. 150 · « l'Impôt minimum » est nommé par l'article.
+        const minimum = arrondirImpotArt150(pp.tauxMinimumRegimeReel * chiffreAffaires);
         return {
           impotTheorique: null,
           impotMinimum: minimum,

@@ -1,5 +1,5 @@
 import { FormeJuridiqueSyscohada, Referentiel, SensRetraitementFiscal, TypeCompteDetailTotal } from '@prisma/client';
-import { FiscaliteService } from './fiscalite.service';
+import { FiscaliteService, arrondirImpotArt150 } from './fiscalite.service';
 import { CATALOGUE_RETRAITEMENTS, CODE_LIBRE } from './catalogue-retraitements';
 
 /**
@@ -593,5 +593,222 @@ describe('Déchéances du report déficitaire · avertissements, art. 51 al. 2 e
     const { s } = service({ balances: { N: [ligne('70110000', -50_000)] }, dossier: { deficitAnterieurSaisi: 7_000 } });
     const r = await s.resultatFiscal('t1', 'N');
     expect(r.observations.join(' ')).toMatch(/Art. 51, al. 2/);
+  });
+});
+
+/**
+ * ARRONDI LÉGAL DE L'IMPÔT · loi n° 23/053, art. 150, TITRE VI, chapitre 1
+ * « DES DISPOSITIONS RELATIVES AUX ARRONDIS » :
+ *
+ *   « Lorsque le montant de l'Impôt sur les Sociétés, de l'Impôt minimum, de
+ *   l'Impôt sur le Revenu des Personnes Physiques et de tous autres
+ *   prélèvements prévus dans la présente Loi comprend une décimale, cette
+ *   fraction est arrondie à l'unité supérieure si la première décimale est
+ *   supérieure ou égale à 5. Dans le cas contraire, elle est ramenée à
+ *   l'unité inférieure.
+ *   Lorsque le montant arrondi comprend une tranche supérieure ou égale à 50
+ *   Francs congolais, celle-ci est ramenée à la centaine de Francs congolais
+ *   supérieure.
+ *   Lorsque cette tranche est inférieure à 50 Francs congolais, elle est
+ *   ramenée à la centaine de Francs congolais inférieure. »
+ *
+ * Le module liquidait au CENTIME. L'écart par montant est inférieur à cent
+ * francs, mais le montant affiché n'était pas celui qui se déclare, et il
+ * servait d'assiette aux acomptes de l'exercice suivant.
+ */
+describe('Arrondi légal de l’impôt · art. 150', () => {
+  it('supprime la décimale, PUIS remonte ou descend à la centaine', () => {
+    // 1 % de 123 456 789 = 1 234 567,89 · décimale 8 ≥ 5, donc 1 234 568,
+    // puis tranche 68 ≥ 50, donc centaine supérieure.
+    expect(arrondirImpotArt150(1_234_567.89)).toBe(1_234_600);
+    // Décimale 4 < 5 : unité inférieure, 1 234 549, tranche 49 < 50.
+    expect(arrondirImpotArt150(1_234_549.4)).toBe(1_234_500);
+    // La décimale seule fait basculer la centaine · 1 234 549,5 devient
+    // 1 234 550, dont la tranche atteint 50.
+    expect(arrondirImpotArt150(1_234_549.5)).toBe(1_234_600);
+    expect(arrondirImpotArt150(0)).toBe(0);
+    expect(arrondirImpotArt150(49)).toBe(0);
+    expect(arrondirImpotArt150(50)).toBe(100);
+    expect(arrondirImpotArt150(1_234_600)).toBe(1_234_600);
+  });
+
+  it('l’impôt minimum de l’art. 57 sort arrondi, et sert de base aux acomptes', async () => {
+    const { s } = service({
+      balances: { N: [ligne('70110000', -123_456_789), ligne('60110000', 200_000_000)] },
+      dossier: { supplementsAdministration: 0 },
+    });
+    const r = await s.resultatFiscal('t1', 'N');
+    // Au centime, le module affichait 1 234 567,89.
+    expect(r.impotMinimum).toBe(1_234_600);
+    expect(r.impotDu).toBe(1_234_600);
+    expect(r.minimumApplique).toBe(true);
+    expect(r.baseAcomptes).toBe(1_234_600);
+  });
+
+  it('l’IRPP d’une petite entreprise aussi · l’article le nomme', async () => {
+    const { s } = service({
+      forme: FormeJuridiqueSyscohada.ENTREPRISE_INDIVIDUELLE,
+      balances: { N: [ligne('70110000', -123_456_789)] },
+      dossier: { natureActivite: 'PRESTATIONS' },
+    });
+    const r = await s.resultatFiscal('t1', 'N');
+    // 2 % de 123 456 789 = 2 469 135,78 · décimale 7, donc 2 469 136, puis
+    // tranche 36 < 50, donc centaine inférieure.
+    expect(r.impotDu).toBe(2_469_100);
+    expect(r.quotitesPetiteEntreprise.map((q) => q.montant)).toEqual([1_481_460, 987_640]);
+  });
+});
+
+/**
+ * ART. 44, AL. 2, 2° · LE PLAFOND SERVI À L'ÉCRAN DE SAISIE.
+ *
+ * La page calcule l'excédent à réintégrer à partir de `plafonds.montantAdmis`
+ * et de la charge que le comptable vient de taper. Servir 0,5 % du chiffre
+ * d'affaires à un dossier dont le droit à déduction n'est pas ouvert, c'est
+ * lui faire déclarer un déficit reportable trop élevé.
+ */
+describe('Plafond des dons servi à l’écran · condition de l’art. 44', () => {
+  const dons = (r: { plafonds: { code: string; montantAdmis: number | null; enonce: string; conditionOuverte: boolean | null }[] }) =>
+    r.plafonds.find((p) => p.code === 'DONS_EXCEDENT')!;
+
+  it('dossier DÉFICITAIRE · le plafond est servi à zéro, et le seuil est dit', async () => {
+    const { s } = service({ balances: { N: [ligne('70110000', -100_000_000), ligne('60110000', 102_800_000)] } });
+    const r = await s.resultatFiscal('t1', 'N');
+    expect(r.resultatFiscalBrut).toBe(-2_800_000);
+    expect(dons(r).montantAdmis).toBe(0);
+    expect(dons(r).conditionOuverte).toBe(false);
+    expect(dons(r).enonce.replace(/[\u202f\u00a0]/g, ' ')).toContain('dépassent 2 800 000');
+  });
+
+  it('dossier BÉNÉFICIAIRE · le plafond joue, et le relevé du 1° est rappelé', async () => {
+    const { s } = service({ balances: { N: [ligne('70110000', -100_000_000), ligne('60110000', 60_000_000)] } });
+    const r = await s.resultatFiscal('t1', 'N');
+    expect(dons(r).montantAdmis).toBe(500_000);
+    expect(dons(r).conditionOuverte).toBe(true);
+    expect(dons(r).enonce).toContain('relevé');
+  });
+
+  it('les plafonds SANS condition d’ouverture ne bougent pas, déficit ou non', async () => {
+    // Art. 49, 1° · 2 ‰ du chiffre d'affaires, sans aucune condition de
+    // résultat. Neutraliser tous les plafonds d'un dossier déficitaire serait
+    // l'erreur opposée, et elle ferait payer trop.
+    const { s } = service({ balances: { N: [ligne('70110000', -100_000_000), ligne('60110000', 102_800_000)] } });
+    const r = await s.resultatFiscal('t1', 'N');
+    const cadeaux = r.plafonds.find((p) => p.code === 'CADEAUX_EXCEDENT')!;
+    expect(cadeaux.montantAdmis).toBe(200_000);
+    expect(cadeaux.conditionOuverte).toBeNull();
+  });
+});
+
+/**
+ * LES DEUX BRANCHES D'ASSIETTE DES ACOMPTES QUE LE MODULE NE CALCULE PAS ·
+ * art. 57 bis, al. 1er LPF, dans sa rédaction issue de la L.F. n° 25/060 :
+ * les acomptes sont calculés « sur base de l'impôt déclaré au titre de
+ * l'exercice précédent, augmenté des suppléments éventuels établis par
+ * l'Administration des Impôts, ou, en cas d'absence de déclaration, de
+ * l'impôt reconstitué d'office ».
+ *
+ * Aucune écriture ne dit qu'un exercice n'a pas été déclaré, ni ce que
+ * l'Administration a reconstitué · le module le DIT plutôt que de l'inventer.
+ */
+describe('Assiette des acomptes · les branches que le module ne peut pas calculer', () => {
+  it('avertit de la base reconstituée d’office, qui REMPLACE l’impôt déclaré', async () => {
+    const { s } = service({ balances: { N: [ligne('70110000', -1_000_000), ligne('60110000', 1_200_000)] } });
+    const r = await s.resultatFiscal('t1', 'N');
+    expect(r.observations.join(' ')).toContain("reconstitué d'office");
+    expect(r.observations.join(' ')).toContain('REMPLACE');
+  });
+
+  it('dit qu’aucun acompte n’est dû quand le dossier n’a pas d’exercice antérieur', async () => {
+    const { s } = service({ balances: { N: [ligne('70110000', -1_000_000), ligne('60110000', 1_200_000)] } });
+    const r = await s.resultatFiscal('t1', 'N');
+    expect(r.observations.join(' ')).toContain("AUCUN acompte n'est dû au titre de la présente année");
+  });
+
+  it('se tait sur ce point dès qu’un exercice antérieur est tenu', async () => {
+    const { s } = service({
+      exercices: [
+        { id: 'N-1', dateDebut: new Date(Date.UTC(2025, 0, 1)), dateFin: new Date(Date.UTC(2025, 11, 31)) },
+        { id: 'N', dateDebut: new Date(Date.UTC(2026, 0, 1)), dateFin: new Date(Date.UTC(2026, 11, 31)) },
+      ],
+      balances: { N: [ligne('70110000', -1_000_000), ligne('60110000', 1_200_000)], 'N-1': [] },
+    });
+    const r = await s.resultatFiscal('t1', 'N');
+    expect(r.observations.join(' ')).not.toContain("AUCUN acompte n'est dû");
+    // La branche reconstituée d'office, elle, reste servie · c'est l'exercice
+    // précédent qui peut ne pas avoir été déclaré.
+    expect(r.observations.join(' ')).toContain("reconstitué d'office");
+  });
+
+  it('ne sert AUCUNE de ces observations à qui ne verse pas d’acompte', async () => {
+    // Art. 57, al. 3 · une micro-entreprise acquitte un forfait annuel.
+    const { s } = service({
+      forme: FormeJuridiqueSyscohada.ENTREPRISE_INDIVIDUELLE,
+      balances: { N: [ligne('70110000', -20_000_000)] },
+    });
+    const r = await s.resultatFiscal('t1', 'N');
+    expect(r.regime).toBe('IRPP_MICRO_ENTREPRISE');
+    expect(r.observations.join(' ')).not.toContain("reconstitué d'office");
+  });
+});
+
+/**
+ * ART. 64, 3° ET ART. 108 · les contribuables dispensés de patente sont
+ * EXEMPTÉS d'IRPP et exclus du régime des micro-entreprises. Le module
+ * annonçait à tout dossier de personne physique à faible chiffre d'affaires
+ * un régime et une base d'imposition, sans jamais poser la question.
+ *
+ * La dispense est un fait administratif : le logiciel ne la devine pas, il la
+ * rappelle avec la liste limitative que l'art. 108 énumère lui-même.
+ */
+describe('Contribuables dispensés de patente · art. 64, 3° et 108', () => {
+  it('avertit le dossier classé en micro-entreprise', async () => {
+    const { s } = service({
+      forme: FormeJuridiqueSyscohada.ENTREPRISE_INDIVIDUELLE,
+      balances: { N: [ligne('70110000', -20_000_000)] },
+    });
+    const r = await s.resultatFiscal('t1', 'N');
+    expect(r.regime).toBe('IRPP_MICRO_ENTREPRISE');
+    const dit = r.observations.join(' ');
+    expect(dit).toContain("dispensés de l'obligation d'obtenir la patente");
+    expect(dit).toContain('vendeurs de journaux à la criée');
+    expect(dit).toContain('EXEMPTÉS');
+  });
+
+  it('ne le sert pas à une petite entreprise, que l’art. 108 ne vise pas', async () => {
+    const { s } = service({
+      forme: FormeJuridiqueSyscohada.ENTREPRISE_INDIVIDUELLE,
+      balances: { N: [ligne('70110000', -100_000_000)] },
+      dossier: { natureActivite: 'VENTE' },
+    });
+    const r = await s.resultatFiscal('t1', 'N');
+    expect(r.regime).toBe('IRPP_PETITE_ENTREPRISE');
+    expect(r.observations.join(' ')).not.toContain('patente');
+  });
+});
+
+/**
+ * ART. 133, AL. 2 · « Les amortissements des immobilisations réévaluées
+ * doivent être calculés et comptabilisés sur la base des valeurs réévaluées
+ * mais l'augmentation corrélative de chaque annuité d'amortissements ne doit
+ * pas entraîner de diminution du bénéfice comptable et du bénéfice fiscal.
+ * Cette neutralité est obtenue chaque année par une réintégration dans les
+ * bénéfices d'une fraction équivalente à l'augmentation corrélative de chaque
+ * annuité d'amortissements. »
+ *
+ * Le catalogue n'avait aucune ligne pour ce redressement, et le seul endroit
+ * où le logiciel parlait de réévaluation (contrôle REEVALUATION_IMMO_HORS_MODULE)
+ * ne citait que le SYCEBNL et l'AUDCIF. Le comptable qui suivait l'écran
+ * jusqu'au bout obtenait un résultat fiscal minoré, chaque année du plan.
+ */
+describe('Réintégration du supplément d’annuité des biens réévalués · art. 133', () => {
+  it('le catalogue porte la ligne, avec son article', () => {
+    const entree = CATALOGUE_RETRAITEMENTS.find((r) => r.code === 'REEVALUATION_SUPPLEMENT_ANNUITE');
+    expect(entree).toBeDefined();
+    expect(entree!.sens).toBe(SensRetraitementFiscal.REINTEGRATION);
+    expect(entree!.source).toContain('art. 133');
+    // Le montant est la DIFFÉRENCE entre deux plans d'amortissement · aucune
+    // balance ne la porte, et le module ne la propose donc pas.
+    expect(entree!.assietteHorsPortee).toBeTruthy();
   });
 });

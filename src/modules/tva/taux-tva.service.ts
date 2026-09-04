@@ -157,12 +157,81 @@ const RACINES_HORS_DENOMINATEUR_COMMUNES: ReadonlyArray<string> = [
 const RACINES_HORS_DENOMINATEUR_SYSCOHADA: ReadonlyArray<string> = ['754'];
 
 /**
+ * EXCLUSIONS DU DROIT À DÉDUCTION · art. 41, celles que le NUMÉRO DE COMPTE
+ * établit à lui seul.
+ *
+ * Fichier `code-general-2026/references/10-tva-ol10-001-loi-base-ch1-10.md`,
+ * art. 41 (modifié par l'O.-L. n° 13/007, la L.F. n° 14/027 et la L.F.
+ * n° 17/014 · NON retouché par la L.F. n° 25/060, dont l'art. 47 ne complète
+ * que l'art. 42, point 4), l. 1033-1038 : « N'ouvre pas droit à déduction, la
+ * taxe ayant grevé : / 1. les dépenses de logement, d'hébergement, de
+ * restauration, de réception, de spectacles, de location de véhicules de
+ * tourisme et de transport de personnes à l'exclusion des dépenses supportées,
+ * au titre de leur activité imposable, par les professionnels du tourisme, de
+ * la restauration et du spectacle ».
+ *
+ * CE N'EST PAS UN PRORATA, C'EST UNE INTERDICTION. Le seul filtre qui séparait
+ * la TVA d'amont enregistrée de la « TVA déductible admise » était le prorata
+ * de l'art. 43, qui limite la déduction ; l'art. 41 la SUPPRIME. Une facture de
+ * réception passait donc intégralement en déduction, mois après mois.
+ *
+ * TROIS COMPTES, ET TROIS SEULEMENT. On ne retient que ceux dont l'INTITULÉ du
+ * plan reprend les mots de l'article · au-delà, le numéro ne dit plus la
+ * dépense, et deviner coûterait au contribuable une déduction à laquelle il a
+ * droit. Ce qui n'est pas reconnu est ANNONCÉ, pas exclu (voir
+ * `EXCLUSIONS_ART_41_A_VERIFIER_SYSCOHADA` et la mention de la déclaration).
+ *
+ * SYSCOHADA SEUL. Le plan SYCEBNL n'a ni 6383 ni 6384 ni 6181 : ses charges
+ * externes sont agrégées en 61800000 « Autres frais de transport » et
+ * 63800000 « Autres charges externes » (compte-seed.ts l. 765 et 782), qui
+ * mêlent le déductible et l'exclu. Aucune exclusion n'y est lisible, et la
+ * déclaration le dit plutôt que de trancher au hasard.
+ */
+const EXCLUSIONS_ART_41_SYSCOHADA: ReadonlyArray<readonly [string, string]> = [
+  // 63830000 « Réceptions » · l'article nomme les « dépenses de réception ».
+  ['6383', '6383 Réceptions'],
+  // 63840000 « Missions » · logement, hébergement et restauration en
+  // déplacement, les trois premiers postes du 1°.
+  ['6384', '6384 Missions'],
+  // 61810000 « Voyages et déplacements » · transport de personnes et
+  // hébergement, également nommés au 1°.
+  ['6181', '6181 Voyages et déplacements'],
+];
+
+/**
+ * DÉPENSES QUE L'ARTICLE VISE MAIS QUE LE COMPTE NE TRANCHE PAS · on les
+ * compte à part et on les nomme, on ne les exclut pas.
+ *
+ * Chacune porte une exception que le logiciel N'A PAS LES MOYENS DE VÉRIFIER,
+ * et la règle de maison est alors d'avertir avec l'article :
+ *
+ *  · 62760000 « Cadeaux à la clientèle » · art. 41, 7° exclut les biens cédés
+ *    à titre de cadeaux « sauf quand il s'agit d'objets publicitaires de
+ *    faible valeur unitaire hors taxe » (l. 1064-1067). La valeur UNITAIRE
+ *    n'est nulle part dans le modèle : une ligne d'écriture porte un montant
+ *    global, jamais une quantité ni un prix unitaire.
+ *  · 61400000 « Transports du personnel » · art. 42, 2° exclut les transports
+ *    de personnes « à l'exclusion des transports réalisés […] en vertu d'un
+ *    contrat permanent de transport conclu par les entreprises pour amener
+ *    leur personnel sur les lieux de travail » (l. 1084-1088). L'existence
+ *    d'un contrat permanent est une donnée juridique, pas comptable.
+ */
+const EXCLUSIONS_ART_41_A_VERIFIER_SYSCOHADA: ReadonlyArray<readonly [string, string]> = [
+  ['6276', "6276 Cadeaux à la clientèle (art. 41, 7° · sauf objets publicitaires de faible valeur unitaire)"],
+  ['6140', '6140 Transports du personnel (art. 42, 2° · sauf contrat permanent de transport du personnel)'],
+];
+
+/**
  * TVA (cf. docs/plan-de-construction.md §3.1/§5) : entité "Taux" paramétrable,
  * fondée sur l'O.-L. n° 10/001 du 20/08/2010 modifiée par la LF 2026 (skill
  * `fiscalite-rdc/tva`). Couvre désormais, en plus du référentiel (taux +
  * comptes 443/445 rattachés) : l'exigibilité par NATURE d'opération (art. 25
  * et 26), la naissance du droit à déduction chez le fournisseur (art. 37 al. 1
- * et décret n° 011/42 art. 96), le prorata de déduction (art. 43-45),
+ * et décret n° 011/42 art. 96), le délai d'exercice de ce droit et sa
+ * déchéance (art. 37 al. 2), les exclusions que le plan de comptes établit
+ * (art. 41), le prorata de déduction (art. 43-45), la récupération de la taxe
+ * sur les ventes ANNULÉES ou RÉSILIÉES et la reprise de la déduction sur avoir
+ * fournisseur (art. 52, décret art. 126-127),
  * l'imputation du crédit de TVA sur les périodes suivantes (art. 63) et la
  * comptabilisation de la liquidation périodique (solde 443/445 sur le
  * compte 444).
@@ -178,8 +247,17 @@ const RACINES_HORS_DENOMINATEUR_SYSCOHADA: ReadonlyArray<string> = ['754'];
  *    module `immobilisations` qui pose l'écriture de cession ne contient pas
  *    une occurrence de « TVA ». Ce hors-scope était tu : il ne citait que les
  *    art. 46 et 49, ce qui laissait croire que 50 et 51 étaient couverts ;
- *  · la récupération de la taxe sur ventes annulées, résiliées ou impayées
- *    (art. 52).
+ *  · LA RÉCUPÉRATION SUR VENTES IMPAYÉES (art. 52, al. 3 et décret art. 127).
+ *    Les ventes ANNULÉES et RÉSILIÉES sont traitées : elles laissent une
+ *    écriture, le débit du 443 par la note de crédit. L'impayé n'en laisse
+ *    aucune · la créance reste au 411, rien ne bouge, et la récupération
+ *    suppose que la créance soit « réellement et définitivement
+ *    irrécouvrable », qu'un duplicata surchargé de la mention réglementaire
+ *    ait été envoyé au client, et que la preuve de l'irrécouvrabilité soit
+ *    apportée par l'assujetti (décret art. 127, l. 718-726). Aucune de ces
+ *    trois données n'est dans le modèle · si le comptable passe lui-même
+ *    l'écriture de récupération au débit du 443 avec son taux, elle sera
+ *    reprise comme une annulation, mais le logiciel ne la déclenche pas.
  */
 @Injectable()
 export class TauxTvaService {
@@ -373,10 +451,25 @@ export class TauxTvaService {
       numerateur += Number(agg._sum.credit ?? 0);
     }
 
-    // Deux agrégats plutôt qu'un filtre négatif unique : le montant retranché
-    // est RENDU (`recettesExclues`), et un prorata dont on ne voit pas ce qui
-    // a été retiré du dénominateur ne se vérifie pas.
-    const [recettesAgg, exclusAgg] = await Promise.all([
+    /*
+      TROIS AGRÉGATS PLUTÔT QU'UN FILTRE NÉGATIF UNIQUE.
+
+      Le montant retranché est RENDU (`recettesExclues`) · un prorata dont on
+      ne voit pas ce qui a été retiré du dénominateur ne se vérifie pas.
+
+      Le troisième compte les RECETTES QUE RIEN NE QUALIFIE : celles dont
+      l'écriture ne porte aucune ligne de TVA collectée. L'art. 43 met au
+      numérateur « le montant annuel des recettes afférentes aux opérations
+      ouvrant droit à déduction de la taxe sur la valeur ajoutée, Y COMPRIS LES
+      EXPORTATIONS ET OPÉRATIONS ASSIMILÉES » (l. 1115-1117). Une exportation
+      est taxée à 0 % : elle n'ouvre le numérateur que si sa ligne de TVA au
+      taux zéro existe, et la saisie guidée n'en pose aucune quand la taxe est
+      nulle (`client/src/components/ModelesSaisie.tsx`, `if (tva > 0.005)`).
+      Le serveur ne peut PAS distinguer, dans un crédit de classe 7 nu, une
+      exportation d'une recette exonérée · il ne devine donc pas, il compte ce
+      qui n'est pas qualifié et le NOMME, avec son article.
+    */
+    const [recettesAgg, exclusAgg, nonQualifieesAgg] = await Promise.all([
       this.prisma.ligneEcriture.aggregate({
         where: {
           compte: { tenantId, classe: ClasseCompte.CLASSE_7 },
@@ -393,11 +486,27 @@ export class TauxTvaService {
             },
             _sum: { credit: true },
           }),
+      this.prisma.ligneEcriture.aggregate({
+        where: {
+          compte: {
+            tenantId,
+            classe: ClasseCompte.CLASSE_7,
+            ...(filtreExclusions.length > 0 ? { NOT: filtreExclusions } : {}),
+          },
+          ecriture: {
+            tenantId,
+            date: { gte: dateDebut, lte: dateFin },
+            lignes: { none: { tauxTvaId: { not: null }, compte: { numero: { startsWith: RACINE_COLLECTEE } } } },
+          },
+        },
+        _sum: { credit: true },
+      }),
     ]);
 
     numerateur = TauxTvaService.c(numerateur);
     const recettesClasse7 = Number(recettesAgg._sum.credit ?? 0);
     const recettesExclues = Number(exclusAgg._sum.credit ?? 0);
+    const recettesNonQualifiees = TauxTvaService.c(Number(nonQualifieesAgg._sum.credit ?? 0));
     const denominateur = TauxTvaService.c(recettesClasse7 - recettesExclues);
     /*
       Aucune recette sur la période : rien ne vient limiter la déduction ·
@@ -422,13 +531,25 @@ export class TauxTvaService {
       pourcentage,
       recettesClasse7,
       recettesExclues,
+      /**
+       * Recettes de classe 7 (hors exclusions) dont l'écriture ne porte aucune
+       * ligne de TVA collectée · elles pèsent au dénominateur sans jamais
+       * entrer au numérateur. Voir l'agrégat qui les compte.
+       */
+      recettesNonQualifiees,
       racinesExclues,
       mentionDenominateur:
         `Dénominateur : recettes de classe 7 (${recettesClasse7.toLocaleString('fr-FR')}) moins ` +
         `${recettesExclues.toLocaleString('fr-FR')} de recettes que l'article 43 en exclut (comptes ` +
         `${racinesExclues.join(', ')} · cessions d'actif immobilisé, subventions d'équipement, indemnités ` +
         "d'assurance, livraisons à soi-même). Les DÉBOURS, exclus eux aussi par l'article 43, n'ont de compte " +
-        'dédié dans aucun des deux plans · s\'il y en a, les retrancher à la main.',
+        'dédié dans aucun des deux plans · s\'il y en a, les retrancher à la main.' +
+        (recettesNonQualifiees > EPSILON
+          ? ` ${recettesNonQualifiees.toLocaleString('fr-FR')} de ces recettes ne portent AUCUNE ligne de TVA : ` +
+            "elles ne comptent qu'au dénominateur. L'article 43 met les EXPORTATIONS au numérateur, mais une " +
+            "vente au taux zéro n'est reconnue que si sa ligne de TVA existe · si ces recettes en comprennent, " +
+            'le prorata est sous-évalué.'
+          : ''),
     };
   }
 
@@ -654,26 +775,64 @@ export class TauxTvaService {
    * des acomptes ou avances » : une facture de mars réglée en juin se déclare
    * en JUIN.
    *
-   * Comment le logiciel date l'encaissement · par le LETTRAGE. Une facture de
-   * vente porte, dans la même écriture, la créance sur le client (classe 4) et
-   * la TVA collectée. Quand la créance est lettrée avec son règlement, le
-   * groupe de lettrage passe SOLDE et porte la date du dénouement
-   * (`soldeAt`) : c'est cette date que la TVA suit. Un règlement partiel
-   * rend la taxe exigible À PROPORTION du montant encaissé, et le groupe
-   * partiel donne cette proportion.
+   * L'ENCAISSEMENT EST UN ÉVÉNEMENT DE TRÉSORERIE, JAMAIS UN ACTE DU
+   * COMPTABLE · et c'est là que le logiciel se trompait de date.
+   *
+   * Décret n° 011/42, art. 57 (fichier
+   * `code-general-2026/references/11-tva-decret-application-ch1-4.md`,
+   * l. 1749-1761) : « L'encaissement s'entend de la perception des sommes, à
+   * quelque titre que ce soit, notamment avances, acomptes et règlement pour
+   * solde, du fait de la réalisation de l'opération ou de l'exécution des
+   * travaux. / Il intervient : / - lors de la remise des espèces, en cas de
+   * paiement en espèces ; / - à la date de la remise du chèque, en cas de
+   * paiement par chèque ; / - à la date de l'inscription au crédit du compte
+   * du fournisseur, en cas de paiement par virement, ordre de paiement ou par
+   * tout autre moyen, y compris les moyens électroniques, ayant un pouvoir
+   * libératoire […] ; / - à la date de l'échéance de la traite, même si elle a
+   * été remise à l'escompte auprès d'un établissement financier, en cas de
+   * paiement par effet de commerce. » (Synthèse concordante dans
+   * `tva/references/12-decret-011-42-fait-generateur-exigibilite.md`, l. 38-42.)
+   *
+   * Chacun de ces quatre événements est un mouvement de TRÉSORERIE, que la
+   * comptabilité enregistre par une écriture datée · aucun n'est un acte du
+   * comptable.
+   *
+   * Le code lisait `Lettrage.soldeAt`. Or `lettrage.service.ts` l. 309 pose
+   * `soldeAt: soldeNul ? new Date() : null` : c'est L'INSTANT OÙ LE COMPTABLE
+   * A LETTRÉ, pas la date du règlement. Un encaissement de juin lettré en
+   * septembre rendait la taxe exigible en septembre, avec la pénalité de
+   * retard qui court entre les deux. Et un groupe resté PARTIEL n'a jamais de
+   * `soldeAt` du tout : la fraction encaissée retombait sur la date de la
+   * FACTURE · déclarée trop tôt quand la facture est dans la période, jamais
+   * déclarée du tout quand l'acompte est encaissé un mois postérieur (la date
+   * calculée reste alors antérieure à la période, et la ligne est écartée).
+   * Le commentaire qui tenait ici promettait déjà « la date d'écriture du
+   * règlement le plus récent du groupe » · aucun code ne la lisait.
+   *
+   * CE QUE LE LOGICIEL LIT DÉSORMAIS · la date d'ÉCRITURE des règlements du
+   * groupe de lettrage, c'est-à-dire la date à laquelle la trésorerie a été
+   * mouvementée, telle que la comptabilité l'enregistre. C'est la donnée la
+   * plus proche de l'événement de l'art. 57 dont dispose un logiciel de
+   * comptabilité ; `soldeAt` n'est plus utilisé pour dater quoi que ce soit.
    *
    * Ce que le logiciel ne fait PAS, et le dit : il ne devine pas quelle ligne
    * du groupe a réglé quelle facture quand plusieurs factures y sont réunies.
-   * Il applique alors au groupe entier la proportion réglée du groupe. C'est
-   * l'imputation la plus neutre ; l'imputation « plus ancienne d'abord » du
-   * fisc donnerait, sur un groupe multi-factures, un fractionnement différent.
+   * Il retient alors le règlement le PLUS RÉCENT du groupe, et la proportion
+   * réglée. C'est l'imputation la plus neutre ; l'imputation « plus ancienne
+   * d'abord » du fisc donnerait, sur un groupe multi-factures, un
+   * fractionnement différent.
    */
   private exigibilite(
     ligne: { debit: unknown; credit: unknown },
     lignesTiers: Array<{
       debit: unknown;
       credit: unknown;
-      lettrage: { statut: string; solde: unknown; soldeAt: Date | null } | null;
+      lettrage: {
+        statut: string;
+        solde: unknown;
+        soldeAt: Date | null;
+        lignes?: Array<{ debit: unknown; credit: unknown; ecriture?: { date: Date } | null }>;
+      } | null;
     }>,
     dateEcriture: Date,
   ): { date: Date | null; fraction: number } {
@@ -684,12 +843,21 @@ export class TauxTvaService {
     if (avecLettrage.length === 0) return { date: dateEcriture, fraction: 1 };
 
     const groupe = avecLettrage[0].lettrage!;
+    // Sens de la FACTURE sur le compte de tiers · une vente débite le 411, un
+    // achat crédite le 401. Le règlement est, par construction, ce qui va dans
+    // l'autre sens ; c'est le seul critère qui distingue, à l'intérieur du
+    // groupe, un règlement d'une autre facture.
+    const sensFacture = avecLettrage.reduce((t, l) => t + (Number(l.debit) - Number(l.credit)), 0);
+    const dateReglement = TauxTvaService.dateDernierReglement(groupe.lignes, sensFacture);
+
     if (groupe.statut === 'SOLDE') {
-      // Dénoué : exigible en totalité, à la date du dénouement. `soldeAt` peut
-      // manquer sur un lettrage ancien · la date d'écriture sert alors de
-      // repli, faute de mieux, plutôt que d'exclure la ligne de toute
-      // déclaration (une TVA jamais déclarée est pire qu'une TVA mal datée).
-      return { date: groupe.soldeAt ?? dateEcriture, fraction: 1 };
+      // Dénoué : exigible en totalité, à la date du DERNIER règlement · c'est
+      // lui qui achève la perception du prix (décret art. 57). Sans règlement
+      // identifiable (facture et encaissement dans la même écriture, groupe
+      // dont les lignes ne sont pas chargées), la date de l'écriture sert de
+      // repli : elle date au plus tôt, ce qui fait déclarer d'avance et non en
+      // retard, quand `soldeAt` datait au plus tard.
+      return { date: dateReglement ?? dateEcriture, fraction: 1 };
     }
     // Groupe PARTIEL · une part est encaissée. `solde` est le reste à solder,
     // signé ; la part réglée est donc (engagé - |reste|) / engagé.
@@ -698,11 +866,36 @@ export class TauxTvaService {
     if (engage <= EPSILON) return { date: null, fraction: 0 };
     const fraction = Math.min(1, Math.max(0, (engage - reste) / engage));
     if (fraction <= EPSILON) return { date: null, fraction: 0 };
-    // Un groupe partiel n'a pas de date de dénouement : la part encaissée l'a
-    // été à une date qu'on ne sait pas isoler ligne à ligne. On la rattache à
-    // la date d'écriture du règlement le plus récent du groupe · à défaut,
-    // à celle de la facture.
-    return { date: groupe.soldeAt ?? dateEcriture, fraction };
+    // La part encaissée l'a été à la date du règlement le plus récent du
+    // groupe · l'acompte de l'art. 57 rend la taxe exigible ce jour-là, et non
+    // au jour de la facture ni au jour du lettrage.
+    return { date: dateReglement ?? dateEcriture, fraction };
+  }
+
+  /**
+   * Date d'écriture du règlement le plus récent d'un groupe de lettrage.
+   *
+   * `sensFacture` porte le signe (débit - crédit) de la facture sur le compte
+   * de tiers ; les règlements sont les lignes de signe OPPOSÉ. Les lignes de
+   * même signe sont d'autres factures du même groupe, jamais des encaissements.
+   * `null` quand le groupe n'en porte aucune · l'appelant retombe alors sur la
+   * date de l'écriture, et le dit.
+   */
+  private static dateDernierReglement(
+    lignes: Array<{ debit: unknown; credit: unknown; ecriture?: { date: Date } | null }> | undefined,
+    sensFacture: number,
+  ): Date | null {
+    if (!lignes || lignes.length === 0 || Math.abs(sensFacture) <= EPSILON) return null;
+    let plusRecent: Date | null = null;
+    for (const l of lignes) {
+      const sens = Number(l.debit) - Number(l.credit);
+      if (Math.abs(sens) <= EPSILON) continue;
+      if (sens > 0 === sensFacture > 0) continue;
+      const date = l.ecriture?.date;
+      if (!date) continue;
+      if (!plusRecent || date > plusRecent) plusRecent = date;
+    }
+    return plusRecent;
   }
 
   /**
@@ -809,12 +1002,13 @@ export class TauxTvaService {
    * comptabilisée ne laisse aucune trace · son crédit n'est pas reporté, faute
    * d'une déclaration déposée que le logiciel puisse constater.
    */
-  private async creditReportable(tenantId: string, dateDebut: Date) {
-    const precedente = await this.prisma.liquidationTva.findFirst({
-      where: { tenantId, dateFin: { lt: dateDebut } },
-      orderBy: { dateFin: 'desc' },
-      include: { ecriture: { select: { id: true, libelle: true } } },
-    });
+  private creditReportable(precedente: {
+    id: string;
+    dateDebut: Date;
+    dateFin: Date;
+    ecritureId: string;
+    net: unknown;
+  } | null) {
     if (!precedente) return { montant: 0, origine: null };
     const net = Number(precedente.net);
     if (net >= -EPSILON) return { montant: 0, origine: null };
@@ -830,14 +1024,53 @@ export class TauxTvaService {
   }
 
   /**
+   * PART DE LA TVA D'AMONT QUE L'ARTICLE 41 EXCLUT, lue sur les charges de
+   * l'écriture · voir `EXCLUSIONS_ART_41_SYSCOHADA`.
+   *
+   * La ligne de TVA porte un montant, jamais la nature de la dépense : c'est
+   * la CONTREPARTIE de classe 6 de la même écriture qui la dit. Quand une
+   * facture mêle une dépense exclue et une dépense ordinaire, la taxe est
+   * répartie AU PRORATA DES CHARGES de l'écriture · c'est la seule ventilation
+   * que la pièce elle-même autorise, et elle se réduit au tout-ou-rien sur une
+   * saisie guidée, qui ne pose qu'une charge et sa taxe.
+   *
+   * `lisible` est faux quand l'écriture ne porte aucune charge de classe 6 (une
+   * TVA sur immobilisation, par exemple) : rien n'est alors exclu, et la
+   * déclaration le NOMME plutôt que de laisser croire au contrôle.
+   */
+  private partExclueArt41(
+    referentiel: Referentiel | undefined,
+    lignesCharge: Array<{ debit: unknown; credit: unknown; compte: { numero: string } }>,
+  ): { exclue: number; aVerifier: number; lisible: boolean } {
+    const rien = { exclue: 0, aVerifier: 0, lisible: false };
+    // Le plan SYCEBNL agrège ses charges externes · aucune exclusion n'y est
+    // lisible, et trancher au numéro y serait une devinette.
+    if (referentiel !== Referentiel.SYSCOHADA) return rien;
+    let total = 0;
+    let exclue = 0;
+    let aVerifier = 0;
+    for (const c of lignesCharge) {
+      const montant = Number(c.debit) - Number(c.credit);
+      if (montant <= EPSILON) continue;
+      total += montant;
+      if (EXCLUSIONS_ART_41_SYSCOHADA.some(([racine]) => c.compte.numero.startsWith(racine))) exclue += montant;
+      else if (EXCLUSIONS_ART_41_A_VERIFIER_SYSCOHADA.some(([racine]) => c.compte.numero.startsWith(racine)))
+        aVerifier += montant;
+    }
+    if (total <= EPSILON) return rien;
+    return { exclue: exclue / total, aVerifier: aVerifier / total, lisible: true };
+  }
+
+  /**
    * Registre/déclaration TVA sur une période : pour chaque taux, somme les
    * lignes créditées sur la famille 443 et les lignes débitées sur la famille
    * 445, taguées à ce taux (LigneEcriture.tauxTvaId · posé par la saisie
    * guidée "Achat/Vente avec TVA"). Chaque ligne est datée SELON LA NATURE DE
-   * SON OPÉRATION (voir `baseExigibilite`), applique le prorata de déduction
-   * (art. 43) à la TVA déductible brute, puis impute le crédit de TVA reporté
-   * (art. 63). Reste lecture seule ici · voir `comptabiliserLiquidation` pour
-   * poser l'écriture sur le compte 444.
+   * SON OPÉRATION (voir `baseExigibilite`), écarte ce que l'article 41 exclut,
+   * applique le prorata de déduction (art. 43) à la TVA déductible brute,
+   * impute la récupération sur ventes annulées (art. 52) puis le crédit de TVA
+   * reporté (art. 63). Reste lecture seule ici · voir `comptabiliserLiquidation`
+   * pour poser l'écriture sur le compte 444.
    *
    * UN SEUL CHEMIN DE LECTURE, ligne à ligne. Il y en avait deux : une
    * agrégation en base pour les régimes datés à l'écriture, un parcours pour
@@ -848,6 +1081,54 @@ export class TauxTvaService {
    * dernier encaissée ce mois-ci est exigible ce mois-ci) : c'est le coût,
    * assumé, de dater juste, et c'est déjà celui que payaient les dossiers aux
    * encaissements.
+   *
+   * CHAQUE FAMILLE SE LIT DANS LES DEUX SENS · article 52.
+   *
+   * « La taxe sur la valeur ajoutée acquittée à l'occasion des ventes ou des
+   * services qui sont par la suite résiliés, annulés ou restent impayés peut
+   * être récupérée par voie d'imputation sur l'impôt dû pour les opérations
+   * faites ultérieurement » (art. 52, l. 1234-1236). La déclaration ne lisait
+   * que le CRÉDIT du 443 et que le DÉBIT du 445 : un avoir sur vente, qui
+   * débite le 443, ne venait jamais en diminution ; un avoir fournisseur, qui
+   * crédite le 445, laissait la déduction d'origine intacte. Le premier fait
+   * verser la taxe d'une vente qui n'existe plus, le second est une déduction
+   * indue, sanctionnable.
+   *
+   * ET LES DEUX SENS NE SE TRAITENT PAS DE LA MÊME MANIÈRE, parce que le texte
+   * ne le dit pas ainsi.
+   *
+   *  · AVOIR SUR VENTE (débit d'un 443). Le décret n° 011/42, art. 126
+   *    (fichier `code-general-2026/references/12-tva-decret-application-ch5-8.md`,
+   *    l. 700-705) : la taxe « peut être récupérée par voie d'imputation sur la
+   *    taxe due pour les opérations faites ultérieurement. Dans ce cas, elle
+   *    est inscrite dans les déductions afférentes à la déclaration DU OU DES
+   *    MOIS SUIVANTS celui de la constatation de la résiliation, de
+   *    l'annulation ou de non-paiement, dans les conditions prévues pour
+   *    exercer le droit à déduction. » Elle ne vient donc PAS en diminution de
+   *    la collecte du mois où l'avoir est constaté : elle est reportée, et
+   *    inscrite en DÉDUCTION de la déclaration suivante. La minorer sur place
+   *    anticiperait d'un mois. Elle n'est pas non plus soumise au prorata de
+   *    l'art. 43, qui limite la déduction de la taxe ayant grevé les ACHATS ·
+   *    ici c'est la propre taxe du redevable qui lui revient.
+   *
+   *  · AVOIR FOURNISSEUR (crédit d'un 445). Ce n'est pas l'art. 52, c'est la
+   *    reprise d'une déduction : décret art. 127, l. 724-725, « à la réception
+   *    du duplicata de la facture, le client est tenu de reverser la taxe
+   *    déduite ». La reprise se fait à la CONSTATATION, c'est-à-dire dans la
+   *    période où l'avoir est enregistré · ni plus tôt, ni plus tard. La TVA
+   *    déductible se lit donc en SOLDE, comme `tvaDeductibleBrute` le fait
+   *    déjà pour la régularisation du prorata définitif.
+   *
+   * D'OÙ VIENT LA FENÊTRE DE REPORT, ET CE QUI N'EST PAS REPORTÉ. « Le mois
+   * suivant celui de la constatation » suppose de savoir quel mois a déjà été
+   * déclaré : la seule trace qu'en garde le logiciel est la LIQUIDATION
+   * comptabilisée, exactement comme pour le crédit de l'art. 63. La fenêtre va
+   * donc du début de la dernière période liquidée jusqu'au début de celle-ci ·
+   * ce qui couvre aussi les mois laissés entre les deux, jamais imputés. Sans
+   * aucune liquidation antérieure, le logiciel ne sait pas ce qui a déjà été
+   * déclaré : il n'impute RIEN et rend le montant à part
+   * (`avoirsCollecteNonImputes`), pour que le comptable en dispose au lieu de
+   * subir une déduction inventée.
    */
   async declaration(tenantId: string, dateDebut: Date, dateFin: Date) {
     const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
@@ -855,6 +1136,14 @@ export class TauxTvaService {
     const referentiel = tenant?.referentiel;
     const taux = await this.prisma.tauxTva.findMany({ where: { tenantId }, orderBy: { taux: 'desc' } });
     const dejaLiquidee = await this.liquidationChevauchante(tenantId, dateDebut, dateFin);
+    // Une seule lecture pour deux usages · le crédit reportable de l'art. 63
+    // et la fenêtre de report des avoirs de l'art. 52 partent tous deux de la
+    // dernière liquidation comptabilisée avant la période.
+    const derniereLiquidation = await this.prisma.liquidationTva.findFirst({
+      where: { tenantId, dateFin: { lt: dateDebut } },
+      orderBy: { dateFin: 'desc' },
+      include: { ecriture: { select: { id: true, libelle: true } } },
+    });
 
     const candidates =
       taux.length === 0
@@ -871,39 +1160,137 @@ export class TauxTvaService {
               compte: { select: { numero: true } },
               ecriture: {
                 include: {
+                  // DEUX contreparties sont lues sur la même écriture, et pour
+                  // deux questions différentes : la ligne de TIERS lettrée dit
+                  // QUAND la taxe est exigible (art. 25, 2°), la ligne de
+                  // CHARGE dit si l'article 41 en interdit la déduction.
                   lignes: {
-                    where: { compte: { classe: ClasseCompte.CLASSE_4 }, lettrageId: { not: null } },
-                    include: { lettrage: true },
+                    where: {
+                      OR: [
+                        { compte: { classe: ClasseCompte.CLASSE_4 }, lettrageId: { not: null } },
+                        { compte: { classe: ClasseCompte.CLASSE_6 } },
+                      ],
+                    },
+                    include: {
+                      compte: { select: { numero: true, classe: true } },
+                      // Les lignes du GROUPE de lettrage, avec la date de leur
+                      // écriture · c'est le règlement, pas le lettrage, qui
+                      // date l'encaissement (décret art. 57).
+                      lettrage: {
+                        include: {
+                          lignes: {
+                            select: { debit: true, credit: true, ecriture: { select: { date: true } } },
+                          },
+                        },
+                      },
+                    },
                   },
                 },
               },
             },
           });
 
-    type Cumul = { collecte: number; deductible: number; attente: number };
+    type Cumul = {
+      collecte: number;
+      deductible: number;
+      attente: number;
+      /** Avoirs sur ventes CONSTATÉS dans la période · reportés (art. 52). */
+      avoir: number;
+      /** Avoirs constatés avant la période et imputés ici (décret art. 126). */
+      recuperation: number;
+    };
     const parTaux = new Map<string, Cumul>();
-    for (const t of taux) parTaux.set(t.id, { collecte: 0, deductible: 0, attente: 0 });
+    for (const t of taux) parTaux.set(t.id, { collecte: 0, deductible: 0, attente: 0, avoir: 0, recuperation: 0 });
     // Ce qui a été daté sur quelle base · sert à composer une mention qui dit
     // au lecteur d'où sort son chiffre, et à annoncer le repli quand il joue.
     let montantIndetermine = 0;
     let deductionServicesDiffere = 0;
+    let tvaExclueArt41 = 0;
+    let tvaAVerifierArt41 = 0;
+    let tvaNatureDepenseIllisible = 0;
+    let tvaDeductibleDechue = 0;
+    let avoirsCollecteNonImputes = 0;
+
+    /*
+      DÉCHÉANCE DU DROIT À DÉDUCTION · article 37, alinéa 2.
+
+      Fichier `code-general-2026/references/10-tva-ol10-001-loi-base-ch1-10.md`,
+      l. 989-991 : « Le droit à déduction est exercé jusqu'au 31 décembre de
+      l'année qui suit celle au cours de laquelle la taxe est devenue exigible.
+      A l'expiration de ce délai, la taxe sur la valeur ajoutée non déduite est
+      acquise définitivement au Trésor public. » Repris à l'identique par le
+      décret n° 011/42, art. 96.
+
+      La taxe devenue exigible en N se déduit jusqu'au 31 décembre N+1. Pour
+      une déclaration close en Y, tout ce dont l'exigibilité est antérieure au
+      1er janvier Y-1 est donc DÉCHU : exigible en Y-2 au plus tard, son délai
+      a expiré le 31 décembre Y-1.
+
+      Le logiciel ne PEUT PAS le corriger, et ne le fera pas : ces lignes sont
+      déjà hors de la déclaration (leur date d'exigibilité est antérieure à la
+      période), et lui seul ne sait pas si elles ont été déduites en leur
+      temps. Il les COMPTE et les NOMME · une TVA d'amont qui n'entre dans
+      aucune déclaration et dont le délai est expiré est perdue pour de bon, et
+      c'est au comptable de rectifier tant qu'il en est temps.
+    */
+    const limiteDecheance = new Date(Date.UTC(dateFin.getUTCFullYear() - 1, 0, 1));
+    // Fenêtre de report des avoirs sur ventes · voir l'en-tête de la méthode.
+    const debutReportAvoirs = derniereLiquidation?.dateDebut ?? null;
 
     for (const l of candidates) {
       const cumul = l.tauxTvaId ? parTaux.get(l.tauxTvaId) : undefined;
       if (!cumul) continue;
       const estCollecte = l.compte.numero.startsWith(RACINE_COLLECTEE);
+      const dateEcriture = l.ecriture.date as Date;
+      const dansLaPeriode = dateEcriture >= dateDebut && dateEcriture <= dateFin;
+
+      /*
+        L'AVOIR EST LA LIGNE DE SENS INVERSE À SA FAMILLE · un 443 débité, un
+        445 crédité. Il se date à la CONSTATATION (décret art. 126), donc à
+        l'écriture, jamais à un encaissement qui n'aura pas lieu.
+
+        Aucune confusion possible avec l'écriture de liquidation, qui débite
+        elle aussi le 443 : ses lignes sont posées sans `tauxTvaId` (voir
+        `comptabiliserLiquidation`) et la requête ci-dessus filtre dessus.
+      */
+      const avoir = estCollecte ? Number(l.debit) : Number(l.credit);
+      if (avoir > EPSILON) {
+        if (!estCollecte) {
+          // Reprise de la déduction, à la constatation (décret art. 127).
+          if (dansLaPeriode) cumul.deductible = TauxTvaService.c(cumul.deductible - avoir);
+          continue;
+        }
+        if (dansLaPeriode) cumul.avoir = TauxTvaService.c(cumul.avoir + avoir);
+        else if (dateEcriture < dateDebut) {
+          if (!debutReportAvoirs) {
+            // Aucune liquidation antérieure · rien ne dit ce qui a déjà été
+            // déclaré, on n'impute pas et on rend le montant.
+            avoirsCollecteNonImputes = TauxTvaService.c(avoirsCollecteNonImputes + avoir);
+          } else if (dateEcriture >= debutReportAvoirs) {
+            cumul.recuperation = TauxTvaService.c(cumul.recuperation + avoir);
+          }
+          // Plus ancien que la dernière période liquidée : la déclaration qui a
+          // suivi sa constatation l'a déjà imputé, par cette même règle. Le
+          // signaler ici serait une fausse alerte, et l'imputer une seconde
+          // fois une déduction en double.
+        }
+        continue;
+      }
+
       const montant = estCollecte ? Number(l.credit) : Number(l.debit);
       if (montant <= EPSILON) continue;
 
+      const lignesTiers = l.ecriture.lignes.filter((x) => x.compte?.classe === ClasseCompte.CLASSE_4 && x.lettrage);
+      const lignesCharge = l.ecriture.lignes.filter((x) => x.compte?.classe === ClasseCompte.CLASSE_6);
+
       const { base, nature } = this.baseExigibilite(referentiel, regime, l.compte.numero, estCollecte);
-      const dansLaPeriode = l.ecriture.date >= dateDebut && l.ecriture.date <= dateFin;
       if (nature === 'INDETERMINEE' && dansLaPeriode) montantIndetermine += montant;
       if (!estCollecte && nature === 'SERVICES' && dansLaPeriode) deductionServicesDiffere += montant;
 
       const { date, fraction } =
         base === 'FAIT_GENERATEUR'
           ? { date: l.ecriture.date as Date | null, fraction: 1 }
-          : this.exigibilite(l, l.ecriture.lignes, l.ecriture.date);
+          : this.exigibilite(l, lignesTiers, l.ecriture.date);
 
       // Part facturée sur la période et pas encore exigible · c'est le chiffre
       // qui explique l'écart entre le chiffre d'affaires et la déclaration, et
@@ -911,10 +1298,25 @@ export class TauxTvaService {
       if (estCollecte && base === 'ENCAISSEMENT' && dansLaPeriode) {
         cumul.attente = TauxTvaService.c(cumul.attente + montant * (1 - fraction));
       }
+      if (!estCollecte && date && date < limiteDecheance) {
+        tvaDeductibleDechue = TauxTvaService.c(tvaDeductibleDechue + montant * fraction);
+      }
       if (!date || date < dateDebut || date > dateFin) continue;
       const exigible = TauxTvaService.c(montant * fraction);
-      if (estCollecte) cumul.collecte = TauxTvaService.c(cumul.collecte + exigible);
-      else cumul.deductible = TauxTvaService.c(cumul.deductible + exigible);
+      if (estCollecte) {
+        cumul.collecte = TauxTvaService.c(cumul.collecte + exigible);
+        continue;
+      }
+      // ARTICLE 41 · ce que la loi retire du droit à déduction, avant tout
+      // prorata. Le prorata LIMITE une déduction ; l'article 41 la SUPPRIME.
+      const part = this.partExclueArt41(referentiel, lignesCharge);
+      const exclu = TauxTvaService.c(exigible * part.exclue);
+      if (exclu > EPSILON) tvaExclueArt41 = TauxTvaService.c(tvaExclueArt41 + exclu);
+      if (part.aVerifier > 0) {
+        tvaAVerifierArt41 = TauxTvaService.c(tvaAVerifierArt41 + exigible * part.aVerifier);
+      }
+      if (!part.lisible) tvaNatureDepenseIllisible = TauxTvaService.c(tvaNatureDepenseIllisible + exigible);
+      cumul.deductible = TauxTvaService.c(cumul.deductible + exigible - exclu);
     }
 
     const lignes = [];
@@ -922,7 +1324,15 @@ export class TauxTvaService {
     for (const t of taux) {
       const cumul = parTaux.get(t.id)!;
       enAttente = TauxTvaService.c(enAttente + cumul.attente);
-      if (cumul.collecte === 0 && cumul.deductible === 0 && cumul.attente === 0) continue; // taux sans mouvement
+      if (
+        cumul.collecte === 0 &&
+        cumul.deductible === 0 &&
+        cumul.attente === 0 &&
+        cumul.avoir === 0 &&
+        cumul.recuperation === 0
+      ) {
+        continue; // taux sans mouvement
+      }
       lignes.push({
         tauxId: t.id,
         code: t.code,
@@ -933,20 +1343,29 @@ export class TauxTvaService {
         totalCollecte: cumul.collecte,
         totalDeductible: cumul.deductible,
         enAttente: cumul.attente,
-        net: TauxTvaService.c(cumul.collecte - cumul.deductible),
+        /** Avoirs sur ventes constatés ici · imputables à la période suivante. */
+        avoirsCollecteConstates: cumul.avoir,
+        /** Avoirs antérieurs inscrits en déduction ici (art. 52). */
+        recuperationArt52: cumul.recuperation,
+        net: TauxTvaService.c(cumul.collecte - cumul.deductible - cumul.recuperation),
       });
     }
 
     const totalCollecte = TauxTvaService.c(lignes.reduce((s, l) => s + l.totalCollecte, 0));
     const totalDeductible = TauxTvaService.c(lignes.reduce((s, l) => s + l.totalDeductible, 0));
+    const avoirsCollecteConstates = TauxTvaService.c(lignes.reduce((s, l) => s + l.avoirsCollecteConstates, 0));
+    const recuperationArt52 = TauxTvaService.c(lignes.reduce((s, l) => s + l.recuperationArt52, 0));
     const prorata = await this.prorataApplicable(tenantId, dateDebut, dateFin);
     const totalDeductibleAdmise = TauxTvaService.c(totalDeductible * (prorata.pourcentage / 100));
-    const netAvantImputation = TauxTvaService.c(totalCollecte - totalDeductibleAdmise);
+    // La récupération de l'art. 52 vient APRÈS le prorata · ce n'est pas de la
+    // taxe ayant grevé un achat, c'est la propre taxe du redevable qui lui
+    // revient. Lui appliquer le prorata en amputerait une part sans texte.
+    const netAvantImputation = TauxTvaService.c(totalCollecte - totalDeductibleAdmise - recuperationArt52);
 
     // ARTICLE 63 · le crédit du ou des mois précédents s'impute sur la taxe
     // exigible de celui-ci, jusqu'à épuisement. Un crédit non imputé reste
     // immobilisé au 4449 et le dossier verse deux fois.
-    const credit = await this.creditReportable(tenantId, dateDebut);
+    const credit = this.creditReportable(derniereLiquidation);
     const creditImpute = TauxTvaService.c(Math.min(credit.montant, Math.max(0, netAvantImputation)));
     const net = TauxTvaService.c(netAvantImputation - credit.montant);
 
@@ -954,14 +1373,22 @@ export class TauxTvaService {
       dateDebut,
       dateFin,
       regimeExigibilite: regime,
-      mentionExigibilite: this.mentionExigibilite(
+      mentionExigibilite: this.mentionExigibilite({
         regime,
         referentiel,
-        TauxTvaService.c(montantIndetermine),
-        TauxTvaService.c(deductionServicesDiffere),
-        credit.montant,
+        montantIndetermine: TauxTvaService.c(montantIndetermine),
+        deductionServicesDiffere: TauxTvaService.c(deductionServicesDiffere),
+        creditAnterieur: credit.montant,
         creditImpute,
-      ),
+        avoirsCollecteConstates,
+        recuperationArt52,
+        avoirsCollecteNonImputes,
+        tvaExclueArt41,
+        tvaAVerifierArt41,
+        tvaNatureDepenseIllisible,
+        tvaDeductibleDechue,
+        recettesNonQualifiees: prorata.recettesNonQualifiees,
+      }),
       // TVA facturée sur la période mais pas encore encaissée, donc pas encore
       // due. Zéro quand aucune ligne n'est datée à l'encaissement.
       tvaEnAttenteEncaissement: enAttente,
@@ -970,6 +1397,20 @@ export class TauxTvaService {
       totalCollecte,
       totalDeductible,
       totalDeductibleAdmise,
+      /** Avoirs sur ventes constatés sur la période · reportés (décret art. 126). */
+      avoirsCollecteConstates,
+      /** Avoirs antérieurs inscrits en déduction sur cette période (art. 52). */
+      recuperationArt52,
+      /** Avoirs antérieurs qu'aucune liquidation ne permet de situer. */
+      avoirsCollecteNonImputes,
+      /** TVA d'amont écartée par l'article 41 · jamais déductible. */
+      tvaExclueArt41,
+      /** TVA d'amont sur des postes que l'article 41 vise sous condition. */
+      tvaAVerifierArt41,
+      /** TVA d'amont dont l'écriture ne porte aucune charge lisible. */
+      tvaNatureDepenseIllisible,
+      /** TVA d'amont dont le délai de déduction est expiré (art. 37 al. 2). */
+      tvaDeductibleDechue,
       /** Net de la seule période, avant report du crédit antérieur. */
       netAvantImputation,
       /** Crédit de TVA venu de la dernière liquidation (art. 63). */
@@ -1006,23 +1447,37 @@ export class TauxTvaService {
    * son article, et surtout CE QUI N'A PAS PU ÊTRE ÉTABLI.
    *
    * C'est le seul texte libre que la fenêtre rende (DeclarationTvaPage,
-   * bloc EXIGIBILITÉ) : l'imputation du crédit de TVA y est donc annoncée
-   * aussi, faute d'un autre endroit où l'écran la lirait.
+   * bloc EXIGIBILITÉ) : l'imputation du crédit de TVA, les avoirs de
+   * l'article 52, les exclusions de l'article 41 et la déchéance de
+   * l'article 37 al. 2 y sont donc annoncées aussi, faute d'un autre endroit
+   * où l'écran les lirait.
    */
-  private mentionExigibilite(
-    regime: string,
-    referentiel: Referentiel | undefined,
-    montantIndetermine: number,
-    deductionServicesDiffere: number,
-    creditAnterieur: number,
-    creditImpute: number,
-  ) {
+  private mentionExigibilite(e: {
+    regime: string;
+    referentiel: Referentiel | undefined;
+    montantIndetermine: number;
+    deductionServicesDiffere: number;
+    creditAnterieur: number;
+    creditImpute: number;
+    avoirsCollecteConstates: number;
+    recuperationArt52: number;
+    avoirsCollecteNonImputes: number;
+    tvaExclueArt41: number;
+    tvaAVerifierArt41: number;
+    tvaNatureDepenseIllisible: number;
+    tvaDeductibleDechue: number;
+    recettesNonQualifiees: number;
+  }) {
+    const { regime, referentiel } = e;
+    const fc = (n: number) => n.toLocaleString('fr-FR');
     const phrases: string[] = [
       "Exigibilité datée OPÉRATION PAR OPÉRATION (article 25 de l'ordonnance-loi n° 10/001) : les LIVRAISONS DE " +
         'BIENS au fait générateur (art. 25, 1°), les PRESTATIONS DE SERVICES et TRAVAUX IMMOBILIERS à ' +
         "l'encaissement du prix, des acomptes ou avances (art. 25, 2°). La nature est lue au compte de TVA " +
         '(4431/4434 ventes et livraisons à soi-même, 4432/4433 services et travaux ; 4452 achats, 4453/4454 ' +
-        'transport et services extérieurs), tel que la saisie guidée l’impute.',
+        'transport et services extérieurs), tel que la saisie guidée l’impute. La date de l’encaissement est celle ' +
+        'de l’ÉCRITURE DE RÈGLEMENT du groupe de lettrage, jamais celle du lettrage lui-même (décret n° 011/42, ' +
+        'art. 57).',
     ];
     if (regime === 'DEBITS') {
       phrases.push(
@@ -1032,9 +1487,9 @@ export class TauxTvaService {
           'exigibles au fait générateur, ni à la TVA déductible, qui se juge chez le fournisseur.',
       );
     }
-    if (montantIndetermine > EPSILON) {
+    if (e.montantIndetermine > EPSILON) {
       phrases.push(
-        `REPLI DÉCLARÉ sur ${montantIndetermine.toLocaleString('fr-FR')} CDF de la période : ` +
+        `REPLI DÉCLARÉ sur ${fc(e.montantIndetermine)} CDF de la période : ` +
           (referentiel === Referentiel.SYSCOHADA
             ? 'ces lignes sont portées sur des comptes de TVA dont le numéro ne dit pas la nature de ' +
               "l'opération (4435 factures à établir, 4451 immobilisations, 4455 factures non parvenues…). "
@@ -1043,9 +1498,9 @@ export class TauxTvaService {
           'à vérifier opération par opération avant dépôt.',
       );
     }
-    if (deductionServicesDiffere > EPSILON) {
+    if (e.deductionServicesDiffere > EPSILON) {
       phrases.push(
-        `DÉDUCTION SUR SERVICES · ${deductionServicesDiffere.toLocaleString('fr-FR')} CDF de TVA d'amont facturée ` +
+        `DÉDUCTION SUR SERVICES · ${fc(e.deductionServicesDiffere)} CDF de TVA d'amont facturée ` +
           "sur la période sont déduits au PAIEMENT du fournisseur : l'article 37 al. 1 fait naître le droit à " +
           "déduction « lorsque la taxe devient exigible chez l'assujetti », et le décret n° 011/42, art. 96, " +
           'précise qu’il s’agit du FOURNISSEUR. Si l’un d’eux est autorisé à acquitter d’après les débits ' +
@@ -1054,10 +1509,88 @@ export class TauxTvaService {
           'pas d’office.',
       );
     }
-    if (creditAnterieur > EPSILON) {
+    if (e.tvaExclueArt41 > EPSILON) {
       phrases.push(
-        `CRÉDIT DE TVA REPORTÉ · ${creditAnterieur.toLocaleString('fr-FR')} CDF issus de la dernière liquidation ` +
-          `sont imputés sur la taxe de cette période à hauteur de ${creditImpute.toLocaleString('fr-FR')} CDF ` +
+        `EXCLUSIONS DE L’ARTICLE 41 · ${fc(e.tvaExclueArt41)} CDF de TVA d’amont sont ÉCARTÉS de la déduction : ` +
+          'l’article 41, 1° dispose que « n’ouvre pas droit à déduction, la taxe ayant grevé […] les dépenses de ' +
+          'logement, d’hébergement, de restauration, de réception, de spectacles, de location de véhicules de ' +
+          'tourisme et de transport de personnes ». Sont reconnues les charges portées aux comptes ' +
+          `${EXCLUSIONS_ART_41_SYSCOHADA.map(([, libelle]) => libelle).join(', ')}. Le même point réserve les ` +
+          'dépenses supportées, AU TITRE DE LEUR ACTIVITÉ IMPOSABLE, par les professionnels du tourisme, de la ' +
+          'restauration et du spectacle : OmegaX ne connaît pas le secteur d’activité du dossier et n’applique ' +
+          'donc pas cette exception · si elle vous concerne, réintégrez ce montant.',
+      );
+    }
+    if (e.tvaAVerifierArt41 > EPSILON) {
+      phrases.push(
+        `À VÉRIFIER, ARTICLES 41 ET 42 · ${fc(e.tvaAVerifierArt41)} CDF de TVA d’amont portent sur des charges ` +
+          `que la loi vise SOUS CONDITION (${EXCLUSIONS_ART_41_A_VERIFIER_SYSCOHADA.map(([, l]) => l).join(' ; ')}). ` +
+          'La condition ne se lit ni au compte ni au montant : elle tient à la valeur unitaire du bien ou à ' +
+          'l’existence d’un contrat. Ces montants restent DÉDUITS · à trancher pièce par pièce avant dépôt.',
+      );
+    }
+    if (e.tvaNatureDepenseIllisible > EPSILON) {
+      phrases.push(
+        `NATURE DE LA DÉPENSE NON LISIBLE · ${fc(e.tvaNatureDepenseIllisible)} CDF de TVA d’amont sont portés par ` +
+          'des écritures sans contrepartie de charge de classe 6 (immobilisations, ou plan qui agrège ses charges ' +
+          'externes). L’article 42, 1° exclut la taxe « sur les véhicules ou engins, quelle que soit leur nature, ' +
+          'conçus ou aménagés pour le transport des personnes, constituant des immobilisations ainsi que […] leur ' +
+          'location, leurs pièces détachées et accessoires », et l’article 41, 3° les produits pétroliers : ni ' +
+          'l’un ni l’autre ne se lit sur un numéro de compte (un 245 porte aussi bien un camion qu’un 4x4 de ' +
+          'direction). Ces montants restent DÉDUITS · à vérifier sur pièce.',
+      );
+    }
+    if (e.avoirsCollecteConstates > EPSILON) {
+      phrases.push(
+        `AVOIRS SUR VENTES CONSTATÉS · ${fc(e.avoirsCollecteConstates)} CDF de TVA ont été portés au DÉBIT d’un ` +
+          'compte 443 sur la période. L’article 52 permet d’en récupérer le montant « par voie d’imputation sur ' +
+          'l’impôt dû pour les opérations faites ultérieurement », et le décret n° 011/42, art. 126, le situe : ' +
+          '« elle est inscrite dans les déductions afférentes à la déclaration du ou des mois SUIVANTS celui de ' +
+          'la constatation ». Ce montant ne minore donc PAS la collecte de cette déclaration · il sera inscrit en ' +
+          'déduction de la suivante, une fois celle-ci liquidée. La récupération suppose que la note de crédit ou ' +
+          'la facture nouvelle ait été ÉTABLIE ET ENVOYÉE au client, et la facture initiale barrée et conservée ' +
+          '(décret art. 127) : OmegaX ne peut pas le vérifier.',
+      );
+    }
+    if (e.recuperationArt52 > EPSILON) {
+      phrases.push(
+        `RÉCUPÉRATION SUR VENTES ANNULÉES · ${fc(e.recuperationArt52)} CDF d’avoirs constatés avant cette période ` +
+          'sont inscrits ici en DÉDUCTION (article 52, décret art. 126). Le prorata de l’article 43 ne leur est ' +
+          'pas appliqué : il limite la déduction de la taxe ayant grevé les achats, alors que celle-ci est la ' +
+          'taxe du redevable lui-même, qui lui revient.',
+      );
+    }
+    if (e.avoirsCollecteNonImputes > EPSILON) {
+      phrases.push(
+        `AVOIRS ANTÉRIEURS NON IMPUTÉS · ${fc(e.avoirsCollecteNonImputes)} CDF de TVA sur avoirs ont été constatés ` +
+          'avant cette période, mais aucune liquidation comptabilisée ne permet de savoir dans quelle déclaration ' +
+          'ils ont déjà pu être imputés. OmegaX ne les impute donc pas d’office · ils restent récupérables par ' +
+          'imputation (article 52), à porter à la main après vérification des déclarations déjà déposées.',
+      );
+    }
+    if (e.tvaDeductibleDechue > EPSILON) {
+      phrases.push(
+        `DÉLAI DE DÉDUCTION EXPIRÉ · ${fc(e.tvaDeductibleDechue)} CDF de TVA d’amont sont devenus exigibles avant ` +
+          'le 1er janvier de l’année précédant cette déclaration. « Le droit à déduction est exercé jusqu’au ' +
+          '31 décembre de l’année qui suit celle au cours de laquelle la taxe est devenue exigible. A ' +
+          'l’expiration de ce délai, la taxe sur la valeur ajoutée non déduite est acquise définitivement au ' +
+          'Trésor public » (article 37, alinéa 2). Ces montants n’entrent dans aucune déclaration d’ici · ' +
+          's’ils n’ont pas été déduits en leur temps, ils sont perdus.',
+      );
+    }
+    if (e.recettesNonQualifiees > EPSILON) {
+      phrases.push(
+        `PRORATA · ${fc(e.recettesNonQualifiees)} CDF de recettes de classe 7 ne portent AUCUNE ligne de TVA : ` +
+          'elles pèsent au dénominateur et n’entrent pas au numérateur. L’article 43 met pourtant au numérateur ' +
+          '« les recettes afférentes aux opérations ouvrant droit à déduction […] Y COMPRIS LES EXPORTATIONS et ' +
+          'opérations assimilées » : une vente à l’export, taxée à 0 %, n’est reconnue que si sa ligne de TVA au ' +
+          'taux zéro existe. Si ces recettes en comprennent, le prorata est SOUS-ÉVALUÉ et la déduction avec lui.',
+      );
+    }
+    if (e.creditAnterieur > EPSILON) {
+      phrases.push(
+        `CRÉDIT DE TVA REPORTÉ · ${fc(e.creditAnterieur)} CDF issus de la dernière liquidation ` +
+          `sont imputés sur la taxe de cette période à hauteur de ${fc(e.creditImpute)} CDF ` +
           "(article 63 : l'excédent « constitue un crédit d'impôt imputable sur la taxe exigible du ou des mois " +
           'suivants jusqu’à l’épuisement »). Le solde éventuel reste reportable · l’article 63 ferme le ' +
           'remboursement, hors les cas de l’article 64.',
@@ -1076,6 +1609,15 @@ export class TauxTvaService {
    * période (art. 63). Pose une écriture NORMALE via EcritureService.creer ·
    * mêmes contrôles que n'importe quelle saisie (équilibre, exercice ouvert,
    * clôtures Partielle/Totale/Période).
+   *
+   * LA RÉCUPÉRATION DE L'ARTICLE 52 SOLDE LE 443, ELLE AUSSI. Un avoir sur
+   * vente a débité un compte de TVA facturée dans sa propre période, sans que
+   * la liquidation de cette période-là y touche (le décret art. 126 renvoie la
+   * récupération au mois suivant). Le compte reste donc débiteur du montant de
+   * l'avoir jusqu'à ce que la liquidation SUIVANTE le crédite · c'est la ligne
+   * « Récupération TVA sur ventes annulées ou résiliées ». Sans elle,
+   * l'écriture ne s'équilibrerait pas, puisque le net porté au 444 tient déjà
+   * compte de la récupération.
    *
    * LE MARQUEUR STOCKE LE NET APRÈS IMPUTATION (`LiquidationTva.net`), et c'est
    * lui que la déclaration suivante relit pour connaître le crédit reportable.
@@ -1117,18 +1659,39 @@ export class TauxTvaService {
 
     const decl = await this.declaration(tenantId, dateDebut, dateFin);
 
-    if (decl.totalCollecte <= EPSILON && decl.totalDeductibleAdmise <= EPSILON) {
+    const recuperationArt52 = decl.recuperationArt52;
+    if (
+      decl.totalCollecte <= EPSILON &&
+      Math.abs(decl.totalDeductibleAdmise) <= EPSILON &&
+      recuperationArt52 <= EPSILON
+    ) {
       throw new BadRequestException('Aucun mouvement de TVA sur cette période · rien à comptabiliser.');
     }
 
     const ratio = decl.prorata.pourcentage / 100;
     const parCompteCollecte = new Map<string, number>();
     const parCompteDeductible = new Map<string, number>();
+    // Récupération de l'art. 52 · elle SOLDE le débit que l'avoir a laissé sur
+    // le compte de TVA facturée. Sans cette ligne, le 443 resterait débiteur
+    // du montant de l'avoir, indéfiniment, et l'écriture ne s'équilibrerait
+    // pas puisque le net du 444 tient déjà compte de la récupération.
+    const parCompteRecuperation = new Map<string, number>();
     for (const l of decl.lignes) {
       if (l.compteCollecteId && l.totalCollecte > 0) {
         parCompteCollecte.set(l.compteCollecteId, (parCompteCollecte.get(l.compteCollecteId) ?? 0) + l.totalCollecte);
       }
-      if (l.compteDeductibleId && l.totalDeductible > 0) {
+      if (l.compteCollecteId && l.recuperationArt52 > 0) {
+        parCompteRecuperation.set(
+          l.compteCollecteId,
+          (parCompteRecuperation.get(l.compteCollecteId) ?? 0) + l.recuperationArt52,
+        );
+      }
+      // Le total déductible d'un taux peut être NÉGATIF · un avoir fournisseur
+      // reprend une déduction (décret art. 127), et la reprise peut dépasser
+      // la déduction du mois. La ligne bascule alors au débit du 445, et la
+      // condition « > 0 » qui tenait ici l'aurait purement et simplement
+      // omise, laissant l'écriture déséquilibrée.
+      if (l.compteDeductibleId && Math.abs(l.totalDeductible) > EPSILON) {
         const admise = Math.round(l.totalDeductible * ratio * 100) / 100;
         parCompteDeductible.set(l.compteDeductibleId, (parCompteDeductible.get(l.compteDeductibleId) ?? 0) + admise);
       }
@@ -1178,7 +1741,20 @@ export class TauxTvaService {
       lignesEcriture.push({ compteId, debit: montant, credit: 0, libelle: 'Liquidation TVA · solde TVA collectée' });
     }
     for (const [compteId, montant] of parCompteDeductible) {
-      lignesEcriture.push({ compteId, debit: 0, credit: montant, libelle: 'Liquidation TVA · solde TVA déductible admise' });
+      if (Math.abs(montant) <= EPSILON) continue;
+      lignesEcriture.push(
+        montant > 0
+          ? { compteId, debit: 0, credit: montant, libelle: 'Liquidation TVA · solde TVA déductible admise' }
+          : { compteId, debit: -montant, credit: 0, libelle: 'Liquidation TVA · reprise de déduction sur avoir' },
+      );
+    }
+    for (const [compteId, montant] of parCompteRecuperation) {
+      lignesEcriture.push({
+        compteId,
+        debit: 0,
+        credit: montant,
+        libelle: 'Récupération TVA sur ventes annulées ou résiliées (art. 52)',
+      });
     }
     /*
       LE 444 REÇOIT LE NET DE LA PÉRIODE, ET L'IMPUTATION LE CRÉDITE À PART.

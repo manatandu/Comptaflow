@@ -174,8 +174,27 @@ export const NATURES_RETENUES: NatureRetenue[] = [
       "Article 18 de la loi n° 004/2003 portant réforme des procédures fiscales, tel que modifié par la loi n° 23/052 du 30 novembre 2023.",
     chargeSousConditionArticle20:
       "Les traitements, salaires et autres rémunérations sur lesquels l'IRPP est retenu (comptes 66). L'article 21 y ajoute d'ailleurs sa propre condition : ces rémunérations ne sont déductibles que si elles ont été imposées à l'IRPP.",
+    // LE FORFAIT TRIMESTRIEL DU PERSONNEL DOMESTIQUE ET DES SALARIÉS DE
+    // MICRO-ENTREPRISE se crédite sur ce même compte 4472 et ne suit pourtant
+    // ni la même périodicité, ni le même régime. Le registre ne peut pas l'en
+    // séparer : rien dans un compte ne dit la catégorie du salarié. Il
+    // AVERTIT donc, et ne calcule aucune quotité · le forfait est libellé en
+    // dollars, et le taux de change du jour du paiement n'est pas ici.
     reserve:
-      "Depuis le 1er janvier 2026, c'est l'IRPP et non plus l'IPR : la loi n° 23/053 a abrogé l'impôt professionnel sur les rémunérations. Une part importante de la documentation congolaise en ligne, pages de la DGI comprises, décrit encore le régime abrogé.",
+      "Depuis le 1er janvier 2026, c'est l'IRPP et non plus l'IPR : la loi n° 23/053 a abrogé l'impôt professionnel sur les rémunérations. Une part importante de la documentation congolaise en ligne, pages de la DGI comprises, décrit encore le régime abrogé. " +
+      "PERSONNEL DOMESTIQUE ET SALARIÉS DE MICRO-ENTREPRISES · leurs rémunérations ne suivent PAS ce régime mensuel. " +
+      "L'article 70, alinéa 2 de la loi n° 23/053 les impose « suivant les taux forfaitaires fixés par voie d'Arrêté du " +
+      "Ministre ayant les Finances dans ses attributions », et l'arrêté ministériel n° 019/CAB/MIN/FINANCES/2025 du " +
+      "19 février 2025, en vigueur depuis le 1er janvier 2026, fixe ces forfaits ANNUELS à l'équivalent en francs " +
+      "congolais de 24 dollars par salarié domestique et de 36 dollars par salarié de micro-entreprise, l'impôt étant " +
+      "« retenu à la source par l'employeur et reversé par quotité trimestrielle, au plus tard le 15 du mois qui suit la " +
+      "fin de chaque trimestre » (art. 2). Cette retenue est en outre LIBÉRATOIRE de l'IRPP pour ces salariés, « pour " +
+      "autant que ces rémunérations constituent pour eux des revenus uniques » (art. 121, alinéa 2) : ils n'ont alors " +
+      "aucune déclaration à souscrire sur ce revenu. CE QUE LE LOGICIEL NE SAIT PAS · rien dans les comptes 4471 et " +
+      "4472 ne distingue ces rémunérations des autres, ne dit si elles sont le revenu unique du bénéficiaire, ni ne " +
+      "donne le taux de change à retenir pour convertir un forfait libellé en dollars. Le registre les date donc au 15 " +
+      "du mois suivant, comme le reste de la paie, et ne chiffre aucune quotité. Portez la quotité au dernier mois de " +
+      "chaque trimestre : l'échéance servie coïncide alors avec celle de l'arrêté.",
   },
   {
     // PAS de `chargeSousConditionArticle20` ici, à dessein : le registre ne
@@ -186,9 +205,25 @@ export const NATURES_RETENUES: NatureRetenue[] = [
     libelle: 'Contribution nationale et contribution nationale de solidarité',
     comptes: ['4473', '4474'],
     beneficiaire: 'ETAT',
+    // AUCUN TEXTE NE FONDE CETTE ÉCHÉANCE, et la ligne citait pourtant
+    // l'article 18. Quinze jours restent le REPÈRE servi, faute de mieux ;
+    // ce qui change, c'est qu'il est désormais annoncé comme tel. Inventer
+    // une base légale à un compte est la faute que ce module s'interdit
+    // partout ailleurs.
     joursApresPeriode: 15,
-    echeance: 'Le 15 du mois suivant',
-    baseLegale: 'Article 18 de la loi de procédures fiscales (retenues à la source).',
+    echeance: "Le 15 du mois suivant · repère aligné sur les autres retenues, et non date tirée d'un texte",
+    baseLegale:
+      "AUCUN PRÉLÈVEMENT DE DROIT CONGOLAIS N'EST IDENTIFIÉ POUR CETTE LIGNE. « Contribution nationale » et " +
+      "« contribution nationale de solidarité » sont les intitulés des comptes 4473 et 4474 du plan OHADA, et non des " +
+      "impôts : ni l'une ni l'autre n'a d'occurrence dans le code général des impôts compilé au 19 juillet 2026, dans " +
+      "la loi n° 004/2003 portant réforme des procédures fiscales, ni dans la loi de finances n° 25/060 du 29 décembre " +
+      "2025. L'article 18 de la loi de procédures fiscales, que cette ligne citait, ne vise que les retenues opérées " +
+      "par « toute personne physique ou morale qui paye des revenus salariaux et revenus assimilés » : il ne la fonde " +
+      "pas.",
+    reserve:
+      "Si votre dossier mouvemente les comptes 4473 ou 4474, dites au cabinet quel prélèvement ils portent " +
+      "réellement, et à quelle échéance : le logiciel ne le devine pas, et il ne servira pas une base légale qu'il ne " +
+      "peut pas vérifier. La date affichée ici est un repère, pas une obligation datée par un texte.",
   },
   {
     cle: 'retenueLocative',
@@ -246,14 +281,47 @@ export const NATURES_RETENUES: NatureRetenue[] = [
     beneficiaire: 'ETAT',
     joursApresPeriode: 15,
     echeance: 'Le 15 du mois suivant',
+    // DEUX PRÉLÈVEMENTS TOMBENT SUR CE SEUL COMPTE, et la ligne n'en citait
+    // qu'un. La loi de finances n° 25/060 du 29 décembre 2025 a créé, par son
+    // article 40, un CHAPITRE entier pour les revenus de capitaux mobiliers
+    // versés à des non-résidents (art. 149 bis à 149 quinquies). Le taux et
+    // l'échéance y sont les mêmes qu'en interne · ce qui diffère est le
+    // redevable de la déclaration, et c'est la seule chose que le comptable
+    // ne retrouvera pas tout seul.
+    //
+    // AUCUNE DIFFÉRENCE D'ASSIETTE ENTRE LES DEUX, et il faut le dire parce
+    // que la rédaction invite à le croire : l'article 120 renvoie au « montant
+    // net du revenu imposable déterminé dans les conditions indiquées à
+    // l'article 81 », et l'article 81 détermine ce revenu « par le montant
+    // BRUT des dividendes versés » (1.) et « par le montant BRUT des intérêts,
+    // arrérages et tous autres produits » (4.). L'article 149 ter dit lui
+    // aussi « le montant brut ». Le module ne pose donc aucune distinction de
+    // base : il n'y en a pas.
     baseLegale:
-      "Article 120 de la loi n° 23/053 ; article 18 bis de la loi de procédures fiscales ; arrêté ministériel n° 008/CAB/MIN/FINANCES/2025 du 19 février 2025.",
+      "Article 120 de la loi n° 23/053 ; article 18 bis de la loi de procédures fiscales ; arrêté ministériel " +
+      "n° 008/CAB/MIN/FINANCES/2025 du 19 février 2025. LORSQUE LE BÉNÉFICIAIRE EST NON-RÉSIDENT, le prélèvement " +
+      "relève d'un autre texte : les articles 149 bis à 149 quinquies de la loi n° 23/053, chapitre créé par la loi de " +
+      "finances n° 25/060 du 29 décembre 2025, et la déclaration de l'article 22 quater de la loi de procédures " +
+      "fiscales. Même taux de 20 %, même assiette brute et même échéance du 15 du mois suivant, mais deux prélèvements " +
+      "distincts et DEUX déclarations.",
     chargeSousConditionArticle20:
       "Les INTÉRÊTS servis (emprunts, comptes courants d'associés) sur lesquels la retenue est opérée · eux seuls sont une charge, et les articles 39 à 41 leur posent en outre leurs propres limites. Un dividende distribué n'est pas une charge : la condition de l'article 20 ne le concerne pas, mais la retenue lui reste due.",
     reserve:
-      "Cas réel pour une association qui place sa trésorerie à terme ou qui sert des intérêts sur un emprunt reçu d'un membre.",
+      "Cas réel pour une association qui place sa trésorerie à terme ou qui sert des intérêts sur un emprunt reçu " +
+      "d'un membre. Le prélèvement sur les revenus versés à des NON-RÉSIDENTS, lui, ne vise que les revenus « versés " +
+      "par des sociétés établies en République Démocratique du Congo » (art. 149 ter) et sa déclaration que « les " +
+      "sociétés établies en République Démocratique du Congo » (art. 22 quater) : une ASBL n'est pas une société, et " +
+      "le logiciel ne sert donc pas cette seconde obligation à un dossier SYCEBNL. Si votre entité verse des revenus " +
+      "de capitaux mobiliers à un bénéficiaire établi à l'étranger, faites trancher le point par un conseil · ce " +
+      "logiciel ne le tranche pas.",
     reserveSyscohada:
-      "Cas réel pour une entreprise qui place sa trésorerie à terme, qui distribue des dividendes ou qui sert des intérêts à ses associés.",
+      "Cas réel pour une entreprise qui place sa trésorerie à terme, qui distribue des dividendes ou qui sert des " +
+      "intérêts à ses associés. CE QUE LE LOGICIEL NE SAIT PAS · le compte 44784 porte la retenue, jamais la " +
+      "RÉSIDENCE du bénéficiaire. Il ne peut donc pas dire si ce qui y est crédité relève de la retenue interne de " +
+      "l'article 120 ou du prélèvement sur les non-résidents des articles 149 bis à 149 quinquies. Aucun montant ni " +
+      "aucune date n'en dépendent · les deux prélèvements sont assis sur le montant brut, au taux de 20 %, et dus le " +
+      "15 du mois suivant. Les DÉCLARATIONS, elles, sont deux : ventilez vos versements selon la résidence du " +
+      "bénéficiaire avant de déclarer.",
   },
   {
     cle: 'plusValues',
@@ -403,6 +471,42 @@ const SOURCE_ACOMPTES =
   "impôt reconstitué d'office à défaut de déclaration · que ces sommes soient contestées ou non. Il ne se lit " +
   "donc dans aucun solde de compte de l'exercice en cours.";
 
+/**
+ * AMENDE DE L'ARTICLE 94 · elle n'est plus un montant unique, et le registre
+ * servait l'ancienne rédaction.
+ *
+ * Le texte en vigueur est l'article 94 de la loi n° 004/2003 « (modifié par
+ * l'O.-L. n° 13/005 du 23 février 2013, par la L.F. n° 22/071 du 28 décembre
+ * 2022 et par la L.F. n° 23/056 du 10 décembre 2023, art. 29) » : « L'absence
+ * d'une déclaration ne servant pas au calcul de l'impôt est sanctionnée par
+ * une amende de : - 5.000.000,00 Francs congolais pour les grandes
+ * entreprises ; - 2.500.000,00 Francs congolais pour les moyennes entreprises
+ * et les associations sans but lucratif ; - 250.000,00 Francs congolais pour
+ * les entreprises de petite taille. Il faut entendre notamment par
+ * déclaration ne servant pas au calcul de l'impôt : - le relevé trimestriel
+ * des sommes versées aux tiers ; - la déclaration prévue à l'article 2 de la
+ * présente Loi. » (compilation DGI au 19 juillet 2026,
+ * `20-procedures-titre4-sanctions-fiscales-penales.md`, lignes 194 à 206.)
+ *
+ * Les 500 000 FC affichés jusqu'ici sont ceux de la rédaction ANTÉRIEURE à la
+ * loi de finances n° 23/056, périmée depuis le 1er janvier 2024. Ils étaient
+ * cinq fois trop bas pour une association et deux fois trop hauts pour une
+ * entreprise de petite taille · c'est-à-dire faux dans les deux sens, et sur
+ * le seul chiffre qui décide un trésorier à déposer ou à remettre à plus tard.
+ *
+ * LA TAILLE DE L'ENTITÉ N'EST PAS DANS LE LOGICIEL · il ne choisit donc aucun
+ * des trois montants et sert la grille entière. Choisir aurait supposé un
+ * classement (grande, moyenne, petite entreprise) qui relève de
+ * l'Administration, pas d'une base de données comptable.
+ */
+const SANCTION_ARTICLE_94 =
+  "Amende pour absence d'une déclaration ne servant pas au calcul de l'impôt, GRADUÉE PAR TAILLE depuis l'article 29 " +
+  'de la loi de finances n° 23/056 du 10 décembre 2023 : 5 000 000 de francs congolais pour les grandes entreprises, ' +
+  '2 500 000 pour les moyennes entreprises et les associations sans but lucratif, 250 000 pour les entreprises de ' +
+  "petite taille (article 94 de la loi de procédures fiscales, qui range nommément « le relevé trimestriel des sommes " +
+  "versées aux tiers » parmi ces déclarations). Le logiciel ne connaît pas la taille de votre entité : il ne choisit " +
+  'pas le montant à votre place.';
+
 const CONTENU_ACOMPTE = (quotite: string) =>
   `Versement de ${quotite} de l'impôt de référence, au moyen du bordereau de versement d'acomptes ` +
   "provisionnels dont le modèle est défini par l'Administration des Impôts.";
@@ -427,6 +531,57 @@ export const OBLIGATIONS_DECLARATIVES: ObligationDeclarative[] = [
       "50 % du montant de la contribution due en cas de défaut de déclaration ou de déclaration fausse, inexacte ou incomplète (art. 2). Le versement tardif, lui, subit une majoration de 0,5 % par jour, tout mois commencé compté entier (art. 3).",
     sourceDonnees: 'Comptes 66 (charges de personnel) pour l’assiette, et 4335 pour la contribution due.',
   },
+  /*
+    LA DÉCLARATION QUE LA LOI DE FINANCES 25/060 A CRÉÉE ET QUE LE MODULE
+    N'AVAIT PAS VUE · le prélèvement sur les revenus de capitaux mobiliers
+    versés à des non-résidents.
+
+    Elle entre ici, parmi les obligations purement déclaratives, et non parmi
+    les natures de retenue, parce que le logiciel ne peut PAS l'isoler d'un
+    solde de compte : le 44784 porte la retenue, jamais la résidence du
+    bénéficiaire. Lui ouvrir une nature reviendrait à afficher une ligne
+    éternellement vide, ou pire, à couper en deux un solde que rien ne permet
+    de partager. L'échéance et le contenu, eux, sont sûrs · ils suffisent à
+    rappeler la déclaration à qui la doit.
+
+    ELLE NE VISE QUE LES SOCIÉTÉS · l'article 149 ter parle des revenus
+    « versés par des sociétés établies en République Démocratique du Congo »
+    et l'article 22 quater des « sociétés établies en République Démocratique
+    du Congo qui paient » ces revenus. Une ASBL n'est ni l'une ni l'autre :
+    l'obligation est donc réservée au référentiel SYSCOHADA, comme les quatre
+    échéances de l'impôt sur les sociétés.
+
+    AUCUNE SANCTION N'EST PORTÉE ICI, à dessein : l'article 94 ne frappe que
+    les déclarations « ne servant pas au calcul de l'impôt », et celle-ci sert
+    au calcul du prélèvement et s'accompagne de son paiement. Chiffrer une
+    amende par ressemblance serait une devinette.
+  */
+  {
+    cle: 'prelevementCapitauxMobiliersNonResidents',
+    libelle: 'Déclaration du prélèvement sur les revenus de capitaux mobiliers versés à des non-résidents (20 %)',
+    periodicite: 'MENSUELLE',
+    joursApresPeriode: 15,
+    echeance: 'Au plus tard le 15 du mois qui suit le paiement des revenus ou leur mise à disposition',
+    baseLegale:
+      "Article 22 quater de la loi de procédures fiscales, inséré par la loi de finances n° 25/060 du 29 décembre " +
+      "2025, articles 38 et 39 : « Les sociétés établies en République Démocratique du Congo qui paient des revenus " +
+      "des capitaux mobiliers versés à des personnes non-résidentes sont tenues de souscrire une déclaration, au plus " +
+      "tard le quinze du mois qui suit celui du paiement de ces revenus aux bénéficiaires ou de leur mise à " +
+      "disposition. » Le prélèvement lui-même vient des articles 149 bis à 149 quinquies de la loi n° 23/053, " +
+      "chapitre 3 créé par l'article 40 de la même loi de finances : il est assis sur « le montant brut des sommes " +
+      "payées ou mises à la disposition de leurs bénéficiaires » (art. 149 ter), au taux de « 20 % du montant brut des " +
+      "revenus versés » (art. 149 quater), et il est dû « au moment du paiement ou de la mise à disposition des " +
+      "revenus » (art. 149 quinquies). NOTA · la loi de finances a numéroté « 22 quater » deux articles distincts, " +
+      "par ses articles 23 et 39 ; celui qui fonde cette déclaration est le second.",
+    contenu:
+      "Déclaration des revenus de capitaux mobiliers versés à des personnes non-résidentes et du prélèvement de 20 % " +
+      "correspondant, accompagnée de son paiement, à souscrire auprès du service gestionnaire de la société.",
+    sourceDonnees:
+      "Compte 44784 pour le prélèvement, et les dividendes et intérêts servis pour l'assiette. LE LOGICIEL NE PEUT " +
+      "PAS ISOLER CETTE PART : un compte de retenue porte le montant retenu, jamais la résidence du bénéficiaire · " +
+      "c'est à vous de ventiler vos versements avant de déclarer.",
+    referentiels: [Referentiel.SYSCOHADA],
+  },
   {
     cle: 'releveTrimestrielTiers',
     libelle: 'Relevé des sommes versées à des tiers (hors salaires)',
@@ -437,7 +592,12 @@ export const OBLIGATIONS_DECLARATIVES: ObligationDeclarative[] = [
       "Article 47, alinéa 1er, de la loi n° 004/2003 portant réforme des procédures fiscales, tel que modifié par la loi de finances n° 24/011 du 20 décembre 2024, article 40. Il vise nommément les associations sans but lucratif et les établissements d'utilité publique.",
     contenu:
       'Relevé, sur support papier ET numérique, des sommes de toute nature versées à des tiers en dehors des rémunérations salariales : honoraires, commissions, courtages, ristournes, vacations, droits d’auteur, loyers. Le modèle du relevé est fixé par l’Administration des Impôts.',
-    sanction: "Amende de 500 000 francs congolais pour une personne morale (article 94 de la loi de procédures fiscales).",
+    // Cette obligation n'est servie qu'aux dossiers SYCEBNL, et l'article 94
+    // y nomme les associations sans but lucratif : 2 500 000 FC. La grille
+    // entière reste affichée parce que le SYCEBNL couvre aussi des entités
+    // qui ne sont pas des ASBL (fondations, ordres professionnels, projets),
+    // et que le logiciel ne sait pas laquelle il a devant lui.
+    sanction: SANCTION_ARTICLE_94,
     sourceDonnees:
       'Comptes de tiers 40 (fournisseurs) et 47 (débiteurs et créditeurs divers), et charges des comptes 62-63 (services extérieurs) et 65.',
     // L'alinéa 1er énumère limitativement des entités publiques et non
@@ -459,7 +619,7 @@ export const OBLIGATIONS_DECLARATIVES: ObligationDeclarative[] = [
       "Article 47, alinéa 2, de la loi n° 004/2003 portant réforme des procédures fiscales, tel que modifié par la loi de finances n° 24/011 du 20 décembre 2024, article 40.",
     contenu:
       'Relevé des sommes versées à ses membres ou mandants au titre des droits d’auteurs ou d’inventeurs, dans les mêmes conditions et sur les mêmes supports que le relevé de l’alinéa 1er.',
-    sanction: "Amende de 500 000 francs congolais pour une personne morale (article 94 de la loi de procédures fiscales).",
+    sanction: SANCTION_ARTICLE_94,
     sourceDonnees:
       'Comptes de redevances et de droits versés, et comptes de tiers 40 et 47 pour les bénéficiaires.',
     // Celui-là vise « les entreprises ET les associations » : il n'est donc
@@ -645,6 +805,39 @@ export const AVERTISSEMENT_REDEVABLE =
   "Le redevable qui n'a pas opéré une retenue, ou qui l'a opérée pour un montant insuffisant, en est PERSONNELLEMENT " +
   'redevable (article 96 bis de la loi de procédures fiscales, créé par la loi de finances n° 25/060 du 29 décembre ' +
   "2025). Une retenue oubliée ne disparaît pas avec le paiement : elle devient une dette de l'entité elle-même.";
+
+/**
+ * LA SEULE FAUSSE ALERTE QUE LE RAPPROCHEMENT CORRIGÉ NE PEUT PAS LEVER SEUL.
+ *
+ * Depuis que le reversement s'impute sur le mois de la retenue qu'il éteint,
+ * un mois signalé en retard l'est vraiment · sauf un, et toujours le même :
+ * celui dont le reversement a été passé sur l'EXERCICE SUIVANT. Le registre
+ * ne lit que les écritures de l'exercice affiché (voir la requête du service,
+ * filtrée sur `exerciceId`), et la retenue de décembre est reversée en
+ * janvier de l'exercice d'après.
+ *
+ * Le logiciel ne peut pas aller le chercher sans changer la portée de l'état.
+ * Il le DIT, plutôt que de laisser croire que le drapeau est sans appel.
+ */
+export const AVERTISSEMENT_REVERSEMENT_EXERCICE_SUIVANT =
+  'MOIS SIGNALÉS EN RETARD · ce registre ne lit que les écritures de l’exercice affiché. Un reversement passé sur ' +
+  'l’exercice suivant, celui de la retenue du dernier mois notamment, ne lui est pas visible : vérifiez-le sur ' +
+  'l’exercice d’après avant de conclure au retard.';
+
+/**
+ * LA MÊME LIMITE, PRISE PAR L'AUTRE BOUT · un reversement de l'exercice qui
+ * éteint une retenue d'un exercice antérieur.
+ *
+ * Il est bien compté dans le total reversé de la nature, qui reste
+ * l'arithmétique du compte, mais il ne s'impute sur aucun mois de l'exercice
+ * affiché · d'où un total reversé supérieur à la somme de la colonne des
+ * mois. L'écart n'est pas une erreur de calcul, et sans cette phrase il en
+ * aurait tout l'air.
+ */
+export const AVERTISSEMENT_REVERSEMENT_ANTERIEUR =
+  'REVERSEMENT NON IMPUTÉ · une part de ce qui a été reversé sur cet exercice n’éteint aucune retenue de l’exercice ' +
+  'lui-même : elle acquitte vraisemblablement une retenue d’un exercice antérieur, ou un versement excédentaire. ' +
+  'Elle figure dans le total reversé de la nature, mais dans aucun de ses mois.';
 
 /**
  * Une nature dont la retenue est ÉCHUE et toujours pas reversée, avec la

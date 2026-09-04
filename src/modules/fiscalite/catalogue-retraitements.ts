@@ -80,6 +80,41 @@ export interface DefinitionRetraitement {
    * chaque charge. Voir le commentaire de `AssiettePlafond`.
    */
   plafond?: { part: number; assiette: AssiettePlafond; enonce: string };
+  /**
+   * CONDITION D'OUVERTURE DU DROIT À DÉDUCTION, distincte du plafond · le
+   * plafond dit COMBIEN est admis, la condition dit SI quelque chose l'est.
+   *
+   * L'art. 44 porte les deux, et le code ne connaissait que le premier : un
+   * dossier déficitaire se voyait offrir 0,5 % du chiffre d'affaires de dons
+   * déductibles, alors que la loi n'en admet AUCUN tant que le résultat net
+   * imposable avant déduction de ces versements n'est pas positif. Le
+   * contribuable déclarait alors un déficit reportable trop élevé, et le
+   * redressement se découvrait à l'exercice d'imputation.
+   *
+   * `enonce` porte le texte VERBATIM · c'est lui qui est servi au comptable,
+   * la double condition ayant une seconde branche (le relevé joint à la
+   * déclaration) qu'aucune comptabilité ne peut établir.
+   */
+  conditionResultatNetPositif?: { enonce: string; source: string };
+  /**
+   * L'ASSIETTE DU REDRESSEMENT N'EST PAS LE MOUVEMENT DU COMPTE, et ce module
+   * ne peut pas la calculer · la ligne se saisit à la main, elle ne se
+   * propose pas.
+   *
+   * Le 6813 « Dotations aux amortissements des immobilisations corporelles »
+   * est exactement le compte où vit l'écart de l'art. 28 · mais son mouvement
+   * est la DOTATION ENTIÈRE, dont la loi admet en déduction tout ce qui
+   * respecte le barème de l'arrêté n° 013/CAB/MIN/FINANCES/2025. Proposer le
+   * mouvement, c'est proposer de réintégrer une charge déductible : sur une
+   * dotation de 25 000 000 FC conforme au barème, la proposition vaudrait
+   * 7 500 000 FC d'impôt indu (art. 56).
+   *
+   * L'annuité fiscale ne se lit pas dans une balance · elle vient du tableau
+   * des immobilisations, que ce module ne détient pas. Le texte de ce champ
+   * dit au comptable ce qu'il doit établir lui-même, et pourquoi le logiciel
+   * s'abstient.
+   */
+  assietteHorsPortee?: string;
 }
 
 export const CODE_LIBRE = 'AUTRE';
@@ -151,6 +186,14 @@ export const CATALOGUE_RETRAITEMENTS: DefinitionRetraitement[] = [
     aide: "Seuls sont déductibles les versements au Fonds Social de la RDC, à des organismes de recherche, à des œuvres ou organismes d'utilité publique à caractère philanthropique et social, et à des associations sportives situées en RDC. Double condition de forme : un relevé joint à la déclaration, et un résultat net imposable POSITIF avant déduction. L'excédent se réintègre.",
     source: 'Loi n° 23/053, art. 44',
     plafond: { part: 0.005, assiette: 'CHIFFRE_AFFAIRES', enonce: "0,5 % du chiffre d'affaires de l'exercice, plafond global pour l'ensemble des versements de l'article 44" },
+    // Le plafond ne joue QUE si le droit à déduction est ouvert · art. 44,
+    // al. 2, 2°. Un exercice déficitaire n'admet aucun versement, et non
+    // 0,5 % du chiffre d'affaires.
+    conditionResultatNetPositif: {
+      enonce:
+        "Le bénéfice de cette disposition est subordonné à la double condition que : 1. un relevé indiquant les montants, la date des versements et l'identité des bénéficiaires soit joint à la déclaration des résultats ; 2. le résultat net imposable avant déduction de ces versements soit positif.",
+      source: 'Loi n° 23/053, art. 44, al. 2',
+    },
   },
   {
     code: 'CADEAUX_EXCEDENT',
@@ -204,6 +247,32 @@ export const CATALOGUE_RETRAITEMENTS: DefinitionRetraitement[] = [
     libelle: 'Amortissements excédant les taux fiscaux',
     aide: "Les taux linéaires admis sont fixés par l'arrêté ministériel n° 013/CAB/MIN/FINANCES/2025 du 19 février 2025 · cent trente et une lignes, neuf familles. La différence entre la dotation comptable et l'annuité fiscale se réintègre. Le dégressif n'est ouvert, sur option, qu'aux biens neufs limitativement énumérés, à l'exclusion notamment des véhicules de tourisme et des immobilisations incorporelles.",
     source: 'Loi n° 23/053, art. 28 à 38 ; arrêté ministériel n° 013/CAB/MIN/FINANCES/2025',
+    assietteHorsPortee:
+      "Le mouvement du compte de dotations est la DOTATION ENTIÈRE, dont l'art. 28 admet en déduction tout ce qui respecte le barème de l'arrêté n° 013/CAB/MIN/FINANCES/2025 ; seul l'EXCÉDENT se réintègre. L'annuité fiscale se lit dans le tableau des amortissements, immobilisation par immobilisation, et non dans une balance : ce module ne la détient pas et ne propose donc aucun montant. Établir l'écart hors du logiciel, puis le saisir ici.",
+  },
+  {
+    /*
+      L'OBLIGATION QUE LE LOGICIEL VOYAIT SANS LA DIRE. Le contrôle
+      REEVALUATION_IMMO_HORS_MODULE se déclenche sur tout solde créditeur d'un
+      compte 106 et renvoie au SYCEBNL et à l'AUDCIF art. 62 à 65 · pas un mot
+      de l'obligation fiscale de neutralité, qui est pourtant la plus coûteuse
+      des deux. Le catalogue n'avait aucune entrée pour la porter : le
+      comptable qui suivait l'écran jusqu'au bout obtenait un résultat fiscal
+      minoré du supplément d'annuité, chaque année, sans qu'aucune ligne ne
+      l'ait alerté.
+
+      La portée est celle de l'art. 134 : ces amortissements servent
+      « la détermination de l'assiette de l'Impôt sur les sociétés et de
+      l'Impôt sur le Revenu des Personnes Physiques relevant du régime réel
+      d'imposition ».
+    */
+    code: 'REEVALUATION_SUPPLEMENT_ANNUITE',
+    sens: SensRetraitementFiscal.REINTEGRATION,
+    libelle: "Supplément d'annuité d'amortissement des immobilisations réévaluées",
+    aide: "Après réévaluation, l'amortissement se calcule sur la valeur RÉÉVALUÉE, mais l'augmentation de l'annuité qui en résulte ne doit diminuer ni le bénéfice comptable ni le bénéfice fiscal : la neutralité s'obtient chaque année par la réintégration d'une fraction égale à cette augmentation. Le montant est la différence entre l'annuité calculée sur la valeur réévaluée et celle qui aurait été calculée sur la valeur d'origine · un immeuble de 100 000 000 FC réévalué à 160 000 000 FC et amorti sur 20 ans porte 3 000 000 FC de supplément. À reprendre chaque exercice tant que le plan court, et à cesser à la cession du bien, où c'est le solde de la plus-value de réévaluation qui se réintègre (art. 133, al. 3).",
+    source: 'Loi n° 23/053, art. 133, al. 2 (portée : art. 134 ; réévaluation : art. 129 à 132 et AUDCIF art. 62 à 65)',
+    assietteHorsPortee:
+      "Le supplément d'annuité ne se lit dans aucun compte : il est la DIFFÉRENCE entre deux plans d'amortissement, celui de la valeur réévaluée et celui de la valeur d'origine, dont le second n'existe plus en comptabilité après la réévaluation. Ce module ne propose donc aucun montant · le calculer suppose le tableau des amortissements d'avant la réévaluation.",
   },
   {
     code: 'REMUNERATIONS_NON_DECLAREES',

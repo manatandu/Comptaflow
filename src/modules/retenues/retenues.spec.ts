@@ -1,6 +1,8 @@
 import { RetenuesService } from './retenues.service';
 import { PrismaService } from '../../common/prisma.service';
 import {
+  AVERTISSEMENT_REVERSEMENT_ANTERIEUR,
+  AVERTISSEMENT_REVERSEMENT_EXERCICE_SUIVANT,
   NATURES_RETENUES,
   OBLIGATIONS_DECLARATIVES,
   obligationsDeclarativesApplicables,
@@ -48,7 +50,18 @@ const nature = (r: { natures: Array<{ cle: string }> }, cle: string) =>
     reverse: number;
     solde: number;
     moisEnRetard: number;
-    mois: Array<{ mois: string; retenu: number; reverse: number; solde: number; echeance: Date; enRetard: boolean }>;
+    mois: Array<{
+      mois: string;
+      retenu: number;
+      /** Reversement IMPUTÉ au titre de ce mois. */
+      reverse: number;
+      /** Débit tel qu'il a été écrit ce mois-là · la trace de l'écriture. */
+      reverseEcritures: number;
+      solde: number;
+      echeance: Date;
+      enRetard: boolean;
+    }>;
+    reverseNonImpute: number;
     reserve: string | null;
     baseLegale: string;
     echeance: string;
@@ -527,12 +540,17 @@ describe('Retenue non reversée et déductibilité de la charge (loi n° 23/053,
   /*
     LE TEST QUI TIENT TOUT LE RESTE · une retenue de mars reversée le 14 avril
     est reversée À TEMPS (loi de procédures fiscales, art. 22 bis : le 15 du
-    mois suivant). Le registre range pourtant ce débit dans le mois d'AVRIL,
-    si bien que mars reste crédité et ressort `enRetard`. Un signalement bâti
-    sur ce drapeau annoncerait la non-déductibilité de la charge à une entité
-    parfaitement à jour · d'où l'assiette cumulée du service.
+    mois suivant). Le registre rangeait ce débit dans le mois d'AVRIL, si bien
+    que mars restait crédité et ressortait `enRetard` : le signalement de
+    l'article 20 s'en gardait par une assiette cumulée tenue à part, mais
+    l'écran, lui, annonçait « 1 mois en retard » à une entité à jour.
+
+    Le rapprochement est corrigé À LA SOURCE · le reversement s'impute
+    désormais sur le mois de la retenue qu'il éteint, et les deux lectures
+    disent la même chose. Ce test le vérifie des deux côtés à la fois, ce qui
+    est tout son intérêt : il tomberait si l'une des deux repartait.
   */
-  it('ne signale RIEN quand la retenue a été reversée à temps, le drapeau mensuel dît-il le contraire', async () => {
+  it('ne signale RIEN quand la retenue a été reversée à temps, et le drapeau mensuel non plus', async () => {
     const s = service(
       [
         ligne('44782000', '2026-03-31', { credit: 4_200_000 }),
@@ -546,9 +564,9 @@ describe('Retenue non reversée et déductibilité de la charge (loi n° 23/053,
     const n = ligneNature(r, 'prestatairesNonResidents');
     expect(n.solde).toBe(0);
     expect(n.retenuEchuNonReverse).toBe(0);
-    // Le drapeau mensuel, lui, crie toujours · il n'est pas corrigé ici, il
-    // n'est simplement pas ce sur quoi cet avertissement s'appuie.
-    expect(n.moisEnRetard).toBe(1);
+    // Et le drapeau mensuel se tait, lui aussi · c'est la contradiction que
+    // l'écran affichait, un solde nul en face d'un mois « en retard ».
+    expect(n.moisEnRetard).toBe(0);
   });
 
   it('ne signale rien tant que l’échéance n’est pas passée · il n’y a pas encore de preuve à rapporter', async () => {
@@ -640,5 +658,361 @@ describe('Retenue non reversée et déductibilité de la charge (loi n° 23/053,
     const s = service([ligne('44782000', '2026-03-31', { credit: 4_200_000 })], 'SYSCOHADA');
     const e = await s.echeancierFiscal('t1', { exerciceId: 'e1', dateReference: '2026-06-15' });
     expect(e.avertissements.join(' ')).toContain('RETENUES ÉCHUES');
+  });
+});
+
+/*
+  LE REVERSEMENT SE RANGEAIT DANS LE MOIS DE SA PROPRE ÉCRITURE.
+
+  Article 18 de la loi n° 004/2003 portant réforme des procédures fiscales,
+  tel que modifié par la L.F. n° 23/056 du 10 décembre 2023, art. 24, et par
+  la loi n° 23/052 du 30 novembre 2023, art. 1er : « Les retenues effectuées
+  au titre d’Impôt sur le Revenu des Personnes Physiques par toute personne
+  physique ou morale qui paye des revenus salariaux et revenus assimilés
+  doivent être versées au plus tard le 15 du mois qui suit celui du versement
+  de ces revenus aux bénéficiaires ou de leur mise à disposition. »
+  (compilation DGI au 19 juillet 2026,
+  `17-procedures-titre1-obligations-declaratives.md`, lignes 281 à 284.)
+
+  Le texte donne une DATE LIMITE rattachée au mois de la retenue : un
+  reversement du 14 avril éteint la dette de mars. Le registre, lui, rangeait
+  ce débit dans avril, laissait mars crédité et le signalait en retard · une
+  entité parfaitement à jour lisait « solde 0 » et « n mois en retard » sur le
+  même écran.
+*/
+describe('Le reversement s’impute sur le mois de la retenue qu’il éteint (art. 18)', () => {
+  it('une retenue de mars reversée le 14 avril ne laisse mars ni crédité ni en retard', async () => {
+    const s = service([
+      ligne('44720000', '2026-03-31', { credit: 350_000 }),
+      ligne('44720000', '2026-04-14', { debit: 350_000 }),
+    ]);
+    const r = await s.registre('t1', { exerciceId: 'e1', dateReference: '2026-06-15' });
+    const n = nature(r, 'irppSalaires');
+    const mars = n.mois.find((m) => m.mois === '2026-03')!;
+    expect(mars.reverse).toBe(350_000);
+    expect(mars.solde).toBe(0);
+    expect(mars.enRetard).toBe(false);
+    expect(n.moisEnRetard).toBe(0);
+  });
+
+  it('douze mois de paie régulièrement reversés ne donnent AUCUN mois en retard', async () => {
+    // Les montants CROISSENT d'un mois sur l'autre, et c'est ce qui rendait
+    // le défaut spectaculaire : tant que la paie est stable, le débit du mois
+    // annule le crédit du mois et le solde mensuel reste nul par accident.
+    // Dès qu'elle bouge, chaque mois porte le résidu de l'écart et ressort en
+    // retard, l'un après l'autre.
+    const lignes = [];
+    for (let mois = 1; mois <= 12; mois++) {
+      const finDeMois = new Date(2026, mois, 0);
+      lignes.push(
+        ligne('44720000', finDeMois.toISOString().slice(0, 10), { credit: 100_000 * mois }),
+      );
+      // Reversé le 14 du mois suivant, la veille de l'échéance légale. Celui
+      // de décembre tombe sur l'exercice d'après : il n'est pas ici.
+      if (mois < 12) {
+        lignes.push(ligne('44720000', `2026-${String(mois + 1).padStart(2, '0')}-14`, { debit: 100_000 * mois }));
+      }
+    }
+    const r = await service(lignes).registre('t1', { exerciceId: 'e1', dateReference: '2026-12-20' });
+    const n = nature(r, 'irppSalaires');
+    expect(n.moisEnRetard).toBe(0);
+    // Décembre reste dû · son échéance est au 15 janvier, elle n'est pas
+    // passée, et c'est bien le solde de la nature.
+    expect(n.solde).toBe(1_200_000);
+    expect(n.mois.find((m) => m.mois === '2026-12')!.enRetard).toBe(false);
+  });
+
+  it('un solde nul et des mois en retard ne peuvent plus s’afficher ensemble', async () => {
+    // L'invariant que l'écran violait. Il ne tient que parce que le
+    // reversement s'impute sur les mois : tout reversé, rien en retard.
+    const lignes = [];
+    for (let mois = 1; mois <= 3; mois++) {
+      const finDeMois = new Date(2026, mois, 0);
+      lignes.push(ligne('44720000', finDeMois.toISOString().slice(0, 10), { credit: 100_000 * mois }));
+      lignes.push(ligne('44720000', `2026-${String(mois + 1).padStart(2, '0')}-14`, { debit: 100_000 * mois }));
+    }
+    const r = await service(lignes).registre('t1', { exerciceId: 'e1', dateReference: '2026-06-15' });
+    const n = nature(r, 'irppSalaires');
+    expect(n.solde).toBe(0);
+    expect(n.moisEnRetard).toBe(0);
+    expect(r.totalDu).toBe(0);
+  });
+
+  it('impute un reversement partiel sur le mois le plus ancien, et garde la trace du débit', async () => {
+    const s = service([
+      ligne('44782000', '2026-03-31', { credit: 1_000_000 }),
+      ligne('44782000', '2026-04-14', { debit: 400_000 }),
+      ligne('44782000', '2026-04-30', { credit: 600_000 }),
+    ]);
+    const r = await s.registre('t1', { exerciceId: 'e1', dateReference: '2026-06-15' });
+    const n = nature(r, 'prestatairesNonResidents');
+    const mars = n.mois.find((m) => m.mois === '2026-03')!;
+    const avril = n.mois.find((m) => m.mois === '2026-04')!;
+    // Le plus ancien d'abord · mars reste dû de 600 000.
+    expect(mars.reverse).toBe(400_000);
+    expect(mars.solde).toBe(600_000);
+    expect(mars.enRetard).toBe(true);
+    // Rien n'est imputé sur avril, mais le débit qui y a été ÉCRIT reste
+    // lisible · c'est la piste de l'écriture que l'imputation déplace.
+    expect(avril.reverse).toBe(0);
+    expect(avril.reverseEcritures).toBe(400_000);
+    expect(avril.solde).toBe(600_000);
+    expect(n.moisEnRetard).toBe(2);
+    // L'arithmétique du compte, elle, ne bouge pas.
+    expect(n.reverse).toBe(400_000);
+    expect(n.solde).toBe(1_200_000);
+  });
+
+  it('le mois réellement impayé reste signalé · corriger n’est pas taire', async () => {
+    const s = service([ligne('44782000', '2026-03-31', { credit: 4_200_000 })]);
+    const r = await s.registre('t1', { exerciceId: 'e1', dateReference: '2026-06-15' });
+    const n = nature(r, 'prestatairesNonResidents');
+    expect(n.moisEnRetard).toBe(1);
+    expect(n.mois.find((m) => m.mois === '2026-03')!.enRetard).toBe(true);
+    expect(r.avertissements.join(' ')).toContain('RETENUES ÉCHUES');
+  });
+
+  it('dit le reversement qu’aucun mois de l’exercice n’absorbe, au lieu de le lisser', async () => {
+    // Le reversement de janvier acquitte la retenue de décembre de l'exercice
+    // PRÉCÉDENT, que cette requête ne voit pas. Il reste dans le total
+    // reversé du compte, et dans aucun mois · l'écart de colonne est dit.
+    const s = service([ligne('44720000', '2026-01-14', { debit: 250_000 })]);
+    const r = await s.registre('t1', { exerciceId: 'e1', dateReference: '2026-06-15' });
+    const n = nature(r, 'irppSalaires');
+    expect(n.reverseNonImpute).toBe(250_000);
+    expect(n.mois[0].reverse).toBe(0);
+    expect(n.mois[0].reverseEcritures).toBe(250_000);
+    expect(r.avertissements).toContain(AVERTISSEMENT_REVERSEMENT_ANTERIEUR);
+  });
+
+  it('avertit que le reversement de décembre peut vivre sur l’exercice suivant', async () => {
+    // La seule fausse alerte que l'imputation ne peut pas lever : le
+    // reversement du 14 janvier n'est pas dans l'exercice affiché.
+    const s = service([ligne('44720000', '2026-12-31', { credit: 400_000 })]);
+    const r = await s.registre('t1', { exerciceId: 'e1', dateReference: '2027-02-01' });
+    expect(nature(r, 'irppSalaires').moisEnRetard).toBe(1);
+    expect(r.avertissements).toContain(AVERTISSEMENT_REVERSEMENT_EXERCICE_SUIVANT);
+  });
+
+  it('ne crie pas la réserve d’exercice à un dossier qui n’a aucun mois signalé', async () => {
+    const r = await service([ligne('44720000', '2026-06-30', { credit: 400_000 })]).registre('t1', {
+      exerciceId: 'e1',
+      dateReference: '2026-07-01',
+    });
+    expect(r.avertissements).not.toContain(AVERTISSEMENT_REVERSEMENT_EXERCICE_SUIVANT);
+    expect(r.avertissements).not.toContain(AVERTISSEMENT_REVERSEMENT_ANTERIEUR);
+  });
+});
+
+/*
+  L'AMENDE DE L'ARTICLE 94 N'EST PLUS UN MONTANT UNIQUE.
+
+  Article 94 de la loi n° 004/2003, « (modifié par l’O.-L. n° 13/005 du
+  23 février 2013, par la L.F. n° 22/071 du 28 décembre 2022 et par la L.F.
+  n° 23/056 du 10 décembre 2023, art. 29) » : « L’absence d’une déclaration ne
+  servant pas au calcul de l’impôt est sanctionnée par une amende de :
+  - 5.000.000,00 Francs congolais pour les grandes entreprises ;
+  - 2.500.000,00 Francs congolais pour les moyennes entreprises et les
+  associations sans but lucratif ; - 250.000,00 Francs congolais pour les
+  entreprises de petite taille. Il faut entendre notamment par déclaration ne
+  servant pas au calcul de l’impôt : - le relevé trimestriel des sommes
+  versées aux tiers » (compilation DGI au 19 juillet 2026,
+  `20-procedures-titre4-sanctions-fiscales-penales.md`, lignes 194 à 206).
+
+  Les 500 000 FC servis jusqu'ici sont la rédaction d'AVANT la loi de finances
+  n° 23/056, périmée depuis le 1er janvier 2024 : cinq fois trop bas pour une
+  association, deux fois trop haut pour une entreprise de petite taille.
+*/
+describe('Sanction du relevé trimestriel non déposé (art. 94)', () => {
+  it('sert la grille par TAILLE, et non les 500 000 FC de la rédaction abrogée', async () => {
+    const e = await service([]).echeancierFiscal('t1', { exerciceId: 'e1', dateReference: '2026-05-02' });
+    const releve = e.echeances.find((x) => x.cle === 'releveTrimestrielTiers')!;
+    expect(releve.sanction).toContain('5 000 000');
+    expect(releve.sanction).toContain('2 500 000');
+    expect(releve.sanction).toContain('250 000');
+    expect(releve.sanction).toContain('associations sans but lucratif');
+    expect(releve.sanction).toContain('23/056');
+    // La rédaction abrogée, mot pour mot, ne doit plus sortir.
+    expect(releve.sanction).not.toContain('500 000 francs congolais pour une personne morale');
+  });
+
+  it('sert la même grille au relevé des droits d’auteurs, servi aux deux référentiels', async () => {
+    for (const referentiel of ['SYCEBNL', 'SYSCOHADA']) {
+      const e = await service([], referentiel).echeancierFiscal('t1', {
+        exerciceId: 'e1',
+        dateReference: '2026-05-02',
+      });
+      const releve = e.echeances.find((x) => x.cle === 'releveTrimestrielDroitsAuteur')!;
+      expect(releve.sanction).toContain('2 500 000');
+      expect(releve.sanction).not.toContain('500 000 francs congolais pour une personne morale');
+    }
+  });
+
+  it('ne choisit AUCUN des trois montants · la taille de l’entité n’est pas dans le logiciel', async () => {
+    const e = await service([]).echeancierFiscal('t1', { exerciceId: 'e1', dateReference: '2026-05-02' });
+    const releve = e.echeances.find((x) => x.cle === 'releveTrimestrielTiers')!;
+    expect(releve.sanction).toContain('ne connaît pas la taille');
+  });
+});
+
+/*
+  LE PRÉLÈVEMENT SUR LES REVENUS DE CAPITAUX MOBILIERS VERSÉS À DES
+  NON-RÉSIDENTS · un chapitre entier créé par la loi de finances n° 25/060 du
+  29 décembre 2025 (art. 40), et que le module ignorait.
+
+  Art. 149 ter : « Le prélèvement est assis sur le montant brut des sommes
+  payées ou mises à la disposition de leurs bénéficiaires, au titre de revenus
+  de capitaux mobiliers versés par des sociétés établies en République
+  Démocratique du Congo à des personnes morales ou physiques situées à
+  l’étranger. » Art. 149 quater : « Le taux du prélèvement […] est fixé à 20 %
+  du montant brut des revenus versés. » (compilation DGI au 19 juillet 2026,
+  `06-loi23-053-titre4-7-communes-autres-abrogatoires.md`, lignes 218 à 228.)
+
+  Art. 22 quater de la loi de procédures fiscales : « Les sociétés établies en
+  République Démocratique du Congo qui paient des revenus des capitaux
+  mobiliers versés à des personnes non-résidentes sont tenues de souscrire une
+  déclaration, au plus tard le quinze du mois qui suit celui du paiement de
+  ces revenus aux bénéficiaires ou de leur mise à disposition. »
+  (`17-procedures-titre1-obligations-declaratives.md`, lignes 387 à 390.)
+*/
+describe('Prélèvement sur les capitaux mobiliers versés à des non-résidents', () => {
+  it('porte la déclaration mensuelle de l’article 22 quater, au 15 du mois suivant', async () => {
+    const e = await service([], 'SYSCOHADA').echeancierFiscal('t1', {
+      exerciceId: 'e1',
+      dateReference: '2026-05-02',
+    });
+    const o = e.echeances.find((x) => x.cle === 'prelevementCapitauxMobiliersNonResidents')!;
+    expect(o.genre).toBe('DECLARATION');
+    expect(o.periodicite).toBe('MENSUELLE');
+    expect(o.date.toISOString().slice(0, 10)).toBe('2026-05-15');
+    expect(o.baseLegale).toContain('22 quater');
+    expect(o.baseLegale).toContain('149 quater');
+    expect(o.baseLegale).toContain('20 %');
+  });
+
+  it('ne la sert PAS à une ASBL · l’article 149 ter ne vise que « des sociétés »', async () => {
+    const cles = obligationsDeclarativesApplicables('SYCEBNL' as never).map((o) => o.cle);
+    expect(cles).not.toContain('prelevementCapitauxMobiliersNonResidents');
+    expect(obligationsDeclarativesApplicables('SYSCOHADA' as never).map((o) => o.cle)).toContain(
+      'prelevementCapitauxMobiliersNonResidents',
+    );
+  });
+
+  it('n’invente NI nature NI compte · le 44784 ne dit pas la résidence du bénéficiaire', async () => {
+    // Le prélèvement se crédite sur le même 44784 que la retenue interne, et
+    // rien dans un compte ne dit où réside le bénéficiaire. Ouvrir une
+    // seconde nature reviendrait à couper un solde que rien ne permet de
+    // partager · le module AVERTIT, et laisse la ventilation au comptable.
+    expect(NATURES_RETENUES.filter((n) => n.comptes.includes('44784'))).toHaveLength(1);
+    const r = await service([], 'SYSCOHADA').registre('t1', { exerciceId: 'e1' });
+    expect(nature(r, 'capitauxMobiliers').reserve).toContain('RÉSIDENCE');
+  });
+
+  it('cite le chapitre non-résidents SANS inventer d’écart d’assiette avec l’interne', async () => {
+    // L'article 120 renvoie au « montant net du revenu imposable déterminé
+    // dans les conditions indiquées à l'article 81 », et l'article 81
+    // détermine ce revenu « par le montant BRUT des dividendes versés » (1.)
+    // et « par le montant BRUT des intérêts, arrérages et tous autres
+    // produits » (4.). L'article 149 ter dit lui aussi le montant brut : les
+    // deux prélèvements ont la MÊME assiette, et le module ne doit surtout
+    // pas en poser deux.
+    const r = await service([], 'SYSCOHADA').registre('t1', { exerciceId: 'e1' });
+    const n = nature(r, 'capitauxMobiliers');
+    expect(n.baseLegale).toContain('149 bis à 149 quinquies');
+    expect(n.baseLegale).toContain('même assiette brute');
+    expect(n.baseLegale).toContain('DEUX déclarations');
+  });
+});
+
+/*
+  PERSONNEL DOMESTIQUE ET SALARIÉS DE MICRO-ENTREPRISES · un forfait annuel
+  reversé PAR QUOTITÉ TRIMESTRIELLE, et libératoire.
+
+  Loi n° 23/053, art. 70, alinéa 2 : « Toutefois, les rémunérations versées au
+  personnel domestique et aux salariés relevant des Micro-entreprises sont
+  imposées suivant les taux forfaitaires fixés par voie d’Arrêté du Ministre
+  ayant les Finances dans ses attributions. » (compilation DGI au 19 juillet
+  2026, `05-loi23-053-titre3-irpp.md`, lignes 227 à 229.)
+
+  Arrêté n° 019/CAB/MIN/FINANCES/2025 du 19 février 2025, art. 2 : « L'impôt
+  est retenu à la source par l'employeur et reversé par quotité trimestrielle,
+  au plus tard le 15 du mois qui suit la fin de chaque trimestre »
+  (`fiscalite-rdc-socle/references/am-019-2025-taux-forfaitaires-personnel-domestique-micro-entreprises.md`,
+  lignes 34 à 37 · 24 USD par an pour un salarié domestique, 36 USD pour un
+  salarié de micro-entreprise, lignes 31 et 32 ; entrée en vigueur au
+  1er janvier 2026, ligne 10).
+
+  Art. 121, alinéa 2 : « Toutefois, la retenue opérée sur les rémunérations
+  versées au personnel domestique et aux salariés relevant de l'Impôt sur le
+  Revenu des Personnes Physiques de l'Administration des Micro-entreprises est
+  libératoire de l'Impôt sur le Revenu des Personnes Physiques, pour autant
+  que ces rémunérations constituent pour eux des revenus uniques »
+  (`05-loi23-053-titre3-irpp.md`, lignes 966 à 970).
+*/
+describe('Le forfait trimestriel du personnel domestique et des micro-entreprises', () => {
+  it('avertit, cite ses trois textes, et ne chiffre AUCUNE quotité', async () => {
+    for (const referentiel of ['SYCEBNL', 'SYSCOHADA']) {
+      const r = await service([], referentiel).registre('t1', { exerciceId: 'e1' });
+      const reserve = nature(r, 'irppSalaires').reserve as string;
+      expect(reserve).toContain('article 70, alinéa 2');
+      expect(reserve).toContain('019/CAB/MIN/FINANCES/2025');
+      expect(reserve).toContain('quotité trimestrielle');
+      expect(reserve).toContain('LIBÉRATOIRE');
+      expect(reserve).toContain('art. 121, alinéa 2');
+      // Les forfaits sont dits en DOLLARS, comme l'arrêté les écrit · les
+      // convertir supposerait un taux de change que ce module n'a pas.
+      expect(reserve).toContain('24 dollars');
+      expect(reserve).toContain('36 dollars');
+      expect(reserve).toContain('CE QUE LE LOGICIEL NE SAIT PAS');
+    }
+  });
+
+  it('date toujours la paie au 15 du mois suivant · il ne devine pas la catégorie du salarié', async () => {
+    // Rien dans les comptes 4471 et 4472 ne distingue ces rémunérations : le
+    // registre garde l'échéance de l'article 18 et le dit, plutôt que de
+    // trancher au hasard entre deux régimes.
+    const r = await service([ligne('44720000', '2026-03-31', { credit: 120_000 })]).registre('t1', {
+      exerciceId: 'e1',
+    });
+    expect(nature(r, 'irppSalaires').mois[0].echeance.toISOString().slice(0, 10)).toBe('2026-04-15');
+  });
+});
+
+/*
+  LA SEULE LIGNE DU REGISTRE DONT L'ARTICLE CITÉ NE COUVRAIT PAS L'OBJET.
+
+  « Contribution nationale » et « contribution nationale de solidarité » sont
+  les intitulés des comptes 4473 et 4474 du plan de comptes, et non des
+  impôts congolais : aucune occurrence dans le code général compilé au
+  19 juillet 2026, dans la loi n° 004/2003, ni dans la loi de finances
+  n° 25/060. Et l'article 18, qui était cité, ne vise que les retenues opérées
+  par « toute personne physique ou morale qui paye des revenus salariaux et
+  revenus assimilés » (`17-procedures-titre1-obligations-declaratives.md`,
+  lignes 281 à 284) · il ne les fonde pas.
+*/
+describe('Contribution nationale · la base légale qui ne se vérifiait pas', () => {
+  it('ne fonde plus la ligne sur l’article 18, qui ne la vise pas', async () => {
+    const r = await service([]).registre('t1', { exerciceId: 'e1' });
+    const n = nature(r, 'contributions');
+    expect(n.baseLegale).not.toBe('Article 18 de la loi de procédures fiscales (retenues à la source).');
+    expect(n.baseLegale).toContain("AUCUN PRÉLÈVEMENT DE DROIT CONGOLAIS N'EST IDENTIFIÉ");
+    expect(n.baseLegale).toContain('revenus salariaux et revenus assimilés');
+  });
+
+  it('annonce sa date comme un REPÈRE, et non comme une échéance tirée d’un texte', async () => {
+    const r = await service([]).registre('t1', { exerciceId: 'e1' });
+    const n = nature(r, 'contributions');
+    expect(n.echeance).toContain('repère');
+    expect(n.reserve).toContain('ne le devine pas');
+  });
+
+  it('les douze autres natures citent toujours un texte qui les vise', async () => {
+    // Le contrôle qui aurait attrapé la ligne fautive : chaque base légale
+    // nomme un texte identifiable. `contributions` est la seule à dire
+    // qu'elle n'en a pas, et elle le dit en toutes lettres.
+    for (const n of NATURES_RETENUES) {
+      if (n.cle === 'contributions') continue;
+      expect(n.baseLegale).toMatch(/[Aa]rticle|[Aa]rt\.|loi|Loi|arrêté|Arrêté|décret|Décret|Ordonnance|conventions/);
+    }
   });
 });
