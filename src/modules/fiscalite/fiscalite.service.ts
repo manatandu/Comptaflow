@@ -12,8 +12,10 @@ import { EcritureService } from '../comptabilite/ecriture.service';
 import { CATALOGUE_RETRAITEMENTS, CODE_LIBRE, RETRAITEMENT_PAR_CODE } from './catalogue-retraitements';
 import {
   DERNIERE_VERIFICATION_FISCALE,
+  EXERCICES_OBSERVES_REGIME,
   IMPOT_REVENU_PERSONNES_PHYSIQUES,
   IMPOT_SOCIETES,
+  QUOTITES_PETITE_ENTREPRISE,
 } from './parametres-fiscaux';
 import { CreerRetraitementDto, ModifierDossierFiscalDto, ModifierRetraitementDto } from './dto/fiscalite.dto';
 // Le chiffre d'affaires n'est plus écrit ici : il se DÉRIVE du poste XB du
@@ -51,6 +53,21 @@ type RegimeImposition =
   | 'IRPP_MICRO_ENTREPRISE'
   | 'IRPP_PETITE_ENTREPRISE'
   | 'IRPP_REGIME_REEL';
+
+/** Les trois régimes d'une personne physique, du plus bas au plus haut. */
+type RegimePhysique = 'IRPP_MICRO_ENTREPRISE' | 'IRPP_PETITE_ENTREPRISE' | 'IRPP_REGIME_REEL';
+
+/**
+ * L'ÉCHELLE DES RÉGIMES, dans l'ordre où la loi les gravit et les redescend ·
+ * art. 106 à 112 de la loi n° 23/053. Son ordre est ce qui donne un sens au
+ * « régime d'imposition immédiatement inférieur » de l'art. 113 : on ne
+ * descend que d'un cran à la fois.
+ */
+const ECHELLE_REGIMES_PHYSIQUES: RegimePhysique[] = [
+  'IRPP_MICRO_ENTREPRISE',
+  'IRPP_PETITE_ENTREPRISE',
+  'IRPP_REGIME_REEL',
+];
 
 @Injectable()
 export class FiscaliteService {
@@ -182,50 +199,128 @@ export class FiscaliteService {
     ]);
     const parCompte = new Map(mouvements.map((m) => [m.compteId, m]));
 
-    const propositions = comptes.flatMap((c) => {
+    // PREMIER PASSAGE · le mouvement net de chaque compte qualifié, sans
+    // encore aucun plafond. Le mouvement est pris dans son sens naturel, une
+    // charge étant débitrice ; un compte qui finit créditeur (avoir supérieur
+    // à la charge) ne porte plus rien à réintégrer.
+    const lignes = comptes.flatMap((c) => {
       const definition = CATALOGUE_RETRAITEMENTS.find((d) => d.code === c.codeRetraitementFiscal);
       // Un code devenu inconnu (catalogue remanié) est IGNORÉ, pas rendu ·
       // proposer un retraitement sans article ni libellé ne veut rien dire.
       if (!definition) return [];
       const m = parCompte.get(c.id);
-      const debit = Number(m?._sum.debit ?? 0);
-      const credit = Number(m?._sum.credit ?? 0);
-      // Le mouvement NET du compte, dans son sens naturel · une charge est
-      // débitrice. Un compte qui finit créditeur (avoir supérieur à la
-      // charge) ne porte plus rien à réintégrer.
-      const mouvement = arrondir(debit - credit);
+      const mouvement = arrondir(Number(m?._sum.debit ?? 0) - Number(m?._sum.credit ?? 0));
       if (mouvement <= 0) return [];
+      return [{ compte: c, definition, mouvement }];
+    });
 
-      const plafond = definition.plafond;
-      const montantAdmis = !plafond
-        ? null
-        : plafond.assiette === 'CHIFFRE_AFFAIRES'
-          ? arrondir(plafond.part * brut.chiffreAffaires)
-          : arrondir(plafond.part * mouvement);
+    // CUMUL PAR NATURE DE CHARGE · c'est lui, et non le mouvement d'un
+    // compte, que les plafonds assis sur le chiffre d'affaires viennent
+    // limiter (voir `repartirExcedentPlafonne` et le commentaire de
+    // `AssiettePlafond`).
+    const cumulParCode = new Map<string, number>();
+    for (const l of lignes) {
+      if (l.definition.plafond?.assiette !== 'CHIFFRE_AFFAIRES') continue;
+      cumulParCode.set(l.definition.code, arrondir((cumulParCode.get(l.definition.code) ?? 0) + l.mouvement));
+    }
+    const excedentsRepartis = this.repartirExcedentPlafonne(lignes, cumulParCode, brut.chiffreAffaires);
+
+    const propositions = lignes.flatMap((l) => {
+      const plafond = l.definition.plafond;
+      const cumulNature = cumulParCode.get(l.definition.code) ?? null;
       // Sans plafond, tout le mouvement se retraite. Avec plafond, SEUL
       // L'EXCÉDENT · réintégrer la charge entière ferait payer l'impôt sur
       // une somme que la loi admet en déduction.
-      const montant = montantAdmis === null ? mouvement : arrondir(Math.max(mouvement - montantAdmis, 0));
+      const montant = !plafond
+        ? l.mouvement
+        : plafond.assiette === 'CHIFFRE_AFFAIRES'
+          ? (excedentsRepartis.get(l.compte.id) ?? 0)
+          : arrondir(Math.max(l.mouvement - arrondir(plafond.part * l.mouvement), 0));
       if (montant <= 0) return [];
-
+      const partagee = plafond?.assiette === 'CHIFFRE_AFFAIRES' && cumulNature !== null && cumulNature > l.mouvement;
       return [
         {
-          compteId: c.id,
-          numero: c.numero,
-          intitule: c.intitule,
-          code: definition.code,
-          sens: definition.sens,
-          libelle: definition.libelle,
-          source: definition.source,
-          mouvement,
-          plafondEnonce: plafond?.enonce ?? null,
-          montantAdmis,
+          compteId: l.compte.id,
+          numero: l.compte.numero,
+          intitule: l.compte.intitule,
+          code: l.definition.code,
+          sens: l.definition.sens,
+          libelle: l.definition.libelle,
+          source: l.definition.source,
+          mouvement: l.mouvement,
+          plafondEnonce: !plafond
+            ? null
+            : partagee
+              ? `${plafond.enonce} · plafond commun à ${cumulNature!.toLocaleString('fr-FR')} de charges de cette nature, réparti au prorata`
+              : plafond.enonce,
+          // Ce que la ligne conserve en déduction. Pour un plafond global
+          // réparti, c'est sa quote-part du plafond, pas le plafond entier ·
+          // afficher le plafond entier sur chaque ligne serait exactement
+          // l'erreur que cette répartition corrige.
+          montantAdmis: !plafond ? null : arrondir(l.mouvement - montant),
+          /** Cumul de la nature, quand le plafond est global. Null sinon. */
+          mouvementNature: plafond?.assiette === 'CHIFFRE_AFFAIRES' ? cumulNature : null,
+          /** Plafond légal de la NATURE, avant répartition entre ses comptes. */
+          montantAdmisNature:
+            plafond?.assiette === 'CHIFFRE_AFFAIRES' ? arrondir(plafond.part * brut.chiffreAffaires) : null,
           montant,
         },
       ];
     });
 
     return { propositions, chiffreAffaires: brut.chiffreAffaires };
+  }
+
+  /**
+   * RÉPARTITION DE L'EXCÉDENT D'UN PLAFOND GLOBAL entre les comptes qui
+   * portent la même nature de charge.
+   *
+   * Les plafonds assis sur le chiffre d'affaires sont des plafonds de NATURE,
+   * pas de compte · l'art. 44 admet les versements « dans la limite de 0,5 %
+   * du chiffre d'affaires de l'exercice », l'art. 49, 1° les cadeaux « dans
+   * les limites de deux pour mille (2 ‰) du chiffre d'affaires hors taxes »,
+   * l'art. 43 les redevances à des entités liées « dans la limite de 3,5 % du
+   * chiffre d'affaires hors taxes ». Aucun de ces textes ne parle de compte.
+   *
+   * CE QUE L'APPLICATION COMPTE PAR COMPTE FAISAIT · un cabinet qui tient
+   * deux sous-comptes de dons obtenait deux fois 0,5 % du chiffre d'affaires,
+   * trois sous-comptes trois fois, et ainsi de suite. La charge déduite
+   * dépassait le plafond d'autant, sans qu'aucun total ne le montre : le
+   * calcul avait l'air normal, seul l'impôt était faux.
+   *
+   * L'excédent est calculé UNE FOIS sur le cumul de la nature, puis réparti
+   * entre les comptes au prorata de leur mouvement · le dernier compte de la
+   * nature absorbe le centime d'arrondi, pour que la somme des lignes soit
+   * exactement l'excédent dû.
+   *
+   * Les plafonds assis sur la CHARGE (frais de représentation, 60 % de leur
+   * montant, art. 49, 2° ; frais de communication, 50 %, art. 49, 7°) ne
+   * passent pas ici : une fraction est linéaire, la calculer compte par
+   * compte donne le même total qu'en une fois.
+   */
+  private repartirExcedentPlafonne(
+    lignes: { compte: { id: string }; definition: { code: string; plafond?: { part: number; assiette: string } }; mouvement: number }[],
+    cumulParCode: Map<string, number>,
+    chiffreAffaires: number,
+  ): Map<string, number> {
+    const excedents = new Map<string, number>();
+    for (const [code, cumul] of cumulParCode) {
+      const definition = RETRAITEMENT_PAR_CODE.get(code);
+      if (!definition?.plafond) continue;
+      const admisNature = arrondir(definition.plafond.part * chiffreAffaires);
+      const excedentNature = arrondir(Math.max(cumul - admisNature, 0));
+      const comptes = lignes.filter((l) => l.definition.code === code);
+      let reparti = 0;
+      comptes.forEach((l, index) => {
+        const dernier = index === comptes.length - 1;
+        // Le dernier prend le reste · sans quoi la somme des quotes-parts
+        // arrondies s'écarterait de l'excédent réellement dû.
+        const part = dernier || cumul <= 0 ? arrondir(excedentNature - reparti) : arrondir((excedentNature * l.mouvement) / cumul);
+        reparti = arrondir(reparti + part);
+        excedents.set(l.compte.id, Math.max(part, 0));
+      });
+    }
+    return excedents;
   }
 
   private async resultatFiscalBrut(tenantId: string, exerciceId: string) {
@@ -285,6 +380,154 @@ export class FiscaliteService {
   }
 
   /**
+   * TRANCHE commandée par le seul chiffre d'affaires d'un exercice · art. 107
+   * (micro-entreprise, au plus 25 000 000 FC), art. 109 (petite entreprise,
+   * de 25 000 001 à 300 000 000 FC) et art. 112 (régime réel, au-delà).
+   *
+   * Ce n'est PAS le régime applicable · c'est seulement la tranche où tombe
+   * l'exercice. Le régime, lui, se lit dans l'art. 113, qui regarde deux
+   * exercices et non un seul.
+   */
+  private trancheSelonChiffreAffaires(chiffreAffaires: number): RegimePhysique {
+    const p = IMPOT_REVENU_PERSONNES_PHYSIQUES;
+    if (chiffreAffaires <= p.seuilMicroEntreprise) return 'IRPP_MICRO_ENTREPRISE';
+    if (chiffreAffaires <= p.seuilPetiteEntreprise) return 'IRPP_PETITE_ENTREPRISE';
+    return 'IRPP_REGIME_REEL';
+  }
+
+  /**
+   * RÉGIME EFFECTIF D'UNE PERSONNE PHYSIQUE · art. 113 de la loi n° 23/053 :
+   *
+   *   « Les entreprises dont le chiffre d'affaires hors taxes devient
+   *   inférieur à la limite de leur régime d'imposition ne sont soumises au
+   *   régime d'imposition immédiatement inférieur que lorsque leur chiffre
+   *   d'affaires est resté en dessous de cette limite pendant deux exercices
+   *   consécutifs.
+   *   Toutefois, les entreprises dont le chiffre d'affaires hors taxes devient
+   *   supérieur à la limite de leur régime d'imposition sont soumises
+   *   immédiatement au régime supérieur conformément aux articles 109 et 112
+   *   ci-dessus. »
+   *
+   * L'ARTICLE N'EST PAS SYMÉTRIQUE, et c'est tout son intérêt · la montée est
+   * immédiate, la descente attend DEUX exercices consécutifs sous le seuil,
+   * et elle ne va que d'UN CRAN, vers le régime « immédiatement inférieur ».
+   * Une entreprise au régime réel dont le chiffre d'affaires s'effondre à
+   * 20 000 000 FC deux années de suite passe aux petites entreprises, pas aux
+   * micro-entreprises : il lui faudra deux exercices de plus sous le seuil de
+   * 25 000 000 FC pour descendre encore.
+   *
+   * Trancher sur le seul chiffre d'affaires de l'exercice en cours, comme le
+   * faisait ce service, déclassait dès la première mauvaise année · avec, à
+   * la clé, un impôt assis sur le chiffre d'affaires là où le régime réel
+   * s'appliquait encore, et un calendrier de paiement qui n'était pas le bon.
+   *
+   * `chiffresAffaires` est chronologique, du plus ancien au plus récent, le
+   * dernier étant l'exercice calculé. Le régime de départ est celui que
+   * commande le chiffre d'affaires du plus ancien exercice connu · au-delà de
+   * la fenêtre observée, le dépôt n'a pas d'historique, et l'observation le
+   * dit plutôt que de le taire.
+   */
+  private regimePhysiqueSelonHistorique(chiffresAffaires: number[]): {
+    regime: RegimePhysique;
+    trancheExercice: RegimePhysique;
+    maintenu: boolean;
+    exercicesSousLeSeuil: number;
+  } {
+    const trancheExercice = this.trancheSelonChiffreAffaires(chiffresAffaires[chiffresAffaires.length - 1]);
+    let regime = this.trancheSelonChiffreAffaires(chiffresAffaires[0]);
+    let exercicesSousLeSeuil = 0;
+    for (const ca of chiffresAffaires.slice(1)) {
+      const tranche = this.trancheSelonChiffreAffaires(ca);
+      const rang = ECHELLE_REGIMES_PHYSIQUES.indexOf(regime);
+      const rangTranche = ECHELLE_REGIMES_PHYSIQUES.indexOf(tranche);
+      if (rangTranche > rang) {
+        // Art. 113, al. 2 · la montée est immédiate, sans condition de durée.
+        regime = tranche;
+        exercicesSousLeSeuil = 0;
+      } else if (rangTranche < rang) {
+        exercicesSousLeSeuil += 1;
+        if (exercicesSousLeSeuil >= 2) {
+          // Art. 113, al. 1 · deux exercices consécutifs sous la limite DU
+          // RÉGIME EN COURS, et un seul cran de descente. Le compteur repart
+          // à zéro : la limite à surveiller est désormais celle du nouveau
+          // régime, et elle exige à son tour deux exercices.
+          regime = ECHELLE_REGIMES_PHYSIQUES[rang - 1];
+          exercicesSousLeSeuil = 0;
+        }
+      } else {
+        exercicesSousLeSeuil = 0;
+      }
+    }
+    return { regime, trancheExercice, maintenu: regime !== trancheExercice, exercicesSousLeSeuil };
+  }
+
+  /**
+   * Ce que le logiciel doit DIRE au comptable sur le régime retenu, et qu'il
+   * ne peut pas calculer.
+   *
+   * L'OPTION DE L'ART. 110 N'EST PAS OBSERVABLE. « Les Petites Entreprises
+   * peuvent opter pour l'imposition selon le régime réel d'imposition […] à
+   * condition d'informer par écrit le service gestionnaire compétent de
+   * l'Administration des Impôts de cette option avant le 1er février de
+   * l'année d'imposition. L'option est valable pour ladite année et pour les
+   * deux années suivantes. Pendant cette période, elle demeure irrévocable. »
+   * Cette lettre au service gestionnaire ne laisse aucune trace comptable :
+   * aucun compte ne la porte, aucune écriture ne la révèle. Le logiciel ne
+   * peut donc pas la deviner, et un régime deviné serait pire qu'un régime
+   * signalé · d'où un AVERTISSEMENT, jamais un calcul.
+   */
+  private observationsRegimePhysique(
+    regime: RegimePhysique,
+    suivi: { trancheExercice: RegimePhysique; maintenu: boolean; exercicesSousLeSeuil: number },
+    nombreExercicesAnterieurs: number,
+  ): string[] {
+    const observations: string[] = [];
+    const nom: Record<RegimePhysique, string> = {
+      IRPP_MICRO_ENTREPRISE: 'des micro-entreprises',
+      IRPP_PETITE_ENTREPRISE: 'des petites entreprises',
+      IRPP_REGIME_REEL: 'réel',
+    };
+    if (suivi.maintenu) {
+      observations.push(
+        `Art. 113 : le chiffre d'affaires de cet exercice relève de la tranche ${nom[suivi.trancheExercice]}, mais le régime ${nom[regime]} est MAINTENU. Le déclassement « n'intervient que lorsque leur chiffre d'affaires est resté en dessous de cette limite pendant deux exercices consécutifs », et d'un seul cran vers le régime immédiatement inférieur. ${suivi.exercicesSousLeSeuil === 1 ? "Premier exercice sous le seuil : un second, consécutif, ouvrira le déclassement." : ''}`.trim(),
+      );
+    }
+    if (nombreExercicesAnterieurs >= EXERCICES_OBSERVES_REGIME) {
+      observations.push(
+        `Art. 113 : le régime est reconstitué sur les ${EXERCICES_OBSERVES_REGIME} exercices antérieurs tenus dans ce dossier, le plus ancien d'entre eux étant supposé relever de la tranche que commande son chiffre d'affaires. Si l'entreprise est plus ancienne que cette fenêtre, contrôler cette hypothèse de départ avant de conclure.`,
+      );
+    }
+    if (nombreExercicesAnterieurs === 0) {
+      observations.push(
+        "Aucun exercice antérieur n'est tenu dans ce dossier : le régime est déterminé sur le seul chiffre d'affaires de l'exercice. Si l'entreprise était suivie ailleurs, vérifier l'art. 113 avant de conclure · un déclassement suppose deux exercices consécutifs sous le seuil, une montée de régime est en revanche immédiate.",
+      );
+    }
+    if (regime === 'IRPP_PETITE_ENTREPRISE') {
+      observations.push(
+        "Art. 110 et 111 : si l'entreprise a opté par écrit pour le régime réel auprès de son service gestionnaire avant le 1er février, cette option prime · elle vaut pour l'année et les deux suivantes et demeure irrévocable pendant cette période. OmegaX ne peut pas la connaître, aucune écriture ne la porte : dans ce cas, ni l'impôt ci-dessous ni le calendrier de paiement ne sont ceux du dossier. En cas de non-respect des obligations du régime réel, l'art. 111 ramène d'office au régime des petites entreprises.",
+      );
+    }
+    return observations;
+  }
+
+  /**
+   * Chiffres d'affaires des exercices précédents, du plus ancien au plus
+   * récent · matière première de l'art. 113. Lecture bornée à
+   * EXERCICES_OBSERVES_REGIME exercices : au-delà, le dossier n'a plus
+   * d'historique en base, et l'observation servie au comptable le dit.
+   */
+  private async chiffresAffairesAnterieurs(tenantId: string, exercice: { dateDebut: Date }) {
+    const precedents = await this.prisma.exercice.findMany({
+      where: { tenantId, dateFin: { lt: exercice.dateDebut } },
+      orderBy: { dateDebut: 'desc' },
+      take: EXERCICES_OBSERVES_REGIME,
+    });
+    const chronologiques = [...precedents].reverse();
+    const lectures = await Promise.all(chronologiques.map((e) => this.lireBalance(tenantId, e.id)));
+    return lectures.map((l) => l.chiffreAffaires);
+  }
+
+  /**
    * Régime d'imposition commandé par la forme juridique OHADA du dossier ·
    * loi 23/053 art. 3 à 6 pour les personnes morales, art. 107 à 113 pour
    * les personnes physiques. La forme se lit dans les Paramètres du dossier.
@@ -292,28 +535,30 @@ export class FiscaliteService {
   private regimeSelonForme(
     forme: FormeJuridiqueSyscohada | null,
     chiffreAffaires: number,
+    chiffresAffairesAnterieurs: number[],
   ): { regime: RegimeImposition; observations: string[] } {
     const observations: string[] = [];
     const physique =
       forme === FormeJuridiqueSyscohada.ENTREPRISE_INDIVIDUELLE || forme === FormeJuridiqueSyscohada.ENTREPRENANT;
     if (physique) {
       const p = IMPOT_REVENU_PERSONNES_PHYSIQUES;
-      if (chiffreAffaires <= p.seuilMicroEntreprise) {
+      const suivi = this.regimePhysiqueSelonHistorique([...chiffresAffairesAnterieurs, chiffreAffaires]);
+      const regime = suivi.regime;
+      if (regime === 'IRPP_MICRO_ENTREPRISE') {
         observations.push(
           `Régime des micro-entreprises (art. 107) : chiffre d'affaires hors taxes au plus égal à ${p.seuilMicroEntreprise.toLocaleString('fr-FR')} FC. Impôt forfaitaire annuel fixé par arrêté (art. 128), non redevable du minimum de perception (art. 122).`,
         );
-        return { regime: 'IRPP_MICRO_ENTREPRISE', observations };
-      }
-      if (chiffreAffaires <= p.seuilPetiteEntreprise) {
+      } else if (regime === 'IRPP_PETITE_ENTREPRISE') {
         observations.push(
-          `Régime des petites entreprises (art. 109) : chiffre d'affaires hors taxes de ${(p.seuilMicroEntreprise + 1).toLocaleString('fr-FR')} à ${p.seuilPetiteEntreprise.toLocaleString('fr-FR')} FC. Impôt assis sur le chiffre d'affaires, 1 % pour la vente et 2 % pour les prestations (art. 127). Option possible pour le régime réel avant le 1er février, irrévocable pour trois ans (art. 110).`,
+          `Régime des petites entreprises (art. 109) : chiffre d'affaires hors taxes de ${(p.seuilMicroEntreprise + 1).toLocaleString('fr-FR')} à ${p.seuilPetiteEntreprise.toLocaleString('fr-FR')} FC. Impôt assis sur le chiffre d'affaires, 1 % pour la vente et 2 % pour les prestations (art. 127).`,
         );
-        return { regime: 'IRPP_PETITE_ENTREPRISE', observations };
+      } else {
+        observations.push(
+          `Régime réel (art. 112) : chiffre d'affaires hors taxes supérieur à ${p.seuilPetiteEntreprise.toLocaleString('fr-FR')} FC. Le résultat fiscal déterminé ici est le bénéfice professionnel catégoriel ; le barème progressif de l'art. 118 s'applique au REVENU NET GLOBAL du contribuable, que ce dossier ne détient pas. Le minimum de perception de 1 % du chiffre d'affaires reste dû (art. 122).`,
+        );
       }
-      observations.push(
-        `Régime réel (art. 112) : chiffre d'affaires hors taxes supérieur à ${p.seuilPetiteEntreprise.toLocaleString('fr-FR')} FC. Le résultat fiscal déterminé ici est le bénéfice professionnel catégoriel ; le barème progressif de l'art. 118 s'applique au REVENU NET GLOBAL du contribuable, que ce dossier ne détient pas. Le minimum de perception de 1 % du chiffre d'affaires reste dû (art. 122).`,
-      );
-      return { regime: 'IRPP_REGIME_REEL', observations };
+      observations.push(...this.observationsRegimePhysique(regime, suivi, chiffresAffairesAnterieurs.length));
+      return { regime, observations };
     }
 
     switch (forme) {
@@ -354,6 +599,78 @@ export class FiscaliteService {
     return { regime: 'IMPOT_SOCIETES', observations };
   }
 
+  /**
+   * DÉCHÉANCES DU REPORT DÉFICITAIRE · art. 51, al. 2 et art. 52, 1° de la
+   * loi n° 23/053. CE SONT DES AVERTISSEMENTS, PAS UN CALCUL, et la raison
+   * tient en une phrase : aucune des deux déchéances ne se lit dans une
+   * comptabilité.
+   *
+   * Art. 51, al. 2 : « L'absence de déclaration après une mise en demeure de
+   * déclarer pour un exercice fiscal déterminé exclut toute possibilité de
+   * faire admettre postérieurement la déduction de la perte éprouvée pendant
+   * l'année se rapportant à cet exercice fiscal. » La mise en demeure est un
+   * acte de l'Administration des Impôts : elle arrive par courrier, elle
+   * n'entre dans aucun journal, et OmegaX n'en saura jamais rien. Un logiciel
+   * qui rayerait le déficit de lui-même se tromperait dans un sens (le
+   * contribuable a déclaré, et perd un report auquel il a droit) ; un
+   * logiciel qui se tait laisse imputer un déficit déjà déchu. La seule
+   * réponse honnête est de poser la question au comptable.
+   *
+   * Art. 52, 1° : « l'exercice du report déficitaire n'est pas applicable par
+   * le nouvel exploitant lors de l'achat d'une entreprise déficitaire. Il en
+   * est de même lorsque l'entreprise change complètement d'activité ou
+   * lorsqu'elle a subi des transformations telles, dans sa composition et son
+   * activité, que tout en ayant conservé sa personnalité juridique, elle
+   * n'est plus en réalité la même. » Un changement d'exploitant, un
+   * changement complet d'activité, une transformation de fond : rien de tout
+   * cela n'est un solde de compte. Même avertissement, même raison.
+   *
+   * L'art. 52, 2°, lui, est bien appliqué et non signalé · le caractère
+   * bénéficiaire ou déficitaire d'un exercice s'apprécie sur le résultat
+   * fiscal « abstraction faite des déficits reportables des exercices
+   * antérieurs », ce que fait `resultatFiscalBrut`.
+   */
+  private avertissementsReportDeficitaire(deficitAnterieur: number): string[] {
+    if (deficitAnterieur <= 0.005) return [];
+    return [
+      "Art. 51, al. 2 : le report est PERDU pour un exercice dont la déclaration n'a pas été souscrite après une mise en demeure de déclarer. Une mise en demeure est un acte de l'Administration, qu'aucune écriture ne porte · OmegaX ne peut pas la connaître. Vérifier, exercice par exercice, qu'aucun des déficits imputés ci-dessus ne tombe sous cette déchéance.",
+      "Art. 52, 1° : le report déficitaire n'est pas applicable au nouvel exploitant qui a acheté une entreprise déficitaire, ni lorsque l'entreprise a changé complètement d'activité ou subi des transformations telles qu'elle n'est plus en réalité la même. Ces faits ne se lisent pas davantage dans la comptabilité : si l'un d'eux s'est produit, ramener le déficit antérieur à zéro par la saisie manuelle.",
+    ];
+  }
+
+  /**
+   * LE CALENDRIER DE PAIEMENT, DIT AVEC SON ARTICLE · art. 57 de la loi de
+   * procédures fiscales, dont les alinéas 2 et 3 ne visent pas les mêmes
+   * contribuables.
+   *
+   * Servir les trois acomptes de l'art. 57 bis à une petite entreprise, comme
+   * le faisait ce service, donnait un total juste et trois dates fausses :
+   * l'impôt était annoncé aux 25 juillet, 25 septembre et 25 novembre alors
+   * que la loi veut 60 % au plus tard le 31 janvier et 40 % ensuite. La
+   * première échéance de l'année, la plus précoce de tout le calendrier de ce
+   * contribuable, était donc la première à être manquée.
+   */
+  private observationsCalendrierPaiement(regime: RegimeImposition, impotDu: number | null): string[] {
+    if (regime === 'IRPP_PETITE_ENTREPRISE') {
+      const [premiere, seconde] = QUOTITES_PETITE_ENTREPRISE;
+      return [
+        `Art. 57, al. 3 et 57 quater : l'impôt d'une petite entreprise est payé en DEUX QUOTITÉS, ${premiere.quotite * 100} % et ${seconde.quotite * 100} % de l'impôt dû, et non par acomptes provisionnels. La première est payée à la souscription de la déclaration auto liquidative, au plus tard le ${premiere.echeance} de l'année qui suit celle de la réalisation des revenus. Les acomptes des 25 juillet, 25 septembre et 25 novembre (art. 57 bis) ne visent que l'alinéa 2 de l'art. 57, c'est-à-dire l'impôt sur les sociétés et l'IRPP au régime réel : ils ne sont pas dus ici.`,
+        ...(seconde.reserve ? [seconde.reserve] : []),
+      ];
+    }
+    if (regime === 'IRPP_MICRO_ENTREPRISE') {
+      return [
+        "Art. 57 : une micro-entreprise acquitte le forfait annuel de l'art. 128 et ne verse ni acompte provisionnel (art. 57, al. 2) ni quotité (art. 57, al. 3), ces deux modes visant d'autres régimes.",
+      ];
+    }
+    if (regime === 'IRPP_REGIME_REEL' && impotDu === null) {
+      return [
+        "Art. 57, al. 2 et 57 bis : l'IRPP au régime réel se paie bien par acomptes provisionnels, mais leur base est l'impôt DÉCLARÉ de l'exercice précédent, augmenté des suppléments établis par l'Administration. Cet impôt dépend du barème progressif appliqué au revenu net global du contribuable, que ce dossier ne détient pas · les trois montants ne sont donc pas calculés ici, seule leur date est certaine (25 juillet, 25 septembre, 25 novembre).",
+      ];
+    }
+    return [];
+  }
+
   /** L'état complet · lecture, retraitements, report, impôt, solde. */
   async resultatFiscal(tenantId: string, exerciceId: string) {
     const tenant = await this.tenantSyscohada(tenantId);
@@ -374,7 +691,21 @@ export class FiscaliteService {
     const deficitImpute = arrondir(Math.min(deficitAnterieur, Math.max(brut.resultatFiscalBrut, 0)));
     const resultatFiscal = arrondir(brut.resultatFiscalBrut - deficitImpute);
 
-    const { regime, observations } = this.regimeSelonForme(tenant.formeJuridiqueSyscohada, brut.chiffreAffaires);
+    // ART. 113 · le régime d'une personne physique ne se lit pas dans le seul
+    // chiffre d'affaires de l'exercice. La lecture des exercices antérieurs
+    // coûte une balance chacun : elle n'est faite que pour les formes qui en
+    // relèvent, une personne morale étant à l'impôt sur les sociétés quel que
+    // soit son chiffre d'affaires.
+    const physique =
+      tenant.formeJuridiqueSyscohada === FormeJuridiqueSyscohada.ENTREPRISE_INDIVIDUELLE ||
+      tenant.formeJuridiqueSyscohada === FormeJuridiqueSyscohada.ENTREPRENANT;
+    const chiffresAffairesAnterieurs = physique ? await this.chiffresAffairesAnterieurs(tenantId, exercice) : [];
+    const { regime, observations } = this.regimeSelonForme(
+      tenant.formeJuridiqueSyscohada,
+      brut.chiffreAffaires,
+      chiffresAffairesAnterieurs,
+    );
+    observations.push(...this.avertissementsReportDeficitaire(deficitAnterieur));
 
     // Plafonds exprimés en francs pour cet exercice · l'écran s'en sert pour
     // calculer l'excédent à réintégrer à partir de la charge engagée.
@@ -387,6 +718,15 @@ export class FiscaliteService {
     }));
 
     const impot = this.calculerImpot(regime, resultatFiscal, brut.chiffreAffaires, dossier?.natureActivite ?? null);
+
+    // ALINÉA 2 CONTRE ALINÉA 3 DE L'ART. 57 LPF · l'alinéa 2 range dans les
+    // acomptes provisionnels « l'Impôt sur les Sociétés et l'Impôt sur le
+    // Revenu des Personnes Physiques […] suivant le régime réel d'imposition ».
+    // L'alinéa 3 donne aux petites entreprises un mode de paiement à part, en
+    // deux quotités, et les micro-entreprises acquittent un forfait annuel
+    // (art. 128) : ni les unes ni les autres ne versent d'acompte.
+    const acomptesDus = regime === 'IMPOT_SOCIETES' || regime === 'IRPP_REGIME_REEL';
+    observations.push(...this.observationsCalendrierPaiement(regime, impot.impotDu));
 
     return {
       exerciceId,
@@ -431,13 +771,33 @@ export class FiscaliteService {
       // l'insuffisance de versement se paie même quand le redressement est
       // contesté.
       supplementsAdministration,
-      baseAcomptes: impot.impotDu === null ? null : arrondir(impot.impotDu + supplementsAdministration),
+      baseAcomptes: acomptesDus && impot.impotDu !== null ? arrondir(impot.impotDu + supplementsAdministration) : null,
+      // LES ACOMPTES NE SONT PAS SERVIS À TOUT LE MONDE · art. 57 bis LPF,
+      // « les acomptes provisionnels visés à l'article 57, ALINÉA 2 ». Cet
+      // alinéa 2 vise l'impôt sur les sociétés et l'IRPP au RÉGIME RÉEL, et
+      // eux seuls. Une petite entreprise relève de l'alinéa 3 : elle paie en
+      // deux quotités, ci-dessous, et le tableau des acomptes reste vide.
       acomptesProchainExercice:
-        impot.impotDu === null
+        !acomptesDus || impot.impotDu === null
           ? []
           : IMPOT_SOCIETES.acomptes.map((a) => ({
               ...a,
               montant: arrondir(a.quotite * (impot.impotDu! + supplementsAdministration)),
+            })),
+      // ART. 57, AL. 3 ET 57 QUATER · les deux quotités de 60 % et 40 % de
+      // l'impôt DE CET EXERCICE, la première au plus tard le 31 janvier de
+      // l'année qui suit celle de la réalisation des revenus. Ce n'est pas un
+      // acompte sur l'exercice suivant : c'est le paiement de cet impôt-ci.
+      quotitesPetiteEntreprise:
+        regime !== 'IRPP_PETITE_ENTREPRISE' || impot.impotDu === null
+          ? []
+          : QUOTITES_PETITE_ENTREPRISE.map((q) => ({
+              rang: q.rang,
+              quotite: q.quotite,
+              echeance: q.echeance,
+              source: q.source,
+              reserve: q.reserve,
+              montant: arrondir(q.quotite * impot.impotDu!),
             })),
     };
   }

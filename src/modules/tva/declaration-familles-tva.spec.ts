@@ -25,6 +25,18 @@ import { EcritureService } from '../comptabilite/ecriture.service';
  * la FAMILLE du compte · deux racines à trois chiffres, justes quel que soit
  * le degré de subdivision du plan, et communes aux deux référentiels puisque
  * le SYCEBNL porte les mêmes 443 et 445, simplement non subdivisés.
+ *
+ * CE SPEC A CHANGÉ DE FORME, PAS D'OBJET. La déclaration ne peut plus agréger
+ * en base : depuis que l'exigibilité suit la NATURE de l'opération (art. 25),
+ * deux lignes de la même famille et du même taux peuvent tomber dans deux
+ * périodes différentes. Elle lit donc ligne à ligne, et ce qu'on surveille ici
+ * reste le même · aucune sélection par l'identifiant de compte porté par le
+ * taux, une sélection par les racines 443 et 445.
+ *
+ * Le régime DÉBITS est retenu ici à dessein : il date TOUTES les natures à
+ * l'écriture (biens au fait générateur, services au débit du compte client
+ * par l'autorisation de l'art. 26), ce qui isole la question des familles de
+ * celle des dates, traitée par `tva-exigibilite.spec.ts`.
  */
 
 interface LigneTva {
@@ -33,56 +45,60 @@ interface LigneTva {
   credit: number;
 }
 
+const TAUX = {
+  id: 'tx16',
+  code: 'TVA16',
+  intitule: 'Taux normal 16 %',
+  taux: 16,
+  // Le taux ne pointe QUE sur 4431 et 4452 · c'est le défaut du semis, et
+  // c'est précisément ce sur quoi la déclaration ne doit plus s'appuyer.
+  compteCollecteId: 'c4431',
+  compteDeductibleId: 'c4452',
+  estActif: true,
+};
+
 function service(lignes: LigneTva[]) {
-  const agregations: { where: Record<string, unknown>; sum: { credit?: number; debit?: number } }[] = [];
+  const requetesLignes: Record<string, unknown>[] = [];
   const prisma = {
     tenant: {
-      findUnique: jest.fn().mockResolvedValue({ regimeExigibiliteTva: 'DEBITS', dateAutorisationDebitsTva: null }),
+      findUnique: jest
+        .fn()
+        .mockResolvedValue({ regimeExigibiliteTva: 'DEBITS', referentiel: 'SYSCOHADA', dateAutorisationDebitsTva: null }),
     },
-    tauxTva: {
-      findMany: jest.fn().mockResolvedValue([
-        {
-          id: 'tx16',
-          code: 'TVA16',
-          intitule: 'Taux normal 16 %',
-          taux: 16,
-          // Le taux ne pointe QUE sur 4431 et 4452 · c'est le défaut du semis,
-          // et c'est précisément ce sur quoi la déclaration ne doit plus
-          // s'appuyer.
-          compteCollecteId: 'c4431',
-          compteDeductibleId: 'c4452',
-          estActif: true,
-        },
-      ]),
-    },
+    tauxTva: { findMany: jest.fn().mockResolvedValue([TAUX]) },
     ligneEcriture: {
-      aggregate: jest.fn().mockImplementation(({ where, _sum }: { where: Record<string, unknown>; _sum: Record<string, boolean> }) => {
-        // Le calcul du prorata agrège lui aussi, sur d'autres critères · seules
-        // les agrégations de la DÉCLARATION portent une racine de compte, et ce
-        // sont les seules que ce spec observe.
-        const compte = where.compte as { numero?: { startsWith?: string } } | undefined;
-        const racine = compte?.numero?.startsWith;
-        if (racine === undefined) return Promise.resolve({ _sum: { credit: 0, debit: 0 } });
-        const retenues = lignes.filter((l) => l.numero.startsWith(racine));
-        agregations.push({ where, sum: {} });
-        return Promise.resolve({
-          _sum: {
-            credit: _sum.credit ? retenues.reduce((s, l) => s + l.credit, 0) : undefined,
-            debit: _sum.debit ? retenues.reduce((s, l) => s + l.debit, 0) : undefined,
-          },
-        });
+      findMany: jest.fn().mockImplementation(({ where }: { where: Record<string, unknown> }) => {
+        // Le prorata interroge lui aussi `findMany`, sur d'autres critères ·
+        // seule la requête de la DÉCLARATION porte les deux racines, et c'est
+        // la seule que ce spec observe et sert.
+        const compte = where.compte as { OR?: { numero: { startsWith: string } }[] } | undefined;
+        if (!compte?.OR) return Promise.resolve([]);
+        requetesLignes.push(where);
+        const racines = compte.OR.map((c) => c.numero.startsWith);
+        return Promise.resolve(
+          lignes
+            .filter((l) => racines.some((r) => l.numero.startsWith(r)))
+            .map((l) => ({
+              id: `l-${l.numero}`,
+              tauxTvaId: TAUX.id,
+              compte: { numero: l.numero },
+              debit: l.debit,
+              credit: l.credit,
+              ecriture: { date: new Date('2026-03-15'), lignes: [] },
+            })),
+        );
       }),
-      findMany: jest.fn().mockResolvedValue([]),
+      aggregate: jest.fn().mockResolvedValue({ _sum: { credit: 0, debit: 0 } }),
     },
     liquidationTva: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({}) },
   } as unknown as PrismaService;
-  return { svc: new TauxTvaService(prisma, {} as EcritureService), agregations };
+  return { svc: new TauxTvaService(prisma, {} as EcritureService), requetesLignes };
 }
 
 const DEBUT = new Date('2026-03-01');
 const FIN = new Date('2026-03-31');
 
-describe('Déclaration de TVA · agrégation par famille de compte', () => {
+describe('Déclaration de TVA · sélection par famille de compte', () => {
   it('compte la TVA sur PRESTATIONS (4432), que le taux ne désigne pas', async () => {
     const { svc } = service([
       { numero: '44310000', debit: 0, credit: 100_000 },
@@ -116,14 +132,17 @@ describe('Déclaration de TVA · agrégation par famille de compte', () => {
   });
 
   it('n’interroge PLUS la base par l’identifiant du compte porté par le taux', async () => {
-    // Le défaut tenait dans un `compteId: t.compteCollecteId`. Aucune
-    // agrégation ne doit plus filtrer sur un identifiant de compte.
-    const { svc, agregations } = service([{ numero: '44310000', debit: 0, credit: 1000 }]);
+    // Le défaut tenait dans un `compteId: t.compteCollecteId`. Aucune requête
+    // de la déclaration ne doit filtrer sur un identifiant de compte : elle
+    // sélectionne sur les racines 443 et 445, et sur le TAUX de la ligne.
+    const { svc, requetesLignes } = service([{ numero: '44310000', debit: 0, credit: 1000 }]);
     await svc.declaration('t1', DEBUT, FIN);
-    expect(agregations.length).toBeGreaterThan(0);
-    for (const a of agregations) {
-      expect(a.where.compteId).toBeUndefined();
-      expect(a.where.compte).toBeDefined();
+    expect(requetesLignes.length).toBeGreaterThan(0);
+    for (const where of requetesLignes) {
+      expect(where.compteId).toBeUndefined();
+      const compte = where.compte as { OR: { numero: { startsWith: string } }[] };
+      expect(compte.OR.map((c) => c.numero.startsWith).sort()).toEqual(['443', '445']);
+      expect(where.tauxTvaId).toEqual({ in: [TAUX.id] });
     }
   });
 

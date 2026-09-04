@@ -8,6 +8,8 @@ import {
   NATURES_RETENUES,
   NatureRetenue,
   ObligationDeclarative,
+  SignalementDeductibilite,
+  avertissementDeductibiliteArticle20,
   avertissementRegimeImpot,
   obligationsDeclarativesApplicables,
   reservePourReferentiel,
@@ -189,6 +191,39 @@ export class RetenuesService {
 
       const retenu = mois.reduce((s, m) => s + m.retenu, 0);
       const reverse = mois.reduce((s, m) => s + m.reverse, 0);
+      /*
+        LA RETENUE ÉCHUE QUI RESTE NON REVERSÉE · l'assiette du signalement de
+        l'article 20, et elle ne se lit NI dans le solde total, NI dans les
+        soldes mensuels.
+
+        Pas le solde total : il englobe le mois en cours, qui n'est pas encore
+        exigible et dont personne n'a à rendre compte.
+
+        Pas les soldes mensuels non plus, et c'est le piège · le débit de
+        reversement est rangé dans le mois de SA PROPRE écriture, jamais
+        imputé sur le mois de la retenue qu'il éteint. Or le reversement d'une
+        retenue de mars intervient nécessairement en avril : le mois de mars
+        reste crédité et ressort `enRetard`, chez une entité qui a pourtant
+        payé le 14 avril, la veille de l'échéance. Bâtir là-dessus un
+        avertissement de non-déductibilité reviendrait à accuser le
+        contribuable à jour · exactement ce qu'il ne faut pas faire avec une
+        règle de cette portée.
+
+        D'où une assiette CUMULÉE, propre à ce signalement : les retenues des
+        mois dont l'échéance est passée, diminuées de tout ce que la nature a
+        déjà reversé, imputation faite sur les plus anciennes. Elle ne peut
+        que sous-estimer, jamais surestimer · un reversement anticipé du mois
+        en cours vient en déduction de l'échu. C'est le bon sens de l'erreur
+        pour un avertissement de cette gravité.
+
+        LIMITE ASSUMÉE · la requête ne lit que les écritures de l'EXERCICE. Le
+        reversement de la retenue de décembre, passé en janvier suivant, n'y
+        est pas : ce dernier mois peut donc ressortir non reversé alors qu'il
+        a été payé. La réserve est portée dans le message.
+      */
+      const retenuEchu = mois.filter((m) => m.echeance < reference).reduce((s, m) => s + m.retenu, 0);
+      const retenuEchuNonReverse = Math.max(0, retenuEchu - reverse);
+      const echeancesEchues = mois.filter((m) => m.echeance < reference).map((m) => m.echeance);
       return {
         cle: nature.cle,
         libelle: nature.libelle,
@@ -204,9 +239,49 @@ export class RetenuesService {
         reverse: Math.round(reverse * 100) / 100,
         solde: Math.round((retenu - reverse) * 100) / 100,
         moisEnRetard: mois.filter((m) => m.enRetard).length,
+        retenuEchuNonReverse: Math.round(retenuEchuNonReverse * 100) / 100,
+        derniereEcheanceEchue: echeancesEchues.length > 0 ? echeancesEchues[echeancesEchues.length - 1] : null,
+        // La charge dont la déduction est suspendue à la preuve du
+        // reversement · null quand le lien n'est pas établi (TVA, cotisations
+        // sociales, retenue sur plus-values). Voir le champ dans
+        // `correspondance-retenues.ts`.
+        chargeSousConditionArticle20: nature.chargeSousConditionArticle20 ?? null,
         prochaineEcheance: this.prochaineEcheance(nature, reference),
       };
     });
+
+    /*
+      LA CONSÉQUENCE DU RETARD SUR L'IMPÔT DE L'ENTITÉ · le registre voyait le
+      solde impayé, le résultat fiscal voyait la charge déduite, et rien ne
+      rapprochait les deux.
+
+      L'article 20, dernier alinéa de la loi n° 23/053 subordonne la déduction
+      d'une charge à la preuve de la déclaration ET du paiement de la retenue
+      qui l'accompagne. Le signalement est donc levé sur les seules natures
+      dont l'assiette est une charge de l'entité, et pour les seuls mois dont
+      l'échéance est PASSÉE · avant l'échéance, il n'y a pas de preuve à
+      rapporter, et crier au redressement serait faux.
+
+      Le signalement AVERTIT, il ne liquide rien : le montant porté est celui
+      de la retenue impayée, jamais celui d'une réintégration · l'assiette de
+      la charge n'est pas dans ce module, et le taux qui permettrait de la
+      reconstituer n'y est pas non plus, par principe.
+    */
+    const signalementsDeductibilite: SignalementDeductibilite[] = natures
+      .filter(
+        (n) =>
+          n.chargeSousConditionArticle20 !== null &&
+          n.retenuEchuNonReverse > 0.005 &&
+          n.derniereEcheanceEchue !== null,
+      )
+      .map((n) => ({
+        cle: n.cle,
+        libelle: n.libelle,
+        charge: n.chargeSousConditionArticle20 as string,
+        montantEchuNonReverse: n.retenuEchuNonReverse,
+        derniereEcheanceEchue: n.derniereEcheanceEchue as Date,
+      }));
+    const avertissementDeductibilite = avertissementDeductibiliteArticle20(referentiel, signalementsDeductibilite);
 
     // Comptes 43/44 qu'aucune nature ne réclame · jamais absorbés en silence,
     // même discipline que les états financiers.
@@ -230,7 +305,16 @@ export class RetenuesService {
       totalDu: Math.round(natures.reduce((s, n) => s + n.solde, 0) * 100) / 100,
       comptesNonRattaches,
       referentiel,
-      avertissements: [AVERTISSEMENT_REGISTRE, avertissementRegimeImpot(referentiel), AVERTISSEMENT_REDEVABLE],
+      signalementsDeductibilite,
+      avertissements: [
+        AVERTISSEMENT_REGISTRE,
+        avertissementRegimeImpot(referentiel),
+        AVERTISSEMENT_REDEVABLE,
+        // Conditionnel, et en dernier · un avertissement qui ne vise personne
+        // affaibli ceux qui visent tout le monde. Il n'apparaît que lorsque
+        // le registre a réellement une retenue échue et non reversée.
+        ...(avertissementDeductibilite ? [avertissementDeductibilite] : []),
+      ],
     };
   }
 

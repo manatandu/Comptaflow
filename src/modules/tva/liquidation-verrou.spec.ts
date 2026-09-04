@@ -33,6 +33,10 @@ function ligneTva(date: string, tva: number) {
   return {
     id: `l-${date}`,
     compteId: 'c443',
+    // `tauxTvaId` est garanti par la requête réelle, qui filtre dessus · la
+    // déclaration répartit les lignes par taux en mémoire depuis qu'elle date
+    // chacune selon la nature de son opération (art. 25).
+    tauxTvaId: TAUX.id,
     compte: { numero: '44310000' },
     debit: 0,
     credit: tva,
@@ -46,6 +50,11 @@ function harnais(options: { liquidationExistante?: { dateDebut: string; dateFin:
         id: 'liq1',
         dateDebut: new Date(options.liquidationExistante.dateDebut),
         dateFin: new Date(options.liquidationExistante.dateFin),
+        // Net APRÈS imputation, positif · une période déjà payée ne laisse
+        // aucun crédit à reporter. Le report est éprouvé par
+        // `liquidation-credit-tva.spec.ts`.
+        net: 1_000,
+        ecritureId: 'ecr1',
         ecriture: { id: 'ecr1', libelle: 'Liquidation TVA · période existante', date: new Date() },
       }
     : null;
@@ -54,6 +63,14 @@ function harnais(options: { liquidationExistante?: { dateDebut: string; dateFin:
   // le test de chevauchement lui-même qu'on veut exercer, pas un booléen que
   // le harnais aurait décidé à sa place.
   const findFirst = jest.fn().mockImplementation(({ where }) => {
+    // DEUX interrogations distinctes tombent sur ce même faux, et les
+    // confondre ferait passer un verrou pour un crédit reportable :
+    // `liquidationChevauchante` demande un intervalle qui recouvre la période,
+    // `creditReportable` la dernière liquidation ANTÉRIEURE (art. 63).
+    if (where.dateFin?.lt) {
+      if (!existante) return Promise.resolve(null);
+      return Promise.resolve(existante.dateFin < (where.dateFin.lt as Date) ? existante : null);
+    }
     if (!existante) return Promise.resolve(null);
     const debutDemande = where.dateFin.gte as Date;
     const finDemande = where.dateDebut.lte as Date;
@@ -66,7 +83,12 @@ function harnais(options: { liquidationExistante?: { dateDebut: string; dateFin:
     tenant: { findUnique: jest.fn().mockResolvedValue({ id: 't1', regimeExigibiliteTva: 'LIVRAISONS' }) },
     tauxTva: { findMany: jest.fn().mockResolvedValue([TAUX]) },
     ligneEcriture: {
-      findMany: jest.fn().mockResolvedValue([ligneTva('2026-01-15', 160_000)]),
+      // Une ligne dans chacune des deux périodes exercées · la déclaration
+      // date désormais chaque ligne et ne rend plus le même total quelle que
+      // soit la fenêtre demandée.
+      findMany: jest
+        .fn()
+        .mockResolvedValue([ligneTva('2026-01-15', 160_000), ligneTva('2026-02-10', 96_000)]),
       aggregate: jest.fn().mockResolvedValue({ _sum: { credit: 160_000, debit: 0 } }),
       groupBy: jest
         .fn()

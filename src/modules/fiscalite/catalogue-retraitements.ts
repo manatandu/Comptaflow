@@ -28,9 +28,36 @@ import { SensRetraitementFiscal } from '@prisma/client';
  * dollars) vivent dans le service, avec leur date de vérification.
  */
 
-/** Assiette d'un plafond légal · ce sur quoi le pourcentage se calcule. */
+/**
+ * Assiette d'un plafond légal · ce sur quoi le pourcentage se calcule, ET,
+ * par voie de conséquence, la PORTÉE du plafond.
+ *
+ * LA DISTINCTION COMMANDE LE CALCUL, elle n'est pas décorative :
+ *
+ *  · `CHIFFRE_AFFAIRES` · le plafond est un montant unique pour toute la
+ *    NATURE de charge, quel que soit le nombre de comptes qui la portent.
+ *    L'art. 44 admet les versements « dans la limite de 0,5 % du chiffre
+ *    d'affaires de l'exercice », l'art. 49, 1° les cadeaux « dans les limites
+ *    de deux pour mille (2 ‰) du chiffre d'affaires hors taxes » et l'art. 43
+ *    les redevances « dans la limite de 3,5 % du chiffre d'affaires hors
+ *    taxes » · aucun de ces trois textes ne rattache la limite à un compte.
+ *    L'appliquer compte par compte laisserait passer autant de fois le
+ *    plafond qu'il y a de comptes, et le dépassement ne se verrait nulle
+ *    part : le calcul aurait l'air normal, seul l'impôt serait faux.
+ *
+ *  · `CHARGE` · le plafond est une FRACTION de la charge elle-même, et rien
+ *    d'autre. L'art. 49, 2° admet les frais de représentation « dans la
+ *    limite de 60 % de leur montant » et l'art. 49, 7° les frais de
+ *    communication « dans la limite de 50 % de leur montant ». Une fraction
+ *    est linéaire : 60 % de chacun des comptes font 60 % de leur somme, et
+ *    l'application compte par compte donne exactement le même total. Rien à
+ *    globaliser ici, et globaliser n'y changerait rien.
+ */
 export type AssiettePlafond =
-  /** Chiffre d'affaires de l'exercice (postes TA à TD du compte de résultat). */
+  /**
+   * Chiffre d'affaires de l'exercice (postes TA à TD du compte de résultat) ·
+   * plafond GLOBAL par nature de charge.
+   */
   | 'CHIFFRE_AFFAIRES'
   /** Montant de la charge elle-même · une fraction seulement est admise. */
   | 'CHARGE';
@@ -46,6 +73,11 @@ export interface DefinitionRetraitement {
    * Plafond légal, quand la loi en pose un. `part` est la FRACTION ADMISE en
    * déduction : au-delà, l'excédent se réintègre. Absent = pas de plafond
    * chiffré, la déductibilité s'apprécie au cas par cas.
+   *
+   * La PORTÉE du plafond se lit dans `assiette`, et elle change le calcul :
+   * un plafond assis sur le chiffre d'affaires est GLOBAL pour toute la
+   * nature de charge, un plafond assis sur la charge est une fraction de
+   * chaque charge. Voir le commentaire de `AssiettePlafond`.
    */
   plafond?: { part: number; assiette: AssiettePlafond; enonce: string };
 }
@@ -118,7 +150,7 @@ export const CATALOGUE_RETRAITEMENTS: DefinitionRetraitement[] = [
     libelle: 'Dons, libéralités et subventions au-delà du plafond',
     aide: "Seuls sont déductibles les versements au Fonds Social de la RDC, à des organismes de recherche, à des œuvres ou organismes d'utilité publique à caractère philanthropique et social, et à des associations sportives situées en RDC. Double condition de forme : un relevé joint à la déclaration, et un résultat net imposable POSITIF avant déduction. L'excédent se réintègre.",
     source: 'Loi n° 23/053, art. 44',
-    plafond: { part: 0.005, assiette: 'CHIFFRE_AFFAIRES', enonce: "0,5 % du chiffre d'affaires de l'exercice" },
+    plafond: { part: 0.005, assiette: 'CHIFFRE_AFFAIRES', enonce: "0,5 % du chiffre d'affaires de l'exercice, plafond global pour l'ensemble des versements de l'article 44" },
   },
   {
     code: 'CADEAUX_EXCEDENT',
@@ -126,7 +158,7 @@ export const CATALOGUE_RETRAITEMENTS: DefinitionRetraitement[] = [
     libelle: 'Cadeaux et objets publicitaires au-delà du plafond',
     aide: "Le plafond est de deux pour mille, non de deux pour cent · l'erreur de virgule est fréquente et se paie au contrôle.",
     source: 'Loi n° 23/053, art. 49, 1°',
-    plafond: { part: 0.002, assiette: 'CHIFFRE_AFFAIRES', enonce: "2 pour mille du chiffre d'affaires hors taxes" },
+    plafond: { part: 0.002, assiette: 'CHIFFRE_AFFAIRES', enonce: "2 pour mille du chiffre d'affaires hors taxes, plafond global pour l'ensemble des cadeaux et objets publicitaires" },
   },
   {
     code: 'REPRESENTATION_EXCEDENT',
@@ -150,7 +182,7 @@ export const CATALOGUE_RETRAITEMENTS: DefinitionRetraitement[] = [
     libelle: 'Redevances versées à des entités liées au-delà du plafond',
     aide: "Concessions de licences, brevets, marques et procédés versées à une entité liée. Le débiteur doit en outre prouver que les dépenses correspondent à des opérations réelles et ne sont pas exagérées.",
     source: 'Loi n° 23/053, art. 43',
-    plafond: { part: 0.035, assiette: 'CHIFFRE_AFFAIRES', enonce: "3,5 % du chiffre d'affaires hors taxes" },
+    plafond: { part: 0.035, assiette: 'CHIFFRE_AFFAIRES', enonce: "3,5 % du chiffre d'affaires hors taxes, plafond global pour l'ensemble des redevances versées à des entités liées" },
   },
   {
     code: 'INTERETS_ASSOCIES_EXCEDENT',

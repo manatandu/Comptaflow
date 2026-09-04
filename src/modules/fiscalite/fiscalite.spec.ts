@@ -378,3 +378,220 @@ describe('Cloisonnement et saisie', () => {
     expect(new Set(CATALOGUE_RETRAITEMENTS.map((r) => r.code)).size).toBe(CATALOGUE_RETRAITEMENTS.length);
   });
 });
+
+/**
+ * LE RÉGIME D'UNE PERSONNE PHYSIQUE NE SE LIT PAS DANS UN SEUL EXERCICE ·
+ * art. 113 de la loi n° 23/053 :
+ *
+ *   « Les entreprises dont le chiffre d'affaires hors taxes devient inférieur
+ *   à la limite de leur régime d'imposition ne sont soumises au régime
+ *   d'imposition immédiatement inférieur que lorsque leur chiffre d'affaires
+ *   est resté en dessous de cette limite pendant deux exercices consécutifs.
+ *   Toutefois, les entreprises dont le chiffre d'affaires hors taxes devient
+ *   supérieur à la limite de leur régime d'imposition sont soumises
+ *   immédiatement au régime supérieur […]. »
+ *
+ * L'article est ASYMÉTRIQUE : montée immédiate, descente après deux exercices
+ * consécutifs et d'un seul cran. Trancher sur le chiffre d'affaires de
+ * l'exercice en cours, ce que faisait le service, déclassait dès la première
+ * mauvaise année · avec un impôt et un calendrier de paiement qui n'étaient
+ * pas ceux du contribuable.
+ */
+describe('Régime des personnes physiques · art. 113, déclassement et reclassement', () => {
+  const ex = (id: string, annee: number) => ({
+    id,
+    dateDebut: new Date(Date.UTC(annee, 0, 1)),
+    dateFin: new Date(Date.UTC(annee, 11, 31)),
+  });
+  const individuelle = (
+    exercices: { id: string; dateDebut: Date; dateFin: Date }[],
+    balances: Record<string, Ligne[]>,
+    nature?: 'VENTE' | 'PRESTATIONS',
+  ) =>
+    service({
+      forme: FormeJuridiqueSyscohada.ENTREPRISE_INDIVIDUELLE,
+      exercices,
+      balances,
+      dossier: nature ? { natureActivite: nature } : undefined,
+    }).s;
+
+  it('NE DÉCLASSE PAS après un seul exercice sous le seuil', async () => {
+    // 400 000 000 en 2025 (régime réel), 100 000 000 en 2026 · un seul
+    // exercice sous la limite : le régime réel est maintenu.
+    const s = individuelle(
+      [ex('N-1', 2025), ex('N', 2026)],
+      { 'N-1': [ligne('70110000', -400_000_000)], N: [ligne('70110000', -100_000_000)] },
+      'VENTE',
+    );
+    const r = await s.resultatFiscal('t1', 'N');
+    expect(r.regime).toBe('IRPP_REGIME_REEL');
+    // L'impôt des petites entreprises aurait été de 1 000 000 (1 % du chiffre
+    // d'affaires) · il n'est pas dû, et le barème du revenu global n'est pas
+    // ici : aucun montant n'est annoncé.
+    expect(r.impotDu).toBeNull();
+    expect(r.observations.join(' ')).toMatch(/Art. 113/);
+    expect(r.observations.join(' ')).toMatch(/MAINTENU/);
+  });
+
+  it('déclasse après DEUX exercices consécutifs sous le seuil', async () => {
+    const s = individuelle(
+      [ex('N-2', 2024), ex('N-1', 2025), ex('N', 2026)],
+      {
+        'N-2': [ligne('70110000', -400_000_000)],
+        'N-1': [ligne('70110000', -100_000_000)],
+        N: [ligne('70110000', -100_000_000)],
+      },
+      'VENTE',
+    );
+    const r = await s.resultatFiscal('t1', 'N');
+    expect(r.regime).toBe('IRPP_PETITE_ENTREPRISE');
+    expect(r.impotDu).toBe(1_000_000);
+  });
+
+  it('ne descend que d’UN CRAN · le régime réel tombe aux petites entreprises, pas aux micro', async () => {
+    // Chiffre d'affaires effondré à 20 000 000, sous le seuil des
+    // micro-entreprises, deux exercices de suite. L'art. 113 ne donne que le
+    // régime « immédiatement inférieur » : il faudra deux exercices de plus
+    // sous 25 000 000 pour descendre encore.
+    const s = individuelle(
+      [ex('N-2', 2024), ex('N-1', 2025), ex('N', 2026)],
+      {
+        'N-2': [ligne('70110000', -400_000_000)],
+        'N-1': [ligne('70110000', -20_000_000)],
+        N: [ligne('70110000', -20_000_000)],
+      },
+      'VENTE',
+    );
+    const r = await s.resultatFiscal('t1', 'N');
+    expect(r.regime).toBe('IRPP_PETITE_ENTREPRISE');
+    expect(r.impotDu).toBe(200_000);
+  });
+
+  it('reclasse IMMÉDIATEMENT vers le haut · art. 113, al. 2', async () => {
+    const s = individuelle([ex('N-1', 2025), ex('N', 2026)], {
+      'N-1': [ligne('70110000', -20_000_000)],
+      N: [ligne('70110000', -400_000_000)],
+    });
+    const r = await s.resultatFiscal('t1', 'N');
+    expect(r.regime).toBe('IRPP_REGIME_REEL');
+  });
+
+  it('AVERTIT de l’option pour le régime réel, qu’aucune écriture ne porte · art. 110 et 111', async () => {
+    const s = individuelle([ex('N', 2026)], { N: [ligne('70110000', -100_000_000)] }, 'VENTE');
+    const r = await s.resultatFiscal('t1', 'N');
+    expect(r.regime).toBe('IRPP_PETITE_ENTREPRISE');
+    const dit = r.observations.join(' ');
+    expect(dit).toMatch(/Art. 110 et 111/);
+    expect(dit).toMatch(/1er février/);
+    expect(dit).toMatch(/irrévocable/);
+    // Et le dossier sans historique le dit, au lieu de faire comme si le
+    // chiffre d'affaires d'un exercice suffisait.
+    expect(dit).toMatch(/Aucun exercice antérieur/);
+  });
+});
+
+/**
+ * LE CALENDRIER DE PAIEMENT D'UNE PETITE ENTREPRISE · art. 57, al. 3 et
+ * art. 57 quater de la loi de procédures fiscales.
+ *
+ * Ce que le service faisait : les trois acomptes de l'art. 57 bis, servis dès
+ * que l'impôt était calculable, donc à toute petite entreprise dont la nature
+ * d'activité était renseignée. Total juste, dates fausses, article faux · le
+ * renvoi de l'art. 57 bis à « l'article 57, ALINÉA 2 » exclut la petite
+ * entreprise, régie par l'alinéa 3.
+ */
+describe('Paiement en deux quotités · art. 57, al. 3 et 57 quater LPF', () => {
+  const petite = async (nature: 'VENTE' | 'PRESTATIONS') => {
+    const { s } = service({
+      forme: FormeJuridiqueSyscohada.ENTREPRISE_INDIVIDUELLE,
+      balances: { N: [ligne('70610000', -100_000_000)] },
+      dossier: { natureActivite: nature },
+    });
+    return s.resultatFiscal('t1', 'N');
+  };
+
+  it('sert 60 % au 31 janvier et 40 % ensuite, sur l’impôt de l’exercice', async () => {
+    const r = await petite('PRESTATIONS');
+    expect(r.impotDu).toBe(2_000_000);
+    expect(r.quotitesPetiteEntreprise.map((q) => [q.quotite, q.echeance, q.montant])).toEqual([
+      [0.6, '31 janvier', 1_200_000],
+      [0.4, '30 avril', 800_000],
+    ]);
+  });
+
+  it('NE SERT PAS les trois acomptes de l’impôt sur les sociétés', async () => {
+    const r = await petite('PRESTATIONS');
+    expect(r.acomptesProchainExercice).toEqual([]);
+    expect(r.baseAcomptes).toBeNull();
+    expect(r.observations.join(' ')).toMatch(/DEUX QUOTITÉS/);
+  });
+
+  it('porte la réserve sur la seconde échéance, que le texte officiel libelle mal', async () => {
+    const r = await petite('VENTE');
+    expect(r.quotitesPetiteEntreprise[0].reserve).toBeNull();
+    expect(r.quotitesPetiteEntreprise[1].reserve).toMatch(/57 quater/);
+    expect(r.observations.join(' ')).toMatch(/à confirmer auprès du service gestionnaire/);
+  });
+
+  it('laisse à l’impôt sur les sociétés ses trois acomptes, et aucune quotité', async () => {
+    const { s } = service({
+      balances: { N: [ligne('70110000', -100_000_000), ligne('60110000', 60_000_000)] },
+    });
+    const r = await s.resultatFiscal('t1', 'N');
+    expect(r.quotitesPetiteEntreprise).toEqual([]);
+    expect(r.acomptesProchainExercice.map((a) => a.echeance)).toEqual(['25 juillet', '25 septembre', '25 novembre']);
+  });
+
+  it('une micro-entreprise ne reçoit ni acompte ni quotité', async () => {
+    const { s } = service({
+      forme: FormeJuridiqueSyscohada.ENTREPRISE_INDIVIDUELLE,
+      balances: { N: [ligne('70110000', -20_000_000)] },
+    });
+    const r = await s.resultatFiscal('t1', 'N');
+    expect(r.regime).toBe('IRPP_MICRO_ENTREPRISE');
+    expect(r.acomptesProchainExercice).toEqual([]);
+    expect(r.quotitesPetiteEntreprise).toEqual([]);
+  });
+});
+
+/**
+ * LES DÉCHÉANCES DU REPORT DÉFICITAIRE SE DISENT, ELLES NE SE CALCULENT PAS ·
+ * art. 51, al. 2 (absence de déclaration après mise en demeure) et art. 52,
+ * 1° (nouvel exploitant d'une entreprise déficitaire, changement complet
+ * d'activité). Ni la mise en demeure ni le changement d'exploitant n'entrent
+ * dans un journal : les deviner serait pire que les signaler.
+ */
+describe('Déchéances du report déficitaire · avertissements, art. 51 al. 2 et 52, 1°', () => {
+  const ex = (id: string, annee: number) => ({
+    id,
+    dateDebut: new Date(Date.UTC(annee, 0, 1)),
+    dateFin: new Date(Date.UTC(annee, 11, 31)),
+  });
+
+  it('avertit dès qu’un déficit antérieur est imputé', async () => {
+    const { s } = service({
+      exercices: [ex('N-1', 2025), ex('N', 2026)],
+      balances: { 'N-1': [ligne('60110000', 30_000)], N: [ligne('70110000', -20_000)] },
+    });
+    const r = await s.resultatFiscal('t1', 'N');
+    expect(r.deficitImpute).toBe(20_000);
+    const dit = r.observations.join(' ');
+    expect(dit).toMatch(/Art. 51, al. 2/);
+    expect(dit).toMatch(/mise en demeure/);
+    expect(dit).toMatch(/Art. 52, 1°/);
+    expect(dit).toMatch(/nouvel exploitant/);
+  });
+
+  it('ne dit rien quand il n’y a aucun déficit à reporter', async () => {
+    const { s } = service({ balances: { N: [ligne('70110000', -20_000)] } });
+    const r = await s.resultatFiscal('t1', 'N');
+    expect(r.deficitAnterieur.montant).toBe(0);
+    expect(r.observations.join(' ')).not.toMatch(/mise en demeure/);
+  });
+
+  it('avertit aussi quand le déficit a été SAISI à la main', async () => {
+    const { s } = service({ balances: { N: [ligne('70110000', -50_000)] }, dossier: { deficitAnterieurSaisi: 7_000 } });
+    const r = await s.resultatFiscal('t1', 'N');
+    expect(r.observations.join(' ')).toMatch(/Art. 51, al. 2/);
+  });
+});

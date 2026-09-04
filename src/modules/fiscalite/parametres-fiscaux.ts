@@ -62,3 +62,61 @@ export const IMPOT_REVENU_PERSONNES_PHYSIQUES = {
 
 /** Prélèvement exceptionnel sur le personnel expatrié · art. 145 à 149, non déductible (art. 50, 2°). */
 export const TAUX_PRELEVEMENT_EXPATRIES = 0.25;
+
+/**
+ * MODALITÉS DE PAIEMENT DE L'IRPP AU RÉGIME DES PETITES ENTREPRISES ·
+ * art. 57, al. 3 et art. 57 quater de la loi de procédures fiscales.
+ *
+ * CE N'EST PAS L'ÉCHÉANCIER DE L'IMPÔT SUR LES SOCIÉTÉS. L'art. 57 bis, qui
+ * porte les trois acomptes de 30 %, 30 % et 20 % aux 25 juillet, 25 septembre
+ * et 25 novembre, vise « les acomptes provisionnels visés à l'article 57,
+ * ALINÉA 2 » · c'est-à-dire l'impôt sur les sociétés et l'IRPP au RÉGIME RÉEL.
+ * La petite entreprise relève de l'alinéa 3, qui lui donne un mode de
+ * paiement à elle :
+ *
+ *   Art. 57, al. 3 : « L'Impôt sur le Revenu des Personnes Physiques dans les
+ *   catégories de bénéfices des activités industrielles, commerciales,
+ *   immobilières et artisanales, de bénéfices des professions non
+ *   commerciales et de bénéfices de l'exploitation agricole suivant le régime
+ *   d'imposition des petites entreprises est payé en deux quotités. »
+ *
+ *   Art. 57 quater : « Les deux quotités […] représentent respectivement 60 %
+ *   et 40 % de l'impôt dû. La 1ère quotité […] est payée à la souscription de
+ *   la déclaration auto liquidative, au plus tard le 31 janvier de l'année qui
+ *   suit celle de la réalisation des revenus. »
+ *
+ * RÉSERVE SUR LA SECONDE ÉCHÉANCE, et elle est dans le texte officiel, pas
+ * dans cette lecture · le troisième alinéa de l'art. 57 quater écrit une
+ * seconde fois « La 1ère quotité est acquittée à l'aide d'un bordereau de
+ * versement, au plus tard le 30 avril de la même année ». La compilation DGI
+ * au 19 juillet 2026 porte le défaut tel quel. Le 31 janvier de la première
+ * quotité est incontestable ; le 30 avril est la date que porte l'alinéa
+ * consacré au second versement, mais sous un libellé fautif · d'où la
+ * réserve, servie avec la ligne.
+ */
+export const QUOTITES_PETITE_ENTREPRISE = [
+  {
+    rang: 1,
+    quotite: 0.6,
+    echeance: '31 janvier',
+    source: 'Loi de procédures fiscales, art. 57, al. 3 et art. 57 quater, al. 2',
+    reserve: null as string | null,
+  },
+  {
+    rang: 2,
+    quotite: 0.4,
+    echeance: '30 avril',
+    source: 'Loi de procédures fiscales, art. 57, al. 3 et art. 57 quater, al. 3',
+    reserve:
+      "Échéance à confirmer auprès du service gestionnaire : l'art. 57 quater, al. 3 écrit une seconde fois « La 1ère quotité est acquittée […] au plus tard le 30 avril de la même année ». Le défaut de rédaction est celui du texte officiel, repris tel quel par la compilation DGI au 19 juillet 2026.",
+  },
+] as const;
+
+/**
+ * Fenêtre d'exercices antérieurs observée pour appliquer l'art. 113 de la loi
+ * n° 23/053 · le déclassement d'un régime ne joue qu'après DEUX exercices
+ * consécutifs sous le seuil, et d'un seul cran à la fois. Deux exercices
+ * suffiraient à la règle elle-même ; trois permettent de reconstituer le
+ * régime EN VIGUEUR à l'exercice précédent, dont dépend le cran.
+ */
+export const EXERCICES_OBSERVES_REGIME = 3;

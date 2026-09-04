@@ -471,3 +471,174 @@ describe('échéancier · l’article 47 ne vise pas les mêmes redevables selon
     }
   });
 });
+
+/*
+  LA CONSÉQUENCE, SUR L'IMPÔT DE L'ENTITÉ, D'UNE RETENUE COLLECTÉE ET NON
+  REVERSÉE · le registre voyait le solde impayé, le résultat fiscal voyait la
+  charge déduite, et rien ne rapprochait les deux.
+
+  Loi n° 23/053, art. 20, dernier alinéa, parmi les conditions GÉNÉRALES de
+  déductibilité des charges : « La société apporte la preuve de la déclaration
+  et du paiement de la retenue correspondante pour les sommes donnant lieu à
+  un prélèvement ou à une retenue à la source. »
+
+  Ces tests figent autant ce que le registre DIT que ce qu'il refuse de dire :
+  il nomme la charge exposée, il ne chiffre aucune réintégration · l'assiette
+  de la charge n'est pas dans ce module. Et surtout, il ne le dit qu'à une
+  entité RÉELLEMENT en défaut · voir le test du reversement fait à temps, qui
+  est celui par lequel un signalement bâti sur le drapeau mensuel `enRetard`
+  aurait accusé le contribuable à jour.
+*/
+describe('Retenue non reversée et déductibilité de la charge (loi n° 23/053, art. 20)', () => {
+  const signalements = (r: { signalementsDeductibilite: unknown }) =>
+    r.signalementsDeductibilite as Array<{
+      cle: string;
+      libelle: string;
+      charge: string;
+      montantEchuNonReverse: number;
+      derniereEcheanceEchue: Date;
+    }>;
+
+  const ligneNature = (r: { natures: Array<{ cle: string }> }, cle: string) =>
+    r.natures.find((n) => n.cle === cle) as unknown as {
+      solde: number;
+      moisEnRetard: number;
+      retenuEchuNonReverse: number;
+      derniereEcheanceEchue: Date | null;
+      chargeSousConditionArticle20: string | null;
+    };
+
+  it('signale la charge exposée quand la retenue échue n’est pas reversée', async () => {
+    // Prélèvement de 14 % sur un prestataire non-résident, retenu en mars et
+    // jamais reversé · l'échéance du 15 avril est passée, la preuve du
+    // paiement exigée par l'article 20 ne peut donc pas être rapportée.
+    const s = service([ligne('44782000', '2026-03-31', { credit: 4_200_000 })], 'SYSCOHADA');
+    const r = await s.registre('t1', { exerciceId: 'e1', dateReference: '2026-06-15' });
+    const signale = signalements(r);
+    expect(signale.map((x) => x.cle)).toEqual(['prestatairesNonResidents']);
+    expect(signale[0].montantEchuNonReverse).toBe(4_200_000);
+    expect(signale[0].derniereEcheanceEchue.toISOString().slice(0, 10)).toBe('2026-04-15');
+    expect(signale[0].charge).toContain('non-résidents');
+    const avertissement = r.avertissements.join(' ');
+    expect(avertissement).toContain('article 20');
+    expect(avertissement).toContain('preuve de la déclaration et du paiement');
+  });
+
+  /*
+    LE TEST QUI TIENT TOUT LE RESTE · une retenue de mars reversée le 14 avril
+    est reversée À TEMPS (loi de procédures fiscales, art. 22 bis : le 15 du
+    mois suivant). Le registre range pourtant ce débit dans le mois d'AVRIL,
+    si bien que mars reste crédité et ressort `enRetard`. Un signalement bâti
+    sur ce drapeau annoncerait la non-déductibilité de la charge à une entité
+    parfaitement à jour · d'où l'assiette cumulée du service.
+  */
+  it('ne signale RIEN quand la retenue a été reversée à temps, le drapeau mensuel dît-il le contraire', async () => {
+    const s = service(
+      [
+        ligne('44782000', '2026-03-31', { credit: 4_200_000 }),
+        ligne('44782000', '2026-04-14', { debit: 4_200_000 }),
+      ],
+      'SYSCOHADA',
+    );
+    const r = await s.registre('t1', { exerciceId: 'e1', dateReference: '2026-06-15' });
+    expect(signalements(r)).toHaveLength(0);
+    expect(r.avertissements.join(' ')).not.toContain('RETENUES ÉCHUES');
+    const n = ligneNature(r, 'prestatairesNonResidents');
+    expect(n.solde).toBe(0);
+    expect(n.retenuEchuNonReverse).toBe(0);
+    // Le drapeau mensuel, lui, crie toujours · il n'est pas corrigé ici, il
+    // n'est simplement pas ce sur quoi cet avertissement s'appuie.
+    expect(n.moisEnRetard).toBe(1);
+  });
+
+  it('ne signale rien tant que l’échéance n’est pas passée · il n’y a pas encore de preuve à rapporter', async () => {
+    // Retenue de juin, exigible le 15 juillet. Au 15 juin, l'entité n'est en
+    // défaut de rien · crier au redressement ici serait faux.
+    const s = service([ligne('44782000', '2026-06-12', { credit: 4_200_000 })], 'SYSCOHADA');
+    const r = await s.registre('t1', { exerciceId: 'e1', dateReference: '2026-06-15' });
+    expect(signalements(r)).toHaveLength(0);
+    expect(ligneNature(r, 'prestatairesNonResidents').derniereEcheanceEchue).toBeNull();
+  });
+
+  it('ne retient que la part ÉCHUE, et impute le reversement sur les plus anciennes', async () => {
+    // Mars est échu (15 avril), juin ne l'est pas encore (15 juillet). Le
+    // reversement partiel de 400 000 s'impute sur mars : il reste 600 000 de
+    // retenue échue non reversée, et la retenue de juin n'entre pas dans
+    // l'assiette · personne n'a encore à en rendre compte.
+    const s = service(
+      [
+        ligne('44782000', '2026-03-31', { credit: 1_000_000 }),
+        ligne('44782000', '2026-04-10', { debit: 400_000 }),
+        ligne('44782000', '2026-06-30', { credit: 700_000 }),
+      ],
+      'SYSCOHADA',
+    );
+    const r = await s.registre('t1', { exerciceId: 'e1', dateReference: '2026-07-05' });
+    const n = ligneNature(r, 'prestatairesNonResidents');
+    expect(n.solde).toBe(1_300_000);
+    expect(n.retenuEchuNonReverse).toBe(600_000);
+    expect(signalements(r)[0].montantEchuNonReverse).toBe(600_000);
+  });
+
+  it('ne rattache la condition ni à la TVA, ni aux cotisations sociales, ni à la retenue sur plus-values', async () => {
+    // L'article 20 vise « les sommes donnant lieu à un prélèvement ou à une
+    // retenue à la source ». Une cotisation sociale n'en est pas un, la TVA
+    // n'est pas une charge, et la retenue sur plus-values ne suit aucune
+    // charge · aucune des trois ne doit lever le signalement, même impayée.
+    const s = service(
+      [
+        ligne('44400000', '2026-03-31', { credit: 900_000 }),
+        ligne('43110000', '2026-03-31', { credit: 650_000 }),
+        ligne('44785000', '2026-03-31', { credit: 300_000 }),
+      ],
+      'SYSCOHADA',
+    );
+    const r = await s.registre('t1', { exerciceId: 'e1', dateReference: '2026-06-15' });
+    expect(signalements(r)).toHaveLength(0);
+    for (const cle of ['tva', 'cnss', 'plusValues']) {
+      const n = ligneNature(r, cle);
+      // Impayées et échues, elles le sont bien · c'est la CONDITION qui ne
+      // leur est pas rattachée, et non le retard qui leur manquerait.
+      expect(n.retenuEchuNonReverse).toBeGreaterThan(0);
+      expect(n.chargeSousConditionArticle20).toBeNull();
+    }
+  });
+
+  it('AVERTIT sans chiffrer · il nomme la charge, ne calcule aucune réintégration', async () => {
+    const s = service([ligne('44782000', '2026-03-31', { credit: 4_200_000 })], 'SYSCOHADA');
+    const r = await s.registre('t1', { exerciceId: 'e1', dateReference: '2026-06-15' });
+    const avertissement = r.avertissements.find((a) => a.includes('RETENUES ÉCHUES'))!;
+    expect(avertissement).toContain('réintégration');
+    expect(avertissement).toContain('applique aucun taux');
+    expect(avertissement).toContain('Résultat fiscal');
+    // Le seul montant porté est celui de la RETENUE échue · pas une assiette
+    // de charge reconstituée, pas un impôt.
+    expect(signalements(r)[0].montantEchuNonReverse).toBe(4_200_000);
+    // Le montant est celui du signalement, mis en forme à la française.
+    expect(avertissement).toContain((4_200_000).toLocaleString('fr-FR'));
+    // Et la réserve du dernier mois, dont le reversement tombe sur l'exercice
+    // suivant que ce registre ne lit pas.
+    expect(avertissement).toContain('exercice suivant');
+  });
+
+  it('un dossier SYCEBNL est renvoyé à son exemption d’IS, et non à une réintégration', async () => {
+    // Une condition de déductibilité d'une charge n'a d'effet que sur un
+    // bénéfice imposable. Servir « réintégration au résultat fiscal » à une
+    // ASBL exemptée (art. 5) serait la même faute que l'écran qui annonçait
+    // l'exemption à une société commerciale, prise à l'envers.
+    const s = service([ligne('44782000', '2026-03-31', { credit: 4_200_000 })], 'SYCEBNL');
+    const r = await s.registre('t1', { exerciceId: 'e1', dateReference: '2026-06-15' });
+    const avertissement = r.avertissements.find((a) => a.includes('RETENUES ÉCHUES'))!;
+    expect(avertissement).toContain('article 5');
+    expect(avertissement).toContain('007/CAB/MIN/FINANCES/2025');
+    expect(avertissement).not.toContain('réintégration');
+    // Le reversement, lui, reste dû des deux côtés.
+    expect(avertissement).toContain('reste dû');
+  });
+
+  it('l’échéancier porte le même avertissement que le registre', async () => {
+    const s = service([ligne('44782000', '2026-03-31', { credit: 4_200_000 })], 'SYSCOHADA');
+    const e = await s.echeancierFiscal('t1', { exerciceId: 'e1', dateReference: '2026-06-15' });
+    expect(e.avertissements.join(' ')).toContain('RETENUES ÉCHUES');
+  });
+});

@@ -82,6 +82,30 @@ export interface NatureRetenue {
    * assujettissement était douteux, alors qu'elle est la cible même du texte.
    */
   reserveSyscohada?: string;
+  /**
+   * CONDITION DE DÉDUCTIBILITÉ DE L'ARTICLE 20 · ce que le registre sait déjà
+   * et qu'il ne disait à personne.
+   *
+   * Renseigné quand les sommes qui donnent lieu à cette retenue sont une
+   * CHARGE de l'entité. La loi n° 23/053, art. 20, dernier alinéa, range
+   * parmi les conditions GÉNÉRALES de déductibilité des charges que « la
+   * société apporte la preuve de la déclaration et du paiement de la retenue
+   * correspondante pour les sommes donnant lieu à un prélèvement ou à une
+   * retenue à la source ». Une retenue collectée et non reversée est donc une
+   * preuve qui manque, et la charge qu'elle accompagnait devient contestable.
+   *
+   * Le champ NOMME la charge visée, parce que le registre, lui, ne la connaît
+   * pas : le compte de retenue porte la RETENUE, jamais son assiette, et
+   * remonter de l'une à l'autre supposerait un taux que ce module s'interdit
+   * d'inscrire. Il avertit ; il ne réintègre rien et ne chiffre aucun
+   * redressement.
+   *
+   * Laissé vide là où le lien n'est PAS établi, et le silence est alors
+   * voulu : la retenue sur plus-values ne suit aucune charge, la TVA n'est
+   * pas une charge, et une cotisation sociale n'est pas un « prélèvement ou
+   * une retenue à la source » au sens de ce texte fiscal.
+   */
+  chargeSousConditionArticle20?: string;
 }
 
 /**
@@ -148,10 +172,16 @@ export const NATURES_RETENUES: NatureRetenue[] = [
     imprime: 'IRPPDR1',
     baseLegale:
       "Article 18 de la loi n° 004/2003 portant réforme des procédures fiscales, tel que modifié par la loi n° 23/052 du 30 novembre 2023.",
+    chargeSousConditionArticle20:
+      "Les traitements, salaires et autres rémunérations sur lesquels l'IRPP est retenu (comptes 66). L'article 21 y ajoute d'ailleurs sa propre condition : ces rémunérations ne sont déductibles que si elles ont été imposées à l'IRPP.",
     reserve:
       "Depuis le 1er janvier 2026, c'est l'IRPP et non plus l'IPR : la loi n° 23/053 a abrogé l'impôt professionnel sur les rémunérations. Une part importante de la documentation congolaise en ligne, pages de la DGI comprises, décrit encore le régime abrogé.",
   },
   {
+    // PAS de `chargeSousConditionArticle20` ici, à dessein : le registre ne
+    // sait pas quelle charge ces deux contributions accompagnent, et les
+    // rattacher aux rémunérations par ressemblance ferait porter à l'écran
+    // une affirmation de droit que rien ne fonde. Le silence vaut mieux.
     cle: 'contributions',
     libelle: 'Contribution nationale et contribution nationale de solidarité',
     comptes: ['4473', '4474'],
@@ -169,6 +199,8 @@ export const NATURES_RETENUES: NatureRetenue[] = [
     // pas suivre l'échéance commune, et le registre le datait pourtant au 15.
     joursApresPeriode: 10,
     echeance: 'Dans les dix jours du mois suivant le paiement du loyer',
+    chargeSousConditionArticle20:
+      "Les loyers versés au bailleur, sur lesquels la retenue de 20 % est opérée (comptes 622 et 6221 · locations et charges locatives).",
     baseLegale:
       "Article 57 de la loi n° 004/2003 portant réforme des procédures fiscales. Le taux de la retenue est de 20 % du loyer brut (article 11 du régime de retenue, décret-loi n° 109/2000) ; c'est un ACOMPTE, imputable sur l'impôt sur les revenus locatifs de 22 % dû par le bailleur (article 11 de l'ordonnance-loi n° 69/009). Les deux taux ne se confondent pas.",
   },
@@ -181,6 +213,8 @@ export const NATURES_RETENUES: NatureRetenue[] = [
     echeance: 'Le 15 du mois suivant',
     baseLegale:
       'Article 144 de la loi n° 23/053 ; article 22 bis de la loi de procédures fiscales. Prélèvement de 14 % du montant brut des factures.',
+    chargeSousConditionArticle20:
+      "Les sommes payées aux prestataires non-résidents · honoraires, études, services et redevances portés en charges de l'exercice.",
   },
   {
     cle: 'prelevementExpatries',
@@ -191,6 +225,11 @@ export const NATURES_RETENUES: NatureRetenue[] = [
     echeance: 'Dans les quinze jours suivant le mois du versement',
     baseLegale:
       'Articles 145 à 149 de la loi n° 23/053 ; article 19 de la loi de procédures fiscales. Prélèvement de 25 % du brut.',
+    // La charge visée est la RÉMUNÉRATION, pas le prélèvement · celui-ci
+    // n'est de toute façon jamais déductible (art. 50, 2°), et le module le
+    // rappelle déjà en réserve. Les deux règles ne se recouvrent pas.
+    chargeSousConditionArticle20:
+      "Les rémunérations brutes du personnel expatrié sur lesquelles le prélèvement de 25 % est assis (art. 146). Le prélèvement lui-même n'est pas déductible (art. 50, 2°) : c'est la rémunération qui l'est, et elle relève de la condition de l'article 20.",
     reserve:
       "L'article 145 ne vise que « les entreprises individuelles ou sociétaires », et une ASBL n'est ni l'une ni l'autre : l'assujettissement d'une association à ce prélèvement est une tension du texte, à faire trancher par un conseil et non par ce logiciel. À noter aussi que l'article 147 étend au prélèvement les immunités des articles 64 et 69, et que l'article 50, 2° le rend non déductible.",
     // LA MÊME TENSION, LUE À L'ENVERS. Pour une société, l'article 145 n'a
@@ -209,6 +248,8 @@ export const NATURES_RETENUES: NatureRetenue[] = [
     echeance: 'Le 15 du mois suivant',
     baseLegale:
       "Article 120 de la loi n° 23/053 ; article 18 bis de la loi de procédures fiscales ; arrêté ministériel n° 008/CAB/MIN/FINANCES/2025 du 19 février 2025.",
+    chargeSousConditionArticle20:
+      "Les INTÉRÊTS servis (emprunts, comptes courants d'associés) sur lesquels la retenue est opérée · eux seuls sont une charge, et les articles 39 à 41 leur posent en outre leurs propres limites. Un dividende distribué n'est pas une charge : la condition de l'article 20 ne le concerne pas, mais la retenue lui reste due.",
     reserve:
       "Cas réel pour une association qui place sa trésorerie à terme ou qui sert des intérêts sur un emprunt reçu d'un membre.",
     reserveSyscohada:
@@ -235,6 +276,8 @@ export const NATURES_RETENUES: NatureRetenue[] = [
     joursApresPeriode: 15,
     echeance: 'Le 15 du mois suivant (échéance commune, à défaut de ventilation)',
     baseLegale: 'Loi de procédures fiscales, articles 18 bis, 18 ter, 19, 22 bis et 57 selon la nature du prélèvement.',
+    chargeSousConditionArticle20:
+      "Selon ce que le compte porte réellement · loyers, honoraires de non-résidents et rémunérations sont des charges soumises à la condition de l'article 20, la retenue sur plus-values ne suit aucune charge. Ventilez le 4478 sur ses sous-comptes 44781 à 44785 pour que le signalement désigne la bonne charge.",
     reserve:
       "Ce compte regroupe des prélèvements dont les échéances diffèrent (dix jours pour la retenue locative, quinze pour les autres) : tant qu'ils y sont mêlés, le registre les date tous au 15, ce qui est FAUX pour la retenue locative. Ventilez-les sur les sous-comptes 44781 à 44785 pour que chaque échéance soit juste.",
   },
@@ -602,3 +645,101 @@ export const AVERTISSEMENT_REDEVABLE =
   "Le redevable qui n'a pas opéré une retenue, ou qui l'a opérée pour un montant insuffisant, en est PERSONNELLEMENT " +
   'redevable (article 96 bis de la loi de procédures fiscales, créé par la loi de finances n° 25/060 du 29 décembre ' +
   "2025). Une retenue oubliée ne disparaît pas avec le paiement : elle devient une dette de l'entité elle-même.";
+
+/**
+ * Une nature dont la retenue est ÉCHUE et toujours pas reversée, avec la
+ * charge que ce défaut expose. Ce que le service en tire ne sort jamais du
+ * constat : une échéance passée, un montant de RETENUE, et le nom de la charge.
+ */
+export interface SignalementDeductibilite {
+  cle: string;
+  libelle: string;
+  /** Charge dont la déduction est exposée · texte de la nature. */
+  charge: string;
+  /**
+   * Retenue ÉCHUE qui reste non reversée, en francs · retenues des mois dont
+   * l'échéance est passée, diminuées de tout ce que la nature a déjà reversé.
+   * Voir `retenuEchuNonReverse` dans le service pour ce que cette assiette
+   * évite.
+   */
+  montantEchuNonReverse: number;
+  /** Dernière échéance de reversement déjà passée à la date de référence. */
+  derniereEcheanceEchue: Date;
+}
+
+/**
+ * LA CONSÉQUENCE, SUR L'IMPÔT DE L'ENTITÉ, D'UNE RETENUE COLLECTÉE ET NON
+ * REVERSÉE · l'information que ce registre détenait sans jamais la dire.
+ *
+ * Loi n° 23/053, art. 20, dernier alinéa, Sous-section 2, Paragraphe 1 « Des
+ * conditions GÉNÉRALES de déductibilité des charges » : « La société apporte
+ * la preuve de la déclaration et du paiement de la retenue correspondante
+ * pour les sommes donnant lieu à un prélèvement ou à une retenue à la
+ * source. » (compilation DGI au 19 juillet 2026,
+ * `04-loi23-053-titre2-impot-societes.md`, lignes 422 à 424 ; l'alinéa suit
+ * les quatre conditions numérotées de l'article, et la loi de finances
+ * n° 25/060 du 29 décembre 2025 ne l'a pas touché.)
+ *
+ * Ce que le texte exige est une PREUVE · celle de la déclaration ET du
+ * paiement. Le registre est précisément l'endroit qui sait quand elle ne peut
+ * pas être rapportée : c'est son solde échu. Ce que le texte ne dit pas, en
+ * revanche, c'est le montant de ce qui serait réintégré · c'est la CHARGE qui
+ * est en cause, pas la retenue, et le registre ne connaît pas l'assiette.
+ * D'où un avertissement nommant la charge, et aucun chiffrage.
+ *
+ * LE RÉGIME D'IMPÔT CHANGE LA PORTÉE, et c'est la leçon déjà tirée pour
+ * `avertissementRegimeImpot` : une condition de déductibilité d'une charge
+ * n'a d'effet que sur un bénéfice imposable. Une entité effectivement
+ * exemptée d'impôt sur les sociétés (art. 5) n'en a pas · le reversement ne
+ * lui en reste pas moins dû, à l'échéance rappelée par ce même registre.
+ */
+export function avertissementDeductibiliteArticle20(
+  referentiel: Referentiel,
+  signalements: SignalementDeductibilite[],
+): string | null {
+  if (signalements.length === 0) return null;
+
+  const detail = signalements
+    .map(
+      (s) =>
+        `${s.libelle} · ${s.montantEchuNonReverse.toLocaleString('fr-FR')} FC de retenue échue non reversés au ` +
+        `${s.derniereEcheanceEchue.toLocaleDateString('fr-FR')} (charge exposée : ${s.charge})`,
+    )
+    .join(' ; ');
+
+  const commun =
+    'RETENUES ÉCHUES ET NON REVERSÉES · ' +
+    detail +
+    ". L'article 20, dernier alinéa de la loi n° 23/053 range parmi les conditions générales de déductibilité des " +
+    'charges que « la société apporte la preuve de la déclaration et du paiement de la retenue correspondante pour ' +
+    'les sommes donnant lieu à un prélèvement ou à une retenue à la source ». Tant que le reversement n’est pas fait, ' +
+    'cette preuve manque pour les charges correspondantes.';
+
+  // La réserve qui empêche de lire ce montant comme un constat définitif : le
+  // registre ne lit que les écritures de l'exercice affiché. Le reversement
+  // de la retenue de décembre, passé en janvier suivant, est hors de sa vue ·
+  // c'est le seul cas où ce signalement peut se lever à tort.
+  const reserveExercice =
+    ' Ce registre ne lit que les écritures de l’exercice affiché : un reversement passé sur l’exercice suivant, ' +
+    'celui de la retenue du dernier mois notamment, ne lui est pas visible · vérifiez-le avant de conclure.';
+
+  if (referentiel === Referentiel.SYSCOHADA) {
+    return (
+      commun +
+      ' La déduction de ces charges est donc exposée à une réintégration au résultat fiscal, pour le montant de la ' +
+      'CHARGE et non pour celui de la retenue. Ce registre ne le chiffre pas : il ne connaît pas l’assiette et ' +
+      'n’applique aucun taux · rapprochez ces retenues des charges qu’elles accompagnent dans État > Résultat fiscal ' +
+      'avant de déclarer.' +
+      reserveExercice
+    );
+  }
+  return (
+    commun +
+    " L'entité qui bénéficie EFFECTIVEMENT de l'exemption d'impôt sur les sociétés de l'article 5 n'a pas de " +
+    'bénéfice imposable sur lequel cette condition jouerait · exemption qui n’est pas automatique pour un ' +
+    'établissement d’utilité publique ou une ONG, puisqu’elle suppose l’attestation et les conditions de fond des ' +
+    'articles 2 et 3 de l’arrêté n° 007/CAB/MIN/FINANCES/2025 du 19 février 2025. Le reversement, lui, reste dû à ' +
+    'l’échéance rappelée ci-dessus.' +
+    reserveExercice
+  );
+}
