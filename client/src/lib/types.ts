@@ -622,6 +622,21 @@ export interface ProrataTva {
   numerateur: number;
   denominateur: number;
   pourcentage: number;
+  /** Toute la classe 7 de la période, avant les exclusions de l'art. 43. */
+  recettesClasse7: number;
+  /** Ce que l'art. 43 retire du dénominateur · rendu pour être vérifiable. */
+  recettesExclues: number;
+  /**
+   * Recettes de classe 7 dont l'écriture ne porte AUCUNE ligne de TVA. Elles
+   * pèsent au dénominateur sans entrer au numérateur. Une exportation, taxée
+   * au taux zéro, en fait partie tant que sa ligne de TVA à 0 % n'est pas
+   * posée · c'est le seul moyen de la distinguer d'une recette exonérée.
+   */
+  recettesNonQualifiees: number;
+  /** Les racines de comptes effectivement exclues, par référentiel. */
+  racinesExclues: string[];
+  /** Phrase qui rend le dénominateur vérifiable poste par poste. */
+  mentionDenominateur: string;
 }
 
 export type RegimeExigibiliteTva = 'LIVRAISONS' | 'ENCAISSEMENTS' | 'DEBITS';
@@ -643,6 +658,20 @@ export interface DeclarationTva {
    * chiffre qu'un contrôleur rapproche des comptes de la période ; `net` en
    * diffère dès qu'un crédit s'impute.
    */
+  /** Avoirs sur ventes constatés sur la période · reportés (décret art. 126). */
+  avoirsCollecteConstates: number;
+  /** Avoirs antérieurs inscrits en déduction sur cette période (art. 52). */
+  recuperationArt52: number;
+  /** Avoirs antérieurs qu'aucune liquidation ne permet de situer. */
+  avoirsCollecteNonImputes: number;
+  /** TVA d'amont écartée par l'article 41 · jamais déductible. */
+  tvaExclueArt41: number;
+  /** TVA d'amont sur des postes que l'article 41 vise SOUS CONDITION. */
+  tvaAVerifierArt41: number;
+  /** TVA d'amont dont l'écriture ne porte aucune charge lisible. */
+  tvaNatureDepenseIllisible: number;
+  /** TVA d'amont dont le délai de déduction est expiré (art. 37 al. 2). */
+  tvaDeductibleDechue: number;
   netAvantImputation: number;
   /**
    * Crédit de TVA venu de la dernière liquidation · art. 63 O.-L. 10/001 :
@@ -1896,7 +1925,18 @@ export interface Echeancier {
 export interface MoisRetenue {
   mois: string;
   retenu: number;
+  /**
+   * Reversé AU TITRE de ce mois · le reversement s'impute désormais du mois le
+   * plus ancien au plus récent, et non sur le mois de sa propre écriture. Une
+   * retenue de mars reversée le 14 avril, donc dans les temps, éteint mars.
+   */
   reverse: number;
+  /**
+   * Débité PENDANT ce mois, quel que soit le mois de la retenue éteinte. Ce
+   * n'est pas le même chiffre que `reverse` et c'est volontaire : celui-ci est
+   * la piste de l'écriture, celui-là l'imputation qui décide du retard.
+   */
+  reverseEcritures: number;
   solde: number;
   echeance: string;
   enRetard: boolean;
@@ -1915,6 +1955,24 @@ export interface NatureRetenueCalculee {
   reverse: number;
   solde: number;
   moisEnRetard: number;
+  /**
+   * Reversements qu'aucune retenue de l'exercice n'absorbe · un reversement
+   * de la retenue de décembre passé en janvier suivant, par exemple. Le
+   * registre ne lit que les écritures de l'exercice.
+   */
+  reverseNonImpute: number;
+  /**
+   * Retenue ÉCHUE qui reste non reversée · assiette du signalement de
+   * l'article 20, distincte du solde, qui compte aussi les mois non échus.
+   */
+  retenuEchuNonReverse: number;
+  /** Dernière échéance de reversement déjà passée, ou null. */
+  derniereEcheanceEchue: string | null;
+  /**
+   * Condition de déductibilité que l'art. 20, dernier alinéa, attache à cette
+   * retenue, ou null quand aucune ne s'y attache (TVA, cotisations sociales).
+   */
+  chargeSousConditionArticle20: string | null;
   prochaineEcheance: string;
 }
 
@@ -1926,6 +1984,19 @@ export interface RegistreRetenues {
   totalReverse: number;
   totalDu: number;
   comptesNonRattaches: { numero: string; intitule: string }[];
+  /**
+   * Charges dont la déduction est exposée faute de reversement (loi n° 23/053,
+   * art. 20, dernier alinéa). Le logiciel AVERTIT et ne chiffre pas : c'est la
+   * CHARGE qui se réintègre, et son montant n'est ni dans le registre, ni
+   * déductible d'un taux.
+   */
+  signalementsDeductibilite: {
+    cle: string;
+    libelle: string;
+    charge: string;
+    montantEchuNonReverse: number;
+    derniereEcheanceEchue: string;
+  }[];
   avertissements: string[];
 }
 

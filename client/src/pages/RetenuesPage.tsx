@@ -219,17 +219,34 @@ export function RetenuesPage() {
 
                 {natureOuverte === n.cle && (
                   <div className="bg-chrome-alt border-b border-border">
-                    <div className="grid grid-cols-[150px_120px_130px_130px_130px] gap-2 px-6 py-1 text-[10px] font-bold text-text-dim">
+                    {/*
+                      DEUX COLONNES DE REVERSEMENT, ET ELLES NE DISENT PAS LA
+                      MÊME CHOSE.
+
+                      « REVERSÉ (IMPUTÉ) » est ce qui éteint la retenue DE CE
+                      MOIS-LÀ · le reversement s'impute du mois le plus ancien
+                      au plus récent, si bien qu'une retenue de mars reversée le
+                      14 avril, donc dans les temps, éteint mars. C'est cette
+                      colonne qui commande « RESTE DÛ » et le retard.
+
+                      « DÉBITÉ CE MOIS » est la piste de l'écriture : ce qui a
+                      été effectivement passé pendant le mois, quel que soit le
+                      mois qu'il éteint. Sans elle, un comptable qui rapproche
+                      son grand livre ne retrouve plus ses montants, puisque la
+                      première colonne les a déplacés.
+                    */}
+                    <div className="grid grid-cols-[130px_100px_115px_115px_115px_115px] gap-2 px-6 py-1 text-[10px] font-bold text-text-dim">
                       <span>MOIS DE LA RETENUE</span>
                       <span>À REVERSER LE</span>
                       <span className="text-right">RETENU</span>
-                      <span className="text-right">REVERSÉ</span>
+                      <span className="text-right">REVERSÉ (IMPUTÉ)</span>
+                      <span className="text-right">DÉBITÉ CE MOIS</span>
                       <span className="text-right">RESTE DÛ</span>
                     </div>
                     {n.mois.map((m) => (
                       <div
                         key={m.mois}
-                        className={`grid grid-cols-[150px_120px_130px_130px_130px] gap-2 px-6 py-[3px] text-[10.5px] ${
+                        className={`grid grid-cols-[130px_100px_115px_115px_115px_115px] gap-2 px-6 py-[3px] text-[10.5px] ${
                           m.enRetard ? 'text-danger font-semibold' : ''
                         }`}
                       >
@@ -237,9 +254,17 @@ export function RetenuesPage() {
                         <span className="font-mono text-[10px]">{jour(m.echeance)}</span>
                         <span className="font-mono text-right">{montant(m.retenu)}</span>
                         <span className="font-mono text-right">{montant(m.reverse)}</span>
+                        <span className="font-mono text-right text-text-dim">{montant(m.reverseEcritures)}</span>
                         <span className="font-mono text-right">{montant(m.solde)}</span>
                       </div>
                     ))}
+                    {n.reverseNonImpute > 0.005 && (
+                      <div className="px-6 py-1 text-[10px] text-warning">
+                        {montant(n.reverseNonImpute)} de reversements qu’aucune retenue de cet exercice n’absorbe · le
+                        registre ne lit que les écritures de l’exercice, et le reversement de la retenue de décembre
+                        passé en janvier suivant n’y figure pas.
+                      </div>
+                    )}
                     <div className="px-6 py-1.5 text-[10px] text-text-dim">
                       Comptes : {n.comptes.map((c) => `${c.numero} ${c.intitule}`).join(' · ') || 'aucun mouvementé'}
                     </div>

@@ -275,12 +275,40 @@ export function ModelesSaisieModale({
         credit: recette ? ht : 0,
       },
     ];
-    if (tva > 0.005) {
+    /*
+      LA LIGNE DE TVA AU TAUX ZÉRO DOIT EXISTER, ET C'EST TOUT L'ENJEU DU
+      PRORATA D'UN EXPORTATEUR.
+
+      L'article 43 de l'O.-L. n° 10/001 met au numérateur « le montant annuel
+      des recettes afférentes aux opérations ouvrant droit à déduction de la
+      taxe sur la valeur ajoutée, Y COMPRIS LES EXPORTATIONS ET OPÉRATIONS
+      ASSIMILÉES ». Une exportation est taxée au taux zéro : elle ouvre donc
+      le droit à déduction comme une vente taxée à 16 %.
+
+      Côté serveur, `calculerProrata` reconnaît une opération au taux zéro par
+      la LIGNE DE TVA qui porte ce taux, puis reprend au numérateur le crédit
+      de classe 7 de l'écriture. Sans cette ligne, il ne voit qu'un crédit de
+      produit nu, et il ne PEUT pas distinguer une exportation d'une recette
+      exonérée · il ne devine donc pas, il compte cette recette comme non
+      qualifiée et le dit.
+
+      Le montant nul ne dérange rien : l'écriture reste équilibrée, et aucune
+      règle n'interdit une ligne à zéro. Ce qu'elle porte, c'est le
+      `tauxTvaId`, c'est-à-dire la QUALIFICATION de l'opération.
+
+      La condition distingue deux zéros que l'ancienne rédaction confondait :
+      un taux nul, qui qualifie l'opération et doit laisser une trace, et une
+      taxe nulle faute de base, qui ne qualifie rien.
+    */
+    const tauxEstZero = Number(taux.taux) <= 0.000001;
+    if (tva > 0.005 || tauxEstZero) {
       lignes.push({
         compteId: compteTaxe.id,
         numero: compteTaxe.numero,
         intitule: compteTaxe.intitule,
-        libelle: `TVA ${Number(taux.taux)} %`,
+        libelle: tauxEstZero
+          ? `TVA ${Number(taux.taux)} % · ligne de qualification pour le prorata (art. 43)`
+          : `TVA ${Number(taux.taux)} %`,
         debit: recette ? 0 : tva,
         credit: recette ? tva : 0,
         tauxTvaId: taux.id,

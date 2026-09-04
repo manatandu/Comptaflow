@@ -62,6 +62,32 @@ export function FiscalitePage() {
       montant: number;
     }>
   >([]);
+  /*
+    CE QUE LE SERVEUR REND ET QUE L'ÉCRAN JETAIT. La route des propositions
+    rend TROIS choses : `propositions`, `avertissements` et `chiffreAffaires`.
+    L'écran n'en lisait qu'une, et les avertissements disparaissaient dans le
+    `.then`.
+
+    Ils ne sont pas décoratifs : ce sont exactement les comptes dont l'assiette
+    est HORS DE PORTÉE du logiciel · un compte de dotations aux amortissements
+    ou l'entrée de l'art. 133, où proposer un montant serait deviner. Le module
+    s'abstient et dit pourquoi. Le montant faux a disparu du calcul, mais tant
+    que l'écran taisait l'avertissement, le comptable ne savait pas qu'il avait
+    quelque chose à établir lui-même : la collecte était bonne, la restitution
+    manquait.
+  */
+  const [avertissementsPropositions, setAvertissementsPropositions] = useState<
+    Array<{
+      compteId: string;
+      numero: string;
+      intitule: string;
+      code: string;
+      libelle: string;
+      source: string;
+      mouvement: number;
+      motif: string;
+    }>
+  >([]);
   const [erreur, setErreur] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
 
@@ -141,8 +167,19 @@ export function FiscalitePage() {
 
   const chargerPropositions = (id: string) => {
     api
-      .get<{ propositions: typeof propositions }>(`/fiscalite/exercices/${encodeURIComponent(id)}/propositions-retraitements`)
-      .then((r) => setPropositions(r.propositions), () => setPropositions([]));
+      .get<{ propositions: typeof propositions; avertissements: typeof avertissementsPropositions }>(
+        `/fiscalite/exercices/${encodeURIComponent(id)}/propositions-retraitements`,
+      )
+      .then(
+        (r) => {
+          setPropositions(r.propositions);
+          setAvertissementsPropositions(r.avertissements ?? []);
+        },
+        () => {
+          setPropositions([]);
+          setAvertissementsPropositions([]);
+        },
+      );
   };
 
   /**
@@ -349,6 +386,39 @@ export function FiscalitePage() {
                         >
                           Reprendre
                         </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </section>
+          )}
+
+          {/* CE QUE LE LOGICIEL REFUSE DE CHIFFRER, ET POURQUOI · l'assiette de
+              ces comptes est hors de sa portée. Proposer un montant y serait
+              une devinette, et une devinette reprise sans réflexion part en
+              déclaration. Le compte, l'article et ce qu'il reste à établir. */}
+          {avertissementsPropositions.length > 0 && (
+            <section className="border border-border rounded-[8px] p-3 bg-surface-alt">
+              <div className="text-[10px] font-mono text-text-dim leading-none">
+                À ÉTABLIR VOUS-MÊME · AUCUN MONTANT N’EST PROPOSÉ
+              </div>
+              <p className="text-[10.5px] text-text-dim mt-1 mb-2 leading-[1.5]">
+                Ces comptes portent un traitement fiscal déclaré, mais leur assiette ne se lit pas dans leur mouvement.
+                OmegaX ne propose donc aucun montant · à vous de l’établir, puis de le saisir en retraitement.
+              </p>
+              <table className="w-full text-[10.5px]">
+                <tbody>
+                  {avertissementsPropositions.map((a) => (
+                    <tr key={a.compteId} className="border-t border-border/60 align-top">
+                      <td className="py-1 font-mono whitespace-nowrap pr-2">{a.numero}</td>
+                      <td className="py-1 pr-2">
+                        {a.libelle}
+                        <span className="text-text-dim"> · {a.source}</span>
+                        <span className="block text-[10px] text-text-dim leading-[1.5] mt-0.5">{a.motif}</span>
+                      </td>
+                      <td className="py-1 font-mono text-right whitespace-nowrap text-text-dim">
+                        mouvement {a.mouvement.toLocaleString('fr-FR')}
                       </td>
                     </tr>
                   ))}

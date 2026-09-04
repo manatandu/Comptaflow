@@ -233,6 +233,60 @@ export function DeclarationTvaPage() {
             <div className="font-mono text-[10.5px] text-text-dim">
               <div>Total TVA collectée : <span className="font-semibold text-text">{declaration.totalCollecte.toLocaleString('fr-FR')} CDF</span></div>
               <div>Total TVA déductible admise : <span className="font-semibold text-text">{declaration.totalDeductibleAdmise.toLocaleString('fr-FR')} CDF</span></div>
+              {/* CE QUI MODIFIE LE NET, LIGNE À LIGNE · trois de ces montants
+                  entrent dans le calcul et n'étaient lisibles que noyés dans le
+                  paragraphe d'exigibilité. Un net qu'on ne peut pas recomposer
+                  de l'écran ne se vérifie pas. */}
+              {declaration.recuperationArt52 > 0 && (
+                <div>
+                  Avoirs antérieurs récupérés (art. 52) :{' '}
+                  <span className="font-semibold text-positive">
+                    {declaration.recuperationArt52.toLocaleString('fr-FR')} CDF
+                  </span>
+                </div>
+              )}
+              {declaration.avoirsCollecteConstates > 0 && (
+                <div>
+                  Avoirs sur ventes constatés ce mois :{' '}
+                  <span className="font-semibold text-text">
+                    {declaration.avoirsCollecteConstates.toLocaleString('fr-FR')} CDF
+                  </span>
+                  <span className="text-text-dim"> · imputables sur la déclaration suivante (décret art. 126)</span>
+                </div>
+              )}
+              {declaration.avoirsCollecteNonImputes > 0 && (
+                <div className="text-warning">
+                  Avoirs qu’aucune liquidation ne permet de situer :{' '}
+                  {declaration.avoirsCollecteNonImputes.toLocaleString('fr-FR')} CDF
+                </div>
+              )}
+              {declaration.tvaExclueArt41 > 0 && (
+                <div>
+                  TVA écartée par l’article 41 :{' '}
+                  <span className="font-semibold text-danger">
+                    {declaration.tvaExclueArt41.toLocaleString('fr-FR')} CDF
+                  </span>
+                  <span className="text-text-dim"> · jamais déductible</span>
+                </div>
+              )}
+              {declaration.tvaAVerifierArt41 > 0 && (
+                <div className="text-warning">
+                  TVA sur des postes que l’article 41 vise SOUS CONDITION, à vérifier :{' '}
+                  {declaration.tvaAVerifierArt41.toLocaleString('fr-FR')} CDF
+                </div>
+              )}
+              {declaration.tvaDeductibleDechue > 0 && (
+                <div className="text-danger">
+                  TVA dont le délai de déduction est expiré (art. 37, al. 2) :{' '}
+                  {declaration.tvaDeductibleDechue.toLocaleString('fr-FR')} CDF
+                </div>
+              )}
+              {declaration.tvaNatureDepenseIllisible > 0 && (
+                <div className="text-warning">
+                  TVA dont l’écriture ne porte aucune charge lisible :{' '}
+                  {declaration.tvaNatureDepenseIllisible.toLocaleString('fr-FR')} CDF
+                </div>
+              )}
               {declaration.creditAnterieur > 0 && (
                 <>
                   <div className="mt-1 pt-1 border-t border-border">
@@ -292,7 +346,22 @@ export function DeclarationTvaPage() {
               </button>
             </div>
           ) : (
-            (declaration.totalCollecte > 0 || declaration.totalDeductibleAdmise > 0) && (
+            /*
+              CE QUE CETTE CONDITION CACHAIT. Le serveur liquide désormais deux
+              périodes que ces deux seuls totaux ne décrivent plus.
+
+              · Une période dont le SEUL mouvement est la récupération d'un
+                avoir antérieur (art. 52) : collecte nulle, déduction nulle,
+                `recuperationArt52` positive. Elle est bel et bien à liquider.
+              · Une période dont la déduction admise est NÉGATIVE, parce qu'un
+                avoir fournisseur dépasse la déduction du mois (décret art. 127,
+                al. 2 · c'est un reversement). Le test `> 0` la rejetait.
+
+              D'où la valeur absolue sur la déduction, et le troisième terme.
+            */
+            (declaration.totalCollecte > 0 ||
+              Math.abs(declaration.totalDeductibleAdmise) > 0 ||
+              declaration.recuperationArt52 > 0) && (
               <button
                 onClick={comptabiliserLiquidation}
                 disabled={comptabilisation || !exerciceCourant}
