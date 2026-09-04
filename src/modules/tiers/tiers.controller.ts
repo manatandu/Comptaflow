@@ -31,6 +31,19 @@ export class TiersController {
     return this.tiersService.lister(user.tenantId, { type, recherche, actifsSeuls: actifsSeuls === 'true' });
   }
 
+  /**
+   * Les dossiers que ce dossier peut désigner sur `celluleGroupeId` · la
+   * fiche du tiers y puise sa liste, de sorte que l'écran ne propose JAMAIS
+   * autre chose que ce que TiersService accepte.
+   *
+   * DÉCLARÉE AVANT `:id` · Nest apparie les routes dans l'ordre, et
+   * `/tiers/dossiers-du-groupe` serait sinon lue comme un identifiant.
+   */
+  @Get('dossiers-du-groupe')
+  async dossiersDuGroupe(@CurrentUser() user: AuthenticatedUser) {
+    return this.tiersService.dossiersDuGroupe(user.tenantId);
+  }
+
   @Get(':id')
   async obtenir(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return this.tiersService.obtenir(user.tenantId, id);

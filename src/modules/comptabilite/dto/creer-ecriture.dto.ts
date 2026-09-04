@@ -64,6 +64,26 @@ export class LigneEcritureDto {
   @IsDateString()
   dateEcheance?: string;
 
+  // DATE DU VERSEMENT, quand elle diffère de celle de l'écriture.
+  //
+  // Les textes rattachent la retenue au mois du VERSEMENT, jamais à celui de
+  // l'écriture qui la constate. Loi n° 004/2003, art. 18 (dans sa rédaction de
+  // la loi n° 23/052 du 30 novembre 2023) : « Les retenues effectuées au titre
+  // d'Impôt sur le Revenu des Personnes Physiques par toute personne physique
+  // ou morale qui paye des revenus salariaux et revenus assimilés doivent être
+  // versées au plus tard le 15 du mois qui suit celui du versement de ces
+  // revenus aux bénéficiaires ou de leur mise à disposition. » Même
+  // rattachement à l'art. 18 bis pour les revenus des capitaux mobiliers.
+  //
+  // ABSENTE = la date de l'écriture fait foi, ce qui est le cas ordinaire et
+  // le comportement d'aujourd'hui. Ne se saisit que lorsque le versement tombe
+  // dans un autre mois que l'écriture · la paie de décembre passée au 31
+  // décembre et versée le 5 janvier. La rendre obligatoire ferait ressaisir à
+  // chaque ligne une date que l'écriture porte déjà.
+  @IsOptional()
+  @IsDateString()
+  dateVersement?: string;
+
   // Ventilation analytique de la ligne (projet, bailleur). Facultative : sauf
   // plan marqué à ventilation obligatoire, une ligne non ventilée passe et
   // c'est l'état de contrôle des cumuls qui la signale · même parti que Sage,

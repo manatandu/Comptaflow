@@ -26,6 +26,43 @@ import {
 } from './canevas-tresorerie';
 
 /**
+ * Une ligne RETIRÉE de l'agrégat parce qu'elle est interne au groupe · le
+ * dossier qui la portait, le dossier de groupe qu'elle mettait en face, le
+ * compte, et à quel titre elle sort. Rendre l'élimination est ce qui la rend
+ * vérifiable : sans elle, l'agrégat serait un total qu'on ne peut plus
+ * rapprocher des balances qui l'ont formé.
+ */
+export interface EliminationReciproque {
+  dossier: string;
+  contrepartie: string;
+  numero: string;
+  intitule: string;
+  motif: string;
+  debit: number;
+  credit: number;
+}
+
+/**
+ * Une réciprocité QUI NE SE BOUCLE PAS · la créance chez l'un n'est pas la
+ * dette chez l'autre. Le D4C fait de la « procédure de confirmation de solde
+ * pour toutes les opérations » (ch. XII-5) le préalable de toute élimination
+ * intra-groupe · quand les deux soldes divergent, c'est cette confirmation qui
+ * a échoué, et le logiciel n'a pas à trancher lequel des deux dossiers a
+ * raison. Il le NOMME, exactement comme il nomme un transfert 58 enregistré
+ * d'un seul côté.
+ */
+export interface EcartReciprocite {
+  dossier: string;
+  contrepartie: string;
+  solde: number;
+  soldeContrepartie: number;
+  ecart: number;
+}
+
+const MOTIF_CREANCE_DETTE = 'Créance ou dette réciproque';
+const MOTIF_CHARGE_PRODUIT = 'Charge ou produit réciproque';
+
+/**
  * GROUPE D'ÉTABLISSEMENTS · une même personne morale tenue en plusieurs
  * dossiers : un dossier mère (le siège) et ses cellules. Cas type : une
  * église de plusieurs centaines de cellules, chacune tenant son dossier
@@ -261,6 +298,10 @@ export class GroupeService {
    *    doit revenir à zéro. Un écart désigne un transfert enregistré d'un
    *    seul côté ;
    *  · cellules sans exercice sur la période (leurs chiffres MANQUENT).
+   *
+   * S'y ajoute l'ÉLIMINATION DES OPÉRATIONS RÉCIPROQUES, au-delà des seuls
+   * 58 · voir `eliminerOperationsReciproques` pour la règle, sa source et ce
+   * qu'elle ne sait pas faire.
    */
   async balanceAgregee(tenantId: string, exerciceId: string) {
     const exercice = await this.prisma.exercice.findFirst({
@@ -305,6 +346,61 @@ export class GroupeService {
       }),
     ];
 
+    // LES COMPTES OUVERTS AU NOM D'UN AUTRE DOSSIER DU GROUPE · c'est le seul
+    // endroit d'où l'information peut venir (`Tiers.celluleGroupeId`), et un
+    // groupe dont aucun tiers ne la porte n'a rien à éliminer : la requête
+    // rend une liste vide, et l'agrégat reste au centime celui d'avant.
+    const idsGroupe = new Set<string>([tenantId, ...cellules.map((c) => c.id)]);
+    const rattachements = await this.prisma.tiersCompte.findMany({
+      where: { tiers: { tenantId: { in: [...idsGroupe] }, celluleGroupeId: { not: null } } },
+      select: {
+        compteId: true,
+        tiers: { select: { tenantId: true, code: true, nom: true, celluleGroupeId: true } },
+      },
+    });
+
+    const nomParDossier = new Map<string, string>(dossiers.map((d) => [d.id, d.nom]));
+    const nomDuDossier = (id: string) => nomParDossier.get(id) ?? id;
+
+    // UN RATTACHEMENT HORS GROUPE N'ÉLIMINE RIEN, ET IL EST NOMMÉ.
+    //
+    // La clé étrangère de `Tiers.celluleGroupeId` vise `tenants` sans pouvoir
+    // exiger « même dossier mère » · une base de données ne sait pas exprimer
+    // cette condition, et le schéma renvoie la vérification ici. Éliminer sur
+    // la foi d'un rattachement étranger retirerait de l'agrégat une vente
+    // RÉELLE, faite à une entité qui n'est pas l'entité : le contraire de ce
+    // que l'élimination cherche. Le refus est donc silencieux sur les
+    // chiffres et bruyant sur l'écran.
+    const rattachementsRefuses: Array<{ dossier: string; codeTiers: string; nomTiers: string; motif: string }> = [];
+    const compteReciproque = new Map<string, { dossierId: string; cibleId: string }>();
+    const dejaRefuses = new Set<string>();
+    for (const r of rattachements) {
+      const cible = r.tiers.celluleGroupeId!;
+      const motif =
+        cible === r.tiers.tenantId
+          ? 'le tiers désigne son propre dossier'
+          : idsGroupe.has(cible)
+            ? null
+            : 'le dossier désigné n’appartient pas à ce groupe';
+      if (motif === null) {
+        compteReciproque.set(r.compteId, { dossierId: r.tiers.tenantId, cibleId: cible });
+        continue;
+      }
+      // Un tiers porte souvent plusieurs comptes rattachés · il ne doit
+      // apparaître qu'une fois dans la liste des refus.
+      const cle = `${r.tiers.tenantId}|${r.tiers.code}`;
+      if (dejaRefuses.has(cle)) continue;
+      dejaRefuses.add(cle);
+      rattachementsRefuses.push({
+        dossier: nomDuDossier(r.tiers.tenantId),
+        codeTiers: r.tiers.code,
+        nomTiers: r.tiers.nom,
+        motif,
+      });
+    }
+    /** Solde de chaque compte réciproque, pour le contrôle de réciprocité. */
+    const soldeReciproqueParCompte = new Map<string, number>();
+
     interface LigneAgregee {
       numero: string;
       intitule: string;
@@ -338,6 +434,11 @@ export class GroupeService {
           });
         }
         if (l.numero.startsWith('58')) solde58 += l.solde;
+        // La créance (ou la dette) de CE dossier envers un autre dossier du
+        // groupe · elle doit trouver son reflet exact en face.
+        if (compteReciproque.has(l.compteId)) {
+          soldeReciproqueParCompte.set(l.compteId, l.totalDebit - l.totalCredit);
+        }
         detailParDossier.push({
           dossier: d.nom,
           numero: l.numero,
@@ -357,6 +458,23 @@ export class GroupeService {
       });
     }
 
+    const reciproques = await this.eliminerOperationsReciproques(
+      compteReciproque,
+      dossiers.filter((d) => d.exerciceId).map((d) => ({ tenantId: d.id, exerciceId: d.exerciceId! })),
+      nomParDossier,
+      soldeReciproqueParCompte,
+    );
+    // L'agrégat est le cumul MOINS ce qui a été éliminé · `detailParDossier`
+    // reste le cumul BRUT, dossier par dossier, pour que la soustraction se
+    // refasse à la main : agrégat = détail par dossier − éliminations. Un
+    // détail déjà net ne se rapprocherait plus des balances des dossiers.
+    for (const e of reciproques.eliminations) {
+      const ligne = parNumero.get(e.numero);
+      if (!ligne) continue;
+      ligne.totalDebit = Math.round((ligne.totalDebit - e.debit) * 100) / 100;
+      ligne.totalCredit = Math.round((ligne.totalCredit - e.credit) * 100) / 100;
+    }
+
     const lignes = [...parNumero.values()]
       .filter((l) => l.totalDebit !== 0 || l.totalCredit !== 0)
       .sort((a, b) => a.numero.localeCompare(b.numero))
@@ -366,6 +484,44 @@ export class GroupeService {
       credit: lignes.reduce((s, l) => s + l.totalCredit, 0),
     };
     const ecartLiaison = equilibres.reduce((s, e) => s + e.solde58, 0);
+    const ecartElimination =
+      Math.round((reciproques.totaux.debit - reciproques.totaux.credit) * 100) / 100;
+
+    // CE QUE L'ÉLIMINATION NE SAIT PAS FAIRE, ET QU'ELLE DIT.
+    //
+    // Le D4C ne s'arrête pas aux comptes réciproques : il veut aussi la
+    // « neutralisation des résultats provenant d'opérations entre entités du
+    // périmètre » (ch. XIII-4) et que les « résultats inclus dans
+    // stocks/immobilisations [soient] totalement éliminés » (ch. XII-5). Ces
+    // deux retraitements-là demandent des données que l'agrégat n'a PAS · il
+    // travaille sur des soldes, et les registres de stocks comme
+    // d'immobilisations vivent dans les dossiers (limite déjà assumée par
+    // `liasseGroupe`). Calculer serait inventer ; on avertit.
+    const avertissements: string[] = [];
+    if (reciproques.comptesHao.length > 0) {
+      avertissements.push(
+        `Cession interne d'immobilisation NON neutralisée · une écriture interne au groupe porte un compte de la ` +
+          `classe 8 (${reciproques.comptesHao.join(', ')}). Le D4C range les cessions internes d'immobilisations parmi les ` +
+          `« opérations affectant le résultat consolidé » et impose de « reconstituer valeur brute et amortissements ` +
+          `cumulés du cédant » (ch. XII-5) · l'agrégat ne dispose que de soldes, le registre des immobilisations reste ` +
+          `dans les dossiers. Le produit de cession et la valeur d'entrée chez le preneur restent donc dans l'agrégat, ` +
+          `à retraiter à la main.`,
+      );
+    }
+    const stocksAgreges = lignes.filter((l) => l.numero.startsWith('3')).reduce((s, l) => s + l.solde, 0);
+    if (
+      Math.abs(stocksAgreges) > 0.005 &&
+      reciproques.eliminations.some((e) => e.motif === MOTIF_CHARGE_PRODUIT)
+    ) {
+      avertissements.push(
+        `Marge interne comprise dans les stocks NON neutralisée · des achats et des ventes internes ont été éliminés ` +
+          `alors que l'agrégat porte encore ${(Math.round(stocksAgreges * 100) / 100).toFixed(2)} de stocks (classe 3). ` +
+          `Le D4C veut la « neutralisation des résultats provenant d'opérations entre entités du périmètre » ` +
+          `(ch. XIII-4) et l'élimination totale des « résultats inclus dans stocks/immobilisations » (ch. XII-5) · rien ` +
+          `dans les comptes ne dit quelle part du stock de clôture vient d'un achat interne, ni à quelle marge. ` +
+          `À retraiter à la main.`,
+      );
+    }
 
     return {
       exercice,
@@ -385,6 +541,13 @@ export class GroupeService {
         })),
       lignes,
       totaux,
+      // CE QUI A ÉTÉ RETIRÉ, ligne à ligne · un agrégat dont on ne voit pas
+      // ce qui a été retiré ne se vérifie pas.
+      eliminations: reciproques.eliminations,
+      totauxEliminations: reciproques.totaux,
+      ecartsReciprocite: reciproques.ecarts,
+      rattachementsRefuses,
+      avertissements,
       controles: {
         // Arrondi au centime · l'agrégat de centaines de dossiers accumule
         // des poussières binaires qui ne sont pas des écarts comptables.
@@ -394,9 +557,195 @@ export class GroupeService {
         // Faux dès qu'une cellule a été écartée pour cause de période · c'est
         // ce drapeau qui bloque la liasse (voir liasseGroupe).
         periodesConcordantes: dossiers.every((d) => !d.periodeDiscordante),
+        // La créance chez l'un est la dette chez l'autre · sinon l'écart est
+        // nommé, jamais corrigé d'office.
+        reciprocitesEquilibrees: reciproques.ecarts.length === 0,
+        // Ce qui sort au débit doit égaler ce qui sort au crédit · une
+        // élimination boiteuse déséquilibrerait l'agrégat lui-même.
+        ecartElimination,
+        eliminationsSymetriques: Math.abs(ecartElimination) <= 0.005,
+        rattachementsValides: rattachementsRefuses.length === 0,
       },
       detailParDossier,
     };
+  }
+
+  /**
+   * LES OPÉRATIONS RÉCIPROQUES, AU-DELÀ DU COMPTE 58.
+   *
+   * Un groupe d'établissements est UNE SEULE personne morale tenue en
+   * plusieurs dossiers (voir l'en-tête de ce service). Ses comptes réunis sont
+   * donc « les comptes d'un ensemble d'entités liées COMME SI ELLES FORMAIENT
+   * UNE SEULE ENTITÉ » (D4C, ch. XIII-4 § 1), et le texte énumère ce que cette
+   * réunion suppose : « cumul des comptes des entités du périmètre […] ;
+   * ÉLIMINATION DES COMPTES RÉCIPROQUES (actifs/passifs, charges/produits) ;
+   * neutralisation des résultats provenant d'opérations entre entités du
+   * périmètre » (même paragraphe). Le ch. XII-5 § 4 dit lesquels : « Comptes
+   * réciproques (sans effet sur le résultat) : bilan (clients/fournisseurs,
+   * effets à recevoir/à payer, prêts/emprunts), charges/produits
+   * (achats/ventes, charges/produits financiers) ».
+   *
+   * CE QUI SE FAISAIT AVANT · l'agrégat ne neutralisait que les comptes 58,
+   * donc les seuls transferts de TRÉSORERIE ; le SYCEBNL les réserve d'ailleurs
+   * aux « comptes de passage utiles à la comptabilisation d'opérations internes
+   * à l'entité » dans les comptabilités à journaux auxiliaires (Partie 2, ch. 3,
+   * fiche du COMPTE 58). Tout le reste des opérations réciproques restait dans
+   * le total : une vente du siège à une antenne y comptait un chiffre
+   * d'affaires que l'entité n'a jamais réalisé avec un tiers, et la créance
+   * comme la dette y figuraient des deux côtés. Rien ne pouvait le voir · un
+   * compte 411 ne dit pas si son titulaire est un client ou une antenne. C'est
+   * `Tiers.celluleGroupeId` qui le dit.
+   *
+   * CE QUI SORT, ET RIEN D'AUTRE :
+   *  · les comptes RATTACHÉS à un tiers-cellule (la créance, la dette) ;
+   *  · dans les écritures qui touchent un de ces comptes, les lignes de
+   *    CLASSE 6 et 7 · un achat ou une vente n'est réciproque que par
+   *    l'écriture qui le porte, aucun numéro de compte ne le dit (un 601 ne
+   *    sait pas à qui l'on a acheté).
+   * La trésorerie n'est PAS éliminée : la caisse de l'antenne et la banque du
+   * siège sont deux avoirs réels de l'entité, et un règlement interne les
+   * déplace sans en créer ni en détruire. Les mêmes montants se retrouvent des
+   * deux côtés et se compensent d'eux-mêmes dans le cumul.
+   *
+   * L'ÉLIMINATION EST SYMÉTRIQUE OU ELLE N'EST PAS · ce qui sort au débit chez
+   * l'un sort au crédit chez l'autre. Deux contrôles le vérifient, et aucun ne
+   * corrige : l'écart de RÉCIPROCITÉ (la créance chez l'un contre la dette chez
+   * l'autre, paire par paire) et l'écart d'ÉLIMINATION (total sorti au débit
+   * contre total sorti au crédit). Le D4C fait de la « procédure de
+   * confirmation de solde pour toutes les opérations » (ch. XII-5 § 2) le
+   * préalable de toute élimination intra-groupe : un écart, c'est cette
+   * confirmation qui a échoué, et le logiciel n'a pas à choisir lequel des deux
+   * dossiers a raison.
+   *
+   * UN GROUPE SANS AUCUN TIERS-CELLULE NE PERD RIEN · `compteReciproque` est
+   * alors vide, aucune écriture n'est lue, rien n'est retranché, et l'agrégat
+   * est au centime celui d'avant cette méthode. C'est le cas de tous les
+   * dossiers existants, qui n'ont jamais pu saisir ce rattachement.
+   */
+  private async eliminerOperationsReciproques(
+    compteReciproque: Map<string, { dossierId: string; cibleId: string }>,
+    dossiersRetenus: Array<{ tenantId: string; exerciceId: string }>,
+    nomParDossier: Map<string, string>,
+    soldeReciproqueParCompte: Map<string, number>,
+  ): Promise<{
+    eliminations: EliminationReciproque[];
+    totaux: { debit: number; credit: number };
+    ecarts: EcartReciprocite[];
+    comptesHao: string[];
+  }> {
+    const arrondi = (x: number) => Math.round(x * 100) / 100;
+    const nom = (id: string) => nomParDossier.get(id) ?? id;
+    if (compteReciproque.size === 0) {
+      return { eliminations: [], totaux: { debit: 0, credit: 0 }, ecarts: [], comptesHao: [] };
+    }
+
+    // --- 1 · Ce qui sort de l'agrégat -----------------------------------
+    // Toutes les lignes des écritures qui touchent un compte réciproque · la
+    // borne est l'EXERCICE retenu de chaque dossier, le même univers que celui
+    // des balances cumulées plus haut (brouillard compris, à-nouveaux
+    // compris). Lire un univers plus large retrancherait des montants que le
+    // cumul ne contient pas.
+    const lignesInternes = await this.prisma.ligneEcriture.findMany({
+      where: {
+        ecriture: {
+          tenantId: { in: dossiersRetenus.map((d) => d.tenantId) },
+          exerciceId: { in: dossiersRetenus.map((d) => d.exerciceId) },
+          lignes: { some: { compteId: { in: [...compteReciproque.keys()] } } },
+        },
+      },
+      select: {
+        ecritureId: true,
+        compteId: true,
+        debit: true,
+        credit: true,
+        ecriture: { select: { tenantId: true } },
+        compte: { select: { numero: true, intitule: true } },
+      },
+    });
+
+    // Quel dossier du groupe chaque écriture met en face · c'est la seule
+    // façon de nommer la contrepartie d'une charge ou d'un produit.
+    const contrepartieDeLEcriture = new Map<string, Set<string>>();
+    for (const l of lignesInternes) {
+      const rec = compteReciproque.get(l.compteId);
+      if (!rec) continue;
+      const vues = contrepartieDeLEcriture.get(l.ecritureId) ?? new Set<string>();
+      vues.add(nom(rec.cibleId));
+      contrepartieDeLEcriture.set(l.ecritureId, vues);
+    }
+
+    const cumul = new Map<string, EliminationReciproque>();
+    const comptesHao = new Set<string>();
+    for (const l of lignesInternes) {
+      const numero = l.compte.numero;
+      // La classe 8 est signalée, jamais éliminée · voir l'avertissement monté
+      // par `balanceAgregee`.
+      if (numero.startsWith('8')) comptesHao.add(numero);
+      const estReciproque = compteReciproque.has(l.compteId);
+      const estChargeOuProduit = numero.startsWith('6') || numero.startsWith('7');
+      if (!estReciproque && !estChargeOuProduit) continue;
+      const motif = estReciproque ? MOTIF_CREANCE_DETTE : MOTIF_CHARGE_PRODUIT;
+      const contrepartie = [...(contrepartieDeLEcriture.get(l.ecritureId) ?? [])].sort().join(', ');
+      const cle = `${l.ecriture.tenantId}|${contrepartie}|${numero}|${motif}`;
+      const ligne = cumul.get(cle) ?? {
+        dossier: nom(l.ecriture.tenantId),
+        contrepartie,
+        numero,
+        intitule: l.compte.intitule,
+        motif,
+        debit: 0,
+        credit: 0,
+      };
+      ligne.debit += Number(l.debit);
+      ligne.credit += Number(l.credit);
+      cumul.set(cle, ligne);
+    }
+
+    const eliminations = [...cumul.values()]
+      .map((e) => ({ ...e, debit: arrondi(e.debit), credit: arrondi(e.credit) }))
+      .filter((e) => e.debit !== 0 || e.credit !== 0)
+      .sort(
+        (a, b) =>
+          a.dossier.localeCompare(b.dossier) ||
+          a.numero.localeCompare(b.numero) ||
+          a.motif.localeCompare(b.motif),
+      );
+    const totaux = {
+      debit: arrondi(eliminations.reduce((s, e) => s + e.debit, 0)),
+      credit: arrondi(eliminations.reduce((s, e) => s + e.credit, 0)),
+    };
+
+    // --- 2 · La réciprocité, paire de dossiers par paire de dossiers -----
+    // Le solde des comptes que A tient au nom de B, contre le solde de ceux que
+    // B tient au nom de A. Créance d'un côté, dette de l'autre : leur SOMME
+    // doit être nulle. Un dossier écarté de l'agrégat (période discordante,
+    // exercice absent) ne contribue rien, et c'est justement ce que l'écart
+    // rend visible · on ne confirme pas un solde avec un dossier absent.
+    const soldeVers = new Map<string, number>();
+    for (const [compteId, rec] of compteReciproque) {
+      const cle = `${rec.dossierId}|${rec.cibleId}`;
+      soldeVers.set(cle, (soldeVers.get(cle) ?? 0) + (soldeReciproqueParCompte.get(compteId) ?? 0));
+    }
+    // L'ordre des deux dossiers d'une paire suit leurs NOMS · un ordre pris
+    // sur les identifiants serait stable mais illisible, et le refus de la
+    // liasse nomme les deux dossiers dans cet ordre.
+    const paires = new Set<string>();
+    for (const cle of soldeVers.keys()) {
+      const [x, y] = cle.split('|');
+      paires.add(nom(x).localeCompare(nom(y)) <= 0 ? `${x}|${y}` : `${y}|${x}`);
+    }
+    const ecarts: EcartReciprocite[] = [];
+    for (const paire of paires) {
+      const [a, b] = paire.split('|');
+      const solde = arrondi(soldeVers.get(`${a}|${b}`) ?? 0);
+      const soldeContrepartie = arrondi(soldeVers.get(`${b}|${a}`) ?? 0);
+      const ecart = arrondi(solde + soldeContrepartie);
+      if (Math.abs(ecart) <= 0.005) continue;
+      ecarts.push({ dossier: nom(a), contrepartie: nom(b), solde, soldeContrepartie, ecart });
+    }
+    ecarts.sort((x, y) => x.dossier.localeCompare(y.dossier) || x.contrepartie.localeCompare(y.contrepartie));
+
+    return { eliminations, totaux, ecarts, comptesHao: [...comptesHao].sort() };
   }
 
   /**
@@ -439,6 +788,48 @@ export class GroupeService {
       detail.addRow({ dossier: l.dossier, numero: l.numero, intitule: l.intitule, debit: l.totalDebit, credit: l.totalCredit });
     }
 
+    // CE QUI A ÉTÉ RETIRÉ · la feuille « Par dossier » porte le cumul BRUT,
+    // celle-ci ce qui en a été éliminé, et « Balance agrégée » la différence.
+    // Sans elle, l'agrégat ne se rapprocherait plus des balances qui l'ont
+    // formé, et rien ne dirait qu'une vente interne en est sortie.
+    //
+    // La feuille N'EST CRÉÉE QUE S'IL Y A QUELQUE CHOSE À MONTRER · un groupe
+    // sans tiers-cellule (le cas de tous les dossiers existants) reçoit le
+    // classeur d'avant, feuille pour feuille.
+    if (agregat.eliminations.length > 0) {
+      const elim = wb.addWorksheet('Éliminations');
+      elim.columns = [
+        { header: 'Dossier', key: 'dossier', width: 32 },
+        { header: 'Contrepartie du groupe', key: 'contrepartie', width: 32 },
+        { header: 'Numéro', key: 'numero', width: 14 },
+        { header: 'Intitulé', key: 'intitule', width: 48 },
+        { header: 'À ce titre', key: 'motif', width: 30 },
+        { header: 'Débit retiré', key: 'debit', width: 16, style: { numFmt: fmt } },
+        { header: 'Crédit retiré', key: 'credit', width: 16, style: { numFmt: fmt } },
+      ];
+      elim.getRow(1).font = { bold: true };
+      for (const e of agregat.eliminations) {
+        elim.addRow({
+          dossier: e.dossier,
+          contrepartie: e.contrepartie,
+          numero: e.numero,
+          intitule: e.intitule,
+          motif: e.motif,
+          debit: e.debit,
+          credit: e.credit,
+        });
+      }
+      const totalElim = elim.addRow({
+        dossier: 'TOTAL ÉLIMINÉ',
+        debit: agregat.totauxEliminations.debit,
+        credit: agregat.totauxEliminations.credit,
+        motif: agregat.controles.eliminationsSymetriques
+          ? 'élimination symétrique'
+          : `ÉLIMINATION BOITEUSE (écart ${agregat.controles.ecartElimination.toFixed(2)})`,
+      });
+      totalElim.font = { bold: true };
+    }
+
     const controles = wb.addWorksheet('Contrôles');
     controles.columns = [
       { header: 'Dossier', key: 'nom', width: 32 },
@@ -458,6 +849,19 @@ export class GroupeService {
       });
     }
     controles.addRow({});
+    // Les lignes par dossier portent le cumul BRUT, le TOTAL AGRÉGÉ est NET ·
+    // sans cette ligne, la colonne ne s'additionnerait plus à l'écran et le
+    // lecteur croirait à une erreur de report.
+    if (agregat.eliminations.length > 0) {
+      controles.addRow({
+        nom: 'Éliminations des opérations réciproques',
+        debit: -agregat.totauxEliminations.debit,
+        credit: -agregat.totauxEliminations.credit,
+        equilibre: agregat.controles.eliminationsSymetriques
+          ? 'symétrique'
+          : `ÉCART D’ÉLIMINATION ${agregat.controles.ecartElimination.toFixed(2)}`,
+      });
+    }
     const totalRow = controles.addRow({
       nom: 'TOTAL AGRÉGÉ',
       debit: agregat.totaux.debit,
@@ -477,6 +881,26 @@ export class GroupeService {
         nom: c.nom,
         equilibre: `PÉRIODE DISCORDANTE (${GroupeService.jour(c.dateDebut)} au ${GroupeService.jour(c.dateFin)}) · chiffres absents de l’agrégat`,
       });
+    }
+    // Une réciprocité qui ne se boucle pas, un rattachement refusé ou un
+    // retraitement que l'agrégat ne sait pas faire ne peuvent pas rester dans
+    // la seule réponse de l'écran · le classeur circule seul.
+    for (const e of agregat.ecartsReciprocite) {
+      controles.addRow({
+        nom: e.dossier,
+        debit: e.solde,
+        credit: e.soldeContrepartie,
+        equilibre: `ÉCART DE RÉCIPROCITÉ de ${e.ecart.toFixed(2)} avec ${e.contrepartie} · créance et dette ne se répondent pas`,
+      });
+    }
+    for (const r of agregat.rattachementsRefuses) {
+      controles.addRow({
+        nom: r.dossier,
+        equilibre: `RATTACHEMENT REFUSÉ · tiers ${r.codeTiers} (${r.nomTiers}) : ${r.motif} · rien n’a été éliminé pour lui`,
+      });
+    }
+    for (const a of agregat.avertissements) {
+      controles.addRow({ nom: 'AVERTISSEMENT', equilibre: a });
     }
 
     const buffer = Buffer.from(await wb.xlsx.writeBuffer());
@@ -904,9 +1328,10 @@ export class GroupeService {
    * qu'un dossier ordinaire produirait des mêmes soldes.
    *
    * REFUS si un contrôle est rouge · une liasse produite sur un agrégat
-   * déséquilibré, des 58 non neutralisés ou des cellules absentes serait
-   * fausse avec l'apparence de l'officiel, le pire des livrables. Le message
-   * dit exactement quoi corriger.
+   * déséquilibré, des 58 non neutralisés, des opérations réciproques que les
+   * deux dossiers ne confirment pas ou des cellules absentes serait fausse
+   * avec l'apparence de l'officiel, le pire des livrables. Le message dit
+   * exactement quoi corriger.
    *
    * Limite assumée (identique au chemin manuel) : les états et notes sont
    * calculés des SOLDES agrégés · les registres de détail (immobilisations,
@@ -923,6 +1348,40 @@ export class GroupeService {
     if (!agregat.controles.liaisonNeutralisee) {
       blocages.push(
         `virements internes (58) non neutralisés (écart ${agregat.controles.ecartLiaison.toFixed(2)}) · un transfert est enregistré d'un seul côté`,
+      );
+    }
+    // LES OPÉRATIONS RÉCIPROQUES · une élimination qui ne se boucle pas rendrait
+    // une liasse aussi fausse qu'un 58 pendant, et de la même façon : le total
+    // est cohérent avec lui-même, seule la réalité manque. Le D4C fait de la
+    // « procédure de confirmation de solde pour toutes les opérations »
+    // (ch. XII-5 § 2) le préalable de l'élimination · tant qu'elle n'a pas
+    // abouti, il n'y a rien à déposer.
+    if (agregat.rattachementsRefuses.length > 0) {
+      const nommes = agregat.rattachementsRefuses
+        .map((r) => `${r.codeTiers} (${r.nomTiers}) dans ${r.dossier} : ${r.motif}`)
+        .join(' ; ');
+      blocages.push(
+        `tiers rattaché(s) à un dossier qui n'est pas une cellule de ce groupe · ${nommes} · rien n'a été éliminé pour ` +
+          "eux, car retirer une vente faite à une entité extérieure au groupe serait le contraire de l'élimination. " +
+          'Corrigez le rattachement du tiers, ou retirez-le',
+      );
+    }
+    if (!agregat.controles.reciprocitesEquilibrees) {
+      const nommes = agregat.ecartsReciprocite
+        .map((e) => `${e.dossier} porte ${e.solde.toFixed(2)} face à ${e.contrepartie} qui porte ${e.soldeContrepartie.toFixed(2)} (écart ${e.ecart.toFixed(2)})`)
+        .join(' ; ');
+      blocages.push(
+        `opérations réciproques non confirmées · ${nommes} · la créance chez l'un doit être la dette chez l'autre. ` +
+          "Le logiciel ne choisit pas lequel des deux dossiers a raison : confirmez le solde entre les deux dossiers, " +
+          'passez l’écriture manquante, puis relancez',
+      );
+    }
+    if (!agregat.controles.eliminationsSymetriques) {
+      blocages.push(
+        `élimination des opérations réciproques non symétrique (écart ${agregat.controles.ecartElimination.toFixed(2)} entre ` +
+          `${agregat.totauxEliminations.debit.toFixed(2)} retirés au débit et ${agregat.totauxEliminations.credit.toFixed(2)} ` +
+          "au crédit) · une opération interne n'est enregistrée que d'un seul côté, ou sa contrepartie n'est pas une " +
+          'charge ni un produit · voir la feuille « Éliminations » du classeur de la balance agrégée',
       );
     }
     if (agregat.cellulesPeriodeDiscordante.length > 0) {

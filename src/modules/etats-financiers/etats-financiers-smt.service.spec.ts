@@ -35,6 +35,27 @@ function ligne(
 
 type LigneTest = ReturnType<typeof ligne>;
 
+/**
+ * Une ligne d'écriture de tiers telle que `partsParEcheance` la lit · seuls
+ * comptent le compte, le sens, et l'échéance. `echeance: undefined` est le cas
+ * de TOUS les dossiers ouverts avant que ce champ soit servi : la note doit
+ * s'y comporter exactement comme avant.
+ */
+function ligneTiers(
+  numero: string,
+  montant: { debit?: number; credit?: number },
+  echeance?: string,
+  lettre: string | null = null,
+) {
+  return {
+    compteId: `id-${numero}`,
+    debit: montant.debit ?? 0,
+    credit: montant.credit ?? 0,
+    dateEcheance: echeance ? new Date(echeance) : null,
+    lettre,
+  };
+}
+
 /** Une écriture telle que `mouvementsTresorerie` la lit via Prisma. */
 function ecriture(
   id: string,
@@ -66,6 +87,7 @@ function service(
     ecritures?: ReturnType<typeof ecriture>[];
     immobilisations?: unknown[];
     tiersComptes?: Array<{ compteId: string; tiers: { nom: string } }>;
+    lignesTiers?: ReturnType<typeof ligneTiers>[];
     devise?: string;
     exercicePrecedent?: { id: string; dateDebut: Date; dateFin: Date } | null;
   } = {},
@@ -98,6 +120,18 @@ function service(
     },
     immobilisation: { findMany: jest.fn().mockResolvedValue(options.immobilisations ?? []) },
     tiersCompte: { findMany: jest.fn().mockResolvedValue(options.tiersComptes ?? []) },
+    // Lignes de tiers de la ventilation par échéance de la Note 3. Vide par
+    // défaut : c'est l'état d'un dossier qui n'a jamais saisi d'échéance.
+    // La doublure respecte `where.lettre`, comme celle des écritures respecte
+    // `estGenereeParCloture` : sans quoi le test « une ligne lettrée est
+    // soldée » ne testerait que la doublure.
+    ligneEcriture: {
+      findMany: jest.fn().mockImplementation(({ where }: { where: { lettre?: string | null } }) =>
+        Promise.resolve(
+          (options.lignesTiers ?? []).filter((l) => (where.lettre === null ? l.lettre === null : true)),
+        ),
+      ),
+    },
     tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ devise: options.devise ?? 'CDF' }) },
     exercice: {
       findFirstOrThrow: jest.fn().mockResolvedValue({ dateFin: new Date('2026-12-31') }),
@@ -581,6 +615,167 @@ describe('Notes annexes S.M.T', () => {
     const s = service({ e1: [ligne('41100000', ClasseCompte.CLASSE_4, 4000, 0)] });
     const note = await s.note3CreancesDettes('t1', 'e1');
     expect(note.creances[0].variationPourcent).toBeNull();
+  });
+
+  // -------------------------------------------------------------------------
+  // NOTE 3 · « NON ÉCHUES », ce que l'intitulé officiel commande
+  // -------------------------------------------------------------------------
+  // La maquette (Partie 4, ch. 4, section 3) intitule la note « Etat des
+  // créances et des dettes NON ECHUES », et l'AUDCIF précise « au 31 décembre »
+  // (titre X, ch. 3). La note prenait toute la classe 4 sans distinguer : une
+  // créance dont le terme était passé y était présentée comme non échue.
+
+  it('Note 3 · une créance dont le terme est passé à la clôture est comptée ÉCHUE, pas non échue', async () => {
+    const s = service(
+      { e1: [ligne('41100000', ClasseCompte.CLASSE_4, 4000, 0)] },
+      { lignesTiers: [ligneTiers('41100000', { debit: 4000 }, '2026-11-30')] },
+    );
+    const note = await s.note3CreancesDettes('t1', 'e1');
+    expect(note.creances[0].montantEchu).toBe(4000);
+    expect(note.creances[0].montantNonEchu).toBe(0);
+    expect(note.totalCreancesNonEchues).toBe(0);
+    expect(note.totalCreancesEchues).toBe(4000);
+    // Le solde entier reste porté : la note justifie GC au bilan et VB au
+    // compte de résultat, qui sont pris sur le solde.
+    expect(note.creances[0].montantCloture).toBe(4000);
+  });
+
+  it('Note 3 · une créance à terme postérieur à la clôture est la seule à être dite non échue', async () => {
+    const s = service(
+      { e1: [ligne('41100000', ClasseCompte.CLASSE_4, 4000, 0)] },
+      { lignesTiers: [ligneTiers('41100000', { debit: 4000 }, '2027-03-31')] },
+    );
+    const note = await s.note3CreancesDettes('t1', 'e1');
+    expect(note.creances[0].montantNonEchu).toBe(4000);
+    expect(note.creances[0].montantEchu).toBe(0);
+    expect(note.echeancesTenues).toBe(true);
+    expect(note.motifEcheances).toBeNull();
+  });
+
+  it('Note 3 · une créance venue à terme LE JOUR de la clôture est échue, la borne est incluse', async () => {
+    // L'état est arrêté « au 31 décembre » (AUDCIF, titre X, ch. 3) : au soir
+    // de la clôture, le terme du 31 décembre est atteint. Le décaler d'un jour
+    // ferait passer pour non échue la créance la plus proche de l'être.
+    const s = service(
+      { e1: [ligne('41100000', ClasseCompte.CLASSE_4, 4000, 0)] },
+      { lignesTiers: [ligneTiers('41100000', { debit: 4000 }, '2026-12-31')] },
+    );
+    const note = await s.note3CreancesDettes('t1', 'e1');
+    expect(note.creances[0].montantEchu).toBe(4000);
+    expect(note.creances[0].montantNonEchu).toBe(0);
+  });
+
+  it('Note 3 · une dette échue se lit en positif sous le total des dettes, comme le solde', async () => {
+    const s = service(
+      { e1: [ligne('40100000', ClasseCompte.CLASSE_4, 0, 3000)] },
+      { lignesTiers: [ligneTiers('40100000', { credit: 3000 }, '2026-06-30')] },
+    );
+    const note = await s.note3CreancesDettes('t1', 'e1');
+    expect(note.dettes[0].montantCloture).toBe(3000);
+    expect(note.dettes[0].montantEchu).toBe(3000);
+    expect(note.totalDettesEchues).toBe(3000);
+    expect(note.totalDettesNonEchues).toBe(0);
+  });
+
+  it('Note 3 · une ligne SANS échéance n’est rangée ni en échu ni en non échu : elle est nommée', async () => {
+    // LE PIÈGE. On ne sait pas quand cette créance vient à terme. La ranger
+    // d'office en « non échu » ferait affirmer à l'état un terme que personne
+    // n'a saisi ; l'écarter viderait la note. Elle est portée à part.
+    const s = service(
+      { e1: [ligne('41100000', ClasseCompte.CLASSE_4, 4000, 0)] },
+      { lignesTiers: [ligneTiers('41100000', { debit: 4000 })] },
+    );
+    const note = await s.note3CreancesDettes('t1', 'e1');
+    expect(note.creances[0].montantNonVentile).toBe(4000);
+    expect(note.creances[0].montantNonEchu).toBe(0);
+    expect(note.creances[0].montantEchu).toBe(0);
+    expect(note.totalCreancesNonVentilees).toBe(4000);
+    expect(note.echeancesTenues).toBe(false);
+    expect(note.motifEcheances).toContain('non échues');
+  });
+
+  it('Note 3 · un dossier qui n’a jamais saisi d’échéance garde EXACTEMENT la note d’avant', async () => {
+    // Aucune reprise de données n'a eu lieu : sur tous les dossiers ouverts
+    // avant que l'échéance soit servie, les colonnes de la maquette doivent
+    // rendre les mêmes montants qu'hier. La ventilation s'ajoute, elle
+    // n'ampute pas.
+    const s = service(
+      {
+        e1: [
+          ligne('41100000', ClasseCompte.CLASSE_4, 5000, 1000, { debit: 1500 }),
+          ligne('40100000', ClasseCompte.CLASSE_4, 0, 3000),
+        ],
+      },
+      { tiersComptes: [{ compteId: 'id-41100000', tiers: { nom: 'Mutuelle Kin' } }] },
+    );
+    const note = await s.note3CreancesDettes('t1', 'e1');
+    expect(note.creances[0].montantCloture).toBe(4000);
+    expect(note.creances[0].montantOuverture).toBe(1500);
+    expect(note.creances[0].variationValeur).toBe(2500);
+    expect(note.totalCreances).toBe(4000);
+    expect(note.totalDettes).toBe(3000);
+    // Et la note DIT que sa ventilation est vide au lieu de la faire passer
+    // pour un « tout est non échu ».
+    expect(note.totalCreancesNonEchues).toBe(0);
+    expect(note.totalDettesNonEchues).toBe(0);
+    expect(note.echeancesTenues).toBe(false);
+  });
+
+  it('Note 3 · une ligne lettrée est soldée et sort de la ventilation', async () => {
+    const s = service(
+      { e1: [ligne('41100000', ClasseCompte.CLASSE_4, 9000, 5000)] },
+      {
+        lignesTiers: [
+          ligneTiers('41100000', { debit: 5000 }, '2026-05-31', 'A1'),
+          ligneTiers('41100000', { credit: 5000 }, undefined, 'A1'),
+          ligneTiers('41100000', { debit: 4000 }, '2027-05-31'),
+        ],
+      },
+    );
+    const note = await s.note3CreancesDettes('t1', 'e1');
+    expect(note.creances[0].montantNonEchu).toBe(4000);
+    expect(note.creances[0].montantEchu).toBe(0);
+    expect(note.creances[0].montantNonVentile).toBe(0);
+    expect(note.echeancesTenues).toBe(true);
+  });
+
+  it('Note 3 · les trois parts somment TOUJOURS au solde présenté, même quand la tenue est incohérente', async () => {
+    // Facture datée, règlement non lettré et sans échéance : le solde est nul,
+    // la part non échue vaut la facture, et le reste vient l'annuler. Rien ne
+    // s'évapore, rien n'apparaît, et la part négative rend la lacune visible
+    // au lieu de la laisser passer pour une créance vivante.
+    const s = service(
+      { e1: [ligne('41100000', ClasseCompte.CLASSE_4, 5000, 5000)] },
+      {
+        lignesTiers: [
+          ligneTiers('41100000', { debit: 5000 }, '2027-06-30'),
+          ligneTiers('41100000', { credit: 5000 }),
+        ],
+      },
+    );
+    const note = await s.note3CreancesDettes('t1', 'e1');
+    // Solde nul : le compte ne figure ni en créance ni en dette, comme avant.
+    expect(note.creances).toHaveLength(0);
+    expect(note.dettes).toHaveLength(0);
+
+    // Le même dossier, la facture restant impayée à la clôture.
+    const s2 = service(
+      { e1: [ligne('41100000', ClasseCompte.CLASSE_4, 5000, 2000)] },
+      {
+        lignesTiers: [
+          ligneTiers('41100000', { debit: 5000 }, '2027-06-30'),
+          ligneTiers('41100000', { credit: 2000 }),
+        ],
+      },
+    );
+    const note2 = await s2.note3CreancesDettes('t1', 'e1');
+    const c = note2.creances[0];
+    expect(c.montantCloture).toBe(3000);
+    expect(c.montantNonEchu).toBe(5000);
+    expect(c.montantEchu).toBe(0);
+    expect(c.montantNonVentile).toBe(-2000);
+    expect(c.montantNonEchu + c.montantEchu + c.montantNonVentile).toBe(c.montantCloture);
+    expect(note2.echeancesTenues).toBe(false);
   });
 
   it('Note 5 · sert les trois rubriques officielles et déclare la nationalité non tenue', async () => {

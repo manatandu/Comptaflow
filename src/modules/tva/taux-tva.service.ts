@@ -922,8 +922,71 @@ export class TauxTvaService {
   }
 
   /**
+   * CE FOURNISSEUR ACQUITTE-T-IL LA TVA D'APRÈS LES DÉBITS ? (art. 26)
+   *
+   * La question ne se pose que pour la TVA DÉDUCTIBLE, et sa réponse ne se
+   * calcule pas : elle se LIT sur la facture. Décret n° 011/42, art. 60
+   * (fichier `code-general-2026/references/11-tva-decret-application-ch1-4.md`,
+   * l. 1787-1790) : « La mention "Autorisation d'acquitter la TVA d'après les
+   * débits" doit figurer sur toutes les factures délivrées par le prestataire
+   * de services ou l'entrepreneur de travaux publics ou de travaux
+   * immobiliers. » Le comptable la reporte sur la fiche du tiers
+   * (`Tiers.autoriseTvaDebits`) ; aucun autre chemin ne mène à cette
+   * information, et le logiciel n'en invente pas.
+   *
+   * LE CHEMIN JUSQU'AU FOURNISSEUR, ET CE QU'IL NE DIT PAS. Une ligne de TVA
+   * ne porte aucun tiers : le seul rattachement est la CONTREPARTIE de classe 4
+   * de la même écriture, dont le compte auxiliaire est rattaché à un tiers et à
+   * un seul (`TiersCompte.compteId` est unique). Trois situations ne concluent
+   * pas, et le droit commun s'y applique :
+   *
+   *  · aucune contrepartie de tiers RATTACHÉE (achat réglé en espèces, compte
+   *    collectif 401 laissé sans auxiliaire) · le fournisseur n'est pas nommé ;
+   *  · une contrepartie rattachée à un tiers dont l'autorisation n'est pas
+   *    saisie · FAUX est le défaut de la colonne, pas une réponse ;
+   *  · plusieurs contreparties dont l'une au moins ne répond pas OUI · rien ne
+   *    dit laquelle supporte la taxe de cette ligne, et trancher au hasard
+   *    reviendrait à choisir entre déduire trop tôt et déduire trop tard.
+   *
+   * D'où le sens exact du drapeau rendu : VRAI = « autorisation lue sur la
+   * facture et saisie sur chacun des tiers de l'écriture » ; FAUX = « le
+   * logiciel ne sait pas ». Il ne signifie JAMAIS « ce fournisseur n'est pas
+   * autorisé », et c'est pourquoi la déclaration continue d'avertir sur tout ce
+   * qu'elle a différé.
+   *
+   * `reference` porte la décision du Directeur Général des Impôts (art. 26,
+   * décret art. 59) telle qu'elle a été saisie · NULL dès qu'un seul des tiers
+   * autorisés n'en porte aucune, pour que la déclaration puisse signaler une
+   * anticipation qui ne s'appuie sur aucune pièce nommée.
+   */
+  private static fournisseurAuxDebits(
+    lignesTiers: Array<{
+      compte?: {
+        tiersCompte?: {
+          tiers: { autoriseTvaDebits: boolean; referenceAutorisationDebits: string | null };
+        } | null;
+      } | null;
+    }>,
+  ): { autorise: boolean; reference: string | null } {
+    const inconnu = { autorise: false, reference: null };
+    let rattaches = 0;
+    let reference: string | null = null;
+    let referenceManquante = false;
+    for (const l of lignesTiers) {
+      const tiers = l.compte?.tiersCompte?.tiers;
+      if (!tiers) continue;
+      rattaches += 1;
+      if (!tiers.autoriseTvaDebits) return inconnu;
+      if (!tiers.referenceAutorisationDebits) referenceManquante = true;
+      else reference = reference ?? tiers.referenceAutorisationDebits;
+    }
+    if (rattaches === 0) return inconnu;
+    return { autorise: true, reference: referenceManquante ? null : reference };
+  }
+
+  /**
    * SUR QUOI SE DATE UNE LIGNE · fait générateur (date de l'écriture) ou
-   * encaissement (date du lettrage de la contrepartie de tiers).
+   * encaissement (date du règlement de la contrepartie de tiers).
    *
    * COLLECTE · art. 25. Les biens au fait générateur (1°), les services et
    * travaux à l'encaissement (2°). Le paramètre du dossier ne peut plus
@@ -943,31 +1006,50 @@ export class TauxTvaService {
    * exactement l'inverse, et différait au lettrage la déduction d'un achat de
    * marchandises dès que le dossier était paramétré aux encaissements.
    *
-   * CE QUE LE LOGICIEL NE SAIT PAS, ET NE DEVINE PAS. Un fournisseur de
-   * services peut être autorisé à acquitter d'après les débits (art. 26 ·
-   * décret art. 58 à 61), auquel cas la taxe lui est exigible dès la facture
-   * et la déduction naît plus tôt. Cette autorisation se lit sur la facture
-   * du fournisseur, qui doit porter la mention « Autorisation d'acquitter la
-   * TVA d'après les débits » (décret art. 60) · OmegaX n'enregistre pas cette
-   * mention et ne connaît pas le régime de ses fournisseurs. Le droit commun
-   * est donc appliqué et l'exception est ANNONCÉE avec son article, plutôt
-   * que devinée. Différer une déduction ne fait courir aucun redressement, et
-   * l'art. 37 al. 2 laisse jusqu'au 31 décembre de l'année suivante pour
-   * l'exercer ; l'anticiper, si.
+   * ET CETTE SITUATION EST DÉSORMAIS CONNUE, QUAND ELLE A ÉTÉ SAISIE. Un
+   * prestataire autorisé par l'art. 26 rend sa taxe exigible « par
+   * l'inscription de la somme au débit du compte du client » (décret art. 61,
+   * l. 1792-1795), donc à la facture : la déduction de son client naît ce
+   * jour-là et non à son paiement. Le drapeau vient de `fournisseurAuxDebits`,
+   * qui dit aussi dans quels cas ce rattachement ne conclut pas.
+   *
+   * CE QUE LE LOGICIEL NE SAIT TOUJOURS PAS, ET NE DEVINE PAS. Un fournisseur
+   * dont l'autorisation n'a pas été saisie n'est pas un fournisseur NON
+   * AUTORISÉ : c'est un fournisseur dont le régime est ignoré. Le droit commun
+   * lui est appliqué et l'exception reste ANNONCÉE avec son article. Différer
+   * une déduction ne fait courir aucun redressement, et l'art. 37 al. 2 laisse
+   * jusqu'au 31 décembre de l'année suivante pour l'exercer ; l'anticiper, si.
+   *
+   * L'ACOMPTE ANTÉRIEUR AU DÉBIT N'EST PAS VENTILÉ, ET LE SENS DE L'ÉCART EST
+   * CONNU. L'art. 26 in fine et le décret art. 62 (l. 1797-1800) réservent le
+   * cas où le prix ou l'acompte est encaissé AVANT le débit : la taxe est
+   * alors exigible chez le fournisseur dès cet encaissement, donc plus tôt
+   * encore. La déclaration retient la date de la facture, qui lui est
+   * postérieure · elle déduit au plus tard, jamais au plus tôt, et ce sens-là
+   * ne se redresse pas.
+   *
+   * NATURE INDÉTERMINÉE · l'autorisation n'y change rien. L'art. 26 n'est
+   * ouvert qu'aux travaux et aux services, et un compte qui ne dit pas la
+   * nature de l'opération ne dit pas davantage qu'elle en est une. Le repli
+   * DÉCLARÉ du dossier continue d'y servir.
    */
   private baseExigibilite(
     referentiel: Referentiel | undefined,
     regime: string,
     numeroCompte: string,
     estCollecte: boolean,
+    fournisseurAuxDebits: boolean,
   ): { base: 'FAIT_GENERATEUR' | 'ENCAISSEMENT'; nature: NatureOperationTva } {
     const nature = this.natureOperation(referentiel, numeroCompte, estCollecte);
     if (nature === 'BIENS') return { base: 'FAIT_GENERATEUR', nature };
     if (nature === 'SERVICES') {
-      // L'art. 26 ne vise que la taxe que le redevable ACQUITTE · il ne dit
-      // rien de celle qu'il déduit, dont la date se juge chez le fournisseur.
-      if (estCollecte && regime === 'DEBITS') return { base: 'FAIT_GENERATEUR', nature };
-      return { base: 'ENCAISSEMENT', nature };
+      // COLLECTE · l'art. 26 vise la taxe que le redevable ACQUITTE, donc
+      // l'autorisation DU DOSSIER · jamais celle d'un de ses tiers.
+      if (estCollecte) return { base: regime === 'DEBITS' ? 'FAIT_GENERATEUR' : 'ENCAISSEMENT', nature };
+      // DÉDUCTION · la date se juge chez le fournisseur (art. 37 al. 1, décret
+      // art. 96) ; autorisé aux débits, sa taxe est exigible à la facture
+      // (décret art. 61). FAUX couvre aussi « non renseigné » · droit commun.
+      return { base: fournisseurAuxDebits ? 'FAIT_GENERATEUR' : 'ENCAISSEMENT', nature };
     }
     // Nature indéterminée · le paramètre du dossier sert de repli DÉCLARÉ.
     return { base: regime === 'ENCAISSEMENTS' ? 'ENCAISSEMENT' : 'FAIT_GENERATEUR', nature };
@@ -1161,18 +1243,40 @@ export class TauxTvaService {
               ecriture: {
                 include: {
                   // DEUX contreparties sont lues sur la même écriture, et pour
-                  // deux questions différentes : la ligne de TIERS lettrée dit
-                  // QUAND la taxe est exigible (art. 25, 2°), la ligne de
-                  // CHARGE dit si l'article 41 en interdit la déduction.
+                  // trois questions différentes : la ligne de TIERS lettrée dit
+                  // QUAND la taxe est exigible (art. 25, 2°), le TIERS auquel son
+                  // compte est rattaché dit si le fournisseur acquitte d'après
+                  // les DÉBITS (art. 26), la ligne de CHARGE dit si l'article 41
+                  // en interdit la déduction.
+                  //
+                  // Le tiers se lit sur la contrepartie LETTRÉE OU NON · une
+                  // facture qu'aucun règlement n'a encore touchée n'a pas de
+                  // lettrage à opposer, et son fournisseur reste le même.
                   lignes: {
                     where: {
                       OR: [
                         { compte: { classe: ClasseCompte.CLASSE_4 }, lettrageId: { not: null } },
+                        { compte: { classe: ClasseCompte.CLASSE_4, tiersCompte: { isNot: null } } },
                         { compte: { classe: ClasseCompte.CLASSE_6 } },
                       ],
                     },
                     include: {
-                      compte: { select: { numero: true, classe: true } },
+                      compte: {
+                        select: {
+                          numero: true,
+                          classe: true,
+                          // SEUL CHEMIN d'une ligne de TVA vers son fournisseur ·
+                          // le compte auxiliaire de la contrepartie est rattaché
+                          // à un tiers, et n'en porte qu'un seul
+                          // (`TiersCompte.compteId` est unique). Rien d'autre dans
+                          // l'écriture ne nomme le fournisseur.
+                          tiersCompte: {
+                            select: {
+                              tiers: { select: { autoriseTvaDebits: true, referenceAutorisationDebits: true } },
+                            },
+                          },
+                        },
+                      },
                       // Les lignes du GROUPE de lettrage, avec la date de leur
                       // écriture · c'est le règlement, pas le lettrage, qui
                       // date l'encaissement (décret art. 57).
@@ -1205,6 +1309,8 @@ export class TauxTvaService {
     // au lecteur d'où sort son chiffre, et à annoncer le repli quand il joue.
     let montantIndetermine = 0;
     let deductionServicesDiffere = 0;
+    let deductionServicesDebits = 0;
+    let deductionServicesDebitsSansReference = 0;
     let tvaExclueArt41 = 0;
     let tvaAVerifierArt41 = 0;
     let tvaNatureDepenseIllisible = 0;
@@ -1283,9 +1389,34 @@ export class TauxTvaService {
       const lignesTiers = l.ecriture.lignes.filter((x) => x.compte?.classe === ClasseCompte.CLASSE_4 && x.lettrage);
       const lignesCharge = l.ecriture.lignes.filter((x) => x.compte?.classe === ClasseCompte.CLASSE_6);
 
-      const { base, nature } = this.baseExigibilite(referentiel, regime, l.compte.numero, estCollecte);
+      // L'autorisation de l'art. 26 ne se lit QUE du côté de la déduction · sur
+      // une vente, le tiers de la contrepartie est le CLIENT, et son régime à
+      // lui ne date pas la taxe du vendeur.
+      const fournisseur = estCollecte
+        ? { autorise: false, reference: null }
+        : TauxTvaService.fournisseurAuxDebits(
+            l.ecriture.lignes.filter((x) => x.compte?.classe === ClasseCompte.CLASSE_4),
+          );
+
+      const { base, nature } = this.baseExigibilite(
+        referentiel,
+        regime,
+        l.compte.numero,
+        estCollecte,
+        fournisseur.autorise,
+      );
       if (nature === 'INDETERMINEE' && dansLaPeriode) montantIndetermine += montant;
-      if (!estCollecte && nature === 'SERVICES' && dansLaPeriode) deductionServicesDiffere += montant;
+      if (!estCollecte && nature === 'SERVICES' && dansLaPeriode) {
+        // DEUX compteurs, et non un seul : ce qui est différé FAUTE DE SAVOIR
+        // n'est pas ce qui est déduit d'avance PARCE QU'ON SAIT. Les confondre
+        // ferait dire à la déclaration qu'elle a différé ce qu'elle a anticipé,
+        // et l'avertissement qui suit perdrait son objet.
+        if (base === 'ENCAISSEMENT') deductionServicesDiffere += montant;
+        else {
+          deductionServicesDebits += montant;
+          if (!fournisseur.reference) deductionServicesDebitsSansReference += montant;
+        }
+      }
 
       const { date, fraction } =
         base === 'FAIT_GENERATEUR'
@@ -1378,6 +1509,8 @@ export class TauxTvaService {
         referentiel,
         montantIndetermine: TauxTvaService.c(montantIndetermine),
         deductionServicesDiffere: TauxTvaService.c(deductionServicesDiffere),
+        deductionServicesDebits: TauxTvaService.c(deductionServicesDebits),
+        deductionServicesDebitsSansReference: TauxTvaService.c(deductionServicesDebitsSansReference),
         creditAnterieur: credit.montant,
         creditImpute,
         avoirsCollecteConstates,
@@ -1457,6 +1590,8 @@ export class TauxTvaService {
     referentiel: Referentiel | undefined;
     montantIndetermine: number;
     deductionServicesDiffere: number;
+    deductionServicesDebits: number;
+    deductionServicesDebitsSansReference: number;
     creditAnterieur: number;
     creditImpute: number;
     avoirsCollecteConstates: number;
@@ -1503,10 +1638,32 @@ export class TauxTvaService {
         `DÉDUCTION SUR SERVICES · ${fc(e.deductionServicesDiffere)} CDF de TVA d'amont facturée ` +
           "sur la période sont déduits au PAIEMENT du fournisseur : l'article 37 al. 1 fait naître le droit à " +
           "déduction « lorsque la taxe devient exigible chez l'assujetti », et le décret n° 011/42, art. 96, " +
-          'précise qu’il s’agit du FOURNISSEUR. Si l’un d’eux est autorisé à acquitter d’après les débits ' +
-          '(art. 26 · sa facture porte alors la mention obligatoire du décret art. 60), sa taxe est exigible dès ' +
-          'la facture et la déduction naît plus tôt : OmegaX n’enregistre pas cette mention et ne l’applique donc ' +
-          'pas d’office.',
+          'précise qu’il s’agit du FOURNISSEUR. AUCUNE AUTORISATION D’ACQUITTER D’APRÈS LES DÉBITS N’EST ' +
+          'RENSEIGNÉE sur les tiers de ces factures · ce qui ne veut PAS dire qu’il n’y en a pas. La mention ' +
+          '« Autorisation d’acquitter la TVA d’après les débits » se lit sur la facture et nulle part ailleurs ' +
+          '(décret art. 60) : tant qu’elle n’a pas été portée sur la fiche du fournisseur, OmegaX ne PEUT pas ' +
+          'savoir, et s’en tient au droit commun. Chez un fournisseur autorisé (art. 26), la taxe est exigible ' +
+          'dès la facture et la déduction naît plus tôt · à vérifier facture par facture avant dépôt.',
+      );
+    }
+    if (e.deductionServicesDebits > EPSILON) {
+      phrases.push(
+        `FOURNISSEURS AUTORISÉS AUX DÉBITS · ${fc(e.deductionServicesDebits)} CDF de TVA d’amont sur services et ` +
+          'travaux sont déduits DÈS LA FACTURE, et non au paiement : ces fournisseurs sont renseignés comme ' +
+          'autorisés à acquitter la TVA d’après les débits (art. 26, sur décision du Directeur Général des ' +
+          'Impôts), leur taxe est donc exigible « par l’inscription de la somme au débit du compte du client » ' +
+          '(décret n° 011/42, art. 61) et le droit à déduction du client naît à cette date (article 37 al. 1, ' +
+          'décret art. 96). L’autorisation est appliquée TELLE QU’ELLE A ÉTÉ SAISIE sur la fiche du tiers · elle ' +
+          'se prouve par la mention portée sur la facture (décret art. 60), qu’OmegaX ne peut pas vérifier.',
+      );
+    }
+    if (e.deductionServicesDebitsSansReference > EPSILON) {
+      phrases.push(
+        `AUTORISATION AUX DÉBITS SANS RÉFÉRENCE · ${fc(e.deductionServicesDebitsSansReference)} CDF de cette ` +
+          'déduction anticipée reposent sur un tiers coché « autorisé aux débits » dont la RÉFÉRENCE de la ' +
+          'décision n’est pas saisie. L’autorisation est délivrée « sur décision du Directeur Général des Impôts ' +
+          'ou son délégué en province » (art. 26), sur demande adressée par simple lettre (décret art. 58) : sans ' +
+          'cette référence, l’anticipation ne s’appuie sur aucune pièce nommée · à documenter avant dépôt.',
       );
     }
     if (e.tvaExclueArt41 > EPSILON) {

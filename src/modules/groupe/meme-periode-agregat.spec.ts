@@ -60,6 +60,12 @@ const service = (exercicesCellule: Array<{ id: string; dateDebut: Date; dateFin:
         findFirst: async ({ where }: { where: { id?: string; tenantId: string } }) =>
           where.id === 'ex-m' && where.tenantId === 'mere' ? EX_MERE : null,
       },
+      // AUCUN TIERS N'EST UNE CELLULE DU GROUPE · c'est l'état de tous les
+      // dossiers existants, aucune reprise de données n'ayant eu lieu. Les
+      // chiffres attendus plus bas sont donc EXACTEMENT ceux d'avant
+      // l'élimination des opérations réciproques : ce fichier est le garde-fou
+      // qui le vérifie.
+      tiersCompte: { findMany: async () => [] },
       tenant: {
         findUnique: async () => ({ id: 'mere', nom: 'Église centrale', dossierCombinaisonId: 't-comb' }),
         findMany: async ({ where }: { where: { dossierMereId: string } }) =>

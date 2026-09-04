@@ -36,6 +36,14 @@ interface LignePiece {
   tauxTvaId?: string;
   dateEcheance?: string;
   /**
+   * Date du versement ou de la mise à disposition, quand elle tombe dans un
+   * autre mois que l'écriture · exception, laissée vide dans le cas ordinaire.
+   * Loi n° 004/2003, art. 18 : les retenues « doivent être versées au plus
+   * tard le 15 du mois qui suit celui du versement de ces revenus aux
+   * bénéficiaires ou de leur mise à disposition ».
+   */
+  dateVersement?: string;
+  /**
    * Ventilation analytique de la ligne, une section par axe · c'est la
    * « colonne ligne budgétaire » du guide Sage écrit pour une ONG, active
    * seulement sur les classes que l'axe déclare ventiler. La grille impute la
@@ -171,6 +179,7 @@ export function SaisiePage() {
   const [compteChoisi, setCompteChoisi] = useState<Compte | null>(null);
   const [libelleLigne, setLibelleLigne] = useState('');
   const [echeance, setEcheance] = useState('');
+  const [versement, setVersement] = useState('');
   const [debitSaisie, setDebitSaisie] = useState('');
   const [creditSaisie, setCreditSaisie] = useState('');
   const [pickerOuvert, setPickerOuvert] = useState(false);
@@ -289,6 +298,10 @@ export function SaisiePage() {
 
   const journal = journaux.find((j) => j.id === journalId) ?? null;
   const periode = periodes[indexPeriode] ?? null;
+  // « AAAA-MM » de la période ouverte · sert à dire au comptable qu'une date
+  // de versement tombant dans ce mois-là n'a rien à apporter, la date de
+  // l'écriture faisant déjà foi.
+  const moisDeLaPeriode = periode ? `${periode.annee}-${String(periode.mois + 1).padStart(2, '0')}` : null;
 
   // Chargement des écritures du journal ouvert, sur la période.
   useEffect(() => {
@@ -369,6 +382,7 @@ export function SaisiePage() {
         debit: d,
         credit: c,
         dateEcheance: echeance || undefined,
+        dateVersement: versement || undefined,
         // On ne retient que les axes qui ventilent la classe du compte : une
         // section restée sélectionnée d'une ligne précédente ne doit pas
         // suivre sur une ligne de trésorerie.
@@ -386,6 +400,7 @@ export function SaisiePage() {
     setDebitSaisie('');
     setCreditSaisie('');
     setEcheance('');
+    setVersement('');
     compteRef.current?.focus();
   };
 
@@ -592,6 +607,7 @@ export function SaisiePage() {
           credit: l.credit || undefined,
           tauxTvaId: l.tauxTvaId,
           dateEcheance: l.dateEcheance,
+          dateVersement: l.dateVersement,
           // Une section par axe, imputée pour la totalité de la ligne · le
           // serveur vérifie cet équilibre axe par axe.
           ventilations: Object.values(l.sections ?? {})
@@ -925,6 +941,11 @@ export function SaisiePage() {
             })}
             <span className="truncate" title={`${l.intitule} · ${l.libelle}`}>
               {l.libelle}
+              {l.dateVersement && (
+                <span className="ml-1 font-mono text-[9.5px] text-text-dim" title="Date du versement · l'échéance de la retenue se compte sur ce mois (loi n° 004/2003, art. 18)">
+                  versé le {l.dateVersement.split('-').reverse().join('/')}
+                </span>
+              )}
             </span>
             <span className="font-mono text-right">{l.debit ? l.debit.toLocaleString('fr-FR') : ''}</span>
             <span className="font-mono text-right">{l.credit ? l.credit.toLocaleString('fr-FR') : ''}</span>
@@ -1112,6 +1133,39 @@ export function SaisiePage() {
           >
             ↵
           </button>
+        </div>
+
+        {/*
+          DATE DE VERSEMENT · UNE EXCEPTION, ET ELLE EST PRÉSENTÉE COMME TELLE.
+
+          Elle n'est PAS une colonne de la grille : la remplir à chaque ligne
+          ferait ressaisir une date que l'écriture porte déjà. Les textes
+          rattachent la retenue au mois du VERSEMENT, jamais à celui de
+          l'écriture qui la constate · loi n° 004/2003, art. 18 : les retenues
+          « doivent être versées au plus tard le 15 du mois qui suit celui du
+          versement de ces revenus aux bénéficiaires ou de leur mise à
+          disposition ». Les deux dates coïncident presque toujours ; elles
+          divergent quand la paie de décembre est passée au 31 décembre et
+          versée le 5 janvier.
+
+          Vide = la date de l'écriture fait foi, ce qui est le comportement
+          d'aujourd'hui et celui de toutes les lignes déjà en base.
+        */}
+        <div className="px-3 py-1.5 border-b border-border bg-surface-alt/60 flex items-baseline gap-2 flex-wrap">
+          <label className="flex items-center gap-1.5 text-[10.5px]">
+            <span className="text-text-dim">Date de versement (exception) :</span>
+            <input
+              type="date"
+              value={versement}
+              onChange={(e) => setVersement(e.target.value)}
+              className="border border-border-dark px-1.5 py-0.5 font-mono text-[10.5px]"
+            />
+          </label>
+          <span className="text-[10px] text-text-dim leading-[1.5] flex-1 min-w-[260px]">
+            {versement && periode && versement.slice(0, 7) === moisDeLaPeriode
+              ? 'Ce versement tombe dans le mois de l’écriture · laissez le champ vide, la date de l’écriture fait foi.'
+              : 'À ne remplir que si le versement, ou la mise à disposition, tombe dans un autre mois que l’écriture · l’échéance de la retenue se compte sur le mois du versement (loi n° 004/2003, art. 18).'}
+          </span>
         </div>
 
         {/* Pied de la pièce : totaux, équilibre, boutons de bas d'écran Sage */}

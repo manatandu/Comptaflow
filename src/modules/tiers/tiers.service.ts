@@ -79,6 +79,9 @@ export class TiersService {
     if (dto.modeleReglementId) {
       await this.trouverModeleReglement(tenantId, dto.modeleReglementId);
     }
+    if (dto.celluleGroupeId) {
+      await this.exigerMemeGroupe(tenantId, dto.celluleGroupeId);
+    }
     return this.prisma.tiers.create({ data: { ...dto, tenantId } });
   }
 
@@ -109,6 +112,11 @@ export class TiersService {
     await this.trouver(tenantId, tiersId);
     if (dto.modeleReglementId) {
       await this.trouverModeleReglement(tenantId, dto.modeleReglementId);
+    }
+    // null passe sans contrôle · il DÉTACHE, et détacher ne peut jamais faire
+    // sortir de l'agrégat une opération qui doit y rester.
+    if (dto.celluleGroupeId) {
+      await this.exigerMemeGroupe(tenantId, dto.celluleGroupeId);
     }
     return this.prisma.tiers.update({ where: { id: tiersId }, data: dto });
   }
@@ -166,6 +174,81 @@ export class TiersService {
     }
     await this.prisma.tiersCompte.delete({ where: { id: rattachement.id } });
     return { compteId, detache: true };
+  }
+
+  // -----------------------------------------------------------------------
+  // Groupe d'établissements · le garde-fou que la base ne peut pas poser.
+  // -----------------------------------------------------------------------
+
+  /**
+   * LES DOSSIERS QU'UN TIERS DE CE DOSSIER PEUT DÉSIGNER COMME CELLULE.
+   *
+   * Un groupe d'établissements n'a QU'UN NIVEAU (voir Tenant.dossierMereId et
+   * PlateformeService.modifierGroupe) : une mère dont `dossierMereId` est nul,
+   * et ses cellules qui portent son identifiant. Le périmètre visible depuis
+   * un dossier se déduit donc entièrement de ces deux cas :
+   *  · le dossier courant EST la mère · ses cellules, et elles seules ;
+   *  · le dossier courant est une cellule · la mère, et ses dossiers sœurs.
+   *
+   * Le dossier courant lui-même n'y figure jamais : un tiers ne peut pas être
+   * le dossier dans lequel il est ouvert. Sans cette exclusion, une cellule
+   * passerait la règle des sœurs, puisqu'elle partage sa propre mère.
+   *
+   * Un dossier hors groupe (ni mère, ni cellule) rend une liste vide, et
+   * l'écran n'a alors rien à proposer · ce qui est exact.
+   */
+  async dossiersDuGroupe(tenantId: string) {
+    const courant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { id: true, dossierMereId: true },
+    });
+    if (!courant) {
+      throw new NotFoundException('Dossier introuvable');
+    }
+    const membres = await this.prisma.tenant.findMany({
+      where:
+        courant.dossierMereId === null
+          ? { dossierMereId: courant.id }
+          : { OR: [{ id: courant.dossierMereId }, { dossierMereId: courant.dossierMereId }], NOT: { id: courant.id } },
+      // IDENTITÉ SEULE · le nom suffit à choisir dans une liste. Aucune
+      // donnée comptable ne franchit ici la frontière du dossier : la lecture
+      // transversale des balances reste le monopole de GroupeService, dans le
+      // seul sens du lien dossierMereId.
+      select: { id: true, nom: true, dossierMereId: true },
+      orderBy: { nom: 'asc' },
+    });
+    return membres.map((m) => ({ id: m.id, nom: m.nom, estDossierMere: m.dossierMereId === null }));
+  }
+
+  /**
+   * REFUSE UN RATTACHEMENT HORS GROUPE, et la base ne sait pas le faire.
+   *
+   * La clé étrangère de `Tiers.celluleGroupeId` vise `tenants` sans pouvoir
+   * exiger « même dossier mère » · aucune contrainte SQL n'exprime une
+   * condition qui compare deux lignes d'une autre table (voir le commentaire
+   * du schéma et celui de la migration).
+   *
+   * CE QUE COÛTERAIT L'ABSENCE DE CONTRÔLE · l'agrégation élimine les
+   * opérations réciproques parce que le périmètre est UNE SEULE entité.
+   * AUDCIF art. 107 : « élimination des comptes réciproques : actifs et
+   * passifs, charges et produits ; neutralisation des résultats provenant
+   * d'opérations effectuées entre les entités DU PÉRIMÈTRE ». Désigner un
+   * dossier étranger au périmètre ferait disparaître de l'agrégat un chiffre
+   * d'affaires réellement réalisé avec un tiers · l'inverse exact du défaut
+   * que le champ corrige, et sans plus de trace.
+   */
+  private async exigerMemeGroupe(tenantId: string, celluleGroupeId: string) {
+    const membres = await this.dossiersDuGroupe(tenantId);
+    const vise = membres.find((m) => m.id === celluleGroupeId);
+    if (!vise) {
+      throw new BadRequestException(
+        "Ce dossier n'appartient pas au groupe d'établissements du dossier courant · seuls le dossier mère " +
+          'et ses cellules peuvent être désignés. Le rattachement sert à éliminer de la balance agrégée les ' +
+          "opérations internes au groupe ; un dossier hors du périmètre en ferait disparaître des opérations " +
+          'réellement conclues avec un tiers (AUDCIF art. 107).',
+      );
+    }
+    return vise;
   }
 
   // -----------------------------------------------------------------------

@@ -759,6 +759,34 @@ export interface Tiers {
   email: string | null;
   numeroImpot: string | null;
   contact: string | null;
+  /**
+   * CE TIERS EST UNE AUTRE CELLULE DU MÊME GROUPE D'ÉTABLISSEMENTS · un groupe
+   * est UNE SEULE personne morale tenue en plusieurs dossiers, et une vente du
+   * siège à une antenne est un mouvement interne. AUDCIF art. 107 : les comptes
+   * combinés supposent l'« élimination des comptes réciproques : actifs et
+   * passifs, charges et produits ». null pour l'immense majorité des tiers.
+   */
+  celluleGroupeId: string | null;
+  /**
+   * CE FOURNISSEUR ACQUITTE LA TVA D'APRÈS LES DÉBITS · mention que le décret
+   * n° 011/42, art. 60, impose « sur toutes les factures du prestataire ou
+   * entrepreneur autorisé ». Elle se lit sur la facture et nulle part ailleurs.
+   * Faux par défaut : l'autorisation de l'art. 26 de l'O.-L. n° 10/001 est
+   * l'exception.
+   */
+  autoriseTvaDebits: boolean;
+  referenceAutorisationDebits: string | null;
+}
+
+/**
+ * Un dossier du même groupe d'établissements, servi par
+ * `GET /tiers/dossiers-du-groupe` · identité seule, aucune donnée comptable.
+ * C'est la liste exacte que le serveur accepte sur `celluleGroupeId`.
+ */
+export interface DossierDuGroupe {
+  id: string;
+  nom: string;
+  estDossierMere: boolean;
 }
 
 export type ModeAmortissement = 'LINEAIRE';

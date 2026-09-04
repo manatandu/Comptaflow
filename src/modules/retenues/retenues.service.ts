@@ -32,6 +32,47 @@ export class RetenuesService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
+   * LA DATE QUI RATTACHE UNE LIGNE À UN MOIS · celle du VERSEMENT, et non celle
+   * de l'écriture qui le constate.
+   *
+   * Les textes datent l'obligation sur le versement des revenus, jamais sur sa
+   * comptabilisation. Loi n° 004/2003, art. 18 : les retenues « doivent être
+   * versées au plus tard le 15 du mois qui suit celui du versement de ces
+   * revenus aux bénéficiaires ou de leur mise à disposition » (compilation DGI
+   * au 19 juillet 2026, `17-procedures-titre1-obligations-declaratives.md`,
+   * lignes 281 à 284). Le même rattachement se lit à l'art. 18 bis pour les
+   * capitaux mobiliers (lignes 294 à 297), à l'art. 19 pour le prélèvement
+   * expatriés · « dans les quinze jours qui suivent le mois au cours duquel les
+   * rémunérations ont été versées à leurs personnels expatriés ou mises à leur
+   * disposition » (lignes 313 à 315 et 322) ·, à l'art. 22 bis pour les
+   * prestataires non-résidents · « au plus tard le quinze du mois qui suit
+   * celui du paiement des factures » (lignes 346 à 349) · et à l'art. 57,
+   * alinéa 5 pour la retenue locative · « reversée dans les dix jours du mois
+   * qui suit celui du paiement de loyer »
+   * (`19-procedures-titre3-recouvrement.md`, lignes 25 à 27).
+   *
+   * Les deux dates coïncident quand la paie est comptabilisée le jour où elle
+   * est payée. Elles divergent dès que la paie de décembre est passée au 31
+   * décembre et versée le 5 janvier : le mois retenu était alors décembre,
+   * l'échéance était datée du 15 janvier au lieu du 15 février, et le registre
+   * pouvait crier un retard qui n'existait pas.
+   *
+   * NULL = LA DATE DE L'ÉCRITURE FAIT FOI, et c'est le cas de toute ligne
+   * saisie avant l'existence de ce champ : leur rattachement ne bouge pas d'un
+   * jour. La date de versement ne se saisit que lorsqu'elle tombe dans un autre
+   * mois que l'écriture, ce qui reste l'exception.
+   *
+   * ELLE VAUT POUR LA LIGNE ENTIÈRE, crédit comme débit · une ligne date un
+   * événement, pas un sens de montant. Côté crédit elle commande le mois de
+   * l'obligation et donc son échéance ; côté débit elle ne déplace que la trace
+   * `reverseEcritures`, l'imputation du reversement ne lisant, elle, aucun mois
+   * de débit (voir plus bas).
+   */
+  private dateDeRattachement(ligne: { dateVersement: Date | null; ecriture: { date: Date } }): Date {
+    return ligne.dateVersement ?? ligne.ecriture.date;
+  }
+
+  /**
    * Échéance de reversement de la retenue d'un mois donné.
    *
    * Le délai court à partir de la FIN DU MOIS de la retenue, en jours : dix
@@ -149,11 +190,13 @@ export class RetenuesService {
     const natures = NATURES_RETENUES.map((nature) => {
       const siennes = lignes.filter((l) => correspond(l.compte.numero, nature));
 
-      // Par mois d'écriture · l'unité de l'obligation de reversement.
+      // Par mois de VERSEMENT · l'unité de l'obligation de reversement, et le
+      // mois que les textes désignent (voir dateDeRattachement).
       const parMois = new Map<string, { retenu: number; reverseEcritures: number }>();
       const parCompte = new Map<string, { numero: string; intitule: string; retenu: number; reverse: number }>();
       for (const l of siennes) {
-        const mois = `${l.ecriture.date.getFullYear()}-${String(l.ecriture.date.getMonth() + 1).padStart(2, '0')}`;
+        const rattachement = this.dateDeRattachement(l);
+        const mois = `${rattachement.getFullYear()}-${String(rattachement.getMonth() + 1).padStart(2, '0')}`;
         // Crédit = retenue constituée (dette envers l'État) ;
         // débit = reversement effectué.
         const retenu = Number(l.credit);
@@ -209,9 +252,16 @@ export class RetenuesService {
 
         CE QU'ELLE NE DIT PAS · elle constate ce qui RESTE dû, pas ce qui a
         été payé en retard. Un reversement passé le 20 mai pour la retenue de
-        mars éteint mars, et le mois cesse d'être signalé. Établir le retard
-        PASSÉ supposerait la date de PAIEMENT, que ce registre n'a pas : il
-        lit la date de l'ÉCRITURE, et les deux ne coïncident pas toujours.
+        mars éteint mars, et le mois cesse d'être signalé.
+
+        LA RAISON A CHANGÉ, PAS LA LIMITE. Le registre lisait la date de
+        l'ÉCRITURE et n'avait aucune date de paiement ; il lit maintenant la
+        date de versement quand elle est renseignée (voir
+        dateDeRattachement), et connaît donc parfois la date réelle du débit.
+        Cela ne suffit toujours pas : l'imputation étant chronologique et non
+        intentionnelle, aucun débit n'est rattaché au mois qu'il prétendait
+        acquitter · savoir QUAND il a été payé ne dit pas QUOI il payait. Le
+        retard PASSÉ reste hors de portée de cet état.
       */
       let aImputer = reverse;
       const mois = [...parMois.entries()]
@@ -230,8 +280,9 @@ export class RetenuesService {
             // Ce qui a été reversé AU TITRE de ce mois · pas ce qui a été
             // débité pendant ce mois-là, qui acquitte le mois d'avant.
             reverse: Math.round(impute * 100) / 100,
-            // Le débit tel qu'il a été écrit, gardé pour la piste : c'est la
-            // seule trace de l'écriture que l'imputation vient de déplacer.
+            // Le débit tel qu'il a été rattaché à ce mois, gardé pour la
+            // piste : c'est la seule trace de l'écriture que l'imputation
+            // vient de déplacer.
             reverseEcritures: Math.round(m.reverseEcritures * 100) / 100,
             solde,
             echeance,

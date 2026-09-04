@@ -28,6 +28,25 @@ import {
 } from './correspondance-smt';
 
 /**
+ * Ce qu'un compte de tiers porte de DATABLE : la part de son solde que des
+ * lignes ouvertes et datées permettent de qualifier, échue ou non échue · voir
+ * `EtatsFinanciersSmtService.partsParEcheance`.
+ *
+ * Il n'y a pas de troisième champ ici. La part non ventilée n'est pas mesurée,
+ * elle est ce qui RESTE du solde une fois ces deux-là retranchées, et c'est la
+ * seule définition qui garantisse que rien ne disparaisse : une ligne sans
+ * échéance, un report à-nouveau en mode SOLDE qui n'a pu porter aucune
+ * échéance, un compte que la lecture des lignes ne recoupe pas, tout tombe
+ * dans le même reste, et la note le nomme (voir `note3CreancesDettes`).
+ */
+interface PartsEcheance {
+  nonEchu: number;
+  echu: number;
+}
+
+const PARTS_ECHEANCE_NULLES: PartsEcheance = { nonEchu: 0, echu: 0 };
+
+/**
  * ÉTATS FINANCIERS DU SYSTÈME MINIMAL DE TRÉSORERIE · troisième et dernier
  * jeu prévu par l'Acte uniforme SYCEBNL (art. 5 et 6 ; Partie 4, ch. 4).
  *
@@ -633,6 +652,73 @@ export class EtatsFinanciersSmtService {
   }
 
   /**
+   * VENTILATION PAR ÉCHÉANCE des soldes de tiers de la classe 4, par compte.
+   *
+   * DEUX parts seulement sont MESURÉES ici, et la troisième est un reste. La
+   * ligne dont l'échéance est postérieure à la clôture est NON ÉCHUE ; celle
+   * dont l'échéance est atteinte à la clôture est ÉCHUE ; celle qui ne porte
+   * AUCUNE échéance n'est ni l'une ni l'autre et n'entre dans aucune des deux.
+   * Elle n'est surtout pas rangée d'office en non échu : l'état affirmerait
+   * alors un terme que personne n'a saisi, et la lacune se fondrait dans le
+   * résultat au lieu de se voir (même doctrine que `LigneEcriture.dateEcheance`
+   * au schéma et que `NoteAnnexeService.chargerEcheances` pour le Système
+   * normal).
+   *
+   * LA DATE DE RÉFÉRENCE EST LA CLÔTURE, parce que c'est à cette date que
+   * l'état est arrêté : la maquette du Système minimal s'intitule « État des
+   * créances et des dettes non échues au 31 décembre » (AUDCIF, titre X,
+   * ch. 3), et le texte isole la part exigible « à la clôture de l'exercice »
+   * (SYCEBNL, Partie 2, ch. 3, COMPTE 27).
+   *
+   * UNE LIGNE LETTRÉE EST SOLDÉE · la créance est encaissée, la dette payée,
+   * il n'y a plus d'échéance à porter. Même filtre que le Système normal, pour
+   * que les deux jeux d'états ne comptent pas la même créance différemment, et
+   * même filtre que le report à-nouveau en mode DÉTAIL, qui ne reporte que les
+   * mouvements non lettrés ET LEUR ÉCHÉANCE (voir `ExerciceService.cloturer`) :
+   * une facture impayée depuis deux exercices reste donc datable. Un compte de
+   * tiers tenu en mode SOLDE, lui, est reporté en une ligne agrégée qui ne peut
+   * porter aucune échéance · son ouverture tombe en part non ventilée, ce que
+   * la note dit au lieu de le masquer.
+   *
+   * PAS DE PAGINATION, à la différence des notes du Système normal : le S.M.T
+   * est réservé aux entités dont chaque catégorie de ressources reste sous
+   * trente millions de FCFA (art. 6), et ce service lit déjà TOUTES les
+   * écritures de l'exercice en une fois (`ecrituresDeLExercice`). Une lecture
+   * bornée à la classe 4 non lettrée y est strictement plus légère.
+   */
+  private async partsParEcheance(tenantId: string, exerciceId: string): Promise<Map<string, PartsEcheance>> {
+    const exercice = await this.prisma.exercice.findFirstOrThrow({
+      where: { id: exerciceId, tenantId },
+      select: { dateFin: true },
+    });
+    const lignesTiers = await this.prisma.ligneEcriture.findMany({
+      // Même porte que la balance qui sert le reste de la note : les états
+      // financiers sont des documents légaux et ne lisent que le livre-journal,
+      // jamais le brouillard (voir `chargerLignes`).
+      where: {
+        ecriture: { tenantId, exerciceId, statut: StatutEcriture.VALIDEE },
+        lettre: null,
+        compte: { classe: ClasseCompte.CLASSE_4 },
+      },
+      select: { compteId: true, debit: true, credit: true, dateEcheance: true },
+    });
+
+    const parCompte = new Map<string, PartsEcheance>();
+    for (const l of lignesTiers) {
+      const montant = Number(l.debit) - Number(l.credit);
+      if (montant === 0) continue;
+      // Sans échéance, la ligne n'est ni échue ni non échue : elle n'est
+      // comptée nulle part et se retrouvera dans le reste, sous son nom.
+      if (!l.dateEcheance) continue;
+      const parts = parCompte.get(l.compteId) ?? { ...PARTS_ECHEANCE_NULLES };
+      if (l.dateEcheance > exercice.dateFin) parts.nonEchu += montant;
+      else parts.echu += montant;
+      parCompte.set(l.compteId, parts);
+    }
+    return parCompte;
+  }
+
+  /**
    * NOTE 3 · « Etat des créances et des dettes non échues ». Colonnes
    * officielles : Date, Nom, Montant au 31 décembre N, Montant au 1er
    * janvier N, Variation en valeur, Variation en %.
@@ -646,6 +732,42 @@ export class EtatsFinanciersSmtService {
    * compte de tiers (une créance agrège plusieurs pièces de dates
    * différentes) : elle est laissée vide plutôt que remplie d'une date
    * arbitraire.
+   *
+   * ## « NON ÉCHUES », ce que l'intitulé commande
+   *
+   * L'intitulé officiel n'est pas « état des créances et des dettes » : c'est
+   * « Etat des créances et des dettes NON ÉCHUES » (Partie 4, ch. 4, section
+   * 3). Prendre toute la classe 4 sans distinguer présente donc comme non
+   * échue une créance dont le terme est passé, ce qui est précisément
+   * l'information que la note doit donner. Chaque ligne porte désormais la
+   * ventilation de son solde en `montantNonEchu`, `montantEchu` et
+   * `montantNonVentile`.
+   *
+   * LES TROIS PARTS SOMMENT TOUJOURS À `montantCloture`, parce que la
+   * troisième est définie comme le RESTE des deux autres et non mesurée pour
+   * elle-même. C'est ce qui garantit qu'aucun montant ne s'évapore ni
+   * n'apparaisse : ce que la lecture des lignes ne sait pas dater reste au
+   * bilan, visible, sous le nom de part non ventilée. Une ligne sans échéance
+   * y tombe, un report à-nouveau passé en mode SOLDE aussi (il agrège en une
+   * ligne unique et ne peut porter aucune échéance), et une part non ventilée
+   * NÉGATIVE signale un règlement non lettré en face d'une facture datée · ce
+   * qui est également une lacune de tenue, et qui doit se voir.
+   *
+   * `montantCloture` RESTE LE SOLDE ENTIER du compte, et n'est pas ramené à la
+   * seule part non échue. Deux raisons. La note justifie les postes GC et HD
+   * du bilan et les variations VB et VC du compte de résultat, qui sont pris
+   * sur le solde : en retrancher la part échue ferait diverger la note de
+   * l'état qu'elle justifie. Et surtout, sur un dossier où aucune échéance
+   * n'est saisie · le cas de tous ceux ouverts avant que ce champ soit servi ·
+   * filtrer viderait la note entièrement. La ventilation s'AJOUTE donc à la
+   * maquette au lieu de l'amputer, et `echeancesTenues` dit si elle est
+   * complète.
+   *
+   * La ventilation ne porte QUE sur la clôture. « Montant au 1er janvier N »
+   * n'est pas ventilé : une échéance s'apprécie à une date donnée, et dire
+   * d'une créance qu'elle était échue au 1er janvier demanderait de rejouer
+   * l'exercice précédent à sa propre date d'arrêté. Le calcul serait faux et
+   * personne ne le verrait.
    */
   async note3CreancesDettes(tenantId: string, exerciceId: string) {
     const lignes = await this.chargerLignes(tenantId, exerciceId);
@@ -655,6 +777,7 @@ export class EtatsFinanciersSmtService {
       include: { tiers: { select: { nom: true } } },
     });
     for (const r of rattachements) tiersParCompte.set(r.compteId, r.tiers.nom);
+    const parts = await this.partsParEcheance(tenantId, exerciceId);
 
     const construire = (filtre: (l: LigneBalancePourEtat) => boolean, signe: 1 | -1) =>
       lignes
@@ -663,6 +786,7 @@ export class EtatsFinanciersSmtService {
         .map((l) => {
           const cloture = signe * l.solde;
           const ouverture = signe * (l.reportDebit - l.reportCredit);
+          const p = parts.get(l.compteId) ?? PARTS_ECHEANCE_NULLES;
           return {
             numero: l.numero,
             nom: tiersParCompte.get(l.compteId) ?? l.intitule,
@@ -672,16 +796,37 @@ export class EtatsFinanciersSmtService {
             // Une variation en % n'a pas de sens à partir d'une ouverture
             // nulle (division par zéro) : `null` plutôt qu'un infini affiché.
             variationPourcent: Math.abs(ouverture) < 0.005 ? null : ((cloture - ouverture) / Math.abs(ouverture)) * 100,
+            // Le signe du poste est appliqué aux parts comme au solde : une
+            // dette non échue se lit en positif sous un total de dettes.
+            montantNonEchu: signe * p.nonEchu,
+            montantEchu: signe * p.echu,
+            // LE RESTE, jamais une mesure autonome · voir la note de tête.
+            montantNonVentile: cloture - signe * p.nonEchu - signe * p.echu,
           };
         });
 
     const creances = construire((l) => l.solde > 0, 1);
     const dettes = construire((l) => l.solde < 0, -1);
+    const totalCreancesNonVentilees = creances.reduce((s, c) => s + c.montantNonVentile, 0);
+    const totalDettesNonVentilees = dettes.reduce((s, d) => s + d.montantNonVentile, 0);
+    // Une seule part non ventilée suffit à rendre la ventilation incomplète :
+    // la note ne peut plus affirmer que ses totaux sont ceux du « non échu ».
+    const echeancesTenues = Math.abs(totalCreancesNonVentilees) < 0.005 && Math.abs(totalDettesNonVentilees) < 0.005;
     return {
       creances,
       totalCreances: creances.reduce((s, c) => s + c.montantCloture, 0),
+      totalCreancesNonEchues: creances.reduce((s, c) => s + c.montantNonEchu, 0),
+      totalCreancesEchues: creances.reduce((s, c) => s + c.montantEchu, 0),
+      totalCreancesNonVentilees,
       dettes,
       totalDettes: dettes.reduce((s, d) => s + d.montantCloture, 0),
+      totalDettesNonEchues: dettes.reduce((s, d) => s + d.montantNonEchu, 0),
+      totalDettesEchues: dettes.reduce((s, d) => s + d.montantEchu, 0),
+      totalDettesNonVentilees,
+      echeancesTenues,
+      motifEcheances: echeancesTenues
+        ? null
+        : "La maquette officielle intitule cette note « Etat des créances et des dettes non échues » (Partie 4, ch. 4). Une ligne de tiers sans date d'échéance n'est ni échue ni non échue : elle est portée à part et non rangée d'office dans le non échu. Renseigner la date d'échéance sur les lignes de tiers, et tenir les comptes de tiers en report à-nouveau mode DÉTAIL, pour que la ventilation soit complète.",
     };
   }
 

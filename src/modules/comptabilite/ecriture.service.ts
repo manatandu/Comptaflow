@@ -363,6 +363,13 @@ export class EcritureService {
                 credit: l.credit ?? 0,
                 tauxTvaId: l.tauxTvaId,
                 dateEcheance: l.dateEcheance ? new Date(l.dateEcheance) : undefined,
+                // DATE DU VERSEMENT · elle ne se déduit d'aucune autre. Sans
+                // cette ligne, le DTO l'accepte, l'écran l'envoie, et Prisma la
+                // laisse tomber en silence : la colonne resterait NULL et le
+                // registre des retenues continuerait de dater l'échéance sur
+                // l'écriture, ce que les art. 18 et suivants de la loi
+                // n° 004/2003 ne veulent pas. Voir le commentaire du schéma.
+                dateVersement: l.dateVersement ? new Date(l.dateVersement) : undefined,
                 deviseId: l.deviseId,
                 montantDevise: l.montantDevise,
                 coursApplique: l.coursApplique,
@@ -569,6 +576,9 @@ export class EcritureService {
             credit: l.credit ?? 0,
             tauxTvaId: l.tauxTvaId,
             dateEcheance: l.dateEcheance ? new Date(l.dateEcheance) : undefined,
+            // Même raison qu'à la création · le brouillard remplace ses lignes
+            // en bloc, une date perdue ici l'est définitivement.
+            dateVersement: l.dateVersement ? new Date(l.dateVersement) : undefined,
           })),
         });
       }
@@ -922,6 +932,12 @@ export class EcritureService {
                 credit: l.credit.negated(),
                 tauxTvaId: l.tauxTvaId,
                 dateEcheance: l.dateEcheance,
+                // La contre-passation reprend les deux dates de l'origine · une
+                // inscription en négatif annule une opération, elle ne la
+                // redate pas. La retenue contre-passée doit sortir du registre
+                // par le MÊME mois qu'elle y est entrée, sans quoi elle
+                // creuserait un mois et en gonflerait un autre.
+                dateVersement: l.dateVersement,
               })),
             },
           },

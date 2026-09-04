@@ -392,6 +392,9 @@ model Tenant {
   journaux                 Journal[]
   clotures                 Cloture[]
   tiers                    Tiers[]
+  // Comptes de tiers ouverts, dans les AUTRES dossiers du groupe, au nom de
+  // celui-ci · voir `celluleGroupeId` sur Tiers.
+  tiersCellule             Tiers[]                   @relation("TiersCelluleGroupe")
   bailleurs                Bailleur[]
   rattachementsNotes       RattachementNote[]
   saisiesNotes             SaisieNote[]
@@ -617,30 +620,30 @@ model Compte {
   tiersCompte                   TiersCompte?
   // Comptes d'État TVA (443/445) référencés par un ou plusieurs taux (§3.1) ·
   // un même compte 44310000 peut être partagé par plusieurs taux (16 %, 1 %...).
-  tauxTvaCollecte               TauxTva[]               @relation("TauxTvaCollecte")
-  tauxTvaDeductible             TauxTva[]               @relation("TauxTvaDeductible")
+  tauxTvaCollecte               TauxTva[]                    @relation("TauxTvaCollecte")
+  tauxTvaDeductible             TauxTva[]                    @relation("TauxTvaDeductible")
   // Rapprochements bancaires (§3.4) ouverts/clôturés sur ce compte de
   // trésorerie · voir RapprochementBancaire.
   rapprochements                RapprochementBancaire[]
   // Immobilisations (§3.3) · un compte de classe 2 peut être le compte
   // d'imputation de plusieurs immobilisations (ou de leur famille) ; un
   // compte de classe 28/68 peut de même être partagé par plusieurs.
-  famillesImmoImmobilisation    FamilleImmobilisation[] @relation("FamilleCompteImmobilisation")
-  famillesImmoAmortissement     FamilleImmobilisation[] @relation("FamilleCompteAmortissement")
-  famillesImmoDotation          FamilleImmobilisation[] @relation("FamilleCompteDotation")
-  immobilisationsImmobilisation Immobilisation[]        @relation("ImmoCompteImmobilisation")
-  immobilisationsAmortissement  Immobilisation[]        @relation("ImmoCompteAmortissement")
+  famillesImmoImmobilisation    FamilleImmobilisation[]      @relation("FamilleCompteImmobilisation")
+  famillesImmoAmortissement     FamilleImmobilisation[]      @relation("FamilleCompteAmortissement")
+  famillesImmoDotation          FamilleImmobilisation[]      @relation("FamilleCompteDotation")
+  immobilisationsImmobilisation Immobilisation[]             @relation("ImmoCompteImmobilisation")
+  immobilisationsAmortissement  Immobilisation[]             @relation("ImmoCompteAmortissement")
   depreciationsImmoCompte29     DepreciationImmobilisation[] @relation("DepreciationCompte29")
   depreciationsImmoContrepartie DepreciationImmobilisation[] @relation("DepreciationContrepartie")
   // Régularisation des charges et produits (476/477) et abonnements ·
   // voir Regularisation et ModeleAbonnement.
   relances                      Relance[]
-  regularisationsChargeProduit  Regularisation[]        @relation("RegulCompteChargeProduit")
-  regularisationsDiffere        Regularisation[]        @relation("RegulCompteDiffere")
-  abonnementsDebit              ModeleAbonnement[]      @relation("AbonnementCompteDebit")
-  abonnementsCredit             ModeleAbonnement[]      @relation("AbonnementCompteCredit")
+  regularisationsChargeProduit  Regularisation[]             @relation("RegulCompteChargeProduit")
+  regularisationsDiffere        Regularisation[]             @relation("RegulCompteDiffere")
+  abonnementsDebit              ModeleAbonnement[]           @relation("AbonnementCompteDebit")
+  abonnementsCredit             ModeleAbonnement[]           @relation("AbonnementCompteCredit")
   lignesModeleSaisie            LigneModeleSaisie[]
-  immobilisationsDotation       Immobilisation[]        @relation("ImmoCompteDotation")
+  immobilisationsDotation       Immobilisation[]             @relation("ImmoCompteDotation")
   // Rattachements aux rubriques de notes annexes (voir RattachementNote).
   rattachementsNotes            RattachementNote[]
   lettrages                     Lettrage[]
@@ -955,7 +958,7 @@ model Ecriture {
   // au compte 12 se faisait donc comme une écriture ordinaire, indiscernable
   // d'une erreur d'imputation. Ces deux champs la déclarent pour ce qu'elle
   // est · null sur toute écriture ordinaire.
-  motifImputationOuverture        MotifImputationOuverture?
+  motifImputationOuverture         MotifImputationOuverture?
   /// Ce que le texte impose de dire en Notes annexes · sans elle, l'exception
   /// est invérifiable et le lecteur ne peut pas juger du « caractère fort
   /// significatif » ni du caractère significatif de l'erreur.
@@ -995,9 +998,9 @@ model Ecriture {
   // écriture donnée est SOIT une acquisition, SOIT une sortie d'au plus une
   // immobilisation (jamais les deux), d'où deux relations 1-1 distinctes
   // plutôt qu'une seule generic "écriture liée à une immobilisation".
-  immobilisationAcquisition Immobilisation?        @relation("ImmoEcritureAcquisition")
-  immobilisationSortie      Immobilisation?        @relation("ImmoEcritureSortie")
-  dotationAmortissement     DotationAmortissement?
+  immobilisationAcquisition  Immobilisation?             @relation("ImmoEcritureAcquisition")
+  immobilisationSortie       Immobilisation?             @relation("ImmoEcritureSortie")
+  dotationAmortissement      DotationAmortissement?
   depreciationImmobilisation DepreciationImmobilisation? @relation("DepreciationEcriture")
 
   // Registre des donateurs (art. 17) · une écriture d'encaissement peut porter
@@ -1127,6 +1130,30 @@ model LigneEcriture {
   // comme non ventilée, pour que la lacune se voie au lieu de se fondre dans
   // le court terme (voir NoteAnnexeService.ventilerEcheances).
   dateEcheance DateTime?
+
+  // DATE DU VERSEMENT OU DE LA MISE À DISPOSITION, pour une ligne qui porte une
+  // retenue à la source.
+  //
+  // Les textes rattachent la retenue au mois du VERSEMENT, jamais à celui de
+  // l'écriture qui la constate : « les retenues effectuées au titre d'Impôt sur
+  // le Revenu des Personnes Physiques par toute personne physique ou morale qui
+  // paye des revenus salariaux et revenus assimilés doivent être versées au plus
+  // tard le 15 du mois qui suit celui du VERSEMENT de ces revenus aux
+  // bénéficiaires ou de LEUR MISE À DISPOSITION » (loi n° 004/2003, art. 18 ;
+  // même rattachement aux art. 18 bis, 18 ter, 19 et 143).
+  //
+  // Les deux dates coïncident quand la paie est comptabilisée le jour où elle
+  // est payée. Elles divergent dès que la paie de décembre est passée au 31
+  // décembre et versée le 5 janvier : le registre datait alors l'échéance de
+  // décembre, soit un mois trop tôt, et pouvait signaler un retard qui n'existe
+  // pas. L'erreur allait dans le sens de l'anticipation, donc sans risque
+  // fiscal · mais elle faisait crier un indicateur sur un contribuable à jour.
+  //
+  // NULL = la date de l'écriture fait foi, et c'est le cas ordinaire. Ce champ
+  // ne se saisit que lorsque le versement tombe dans un autre mois que
+  // l'écriture, ce qui reste l'exception. Le rendre obligatoire ferait ressaisir
+  // à chaque ligne une date que l'écriture porte déjà.
+  dateVersement DateTime?
 
   // Ventilation analytique (projet, bailleur) · voir PlanAnalytique.
   ventilations VentilationAnalytique[]
@@ -1392,6 +1419,54 @@ model Tiers {
   numeroImpot  String?
   contact      String? // personne à qui la lettre s'adresse
 
+  // CE TIERS EST UNE AUTRE CELLULE DU MÊME GROUPE.
+  //
+  // Un groupe d'établissements est UNE SEULE personne morale tenue en
+  // plusieurs dossiers (voir `dossierMereId` sur Tenant). Une vente du siège à
+  // une antenne n'est donc pas une vente : c'est un mouvement interne, et
+  // l'agrégat doit l'éliminer des deux côtés, produit comme charge, créance
+  // comme dette. Sans quoi le total du groupe compte un chiffre d'affaires que
+  // l'entité n'a jamais réalisé avec un tiers.
+  //
+  // L'agrégation ne neutralisait jusqu'ici que les comptes 58 « Virements
+  // internes », c'est-à-dire les seuls transferts de TRÉSORERIE. Tout le reste
+  // des opérations réciproques restait dans l'agrégat, et rien ne pouvait le
+  // voir : un compte 411 ne dit pas si son titulaire est un client ou une
+  // antenne. Ce champ le dit.
+  //
+  // Null pour l'immense majorité des tiers · seuls les quelques comptes
+  // ouverts au nom d'une autre cellule le portent. Le tenant visé n'est
+  // contraint à rien ici : c'est le service d'agrégation qui vérifie qu'il
+  // appartient bien au même groupe, une contrainte de base de données ne
+  // pouvant pas exprimer « même dossier mère ».
+  celluleGroupeId String?
+  celluleGroupe   Tenant? @relation("TiersCelluleGroupe", fields: [celluleGroupeId], references: [id])
+
+  // AUTORISATION D'ACQUITTER LA TVA D'APRÈS LES DÉBITS, chez CE FOURNISSEUR.
+  //
+  // L'art. 26 de l'O.-L. n° 10/001 ouvre cette option aux entrepreneurs de
+  // travaux et aux prestataires de services qui en font la demande, sur
+  // décision du Directeur Général des Impôts. Sa conséquence pour le CLIENT
+  // est dans l'art. 37, al. 1 : « le droit à déduction prend naissance lorsque
+  // la taxe devient exigible chez l'assujetti », c'est-à-dire chez le
+  // fournisseur. Un fournisseur autorisé aux débits rend sa taxe exigible à la
+  // facture, et non au paiement · son client peut donc déduire plus tôt.
+  //
+  // Le décret n° 011/42, art. 60, impose que « la mention "Autorisation
+  // d'acquitter la TVA d'après les débits" [figure] sur toutes les factures du
+  // prestataire ou entrepreneur autorisé ». Elle se lit donc sur la facture,
+  // et c'est la seule source : aucun calcul ne peut l'établir. D'où ce
+  // drapeau, saisi par le comptable à la lecture de la facture, et la
+  // référence de la décision qui l'accompagne.
+  //
+  // FAUX PAR DÉFAUT · c'est le droit commun. Le module de TVA différait la
+  // déduction des services au paiement pour tout le monde et AVERTISSAIT que
+  // cette mention pouvait exister sans qu'il puisse la connaître. Il peut
+  // désormais la connaître quand elle a été saisie, et continue d'avertir
+  // quand elle ne l'a pas été.
+  autoriseTvaDebits           Boolean @default(false)
+  referenceAutorisationDebits String?
+
   modeleReglementId String?
   modeleReglement   ModeleReglement? @relation(fields: [modeleReglementId], references: [id])
 
@@ -1401,6 +1476,9 @@ model Tiers {
   relances         Relance[]
 
   @@unique([tenantId, code])
+  // L'agrégation du groupe interroge les tiers PAR CELLULE · sans cet index
+  // elle balaie toute la table des tiers de chaque dossier à chaque agrégat.
+  @@index([celluleGroupeId])
   @@map("tiers")
 }
 
@@ -2407,8 +2485,8 @@ model Immobilisation {
   composantRemplace   Immobilisation? @relation("ImmoRenouvellement", fields: [composantRemplaceId], references: [id])
   renouvelePar        Immobilisation? @relation("ImmoRenouvellement")
 
-  dotations      DotationAmortissement[]
-  depreciations  DepreciationImmobilisation[]
+  dotations     DotationAmortissement[]
+  depreciations DepreciationImmobilisation[]
 
   @@index([immobilisationPrincipaleId])
   @@map("immobilisations")

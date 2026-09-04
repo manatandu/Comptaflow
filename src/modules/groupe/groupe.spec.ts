@@ -44,6 +44,12 @@ const service = (surcharges?: { balanceC1?: (typeof BALANCES)['c1'] }) =>
   new GroupeService(
     {
       exercice: { findFirst: async ({ where }: { where: { id: string; tenantId: string } }) => (where.id === 'ex-m' && where.tenantId === 'mere' ? EX_MERE : null) },
+      // AUCUN TIERS N'EST UNE CELLULE DU GROUPE · c'est l'état de tous les
+      // dossiers existants, aucune reprise de données n'ayant eu lieu. Les
+      // chiffres attendus plus bas sont donc EXACTEMENT ceux d'avant
+      // l'élimination des opérations réciproques : ce fichier est le garde-fou
+      // qui le vérifie.
+      tiersCompte: { findMany: async () => [] },
       tenant: {
         findUnique: async () => ({ id: 'mere', nom: 'Église centrale' }),
         findMany: async ({ where }: { where: { dossierMereId: string } }) =>
@@ -109,6 +115,7 @@ describe('GroupeService · balance agrégée', () => {
       {
         exercice: { findFirst: async () => EX_MERE },
         tenant: { findUnique: async () => ({ id: 'seul', nom: 'Dossier seul' }), findMany: async () => [] },
+        tiersCompte: { findMany: async () => [] },
       } as never,
       { balance: async () => BALANCES.mere } as never,
       undefined as never,
@@ -359,6 +366,12 @@ describe('GroupeService · liasse du groupe en un clic', () => {
           return { id: 'ex-comb' };
         },
       },
+      // AUCUN TIERS N'EST UNE CELLULE DU GROUPE · c'est l'état de tous les
+      // dossiers existants, aucune reprise de données n'ayant eu lieu. Les
+      // chiffres attendus plus bas sont donc EXACTEMENT ceux d'avant
+      // l'élimination des opérations réciproques : ce fichier est le garde-fou
+      // qui le vérifie.
+      tiersCompte: { findMany: async () => [] },
       tenant: {
         findUnique: async () => ({ id: 'mere', nom: 'Église centrale', dossierCombinaisonId: null }),
         findMany: async () => [

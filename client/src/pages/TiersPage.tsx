@@ -9,6 +9,7 @@ import { EnteteImpression } from '../components/chrome/EnteteImpression';
 import type {
   Compte,
   ConditionEcheance,
+  DossierDuGroupe,
   EcheanceCalculee,
   LigneBalance,
   ModeleReglement,
@@ -145,6 +146,7 @@ export function TiersPage() {
   const [liste, setListe] = useState<Tiers[] | null>(null);
   const [modeles, setModeles] = useState<ModeleReglement[]>([]);
   const [comptesClasse4, setComptesClasse4] = useState<Compte[]>([]);
+  const [dossiersGroupe, setDossiersGroupe] = useState<DossierDuGroupe[]>([]);
   const [soldes, setSoldes] = useState<Record<string, number>>({});
   const [erreur, setErreur] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -208,6 +210,11 @@ export function TiersPage() {
   useEffect(() => {
     api.get<ModeleReglement[]>('/modeles-reglement').then(setModeles);
     api.get<Compte[]>('/comptes?classe=CLASSE_4&actifsSeuls=true&typeCompte=DETAIL').then(setComptesClasse4);
+    // La liste des dossiers du groupe vient du SERVEUR, et c'est exactement
+    // celle qu'il accepte sur `celluleGroupeId` · l'écran ne peut donc pas
+    // proposer un rattachement qu'il refusera. Vide pour un dossier hors
+    // groupe, et le volet le dit alors au lieu d'offrir une liste morte.
+    api.get<DossierDuGroupe[]>('/tiers/dossiers-du-groupe').then(setDossiersGroupe).catch(() => setDossiersGroupe([]));
   }, []);
 
   // Solde des comptes rattachés (balance de l'exercice courant) · affiché
@@ -314,6 +321,25 @@ export function TiersPage() {
     try {
       await api.patch(`/tiers/${t.id}`, { [cle]: propre });
       charger();
+    } catch (e) {
+      setErreur(e instanceof ApiError ? e.message : 'Modification impossible');
+    }
+  };
+
+  /**
+   * Les trois champs de la fiche qui ne sont pas des coordonnées · un seul
+   * chemin d'enregistrement, puisque c'est le même PATCH. `null` détache
+   * plutôt que d'envoyer une chaîne vide : `celluleGroupeId` est un
+   * identifiant, et '' n'en est pas un.
+   */
+  const enregistrerChamp = async (
+    t: Tiers,
+    donnees: Partial<Pick<Tiers, 'celluleGroupeId' | 'autoriseTvaDebits' | 'referenceAutorisationDebits'>>,
+  ) => {
+    setErreur(null);
+    try {
+      await api.patch(`/tiers/${t.id}`, donnees);
+      await charger();
     } catch (e) {
       setErreur(e instanceof ApiError ? e.message : 'Modification impossible');
     }
@@ -602,6 +628,107 @@ export function TiersPage() {
                     Sans adresse ni courriel, aucune lettre de rappel ni aucun relevé ne peut être adressé à ce tiers.
                   </div>
                 )}
+              </div>
+
+              {/*
+                VOLET GROUPE D'ÉTABLISSEMENTS · un groupe est UNE SEULE
+                personne morale tenue en plusieurs dossiers. Une vente du
+                siège à une antenne n'est donc pas une vente, et l'agrégat
+                doit l'éliminer des deux côtés · AUDCIF art. 107 :
+                « élimination des comptes réciproques : actifs et passifs,
+                charges et produits ; neutralisation des résultats provenant
+                d'opérations effectuées entre les entités du périmètre ».
+                Rien dans un compte 411 ne dit si son titulaire est un client
+                ou une antenne : c'est ici qu'on le dit.
+
+                La liste est celle du serveur, et le serveur refuse tout
+                dossier hors du groupe · un rattachement hors périmètre ferait
+                disparaître de l'agrégat des opérations réellement conclues
+                avec un tiers.
+              */}
+              <div className="border-t border-border pt-2.5 mb-3">
+                <div className="text-[10px] font-bold text-text-dim mb-1.5">GROUPE D'ÉTABLISSEMENTS</div>
+                {dossiersGroupe.length === 0 ? (
+                  <div className="text-[10px] text-text-dim leading-[1.5]">
+                    Ce dossier n'appartient à aucun groupe d'établissements · le rattachement d'un dossier mère et de
+                    ses cellules se pose depuis la console de la plateforme.
+                  </div>
+                ) : (
+                  <>
+                    <select
+                      value={tiersSelectionne.celluleGroupeId ?? ''}
+                      onChange={(e) =>
+                        enregistrerChamp(tiersSelectionne, { celluleGroupeId: e.target.value || null })
+                      }
+                      className="w-full border border-border-dark px-2 py-1 text-[10.5px] mb-1"
+                    >
+                      <option value="">Tiers ordinaire (hors groupe)</option>
+                      {dossiersGroupe.map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {d.nom}
+                          {d.estDossierMere ? ' · dossier mère' : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="text-[10px] text-text-dim leading-[1.5]">
+                      Ce compte est ouvert au nom d'une autre cellule du groupe · ses opérations sont internes et
+                      sortent de la balance agrégée, produit comme charge, créance comme dette (AUDCIF art. 107,
+                      élimination des comptes réciproques du périmètre). À ne renseigner que pour ces quelques
+                      comptes.
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/*
+                VOLET TVA D'APRÈS LES DÉBITS · la mention se LIT sur la
+                facture, aucun calcul ne l'établit. Décret n° 011/42, art. 60 :
+                la mention « Autorisation d'acquitter la TVA d'après les
+                débits » doit figurer sur toutes les factures du prestataire ou
+                entrepreneur autorisé. Ce qu'elle change pour NOUS, client :
+                l'O.-L. n° 10/001, art. 37, date le droit à déduction sur
+                l'exigibilité chez le fournisseur, et l'art. 26 rend la taxe du
+                fournisseur autorisé exigible au débit du compte du client et
+                non à l'encaissement · la déduction est donc plus précoce.
+              */}
+              <div className="border-t border-border pt-2.5 mb-3">
+                <div className="text-[10px] font-bold text-text-dim mb-1.5">TVA D'APRÈS LES DÉBITS</div>
+                <label className="flex items-start gap-1.5 text-[10.5px] leading-[1.4]">
+                  <input
+                    type="checkbox"
+                    className="mt-[2px]"
+                    checked={tiersSelectionne.autoriseTvaDebits}
+                    onChange={(e) =>
+                      enregistrerChamp(tiersSelectionne, { autoriseTvaDebits: e.target.checked })
+                    }
+                  />
+                  <span>Ses factures portent la mention « Autorisation d’acquitter la TVA d’après les débits »</span>
+                </label>
+                {tiersSelectionne.autoriseTvaDebits && (
+                  <div className="grid grid-cols-[92px_1fr] gap-x-2 gap-y-1 items-center mt-1.5">
+                    <label className="text-text-dim text-right text-[10.5px]" htmlFor="tiers-ref-debits">
+                      Référence :
+                    </label>
+                    <input
+                      id="tiers-ref-debits"
+                      key={`${tiersSelectionne.id}-referenceAutorisationDebits`}
+                      defaultValue={tiersSelectionne.referenceAutorisationDebits ?? ''}
+                      placeholder="décision du Directeur Général des Impôts"
+                      onBlur={(e) => {
+                        const propre = e.target.value.trim();
+                        if (propre === (tiersSelectionne.referenceAutorisationDebits ?? '')) return;
+                        enregistrerChamp(tiersSelectionne, { referenceAutorisationDebits: propre || null });
+                      }}
+                      className="border border-border rounded-[6px] bg-bg px-2 py-[3px] text-[10.5px] focus:outline-none focus:border-sel"
+                    />
+                  </div>
+                )}
+                <div className="text-[10px] text-text-dim leading-[1.5] mt-1.5">
+                  À cocher SEULEMENT si la mention figure sur la facture · le décret n° 011/42, art. 60, l'y impose
+                  pour tout prestataire ou entrepreneur autorisé (O.-L. n° 10/001, art. 26). Sa taxe devient alors
+                  exigible à la facture et non au paiement, et notre droit à déduction naît avec elle (art. 37).
+                  Non cochée, la déduction reste différée au paiement, qui est le droit commun.
+                </div>
               </div>
 
               {/* Volet Comptes rattachés */}

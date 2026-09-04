@@ -24,10 +24,21 @@ const OBLIGATIONS_SYCEBNL = obligationsDeclarativesApplicables('SYCEBNL' as neve
  * signalement du retard.
  */
 
-function ligne(numero: string, date: string, montant: { debit?: number; credit?: number }) {
+function ligne(
+  numero: string,
+  date: string,
+  montant: { debit?: number; credit?: number },
+  /**
+   * Date du versement ou de la mise à disposition, quand elle diffère de celle
+   * de l'écriture. OMISE = NULL, et c'est l'état de toutes les lignes déjà en
+   * base : le registre doit alors se comporter exactement comme avant.
+   */
+  dateVersement?: string,
+) {
   return {
     debit: montant.debit ?? 0,
     credit: montant.credit ?? 0,
+    dateVersement: dateVersement ? new Date(dateVersement) : null,
     compte: { numero, intitule: `Compte ${numero}` },
     ecriture: { date: new Date(date), libelle: 'Écriture', reference: null },
   };
@@ -1014,5 +1025,111 @@ describe('Contribution nationale · la base légale qui ne se vérifiait pas', (
       if (n.cle === 'contributions') continue;
       expect(n.baseLegale).toMatch(/[Aa]rticle|[Aa]rt\.|loi|Loi|arrêté|Arrêté|décret|Décret|Ordonnance|conventions/);
     }
+  });
+});
+
+/*
+  L'ÉCHÉANCE SUIVAIT LE MOIS DE L'ÉCRITURE, ET NON CELUI DU VERSEMENT.
+
+  Article 18 de la loi n° 004/2003 portant réforme des procédures fiscales,
+  tel que modifié par la L.F. n° 23/056 du 10 décembre 2023, art. 24, et par
+  la loi n° 23/052 du 30 novembre 2023, art. 1er : « Les retenues effectuées
+  au titre d’Impôt sur le Revenu des Personnes Physiques par toute personne
+  physique ou morale qui paye des revenus salariaux et revenus assimilés
+  doivent être versées au plus tard le 15 du mois qui suit celui du versement
+  de ces revenus aux bénéficiaires ou de leur mise à disposition. »
+  (compilation DGI au 19 juillet 2026,
+  `17-procedures-titre1-obligations-declaratives.md`, lignes 281 à 284.)
+
+  Le mois de référence est celui du VERSEMENT, jamais celui de l'écriture qui
+  le constate · même rattachement à l'article 18 bis pour les capitaux
+  mobiliers (lignes 294 à 297), à l'article 19 pour le prélèvement expatriés
+  (lignes 313 à 315 et 322), à l'article 22 bis pour les prestataires
+  non-résidents (lignes 346 à 349) et à l'article 57, alinéa 5 pour la retenue
+  locative (`19-procedures-titre3-recouvrement.md`, lignes 25 à 27).
+
+  Une paie de décembre passée au 31 décembre et versée le 5 janvier voyait
+  donc son échéance datée du 15 janvier au lieu du 15 février : un mois trop
+  tôt, et un retard crié sur un contribuable à jour.
+*/
+describe('L’échéance suit le mois du VERSEMENT, pas celui de l’écriture (art. 18)', () => {
+  it('une paie de décembre versée le 5 janvier est due le 15 février, et n’est pas en retard', async () => {
+    const s = service([ligne('44720000', '2026-12-31', { credit: 400_000 }, '2027-01-05')]);
+    const r = await s.registre('t1', { exerciceId: 'e1', dateReference: '2027-02-01' });
+    const n = nature(r, 'irppSalaires');
+    expect(n.mois.map((m) => m.mois)).toEqual(['2027-01']);
+    expect(n.mois[0].echeance.toISOString().slice(0, 10)).toBe('2027-02-15');
+    expect(n.mois[0].enRetard).toBe(false);
+    expect(n.moisEnRetard).toBe(0);
+  });
+
+  it('la MÊME ligne sans date de versement ne bouge pas d’un jour · le comportement d’avant', async () => {
+    // Le garde-fou de la non-régression : toutes les lignes déjà en base ont
+    // `dateVersement` nul, et pour elles la date de l'écriture fait toujours
+    // foi. Ce cas est celui du test « avertit que le reversement de décembre
+    // peut vivre sur l'exercice suivant », à l'identique.
+    const s = service([ligne('44720000', '2026-12-31', { credit: 400_000 })]);
+    const r = await s.registre('t1', { exerciceId: 'e1', dateReference: '2027-02-01' });
+    const n = nature(r, 'irppSalaires');
+    expect(n.mois.map((m) => m.mois)).toEqual(['2026-12']);
+    expect(n.mois[0].echeance.toISOString().slice(0, 10)).toBe('2027-01-15');
+    expect(n.mois[0].enRetard).toBe(true);
+  });
+
+  it('l’imputation du reversement classe les mois sur le versement, et non sur l’écriture', async () => {
+    // Ce que FX-041 avait construit repose sur le rattachement mensuel : le
+    // reversement s'impute du mois le plus ancien au plus récent. Novembre est
+    // versé et reversé dans les temps ; la paie de décembre, écrite le 31 mais
+    // versée le 5 janvier, est une obligation de JANVIER, pas encore échue.
+    const s = service([
+      ligne('44720000', '2026-11-30', { credit: 300_000 }),
+      ligne('44720000', '2026-12-31', { credit: 500_000 }, '2027-01-05'),
+      ligne('44720000', '2026-12-14', { debit: 300_000 }),
+    ]);
+    const r = await s.registre('t1', { exerciceId: 'e1', dateReference: '2027-02-01' });
+    const n = nature(r, 'irppSalaires');
+    expect(n.mois.map((m) => m.mois)).toEqual(['2026-11', '2026-12', '2027-01']);
+    // Novembre éteint par le débit du 14 décembre · le plus ancien d'abord.
+    expect(n.mois[0].reverse).toBe(300_000);
+    expect(n.mois[0].solde).toBe(0);
+    // Le mois du débit ne porte aucune retenue, seulement la trace.
+    expect(n.mois[1].retenu).toBe(0);
+    expect(n.mois[1].reverseEcritures).toBe(300_000);
+    // Janvier reste dû, et son échéance du 15 février n'est pas passée.
+    expect(n.mois[2].solde).toBe(500_000);
+    expect(n.mois[2].echeance.toISOString().slice(0, 10)).toBe('2027-02-15');
+    expect(n.moisEnRetard).toBe(0);
+  });
+
+  it('le signalement de l’article 20 suit le même mois · rien à prouver avant l’échéance', async () => {
+    // L'article 20, dernier alinéa de la loi n° 23/053 subordonne la déduction
+    // à la preuve du paiement de la retenue. Tant que le 15 février n'est pas
+    // passé, il n'y a aucune preuve à rapporter : crier au redressement le
+    // 1er février serait faux.
+    const s = service(
+      [ligne('44782000', '2026-12-31', { credit: 1_000_000 }, '2027-01-05')],
+      'SYSCOHADA',
+    );
+    const r = await s.registre('t1', { exerciceId: 'e1', dateReference: '2027-02-01' });
+    expect(r.signalementsDeductibilite).toEqual([]);
+    expect(r.avertissements.join(' ')).not.toContain('RETENUES ÉCHUES');
+  });
+
+  it('déplace aussi la trace du débit, sans toucher à l’arithmétique du compte', async () => {
+    // La date de versement date la LIGNE, quel que soit le sens du montant :
+    // un reversement écrit le 31 décembre et effectivement versé le 5 janvier
+    // laisse sa trace sur janvier. L'imputation, elle, ne lit aucun mois de
+    // débit · le total reversé de la nature ne bouge pas.
+    const s = service([
+      ligne('44720000', '2026-11-30', { credit: 300_000 }),
+      ligne('44720000', '2026-12-31', { debit: 300_000 }, '2027-01-05'),
+    ]);
+    const r = await s.registre('t1', { exerciceId: 'e1', dateReference: '2027-02-01' });
+    const n = nature(r, 'irppSalaires');
+    expect(n.reverse).toBe(300_000);
+    expect(n.mois.find((m) => m.mois === '2026-11')!.reverse).toBe(300_000);
+    expect(n.mois.find((m) => m.mois === '2026-11')!.solde).toBe(0);
+    expect(n.mois.find((m) => m.mois === '2027-01')!.reverseEcritures).toBe(300_000);
+    expect(n.moisEnRetard).toBe(0);
   });
 });
