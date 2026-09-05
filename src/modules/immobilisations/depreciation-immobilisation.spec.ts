@@ -402,16 +402,18 @@ describe('la sortie solde le compte 29 par une REPRISE, sans toucher au compte 8
     expect(lignes.some((l) => l.compteId === 'n79140000')).toBe(false);
   });
 
-  it('au SYCEBNL, un bien légué destiné à la vente sort en 818 et se reprend en 795', async () => {
+  it('au SYCEBNL, un bien légué destiné à la vente sort en 818 et se reprend en 7952', async () => {
     // 20300000 « Bâtiments destinés à la vente (dons et legs non encore
     // reçus) » · COMPTE 81 SYCEBNL, subdivision 818, et COMPTE 79, subdivision
-    // 795 « Reprises des dépréciations d'immobilisations reçues provenant des
-    // dons et legs et d'usufruit temporaire ».
+    // 7952 « Reprises des dépréciations d'immobilisations reçues destinées à
+    // la vente provenant des dons et legs » · le 795 se subdivise en 7951
+    // (usufruit temporaire) et 7952 (destinées à la vente), et c'est bien le
+    // second que vise un legs destiné à la vente.
     const lignes = await lignesDeSortie(BIEN_DEPRECIE, {
       compteImmobilisation: '20300000',
       referentiel: Referentiel.SYCEBNL,
     });
     expect(lignes.find((l) => l.compteId === 'n81800000')!.debit).toBe(2_800_000);
-    expect(lignes.find((l) => l.compteId === 'n79500000')!.credit).toBe(1_600_000);
+    expect(lignes.find((l) => l.compteId === 'n79520000')!.credit).toBe(1_600_000);
   });
 });

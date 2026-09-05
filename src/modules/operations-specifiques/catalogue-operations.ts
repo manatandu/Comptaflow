@@ -180,7 +180,7 @@ const B6: OperationSpecifique = {
         { nom: 'tauxDepreciation', libelle: 'Taux de dépréciation retenu', type: 'TAUX', defaut: 0.8 },
       ],
       lignes: [
-        { compte: '659', libelle: 'Charges pour dépréciations sur créances', sens: 'DEBIT', montant: { mode: 'PROPORTION', parametre: 'creanceDouteuse', taux: 'tauxDepreciation' }, note: 'Le Guide écrit 6594 · subdivision du 659.' },
+        { compte: '6594', libelle: 'Charges pour dépréciations sur créances', sens: 'DEBIT', montant: { mode: 'PROPORTION', parametre: 'creanceDouteuse', taux: 'tauxDepreciation' } },
         { compte: '4912', libelle: 'Dépréciations des créances douteuses', sens: 'CREDIT', montant: { mode: 'PROPORTION', parametre: 'creanceDouteuse', taux: 'tauxDepreciation' } },
       ],
     },
@@ -263,7 +263,7 @@ const B1: OperationSpecifique = {
       parametres: [{ nom: 'consomme', libelle: "Part des fonds consommée sur l'exercice", type: 'MONTANT' }],
       lignes: [
         { compte: '165', libelle: 'Fonds affectés à un projet spécifique', sens: 'DEBIT', montant: { mode: 'PARAMETRE', parametre: 'consomme' } },
-        { compte: '792', libelle: 'Reprises de fonds affectés', sens: 'CREDIT', montant: { mode: 'PARAMETRE', parametre: 'consomme' }, note: 'Le Guide écrit 7925 · subdivision du 792.' },
+        { compte: '7925', libelle: 'Reprises de fonds affectés à un projet spécifique', sens: 'CREDIT', montant: { mode: 'PARAMETRE', parametre: 'consomme' } },
       ],
     },
   ],
@@ -318,7 +318,7 @@ const B16: OperationSpecifique = {
       parametres: [{ nom: 'dotation', libelle: "Dotation aux amortissements de l'exercice sur ces biens", type: 'MONTANT' }],
       lignes: [
         { compte: '167', libelle: 'Fonds provenant des dons et legs', sens: 'DEBIT', auChoix: true, montant: { mode: 'PARAMETRE', parametre: 'dotation' } },
-        { compte: '792', libelle: "Reprises de fonds affectés provenant de dons et legs d'immobilisations", sens: 'CREDIT', montant: { mode: 'PARAMETRE', parametre: 'dotation' }, note: 'Le Guide écrit 7923 · subdivision du 792.' },
+        { compte: '7923', libelle: "Reprises de fonds affectés provenant de dons et legs d'immobilisations", sens: 'CREDIT', montant: { mode: 'PARAMETRE', parametre: 'dotation' } },
       ],
       anomalie:
         "[texte officiel] Dans l'écriture d'amortissement de la même application, le mobilier de bureau (bien en 2441) est amorti en « 28444 » alors que les trois autres lignes suivent le schéma « 28 + racine du bien » (2313→28313, 2442→28442, 2451→28451), qui donnerait 28441 ; 28444 est l'amortissement des matériels sportifs. Sans effet ici : le plan s'arrête à 2844, qui couvre les deux.",
@@ -361,7 +361,7 @@ const B17: OperationSpecifique = {
       applicationGuide: 'App. 6',
       parametres: [{ nom: 'depreciation', libelle: 'Dépréciation constatée', type: 'MONTANT' }],
       lignes: [
-        { compte: '695', libelle: 'Dotations aux dépréciations des immobilisations destinées à la vente', sens: 'DEBIT', montant: { mode: 'PARAMETRE', parametre: 'depreciation' }, note: 'Le Guide écrit 6952 · subdivision du 695.' },
+        { compte: '6952', libelle: 'Dotations aux dépréciations des immobilisations destinées à la vente provenant des dons et legs non encore reçus', sens: 'DEBIT', montant: { mode: 'PARAMETRE', parametre: 'depreciation' } },
         { compte: '2902', libelle: 'Dépréciations des immobilisations destinées à la vente', sens: 'CREDIT', montant: { mode: 'PARAMETRE', parametre: 'depreciation' } },
       ],
     },
@@ -374,7 +374,7 @@ const B17: OperationSpecifique = {
       parametres: [{ nom: 'fondsReporte', libelle: 'Fonds reporté à solder', type: 'MONTANT' }],
       lignes: [
         { compte: '172', libelle: "Legs non encore reçus d'immobilisations destinées à la vente", sens: 'DEBIT', montant: { mode: 'PARAMETRE', parametre: 'fondsReporte' } },
-        { compte: '796', libelle: 'Reprises des fonds reportés', sens: 'CREDIT', montant: { mode: 'PARAMETRE', parametre: 'fondsReporte' }, note: 'Le Guide écrit 7962 · subdivision du 796.' },
+        { compte: '7962', libelle: "Reprises de fonds reportés provenant de dons et legs d'immobilisations reçues destinées à la vente", sens: 'CREDIT', montant: { mode: 'PARAMETRE', parametre: 'fondsReporte' } },
       ],
     },
   ],
@@ -428,7 +428,7 @@ const B18: OperationSpecifique = {
       parametres: [{ nom: 'dotation', libelle: "Amortissement de l'usufruit sur l'exercice", type: 'MONTANT' }],
       lignes: [
         { compte: '171', libelle: "Donation temporaire d'usufruit", sens: 'DEBIT', montant: { mode: 'PARAMETRE', parametre: 'dotation' } },
-        { compte: '796', libelle: "Reprises de fonds provenant d'usufruit temporaire", sens: 'CREDIT', montant: { mode: 'PARAMETRE', parametre: 'dotation' }, note: 'Le Guide écrit 7961 · subdivision du 796.' },
+        { compte: '7961', libelle: "Reprises de fonds reportés provenant de la donation temporaire d'usufruit", sens: 'CREDIT', montant: { mode: 'PARAMETRE', parametre: 'dotation' } },
       ],
     },
   ],

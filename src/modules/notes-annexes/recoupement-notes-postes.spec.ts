@@ -243,20 +243,30 @@ describe('SYCEBNL · les comptes d’une note et ceux de son poste', () => {
     // Relevé du 2026-09-02, une fois les trente-deux renvois remis d'aplomb. Ces
     // écarts sont ceux que le référentiel porte lui-même · ils sont mesurés, pas
     // approuvés.
-    expect({ horsPoste, sansLigne }).toEqual({ horsPoste: 165, sansLigne: 119 });
+    // Ces deux chiffres ont bougé avec la descente du semis au quatrième
+    // chiffre : là où un compte 601 unique comptait pour un, ses cinq
+    // subdivisions comptent pour cinq. Le PÉRIMÈTRE de l'écart n'a pas changé,
+    // seule sa granularité · c'est le même relevé, compté plus finement.
+    expect({ horsPoste, sansLigne }).toEqual({ horsPoste: 176, sansLigne: 160 });
   });
 
   it('le nombre de comptes qu’aucune note ne chiffre reste sous contrôle', () => {
-    // Trouvé par le même balayage : 47 comptes du plan semé n'apparaissent dans
+    // Trouvé par le même balayage : 77 comptes du plan semé n'apparaissent dans
     // la rubrique d'aucune note. Une partie est normale · le résultat de
     // l'exercice (131, 139) se lit au bilan, les virements internes (585, 588)
     // se soldent en cours d'exercice. Le reste est de la matière pour la suite
     // (cessions 81 et 82, dotations 681 et 691, reprises 79). Le chiffre est
     // gelé ici pour qu'aucun compte ne le rejoigne en silence.
+    //
+    // Il était de 47 avant que le semis ne descende au quatrième chiffre. Les
+    // trente de plus sont les subdivisions des mêmes racines déjà orphelines
+    // (601, 602, 603, 604, 605, 618, 691, 695, 697, 792, 795, 796) : aucune
+    // racine nouvelle n'a rejoint la liste, elle est seulement comptée plus
+    // finement. C'est bien la granularité qui change, pas la couverture.
     const rubriques = NOTES_ASSOCIATIONS.filter((n) => !n.horsBalance)
       .flatMap((n) => n.rubriques)
       .filter((r) => (r.comptes ?? []).length > 0);
     const orphelins = COMPTES_SEMIS.filter((num) => !rubriques.some((r) => capte(r, num)));
-    expect(orphelins.length).toBe(47);
+    expect(orphelins.length).toBe(77);
   });
 });

@@ -33,8 +33,14 @@ export type ModeleSimple = {
 export const MODELES_SIMPLES_SYCEBNL: ModeleSimple[] = [
   { code: 'don', libelle: 'Don reçu en numéraire', numeroContrepartie: '70410000', sens: 'recette' },
   { code: 'cotisation', libelle: 'Cotisation reçue', numeroContrepartie: '70100000', sens: 'recette' },
-  { code: 'achat', libelle: 'Achat payé', numeroContrepartie: '60500000', sens: 'depense' },
-  { code: 'salaire', libelle: 'Salaire payé', numeroContrepartie: '66100000', sens: 'depense' },
+  // 6011 « Achats de biens et services liés à l'activité dans l'État partie ».
+  // Le semis SYCEBNL descend désormais au quatrième chiffre comme le plan
+  // officiel : 605 et 661 y sont devenus des TOTAL, donc non imputables, tout
+  // comme au SYSCOHADA. Les deux référentiels visent maintenant le même
+  // niveau, et pour la même raison.
+  { code: 'achat', libelle: 'Achat payé', numeroContrepartie: '60110000', sens: 'depense' },
+  // 6611 « Appointements salaires et commissions » (personnel national).
+  { code: 'salaire', libelle: 'Salaire payé', numeroContrepartie: '66110000', sens: 'depense' },
 ];
 
 export const MODELES_SIMPLES_SYSCOHADA: ModeleSimple[] = [

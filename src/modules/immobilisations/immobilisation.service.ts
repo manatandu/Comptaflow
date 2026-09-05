@@ -205,11 +205,15 @@ export const COMPTES_SORTIE: Record<NatureImmobilisation, { valeurComptable: str
      immobilisations corporelles » et « 797 … 7972 des immobilisations
      financières » (Titre VII, COMPTE 79) · le plan semé porte les trois en
      compte de détail ;
-   · SYCEBNL · mêmes 791 et 797, mais le plan semé s'arrête au compte de
-     détail 79100000 et 79700000 ; et il ouvre en plus 795 « Reprises des
-     dépréciations d'immobilisations reçues provenant des dons et legs et
-     d'usufruit temporaire », qui est le pendant exact du 290 déprécié et du
-     818 cédé (skill `sycebnl`, COMPTE 79 et COMPTE 29).
+   · SYCEBNL · mêmes 791 et 797, avec les mêmes subdivisions 7913 / 7914 /
+     7972 depuis que le plan semé descend au quatrième chiffre comme le fait
+     le plan officiel ; et il ouvre en plus 795 « Reprises des dépréciations
+     d'immobilisations reçues destinées à la vente provenant des dons et legs
+     et d'usufruit temporaire », subdivisé lui aussi en 7951 (usufruit
+     temporaire) et 7952 (destinées à la vente), pendant exact du 290 déprécié
+     et du 818 cédé (skill `sycebnl`, COMPTE 79 et COMPTE 29). Les deux
+     référentiels visent donc désormais le même niveau de finesse ; ce n'était
+     pas le cas tant que le semis SYCEBNL s'arrêtait à trois chiffres.
 
   UNE SEULE EXCEPTION, ÉCRITE ELLE AUSSI · la fiche du COMPTE 29 donne deux
   contreparties à la reprise, « par le crédit du compte 79 – Reprises de
@@ -224,10 +228,10 @@ export const REPRISE_DEPRECIATION_SORTIE: Record<
   Partial<Record<NatureImmobilisation, string>>
 > = {
   [Referentiel.SYCEBNL]: {
-    INCORPORELLE: '79100000',
-    CORPORELLE: '79100000',
-    FINANCIERE: '79700000',
-    DONS_LEGS_VENTE: '79500000',
+    INCORPORELLE: '79130000',
+    CORPORELLE: '79140000',
+    FINANCIERE: '79720000',
+    DONS_LEGS_VENTE: '79520000',
   },
   [Referentiel.SYSCOHADA]: {
     INCORPORELLE: '79130000',

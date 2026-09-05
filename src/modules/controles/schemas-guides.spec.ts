@@ -63,11 +63,14 @@ describe('extraction du guide SYCEBNL', () => {
   });
 
   it('les subdivisions du guide se rattachent à leur racine', () => {
-    // Le guide écrit 6011, 7961, 28442 · le plan s'arrête à 601, 796, 2844.
-    // Vérifié au Journal officiel le 2026-09-03 : ce sont des subdivisions
-    // ouvertes par l'entité, pas des comptes du plan.
-    expect(racinePlan('6011', plan)).toBe('601');
-    expect(racinePlan('7961', plan)).toBe('796');
+    // CORRECTION DU 2026-09-05. La vérification du 2026-09-03 concluait que
+    // 6011 et 7961 étaient des subdivisions ouvertes par l'entité, le semis
+    // s'arrêtant alors à 601 et 796. C'était le SEMIS qui s'arrêtait, pas le
+    // plan : la page 95 du Journal officiel donne bien 6011, et la page 102
+    // bien 7961. Ils sont désormais semés, et se rattachent donc à eux-mêmes.
+    // Le 28442 reste, lui, une subdivision d'entité : le plan s'arrête à 2844.
+    expect(racinePlan('6011', plan)).toBe('6011');
+    expect(racinePlan('7961', plan)).toBe('7961');
     expect(racinePlan('28442', plan)).toBe('2844');
   });
 

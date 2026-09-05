@@ -572,6 +572,23 @@ Valables pour les deux référentiels (`compte-seed.ts`,
 - un compte à 3 chiffres **sans** subdivision EST le compte d'imputation, donc
   complété.
 
+**Le plan est repris tel qu'il est, à 2, 3, 4 et 5 chiffres.** Depuis le
+2026-09-05, le semis SYCEBNL descend au quatrième chiffre partout où le plan
+officiel le fait · il avait été bâti sur le chapitre 3 (fonctionnement des
+comptes), qui abrège, et s'arrêtait au divisionnaire pour presque toute la
+classe 6 et une partie de la classe 7. 207 sous-comptes ont été ajoutés, leurs
+51 parents passés en `TOTAL`. Ne pas « simplifier » un niveau au motif qu'il
+paraît fin : c'est ce raccourci qui faisait sortir à zéro huit rubriques des
+notes 28, 29A, 19 et 20A, et qui empêchait le catalogue d'opérations d'imputer
+là où le Guide l'écrit.
+
+Les comptes **92 à 99** (comptabilité analytique de gestion) sont semés comme
+en-têtes de division SANS compte d'imputation en dessous : le plan les énumère
+et ne les développe jamais, « libre usage ». Ils ne servent qu'en comptabilité
+analytique, nulle part ailleurs. `compte-seed.spec.ts` les exempte NOMMÉMENT
+du contrôle « un en-tête regroupe au moins un compte Détail » · toute autre
+division vide reste un bug.
+
 Le plan SYSCOHADA est **généré** depuis le TSV de la compétence `syscohada`.
 Ne pas le retoucher à la main : corriger la source et régénérer.
 

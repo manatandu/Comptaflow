@@ -72,7 +72,10 @@ describe('plan comptable · libellés de classe par référentiel', () => {
     // Un en-tête de division est un compte à deux chiffres semé en TOTAL.
     const nbSycebnl = (sycebnl.match(/total\('\d{2}'/g) ?? []).length;
     const nbSyscohada = (syscohada.match(/t\('\d{2}'/g) ?? []).length;
-    expect({ sycebnl: nbSycebnl, syscohada: nbSyscohada }).toEqual({ sycebnl: 76, syscohada: 77 });
+    // 84 côté SYCEBNL depuis que les huit divisions de la comptabilité
+    // analytique de gestion (92 à 99) sont semées comme en-têtes · le plan
+    // officiel les énumère, sans jamais les développer.
+    expect({ sycebnl: nbSycebnl, syscohada: nbSyscohada }).toEqual({ sycebnl: 84, syscohada: 77 });
     expect(page).toContain(`${nbSycebnl} semés par compte-seed.ts`);
     expect(page).toContain(`${nbSyscohada} par`);
   });

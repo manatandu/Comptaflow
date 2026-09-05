@@ -87,7 +87,7 @@ function operationService(methodeCotisations: MethodeCotisations | null) {
     },
     compte: {
       findMany: jest.fn().mockResolvedValue(
-        ['411', '1851', '701', '103', '659', '4912'].map((numero) => ({
+        ['411', '1851', '701', '103', '6594', '4912'].map((numero) => ({
           id: `c-${numero}`,
           numero: `${numero}00000`.slice(0, 8),
           intitule: `Compte ${numero}`,

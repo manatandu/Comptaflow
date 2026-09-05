@@ -12,7 +12,7 @@ describe('comptes principaux (2 chiffres)', () => {
     // Une entrée par division réellement détaillée plus bas (10 à 19, 20 à
     // 29, 31 à 39, 40 à 49, 50 à 59 hors 54, 60 à 69, 70 à 79 hors 74/76,
     // 81 à 88, 90-91) · 92 à 99 volontairement absentes (§ compte-seed.ts).
-    expect(totaux).toHaveLength(76);
+    expect(totaux).toHaveLength(84);
     expect(totaux.every((c) => c.typeCompte === 'TOTAL')).toBe(true);
   });
 
@@ -33,8 +33,17 @@ describe('comptes principaux (2 chiffres)', () => {
   });
 
   it('regroupe au moins un compte Détail réel, sans quoi l’en-tête serait orphelin', () => {
+    // Seule exception assumée : 92 à 99, la comptabilité analytique de
+    // gestion. Le plan officiel les énumère et s'arrête là · « libre usage ».
+    // Ils sont semés en en-têtes vides EXPRÈS, pour que le cabinet crée ses
+    // propres comptes de coûts dessous. Toute autre division vide est un bug.
+    const ANALYTIQUE_LIBRE = new Set(['92', '93', '94', '95', '96', '97', '98', '99']);
     for (const t of totaux) {
       const enfants = detail.filter((d) => d.numero.startsWith(t.numero) && d.classe === t.classe);
+      if (ANALYTIQUE_LIBRE.has(t.numero)) {
+        expect(enfants).toHaveLength(0);
+        continue;
+      }
       expect(enfants.length).toBeGreaterThan(0);
     }
   });
@@ -66,7 +75,7 @@ describe('comptes divisionnaires (3 chiffres)', () => {
   const detail = PLAN_COMPTES_SYCEBNL.filter((c) => c.numero.length > 3);
 
   it('sème un en-tête par regroupement à 3 chiffres réellement subdivisé, tous en type Total', () => {
-    expect(divisionnaires).toHaveLength(121);
+    expect(divisionnaires).toHaveLength(172);
     expect(divisionnaires.every((c) => c.typeCompte === 'TOTAL')).toBe(true);
   });
 
@@ -158,10 +167,6 @@ describe('intitulés relus sur le plan des comptes officiel', () => {
     ['24940000', 'Matériel et mobilier de bureau en cours'],
     ['24980000', 'Autres matériels et actifs biologiques en cours'],
     ['29470000', 'Dépréciations du matériel · agencements et aménagements du matériel et des actifs biologiques'],
-    [
-      '79500000',
-      "Reprises des dépréciations d'immobilisations reçues destinées à la vente provenant des dons et legs et d'usufruit temporaire",
-    ],
   ];
 
   it.each(RELUS)('%s porte l’intitulé du texte officiel', (numero, intitule) => {

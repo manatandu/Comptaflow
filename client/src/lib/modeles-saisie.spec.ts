@@ -16,7 +16,9 @@ import { MODELES_SIMPLES_SYCEBNL, MODELES_SIMPLES_SYSCOHADA } from './modeles-sa
  *    résiduels ». Le modèle « Don reçu en numéraire » y insérait une VENTE
  *    DE DÉCHETS ;
  *  · 70100000, 60500000 et 66100000 n'y existent pas du tout · 701, 605 et
- *    661 y sont semés en TOTAL, donc non imputables.
+ *    661 y sont semés en TOTAL, donc non imputables. Depuis que le semis
+ *    SYCEBNL descend lui aussi au quatrième chiffre, 605 et 661 y sont des
+ *    TOTAL également · les deux jeux de modèles visent donc le même niveau.
  *
  * Ce test lit les DEUX semis et vérifie que chaque modèle vise un compte qui
  * existe dans SON plan. La convention §7 de CLAUDE.md le rend décidable sans
@@ -41,13 +43,36 @@ describe('modèles de saisie · chaque modèle vise un compte de SON plan', () =
     expect(absents.map((m) => `${m.code} → ${m.numeroContrepartie}`)).toEqual([]);
   });
 
-  it('LE DÉFAUT D’ORIGINE · trois des quatre modèles SYCEBNL ne trouvent aucun compte au plan SYSCOHADA', () => {
+  it('LE DÉFAUT D’ORIGINE · le modèle « cotisation » ne trouve aucun compte au plan SYSCOHADA', () => {
     const perdus = MODELES_SIMPLES_SYCEBNL.filter((m) => !semePar('SYSCOHADA', m.numeroContrepartie));
-    // Ce test fige la RAISON du cloisonnement. S'il tombait à zéro un jour,
-    // c'est que les deux plans auraient convergé · ce qui n'arrivera pas, et
-    // que le cloisonnement serait devenu inutile · ce qu'il faudrait alors
-    // constater plutôt que deviner.
-    expect(perdus.map((m) => m.code).sort()).toEqual(['achat', 'cotisation', 'salaire']);
+    // CE QUE CE TEST ATTENDAIT, ET CE QU'IL CONSTATE MAINTENANT. Il figeait
+    // trois modèles introuvables au plan SYSCOHADA, et disait que tomber à
+    // zéro signifierait que les deux plans ont convergé « ce qui n'arrivera
+    // pas ». Il en reste un seul, et c'est bien une convergence PARTIELLE :
+    // depuis que le semis SYCEBNL descend au quatrième chiffre comme le plan
+    // officiel, 6011 et 6611 existent DANS LES DEUX PLANS, avec des intitulés
+    // différents (test suivant). Le danger a donc changé de nature · il n'est
+    // plus « le compte n'existe pas », il est « le compte existe et ne veut
+    // pas dire la même chose ». C'est le pire des deux, et c'est la raison
+    // pour laquelle le cloisonnement par référentiel reste indispensable :
+    // ModelesSaisie.tsx choisit le jeu sur `estSyscohada`, jamais sur le
+    // numéro.
+    expect(perdus.map((m) => m.code).sort()).toEqual(['cotisation']);
+  });
+
+  it('6011 et 6611 existent dans les deux plans et n’y désignent pas la même chose', () => {
+    // C'est le cœur du risque décrit ci-dessus, mesuré et non supposé.
+    for (const numero of ['60110000', '66110000']) {
+      expect(semePar('SYCEBNL', numero)).toBe(true);
+      expect(semePar('SYSCOHADA', numero)).toBe(true);
+    }
+    // 6011 · SYCEBNL « Achats de biens et services liés à l'activité dans
+    // l'État partie » contre SYSCOHADA « Achats de marchandises · dans la
+    // Région ». Un achat d'ONG imputé sur le second devient un achat de
+    // marchandises destinées à la revente, et la marge commerciale du compte
+    // de résultat s'en trouve fausse sans qu'aucun contrôle ne bronche.
+    expect(semis.SYCEBNL).toContain("Achats de biens et services liés à l'activité dans l'État partie");
+    expect(semis.SYSCOHADA).toContain('Achats de marchandises');
   });
 
   it('le quatrième est PIRE · le 70410000 existe en SYSCOHADA, mais ce n’est pas un don', () => {
@@ -58,9 +83,22 @@ describe('modèles de saisie · chaque modèle vise un compte de SON plan', () =
     expect(semis.SYSCOHADA).toContain('Ventes de produits résiduels');
   });
 
-  it('aucun modèle SYSCOHADA ne reprend un compte du jeu SYCEBNL', () => {
+  it('les deux jeux ne se recouvrent que là où les deux plans se recouvrent', () => {
+    // La disjonction NUMÉRIQUE des deux jeux n'est plus atteignable, et le
+    // prétendre serait faux : 6011 et 6611 sont les comptes justes des deux
+    // côtés. Ce qui doit rester vrai, c'est que chaque jeu vise un compte
+    // semé en Détail dans SON plan (premier test) et que le recouvrement se
+    // limite à ces deux-là, jamais aux comptes de produits · un « don reçu »
+    // et une « vente de marchandises » ne doivent jamais porter le même
+    // numéro dans les deux jeux.
     const numerosSycebnl = new Set(MODELES_SIMPLES_SYCEBNL.map((m) => m.numeroContrepartie));
-    expect(MODELES_SIMPLES_SYSCOHADA.filter((m) => numerosSycebnl.has(m.numeroContrepartie))).toEqual([]);
+    const communs = MODELES_SIMPLES_SYSCOHADA.filter((m) => numerosSycebnl.has(m.numeroContrepartie));
+    expect(communs.map((m) => `${m.code} → ${m.numeroContrepartie}`).sort()).toEqual([
+      'achat → 60110000',
+      'salaire → 66110000',
+    ]);
+    const recettes = MODELES_SIMPLES_SYSCOHADA.filter((m) => m.sens === 'recette');
+    expect(recettes.some((m) => numerosSycebnl.has(m.numeroContrepartie))).toBe(false);
   });
 
   it('les quatre modèles de chaque jeu ont un code unique et un sens', () => {

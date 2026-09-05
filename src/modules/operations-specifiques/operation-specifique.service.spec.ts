@@ -130,7 +130,7 @@ describe('Guide, Application 13 · cotisations des membres', () => {
     ]);
     // 12 000 000 × 80 % = 9 600 000, le chiffre du Guide.
     expect((await ecriture('B6-DEPRECIATION-COTISATION', { creanceDouteuse: 12_000_000, tauxDepreciation: 0.8 })).table).toEqual([
-      { numero: '65900000', debit: 9_600_000, credit: 0 },
+      { numero: '65940000', debit: 9_600_000, credit: 0 },
       { numero: '49120000', debit: 0, credit: 9_600_000 },
     ]);
   });
@@ -190,7 +190,7 @@ describe('Guide, Application 4 · fonds affectés à un projet spécifique', () 
     const e = await ecriture('B1-REPRISE', { consomme: 15_000_000 });
     expect(e.table).toEqual([
       { numero: '16500000', debit: 15_000_000, credit: 0 },
-      { numero: '79200000', debit: 0, credit: 15_000_000 },
+      { numero: '79250000', debit: 0, credit: 15_000_000 },
     ]);
   });
 });
@@ -226,7 +226,7 @@ describe('Guide, Application 5 · legs d’immobilisations à conserver', () => 
     const e = await ecriture('B16-REPRISE-FONDS', { dotation: 18_625_000 }, { '167': '16710000' });
     expect(e.table).toEqual([
       { numero: '16710000', debit: 18_625_000, credit: 0 },
-      { numero: '79200000', debit: 0, credit: 18_625_000 },
+      { numero: '79230000', debit: 0, credit: 18_625_000 },
     ]);
   });
 });
@@ -243,7 +243,7 @@ describe('Guide, Application 6 · legs destinés à la vente', () => {
 
   it('dépréciation de 25 % du bâtiment : 100 000 000', async () => {
     expect((await ecriture('B17-DEPRECIATION', { depreciation: 100_000_000 })).table).toEqual([
-      { numero: '69500000', debit: 100_000_000, credit: 0 },
+      { numero: '69520000', debit: 100_000_000, credit: 0 },
       { numero: '29020000', debit: 0, credit: 100_000_000 },
     ]);
   });
@@ -251,7 +251,7 @@ describe('Guide, Application 6 · legs destinés à la vente', () => {
   it('solde du fonds reporté après cession : 447 000 000', async () => {
     expect((await ecriture('B17-SOLDE-FONDS', { fondsReporte: 447_000_000 })).table).toEqual([
       { numero: '17200000', debit: 447_000_000, credit: 0 },
-      { numero: '79600000', debit: 0, credit: 447_000_000 },
+      { numero: '79620000', debit: 0, credit: 447_000_000 },
     ]);
   });
 });
@@ -268,7 +268,7 @@ describe('Guide, Application 7 · donation temporaire d’usufruit', () => {
     ]);
     expect((await ecriture('B18-REPRISE', { dotation: 15_000_000 })).table).toEqual([
       { numero: '17100000', debit: 15_000_000, credit: 0 },
-      { numero: '79600000', debit: 0, credit: 15_000_000 },
+      { numero: '79610000', debit: 0, credit: 15_000_000 },
     ]);
   });
 });
@@ -317,8 +317,12 @@ describe('Guide, Application 8 · projet de développement', () => {
 
 describe('Guide, Application 9 · dons en nature à distribuer', () => {
   it('réception de 25 000 000, stock de 5 000 000, revenus différés de 5 000 000', async () => {
-    expect((await ecriture('B2-RECEPTION-COURANT', { valeur: 25_000_000 })).table).toEqual([
-      { numero: '65400000', debit: 25_000_000, credit: 0 },
+    // Le compte 654 est désormais subdivisé (6541 non affectés, 6545 affectés)
+    // comme le veut le plan officiel. Ni la Partie 3 ch. 4 ni l'Application 9
+    // ne tranchent entre les deux · la ligne est donc « au choix », et le test
+    // impose le non affecté, cas de la collecte récurrente de l'Application 9.
+    expect((await ecriture('B2-RECEPTION-COURANT', { valeur: 25_000_000 }, { '654': '65410000' })).table).toEqual([
+      { numero: '65410000', debit: 25_000_000, credit: 0 },
       { numero: '75420000', debit: 0, credit: 25_000_000 },
     ]);
     expect((await ecriture('B2-STOCK-CLOTURE', { stock: 5_000_000 })).table).toEqual([
@@ -446,9 +450,9 @@ describe('Guide, Application 16 · subvention d’exploitation pluriannuelle', (
 
 describe('Guide, Application 17 · abandons de frais des bénévoles', () => {
   it('525 000 de frais engagés puis abandonnés', async () => {
-    const engages = await ecriture('B10-FRAIS-ENGAGES', { frais: 525_000 }, { '6': '61800000' });
+    const engages = await ecriture('B10-FRAIS-ENGAGES', { frais: 525_000 }, { '6': '61810000' });
     expect(engages.table).toEqual([
-      { numero: '61800000', debit: 525_000, credit: 0 },
+      { numero: '61810000', debit: 525_000, credit: 0 },
       { numero: '45720000', debit: 0, credit: 525_000 },
     ]);
     expect((await ecriture('B10-ABANDON', { abandon: 525_000 })).table).toEqual([

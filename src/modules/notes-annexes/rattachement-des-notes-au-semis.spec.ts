@@ -102,8 +102,16 @@ describe('SYCEBNL · un préfixe de note qui ne joint aucun compte semé', () =>
    *    porte sur les notes 28 et 29A, et une correction de rattachement se
    *    fait contre le texte, pas par ressemblance avec un défaut voisin.
    */
-  const MORTS_ASSOCIATIONS = ['417', '6511', '6512', '6515', '6641', '6642', '832', '842'];
-  const MORTS_PROJETS = ['6511', '6515', '6641', '6642', '832', '842'];
+  /*
+   * MISE À JOUR · le semis descend désormais au quatrième chiffre partout où
+   * le plan officiel le fait, et il ouvre 832 et 842. Les huit préfixes gelés
+   * ci-dessus ont donc tous trouvé leur compte : 6511, 6512, 6515, 6641, 6642,
+   * 832 et 842 joignent, et la liste s'est vidée comme le commentaire le
+   * demandait. Seul reste 417, qui n'est pas un manque du semis mais une
+   * rubrique de note dont le numéro n'existe dans aucun plan · voir plus haut.
+   */
+  const MORTS_ASSOCIATIONS = ['417'];
+  const MORTS_PROJETS: string[] = [];
 
   it('jeu associations · la liste des préfixes qui ne joignent rien ne s’allonge pas', () => {
     expect(prefixesMorts(NOTES_ASSOCIATIONS)).toEqual(MORTS_ASSOCIATIONS);
@@ -118,19 +126,14 @@ describe('SYCEBNL · un préfixe de note qui ne joint aucun compte semé', () =>
     // zéro : une rubrique qui cite deux préfixes morts ne compte qu'une fois,
     // et une rubrique dont un seul préfixe sur deux est mort reste chiffrée.
     // Ce sont ces lignes-là que le réviseur lit, d'où le relevé nominatif.
+    // Il n'en reste qu'une, et ce n'est plus un manque du semis : la note 9
+    // cite un compte 417 qui n'existe dans aucun plan (voir plus haut). Les
+    // huit autres, toutes dues au semis arrêté au divisionnaire, ont disparu
+    // avec la descente au quatrième chiffre.
     expect(rubriquesMortes(NOTES_ASSOCIATIONS)).toEqual([
-      '28 · Pertes sur Clients et autres débiteurs · [6511, 6515]',
-      '28 · Pertes sur créances adhérents · [6512]',
-      '29A · Charges sociales (personnel national) · [6641]',
-      '29A · Charges sociales (personnel non national) · [6642]',
       '9 · Adhérents, créances litigieuses ou douteuses · [417]',
     ]);
-    expect(rubriquesMortes(NOTES_PROJETS)).toEqual([
-      '19 · Pertes sur autres débiteurs · [6515]',
-      '19 · Pertes sur créances · [6511]',
-      '20A · Charges sociales (personnel national) · [6641]',
-      '20A · Charges sociales (personnel non national) · [6642]',
-    ]);
+    expect(rubriquesMortes(NOTES_PROJETS)).toEqual([]);
   });
 });
 
@@ -154,15 +157,18 @@ describe('SYCEBNL · les comptes 65 et 66 semés que les notes 28 et 29A perdent
       (numero) =>
         /^6[56]/.test(numero) && !rubriques.some((r) => correspond(numero, r.comptes!, r.exclusions)),
     );
-    // Relevé gelé · 65100000 « Pertes sur créances adhérents/clients-usagers
-    // et autres débiteurs » et 66400000 « Charges sociales », les deux comptes
-    // que `compte-seed.ts` ouvre au divisionnaire au lieu des sous-comptes du
-    // texte. Cette liste doit se VIDER, jamais s'allonger.
-    expect(perdus).toEqual(['65100000', '66400000']);
+    // La liste est VIDE, et c'est l'aboutissement attendu : 65100000 et
+    // 66400000 étaient les deux comptes que `compte-seed.ts` ouvrait au
+    // divisionnaire au lieu des sous-comptes du texte. Le semis descend
+    // maintenant à 6511 / 6512 / 6515 et 6641 / 6642, que les notes 28 et 29A
+    // captent nommément. Ce test garde sa raison d'être : il interdit qu'un
+    // compte de gestion 65 ou 66 réapparaisse sans rubrique pour le chiffrer.
+    expect(perdus).toEqual([]);
 
-    // Et la contrepartie : ces mêmes comptes sont bien pris par TI et TJ.
+    // Et la contrepartie tient toujours : tout compte 65/66 semé est pris au
+    // compte de résultat, par TI ou par TJ.
     const poste = (ref: string) => POSTES_CHARGES.find((p) => p.ref === ref)!;
-    for (const numero of perdus) {
+    for (const numero of COMPTES_DETAIL_SEMES.filter((n) => /^6[56]/.test(n))) {
       const pris = ['TI', 'TJ'].some((ref) => correspond(numero, poste(ref).comptes ?? []));
       expect({ numero, prisAuCompteDeResultat: pris }).toEqual({ numero, prisAuCompteDeResultat: true });
     }

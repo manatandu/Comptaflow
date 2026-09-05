@@ -67,7 +67,7 @@ const LIBELLE_RAN: Record<ModeReportANouveau, string> = {
 
 /**
  * Compte principal officiel (2 chiffres) · les en-têtes de division du plan,
- * 76 semés par compte-seed.ts (SYCEBNL, total()) ou 77 par
+ * 84 semés par compte-seed.ts (SYCEBNL, total()) ou 77 par
  * compte-seed-syscohada.ts (SYSCOHADA, t()). Un numéro à 2 chiffres est
  * structurellement impossible à obtenir autrement : CreerCompteDto exige
  * 3 à 13 chiffres. Cette propriété sert ici à verrouiller ces lignes en

@@ -28,7 +28,12 @@ const B2: OperationSpecifique = {
       applicationGuide: 'App. 9',
       parametres: [{ nom: 'valeur', libelle: 'Valeur actuelle des dons reçus', type: 'MONTANT' }],
       lignes: [
-        { compte: '654', libelle: 'Dons en nature courants à distribuer', sens: 'DEBIT', montant: { mode: 'PARAMETRE', parametre: 'valeur' } },
+        {
+          compte: '654',
+          libelle: 'Dons en nature courants à distribuer', sens: 'DEBIT', auChoix: true,
+          montant: { mode: 'PARAMETRE', parametre: 'valeur' },
+          note: "Non affectés (6541) ou affectés (6545) · le texte écrit « le compte 654 » sans trancher, c'est à l'entité de le faire.",
+        },
         { compte: '7542', libelle: 'Dons en nature courants reçus à distribuer', sens: 'CREDIT', montant: { mode: 'PARAMETRE', parametre: 'valeur' } },
       ],
     },
@@ -41,15 +46,15 @@ const B2: OperationSpecifique = {
       parametres: [{ nom: 'valeur', libelle: 'Valeur actuelle des dons reçus', type: 'MONTANT' }],
       lignes: [
         {
-          compte: '831', exclusions: ['8310'],
-          libelle: 'Dons en nature H.A.O. à distribuer', sens: 'DEBIT', auChoix: true,
+          compte: '832',
+          libelle: 'Dons en nature H.A.O. à distribuer', sens: 'DEBIT',
           montant: { mode: 'PARAMETRE', parametre: 'valeur' },
-          note: 'Non affectés (8311) ou affectés (8315) · 8310 « Charges H.A.O. constatées » est exclu, c’est un autre compte.',
+          note: 'Le 832 que le texte prescrit ici existe désormais au plan semé · il ne fallait plus passer par sa racine voisine 831.',
         },
         { compte: '8415', libelle: 'Dons en nature H.A.O. reçus à distribuer', sens: 'CREDIT', montant: { mode: 'PARAMETRE', parametre: 'valeur' } },
       ],
       anomalie:
-        "[texte officiel] Le plan des comptes et la fiche du compte 83 numérotent les subdivisions du compte 832 « 8311 / 8315 », c'est-à-dire sous la racine du compte 831. L'incohérence est celle du texte ; le plan seedé la reproduit fidèlement.",
+        "[texte officiel] Le plan des comptes et la fiche du compte 83 numérotent les subdivisions du compte 832 « 8311 / 8315 », c'est-à-dire sous la racine du compte 831. L'incohérence est celle du texte ; le plan semé reproduit les deux, le 832 prescrit ici comme ses subdivisions mal numérotées.",
     },
     {
       code: 'B2-STOCK-CLOTURE',
