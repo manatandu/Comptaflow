@@ -613,8 +613,21 @@ avant de l'écrire ; un spec (`compte-seed-syscohada.spec.ts`) le contrôle.
   extension Prisma qui REFUSE une collection non bornée, refuse d'écrire sur
   la ligne d'un autre dossier, et rend inexistante la ligne lue d'un autre
   dossier. Elle ne réécrit jamais une requête · réécrire masquerait le défaut.
-  La seule échappatoire est `horsCloisonnement('raison', ...)`, dont la liste
-  des utilisateurs est gelée par un test.
+  La borne se vérifie par sa VALEUR, pas par sa présence · jusqu'au 2026-09-17,
+  `filtreBorne` rendait `true` dès qu'un `tenantId` figurait au filtre, quel
+  qu'en soit le dossier. Ce n'était pas seulement une collection servie de
+  travers : les règles A et B se court-circuitent sur cette fonction, si bien
+  qu'un `tenantId` étranger DÉSACTIVAIT la garde au lieu de la déclencher.
+  `{ tenantId: { not: null } }` et `{ OR: [{ tenantId: d }, {}] }` passaient
+  pour des bornes.
+  Deux échappatoires, et deux seulement :
+  `horsCloisonnement('raison', ...)`, qui sort TOTALEMENT de la garde et dont
+  la liste des utilisateurs est gelée par un test ; et
+  `perimetreDeGroupe([...], ...)`, qui ne sort de rien · la garde continue de
+  tourner et accepte, en plus du dossier de la session, les dossiers NOMMÉS.
+  C'est par elle que le siège d'un groupe lit ses cellules. La liste est
+  toujours construite à partir du seul dossier de la session, jamais reçue
+  d'un appelant · sans quoi le client nommerait ses propres voisins.
 - **Journal d'audit** (`src/common/audit/`) · posé sur le client Prisma par
   une extension, pas par des appels dans les services : un contrôle qu'on peut
   oublier d'appeler n'est pas un contrôle. Il couvre les modèles de

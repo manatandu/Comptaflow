@@ -16,7 +16,10 @@ import { EcritureService } from '../comptabilite/ecriture.service';
 import { AuthService } from '../auth/auth.service';
 import { ClasseurExporte, ExportService } from '../exports/export.service';
 import { CreerCelluleDto, ImporterCanevasDto } from './dto/groupe.dto';
-import { horsCloisonnement } from '../../common/cloisonnement/contexte-cloisonnement';
+import {
+  horsCloisonnement,
+  perimetreDeGroupe,
+} from '../../common/cloisonnement/contexte-cloisonnement';
 import {
   DERNIERE_LIGNE_DONNEES,
   MARQUEUR_CANEVAS,
@@ -90,6 +93,63 @@ export class GroupeService {
   ) {}
 
   /** Les cellules rattachées à ce dossier, et ce que le siège peut créer. */
+  /**
+   * LE PÉRIMÈTRE D'UN SIÈGE · lui, ses cellules, son dossier de combinaison.
+   *
+   * Toutes les méthodes de ce service lisent et écrivent hors du dossier de la
+   * session · c'est leur raison d'être. La garde de cloisonnement les laissait
+   * passer parce qu'elle se contentait de constater qu'un `tenantId` figurait
+   * au filtre, sans jamais en regarder la valeur. Elle en regarde désormais la
+   * valeur, et il faut donc lui dire lesquelles sont légitimes.
+   *
+   * La liste est construite ICI, à partir du seul dossier de la session · elle
+   * n'est jamais reçue d'un appelant. Un client qui demanderait la balance
+   * d'une cellule qui n'est pas la sienne se heurte à la garde, et non à un
+   * contrôle applicatif qu'on aurait pu oublier d'écrire.
+   */
+  /**
+   * Ouvre le dossier de combinaison du siège s'il n'existe pas encore, et rend
+   * son identifiant. Appelé AVANT `dansLeGroupe` · le périmètre se calcule une
+   * fois, à l'entrée, et un dossier né après ne s'y ajouterait pas.
+   *
+   * Ne touche que `Tenant`, qui n'est pas un modèle cloisonné.
+   */
+  private async assurerDossierCombinaison(tenantId: string): Promise<string> {
+    const mere = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { nom: true, dossierCombinaisonId: true },
+    });
+    if (mere?.dossierCombinaisonId) return mere.dossierCombinaisonId;
+    const combinaison = await this.prisma.tenant.create({
+      data: {
+        nom: `${mere!.nom} · liasse du groupe`,
+        referentiel: Referentiel.SYCEBNL,
+        // L'entité agrégée relève du Système normal (art. 6 SYCEBNL · le
+        // seuil s'apprécie par entité), quel que soit le jeu des cellules.
+        jeuEtatsFinanciersSycebnl: JeuEtatsFinanciersSycebnl.ASSOCIATIONS_ORDRES_PROFESSIONNELS,
+      },
+      select: { id: true },
+    });
+    await this.prisma.tenant.update({
+      where: { id: tenantId },
+      data: { dossierCombinaisonId: combinaison.id },
+    });
+    return combinaison.id;
+  }
+
+  private async dansLeGroupe<T>(tenantId: string, suite: () => Promise<T>): Promise<T> {
+    const [cellules, siege] = await Promise.all([
+      this.prisma.tenant.findMany({ where: { dossierMereId: tenantId }, select: { id: true } }),
+      this.prisma.tenant.findUnique({
+        where: { id: tenantId },
+        select: { dossierCombinaisonId: true },
+      }),
+    ]);
+    const perimetre = [tenantId, ...cellules.map((c) => c.id)];
+    if (siege?.dossierCombinaisonId) perimetre.push(siege.dossierCombinaisonId);
+    return perimetreDeGroupe(perimetre, suite);
+  }
+
   async cellules(tenantId: string) {
     const [mere, cellules] = await Promise.all([
       this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { plafondCellules: true } }),
@@ -194,10 +254,15 @@ export class GroupeService {
     // et la cascade de la console plateforme (voir PlateformeService.
     // modifierLicence) entretient ensuite l'alignement.
     if (mere.licence?.dateExpiration) {
-      await this.prisma.licence.update({
-        where: { tenantId: resultat.tenant.id },
-        data: { dateExpiration: mere.licence.dateExpiration },
-      });
+      // Le périmètre porte la cellule QUI VIENT D'ÊTRE CRÉÉE · aucune liste
+      // calculée avant l'appel ne pouvait la contenir. Son rattachement au
+      // siège a été vérifié plus haut, c'est ce qui autorise à la nommer ici.
+      await perimetreDeGroupe([resultat.tenant.id], () =>
+        this.prisma.licence.update({
+          where: { tenantId: resultat.tenant.id },
+          data: { dateExpiration: mere.licence!.dateExpiration },
+        }),
+      );
     }
     return {
       tenant: resultat.tenant,
@@ -304,6 +369,10 @@ export class GroupeService {
    * qu'elle ne sait pas faire.
    */
   async balanceAgregee(tenantId: string, exerciceId: string) {
+    return this.dansLeGroupe(tenantId, () => this.balanceAgregeeDuGroupe(tenantId, exerciceId));
+  }
+
+  private async balanceAgregeeDuGroupe(tenantId: string, exerciceId: string) {
     const exercice = await this.prisma.exercice.findFirst({
       where: { id: exerciceId, tenantId },
       select: { id: true, dateDebut: true, dateFin: true },
@@ -757,6 +826,10 @@ export class GroupeService {
    * Les totaux et vérifications vivent sur la feuille « Contrôles ».
    */
   async balanceAgregeeExcel(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
+    return this.dansLeGroupe(tenantId, () => this.balanceAgregeeExcelDuGroupe(tenantId, exerciceId));
+  }
+
+  private async balanceAgregeeExcelDuGroupe(tenantId: string, exerciceId: string): Promise<ClasseurExporte> {
     const agregat = await this.balanceAgregee(tenantId, exerciceId);
     const annee = agregat.exercice.dateFin.getFullYear();
 
@@ -940,6 +1013,10 @@ export class GroupeService {
    * demandent à la cellule, qui les passe elle-même, tracées.
    */
   async supervision(tenantId: string, exerciceId: string) {
+    return this.dansLeGroupe(tenantId, () => this.supervisionDuGroupe(tenantId, exerciceId));
+  }
+
+  private async supervisionDuGroupe(tenantId: string, exerciceId: string) {
     const exercice = await this.prisma.exercice.findFirst({
       where: { id: exerciceId, tenantId },
       select: { id: true, dateDebut: true, dateFin: true },
@@ -1028,6 +1105,10 @@ export class GroupeService {
    * groupe, et l'exercice à la cellule.
    */
   async balanceCellule(tenantId: string, celluleId: string, exerciceId: string) {
+    return this.dansLeGroupe(tenantId, () => this.balanceCelluleDuGroupe(tenantId, celluleId, exerciceId));
+  }
+
+  private async balanceCelluleDuGroupe(tenantId: string, celluleId: string, exerciceId: string) {
     const cellule = await this.celluleDuGroupe(tenantId, celluleId);
     const exercice = await this.prisma.exercice.findFirst({
       where: { id: exerciceId, tenantId: celluleId },
@@ -1048,6 +1129,10 @@ export class GroupeService {
    * bien sur un téléphone.
    */
   async canevas(tenantId: string, celluleId: string): Promise<ClasseurExporte> {
+    return this.dansLeGroupe(tenantId, () => this.canevasDuGroupe(tenantId, celluleId));
+  }
+
+  private async canevasDuGroupe(tenantId: string, celluleId: string): Promise<ClasseurExporte> {
     const cellule = await this.celluleDuGroupe(tenantId, celluleId);
     const exercice = await this.exerciceOuvert(celluleId);
 
@@ -1139,6 +1224,10 @@ export class GroupeService {
    * (empreinte du contenu portée en référence).
    */
   async importerCanevas(tenantId: string, celluleId: string, createdBy: string, dto: ImporterCanevasDto) {
+    return this.dansLeGroupe(tenantId, () => this.importerCanevasDuGroupe(tenantId, celluleId, createdBy, dto));
+  }
+
+  private async importerCanevasDuGroupe(tenantId: string, celluleId: string, createdBy: string, dto: ImporterCanevasDto) {
     await this.celluleDuGroupe(tenantId, celluleId);
     const exercice = await this.exerciceOuvert(celluleId);
 
@@ -1338,6 +1427,18 @@ export class GroupeService {
    * tiers) vivent dans les dossiers, pas dans la combinaison.
    */
   async liasseGroupe(tenantId: string, exerciceId: string, createdBy: string): Promise<ClasseurExporte> {
+    const combinaisonId = await this.assurerDossierCombinaison(tenantId);
+    return this.dansLeGroupe(tenantId, () =>
+      this.liasseGroupeDuGroupe(tenantId, exerciceId, createdBy, combinaisonId),
+    );
+  }
+
+  private async liasseGroupeDuGroupe(
+    tenantId: string,
+    exerciceId: string,
+    createdBy: string,
+    combinaisonIdOuvert: string,
+  ): Promise<ClasseurExporte> {
     const agregat = await this.balanceAgregee(tenantId, exerciceId);
 
     const blocages: string[] = [];
@@ -1409,25 +1510,11 @@ export class GroupeService {
     }
 
     // 1 · Le dossier de combinaison, créé une seule fois par groupe.
-    const mere = await this.prisma.tenant.findUnique({
-      where: { id: tenantId },
-      select: { nom: true, dossierCombinaisonId: true },
-    });
-    let combinaisonId = mere!.dossierCombinaisonId;
-    if (!combinaisonId) {
-      const combinaison = await this.prisma.tenant.create({
-        data: {
-          nom: `${mere!.nom} · liasse du groupe`,
-          referentiel: Referentiel.SYCEBNL,
-          // L'entité agrégée relève du Système normal (art. 6 SYCEBNL · le
-          // seuil s'apprécie par entité), quel que soit le jeu des cellules.
-          jeuEtatsFinanciersSycebnl: JeuEtatsFinanciersSycebnl.ASSOCIATIONS_ORDRES_PROFESSIONNELS,
-        },
-        select: { id: true },
-      });
-      combinaisonId = combinaison.id;
-      await this.prisma.tenant.update({ where: { id: tenantId }, data: { dossierCombinaisonId: combinaisonId } });
-    }
+    // Le dossier de combinaison est OUVERT AVANT que le périmètre du groupe ne
+    // soit calculé (voir la façade `liasseGroupe`) · un dossier créé au milieu
+    // de la portée n'y figurerait pas, et toutes les écritures qui suivent
+    // seraient refusées par la garde.
+    const combinaisonId = combinaisonIdOuvert;
 
     // 2 · L'exercice miroir de celui de la mère.
     let exercice = await this.prisma.exercice.findFirst({

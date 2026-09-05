@@ -186,6 +186,11 @@ describe('supervision · une cellule décalée n’est jamais annoncée « prêt
               exercices: exercicesCellule,
             },
           ],
+          // Le périmètre du groupe est relu à l'entrée de chaque méthode ·
+          // c'est lui qui autorise la garde de cloisonnement à laisser lire
+          // les cellules. Sans ce double, la supervision n'atteint plus son
+          // corps. Voir GroupeService.dansLeGroupe.
+          findUnique: async () => ({ dossierCombinaisonId: null }),
         },
         ecriture: {
           findFirst: async () => ({ date: new Date('2026-11-30') }),

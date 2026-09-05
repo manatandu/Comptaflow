@@ -243,7 +243,12 @@ describe('GroupeService · canevas de trésorerie', () => {
 
   const prismaCanevas = (creees: unknown[]) =>
     ({
-      tenant: { findFirst: async () => ({ id: 'c1', nom: 'Cellule A' }) },
+      tenant: {
+        findFirst: async () => ({ id: 'c1', nom: 'Cellule A' }),
+        // Le périmètre du groupe, relu à l'entrée · voir dansLeGroupe.
+        findMany: async () => [{ id: 'c1' }],
+        findUnique: async () => ({ dossierCombinaisonId: null }),
+      },
       exercice: { findFirst: async () => EX },
       ecriture: { findFirst: async () => null },
       compte: {
