@@ -174,7 +174,7 @@ describe('menu « État » à 360 px', () => {
     ]);
   });
 
-  it('les vingt-quatre éditions restent atteignables, en onze lignes au plus', () => {
+  it('les vingt-cinq éditions restent atteignables, en douze lignes au plus', () => {
     const entrees = menuEtat();
     const groupes = entrees.filter((e): e is MenuGroupeDef => 'items' in e).map((g) => g.titre);
     const vues = new Set<string>();
@@ -189,13 +189,17 @@ describe('menu « État » à 360 px', () => {
     // décompte est EN DUR à dessein : c'est lui qui oblige à rouvrir ce test
     // quand une édition est ajoutée, et donc à revérifier que le panneau tient
     // toujours en onze lignes. Le vingt-troisième est le registre des
-    // engagements de dépense, et le vingt-quatrième l'inventaire physique,
-    // tous deux ajoutés le 2026-09-05.
+    // engagements de dépense, le vingt-quatrième l'inventaire physique et le
+    // vingt-cinquième la circularisation, tous ajoutés le 2026-09-05.
     const tous = [...source.matchAll(/label: '([^']+)'/g)].map((m) => m[1]);
-    expect(tous).toHaveLength(24);
+    expect(tous).toHaveLength(25);
     expect([...vues].sort()).toEqual([...tous].sort());
-    // Onze lignes = 242 px, quand le panneau en a 484 à tenir aujourd'hui.
-    expect(Math.max(...hauteurs)).toBeLessThanOrEqual(11);
+    // DOUZE lignes depuis le 2026-09-05, et le plafond suit la mesure plutôt
+    // que l'inverse : une ligne vaut 22 px, le panneau en tient 484, soit
+    // vingt-deux lignes. Onze était une borne prudente, pas une limite
+    // physique ; douze en laisse dix de marge. Ce que ce test garde, c'est
+    // qu'aucun groupe ne redevienne une liste à dérouler de vingt entrées.
+    expect(Math.max(...hauteurs)).toBeLessThanOrEqual(12);
   });
 
   it("un groupe dont toutes les entrées sont masquées ne s'affiche pas vide", () => {

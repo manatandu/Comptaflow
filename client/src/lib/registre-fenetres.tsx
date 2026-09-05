@@ -37,6 +37,7 @@ const DeclarationTvaPage = lazy(() => import('../pages/DeclarationTvaPage').then
 const RetenuesPage = lazy(() => import('../pages/RetenuesPage').then((m) => ({ default: m.RetenuesPage })));
 const ExonerationsPage = lazy(() => import('../pages/ExonerationsPage').then((m) => ({ default: m.ExonerationsPage })));
 const InventairePage = lazy(() => import('../pages/InventairePage').then((m) => ({ default: m.InventairePage })));
+const CircularisationPage = lazy(() => import('../pages/CircularisationPage').then((m) => ({ default: m.CircularisationPage })));
 const FiscalitePage = lazy(() => import('../pages/FiscalitePage').then((m) => ({ default: m.FiscalitePage })));
 const EtatsFinanciersPage = lazy(() => import('../pages/EtatsFinanciersPage').then((m) => ({ default: m.EtatsFinanciersPage })));
 const NotesAnnexesPage = lazy(() => import('../pages/NotesAnnexesPage').then((m) => ({ default: m.NotesAnnexesPage })));
@@ -224,6 +225,14 @@ export const FENETRES: DefinitionFenetre[] = [
     titre: 'Inventaire physique',
     titreCourt: 'Inventaire',
     rendre: () => <InventairePage />,
+  },
+  {
+    // La confirmation de soldes n'est propre à aucun des deux plans · le CPCC
+    // la demande de la même façon à une ASBL et à une société.
+    motif: /^\/circularisation$/,
+    titre: 'Circularisation',
+    titreCourt: 'Circularisation',
+    rendre: () => <CircularisationPage />,
   },
   {
     motif: /^\/exonerations$/,

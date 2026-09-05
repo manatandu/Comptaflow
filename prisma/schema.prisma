@@ -547,6 +547,8 @@ model Tenant {
   membresSousCommission     MembreSousCommission[]
   fichesInventaire          FicheInventaire[]
   ecartsInventaire          EcartInventaire[]
+  campagnesCircularisation  CampagneCircularisation[]
+  demandesConfirmation      DemandeConfirmation[]
   evenementsAudit           EvenementAudit[]
 
   @@index([dossierMereId])
@@ -781,6 +783,8 @@ model Compte {
   fichesInventaire FicheInventaire[]
   ecartsInventaire EcartInventaire[]
 
+  demandesConfirmation DemandeConfirmation[]
+
   @@unique([tenantId, numero])
   // Le résultat fiscal ne cherche que les comptes qui portent un code de
   // retraitement · sans cet index il balaie tout le plan du dossier.
@@ -985,8 +989,10 @@ model Exercice {
   transcriptionsInventaire TranscriptionInventaire[]
   rapportsActivite         RapportActivite[]
 
-  // Inventaire extra-comptable de l'exercice (AUDCIF art. 42).
-  campagnesInventaire CampagneInventaire[]
+  // Inventaire extra-comptable de l'exercice (AUDCIF art. 42), physique
+  // puis documentaire.
+  campagnesInventaire      CampagneInventaire[]
+  campagnesCircularisation CampagneCircularisation[]
 
   // Détermination du résultat fiscal · SYSCOHADA seulement.
   retraitementsFiscaux RetraitementFiscal[]
@@ -1684,6 +1690,8 @@ model Tiers {
 
   comptesRattaches TiersCompte[]
   relances         Relance[]
+
+  demandesConfirmation DemandeConfirmation[]
 
   @@unique([tenantId, code])
   // L'agrégation du groupe interroge les tiers PAR CELLULE · sans cet index
@@ -4026,4 +4034,212 @@ enum DecisionEcartInventaire {
   /// Renvoyé à la commission principale · le CPCC prévoit ce cran pour les
   /// écarts que la sous-commission ne tranche pas seule.
   RENVOYE_COMMISSION_PRINCIPALE
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CIRCULARISATION · l'autre moitié de l'inventaire extra-comptable
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// CAMPAGNE DE CONFIRMATION DE SOLDES.
+///
+/// LE CPCC en fait la première question de son inventaire DOCUMENTAIRE, cycle
+/// par cycle : « A-t-on circularisé toutes les banques ? », « Vérifier si la
+/// circularisation a eu lieu pour tous les fournisseurs », « A-t-on procédé à
+/// la circularisation de toutes les créances ? Combien de réponses a-t-on
+/// reçu ? Si le pourcentage est insignifiant, a-t-on procédé à la relance ? »
+///
+/// LA MÉTHODE VIENT DE L'ISA 505, et son vocabulaire aussi · demande positive
+/// ou négative, non-réponse, exception. Ce que le module N'AFFIRME PAS : qu'un
+/// dossier tenu par le cabinet soit un audit. Un cabinet qui tient les livres
+/// n'est pas l'auditeur de ces livres. La norme est reprise ici comme
+/// RÉFÉRENCE DE MÉTHODE, ce qu'elle est aussi pour un réviseur ; l'opinion
+/// d'audit, elle, n'appartient pas à ce logiciel.
+///
+/// CE QUE LE MODULE NE FAIT PAS · il n'envoie aucune lettre. Le courrier
+/// d'OmegaX est un transport de courriel, et l'ISA 505 § 7 c) exige que la
+/// réponse revienne DIRECTEMENT au demandeur, ce qu'un envoi depuis la boîte
+/// du dossier ne garantit pas. Le module tient la campagne, l'échantillon, les
+/// réponses et les écarts · l'acheminement reste au cabinet.
+model CampagneCircularisation {
+  id         String   @id @default(uuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  exerciceId String
+  exercice   Exercice @relation(fields: [exerciceId], references: [id])
+
+  libelle String
+
+  /// La date du solde à confirmer · d'ordinaire la clôture, mais le CPCC
+  /// admet une circularisation intercalaire suivie d'une revue de la période
+  /// restante.
+  dateArrete DateTime
+
+  cycle CycleCircularisation
+
+  /// ISA 505 § 6 b) et c). La forme NÉGATIVE est enfermée : voir
+  /// `conditionsNegativeReunies`.
+  forme FormeConfirmation @default(POSITIVE)
+
+  /// « comment a-t-on procédé pour la sélection des fournisseurs à
+  /// circulariser ? » (CPCC). Texte libre · ni l'ISA 505 ni le CPCC n'imposent
+  /// de méthode d'échantillonnage, et en inventer une serait la faire passer
+  /// pour une exigence.
+  methodeSelection String?
+
+  /// ISA 505 § 15 · une demande négative ne peut être la seule procédure de
+  /// substance que si QUATRE conditions sont réunies. Elles sont déclarées
+  /// ici, une à une, et le module refuse la forme négative sans elles.
+  conditionsNegativeReunies String[]
+
+  /// ISA 505 § 8 · le refus de la direction d'envoyer une demande. Motif
+  /// recueilli, implications appréciées, procédures alternatives conduites.
+  refusDirectionMotif String?
+
+  statut StatutCampagneCircularisation @default(PREPARATION)
+
+  envoyeeLe   DateTime?
+  relanceeLe  DateTime?
+  clotureeLe  DateTime?
+  clotureePar String?
+
+  demandes DemandeConfirmation[]
+
+  createdAt DateTime @default(now())
+  createdBy String
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId, exerciceId])
+  @@map("campagnes_circularisation")
+}
+
+/// UNE DEMANDE, UN TIERS, UN SOLDE FIGÉ.
+///
+/// LE SOLDE EST FIGÉ À LA CRÉATION DE LA DEMANDE, comme l'écart d'inventaire.
+/// La lettre part avec un chiffre ; le relire à l'affichage ferait comparer la
+/// réponse du tiers à un solde que la lettre ne portait pas, et l'écart
+/// s'ouvrirait ou se refermerait tout seul au gré des écritures suivantes.
+model DemandeConfirmation {
+  id         String                  @id @default(uuid())
+  tenantId   String
+  tenant     Tenant                  @relation(fields: [tenantId], references: [id])
+  campagneId String
+  campagne   CampagneCircularisation @relation(fields: [campagneId], references: [id], onDelete: Cascade)
+
+  /// Le tiers circularisé, quand il est au plan des tiers. Une banque qui n'y
+  /// figure pas se saisit par son seul nom · le module ne force pas à créer un
+  /// tiers pour envoyer une lettre.
+  tiersId String?
+  tiers   Tiers?  @relation(fields: [tiersId], references: [id])
+
+  /// Le compte dont le solde est confirmé.
+  compteId String
+  compte   Compte @relation(fields: [compteId], references: [id])
+
+  destinataire String
+  adresse      String?
+
+  /// Figé à la création. C'est le chiffre qui part dans la lettre.
+  soldeAConfirmer Decimal @db.Decimal(18, 2)
+
+  statut StatutDemandeConfirmation @default(A_ENVOYER)
+
+  envoyeeLe  DateTime?
+  relanceeLe DateTime?
+  recueLe    DateTime?
+
+  /// Ce que le tiers répond. Null tant qu'aucune réponse n'est revenue · zéro
+  /// est une réponse (« je ne vous dois rien »), l'absence n'en est pas une.
+  soldeConfirme Decimal? @db.Decimal(18, 2)
+
+  /// soldeConfirme − soldeAConfirmer. ISA 505 § 6 e) appelle cela une
+  /// EXCEPTION : « a response that indicates a difference between information
+  /// requested to be confirmed, or contained in the entity's records, and
+  /// information provided by the confirming party ».
+  ecart Decimal? @db.Decimal(18, 2)
+
+  /// ISA 505 § 14 · « the auditor shall INVESTIGATE exceptions to determine
+  /// whether or not they are indicative of misstatements ». Et § A22 : « some
+  /// exceptions do NOT represent misstatements », le texte cite le délai, la
+  /// mesure et l'erreur matérielle. La qualification est donc demandée, jamais
+  /// déduite.
+  natureEcart   NatureEcartConfirmation?
+  investigation String?
+
+  /// ISA 505 § 12 · « in the case of each non-response, the auditor shall
+  /// perform ALTERNATIVE audit procedures ». Le § A18 en donne les exemples :
+  /// encaissements postérieurs et documents d'expédition pour une créance,
+  /// décaissements postérieurs et bons de réception pour une dette.
+  proceduresAlternatives String?
+
+  /// ISA 505 § 7 c) veut la réponse « sent DIRECTLY to the auditor ». Une
+  /// réponse arrivée par l'entité n'a pas cette qualité · § 10, le doute sur
+  /// la fiabilité oblige à chercher d'autres éléments. Le drapeau existe pour
+  /// que ce doute soit VISIBLE, pas pour disqualifier la réponse.
+  reponseIndirecte Boolean @default(false)
+  doutefiabilite   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId, campagneId])
+  @@index([tenantId, compteId])
+  @@map("demandes_confirmation")
+}
+
+enum CycleCircularisation {
+  /// « A-t-on circularisé toutes les banques ? » · comptes 52 et 53.
+  BANQUES
+  /// « Obtenir la balance auxiliaire des fournisseurs, par ancienneté. »
+  FOURNISSEURS
+  /// Adhérents, clients-usagers · comptes 41.
+  CLIENTS_ADHERENTS
+  /// Débiteurs et créditeurs divers, personnel, organismes sociaux, État ·
+  /// le CPCC les demande tous en balance auxiliaire par âge.
+  AUTRES_TIERS
+  /// Avocats, bailleurs, dépositaires · le CPCC parle de « circularisation de
+  /// toutes les créances », sans fermer la liste.
+  AUTRES
+}
+
+enum FormeConfirmation {
+  /// ISA 505 § 6 b) · le tiers répond dans tous les cas.
+  POSITIVE
+  /// ISA 505 § 6 c) · le tiers ne répond QUE s'il est en désaccord. § 15 :
+  /// « negative confirmations provide LESS PERSUASIVE audit evidence ».
+  NEGATIVE
+}
+
+enum StatutCampagneCircularisation {
+  PREPARATION
+  ENVOYEE
+  RELANCEE
+  DEPOUILLEE
+  CLOTUREE
+}
+
+enum StatutDemandeConfirmation {
+  A_ENVOYER
+  ENVOYEE
+  RELANCEE
+  /// Le tiers a répondu · avec ou sans écart.
+  REPONSE_RECUE
+  /// ISA 505 § 6 d) · « a FAILURE of the confirming party to respond, or fully
+  /// respond ». Exige des procédures alternatives.
+  SANS_REPONSE
+  /// § 6 d) encore · « or a confirmation request RETURNED UNDELIVERED ». C'est
+  /// une non-réponse au même titre, et elle dit en plus quelque chose sur le
+  /// tiers : une adresse morte sur un fournisseur actif est un signal.
+  NON_DISTRIBUEE
+}
+
+enum NatureEcartConfirmation {
+  /// § A22 · « differences due to TIMING » · règlement ou facture en route.
+  DELAI
+  /// § A22 · « MEASUREMENT » · devise, escompte, remise appréciés autrement.
+  MESURE
+  /// § A22 · « CLERICAL errors in the external confirmation procedures ».
+  ERREUR_MATERIELLE
+  /// § 14 · l'écart est indicatif d'une anomalie. C'est le seul cas qui
+  /// appelle une écriture, et c'est le comptable qui la passe.
+  ANOMALIE_POTENTIELLE
 }

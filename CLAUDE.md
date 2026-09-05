@@ -377,6 +377,47 @@ LAISSÉE VIDE : aucun texte ne dit quel compte de charge reçoit un manquant
 d'inventaire, cela dépend de sa nature, et c'est ce que la sous-commission a
 tranché. Il ne poste jamais d'office.
 
+**Circularisation · l'autre moitié de l'inventaire, celle qui se demande à des
+tiers.** ISA 505, « External Confirmations ». Le comptage de magasin établit ce
+que l'entité détient ; la confirmation externe établit ce que des tiers lui
+doivent ou lui réclament · banques, fournisseurs, clients et adhérents, autres
+tiers. Le module tire l'échantillon de la balance elle-même
+(`racinesDuCycle` · 52/53, 40, 41, 42/43/44/47), de sorte qu'un solde ne peut
+pas être « oublié » du périmètre sans que le taux de couverture le dise.
+
+DEUX TAUX, JAMAIS UN SEUL. Le taux de RÉPONSE compte les lettres revenues ; le
+taux de COUVERTURE pèse les soldes confirmés sur le total du cycle. Vingt
+petites réponses sur vingt-cinq lettres font 80 % de réponses et peuvent ne
+couvrir que 3 % des soldes. Afficher le premier sans le second laisse croire
+qu'un cycle est circularisé quand il ne l'est pas.
+
+TROIS REFUS, chacun contre un défaut qui laisse le dossier parfaitement
+présentable. UNE NON-RÉPONSE N'EST PAS UNE CONFIRMATION · ISA 505 § 12, « in
+the case of EACH non-response, the auditor shall perform alternative audit
+procedures ». La clôture est refusée tant qu'une demande sans réponse n'a pas
+sa procédure alternative écrite : un dossier où quarante lettres sont parties,
+six sont revenues, et où les trente-quatre autres sont comptées comme « pas de
+désaccord » n'a rien confirmé du tout, et rien à l'écran ne le dirait. UN
+ÉCART SE QUALIFIE, IL NE SE SOLDE PAS · § 14, l'auditeur « shall investigate
+exceptions to determine whether or not they are indicative of misstatements » ;
+d'où une nature obligatoire (délai, mesure, erreur matérielle, anomalie
+potentielle) plutôt qu'un simple montant à zéro. LA DEMANDE NÉGATIVE EST
+ENFERMÉE · § 15 pose QUATRE conditions cumulatives, et le module les exige
+toutes les quatre déclarées avant d'accepter la forme négative, parce que
+c'est la forme qui produit le moins d'éléments probants et la plus facile à
+choisir par confort.
+
+Enfin le § 7 c) : une réponse qui n'arrive pas directement du tiers · relayée
+par l'entité auditée, réexpédiée depuis une adresse fournie par elle · est
+marquée, pas rejetée. C'est un fait sur la fiabilité de l'élément probant, et
+il doit rester lisible au dossier.
+
+Rappel de cadre, pour que le module ne soit jamais lu de travers : un cabinet
+qui TIENT les comptes n'est pas l'auditeur de ces comptes. Ces campagnes sont
+des travaux de révision et de contrôle interne préparatoires · elles ne
+constituent pas une mission d'audit légal, et le module ne produit aucune
+opinion.
+
 **Correspondance bilan de clôture / bilan d'ouverture · la convention et ses
 DEUX seules exceptions.** « Le bilan d'ouverture d'un exercice doit
 correspondre au bilan de clôture de l'exercice précédent » (AUDCIF art. 34 et

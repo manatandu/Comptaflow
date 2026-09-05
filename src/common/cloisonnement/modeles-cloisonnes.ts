@@ -25,6 +25,8 @@ export const MODELES_CLOISONNES = new Set<string>([
   'MembreSousCommission',
   'FicheInventaire',
   'EcartInventaire',
+  'CampagneCircularisation',
+  'DemandeConfirmation',
   'FamilleImmobilisation',
   'Immobilisation',
   'Journal',

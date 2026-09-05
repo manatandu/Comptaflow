@@ -54,6 +54,12 @@ export const MODELES_AUDITES = new Set<string>([
   // immobilisé), et c'est l'écart qu'elles produisent qui porte l'enjeu.
   'CampagneInventaire',
   'EcartInventaire',
+  // La circularisation · la campagne (sa forme, ses conditions déclarées)
+  // et chaque demande, dont le solde figé, la réponse et sa qualification.
+  // Un écart requalifié de « anomalie potentielle » en « délai » après coup
+  // ne se verrait nulle part ailleurs.
+  'CampagneCircularisation',
+  'DemandeConfirmation',
   'Exoneration',
   'LiquidationTva',
   'RetraitementFiscal',

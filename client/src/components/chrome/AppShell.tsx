@@ -355,6 +355,12 @@ export function AppShell() {
           items: [
             { label: 'Analyse et contrôles', onClick: () => navigate('/controles') },
             { label: 'Dossier de révision', onClick: () => navigate('/dossier-revision') },
+            // L'inventaire extra-comptable, ses deux moitiés. Elles sont ici et
+            // non sous « États financiers » : un comptage de magasin n'est pas
+            // un état, c'est le travail de révision qui le précède (AUDCIF
+            // art. 42, puis la checklist documentaire du CPCC).
+            { label: 'Inventaire physique', onClick: () => navigate('/inventaire') },
+            { label: 'Circularisation', onClick: () => navigate('/circularisation') },
             // Dossier mère d'un groupe d'établissements (une église et ses
             // cellules) · la balance agrégée du groupe est une édition du
             // siège. Le module est monté sur le plan SYCEBNL (canevas de
@@ -394,9 +400,6 @@ export function AppShell() {
             // Les deux référentiels · AUDCIF art. 19 pour le livre d'inventaire,
             // AUSCGIE art. 138 (ou AUSCOOP art. 108) pour le rapport de gestion.
             { label: 'Documents obligatoires', onClick: () => navigate('/documents-obligatoires') },
-            // L'inventaire extra-comptable · AUDCIF art. 42, dû par les deux
-            // référentiels, et dont l'absence est pénalement sanctionnée.
-            { label: 'Inventaire physique', onClick: () => navigate('/inventaire') },
           ],
         },
         {

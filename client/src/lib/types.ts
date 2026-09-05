@@ -3340,3 +3340,66 @@ export interface CampagneInventaire {
   /** Le texte que le dossier encourt · AUDCIF art. 111 ou SYCEBNL art. 24. */
   sanction?: { texte: string; article: string };
 }
+
+/**
+ * CIRCULARISATION · l'inventaire documentaire du CPCC, conduit selon la
+ * méthode de l'ISA 505.
+ */
+export interface DemandeConfirmation {
+  id: string;
+  destinataire: string;
+  adresse: string | null;
+  soldeAConfirmer: string;
+  soldeConfirme: string | null;
+  ecart: string | null;
+  statut: 'A_ENVOYER' | 'ENVOYEE' | 'RELANCEE' | 'REPONSE_RECUE' | 'SANS_REPONSE' | 'NON_DISTRIBUEE';
+  natureEcart: 'DELAI' | 'MESURE' | 'ERREUR_MATERIELLE' | 'ANOMALIE_POTENTIELLE' | null;
+  investigation: string | null;
+  proceduresAlternatives: string | null;
+  reponseIndirecte: boolean;
+  compte: { numero: string; intitule: string };
+  tiers: { code: string; nom: string } | null;
+}
+
+export interface SyntheseCircularisation {
+  demandes: number;
+  envoyees: number;
+  reponses: number;
+  nonReponses: number;
+  /** ISA 505 § 12 · le seul chiffre qui invalide une campagne entière. */
+  nonReponsesSansProcedure: number;
+  tauxReponse: number;
+  tauxCouverture: number;
+  soldeEnvoye: number;
+  soldeConfirme: number;
+  ecarts: number;
+  anomaliesPotentielles: number;
+  reponsesIndirectes: number;
+}
+
+export interface CampagneCircularisation {
+  id: string;
+  exerciceId: string;
+  libelle: string;
+  dateArrete: string;
+  cycle: 'BANQUES' | 'FOURNISSEURS' | 'CLIENTS_ADHERENTS' | 'AUTRES_TIERS' | 'AUTRES';
+  forme: 'POSITIVE' | 'NEGATIVE';
+  statut: 'PREPARATION' | 'ENVOYEE' | 'RELANCEE' | 'DEPOUILLEE' | 'CLOTUREE';
+  methodeSelection: string | null;
+  demandes?: DemandeConfirmation[];
+  synthese?: SyntheseCircularisation;
+}
+
+export interface EchantillonCircularisation {
+  cycle: string;
+  racines: string[];
+  totalCycle: number;
+  candidats: {
+    compteId: string;
+    numero: string;
+    intitule: string;
+    solde: number;
+    poids: number;
+    dejaRetenu: boolean;
+  }[];
+}
