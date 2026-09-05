@@ -96,11 +96,24 @@ export class EcritureController {
     return this.ecritureService.supprimer(user.tenantId, id);
   }
 
-  /** Fait entrer une sélection d'écritures au livre-journal. */
+  /**
+   * Fait entrer une sélection d'écritures au livre-journal.
+   *
+   * LE REFUS DU DOUBLE REGARD VIT DANS LE SERVICE, pas dans le garde. C'est
+   * volontaire, et un lecteur le cherchera ici : `RolesGuard` connaît le RÔLE
+   * de l'appelant et ignore l'AUTEUR de chaque pièce du lot. Le rôle dit qui a
+   * le droit de valider, l'auteur dit ce que celui-ci peut valider · deux
+   * questions distinctes.
+   *
+   * AUCUN `@ReferentielsAutorises` ici, et ce n'est pas un oubli : la
+   * validation est imposée des deux côtés (AUDCIF art. 22, 2°, qui n'est pas
+   * dans la liste d'exclusion de l'art. 3 du SYCEBNL). Le décorateur sert à
+   * RESTREINDRE, jamais à ouvrir.
+   */
   @Post('valider')
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   async valider(@CurrentUser() user: AuthenticatedUser, @Body() dto: ValiderEcrituresDto) {
-    return this.ecritureService.valider(user.tenantId, user.userId, dto.ecritureIds);
+    return this.ecritureService.valider(user.tenantId, user.userId, dto.ecritureIds, dto);
   }
 
   /** Valide tout le brouillard jusqu'à une date, éventuellement sur un journal. */

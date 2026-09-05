@@ -264,6 +264,30 @@ export function ParametresDossierPage() {
    * « avec TVA » à toute association ; sans l'effectif, il ne pouvait pas
    * mesurer le troisième critère de l'article 19 ni la tranche INPP.
    */
+  /**
+   * DOUBLE REGARD À LA VALIDATION · l'option qui rend la règle atteignable.
+   *
+   * Elle ne passe par AUCUN garde de référentiel, à la différence de la
+   * méthode des cotisations : l'obligation de se donner des procédures
+   * comptables atteint les deux référentiels, par deux chemins.
+   */
+  const changerDoubleRegard = async (actif: boolean) => {
+    setEnvoi(true);
+    setErreur(null);
+    try {
+      setParams(await api.patch<ParametresDossier>('/dossier/double-regard', { doubleRegardValidation: actif }));
+      setInfo(
+        actif
+          ? 'Double regard activé · une écriture n’est plus validable par la personne qui l’a saisie.'
+          : 'Double regard désactivé.',
+      );
+    } catch (err) {
+      setErreur(err instanceof ApiError ? err.message : 'Modification impossible');
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
   const changerRegime = async (dto: {
     assujettiTva?: boolean;
     effectifPermanent?: number;
@@ -906,6 +930,39 @@ export function ParametresDossierPage() {
                     </span>
                   </div>
                 )}
+                {/* ----------------------------------------------------------
+                    DOUBLE REGARD À LA VALIDATION.
+
+                    Le texte DIT qu'aucun texte ne l'impose, et cette phrase
+                    n'est pas une précaution de langage : une case à cocher
+                    dans un logiciel de comptabilité se lit comme une
+                    obligation, et le cabinet qui la décoche croirait
+                    contrevenir à quelque chose.
+                    ---------------------------------------------------------- */}
+                <label className="flex items-start gap-2 text-[10.5px]">
+                  <input
+                    type="checkbox"
+                    className="mt-[3px]"
+                    checked={params.doubleRegardValidation}
+                    disabled={!estAdmin || envoi}
+                    onChange={(e) => changerDoubleRegard(e.target.checked)}
+                  />
+                  <span>
+                    Double regard à la validation
+                    <span className="block text-[10px] text-text-dim leading-[1.5] mt-0.5">
+                      Une écriture n’est validée que par un autre utilisateur que celui qui l’a saisie. La
+                      validation est le franchissement : c’est elle qui fait entrer la pièce au livre-journal, et
+                      l’AUDCIF art. 22, 2° pose que « l’irréversibilité des traitements interdise toute
+                      suppression, addition ou modification ultérieure ».{' '}
+                      {params.referentiel === 'SYCEBNL'
+                        ? 'AUCUN TEXTE N’IMPOSE cette séparation : le même art. 22, 2° impose la validation et ne nomme personne. L’option outille une procédure que l’entité se donne, au titre du SYCEBNL art. 16, 2) qui demande « la mise en place de procédures nécessaires à une organisation comptable permettant un contrôle interne fiable et le contrôle externe ». L’art. 69 de l’AUDCIF, qui délègue expressément ces procédures à l’entité, est exclu par l’art. 3 du SYCEBNL.'
+                        : 'AUCUN TEXTE N’IMPOSE cette séparation : le même art. 22, 2° impose la validation et ne nomme personne. L’option outille une procédure que l’entité se donne, au titre de l’art. 69 : « L’entité détermine, SOUS SA RESPONSABILITÉ, les procédures nécessaires à la mise en place d’une organisation comptable permettant aussi bien un contrôle interne fiable que le contrôle externe. »'}{' '}
+                      Un dossier à un seul comptable peut la laisser décochée, ou la cocher et porter à la
+                      validation le NOM du second regard exercé hors logiciel et son motif · les deux s’impriment
+                      alors au journal. L’activer ou la retirer ne dévalide rien de ce qui est déjà entré.
+                    </span>
+                  </span>
+                </label>
                 <label className="flex items-start gap-2 text-[10.5px]">
                   <input
                     type="checkbox"

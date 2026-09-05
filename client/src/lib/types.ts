@@ -1295,6 +1295,15 @@ export interface ParametresDossier {
   /** Attestation d'exemption d'impôt sur les sociétés · arrêté n° 007/2025. */
   attestationExemptionIs: string | null;
   dateAttestationExemptionIs: string | null;
+  /**
+   * NON nullable, à la différence de `methodeCotisations` et `formeJuridique`
+   * juste au-dessus · l'obligation de se donner des procédures comptables
+   * atteint LES DEUX référentiels, par deux chemins (AUDCIF art. 69 · SYCEBNL
+   * art. 16, 2), l'art. 69 lui étant exclu par l'art. 3). Servir `null` à un
+   * dossier SYSCOHADA ferait disparaître de son écran une option qui le
+   * concerne.
+   */
+  doubleRegardValidation: boolean;
   /** Forme juridique de la loi n° 004/2001 · `null` hors SYCEBNL. */
   formeJuridique: FormeJuridiqueEbnl | null;
   formeJuridiqueSyscohada: FormeJuridiqueSyscohada | null;
@@ -3261,4 +3270,23 @@ export type QualificationExemptionIs = {
   /** FAUX ne veut pas dire « imposable » · voir l'énoncé. */
   exemptionAffirmable: boolean;
   avertissements: string[];
+};
+
+/**
+ * Ce que rendent `/ecritures/valider` et `/ecritures/valider-jusqua`.
+ *
+ * NOMMÉ plutôt qu'écrit en anonyme à chaque appel : les deux appelants
+ * doivent lire les MÊMES compteurs, et l'un d'eux qui oublierait
+ * `refuseesSecondRegard` annoncerait une période centralisée alors qu'elle
+ * ne l'est pas.
+ */
+export type ResultatValidation = {
+  validees: number;
+  dejaValidees: number;
+  /** Écartées parce que leur auteur est celui qui valide · double regard. */
+  refuseesSecondRegard: number;
+  /** Validées sous le visa nominatif d'un second regard exercé hors logiciel. */
+  sousDerogation: number;
+  /** La phrase sourcée à servir, aiguillée sur le référentiel du dossier. */
+  motifRefus: string | null;
 };

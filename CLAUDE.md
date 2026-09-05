@@ -772,6 +772,54 @@ au § A44, cités et non paraphrasés. Deux règles tiennent ce module :
   fixe aucun : ce sont des conventions de lecture d'OmegaX, et le classeur les
   annonce comme telles, avec le dénombrement par critère.
 
+**Double regard à la validation · une OPTION, et la lecture qui l'explique.**
+`Tenant.doubleRegardValidation` (défaut FAUX) fait qu'une écriture n'est
+validable que par un autre utilisateur que celui qui l'a saisie. C'est la
+validation qui fait entrer la pièce au livre-journal, et l'AUDCIF art. 22, 2°
+rend le franchissement irréversible (« l'irréversibilité des traitements
+interdise toute suppression, addition ou modification ultérieure »). Aucun
+chemin de dévalidation n'existe dans ce dépôt.
+
+LE DÉFAUT FAUX N'EST PAS UNE PRUDENCE, c'est une lecture. Le MÊME art. 22, 2°
+impose la validation et NE NOMME PERSONNE ; l'art. 69 la délègue expressément
+(« L'entité détermine, sous sa responsabilité, les procédures nécessaires ») ;
+et le CPCC décrit la division du travail comme une possibilité d'organisation
+(§ 2.6.1, « le chef comptable PEUT se limiter à vérifier la conformité de
+l'imputation ») tout en admettant la très petite entité « où la comptabilité
+est tenue par une seule personne ». Aucun texte lu n'exige que le validateur
+diffère de l'auteur : l'imposer d'office rendrait le logiciel inutilisable au
+cabinet à un seul comptable, au nom d'une règle que personne n'a écrite.
+
+L'OPTION ATTEINT LES DEUX RÉFÉRENTIELS PAR DEUX CHEMINS, et les messages ne se
+servent jamais l'un pour l'autre : AUDCIF art. 69 côté SYSCOHADA, SYCEBNL
+art. 16, 2) côté EBNL, puisque son art. 3 exclut justement l'art. 69. Ne jamais
+invoquer l'art. 19 ni le mot « mensuelle » dans ces messages · c'est l'article
+de la centralisation des journaux auxiliaires, il est conditionnel (« dans ce
+cas »), et le délai du SYCEBNL est HEBDOMADAIRE.
+
+LE REFUS ÉCARTE, IL NE JETTE PAS. L'art. 22, 2° veut la validation faite « au
+terme de chaque période qui ne peut excéder un mois », donc par lots : jeter
+sur le lot entier ferait qu'une seule pièce empêcherait de valider la période.
+L'écriture n'entre pas au livre-journal, ce QUI EST le refus ; ce qui change
+est sa forme.
+
+DEUX EXCLUSIONS ÉCRITES, jamais omises. Les écritures `estGenereeParCloture`
+(personne ne « saisit » un report à nouveau calculé à partir de soldes déjà
+validés, et le laisser au brouillard ferait cesser la correspondance bilan de
+clôture / bilan d'ouverture sans qu'aucun total ne bouge) et l'écriture de
+combinaison du module Groupe (dossier technique, régénéré à chaque appel,
+personne n'y saisit).
+
+ET UN POINT AVEUGLE, à ne pas confondre avec une exclusion : le siège fait
+naître des écritures dans le dossier d'une CELLULE avec le `createdBy` d'un
+utilisateur du siège. Le double regard y est satisfait PAR CONSTRUCTION, et
+personne dans la cellule n'a relu. Le logiciel ne contrôle que l'IDENTITÉ,
+jamais l'INDÉPENDANCE.
+
+Le contrôle `VALIDATION_PAR_SON_AUTEUR` (gravité INFORMATION, jamais
+AVERTISSEMENT · aucun texte n'est enfreint) signale l'historique et les
+dossiers qui n'ont pas activé l'option. Rien n'est dévalidé rétroactivement.
+
 ## 11. Compétences et rôles
 
 Les compétences (`skills`) ne sont déployées que par **Manasse**, à la main,

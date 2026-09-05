@@ -218,3 +218,23 @@ export class ModifierMethodeCotisationsDto {
   @IsEnum(MethodeCotisations)
   methodeCotisations!: MethodeCotisations;
 }
+
+
+/**
+ * Double regard à la validation · une écriture n'est-elle validable que par un
+ * autre utilisateur que celui qui l'a saisie.
+ *
+ * OBLIGATOIRE et non optionnel : une case à cocher qu'on peut omettre laisse
+ * l'appelant croire qu'il l'a décochée. Motif établi par
+ * `ModifierMethodeCotisationsDto`.
+ *
+ * Le défaut `false` du schéma n'est PAS une position d'OmegaX sur la bonne
+ * organisation comptable · c'est le constat qu'aucun texte lu ne l'impose.
+ * L'AUDCIF art. 22, 2° impose la validation et ne nomme personne ; l'art. 69 la
+ * délègue expressément à l'entité, et le SYCEBNL fait de même par son
+ * art. 16, 2), l'art. 69 lui étant exclu par son art. 3.
+ */
+export class ModifierDoubleRegardDto {
+  @IsBoolean()
+  doubleRegardValidation!: boolean;
+}

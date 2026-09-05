@@ -3,7 +3,7 @@ import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useExercice } from '../lib/exercice';
 import { Aide } from '../components/chrome/Aide';
-import type { EtatBrouillard, Journal } from '../lib/types';
+import type { EtatBrouillard, Journal, ResultatValidation } from '../lib/types';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
 
 /**
@@ -86,15 +86,42 @@ export function BrouillardPage() {
 
   const selectionnables = useMemo(() => (etat?.lignes ?? []).filter((l) => l.equilibree), [etat]);
 
+  /**
+   * CE QUE L'ÉCRAN DIT APRÈS UNE VALIDATION, et pourquoi ce n'est pas un
+   * simple compteur.
+   *
+   * L'ancienne phrase de `validerJusqua` annonçait « Rien à valider jusqu'à
+   * cette date. » dès que `validees` valait zéro. Avec le double regard, c'est
+   * le mensonge le plus exact possible : le brouillard est PLEIN, il vient
+   * d'être refusé en entier, et l'écran annonce qu'il est vide. Le comptable
+   * croit sa période centralisée, l'AUDCIF art. 22, 2° la veut faite « au
+   * terme de chaque période qui ne peut excéder un mois », et rien ne le
+   * détrompera avant la clôture.
+   *
+   * Le compteur des écartées passe donc AVANT le cas vide, et le motif sourcé
+   * le suit.
+   */
+  const phraseValidation = (r: ResultatValidation, siRienAFaire?: string) => {
+    if (r.refuseesSecondRegard > 0) {
+      return (
+        `${r.validees} écriture(s) entrée(s) au livre-journal, ` +
+        `${r.refuseesSecondRegard} écartée(s). ${r.motifRefus ?? ''}`
+      );
+    }
+    if (r.validees === 0 && siRienAFaire) return siRienAFaire;
+    const visa = r.sousDerogation > 0 ? ' Second regard nominatif porté au journal.' : '';
+    return `${r.validees} écriture(s) entrée(s) au livre-journal.${visa}`;
+  };
+
   const validerSelection = async () => {
     if (selection.size === 0) return;
     setEnvoi(true);
     setErreur(null);
     try {
-      const r = await api.post<{ validees: number; dejaValidees: number }>('/ecritures/valider', {
+      const r = await api.post<ResultatValidation>('/ecritures/valider', {
         ecritureIds: [...selection],
       });
-      setInfo(`${r.validees} écriture(s) entrée(s) au livre-journal.`);
+      setInfo(phraseValidation(r));
       await charger();
     } catch (e) {
       setErreur(e instanceof ApiError ? e.message : 'Validation impossible');
@@ -108,16 +135,12 @@ export function BrouillardPage() {
     setEnvoi(true);
     setErreur(null);
     try {
-      const r = await api.post<{ validees: number; dejaValidees: number }>('/ecritures/valider-jusqua', {
+      const r = await api.post<ResultatValidation>('/ecritures/valider-jusqua', {
         exerciceId: exerciceCourant.id,
         dateLimite,
         journalId: journalId || undefined,
       });
-      setInfo(
-        r.validees === 0
-          ? 'Rien à valider jusqu’à cette date.'
-          : `${r.validees} écriture(s) entrée(s) au livre-journal.`,
-      );
+      setInfo(phraseValidation(r, 'Rien à valider jusqu’à cette date.'));
       await charger();
     } catch (e) {
       setErreur(e instanceof ApiError ? e.message : 'Validation impossible');

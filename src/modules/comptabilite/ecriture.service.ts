@@ -679,7 +679,51 @@ export class EcritureService {
    * déséquilibrée en base, mais la validation est le dernier point où on peut
    * encore l'empêcher d'entrer dans un document légal.
    */
-  async valider(tenantId: string, valideeBy: string, ecritureIds: string[]) {
+  /**
+   * DOUBLE REGARD · le validateur comparé à l'auteur, quand le dossier l'a
+   * décidé.
+   *
+   * LA VALIDATION EST LE FRANCHISSEMENT. C'est elle qui fait entrer la pièce au
+   * livre-journal, et l'AUDCIF art. 22, 2° pose que « l'irréversibilité des
+   * traitements interdise toute suppression, addition ou modification
+   * ultérieure ». Rien ne se dévalide ensuite · aucun chemin de dévalidation
+   * n'existe dans ce dépôt.
+   *
+   * LE MÊME ARTICLE NE NOMME PERSONNE. Il impose l'acte (« Toute donnée entrée
+   * fait l'objet d'une validation, mise en œuvre au terme de chaque période qui
+   * ne peut excéder un mois ») et se tait sur son auteur. L'art. 69 délègue
+   * expressément : « L'entité détermine, sous sa responsabilité, les procédures
+   * nécessaires. » D'où une OPTION par dossier, désactivée par défaut, et non
+   * une règle imposée · voir `Tenant.doubleRegardValidation`.
+   *
+   * CE QUI NE LÈVE PAS, ET POURQUOI. Le refus du double regard ne jette AUCUNE
+   * exception, à la différence du déséquilibre et de l'exercice clôturé qui la
+   * jettent tous deux. Il ÉCARTE. La raison est dans l'art. 22, 2° lui-même :
+   * la validation se fait « au terme de chaque période qui ne peut excéder un
+   * mois », donc par lots. Jeter sur le lot entier ferait qu'une seule écriture
+   * écartée empêcherait de valider toutes les autres, et la période passerait
+   * son terme. L'écriture n'entre pas au livre-journal, ce QUI EST le refus ;
+   * ce qui change est sa forme, un compteur nommé plutôt qu'un jet.
+   *
+   * LA LIMITE, ÉCRITE PARCE QU'ELLE NE SE DEVINE PAS · le logiciel ne contrôle
+   * que l'IDENTITÉ, jamais l'INDÉPENDANCE. Aucun texte lu ne dit si un
+   * ADMIN_CABINET qui valide la saisie d'un comptable constitue un second
+   * regard, ni si un comptable qui en valide un autre en constitue un. Même
+   * parti assumé que la pièce de rechange et l'indice de perte de valeur.
+   *
+   * ET UN FLUX OÙ LA VÉRIFICATION EST STRUCTURELLEMENT VIDE · `GroupeService`
+   * fait naître des écritures dans le dossier d'une CELLULE en portant le
+   * `createdBy` d'un utilisateur du SIÈGE. Le comptable de la cellule les
+   * valide, l'identité diffère, le double regard est satisfait, et personne
+   * dans la cellule n'a rien relu. C'est une limite du contrôle d'identité,
+   * pas un défaut à corriger ici.
+   */
+  async valider(
+    tenantId: string,
+    valideeBy: string,
+    ecritureIds: string[],
+    derogation?: { secondRegardNom?: string; secondRegardMotif?: string },
+  ) {
     const ecritures = await this.prisma.ecriture.findMany({
       where: { id: { in: ecritureIds }, tenantId },
       include: { lignes: true, exercice: { select: { statut: true } }, journal: { select: { code: true } } },
@@ -704,12 +748,103 @@ export class EcritureService {
       }
     }
 
-    const valideeAt = new Date();
-    await this.prisma.ecriture.updateMany({
-      where: { id: { in: aValider.map((e) => e.id) }, tenantId },
-      data: { statut: StatutEcriture.VALIDEE, valideeAt, valideeBy },
+    // Le dossier est relu ICI et pas ailleurs · même chemin que `brouillard`,
+    // qui lit le référentiel de la même façon. Un second chemin de lecture
+    // finirait par diverger.
+    const dossier = await this.prisma.tenant.findUniqueOrThrow({
+      where: { id: tenantId },
+      select: { doubleRegardValidation: true, referentiel: true },
     });
-    return { validees: aValider.length, dejaValidees: dejaValidees.length };
+
+    const visa = this.visaSecondRegard(derogation);
+    // PARTITION, jamais un jet · voir la raison en tête de méthode.
+    //
+    // LES ÉCRITURES DE CLÔTURE EN SONT EXCLUES, et l'exclusion est écrite. Les
+    // textes raisonnent sur des données « entrée[s] » par une personne
+    // (art. 22, 1°), et rien ne dit qui « saisit » un report à nouveau calculé
+    // à partir de soldes déjà validés. L'inverse aurait une conséquence
+    // muette : les états financiers lisent la balance sans le brouillard, un
+    // report à nouveau resté non validable disparaîtrait du bilan d'ouverture
+    // tout en restant à la balance, et le bilan d'ouverture cesserait de
+    // correspondre au bilan de clôture sans qu'aucun total ne bouge.
+    const soumises =
+      dossier.doubleRegardValidation && !visa
+        ? aValider.filter((e) => !e.estGenereeParCloture)
+        : [];
+    const ecartees = soumises.filter((e) => e.createdBy === valideeBy);
+    const idsEcartees = new Set(ecartees.map((e) => e.id));
+    const validables = aValider.filter((e) => !idsEcartees.has(e.id));
+
+    const valideeAt = new Date();
+    if (validables.length > 0) {
+      await this.prisma.ecriture.updateMany({
+        where: { id: { in: validables.map((e) => e.id) }, tenantId },
+        // Le visa n'est apposé QUE si une dérogation a été produite. Tamponner
+        // tout le lot poserait un second regard nominatif sur des pièces qui
+        // n'en avaient pas besoin, et le document remis à un auditeur
+        // affirmerait une relecture qui n'a pas eu lieu.
+        data: {
+          statut: StatutEcriture.VALIDEE,
+          valideeAt,
+          valideeBy,
+          ...(visa ? { secondRegardNom: visa.nom, secondRegardMotif: visa.motif } : {}),
+        },
+      });
+    }
+    return {
+      validees: validables.length,
+      dejaValidees: dejaValidees.length,
+      refuseesSecondRegard: ecartees.length,
+      sousDerogation: visa ? validables.length : 0,
+      motifRefus: ecartees.length > 0 ? this.motifDoubleRegard(dossier.referentiel) : null,
+    };
+  }
+
+  /**
+   * La dérogation nominative · les deux champs vont ENSEMBLE.
+   *
+   * Un nom sans motif ne dit pas ce qui a été relu, un motif sans nom ne dit
+   * pas par qui. Le refus est posé ici et non par un décorateur de classe,
+   * parce qu'un message de validation ne peut pas EXPLIQUER pourquoi le motif
+   * est exigé, et que c'est justement l'explication qui empêche de le remplir
+   * au hasard.
+   */
+  private visaSecondRegard(d?: { secondRegardNom?: string; secondRegardMotif?: string }) {
+    const nom = d?.secondRegardNom?.trim();
+    const motif = d?.secondRegardMotif?.trim();
+    if (!nom && !motif) return null;
+    if (!nom || !motif) {
+      throw new BadRequestException(
+        'Une dérogation au double regard porte un NOM et un MOTIF, et les deux sont exigés. Le nom dit qui a relu ' +
+          'la pièce hors du logiciel, le motif dit ce qui a été relu · c\'est ce couple, et lui seul, qui rend le ' +
+          'visa opposable à un auditeur. Un nom seul n\'atteste de rien.',
+      );
+    }
+    return { nom, motif };
+  }
+
+  /**
+   * Le motif servi à l'écran · AIGUILLÉ SUR LE RÉFÉRENTIEL DU DOSSIER.
+   *
+   * L'obligation d'organisation atteint les deux référentiels, mais PAS par le
+   * même article : l'art. 69 de l'AUDCIF est EXCLU par l'art. 3 du SYCEBNL, qui
+   * atteint la même chose par son art. 16, 2). Servir l'un à l'autre est
+   * exactement la transposition que ce dépôt a déjà corrigée une fois.
+   */
+  private motifDoubleRegard(referentiel: Referentiel): string {
+    const commun =
+      'Ce dossier exige un second regard : une écriture n’est validée que par un autre utilisateur que celui qui ' +
+      'l’a saisie. Aucun texte n’impose cette séparation · c’est une procédure que l’entité s’est donnée, et elle ' +
+      'se règle dans Paramètres du dossier. ';
+    return referentiel === Referentiel.SYCEBNL
+      ? commun +
+          'SYCEBNL, art. 16, 2) : « la mise en place de procédures nécessaires à une organisation comptable ' +
+          'permettant un contrôle interne fiable et le contrôle externe […] ». L’art. 69 de l’AUDCIF, qui délègue ' +
+          'expressément ces procédures à l’entité, est exclu par l’art. 3 du SYCEBNL.'
+      : commun +
+          'AUDCIF, art. 69 : « L’entité détermine, sous sa responsabilité, les procédures nécessaires à la mise en ' +
+          'place d’une organisation comptable permettant aussi bien un contrôle interne fiable que le contrôle ' +
+          'externe […]. »';
   }
 
   /** Valide tout le brouillard jusqu'à une date, éventuellement sur un seul journal. */
@@ -725,12 +860,23 @@ export class EcritureService {
       select: { id: true },
     });
     if (ecritures.length === 0) {
-      return { validees: 0, dejaValidees: 0 };
+      // FORME COMPLÈTE, et c'est ce qui casserait en silence : un retour à
+      // trois champs ferait lire `undefined` au client sur le compteur des
+      // écartées, l'écran n'afficherait rien, et la période passerait pour
+      // centralisée alors qu'elle ne l'est pas.
+      return {
+        validees: 0,
+        dejaValidees: 0,
+        refuseesSecondRegard: 0,
+        sousDerogation: 0,
+        motifRefus: null,
+      };
     }
     return this.valider(
       tenantId,
       valideeBy,
       ecritures.map((e) => e.id),
+      dto,
     );
   }
 

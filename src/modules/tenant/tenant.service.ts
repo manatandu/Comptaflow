@@ -97,6 +97,13 @@ export class TenantService {
       dateActePersonnalite: tenant.dateActePersonnalite,
       numeroEnregistrementSecteur: tenant.numeroEnregistrementSecteur,
       certificatEnregistrementPlan: tenant.certificatEnregistrementPlan,
+      // EN CLAIR, ET SANS `siSycebnl()`. Le champ voisin `methodeCotisations`
+      // y passe, et un lecteur présumera la symétrie · elle serait fausse.
+      // L'obligation d'organisation comptable existe des DEUX côtés, par deux
+      // chemins (AUDCIF art. 69 · SYCEBNL art. 16, 2), l'art. 69 lui étant
+      // exclu par l'art. 3). Servir `null` à un dossier SYSCOHADA ferait
+      // disparaître de son écran une option qui le concerne.
+      doubleRegardValidation: tenant.doubleRegardValidation,
       attestationExemptionIs: tenant.attestationExemptionIs,
       dateAttestationExemptionIs: tenant.dateAttestationExemptionIs,
       formeJuridique: siSycebnl(tenant.referentiel, tenant.formeJuridique),
@@ -446,6 +453,35 @@ export class TenantService {
       );
     }
     await this.prisma.tenant.update({ where: { id: tenantId }, data: { methodeCotisations } });
+    return this.parametres(tenantId);
+  }
+
+  /**
+   * DOUBLE REGARD À LA VALIDATION · le validateur doit-il différer de l'auteur.
+   *
+   * AUCUN REFUS DE RÉFÉRENTIEL, contrairement à `modifierMethodeCotisations`
+   * juste au-dessus, et c'est la différence à ne pas gommer. L'obligation de se
+   * donner des procédures atteint les deux référentiels, par deux chemins :
+   * l'AUDCIF art. 69 (« L'entité détermine, sous sa responsabilité, les
+   * procédures nécessaires à la mise en place d'une organisation comptable
+   * permettant aussi bien un contrôle interne fiable que le contrôle
+   * externe ») côté SYSCOHADA, et le SYCEBNL par son art. 16, 2) côté EBNL,
+   * puisque son art. 3 exclut justement l'art. 69.
+   *
+   * MODIFIABLE À TOUT MOMENT, sans verrou lié aux écritures existantes,
+   * contrairement au jeu d'états financiers. Une organisation comptable change
+   * · un recrutement, un départ, l'ouverture d'une antenne. La désactiver ne
+   * dévalide RIEN de ce qui est déjà entré au livre-journal : l'art. 22, 2°
+   * pose que « l'irréversibilité des traitements interdise toute suppression,
+   * addition ou modification ultérieure », et aucun chemin de dévalidation
+   * n'existe dans ce dépôt.
+   */
+  async modifierDoubleRegard(tenantId: string, doubleRegardValidation: boolean) {
+    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
+    if (!tenant) {
+      throw new NotFoundException('Dossier introuvable');
+    }
+    await this.prisma.tenant.update({ where: { id: tenantId }, data: { doubleRegardValidation } });
     return this.parametres(tenantId);
   }
 

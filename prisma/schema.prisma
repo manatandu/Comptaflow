@@ -381,6 +381,27 @@ model Tenant {
   // et seedait les quatre taux pour tous : une ASBL non assujettie qui facture
   // de la TVA la collecte sans droit, et la déduit sans droit. Le défaut est
   // donc `false` · l'assujettissement se déclare, il ne se présume pas.
+  // DOUBLE REGARD À LA VALIDATION · le validateur doit-il différer de l'auteur.
+  //
+  // DÉSACTIVÉ PAR DÉFAUT, ET C'EST UNE LECTURE, PAS UNE PRUDENCE. L'AUDCIF
+  // art. 22, 2° impose la validation (« Toute donnée entrée fait l'objet d'une
+  // validation, mise en œuvre au terme de chaque période qui ne peut excéder un
+  // mois ») et NE NOMME PERSONNE. L'art. 69 renvoie expressément à l'entité :
+  // « L'entité détermine, sous sa responsabilité, les procédures nécessaires à
+  // la mise en place d'une organisation comptable permettant aussi bien un
+  // contrôle interne fiable que le contrôle externe. » Aucun texte lu n'exige
+  // que le validateur diffère de l'auteur, et le CPCC admet le cabinet à un
+  // seul comptable. L'imposer d'office rendrait le logiciel inutilisable pour
+  // lui, au nom d'une règle que personne n'a écrite.
+  //
+  // IL VAUT POUR LES DEUX RÉFÉRENTIELS, et ne passe donc PAS par `siSycebnl()`,
+  // contrairement à `methodeCotisations` quelques lignes plus haut · c'est la
+  // confusion que le voisinage rend probable. L'obligation d'organisation les
+  // atteint par DEUX chemins : l'AUDCIF art. 69 côté SYSCOHADA, et le SYCEBNL
+  // par son art. 16, 2) côté EBNL, puisque son art. 3 exclut justement l'art. 69
+  // de l'AUDCIF.
+  doubleRegardValidation Boolean @default(false)
+
   assujettiTva  Boolean   @default(false)
   // Date d'effet de l'option ou du franchissement du seuil · sert à dater le
   // début des obligations déclaratives, et à rappeler que l'option prise en
@@ -967,6 +988,20 @@ model Ecriture {
   statut    StatutEcriture @default(BROUILLARD)
   valideeAt DateTime?
   valideeBy String?
+
+  /// DÉROGATION NOMINATIVE AU DOUBLE REGARD · le nom du second regard porté
+  /// HORS logiciel, et le motif.
+  ///
+  /// Une CHAÎNE, pas une relation vers `User`, et c'est délibéré : le dossier
+  /// à un seul comptable fait relire sa pièce par l'expert-comptable du
+  /// cabinet, le trésorier de l'association ou le représentant légal, qui
+  /// n'ont pas de compte dans le logiciel. Même parti que `Donation.signeePar`,
+  /// où le signataire du registre est nommé et non référencé.
+  ///
+  /// Les deux vont ENSEMBLE · un nom sans motif ne dit pas ce qui a été relu,
+  /// et le service refuse l'un sans l'autre.
+  secondRegardNom   String?
+  secondRegardMotif String?
 
   // Régularisations et abonnements dont cette écriture est l'aboutissement.
   regularisationConstatee    Regularisation?             @relation("RegulConstatation")

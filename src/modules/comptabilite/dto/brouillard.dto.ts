@@ -6,6 +6,8 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  MaxLength,
+  MinLength,
   ValidateNested,
 } from 'class-validator';
 import { LigneEcritureDto } from './creer-ecriture.dto';
@@ -43,6 +45,33 @@ export class ValiderEcrituresDto {
   @ArrayMinSize(1)
   @IsUUID(undefined, { each: true })
   ecritureIds!: string[];
+
+  /**
+   * DÉROGATION NOMINATIVE AU DOUBLE REGARD · le nom du second regard exercé
+   * HORS logiciel, et ce qu'il a relu.
+   *
+   * Une CHAÎNE LIBRE et non un identifiant d'utilisateur : le dossier à un
+   * seul comptable fait relire sa pièce par l'expert-comptable du cabinet, le
+   * trésorier de l'association ou le représentant légal, qui n'ont pas de
+   * compte dans le logiciel. Même gabarit que `Donation.signeePar`, où le
+   * signataire du registre des donateurs est nommé et non référencé (SYCEBNL,
+   * art. 17).
+   *
+   * L'APPARIEMENT DES DEUX est refusé par le SERVICE, pas ici : un décorateur
+   * de classe rendrait un message qui n'explique pas POURQUOI le motif est
+   * exigé, et c'est l'explication qui empêche de le remplir au hasard.
+   */
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  @MaxLength(120)
+  secondRegardNom?: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(3)
+  @MaxLength(300)
+  secondRegardMotif?: string;
 }
 
 /**
@@ -59,4 +88,31 @@ export class ValiderJusquaDto {
   @IsOptional()
   @IsUUID()
   journalId?: string;
+
+  /**
+   * DÉROGATION NOMINATIVE AU DOUBLE REGARD · le nom du second regard exercé
+   * HORS logiciel, et ce qu'il a relu.
+   *
+   * Une CHAÎNE LIBRE et non un identifiant d'utilisateur : le dossier à un
+   * seul comptable fait relire sa pièce par l'expert-comptable du cabinet, le
+   * trésorier de l'association ou le représentant légal, qui n'ont pas de
+   * compte dans le logiciel. Même gabarit que `Donation.signeePar`, où le
+   * signataire du registre des donateurs est nommé et non référencé (SYCEBNL,
+   * art. 17).
+   *
+   * L'APPARIEMENT DES DEUX est refusé par le SERVICE, pas ici : un décorateur
+   * de classe rendrait un message qui n'explique pas POURQUOI le motif est
+   * exigé, et c'est l'explication qui empêche de le remplir au hasard.
+   */
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  @MaxLength(120)
+  secondRegardNom?: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(3)
+  @MaxLength(300)
+  secondRegardMotif?: string;
 }

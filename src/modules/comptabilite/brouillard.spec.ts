@@ -171,9 +171,23 @@ describe('validation', () => {
         ]),
         updateMany,
       },
+      // Le double regard est LU sur le dossier · désactivé ici, ce test porte
+      // sur la validation ordinaire. Son propre spec le couvre à part.
+      tenant: {
+        findUniqueOrThrow: jest.fn().mockResolvedValue({
+          doubleRegardValidation: false,
+          referentiel: 'SYCEBNL',
+        }),
+      },
     } as Faux;
     const resultat = await service(prisma).valider('t1', 'u1', ['e1', 'e2']);
-    expect(resultat).toEqual({ validees: 1, dejaValidees: 1 });
+    expect(resultat).toEqual({
+      validees: 1,
+      dejaValidees: 1,
+      refuseesSecondRegard: 0,
+      sousDerogation: 0,
+      motifRefus: null,
+    });
     // La borne de dossier est exigée dans le filtre, pas seulement supposée
     // depuis la sélection qui précède · c'est ce que vérifie la garde de
     // cloisonnement au moteur (src/common/cloisonnement).

@@ -10,6 +10,7 @@ import {
   ModifierFormeJuridiqueDto,
   ModifierFormeSyscohadaDto,
   ModifierIdentiteDto,
+  ModifierDoubleRegardDto,
   ModifierJeuEtatsDto,
   ModifierMethodeCotisationsDto,
   ModifierRegimeDto,
@@ -107,5 +108,28 @@ export class TenantController {
     @Body() dto: ModifierMethodeCotisationsDto,
   ) {
     return this.tenantService.modifierMethodeCotisations(user.tenantId, dto.methodeCotisations);
+  }
+
+  /**
+   * Double regard à la validation · voir `TenantService.modifierDoubleRegard`.
+   *
+   * Réservé à l'administrateur du dossier, et ce n'est pas un réglage
+   * d'affichage : le champ commande QUI peut faire entrer une pièce au
+   * livre-journal, franchissement que l'AUDCIF art. 22, 2° rend irréversible
+   * (« l'irréversibilité des traitements interdise toute suppression, addition
+   * ou modification ultérieure »).
+   *
+   * AUCUN `@ReferentielsAutorises`, et c'est délibéré · à écrire, pour qu'un
+   * relecteur ne prenne pas l'absence pour un oubli. L'obligation atteint les
+   * deux référentiels, par l'AUDCIF art. 69 d'un côté et le SYCEBNL art. 16, 2)
+   * de l'autre.
+   */
+  @Patch('double-regard')
+  @Roles(RoleUtilisateur.ADMIN_CABINET)
+  async modifierDoubleRegard(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: ModifierDoubleRegardDto,
+  ) {
+    return this.tenantService.modifierDoubleRegard(user.tenantId, dto.doubleRegardValidation);
   }
 }

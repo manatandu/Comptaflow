@@ -634,6 +634,13 @@ export class ControlesService {
         numeroPiece: true,
         statut: true,
         createdAt: true,
+        // Le double regard compare ces trois-là · ils sont pris dans la même
+        // lecture que le reste plutôt que dans une seconde requête, la
+        // collection étant déjà bornée à l'exercice.
+        createdBy: true,
+        valideeBy: true,
+        secondRegardNom: true,
+        estGenereeParCloture: true,
         journal: { select: { code: true } },
         lignes: { select: { debit: true, credit: true, lettre: true, compte: { select: { numero: true } } } },
       },
@@ -2196,6 +2203,71 @@ export class ControlesService {
           ],
         });
       }
+    }
+
+    // --- 26. Écritures validées par leur propre auteur ----------------------
+    //
+    // GRAVITÉ INFORMATION, ET C'EST LA DÉCISION LA PLUS IMPORTANTE DE CE
+    // CONTRÔLE. Aucun texte n'est enfreint. L'AUDCIF art. 22, 2° impose la
+    // validation (« Toute donnée entrée fait l'objet d'une validation, mise en
+    // œuvre au terme de chaque période qui ne peut excéder un mois ») et NE
+    // NOMME PERSONNE. L'art. 69 délègue expressément la procédure à l'entité,
+    // et le SYCEBNL fait de même par son art. 16, 2), l'art. 69 lui étant exclu
+    // par son art. 3. Écrire « avertissement » ferait dire aux textes qu'ils
+    // imposent une séparation qu'ils n'imposent pas. C'est le parti déjà pris
+    // pour AVANCE_CLIENT_REPORTEE, qui porte une position de contrôle et non
+    // une règle de l'AUDCIF.
+    //
+    // IL CONSTATE UNE COÏNCIDENCE D'IDENTITÉ, il ne qualifie ni ne conclut ·
+    // même discipline que le test des écritures de journal, qui « sélectionne,
+    // il ne conclut pas ».
+    //
+    // À QUI IL S'ADRESSE · aux dossiers qui n'ont PAS activé l'option (le refus
+    // à la racine couvre déjà les autres) et à l'historique antérieur à son
+    // activation, que rien ne dévalide · l'art. 22, 2° pose l'irréversibilité
+    // des traitements.
+    const validesParLeurAuteur = ecritures.filter(
+      (e) =>
+        e.statut === StatutEcriture.VALIDEE &&
+        e.valideeBy !== null &&
+        e.createdBy === e.valideeBy &&
+        // Personne ne « saisit » un report à nouveau calculé à partir de soldes
+        // déjà validés · les textes raisonnent sur des données « entrée[s] »
+        // par une personne (art. 22, 1°).
+        !e.estGenereeParCloture &&
+        // Un second regard nominatif a été porté hors logiciel : la coïncidence
+        // d'identité est alors expliquée, et la signaler serait du bruit.
+        e.secondRegardNom === null,
+    );
+    if (validesParLeurAuteur.length > 0) {
+      anomalies.push({
+        code: 'VALIDATION_PAR_SON_AUTEUR',
+        gravite: 'INFORMATION',
+        libelle: 'Écritures validées par la personne qui les a saisies',
+        consequence:
+          'Ces écritures sont entrées au livre-journal sur la seule décision de leur auteur. ' +
+          (tenant.referentiel === Referentiel.SYCEBNL
+            ? 'Le SYCEBNL, art. 16, 2), demande « la mise en place de procédures nécessaires à une organisation ' +
+              'comptable permettant un contrôle interne fiable et le contrôle externe […] ». L’art. 69 de ' +
+              'l’AUDCIF, qui délègue expressément ces procédures à l’entité, lui est exclu par l’art. 3.'
+            : 'L’AUDCIF, art. 69, pose que « l’entité détermine, SOUS SA RESPONSABILITÉ, les procédures ' +
+              'nécessaires à la mise en place d’une organisation comptable permettant aussi bien un contrôle ' +
+              'interne fiable que le contrôle externe […] ».') +
+          ' AUCUN TEXTE N’EXIGE que le validateur diffère de l’auteur : l’art. 22, 2° impose la validation et ne ' +
+          'nomme personne. Ce signalement CONSTATE une coïncidence d’identité, il ne qualifie ni ne conclut, et ' +
+          'un cabinet à un seul comptable est dans son droit.',
+        action:
+          'Si votre organisation prévoit un second regard, activez-le dans Paramètres du dossier · une écriture ' +
+          'ne sera plus validable par son auteur. Pour le dossier à un seul comptable, la validation peut porter ' +
+          'le nom du second regard exercé hors logiciel et son motif, qui s’impriment alors au journal. Rien ' +
+          'n’est dévalidé rétroactivement : l’art. 22, 2° interdit « toute suppression, addition ou modification ' +
+          'ultérieure ».',
+        occurrences: validesParLeurAuteur.slice(0, 200).map((e) => ({
+          reference: `${e.journal.code} n° ${e.numeroPiece ?? ''}`,
+          detail: e.libelle,
+          date: e.date.toISOString().slice(0, 10),
+        })),
+      });
     }
 
     const ordre: Record<Gravite, number> = { BLOQUANT: 0, AVERTISSEMENT: 1, INFORMATION: 2 };

@@ -1,0 +1,78 @@
+-- ---------------------------------------------------------------------------
+-- DOUBLE REGARD À LA VALIDATION · le validateur comparé à l'auteur.
+--
+-- `EcritureService.valider` recevait `valideeBy` et ne le comparait JAMAIS à
+-- `createdBy`. Un comptable saisissait et validait sa propre écriture, et
+-- c'est la validation qui la fait entrer au livre-journal.
+--
+-- ## CE QUE LES TEXTES DISENT, ET CE QU'ILS NE DISENT PAS
+--
+-- AUDCIF, art. 22, 2° : « l'irréversibilité des traitements interdise toute
+-- suppression, addition ou modification ultérieure. Toute donnée entrée fait
+-- l'objet d'une validation, mise en œuvre au terme de chaque période qui ne
+-- peut excéder un mois ». C'est L'ARTICLE DE LA VALIDATION, et le seul. Il
+-- impose l'acte, il en fixe le rythme, et IL NE NOMME PERSONNE.
+--
+-- AUDCIF, art. 69 : « L'entité détermine, sous sa responsabilité, les
+-- procédures nécessaires à la mise en place d'une organisation comptable
+-- permettant aussi bien un contrôle interne fiable que le contrôle externe,
+-- par l'intermédiaire, le cas échéant, de commissaires aux comptes, de la
+-- réalité des opérations et de la qualité des comptes, tout en favorisant la
+-- collecte des informations. » La procédure est donc DÉLÉGUÉE à l'entité,
+-- expressément.
+--
+-- CET ARTICLE 69 EST EXCLU PAR L'ART. 3 DU SYCEBNL, dont la liste d'exclusion
+-- est : 5, 8, 10 à 13, 17 al. 7 et 8, 18, 19 quatrième tiret, 21, 25 à 34, 49,
+-- 69, 70, 71, 73 à 113. Le SYCEBNL atteint la même obligation par son propre
+-- art. 16, 2) : « la tenue obligatoire de livres ou autres supports autorisés
+-- ainsi que la mise en place de procédures nécessaires à une organisation
+-- comptable permettant un contrôle interne fiable et le contrôle externe par
+-- l'intermédiaire, le cas échéant, de l'auditeur, de la réalité des opérations
+-- ainsi que de la qualité des comptes, tout en favorisant la collecte des
+-- informations. » L'art. 22, lui, n'est PAS dans la liste : il vaut des deux
+-- côtés.
+--
+-- ## LA DOCTRINE CONGOLAISE, CITÉE ENTIÈRE PLUTÔT QU'À MOITIÉ
+--
+-- Le CPCC range « division du travail et définition des attributions par
+-- poste » parmi les règles du personnel comptable (§ 2.2.2.2), et décrit le
+-- système centralisateur à journaux auxiliaires comme une « double division du
+-- travail » (§ 2.4.1.3). Mais son § 2.6.1 écrit, sur la fiche d'imputation :
+-- « L'imputation indirecte […] permet la division du travail : le chef
+-- comptable PEUT se limiter à vérifier la conformité de l'imputation, laisser
+-- la préparation au comptable et l'encodage à un assistant. » C'est une
+-- possibilité d'organisation, pas une exigence. Et le CPCC décrit ailleurs le
+-- cas de la très petite entité « où la comptabilité est tenue par une seule
+-- personne ».
+--
+-- ## CONSÉQUENCE · UNE OPTION PAR DOSSIER, DÉSACTIVÉE PAR DÉFAUT
+--
+-- Aucun texte lu n'exige que le validateur diffère de l'auteur. Le défaut
+-- `false` n'est donc pas une position d'OmegaX sur la bonne organisation
+-- comptable : c'est le constat qu'aucun texte ne l'impose. L'imposer d'office
+-- rendrait le logiciel inutilisable au cabinet à un seul comptable, au nom
+-- d'une règle que personne n'a écrite.
+--
+-- ## LA DÉROGATION NOMINATIVE
+--
+-- `secondRegardNom` et `secondRegardMotif` portent le visa du second regard
+-- exercé HORS logiciel. Une CHAÎNE et non une relation vers `User` : le
+-- dossier à un seul comptable fait relire par l'expert-comptable du cabinet,
+-- le trésorier ou le représentant légal, qui n'ont pas de compte. C'est le
+-- gabarit de `Donation.signeePar`, où le signataire du registre des donateurs
+-- est nommé et non référencé (SYCEBNL, art. 17).
+--
+-- ## CE QUE LA MIGRATION NE FAIT PAS
+--
+-- AUCUNE REPRISE DE L'EXISTANT. Les écritures déjà validées par leur auteur
+-- restent validées. L'art. 22, 2° pose l'irréversibilité des traitements :
+-- « interdise toute suppression, addition ou modification ultérieure ». Les
+-- dévalider rétroactivement au nom d'une option activée aujourd'hui serait
+-- exactement la modification ultérieure qu'il interdit. Le contrôle
+-- VALIDATION_PAR_SON_AUTEUR les signale, en INFORMATION, sans rien défaire.
+-- ---------------------------------------------------------------------------
+
+ALTER TABLE "tenants" ADD COLUMN "doubleRegardValidation" BOOLEAN NOT NULL DEFAULT false;
+
+ALTER TABLE "ecritures" ADD COLUMN "secondRegardNom" TEXT;
+ALTER TABLE "ecritures" ADD COLUMN "secondRegardMotif" TEXT;
