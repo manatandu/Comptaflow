@@ -393,7 +393,36 @@ const B11: OperationSpecifique = {
       applicationGuide: 'App. 18',
       parametres: [{ nom: 'convention', libelle: 'Montant de la convention', type: 'MONTANT' }],
       lignes: [
-        { compte: '475', libelle: 'Mécènes', sens: 'DEBIT', montant: { mode: 'PARAMETRE', parametre: 'convention' }, note: 'Le texte écrit 4751 · subdivision du 475 Générosités financières à recevoir.' },
+        {
+          compte: '4571',
+          libelle: 'Mécènes et assimilés',
+          sens: 'DEBIT',
+          montant: { mode: 'PARAMETRE', parametre: 'convention' },
+          // LE TEXTE OFFICIEL SE CONTREDIT, ET C'EST L'INTITULÉ QUI TRANCHE.
+          //
+          // La Partie 3 ch. 6 § 3 et le cas chiffré de l'Application 18
+          // écrivent tous deux « 4751 Mécènes ». Mais le PLAN DES COMPTES
+          // (Partie 2, ch. 2 ET ch. 3, compte 45) ne connaît pas de 4751 :
+          // il porte « 457 Mécènes, bénévoles et assimilés », subdivisé en
+          // « 4571 Mécènes et assimilés » et « 4572 Bénévoles et assimilés ».
+          // Et le 475 du plan s'intitule « Générosités financières à
+          // recevoir », pas « Mécènes ».
+          //
+          // L'intitulé « Mécènes » n'existe donc QU'EN 4571. Le « 4751 » du
+          // chapitre 6 est une transposition de chiffres, répétée dans le
+          // guide. On suit la nomenclature, pas la coquille.
+          //
+          // LA RÈGLE DE FOND, qui vaut au-delà du seul mécénat : le compte
+          // 45 accueille les FONDATEURS, APPORTEURS et comptes courants, le
+          // 47 les DÉBITEURS ET CRÉDITEURS DIVERS. Un mécène qui s'engage
+          // par convention relève de la première famille · c'est un
+          // apporteur de ressources nommé, pas un tiers divers. Une
+          // générosité simplement promise par un tiers quelconque reste au
+          // 475 (voir le modèle de promesse de don, plus haut).
+          note:
+            'Le texte de la Partie 3 ch. 6 et le Guide écrivent 4751 · le plan des comptes ne connaît ' +
+            'que 4571 Mécènes et assimilés, et intitule le 475 « Générosités financières à recevoir ».',
+        },
         { compte: '7046', libelle: 'Mécénats', sens: 'CREDIT', montant: { mode: 'PARAMETRE', parametre: 'convention' } },
       ],
     },

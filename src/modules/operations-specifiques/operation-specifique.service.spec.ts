@@ -459,11 +459,34 @@ describe('Guide, Application 17 · abandons de frais des bénévoles', () => {
 });
 
 describe('Guide, Applications 18 et 19 · mécénat et restitution', () => {
-  it('convention de mécénat de 50 000 000 : créance dès la signature', async () => {
+  it('convention de mécénat de 50 000 000 : créance au 4571, pas au 475', async () => {
+    // LE TEXTE OFFICIEL SE CONTREDIT, ET C'EST L'INTITULÉ QUI TRANCHE.
+    //
+    // La Partie 3 ch. 6 § 3 et le cas chiffré de l'Application 18 écrivent
+    // tous deux « 4751 Mécènes ». Le PLAN DES COMPTES (Partie 2, ch. 2 et
+    // ch. 3, compte 45) ne connaît aucun 4751 : il porte « 457 Mécènes,
+    // bénévoles et assimilés » → « 4571 Mécènes et assimilés ». Et le 475 du
+    // plan s'intitule « Générosités financières à recevoir ».
+    //
+    // L'intitulé « Mécènes » n'existe donc QU'EN 4571 · le « 4751 » du
+    // chapitre 6 est une transposition de chiffres. Ce test figeait
+    // auparavant la coquille.
+    //
+    // La règle de fond, qui dépasse le mécénat : le 45 accueille les
+    // fondateurs, apporteurs et comptes courants, le 47 les débiteurs et
+    // créditeurs divers. Un mécène qui s'engage par convention est un
+    // apporteur nommé, pas un tiers divers.
     expect((await ecriture('B11-SIGNATURE', { convention: 50_000_000 })).table).toEqual([
-      { numero: '47500000', debit: 50_000_000, credit: 0 },
+      { numero: '45710000', debit: 50_000_000, credit: 0 },
       { numero: '70460000', debit: 0, credit: 50_000_000 },
     ]);
+  });
+
+  it('la générosité simplement PROMISE reste au 475, elle', async () => {
+    // La distinction n'est pas cosmétique · une promesse d'un tiers
+    // quelconque n'est pas l'engagement conventionnel d'un apporteur nommé.
+    const promesse = await ecriture('B4-GENEROSITE-A-RECEVOIR', { promesse: 1_000_000 });
+    expect(promesse.table[0].numero.startsWith('475')).toBe(true);
   });
 
   it('restitution de 25 000 000 : la subvention d’équipement est débitée pour solde', async () => {
