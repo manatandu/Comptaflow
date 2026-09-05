@@ -73,6 +73,9 @@ export const MODELES_PORTES_PAR_LEUR_PARENT = new Set<string>([
   'LigneAffectation',
   'LigneEcriture',
   'LigneModeleSaisie',
+  // Portée par son immobilisation, comme la dotation et la dépréciation · le
+  // service ne l'atteint jamais que par un bien déjà borné au dossier.
+  'ReclassementImmobilisation',
   'TiersCompte',
   'VentilationAnalytique',
 ]);

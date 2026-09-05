@@ -337,3 +337,48 @@ export class SortirImmobilisationDto {
   @IsBoolean()
   cessionCourante?: boolean;
 }
+
+/**
+ * RECLASSEMENT · le changement d'utilisation du ch. 10 § 2.4.
+ *
+ * Aucun montant ici, et c'est tout le sujet : « les transferts entre la
+ * catégorie "Immeubles de placement" et les catégories "Biens immobiliers
+ * occupés par leur propriétaire" ou "Stocks" n'ont pas d'incidence sur la
+ * valeur comptable du bien immobilier transféré ». Le service vire ce que le
+ * bien porte déjà, il ne recalcule rien et n'accepte rien à recalculer.
+ */
+export class ReclasserImmobilisationDto {
+  /** La famille de DESTINATION · ce sont ses comptes que le bien prendra. */
+  @IsUUID('4')
+  nouvelleFamilleId!: string;
+
+  @IsDateString()
+  dateReclassement!: string;
+
+  @IsUUID('4')
+  exerciceId!: string;
+
+  @IsUUID('4')
+  journalId!: string;
+
+  /**
+   * OBLIGATOIRE, et pas une politesse · le § 1.2 qualifie un immeuble de
+   * placement par l'USAGE, que nul solde ne porte, et le § 4.2 fait de ce
+   * critère une information de notes annexes. Sans lui, le reclassement est un
+   * virement de comptes que personne ne peut justifier deux ans plus tard.
+   */
+  @IsString()
+  @MaxLength(1000)
+  motif!: string;
+
+  /**
+   * Le compte 29 de DESTINATION · exigé seulement si le bien porte une
+   * dépréciation. Il n'est jamais DÉDUIT du nouveau compte d'immobilisation,
+   * pour la raison déjà écrite au modèle `DepreciationImmobilisation` : le
+   * module ne connaît pas la subdivision que le dossier a ouverte, et un 29
+   * deviné serait un compte faux dans une balance juste.
+   */
+  @IsOptional()
+  @IsUUID('4')
+  nouveauCompteDepreciationId?: string;
+}

@@ -12,6 +12,7 @@ import {
   PasserDotationDto,
   SortirImmobilisationDto,
   DepreciationDto,
+  ReclasserImmobilisationDto,
   RenouvelerComposantDto,
 } from './dto/immobilisation.dto';
 import { RoleUtilisateur, StatutImmobilisation } from '@prisma/client';
@@ -113,6 +114,24 @@ export class ImmobilisationController {
     @Body() dto: RenouvelerComposantDto,
   ) {
     return this.immobilisationService.renouveler(user.tenantId, user.userId, id, dto);
+  }
+
+  /**
+   * RECLASSEMENT · le changement d'utilisation du ch. 10 § 2.4.
+   *
+   * Le bien prend les comptes de sa nouvelle famille et l'écriture vire ce
+   * qu'il porte déjà · valeur d'origine, cumul d'amortissement, dépréciation.
+   * Aucun montant n'est recalculé : « les transferts […] n'ont pas d'incidence
+   * sur la valeur comptable du bien immobilier transféré ».
+   */
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Post(':id/reclassement')
+  async reclasser(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: ReclasserImmobilisationDto,
+  ) {
+    return this.immobilisationService.reclasser(user.tenantId, user.userId, id, dto);
   }
 
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)

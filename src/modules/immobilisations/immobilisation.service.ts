@@ -19,6 +19,7 @@ import {
   RenouvelerComposantDto,
   ModifierFamilleDto,
   PasserDotationDto,
+  ReclasserImmobilisationDto,
   SortirImmobilisationDto,
   TypeSortie,
 } from './dto/immobilisation.dto';
@@ -1463,6 +1464,200 @@ export class ImmobilisationService {
       } as CreerImmobilisationDto,
       { composantRemplaceId: composantId },
     );
+  }
+
+  /**
+   * RECLASSEMENT · le changement d'utilisation du ch. 10 § 2.4.
+   *
+   * « Les immeubles de placement peuvent faire l'objet de changements
+   * d'utilisation, reflétés dans les états financiers par des transferts entre
+   * catégories du bilan, par exemple vers les immobilisations corporelles ou
+   * les stocks. » Et la règle qui commande toute la mécanique : « Étant donné
+   * que les immeubles de placement sont évalués selon le modèle du coût
+   * historique, les transferts […] N'ONT PAS D'INCIDENCE SUR LA VALEUR
+   * COMPTABLE du bien immobilier transféré. »
+   *
+   * AUCUN MONTANT N'EST RECALCULÉ, ET C'EST LA SÛRETÉ DE L'OPÉRATION. On vire
+   * ce que le bien porte déjà : sa valeur d'origine, son cumul
+   * d'amortissement, sa dépréciation s'il en a une. Le plan d'amortissement ne
+   * bouge pas, la valeur nette comptable non plus, et aucune ligne de résultat
+   * n'est touchée · un reclassement n'est ni une cession ni une dépréciation.
+   *
+   * PAS DE DOTATION COMPLÉMENTAIRE, contrairement à `sortir`. Le bien ne quitte
+   * pas le patrimoine : son amortissement continue sur le même plan, et une
+   * annuité arrêtée à la date du transfert la ferait courir deux fois.
+   *
+   * CE QUE L'OPÉRATION NE FAIT PAS, ET POURQUOI. Le § 2.4 nomme aussi le
+   * transfert vers les STOCKS. Il n'est pas offert ici : la famille de
+   * destination porte forcément un compte de classe 2
+   * (`verifierComptesFamille`), et un bien qui passe en stock quitte le module
+   * · c'est une sortie, suivie d'une écriture de stock que le comptable
+   * compose. Le lui laisser croire possible ici serait pire que l'absence.
+   */
+  async reclasser(tenantId: string, userId: string, id: string, dto: ReclasserImmobilisationDto) {
+    const immo = await this.trouver(tenantId, id);
+    if (immo.statut !== StatutImmobilisation.EN_SERVICE) {
+      throw new BadRequestException(
+        "Un bien sorti ne se reclasse pas · le reclassement est un changement d'UTILISATION (ch. 10 § 2.4), et " +
+          "un bien cédé ou mis hors service n'a plus d'utilisation.",
+      );
+    }
+
+    const exercice = await this.prisma.exercice.findFirst({ where: { id: dto.exerciceId, tenantId } });
+    if (!exercice) throw new BadRequestException('Exercice introuvable pour ce tenant');
+    const dateReclassement = new Date(dto.dateReclassement);
+    if (dateReclassement < exercice.dateDebut || dateReclassement > exercice.dateFin) {
+      throw new BadRequestException("La date de reclassement doit se situer dans l'exercice indiqué");
+    }
+    if (dateReclassement < immo.dateAcquisition) {
+      throw new BadRequestException("La date de reclassement ne peut pas précéder l'acquisition du bien");
+    }
+    if (!dto.motif.trim()) {
+      throw new BadRequestException(
+        "Le motif du reclassement est obligatoire · le § 1.2 du ch. 10 qualifie un immeuble de placement par " +
+          "l'USAGE, que nul solde ne porte, et le § 4.2 en fait une information de Notes annexes.",
+      );
+    }
+
+    const nouvelleFamille = await this.prisma.familleImmobilisation.findFirst({
+      where: { id: dto.nouvelleFamilleId, tenantId },
+      include: { compteImmobilisation: true, compteAmortissement: true },
+    });
+    if (!nouvelleFamille) throw new BadRequestException('Famille de destination introuvable pour ce tenant');
+
+    if (nouvelleFamille.compteImmobilisationId === immo.compteImmobilisationId) {
+      throw new BadRequestException(
+        `Le bien est déjà porté au compte ${immo.compteImmobilisation.numero} · un reclassement qui ne change ` +
+          "pas de compte n'a rien à virer, et laisserait au grand livre une écriture nulle que personne ne " +
+          'saurait relire.',
+      );
+    }
+
+    // LA NATURE NE CHANGE PAS · un bien corporel ne devient pas incorporel par
+    // un changement d'utilisation. Le refus tient à ce que les comptes 81, 28
+    // et 68 sont éclatés PAR NATURE dans les deux plans : un virement qui la
+    // franchirait laisserait le bien avec un compte de dotation qui ne
+    // correspond plus à son compte d'actif, et la prochaine dotation
+    // s'imputerait au mauvais poste sans que rien ne se déséquilibre.
+    const regime = await this.regimeComptable(tenantId);
+    const natureAvant = natureImmobilisation(immo.compteImmobilisation.numero, regime.referentiel);
+    const natureApres = natureImmobilisation(nouvelleFamille.compteImmobilisation.numero, regime.referentiel);
+    if (natureAvant !== natureApres) {
+      throw new BadRequestException(
+        `Le reclassement ne change pas la NATURE du bien (${natureAvant} vers ${natureApres}) · un changement ` +
+          "d'utilisation déplace un bien entre catégories du bilan, il ne le transforme pas. Les comptes " +
+          "d'amortissement et de dotation sont éclatés par nature, et le franchir imputerait les dotations " +
+          'suivantes à un poste qui ne correspond plus à celui de l’actif.',
+      );
+    }
+
+    const cumulAmorti =
+      immo.dotations.reduce((s, d) => s + Number(d.montant), 0) + Number(immo.amortissementAnterieur ?? 0);
+    const cumulDepreciation = this.cumulDepreciation(
+      immo.depreciations.map((d) => ({ sens: d.sens, montant: Number(d.montant) })),
+    );
+    const derniereDepreciation = immo.depreciations.at(-1) ?? null;
+
+    // LE 29 DE DESTINATION EST CHOISI, JAMAIS DEVINÉ · même raison qu'à la
+    // dotation de dépréciation : le module ne connaît pas la subdivision que le
+    // dossier a ouverte. Sans lui, le virement laisserait le cumul sur
+    // l'ancien 29, et la SORTIE du bien solderait un compte qui ne correspond
+    // plus à son actif.
+    let nouveauCompteDepreciation: { id: string } | null = null;
+    if (cumulDepreciation > EPSILON) {
+      if (!dto.nouveauCompteDepreciationId) {
+        throw new BadRequestException(
+          'Ce bien porte une dépréciation : indiquez le compte 29 de destination. Il n’est pas déduit du nouveau ' +
+            'compte d’immobilisation, le module ne connaissant pas la subdivision que le dossier a ouverte · un ' +
+            '29 deviné serait un compte faux dans une balance juste.',
+        );
+      }
+      const compte29 = await this.prisma.compte.findFirst({
+        where: { id: dto.nouveauCompteDepreciationId, tenantId },
+      });
+      if (!compte29) throw new BadRequestException('Compte de dépréciation introuvable pour ce tenant');
+      if (!compte29.numero.startsWith('29')) {
+        throw new BadRequestException(
+          `Le compte ${compte29.numero} n’est pas un compte de dépréciation d’immobilisation · les deux plans ` +
+            'écrivent le préfixe 29 (39 pour les stocks, 49 pour les tiers, 59 pour la trésorerie).',
+        );
+      }
+      nouveauCompteDepreciation = compte29;
+    }
+
+    // Une seule écriture, équilibrée par construction : chaque compte viré
+    // apparaît au débit d'un côté et au crédit de l'autre.
+    const lignes: Array<{ compteId: string; debit: number; credit: number }> = [
+      { compteId: nouvelleFamille.compteImmobilisationId, debit: Number(immo.valeurOrigine), credit: 0 },
+      { compteId: immo.compteImmobilisationId, debit: 0, credit: Number(immo.valeurOrigine) },
+    ];
+    if (cumulAmorti > EPSILON) {
+      // L'amortissement suit son bien · le laisser sur l'ancien 28 rendrait la
+      // valeur nette du nouveau poste égale à la valeur BRUTE, et celle de
+      // l'ancien négative.
+      lignes.push({ compteId: immo.compteAmortissementId, debit: cumulAmorti, credit: 0 });
+      lignes.push({ compteId: nouvelleFamille.compteAmortissementId, debit: 0, credit: cumulAmorti });
+    }
+    if (cumulDepreciation > EPSILON && derniereDepreciation && nouveauCompteDepreciation) {
+      lignes.push({ compteId: derniereDepreciation.compteDepreciationId, debit: cumulDepreciation, credit: 0 });
+      lignes.push({ compteId: nouveauCompteDepreciation.id, debit: 0, credit: cumulDepreciation });
+    }
+
+    const ecriture = await this.ecritureService.creer(tenantId, userId, {
+      exerciceId: dto.exerciceId,
+      journalId: dto.journalId,
+      date: dto.dateReclassement,
+      libelle: `Reclassement · ${immo.designation}`,
+      lignes,
+    });
+
+    // Les trois comptes du bien suivent, et les lignes de dépréciation aussi ·
+    // sans cette dernière mise à jour, la sortie ultérieure solderait l'ancien
+    // 29 et laisserait le nouveau créditeur pour un bien qui n'existe plus.
+    const [immobilisation] = await this.prisma.$transaction([
+      this.prisma.immobilisation.update({
+        where: { id },
+        data: {
+          familleId: nouvelleFamille.id,
+          compteImmobilisationId: nouvelleFamille.compteImmobilisationId,
+          compteAmortissementId: nouvelleFamille.compteAmortissementId,
+          compteDotationId: nouvelleFamille.compteDotationId,
+        },
+        include: { compteImmobilisation: true, compteAmortissement: true, compteDotation: true },
+      }),
+      ...(nouveauCompteDepreciation
+        ? [
+            this.prisma.depreciationImmobilisation.updateMany({
+              where: { immobilisationId: id },
+              data: { compteDepreciationId: nouveauCompteDepreciation.id },
+            }),
+          ]
+        : []),
+      this.prisma.reclassementImmobilisation.create({
+        data: {
+          immobilisationId: id,
+          exerciceId: dto.exerciceId,
+          dateReclassement,
+          motif: dto.motif.trim(),
+          ancienCompteImmobilisationId: immo.compteImmobilisationId,
+          nouveauCompteImmobilisationId: nouvelleFamille.compteImmobilisationId,
+          ecritureId: ecriture.id,
+          createdBy: userId,
+        },
+      }),
+    ]);
+
+    return {
+      immobilisation,
+      ecriture,
+      // Ce que l'opération a viré, dit à l'écran · aucun de ces trois montants
+      // n'a été recalculé.
+      vire: {
+        valeurOrigine: Number(immo.valeurOrigine),
+        cumulAmortissement: cumulAmorti,
+        cumulDepreciation,
+      },
+    };
   }
 
   /**

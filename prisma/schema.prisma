@@ -656,6 +656,8 @@ model Compte {
   immobilisationsAmortissement  Immobilisation[]             @relation("ImmoCompteAmortissement")
   depreciationsImmoCompte29     DepreciationImmobilisation[] @relation("DepreciationCompte29")
   depreciationsImmoContrepartie DepreciationImmobilisation[] @relation("DepreciationContrepartie")
+  reclassementsAncienCompte      ReclassementImmobilisation[] @relation("ReclassementAncienCompte")
+  reclassementsNouveauCompte     ReclassementImmobilisation[] @relation("ReclassementNouveauCompte")
   // Régularisation des charges et produits (476/477) et abonnements ·
   // voir Regularisation et ModeleAbonnement.
   relances                      Relance[]
@@ -861,6 +863,7 @@ model Exercice {
   clotures               Cloture[]
   dotationsAmortissement DotationAmortissement[]
   depreciationsImmo      DepreciationImmobilisation[]
+  reclassementsImmo      ReclassementImmobilisation[]
   budgetsSection         BudgetSection[]
   regularisations        Regularisation[]
   reevaluations          Reevaluation[]
@@ -939,6 +942,7 @@ model Ecriture {
   reevaluationEcarts      Reevaluation?       @relation("ReevalEcarts")
   reevaluationProvision   Reevaluation?       @relation("ReevalProvision")
   reevaluationExtourne    Reevaluation?       @relation("ReevalExtourne")
+  reclassementImmobilisation ReclassementImmobilisation? @relation("ReclassementEcriture")
 
   // À-NOUVEAU · l'écriture porte le solde d'OUVERTURE de l'exercice, et non un
   // mouvement de l'année. Deux sources la posent, pour la même raison :
@@ -2520,6 +2524,7 @@ model Immobilisation {
   // le bien est EN_SERVICE.
   ecritureSortieId      String?   @unique
   ecritureSortie        Ecriture? @relation("ImmoEcritureSortie", fields: [ecritureSortieId], references: [id])
+  reclassements         ReclassementImmobilisation[]
 
   createdAt DateTime @default(now())
   createdBy String
@@ -2661,6 +2666,65 @@ enum MotifImputationOuverture {
 enum SensDepreciation {
   DOTATION
   REPRISE
+}
+
+//
+// RECLASSEMENT D'UNE IMMOBILISATION · le changement d'utilisation que le
+// module ne savait pas faire.
+//
+// AUDCIF, Titre VIII ch. 10 § 2.4 : « Les immeubles de placement peuvent faire
+// l'objet de changements d'utilisation, reflétés dans les états financiers par
+// des transferts entre catégories du bilan, par exemple vers les
+// immobilisations corporelles ou les stocks. » Et, décisif pour la mécanique :
+// « Étant donné que les immeubles de placement sont évalués selon le modèle du
+// coût historique, les transferts […] N'ONT PAS D'INCIDENCE SUR LA VALEUR
+// COMPTABLE du bien immobilier transféré. »
+//
+// CE QUE RIEN NE POUVAIT FAIRE. Les trois comptes du bien étaient figés à sa
+// création et aucune route ne les modifiait. Deux issues, toutes deux muettes :
+// sans reclassement, un immeuble donné en location restait sur son compte
+// d'exploitation et les notes des immeubles de placement affichaient zéro pour
+// une entité qui en tire des loyers ; avec un reclassement passé à la main par
+// une OD, le module gardait l'ancien compte et sa SORTIE le créditait, laissant
+// le nouveau débiteur pour un bien vendu et l'ancien créditeur du même montant.
+// L'écriture s'équilibrait, la balance bouclait.
+//
+// POURQUOI UNE TABLE. Le motif du changement est une information de notes
+// annexes (§ 4.2 : « lorsque le classement est difficile, l'indication des
+// critères utilisés »), et un réviseur doit pouvoir voir qu'un bien a changé
+// de catégorie, quand, et pourquoi. Un compte écrasé en place ne dirait rien.
+model ReclassementImmobilisation {
+  id               String         @id @default(uuid())
+  immobilisationId String
+  immobilisation   Immobilisation @relation(fields: [immobilisationId], references: [id])
+  exerciceId       String
+  exercice         Exercice       @relation(fields: [exerciceId], references: [id])
+
+  dateReclassement DateTime
+  //
+  // OBLIGATOIRE, et ce n'est pas une politesse · le § 1.2 du chapitre qualifie
+  // un immeuble de placement par l'USAGE, que nul solde ne porte. Sans le
+  // motif écrit, le reclassement est un virement de comptes que personne ne
+  // peut justifier deux ans plus tard.
+  motif String
+
+  // Les comptes AVANT le virement · après lui, le bien porte les nouveaux, et
+  // l'historique serait perdu.
+  ancienCompteImmobilisationId String
+  ancienCompteImmobilisation   Compte @relation("ReclassementAncienCompte", fields: [ancienCompteImmobilisationId], references: [id])
+  nouveauCompteImmobilisationId String
+  nouveauCompteImmobilisation   Compte @relation("ReclassementNouveauCompte", fields: [nouveauCompteImmobilisationId], references: [id])
+
+  // L'écriture de virement · valeur d'origine, cumul d'amortissement et
+  // dépréciation, tous VIRÉS sans être recalculés.
+  ecritureId String   @unique
+  ecriture   Ecriture @relation("ReclassementEcriture", fields: [ecritureId], references: [id])
+
+  createdAt DateTime @default(now())
+  createdBy String
+
+  @@index([immobilisationId])
+  @@map("reclassements_immobilisation")
 }
 
 model DepreciationImmobilisation {

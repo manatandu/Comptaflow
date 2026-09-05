@@ -78,6 +78,17 @@ export function ImmobilisationsPage() {
   const [iPrincipal, setIPrincipal] = useState('');
   const [iTypeComposant, setITypeComposant] = useState<TypeComposant>('COMPOSANT');
   const [iJustification, setIJustification] = useState('');
+  // Reclassement · AUDCIF Titre VIII ch. 10 § 2.4. Rien n'est prérempli et
+  // aucun montant n'est demandé : le transfert « n'a pas d'incidence sur la
+  // valeur comptable du bien immobilier transféré », le serveur vire ce que le
+  // bien porte déjà. Le motif, lui, est exigé · le § 1.2 qualifie un immeuble
+  // de placement par l'USAGE, que nul solde ne porte.
+  const [reclassementOuvertPour, setReclassementOuvertPour] = useState<string | null>(null);
+  const [rcFamille, setRcFamille] = useState('');
+  const [rcDate, setRcDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [rcMotif, setRcMotif] = useState('');
+  const [rcCompte29, setRcCompte29] = useState('');
+
   const [renouvellementOuvertPour, setRenouvellementOuvertPour] = useState<string | null>(null);
   const [rDesignation, setRDesignation] = useState('');
   const [rCout, setRCout] = useState('');
@@ -243,6 +254,36 @@ export function ImmobilisationsPage() {
       await charger();
     } catch (err) {
       setErreur(err instanceof ApiError ? err.message : 'Impossible d’enregistrer cette dépréciation');
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
+  const onReclasser = async (e: FormEvent, immoId: string) => {
+    e.preventDefault();
+    if (!exerciceCourant) return;
+    setErreur(null);
+    setEnvoi(true);
+    try {
+      const od = journaux.find((j) => j.code === 'OD');
+      await api.post(`/immobilisations/${immoId}/reclassement`, {
+        nouvelleFamilleId: rcFamille,
+        dateReclassement: rcDate,
+        exerciceId: exerciceCourant.id,
+        journalId: od?.id ?? journaux[0]?.id,
+        motif: rcMotif,
+        ...(rcCompte29 ? { nouveauCompteDepreciationId: rcCompte29 } : {}),
+      });
+      setReclassementOuvertPour(null);
+      setRcMotif('');
+      setRcCompte29('');
+      setInfo(
+        'Bien reclassé · la valeur d’origine, l’amortissement cumulé et la dépréciation ont été virés tels ' +
+          'quels. Aucun montant n’a été recalculé, la valeur comptable nette est inchangée.',
+      );
+      await charger();
+    } catch (err) {
+      setErreur(err instanceof ApiError ? err.message : 'Impossible de reclasser ce bien');
     } finally {
       setEnvoi(false);
     }
@@ -571,6 +612,15 @@ export function ImmobilisationsPage() {
                       )}
                       <button
                         onClick={() =>
+                          setReclassementOuvertPour(reclassementOuvertPour === immo.id ? null : immo.id)
+                        }
+                        title="Changer la catégorie du bien sans toucher à sa valeur comptable"
+                        className="text-[10px] text-sel hover:underline"
+                      >
+                        Reclasser
+                      </button>
+                      <button
+                        onClick={() =>
                           setDepreciationOuvertePour(depreciationOuvertePour === immo.id ? null : immo.id)
                         }
                         title="Constater une perte de valeur, ou en reprendre une"
@@ -588,6 +638,113 @@ export function ImmobilisationsPage() {
                   )}
                 </span>
               </div>
+              {reclassementOuvertPour === immo.id && (
+                <form onSubmit={(e) => onReclasser(e, immo.id)} className="bg-chrome border-b border-border px-4 py-3">
+                  {/* Ch. 10 § 2.4 · « Étant donné que les immeubles de placement sont
+                      évalués selon le modèle du coût historique, les transferts […]
+                      n'ont pas d'incidence sur la valeur comptable du bien immobilier
+                      transféré. » D'où l'absence de tout champ de montant : le laisser
+                      saisir inviterait à recalculer ce que le texte veut inchangé. */}
+                  <p className="text-[10px] text-text-dim leading-[1.55] mb-2">
+                    Le bien prend les comptes de sa nouvelle famille. Sa valeur d’origine, son amortissement cumulé
+                    et sa dépréciation sont VIRÉS tels quels, sans être recalculés : la valeur comptable nette ne
+                    bouge pas et aucune ligne de résultat n’est touchée. Un reclassement n’est ni une cession, ni une
+                    dépréciation.
+                  </p>
+                  <p className="text-[10px] text-text-dim leading-[1.55] mb-2">
+                    Le transfert vers les STOCKS, que le texte nomme aussi, ne passe pas par ici : un bien qui passe
+                    en stock quitte le module · sortez-le, puis composez l’écriture de stock.
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <label className="flex flex-col gap-1">
+                      <span className="text-[10px] font-bold text-text-dim">NOUVELLE FAMILLE</span>
+                      <select
+                        value={rcFamille}
+                        onChange={(e) => setRcFamille(e.target.value)}
+                        required
+                        className="border border-border rounded-[6px] bg-surface px-2 py-1 text-[10.5px]"
+                      >
+                        <option value="">Choisir…</option>
+                        {(familles ?? [])
+                          .filter((f) => f.id !== immo.familleId)
+                          .map((f) => (
+                            <option key={f.id} value={f.id}>
+                              {f.code} · {f.intitule}
+                            </option>
+                          ))}
+                      </select>
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-[10px] font-bold text-text-dim">DATE</span>
+                      <input
+                        type="date"
+                        value={rcDate}
+                        onChange={(e) => setRcDate(e.target.value)}
+                        required
+                        className="border border-border rounded-[6px] bg-surface px-2 py-1 text-[10.5px]"
+                      />
+                    </label>
+                    {cumulDeprecie(immo) > 0 && (
+                      <label className="flex flex-col gap-1 sm:col-span-2">
+                        <span className="text-[10px] font-bold text-text-dim">
+                          COMPTE 29 DE DESTINATION
+                        </span>
+                        <select
+                          value={rcCompte29}
+                          onChange={(e) => setRcCompte29(e.target.value)}
+                          required
+                          className="border border-border rounded-[6px] bg-surface px-2 py-1 text-[10.5px]"
+                        >
+                          <option value="">Choisir…</option>
+                          {(comptesClasse2 ?? [])
+                            .filter((c) => c.numero.startsWith('29'))
+                            .map((c) => (
+                              <option key={c.id} value={c.id}>
+                                {c.numero} · {c.intitule}
+                              </option>
+                            ))}
+                        </select>
+                        <span className="text-[10px] text-text-dim leading-[1.5]">
+                          Ce bien porte une dépréciation. Le compte n’est pas déduit du nouveau compte
+                          d’immobilisation : le logiciel ne connaît pas la subdivision que votre dossier a ouverte,
+                          et un 29 deviné serait un compte faux dans une balance juste.
+                        </span>
+                      </label>
+                    )}
+                    <label className="flex flex-col gap-1 sm:col-span-2">
+                      <span className="text-[10px] font-bold text-text-dim">MOTIF DU CHANGEMENT D’UTILISATION</span>
+                      <input
+                        value={rcMotif}
+                        onChange={(e) => setRcMotif(e.target.value)}
+                        required
+                        placeholder="Ce que le bien sert désormais, et depuis quand"
+                        className="border border-border rounded-[6px] bg-surface px-2 py-1 text-[10.5px]"
+                      />
+                      <span className="text-[10px] text-text-dim leading-[1.5]">
+                        Obligatoire · le § 1.2 qualifie un immeuble de placement par l’USAGE, que nul solde ne
+                        porte, et le § 4.2 en fait une information de Notes annexes.
+                      </span>
+                    </label>
+                  </div>
+                  <div className="flex gap-2 mt-2">
+                    <button
+                      type="submit"
+                      disabled={envoi}
+                      className="bg-sel text-white text-[10.5px] font-bold px-3.5 py-1.5 rounded-[6px] disabled:opacity-50"
+                    >
+                      Reclasser
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setReclassementOuvertPour(null)}
+                      className="border border-border rounded-[6px] bg-surface px-3 py-1.5 text-[10.5px]"
+                    >
+                      Annuler
+                    </button>
+                  </div>
+                </form>
+              )}
+
               {renouvellementOuvertPour === immo.id && (
                 <form onSubmit={(e) => onRenouveler(e, immo.id)} className="bg-chrome border-b border-border px-4 py-3">
                   {/* Les deux mouvements vont ensemble · AUDCIF ch. 4 § 4.1. Porter le
