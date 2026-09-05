@@ -37,8 +37,8 @@ describe('l’inventaire couvre le schéma, sans trou ni surplus', () => {
   it('compte exactement les modèles du schéma, Tenant mis à part', () => {
     const schema = readFileSync(join(RACINE, 'prisma/schema.prisma'), 'utf8');
     const modeles = [...schema.matchAll(/^model (\w+) \{/gm)].map(([, n]) => n);
-    // 55 au total · 1 Tenant + 39 cloisonnés + 15 portés.
-    expect(modeles).toHaveLength(62);
+    // 63 au total · 1 Tenant + 47 cloisonnés + 15 portés.
+    expect(modeles).toHaveLength(63);
     expect([...TABLES_RESTITUEES].sort()).toEqual(modeles.filter((m) => m !== 'Tenant').sort());
   });
 

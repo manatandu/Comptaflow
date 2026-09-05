@@ -3403,3 +3403,66 @@ export interface EchantillonCircularisation {
     dejaRetenu: boolean;
   }[];
 }
+
+/**
+ * REGISTRE DES PROVISIONS · AUDCIF Titre VIII ch. 18, auquel le SYCEBNL
+ * renvoie depuis sa fiche du COMPTE 19.
+ */
+export type ProvisionRisqueCharge = {
+  id: string;
+  objet: string;
+  nature: string;
+  statut: string;
+  compte: { numero: string; intitule: string } | null;
+  obligationExiste: boolean;
+  resulteEvenementPasse: boolean;
+  sortieProbable: boolean;
+  estimationFiable: boolean;
+  justificationObligation: string;
+  echeanceAttendue: string | null;
+  incertitudes: string | null;
+  montantOuverture: string | number;
+  dotationsExercice: string | number;
+  montantsUtilises: string | number;
+  reprisesNonUtilisees: string | number;
+  effetActualisation: string | number;
+  remboursementAttendu: string | number | null;
+  remboursementCertain: boolean;
+  remboursementTiers: string | null;
+  motifNonComptabilisation: string | null;
+};
+
+export type LigneVariationProvision = {
+  id: string;
+  objet: string;
+  nature: string;
+  statut: string;
+  compte: { numero: string; intitule: string } | null;
+  montantOuverture: number;
+  dotationsExercice: number;
+  montantsUtilises: number;
+  reprisesNonUtilisees: number;
+  effetActualisation: number;
+  montantCloture: number;
+  remboursementAttendu: number | null;
+  echeanceAttendue: string | null;
+  conditionsManquantes: string[];
+};
+
+export type TableauVariationProvisions = {
+  detail: LigneVariationProvision[];
+  totaux: {
+    montantOuverture: number;
+    dotationsExercice: number;
+    montantsUtilises: number;
+    reprisesNonUtilisees: number;
+    effetActualisation: number;
+    montantCloture: number;
+  };
+  /** Le registre contre le solde du compte · un écart dit qu'une dotation
+   * est passée sans être documentée, ou documentée sans être passée. */
+  rapprochement: { numero: string; montantRegistre: number; soldeComptable: number; ecart: number }[];
+  passifsEventuels: LigneVariationProvision[];
+  /** La typologie du référentiel du dossier · elle n'est pas la même des deux côtés. */
+  natures: { nature: string; compte: string; intitule: string }[];
+};

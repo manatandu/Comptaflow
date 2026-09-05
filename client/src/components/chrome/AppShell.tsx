@@ -361,6 +361,11 @@ export function AppShell() {
             // art. 42, puis la checklist documentaire du CPCC).
             { label: 'Inventaire physique', onClick: () => navigate('/inventaire') },
             { label: 'Circularisation', onClick: () => navigate('/circularisation') },
+            // Le registre des provisions est de la révision, pas un état :
+            // c'est le tableau des mouvements que le CPCC demande à
+            // l'auditeur d'obtenir, et la liste des risques que le bilan
+            // ne porte pas (AUDCIF Titre VIII ch. 18 § 5.3).
+            { label: 'Provisions pour risques et charges', onClick: () => navigate('/provisions') },
             // Dossier mère d'un groupe d'établissements (une église et ses
             // cellules) · la balance agrégée du groupe est une édition du
             // siège. Le module est monté sur le plan SYCEBNL (canevas de

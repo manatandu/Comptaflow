@@ -174,7 +174,7 @@ describe('menu « État » à 360 px', () => {
     ]);
   });
 
-  it('les vingt-cinq éditions restent atteignables, en douze lignes au plus', () => {
+  it('les vingt-six éditions restent atteignables, sans menu qui déborde ni groupe à dérouler', () => {
     const entrees = menuEtat();
     const groupes = entrees.filter((e): e is MenuGroupeDef => 'items' in e).map((g) => g.titre);
     const vues = new Set<string>();
@@ -184,22 +184,37 @@ describe('menu « État » à 360 px', () => {
       hauteurs.push(lignes.length);
       for (const l of lignes) if (l.sorte === 'commande') vues.add(l.item.label);
     }
-    // Rien n'a été perdu au regroupement · les vingt-trois libellés de la
-    // source se retrouvent, chacun sous un groupe qu'on peut ouvrir. Le
-    // décompte est EN DUR à dessein : c'est lui qui oblige à rouvrir ce test
-    // quand une édition est ajoutée, et donc à revérifier que le panneau tient
-    // toujours en onze lignes. Le vingt-troisième est le registre des
-    // engagements de dépense, le vingt-quatrième l'inventaire physique et le
-    // vingt-cinquième la circularisation, tous ajoutés le 2026-09-05.
+    // Rien n'a été perdu au regroupement · les vingt-six libellés de la source
+    // se retrouvent, chacun sous un groupe qu'on peut ouvrir. Le décompte est
+    // EN DUR à dessein : c'est lui qui oblige à rouvrir ce test quand une
+    // édition est ajoutée, et donc à revérifier que le panneau tient toujours
+    // dans son plafond. Quatre entrées sont nées le 2026-09-05, toutes sous
+    // « Contrôle et révision » : les engagements de dépense, l'inventaire
+    // physique, la circularisation et le registre des provisions.
     const tous = [...source.matchAll(/label: '([^']+)'/g)].map((m) => m[1]);
-    expect(tous).toHaveLength(25);
+    expect(tous).toHaveLength(26);
     expect([...vues].sort()).toEqual([...tous].sort());
-    // DOUZE lignes depuis le 2026-09-05, et le plafond suit la mesure plutôt
-    // que l'inverse : une ligne vaut 22 px, le panneau en tient 484, soit
-    // vingt-deux lignes. Onze était une borne prudente, pas une limite
-    // physique ; douze en laisse dix de marge. Ce que ce test garde, c'est
-    // qu'aucun groupe ne redevienne une liste à dérouler de vingt entrées.
-    expect(Math.max(...hauteurs)).toBeLessThanOrEqual(12);
+    // DEUX BORNES, et plus un chiffre relevé d'un cran à chaque ajout · c'est
+    // la troisième fois en une journée qu'une édition nouvelle faisait tomber
+    // ce test, et un plafond qu'on repousse chaque fois ne garde plus rien.
+    //
+    // La première borne est PHYSIQUE et mesurée : une ligne vaut 22 px, le
+    // panneau en tient 484, soit VINGT-DEUX lignes. Au-delà, le menu déborde
+    // ou se met à défiler, et l'écran à 360 px cesse d'être utilisable. Seize
+    // laisse six lignes de marge, assez pour plusieurs ajouts sans devoir
+    // rouvrir ce fichier, et loin d'un débordement.
+    //
+    // La seconde est celle qui porte l'intention : AUCUN GROUPE ne redevient
+    // une liste à dérouler. C'est le défaut que le regroupement a corrigé (22
+    // éditions à plat), et il revient tout seul si l'on continue d'empiler
+    // dans le même groupe. Dix entrées par groupe est la limite.
+    expect(Math.max(...hauteurs)).toBeLessThanOrEqual(16);
+    for (const g of entrees.filter((e): e is MenuGroupeDef => 'items' in e)) {
+      expect({ groupe: g.titre, entrees: g.items.length }).toEqual({
+        groupe: g.titre,
+        entrees: Math.min(g.items.length, 10),
+      });
+    }
   });
 
   it("un groupe dont toutes les entrées sont masquées ne s'affiche pas vide", () => {

@@ -38,6 +38,7 @@ const RetenuesPage = lazy(() => import('../pages/RetenuesPage').then((m) => ({ d
 const ExonerationsPage = lazy(() => import('../pages/ExonerationsPage').then((m) => ({ default: m.ExonerationsPage })));
 const InventairePage = lazy(() => import('../pages/InventairePage').then((m) => ({ default: m.InventairePage })));
 const CircularisationPage = lazy(() => import('../pages/CircularisationPage').then((m) => ({ default: m.CircularisationPage })));
+const ProvisionsPage = lazy(() => import('../pages/ProvisionsPage').then((m) => ({ default: m.ProvisionsPage })));
 const FiscalitePage = lazy(() => import('../pages/FiscalitePage').then((m) => ({ default: m.FiscalitePage })));
 const EtatsFinanciersPage = lazy(() => import('../pages/EtatsFinanciersPage').then((m) => ({ default: m.EtatsFinanciersPage })));
 const NotesAnnexesPage = lazy(() => import('../pages/NotesAnnexesPage').then((m) => ({ default: m.NotesAnnexesPage })));
@@ -233,6 +234,17 @@ export const FENETRES: DefinitionFenetre[] = [
     titre: 'Circularisation',
     titreCourt: 'Circularisation',
     rendre: () => <CircularisationPage />,
+  },
+  {
+    // AUCUN `referentielsApplicables` · la fiche du COMPTE 19 du SYCEBNL
+    // renvoie elle-même la doctrine des provisions au « titre VIII […]
+    // chapitre 18 […] du SYSCOHADA ». Les deux référentiels partagent le
+    // texte ; ce qu'ils ne partagent pas est la NOMENCLATURE, et c'est le
+    // serveur qui la résout selon le dossier.
+    motif: /^\/provisions$/,
+    titre: 'Registre des provisions pour risques et charges',
+    titreCourt: 'Provisions',
+    rendre: () => <ProvisionsPage />,
   },
   {
     motif: /^\/exonerations$/,

@@ -60,6 +60,11 @@ export const MODELES_AUDITES = new Set<string>([
   // ne se verrait nulle part ailleurs.
   'CampagneCircularisation',
   'DemandeConfirmation',
+  // Le registre des provisions · une condition décochée après coup, un
+  // statut passé de PASSIF_EVENTUEL à ECARTEE, une reprise saisie en
+  // utilisation : rien de tout cela ne laisse de trace ailleurs, et
+  // chacun change ce que la Note annexe publiera.
+  'ProvisionRisqueCharge',
   'Exoneration',
   'LiquidationTva',
   'RetraitementFiscal',

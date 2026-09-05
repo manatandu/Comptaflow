@@ -418,6 +418,63 @@ des travaux de révision et de contrôle interne préparatoires · elles ne
 constituent pas une mission d'audit légal, et le module ne produit aucune
 opinion.
 
+**Registre des provisions pour risques et charges · le même texte, deux
+nomenclatures.** L'AUDCIF traite la matière au Titre VIII ch. 18, et la fiche
+du COMPTE 19 du SYCEBNL y renvoie mot pour mot : « Les provisions, passifs et
+actifs éventuels sont traités au titre VIII […] chapitre 18 […] du
+SYSCOHADA ». Le module est donc ouvert aux deux, et ce n'est pas une
+tolérance · c'est le SYCEBNL lui-même qui envoie chercher la doctrine à côté.
+
+CE QU'ILS NE PARTAGENT PAS EST LA NOMENCLATURE, et c'est le piège central,
+parce qu'il est muet : les deux plans emploient les MÊMES numéros pour des
+natures différentes. Au 192, le SYSCOHADA loge les « garanties données aux
+clients », le SYCEBNL les « charges sur donations et legs ». Le SYCEBNL ne
+porte ni 193 (pertes sur marchés), ni 195 (impôts), ni 197 (restructurations).
+Une nature choisie sans regarder le référentiel ferait porter à une
+association, au 192, une provision de garantie client : le compte existe, la
+balance boucle, et la Note annexe publie un intitulé qui n'a rien à voir avec
+le risque. `naturesDuReferentiel()` tranche, quatre tests le figent.
+
+LES QUATRE CONDITIONS, ET POURQUOI QUATRE. Le CPCC les compte quatre, l'AUDCIF
+trois : le texte fusionne « obligation actuelle » et « résultant d'un événement
+passé » dans une seule phrase (§ 2.1), là où le séminaire les sépare pour les
+faire vérifier une par une. C'est le MÊME test, rien n'est ajouté au texte, et
+quatre cases se cochent mieux que trois.
+
+TROIS REFUS. UNE PROVISION INTERDITE NE SE COMPTABILISE PAS · le § 4.11 en
+nomme deux, les pertes opérationnelles futures et les grosses réparations, et
+le registre les propose pour les REFUSER avec leur article et la voie de
+rechange (composant distinct ou charge). Les faire disparaître de la liste ne
+les empêcherait pas : elles finiraient au 1988 sous « divers », et plus
+personne ne saurait ce qu'il y a dedans. UNE CONDITION QUI MANQUE NE FAIT PAS
+DISPARAÎTRE LA LIGNE · elle la bascule en passif éventuel, avec son motif
+écrit. Le défaut visé n'est pas une provision de trop mais une provision de
+moins : un risque examiné, écarté, et mentionné nulle part · le bilan est
+juste, l'annexe est muette, et c'est ce que le texte interdit. LE
+REMBOURSEMENT ATTENDU NE SE COMPENSE JAMAIS · § 3.1.4, il n'est comptabilisé
+« que s'il est certain que l'entité le recevra » et se présente « au bilan
+comme un actif DISTINCT, NON COMPENSÉ avec la provision […] car l'entité reste
+responsable de l'extinction de l'obligation en cas de défaillance du tiers ».
+Une provision nette du remboursement s'équilibre et sous-estime le passif ET
+l'actif du même montant.
+
+LE TABLEAU DE VARIATION est celui du § 5.3, dans son ordre, et c'est celui que
+le CPCC demande à l'auditeur d'obtenir. Utilisations et reprises y restent
+SÉPARÉES : une provision utilisée était justifiée, une provision reprise ne
+l'était pas, et les additionner rendrait le même total en effaçant la seule
+information que la ligne portait sur la qualité de l'estimation. Le
+rapprochement avec le solde du compte se fait en VALEUR ABSOLUE, un 19 étant
+créditeur, et ne cherche aucun solde pour un passif éventuel · il n'est dans
+aucun compte, par définition.
+
+CE QUE LE MODULE NE FAIT PAS. Il ne passe aucune écriture. Il n'évalue aucun
+montant · le § 3.1.1 demande « la meilleure estimation de la dépense
+nécessaire au règlement de l'obligation », jugement qu'aucun logiciel ne rend.
+Et il n'ACTUALISE pas : le § 3.1.2 veut un taux reflétant « l'appréciation
+actuelle par le marché et le risque spécifique à ce passif externe », donnée
+qui n'est dans aucune table. La colonne d'actualisation existe, elle se
+saisit.
+
 **Correspondance bilan de clôture / bilan d'ouverture · la convention et ses
 DEUX seules exceptions.** « Le bilan d'ouverture d'un exercice doit
 correspondre au bilan de clôture de l'exercice précédent » (AUDCIF art. 34 et

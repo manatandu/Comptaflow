@@ -549,6 +549,7 @@ model Tenant {
   ecartsInventaire          EcartInventaire[]
   campagnesCircularisation  CampagneCircularisation[]
   demandesConfirmation      DemandeConfirmation[]
+  provisionsRisquesCharges  ProvisionRisqueCharge[]
   evenementsAudit           EvenementAudit[]
 
   @@index([dossierMereId])
@@ -785,6 +786,9 @@ model Compte {
 
   demandesConfirmation DemandeConfirmation[]
 
+  /// Lignes du registre des provisions portées par ce compte (ch. 18 § 5.3).
+  provisionsRisquesCharges ProvisionRisqueCharge[]
+
   @@unique([tenantId, numero])
   // Le résultat fiscal ne cherche que les comptes qui portent un code de
   // retraitement · sans cet index il balaie tout le plan du dossier.
@@ -993,6 +997,7 @@ model Exercice {
   // puis documentaire.
   campagnesInventaire      CampagneInventaire[]
   campagnesCircularisation CampagneCircularisation[]
+  provisionsRisquesCharges ProvisionRisqueCharge[]
 
   // Détermination du résultat fiscal · SYSCOHADA seulement.
   retraitementsFiscaux RetraitementFiscal[]
@@ -4242,4 +4247,174 @@ enum NatureEcartConfirmation {
   /// § 14 · l'écart est indicatif d'une anomalie. C'est le seul cas qui
   /// appelle une écriture, et c'est le comptable qui la passe.
   ANOMALIE_POTENTIELLE
+}
+
+/// REGISTRE DES PROVISIONS POUR RISQUES ET CHARGES · AUDCIF Titre VIII, ch. 18
+/// (« Provisions, passifs éventuels et actifs éventuels »), auquel le SYCEBNL
+/// renvoie EXPRESSÉMENT depuis son COMPTE 19 : « Les provisions, passifs et
+/// actifs éventuels sont traités au titre VIII […] chapitre 18 […] du
+/// SYSCOHADA ». Les deux référentiels partagent donc la doctrine · ils ne
+/// partagent PAS la nomenclature (voir `NatureProvision`).
+///
+/// Une ligne du registre = une obligation, pas une écriture. Elle vit d'un
+/// exercice à l'autre par sa colonne d'ouverture, et le tableau de variation
+/// qu'elle porte est exactement celui que le CPCC demande à l'auditeur
+/// d'obtenir : « le tableau des mouvements des provisions par rapport à
+/// l'exercice précédent (dotations, utilisations, reprises) ».
+model ProvisionRisqueCharge {
+  id         String   @id @default(uuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  exerciceId String
+  exercice   Exercice @relation(fields: [exerciceId], references: [id])
+
+  /// « Une brève description de la nature de l'obligation » (§ 5.3).
+  objet String
+
+  nature NatureProvision
+
+  /// Le compte 19x, 499 ou 599 qui la porte. Nul tant que la ligne n'est pas
+  /// comptabilisée : un passif éventuel n'est dans AUCUN compte, et lui en
+  /// donner un serait déjà le comptabiliser.
+  compteId String?
+  compte   Compte? @relation(fields: [compteId], references: [id])
+
+  statut StatutProvision @default(EN_EXAMEN)
+
+  // ------------------------------------------------------------------
+  // LES QUATRE CONDITIONS. Le CPCC les compte quatre, l'AUDCIF trois : le
+  // texte fusionne « obligation actuelle » et « résultant d'un événement
+  // passé » en une seule condition (§ 2.1, « il existe une obligation
+  // actuelle (juridique ou implicite) résultant d'un événement passé »), là
+  // où le séminaire les sépare pour les faire vérifier séparément. C'est le
+  // MÊME test ; quatre cases se cochent mieux que trois, et rien n'est
+  // ajouté au texte.
+  // ------------------------------------------------------------------
+
+  /// 1. Obligation juridique ou implicite à la date de clôture.
+  obligationExiste Boolean @default(false)
+
+  /// 2. Elle résulte d'un événement passé · le fait générateur. « Les seuls
+  /// passifs externes pouvant être comptabilisés sont ceux qui existent à la
+  /// date de clôture. »
+  resulteEvenementPasse Boolean @default(false)
+
+  /// 3. Sortie de ressources probable · « plus probable qu'improbable »,
+  /// c'est-à-dire au-delà de 50 %.
+  sortieProbable Boolean @default(false)
+
+  /// 4. Estimation fiable de la sortie de ressources.
+  estimationFiable Boolean @default(false)
+
+  /// La source de l'obligation, en clair. Obligatoire : sans elle, les quatre
+  /// cases ne sont qu'un formulaire, et la Note annexe reste vide.
+  justificationObligation String
+
+  /// « L'échéance des sorties d'avantages économiques en résultant » (§ 5.3).
+  echeanceAttendue DateTime?
+
+  /// « Une indication des incertitudes relatives au montant ou à l'échéance
+  /// de ces sorties » (§ 5.3).
+  incertitudes String?
+
+  // ------------------------------------------------------------------
+  // TABLEAU DE VARIATION · les six lignes du § 5.3, dans son ordre.
+  // ------------------------------------------------------------------
+
+  /// « La valeur comptable à l'ouverture. »
+  montantOuverture Decimal @default(0) @db.Decimal(18, 2)
+
+  /// « Les provisions supplémentaires constituées au cours de l'exercice, y
+  /// compris l'augmentation des provisions existantes. »
+  dotationsExercice Decimal @default(0) @db.Decimal(18, 2)
+
+  /// « Les montants utilisés au cours de l'exercice » · le risque s'est
+  /// réalisé, la provision est soldée à due concurrence.
+  montantsUtilises Decimal @default(0) @db.Decimal(18, 2)
+
+  /// « Les montants non utilisés repris au cours de l'exercice » · la
+  /// provision est devenue sans objet.
+  reprisesNonUtilisees Decimal @default(0) @db.Decimal(18, 2)
+
+  /// « L'augmentation au cours de l'exercice du montant actualisé de
+  /// l'écoulement du temps et de l'effet de toute modification du taux
+  /// d'actualisation » (§ 3.2 : cette augmentation est une charge
+  /// FINANCIÈRE, pas une dotation d'exploitation).
+  effetActualisation Decimal @default(0) @db.Decimal(18, 2)
+
+  // ------------------------------------------------------------------
+  // REMBOURSEMENT ATTENDU · § 3.1.4. Deux règles, et la seconde est celle
+  // qui se perd : il ne se comptabilise QUE s'il est certain, et il ne se
+  // compense JAMAIS avec la provision, « car l'entité reste responsable de
+  // l'extinction de l'obligation en cas de défaillance du tiers ».
+  // ------------------------------------------------------------------
+  remboursementAttendu Decimal? @db.Decimal(18, 2)
+  remboursementCertain Boolean  @default(false)
+  remboursementTiers   String?
+
+  /// Pourquoi la ligne n'est pas comptabilisée · obligatoire dès que le
+  /// statut n'est pas COMPTABILISEE. « Si les 4 conditions ne sont pas
+  /// réunies, il faut expliquer en annexe la nature des passifs éventuels. »
+  motifNonComptabilisation String?
+
+  createdAt DateTime @default(now())
+  createdBy String
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId, exerciceId])
+  @@map("provisions_risques_charges")
+}
+
+/// TYPOLOGIE · elle n'est PAS la même des deux côtés, et c'est tout le piège
+/// de ce registre. Le tableau synoptique de l'AUDCIF (ch. 18) et les
+/// subdivisions du COMPTE 19 du SYCEBNL divergent sur le même numéro :
+///
+///   192 · SYSCOHADA « Provisions pour garanties données aux clients »
+///         SYCEBNL   « Provisions pour charges sur donations et legs »
+///
+/// et le SYCEBNL ne porte ni 193 (pertes sur marchés), ni 195 (impôts), ni
+/// 197 (restructurations), là où le SYSCOHADA ne porte pas les charges sur
+/// donations et legs. Une nature choisie sans regarder le référentiel du
+/// dossier ferait lire à une association une provision de garantie client
+/// comme une charge sur legs, au même numéro, sans qu'aucun total ne bronche.
+/// `naturesDuReferentiel()` tranche, et un test le fige.
+enum NatureProvision {
+  LITIGE
+  GARANTIE_CLIENTS
+  PERTES_MARCHES_ACHEVEMENT_FUTUR
+  CHARGES_DONATIONS_LEGS
+  PERTES_DE_CHANGE
+  IMPOTS
+  PENSIONS_ET_OBLIGATIONS_SIMILAIRES
+  RESTRUCTURATION
+  AMENDES_ET_PENALITES
+  DEMANTELEMENT_ET_REMISE_EN_ETAT
+  PROPRE_ASSUREUR
+  DROITS_A_REDUCTION
+  CONTRAT_DEFICITAIRE
+  DEMENAGEMENT
+  DIVERS_RISQUES_ET_CHARGES
+  /// Les deux natures NOMMÉMENT INTERDITES par le ch. 18 § 4.11. Elles
+  /// existent dans l'énumération pour pouvoir être SAISIES et REFUSÉES avec
+  /// l'article, plutôt que d'être absentes et donc saisies sous « divers ».
+  PERTES_OPERATIONNELLES_FUTURES
+  GROSSES_REPARATIONS
+}
+
+enum StatutProvision {
+  /// Les quatre conditions ne sont pas encore tranchées.
+  EN_EXAMEN
+  /// Les quatre sont réunies · la provision est au passif.
+  COMPTABILISEE
+  /// Une condition manque, mais le risque n'est pas faible · « passif
+  /// éventuel à mentionner » en Note annexe. Rien au bilan, tout à l'annexe.
+  PASSIF_EVENTUEL
+  /// « Si la probabilité de sortie de ressources est très faible, aucune
+  /// provision n'est constatée et AUCUNE INFORMATION n'est nécessaire. » La
+  /// ligne reste au registre pour garder la trace de l'examen, pas pour
+  /// nourrir un état.
+  ECARTEE
+  /// Le risque s'est réalisé ou la provision est devenue sans objet : elle a
+  /// été soldée dans l'exercice et ne se reporte pas à l'ouverture suivante.
+  SOLDEE
 }
