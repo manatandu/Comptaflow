@@ -2005,11 +2005,29 @@ export class EcritureService {
    * elle-même, dont les colonnes de totaux additionnent des MOUVEMENTS et non
    * des soldes · un compte soldé a bougé, et sa ligne le prouve.
    */
-  async balance(tenantId: string, exerciceId: string, inclureBrouillard = true) {
+  /**
+   * LA BALANCE, ÉVENTUELLEMENT ARRÊTÉE À UNE DATE.
+   *
+   * `arreteAu` borne la lecture aux écritures dont la DATE COMPTABLE est
+   * antérieure ou égale · c'est la matière première d'une situation
+   * intermédiaire (AUDCIF, Titre VIII ch. 39), qui n'existait sous aucune
+   * forme : ni les états, ni la balance elle-même ne prenaient de date, et un
+   * cabinet à qui une banque demandait une situation au 30 juin devait la
+   * monter hors du logiciel.
+   *
+   * LE REPORT À-NOUVEAU RESTE PRIS, et c'est mécanique plutôt que voulu :
+   * l'écriture de report est datée de l'OUVERTURE de l'exercice, donc
+   * toujours antérieure à une date d'arrêté située dans l'exercice. C'est
+   * aussi pourquoi une date hors de l'exercice est refusée par les appelants ·
+   * en deçà de l'ouverture, la balance perdrait le report et présenterait des
+   * soldes amputés du bilan d'ouverture sans que rien ne le dise.
+   */
+  async balance(tenantId: string, exerciceId: string, inclureBrouillard = true, arreteAu?: Date) {
     const filtreEcriture = {
       tenantId,
       exerciceId,
       ...(inclureBrouillard ? {} : { statut: StatutEcriture.VALIDEE }),
+      ...(arreteAu ? { date: { lte: arreteAu } } : {}),
     };
     const [comptes, reports, mouvements] = await Promise.all([
       this.prisma.compte.findMany({ where: { tenantId }, orderBy: { numero: 'asc' } }),

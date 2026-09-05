@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { ClasseCompte } from '@prisma/client';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { ExerciceService } from '../exercice/exercice.service';
@@ -9,6 +9,12 @@ import {
   correspond,
   trouverExerciceN1,
 } from '../etats-financiers/etats-financiers.communs';
+import {
+  BornesExercice,
+  finDeJournee,
+  memePeriodeExercicePrecedent,
+  motifRefusDateArrete,
+} from '../etats-financiers/situation-intermediaire';
 import {
   COMPTES_RESULTAT_SYSCOHADA,
   COMPTES_TRESORERIE_PASSIF_SI_CREDITEUR_SYSCOHADA,
@@ -164,6 +170,8 @@ export interface LigneCompteResultatSyscohada {
   libelle: string;
   montant: number;
   montantN1?: number;
+  /** Même période de l’exercice précédent · ch. 39 § 2.1.2, deuxième tiret. */
+  montantMemePeriodeN1?: number;
   comptes: CompteDuPoste[];
   estSolde?: boolean;
   formuleOfficielle?: string;
@@ -194,6 +202,14 @@ export interface CompteResultatSyscohada {
   lignes: LigneCompteResultatSyscohada[];
   soldes: SoldesCompteResultatSyscohada;
   soldesN1?: SoldesCompteResultatSyscohada;
+  /**
+   * La MÊME PÉRIODE de l'exercice précédent · ch. 39 § 2.1.2, deuxième tiret.
+   * Absente hors situation intermédiaire, et absente aussi quand la période
+   * équivalente tombe hors de l'exercice précédent.
+   */
+  soldesMemePeriodeN1?: SoldesCompteResultatSyscohada;
+  /** La date jusqu'à laquelle cette colonne comparative court. */
+  memePeriodeN1JusquAu?: string;
   exerciceN1Disponible: boolean;
   comptesNonRattaches: CompteDuPoste[];
   controle: {
@@ -325,8 +341,40 @@ export class EtatsFinanciersSyscohadaService {
     return trouverExerciceN1(this.exerciceService, tenantId, exerciceId);
   }
 
-  private async chargerLignes(tenantId: string, exerciceId: string | null): Promise<LigneBalancePourEtat[]> {
-    return chargerLignes(this.ecritureService, tenantId, exerciceId);
+  private async chargerLignes(
+    tenantId: string,
+    exerciceId: string | null,
+    arreteAu?: Date,
+  ): Promise<LigneBalancePourEtat[]> {
+    return chargerLignes(this.ecritureService, tenantId, exerciceId, arreteAu);
+  }
+
+  /**
+   * LA DATE D'ARRÊTÉ D'UNE SITUATION INTERMÉDIAIRE · ch. 39.
+   *
+   * Rend la borne à appliquer et celle de la même période de l'exercice
+   * précédent (§ 2.1.2). Refuse une date hors de l'exercice, pour la raison
+   * écrite dans `situation-intermediaire.ts` : en deçà de l'ouverture, le
+   * report à-nouveau sortirait de la lecture.
+   */
+  private async bornesSituation(
+    tenantId: string,
+    exerciceId: string,
+    exerciceN1Id: string | null,
+    arreteAu?: string,
+  ): Promise<{ borneN?: Date; borneMemePeriodeN1: Date | null }> {
+    if (!arreteAu) return { borneN: undefined, borneMemePeriodeN1: null };
+    // Les dates viennent d'ExerciceService · le service des états n'atteint
+    // jamais Prisma directement, et lui ouvrir cette porte pour deux dates
+    // serait un chemin de plus à borner au dossier.
+    const exercices = await this.exerciceService.lister(tenantId);
+    const exercice = exercices.find((e) => e.id === exerciceId);
+    if (!exercice) throw new BadRequestException('Exercice introuvable pour ce tenant');
+    const borneN = finDeJournee(new Date(arreteAu));
+    const motif = motifRefusDateArrete(borneN, exercice as BornesExercice);
+    if (motif) throw new BadRequestException(motif);
+    const exerciceN1 = exerciceN1Id ? (exercices.find((e) => e.id === exerciceN1Id) ?? null) : null;
+    return { borneN, borneMemePeriodeN1: memePeriodeExercicePrecedent(borneN, exerciceN1 as BornesExercice | null) };
   }
 
   // =========================================================================
@@ -586,10 +634,15 @@ export class EtatsFinanciersSyscohadaService {
       .map((l) => ({ numero: l.numero, intitule: l.intitule, montant: l.solde }));
   }
 
-  async bilan(tenantId: string, exerciceId: string): Promise<BilanSyscohada> {
+  async bilan(tenantId: string, exerciceId: string, arreteAu?: string): Promise<BilanSyscohada> {
     const exerciceN1Id = await this.trouverExerciceN1(tenantId, exerciceId);
+    // Ch. 39 § 2.1.2, premier tiret · « le bilan à la fin de la période
+    // intermédiaire concernée ET le bilan à la DATE DE CLÔTURE de l'exercice
+    // précédent ». La colonne N-1 n'est donc PAS bornée : c'est bien la
+    // clôture qu'elle doit porter, et le comparatif du modèle la sert déjà.
+    const { borneN } = await this.bornesSituation(tenantId, exerciceId, exerciceN1Id, arreteAu);
     const [lignesN, lignesN1] = await Promise.all([
-      this.chargerLignes(tenantId, exerciceId),
+      this.chargerLignes(tenantId, exerciceId, borneN),
       this.chargerLignes(tenantId, exerciceN1Id),
     ]);
 
@@ -737,15 +790,37 @@ export class EtatsFinanciersSyscohadaService {
     };
   }
 
-  async compteDeResultat(tenantId: string, exerciceId: string): Promise<CompteResultatSyscohada> {
+  async compteDeResultat(
+    tenantId: string,
+    exerciceId: string,
+    arreteAu?: string,
+  ): Promise<CompteResultatSyscohada> {
     const exerciceN1Id = await this.trouverExerciceN1(tenantId, exerciceId);
-    const [lignesN, lignesN1] = await Promise.all([
-      this.chargerLignes(tenantId, exerciceId),
+    // Ch. 39 § 2.1.2, deuxième tiret · le compte de résultat d'une situation
+    // intermédiaire porte TROIS colonnes : « le compte de résultat cumulé du
+    // début de l'exercice à la fin de la période intermédiaire, le compte de
+    // résultat pour la MÊME PÉRIODE DE L'EXERCICE PRÉCÉDENT, ainsi que le
+    // compte de résultat de l'exercice précédent ».
+    //
+    // La deuxième est celle qui donne du sens à la première : comparer un
+    // semestre à une année entière ferait conclure à un effondrement là où il
+    // n'y a qu'une demi-période, et c'est le genre de lecture qu'un banquier
+    // fait en trente secondes.
+    const { borneN, borneMemePeriodeN1 } = await this.bornesSituation(
+      tenantId,
+      exerciceId,
+      exerciceN1Id,
+      arreteAu,
+    );
+    const [lignesN, lignesN1, lignesMemePeriodeN1] = await Promise.all([
+      this.chargerLignes(tenantId, exerciceId, borneN),
       this.chargerLignes(tenantId, exerciceN1Id),
+      borneMemePeriodeN1 ? this.chargerLignes(tenantId, exerciceN1Id, borneMemePeriodeN1) : Promise.resolve(null),
     ]);
 
     const resN = this.resoudreTousLesPostesCR(lignesN);
     const resN1 = this.resoudreTousLesPostesCR(lignesN1);
+    const resMemePeriodeN1 = lignesMemePeriodeN1 ? this.resoudreTousLesPostesCR(lignesMemePeriodeN1) : null;
 
     const lignes: LigneCompteResultatSyscohada[] = ORDRE_AFFICHAGE_COMPTE_RESULTAT.map((ref) => {
       const solde = trouveSoldeIntermediaire(ref);
@@ -757,6 +832,10 @@ export class EtatsFinanciersSyscohadaService {
         // Jamais un faux zéro : sans exercice antérieur la colonne N-1 du
         // modèle reste vide, elle ne vaut pas 0.
         montantN1: exerciceN1Id ? (resN1.montantsParRef[ref] ?? 0) : undefined,
+        // Même règle que la colonne N-1 : jamais un faux zéro. La colonne
+        // reste absente quand la période équivalente tombe hors de l'exercice
+        // précédent (premier exercice court, exercice de liquidation).
+        montantMemePeriodeN1: resMemePeriodeN1 ? (resMemePeriodeN1.montantsParRef[ref] ?? 0) : undefined,
         comptes: resN.comptesParRef.get(ref) ?? [],
         estSolde: solde ? true : undefined,
         formuleOfficielle: solde?.formuleOfficielle,
@@ -777,7 +856,12 @@ export class EtatsFinanciersSyscohadaService {
       lignes,
       soldes: this.soldesNommes(resN.montantsParRef),
       soldesN1: exerciceN1Id ? this.soldesNommes(resN1.montantsParRef) : undefined,
+      soldesMemePeriodeN1: resMemePeriodeN1 ? this.soldesNommes(resMemePeriodeN1.montantsParRef) : undefined,
       exerciceN1Disponible: exerciceN1Id !== null,
+      // La date jusqu'à laquelle la colonne comparative court · sans elle,
+      // l'écran ne pourrait pas titrer la colonne, et une colonne dont on ne
+      // sait pas ce qu'elle couvre ne se compare à rien.
+      memePeriodeN1JusquAu: borneMemePeriodeN1 ? borneMemePeriodeN1.toISOString().slice(0, 10) : undefined,
       comptesNonRattaches: resN.comptesNonRattaches,
       controle: {
         resultatToutesClassesDeGestion: resN.resultatToutesClassesDeGestion,
@@ -1123,11 +1207,25 @@ export class EtatsFinanciersSyscohadaService {
     return { parRef, postesNonCalculables, ctx };
   }
 
-  async tableauFluxTresorerie(tenantId: string, exerciceId: string): Promise<TableauFluxTresorerieSyscohada> {
+  async tableauFluxTresorerie(
+    tenantId: string,
+    exerciceId: string,
+    arreteAu?: string,
+  ): Promise<TableauFluxTresorerieSyscohada> {
     const exerciceN1Id = await this.trouverExerciceN1(tenantId, exerciceId);
     const exerciceN2Id = exerciceN1Id ? await this.trouverExerciceN1(tenantId, exerciceN1Id) : null;
+    // Ch. 39 § 2.1.2, quatrième tiret · « un tableau des flux de trésorerie
+    // CUMULÉS du début de l'exercice à la fin de la période intermédiaire,
+    // ainsi que le tableau des flux de l'exercice précédent ».
+    //
+    // Seule la colonne N est bornée, et le cumul se fait tout seul : le
+    // tableau se calcule par différence entre la situation à la borne et la
+    // CLÔTURE de l'exercice précédent, qui est l'ouverture du courant. La
+    // colonne N-1, elle, reste l'exercice précédent ENTIER, comme le tiret le
+    // demande.
+    const { borneN } = await this.bornesSituation(tenantId, exerciceId, exerciceN1Id, arreteAu);
     const [lignesN, lignesN1, lignesN2] = await Promise.all([
-      this.chargerLignes(tenantId, exerciceId),
+      this.chargerLignes(tenantId, exerciceId, borneN),
       this.chargerLignes(tenantId, exerciceN1Id),
       this.chargerLignes(tenantId, exerciceN2Id),
     ]);

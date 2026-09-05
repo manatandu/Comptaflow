@@ -61,8 +61,18 @@ export class EtatsFinanciersSyscohadaController {
    * d'équilibre · voir `EtatsFinanciersSyscohadaService.bilan`.
    */
   @Get('bilan')
-  async bilan(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string) {
-    return this.etatsFinanciersSyscohadaService.bilan(user.tenantId, exerciceId);
+  async bilan(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+    /**
+     * SITUATION INTERMÉDIAIRE · ch. 39. Absent, l'exercice est lu en entier
+     * comme toujours. Présent, la lecture est bornée à cette date comptable ·
+     * la colonne N-1 reste la CLÔTURE de l'exercice précédent, que le
+     * § 2.1.2 réclame telle quelle.
+     */
+    @Query('arreteAu') arreteAu?: string,
+  ) {
+    return this.etatsFinanciersSyscohadaService.bilan(user.tenantId, exerciceId, arreteAu);
   }
 
   /**
@@ -75,8 +85,10 @@ export class EtatsFinanciersSyscohadaController {
   async compteDeResultat(
     @CurrentUser() user: AuthenticatedUser,
     @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+    /** Situation intermédiaire · ouvre en plus la colonne « même période N-1 ». */
+    @Query('arreteAu') arreteAu?: string,
   ) {
-    return this.etatsFinanciersSyscohadaService.compteDeResultat(user.tenantId, exerciceId);
+    return this.etatsFinanciersSyscohadaService.compteDeResultat(user.tenantId, exerciceId, arreteAu);
   }
 
   /**
@@ -91,8 +103,10 @@ export class EtatsFinanciersSyscohadaController {
   async tableauFluxTresorerie(
     @CurrentUser() user: AuthenticatedUser,
     @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
+    /** Situation intermédiaire · flux CUMULÉS du début de l'exercice à cette date. */
+    @Query('arreteAu') arreteAu?: string,
   ) {
-    return this.etatsFinanciersSyscohadaService.tableauFluxTresorerie(user.tenantId, exerciceId);
+    return this.etatsFinanciersSyscohadaService.tableauFluxTresorerie(user.tenantId, exerciceId, arreteAu);
   }
 
   /**

@@ -7,6 +7,7 @@ import { IconExport, IconCheck } from '../components/chrome/icons';
 import { Aide } from '../components/chrome/Aide';
 import type { CleLexique } from '../lib/lexique';
 import { BlocCertification, EnteteImpression } from '../components/chrome/EnteteImpression';
+import { DECLARATION_METHODES_IDENTIQUES, RESERVE_JEU_INCOMPLET } from '../lib/situation-intermediaire';
 import { LIBELLE_SYSTEME } from '../lib/systemes-syscohada';
 import {
   estSectionFlux,
@@ -129,22 +130,33 @@ function EtatsSyscohadaSystemeNormal() {
     };
   };
 
+  /**
+   * SITUATION INTERMÉDIAIRE · AUDCIF, Titre VIII ch. 39.
+   *
+   * Vide, les états portent l'exercice entier, comme toujours. Renseignée, la
+   * lecture est bornée à cette date comptable · c'est ce qu'un cabinet monte
+   * quand une banque ou un conseil d'administration demande une situation
+   * semestrielle, et qui n'existait sous aucune forme.
+   */
+  const [arreteAu, setArreteAu] = useState('');
+
   // Drapeau `annule` : une réponse lente ne doit pas écraser un état plus
   // récent après un changement d'exercice.
   useEffect(() => {
     if (!exerciceCourant) return;
     let annule = false;
-    api.get<BilanSyscohada>(`/etats-financiers-syscohada/bilan?exerciceId=${exerciceCourant.id}`).then(
+    const borne = arreteAu ? `&arreteAu=${arreteAu}` : '';
+    api.get<BilanSyscohada>(`/etats-financiers-syscohada/bilan?exerciceId=${exerciceCourant.id}${borne}`).then(
       (r) => !annule && setBilan(r),
       (e) => !annule && setErreur(e.message),
     );
-    api.get<CompteResultatSyscohada>(`/etats-financiers-syscohada/compte-de-resultat?exerciceId=${exerciceCourant.id}`).then(
+    api.get<CompteResultatSyscohada>(`/etats-financiers-syscohada/compte-de-resultat?exerciceId=${exerciceCourant.id}${borne}`).then(
       (r) => !annule && setCr(r),
       (e) => !annule && setErreur(e.message),
     );
     api
       .get<TableauFluxTresorerieSyscohada>(
-        `/etats-financiers-syscohada/tableau-flux-tresorerie?exerciceId=${exerciceCourant.id}`,
+        `/etats-financiers-syscohada/tableau-flux-tresorerie?exerciceId=${exerciceCourant.id}${borne}`,
       )
       .then(
         (r) => !annule && setTft(r),
@@ -153,7 +165,7 @@ function EtatsSyscohadaSystemeNormal() {
     return () => {
       annule = true;
     };
-  }, [exerciceCourant?.id]);
+  }, [exerciceCourant?.id, arreteAu]);
 
   /**
    * La liasse complète · c'est ce classeur qui se dépose, pas trois fichiers
@@ -351,7 +363,29 @@ function EtatsSyscohadaSystemeNormal() {
 
   return (
     <div className="p-2">
-      <EnteteImpression titre="États financiers" sousTitre={LIBELLE_ONGLET[onglet]} />
+      <EnteteImpression
+        titre="États financiers"
+        sousTitre={
+          arreteAu
+            ? `${LIBELLE_ONGLET[onglet]} · situation intermédiaire arrêtée au ${arreteAu}`
+            : LIBELLE_ONGLET[onglet]
+        }
+      />
+
+      {/* CH. 39 · LES DEUX MENTIONS QUI FONT DE CETTE SITUATION AUTRE CHOSE
+          QU'UN ÉTAT AMPUTÉ. Le § 2.1.1 exige la déclaration sur les méthodes,
+          et le § 2.1 énumère des mentions qu'aucun solde ne porte : les servir
+          en silence ferait passer une situation partielle pour le jeu complet
+          du chapitre, ce qui est précisément le défaut à ne pas remplacer par
+          un autre. Elles s'IMPRIMENT avec l'état, elles ne sont pas
+          `ecran-seul`. */}
+      {arreteAu && (
+        <div className="border border-sel/30 bg-sel/5 rounded-[8px] px-3 py-2 mb-2 text-[10.5px] leading-[1.55] max-w-[980px]">
+          <div className="font-bold mb-1">Situation intermédiaire arrêtée au {arreteAu}</div>
+          <p className="mb-1">{DECLARATION_METHODES_IDENTIQUES}</p>
+          <p className="text-text-dim">{RESERVE_JEU_INCOMPLET}</p>
+        </div>
+      )}
       <div className="ecran-seul flex flex-wrap items-start justify-between gap-2 mb-1.5">
         <div>
           <div className="text-[10px] font-mono text-text-dim leading-none">ÉTAT</div>
@@ -367,6 +401,29 @@ function EtatsSyscohadaSystemeNormal() {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2.5">
+          {/* Vide = l'exercice entier · c'est le cas ordinaire, et il reste
+              le défaut. Le champ ne se remplit que pour une situation. */}
+          <label className="flex items-center gap-1.5">
+            <span className="text-[10px] font-bold text-text-dim">ARRÊTÉ AU</span>
+            <input
+              type="date"
+              value={arreteAu}
+              onChange={(e) => setArreteAu(e.target.value)}
+              min={exerciceCourant?.dateDebut?.slice(0, 10)}
+              max={exerciceCourant?.dateFin?.slice(0, 10)}
+              title="Situation intermédiaire (ch. 39) · laissez vide pour l’exercice entier"
+              className="border border-border rounded-[6px] bg-surface px-2 py-1 text-[10.5px]"
+            />
+            {arreteAu && (
+              <button
+                onClick={() => setArreteAu('')}
+                title="Revenir à l’exercice entier"
+                className="text-[10px] text-sel hover:underline"
+              >
+                Exercice entier
+              </button>
+            )}
+          </label>
           {exerciceCourant && (
             <span className="font-mono text-[10.5px] border border-border bg-surface px-2.5 py-1.5">
               Exercice {new Date(exerciceCourant.dateDebut).getFullYear()}

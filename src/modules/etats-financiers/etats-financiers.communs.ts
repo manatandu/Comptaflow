@@ -70,13 +70,17 @@ export async function chargerLignes(
   ecritureService: EcritureService,
   tenantId: string,
   exerciceId: string | null,
+  // Situation intermédiaire · ch. 39. Borne la lecture aux écritures dont la
+  // date comptable est antérieure ou égale. Absente, l'exercice est lu en
+  // entier, comme toujours.
+  arreteAu?: Date,
 ): Promise<LigneBalancePourEtat[]> {
   if (!exerciceId) return [];
   // `false` : les états financiers sont des documents légaux et ne lisent que
   // le livre-journal. Une écriture restée en brouillard n'y est pas encore
   // entrée · un bilan bâti dessus n'engagerait personne (voir
   // EcritureService.balance et StatutEcriture dans le schéma).
-  const { lignes } = await ecritureService.balance(tenantId, exerciceId, false);
+  const { lignes } = await ecritureService.balance(tenantId, exerciceId, false, arreteAu);
   // GARDE-FOU CONSERVÉ, ET REDONDANT PAR CONSTRUCTION · la balance ne rend
   // plus que des comptes de détail depuis qu'elle a cessé de sous-totaliser
   // par compte principal. Le filtre reste parce qu'un agrégat compté en plus
