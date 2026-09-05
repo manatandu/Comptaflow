@@ -865,3 +865,121 @@ describe('Réintégration du supplément d’annuité des biens réévalués · 
     expect(entree!.assietteHorsPortee).toBeTruthy();
   });
 });
+
+/**
+ * SUIVI DES ACOMPTES PROVISIONNELS · les deux lectures fausses.
+ *
+ * `acomptesVerses` est une SAISIE, le compte 4492 un DÉCAISSEMENT. Ils
+ * peuvent différer de plusieurs millions sans qu'aucune balance ne cesse de
+ * boucler : le solde à payer est faux de l'écart, la déclaration part avec, et
+ * l'art. 98 bis LPF punit l'insuffisance d'« une amende égale à 50 % du
+ * montant de l'acompte non versé ».
+ *
+ * Et un solde négatif se lit comme de l'argent qui revient. L'art. 57 ter dit
+ * autre chose : c'est un CRÉDIT au compte courant fiscal, imputable sur
+ * d'autres impôts « à sa demande ». Le porter au budget de trésorerie comme un
+ * encaissement attendu est une erreur que ce champ empêche.
+ */
+describe('Suivi des acomptes provisionnels · la saisie contre le compte 4492', () => {
+  const base = { acomptesDus: true, declares: 0, comptabilises: 0, impotDu: 0 };
+
+  it('ne sert rien à qui ne doit pas d’acomptes · une petite entreprise paie en deux quotités', () => {
+    expect(FiscaliteService.suiviAcomptes({ ...base, acomptesDus: false, declares: 500, comptabilises: 0 })).toBeNull();
+  });
+
+  it('signale l’écart entre le montant déclaré et le solde du 4492, et cite l’art. 98 bis', () => {
+    const s = FiscaliteService.suiviAcomptes({ ...base, declares: 3000000, comptabilises: 1000000, impotDu: 5000000 })!;
+    expect(s.ecart).toBe(2000000);
+    expect(s.observations.join(' ')).toContain('98 bis');
+    expect(s.observations.join(' ')).toContain('50 %');
+  });
+
+  it('ne signale aucun écart quand la saisie et le compte disent la même chose', () => {
+    const s = FiscaliteService.suiviAcomptes({ ...base, declares: 1000000, comptabilises: 1000000, impotDu: 5000000 })!;
+    expect(s.ecart).toBe(0);
+    expect(s.observations.some((o) => o.includes('98 bis'))).toBe(false);
+  });
+
+  it('un excédent d’acomptes n’est PAS un remboursement · art. 57 ter, crédit au compte courant fiscal', () => {
+    const s = FiscaliteService.suiviAcomptes({ ...base, declares: 8000000, comptabilises: 8000000, impotDu: 5000000 })!;
+    expect(s.excedent).toBe(3000000);
+    const texte = s.observations.join(' ');
+    expect(texte).toContain('57 ter');
+    expect(texte).toContain("N'EST PAS UN REMBOURSEMENT");
+    expect(texte.toLowerCase()).toContain('à sa demande');
+  });
+
+  it('aucun excédent tant que l’impôt dépasse les acomptes', () => {
+    const s = FiscaliteService.suiviAcomptes({ ...base, declares: 1000000, comptabilises: 1000000, impotDu: 5000000 })!;
+    expect(s.excedent).toBeNull();
+  });
+
+  it('rappelle que le 4492 se solde à la liquidation · sinon l’avance est comptée deux fois', () => {
+    const s = FiscaliteService.suiviAcomptes({ ...base, declares: 1000000, comptabilises: 1000000, impotDu: 5000000 })!;
+    expect(s.observations.join(' ')).toContain('57 bis, al. 3');
+  });
+
+  it('ne dit rien sur la liquidation quand aucun acompte n’a été versé', () => {
+    const s = FiscaliteService.suiviAcomptes({ ...base, declares: 0, comptabilises: 0, impotDu: 5000000 })!;
+    expect(s.observations).toEqual([]);
+  });
+
+  it('n’affirme jamais qu’un acompte est « non versé » · établir l’insuffisance appartient à l’Administration', () => {
+    // Le module rapproche deux chiffres du dossier et nomme l'exposition. Il
+    // ne connaît pas la base légale de l'acompte (impôt déclaré de l'exercice
+    // précédent, ou impôt reconstitué d'office) et ne peut donc pas conclure.
+    const s = FiscaliteService.suiviAcomptes({ ...base, declares: 3000000, comptabilises: 1000000, impotDu: 5000000 })!;
+    const texte = s.observations.join(' ');
+    expect(texte).not.toMatch(/amende (due|à payer|de \d)/i);
+    expect(texte).toContain('diffèrent de');
+  });
+});
+
+/**
+ * LE PRÉFIXE DU 4492, ET POURQUOI IL N'EST PAS '449'.
+ *
+ * Le compte 449 « État, créances et dettes diverses » loge sept choses
+ * différentes (AUDCIF Titre VII) : 4491 obligations cautionnées, 4492 avances
+ * et acomptes versés sur impôts, 4493 fonds de dotation à recevoir, 4494 à
+ * 4496 subventions à recevoir, 4497 avances sur subventions. Toutes sont
+ * débitrices. Prendre le préfixe '449' ferait donc passer une subvention
+ * ATTENDUE pour un acompte d'impôt VERSÉ, et le solde à payer serait faux
+ * d'autant, sans qu'aucun total ne bouge et sans qu'aucune balance cesse de
+ * boucler. C'est la mutation qui avait survécu à la première série de tests.
+ */
+describe('Suivi des acomptes · le 4492 et lui seul', () => {
+  it('ne compte que le 4492 · une subvention à recevoir au 4495 n’est pas un acompte versé', async () => {
+    const { s } = service({
+      balances: {
+        N: [
+          ligne('70110000', -50000000),
+          ligne('60110000', 20000000),
+          // Un acompte réellement versé.
+          ligne('44920000', 3000000),
+          // Une subvention d'exploitation à recevoir · débitrice elle aussi.
+          ligne('44950000', 9000000),
+          // Une obligation cautionnée.
+          ligne('44910000', 4000000),
+        ],
+      },
+      dossier: { acomptesVerses: 3000000 },
+    });
+    const r = await s.resultatFiscal('t1', 'N');
+    expect(r.suiviAcomptes!.comptabilises).toBe(3000000);
+    // Les deux chiffres concordent : rien à signaler. Avec le préfixe '449',
+    // le compte porterait 16 000 000 et le module crierait un écart de
+    // 13 000 000 sur un dossier parfaitement tenu.
+    expect(r.suiviAcomptes!.ecart).toBe(0);
+  });
+
+  it('agrège plusieurs sous-comptes du 4492 · un dossier peut en ouvrir un par impôt', async () => {
+    const { s } = service({
+      balances: {
+        N: [ligne('70110000', -50000000), ligne('44921000', 1000000), ligne('44922000', 2000000)],
+      },
+      dossier: { acomptesVerses: 3000000 },
+    });
+    const r = await s.resultatFiscal('t1', 'N');
+    expect(r.suiviAcomptes!.comptabilises).toBe(3000000);
+  });
+});

@@ -475,6 +475,41 @@ actuelle par le marché et le risque spécifique à ce passif externe », donné
 qui n'est dans aucune table. La colonne d'actualisation existe, elle se
 saisit.
 
+**Acomptes provisionnels · la saisie contre le compte 4492, et le solde négatif
+qui n'est pas un remboursement.** `acomptesVerses` était une SAISIE que rien ne
+confrontait à la comptabilité. Le compte 4492 « État, avances et acomptes
+versés sur impôts », lui, est débité des sommes effectivement versées à l'État
+par le crédit de la trésorerie (AUDCIF Titre VII, compte 44). Les deux peuvent
+différer de plusieurs millions sans qu'aucune balance ne cesse de boucler : le
+solde à payer est faux de l'écart, la déclaration part avec, et l'art. 98 bis
+LPF punit « le défaut ou l'insuffisance de paiement de l'acompte provisionnel »
+d'« une amende égale à 50 % du montant de l'acompte non versé ». Le
+rapprochement est désormais rendu par `suiviAcomptes` et affiché en rouge sous
+le solde.
+
+LE PRÉFIXE EST `4492`, PAS `449`. Le compte 449 loge sept choses différentes,
+toutes débitrices : obligations cautionnées (4491), acomptes sur impôts (4492),
+fonds de dotation et subventions à recevoir (4493 à 4497). Prendre `449` ferait
+passer une subvention ATTENDUE pour un acompte VERSÉ. Cette mutation-là a
+SURVÉCU à la première série de tests, et c'est elle qui a fait écrire les deux
+tests du bloc « le 4492 et lui seul ».
+
+UN EXCÉDENT D'ACOMPTES N'EST PAS UN REMBOURSEMENT, et l'écran disait « crédit
+d'impôt », ce qui est un autre objet · un crédit d'impôt est une créance sur le
+Trésor qui s'impute de plein droit. L'art. 57 ter LPF dit : « Si les acomptes
+provisionnels versés par le contribuable sont supérieurs à l'impôt dû pour la
+même année, les crédits constatés à son compte courant fiscal PEUVENT, À SA
+DEMANDE, servir au paiement d'autres impôts et droits dus. » Un crédit au
+compte courant fiscal, dont l'emploi suppose une demande, et qui s'impute sur
+d'AUTRES impôts au lieu de revenir en trésorerie. La nuance décide si le
+cabinet inscrit ou non un encaissement à son budget.
+
+LE MODULE NE CALCULE AUCUNE AMENDE et ne dit jamais qu'un acompte est « non
+versé » : établir l'insuffisance suppose de connaître la base légale (l'impôt
+déclaré de l'exercice précédent, ou l'impôt reconstitué d'office), et c'est un
+acte de l'Administration. Il rapproche deux chiffres du dossier et nomme
+l'exposition. Un test le vérifie sur le texte produit.
+
 **Correspondance bilan de clôture / bilan d'ouverture · la convention et ses
 DEUX seules exceptions.** « Le bilan d'ouverture d'un exercice doit
 correspondre au bilan de clôture de l'exercice précédent » (AUDCIF art. 34 et

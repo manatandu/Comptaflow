@@ -2376,6 +2376,20 @@ export interface ResultatFiscal {
   explication: string;
   acomptesVerses: number;
   soldeAPayer: number | null;
+  /**
+   * Rapprochement des acomptes DÉCLARÉS (saisie) avec le compte 4492 « État,
+   * avances et acomptes versés sur impôts », qui ne porte que les
+   * décaissements. Null pour un régime sans acomptes (petite entreprise aux
+   * deux quotités, micro-entreprise au forfait).
+   */
+  suiviAcomptes: {
+    declares: number;
+    comptabilises: number;
+    ecart: number;
+    /** Art. 57 ter · un crédit au compte courant fiscal, PAS un remboursement. */
+    excedent: number | null;
+    observations: string[];
+  } | null;
   /** Suppléments établis par l'Administration · entrent dans la base des acomptes (art. 57 bis LPF). */
   supplementsAdministration: number;
   /** Impôt dû + suppléments · la base sur laquelle les trois acomptes sont assis. */

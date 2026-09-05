@@ -218,6 +218,99 @@ export class FiscaliteService {
    * seulement · un compte Total n'est qu'un agrégat d'affichage de ses
    * enfants, l'additionner compterait deux fois les mêmes mouvements.
    */
+  /**
+   * SUIVI DES ACOMPTES PROVISIONNELS · le rapprochement que rien ne faisait,
+   * et les deux lectures fausses qu'il empêche.
+   *
+   * LE MONTANT DÉCLARÉ N'EST PAS LE MONTANT VERSÉ. `acomptesVerses` est une
+   * SAISIE : le comptable tape ce qu'il croit avoir versé, et le solde à
+   * payer s'en déduit. Le compte 4492 « État, avances et acomptes versés sur
+   * impôts », lui, ne contient que ce qui est sorti de la trésorerie (AUDCIF
+   * Titre VII, compte 44 : DÉBITÉ des sommes versées lors du règlement par
+   * l'entité à l'État, par le crédit des comptes de trésorerie). Les deux
+   * peuvent différer de plusieurs millions sans qu'aucune balance ne cesse de
+   * boucler : le solde à payer est faux de l'écart, la déclaration part avec,
+   * et l'insuffisance se découvre au contrôle. L'art. 98 bis LPF la sanctionne
+   * d'« une amende égale à 50 % du montant de l'acompte non versé ».
+   *
+   * UN EXCÉDENT D'ACOMPTES N'EST PAS UN REMBOURSEMENT. Quand les acomptes
+   * dépassent l'impôt, l'arithmétique rend un solde négatif, et un solde
+   * négatif se lit comme de l'argent qui revient. L'art. 57 ter dit autre
+   * chose : « Si les acomptes provisionnels versés par le contribuable sont
+   * supérieurs à l'impôt dû pour la même année, les crédits constatés à son
+   * compte courant fiscal PEUVENT, À SA DEMANDE, servir au paiement d'autres
+   * impôts et droits dus. » Un crédit, pas une créance à encaisser ; et il
+   * faut le demander. Porter un encaissement attendu au budget de trésorerie
+   * sur la foi d'un solde négatif est une erreur que ce champ empêche.
+   *
+   * LE MODULE NE CALCULE AUCUNE AMENDE et ne dit jamais qu'un acompte est
+   * « non versé » : établir l'insuffisance est un acte de l'Administration,
+   * qui suppose de connaître la base légale (l'impôt déclaré de l'exercice
+   * précédent, ou l'impôt reconstitué d'office). Il rapproche deux chiffres
+   * du dossier et nomme l'exposition.
+   */
+  static suiviAcomptes(entree: {
+    acomptesDus: boolean;
+    declares: number;
+    comptabilises: number;
+    impotDu: number | null;
+  }): {
+    declares: number;
+    comptabilises: number;
+    ecart: number;
+    excedent: number | null;
+    observations: string[];
+  } | null {
+    // Une petite entreprise (deux quotités) et une micro-entreprise (forfait)
+    // ne versent pas d'acompte · leur servir un rapprochement de 4492
+    // signalerait un écart sur une obligation qu'elles n'ont pas.
+    if (!entree.acomptesDus) return null;
+
+    const ecart = arrondir(entree.declares - entree.comptabilises);
+    const observations: string[] = [];
+
+    if (Math.abs(ecart) >= 0.01) {
+      observations.push(
+        `Les acomptes DÉCLARÉS dans cette fenêtre (${entree.declares}) et le solde débiteur du compte 4492 ` +
+          `« État, avances et acomptes versés sur impôts » (${entree.comptabilises}) diffèrent de ${ecart}. ` +
+          "Le 4492 est débité des sommes effectivement versées à l'État par le crédit de la trésorerie (AUDCIF " +
+          'Titre VII, compte 44) : il porte le décaissement, la saisie porte une déclaration. Le solde à payer ' +
+          "calculé ici est faux de cet écart. Si ce sont les acomptes qui manquent, l'art. 98 bis LPF punit " +
+          "« le défaut ou l'insuffisance de paiement de l'acompte provisionnel » d'« une amende égale à 50 % du " +
+          "montant de l'acompte non versé ».",
+      );
+    }
+
+    let excedent: number | null = null;
+    if (entree.impotDu !== null && entree.declares > entree.impotDu) {
+      excedent = arrondir(entree.declares - entree.impotDu);
+      observations.push(
+        `Les acomptes versés dépassent l'impôt dû de ${excedent}. CE N'EST PAS UN REMBOURSEMENT À ENCAISSER : ` +
+          "art. 57 ter LPF, « les crédits constatés à son compte courant fiscal PEUVENT, À SA DEMANDE, servir au " +
+          "paiement d'autres impôts et droits dus ». Le crédit existe au compte courant fiscal du contribuable, " +
+          "son emploi suppose une demande, et il s'impute sur d'autres impôts plutôt que de revenir en trésorerie.",
+      );
+    }
+
+    // LE 4492 SOLDÉ · l'imputation de l'art. 57 bis al. 3 (« ces trois
+    // versements sont à déduire de l'impôt dû par le contribuable pour
+    // l'exercice fiscal considéré »). Tant qu'elle n'est pas passée, le 4492
+    // reste débiteur au bilan : une créance sur l'État qui a déjà servi à
+    // éteindre la dette d'impôt, donc comptée deux fois à l'actif et au
+    // passif. L'écriture s'équilibre des deux côtés, le bilan boucle.
+    if (entree.impotDu !== null && entree.comptabilises > 0.005 && entree.declares > 0.005) {
+      observations.push(
+        "À la liquidation, le 4492 se solde par imputation sur la dette d'impôt · art. 57 bis, al. 3 : « Ces trois " +
+          "versements sont à déduire de l'impôt dû par le contribuable pour l'exercice fiscal considéré, le solde " +
+          "éventuel de cet impôt devant être versé au moment du dépôt de la déclaration y afférente. » Un 4492 " +
+          "laissé débiteur après liquidation porte à l'actif une avance qui a déjà éteint la dette : elle est " +
+          "comptée deux fois, et le bilan boucle quand même.",
+      );
+    }
+
+    return { declares: arrondir(entree.declares), comptabilises: arrondir(entree.comptabilises), ecart, excedent, observations };
+  }
+
   private async lireBalance(tenantId: string, exerciceId: string) {
     const balance = await this.ecritureService.balance(tenantId, exerciceId);
     // GARDE-FOU CONSERVÉ, ET REDONDANT PAR CONSTRUCTION · la balance ne rend
@@ -252,10 +345,27 @@ export class FiscaliteService {
     const chiffreAffaires = details
       .filter((l) => PREFIXES_CHIFFRE_AFFAIRES.some((p) => l.numero.startsWith(p)))
       .reduce((s, l) => s - l.solde, 0);
+    // LE 4492, PRIS DANS LA MÊME BALANCE · « État, avances et acomptes versés
+    // sur impôts » (AUDCIF Titre VII, compte 449 : 4491 obligations
+    // cautionnées, 4492 avances et acomptes versés sur impôts, 4493 fonds de
+    // dotation à recevoir…). Il est DÉBITÉ des sommes versées à l'État par le
+    // crédit de la trésorerie · son solde débiteur est donc ce que le dossier
+    // a réellement décaissé au titre des acomptes, par opposition à ce que le
+    // comptable a DÉCLARÉ dans la fenêtre fiscale.
+    //
+    // Le préfixe est '4492' et non '449' : le 4493 et le 4495 sont des
+    // subventions à recevoir, le 4491 des obligations cautionnées. Les
+    // additionner ferait passer une subvention attendue pour un acompte
+    // d'impôt versé, et le solde à payer serait faux d'autant sans qu'aucun
+    // total ne bouge.
+    const acomptesAu4492 = details
+      .filter((l) => l.numero.startsWith('4492'))
+      .reduce((s, l) => s + l.solde, 0);
     return {
       resultatComptable: arrondir(avantCloture ? resultatClasses678 : resultatCompte13),
       sourceResultat: avantCloture ? ('CLASSES_6_7_8' as const) : ('COMPTE_13' as const),
       chiffreAffaires: arrondir(chiffreAffaires),
+      acomptesAu4492: arrondir(acomptesAu4492),
     };
   }
 
@@ -1116,6 +1226,13 @@ export class FiscaliteService {
       ...impot,
       acomptesVerses,
       soldeAPayer: impot.impotDu === null ? null : arrondir(impot.impotDu - acomptesVerses),
+      // SUIVI DES ACOMPTES · le rapprochement que rien ne faisait.
+      suiviAcomptes: FiscaliteService.suiviAcomptes({
+        acomptesDus,
+        declares: acomptesVerses,
+        comptabilises: brut.acomptesAu4492,
+        impotDu: impot.impotDu,
+      }),
       // BASE DES ACOMPTES · art. 57 bis LPF, tel que modifié par la loi de
       // finances n° 25/060 : « l'impôt déclaré au titre de l'exercice
       // précédent, AUGMENTÉ des suppléments éventuels établis par

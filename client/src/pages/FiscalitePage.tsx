@@ -684,8 +684,39 @@ export function FiscalitePage() {
                     )}
                   </td>
                 </tr>
+                {/* « CRÉDIT D'IMPÔT » ÉTAIT LE MAUVAIS MOT, et corrigé le
+                    2026-09-05. Un crédit d'impôt est une créance sur le Trésor
+                    qui s'encaisse ou s'impute de plein droit. Ce que l'art. 57
+                    ter LPF prévoit est autre chose : « Si les acomptes
+                    provisionnels versés par le contribuable sont supérieurs à
+                    l'impôt dû pour la même année, les crédits constatés à son
+                    compte courant fiscal PEUVENT, À SA DEMANDE, servir au
+                    paiement d'autres impôts et droits dus. » Un crédit au
+                    compte courant fiscal, dont l'emploi suppose une demande, et
+                    qui s'impute sur d'AUTRES impôts au lieu de revenir en
+                    trésorerie. La nuance décide si le cabinet inscrit ou non un
+                    encaissement à son budget. */}
                 <Ligne libelle="SOLDE À PAYER" montant={resultat.soldeAPayer} devise={devise} gras total
-                  note={resultat.soldeAPayer !== null && resultat.soldeAPayer < 0 ? 'excédent de versement · crédit d’impôt' : undefined} />
+                  note={
+                    resultat.soldeAPayer !== null && resultat.soldeAPayer < 0
+                      ? 'excédent de versement · crédit au compte courant fiscal, imputable sur d’autres impôts à la demande (art. 57 ter)'
+                      : undefined
+                  } />
+                {/* LE RAPPROCHEMENT AVEC LE COMPTE 4492 · la saisie ci-dessus
+                    est une DÉCLARATION, le 4492 « État, avances et acomptes
+                    versés sur impôts » un DÉCAISSEMENT. Les deux peuvent
+                    différer de plusieurs millions sans qu'aucune balance ne
+                    cesse de boucler, et c'est le solde à payer qui est faux. */}
+                {resultat.suiviAcomptes && resultat.suiviAcomptes.ecart !== 0 && (
+                  <tr className="border-t border-border">
+                    <td colSpan={2} className="px-3 py-1.5">
+                      <div className="text-[11px] font-semibold text-danger">
+                        Compte 4492 : {nombre(resultat.suiviAcomptes.comptabilises)} · déclaré ici :{' '}
+                        {nombre(resultat.suiviAcomptes.declares)} · écart {nombre(resultat.suiviAcomptes.ecart)}
+                      </div>
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
             {resultat.acomptesProchainExercice.length > 0 && (
