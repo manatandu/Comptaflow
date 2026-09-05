@@ -31,12 +31,35 @@ import { ClasseCompte, ModeReportANouveau, TypeCompteDetailTotal } from '@prisma
  *
  * Écarts assumés avec la source, aucun silencieux :
  *  - les plages officielles « 911 à 914 » et « 915 à 918 » (contreparties des
- *    engagements) sont développées compte par compte, chacune renvoyant à son
- *    compte d'engagement (901 à 908) comme le libellé officiel le fait en
- *    bloc ;
- *  - les comptes 92 à 99 (comptabilité analytique de gestion, libre usage)
- *    ne sont pas semés · même règle que le SYCEBNL pour ses comptes 92 à 99,
- *    la ventilation analytique d'OmegaX passe par les plans analytiques.
+ *    engagements) sont développées EN MIROIR STRICT du 90, jusqu'au quatrième
+ *    chiffre. Ce n'est pas un confort : le Titre VII opère toutes les
+ *    contreparties à quatre chiffres (« débité, par le crédit du compte de
+ *    contrepartie 9111 », « les comptes 9051 et 9058 sont crédités, par le
+ *    débit des comptes de contrepartie 9151 et 9158 »), et les cas pratiques
+ *    du skill `syscohada` passent 9162/9062, 9022/9122, 9183/9083,
+ *    9043/9143. Le semis s'arrêtait à huit comptes 911 à 918 complétés :
+ *    AUCUNE de ces écritures n'était passable, la contrepartie du 9062
+ *    n'existant pas. La règle est mécanique et sans exception dans le texte ·
+ *    contrepartie = « 91 » suivi des deux derniers chiffres du compte 90.
+ *    LES LIBELLÉS, EUX, NE SONT PAS DANS LE TEXTE · il manipule ces comptes
+ *    par leur seul numéro. Ceux d'ici sont DÉRIVÉS de l'intitulé du compte
+ *    d'engagement, préfixés « Contrepartie · », et c'est le seul endroit de
+ *    ce fichier où un libellé n'est pas verbatim ;
+ *  - 9182, contrepartie du 9082 « Engagements de retraite », est semé par
+ *    symétrie. Ni 9082 ni 9182 ne sont commentés au Titre VII · le compte
+ *    d'engagement figure pourtant au plan, et le laisser sans contrepartie
+ *    rendrait son écriture impossible. Trou du texte, comblé par la règle
+ *    que le texte applique partout ailleurs, et dit ici ;
+ *  - les comptes 92 à 99 (comptabilité analytique de gestion) sont semés en
+ *    en-têtes de division SANS compte d'imputation · voir le commentaire sur
+ *    place. Même traitement que le SYCEBNL, et pour la même raison lue dans
+ *    les deux textes, qui portent le paragraphe mot pour mot.
+ *
+ * NOTE SUR LA GÉNÉRATION · la classe 9 ci-dessous n'est plus une transcription
+ * mécanique du TSV : celui-ci porte deux lignes de PLAGE (« 911 à 914 ») qui
+ * ne sont pas des numéros de compte, et n'énumère pas les contreparties. Une
+ * régénération devrait reproduire les règles décrites ci-dessus, pas écraser
+ * ce bloc. Le reste du fichier reste généré et ne se retouche pas à la main.
  *
  * Contenu : 295 comptes TOTAL (2-3 chiffres) + 1106 comptes
  * d'imputation (8 chiffres) = 1401 lignes.
@@ -1509,14 +1532,64 @@ const classe9: LigneSeed[] = [
   d('90830000', 'Achats avec clause de réserve de propriété', ClasseCompte.CLASSE_9, SOLDE),
   d('90880000', 'Divers engagements accordés', ClasseCompte.CLASSE_9, SOLDE),
   t('91', 'Contreparties des engagements', ClasseCompte.CLASSE_9, SOLDE),
-  d('91100000', 'Contrepartie des engagements obtenus (901)', ClasseCompte.CLASSE_9, SOLDE),
-  d('91200000', 'Contrepartie des engagements obtenus (902)', ClasseCompte.CLASSE_9, SOLDE),
-  d('91300000', 'Contrepartie des engagements obtenus (903)', ClasseCompte.CLASSE_9, SOLDE),
-  d('91400000', 'Contrepartie des engagements obtenus (904)', ClasseCompte.CLASSE_9, SOLDE),
-  d('91500000', 'Contrepartie des engagements accordés (905)', ClasseCompte.CLASSE_9, SOLDE),
-  d('91600000', 'Contrepartie des engagements accordés (906)', ClasseCompte.CLASSE_9, SOLDE),
-  d('91700000', 'Contrepartie des engagements accordés (907)', ClasseCompte.CLASSE_9, SOLDE),
-  d('91800000', 'Contrepartie des engagements accordés (908)', ClasseCompte.CLASSE_9, SOLDE),
+  t('911', 'Contrepartie · Engagements de financement obtenus', ClasseCompte.CLASSE_9, SOLDE),
+  d('91110000', 'Contrepartie · crédits confirmés obtenus', ClasseCompte.CLASSE_9, SOLDE),
+  d('91120000', 'Contrepartie · emprunts restant à encaisser', ClasseCompte.CLASSE_9, SOLDE),
+  d('91130000', 'Contrepartie · facilités de financement renouvelables', ClasseCompte.CLASSE_9, SOLDE),
+  d('91140000', 'Contrepartie · facilités d’émission', ClasseCompte.CLASSE_9, SOLDE),
+  d('91180000', 'Contrepartie · autres engagements de financement obtenus', ClasseCompte.CLASSE_9, SOLDE),
+  t('912', 'Contrepartie · Engagements de garantie obtenus', ClasseCompte.CLASSE_9, SOLDE),
+  d('91210000', 'Contrepartie · avals obtenus', ClasseCompte.CLASSE_9, SOLDE),
+  d('91220000', 'Contrepartie · cautions, garanties obtenues', ClasseCompte.CLASSE_9, SOLDE),
+  d('91230000', 'Contrepartie · hypothèques obtenues', ClasseCompte.CLASSE_9, SOLDE),
+  d('91240000', 'Contrepartie · effets endossés par des tiers', ClasseCompte.CLASSE_9, SOLDE),
+  d('91280000', 'Contrepartie · autres garanties obtenues', ClasseCompte.CLASSE_9, SOLDE),
+  t('913', 'Contrepartie · Engagements réciproques', ClasseCompte.CLASSE_9, SOLDE),
+  d('91310000', 'Contrepartie · achats de marchandises à terme', ClasseCompte.CLASSE_9, SOLDE),
+  d('91320000', 'Contrepartie · achats à terme de devises', ClasseCompte.CLASSE_9, SOLDE),
+  d('91330000', 'Contrepartie · commandes fermes des clients', ClasseCompte.CLASSE_9, SOLDE),
+  d('91380000', 'Contrepartie · autres engagements réciproques', ClasseCompte.CLASSE_9, SOLDE),
+  t('914', 'Contrepartie · Autres engagements obtenus', ClasseCompte.CLASSE_9, SOLDE),
+  d('91410000', 'Contrepartie · abandons de créances conditionnels', ClasseCompte.CLASSE_9, SOLDE),
+  d('91430000', 'Contrepartie · ventes avec clause de réserve de propriété', ClasseCompte.CLASSE_9, SOLDE),
+  d('91480000', 'Contrepartie · divers engagements obtenus', ClasseCompte.CLASSE_9, SOLDE),
+  t('915', 'Contrepartie · Engagements de financement accordés', ClasseCompte.CLASSE_9, SOLDE),
+  d('91510000', 'Contrepartie · crédits accordés non décaissés', ClasseCompte.CLASSE_9, SOLDE),
+  d('91580000', 'Contrepartie · autres engagements de financement accordés', ClasseCompte.CLASSE_9, SOLDE),
+  t('916', 'Contrepartie · Engagements de garantie accordés', ClasseCompte.CLASSE_9, SOLDE),
+  d('91610000', 'Contrepartie · avals accordés', ClasseCompte.CLASSE_9, SOLDE),
+  d('91620000', 'Contrepartie · cautions, garanties accordées', ClasseCompte.CLASSE_9, SOLDE),
+  d('91630000', 'Contrepartie · hypothèques accordées', ClasseCompte.CLASSE_9, SOLDE),
+  d('91640000', 'Contrepartie · effets endossés par l’entité', ClasseCompte.CLASSE_9, SOLDE),
+  d('91680000', 'Contrepartie · autres garanties accordées', ClasseCompte.CLASSE_9, SOLDE),
+  t('917', 'Contrepartie · Engagements réciproques', ClasseCompte.CLASSE_9, SOLDE),
+  d('91710000', 'Contrepartie · ventes de marchandises à terme', ClasseCompte.CLASSE_9, SOLDE),
+  d('91720000', 'Contrepartie · ventes à terme de devises', ClasseCompte.CLASSE_9, SOLDE),
+  d('91730000', 'Contrepartie · commandes fermes aux fournisseurs', ClasseCompte.CLASSE_9, SOLDE),
+  d('91780000', 'Contrepartie · autres engagements réciproques', ClasseCompte.CLASSE_9, SOLDE),
+  t('918', 'Contrepartie · Autres engagements accordés', ClasseCompte.CLASSE_9, SOLDE),
+  d('91810000', 'Contrepartie · annulations conditionnelles de dettes', ClasseCompte.CLASSE_9, SOLDE),
+  d('91820000', 'Contrepartie · engagements de retraite', ClasseCompte.CLASSE_9, SOLDE),
+  d('91830000', 'Contrepartie · achats avec clause de réserve de propriété', ClasseCompte.CLASSE_9, SOLDE),
+  d('91880000', 'Contrepartie · divers engagements accordés', ClasseCompte.CLASSE_9, SOLDE),
+  // COMPTABILITÉ ANALYTIQUE DE GESTION · le Titre VII s'arrête là :
+  // « L'usage des comptes 92 à 99 est laissé à l'initiative des entités, qui
+  // utilisent les découpages convenant le mieux à leur structure, à leur
+  // politique des coûts, à leur organisation » et « les subdivise à sa
+  // convenance ». Aucun contenu, aucun fonctionnement, aucune subdivision
+  // n'est donné. Ils sont donc semés en en-têtes de division SANS compte
+  // d'imputation : inventer un 941 imposerait à l'entité un modèle de coûts
+  // que le texte lui laisse justement choisir. Ils ne servent qu'en
+  // comptabilité analytique, et aucun compte de classe 9 ne remonte aux états
+  // financiers (Titre IX ch. 7) · seuls 90 et 91 alimentent la NOTE 1.
+  t('92', 'Comptes réfléchis', ClasseCompte.CLASSE_9, SOLDE),
+  t('93', 'Comptes de reclassements', ClasseCompte.CLASSE_9, SOLDE),
+  t('94', 'Comptes de coûts', ClasseCompte.CLASSE_9, SOLDE),
+  t('95', 'Comptes de stocks', ClasseCompte.CLASSE_9, SOLDE),
+  t('96', 'Comptes d’écarts sur coûts préétablis', ClasseCompte.CLASSE_9, SOLDE),
+  t('97', 'Comptes de différences de traitement comptable', ClasseCompte.CLASSE_9, SOLDE),
+  t('98', 'Comptes de résultats', ClasseCompte.CLASSE_9, SOLDE),
+  t('99', 'Comptes de liaisons internes', ClasseCompte.CLASSE_9, SOLDE),
 ];
 
 export const PLAN_COMPTES_SYSCOHADA: LigneSeed[] = [

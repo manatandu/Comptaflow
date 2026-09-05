@@ -19,12 +19,14 @@ describe('plan SYSCOHADA · structure Total/Détail', () => {
   const totaux = PLAN_COMPTES_SYSCOHADA.filter((c) => c.typeCompte === 'TOTAL');
   const detail = PLAN_COMPTES_SYSCOHADA.filter((c) => c.typeCompte !== 'TOTAL');
 
-  it('reprend les 1401 comptes du plan officiel (plages 911-918 développées, 92-99 omis)', () => {
-    // 1403 lignes source − l'en-tête − 2 lignes de plage + 8 comptes
-    // développés − 8 comptes 92 à 99 (analytique, libre usage) = 1401.
-    expect(PLAN_COMPTES_SYSCOHADA).toHaveLength(1401);
-    expect(totaux).toHaveLength(295);
-    expect(detail).toHaveLength(1106);
+  it('reprend le plan officiel, contreparties d’engagements développées au 4e chiffre', () => {
+    // 1403 lignes source − l'en-tête − 2 lignes de plage (« 911 à 914 »,
+    // « 915 à 918 », qui ne sont pas des numéros de compte) + 8 racines 911 à
+    // 918 + 32 contreparties à quatre chiffres, en miroir des 32 comptes 90xx.
+    // Les huit divisions 92 à 99 sont semées, en en-têtes sans imputation.
+    expect(PLAN_COMPTES_SYSCOHADA).toHaveLength(1441);
+    expect(totaux).toHaveLength(311);
+    expect(detail).toHaveLength(1130);
   });
 
   it('ne porte aucun doublon de numéro', () => {
@@ -38,23 +40,51 @@ describe('plan SYSCOHADA · structure Total/Détail', () => {
   });
 
   it('chaque Total regroupe au moins un compte Détail réel de sa division', () => {
+    // Seule exception assumée : 92 à 99, la comptabilité analytique de
+    // gestion. Le Titre VII laisse leur découpage « à l'initiative des
+    // entités » et n'en donne aucune subdivision · les semer vides est le
+    // seul traitement fidèle. Toute autre division vide est un bug.
+    const ANALYTIQUE_LIBRE = new Set(['92', '93', '94', '95', '96', '97', '98', '99']);
     for (const t of totaux) {
       const enfants = detail.filter((d) => d.numero.startsWith(t.numero) && d.classe === t.classe);
+      if (ANALYTIQUE_LIBRE.has(t.numero)) {
+        expect(enfants).toHaveLength(0);
+        continue;
+      }
       expect(enfants.length).toBeGreaterThan(0);
     }
   });
 
-  it('développe les contreparties d’engagements 911 à 918, une par compte 901 à 908', () => {
-    for (let i = 1; i <= 8; i += 1) {
-      const contrepartie = PLAN_COMPTES_SYSCOHADA.find((c) => c.numero === `91${i}00000`);
-      expect(contrepartie).toBeDefined();
-      expect(contrepartie!.intitule).toContain(`(90${i})`);
+  /**
+   * LE MIROIR DU 90 DANS LE 91 · ce test existe parce que le semis a porté
+   * pendant des mois huit comptes `91100000` à `91800000` qui ne
+   * correspondaient à RIEN. Le plan officiel ne donne que deux plages
+   * (« 911 à 914 », « 915 à 918 ») ; le Titre VII, lui, opère toutes les
+   * contreparties à quatre chiffres (« par le crédit du compte de
+   * contrepartie 9111 »), et les cas pratiques passent 9162/9062, 9022/9122,
+   * 9183/9083, 9043/9143. Avec l'ancien semis, aucune de ces écritures
+   * n'était passable : la contrepartie du 9062 n'existait pas.
+   */
+  it('donne à chaque compte 90xx sa contrepartie 91xx, sans exception', () => {
+    const engagements = detail.filter((c) => c.numero.startsWith('90'));
+    expect(engagements).toHaveLength(32);
+    for (const e of engagements) {
+      const contrepartie = detail.find((c) => c.numero === `91${e.numero.slice(2)}`);
+      expect({ engagement: e.numero, contrepartie: contrepartie?.numero }).toEqual({
+        engagement: e.numero,
+        contrepartie: `91${e.numero.slice(2)}`,
+      });
     }
+    // Et rien d'autre : une contrepartie orpheline serait un compte que le
+    // texte ne connaît pas.
+    expect(detail.filter((c) => c.numero.startsWith('91'))).toHaveLength(32);
   });
 
-  it('omet les comptes 92 à 99 (comptabilité analytique, libre usage)', () => {
+  it('sème les huit divisions 92 à 99 en en-têtes, sans compte d’imputation', () => {
     for (let n = 92; n <= 99; n += 1) {
-      expect(PLAN_COMPTES_SYSCOHADA.some((c) => c.numero.startsWith(String(n)))).toBe(false);
+      const tete = PLAN_COMPTES_SYSCOHADA.find((c) => c.numero === String(n));
+      expect(tete?.typeCompte).toBe('TOTAL');
+      expect(detail.some((c) => c.numero.startsWith(String(n)))).toBe(false);
     }
   });
 
