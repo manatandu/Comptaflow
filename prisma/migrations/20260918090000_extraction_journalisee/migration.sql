@@ -1,0 +1,36 @@
+-- EXTRACTION · la quatrième action du journal d'audit.
+--
+-- POURQUOI UNE VALEUR NOUVELLE. Une extraction ne crée, ne modifie ni ne
+-- supprime rien. La ranger sous CREATION rendrait le journal faux au moment
+-- précis où il sert le plus ; sous SUPPRESSION elle annoncerait une perte qui
+-- n'a pas eu lieu. Les trois valeurs existantes décrivent ce qui ARRIVE À LA
+-- DONNÉE ; celle-ci décrit ce qui SORT du dossier.
+--
+-- CE QUI LA FONDE. AUDCIF art. 22, 6° : l'organisation doit garantir « toutes
+-- les possibilités de contrôle en permettant la reconstitution du chemin de
+-- révision ». Une copie intégrale du dossier qui quitte le serveur sans
+-- laisser de trace est un trou dans ce chemin : ni qui, ni quand, ni quoi.
+-- Art. 22, 5° : l'intégrité « offre des garanties de conservation » · le
+-- maillon prend sa place dans la chaîne d'empreintes du dossier, il n'est donc
+-- pas retouchable après coup sans que la vérification le voie.
+-- L'art. 3 du SYCEBNL, qui énumère les articles de l'AUDCIF écartés pour les
+-- entités à but non lucratif, ne cite PAS l'art. 22 · l'obligation vaut donc
+-- des deux côtés, et la route de restitution ne porte aucun référentiel.
+--
+-- CE QUE LE TEXTE NE FONDE PAS, ET QU'IL NE FAUT PAS LUI FAIRE DIRE. Aucun
+-- texte lu n'impose de journaliser une extraction, n'en fixe la forme, ne dit
+-- qui a qualité pour la demander, ni ce que doit contenir une archive. Le
+-- choix de tracer, celui du rôle ADMIN_CABINET et celui du format sont des
+-- décisions d'OmegaX. Elles sont prises parce qu'elles rendent le chemin de
+-- révision plus complet, pas parce qu'un article les ordonne.
+--
+-- CONTRAINTE POSTGRESQL. Une valeur ajoutée à un type énuméré n'est pas
+-- utilisable dans la transaction qui l'ajoute. Cette migration ne fait donc
+-- QUE l'ajouter · aucun INSERT, aucun UPDATE ne la nomme ici. Le premier
+-- maillon EXTRACTION sera écrit par l'application, plus tard, dans une autre
+-- transaction.
+--
+-- `IF NOT EXISTS` · la migration reste rejouable sur une base où la valeur
+-- serait déjà présente, ce qui arrive dès qu'une restauration de sauvegarde
+-- croise l'historique des migrations.
+ALTER TYPE "ActionAudit" ADD VALUE IF NOT EXISTS 'EXTRACTION';

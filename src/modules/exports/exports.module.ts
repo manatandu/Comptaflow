@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ExportService } from './export.service';
 import { ExportController } from './export.controller';
+import { RestitutionController } from './restitution/restitution.controller';
+import { RestitutionService } from './restitution/restitution.service';
 import { LicenceModule } from '../licence/licence.module';
 import { JwtAuthModule } from '../auth/jwt-auth.module';
 import { ComptabiliteModule } from '../comptabilite/comptabilite.module';
@@ -35,8 +37,12 @@ import { ControlesModule } from '../controles/controles.module';
     // n'en refait pas les critères, il les met en forme.
     ControlesModule,
   ],
-  controllers: [ExportController],
-  providers: [ExportService],
+  // La restitution a son PROPRE contrôleur, et ce n'est pas cosmétique · le
+  // contrôleur d'exports porte `LicenceGuard`, sous lequel une restitution
+  // serait indisponible dans le seul cas où elle sert. Voir
+  // restitution.controller.ts.
+  controllers: [ExportController, RestitutionController],
+  providers: [ExportService, RestitutionService],
   // Exporté pour GroupeModule : la liasse du groupe en un clic reverse la
   // balance agrégée dans le dossier de combinaison puis fait produire le
   // classeur par CE service · aucun second moteur de liasse.

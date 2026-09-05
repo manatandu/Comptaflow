@@ -628,6 +628,16 @@ avant de l'écrire ; un spec (`compte-seed-syscohada.spec.ts`) le contrôle.
   C'est par elle que le siège d'un groupe lit ses cellules. La liste est
   toujours construite à partir du seul dossier de la session, jamais reçue
   d'un appelant · sans quoi le client nommerait ses propres voisins.
+- **Restitution du dossier** (`src/modules/exports/restitution/`) · une
+  archive ZIP d'un CSV par table, sur son PROPRE contrôleur, sans
+  `LicenceGuard` : derrière lui elle serait indisponible dans le seul cas où
+  elle sert. L'extracteur ne construit jamais son `where` · les quinze modèles
+  portés par leur parent échappent à la garde de cloisonnement, et un filtre
+  écrit à la main les rendrait pour tous les cabinets. Il le demande à
+  `borneDuModele`, et le spec vérifie chaque borne avec `filtreBorne`. Le
+  manifeste écrit les cinq réserves plutôt que de les taire (voir
+  docs/restitution-du-dossier.md) · une archive qui se présente pour plus
+  qu'elle ne vaut est plus dangereuse que pas d'archive.
 - **Journal d'audit** (`src/common/audit/`) · posé sur le client Prisma par
   une extension, pas par des appels dans les services : un contrôle qu'on peut
   oublier d'appeler n'est pas un contrôle. Il couvre les modèles de

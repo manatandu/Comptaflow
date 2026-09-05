@@ -282,4 +282,26 @@ describe('balayage du code · toute collection porte sa borne', () => {
       'src/modules/plateforme/plateforme.service.ts',
     ]);
   });
+
+  it('la liste des utilisateurs du périmètre de groupe reste courte et connue', () => {
+    // `perimetreDeGroupe` ne sort pas de la garde, elle lui nomme les
+    // dossiers admis · c'est moins large que `horsCloisonnement`, ce n'est
+    // pas anodin pour autant. Un module qui s'en servirait demain se
+    // déclarerait le droit de lire ailleurs que chez lui.
+    const utilisatrices = fichiers('src')
+      .filter((f) => !f.startsWith('src/common/cloisonnement/'))
+      .filter((f) => readFileSync(join(RACINE, f), 'utf8').includes('perimetreDeGroupe('));
+    expect(utilisatrices.sort()).toEqual(['src/modules/groupe/groupe.service.ts']);
+  });
+
+  it('le client Prisma NU n’est nommé que par l’écrivain de maillon', () => {
+    // `clientNu` court-circuite le cloisonnement ET l'audit. Il existe pour
+    // que l'écriture d'un maillon ne déclenche pas l'écriture d'un maillon,
+    // et pour rien d'autre · s'en servir pour éviter la garde serait
+    // exactement le geste qu'elle empêche, et sans le moindre bruit.
+    const utilisatrices = fichiers('src')
+      .filter((f) => f !== 'src/common/prisma.service.ts')
+      .filter((f) => readFileSync(join(RACINE, f), 'utf8').includes('clientNu'));
+    expect(utilisatrices.sort()).toEqual(['src/modules/exports/restitution/restitution.service.ts']);
+  });
 });

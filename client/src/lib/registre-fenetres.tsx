@@ -41,6 +41,7 @@ const EtatsFinanciersPage = lazy(() => import('../pages/EtatsFinanciersPage').th
 const NotesAnnexesPage = lazy(() => import('../pages/NotesAnnexesPage').then((m) => ({ default: m.NotesAnnexesPage })));
 const RegistreDonateursPage = lazy(() => import('../pages/RegistreDonateursPage').then((m) => ({ default: m.RegistreDonateursPage })));
 const DocumentsObligatoiresPage = lazy(() => import('../pages/DocumentsObligatoiresPage').then((m) => ({ default: m.DocumentsObligatoiresPage })));
+const RestitutionPage = lazy(() => import('../pages/RestitutionPage').then((m) => ({ default: m.RestitutionPage })));
 const UtilisateursPage = lazy(() => import('../pages/UtilisateursPage').then((m) => ({ default: m.UtilisateursPage })));
 const ParametresDossierPage = lazy(() => import('../pages/ParametresDossierPage').then((m) => ({ default: m.ParametresDossierPage })));
 const PlansAnalytiquesPage = lazy(() => import('../pages/PlansAnalytiquesPage').then((m) => ({ default: m.PlansAnalytiquesPage })));
@@ -254,6 +255,15 @@ export const FENETRES: DefinitionFenetre[] = [
     titre: 'Documents obligatoires',
     titreCourt: 'Doc. obligatoires',
     rendre: () => <DocumentsObligatoiresPage />,
+  },
+  {
+    // AUCUN référentiel · l'obligation dont cette fenêtre découle est
+    // l'AUDCIF art. 22, que l'art. 3 du SYCEBNL n'écarte PAS. Poser un
+    // référentiel ici fabriquerait une différence que le texte ne fait pas.
+    motif: /^\/restitution$/,
+    titre: 'Restitution du dossier',
+    titreCourt: 'Restitution',
+    rendre: () => <RestitutionPage />,
   },
   {
     // Notion SYCEBNL (division 46) · en SYSCOHADA le 46 porte les associés.

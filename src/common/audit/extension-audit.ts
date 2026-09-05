@@ -1,4 +1,4 @@
-import { Prisma, PrismaClient } from '@prisma/client';
+import { ActionAudit, Prisma, PrismaClient } from '@prisma/client';
 import { Logger } from '@nestjs/common';
 import { acteurCourant, ACTEUR_SYSTEME } from './contexte-audit';
 import { MODELES_AUDITES, colonnesExclues, masquer } from './champs-audites';
@@ -28,21 +28,37 @@ const ACTIONS: Record<string, 'CREATION' | 'MODIFICATION' | 'SUPPRESSION'> = {
  * l'aurait été. Le verrou est pris DANS la transaction (`xact`), il se relâche
  * donc tout seul, y compris si la transaction échoue.
  */
-async function ajouterMaillon(
+/**
+ * EXPORTÉ pour un seul appelant hors extension · la journalisation d'une
+ * EXTRACTION. Une extraction est une LECTURE : elle ne passe par aucune des
+ * opérations de la table `ACTIONS`, donc par aucun crochet d'écriture, et son
+ * maillon doit bien être posé à la main.
+ *
+ * NE PAS ÉCRIRE UN SECOND ÉCRIVAIN DE CHAÎNE. Le verrou consultatif
+ * (`pg_advisory_xact_lock`, pris DANS la transaction) et le calcul du rang
+ * doivent rester au même endroit · deux écrivains liraient le même précédent
+ * et la chaîne paraîtrait falsifiée alors que rien ne l'aurait été. C'est
+ * pour cela que cet export existe, et non pour ouvrir une porte générale.
+ *
+ * Rend le maillon écrit · le manifeste d'une archive porte son rang et son
+ * empreinte, ce qui permet de rattacher plus tard une copie qui circule à
+ * l'acte qui l'a produite.
+ */
+export async function ajouterMaillon(
   base: PrismaClient,
   evenement: {
     tenantId: string | null;
     acteurId: string | null;
     acteurEmail: string;
     adresseIp: string | null;
-    action: 'CREATION' | 'MODIFICATION' | 'SUPPRESSION';
+    action: ActionAudit;
     entite: string;
     entiteId: string | null;
     avant: unknown;
     apres: unknown;
   },
-): Promise<void> {
-  await base.$transaction(async (tx) => {
+): Promise<{ rang: number; empreinte: string }> {
+  return base.$transaction(async (tx) => {
     const cle = evenement.tenantId ?? 'plateforme';
     // `$executeRaw` et NON `$queryRaw` · `pg_advisory_xact_lock` rend le type
     // `void`, que le moteur Prisma ne sait pas désérialiser en colonne · le
@@ -79,6 +95,7 @@ async function ajouterMaillon(
         empreinte,
       },
     });
+    return { rang, empreinte };
   });
 }
 

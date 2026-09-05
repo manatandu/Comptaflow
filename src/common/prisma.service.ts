@@ -20,13 +20,39 @@ import { lireEtatDuPooling, messageDePooling } from './pooling-base';
  */
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
+  /**
+   * LE CLIENT NU · sans cloisonnement et SANS AUDIT.
+   *
+   * Il existe pour un seul usage : écrire un maillon du journal d'audit.
+   * `EvenementAudit` est lui-même un modèle audité ET un modèle cloisonné ·
+   * écrire un maillon par le client étendu déclencherait l'écriture d'un
+   * maillon, à l'infini. L'extension le sait déjà et reçoit `this` pour cette
+   * raison ; ce qui manquait, c'est un accès pour un écrivain qui N'EST PAS
+   * l'extension · la journalisation d'une EXTRACTION, qui est une LECTURE et
+   * ne passe donc par aucun crochet d'écriture.
+   *
+   * CE N'EST PAS UNE PORTE DE SERVICE. Toute autre lecture ou écriture passe
+   * par le client étendu · s'en servir pour contourner la garde de
+   * cloisonnement serait exactement le geste que la garde existe pour
+   * empêcher, et sans le moindre bruit. Un test fige la liste des fichiers
+   * qui le nomment.
+   */
+  readonly clientNu!: PrismaClient;
+
   constructor() {
     super();
     // L'ordre des deux extensions est sans effet sur la propriété qui
     // compte · une requête refusée par le cloisonnement lève AVANT que le
     // journal n'ait de résultat à consigner, dans un sens comme dans l'autre.
     // Le journal ne consigne donc jamais un acte qui n'a pas eu lieu.
-    return this.$extends(extensionCloisonnement(this)).$extends(extensionAudit(this)) as unknown as this;
+    const nu: PrismaClient = this;
+    const etendu = this.$extends(extensionCloisonnement(this)).$extends(extensionAudit(this)) as unknown as this;
+    // `defineProperty` et non une affectation · le champ doit être posé sur
+    // l'objet ÉTENDU que le constructeur retourne (c'est lui que Nest
+    // injecte), et rester NON énumérable pour qu'aucune sérialisation du
+    // service ne le recopie par mégarde.
+    Object.defineProperty(etendu, 'clientNu', { value: nu, enumerable: false });
+    return etendu;
   }
 
   async onModuleInit() {

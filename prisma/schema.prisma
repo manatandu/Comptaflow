@@ -3626,6 +3626,29 @@ enum ActionAudit {
   CREATION
   MODIFICATION
   SUPPRESSION
+
+  /// EXTRACTION · la sortie du dossier hors du logiciel (restitution complète).
+  ///
+  /// Une quatrième valeur plutôt qu'un détournement des trois autres · une
+  /// extraction ne crée, ne modifie ni ne supprime rien. La ranger sous
+  /// CREATION rendrait le journal faux au moment précis où il sert le plus,
+  /// et sous SUPPRESSION elle annoncerait une perte qui n'a pas eu lieu.
+  ///
+  /// L'AUDCIF art. 22, 6° veut que l'organisation permette « la reconstitution
+  /// du chemin de révision ». Une copie intégrale du dossier qui sort du
+  /// serveur sans laisser de trace est un trou dans ce chemin : on ne saurait
+  /// pas qui a emporté quoi, ni quand. L'art. 3 du SYCEBNL n'exclut pas
+  /// l'art. 22, l'obligation vaut donc des deux côtés.
+  ///
+  /// CE QUE LE TEXTE NE DIT PAS · aucun texte lu n'impose de journaliser une
+  /// extraction, n'en fixe la forme, ni ne dit qui a qualité pour la demander.
+  /// C'est une décision d'OmegaX, prise parce qu'elle rend le chemin de
+  /// révision plus complet, pas parce qu'un article l'ordonne.
+  ///
+  /// L'extension d'audit n'intercepte que les ÉCRITURES (table ACTIONS, qui
+  /// ne connaît ni findMany ni findFirst) · ce maillon-ci s'écrit donc à la
+  /// main, par le seul écrivain de chaîne, jamais par un second.
+  EXTRACTION
 }
 
 /// CHEMIN DE RÉVISION · AUDCIF art. 22, 6° : « l'organisation garantisse toutes

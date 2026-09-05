@@ -43,6 +43,7 @@
     "@nestjs/platform-express": "^10.4.0",
     "@nestjs/throttler": "^6.5.0",
     "@prisma/client": "^5.19.0",
+    "archiver": "^7.0.1",
     "bcryptjs": "^3.0.3",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
@@ -60,6 +61,7 @@
   "devDependencies": {
     "@nestjs/cli": "^10.4.5",
     "@nestjs/testing": "^10.4.22",
+    "@types/archiver": "^6.0.4",
     "@types/compression": "^1.8.1",
     "@types/cookie-parser": "^1.4.10",
     "@types/jest": "^29.5.12",

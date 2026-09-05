@@ -138,6 +138,14 @@ export function AppShell() {
         // Sage : Fichier → Importer. C'est par là qu'une association arrive
         // avec son tableur ou l'export de son logiciel précédent.
         ...(estAdmin ? [{ label: 'Importer des données…', separateurAvant: true, onClick: () => navigate('/import') }] : []),
+        // La sortie, juste sous l'entrée · c'est par là que le dossier arrive
+        // avec le tableur du logiciel précédent, et c'est par là qu'il repart.
+        // Pas dans le menu État : une copie intégrale des tables n'est pas une
+        // édition, et la ranger parmi les livres laisserait croire qu'elle en
+        // tient lieu.
+        ...(estAdmin
+          ? [{ label: 'Restituer le dossier complet…', onClick: () => navigate('/restitution') }]
+          : []),
         // LA FILE DES COURRIELS EST UN OUTIL DU DOSSIER, PAS UN ÉTAT.
         //
         // Elle ne se range pas au menu « État » : rien n'y est édité, aucun

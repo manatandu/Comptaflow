@@ -215,7 +215,13 @@ export class ExportService {
    * demander de restreindre la période qu'un état tronqué, ou qu'un
    * plantage. Le passage à `ExcelJS.stream.xlsx.WorkbookWriter` lèverait la
    * contrainte, au prix d'une refonte de la réponse en flux · hors périmètre
-   * ici, tracé dans docs/plan-de-construction.md.
+   * ici, mesuré dans docs/capacite-mesuree.md.
+   *
+   * CETTE LIMITE NE VAUT PAS POUR LA RESTITUTION. L'archive du dossier
+   * complet écrit des CSV ligne à ligne, à mémoire constante · elle n'a donc
+   * aucune borne de lignes. Voir restitution/restitution.service.ts. Ce qui
+   * est plafonné ici, c'est le CLASSEUR, que `writeBuffer()` construit en
+   * entier en mémoire.
    */
   private static readonly MAX_LIGNES_EXPORT = Number(process.env.EXPORT_MAX_LIGNES ?? 50_000);
 
