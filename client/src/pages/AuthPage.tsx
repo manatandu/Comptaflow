@@ -2,7 +2,7 @@ import { FormEvent, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { SymboleOmegaX } from '../components/chrome/Logo';
+import { LogotypeOmegaX, SymboleOmegaX } from '../components/chrome/Logo';
 import { DossierRecent, lireDossiersRecents, oublierDossier } from '../lib/dossiersRecents';
 import type { AuthResponse } from '../lib/types';
 
@@ -137,7 +137,12 @@ export function AuthPage() {
     new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
 
   return (
-    <div className="relative min-h-screen overflow-x-clip flex flex-col items-center justify-center bg-bg px-4 py-8">
+    // `font-marque` sur TOUT l'écran d'ouverture, et sur lui seul parmi les
+    // écrans pleins. C'est une surface de MARQUE : un dialogue isolé, sans
+    // grille dense, sans colonne à chasse fixe · rien n'y déborde si la
+    // chasse change d'un pour cent. L'établi, lui, garde la police du système
+    // (voir « Typographie » dans docs/charte-omegax.md).
+    <div className="relative min-h-screen overflow-x-clip flex flex-col items-center justify-center bg-bg px-4 py-8 font-marque">
       <div aria-hidden className="absolute inset-0 overflow-hidden pointer-events-none">
         <CerclesDecoratifs />
       </div>
@@ -175,9 +180,13 @@ export function AuthPage() {
               <div className="w-[38px] h-[38px] rounded-[11px] bg-white/10 flex items-center justify-center text-white">
                 <SymboleOmegaX taille={23} />
               </div>
-              <div className="mt-2.5 text-[16px] font-semibold tracking-[-0.015em] leading-none text-white">
-                OmegaX
-              </div>
+              {/*
+                Le nom est ici un TRACÉ, pas un texte : c'est la porte
+                d'entrée du logiciel, le seul écran que voit un prospect, et
+                un logotype qui changerait de police d'un poste à l'autre n'en
+                serait plus un. Le tracé porte son propre libellé accessible.
+              */}
+              <LogotypeOmegaX hauteur={21} className="mt-2.5 text-white" />
               {/*
                 Aucun dossier n'est ouvert à cet écran : le référentiel est
                 donc INCONNU, et annoncer « entités à but non lucratif ·

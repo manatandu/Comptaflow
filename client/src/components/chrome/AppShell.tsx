@@ -474,7 +474,7 @@ export function AppShell() {
             DOSSIER, seule information qui change d'un écran à l'autre,
             tombait à 38 px. Le logo à gauche continue de porter l'identité.
           */}
-          <span className="hidden sm:inline font-semibold tracking-[0.01em]">OmegaX</span>
+          <span className="hidden sm:inline font-marque font-semibold tracking-[-0.015em]">OmegaX</span>
           <span className="hidden sm:inline text-white/25">/</span>
           <span className="truncate text-white/85">{utilisateur?.tenant.nom}</span>
           {anneeExercice && (

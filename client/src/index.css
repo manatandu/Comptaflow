@@ -1,3 +1,157 @@
+
+/* ---------------------------------------------------------------------------
+   LES POLICES DE LA MARQUE · IBM Plex, servie depuis NOTRE origine.
+
+   Elles sont dans `public/polices/`, pas sur un CDN, et ce n'est pas une
+   préférence : l'en-tête `Content-Security-Policy` du site pose
+   `font-src 'self'`, qui interdit toute police tierce. Une charte qui
+   nommerait une police que le logiciel ne peut pas charger serait une charte
+   de papier.
+
+   Le fichier de licence part avec elles (`public/polices/OFL.txt`) : la SIL
+   Open Font License autorise la redistribution du FICHIER de fonte, à
+   condition que la licence l'accompagne. Le logo tiré de ses contours, lui,
+   n'est pas soumis à l'OFL (FAQ officielle).
+
+   `font-display: swap` · le texte s'affiche tout de suite dans la police de
+   repli, puis bascule. Un écran de comptabilité qui reste blanc trois
+   secondes est pire qu'un écran dont la police change.
+
+   `unicode-range` sépare latin et latin-ext : le second n'est téléchargé que
+   si la page contient un caractère qu'il est seul à porter. Le sous-ensemble
+   latin ne contient PAS le « Ÿ », qui existe en français (L'HAŸ, AŸ en
+   capitales) · sans latin-ext, il tomberait dans une police de repli au
+   milieu d'un mot.
+   --------------------------------------------------------------------------- */
+
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/polices/ibm-plex-sans-latin-400-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+    U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/polices/ibm-plex-sans-latin-ext-400-normal.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF,
+    U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020,
+    U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/polices/ibm-plex-sans-latin-500-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+    U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/polices/ibm-plex-sans-latin-ext-500-normal.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF,
+    U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020,
+    U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/polices/ibm-plex-sans-latin-600-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+    U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/polices/ibm-plex-sans-latin-ext-600-normal.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF,
+    U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020,
+    U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/polices/ibm-plex-mono-latin-400-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+    U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/polices/ibm-plex-mono-latin-ext-400-normal.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF,
+    U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020,
+    U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/polices/ibm-plex-mono-latin-500-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+    U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/polices/ibm-plex-mono-latin-ext-500-normal.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF,
+    U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020,
+    U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+/* ---------------------------------------------------------------------------
+   LE FILET DE CLÔTURE · le seul élément graphique dérivé de la marque.
+
+   Un trait interrompu en son milieu, dont le vide reprend la proportion de la
+   partition du signe · 13,3 % de la longueur, plafonné à 24 px. C'est le
+   trait qu'un comptable tire sous une colonne pour la clore, et c'est LUI qui
+   marque un fond de document · jamais un filigrane du logo, que la charte
+   interdit (docs/charte-omegax.md, § 7.2 et § 9).
+
+   Tracé en dégradé plutôt qu'en deux éléments : un seul nœud, pas de risque
+   qu'une moitié se retrouve seule après un retour à la ligne.
+   --------------------------------------------------------------------------- */
+.filet-cloture {
+  height: 1px;
+  border: 0;
+  background: linear-gradient(
+    to right,
+    currentColor 0,
+    currentColor calc(50% - min(12px, 6.65%)),
+    transparent calc(50% - min(12px, 6.65%)),
+    transparent calc(50% + min(12px, 6.65%)),
+    currentColor calc(50% + min(12px, 6.65%)),
+    currentColor 100%
+  );
+  opacity: 0.28;
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -39,7 +193,14 @@
   --n-200: #d3dae4;
   --n-300: #b4bdcb;
   --n-400: #8c97a8;
-  --n-500: #6b7688;
+  /* MESURÉ, pas estimé. À #6b7688, `--text-dim` (qui vaut ce pas) donnait
+     4,28:1 sur `--surface-alt` et 3,98:1 sur `--bg` · sous le plancher AA de
+     4,5:1 pour du texte courant. Le défaut ne se voyait nulle part : le texte
+     restait lisible pour un œil valide, et aucun test ne mesurait. Assombri
+     de deux points de clarté, teinte et saturation inchangées, il passe
+     partout où l'interface l'emploie (5,30 sur blanc, 4,94 sur `--surface-alt`,
+     4,60 sur `--bg`). Table complète dans `docs/charte-omegax.md`. */
+  --n-500: #626c7d;
   --n-600: #515b6b;
   --n-700: #3b4351;
   --n-800: #262c37;
@@ -56,6 +217,11 @@
   --a-600: #2359c4;
   --a-700: #1c479e;
   --a-800: #183c84;
+  /* L'ENCRE DE LA MARQUE · 12,74:1 sur blanc, AAA dans les deux sens.
+     Elle n'est pas une nuance de plus dans l'échelle : c'est la couleur du
+     logo, et le logo ne se recolorie pas. Toute la charte est dans
+     `docs/charte-omegax.md`. */
+  --a-900: #142f6b;
 
   --chrome: var(--n-50);
   --chrome-alt: var(--n-100);

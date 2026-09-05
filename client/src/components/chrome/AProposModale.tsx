@@ -1,4 +1,5 @@
 import { useAuth } from '../../lib/auth';
+import { BlocMarqueOmegaX } from './Logo';
 
 /**
  * DIVISION SYCEBNL / SYSCOHADA · la boîte annonçait « référentiel SYCEBNL »
@@ -27,7 +28,15 @@ export function AProposModale({ onFermer }: { onFermer: () => void }) {
           </button>
         </div>
         <div className="p-4 text-[11px] space-y-2">
-          <p className="font-semibold">OmegaX</p>
+          {/*
+            La boîte « À propos » est le seul écran dont le SUJET est le
+            logiciel lui-même : c'est la place du bloc complet, signe et mot
+            dans leur rapport figé. Ailleurs le signe suffit, le nom étant
+            déjà écrit à côté.
+          */}
+          <BlocMarqueOmegaX hauteur={26} className="text-[color:var(--a-900)] mb-3" />
+          {/* Le filet de clôture · il sépare la marque de ce qui la décrit. */}
+          <hr className="filet-cloture text-text-dim !mb-3" />
           <p className="text-text-dim">
             Logiciel de comptabilité OHADA
             {referentiel && LIBELLE_REFERENTIEL[referentiel] ? ` · ${LIBELLE_REFERENTIEL[referentiel]}` : ''}.

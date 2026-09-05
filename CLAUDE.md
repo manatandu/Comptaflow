@@ -659,6 +659,27 @@ Toute règle comptable codée cite sa source en commentaire : l'article, la
 partie, le chapitre. Toute anomalie du texte officiel est signalée sur place,
 jamais corrigée en silence.
 
+## 9 bis. La marque
+
+La charte graphique est `docs/charte-omegax.md`, et elle est OPPOSABLE : la
+plupart de ses règles sont tenues par `client/src/components/chrome/marque.spec.ts`.
+
+Trois choses à ne pas défaire :
+
+- **le signe et le logotype sont des TRACÉS**, engendrés par
+  `client/scripts/engendrer-marque.py` depuis les contours d'IBM Plex Sans
+  SemiBold. Ni l'un ni l'autre ne se compose en texte : une police absente du
+  poste du lecteur ferait rendre la marque dans une autre, sans qu'aucune
+  erreur ne le dise. Le fichier `marque-geometrie.ts` est ENGENDRÉ · corriger
+  le script, jamais le fichier ;
+- **les polices sont servies depuis notre origine** (`client/public/polices/`),
+  avec leur licence (`OFL.txt`). L'en-tête `font-src 'self'` interdit toute
+  police tierce, et l'OFL exige que la licence accompagne le fichier de fonte
+  redistribué ;
+- **un rapport de contraste se MESURE**, il ne s'estime pas. La table du § 7.4
+  de la charte a trouvé un `--text-dim` à 3,98:1 sur le fond de l'application,
+  sous le plancher AA, que personne n'avait vu en deux ans.
+
 ## 10. Tests
 
 Jest côté serveur, Vitest côté client. Un test doit vérifier **ce qui casserait

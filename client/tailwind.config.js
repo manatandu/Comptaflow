@@ -21,6 +21,14 @@ export default {
           'Arial',
           'sans-serif',
         ],
+        // La police de la MARQUE. Le logotype est un tracé ; là où il tombe
+        // sous son plancher de lisibilité (14 px), le nom « OmegaX » est
+        // COMPOSÉ ici plutôt que tracé · même dessin, même approche, autre
+        // technique. Le nom ne s'écrit jamais dans une autre police.
+        marque: ['"IBM Plex Sans"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        // Servie depuis notre origine depuis le 2026-09-05. Elle était nommée
+        // ici depuis longtemps sans être chargée nulle part : chaque poste
+        // retombait sur `ui-monospace`, et la promesse du code était fausse.
         mono: ['"IBM Plex Mono"', 'ui-monospace', 'SFMono-Regular', 'Menlo', '"Courier New"', 'monospace'],
       },
       colors: {

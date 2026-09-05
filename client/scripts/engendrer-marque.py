@@ -1,318 +1,537 @@
 #!/usr/bin/env python3
 """
-LA MARQUE OMEGAX · une seule géométrie, tous les formats.
+LA MARQUE OMEGAX · une seule geometrie, tous les formats.
 
-Ce script est la SOURCE unique du logo. Il produit le symbole en SVG (tracés
-vectoriels, nets à toute taille) et les icônes PNG de la PWA, depuis les mêmes
-constantes. Deux fichiers dessinés séparément divergent toujours, et c'est le
-genre d'écart qu'on ne voit qu'une fois la marque imprimée.
+Ce script est la SOURCE unique du logo. Il produit le signe, le logotype, le
+bloc horizontal, le bloc vertical, l'icone et les images matricielles de la
+PWA depuis un seul jeu de constantes. Deux fichiers dessines separement
+divergent toujours, et c'est le genre d'ecart qu'on ne voit qu'une fois la
+marque imprimee.
 
+    pip install fonttools brotli pillow
     python3 scripts/engendrer-marque.py
 
-## LE PARTI, ET POURQUOI CE N'EST PAS UN OMÉGA DÉCORATIF
+Les dependances ne sont demandees qu'ICI, a la regeneration. Le logiciel, lui,
+ne charge que les SVG et les PNG produits : aucun poste client n'a besoin de
+Python ni de fontTools pour afficher la marque.
 
-OmegaX tient la comptabilité d'entités qui rendent des comptes. La marque dit
+
+## LE PARTI
+
+OmegaX tient la comptabilite d'entites qui rendent des comptes. La marque dit
 donc ce que fait le logiciel, pas ce que veut dire son nom.
 
-L'oméga est la dernière lettre : en comptabilité, c'est la CLÔTURE. Sa forme
-naturelle est une arche posée sur deux pieds, et en partie double ces deux
-pieds sont le DÉBIT et le CRÉDIT. L'arche est l'équilibre qui les referme.
+L'omega est la derniere lettre : en comptabilite, c'est la CLOTURE. Sa forme
+est une arche posee sur deux pieds, separes par un vide. En partie double, ces
+deux pieds sont le DEBIT et le CREDIT, et le vide entre eux est la ligne de
+partage du journal. L'arche est l'equilibre qui les referme.
 
-D'où les trois éléments, et rien d'autre :
 
-  · une arche d'épaisseur constante, tracée au compas · la précision, qui est
-    la seule vertu qu'un comptable demande à un outil ;
-  · deux pieds qui s'écartent vers l'extérieur · les deux colonnes ;
-  · entre eux, un VIDE calibré · la ligne de partage du journal. Il ne s'agit
-    pas d'un espace résiduel : sa largeur est posée, et c'est lui qui fait
-    lire les deux pieds comme deux colonnes plutôt que comme deux pattes.
+## POURQUOI LE SIGNE EST RECOUPE, ET NON DESSINE
+
+Une premiere version tracait l'omega au compas : une arche d'epaisseur
+constante sur deux barres. Elle etait juste geometriquement et fausse
+typographiquement, parce qu'un trace au compas ignore les corrections
+optiques qu'un dessinateur de caracteres applique sans y penser.
+
+Le signe est donc l'omega capital d'IBM Plex Sans SemiBold, RECOUPE : ses
+pieds sont allonges vers l'exterieur de 75/1000 d'em de chaque cote, et RIEN
+D'AUTRE n'est touche. L'allongement suffit a faire passer la lettre au rang de
+signe · elle prend une assise que la lettre n'a pas, et cesse d'etre lisible
+comme un omega dans un mot grec.
+
+Ce qu'on a essaye et rejete, parce que le rendu l'a montre :
+
+  · EPAISSIR LES PIEDS a l'epaisseur du fut (140 unites contre 116). L'idee
+    etait seduisante · « tout dans le signe vaut un trait ». Elle est fausse :
+    les 116 unites des pieds contre 140 du fut sont la compensation optique
+    horizontale/verticale du dessinateur. Une barre horizontale a la meme
+    epaisseur qu'un fut vertical parait plus lourde que lui. Epaissir alourdit
+    la base et fait apparaitre un ressaut la ou la jambe rejoint le pied.
+  · ELARGIR LA PARTITION a une epaisseur de fut. Meme verdict : deplacer le
+    bord interieur du pied sans deplacer la courbe de la jambe qui le surmonte
+    ouvre une encoche a l'angle rentrant.
+
+La licence le permet sans reserve. IBM Plex est sous SIL Open Font License
+1.1, dont la FAQ traite le cas nommement : creer un logo a partir des contours
+d'une fonte OFL est autorise, et le logo qui en resulte n'est PAS lui-meme
+soumis a l'OFL. La seule obligation subsiste sur le FICHIER de fonte
+redistribue · d'ou `public/polices/OFL.txt` et `scripts/fontes/OFL.txt`.
+
+
+## POURQUOI LE MOT EST FIGE EN COURBES
+
+Les quatorze chartes depouillees FIXENT toutes leur logotype. Aucune ne le
+laisse dependre des polices installees sur le poste du lecteur : une police
+absente ferait rendre la marque dans une autre, et une marque qui change de
+police n'est plus une marque. Le mot est donc converti en contours ici, une
+fois, et le logiciel n'affiche plus que ces contours.
+
 
 ## CE QUE LE DESSIN DOIT SUPPORTER
 
-Une marque de logiciel professionnel n'a pas le droit de tomber dans trois
-situations, et chacune a commandé une décision ici :
-
-  · **16 px** (l'onglet du navigateur) · d'où une épaisseur de trait à 13 % du
-    côté. En dessous de 10 %, l'oméga se referme en tache à cette taille ;
-  · **une seule couleur** (télécopie, tampon, gravure, impression d'un état) ·
-    d'où la variante monochrome, où les deux tons se fondent sans rien perdre
-    de la forme ;
-  · **le masque d'Android** (icône « maskable ») · d'où une variante dont le
-    dessin tient dans les 80 % centraux, le système rognant le reste.
-
-## LE MOT « OMEGAX » N'EST PAS DESSINÉ ICI, ET C'EST DÉLIBÉRÉ
-
-Un logotype se trace en courbes, jamais en texte : une police absente du poste
-du lecteur ferait rendre la marque dans une autre. Mais tracer six lettres à la
-main sans fonderie ni outil de vectorisation donne des lettres approximatives,
-et une marque à lettres approximatives est pire qu'une marque sans lettres.
-
-Le parti retenu est celui de beaucoup d'éditeurs : le SYMBOLE est vectoriel et
-figé ici ; le MOT est composé par l'interface, en texte véritable
-(`components/chrome/Logo.tsx`), avec sa graisse et son interlettrage posés. Il
-reste sélectionnable, lisible par un lecteur d'écran, et net sur tout écran.
+  · 16 px · l'onglet du navigateur. Verifie a la generation : voir la planche
+    de controle que ce script imprime en fin de course.
+  · UNE SEULE COULEUR · telecopie, tampon, gravure, etat imprime en noir.
+    D'ou la variante noire, et le `currentColor` pour l'interface.
+  · LE MASQUE D'ANDROID · l'icone « maskable », dont le dessin tient dans les
+    80 % centraux, le systeme rognant le reste.
 """
 
 import struct
 import zlib
-from math import cos, radians, sin
 from pathlib import Path
 
-RACINE = Path(__file__).resolve().parent.parent / 'public'
-
-# ---------------------------------------------------------------------------
-# GÉOMÉTRIE · repère de 64 unités, celui du viewBox.
-# ---------------------------------------------------------------------------
-
-COTE = 64.0
-# Le centre de l'arche est DESCENDU pour que la marque entière soit centrée
-# dans le carré · calé sur le centre géométrique de l'arche seule, le signe
-# paraissait tomber, les pieds mangeant tout le bas.
-CX, CY = 32.0, 32.2          # centre de l'arche
-RAYON = 16.8                 # rayon de la ligne MOYENNE de l'arche
-TRAIT = 8.4                  # épaisseur · 13,1 % du côté, lisible à 16 px
-
-# Ouverture de l'arche, en degrés, mesurée depuis l'axe horizontal, sens
-# trigonométrique. L'arche court de -60° à 240° : il reste 60° d'ouverture en
-# bas, juste assez pour que les deux pieds s'y logent sans que la forme cesse
-# de se lire comme un oméga.
-ANGLE_DEBUT, ANGLE_FIN = -55.0, 235.0
-
-# Les pieds sont des BARRES à extrémités franches, l'arche un trait à bouts
-# ronds. Ce n'est pas une inconséquence : les bouts ronds de l'arche
-# disparaissent sous les pieds, tandis que les arêtes vives des pieds donnent
-# au vide central deux bords nets. C'est ce vide qui porte le sens, et un vide
-# aux bords arrondis se lit comme un intervalle, pas comme une ligne de
-# partage.
-PIED_TRAIT = 9.2             # les pieds portent, ils sont un peu plus épais
-PIED_CY = 48.2               # axe des pieds
-# Le bord INTÉRIEUR du pied tombe sous l'extrémité de l'arche · c'est ce qui
-# fait tourner la jambe vers l'extérieur au lieu de la poser sur un socle.
-PIED_ECART = 5.2             # demi-largeur du VIDE central · la ligne de partage
-PIED_DEMI = 9.9              # demi-longueur d'un pied · l'empattement assied la lettre
-
-# Le pied intérieur commence au bord du vide, l'extérieur s'en écarte.
-PIED_INT = PIED_ECART
-PIED_EXT = PIED_ECART + 2 * PIED_DEMI
-
-
-def point(angle: float, rayon: float) -> tuple[float, float]:
-    """Un point de l'arche · l'axe des y descend, comme en SVG."""
-    return CX + rayon * cos(radians(angle)), CY - rayon * sin(radians(angle))
-
-
-# ---------------------------------------------------------------------------
-# RENDU SVG
-# ---------------------------------------------------------------------------
-
-def arche_svg() -> str:
-    x1, y1 = point(ANGLE_DEBUT, RAYON)
-    x2, y2 = point(ANGLE_FIN, RAYON)
-    # `large-arc-flag` à 1 · l'arche couvre 300°, donc plus d'un demi-tour.
-    # `sweep-flag` à 0 · sens trigonométrique, celui du calcul ci-dessus.
-    return (
-        f'<path d="M {x1:.2f} {y1:.2f} A {RAYON:.2f} {RAYON:.2f} 0 1 0 {x2:.2f} {y2:.2f}" '
-        f'fill="none" stroke-width="{TRAIT:.2f}" stroke-linecap="round"'
+try:
+    from fontTools.pens.recordingPen import DecomposingRecordingPen
+    from fontTools.ttLib import TTFont
+except ImportError:  # pragma: no cover · outil de generation, pas de production
+    raise SystemExit(
+        "fontTools est requis pour regenerer la marque :\n"
+        "    pip install fonttools brotli pillow"
     )
 
+ICI = Path(__file__).resolve().parent
+PUBLIC = ICI.parent / 'public'
+FONTES = ICI / 'fontes'
+GEOMETRIE_TS = ICI.parent / 'src' / 'components' / 'chrome' / 'marque-geometrie.ts'
 
-def pied_svg(signe: int) -> str:
-    """Un pied · une barre à arêtes vives, pas un segment à bouts ronds."""
-    x = CX + (PIED_INT if signe > 0 else -PIED_EXT)
-    return (
-        f'<rect x="{x:.2f}" y="{PIED_CY - PIED_TRAIT / 2:.2f}" '
-        f'width="{PIED_EXT - PIED_INT:.2f}" height="{PIED_TRAIT:.2f}"'
-    )
+# ---------------------------------------------------------------------------
+# LES CONSTANTES DE LA MARQUE · tout le reste en decoule.
+# ---------------------------------------------------------------------------
 
+CAP = 698           # hauteur de capitale d'IBM Plex Sans SemiBold, en unites/em
+FUT = 140           # epaisseur du fut, mesuree sur le O capital
+EM = 1000           # unites par em
 
-def symbole_svg(couleur_arche: str, couleur_pieds: str, fond: str | None) -> str:
-    fond_svg = f'<rect width="64" height="64" rx="14" fill="{fond}"/>' if fond else ''
-    return (
-        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" '
-        'aria-label="OmegaX">'
-        + fond_svg
-        + f'<g stroke="{couleur_arche}">{arche_svg()}/></g>'
-        + f'<g fill="{couleur_pieds}">{pied_svg(-1)}/>{pied_svg(1)}/></g>'
-        + '</svg>\n'
-    )
+ALLONGE = 75.0      # ce dont chaque pied du signe sort vers l'exterieur
+APPROCHE = -15      # approche du logotype, en millieme d'em · resserree
+ECHELLE_SIGNE = 1.12  # hauteur du signe rapportee a la hauteur de capitale
+ECART_BLOC = 0.42   # blanc signe/mot, en part de la hauteur de capitale
+ECART_VERTICAL = 0.34  # blanc signe/mot du bloc vertical, meme unite
+# Le bloc vertical ne peut pas garder l'echelle du bloc horizontal. Empile
+# au-dessus de six lettres, le signe a 1,12 hauteur de capitale ne fait plus
+# que 22 % de la largeur du mot : il se lit comme un accent, pas comme un
+# signe. A 2,2 il en fait 44 %, et l'empilement tient.
+ECHELLE_SIGNE_VERTICAL = 2.2
+
+ENCRE_HEX = '#142f6b'           # le bleu de la marque · 12,74:1 sur blanc
+ENCRE_RVB = (0x14, 0x2F, 0x6B)
+
+# L'icone · le signe en reserve dans un carre a coins arrondis.
+MARGE_ICONE = 0.155   # blanc autour du signe, en part du cote
+RAYON_ICONE = 0.22    # rayon des coins, en part du cote
+# Le masque d'Android rogne jusqu'a 20 % du cote : le dessin se replie dans
+# les 80 % centraux, et le fond deborde jusqu'aux bords.
+MARGE_MASQUABLE = 0.28
+
+MOT = 'OmegaX'
 
 
 # ---------------------------------------------------------------------------
-# RENDU PNG · même géométrie, résolue au pixel.
+# EXTRACTION · les contours, depuis les fontes versionnees dans scripts/fontes.
 # ---------------------------------------------------------------------------
 
-def dans_la_marque(ux: float, uy: float) -> str | None:
-    """Rend 'arche', 'pieds' ou None · le dessin, en coordonnées du repère 64."""
-    demi = TRAIT / 2
-    dx, dy = ux - CX, CY - uy
-    rayon = (dx * dx + dy * dy) ** 0.5
-    if abs(rayon - RAYON) <= demi:
-        # Dans l'anneau · reste à savoir si l'angle tombe dans l'arche.
-        from math import atan2, degrees
-        angle = degrees(atan2(dy, dx))
-        if angle < ANGLE_DEBUT:
-            angle += 360.0
-        if ANGLE_DEBUT <= angle <= ANGLE_FIN:
-            return 'arche'
-    # Bouts arrondis de l'arche.
-    for extremite in (ANGLE_DEBUT, ANGLE_FIN):
-        ex, ey = point(extremite, RAYON)
-        if ((ux - ex) ** 2 + (uy - ey) ** 2) ** 0.5 <= demi:
-            return 'arche'
-    if abs(uy - PIED_CY) <= PIED_TRAIT / 2:
-        ecart = abs(ux - CX)
-        if PIED_INT <= ecart <= PIED_EXT:
-            return 'pieds'
-    return None
+def _fonte(nom: str) -> TTFont:
+    chemin = FONTES / nom
+    if not chemin.exists():
+        raise SystemExit(f"fonte absente : {chemin}\nvoir scripts/fontes/README.md")
+    f = TTFont(chemin)
+    if f.flavor:                      # woff2 -> on retire la compression
+        import io
+        f.flavor = None
+        tampon = io.BytesIO()
+        f.save(tampon)
+        tampon.seek(0)
+        f = TTFont(tampon)
+    return f
 
 
-def png(chemin: Path, taille: int, fond, arche, pieds, echelle: float, rayon_coin: float) -> None:
-    """
-    Écrit un PNG. `echelle` est la part du carré qu'occupe le dessin · 1.0 pour
-    une icône ordinaire, 0.78 pour la version « maskable », dont le dessin doit
-    tenir dans la zone sûre que le masque d'Android ne rogne pas.
+def _trace(font: TTFont, code: int) -> list:
+    gs = font.getGlyphSet()
+    plume = DecomposingRecordingPen(gs)
+    gs[font.getBestCmap()[code]].draw(plume)
+    return plume.value
 
-    Chaque pixel est échantillonné 3 x 3 · sans cela, l'arche présente un
-    escalier visible dès 192 px, et une icône crénelée se remarque au premier
-    coup d'œil dans une barre de tâches.
-    """
-    marge = (1 - echelle) * taille / 2
-    lignes = bytearray()
-    for y in range(taille):
-        lignes.append(0)
-        for x in range(taille):
-            compte = {'arche': 0, 'pieds': 0}
-            for sy in range(3):
-                for sx in range(3):
-                    px = x + (sx + 0.5) / 3
-                    py = y + (sy + 0.5) / 3
-                    # Coin arrondi du carré de fond.
-                    ux = (px - marge) / (echelle * taille) * COTE
-                    uy = (py - marge) / (echelle * taille) * COTE
-                    trait = dans_la_marque(ux, uy)
-                    if trait:
-                        compte[trait] += 1
-            total = compte['arche'] + compte['pieds']
-            if total == 0:
-                lignes.extend(fond)
-            else:
-                # Un pixel partagé prend la couleur dominante, puis se fond
-                # avec le fond au prorata · c'est ce qui donne le bord lisse.
-                couleur = arche if compte['arche'] >= compte['pieds'] else pieds
-                part = total / 9
-                lignes.extend(
-                    bytes(round(fond[i] + (couleur[i] - fond[i]) * part) for i in range(3))
-                )
-    _ = rayon_coin  # le masque du système arrondit lui-même les coins
 
+def signe_trace() -> list:
+    """L'omega de Plex, pieds allonges · le seul ecart au dessin d'origine."""
+    brut = _trace(_fonte('ibm-plex-sans-greek-600-normal.woff2'), 0x03A9)
+    BORD_G, BORD_D = 52.0, 669.0      # bords exterieurs des pieds, dans la lettre
+
+    def deplacer(p):
+        x, y = p
+        if abs(x - BORD_G) < 0.5:
+            x -= ALLONGE
+        elif abs(x - BORD_D) < 0.5:
+            x += ALLONGE
+        return (x, y)
+
+    return [(op, tuple(deplacer(p) for p in args)) for op, args in brut]
+
+
+def mot_traces() -> tuple[list, float]:
+    """Les six lettres du logotype, deja decalees, plus la chasse totale."""
+    font = _fonte('ibm-plex-sans-latin-600-normal.woff2')
+    cmap, hmtx = font.getBestCmap(), font['hmtx']
+    delta = APPROCHE / 1000 * EM
+    sortie, x = [], 0.0
+    for lettre in MOT:
+        trace = _trace(font, ord(lettre))
+        sortie.append([(op, tuple((px + x, py) for px, py in args)) for op, args in trace])
+        x += hmtx[cmap[ord(lettre)]][0] + delta
+    return sortie, x - delta
+
+
+# ---------------------------------------------------------------------------
+# TRANSFORMATIONS ET MESURES
+# ---------------------------------------------------------------------------
+
+def transformer(trace: list, echelle: float = 1.0, dx: float = 0.0, dy: float = 0.0,
+                miroir_y: bool = False) -> list:
+    def f(p):
+        x, y = p[0] * echelle + dx, p[1] * echelle + dy
+        return (x, -y) if miroir_y else (x, y)
+    return [(op, tuple(f(p) for p in args)) for op, args in trace]
+
+
+def contours(trace: list, pas: int = 24) -> list:
+    """Aplatit un trace en polylignes · sert aux mesures et au matriciel."""
+    cs, c, cur = [], [], (0.0, 0.0)
+    for op, args in trace:
+        if op == 'moveTo':
+            if len(c) > 2:
+                cs.append(c)
+            c, cur = [args[0]], args[0]
+        elif op == 'lineTo':
+            c.append(args[0])
+            cur = args[0]
+        elif op == 'qCurveTo':
+            pts = list(args)
+            fin, ctrl = pts[-1], pts[:-1]
+            p0 = cur
+            for i, q in enumerate(ctrl):
+                p2 = fin if i + 1 == len(ctrl) else (
+                    (q[0] + ctrl[i + 1][0]) / 2, (q[1] + ctrl[i + 1][1]) / 2)
+                for k in range(1, pas + 1):
+                    t = k / pas
+                    u = 1 - t
+                    c.append((u * u * p0[0] + 2 * u * t * q[0] + t * t * p2[0],
+                              u * u * p0[1] + 2 * u * t * q[1] + t * t * p2[1]))
+                p0 = p2
+            cur = fin
+        elif op == 'curveTo':
+            p1, p2, p3 = args
+            p0 = cur
+            for k in range(1, pas + 1):
+                t = k / pas
+                u = 1 - t
+                c.append((u ** 3 * p0[0] + 3 * u * u * t * p1[0] + 3 * u * t * t * p2[0] + t ** 3 * p3[0],
+                          u ** 3 * p0[1] + 3 * u * u * t * p1[1] + 3 * u * t * t * p2[1] + t ** 3 * p3[1]))
+            cur = p3
+        elif op in ('closePath', 'endPath'):
+            if len(c) > 2:
+                cs.append(c)
+            c = []
+    if len(c) > 2:
+        cs.append(c)
+    return cs
+
+
+def bornes(traces: list) -> tuple[float, float, float, float]:
+    """Le rectangle englobant reel · calcule sur les courbes aplaties, jamais
+    sur les points de controle, qui debordent toujours de la courbe."""
+    pts = [p for t in traces for c in contours(t) for p in c]
+    xs = [p[0] for p in pts]
+    ys = [p[1] for p in pts]
+    return min(xs), min(ys), max(xs), max(ys)
+
+
+# ---------------------------------------------------------------------------
+# LES TROIS COMPOSITIONS FIGEES
+# ---------------------------------------------------------------------------
+
+def signe_pose() -> list:
+    """Le signe seul, cale sur (0, 0) en bas a gauche, repere SVG (y descend)."""
+    t = signe_trace()
+    x0, y0, _, y1 = bornes([t])
+    return transformer(t, 1.0, -x0, -y1, miroir_y=True)
+
+
+def bloc_horizontal() -> list:
+    """Signe et mot alignes sur la ligne de pied · la composition principale.
+
+    Deux decisions, et chacune se voit si on l'ignore :
+     · le signe est aligne sur la LIGNE DE PIED du mot. Ses pieds SONT une
+       ligne de pied ; les poser ailleurs ferait flotter la marque.
+     · le signe monte a 1,12 fois la hauteur de capitale. A 1,00 il se lit
+       comme une septieme lettre ; a 1,25 il ecrase le mot."""
+    s = signe_trace()
+    sx0, sy0, sx1, sy1 = bornes([s])
+    k = (CAP * ECHELLE_SIGNE) / (sy1 - sy0)
+    signe = transformer(s, k, -sx0 * k, 0.0)
+    decalage = (sx1 - sx0) * k + ECART_BLOC * CAP
+    mot, _ = mot_traces()
+    return [transformer(t, 1.0, decalage, 0.0) for t in mot] + [signe]
+
+
+def logotype() -> list:
+    """Le mot seul, cale a l'origine · la declinaison des espaces etroits."""
+    mot, _ = mot_traces()
+    x0, _, _, _ = bornes(mot)
+    return [transformer(t, 1.0, -x0, 0.0) for t in mot]
+
+
+def bloc_vertical() -> list:
+    """Signe au-dessus du mot, tous deux centres · pour les formats etroits."""
+    s = signe_trace()
+    sx0, sy0, sx1, sy1 = bornes([s])
+    k = (CAP * ECHELLE_SIGNE_VERTICAL) / (sy1 - sy0)
+    larg_signe = (sx1 - sx0) * k
+    mot, _ = mot_traces()
+    mx0, _, mx1, _ = bornes(mot)
+    larg_mot = mx1 - mx0
+    centre = max(larg_signe, larg_mot) / 2
+    signe = transformer(s, k, centre - larg_signe / 2 - sx0 * k, CAP + ECART_VERTICAL * CAP)
+    return [transformer(t, 1.0, centre - larg_mot / 2 - mx0, 0.0) for t in mot] + [signe]
+
+
+# ---------------------------------------------------------------------------
+# RENDU SVG · les traces convertis en `d`, dans le repere SVG (y descend).
+# ---------------------------------------------------------------------------
+
+def chemin_svg(trace: list, dy: float) -> str:
+    """`d` d'un trace, retourne verticalement autour de dy."""
+    def n(v):
+        return f'{v:.1f}'.rstrip('0').rstrip('.')
+
+    out = []
+    for op, args in trace:
+        pts = [(p[0], dy - p[1]) for p in args]
+        if op == 'moveTo':
+            out.append(f'M{n(pts[0][0])} {n(pts[0][1])}')
+        elif op == 'lineTo':
+            out.append(f'L{n(pts[0][0])} {n(pts[0][1])}')
+        elif op == 'qCurveTo':
+            fin, ctrl = pts[-1], pts[:-1]
+            for i, q in enumerate(ctrl):
+                p2 = fin if i + 1 == len(ctrl) else (
+                    (q[0] + ctrl[i + 1][0]) / 2, (q[1] + ctrl[i + 1][1]) / 2)
+                out.append(f'Q{n(q[0])} {n(q[1])} {n(p2[0])} {n(p2[1])}')
+        elif op == 'curveTo':
+            a, b, c = pts
+            out.append(f'C{n(a[0])} {n(a[1])} {n(b[0])} {n(b[1])} {n(c[0])} {n(c[1])}')
+        elif op in ('closePath', 'endPath'):
+            out.append('Z')
+    return ''.join(out)
+
+
+def svg(traces: list, couleur: str, titre: str, marge: float = 0.0) -> str:
+    x0, y0, x1, y1 = bornes(traces)
+    x0 -= marge
+    x1 += marge
+    y0 -= marge
+    y1 += marge
+    d = ''.join(chemin_svg(t, y1) for t in traces)
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" '
+            f'viewBox="{x0:.1f} 0 {x1 - x0:.1f} {y1 - y0:.1f}" '
+            f'role="img" aria-label="{titre}">'
+            f'<path d="{d}" fill="{couleur}" fill-rule="nonzero"/></svg>')
+
+
+def svg_icone(masquable: bool = False) -> str:
+    """Le signe en reserve dans un carre a coins arrondis."""
+    cote = 1000.0
+    marge = MARGE_MASQUABLE if masquable else MARGE_ICONE
+    s = signe_trace()
+    x0, y0, x1, y1 = bornes([s])
+    dispo = cote * (1 - 2 * marge)
+    k = min(dispo / (x1 - x0), dispo / (y1 - y0))
+    # On amene le signe dans un repere 0..1000 Y VERS LE HAUT, centre, puis on
+    # retourne autour de y = 1000 · le repere SVG descend. Composer les deux en
+    # une seule expression, comme la premiere version le faisait, place le
+    # signe hors du carre : le retournement doit se faire APRES le centrage.
+    place = transformer(s, k, (cote - (x1 - x0) * k) / 2 - x0 * k,
+                        (cote - (y1 - y0) * k) / 2 - y0 * k)
+    d = chemin_svg(place, cote)
+    r = 0 if masquable else RAYON_ICONE * cote
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" '
+            f'role="img" aria-label="OmegaX">'
+            f'<rect width="1000" height="1000" rx="{r:.0f}" fill="{ENCRE_HEX}"/>'
+            f'<path d="{d}" fill="#ffffff" fill-rule="nonzero"/></svg>')
+
+
+# ---------------------------------------------------------------------------
+# RENDU MATRICIEL · PNG ecrits a la main, sans dependance d'encodage.
+# ---------------------------------------------------------------------------
+
+def _png(chemin: Path, largeur: int, hauteur: int, pixels: bytes) -> None:
     def bloc(nom: bytes, donnees: bytes) -> bytes:
-        return (
-            struct.pack('>I', len(donnees))
-            + nom
-            + donnees
-            + struct.pack('>I', zlib.crc32(nom + donnees) & 0xFFFFFFFF)
-        )
+        return (struct.pack('>I', len(donnees)) + nom + donnees
+                + struct.pack('>I', zlib.crc32(nom + donnees) & 0xFFFFFFFF))
 
+    lignes = b''.join(b'\x00' + pixels[y * largeur * 3:(y + 1) * largeur * 3]
+                      for y in range(hauteur))
     chemin.write_bytes(
         b'\x89PNG\r\n\x1a\n'
-        + bloc(b'IHDR', struct.pack('>2I5B', taille, taille, 8, 2, 0, 0, 0))
-        + bloc(b'IDAT', zlib.compress(bytes(lignes), 9))
-        + bloc(b'IEND', b'')
-    )
+        + bloc(b'IHDR', struct.pack('>IIBBBBB', largeur, hauteur, 8, 2, 0, 0, 0))
+        + bloc(b'IDAT', zlib.compress(lignes, 9))
+        + bloc(b'IEND', b''))
+
+
+def _masque(traces: list, boite: tuple, taille: int, ss: int = 4):
+    """Un masque de couverture, par la regle NON NULLE approchee : les contours
+    d'un sens font la matiere, ceux du sens inverse la creusent. Deux traits
+    qui se croisent s'unissent, la ou le pair-impair les annulerait."""
+    from PIL import Image, ImageChops, ImageDraw
+    x0, y0, x1, y1 = boite
+    k = taille / max(x1 - x0, y1 - y0)
+    W = H = taille * ss
+    plein = Image.new('L', (W, H), 0)
+    creux = Image.new('L', (W, H), 0)
+    for t in traces:
+        for c in contours(t):
+            pts = [((px - x0) * k * ss, (y1 - py) * k * ss) for px, py in c]
+            aire = sum(pts[i][0] * pts[(i + 1) % len(pts)][1]
+                       - pts[(i + 1) % len(pts)][0] * pts[i][1] for i in range(len(pts)))
+            un = Image.new('L', (W, H), 0)
+            ImageDraw.Draw(un).polygon(pts, fill=255)
+            if aire >= 0:
+                plein = ImageChops.lighter(plein, un)
+            else:
+                creux = ImageChops.lighter(creux, un)
+    return ImageChops.subtract(plein, creux).resize((taille, taille), Image.LANCZOS)
+
+
+def png_icone(chemin: Path, taille: int, masquable: bool = False) -> None:
+    from PIL import Image, ImageDraw
+    marge = MARGE_MASQUABLE if masquable else MARGE_ICONE
+    s = signe_trace()
+    x0, y0, x1, y1 = bornes([s])
+    cote = max(x1 - x0, y1 - y0) / (1 - 2 * marge)
+    boite = ((x0 + x1) / 2 - cote / 2, (y0 + y1) / 2 - cote / 2,
+             (x0 + x1) / 2 + cote / 2, (y0 + y1) / 2 + cote / 2)
+    masque = _masque([s], boite, taille)
+    fond = Image.new('RGB', (taille, taille), ENCRE_RVB)
+    if not masquable:
+        coins = Image.new('L', (taille * 4, taille * 4), 0)
+        ImageDraw.Draw(coins).rounded_rectangle(
+            [0, 0, taille * 4 - 1, taille * 4 - 1], radius=int(RAYON_ICONE * taille * 4), fill=255)
+        coins = coins.resize((taille, taille), Image.LANCZOS)
+        blanc = Image.new('RGB', (taille, taille), (255, 255, 255))
+        fond = Image.composite(fond, blanc, coins)
+    image = Image.composite(Image.new('RGB', (taille, taille), (255, 255, 255)), fond, masque)
+    _png(chemin, taille, taille, image.tobytes())
 
 
 # ---------------------------------------------------------------------------
-# PALETTE · celle de l'interface (src/index.css), pas une seconde charte.
+# LA GEOMETRIE POUR L'INTERFACE
 # ---------------------------------------------------------------------------
-
-# UNE SEULE COULEUR POUR LE SIGNE. Un premier jet donnait aux pieds un ton
-# plus clair, pour dire les deux colonnes : ils se détachaient en étagère sous
-# l'arche, et la lettre cessait de se lire. Le sens passe par le VIDE central,
-# qui ne coûte pas de seconde couleur et survit au tampon comme au télécopieur.
-ENCRE = (0x14, 0x2F, 0x6B)      # bleu d'encre profond, fond du carré
-BLANC = (0xFF, 0xFF, 0xFF)      # le signe, d'un seul tenant
-CIEL = BLANC
-
-HEX = lambda c: '#%02x%02x%02x' % c
-
 
 def geometrie_ts() -> str:
-    """
-    La géométrie, en TypeScript · l'interface dessine le symbole en SVG EN
-    LIGNE plutôt qu'en `<img>`, pour qu'il hérite de la couleur du texte et
-    reste net au mode sombre comme à l'impression.
+    signe = signe_pose()
+    sx0, sy0, sx1, sy1 = bornes([signe])
+    bloc = bloc_horizontal()
+    bx0, by0, bx1, by1 = bornes(bloc)
+    vert = bloc_vertical()
+    vx0, vy0, vx1, vy1 = bornes(vert)
 
-    Ce fichier est ENGENDRÉ. Le modifier à la main ferait diverger le symbole
-    de l'interface de celui des icônes, et l'écart ne se verrait qu'une fois la
-    marque imprimée · un spec le compare au script.
-    """
-    x1, y1 = point(ANGLE_DEBUT, RAYON)
-    x2, y2 = point(ANGLE_FIN, RAYON)
-    return (
-        "// FICHIER ENGENDRÉ par client/scripts/engendrer-marque.py · ne pas modifier à la main.\n"
-        "//\n"
-        "// La géométrie de la marque OmegaX, partagée par l'interface et par les\n"
-        "// icônes de la PWA. Deux dessins tenus séparément divergent toujours.\n"
-        "\n"
-        "export const MARQUE = {\n"
-        "  /** Le repère du tracé · toutes les valeurs ci-dessous y sont exprimées. */\n"
-        "  viewBox: '0 0 64 64',\n"
-        "  /** L'arche · un trait d'épaisseur constante, à bouts ronds. */\n"
-        f"  arche: 'M {x1:.2f} {y1:.2f} A {RAYON:.2f} {RAYON:.2f} 0 1 0 {x2:.2f} {y2:.2f}',\n"
-        f"  archeTrait: {TRAIT:.2f},\n"
-        "  /** Les deux pieds · des barres à arêtes vives, séparées par le vide central. */\n"
-        "  pieds: [\n"
-        f"    {{ x: {CX - PIED_EXT:.2f}, y: {PIED_CY - PIED_TRAIT / 2:.2f}, largeur: {PIED_EXT - PIED_INT:.2f}, hauteur: {PIED_TRAIT:.2f} }},\n"
-        f"    {{ x: {CX + PIED_INT:.2f}, y: {PIED_CY - PIED_TRAIT / 2:.2f}, largeur: {PIED_EXT - PIED_INT:.2f}, hauteur: {PIED_TRAIT:.2f} }},\n"
-        "  ],\n"
-        "  /** Le carré d'encre, quand la marque est posée sur son fond. */\n"
-        f"  encre: '{HEX(ENCRE)}',\n"
-        "  /** Rayon des coins du carré, dans le même repère. */\n"
-        "  rayonCarre: 14,\n"
-        "} as const;\n"
-    )
+    def paquet(traces, boite):
+        x0, y0, x1, y1 = boite
+        return (''.join(chemin_svg(t, y1) for t in traces),
+                f'{x0:.1f} 0 {x1 - x0:.1f} {y1 - y0:.1f}')
 
+    d_signe, vb_signe = paquet([signe_trace()], bornes([signe_trace()]))
+    d_bloc, vb_bloc = paquet(bloc, (bx0, by0, bx1, by1))
+    d_vert, vb_vert = paquet(vert, (vx0, vy0, vx1, vy1))
+    lg = logotype()
+    d_mot, vb_mot = paquet(lg, bornes(lg))
+    return f'''// ENGENDRE PAR scripts/engendrer-marque.py · NE PAS MODIFIER A LA MAIN.
+//
+// Le signe et le logotype sont figes en COURBES : une marque qui dependrait
+// d'une police installee sur le poste du lecteur changerait de dessin d'un
+// poste a l'autre. Les tracer ici les rend identiques partout, et nets a
+// toute taille.
+//
+// Pour les regenerer : pip install fonttools brotli pillow
+//                      python3 scripts/engendrer-marque.py
+
+/** Le signe seul · l'omega recoupe. */
+export const SIGNE = '{d_signe}';
+export const SIGNE_BOITE = '{vb_signe}';
+
+/** Le bloc horizontal · signe et mot sur la meme ligne de pied. */
+export const BLOC = '{d_bloc}';
+export const BLOC_BOITE = '{vb_bloc}';
+
+/** Le bloc vertical · signe au-dessus du mot, tous deux centres. */
+export const BLOC_VERTICAL = '{d_vert}';
+export const BLOC_VERTICAL_BOITE = '{vb_vert}';
+
+/** Le logotype seul · le mot, sans le signe. */
+export const LOGOTYPE = '{d_mot}';
+export const LOGOTYPE_BOITE = '{vb_mot}';
+
+/** Le bleu de la marque. Contraste 12,74:1 sur blanc · AAA dans les deux sens. */
+export const ENCRE = '{ENCRE_HEX}';
+
+/** Rayon des coins de l'icone, en part du cote. */
+export const RAYON_ICONE = {RAYON_ICONE};
+
+/** Air de respiration minimal autour de la marque, en part de sa hauteur.
+ *  Rien ne penetre ce rectangle · ni texte, ni filet, ni bord de page. */
+export const AIR = 0.5;
+'''
+
+
+# ---------------------------------------------------------------------------
 
 def main() -> None:
     import sys
 
-    RACINE.mkdir(parents=True, exist_ok=True)
-    (Path(__file__).resolve().parent.parent / 'src' / 'components' / 'chrome' / 'marque-geometrie.ts').write_text(
-        geometrie_ts(), encoding='utf-8'
-    )
-    print('écrit src/components/chrome/marque-geometrie.ts')
-    if '--geometrie-seule' in sys.argv:
+    # `--geometrie-seule` · le fichier TS s'ecrit instantanement, la
+    # rasterisation des icones suréchantillonne 1024 x 1024 x 16 points et
+    # dépasse le délai d'un test. Le test de non-régression n'a besoin que du
+    # premier.
+    geometrie_seule = '--geometrie-seule' in sys.argv
+
+    PUBLIC.mkdir(parents=True, exist_ok=True)
+
+    bloc = bloc_horizontal()
+    vert = bloc_vertical()
+    signe = [signe_trace()]
+
+    fichiers = {
+        'logo-omegax.svg': svg(bloc, ENCRE_HEX, 'OmegaX'),
+        'logo-omegax-blanc.svg': svg(bloc, '#ffffff', 'OmegaX'),
+        'logo-omegax-noir.svg': svg(bloc, '#000000', 'OmegaX'),
+        'logo-omegax-courant.svg': svg(bloc, 'currentColor', 'OmegaX'),
+        'logo-omegax-vertical.svg': svg(vert, ENCRE_HEX, 'OmegaX'),
+        'logo-omegax-mot.svg': svg(logotype(), ENCRE_HEX, 'OmegaX'),
+        'logo-omegax-mot-courant.svg': svg(logotype(), 'currentColor', 'OmegaX'),
+        'logo-omegax-signe.svg': svg(signe, ENCRE_HEX, 'OmegaX'),
+        'logo-omegax-signe-blanc.svg': svg(signe, '#ffffff', 'OmegaX'),
+        'logo-omegax-signe-courant.svg': svg(signe, 'currentColor', 'OmegaX'),
+        'icone.svg': svg_icone(),
+    }
+    GEOMETRIE_TS.write_text(geometrie_ts(), encoding='utf-8')
+    if geometrie_seule:
         return
 
-    # Le symbole sur son carré · usage courant.
-    (RACINE / 'logo-omegax.svg').write_text(
-        symbole_svg(HEX(BLANC), HEX(CIEL), HEX(ENCRE)), encoding='utf-8'
-    )
-    # Le symbole SEUL, à la couleur du texte · pour un en-tête, un document
-    # imprimé, ou tout support où le carré ferait tache. `currentColor` le fait
-    # suivre la couleur héritée, donc le mode sombre sans seconde version.
-    (RACINE / 'logo-omegax-symbole.svg').write_text(
-        symbole_svg('currentColor', 'currentColor', None), encoding='utf-8'
-    )
-    # Variante MONOCHROME sur fond · télécopie, tampon, gravure.
-    (RACINE / 'logo-omegax-mono.svg').write_text(
-        symbole_svg(HEX(BLANC), HEX(BLANC), HEX(ENCRE)), encoding='utf-8'
-    )
-    # La favicon reprend le symbole sur son carré.
-    (RACINE / 'icone.svg').write_text(
-        symbole_svg(HEX(BLANC), HEX(CIEL), HEX(ENCRE)), encoding='utf-8'
-    )
+    for nom, contenu in fichiers.items():
+        (PUBLIC / nom).write_text(contenu, encoding='utf-8')
 
-    for nom, taille, echelle in [
-        ('icone-192.png', 192, 0.80),
-        ('icone-512.png', 512, 0.80),
-        # Zone sûre du masque d'Android · le dessin tient dans les 80 %
-        # centraux, avec de la marge.
-        ('icone-maskable-512.png', 512, 0.62),
-    ]:
-        png(RACINE / nom, taille, ENCRE, BLANC, CIEL, echelle, 0.0)
-        print('écrit', nom)
-    print('écrit logo-omegax.svg, logo-omegax-symbole.svg, logo-omegax-mono.svg, icone.svg')
+    png_icone(PUBLIC / 'icone-192.png', 192)
+    png_icone(PUBLIC / 'icone-512.png', 512)
+    png_icone(PUBLIC / 'icone-maskable-512.png', 512, masquable=True)
+    png_icone(PUBLIC / 'avatar-omegax-1024.png', 1024)
+
+    for nom in list(fichiers) + ['icone-192.png', 'icone-512.png',
+                                 'icone-maskable-512.png', 'avatar-omegax-1024.png']:
+        chemin = PUBLIC / nom
+        print(f'  {nom:34s} {chemin.stat().st_size / 1024:6.1f} ko')
+    print(f'  {GEOMETRIE_TS.name:34s} '
+          f'{GEOMETRIE_TS.stat().st_size / 1024:6.1f} ko')
 
 
 if __name__ == '__main__':

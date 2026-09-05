@@ -319,7 +319,8 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
 
   return (
     <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4 anim-voile">
-      <div className="w-full max-w-[700px] max-h-[calc(100dvh-2rem)] flex flex-col bg-surface border border-border rounded-[10px] overflow-hidden shadow-flottante anim-modale">
+      {/* Surface de marque, comme la porte d'ouverture · voir AuthPage. */}
+      <div className="w-full max-w-[700px] max-h-[calc(100dvh-2rem)] flex flex-col bg-surface border border-border rounded-[10px] overflow-hidden shadow-flottante anim-modale font-marque">
         <div
           className="h-[34px] flex items-center justify-between px-3 text-white text-[11px]"
           style={{ background: 'linear-gradient(180deg, var(--titlebar-from), var(--titlebar-to))' }}
