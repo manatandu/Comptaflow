@@ -145,6 +145,7 @@ export function ParametresDossierPage() {
   const [pays, setPays] = useState('');
   const [telephone, setTelephone] = useState('');
   const [devise, setDevise] = useState('');
+  const [deviseFonctionnelle, setDeviseFonctionnelle] = useState('');
 
   // Identifiants légaux · saisis à part, ils obéissent à une autre règle :
   // modifiables à tout moment, sans verrou d'écriture (voir modifierIdentite).
@@ -170,6 +171,7 @@ export function ParametresDossierPage() {
       setPays(p.pays ?? '');
       setTelephone(p.telephone ?? '');
       setDevise(p.devise ?? '');
+      setDeviseFonctionnelle(p.deviseFonctionnelle ?? '');
       setNumeroImpot(p.numeroImpot ?? '');
       setIdNat(p.idNat ?? '');
       setRccm(p.rccm ?? '');
@@ -463,7 +465,7 @@ export function ParametresDossierPage() {
           // La monnaie n'est envoyée que si elle peut encore changer · sinon
           // le serveur refuserait tout l'enregistrement pour un champ que
           // l'écran affiche de toute façon en lecture seule.
-          ...(params && params.nombreEcritures === 0 ? { devise } : {}),
+          deviseFonctionnelle,
         }),
       );
       setInfo('Coordonnées enregistrées.');
@@ -618,24 +620,43 @@ export function ParametresDossierPage() {
                       className={champSage}
                     />
                   </Ligne>
-                  {/* La monnaie se verrouille à la première écriture : changer
-                      l'étiquette ne convertit aucun montant déjà saisi. */}
+                  {/* LA MONNAIE DE TENUE NE SE CHOISIT PAS · loi n° 23/053
+                      art. 141, 1° (« Cette comptabilité est exprimée en Franc
+                      congolais ») et AUDCIF art. 17, 1°. Elle était modifiable
+                      et ne convertissait rien : elle étiquette le cartouche de
+                      chaque état (« montants en X »), si bien qu'un dossier
+                      basculé en USD imprimait une unité fausse sur sa liasse
+                      entière. */}
                   <Ligne label="Monnaie de tenue" large>
                     <input
                       value={devise}
-                      onChange={(e) => setDevise(e.target.value)}
-                      disabled={!estAdmin || envoi || params.nombreEcritures > 0}
-                      maxLength={10}
+                      readOnly
+                      disabled
                       aria-label="Monnaie de tenue"
+                      className={`${champSage} font-mono`}
+                    />
+                  </Ligne>
+                  {/* Le second jeu, lui, se choisit · il n'a pas de valeur
+                      légale et ne touche aucun montant du jeu déposé. */}
+                  <Ligne label="Monnaie fonctionnelle" large>
+                    <input
+                      value={deviseFonctionnelle}
+                      onChange={(e) => setDeviseFonctionnelle(e.target.value.toUpperCase())}
+                      disabled={!estAdmin || envoi}
+                      maxLength={10}
+                      placeholder="USD, EUR… (vide = aucun second jeu)"
+                      aria-label="Monnaie fonctionnelle"
                       className={`${champSage} font-mono`}
                     />
                   </Ligne>
                 </div>
                 <p className="text-[10.5px] text-text-dim">
-                  L’adresse, la ville et le pays composent l’adresse imprimée en tête de chaque état financier.
-                  {params.nombreEcritures > 0
-                    ? ' La monnaie est verrouillée : ce dossier porte déjà des écritures, et en changer l’étiquette ne convertirait aucun montant.'
-                    : ''}
+                  L’adresse, la ville et le pays composent l’adresse imprimée en tête de chaque état financier.{' '}
+                  <strong>La monnaie de tenue ne se choisit pas</strong> · la comptabilité est exprimée en francs
+                  congolais (loi n° 23/053, art. 141, 1° · AUDCIF, art. 17, 1°), et les livres comme les états déposés
+                  le restent. La <strong>monnaie fonctionnelle</strong> est celle dans laquelle votre entité vit
+                  réellement : elle commande un second jeu de documents, à côté du jeu légal et sans valeur légale.
+                  Elle doit être une devise déjà ouverte dans Structure &gt; Devises et cours, avec ses cours du jour.
                 </p>
                 {estAdmin && (
                   <div>

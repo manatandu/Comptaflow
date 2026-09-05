@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { siSycebnl } from '../../common/reponse-referentiel';
 import { PrismaService } from '../../common/prisma.service';
+import { MONNAIE_DE_TENUE } from '../../common/monnaie-de-tenue';
 import { Prisma, FormeJuridiqueEbnl,
   FormeJuridiqueSyscohada, JeuEtatsFinanciersSycebnl, MethodeCotisations, Referentiel, RegimeExigibiliteTva, SystemeComptableSyscohada, TypeLicence } from '@prisma/client';
 
@@ -37,7 +38,6 @@ export class TenantService {
     ville?: string;
     pays?: string;
     telephone?: string;
-    devise?: string;
   }, client: Prisma.TransactionClient = this.prisma) {
     return client.tenant.create({
       data: {
@@ -50,7 +50,6 @@ export class TenantService {
         ville: params.ville,
         pays: params.pays,
         telephone: params.telephone,
-        devise: params.devise,
         licence: {
           create: {
             type: params.typeLicence,
@@ -84,7 +83,11 @@ export class TenantService {
       ville: tenant.ville,
       pays: tenant.pays,
       telephone: tenant.telephone,
-      devise: tenant.devise,
+      // MONNAIE DE TENUE · lecture seule côté écran. Elle ne se choisit pas
+      // (loi n° 23/053 art. 141, 1° · AUDCIF art. 17, 1°) et elle n'a jamais
+      // rien converti · elle étiquette le cartouche des états.
+      devise: tenant.devise ?? MONNAIE_DE_TENUE,
+      deviseFonctionnelle: tenant.deviseFonctionnelle,
       numeroImpot: tenant.numeroImpot,
       idNat: tenant.idNat,
       rccm: tenant.rccm,
@@ -202,7 +205,10 @@ export class TenantService {
    * ExportService.identiteLiasse) · relevé en le vérifiant plutôt qu'en le
    * supposant, la phrase de l'assistant a été corrigée dans le même geste.
    *
-   * Tout est libre SAUF la devise, verrouillée dès la première écriture :
+   * Tout est libre SAUF la MONNAIE DE TENUE, qui n'est plus modifiable du
+   * tout · elle ne convertissait rien, elle étiquetait le cartouche des états,
+   * et la tenue en franc congolais n'est pas une option (loi n° 23/053
+   * art. 141, 1° · AUDCIF art. 17, 1°). Ancien commentaire, pour mémoire :
    * changer l'étiquette monétaire ne convertit aucun montant déjà saisi, et
    * une liasse qui présenterait des francs congolais sous un sigle « USD »
    * serait fausse sans que rien ne le signale.
@@ -216,18 +222,34 @@ export class TenantService {
       ville?: string;
       pays?: string;
       telephone?: string;
-      devise?: string;
+      deviseFonctionnelle?: string;
     },
   ) {
     const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
     if (!tenant) {
       throw new NotFoundException('Dossier introuvable');
     }
-    if (dto.devise !== undefined && dto.devise.trim() !== (tenant.devise ?? '')) {
-      const nombreEcritures = await this.prisma.ecriture.count({ where: { tenantId } });
-      if (nombreEcritures > 0) {
+    // LA MONNAIE FONCTIONNELLE DOIT EXISTER DANS LE DOSSIER. Sans cette
+    // vérification, un dossier pourrait nommer « USD » sans qu'aucun cours ne
+    // soit jamais saisi · le second jeu se produirait alors avec des lignes
+    // muettes, et un jeu incomplet qui ne se dit pas incomplet est pire qu'un
+    // refus. Chaîne vide = on retire la monnaie fonctionnelle, toujours permis.
+    const fonctionnelle = dto.deviseFonctionnelle?.trim().toUpperCase();
+    if (fonctionnelle) {
+      if (fonctionnelle === MONNAIE_DE_TENUE) {
         throw new BadRequestException(
-          `Ce dossier porte déjà ${nombreEcritures} écriture(s) : la monnaie ne peut plus être changée. Les montants déjà saisis ne seraient pas convertis.`,
+          `La monnaie fonctionnelle ne peut pas être ${MONNAIE_DE_TENUE} : c'est déjà la monnaie de tenue, ` +
+            'et le second jeu de documents ferait double emploi avec le jeu légal.',
+        );
+      }
+      const connue = await this.prisma.devise.findFirst({
+        where: { tenantId, code: fonctionnelle, estActive: true },
+        select: { id: true },
+      });
+      if (!connue) {
+        throw new BadRequestException(
+          `La devise ${fonctionnelle} n’est pas ouverte dans ce dossier. Ouvrez-la d’abord dans ` +
+            'Structure > Devises et cours, avec ses cours, avant d’en faire la monnaie fonctionnelle.',
         );
       }
     }
@@ -243,10 +265,12 @@ export class TenantService {
         ville: normaliser(dto.ville),
         pays: normaliser(dto.pays),
         telephone: normaliser(dto.telephone),
-        // La monnaie ne s'EFFACE pas : elle sert d'unité à tout montant
-        // affiché et imprimé. Une saisie vide laisse donc la valeur en place
-        // au lieu de poser `null`, qui priverait les états d'unité.
-        devise: dto.devise === undefined || dto.devise.trim() === '' ? undefined : dto.devise.trim(),
+        // LA MONNAIE DE TENUE N'EST PLUS TOUCHÉE ICI. Elle ne convertissait
+        // rien · elle étiquetait le cartouche (« montants en X »), si bien
+        // qu'en changer la valeur imprimait une unité fausse sur toute la
+        // liasse. Loi n° 23/053 art. 141, 1° et AUDCIF art. 17, 1° ne
+        // prévoient d'ailleurs aucune option.
+        deviseFonctionnelle: fonctionnelle === undefined ? undefined : fonctionnelle === '' ? null : fonctionnelle,
       },
     });
     return this.parametres(tenantId);

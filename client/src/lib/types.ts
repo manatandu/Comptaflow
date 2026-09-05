@@ -1337,6 +1337,13 @@ export interface ParametresDossier {
   methodeCotisations: 'APPEL' | 'ENCAISSEMENT' | null;
   /** Au-delà de zéro, le jeu d'états financiers est verrouillé. */
   nombreEcritures: number;
+  /**
+   * MONNAIE FONCTIONNELLE · celle dans laquelle l'entité vit réellement
+   * (USD, EUR...). Elle ne déplace PAS la tenue, qui reste en francs
+   * congolais · loi n° 23/053 art. 141, 1° et AUDCIF art. 17, 1°. Elle nomme
+   * le second jeu de documents, sans valeur légale. `null` = pas de second jeu.
+   */
+  deviseFonctionnelle: string | null;
 }
 
 // ---------------------------------------------------------------------------

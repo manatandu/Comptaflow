@@ -2,6 +2,7 @@ import { Injectable, PayloadTooLargeException } from '@nestjs/common';
 import { JeuEtatsFinanciersSycebnl, Prisma, Referentiel, SystemeComptableSyscohada } from '@prisma/client';
 import * as ExcelJS from 'exceljs';
 import { PrismaService } from '../../common/prisma.service';
+import { monnaieDuJeuLegal } from '../../common/monnaie-de-tenue';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { ImmobilisationService } from '../immobilisations/immobilisation.service';
 import { TestEcrituresJournalService } from '../controles/test-ecritures-journal.service';
@@ -408,7 +409,10 @@ export class ExportService {
       entite: tenant.nom,
       nif: tenant.numeroImpot ?? '',
       periode: libellePeriode,
-      devise: tenant.devise ?? 'CDF',
+      // Le cartouche du JEU LÉGAL porte toujours la monnaie de tenue · le
+      // second jeu, en monnaie fonctionnelle, porte la sienne et dit lui-même
+      // qu'il n'a pas de valeur légale. Voir src/common/monnaie-de-tenue.ts.
+      devise: monnaieDuJeuLegal(tenant.devise),
     };
   }
 

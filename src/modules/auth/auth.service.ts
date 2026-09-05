@@ -109,7 +109,6 @@ export class AuthService {
           ville: dto.ville,
           pays: dto.pays,
           telephone: dto.telephone,
-          devise: dto.devise,
         }, tx);
 
         const user = await tx.user.create({

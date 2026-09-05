@@ -62,9 +62,12 @@ export class CreerCabinetDto {
   @IsString()
   telephone?: string;
 
-  @IsOptional()
-  @IsString()
-  devise?: string;
+  // LA MONNAIE DE TENUE N'EST PLUS UN CHAMP DE CRÉATION. Elle ne convertissait
+  // rien · elle étiquetait le cartouche de chaque état (« montants en X »), si
+  // bien qu'un dossier ouvert en USD imprimait une unité fausse sur sa liasse
+  // entière dès le premier jour. Et la tenue en franc congolais n'est pas une
+  // option : loi n° 23/053 art. 141, 1° · AUDCIF art. 17, 1°. La colonne prend
+  // sa valeur par défaut. Voir src/common/monnaie-de-tenue.ts.
 
   @IsOptional()
   @IsDateString()

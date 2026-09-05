@@ -8,15 +8,26 @@ import { ModifierCoordonneesDto } from './dto/parametres-dossier.dto';
  * COORDONNÉES DU DOSSIER · l'assistant de création annonçait « modifiable
  * plus tard » alors que rien ne l'était. Trois règles se jouent ici, et
  * aucune ne se lit dans le modèle Prisma :
- *  · la raison sociale et la monnaie ne s'effacent JAMAIS (elles figurent en
- *    tête de chaque état imprimé, la seconde comme unité des montants) ;
+ *  · la raison sociale ne s'efface JAMAIS (elle figure en tête de chaque état
+ *    imprimé) ;
  *  · les autres champs s'effacent par une chaîne vide, comme les
  *    identifiants légaux ;
- *  · la monnaie se fige à la première écriture, changer l'étiquette ne
- *    convertissant aucun montant déjà saisi.
+ *  · la MONNAIE DE TENUE ne se modifie plus du tout · elle ne convertissait
+ *    rien, elle étiquetait le cartouche (« montants en X »), si bien qu'en
+ *    changer la valeur imprimait une unité fausse sur toute la liasse. La
+ *    tenue en franc congolais n'est d'ailleurs pas une option : loi
+ *    n° 23/053 art. 141, 1° et AUDCIF art. 17, 1° ;
+ *  · la MONNAIE FONCTIONNELLE, elle, se pose et se retire librement · elle ne
+ *    touche aucun montant et ne nomme que le second jeu de documents, sans
+ *    valeur légale. Elle doit être une devise déjà ouverte dans le dossier.
  */
 describe('Coordonnées du dossier', () => {
-  const service = (capture: { data?: Record<string, unknown> }, tenant: Record<string, unknown>, ecritures = 0) =>
+  const service = (
+    capture: { data?: Record<string, unknown> },
+    tenant: Record<string, unknown>,
+    ecritures = 0,
+    devisesOuvertes: string[] = [],
+  ) =>
     new TenantService({
       tenant: {
         findUnique: async () => tenant,
@@ -26,33 +37,77 @@ describe('Coordonnées du dossier', () => {
         },
       },
       ecriture: { count: async () => ecritures },
+      // Les devises OUVERTES du dossier · c'est par elles que la monnaie
+      // fonctionnelle est validée.
+      devise: {
+        findFirst: async ({ where }: { where: { code: string } }) =>
+          devisesOuvertes.includes(where.code) ? { id: 'd-1' } : null,
+      },
     } as never);
 
-  it('la chaîne vide efface l’adresse mais ne touche ni la raison sociale ni la monnaie', async () => {
+  it('la chaîne vide efface l’adresse mais ne touche ni la raison sociale ni la tenue', async () => {
     const capture: { data?: Record<string, unknown> } = {};
     const s = service(capture, { id: 't1', devise: 'CDF' });
-    await s.modifierCoordonnees('t1', { nom: '  VMG Consulting  ', adresse: '', ville: 'Kinshasa', devise: '' });
+    await s.modifierCoordonnees('t1', { nom: '  VMG Consulting  ', adresse: '', ville: 'Kinshasa' });
     expect(capture.data!.nom).toBe('VMG Consulting');
     expect(capture.data!.adresse).toBeNull();
     expect(capture.data!.ville).toBe('Kinshasa');
-    // Une monnaie effacée priverait tout montant imprimé de son unité.
+    // La monnaie de tenue n'est plus écrite du tout par ce chemin.
     expect(capture.data!.devise).toBeUndefined();
-    // Jamais transmis = jamais modifié.
     expect(capture.data!.telephone).toBeUndefined();
   });
 
-  it('la monnaie ne change plus dès qu’une écriture existe', async () => {
+  it('la monnaie de tenue n’est plus une valeur qu’un client puisse envoyer', async () => {
+    // ELLE NE CONVERTISSAIT RIEN · elle étiquetait le cartouche de chaque état
+    // (« montants en X »). La changer imprimait donc « montants en USD » sur
+    // une liasse en francs, sans toucher un montant : une falsification de
+    // tous les états publiés, en trois clics. Or la tenue en franc congolais
+    // n'est pas une option · loi n° 23/053 art. 141, 1° et AUDCIF art. 17, 1°.
+    //
+    // Le champ ne se refuse pas, il n'existe plus : `forbidNonWhitelisted`
+    // rejette la requête entière (voir bootstrap.ts).
+    const avecDevise = await validate(
+      plainToInstance(ModifierCoordonneesDto, { nom: 'A', devise: 'USD' }),
+      { whitelist: true, forbidNonWhitelisted: true },
+    );
+    expect(avecDevise).toHaveLength(1);
+    expect(JSON.stringify(avecDevise)).toContain('devise');
+  });
+
+  it('la monnaie FONCTIONNELLE se pose, et seulement si le dossier la connaît', async () => {
     const capture: { data?: Record<string, unknown> } = {};
-    const s = service(capture, { id: 't1', devise: 'CDF' }, 12);
-    await expect(s.modifierCoordonnees('t1', { devise: 'USD' })).rejects.toThrow(/monnaie/i);
+    const s = service(capture, { id: 't1', devise: 'CDF' }, 12, ['USD']);
+    // Un dossier mouvementé ne la bloque pas · elle ne touche aucun montant.
+    await s.modifierCoordonnees('t1', { deviseFonctionnelle: 'usd' });
+    expect(capture.data!.deviseFonctionnelle).toBe('USD');
+  });
+
+  it('refuse une monnaie fonctionnelle que le dossier n’a jamais ouverte', async () => {
+    // Sans ce refus, le second jeu se produirait avec des lignes muettes,
+    // faute de cours · un jeu incomplet qui ne se dit pas incomplet est pire
+    // qu'un refus.
+    const capture: { data?: Record<string, unknown> } = {};
+    const s = service(capture, { id: 't1', devise: 'CDF' }, 0, []);
+    await expect(s.modifierCoordonnees('t1', { deviseFonctionnelle: 'EUR' })).rejects.toThrow(
+      /n’est pas ouverte dans ce dossier/,
+    );
     expect(capture.data).toBeUndefined();
   });
 
-  it('la même monnaie renvoyée sur un dossier mouvementé ne bloque pas l’enregistrement', async () => {
+  it('refuse le franc congolais comme monnaie fonctionnelle', async () => {
+    // Le second jeu ferait double emploi avec le jeu légal.
     const capture: { data?: Record<string, unknown> } = {};
-    const s = service(capture, { id: 't1', devise: 'CDF' }, 12);
-    await s.modifierCoordonnees('t1', { devise: 'CDF', ville: 'Goma' });
-    expect(capture.data!.ville).toBe('Goma');
+    const s = service(capture, { id: 't1', devise: 'CDF' }, 0, ['CDF']);
+    await expect(s.modifierCoordonnees('t1', { deviseFonctionnelle: 'CDF' })).rejects.toThrow(
+      /monnaie de tenue/,
+    );
+  });
+
+  it('la chaîne vide retire la monnaie fonctionnelle', async () => {
+    const capture: { data?: Record<string, unknown> } = {};
+    const s = service(capture, { id: 't1', devise: 'CDF' }, 12, ['USD']);
+    await s.modifierCoordonnees('t1', { deviseFonctionnelle: '' });
+    expect(capture.data!.deviseFonctionnelle).toBeNull();
   });
 
   it('le DTO refuse une raison sociale vide', async () => {

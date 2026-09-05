@@ -270,7 +270,40 @@ model Tenant {
   ville     String?
   pays      String? @default("RD Congo")
   telephone String?
+  /// MONNAIE DE TENUE · elle ne se choisit pas.
+  ///
+  /// Loi n° 23/053, art. 141, 1° : les redevables sont dans l'obligation « de
+  /// tenir leur comptabilité en français à leur siège […] Cette comptabilité
+  /// est exprimée en Franc congolais ». AUDCIF art. 17, 1° dit la même chose
+  /// pour tout l'espace OHADA · « la tenue de la comptabilité dans la langue
+  /// officielle et dans l'unité monétaire ayant cours légal dans l'État
+  /// partie ». Ni l'un ni l'autre ne prévoit d'option.
+  ///
+  /// Ce champ n'a jamais converti quoi que ce soit · il ÉTIQUETTE le cartouche
+  /// de chaque état exporté (« montants en X »). Le laisser choisir revenait
+  /// donc à laisser imprimer une unité fausse sur la balance, le bilan, le
+  /// compte de résultat et la liasse entière, sans toucher un seul montant.
+  ///
+  /// Reste une colonne, et non une constante du code, parce qu'un jour un
+  /// dossier d'un autre État partie aura une autre unité légale (XAF...). Ce
+  /// qui est interdit, c'est de la CHOISIR · elle découle du pays.
   devise    String? @default("CDF")
+
+  /// MONNAIE FONCTIONNELLE · celle dans laquelle l'entité vit réellement.
+  ///
+  /// Beaucoup d'ASBL et de sociétés congolaises encaissent, dépensent et
+  /// rendent compte à leur bailleur en dollars ou en euros. Ce champ nomme
+  /// cette monnaie et sert de défaut au SECOND jeu de documents, produit à
+  /// côté du jeu légal.
+  ///
+  /// CE QU'ELLE N'EST PAS · elle ne déplace pas la tenue. Les livres et les
+  /// états déposés restent en francs congolais. Le second jeu est un document
+  /// de gestion et de bailleur, sans valeur légale, et il le dit.
+  ///
+  /// Aucun texte lu ne régit ce second jeu · l'AUDCIF ne connaît la devise que
+  /// pour convertir une opération VERS l'unité légale (art. 36 et suivants,
+  /// Titre VIII ch. 22). Le produire est une décision d'OmegaX.
+  deviseFonctionnelle String?
 
   // Identifiants légaux de l'entité congolaise · exigés en en-tête de CHAQUE
   // page d'un état financier déposé (CPCC, Notes de cours d'organisation

@@ -66,14 +66,23 @@ export class ModifierCoordonneesDto {
   telephone?: string;
 
   /**
-   * Code ISO 4217. Verrouillé dès la première écriture, voir le service :
-   * les montants déjà saisis ne changent pas de valeur quand l'étiquette
-   * change, et une liasse qui afficherait des francs en dollars serait fausse.
+   * MONNAIE FONCTIONNELLE · celle dans laquelle l'entité vit réellement
+   * (USD, EUR...). Code ISO 4217, chaîne vide = effacement.
+   *
+   * Elle ne déplace PAS la tenue, qui reste en francs congolais · loi
+   * n° 23/053 art. 141, 1° et AUDCIF art. 17, 1°, ni l'un ni l'autre ne
+   * prévoyant d'option. Elle nomme la monnaie du SECOND jeu de documents,
+   * produit à côté du jeu légal et sans valeur légale.
+   *
+   * LA MONNAIE DE TENUE N'EST PLUS DANS CE DTO. Elle y figurait, et comme
+   * elle ne convertissait rien, la changer imprimait « montants en USD » sur
+   * une liasse en francs. Un champ qu'on ne peut plus envoyer vaut mieux
+   * qu'un champ qu'on refuse : il n'y a plus de geste à refuser.
    */
   @IsOptional()
   @IsString()
   @MaxLength(10)
-  devise?: string;
+  deviseFonctionnelle?: string;
 }
 
 /**

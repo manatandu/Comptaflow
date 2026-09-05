@@ -314,7 +314,6 @@ export class PlateformeService implements OnModuleInit {
       ville: dto.ville,
       pays: dto.pays,
       telephone: dto.telephone,
-      devise: dto.devise,
       dateDebutExercice: dto.dateDebutExercice,
       dateFinExercice: dto.dateFinExercice,
     });

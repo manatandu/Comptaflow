@@ -628,6 +628,17 @@ avant de l'écrire ; un spec (`compte-seed-syscohada.spec.ts`) le contrôle.
   C'est par elle que le siège d'un groupe lit ses cellules. La liste est
   toujours construite à partir du seul dossier de la session, jamais reçue
   d'un appelant · sans quoi le client nommerait ses propres voisins.
+- **Monnaie de tenue** (`src/common/monnaie-de-tenue.ts`) · elle ne se
+  choisit pas. Loi n° 23/053 art. 141, 1° (« Cette comptabilité est exprimée
+  en Franc congolais ») et AUDCIF art. 17, 1° (« l'unité monétaire ayant cours
+  légal dans l'État partie »), sans option ni dérogation. `Tenant.devise` ne
+  convertissait rien · elle ÉTIQUETAIT le cartouche (« montants en X »), si
+  bien qu'un dossier basculé en USD imprimait une unité fausse sur sa liasse
+  entière. Le champ n'est plus dans aucun DTO et n'est écrit par aucun
+  service · un test le vérifie. `Tenant.deviseFonctionnelle` nomme la monnaie
+  où l'entité vit réellement et commande un SECOND jeu de documents, à côté du
+  jeu légal et sans valeur légale · aucun texte lu ne le régit, c'est une
+  décision d'OmegaX et le document doit le dire.
 - **Restitution du dossier** (`src/modules/exports/restitution/`) · une
   archive ZIP d'un CSV par table, sur son PROPRE contrôleur, sans
   `LicenceGuard` : derrière lui elle serait indisponible dans le seul cas où
