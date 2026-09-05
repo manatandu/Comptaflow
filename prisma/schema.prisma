@@ -432,6 +432,7 @@ model Tenant {
   plansAnalytiques         PlanAnalytique[]
   sectionsAnalytiques      SectionAnalytique[]
   engagementsDepense       EngagementDepense[]
+  conventionsFinancement   ConventionFinancement[]
   regularisations          Regularisation[]
   modelesAbonnement        ModeleAbonnement[]
   modelesSaisie            ModeleSaisie[]
@@ -1714,6 +1715,7 @@ model Bailleur {
 
   comptesRattaches    Compte[]
   sectionsAnalytiques SectionAnalytique[]
+  conventions         ConventionFinancement[]
 
   @@unique([tenantId, code])
   @@map("bailleurs")
@@ -1955,6 +1957,154 @@ enum StatutEngagement {
   // Clos à la main, avec son motif · une commande annulée cesse de peser sur
   // le budget sans qu'aucune écriture ne vienne jamais l'exécuter.
   CLOS
+}
+
+// ---------------------------------------------------------------------------
+// CONVENTION DE FINANCEMENT · le dossier de subvention
+// ---------------------------------------------------------------------------
+//
+// `Bailleur` ne portait que six champs : code, nom, actif, et ses
+// rattachements. Ni montant accordé, ni tranches, ni conditions, ni rapports
+// dus, ni dates de validité. Deux conséquences, chacune dans son texte.
+//
+// LA PREMIÈRE EST COMPTABLE, et c'est la plus lourde. SYCEBNL, cadre
+// conceptuel § 5.4.2.4 : « Un engagement de financement est comptabilisé dans
+// les créances à recevoir de l'entité bénéficiaire s'il correspond à un
+// engagement FERME ET INCONDITIONNEL et a fait l'objet d'un ÉCRIT SIGNÉ par
+// les représentants habilités des tiers financeurs. Un engagement CONDITIONNEL
+// doit faire l'objet d'une mention dans les Notes annexes et ne sera
+// comptabilisé que lorsque les conditions sont remplies. »
+//
+// Ces deux caractères commandent donc le TRAITEMENT lui-même : une créance au
+// bilan d'un côté, une simple mention en notes de l'autre. Rien ne les
+// enregistrait, et les deux erreurs qui en découlent sont muettes · une
+// promesse conditionnelle portée en créance gonfle l'actif d'une somme qui
+// pourrait ne jamais venir, un engagement ferme laissé hors bilan le
+// sous-évalue, et dans les deux cas l'écriture s'équilibre et la balance
+// boucle.
+//
+// LE LOGICIEL NE QUALIFIE PAS, IL SE SOUVIENT. C'est le cabinet qui lit la
+// convention et décide si l'engagement est ferme ou conditionnel · aucun champ
+// ne se déduit d'un montant ni d'un nom de bailleur. Le logiciel exige en
+// revanche que la décision soit ÉCRITE, et il en tire la mention de notes que
+// le texte réclame.
+//
+// LA SECONDE EST ADMINISTRATIVE. Le jalon 11 du planning de clôture demande de
+// vérifier « à chaque exercice que l'accord-cadre est en cours de validité »
+// (loi n° 004/2001 du 20 juillet 2001, art. 37). Il le demandait sur une
+// donnée que rien ne détenait : les dates de validité vivent ici désormais, et
+// un contrôle les relit.
+model ConventionFinancement {
+  id         String   @id @default(uuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  bailleurId String
+  bailleur   Bailleur @relation(fields: [bailleurId], references: [id])
+
+  reference String // numéro de la convention, de l'accord-cadre ou de l'arrêté
+  objet     String
+
+  // L'ÉCRIT SIGNÉ du § 5.4.2.4 · sans lui, aucun engagement ne peut être porté
+  // en créance, si ferme soit-il. Le signataire est nommé parce que le texte
+  // dit « les représentants HABILITÉS des tiers financeurs » : un écrit signé
+  // par quelqu'un d'autre n'engage pas le financeur.
+  ecritSigne     Boolean   @default(false)
+  signataire     String?
+  dateSignature  DateTime?
+
+  // Validité de la convention · ce que le jalon 11 demande de vérifier.
+  dateDebut DateTime
+  dateFin   DateTime
+
+  montantAccorde Decimal @db.Decimal(18, 2)
+
+  caractere CaractereEngagement
+  // Obligatoire quand l'engagement est CONDITIONNEL · ce sont ces conditions
+  // que les Notes annexes doivent mentionner, et « conditionnel sans dire à
+  // quoi » ne se mentionne pas.
+  conditions String?
+
+  statut          StatutConvention @default(EN_COURS)
+  motifCloture    String?
+
+  createdAt DateTime @default(now())
+  createdBy String
+  updatedAt DateTime @updatedAt
+
+  tranches TrancheFinancement[]
+  rapports RapportBailleur[]
+
+  @@unique([tenantId, bailleurId, reference])
+  @@index([tenantId])
+  @@map("conventions_financement")
+}
+
+// Une tranche promise par la convention · la colonne « Echéances » que la
+// NOTE 10 « Subventions » réclame en regard de chaque subvention.
+//
+// L'encaissement est SAISI et non déduit d'un solde : le compte du bailleur
+// reçoit aussi des remboursements et des régularisations, et lire la tranche
+// dans un solde ferait dire à un virement ce qu'il ne dit pas.
+model TrancheFinancement {
+  id           String                @id @default(uuid())
+  conventionId String
+  convention   ConventionFinancement @relation(fields: [conventionId], references: [id], onDelete: Cascade)
+
+  numero     Int
+  libelle    String
+  montant    Decimal  @db.Decimal(18, 2)
+  datePrevue DateTime
+
+  dateEncaissement DateTime?
+  montantEncaisse  Decimal?  @db.Decimal(18, 2)
+
+  createdAt DateTime @default(now())
+
+  @@unique([conventionId, numero])
+  @@map("tranches_financement")
+}
+
+// Les rapports dus au bailleur. Ils ne sont pas comptables, et c'est pourquoi
+// rien ne les portait · mais c'est leur retard, et non un solde, qui suspend
+// le versement de la tranche suivante dans la plupart des conventions.
+model RapportBailleur {
+  id           String                @id @default(uuid())
+  conventionId String
+  convention   ConventionFinancement @relation(fields: [conventionId], references: [id], onDelete: Cascade)
+
+  intitule        String
+  nature          NatureRapportBailleur
+  dateEcheance    DateTime
+  dateTransmission DateTime?
+  observation     String?
+
+  createdAt DateTime @default(now())
+
+  @@index([conventionId])
+  @@map("rapports_bailleur")
+}
+
+enum CaractereEngagement {
+  // « ferme et inconditionnel » · porté en créance à recevoir, à condition
+  // d'être accompagné de l'écrit signé.
+  FERME_INCONDITIONNEL
+  // Mention en Notes annexes, et comptabilisation SEULEMENT quand les
+  // conditions sont remplies.
+  CONDITIONNEL
+}
+
+enum StatutConvention {
+  EN_COURS
+  // Arrivée à son terme normal, tranches versées.
+  CLOTUREE
+  // Interrompue avant son terme · le reste à recevoir cesse d'être attendu.
+  RESILIEE
+}
+
+enum NatureRapportBailleur {
+  FINANCIER
+  NARRATIF
+  AUDIT
 }
 
 // Ventilation d'une ligne d'écriture sur une section. Plusieurs ventilations

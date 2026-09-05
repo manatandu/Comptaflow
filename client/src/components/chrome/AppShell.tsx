@@ -194,7 +194,12 @@ export function AppShell() {
         // Notion SYCEBNL (division 46) · masqué pour un dossier SYSCOHADA,
         // comme le registre des donateurs · le serveur refuse pareil.
         ...(estSycebnl
-          ? [{ label: 'Bailleurs de fonds', separateurAvant: true, onClick: () => navigate('/bailleurs') }]
+          ? [
+              { label: 'Bailleurs de fonds', separateurAvant: true, onClick: () => navigate('/bailleurs') },
+              // Le dossier de subvention suit son bailleur · même
+              // cloisonnement, et le serveur refuse pareil.
+              { label: 'Dossier de subvention', onClick: () => navigate('/conventions-financement') },
+            ]
           : []),
         { label: 'Immobilisations', separateurAvant: !estSycebnl, onClick: () => navigate('/immobilisations') },
         // Sage : Fichier > Paramètres société, où l'utilisateur « met à jour le

@@ -45,6 +45,9 @@ function service(lignes: Ligne[], referentiel: Referentiel, avecExercicePreceden
     // Le contrôle 21 lit le manuel des procédures (AUDCIF art. 16 al. 1) ·
     // sans ce faux, il croirait la table absente plutôt que le manuel.
     manuelProcedures: { findFirst: jest.fn().mockResolvedValue(null) },
+    // Dossiers de subvention · vides ici, ces specs ne les testent pas. Sans
+    // cette doublure, le contrôle 24 tomberait sur undefined.
+    conventionFinancement: { findMany: jest.fn().mockResolvedValue([]) },
     // Le contrôle 15 retranche du solde des comptes 29 ce que le module
     // d'immobilisations y a lui-même posté · sans ce faux, il croirait la
     // table absente.

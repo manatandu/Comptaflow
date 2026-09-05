@@ -76,6 +76,9 @@ function service(referentiel: Referentiel, ecritures: ReturnType<typeof ecriture
     // Le contrôle 21 lit le manuel des procédures (AUDCIF art. 16 al. 1) ·
     // sans ce faux, il croirait la table absente plutôt que le manuel.
     manuelProcedures: { findFirst: jest.fn().mockResolvedValue(null) },
+    // Dossiers de subvention · vides ici, ces specs ne les testent pas. Sans
+    // cette doublure, le contrôle 24 tomberait sur undefined.
+    conventionFinancement: { findMany: jest.fn().mockResolvedValue([]) },
   } as unknown as PrismaService;
   return { svc: new ControlesService(prisma), exoneration };
 }

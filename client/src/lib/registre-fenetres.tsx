@@ -54,6 +54,7 @@ const AffectationPage = lazy(() => import('../pages/AffectationPage').then((m) =
 const RegularisationPage = lazy(() => import('../pages/RegularisationPage').then((m) => ({ default: m.RegularisationPage })));
 const DevisesPage = lazy(() => import('../pages/DevisesPage').then((m) => ({ default: m.DevisesPage })));
 const RelancesPage = lazy(() => import('../pages/RelancesPage').then((m) => ({ default: m.RelancesPage })));
+const ConventionsFinancementPage = lazy(() => import('../pages/ConventionsFinancementPage').then((m) => ({ default: m.ConventionsFinancementPage })));
 const EngagementsPage = lazy(() => import('../pages/EngagementsPage').then((m) => ({ default: m.EngagementsPage })));
 const EtatsAnalytiquesPage = lazy(() => import('../pages/EtatsAnalytiquesPage').then((m) => ({ default: m.EtatsAnalytiquesPage })));
 const BailleursPage = lazy(() => import('../pages/BailleursPage').then((m) => ({ default: m.BailleursPage })));
@@ -356,6 +357,16 @@ export const FENETRES: DefinitionFenetre[] = [
     // ouvrir le registre à une société commerciale lui ferait tenir un
     // document qu'aucun texte ne lui demande. Le cloisonnement est posé aux
     // DEUX bouts : ici, et par `@ReferentielsAutorises` sur chaque route.
+    motif: /^\/conventions-financement$/,
+    titre: 'Dossier de subvention',
+    titreCourt: 'Subventions',
+    // SYCEBNL SEULEMENT, comme le bailleur lui-même · la convention de
+    // financement est le dossier d'un tiers financeur, notion de la division
+    // 46 du SYCEBNL. En SYSCOHADA le 46 porte les apporteurs et le groupe.
+    referentielsApplicables: ['SYCEBNL'],
+    rendre: () => <ConventionsFinancementPage />,
+  },
+  {
     motif: /^\/engagements$/,
     titre: 'Registre des engagements de dépense',
     titreCourt: 'Engagements',

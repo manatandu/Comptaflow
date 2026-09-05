@@ -2010,6 +2010,115 @@ export class ControlesService {
       });
     }
 
+    // -----------------------------------------------------------------------
+    // 24 · CONVENTION DE FINANCEMENT EXPIRÉE, RAPPORT AU BAILLEUR EN RETARD
+    // -----------------------------------------------------------------------
+    //
+    // Le jalon 11 du planning de clôture demande de vérifier « à chaque
+    // exercice que l'accord-cadre est en cours de validité » (loi n° 004/2001
+    // du 20 juillet 2001, art. 37). Il le demandait sur une donnée que RIEN ne
+    // détenait : le dossier de subvention la porte depuis le 2026-09-05.
+    //
+    // SYCEBNL SEULEMENT · la convention de financement suit le bailleur, qui
+    // est une notion de la division 46 du SYCEBNL.
+    if (tenant.referentiel === Referentiel.SYCEBNL) {
+      const maintenant = new Date();
+      const conventions = await this.prisma.conventionFinancement.findMany({
+        where: { tenantId, statut: 'EN_COURS' },
+        select: {
+          reference: true,
+          objet: true,
+          dateFin: true,
+          montantAccorde: true,
+          caractere: true,
+          ecritSigne: true,
+          bailleur: { select: { code: true, nom: true } },
+          rapports: { select: { intitule: true, dateEcheance: true, dateTransmission: true } },
+        },
+      });
+
+      const expirees = conventions.filter((c) => c.dateFin < maintenant);
+      if (expirees.length > 0) {
+        anomalies.push({
+          code: 'CONVENTION_FINANCEMENT_EXPIREE',
+          gravite: 'AVERTISSEMENT',
+          libelle: 'Convention de financement arrivée à terme et toujours en cours',
+          consequence:
+            'Ces conventions portent une date de fin dépassée et restent marquées EN COURS. Leur reste à recevoir ' +
+            'continue donc d’être présenté comme attendu, alors que rien ne le fonde plus. La loi n° 004/2001 ' +
+            'du 20 juillet 2001, art. 37, fait par ailleurs de la validité de l’accord-cadre la condition même de ' +
+            'l’exercice d’une ONG étrangère : une convention expirée n’est pas seulement une créance douteuse, ' +
+            'c’est une activité sans titre.',
+          action:
+            'Faites constater l’avenant de prorogation s’il existe, et reportez sa date de fin sur la convention. ' +
+            'À défaut, clôturez la convention, ou résiliez-la avec son motif si le solde ne sera pas versé · la ' +
+            'résiliation fait tomber le reste à recevoir.',
+          occurrences: expirees.slice(0, 200).map((c) => ({
+            reference: `${c.bailleur.code} · ${c.reference}`,
+            detail: `${c.objet} · échue le ${c.dateFin.toISOString().slice(0, 10)}`,
+            montant: Math.round(Number(c.montantAccorde) * 100) / 100,
+            date: c.dateFin.toISOString().slice(0, 10),
+          })),
+        });
+      }
+
+      const rapportsEnRetard = conventions.flatMap((c) =>
+        c.rapports
+          .filter((r) => r.dateTransmission === null && r.dateEcheance < maintenant)
+          .map((r) => ({ convention: c, rapport: r })),
+      );
+      if (rapportsEnRetard.length > 0) {
+        anomalies.push({
+          code: 'RAPPORT_BAILLEUR_NON_TRANSMIS',
+          gravite: 'AVERTISSEMENT',
+          libelle: 'Rapport dû à un bailleur, échu et non transmis',
+          consequence:
+            'Un rapport en retard n’est pas une omission administrative : la plupart des conventions en font la ' +
+            'condition du versement de la tranche suivante. Aucun solde ne le dit, et c’est le décaissement ' +
+            'attendu qui ne viendra pas.',
+          action:
+            'Transmettez le rapport et datez sa transmission ici. Si la convention a été prorogée ou le rapport ' +
+            'reporté, corrigez son échéance plutôt que de laisser l’avertissement se répéter à chaque clôture.',
+          occurrences: rapportsEnRetard.slice(0, 200).map(({ convention, rapport }) => ({
+            reference: `${convention.bailleur.code} · ${convention.reference}`,
+            // Un rapport n'a pas de montant · le champ est facultatif, on
+            // l'omet plutôt que d'afficher un zéro qui se lirait comme une
+            // somme.
+            detail: `${rapport.intitule} · dû le ${rapport.dateEcheance.toISOString().slice(0, 10)}`,
+            date: rapport.dateEcheance.toISOString().slice(0, 10),
+          })),
+        });
+      }
+
+      // Le § 5.4.2.4 fait de l'écrit signé une CONDITION de la
+      // comptabilisation : « ferme et inconditionnel ET a fait l'objet d'un
+      // écrit signé ». Une convention déclarée ferme sans son écrit ne peut
+      // pas être portée en créance, et c'est l'erreur naturelle · le cabinet
+      // sait l'engagement ferme, et croit que cela suffit.
+      const fermesSansEcrit = conventions.filter((c) => c.caractere === 'FERME_INCONDITIONNEL' && !c.ecritSigne);
+      if (fermesSansEcrit.length > 0) {
+        anomalies.push({
+          code: 'ENGAGEMENT_FERME_SANS_ECRIT_SIGNE',
+          gravite: 'INFORMATION',
+          libelle: 'Engagement déclaré ferme, sans écrit signé enregistré',
+          consequence:
+            'Le cadre conceptuel SYCEBNL, § 5.4.2.4, pose DEUX conditions à la comptabilisation d’un engagement ' +
+            'de financement en créances à recevoir : qu’il soit « ferme et inconditionnel » ET qu’il ait « fait ' +
+            'l’objet d’un écrit signé par les représentants habilités des tiers financeurs ». Ces conventions ne ' +
+            'remplissent que la première : portées en créance, elles gonfleraient l’actif sans pièce opposable à ' +
+            'un réviseur.',
+          action:
+            'Joignez la référence de l’écrit signé et nommez son signataire sur la convention. Tant qu’il manque, ' +
+            'l’engagement reste une mention de Notes annexes et non une créance.',
+          occurrences: fermesSansEcrit.slice(0, 200).map((c) => ({
+            reference: `${c.bailleur.code} · ${c.reference}`,
+            detail: `${c.objet} · aucun écrit signé enregistré`,
+            montant: Math.round(Number(c.montantAccorde) * 100) / 100,
+          })),
+        });
+      }
+    }
+
     const ordre: Record<Gravite, number> = { BLOQUANT: 0, AVERTISSEMENT: 1, INFORMATION: 2 };
     anomalies.sort((a, b) => ordre[a.gravite] - ordre[b.gravite]);
 

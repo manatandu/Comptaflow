@@ -106,6 +106,9 @@ function serviceControles(referentiel: Referentiel, dateArreteComptes: Date | nu
     ligneEcriture: { findMany: jest.fn().mockResolvedValue([]) },
     exoneration: { findMany: jest.fn().mockResolvedValue([]) },
     manuelProcedures: { findFirst: jest.fn().mockResolvedValue(null) },
+    // Dossiers de subvention · vides ici, ces specs ne les testent pas. Sans
+    // cette doublure, le contrôle 24 tomberait sur undefined.
+    conventionFinancement: { findMany: jest.fn().mockResolvedValue([]) },
     immobilisation: { findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0) },
   } as Faux;
   return new ControlesService(prisma as unknown as PrismaService);

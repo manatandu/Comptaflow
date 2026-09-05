@@ -63,6 +63,9 @@ function service(biens: Bien[], referentiel: Referentiel = Referentiel.SYSCOHADA
     ligneEcriture: { findMany: jest.fn().mockResolvedValue([]) },
     exoneration: { findMany: jest.fn().mockResolvedValue([]) },
     manuelProcedures: { findFirst: jest.fn().mockResolvedValue(null) },
+    // Dossiers de subvention · vides ici, ces specs ne les testent pas. Sans
+    // cette doublure, le contrôle 24 tomberait sur undefined.
+    conventionFinancement: { findMany: jest.fn().mockResolvedValue([]) },
     depreciationImmobilisation: { findMany: jest.fn().mockResolvedValue([]) },
     reevaluationImmobilisation: { findMany: jest.fn().mockResolvedValue([]) },
     immobilisation: {

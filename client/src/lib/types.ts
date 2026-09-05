@@ -3175,3 +3175,62 @@ export interface EcritureRattachable {
   libelle: string;
   reference: string | null;
 }
+
+// ---------------------------------------------------------------------------
+// CONVENTIONS DE FINANCEMENT · le dossier de subvention.
+//
+// SYCEBNL, cadre conceptuel § 5.4.2.4 : le caractère de l'engagement commande
+// le traitement · créance à recevoir d'un côté, mention de Notes annexes de
+// l'autre.
+// ---------------------------------------------------------------------------
+
+export type CaractereEngagement = 'FERME_INCONDITIONNEL' | 'CONDITIONNEL';
+export type StatutConvention = 'EN_COURS' | 'CLOTUREE' | 'RESILIEE';
+export type NatureRapportBailleur = 'FINANCIER' | 'NARRATIF' | 'AUDIT';
+export type TraitementEngagement = 'CREANCE_A_RECEVOIR' | 'MENTION_NOTES_ANNEXES';
+
+export interface TrancheFinancement {
+  id: string;
+  numero: number;
+  libelle: string;
+  montant: number;
+  datePrevue: string;
+  dateEncaissement: string | null;
+  montantEncaisse: number | null;
+  enRetard: boolean;
+}
+
+export interface RapportBailleur {
+  id: string;
+  intitule: string;
+  nature: NatureRapportBailleur;
+  dateEcheance: string;
+  dateTransmission: string | null;
+  observation: string | null;
+  enRetard: boolean;
+}
+
+export interface ConventionFinancement {
+  id: string;
+  bailleur: { id: string; code: string; nom: string };
+  reference: string;
+  objet: string;
+  ecritSigne: boolean;
+  signataire: string | null;
+  dateSignature: string | null;
+  dateDebut: string;
+  dateFin: string;
+  montantAccorde: number;
+  caractere: CaractereEngagement;
+  conditions: string | null;
+  statut: StatutConvention;
+  motifCloture: string | null;
+  /** Ce que le § 5.4.2.4 autorise · créance, ou simple mention. */
+  traitement: TraitementEngagement;
+  montantEncaisse: number;
+  resteARecevoir: number;
+  /** Validité dépassée · ce que le jalon 11 du planning demande de vérifier. */
+  expiree: boolean;
+  tranches: TrancheFinancement[];
+  rapports: RapportBailleur[];
+}

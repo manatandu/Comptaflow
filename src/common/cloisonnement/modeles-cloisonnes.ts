@@ -10,6 +10,7 @@ export const MODELES_CLOISONNES = new Set<string>([
   'AffectationResultat',
   'Bailleur',
   'Cloture',
+  'ConventionFinancement',
   'Compte',
   'Devise',
   'Donation',
@@ -78,6 +79,10 @@ export const MODELES_PORTES_PAR_LEUR_PARENT = new Set<string>([
   'ExecutionEngagement',
   'LigneAffectation',
   'LigneEcriture',
+  // Portés par leur convention de financement · le service ne les atteint
+  // jamais qu'après avoir borné la convention au dossier.
+  'RapportBailleur',
+  'TrancheFinancement',
   'LigneModeleSaisie',
   // Portée par son immobilisation, comme la dotation et la dépréciation · le
   // service ne l'atteint jamais que par un bien déjà borné au dossier.
