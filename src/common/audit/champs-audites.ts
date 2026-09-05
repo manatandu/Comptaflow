@@ -75,8 +75,38 @@ const FRAGMENTS_SENSIBLES = [
 
 export const MARQUEUR_MASQUE = '[masqué]';
 
-export function estChampSensible(nom: string): boolean {
+/**
+ * LA LISTE FERMÉE · ce que le fragment de nom ne peut pas attraper.
+ *
+ * `FRAGMENTS_SENSIBLES` est une heuristique sur le NOM · elle attrape
+ * `motDePasse` parce qu'il se nomme ainsi. Elle ne peut rien contre un champ
+ * dont le nom ne dit pas qu'il est sensible.
+ *
+ * `User.estOperateurPlateforme` en est le cas exact. Le schéma dit de lui
+ * « aucun DTO n'expose ce champ » et « jamais renvoyé par /utilisateurs » ·
+ * et pourtant le journal d'audit le rendait, en clair, à tout utilisateur du
+ * dossier ayant accès à `/journal-audit`, puisque `User` est un modèle audité
+ * et que la charge `apres` recopie la ligne entière. Le drapeau désigne le
+ * compte de l'exploitant du logiciel présent dans le dossier du client :
+ * exactement le compte qu'un attaquant cherche.
+ *
+ * D'où une liste nommée COLONNE PAR COLONNE, et un test qui la tient FERMÉE ·
+ * une colonne ajoutée demain à `User` fait tomber ce test tant que quelqu'un
+ * ne l'a pas classée d'un côté ou de l'autre. C'est la seule forme de liste
+ * qui ne se périme pas en silence.
+ */
+export const COLONNES_EXCLUES_PAR_MODELE: Readonly<Record<string, readonly string[]>> = {
+  User: ['motDePasse', 'estOperateurPlateforme'],
+};
+
+/** Les colonnes exclues d'un modèle, en minuscules, comparables telles quelles. */
+export function colonnesExclues(modele: string): ReadonlySet<string> {
+  return new Set((COLONNES_EXCLUES_PAR_MODELE[modele] ?? []).map((c) => c.toLowerCase()));
+}
+
+export function estChampSensible(nom: string, exclues?: ReadonlySet<string>): boolean {
   const n = nom.toLowerCase();
+  if (exclues?.has(n)) return true;
   return FRAGMENTS_SENSIBLES.some((f) => n.includes(f));
 }
 
@@ -85,9 +115,9 @@ export function estChampSensible(nom: string): boolean {
  * garde la CLÉ · savoir que le mot de passe a changé fait partie de la
  * trace, connaître sa valeur n'en fait pas partie.
  */
-export function masquer(valeur: unknown): unknown {
+export function masquer(valeur: unknown, exclues?: ReadonlySet<string>): unknown {
   if (valeur === null || valeur === undefined) return valeur;
-  if (Array.isArray(valeur)) return valeur.map(masquer);
+  if (Array.isArray(valeur)) return valeur.map((v) => masquer(v, exclues));
   if (valeur instanceof Date) return valeur.toISOString();
   if (typeof valeur === 'bigint') return valeur.toString();
   // Un Decimal de Prisma · sa sérialisation JSON par défaut est instable
@@ -97,7 +127,9 @@ export function masquer(valeur: unknown): unknown {
     if (typeof (o as { toFixed?: unknown }).toFixed === 'function') return String(valeur);
     const sortie: Record<string, unknown> = {};
     for (const [cle, v] of Object.entries(o)) {
-      sortie[cle] = estChampSensible(cle) ? MARQUEUR_MASQUE : masquer(v);
+      // L'exclusion vaut à TOUTE profondeur · la charge d'une opération de
+      // masse porte le filtre de la requête, qui peut nommer la colonne.
+      sortie[cle] = estChampSensible(cle, exclues) ? MARQUEUR_MASQUE : masquer(v, exclues);
     }
     return sortie;
   }

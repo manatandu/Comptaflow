@@ -1,7 +1,7 @@
 import { Prisma, PrismaClient } from '@prisma/client';
 import { Logger } from '@nestjs/common';
 import { acteurCourant, ACTEUR_SYSTEME } from './contexte-audit';
-import { MODELES_AUDITES, masquer } from './champs-audites';
+import { MODELES_AUDITES, colonnesExclues, masquer } from './champs-audites';
 import { calculerEmpreinte, EMPREINTE_ORIGINE } from './empreinte-audit';
 
 const journal = new Logger('JournalAudit');
@@ -146,6 +146,9 @@ export async function intercepterEcriture(
 
   try {
     const acteur = acteurCourant();
+    // Les colonnes que ce modèle ne recopie JAMAIS dans le journal · liste
+    // fermée, tenue par un test. Voir COLONNES_EXCLUES_PAR_MODELE.
+    const exclues = colonnesExclues(model);
     const apres = ['delete', 'deleteMany'].includes(operation) ? null : resultat;
     const estMasse = ['createMany', 'createManyAndReturn', 'updateMany', 'deleteMany'].includes(operation);
 
@@ -159,8 +162,10 @@ export async function intercepterEcriture(
       // Une opération de masse ne désigne aucune ligne · on garde le filtre,
       // qui dit ce qui a été visé, plutôt qu'un faux identifiant.
       entiteId: estMasse ? null : identifiant(resultat, a),
-      avant: masquer(avant),
-      apres: estMasse ? masquer({ operation, filtre: a.where ?? null, resultat }) : masquer(apres),
+      avant: masquer(avant, exclues),
+      apres: estMasse
+        ? masquer({ operation, filtre: a.where ?? null, resultat }, exclues)
+        : masquer(apres, exclues),
     });
   } catch (erreur) {
     // CHOIX ASSUMÉ · l'opération métier a RÉUSSI à ce stade. Faire échouer la

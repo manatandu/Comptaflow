@@ -262,6 +262,36 @@ describe('l’interception, telle qu’elle est branchée', () => {
     expect(maillons[0].apres).toEqual({ id: 'c-1', tenantId: 'd-1', intitule: 'Caisse siège' });
   });
 
+  it('applique la liste d’exclusion DU MODÈLE écrit, pas d’un autre', async () => {
+    // LE CÂBLAGE, et pas seulement la fonction · une version qui masquerait
+    // correctement mais passerait le mauvais modèle à `colonnesExclues`
+    // laisserait `estOperateurPlateforme` en clair dans le maillon, et tous
+    // les tests de `masquer()` resteraient verts. C'est ce trou-là que ce cas
+    // ferme.
+    const { client, maillons } = baseFactice();
+    await dansContexteAudit({ acteurEmail: 'chef@cabinet.cd', tenantId: 'd-1' }, () =>
+      intercepterEcriture(client, {
+        model: 'User',
+        operation: 'update',
+        args: { where: { id: 'u-9' }, data: { estActif: false } },
+        query: async () => ({
+          id: 'u-9',
+          tenantId: 'd-1',
+          email: 'x@y.cd',
+          motDePasse: '$2b$10$secret',
+          estOperateurPlateforme: true,
+          estActif: false,
+        }),
+      }),
+    );
+    expect(maillons).toHaveLength(1);
+    const apres = maillons[0].apres as Record<string, unknown>;
+    expect(apres.estOperateurPlateforme).toBe('[masqué]');
+    expect(apres.motDePasse).toBe('[masqué]');
+    expect(apres.email).toBe('x@y.cd');
+    expect(apres.estActif).toBe(false);
+  });
+
   it('prend le verrou par `$executeRaw` · `$queryRaw` ne sait pas lire un `void`', async () => {
     // L'INCIDENT DU 2026-09-02 · le verrou consultatif passait par
     // `$queryRaw`. Le moteur refusait de désérialiser la colonne `void`,

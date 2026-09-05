@@ -635,7 +635,14 @@ avant de l'écrire ; un spec (`compte-seed-syscohada.spec.ts`) le contrôle.
   lignes engendrées en masse. Chaque événement porte l'empreinte du précédent
   (chaîne par dossier) · c'est ce qui rend une retouche visible, AUDCIF
   art. 22, 5° et 6°. Deux règles à ne pas défaire : aucune route d'écriture
-  sur `/journal-audit`, et aucun champ sensible recopié (`masquer()` remplace
+  sur `/journal-audit`, et aucun champ sensible recopié. Le masquage a DEUX
+  moitiés · une heuristique sur le NOM (`FRAGMENTS_SENSIBLES`), qui n'attrape
+  que ce qui s'annonce, et une liste FERMÉE par colonne
+  (`COLONNES_EXCLUES_PAR_MODELE`) pour ce qui ne s'annonce pas. La seconde est
+  née de `User.estOperateurPlateforme`, dont le schéma dit « jamais renvoyé
+  par /utilisateurs » et que le journal rendait pourtant en clair à tout
+  utilisateur du dossier. Un test tient la liste fermée · une colonne ajoutée
+  à `User` le fait tomber tant qu'elle n'est pas classée. (`masquer()` remplace
   mot de passe, jeton et secret par un marqueur).
 
 - **Le dossier de l'éditeur ne se coupe jamais** · `TypeLicence.PROPRIETAIRE`.
