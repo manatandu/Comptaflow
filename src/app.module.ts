@@ -42,6 +42,7 @@ import { FiscaliteModule } from './modules/fiscalite/fiscalite.module';
 import { PlateformeModule } from './modules/plateforme/plateforme.module';
 import { GroupeModule } from './modules/groupe/groupe.module';
 import { ModelesSaisieModule } from './modules/modeles-saisie/modeles-saisie.module';
+import { CourrierModule } from './modules/courrier/courrier.module';
 
 @Module({
   imports: [
@@ -93,6 +94,7 @@ import { ModelesSaisieModule } from './modules/modeles-saisie/modeles-saisie.mod
     PlateformeModule,
     GroupeModule,
     ModelesSaisieModule,
+    CourrierModule,
   ],
   controllers: [SanteController],
   providers: [

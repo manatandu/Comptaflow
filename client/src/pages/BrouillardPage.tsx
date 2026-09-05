@@ -137,7 +137,12 @@ export function BrouillardPage() {
     }
   };
 
-  const grille = 'grid grid-cols-[28px_92px_60px_70px_1fr_120px_120px_96px_70px] gap-2';
+  // 656 px de colonnes fixes + 8 gouttières de 8 px + 24 px de marges =
+  // 744 px incompressibles, pour ~326 px utiles à 360 px · le `min-w` va de
+  // pair avec le conteneur défilant posé plus bas, sans quoi les dernières
+  // colonnes étaient ROGNÉES sans barre pour aller les chercher.
+  const grille =
+    'grid grid-cols-[28px_92px_60px_70px_1fr_120px_120px_96px_70px] min-w-[744px] gap-2';
 
   return (
     <div className="p-2">
@@ -228,7 +233,7 @@ export function BrouillardPage() {
         </div>
       )}
 
-      <div className="bg-surface border border-border rounded-[10px] shadow-posee overflow-hidden">
+      <div className="bg-surface border border-border rounded-[10px] shadow-posee overflow-x-auto">
         <div
           className={`${grille} px-3 py-1.5 bg-chrome-alt border-b border-border text-[10px] font-bold text-text-dim`}
         >

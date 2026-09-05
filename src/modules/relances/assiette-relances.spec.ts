@@ -1,6 +1,10 @@
 import { Referentiel } from '@prisma/client';
 import { RelancesService, RACINES_RELANCABLES } from './relances.service';
 import { PrismaService } from '../../common/prisma.service';
+import { CourrierService } from '../courrier/courrier.service';
+
+/** L'assiette ne met rien en file · la file n'est là que pour construire le service. */
+const sansCourrier = () => ({ mettreEnFile: jest.fn() }) as unknown as CourrierService;
 
 /**
  * CE QU'ON RELANCE, ET CE QU'ON NE RELANCE PAS.
@@ -25,7 +29,7 @@ function service(referentiel: Referentiel) {
     niveauRelance: { findMany: jest.fn().mockResolvedValue([]) },
     relance: { findMany: jest.fn().mockResolvedValue([]) },
   } as unknown as PrismaService;
-  return { svc: new RelancesService(prisma), findMany };
+  return { svc: new RelancesService(prisma, sansCourrier()), findMany };
 }
 
 /** Les préfixes de compte réellement interrogés en base. */

@@ -7,7 +7,7 @@ import { definitionPour } from '../../lib/registre-fenetres';
 import { fenetreDisponible } from '../../lib/referentiel-fenetre';
 import { IconLogo } from './icons';
 import { MenuBar, type MenuDef } from './MenuBar';
-import { CalculetteChrome, NavigationChrome } from './OutilsChrome';
+import { CalculetteChrome, ClocheChrome, NavigationChrome } from './OutilsChrome';
 import { StatusBar } from './StatusBar';
 import { BarreFenetres } from './BarreFenetres';
 import { Fenetre } from './Fenetre';
@@ -138,6 +138,32 @@ export function AppShell() {
         // Sage : Fichier → Importer. C'est par là qu'une association arrive
         // avec son tableur ou l'export de son logiciel précédent.
         ...(estAdmin ? [{ label: 'Importer des données…', separateurAvant: true, onClick: () => navigate('/import') }] : []),
+        // LA FILE DES COURRIELS EST UN OUTIL DU DOSSIER, PAS UN ÉTAT.
+        //
+        // Elle ne se range pas au menu « État » : rien n'y est édité, aucun
+        // chiffre n'y est arrêté, elle ne dépend même pas de l'exercice · un
+        // état comptable se dépose chez un tiers, une file d'envois se
+        // surveille. Le menu État vient par ailleurs d'être replié en six
+        // familles pour tenir sur un écran de 360 px (chrome-etroit.spec.ts en
+        // gèle les vingt-deux éditions) : y ajouter une vingt-troisième entrée
+        // qui n'est pas une édition rouvrirait ce défaut ET ferait mentir le
+        // repli.
+        //
+        // Elle ne se range pas non plus au menu « Traitement », qui porte les
+        // gestes qui touchent aux comptes (saisie, lettrage, rapprochement,
+        // affectation). Envoyer un courriel n'écrit aucune écriture.
+        //
+        // Reste « Fichier », qui porte le dossier et ses accès · les
+        // autorisations, l'import, l'impression. La file y trouve sa famille
+        // immédiate : ce qui ENTRE dans le dossier (Importer) et ce qui en
+        // SORT (Courriers sortants). D'où le trait de séparation seulement
+        // quand l'import est absent, faute de quoi l'entrée se collerait à
+        // « Ouvrir un autre dossier ».
+        //
+        // Ouverte à TOUS les rôles, comme la route de lecture du serveur : le
+        // comptable en lecture seule qui voit sa relance « gardée » doit
+        // pouvoir en lire la raison.
+        { label: 'Courriers sortants', separateurAvant: !estAdmin, onClick: () => navigate('/courrier') },
         // Console de l'opérateur de la plateforme (le cabinet exploitant) ·
         // invisible pour tout utilisateur ordinaire, et de toute façon
         // inaccessible : le serveur relit le drapeau en base à chaque requête.
@@ -463,7 +489,20 @@ export function AppShell() {
         {/* Une SEULE rangée de commandes · l'ancienne barre d'outils et ses
             dix verbes est supprimée (voir OutilsChrome.tsx), ce qui rend
             environ 44 px de hauteur à l'espace de travail. */}
-        <MenuBar menus={menus} avant={<NavigationChrome />} apres={<CalculetteChrome />} />
+        {/* La cloche avant la calculette · elle porte un compte qui change,
+            la calculette non. À l'extrémité droite de la ligne, les deux
+            restent hors du chemin des menus, qui se replient sur deux rangs à
+            360 px. */}
+        <MenuBar
+          menus={menus}
+          avant={<NavigationChrome />}
+          apres={
+            <>
+              <ClocheChrome />
+              <CalculetteChrome />
+            </>
+          }
+        />
       </div>
 
       {/*

@@ -141,3 +141,11 @@ export const IconCalculette = (p: SVGProps<SVGSVGElement>) => (
 export const IconTrier = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}><path d="M4 7h16M6 12h12M9 17h6" /></svg>
 );
+/**
+ * Cloche · la file des courriels sortants. Tracé simple, comme les autres :
+ * un contour de cloche et son battant, sans remplissage · c'est la pastille
+ * de compte qui doit attirer l'œil, pas l'icône.
+ */
+export const IconCloche = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}><path d="M6 16V10a6 6 0 1112 0v6l1.5 2.5h-15L6 16z" /><path d="M10 21h4" /></svg>
+);

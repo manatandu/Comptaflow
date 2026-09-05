@@ -25,6 +25,7 @@ export const MODELES_CLOISONNES = new Set<string>([
   'Licence',
   'LiquidationTva',
   'ManuelProcedures',
+  'Message',
   'ModeleAbonnement',
   'ModeleReglement',
   'ModeleSaisie',

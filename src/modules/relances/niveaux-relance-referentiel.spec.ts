@@ -1,6 +1,10 @@
 import { Referentiel } from '@prisma/client';
 import { RelancesService } from './relances.service';
 import { PrismaService } from '../../common/prisma.service';
+import { CourrierService } from '../courrier/courrier.service';
+
+/** Le semis ne met rien en file · la file n'est là que pour construire le service. */
+const sansCourrier = () => ({ mettreEnFile: jest.fn() }) as unknown as CourrierService;
 
 /**
  * LES SEULES PHRASES DU LOGICIEL QUI SORTENT DE L'ÉCRAN.
@@ -21,7 +25,7 @@ function service() {
   const prisma = {
     niveauRelance: { count: jest.fn().mockResolvedValue(0), createMany },
   } as unknown as PrismaService;
-  return { svc: new RelancesService(prisma), createMany };
+  return { svc: new RelancesService(prisma, sansCourrier()), createMany };
 }
 
 async function modeles(referentiel: Referentiel) {
@@ -72,7 +76,7 @@ describe('Niveaux de relance semés à la création du dossier', () => {
     const prisma = {
       niveauRelance: { count: jest.fn().mockResolvedValue(3), createMany },
     } as unknown as PrismaService;
-    await new RelancesService(prisma).seedNiveauxDefaut('t1', Referentiel.SYSCOHADA);
+    await new RelancesService(prisma, sansCourrier()).seedNiveauxDefaut('t1', Referentiel.SYSCOHADA);
     expect(createMany).not.toHaveBeenCalled();
   });
 });

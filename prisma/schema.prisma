@@ -182,6 +182,26 @@ enum SystemeComptableSyscohada {
   MINIMAL_TRESORERIE
 }
 
+//
+// ÉTAT D'UN COURRIEL DANS LA FILE.
+//
+// SANS_TRANSPORT n'est pas un échec, et c'est la valeur qui compte aujourd'hui :
+// aucun transport n'est configuré sur cette installation, et le logiciel ne
+// doit NI prétendre avoir envoyé, NI perdre le message. Il le garde, le marque
+// pour ce qu'il est, et le dit à l'écran. Le jour où les identifiants SMTP
+// seront posés, ces messages repartent sans avoir été réécrits.
+//
+// ABANDONNE est terminal · le plafond de tentatives est atteint. Un message
+// abandonné reste lisible, avec sa dernière erreur : une relance qui n'est
+// jamais partie est une information comptable, pas un déchet technique.
+enum StatutMessage {
+  EN_ATTENTE
+  SANS_TRANSPORT
+  ENVOYE
+  ECHEC
+  ABANDONNE
+}
+
 enum TypeLicence {
   ABONNEMENT // coupure automatique à échéance
   PERPETUEL_SAAS // payé une fois, hébergé chez nous, sans expiration
@@ -392,6 +412,7 @@ model Tenant {
   journaux                 Journal[]
   clotures                 Cloture[]
   tiers                    Tiers[]
+  messages                 Message[]
   // Comptes de tiers ouverts, dans les AUTRES dossiers du groupe, au nom de
   // celui-ci · voir `celluleGroupeId` sur Tiers.
   tiersCellule             Tiers[]                   @relation("TiersCelluleGroupe")
@@ -1388,6 +1409,61 @@ model EcheanceReglement {
 
   @@unique([modeleReglementId, ordre])
   @@map("echeances_reglement")
+}
+
+//
+// FILE DES COURRIELS · OmegaX compose déjà des lettres de relance complètes
+// (RelancesService.emettre) et des mots de passe temporaires que personne ne
+// reçoit : rien dans le produit ne sait envoyer un courriel.
+//
+// POURQUOI UNE FILE, ET PAS UN APPEL DIRECT. Un envoi qui échoue au moment où
+// on le tente est perdu s'il n'a pas été écrit d'abord. La relance, elle, a
+// été DÉCIDÉE par le comptable : elle doit survivre à une panne de réseau, à
+// un redémarrage de l'instance, et se voir. D'où une ligne en base avant toute
+// tentative, et un état qui dit où en est chaque message.
+//
+// AUCUN SECRET ICI, ET C'EST DÉLIBÉRÉ. Le serveur, le port, l'identifiant et
+// le mot de passe du compte d'envoi vivent dans l'ENVIRONNEMENT (variables
+// SMTP_*), comme DATABASE_URL, jamais dans cette table ni dans le dépôt. Une
+// base de données se sauvegarde, s'exporte et se lit : un mot de passe de
+// boîte aux lettres n'y a pas sa place. La conséquence pratique est qu'il n'y
+// a RIEN à configurer dans une fenêtre du logiciel, seulement des secrets à
+// poser sur le service.
+model Message {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  destinataire    String
+  destinataireNom String?
+  sujet           String
+  corps           String
+
+  //
+  // CE QUI A PRODUIT CE MESSAGE · « RELANCE », « MOT_DE_PASSE_TEMPORAIRE »,
+  // et ce qui viendra. Sans cette origine, une file de courriels devient
+  // illisible au bout d'un mois : on voit partir des messages sans savoir
+  // quelle décision comptable les a demandés. `origineId` porte la clé de
+  // l'objet d'origine quand il en a une, pour remonter à la pièce.
+  origine   String
+  origineId String?
+
+  statut          StatutMessage @default(EN_ATTENTE)
+  tentatives      Int           @default(0)
+  dernierEssaiAt  DateTime?
+  // Attente avant la prochaine tentative · report croissant, voir le service.
+  prochainEssaiAt DateTime?
+  // Dernière erreur rendue par le transport, telle quelle.
+  erreur          String?
+  envoyeAt        DateTime?
+
+  createdBy String?
+  createdAt DateTime @default(now())
+
+  // La file se lit par dossier et par état · c'est l'écran de suivi et la
+  // reprise des échecs, les deux seules lectures.
+  @@index([tenantId, statut])
+  @@map("messages")
 }
 
 model Tiers {

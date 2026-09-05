@@ -1699,7 +1699,32 @@ export interface PositionRelance {
   echeancePlusAncienne: string | null;
   niveauSuggere: number | null;
   derniereRelance: { niveau: number; date: string } | null;
+  /**
+   * L'adresse du tiers, ou `null` · elle est FACULTATIVE sur la fiche, et la
+   * lacune doit se voir AVANT le clic, pas seulement au compte rendu.
+   */
+  tiersEmail: string | null;
   lignes: { date: string; echeance: string | null; libelle: string; montant: number; retardJours: number }[];
+}
+
+/**
+ * Ce qu'il est advenu de la remise d'un courriel · forme rendue par le
+ * serveur (`RemiseLettre` dans relances.service.ts). `statut === null`
+ * signifie que RIEN n'est entré dans la file et que `motif` dit pourquoi ;
+ * `SANS_TRANSPORT` signifie que le message est écrit et repartira tel quel.
+ */
+export interface RemiseCourriel {
+  destinataire: string | null;
+  statut: StatutMessage | null;
+  motif: string | null;
+}
+
+/** L'avis d'accès rendu par POST /utilisateurs et la réinitialisation. */
+export interface AvisAcces {
+  avise: boolean;
+  destinataire: string;
+  statut: StatutMessage | null;
+  motif: string | null;
 }
 
 export interface LettreRelance {
@@ -1707,6 +1732,21 @@ export interface LettreRelance {
   tiers: string;
   montant: number;
   texte: string;
+  /** Ce qu'il est advenu de la remise · voir `RemiseLettre` (relances.service.ts). */
+  remise: RemiseCourriel;
+}
+
+/**
+ * Le compte rendu de POST /relances/emettre · `emises` compte les lettres
+ * ÉCRITES, `misesEnFile` celles qui sont parties vers un destinataire. Les
+ * deux ne sont pas le même nombre dès qu'un tiers n'a pas d'adresse.
+ */
+export interface BilanEmissionRelances {
+  emises: number;
+  niveau: number;
+  misesEnFile: number;
+  nonRemises: number;
+  lettres: LettreRelance[];
 }
 
 // --------------------------------------------------------------------------
@@ -2992,4 +3032,93 @@ export interface BalanceAgregeeGroupe {
   controles: ControlesAgregatGroupe;
   /** Le cumul BRUT dossier par dossier · agrégat = détail par dossier moins éliminations. */
   detailParDossier: Array<{ dossier: string; numero: string; intitule: string; totalDebit: number; totalCredit: number }>;
+}
+
+// --------------------------------------------------------------------------
+// File des courriels · module `courrier` du serveur
+// --------------------------------------------------------------------------
+
+/**
+ * Les cinq états de l'énumération Prisma `StatutMessage` (migration
+ * 20260914180000_file_des_courriels). Recopiés ici parce que le client ne
+ * dépend pas de `@prisma/client` · toute valeur ajoutée côté serveur doit
+ * l'être ici, faute de quoi l'écran de suivi afficherait un état muet.
+ */
+export type StatutMessage = 'EN_ATTENTE' | 'SANS_TRANSPORT' | 'ENVOYE' | 'ECHEC' | 'ABANDONNE';
+
+/**
+ * Une ligne de la file, telle que `GET /courrier` la rend · SANS son corps.
+ * Ce n'est pas une troncature : un rappel fait plusieurs milliers de
+ * caractères, et le serveur le garde ENTIER pour `GET /courrier/:id`
+ * (CHAMPS_LISTE, courrier.service.ts). Les dates arrivent en ISO.
+ */
+export interface MessageEnFile {
+  id: string;
+  destinataire: string;
+  destinataireNom: string | null;
+  sujet: string;
+  /** « RELANCE », « MOT_DE_PASSE_TEMPORAIRE »… · ce qui a demandé ce message. */
+  origine: string;
+  /** Clé de la pièce d'origine quand elle en a une. */
+  origineId: string | null;
+  statut: StatutMessage;
+  tentatives: number;
+  dernierEssaiAt: string | null;
+  prochainEssaiAt: string | null;
+  /** Dernière erreur rendue par le transport, telle quelle. */
+  erreur: string | null;
+  envoyeAt: string | null;
+  createdBy: string | null;
+  createdAt: string;
+}
+
+/** `GET /courrier/:id` · la ligne entière, corps compris. */
+export interface MessageComplet extends MessageEnFile {
+  tenantId: string;
+  corps: string;
+}
+
+/** `GET /courrier` · une tranche, qui DIT qu'elle en est une (CLAUDE.md § 8 bis). */
+export interface FileMessages {
+  messages: MessageEnFile[];
+  total: number;
+  plafond: number;
+  tronque: boolean;
+}
+
+/**
+ * Une variable d'environnement nécessaire qui manque. Le serveur ne rend
+ * jamais de VALEUR, seulement des noms · voir transport-courriel.ts.
+ */
+export interface ManqueTransport {
+  variable: string;
+  raison: string;
+}
+
+/** `GET /courrier/transport` · « la messagerie est-elle posée ? », et sinon quoi. */
+export interface EtatTransportCourriel {
+  configure: boolean;
+  manques: ManqueTransport[];
+  /** Adresse sous laquelle le courrier partira · `null` tant que rien n'est posé. */
+  expediteur: string | null;
+}
+
+/**
+ * `GET /courrier/compteurs` · les cinq états sont TOUJOURS présents, même à
+ * zéro. `aRelancer` est ce que le bouton de reprise traiterait à l'instant.
+ */
+export type CompteursCourrier = Record<StatutMessage, number> & { aRelancer: number };
+
+/** `POST /courrier/reprendre` · ce que le passage a fait, et ce qu'il laisse. */
+export interface BilanRepriseCourrier {
+  transportConfigure: boolean;
+  manques: ManqueTransport[];
+  examines: number;
+  envoyes: number;
+  echoues: number;
+  abandonnes: number;
+  /** Non traités · repris par un autre appel, ou ligne disparue entre-temps. */
+  ignores: number;
+  /** Encore à reprendre après ce passage · l'écran propose de continuer. */
+  restants: number;
 }

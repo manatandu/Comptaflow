@@ -126,7 +126,10 @@ export function JournalAuditPage() {
     );
   };
 
-  const grille = 'grid grid-cols-[54px_140px_1fr_120px_130px_1fr] gap-2.5';
+  // 444 px de colonnes fixes + 5 gouttières de 10 px + 28 px de marges =
+  // 522 px incompressibles, pour ~326 px utiles à 360 px · même remède que
+  // les autres grilles à colonnes fixes du logiciel.
+  const grille = 'grid grid-cols-[54px_140px_1fr_120px_130px_1fr] min-w-[522px] gap-2.5';
   const pages = donnees ? Math.max(1, Math.ceil(donnees.total / donnees.taille)) : 1;
 
   return (
@@ -211,7 +214,7 @@ export function JournalAuditPage() {
         </div>
       )}
 
-      <div className="border border-border bg-surface shadow-posee">
+      <div className="border border-border bg-surface shadow-posee overflow-x-auto">
         <div
           className={`${grille} px-3.5 py-1.5 bg-surface-alt text-[10px] font-bold text-text-dim border-b border-border-dark`}
         >

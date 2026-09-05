@@ -58,6 +58,7 @@ const EtatsAnalytiquesPage = lazy(() => import('../pages/EtatsAnalytiquesPage').
 const BailleursPage = lazy(() => import('../pages/BailleursPage').then((m) => ({ default: m.BailleursPage })));
 const PlateformePage = lazy(() => import('../pages/PlateformePage').then((m) => ({ default: m.PlateformePage })));
 const GroupePage = lazy(() => import('../pages/GroupePage').then((m) => ({ default: m.GroupePage })));
+const CourrierPage = lazy(() => import('../pages/CourrierPage').then((m) => ({ default: m.CourrierPage })));
 
 /**
  * REGISTRE DES FENÊTRES · la seule liste qui associe un chemin à ce qui
@@ -329,6 +330,17 @@ export const FENETRES: DefinitionFenetre[] = [
     rendre: () => <AffectationPage />,
   },
   { motif: /^\/devises$/, titre: 'Devises et réévaluation', titreCourt: 'Devises', rendre: () => <DevisesPage /> },
+  {
+    // COMMUNE AUX DEUX RÉFÉRENTIELS · une file de courriels n'est ni un état
+    // comptable ni une notion de plan, c'est le suivi de ce que le dossier a
+    // envoyé. Elle est aussi ouverte à TOUS les rôles : la lecture seule doit
+    // pouvoir constater qu'un rappel n'est pas parti (le contrôleur ne réserve
+    // que la reprise, aux mêmes rôles que l'émission des relances).
+    motif: /^\/courrier$/,
+    titre: 'Courriers sortants',
+    titreCourt: 'Courriers',
+    rendre: () => <CourrierPage />,
+  },
   { motif: /^\/relances$/, titre: 'Rappel et relevé', titreCourt: 'Rappel et relevé', rendre: () => <RelancesPage /> },
   {
     motif: /^\/etats-analytiques$/,

@@ -3,7 +3,8 @@ import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useExercice } from '../lib/exercice';
 import { Aide } from '../components/chrome/Aide';
-import type { LettreRelance, NiveauRelance, PositionRelance, TypeRelance } from '../lib/types';
+import type { BilanEmissionRelances, LettreRelance, NiveauRelance, PositionRelance, TypeRelance } from '../lib/types';
+import { libelleRemise, phraseEmission, tonRemise } from '../lib/remise-courriel';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
 
 /**
@@ -106,13 +107,16 @@ export function RelancesPage() {
     setEnvoi(true);
     setErreur(null);
     try {
-      const r = await api.post<{ emises: number; lettres: LettreRelance[] }>('/relances/emettre', {
+      const r = await api.post<BilanEmissionRelances>('/relances/emettre', {
         exerciceId: exerciceCourant.id,
         compteIds: [...selection],
         niveauId,
       });
       setLettres(r.lettres);
-      setInfo(`${r.emises} courrier(s) préparé(s).`);
+      // LE SERVEUR DIT DEUX NOMBRES, L'ÉCRAN LES DIT AUSSI · « 20 courriers
+      // préparés » laissait croire que vingt tiers avaient été touchés alors
+      // que ceux qui n'ont pas d'adresse ne sont partis à personne.
+      setInfo(phraseEmission(r));
       await charger();
     } catch (e) {
       setErreur(e instanceof ApiError ? e.message : 'Émission impossible');
@@ -122,7 +126,12 @@ export function RelancesPage() {
   };
 
   const total = (positions ?? []).reduce((s, p) => s + p.montantDu, 0);
-  const grille = 'grid grid-cols-[28px_110px_1fr_110px_140px_90px_140px] gap-2';
+  // La grille est écrite EN TOUTES LETTRES dans chaque className plus bas ·
+  // grilles-fixes-etroites.spec.ts lit les attributs JSX et NE SUIT PAS les
+  // variables, si bien qu'une grille rangée dans une constante sortait du
+  // relevé. C'est ce qui a laissé cette page rogner sa dernière colonne.
+  const grille =
+    'grid grid-cols-[28px_110px_1fr_110px_140px_90px_140px] min-w-[690px] gap-2';
 
   return (
     <div className="p-2">
@@ -193,7 +202,11 @@ export function RelancesPage() {
         ))}
       </div>
 
-      <div className="border border-border bg-surface rounded-b-[10px] overflow-hidden">
+      {/* 618 px de colonnes + 6 gouttières de 8 px + 24 px de marges = 690 px
+          incompressibles, pour ~326 px utiles à 360 px · sans ce conteneur, la
+          colonne DERNIÈRE RELANCE était ROGNÉE et aucune barre ne permettait
+          d'aller la chercher. */}
+      <div className="border border-border bg-surface rounded-b-[10px] overflow-x-auto">
         <p className="px-3 py-2 text-[10.5px] text-text-dim border-b border-border/40">
           {ETATS.find((e) => e.valeur === type)?.description}
         </p>
@@ -245,6 +258,12 @@ export function RelancesPage() {
                   <span className="text-text-dim italic">
                     {p.intitule} · aucun tiers rattaché
                   </span>
+                )}
+                {/* La lacune se voit AVANT le clic · le serveur sert
+                    `tiersEmail` pour cela, et une lettre composée pour un
+                    tiers sans adresse ne partira à personne. */}
+                {p.tiersId && !p.tiersEmail && (
+                  <span className="ml-1 text-[9.5px] text-warning font-semibold">sans adresse</span>
                 )}
               </button>
               <span className="text-[10.5px] text-text-dim">{p.qualite}</span>
@@ -323,9 +342,26 @@ export function RelancesPage() {
           </header>
           {lettres.map((l) => (
             <article key={l.compteId} className="border-b border-border/40">
-              <div className="px-3 py-1.5 bg-chrome text-[10.5px] font-semibold flex justify-between">
+              <div className="px-3 py-1.5 bg-chrome text-[10.5px] font-semibold flex justify-between gap-2 flex-wrap">
                 <span>{l.tiers}</span>
                 <span className="font-mono">{montant(l.montant)}</span>
+              </div>
+              {/* CE QU'IL EST ADVENU DE CETTE LETTRE-LÀ · une lettre sans
+                  destinataire reste une lettre juste, elle s'imprime et se
+                  remet en main propre ; ce qui serait faux, c'est de laisser
+                  croire qu'elle est partie. */}
+              <div
+                className={`px-3 py-1 text-[10px] border-b border-border/30 ${
+                  tonRemise(l.remise) === 'manque'
+                    ? 'bg-warning-soft text-warning'
+                    : tonRemise(l.remise) === 'remis'
+                      ? 'text-positive'
+                      : 'text-text-dim'
+                }`}
+              >
+                <span className="font-bold">{libelleRemise(l.remise)}</span>
+                {l.remise.destinataire && <span> · {l.remise.destinataire}</span>}
+                {l.remise.motif && <span> · {l.remise.motif}</span>}
               </div>
               <pre className="px-3 py-2 text-[10.5px] whitespace-pre-wrap font-sans leading-[1.6]">{l.texte}</pre>
             </article>

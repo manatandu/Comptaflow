@@ -230,6 +230,20 @@ jobs:
           # c'est celle que le message de refus d'inscription donne à tout
           # visiteur.
           OPERATEURS_PLATEFORME: ${{ secrets.API_OPERATEURS_PLATEFORME || 'admin@vmgconsulting.cd' }}
+          # Compte d'envoi des courriels · aucun de ces secrets n'existe
+          # aujourd'hui, et c'est un état de fonctionnement valide, pas une
+          # panne : le logiciel écrit ses messages et les garde. Le jour où
+          # ils sont posés dans les secrets du dépôt, le déploiement suivant
+          # les transmet au service et la file repart TELLE QUELLE, sans que
+          # rien n'ait été réécrit. SMTP_SECURE est la seule que l'on peut
+          # omettre quand elle se déduit du port (465 = chiffré dès
+          # l'ouverture).
+          SMTP_HOST: ${{ secrets.API_SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.API_SMTP_PORT }}
+          SMTP_USER: ${{ secrets.API_SMTP_USER }}
+          SMTP_PASS: ${{ secrets.API_SMTP_PASS }}
+          SMTP_SECURE: ${{ secrets.API_SMTP_SECURE }}
+          COURRIER_EXPEDITEUR: ${{ secrets.API_COURRIER_EXPEDITEUR }}
           # L'auto-inscription est FERMÉE : aucune variable INSCRIPTION_PUBLIQUE
           # n'est posée, et /auth/register refuse. Elle a été ouverte le temps
           # de créer le compte du cabinet (1er septembre 2026), puis retirée
@@ -305,6 +319,31 @@ jobs:
           # (le bootstrap n'accorde alors rien, et ne retire jamais rien).
           if os.environ.get("OPERATEURS_PLATEFORME"):
               variables["OPERATEURS_PLATEFORME"] = os.environ["OPERATEURS_PLATEFORME"]
+
+          # LE COMPTE D'ENVOI DES COURRIELS · toutes facultatives, toutes de
+          # passage ici et nulle part ailleurs.
+          #
+          # Le module courrier écrit ses messages et les garde en
+          # SANS_TRANSPORT tant que ces variables manquent : leur absence ne
+          # doit RIEN casser, et le serveur démarre sans elles (c'est
+          # pourquoi validate-env.ts ne les exige pas).
+          #
+          # Ce qu'elles font ici : `--env-vars-file` REMPLACE toutes les
+          # variables du service à chaque déploiement. Posées à la main dans
+          # la console Google, elles seraient effacées au push suivant et le
+          # courriel repasserait silencieusement en SANS_TRANSPORT, sans que
+          # personne ne s'en aperçoive avant qu'une relance ne soit pas
+          # arrivée. Elles n'ont donc qu'un seul chemin, celui-ci.
+          #
+          # C'est TOUT OU RIEN côté serveur (transport-courriel.ts) : une
+          # seule des cinq nécessaires qui manque, et il n'y a pas de
+          # transport du tout, plutôt qu'un transport à moitié posé qui
+          # échouerait à la première connexion en accusant le réseau.
+          for secret in ("SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASS",
+                         "SMTP_SECURE", "COURRIER_EXPEDITEUR"):
+              if os.environ.get(secret):
+                  variables[secret] = os.environ[secret]
+
           print(json.dumps(variables))
           PY
           gcloud run deploy "$SERVICE" \

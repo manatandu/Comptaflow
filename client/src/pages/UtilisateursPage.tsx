@@ -1,7 +1,8 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
+import { phraseAvisAcces } from '../lib/remise-courriel';
 import { useAuth } from '../lib/auth';
-import type { RoleUtilisateur, Utilisateur } from '../lib/types';
+import type { AvisAcces, RoleUtilisateur, Utilisateur } from '../lib/types';
 
 const LIBELLE_ROLE: Record<RoleUtilisateur, string> = {
   ADMIN_CABINET: 'Administrateur',
@@ -29,6 +30,13 @@ export function UtilisateursPage() {
   const [reinitMotDePasse, setReinitMotDePasse] = useState('');
   const [reinitErreur, setReinitErreur] = useState<string | null>(null);
   const [reinitFait, setReinitFait] = useState<string | null>(null);
+  /**
+   * CE QUE LE TITULAIRE A APPRIS, OU N'A PAS APPRIS · le serveur rend
+   * désormais `avis` sur les deux routes. Tant que l'écran ne le lisait pas,
+   * l'administrateur ne savait pas si l'intéressé avait été averti, et la
+   * correction restait dans la charge utile sans atteindre personne.
+   */
+  const [avisRemis, setAvisRemis] = useState<string | null>(null);
 
   const charger = async () => {
     try {
@@ -64,10 +72,12 @@ export function UtilisateursPage() {
     if (!reinitCible) return;
     setReinitErreur(null);
     try {
-      await api.post(`/utilisateurs/${reinitCible.id}/reinitialiser-mot-de-passe`, {
-        motDePasseProvisoire: reinitMotDePasse,
-      });
+      const r = await api.post<{ avis?: AvisAcces }>(
+        `/utilisateurs/${reinitCible.id}/reinitialiser-mot-de-passe`,
+        { motDePasseProvisoire: reinitMotDePasse },
+      );
       setReinitFait(reinitCible.email);
+      setAvisRemis(phraseAvisAcces(r.avis) || null);
       setReinitCible(null);
       setReinitMotDePasse('');
       await charger();
@@ -81,7 +91,8 @@ export function UtilisateursPage() {
     setErreurForm(null);
     setEnvoi(true);
     try {
-      await api.post('/utilisateurs', { email, motDePasse, role });
+      const cree = await api.post<{ avis?: AvisAcces }>('/utilisateurs', { email, motDePasse, role });
+      setAvisRemis(phraseAvisAcces(cree.avis) || null);
       setEmail('');
       setMotDePasse('');
       setRole('COMPTABLE');
@@ -127,6 +138,15 @@ export function UtilisateursPage() {
           Mot de passe réinitialisé pour <strong>{reinitFait}</strong>. Remettez-le en main propre · il est
           PROVISOIRE, ses sessions ouvertes sont fermées, et le logiciel lui restera fermé tant qu'il ne l'aura pas
           remplacé.
+        </div>
+      )}
+
+      {avisRemis && (
+        <div className="border border-border bg-chrome-alt px-3.5 py-2 text-[11px] mb-2 max-w-[940px] flex justify-between gap-3">
+          <span>{avisRemis}</span>
+          <button onClick={() => setAvisRemis(null)} className="font-bold hover:underline shrink-0">
+            Fermer
+          </button>
         </div>
       )}
 
