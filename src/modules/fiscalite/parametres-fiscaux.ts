@@ -12,7 +12,7 @@
  * de leur dernière vérification, pas celle de leur promulgation.
  */
 
-export const DERNIERE_VERIFICATION_FISCALE = '2026-09-03';
+export const DERNIERE_VERIFICATION_FISCALE = '2026-09-05';
 
 /** Loi de finances n° 25/060 du 29 décembre 2025 · aucune de ces valeurs n'a bougé pour 2026. */
 export const IMPOT_SOCIETES = {
@@ -24,7 +24,45 @@ export const IMPOT_SOCIETES = {
    * donner une imposition inférieure.
    */
   tauxMinimum: 0.01,
-  /** Art. 51 · les pertes se reportent sur les trois exercices suivants. */
+  /**
+   * Art. 51 · « il est procédé à un report déficitaire sur les exercices
+   * suivants jusqu'au TROISIÈME exercice qui suit l'exercice déficitaire ».
+   *
+   * DEUX RÈGLES DE L'ANCIEN RÉGIME QU'UN PRATICIEN CITERA DE MÉMOIRE, ET QUI
+   * N'EXISTENT PLUS. Vérifié le 2026-09-05 contre la loi n° 23/053 art. 51 et
+   * 52 (compilation DGI au 19/07/2026) et la loi de finances n° 25/060, qui
+   * ne les touche ni l'un ni l'autre :
+   *
+   *  - le PLAFOND DE 60 % du bénéfice fiscal. Il ne figure NI à l'art. 51, NI
+   *    à l'art. 52. Il appartient à l'art. 42 de l'ordonnance-loi n° 69/009,
+   *    dans sa rédaction consolidée sous l'IBP, régime abrogé au
+   *    1er janvier 2026. Le codifier ferait payer de l'impôt sur une somme
+   *    que la loi admet aujourd'hui en déduction sans limite de quotité ;
+   *  - l'IMPUTATION DE L'IMPÔT MINIMUM payé en année déficitaire. L'art. 57
+   *    pose l'impôt minimum de 1 % du chiffre d'affaires et s'arrête là ·
+   *    aucun article de la loi n° 23/053 n'en prévoit la déduction ultérieure.
+   *
+   * AMORTISSEMENTS RÉPUTÉS DIFFÉRÉS · ils SURVIVENT, mais leur report illimité
+   * a disparu, et c'est le vrai changement. Art. 51, dernière phrase de
+   * l'alinéa 1er : « Les amortissements régulièrement comptabilisés mais
+   * réputés différés en période déficitaire sont considérés comme des DÉFICITS
+   * ORDINAIRES. » Ils tombent donc dans la même fenêtre de trois exercices que
+   * n'importe quelle perte. L'art. 42 bis, 5° de l'ordonnance-loi n° 69/009
+   * les reportait, lui, « sans limitation de durée ».
+   *
+   * CONSÉQUENCE POUR CE MODULE : il n'y a RIEN de séparé à calculer. Un
+   * amortissement réputé différé est un déficit comme un autre, consommé du
+   * plus ancien au plus récent dans la fenêtre de trois exercices, ce que
+   * `deficitsAnterieursCalcules` fait déjà. Ouvrir un stock d'ARD à part,
+   * avec sa propre durée, serait rétablir en silence une règle abrogée.
+   *
+   * L'art. 52, 3° pose la seule condition de forme qui subsiste : les
+   * amortissements pratiqués en l'absence de bénéfices ne peuvent être réputés
+   * différés qu'« à condition d'avoir été réellement inscrits en comptabilité
+   * et figurer distinctement sur le tableau des amortissements ». Ce tableau
+   * est produit par le module d'immobilisations (`tableauAmortissements`) ·
+   * la condition est donc servie, sans traitement fiscal supplémentaire.
+   */
   exercicesReportDeficit: 3,
   /**
    * Art. 57 bis LPF, tel que modifié par la loi de finances n° 25/060 · la

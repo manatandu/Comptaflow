@@ -294,6 +294,59 @@ describe('Report des déficits · art. 51 et 52', () => {
     expect(r.deficitAnterieur.detail.map((d) => d.montant)).toEqual([6_000, 5_000]);
   });
 
+  /**
+   * DEUX RÈGLES DE L'ANCIEN RÉGIME, ET LE CALCUL QUI LES REFUSE. Le séminaire
+   * CPCC sur l'arrêté des comptes 2024 enseigne, sur l'art. 42 de
+   * l'ordonnance-loi n° 69/009 dans sa rédaction consolidée de 2023, que
+   * « l'imputation des pertes professionnelles […] ne peut dépasser 60 % du
+   * bénéfice fiscal avant leur imputation », et que les amortissements réputés
+   * différés se reportent sans limitation de durée. Les deux valaient sous
+   * l'IBP, abrogé au 1er janvier 2026.
+   *
+   * Vérifié le 2026-09-05 dans la loi n° 23/053 art. 51 et 52 (compilation DGI
+   * au 19/07/2026), que la loi de finances n° 25/060 ne modifie pas : NI le
+   * plafond de 60 %, NI le report illimité n'y figurent. L'art. 51 dit au
+   * contraire que les amortissements réputés différés « sont considérés comme
+   * des déficits ordinaires », donc soumis aux trois exercices comme le reste.
+   *
+   * Ces deux tests existent pour qu'un praticien qui cite l'ancien régime de
+   * mémoire, ou qui relit ces diapositives, fasse tomber la suite plutôt que
+   * de rétablir la règle en silence.
+   */
+  it('impute le déficit à 100 % du bénéfice · aucun plafond de 60 % (art. 51)', async () => {
+    const { s } = service({
+      exercices: [ex('N-1', 2025), ex('N', 2026)],
+      balances: {
+        'N-1': [ligne('60110000', 100_000)], // perte 100 000
+        N: [ligne('70110000', -50_000)], // bénéfice 50 000
+      },
+    });
+    const r = await s.resultatFiscal('t1', 'N');
+    // Sous plafond de 60 %, l'imputation vaudrait 30 000 et l'impôt porterait
+    // sur 20 000. La loi actuelle laisse imputer le bénéfice entier.
+    expect(r.deficitImpute).toBe(50_000);
+    expect(r.resultatFiscal).toBe(0);
+  });
+
+  it('perd un amortissement réputé différé au-delà de trois exercices · art. 51, déficit ordinaire', async () => {
+    const { s } = service({
+      exercices: [ex('N-4', 2022), ex('N-3', 2023), ex('N-2', 2024), ex('N-1', 2025), ex('N', 2026)],
+      balances: {
+        // Exercice sans produit : la dotation aux amortissements est à elle
+        // seule la perte, cas même de l'art. 52, 3°.
+        'N-4': [ligne('68130000', 40_000)],
+        'N-3': [],
+        'N-2': [],
+        'N-1': [],
+        N: [ligne('70110000', -40_000)], // bénéfice 40 000
+      },
+    });
+    const r = await s.resultatFiscal('t1', 'N');
+    // Report illimité : les 40 000 s'imputeraient et l'impôt serait nul.
+    expect(r.deficitAnterieur.montant).toBe(0);
+    expect(r.resultatFiscal).toBe(40_000);
+  });
+
   it('laisse un déficit saisi à la main primer sur le calcul · dossier repris à un confrère', async () => {
     const { s } = service({
       exercices: [ex('N-1', 2025), ex('N', 2026)],

@@ -329,6 +329,19 @@ abrogés au 1er janvier 2026 et remplacés par l'IS et l'IRPP. Seuls les
 mécanismes d'écriture sont retenus, et aucun ne dépend d'un taux. Un test le
 vérifie sur les messages produits.
 
+**ET DEUX RÈGLES DE FOND DU MÊME SÉMINAIRE NE VALENT PLUS**, vérifié le
+2026-09-05 dans la loi n° 23/053 art. 51 et 52 (compilation DGI au 19/07/2026)
+que la loi de finances n° 25/060 ne modifie pas. Le **plafond d'imputation de
+60 %** du bénéfice fiscal et l'**imputation de l'impôt minimum** payé en année
+déficitaire n'existent dans AUCUN article du régime actuel · ils viennent de
+l'art. 42 de l'ordonnance-loi n° 69/009 sous l'IBP. Les **amortissements
+réputés différés**, eux, survivent mais ont perdu leur report illimité :
+l'art. 51 les tient pour « des déficits ordinaires », donc soumis aux trois
+exercices comme le reste, là où l'art. 42 bis, 5° les reportait « sans
+limitation de durée ». Il n'y a donc RIEN de séparé à calculer pour eux, et un
+stock d'ARD à durée propre rétablirait une règle abrogée. Deux tests de
+`fiscalite.spec.ts` le figent, chacun avec son article.
+
 **Correspondance bilan de clôture / bilan d'ouverture · la convention et ses
 DEUX seules exceptions.** « Le bilan d'ouverture d'un exercice doit
 correspondre au bilan de clôture de l'exercice précédent » (AUDCIF art. 34 et
