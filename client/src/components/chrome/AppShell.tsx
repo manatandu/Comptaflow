@@ -5,7 +5,7 @@ import { useExercice } from '../../lib/exercice';
 import { useFenetres } from '../../lib/fenetres';
 import { definitionPour } from '../../lib/registre-fenetres';
 import { fenetreDisponible } from '../../lib/referentiel-fenetre';
-import { IconLogo } from './icons';
+import { SymboleOmegaX } from './Logo';
 import { MenuBar, type MenuDef } from './MenuBar';
 import { CalculetteChrome, ClocheChrome, NavigationChrome } from './OutilsChrome';
 import { StatusBar } from './StatusBar';
@@ -467,9 +467,7 @@ export function AppShell() {
         {/* Filet lumineux en haut : la profondeur vient de là, pas d'une ombre. */}
         <div className="absolute inset-x-0 top-0 h-px bg-white/10" />
         <div className="flex items-center gap-2.5 min-w-0">
-          <span className="flex items-center justify-center w-[20px] h-[20px] rounded-[6px] bg-white/10">
-            <IconLogo width={13} height={13} />
-          </span>
+          <SymboleOmegaX taille={17} className="text-white" />
           {/*
             Le nom du logiciel et sa barre oblique s'effacent sous `sm` : à
             360 px ils prenaient 60 px sur les 360 disponibles et le nom du

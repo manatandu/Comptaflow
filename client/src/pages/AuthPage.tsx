@@ -2,7 +2,7 @@ import { FormEvent, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { IconLogo } from '../components/chrome/icons';
+import { SymboleOmegaX } from '../components/chrome/Logo';
 import { DossierRecent, lireDossiersRecents, oublierDossier } from '../lib/dossiersRecents';
 import type { AuthResponse } from '../lib/types';
 
@@ -154,7 +154,7 @@ export function AuthPage() {
           className="h-[34px] flex items-center gap-2 px-3 text-white text-[11px]"
           style={{ background: 'linear-gradient(180deg, var(--titlebar-from), var(--titlebar-to))' }}
         >
-          <IconLogo width={14} height={14} />
+          <SymboleOmegaX taille={14} className="text-white" />
           <span>Ouverture du dossier comptable</span>
         </div>
 
@@ -173,9 +173,11 @@ export function AuthPage() {
           >
             <div className="min-w-0">
               <div className="w-[38px] h-[38px] rounded-[11px] bg-white/10 flex items-center justify-center text-white">
-                <IconLogo width={22} height={22} />
+                <SymboleOmegaX taille={23} />
               </div>
-              <div className="mt-2.5 text-[15px] font-extrabold tracking-tight text-white">OMEGAX</div>
+              <div className="mt-2.5 text-[16px] font-semibold tracking-[-0.015em] leading-none text-white">
+                OmegaX
+              </div>
               {/*
                 Aucun dossier n'est ouvert à cet écran : le référentiel est
                 donc INCONNU, et annoncer « entités à but non lucratif ·

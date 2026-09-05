@@ -51,9 +51,6 @@ export const IconNew = (p: SVGProps<SVGSVGElement>) => (
 export const IconCheck = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}><path d="M20 6L9 17l-5-5" /></svg>
 );
-export const IconLogo = (p: SVGProps<SVGSVGElement>) => (
-  <svg {...base(p)}><path d="M3 12h4l3 8 4-16 3 8h4" /></svg>
-);
 export const IconHome = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}><path d="M3 11l9-7 9 7M5 10v9a1 1 0 001 1h4v-6h4v6h4a1 1 0 001-1v-9" /></svg>
 );

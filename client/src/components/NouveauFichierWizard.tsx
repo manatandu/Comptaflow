@@ -1,7 +1,8 @@
 import { FormEvent, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { IconLogo, IconCheck } from '../components/chrome/icons';
+import { IconCheck } from '../components/chrome/icons';
+import { SymboleOmegaX } from '../components/chrome/Logo';
 import { Aide } from '../components/chrome/Aide';
 import type { AuthResponse, JeuEtatsFinanciersSycebnl, Referentiel, SystemeComptableSyscohada } from '../lib/types';
 import { LIBELLE_SYSTEME, SYSTEMES_SYSCOHADA } from '../lib/systemes-syscohada';
@@ -324,7 +325,7 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
           style={{ background: 'linear-gradient(180deg, var(--titlebar-from), var(--titlebar-to))' }}
         >
           <div className="flex items-center gap-2">
-            <IconLogo width={14} height={14} />
+            <SymboleOmegaX taille={14} className="text-white" />
             <span>Assistant de création de fichier comptable</span>
           </div>
           {!envoi && (
