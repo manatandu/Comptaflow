@@ -33,3 +33,10 @@ export const RAYON_ICONE = 0.22;
 /** Air de respiration minimal autour de la marque, en part de sa hauteur.
  *  Rien ne penetre ce rectangle · ni texte, ni filet, ni bord de page. */
 export const AIR = 0.5;
+
+/** Empreinte du script et des deux fontes qui ont produit ce fichier. */
+export const EMPREINTE_SOURCES = '2f1a9fc31e26f5814fb01bbe17eb6fddd65b20a97656e2b3010cc89c7e5fc3aa';
+
+/** Empreinte de ce fichier, ligne d'empreinte exclue · une retouche a la main
+ *  la fait tomber, et c'est tout ce qu'on lui demande. */
+export const EMPREINTE_CONTENU = '97418a953dff5de37b92c9b44a84647a9116e57bbd12a8e8e19b6738254bc5b4';

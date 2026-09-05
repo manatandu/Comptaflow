@@ -78,6 +78,7 @@ fois, et le logiciel n'affiche plus que ces contours.
     80 % centraux, le systeme rognant le reste.
 """
 
+import hashlib
 import struct
 import zlib
 from pathlib import Path
@@ -428,6 +429,36 @@ def png_icone(chemin: Path, taille: int, masquable: bool = False) -> None:
 # LA GEOMETRIE POUR L'INTERFACE
 # ---------------------------------------------------------------------------
 
+def empreinte_sources() -> str:
+    """L'empreinte de CE QUI ENGENDRE · le script et les deux fontes.
+
+    Elle existe pour une raison de chaine de construction. La premiere version
+    du test relançait le script et comparait le fichier produit : c'etait le
+    controle le plus fort possible, et il est TOMBE au deploiement, parce que
+    le coureur d'integration n'a pas fontTools et n'a aucune raison de l'avoir.
+    Installer une dependance Python dans la chaine qui deploie l'interface la
+    ferait dependre de la disponibilite de PyPI pour publier un correctif.
+
+    Les deux empreintes remplacent ce controle par un equivalent verifiable en
+    Node seul : celle-ci attrape « les sources ont bouge, le fichier n'a pas
+    ete regenere », l'autre attrape « le fichier a ete retouche a la main ».
+    """
+    h = hashlib.sha256()
+    for chemin in (Path(__file__).resolve(),
+                   FONTES / 'ibm-plex-sans-greek-600-normal.woff2',
+                   FONTES / 'ibm-plex-sans-latin-600-normal.woff2'):
+        h.update(chemin.read_bytes())
+    return h.hexdigest()
+
+
+def _sceller(texte: str) -> str:
+    """Pose l'empreinte du CONTENU · calculee sur le fichier prive de la ligne
+    qui la porte, faute de quoi elle se contiendrait elle-meme."""
+    marque = "export const EMPREINTE_CONTENU = '"
+    corps = '\n'.join(l for l in texte.split('\n') if not l.startswith(marque))
+    return texte.replace('@EMPREINTE_CONTENU@', hashlib.sha256(corps.encode('utf-8')).hexdigest())
+
+
 def geometrie_ts() -> str:
     signe = signe_pose()
     sx0, sy0, sx1, sy1 = bornes([signe])
@@ -481,6 +512,13 @@ export const RAYON_ICONE = {RAYON_ICONE};
 /** Air de respiration minimal autour de la marque, en part de sa hauteur.
  *  Rien ne penetre ce rectangle · ni texte, ni filet, ni bord de page. */
 export const AIR = 0.5;
+
+/** Empreinte du script et des deux fontes qui ont produit ce fichier. */
+export const EMPREINTE_SOURCES = '{empreinte_sources()}';
+
+/** Empreinte de ce fichier, ligne d'empreinte exclue · une retouche a la main
+ *  la fait tomber, et c'est tout ce qu'on lui demande. */
+export const EMPREINTE_CONTENU = '@EMPREINTE_CONTENU@';
 '''
 
 
@@ -514,7 +552,7 @@ def main() -> None:
         'logo-omegax-signe-courant.svg': svg(signe, 'currentColor', 'OmegaX'),
         'icone.svg': svg_icone(),
     }
-    GEOMETRIE_TS.write_text(geometrie_ts(), encoding='utf-8')
+    GEOMETRIE_TS.write_text(_sceller(geometrie_ts()), encoding='utf-8')
     if geometrie_seule:
         return
 

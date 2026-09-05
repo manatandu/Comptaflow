@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -33,13 +33,51 @@ function sommets(d: string): { x: number; y: number }[] {
   return pts;
 }
 
+/**
+ * DEUX EMPREINTES, ET POURQUOI CE N'EST PAS LE SCRIPT QU'ON RELANCE.
+ *
+ * La première version de ce test relançait `engendrer-marque.py` et comparait
+ * le fichier produit. C'était le contrôle le plus fort possible, et il est
+ * TOMBÉ AU DÉPLOIEMENT : le coureur d'intégration n'a pas fontTools, et n'a
+ * aucune raison de l'avoir. Installer une dépendance Python dans la chaîne qui
+ * publie l'interface la ferait dépendre de la disponibilité de PyPI pour
+ * livrer un correctif · un prix qu'un test ne vaut pas.
+ *
+ * Les deux empreintes rendent le même service en Node seul :
+ *  · SOURCES attrape « le script ou une fonte a bougé, le fichier n'a pas été
+ *    régénéré » · c'est le cas réel, celui d'une modification à moitié faite ;
+ *  · CONTENU attrape « le fichier engendré a été retouché à la main ».
+ *
+ * Ni l'une ni l'autre ne prouve que le script PRODUIRAIT ce fichier · seul le
+ * relancer le prouverait. C'est l'écart assumé, et il est étroit : pour le
+ * franchir il faudrait retoucher le fichier ET recalculer son empreinte, ce
+ * qui n'arrive pas par distraction.
+ */
 describe('la géométrie engendrée est à jour', () => {
-  it('relancer le script ne changerait rien', () => {
-    const avant = lire('src/components/chrome/marque-geometrie.ts');
-    execFileSync('python3', [join(racine, 'scripts', 'engendrer-marque.py'), '--geometrie-seule'], {
-      cwd: racine,
-    });
-    expect(lire('src/components/chrome/marque-geometrie.ts')).toBe(avant);
+  const geometrie = lire('src/components/chrome/marque-geometrie.ts');
+  const declare = (cle: string) => new RegExp(`${cle} = '([0-9a-f]{64})'`).exec(geometrie)![1];
+
+  it("l'empreinte des sources correspond au script et aux deux fontes", () => {
+    const h = createHash('sha256');
+    for (const f of [
+      'scripts/engendrer-marque.py',
+      'scripts/fontes/ibm-plex-sans-greek-600-normal.woff2',
+      'scripts/fontes/ibm-plex-sans-latin-600-normal.woff2',
+    ]) {
+      h.update(readFileSync(join(racine, f)));
+    }
+    expect(h.digest('hex')).toBe(declare('EMPREINTE_SOURCES'));
+  });
+
+  it("l'empreinte du contenu correspond au fichier", () => {
+    const marque = "export const EMPREINTE_CONTENU = '";
+    const corps = geometrie
+      .split('\n')
+      .filter((l) => !l.startsWith(marque))
+      .join('\n');
+    expect(createHash('sha256').update(corps, 'utf8').digest('hex')).toBe(
+      declare('EMPREINTE_CONTENU'),
+    );
   });
 });
 
