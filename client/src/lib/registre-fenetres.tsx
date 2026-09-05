@@ -54,6 +54,7 @@ const AffectationPage = lazy(() => import('../pages/AffectationPage').then((m) =
 const RegularisationPage = lazy(() => import('../pages/RegularisationPage').then((m) => ({ default: m.RegularisationPage })));
 const DevisesPage = lazy(() => import('../pages/DevisesPage').then((m) => ({ default: m.DevisesPage })));
 const RelancesPage = lazy(() => import('../pages/RelancesPage').then((m) => ({ default: m.RelancesPage })));
+const EngagementsPage = lazy(() => import('../pages/EngagementsPage').then((m) => ({ default: m.EngagementsPage })));
 const EtatsAnalytiquesPage = lazy(() => import('../pages/EtatsAnalytiquesPage').then((m) => ({ default: m.EtatsAnalytiquesPage })));
 const BailleursPage = lazy(() => import('../pages/BailleursPage').then((m) => ({ default: m.BailleursPage })));
 const PlateformePage = lazy(() => import('../pages/PlateformePage').then((m) => ({ default: m.PlateformePage })));
@@ -347,6 +348,19 @@ export const FENETRES: DefinitionFenetre[] = [
     titre: 'États analytiques et budgétaires',
     titreCourt: 'États analytiques',
     rendre: () => <EtatsAnalytiquesPage />,
+  },
+  {
+    // SYCEBNL SEULEMENT · les deux termes non comptables de la colonne
+    // Engagement viennent du tableau d'exécution budgétaire du jeu « projets
+    // de développement ». Aucun état du SYSCOHADA ne porte cette colonne, et
+    // ouvrir le registre à une société commerciale lui ferait tenir un
+    // document qu'aucun texte ne lui demande. Le cloisonnement est posé aux
+    // DEUX bouts : ici, et par `@ReferentielsAutorises` sur chaque route.
+    motif: /^\/engagements$/,
+    titre: 'Registre des engagements de dépense',
+    titreCourt: 'Engagements',
+    referentielsApplicables: ['SYCEBNL'],
+    rendre: () => <EngagementsPage />,
   },
 ];
 

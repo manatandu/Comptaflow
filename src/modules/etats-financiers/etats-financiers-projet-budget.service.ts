@@ -3,6 +3,7 @@ import { StatutEcriture } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { LigneBalancePourEtat, chargerLignes, correspond } from './etats-financiers.communs';
+import { EngagementService } from '../analytique/engagement.service';
 import { COMPTES_TRESORERIE_PROJET } from './correspondance-projet-emplois-ressources';
 
 /**
@@ -25,6 +26,14 @@ export interface LigneExecutionBudgetaire {
   libelle: string;
   budget: number;
   decaissement: number;
+  /**
+   * Les deux moitiés de la colonne Engagement (3), rendues séparément parce
+   * qu'un réviseur doit pouvoir dire d'où vient chaque franc : l'une se
+   * recoupe avec la balance, l'autre avec un registre. Un total qui les
+   * mêlerait ne serait justifiable ni par l'une ni par l'autre.
+   */
+  engagementComptable: number;
+  engagementHorsComptabilite: number;
   engagement: number;
   realisation: number;
   creditDisponible: number;
@@ -37,6 +46,7 @@ export class EtatsFinanciersProjetBudgetService {
   constructor(
     private readonly ecritureService: EcritureService,
     private readonly prisma: PrismaService,
+    private readonly engagementService: EngagementService,
   ) {}
 
   private async chargerLignes(tenantId: string, exerciceId: string): Promise<LigneBalancePourEtat[]> {
@@ -81,15 +91,29 @@ export class EtatsFinanciersProjetBudgetService {
    * ne sert pas qu'à justifier un solde, il fait basculer une dépense de la
    * colonne Engagement à la colonne Décaissement.
    *
-   * ## Ce que le logiciel ne peut pas porter
+   * ## Les deux termes NON COMPTABLES de la colonne Engagement
    *
    * Le guide ajoute à l'engagement « les bons de commande de biens et
    * services remis aux fournisseurs au cours de l'exercice budgétaire, non
    * exécutés » et « les contrats signés par les parties prenantes au cours de
    * l'exercice budgétaire, non exécutés ». Ni les uns ni les autres ne sont
-   * des écritures comptables : aucun modèle du logiciel ne les tient. Le
-   * tableau le déclare (`engagementsHorsComptabilite`) plutôt que de laisser
-   * croire que la colonne Engagement est complète.
+   * des écritures : un bon de commande remis ne débite ni ne crédite rien, et
+   * c'est pour cela même qu'il engage le budget sans apparaître dans les
+   * comptes.
+   *
+   * Le tableau les DÉCLARAIT hors de portée et demandait à l'utilisateur de
+   * les ajouter à la main sur l'état imprimé. C'était honnête tant que rien ne
+   * les tenait, et c'était faux dès qu'un bailleur lisait le crédit
+   * disponible : celui-ci était surévalué de tout ce qui était commandé sans
+   * être encore facturé. Le registre `EngagementDepense` les tient depuis, et
+   * ce qui entre ici est le RESTE À EXÉCUTER de chacun, jamais son montant
+   * entier · un bon de commande déjà facturé pèse par les comptes, et l'y
+   * ajouter une seconde fois compterait la même dépense deux fois sans
+   * qu'aucun contrôle d'équilibre ne puisse le voir.
+   *
+   * Les deux moitiés restent SÉPARÉES dans la sortie. Un réviseur recoupe
+   * l'une avec la balance et l'autre avec un registre de bons de commande :
+   * un total fondu ne serait justifiable par aucun des deux documents.
    */
   async executionBudgetaire(tenantId: string, exerciceId: string, planId?: string) {
     const plan = planId
@@ -104,7 +128,7 @@ export class EtatsFinanciersProjetBudgetService {
       );
     }
 
-    const [sections, budgets, ecritures] = await Promise.all([
+    const [sections, budgets, ecritures, resteEngageParSection] = await Promise.all([
       this.prisma.sectionAnalytique.findMany({
         where: { planId: plan.id, tenantId },
         orderBy: { code: 'asc' },
@@ -118,6 +142,7 @@ export class EtatsFinanciersProjetBudgetService {
           },
         },
       }),
+      this.engagementService.resteParSection(tenantId, exerciceId),
     ]);
 
     const budgetParSection = new Map<string, number>();
@@ -150,13 +175,17 @@ export class EtatsFinanciersProjetBudgetService {
     const lignes: LigneExecutionBudgetaire[] = sections.map((s) => {
       const budget = budgetParSection.get(s.id) ?? 0;
       const decaissement = decaisseParSection.get(s.id) ?? 0;
-      const engagement = engageParSection.get(s.id) ?? 0;
+      const engagementComptable = engageParSection.get(s.id) ?? 0;
+      const engagementHorsComptabilite = resteEngageParSection.get(s.id) ?? 0;
+      const engagement = engagementComptable + engagementHorsComptabilite;
       const realisation = decaissement + engagement;
       return {
         code: s.code,
         libelle: s.intitule,
         budget,
         decaissement,
+        engagementComptable,
+        engagementHorsComptabilite,
         engagement,
         realisation,
         creditDisponible: budget - realisation,
@@ -168,11 +197,21 @@ export class EtatsFinanciersProjetBudgetService {
       (t, l) => ({
         budget: t.budget + l.budget,
         decaissement: t.decaissement + l.decaissement,
+        engagementComptable: t.engagementComptable + l.engagementComptable,
+        engagementHorsComptabilite: t.engagementHorsComptabilite + l.engagementHorsComptabilite,
         engagement: t.engagement + l.engagement,
         realisation: t.realisation + l.realisation,
         creditDisponible: t.creditDisponible + l.creditDisponible,
       }),
-      { budget: 0, decaissement: 0, engagement: 0, realisation: 0, creditDisponible: 0 },
+      {
+        budget: 0,
+        decaissement: 0,
+        engagementComptable: 0,
+        engagementHorsComptabilite: 0,
+        engagement: 0,
+        realisation: 0,
+        creditDisponible: 0,
+      },
     );
 
     return {
@@ -182,8 +221,13 @@ export class EtatsFinanciersProjetBudgetService {
         ...total,
         executionPourcent: Math.abs(total.budget) < 0.005 ? null : (total.realisation / total.budget) * 100,
       },
+      // La mention ne DISPARAÎT pas : elle change de sens. Elle disait « le
+      // logiciel ne les tient pas » ; elle dit maintenant d'où ils viennent et
+      // ce qui les rend complets, à savoir la tenue du registre. Un engagement
+      // non saisi reste invisible, et le taire ferait croire à une exhaustivité
+      // que seul le comptable peut donner.
       engagementsHorsComptabilite:
-        "Le guide ajoute à la colonne Engagement « les bons de commande de biens et services remis aux fournisseurs au cours de l'exercice budgétaire, non exécutés » et « les contrats signés par les parties prenantes au cours de l'exercice budgétaire, non exécutés ». Ce ne sont pas des écritures comptables : le logiciel ne les tient pas et ils doivent être ajoutés à la main sur l'état imprimé.",
+        "La colonne Engagement réunit les trois termes du guide (ch. 7, APPLICATION 22, règle (d)) : le solde créditeur des comptes fournisseurs d'exploitation (40) et d'investissement (481), les bons de commande remis aux fournisseurs non exécutés, et les contrats signés non exécutés. Les deux derniers ne sont pas des écritures : ils viennent du registre des engagements, pour leur RESTE À EXÉCUTER. Un engagement qui n'y est pas saisi ne pèse pas sur ce tableau.",
     };
   }
 

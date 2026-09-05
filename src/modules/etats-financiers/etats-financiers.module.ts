@@ -8,9 +8,10 @@ import { ComptabiliteModule } from '../comptabilite/comptabilite.module';
 import { LicenceModule } from '../licence/licence.module';
 import { JwtAuthModule } from '../auth/jwt-auth.module';
 import { ExerciceModule } from '../exercice/exercice.module';
+import { AnalytiqueModule } from '../analytique/analytique.module';
 
 @Module({
-  imports: [ComptabiliteModule, LicenceModule, JwtAuthModule, ExerciceModule],
+  imports: [ComptabiliteModule, LicenceModule, JwtAuthModule, ExerciceModule, AnalytiqueModule],
   controllers: [EtatsFinanciersController],
   providers: [EtatsFinanciersService, EtatsFinanciersProjetService, EtatsFinanciersSmtService, EtatsFinanciersProjetBudgetService],
   exports: [EtatsFinanciersService, EtatsFinanciersProjetService, EtatsFinanciersSmtService, EtatsFinanciersProjetBudgetService],

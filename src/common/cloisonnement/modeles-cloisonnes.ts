@@ -15,6 +15,7 @@ export const MODELES_CLOISONNES = new Set<string>([
   'Donation',
   'DossierFiscalExercice',
   'Ecriture',
+  'EngagementDepense',
   'EvenementAudit',
   'Exercice',
   'Exoneration',
@@ -70,6 +71,11 @@ export const MODELES_PORTES_PAR_LEUR_PARENT = new Set<string>([
   'DotationAmortissement',
   'EcheanceAbonnement',
   'EcheanceReglement',
+  // Portée par son engagement · le service ne l'atteint jamais autrement
+  // qu'après avoir borné l'engagement au dossier, et lui donner un tenantId
+  // ouvrirait la porte à un rattachement dont la tête et la ligne
+  // désigneraient deux dossiers différents.
+  'ExecutionEngagement',
   'LigneAffectation',
   'LigneEcriture',
   'LigneModeleSaisie',

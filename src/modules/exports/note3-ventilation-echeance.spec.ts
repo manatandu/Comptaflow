@@ -10,6 +10,7 @@ import { ExerciceService } from '../exercice/exercice.service';
 import { EtatsFinanciersService } from '../etats-financiers/etats-financiers.service';
 import { EtatsFinanciersProjetService } from '../etats-financiers/etats-financiers-projet.service';
 import { EtatsFinanciersProjetBudgetService } from '../etats-financiers/etats-financiers-projet-budget.service';
+import { EngagementService } from '../analytique/engagement.service';
 import { EtatsFinanciersSmtService } from '../etats-financiers/etats-financiers-smt.service';
 import { EtatsFinanciersSyscohadaService } from '../etats-financiers-syscohada/etats-financiers-syscohada.service';
 import { EtatsFinanciersSmtSyscohadaService } from '../etats-financiers-syscohada/etats-financiers-smt-syscohada.service';
@@ -169,11 +170,14 @@ function fabriquerExport(lignesTiers: LigneTiersStub[]): ExportService {
     planAnalytique: { findFirst: jest.fn().mockResolvedValue(null) },
     immobilisation: { findMany: jest.fn().mockResolvedValue([]) },
     tiersCompte: { findMany: jest.fn().mockResolvedValue([]) },
+    // Registre des engagements hors comptabilité · vide ici, ce parcours ne le
+    // teste pas. Sans ce double, `resteParSection` tomberait sur undefined.
+    engagementDepense: { findMany: jest.fn().mockResolvedValue([]) },
   } as unknown as PrismaService;
 
   const etatsFinanciers = new EtatsFinanciersService(ecritureService, exerciceService);
   const etatsProjet = new EtatsFinanciersProjetService(ecritureService, exerciceService, prisma);
-  const budgetProjet = new EtatsFinanciersProjetBudgetService(ecritureService, prisma);
+  const budgetProjet = new EtatsFinanciersProjetBudgetService(ecritureService, prisma, new EngagementService(prisma));
   const etatsSmt = new EtatsFinanciersSmtService(ecritureService, exerciceService, prisma);
   const notes = new NoteAnnexeService(ecritureService, exerciceService, prisma, budgetProjet, etatsFinanciers);
   return new ExportService(

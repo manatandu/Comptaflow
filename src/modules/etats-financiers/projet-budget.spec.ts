@@ -2,6 +2,7 @@ import { StatutEcriture } from '@prisma/client';
 import { EtatsFinanciersProjetBudgetService } from './etats-financiers-projet-budget.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { PrismaService } from '../../common/prisma.service';
+import { EngagementService } from '../analytique/engagement.service';
 
 /**
  * TABLEAU D'EXÉCUTION BUDGÉTAIRE et TABLEAU DE RÉCONCILIATION DE TRÉSORERIE.
@@ -58,6 +59,12 @@ function service(options: {
   sections?: { id: string; code: string; intitule: string }[];
   budgets?: { sectionId: string; montant: number }[];
   plan?: { id: string; code: string; intitule: string } | null;
+  engagements?: {
+    sectionId: string;
+    statut: 'OUVERT' | 'CLOS';
+    montant: number;
+    executions: { montant: number }[];
+  }[];
 } = {}) {
   const ecritureService = {
     balance: jest.fn().mockResolvedValue({ lignes: options.balance ?? [], totaux: { debit: 0, credit: 0 } }),
@@ -71,8 +78,12 @@ function service(options: {
     sectionAnalytique: { findMany: jest.fn().mockResolvedValue(options.sections ?? []) },
     budgetSection: { findMany: jest.fn().mockResolvedValue(options.budgets ?? []) },
     ecriture: { findMany: jest.fn().mockResolvedValue(options.ecritures ?? []) },
+    // Le registre des engagements hors comptabilité · les deux termes NON
+    // comptables de la colonne Engagement (guide, ch. 7, APPLICATION 22,
+    // règle (d)).
+    engagementDepense: { findMany: jest.fn().mockResolvedValue(options.engagements ?? []) },
   } as unknown as PrismaService;
-  return new EtatsFinanciersProjetBudgetService(ecritureService, prisma);
+  return new EtatsFinanciersProjetBudgetService(ecritureService, prisma, new EngagementService(prisma));
 }
 
 const SECTIONS = [
@@ -152,9 +163,86 @@ describe("Tableau d'exécution budgétaire", () => {
     expect(t.lignes[0].creditDisponible).toBe(-100_000);
   });
 
-  it('déclare les engagements que la comptabilité ne porte pas (bons de commande, contrats)', async () => {
+  it("porte les DEUX termes non comptables de la colonne Engagement, pour leur reste à exécuter", async () => {
+    // Guide d'application, ch. 7, APPLICATION 22, règle (d) : la colonne
+    // Engagement réunit le solde créditeur des comptes 40 et 481, les bons de
+    // commande remis NON EXÉCUTÉS, et les contrats signés NON EXÉCUTÉS.
+    const s = service({
+      sections: SECTIONS,
+      budgets: [{ sectionId: 's1', montant: 5_000_000 }],
+      ecritures: [
+        ecriture('engage', [
+          { numero: '60100000', debit: 400_000, section: 's1' },
+          { numero: '40100000', credit: 400_000 },
+        ]),
+      ],
+      engagements: [
+        // Bon de commande à moitié facturé · seuls 600 000 pèsent encore.
+        { sectionId: 's1', statut: 'OUVERT', montant: 1_000_000, executions: [{ montant: 400_000 }] },
+        // Contrat signé, rien d'exécuté.
+        { sectionId: 's1', statut: 'OUVERT', montant: 250_000, executions: [] },
+      ],
+    });
+    const a1 = (await s.executionBudgetaire('t1', 'e1')).lignes.find((l) => l.code === 'A1')!;
+    expect(a1.engagementComptable).toBe(400_000);
+    expect(a1.engagementHorsComptabilite).toBe(850_000);
+    expect(a1.engagement).toBe(1_250_000);
+    expect(a1.realisation).toBe(1_250_000);
+    expect(a1.creditDisponible).toBe(3_750_000);
+  });
+
+  it("ne compte PAS deux fois un bon de commande dont la facture est arrivée", async () => {
+    // C'est le défaut que ce branchement existe pour fermer, et il casserait
+    // en silence : le tableau boucle toujours, seul le crédit disponible
+    // serait faux, en moins.
+    const s = service({
+      sections: SECTIONS,
+      budgets: [{ sectionId: 's1', montant: 5_000_000 }],
+      ecritures: [
+        ecriture('facture', [
+          { numero: '60100000', debit: 1_000_000, section: 's1' },
+          { numero: '40100000', credit: 1_000_000 },
+        ]),
+      ],
+      engagements: [
+        { sectionId: 's1', statut: 'OUVERT', montant: 1_000_000, executions: [{ montant: 1_000_000 }] },
+      ],
+    });
+    const a1 = (await s.executionBudgetaire('t1', 'e1')).lignes.find((l) => l.code === 'A1')!;
+    expect(a1.engagementHorsComptabilite).toBe(0);
+    expect(a1.engagement).toBe(1_000_000);
+    expect(a1.creditDisponible).toBe(4_000_000);
+  });
+
+  it('le total additionne les deux moitiés séparément', async () => {
+    const s = service({
+      sections: SECTIONS,
+      budgets: [{ sectionId: 's1', montant: 1_000_000 }, { sectionId: 's2', montant: 1_000_000 }],
+      ecritures: [
+        ecriture('engage', [
+          { numero: '60100000', debit: 100_000, section: 's1' },
+          { numero: '40100000', credit: 100_000 },
+        ]),
+      ],
+      engagements: [
+        { sectionId: 's1', statut: 'OUVERT', montant: 200_000, executions: [] },
+        { sectionId: 's2', statut: 'OUVERT', montant: 300_000, executions: [] },
+      ],
+    });
+    const t = await s.executionBudgetaire('t1', 'e1');
+    expect(t.total.engagementComptable).toBe(100_000);
+    expect(t.total.engagementHorsComptabilite).toBe(500_000);
+    expect(t.total.engagement).toBe(600_000);
+  });
+
+  it("dit d'où viennent les trois termes de la colonne, et que le registre non tenu ne pèse pas", async () => {
+    // La mention n'a pas disparu, elle a changé de sens · un engagement non
+    // saisi reste invisible, et le taire ferait croire à une exhaustivité que
+    // seul le comptable peut donner.
     const t = await service({ sections: SECTIONS }).executionBudgetaire('t1', 'e1');
     expect(t.engagementsHorsComptabilite).toContain('bons de commande');
+    expect(t.engagementsHorsComptabilite).toContain('RESTE À EXÉCUTER');
+    expect(t.engagementsHorsComptabilite).toMatch(/n'y est pas saisi ne pèse pas/i);
   });
 
   it('refuse d’établir le tableau sans nomenclature budgétaire, au lieu d’en inventer une', async () => {

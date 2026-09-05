@@ -654,6 +654,12 @@ export class EcritureService {
       ['une liquidation de TVA', this.prisma.liquidationTva.count({ where: { tenantId, ecritureId } })],
       ['une donation', this.prisma.donation.count({ where: { tenantId, ecritureId } })],
       ['une affectation du résultat', this.prisma.affectationResultat.count({ where: { tenantId, ecritureId } })],
+      // Le rattachement à un engagement de dépense. Sans ce refus nommé, la
+      // clé étrangère RESTRICT renverrait une erreur brute de la base · et
+      // s'il n'y avait pas de clé du tout, le reste à exécuter de l'engagement
+      // REMONTERAIT tout seul, gonflant la colonne Engagement du tableau
+      // d'exécution budgétaire sans que personne ne l'ait décidé.
+      ["l'exécution d'un engagement de dépense", this.prisma.executionEngagement.count({ where: parLEcriture })],
     ];
     const resultats = await Promise.all(detenteursPossibles.map(([, p]) => p));
     const detenteurs = detenteursPossibles.filter((_, i) => resultats[i] > 0).map(([nom]) => nom);

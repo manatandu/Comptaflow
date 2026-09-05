@@ -1958,6 +1958,13 @@ export interface LigneExecutionBudgetaire {
   libelle: string;
   budget: number;
   decaissement: number;
+  /**
+   * Les deux moitiés de la colonne Engagement (3), rendues séparément parce
+   * qu'un réviseur recoupe l'une avec la balance et l'autre avec le registre
+   * des engagements. Un total fondu ne serait justifiable par aucun des deux.
+   */
+  engagementComptable: number;
+  engagementHorsComptabilite: number;
   engagement: number;
   realisation: number;
   creditDisponible: number;
@@ -3121,4 +3128,50 @@ export interface BilanRepriseCourrier {
   ignores: number;
   /** Encore à reprendre après ce passage · l'écran propose de continuer. */
   restants: number;
+}
+
+// ---------------------------------------------------------------------------
+// ENGAGEMENTS DE DÉPENSE · les deux termes NON COMPTABLES de la colonne
+// Engagement du tableau d'exécution budgétaire (SYCEBNL, Guide d'application,
+// ch. 7, APPLICATION 22, règle (d)).
+// ---------------------------------------------------------------------------
+
+export type NatureEngagement = 'BON_DE_COMMANDE' | 'CONTRAT';
+export type StatutEngagement = 'OUVERT' | 'CLOS';
+
+export interface ExecutionEngagement {
+  id: string;
+  montant: number;
+  ecriture: {
+    id: string;
+    date: string;
+    numeroPiece: number | null;
+    libelle: string;
+    statut: StatutEcriture;
+  };
+}
+
+export interface EngagementDepense {
+  id: string;
+  nature: NatureEngagement;
+  reference: string;
+  objet: string;
+  beneficiaire: string;
+  date: string;
+  montant: number;
+  statut: StatutEngagement;
+  motifCloture: string | null;
+  section: { id: string; code: string; intitule: string };
+  montantExecute: number;
+  /** Ce qui pèse ENCORE sur le budget · jamais le montant entier. */
+  resteAExecuter: number;
+  executions: ExecutionEngagement[];
+}
+
+export interface EcritureRattachable {
+  id: string;
+  date: string;
+  numeroPiece: number | null;
+  libelle: string;
+  reference: string | null;
 }

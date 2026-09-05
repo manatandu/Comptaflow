@@ -431,6 +431,7 @@ model Tenant {
   immobilisations          Immobilisation[]
   plansAnalytiques         PlanAnalytique[]
   sectionsAnalytiques      SectionAnalytique[]
+  engagementsDepense       EngagementDepense[]
   regularisations          Regularisation[]
   modelesAbonnement        ModeleAbonnement[]
   modelesSaisie            ModeleSaisie[]
@@ -865,6 +866,7 @@ model Exercice {
   depreciationsImmo      DepreciationImmobilisation[]
   reclassementsImmo      ReclassementImmobilisation[]
   budgetsSection         BudgetSection[]
+  engagementsDepense     EngagementDepense[]
   regularisations        Regularisation[]
   reevaluations          Reevaluation[]
   affectationResultat    AffectationResultat?
@@ -943,6 +945,7 @@ model Ecriture {
   reevaluationProvision   Reevaluation?       @relation("ReevalProvision")
   reevaluationExtourne    Reevaluation?       @relation("ReevalExtourne")
   reclassementImmobilisation ReclassementImmobilisation? @relation("ReclassementEcriture")
+  executionsEngagement       ExecutionEngagement[]
 
   // À-NOUVEAU · l'écriture porte le solde d'OUVERTURE de l'exercice, et non un
   // mouvement de l'année. Deux sources la posent, pour la même raison :
@@ -1812,6 +1815,7 @@ model SectionAnalytique {
 
   budgets      BudgetSection[]
   ventilations VentilationAnalytique[]
+  engagements  EngagementDepense[]
 
   @@unique([planId, code])
   @@index([tenantId])
@@ -1835,6 +1839,122 @@ model BudgetSection {
 
   @@unique([sectionId, exerciceId, mois])
   @@map("budgets_section")
+}
+
+// ---------------------------------------------------------------------------
+// ENGAGEMENTS DE DÉPENSE HORS COMPTABILITÉ
+// ---------------------------------------------------------------------------
+//
+// La colonne Engagement (3) du tableau d'exécution budgétaire a TROIS termes
+// (SYCEBNL, Guide d'application, ch. 7, APPLICATION 22, règle de remplissage
+// (d)) :
+//
+//  1. « solde créditeur balance N des comptes fournisseurs d'exploitation
+//     (compte 40) et d'investissement (compte 481) » · comptable, porté par
+//     EtatsFinanciersProjetBudgetService depuis l'origine ;
+//  2. « bons de commande de biens et services remis aux fournisseurs au cours
+//     de l'exercice budgétaire, NON EXÉCUTÉS » ;
+//  3. « contrats signés par les parties prenantes au cours de l'exercice
+//     budgétaire, NON EXÉCUTÉS ».
+//
+// Les termes 2 et 3 ne sont PAS des écritures : un bon de commande remis ne
+// débite ni ne crédite rien, et c'est justement pour cela qu'il engage le
+// budget sans apparaître dans les comptes. Ils vivent donc dans un registre
+// propre, tenu par le comptable, et non dans le journal.
+//
+// LE DANGER EST LE DOUBLE COMPTE, et il casse en silence. Quand la facture
+// arrive, la dépense entre au 40 et rejoint le terme 1. Si le bon de commande
+// restait au terme 2, la même dépense serait comptée deux fois : le tableau
+// bouclerait toujours (Réalisation = 2 + 3 par construction) et seul le crédit
+// disponible serait faux, en moins. Un projet se croirait à court de budget
+// sans qu'aucun contrôle ne s'en émeuve.
+//
+// D'où le parti retenu : l'exécution d'un engagement n'est pas une case à
+// cocher mais un RATTACHEMENT à l'écriture qui l'exécute
+// (ExecutionEngagement). Ce qui entre dans la colonne est le RESTE À EXÉCUTER,
+// et ce reste se réduit tout seul à mesure que les écritures arrivent. La case
+// à cocher aurait reposé sur la mémoire de celui qui saisit ; le rattachement
+// repose sur une écriture qui existe.
+model EngagementDepense {
+  id         String   @id @default(uuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  // « au cours de l'exercice budgétaire » · l'engagement appartient à un
+  // exercice, et le tableau d'un exercice ne voit que les siens.
+  exerciceId String
+  exercice   Exercice @relation(fields: [exerciceId], references: [id])
+
+  // La ligne budgétaire engagée. Le tableau est bâti « suivant la nomenclature
+  // budgétaire du projet », qui est un plan analytique dans OmegaX : un
+  // engagement sans section ne saurait pas sur quelle ligne peser.
+  sectionId String
+  section   SectionAnalytique @relation(fields: [sectionId], references: [id])
+
+  // Les deux natures que le guide énumère, et pas une de plus · inventer une
+  // troisième catégorie ferait entrer dans la colonne quelque chose que le
+  // texte n'y met pas.
+  nature NatureEngagement
+
+  reference    String // numéro du bon de commande ou du contrat
+  objet        String // biens ou services commandés, objet du contrat
+  beneficiaire String // le fournisseur, ou la partie prenante signataire
+  // Date de remise du bon au fournisseur, ou de signature du contrat.
+  date         DateTime
+  montant      Decimal  @db.Decimal(18, 2)
+
+  statut       StatutEngagement @default(OUVERT)
+  // Pourquoi un engagement a été clos sans être entièrement exécuté (commande
+  // annulée, contrat résilié). Exigé à la clôture manuelle : un engagement qui
+  // disparaît du tableau sans motif est une correction sans trace.
+  motifCloture String?
+
+  createdAt DateTime @default(now())
+  createdBy String
+  updatedAt DateTime @updatedAt
+
+  executions ExecutionEngagement[]
+
+  @@unique([tenantId, exerciceId, nature, reference])
+  @@index([tenantId, exerciceId])
+  @@map("engagements_depense")
+}
+
+// Le rattachement d'une écriture à l'engagement qu'elle exécute. Porté par son
+// engagement, jamais atteint autrement (cloisonnement par le parent).
+//
+// Le montant est SAISI et non déduit de l'écriture : une facture peut solder
+// deux bons de commande à la fois, et une commande peut être livrée en deux
+// fois. Déduire le montant du total de l'écriture serait juste dans le cas
+// simple et faux dans les deux autres.
+model ExecutionEngagement {
+  id           String            @id @default(uuid())
+  engagementId String
+  engagement   EngagementDepense @relation(fields: [engagementId], references: [id], onDelete: Cascade)
+  ecritureId   String
+  ecriture     Ecriture          @relation(fields: [ecritureId], references: [id])
+
+  montant   Decimal  @db.Decimal(18, 2)
+  createdAt DateTime @default(now())
+  createdBy String
+
+  // Une même écriture ne s'impute qu'une fois sur un engagement donné · deux
+  // rattachements de la même facture au même bon annuleraient deux fois le
+  // même reste à exécuter.
+  @@unique([engagementId, ecritureId])
+  @@index([ecritureId])
+  @@map("executions_engagement")
+}
+
+enum NatureEngagement {
+  BON_DE_COMMANDE
+  CONTRAT
+}
+
+enum StatutEngagement {
+  OUVERT
+  // Clos à la main, avec son motif · une commande annulée cesse de peser sur
+  // le budget sans qu'aucune écriture ne vienne jamais l'exécuter.
+  CLOS
 }
 
 // Ventilation d'une ligne d'écriture sur une section. Plusieurs ventilations

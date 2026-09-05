@@ -53,6 +53,7 @@ function serviceEcriture(detenteurs: Record<string, number> = {}) {
     liquidationTva: { count: compteur('liquidationTva') },
     donation: { count: compteur('donation') },
     affectationResultat: { count: compteur('affectationResultat') },
+    executionEngagement: { count: compteur('executionEngagement') },
     $transaction: jest.fn().mockImplementation((f: (tx: unknown) => unknown) => f(prisma)),
   } as Faux;
 
@@ -165,6 +166,18 @@ describe('3 · une écriture qu’un module tient ne se supprime pas', () => {
     await expect(
       serviceEcriture({ donation: 1, liquidationTva: 1 }).supprimer('t1', 'e1'),
     ).rejects.toThrow(/liquidation de TVA et une donation/i);
+  });
+
+  it("refuse aussi quand l'écriture exécute un engagement de dépense", async () => {
+    // Ici le lien est OBLIGATOIRE et posé en RESTRICT : la base refuserait de
+    // toute façon, mais par une erreur brute. Le refus nommé existe pour
+    // l'autre moitié du problème · si le rattachement partait, le RESTE À
+    // EXÉCUTER de l'engagement remonterait tout seul et la colonne Engagement
+    // du tableau d'exécution budgétaire grossirait sans que personne ne l'ait
+    // décidé.
+    await expect(
+      serviceEcriture({ executionEngagement: 1 }).supprimer('t1', 'e1'),
+    ).rejects.toThrow(/engagement de dépense/i);
   });
 
   it('laisse partir une écriture que personne ne tient', async () => {

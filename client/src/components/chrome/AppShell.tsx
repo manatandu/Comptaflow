@@ -328,6 +328,12 @@ export function AppShell() {
             { label: 'Immobilisations et amortissements', onClick: () => navigate('/tableaux-immobilisations') },
             { label: 'Échéancier de trésorerie', onClick: () => navigate('/echeancier') },
             { label: 'États analytiques et budgétaires', onClick: () => navigate('/etats-analytiques') },
+            // SYCEBNL seulement · la colonne Engagement qu'il alimente vient
+            // du tableau d'exécution budgétaire du jeu « projets de
+            // développement ». Le serveur refuse pareil.
+            ...(estSycebnl
+              ? [{ label: 'Registre des engagements de dépense', onClick: () => navigate('/engagements') }]
+              : []),
           ],
         },
         {

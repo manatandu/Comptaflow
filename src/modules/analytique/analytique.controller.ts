@@ -2,10 +2,13 @@ import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } f
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { LicenceGuard } from '../licence/licence.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { ReferentielGuard } from '../../common/guards/referentiel.guard';
+import { ReferentielsAutorises } from '../../common/decorators/referentiels.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { AnalytiqueService } from './analytique.service';
 import { EtatsAnalytiquesService } from './etats-analytiques.service';
+import { EngagementService } from './engagement.service';
 import {
   CreerPlanAnalytiqueDto,
   CreerSectionDto,
@@ -15,7 +18,8 @@ import {
   ModifierSectionDto,
   VentilerLigneDto,
 } from './dto/analytique.dto';
-import { RoleUtilisateur } from '@prisma/client';
+import { CloreEngagementDto, CreerEngagementDto, RattacherExecutionDto } from './dto/engagement.dto';
+import { Referentiel, RoleUtilisateur } from '@prisma/client';
 
 /**
  * Même règle que le plan comptable et les journaux : consultation ouverte aux
@@ -24,12 +28,17 @@ import { RoleUtilisateur } from '@prisma/client';
  * saisie et non de structure : elle suit les droits d'écriture, comme la
  * saisie d'une écriture ou son lettrage.
  */
-@UseGuards(JwtAuthGuard, LicenceGuard, RolesGuard)
+// La garde de référentiel est ajoutée ici pour les seules routes
+// d'engagement, qui la portent chacune : sans décorateur sur la route, elle
+// laisse passer, et les plans, sections, budgets et ventilations restent
+// communs aux deux référentiels.
+@UseGuards(JwtAuthGuard, LicenceGuard, RolesGuard, ReferentielGuard)
 @Controller('analytique')
 export class AnalytiqueController {
   constructor(
     private readonly analytique: AnalytiqueService,
     private readonly etats: EtatsAnalytiquesService,
+    private readonly engagements: EngagementService,
   ) {}
 
   // --- Plans ---------------------------------------------------------------
@@ -199,5 +208,87 @@ export class AnalytiqueController {
       dateDebut,
       dateFin,
     });
+  }
+
+  // --- Engagements de dépense ---------------------------------------------
+  //
+  // FERMÉES AU SYSCOHADA. La colonne Engagement et ses trois termes viennent
+  // du tableau d'exécution budgétaire du jeu « projets de développement » du
+  // SYCEBNL. Aucun état du SYSCOHADA ne la porte, et ouvrir ce registre à une
+  // société commerciale lui ferait tenir un document qu'aucun texte ne lui
+  // demande. Le reste du contrôleur (plans, sections, budgets, ventilations)
+  // reste commun aux deux.
+  //
+  // Les deux termes NON COMPTABLES de la colonne Engagement du tableau
+  // d'exécution budgétaire (SYCEBNL, Guide d'application, ch. 7, APPLICATION
+  // 22, règle (d)) : les bons de commande remis et les contrats signés, non
+  // exécutés. Tenir ce registre est un acte de SAISIE, pas de structure : il
+  // suit donc les droits d'écriture, comme la ventilation plus haut, et non
+  // ceux de l'admin.
+
+  @Get('engagements')
+  @ReferentielsAutorises(Referentiel.SYCEBNL)
+  async listerEngagements(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId') exerciceId: string) {
+    return this.engagements.lister(user.tenantId, exerciceId);
+  }
+
+  @Get('engagements/ecritures-rattachables')
+  @ReferentielsAutorises(Referentiel.SYCEBNL)
+  async ecrituresRattachables(@CurrentUser() user: AuthenticatedUser, @Query('exerciceId') exerciceId: string) {
+    return this.engagements.ecrituresRattachables(user.tenantId, exerciceId);
+  }
+
+  @Post('engagements')
+  @ReferentielsAutorises(Referentiel.SYCEBNL)
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  async creerEngagement(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreerEngagementDto) {
+    return this.engagements.creer(user.tenantId, user.userId, dto);
+  }
+
+  @Post('engagements/:engagementId/executions')
+  @ReferentielsAutorises(Referentiel.SYCEBNL)
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  async rattacherExecution(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('engagementId') engagementId: string,
+    @Body() dto: RattacherExecutionDto,
+  ) {
+    return this.engagements.rattacherExecution(user.tenantId, user.userId, engagementId, dto);
+  }
+
+  @Delete('engagements/:engagementId/executions/:executionId')
+  @ReferentielsAutorises(Referentiel.SYCEBNL)
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  async detacherExecution(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('engagementId') engagementId: string,
+    @Param('executionId') executionId: string,
+  ) {
+    return this.engagements.detacherExecution(user.tenantId, engagementId, executionId);
+  }
+
+  @Patch('engagements/:engagementId/cloture')
+  @ReferentielsAutorises(Referentiel.SYCEBNL)
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  async cloreEngagement(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('engagementId') engagementId: string,
+    @Body() dto: CloreEngagementDto,
+  ) {
+    return this.engagements.clore(user.tenantId, engagementId, dto);
+  }
+
+  @Patch('engagements/:engagementId/reouverture')
+  @ReferentielsAutorises(Referentiel.SYCEBNL)
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  async rouvrirEngagement(@CurrentUser() user: AuthenticatedUser, @Param('engagementId') engagementId: string) {
+    return this.engagements.rouvrir(user.tenantId, engagementId);
+  }
+
+  @Delete('engagements/:engagementId')
+  @ReferentielsAutorises(Referentiel.SYCEBNL)
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  async supprimerEngagement(@CurrentUser() user: AuthenticatedUser, @Param('engagementId') engagementId: string) {
+    return this.engagements.supprimer(user.tenantId, engagementId);
   }
 }

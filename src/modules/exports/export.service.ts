@@ -3199,7 +3199,10 @@ export class ExportService {
       ws,
       r,
       `Nomenclature budgétaire : plan analytique « ${eb.plan.code} · ${eb.plan.intitule} ». ` +
-        'Décaissement = dépense payée (trésorerie touchée ou fournisseur lettré) ; engagement = dépense constatée non payée.',
+        'Décaissement = dépense payée (trésorerie touchée ou fournisseur lettré). ' +
+        `Engagement = dépense constatée non payée (${(eb.total?.engagementComptable ?? 0).toLocaleString('fr-FR')}) ` +
+        '+ reste à exécuter des bons de commande et contrats du registre des engagements ' +
+        `(${(eb.total?.engagementHorsComptabilite ?? 0).toLocaleString('fr-FR')}).`,
     );
     largeurs(ws, { A: 10, B: 40, C: 16, D: 15, E: 15, F: 16, G: 17, H: 14 });
     ws.views = [{ state: 'frozen', ySplit: 8, showGridLines: false }];

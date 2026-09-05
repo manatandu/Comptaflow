@@ -977,6 +977,11 @@ function EtatsSystemeNormalPage() {
                   </span>
                 </div>
               </div>
+              <p className="text-[10px] text-text-dim max-w-[900px]">
+                Colonne Engagement · {montant(executionBudget.total.engagementComptable)} de dépenses constatées non
+                payées (comptes 40 et 481), et {montant(executionBudget.total.engagementHorsComptabilite)} de reste à
+                exécuter sur les bons de commande et contrats du registre des engagements.
+              </p>
               <p className="text-[10px] text-text-dim max-w-[900px]">{executionBudget.engagementsHorsComptabilite}</p>
             </div>
           )}
