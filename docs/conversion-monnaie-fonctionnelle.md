@@ -130,16 +130,49 @@ légal.
 Aucun de ces cinq points n'est présent aujourd'hui. C'est un chantier, pas un
 correctif.
 
-## 6. Ce qui reste à trancher, et que je ne tranche pas
+## 6. LE SENS DU PASSAGE · correction du 2026-09-05
 
-- **Le cours moyen est-il « proche du cours réel » ?** Le texte pose la
-  condition sans donner de seuil. Sur une monnaie qui a bougé fortement dans
-  l'année, la moyenne simple ne l'est pas. À quel écart faut-il refuser le
-  cours moyen et exiger le cours de chaque transaction ?
-- **Quel cours de clôture** fait foi · celui de la BCC au 31/12, celui du
-  dernier jour ouvré, un cours contractuel de bailleur ? Le texte dit « dernier
-  cours de change à la date de clôture » pour les créances et dettes, sans
-  nommer la source.
-- **Le double passage EUR/CDF puis EUR/USD** que vous évoquiez est bien le
-  schéma à deux passages du texte · reste à savoir si le second passage se fait
-  au cours de clôture (méthode de la Section 3) ou en repartant des francs.
+Le § 2 ci-dessus décrivait le passage monnaie locale vers monnaie
+fonctionnelle. **C'est l'inverse qu'il faut outiller.**
+
+En pratique, beaucoup d'entités congolaises tiennent leur comptabilité en
+dollars ou en euros · c'est leur monnaie fonctionnelle, celle où la trésorerie
+est réellement générée et dépensée. Les états déposés en RDC doivent être en
+francs congolais. Le passage est donc **monnaie fonctionnelle (USD, EUR) vers
+monnaie de présentation (CDF)**, et il relève de la **méthode du cours de
+clôture**, Section 3, et non de la méthode temporelle.
+
+C'est cette section qui pose « **capitaux propres (capital, réserves) : cours
+historique** », et c'est bien ce que décrivait le praticien : le capital est
+converti au taux auquel il est inscrit au bilan et y reste.
+
+### Décisions de VMG, du 2026-09-05
+
+**Le cours de clôture qui fait foi**, par ordre de disponibilité :
+
+1. le **cours contractuel du bailleur**, quand la convention en fixe un ;
+2. à défaut, le **cours BCC au 31 décembre** ;
+3. à défaut, le **cours du dernier jour ouvré**.
+
+Le logiciel doit donc dire, sur chaque état produit, LEQUEL des trois a été
+retenu · un état converti sans dire à quel cours ne se vérifie pas.
+
+**Un seul passage, jamais deux.** Une entité qui tient en euros convertit
+directement en francs congolais. Le double passage EUR vers USD puis USD vers
+CDF est abandonné : il ajouterait un écart de conversion sans ajouter aucune
+information, et la monnaie de présentation exigée est le franc, pas le dollar.
+
+## 7. Ce qui reste ouvert
+
+**Deux des trois questions du § 6 initial sont tranchées** par les décisions
+ci-dessus : le cours de clôture suit une hiérarchie, et le double passage est
+abandonné.
+
+Reste une seule question, et elle est en cours d'instruction sur les textes :
+
+- **Le cours moyen est-il « proche du cours réel » ?** L'AUDCIF l'admet pour
+  les charges et les produits, mais sous cette condition, et sans donner de
+  seuil. Sur une monnaie qui a fortement bougé dans l'année, la moyenne simple
+  ne l'est plus. La recherche en cours doit dire si un seuil chiffré existe
+  quelque part · et si aucune source n'en donne, ce sera la réponse, et il
+  faudra alors que VMG en fixe un et que l'état dise lequel.
