@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { lignesDuMenu, type LigneMenu, type MenuEntreeDef, type MenuGroupeDef } from './menu-groupes';
 
 // AUCUN import de « vitest » ici, volontairement · c'est la convention du
 // dépôt (voir client/vitest.config.ts et calcul.spec.ts) : describe/it/expect
@@ -108,5 +109,126 @@ describe('chrome à 360 px', () => {
     // La négation vise la LIGNE DE TEXTE affichée, pas la prose : le
     // commentaire qui explique l'incident cite forcément l'ancienne mention.
     expect(src).not.toMatch(/^\s*Comptabilité des entités à but non lucratif/m);
+  });
+});
+
+/**
+ * LE MENU « ÉTAT » NE DÉROULE PLUS VINGT-DEUX ÉDITIONS D'UN BLOC.
+ *
+ * Même famille de défaut que ci-dessus, et il se lit dans les classes : le
+ * panneau s'ouvre en `top-full` sous une barre de menus qui, à 360 px, s'est
+ * repliée sur deux rangs (≈ 82 px sous le haut de l'écran, barre de titre
+ * comprise) alors que sa hauteur est plafonnée à `100dvh - 64px`. 82 étant
+ * plus grand que 64, le bas du panneau tombe TOUJOURS sous le bord de
+ * l'écran dès qu'il atteint son plafond, et son défilé interne n'y peut
+ * rien : l'application est en `h-screen` `overflow-hidden`, la page ne
+ * défile pas. Vingt-deux commandes à 22 px (`py-[3px]` + `leading-[16px]`)
+ * font 484 px de liste ; repliée, elle en fait 154.
+ *
+ * Le repli est un ACCORDÉON, pas un menu volant · un sous-menu posé à droite
+ * de son titre n'aurait nulle part où sortir sur un écran de 360 px, où le
+ * panneau va déjà d'un bord à l'autre (`left-2 right-2`).
+ */
+describe('menu « État » à 360 px', () => {
+  const shell = lire('AppShell.tsx');
+  const source = shell.slice(shell.indexOf("titre: 'État',"), shell.indexOf("titre: 'Fenêtre',"));
+
+  /**
+   * Le menu relu depuis SA source · le spec ne recopie pas la liste, il la
+   * déduit, comme ouverture-referentiel.spec.ts déduit du registre les
+   * fenêtres réservées. Une édition ressortie de son groupe tombe donc ici.
+   * L'indentation fait la profondeur : une commande de groupe est écrite à
+   * douze espaces au moins, une commande directe à huit.
+   */
+  function menuEtat(): MenuEntreeDef[] {
+    const entrees: MenuEntreeDef[] = [];
+    let groupe: MenuGroupeDef | null = null;
+    for (const ligne of source.split('\n')) {
+      const titre = ligne.match(/^ {10}titre: '(.+)',$/);
+      if (titre) {
+        groupe = { titre: titre[1], items: [] };
+        entrees.push(groupe);
+        continue;
+      }
+      const commande = ligne.match(/^( +).*label: '([^']+)'/);
+      if (!commande) continue;
+      if (groupe && commande[1].length >= 12) groupe.items.push({ label: commande[2] });
+      else entrees.push({ label: commande[2] });
+    }
+    return entrees;
+  }
+
+  const nom = (l: LigneMenu) => (l.sorte === 'groupe' ? l.groupe.titre : l.item.label);
+
+  it('sept lignes au repos, là où il en déroulait vingt-deux', () => {
+    // Le tableau de bord reste une entrée DIRECTE, en tête : c'est la seule
+    // qui ne se mérite pas d'un dépliage.
+    expect(lignesDuMenu(menuEtat(), null).map(nom)).toEqual([
+      'Tableau de bord',
+      'Livres comptables',
+      'Analyse des comptes',
+      'Suivi et prévision',
+      'Contrôle et révision',
+      'États financiers',
+      'Fiscalité',
+    ]);
+  });
+
+  it('les vingt-deux éditions restent atteignables, en onze lignes au plus', () => {
+    const entrees = menuEtat();
+    const groupes = entrees.filter((e): e is MenuGroupeDef => 'items' in e).map((g) => g.titre);
+    const vues = new Set<string>();
+    const hauteurs: number[] = [];
+    for (const deplie of [null, ...groupes]) {
+      const lignes = lignesDuMenu(entrees, deplie);
+      hauteurs.push(lignes.length);
+      for (const l of lignes) if (l.sorte === 'commande') vues.add(l.item.label);
+    }
+    // Rien n'a été perdu au regroupement · les vingt-deux libellés de la
+    // source se retrouvent, chacun sous un groupe qu'on peut ouvrir.
+    const tous = [...source.matchAll(/label: '([^']+)'/g)].map((m) => m[1]);
+    expect(tous).toHaveLength(22);
+    expect([...vues].sort()).toEqual([...tous].sort());
+    // Onze lignes = 242 px, quand le panneau en a 484 à tenir aujourd'hui.
+    expect(Math.max(...hauteurs)).toBeLessThanOrEqual(11);
+  });
+
+  it("un groupe dont toutes les entrées sont masquées ne s'affiche pas vide", () => {
+    // Les entrées du menu sont conditionnelles (référentiel du dossier,
+    // droits, présence de cellules) · un titre muni d'une flèche qui ne
+    // déplierait rien promet un contenu qui n'existe pas.
+    const entrees: MenuEntreeDef[] = [{ label: 'Tableau de bord' }, { titre: 'Fiscalité', items: [] }];
+    expect(lignesDuMenu(entrees, null).map(nom)).toEqual(['Tableau de bord']);
+    expect(lignesDuMenu(entrees, 'Fiscalité').map(nom)).toEqual(['Tableau de bord']);
+  });
+
+  it("la balance agrégée reste réservée au dossier SYCEBNL qui a des cellules", () => {
+    // Le regroupement ne doit pas avoir emporté la MOITIÉ de la condition ·
+    // le module est monté sur le plan SYCEBNL, et un dossier sans cellule
+    // n'a pas de groupe à agréger (cf. groupe.service.ts).
+    expect(source).toMatch(
+      /\.\.\.\(estSycebnl && \(utilisateur\?\.tenant\.nombreCellules \?\? 0\) > 0\n\s+\? \[\{ label: 'Balance agrégée du groupe'/,
+    );
+  });
+
+  it('le repli se fait DANS le panneau, et un seul groupe à la fois', () => {
+    const src = lire('MenuBar.tsx');
+    // Le panneau rend la LISTE calculée, il ne refait pas le calcul : c'est
+    // ce qui rend la règle exécutable dans ce spec plutôt que relisible.
+    expect(src).toMatch(/lignesDuMenu\(m\.items, groupeDeplie\)/);
+    // Un état qui porterait une collection laisserait ouvrir les six groupes
+    // et rendrait au panneau les vingt-deux lignes qu'on lui retire.
+    expect(src).toMatch(/const \[groupeDeplie, setGroupeDeplie\] = useState<string \| null>\(null\)/);
+    // `left-full` / `right-full` sont l'ancrage d'un sous-menu VOLANT · à
+    // 360 px il sortirait de l'écran, ce que le repli corrige justement.
+    expect(src).not.toMatch(/left-full|right-full/);
+  });
+
+  it("le titre de groupe porte la petite flèche qui dit dans quel sens il va", () => {
+    const src = lire('MenuBar.tsx');
+    // Sans elle, un titre de groupe ne se distingue pas d'une commande : on
+    // clique en croyant ouvrir une fenêtre, et le panneau change de forme.
+    expect(src).toMatch(/\{ligne\.deplie \? '▾' : '▸'\}/);
+    expect(src).toMatch(/aria-expanded=\{ligne\.deplie\}/);
   });
 });

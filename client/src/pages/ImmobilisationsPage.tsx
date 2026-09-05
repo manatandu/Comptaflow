@@ -501,8 +501,14 @@ export function ImmobilisationsPage() {
       {!immobilisations && <div className="text-[11px] text-text-dim">Chargement…</div>}
 
       {immobilisations && (
-        <div className="border border-border bg-surface shadow-posee max-w-[1180px]">
-          <div className="grid grid-cols-[1.4fr_110px_100px_100px_100px_100px_90px_170px] gap-2.5 px-3.5 py-1.5 bg-chrome border-b border-border text-[10px] font-bold text-text-dim">
+        <div
+          // `overflow-x-auto` ici, `min-w` sur les lignes · les 868 px de colonnes
+          // incompressibles du tableau ne tiennent pas dans les ~326 px utiles d'une
+          // fenêtre à 360 px, et sans conteneur le débordement remontait à la fenêtre,
+          // qui emportait alors titre, onglets et boutons hors de l'écran.
+          className="border border-border bg-surface shadow-posee max-w-[1180px] overflow-x-auto"
+        >
+          <div className="grid grid-cols-[1.4fr_110px_100px_100px_100px_100px_90px_170px] min-w-[1020px] gap-2.5 px-3.5 py-1.5 bg-chrome border-b border-border text-[10px] font-bold text-text-dim">
             <span>DÉSIGNATION</span>
             <span>MISE EN SERVICE</span>
             <span className="text-right">V. ORIGINE</span>
@@ -515,7 +521,7 @@ export function ImmobilisationsPage() {
           {immobilisations.map((immo, i) => (
             <div key={immo.id}>
               <div
-                className={`grid grid-cols-[1.4fr_110px_100px_100px_100px_100px_90px_170px] gap-2.5 px-3.5 py-1.5 items-center border-b border-border text-[10.5px] ${
+                className={`grid grid-cols-[1.4fr_110px_100px_100px_100px_100px_90px_170px] min-w-[1020px] gap-2.5 px-3.5 py-1.5 items-center border-b border-border text-[10.5px] ${
                   i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'
                 }`}
               >

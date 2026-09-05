@@ -153,8 +153,15 @@ export function BailleursPage() {
       {!bailleurs && <div className="text-[11px] text-text-dim">Chargement…</div>}
 
       {bailleurs && (
-        <div className="border border-border bg-surface mb-4 max-w-[600px]">
-          <div className="grid grid-cols-[90px_1fr_70px_90px] gap-3 px-4 py-1.5 bg-chrome border-b border-border text-[10px] font-bold text-text-dim">
+        <div
+          // `overflow-x-auto` ici, `min-w` sur les lignes · 250 px de colonnes fixes,
+          // 36 px de gouttières et 32 px de marges laissent 8 px à la colonne NOM sur
+          // les ~326 px utiles d'une fenêtre à 360 px. Le premier nom de bailleur
+          // débordait donc, et le débordement remontait à la fenêtre, qui emportait
+          // alors le titre de l'écran et le bouton Créer hors de l'écran.
+          className="border border-border bg-surface mb-4 max-w-[600px] overflow-x-auto"
+        >
+          <div className="grid grid-cols-[90px_1fr_70px_90px] min-w-[470px] gap-3 px-4 py-1.5 bg-chrome border-b border-border text-[10px] font-bold text-text-dim">
             <span>CODE</span>
             <span>NOM</span>
             <span>STATUT</span>
@@ -164,7 +171,7 @@ export function BailleursPage() {
           {bailleurs.map((b, i) => (
             <div
               key={b.id}
-              className={`grid grid-cols-[90px_1fr_70px_90px] gap-3 items-center px-4 py-1.5 border-b border-border last:border-b-0 ${i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'}`}
+              className={`grid grid-cols-[90px_1fr_70px_90px] min-w-[470px] gap-3 items-center px-4 py-1.5 border-b border-border last:border-b-0 ${i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'}`}
             >
               <span className="font-mono text-[11px]">{b.code}</span>
               <span className="text-[11px]">{b.nom}</span>
@@ -188,8 +195,8 @@ export function BailleursPage() {
             Seuls les sous-comptes 162-164 (Fonds affectés aux investissements) et 462-464 (Fonds
             d'administration) sont proposés ici · ce sont les seuls que la NOTE 9 sait lire.
           </p>
-          <div className="border border-border bg-surface max-w-[720px]">
-            <div className="grid grid-cols-[90px_1fr_200px] gap-3 px-4 py-1.5 bg-chrome border-b border-border text-[10px] font-bold text-text-dim">
+          <div className="border border-border bg-surface max-w-[720px] overflow-x-auto">
+            <div className="grid grid-cols-[90px_1fr_200px] min-w-[500px] gap-3 px-4 py-1.5 bg-chrome border-b border-border text-[10px] font-bold text-text-dim">
               <span>N°</span>
               <span>LIBELLÉ</span>
               <span>BAILLEUR</span>
@@ -202,7 +209,7 @@ export function BailleursPage() {
             {comptesEligibles.map((c, i) => (
               <div
                 key={c.id}
-                className={`grid grid-cols-[90px_1fr_200px] gap-3 items-center px-4 py-1.5 border-b border-border last:border-b-0 ${i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'}`}
+                className={`grid grid-cols-[90px_1fr_200px] min-w-[500px] gap-3 items-center px-4 py-1.5 border-b border-border last:border-b-0 ${i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'}`}
               >
                 <span className="font-mono text-[11px]">{c.numero}</span>
                 <span className="text-[11px]">{c.intitule}</span>

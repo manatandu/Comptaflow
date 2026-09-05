@@ -263,8 +263,14 @@ export function ModelesSaisiePage() {
         </div>
       </div>
 
-      <div className="border border-border bg-surface shadow-posee max-w-[900px]">
-        <div className="grid grid-cols-[1.4fr_150px_70px_130px] gap-2 px-3 py-1.5 bg-surface-alt border-b border-border-dark text-[10px] font-bold text-text-dim">
+      <div
+        // `overflow-x-auto` ici, `min-w` sur les lignes · les 398 px de colonnes
+        // incompressibles du tableau ne tiennent pas dans les ~326 px utiles d'une
+        // fenêtre à 360 px, et sans conteneur le débordement remontait à la fenêtre,
+        // qui emportait alors titre, onglets et boutons hors de l'écran.
+        className="border border-border bg-surface shadow-posee max-w-[900px] overflow-x-auto"
+      >
+        <div className="grid grid-cols-[1.4fr_150px_70px_130px] min-w-[550px] gap-2 px-3 py-1.5 bg-surface-alt border-b border-border-dark text-[10px] font-bold text-text-dim">
           <span>MODÈLE</span>
           <span>JOURNAL</span>
           <span className="text-right">LIGNES</span>
@@ -278,7 +284,7 @@ export function ModelesSaisiePage() {
         {modeles.map((m) => (
           <div
             key={m.id}
-            className="grid grid-cols-[1.4fr_150px_70px_130px] gap-2 px-3 py-[5px] items-center border-b border-border/50 last:border-b-0 text-[10.5px]"
+            className="grid grid-cols-[1.4fr_150px_70px_130px] min-w-[550px] gap-2 px-3 py-[5px] items-center border-b border-border/50 last:border-b-0 text-[10.5px]"
           >
             <span className={m.estActif ? '' : 'text-text-dim line-through'}>{m.intitule}</span>
             <span className="text-text-dim">{m.journalCode ?? 'Tous'}</span>

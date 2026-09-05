@@ -433,8 +433,15 @@ export function RegularisationPage() {
             </form>
           )}
 
-          <div className="border border-border rounded-[8px] overflow-hidden">
-            <div className="grid grid-cols-[1fr_120px_120px_150px_150px] gap-2 px-3 py-1.5 bg-chrome-alt border-b border-border text-[10px] font-bold text-text-dim">
+          <div
+            // `overflow-x-auto` ici, `min-w` sur les lignes · les 596 px de colonnes
+            // incompressibles du tableau ne tiennent pas dans les ~326 px utiles d'une
+            // fenêtre à 360 px. Le panneau ROGNAIT (`overflow-hidden`) : la page ne
+            // partait pas de côté, mais « REPRISE » était simplement invisible, sans
+            // barre de défilement pour aller la chercher.
+            className="border border-border rounded-[8px] overflow-x-auto"
+          >
+            <div className="grid grid-cols-[1fr_120px_120px_150px_150px] min-w-[750px] gap-2 px-3 py-1.5 bg-chrome-alt border-b border-border text-[10px] font-bold text-text-dim">
               <span>LIBELLÉ</span>
               <span className="text-right">TOTAL</span>
               <span className="text-right">DIFFÉRÉ</span>
@@ -444,7 +451,7 @@ export function RegularisationPage() {
             {regularisations.map((r) => (
               <div
                 key={r.id}
-                className="grid grid-cols-[1fr_120px_120px_150px_150px] gap-2 px-3 py-1.5 text-[11px] items-center border-b border-border/40"
+                className="grid grid-cols-[1fr_120px_120px_150px_150px] min-w-[750px] gap-2 px-3 py-1.5 text-[11px] items-center border-b border-border/40"
               >
                 <span>
                   {r.libelle}

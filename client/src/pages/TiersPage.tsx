@@ -512,21 +512,27 @@ export function TiersPage() {
         </div>
 
         {/* Liste des tiers */}
-        <div className="flex-1 min-w-0 bg-surface border border-border shadow-posee flex flex-col">
-          <div className="grid grid-cols-[96px_1fr_150px_86px] gap-2.5 px-3.5 py-1.5 bg-surface-alt border-b border-border-dark text-[10px] font-bold text-text-dim shrink-0">
+        <div
+          // `overflow-x-auto` ici, `min-w` sur les lignes · les 390 px de colonnes
+          // incompressibles du tableau ne tiennent pas dans les ~326 px utiles d'une
+          // fenêtre à 360 px, et sans conteneur le débordement remontait à la fenêtre,
+          // qui emportait alors titre, onglets et boutons hors de l'écran.
+          className="flex-1 min-w-0 bg-surface border border-border shadow-posee flex flex-col overflow-x-auto"
+        >
+          <div className="grid grid-cols-[96px_1fr_150px_86px] min-w-[540px] gap-2.5 px-3.5 py-1.5 bg-surface-alt border-b border-border-dark text-[10px] font-bold text-text-dim shrink-0">
             <span>CODE</span>
             <span>NOM</span>
             <span>MODÈLE DE RÈGLEMENT</span>
             <span>ÉTAT</span>
           </div>
-          <div className="flex-1 overflow-auto">
+          <div className="flex-1 overflow-auto min-w-[540px]">
             {!liste && <div className="px-3.5 py-3 text-[11px] text-text-dim">Chargement…</div>}
             {listeFiltree.map((t) => (
               <button
                 key={t.id}
                 type="button"
                 onClick={() => setSelectionId(t.id)}
-                className={`w-full grid grid-cols-[96px_1fr_150px_86px] gap-2.5 px-3.5 py-[4px] items-center text-left border-b border-border/50 text-[10.5px] ${
+                className={`w-full grid grid-cols-[96px_1fr_150px_86px] min-w-[540px] gap-2.5 px-3.5 py-[4px] items-center text-left border-b border-border/50 text-[10.5px] ${
                   selectionId === t.id ? 'bg-sel text-white' : 'hover:bg-sel-soft'
                 } ${!t.estActif && selectionId !== t.id ? 'opacity-55' : ''}`}
               >

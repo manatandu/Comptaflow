@@ -124,8 +124,14 @@ export function RapprochementDetailPage({ id: idProp }: { id?: string } = {}) {
             </div>
           </div>
 
-          <div className="border border-border bg-surface shadow-posee max-w-[900px]">
-            <div className="grid grid-cols-[26px_70px_46px_1.4fr_100px_100px] gap-2.5 px-3.5 py-1.5 bg-chrome border-b border-border text-[10px] font-bold text-text-dim">
+          <div
+            // `overflow-x-auto` ici, `min-w` sur les lignes · les 420 px de colonnes
+            // incompressibles du tableau ne tiennent pas dans les ~326 px utiles d'une
+            // fenêtre à 360 px, et sans conteneur le débordement remontait à la fenêtre,
+            // qui emportait alors titre, onglets et boutons hors de l'écran.
+            className="border border-border bg-surface shadow-posee max-w-[900px] overflow-x-auto"
+          >
+            <div className="grid grid-cols-[26px_70px_46px_1.4fr_100px_100px] min-w-[570px] gap-2.5 px-3.5 py-1.5 bg-chrome border-b border-border text-[10px] font-bold text-text-dim">
               <span />
               <span>DATE</span>
               <span>JRN</span>
@@ -136,7 +142,7 @@ export function RapprochementDetailPage({ id: idProp }: { id?: string } = {}) {
             {detail.lignes.map((l, i) => (
               <div
                 key={l.id}
-                className={`grid grid-cols-[26px_70px_46px_1.4fr_100px_100px] gap-2.5 px-3.5 py-1.5 items-center border-b border-border last:border-b-0 text-[10.5px] ${
+                className={`grid grid-cols-[26px_70px_46px_1.4fr_100px_100px] min-w-[570px] gap-2.5 px-3.5 py-1.5 items-center border-b border-border last:border-b-0 text-[10.5px] ${
                   l.pointee ? 'bg-positive-soft' : i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'
                 }`}
               >

@@ -12,6 +12,13 @@ import { Licence, StatutLicence, TypeLicence } from '@prisma/client';
  *   `joursGraceHorsLigne` sans heartbeat réussi, l'accès est aussi coupé.
  *   C'est ce qui distingue "perpétuel installé chez le client" d'un simple
  *   logiciel copiable sans contrôle.
+ *
+ * PHASE 4, PAS ENCORE LIVRÉE · `enregistrerHeartbeat` n'a aucun émetteur dans
+ * le produit (ni route, ni tâche planifiée, ni client sur site). La règle
+ * ci-dessous n'est donc pas fausse, elle est EN AVANCE : elle sera juste le
+ * jour où une installation sur site existera. En attendant, c'est
+ * l'ATTRIBUTION du type qui est fermée, dans PlateformeService · aucun
+ * dossier neuf ne peut plus tomber sur ce verrou.
  */
 @Injectable()
 export class LicenceService {
@@ -50,10 +57,35 @@ export class LicenceService {
       }
 
       case TypeLicence.PERPETUEL_ONPREMISE: {
+        // DEUX PANNES, DEUX PHRASES. Un heartbeat JAMAIS reçu désigne une
+        // installation qui n'émet pas · aujourd'hui, c'est le cas de TOUTE
+        // licence de ce type, puisque `enregistrerHeartbeat` n'a aucun
+        // émetteur. Un heartbeat trop ancien désigne au contraire une coupure
+        // réseau chez un client qui, lui, émettait. Le motif unique
+        // « Vérification de licence hors-ligne dépassée » couvrait les deux et
+        // envoyait le support chercher une panne de réseau dans le premier
+        // cas, où rien n'avait jamais été en ligne.
+        if (!licence.dernierHeartbeatAt) {
+          return {
+            autorise: false,
+            motif:
+              "Licence « Perpétuelle (sur site) » · aucune vérification en ligne n'a jamais été reçue de cette " +
+              'installation',
+          };
+        }
         const limite = new Date();
         limite.setDate(limite.getDate() - licence.joursGraceHorsLigne);
-        if (!licence.dernierHeartbeatAt || licence.dernierHeartbeatAt < limite) {
-          return { autorise: false, motif: 'Vérification de licence hors-ligne dépassée' };
+        if (licence.dernierHeartbeatAt < limite) {
+          // La date et la tolérance sont dans le motif : sans elles, le
+          // support redemande au client « depuis quand ? », seule question qui
+          // sépare une coupure d'une heure d'un poste éteint depuis un mois.
+          const derniere = licence.dernierHeartbeatAt.toISOString().slice(0, 10);
+          return {
+            autorise: false,
+            motif:
+              `Licence « Perpétuelle (sur site) » · dernière vérification en ligne le ${derniere}, au-delà de la ` +
+              `tolérance de ${licence.joursGraceHorsLigne} jours hors ligne`,
+          };
         }
         return { autorise: true };
       }

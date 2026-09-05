@@ -425,11 +425,17 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
       )}
 
       {groupes.length > 0 && (
-        <div className="mt-3 max-w-[1040px] border border-border bg-surface">
+        <div
+          // `overflow-x-auto` ici, `min-w` sur les lignes · les 738 px de colonnes
+          // incompressibles du tableau ne tiennent pas dans les ~326 px utiles d'une
+          // fenêtre à 360 px, et sans conteneur le débordement remontait à la fenêtre,
+          // qui emportait alors titre, onglets et boutons hors de l'écran.
+          className="mt-3 max-w-[1040px] border border-border bg-surface overflow-x-auto"
+        >
           <div className="px-3.5 py-1.5 bg-surface-alt border-b border-border-dark text-[10px] font-bold text-text-dim">
             LETTRAGES DE CE COMPTE
           </div>
-          <div className="grid grid-cols-[60px_90px_110px_150px_110px_1fr_130px] gap-2.5 px-3.5 py-1.5 border-b border-border text-[10px] font-bold text-text-dim">
+          <div className="grid grid-cols-[60px_90px_110px_150px_110px_1fr_130px] min-w-[890px] gap-2.5 px-3.5 py-1.5 border-b border-border text-[10px] font-bold text-text-dim">
             <span>CODE</span>
             <span>STATUT</span>
             <span className="text-right">RESTE À SOLDER</span>
@@ -441,7 +447,7 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
           {groupes.map((g) => (
             <div
               key={g.id}
-              className="grid grid-cols-[60px_90px_110px_150px_110px_1fr_130px] gap-2.5 px-3.5 py-1 items-center border-b border-border/50 last:border-b-0 text-[10.5px]"
+              className="grid grid-cols-[60px_90px_110px_150px_110px_1fr_130px] min-w-[890px] gap-2.5 px-3.5 py-1 items-center border-b border-border/50 last:border-b-0 text-[10.5px]"
             >
               <span className={`font-mono font-bold ${g.statut === 'SOLDE' ? 'text-sel' : 'text-warning'}`}>{g.code}</span>
               <span className="text-[10px]">{g.statut === 'SOLDE' ? 'Soldé' : 'Partiel'}</span>

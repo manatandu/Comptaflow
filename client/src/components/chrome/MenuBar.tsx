@@ -1,16 +1,32 @@
 import { useEffect, useRef, useState } from 'react';
+import { lignesDuMenu, type MenuDef, type MenuEntreeDef, type MenuGroupeDef, type MenuItemDef } from './menu-groupes';
 
-export interface MenuItemDef {
-  label: string;
-  onClick?: () => void;
-  disabled?: boolean;
-  /** Trait horizontal AVANT cet item · regroupe les commandes par famille, comme chez Sage. */
-  separateurAvant?: boolean;
-}
+// Les types du menu vivent dans `menu-groupes.ts` (un module sans JSX, donc
+// exécutable par le jest de la racine) · ils continuent de s'importer d'ici,
+// puisque c'est le composant que les écrans connaissent.
+export type { MenuDef, MenuEntreeDef, MenuGroupeDef, MenuItemDef };
 
-export interface MenuDef {
-  titre: string;
-  items: MenuItemDef[];
+/** Une commande du menu · en retrait lorsqu'elle appartient à un groupe replié. */
+function CommandeMenu({ item, retrait, apresClic }: { item: MenuItemDef; retrait: boolean; apresClic: () => void }) {
+  return (
+    <button
+      type="button"
+      disabled={item.disabled}
+      onClick={() => {
+        if (item.disabled) return;
+        item.onClick?.();
+        apresClic();
+      }}
+      // `pl-[25px]` n'est pas un retrait décoratif · c'est exactement
+      // l'abscisse du titre de groupe (px-2.5 = 10 px, flèche 9 px, gap 6 px),
+      // si bien qu'une commande se lit à l'aplomb du titre qui la contient.
+      className={`w-full text-left rounded-[5px] ${
+        retrait ? 'pl-[25px] pr-2.5' : 'px-2.5'
+      } py-[3px] text-[10.5px] leading-[16px] hover:enabled:bg-sel-soft hover:enabled:text-sel disabled:opacity-40 disabled:cursor-not-allowed`}
+    >
+      {item.label}
+    </button>
+  );
 }
 
 /**
@@ -33,7 +49,15 @@ export function MenuBar({
   apres?: React.ReactNode;
 }) {
   const [ouvert, setOuvert] = useState<string | null>(null);
+  // UN SEUL groupe déplié à la fois · voir `lignesDuMenu`. Un état qui
+  // porterait une collection laisserait rouvrir les six groupes du menu
+  // « État » et rendrait au panneau les vingt-deux lignes qu'on lui retire.
+  const [groupeDeplie, setGroupeDeplie] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+
+  // Refermer le menu referme ses groupes · le menu se rouvre replié, dans
+  // l'état où il tient à l'écran, jamais dans celui où on l'a laissé.
+  useEffect(() => setGroupeDeplie(null), [ouvert]);
 
   useEffect(() => {
     const onClicDehors = (e: MouseEvent) => {
@@ -105,23 +129,38 @@ export function MenuBar({
           </button>
           {ouvert === m.titre && (
             <div className="anim-menu absolute left-2 right-2 sm:left-0 sm:right-auto top-full mt-0.5 z-30 sm:min-w-[178px] max-h-[calc(100dvh-64px)] overflow-y-auto rounded-[8px] border border-border bg-surface shadow-flottante p-1">
-              {m.items.map((it, i) => (
-                <div key={`${it.label}-${i}`}>
-                  {it.separateurAvant && <div className="my-[3px] mx-1.5 border-t border-border" />}
-                  <button
-                    type="button"
-                    disabled={it.disabled}
-                    onClick={() => {
-                      if (it.disabled) return;
-                      it.onClick?.();
-                      setOuvert(null);
-                    }}
-                    className="w-full text-left rounded-[5px] px-2.5 py-[3px] text-[10.5px] leading-[16px] hover:enabled:bg-sel-soft hover:enabled:text-sel disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    {it.label}
-                  </button>
-                </div>
-              ))}
+              {lignesDuMenu(m.items, groupeDeplie).map((ligne, i) => {
+                const entree = ligne.sorte === 'groupe' ? ligne.groupe : ligne.item;
+                const cle = ligne.sorte === 'groupe' ? ligne.groupe.titre : ligne.item.label;
+                const enRetrait = ligne.sorte === 'commande' && ligne.retrait;
+                return (
+                  <div key={`${cle}-${i}`}>
+                    {/* Le trait d'un groupe se pose devant SON titre · une
+                        commande en retrait n'ouvre jamais une famille. */}
+                    {!enRetrait && entree.separateurAvant && <div className="my-[3px] mx-1.5 border-t border-border" />}
+                    {ligne.sorte === 'groupe' ? (
+                      <button
+                        type="button"
+                        aria-expanded={ligne.deplie}
+                        onClick={() => setGroupeDeplie(ligne.deplie ? null : ligne.groupe.titre)}
+                        className="w-full flex items-center gap-1.5 text-left rounded-[5px] px-2.5 py-[3px] text-[10.5px] leading-[16px] font-semibold hover:bg-chrome-alt"
+                      >
+                        {/* La « petite flèche » demandée · elle bascule pour
+                            dire dans quel sens le repli va, comme un dossier
+                            de l'explorateur. `aria-hidden` : l'état est déjà
+                            porté par `aria-expanded`, la lire deux fois
+                            gênerait. */}
+                        <span aria-hidden className="w-[9px] shrink-0 text-[8px] text-text-dim">
+                          {ligne.deplie ? '▾' : '▸'}
+                        </span>
+                        <span className="min-w-0 truncate">{ligne.groupe.titre}</span>
+                      </button>
+                    ) : (
+                      <CommandeMenu item={ligne.item} retrait={ligne.retrait} apresClic={() => setOuvert(null)} />
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

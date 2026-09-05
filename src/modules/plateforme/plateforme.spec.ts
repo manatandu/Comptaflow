@@ -325,3 +325,167 @@ describe('PlateformeService · cascade de licence sur les cellules', () => {
     expect((resultat as { cellulesEnCascade: number }).cellulesEnCascade).toBe(7);
   });
 });
+
+/**
+ * LA CONSOLE NE VEND PLUS UN TYPE QUI MET LE DOSSIER HORS SERVICE.
+ *
+ * `LicenceService.evaluerLicence` refuse une licence PERPETUEL_ONPREMISE dont
+ * le `dernierHeartbeatAt` est trop ancien OU NUL, et
+ * `LicenceService.enregistrerHeartbeat` n'a AUCUN émetteur dans le dépôt :
+ * `grep -rn "enregistrerHeartbeat" src/` ne rend que sa propre définition. Ni
+ * route, ni tâche planifiée, ni client sur site.
+ *
+ * Le dossier à qui la console attribuait ce type naissait donc avec un
+ * heartbeat nul et se voyait refuser sa PREMIÈRE requête. Le mode sur site est
+ * un chantier de phase 4 (voir `TypeLicence` dans schema.prisma) : ce n'est ni
+ * l'énumération ni la règle du heartbeat qui sont fautives, elles sont en
+ * avance · c'est l'ATTRIBUTION, fermée ici aux deux portes qui la posent.
+ *
+ * Ce que la disparition de ces assertions ferait revenir : un cabinet créé
+ * complet (tenant, licence, admin, plan de comptes, exercice) et inaccessible
+ * dès la seconde suivante, ou un dossier en production basculé hors service
+ * par un simple PATCH, cascade sur ses cellules comprise.
+ */
+describe('PlateformeService · le mode sur site n’est pas attribuable (phase 4)', () => {
+  it('creerCabinet refuse PERPETUEL_ONPREMISE AVANT register · aucun dossier n’est semé derrière l’erreur', async () => {
+    const registres: unknown[] = [];
+    const authService = {
+      register: async (dto: unknown) => {
+        registres.push(dto);
+        return { tenant: { id: 't', nom: 'x' }, exercice: null, accessToken: 'x' };
+      },
+    } as never;
+    const s = new PlateformeService(
+      {
+        licence: {
+          update: async () => {
+            throw new Error('ne doit pas être appelé');
+          },
+        },
+        user: {
+          update: async () => {
+            throw new Error('ne doit pas être appelé');
+          },
+        },
+      } as never,
+      { get: () => undefined } as never,
+      authService,
+    );
+
+    await expect(
+      s.creerCabinet({
+        nomEntite: 'ASBL Lumière',
+        emailAdmin: 'admin@lumiere.cd',
+        typeLicence: TypeLicence.PERPETUEL_ONPREMISE,
+      }),
+    ).rejects.toThrow(BadRequestException);
+    // register() sème tenant + licence + admin + plan de comptes + exercice
+    // d'un seul tenant : refuser APRÈS aurait laissé tout cela en base.
+    expect(registres).toEqual([]);
+  });
+
+  it('modifierLicence refuse PERPETUEL_ONPREMISE sans lire ni écrire · la cascade sur les cellules ne part pas', async () => {
+    const appels: string[] = [];
+    const s = new PlateformeService(
+      {
+        licence: {
+          findUnique: async () => {
+            appels.push('findUnique');
+            return { tenantId: 't1' };
+          },
+          update: async () => {
+            appels.push('update');
+            return {};
+          },
+          updateMany: async () => {
+            appels.push('updateMany');
+            return { count: 0 };
+          },
+        },
+      } as never,
+      { get: () => undefined } as never,
+      undefined as never,
+    );
+
+    await expect(s.modifierLicence('t1', { type: TypeLicence.PERPETUEL_ONPREMISE })).rejects.toThrow(
+      BadRequestException,
+    );
+    // Le type est un défaut de la DEMANDE : il se refuse avant tout accès base.
+    expect(appels).toEqual([]);
+  });
+
+  it('le message dit POURQUOI · le heartbeat n’a aucun émetteur, et il nomme le repli', async () => {
+    const s = new PlateformeService(
+      { licence: { findUnique: async () => ({ tenantId: 't1' }) } } as never,
+      { get: () => undefined } as never,
+      undefined as never,
+    );
+    const erreur = await s
+      .modifierLicence('t1', { type: TypeLicence.PERPETUEL_ONPREMISE })
+      .catch((e: Error) => e);
+    const message = (erreur as BadRequestException).message;
+    // « Type de licence invalide » n'apprendrait rien à l'opérateur : le type
+    // EXISTE, il n'est simplement pas encore livrable.
+    expect(message).toContain('heartbeat');
+    expect(message).toContain('phase 4');
+    // Le libellé de la console (LIBELLE_LICENCE, PlateformePage) · l'opérateur
+    // doit reconnaître la ligne qu'il vient de choisir.
+    expect(message).toContain('Perpétuelle (sur site)');
+    // Et l'issue : une licence sans échéance reste vendable, en SaaS.
+    expect(message).toContain('Perpétuelle (SaaS)');
+  });
+
+  it('les deux types livrables passent · le verrou ne ferme que le mode sur site', async () => {
+    const ecrits: unknown[] = [];
+    const s = new PlateformeService(
+      {
+        licence: {
+          findUnique: async () => ({ tenantId: 't1' }),
+          update: async ({ data }: { data: unknown }) => {
+            ecrits.push(data);
+            return data as object;
+          },
+          updateMany: async () => ({ count: 0 }),
+        },
+      } as never,
+      { get: () => undefined } as never,
+      undefined as never,
+    );
+    await s.modifierLicence('t1', { type: TypeLicence.PERPETUEL_SAAS });
+    await s.modifierLicence('t1', { type: TypeLicence.ABONNEMENT });
+    expect(ecrits).toEqual([{ type: TypeLicence.PERPETUEL_SAAS }, { type: TypeLicence.ABONNEMENT }]);
+  });
+
+  it('un dossier qui PORTE déjà ce type reste réparable · c’est par ce PATCH qu’on l’en sort', async () => {
+    let ecrit: unknown;
+    const s = new PlateformeService(
+      {
+        licence: {
+          // Licence déjà en sur site, posée avant la fermeture.
+          findUnique: async () => ({ tenantId: 't1', type: TypeLicence.PERPETUEL_ONPREMISE }),
+          update: async ({ data }: { data: unknown }) => {
+            ecrit = data;
+            return data as object;
+          },
+          updateMany: async () => ({ count: 0 }),
+        },
+      } as never,
+      { get: () => undefined } as never,
+      undefined as never,
+    );
+    // Fermer l'attribution ne doit pas enfermer le dossier déjà attribué :
+    // ni pour le sortir du type, ni pour le suspendre entre-temps.
+    await s.modifierLicence('t1', { type: TypeLicence.PERPETUEL_SAAS });
+    expect(ecrit).toEqual({ type: TypeLicence.PERPETUEL_SAAS });
+    await s.modifierLicence('t1', { statut: StatutLicence.SUSPENDUE });
+    expect(ecrit).toEqual({ statut: StatutLicence.SUSPENDUE });
+  });
+
+  it('le DTO connaît toujours le type · c’est le service qui refuse, pas la validation', async () => {
+    // L'énumération Prisma porte peut-être déjà des données, et la règle du
+    // heartbeat sera juste en phase 4 : on ferme la porte, on ne démolit ni
+    // l'énumération ni le DTO.
+    const demande = plainToInstance(ModifierLicenceDto, { type: 'PERPETUEL_ONPREMISE' });
+    expect(await validate(demande)).toHaveLength(0);
+  });
+});

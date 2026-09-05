@@ -181,7 +181,14 @@ export function ControlesPage() {
       )}
 
       {onglet === 'caisse' && (
-        <div className="border border-border bg-surface rounded-b-[10px] overflow-hidden">
+        <div
+          // `overflow-x-auto` ici, `min-w` sur les lignes · les 604 px de colonnes
+          // incompressibles du tableau ne tiennent pas dans les ~326 px utiles d'une
+          // fenêtre à 360 px. Le panneau ROGNAIT (`overflow-hidden`) : la page ne
+          // partait pas de côté, mais « SOLDE AU SOIR » était simplement invisible, sans
+          // barre de défilement pour aller la chercher.
+          className="border border-border bg-surface rounded-b-[10px] overflow-x-auto"
+        >
           {!caisses && <div className="px-4 py-4 text-[11px] text-text-dim">Chargement…</div>}
           {caisses && caisses.length === 0 && (
             <div className="px-4 py-5 text-[11px] text-text-dim italic">
@@ -216,7 +223,7 @@ export function ControlesPage() {
                 </p>
               )}
 
-              <div className="grid grid-cols-[110px_1fr_140px_140px_150px] gap-2 px-4 py-1.5 bg-chrome-alt border-b border-border text-[10px] font-bold text-text-dim">
+              <div className="grid grid-cols-[110px_1fr_140px_140px_150px] min-w-[760px] gap-2 px-4 py-1.5 bg-chrome-alt border-b border-border text-[10px] font-bold text-text-dim">
                 <span>DATE</span>
                 <span />
                 <span className="text-right">ENTRÉES</span>
@@ -227,7 +234,7 @@ export function ControlesPage() {
                 {c.journees.map((j) => (
                   <div
                     key={j.date}
-                    className={`grid grid-cols-[110px_1fr_140px_140px_150px] gap-2 px-4 py-1 text-[11px] border-b border-border/30 ${
+                    className={`grid grid-cols-[110px_1fr_140px_140px_150px] min-w-[760px] gap-2 px-4 py-1 text-[11px] border-b border-border/30 ${
                       j.negatif ? 'bg-danger-soft' : ''
                     }`}
                   >
@@ -248,7 +255,7 @@ export function ControlesPage() {
                   <div className="px-4 py-3 text-[11px] text-text-dim italic">Aucun mouvement sur cet exercice.</div>
                 )}
               </div>
-              <div className="grid grid-cols-[110px_1fr_140px_140px_150px] gap-2 px-4 py-1.5 bg-chrome border-t border-border text-[11px] font-bold">
+              <div className="grid grid-cols-[110px_1fr_140px_140px_150px] min-w-[760px] gap-2 px-4 py-1.5 bg-chrome border-t border-border text-[11px] font-bold">
                 <span />
                 <span>Solde de clôture</span>
                 <span />

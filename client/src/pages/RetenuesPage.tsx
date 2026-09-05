@@ -104,8 +104,14 @@ export function RetenuesPage() {
 
       {onglet === 'echeancier' && echeancier && (
         <div className="max-w-[1100px]">
-          <div className="border border-border bg-surface mb-3">
-            <div className="grid grid-cols-[100px_86px_1fr_130px_150px_110px] gap-2 px-4 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
+          <div
+            // `overflow-x-auto` ici, `min-w` sur les lignes · les 648 px de colonnes
+            // incompressibles du tableau ne tiennent pas dans les ~326 px utiles d'une
+            // fenêtre à 360 px, et sans conteneur le débordement remontait à la fenêtre,
+            // qui emportait alors titre, onglets et boutons hors de l'écran.
+            className="border border-border bg-surface mb-3 overflow-x-auto"
+          >
+            <div className="grid grid-cols-[100px_86px_1fr_130px_150px_110px] min-w-[800px] gap-2 px-4 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
               <span>PROCHAINE</span>
               <span>RYTHME</span>
               <span>NATURE</span>
@@ -117,7 +123,7 @@ export function RetenuesPage() {
               <div
                 key={e.cle}
                 title={e.echeance}
-                className={`grid grid-cols-[100px_86px_1fr_130px_150px_110px] gap-2 px-4 py-1.5 items-start border-b border-border/50 last:border-b-0 text-[11px] ${
+                className={`grid grid-cols-[100px_86px_1fr_130px_150px_110px] min-w-[800px] gap-2 px-4 py-1.5 items-start border-b border-border/50 last:border-b-0 text-[11px] ${
                   e.moisEnRetard > 0 ? 'bg-danger-soft' : ''
                 }`}
               >
@@ -161,7 +167,7 @@ export function RetenuesPage() {
                 </span>
               </div>
             ))}
-            <div className="grid grid-cols-[100px_86px_1fr_130px_150px_110px] gap-2 px-4 py-1.5 bg-surface-alt border-t border-border text-[11px] font-bold">
+            <div className="grid grid-cols-[100px_86px_1fr_130px_150px_110px] min-w-[800px] gap-2 px-4 py-1.5 bg-surface-alt border-t border-border text-[11px] font-bold">
               <span />
               <span />
               <span>TOTAL RESTANT À REVERSER</span>
@@ -186,8 +192,8 @@ export function RetenuesPage() {
 
       {onglet === 'registre' && registre && (
         <div className="max-w-[1100px]">
-          <div className="border border-border bg-surface mb-3">
-            <div className="grid grid-cols-[1fr_140px_140px_140px] gap-2 px-4 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
+          <div className="border border-border bg-surface mb-3 overflow-x-auto">
+            <div className="grid grid-cols-[1fr_140px_140px_140px] min-w-[630px] gap-2 px-4 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
               <span>NATURE</span>
               <span className="text-right">RETENU</span>
               <span className="text-right">REVERSÉ</span>
@@ -199,7 +205,7 @@ export function RetenuesPage() {
                   type="button"
                   onClick={() => setNatureOuverte(natureOuverte === n.cle ? null : n.cle)}
                   disabled={n.mois.length === 0}
-                  className={`w-full text-left grid grid-cols-[1fr_140px_140px_140px] gap-2 px-4 py-1.5 text-[11px] border-b border-border/50 ${
+                  className={`w-full text-left grid grid-cols-[1fr_140px_140px_140px] min-w-[630px] gap-2 px-4 py-1.5 text-[11px] border-b border-border/50 ${
                     n.mois.length === 0 ? 'text-text-dim cursor-default' : 'hover:bg-sel-soft'
                   } ${natureOuverte === n.cle ? 'bg-sel-soft' : ''}`}
                 >
@@ -235,7 +241,7 @@ export function RetenuesPage() {
                       son grand livre ne retrouve plus ses montants, puisque la
                       première colonne les a déplacés.
                     */}
-                    <div className="grid grid-cols-[130px_100px_115px_115px_115px_115px] gap-2 px-6 py-1 text-[10px] font-bold text-text-dim">
+                    <div className="grid grid-cols-[130px_100px_115px_115px_115px_115px] min-w-[780px] gap-2 px-6 py-1 text-[10px] font-bold text-text-dim">
                       <span>MOIS DE LA RETENUE</span>
                       <span>À REVERSER LE</span>
                       <span className="text-right">RETENU</span>
@@ -246,7 +252,7 @@ export function RetenuesPage() {
                     {n.mois.map((m) => (
                       <div
                         key={m.mois}
-                        className={`grid grid-cols-[130px_100px_115px_115px_115px_115px] gap-2 px-6 py-[3px] text-[10.5px] ${
+                        className={`grid grid-cols-[130px_100px_115px_115px_115px_115px] min-w-[780px] gap-2 px-6 py-[3px] text-[10.5px] ${
                           m.enRetard ? 'text-danger font-semibold' : ''
                         }`}
                       >
@@ -272,7 +278,7 @@ export function RetenuesPage() {
                 )}
               </div>
             ))}
-            <div className="grid grid-cols-[1fr_140px_140px_140px] gap-2 px-4 py-1.5 bg-surface-alt border-t border-border text-[11px] font-bold">
+            <div className="grid grid-cols-[1fr_140px_140px_140px] min-w-[630px] gap-2 px-4 py-1.5 bg-surface-alt border-t border-border text-[11px] font-bold">
               <span>TOTAL</span>
               <span className="font-mono text-right">{montant(registre.totalRetenu)}</span>
               <span className="font-mono text-right">{montant(registre.totalReverse)}</span>

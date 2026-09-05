@@ -595,8 +595,14 @@ export function ExercicePage() {
         </div>
       )}
 
-      <div className="border border-border bg-surface shadow-posee max-w-[980px]">
-        <div className="grid grid-cols-[90px_1fr_100px_110px_90px_100px] gap-2 px-3.5 py-1.5 bg-chrome border-b border-border text-[10px] font-bold text-text-dim">
+      <div
+        // `overflow-x-auto` ici, `min-w` sur les lignes · les 558 px de colonnes
+        // incompressibles du tableau ne tiennent pas dans les ~326 px utiles d'une
+        // fenêtre à 360 px, et sans conteneur le débordement remontait à la fenêtre,
+        // qui emportait alors titre, onglets et boutons hors de l'écran.
+        className="border border-border bg-surface shadow-posee max-w-[980px] overflow-x-auto"
+      >
+        <div className="grid grid-cols-[90px_1fr_100px_110px_90px_100px] min-w-[710px] gap-2 px-3.5 py-1.5 bg-chrome border-b border-border text-[10px] font-bold text-text-dim">
           <span>GRANULARITÉ</span>
           <span>JOURNAL</span>
           <span>DATE LIMITE</span>
@@ -609,7 +615,7 @@ export function ExercicePage() {
         {clotures?.map((c, i) => (
           <div
             key={c.id}
-            className={`grid grid-cols-[90px_1fr_100px_110px_90px_100px] gap-2 items-center px-3.5 py-1.5 border-b border-border last:border-b-0 text-[10.5px] ${
+            className={`grid grid-cols-[90px_1fr_100px_110px_90px_100px] min-w-[710px] gap-2 items-center px-3.5 py-1.5 border-b border-border last:border-b-0 text-[10.5px] ${
               i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'
             }`}
           >

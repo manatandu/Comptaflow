@@ -105,12 +105,43 @@ export class PlateformeService implements OnModuleInit {
   }
 
   /**
+   * LE MODE SUR SITE N'EST PAS ENCORE LIVRABLE · phase 4.
+   *
+   * `LicenceService.evaluerLicence` coupe l'accès d'une licence
+   * PERPETUEL_ONPREMISE dont le `dernierHeartbeatAt` est trop ancien OU NUL,
+   * et `LicenceService.enregistrerHeartbeat` n'a AUCUN émetteur dans le
+   * produit : ni route, ni tâche planifiée, ni client sur site. Le dossier à
+   * qui la console attribuait ce type naissait donc avec un heartbeat nul et
+   * se voyait refuser sa PREMIÈRE requête · la console vendait le seul type
+   * qui met le dossier hors service le jour de sa livraison.
+   *
+   * Rien n'est faux ni dans l'énumération Prisma ni dans la règle du
+   * heartbeat : les deux sont EN AVANCE, et se rebranchent le jour où une
+   * installation sur site émettra. C'est l'ATTRIBUTION qu'on ferme, ici, aux
+   * DEUX portes qui la posent : la création d'un cabinet et le changement de
+   * type. Une licence qui porterait déjà ce type reste modifiable · c'est
+   * même par ce PATCH qu'on l'en sort.
+   */
+  private refuserAttributionSurSite(type: TypeLicence | undefined) {
+    if (type !== TypeLicence.PERPETUEL_ONPREMISE) return;
+    throw new BadRequestException(
+      'Licence « Perpétuelle (sur site) » non attribuable · l’installation sur site relève de la phase 4 : ' +
+        'aucun composant n’émet aujourd’hui le heartbeat que ce type exige, et le dossier serait refusé dès sa ' +
+        'première requête. Pour une licence sans échéance, choisir « Perpétuelle (SaaS) ».',
+    );
+  }
+
+  /**
    * Suspension, réactivation, changement de type, renouvellement. EXPIREE ne
    * se décrète pas (refusée par le DTO) : elle découle de dateExpiration,
    * évaluée à chaque requête par LicenceService · « renouveler », c'est donc
    * poser une nouvelle échéance, le statut ACTIVE suffisant ensuite.
    */
   async modifierLicence(tenantId: string, dto: ModifierLicenceDto) {
+    // Avant toute lecture : un type non attribuable est un défaut de la
+    // DEMANDE, il n'a pas à dépendre de l'existence de la cible, et surtout
+    // il ne doit rien écrire · le PATCH cascade sur les cellules.
+    this.refuserAttributionSurSite(dto.type);
     const licence = await this.prisma.licence.findUnique({ where: { tenantId } });
     if (!licence) {
       throw new NotFoundException('Cabinet introuvable ou sans licence');
@@ -222,6 +253,10 @@ export class PlateformeService implements OnModuleInit {
    * connexion (Fichier > Autorisations d'accès).
    */
   async creerCabinet(dto: CreerCabinetDto) {
+    // Avant register() : celui-ci sème tenant, licence, admin, plan de comptes
+    // et exercice d'un seul tenant · refuser après aurait laissé un dossier
+    // complet et inaccessible derrière l'erreur.
+    this.refuserAttributionSurSite(dto.typeLicence);
     // 16 caractères base64url · large au-delà du minimum de 10 du RegisterDto.
     const motDePasseTemporaire = randomBytes(12).toString('base64url');
     const resultat = await this.authService.register({

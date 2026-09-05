@@ -127,8 +127,14 @@ export function JournauxPage() {
         </div>
       )}
 
-      <div className="border border-border bg-surface shadow-posee">
-        <div className="grid grid-cols-[76px_1fr_100px_160px_220px_92px] gap-2.5 px-3.5 py-1.5 bg-surface-alt border-b border-border-dark text-[10px] font-bold text-text-dim">
+      <div
+        // `overflow-x-auto` ici, `min-w` sur les lignes · les 726 px de colonnes
+        // incompressibles du tableau ne tiennent pas dans les ~326 px utiles d'une
+        // fenêtre à 360 px, et sans conteneur le débordement remontait à la fenêtre,
+        // qui emportait alors titre, onglets et boutons hors de l'écran.
+        className="border border-border bg-surface shadow-posee overflow-x-auto"
+      >
+        <div className="grid grid-cols-[76px_1fr_100px_160px_220px_92px] min-w-[880px] gap-2.5 px-3.5 py-1.5 bg-surface-alt border-b border-border-dark text-[10px] font-bold text-text-dim">
           <span>CODE</span>
           <span>INTITULÉ</span>
           <span>TYPE</span>
@@ -140,7 +146,7 @@ export function JournauxPage() {
         {liste?.map((j) => (
           <div
             key={j.id}
-            className={`grid grid-cols-[76px_1fr_100px_160px_220px_92px] gap-2.5 items-center px-3.5 py-[4px] border-b border-border/50 last:border-b-0 text-[10.5px] hover:bg-sel-soft ${
+            className={`grid grid-cols-[76px_1fr_100px_160px_220px_92px] min-w-[880px] gap-2.5 items-center px-3.5 py-[4px] border-b border-border/50 last:border-b-0 text-[10.5px] hover:bg-sel-soft ${
               !j.estActif ? 'opacity-55' : ''
             }`}
           >

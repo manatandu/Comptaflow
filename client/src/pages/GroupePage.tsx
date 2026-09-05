@@ -404,13 +404,19 @@ export function GroupePage() {
               montants différents · il est nommé, jamais corrigé d'office, et
               les deux soldes sont donnés pour qu'on voie lequel manque. */}
           {agregat && agregat.ecartsReciprocite.length > 0 && (
-            <div className="border border-warning/40 bg-surface shadow-posee mb-2">
+            <div
+              // `overflow-x-auto` ici, `min-w` sur les lignes · les 450 px de colonnes
+              // incompressibles du tableau ne tiennent pas dans les ~326 px utiles d'une
+              // fenêtre à 360 px, et sans conteneur le débordement remontait à la fenêtre,
+              // qui emportait alors titre, onglets et boutons hors de l'écran.
+              className="border border-warning/40 bg-surface shadow-posee mb-2 overflow-x-auto"
+            >
               <div className="bg-warning-soft border-b border-warning/30 px-3.5 py-1.5 text-[10.5px]">
                 <span className="font-bold">ÉCARTS DE RÉCIPROCITÉ</span> · la créance chez l'un ne répond pas à la dette
                 chez l'autre. Une opération est enregistrée d'un seul côté, ou pour deux montants différents · rien n'a
                 été corrigé, la confirmation de solde se fait entre les deux dossiers.
               </div>
-              <div className="grid grid-cols-[1fr_1fr_130px_130px_130px] gap-2 px-3.5 py-1.5 bg-chrome border-b border-border text-[10px] font-bold text-text-dim">
+              <div className="grid grid-cols-[1fr_1fr_130px_130px_130px] min-w-[750px] gap-2 px-3.5 py-1.5 bg-chrome border-b border-border text-[10px] font-bold text-text-dim">
                 <span>DOSSIER</span>
                 <span>CONTREPARTIE</span>
                 <span className="text-right">SOLDE CHEZ LUI</span>
@@ -420,7 +426,7 @@ export function GroupePage() {
               {agregat.ecartsReciprocite.map((e) => (
                 <div
                   key={`${e.dossier}|${e.contrepartie}`}
-                  className="grid grid-cols-[1fr_1fr_130px_130px_130px] gap-2 px-3.5 py-1 border-b border-border last:border-b-0 text-[10.5px]"
+                  className="grid grid-cols-[1fr_1fr_130px_130px_130px] min-w-[750px] gap-2 px-3.5 py-1 border-b border-border last:border-b-0 text-[10.5px]"
                 >
                   <span className="truncate">{e.dossier}</span>
                   <span className="truncate">{e.contrepartie}</span>
@@ -472,8 +478,8 @@ export function GroupePage() {
           ))}
 
           {agregat && (
-            <div className="border border-border bg-surface shadow-posee max-w-[820px] mb-2">
-              <div className="grid grid-cols-[110px_1fr_130px_130px] gap-2 px-3.5 py-1.5 bg-chrome border-b border-border text-[10px] font-bold text-text-dim">
+            <div className="border border-border bg-surface shadow-posee max-w-[820px] mb-2 overflow-x-auto">
+              <div className="grid grid-cols-[110px_1fr_130px_130px] min-w-[580px] gap-2 px-3.5 py-1.5 bg-chrome border-b border-border text-[10px] font-bold text-text-dim">
                 <span>COMPTE</span>
                 <span>INTITULÉ</span>
                 <span className="text-right">DÉBIT</span>
@@ -483,7 +489,7 @@ export function GroupePage() {
                 {agregat.lignes.map((l, i) => (
                   <div
                     key={l.numero}
-                    className={`grid grid-cols-[110px_1fr_130px_130px] gap-2 px-3.5 py-1 border-b border-border last:border-b-0 text-[10.5px] ${i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'}`}
+                    className={`grid grid-cols-[110px_1fr_130px_130px] min-w-[580px] gap-2 px-3.5 py-1 border-b border-border last:border-b-0 text-[10.5px] ${i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'}`}
                   >
                     <span className="font-mono">{l.numero}</span>
                     <span className="truncate">{l.intitule}</span>
@@ -492,7 +498,7 @@ export function GroupePage() {
                   </div>
                 ))}
               </div>
-              <div className="grid grid-cols-[110px_1fr_130px_130px] gap-2 px-3.5 py-1.5 border-t border-border-dark bg-chrome text-[10.5px] font-bold">
+              <div className="grid grid-cols-[110px_1fr_130px_130px] min-w-[580px] gap-2 px-3.5 py-1.5 border-t border-border-dark bg-chrome text-[10.5px] font-bold">
                 <span></span>
                 {/* Le libellé ne promet une déduction que s'il y en a eu une ·
                     un groupe sans tiers-cellule n'a rien à éliminer, et son
@@ -635,20 +641,20 @@ export function GroupePage() {
 
       {balanceCellule && (
         <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
-          <div className="anim-modale w-full max-w-[640px] bg-surface border border-border-dark shadow-flottante max-h-[calc(100dvh-2rem)] flex flex-col">
+          <div className="anim-modale w-full max-w-[640px] bg-surface border border-border-dark shadow-flottante max-h-[calc(100dvh-2rem)] flex flex-col overflow-x-auto">
             <div
-              className="h-[26px] shrink-0 flex items-center justify-between px-2.5 text-white text-[10.5px]"
+              className="h-[26px] shrink-0 flex items-center justify-between px-2.5 text-white text-[10.5px] min-w-[530px]"
               style={{ background: 'linear-gradient(180deg, var(--titlebar-from), var(--titlebar-to))' }}
             >
               <span>Balance (lecture) · {balanceCellule.cellule.nom}</span>
               <button type="button" onClick={() => setBalanceCellule(null)} className="text-white/85 hover:text-white px-1.5">✕</button>
             </div>
-            <div className="overflow-y-auto">
+            <div className="overflow-y-auto min-w-[530px]">
               {/* Plus de filtre : la balance ne rend que des comptes de
                   détail mouvementés (voir EcritureService.balance). */}
               {balanceCellule.lignes
                 .map((l, i) => (
-                  <div key={l.numero} className={`grid grid-cols-[100px_1fr_110px_110px] gap-2 px-3.5 py-1 text-[10.5px] border-b border-border ${i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'}`}>
+                  <div key={l.numero} className={`grid grid-cols-[100px_1fr_110px_110px] min-w-[530px] gap-2 px-3.5 py-1 text-[10.5px] border-b border-border ${i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'}`}>
                     <span className="font-mono">{l.numero}</span>
                     <span className="truncate">{l.intitule}</span>
                     <span className="text-right tabular-nums">{montant(l.totalDebit)}</span>
@@ -656,7 +662,7 @@ export function GroupePage() {
                   </div>
                 ))}
             </div>
-            <div className="shrink-0 grid grid-cols-[100px_1fr_110px_110px] gap-2 px-3.5 py-1.5 border-t border-border-dark bg-chrome text-[10.5px] font-bold">
+            <div className="shrink-0 grid grid-cols-[100px_1fr_110px_110px] min-w-[530px] gap-2 px-3.5 py-1.5 border-t border-border-dark bg-chrome text-[10.5px] font-bold min-w-[530px]">
               <span></span>
               <span>TOTAL</span>
               <span className="text-right tabular-nums">{montant(balanceCellule.totaux.debit)}</span>

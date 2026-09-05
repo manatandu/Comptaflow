@@ -311,7 +311,14 @@ export function DevisesPage() {
           </section>
         </div>
 
-        <section className="bg-surface border border-border rounded-[10px] shadow-posee overflow-hidden">
+        <section
+          // `overflow-x-auto` ici, `min-w` sur les lignes · les 830 px de colonnes
+          // incompressibles du tableau ne tiennent pas dans les ~326 px utiles d'une
+          // fenêtre à 360 px. Le panneau ROGNAIT (`overflow-hidden`) : la page ne
+          // partait pas de côté, mais « ÉCART » était simplement invisible, sans
+          // barre de défilement pour aller la chercher.
+          className="bg-surface border border-border rounded-[10px] shadow-posee overflow-x-auto"
+        >
           <div className="px-3 py-2 bg-chrome-alt border-b border-border flex items-center justify-between">
             <span className="text-[10.5px] font-bold">Réévaluation à la clôture</span>
             <span className="flex items-center gap-2">
@@ -413,7 +420,7 @@ export function DevisesPage() {
                 ))}
               </div>
 
-              <div className="grid grid-cols-[110px_1fr_60px_110px_90px_130px_130px_120px] gap-2 px-3 py-1.5 bg-chrome-alt border-b border-border text-[10px] font-bold text-text-dim">
+              <div className="grid grid-cols-[110px_1fr_60px_110px_90px_130px_130px_120px] min-w-[980px] gap-2 px-3 py-1.5 bg-chrome-alt border-b border-border text-[10px] font-bold text-text-dim">
                 <span>COMPTE</span>
                 <span>INTITULÉ</span>
                 <span>DEV.</span>
@@ -426,7 +433,7 @@ export function DevisesPage() {
               {rapport.positions.map((p) => (
                 <div
                   key={`${p.compteId}-${p.deviseId}`}
-                  className="grid grid-cols-[110px_1fr_60px_110px_90px_130px_130px_120px] gap-2 px-3 py-1 text-[11px] border-b border-border/40"
+                  className="grid grid-cols-[110px_1fr_60px_110px_90px_130px_130px_120px] min-w-[980px] gap-2 px-3 py-1 text-[11px] border-b border-border/40"
                 >
                   <span className="font-mono">{p.numero}</span>
                   <span className="truncate">
@@ -461,7 +468,7 @@ export function DevisesPage() {
               {reevaluations.map((r) => (
                 <div
                   key={r.id}
-                  className="grid grid-cols-[130px_1fr_200px] gap-2 px-3 py-1.5 text-[11px] items-center border-b border-border/40"
+                  className="grid grid-cols-[130px_1fr_200px] min-w-[520px] gap-2 px-3 py-1.5 text-[11px] items-center border-b border-border/40"
                 >
                   <span className="font-mono">{jour(r.dateReevaluation)}</span>
                   <span className="text-text-dim">

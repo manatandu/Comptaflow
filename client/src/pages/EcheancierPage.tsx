@@ -81,8 +81,14 @@ export function EcheancierPage() {
             </div>
           )}
 
-          <div className="border border-border bg-surface mb-3">
-            <div className="grid grid-cols-[1fr_130px_130px_130px_150px] gap-2 px-4 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
+          <div
+            // `overflow-x-auto` ici, `min-w` sur les lignes · les 604 px de colonnes
+            // incompressibles du tableau ne tiennent pas dans les ~326 px utiles d'une
+            // fenêtre à 360 px, et sans conteneur le débordement remontait à la fenêtre,
+            // qui emportait alors titre, onglets et boutons hors de l'écran.
+            className="border border-border bg-surface mb-3 overflow-x-auto"
+          >
+            <div className="grid grid-cols-[1fr_130px_130px_130px_150px] min-w-[760px] gap-2 px-4 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
               <span>TRANCHE</span>
               <span className="text-right">ENCAISSEMENTS</span>
               <span className="text-right">DÉCAISSEMENTS</span>
@@ -97,7 +103,7 @@ export function EcheancierPage() {
                     type="button"
                     onClick={() => setTrancheOuverte(trancheOuverte === t.cle ? null : t.cle)}
                     disabled={vide}
-                    className={`w-full text-left grid grid-cols-[1fr_130px_130px_130px_150px] gap-2 px-4 py-1.5 text-[11px] border-b border-border/50 ${
+                    className={`w-full text-left grid grid-cols-[1fr_130px_130px_130px_150px] min-w-[760px] gap-2 px-4 py-1.5 text-[11px] border-b border-border/50 ${
                       vide ? 'text-text-dim cursor-default' : 'hover:bg-sel-soft'
                     } ${trancheOuverte === t.cle ? 'bg-sel-soft' : ''}`}
                   >
@@ -119,7 +125,7 @@ export function EcheancierPage() {
 
                   {trancheOuverte === t.cle && (
                     <div className="bg-chrome-alt border-b border-border">
-                      <div className="grid grid-cols-[80px_1fr_120px_120px_130px] gap-2 px-6 py-1 text-[10px] font-bold text-text-dim">
+                      <div className="grid grid-cols-[80px_1fr_120px_120px_130px] min-w-[680px] gap-2 px-6 py-1 text-[10px] font-bold text-text-dim">
                         <span>ÉCHÉANCE</span>
                         <span>TIERS ET LIBELLÉ</span>
                         <span>COMPTE</span>
@@ -131,7 +137,7 @@ export function EcheancierPage() {
                         .map((d) => (
                           <div
                             key={d.ligneId}
-                            className="grid grid-cols-[80px_1fr_120px_120px_130px] gap-2 px-6 py-[3px] text-[10.5px]"
+                            className="grid grid-cols-[80px_1fr_120px_120px_130px] min-w-[680px] gap-2 px-6 py-[3px] text-[10.5px]"
                           >
                             <span className="font-mono text-[10px]">{jour(d.date)}</span>
                             <span className="truncate">

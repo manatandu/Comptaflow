@@ -236,7 +236,15 @@ export function PlansAnalytiquesPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-[210px_1fr_330px] gap-2.5 items-start">
+      {/*
+        TROIS VOLETS, mais pas à toute largeur · 210 + 330 px de volets fixes
+        et deux gouttières font 560 px avant même que le volet central ait un
+        caractère, quand une fenêtre à 360 px n'en offre que ~326. La grille ne
+        se comprimant pas, elle poussait la page entière et le volet de droite
+        sortait de l'écran. Sous `lg` les volets s'empilent, comme la page des
+        devises et la page d'import empilent déjà les leurs.
+      */}
+      <div className="grid grid-cols-1 lg:grid-cols-[210px_1fr_330px] gap-2.5 items-start">
         {/* Axes */}
         <aside className="bg-surface border border-border rounded-[10px] shadow-posee overflow-hidden">
           <header className="px-3 py-2 bg-chrome-alt border-b border-border text-[10px] font-bold text-text-dim">

@@ -139,7 +139,7 @@ export function EtatsSmtPage() {
     <div
       key={p.ref}
       title={p.comptes.length > 0 ? `Comptes : ${p.comptes.map((c) => c.numero).join(', ')}` : undefined}
-      className={`grid grid-cols-[40px_1fr_44px_120px_120px] gap-2 px-4 py-1 text-[11px] ${
+      className={`grid grid-cols-[40px_1fr_44px_120px_120px] min-w-[540px] gap-2 px-4 py-1 text-[11px] ${
         p.estTotal ? 'font-bold bg-surface-alt border-y border-border' : p.montant === 0 ? 'text-text-dim' : ''
       }`}
     >
@@ -259,14 +259,20 @@ export function EtatsSmtPage() {
       {/* ---------------------------------------------------------------- */}
       {onglet === 'bilan' && bilan && (
         <div className="max-w-[900px]">
-          <div className="border border-border bg-surface mb-3">
-            {entete(['REF', 'ACTIF', 'NOTE', 'EXERCICE N', 'EXERCICE N-1'], 'grid-cols-[40px_1fr_44px_120px_120px]')}
+          <div
+            // `overflow-x-auto` ici, `min-w` sur les lignes · les 388 px de colonnes
+            // incompressibles du tableau ne tiennent pas dans les ~326 px utiles d'une
+            // fenêtre à 360 px, et sans conteneur le débordement remontait à la fenêtre,
+            // qui emportait alors titre, onglets et boutons hors de l'écran.
+            className="border border-border bg-surface mb-3 overflow-x-auto"
+          >
+            {entete(['REF', 'ACTIF', 'NOTE', 'EXERCICE N', 'EXERCICE N-1'], 'grid-cols-[40px_1fr_44px_120px_120px] min-w-[540px]')}
             {bilan.actif.map(ligneBilan)}
           </div>
           <p className="text-[10px] text-text-dim mb-3">{bilan.renvoiImmobilisations}</p>
 
-          <div className="border border-border bg-surface mb-3">
-            {entete(['REF', 'PASSIF', 'NOTE', 'EXERCICE N', 'EXERCICE N-1'], 'grid-cols-[40px_1fr_44px_120px_120px]')}
+          <div className="border border-border bg-surface mb-3 overflow-x-auto">
+            {entete(['REF', 'PASSIF', 'NOTE', 'EXERCICE N', 'EXERCICE N-1'], 'grid-cols-[40px_1fr_44px_120px_120px] min-w-[540px]')}
             {bilan.passif.map(ligneBilan)}
           </div>
 

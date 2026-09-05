@@ -187,8 +187,16 @@ export function EtatsAnalytiquesPage() {
       </div>
 
       {onglet === 'balance' && (
-        <div className="border border-border bg-surface rounded-b-[10px] overflow-hidden">
-          <div className="grid grid-cols-[120px_1fr_140px_140px_150px] gap-2 px-4 py-1.5 bg-chrome-alt border-b border-border text-[10px] font-bold text-text-dim">
+        <div
+          // `overflow-x-auto` ici, `min-w` sur les lignes · les 614 px de colonnes
+          // incompressibles du tableau ne tiennent pas dans les ~326 px utiles d'une
+          // fenêtre à 360 px, et sans conteneur le débordement remontait à la fenêtre,
+          // qui emportait alors titre, onglets et boutons hors de l'écran. Le panneau
+          // ROGNAIT jusqu'ici (`overflow-hidden`) : la page ne partait pas de côté,
+          // mais la dernière colonne était simplement invisible.
+          className="border border-border bg-surface rounded-b-[10px] overflow-x-auto"
+        >
+          <div className="grid grid-cols-[120px_1fr_140px_140px_150px] min-w-[770px] gap-2 px-4 py-1.5 bg-chrome-alt border-b border-border text-[10px] font-bold text-text-dim">
             <span>SECTION</span>
             <span>INTITULÉ</span>
             <span className="text-right">MOUVEMENT DÉBIT</span>
@@ -199,7 +207,7 @@ export function EtatsAnalytiquesPage() {
           {balance?.lignes.map((l) => (
             <div
               key={l.sectionId}
-              className={`grid grid-cols-[120px_1fr_140px_140px_150px] gap-2 px-4 py-1 text-[11px] border-b border-border/40 ${
+              className={`grid grid-cols-[120px_1fr_140px_140px_150px] min-w-[770px] gap-2 px-4 py-1 text-[11px] border-b border-border/40 ${
                 l.type === 'TOTAL' ? 'bg-chrome-alt font-bold' : ''
               }`}
             >
@@ -216,7 +224,7 @@ export function EtatsAnalytiquesPage() {
             </div>
           )}
           {balance && (
-            <div className="grid grid-cols-[120px_1fr_140px_140px_150px] gap-2 px-4 py-1.5 bg-chrome border-t border-border text-[11px] font-bold">
+            <div className="grid grid-cols-[120px_1fr_140px_140px_150px] min-w-[770px] gap-2 px-4 py-1.5 bg-chrome border-t border-border text-[11px] font-bold">
               <span />
               <span>Total des sections Détail</span>
               <span className="text-right font-mono">{montant(balance.totaux.debit)}</span>
@@ -228,7 +236,7 @@ export function EtatsAnalytiquesPage() {
       )}
 
       {onglet === 'grand-livre' && (
-        <div className="border border-border bg-surface rounded-b-[10px] overflow-hidden">
+        <div className="border border-border bg-surface rounded-b-[10px] overflow-x-auto">
           {grandLivre && (
             <div className="px-4 py-2 bg-chrome-alt border-b border-border text-[10.5px]">
               <span className="font-mono font-bold">{grandLivre.section.code}</span> {grandLivre.section.intitule}
@@ -242,7 +250,7 @@ export function EtatsAnalytiquesPage() {
               )}
             </div>
           )}
-          <div className="grid grid-cols-[90px_60px_70px_110px_1fr_120px_120px_130px] gap-2 px-4 py-1.5 bg-chrome-alt border-b border-border text-[10px] font-bold text-text-dim">
+          <div className="grid grid-cols-[90px_60px_70px_110px_1fr_120px_120px_130px] min-w-[940px] gap-2 px-4 py-1.5 bg-chrome-alt border-b border-border text-[10px] font-bold text-text-dim">
             <span>DATE</span>
             <span>JAL</span>
             <span>PIÈCE</span>
@@ -256,7 +264,7 @@ export function EtatsAnalytiquesPage() {
           {grandLivre?.lignes.map((l, i) => (
             <div
               key={i}
-              className="grid grid-cols-[90px_60px_70px_110px_1fr_120px_120px_130px] gap-2 px-4 py-1 text-[11px] border-b border-border/40"
+              className="grid grid-cols-[90px_60px_70px_110px_1fr_120px_120px_130px] min-w-[940px] gap-2 px-4 py-1 text-[11px] border-b border-border/40"
             >
               <span className="font-mono">{l.date}</span>
               <span className="font-mono">{l.journal}</span>
@@ -284,7 +292,7 @@ export function EtatsAnalytiquesPage() {
           {controle?.map((c) => {
             const equilibre = Math.abs(c.ecartDebit) < 0.005 && Math.abs(c.ecartCredit) < 0.005;
             return (
-              <section key={c.planId} className="border border-border rounded-[8px] overflow-hidden">
+              <section key={c.planId} className="border border-border rounded-[8px] overflow-x-auto">
                 <header
                   className={`px-3 py-2 text-[11px] font-bold flex items-center justify-between ${
                     equilibre ? 'bg-positive-soft text-positive' : 'bg-warning-soft text-warning'
@@ -295,7 +303,7 @@ export function EtatsAnalytiquesPage() {
                   </span>
                   <span>{equilibre ? 'Cumuls concordants' : 'Écart à ventiler'}</span>
                 </header>
-                <div className="grid grid-cols-[1fr_140px_140px] gap-2 px-3 py-1.5 bg-chrome-alt border-b border-border text-[10px] font-bold text-text-dim">
+                <div className="grid grid-cols-[1fr_140px_140px] min-w-[470px] gap-2 px-3 py-1.5 bg-chrome-alt border-b border-border text-[10px] font-bold text-text-dim">
                   <span />
                   <span className="text-right">DÉBIT</span>
                   <span className="text-right">CRÉDIT</span>
@@ -307,7 +315,7 @@ export function EtatsAnalytiquesPage() {
                 ].map(([libelle, d, cr], i) => (
                   <div
                     key={libelle as string}
-                    className={`grid grid-cols-[1fr_140px_140px] gap-2 px-3 py-1 text-[11px] ${
+                    className={`grid grid-cols-[1fr_140px_140px] min-w-[470px] gap-2 px-3 py-1 text-[11px] ${
                       i === 2 ? 'font-bold border-t border-border' : 'border-b border-border/40'
                     }`}
                   >
@@ -346,7 +354,7 @@ export function EtatsAnalytiquesPage() {
       )}
 
       {onglet === 'budgetaire' && (
-        <div className="border border-border bg-surface rounded-b-[10px] overflow-hidden">
+        <div className="border border-border bg-surface rounded-b-[10px] overflow-x-auto">
           {plan && !plan.gererBudgets ? (
             <div className="px-4 py-4 text-[11px] text-text-dim">
               L'axe {plan.intitule} ne porte pas de budget. Le budget se tient sur l'axe des projets :{' '}
@@ -356,7 +364,7 @@ export function EtatsAnalytiquesPage() {
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-[120px_1fr_140px_140px_140px_100px] gap-2 px-4 py-1.5 bg-chrome-alt border-b border-border text-[10px] font-bold text-text-dim">
+              <div className="grid grid-cols-[120px_1fr_140px_140px_140px_100px] min-w-[870px] gap-2 px-4 py-1.5 bg-chrome-alt border-b border-border text-[10px] font-bold text-text-dim">
                 <span>SECTION</span>
                 <span>INTITULÉ</span>
                 <span className="text-right">BUDGET</span>
@@ -368,7 +376,7 @@ export function EtatsAnalytiquesPage() {
               {budgetaire?.lignes.map((l) => (
                 <div
                   key={l.sectionId}
-                  className={`grid grid-cols-[120px_1fr_140px_140px_140px_100px] gap-2 px-4 py-1 text-[11px] border-b border-border/40 ${
+                  className={`grid grid-cols-[120px_1fr_140px_140px_140px_100px] min-w-[870px] gap-2 px-4 py-1 text-[11px] border-b border-border/40 ${
                     l.horsBudget ? 'bg-danger-soft' : l.ecart < 0 ? 'bg-warning-soft' : ''
                   }`}
                 >
@@ -388,7 +396,7 @@ export function EtatsAnalytiquesPage() {
                 </div>
               ))}
               {budgetaire && (
-                <div className="grid grid-cols-[120px_1fr_140px_140px_140px_100px] gap-2 px-4 py-1.5 bg-chrome border-t border-border text-[11px] font-bold">
+                <div className="grid grid-cols-[120px_1fr_140px_140px_140px_100px] min-w-[870px] gap-2 px-4 py-1.5 bg-chrome border-t border-border text-[11px] font-bold">
                   <span />
                   <span>Total</span>
                   <span className="text-right font-mono">{montant(budgetaire.totaux.budget)}</span>

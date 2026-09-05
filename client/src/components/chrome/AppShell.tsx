@@ -202,72 +202,177 @@ export function AppShell() {
       ],
     },
     {
+      // VINGT-DEUX ÉDITIONS, SIX REPLIS · le menu les déroulait d'un bloc, et
+      // à 360 px cela ne tenait pas : le panneau s'ouvre sous une barre de
+      // menus repliée sur deux rangs (≈ 82 px du haut de l'écran) alors que
+      // sa hauteur est plafonnée à `100dvh - 64px` (MenuBar.tsx) · il finit
+      // donc TOUJOURS une vingtaine de pixels sous le bord bas, et son défilé
+      // interne n'y peut rien puisque l'application est en `h-screen`
+      // `overflow-hidden`. Les dernières entrées, la fiscalité, étaient
+      // matériellement inatteignables.
+      //
+      // Le repli se fait DANS le panneau, pas en sous-menu volant : un
+      // panneau qui sortirait à droite de son titre reproduirait le même
+      // défaut sur l'autre axe (voir menu-groupes.ts).
+      //
+      // Aucune promesse de disponibilité ne s'écrit dans ce menu, pas même en
+      // commentaire : aiguillage-referentiel.spec.ts cherche la formule de
+      // report mot pour mot dans tout le fichier (CLAUDE.md §4).
       titre: 'État',
       items: [
         // Sage range le tableau de bord dans l'Édition Pilotée, côté États ·
         // même logique ici : c'est une édition de synthèse, pas une fenêtre
         // de gestion. Il était dans le menu Fenêtre, où rien ne le justifiait.
+        // Il reste une entrée DIRECTE, en tête et hors de tout groupe : c'est
+        // la vue qu'on ouvre en arrivant, elle ne se mérite pas d'un dépliage.
         { label: 'Tableau de bord', onClick: () => navigate('/tableau-de-bord') },
-        { label: 'Journal', separateurAvant: true, onClick: () => navigate('/journal?onglet=journal') },
-        { label: 'Grand livre des comptes', onClick: () => navigate('/journal?onglet=grand-livre') },
-        { label: 'Balance des comptes', onClick: () => navigate('/journal?onglet=balance') },
-        { label: 'Brouillard', onClick: () => navigate('/brouillard') },
-        // Deux états jumeaux et complémentaires : la balance âgée recense le
-        // RETARD, l'échéancier annonce ce qui VIENT. Sage les distingue de la
-        // même façon.
-        { label: 'Balance âgée', separateurAvant: true, onClick: () => navigate('/balance-agee') },
-        { label: 'Balance auxiliaire', onClick: () => navigate('/balance-auxiliaire') },
-        { label: 'Justificatif de solde', onClick: () => navigate('/justificatif-solde') },
-        { label: 'Évolution des soldes', onClick: () => navigate('/evolution-soldes') },
-        { label: 'Immobilisations et amortissements', onClick: () => navigate('/tableaux-immobilisations') },
-        { label: 'Échéancier de trésorerie', onClick: () => navigate('/echeancier') },
-        { label: 'États analytiques et budgétaires', onClick: () => navigate('/etats-analytiques') },
-        { label: 'Analyse et contrôles', separateurAvant: true, onClick: () => navigate('/controles') },
-        { label: 'Dossier de révision', onClick: () => navigate('/dossier-revision') },
-        // Dossier mère d'un groupe d'établissements (une église et ses
-        // cellules) · la balance agrégée du groupe est une édition du siège.
-        // Le module est monté sur le plan SYCEBNL (canevas de trésorerie et
-        // liasse combinée, cf. groupe.service.ts) et son contrôleur est
-        // réservé à ce référentiel · le compte des cellules ne suffit pas.
-        ...(estSycebnl && (utilisateur?.tenant.nombreCellules ?? 0) > 0
-          ? [{ label: 'Balance agrégée du groupe', onClick: () => navigate('/groupe') }]
-          : []),
-        // États financiers et Notes annexes servent les DEUX référentiels :
-        // chaque fenêtre aiguille sur le référentiel du dossier et, pour un
-        // dossier SYSCOHADA, sur son système (AUDCIF art. 11 · Système normal
-        // ou Système minimal de trésorerie). Voir l'aiguillage en fin de
-        // EtatsFinanciersPage.tsx et de NotesAnnexesPage.tsx · plus rien n'est
-        // « en construction » derrière ces deux entrées.
-        //
-        // Les documents obligatoires, eux, restent MASQUÉS pour un dossier
-        // SYSCOHADA · non que le référentiel n'en exige pas (l'AUDCIF art. 19
-        // impose le livre-journal, le grand-livre, la balance générale et le
-        // livre d'inventaire, ce dernier transcrivant le Bilan, le Compte de
-        // résultat et le Tableau des flux), mais parce que cette fenêtre-ci
-        // est montée sur les états et les textes du SYCEBNL (art. 14 et 16-3).
-        // La montrer imprimerait à une entreprise les documents d'une ASBL ·
-        // son pendant SYSCOHADA reste à écrire, et le serveur refuse déjà ses
-        // routes à un dossier SYSCOHADA (ReferentielGuard).
-        { label: 'États financiers', separateurAvant: true, onClick: () => navigate('/etats-financiers') },
-        { label: 'Notes annexes', onClick: () => navigate('/notes-annexes') },
-        // Les deux référentiels · AUDCIF art. 19 pour le livre d'inventaire,
-        // AUSCGIE art. 138 (ou AUSCOOP art. 108) pour le rapport de gestion.
-        { label: 'Documents obligatoires', onClick: () => navigate('/documents-obligatoires') },
-        { label: 'Déclaration de TVA', separateurAvant: true, onClick: () => navigate('/declaration-tva') },
-        // Une ASBL exonérée d'impôt sur les sociétés reste redevable de tout
-        // ce qu'elle retient pour autrui, et de la déclaration même à zéro ·
-        // voir docs/fiscalite-asbl-rdc.md.
-        { label: 'Retenues et échéancier fiscal', onClick: () => navigate('/retenues') },
-        // Le pendant SYSCOHADA : une entreprise commerciale paie l'impôt sur
-        // ses bénéfices, une ASBL en est exemptée (loi n° 23/053, art. 5).
-        ...(estSycebnl
-          ? []
-          : [{ label: 'Résultat fiscal et impôt sur les bénéfices', onClick: () => navigate('/fiscalite') }]),
-        // Les facilités douanières de l'article 39 de la loi 004/2001 · un
-        // arrêté prévisionnel périmé se découvre d'ordinaire au port.
-        ...(estSycebnl
-          ? [{ label: 'Exonérations douanières et fiscales', onClick: () => navigate('/exonerations') }]
-          : []),
+        {
+          // LE SEUL GROUPE QUI TIENNE D'UN TEXTE, et il faut le lire à la
+          // lettre. AUDCIF art. 19 : « Les livres comptables et autres
+          // supports dont la tenue est obligatoire sont : le livre-journal,
+          // dans lequel sont inscrits les mouvements de l'exercice ; le
+          // grand-livre, constitué par l'ensemble des comptes de l'entité, où
+          // sont reportés compte par compte les différents mouvements de
+          // l'exercice ; la balance générale des comptes, état récapitulatif
+          // faisant apparaître à la clôture, pour chaque compte : le solde à
+          // l'ouverture, le cumul des mouvements débiteurs et créditeurs
+          // depuis l'ouverture, le solde à la date considérée ; le livre
+          // d'inventaire […] ». Les TROIS PREMIERS tirets font ce groupe.
+          //
+          // Le quatrième n'y est pas : le livre d'inventaire ne se tient pas,
+          // il TRANSCRIT les états financiers · il est servi par « Documents
+          // obligatoires », dans le groupe « États financiers ».
+          //
+          // Le SYCEBNL n'y change rien pour les trois premiers : son art. 3
+          // rend l'AUDCIF applicable aux entités à but non lucratif « à
+          // l'exception des articles 5, 8, 10 à 13, 17 alinéas 7 et 8, 18,
+          // 19 quatrième tiret, 21, […] », donc de ce seul quatrième tiret,
+          // que son art. 14 réécrit (« Le livre d'inventaire est un document
+          // obligatoire sur lequel sont transcrits : 1) pour les associations
+          // et les ordres professionnels, le Bilan, le Compte de résultat et
+          // le Tableau des flux de trésorerie de chaque exercice ainsi que le
+          // résumé de l'opération d'inventaire ; […] »). Le Système comptable
+          // lui-même reprend la liste à l'identique et y ajoute « le registre
+          // des donateurs » (Partie 2, ch. 2, section 2), qui a sa place au
+          // menu Traitement puisqu'on l'y alimente.
+          //
+          // Le BROUILLARD tient au groupe par le dernier alinéa du même
+          // art. 19 : « L'établissement du livre-journal et du grand-livre
+          // peut être facilité par la tenue de journaux et livres auxiliaires.
+          // Dans ce cas, les totaux de ces supports sont périodiquement et au
+          // moins une fois par mois centralisés dans le livre-journal et le
+          // grand-livre » · c'est le support d'AVANT centralisation des trois
+          // autres, pas un état de plus (voir BrouillardPage.tsx, qui calcule
+          // le retard sur ce délai et sur celui du SYCEBNL, hebdomadaire).
+          titre: 'Livres comptables',
+          separateurAvant: true,
+          items: [
+            { label: 'Journal', onClick: () => navigate('/journal?onglet=journal') },
+            { label: 'Grand livre des comptes', onClick: () => navigate('/journal?onglet=grand-livre') },
+            { label: 'Balance des comptes', onClick: () => navigate('/journal?onglet=balance') },
+            { label: 'Brouillard', onClick: () => navigate('/brouillard') },
+          ],
+        },
+        {
+          // Ce qu'on demande à un compte une fois qu'il est tenu : de quoi
+          // son solde est fait, à qui il se rattache, depuis quand il dort.
+          //
+          // La balance âgée et l'échéancier de trésorerie restent deux états
+          // jumeaux et complémentaires · la première recense le RETARD, le
+          // second annonce ce qui VIENT, et Sage les distingue de la même
+          // façon. Le repli porte désormais cette distinction, là où un
+          // simple trait horizontal s'en chargeait : l'échéancier est passé
+          // au groupe « Suivi et prévision », qui est son temps à lui.
+          titre: 'Analyse des comptes',
+          separateurAvant: true,
+          items: [
+            { label: 'Balance âgée', onClick: () => navigate('/balance-agee') },
+            { label: 'Balance auxiliaire', onClick: () => navigate('/balance-auxiliaire') },
+            { label: 'Justificatif de solde', onClick: () => navigate('/justificatif-solde') },
+            { label: 'Évolution des soldes', onClick: () => navigate('/evolution-soldes') },
+          ],
+        },
+        {
+          // Les trois états qui regardent au-delà de la clôture : un plan
+          // d'amortissement court sur les exercices suivants, un échéancier
+          // annonce des flux, un budget se compare à son réalisé.
+          titre: 'Suivi et prévision',
+          separateurAvant: true,
+          items: [
+            { label: 'Immobilisations et amortissements', onClick: () => navigate('/tableaux-immobilisations') },
+            { label: 'Échéancier de trésorerie', onClick: () => navigate('/echeancier') },
+            { label: 'États analytiques et budgétaires', onClick: () => navigate('/etats-analytiques') },
+          ],
+        },
+        {
+          titre: 'Contrôle et révision',
+          separateurAvant: true,
+          items: [
+            { label: 'Analyse et contrôles', onClick: () => navigate('/controles') },
+            { label: 'Dossier de révision', onClick: () => navigate('/dossier-revision') },
+            // Dossier mère d'un groupe d'établissements (une église et ses
+            // cellules) · la balance agrégée du groupe est une édition du
+            // siège. Le module est monté sur le plan SYCEBNL (canevas de
+            // trésorerie et liasse combinée, cf. groupe.service.ts) et son
+            // contrôleur est réservé à ce référentiel · le compte des
+            // cellules ne suffit pas.
+            ...(estSycebnl && (utilisateur?.tenant.nombreCellules ?? 0) > 0
+              ? [{ label: 'Balance agrégée du groupe', onClick: () => navigate('/groupe') }]
+              : []),
+          ],
+        },
+        {
+          // États financiers et Notes annexes servent les DEUX référentiels :
+          // chaque fenêtre aiguille sur le référentiel du dossier et, pour un
+          // dossier SYSCOHADA, sur son système (AUDCIF art. 11 · Système normal
+          // ou Système minimal de trésorerie). Voir l'aiguillage en fin de
+          // EtatsFinanciersPage.tsx et de NotesAnnexesPage.tsx · plus rien n'est
+          // « en construction » derrière ces deux entrées.
+          //
+          // Les documents obligatoires ont d'abord été MASQUÉS pour un dossier
+          // SYSCOHADA · non que le référentiel n'en exige pas (l'AUDCIF art. 19
+          // impose le livre-journal, le grand-livre, la balance générale et le
+          // livre d'inventaire, ce dernier transcrivant le Bilan, le Compte de
+          // résultat et le Tableau des flux), mais parce que cette fenêtre-ci
+          // était montée sur les seuls états et textes du SYCEBNL (art. 14 et
+          // 16-3) : la montrer aurait imprimé à une entreprise les documents
+          // d'une ASBL. Elle sert les deux référentiels depuis le 2026-09-02,
+          // chaque document étant lu dans SON texte et aucun n'étant transposé
+          // (voir correspondance-inventaire-syscohada.ts côté serveur et le
+          // registre des fenêtres, d'où le filtre a été retiré) · l'entrée
+          // n'est donc plus gardée.
+          titre: 'États financiers',
+          separateurAvant: true,
+          items: [
+            { label: 'États financiers', onClick: () => navigate('/etats-financiers') },
+            { label: 'Notes annexes', onClick: () => navigate('/notes-annexes') },
+            // Les deux référentiels · AUDCIF art. 19 pour le livre d'inventaire,
+            // AUSCGIE art. 138 (ou AUSCOOP art. 108) pour le rapport de gestion.
+            { label: 'Documents obligatoires', onClick: () => navigate('/documents-obligatoires') },
+          ],
+        },
+        {
+          titre: 'Fiscalité',
+          separateurAvant: true,
+          items: [
+            { label: 'Déclaration de TVA', onClick: () => navigate('/declaration-tva') },
+            // Une ASBL exonérée d'impôt sur les sociétés reste redevable de
+            // tout ce qu'elle retient pour autrui, et de la déclaration même à
+            // zéro · voir docs/fiscalite-asbl-rdc.md.
+            { label: 'Retenues et échéancier fiscal', onClick: () => navigate('/retenues') },
+            // Le pendant SYSCOHADA : une entreprise commerciale paie l'impôt
+            // sur ses bénéfices, une ASBL en est exemptée (loi n° 23/053,
+            // art. 5).
+            ...(estSycebnl
+              ? []
+              : [{ label: 'Résultat fiscal et impôt sur les bénéfices', onClick: () => navigate('/fiscalite') }]),
+            // Les facilités douanières de l'article 39 de la loi 004/2001 · un
+            // arrêté prévisionnel périmé se découvre d'ordinaire au port.
+            ...(estSycebnl
+              ? [{ label: 'Exonérations douanières et fiscales', onClick: () => navigate('/exonerations') }]
+              : []),
+          ],
+        },
       ],
     },
     {

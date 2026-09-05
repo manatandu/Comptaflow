@@ -462,11 +462,40 @@ export function PlateformePage() {
             <div className="p-4">
               <div className="grid grid-cols-[130px_1fr] items-center gap-x-3 gap-y-2.5">
                 <label className="text-[11px] text-right">Type :</label>
+                {/* LE MODE SUR SITE N'EST PAS UN CHOIX · l'énumération le porte
+                    en « Phase 4 » (prisma/schema.prisma, enum TypeLicence), et
+                    la phase n'est pas livrée : LicenceService.evaluerLicence
+                    refuse une licence de ce type dont le heartbeat est NUL, et
+                    enregistrerHeartbeat n'a aucun émetteur dans le produit (ni
+                    route, ni tâche planifiée, ni client sur site). L'attribuer
+                    faisait donc basculer le dossier hors service dès sa
+                    première requête, et PlateformeService.modifierLicence le
+                    refuse désormais avant même de lire la licence : la console
+                    proposait une ligne qui ne peut que finir en erreur.
+
+                    Ce qui reste ici n'est PLUS un choix mais un AFFICHAGE ·
+                    l'option n'existe que pour un dossier qui porte déjà ce
+                    type, faute de quoi le sélecteur s'ouvrirait VIDE sur une
+                    donnée réelle ; elle se lit dans LIBELLE_LICENCE, la même
+                    table que la colonne LICENCE de la liste, pour que les deux
+                    ne puissent pas diverger ; et `disabled` interdit d'y
+                    revenir une fois qu'on en est sorti. */}
                 <select value={licType} onChange={(e) => setLicType(e.target.value as TypeLicence)} className="border border-border-dark px-2.5 py-1.5 text-[11px]">
                   <option value="ABONNEMENT">Abonnement</option>
                   <option value="PERPETUEL_SAAS">Perpétuelle (SaaS)</option>
-                  <option value="PERPETUEL_ONPREMISE">Perpétuelle (sur site)</option>
+                  {licenceEnCours.licence?.type === 'PERPETUEL_ONPREMISE' && (
+                    <option value="PERPETUEL_ONPREMISE" disabled>
+                      {LIBELLE_LICENCE.PERPETUEL_ONPREMISE}
+                    </option>
+                  )}
                 </select>
+                <p className="col-start-2 text-[10.5px] text-text-dim -mt-1">
+                  « {LIBELLE_LICENCE.PERPETUEL_ONPREMISE} » n'est plus proposée : l'installation sur site relève de la
+                  phase 4, et rien n'émet encore la vérification en ligne qu'elle exige · le dossier serait refusé dès
+                  sa première requête. Pour une licence sans échéance, choisir « {LIBELLE_LICENCE.PERPETUEL_SAAS} ».
+                  {licenceEnCours.licence?.type === 'PERPETUEL_ONPREMISE' &&
+                    " Ce dossier la porte encore : choisissez un autre type pour l'en sortir, l'enregistrer telle quelle serait refusé."}
+                </p>
                 <label className="text-[11px] text-right">Échéance :</label>
                 <input type="date" value={licExpiration} onChange={(e) => setLicExpiration(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[12px]" />
               </div>
@@ -589,11 +618,21 @@ export function PlateformePage() {
                   </>
                 )}
                 <label className="text-[11px] text-right">Licence :</label>
+                {/* MÊME FERMETURE QU'À LA MODALE « Licence » · ici il n'y a rien
+                    à afficher, aucun dossier n'existe encore, donc l'option
+                    disparaît entièrement. PlateformeService.creerCabinet refuse
+                    ce type AVANT register() : la console y gagnait un cabinet
+                    complet (tenant, licence, admin, plan de comptes, exercice)
+                    et inaccessible dès la seconde suivante. */}
                 <select value={typeLicence} onChange={(e) => setTypeLicence(e.target.value as TypeLicence)} className="border border-border-dark px-2.5 py-1.5 text-[11px]">
                   <option value="ABONNEMENT">Abonnement</option>
                   <option value="PERPETUEL_SAAS">Perpétuelle (SaaS)</option>
-                  <option value="PERPETUEL_ONPREMISE">Perpétuelle (sur site)</option>
                 </select>
+                <p className="col-start-2 text-[10.5px] text-text-dim -mt-1">
+                  « {LIBELLE_LICENCE.PERPETUEL_ONPREMISE} » n'est plus proposée : l'installation sur site relève de la
+                  phase 4, et rien n'émet encore la vérification en ligne qu'elle exige · le dossier serait refusé dès
+                  sa première requête. Pour une licence sans échéance, choisir « {LIBELLE_LICENCE.PERPETUEL_SAAS} ».
+                </p>
                 {typeLicence === 'ABONNEMENT' && (
                   <>
                     <label className="text-[11px] text-right">Échéance :</label>

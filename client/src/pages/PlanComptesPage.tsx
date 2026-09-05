@@ -248,15 +248,21 @@ export function PlanComptesPage() {
         </div>
 
         {/* Liste des comptes */}
-        <div className="flex-1 min-w-0 bg-surface border border-border shadow-posee flex flex-col">
-          <div className="grid grid-cols-[92px_1fr_58px_72px_74px] gap-2.5 px-3.5 py-1.5 bg-surface-alt border-b border-border-dark text-[10px] font-bold text-text-dim shrink-0">
+        <div
+          // `overflow-x-auto` ici, `min-w` sur les lignes · les 364 px de colonnes
+          // incompressibles du tableau ne tiennent pas dans les ~326 px utiles d'une
+          // fenêtre à 360 px, et sans conteneur le débordement remontait à la fenêtre,
+          // qui emportait alors titre, onglets et boutons hors de l'écran.
+          className="flex-1 min-w-0 bg-surface border border-border shadow-posee flex flex-col overflow-x-auto"
+        >
+          <div className="grid grid-cols-[92px_1fr_58px_72px_74px] min-w-[520px] gap-2.5 px-3.5 py-1.5 bg-surface-alt border-b border-border-dark text-[10px] font-bold text-text-dim shrink-0">
             <span>N° COMPTE</span>
             <span>INTITULÉ</span>
             <span>TYPE</span>
             <span title="Mode de report à-nouveau en fin d'exercice">À-NOUVEAU</span>
             <span>ÉTAT</span>
           </div>
-          <div className="flex-1 overflow-auto">
+          <div className="flex-1 overflow-auto min-w-[520px]">
             {!comptes && <div className="px-3.5 py-3 text-[11px] text-text-dim">Chargement…</div>}
             {liste.map((c) => (
               <button
@@ -275,7 +281,7 @@ export function PlanComptesPage() {
                   fond plus soutenu · on doit reconnaître la charpente du plan
                   en le parcourant, sans lire les numéros.
                 */
-                className={`w-full grid grid-cols-[92px_1fr_58px_72px_74px] gap-2.5 px-3.5 items-center text-left border-b border-border/50 ${
+                className={`w-full grid grid-cols-[92px_1fr_58px_72px_74px] min-w-[520px] gap-2.5 px-3.5 items-center text-left border-b border-border/50 ${
                   estComptePrincipalOfficiel(c) ? 'py-[5px] text-[11px]' : 'py-[3.5px] text-[10.5px]'
                 } ${
                   selectionId === c.id

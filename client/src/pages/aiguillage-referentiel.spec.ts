@@ -96,7 +96,21 @@ describe('plus rien n\'est « en construction » côté SYSCOHADA', () => {
     // les deux référentiels, chacune aiguillant derrière elle. Les gater
     // ferait disparaître du menu les états d'un dossier SYSCOHADA, qui
     // existent.
-    expect(appShell).toContain("{ label: 'États financiers', separateurAvant: true,");
+    // CE QUE CETTE ASSERTION MESURE, ET POURQUOI ELLE A CHANGÉ DE FORME.
+    //
+    // Elle figeait le littéral « { label: 'États financiers', separateurAvant:
+    // true, » · c'est-à-dire la PLACE du séparateur autant que la présence de
+    // l'entrée. Le regroupement du menu en six familles a déplacé le
+    // séparateur de l'entrée vers son groupe, ce qui est juste (une entrée en
+    // retrait sous un titre n'ouvre plus une famille), et le test est tombé
+    // sur une évolution parfaitement légitime.
+    //
+    // Un test qui casse quand la mise en page bouge, alors que ce qu'il
+    // protège n'a pas bougé, use la confiance qu'on lui accorde : à la
+    // troisième fois, on le corrige sans le lire. La forme ci-dessous ne
+    // retient que l'INTENTION · l'entrée existe et mène où il faut. Le
+    // séparateur, lui, n'a jamais été le sujet.
+    expect(appShell).toContain("{ label: 'États financiers', onClick: () => navigate('/etats-financiers') }");
     expect(appShell).toContain("{ label: 'Notes annexes', onClick:");
     expect(appShell).not.toMatch(/estSycebnl[\s\S]{0,40}label: '(États financiers|Notes annexes)'/);
     expect(appShell).not.toContain('à venir');

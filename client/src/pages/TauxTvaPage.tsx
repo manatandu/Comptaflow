@@ -103,8 +103,14 @@ export function TauxTvaPage() {
         <div className="text-[11px] text-danger bg-danger-soft border border-danger/30 px-3 py-1.5 mb-2">{erreur}</div>
       )}
 
-      <div className="border border-border bg-surface shadow-posee">
-        <div className="grid grid-cols-[80px_1fr_78px_210px_210px_80px] gap-2.5 px-3.5 py-1.5 bg-surface-alt border-b border-border-dark text-[10px] font-bold text-text-dim">
+      <div
+        // `overflow-x-auto` ici, `min-w` sur les lignes · les 736 px de colonnes
+        // incompressibles du tableau ne tiennent pas dans les ~326 px utiles d'une
+        // fenêtre à 360 px, et sans conteneur le débordement remontait à la fenêtre,
+        // qui emportait alors titre, onglets et boutons hors de l'écran.
+        className="border border-border bg-surface shadow-posee overflow-x-auto"
+      >
+        <div className="grid grid-cols-[80px_1fr_78px_210px_210px_80px] min-w-[890px] gap-2.5 px-3.5 py-1.5 bg-surface-alt border-b border-border-dark text-[10px] font-bold text-text-dim">
           <span>CODE</span>
           <span>INTITULÉ</span>
           <span className="text-right">TAUX</span>
@@ -116,7 +122,7 @@ export function TauxTvaPage() {
         {liste?.map((t) => (
           <div
             key={t.id}
-            className={`grid grid-cols-[80px_1fr_78px_210px_210px_80px] gap-2.5 items-center px-3.5 py-[4px] border-b border-border/50 last:border-b-0 text-[10.5px] hover:bg-sel-soft ${
+            className={`grid grid-cols-[80px_1fr_78px_210px_210px_80px] min-w-[890px] gap-2.5 items-center px-3.5 py-[4px] border-b border-border/50 last:border-b-0 text-[10.5px] hover:bg-sel-soft ${
               !t.estActif ? 'opacity-55' : ''
             }`}
           >

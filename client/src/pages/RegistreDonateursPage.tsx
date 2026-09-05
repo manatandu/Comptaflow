@@ -513,12 +513,18 @@ function BlocConformite({
 
   const n = rapport.numerotation;
   const blocComptes = (titre: string, comptes: typeof r.comptesLiberalite, attenue: boolean) => (
-    <div className="mb-3">
+    <div
+      // `overflow-x-auto` ici, `min-w` sur les lignes · 314 px incompressibles pour
+      // les 298 px que laisse le `px-3.5` du panneau dans une fenêtre à 360 px. Sans
+      // conteneur, la colonne des montants passait sous le bord et le débordement
+      // remontait à la fenêtre, qui emportait l'en-tête du registre avec elle.
+      className="mb-3 overflow-x-auto"
+    >
       <div className="text-[10px] font-bold text-text-dim mb-1">{titre}</div>
       {comptes.map((c) => (
         <div
           key={c.numero}
-          className={`grid grid-cols-[64px_1fr_92px_110px] gap-2 px-3 py-1 border-b border-border last:border-b-0 text-[10.5px] ${
+          className={`grid grid-cols-[64px_1fr_92px_110px] min-w-[470px] gap-2 px-3 py-1 border-b border-border last:border-b-0 text-[10.5px] ${
             attenue ? 'text-text-dim' : ''
           }`}
           title={c.fondement}

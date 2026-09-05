@@ -518,8 +518,14 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
       )}
 
       {onglet === 'journal' && (
-        <div className="border border-border bg-surface shadow-posee rounded-t-none">
-          <div className="grid grid-cols-[68px_46px_52px_92px_120px_1fr_108px_108px_128px] gap-2.5 px-3.5 py-1.5 bg-surface-alt text-[10px] font-bold text-text-dim border-b border-border-dark">
+        <div
+          // `overflow-x-auto` ici, `min-w` sur les lignes · les 830 px de colonnes
+          // incompressibles du tableau ne tiennent pas dans les ~326 px utiles d'une
+          // fenêtre à 360 px, et sans conteneur le débordement remontait à la fenêtre,
+          // qui emportait alors titre, onglets et boutons hors de l'écran.
+          className="border border-border bg-surface shadow-posee rounded-t-none overflow-x-auto"
+        >
+          <div className="grid grid-cols-[68px_46px_52px_92px_120px_1fr_108px_108px_128px] min-w-[980px] gap-2.5 px-3.5 py-1.5 bg-surface-alt text-[10px] font-bold text-text-dim border-b border-border-dark">
             <span>DATE</span>
             <span>JRN</span>
             <span className="text-right">PIÈCE</span>
@@ -538,7 +544,7 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
           {lignesJournal.map((l) => (
             <div
               key={l.key}
-              className={`grid grid-cols-[68px_46px_52px_92px_120px_1fr_108px_108px_128px] gap-2.5 px-3.5 py-[3px] items-center text-[10.5px] border-b border-border/50 ${
+              className={`grid grid-cols-[68px_46px_52px_92px_120px_1fr_108px_108px_128px] min-w-[980px] gap-2.5 px-3.5 py-[3px] items-center text-[10.5px] border-b border-border/50 ${
                 l.premiereLigne ? 'border-t border-t-border' : ''
               } ${l.annuleePar ? 'opacity-55 line-through decoration-danger/60' : ''}`}
             >
@@ -571,7 +577,7 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
               </span>
             </div>
           ))}
-          <div className="grid grid-cols-[68px_46px_52px_92px_120px_1fr_108px_108px_128px] gap-2.5 px-3.5 py-1.5 bg-surface-alt border-t border-border-dark text-[10.5px] font-bold">
+          <div className="grid grid-cols-[68px_46px_52px_92px_120px_1fr_108px_108px_128px] min-w-[980px] gap-2.5 px-3.5 py-1.5 bg-surface-alt border-t border-border-dark text-[10.5px] font-bold">
             <span className="col-span-5" />
             <span className="text-right text-[10px] text-text-dim self-center">TOTAUX DE LA PÉRIODE</span>
             <span className="font-mono text-right">{totaux.debit.toLocaleString('fr-FR')}</span>

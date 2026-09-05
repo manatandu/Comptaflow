@@ -228,7 +228,7 @@ function EtatsSystemeNormalPage() {
     <div
       key={cle}
       title={p.comptes.length > 0 ? `Comptes : ${p.comptes.map((c) => c.numero).join(', ')}` : 'Aucun compte mouvementé'}
-      className={`grid grid-cols-[46px_1fr_120px_120px] gap-2 px-4 py-1 text-[11px] ${p.montant === 0 ? 'text-text-dim' : ''}`}
+      className={`grid grid-cols-[46px_1fr_120px_120px] min-w-[500px] gap-2 px-4 py-1 text-[11px] ${p.montant === 0 ? 'text-text-dim' : ''}`}
     >
       <span className="font-mono text-[10.5px] text-text-dim">{p.ref}</span>
       <span>{p.libelle}</span>
@@ -242,7 +242,7 @@ function EtatsSystemeNormalPage() {
     <div
       key={l.ref || l.libelle}
       title={l.comptes.length > 0 ? `Comptes : ${l.comptes.map((c) => c.numero).join(', ')}` : undefined}
-      className={`grid grid-cols-[46px_1fr_120px_120px] gap-2 px-4 py-1 text-[11px] ${
+      className={`grid grid-cols-[46px_1fr_120px_120px] min-w-[500px] gap-2 px-4 py-1 text-[11px] ${
         l.estTotal ? 'font-bold bg-surface-alt border-y border-border' : ''
       }`}
     >
@@ -254,7 +254,7 @@ function EtatsSystemeNormalPage() {
   );
 
   const ligneTotal = (ref: string, libelle: string, valeur: number, valeurN1?: number) => (
-    <div className="grid grid-cols-[46px_1fr_120px_120px] gap-2 px-4 py-1.5 bg-surface-alt border-y border-border text-[11px] font-bold">
+    <div className="grid grid-cols-[46px_1fr_120px_120px] min-w-[500px] gap-2 px-4 py-1.5 bg-surface-alt border-y border-border text-[11px] font-bold">
       <span className="font-mono text-[10.5px]">{ref}</span>
       <span>{libelle}</span>
       <span className="font-mono text-right">{montant(valeur)}</span>
@@ -537,7 +537,13 @@ function EtatsSystemeNormalPage() {
         <>
           {!cr && <div className="border border-border px-4 py-4 text-[11px] text-text-dim">Chargement…</div>}
           {cr && (
-            <div className="max-w-[900px]">
+            <div
+              // `overflow-x-auto` ici, `min-w` sur les lignes · les 342 px de colonnes
+              // incompressibles du tableau ne tiennent pas dans les ~326 px utiles d'une
+              // fenêtre à 360 px, et sans conteneur le débordement remontait à la fenêtre,
+              // qui emportait alors titre, onglets et boutons hors de l'écran.
+              className="max-w-[900px] overflow-x-auto"
+            >
               {!cr.exerciceN1Disponible && (
                 <p className="text-[10px] text-text-dim mb-1.5">
                   Aucun exercice antérieur dans ce dossier : la colonne N-1 reste vide, ce n'est pas un zéro.
@@ -545,7 +551,7 @@ function EtatsSystemeNormalPage() {
               )}
 
               <div className="border border-border bg-surface shadow-posee">
-                <div className="grid grid-cols-[46px_1fr_120px_120px] gap-2 px-4 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
+                <div className="grid grid-cols-[46px_1fr_120px_120px] min-w-[500px] gap-2 px-4 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
                   <span>REF</span>
                   <span>LIBELLÉ</span>
                   <span className="text-right">MONTANT (N)</span>
@@ -564,7 +570,7 @@ function EtatsSystemeNormalPage() {
                 {lignePoste(cr.produitsHao)}
                 {lignePoste(cr.chargesHao)}
                 {ligneTotal('XD', 'RÉSULTAT H.A.O. (TM − TN)', cr.resultatHao, cr.resultatHaoN1)}
-                <div className="grid grid-cols-[46px_1fr_120px_120px] gap-2 px-4 py-2 bg-chrome border-t border-border-dark text-[11px] font-bold">
+                <div className="grid grid-cols-[46px_1fr_120px_120px] min-w-[500px] gap-2 px-4 py-2 bg-chrome border-t border-border-dark text-[11px] font-bold">
                   <span className="font-mono text-[10.5px]">XE</span>
                   <span>RÉSULTAT NET DE L'EXERCICE (+excédent, −déficit)</span>
                   <span className="font-mono text-right">{montant(cr.resultatNet)}</span>
@@ -617,7 +623,7 @@ function EtatsSystemeNormalPage() {
         <>
           {!tft && <div className="border border-border px-4 py-4 text-[11px] text-text-dim">Chargement…</div>}
           {tft && (
-            <div className="max-w-[900px]">
+            <div className="max-w-[900px] overflow-x-auto">
               {!tft.exerciceN1Disponible && (
                 <p className="text-[10px] text-text-dim mb-1.5">
                   Aucun exercice antérieur dans ce dossier : la colonne N-1 reste vide, ce n'est pas un zéro.
@@ -625,7 +631,7 @@ function EtatsSystemeNormalPage() {
               )}
 
               <div className="border border-border bg-surface shadow-posee">
-                <div className="grid grid-cols-[46px_1fr_120px_120px] gap-2 px-4 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
+                <div className="grid grid-cols-[46px_1fr_120px_120px] min-w-[500px] gap-2 px-4 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
                   <span>REF</span>
                   <span>LIBELLÉ</span>
                   <span className="text-right">EXERCICE N</span>
@@ -758,7 +764,7 @@ function EtatsSystemeNormalPage() {
         <>
           {!ceProjet && <div className="border border-border px-4 py-4 text-[11px] text-text-dim">Chargement…</div>}
           {ceProjet && (
-            <div className="max-w-[900px]">
+            <div className="max-w-[900px] overflow-x-auto">
               {!ceProjet.exerciceN1Disponible && (
                 <p className="text-[10px] text-text-dim mb-1.5">
                   Aucun exercice antérieur dans ce dossier : la colonne N-1 reste vide, ce n'est pas un zéro.
@@ -766,7 +772,7 @@ function EtatsSystemeNormalPage() {
               )}
 
               <div className="border border-border bg-surface shadow-posee">
-                <div className="grid grid-cols-[46px_1fr_120px_120px] gap-2 px-4 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
+                <div className="grid grid-cols-[46px_1fr_120px_120px] min-w-[500px] gap-2 px-4 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
                   <span>REF</span>
                   <span>LIBELLÉ</span>
                   <span className="text-right">MONTANT (N)</span>
@@ -775,13 +781,13 @@ function EtatsSystemeNormalPage() {
                 {ceProjet.revenus.map((p, i) => lignePoste(p, `revenu-${i}`))}
                 {ligneTotal('XA', 'REVENUS (Somme RA à RE)', ceProjet.totalRevenus, ceProjet.totalRevenusN1)}
                 {ceProjet.charges.map((p, i) => lignePoste(p, `charge-${i}`))}
-                <div className="grid grid-cols-[46px_1fr_120px_120px] gap-2 px-4 py-2 bg-chrome border-t border-border-dark text-[11px] font-bold">
+                <div className="grid grid-cols-[46px_1fr_120px_120px] min-w-[500px] gap-2 px-4 py-2 bg-chrome border-t border-border-dark text-[11px] font-bold">
                   <span className="font-mono text-[10.5px]">XB</span>
                   <span>CHARGES DE FONCTIONNEMENT (Somme TA à TL)</span>
                   <span className="font-mono text-right">{montant(ceProjet.totalCharges)}</span>
                   <span className="font-mono text-right text-text-dim font-normal">{montant(ceProjet.totalChargesN1)}</span>
                 </div>
-                <div className="grid grid-cols-[46px_1fr_120px_120px] gap-2 px-4 py-2 bg-chrome border-t border-border-dark text-[11px] font-bold">
+                <div className="grid grid-cols-[46px_1fr_120px_120px] min-w-[500px] gap-2 px-4 py-2 bg-chrome border-t border-border-dark text-[11px] font-bold">
                   <span className="font-mono text-[10.5px]">XC</span>
                   <span>SOLDE DES OPÉRATIONS DE L'EXERCICE (XA − XB)</span>
                   <span className="font-mono text-right">{montant(ceProjet.solde)}</span>
@@ -833,9 +839,9 @@ function EtatsSystemeNormalPage() {
         <>
           {!emploisRessources && <div className="border border-border px-4 py-4 text-[11px] text-text-dim">Chargement…</div>}
           {emploisRessources && (
-            <div className="max-w-[1000px]">
+            <div className="max-w-[1000px] overflow-x-auto">
               <div className="border border-border bg-surface mb-3">
-                <div className="grid grid-cols-[42px_1fr_120px_120px_120px] gap-2 px-4 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
+                <div className="grid grid-cols-[42px_1fr_120px_120px_120px] min-w-[620px] gap-2 px-4 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
                   <span>REF</span>
                   <span>DÉSIGNATION</span>
                   <span className="text-right">MOUVEMENT BRUT</span>
@@ -846,7 +852,7 @@ function EtatsSystemeNormalPage() {
                   <div
                     key={`${l.ref}-${i}`}
                     title={l.comptes.length > 0 ? `Comptes : ${l.comptes.map((c) => c.numero).join(', ')}` : undefined}
-                    className={`grid grid-cols-[42px_1fr_120px_120px_120px] gap-2 px-4 py-1 text-[11px] ${
+                    className={`grid grid-cols-[42px_1fr_120px_120px_120px] min-w-[620px] gap-2 px-4 py-1 text-[11px] ${
                       l.estTotal ? 'font-bold bg-surface-alt border-y border-border' : l.montant === 0 ? 'text-text-dim' : ''
                     }`}
                   >

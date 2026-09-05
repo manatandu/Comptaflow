@@ -176,8 +176,14 @@ export function DeclarationTvaPage() {
             )}
           </div>
 
-          <div className="border border-border bg-surface shadow-posee max-w-[780px] mb-4">
-            <div className="grid grid-cols-[80px_1fr_70px_140px_140px_140px] gap-2 px-3.5 py-1.5 bg-chrome border-b border-border text-[10px] font-bold text-text-dim">
+          <div
+            // `overflow-x-auto` ici, `min-w` sur les lignes · les 638 px de colonnes
+            // incompressibles du tableau ne tiennent pas dans les ~326 px utiles d'une
+            // fenêtre à 360 px, et sans conteneur le débordement remontait à la fenêtre,
+            // qui emportait alors titre, onglets et boutons hors de l'écran.
+            className="border border-border bg-surface shadow-posee max-w-[780px] mb-4 overflow-x-auto"
+          >
+            <div className="grid grid-cols-[80px_1fr_70px_140px_140px_140px] min-w-[790px] gap-2 px-3.5 py-1.5 bg-chrome border-b border-border text-[10px] font-bold text-text-dim">
               <span>CODE</span><span>INTITULÉ</span><span>TAUX</span><span className="text-right">COLLECTÉE</span><span className="text-right">DÉDUCTIBLE</span><span className="text-right">NET</span>
             </div>
             {declaration.lignes.length === 0 && (
@@ -186,7 +192,7 @@ export function DeclarationTvaPage() {
             {declaration.lignes.map((l, i) => (
               <div
                 key={l.tauxId}
-                className={`grid grid-cols-[80px_1fr_70px_140px_140px_140px] gap-2 items-center px-3.5 py-1.5 border-b border-border last:border-b-0 text-[10.5px] font-mono ${
+                className={`grid grid-cols-[80px_1fr_70px_140px_140px_140px] min-w-[790px] gap-2 items-center px-3.5 py-1.5 border-b border-border last:border-b-0 text-[10.5px] font-mono ${
                   i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'
                 }`}
               >

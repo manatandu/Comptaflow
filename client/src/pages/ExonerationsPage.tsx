@@ -147,8 +147,14 @@ export function ExonerationsPage() {
 
       <div className="flex gap-2.5 max-w-[1240px] items-start">
         {/* --- Liste des dossiers ------------------------------------------ */}
-        <div className="flex-1 min-w-0 bg-surface border border-border shadow-posee">
-          <div className="grid grid-cols-[110px_1fr_120px_100px_92px] gap-2.5 px-3.5 py-1.5 bg-surface-alt border-b border-border-dark text-[10px] font-bold text-text-dim">
+        <div
+          // `overflow-x-auto` ici, `min-w` sur les lignes · les 490 px de colonnes
+          // incompressibles du tableau ne tiennent pas dans les ~326 px utiles d'une
+          // fenêtre à 360 px, et sans conteneur le débordement remontait à la fenêtre,
+          // qui emportait alors titre, onglets et boutons hors de l'écran.
+          className="flex-1 min-w-0 bg-surface border border-border shadow-posee overflow-x-auto"
+        >
+          <div className="grid grid-cols-[110px_1fr_120px_100px_92px] min-w-[640px] gap-2.5 px-3.5 py-1.5 bg-surface-alt border-b border-border-dark text-[10px] font-bold text-text-dim">
             <span>TYPE</span>
             <span>OBJET</span>
             <span>ARRÊTÉ</span>
@@ -166,7 +172,7 @@ export function ExonerationsPage() {
               key={d.id}
               type="button"
               onClick={() => setSelectionId(d.id)}
-              className={`w-full grid grid-cols-[110px_1fr_120px_100px_92px] gap-2.5 px-3.5 py-[5px] items-center text-left border-b border-border/50 text-[10.5px] ${
+              className={`w-full grid grid-cols-[110px_1fr_120px_100px_92px] min-w-[640px] gap-2.5 px-3.5 py-[5px] items-center text-left border-b border-border/50 text-[10.5px] ${
                 selectionId === d.id ? 'bg-sel text-white' : 'hover:bg-sel-soft'
               }`}
             >
