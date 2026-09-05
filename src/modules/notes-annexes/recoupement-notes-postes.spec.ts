@@ -243,7 +243,7 @@ describe('SYCEBNL · les comptes d’une note et ceux de son poste', () => {
     // Relevé du 2026-09-02, une fois les trente-deux renvois remis d'aplomb. Ces
     // écarts sont ceux que le référentiel porte lui-même · ils sont mesurés, pas
     // approuvés.
-    expect({ horsPoste, sansLigne }).toEqual({ horsPoste: 158, sansLigne: 112 });
+    expect({ horsPoste, sansLigne }).toEqual({ horsPoste: 165, sansLigne: 119 });
   });
 
   it('le nombre de comptes qu’aucune note ne chiffre reste sous contrôle', () => {

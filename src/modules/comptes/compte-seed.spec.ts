@@ -66,7 +66,7 @@ describe('comptes divisionnaires (3 chiffres)', () => {
   const detail = PLAN_COMPTES_SYCEBNL.filter((c) => c.numero.length > 3);
 
   it('sème un en-tête par regroupement à 3 chiffres réellement subdivisé, tous en type Total', () => {
-    expect(divisionnaires).toHaveLength(118);
+    expect(divisionnaires).toHaveLength(121);
     expect(divisionnaires.every((c) => c.typeCompte === 'TOTAL')).toBe(true);
   });
 
@@ -103,5 +103,108 @@ describe('comptes divisionnaires (3 chiffres)', () => {
 
   it('un compte à 3 chiffres ne peut pas naître autrement que de ce semis', () => {
     expect(divisionnaires.every((c) => !/^\d{4,13}$/.test(c.numero))).toBe(true);
+  });
+});
+
+/**
+ * INTITULÉS RELUS SUR LE PLAN DES COMPTES OFFICIEL · Journal officiel OHADA,
+ * numéro spécial du 22 février 2023, « Plan des comptes détaillé » (Partie 2,
+ * ch. 2), pages 77 à 106.
+ *
+ * Ce test existe parce que le semis portait des intitulés fabriqués là où le
+ * texte officiel en donne un : douze comptes de la famille 45 réduits à
+ * « Fondations et assimilées (1) (2) (3) », un 4421 qui répétait l'intitulé de
+ * son total, un 498 qui annonçait des créances alors qu'il porte leur
+ * dépréciation. Aucune relecture ne les rattrapait : les tests ne vérifiaient
+ * que des comptages et des rattachements, jamais le libellé lui-même.
+ *
+ * Chaque couple ci-dessous a été relu sur la page officielle. La convention du
+ * semis (« intitulé du parent · intitulé de l'enfant ») est conservée ; c'est
+ * la seconde moitié qui doit dire ce que dit le texte.
+ */
+describe('intitulés relus sur le plan des comptes officiel', () => {
+  const parNumero = new Map(PLAN_COMPTES_SYCEBNL.map((c) => [c.numero, c.intitule]));
+
+  const RELUS: ReadonlyArray<readonly [string, string]> = [
+    // 45 · le texte distingue apporteurs en nature, en numéraire et comptes
+    // courants ; les suffixes « (1) (2) (3) » effaçaient cette distinction.
+    ['45210000', 'Fondations et assimilées · apporteurs en nature'],
+    ['45220000', 'Fondations et assimilées · apporteurs en numéraire'],
+    ['45250000', 'Fondations et assimilées · fondateurs, dirigeants, comptes courants'],
+    ['45310000', 'Ordres professionnels · apporteurs en nature'],
+    ['45320000', 'Ordres professionnels · apporteurs en numéraire'],
+    ['45350000', 'Ordres professionnels · membres, dirigeants, comptes courants'],
+    ['45410000', 'Organisations politiques · apporteurs en nature'],
+    ['45420000', 'Organisations politiques · apporteurs en numéraire'],
+    ['45450000', 'Organisations politiques · adhérents, dirigeants, comptes courants'],
+    ['45510000', 'Organisations syndicales · apporteurs en nature'],
+    ['45520000', 'Organisations syndicales · apporteurs en numéraire'],
+    ['45550000', 'Organisations syndicales · adhérents, dirigeants, comptes courants'],
+    // 471 · le texte sépare débiteurs (4711) et créditeurs (4712).
+    ['47110000', 'Débiteurs divers'],
+    ['47120000', 'Créditeurs divers'],
+    // 4421 est l'impôt d'État, par opposition à 4422 (collectivités publiques).
+    ['44210000', "État, impôts et taxes d'État"],
+    // 4133 · « autres valeurs impayées » ; les chèques et effets impayés sont
+    // en 4131 et 4132.
+    ['41330000', 'Adhérents, clients-usagers · autres valeurs impayées'],
+    ['66900000', 'Dégrèvements et annulations des charges sociales'],
+    ['60310000', "Variations des stocks de biens et services liés à l'activité"],
+    // 249x · troncatures : « outillage », « de bureau », « actifs biologiques »
+    // et « et identifiable » avaient disparu.
+    ['24910000', 'Matériel et outillage industriel et commercial en cours'],
+    ['24920000', 'Matériel et outillage agricole en cours'],
+    ['24930000', "Matériel d'emballage récupérable et identifiable en cours"],
+    ['24940000', 'Matériel et mobilier de bureau en cours'],
+    ['24980000', 'Autres matériels et actifs biologiques en cours'],
+    ['29470000', 'Dépréciations du matériel · agencements et aménagements du matériel et des actifs biologiques'],
+    [
+      '79500000',
+      "Reprises des dépréciations d'immobilisations reçues destinées à la vente provenant des dons et legs et d'usufruit temporaire",
+    ],
+  ];
+
+  it.each(RELUS)('%s porte l’intitulé du texte officiel', (numero, intitule) => {
+    expect(parNumero.get(numero)).toBe(intitule);
+  });
+
+  it('498 porte la dépréciation, pas la créance', () => {
+    // 498 est dans la famille 49 (dépréciations) · l'annoncer comme
+    // « Créances H.A.O. » le faisait lire comme un actif au bilan.
+    expect(parNumero.get('498')).toBe('Dépréciations des comptes de créances H.A.O.');
+  });
+
+  /**
+   * SUBDIVISIONS QUE LE CHAPITRE 3 N'ÉNONÇAIT PAS · le semis avait été bâti
+   * sur le seul chapitre 3, qui abrège (« 4791 à 4798, symétrique du 478 »).
+   * Le plan des comptes officiel, lui, les nomme une par une.
+   */
+  describe('subdivisions rendues par le plan des comptes', () => {
+    it('479 est développé en symétrie du 478', () => {
+      const passif = PLAN_COMPTES_SYCEBNL.filter((c) => c.numero.startsWith('479') && c.numero.length === 8);
+      expect(passif.map((c) => c.numero)).toEqual([
+        '47911000',
+        '47918000',
+        '47920000',
+        '47931000',
+        '47938000',
+        '47940000',
+        '47970000',
+        '47980000',
+      ]);
+      // Le générique « Écarts de conversion · passif » ne doit plus subsister.
+      expect(parNumero.has('47900000')).toBe(false);
+    });
+
+    it('501 et 506 sont développés au lieu de rester des comptes uniques', () => {
+      expect(parNumero.get('50110000')).toBe('Titres du Trésor à court terme');
+      expect(parNumero.get('50120000')).toBe("Titres d'organismes financiers");
+      expect(parNumero.get('50130000')).toBe('Bons de caisse à court terme');
+      expect(parNumero.get('50610000')).toBe('Intérêts courus · titres du Trésor et bons de caisse à court terme');
+      expect(parNumero.get('50620000')).toBe('Intérêts courus · actions');
+      expect(parNumero.get('50630000')).toBe('Intérêts courus · obligations');
+      expect(parNumero.has('50100000')).toBe(false);
+      expect(parNumero.has('50600000')).toBe(false);
+    });
   });
 });
