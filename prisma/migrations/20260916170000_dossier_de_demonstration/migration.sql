@@ -1,0 +1,16 @@
+--
+-- DOSSIER DE DÉMONSTRATION · le troisième prérequis commun à tous les magasins
+-- d'applications, avec le manifeste installable et la politique de
+-- confidentialité publiée.
+--
+-- Un examinateur de magasin n'instruit pas une soumission qu'il ne peut pas
+-- ouvrir. Il lui faut une adresse et un mot de passe qui marchent, sur un
+-- dossier garni d'écritures FICTIVES · jamais sur un dossier de client, dont
+-- les données sont couvertes par le secret professionnel du cabinet.
+--
+-- POURQUOI UN DRAPEAU, ET NON UNE CONVENTION DE NOMMAGE. La console pourra
+-- remettre ce dossier à zéro entre deux soumissions. Reconnaître la cible à son
+-- intitulé (« DÉMO », « Demonstration ») marcherait jusqu'au jour où un client
+-- s'appellerait ainsi, et ce jour-là c'est un vrai dossier qui serait effacé.
+-- Le drapeau ne se devine pas : il se pose une fois, à la création.
+ALTER TABLE "tenants" ADD COLUMN "estDemonstration" BOOLEAN NOT NULL DEFAULT false;

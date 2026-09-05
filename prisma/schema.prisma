@@ -320,6 +320,18 @@ model Tenant {
   // le Ministère du Plan, ce qui ajoute un jalon annuel.
   droitEtranger           Boolean                  @default(false)
 
+  // DOSSIER DE DÉMONSTRATION · vitrine permanente, garnie d'écritures
+  // FICTIVES, dont l'adresse et le mot de passe sont donnés publiquement. Tous
+  // les magasins d'applications en réclament un pour instruire une soumission.
+  //
+  // Le drapeau existe pour qu'on puisse REPÉRER ce dossier sans se fier à son
+  // nom : c'est lui qui autorise la remise à zéro par la console, et lui qui
+  // interdira d'y voir jamais un dossier de client. Un dossier de
+  // démonstration qu'on croirait reconnaître à son intitulé finirait un jour
+  // par être confondu avec un vrai, et c'est la remise à zéro qui se
+  // tromperait de cible.
+  estDemonstration        Boolean                  @default(false)
+
   // Longueur du numéro de compte · paramètre "longueur du plan comptable"
   // chez Sage 100 (dossier > Structure > Paramètres), 3 à 13 caractères,
   // configurable PAR DOSSIER (voir skill sage-i7, comptabilite-generale.md).

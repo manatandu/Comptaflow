@@ -137,3 +137,25 @@ export class ReinitialiserAdminDto {
   @MinLength(10, { message: 'Le mot de passe doit contenir au moins 10 caractères' })
   motDePasseProvisoire!: string;
 }
+
+/**
+ * DOSSIER DE DÉMONSTRATION · le mot de passe est CHOISI et non tiré au sort :
+ * il figure dans le formulaire de soumission des magasins d'applications, et
+ * un mot de passe qui change y devient faux sans que personne ne s'en aperçoive.
+ */
+export class PreparerDemonstrationDto {
+  @IsOptional()
+  @IsString()
+  nomEntite?: string;
+
+  @IsEmail()
+  email!: string;
+
+  @IsString()
+  @MinLength(10)
+  motDePasse!: string;
+
+  @IsOptional()
+  @IsEnum(Referentiel)
+  referentiel?: Referentiel;
+}

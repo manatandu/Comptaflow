@@ -6,6 +6,7 @@ import { AppShell } from './components/chrome/AppShell';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { ChangerMotDePassePage } from './pages/ChangerMotDePassePage';
+import { ConfidentialitePage } from './pages/ConfidentialitePage';
 
 function ZoneProtegee({ children }: { children: JSX.Element }) {
   const { chargement, connecte, utilisateur } = useAuth();
@@ -25,6 +26,12 @@ function Routage() {
     <Routes>
       <Route path="/connexion" element={<LoginPage />} />
       <Route path="/inscription" element={<RegisterPage />} />
+      {/*
+        HORS de la zone protégée, et c'est tout l'objet de cette route : une
+        politique de confidentialité derrière un mot de passe n'est pas une
+        politique publiée, et aucun magasin d'applications ne l'accepte.
+      */}
+      <Route path="/confidentialite" element={<ConfidentialitePage />} />
       <Route
         path="/"
         element={

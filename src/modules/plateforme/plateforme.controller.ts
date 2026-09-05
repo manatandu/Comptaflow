@@ -2,7 +2,13 @@ import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/co
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { OperateurPlateformeGuard } from './operateur-plateforme.guard';
 import { PlateformeService } from './plateforme.service';
-import { CreerCabinetDto, ModifierGroupeDto, ModifierLicenceDto, ReinitialiserAdminDto } from './dto/plateforme.dto';
+import {
+  CreerCabinetDto,
+  ModifierGroupeDto,
+  ModifierLicenceDto,
+  PreparerDemonstrationDto,
+  ReinitialiserAdminDto,
+} from './dto/plateforme.dto';
 
 /**
  * Console de l'opérateur de plateforme (fenêtre « Cabinets clients »).
@@ -43,6 +49,18 @@ export class PlateformeController {
    * son mot de passe, plus personne dans le dossier ne peut le réinitialiser.
    * Sans cette route on retombait sur un UPDATE SQL en production.
    */
+  /**
+   * DOSSIER DE DÉMONSTRATION · la vitrine que tout magasin d'applications
+   * réclame pour instruire une soumission. Ouverte à l'opérateur SEUL, comme
+   * le reste de cette console : le dossier qu'elle crée porte un mot de passe
+   * public, et n'importe qui d'autre pouvant l'ouvrir pourrait ouvrir une
+   * vitrine parallèle qui divergerait de celle qu'on donne au magasin.
+   */
+  @Post('dossier-demonstration')
+  preparerDemonstration(@Body() dto: PreparerDemonstrationDto) {
+    return this.plateformeService.preparerDossierDemonstration(dto);
+  }
+
   @Post('cabinets/:tenantId/reinitialiser-admin')
   reinitialiserAdmin(@Param('tenantId') tenantId: string, @Body() dto: ReinitialiserAdminDto) {
     return this.plateformeService.reinitialiserAdmin(tenantId, dto);

@@ -357,4 +357,97 @@ export class PlateformeService implements OnModuleInit {
     return { reinitialise: true, email: admin.email };
   }
 
+  /**
+   * DOSSIER DE DÉMONSTRATION · le troisième prérequis commun à tous les
+   * magasins d'applications, avec le manifeste installable et la politique de
+   * confidentialité publiée.
+   *
+   * Un examinateur de magasin n'instruit pas une soumission qu'il ne peut pas
+   * ouvrir : il lui faut une adresse et un mot de passe qui marchent, sur un
+   * dossier garni d'écritures FICTIVES. Jamais sur un dossier de client, dont
+   * les données sont couvertes par le secret professionnel du cabinet.
+   *
+   * TROIS DIFFÉRENCES AVEC UN DOSSIER ORDINAIRE, chacune pour une raison.
+   *
+   * 1. LE MOT DE PASSE EST CHOISI, PAS TIRÉ AU SORT · il figure dans le
+   *    formulaire de soumission du magasin, et un mot de passe qui change à
+   *    chaque remise à zéro y devient faux sans que personne ne s'en aperçoive.
+   *
+   * 2. `doitChangerMotDePasse` EST FAUX, et c'est le point qui aurait tout
+   *    fait échouer en silence. `MotDePasseAChangerGuard` FERME le serveur
+   *    tant que le mot de passe provisoire n'a pas été remplacé : l'examinateur
+   *    se serait connecté, aurait reçu l'écran de changement de mot de passe à
+   *    la place du logiciel, et aurait rejeté la soumission pour une
+   *    application « qui ne s'ouvre pas ». Rien dans les journaux n'aurait
+   *    signalé quoi que ce soit · la garde aurait fait exactement son travail.
+   *
+   * 3. LE DOSSIER PORTE UN DRAPEAU, `estDemonstration`. Reconnaître la vitrine
+   *    à son intitulé marcherait jusqu'au jour où un client s'appellerait
+   *    « DÉMO », et ce jour-là c'est un vrai dossier que la remise à zéro
+   *    effacerait.
+   *
+   * CE QUE CETTE ROUTE NE FAIT PAS : elle ne remet rien à zéro. Créer est sûr,
+   * effacer ne l'est pas, et un second dossier de démonstration est un
+   * désordre, pas un incident. Elle REFUSE donc quand il en existe déjà un, en
+   * nommant celui qui existe.
+   */
+  async preparerDossierDemonstration(dto: {
+    nomEntite?: string;
+    email: string;
+    motDePasse: string;
+    referentiel?: Referentiel;
+  }) {
+    const existant = await horsCloisonnement(
+      'console · un seul dossier de démonstration à la fois, tous cabinets confondus',
+      () =>
+        this.prisma.tenant.findFirst({
+          where: { estDemonstration: true },
+          select: { id: true, nom: true, users: { select: { email: true }, take: 1 } },
+        }),
+    );
+    if (existant) {
+      throw new BadRequestException(
+        `Un dossier de démonstration existe déjà · « ${existant.nom} » (${existant.users[0]?.email ?? 'sans utilisateur'}). ` +
+          "Servez-vous de celui-là plutôt que d'en ouvrir un second : deux vitrines divergent, et c'est toujours la " +
+          "mauvaise qu'on donne au magasin.",
+      );
+    }
+
+    const resultat = await this.authService.register({
+      nomEntite: dto.nomEntite ?? 'OmegaX · dossier de démonstration',
+      referentiel: dto.referentiel ?? Referentiel.SYCEBNL,
+      email: dto.email,
+      motDePasse: dto.motDePasse,
+      typeLicence: TypeLicence.ABONNEMENT,
+      activite: 'Démonstration · toutes les données de ce dossier sont fictives',
+      pays: 'République démocratique du Congo',
+    });
+
+    await horsCloisonnement('console · marquage du dossier de démonstration', async () => {
+      await this.prisma.tenant.update({
+        where: { id: resultat.tenant.id },
+        data: { estDemonstration: true },
+      });
+      // Voir le point 2 du commentaire ci-dessus · sans cette ligne, la
+      // vitrine ne s'ouvre jamais sur autre chose que l'écran de changement de
+      // mot de passe.
+      await this.prisma.user.updateMany({
+        where: { tenantId: resultat.tenant.id },
+        data: { doitChangerMotDePasse: false },
+      });
+    });
+
+    this.logger.log(`Dossier de démonstration ouvert · ${dto.email}`);
+    return {
+      tenantId: resultat.tenant.id,
+      nom: resultat.tenant.nom,
+      email: dto.email,
+      // Le mot de passe n'est PAS renvoyé · l'opérateur vient de le choisir, il
+      // le connaît, et le réémettre le ferait entrer dans un journal de
+      // requêtes pour rien.
+      rappel:
+        "Ce dossier est une vitrine : ses écritures doivent rester fictives, et son adresse comme son mot de passe " +
+        'sont destinés à figurer dans un formulaire de soumission public.',
+    };
+  }
 }

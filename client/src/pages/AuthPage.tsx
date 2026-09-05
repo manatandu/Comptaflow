@@ -316,6 +316,17 @@ export function AuthPage() {
         <div className="mt-4 text-[11px] text-text-dim">
           Pas encore de dossier ? L'ouverture se fait avec VMG Consulting.
         </div>
+        {/*
+          Le lien vers la politique de confidentialité est ICI parce que c'est
+          la seule page qu'un visiteur non connecté voit · un lien enfoui dans
+          l'espace de travail n'est atteignable que par ceux qui ont déjà
+          accepté, ce qui est exactement l'inverse de ce qu'on veut.
+        */}
+        <div className="mt-2 text-[10px] text-text-dim">
+          <a href="#/confidentialite" className="underline">
+            Politique de confidentialité
+          </a>
+        </div>
       </div>
           </div>
         </div>
