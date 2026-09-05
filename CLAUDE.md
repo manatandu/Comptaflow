@@ -724,6 +724,21 @@ La liste des modules qui retiennent une écriture est écrite à la main, jamais
 déduite du schéma : une relation nouvelle doit obliger quelqu'un à décider si
 son module retient l'écriture ou la laisse partir.
 
+**Un cinquième défaut, d'une autre nature · le contrôle qui FABRIQUE une
+anomalie.** Les quatre ci-dessus sont des données fausses. Celui-là est un
+signalement faux, et il est pire à sa manière : le cabinet le corrige, et
+personne ne saura jamais qu'il n'existait pas. Deux bornes à poser sur tout
+contrôle nouveau, et le contrôle 25 (attestation d'exemption d'IS) les porte
+toutes les deux :
+
+- **le périmètre du texte.** L'arrêté n° 007/2025 ne vise que les
+  établissements d'utilité publique et les ONG (art. 1er) · le réclamer à une
+  association serait une exigence inventée ;
+- **l'entrée en vigueur.** Les contrôles sont PAR EXERCICE. Un contrôle non
+  borné reproche à un exercice 2024 une obligation entrée en vigueur au
+  1er janvier 2026, au nom d'un texte qui n'était pas en vigueur. Le message
+  est plausible, sourcé, et faux.
+
 ## 10 ter. Le regard du réviseur
 
 Un auditeur demande le journal, et il le demande AVEC SA PISTE. OmegaX

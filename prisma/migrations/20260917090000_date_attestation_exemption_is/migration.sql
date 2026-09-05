@@ -1,0 +1,69 @@
+-- ---------------------------------------------------------------------------
+-- ATTESTATION D'EXEMPTION D'IMPÔT SUR LES SOCIÉTÉS · la date de DÉLIVRANCE,
+-- et elle seule.
+--
+-- La migration 20260901000000_identifiants_legaux_ebnl a créé
+-- « attestationExemptionIs », qui ne porte que la RÉFÉRENCE de l'attestation
+-- de l'art. 2 de l'arrêté ministériel n° 007/CAB/MIN/FINANCES/2025 du
+-- 19 février 2025. Toute la pièce s'y réduisait à un booléen de présence
+-- (exemption-is-ebnl.ts : attestationConnue = renseigne(...)). On ajoute ici
+-- ce que la pièce elle-même porte, et rien d'autre.
+--
+-- ## CE QUE LE TEXTE DIT, ET CE QU'IL NE DIT PAS
+--
+-- Arrêté n° 007/2025, six articles (fiscalite-rdc-socle, references/
+-- am-007-2025-exemption-is-etablissements-utilite-publique-ong.md) : art. 1er
+-- objet, art. 2 attestation et pièces, art. 3 quatre conditions cumulatives,
+-- art. 4 gestion désintéressée, art. 5 sanction, art. 6 exécution et entrée
+-- en vigueur au 1er janvier 2026.
+--
+-- AUCUN de ces six articles ne fixe de durée de validité à l'attestation,
+-- n'organise son renouvellement, ne fixe un délai de dépôt de la demande ni
+-- un délai de réponse de l'Administration. L'art. 2 pose seulement que
+-- l'attestation est délivrée par l'Administration des Impôts sur demande de
+-- la structure concernée, que la demande est adressée au Directeur Général
+-- des Impôts, et que l'Administration en définit le modèle.
+--
+-- ## LE SILENCE EST DÉLIBÉRÉ · trois textes voisins le montrent
+--
+-- 1. L'arrêté n° 009/CAB/MIN/FINANCES/2025, pris LE MÊME JOUR par le MÊME
+--    Ministre des Finances, écrit une durée à son art. 14 et un délai de
+--    renouvellement à son art. 16.
+-- 2. L'arrêté n° 028 du 28 septembre 2022 fixe à son art. 2 la durée de
+--    validité du quitus fiscal à six mois, portée à une année pour les
+--    personnes physiques salariées en règle ; son art. 4 renvoie au modèle en
+--    annexe, lequel réserve sur la pièce elle-même une ligne de durée à
+--    remplir.
+-- 3. La note circulaire n° 003/CAB/MIN/PL.SMRM/COFAF/2013 du 24 janvier 2013
+--    écrit « (deux ans) » à sa section III des demandes de facilités · et
+--    c'est ce mot-là, et lui seul, qui autorise le compte à rebours CALCULÉ du
+--    module Exonérations (correspondance-exonerations.ts, validiteMois = 24).
+--
+-- Là où le législateur veut une durée, il l'écrit. Ici il ne l'écrit pas.
+--
+-- ## CONSÉQUENCE DE CONCEPTION
+--
+-- Une seule colonne, NULLABLE et SAISIE, sur le modèle exact de
+-- « dateActePersonnalite » qui la précède de quelques lignes. Aucun
+-- validiteMois, aucun statut, aucun type RENOUVELLEMENT, aucune date de fin
+-- calculée, aucun index par date.
+--
+-- LA COLONNE DE FIN EST DÉLIBÉRÉMENT ABSENTE. Le modèle arrêté par
+-- l'Administration au titre de l'art. 2 n'est pas au corpus : personne ici ne
+-- sait s'il porte une échéance. Écrire la colonne, son libellé et son
+-- contrôle sur cette supposition serait combler une lacune du texte, ce que
+-- le règlement du dépôt interdit. La colonne s'ajoutera si, et seulement si,
+-- le cabinet rapporte une pièce qui porte une échéance.
+--
+-- ## ET L'ÉCHÉANCE N'EST PAS LE RISQUE
+--
+-- Art. 5 : l'impôt sur les sociétés est dû en cas de non-respect des
+-- conditions des art. 3 et 4. Ni l'expiration d'une pièce, ni son absence, n'y
+-- figurent. Une attestation délivrée ne fige donc pas l'exemption : elle reste
+-- suspendue à la vérification continue des quatre conditions, qui sont des
+-- faits de gestion et de marché et ne se lisent dans aucune comptabilité.
+-- C'est pourquoi le module POSE DES AVERTISSEMENTS et ne conclut jamais à
+-- l'imposition.
+-- ---------------------------------------------------------------------------
+
+ALTER TABLE "tenants" ADD COLUMN "dateAttestationExemptionIs" TIMESTAMP(3);

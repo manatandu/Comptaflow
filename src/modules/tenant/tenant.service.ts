@@ -98,6 +98,7 @@ export class TenantService {
       numeroEnregistrementSecteur: tenant.numeroEnregistrementSecteur,
       certificatEnregistrementPlan: tenant.certificatEnregistrementPlan,
       attestationExemptionIs: tenant.attestationExemptionIs,
+      dateAttestationExemptionIs: tenant.dateAttestationExemptionIs,
       formeJuridique: siSycebnl(tenant.referentiel, tenant.formeJuridique),
       formeJuridiqueSyscohada: tenant.formeJuridiqueSyscohada,
       droitEtranger: siSycebnl(tenant.referentiel, tenant.droitEtranger),
@@ -283,6 +284,7 @@ export class TenantService {
       numeroEnregistrementSecteur?: string;
       certificatEnregistrementPlan?: string;
       attestationExemptionIs?: string;
+      dateAttestationExemptionIs?: string;
     },
   ) {
     const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
@@ -306,6 +308,7 @@ export class TenantService {
         ["numéro d'enregistrement sectoriel", dto.numeroEnregistrementSecteur],
         ["certificat d'enregistrement du Ministère du Plan", dto.certificatEnregistrementPlan],
         ["attestation d'exemption d'impôt sur les sociétés", dto.attestationExemptionIs],
+        ['date de cette attestation', dto.dateAttestationExemptionIs],
       ];
       const fautif = propresAuxEbnl.find(([, v]) => renseigne(v));
       if (fautif) {
@@ -333,6 +336,16 @@ export class TenantService {
         numeroEnregistrementSecteur: normaliser(dto.numeroEnregistrementSecteur),
         certificatEnregistrementPlan: normaliser(dto.certificatEnregistrementPlan),
         attestationExemptionIs: normaliser(dto.attestationExemptionIs),
+        // Date de DÉLIVRANCE, jamais d'échéance · l'arrêté n° 007/2025 n'en
+        // fixe aucune, et en déduire une serait inventer la règle qu'il
+        // n'écrit pas. Vide = l'attestation est connue mais sa date ne l'est
+        // pas, état légitime tant que la pièce n'est pas sous les yeux.
+        dateAttestationExemptionIs:
+          dto.dateAttestationExemptionIs === undefined
+            ? undefined
+            : dto.dateAttestationExemptionIs.trim() === ''
+              ? null
+              : new Date(dto.dateAttestationExemptionIs),
       },
     });
     return this.parametres(tenantId);

@@ -87,6 +87,12 @@ export type EntreeQualificationExemptionIs = {
   droitEtranger?: boolean | null;
   actePersonnaliteJuridique?: string | null;
   attestationExemptionIs?: string | null;
+  /**
+   * Date de DÉLIVRANCE recopiée de la pièce, jamais une échéance · l'arrêté
+   * n° 007/2025 n'en fixe aucune (voir la migration
+   * 20260917090000_date_attestation_exemption_is).
+   */
+  dateAttestationExemptionIs?: Date | string | null;
 };
 
 export type QualificationExemptionIs = {
@@ -101,6 +107,12 @@ export type QualificationExemptionIs = {
   attestationRequise: boolean | null;
   /** Le champ `attestationExemptionIs` du dossier porte-t-il une valeur. */
   attestationConnue: boolean;
+  /**
+   * La DATE DE DÉLIVRANCE est-elle connue. Elle ne conditionne rien : aucun
+   * texte n'en fait une condition de l'exemption, et son absence n'est donc
+   * pas une anomalie. Elle sert au réviseur, qui demande l'âge de la pièce.
+   */
+  dateAttestationConnue: boolean;
   /**
    * FAUX NE VEUT PAS DIRE « IMPOSABLE ». Il veut dire que le logiciel ne peut
    * pas affirmer l'exemption avec ce qu'il détient : c'est un appel à la
@@ -192,13 +204,19 @@ const POINT_4_MANIFESTATIONS =
   "d'une ETD ou d'un organisme public local est un fait qui ne figure dans aucune écriture : à établir par la " +
   "convention de la manifestation.";
 
-const attestationDite = (connue: boolean, pieces: string) =>
+const attestationDite = (connue: boolean, pieces: string, dateConnue = false) =>
   connue
     ? "Arrêté n° 007/2025, art. 2 : « Le bénéfice de l'exemption n'est pas automatique : il passe par une attestation " +
       "d'exemption, délivrée par l'Administration des Impôts sur demande de la structure concernée, dont elle définit " +
-      "le modèle. » Une référence d'attestation est enregistrée dans ce dossier. Le logiciel ne la vérifie pas : il " +
-      "n'a ni sa date de délivrance, ni son modèle, ni le moyen de savoir si la Direction Générale des Impôts l'a " +
-      "depuis retirée. Conserver l'original au dossier permanent, c'est la première pièce demandée au contrôle."
+      "le modèle. » Une référence d'attestation est enregistrée dans ce dossier. Le logiciel ne la vérifie pas : " +
+      (dateConnue
+        ? "sa date de délivrance est enregistrée, mais il n'a ni son modèle, "
+        : "il n'a ni sa date de délivrance, ni son modèle, ") +
+      "ni le moyen de savoir si la Direction Générale des Impôts l'a depuis retirée. AUCUNE ÉCHÉANCE N'EST SUIVIE, " +
+      "et ce n'est pas un manque : les six articles de l'arrêté ne fixent aucune durée de validité, aucun " +
+      "renouvellement, aucun délai. Le risque que porte l'art. 5 n'est d'ailleurs pas la péremption de la pièce mais " +
+      "le non-respect des art. 3 et 4. Conserver l'original au dossier permanent, c'est la première pièce demandée " +
+      "au contrôle."
     : "Arrêté n° 007/2025, art. 2 : « Le bénéfice de l'exemption n'est pas automatique : il passe par une attestation " +
       "d'exemption, délivrée par l'Administration des Impôts sur demande de la structure concernée, dont elle définit " +
       "le modèle. La demande est adressée au Directeur Général des Impôts. » AUCUNE ATTESTATION N'EST ENREGISTRÉE " +
@@ -243,6 +261,10 @@ const ACTE_MANQUANT =
  */
 export function qualifierExemptionIs(entree: EntreeQualificationExemptionIs): QualificationExemptionIs {
   const attestationConnue = renseigne(entree.attestationExemptionIs);
+  // Une date sans référence est ORPHELINE · le même écran dirait alors
+  // « aucune attestation n'est enregistrée » et afficherait une date de
+  // délivrance. La date ne compte donc que si la pièce est connue.
+  const dateAttestationConnue = attestationConnue && entree.dateAttestationExemptionIs != null;
   const acteConnu = renseigne(entree.actePersonnaliteJuridique);
   const etranger = entree.droitEtranger === true;
   const avertissements: string[] = [];
@@ -266,6 +288,7 @@ export function qualifierExemptionIs(entree: EntreeQualificationExemptionIs): Qu
             "l'affirme pas.",
         attestationRequise: false,
         attestationConnue,
+        dateAttestationConnue,
         exemptionAffirmable: acteConnu,
         avertissements,
       };
@@ -288,6 +311,7 @@ export function qualifierExemptionIs(entree: EntreeQualificationExemptionIs): Qu
           "et quatre conditions de fond vérifiées en continu (art. 3).",
         attestationRequise: true,
         attestationConnue,
+        dateAttestationConnue,
         // Faux même attestation en main : l'art. 3 conditionne l'exemption à
         // quatre faits que le logiciel ne peut pas constater.
         exemptionAffirmable: false,
@@ -310,6 +334,7 @@ export function qualifierExemptionIs(entree: EntreeQualificationExemptionIs): Qu
           "pas ouverts. L'attestation de l'arrêté n° 007/2025 (art. 2) et ses quatre conditions (art. 3) commandent.",
         attestationRequise: true,
         attestationConnue,
+        dateAttestationConnue,
         exemptionAffirmable: false,
         avertissements,
       };
@@ -334,6 +359,7 @@ export function qualifierExemptionIs(entree: EntreeQualificationExemptionIs): Qu
           "et 5 de l'art. 5 de la loi n° 23/053 ne se déduit d'elle, et le logiciel n'affirme aucune exemption.",
         attestationRequise: null,
         attestationConnue,
+        dateAttestationConnue,
         exemptionAffirmable: false,
         avertissements,
       };
@@ -354,6 +380,7 @@ export function qualifierExemptionIs(entree: EntreeQualificationExemptionIs): Qu
           "art. 5, points 3, 4 ou 5) · le logiciel n'en affirme aucune.",
         attestationRequise: null,
         attestationConnue,
+        dateAttestationConnue,
         exemptionAffirmable: false,
         avertissements,
       };

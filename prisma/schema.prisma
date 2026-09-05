@@ -305,6 +305,24 @@ model Tenant {
   // Général des Impôts · depuis l'arrêté n° 007/2025 (art. 2), l'exemption
   // « n'est pas automatique » et passe par elle. § 2.4.
   attestationExemptionIs       String?
+  // Date de DÉLIVRANCE de l'attestation, RECOPIÉE de la pièce.
+  //
+  // Il n'y a pas de date de fin, et ce n'est pas un oubli. Les six articles de
+  // l'arrêté n° 007/2025 ne fixent AUCUNE durée de validité, n'organisent
+  // aucun renouvellement, ne posent ni délai de dépôt ni délai de réponse de
+  // l'Administration. Son art. 2 dit seulement que l'attestation est délivrée
+  // sur demande et que l'Administration en définit le modèle · modèle qui
+  // n'est pas au corpus. Déduire une échéance serait inventer la règle que
+  // l'arrêté n'écrit pas, et le contraste avec le voisin est net :
+  // `Exoneration` porte un compte à rebours de deux ans parce que la note
+  // circulaire n° 003/2013 écrit « (deux ans) » à sa section B.III.
+  //
+  // Et l'échéance n'est de toute façon pas le risque. L'art. 5 n'attache
+  // l'impôt qu'au non-respect des art. 3 et 4 : une attestation délivrée ne
+  // fige pas l'exemption, qui reste suspendue à la vérification continue des
+  // quatre conditions. Une date de fin dirait quand le PAPIER cesse, jamais
+  // quand le DROIT cesse.
+  dateAttestationExemptionIs   DateTime?
 
   // Forme juridique au sens de la loi n° 004/2001 · commande les obligations
   // annuelles du planning de clôture. Défaut ASSOCIATION, cas le plus fréquent.
@@ -330,7 +348,7 @@ model Tenant {
   // démonstration qu'on croirait reconnaître à son intitulé finirait un jour
   // par être confondu avec un vrai, et c'est la remise à zéro qui se
   // tromperait de cible.
-  estDemonstration        Boolean                  @default(false)
+  estDemonstration Boolean @default(false)
 
   // Longueur du numéro de compte · paramètre "longueur du plan comptable"
   // chez Sage 100 (dossier > Structure > Paramètres), 3 à 13 caractères,
@@ -670,8 +688,8 @@ model Compte {
   immobilisationsAmortissement  Immobilisation[]             @relation("ImmoCompteAmortissement")
   depreciationsImmoCompte29     DepreciationImmobilisation[] @relation("DepreciationCompte29")
   depreciationsImmoContrepartie DepreciationImmobilisation[] @relation("DepreciationContrepartie")
-  reclassementsAncienCompte      ReclassementImmobilisation[] @relation("ReclassementAncienCompte")
-  reclassementsNouveauCompte     ReclassementImmobilisation[] @relation("ReclassementNouveauCompte")
+  reclassementsAncienCompte     ReclassementImmobilisation[] @relation("ReclassementAncienCompte")
+  reclassementsNouveauCompte    ReclassementImmobilisation[] @relation("ReclassementNouveauCompte")
   // Régularisation des charges et produits (476/477) et abonnements ·
   // voir Regularisation et ModeleAbonnement.
   relances                      Relance[]
@@ -951,12 +969,12 @@ model Ecriture {
   valideeBy String?
 
   // Régularisations et abonnements dont cette écriture est l'aboutissement.
-  regularisationConstatee Regularisation?     @relation("RegulConstatation")
-  regularisationReprise   Regularisation?     @relation("RegulReprise")
-  echeanceAbonnement      EcheanceAbonnement?
-  reevaluationEcarts      Reevaluation?       @relation("ReevalEcarts")
-  reevaluationProvision   Reevaluation?       @relation("ReevalProvision")
-  reevaluationExtourne    Reevaluation?       @relation("ReevalExtourne")
+  regularisationConstatee    Regularisation?             @relation("RegulConstatation")
+  regularisationReprise      Regularisation?             @relation("RegulReprise")
+  echeanceAbonnement         EcheanceAbonnement?
+  reevaluationEcarts         Reevaluation?               @relation("ReevalEcarts")
+  reevaluationProvision      Reevaluation?               @relation("ReevalProvision")
+  reevaluationExtourne       Reevaluation?               @relation("ReevalExtourne")
   reclassementImmobilisation ReclassementImmobilisation? @relation("ReclassementEcriture")
   executionsEngagement       ExecutionEngagement[]
 
@@ -2020,9 +2038,9 @@ model ConventionFinancement {
   // en créance, si ferme soit-il. Le signataire est nommé parce que le texte
   // dit « les représentants HABILITÉS des tiers financeurs » : un écrit signé
   // par quelqu'un d'autre n'engage pas le financeur.
-  ecritSigne     Boolean   @default(false)
-  signataire     String?
-  dateSignature  DateTime?
+  ecritSigne    Boolean   @default(false)
+  signataire    String?
+  dateSignature DateTime?
 
   // Validité de la convention · ce que le jalon 11 demande de vérifier.
   dateDebut DateTime
@@ -2030,14 +2048,14 @@ model ConventionFinancement {
 
   montantAccorde Decimal @db.Decimal(18, 2)
 
-  caractere CaractereEngagement
+  caractere  CaractereEngagement
   // Obligatoire quand l'engagement est CONDITIONNEL · ce sont ces conditions
   // que les Notes annexes doivent mentionner, et « conditionnel sans dire à
   // quoi » ne se mentionne pas.
   conditions String?
 
-  statut          StatutConvention @default(EN_COURS)
-  motifCloture    String?
+  statut       StatutConvention @default(EN_COURS)
+  motifCloture String?
 
   createdAt DateTime @default(now())
   createdBy String
@@ -2084,11 +2102,11 @@ model RapportBailleur {
   conventionId String
   convention   ConventionFinancement @relation(fields: [conventionId], references: [id], onDelete: Cascade)
 
-  intitule        String
-  nature          NatureRapportBailleur
-  dateEcheance    DateTime
+  intitule         String
+  nature           NatureRapportBailleur
+  dateEcheance     DateTime
   dateTransmission DateTime?
-  observation     String?
+  observation      String?
 
   createdAt DateTime @default(now())
 
@@ -2800,12 +2818,12 @@ model Immobilisation {
   // Écriture d'acquisition (débit du compte d'immobilisation, crédit
   // trésorerie/tiers/dotation selon le mode de financement choisi à la
   // création).
-  ecritureAcquisitionId String    @unique
-  ecritureAcquisition   Ecriture  @relation("ImmoEcritureAcquisition", fields: [ecritureAcquisitionId], references: [id])
+  ecritureAcquisitionId String                       @unique
+  ecritureAcquisition   Ecriture                     @relation("ImmoEcritureAcquisition", fields: [ecritureAcquisitionId], references: [id])
   // Écriture de sortie (solde des comptes 2/28, VCN sur 81) · null tant que
   // le bien est EN_SERVICE.
-  ecritureSortieId      String?   @unique
-  ecritureSortie        Ecriture? @relation("ImmoEcritureSortie", fields: [ecritureSortieId], references: [id])
+  ecritureSortieId      String?                      @unique
+  ecritureSortie        Ecriture?                    @relation("ImmoEcritureSortie", fields: [ecritureSortieId], references: [id])
   reclassements         ReclassementImmobilisation[]
 
   createdAt DateTime @default(now())
@@ -2988,12 +3006,12 @@ model ReclassementImmobilisation {
   // un immeuble de placement par l'USAGE, que nul solde ne porte. Sans le
   // motif écrit, le reclassement est un virement de comptes que personne ne
   // peut justifier deux ans plus tard.
-  motif String
+  motif            String
 
   // Les comptes AVANT le virement · après lui, le bien porte les nouveaux, et
   // l'historique serait perdu.
-  ancienCompteImmobilisationId String
-  ancienCompteImmobilisation   Compte @relation("ReclassementAncienCompte", fields: [ancienCompteImmobilisationId], references: [id])
+  ancienCompteImmobilisationId  String
+  ancienCompteImmobilisation    Compte @relation("ReclassementAncienCompte", fields: [ancienCompteImmobilisationId], references: [id])
   nouveauCompteImmobilisationId String
   nouveauCompteImmobilisation   Compte @relation("ReclassementNouveauCompte", fields: [nouveauCompteImmobilisationId], references: [id])
 

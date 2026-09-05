@@ -131,6 +131,15 @@ export class ModifierIdentiteDto {
   @IsString()
   @MaxLength(120)
   attestationExemptionIs?: string;
+
+  // Date de DÉLIVRANCE de l'attestation, jamais une échéance · l'arrêté
+  // n° 007/2025 n'en fixe aucune. Même garde que la date de l'acte : la chaîne
+  // vide est le geste d'EFFACEMENT (le service la convertit en null), et
+  // @IsDateString seul la refuserait.
+  @IsOptional()
+  @ValidateIf((o: ModifierIdentiteDto) => o.dateAttestationExemptionIs !== '')
+  @IsDateString()
+  dateAttestationExemptionIs?: string;
 }
 
 

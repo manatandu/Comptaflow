@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
+import { qualifierExemptionIs } from '../fiscalite/exemption-is-ebnl';
 import {
   ClasseCompte,
   FormeJuridiqueSyscohada,
@@ -127,6 +128,18 @@ export interface ControleCaisse {
  * celle du SYSCOHADA, selon le dossier). Un logiciel
  * qui se contente d'enregistrer laisse ces anomalies dormir jusqu'à l'audit.
  */
+/**
+ * Entrée en vigueur de l'arrêté n° 007/CAB/MIN/FINANCES/2025 · son art. 6 :
+ * « Le Directeur Général des Impôts est chargé de l'exécution du présent
+ * arrêté qui entre en vigueur à la date du 1er janvier 2026. »
+ *
+ * Elle borne le contrôle 25. Sans elle, un exercice 2024 ou 2025 se verrait
+ * reprocher une pièce qu'aucun texte ne demandait alors · c'est exactement la
+ * faute que le dépôt refuse ailleurs pour les taux du séminaire CPCC, abrogés
+ * au 1er janvier 2026.
+ */
+const ENTREE_EN_VIGUEUR_AM_007_2025 = new Date('2026-01-01T00:00:00.000Z');
+
 @Injectable()
 export class ControlesService {
   /** Au-delà, une créance ou une dette non lettrée mérite qu'on la regarde. */
@@ -2115,6 +2128,72 @@ export class ControlesService {
             detail: `${c.objet} · aucun écrit signé enregistré`,
             montant: Math.round(Number(c.montantAccorde) * 100) / 100,
           })),
+        });
+      }
+    }
+
+    // --- 25. Attestation d'exemption d'impôt sur les sociétés ---------------
+    //
+    // L'arrêté ministériel n° 007/CAB/MIN/FINANCES/2025 du 19 février 2025 fait
+    // de l'attestation le VÉHICULE de l'exemption : son art. 2 pose que « le
+    // bénéfice de l'exemption n'est pas automatique : il passe par une
+    // attestation d'exemption ». Sans elle, l'exemption n'est pas obtenue, et
+    // c'est ce que ce contrôle signale · rien de plus.
+    //
+    // TROIS BORNES, ET CHACUNE ÉVITE UN REPROCHE INFONDÉ.
+    //
+    // 1. LE RÉFÉRENTIEL. Une société commerciale n'est pas une entité à but non
+    //    lucratif : l'arrêté ne la vise pas, et sa forme juridique EBNL ne veut
+    //    rien dire.
+    // 2. LE PÉRIMÈTRE DE L'ARRÊTÉ. Son art. 1er ne vise QUE les établissements
+    //    d'utilité publique et les organisations non gouvernementales. Une
+    //    association du point 3 de l'art. 5 de la loi n° 23/053 n'y est pas
+    //    soumise, et lui réclamer une attestation serait une exigence inventée.
+    //    C'est `attestationRequise` qui porte cette distinction, et NULL n'y est
+    //    pas « non » : il veut dire que le fondement n'est pas qualifiable.
+    // 3. L'ENTRÉE EN VIGUEUR. Art. 6 : l'arrêté entre en vigueur le 1er janvier
+    //    2026. Le contrôle est PAR EXERCICE ; sans cette borne, un dossier qui
+    //    fait analyser son exercice 2024 ou 2025 se verrait reprocher une pièce
+    //    qu'aucun texte ne lui demandait alors, au nom d'un arrêté qui n'était
+    //    pas en vigueur.
+    //
+    // CE QUE LE CONTRÔLE NE FAIT PAS · il ne surveille aucune échéance. Les six
+    // articles de l'arrêté ne fixent aucune durée de validité, aucun
+    // renouvellement, aucun délai : un compte à rebours serait une règle
+    // inventée. Et l'échéance n'est de toute façon pas le risque, l'art. 5
+    // n'attachant l'impôt qu'au non-respect des art. 3 et 4.
+    if (tenant.referentiel === Referentiel.SYCEBNL && ex.dateFin >= ENTREE_EN_VIGUEUR_AM_007_2025) {
+      const qualification = qualifierExemptionIs({
+        formeJuridique: tenant.formeJuridique,
+        droitEtranger: tenant.droitEtranger,
+        actePersonnaliteJuridique: tenant.actePersonnaliteJuridique,
+        attestationExemptionIs: tenant.attestationExemptionIs,
+        dateAttestationExemptionIs: tenant.dateAttestationExemptionIs,
+      });
+      if (qualification.attestationRequise === true && !qualification.attestationConnue) {
+        anomalies.push({
+          code: 'ATTESTATION_EXEMPTION_IS_ABSENTE',
+          gravite: 'AVERTISSEMENT',
+          libelle: "Attestation d'exemption d'impôt sur les sociétés non enregistrée",
+          consequence:
+            'Arrêté n° 007/2025, art. 2 : « Le bénéfice de l’exemption n’est pas automatique : il passe par une ' +
+            'attestation d’exemption, délivrée par l’Administration des Impôts sur demande de la structure ' +
+            'concernée, dont elle définit le modèle. La demande est adressée au Directeur Général des Impôts. » ' +
+            'Aucune attestation n’est enregistrée dans ce dossier, dont la forme juridique relève du point 5 de ' +
+            'l’art. 5 de la loi n° 23/053. Tant qu’elle manque, l’exemption ne peut pas être présentée comme ' +
+            'acquise, et c’est la première pièce demandée au contrôle. Le logiciel ne conclut pas à ' +
+            'l’imposition : l’art. 5 de l’arrêté n’attache l’impôt qu’au non-respect des conditions des art. 3 ' +
+            'et 4, que nulle comptabilité ne permet de vérifier.',
+          action:
+            'Adressez la demande d’attestation au Directeur Général des Impôts, puis reportez sa référence et sa ' +
+            'date de délivrance dans Paramètres du dossier, rubrique « Exemption d’impôt sur les sociétés ». ' +
+            'Le détail des pièces à joindre, propre à votre forme juridique, y est rappelé.',
+          occurrences: [
+            {
+              reference: tenant.formeJuridique,
+              detail: qualification.enonce,
+            },
+          ],
         });
       }
     }

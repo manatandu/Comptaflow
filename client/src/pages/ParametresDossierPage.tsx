@@ -10,6 +10,7 @@ import type {
   FormeJuridiqueSyscohada,
   JeuEtatsFinanciersSycebnl,
   ParametresDossier,
+  QualificationExemptionIs,
   RegimeExigibiliteTva,
   SystemeComptableSyscohada,
 } from '../lib/types';
@@ -155,6 +156,8 @@ export function ParametresDossierPage() {
   const [enregistrementSecteur, setEnregistrementSecteur] = useState('');
   const [certificatPlan, setCertificatPlan] = useState('');
   const [attestationIs, setAttestationIs] = useState('');
+  const [dateAttestationIs, setDateAttestationIs] = useState('');
+  const [exemption, setExemption] = useState<QualificationExemptionIs | null>(null);
 
   const charger = async () => {
     try {
@@ -175,6 +178,22 @@ export function ParametresDossierPage() {
       setEnregistrementSecteur(p.numeroEnregistrementSecteur ?? '');
       setCertificatPlan(p.certificatEnregistrementPlan ?? '');
       setAttestationIs(p.attestationExemptionIs ?? '');
+      setDateAttestationIs(p.dateAttestationExemptionIs ? p.dateAttestationExemptionIs.slice(0, 10) : '');
+      // LA QUALIFICATION N'EST DEMANDÉE QUE POUR UN DOSSIER SYCEBNL · la route
+      // est cloisonnée au SYCEBNL côté serveur (@ReferentielsAutorises), et
+      // l'appeler depuis un dossier SYSCOHADA ferait remonter une erreur à
+      // l'écran pour une fenêtre qui, elle, est commune aux deux référentiels.
+      if (p.referentiel === 'SYCEBNL') {
+        try {
+          setExemption(await api.get<QualificationExemptionIs>('/fiscalite/exemption-is'));
+        } catch {
+          // L'exemption est une INFORMATION du dossier, pas sa raison d'être :
+          // son indisponibilité ne doit pas empêcher d'ouvrir les paramètres.
+          setExemption(null);
+        }
+      } else {
+        setExemption(null);
+      }
       setErreur(null);
     } catch (e) {
       setErreur(e instanceof ApiError ? e.message : 'Chargement impossible');
@@ -363,6 +382,17 @@ export function ParametresDossierPage() {
                 set: setAttestationIs,
                 exemple: 'DGI/AE/2026/0789',
               },
+              // DATE DE DÉLIVRANCE, et pas « valable jusqu'au » · les six
+              // articles de l'arrêté n° 007/2025 ne fixent aucune durée de
+              // validité. Un libellé d'échéance ferait surveiller une date que
+              // le texte n'impose pas.
+              {
+                label: 'Délivrée le',
+                valeur: dateAttestationIs,
+                set: setDateAttestationIs,
+                exemple: '',
+                date: true,
+              },
             ]
           : []),
       ];
@@ -439,6 +469,7 @@ export function ParametresDossierPage() {
                 actePersonnaliteJuridique: actePersonnalite,
                 dateActePersonnalite: dateActe,
                 attestationExemptionIs: attestationIs,
+                dateAttestationExemptionIs: dateAttestationIs,
                 ...(champsOng ? { numeroEnregistrementSecteur: enregistrementSecteur } : {}),
                 ...(champsPlan ? { certificatEnregistrementPlan: certificatPlan } : {}),
               }
@@ -655,6 +686,66 @@ export function ParametresDossierPage() {
                   </div>
                 )}
               </form>
+
+              {/* ------------------------------------------------------------
+                  EXEMPTION D'IMPÔT SUR LES SOCIÉTÉS · le panneau de lecture.
+
+                  `GET /fiscalite/exemption-is` existait depuis sa création et
+                  AUCUN ÉCRAN NE L'APPELAIT. Toute la qualification du fondement,
+                  le concours de qualification d'une ONG, les quatre conditions
+                  de l'art. 3, la gestion désintéressée de l'art. 4 et la
+                  sanction de l'art. 5 vivaient dans une charge utile que
+                  personne ne lisait. Une correction qui n'atteint pas un écran
+                  n'est pas livrée.
+
+                  Le panneau LIT, il ne conclut pas. « Affirmable » ne veut pas
+                  dire exempté, et son contraire ne veut pas dire imposable :
+                  les quatre conditions sont des faits de gestion et de marché
+                  qu'aucune comptabilité ne porte.
+                  ------------------------------------------------------------ */}
+              {estSycebnl && exemption && (
+                <div className="mt-5 border-t border-border pt-4 flex flex-col gap-2">
+                  <SectionTitre>Exemption d’impôt sur les sociétés</SectionTitre>
+                  <p className="text-[10.5px] leading-[1.6]">{exemption.enonce}</p>
+                  <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[10.5px]">
+                    <dt className="text-text-dim">Attestation exigée</dt>
+                    <dd>
+                      {exemption.attestationRequise === null
+                        ? 'Indéterminé · le fondement n’est pas qualifiable avec ce que porte le dossier'
+                        : exemption.attestationRequise
+                          ? 'Oui · arrêté n° 007/2025, art. 2'
+                          : 'Non · l’arrêté n° 007/2025 ne vise que les EUP et les ONG (art. 1er)'}
+                    </dd>
+                    <dt className="text-text-dim">Attestation enregistrée</dt>
+                    <dd>
+                      {exemption.attestationConnue
+                        ? exemption.dateAttestationConnue
+                          ? 'Oui, avec sa date de délivrance'
+                          : 'Oui · sa date de délivrance n’est pas renseignée'
+                        : 'Non'}
+                    </dd>
+                  </dl>
+                  {/* AUCUNE ÉCHÉANCE N'EST AFFICHÉE, ET C'EST LA RÈGLE. Les six
+                      articles de l'arrêté ne fixent aucune durée de validité,
+                      aucun renouvellement, aucun délai. Afficher un « valable
+                      jusqu'au » ferait surveiller une date que le texte
+                      n'impose pas, et laisserait croire qu'une attestation en
+                      cours vaut quitus : l'art. 5 n'attache l'impôt qu'au
+                      non-respect des art. 3 et 4. */}
+                  {exemption.avertissements.length > 0 && (
+                    <ul className="flex flex-col gap-2">
+                      {exemption.avertissements.map((a) => (
+                        <li
+                          key={a.slice(0, 60)}
+                          className="text-[10.5px] leading-[1.6] border-l-2 border-border-dark pl-2.5 text-text-dim"
+                        >
+                          {a}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
             </>
           )}
 

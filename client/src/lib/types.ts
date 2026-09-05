@@ -1294,6 +1294,7 @@ export interface ParametresDossier {
   certificatEnregistrementPlan: string | null;
   /** Attestation d'exemption d'impôt sur les sociétés · arrêté n° 007/2025. */
   attestationExemptionIs: string | null;
+  dateAttestationExemptionIs: string | null;
   /** Forme juridique de la loi n° 004/2001 · `null` hors SYCEBNL. */
   formeJuridique: FormeJuridiqueEbnl | null;
   formeJuridiqueSyscohada: FormeJuridiqueSyscohada | null;
@@ -3234,3 +3235,30 @@ export interface ConventionFinancement {
   tranches: TrancheFinancement[];
   rapports: RapportBailleur[];
 }
+
+/**
+ * Ce que `GET /fiscalite/exemption-is` rend · la qualification du FONDEMENT de
+ * l'exemption d'impôt sur les sociétés d'une entité à but non lucratif, telle
+ * que le serveur la pose (src/modules/fiscalite/exemption-is-ebnl.ts).
+ *
+ * Elle vivait depuis sa création dans une charge utile que AUCUN ÉCRAN
+ * n'appelait : la route existait, cloisonnée au SYCEBNL, et les avertissements
+ * qu'elle produit n'atteignaient personne. Une correction qui n'atteint pas un
+ * écran n'est pas livrée.
+ */
+export type QualificationExemptionIs = {
+  fondement:
+    | 'ART_5_POINT_3'
+    | 'ART_5_POINT_5'
+    | 'ART_5_POINT_3_OU_POINT_5'
+    | 'HORS_LOI_004_2001'
+    | 'INDETERMINE';
+  enonce: string;
+  /** NULL n'est pas « non » · le fondement n'est simplement pas qualifiable. */
+  attestationRequise: boolean | null;
+  attestationConnue: boolean;
+  dateAttestationConnue: boolean;
+  /** FAUX ne veut pas dire « imposable » · voir l'énoncé. */
+  exemptionAffirmable: boolean;
+  avertissements: string[];
+};
