@@ -15,12 +15,16 @@ export interface Tableau {
  * ce qui nous arrivera d'une association congolaise.
  */
 function detecterSeparateur(texte: string): string {
-  const echantillon = texte.split(/\r?\n/).filter((l) => l.trim()).slice(0, 10);
-  if (echantillon.length === 0) return ';';
   let meilleur = ';';
   let meilleurScore = -1;
   for (const sep of [';', ',', '\t']) {
-    const comptes = echantillon.map((l) => decouperLigne(l, sep).length);
+    // On ANALYSE avec chaque candidat plutôt que de découper des lignes de
+    // texte · un retour à la ligne entre guillemets fausserait autrement la
+    // détection avant même qu'on ait le séparateur pour le voir.
+    const comptes = analyserCsv(texte, sep)
+      .slice(0, 10)
+      .map((l) => l.length);
+    if (comptes.length === 0) continue;
     const max = Math.max(...comptes);
     if (max < 2) continue;
     const regulier = comptes.filter((c) => c === max).length;
@@ -33,29 +37,105 @@ function detecterSeparateur(texte: string): string {
   return meilleur;
 }
 
-/** Découpe une ligne CSV en respectant les guillemets et les doublements. */
-function decouperLigne(ligne: string, separateur: string): string[] {
-  const cellules: string[] = [];
+/**
+ * ANALYSE UN CSV D'UN SEUL TENANT, texte entier, guillemets compris.
+ *
+ * CE QUE FAISAIT LA VERSION PRÉCÉDENTE · elle découpait d'abord le texte sur
+ * les retours à la ligne, puis traitait les guillemets DANS chaque morceau.
+ * Un champ entre guillemets contenant un retour à la ligne — un libellé de
+ * cotisation sur deux lignes, une adresse de tiers, une observation — était
+ * donc coupé en deux. L'écriture devenait deux lignes, dont l'une portait
+ * `annee 2026;1500` en une seule cellule : le montant disparaissait, et RIEN
+ * ne remontait comme anomalie, puisque chacune des deux moitiés était un
+ * texte parfaitement lisible.
+ *
+ * Le retour à la ligne ne termine donc un enregistrement que HORS
+ * guillemets. `\r\n`, `\n` et `\r` seuls sont acceptés · un fichier
+ * enregistré sous Windows, sous Unix ou par un vieux tableur Mac se lit
+ * pareil.
+ *
+ * ÉLAGAGE · avec `elaguer`, seules les cellules NON PROTÉGÉES perdent leurs
+ * espaces de bord. Une cellule entre guillemets est littérale (RFC 4180) · son
+ * auteur a demandé ces espaces, et les manger rendrait l'aller-retour faux.
+ * Sans l'option, rien n'est touché.
+ */
+export function analyserCsv(
+  texte: string,
+  separateur: string,
+  options: { elaguer?: boolean } = {},
+): string[][] {
+  const lignes: string[][] = [];
+  let cellules: string[] = [];
   let courante = '';
   let dansGuillemets = false;
-  for (let i = 0; i < ligne.length; i++) {
-    const c = ligne[i];
-    if (c === '"') {
-      if (dansGuillemets && ligne[i + 1] === '"') {
-        courante += '"';
-        i++;
+  let protegee = false;
+  const clore = () => {
+    cellules.push(options.elaguer && !protegee ? courante.trim() : courante);
+    courante = '';
+    protegee = false;
+  };
+  for (let i = 0; i < texte.length; i++) {
+    const c = texte[i];
+    if (dansGuillemets) {
+      if (c === '"') {
+        // Un guillemet doublé est un guillemet littéral · c'est la seule
+        // façon d'en écrire un dans un champ protégé (RFC 4180).
+        if (texte[i + 1] === '"') {
+          courante += '"';
+          i++;
+        } else {
+          dansGuillemets = false;
+        }
       } else {
-        dansGuillemets = !dansGuillemets;
+        courante += c;
       }
-    } else if (c === separateur && !dansGuillemets) {
-      cellules.push(courante);
-      courante = '';
+      continue;
+    }
+    if (c === '"') {
+      dansGuillemets = true;
+      protegee = true;
+    } else if (c === separateur) {
+      clore();
+    } else if (c === '\n' || c === '\r') {
+      if (c === '\r' && texte[i + 1] === '\n') i++;
+      clore();
+      lignes.push(cellules);
+      cellules = [];
     } else {
       courante += c;
     }
   }
-  cellules.push(courante);
-  return cellules.map((c) => c.trim());
+  // La dernière ligne n'est close par aucun retour · sans ceci, un fichier
+  // qui ne finit pas par une ligne vide perdrait son dernier enregistrement.
+  if (courante !== '' || cellules.length > 0) {
+    clore();
+    lignes.push(cellules);
+  }
+  return lignes;
+}
+
+/**
+ * ÉCRIT une cellule CSV, réversible par `analyserCsv`.
+ *
+ * On protège dès qu'un séparateur, un guillemet, un retour à la ligne ou une
+ * espace de bord est présent · les trois premiers casseraient la relecture,
+ * la quatrième serait mangée par l'élagage de `lireCsv`.
+ */
+export function ecrireCelluleCsv(valeur: string, separateur: string): string {
+  const doitProteger =
+    valeur.includes(separateur) ||
+    valeur.includes('"') ||
+    /[\r\n]/.test(valeur) ||
+    valeur !== valeur.trim();
+  if (!doitProteger) return valeur;
+  return `"${valeur.replace(/"/g, '""')}"`;
+}
+
+/** Écrit un tableau complet · en-têtes puis lignes, en CRLF (RFC 4180). */
+export function ecrireCsv(colonnes: string[], lignes: string[][], separateur = ';'): string {
+  const ligne = (cellules: string[]) =>
+    cellules.map((c) => ecrireCelluleCsv(c, separateur)).join(separateur);
+  return [ligne(colonnes), ...lignes.map(ligne)].join('\r\n');
 }
 
 function lireCsv(texte: string, separateurImpose?: string): Tableau {
@@ -64,13 +144,13 @@ function lireCsv(texte: string, separateurImpose?: string): Tableau {
   // reconnaîtrait.
   const propre = texte.replace(/^﻿/, '');
   const separateur = separateurImpose ?? detecterSeparateur(propre);
-  const lignesBrutes = propre.split(/\r?\n/).filter((l) => l.trim().length > 0);
-  if (lignesBrutes.length === 0) {
+  const analysees = analyserCsv(propre, separateur, { elaguer: true }).filter((l) =>
+    l.some((c) => c !== ''),
+  );
+  if (analysees.length === 0) {
     throw new BadRequestException('Le fichier est vide.');
   }
-  const colonnes = decouperLigne(lignesBrutes[0], separateur);
-  const lignes = lignesBrutes.slice(1).map((l) => decouperLigne(l, separateur));
-  return { colonnes, lignes, separateur };
+  return { colonnes: analysees[0], lignes: analysees.slice(1), separateur };
 }
 
 async function lireXlsx(contenu: Buffer): Promise<Tableau> {
