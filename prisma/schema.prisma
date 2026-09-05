@@ -206,6 +206,17 @@ enum TypeLicence {
   ABONNEMENT // coupure automatique à échéance
   PERPETUEL_SAAS // payé une fois, hébergé chez nous, sans expiration
   PERPETUEL_ONPREMISE // payé une fois, installé chez le client (Phase 4)
+  // L'ÉDITEUR LUI-MÊME · le dossier de VMG Consulting, propriétaire du
+  // logiciel. Il n'est pas un client : il ne paie rien, n'expire jamais, et
+  // NE SE COUPE JAMAIS, pas même par une suspension.
+  //
+  // C'est un verrou de sûreté avant d'être une formule commerciale. Sans lui,
+  // un dossier d'éditeur portant un ABONNEMENT dont l'échéance passe, ou
+  // suspendu par mégarde depuis la console, verrouille l'opérateur HORS de sa
+  // propre console · et c'est justement depuis cette console qu'on rouvrirait.
+  // La panne est sans issue, et elle est silencieuse jusqu'à la première
+  // connexion refusée.
+  PROPRIETAIRE
 }
 
 enum StatutLicence {

@@ -1,0 +1,36 @@
+-- ---------------------------------------------------------------------------
+-- LICENCE DE L'ÉDITEUR · le dossier de VMG Consulting n'est pas un client.
+--
+-- ## LE VERROU SANS ISSUE QUE CETTE MIGRATION FERME
+--
+-- `LicenceService.evaluerLicence` n'exemptait PERSONNE. Le dossier de
+-- l'éditeur, s'il portait un ABONNEMENT, se coupait à son échéance comme
+-- celui d'un client ; suspendu depuis la console, il se coupait aussi. Or
+-- c'est depuis cette console, et depuis elle seule, qu'on rouvre une licence.
+--
+-- La panne est donc SANS ISSUE : l'opérateur se verrouille hors de l'outil
+-- qui sert à déverrouiller. Elle est en outre silencieuse jusqu'à la première
+-- connexion refusée, et le motif servi (« Abonnement expiré ») serait
+-- techniquement exact, ce qui la rend d'autant plus difficile à lire comme un
+-- défaut de conception.
+--
+-- ## POURQUOI UN TYPE DE LICENCE ET NON UN DRAPEAU SUR LE DOSSIER
+--
+-- `evaluerLicence` est une fonction PURE qui ne reçoit qu'une `Licence` · elle
+-- est appelée par `LicenceGuard` sur une licence préchargée par `JwtStrategy`,
+-- sans aucune requête. Un drapeau porté par le dossier aurait obligé à faire
+-- voyager un second champ à travers la stratégie, le garde et l'objet de
+-- session, pour une information qui EST une caractéristique de la licence.
+--
+-- Le type le dit aussi mieux : PERPETUEL_SAAS signifie « payé une fois »,
+-- ce que l'éditeur n'a pas fait.
+--
+-- ## LA RÈGLE, ET SON ORDRE
+--
+-- PROPRIETAIRE est évalué AVANT la suspension, et c'est tout l'intérêt : une
+-- suspension posée par erreur sur ce dossier ne doit pas plus le couper qu'une
+-- échéance. Le seul geste qui peut retirer cette protection est de changer le
+-- TYPE de la licence, et la console le refuse.
+-- ---------------------------------------------------------------------------
+
+ALTER TYPE "TypeLicence" ADD VALUE IF NOT EXISTS 'PROPRIETAIRE';

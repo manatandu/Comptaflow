@@ -11,7 +11,7 @@ import type { JeuEtatsFinanciersSycebnl, SystemeComptableSyscohada } from '../li
  * le drapeau en base à chaque requête (OperateurPlateformeGuard).
  */
 
-type TypeLicence = 'ABONNEMENT' | 'PERPETUEL_SAAS' | 'PERPETUEL_ONPREMISE';
+type TypeLicence = 'ABONNEMENT' | 'PERPETUEL_SAAS' | 'PERPETUEL_ONPREMISE' | 'PROPRIETAIRE';
 type StatutLicence = 'ACTIVE' | 'EXPIREE' | 'SUSPENDUE';
 
 interface LicenceCabinet {
@@ -60,6 +60,7 @@ const LIBELLE_LICENCE: Record<TypeLicence, string> = {
   ABONNEMENT: 'Abonnement',
   PERPETUEL_SAAS: 'Perpétuelle (SaaS)',
   PERPETUEL_ONPREMISE: 'Perpétuelle (sur site)',
+  PROPRIETAIRE: 'Éditeur (VMG Consulting)',
 };
 
 const JOUR_MS = 24 * 60 * 60 * 1000;
@@ -486,6 +487,16 @@ export function PlateformePage() {
                   {licenceEnCours.licence?.type === 'PERPETUEL_ONPREMISE' && (
                     <option value="PERPETUEL_ONPREMISE" disabled>
                       {LIBELLE_LICENCE.PERPETUEL_ONPREMISE}
+                    </option>
+                  )}
+                  {/* LE TYPE « ÉDITEUR » N'EST PAS DANS CETTE LISTE, et le
+                      serveur refuse de l'attribuer par cette route. Il se pose
+                      par un geste nommé, une seule fois · le mettre ici, à
+                      côté d'« Abonnement », en ferait un choix qu'on clique.
+                      Affiché seulement, et grisé, quand c'est déjà le cas. */}
+                  {licenceEnCours.licence?.type === 'PROPRIETAIRE' && (
+                    <option value="PROPRIETAIRE" disabled>
+                      {LIBELLE_LICENCE.PROPRIETAIRE}
                     </option>
                   )}
                 </select>

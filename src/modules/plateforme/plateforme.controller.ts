@@ -56,6 +56,17 @@ export class PlateformeController {
    * public, et n'importe qui d'autre pouvant l'ouvrir pourrait ouvrir une
    * vitrine parallèle qui divergerait de celle qu'on donne au magasin.
    */
+  /**
+   * Désigne le dossier de l'éditeur · voir
+   * `PlateformeService.designerDossierEditeur`. Sa licence cesse alors
+   * d'expirer et de pouvoir être suspendue, parce que c'est depuis ce dossier
+   * qu'on rouvre celle des autres.
+   */
+  @Post('cabinets/:tenantId/dossier-editeur')
+  async designerDossierEditeur(@Param('tenantId') tenantId: string) {
+    return this.plateformeService.designerDossierEditeur(tenantId);
+  }
+
   @Post('dossier-demonstration')
   preparerDemonstration(@Body() dto: PreparerDemonstrationDto) {
     return this.plateformeService.preparerDossierDemonstration(dto);

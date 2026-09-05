@@ -126,9 +126,30 @@ describe('console de plateforme · le type reste LISIBLE, c’est le choix qu’
     expect(source).toContain('LIBELLE_LICENCE[c.licence.type]');
   });
 
-  it('l’énumération TypeScript garde les trois types, comme l’énumération Prisma', () => {
+  it('l’énumération TypeScript suit l’énumération Prisma, type pour type', () => {
     // La donnée existe peut-être déjà en base, et la règle du heartbeat sera
-    // juste en phase 4 : on ferme une porte, on ne démolit pas le type.
-    expect(source).toContain("type TypeLicence = 'ABONNEMENT' | 'PERPETUEL_SAAS' | 'PERPETUEL_ONPREMISE';");
+    // juste en phase 4 : on ferme une porte, on ne démolit pas le type. Le
+    // quatrième, PROPRIETAIRE, obéit à la MÊME discipline pour une raison
+    // différente · il est lisible mais non attribuable depuis cette liste,
+    // parce qu'un dossier incoupable ne se clique pas à côté d'« Abonnement ».
+    expect(source).toContain(
+      "type TypeLicence = 'ABONNEMENT' | 'PERPETUEL_SAAS' | 'PERPETUEL_ONPREMISE' | 'PROPRIETAIRE';",
+    );
+  });
+
+  it('le type « Éditeur » est LISIBLE mais jamais proposé au choix', () => {
+    const table = source.slice(
+      source.indexOf('const LIBELLE_LICENCE'),
+      source.indexOf('};', source.indexOf('const LIBELLE_LICENCE')),
+    );
+    // Lisible · sans l'entrée, la colonne LICENCE du dossier de l'éditeur
+    // s'afficherait vide, ce qui est exactement le dossier qu'on veut
+    // reconnaître d'un coup d'œil.
+    expect(table).toContain("PROPRIETAIRE: 'Éditeur (VMG Consulting)'");
+    // Jamais proposé · la seule occurrence dans le `select` est conditionnée
+    // au fait que ce SOIT déjà le type, et elle est `disabled`.
+    const selecteur = source.slice(source.indexOf('<select value={licType}'), source.indexOf('</select>'));
+    expect(selecteur).toContain("licenceEnCours.licence?.type === 'PROPRIETAIRE'");
+    expect(selecteur).toContain('<option value="PROPRIETAIRE" disabled>');
   });
 });

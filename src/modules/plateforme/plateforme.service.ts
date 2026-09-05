@@ -146,6 +146,7 @@ export class PlateformeService implements OnModuleInit {
     if (!licence) {
       throw new NotFoundException('Cabinet introuvable ou sans licence');
     }
+    this.refuserTouchePropriete(licence.type, dto);
     if (dto.type === undefined && dto.statut === undefined && dto.dateExpiration === undefined) {
       throw new BadRequestException('Aucune modification demandée');
     }
@@ -172,6 +173,45 @@ export class PlateformeService implements OnModuleInit {
       data: donnees,
     });
     return { ...resultat, cellulesEnCascade: cellulesCascade.count };
+  }
+
+  /**
+   * LE DOSSIER DE L'ÉDITEUR NE SE MODIFIE PAS DEPUIS LA CONSOLE.
+   *
+   * Trois gestes le couperaient, et le troisième est le plus discret :
+   * le suspendre, lui poser une échéance, ou changer son TYPE pour un autre.
+   * Le court-circuit de `LicenceService` absorbe les deux premiers ; le
+   * troisième le retire, et rien ne le rattraperait ensuite. C'est donc ICI
+   * que le refus se pose.
+   *
+   * ET LE REFUS EST SANS ÉCHAPPATOIRE, à la différence de la plupart des
+   * refus de ce dépôt : couper l'éditeur verrouille l'opérateur hors de la
+   * console qui sert à déverrouiller. Il n'y a pas de « au cas où » qui vaille
+   * une panne sans issue. Changer ce type suppose d'écrire une migration, ce
+   * qui oblige à le décider plutôt qu'à le cliquer.
+   */
+  private refuserTouchePropriete(
+    typeActuel: TypeLicence,
+    dto: { type?: TypeLicence; statut?: StatutLicence; dateExpiration?: string },
+  ) {
+    if (typeActuel !== TypeLicence.PROPRIETAIRE) {
+      // On refuse aussi de FABRIQUER un second éditeur depuis la console · un
+      // logiciel a un propriétaire, et deux dossiers incoupables sont un
+      // désordre qu'aucun écran ne signalerait.
+      if (dto.type === TypeLicence.PROPRIETAIRE) {
+        throw new BadRequestException(
+          'La licence « Éditeur » désigne le dossier de VMG Consulting, propriétaire du logiciel · elle ne ' +
+            's’attribue pas depuis la console. Un second dossier incoupable ne se verrait nulle part, et rien ' +
+            'ne pourrait le refermer.',
+        );
+      }
+      return;
+    }
+    throw new BadRequestException(
+      'Ce dossier est celui de l’éditeur du logiciel : sa licence n’expire pas, ne se suspend pas et ne change ' +
+        'pas de type. C’est depuis ce dossier que les licences des autres se rouvrent · le couper verrouillerait ' +
+        'l’opérateur hors de la console qui sert à déverrouiller, sans autre issue qu’une intervention en base.',
+    );
   }
 
   /**
@@ -391,6 +431,58 @@ export class PlateformeService implements OnModuleInit {
    * désordre, pas un incident. Elle REFUSE donc quand il en existe déjà un, en
    * nommant celui qui existe.
    */
+  /**
+   * DÉSIGNER LE DOSSIER DE L'ÉDITEUR · un geste, une fois, et pas un menu
+   * déroulant.
+   *
+   * `modifierLicence` REFUSE d'attribuer le type PROPRIETAIRE, et ce refus
+   * n'est pas contourné ici : il est là pour qu'on ne le clique pas au milieu
+   * d'une liste de types, à côté d'« Abonnement ». Cette route-ci est un acte
+   * nommé, réservé à l'opérateur, qui ne se fait qu'une fois.
+   *
+   * POURQUOI UNE ROUTE ET NON UNE MIGRATION. Une migration devrait reconnaître
+   * le dossier de l'éditeur à quelque chose · un nom, un courriel, une
+   * variable d'environnement. Le nom change, le courriel change, et une
+   * migration appliquée ne se corrige plus. La console, elle, sait de quel
+   * dossier il s'agit : c'est celui que l'opérateur désigne.
+   *
+   * UN SEUL, tous cabinets confondus · deux dossiers incoupables ne se
+   * verraient nulle part, et rien ne pourrait les refermer. Même parti que le
+   * dossier de démonstration.
+   */
+  async designerDossierEditeur(tenantId: string) {
+    const existant = await horsCloisonnement(
+      "console · un seul dossier d'éditeur à la fois, tous cabinets confondus",
+      () =>
+        this.prisma.licence.findFirst({
+          where: { type: TypeLicence.PROPRIETAIRE },
+          select: { tenantId: true, tenant: { select: { nom: true } } },
+        }),
+    );
+    if (existant) {
+      if (existant.tenantId === tenantId) {
+        throw new BadRequestException('Ce dossier est déjà celui de l’éditeur.');
+      }
+      throw new BadRequestException(
+        `Le dossier de l’éditeur est déjà « ${existant.tenant.nom} ». Il n’y en a qu’un : le logiciel a un ` +
+          'propriétaire, et deux dossiers incoupables ne se verraient nulle part.',
+      );
+    }
+    const licence = await this.prisma.licence.findUnique({ where: { tenantId } });
+    if (!licence) {
+      throw new NotFoundException('Cabinet introuvable ou sans licence');
+    }
+    return this.prisma.licence.update({
+      where: { tenantId },
+      // L'ÉCHÉANCE EST EFFACÉE en même temps que le type change. La laisser
+      // serait sans effet aujourd'hui (le court-circuit passe avant), et
+      // deviendrait un piège le jour où quelqu'un retire le type : le dossier
+      // se couperait alors sur une date que plus personne n'aurait en tête.
+      data: { type: TypeLicence.PROPRIETAIRE, statut: StatutLicence.ACTIVE, dateExpiration: null },
+      select: { type: true, statut: true, dateDebut: true, dateExpiration: true, dernierHeartbeatAt: true },
+    });
+  }
+
   async preparerDossierDemonstration(dto: {
     nomEntite?: string;
     email: string;

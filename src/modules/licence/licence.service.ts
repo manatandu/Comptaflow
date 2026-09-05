@@ -40,6 +40,27 @@ export class LicenceService {
       return { autorise: false, motif: 'Aucune licence associée à ce tenant' };
     }
 
+    // L'ÉDITEUR N'EST JAMAIS COUPÉ, et ce test passe AVANT la suspension.
+    //
+    // Ce n'est pas une faveur commerciale, c'est un verrou de sûreté. Le
+    // dossier de l'éditeur est celui depuis lequel on rouvre les licences des
+    // autres : le couper, par une échéance ou par une suspension posée par
+    // mégarde, verrouille l'opérateur HORS de la console qui sert à
+    // déverrouiller. La panne serait sans issue, et silencieuse jusqu'à la
+    // première connexion refusée.
+    //
+    // Placé APRÈS le test de suspension, ce court-circuit ne servirait à rien
+    // dans le cas qui compte · c'est justement la suspension par erreur qu'il
+    // doit absorber. Le seul geste qui retire cette protection est de changer
+    // le TYPE de la licence, et `PlateformeService` le refuse.
+    if (licence.type === TypeLicence.PROPRIETAIRE) {
+      return { autorise: true };
+    }
+    // Le `switch` plus bas n'a PAS de branche PROPRIETAIRE, et ce n'est pas un
+    // oubli : ce retour anticipé a rétréci le type, et TypeScript refuse une
+    // branche devenue inatteignable. Le typage prouve donc que le
+    // court-circuit est le seul traitement de ce cas.
+
     if (licence.statut === StatutLicence.SUSPENDUE) {
       return { autorise: false, motif: 'Licence suspendue' };
     }

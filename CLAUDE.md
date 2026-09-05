@@ -625,6 +625,23 @@ avant de l'écrire ; un spec (`compte-seed-syscohada.spec.ts`) le contrôle.
   sur `/journal-audit`, et aucun champ sensible recopié (`masquer()` remplace
   mot de passe, jeton et secret par un marqueur).
 
+- **Le dossier de l'éditeur ne se coupe jamais** · `TypeLicence.PROPRIETAIRE`.
+  C'est un verrou de sûreté avant d'être une formule commerciale : VMG
+  Consulting possède le logiciel, ne paie rien, et c'est depuis SON dossier que
+  les licences des autres se rouvrent. Un dossier d'éditeur coupé, par une
+  échéance ou par une suspension posée par mégarde, verrouille l'opérateur hors
+  de la console qui sert à déverrouiller · panne sans issue, silencieuse
+  jusqu'à la première connexion refusée, et dont le motif (« Abonnement
+  expiré ») serait techniquement exact.
+  Trois règles à ne pas défaire. Le court-circuit de `LicenceService` passe
+  AVANT le test de suspension, sans quoi il serait exact et inutile dans le seul
+  cas qui compte. `PlateformeService.modifierLicence` refuse de toucher à cette
+  licence, et refuse aussi d'attribuer ce type · le retrait du type est le seul
+  geste que le court-circuit ne peut pas absorber, puisqu'il le retire. Et le
+  type se pose par un geste NOMMÉ (`designerDossierEditeur`), une fois, tous
+  cabinets confondus · pas par un choix dans une liste déroulante à côté
+  d'« Abonnement ».
+
 ## 8 bis. Volumes et plafonds de fenêtre
 
 La capacité du logiciel est **mesurée**, pas estimée · voir
