@@ -27,9 +27,21 @@ const LIBELLE_ORIGINE: Record<GroupeLettrage['origine'], string> = {
   AUTOMATIQUE_MONTANT: 'auto · montant',
 };
 
-const GRILLE = 'grid grid-cols-[26px_70px_46px_1.3fr_96px_96px_100px_78px] gap-2.5';
+/**
+ * Les deux grilles portent leur largeur minimale · elles vivent dans un
+ * panneau qui défile (voir plus bas), et sans `min-w` ce panneau les
+ * comprimerait au lieu de leur donner une barre.
+ *
+ * 512 px de colonnes + 7 gouttières de 10 px + 28 px de marges = 610 px pour
+ * l'interrogation d'un compte · 566 + 6 × 10 + 28 = 654 px pour la vue
+ * d'ensemble du dossier, contre ~326 px utiles à 360 px. Les deux étaient
+ * rognées : le panneau ne débordait pas, il COUPAIT, et la colonne LETTRE
+ * comme la colonne du solde restaient inatteignables.
+ */
+const GRILLE = 'grid grid-cols-[26px_70px_46px_1.3fr_96px_96px_100px_78px] min-w-[610px] gap-2.5';
 /** Vue d'ensemble · le compte remplace la date, il n'y a pas de solde progressif. */
-const GRILLE_DOSSIER = 'grid grid-cols-[92px_1.3fr_54px_110px_60px_110px_140px] gap-2.5';
+const GRILLE_DOSSIER =
+  'grid grid-cols-[92px_1.3fr_54px_110px_60px_110px_140px] min-w-[654px] gap-2.5';
 
 export function LettragePage({ compteId: compteIdProp }: { compteId?: string } = {}) {
   // `compteId` arrive en propriété quand la page est montée comme FENÊTRE
@@ -258,7 +270,7 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
             interroger ses mouvements et commencer.
           </div>
         ) : (
-          <div className="border border-border bg-surface shadow-posee max-w-[1040px]">
+          <div className="border border-border bg-surface shadow-posee max-w-[1040px] overflow-x-auto">
             <div className={`${GRILLE_DOSSIER} px-3.5 py-1.5 bg-surface-alt border-b border-border-dark text-[10px] font-bold text-text-dim`}>
               <span>COMPTE</span>
               <span>INTITULÉ</span>
@@ -299,7 +311,7 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
       )}
 
       {lignes && (
-        <div className="border border-border bg-surface shadow-posee max-w-[1040px]">
+        <div className="border border-border bg-surface shadow-posee max-w-[1040px] overflow-x-auto">
           <div className={`${GRILLE} px-3.5 py-1.5 bg-surface-alt border-b border-border-dark text-[10px] font-bold text-text-dim`}>
             <span />
             <span>DATE</span>

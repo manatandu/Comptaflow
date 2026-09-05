@@ -94,8 +94,13 @@ export function BalanceAuxiliairePage() {
     );
   };
 
+  // 814 px de colonnes fixes + 8 gouttières de 10 px + 28 px de marges =
+  // 922 px incompressibles, pour ~326 px utiles à 360 px · c'est la grille la
+  // plus large du logiciel après le journal général, et ses six colonnes de
+  // montants étaient purement inatteignables. Le `min-w` va de pair avec le
+  // conteneur défilant posé sur le panneau.
   const grille =
-    'grid grid-cols-[92px_86px_1fr_106px_106px_106px_106px_106px_106px] gap-2.5';
+    'grid grid-cols-[92px_86px_1fr_106px_106px_106px_106px_106px_106px] min-w-[922px] gap-2.5';
 
   return (
     <div className="p-2">
@@ -134,7 +139,7 @@ export function BalanceAuxiliairePage() {
         <div className="text-[11px] text-danger bg-danger-soft border border-danger/30 px-3 py-2 mb-2.5">{erreur}</div>
       )}
 
-      <div className="border border-border bg-surface shadow-posee">
+      <div className="border border-border bg-surface shadow-posee overflow-x-auto">
         <div
           className={`${grille} px-3.5 py-1.5 bg-surface-alt text-[10px] font-bold text-text-dim border-b border-border-dark`}
         >

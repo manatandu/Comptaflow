@@ -15,10 +15,25 @@ type Onglet = 'journal' | 'grand-livre' | 'balance';
  * définition, partagée par l'en-tête, les lignes et le pied : trois copies
  * d'une même grille finissent toujours par diverger d'une colonne.
  */
-const GRILLE_BALANCE = 'grid-cols-[80px_1fr_repeat(6,92px)]';
+/**
+ * 632 px de colonnes (80 px plus six de 92 px) + 7 gouttières de 8 px + 28 px
+ * de marges = 716 px incompressibles, pour ~326 px utiles à 360 px. Le relevé
+ * ne les voyait pas : il découpait la définition sur les `_` et ne savait pas
+ * lire `repeat(6,92px)`, qui compte pour SIX colonnes en un seul terme · 552
+ * px de largeur et cinq gouttières passaient sous la mesure.
+ */
+const GRILLE_BALANCE = 'grid-cols-[80px_1fr_repeat(6,92px)] min-w-[716px]';
 
-/** Grille du grand livre · même définition pour l'en-tête, les lignes et le pied. */
-const GRILLE_GL = 'grid-cols-[66px_40px_54px_1.8fr_92px_92px_98px_54px_1fr]';
+/**
+ * Grille du grand livre · même définition pour l'en-tête, les lignes et le pied.
+ *
+ * 496 px de colonnes fixes + 8 gouttières de 8 px + 28 px de marges = 588 px
+ * incompressibles, pour ~326 px utiles à 360 px. La vague du 2026-09-05 avait
+ * donné son conteneur à l'onglet JOURNAL GÉNÉRAL et laissé celui-ci de côté :
+ * la grille était rangée dans cette constante, et le garde-fou ne suivait pas
+ * les variables. Le `min-w` va de pair avec le conteneur défilant du panneau.
+ */
+const GRILLE_GL = 'grid-cols-[66px_40px_54px_1.8fr_92px_92px_98px_54px_1fr] min-w-[588px]';
 
 /** Un compte du grand livre complet, tel que le sert `GET /ecritures/grand-livre`. */
 interface SectionGrandLivre {
@@ -588,7 +603,7 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
       )}
 
       {onglet === 'grand-livre' && (
-        <div className="border border-border">
+        <div className="border border-border overflow-x-auto">
           {/*
             LE GRAND LIVRE EST COMPLET PAR DÉFAUT · c'est sa définition même :
             le recueil de TOUS les comptes mouvementés de l'exercice, dans
@@ -702,7 +717,7 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
         que les comptes Détail pour ne rien compter deux fois.
       */}
       {onglet === 'balance' && (
-        <div className="border border-border bg-surface shadow-posee rounded-t-none">
+        <div className="border border-border bg-surface shadow-posee rounded-t-none overflow-x-auto">
           <div className={`grid ${GRILLE_BALANCE} gap-2 px-3.5 pt-1.5 text-[10px] font-bold text-text-dim bg-surface-alt`}>
             <span />
             <span />
