@@ -1855,7 +1855,34 @@ export class ControlesService {
     const brut12 = await this.prisma.ligneEcriture.findMany({
       where: {
         compte: { tenantId, numero: { startsWith: '12' } },
-        ecriture: { tenantId, exerciceId, estGenereeParCloture: false, motifImputationOuverture: null },
+        ecriture: {
+          tenantId,
+          exerciceId,
+          estGenereeParCloture: false,
+          motifImputationOuverture: null,
+          //
+          // L'AFFECTATION DU RÉSULTAT N'EST PAS UNE IMPUTATION NON DÉCLARÉE ·
+          // c'est le chemin ORDINAIRE du compte 12, et le SYCEBNL le rend même
+          // obligatoire (fiche du COMPTE 13 : « le résultat net de l'exercice
+          // précédent non affecté à un compte de réserves sera viré au compte
+          // 12 »). Sans cette exclusion, l'avertissement tombait sur tout
+          // dossier dès son premier exercice affecté.
+          //
+          // Un avertissement présent partout est un avertissement qu'on
+          // apprend à ignorer : le contrôle 22 est le SEUL garde-fou du
+          // compte 12, et le jour où une OD manuelle l'aurait vraiment
+          // mouvementé, elle se serait noyée dans la même ligne que
+          // l'affectation de l'année. C'était donc le garde-fou lui-même que
+          // le bruit détruisait.
+          //
+          // La borne passe par la RELATION, jamais par un drapeau posé sur
+          // l'écriture · `AffectationResultat.ecritureId` est @unique et
+          // pointe l'écriture (schema.prisma, relation « AffectationEcriture »).
+          // Un drapeau serait recopiable à la main dans une OD, la relation
+          // ne l'est pas : elle n'existe que si une décision d'affectation a
+          // réellement été enregistrée.
+          affectationResultat: null,
+        },
       },
       select: {
         debit: true,
@@ -1895,6 +1922,90 @@ export class ControlesService {
           detail: `Pièce ${l.ecriture.numeroPiece} · ${l.ecriture.libelle}`,
           montant: Math.round((Number(l.debit) - Number(l.credit)) * 100) / 100,
           date: l.ecriture.date.toISOString().slice(0, 10),
+        })),
+      });
+    }
+
+    // --- 23. Bâtiment sur sol propre entré sans ventilation du terrain -------
+    //
+    // « La ventilation du coût d'acquisition d'un immeuble entre le terrain et
+    // la construction doit être effectuée dès l'origine, à la date
+    // d'inscription à l'actif du bilan » (AUDCIF, Titre VIII ch. 11 § 1.7.1).
+    // Le SYCEBNL le dit de son côté, fiche du COMPTE 23 : « La valeur des
+    // terrains n'est pas comprise dans celle des bâtiments. Les terrains et
+    // les bâtiments doivent faire l'objet d'évaluation distincte. » Les deux
+    // textes emploient l'impératif, chacun dans le sien, et l'art. 38 de
+    // l'AUDCIF n'est pas exclu par l'art. 3 du SYCEBNL.
+    //
+    // CE QUI CASSE EN SILENCE. Un immeuble acheté d'un bloc et entré sur un
+    // seul compte 231 s'amortit EN ENTIER, terrain compris. L'écriture
+    // s'équilibre, la balance boucle, le bilan boucle · et la dotation est
+    // majorée chaque exercice de la part du terrain, qui ne s'use pas. Au
+    // terme du plan, le bilan porte zéro pour un terrain qui vaut toujours son
+    // prix. Aucun total ne le trahit, et l'erreur se répète à l'identique
+    // d'année en année sans jamais produire d'écart de rapprochement.
+    //
+    // LE 231 SEULEMENT, ET C'EST LE POINT DÉLICAT. Les deux plans distinguent
+    // 231 « sur sol propre » et 232 « sur sol d'autrui ». Un bâtiment sur sol
+    // d'autrui n'a par définition aucun terrain à ventiler · c'est le sujet
+    // propre du ch. 11 section 1, et crier dessus serait un faux positif
+    // permanent. Les ouvrages d'infrastructure (233) sont écartés pour la même
+    // raison de prudence : le chapitre vise l'immeuble bâti.
+    //
+    // UN AVERTISSEMENT, JAMAIS UN REFUS. Le logiciel ne connaît pas la part du
+    // terrain, et l'art. 38 laisse le choix entre deux méthodes quand l'acte
+    // ne la détaille pas. Une saisie imposée ferait inventer un chiffre.
+    const batimentsSolPropre = await this.prisma.immobilisation.findMany({
+      where: {
+        tenantId,
+        statut: 'EN_SERVICE',
+        compteImmobilisation: { numero: { startsWith: '231' } },
+      },
+      select: {
+        designation: true,
+        valeurOrigine: true,
+        dateAcquisition: true,
+        compteImmobilisation: { select: { numero: true, intitule: true } },
+        // L'écriture d'acquisition porte la preuve : si aucune de ses lignes
+        // ne touche un compte 22, le prix global est resté sur le bâtiment.
+        ecritureAcquisition: {
+          select: { numeroPiece: true, lignes: { select: { compte: { select: { numero: true } } } } },
+        },
+      },
+    });
+    const sansTerrain = batimentsSolPropre.filter(
+      (i) =>
+        i.compteImmobilisation?.numero?.startsWith('231') &&
+        i.ecritureAcquisition &&
+        !i.ecritureAcquisition.lignes.some((l) => l.compte?.numero?.startsWith('22')),
+    );
+    if (sansTerrain.length > 0) {
+      const sourceVentilation =
+        tenant.referentiel === Referentiel.SYCEBNL
+          ? 'SYCEBNL, Partie 2 ch. 3, fiche du compte 23'
+          : 'AUDCIF, Titre VIII ch. 11 § 1.7.1 et art. 38';
+      anomalies.push({
+        code: 'BATIMENT_SANS_VENTILATION_TERRAIN',
+        gravite: 'AVERTISSEMENT',
+        libelle: 'Bâtiment sur sol propre entré sans part de terrain',
+        consequence:
+          `Le texte (${sourceVentilation}) impose de distinguer dès l’origine la valeur du terrain de celle de ` +
+          'la construction. L’écriture d’acquisition de ces biens ne touche aucun compte 22 : le prix global est ' +
+          'donc resté sur le bâtiment, et il s’amortit EN ENTIER, terrain compris. La dotation est majorée de la ' +
+          'part du terrain à chaque exercice, le résultat minoré d’autant, et la valeur nette du terrain s’érode ' +
+          'alors qu’un terrain ne s’use pas. Rien ne le trahit : l’écriture s’équilibre et la balance boucle. ' +
+          'Au SYSCOHADA, la dotation excédentaire n’est de surcroît pas déductible.',
+        action:
+          'Ventilez le prix d’acquisition entre le terrain (compte 22) et la construction (compte 231), pour le ' +
+          'montant porté dans l’acte notarié. Si l’acte ne le détaille pas, l’art. 38 laisse le choix de la ' +
+          'méthode (comparaison avec des terrains nus voisins, ou coût de reconstruction) · le montant retenu ' +
+          'vous appartient, le logiciel ne le devine pas. Aucun avertissement n’est levé sur un bâtiment sur ' +
+          'sol d’autrui (compte 232), qui n’a pas de terrain à ventiler.',
+        occurrences: sansTerrain.slice(0, 200).map((i) => ({
+          reference: `${i.compteImmobilisation.numero} ${i.designation}`,
+          detail: `Acquisition ${i.ecritureAcquisition?.numeroPiece ?? ''} · aucune ligne sur un compte 22`,
+          montant: Math.round(Number(i.valeurOrigine) * 100) / 100,
+          date: i.dateAcquisition.toISOString().slice(0, 10),
         })),
       });
     }

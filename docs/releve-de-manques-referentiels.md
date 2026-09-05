@@ -1316,14 +1316,453 @@ Restent les ch. 3, 10, 11, 15, 19, 20, 25, 26 et 32 à 41.
 
 ---
 
-## Ce qui n'a pas encore été ouvert
+## Passe 16 · Titre VIII ch. 32, 34, 36 et 39 · les quatre chapitres d'organisation
 
-À traiter dans les passes suivantes, dans cet ordre :
+Lu à la source : AUDCIF, Titre VIII ch. 32 « Opérations faites pour le compte
+de tiers », ch. 34 « Comptabilité autonome par établissement », ch. 36
+« Comptabilité pluri monétaire », ch. 39 « Comptes intermédiaires » ; Titre VII,
+classe 4, nomenclature du compte 471.
 
-1. **AUDCIF Titre VIII** · les chapitres restants. Ouverts à ce jour : le
-   ch. 16 (passe 2), le ch. 31 (passe 3), les ch. 4 à 6 (passe 8), les ch. 8,
-   9 et 27 (passe 9), et le ch. 22 vérifié à la passe 7 par le module devises.
-   Restent les ch. 3, 10, 11, 15, 19, 20, 25, 26 et 32 à 41. La plupart visent des opérations hors du portefeuille actuel du
-   cabinet (concessions, franchise, agricole, fusions, liquidation, GIE,
-   comptabilité par établissement, pluri-monétaire) · à trier avec Manasse
-   plutôt qu'à ouvrir un par un.
+Ces quatre chapitres ne portent pas une opération mais une ORGANISATION. Leur
+point commun est qu'ils supposent une structure que le logiciel n'a pas : un
+mandat, un établissement, une seconde monnaie de tenue, une date d'arrêté qui
+n'est pas la clôture.
+
+### Ch. 32 · servi, et le plan est plus fin que le texte
+
+Le chapitre distingue le MANDATAIRE, qui agit « pour son compte et en son
+nom » et dont « seule la rémunération est comptabilisée dans le résultat », du
+COMMISSIONNAIRE, qui agit « en son propre nom » et chez qui « la
+comptabilisation des achats et des ventes est simultanée, montrant ainsi que
+l'intermédiaire n'est pas le propriétaire des marchandises (pas de stocks) ».
+
+L'incidence est un CHIFFRE D'AFFAIRES : le principal comptabilise « le montant
+total du prix attendu », l'agent « la commission à laquelle elle a droit ». Un
+dossier qui se trompe de qualification publie un chiffre d'affaires faux d'un
+ordre de grandeur, sans qu'aucun total ne bouge · les deux traitements
+s'équilibrent.
+
+Le logiciel sert ce chapitre par le plan : le 473 est semé ET SUBDIVISÉ en
+47310000 Mandants, 47320000 Mandataires et 47330000 Commettants
+(`compte-seed-syscohada.ts` l. 818-821), ce que le chapitre exige expressément
+puisque « le mandataire peut être amené à enregistrer à la fois des créances et
+des dettes vis-à-vis du mandant ». Les comptes de rémunération sont là aussi :
+706 Services vendus, 7072 Commissions et courtages, 632 et 63220000
+Commissions et courtages sur ventes.
+
+La QUALIFICATION, elle, n'appartient pas au logiciel. Le chapitre en fait un
+faisceau de cinq indicateurs (responsabilité première de l'exécution, risque de
+stock, latitude sur les prix, forme de la rémunération, risque de crédit
+client) qui ne se lisent dans aucun solde. **Aucun écart.**
+
+### Anomalie du texte officiel · le ch. 32 renvoie à des numéros qui portent autre chose
+
+Le § 2.2.1.1 fait enregistrer les opérations du mandataire au « crédit 4719
+Autres créditeurs divers, ouvert au nom de chaque fournisseur » et au « débit
+4718 Autres débiteurs divers, ouvert au nom de chaque client ».
+
+Or le plan des comptes du même Acte uniforme (Titre VII, classe 4) nomme
+« 4711 débiteurs divers · 4712 créditeurs divers » et réserve « 4718 apport,
+compte de fusion et opérations assimilées · 4719 bons de souscription
+d'actions et d'obligations ». Le plan semé suit le Titre VII, comme il le doit
+(`compte-seed-syscohada.ts` l. 806-814).
+
+Le chapitre porte donc les NUMÉROS d'une nomenclature et les INTITULÉS d'une
+autre. Signalé, non corrigé : un comptable qui suivrait le ch. 32 à la lettre
+logerait des créances de mandat dans le compte des apports de fusion.
+
+### Ch. 34 · le logiciel n'a pas d'établissement, et le numéro piège
+
+Le chapitre organise la comptabilité d'une entité dont les divisions tiennent
+leurs propres comptes. Il ouvre pour cela quatre comptes de liaison, tous semés
+au SYSCOHADA (`compte-seed-syscohada.ts` l. 206-209) : 184 Comptes permanents
+bloqués, 185 Comptes permanents non bloqués, 186 Comptes de liaison charges,
+187 Comptes de liaison produits. Le 188 des sociétés en participation est là
+aussi (l. 210).
+
+**LE NUMÉRO NE VEUT PAS DIRE LA MÊME CHOSE DES DEUX CÔTÉS**, et c'est le
+piège de ce chapitre. Au plan SYCEBNL, 1851 et 1852 sont « Dépôts et
+cautionnements reçus », 186x « Intérêts courus », 187x « Dettes de
+location-acquisition » (`compte-seed.ts` l. 158-167). Un contrôle qui
+signalerait « le compte 185 n'est pas soldé à la clôture » crierait donc sur
+toute association qui détient un cautionnement reçu, ce qui est une situation
+parfaitement normale. Tout contrôle né de ce chapitre doit être
+SYSCOHADA seulement.
+
+**Ce que le texte exige, et que rien ne vérifie.** Le § 3.4 est impératif sur
+l'issue : à la réincorporation, « les comptes 185, 186 et 187 sont soldés et le
+résultat provenant de l'activité de l'établissement se trouve compris dans le
+résultat global de l'entité ». Le logiciel ne connaît pas la notion
+d'établissement et ne vérifie pas ce solde. Un dossier qui laisse un solde sur
+un compte de liaison publie un bilan portant une créance ou une dette envers
+lui-même : le total boucle, l'unicité de la comptabilité de l'entité, elle, est
+rompue. C'est exactement la forme de défaut que le § 10 bis de CLAUDE.md
+décrit.
+
+**Et le module Groupe n'est PAS le remède**, contrairement à ce qu'un lecteur
+pressé conclurait. Le chapitre le dit lui-même : l'intégration des
+établissements « ne constitue qu'une contraction comptable, différente de la
+consolidation des comptes, appellation réservée à l'établissement de comptes
+uniques pour un ensemble de sociétés liées par un lien de participation ». Un
+établissement « n'a jamais la personnalité morale, ce qui la différencie de la
+filiale ». Le module Groupe agrège des DOSSIERS, c'est-à-dire des entités
+juridiques distinctes ; s'en servir pour des succursales d'une même société
+donnerait un agrégat juste par accident et faux dès qu'un contrôle de
+réciprocité s'appliquerait.
+
+**Gravité · état faux, pour les dossiers concernés seulement.** Portée
+restreinte : aucun dossier du portefeuille actuel ne tient de comptabilité
+autonome par établissement, à confirmer par Manasse. Le remède minimal, si le
+cas se présente, tient en un contrôle SYSCOHADA de trois comptes.
+
+### Ch. 36 · la méthode que le logiciel sert est celle que le texte conseille
+
+Le chapitre offre trois organisations. L'INTÉGRATION DIRECTE, « utilisée
+lorsqu'il n'y a qu'un petit nombre d'opérations réalisées dans une seule
+monnaie étrangère », tient la comptabilité en unités monétaires légales et
+convertit à l'opération. L'INTÉGRATION DIFFÉRÉE est « conseillée dès que les
+opérations avec l'étranger prennent une certaine ampleur » et fait tenir
+« autant de comptabilités auxiliaires distinctes qu'il y a de catégories de
+monnaies étrangères », reliées par des sous-comptes de 185. L'INTÉGRATION
+MIXTE tient les devises en partie simple, hors bilan.
+
+OmegaX sert la première, et c'est la bonne pour le portefeuille : le module
+devises cote un cours à une date (`devises.controller.ts` l. 37-38, « en RDC,
+celui de la Banque Centrale du Congo ») et la réévaluation de clôture ajuste le
+solde au dernier cours, ce que le § 1 exige dans les deux cas. Les comptes 676
+et 776 que le chapitre nomme sont servis par le module.
+
+**Deux options du texte ne sont pas offertes, et ce sont des conforts.** Le
+« cours fixe, choisi pour toute une période (cours standard) » n'existe pas :
+tout passe par le cours coté. Le texte prend soin de dire que le choix « est
+neutre sur le résultat de l'opération, mais il ne l'est pas quant à la
+répartition de la valeur sur les éléments composants du résultat » · aucun
+montant n'est donc faux, seule la ventilation entre achats et différence de
+change diffère. Et l'intégration différée n'est pas outillée : un dossier qui
+la voudrait tiendrait autant de dossiers OmegaX que de monnaies, sans compte de
+liaison pour les relier. **Aucun écart bloquant.**
+
+### Ch. 39 · la matière première d'une situation intermédiaire n'existe pas
+
+Le chapitre « RECOMMANDE aux entités qui établissent des comptes
+intermédiaires de préparer un jeu complet de comptes ». Le verbe compte : il
+« ne précise pas les catégories d'entités qui doivent publier des comptes
+intermédiaires » et « n'indique pas non plus la fréquence ni le délai ». Ce
+n'est donc pas une obligation d'OmegaX, c'est une règle DE FORME qui
+s'applique si le dossier publie.
+
+**Ce que le logiciel ne peut pas faire.** Aucun état ne prend de date : bilan,
+compte de résultat et tableau des flux prennent un `exerciceId` et rien d'autre
+(`etats-financiers-syscohada.service.ts` l. 589, 740, 1126 ·
+`etats-financiers-smt-syscohada.service.ts` l. 304, 753). Et la balance
+elle-même est bornée à l'exercice (`ecriture.service.ts` l. 2008) : il n'existe
+donc aucun chemin, même manuel, pour obtenir une situation arrêtée au 30 juin.
+Un cabinet à qui une banque ou un conseil d'administration demande une
+situation semestrielle doit la monter hors du logiciel.
+
+**Ce que le chapitre exigerait si on l'ouvrait un jour**, et qui est plus
+lourd que l'état lui-même : le § 2.1.2 réclame quatre comparatifs (bilan de
+clôture de l'exercice précédent, compte de résultat cumulé, celui de la même
+période de l'exercice précédent, celui de l'exercice précédent entier), et le
+§ 2.1.1 une « déclaration indiquant que les méthodes comptables et les
+modalités de calcul adoptées sont identiques à celles utilisées dans les
+comptes de l'exercice les plus récents ». Une situation intermédiaire servie
+sans ces mentions serait un état INCOMPLET au sens du chapitre, pas un service
+rendu.
+
+**Anomalie du texte officiel, déjà signalée dans la compétence** : le § 2.1.2
+exige un « tableau des variations de capitaux propres » qui ne figure ni dans
+le jeu complet énuméré au § 2.1 du même chapitre, ni dans celui du Système
+normal.
+
+**Gravité · confort, au sens du texte ; gêne réelle en cabinet.** À arbitrer
+avec Manasse : une balance bornée par une date d'arrêté est un chantier de
+quelques heures et débloquerait la situation intermédiaire manuelle ; le jeu
+complet du ch. 39, avec ses quatre comparatifs, est un chantier entier.
+
+### Portée de cette passe
+
+Les ch. 32, 34, 36 et 39 sont clos. Les quatorze autres chapitres restants
+(3, 10, 11, 15, 19, 20, 25, 26, 33, 35, 37, 38, 40, 41) sont traités dans les
+passes qui suivent.
+
+---
+
+## Passes 17 à 21 · les quatorze derniers chapitres du Titre VIII (2026-09-05)
+
+Ces cinq passes ont été conduites en parallèle, un lecteur par groupe de
+chapitres, chacun lisant le texte à la source et le confrontant au code. Tous
+les écarts consignés ici ont été RELUS et vérifiés dans le fichier avant
+d'être écrits, et quatre d'entre eux sont corrigés dans le même commit. Ce qui
+ne l'est pas est dit avec sa raison.
+
+Chapitres couverts : 3, 10, 11 (passe 17) · 15, 19, 20 (passe 18) · 25, 26, 33
+(passe 19) · 35, 37 (passe 20) · 38, 40, 41 (passe 21).
+
+### CORRIGÉ · Le contrôle 22 criait sur l'affectation du résultat
+
+**Le défaut.** `IMPUTATION_REPORT_A_NOUVEAU_NON_DECLAREE` relevait toute ligne
+sur un compte 12 hors clôture et hors motif déclaré. Or l'affectation du
+résultat passe par le chemin ordinaire (`affectation.service.ts`, appel à
+`ecritureService.creer` sans drapeau) et vire au 12 dans les deux plans · le
+SYCEBNL le rend même obligatoire (fiche du COMPTE 13 : « le résultat net de
+l'exercice précédent non affecté à un compte de réserves sera viré au compte
+12 »).
+
+**Pourquoi c'est grave.** Le faux n'était pas produit par le contrôle, il
+n'était plus ATTRAPÉ par lui. Tout dossier recevait l'avertissement dès son
+premier exercice affecté, c'est-à-dire sur l'opération la plus banale de
+l'année. Un avertissement présent partout est un avertissement qu'on apprend à
+ignorer : le contrôle 22 est le SEUL garde-fou du compte 12, et le jour où une
+OD manuelle l'aurait vraiment mouvementé, elle se serait noyée dans la même
+ligne. C'était donc le garde-fou lui-même que le bruit détruisait.
+
+**Le remède.** L'exclusion passe par la RELATION (`AffectationResultat.ecritureId`,
+`@unique`), jamais par un drapeau : un drapeau se recopie à la main dans une OD,
+la relation n'existe que si une décision d'affectation a été enregistrée. Le
+test inspecte le FILTRE, le faux Prisma de ce fichier ignorant le `where`.
+
+**Reste ouvert, et ce n'est pas la même famille.** Le ch. 19 § 2.2 autorise un
+second débit licite du 12 : le prélèvement sur le report à nouveau pour
+constituer la réserve d'attribution gratuite d'actions (1132). Il ne passe pas
+par le module d'affectation, donc par une OD, et l'avertissement est alors
+justifié. Lui donner un chemin déclaré, comme les deux exceptions d'ouverture,
+demande un arbitrage : ce prélèvement ne rompt PAS la correspondance clôture /
+ouverture (il est daté de l'exercice, décidé par l'assemblée), ce n'est donc
+pas la même famille que les deux exceptions existantes.
+
+### CORRIGÉ · Un immeuble entrait sans ventilation du terrain, et s'amortissait en entier
+
+**Ce que les deux textes exigent**, chacun dans le sien et à l'impératif.
+AUDCIF, Titre VIII ch. 11 § 1.7.1 : « La ventilation du coût d'acquisition
+d'un immeuble entre le terrain et la construction doit être effectuée dès
+l'origine, à la date d'inscription à l'actif du bilan. » SYCEBNL, Partie 2
+ch. 3, fiche du COMPTE 23 : « La valeur des terrains n'est pas comprise dans
+celle des bâtiments. Les terrains et les bâtiments doivent faire l'objet
+d'évaluation distincte. » L'art. 38 de l'AUDCIF, qui donne la méthode quand
+l'acte ne détaille pas la ventilation, n'est pas exclu par l'art. 3 du SYCEBNL.
+
+**Ce que rien ne voyait.** `verifierComptesFamille` ne contrôle que les
+CLASSES (classe 2 hors 28/29, amortissement en 28, dotation en 68) · un
+bâtiment porté pour le prix global de l'ensemble immobilier passait, et aucun
+des vingt-six contrôles ne regardait ce cas. Un immeuble acheté 200 000 000
+dont 60 000 000 de terrain, entré comme un seul bien pour vingt ans, produit
+une dotation de 10 000 000 au lieu de 7 000 000 : le résultat est minoré de
+3 000 000 par exercice, et au terme du plan le bilan porte zéro pour un terrain
+qui vaut toujours son prix. L'écriture s'équilibre, la balance boucle, rien ne
+le trahit, et l'erreur se répète à l'identique chaque année. Au SYSCOHADA,
+la dotation excédentaire n'est de surcroît pas déductible.
+
+**Le remède, et le piège que j'ai corrigé moi-même.** Contrôle 23
+`BATIMENT_SANS_VENTILATION_TERRAIN`, en AVERTISSEMENT : le logiciel ne connaît
+pas la part du terrain et une saisie imposée la ferait inventer. Il se
+déclenche quand l'écriture d'acquisition d'un bien ne touche aucun compte 22.
+
+Le relevé initial visait « 231, 232 ou 233 ». C'est faux, et c'eût été un faux
+positif permanent : les deux plans distinguent **231 « sur sol propre »** et
+**232 « sur sol d'autrui »**, et un bâtiment sur sol d'autrui n'a par
+définition aucun terrain à ventiler · c'est le sujet propre de la section 1 du
+ch. 11. Le contrôle ne vise donc que le 231, les ouvrages d'infrastructure
+(233) étant écartés par la même prudence. Un test garde chacune des deux
+bornes.
+
+### CORRIGÉ · Le drapeau de liquidation court-circuitait l'unicité de la période
+
+**Ce que le texte permet.** AUDCIF art. 7 al. 4 : « En cas de cessation
+d'activité, pour quelque cause que ce soit, la durée des opérations de
+liquidation est comptée pour un seul exercice. » L'exception porte sur la
+DURÉE, et sur elle seule.
+
+**Ce que le code faisait.** `if (liquidation) return;` était posé en tête de
+`validerArticle7`, donc avant la règle du 31 décembre mais AUSSI avant la
+recherche d'un exercice couvrant déjà la période · c'est-à-dire l'un des quatre
+refus posés le 2026-09-03 (CLAUDE.md § 10 bis), rouvert au moment où le dossier
+est le plus fragile, la liquidation étant le seul cas où un exercice long
+chevauche mécaniquement une année civile déjà ouverte. Le comptable voyait deux
+exercices dans son sélecteur, chaque bilan bouclait, et il fallait additionner
+deux liasses pour voir que l'année était coupée en deux.
+
+**Le remède, borné, et POURQUOI il l'est.** Le refus ne porte que sur le
+chevauchement d'un exercice **déjà CLÔTURÉ** : celui-là a sa liasse, et rien ne
+justifie d'en produire une seconde sur les mêmes mois. Un exercice encore
+OUVERT est le cas ordinaire de la cessation en cours d'année, et **OmegaX n'a
+aucune route pour raccourcir un exercice à la date de cessation** (aucun
+`update` sur `dateDebut`/`dateFin`). Refuser là aurait bloqué la liquidation
+sans issue · j'ai préféré une correction qui ferme le silence sans créer de
+cul-de-sac.
+
+**À trancher avec Manasse** : faut-il ouvrir une route de raccourcissement de
+l'exercice en cours à la date de cessation, réservée à l'ADMIN_CABINET et
+tracée comme l'imputation d'ouverture ? Sans elle, un dossier qui cesse son
+activité un 15 mars n'a pas de chemin propre.
+
+### CORRIGÉ · La CAFG avait perdu les deux quotes-parts sur opérations en commun
+
+Le ch. 33 § 7.2 fait sortir le 652 et le 752 des postes ordinaires pour les
+loger dans « un poste supplémentaire de charges et un de produits, à la fin du
+niveau "Exploitation" ». Ces deux postes (RQP, TQP) sont servis par le compte
+de résultat depuis leur mise en service · ils ont donc quitté XD, et la CAFG,
+qui part de XD, les avait perdus. Or leur contrepartie de bilan, le compte 463
+« Associés, opérations faites en commun » (§ 3.2), continue d'être lue par la
+variation des créances et des dettes (FD et FE, qui n'excluent pas le 46).
+
+Le flux opérationnel d'un coparticipant était donc décalé du montant de la
+quote-part. L'écart de bouclage s'imprimait, le tableau disant son propre trou ·
+mais **la ligne CAFG, elle, était fausse sans que rien ne la marque**, et la
+note 34 la reprend sans contrôle de bouclage à elle. Le remède était rédigé
+dans le dépôt lui-même (point 14 a du commentaire d'en-tête de la
+correspondance du compte de résultat) et n'avait pas été écrit : ce sont deux
+termes. Le coefficient est +1 des deux côtés, la valeur d'un poste portant
+déjà son signe.
+
+### Ce que les cinq passes ont trouvé et que je n'ai PAS corrigé
+
+Classé par gravité. Chaque ligne dit pourquoi elle attend.
+
+**FAUX, en attente d'un arbitrage ou d'un chantier**
+- **Une immobilisation ne peut jamais changer de compte.** Le ch. 10 § 2.4
+  organise le transfert d'un immeuble d'exploitation vers les immeubles de
+  placement, sans incidence sur la valeur comptable ; le ch. 3 impose un
+  reclassement après dépréciation. Le modèle fige ses trois comptes à la
+  création et aucune route ne les modifie. Deux issues, toutes deux muettes :
+  sans reclassement, les notes 3A et 3C affichent zéro pour une entité qui tire
+  des loyers ; avec un reclassement passé à la main, la SORTIE du bien créditera
+  l'ancien compte. Remède : une opération `reclasser` sur le modèle de
+  `renouveler`, environ deux jours.
+- **Rien ne garde le compte 1681 après l'extinction d'une rente viagère.** Le
+  contrat est aléatoire ; le comptable qui poursuit les versements au-delà du
+  terme rend le compte débiteur, une dette financière à solde d'actif, et la
+  charge HAO du § 2.4 n'est jamais constatée. Un contrôle de sens sur le 1681
+  suffirait (une demi-journée). SYSCOHADA seulement : au SYCEBNL le 168 est
+  « Autres fonds affectés », le 1681 SYSCOHADA n'y existe pas.
+- **La contrepassation des intérêts courus d'un emprunt obligataire à
+  l'ouverture n'est ni faite ni contrôlée**, alors que son jumeau exact sur le
+  476/477 l'est. Dépend de la question ci-dessous sur les EBNL.
+- **Un dossier repris entre avec ses comptes abolis** (ch. 41) : l'import crée
+  les comptes absents à la volée, la classe déduite du premier chiffre, et le
+  seul filet posé sur l'intitulé ne connaît que l'AUTRE référentiel, jamais
+  l'ANCIEN plan. Chantier de reprise, à cadrer.
+- **Le mode d'amortissement par unités de production n'existe pas**, là où le
+  ch. 3 § 3.4 en fait la règle pour l'actif de découverture. Aucun dossier
+  minier au portefeuille · le geste à coût nul est de corriger le commentaire
+  de périmètre du schéma, qui sous-déclare aujourd'hui ce qui manque.
+
+**INCOMPLET, le plus souvent une note ou un état qui n'existe pas**
+- Le renvoi « dont Placement en Net » du bilan est imprimé sans chiffre.
+- Un immeuble de placement en cours de construction est compté en « hors
+  placement ».
+- Les deux postes de quote-part ne sont pas analysés en composantes (6521 /
+  6525, 7521 / 7525) dans les notes 26 et 21, alors que la section 7.3 l'exige
+  et que les quatre comptes sont semés. C'est l'information qui dit DE QUEL
+  CÔTÉ l'entité se trouve : une quote-part en charges peut être un bénéfice
+  reversé ou une perte imputée, même montant, lecture inverse. Deux à trois
+  heures.
+- Quatre des cinq mentions du ch. 19 § 3 (attribution gratuite d'actions) n'ont
+  ni ligne, ni champ, ni rappel.
+- Aucun module d'emprunt : ni tableau d'amortissement, ni échéancier, alors que
+  la fiche du compte 16 les réclame au réviseur.
+- L'état comptable de moins de trois mois exigé pour une fusion (ch. 38) et les
+  situations annuelles provisoires que l'art. 7 al. 4 pose en CONDITION de
+  l'exercice unique de liquidation ne sont pas produisibles · même cause que le
+  ch. 39 de la passe 16, aucun état ne prend de date.
+- L'exercice de liquidation n'est atteignable par aucun écran.
+- Le compte 475 est semé et mouvementable, sans garde-fou ni étalement (ch. 41).
+- Un dossier repris publie un compte de résultat sans comparatif, et
+  l'information pro-forma n'a aucun canal.
+- Plantations pérennes sur sol d'autrui (ch. 37) : aucun compte déclaré, aucun
+  solde à l'expiration du bail. Le bilan et le compte de résultat agricoles de
+  la section 2, le détail du poste TF et les deux informations de la section 4
+  n'ont aucune rubrique.
+- Les frais de lancement des établissements franchisés (ch. 35) n'ont aucune
+  ligne de note.
+
+**UN TROU DANS LE PLAN SEMÉ, qui appartient à Manasse**
+Le compte **6388 « Charges externes diverses »** n'est pas semé côté SYSCOHADA,
+et la cause est la SOURCE, pas la transcription : le TSV de la compétence
+`syscohada` passe de « 6385 Charges de copropriété » directement à « 64 Impôts
+et taxes ». Ce n'est pas une convention du TSV, son parallèle exact « 6638
+Autres indemnités et avantages divers » y étant bien. Comme le 638 est semé en
+type TOTAL, la saisie y est refusée : le comptable qui suit le ch. 33 § 6.1 à
+la lettre n'a aucun compte disponible, et toute charge externe hors des cinq
+rubriques nommées va se ranger dans une rubrique qui ne lui correspond pas,
+faussant la note 24 sans qu'aucun total ne bouge.
+
+Le plan SYCEBNL est hors de cause, et pour une raison propre : son texte
+arrête la classe 6 aux comptes à trois chiffres, et le semis suit cette lecture
+en faisant du 638 un compte d'imputation. L'asymétrie vient des deux textes,
+pas d'une transposition.
+
+**Le remède appartient à Manasse** (CLAUDE.md § 7 et § 11) : ajouter la ligne
+au TSV de la compétence, puis régénérer le semis · le TSV n'est déployable que
+par lui. À faire précéder d'un balayage des autres comptes terminaux en 8, que
+cette passe n'a pas mené.
+
+**CONTRADICTION ENTRE DEUX FENÊTRES, à trancher**
+Le jalon 16 « Rapport de gestion » du planning de clôture est servi en
+`nature: 'LEGALE'` avec la source « AUSCGIE, art. 138 » à toute forme
+SYSCOHADA, GIE compris. La fenêtre des documents obligatoires dit exactement
+l'inverse pour le GIE : « Aucun texte lu n'impose de rapport de gestion au
+groupement d'intérêt économique ». Un planning est un document sur lequel un
+cabinet organise sa campagne, et `LEGALE` y signifie « opposable à un tiers ».
+La contradiction est invisible tant qu'on ne consulte pas les deux fenêtres, et
+elle se résout pour l'utilisateur en faveur du plus affirmatif. Le remède
+propre est de faire citer au jalon la même fonction que la fenêtre des
+documents obligatoires, plus un test qui interdit aux deux de diverger · une à
+deux heures. Je ne l'ai pas fait parce qu'il suppose de relire l'AUSCGIE
+art. 138, qu'aucune de ces passes n'a ouvert.
+
+### Les questions qui appartiennent à Manasse
+
+1. **Une EBNL peut-elle émettre un emprunt obligataire en RDC ?** Le plan
+   SYCEBNL porte 181, 1861, 5187, 4423, 4719 et 6316, mais le corpus SYCEBNL
+   n'a aucun chapitre sur l'emprunt obligataire et ne renvoie pas au ch. 20 du
+   SYSCOHADA. L'AUSCGIE art. 780, cité par ce chapitre, réserve l'émission
+   « essentiellement à la société anonyme ou au groupement d'intérêt économique
+   constitué de sociétés anonymes ». Ou bien ces comptes sont un décalque sans
+   objet, et il n'y a rien à faire ; ou bien un ordre professionnel ou une
+   fondation peut lever de la dette sous un régime que je n'ai pas lu, et il
+   faut alors décider quelle règle comptable lui appliquer.
+2. **Un dossier du cabinet exploite-t-il une carrière, un gisement ou une
+   mine ?** La réponse commande tout le ch. 3 : si non, il se règle en
+   corrigeant un commentaire de périmètre.
+3. **Quels dossiers portent un engagement de retraite** au sens du ch. 21 (question
+   déjà posée à la passe 15, toujours ouverte).
+4. **Faut-il une route de raccourcissement de l'exercice en cours** à la date de
+   cessation d'activité ?
+5. **Un dossier tient-il une comptabilité autonome par établissement** (passe 16,
+   ch. 34) ?
+
+### Portée de ces passes
+
+**Le Titre VIII est intégralement ouvert.** Les quarante et un chapitres ont
+été lus et confrontés au code, sur dix-neuf passes. Aucun chapitre ne reste à
+ouvrir.
+
+---
+
+## Ce qui reste, et ce qui n'est plus un manque
+
+**Le relevé est refermé le 2026-09-05.** Les vingt-huit articles de l'Acte
+uniforme SYCEBNL, le cadre conceptuel, l'organisation comptable de l'AUDCIF
+(art. 1 à 113) et les QUARANTE ET UN chapitres du Titre VIII ont été lus à la
+source et confrontés au code, sur vingt et une passes. Il n'y a plus de
+chapitre à ouvrir.
+
+Ce qui subsiste n'est plus un relevé à faire mais un carnet de travaux, et il
+est tenu dans les passes elles-mêmes :
+
+- **ce qui est corrigé** est dit passe par passe, avec le test qui l'aurait
+  attrapé ;
+- **ce qui attend un arbitrage de Manasse** est rassemblé en fin de passes 17
+  à 21, avec la question exacte à trancher · cinq questions, dont deux
+  (l'emprunt obligataire des EBNL, l'engagement de retraite en RDC) supposent
+  une lecture de droit congolais qu'aucune source du dépôt ne porte ;
+- **ce qui appartient matériellement à Manasse** est le compte 6388 manquant
+  au TSV de la compétence `syscohada`, les compétences n'étant déployables que
+  par lui.
+
+Deux chantiers du relevé restent entiers et devraient être des tâches à part
+entière plutôt que des lignes ici : l'opération de RECLASSEMENT d'une
+immobilisation (ch. 3 et 10), et la SITUATION INTERMÉDIAIRE (ch. 39, avec les
+états à date que les ch. 38 et 40 réclament aussi). Ce sont les deux seuls
+manques du Titre VIII dont un dossier ordinaire du cabinet peut avoir besoin.

@@ -235,4 +235,68 @@ describe('le contrôle des imputations non déclarées', () => {
   it('se tait quand rien n’a bougé du tout', async () => {
     expect(await anomalie(Referentiel.SYSCOHADA, [])).toBeUndefined();
   });
+
+  it("EXCLUT l'affectation du résultat, qui est le chemin ORDINAIRE du compte 12", async () => {
+    // LE DÉFAUT QUE CE TEST GÈLE · le contrôle relevait toute ligne sur un
+    // compte 12 hors clôture et hors motif déclaré. Or l'affectation du
+    // résultat passe par le chemin ordinaire (`affectation.service.ts`,
+    // appel à `ecritureService.creer` sans drapeau) et vire au 12 dans les
+    // DEUX plans. Tout dossier recevait donc l'avertissement dès son premier
+    // exercice affecté, et le SYCEBNL rend ce virement obligatoire.
+    //
+    // Un avertissement présent partout est un avertissement qu'on apprend à
+    // ignorer : le contrôle 22 est le seul garde-fou du compte 12, et une OD
+    // manuelle qui l'aurait vraiment mouvementé se serait noyée dans la même
+    // ligne que l'affectation de l'année.
+    //
+    // Le faux Prisma de ce fichier rend les mêmes lignes à toutes les
+    // lectures et IGNORE le `where` · un test par la donnée ne prouverait
+    // donc rien. On vérifie le FILTRE lui-même, comme le balayage du
+    // cloisonnement vérifie les bornes de tenant.
+    const prisma = {
+      exercice: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'ex',
+          dateDebut: new Date('2026-01-01'),
+          dateFin: new Date('2026-12-31'),
+          dateArreteComptes: new Date('2027-04-28'),
+        }),
+      },
+      tenant: {
+        findUniqueOrThrow: jest.fn().mockResolvedValue({ id: 't', nom: 'D', referentiel: Referentiel.SYSCOHADA }),
+      },
+      ecriture: { findMany: jest.fn().mockResolvedValue([]) },
+      compte: { findMany: jest.fn().mockResolvedValue([]) },
+      ligneEcriture: { findMany: jest.fn().mockResolvedValue([]) },
+      exoneration: { findMany: jest.fn().mockResolvedValue([]) },
+      manuelProcedures: { findFirst: jest.fn().mockResolvedValue(null) },
+      immobilisation: { findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0) },
+    } as Faux;
+    await new ControlesService(prisma as unknown as PrismaService).analyser('t', 'ex');
+
+    /** La forme du `where` que ce test inspecte, et rien de plus. */
+    interface LectureLignes {
+      where: {
+        compte: { numero: { startsWith: string } };
+        ecriture: {
+          estGenereeParCloture: boolean;
+          motifImputationOuverture: unknown;
+          affectationResultat: unknown;
+        };
+      };
+    }
+    const lecture = (prisma.ligneEcriture as { findMany: jest.Mock }).findMany;
+    const lectures12 = lecture.mock.calls
+      .map((appel) => appel[0] as LectureLignes)
+      .filter((a) => a?.where?.compte?.numero?.startsWith === '12');
+    expect(lectures12).toHaveLength(1);
+
+    // La borne passe par la RELATION, jamais par un drapeau : un drapeau se
+    // recopie à la main dans une OD, la relation n'existe que si une décision
+    // d'affectation a réellement été enregistrée.
+    expect(lectures12[0].where.ecriture.affectationResultat).toBeNull();
+    // Et les deux exceptions d'ouverture restent bornées comme avant.
+    expect(lectures12[0].where.ecriture.estGenereeParCloture).toBe(false);
+    expect(lectures12[0].where.ecriture.motifImputationOuverture).toBeNull();
+  });
 });

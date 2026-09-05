@@ -158,7 +158,49 @@ export class ExerciceService {
     liquidation: boolean,
     client: Prisma.TransactionClient,
   ) {
-    if (liquidation) return;
+    //
+    // LE DRAPEAU DE LIQUIDATION N'EXEMPTE QUE DE LA RÈGLE DU 31 DÉCEMBRE.
+    //
+    // L'art. 7 al. 4 ouvre UNE exception, et elle porte sur la DURÉE : « en
+    // cas de cessation d'activité, pour quelque cause que ce soit, la durée
+    // des opérations de liquidation est comptée pour un seul exercice ». Rien
+    // dans cet alinéa ne permet à DEUX exercices de couvrir la même période.
+    //
+    // Le `return` était posé en tête et court-circuitait donc aussi le
+    // contrôle d'unicité posé plus bas · c'est-à-dire l'un des quatre refus du
+    // 2026-09-03 (CLAUDE.md § 10 bis), rouvert au moment précis où le dossier
+    // est le plus fragile, la liquidation étant le seul cas où un exercice
+    // long chevauche mécaniquement une année civile déjà ouverte.
+    //
+    // LE REFUS NE PORTE QUE SUR UN EXERCICE DÉJÀ CLÔTURÉ, et c'est délibéré.
+    // Un exercice clos a sa liasse : un second exercice qui recouvrirait sa
+    // période produirait deux jeux d'états sur les mêmes mois, et il n'existe
+    // aucune raison légitime de le faire. Un exercice encore OUVERT, lui, est
+    // le cas ordinaire de la cessation en cours d'année : l'exercice courant
+    // devra être raccourci à la date de cessation, et OmegaX n'a aujourd'hui
+    // aucune route pour le faire (aucun `update` sur `dateDebut`/`dateFin`).
+    // Refuser là bloquerait la liquidation sans issue · ce cas est signalé au
+    // relevé de manques et attend un arbitrage, il n'est pas tranché ici.
+    if (liquidation) {
+      const closDejaCouvert = await client.exercice.findFirst({
+        where: {
+          tenantId,
+          statut: StatutExercice.CLOTURE,
+          dateDebut: { lte: dateFin },
+          dateFin: { gte: dateDebut },
+        },
+        select: { dateDebut: true, dateFin: true },
+      });
+      if (closDejaCouvert) {
+        throw new BadRequestException(
+          `Un exercice CLÔTURÉ couvre déjà cette période (${closDejaCouvert.dateDebut.toISOString().slice(0, 10)} ` +
+            `au ${closDejaCouvert.dateFin.toISOString().slice(0, 10)}) · un exercice de liquidation échappe à la ` +
+            "règle du 31 décembre (AUDCIF art. 7 al. 4), jamais à l'unicité de la période. Faites-le commencer " +
+            "après la clôture du dernier exercice arrêté.",
+        );
+      }
+      return;
+    }
 
     const finLe31Decembre = dateFin.getUTCMonth() === 11 && dateFin.getUTCDate() === 31;
     if (!finLe31Decembre) {

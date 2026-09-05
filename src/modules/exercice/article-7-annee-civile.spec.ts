@@ -24,14 +24,21 @@ import { ExerciceService, exerciceSuivantApres } from './exercice.service';
  * Les deux tests ci-dessous partent du texte, pas du code.
  */
 
-const service = (nombreDExercicesExistants: number) =>
+const service = (
+  nombreDExercicesExistants: number,
+  // Ce que rend la recherche d'un exercice qui couvre déjà la période · `null`
+  // par défaut, le chevauchement ayant son propre spec.
+  dejaCouvert: unknown = null,
+  espion?: { where?: unknown },
+) =>
   new ExerciceService(
     {
       exercice: {
         count: async () => nombreDExercicesExistants,
-        // Le chevauchement se teste dans son propre spec · ici le dossier
-        // n'a jamais d'exercice qui couvre déjà la période demandée.
-        findFirst: async () => null,
+        findFirst: async (args: { where?: unknown }) => {
+          if (espion) espion.where = args?.where;
+          return dejaCouvert;
+        },
         create: async (a: unknown) => a,
       },
     } as never,
@@ -74,6 +81,33 @@ describe('article 7 · la création d’exercice', () => {
 
   it('refuse un premier exercice de plus de vingt-quatre mois', async () => {
     await expect(creer(0, '2026-09-01', '2028-12-31')).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it("le drapeau de liquidation n'exempte QUE de la règle du 31 décembre", async () => {
+    // LE DÉFAUT QUE CE TEST GÈLE · le `return` du drapeau était posé en tête
+    // et court-circuitait aussi le contrôle d'unicité de la période, c'est à
+    // dire l'un des quatre refus de CLAUDE.md § 10 bis · et il le rouvrait
+    // au moment où le dossier est le plus fragile, la liquidation étant le
+    // seul cas où un exercice long chevauche mécaniquement une année déjà
+    // ouverte. L'art. 7 al. 4 n'ouvre d'exception que sur la DURÉE.
+    const clos = { dateDebut: new Date('2026-01-01'), dateFin: new Date('2026-12-31') };
+    await expect(
+      service(3, clos).creer('t1', { dateDebut: '2026-03-15', dateFin: '2028-06-30', liquidation: true } as never),
+    ).rejects.toThrow(/CLÔTURÉ couvre déjà cette période/);
+  });
+
+  it("ne regarde, pour la liquidation, que les exercices CLÔTURÉS", async () => {
+    // Et c'est délibéré : un exercice encore OUVERT est le cas ordinaire de
+    // la cessation en cours d'année, et OmegaX n'a aucune route pour
+    // raccourcir un exercice à la date de cessation. Refuser là bloquerait
+    // la liquidation sans issue · le cas est porté au relevé de manques.
+    const espion: { where?: { statut?: unknown } } = {};
+    await service(3, null, espion as never).creer('t1', {
+      dateDebut: '2026-03-15',
+      dateFin: '2028-06-30',
+      liquidation: true,
+    } as never);
+    expect(espion.where?.statut).toBe('CLOTURE');
   });
 
   it('laisse passer l’exercice de liquidation, et lui seul', async () => {

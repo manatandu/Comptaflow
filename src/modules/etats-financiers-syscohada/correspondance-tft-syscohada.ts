@@ -606,6 +606,30 @@ export const POSTES_OPERATIONNELS_SYSCOHADA: PosteFluxTresorerieSyscohada[] = [
     // (499, 599) lue en NET dans FB à FE les neutralise.
     termes: [
       poste(1, 'COMPTE_RESULTAT', 'XD', 'N', "Excédent brut d'exploitation · « le point d'entrée est l'EBE, jamais le résultat net » (ch. 5 § 1.2.1)."),
+      //
+      // LES DEUX QUOTES-PARTS SUR OPÉRATIONS FAITES EN COMMUN.
+      //
+      // Le ch. 33 § 7.2 fait sortir le 652 et le 752 des postes ordinaires
+      // pour les loger dans « un poste supplémentaire de charges et un de
+      // produits, à la fin du niveau Exploitation » · RQP et TQP, servis par
+      // `correspondance-compte-resultat-syscohada.ts`. Ils ont donc quitté XC
+      // et XD, et la CAFG, qui part de XD, les avait PERDUS.
+      //
+      // Or leur contrepartie de bilan, le compte 463 « Associés, opérations
+      // faites en commun » (ch. 33 § 3.2), continue d'être lue par la
+      // variation des créances et des dettes (FD et FE, qui n'excluent pas le
+      // 46). Le flux opérationnel d'un coparticipant était donc décalé du
+      // montant de la quote-part, et ZH par les flux cessait d'égaler ZH par
+      // le bilan · l'écart s'imprimait, mais la LIGNE CAFG, elle, était
+      // fausse sans que rien ne la marque, et la note 34 la reprend sans
+      // contrôle de bouclage à elle.
+      //
+      // Le remède était rédigé dans le dépôt depuis la mise en service des
+      // deux postes (point 14 a) du commentaire d'en-tête de
+      // `correspondance-compte-resultat-syscohada.ts`) et n'avait pas été
+      // écrit. Ce sont ces deux termes.
+      poste(1, 'COMPTE_RESULTAT', 'RQP', 'N', 'Quote-part de résultat sur opérations faites en commun, charges (652) · ch. 33 § 7.2.'),
+      poste(1, 'COMPTE_RESULTAT', 'TQP', 'N', 'Quote-part de résultat sur opérations faites en commun, produits (752) · ch. 33 § 7.2.'),
       gestion(-1, ['654'], '« + Valeurs comptables des cessions courantes d\'immobilisation (compte 654) » · charge retirée de l\'EBE (RJ), donc + VNC ; la cession courante est un flux d\'investissement (FF/FG).'),
       gestion(-1, ['754'], '« – Produits des cessions courantes d\'immobilisation (compte 754) » · produit retiré de l\'EBE (TH) ; le prix encaissé est en FI.'),
       poste(1, 'COMPTE_RESULTAT', 'XF', 'N', 'Résultat financier · revenus financiers, gains de change, transferts de charges financières, frais financiers, pertes de change (TK, TM, RM).'),

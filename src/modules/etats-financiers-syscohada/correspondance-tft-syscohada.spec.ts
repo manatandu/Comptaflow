@@ -264,13 +264,43 @@ describe('correspondance tableau des flux de trésorerie SYSCOHADA (AUDCIF Titre
     const postesLus = fa.termes.filter((t) => t.poste).map((t) => [t.signe, t.poste!.ref]);
     const comptesLus = fa.termes.filter((t) => t.comptes).map((t) => [t.signe, t.comptes!.prefixes.join(',')]);
 
+    it('intègre les DEUX quotes-parts sur opérations faites en commun', () => {
+      // LE DÉFAUT QUE CE TEST GÈLE · le ch. 33 § 7.2 fait sortir le 652 et le
+      // 752 des postes ordinaires pour les loger « à la fin du niveau
+      // Exploitation » (RQP et TQP). Ils ont donc quitté XD, et la CAFG, qui
+      // part de XD, les avait perdus · alors que leur contrepartie de bilan,
+      // le compte 463 (§ 3.2), continue d'être lue par FD et FE, qui
+      // n'excluent pas le 46. Le flux opérationnel d'un coparticipant s'en
+      // trouvait décalé du montant de la quote-part, et la LIGNE CAFG était
+      // fausse sans que rien ne la marque · la note 34 la reprend d'ailleurs
+      // sans contrôle de bouclage à elle.
+      //
+      // Le coefficient est +1 des deux côtés parce que la valeur d'un poste
+      // porte DÉJÀ son signe (RQP est `sens: 'CHARGE'`, `signe: '-'`), comme
+      // XF que la CAFG prend de la même façon.
+      expect(postesLus).toContainEqual([1, 'RQP']);
+      expect(postesLus).toContainEqual([1, 'TQP']);
+    });
+
     it("part de l'EBE (XD), jamais du résultat net", () => {
       expect(postesLus[0]).toEqual([1, 'XD']);
       expect(fa.termes.some((t) => t.poste?.ref === 'XI')).toBe(false);
     });
 
     it('retire 654 et 754 (cessions courantes), ajoute XF sans 797/697, TO sans 86, RP sans 85, puis RQ et RS', () => {
-      expect(postesLus).toEqual([[1, 'XD'], [1, 'XF'], [1, 'TO'], [1, 'RP'], [1, 'RQ'], [1, 'RS']]);
+      // RQP et TQP suivent immédiatement XD · ils complètent le niveau
+      // « Exploitation », dont le ch. 33 § 7.2 les fait la fin. Voir le test
+      // suivant pour la raison de leur présence.
+      expect(postesLus).toEqual([
+        [1, 'XD'],
+        [1, 'RQP'],
+        [1, 'TQP'],
+        [1, 'XF'],
+        [1, 'TO'],
+        [1, 'RP'],
+        [1, 'RQ'],
+        [1, 'RS'],
+      ]);
       expect(comptesLus).toEqual([[-1, '654'], [-1, '754'], [-1, '797'], [-1, '697'], [-1, '86'], [-1, '85']]);
       for (const t of fa.termes) if (t.comptes) expect(t.comptes.lecture).toBe('SOLDE_GESTION');
     });
