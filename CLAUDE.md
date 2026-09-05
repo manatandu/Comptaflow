@@ -342,6 +342,41 @@ limitation de durée ». Il n'y a donc RIEN de séparé à calculer pour eux, et
 stock d'ARD à durée propre rétablirait une règle abrogée. Deux tests de
 `fiscalite.spec.ts` le figent, chacun avec son article.
 
+**Inventaire physique · l'obligation que le logiciel ne portait pas.** AUDCIF
+art. 42 : « À la clôture de chaque exercice, l'entité doit procéder au
+RECENSEMENT et à l'ÉVALUATION de ses biens, créances et dettes à leur valeur
+effective du moment ». L'art. 3 du SYCEBNL ne l'écarte PAS (sa liste saute de
+34 à 49) · le module est donc ouvert aux deux référentiels, sans
+`@ReferentielsAutorises`.
+
+L'EXPOSITION PÉNALE, elle, ne passe pas par le même article, et les deux ne se
+servent jamais l'un pour l'autre : AUDCIF art. 111 côté SYSCOHADA, et SYCEBNL
+art. 24 premier tiret côté EBNL, puisque l'art. 3 écarte justement les art. 73
+à 113. Même discipline que pour le livre d'inventaire (art. 19 quatrième
+tiret, écarté, contre art. 14 SYCEBNL). `sanctionApplicable()` résout le
+chemin, et un test vérifie qu'aucun des deux ne cite l'article de l'autre.
+
+TROIS REFUS, chacun contre un défaut qui s'équilibre et ne se voit nulle part
+en aval. Le module NE COMPTABILISE JAMAIS UN EXCÉDENT · AUDCIF art. 43, « si
+la valeur d'inventaire est SUPÉRIEURE à la valeur d'entrée, cette dernière est
+MAINTENUE dans les comptes » ; une écriture d'excédent boucle la balance et
+gonfle le résultat d'une plus-value latente que le texte interdit d'inscrire.
+Il REFUSE DE RAPPROCHER tant qu'une fiche n'est pas valorisée · lue comme
+zéro, elle transformerait « pas encore compté » en manquant, à la charge de
+l'entité. Et il FIGE LE SOLDE au rapprochement plutôt que de le relire ·
+sinon la première écriture de redressement referme l'écart toute seule et
+l'arbitrage porte sur un chiffre que personne n'a vu.
+
+L'ÉCART EST PAR COMPTE, PAS PAR FICHE. Le CPCC compare « le solde de CHAQUE
+COMPTE sur la balance provisoire » : un magasin compté sur quarante fiches se
+rapproche d'un seul solde. D'où deux tables et non une · `FicheInventaire`
+porte le comptage, `EcartInventaire` porte la comparaison et la décision.
+
+Le module PROPOSE l'écriture de redressement d'un manquant, contrepartie
+LAISSÉE VIDE : aucun texte ne dit quel compte de charge reçoit un manquant
+d'inventaire, cela dépend de sa nature, et c'est ce que la sous-commission a
+tranché. Il ne poste jamais d'office.
+
 **Correspondance bilan de clôture / bilan d'ouverture · la convention et ses
 DEUX seules exceptions.** « Le bilan d'ouverture d'un exercice doit
 correspondre au bilan de clôture de l'exercice précédent » (AUDCIF art. 34 et

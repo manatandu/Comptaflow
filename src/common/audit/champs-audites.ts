@@ -47,6 +47,13 @@ export const MODELES_AUDITES = new Set<string>([
   'Immobilisation',
   'Donation',
   'TranscriptionInventaire',
+  // L'inventaire extra-comptable · l'écart et sa DÉCISION sont exactement ce
+  // qu'un réviseur reprend. Un écart requalifié après coup, ou un responsable
+  // effacé, ne se verrait nulle part ailleurs. Les fiches, elles, ne sont pas
+  // journalisées : elles se créent par centaines en une fois (le parc
+  // immobilisé), et c'est l'écart qu'elles produisent qui porte l'enjeu.
+  'CampagneInventaire',
+  'EcartInventaire',
   'Exoneration',
   'LiquidationTva',
   'RetraitementFiscal',

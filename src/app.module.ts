@@ -38,6 +38,7 @@ import { AffectationModule } from './modules/affectation/affectation.module';
 import { RelancesModule } from './modules/relances/relances.module';
 import { RetenuesModule } from './modules/retenues/retenues.module';
 import { ExonerationsModule } from './modules/exonerations/exonerations.module';
+import { InventaireModule } from './modules/inventaire/inventaire.module';
 import { FiscaliteModule } from './modules/fiscalite/fiscalite.module';
 import { PlateformeModule } from './modules/plateforme/plateforme.module';
 import { GroupeModule } from './modules/groupe/groupe.module';
@@ -90,6 +91,7 @@ import { CourrierModule } from './modules/courrier/courrier.module';
     RelancesModule,
     RetenuesModule,
     ExonerationsModule,
+    InventaireModule,
     FiscaliteModule,
     PlateformeModule,
     GroupeModule,

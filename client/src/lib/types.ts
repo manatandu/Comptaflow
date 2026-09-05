@@ -3297,3 +3297,46 @@ export type ResultatValidation = {
   /** La phrase sourcée à servir, aiguillée sur le référentiel du dossier. */
   motifRefus: string | null;
 };
+
+/**
+ * INVENTAIRE PHYSIQUE · AUDCIF art. 42, non écarté par l'art. 3 du SYCEBNL.
+ * Les montants arrivent en chaîne (Decimal Prisma) · les convertir à
+ * l'affichage, jamais les additionner tels quels.
+ */
+export interface FicheInventaire {
+  id: string;
+  designation: string;
+  emplacement: string | null;
+  uniteMesure: string | null;
+  quantiteComptee: string | null;
+  valeurInventaire: string | null;
+  referencePiece: string | null;
+  compte: { numero: string; intitule: string };
+}
+
+export interface EcartInventaire {
+  id: string;
+  valeurInventaire: string;
+  soldeComptable: string;
+  ecart: string;
+  nombreFiches: number;
+  decision: 'A_REDRESSER' | 'EXPLIQUE' | 'EXCEDENT_NON_COMPTABILISE' | 'RENVOYE_COMMISSION_PRINCIPALE' | null;
+  responsable: string | null;
+  explication: string | null;
+  compte: { numero: string; intitule: string };
+}
+
+export interface CampagneInventaire {
+  id: string;
+  exerciceId: string;
+  libelle: string;
+  dateInventaire: string;
+  instructions: string | null;
+  statut: 'PREPARATION' | 'RECENSEMENT' | 'ARBITRAGE' | 'CLOTUREE';
+  procesVerbalEtabliLe: string | null;
+  clotureeLe: string | null;
+  fiches?: FicheInventaire[];
+  ecarts?: EcartInventaire[];
+  /** Le texte que le dossier encourt · AUDCIF art. 111 ou SYCEBNL art. 24. */
+  sanction?: { texte: string; article: string };
+}

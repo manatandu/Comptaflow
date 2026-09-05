@@ -394,6 +394,9 @@ export function AppShell() {
             // Les deux référentiels · AUDCIF art. 19 pour le livre d'inventaire,
             // AUSCGIE art. 138 (ou AUSCOOP art. 108) pour le rapport de gestion.
             { label: 'Documents obligatoires', onClick: () => navigate('/documents-obligatoires') },
+            // L'inventaire extra-comptable · AUDCIF art. 42, dû par les deux
+            // référentiels, et dont l'absence est pénalement sanctionnée.
+            { label: 'Inventaire physique', onClick: () => navigate('/inventaire') },
           ],
         },
         {

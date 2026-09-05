@@ -539,7 +539,15 @@ model Tenant {
 
   exonerations         Exoneration[]
   affectationsResultat AffectationResultat[]
-  evenementsAudit      EvenementAudit[]
+
+  // Inventaire extra-comptable · AUDCIF art. 42, sanction art. 111 (SYSCOHADA)
+  // ou SYCEBNL art. 24 (EBNL).
+  campagnesInventaire       CampagneInventaire[]
+  sousCommissionsInventaire SousCommissionInventaire[]
+  membresSousCommission     MembreSousCommission[]
+  fichesInventaire          FicheInventaire[]
+  ecartsInventaire          EcartInventaire[]
+  evenementsAudit           EvenementAudit[]
 
   @@index([dossierMereId])
   @@map("tenants")
@@ -769,6 +777,10 @@ model Compte {
   lettrages                     Lettrage[]
   lignesAffectation             LigneAffectation[]
 
+  /// Lignes de comptage rapprochées de ce compte (AUDCIF art. 42).
+  fichesInventaire FicheInventaire[]
+  ecartsInventaire EcartInventaire[]
+
   @@unique([tenantId, numero])
   // Le résultat fiscal ne cherche que les comptes qui portent un code de
   // retraitement · sans cet index il balaie tout le plan du dossier.
@@ -973,6 +985,9 @@ model Exercice {
   transcriptionsInventaire TranscriptionInventaire[]
   rapportsActivite         RapportActivite[]
 
+  // Inventaire extra-comptable de l'exercice (AUDCIF art. 42).
+  campagnesInventaire CampagneInventaire[]
+
   // Détermination du résultat fiscal · SYSCOHADA seulement.
   retraitementsFiscaux RetraitementFiscal[]
   dossierFiscal        DossierFiscalExercice?
@@ -1151,6 +1166,8 @@ model Ecriture {
   // Chemin de filtrage de TOUS les états (journal, grand livre, balance,
   // états financiers) : tenant + exercice, trié par date. Sans index, chaque
   // export balaie l'intégralité des écritures du dossier.
+  ecartsInventaire EcartInventaire[]
+
   @@index([tenantId, exerciceId, date])
   @@index([tenantId, statut], map: "ecritures_statut_idx")
   // Chemin de la numérotation des pièces : à CHAQUE création d'écriture, le
@@ -2948,6 +2965,8 @@ model Immobilisation {
   dotations     DotationAmortissement[]
   depreciations DepreciationImmobilisation[]
 
+  fichesInventaire FicheInventaire[]
+
   @@index([immobilisationPrincipaleId])
   @@map("immobilisations")
 }
@@ -3739,4 +3758,272 @@ model EvenementAudit {
   @@index([tenantId, horodatage])
   @@index([tenantId, entite, entiteId])
   @@map("evenements_audit")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// INVENTAIRE PHYSIQUE · l'obligation que le logiciel ne portait pas
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// CAMPAGNE D'INVENTAIRE EXTRA-COMPTABLE.
+///
+/// LE FONDEMENT, et il est identique des deux côtés. AUDCIF art. 42 : « À la
+/// clôture de chaque exercice, l'entité doit procéder au RECENSEMENT et à
+/// l'ÉVALUATION de ses biens, créances et dettes à leur valeur effective du
+/// moment, dite valeur actuelle. » L'art. 3 du SYCEBNL n'écarte PAS l'art. 42
+/// (sa liste d'exclusion saute de 34 à 49) · l'obligation vaut donc aussi pour
+/// une association, une ONG ou un projet de développement.
+///
+/// L'EXPOSITION PÉNALE, elle, ne passe PAS par le même article, et les deux ne
+/// se servent jamais l'un pour l'autre. Côté SYSCOHADA, AUDCIF art. 111 :
+/// « Encourent une sanction pénale les dirigeants d'entités […] qui n'auront
+/// pas, pour chaque exercice, dressé l'inventaire et établi les états
+/// financiers annuels ». Côté SYCEBNL, cet article est écarté (art. 3 exclut
+/// 73 à 113) et c'est l'art. 24, premier tiret, qui prend le relais avec la
+/// même phrase : « n'ont pas, pour un exercice, dressé l'inventaire et établi
+/// les états financiers annuels, ainsi que le rapport d'activité ».
+///
+/// CE QUE LA CAMPAGNE N'EST PAS · un stock permanent. OmegaX ne tient aucun
+/// magasin, et ce module ne prétend pas en tenir un : il organise le COMPTAGE
+/// d'une date, son rapprochement avec la balance, et l'arbitrage des écarts.
+/// Entre deux campagnes, il ne sait rien des quantités.
+model CampagneInventaire {
+  id         String   @id @default(uuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  exerciceId String
+  exercice   Exercice @relation(fields: [exerciceId], references: [id])
+
+  /// La date à laquelle on compte. Distincte de la clôture : le CPCC demande
+  /// « le comptage des espèces a-t-il eu lieu au 31 décembre ? », question qui
+  /// n'a de sens que si la date est portée et peut différer.
+  dateInventaire DateTime
+
+  libelle String
+
+  /// Étape 1 · « établir les procédures plus ou moins détaillées pour les
+  /// procédés d'inventaire et de corrections ». Texte libre : ni l'AUDCIF ni
+  /// le SYCEBNL n'en fixent la forme, et le CPCC pas davantage.
+  instructions String?
+
+  statut StatutCampagneInventaire @default(PREPARATION)
+
+  /// PV d'inventaire · « L'établissement du PV d'inventaire physique est
+  /// nécessaire avec signatures de ceux qui ont inventorié et assisté à cet
+  /// inventaire » (CPCC, étape 2). Les deux listes sont tenues séparément par
+  /// `MembreSousCommission.role` · les confondre ferait signer le PV par des
+  /// gens qui n'ont rien compté.
+  procesVerbalEtabliLe DateTime?
+  procesVerbalPar      String?
+
+  clotureeLe  DateTime?
+  clotureePar String?
+
+  sousCommissions SousCommissionInventaire[]
+  fiches          FicheInventaire[]
+  ecarts          EcartInventaire[]
+
+  createdAt DateTime @default(now())
+  createdBy String
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId, exerciceId])
+  @@map("campagnes_inventaire")
+}
+
+/// Étape 1 · « constituer des sous-commissions d'inventaire : désignation des
+/// membres ; rôle de ces membres ; explication des procédures d'inventaire ».
+/// Le périmètre est du texte libre (« Magasin central », « Caisses agences »,
+/// « Parc roulant ») · aucun texte ne le normalise.
+model SousCommissionInventaire {
+  id         String             @id @default(uuid())
+  tenantId   String
+  tenant     Tenant             @relation(fields: [tenantId], references: [id])
+  campagneId String
+  campagne   CampagneInventaire @relation(fields: [campagneId], references: [id], onDelete: Cascade)
+
+  nom       String
+  perimetre String?
+
+  membres MembreSousCommission[]
+  fiches  FicheInventaire[]
+
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, campagneId])
+  @@map("sous_commissions_inventaire")
+}
+
+/// Un membre n'est PAS un utilisateur du logiciel. Le CPCC fait signer le PV
+/// par « ceux qui ont inventorié ET assisté » · le magasinier, l'intendant, le
+/// commissaire aux comptes, l'huissier n'ont pas de compte OmegaX. Nom et
+/// fonction en clair, donc, et jamais un `userId`.
+model MembreSousCommission {
+  id               String                   @id @default(uuid())
+  tenantId         String
+  tenant           Tenant                   @relation(fields: [tenantId], references: [id])
+  sousCommissionId String
+  sousCommission   SousCommissionInventaire @relation(fields: [sousCommissionId], references: [id], onDelete: Cascade)
+
+  nom      String
+  fonction String?
+  role     RoleMembreInventaire
+
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, sousCommissionId])
+  @@map("membres_sous_commission_inventaire")
+}
+
+/// UNE LIGNE COMPTÉE, ET L'ÉCART QU'ELLE PRODUIT.
+///
+/// La fiche porte les étapes 2 à 5 du CPCC : le comptage, la valorisation
+/// « par référence à la pièce justificative d'acquisition », le rapprochement
+/// avec « le solde de chaque compte sur la balance provisoire de vérification,
+/// AVANT les écritures d'inventaire », et la décision sur l'écart.
+///
+/// LE SOLDE COMPTABLE EST FIGÉ SUR LA FICHE, jamais relu à la volée. C'est le
+/// point de méthode : l'étape 4 compare à la balance PROVISOIRE, et une
+/// écriture de redressement passée entre-temps déplacerait la cible. Un écart
+/// recalculé après coup se refermerait tout seul, et l'arbitrage porterait sur
+/// un chiffre que personne n'a jamais vu.
+model FicheInventaire {
+  id         String             @id @default(uuid())
+  tenantId   String
+  tenant     Tenant             @relation(fields: [tenantId], references: [id])
+  campagneId String
+  campagne   CampagneInventaire @relation(fields: [campagneId], references: [id], onDelete: Cascade)
+
+  sousCommissionId String?
+  sousCommission   SousCommissionInventaire? @relation(fields: [sousCommissionId], references: [id])
+
+  /// Le compte contre lequel la fiche sera rapprochée. Obligatoire : sans lui,
+  /// la fiche compte des objets sans rien pouvoir rapprocher.
+  compteId String
+  compte   Compte @relation(fields: [compteId], references: [id])
+
+  /// Quand la fiche porte un bien du module d'immobilisations, le lien vers
+  /// lui. Null pour un stock ou une caisse, qu'OmegaX ne tient pas en fichier.
+  immobilisationId String?
+  immobilisation   Immobilisation? @relation(fields: [immobilisationId], references: [id])
+
+  designation String
+  emplacement String?
+  uniteMesure String?
+
+  /// Étape 2. Null tant que la fiche n'a pas été servie · une fiche imprimée
+  /// à blanc pour aller compter n'a pas de quantité, et zéro n'est pas la même
+  /// chose que « pas encore compté ».
+  quantiteComptee Decimal? @db.Decimal(18, 3)
+
+  /// Étape 3 · valeur d'inventaire, art. 43 : « la valeur actuelle à la date
+  /// de clôture de l'exercice ».
+  valeurInventaire Decimal? @db.Decimal(18, 2)
+
+  /// « par référence à la pièce justificative d'acquisition » (étape 3).
+  referencePiece String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId, campagneId])
+  @@index([tenantId, compteId])
+  @@map("fiches_inventaire")
+}
+
+/// L'ÉCART, ET POURQUOI IL N'EST PAS SUR LA FICHE.
+///
+/// L'étape 4 du CPCC compare « les chiffres d'inventaire obtenus par
+/// l'évaluation avec les données comptables (SOLDE DE CHAQUE COMPTE sur la
+/// balance provisoire de vérification, avant les écritures d'inventaire) ».
+/// L'unité de comparaison est donc le COMPTE, pas la fiche : un magasin compté
+/// sur quarante fiches se rapproche d'un seul solde. Porter l'écart sur chaque
+/// fiche aurait obligé à y recopier quarante fois le même solde, et aucune des
+/// quarante lignes n'aurait été vraie.
+///
+/// LE SOLDE EST FIGÉ ICI, jamais relu à la volée. C'est le point de méthode :
+/// une écriture de redressement passée après le rapprochement déplacerait la
+/// cible, l'écart se refermerait tout seul, et l'arbitrage porterait sur un
+/// chiffre que personne n'a jamais vu.
+model EcartInventaire {
+  id         String             @id @default(uuid())
+  tenantId   String
+  tenant     Tenant             @relation(fields: [tenantId], references: [id])
+  campagneId String
+  campagne   CampagneInventaire @relation(fields: [campagneId], references: [id], onDelete: Cascade)
+  compteId   String
+  compte     Compte             @relation(fields: [compteId], references: [id])
+
+  /// Somme des valeurs d'inventaire des fiches de ce compte, au rapprochement.
+  valeurInventaire Decimal @db.Decimal(18, 2)
+
+  /// Le solde de la balance provisoire, figé.
+  soldeComptable Decimal @db.Decimal(18, 2)
+
+  /// valeurInventaire − soldeComptable. NÉGATIF = manquant, « à la charge de
+  /// l'entreprise » (CPCC, étape 5). POSITIF = excédent, qui ne se
+  /// comptabilise PAS d'office : AUDCIF art. 43, « si la valeur d'inventaire
+  /// est SUPÉRIEURE à la valeur d'entrée, cette dernière est MAINTENUE dans
+  /// les comptes, sauf cas expressément prévus par la législation ».
+  ecart Decimal @db.Decimal(18, 2)
+
+  /// Combien de fiches ont produit cette valeur d'inventaire. Un écart assis
+  /// sur une seule fiche ne se lit pas comme un écart assis sur quarante.
+  nombreFiches Int
+
+  rapprocheLe DateTime
+
+  /// Étape 5 · la décision, et le responsable qu'elle désigne. Le CPCC en fait
+  /// une obligation dans les DEUX sens : écart négatif, on nomme le
+  /// responsable ; écart positif, « le responsable concerné sera invité à
+  /// s'expliquer devant la sous-commission ».
+  decision    DecisionEcartInventaire?
+  responsable String?
+  explication String?
+  arbitreLe   DateTime?
+  arbitrePar  String?
+
+  /// Étape 6 · l'écriture de redressement, une fois passée. Le module ne la
+  /// passe jamais d'office : il la PROPOSE, et le comptable la valide.
+  ecritureId String?
+  ecriture   Ecriture? @relation(fields: [ecritureId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([campagneId, compteId])
+  @@index([tenantId, campagneId])
+  @@map("ecarts_inventaire")
+}
+
+enum StatutCampagneInventaire {
+  /// Étape 1 · instructions et sous-commissions. Les fiches se créent, rien
+  /// ne se compte encore.
+  PREPARATION
+  /// Étapes 2 et 3 · comptage et valorisation.
+  RECENSEMENT
+  /// Étapes 4 et 5 · soldes figés, écarts calculés, arbitrage en cours.
+  ARBITRAGE
+  /// Étape 6 faite, PV établi. Plus aucune fiche ne bouge.
+  CLOTUREE
+}
+
+enum RoleMembreInventaire {
+  /// A compté. Signe le PV à ce titre.
+  INVENTORIANT
+  /// A assisté sans compter (auditeur, représentant du bailleur, huissier).
+  TEMOIN
+}
+
+enum DecisionEcartInventaire {
+  /// Écart négatif reconnu, à la charge de l'entité · il se redresse.
+  A_REDRESSER
+  /// Écart expliqué par la sous-commission et NON redressé (erreur de
+  /// comptage, bien en transit, cut-off). Le motif est dans `explication`.
+  EXPLIQUE
+  /// Écart positif constaté, laissé au bilan à sa valeur d'entrée (art. 43),
+  /// et porté au résumé de l'opération d'inventaire.
+  EXCEDENT_NON_COMPTABILISE
+  /// Renvoyé à la commission principale · le CPCC prévoit ce cran pour les
+  /// écarts que la sous-commission ne tranche pas seule.
+  RENVOYE_COMMISSION_PRINCIPALE
 }

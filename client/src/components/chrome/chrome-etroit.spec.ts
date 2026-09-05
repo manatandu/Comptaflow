@@ -174,7 +174,7 @@ describe('menu « État » à 360 px', () => {
     ]);
   });
 
-  it('les vingt-trois éditions restent atteignables, en onze lignes au plus', () => {
+  it('les vingt-quatre éditions restent atteignables, en onze lignes au plus', () => {
     const entrees = menuEtat();
     const groupes = entrees.filter((e): e is MenuGroupeDef => 'items' in e).map((g) => g.titre);
     const vues = new Set<string>();
@@ -189,9 +189,10 @@ describe('menu « État » à 360 px', () => {
     // décompte est EN DUR à dessein : c'est lui qui oblige à rouvrir ce test
     // quand une édition est ajoutée, et donc à revérifier que le panneau tient
     // toujours en onze lignes. Le vingt-troisième est le registre des
-    // engagements de dépense, ajouté le 2026-09-05.
+    // engagements de dépense, et le vingt-quatrième l'inventaire physique,
+    // tous deux ajoutés le 2026-09-05.
     const tous = [...source.matchAll(/label: '([^']+)'/g)].map((m) => m[1]);
-    expect(tous).toHaveLength(23);
+    expect(tous).toHaveLength(24);
     expect([...vues].sort()).toEqual([...tous].sort());
     // Onze lignes = 242 px, quand le panneau en a 484 à tenir aujourd'hui.
     expect(Math.max(...hauteurs)).toBeLessThanOrEqual(11);
