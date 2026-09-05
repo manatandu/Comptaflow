@@ -98,6 +98,13 @@ export function ConfidentialitePage() {
           énoncé ici parce qu’il vous appartient de le connaître et, le cas échéant, de vérifier qu’il est compatible
           avec les engagements pris envers vos propres bailleurs de fonds.
         </P>
+        <P>
+          Le Code du numérique congolais (ordonnance-loi n° 23/10 du 13 mars 2023) pose à son article 201 que les
+          données personnelles sont stockées ou hébergées en République démocratique du Congo, et prévoit à son
+          article 202 les cas où un transfert vers un État tiers reste possible. Le transfert opéré ici est
+          <strong> nécessaire à l’exécution du contrat</strong> qui nous lie à vous, au sens du 2° de cet article :
+          sans hébergement, il n’y a pas de service.
+        </P>
 
         <Titre>4. Combien de temps elles sont conservées</Titre>
         <P>
@@ -120,11 +127,21 @@ export function ConfidentialitePage() {
           passe change, qu’un accès est retiré ou qu’un rôle est modifié.
         </P>
 
-        <Titre>6. Vos droits</Titre>
+        <Titre>6. Si vos données étaient exposées</Titre>
+        <P>
+          L’article 244 du Code du numérique nous oblige à notifier <strong>sans délai</strong>, à l’Autorité de
+          protection des données et à vous-même, toute violation ayant affecté vos données. Nous nous y engageons, et
+          nous vous dirons ce qui a été atteint, quand, et ce que nous avons fait, plutôt que de vous adresser une
+          formule.
+        </P>
+
+        <Titre>7. Vos droits</Titre>
         <P>
           Vous pouvez demander à consulter, corriger, exporter ou supprimer les données qui vous concernent. L’export
           de vos dossiers est d’ailleurs prévu dans le logiciel : les états financiers, la liasse complète et les
-          livres obligatoires s’exportent au format tableur sans avoir à nous le demander.
+          livres obligatoires s’exportent au format tableur sans avoir à nous le demander, et
+          <strong> Fichier &gt; Restituer le dossier complet</strong> en produit une copie intégrale, table par table,
+          en un seul fichier.
         </P>
         <P>
           Pour toute autre demande, écrivez au cabinet VMG Consulting. <em>L’adresse postale du cabinet et l’adresse
@@ -133,7 +150,7 @@ export function ConfidentialitePage() {
           adresse inventée dirigerait vos demandes vers le vide.
         </P>
 
-        <Titre>7. Modifications</Titre>
+        <Titre>8. Modifications</Titre>
         <P>
           Cette politique peut évoluer avec le logiciel. La date de dernière mise à jour figure en tête de page, et
           toute modification substantielle vous sera signalée dans l’application.
