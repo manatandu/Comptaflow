@@ -95,7 +95,17 @@ export interface ParametreModele {
   nom: string;
   libelle: string;
   type: TypeParametre;
-  /** Valeur proposée quand le texte la fixe (ex. reprise sur 10 ans, art. 3). */
+  /**
+   * Valeur proposée quand le texte la fixe · par exemple la reprise sur
+   * 10 ans d'une subvention finançant un bien NON amortissable, Guide
+   * d'application SYCEBNL, APPLICATION 3.
+   *
+   * « App. 3 » et non « art. 3 » · le renvoi disait « art. 3 », qui n'existe
+   * pas pour cette règle et qui désigne, au SYCEBNL, la liste des articles de
+   * l'AUDCIF écartés. Une application du Guide et un article de l'Acte
+   * uniforme n'ont ni la même autorité ni la même numérotation : envoyer un
+   * relecteur de l'une vers l'autre lui fait lire un texte sans rapport.
+   */
   defaut?: number;
   aide?: string;
 }

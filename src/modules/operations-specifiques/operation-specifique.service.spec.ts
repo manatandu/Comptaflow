@@ -1,3 +1,5 @@
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { BadRequestException } from '@nestjs/common';
 import { OperationSpecifiqueService, CATALOGUE } from './operation-specifique.service';
 import { PLAN_COMPTES_SYCEBNL } from '../comptes/compte-seed';
@@ -530,6 +532,50 @@ describe('Guide, Application 20 · contributions volontaires en nature', () => {
 // ---------------------------------------------------------------------------
 
 describe('Invariants du catalogue', () => {
+  /**
+   * ARTICLE ET APPLICATION NE SE CONFONDENT PAS · le contrôle qui aurait
+   * attrapé le renvoi fautif. Le commentaire du champ `defaut` annonçait la
+   * reprise de subvention sur dix ans comme posée par « l'art. 3 ». Aucun
+   * article ne la pose : elle vient de l'APPLICATION 3 du Guide, et l'art. 3
+   * du SYCEBNL est celui qui écarte des articles de l'AUDCIF. Deux textes,
+   * deux autorités, deux numérotations, et un relecteur envoyé de l'un vers
+   * l'autre lit un texte sans rapport avec la règle qu'il vérifie.
+   *
+   * Le balayage porte sur les SOURCES du catalogue, seul endroit où les deux
+   * vocabulaires se côtoient : une application s'y annonce « App. N », jamais
+   * « art. N ».
+   */
+  it("aucun renvoi du module n'annonce une application du Guide comme un article", () => {
+    // LE TEST RELIT LES FICHIERS, pas seulement les objets · le renvoi fautif
+    // vivait dans un COMMENTAIRE de `operation-specifique.types.ts`, que rien
+    // d'exécuté ne traverse. Un test qui n'inspecterait que le catalogue en
+    // mémoire serait passé au vert sur le défaut qu'il est censé fermer.
+    const fichiers = ['operation-specifique.types.ts', 'catalogue-operations.ts'];
+    for (const nom of fichiers) {
+      const texte = readFileSync(join(__dirname, nom), 'utf8');
+      // « art. N » dans le voisinage immédiat d'un renvoi au Guide ou à une
+      // application : la seule forme qui trahit la confusion des deux
+      // numérotations. « art. 3 » y désignait l'Application 3 du Guide, alors
+      // que l'art. 3 du SYCEBNL écarte des articles de l'AUDCIF.
+      const fautifs = texte
+        .split('\n')
+        .filter((l) => /(?:Guide|[Aa]pplication|reprise sur \d+ ans)[^\n]{0,60}\bart\.\s*\d/.test(l));
+      expect({ fichier: nom, fautifs }).toEqual({ fichier: nom, fautifs: [] });
+    }
+  });
+
+  it('un modèle qui déclare une application du Guide la nomme « App. N »', () => {
+    for (const operation of CATALOGUE) {
+      for (const modele of operation.modeles) {
+        if (!modele.applicationGuide) continue;
+        expect({ modele: modele.code, forme: /^App\. \d+$/.test(modele.applicationGuide) }).toEqual({
+          modele: modele.code,
+          forme: true,
+        });
+      }
+    }
+  });
+
   /**
    * LE balayage qui compte. Un préfixe trop court désignerait plusieurs
    * comptes du dossier ; le service refuserait alors d'imputer et laisserait

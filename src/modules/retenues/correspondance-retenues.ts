@@ -442,9 +442,9 @@ export const NATURES_RETENUES: NatureRetenue[] = [
     joursApresPeriode: 15,
     echeance: 'Mensuelle, au plus tard le 15 du mois suivant',
     baseLegale:
-      "Arrêté ministériel n° 028/CAB/MIN.ET/FMM/RK/09/2025 du 24 septembre 2025, art. 1er : 0,5 % de la rémunération mensuelle payée aux travailleurs, pour tout employeur public, parapublic ou privé, le secteur humanitaire compris (sous réserve des exonérations légales). Déclaration au plus tard le 10 du mois suivant le paiement de la rémunération (art. 2) ; paiement au plus tard le 15 (art. 3).",
+      "Arrêté ministériel n° 028/CAB/MIN.ET/FMM/RK/09/2025, art. 1er : 0,5 % de la rémunération mensuelle payée aux travailleurs, pour tout employeur public, parapublic ou privé, le secteur humanitaire compris (sous réserve des exonérations légales). Déclaration au plus tard le 10 du mois suivant le paiement de la rémunération (art. 2) ; paiement au plus tard le 15 (art. 3).",
     reserve:
-      "DATE D'EFFET · les 0,5 % ne valent qu'à partir du 25 septembre 2025, date de signature de l'arrêté (art. 10). Avant cette date, le taux est de 0,2 % (arrêté ministériel n° 095/CAB/MINETAT/MTEPS/01/2018 du 17 août 2018) · un exercice à cheval sur septembre 2025 porte donc les deux taux. Les arriérés antérieurs non acquittés se recalculent en revanche au nouveau taux (art. 6). SANCTIONS · 50 % de la contribution due en cas de défaut de déclaration ou de déclaration fausse, inexacte ou incomplète (art. 2) ; majoration de retard de 0,5 % PAR JOUR, tout mois commencé compté entier (art. 3). Le logiciel ne LIQUIDE rien : il recense ce que votre comptabilité porte sur le compte 4335.",
+      "DATE D'EFFET · les 0,5 % ne valent qu'à partir du 25 septembre 2025, date que porte la mention de signature (« Fait à Kinshasa, le 25 septembre 2025 »), l'art. 10 faisant entrer l'arrêté en vigueur « à la date de sa signature ». RÉSERVE, et elle est dans le texte officiel : son INTITULÉ le date du 24 septembre 2025, sa signature du 25. Un jour d'écart, sans portée sur un exercice civil, mais à confirmer au Journal officiel avant tout usage contentieux. Avant cette date, le taux est de 0,2 % (arrêté ministériel n° 095/CAB/MINETAT/MTEPS/01/2018 du 17 août 2018) · un exercice à cheval sur septembre 2025 porte donc les deux taux. Les arriérés antérieurs non acquittés se recalculent en revanche au nouveau taux (art. 6). SANCTIONS · 50 % de la contribution due en cas de défaut de déclaration ou de déclaration fausse, inexacte ou incomplète (art. 2) ; majoration de retard de 0,5 % PAR JOUR, tout mois commencé compté entier (art. 3). Le logiciel ne LIQUIDE rien : il recense ce que votre comptabilité porte sur le compte 4335.",
   },
   {
     cle: 'autresOrganismesSociaux',
@@ -555,7 +555,7 @@ export const OBLIGATIONS_DECLARATIVES: ObligationDeclarative[] = [
     joursApresPeriode: 10,
     echeance: 'Au plus tard le 10 du mois suivant le paiement de la rémunération',
     baseLegale:
-      "Article 2 de l'arrêté ministériel n° 028/CAB/MIN.ET/FMM/RK/09/2025 du 24 septembre 2025.",
+      "Article 2 de l'arrêté ministériel n° 028/CAB/MIN.ET/FMM/RK/09/2025 (date, voir la réserve portée sur la contribution ONEM).",
     contenu:
       "Déclaration de la rémunération mensuelle payée aux travailleurs et de la contribution de 0,5 % qui en découle. Elle figure comme ligne dédiée de la Déclaration mensuelle unique du guichet unique (DGI, ONEM, INPP, CNSS), aux côtés de l'IPR, de l'INPP et de la CNSS.",
     sanction:
