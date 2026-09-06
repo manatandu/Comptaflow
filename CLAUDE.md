@@ -1254,6 +1254,59 @@ techniques (`etats-financiers.communs.ts`, `note-annexe.types.ts` côté
 serveur, `components/NotesAnnexesRendu.tsx` côté client) · aucun poste, aucun
 compte, aucun libellé.
 
+**Palmarès des comptes et analyse des journaux · deux états dont la compétence
+Sage ne donne que le NOM.** Le catalogue les énumère et s'arrête là · ni
+colonnes, ni tri, ni périmètre. Leur définition est donc celle d'OmegaX, et
+l'écran le dit en toutes lettres : leur prêter une maquette Sage que la source
+ne porte pas serait la même faute que la « découpe par cycle » jadis attribuée
+au CPCC. Aucun texte comptable ne les régit non plus · ce ne sont pas des états
+financiers, ils ne se déposent nulle part.
+
+LE PALMARÈS CLASSE SUR LE MOUVEMENT, JAMAIS SUR LE SOLDE. Un compte de
+trésorerie qui a encaissé et décaissé quatre cents fois finit souvent près de
+zéro : classé au solde, il disparaît du palmarès, alors que c'est exactement le
+compte qu'un réviseur veut voir. Le report à-nouveau est EXCLU · il n'est pas
+une activité de l'exercice, et l'inclure ferait remonter en tête les comptes de
+bilan les plus lourds année après année, indépendamment de ce qui s'y est passé.
+La PART CUMULÉE se prend sur le périmètre entier et non sur la tranche
+affichée : sinon le dernier rang montré atteindrait 100 % et laisserait croire
+que le palmarès couvre tout le dossier. Et la CLASSE est toujours affichée ·
+ranger en silence un stock et un flux dans le même classement serait une
+comparaison que rien ne fonde.
+
+L'ANALYSE DES JOURNAUX NE REND AUCUN CONTRÔLE D'ÉQUILIBRE, et l'absence est
+figée par un test. Chaque écriture est équilibrée et appartient à un seul
+journal : débit = crédit y est vrai PAR CONSTRUCTION, et une colonne toujours
+verte apprend surtout à ne plus lire les colonnes. Ce qu'elle rend est ce qu'un
+réviseur cherche vraiment · le brouillard restant journal par journal (AUDCIF
+art. 22, 2°, validation « au terme de chaque période qui ne peut excéder un
+mois »), ce que la clôture a posé séparé de la saisie, et les TROUS DE LA
+SÉQUENCE DES NUMÉROS DE PIÈCE.
+
+CE DERNIER CONTRÔLE EST CELUI QUI POUVAIT FABRIQUER DES ANOMALIES (§ 10 bis),
+et sa règle vit à part (`journaux/sequence-pieces.ts`). Chercher les trous
+« par journal, sur l'exercice » n'est juste que pour UN des quatre modes de
+numérotation :
+
+- **CONTINUE_JOURNAL** · le contrôle vaut tel quel ;
+- **CONTINUE_FICHIER** · la séquence court sur TOUS les journaux. Le journal des
+  achats porte 1, 3, 7 et celui des ventes 2, 4, 5 : lus séparément les deux
+  paraissent troués de partout, alors que la séquence du dossier est parfaite.
+  Le périmètre est donc le DOSSIER, et la ligne de synthèse ne mêle que les
+  journaux réellement en continu sur le fichier ;
+- **MENSUELLE** · l'erreur n'y va PAS dans le sens qu'on croit. Lue sur
+  l'exercice, la séquence ne fabrique aucun faux trou · elle en MASQUE de vrais,
+  ce qui est pire parce que rien ne le signale. Janvier porte 1 et 2, février
+  porte 1 et 3 : il manque le 2 de février, et l'union annuelle {1, 2, 3} est
+  parfaitement continue. Le périmètre est le couple journal + mois ;
+- **MANUELLE** · aucune séquence n'est imposée, et le logiciel ne se prononce
+  pas. Inventer un contrôle reprocherait au cabinet une discipline qu'il n'a pas
+  choisie.
+
+Enfin la séquence ne commence JAMAIS forcément à 1 · un dossier repris en cours
+d'année reprend la numérotation du logiciel précédent, et exiger 1 signalerait à
+chaque reprise un manque de tout ce qui précède l'entrée dans OmegaX.
+
 **Rubriques budgétaires · trois états lisaient le même objet, et aucun deux ne
 le lisaient pareil.** `SectionAnalytique.type` porte depuis toujours la promesse
 écrite dans le schéma : TOTAL « ne sert qu'à regrouper ses sections de même

@@ -199,9 +199,12 @@ describe('menu « État » à 360 px', () => {
     // physique, la circularisation et le registre des provisions. Une
     // cinquième, une sixième et une septième le 2026-09-06, au même endroit :
     // le registre des faiblesses, le questionnaire de révision et la balance
-    // en monnaie fonctionnelle.
+    // en monnaie fonctionnelle. Une HUITIÈME le même jour, sous « Analyse des
+    // comptes » cette fois : le palmarès et l'analyse des journaux, deux états
+    // de relecture réunis dans une seule fenêtre à onglets · les compter pour
+    // une entrée est ce qui garde le menu sous son plafond.
     const tous = [...source.matchAll(/label: '([^']+)'/g)].map((m) => m[1]);
-    expect(tous).toHaveLength(29);
+    expect(tous).toHaveLength(30);
     expect([...vues].sort()).toEqual([...tous].sort());
     // DEUX BORNES, et plus un chiffre relevé d'un cran à chaque ajout · c'est
     // la troisième fois en une journée qu'une édition nouvelle faisait tomber

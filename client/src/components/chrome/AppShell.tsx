@@ -329,6 +329,7 @@ export function AppShell() {
             { label: 'Balance auxiliaire', onClick: () => navigate('/balance-auxiliaire') },
             { label: 'Justificatif de solde', onClick: () => navigate('/justificatif-solde') },
             { label: 'Évolution des soldes', onClick: () => navigate('/evolution-soldes') },
+            { label: 'Palmarès et analyse des journaux', onClick: () => navigate('/palmares-journaux') },
           ],
         },
         {
