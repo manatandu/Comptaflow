@@ -1957,6 +1957,13 @@ export interface PosteEmploisRessources extends PosteCalcule {
   brut?: number;
   /** Correction des renvois du guide, signée · positive quand la dette a diminué. */
   correction?: number;
+  /**
+   * Les deux colonnes CUMULÉES de la maquette officielle (SYCEBNL, Partie 4
+   * ch. 3, Section 1) · elles couvrent le dossier depuis son origine et
+   * suivent la convention de financement, qui court sur plusieurs exercices.
+   */
+  montantCumulDebut: number;
+  montantCumulFin: number;
 }
 
 export interface TableauEmploisRessources {
@@ -1966,7 +1973,19 @@ export interface TableauEmploisRessources {
   excedent: number;
   encaisseDisponible: number;
   fondsFinExercice: number;
-  controle: { ecart: number; boucle: boolean };
+  /**
+   * Le contrôle officiel VII (TOTAL V = TOTAL VI) est rendu pour les TROIS
+   * colonnes de la maquette · un cumul qui ne boucle pas est un cumul faux, et
+   * sans ce contrôle il se lirait comme une simple addition.
+   */
+  controle: {
+    ecart: number;
+    boucle: boolean;
+    cumulDebut: { ecart: number; boucle: boolean };
+    cumulFin: { ecart: number; boucle: boolean };
+  };
+  /** Exercice servant de borne à la colonne « solde cumulé début » · null au premier exercice du dossier. */
+  periodes: { exercice: string; cumulDebutJusquA: string | null };
   /** Postes dont la correction de dettes dépasse le mouvement · répartition faussée. */
   anomalies: {
     ref: string;

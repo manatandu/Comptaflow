@@ -3,7 +3,7 @@ import { ClasseCompte } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { ExerciceService } from '../exercice/exercice.service';
-import { CompteDuPoste, LigneBalancePourEtat, chargerLignes, correspond, trouverExerciceN1 } from './etats-financiers.communs';
+import { CompteDuPoste, LigneBalancePourEtat, chargerLignes, chargerLignesCumulees, correspond, trouverExerciceN1 } from './etats-financiers.communs';
 import { PosteCalcule } from './etats-financiers.service';
 import { POSTES_CHARGES, POSTES_REVENUS, PosteCompteExploitation, posteDuCompte } from './correspondance-projet-compte-exploitation';
 import {
@@ -563,32 +563,147 @@ export class EtatsFinanciersProjetService {
    *    le déterminisme. Chaque poste expose la part qui lui a été imputée
    *    (`deduction`), pour que le lecteur puisse la refaire.
    */
+  /**
+   * ## TROIS COLONNES, ET LA MAQUETTE OFFICIELLE EN DEMANDE TROIS
+   *
+   * Le texte donne l'en-tête du tableau sans ambiguïté (Partie 4, ch. 3,
+   * Section 1) : « REF | DESIGNATION | SOLDE CUMULE DEBUT EXERCICE N |
+   * EXERCICE N | SOLDE CUMULE FIN EXERCICE N ». OmegaX n'en publiait qu'UNE,
+   * celle de l'exercice.
+   *
+   * Ce n'est pas une colonne d'agrément. Un projet de développement se finance
+   * sur une CONVENTION, pas sur un exercice · trois ans est le cas ordinaire.
+   * La colonne de l'exercice répond à « qu'a-t-on dépensé cette année » ; le
+   * bailleur, lui, demande « où en est-on sur les 800 000 promis », et cette
+   * réponse-là n'était nulle part dans l'état qui porte son nom. Le cabinet la
+   * reconstituait à la main, en additionnant les liasses des exercices
+   * précédents · c'est-à-dire en refaisant chaque année le calcul que le
+   * logiciel savait déjà faire une fois.
+   *
+   * Les trois colonnes sont produites par le MÊME constructeur, appelé sur
+   * trois jeux de lignes de balance différents (voir `construireColonne`) :
+   * cumul jusqu'à la fin de N-1, exercice N seul, cumul jusqu'à la fin de N.
+   * Un second calcul écrit à part pour les cumuls aurait divergé du premier au
+   * premier correctif, et l'écart n'aurait sauté aux yeux de personne · les
+   * trois colonnes sont plausibles séparément.
+   *
+   * LE CONTRÔLE OFFICIEL SE FAIT SUR CHAQUE COLONNE, et c'est ce qui rend les
+   * cumuls vérifiables : « VII. CONTRÔLE : TOTAL V = TOTAL VI ». Sur la
+   * colonne cumulée, IV devient les fonds disponibles à l'ORIGINE du dossier
+   * (le bilan d'ouverture) et VI les fonds à la fin de la fenêtre · l'identité
+   * tient par construction, et si elle ne tient pas, c'est le cumul qui est
+   * faux, pas la présentation.
+   */
   async tableauEmploisRessources(tenantId: string, exerciceId: string) {
-    const [lignes, bailleurs] = await Promise.all([
+    const exerciceN1Id = await this.trouverExerciceN1(tenantId, exerciceId);
+    const [lignes, lignesCumulFin, lignesCumulDebut, bailleurs, comptesBailleur] = await Promise.all([
       this.chargerLignes(tenantId, exerciceId),
+      chargerLignesCumulees(this.ecritureService, tenantId, exerciceId),
+      // Pas d'exercice précédent · le dossier commence avec N, le cumul de
+      // début est vide et la colonne le montre à zéro plutôt que de disparaître.
+      chargerLignesCumulees(this.ecritureService, tenantId, exerciceN1Id),
       this.prisma.bailleur.findMany({ where: { tenantId }, orderBy: { nom: 'asc' } }),
+      // Rattachements lus UNE fois pour les trois colonnes · ils ne dépendent
+      // pas de la période, et les relire par colonne ferait trois requêtes
+      // pour la même réponse.
+      this.prisma.compte.findMany({ where: { tenantId, bailleurId: { not: null } }, select: { id: true, bailleurId: true } }),
     ]);
 
+    const compteIdsParBailleur = new Map<string, Set<string>>();
+    for (const c of comptesBailleur) {
+      const ids = compteIdsParBailleur.get(c.bailleurId!) ?? new Set<string>();
+      ids.add(c.id);
+      compteIdsParBailleur.set(c.bailleurId!, ids);
+    }
+    const tresorerieBailleur = new Set(comptesBailleur.map((c) => c.id));
+
+    const colonne = (jeu: LigneBalancePourEtat[]) =>
+      this.construireColonne(jeu, bailleurs, compteIdsParBailleur, tresorerieBailleur);
+
+    const exercice = colonne(lignes);
+    const cumulFin = colonne(lignesCumulFin);
+    const cumulDebut = colonne(lignesCumulDebut);
+
+    // Les montants des trois colonnes se rejoignent par leur CLÉ, jamais par
+    // leur rang : les lignes de bailleurs sont dynamiques, un bailleur entré
+    // en cours de projet n'a pas de ligne sur la colonne de début, et un
+    // appariement positionnel décalerait tout le tableau d'une ligne sans
+    // qu'aucun total ne bouge.
+    const rendu = exercice.affichage.map((p) => ({
+      ...p,
+      montantCumulDebut: cumulDebut.parCle.get(p.cle)?.montant ?? 0,
+      montantCumulFin: cumulFin.parCle.get(p.cle)?.montant ?? 0,
+    }));
+    // Un bailleur ou un poste PRÉSENT dans un cumul et absent de l'exercice
+    // (fonds reçus les années précédentes, plus rien cette année) ne doit pas
+    // disparaître du tableau : c'est précisément la ligne que la colonne
+    // cumulée existe pour montrer.
+    for (const p of cumulFin.affichage) {
+      if (rendu.some((r) => r.cle === p.cle)) continue;
+      rendu.push({
+        ...p,
+        montant: 0,
+        comptes: [],
+        montantCumulDebut: cumulDebut.parCle.get(p.cle)?.montant ?? 0,
+        montantCumulFin: p.montant,
+      });
+    }
+
+    return {
+      lignes: rendu,
+      totalRessources: exercice.parRef.get('GR')!.montant,
+      totalEmplois: exercice.parRef.get('GU')!.montant,
+      excedent: exercice.excedent,
+      encaisseDisponible: exercice.encaisse,
+      fondsFinExercice: exercice.fondsFin,
+      controle: {
+        // « VII. CONTRÔLE : TOTAL V = TOTAL VI » · c'est le contrôle du texte
+        // officiel lui-même, pas un ajout du logiciel. Il est désormais rendu
+        // pour les TROIS colonnes · un cumul qui ne boucle pas est un cumul
+        // faux, et sans ce contrôle il se lirait comme une simple addition.
+        ecart: exercice.encaisse - exercice.fondsFin,
+        boucle: Math.abs(exercice.encaisse - exercice.fondsFin) < 0.01,
+        cumulDebut: {
+          ecart: cumulDebut.encaisse - cumulDebut.fondsFin,
+          boucle: Math.abs(cumulDebut.encaisse - cumulDebut.fondsFin) < 0.01,
+        },
+        cumulFin: {
+          ecart: cumulFin.encaisse - cumulFin.fondsFin,
+          boucle: Math.abs(cumulFin.encaisse - cumulFin.fondsFin) < 0.01,
+        },
+      },
+      // Les anomalies de répartition sont celles de l'EXERCICE · c'est là que
+      // le cabinet corrige une imputation, pas dans un cumul historique dont
+      // les exercices sont clôturés.
+      anomalies: exercice.anomalies,
+      avertissements: exercice.avertissements,
+      periodes: {
+        exercice: exerciceId,
+        cumulDebutJusquA: exerciceN1Id,
+      },
+    };
+  }
+
+  /**
+   * UNE COLONNE DU TABLEAU EMPLOIS RESSOURCES, à partir d'un jeu de lignes de
+   * balance. Purement calculatoire et sans accès à la base : c'est ce qui
+   * permet d'en produire trois sur trois périodes sans écrire trois fois le
+   * même calcul, et c'est ce qui la rend vérifiable ligne à ligne dans un test.
+   */
+  private construireColonne(
+    lignes: LigneBalancePourEtat[],
+    bailleurs: Array<{ id: string; nom: string }>,
+    compteIdsParBailleur: Map<string, Set<string>>,
+    tresorerieBailleur: Set<string>,
+  ) {
     const parRef = new Map<string, PosteCalcule>();
-    const postes: PosteCalcule[] = [];
+    const parCle = new Map<string, PosteCalcule>();
 
     // --- I. RESSOURCES ----------------------------------------------------
     const posteFA = POSTES_ER_RESSOURCES.find((p) => p.ref === 'FA')!;
     const lignesFonds = lignes.filter((l) => correspond(l.numero, posteFA.comptes));
-    const compteIdsParBailleur = new Map<string, Set<string>>();
-    if (lignesFonds.length > 0) {
-      const rattachements = await this.prisma.compte.findMany({
-        where: { id: { in: lignesFonds.map((l) => l.compteId) }, bailleurId: { not: null }, tenantId },
-        select: { id: true, bailleurId: true },
-      });
-      for (const r of rattachements) {
-        const ids = compteIdsParBailleur.get(r.bailleurId!) ?? new Set<string>();
-        ids.add(r.id);
-        compteIdsParBailleur.set(r.bailleurId!, ids);
-      }
-    }
 
-    const lignesBailleurs: PosteCalcule[] = [];
+    const lignesBailleurs: Array<PosteCalcule & { cle: string }> = [];
     const rattaches = new Set<string>();
     for (const b of bailleurs) {
       const ids = compteIdsParBailleur.get(b.id);
@@ -601,6 +716,10 @@ export class EtatsFinanciersProjetService {
         })
         .filter((c) => c.montant > 0.005);
       lignesBailleurs.push({
+        // La CLÉ est l'identifiant du bailleur, pas le REF : FA et FB se
+        // répètent d'une ligne à l'autre et se réattribuent selon l'ordre des
+        // bailleurs servis, qui n'est pas le même d'une colonne à l'autre.
+        cle: `BAILLEUR:${b.id}`,
         ref: lignesBailleurs.length === 0 ? 'FA' : 'FB',
         libelle: `Fonds reçus, Bailleur ${b.nom}`,
         montant: comptes.reduce((s, c) => s + c.montant, 0),
@@ -612,6 +731,7 @@ export class EtatsFinanciersProjetService {
       .map((l) => ({ numero: l.numero, intitule: l.intitule, montant: l.mouvementCredit }));
     if (nonRattaches.length > 0 || lignesBailleurs.length === 0) {
       lignesBailleurs.push({
+        cle: 'BAILLEUR:NON_RATTACHE',
         ref: lignesBailleurs.length === 0 ? 'FA' : 'FB',
         libelle:
           bailleurs.length > 0 && lignesBailleurs.length > 0
@@ -621,7 +741,7 @@ export class EtatsFinanciersProjetService {
         comptes: nonRattaches,
       });
     }
-    postes.push(...lignesBailleurs);
+    for (const p of lignesBailleurs) parCle.set(p.cle, p);
 
     for (const poste of POSTES_ER_RESSOURCES.filter((p) => p.ref !== 'FA')) {
       const comptes = lignes
@@ -629,7 +749,6 @@ export class EtatsFinanciersProjetService {
         .map((l) => ({ numero: l.numero, intitule: l.intitule, montant: l.mouvementCredit }));
       const calc = { ref: poste.ref, libelle: poste.libelle, montant: comptes.reduce((s, c) => s + c.montant, 0), comptes };
       parRef.set(poste.ref, calc);
-      postes.push(calc);
     }
 
     // --- EMPLOIS · brut, puis déductions ----------------------------------
@@ -693,21 +812,10 @@ export class EtatsFinanciersProjetService {
 
     const immobilisations = calculerEmplois(POSTES_ER_IMMOBILISATIONS);
     const charges = calculerEmplois(POSTES_ER_CHARGES);
-    for (const p of [...immobilisations, ...charges]) {
-      parRef.set(p.ref, p);
-      postes.push(p);
-    }
+    for (const p of [...immobilisations, ...charges]) parRef.set(p.ref, p);
 
     // --- FONDS DISPONIBLES ------------------------------------------------
     const lignesTresorerie = lignes.filter((l) => correspond(l.numero, COMPTES_TRESORERIE_PROJET));
-    const tresorerieBailleur = new Set<string>();
-    if (lignesTresorerie.length > 0) {
-      const rattachees = await this.prisma.compte.findMany({
-        where: { id: { in: lignesTresorerie.map((l) => l.compteId) }, bailleurId: { not: null }, tenantId },
-        select: { id: true },
-      });
-      for (const r of rattachees) tresorerieBailleur.add(r.id);
-    }
 
     const fonds = (ref: string, filtre: (l: LigneBalancePourEtat) => boolean, moment: 'OUVERTURE' | 'CLOTURE') => {
       const comptes = lignesTresorerie
@@ -715,6 +823,11 @@ export class EtatsFinanciersProjetService {
         .map((l) => ({
           numero: l.numero,
           intitule: l.intitule,
+          // OUVERTURE se lit sur le report · sur une colonne cumulée, ce
+          // report est le BILAN D'OUVERTURE DU DOSSIER, donc les fonds
+          // disponibles à l'origine du projet. C'est bien ce que « FONDS
+          // DISPONIBLE EN DEBUT » désigne pour une colonne qui part de
+          // l'origine, et c'est ce qui fait tenir le contrôle VII.
           montant: moment === 'CLOTURE' ? l.solde : l.reportDebit - l.reportCredit,
         }))
         .filter((c) => Math.abs(c.montant) > 0.005);
@@ -725,7 +838,6 @@ export class EtatsFinanciersProjetService {
         comptes,
       };
       parRef.set(ref, calc);
-      postes.push(calc);
     };
 
     fonds('FU', (l) => tresorerieBailleur.has(l.compteId), 'OUVERTURE');
@@ -756,13 +868,16 @@ export class EtatsFinanciersProjetService {
     parRef.set('GZ', { ref: 'GZ', libelle: LIBELLES_CALCULES.GZ, montant: gx - gy, comptes: [], estTotal: true });
 
     // Ordre officiel, en dépliant les lignes de bailleurs à leur place.
-    const affichage: PosteCalcule[] = [];
+    const affichage: Array<PosteCalcule & { cle: string }> = [...lignesBailleurs];
     for (const ref of ORDRE_EMPLOIS_RESSOURCES) {
       if (ref === 'FA' || ref === 'FB') continue;
       const p = parRef.get(ref);
-      if (p) affichage.push(p);
+      if (p) {
+        const avecCle = { ...p, cle: ref };
+        parCle.set(ref, avecCle);
+        affichage.push(avecCle);
+      }
     }
-    const rendu = [...lignesBailleurs, ...affichage];
 
     // Un emploi net NÉGATIF alors que son mouvement brut est positif veut
     // dire que la correction de dettes a dépassé le mouvement de la période.
@@ -797,23 +912,11 @@ export class EtatsFinanciersProjetService {
     avertissements.push(
       "Postes FV et FY (fonds de contrepartie État) : aucun modèle du logiciel ne désigne le compte de trésorerie portant la contrepartie de l'État. Ces deux lignes restent donc à zéro et leur montant est compris dans « Autres fonds » (FW et FZ). Les totaux GW et GY, eux, sont exacts, et c'est sur eux que porte le contrôle GZ.",
     );
+    avertissements.push(
+      "Colonnes cumulées : elles couvrent le dossier DEPUIS SON ORIGINE, écritures de report à-nouveau exclues et bilan d'ouverture compris. Elles suivent la convention de financement, pas l'exercice comptable · un projet financé sur trois ans se lit sur elles, et le contrôle VII (TOTAL V = TOTAL VI) est vérifié sur chacune.",
+    );
 
-    return {
-      lignes: rendu,
-      totalRessources: parRef.get('GR')!.montant,
-      totalEmplois: parRef.get('GU')!.montant,
-      excedent: gv,
-      encaisseDisponible: gx,
-      fondsFinExercice: gy,
-      controle: {
-        // « VII. CONTRÔLE : TOTAL V = TOTAL VI » · c'est le contrôle du texte
-        // officiel lui-même, pas un ajout du logiciel.
-        ecart: gx - gy,
-        boucle: Math.abs(gx - gy) < 0.01,
-      },
-      anomalies,
-      avertissements,
-    };
+    return { parRef, parCle, affichage, excedent: gv, encaisse: gx, fondsFin: gy, anomalies, avertissements };
   }
 
 }

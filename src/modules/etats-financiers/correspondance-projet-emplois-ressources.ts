@@ -404,3 +404,23 @@ export const LIBELLES_CALCULES: Record<string, string> = {
   FY: 'Fonds de contrepartie État en fin exercice N',
   FZ: 'Autres fonds en fin exercice N',
 };
+
+/**
+ * LES POSTES QUI SONT DES SOLDES, ET NON DES FLUX.
+ *
+ * La maquette pose trois colonnes (« SOLDE CUMULE DEBUT EXERCICE N | EXERCICE
+ * N | SOLDE CUMULE FIN EXERCICE N ») et l'arithmétique naturelle du lecteur
+ * est « fin = début + exercice ». Elle vaut pour tout ce qui est un FLUX · les
+ * fonds reçus, les immobilisations acquises, les charges décaissées.
+ *
+ * ELLE NE VAUT PAS pour le bloc des fonds disponibles. FU à FZ et leurs totaux
+ * sont des SOLDES DE TRÉSORERIE À UNE DATE, ce que leurs libellés disent
+ * eux-mêmes (« Fonds Bailleur en FIN exercice N »). Additionner un solde de
+ * fin d'exercice N-1 et un solde de fin d'exercice N donnerait le double de la
+ * trésorerie, sur une ligne qui a l'air d'être un total comme les autres, et
+ * le contrôle VII de la colonne cumulée tomberait sans qu'on sache pourquoi.
+ *
+ * D'où cette liste, lue par l'export : sur ces refs la colonne cumulée porte
+ * sa VALEUR, jamais une formule d'addition.
+ */
+export const REFS_DE_SOLDE = ['FU', 'FV', 'FW', 'GW', 'GX', 'FX', 'FY', 'FZ', 'GY', 'GZ'];

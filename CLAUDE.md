@@ -1254,6 +1254,56 @@ techniques (`etats-financiers.communs.ts`, `note-annexe.types.ts` côté
 serveur, `components/NotesAnnexesRendu.tsx` côté client) · aucun poste, aucun
 compte, aucun libellé.
 
+**Tableau emplois ressources · trois colonnes, et le texte en demandait trois.**
+La maquette officielle porte « REF | DESIGNATION | SOLDE CUMULE DEBUT EXERCICE
+N | EXERCICE N | SOLDE CUMULE FIN EXERCICE N » (SYCEBNL, Partie 4 ch. 3,
+Section 1). OmegaX n'en publiait qu'une à l'écran, et l'export Excel laissait
+la colonne C VIDE avec une note renvoyant le cabinet à son suivi de projet hors
+logiciel · un classeur complet en apparence, dont un tiers des colonnes était à
+remplir à la main.
+
+CE N'EST PAS UNE COLONNE D'AGRÉMENT. Un projet de développement se finance sur
+une CONVENTION, pas sur un exercice, et trois ans est le cas ordinaire. La
+colonne de l'exercice répond à « qu'a-t-on dépensé cette année » ; le bailleur,
+lui, demande « où en est-on sur les 800 000 promis », et cette réponse n'était
+nulle part dans l'état qui porte son nom.
+
+LES TROIS COLONNES SORTENT DU MÊME CONSTRUCTEUR (`construireColonne`), appelé
+sur trois jeux de lignes de balance. Un second calcul écrit à part pour les
+cumuls aurait divergé du premier au premier correctif, et l'écart n'aurait sauté
+aux yeux de personne · les trois colonnes sont plausibles séparément.
+
+`EcritureService.balanceCumulee` porte les DEUX RÈGLES DE LECTURE, et chacune
+fabrique un chiffre plausible et faux quand on l'oublie. Les écritures de
+CLÔTURE sont exclues · le report à-nouveau rejoue chaque année le solde de
+l'année d'avant, et un cumul sur trois exercices rendrait le triple des fonds
+reçus sans qu'aucun état ne se déséquilibre (la Note 9 porte déjà cette règle,
+et pour la même raison). SAUF CELLES DU PREMIER EXERCICE, qui portent le BILAN
+D'OUVERTURE du dossier · un cabinet qui reprend un projet en cours saisit son
+solde de départ par cette écriture-là, et l'exclure amputerait le cumul
+exactement de ce que le bailleur avait déjà versé. Même règle, même
+justification que `justificatifSolde`.
+
+L'APPARIEMENT DES TROIS COLONNES SE FAIT PAR CLÉ, JAMAIS PAR RANG. Le bloc des
+lignes de bailleurs est de LONGUEUR VARIABLE d'une colonne à l'autre · la ligne
+« comptes non rattachés à un bailleur » n'existe que si de tels comptes ont
+bougé sur la période. Un appariement positionnel décalerait toute la suite du
+tableau d'une ligne, et un poste recevrait un montant juste sur la mauvaise
+ligne, dans un tableau dont tous les totaux restent exacts.
+
+ET « FIN = DÉBUT + EXERCICE » N'EST VRAI QUE D'UN FLUX. FU à FZ et leurs totaux
+sont des SOLDES DE TRÉSORERIE À UNE DATE, ce que leurs libellés disent
+eux-mêmes (« Fonds Bailleur en FIN exercice N ») : additionner le solde de fin
+de N-1 et celui de fin de N donnerait le double de l'encaisse, sur une ligne qui
+a l'air d'un total comme les autres. `REFS_DE_SOLDE` les nomme, et l'export y
+porte la valeur au lieu de la formule `C+D`.
+
+LE CONTRÔLE OFFICIEL VII (« TOTAL V = TOTAL VI ») EST VÉRIFIÉ SUR CHAQUE
+COLONNE, et c'est lui qui rend les cumuls vérifiables : sur une colonne
+cumulée, IV devient les fonds disponibles à l'ORIGINE et VI les fonds à la fin
+de la fenêtre. À l'écran il n'est affiché que s'il ÉCHOUE · trois bandeaux verts
+empilés s'apprennent à ne plus être lus.
+
 **Sélecteur d'exercice · l'exercice courant ne se devine plus quand il y a un
 doute.** `ExerciceProvider` prenait `exercices.find((e) => e.statut ===
 'OUVERT')` sur une liste triée par date de début DÉCROISSANTE · c'est-à-dire le

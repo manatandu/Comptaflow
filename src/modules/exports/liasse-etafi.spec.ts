@@ -144,6 +144,39 @@ function fabriquerExport(jeu: JeuEtatsFinanciersSycebnl = TENANT.jeuEtatsFinanci
         },
       });
     }),
+    /*
+      CUMUL DEPUIS L'ORIGINE · les deux colonnes cumulées du tableau
+      emplois-ressources. Le faux les reconstitue en additionnant les balances
+      des exercices jusqu'à celui demandé, compte par compte · sans quoi il
+      validerait un service qui n'existe pas.
+    */
+    balanceCumulee: jest.fn().mockImplementation((_t: string, exerciceId: string) => {
+      const borne = EXERCICES.find((e) => e.id === exerciceId);
+      const retenus = EXERCICES.filter((e) => borne && e.dateDebut <= borne.dateDebut).map((e) => e.id);
+      const parCompte = new Map<string, LigneBalanceStub>();
+      for (const id of retenus) {
+        for (const l of balances[id] ?? []) {
+          const cumul = parCompte.get(l.numero);
+          if (!cumul) {
+            parCompte.set(l.numero, { ...l });
+            continue;
+          }
+          cumul.totalDebit += l.totalDebit;
+          cumul.totalCredit += l.totalCredit;
+          cumul.mouvementDebit += l.mouvementDebit;
+          cumul.mouvementCredit += l.mouvementCredit;
+          cumul.solde = cumul.totalDebit - cumul.totalCredit;
+        }
+      }
+      const lignes = [...parCompte.values()];
+      return Promise.resolve({
+        lignes,
+        totaux: {
+          debit: lignes.reduce((s, l) => s + l.totalDebit, 0),
+          credit: lignes.reduce((s, l) => s + l.totalCredit, 0),
+        },
+      });
+    }),
   } as unknown as EcritureService;
   const exerciceService = {
     lister: jest.fn().mockResolvedValue([...EXERCICES]),
@@ -415,6 +448,29 @@ describe('liasse complète · jeu projets de développement', () => {
     });
     expect((er.getCell(rangGr, 4).value as { formula?: string }).formula).toContain(`D${rangFa}`);
     expect((er.getCell(rangFa, 5).value as { formula?: string }).formula).toBe(`C${rangFa}+D${rangFa}`);
+
+    /*
+      LA COLONNE C EST REMPLIE, ET ELLE NE L'ÉTAIT PAS.
+      « SOLDE CUMULE DEBUT EXERCICE N » est une colonne de la maquette
+      officielle (Partie 4 ch. 3, Section 1). L'export la laissait vide avec
+      une note renvoyant le cabinet à son suivi de projet hors logiciel · un
+      classeur complet en apparence, dont un tiers des colonnes était à
+      remplir à la main. Un `typeof` suffit : c'est la PRÉSENCE d'un nombre
+      qui est en jeu, pas sa valeur.
+    */
+    expect(typeof er.getCell(rangFa, 3).value).toBe('number');
+
+    /*
+      ET SUR UN SOLDE DE TRÉSORERIE, LA COLONNE E PORTE SA VALEUR, PAS C+D.
+      FX est « Fonds Bailleur en FIN exercice N ». Additionner le solde de fin
+      de N-1 et celui de fin de N donnerait le double de l'encaisse, sur une
+      ligne qui a l'air d'un total comme les autres · voir REFS_DE_SOLDE.
+    */
+    let rangFx = 0;
+    er.eachRow((row, n) => {
+      if (row.getCell(1).value === 'FX') rangFx = n;
+    });
+    expect(typeof er.getCell(rangFx, 5).value).toBe('number');
 
     // Réconciliation · B se lie au tableau emplois-ressources.
     const recon = wb.getWorksheet('Reconciliation tresorerie')!;

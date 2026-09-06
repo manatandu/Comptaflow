@@ -2379,6 +2379,118 @@ export class EcritureService {
   }
 
   /**
+   * BALANCE CUMULÉE DEPUIS L'ORIGINE DU DOSSIER, arrêtée à la fin d'un
+   * exercice. C'est la matière première des colonnes « SOLDE CUMULE DEBUT
+   * EXERCICE N » et « SOLDE CUMULE FIN EXERCICE N » du Tableau emplois
+   * ressources (SYCEBNL, Partie 4 ch. 3, Section 1), qui suit le cycle de vie
+   * d'un PROJET et non celui d'un exercice · un bailleur finance sur trois
+   * ans, et la colonne de l'exercice ne dit rien de ce qu'il a déjà versé.
+   *
+   * DEUX RÈGLES DE LECTURE, ET CHACUNE A DÉJÀ COÛTÉ UN DÉFAUT AILLEURS.
+   *
+   * 1. LES ÉCRITURES DE CLÔTURE SONT EXCLUES. Le report à-nouveau rejoue à
+   *    l'ouverture le solde de clôture de l'exercice précédent : additionné
+   *    aux mouvements qui l'ont produit, il compte une deuxième fois le même
+   *    décaissement, puis une troisième l'année suivante. Un cumul sur trois
+   *    exercices rendrait le triple des fonds reçus, sans qu'aucun état ne se
+   *    déséquilibre · la Note 9 porte la même règle, pour la même raison.
+   * 2. SAUF CELLES DU PREMIER EXERCICE, qui portent le BILAN D'OUVERTURE du
+   *    dossier. Un cabinet qui reprend un projet en cours saisit son solde de
+   *    départ par cette écriture-là : l'exclure amputerait le cumul de tout ce
+   *    qui précède l'entrée dans OmegaX, et le montant manquant serait
+   *    exactement celui que le bailleur a déjà versé. Même règle, même
+   *    justification que `justificatifSolde`.
+   *
+   * D'où la scission rendue : `report*` porte ce bilan d'ouverture, `mouvement*`
+   * l'ensemble des opérations réelles de la fenêtre, et `solde` leur somme ·
+   * c'est-à-dire la situation cumulée à la fin de l'exercice demandé.
+   *
+   * `inclureBrouillard` vaut FAUX par défaut, à l'inverse de `balance()` : le
+   * seul appelant est un état financier.
+   */
+  async balanceCumulee(tenantId: string, exerciceId: string, inclureBrouillard = false) {
+    const exercice = await this.prisma.exercice.findFirstOrThrow({
+      where: { id: exerciceId, tenantId },
+      select: { id: true, dateDebut: true },
+    });
+    const exercices = await this.prisma.exercice.findMany({
+      where: { tenantId, dateDebut: { lte: exercice.dateDebut } },
+      orderBy: { dateDebut: 'asc' },
+      select: { id: true },
+    });
+    const idsFenetre = exercices.map((e) => e.id);
+    const premierExerciceId = idsFenetre[0];
+
+    const filtreEcriture = {
+      tenantId,
+      exerciceId: { in: idsFenetre },
+      ...(inclureBrouillard ? {} : { statut: StatutEcriture.VALIDEE }),
+    };
+
+    const [comptes, ouverture, mouvements] = await Promise.all([
+      this.prisma.compte.findMany({ where: { tenantId }, orderBy: { numero: 'asc' } }),
+      this.prisma.ligneEcriture.groupBy({
+        by: ['compteId'],
+        // Le bilan d'ouverture du dossier, et lui seul (règle 2 ci-dessus).
+        where: { ecriture: { ...filtreEcriture, exerciceId: premierExerciceId, estGenereeParCloture: true } },
+        _sum: { debit: true, credit: true },
+      }),
+      this.prisma.ligneEcriture.groupBy({
+        by: ['compteId'],
+        where: { ecriture: { ...filtreEcriture, estGenereeParCloture: false } },
+        _sum: { debit: true, credit: true },
+      }),
+    ]);
+
+    const parCompte = new Map<string, { debit: number; credit: number; reportDebit: number; reportCredit: number }>();
+    const cumuler = (
+      groupes: Array<{ compteId: string; _sum: { debit: unknown; credit: unknown } }>,
+      estOuverture: boolean,
+    ) => {
+      for (const g of groupes) {
+        const a = parCompte.get(g.compteId) ?? { debit: 0, credit: 0, reportDebit: 0, reportCredit: 0 };
+        const d = Number(g._sum.debit ?? 0);
+        const c = Number(g._sum.credit ?? 0);
+        a.debit += d;
+        a.credit += c;
+        if (estOuverture) {
+          a.reportDebit += d;
+          a.reportCredit += c;
+        }
+        parCompte.set(g.compteId, a);
+      }
+    };
+    cumuler(ouverture, true);
+    cumuler(mouvements, false);
+
+    const lignes = comptes
+      .filter((c) => c.typeCompte !== TypeCompteDetailTotal.TOTAL)
+      .map((c) => {
+        const a = parCompte.get(c.id) ?? { debit: 0, credit: 0, reportDebit: 0, reportCredit: 0 };
+        return {
+          compteId: c.id,
+          numero: c.numero,
+          intitule: c.intitule,
+          classe: c.classe,
+          typeCompte: c.typeCompte,
+          totalDebit: a.debit,
+          totalCredit: a.credit,
+          reportDebit: a.reportDebit,
+          reportCredit: a.reportCredit,
+          // Le bilan d'ouverture fait partie du cumul du projet · il compte
+          // donc dans les mouvements de la fenêtre, en plus d'être exposé à
+          // part pour qui a besoin de le distinguer.
+          mouvementDebit: a.debit,
+          mouvementCredit: a.credit,
+          solde: a.debit - a.credit,
+        };
+      })
+      .filter((l) => l.totalDebit !== 0 || l.totalCredit !== 0);
+
+    return { lignes, totaux: { debit: lignes.reduce((s, l) => s + l.totalDebit, 0), credit: lignes.reduce((s, l) => s + l.totalCredit, 0) } };
+  }
+
+  /**
    * BALANCE AUXILIAIRE · la balance des comptes de tiers, tiers par tiers.
    *
    * Ce n'est pas la balance âgée, et la confusion coûte cher : la balance

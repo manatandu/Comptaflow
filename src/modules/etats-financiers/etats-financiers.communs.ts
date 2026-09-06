@@ -66,6 +66,22 @@ export async function trouverExerciceN1(
   return anterieur?.id ?? null;
 }
 
+/**
+ * LIGNES DE BALANCE CUMULÉES DEPUIS L'ORIGINE, arrêtées à la fin d'un
+ * exercice · voir `EcritureService.balanceCumulee` pour les deux règles de
+ * lecture (report à-nouveau exclu, bilan d'ouverture conservé). Même filtre
+ * de comptes TOTAL que `chargerLignes`, et pour la même raison.
+ */
+export async function chargerLignesCumulees(
+  ecritureService: EcritureService,
+  tenantId: string,
+  exerciceId: string | null,
+): Promise<LigneBalancePourEtat[]> {
+  if (!exerciceId) return [];
+  const { lignes } = await ecritureService.balanceCumulee(tenantId, exerciceId, false);
+  return lignes.filter((l) => l.typeCompte !== TypeCompteDetailTotal.TOTAL);
+}
+
 export async function chargerLignes(
   ecritureService: EcritureService,
   tenantId: string,

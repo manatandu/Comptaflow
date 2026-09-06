@@ -1,4 +1,5 @@
 import { Injectable, PayloadTooLargeException } from '@nestjs/common';
+import { REFS_DE_SOLDE } from '../etats-financiers/correspondance-projet-emplois-ressources';
 import type { PerimetreBalanceAgee } from '../comptabilite/ecriture.service';
 import { JeuEtatsFinanciersSycebnl, Prisma, Referentiel, SystemeComptableSyscohada } from '@prisma/client';
 import * as ExcelJS from 'exceljs';
@@ -3105,8 +3106,18 @@ export class ExportService {
       ws.getCell(r, 1).value = l.ref;
       ws.getCell(r, 2).value = l.libelle;
       if (!TOTAUX_TER[l.ref]) {
+        // La colonne C (solde cumulé début) était LAISSÉE VIDE, avec une note
+        // renvoyant le cabinet à son suivi de projet hors logiciel. Elle est
+        // désormais calculée depuis l'origine du dossier · c'est la colonne
+        // que lit un bailleur dont la convention court sur trois ans.
+        ws.getCell(r, 3).value = l.montantCumulDebut;
         ws.getCell(r, 4).value = l.montant;
-        ws.getCell(r, 5).value = { formula: `C${r}+D${r}` };
+        // « Fin = début + exercice » n'est vrai que d'un FLUX · sur un solde
+        // de trésorerie à une date, la formule doublerait l'encaisse (voir
+        // REFS_DE_SOLDE). La valeur y est portée telle quelle.
+        ws.getCell(r, 5).value = REFS_DE_SOLDE.includes(l.ref)
+          ? l.montantCumulFin
+          : { formula: `C${r}+D${r}` };
       }
       styleLigne(ws, r, 1, 5, NIVEAUX_TER[l.ref] ?? 'normal', [3, 4, 5], 1);
       ws.getRow(r).height = 22;
@@ -3128,8 +3139,9 @@ export class ExportService {
     ligneControleSousEtat(
       ws,
       r,
-      'Les soldes cumulés de début de projet (colonne C, lignes FU à FW et FX à FZ comprises) sont extra-comptables : ' +
-        'à compléter depuis le suivi du projet. La ligne VII contrôle V = VI.',
+      'Colonnes C et E · cumul depuis l\'origine du dossier, écritures de report à-nouveau exclues et bilan ' +
+        "d'ouverture compris. Elles suivent la convention de financement, pas l'exercice comptable. La ligne VII " +
+        'contrôle V = VI, et ce contrôle vaut pour chacune des trois colonnes.',
     );
     largeurs(ws, { A: 7, B: 56, C: 19, D: 17, E: 19 });
     ws.views = [{ state: 'frozen', ySplit: 8, showGridLines: false }];

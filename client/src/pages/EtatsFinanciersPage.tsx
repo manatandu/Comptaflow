@@ -841,19 +841,39 @@ function EtatsSystemeNormalPage() {
           {emploisRessources && (
             <div className="max-w-[1000px] overflow-x-auto">
               <div className="border border-border bg-surface mb-3">
-                <div className="grid grid-cols-[42px_1fr_120px_120px_120px] min-w-[620px] gap-2 px-4 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
+                {/*
+                  LES TROIS COLONNES DE LA MAQUETTE OFFICIELLE, dans son ordre :
+                  « SOLDE CUMULE DEBUT EXERCICE N | EXERCICE N | SOLDE CUMULE
+                  FIN EXERCICE N ». Les deux cumulées suivent la CONVENTION de
+                  financement, pas l'exercice · un bailleur finance sur trois
+                  ans, et la colonne de l'exercice ne dit rien de ce qu'il a
+                  déjà versé. Mouvement brut et correction sont, eux, des
+                  colonnes d'OmegaX : elles montrent comment la colonne de
+                  l'exercice est obtenue, et restent à gauche pour ne pas
+                  s'intercaler dans la maquette.
+                */}
+                <div className="grid grid-cols-[42px_1fr_100px_100px_120px_120px_120px] min-w-[820px] gap-2 px-4 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
                   <span>REF</span>
                   <span>DÉSIGNATION</span>
-                  <span className="text-right">MOUVEMENT BRUT</span>
+                  <span className="text-right">MOUVT BRUT</span>
                   <span className="text-right">CORRECTION</span>
+                  <span className="text-right">CUMUL DÉBUT</span>
                   <span className="text-right">EXERCICE N</span>
+                  <span className="text-right">CUMUL FIN</span>
                 </div>
                 {emploisRessources.lignes.map((l, i) => (
                   <div
                     key={`${l.ref}-${i}`}
                     title={l.comptes.length > 0 ? `Comptes : ${l.comptes.map((c) => c.numero).join(', ')}` : undefined}
-                    className={`grid grid-cols-[42px_1fr_120px_120px_120px] min-w-[620px] gap-2 px-4 py-1 text-[11px] ${
-                      l.estTotal ? 'font-bold bg-surface-alt border-y border-border' : l.montant === 0 ? 'text-text-dim' : ''
+                    className={`grid grid-cols-[42px_1fr_100px_100px_120px_120px_120px] min-w-[820px] gap-2 px-4 py-1 text-[11px] ${
+                      l.estTotal
+                        ? 'font-bold bg-surface-alt border-y border-border'
+                        : // Une ligne à zéro sur l'exercice n'est PAS une ligne
+                          // vide si elle porte un cumul · c'est même la ligne
+                          // que la colonne cumulée existe pour montrer.
+                          l.montant === 0 && l.montantCumulFin === 0
+                          ? 'text-text-dim'
+                          : ''
                     }`}
                   >
                     <span className="font-mono text-[10px] text-text-dim">{l.ref}</span>
@@ -867,7 +887,9 @@ function EtatsSystemeNormalPage() {
                     <span className="font-mono text-right text-text-dim">
                       {l.correction !== undefined && Math.abs(l.correction) > 0.005 ? montant(l.correction) : ''}
                     </span>
+                    <span className="font-mono text-right text-text-dim">{montant(l.montantCumulDebut)}</span>
                     <span className="font-mono text-right">{montant(l.montant)}</span>
+                    <span className="font-mono text-right">{montant(l.montantCumulFin)}</span>
                   </div>
                 ))}
               </div>
@@ -884,6 +906,26 @@ function EtatsSystemeNormalPage() {
                     : `CONTRÔLE OFFICIEL GZ EN ÉCHEC · écart de ${montant(emploisRessources.controle.ecart)} entre l'encaisse reconstituée et les fonds disponibles en fin d'exercice`}
                 </span>
               </div>
+
+              {/*
+                Le même contrôle, sur les deux colonnes cumulées. Il n'est
+                affiché QUE s'il échoue : un cumul qui boucle n'apprend rien de
+                plus que la ligne ci-dessus, et trois bandeaux verts empilés
+                s'apprennent à ne plus être lus. Un cumul qui ne boucle pas,
+                lui, se lirait sans cela comme une simple addition.
+              */}
+              {(!emploisRessources.controle.cumulDebut.boucle || !emploisRessources.controle.cumulFin.boucle) && (
+                <div className="flex items-start gap-2 px-3.5 py-2.5 border border-danger/30 bg-danger-soft mt-2">
+                  <IconCheck width={14} height={14} className="text-danger" />
+                  <span className="font-mono text-[10.5px]">
+                    CONTRÔLE VII EN ÉCHEC SUR UNE COLONNE CUMULÉE ·
+                    {!emploisRessources.controle.cumulDebut.boucle &&
+                      ` cumul début : écart de ${montant(emploisRessources.controle.cumulDebut.ecart)}`}
+                    {!emploisRessources.controle.cumulFin.boucle &&
+                      ` cumul fin : écart de ${montant(emploisRessources.controle.cumulFin.ecart)}`}
+                  </span>
+                </div>
+              )}
 
               {emploisRessources.anomalies.length > 0 && (
                 <div className="border border-warning/40 bg-warning-soft mt-2 px-3.5 py-2.5">
