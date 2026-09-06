@@ -1254,6 +1254,39 @@ techniques (`etats-financiers.communs.ts`, `note-annexe.types.ts` côté
 serveur, `components/NotesAnnexesRendu.tsx` côté client) · aucun poste, aucun
 compte, aucun libellé.
 
+**Exclusion de relance par tiers · ce que l'exclusion NE DOIT PAS faire.** Sage
+l'appelle « Hors rappel/relevé » et en fait une case sur la fiche du tiers. La
+case est la partie facile ; le piège est ce qu'on lui fait faire de trop.
+
+L'EXCLUSION PORTE SUR LE COURRIER, JAMAIS SUR LA CRÉANCE. Retirer la position de
+la liste paraîtrait plus propre et serait faux deux fois. D'abord parce que la
+créance ne disparaît pas quand on renonce à écrire : le tiers reste dû à la
+balance âgée, à la note annexe des créances, au contrôle d'ancienneté, au report
+à-nouveau Détail et au lettrage · un logiciel qui ferait disparaître la ligne
+MINORERAIT les créances, en silence, parce qu'un tiers a été coché. Ensuite
+parce qu'une liste qui ne montre plus l'exclu ne permet plus de LEVER
+l'exclusion, qui se pérennise alors toute seule. La position est donc rendue,
+montrée, dite exclue, sa case décochable désactivée et son niveau suggéré nul :
+rien ne part, rien ne disparaît. Un test le fige des deux côtés, serveur et
+écran, parce que « filtrer la liste » est exactement le raccourci qu'une
+relecture pressée trouverait élégant.
+
+LE MOTIF EST EXIGÉ, LA DATE VIENT DU SERVEUR. Une case seule ne se relit pas :
+six mois plus tard, personne ne sait si ce tiers est en litige chez un avocat,
+sous échéancier négocié, disparu, ou coché par erreur, et le doute finit par se
+résoudre en remettant tout le monde dans le circuit. La date est posée par le
+serveur · venue de l'écran, elle pourrait être antidatée pour masquer un retard
+de relance. Remettre dans le circuit EFFACE motif et date, sans quoi un tiers de
+nouveau relançable porterait les traces d'une exclusion levée, que le prochain
+lecteur prendrait pour elle.
+
+LE REFUS VIT DANS LE SERVICE, PAS SEULEMENT À L'ÉCRAN (§ 6) · et il SAUTE le
+tiers au lieu de lever, sur le modèle de la lettre sans adresse : un lot de vingt
+rappels décidés ne doit pas mourir sur le seul tiers exclu. Le compte rendu
+d'émission le dit, y compris quand la sélection ne portait que des exclus · un
+« Aucun courrier préparé. » tout seul se lirait comme « il n'y avait rien à
+réclamer ».
+
 **Pré-lettrage · « l'une propose, l'autre confirme ».** Le lettrage automatique
 écrivait directement, et le schéma disait pourtant lui-même ce que valent ses
 trouvailles : « un rapprochement par montant est une PRÉSOMPTION DU LOGICIEL »

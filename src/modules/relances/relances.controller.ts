@@ -5,7 +5,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { RelancesService } from './relances.service';
-import { CreerNiveauDto, EmettreRelancesDto, ModifierNiveauDto } from './dto/relances.dto';
+import { CreerNiveauDto, EmettreRelancesDto, HorsRelanceDto, ModifierNiveauDto } from './dto/relances.dto';
 import { RoleUtilisateur, TypeRelance } from '@prisma/client';
 
 @UseGuards(JwtAuthGuard, LicenceGuard, RolesGuard)
@@ -59,6 +59,21 @@ export class RelancesController {
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   async emettre(@CurrentUser() user: AuthenticatedUser, @Body() dto: EmettreRelancesDto) {
     return this.relances.emettre(user.tenantId, user.userId, dto);
+  }
+
+  /**
+   * Exclure un tiers du circuit, ou l'y remettre. Réservé aux mêmes rôles que
+   * l'émission · décider qu'un tiers ne sera plus relancé est une décision de
+   * gestion, pas une consultation.
+   */
+  @Patch('tiers/:tiersId/hors-relance')
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  async horsRelance(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('tiersId') tiersId: string,
+    @Body() dto: HorsRelanceDto,
+  ) {
+    return this.relances.definirHorsRelance(user.tenantId, tiersId, dto);
   }
 
   @Get('historique')

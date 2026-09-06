@@ -1754,6 +1754,15 @@ export interface PositionRelance {
   /** Adhérent (411) ou client-usager (412) · vocabulaire du SYCEBNL. */
   qualite: string;
   montantDu: number;
+  /**
+   * CE TIERS EST HORS DU CIRCUIT DE RELANCE · Sage : « exclure du circuit ».
+   * La position reste RENDUE et affichée : l'exclusion porte sur le courrier,
+   * jamais sur la créance, qui reste due et visible partout où l'ouvert se
+   * recense.
+   */
+  horsRelance: boolean;
+  motifHorsRelance: string | null;
+  horsRelanceDepuis: string | null;
   retardMaxJours: number;
   echeancePlusAncienne: string | null;
   niveauSuggere: number | null;
@@ -1805,6 +1814,8 @@ export interface BilanEmissionRelances {
   niveau: number;
   misesEnFile: number;
   nonRemises: number;
+  /** Désignés dans la sélection, sortis du circuit, donc rien reçu. */
+  exclues: { compteId: string; tiers: string; motif: string }[];
   lettres: LettreRelance[];
 }
 

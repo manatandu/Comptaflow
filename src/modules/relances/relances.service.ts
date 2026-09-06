@@ -167,6 +167,20 @@ export interface PositionRelance {
    */
   tiersEmail: string | null;
   montantDu: number;
+  /**
+   * CE TIERS EST HORS DU CIRCUIT DE RELANCE · Sage : « exclure du circuit ».
+   *
+   * La position reste RENDUE, et c'est le point. Une exclusion qui retirerait
+   * la ligne de la liste laisserait croire que ce tiers ne doit rien, alors
+   * qu'il doit toujours · le comptable verrait une liste courte et
+   * conclurait, à tort, que le poste est apuré. Elle est donc montrée, dite
+   * exclue, et son niveau suggéré est nul : rien ne part, mais rien ne
+   * disparaît non plus.
+   */
+  horsRelance: boolean;
+  /** Pourquoi · exigé à l'exclusion, sans quoi elle ne se relit pas. */
+  motifHorsRelance: string | null;
+  horsRelanceDepuis: string | null;
   /** Retard du plus ancien mouvement non lettré, en jours. */
   retardMaxJours: number;
   echeancePlusAncienne: string | null;
@@ -330,7 +344,21 @@ export class RelancesService {
             id: true,
             numero: true,
             intitule: true,
-            tiersCompte: { include: { tiers: { select: { id: true, nom: true, type: true, email: true } } } },
+            tiersCompte: {
+              include: {
+                tiers: {
+                  select: {
+                    id: true,
+                    nom: true,
+                    type: true,
+                    email: true,
+                    horsRelance: true,
+                    motifHorsRelance: true,
+                    horsRelanceDepuis: true,
+                  },
+                },
+              },
+            },
           },
         },
         ecriture: { select: { date: true, libelle: true } },
@@ -369,6 +397,13 @@ export class RelancesService {
           tiersNom: tiers?.nom ?? null,
           tiersEmail: tiers?.email ?? null,
           qualite: qualiteDuCompte(l.compte.numero, referentiel),
+          // Un compte sans tiers rattaché ne peut pas être exclu · l'exclusion
+          // se pose sur une PERSONNE (« ce fournisseur est en litige »), pas
+          // sur un numéro de compte. Rattacher le tiers est de toute façon le
+          // préalable à toute lettre : sans lui, elle n'a pas de destinataire.
+          horsRelance: tiers?.horsRelance ?? false,
+          motifHorsRelance: tiers?.motifHorsRelance ?? null,
+          horsRelanceDepuis: tiers?.horsRelanceDepuis?.toISOString().slice(0, 10) ?? null,
           montantDu: 0,
           retardMaxJours: 0,
           echeancePlusAncienne: null,
@@ -413,7 +448,11 @@ export class RelancesService {
       // courrier, et on ne saute pas un niveau non plus.
       const atteignables = niveaux.filter((n) => p.retardMaxJours >= n.joursApresEcheance);
       const candidat = atteignables[0];
-      if (candidat && (!p.derniereRelance || candidat.niveau > p.derniereRelance.niveau)) {
+      // Un tiers hors circuit ne reçoit AUCUNE suggestion · suggérer un niveau
+      // puis refuser de l'émettre serait proposer d'une main ce qu'on retire
+      // de l'autre, et la case « tout sélectionner » de l'écran s'appuie sur
+      // cette colonne.
+      if (!p.horsRelance && candidat && (!p.derniereRelance || candidat.niveau > p.derniereRelance.niveau)) {
         p.niveauSuggere = candidat.niveau;
       }
       resultat.push(p);
@@ -495,9 +534,26 @@ export class RelancesService {
       texte: string;
       remise: RemiseLettre;
     }[] = [];
+    const exclues: { compteId: string; tiers: string; motif: string }[] = [];
     for (const compteId of dto.compteIds) {
       const position = positions.find((p) => p.compteId === compteId);
       if (!position) continue;
+      // UN TIERS HORS CIRCUIT NE REÇOIT RIEN, MÊME DÉSIGNÉ EXPRESSÉMENT.
+      //
+      // Le refus est ici et pas seulement à l'écran · la route reste ouverte à
+      // un appel direct (CLAUDE.md § 6), et une lettre partie à un tiers en
+      // litige chez un avocat est exactement ce que l'exclusion existe pour
+      // empêcher. Elle est SAUTÉE, pas levée : un lot de vingt rappels décidés
+      // ne doit pas mourir sur le seul tiers exclu, et le compte rendu dit
+      // lesquels n'ont rien reçu.
+      if (position.horsRelance) {
+        exclues.push({
+          compteId,
+          tiers: position.tiersNom ?? position.numero,
+          motif: position.motifHorsRelance ?? 'Tiers exclu du circuit de relance.',
+        });
+        continue;
+      }
       // Sans tiers rattaché au compte, on ne prétend pas connaître un nom :
       // le courrier nomme le compte, et la lacune se voit au lieu de
       // produire un « Cher Adhérents, » qui ne s'adresse à personne.
@@ -543,6 +599,9 @@ export class RelancesService {
       // que vingt tiers ont été touchés.
       misesEnFile: lettres.filter((l) => l.remise.statut !== null).length,
       nonRemises: lettres.filter((l) => l.remise.statut === null).length,
+      // Ceux qui étaient dans la sélection et n'ont rien reçu parce que le
+      // dossier les a sortis du circuit · les taire ferait croire à un envoi.
+      exclues,
       lettres,
     };
   }
@@ -604,6 +663,56 @@ export class RelancesService {
             : "La file a refusé ce message · la lettre est enregistrée, elle n'est pas partie.",
       };
     }
+  }
+
+  /**
+   * EXCLURE UN TIERS DU CIRCUIT, OU L'Y REMETTRE · Sage, Rappels et relevés :
+   * « Actions disponibles : exclure du circuit ».
+   *
+   * CE QUE L'EXCLUSION NE FAIT PAS, et c'est le plus important : elle ne touche
+   * à RIEN de ce qui recense l'ouvert. La créance reste entière à la balance
+   * âgée, à la note annexe des créances, au contrôle d'ancienneté, au report
+   * à-nouveau Détail et au lettrage. Un logiciel qui ferait disparaître la
+   * ligne des états MINORERAIT les créances, et le ferait en silence · l'entité
+   * publierait alors un actif inférieur au sien parce qu'un tiers a été coché.
+   * L'exclusion porte sur le COURRIER, pas sur la dette.
+   *
+   * LE MOTIF EST EXIGÉ. Une case seule ne se relit pas : six mois plus tard,
+   * personne ne sait si ce tiers est en litige chez un avocat, sous échéancier
+   * négocié, décédé, ou coché par erreur, et le doute finit par se résoudre en
+   * remettant tout le monde dans le circuit. La date est posée par le serveur ·
+   * une exclusion antidatée par l'écran ne servirait qu'à masquer un retard de
+   * relance.
+   */
+  async definirHorsRelance(
+    tenantId: string,
+    tiersId: string,
+    params: { horsRelance: boolean; motif?: string },
+  ) {
+    const tiers = await this.prisma.tiers.findFirst({ where: { id: tiersId, tenantId } });
+    if (!tiers) throw new NotFoundException('Tiers introuvable pour ce dossier');
+
+    if (!params.horsRelance) {
+      // La remise dans le circuit EFFACE le motif et la date · les garder
+      // laisserait un tiers actif porter les traces d'une exclusion levée, que
+      // le prochain lecteur prendrait pour l'exclusion elle-même.
+      return this.prisma.tiers.update({
+        where: { id: tiersId },
+        data: { horsRelance: false, motifHorsRelance: null, horsRelanceDepuis: null },
+      });
+    }
+
+    const motif = (params.motif ?? '').trim();
+    if (motif.length === 0) {
+      throw new BadRequestException(
+        "Dites pourquoi ce tiers sort du circuit de relance (litige, échéancier convenu, tiers disparu). " +
+          "Une exclusion sans motif ne se relit pas : au prochain examen, personne ne saura la lever ni la maintenir.",
+      );
+    }
+    return this.prisma.tiers.update({
+      where: { id: tiersId },
+      data: { horsRelance: true, motifHorsRelance: motif, horsRelanceDepuis: new Date() },
+    });
   }
 
   async historique(tenantId: string, compteId?: string) {

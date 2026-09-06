@@ -56,20 +56,41 @@ export function libelleRemise(remise: RemiseCourriel): string {
  * phrase. Ce qu'elle taisait, c'est combien sont parties à quelqu'un. Les
  * deux nombres sont donc dits, et le second ne se déduit pas du premier.
  */
-export function phraseEmission(bilan: { emises: number; misesEnFile: number; nonRemises: number }): string {
+export function phraseEmission(bilan: {
+  emises: number;
+  misesEnFile: number;
+  nonRemises: number;
+  /**
+   * Tiers de la sélection sortis du circuit · aucun courrier ne leur a été
+   * écrit. La LISTE et non un compte, telle que le serveur la rend, pour que
+   * l'appelant passe son bilan tel quel sans le recomposer.
+   */
+  exclues?: { tiers: string }[];
+}): string {
+  // LE HORS-CIRCUIT SE DIT DANS LA MÊME PHRASE, et surtout dans le cas où la
+  // sélection ne portait QUE des exclus : « Aucun courrier préparé. » tout
+  // seul se lirait comme « il n'y avait rien à réclamer », alors que ces
+  // tiers doivent toujours et que le silence est une décision du dossier.
+  const exclues = bilan.exclues?.length ?? 0;
+  const horsCircuit =
+    exclues === 0
+      ? ''
+      : exclues === 1
+        ? " 1 tiers de la sélection est hors du circuit de relance · il n'a rien reçu, et il doit toujours."
+        : ` ${exclues} tiers de la sélection sont hors du circuit de relance · ils n'ont rien reçu, et ils doivent toujours.`;
   const lettres = bilan.emises <= 1 ? `${bilan.emises} courrier préparé` : `${bilan.emises} courriers préparés`;
-  if (bilan.emises === 0) return 'Aucun courrier préparé.';
+  if (bilan.emises === 0) return `Aucun courrier préparé.${horsCircuit}`;
   if (bilan.nonRemises === 0) {
-    return `${lettres} · tous mis en file de départ.`;
+    return `${lettres} · tous mis en file de départ.${horsCircuit}`;
   }
   if (bilan.misesEnFile === 0) {
-    return `${lettres} · AUCUN n'a de destinataire, ils sont enregistrés et s'impriment, ils ne sont partis à personne.`;
+    return `${lettres} · AUCUN n'a de destinataire, ils sont enregistrés et s'impriment, ils ne sont partis à personne.${horsCircuit}`;
   }
   const restants =
     bilan.nonRemises === 1
       ? "1 n'a pas de destinataire"
       : `${bilan.nonRemises} n'ont pas de destinataire`;
-  return `${lettres} · ${bilan.misesEnFile} mis en file de départ, ${restants} et ne sont partis à personne.`;
+  return `${lettres} · ${bilan.misesEnFile} mis en file de départ, ${restants} et ne sont partis à personne.${horsCircuit}`;
 }
 
 /**

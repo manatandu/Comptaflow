@@ -61,6 +61,9 @@ export function RelancesPage() {
   const [erreur, setErreur] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
+  // Le motif saisi pour l'exclusion en cours, par compte · un seul champ
+  // partagé mêlerait le motif d'un tiers à celui d'un autre.
+  const [motifs, setMotifs] = useState<Record<string, string>>({});
 
   const peutEcrire = estAdmin || utilisateur?.role === 'COMPTABLE';
 
@@ -120,6 +123,24 @@ export function RelancesPage() {
       await charger();
     } catch (e) {
       setErreur(e instanceof ApiError ? e.message : 'Émission impossible');
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
+  const definirHorsRelance = async (tiersId: string, horsRelance: boolean, motif?: string) => {
+    setEnvoi(true);
+    setErreur(null);
+    try {
+      await api.patch(`/relances/tiers/${tiersId}/hors-relance`, { horsRelance, motif });
+      setInfo(
+        horsRelance
+          ? "Tiers sorti du circuit de relance · sa créance reste due, et elle reste dans tous les états qui recensent l'ouvert."
+          : 'Tiers remis dans le circuit de relance.',
+      );
+      await charger();
+    } catch (e) {
+      setErreur(e instanceof ApiError ? e.message : 'Modification impossible');
     } finally {
       setEnvoi(false);
     }
@@ -216,8 +237,19 @@ export function RelancesPage() {
             {peutEcrire && positions && positions.length > 0 && (
               <input
                 type="checkbox"
-                checked={selection.size > 0 && selection.size === positions.length}
-                onChange={(e) => setSelection(e.target.checked ? new Set(positions.map((p) => p.compteId)) : new Set())}
+                // « Tout sélectionner » NE PREND JAMAIS un tiers hors
+                // circuit · le cocher pour se le voir refuser à l'émission
+                // serait proposer d'une main ce qu'on retire de l'autre.
+                checked={
+                  selection.size > 0 && selection.size === positions.filter((p) => !p.horsRelance).length
+                }
+                onChange={(e) =>
+                  setSelection(
+                    e.target.checked
+                      ? new Set(positions.filter((p) => !p.horsRelance).map((p) => p.compteId))
+                      : new Set(),
+                  )
+                }
               />
             )}
           </span>
@@ -239,7 +271,13 @@ export function RelancesPage() {
             >
               <span>
                 {peutEcrire && (
-                  <input type="checkbox" checked={selection.has(p.compteId)} onChange={() => basculer(p.compteId)} />
+                  <input
+                    type="checkbox"
+                    disabled={p.horsRelance}
+                    title={p.horsRelance ? 'Tiers hors du circuit de relance' : undefined}
+                    checked={selection.has(p.compteId)}
+                    onChange={() => basculer(p.compteId)}
+                  />
                 )}
               </span>
               <span className="font-mono">{p.numero}</span>
@@ -264,6 +302,17 @@ export function RelancesPage() {
                     tiers sans adresse ne partira à personne. */}
                 {p.tiersId && !p.tiersEmail && (
                   <span className="ml-1 text-[9.5px] text-warning font-semibold">sans adresse</span>
+                )}
+                {/* L'EXCLUSION SE VOIT, elle ne fait pas disparaître la ligne ·
+                    un tiers hors circuit doit toujours, et une liste qui le
+                    cacherait laisserait croire le poste apuré. */}
+                {p.horsRelance && (
+                  <span
+                    className="ml-1 text-[9.5px] text-text-dim font-semibold border border-border px-1"
+                    title={`Hors circuit de relance${p.horsRelanceDepuis ? ` depuis le ${new Date(p.horsRelanceDepuis).toLocaleDateString('fr-FR')}` : ''} · ${p.motifHorsRelance ?? ''}`}
+                  >
+                    hors circuit
+                  </span>
                 )}
               </button>
               <span className="text-[10.5px] text-text-dim">{p.qualite}</span>
@@ -301,6 +350,59 @@ export function RelancesPage() {
                   <span />
                 </div>
               ))}
+            {/* ----------------------------------------------------------------
+                EXCLURE DU CIRCUIT, OU Y REMETTRE · l'action vit dans le détail
+                déplié et non dans la ligne : c'est une décision de gestion, pas
+                un tri d'affichage, et elle demande d'avoir lu ce que le tiers
+                doit avant de renoncer à le lui rappeler.
+                ---------------------------------------------------------------- */}
+            {deplie.has(p.compteId) && peutEcrire && p.tiersId && (
+              <div className="px-3 py-2 bg-chrome-alt/50 border-b border-border/30 flex items-center gap-2 flex-wrap">
+                {p.horsRelance ? (
+                  <>
+                    <span className="text-[10.5px] text-text-dim">
+                      Hors circuit
+                      {p.horsRelanceDepuis
+                        ? ` depuis le ${new Date(p.horsRelanceDepuis).toLocaleDateString('fr-FR')}`
+                        : ''}
+                      {' · '}
+                      <span className="italic">{p.motifHorsRelance}</span>
+                    </span>
+                    <button
+                      type="button"
+                      disabled={envoi}
+                      onClick={() => definirHorsRelance(p.tiersId!, false)}
+                      className="border border-border-dark bg-chrome hover:bg-surface px-2 py-1 text-[10.5px] disabled:opacity-50"
+                    >
+                      Remettre dans le circuit
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <input
+                      value={motifs[p.compteId] ?? ''}
+                      onChange={(e) => setMotifs((m) => ({ ...m, [p.compteId]: e.target.value }))}
+                      placeholder="Pourquoi ce tiers sort du circuit (litige, échéancier convenu…)"
+                      className="border border-border-dark bg-surface px-2 py-1 text-[10.5px] flex-1 min-w-[220px]"
+                    />
+                    {/* LE MOTIF EST EXIGÉ, ici comme au serveur · une case
+                        seule ne se relit pas, et au prochain examen personne
+                        ne saura lever ni maintenir l'exclusion. */}
+                    <button
+                      type="button"
+                      disabled={envoi || (motifs[p.compteId] ?? '').trim().length === 0}
+                      onClick={() => definirHorsRelance(p.tiersId!, true, motifs[p.compteId])}
+                      className="border border-border-dark bg-chrome hover:bg-surface px-2 py-1 text-[10.5px] disabled:opacity-40"
+                    >
+                      Exclure du circuit
+                    </button>
+                  </>
+                )}
+                <span className="text-[10px] text-text-dim">
+                  L'exclusion ne porte que sur le COURRIER · la créance reste due et visible partout ailleurs.
+                </span>
+              </div>
+            )}
           </div>
         ))}
 

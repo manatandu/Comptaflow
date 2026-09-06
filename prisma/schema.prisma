@@ -1652,6 +1652,23 @@ model Tiers {
   numeroImpot  String?
   contact      String? // personne à qui la lettre s'adresse
 
+  // HORS RAPPEL · Sage l'appelle « Hors rappel/relevé » et en fait une simple
+  // case sur la fiche du tiers. Une case seule ne suffit pas ici, pour deux
+  // raisons.
+  //
+  // 1. ELLE NE RETIRE RIEN DE LA CRÉANCE. Le tiers exclu doit toujours
+  //    apparaître à la balance âgée, à la note annexe des créances, au contrôle
+  //    d'ancienneté et au report à-nouveau Détail · l'exclusion porte sur le
+  //    COURRIER, pas sur ce qui est dû. Une exclusion qui ferait disparaître la
+  //    ligne des états minorerait les créances, et le ferait en silence.
+  // 2. UNE EXCLUSION SANS MOTIF NI DATE NE SE RELIT PAS. Six mois plus tard,
+  //    personne ne sait plus si ce tiers est en litige chez un avocat, sous
+  //    échéancier négocié, décédé, ou coché par erreur. `RelancesService` exige
+  //    donc un motif pour exclure, et pose la date lui-même.
+  horsRelance       Boolean   @default(false)
+  motifHorsRelance  String?
+  horsRelanceDepuis DateTime?
+
   // CE TIERS EST UNE AUTRE CELLULE DU MÊME GROUPE.
   //
   // Un groupe d'établissements est UNE SEULE personne morale tenue en

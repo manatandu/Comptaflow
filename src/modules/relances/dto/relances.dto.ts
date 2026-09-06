@@ -52,3 +52,18 @@ export class EmettreRelancesDto {
   @IsDateString()
   dateReference?: string;
 }
+
+/**
+ * Sortir un tiers du circuit de relance, ou l'y remettre · Sage, Rappels et
+ * relevés : « exclure du circuit ». Le motif n'est pas exigé ICI mais dans le
+ * service : il ne l'est que pour EXCLURE, et une remise dans le circuit n'a
+ * rien à justifier.
+ */
+export class HorsRelanceDto {
+  @IsBoolean()
+  horsRelance!: boolean;
+
+  @IsOptional()
+  @IsString()
+  motif?: string;
+}

@@ -55,9 +55,58 @@ describe("Le compte rendu d'émission des relances", () => {
     expect(phraseEmission({ emises: 0, misesEnFile: 0, nonRemises: 0 })).toBe('Aucun courrier préparé.');
   });
 
+  it("dit les tiers HORS CIRCUIT, y compris quand ils sont les seuls de la sélection", () => {
+    // Le cas qui compte : « Aucun courrier préparé. » tout seul se lirait
+    // comme « il n'y avait rien à réclamer », alors que ces tiers doivent
+    // toujours et que le silence est une décision du dossier.
+    const seul = phraseEmission({ emises: 0, misesEnFile: 0, nonRemises: 0, exclues: [{ tiers: 'SARL Amani' }] });
+    expect(seul).toContain('Aucun courrier préparé.');
+    expect(seul).toContain('1 tiers de la sélection est hors du circuit');
+    expect(seul).toContain('il doit toujours');
+
+    const melange = phraseEmission({
+      emises: 3,
+      misesEnFile: 3,
+      nonRemises: 0,
+      exclues: [{ tiers: 'A' }, { tiers: 'B' }],
+    });
+    expect(melange).toContain('3 courriers préparés');
+    expect(melange).toContain('2 tiers de la sélection sont hors du circuit');
+  });
+
   it("est bien la phrase que l'écran affiche, et non un texte oublié dans un module", () => {
     expect(relances).toContain('phraseEmission(r)');
     expect(relances).not.toContain('courrier(s) préparé(s)');
+  });
+});
+
+/**
+ * L'EXCLUSION DU CIRCUIT, VUE DE L'ÉCRAN.
+ *
+ * Le serveur refuse d'écrire à un tiers exclu (hors-relance.spec.ts). Ce qui
+ * se joue ici est autre chose : que l'écran ne PROPOSE pas ce que le serveur
+ * refusera, et surtout qu'il ne fasse pas DISPARAÎTRE la position. Une liste
+ * qui cache l'exclu laisse croire le poste apuré, et rend l'exclusion
+ * impossible à lever.
+ */
+describe("Les tiers hors du circuit de relance, à l'écran", () => {
+  it("« tout sélectionner » ne prend JAMAIS un tiers hors circuit", () => {
+    expect(relances).toContain('positions.filter((p) => !p.horsRelance).map((p) => p.compteId)');
+    // Et le compte de la case « tout » se prend sur le même sous-ensemble ·
+    // sinon elle ne se coche jamais dès qu'un exclu existe.
+    expect(relances).toContain('selection.size === positions.filter((p) => !p.horsRelance).length');
+  });
+
+  it('la case de ligne est désactivée pour un exclu, et la ligne reste affichée', () => {
+    expect(relances).toContain('disabled={p.horsRelance}');
+    // Ce qui serait le vrai défaut : filtrer la liste au lieu de marquer la
+    // ligne. Aucun filtre sur `horsRelance` ne doit exister à l'affichage.
+    expect(relances).not.toContain('positions?.filter((p) => !p.horsRelance).map');
+    expect(relances).toContain('hors circuit');
+  });
+
+  it("l'écran dit que l'exclusion ne porte que sur le courrier", () => {
+    expect(relances).toContain('la créance reste due et visible partout ailleurs');
   });
 });
 
