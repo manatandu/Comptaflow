@@ -1026,6 +1026,33 @@ describe('Contribution nationale · la base légale qui ne se vérifiait pas', (
       expect(n.baseLegale).toMatch(/[Aa]rticle|[Aa]rt\.|loi|Loi|arrêté|Arrêté|décret|Décret|Ordonnance|conventions/);
     }
   });
+
+  it("la retenue locative rattache chaque taux au texte qui le PORTE, pas à celui qui le modifie", () => {
+    // Le contrôle qui aurait attrapé la citation fautive : le décret-loi
+    // n° 109/2000 est un texte MODIFICATIF. Il ne porte ni le 20 % (loi
+    // n° 83/004, art. 11) ni le 22 % (ordonnance-loi n° 69/009, art. 11), et la
+    // base légale l'annonçait pourtant comme la source du premier. Un lecteur
+    // envoyé au 109/2000 n'y trouverait aucun des deux articles 11.
+    const b = NATURES_RETENUES.find((n) => n.cle === 'retenueLocative')!.baseLegale;
+    expect(b).toContain('20 %');
+    expect(b).toContain("loi n° 83/004 du 23 février 1983");
+    expect(b).toContain('22 %');
+    expect(b).toContain("ordonnance-loi n° 69/009");
+    // Le modificatif reste nommé · il est utile pour retrouver la rédaction en
+    // vigueur. Ce qui est interdit est qu'il tienne la place du texte porteur.
+    expect(b).toContain('109/2000');
+    expect(b).not.toContain('du régime de retenue, décret-loi');
+  });
+
+  it("l'abrogation du 69/009 est dite PARTIELLE là où le logiciel s'appuie sur ce qui survit", () => {
+    // La loi n° 23/053, art. 152 point 2, n'abroge que les titres III et IV.
+    // L'impôt sur les revenus locatifs est au titre II · il survit, et c'est
+    // ce qui rend cette ligne encore due. Sans la mention, un relecteur qui
+    // sait le 69/009 « abrogé » supprimerait une retenue en vigueur.
+    const b = NATURES_RETENUES.find((n) => n.cle === 'retenueLocative')!.baseLegale;
+    expect(b).toContain('titre II');
+    expect(b).toContain('titres III et IV');
+  });
 });
 
 /*

@@ -1023,6 +1023,31 @@ SYCEBNL ; le 1062 est LIBRE d'un côté, « AVEC DROIT DE REPRISE » de l'autre.
 La conséquence est fiscale, le prélèvement libératoire de l'art. 129 différant
 selon légale ou libre.
 
+**Textes abrogés · le balayage du 2026-09-06, et le seul défaut qu'il a trouvé.**
+Les trente-deux textes cités dans `src/`, `client/src/`, `prisma/` et ce fichier
+ont été confrontés aux clauses d'abrogation. L'art. 152 de la loi n° 23/053 en
+abroge quatre : l'O.-L. n° 69/007, les TITRES III ET IV de l'O.-L. n° 69/009,
+l'O.-L. n° 89/017 et l'O.-L. n° 13/006. Le 89/017 et le 69/007 ne sont cités
+qu'en tant qu'abrogés, le 13/006 pas du tout, et les deux citations de l'art. 42
+et 42 bis du 69/009 (`parametres-fiscaux.ts`) nomment expressément le régime
+mort. Aucun texte abrogé n'est présenté comme vivant.
+
+CE QUI L'ÉTAIT, C'EST UNE CITATION · la retenue sur les revenus locatifs
+rattachait son taux de 20 % au « décret-loi n° 109/2000 », qui est un texte
+MODIFICATIF et ne porte aucun des deux articles 11 en jeu : le 20 % appartient à
+l'art. 11 de la loi n° 83/004 du 23 février 1983, le 22 % à l'art. 11 de l'O.-L.
+n° 69/009. Sixième occurrence du piège « un numéro, deux sens » après le 192, le
+4181, le 1061/1062, le 38/37 et le 397 · cette fois sur un numéro d'ARTICLE.
+
+ET L'ABROGATION DU 69/009 EST PARTIELLE, ce que la ligne dit désormais. Son
+TITRE II porte l'impôt sur les revenus locatifs et SURVIT · la loi n° 23/053
+exclut d'ailleurs ces revenus des catégories de l'IRPP. Un relecteur qui sait
+le 69/009 « abrogé » supprimerait une retenue en vigueur ; deux tests de
+`retenues.spec.ts` l'en empêchent. À signaler à Manasse côté compétences : le
+fichier `ol-69-009-1969-impots-cedulaires-texte-origine.md` annonce en tête
+« Statut : ABROGÉ » pour l'ordonnance entière, là où l'art. 152 point 2 ne vise
+que « les dispositions des titres III et IV ».
+
 **Excédent d'inventaire · l'art. 43 ne régit pas la caisse.** Le refus de
 comptabiliser un excédent tient, mais sa citation était fausse sur un compte
 57, et corrigée le 2026-09-06. L'art. 43 oppose la « valeur d'inventaire » à

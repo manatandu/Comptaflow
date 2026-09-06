@@ -247,8 +247,28 @@ export const NATURES_RETENUES: NatureRetenue[] = [
     echeance: 'Dans les dix jours du mois suivant le paiement du loyer',
     chargeSousConditionArticle20:
       "Les loyers versés au bailleur, sur lesquels la retenue de 20 % est opérée (comptes 622 et 6221 · locations et charges locatives).",
+    // TROIS TEXTES, ET LE PLUS FACILE À CONFONDRE EST LE MODIFICATIF. Le
+    // décret-loi n° 109/2000 ne PORTE aucun de ces deux articles 11 · il les
+    // MODIFIE. Le 20 % appartient à l'art. 11 de la loi n° 83/004, le 22 % à
+    // l'art. 11 de l'ordonnance-loi n° 69/009 · deux textes différents, le même
+    // numéro d'article, et un lecteur envoyé au 109/2000 n'y trouverait ni l'un
+    // ni l'autre. Sixième occurrence du piège « un numéro, deux sens », cette
+    // fois sur un numéro d'ARTICLE et non de compte.
+    //
+    // ET LE 69/009 N'EST ABROGÉ QU'À MOITIÉ · l'art. 152 point 2 de la loi
+    // n° 23/053 ne vise que « les dispositions des titres III et IV » (impôt
+    // mobilier et impôt professionnel). Le titre II, qui porte l'impôt sur les
+    // revenus locatifs, survit, et la loi n° 23/053 exclut d'ailleurs ces
+    // revenus des catégories de l'IRPP. Le dire ici plutôt que de laisser un
+    // relecteur conclure de l'abrogation partielle que la ligne est morte.
     baseLegale:
-      "Article 57 de la loi n° 004/2003 portant réforme des procédures fiscales. Le taux de la retenue est de 20 % du loyer brut (article 11 du régime de retenue, décret-loi n° 109/2000) ; c'est un ACOMPTE, imputable sur l'impôt sur les revenus locatifs de 22 % dû par le bailleur (article 11 de l'ordonnance-loi n° 69/009). Les deux taux ne se confondent pas.",
+      "Article 57 de la loi n° 004/2003 portant réforme des procédures fiscales, intégralement remplacé par la loi " +
+      "n° 23/052 du 30 novembre 2023, en vigueur depuis le 1er janvier 2026 : « La retenue sur les revenus locatifs est " +
+      "reversée dans les dix jours du mois qui suit celui du paiement du loyer. » Le taux de la retenue est de 20 % du " +
+      "loyer brut (article 11 de la loi n° 83/004 du 23 février 1983, tel que modifié et complété par le décret-loi " +
+      "n° 109/2000 du 19 juillet 2000) ; c'est un ACOMPTE, imputable sur l'impôt sur les revenus locatifs de 22 % dû par " +
+      "le bailleur (article 11 de l'ordonnance-loi n° 69/009, titre II, que la loi n° 23/053 n'abroge pas · son art. 152 " +
+      "point 2 ne vise que les titres III et IV). Les deux taux ne se confondent pas.",
   },
   {
     cle: 'prestatairesNonResidents',
