@@ -386,3 +386,55 @@ describe('résumé pour le livre d’inventaire · AUDCIF art. 19 et SYCEBNL art
     });
   });
 });
+
+/**
+ * LE MOTIF DU REFUS D'EXCÉDENT · corrigé le 2026-09-06.
+ *
+ * Le refus lui-même était juste, sa citation ne l'était pas sur une caisse.
+ * L'art. 43 oppose la « valeur d'inventaire » à la « valeur d'entrée » DU
+ * MÊME BIEN et débouche sur un amortissement ou une dépréciation : il traite
+ * d'une variation de VALEUR. Un excédent de caisse est une variation de
+ * QUANTITÉ, et la fiche du compte 57 dit l'inverse dans les deux plans · « le
+ * solde du compte caisse doit toujours correspondre exactement à la somme
+ * disponible réellement ».
+ *
+ * Le défaut visé ici est le plus discret du § 10 bis de CLAUDE.md : un
+ * message plausible, sourcé, et adossé au mauvais texte. Personne ne l'aurait
+ * jamais su.
+ */
+describe('Inventaire · le motif du refus d’excédent dépend du compte', () => {
+  it('sur un stock, l’art. 43 s’applique et il est cité', () => {
+    const m = InventaireService.motifRefusExcedent('31100000');
+    expect(m).toContain('art. 43');
+    expect(m).toContain("valeur d'entrée");
+  });
+
+  it('sur une immobilisation aussi', () => {
+    expect(InventaireService.motifRefusExcedent('24410000')).toContain('art. 43');
+  });
+
+  it('sur une CAISSE, l’art. 43 n’est pas invoqué comme fondement du refus', () => {
+    const m = InventaireService.motifRefusExcedent('57110000');
+    expect(m).toContain('ne tranche pas');
+    expect(m).toContain('variation de QUANTITÉ');
+  });
+
+  it('sur une caisse, le message cite la fiche du compte 57, qui dit l’inverse', () => {
+    const m = InventaireService.motifRefusExcedent('57110000');
+    expect(m).toContain('somme disponible réellement');
+  });
+
+  it('et il dit pourquoi le refus tient quand même · aucun compte d’écart de caisse dans les deux plans', () => {
+    const m = InventaireService.motifRefusExcedent('57110000');
+    expect(m).toContain('écart de');
+    expect(m).toContain('commission');
+  });
+
+  it('le 58 (virements internes) n’est pas une caisse · seul le 57 bascule', () => {
+    // Le préfixe est '57' et non '5' : le 52 banque, le 53 chèques postaux et
+    // le 58 virements internes ne sont pas des espèces comptées, et la fiche
+    // du compte 57 ne les vise pas.
+    expect(InventaireService.motifRefusExcedent('58500000')).toContain('art. 43');
+    expect(InventaireService.motifRefusExcedent('52100000')).toContain('art. 43');
+  });
+});

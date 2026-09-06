@@ -50,6 +50,26 @@ import {
  *     l'opération d'inventaire · il ne devient pas un produit. C'est le refus
  *     le plus important du fichier, parce qu'une écriture d'excédent
  *     s'équilibre parfaitement et gonfle le résultat sans que rien ne bronche.
+ *
+ * ET UNE CORRECTION DU 2026-09-06, SUR CE TROISIÈME REFUS : L'ART. 43 NE
+ * RÉGIT PAS LA CAISSE. Il oppose la « valeur d'inventaire » à la « valeur
+ * d'entrée » DU MÊME BIEN, et ses deux branches débouchent sur un
+ * amortissement ou une dépréciation · il traite d'une variation de VALEUR.
+ * Un excédent de caisse n'est pas une monnaie qui vaut plus, c'est un billet
+ * de plus : une variation de QUANTITÉ. Et la fiche du compte 57 dit
+ * l'inverse dans les DEUX plans (AUDCIF Titre VII et SYCEBNL Partie 2 ch. 3,
+ * même phrase) : « Le solde du compte caisse doit TOUJOURS correspondre
+ * EXACTEMENT à la somme disponible réellement. »
+ *
+ * Les deux textes pointent donc dans des directions opposées sur les
+ * espèces, et AUCUNE source lue ne dit ce qu'il faut faire d'un excédent de
+ * caisse · ni produit, ni dette, ni compte d'attente, et aucun plan ne porte
+ * de compte « écart de caisse ». Le module garde donc son refus de poster
+ * d'office, qui reste juste, mais il cesse de le motiver par un article qui
+ * ne s'applique pas : sur un compte 57, il NOMME LA TENSION et laisse la
+ * commission trancher. Citer l'art. 43 sur une caisse, c'était fabriquer une
+ * règle · le défaut du § 10 bis de CLAUDE.md dans sa forme la plus discrète,
+ * un message plausible et sourcé sur le mauvais texte.
  */
 @Injectable()
 export class InventaireService {
@@ -75,6 +95,44 @@ export class InventaireService {
    * applicable. C'est la même discipline que pour le livre d'inventaire
    * (art. 19 quatrième tiret, écarté, contre art. 14 SYCEBNL).
    */
+  /**
+   * LE MOTIF DU REFUS D'EXCÉDENT, ET IL N'EST PAS LE MÊME SUR UNE CAISSE.
+   *
+   * Sur un compte de stock ou d'immobilisation, l'art. 43 s'applique
+   * directement : la valeur d'inventaire supérieure à la valeur d'entrée ne
+   * se comptabilise pas, la valeur d'entrée est maintenue.
+   *
+   * Sur un compte 57, il ne s'applique PAS. L'art. 43 oppose deux VALEURS du
+   * même bien et débouche sur un amortissement ou une dépréciation ; un
+   * excédent d'espèces est une variation de QUANTITÉ, à laquelle ni l'un ni
+   * l'autre ne convient. Et la fiche du compte 57 dit l'inverse, dans les
+   * deux plans, mot pour mot : « Le solde du compte caisse doit toujours
+   * correspondre exactement à la somme disponible réellement. »
+   *
+   * Le refus de poster d'office reste, parce qu'aucune source lue ne dit ce
+   * qu'il faut CRÉDITER · aucun des deux plans ne porte de compte « écart de
+   * caisse », et le corpus ne traite l'excédent d'espèces nulle part. Mais le
+   * message nomme la tension au lieu d'invoquer un article qui ne régit pas
+   * le cas.
+   */
+  static motifRefusExcedent(numeroCompte: string): string {
+    if (numeroCompte.startsWith('57')) {
+      return (
+        "Sur une CAISSE, l'AUDCIF art. 43 ne tranche pas : il oppose deux VALEURS du même bien et débouche sur " +
+        "un amortissement ou une dépréciation, là où un excédent d'espèces est une variation de QUANTITÉ. La " +
+        'fiche du compte 57 dit même l\'inverse, dans les deux plans : « le solde du compte caisse doit toujours ' +
+        'correspondre exactement à la somme disponible réellement ». Aucune source ne dit pour autant ce qu\'il ' +
+        "faut créditer · ni produit, ni dette, ni compte d'attente, et aucun plan ne porte de compte « écart de " +
+        "caisse ». La décision et la contrepartie appartiennent donc à la commission (CPCC, étape 5 : l'excédent " +
+        "s'explique devant la sous-commission, qui propose à la commission principale)."
+      );
+    }
+    return (
+      "AUDCIF art. 43 : « si la valeur d'inventaire est supérieure à la valeur d'entrée, cette dernière est " +
+      'maintenue dans les comptes, sauf cas expressément prévus par la législation ».'
+    );
+  }
+
   static sanctionApplicable(referentiel: Referentiel): { texte: string; article: string } {
     return referentiel === Referentiel.SYCEBNL
       ? {
@@ -376,8 +434,8 @@ export class InventaireService {
     if (dto.decision === DecisionEcartInventaire.A_REDRESSER && montant > 0) {
       throw new BadRequestException(
         `L'écart du compte ${ecart.compte.numero} est un EXCÉDENT (+${montant}) · il ne se redresse pas. ` +
-          "AUDCIF art. 43 : « si la valeur d'inventaire est supérieure à la valeur d'entrée, cette dernière est maintenue dans les comptes, sauf cas expressément prévus par la législation ». " +
-          'Le classer en EXCEDENT_NON_COMPTABILISE, ou le renvoyer à la commission principale.',
+          InventaireService.motifRefusExcedent(ecart.compte.numero) +
+          ' Le classer en EXCEDENT_NON_COMPTABILISE, ou le renvoyer à la commission principale.',
       );
     }
     if (dto.decision === DecisionEcartInventaire.EXCEDENT_NON_COMPTABILISE && montant < 0) {

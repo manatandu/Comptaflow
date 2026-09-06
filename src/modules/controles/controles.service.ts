@@ -140,6 +140,50 @@ export interface ControleCaisse {
  */
 const ENTREE_EN_VIGUEUR_AM_007_2025 = new Date('2026-01-01T00:00:00.000Z');
 
+/**
+ * ENTRÉE EN VIGUEUR DE LA LOI n° 23/053, et elle commande deux contrôles.
+ *
+ * Art. 153 : « La présente Loi entre en vigueur après vingt-quatre mois à
+ * compter du 31 décembre de l'année de sa promulgation. » Promulguée le 30
+ * novembre 2023, donc applicable au 1er janvier 2026. Son art. 152, point 3,
+ * abroge à cette date l'Ordonnance-loi n° 89/017 du 18 février 1989, qui
+ * portait jusque-là le régime de la réévaluation.
+ *
+ * LE BORNAGE N'EST PAS UNE PRÉCAUTION, C'EST LE CONTRÔLE LUI-MÊME. Un
+ * exercice 2024 ou 2025 relève de l'ordonnance-loi abrogée, dont la
+ * déclaration et l'astreinte n'avaient ni la même formule ni le même montant.
+ * Servir la règle de 2026 à un exercice antérieur reprocherait au dossier une
+ * obligation au nom d'un texte qui ne le régissait pas.
+ */
+const ENTREE_EN_VIGUEUR_LOI_23_053 = new Date('2026-01-01T00:00:00.000Z');
+
+/**
+ * LES COMPTES QUI PORTENT UNE RÉÉVALUATION, ET LE PIÈGE QU'ILS CACHENT.
+ *
+ * Le 106 « Écarts de réévaluation » existe dans les deux plans, au même
+ * numéro et sous le même intitulé. Ses SUBDIVISIONS, elles, ne veulent pas
+ * dire la même chose :
+ *
+ *   1061 · SYSCOHADA « Écarts de réévaluation LÉGALE »
+ *          SYCEBNL   « Écarts de réévaluation sur des biens SANS DROIT DE REPRISE »
+ *   1062 · SYSCOHADA « Écarts de réévaluation LIBRE »
+ *          SYCEBNL   « Écarts de réévaluation sur des biens AVEC DROIT DE REPRISE »
+ *
+ * C'est la troisième fois que ce piège se présente au même endroit du travail
+ * (après le 192 du registre des provisions et le 4181 des produits à
+ * recevoir) : un numéro identique, deux sens. La conséquence est ici fiscale,
+ * puisque le prélèvement libératoire de l'art. 129 diffère selon que la
+ * réévaluation est légale ou libre. Le contrôle ne descend donc PAS sous le
+ * 106 · il n'a pas besoin de la distinction, et la deviner serait faux d'un
+ * côté sur deux.
+ *
+ * Le 154 « Provisions spéciales de réévaluation » porte le même intitulé dans
+ * les deux plans. Il est ajouté au périmètre parce que l'art. 133, al. 2 de
+ * la loi n° 23/053 impose la réintégration progressive de l'écart : le
+ * schéma attendu en RDC passe par lui plus que par un crédit direct du 1061.
+ */
+const COMPTES_REEVALUATION = ['106', '154'];
+
 @Injectable()
 export class ControlesService {
   /** Au-delà, une créance ou une dette non lettrée mérite qu'on la regarde. */
@@ -2268,6 +2312,92 @@ export class ControlesService {
           date: e.date.toISOString().slice(0, 10),
         })),
       });
+    }
+
+    // ------------------------------------------------------------------
+    // RÉÉVALUATION · la déclaration spéciale que rien ne rappelait.
+    //
+    // CE CONTRÔLE EST NÉ D'UNE VÉRIFICATION, PAS D'UNE DEMANDE. Le relevé de
+    // manques annonçait « une déclaration spéciale avant le 30 avril » et
+    // « une astreinte de 100 000 CDF par jour ». Les deux chiffres viennent
+    // de l'Ordonnance-loi n° 89/017 du 18 février 1989, art. 16 et 20 · un
+    // texte ABROGÉ par la loi n° 23/053, art. 152 point 3, avec effet au
+    // 1er janvier 2026. Les coder tels quels aurait produit exactement le
+    // défaut du § 10 bis de CLAUDE.md : un signalement plausible, sourcé et
+    // faux, que le cabinet aurait corrigé sans jamais savoir qu'il n'existait
+    // pas · et une sanction sous-évaluée d'un facteur trois.
+    //
+    // LE TEXTE EN VIGUEUR, lu dans la compilation DGI au 19 juillet 2026 :
+    //  · art. 136 · « Toutes les entreprises procédant à la réévaluation
+    //    doivent faire parvenir à l'Administration des Impôts, AU PLUS TARD
+    //    LE 30 AVRIL de chaque année, une déclaration spéciale de résultat de
+    //    la réévaluation en plus de la déclaration de revenus réalisés au
+    //    cours de l'exercice. »
+    //  · art. 138 · « En cas de réévaluation, l'absence du dépôt de la
+    //    déclaration spéciale de résultats de réévaluation est passible d'une
+    //    astreinte fiscale de 300.000,00 Francs congolais PAR JOUR jusqu'à la
+    //    régularisation de la situation. »
+    //
+    // LE CONTRÔLE NE CONSTATE JAMAIS LE MANQUEMENT. Le dépôt d'une
+    // déclaration est un fait externe, qu'aucune balance ne porte. Il
+    // RAPPELLE une obligation à un dossier qui a mouvementé un compte de
+    // réévaluation, et c'est tout · d'où la gravité INFORMATION.
+    //
+    // ET IL NE VISE PAS LES ENTITÉS EXEMPTÉES D'OFFICE. L'art. 136 dit « toutes
+    // les entreprises procédant à la réévaluation », sans réserve d'exemption,
+    // mais il ne définit pas « entreprise » et l'ancienne ordonnance-loi, qui
+    // visait expressément les exonérés (son art. 1er), n'a pas été reprise sur
+    // ce point. Les sources ne tranchent pas : le rappel est servi aux deux
+    // référentiels, et le message porte la réserve plutôt que de la taire.
+    if (ex.dateFin >= ENTREE_EN_VIGUEUR_LOI_23_053) {
+      const lignesReevaluation = await this.prisma.ligneEcriture.findMany({
+        where: {
+          ecriture: { tenantId, exerciceId },
+          OR: COMPTES_REEVALUATION.map((r) => ({ compte: { tenantId, numero: { startsWith: r } } })),
+        },
+        select: { debit: true, credit: true, compte: { select: { numero: true, intitule: true } } },
+      });
+      const parCompte = new Map<string, { intitule: string; mouvement: number }>();
+      for (const l of lignesReevaluation) {
+        const acc = parCompte.get(l.compte.numero) ?? { intitule: l.compte.intitule, mouvement: 0 };
+        acc.mouvement += Math.abs(Number(l.debit)) + Math.abs(Number(l.credit));
+        parCompte.set(l.compte.numero, acc);
+      }
+      const mouvementees = [...parCompte.entries()]
+        .filter(([, v]) => v.mouvement > 0.005)
+        .map(([numero, v]) => ({ numero, intitule: v.intitule }))
+        .sort((a, b) => a.numero.localeCompare(b.numero));
+      if (mouvementees.length > 0) {
+        anomalies.push({
+          code: 'DECLARATION_REEVALUATION_A_DEPOSER',
+          gravite: 'INFORMATION',
+          libelle: 'Réévaluation constatée · déclaration spéciale à déposer au plus tard le 30 avril',
+          consequence:
+            'Un compte de réévaluation a été mouvementé sur cet exercice. Loi n° 23/053, art. 136 : « Toutes ' +
+            'les entreprises procédant à la réévaluation doivent faire parvenir à l’Administration des Impôts, ' +
+            'AU PLUS TARD LE 30 AVRIL de chaque année, une déclaration spéciale de résultat de la réévaluation ' +
+            'en plus de la déclaration de revenus réalisés au cours de l’exercice. » L’art. 138 sanctionne ' +
+            'l’absence de dépôt d’« une astreinte fiscale de 300.000,00 Francs congolais PAR JOUR jusqu’à la ' +
+            'régularisation de la situation ». OmegaX NE CONSTATE AUCUN MANQUEMENT · le dépôt est un fait ' +
+            'externe qu’aucune comptabilité ne porte, et ce signalement est un rappel, pas un reproche. ' +
+            'Réserve à connaître : l’art. 136 vise « toutes les entreprises » sans définir le mot et sans ' +
+            'réserve d’exemption ; l’ordonnance-loi abrogée visait expressément les exonérés, ce que la loi ' +
+            'nouvelle ne reprend pas. Pour une entité à but non lucratif, le point n’est tranché par aucun ' +
+            'texte lu.',
+          action:
+            'Établissez la déclaration spéciale sur le modèle des imprimés du Conseil Permanent de la ' +
+            'Comptabilité au Congo, avec ses annexes par catégorie d’immobilisations (art. 137), et déposez-la ' +
+            'au plus tard le 30 avril. Vérifiez au passage les trois exigences comptables de l’opération : la ' +
+            'réévaluation porte sur l’ENSEMBLE des immobilisations corporelles et financières (art. 130 de la ' +
+            'loi, art. 62 de l’AUDCIF · toute réévaluation partielle est interdite), la décision émane des ' +
+            'organes de gestion et indique la méthode, les postes concernés, les montants et le traitement ' +
+            'fiscal de l’écart, et l’écart n’est ni distribuable ni imputable sur des pertes (art. 65 AUDCIF).',
+          occurrences: mouvementees.slice(0, 50).map((l) => ({
+            reference: l.numero,
+            detail: l.intitule,
+          })),
+        });
+      }
     }
 
     const ordre: Record<Gravite, number> = { BLOQUANT: 0, AVERTISSEMENT: 1, INFORMATION: 2 };
