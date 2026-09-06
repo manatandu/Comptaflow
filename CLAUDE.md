@@ -547,6 +547,64 @@ comme référence de MÉTHODE, aucune opinion ne sort de ce registre, et les
 trois mentions de contexte du § 11 b) le disent à l'écran.
 
 
+**Composant « révisions majeures » · l'unique estimation rétrospective que le
+référentiel autorise, et la fiction qu'il n'autorise pas.** L'AUDCIF art. 38-2
+pose le mécanisme et le Titre VIII ch. 5 § 1 le détaille en deux temps : « dès
+la date de comptabilisation initiale de l'actif, un composant "Révisions
+majeures" est comptabilisé séparément des composants physiques et de la
+structure et est amorti sur la durée restant à courir JUSQU'À LA PROCHAINE
+RÉVISION » ; puis, « lorsque la révision est réalisée, le coût correspondant
+est inscrit en tant qu'actif distinct […] et il est amorti sur la DURÉE
+SÉPARANT DEUX RÉVISIONS », la valeur nette résiduelle de la précédente étant
+« sortie de l'actif ». L'exemple officiel chiffre le premier temps : un
+matériel de 190 000 000 sur six ans, révisé tous les deux ans pour 10 000 000,
+porte une structure amortie sur 180 000 000 en six ans et une révision amortie
+sur 10 000 000 en DEUX ans.
+
+D'OÙ UN REFUS MÉCANIQUE : une révision majeure dont la durée égale ou dépasse
+celle de la structure n'en est pas une · c'est un morceau de la structure, et
+l'entité a décomposé pour rien. Le message porte l'exemple officiel plutôt
+qu'une règle abstraite.
+
+LA RECONSTITUTION EST LE CŒUR DU CHANTIER, et c'est le SEUL endroit du
+référentiel qui ouvre une estimation rétrospective : « Lorsque le composant
+"Révisions majeures" n'a pas été comptabilisé séparément ou spécifiquement
+identifié lors de la comptabilisation initiale […], sa valeur nette comptable
+PEUT ÊTRE ESTIMÉE par référence au "COÛT DE RÉVISION ACTUEL AMORTI", COMME SI
+cette révision avait été réalisée à la date d'acquisition de l'immobilisation
+ou d'achèvement de sa production. » Trois mots portent tout le calcul. Le coût
+est celui d'AUJOURD'HUI et non celui d'il y a six ans, et c'est une donnée du
+dossier qu'aucune comptabilité ne porte. AMORTI se lit sur l'intervalle qui
+sépare deux révisions, la seule durée que le § 1 donne à ce composant. Et
+« comme si réalisée à la date d'acquisition » fixe le point de départ de cet
+amortissement fictif.
+
+LA LIMITE DE LA FICTION EST DANS LA PHRASE ELLE-MÊME : elle se place AVANT
+toute révision, sinon la précédente aurait dû être décomptabilisée et son coût
+réel serait connu. Passé un intervalle complet, l'amortissement fictif dépasse
+le coût et la valeur nette deviendrait négative. Le module ne prolonge alors
+pas la fiction · il réclame la DATE DE LA DERNIÈRE RÉVISION RÉELLEMENT
+RÉALISÉE, à partir de laquelle le calcul redevient celui du texte. Fabriquer un
+modulo sur les intervalles écoulés aurait rendu un chiffre plausible pour une
+révision dont personne ne sait si elle a eu lieu · c'est la forme la plus
+discrète du § 10 bis.
+
+ET LE MODULE NE POSTE RIEN. L'estimation est rendue avec ses termes, son
+fondement et la suite à donner ; la ventilation de la valeur brute entre la
+structure et le composant reconstitué est une décision du cabinet, et le texte
+n'écrit qu'une possibilité (« peut être estimée »). L'estimation est refusée
+sur un bien qui porte DÉJÀ un composant « révisions majeures » : là, la valeur
+nette se lit, elle ne s'estime pas.
+
+Ce qui rend l'opération nécessaire est rappelé à chaque estimation, parce que
+c'est de là que vient la demande : « Aucune provision pour dépenses de grosses
+réparations ou gros entretien à engager dans le cadre d'un programme
+pluriannuel de révision ne peut être comptabilisée. Tel est le cas également
+des provisions pour grosses réparations » (ch. 5 § 1, et ch. 18 § 4.11.2 que le
+registre des provisions oppose déjà). La voie est le composant, ou la charge de
+l'exercice · jamais la provision.
+
+
 **Amortissement aux unités d'œuvre · le mode que l'AUDCIF nomme et qu'aucun
 livre ne peut nourrir.** L'art. 45 le pose parmi les modes admis : « le mode
 des unités de production / unités d'œuvre (nombre de pièces, heures de

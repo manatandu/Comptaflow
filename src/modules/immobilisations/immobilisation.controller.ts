@@ -88,6 +88,28 @@ export class ImmobilisationController {
   }
 
   /**
+   * RECONSTITUER UN COMPOSANT « RÉVISIONS MAJEURES » JAMAIS IDENTIFIÉ · AUDCIF
+   * Titre VIII ch. 5 § 1. LECTURE SEULE : le calcul est rendu avec ses termes,
+   * rien n'est écrit ni posté.
+   */
+  @Get(':id/reconstitution-revision-majeure')
+  async estimerRevisionMajeure(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Query('coutRevisionActuel') coutRevisionActuel: string,
+    @Query('intervalleRevisionsAns') intervalleRevisionsAns: string,
+    @Query('dateReconstitution') dateReconstitution: string,
+    @Query('derniereRevisionRealiseeLe') derniereRevisionRealiseeLe?: string,
+  ) {
+    return this.immobilisationService.estimerRevisionMajeure(user.tenantId, id, {
+      coutRevisionActuel: Number(coutRevisionActuel),
+      intervalleRevisionsAns: Number(intervalleRevisionsAns),
+      dateReconstitution,
+      derniereRevisionRealiseeLe,
+    });
+  }
+
+  /**
    * LE RELEVÉ D'UNITÉS D'ŒUVRE D'UN EXERCICE · AUDCIF art. 45, mode des
    * unités de production. C'est le seul chiffre du plan d'amortissement
    * qu'aucune comptabilité ne porte : il se saisit, avec sa source.

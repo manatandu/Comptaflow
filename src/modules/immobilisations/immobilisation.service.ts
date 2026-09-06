@@ -675,9 +675,42 @@ export class ImmobilisationService {
       valeurResiduelle?: number;
       dernierRenouvellement?: boolean;
       dateMiseEnService: string;
+      dureeAmortissementAns?: number;
     },
-    principal: { dateAcquisition: Date },
+    principal: { dateAcquisition: Date; dureeAmortissementAns: number },
   ) {
+    /*
+      UNE RÉVISION MAJEURE S'AMORTIT SUR L'INTERVALLE, JAMAIS SUR LA STRUCTURE.
+
+      Ch. 5 § 1 · au premier temps, « dès la date de comptabilisation initiale
+      de l'actif, un composant "Révisions majeures" est comptabilisé séparément
+      des composants physiques et de la structure et est amorti sur la durée
+      restant à courir JUSQU'À LA PROCHAINE RÉVISION » ; au second, « lorsque
+      la révision est réalisée, le coût correspondant est inscrit en tant
+      qu'actif distinct […] et il est amorti sur la DURÉE SÉPARANT DEUX
+      RÉVISIONS ».
+
+      L'exemple officiel le chiffre : un matériel de 190 000 000 sur six ans,
+      révision tous les deux ans à 10 000 000 · la structure s'amortit sur
+      180 000 000 en six ans, la révision sur 10 000 000 en DEUX ans. Un
+      composant « révisions majeures » qui porterait la durée de la structure
+      n'en serait pas un : ce serait un morceau de la structure, et l'entité
+      aurait décomposé pour rien.
+    */
+    if (
+      dto.typeComposant === TypeComposant.REVISION_MAJEURE &&
+      dto.dureeAmortissementAns !== undefined &&
+      dto.dureeAmortissementAns >= principal.dureeAmortissementAns
+    ) {
+      throw new BadRequestException(
+        `Une révision majeure s'amortit sur l'intervalle qui sépare deux révisions, plus court que la durée de ` +
+          `la structure (${principal.dureeAmortissementAns} ans ici) · AUDCIF, Titre VIII ch. 5 § 1. ` +
+          "L'exemple officiel : un matériel de 190 000 000 sur six ans, révisé tous les deux ans pour " +
+          '10 000 000, porte une structure amortie sur 180 000 000 en six ans et une révision amortie sur ' +
+          '10 000 000 en DEUX ans. Un composant qui porterait la durée de la structure serait un morceau de la ' +
+          'structure, pas une révision.',
+      );
+    }
     if ((dto.valeurResiduelle ?? 0) > EPSILON && dto.dernierRenouvellement !== true) {
       throw new BadRequestException(
         "Un composant identifié à l'origine ne porte pas de valeur résiduelle : il est prévu qu'il soit remplacé " +
@@ -724,12 +757,21 @@ export class ImmobilisationService {
 
     // APPROCHE PAR COMPOSANTS · seulement si un principal est désigné. Sans
     // lui, rien ne change : le bien est une structure ordinaire.
-    let principal: { id: string; dateAcquisition: Date; compteImmobilisation: { numero: string; intitule: string } } | null =
-      null;
+    let principal: {
+      id: string;
+      dateAcquisition: Date;
+      dureeAmortissementAns: number;
+      compteImmobilisation: { numero: string; intitule: string };
+    } | null = null;
     if (dto.immobilisationPrincipaleId) {
       principal = await this.prisma.immobilisation.findFirst({
         where: { id: dto.immobilisationPrincipaleId, tenantId },
-        select: { id: true, dateAcquisition: true, compteImmobilisation: { select: { numero: true, intitule: true } } },
+        select: {
+          id: true,
+          dateAcquisition: true,
+          dureeAmortissementAns: true,
+          compteImmobilisation: { select: { numero: true, intitule: true } },
+        },
       });
       if (!principal) throw new BadRequestException('Immobilisation principale introuvable pour ce tenant');
       const { referentiel } = await this.prisma.tenant.findUniqueOrThrow({
@@ -737,7 +779,7 @@ export class ImmobilisationService {
         select: { referentiel: true },
       });
       this.verifierDecomposition(principal, referentiel);
-      this.verifierComposant(dto, principal);
+      this.verifierComposant({ ...dto, dureeAmortissementAns: dto.dureeAmortissementAns }, principal);
       if (!dto.justificationDecomposition?.trim()) {
         throw new BadRequestException(
           'Indiquez pourquoi ce bien est décomposable : durées d’utilité distinctes, caractère significatif du ' +
@@ -893,6 +935,95 @@ export class ImmobilisationService {
    * repris a déjà passé la sienne, ailleurs. Se fier au seul nombre de
    * dotations enregistrées ici lui aurait fait subir un second prorata.
    */
+  /**
+   * LA RECONSTITUTION D'UN COMPOSANT « RÉVISIONS MAJEURES » JAMAIS IDENTIFIÉ.
+   *
+   * Le cas est écrit noir sur blanc, et c'est le seul endroit du référentiel
+   * qui autorise une ESTIMATION rétrospective. AUDCIF, Titre VIII ch. 5 § 1 :
+   * « Lorsque le composant "Révisions majeures" n'a pas été comptabilisé
+   * séparément ou spécifiquement identifié lors de la comptabilisation
+   * initiale (par exemple, en l'absence d'obligation de procéder à des
+   * révisions périodiques), sa VALEUR NETTE COMPTABLE PEUT ÊTRE ESTIMÉE par
+   * référence au "COÛT DE RÉVISION ACTUEL AMORTI", COMME SI CETTE RÉVISION
+   * AVAIT ÉTÉ RÉALISÉE À LA DATE D'ACQUISITION de l'immobilisation ou
+   * d'achèvement de sa production. »
+   *
+   * Trois mots portent tout le calcul. « Coût de révision ACTUEL » · le prix
+   * d'aujourd'hui, pas celui d'il y a six ans, et c'est une donnée du dossier
+   * qu'aucune comptabilité ne porte. « AMORTI » · sur l'intervalle qui sépare
+   * deux révisions, la seule durée que le § 1 donne à ce composant. « COMME SI
+   * réalisée à la date d'acquisition » · le point de départ de cet
+   * amortissement fictif.
+   *
+   * LA LIMITE DE LA FICTION, ET LE REFUS QUI EN DÉCOULE. La phrase suppose
+   * qu'aucune révision n'a encore eu lieu · sinon la précédente aurait dû être
+   * décomptabilisée, et son coût réel serait connu. Passé un intervalle
+   * complet, l'amortissement fictif dépasse le coût et la valeur nette
+   * deviendrait négative. Le module ne prolonge alors pas la fiction : il
+   * réclame la DATE DE LA DERNIÈRE RÉVISION RÉELLEMENT RÉALISÉE, à partir de
+   * laquelle le calcul redevient celui du texte. Fabriquer un modulo sur les
+   * intervalles écoulés aurait donné un chiffre plausible pour une révision
+   * dont personne ne sait si elle a eu lieu.
+   *
+   * ET LE MODULE NE POSTE RIEN. L'estimation est rendue avec ses termes ; la
+   * ventilation de la valeur brute entre la structure et le composant est une
+   * décision du cabinet, pas un calcul.
+   */
+  static reconstitutionRevisionMajeure(entree: {
+    /** Le prix d'une révision AUJOURD'HUI · donnée du dossier. */
+    coutRevisionActuel: number;
+    /** L'intervalle entre deux révisions, en années. */
+    intervalleRevisionsAns: number;
+    /** Départ de l'amortissement fictif · l'acquisition du bien principal. */
+    dateAcquisition: Date;
+    /** La date à laquelle on reconstitue · d'ordinaire la clôture. */
+    dateReconstitution: Date;
+    /**
+     * La date de la dernière révision RÉELLEMENT réalisée, si elle l'a été.
+     * Elle remplace la date d'acquisition comme point de départ · le texte ne
+     * l'envisage pas, parce qu'il se place avant toute révision, et c'est
+     * précisément pour cela qu'elle est réclamée plutôt que devinée.
+     */
+    derniereRevisionRealiseeLe?: Date | null;
+  }):
+    | { possible: true; anneesEcoulees: number; amortissementEstime: number; valeurNetteEstimee: number }
+    | { possible: false; motif: string } {
+    const { coutRevisionActuel, intervalleRevisionsAns } = entree;
+    if (coutRevisionActuel <= 0 || intervalleRevisionsAns <= 0) {
+      return {
+        possible: false,
+        motif:
+          "La reconstitution demande le COÛT DE RÉVISION ACTUEL et l'INTERVALLE entre deux révisions · " +
+          "l'AUDCIF (Titre VIII ch. 5 § 1) estime la valeur nette « par référence au coût de révision actuel " +
+          'amorti », et l’amortissement d’un composant « révisions majeures » court sur la durée qui sépare ' +
+          'deux révisions. Aucun des deux ne se déduit d’une comptabilité.',
+      };
+    }
+    const depart = entree.derniereRevisionRealiseeLe ?? entree.dateAcquisition;
+    const MS_PAR_AN = 365.25 * 24 * 3600 * 1000;
+    const anneesEcoulees = Math.max(0, (entree.dateReconstitution.getTime() - depart.getTime()) / MS_PAR_AN);
+    if (anneesEcoulees >= intervalleRevisionsAns) {
+      return {
+        possible: false,
+        motif:
+          `Plus d'un intervalle s'est écoulé depuis le ${depart.toISOString().slice(0, 10)} ` +
+          `(${anneesEcoulees.toFixed(1)} ans pour un intervalle de ${intervalleRevisionsAns} ans). ` +
+          "L'estimation du ch. 5 § 1 se place AVANT toute révision · « comme si cette révision avait été " +
+          "réalisée à la date d'acquisition ». Au-delà, une révision a normalement eu lieu, et son coût réel " +
+          'est connu : indiquez la date de la dernière révision réalisée. À défaut, la valeur nette estimée ' +
+          "serait négative, et la prolonger par un modulo donnerait un chiffre plausible pour une révision dont " +
+          'personne ne sait si elle a eu lieu.',
+      };
+    }
+    const amortissementEstime = coutRevisionActuel * (anneesEcoulees / intervalleRevisionsAns);
+    return {
+      possible: true,
+      anneesEcoulees: Math.round(anneesEcoulees * 100) / 100,
+      amortissementEstime: Math.round(amortissementEstime * 100) / 100,
+      valeurNetteEstimee: Math.round((coutRevisionActuel - amortissementEstime) * 100) / 100,
+    };
+  }
+
   /**
    * CE QUI EMPÊCHE D'OUVRIR UN PLAN AUX UNITÉS D'ŒUVRE · null quand rien ne
    * l'empêche.
@@ -1654,6 +1785,57 @@ export class ImmobilisationService {
    * dépendre de ce qui vient après (un nouveau remplacement, ou la fin
    * d'utilisation de la structure), que le logiciel ne connaît pas.
    */
+  /**
+   * L'ESTIMATION SERVIE SUR UN BIEN PRÉCIS · le calcul du ch. 5 § 1, appliqué
+   * à la date d'acquisition du bien et rendu avec ses termes.
+   *
+   * Rien n'est écrit ni posté. La ventilation de la valeur brute entre la
+   * structure et le composant reconstitué est une décision du cabinet, et le
+   * texte lui-même n'écrit qu'une possibilité : la valeur nette « PEUT être
+   * estimée ».
+   */
+  async estimerRevisionMajeure(
+    tenantId: string,
+    id: string,
+    entree: { coutRevisionActuel: number; intervalleRevisionsAns: number; dateReconstitution: string; derniereRevisionRealiseeLe?: string },
+  ) {
+    const immo = await this.trouver(tenantId, id);
+    const dejaIdentifie = await this.prisma.immobilisation.count({
+      where: { tenantId, immobilisationPrincipaleId: id, typeComposant: TypeComposant.REVISION_MAJEURE },
+    });
+    if (dejaIdentifie > 0) {
+      throw new BadRequestException(
+        "Ce bien porte déjà un composant « révisions majeures » · l'estimation du ch. 5 § 1 ne vise que le cas " +
+          "où le composant « n'a pas été comptabilisé séparément ou spécifiquement identifié lors de la " +
+          'comptabilisation initiale ». Ici il l’a été, et sa valeur nette se lit, elle ne s’estime pas.',
+      );
+    }
+    const resultat = ImmobilisationService.reconstitutionRevisionMajeure({
+      coutRevisionActuel: entree.coutRevisionActuel,
+      intervalleRevisionsAns: entree.intervalleRevisionsAns,
+      dateAcquisition: immo.dateAcquisition,
+      dateReconstitution: new Date(entree.dateReconstitution),
+      derniereRevisionRealiseeLe: entree.derniereRevisionRealiseeLe
+        ? new Date(entree.derniereRevisionRealiseeLe)
+        : null,
+    });
+    return {
+      immobilisation: { id: immo.id, designation: immo.designation, dateAcquisition: immo.dateAcquisition },
+      ...resultat,
+      fondement:
+        'AUDCIF, Titre VIII ch. 5 § 1 · « Lorsque le composant "Révisions majeures" n’a pas été comptabilisé ' +
+        'séparément ou spécifiquement identifié lors de la comptabilisation initiale […], sa valeur nette ' +
+        'comptable PEUT ÊTRE ESTIMÉE par référence au "coût de révision actuel amorti", comme si cette révision ' +
+        'avait été réalisée à la date d’acquisition de l’immobilisation ou d’achèvement de sa production. »',
+      suite:
+        'OmegaX ne poste rien · la ventilation de la valeur brute entre la structure et le composant reconstitué ' +
+        'est une décision du cabinet. Une fois décidée, créez le composant « révisions majeures » rattaché à ce ' +
+        'bien, amorti sur l’intervalle qui sépare deux révisions, et réduisez d’autant la structure. Et rappelez ' +
+        'la règle qui rend l’opération nécessaire : aucune provision pour grosses réparations ne peut être ' +
+        'comptabilisée (ch. 5 § 1, et ch. 18 § 4.11.2) · la voie est le composant, ou la charge de l’exercice.',
+    };
+  }
+
   async renouveler(tenantId: string, userId: string, composantId: string, dto: RenouvelerComposantDto) {
     const ancien = await this.trouver(tenantId, composantId);
     if (!ancien.immobilisationPrincipaleId) {

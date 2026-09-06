@@ -28,6 +28,14 @@ export function ImmobilisationsPage() {
   const [sortieOuvertePour, setSortieOuvertePour] = useState<string | null>(null);
 
   const [erreur, setErreur] = useState<string | null>(null);
+  const [reconstitution, setReconstitution] = useState<{
+    immobilisation: string;
+    possible: boolean;
+    motif?: string;
+    valeurNetteEstimee?: number;
+    amortissementEstime?: number;
+    suite: string;
+  } | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
 
@@ -324,6 +332,47 @@ export function ImmobilisationsPage() {
     (immobilisations ?? []).find((i) => i.id === id)?.designation ?? null;
 
   /**
+   * RECONSTITUER UN COMPOSANT « RÉVISIONS MAJEURES » JAMAIS IDENTIFIÉ · AUDCIF
+   * Titre VIII ch. 5 § 1. Le calcul est rendu, rien n'est posté : la
+   * ventilation de la valeur brute entre la structure et le composant est une
+   * décision du cabinet, et le texte n'écrit qu'une possibilité.
+   */
+  const reconstituerRevision = async (immo: Immobilisation) => {
+    const cout = window.prompt(
+      `${immo.designation} · coût de révision ACTUEL, celui d’aujourd’hui et non celui de l’acquisition.\n\n` +
+        'AUDCIF ch. 5 § 1 : la valeur nette du composant jamais identifié « peut être estimée par référence au ' +
+        'coût de révision actuel amorti ».',
+    );
+    if (!cout?.trim()) return;
+    const intervalle = window.prompt('Intervalle entre deux révisions, en années.');
+    if (!intervalle?.trim()) return;
+    const derniere = window.prompt(
+      'Date de la dernière révision RÉELLEMENT réalisée, au format AAAA-MM-JJ.\n\n' +
+        'Laisser vide si aucune révision n’a encore eu lieu · l’estimation se place alors à la date d’acquisition, ' +
+        'comme le texte le prévoit.',
+    );
+    setErreur(null);
+    try {
+      const params = new URLSearchParams({
+        coutRevisionActuel: cout.trim(),
+        intervalleRevisionsAns: intervalle.trim(),
+        dateReconstitution: new Date().toISOString().slice(0, 10),
+        ...(derniere?.trim() ? { derniereRevisionRealiseeLe: derniere.trim() } : {}),
+      });
+      const r = await api.get<{
+        possible: boolean;
+        motif?: string;
+        valeurNetteEstimee?: number;
+        amortissementEstime?: number;
+        suite: string;
+      }>(`/immobilisations/${immo.id}/reconstitution-revision-majeure?${params}`);
+      setReconstitution({ immobilisation: immo.designation, ...r });
+    } catch (err) {
+      setErreur(err instanceof ApiError ? err.message : 'Estimation impossible');
+    }
+  };
+
+  /**
    * LE RELEVÉ D'UNITÉS D'ŒUVRE · le seul chiffre du plan d'amortissement
    * qu'aucune comptabilité ne porte. Il se saisit avec sa source · c'est la
    * source que le réviseur demandera, pas le nombre.
@@ -390,6 +439,36 @@ export function ImmobilisationsPage() {
       </div>
 
       {erreur && <div className="text-[11px] text-danger bg-danger-soft border border-danger/30 px-3 py-2 mb-3 max-w-[1100px]">{erreur}</div>}
+
+      {reconstitution && (
+        <div className="border border-border bg-surface px-3.5 py-2.5 mb-3 max-w-[1100px] text-[10.5px]">
+          <div className="flex items-start justify-between gap-3">
+            <div className="font-semibold">
+              Composant « révisions majeures » · {reconstitution.immobilisation}
+            </div>
+            <button
+              type="button"
+              onClick={() => setReconstitution(null)}
+              className="text-[10px] text-text-dim hover:underline"
+            >
+              Fermer
+            </button>
+          </div>
+          {reconstitution.possible ? (
+            <div className="mt-1">
+              Valeur nette estimée{' '}
+              <span className="font-mono font-semibold">
+                {(reconstitution.valeurNetteEstimee ?? 0).toLocaleString('fr-FR')}
+              </span>{' '}
+              · amortissement fictif déjà couru{' '}
+              <span className="font-mono">{(reconstitution.amortissementEstime ?? 0).toLocaleString('fr-FR')}</span>
+            </div>
+          ) : (
+            <div className="mt-1 text-warning">{reconstitution.motif}</div>
+          )}
+          <div className="mt-1.5 text-[10px] text-text-dim">{reconstitution.suite}</div>
+        </div>
+      )}
       {info && <div className="text-[11px] text-positive bg-positive-soft border border-positive/30 px-3 py-2 mb-3 max-w-[1100px]">{info}</div>}
 
       {estAdmin && afficherFormFamille && (
@@ -624,6 +703,15 @@ export function ImmobilisationsPage() {
                 <span className="flex gap-2">
                   {immo.statut === 'EN_SERVICE' && (
                     <>
+                      {!immo.immobilisationPrincipaleId && (
+                        <button
+                          onClick={() => reconstituerRevision(immo)}
+                          title="Estimer un composant « révisions majeures » jamais identifié (AUDCIF ch. 5 § 1)"
+                          className="text-[10px] text-sel hover:underline"
+                        >
+                          Révision
+                        </button>
+                      )}
                       {immo.modeAmortissement === 'UNITES_DOEUVRE' && (
                         <button
                           onClick={() => saisirConsommation(immo)}
