@@ -184,6 +184,60 @@ const ENTREE_EN_VIGUEUR_LOI_23_053 = new Date('2026-01-01T00:00:00.000Z');
  */
 const COMPTES_REEVALUATION = ['106', '154'];
 
+/**
+ * LES DÉPRÉCIATIONS DE STOCKS, PLAN PAR PLAN · une liste FERMÉE de chaque côté.
+ *
+ * L'AUDCIF ouvre huit subdivisions au compte 39 (391 à 398) ; le SYCEBNL n'en
+ * ouvre que cinq (391, 392, 393, 396, 397). Il n'a ni 394 « produits en
+ * cours », ni 395 « services en cours », ni 398 · son 396 couvre à lui seul
+ * « produits finis, produits intermédiaires et résiduels », et son 397 les
+ * stocks en cours de route. Une dépréciation portée au 398 dans un dossier
+ * SYCEBNL est donc à un numéro que son plan n'ouvre pas.
+ */
+const DEPRECIATIONS_STOCKS: Record<Referentiel, string[]> = {
+  [Referentiel.SYSCOHADA]: ['391', '392', '393', '394', '395', '396', '397', '398'],
+  [Referentiel.SYCEBNL]: ['391', '392', '393', '396', '397'],
+};
+
+/**
+ * LE COMPTE DE STOCK ADOSSÉ À UNE DÉPRÉCIATION · 39X se lit 3X, dans les deux
+ * plans, et c'est la seule règle de ce fichier qui traverse intacte la
+ * différence de nomenclature.
+ *
+ * Elle la traverse SANS ÊTRE ÉPARGNÉE par le piège habituel · le 397 ne dit
+ * pas la même chose des deux côtés. Au SYSCOHADA il déprécie les PRODUITS
+ * INTERMÉDIAIRES ET RÉSIDUELS (compte 37) ; au SYCEBNL il déprécie les STOCKS
+ * EN COURS DE ROUTE (compte 37 aussi, mais qui porte autre chose). Le
+ * rapprochement 397 → 37 reste juste des deux côtés ; c'est l'INTITULÉ qui
+ * change, et lui ne doit jamais être écrit en dur ici.
+ */
+function compteStockAdosse(numeroDepreciation: string): string {
+  return `3${numeroDepreciation.slice(2, 3)}`;
+}
+
+/**
+ * LE STOCK EN COURS DE ROUTE · le numéro change de plan à plan, et le numéro
+ * libéré porte autre chose.
+ *
+ * SYSCOHADA · 38 « Stocks en cours de route, en consignation ou en dépôt »,
+ * pendant que le 37 porte les produits intermédiaires et résiduels.
+ * SYCEBNL · 37 pour les mêmes stocks, pendant que le 38 porte les DONS EN
+ * NATURE H.A.O. Signaler un défaut de variation sur « le 38 » sans regarder le
+ * référentiel accuserait une association d'avoir mal comptabilisé ses dons.
+ */
+const STOCK_EN_COURS_DE_ROUTE: Record<Referentiel, string> = {
+  [Referentiel.SYSCOHADA]: '38',
+  [Referentiel.SYCEBNL]: '37',
+};
+
+/**
+ * LES COMPTES QUE LE 72 DÉBITE · fonctionnement identique dans les deux plans.
+ * « Est crédité le compte 72 du montant des travaux effectués au cours de
+ * l'exercice par l'entité pour elle-même (au coût de production) ; par le
+ * débit du compte 21, du compte 23 ou 24. »
+ */
+const IMMOBILISATIONS_DE_LA_PRODUCTION = ['21', '23', '24'];
+
 @Injectable()
 export class ControlesService {
   /** Au-delà, une créance ou une dette non lettrée mérite qu'on la regarde. */
@@ -2398,6 +2452,215 @@ export class ControlesService {
           })),
         });
       }
+    }
+
+    // ------------------------------------------------------------------
+    // STOCKS ET PRODUCTION IMMOBILISÉE · les deux griefs du CPCC, dans la
+    // seule forme qui ait une signature.
+    //
+    // CE QUI N'EST PAS CODÉ ICI, ET POURQUOI. Le § 8.2 du séminaire nomme
+    // deux minorations « par absence d'une écriture de contrepartie » : la
+    // facture d'achat enregistrée sans constatation du stock en cours de
+    // route, et la production immobilisée jamais activée au compte 72. Les
+    // deux sont réelles, et AUCUNE DES DEUX N'EST DÉTECTABLE SOUS CETTE
+    // FORME · elles se définissent par ce qui MANQUE. « Solde du 72 égal à
+    // zéro » se vérifie chez toute entité qui achète au lieu de produire,
+    // c'est-à-dire chez la quasi-totalité des dossiers, et un contrôle qui
+    // s'allume partout n'apprend rien à personne : il apprend seulement à
+    // être ignoré, et emporte les vrais signalements avec lui.
+    //
+    // CE QUI EST CODÉ EST L'AUTRE MOITIÉ · non pas l'absence du compte, mais
+    // sa PRÉSENCE SANS SA CONTREPARTIE. Un 72 crédité sans immobilisation
+    // entrée, un stock en cours de route mouvementé sans variation de stock,
+    // une dépréciation sans le poste qu'elle déduit. Là, le dossier a écrit
+    // quelque chose, et ce qu'il a écrit ne boucle pas.
+    const referentielDossier = tenant.referentiel;
+    const racinesStocks = [
+      '3',
+      ...IMMOBILISATIONS_DE_LA_PRODUCTION,
+      '603',
+      '72',
+    ];
+    const lignesStocks = await this.prisma.ligneEcriture.findMany({
+      where: {
+        ecriture: { tenantId, exerciceId },
+        OR: racinesStocks.map((r) => ({ compte: { tenantId, numero: { startsWith: r } } })),
+      },
+      select: { debit: true, credit: true, compte: { select: { numero: true, intitule: true } } },
+    });
+    const cumul = (predicat: (numero: string) => boolean) =>
+      lignesStocks
+        .filter((l) => predicat(l.compte.numero))
+        .reduce(
+          (t, l) => ({
+            debit: t.debit + Number(l.debit),
+            credit: t.credit + Number(l.credit),
+          }),
+          { debit: 0, credit: 0 },
+        );
+    const parNumero = new Map<string, { intitule: string; debit: number; credit: number }>();
+    for (const l of lignesStocks) {
+      const acc = parNumero.get(l.compte.numero) ?? { intitule: l.compte.intitule, debit: 0, credit: 0 };
+      acc.debit += Number(l.debit);
+      acc.credit += Number(l.credit);
+      parNumero.set(l.compte.numero, acc);
+    }
+
+    // --- Une dépréciation de stock à un numéro que le plan n'ouvre pas ------
+    const subdivisionsAdmises = DEPRECIATIONS_STOCKS[referentielDossier];
+    const depreciationsMouvementees = [...parNumero.entries()]
+      .filter(([n, v]) => n.startsWith('39') && n.length >= 3 && v.debit + v.credit > 0.005)
+      .sort(([a], [b]) => a.localeCompare(b));
+    const horsNomenclature = depreciationsMouvementees.filter(
+      ([n]) => !subdivisionsAdmises.includes(n.slice(0, 3)),
+    );
+    if (horsNomenclature.length > 0) {
+      anomalies.push({
+        code: 'DEPRECIATION_STOCK_HORS_NOMENCLATURE',
+        gravite: 'AVERTISSEMENT',
+        libelle: 'Dépréciation de stocks à une subdivision que le plan n’ouvre pas',
+        consequence:
+          `Le plan ${referentielDossier} ouvre au compte 39 les seules subdivisions ` +
+          `${subdivisionsAdmises.join(', ')}. ` +
+          (referentielDossier === Referentiel.SYCEBNL
+            ? 'Il n’a ni 394 « produits en cours », ni 395 « services en cours », ni 398 : son 396 couvre à lui ' +
+              'seul « produits finis, produits intermédiaires et résiduels », et son 397 les stocks en cours de ' +
+              'route. Une dépréciation portée ailleurs déduit un poste de bilan qui n’existe pas dans ce plan, ' +
+              'et la Note annexe la publiera sous un intitulé emprunté à l’autre référentiel.'
+            : 'Une dépréciation portée hors de cette liste déduit un poste de bilan qui n’existe pas, et la Note ' +
+              'annexe la publiera sous un intitulé qui n’est pas celui du plan.'),
+        action:
+          'Reclassez la dépréciation à la subdivision correspondant au stock déprécié · la règle est mécanique, ' +
+          '39X déprécie 3X. Attention à l’intitulé et non au seul numéro : le 397 déprécie les produits ' +
+          'intermédiaires et résiduels au SYSCOHADA, et les stocks en cours de route au SYCEBNL.',
+        occurrences: horsNomenclature.slice(0, 200).map(([numero, v]) => ({
+          reference: numero,
+          detail: v.intitule,
+          montant: Math.round((v.credit - v.debit) * 100) / 100,
+        })),
+      });
+    }
+
+    // --- Une dépréciation sans le poste qu'elle déduit ----------------------
+    //
+    // « Les dépréciations sont portées à l'actif du bilan, EN DÉDUCTION de la
+    // valeur des postes qu'elles concernent » · les deux plans, mot pour mot.
+    // Une dépréciation dont le poste est à zéro n'est pas une déduction :
+    // c'est un actif négatif, et le total du bilan s'en trouve minoré sans
+    // qu'aucune ligne ne le dise.
+    const depreciationsOrphelines = depreciationsMouvementees
+      .filter(([n, v]) => {
+        if (!subdivisionsAdmises.includes(n.slice(0, 3))) return false;
+        if (v.credit - v.debit <= 0.005) return false;
+        const stock = cumul((x) => x.startsWith(compteStockAdosse(n.slice(0, 3))));
+        return Math.abs(stock.debit - stock.credit) <= 0.005;
+      })
+      .map(([numero, v]) => ({ numero, intitule: v.intitule, solde: v.credit - v.debit }));
+    if (depreciationsOrphelines.length > 0) {
+      anomalies.push({
+        code: 'DEPRECIATION_STOCK_SANS_STOCK',
+        gravite: 'AVERTISSEMENT',
+        libelle: 'Dépréciation de stocks sans le poste qu’elle déduit',
+        consequence:
+          'Une dépréciation de stocks porte un solde créditeur alors que le compte de stock adossé est à zéro. ' +
+          'Les deux plans écrivent la même phrase : les dépréciations « sont portées à l’actif du bilan, EN ' +
+          'DÉDUCTION de la valeur des postes qu’elles concernent ». Une déduction sans poste n’est pas une ' +
+          'déduction, c’est un actif négatif · le total du bilan est minoré du montant, et aucune ligne ne le dit.',
+        action:
+          'Deux cas seulement. Le stock a été soldé sans que sa dépréciation le soit : reprenez la dépréciation ' +
+          'par le crédit du 7593 (ou du 849 si elle était H.A.O.). Ou la dépréciation est au mauvais numéro : ' +
+          'reclassez-la sur la subdivision du stock réellement déprécié.',
+        occurrences: depreciationsOrphelines.slice(0, 200).map((d) => ({
+          reference: `${d.numero} ${d.intitule}`,
+          detail: `Compte de stock ${compteStockAdosse(d.numero.slice(0, 3))} sans solde`,
+          montant: Math.round(d.solde * 100) / 100,
+        })),
+      });
+    }
+
+    // --- Un stock en cours de route mouvementé sans variation de stock ------
+    //
+    // LA MOITIÉ DÉTECTABLE DU PREMIER GRIEF. Les deux plans donnent au compte
+    // le même fonctionnement, dans les deux systèmes d'inventaire : il est
+    // débité « par le crédit des sous-comptes 603 concernés », et crédité par
+    // leur débit ou par les comptes de stocks. Un solde qui apparaît sans
+    // qu'aucun 603 n'ait bougé n'a pas de contrepartie de gestion : l'actif
+    // est là, la charge n'a pas été neutralisée, et le résultat reste minoré
+    // du montant · exactement ce que le séminaire décrit, mais pris par le
+    // bout qui laisse une trace.
+    const racineEnCoursDeRoute = STOCK_EN_COURS_DE_ROUTE[referentielDossier];
+    const enCoursDeRoute = cumul((n) => n.startsWith(racineEnCoursDeRoute));
+    const variationsStocks = cumul((n) => n.startsWith('603'));
+    if (
+      enCoursDeRoute.debit + enCoursDeRoute.credit > 0.005 &&
+      variationsStocks.debit + variationsStocks.credit <= 0.005
+    ) {
+      anomalies.push({
+        code: 'STOCK_EN_COURS_DE_ROUTE_SANS_VARIATION',
+        gravite: 'AVERTISSEMENT',
+        libelle: 'Stock en cours de route mouvementé sans aucune variation de stock',
+        consequence:
+          `Le compte ${racineEnCoursDeRoute} a été mouvementé sur l’exercice alors qu’aucun compte 603 ` +
+          '« Variations des stocks de biens achetés » ne l’a été. Les deux plans donnent au compte le même ' +
+          'fonctionnement, dans les deux systèmes d’inventaire : il est débité « par le crédit des sous-comptes ' +
+          '603 concernés ». Sans cette contrepartie, l’achat reste seul en charge et le stock apparaît sans ' +
+          'que la charge ait été neutralisée · le résultat est minoré du montant, et l’écriture s’équilibre ' +
+          'quand même.',
+        action:
+          `Passez la variation de stock au compte 603 correspondant, en contrepartie du ${racineEnCoursDeRoute}. ` +
+          'Si la marchandise a en réalité été réceptionnée avant la clôture, ce n’est pas le bon compte : ' +
+          `ventilez-la dans le compte de stock de sa nature, le ${racineEnCoursDeRoute} n’étant qu’un compte de passage.`,
+        occurrences: [
+          {
+            reference: `${racineEnCoursDeRoute} Stocks en cours de route, en consignation ou en dépôt`,
+            detail: 'Mouvement de l’exercice sans contrepartie au 603',
+            montant: Math.round((enCoursDeRoute.debit - enCoursDeRoute.credit) * 100) / 100,
+          },
+        ],
+      });
+    }
+
+    // --- Une production immobilisée sans immobilisation ---------------------
+    //
+    // LA MOITIÉ DÉTECTABLE DU SECOND GRIEF. Le 72 « est crédité du montant des
+    // travaux effectués au cours de l'exercice par l'entité pour elle-même,
+    // PAR LE DÉBIT du compte 21, du compte 23 ou 24 » · les deux plans, même
+    // phrase. Un 72 crédité sans qu'aucune immobilisation ne soit entrée
+    // signale une contrepartie manquante ou passée ailleurs, et cette
+    // fois-ci le dossier a bien écrit quelque chose.
+    const productionImmobilisee = cumul((n) => n.startsWith('72'));
+    const entreesImmobilisations = IMMOBILISATIONS_DE_LA_PRODUCTION.reduce(
+      (t, r) => t + cumul((n) => n.startsWith(r)).debit,
+      0,
+    );
+    if (productionImmobilisee.credit - productionImmobilisee.debit > 0.005 && entreesImmobilisations <= 0.005) {
+      anomalies.push({
+        code: 'PRODUCTION_IMMOBILISEE_SANS_IMMOBILISATION',
+        gravite: 'AVERTISSEMENT',
+        libelle: 'Production immobilisée créditée sans entrée d’immobilisation',
+        consequence:
+          'Le compte 72 « Production immobilisée » porte un solde créditeur alors qu’aucun compte 21, 23 ou 24 ' +
+          'n’a été débité de l’exercice. Les deux plans écrivent la même contrepartie : le 72 « est crédité du ' +
+          'montant des travaux effectués au cours de l’exercice par l’entité pour elle-même, au coût de ' +
+          'production, PAR LE DÉBIT du compte 21, du compte 23 ou 24 ». Sans l’entrée en immobilisation, le ' +
+          'produit est constaté sans l’actif qui le justifie, et l’exercice suivant ne portera aucun ' +
+          'amortissement sur un bien pourtant en service.',
+        action:
+          'Portez le bien produit à l’actif, au coût de production, par le débit du compte d’immobilisation de ' +
+          'sa nature · ou du 22 si les travaux ne sont pas achevés à la clôture. Le coût retenu doit intégrer ' +
+          'tous les intrants : matériaux consommés, charges directes et charges indirectes rattachables, et les ' +
+          'frais financiers des emprunts exclusivement affectés à la fabrication, pour la seule période de ' +
+          'fabrication.',
+        occurrences: [...parNumero.entries()]
+          .filter(([n, v]) => n.startsWith('72') && v.credit - v.debit > 0.005)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .slice(0, 50)
+          .map(([numero, v]) => ({
+            reference: `${numero} ${v.intitule}`,
+            detail: 'Aucune immobilisation entrée sur l’exercice',
+            montant: Math.round((v.credit - v.debit) * 100) / 100,
+          })),
+      });
     }
 
     const ordre: Record<Gravite, number> = { BLOQUANT: 0, AVERTISSEMENT: 1, INFORMATION: 2 };

@@ -547,6 +547,60 @@ comme référence de MÉTHODE, aucune opinion ne sort de ce registre, et les
 trois mentions de contexte du § 11 b) le disent à l'écran.
 
 
+**Stocks et production immobilisée · les deux griefs du CPCC, dans la seule
+forme qui ait une signature.** Le § 8.2 du séminaire nomme deux minorations
+« par absence d'une écriture de contrepartie » : la facture d'achat enregistrée
+sans constatation du stock en cours de route, et la production immobilisée
+jamais activée au compte 72. Les deux sont réelles.
+
+ET AUCUNE DES DEUX N'EST DÉTECTABLE SOUS CETTE FORME · elles se définissent par
+ce qui MANQUE. « Solde du 72 égal à zéro » se vérifie chez toute entité qui
+achète au lieu de produire, c'est-à-dire chez la quasi-totalité des dossiers.
+Un contrôle qui s'allume partout n'apprend rien à personne : il apprend
+seulement à être ignoré, et il emporte les vrais signalements avec lui. Un test
+fige cette abstention plutôt que de la laisser à la mémoire de qui relira.
+
+CE QUI EST CODÉ EST L'AUTRE MOITIÉ · non pas l'absence du compte, mais sa
+PRÉSENCE SANS SA CONTREPARTIE. Quatre contrôles, et à chaque fois le dossier a
+écrit quelque chose qui ne boucle pas. STOCK_EN_COURS_DE_ROUTE_SANS_VARIATION ·
+le compte a bougé, aucun 603 ne l'a suivi, alors que les deux plans lui donnent
+la même contrepartie dans les deux systèmes d'inventaire (« débité par le
+crédit des sous-comptes 603 concernés »).
+PRODUCTION_IMMOBILISEE_SANS_IMMOBILISATION · le 72 est crédité, aucun 21, 23 ou
+24 n'a été débité, alors que les deux plans écrivent la même phrase (« crédité
+[…] PAR LE DÉBIT du compte 21, du compte 23 ou 24 »).
+DEPRECIATION_STOCK_SANS_STOCK · une dépréciation créditrice dont le poste
+adossé est à zéro n'est pas une déduction, c'est un actif négatif, et le total
+du bilan est minoré sans qu'aucune ligne ne le dise.
+DEPRECIATION_STOCK_HORS_NOMENCLATURE · une subdivision du 39 que le plan
+n'ouvre pas.
+
+LE PÉRIMÈTRE N'EST PAS LE MÊME DES DEUX CÔTÉS, et c'est la cinquième fois que
+ce piège se présente après le 192, le 4181, le 1061/1062 et le 38/37 : UN
+NUMÉRO, DEUX SENS. Le stock en cours de route est au 38 en SYSCOHADA et au 37
+en SYCEBNL, et le numéro libéré porte autre chose dans chaque plan · le 37 du
+SYSCOHADA est « produits intermédiaires et résiduels », le 38 du SYCEBNL est
+« DONS EN NATURE H.A.O. ». Signaler « le 38 » sans regarder le référentiel
+accuserait une association d'avoir mal comptabilisé ses dons. Côté
+dépréciations, l'AUDCIF ouvre huit subdivisions au 39 (391 à 398) et le SYCEBNL
+cinq (391, 392, 393, 396, 397) · il n'a ni 394 « produits en cours », ni 395
+« services en cours », ni 398, son 396 couvrant à lui seul « produits finis,
+produits intermédiaires et résiduels ».
+
+UNE SEULE RÈGLE TRAVERSE LA DIFFÉRENCE INTACTE · 39X déprécie 3X, dans les deux
+plans. Elle la traverse SANS ÊTRE ÉPARGNÉE par le piège : le 397 déprécie les
+produits intermédiaires au SYSCOHADA et les stocks en cours de route au
+SYCEBNL. Le rapprochement 397 → 37 reste juste des deux côtés ; c'est
+l'INTITULÉ qui change, et lui n'est jamais écrit en dur.
+
+Un rappel du corpus, à connaître avant d'aller plus loin sur ce cycle : les
+deux plans imposent d'inscrire en Notes annexes « le détail par catégorie des
+stocks figurant au bilan » dans ce compte, mais la Note 8 des associations
+SYCEBNL ne porte pas la rubrique « stocks en cours de route ». L'obligation est
+écrite, le support ne l'est pas · ne pas construire de contrôle là-dessus sans
+avoir tranché ce point.
+
+
 **Questionnaire de révision par cycle · vingt-quatre items du CPCC, et le
 reste assumé.** Le séminaire porte DEUX checklists, § VI « vérification de
 l'inventaire physique » (immobilisations, stocks, caisses) et § VII
