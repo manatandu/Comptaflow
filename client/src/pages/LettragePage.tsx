@@ -1,7 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../lib/api';
-import type { Compte, EtatLettrage, GroupeLettrage, GroupeLettrageDossier } from '../lib/types';
+import type {
+  Compte,
+  EtatLettrage,
+  EtatPreLettrage,
+  GroupeLettrage,
+  GroupeLettrageDossier,
+} from '../lib/types';
 import { Aide } from '../components/chrome/Aide';
 
 /**
@@ -72,6 +78,15 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
   // Groupe partiel que la sélection viendra compléter · null = créer un
   // nouveau groupe.
   const [completerId, setCompleterId] = useState<string | null>(null);
+  // PRÉ-LETTRAGE · la proposition n'est chargée QUE sur demande, et jamais
+  // conservée : quitter le panneau la jette, la rouvrir la recalcule. Rien à
+  // rafraîchir, donc rien à périmer.
+  const [preLettrage, setPreLettrage] = useState<EtatPreLettrage | null>(null);
+  // Les groupes retenus, par indice de proposition. VIDE au départ, et c'est
+  // délibéré : un panneau dont les cases arriveraient cochées transformerait
+  // la confirmation en acquiescement, alors que c'est justement l'examen qui
+  // est demandé.
+  const [retenus, setRetenus] = useState<Set<number>>(new Set());
   const selecteurCompteRef = useRef<HTMLSelectElement>(null);
 
   const charger = async () => {
@@ -96,6 +111,8 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
   useEffect(() => {
     setSelection(new Set());
     setCompleterId(null);
+    setPreLettrage(null);
+    setRetenus(new Set());
     charger();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [compteId]);
@@ -174,6 +191,36 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
       return g.verrouille ? `Lettrage ${g.code} déverrouillé.` : `Lettrage ${g.code} verrouillé.`;
     });
 
+  const lancerPreLettrage = async () => {
+    setEnvoi(true);
+    setErreur(null);
+    setInfo(null);
+    try {
+      const r = await api.get<EtatPreLettrage>(`/comptes/${compteId}/lettrage/pre-lettrage`);
+      setPreLettrage(r);
+      setRetenus(new Set());
+    } catch (err) {
+      setErreur(err instanceof ApiError ? err.message : 'Pré-lettrage impossible');
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
+  const confirmerPreLettrage = () =>
+    executer(async () => {
+      const groupesRetenus = [...retenus]
+        .sort((a, b) => a - b)
+        .map((i) => preLettrage!.propositions[i])
+        .map((p) => ({ ligneIds: p.ligneIds, origine: p.origine }));
+      const r = await api.post<{ groupes: number; lettres: string[] }>(
+        `/comptes/${compteId}/lettrage/pre-lettrage/confirmer`,
+        { groupes: groupesRetenus },
+      );
+      setPreLettrage(null);
+      setRetenus(new Set());
+      return `${r.groupes} groupe(s) confirmé(s) et lettré(s) : ${r.lettres.join(', ')}.`;
+    });
+
   const lancerLettrageAuto = () =>
     executer(async () => {
       const r = await api.post<{ groupes: number; parPiece: number; parMontant: number; lettres: string[] }>(
@@ -235,6 +282,15 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
           </label>
           <button
             type="button"
+            onClick={lancerPreLettrage}
+            disabled={envoi || !compte?.lettrable}
+            title="Cherche les rapprochements et les SOUMET · rien n'est écrit avant confirmation"
+            className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[10.5px] disabled:opacity-50"
+          >
+            Pré-lettrage
+          </button>
+          <button
+            type="button"
             onClick={lancerLettrageAuto}
             disabled={envoi || !compte?.lettrable}
             title="Apparie d'abord par référence de pièce, puis par montant"
@@ -254,6 +310,101 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
       )}
       {erreur && <div className="text-[11px] text-danger bg-danger-soft border border-danger/30 px-3 py-2 mb-3 max-w-[860px]">{erreur}</div>}
       {info && <div className="text-[11px] text-positive bg-positive-soft border border-positive/30 px-3 py-2 mb-3 max-w-[860px]">{info}</div>}
+
+      {/* ------------------------------------------------------------------
+          PRÉ-LETTRAGE · « l'une propose, l'autre confirme ». Le lettrage
+          automatique écrit directement ; ici la même recherche rend sa
+          trouvaille à qui peut la trancher. Chaque groupe est donné À LIRE
+          (date, libellé, référence, montants) : proposer sans donner à lire
+          reviendrait à demander un acquiescement plutôt qu'un examen.
+          ------------------------------------------------------------------ */}
+      {preLettrage && (
+        <div className="mt-1 mb-3 max-w-[1040px] border border-border bg-surface shadow-posee">
+          <div className="px-3.5 py-1.5 bg-surface-alt border-b border-border-dark text-[10px] font-bold text-text-dim flex items-center justify-between gap-3 flex-wrap">
+            <span>PRÉ-LETTRAGE · {preLettrage.propositions.length} proposition(s)</span>
+            <button type="button" onClick={() => setPreLettrage(null)} className="text-[10px] font-normal hover:underline">
+              Fermer sans rien écrire
+            </button>
+          </div>
+
+          <p className="px-3.5 py-2 text-[10.5px] text-text-dim border-b border-border/60">{preLettrage.avertissement}</p>
+
+          {preLettrage.propositions.length === 0 ? (
+            <div className="px-3.5 py-2 text-[11px] text-text-dim">
+              Aucun rapprochement trouvé sur ce compte.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              {preLettrage.propositions.map((p, i) => (
+                <div key={p.ligneIds.join('+')} className="border-b border-border/60 last:border-b-0 min-w-[620px]">
+                  <label className="flex items-center gap-2 px-3.5 py-1.5 bg-chrome/60 text-[10.5px] cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={retenus.has(i)}
+                      onChange={() =>
+                        setRetenus((prev) => {
+                          const s = new Set(prev);
+                          if (s.has(i)) s.delete(i);
+                          else s.add(i);
+                          return s;
+                        })
+                      }
+                    />
+                    <span className="font-semibold">{montant(p.montant)}</span>
+                    <span className="text-text-dim">·</span>
+                    {/* L'ORIGINE EST DITE AVANT LE DÉTAIL · elle change ce que
+                        le lecteur doit vérifier. Une référence de pièce a été
+                        saisie par un humain ; deux montants égaux ne prouvent
+                        que leur égalité. */}
+                    <span
+                      className={p.origine === 'AUTOMATIQUE_PIECE' ? 'text-positive' : 'text-warning'}
+                      title={
+                        p.origine === 'AUTOMATIQUE_PIECE'
+                          ? "Rapprochement fondé sur la référence de pièce, une donnée saisie"
+                          : "Présomption du logiciel : deux sommes égales ne prouvent pas qu'elles se soldent l'une l'autre"
+                      }
+                    >
+                      {LIBELLE_ORIGINE[p.origine]}
+                    </span>
+                    <span className="text-text-dim">· {p.lignes.length} ligne(s)</span>
+                  </label>
+                  {p.lignes.map((l) => (
+                    <div
+                      key={l.ligneId}
+                      className="grid grid-cols-[70px_1.3fr_110px_96px_96px] gap-2.5 px-3.5 py-[3px] text-[10.5px] items-center"
+                    >
+                      <span className="font-mono text-[10px] text-text-dim">
+                        {new Date(l.date).toLocaleDateString('fr-FR')}
+                      </span>
+                      <span className="truncate">{l.libelle}</span>
+                      <span className="font-mono text-[10px] text-text-dim truncate">{l.reference}</span>
+                      <span className="font-mono text-right">{l.debit ? montant(l.debit) : ''}</span>
+                      <span className="font-mono text-right">{l.credit ? montant(l.credit) : ''}</span>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="px-3.5 py-2 border-t border-border-dark flex items-center gap-4 flex-wrap">
+            <button
+              onClick={confirmerPreLettrage}
+              disabled={envoi || retenus.size === 0}
+              className="bg-sel text-white text-[11px] font-semibold px-3 py-1.5 disabled:opacity-40"
+            >
+              {envoi ? 'Lettrage…' : `Confirmer ${retenus.size} groupe(s)`}
+            </button>
+            {/* La moitié utile de l'état · un pré-lettrage qui ne montrerait
+                que ses trouvailles laisserait croire que le reste est
+                rapproché. */}
+            <span className="text-[10.5px] text-text-dim">
+              {preLettrage.nonProposees} ligne(s) ouverte(s) que le logiciel n'a pas su rapprocher · elles restent à
+              lettrer à la main.
+            </span>
+          </div>
+        </div>
+      )}
 
       {!lignes && compteId && <div className="text-[11px] text-text-dim">Chargement…</div>}
 

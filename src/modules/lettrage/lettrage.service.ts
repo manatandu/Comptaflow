@@ -666,9 +666,22 @@ export class LettrageService {
    *    que le N-pour-1 · au-delà, cette dernière passe est sautée (les
    *    précédentes restent, elles, toujours effectuées).
    */
-  async lettrageAutomatique(tenantId: string, compteId: string, userId: string) {
-    await this.trouverCompteLettrable(tenantId, compteId);
-
+  /**
+   * LE CALCUL DES PROPOSITIONS, SORTI DE LA POSE.
+   *
+   * Les quatre passes ci-dessus ne décident de rien : elles PROPOSENT des
+   * groupes. Deux chemins les consomment · `lettrageAutomatique`, qui pose
+   * immédiatement, et `preLettrage`, qui rend la proposition à un humain. Un
+   * second calcul écrit à part pour le pré-lettrage aurait divergé du premier
+   * au premier correctif, et l'écart n'aurait sauté aux yeux de personne : les
+   * deux listes sont plausibles séparément.
+   *
+   * TOUT GROUPE PROPOSÉ EST SOLDÉ · les quatre passes n'apparient que des
+   * sommes exactement égales. C'est ce qui permet à la confirmation de refuser
+   * un groupe qui ne l'est pas, sans avoir à faire confiance à ce que le client
+   * lui renvoie.
+   */
+  private async calculerPropositions(tenantId: string, compteId: string) {
     const LIMITE_LIGNES_SUBSET_SUM = 25;
     const LIMITE_LIGNES_PARTITION = 16;
 
@@ -677,7 +690,11 @@ export class LettrageService {
     // ailleurs. Elle se solde en complétant son groupe (voir `completer`).
     const nonLettrees = await this.prisma.ligneEcriture.findMany({
       where: { compteId, lettrageId: null, ecriture: { tenantId } },
-      include: { ecriture: { select: { reference: true } } },
+      // La DATE et le LIBELLÉ sont chargés pour le pré-lettrage, qui doit
+      // montrer à l'humain ce qu'il confirme · une liste d'identifiants ne se
+      // confirme pas, et proposer sans donner à lire reviendrait à demander un
+      // acquiescement plutôt qu'un examen.
+      include: { ecriture: { select: { reference: true, date: true } } },
       orderBy: { ecriture: { date: 'asc' } },
     });
 
@@ -759,7 +776,162 @@ export class LettrageService {
       creditsRestants = creditsRestants.filter((c) => !partition.credits.includes(c.id));
     }
 
-    if (groupes.length === 0 && parPiece.groupes.length === 0) {
+    return { parPiece: parPiece.groupes, parMontant: groupes, lignes: nonLettrees };
+  }
+
+  /**
+   * PRÉ-LETTRAGE · la même recherche, mais elle PROPOSE au lieu de poser.
+   *
+   * Le lettrage automatique écrit directement, et le schéma dit pourtant de
+   * lui-même ce qu'il vaut : « un rapprochement par montant est une PRÉSOMPTION
+   * DU LOGICIEL » (voir `OrigineLettrage`). Deux montants égaux ne prouvent pas
+   * qu'une facture a été réglée par ce virement-là · ils prouvent qu'ils sont
+   * égaux. Sur un compte fournisseur où trois factures portent le même montant
+   * mensuel, la présomption se trompe une fois sur trois et le lettrage part
+   * quand même.
+   *
+   * Le pré-lettrage rend la présomption à qui peut la trancher : « l'une
+   * propose, l'autre confirme ». C'est la même division du travail que le
+   * double regard à la validation (§ 10 ter), et pour la même raison · le
+   * logiciel voit une coïncidence, le comptable connaît l'opération.
+   *
+   * IL N'EST PAS STOCKÉ, ET C'EST UN CHOIX. Une proposition rangée en base
+   * réserverait ses lignes (`lettrageId` servi les sort du réappariement) sans
+   * être un lettrage, et surtout elle PÉRIMERAIT : la première écriture passée
+   * sur le compte change la scène, et confirmer une proposition d'hier
+   * lettrerait des lignes contre une image qui n'existe plus. Recalculée à
+   * chaque appel, elle ne peut pas être périmée · le second utilisateur relance
+   * la recherche et voit exactement ce que le premier a vu, ou voit qu'elle a
+   * changé.
+   *
+   * L'ORIGINE PROPOSÉE EST CONSERVÉE À LA CONFIRMATION, et ce n'est pas un
+   * détail. Elle dit COMMENT le rapprochement a été trouvé, pas qui l'a béni :
+   * un groupe issu d'une coïncidence de montants reste `AUTOMATIQUE_MONTANT`
+   * même confirmé à la main, sinon la piste d'audit affirmerait qu'un humain a
+   * apparié ces lignes une par une.
+   */
+  async preLettrage(tenantId: string, compteId: string) {
+    await this.trouverCompteLettrable(tenantId, compteId);
+    const { parPiece, parMontant, lignes } = await this.calculerPropositions(tenantId, compteId);
+
+    const parId = new Map(lignes.map((l) => [l.id, l]));
+    const decrire = (ligneIds: string[], origine: OrigineLettrage) => {
+      const detail = ligneIds
+        .map((id) => parId.get(id))
+        .filter((l): l is (typeof lignes)[number] => Boolean(l))
+        .map((l) => ({
+          ligneId: l.id,
+          date: l.ecriture.date.toISOString().slice(0, 10),
+          libelle: l.libelle ?? '',
+          reference: l.ecriture.reference ?? '',
+          debit: Number(l.debit),
+          credit: Number(l.credit),
+        }));
+      return {
+        origine,
+        ligneIds,
+        lignes: detail,
+        montant: detail.reduce((t, l) => t + l.debit, 0),
+        // Le solde est RENDU alors qu'il vaut zéro par construction · c'est
+        // lui que la confirmation revérifie, et l'afficher permet au lecteur
+        // de faire le même contrôle que le serveur.
+        solde: detail.reduce((t, l) => t + l.debit - l.credit, 0),
+      };
+    };
+
+    return {
+      propositions: [
+        ...parPiece.map((g) => decrire(g, OrigineLettrage.AUTOMATIQUE_PIECE)),
+        ...parMontant.map((g) => decrire(g, OrigineLettrage.AUTOMATIQUE_MONTANT)),
+      ],
+      // Ce que le logiciel N'A PAS su rapprocher · c'est la moitié utile de
+      // l'état. Un pré-lettrage qui ne montrerait que ses trouvailles
+      // laisserait croire que le reste est rapproché.
+      nonProposees: lignes.filter(
+        (l) => ![...parPiece, ...parMontant].flat().includes(l.id),
+      ).length,
+      avertissement:
+        "Un rapprochement par MONTANT est une présomption du logiciel : deux sommes égales ne prouvent pas qu'elles se soldent l'une l'autre. Un rapprochement par RÉFÉRENCE DE PIÈCE s'appuie sur une donnée saisie par un humain. Rien n'est écrit tant que vous n'avez pas confirmé.",
+    };
+  }
+
+  /**
+   * CONFIRMATION D'UN PRÉ-LETTRAGE · elle ne fait JAMAIS confiance à ce que le
+   * client renvoie.
+   *
+   * Le client rejoue les groupes qu'il a acceptés. Rien n'empêcherait d'y
+   * glisser une autre composition · le serveur revérifie donc tout, exactement
+   * comme si la sélection venait d'un clic manuel :
+   *
+   *  · les lignes appartiennent au compte et au dossier, et ne sont pas déjà
+   *    rattachées à un groupe (contrôle commun `verifierLignes`) ;
+   *  · le groupe SOLDE À ZÉRO. Les quatre passes ne proposent que des sommes
+   *    exactement égales : un groupe confirmé qui ne solde pas ne vient pas
+   *    d'une proposition, et l'accepter poserait un lettrage PARTIEL sous une
+   *    origine automatique, c'est-à-dire une présomption du logiciel sur une
+   *    opération que le logiciel n'a jamais proposée ;
+   *  · l'origine est l'une des DEUX automatiques. Un groupe composé à la main
+   *    passe par `lettrerManuel`, qui porte son origine propre.
+   */
+  async confirmerPreLettrage(
+    tenantId: string,
+    compteId: string,
+    userId: string,
+    groupes: Array<{ ligneIds: string[]; origine: OrigineLettrage }>,
+  ) {
+    await this.trouverCompteLettrable(tenantId, compteId);
+    if (groupes.length === 0) {
+      throw new BadRequestException('Aucun groupe à confirmer.');
+    }
+    for (const g of groupes) {
+      if (g.origine === OrigineLettrage.MANUEL) {
+        throw new BadRequestException(
+          "Un groupe composé à la main se pose par le lettrage manuel, qui porte son origine propre. La confirmation d'un pré-lettrage conserve l'origine de la passe qui l'a trouvé.",
+        );
+      }
+      if (g.ligneIds.length < 2) {
+        throw new BadRequestException('Un groupe de lettrage porte au moins deux lignes.');
+      }
+    }
+
+    return avecRetrySerialisable(
+      this.prisma,
+      async (tx) => {
+        const lettres: string[] = [];
+        for (const g of groupes) {
+          const lignes = await tx.ligneEcriture.findMany({
+            where: { id: { in: g.ligneIds } },
+            include: { ecriture: { select: { tenantId: true, date: true } } },
+          });
+          this.verifierLignes(lignes, { compteId, tenantId, nombre: g.ligneIds.length });
+          const solde = lignes.reduce((t, l) => t + Number(l.debit) - Number(l.credit), 0);
+          if (Math.abs(solde) > EPSILON) {
+            throw new BadRequestException(
+              `Ce groupe ne solde pas (écart de ${solde.toFixed(2)}). Les propositions du pré-lettrage sont toujours soldées : un groupe qui ne l'est pas n'en vient pas, et se pose par le lettrage manuel.`,
+            );
+          }
+          const groupe = await this.creerGroupe(tx, {
+            tenantId,
+            compteId,
+            ligneIds: g.ligneIds,
+            origine: g.origine,
+            userId,
+          });
+          lettres.push(groupe.code);
+        }
+        return { groupes: groupes.length, lettres };
+      },
+      'Trop de lettrages effectués au même instant sur ce compte · veuillez réessayer.',
+    );
+  }
+
+  async lettrageAutomatique(tenantId: string, compteId: string, userId: string) {
+    await this.trouverCompteLettrable(tenantId, compteId);
+    const { parPiece, parMontant } = await this.calculerPropositions(tenantId, compteId);
+    const parPieceGroupes = parPiece;
+    const groupes = parMontant;
+
+    if (groupes.length === 0 && parPieceGroupes.length === 0) {
       return { groupes: 0, parPiece: 0, parMontant: 0, lettres: [] };
     }
 
@@ -772,7 +944,7 @@ export class LettrageService {
         // coïncidence de montants, et un auditeur doit pouvoir les
         // distinguer.
         for (const [origine, lots] of [
-          [OrigineLettrage.AUTOMATIQUE_PIECE, parPiece.groupes],
+          [OrigineLettrage.AUTOMATIQUE_PIECE, parPieceGroupes],
           [OrigineLettrage.AUTOMATIQUE_MONTANT, groupes],
         ] as const) {
           for (const ligneIds of lots) {
@@ -781,8 +953,8 @@ export class LettrageService {
           }
         }
         return {
-          groupes: parPiece.groupes.length + groupes.length,
-          parPiece: parPiece.groupes.length,
+          groupes: parPieceGroupes.length + groupes.length,
+          parPiece: parPieceGroupes.length,
           parMontant: groupes.length,
           lettres,
         };

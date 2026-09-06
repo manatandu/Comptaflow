@@ -5,7 +5,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { LettrageService } from './lettrage.service';
-import { CompleterLettrageDto, LettrerDto, VerrouillerLettrageDto } from './dto/lettrage.dto';
+import { CompleterLettrageDto, ConfirmerPreLettrageDto, LettrerDto, VerrouillerLettrageDto } from './dto/lettrage.dto';
 import { RoleUtilisateur, StatutLettrage } from '@prisma/client';
 
 // Même règle que la saisie d'écritures : LECTURE_SEULE consulte, seuls
@@ -40,6 +40,28 @@ export class LettrageController {
   @Post('auto')
   async lettrageAutomatique(@CurrentUser() user: AuthenticatedUser, @Param('compteId') compteId: string) {
     return this.lettrageService.lettrageAutomatique(user.tenantId, compteId, user.userId);
+  }
+
+  /**
+   * PRÉ-LETTRAGE · la même recherche que le lettrage automatique, mais elle
+   * n'écrit RIEN. Ouverte à tout rôle authentifié, comme les autres lectures :
+   * proposer n'est pas poser, et c'est justement ce que cet écran existe pour
+   * séparer.
+   */
+  @Get('pre-lettrage')
+  async preLettrage(@CurrentUser() user: AuthenticatedUser, @Param('compteId') compteId: string) {
+    return this.lettrageService.preLettrage(user.tenantId, compteId);
+  }
+
+  /** Confirme des groupes proposés · le serveur revérifie tout (voir le service). */
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Post('pre-lettrage/confirmer')
+  async confirmerPreLettrage(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('compteId') compteId: string,
+    @Body() dto: ConfirmerPreLettrageDto,
+  ) {
+    return this.lettrageService.confirmerPreLettrage(user.tenantId, compteId, user.userId, dto.groupes);
   }
 
   /**

@@ -297,6 +297,37 @@ export interface EtatLettrage {
   lettrages: GroupeLettrage[];
 }
 
+/**
+ * PRÉ-LETTRAGE · une proposition, rien de plus. Elle n'existe pas en base :
+ * le serveur la recalcule à chaque appel, ce qui la rend impérissable. Une
+ * proposition rangée quelque part périmerait à la première écriture passée
+ * sur le compte, et la confirmer lettrerait des lignes contre une image qui
+ * n'existe plus.
+ */
+export interface PropositionPreLettrage {
+  /** Toujours automatique · un groupe composé à la main passe par le lettrage manuel. */
+  origine: Exclude<OrigineLettrage, 'MANUEL'>;
+  ligneIds: string[];
+  lignes: Array<{
+    ligneId: string;
+    date: string;
+    libelle: string;
+    reference: string;
+    debit: number;
+    credit: number;
+  }>;
+  montant: number;
+  /** Nul par construction · rendu pour que le lecteur refasse le contrôle du serveur. */
+  solde: number;
+}
+
+export interface EtatPreLettrage {
+  propositions: PropositionPreLettrage[];
+  /** Ce que le logiciel n'a PAS su rapprocher · la moitié utile de l'état. */
+  nonProposees: number;
+  avertissement: string;
+}
+
 export type StatutRapprochement = 'EN_COURS' | 'CLOTURE';
 
 export interface RapprochementBancaire {

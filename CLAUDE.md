@@ -1254,6 +1254,50 @@ techniques (`etats-financiers.communs.ts`, `note-annexe.types.ts` côté
 serveur, `components/NotesAnnexesRendu.tsx` côté client) · aucun poste, aucun
 compte, aucun libellé.
 
+**Pré-lettrage · « l'une propose, l'autre confirme ».** Le lettrage automatique
+écrivait directement, et le schéma disait pourtant lui-même ce que valent ses
+trouvailles : « un rapprochement par montant est une PRÉSOMPTION DU LOGICIEL »
+(commentaire d'`OrigineLettrage`). Deux montants égaux ne prouvent pas qu'une
+facture a été réglée par ce virement-là · ils prouvent qu'ils sont égaux. Sur un
+compte fournisseur où trois factures portent le même loyer mensuel, la
+présomption se trompe deux fois sur trois et le lettrage part quand même. Le
+pré-lettrage rend la présomption à qui peut la trancher · c'est la même division
+du travail que le double regard à la validation (§ 10 ter), et pour la même
+raison : le logiciel voit une coïncidence, le comptable connaît l'opération.
+
+UN SEUL CALCUL, DEUX APPELANTS. `calculerPropositions` porte les quatre passes
+(référence de pièce, paires exactes, N-pour-1, N-pour-M) ; `lettrageAutomatique`
+pose, `preLettrage` propose. Un second calcul écrit à part pour l'écran de
+proposition aurait divergé du premier au premier correctif, et l'écart n'aurait
+sauté aux yeux de personne · les deux listes sont plausibles séparément. Un test
+compare les deux sorties, et c'est le seul endroit où la divergence se verrait.
+
+LA PROPOSITION N'EST PAS STOCKÉE, ET C'EST UN CHOIX. Rangée en base, elle
+réserverait ses lignes (`lettrageId` servi les sort du réappariement) sans être
+un lettrage, et surtout elle PÉRIMERAIT : la première écriture passée sur le
+compte change la scène, et confirmer une proposition d'hier lettrerait des
+lignes contre une image qui n'existe plus. Recalculée à chaque appel, elle ne
+peut pas être périmée. La confirmation ne fait d'ailleurs jamais confiance à ce
+que le client renvoie · elle rejoue `verifierLignes` et REFUSE tout groupe dont
+le solde n'est pas nul, puisque les quatre passes n'apparient que des sommes
+exactement égales : un groupe confirmé qui ne solde pas ne vient pas d'une
+proposition, et l'accepter poserait un lettrage PARTIEL sous une origine
+automatique, c'est-à-dire une présomption du logiciel sur une opération que le
+logiciel n'a jamais proposée.
+
+L'ORIGINE PROPOSÉE EST CONSERVÉE À LA CONFIRMATION. Elle dit COMMENT le
+rapprochement a été trouvé, pas qui l'a béni : un groupe issu d'une coïncidence
+de montants reste `AUTOMATIQUE_MONTANT` même confirmé à la main, sinon la piste
+d'audit affirmerait qu'un humain a apparié ces lignes une par une. `MANUEL` est
+refusé à cette porte · un groupe composé à la main passe par le lettrage manuel,
+qui porte son origine propre.
+
+Deux détails d'écran qui sont des règles. Les cases arrivent DÉCOCHÉES · un
+panneau pré-coché transformerait la confirmation en acquiescement, alors que
+c'est l'examen qui est demandé. Et l'état compte ce qu'il n'a PAS su rapprocher
+· un pré-lettrage qui ne montrerait que ses trouvailles laisserait croire que le
+reste est rapproché.
+
 **Palmarès des comptes et analyse des journaux · deux états dont la compétence
 Sage ne donne que le NOM.** Le catalogue les énumère et s'arrête là · ni
 colonnes, ni tri, ni périmètre. Leur définition est donc celle d'OmegaX, et

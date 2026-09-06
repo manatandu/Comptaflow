@@ -1,4 +1,6 @@
-import { ArrayMinSize, IsArray, IsBoolean, IsOptional, IsString, IsUUID } from 'class-validator';
+import { ArrayMinSize, IsArray, IsBoolean, IsEnum, IsOptional, IsString, IsUUID, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
+import { OrigineLettrage } from '@prisma/client';
 
 export class LettrerDto {
   @IsArray()
@@ -36,4 +38,28 @@ export class VerrouillerLettrageDto {
 export class DelettrerDto {
   @IsString()
   lettre!: string;
+}
+
+/**
+ * Un groupe rejoué depuis le pré-lettrage. L'ORIGINE est reprise de la
+ * proposition, jamais choisie : elle dit COMMENT le rapprochement a été trouvé,
+ * pas qui l'a béni. Le service refuse `MANUEL` ici · un groupe composé à la
+ * main passe par le lettrage manuel.
+ */
+export class GroupePreLettrageDto {
+  @IsArray()
+  @ArrayMinSize(2)
+  @IsUUID('4', { each: true })
+  ligneIds!: string[];
+
+  @IsEnum(OrigineLettrage)
+  origine!: OrigineLettrage;
+}
+
+export class ConfirmerPreLettrageDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => GroupePreLettrageDto)
+  groupes!: GroupePreLettrageDto[];
 }

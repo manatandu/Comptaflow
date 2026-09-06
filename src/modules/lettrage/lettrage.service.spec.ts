@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
+import { OrigineLettrage } from '@prisma/client';
 import { LettrageService } from './lettrage.service';
 import { PrismaService } from '../../common/prisma.service';
 
@@ -126,7 +127,7 @@ function service(lignes: LigneFausse[], options: { lettrable?: boolean } = {}) {
       }),
     },
   };
-  return { service: new LettrageService(prisma as unknown as PrismaService), lignes, groupes };
+  return { service: new LettrageService(prisma as unknown as PrismaService), lignes, groupes, prisma };
 }
 
 // ---------------------------------------------------------------------------
@@ -309,5 +310,123 @@ describe('Écart de change réalisé au dénouement', () => {
     ]);
     await s.lettrerManuel('t1', 'c1', ['a', 'b'], 'u1');
     expect(groupes[0].ecartChange).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Pré-lettrage · « l'une propose, l'autre confirme »
+// ---------------------------------------------------------------------------
+
+/** Les groupes réellement POSÉS, relus depuis les lignes · un ensemble d'ensembles. */
+const compositions = (lignes: LigneFausse[]) => {
+  const par = new Map<string, string[]>();
+  for (const l of lignes) {
+    if (!l.lettrageId) continue;
+    par.set(l.lettrageId, [...(par.get(l.lettrageId) ?? []), l.id]);
+  }
+  return [...par.values()].map((ids) => ids.sort().join('+')).sort();
+};
+
+describe('Pré-lettrage', () => {
+  const scene = () => [
+    ligne('f1', 500, 0, { reference: 'FAC-001' }),
+    ligne('r1', 0, 500, { reference: 'FAC-001' }),
+    ligne('d', 750, 0),
+    ligne('c', 0, 750),
+    ligne('seule', 120, 0),
+  ];
+
+  it('N’ÉCRIT RIEN · c’est tout le sens de l’état', async () => {
+    // Une proposition qui poserait le lettrage ne serait pas une proposition.
+    // Le contrôle porte sur les DEUX écritures que la pose effectue : la
+    // création du groupe et le rattachement des lignes.
+    const { service: s, prisma, groupes } = service(scene());
+    const r = await s.preLettrage('t1', 'c1');
+    expect(r.propositions.length).toBeGreaterThan(0);
+    expect(prisma.lettrage.create).not.toHaveBeenCalled();
+    expect(prisma.ligneEcriture.updateMany).not.toHaveBeenCalled();
+    expect(groupes).toHaveLength(0);
+  });
+
+  it('propose EXACTEMENT ce que le lettrage automatique poserait · un seul calcul, deux appelants', async () => {
+    // Un second calcul écrit à part pour le pré-lettrage aurait divergé du
+    // premier au premier correctif, et l'écart n'aurait sauté aux yeux de
+    // personne : les deux listes sont plausibles séparément. Ce test est le
+    // seul endroit où la divergence se voit.
+    const propose = service(scene());
+    const pose = service(scene());
+    const r = await propose.service.preLettrage('t1', 'c1');
+    await pose.service.lettrageAutomatique('t1', 'c1', 'u1');
+    expect(r.propositions.map((p) => [...p.ligneIds].sort().join('+')).sort()).toEqual(compositions(pose.lignes));
+  });
+
+  it('trace l’origine de chaque proposition, et compte ce qu’il n’a PAS su rapprocher', async () => {
+    // Un pré-lettrage qui ne montrerait que ses trouvailles laisserait croire
+    // que le reste est rapproché · « seule » n'a pas de contrepartie.
+    const { service: s } = service(scene());
+    const r = await s.preLettrage('t1', 'c1');
+    expect(r.propositions.map((p) => p.origine).sort()).toEqual(['AUTOMATIQUE_MONTANT', 'AUTOMATIQUE_PIECE']);
+    expect(r.nonProposees).toBe(1);
+    // Chaque proposition est donnée À LIRE, pas seulement à cocher.
+    expect(r.propositions.every((p) => p.lignes.length === p.ligneIds.length)).toBe(true);
+    expect(r.propositions.every((p) => p.solde === 0)).toBe(true);
+  });
+
+  it('la confirmation CONSERVE l’origine proposée', async () => {
+    // Elle dit COMMENT le rapprochement a été trouvé, pas qui l'a béni : un
+    // groupe issu d'une coïncidence de montants reste AUTOMATIQUE_MONTANT même
+    // confirmé à la main, sinon la piste d'audit affirmerait qu'un humain a
+    // apparié ces lignes une par une.
+    const { service: s, groupes } = service(scene());
+    const r = await s.preLettrage('t1', 'c1');
+    await s.confirmerPreLettrage(
+      't1',
+      'c1',
+      'u1',
+      r.propositions.map((p) => ({ ligneIds: p.ligneIds, origine: p.origine })),
+    );
+    expect(groupes.map((g) => g.origine).sort()).toEqual(['AUTOMATIQUE_MONTANT', 'AUTOMATIQUE_PIECE']);
+    expect(groupes.every((g) => g.statut === 'SOLDE')).toBe(true);
+  });
+
+  it('refuse un groupe qui ne solde pas · il ne vient pas d’une proposition', async () => {
+    // Les quatre passes n'apparient que des sommes exactement égales.
+    // L'accepter poserait un lettrage PARTIEL sous une origine automatique,
+    // c'est-à-dire une présomption du logiciel sur une opération que le
+    // logiciel n'a jamais proposée.
+    const { service: s, groupes } = service(scene());
+    await expect(
+      s.confirmerPreLettrage('t1', 'c1', 'u1', [
+        { ligneIds: ['f1', 'seule'], origine: OrigineLettrage.AUTOMATIQUE_MONTANT },
+      ]),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(groupes).toHaveLength(0);
+  });
+
+  it('refuse l’origine MANUEL · un groupe composé à la main passe par le lettrage manuel', async () => {
+    const { service: s } = service(scene());
+    await expect(
+      s.confirmerPreLettrage('t1', 'c1', 'u1', [{ ligneIds: ['f1', 'r1'], origine: OrigineLettrage.MANUEL }]),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('refuse une proposition PÉRIMÉE · les lignes ont été lettrées entre-temps', async () => {
+    // C'est le cas qui a fait renoncer à stocker les propositions. Le premier
+    // utilisateur voit la scène, le second lettre les mêmes lignes autrement,
+    // et la confirmation du premier arrive après. Elle est refusée par le
+    // contrôle commun, pas par une vérification propre au pré-lettrage.
+    const { service: s, groupes } = service(scene());
+    const r = await s.preLettrage('t1', 'c1');
+    await s.lettrerManuel('t1', 'c1', ['f1', 'r1'], 'u2');
+    await expect(
+      s.confirmerPreLettrage(
+        't1',
+        'c1',
+        'u1',
+        r.propositions.map((p) => ({ ligneIds: p.ligneIds, origine: p.origine })),
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    // Le groupe manuel du second reste seul posé.
+    expect(groupes).toHaveLength(1);
   });
 });
