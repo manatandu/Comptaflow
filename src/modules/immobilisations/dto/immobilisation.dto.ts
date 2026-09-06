@@ -80,6 +80,28 @@ export class CreerImmobilisationDto {
   dureeAmortissementAns?: number; // sinon, valeur par défaut de la famille
 
   /**
+   * AUDCIF art. 45 · LINEAIRE par défaut, UNITES_DOEUVRE sur demande. L'article
+   * admet aussi le dégressif à taux décroissant, que ce module ne couvre pas
+   * encore, et INTERDIT deux modes qui n'existent pas dans l'énumération : un
+   * mode fondé sur les REVENUS générés par l'actif, et l'amortissement
+   * FINANCIER.
+   */
+  @IsOptional()
+  @IsEnum(ModeAmortissement)
+  modeAmortissement?: ModeAmortissement;
+
+  /** Le dénominateur de la formule · exigé avec UNITES_DOEUVRE, interdit sans. */
+  @IsOptional()
+  @IsPositive()
+  unitesOeuvrePrevues?: number;
+
+  /** Ce que l'unité compte · « kilomètres », « heures de fonctionnement ». */
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  uniteOeuvreLibelle?: string;
+
+  /**
    * AMORTISSEMENT DÉJÀ PRATIQUÉ AVANT L'ENTRÉE DANS LE LOGICIEL.
    *
    * Un bien mis en service en 2020 et repris dans un dossier ouvert en 2026
@@ -128,6 +150,26 @@ export class CreerImmobilisationDto {
   @IsOptional()
   @IsBoolean()
   dernierRenouvellement?: boolean;
+}
+
+/**
+ * LE RELEVÉ D'UNITÉS D'ŒUVRE D'UN EXERCICE.
+ *
+ * Un nombre et sa provenance · la seconde est exigée, parce que c'est elle que
+ * le réviseur demandera. Aucune comptabilité ne porte le compteur d'une
+ * machine, et un chiffre sans origine ne vaut pas mieux qu'une estimation.
+ */
+export class SaisirConsommationDto {
+  @IsUUID('4')
+  exerciceId!: string;
+
+  /** Les unités de CET exercice, jamais un cumul. */
+  @IsPositive()
+  unitesConsommees!: number;
+
+  @IsString()
+  @MaxLength(500)
+  source!: string;
 }
 
 export class PasserDotationDto {

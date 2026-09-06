@@ -789,7 +789,13 @@ export interface DossierDuGroupe {
   estDossierMere: boolean;
 }
 
-export type ModeAmortissement = 'LINEAIRE';
+/**
+ * AUDCIF art. 45 · le linéaire, et le mode des unités de production. L'article
+ * admet aussi le dégressif à taux décroissant, non couvert, et INTERDIT deux
+ * modes qui ne doivent jamais apparaître ici : celui fondé sur les REVENUS
+ * générés par l'actif, et l'amortissement FINANCIER.
+ */
+export type ModeAmortissement = 'LINEAIRE' | 'UNITES_DOEUVRE';
 export type StatutImmobilisation = 'EN_SERVICE' | 'CEDEE' | 'MISE_HORS_SERVICE';
 
 export interface FamilleImmobilisation {
@@ -830,6 +836,9 @@ export interface Immobilisation {
   valeurResiduelle: number;
   dureeAmortissementAns: number;
   modeAmortissement: ModeAmortissement;
+  /** UNITES_DOEUVRE seulement · le dénominateur de la formule de l'AUDCIF. */
+  unitesOeuvrePrevues?: number | null;
+  uniteOeuvreLibelle?: string | null;
   statut: StatutImmobilisation;
   dateSortie: string | null;
   prixCession: number | null;

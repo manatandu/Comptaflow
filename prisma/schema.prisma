@@ -554,6 +554,7 @@ model Tenant {
   faiblessesControleInterne FaiblesseControleInterne[]
   questionnairesRevision    QuestionnaireRevision[]
   reponsesQuestionnaire     ReponseQuestionnaire[]
+  consommationsUniteOeuvre  ConsommationUniteOeuvre[]
   evenementsAudit           EvenementAudit[]
 
   @@index([dossierMereId])
@@ -1004,6 +1005,7 @@ model Exercice {
   provisionsRisquesCharges ProvisionRisqueCharge[]
   registresFaiblesses      RegistreFaiblesses[]
   questionnairesRevision   QuestionnaireRevision[]
+  consommationsUniteOeuvre ConsommationUniteOeuvre[]
 
   // Détermination du résultat fiscal · SYSCOHADA seulement.
   retraitementsFiscaux RetraitementFiscal[]
@@ -2838,7 +2840,23 @@ model TauxTva {
 
 enum ModeAmortissement {
   LINEAIRE
+
+  /// AUDCIF art. 45 · « le mode des unités de production / unités d'œuvre
+  /// (nombre de pièces, heures de fonctionnement, kilomètres, heures de
+  /// travail…) : charge basée sur l'utilisation ou la production prévue ».
+  /// L'article n'est PAS exclu par le SYCEBNL (son art. 3 exclut les articles
+  /// 5, 8, 10 à 13, 17 al. 7 et 8, 18, 19 4e tiret, 21, 25 à 34, 49, 69, 70,
+  /// 71 et 73 à 113), le mode vaut donc des deux côtés.
+  UNITES_DOEUVRE
+
   // DEGRESSIF non couvert par ce MVP · voir le commentaire ci-dessus.
+  //
+  // ET DEUX MODES QUE L'ARTICLE 45 INTERDIT, qui ne doivent jamais entrer
+  // ici : « un mode d'amortissement basé sur les REVENUS générés par
+  // l'utilisation de l'actif est interdit pour les immobilisations
+  // corporelles. De même, l'amortissement FINANCIER · amortir une
+  // immobilisation au même rythme que le coût de son financement · n'est pas
+  // autorisé. » Un test relit cette énumération et le fige.
 }
 
 enum StatutImmobilisation {
@@ -2921,8 +2939,23 @@ model Immobilisation {
   // Déduite de la base amortissable (skill sycebnl, COMPTE 28).
   valeurResiduelle Decimal @default(0) @db.Decimal(18, 2)
 
-  dureeAmortissementAns  Int
-  modeAmortissement      ModeAmortissement @default(LINEAIRE)
+  dureeAmortissementAns Int
+  modeAmortissement     ModeAmortissement @default(LINEAIRE)
+
+  /// UNITES_DOEUVRE seulement · le dénominateur de la formule du glossaire
+  /// AUDCIF : « AD = base amortissable × (nombre d'unités d'œuvre consommées)
+  /// / (total d'unités d'œuvre prévues) ». Le glossaire ajoute que « le nombre
+  /// total d'unités d'œuvre prévues est déterminé en fonction de la durée
+  /// d'utilité de l'immobilisation ».
+  unitesOeuvrePrevues Decimal? @db.Decimal(18, 4)
+
+  /// Ce que l'unité compte · « kilomètres », « heures de fonctionnement »,
+  /// « pièces produites ». Le texte donne des exemples et ne ferme pas la
+  /// liste : le champ est libre, et il est EXIGÉ, parce qu'un dénominateur
+  /// sans unité ne se vérifie pas.
+  uniteOeuvreLibelle String?
+
+  consommationsUniteOeuvre ConsommationUniteOeuvre[]
   /// Amortissement déjà pratiqué AVANT l'entrée du bien dans le logiciel.
   ///
   /// Un bien mis en service en 2020 et repris dans un dossier ouvert en 2026
@@ -2933,7 +2966,7 @@ model Immobilisation {
   /// repris par le bilan d'ouverture.
   ///
   /// Zéro par défaut, ce qui est juste pour un bien acquis dans le logiciel.
-  amortissementAnterieur Decimal           @default(0) @db.Decimal(18, 2)
+  amortissementAnterieur   Decimal                   @default(0) @db.Decimal(18, 2)
 
   statut      StatutImmobilisation @default(EN_SERVICE)
   dateSortie  DateTime?
@@ -4756,4 +4789,41 @@ enum ReponseItem {
 enum StatutQuestionnaire {
   OUVERT
   CLOS
+}
+
+/// LA CONSOMMATION D'UNITÉS D'ŒUVRE D'UN EXERCICE · le seul chiffre de tout le
+/// module d'amortissement qui n'existe dans AUCUN livre.
+///
+/// Une durée se déduit d'une date ; des kilomètres ne se déduisent de rien.
+/// Aucun journal, aucune balance, aucun compte ne porte le compteur d'une
+/// machine, et le logiciel ne peut donc ni le calculer ni le supposer. Il est
+/// SAISI, exercice par exercice, avec la source qui l'établit · c'est cette
+/// source que le réviseur demandera, pas le chiffre.
+model ConsommationUniteOeuvre {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  immobilisationId String
+  immobilisation   Immobilisation @relation(fields: [immobilisationId], references: [id], onDelete: Cascade)
+
+  exerciceId String
+  exercice   Exercice @relation(fields: [exerciceId], references: [id])
+
+  /// Les unités consommées PENDANT cet exercice · jamais un cumul.
+  unitesConsommees Decimal @db.Decimal(18, 4)
+
+  /// D'où vient le chiffre · relevé de compteur, carnet de bord, fiche de
+  /// production. Exigé : un nombre sans provenance n'est pas un élément
+  /// probant, et c'est la provenance que le réviseur demandera.
+  source String
+
+  saisieLe  DateTime @default(now())
+  saisiePar String
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([immobilisationId, exerciceId])
+  @@index([tenantId, exerciceId])
+  @@map("consommations_unite_oeuvre")
 }

@@ -323,6 +323,35 @@ export function ImmobilisationsPage() {
   const nomPrincipal = (id: string | null) =>
     (immobilisations ?? []).find((i) => i.id === id)?.designation ?? null;
 
+  /**
+   * LE RELEVÉ D'UNITÉS D'ŒUVRE · le seul chiffre du plan d'amortissement
+   * qu'aucune comptabilité ne porte. Il se saisit avec sa source · c'est la
+   * source que le réviseur demandera, pas le nombre.
+   */
+  const saisirConsommation = async (immo: Immobilisation) => {
+    const unites = window.prompt(
+      `${immo.designation} · unités d’œuvre consommées sur cet exercice (${immo.uniteOeuvreLibelle ?? 'unités'}).\n\n` +
+        'Celles de l’exercice, jamais un cumul.',
+    );
+    if (!unites?.trim()) return;
+    const source = window.prompt(
+      'D’où vient ce chiffre ? Relevé de compteur, carnet de bord, fiche de production.\n\n' +
+        'La provenance est exigée : c’est elle que le réviseur demandera, pas le nombre.',
+    );
+    if (!source?.trim()) return;
+    setErreur(null);
+    try {
+      await api.post(`/immobilisations/${immo.id}/consommation`, {
+        exerciceId: exerciceCourant?.id,
+        unitesConsommees: Number(unites),
+        source: source.trim(),
+      });
+      await charger();
+    } catch (err) {
+      setErreur(err instanceof ApiError ? err.message : 'Impossible d’enregistrer le relevé');
+    }
+  };
+
   const cumulAmorti = (immo: Immobilisation) => immo.dotations.reduce((s, d) => s + d.montant, 0);
   // Les deux textes inscrivent la dépréciation EN DIMINUTION DE LA VALEUR
   // BRUTE · l'omettre ici afficherait une valeur nette que le bilan ne porte
@@ -580,7 +609,11 @@ export function ImmobilisationsPage() {
                 <span className="font-mono text-right">{immo.valeurOrigine.toLocaleString('fr-FR')}</span>
                 <span className="font-mono text-right">{cumulAmorti(immo).toLocaleString('fr-FR')}</span>
                 <span className="font-mono text-right font-semibold">{vcn(immo).toLocaleString('fr-FR')}</span>
-                <span className="font-mono text-[10px] text-text-dim">{immo.dureeAmortissementAns} ans</span>
+                <span className="font-mono text-[10px] text-text-dim">
+                  {immo.modeAmortissement === 'UNITES_DOEUVRE'
+                    ? `${(immo.unitesOeuvrePrevues ?? 0).toLocaleString('fr-FR')} ${immo.uniteOeuvreLibelle ?? ''}`
+                    : `${immo.dureeAmortissementAns} ans`}
+                </span>
                 <span
                   className={`font-mono text-[10px] font-bold px-1.5 py-0.5 w-fit ${
                     immo.statut === 'EN_SERVICE' ? 'text-positive bg-positive-soft' : 'text-text-dim bg-surface-alt'
@@ -591,6 +624,15 @@ export function ImmobilisationsPage() {
                 <span className="flex gap-2">
                   {immo.statut === 'EN_SERVICE' && (
                     <>
+                      {immo.modeAmortissement === 'UNITES_DOEUVRE' && (
+                        <button
+                          onClick={() => saisirConsommation(immo)}
+                          title="Saisir les unités d’œuvre consommées sur cet exercice"
+                          className="text-[10px] text-sel hover:underline"
+                        >
+                          Relevé
+                        </button>
+                      )}
                       <button
                         onClick={() => passerDotation(immo.id)}
                         disabled={dejaDoteeCetExercice(immo)}

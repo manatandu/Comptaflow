@@ -20,6 +20,7 @@ import {
   ModifierFamilleDto,
   PasserDotationDto,
   ReclasserImmobilisationDto,
+  SaisirConsommationDto,
   SortirImmobilisationDto,
   TypeSortie,
 } from './dto/immobilisation.dto';
@@ -788,6 +789,30 @@ export class ImmobilisationService {
       ],
     });
 
+    /*
+      LE MODE AUX UNITÉS D'ŒUVRE NE S'OUVRE PAS À MOITIÉ.
+
+      AUDCIF art. 45 le nomme parmi les modes admis, et le glossaire en donne
+      la formule : « AD = base amortissable × (nombre d'unités d'œuvre
+      consommées) / (total d'unités d'œuvre prévues) ». Le dénominateur est
+      donc un préalable, et il « est déterminé en fonction de la durée
+      d'utilité de l'immobilisation ». Sans lui, le mode ne calcule rien ; à
+      zéro, il diviserait par zéro. Et l'UNITÉ est exigée avec : un
+      dénominateur sans unité ne se vérifie pas, et « 400 000 » ne dit pas si
+      ce sont des kilomètres, des heures ou des pièces.
+
+      L'ÉCART AVEC LE BARÈME FISCAL EST STRUCTUREL et il est assumé.
+      L'arrêté n° 013/2025 ne connaît que des DURÉES et des TAUX (son art. 2) ;
+      un bien amorti aux unités d'œuvre s'écarte nécessairement du taux
+      linéaire de sa famille. L'art. 4 du même arrêté admet des taux
+      dérogatoires « justifiés au contrôle », la charge de la preuve reposant
+      sur l'entité · c'est à elle de tenir le relevé, et c'est pour cela que
+      chaque consommation porte sa source.
+    */
+    const mode = dto.modeAmortissement ?? ModeAmortissement.LINEAIRE;
+    const refus = ImmobilisationService.motifRefusUnitesOeuvre(mode, dto.unitesOeuvrePrevues, dto.uniteOeuvreLibelle);
+    if (refus) throw new BadRequestException(refus);
+
     const immobilisation = await this.prisma.immobilisation.create({
       data: {
         tenantId,
@@ -803,7 +828,10 @@ export class ImmobilisationService {
         valeurResiduelle: dto.valeurResiduelle ?? 0,
         dureeAmortissementAns: dto.dureeAmortissementAns ?? famille.dureeAmortissementAns,
         amortissementAnterieur: dto.amortissementAnterieur ?? 0,
-        modeAmortissement: ModeAmortissement.LINEAIRE,
+        modeAmortissement: mode,
+        unitesOeuvrePrevues: mode === ModeAmortissement.UNITES_DOEUVRE ? dto.unitesOeuvrePrevues : null,
+        uniteOeuvreLibelle:
+          mode === ModeAmortissement.UNITES_DOEUVRE ? (dto.uniteOeuvreLibelle?.trim() ?? null) : null,
         ecritureAcquisitionId: ecritureAcquisition.id,
         createdBy: userId,
         // Rattachement au principal · null pour une structure. Le composant
@@ -865,6 +893,73 @@ export class ImmobilisationService {
    * repris a déjà passé la sienne, ailleurs. Se fier au seul nombre de
    * dotations enregistrées ici lui aurait fait subir un second prorata.
    */
+  /**
+   * CE QUI EMPÊCHE D'OUVRIR UN PLAN AUX UNITÉS D'ŒUVRE · null quand rien ne
+   * l'empêche.
+   *
+   * Le dénominateur est un préalable : sans lui la formule ne calcule rien, à
+   * zéro elle diviserait par zéro. Et l'UNITÉ est exigée avec, parce qu'un
+   * dénominateur sans unité ne se vérifie pas · « 400 000 » ne dit pas si ce
+   * sont des kilomètres, des heures ou des pièces.
+   *
+   * L'inverse est refusé aussi : des unités renseignées sur un plan linéaire
+   * feraient croire à un suivi qui ne commande aucun calcul.
+   */
+  static motifRefusUnitesOeuvre(
+    mode: ModeAmortissement,
+    unitesOeuvrePrevues?: number,
+    uniteOeuvreLibelle?: string,
+  ): string | null {
+    if (mode === ModeAmortissement.UNITES_DOEUVRE) {
+      if (!unitesOeuvrePrevues || unitesOeuvrePrevues <= 0) {
+        return (
+          "Le mode aux unités d'œuvre exige le TOTAL D'UNITÉS PRÉVUES · c'est le dénominateur de la formule de " +
+          "l'AUDCIF (« AD = base amortissable × unités consommées / total d'unités prévues »), et le glossaire " +
+          "précise qu'il « est déterminé en fonction de la durée d'utilité de l'immobilisation »."
+        );
+      }
+      if (!uniteOeuvreLibelle?.trim()) {
+        return (
+          "Nommer l'unité d'œuvre · kilomètres, heures de fonctionnement, pièces produites. Un total sans unité " +
+          'ne se vérifie pas, et le réviseur ne saura pas ce que compte le relevé.'
+        );
+      }
+      return null;
+    }
+    if (unitesOeuvrePrevues || uniteOeuvreLibelle?.trim()) {
+      return (
+        "Les unités d'œuvre ne se renseignent qu'avec le mode d'amortissement correspondant · les laisser sur un " +
+        'plan linéaire ferait croire à un suivi qui ne sert à rien.'
+      );
+    }
+    return null;
+  }
+
+  /**
+   * L'AMORTISSEMENT AUX UNITÉS D'ŒUVRE · la formule du glossaire, sans un
+   * chiffre de plus.
+   *
+   * AUDCIF, glossaire, « AMORTISSEMENT PAR UNITÉS D'ŒUVRE (ou unités de
+   * production) » : « L'annuité d'amortissement (AD) est égale à : AD = base
+   * amortissable × (nombre d'unités d'œuvre consommées) / (total d'unités
+   * d'œuvre prévues). » Et : « Le nombre total d'unités d'œuvre prévues est
+   * déterminé en fonction de la durée d'utilité de l'immobilisation. »
+   *
+   * AUCUN PRORATA TEMPORIS NE S'Y AJOUTE, et c'est le piège de ce mode. Le
+   * rapport porte DÉJÀ la période : les unités consommées sont celles de
+   * l'exercice, pas celles d'une année pleine. Proratiser par-dessus
+   * amputerait la première annuité une seconde fois · un camion mis en service
+   * en octobre et qui a roulé 9 000 km sur l'exercice a bien consommé 9 000 km,
+   * pas 9 000 × 3/12.
+   *
+   * Et le mode ne se ramène jamais à la durée en années : celle-ci ne sert
+   * plus qu'à ÉTABLIR le total prévu, jamais à diviser.
+   */
+  static dotationUnitesOeuvre(baseAmortissable: number, consommees: number, prevues: number): number {
+    if (prevues <= 0 || consommees <= 0) return 0;
+    return baseAmortissable * (consommees / prevues);
+  }
+
   private calculerDotation(
     valeurOrigine: number,
     valeurResiduelle: number,
@@ -881,6 +976,13 @@ export class ImmobilisationService {
      * main par un appelant.
      */
     sansProrata = false,
+    /**
+     * UNITES_DOEUVRE seulement · les unités de CET exercice, le total prévu,
+     * et le cumul consommé AVANT cet exercice. Le cumul ne sert qu'après une
+     * dépréciation, pour ré-étaler sur les unités qui restent, exactement
+     * comme le linéaire ré-étale sur les années qui restent.
+     */
+    uniteOeuvre: { prevues: number; consommees: number; consommeesAnterieures: number } | null = null,
   ): number {
     const base = this.baseAmortissable(valeurOrigine, valeurResiduelle);
     const cumulAnterieur =
@@ -907,6 +1009,32 @@ export class ImmobilisationService {
       volontaire : la ré-étalement n'a de sens qu'après une perte de valeur, et
       l'appliquer partout modifierait le plan de tous les biens du parc.
     */
+    /*
+      LE MODE AUX UNITÉS D'ŒUVRE COURT-CIRCUITE TOUT LE RESTE.
+
+      Ni annuité pleine, ni prorata temporis, ni division par la durée : la
+      formule du glossaire tient dans le rapport « consommées sur prévues », et
+      la durée en années ne sert plus qu'à avoir établi le total prévu. Le
+      reliquat reste la seule borne · un bien totalement amorti ne dote plus,
+      quel que soit le nombre de kilomètres qu'il fasse encore.
+
+      Après une dépréciation, le plan se ré-étale comme au linéaire (Titre VIII
+      ch. 12 § 2.4.1) · la valeur comptable révisée se répartit sur ce qui
+      RESTE à courir, et ce qui reste à courir se compte ici en unités, pas en
+      années.
+    */
+    if (uniteOeuvre) {
+      const denominateur =
+        cumulDepreciation > EPSILON
+          ? Math.max(0, uniteOeuvre.prevues - Math.max(0, uniteOeuvre.consommeesAnterieures))
+          : uniteOeuvre.prevues;
+      const numerateurBase = cumulDepreciation > EPSILON ? reliquat : base;
+      return Math.min(
+        ImmobilisationService.dotationUnitesOeuvre(numerateurBase, uniteOeuvre.consommees, denominateur),
+        reliquat,
+      );
+    }
+
     let annuitePleine: number;
     if (cumulDepreciation > EPSILON) {
       const restantes = Math.max(1, dureeAns - this.anneesEcoulees(dateMiseEnService, exercice.dateDebut));
@@ -1078,6 +1206,13 @@ export class ImmobilisationService {
         depreciations: {
           select: { sens: true, montant: true, exercice: { select: { dateFin: true } } },
         },
+        // Les relevés d'unités d'œuvre · le tableau LIT ce qui a été saisi et
+        // n'en réclame aucun. Un bien sans relevé y affiche une dotation
+        // nulle, ce qui est la vérité de l'état ; c'est `passerDotation` qui
+        // refuse d'avancer, au moment où l'écriture partirait.
+        consommationsUniteOeuvre: {
+          select: { exerciceId: true, unitesConsommees: true, exercice: { select: { dateFin: true } } },
+        },
       },
       orderBy: [{ compteImmobilisation: { numero: 'asc' } }, { dateAcquisition: 'asc' }],
     });
@@ -1096,6 +1231,19 @@ export class ImmobilisationService {
       string,
       { numero: string; intitule: string; lignes: LigneTableauAmortissement[]; parMois: number[]; dotation: number; cumulN1: number; cumulN: number; net: number }
     >();
+
+    const unitesParImmo = new Map<string, { prevues: number; consommees: number; consommeesAnterieures: number }>();
+    for (const immo of immos) {
+      if (immo.modeAmortissement !== ModeAmortissement.UNITES_DOEUVRE) continue;
+      const cet = immo.consommationsUniteOeuvre.find((c) => c.exerciceId === exercice.id);
+      unitesParImmo.set(immo.id, {
+        prevues: Number(immo.unitesOeuvrePrevues ?? 0),
+        consommees: Number(cet?.unitesConsommees ?? 0),
+        consommeesAnterieures: immo.consommationsUniteOeuvre
+          .filter((c) => c.exercice.dateFin < exercice.dateFin && c.exerciceId !== exercice.id)
+          .reduce((t, c) => t + Number(c.unitesConsommees), 0),
+      });
+    }
 
     for (const immo of immos) {
       const dotationsAnterieures = immo.dotations.filter((d) => d.exercice.dateFin < exercice.dateFin);
@@ -1124,6 +1272,11 @@ export class ImmobilisationService {
                 .map((d) => ({ sens: d.sens, montant: Number(d.montant) })),
             ),
             sansProrata,
+            // Le tableau ne SAISIT rien · il lit ce qui a été relevé, et
+            // affiche zéro pour un exercice sans relevé plutôt que de
+            // supposer un usage. C'est la dotation, pas le tableau, qui
+            // refuse d'avancer sans le chiffre.
+            unitesParImmo.get(immo.id) ?? null,
           );
 
       // Mois effectivement servis : depuis le mois de mise en service (ou le
@@ -1219,6 +1372,85 @@ export class ImmobilisationService {
     };
   }
 
+  /**
+   * LES UNITÉS D'ŒUVRE D'UN EXERCICE · le seul chiffre du plan d'amortissement
+   * qui n'est dans aucun livre.
+   *
+   * Une durée se déduit d'une date. Des kilomètres ne se déduisent de rien :
+   * aucun journal, aucune balance, aucun compte ne porte le compteur d'une
+   * machine. Le module ne peut donc ni le calculer ni le supposer, et il
+   * REFUSE de doter tant qu'il n'a pas été saisi · supposer zéro ferait passer
+   * un exercice sans dotation pour un exercice sans usage, et supposer une
+   * année pleine inventerait un relevé.
+   */
+  private async unitesOeuvreDe(
+    tenantId: string,
+    immo: { id: string; modeAmortissement: ModeAmortissement; unitesOeuvrePrevues: unknown },
+    exerciceId: string,
+    exerciceDateFin: Date,
+  ): Promise<{ prevues: number; consommees: number; consommeesAnterieures: number } | null> {
+    if (immo.modeAmortissement !== ModeAmortissement.UNITES_DOEUVRE) return null;
+    // La borne de tenant est portée ICI et non déduite du bien déjà lu · la
+    // règle du cloisonnement est absolue et une lecture non bornée reste une
+    // lecture non bornée, même quand son parent l'était.
+    const toutes = await this.prisma.consommationUniteOeuvre.findMany({
+      where: { tenantId, immobilisationId: immo.id },
+      include: { exercice: { select: { dateFin: true } } },
+    });
+    const cetExercice = toutes.find((c) => c.exerciceId === exerciceId);
+    if (!cetExercice) {
+      throw new BadRequestException(
+        "Aucune consommation d'unités d'œuvre saisie pour cet exercice · le mode aux unités d'œuvre calcule " +
+          "l'annuité sur les unités CONSOMMÉES, et aucune comptabilité ne les porte. Saisissez le relevé " +
+          "(compteur, carnet de bord, fiche de production) avant de passer la dotation. Supposer zéro ferait " +
+          "passer un exercice sans relevé pour un exercice sans usage.",
+      );
+    }
+    const consommeesAnterieures = toutes
+      .filter((c) => c.exercice.dateFin < exerciceDateFin && c.exerciceId !== exerciceId)
+      .reduce((t, c) => t + Number(c.unitesConsommees), 0);
+    return {
+      prevues: Number(immo.unitesOeuvrePrevues ?? 0),
+      consommees: Number(cetExercice.unitesConsommees),
+      consommeesAnterieures,
+    };
+  }
+
+  /**
+   * SAISIR LE RELEVÉ D'UN EXERCICE · un nombre ET sa provenance.
+   *
+   * La source est exigée, et ce n'est pas une formalité : c'est elle que le
+   * réviseur demandera, pas le chiffre. Un relevé de compteur sans origine ne
+   * vaut pas mieux qu'une estimation, et l'arrêté n° 013/2025 fait porter à
+   * l'entité la charge de justifier tout écart au barème (art. 4).
+   */
+  async saisirConsommation(
+    tenantId: string,
+    userId: string,
+    id: string,
+    dto: SaisirConsommationDto,
+  ) {
+    const immo = await this.trouver(tenantId, id);
+    if (immo.modeAmortissement !== ModeAmortissement.UNITES_DOEUVRE) {
+      throw new BadRequestException(
+        "Cette immobilisation n'est pas amortie aux unités d'œuvre · un relevé n'y changerait aucun calcul.",
+      );
+    }
+    const exercice = await this.prisma.exercice.findFirst({ where: { id: dto.exerciceId, tenantId } });
+    if (!exercice) throw new BadRequestException('Exercice introuvable pour ce tenant');
+
+    const donnees = {
+      unitesConsommees: dto.unitesConsommees,
+      source: dto.source.trim(),
+      saisiePar: userId,
+    };
+    return this.prisma.consommationUniteOeuvre.upsert({
+      where: { immobilisationId_exerciceId: { immobilisationId: id, exerciceId: dto.exerciceId } },
+      create: { tenantId, immobilisationId: id, exerciceId: dto.exerciceId, ...donnees },
+      update: donnees,
+    });
+  }
+
   async passerDotation(tenantId: string, userId: string, id: string, dto: PasserDotationDto) {
     const immo = await this.trouver(tenantId, id);
     if (immo.statut !== StatutImmobilisation.EN_SERVICE) {
@@ -1235,6 +1467,7 @@ export class ImmobilisationService {
       throw new ConflictException('Une dotation a déjà été passée pour cette immobilisation sur cet exercice');
     }
 
+    const uniteOeuvre = await this.unitesOeuvreDe(tenantId, immo, dto.exerciceId, exercice.dateFin);
     const montant = this.calculerDotation(
       Number(immo.valeurOrigine),
       Number(immo.valeurResiduelle),
@@ -1252,6 +1485,7 @@ export class ImmobilisationService {
           .map((d) => ({ sens: d.sens, montant: Number(d.montant) })),
       ),
       sansProrata,
+      uniteOeuvre,
     );
     if (montant <= EPSILON) {
       throw new BadRequestException('Aucun montant à doter · le bien est déjà entièrement amorti ou hors période');
@@ -1769,6 +2003,7 @@ export class ImmobilisationService {
             .map((d) => ({ sens: d.sens, montant: Number(d.montant) })),
         ),
         this.sansProrataTemporis(regime),
+        await this.unitesOeuvreDe(tenantId, immo, dto.exerciceId, dateSortie),
       );
       if (montantComplement > EPSILON) {
         const ecritureComplement = await this.ecritureService.creer(tenantId, userId, {

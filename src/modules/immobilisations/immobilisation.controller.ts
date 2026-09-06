@@ -10,6 +10,7 @@ import {
   CreerImmobilisationDto,
   ModifierFamilleDto,
   PasserDotationDto,
+  SaisirConsommationDto,
   SortirImmobilisationDto,
   DepreciationDto,
   ReclasserImmobilisationDto,
@@ -84,6 +85,21 @@ export class ImmobilisationController {
     @Body() dto: PasserDotationDto,
   ) {
     return this.immobilisationService.passerDotation(user.tenantId, user.userId, id, dto);
+  }
+
+  /**
+   * LE RELEVÉ D'UNITÉS D'ŒUVRE D'UN EXERCICE · AUDCIF art. 45, mode des
+   * unités de production. C'est le seul chiffre du plan d'amortissement
+   * qu'aucune comptabilité ne porte : il se saisit, avec sa source.
+   */
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Post(':id/consommation')
+  async saisirConsommation(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: SaisirConsommationDto,
+  ) {
+    return this.immobilisationService.saisirConsommation(user.tenantId, user.userId, id, dto);
   }
 
   /**

@@ -32,6 +32,7 @@ export const MODELES_CLOISONNES = new Set<string>([
   'FaiblesseControleInterne',
   'QuestionnaireRevision',
   'ReponseQuestionnaire',
+  'ConsommationUniteOeuvre',
   'FamilleImmobilisation',
   'Immobilisation',
   'Journal',

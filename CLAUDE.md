@@ -547,6 +547,60 @@ comme référence de MÉTHODE, aucune opinion ne sort de ce registre, et les
 trois mentions de contexte du § 11 b) le disent à l'écran.
 
 
+**Amortissement aux unités d'œuvre · le mode que l'AUDCIF nomme et qu'aucun
+livre ne peut nourrir.** L'art. 45 le pose parmi les modes admis : « le mode
+des unités de production / unités d'œuvre (nombre de pièces, heures de
+fonctionnement, kilomètres, heures de travail…) : charge basée sur
+l'utilisation ou la production prévue ». Il n'est PAS exclu par le SYCEBNL ·
+son art. 3 écarte les articles 5, 8, 10 à 13, 17 al. 7 et 8, 18, 19 4e tiret,
+21, 25 à 34, 49, 69, 70, 71 et 73 à 113, et l'art. 45 n'y figure pas. Le mode
+vaut donc des deux côtés. Le glossaire donne la formule et rien de plus :
+« AD = base amortissable × (nombre d'unités d'œuvre consommées) / (total
+d'unités d'œuvre prévues) », le total prévu étant « déterminé en fonction de la
+durée d'utilité de l'immobilisation ».
+
+DEUX PIÈGES, ET LE PREMIER EST SILENCIEUX. AUCUN PRORATA TEMPORIS NE S'AJOUTE
+AU RAPPORT · le rapport porte DÉJÀ la période, puisque les unités consommées
+sont celles de l'exercice et non celles d'une année pleine. Proratiser
+par-dessus amputerait la première annuité une seconde fois : un camion mis en
+service en octobre qui a roulé 9 000 km a bien roulé 9 000 km, pas 9 000 × 3/12.
+Un test fige la différence en calculant le même bien dans les deux modes. Et la
+durée en années ne divise plus rien · elle n'a servi qu'à ÉTABLIR le total
+prévu.
+
+LE SECOND PIÈGE EST DE PRINCIPE : LES UNITÉS NE SONT DANS AUCUN LIVRE. Une
+durée se déduit d'une date ; des kilomètres ne se déduisent de rien. Aucun
+journal, aucune balance, aucun compte ne porte le compteur d'une machine. Le
+module REFUSE donc de doter tant que le relevé n'a pas été saisi · supposer
+zéro ferait passer un exercice sans relevé pour un exercice sans usage, et
+supposer une année pleine inventerait un relevé. Chaque relevé porte sa SOURCE
+(compteur, carnet de bord, fiche de production), exigée parce que c'est elle
+que le réviseur demandera, pas le nombre. Le tableau des amortissements, lui,
+ne réclame rien : il lit ce qui a été saisi et affiche zéro à défaut, l'état
+disant la vérité de l'état.
+
+APRÈS UNE DÉPRÉCIATION, LE PLAN SE RÉ-ÉTALE EN UNITÉS, exactement comme le
+linéaire se ré-étale en années (Titre VIII ch. 12 § 2.4.1) : la valeur
+comptable révisée se répartit sur ce qui RESTE à courir, et ce qui reste à
+courir se compte ici en unités, pas en années. Le reliquat reste la seule
+borne · un bien totalement amorti ne dote plus, quel que soit le nombre de
+kilomètres qu'il fasse encore.
+
+L'ÉCART AVEC LE BARÈME FISCAL EST STRUCTUREL et il est assumé. L'arrêté
+n° 013/2025 ne connaît que des DURÉES et des TAUX (art. 2) ; un bien amorti aux
+unités d'œuvre s'écarte nécessairement du taux linéaire de sa famille. L'art. 4
+du même arrêté admet des taux dérogatoires « justifiés au contrôle », la charge
+de la preuve reposant sur l'entité · c'est pour cela que chaque relevé porte sa
+source, et non par formalisme.
+
+ET DEUX MODES NE DOIVENT JAMAIS ENTRER DANS L'ÉNUMÉRATION. L'art. 45 les
+interdit nommément : « un mode d'amortissement basé sur les REVENUS générés par
+l'utilisation de l'actif est interdit pour les immobilisations corporelles. De
+même, l'amortissement FINANCIER · amortir une immobilisation au même rythme que
+le coût de son financement · n'est pas autorisé. » Un test relit
+`schema.prisma` et fige la liste à LINEAIRE et UNITES_DOEUVRE.
+
+
 **Stocks et production immobilisée · les deux griefs du CPCC, dans la seule
 forme qui ait une signature.** Le § 8.2 du séminaire nomme deux minorations
 « par absence d'une écriture de contrepartie » : la facture d'achat enregistrée

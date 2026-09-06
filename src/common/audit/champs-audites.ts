@@ -77,6 +77,12 @@ export const MODELES_AUDITES = new Set<string>([
   // que rien n'ait changé au dossier, et le questionnaire imprimé ne le dirait
   // pas. La réponse elle-même et son commentaire suivent.
   'ReponseQuestionnaire',
+  // Le relevé d'unités d'œuvre · c'est le seul chiffre du plan
+  // d'amortissement qu'aucun livre ne porte, et il commande directement
+  // l'annuité. Un relevé corrigé après coup change la dotation d'un
+  // exercice sans laisser de trace ailleurs que dans l'écriture elle-même,
+  // qui ne dit pas d'où venait le nombre.
+  'ConsommationUniteOeuvre',
   'Exoneration',
   'LiquidationTva',
   'RetraitementFiscal',
