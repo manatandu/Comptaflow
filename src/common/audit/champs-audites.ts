@@ -65,6 +65,13 @@ export const MODELES_AUDITES = new Set<string>([
   // utilisation : rien de tout cela ne laisse de trace ailleurs, et
   // chacun change ce que la Note annexe publiera.
   'ProvisionRisqueCharge',
+  // Le registre des faiblesses · la QUALIFICATION est le champ du module.
+  // Une significative rétrogradée en « autre » après coup fait disparaître,
+  // d'un seul geste, l'écrit du § 9 et le report obligatoire du § A17, et
+  // rien ailleurs n'en garderait la trace. La date de communication écrite
+  // et l'escalade du § A24 sont dans le même cas.
+  'FaiblesseControleInterne',
+  'RegistreFaiblesses',
   'Exoneration',
   'LiquidationTva',
   'RetraitementFiscal',

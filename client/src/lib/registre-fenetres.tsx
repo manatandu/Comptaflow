@@ -38,6 +38,7 @@ const RetenuesPage = lazy(() => import('../pages/RetenuesPage').then((m) => ({ d
 const ExonerationsPage = lazy(() => import('../pages/ExonerationsPage').then((m) => ({ default: m.ExonerationsPage })));
 const InventairePage = lazy(() => import('../pages/InventairePage').then((m) => ({ default: m.InventairePage })));
 const CircularisationPage = lazy(() => import('../pages/CircularisationPage').then((m) => ({ default: m.CircularisationPage })));
+const FaiblessesPage = lazy(() => import('../pages/FaiblessesPage').then((m) => ({ default: m.FaiblessesPage })));
 const ProvisionsPage = lazy(() => import('../pages/ProvisionsPage').then((m) => ({ default: m.ProvisionsPage })));
 const FiscalitePage = lazy(() => import('../pages/FiscalitePage').then((m) => ({ default: m.FiscalitePage })));
 const EtatsFinanciersPage = lazy(() => import('../pages/EtatsFinanciersPage').then((m) => ({ default: m.EtatsFinanciersPage })));
@@ -245,6 +246,15 @@ export const FENETRES: DefinitionFenetre[] = [
     titre: 'Registre des provisions pour risques et charges',
     titreCourt: 'Provisions',
     rendre: () => <ProvisionsPage />,
+  },
+  {
+    // Le suivi des faiblesses n'est propre à aucun référentiel · l'ISA 265 ne
+    // connaît pas les plans de présentation, et le CPCC réclame ce suivi de
+    // la même façon à une ASBL et à une société.
+    motif: /^\/faiblesses$/,
+    titre: 'Registre des faiblesses',
+    titreCourt: 'Faiblesses',
+    rendre: () => <FaiblessesPage />,
   },
   {
     motif: /^\/exonerations$/,

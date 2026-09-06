@@ -550,6 +550,8 @@ model Tenant {
   campagnesCircularisation  CampagneCircularisation[]
   demandesConfirmation      DemandeConfirmation[]
   provisionsRisquesCharges  ProvisionRisqueCharge[]
+  registresFaiblesses       RegistreFaiblesses[]
+  faiblessesControleInterne FaiblesseControleInterne[]
   evenementsAudit           EvenementAudit[]
 
   @@index([dossierMereId])
@@ -998,6 +1000,7 @@ model Exercice {
   campagnesInventaire      CampagneInventaire[]
   campagnesCircularisation CampagneCircularisation[]
   provisionsRisquesCharges ProvisionRisqueCharge[]
+  registresFaiblesses      RegistreFaiblesses[]
 
   // Détermination du résultat fiscal · SYSCOHADA seulement.
   retraitementsFiscaux RetraitementFiscal[]
@@ -4428,4 +4431,202 @@ enum StatutProvision {
   /// Le risque s'est réalisé ou la provision est devenue sans objet : elle a
   /// été soldée dans l'exercice et ne se reporte pas à l'ouverture suivante.
   SOLDEE
+}
+
+// ---------------------------------------------------------------------------
+// REGISTRE DES FAIBLESSES DU CONTRÔLE INTERNE · ISA 265
+//
+// « Faire le suivi des faiblesses relevées lors de l'audit précédent » · le
+// CPCC pose la phrase parmi les travaux de l'inventaire documentaire, sans
+// dire ce que ce suivi contient ni ce qu'il refuse. La matière est dans
+// l'ISA 265, et le registre est ouvert DEUX FOIS parce que le cabinet est
+// tour à tour l'auteur du constat et le porte-documents de la direction.
+// ---------------------------------------------------------------------------
+
+/// UN REGISTRE PAR EXERCICE ET PAR ORIGINE.
+///
+/// Deux registres ne se mélangent pas : celui que le cabinet établit au titre
+/// de sa révision, et celui qui recopie une lettre de recommandations reçue
+/// d'un réviseur ou d'un commissaire aux comptes. Le second n'est pas un
+/// constat d'OmegaX · l'entité y range ce qu'on lui a écrit, et le cabinet
+/// n'en requalifie rien.
+model RegistreFaiblesses {
+  id         String   @id @default(uuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  exerciceId String
+  exercice   Exercice @relation(fields: [exerciceId], references: [id])
+
+  origine OrigineFaiblesse
+
+  libelle String
+
+  /// RECOMMANDATION_EXTERNE seulement · qui a écrit la lettre, quand, sous
+  /// quelle référence. En REVISION_INTERNE ces trois champs restent nuls :
+  /// le cabinet ne se cite pas lui-même comme tiers émetteur.
+  emetteur        String?
+  dateLettre      DateTime?
+  referenceLettre String?
+
+  statut       StatutRegistreFaiblesses @default(OUVERT)
+  closLe       DateTime?
+  closPar      String?
+  motifCloture String?
+
+  faiblesses FaiblesseControleInterne[]
+
+  createdAt DateTime @default(now())
+  createdBy String
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId, exerciceId])
+  @@map("registres_faiblesses")
+}
+
+/// UNE FAIBLESSE, SA QUALIFICATION, ET LE RÉGIME DE REPORT QUI EN DÉCOULE.
+///
+/// ISA 265 § 6 a) définit la faiblesse (« a control is designed, implemented
+/// or operated in such a way that it is unable to prevent, or detect and
+/// correct, misstatements […] or a control necessary […] is missing ») et
+/// § 6 b) la faiblesse SIGNIFICATIVE, qui ne l'est que « in the auditor's
+/// PROFESSIONAL JUDGMENT ». Aucun champ de ce modèle ne permet de la déduire
+/// d'un montant, et le module ne la déduit jamais.
+model FaiblesseControleInterne {
+  id         String             @id @default(uuid())
+  tenantId   String
+  tenant     Tenant             @relation(fields: [tenantId], references: [id])
+  registreId String
+  registre   RegistreFaiblesses @relation(fields: [registreId], references: [id], onDelete: Cascade)
+
+  /// Numérotation propre au registre · c'est elle que la lettre de l'exercice
+  /// suivant référencera si la faiblesse est reconduite (§ A17).
+  reference String
+  intitule  String
+
+  /// § 11 a) · « a description of the deficiencies ».
+  description String
+
+  /// § 11 a) encore · « an explanation of their potential effects ». Le champ
+  /// est TEXTUEL et il n'en existe pas de version chiffrée : § A28, « the
+  /// auditor NEED NOT QUANTIFY those effects ». Réclamer un montant ici
+  /// fabriquerait une précision que la norme dispense d'avoir.
+  effetPotentiel String
+
+  /// Par défaut NON_QUALIFIEE · rien ne se qualifie tout seul.
+  qualification              QualificationFaiblesse @default(NON_QUALIFIEE)
+  qualifiePar                String?
+  qualifieLe                 DateTime?
+  /// Le jugement, écrit. § 8 : la détermination se fait « on the basis of the
+  /// audit work performed ».
+  justificationQualification String?
+
+  /// § A7 · les indicateurs que la norme donne « for example ». Cochés, ils
+  /// éclairent le jugement ; ils ne le remplacent pas, et le module ne
+  /// qualifie jamais à partir d'eux.
+  indicateursA7 String[]
+
+  recommandation String?
+
+  /// § 9 · « The auditor shall communicate IN WRITING significant deficiencies
+  /// in internal control […] to those charged with governance on a timely
+  /// basis. » Pour une SIGNIFICATIVE, l'écrit n'est pas une option, et sa date
+  /// est ce qui distingue une faiblesse traitée d'une faiblesse constatée.
+  /// § 10 b) adresse les AUTRES faiblesses à la direction · d'où le
+  /// destinataire, qui n'est pas le même selon la qualification.
+  communiqueeLe DateTime?
+  communiqueeA  String?
+
+  statut StatutFaiblesse @default(OUVERTE)
+
+  /// REVISION_INTERNE · l'auteur du constat, côté cabinet.
+  constatePar String?
+  constateLe  DateTime?
+
+  /// § A28 · « management's actual or proposed responses ». L'auteur de la
+  /// réponse est celui de la DIRECTION, jamais celui du constat : le module
+  /// refuse que ce soit le même utilisateur.
+  reponseDirection    String?
+  reponseDirectionPar String?
+  reponseDirectionLe  DateTime?
+
+  echeanceRemediation DateTime?
+  remedieeLe          DateTime?
+
+  /// § A28 · « a statement as to whether or not the auditor has undertaken
+  /// any steps to VERIFY whether management's responses have been
+  /// implemented ». Une remédiation déclarée par la direction et une
+  /// remédiation vérifiée ne sont pas le même fait.
+  verificationCabinet String?
+
+  /// LE REPORT · la faiblesse du registre de l'exercice précédent dont
+  /// celle-ci est la reconduction. § A17 : « the current year's communication
+  /// may REPEAT the description from the previous communication, or simply
+  /// REFERENCE the previous communication ».
+  faiblesseAnterieureId String?                   @unique
+  faiblesseAnterieure   FaiblesseControleInterne? @relation("ReportFaiblesse", fields: [faiblesseAnterieureId], references: [id])
+  reconduction          FaiblesseControleInterne? @relation("ReportFaiblesse")
+
+  /// § A17 · « The auditor may ask management […] WHY the significant
+  /// deficiency has not yet been remedied. A failure to act, in the absence
+  /// of a rational explanation, may in itself represent a significant
+  /// deficiency. » Le motif est demandé sur une SIGNIFICATIVE reconduite,
+  /// et son absence est elle-même un fait.
+  motifNonRemediation String?
+
+  /// § A24 dernière phrase · « the failure of management to remedy OTHER
+  /// deficiencies […] MAY BECOME a significant deficiency ». « May » :
+  /// l'escalade est un acte posé et daté, jamais un effet automatique du
+  /// temps qui passe.
+  escaladeeLe    DateTime?
+  escaladeeMotif String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([registreId, reference])
+  @@index([tenantId, registreId])
+  @@map("faiblesses_controle_interne")
+}
+
+enum OrigineFaiblesse {
+  /// L'étape « révision (self audit) » du CPCC · le cabinet constate sur son
+  /// propre travail de tenue. Ce n'est pas un audit et il n'en sort aucune
+  /// opinion : ISA 265 est reprise comme référence de MÉTHODE.
+  REVISION_INTERNE
+
+  /// Une lettre de recommandations reçue d'un réviseur, d'un commissaire aux
+  /// comptes ou d'un bailleur. OmegaX est ici le porte-documents de la
+  /// direction : il range, il suit, il ne requalifie pas.
+  RECOMMANDATION_EXTERNE
+}
+
+enum QualificationFaiblesse {
+  /// § 6 b) · « of sufficient importance to merit the attention of THOSE
+  /// CHARGED WITH GOVERNANCE ». § 9 : communication ÉCRITE obligatoire.
+  SIGNIFICATIVE
+
+  /// § 10 b) · les autres faiblesses, communiquées à la DIRECTION quand elles
+  /// méritent son attention. Leur régime de report est l'inverse : § A24,
+  /// « the auditor NEED NOT REPEAT the communication in the current period ».
+  AUTRE
+
+  /// L'état par défaut. § 8 laisse la détermination au jugement, et tant
+  /// qu'il n'a pas été porté par quelqu'un, il ne l'a pas été.
+  NON_QUALIFIEE
+}
+
+enum StatutFaiblesse {
+  OUVERTE
+  EN_COURS_DE_REMEDIATION
+  REMEDIEE
+  /// § A24 · « management has chosen NOT TO REMEDY them for cost or other
+  /// reasons ». Un choix assumé de la direction, écrit comme tel.
+  NON_REMEDIEE_ASSUMEE
+  /// Le processus visé a disparu · la faiblesse n'a plus d'objet.
+  SANS_OBJET
+}
+
+enum StatutRegistreFaiblesses {
+  OUVERT
+  CLOS
 }

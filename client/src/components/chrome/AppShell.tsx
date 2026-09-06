@@ -366,6 +366,12 @@ export function AppShell() {
             // l'auditeur d'obtenir, et la liste des risques que le bilan
             // ne porte pas (AUDCIF Titre VIII ch. 18 § 5.3).
             { label: 'Provisions pour risques et charges', onClick: () => navigate('/provisions') },
+            // « Faire le suivi des faiblesses relevées lors de l'audit
+            // précédent » (CPCC), conduit selon la méthode de l'ISA 265. Deux
+            // modes : les constats du cabinet au titre de sa révision, et les
+            // recommandations reçues d'un tiers, dont OmegaX n'est que le
+            // porte-documents.
+            { label: 'Registre des faiblesses', onClick: () => navigate('/faiblesses') },
             // Dossier mère d'un groupe d'établissements (une église et ses
             // cellules) · la balance agrégée du groupe est une édition du
             // siège. Le module est monté sur le plan SYCEBNL (canevas de

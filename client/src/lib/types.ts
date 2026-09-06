@@ -3480,3 +3480,75 @@ export type TableauVariationProvisions = {
   /** La typologie du référentiel du dossier · elle n'est pas la même des deux côtés. */
   natures: { nature: string; compte: string; intitule: string }[];
 };
+
+/**
+ * REGISTRE DES FAIBLESSES DU CONTRÔLE INTERNE · ISA 265.
+ *
+ * Le registre est ouvert deux fois : le cabinet constate au titre de sa
+ * révision, ou il range une lettre de recommandations reçue d'un tiers. Les
+ * deux modes n'ont pas les mêmes droits, et l'écran le dit.
+ */
+export interface FaiblesseControleInterne {
+  id: string;
+  registreId: string;
+  reference: string;
+  intitule: string;
+  description: string;
+  /** § 11 a) · texte, et rien que texte. § A28 : « need not quantify ». */
+  effetPotentiel: string;
+  qualification: 'SIGNIFICATIVE' | 'AUTRE' | 'NON_QUALIFIEE';
+  qualifiePar: string | null;
+  qualifieLe: string | null;
+  justificationQualification: string | null;
+  indicateursA7: string[];
+  recommandation: string | null;
+  /** § 9 pour une significative, § 10 b) pour une autre faiblesse. */
+  communiqueeLe: string | null;
+  communiqueeA: string | null;
+  statut: 'OUVERTE' | 'EN_COURS_DE_REMEDIATION' | 'REMEDIEE' | 'NON_REMEDIEE_ASSUMEE' | 'SANS_OBJET';
+  constatePar: string | null;
+  reponseDirection: string | null;
+  reponseDirectionPar: string | null;
+  echeanceRemediation: string | null;
+  remedieeLe: string | null;
+  verificationCabinet: string | null;
+  motifNonRemediation: string | null;
+  escaladeeLe: string | null;
+  escaladeeMotif: string | null;
+  faiblesseAnterieureId: string | null;
+  faiblesseAnterieure?: { id: string; reference: string; registreId: string } | null;
+  reconduction?: { id: string; reference: string; registreId: string } | null;
+}
+
+export interface SyntheseFaiblesses {
+  total: number;
+  significatives: number;
+  autres: number;
+  nonQualifiees: number;
+  remediees: number;
+  nonRemedieesAssumees: number;
+  reconduites: number;
+  escaladees: number;
+  /** § 9 · une significative jamais sortie par écrit. */
+  significativesSansEcrit: number;
+  /** § A17 · la population dont le silence de l'exercice suivant serait une faute. */
+  significativesAReporter: number;
+  referencesAReporter: string[];
+}
+
+export interface RegistreFaiblesses {
+  id: string;
+  exerciceId: string;
+  origine: 'REVISION_INTERNE' | 'RECOMMANDATION_EXTERNE';
+  libelle: string;
+  emetteur: string | null;
+  dateLettre: string | null;
+  referenceLettre: string | null;
+  statut: 'OUVERT' | 'CLOS';
+  closLe: string | null;
+  faiblesses?: FaiblesseControleInterne[];
+  synthese?: SyntheseFaiblesses;
+  mentionsContexte?: string[];
+  motifsRefusCloture?: string[];
+  _count?: { faiblesses: number };
+}

@@ -475,6 +475,76 @@ actuelle par le marché et le risque spécifique à ce passif externe », donné
 qui n'est dans aucune table. La colonne d'actualisation existe, elle se
 saisit.
 
+**Registre des faiblesses du contrôle interne · deux registres, et deux
+régimes de report opposés.** Le CPCC pose la phrase parmi les travaux de
+l'inventaire documentaire, et s'arrête là : « faire le suivi des faiblesses
+relevées lors de l'audit précédent ». Il ne dit ni ce que ce suivi contient,
+ni ce qu'il refuse. La matière est dans l'ISA 265.
+
+LE REGISTRE EST OUVERT DEUX FOIS, parce que le cabinet occupe deux places qui
+n'ont pas les mêmes droits. En RÉVISION_INTERNE, il constate sur son propre
+travail de tenue, au titre de l'étape « révision (self audit) » du CPCC : il
+décrit, il qualifie, il recommande. En RECOMMANDATION_EXTERNE, une lettre est
+arrivée d'un réviseur, d'un commissaire aux comptes ou d'un bailleur, et
+OmegaX est le PORTE-DOCUMENTS de la direction : il range, il suit les
+échéances, il ne requalifie rien. La qualification portée dans la lettre est
+recopiée telle quelle · `qualifier()` est refusé dans ce mode, et la clôture
+n'y réclame ni qualification ni écrit, qui sont le travail d'un autre.
+
+LE DOUBLE RÉGIME DE REPORT est le cœur du module, et il tient à deux
+paragraphes qui disent le contraire l'un de l'autre · ils ont raison tous les
+deux. Sur une faiblesse SIGNIFICATIVE non remédiée, § A17 : « the fact that
+the auditor communicated a significant deficiency […] in a previous audit does
+NOT eliminate the need for the auditor to REPEAT the communication if remedial
+action has not yet been taken », et le paragraphe laisse le choix entre
+répéter la description et référencer la communication antérieure · pas celui
+de ne rien dire. Sur une AUTRE faiblesse, § A24 dit l'inverse : « the auditor
+NEED NOT REPEAT the communication in the current period ». Un module qui
+traiterait les deux pareil se tromperait dans les deux sens · silence coupable
+d'un côté, bruit inutile de l'autre. `regimeDeReport()` tranche, et sept
+mutations compilantes le figent.
+
+RIEN NE SE QUALIFIE TOUT SEUL. § 6 b) fait de la faiblesse significative un
+jugement · « in the auditor's PROFESSIONAL JUDGMENT » · et § 8 fait de la
+détermination une obligation. Le module exige donc les deux moitiés, un auteur
+et une justification écrite, et il n'existe aucun chemin qui qualifie à partir
+d'un montant, d'un délai ou d'une case cochée. Les indicateurs du § A7, donnés
+« for example », sont proposés au jugement et n'en tirent aucune conséquence.
+L'escalade du § A24 · « the failure of management to remedy other deficiencies
+[…] MAY BECOME a significant deficiency […] depends on the auditor's
+JUDGMENT » · est du même ordre : un acte posé, daté et motivé, jamais un effet
+automatique du calendrier sur une échéance dépassée.
+
+DEUX REFUS DE CLÔTURE, en révision interne seulement. Une faiblesse laissée
+NON QUALIFIÉE, parce que § 8 est un « shall ». Et une SIGNIFICATIVE jamais
+sortie par écrit, parce que § 9 l'est aussi : « the auditor shall communicate
+IN WRITING significant deficiencies […] on a timely basis ». C'est le défaut
+qui laisse le registre parfaitement présentable · dix faiblesses graves
+décrites, recommandées, suivies, reconduites d'exercice en exercice, et
+personne n'a jamais rien écrit à la gouvernance. Le destinataire n'est pas le
+même selon la qualification (§ 9 les organes de gouvernance, § 10 b) la
+direction), et une escalade remet donc l'écrit à faire.
+
+AUCUN CHIFFRAGE N'EST DEMANDÉ, et c'est délibéré : § A28, « the auditor NEED
+NOT QUANTIFY those effects ». Il n'existe dans ce module aucun champ de
+montant sur une faiblesse · en réclamer un fabriquerait une précision dont la
+norme dispense, et ferait passer pour mineure toute faiblesse qu'on ne sait
+pas chiffrer. Deux tests figent cette absence dans la source.
+
+DEUX SÉPARATIONS ENCORE. L'auteur du constat ne signe pas la réponse de la
+direction · § A28 range celle-ci du côté de « MANAGEMENT ». Et « remédiée » ne
+se coche pas sans dire si le cabinet a VÉRIFIÉ la mise en œuvre ou s'il s'en
+tient à la déclaration de la direction · le même § A28 prévoit « a statement
+as to whether or not the auditor has undertaken any steps to verify ». « Non
+vérifiée par le cabinet » est une réponse recevable ; le silence n'en est pas
+une, parce qu'il se lit comme une vérification.
+
+Même cadre que la circularisation, et il vaut d'être répété : un cabinet qui
+tient les livres n'est pas l'auditeur de ces livres. L'ISA 265 est reprise
+comme référence de MÉTHODE, aucune opinion ne sort de ce registre, et les
+trois mentions de contexte du § 11 b) le disent à l'écran.
+
+
 **Acomptes provisionnels · la saisie contre le compte 4492, et le solde négatif
 qui n'est pas un remboursement.** `acomptesVerses` était une SAISIE que rien ne
 confrontait à la comptabilité. Le compte 4492 « État, avances et acomptes
