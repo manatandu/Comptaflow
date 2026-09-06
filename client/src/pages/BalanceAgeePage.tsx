@@ -44,25 +44,50 @@ interface BalanceAgee {
   debiteurs: LigneAgee[];
   crediteurs: LigneAgee[];
   totaux: { parTranche: number[]; debiteurs: number; crediteurs: number; net: number };
+  /**
+   * CE QUE L'ANTÉRIORITÉ VEUT DIRE DANS CE PÉRIMÈTRE. Sur un 40 ou un 41,
+   * une ligne ancienne est un délai de règlement dépassé ; sur un compte de
+   * personnel, d'organismes sociaux ou d'État, il n'y a aucun crédit
+   * commercial et un solde à la clôture est la situation normale. Le même
+   * tableau se lirait de travers sans cette phrase.
+   */
+  lecture: string;
+  libellePerimetre: string;
 }
 
-type TypeTiers = 'TOUS' | 'CLIENTS_41' | 'FOURNISSEURS';
+type TypeTiers =
+  | 'TOUS'
+  | 'CLIENTS_41'
+  | 'FOURNISSEURS'
+  | 'PERSONNEL_42'
+  | 'SOCIAL_43'
+  | 'ETAT_44'
+  | 'DIVERS_47';
 
 /**
  * Le compte 41 porte le même NUMÉRO dans les deux plans et pas le même
  * INTITULÉ · « Adhérents, clients-usagers et comptes rattachés » au SYCEBNL,
- * « Clients et comptes rattachés » à l'AUDCIF.
+ * « Clients et comptes rattachés » à l'AUDCIF. Les quatre périmètres ajoutés
+ * le 2026-09-06 portent en revanche le même intitulé des deux côtés.
  */
 const LIBELLE_TYPE_SYCEBNL: Record<TypeTiers, string> = {
-  TOUS: 'Tous les tiers (40 et 41)',
+  TOUS: 'Crédit commercial (40 et 41)',
   CLIENTS_41: 'Adhérents, clients-usagers (41)',
   FOURNISSEURS: 'Fournisseurs (40)',
+  PERSONNEL_42: 'Personnel (42)',
+  SOCIAL_43: 'Organismes sociaux (43)',
+  ETAT_44: 'État (44), hors TVA',
+  DIVERS_47: 'Débiteurs et créditeurs divers (47)',
 };
 
 const LIBELLE_TYPE_SYSCOHADA: Record<TypeTiers, string> = {
-  TOUS: 'Tous les tiers (40 et 41)',
+  TOUS: 'Crédit commercial (40 et 41)',
   CLIENTS_41: 'Clients et comptes rattachés (41)',
   FOURNISSEURS: 'Fournisseurs (40)',
+  PERSONNEL_42: 'Personnel (42)',
+  SOCIAL_43: 'Organismes sociaux (43)',
+  ETAT_44: 'État (44), hors TVA',
+  DIVERS_47: 'Débiteurs et créditeurs divers (47)',
 };
 
 function montant(n: number): string {
@@ -179,6 +204,19 @@ export function BalanceAgeePage() {
 
       {erreur && (
         <div className="text-[11px] text-danger bg-danger-soft border border-danger/30 px-3 py-2 mb-2.5">{erreur}</div>
+      )}
+
+      {/* CE QUE L'ANTÉRIORITÉ VEUT DIRE ICI · la phrase vient du serveur, une
+          par périmètre. Sur un compte de personnel, d'organismes sociaux ou
+          d'État, il n'y a AUCUN crédit commercial : un solde à la clôture y
+          est la situation normale (la paie de décembre versée en janvier),
+          et le même tableau se lirait comme un retard de règlement sans
+          cette ligne. */}
+      {donnees?.lecture && (
+        <div className="text-[10.5px] text-text-dim bg-surface-alt border border-border px-3 py-2 mb-2.5 leading-[1.55]">
+          <span className="font-semibold text-text">{donnees.libellePerimetre} · </span>
+          {donnees.lecture}
+        </div>
       )}
 
       <div className="border border-border bg-surface shadow-posee overflow-x-auto">

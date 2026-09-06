@@ -1,4 +1,5 @@
 import { BadRequestException, Controller, Get, Param, ParseUUIDPipe, Query, Res, UseGuards } from '@nestjs/common';
+import type { PerimetreBalanceAgee } from '../comptabilite/ecriture.service';
 import { Referentiel } from '@prisma/client';
 import { Response } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -133,7 +134,7 @@ export class ExportController {
     @Res() res: Response,
     @Query('exerciceId', EXERCICE_REQUIS) exerciceId: string,
     @Query('dateReference') dateReference?: string,
-    @Query('type') type?: 'CLIENTS_41' | 'FOURNISSEURS' | 'TOUS',
+    @Query('type') type?: PerimetreBalanceAgee,
   ) {
     envoyerXlsx(res, await this.exportService.balanceAgeeExcel(user.tenantId, exerciceId, { dateReference, type }));
   }

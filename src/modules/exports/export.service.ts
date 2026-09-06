@@ -1,4 +1,5 @@
 import { Injectable, PayloadTooLargeException } from '@nestjs/common';
+import type { PerimetreBalanceAgee } from '../comptabilite/ecriture.service';
 import { JeuEtatsFinanciersSycebnl, Prisma, Referentiel, SystemeComptableSyscohada } from '@prisma/client';
 import * as ExcelJS from 'exceljs';
 import { PrismaService } from '../../common/prisma.service';
@@ -1020,7 +1021,7 @@ export class ExportService {
   async balanceAgeeExcel(
     tenantId: string,
     exerciceId: string,
-    params: { dateReference?: string; type?: 'CLIENTS_41' | 'FOURNISSEURS' | 'TOUS' } = {},
+    params: { dateReference?: string; type?: PerimetreBalanceAgee } = {},
   ): Promise<ClasseurExporte> {
     const etat = await this.ecritureService.balanceAgee(tenantId, { exerciceId, ...params });
     const identite = await this.identiteEtat(tenantId, { exerciceId });

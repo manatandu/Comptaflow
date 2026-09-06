@@ -5,6 +5,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { EcritureService } from './ecriture.service';
+import { PERIMETRES_BALANCE_AGEE, type PerimetreBalanceAgee } from './ecriture.service';
 import { CreerEcritureDto, ImputationOuvertureDto } from './dto/creer-ecriture.dto';
 import { CorrigerEcritureDto } from './dto/corriger-ecriture.dto';
 import { ModifierEcritureDto, ValiderEcrituresDto, ValiderJusquaDto } from './dto/brouillard.dto';
@@ -173,9 +174,14 @@ export class EcritureController {
     @CurrentUser() user: AuthenticatedUser,
     @Query('exerciceId') exerciceId: string,
     @Query('dateReference') dateReference?: string,
-    @Query('type') type?: 'CLIENTS_41' | 'FOURNISSEURS' | 'TOUS',
+    @Query('type') type?: PerimetreBalanceAgee,
   ) {
-    return this.ecritureService.balanceAgee(user.tenantId, { exerciceId, dateReference, type });
+    // Un périmètre inconnu retombe sur le crédit commercial plutôt que de
+    // rendre un tableau vide · une racine absente de la table ferait chercher
+    // `undefined.racines` et casserait la route sur une simple faute de frappe
+    // dans l'URL.
+    const perimetre = type && type in PERIMETRES_BALANCE_AGEE ? type : 'TOUS';
+    return this.ecritureService.balanceAgee(user.tenantId, { exerciceId, dateReference, type: perimetre });
   }
 
   /**

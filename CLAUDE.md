@@ -555,6 +555,42 @@ Une facture à établir rangée au 4181 dans une association devient une créanc
 cotisations sur des adhérents qui ne doivent rien : le compte existe, la balance
 boucle, et la Note annexe le publie.
 
+**Balance âgée · l'antériorité ne veut pas dire la même chose partout.** Le
+tableau était borné au crédit commercial (40 et 41), où une ligne ancienne est
+un délai de règlement dépassé : le crédit est accordé pour un temps, et l'état
+mesure ce temps. Quatre périmètres s'y ajoutent · personnel (42), organismes
+sociaux (43), État (44) et débiteurs et créditeurs divers (47).
+
+L'ÉLARGIR SANS RIEN DIRE AURAIT ÉTÉ LE DÉFAUT. Sur un 42, un 43 ou un 44 il
+n'y a AUCUN crédit commercial : la dette naît à une date et se règle à une
+échéance légale, et un solde au 31 décembre y est la situation NORMALE · la
+paie de décembre versée en janvier, les cotisations du quatrième trimestre
+déclarées après la clôture. Le même tableau se lirait comme un retard de
+règlement là où il n'y a qu'un calendrier. D'où une phrase par périmètre,
+rendue avec l'état et affichée au-dessus du tableau · c'est elle qui décide si
+le cabinet appelle son client ou classe la ligne.
+
+LES COMPTES DE TVA SONT ÉCARTÉS DU 44, et c'est le refus de ce chantier. Les
+443, 444, 445 et 446 ne portent ni créance ni dette d'échéance : ce sont les
+termes d'une LIQUIDATION périodique, remise à zéro par la déclaration du mois.
+Les vieillir afficherait une antériorité sur des lignes qui n'ont pas
+d'échéance, et chaque dossier verrait un « retard » massif sur le compte le
+plus mouvementé de sa classe 4. Le suivi de la TVA a son module.
+
+LE 47 EST LE SEUL DES QUATRE OÙ L'ANTÉRIORITÉ GARDE TOUT SON SENS. Il porte
+« les dettes et créances AUTRES que celles liées à l'activité » (AUDCIF
+Titre VII, compte 47) : rien ne les fait sortir toutes seules, une ligne
+ouverte depuis plusieurs exercices y est le cas ordinaire, et la question du
+réviseur est de savoir si elle correspond encore à quelque chose. C'est
+exactement ce que le justificatif de solde avait exposé sur le 469150 du
+dossier ouvert au Drive.
+
+`TOUS` RESTE 40 ET 41, inchangé · c'est le sens usuel de l'expression, et
+c'est le périmètre dont la performance est mesurée (6,7 s sur un million de
+lignes, `docs/capacite-mesuree.md`). Les autres se demandent nommément :
+élargir le défaut aurait alourdi l'écran le plus consulté sans que personne ne
+l'ait demandé.
+
 **Correspondance bilan de clôture / bilan d'ouverture · la convention et ses
 DEUX seules exceptions.** « Le bilan d'ouverture d'un exercice doit
 correspondre au bilan de clôture de l'exercice précédent » (AUDCIF art. 34 et

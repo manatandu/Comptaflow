@@ -121,6 +121,117 @@ export interface TrancheEcheancier {
 export const PLAFOND_ECRITURES_PAR_FENETRE = 2000;
 export const PLAFOND_LIGNES_GRAND_LIVRE = 20000;
 
+/**
+ * PÉRIMÈTRES DE LA BALANCE ÂGÉE.
+ *
+ * L'ANTÉRIORITÉ NE VEUT PAS DIRE LA MÊME CHOSE PARTOUT, et c'est le seul
+ * point qui compte dans cet élargissement. Sur un 40 ou un 41, une ligne
+ * ancienne est un DÉLAI DE RÈGLEMENT dépassé : le crédit commercial est
+ * accordé pour un temps, et le tableau mesure ce temps. Sur un compte de
+ * personnel, d'organismes sociaux ou d'État, il n'y a AUCUN crédit commercial
+ * · la dette naît à une date et se règle à une échéance légale, et un solde
+ * au 31 décembre y est la situation normale (la paie de décembre versée en
+ * janvier, les cotisations du quatrième trimestre déclarées après la
+ * clôture). Servir le même tableau sans le dire ferait lire un retard de
+ * règlement là où il n'y a qu'un calendrier.
+ *
+ * D'OÙ UNE PHRASE PAR PÉRIMÈTRE, rendue avec l'état · c'est elle qui décide
+ * si le cabinet appelle son client ou classe la ligne.
+ *
+ * LES COMPTES DE TVA SONT ÉCARTÉS DU 44, et c'est le refus de ce chantier.
+ * Les 443 (TVA facturée), 444 (TVA due ou crédit de TVA), 445 (TVA
+ * récupérable) et 446 (autres taxes sur le chiffre d'affaires) ne portent ni
+ * créance ni dette d'échéance : ce sont les termes d'une LIQUIDATION
+ * périodique, remise à zéro par la déclaration du mois. Les vieillir
+ * produirait une antériorité sur des lignes qui n'ont pas d'échéance, et
+ * chaque dossier verrait s'afficher un « retard » massif sur le compte le
+ * plus mouvementé de sa classe 4. Le suivi de la TVA a son module.
+ *
+ * `TOUS` reste le crédit commercial, 40 et 41 · c'est le sens usuel de
+ * l'expression, et c'est le périmètre dont la performance est mesurée
+ * (docs/capacite-mesuree.md). Les autres périmètres se demandent nommément.
+ */
+export type PerimetreBalanceAgee =
+  | 'TOUS'
+  | 'CLIENTS_41'
+  | 'FOURNISSEURS'
+  | 'PERSONNEL_42'
+  | 'SOCIAL_43'
+  | 'ETAT_44'
+  | 'DIVERS_47';
+
+export const PERIMETRES_BALANCE_AGEE: Record<
+  PerimetreBalanceAgee,
+  { racines: string[]; exclusions: string[]; libelle: string; lecture: string }
+> = {
+  TOUS: {
+    racines: ['40', '41'],
+    exclusions: [],
+    libelle: 'Crédit commercial · fournisseurs (40) et clients (41)',
+    lecture:
+      "Une ligne ancienne est un délai de règlement dépassé : le crédit commercial est accordé pour un temps, " +
+      'et ce tableau mesure ce temps.',
+  },
+  CLIENTS_41: {
+    racines: ['41'],
+    exclusions: [],
+    libelle: 'Clients, adhérents et usagers (41)',
+    lecture:
+      "Une créance ancienne appelle un rappel, puis une dépréciation : c'est ici que se prépare le passage au " +
+      "compte de créances douteuses et l'estimation du risque de non-recouvrement.",
+  },
+  FOURNISSEURS: {
+    racines: ['40'],
+    exclusions: [],
+    libelle: 'Fournisseurs et comptes rattachés (40)',
+    lecture:
+      "Une dette ancienne est un retard de paiement, ou une facture réglée sans être lettrée. Les deux se " +
+      'traitent, et seule la seconde est une erreur de tenue.',
+  },
+  PERSONNEL_42: {
+    racines: ['42'],
+    exclusions: [],
+    libelle: 'Personnel (42)',
+    lecture:
+      "AUCUN CRÉDIT COMMERCIAL ICI · la rémunération naît à une date et se règle à une échéance de paie. Un " +
+      "solde à la clôture est NORMAL (la paie de décembre versée en janvier). Ce qui se lit, c'est une ligne " +
+      "qui traverse plusieurs paies sans être soldée : une avance jamais retenue, un acompte oublié, une " +
+      'opposition non reversée.',
+  },
+  SOCIAL_43: {
+    racines: ['43'],
+    exclusions: [],
+    libelle: 'Organismes sociaux (43)',
+    lecture:
+      "AUCUN CRÉDIT COMMERCIAL ICI · les cotisations se déclarent et se règlent à une échéance légale, et un " +
+      "solde à la clôture est la situation normale du dernier trimestre. Ce qui se lit, c'est une cotisation " +
+      "d'une période ANTÉRIEURE encore ouverte : une déclaration non payée, qui court des majorations.",
+  },
+  ETAT_44: {
+    racines: ['44'],
+    // Voir l'en-tête : les comptes de TVA sont une liquidation périodique,
+    // pas une créance ou une dette d'échéance.
+    exclusions: ['443', '444', '445', '446'],
+    libelle: 'État et collectivités publiques (44), hors comptes de TVA',
+    lecture:
+      "AUCUN CRÉDIT COMMERCIAL ICI · l'impôt naît d'une déclaration et se règle à une échéance légale. Les " +
+      "comptes de TVA (443 à 446) sont ÉCARTÉS de ce tableau : ce sont les termes d'une liquidation " +
+      "périodique, remise à zéro chaque mois, et les vieillir afficherait un retard qui n'existe pas. Ce qui " +
+      "se lit ici, c'est un impôt d'une période antérieure encore ouvert, ou un acompte versé jamais imputé.",
+  },
+  DIVERS_47: {
+    racines: ['47'],
+    exclusions: [],
+    libelle: 'Débiteurs et créditeurs divers (47)',
+    lecture:
+      "C'est ici que l'antériorité dit le plus. Le compte 47 porte « les dettes et créances AUTRES que celles " +
+      "liées à l'activité » (AUDCIF Titre VII, compte 47) : rien ne les fait sortir toutes seules. Une ligne " +
+      'ouverte depuis plusieurs exercices y est le cas ordinaire, et la question du réviseur est de savoir ' +
+      "si elle correspond encore à quelque chose.",
+  },
+};
+
+
 @Injectable()
 export class EcritureService {
   constructor(
@@ -1617,7 +1728,7 @@ export class EcritureService {
    */
   async balanceAgee(
     tenantId: string,
-    params: { exerciceId: string; dateReference?: string; type?: 'CLIENTS_41' | 'FOURNISSEURS' | 'TOUS' },
+    params: { exerciceId: string; dateReference?: string; type?: PerimetreBalanceAgee },
   ) {
     const exercice = await this.prisma.exercice.findFirstOrThrow({
       where: { id: params.exerciceId, tenantId },
@@ -1627,8 +1738,9 @@ export class EcritureService {
     // colonnes mensuelles n'auraient plus d'écriture à recevoir.
     const demande = params.dateReference ? new Date(params.dateReference) : new Date();
     const ref = demande > exercice.dateFin ? exercice.dateFin : demande;
-    const type = params.type ?? 'TOUS';
-    const racines = type === 'CLIENTS_41' ? ['41'] : type === 'FOURNISSEURS' ? ['40'] : ['40', '41'];
+    const type: PerimetreBalanceAgee = params.type ?? 'TOUS';
+    const perimetre = PERIMETRES_BALANCE_AGEE[type];
+    const racines = perimetre.racines;
 
     // --- Les sept tranches ---------------------------------------------
     const jour = (d: Date) => d.toLocaleDateString('fr-FR');
@@ -1693,6 +1805,10 @@ export class EcritureService {
           ecriture: { tenantId, exerciceId: params.exerciceId },
           lettre: null,
           OR: racines.map((r) => ({ compte: { numero: { startsWith: r } } })),
+          // LES EXCLUSIONS DU PÉRIMÈTRE · voir `PERIMETRES_BALANCE_AGEE`.
+          ...(perimetre.exclusions.length > 0
+            ? { NOT: perimetre.exclusions.map((e) => ({ compte: { numero: { startsWith: e } } })) }
+            : {}),
         },
         include: {
           compte: { select: { id: true, numero: true, intitule: true } },
@@ -1751,6 +1867,11 @@ export class EcritureService {
       dateReference: ref.toISOString().slice(0, 10),
       debutExercice: exercice.dateDebut.toISOString().slice(0, 10),
       type,
+      // CE QUE L'ANTÉRIORITÉ VEUT DIRE DANS CE PÉRIMÈTRE · sans cette phrase,
+      // le même tableau se lit comme un retard de règlement sur des comptes
+      // où un solde ancien est parfaitement normal.
+      lecture: perimetre.lecture,
+      libellePerimetre: perimetre.libelle,
       tranches,
       debiteurs,
       crediteurs,
