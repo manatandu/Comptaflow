@@ -72,6 +72,11 @@ export const MODELES_AUDITES = new Set<string>([
   // et l'escalade du § A24 sont dans le même cas.
   'FaiblesseControleInterne',
   'RegistreFaiblesses',
+  // Le questionnaire de révision · c'est `estException` qui compte. Une
+  // réponse retournée après coup fait passer une ligne du rouge au vert sans
+  // que rien n'ait changé au dossier, et le questionnaire imprimé ne le dirait
+  // pas. La réponse elle-même et son commentaire suivent.
+  'ReponseQuestionnaire',
   'Exoneration',
   'LiquidationTva',
   'RetraitementFiscal',

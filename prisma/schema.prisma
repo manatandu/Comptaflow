@@ -552,6 +552,8 @@ model Tenant {
   provisionsRisquesCharges  ProvisionRisqueCharge[]
   registresFaiblesses       RegistreFaiblesses[]
   faiblessesControleInterne FaiblesseControleInterne[]
+  questionnairesRevision    QuestionnaireRevision[]
+  reponsesQuestionnaire     ReponseQuestionnaire[]
   evenementsAudit           EvenementAudit[]
 
   @@index([dossierMereId])
@@ -1001,6 +1003,7 @@ model Exercice {
   campagnesCircularisation CampagneCircularisation[]
   provisionsRisquesCharges ProvisionRisqueCharge[]
   registresFaiblesses      RegistreFaiblesses[]
+  questionnairesRevision   QuestionnaireRevision[]
 
   // Détermination du résultat fiscal · SYSCOHADA seulement.
   retraitementsFiscaux RetraitementFiscal[]
@@ -4627,6 +4630,130 @@ enum StatutFaiblesse {
 }
 
 enum StatutRegistreFaiblesses {
+  OUVERT
+  CLOS
+}
+
+// ---------------------------------------------------------------------------
+// QUESTIONNAIRE DE RÉVISION PAR CYCLE
+//
+// Le CPCC porte DEUX checklists (§ VI physique, § VII documentaire) et
+// vingt-quatre items interrogatifs, pas un de plus. Ils sont repris VERBATIM,
+// et le reste du questionnaire est une extension assumée du cabinet, marquée
+// comme telle item par item. Le catalogue est en TypeScript
+// (`catalogue-questionnaire.ts`) · seules les RÉPONSES vivent en base.
+// ---------------------------------------------------------------------------
+
+model QuestionnaireRevision {
+  id         String   @id @default(uuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  exerciceId String
+  exercice   Exercice @relation(fields: [exerciceId], references: [id])
+
+  libelle String
+
+  /// Les cycles retenus pour ce questionnaire. Vide = tous.
+  cycles CycleQuestionnaire[]
+
+  statut       StatutQuestionnaire @default(OUVERT)
+  closLe       DateTime?
+  closPar      String?
+  motifCloture String?
+
+  reponses ReponseQuestionnaire[]
+
+  createdAt DateTime @default(now())
+  createdBy String
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId, exerciceId])
+  @@map("questionnaires_revision")
+}
+
+/// UNE RÉPONSE, ET LE FAIT QU'ELLE SOIT UNE EXCEPTION OU NON.
+///
+/// `estException` n'est PAS déduit à l'affichage : il est figé au moment de la
+/// réponse, à partir de la polarité que le catalogue porte pour cet item-là.
+/// Le CPCC en pose une à l'envers · « Y a-t-il un chevauchement avec
+/// l'exercice en cours sur le solde d'ouverture ? », où « Oui » est
+/// l'anomalie. Un moteur qui compterait les « Non » se tromperait exactement
+/// là, et nulle part ailleurs.
+model ReponseQuestionnaire {
+  id              String                @id @default(uuid())
+  tenantId        String
+  tenant          Tenant                @relation(fields: [tenantId], references: [id])
+  questionnaireId String
+  questionnaire   QuestionnaireRevision @relation(fields: [questionnaireId], references: [id], onDelete: Cascade)
+
+  /// Le code de l'item au catalogue · « CPCC-CAI-4 », « VMG-CLI-2 ».
+  code String
+
+  /// OUI / NON / SANS_OBJET pour un item fermé. Null pour un item qui appelle
+  /// une donnée ou un texte libre, dont la réponse est dans `valeur`.
+  reponse ReponseItem?
+
+  /// La donnée chiffrée, la date, ou le texte libre. Le CPCC en demande sept :
+  /// « À quels moments les biens ont-ils été valorisés ? », « Quelles
+  /// dispositions assurent le bon fonctionnement du cut-off ? », « Combien de
+  /// réponses a-t-on reçues ? »…
+  valeur String?
+
+  /// Figé à la réponse, jamais recalculé à l'affichage.
+  estException Boolean @default(false)
+
+  /// Une exception sans commentaire ne clôt pas le questionnaire · une case
+  /// rouge sans phrase ne dit rien à celui qui reprendra le dossier.
+  commentaire String?
+
+  /// Un TRAVAIL (« Vérifier les titres de propriété… ») n'est pas une
+  /// question : il se coche fait ou non fait, avec le renvoi au papier de
+  /// travail. Le corpus en porte quinze, et les compter parmi les questions
+  /// gonflerait un taux de réponse qui ne voudrait plus rien dire.
+  renvoiTravaux String?
+
+  reponduLe  DateTime?
+  reponduPar String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([questionnaireId, code])
+  @@index([tenantId, questionnaireId])
+  @@map("reponses_questionnaire")
+}
+
+enum CycleQuestionnaire {
+  // Les sept rubriques du CPCC · § VI puis § VII.
+  IMMOBILISATIONS
+  STOCKS
+  CAISSES
+  BANQUES
+  DETTES_FOURNISSEURS
+  PROVISIONS
+  CREANCES
+
+  // Les cycles que le CPCC ne couvre pas. Aucune question n'y est attribuée
+  // au séminaire : elles sont construites sur la logique de ses vingt-quatre
+  // items, et chaque item porte son origine.
+  VENTES_CLIENTS
+  ACHATS
+  PAIE_ET_CHARGES_SOCIALES
+  ETAT_ET_COLLECTIVITES
+  CAPITAUX_PROPRES
+  REGULARISATIONS
+  ENGAGEMENTS_HORS_BILAN
+}
+
+enum ReponseItem {
+  OUI
+  NON
+  /// Ni oui ni non · le cycle n'existe pas dans ce dossier. Distinct d'une
+  /// absence de réponse, qui elle empêche la clôture.
+  SANS_OBJET
+}
+
+enum StatutQuestionnaire {
   OUVERT
   CLOS
 }

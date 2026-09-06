@@ -100,7 +100,9 @@ que ça compile ».
   porte 97, tous dans des citations du type « 481 — Fournisseurs
   d'investissements ». Les remplacer falsifierait la citation, et c'est
   justement sa fidélité qui rend l'avertissement opposable devant un
-  réviseur.
+  réviseur. Même raison, même statut, pour l'item CPCC-PRO-5 de
+  `catalogue-questionnaire.ts`, qui cite un impératif du séminaire tel qu'il
+  est écrit.
 - **JAMAIS** de nom de modèle d'IA dans un commit, une PR, un commentaire ou
   quoi que ce soit de poussé.
 - **JAMAIS** de « bientôt disponible » qui soit faux. Une fenêtre annoncée en
@@ -543,6 +545,73 @@ Même cadre que la circularisation, et il vaut d'être répété : un cabinet qu
 tient les livres n'est pas l'auditeur de ces livres. L'ISA 265 est reprise
 comme référence de MÉTHODE, aucune opinion ne sort de ce registre, et les
 trois mentions de contexte du § 11 b) le disent à l'écran.
+
+
+**Questionnaire de révision par cycle · vingt-quatre items du CPCC, et le
+reste assumé.** Le séminaire porte DEUX checklists, § VI « vérification de
+l'inventaire physique » (immobilisations, stocks, caisses) et § VII
+« vérification de l'inventaire documentaire » (banques, dettes, provisions,
+créances). Sept rubriques, VINGT-QUATRE items interrogatifs, dix-sept
+impératifs. Rien d'autre : il n'a de questions ni sur les ventes, ni sur les
+achats hors circularisation, ni sur la paie, ni sur les capitaux propres, ni
+sur l'État, ni sur les régularisations. Une découpe « par cycle » qui lui
+serait attribuée serait une invention · le relevé de manques en portait une, et
+elle venait de la lecture de l'auteur du skill, pas du CPCC.
+
+D'OÙ LA RÈGLE DU CATALOGUE, la seule qui compte : CHAQUE ITEM PORTE SON
+ORIGINE, et son code la préfixe. « CPCC-… » veut dire que le libellé est celui
+du séminaire à la virgule près, avec le renvoi au paragraphe ; « VMG-… » que la
+question est de l'éditeur, avec un fondement nommé (un article de l'AUDCIF, ou
+l'item du CPCC dont elle est la transposition). Six libellés sensibles sont
+figés mot pour mot par un test, et le décompte de vingt-quatre est EN DUR pour
+qu'on rouvre le fichier le jour où quelqu'un ajouterait une question « du
+CPCC » qui n'y est pas. Les vingt-cinq items de VMG portent tous sur des cycles
+que le séminaire ne couvre pas · un test interdit d'en glisser un dans ses sept
+rubriques, où il deviendrait indiscernable.
+
+TROIS PROPRIÉTÉS QUE LA SOURCE PORTE ELLE-MÊME, et qu'un moteur qui les
+ignorerait trahirait sans rien casser. LE CHAÎNAGE · « Si oui, une attestation
+a-t-elle été établie ? » ne se pose qu'après un comptage tenu, et « Si non,
+comment a-t-on procédé pour la sélection des fournisseurs à circulariser ? »
+est la seule chaîne « Non → suite » explicitement écrite du corpus, que l'item
+des créances retourne. LA POLARITÉ · vingt-trois items font du « Non »
+l'exception, UN SEUL fait du « Oui » l'anomalie : « Y a-t-il un chevauchement
+avec l'exercice en cours sur le solde d'ouverture ? ». Un moteur qui compterait
+les « Non » rendrait vert le seul item du CPCC qui porte sur la correspondance
+des bilans, et rouge nulle part ailleurs. LES ITEMS COMPOSITES · « A-t-on tenu
+compte de la caisse siège, de la caisse agence, de la caisse de secours ? » est
+UNE question et TROIS objets ; le libellé reste entier, les objets sont listés
+à côté, pour qu'un « Oui » global ne masque pas la caisse oubliée.
+
+QUATRE REFUS. Une forme ne s'échange pas contre une autre · « À quels moments
+les biens ont-ils été valorisés ? » appelle une DATE, « Quelles dispositions
+assurent le cut-off ? » un TEXTE, « Vérifier les titres de propriété » un
+RENVOI de travaux, et un « Oui » à l'une des trois est un acquiescement qui ne
+répond pas à la question posée. Un item que son parent n'ouvre pas ne se répond
+pas · la réponse serait orpheline et compterait dans le taux. Une exception
+sans commentaire ne clôt pas le questionnaire · une case rouge sans phrase ne
+dit rien à celui qui reprendra le dossier, et c'est lui que CPCC-PRO-6 envoie
+« faire le suivi des faiblesses relevées lors de l'audit précédent ». Et un
+item ouvert sans réponse ne clôt pas non plus · un questionnaire à trous ne se
+distingue pas d'un questionnaire favorable.
+
+AUCUN SEUIL N'EST POSÉ, et c'est délibéré. CPCC-CRE-5 demande « Combien de
+réponses a-t-on reçues ? Si le pourcentage est INSIGNIFIANT, a-t-on relancé ? »
+sans jamais chiffrer « insignifiant ». En inventer un ferait passer pour une
+exigence du séminaire un nombre qu'il n'a pas écrit · un test interdit toute
+constante de seuil et tout pourcentage en dur dans les deux fichiers.
+
+Le taux de réponse ne compte QUE les questions. Les dix-sept impératifs du
+CPCC sont comptés à part : les mélanger ferait monter un pourcentage que
+personne ne pourrait plus lire. Le filtre par référentiel est au niveau de
+l'ITEM et non de la fenêtre · un seul en porte un, les contributions
+volontaires en nature, dont les comptes 900 à 914 n'existent qu'au SYCEBNL, la
+classe 9 du SYSCOHADA étant celle de la comptabilité analytique.
+
+Le caractère « — » de CPCC-PRO-5 est celui du texte source et se conserve, pour
+la même raison que les 97 de `regles-comptes-sycebnl.ts` : le remplacer
+falsifierait une citation, et c'est sa fidélité qui la rend opposable. Ne pas
+le « corriger » · un test le surveille.
 
 
 **Acomptes provisionnels · la saisie contre le compte 4492, et le solde négatif

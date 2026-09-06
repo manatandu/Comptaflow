@@ -3552,3 +3552,65 @@ export interface RegistreFaiblesses {
   motifsRefusCloture?: string[];
   _count?: { faiblesses: number };
 }
+
+/**
+ * QUESTIONNAIRE DE RÉVISION PAR CYCLE.
+ *
+ * Le catalogue vit côté serveur · vingt-quatre items du CPCC repris mot pour
+ * mot, dix-sept de ses impératifs, et vingt-cinq questions du cabinet sur les
+ * cycles que le séminaire ne couvre pas. Chaque ligne porte son ORIGINE, et
+ * l'écran l'affiche · une question de VMG ne doit jamais se lire comme une
+ * exigence du CPCC.
+ */
+export interface ReponseQuestionnaireItem {
+  id: string;
+  code: string;
+  reponse: 'OUI' | 'NON' | 'SANS_OBJET' | null;
+  valeur: string | null;
+  renvoiTravaux: string | null;
+  estException: boolean;
+  commentaire: string | null;
+  reponduLe: string | null;
+  reponduPar: string | null;
+}
+
+export interface LigneQuestionnaire {
+  code: string;
+  cycle: string;
+  libelle: string;
+  origine: 'CPCC' | 'VMG';
+  forme: 'OUI_NON' | 'DONNEE' | 'TEXTE_LIBRE' | 'TRAVAIL';
+  /** « OUI » sur le seul item du CPCC dont la polarité est inversée. */
+  polariteException?: 'OUI' | 'NON';
+  ouvertPar?: { code: string; reponse: 'OUI' | 'NON' };
+  objets?: string[];
+  source?: string;
+  fondement?: string;
+  ouvert: boolean;
+  reponse: ReponseQuestionnaireItem | null;
+}
+
+export interface SyntheseQuestionnaire {
+  questions: number;
+  repondues: number;
+  tauxReponse: number;
+  travaux: number;
+  travauxFaits: number;
+  exceptions: number;
+  exceptionsSansCommentaire: number;
+  itemsCpcc: number;
+  itemsVmg: number;
+}
+
+export interface QuestionnaireRevision {
+  id: string;
+  exerciceId: string;
+  libelle: string;
+  cycles: string[];
+  statut: 'OUVERT' | 'CLOS';
+  closLe: string | null;
+  lignes?: LigneQuestionnaire[];
+  synthese?: SyntheseQuestionnaire;
+  motifsRefusCloture?: string[];
+  _count?: { reponses: number };
+}

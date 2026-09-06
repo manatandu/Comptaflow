@@ -371,6 +371,10 @@ export function AppShell() {
             // modes : les constats du cabinet au titre de sa révision, et les
             // recommandations reçues d'un tiers, dont OmegaX n'est que le
             // porte-documents.
+            // Les deux checklists du CPCC (§ VI physique, § VII documentaire),
+            // reprises mot pour mot, et les cycles qu'il ne couvre pas,
+            // ajoutés par le cabinet et marqués comme tels.
+            { label: 'Questionnaire de révision', onClick: () => navigate('/questionnaire-revision') },
             { label: 'Registre des faiblesses', onClick: () => navigate('/faiblesses') },
             // Dossier mère d'un groupe d'établissements (une église et ses
             // cellules) · la balance agrégée du groupe est une édition du

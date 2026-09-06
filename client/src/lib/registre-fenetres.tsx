@@ -39,6 +39,7 @@ const ExonerationsPage = lazy(() => import('../pages/ExonerationsPage').then((m)
 const InventairePage = lazy(() => import('../pages/InventairePage').then((m) => ({ default: m.InventairePage })));
 const CircularisationPage = lazy(() => import('../pages/CircularisationPage').then((m) => ({ default: m.CircularisationPage })));
 const FaiblessesPage = lazy(() => import('../pages/FaiblessesPage').then((m) => ({ default: m.FaiblessesPage })));
+const QuestionnaireRevisionPage = lazy(() => import('../pages/QuestionnaireRevisionPage').then((m) => ({ default: m.QuestionnaireRevisionPage })));
 const ProvisionsPage = lazy(() => import('../pages/ProvisionsPage').then((m) => ({ default: m.ProvisionsPage })));
 const FiscalitePage = lazy(() => import('../pages/FiscalitePage').then((m) => ({ default: m.FiscalitePage })));
 const EtatsFinanciersPage = lazy(() => import('../pages/EtatsFinanciersPage').then((m) => ({ default: m.EtatsFinanciersPage })));
@@ -246,6 +247,14 @@ export const FENETRES: DefinitionFenetre[] = [
     titre: 'Registre des provisions pour risques et charges',
     titreCourt: 'Provisions',
     rendre: () => <ProvisionsPage />,
+  },
+  {
+    // Les deux checklists du CPCC valent pour les deux plans · le filtre par
+    // référentiel est au niveau de l'item, pas de la fenêtre.
+    motif: /^\/questionnaire-revision$/,
+    titre: 'Questionnaire de révision',
+    titreCourt: 'Questionnaire',
+    rendre: () => <QuestionnaireRevisionPage />,
   },
   {
     // Le suivi des faiblesses n'est propre à aucun référentiel · l'ISA 265 ne
