@@ -39,6 +39,11 @@ type Etat = {
   membres?: { role: RoleMembreInventaire }[];
   balance?: { compteId: string; solde: number }[];
   exercice?: Record<string, unknown>;
+  /** Les lignes des comptes 57 · ce que la couverture des caisses regarde. */
+  lignesCaisse?: { debit: number; credit: number; compte: { id: string; numero: string; intitule: string } }[];
+  pvCaisse?: { compteId: string }[];
+  sousCommission?: Record<string, unknown> | null;
+  compte?: Record<string, unknown> | null;
 };
 
 function service(etat: Etat = {}) {
@@ -68,6 +73,15 @@ function service(etat: Etat = {}) {
       count: jest.fn().mockResolvedValue((etat.ecarts ?? []).filter((e) => !e.decision).length),
     },
     membreSousCommission: { findMany: jest.fn().mockResolvedValue(etat.membres ?? []) },
+    // Le PV de comptage par caisse · la clôture vérifie désormais que chaque
+    // caisse à solde non nul a le sien. Sans ces deux faux, elle croirait la
+    // table absente plutôt que la couverture complète.
+    ligneEcriture: { findMany: jest.fn().mockResolvedValue(etat.lignesCaisse ?? []) },
+    procesVerbalComptageCaisse: {
+      findMany: jest.fn().mockResolvedValue(etat.pvCaisse ?? []),
+      create: jest.fn().mockImplementation((a: { data: Record<string, unknown> }) => Promise.resolve({ id: 'pv1', ...a.data })),
+    },
+    sousCommissionInventaire: { findFirst: jest.fn().mockResolvedValue(etat.sousCommission ?? null) },
     $transaction: jest.fn().mockImplementation((ops: unknown[]) => Promise.all(ops)),
   } as unknown as PrismaService;
   const ecritures = {

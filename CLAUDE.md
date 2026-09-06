@@ -547,6 +547,58 @@ comme référence de MÉTHODE, aucune opinion ne sort de ce registre, et les
 trois mentions de contexte du § 11 b) le disent à l'écran.
 
 
+**Procès-verbal de comptage par caisse · un PV par caisse, et la caisse qu'on
+oublie.** Le PV de la CAMPAGNE porte l'inventaire physique dans son ensemble
+(CPCC, étape 2 · « signatures de ceux qui ont inventorié ET assisté à cet
+inventaire »). Il ne peut pas porter le comptage des espèces : le § VI demande
+« A-t-on tenu compte de la caisse SIÈGE, de la caisse AGENCE, de la caisse DE
+SECOURS ? », trois caisses comptées à trois endroits, chacune par sa
+sous-commission et chacune à son heure. Un seul PV pour les trois ne dit plus
+laquelle a été comptée ni par qui.
+
+QUATRE REFUS. La caisse est un 57 et rien d'autre · un comptage d'espèces sur
+un 52 compterait une banque, qui ne se compte pas, elle se circularise. Le PV
+se signe par ceux qui ont compté ET par ceux qui ont assisté, et ce sont les
+membres de SA sous-commission, pas ceux de la campagne · vérifier à nouveau
+n'est pas une redite, c'est le même refus posé sur l'opération qu'il concerne.
+La ventilation par coupure doit égaler le total qu'elle détaille, faute de quoi
+c'est le détail que le lecteur croira. Et l'attestation ne s'établit pas sans
+signataire · le CPCC demande si « une attestation a-t-elle été établie », et
+une attestation sans signataire n'atteste de rien.
+
+LA COUVERTURE REND MÉCANIQUE UNE QUESTION COMPOSITE. Sur une checklist,
+« a-t-on tenu compte de la caisse siège, de la caisse agence, de la caisse de
+secours ? » se répond par un « oui » global qui ne dit rien de la caisse
+oubliée. Ici la liste des comptes 57 du dossier est confrontée aux PV établis,
+un par un, et la clôture de la campagne est refusée tant qu'une caisse à solde
+non nul n'a pas le sien · une caisse non comptée à la clôture ne se recompte
+plus jamais. Les caisses à SOLDE NUL ne sont pas réclamées : une caisse fermée
+n'a rien à compter, et l'exiger ferait du bruit sur chaque dossier qui a soldé
+une caisse d'agence. C'est un choix, il est écrit plutôt que caché. L'écart non
+arbitré reste le PREMIER motif de refus · c'est le plus ancien et le plus
+grave.
+
+CE QUE LE MODULE NE DIRA PAS. Aucune source lue ne définit le CONTENU de
+l'attestation. Le module en enregistre l'existence, sa date et son signataire,
+et laisse le document au cabinet · inventer ses mentions produirait un modèle
+qui aurait l'air officiel sans l'être, et un test vérifie qu'aucun champ de
+contenu n'apparaît un jour à côté des deux qui existent.
+
+DEUX AJOUTS DE L'ÉDITEUR, nommés comme tels dans le code. L'HEURE du comptage ·
+aucun texte ne la réclame, elle est portée parce qu'une caisse bouge dans la
+journée et qu'un comptage sans heure ne se rattache à aucun solde précis. Et la
+VENTILATION PAR COUPURE · elle n'est exigée nulle part non plus, elle existe
+parce que la fiche du compte 57 dit, dans les deux plans, que « le solde du
+compte caisse doit toujours correspondre exactement à la somme disponible
+réellement », et qu'un nombre écrit à la main ne montre pas comment on y est
+arrivé. Elle reste facultative.
+
+Le solde comptable est FIGÉ sur le PV, comme sur la fiche d'inventaire et pour
+la même raison : le comptage se compare à la balance telle qu'elle était au
+moment du comptage, et un règlement passé le lendemain déplacerait la cible et
+refermerait l'écart tout seul.
+
+
 **Composant « révisions majeures » · l'unique estimation rétrospective que le
 référentiel autorise, et la fiction qu'il n'autorise pas.** L'AUDCIF art. 38-2
 pose le mécanisme et le Titre VIII ch. 5 § 1 le détaille en deux temps : « dès

@@ -11,6 +11,7 @@ import {
   CreerCampagneDto,
   CreerFicheDto,
   EtablirProcesVerbalDto,
+  EtablirPvCaisseDto,
   ModifierCampagneDto,
   SaisirComptageDto,
 } from './dto/inventaire.dto';
@@ -121,6 +122,26 @@ export class InventaireController {
     @Body() dto: EtablirProcesVerbalDto,
   ) {
     return this.inventaire.etablirProcesVerbal(user.tenantId, id, user.userId, dto);
+  }
+
+  /**
+   * LE PV DE COMPTAGE D'UNE CAISSE · un par caisse (CPCC, § VI, « caisse
+   * siège, caisse agence, caisse de secours »). Distinct du PV de la campagne,
+   * qui porte l'inventaire physique dans son ensemble.
+   */
+  @Post(':id/pv-caisse')
+  etablirPvCaisse(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: EtablirPvCaisseDto,
+  ) {
+    return this.inventaire.etablirPvCaisse(user.tenantId, id, user.userId, dto);
+  }
+
+  /** Les caisses à solde non nul qui n'ont pas encore leur PV de comptage. */
+  @Get(':id/caisses-non-comptees')
+  caissesNonComptees(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.inventaire.caissesNonComptees(user.tenantId, id);
   }
 
   @Post(':id/clore')

@@ -555,6 +555,8 @@ model Tenant {
   questionnairesRevision    QuestionnaireRevision[]
   reponsesQuestionnaire     ReponseQuestionnaire[]
   consommationsUniteOeuvre  ConsommationUniteOeuvre[]
+  pvComptageCaisse          ProcesVerbalComptageCaisse[]
+  coupuresComptees          CoupureComptee[]
   evenementsAudit           EvenementAudit[]
 
   @@index([dossierMereId])
@@ -792,7 +794,8 @@ model Compte {
   demandesConfirmation DemandeConfirmation[]
 
   /// Lignes du registre des provisions portées par ce compte (ch. 18 § 5.3).
-  provisionsRisquesCharges ProvisionRisqueCharge[]
+  provisionsRisquesCharges   ProvisionRisqueCharge[]
+  ProcesVerbalComptageCaisse ProcesVerbalComptageCaisse[]
 
   @@unique([tenantId, numero])
   // Le résultat fiscal ne cherche que les comptes qui portent un code de
@@ -3881,9 +3884,10 @@ model CampagneInventaire {
   clotureeLe  DateTime?
   clotureePar String?
 
-  sousCommissions SousCommissionInventaire[]
-  fiches          FicheInventaire[]
-  ecarts          EcartInventaire[]
+  sousCommissions  SousCommissionInventaire[]
+  fiches           FicheInventaire[]
+  ecarts           EcartInventaire[]
+  pvComptageCaisse ProcesVerbalComptageCaisse[]
 
   createdAt DateTime @default(now())
   createdBy String
@@ -3907,8 +3911,9 @@ model SousCommissionInventaire {
   nom       String
   perimetre String?
 
-  membres MembreSousCommission[]
-  fiches  FicheInventaire[]
+  membres          MembreSousCommission[]
+  fiches           FicheInventaire[]
+  pvComptageCaisse ProcesVerbalComptageCaisse[]
 
   createdAt DateTime @default(now())
 
@@ -4826,4 +4831,94 @@ model ConsommationUniteOeuvre {
   @@unique([immobilisationId, exerciceId])
   @@index([tenantId, exerciceId])
   @@map("consommations_unite_oeuvre")
+}
+
+/// UN PROCÈS-VERBAL DE COMPTAGE PAR CAISSE.
+///
+/// Le PV de la CAMPAGNE porte l'inventaire physique dans son ensemble
+/// (CPCC, étape 2). Il ne peut pas porter le comptage des espèces : le CPCC
+/// demande « A-t-on tenu compte de la caisse SIÈGE, de la caisse AGENCE, de la
+/// caisse DE SECOURS ? », trois caisses comptées à trois endroits, chacune par
+/// sa sous-commission et chacune à son heure. Un seul PV pour les trois ne dit
+/// plus laquelle a été comptée ni par qui.
+///
+/// LE SOLDE COMPTABLE EST FIGÉ ICI, comme sur la fiche d'inventaire et pour la
+/// même raison : le comptage se compare à la balance telle qu'elle était au
+/// moment du comptage, et un règlement passé le lendemain déplacerait la cible.
+model ProcesVerbalComptageCaisse {
+  id         String             @id @default(uuid())
+  tenantId   String
+  tenant     Tenant             @relation(fields: [tenantId], references: [id])
+  campagneId String
+  campagne   CampagneInventaire @relation(fields: [campagneId], references: [id], onDelete: Cascade)
+
+  /// La caisse comptée · un compte 57. Le module refuse tout autre racine :
+  /// une caisse est un 57 dans les deux plans.
+  compteId String
+  compte   Compte @relation(fields: [compteId], references: [id])
+
+  /// Celle qui a compté · ce sont SES membres qui signent, pas ceux de la
+  /// campagne. Le CPCC fait signer « ceux qui ont inventorié et assisté à cet
+  /// inventaire » · au singulier de l'opération, donc de la caisse.
+  sousCommissionId String
+  sousCommission   SousCommissionInventaire @relation(fields: [sousCommissionId], references: [id])
+
+  dateComptage DateTime
+
+  /// AJOUT DE L'ÉDITEUR, et il est nommé comme tel : aucun texte lu ne réclame
+  /// l'heure. Elle est portée parce qu'une caisse bouge dans la journée, et
+  /// qu'un comptage sans heure ne se rattache à aucun solde précis · c'est le
+  /// premier reproche d'un réviseur sur un PV daté du seul jour.
+  heureComptage String?
+
+  /// Figé à l'établissement du PV.
+  soldeComptableFige Decimal @db.Decimal(18, 2)
+  especesComptees    Decimal @db.Decimal(18, 2)
+  /// especesComptees − soldeComptableFige. Positif = excédent.
+  ecart              Decimal @db.Decimal(18, 2)
+
+  /// CPCC · « Si oui, une attestation a-t-elle été établie ? », chaîné au
+  /// comptage. AUCUNE SOURCE LUE NE DIT CE QUE CETTE ATTESTATION CONTIENT :
+  /// le module en enregistre l'existence, sa date et son signataire, et
+  /// laisse le document au cabinet. Inventer ses mentions produirait un
+  /// modèle qui aurait l'air officiel sans l'être.
+  attestationEtablieLe DateTime?
+  attestationPar       String?
+
+  observations String?
+
+  coupures CoupureComptee[]
+
+  etabliLe  DateTime @default(now())
+  etabliPar String
+  updatedAt DateTime @updatedAt
+
+  @@unique([campagneId, compteId])
+  @@index([tenantId, campagneId])
+  @@map("proces_verbaux_comptage_caisse")
+}
+
+/// LA VENTILATION PAR COUPURE · AJOUT DE L'ÉDITEUR, nommé comme tel.
+///
+/// Aucun des textes lus ne l'exige. Elle est là parce que la fiche du compte
+/// 57 dit, dans les deux plans, que « le solde du compte caisse doit toujours
+/// correspondre exactement à la somme disponible réellement » · et qu'un
+/// nombre écrit à la main ne montre pas comment on est arrivé à la somme. Le
+/// total des coupures doit égaler les espèces comptées, sans quoi le détail
+/// contredit le total qu'il est censé justifier.
+model CoupureComptee {
+  id       String                     @id @default(uuid())
+  tenantId String
+  tenant   Tenant                     @relation(fields: [tenantId], references: [id])
+  pvId     String
+  pv       ProcesVerbalComptageCaisse @relation(fields: [pvId], references: [id], onDelete: Cascade)
+
+  /// La valeur faciale d'une coupure ou d'une pièce.
+  valeurUnitaire Decimal @db.Decimal(18, 2)
+  nombre         Int
+
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, pvId])
+  @@map("coupures_comptees")
 }

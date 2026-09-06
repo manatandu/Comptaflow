@@ -15,6 +15,7 @@ import {
   CreerCampagneDto,
   CreerFicheDto,
   EtablirProcesVerbalDto,
+  EtablirPvCaisseDto,
   ModifierCampagneDto,
   SaisirComptageDto,
 } from './dto/inventaire.dto';
@@ -555,6 +556,174 @@ export class InventaireService {
   }
 
   /**
+   * LE PROCÈS-VERBAL DE COMPTAGE D'UNE CAISSE · un par caisse, et un seul.
+   *
+   * Le PV de la CAMPAGNE porte l'inventaire physique dans son ensemble. Il ne
+   * peut pas porter le comptage des espèces : le CPCC demande « A-t-on tenu
+   * compte de la caisse SIÈGE, de la caisse AGENCE, de la caisse DE
+   * SECOURS ? », trois caisses comptées à trois endroits, chacune par sa
+   * sous-commission et chacune à son heure. Un seul PV pour les trois ne dit
+   * plus laquelle a été comptée ni par qui.
+   *
+   * QUATRE REFUS.
+   *
+   *  1. LA CAISSE EST UN 57. Les deux plans logent la caisse au 57 et nulle
+   *     part ailleurs · un PV de comptage d'espèces sur un 52 compterait une
+   *     banque, qui ne se compte pas, elle se circularise.
+   *  2. LE PV SE SIGNE PAR CEUX QUI ONT COMPTÉ ET PAR CEUX QUI ONT ASSISTÉ,
+   *     et ce sont les membres de SA sous-commission, pas ceux de la campagne
+   *     (CPCC, étape 2 · « signatures de ceux qui ont inventorié ET assisté à
+   *     cet inventaire »). Le PV de campagne vérifie déjà les deux listes ; les
+   *     vérifier à nouveau ici n'est pas une redite, c'est le même refus posé
+   *     sur l'opération qu'il concerne.
+   *  3. LA VENTILATION PAR COUPURE DOIT ÉGALER LE TOTAL qu'elle détaille.
+   *     Sans quoi le détail contredit le montant qu'il est censé justifier, et
+   *     c'est le détail qu'on croira.
+   *  4. L'ATTESTATION NE S'ÉTABLIT PAS SANS COMPTAGE · le CPCC chaîne les deux
+   *     questions (« Le comptage des espèces a-t-il eu lieu au 31 décembre ? »
+   *     puis « SI OUI, une attestation a-t-elle été établie ? »).
+   *
+   * ET CE QUE LE MODULE NE FAIT PAS : il ne dit pas ce que l'attestation
+   * contient. Aucune source lue ne la définit · le module en enregistre
+   * l'existence, sa date et son signataire, et laisse le document au cabinet.
+   * Inventer ses mentions produirait un modèle qui aurait l'air officiel sans
+   * l'être.
+   */
+  async etablirPvCaisse(tenantId: string, campagneId: string, userId: string, dto: EtablirPvCaisseDto) {
+    const campagne = await this.campagneOuverte(tenantId, campagneId, [
+      StatutCampagneInventaire.RECENSEMENT,
+      StatutCampagneInventaire.ARBITRAGE,
+    ]);
+
+    const compte = await this.prisma.compte.findFirst({ where: { id: dto.compteId, tenantId } });
+    if (!compte) throw new NotFoundException('Compte introuvable pour ce dossier.');
+    if (!compte.numero.startsWith('57')) {
+      throw new BadRequestException(
+        `Le compte ${compte.numero} n'est pas une caisse · les deux plans logent la caisse au 57 et nulle part ` +
+          "ailleurs. Un solde de banque ne se compte pas, il se confirme auprès de la banque (circularisation).",
+      );
+    }
+
+    const sousCommission = await this.prisma.sousCommissionInventaire.findFirst({
+      where: { id: dto.sousCommissionId, tenantId, campagneId },
+      include: { membres: { select: { role: true } } },
+    });
+    if (!sousCommission) {
+      throw new NotFoundException('Sous-commission introuvable sur cette campagne.');
+    }
+    const manque = InventaireService.signaturesManquantes(sousCommission.membres);
+    if (manque) {
+      throw new BadRequestException(
+        `Le procès-verbal de comptage se signe par ceux qui ont inventorié ET par ceux qui ont assisté ` +
+          `(CPCC, étape 2). Dans la sous-commission « ${sousCommission.nom} », il manque ${manque}.`,
+      );
+    }
+
+    const coupures = dto.coupures ?? [];
+    const totalCoupures = coupures.reduce((t, c) => t + c.valeurUnitaire * c.nombre, 0);
+    if (coupures.length > 0 && Math.abs(totalCoupures - dto.especesComptees) > 0.005) {
+      throw new BadRequestException(
+        `La ventilation par coupure totalise ${totalCoupures.toFixed(2)} alors que le comptage annonce ` +
+          `${dto.especesComptees.toFixed(2)}. Le détail doit égaler le montant qu'il justifie · autrement c'est ` +
+          'le détail que le lecteur croira, et le total sera faux sans que rien ne le dise.',
+      );
+    }
+
+    if (dto.attestationEtablieLe && !dto.attestationPar?.trim()) {
+      throw new BadRequestException(
+        "Une attestation est signée par quelqu'un · nommez-le. Le CPCC demande si « une attestation a-t-elle été " +
+          "établie », et une attestation sans signataire n'atteste de rien.",
+      );
+    }
+
+    const ecart = Number((dto.especesComptees - dto.soldeComptable).toFixed(2));
+    return this.prisma.procesVerbalComptageCaisse.create({
+      data: {
+        tenantId,
+        campagneId: campagne.id,
+        compteId: dto.compteId,
+        sousCommissionId: dto.sousCommissionId,
+        dateComptage: new Date(dto.dateComptage),
+        heureComptage: dto.heureComptage?.trim() || null,
+        soldeComptableFige: dto.soldeComptable,
+        especesComptees: dto.especesComptees,
+        ecart,
+        attestationEtablieLe: dto.attestationEtablieLe ? new Date(dto.attestationEtablieLe) : null,
+        attestationPar: dto.attestationPar?.trim() || null,
+        observations: dto.observations?.trim() || null,
+        etabliPar: userId,
+        coupures: {
+          create: coupures.map((c) => ({
+            tenantId,
+            valeurUnitaire: c.valeurUnitaire,
+            nombre: c.nombre,
+          })),
+        },
+      },
+      include: { coupures: true, compte: { select: { numero: true, intitule: true } } },
+    });
+  }
+
+  /**
+   * Ce qui manque aux signatures d'une sous-commission · null quand rien ne
+   * manque. CPCC, étape 2 : le PV se signe par « ceux qui ont inventorié ET
+   * assisté ». Un PV signé des seuls comptables ne prouve rien ; un PV signé
+   * des seuls témoins ne dit pas qui a compté.
+   */
+  static signaturesManquantes(membres: { role: RoleMembreInventaire }[]): string | null {
+    const aCompte = membres.some((m) => m.role === RoleMembreInventaire.INVENTORIANT);
+    const aAssiste = membres.some((m) => m.role === RoleMembreInventaire.TEMOIN);
+    if (aCompte && aAssiste) return null;
+    if (!aCompte && !aAssiste) return 'un inventoriant et un témoin';
+    return aCompte ? 'un témoin' : 'un inventoriant';
+  }
+
+  /**
+   * LES CAISSES QUI N'ONT PAS ÉTÉ COMPTÉES · la question composite du CPCC,
+   * rendue mécanique.
+   *
+   * « A-t-on tenu compte de la caisse siège, de la caisse agence, de la caisse
+   * de secours ? » se répond par un « oui » global sur une checklist, et ce
+   * « oui » ne dit rien de la caisse qu'on a oubliée. Ici la liste des comptes
+   * 57 du dossier est confrontée aux PV établis, un par un.
+   *
+   * LES CAISSES À SOLDE NUL NE SONT PAS RÉCLAMÉES · une caisse fermée n'a rien
+   * à compter, et l'exiger ferait du bruit sur chaque dossier qui a soldé une
+   * caisse d'agence. C'est un choix, et il est ici plutôt que caché.
+   */
+  async caissesNonComptees(tenantId: string, campagneId: string) {
+    const campagne = await this.prisma.campagneInventaire.findFirst({
+      where: { id: campagneId, tenantId },
+      select: { id: true, exerciceId: true },
+    });
+    if (!campagne) throw new NotFoundException('Campagne introuvable.');
+
+    const lignes = await this.prisma.ligneEcriture.findMany({
+      where: {
+        compte: { tenantId, numero: { startsWith: '57' } },
+        ecriture: { tenantId, exerciceId: campagne.exerciceId },
+      },
+      select: { debit: true, credit: true, compte: { select: { id: true, numero: true, intitule: true } } },
+    });
+    const soldes = new Map<string, { numero: string; intitule: string; solde: number }>();
+    for (const l of lignes) {
+      const acc = soldes.get(l.compte.id) ?? { numero: l.compte.numero, intitule: l.compte.intitule, solde: 0 };
+      acc.solde += Number(l.debit) - Number(l.credit);
+      soldes.set(l.compte.id, acc);
+    }
+    const pv = await this.prisma.procesVerbalComptageCaisse.findMany({
+      where: { tenantId, campagneId },
+      select: { compteId: true },
+    });
+    const comptees = new Set(pv.map((p) => p.compteId));
+
+    return [...soldes.entries()]
+      .filter(([id, v]) => Math.abs(v.solde) > 0.005 && !comptees.has(id))
+      .map(([compteId, v]) => ({ compteId, numero: v.numero, intitule: v.intitule, solde: Number(v.solde.toFixed(2)) }))
+      .sort((a, b) => a.numero.localeCompare(b.numero));
+  }
+
+  /**
    * CLÔTURE · plus rien ne bouge. Refusée tant qu'un écart n'est pas arbitré :
    * un écart laissé sans décision est la seule chose que l'étape 5 interdit,
    * et c'est aussi celle qui se perd le plus facilement.
@@ -567,6 +736,15 @@ export class InventaireService {
     if (enSuspens > 0) {
       throw new ForbiddenException(
         `${enSuspens} écart(s) sans décision · la sous-commission doit trancher chacun avant la clôture (CPCC, étape 5).`,
+      );
+    }
+    const caissesOubliees = await this.caissesNonComptees(tenantId, campagneId);
+    if (caissesOubliees.length > 0) {
+      throw new ForbiddenException(
+        `${caissesOubliees.length} caisse(s) à solde non nul sans procès-verbal de comptage ` +
+          `(${caissesOubliees.map((c) => c.numero).join(', ')}). Le CPCC demande « a-t-on tenu compte de la ` +
+          'caisse siège, de la caisse agence, de la caisse de secours ? » · un « oui » global ne dit rien de ' +
+          "celle qu'on a oubliée, et une caisse non comptée à la clôture ne se recompte plus jamais.",
       );
     }
     return this.prisma.campagneInventaire.update({

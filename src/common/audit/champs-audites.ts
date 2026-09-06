@@ -83,6 +83,10 @@ export const MODELES_AUDITES = new Set<string>([
   // exercice sans laisser de trace ailleurs que dans l'écriture elle-même,
   // qui ne dit pas d'où venait le nombre.
   'ConsommationUniteOeuvre',
+  // Le PV de comptage d'une caisse · le solde figé, les espèces comptées et
+  // l'écart qu'ils produisent. Un chiffre corrigé après coup referme un écart
+  // que la commission avait à trancher, et le PV imprimé ne le dirait pas.
+  'ProcesVerbalComptageCaisse',
   'Exoneration',
   'LiquidationTva',
   'RetraitementFiscal',
