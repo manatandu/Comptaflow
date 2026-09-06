@@ -1,4 +1,5 @@
-import { IsBoolean, IsDateString, IsEnum, IsNumber, IsOptional, IsString, IsUUID, Min } from 'class-validator';
+import { IsBoolean, IsDateString, IsEnum, IsIn, IsNumber, IsOptional, IsString, IsUUID, Min } from 'class-validator';
+import type { NatureTiersRattachement } from '../regularisation.service';
 import { PeriodiciteAbonnement, TypeRegularisation } from '@prisma/client';
 
 export class CreerRegularisationDto {
@@ -47,6 +48,17 @@ export class CreerRegularisationDto {
   @IsNumber()
   @Min(0)
   montantDiffere?: number;
+
+  /**
+   * NATURE DU TIERS · obligatoire pour CHARGE_A_PAYER et PRODUIT_A_RECEVOIR,
+   * ignorée pour les trois autres types. C'est elle, et non un compte choisi
+   * à l'écran, qui décide du sous-compte de rattachement : les deux plans les
+   * énumèrent nommément (408, 418, 4286/4287, 4386/4387, 4486/4487) et ne
+   * prévoient aucun compte fourre-tout.
+   */
+  @IsOptional()
+  @IsIn(['FOURNISSEURS', 'CLIENTS', 'PERSONNEL', 'ORGANISMES_SOCIAUX', 'ETAT'])
+  natureTiers?: NatureTiersRattachement;
 }
 
 export class CreerAbonnementDto {

@@ -2305,6 +2305,17 @@ enum TypeRegularisation {
   CHARGE_CONSTATEE_AVANCE // 476 · charge payée en N pour tout ou partie de N+1
   PRODUIT_CONSTATE_AVANCE // 477 · produit encaissé en N pour N+1
   SUBVENTION_PLURIANNUELLE // 477 / 71 · Partie 3 ch. 6, section 1
+  /// L'AUTRE MOITIÉ DU RATTACHEMENT, et elle ne marche pas comme les trois
+  /// premières. Une charge constatée d'avance est DÉJÀ comptabilisée et
+  /// déborde sur N+1 : on en retire une part au prorata. Une charge à payer
+  /// n'est PAS comptabilisée et appartient ENTIÈREMENT à N : rien ne se
+  /// proratise, tout se rattache, et l'écriture se CONTRE-PASSE à l'ouverture
+  /// (AUDCIF Titre VII, comptes 40 et 41 : « À l'ouverture de l'exercice, ces
+  /// écritures sont contre-passées […] ou soldées par le compte fournisseur à
+  /// la réception de la facture »). La contrepartie n'est pas un 476 ou un
+  /// 477 : c'est le sous-compte RATTACHÉ du tiers concerné.
+  CHARGE_A_PAYER // 408, 4286, 4386, 4486 selon la nature du tiers
+  PRODUIT_A_RECEVOIR // 418x, 4287, 4387, 4487
 }
 
 model Regularisation {

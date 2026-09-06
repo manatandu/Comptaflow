@@ -510,6 +510,51 @@ déclaré de l'exercice précédent, ou l'impôt reconstitué d'office), et c'es
 acte de l'Administration. Il rapproche deux chiffres du dossier et nomme
 l'exposition. Un test le vérifie sur le texte produit.
 
+**Charges à payer et produits à recevoir · l'autre moitié du rattachement, et
+elle ne marche pas comme la première.** `TypeRegularisation` ne portait que ce
+qui est DÉJÀ comptabilisé et déborde sur l'exercice suivant (476/477, découpé au
+prorata des jours). Il lui manquait le symétrique : ce qui n'est PAS
+comptabilisé et appartient ENTIÈREMENT à l'exercice · le service est fait, seule
+la facture manque.
+
+TROIS DIFFÉRENCES DE MÉCANISME, et chacune est un défaut si on l'ignore.
+
+RIEN NE SE PRORATISE. Proratiser une charge à payer la réduirait à la fraction
+qui déborde la clôture, c'est-à-dire le plus souvent ZÉRO, puisque sa période se
+termine AVANT. La charge disparaîtrait du résultat de l'exercice qui la
+supporte, l'écriture s'équilibrerait, la balance boucherait. Le refus le dit et
+propose la vraie réponse : si une part concerne un autre exercice, ce sont DEUX
+opérations.
+
+LE SENS S'INVERSE. Sur une charge constatée d'avance on CRÉDITE le 6x pour l'en
+retirer ; sur une charge à payer on le DÉBITE pour l'inscrire. Servir l'un pour
+l'autre améliore le résultat au lieu de le grever · deux fois le montant
+d'erreur, sur une écriture parfaitement équilibrée.
+`debiteLeCompteDeGestion()` tranche pour les cinq types, et un test tombe si un
+sixième est ajouté sans que son sens soit décidé.
+
+LA CONTRE-PASSATION EST À L'OUVERTURE, DES DEUX CÔTÉS, sans que le référentiel
+ait son mot à dire · les deux textes emploient la même phrase dans la fiche de
+leurs comptes 40 et 41 : « À l'ouverture de l'exercice, ces écritures sont
+contre-passées […] ou soldées par le compte fournisseur à la réception de la
+facture ». C'est une extourne d'estimation, pas une reprise de quote-part : la
+règle du 476/477, où le SYCEBNL reprend à la clôture, ne s'y applique pas.
+
+LE COMPTE DE RATTACHEMENT N'EST PAS LIBRE, et il dépend de la NATURE DU TIERS ·
+408 fournisseurs, 418 clients et adhérents, 4286/4287 personnel, 4386/4387
+organismes sociaux, 4486/4487 État. Aucun compte fourre-tout. Deux couples sont
+refusés parce qu'aucun plan ne les prévoit : un produit à recevoir sur un
+fournisseur (c'est une créance sur fournisseur, 409) et une charge à payer sur
+un client (c'est une dette envers un client, 419).
+
+ET LE 4181 NE VEUT PAS DIRE LA MÊME CHOSE DES DEUX CÔTÉS · même signature que
+le 192 du registre des provisions, au même endroit du plan. Le SYSCOHADA écrit
+« 4181 Clients, factures à établir ». Le SYCEBNL réserve le 4181 aux
+« Adhérents, APPELS DE FONDS à établir » et met les factures à établir au 4182.
+Une facture à établir rangée au 4181 dans une association devient une créance de
+cotisations sur des adhérents qui ne doivent rien : le compte existe, la balance
+boucle, et la Note annexe le publie.
+
 **Correspondance bilan de clôture / bilan d'ouverture · la convention et ses
 DEUX seules exceptions.** « Le bilan d'ouverture d'un exercice doit
 correspondre au bilan de clôture de l'exercice précédent » (AUDCIF art. 34 et

@@ -37,17 +37,82 @@ export function dateReprise(
   type: TypeRegularisation,
   cible: { dateDebut: Date; dateFin: Date },
 ): Date {
+  // LE RATTACHEMENT SE CONTRE-PASSE À L'OUVERTURE, DES DEUX CÔTÉS, et sans
+  // que le référentiel ait son mot à dire : les deux textes emploient la même
+  // phrase dans la fiche de leurs comptes 40 et 41 · « À l'ouverture de
+  // l'exercice, ces écritures sont contre-passées pour permettre un meilleur
+  // contrôle et une meilleure analyse des flux, ou soldées par le compte
+  // fournisseur à la réception de la facture ». Ce n'est pas une reprise de
+  // quote-part comme pour un 476/477 : c'est l'extourne de l'estimation, que
+  // la facture réelle vient remplacer.
+  if (
+    type === TypeRegularisation.CHARGE_A_PAYER ||
+    type === TypeRegularisation.PRODUIT_A_RECEVOIR
+  ) {
+    return cible.dateDebut;
+  }
   if (referentiel === Referentiel.SYSCOHADA && type !== TypeRegularisation.SUBVENTION_PLURIANNUELLE) {
     return cible.dateDebut;
   }
   return cible.dateFin;
 }
 
+/**
+ * NATURE DU TIERS d'une charge à payer ou d'un produit à recevoir. Ce n'est
+ * pas une préférence de présentation : le compte de rattachement en dépend
+ * entièrement, et les deux plans le rangent chacun dans le compte de tiers
+ * concerné, jamais dans un compte fourre-tout.
+ */
+export type NatureTiersRattachement = 'FOURNISSEURS' | 'CLIENTS' | 'PERSONNEL' | 'ORGANISMES_SOCIAUX' | 'ETAT';
+
 /** Compte de report par défaut selon le type de régularisation. */
 const RACINE_DIFFERE: Record<TypeRegularisation, string> = {
   [TypeRegularisation.CHARGE_CONSTATEE_AVANCE]: '476',
   [TypeRegularisation.PRODUIT_CONSTATE_AVANCE]: '477',
   [TypeRegularisation.SUBVENTION_PLURIANNUELLE]: '477',
+  // Les deux valeurs de rattachement n'ont PAS de compte de report unique ·
+  // leur contrepartie dépend de la nature du tiers, voir
+  // `compteRattachement()`. Ces deux entrées ne servent jamais : le chemin de
+  // création les écarte avant d'atteindre `trouverCompteDiffere`. Elles
+  // existent parce que le Record est exhaustif, et une racine vide serait un
+  // compte introuvable plutôt qu'un refus lisible.
+  [TypeRegularisation.CHARGE_A_PAYER]: '',
+  [TypeRegularisation.PRODUIT_A_RECEVOIR]: '',
+};
+
+/**
+ * LE COMPTE DE RATTACHEMENT, PAR NATURE DE TIERS ET PAR RÉFÉRENTIEL.
+ *
+ * Une charge à payer ne se loge pas où l'on veut : chaque compte de tiers
+ * porte son propre sous-compte de rattachement, et les deux plans les
+ * énumèrent nommément (AUDCIF Titre VII, classe 4 · SYCEBNL Partie 2 ch. 3,
+ * section 4). Trois d'entre eux sont identiques des deux côtés (4286/4287
+ * personnel, 4386/4387 organismes sociaux, 4486/4487 État), et deux ne le
+ * sont pas :
+ *
+ *  · 408 « Fournisseurs, factures non parvenues » · le SYSCOHADA porte en
+ *    plus un 4082 « Fournisseurs groupe » que le SYCEBNL n'a pas. Le
+ *    rattachement ordinaire va au 4081 des deux côtés ;
+ *
+ *  · 418 · ET C'EST LE PIÈGE DE CE MODULE. Le SYSCOHADA écrit « 4181 Clients,
+ *    factures à établir ». Le SYCEBNL, lui, réserve le 4181 aux « Adhérents,
+ *    APPELS DE FONDS à établir » et met les factures à établir au 4182
+ *    (« Clients-usagers, factures à établir »). Un produit à recevoir sur un
+ *    client rangé au 4181 dans une association ne serait donc pas une facture
+ *    à établir mais un appel de cotisations · le compte existe, la balance
+ *    boucle, et la Note annexe publie une créance sur des adhérents qui ne
+ *    doivent rien. C'est la même signature de défaut que le 192 du registre
+ *    des provisions, au même endroit du plan.
+ */
+const RATTACHEMENT: Record<
+  NatureTiersRattachement,
+  { charge: string; produit: string; libelle: string }
+> = {
+  FOURNISSEURS: { charge: '4081', produit: '', libelle: 'Fournisseurs' },
+  CLIENTS: { charge: '', produit: '4181', libelle: 'Clients, adhérents et usagers' },
+  PERSONNEL: { charge: '4286', produit: '4287', libelle: 'Personnel' },
+  ORGANISMES_SOCIAUX: { charge: '4386', produit: '4387', libelle: 'Organismes sociaux' },
+  ETAT: { charge: '4486', produit: '4487', libelle: 'État et collectivités publiques' },
 };
 
 /**
@@ -181,6 +246,135 @@ export class RegularisationService {
     });
   }
 
+  /**
+   * Résout le compte de rattachement dans le plan du dossier · le NUMÉRO vient
+   * de `compteRattachement`, jamais du client. Laisser choisir le compte
+   * rendrait le refus décoratif : il suffirait de désigner un 4487 pour loger
+   * une charge à payer parmi les produits à recevoir.
+   */
+  private async trouverCompteRattachement(
+    tenantId: string,
+    dto: CreerRegularisationDto,
+  ) {
+    if (!dto.natureTiers) {
+      throw new BadRequestException(
+        "La nature du tiers est obligatoire pour une charge à payer ou un produit à recevoir : c'est elle qui " +
+          'décide du compte de rattachement. Les deux plans les énumèrent nommément · 408 fournisseurs, 418 ' +
+          "clients et adhérents, 4286/4287 personnel, 4386/4387 organismes sociaux, 4486/4487 État. Il n'y a " +
+          'aucun compte fourre-tout.',
+      );
+    }
+    const tenant = await this.prisma.tenant.findFirst({
+      where: { id: tenantId },
+      select: { referentiel: true },
+    });
+    if (!tenant) throw new BadRequestException('Dossier introuvable');
+
+    const { racine } = RegularisationService.compteRattachement(tenant.referentiel, dto.natureTiers, dto.type);
+    const compte = await this.prisma.compte.findFirst({
+      where: { tenantId, numero: { startsWith: racine } },
+      orderBy: { numero: 'asc' },
+    });
+    if (!compte) {
+      throw new BadRequestException(
+        `Le compte de rattachement ${racine} n'existe pas dans le plan de ce dossier. Il est prévu par le ` +
+          "référentiel : le créer plutôt que d'en choisir un autre.",
+      );
+    }
+    return compte;
+  }
+
+  /**
+   * LE COMPTE DE RATTACHEMENT, résolu par référentiel · c'est ici que vit le
+   * seul écart de nomenclature entre les deux plans sur cette matière.
+   *
+   * SYSCOHADA · « 418 Clients, produits à recevoir (4181 factures à établir ·
+   * 4186 intérêts courus) ».
+   * SYCEBNL · « 418 Adhérents, clients, produits à recevoir (4181 Adhérents
+   * Appels de fonds à établir, 4182 Clients-usagers, factures à établir,
+   * 4186 Adhérents, clients-usagers, intérêts courus) ».
+   *
+   * Le 4181 ne veut donc PAS dire la même chose des deux côtés, et c'est
+   * précisément le compte qu'un produit à recevoir sur un client irait
+   * chercher. Dans une association, il inscrirait la facture à établir parmi
+   * les appels de cotisations : le compte existe, la balance boucle, et rien
+   * ne le dirait.
+   */
+  static compteRattachement(
+    referentiel: Referentiel,
+    nature: NatureTiersRattachement,
+    type: TypeRegularisation,
+  ): { racine: string; sens: 'charge' | 'produit' } {
+    const estCharge = type === TypeRegularisation.CHARGE_A_PAYER;
+    const table = RATTACHEMENT[nature];
+    let racine = estCharge ? table.charge : table.produit;
+
+    // La seule substitution du tableau, et elle ne vaut que dans un sens.
+    if (!estCharge && nature === 'CLIENTS' && referentiel === Referentiel.SYCEBNL) racine = '4182';
+
+    if (!racine) {
+      throw new BadRequestException(
+        estCharge
+          ? `Une charge à payer ne se rattache pas au compte « ${table.libelle} » · le plan n'y prévoit aucun ` +
+            "sous-compte de charges à payer. Une somme due à un client est une dette envers un client (419, " +
+            'avances reçues, ou 4198 avoirs à accorder), pas une charge à payer.'
+          : `Un produit à recevoir ne se rattache pas au compte « ${table.libelle} » · le plan n'y prévoit aucun ` +
+            "sous-compte de produits à recevoir. Une somme à recevoir d'un fournisseur est une créance sur " +
+            'fournisseur (409, avances versées, ou 4098 avoirs à obtenir), pas un produit à recevoir.',
+      );
+    }
+    return { racine, sens: estCharge ? 'charge' : 'produit' };
+  }
+
+  /**
+   * QUEL CÔTÉ REÇOIT LE COMPTE DE GESTION · rend `true` quand l'écriture de
+   * constatation DÉBITE le compte de charge ou de produit.
+   *
+   * Le sens S'INVERSE entre l'étalement et le rattachement, alors que les deux
+   * portent le même mot :
+   *
+   *  · CHARGE CONSTATÉE D'AVANCE · la charge est déjà au débit du 6x et il
+   *    faut l'en RETIRER · débit 476, crédit 6x ;
+   *  · CHARGE À PAYER · la charge n'est nulle part et il faut l'INSCRIRE ·
+   *    débit 6x, crédit 408 ;
+   *  · PRODUIT CONSTATÉ D'AVANCE · le produit est déjà au crédit du 7x et il
+   *    faut l'en retirer · débit 7x, crédit 477 ;
+   *  · PRODUIT À RECEVOIR · le produit n'est nulle part · débit 418,
+   *    crédit 7x.
+   *
+   * Servir le sens de l'un pour l'autre CRÉDITERAIT le compte de charge d'une
+   * charge qui n'y a jamais été portée : le résultat serait amélioré du
+   * montant au lieu d'en être grevé, soit deux fois le montant d'erreur. Et
+   * l'écriture s'équilibre, et la balance boucle.
+   */
+  static debiteLeCompteDeGestion(type: TypeRegularisation): boolean {
+    return (
+      type === TypeRegularisation.CHARGE_A_PAYER ||
+      type === TypeRegularisation.PRODUIT_CONSTATE_AVANCE ||
+      type === TypeRegularisation.SUBVENTION_PLURIANNUELLE
+    );
+  }
+
+  /**
+   * LE RATTACHEMENT N'EST PAS UN ÉTALEMENT, et c'est tout ce qui sépare ces
+   * deux valeurs des trois autres.
+   *
+   * Une charge constatée d'avance est DÉJÀ enregistrée et déborde sur N+1 :
+   * on en retire la part qui déborde, calculée au prorata des jours. Une
+   * charge à payer n'est PAS enregistrée et appartient ENTIÈREMENT à N : le
+   * service fait, la facture n'est pas venue, et la charge est de cet
+   * exercice-là tout entière. Rien ne se proratise.
+   *
+   * Appliquer le prorata à une charge à payer inscrirait au résultat la seule
+   * fraction qui déborde la clôture · c'est-à-dire, le plus souvent, ZÉRO,
+   * puisque la période d'une charge à payer se termine avant la clôture.
+   * L'écriture s'équilibrerait, la balance boucherait, et la charge aurait
+   * disparu du résultat de l'exercice qui la supporte.
+   */
+  static montantRattache(type: TypeRegularisation, montantTotal: number): number {
+    return Math.round(montantTotal * 100) / 100;
+  }
+
   /** Calcule le prorata sans rien enregistrer · alimente l'aperçu de l'écran. */
   async simuler(tenantId: string, dto: CreerRegularisationDto) {
     const exercice = await this.prisma.exercice.findFirst({ where: { id: dto.exerciceId, tenantId } });
@@ -219,7 +413,10 @@ export class RegularisationService {
     });
     if (!compteChargeProduit) throw new BadRequestException('Compte de charge ou de produit introuvable');
 
-    const estCharge = dto.type === TypeRegularisation.CHARGE_CONSTATEE_AVANCE;
+    const estRattachement =
+      dto.type === TypeRegularisation.CHARGE_A_PAYER || dto.type === TypeRegularisation.PRODUIT_A_RECEVOIR;
+    const estCharge =
+      dto.type === TypeRegularisation.CHARGE_CONSTATEE_AVANCE || dto.type === TypeRegularisation.CHARGE_A_PAYER;
     const classeAttendue = estCharge ? ClasseCompte.CLASSE_6 : ClasseCompte.CLASSE_7;
     if (compteChargeProduit.classe !== classeAttendue) {
       throw new BadRequestException(
@@ -229,13 +426,40 @@ export class RegularisationService {
       );
     }
 
-    const compteDiffere = await this.trouverCompteDiffere(tenantId, dto.type, dto.compteDifferId);
     const periodeDebut = new Date(dto.periodeDebut);
     const periodeFin = new Date(dto.periodeFin);
-    const montantDiffere =
-      dto.montantDiffere ??
-      RegularisationService.prorataDiffere(dto.montantTotal, periodeDebut, periodeFin, exercice.dateFin);
-    if (montantDiffere <= 0) {
+
+    // DEUX CHEMINS, ET ILS NE SE CROISENT PAS. Le rattachement (charge à
+    // payer, produit à recevoir) n'a ni compte 476/477 ni prorata · sa
+    // contrepartie est le sous-compte du tiers, et le montant est celui de la
+    // charge entière. L'étalement (476/477) garde son calcul au prorata.
+    const compteDiffere = estRattachement
+      ? await this.trouverCompteRattachement(tenantId, dto)
+      : await this.trouverCompteDiffere(tenantId, dto.type, dto.compteDifferId);
+
+    const montantDiffere = estRattachement
+      ? RegularisationService.montantRattache(dto.type, dto.montantTotal)
+      : dto.montantDiffere ??
+        RegularisationService.prorataDiffere(dto.montantTotal, periodeDebut, periodeFin, exercice.dateFin);
+
+    // LE REFUS DU PRORATA · un `montantDiffere` reçu sur un rattachement
+    // voudrait dire qu'une part de la charge appartient à un autre exercice.
+    // C'est le contraire de ce qu'est une charge à payer : le service est
+    // fait, seule la facture manque, et la charge est de CET exercice tout
+    // entière. Passée au prorata, elle serait réduite à la fraction qui
+    // déborde la clôture · le plus souvent zéro, puisque la période d'une
+    // charge à payer se termine AVANT elle. L'écriture s'équilibrerait, la
+    // balance boucherait, et la charge aurait disparu du résultat.
+    if (estRattachement && dto.montantDiffere !== undefined && Math.abs(dto.montantDiffere - dto.montantTotal) > 0.005) {
+      throw new BadRequestException(
+        "Une charge à payer ou un produit à recevoir ne se proratise pas · la charge n'est pas encore " +
+          "comptabilisée et appartient ENTIÈREMENT à cet exercice, seule la pièce manque. Le montant rattaché " +
+          'est le montant total. Si une part de la dépense concerne réellement un autre exercice, ce sont DEUX ' +
+          "opérations : la charge à payer de l'exercice, et une charge constatée d'avance (476) pour le reste.",
+      );
+    }
+
+    if (!estRattachement && montantDiffere <= 0) {
       throw new BadRequestException(
         "La période ne déborde pas la clôture de l'exercice : il n'y a rien à différer.",
       );
@@ -246,17 +470,28 @@ export class RegularisationService {
 
     const journal = await this.journalAccueil(tenantId, dto.journalId);
 
-    // Sens de l'écriture de constatation :
-    //  - CHARGE : on retire la charge de l'exercice · débit 476, crédit 6x ;
-    //  - PRODUIT et SUBVENTION : on retire le produit · débit 7x, crédit 477.
-    const lignes = estCharge
+    // SENS DE L'ÉCRITURE · et il S'INVERSE entre l'étalement et le
+    // rattachement, alors que les deux portent le mot « charge ».
+    //
+    //  · CHARGE CONSTATÉE D'AVANCE · la charge est déjà au débit du 6x et il
+    //    faut l'en RETIRER : débit 476, crédit 6x ;
+    //  · CHARGE À PAYER · la charge n'est nulle part et il faut l'INSCRIRE :
+    //    débit 6x, crédit 408/4286/4386/4486.
+    //
+    // Les servir l'un pour l'autre créditerait le compte de charge d'une
+    // charge qui n'y a jamais été portée · le résultat serait amélioré du
+    // montant au lieu d'être grevé, l'écriture s'équilibrerait, et la balance
+    // boucherait. Deux fois le montant d'erreur, dans le bon sens pour
+    // personne.
+    const sensEntrant = RegularisationService.debiteLeCompteDeGestion(dto.type);
+    const lignes = sensEntrant
       ? [
-          { compteId: compteDiffere.id, debit: montantDiffere, libelle: dto.libelle },
-          { compteId: compteChargeProduit.id, credit: montantDiffere, libelle: dto.libelle },
-        ]
-      : [
           { compteId: compteChargeProduit.id, debit: montantDiffere, libelle: dto.libelle },
           { compteId: compteDiffere.id, credit: montantDiffere, libelle: dto.libelle },
+        ]
+      : [
+          { compteId: compteDiffere.id, debit: montantDiffere, libelle: dto.libelle },
+          { compteId: compteChargeProduit.id, credit: montantDiffere, libelle: dto.libelle },
         ];
 
     const ecriture = await this.ecritureService.creer(tenantId, createdBy, {
