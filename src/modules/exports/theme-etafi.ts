@@ -100,7 +100,23 @@ export function q(nom: string): string {
 export interface IdentiteLiasse {
   /** Dénomination sociale. */
   entite: string;
-  /** NIF · l'identifiant que le CPCC impose en tête de chaque page. */
+  /**
+   * NIF · le CPCC, travaux de fin d'exercice § 7, impose de renseigner sur
+   * CHAQUE PAGE, « même en cas de mention NÉANT », un en-tête portant
+   * « dénomination sociale de l'entreprise, n° d'identification fiscale,
+   * exercice clos le, durée (en mois) ».
+   *
+   * LE RENVOI EST DONNÉ DEPUIS L'AUDIT DU 6 SEPTEMBRE 2026 · la ligne disait
+   * « l'identifiant que le CPCC impose » sans dire où. L'affirmation était
+   * juste, mais invérifiable en moins de vingt minutes, et le CPCC écrit
+   * « n° d'identification fiscale » là où le code écrit « NIF » · chercher le
+   * sigle dans la source ne rend rien.
+   *
+   * À NE PAS CONFONDRE avec les quatre mentions de l'AUDCIF (Titre IX ch. 1
+   * § 2.4 · nom de l'entité « et tout autre moyen d'identification », date
+   * d'arrêté, période couverte, unité monétaire), qui ne nomment PAS le NIF.
+   * Deux exigences distinctes, portées par deux sources distinctes.
+   */
   nif: string;
   /** Exercice · « 2026 » ou une date « 31/12/2026 ». */
   exercice: string;

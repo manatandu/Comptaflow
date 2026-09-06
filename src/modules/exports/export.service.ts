@@ -1644,9 +1644,11 @@ export class ExportService {
 
   /**
    * IDENTITÉ DU CARTOUCHE · les six lignes d'en-tête que la charte ETAFI
-   * pose sur chaque page (voir theme-etafi.ts). Le NIF est l'identifiant que
-   * le CPCC impose en tête de chaque page d'état financier · le sigle et le
-   * NTD restent vides tant que le dossier n'en porte pas.
+   * pose sur chaque page (voir theme-etafi.ts). Le NIF y figure au titre de
+   * l'en-tête que le CPCC impose sur chaque page (travaux de fin d'exercice
+   * § 7, « dénomination sociale de l'entreprise, n° d'identification fiscale,
+   * exercice clos le, durée ») · le sigle et le NTD restent vides tant que le
+   * dossier n'en porte pas.
    */
   private async identiteLiasse(tenantId: string, exerciceId: string): Promise<IdentiteLiasse> {
     const [tenant, exercice] = await Promise.all([

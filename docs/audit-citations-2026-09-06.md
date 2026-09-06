@@ -330,15 +330,73 @@ Les articles « 57 bis », « ter » et « quater » sont hors périmètre : ils
 n'existent que dans la loi de procédures fiscales, le suffixe lève à lui seul
 l'ambiguïté.
 
+## Lot D · les 4 033 lignes qui nomment un texte sans citer d'article
+
+Il n'y a là **aucune référence à contrôler** : la question change. Ce qui se
+vérifie est l'inverse · une **affirmation de droit sans source**. Le § 9 du
+règlement l'exige : « Toute règle comptable codée cite sa source en commentaire :
+l'article, la partie, le chapitre. » Une ligne qui écrit « le SYCEBNL impose X »
+sans dire OÙ est exactement ce que cette règle interdit.
+
+Le tri retient les lignes portant un **verbe normatif** (impose, exige,
+interdit, admet, écarte, ne connaît pas…) et aucune source à portée de lecture :
+
+| | Lignes |
+|---|---|
+| Aucune formule normative · le sigle est une valeur, un type, un nom de fichier | **3 505** |
+| Formule normative, source à portée de lecture | 107 |
+| Formule normative SANS aucune source | **54** |
+
+### Résultat : aucune règle inventée
+
+Les 54 ont été lues. **Aucune n'affirme une règle que sa source ne porte pas.**
+C'est le seul lot des quatre à ne rendre aucun défaut de fond.
+
+Ce qu'il rend est plus modeste et vaut d'être dit : des affirmations **exactes
+dont la source n'est pas donnée**, donc coûteuses à vérifier. Deux ont été
+sourcées, celles qui s'impriment sur un document opposable :
+
+- **le NIF en tête de chaque page.** « L'identifiant que le CPCC impose » ne
+  disait pas où. C'est le § 7 des travaux de fin d'exercice : « Les mentions
+  suivantes doivent systématiquement être renseignées sur chaque page, même en
+  cas de mention NÉANT : en-tête · dénomination sociale de l'entreprise, n°
+  d'identification fiscale, exercice clos le, durée (en mois) ». Le renvoi est
+  désormais écrit, avec l'avertissement de ne pas confondre cette exigence avec
+  les quatre mentions de l'AUDCIF (Titre IX ch. 1 § 2.4), qui ne nomment pas le
+  NIF ;
+- **le lettrage partiel.** La citation « la somme des montants lettrés au débit
+  pouvant être égale, supérieure ou inférieure à celle des montants lettrés au
+  crédit » est exacte au mot près, mais son chapitre n'était pas nommé.
+
+### Ce que ma méthode a raté, et il faut le dire
+
+**Le détecteur produit surtout des faux positifs, et il m'a fait conclure faux
+deux fois avant que je ne le rattrape.**
+
+Sur le lettrage, mon premier `grep` limitait la sortie à six lignes et le bon
+fichier arrivait en septième position · j'ai tenu la citation pour inexistante
+alors qu'elle est textuelle.
+
+Sur le NIF, j'ai cherché le sigle « NIF » dans la compétence CPCC et n'ai rien
+trouvé · j'allais signaler une règle inventée. Le CPCC écrit **« n°
+d'identification fiscale »**. Chercher le sigle dans une source qui emploie la
+formule ne rend rien, et l'absence de résultat ressemble à s'y méprendre à une
+absence de règle.
+
+Les deux fois, ce sont des vérifications supplémentaires qui ont retourné le
+verdict, pas le détecteur. C'est la limite de ce lot : il sait montrer où
+regarder, il ne sait pas conclure. Toute reprise devra chercher la FORMULE de la
+règle, jamais le sigle qui la nomme dans le code.
+
 ## Ce qui n'a pas été vérifié
 
-**Ce qui reste hors des trois lots.** 4 033 lignes nomment un texte sans citer
-d'article · elles ne portent aucune référence vérifiable article par article.
-S'y ajoutent quatre corpus non indexés (Code des douanes, Code du numérique,
-CPCC, SYSCOHADA hors AUDCIF), soit 14 références lues mais sans rapprochement
-mécanique, et les 520 lignes du lot C dont le fichier nomme plusieurs textes
-sans collision de numéro · leur rattachement se lit au sujet du fichier, et
-aucune ne pose de choix indécidable.
+**Ce qui reste hors des quatre lots.** Quatre corpus non indexés (Code des
+douanes, Code du numérique, CPCC, SYSCOHADA hors AUDCIF), soit 14 références
+lues mais sans rapprochement mécanique. Les 520 lignes du lot C dont le fichier
+nomme plusieurs textes sans collision de numéro · leur rattachement se lit au
+sujet du fichier et aucune ne pose de choix indécidable. Les 107 affirmations du
+lot D dont la source est à portée de lecture sans avoir été relue une par une.
+Et les 3 505 lignes où un sigle n'est qu'une valeur de code.
 
 Deux points relevés au passage et laissés en réserve plutôt que tranchés :
 
@@ -359,7 +417,9 @@ Sur les 89 références qui commandent un montant, une échéance ou un seuil, *
 chiffre n'est faux**. Sur les 206 références explicatives distinctes, **203 sont
 exactes**. Sur les 1 683 citations sans texte nommé, **aucune ne renvoie au
 mauvais article** · six étaient seulement indécidables, et le sont restées
-jusqu'à aujourd'hui.
+jusqu'à aujourd'hui. Et sur les 54 affirmations de droit sans source, **aucune
+règle n'est inventée** · deux méritaient seulement qu'on dise d'où elles
+viennent.
 
 Les cinq défauts des deux lots sont tous des RENVOIS, aucun n'est un calcul : un
 taux rattaché à son texte modificatif plutôt qu'à son texte porteur, une

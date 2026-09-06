@@ -1257,7 +1257,8 @@ model LigneEcriture {
   //    soldé ou partiel (voir le modèle Lettrage).
   //  - `lettre` ne porte le code QUE lorsque le groupe est soldé.
   //
-  // Pourquoi les deux. Le CPCC pose que « la somme des montants lettrés au
+  // Pourquoi les deux. Le CPCC (organisation comptable, chapitre du lettrage)
+  // pose que « la somme des montants lettrés au
   // débit peut être égale, SUPÉRIEURE OU INFÉRIEURE à celle des montants
   // lettrés au crédit », le but étant d'identifier les opérations restées
   // « totalement ou partiellement ouvertes ». Une facture réglée à moitié
