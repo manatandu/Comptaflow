@@ -1046,6 +1046,16 @@ export class FiscaliteService {
   }
 
   /**
+   * DEUX ARTICLES 57, ET ILS NE SONT PAS DE LA MÊME LOI · relevé par l'audit
+   * des citations du 6 septembre 2026. L'art. 57 de la loi n° 23/053 pose
+   * l'IMPÔT MINIMUM de 1 % du chiffre d'affaires ; l'art. 57 de la loi de
+   * PROCÉDURES FISCALES pose les MODALITÉS DE PAIEMENT. Ce module manie les
+   * deux, à quelques lignes l'un de l'autre, et un « art. 57 » nu y est
+   * indécidable · chaque message servi à l'écran nomme donc sa loi. Sixième
+   * fois que ce dépôt rencontre « un numéro, deux sens », après le 192, le
+   * 4181, le 1061/1062, le 38/37 et le 397, et la deuxième sur un numéro
+   * d'ARTICLE après les deux articles 11 de la retenue locative.
+   *
    * LE CALENDRIER DE PAIEMENT, DIT AVEC SON ARTICLE · art. 57 de la loi de
    * procédures fiscales, dont les alinéas 2 et 3 ne visent pas les mêmes
    * contribuables.
@@ -1085,21 +1095,23 @@ export class FiscaliteService {
     if (regime === 'IRPP_PETITE_ENTREPRISE') {
       const [premiere, seconde] = QUOTITES_PETITE_ENTREPRISE;
       return [
-        `Art. 57, al. 3 et 57 quater : l'impôt d'une petite entreprise est payé en DEUX QUOTITÉS, ${premiere.quotite * 100} % et ${seconde.quotite * 100} % de l'impôt dû, et non par acomptes provisionnels. La première est payée à la souscription de la déclaration auto liquidative, au plus tard le ${premiere.echeance} de l'année qui suit celle de la réalisation des revenus. Les acomptes des 25 juillet, 25 septembre et 25 novembre (art. 57 bis) ne visent que l'alinéa 2 de l'art. 57, c'est-à-dire l'impôt sur les sociétés et l'IRPP au régime réel : ils ne sont pas dus ici.`,
+        `Loi de procédures fiscales, art. 57, al. 3 et 57 quater : l'impôt d'une petite entreprise est payé en DEUX QUOTITÉS, ${premiere.quotite * 100} % et ${seconde.quotite * 100} % de l'impôt dû, et non par acomptes provisionnels. La première est payée à la souscription de la déclaration auto liquidative, au plus tard le ${premiere.echeance} de l'année qui suit celle de la réalisation des revenus. Les acomptes des 25 juillet, 25 septembre et 25 novembre (art. 57 bis) ne visent que l'alinéa 2 de l'art. 57, c'est-à-dire l'impôt sur les sociétés et l'IRPP au régime réel : ils ne sont pas dus ici.`,
         ...(seconde.reserve ? [seconde.reserve] : []),
         ...acomptes,
       ];
     }
     if (regime === 'IRPP_MICRO_ENTREPRISE') {
       return [
-        "Art. 57 : une micro-entreprise acquitte le forfait annuel de l'art. 128 et ne verse ni acompte provisionnel (art. 57, al. 2) ni quotité (art. 57, al. 3), ces deux modes visant d'autres régimes.",
+        "Loi de procédures fiscales, art. 57 : une micro-entreprise acquitte le forfait annuel de l'art. 128 de la loi " +
+          "n° 23/053 et ne verse ni acompte provisionnel (art. 57, al. 2) ni quotité (art. 57, al. 3), ces deux modes " +
+          "visant d'autres régimes.",
         ...acomptes,
       ];
     }
     if (regime === 'IRPP_REGIME_REEL' && impotDu === null) {
       return [
         ...acomptes,
-        "Art. 57, al. 2 et 57 bis : l'IRPP au régime réel se paie bien par acomptes provisionnels, mais leur base est l'impôt DÉCLARÉ de l'exercice précédent, augmenté des suppléments établis par l'Administration. Cet impôt dépend du barème progressif appliqué au revenu net global du contribuable, que ce dossier ne détient pas · les trois montants ne sont donc pas calculés ici, seule leur date est certaine (25 juillet, 25 septembre, 25 novembre).",
+        "Loi de procédures fiscales, art. 57, al. 2 et 57 bis : l'IRPP au régime réel se paie bien par acomptes provisionnels, mais leur base est l'impôt DÉCLARÉ de l'exercice précédent, augmenté des suppléments établis par l'Administration. Cet impôt dépend du barème progressif appliqué au revenu net global du contribuable, que ce dossier ne détient pas · les trois montants ne sont donc pas calculés ici, seule leur date est certaine (25 juillet, 25 septembre, 25 novembre).",
       ];
     }
     return acomptes;
@@ -1307,11 +1319,11 @@ export class FiscaliteService {
           impotTheorique: theorique,
           impotMinimum: minimum,
           impotDu: Math.max(theorique, minimum),
-          baseImpot: `${is.taux * 100} % du bénéfice net imposable (art. 56)`,
+          baseImpot: `${is.taux * 100} % du bénéfice net imposable (loi n° 23/053, art. 56)`,
           minimumApplique,
           explication: minimumApplique
-            ? `L'impôt minimum de ${is.tauxMinimum * 100} % du chiffre d'affaires déclaré (art. 57) est supérieur à l'impôt sur le bénéfice : c'est lui qui est dû.`
-            : `Impôt sur le bénéfice net imposable au taux de ${is.taux * 100} % (art. 56), supérieur à l'impôt minimum de ${is.tauxMinimum * 100} % du chiffre d'affaires (art. 57).`,
+            ? `L'impôt minimum de ${is.tauxMinimum * 100} % du chiffre d'affaires déclaré (loi n° 23/053, art. 57) est supérieur à l'impôt sur le bénéfice : c'est lui qui est dû.`
+            : `Impôt sur le bénéfice net imposable au taux de ${is.taux * 100} % (loi n° 23/053, art. 56), supérieur à l'impôt minimum de ${is.tauxMinimum * 100} % du chiffre d'affaires (même loi, art. 57).`,
         };
       }
       case 'IRPP_MICRO_ENTREPRISE':

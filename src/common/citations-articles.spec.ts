@@ -117,6 +117,50 @@ describe('Citations d’articles · le corpus nommé porte-t-il l’article cit�
     expect(fautifs).toEqual([]);
   });
 
+  it('tout message servi à l’écran par le module fiscal nomme la loi de son art. 57', () => {
+    /**
+     * DEUX ARTICLES 57, DEUX LOIS · relevé par le lot C de l'audit du
+     * 6 septembre 2026, sur les citations qui ne nomment aucun texte.
+     *
+     * L'art. 57 de la loi n° 23/053 pose l'IMPÔT MINIMUM de 1 % du chiffre
+     * d'affaires. L'art. 57 de la loi de PROCÉDURES FISCALES pose les
+     * MODALITÉS DE PAIEMENT. Le module fiscal manie les deux à quelques
+     * lignes l'un de l'autre, et servait « art. 57 » nu dans SIX messages
+     * d'écran · un message allait jusqu'à mêler l'art. 128 de la loi n° 23/053
+     * et l'art. 57 de la loi de procédures fiscales dans la même phrase, sans
+     * nommer ni l'une ni l'autre.
+     *
+     * Aucune de ces citations n'était fausse. Elles étaient INDÉCIDABLES, ce
+     * qui revient au même pour qui veut les vérifier.
+     *
+     * Le test ne porte que sur les chaînes SERVIES (guillemets, gabarits), pas
+     * sur les commentaires : c'est à l'écran que l'ambiguïté coûte.
+     */
+    const lignes = readFileSync('src/modules/fiscalite/fiscalite.service.ts', 'utf8').split('\n');
+    const nommeSaLoi = /loi n° 23\/053|[Ll]oi de procédures fiscales|même loi|LPF/;
+    const muettes: string[] = [];
+    lignes.forEach((l, i) => {
+      // Chaînes SERVIES seulement · un commentaire n'atteint pas l'écran.
+      if (/^\s*(\/\/|\*|\/\*)/.test(l)) return;
+      // Une branche de ternaire commence par « ? » ou « : » avant sa chaîne ·
+      // les oublier laissait hors périmètre le message d'impôt minimum, celui
+      // par lequel ce test est né. Trouvé en réintroduisant le défaut.
+      if (!/^\s*[?:]?\s*[`"']|[`"']\s*\+\s*$|return \[|baseImpot:|explication:/.test(l)) return;
+      // « 57 bis », « 57 ter », « 57 quater » n'existent QUE dans la loi de
+      // procédures fiscales · aucune ambiguïté à lever, le suffixe suffit.
+      // Seuls les art. 56 et 57 NUS sont portés par les deux lois.
+      if (!/[Aa]rt\.\s*5[67]\b(?!\s*(?:bis|ter|quater|quinquies))/.test(l)) return;
+      // Une chaîne CONCATÉNÉE nomme sa loi sur sa première ligne · on remonte
+      // tant que la ligne précédente se termine par « + », et PAS au-delà.
+      // Une fenêtre fixe capterait la mention d'une chaîne VOISINE et rendrait
+      // le test aveugle · vérifié en réintroduisant le défaut, qui passait.
+      let bloc = l;
+      for (let j = i - 1; j >= 0 && /[+]\s*$/.test(lignes[j]); j--) bloc = lignes[j] + ' ' + bloc;
+      if (!nommeSaLoi.test(bloc)) muettes.push(l.trim().slice(0, 120));
+    });
+    expect(muettes).toEqual([]);
+  });
+
   it('la définition de l’entité à but non lucratif renvoie à l’art. 2, jamais à l’art. premier', () => {
     // L'art. premier du SYCEBNL institue le système comptable ; c'est l'art. 2
     // qui définit l'EBNL par son « but désintéressé ».

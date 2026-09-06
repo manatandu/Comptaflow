@@ -264,15 +264,81 @@ Le test d'affectation qui gelait l'ancien libellé est tombé à la correction �
 faisait son travail, et il porte maintenant la formule du texte avec la raison
 du changement.
 
+## Lot C · les 1 683 citations sans texte nommé
+
+Une citation qui ne nomme pas son texte n'est pas fausse · elle est
+**indécidable**, ce qui revient au même pour qui veut la vérifier. Ces 1 683
+lignes ont été résolues par couches successives, de la plus sûre à la plus
+faible :
+
+| Couche de résolution | Lignes |
+|---|---|
+| Un texte est nommé dans les 12 lignes voisines | **912** (564 couples distincts) |
+| Le FICHIER ne nomme qu'un seul corpus | 100 |
+| Un corpus domine le fichier d'un facteur trois | 35 |
+| Le fichier nomme plusieurs textes à parts voisines | 520 |
+
+Les 520 dernières ne se lisent pas une par une avec profit : dans
+`taux-tva.service.ts`, un « art. 41 » désigne évidemment la TVA. Le risque réel
+est ailleurs, et il est mesurable : **un numéro d'article que DEUX des textes
+cités par le même fichier portent réellement**. C'est la seule configuration où
+un lecteur ne peut pas trancher. Le contrôle en relève 394, concentrées sur le
+module fiscal.
+
+### Le défaut · deux articles 57, deux lois, un seul module
+
+L'**article 57 de la loi n° 23/053** pose l'**impôt minimum** de 1 % du chiffre
+d'affaires. L'**article 57 de la loi de procédures fiscales** pose les
+**modalités de paiement**. Le module fiscal manie les deux, à quelques lignes
+l'un de l'autre, et servait « art. 57 » nu dans six messages d'écran.
+
+Le pire mêlait les deux lois dans une seule phrase, sans en nommer aucune :
+
+> « Art. 57 : une micro-entreprise acquitte le forfait annuel de l'**art. 128**
+> et ne verse ni acompte provisionnel (art. 57, al. 2) ni quotité (art. 57, al.
+> 3). »
+
+L'art. 128 est de la loi n° 23/053, l'art. 57 de la loi de procédures fiscales.
+Un lecteur ne pouvait pas le savoir.
+
+**Aucune de ces citations n'était fausse.** Elles renvoyaient toutes au bon
+article de la bonne loi · simplement, rien ne disait laquelle. Six messages
+servis à l'écran nomment désormais leur loi, et le commentaire du calendrier
+explique la collision.
+
+C'est la sixième fois que ce dépôt rencontre « un numéro, deux sens » après le
+192, le 4181, le 1061/1062, le 38/37 et le 397, et la deuxième sur un numéro
+d'ARTICLE après les deux articles 11 de la retenue locative.
+
+### Le test, et ce qu'il a fallu pour qu'il vaille quelque chose
+
+Le test refuse tout message servi citant un art. 56 ou 57 sans nommer sa loi. Il
+a été **faux deux fois avant d'être juste**, et les deux erreurs sont écrites
+dans le fichier :
+
+- sa fenêtre de contexte remontait deux lignes en arrière et captait la mention
+  d'une chaîne VOISINE · il ne remonte plus que le long d'une concaténation ;
+- son filtre ignorait les branches de ternaire, qui commencent par « ? » ou
+  « : » avant leur chaîne · c'est-à-dire précisément le message d'impôt minimum
+  par lequel le test est né.
+
+Les deux fois, c'est la **réintroduction du défaut** qui l'a montré. Un test qui
+passe sans cette épreuve ne prouve rien, et celui-ci passait au vert sur le
+défaut qu'il était censé fermer.
+
+Les articles « 57 bis », « ter » et « quater » sont hors périmètre : ils
+n'existent que dans la loi de procédures fiscales, le suffixe lève à lui seul
+l'ambiguïté.
+
 ## Ce qui n'a pas été vérifié
 
-**Ce qui reste hors des deux lots.** 1 683 lignes citent un article sans nommer
-de texte sur la même ligne, et 4 033 nomment un texte sans citer d'article. Les
-premières sont couvertes indirectement, par la fenêtre de contexte du test de
-balayage ; les secondes ne portent aucune référence vérifiable article par
-article. S'y ajoutent quatre corpus non indexés dans ce passage (Code des
-douanes, Code du numérique, CPCC, SYSCOHADA hors AUDCIF), soit 14 références,
-dont les citations ont été lues mais sans rapprochement mécanique.
+**Ce qui reste hors des trois lots.** 4 033 lignes nomment un texte sans citer
+d'article · elles ne portent aucune référence vérifiable article par article.
+S'y ajoutent quatre corpus non indexés (Code des douanes, Code du numérique,
+CPCC, SYSCOHADA hors AUDCIF), soit 14 références lues mais sans rapprochement
+mécanique, et les 520 lignes du lot C dont le fichier nomme plusieurs textes
+sans collision de numéro · leur rattachement se lit au sujet du fichier, et
+aucune ne pose de choix indécidable.
 
 Deux points relevés au passage et laissés en réserve plutôt que tranchés :
 
@@ -291,7 +357,9 @@ Deux points relevés au passage et laissés en réserve plutôt que tranchés :
 
 Sur les 89 références qui commandent un montant, une échéance ou un seuil, **aucun
 chiffre n'est faux**. Sur les 206 références explicatives distinctes, **203 sont
-exactes**.
+exactes**. Sur les 1 683 citations sans texte nommé, **aucune ne renvoie au
+mauvais article** · six étaient seulement indécidables, et le sont restées
+jusqu'à aujourd'hui.
 
 Les cinq défauts des deux lots sont tous des RENVOIS, aucun n'est un calcul : un
 taux rattaché à son texte modificatif plutôt qu'à son texte porteur, une
