@@ -484,6 +484,20 @@ describe('liasse complète · jeu projets de développement', () => {
     const eb = wb.getWorksheet('Execution budgetaire')!;
     expect((eb.getCell(9, 6).value as { formula?: string }).formula).toBe('D9+E9');
 
+    /*
+      ET SON TOTAL RESTE UNE PLAGE.
+      Le total du tableau n'additionne plus que les FEUILLES, les rubriques
+      étant des sous-totaux · mais la grille VIERGE n'a aucune rubrique, et le
+      cabinet la remplit à la main. Une somme énumérée cellule par cellule y
+      ignorerait toute ligne insérée au milieu, et le total se désaccorderait
+      en silence · exactement ce que ce classeur existe pour éviter.
+    */
+    let rangTotalEb = 0;
+    eb.eachRow((row, n) => {
+      if (row.getCell(2).value === 'TOTAL') rangTotalEb = n;
+    });
+    expect((eb.getCell(rangTotalEb, 3).value as { formula?: string }).formula).toMatch(/^SUM\(C\d+:C\d+\)$/);
+
     // Compte Exploitation · les deux TJ du texte officiel restent affichés
     // TJ, et XC = XA - XB en formule.
     const ce = wb.getWorksheet('Compte Exploitation')!;

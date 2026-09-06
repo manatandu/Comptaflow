@@ -1254,6 +1254,54 @@ techniques (`etats-financiers.communs.ts`, `note-annexe.types.ts` côté
 serveur, `components/NotesAnnexesRendu.tsx` côté client) · aucun poste, aucun
 compte, aucun libellé.
 
+**Rubriques budgétaires · trois états lisaient le même objet, et aucun deux ne
+le lisaient pareil.** `SectionAnalytique.type` porte depuis toujours la promesse
+écrite dans le schéma : TOTAL « ne sert qu'à regrouper ses sections de même
+racine DANS LES ÉTATS ». Une section TOTAL ne reçoit ni budget (`doterBudget`
+la refuse) ni ventilation (`ventiler` la refuse) · elle n'existe QUE pour être
+totalisée, et c'est aux états de le faire.
+
+La BALANCE ANALYTIQUE le faisait. L'ÉTAT BUDGÉTAIRE (prévu / réalisé / écart)
+ÉCARTAIT les rubriques de sa requête (`type: DETAIL`) · un cabinet dont la
+convention se lit « 1 Personnel, dont 11 Salaires et 12 Charges sociales »
+n'obtenait qu'une liste plate de feuilles, et le bailleur qui lit son budget par
+rubrique additionnait à la main. Le TABLEAU OFFICIEL D'EXÉCUTION BUDGÉTAIRE, lui,
+les gardait à ZÉRO · une ligne « 1 Personnel · budget 0, réalisé 0 » qui ne se
+distingue pas d'une rubrique inutilisée, alors que le guide veut le tableau
+« suivant la NOMENCLATURE BUDGÉTAIRE DU PROJET », et qu'une nomenclature de
+bailleur a des rubriques.
+
+LA RÈGLE VIT UNE FOIS (`analytique/rubriques-budgetaires.ts`) et les trois états
+l'appellent · c'est ce qui les empêche de diverger à nouveau. Une rubrique
+agrège les sections DÉTAIL dont le CODE COMMENCE PAR LE SIEN, même convention
+que les comptes Total du plan comptable (§ 7).
+
+DEUX CONSÉQUENCES À NE PAS « CORRIGER ». Les rubriques s'EMBOÎTENT · la section
+111 est comptée dans la rubrique 11 ET dans la rubrique 1, ce qui est le propre
+d'un sous-total. Et le préfixe est un préfixe de CHAÎNE, pas un niveau : une
+rubrique « 1 » absorbe la section « 10 » comme la « 11 » ; un dossier qui ne veut
+pas ce regroupement code ses rubriques sur une longueur fixe.
+
+D'OÙ LE TOTAL GÉNÉRAL, QUI NE SOMME QUE LES FEUILLES. Sommer les lignes
+affichées compterait chaque dépense autant de fois qu'elle a de rubriques
+au-dessus d'elle · exactement le DOUBLE du vrai sur une nomenclature à deux
+niveaux, sur un tableau dont chaque ligne est juste et dont le crédit disponible
+laisserait croire à une enveloppe deux fois plus large. Le tableau officiel
+sommait bien les lignes affichées ; ce n'était juste que PAR ACCIDENT, les
+sections Total valant toujours zéro faute de pouvoir être dotées.
+
+UNE RUBRIQUE N'EST JAMAIS « HORS BUDGET ». Le signalement vise une section
+mouvementée que personne n'a dotée, et il appartient à la FEUILLE · le porter
+sur le sous-total le ferait crier dès qu'une seule de ses feuilles est
+concernée, en masquant laquelle.
+
+ET DANS L'EXPORT, LA PLAGE RESTE UNE PLAGE QUAND IL N'Y A AUCUNE RUBRIQUE. Le
+total du classeur additionne les feuilles NOMMÉMENT dès qu'une rubrique existe,
+mais la grille VIERGE, que le cabinet remplit à la main, garde `SUM(C9:C22)` ·
+une somme énumérée cellule par cellule y ignorerait toute ligne insérée au
+milieu, et le total se désaccorderait en silence, ce que ce classeur existe
+justement pour éviter.
+
 **Tableau emplois ressources · trois colonnes, et le texte en demandait trois.**
 La maquette officielle porte « REF | DESIGNATION | SOLDE CUMULE DEBUT EXERCICE
 N | EXERCICE N | SOLDE CUMULE FIN EXERCICE N » (SYCEBNL, Partie 4 ch. 3,

@@ -33,6 +33,8 @@ export interface LigneEtatBudgetaire {
   sectionId: string | null;
   code: string;
   intitule: string;
+  /** Vrai pour une RUBRIQUE (section Total) · sous-total, jamais une feuille. */
+  estRubrique: boolean;
   budget: number;
   realise: number;
   ecart: number;

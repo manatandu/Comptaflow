@@ -376,8 +376,21 @@ export function EtatsAnalytiquesPage() {
               {budgetaire?.lignes.map((l) => (
                 <div
                   key={l.sectionId}
+                  /*
+                    Une RUBRIQUE est un SOUS-TOTAL et se lit comme tel · elle
+                    n'est ni dotée ni ventilée, elle additionne ses feuilles.
+                    Sans cette distinction visuelle, ses montants se lisent
+                    comme une ligne de plus et le tableau paraît compter deux
+                    fois ce qu'il totalise une fois.
+                  */
                   className={`grid grid-cols-[120px_1fr_140px_140px_140px_100px] min-w-[870px] gap-2 px-4 py-1 text-[11px] border-b border-border/40 ${
-                    l.horsBudget ? 'bg-danger-soft' : l.ecart < 0 ? 'bg-warning-soft' : ''
+                    l.estRubrique
+                      ? 'font-bold bg-surface-alt border-y border-border'
+                      : l.horsBudget
+                        ? 'bg-danger-soft'
+                        : l.ecart < 0
+                          ? 'bg-warning-soft'
+                          : ''
                   }`}
                 >
                   <span className="font-mono">{l.code}</span>

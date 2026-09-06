@@ -1,4 +1,4 @@
-import { StatutEcriture } from '@prisma/client';
+import { StatutEcriture, TypeCompteDetailTotal } from '@prisma/client';
 import { EtatsFinanciersProjetBudgetService } from './etats-financiers-projet-budget.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { PrismaService } from '../../common/prisma.service';
@@ -56,7 +56,7 @@ function ecriture(
 function service(options: {
   balance?: ReturnType<typeof ligneBalance>[];
   ecritures?: ReturnType<typeof ecriture>[];
-  sections?: { id: string; code: string; intitule: string }[];
+  sections?: { id: string; code: string; intitule: string; type: TypeCompteDetailTotal }[];
   budgets?: { sectionId: string; montant: number }[];
   plan?: { id: string; code: string; intitule: string } | null;
   engagements?: {
@@ -86,9 +86,13 @@ function service(options: {
   return new EtatsFinanciersProjetBudgetService(ecritureService, prisma, new EngagementService(prisma));
 }
 
+// Le TYPE est porté, comme en base (`SectionAnalytique.type`, défaut DETAIL) ·
+// le faux l'omettait, et une section sans type n'existe pas. C'est ce que
+// distingue une FEUILLE d'une RUBRIQUE, et donc ce qui décide de ce qui entre
+// dans le total général.
 const SECTIONS = [
-  { id: 's1', code: 'A1', intitule: 'Formation des animateurs' },
-  { id: 's2', code: 'A2', intitule: 'Équipement' },
+  { id: 's1', code: 'A1', intitule: 'Formation des animateurs', type: TypeCompteDetailTotal.DETAIL },
+  { id: 's2', code: 'A2', intitule: 'Équipement', type: TypeCompteDetailTotal.DETAIL },
 ];
 
 describe("Tableau d'exécution budgétaire", () => {
@@ -233,6 +237,70 @@ describe("Tableau d'exécution budgétaire", () => {
     expect(t.total.engagementComptable).toBe(100_000);
     expect(t.total.engagementHorsComptabilite).toBe(500_000);
     expect(t.total.engagement).toBe(600_000);
+  });
+
+  /*
+    LA NOMENCLATURE BUDGÉTAIRE A DES RUBRIQUES, et le guide veut le tableau
+    « suivant la nomenclature budgétaire du projet ». Une section Total ne
+    reçoit ni budget ni ventilation · elle n'existe que pour être totalisée, et
+    le tableau la rendait en ligne vide.
+  */
+  it('une RUBRIQUE totalise ses feuilles au lieu de rester à zéro', async () => {
+    const s = service({
+      sections: [
+        { id: 'r', code: 'A', intitule: 'Activités', type: TypeCompteDetailTotal.TOTAL },
+        { id: 's1', code: 'A1', intitule: 'Formation', type: TypeCompteDetailTotal.DETAIL },
+        { id: 's2', code: 'A2', intitule: 'Équipement', type: TypeCompteDetailTotal.DETAIL },
+      ],
+      budgets: [
+        { sectionId: 's1', montant: 1_000_000 },
+        { sectionId: 's2', montant: 500_000 },
+      ],
+      ecritures: [
+        ecriture('paye', [
+          { numero: '60100000', debit: 300_000, section: 's1' },
+          { numero: '52110000', credit: 300_000 },
+        ]),
+        ecriture('engage', [
+          { numero: '24110000', debit: 200_000, section: 's2' },
+          { numero: '48100000', credit: 200_000 },
+        ]),
+      ],
+    });
+    const t = await s.executionBudgetaire('t1', 'e1');
+    const rubrique = t.lignes.find((l) => l.code === 'A')!;
+    expect(rubrique.estRubrique).toBe(true);
+    expect(rubrique.budget).toBe(1_500_000);
+    expect(rubrique.decaissement).toBe(300_000);
+    expect(rubrique.engagement).toBe(200_000);
+    expect(rubrique.realisation).toBe(500_000);
+    expect(rubrique.creditDisponible).toBe(1_000_000);
+  });
+
+  it('LE TOTAL NE COMPTE PAS DEUX FOIS CE QU’UNE RUBRIQUE TOTALISE', async () => {
+    // Le total sommait les lignes affichées. Ce n'était juste que par accident,
+    // les sections Total valant toujours zéro. Maintenant qu'elles portent leur
+    // sous-total, sommer la colonne rendrait le DOUBLE du vrai, sur un tableau
+    // dont chaque ligne est juste et dont le crédit disponible ferait croire à
+    // une enveloppe deux fois plus large.
+    const s = service({
+      sections: [
+        { id: 'r', code: 'A', intitule: 'Activités', type: TypeCompteDetailTotal.TOTAL },
+        { id: 's1', code: 'A1', intitule: 'Formation', type: TypeCompteDetailTotal.DETAIL },
+      ],
+      budgets: [{ sectionId: 's1', montant: 1_000_000 }],
+      ecritures: [
+        ecriture('paye', [
+          { numero: '60100000', debit: 300_000, section: 's1' },
+          { numero: '52110000', credit: 300_000 },
+        ]),
+      ],
+    });
+    const t = await s.executionBudgetaire('t1', 'e1');
+    expect(t.total.budget).toBe(1_000_000);
+    expect(t.total.decaissement).toBe(300_000);
+    expect(t.total.realisation).toBe(300_000);
+    expect(t.total.creditDisponible).toBe(700_000);
   });
 
   it("dit d'où viennent les trois termes de la colonne, et que le registre non tenu ne pèse pas", async () => {

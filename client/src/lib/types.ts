@@ -1455,6 +1455,8 @@ export interface ControleCumuls {
 export interface LigneEtatBudgetaire {
   sectionId: string | null;
   code: string;
+  /** Vrai pour une RUBRIQUE (section Total) · sous-total de ses feuilles, jamais une ligne dotée. */
+  estRubrique: boolean;
   intitule: string;
   budget: number;
   realise: number;

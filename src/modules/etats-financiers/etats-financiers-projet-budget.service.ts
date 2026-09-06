@@ -1,9 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { StatutEcriture } from '@prisma/client';
+import { StatutEcriture, TypeCompteDetailTotal } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
 import { LigneBalancePourEtat, chargerLignes, correspond } from './etats-financiers.communs';
 import { EngagementService } from '../analytique/engagement.service';
+import { totalDesFeuilles, valeurDeLaLigne } from '../analytique/rubriques-budgetaires';
 import { COMPTES_TRESORERIE_PROJET } from './correspondance-projet-emplois-ressources';
 
 /**
@@ -24,6 +25,8 @@ import { COMPTES_TRESORERIE_PROJET } from './correspondance-projet-emplois-resso
 export interface LigneExecutionBudgetaire {
   code: string;
   libelle: string;
+  /** Vrai pour une RUBRIQUE (section Total) · sous-total de ses feuilles. */
+  estRubrique: boolean;
   budget: number;
   decaissement: number;
   /**
@@ -172,16 +175,35 @@ export class EtatsFinanciersProjetBudgetService {
       }
     }
 
-    const lignes: LigneExecutionBudgetaire[] = sections.map((s) => {
-      const budget = budgetParSection.get(s.id) ?? 0;
-      const decaissement = decaisseParSection.get(s.id) ?? 0;
-      const engagementComptable = engageParSection.get(s.id) ?? 0;
-      const engagementHorsComptabilite = resteEngageParSection.get(s.id) ?? 0;
+    /*
+      LES RUBRIQUES TOTALISENT LEURS FEUILLES, ELLES NE RESTENT PLUS À ZÉRO.
+      Une section Total ne reçoit ni budget ni ventilation · elle n'existe QUE
+      pour être totalisée (voir `rubriques-budgetaires.ts`). Le tableau la
+      rendait donc en ligne vide : « 1 Personnel · budget 0, réalisé 0 », qui ne
+      se distingue pas d'une rubrique inutilisée. Le guide veut pourtant le
+      tableau « suivant la nomenclature budgétaire du projet », et une
+      nomenclature de bailleur a des rubriques.
+    */
+    const budgetDe = (id: string) => budgetParSection.get(id) ?? 0;
+    const decaisseDe = (id: string) => decaisseParSection.get(id) ?? 0;
+    const engageComptableDe = (id: string) => engageParSection.get(id) ?? 0;
+    const engageHorsComptaDe = (id: string) => resteEngageParSection.get(id) ?? 0;
+
+    const composer = (
+      code: string,
+      libelle: string,
+      estRubrique: boolean,
+      budget: number,
+      decaissement: number,
+      engagementComptable: number,
+      engagementHorsComptabilite: number,
+    ): LigneExecutionBudgetaire => {
       const engagement = engagementComptable + engagementHorsComptabilite;
       const realisation = decaissement + engagement;
       return {
-        code: s.code,
-        libelle: s.intitule,
+        code,
+        libelle,
+        estRubrique,
         budget,
         decaissement,
         engagementComptable,
@@ -191,28 +213,40 @@ export class EtatsFinanciersProjetBudgetService {
         creditDisponible: budget - realisation,
         executionPourcent: Math.abs(budget) < 0.005 ? null : (realisation / budget) * 100,
       };
-    });
+    };
 
-    const total = lignes.reduce(
-      (t, l) => ({
-        budget: t.budget + l.budget,
-        decaissement: t.decaissement + l.decaissement,
-        engagementComptable: t.engagementComptable + l.engagementComptable,
-        engagementHorsComptabilite: t.engagementHorsComptabilite + l.engagementHorsComptabilite,
-        engagement: t.engagement + l.engagement,
-        realisation: t.realisation + l.realisation,
-        creditDisponible: t.creditDisponible + l.creditDisponible,
-      }),
-      {
-        budget: 0,
-        decaissement: 0,
-        engagementComptable: 0,
-        engagementHorsComptabilite: 0,
-        engagement: 0,
-        realisation: 0,
-        creditDisponible: 0,
-      },
+    const lignes: LigneExecutionBudgetaire[] = sections.map((s) =>
+      composer(
+        s.code,
+        s.intitule,
+        s.type === TypeCompteDetailTotal.TOTAL,
+        valeurDeLaLigne(s, sections, budgetDe),
+        valeurDeLaLigne(s, sections, decaisseDe),
+        valeurDeLaLigne(s, sections, engageComptableDe),
+        valeurDeLaLigne(s, sections, engageHorsComptaDe),
+      ),
     );
+
+    /*
+      LE TOTAL NE SOMME QUE LES FEUILLES, et il sommait les lignes affichées.
+      Ce n'était juste que PAR ACCIDENT : les sections Total valaient toujours
+      zéro, faute de pouvoir être dotées. Maintenant qu'elles portent leur
+      sous-total, sommer la colonne compterait chaque dépense autant de fois
+      qu'elle a de rubriques au-dessus d'elle · le double du vrai sur une
+      nomenclature à deux niveaux, sur un tableau dont chaque ligne est juste.
+    */
+    const total = {
+      budget: totalDesFeuilles(sections, budgetDe),
+      decaissement: totalDesFeuilles(sections, decaisseDe),
+      engagementComptable: totalDesFeuilles(sections, engageComptableDe),
+      engagementHorsComptabilite: totalDesFeuilles(sections, engageHorsComptaDe),
+      engagement: 0,
+      realisation: 0,
+      creditDisponible: 0,
+    };
+    total.engagement = total.engagementComptable + total.engagementHorsComptabilite;
+    total.realisation = total.decaissement + total.engagement;
+    total.creditDisponible = total.budget - total.realisation;
 
     return {
       plan: { id: plan.id, code: plan.code, intitule: plan.intitule },

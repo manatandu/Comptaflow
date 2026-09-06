@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '../../common/prisma.service';
 import { ClasseCompte, TypeCompteDetailTotal } from '@prisma/client';
 import type { LigneBalanceAnalytique, LigneEtatBudgetaire } from './analytique.service';
+import { totalDesFeuilles, valeurDeLaLigne } from './rubriques-budgetaires';
 
 /** Une ligne du grand livre analytique : le détail d'une section. */
 export interface LigneGrandLivreAnalytique {
@@ -102,29 +103,21 @@ export class EtatsAnalytiquesService {
     });
     const cumuls = new Map(ventilations.map((v) => [v.sectionId, v._sum]));
 
+    // La règle d'agrégation des rubriques vit dans `rubriques-budgetaires.ts`
+    // et sert les TROIS états budgétaires · la balance analytique était le seul
+    // à la porter, et les deux autres en avaient chacun une lecture différente.
+    const debitDe = (id: string) => Number(cumuls.get(id)?.debit ?? 0);
+    const creditDe = (id: string) => Number(cumuls.get(id)?.credit ?? 0);
+
     const lignes: LigneBalanceAnalytique[] = sections.map((s) => {
-      if (s.type === TypeCompteDetailTotal.TOTAL) {
-        // Racine : on additionne les sections Détail dont le code commence
-        // par celui de la section Total.
-        const filles = sections.filter((f) => f.type === TypeCompteDetailTotal.DETAIL && f.code.startsWith(s.code));
-        const debit = filles.reduce((t, f) => t + Number(cumuls.get(f.id)?.debit ?? 0), 0);
-        const credit = filles.reduce((t, f) => t + Number(cumuls.get(f.id)?.credit ?? 0), 0);
-        return { sectionId: s.id, code: s.code, intitule: s.intitule, type: s.type, debit, credit, solde: debit - credit };
-      }
-      const debit = Number(cumuls.get(s.id)?.debit ?? 0);
-      const credit = Number(cumuls.get(s.id)?.credit ?? 0);
+      const debit = valeurDeLaLigne(s, sections, debitDe);
+      const credit = valeurDeLaLigne(s, sections, creditDe);
       return { sectionId: s.id, code: s.code, intitule: s.intitule, type: s.type, debit, credit, solde: debit - credit };
     });
 
-    const detail = lignes.filter((l) => l.type === TypeCompteDetailTotal.DETAIL);
-    return {
-      lignes,
-      totaux: {
-        debit: detail.reduce((t, l) => t + l.debit, 0),
-        credit: detail.reduce((t, l) => t + l.credit, 0),
-        solde: detail.reduce((t, l) => t + l.solde, 0),
-      },
-    };
+    const debit = totalDesFeuilles(sections, debitDe);
+    const credit = totalDesFeuilles(sections, creditDe);
+    return { lignes, totaux: { debit, credit, solde: debit - credit } };
   }
 
   /** Grand livre analytique d'une section, avec solde progressif. */
@@ -305,8 +298,14 @@ export class EtatsAnalytiquesService {
       fin = new Date(annee, params.mois, 0, 23, 59, 59);
     }
 
+    // LES RUBRIQUES SONT RENDUES, ELLES NE SONT PLUS ÉCARTÉES. Cette requête
+    // portait `type: DETAIL` : un cabinet dont la convention se lit
+    // « 1 Personnel, dont 11 Salaires et 12 Charges sociales » n'obtenait
+    // qu'une liste plate de feuilles, et le bailleur qui lit son budget par
+    // rubrique devait additionner à la main. Le schéma promet pourtant que
+    // TOTAL « regroupe ses sections de même racine dans les états ».
     const sections = await this.prisma.sectionAnalytique.findMany({
-      where: { planId: params.planId, type: TypeCompteDetailTotal.DETAIL, tenantId },
+      where: { planId: params.planId, tenantId },
       orderBy: { code: 'asc' },
     });
     const budgets = await this.prisma.budgetSection.findMany({
@@ -316,6 +315,7 @@ export class EtatsAnalytiquesService {
         mois: params.mois ?? null,
       },
     });
+    const budgetDe = (id: string) => Number(budgets.find((b) => b.sectionId === id)?.montant ?? 0);
     const ventilations = await this.prisma.ventilationAnalytique.groupBy({
       by: ['sectionId'],
       where: {
@@ -326,30 +326,48 @@ export class EtatsAnalytiquesService {
     });
     const cumuls = new Map(ventilations.map((v) => [v.sectionId, v._sum]));
 
+    // Le réalisé est pris en VALEUR ABSOLUE par section, jamais sur la somme
+    // algébrique d'une rubrique : une rubrique qui mêle une charge et son
+    // annulation doit montrer ce qui a été consommé de chaque côté, et prendre
+    // la valeur absolue du net les compenserait.
+    const realiseDe = (id: string) => {
+      const somme = cumuls.get(id);
+      return Math.abs(Number(somme?.debit ?? 0) - Number(somme?.credit ?? 0));
+    };
+
     const lignes: LigneEtatBudgetaire[] = sections.map((s) => {
-      const budget = Number(budgets.find((b) => b.sectionId === s.id)?.montant ?? 0);
-      const somme = cumuls.get(s.id);
-      const realise = Math.abs(Number(somme?.debit ?? 0) - Number(somme?.credit ?? 0));
+      const estRubrique = s.type === TypeCompteDetailTotal.TOTAL;
+      const budget = valeurDeLaLigne(s, sections, budgetDe);
+      const realise = valeurDeLaLigne(s, sections, realiseDe);
       return {
         sectionId: s.id,
         code: s.code,
         intitule: s.intitule,
+        estRubrique,
         budget,
         realise,
         ecart: budget - realise,
         tauxConsommation: budget !== 0 ? (realise / budget) * 100 : null,
-        horsBudget: budget === 0 && realise !== 0,
+        // Une RUBRIQUE n'est jamais « hors budget » · le signalement vise une
+        // section mouvementée que personne n'a dotée, et il appartient à la
+        // feuille. Le porter sur la rubrique ferait crier le sous-total dès
+        // qu'une seule de ses feuilles est concernée, et masquerait laquelle.
+        horsBudget: !estRubrique && budget === 0 && realise !== 0,
       };
     });
 
-    const budgetTotal = lignes.reduce((t, l) => t + l.budget, 0);
-    const realiseTotal = lignes.reduce((t, l) => t + l.realise, 0);
+    // LE TOTAL GÉNÉRAL NE SOMME QUE LES FEUILLES · sommer les lignes affichées
+    // compterait chaque dépense autant de fois qu'elle a de rubriques au-dessus
+    // d'elle, et vaudrait le double du vrai sur une nomenclature à deux niveaux.
+    const budgetTotal = totalDesFeuilles(sections, budgetDe);
+    const realiseTotal = totalDesFeuilles(sections, realiseDe);
     return {
       lignes,
       totaux: {
         sectionId: null,
         code: '',
         intitule: 'Total',
+        estRubrique: false,
         budget: budgetTotal,
         realise: realiseTotal,
         ecart: budgetTotal - realiseTotal,

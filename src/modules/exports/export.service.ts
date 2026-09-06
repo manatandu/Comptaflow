@@ -3196,8 +3196,12 @@ export class ExportService {
     entetesBande(ws, r, r, 1, 8);
     ws.getRow(r).height = 34;
     const debut = r + 1;
+    // Les rangs des FEUILLES, et eux seuls, entrent dans le total · voir plus
+    // bas. Une rubrique est un sous-total de ces mêmes feuilles.
+    const rangsFeuilles: number[] = [];
     for (const l of eb.lignes) {
       r += 1;
+      if (!l.estRubrique) rangsFeuilles.push(r);
       ws.getCell(r, 1).value = l.code;
       ws.getCell(r, 2).value = l.libelle;
       ws.getCell(r, 3).value = l.budget;
@@ -3206,14 +3210,49 @@ export class ExportService {
       ws.getCell(r, 6).value = { formula: `D${r}+E${r}` };
       ws.getCell(r, 7).value = { formula: `C${r}-F${r}` };
       ws.getCell(r, 8).value = { formula: `IF(C${r}=0,"",F${r}/C${r})` };
-      styleLigne(ws, r, 1, 8, 'normal', [3, 4, 5, 6, 7]);
+      // Une rubrique se lit comme un sous-total, pas comme une ligne de plus ·
+      // sans quoi le classeur paraît compter deux fois ce qu'il totalise une
+      // seule fois.
+      styleLigne(ws, r, 1, 8, l.estRubrique ? 'inter' : 'normal', [3, 4, 5, 6, 7]);
       ws.getCell(r, 8).numFmt = '0.0%';
     }
     r += 1;
     ws.getCell(r, 2).value = 'TOTAL';
+    /*
+      LE TOTAL ADDITIONNE LES FEUILLES NOMMÉMENT, PAS LA PLAGE.
+      `SUM(C9:C20)` balaye aussi les lignes de rubrique, qui totalisent déjà
+      leurs feuilles : sur une nomenclature à deux niveaux, le classeur rendrait
+      le DOUBLE du budget, chaque ligne restant juste et le crédit disponible
+      laissant croire à une enveloppe deux fois plus large. La formule reste une
+      FORMULE, pour que le lecteur puisse la refaire dans Excel · au-delà d'une
+      nomenclature très large elle deviendrait illisible, et la valeur calculée
+      par le service prend alors le relais.
+    */
+    // La grille VIERGE passe par la même feuille sans porter de total calculé
+    // (voir `feuilleExecutionBudgetaireVierge`) · le repli vaut zéro, et la
+    // formule reste de toute façon le chemin normal.
+    const totalDuService: Record<number, number> = {
+      3: eb.total?.budget ?? 0,
+      4: eb.total?.decaissement ?? 0,
+      5: eb.total?.engagement ?? 0,
+      6: eb.total?.realisation ?? 0,
+      7: eb.total?.creditDisponible ?? 0,
+    };
+    // SANS AUCUNE RUBRIQUE, LA PLAGE RESTE UNE PLAGE. C'est le cas de la
+    // nomenclature à un seul niveau et surtout celui de la GRILLE VIERGE, que
+    // le cabinet remplit à la main : une somme énumérée cellule par cellule
+    // ignorerait une ligne insérée au milieu, et le total se désaccorderait en
+    // silence · exactement ce que ce classeur existe pour éviter.
+    const aDesRubriques = rangsFeuilles.length !== eb.lignes.length;
     for (const col of [3, 4, 5, 6, 7]) {
       const lettre = String.fromCharCode(64 + col);
-      ws.getCell(r, col).value = { formula: `SUM(${lettre}${debut}:${lettre}${r - 1})` };
+      if (!aDesRubriques) {
+        ws.getCell(r, col).value = { formula: `SUM(${lettre}${debut}:${lettre}${r - 1})` };
+        continue;
+      }
+      const termes = rangsFeuilles.map((rang) => `${lettre}${rang}`).join(',');
+      ws.getCell(r, col).value =
+        termes.length > 0 && termes.length <= 2000 ? { formula: `SUM(${termes})` } : totalDuService[col];
     }
     ws.getCell(r, 8).value = { formula: `IF(C${r}=0,"",F${r}/C${r})` };
     styleLigne(ws, r, 1, 8, 'inter', [3, 4, 5, 6, 7]);
