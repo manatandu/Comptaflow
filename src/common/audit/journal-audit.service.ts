@@ -1,6 +1,16 @@
 import { Injectable } from '@nestjs/common';
+import { ActionAudit } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { calculerEmpreinte, EMPREINTE_ORIGINE } from './empreinte-audit';
+
+/**
+ * Taille des lots de vérification de la chaîne. Mesurée, pas choisie : le banc
+ * du 6 septembre 2026 donne 3 864 octets de tas par événement chargé, soit
+ * environ 19 Mio pour 5 000 · une part tenable des 460 Mio de production, avec
+ * de la marge pour le reste du service. Monter à 50 000 rendrait 190 Mio et
+ * remettrait la fonction à portée de l'OOM qu'elle vient de quitter.
+ */
+const LOT_VERIFICATION = 5_000;
 
 export interface FiltreJournal {
   entite?: string;
@@ -64,17 +74,74 @@ export class JournalAuditService {
    *
    * La vérification recalcule chaque empreinte depuis le contenu relu. Elle ne
    * fait donc confiance à rien de ce qui est stocké, sauf à l'ordre des rangs.
+   *
+   * ELLE LIT PAR LOTS, ET C'EST UNE CORRECTION DE CAPACITÉ, pas un raffinement.
+   * Elle chargeait la chaîne ENTIÈRE en mémoire, et le banc du 6 septembre 2026
+   * l'a mise par terre : 100 000 événements consomment 369 Mio de tas sur les
+   * 460 d'un conteneur Cloud Run, et à 160 000 le processus meurt en OOM. Un
+   * dossier ordinaire produit environ 40 000 événements par exercice · la
+   * fonction qui PROUVE l'intégrité du journal cessait donc de répondre vers le
+   * quatrième exercice, c'est-à-dire précisément quand un auditeur commence à
+   * avoir de l'historique à contrôler.
+   *
+   * Le chaînage se vérifie séquentiellement · il n'a jamais eu besoin de tout
+   * voir à la fois. Seul l'état de la boucle (empreinte attendue, rang attendu)
+   * traverse les lots, et il pèse deux variables. Même famille que le grand
+   * livre et le journal, § 8 bis : aucune route ne rend une collection sans
+   * borne, et ce qui vaut pour une réponse HTTP vaut pour une lecture interne.
    */
   async verifier(tenantId: string | null): Promise<VerdictChaine> {
-    const evenements = await this.prisma.evenementAudit.findMany({
-      where: { tenantId },
-      orderBy: { rang: 'asc' },
-    });
-
     const ruptures: RuptureChaine[] = [];
     let attendue = EMPREINTE_ORIGINE;
     let rangAttendu = 1;
+    let compte = 0;
+    let apres = 0;
 
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const lot = await this.prisma.evenementAudit.findMany({
+        where: { tenantId, rang: { gt: apres } },
+        orderBy: { rang: 'asc' },
+        take: LOT_VERIFICATION,
+      });
+      if (lot.length === 0) break;
+      // GARDE ANTI-BOUCLE · la sortie ne doit pas dépendre du seul fait que la
+      // couche de données honore le curseur. Un `take` ou un `rang > apres`
+      // ignoré ferait tourner cette boucle SANS FIN, et un service qui ne rend
+      // jamais la main est pire qu'un service qui tombe : rien ne le signale.
+      // Trouvé le 6 septembre 2026 en lançant les tests, dont le faux Prisma
+      // rendait le même lot à chaque appel.
+      const dernier = lot[lot.length - 1].rang;
+      if (dernier <= apres) break;
+      compte += lot.length;
+      apres = dernier;
+      this.verifierLot(lot, ruptures, () => attendue, (v) => { attendue = v; },
+        () => rangAttendu, (v) => { rangAttendu = v; });
+    }
+
+    return { evenements: compte, intacte: ruptures.length === 0, ruptures };
+  }
+
+  /**
+   * Un lot de la chaîne · l'état de la boucle entre par des accesseurs plutôt
+   * que par des champs d'instance, pour que deux vérifications concurrentes ne
+   * se marchent pas dessus (le service est un singleton NestJS).
+   */
+  private verifierLot(
+    evenements: Array<{
+      id: string; rang: number; tenantId: string | null; horodatage: Date;
+      acteurId: string | null; acteurEmail: string; adresseIp: string | null;
+      action: ActionAudit; entite: string; entiteId: string | null;
+      avant: unknown; apres: unknown; empreintePrecedente: string; empreinte: string;
+    }>,
+    ruptures: RuptureChaine[],
+    lireAttendue: () => string,
+    ecrireAttendue: (v: string) => void,
+    lireRangAttendu: () => number,
+    ecrireRangAttendu: (v: number) => void,
+  ): void {
+    let attendue = lireAttendue();
+    let rangAttendu = lireRangAttendu();
     for (const e of evenements) {
       if (e.rang !== rangAttendu) {
         ruptures.push({ rang: e.rang, id: e.id, motif: 'RANG_MANQUANT' });
@@ -106,7 +173,7 @@ export class JournalAuditService {
       attendue = e.empreinte;
       rangAttendu = e.rang + 1;
     }
-
-    return { evenements: evenements.length, intacte: ruptures.length === 0, ruptures };
+    ecrireAttendue(attendue);
+    ecrireRangAttendu(rangAttendu);
   }
 }

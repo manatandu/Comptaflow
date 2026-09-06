@@ -148,8 +148,81 @@ describe('vérification de la chaîne', () => {
     return evenements;
   }
 
-  const service = (evenements: any[]) =>
-    new JournalAuditService({ evenementAudit: { findMany: jest.fn().mockResolvedValue(evenements) } } as any);
+  /**
+   * LE FAUX HONORE LE CURSEUR, et ce n'est pas un détail de confort · depuis
+   * que `verifier()` lit PAR LOTS (correction de capacité du 6 septembre 2026),
+   * un faux qui rend la même page à chaque appel fait tourner la boucle sans
+   * fin. C'est ce qui est arrivé : les tests ne rendaient plus la main.
+   *
+   * Un faux qui ignore `where` et `take` ne teste pas ce que fait le vrai · il
+   * teste un service qui n'existe pas.
+   */
+  const service = (evenements: any[], taille = 5_000) =>
+    new JournalAuditService({
+      evenementAudit: {
+        findMany: jest.fn(({ where, take }: any = {}) => {
+          const apres = where?.rang?.gt ?? 0;
+          return Promise.resolve(
+            evenements.filter((e) => e.rang > apres).slice(0, take ?? taille),
+          );
+        }),
+      },
+    } as any);
+
+  it('rend la main même si la couche de données IGNORE le curseur', async () => {
+    /**
+     * LE TEST QUI AURAIT ATTRAPÉ LA BOUCLE INFINIE. La lecture par lots sort
+     * quand un lot est vide · si `where.rang.gt` ou `take` sont ignorés, ce lot
+     * n'est jamais vide et la boucle tourne sans fin. Un service qui ne rend
+     * jamais la main ne tombe pas, ne journalise rien, et occupe une instance
+     * Cloud Run jusqu'au délai de garde : rien ne le signale.
+     *
+     * Le faux ci-dessous rend TOUJOURS la chaîne entière, comme le faisait
+     * celui d'avant la correction. La garde de progression du rang doit suffire
+     * à sortir.
+     */
+    const chaine = chaineSaine(12);
+    const aveugle = new JournalAuditService({
+      evenementAudit: { findMany: jest.fn().mockResolvedValue(chaine) },
+    } as any);
+    const verdict = await aveugle.verifier('dossier-1');
+    // Elle sort, et elle ne compte pas deux fois les mêmes maillons.
+    expect(verdict.evenements).toBe(12);
+  });
+
+  it('lit la chaîne PAR LOTS, sans jamais tout charger', async () => {
+    /**
+     * LE PLAFOND, GELÉ. `verifier()` chargeait la chaîne entière : le banc du
+     * 6 septembre 2026 donne 369 Mio de tas pour 100 000 événements sur les 460
+     * d'un conteneur Cloud Run, et un OOM à 160 000. Un dossier ordinaire
+     * produit environ 40 000 événements par exercice · la fonction qui PROUVE
+     * l'intégrité du journal cessait de répondre vers le quatrième exercice.
+     *
+     * Ce test ne mesure pas la mémoire, il vérifie la seule chose qui la borne :
+     * que la lecture est PAGINÉE et que chaque page est bornée. Une réécriture
+     * qui reviendrait à un `findMany` unique le fait tomber.
+     */
+    const chaine = chaineSaine(25);
+    const appels: any[] = [];
+    const svc = new JournalAuditService({
+      evenementAudit: {
+        findMany: jest.fn((args: any = {}) => {
+          appels.push(args);
+          const apres = args?.where?.rang?.gt ?? 0;
+          return Promise.resolve(chaine.filter((e) => e.rang > apres).slice(0, args?.take ?? 5_000));
+        }),
+      },
+    } as any);
+    // Une taille de lot de 5 000 sur 25 maillons : un lot plein, puis un vide.
+    const verdict = await svc.verifier('dossier-1');
+    expect(verdict.evenements).toBe(25);
+    expect(appels.length).toBeGreaterThan(1);
+    for (const a of appels) {
+      expect(typeof a.take).toBe('number');
+      expect(a.take).toBeLessThanOrEqual(5_000);
+      expect(a.orderBy).toEqual({ rang: 'asc' });
+    }
+  });
 
   it('déclare intacte une chaîne non touchée', async () => {
     const verdict = await service(chaineSaine(5)).verifier('dossier-1');
