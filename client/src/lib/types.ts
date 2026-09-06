@@ -3623,3 +3623,26 @@ export interface QuestionnaireRevision {
   motifsRefusCloture?: string[];
   _count?: { reponses: number };
 }
+
+/**
+ * LA BALANCE EN MONNAIE FONCTIONNELLE · le second jeu.
+ *
+ * La comptabilité reste tenue et arrêtée en francs congolais (loi n° 23/053
+ * art. 141, 1° ; AUDCIF art. 17, 1°). Cet état convertit chaque écriture au
+ * cours de SA date pour rendre compte dans la monnaie où l'entité vit
+ * réellement · il n'a aucune valeur légale, et il le dit sur sa page.
+ */
+export interface BalanceFonctionnelle {
+  monnaie: string;
+  monnaieTenue: string;
+  exercice: { dateDebut: string; dateFin: string };
+  mention: string;
+  lignes: { compteId: string; numero: string; intitule: string; debit: number; credit: number; solde: number }[];
+  totaux: {
+    debit: number;
+    credit: number;
+    /** Montré, jamais absorbé dans un compte de bouclage. */
+    ecartDeConversion: number;
+  };
+  origine: { lignes: number; lignesExactes: number; lignesConverties: number; ecritures: number };
+}

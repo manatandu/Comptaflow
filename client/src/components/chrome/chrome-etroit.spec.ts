@@ -184,17 +184,18 @@ describe('menu « État » à 360 px', () => {
       hauteurs.push(lignes.length);
       for (const l of lignes) if (l.sorte === 'commande') vues.add(l.item.label);
     }
-    // Rien n'a été perdu au regroupement · les vingt-huit libellés de la source
+    // Rien n'a été perdu au regroupement · les vingt-neuf libellés de la source
     // se retrouvent, chacun sous un groupe qu'on peut ouvrir. Le décompte est
     // EN DUR à dessein : c'est lui qui oblige à rouvrir ce test quand une
     // édition est ajoutée, et donc à revérifier que le panneau tient toujours
     // dans son plafond. Quatre entrées sont nées le 2026-09-05, toutes sous
     // « Contrôle et révision » : les engagements de dépense, l'inventaire
     // physique, la circularisation et le registre des provisions. Une
-    // cinquième et une sixième le 2026-09-06, au même endroit : le registre
-    // des faiblesses et le questionnaire de révision.
+    // cinquième, une sixième et une septième le 2026-09-06, au même endroit :
+    // le registre des faiblesses, le questionnaire de révision et la balance
+    // en monnaie fonctionnelle.
     const tous = [...source.matchAll(/label: '([^']+)'/g)].map((m) => m[1]);
-    expect(tous).toHaveLength(28);
+    expect(tous).toHaveLength(29);
     expect([...vues].sort()).toEqual([...tous].sort());
     // DEUX BORNES, et plus un chiffre relevé d'un cran à chaque ajout · c'est
     // la troisième fois en une journée qu'une édition nouvelle faisait tomber

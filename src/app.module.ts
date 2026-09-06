@@ -42,6 +42,7 @@ import { InventaireModule } from './modules/inventaire/inventaire.module';
 import { CircularisationModule } from './modules/circularisation/circularisation.module';
 import { FaiblessesModule } from './modules/faiblesses/faiblesses.module';
 import { QuestionnaireModule } from './modules/questionnaire/questionnaire.module';
+import { MonnaieFonctionnelleModule } from './modules/monnaie-fonctionnelle/monnaie-fonctionnelle.module';
 import { ProvisionsModule } from './modules/provisions/provisions.module';
 import { FiscaliteModule } from './modules/fiscalite/fiscalite.module';
 import { PlateformeModule } from './modules/plateforme/plateforme.module';
@@ -99,6 +100,7 @@ import { CourrierModule } from './modules/courrier/courrier.module';
     CircularisationModule,
     FaiblessesModule,
     QuestionnaireModule,
+    MonnaieFonctionnelleModule,
     ProvisionsModule,
     FiscaliteModule,
     PlateformeModule,

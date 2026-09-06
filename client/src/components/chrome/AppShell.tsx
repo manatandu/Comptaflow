@@ -375,6 +375,11 @@ export function AppShell() {
             // reprises mot pour mot, et les cycles qu'il ne couvre pas,
             // ajoutés par le cabinet et marqués comme tels.
             { label: 'Questionnaire de révision', onClick: () => navigate('/questionnaire-revision') },
+            // Le second jeu · la balance convertie dans la monnaie où l'entité
+            // vit réellement. Elle est ici et non sous « États financiers » :
+            // les livres et les états déposés restent en francs congolais, et
+            // cet état-là n'a aucune valeur légale.
+            { label: 'Balance en monnaie fonctionnelle', onClick: () => navigate('/balance-fonctionnelle') },
             { label: 'Registre des faiblesses', onClick: () => navigate('/faiblesses') },
             // Dossier mère d'un groupe d'établissements (une église et ses
             // cellules) · la balance agrégée du groupe est une édition du

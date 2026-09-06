@@ -40,6 +40,7 @@ const InventairePage = lazy(() => import('../pages/InventairePage').then((m) => 
 const CircularisationPage = lazy(() => import('../pages/CircularisationPage').then((m) => ({ default: m.CircularisationPage })));
 const FaiblessesPage = lazy(() => import('../pages/FaiblessesPage').then((m) => ({ default: m.FaiblessesPage })));
 const QuestionnaireRevisionPage = lazy(() => import('../pages/QuestionnaireRevisionPage').then((m) => ({ default: m.QuestionnaireRevisionPage })));
+const BalanceFonctionnellePage = lazy(() => import('../pages/BalanceFonctionnellePage').then((m) => ({ default: m.BalanceFonctionnellePage })));
 const ProvisionsPage = lazy(() => import('../pages/ProvisionsPage').then((m) => ({ default: m.ProvisionsPage })));
 const FiscalitePage = lazy(() => import('../pages/FiscalitePage').then((m) => ({ default: m.FiscalitePage })));
 const EtatsFinanciersPage = lazy(() => import('../pages/EtatsFinanciersPage').then((m) => ({ default: m.EtatsFinanciersPage })));
@@ -247,6 +248,14 @@ export const FENETRES: DefinitionFenetre[] = [
     titre: 'Registre des provisions pour risques et charges',
     titreCourt: 'Provisions',
     rendre: () => <ProvisionsPage />,
+  },
+  {
+    // Le SECOND jeu · la comptabilité reste tenue et arrêtée en francs, et cet
+    // état le dit sur sa page. Aucun texte lu ne le régit.
+    motif: /^\/balance-fonctionnelle$/,
+    titre: 'Balance en monnaie fonctionnelle',
+    titreCourt: 'Monnaie fonctionnelle',
+    rendre: () => <BalanceFonctionnellePage />,
   },
   {
     // Les deux checklists du CPCC valent pour les deux plans · le filtre par

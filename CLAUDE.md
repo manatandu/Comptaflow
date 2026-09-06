@@ -547,6 +547,55 @@ comme référence de MÉTHODE, aucune opinion ne sort de ce registre, et les
 trois mentions de contexte du § 11 b) le disent à l'écran.
 
 
+**M2 · la balance en monnaie fonctionnelle, ligne à ligne au cours
+historique.** M1 a posé la règle et elle ne bouge pas : la monnaie de TENUE ne
+se choisit pas. Loi n° 23/053 art. 141, 1° · la comptabilité « est exprimée en
+Franc congolais » ; AUDCIF art. 17, 1° · elle se tient « dans l'unité monétaire
+ayant cours légal dans l'État partie ». Les livres et les états déposés restent
+en francs.
+
+ET POURTANT beaucoup d'ASBL et de sociétés congolaises encaissent, dépensent et
+rendent compte à leur bailleur en dollars. Ce second jeu existe pour elles.
+AUCUN TEXTE LU NE LE RÉGIT · l'AUDCIF ne connaît la devise que pour convertir
+une opération VERS l'unité légale (art. 36 et suivants, Titre VIII ch. 22),
+jamais pour en sortir. Le produire est une décision de l'éditeur, et chaque
+page porte la mention qui le dit · en tête et non en note de bas de page, parce
+qu'un document qui ressemble à une balance et qui n'est pas la balance légale
+doit dire lequel des deux il est avant qu'on en lise les chiffres.
+
+LA MÉTHODE, ET POURQUOI CELLE-LÀ. Convertir la BALANCE au cours de clôture
+serait plus simple, et faux : le coût historique d'un bâtiment acheté il y a six
+ans se retrouverait exprimé au cours d'aujourd'hui, et la balance cesserait
+d'équilibrer sans une ligne de bouclage inventée. La conversion se fait donc
+LIGNE À LIGNE, au cours de la DATE DE L'ÉCRITURE · le cours historique de
+l'opération elle-même. Et TOUTES LES LIGNES D'UNE MÊME ÉCRITURE PRENNENT LE
+MÊME COURS : c'est ce qui garde chaque écriture équilibrée après conversion, et
+la balance entière avec elle. Deux cours dans une même écriture la
+déséquilibreraient par pure arithmétique.
+
+UNE LIGNE DÉJÀ LIBELLÉE DANS LA MONNAIE FONCTIONNELLE N'EST PAS CONVERTIE ·
+elle porte son montant d'origine. Un virement de 10 000 USD doit apparaître
+pour 10 000 USD, pas pour sa contrevaleur en francs redivisée par un cours, qui
+rendrait 9 999,97 sans qu'aucun centime n'ait bougé. Le cours dit combien vaut
+UNE unité de la devise en monnaie de tenue, la conversion DIVISE donc par lui.
+
+D'OÙ L'ÉCART DE CONVERSION, ET IL EST MONTRÉ. Une écriture qui mêle une ligne
+prise à son montant d'origine et une ligne convertie ne s'équilibre plus dans
+la monnaie fonctionnelle. Ce n'est pas un défaut de calcul, c'est un fait · les
+deux côtés de l'opération n'ont pas la même origine. L'écart est porté sur sa
+propre ligne, nommé, et jamais logé dans un compte de bouclage, qui ferait
+équilibrer l'état et disparaître l'information.
+
+DEUX REFUS DE MÉTHODE. Jamais un cours POSTÉRIEUR à la date de l'opération · ce
+serait convertir avec une information que personne n'avait alors, et le second
+jeu cesserait d'être historique pour devenir rétrospectif. Et une date SANS
+COURS arrête l'état, avec la liste des dates manquantes · prendre le cours le
+plus proche ou celui de la clôture produirait une balance plausible et fausse,
+que personne ne vérifie. Deux refus de contexte s'y ajoutent : aucune monnaie
+fonctionnelle nommée, et une monnaie fonctionnelle égale à la monnaie de tenue,
+où le second jeu n'aurait rien à convertir.
+
+
 **Procès-verbal de comptage par caisse · un PV par caisse, et la caisse qu'on
 oublie.** Le PV de la CAMPAGNE porte l'inventaire physique dans son ensemble
 (CPCC, étape 2 · « signatures de ceux qui ont inventorié ET assisté à cet
