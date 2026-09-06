@@ -237,7 +237,7 @@ export function regleRapportGestion(forme: FormeJuridiqueSyscohada | null): Regl
       return {
         genre: 'AUCUNE_REGLE_LUE',
         motif:
-          "L'article 138 nomme « le gérant, le conseil d'administration ou l'administrateur général » · un commerçant personne physique ou un entreprenant n'est aucun des trois, et ne rend compte devant aucune assemblée. Le livre d'inventaire, lui, reste dû (AUDCIF art. 19).",
+          "L'article 138 DE L'AUSCGIE nomme « le gérant, le conseil d'administration ou l'administrateur général » · un commerçant personne physique ou un entreprenant n'est aucun des trois, et ne rend compte devant aucune assemblée. Le livre d'inventaire, lui, reste dû (AUDCIF art. 19).",
       };
   }
 }

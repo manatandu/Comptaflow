@@ -147,7 +147,8 @@ export const REGLES: Record<Referentiel, ReglesAffectation> = {
         racine: '465',
         motif:
           "Le compte 465 « Associés, dividendes à payer » n'existe pas dans le plan SYCEBNL : une entité à but " +
-          'non lucratif ne distribue pas de résultat à ses membres · c’est ce qui la définit (SYCEBNL, art. premier).',
+          'non lucratif « poursuit un but désintéressé » et ses ressources « servent au fonctionnement et à la ' +
+          'réalisation de son objet social » · c’est ce qui la définit (SYCEBNL, art. 2).',
       },
     ],
     reportANouveau: '12',

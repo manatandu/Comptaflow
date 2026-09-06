@@ -263,7 +263,14 @@ describe('Affectation · les destinations dépendent du référentiel', () => {
         exerciceId: 'ex2026',
         lignes: [{ compteId: 'c465', montant: 1_000_000 }],
       }),
-    ).rejects.toThrow(/ne distribue pas de résultat à ses membres/);
+    // LE LIBELLÉ SUIT LE TEXTE DEPUIS L'AUDIT DU 6 SEPTEMBRE 2026 · le refus
+    // disait « ne distribue pas de résultat à ses membres · c'est ce qui la
+    // définit (SYCEBNL, art. premier) ». L'art. premier institue le système
+    // comptable ; la définition est à l'art. 2, et elle est formulée
+    // autrement : « but désintéressé », ressources qui « servent au
+    // fonctionnement et à la réalisation de son objet social ». La conclusion
+    // ne changeait pas, la source si.
+    ).rejects.toThrow(/but désintéressé/);
   });
 
   it('les accepte d’une société', async () => {

@@ -169,11 +169,110 @@ d'exécuté ne traverse ; un test qui n'aurait inspecté que le catalogue serait
 au vert sur le défaut qu'il est censé fermer. Vérifié par réintroduction du défaut
 d'origine : le test tombe, puis repasse au vert une fois corrigé.
 
+## Lot B · résultat
+
+**206 références distinctes sur 206 vérifiées. Trois défauts.**
+
+7 872 lignes ne portent pas 7 872 références : la même citation revient des
+dizaines de fois (« AUDCIF art. 22 » figure 52 fois). Un second script
+(`scripts/index-citations-lot-b.py`) rattache chaque article au corpus nommé sur
+sa ligne et déduplique. Il reste **206 couples (texte, article) distincts** :
+
+| Corpus | Références distinctes |
+|---|---|
+| AUDCIF | 41 |
+| loi n° 23/053 | 35 |
+| SYCEBNL | 27 |
+| AUSCGIE | 22 |
+| Loi de procédures fiscales | 20 |
+| loi n° 004/2001 | 19 |
+| TVA (O.-L. n° 10/001) | 12 |
+| AUSCOOP | 11 |
+| SYSCOHADA | 9 |
+| AUDCG | 5 |
+| Code des douanes, Code du numérique, CPCC | 5 |
+
+Chaque couple a été rapproché de l'OBJET de son article, extrait de la
+compétence. Deux contrôles ont servi : la **plage** (un corpus a un dernier
+article · le SYCEBNL s'arrête à 28, l'AUDCIF à 113), puis la **lecture du
+rapprochement**, article par article.
+
+Le contrôle de plage a levé neuf alertes. **Huit étaient des défauts de mon
+propre extracteur**, pas du logiciel : sur une ligne comme « l'art. 3 du SYCEBNL
+exclut les art. 73 à 113 », le script rattache le 73 au SYCEBNL alors que la
+phrase le rattache à l'AUDCIF. Ce sont même les lignes les plus rigoureuses du
+dépôt. La neuvième était réelle.
+
+### Les trois défauts
+
+**1 · un article cité sans son texte, à côté d'un autre qui porte le sien.**
+`correspondance-inventaire-syscohada.ts` affichait : « L'article 138 nomme le
+gérant, le conseil d'administration ou l'administrateur général […] Le livre
+d'inventaire, lui, reste dû (**AUDCIF art. 19**). » L'article 138 est celui de
+l'**AUSCGIE** ; l'AUDCIF s'arrête à 113. La lecture naturelle du message
+attribuait le 138 à l'AUDCIF, seul texte nommé. Corrigé en nommant l'AUSCGIE.
+
+**2 · la définition renvoyée au mauvais article.** Le refus d'affecter un
+dividende à une EBNL disait « c'est ce qui la définit (SYCEBNL, **art.
+premier**) ». L'art. premier institue le système comptable. La définition est à
+l'**art. 2**, et elle n'est pas formulée comme le message le disait : le texte
+parle d'un « **but désintéressé** » et de ressources qui « servent au
+fonctionnement et à la réalisation de son objet social », là où le message
+écrivait « ne distribue pas de résultat à ses membres ». La conclusion tenait,
+la source non.
+
+**3 · une anomalie du texte officiel reproduite sans être signalée, et glosée.**
+Le planning de clôture annonçait : « Le manquement est sanctionné par l'article
+19, c'est-à-dire par la dissolution : c'est l'obligation la plus lourdement
+sanctionnée de toute la loi 004/2001. »
+
+Le **renvoi est exact** · l'art. 4, e) écrit littéralement que la déclaration
+semestrielle doit être renouvelée « **sous peine d'application de l'article
+19** ». Mais l'article 19 organise la dissolution **VOLONTAIRE**, décidée par
+les deux tiers des membres effectifs ; la dissolution **JUDICIAIRE** de
+l'association « qui ne remplit plus ses engagements » est à l'**article 20**,
+prononcée par le Tribunal de Grande Instance à la requête d'un membre ou du
+Ministère Public.
+
+Le renvoi de l'art. 4, e) est donc vraisemblablement fautif dans la loi
+elle-même. La règle de maison (§ 9) veut qu'une telle anomalie soit signalée sur
+place, jamais reproduite en silence · le message la reproduisait ET en tirait
+une conclusion (« c'est-à-dire par la dissolution ») que l'article ne porte pas.
+Le message cite désormais l'art. 4, e) mot pour mot, expose la réserve, et ne
+conclut plus à une sanction automatique.
+
+C'est le défaut le plus sérieux des deux lots : un message d'interface qui
+annonçait à un cabinet la sanction la plus lourde de la loi, sur un article qui
+dit autre chose.
+
+### Le test
+
+`src/common/citations-articles.spec.ts` balaie tout le dépôt et refuse un
+article dont le numéro dépasse le dernier article du corpus nommé. **Sa portée
+est étroite et le fichier le dit** : trois familles de lignes en sortent (deux
+corpus nommés, une loi numérotée à côté, un marqueur d'exclusion), et le test
+lit une fenêtre de quatre lignes de part et d'autre, parce qu'une citation
+s'étale souvent sur trois lignes et que juger la ligne seule signalait six
+passages parfaitement corrects. Deux tests ciblés ferment les défauts 2 et 3 par
+leur libellé.
+
+Les trois défauts ont été réintroduits un par un pour vérifier que les tests
+tombent, puis retirés. Sans cette vérification, un test qui passe ne prouve
+rien.
+
+Le test d'affectation qui gelait l'ancien libellé est tombé à la correction · il
+faisait son travail, et il porte maintenant la formule du texte avec la raison
+du changement.
+
 ## Ce qui n'a pas été vérifié
 
-**Le lot B · 7 872 lignes.** Citations explicatives : un article nommé dans un
-commentaire de méthode, un renvoi de chapitre, un intitulé de référentiel. Une
-erreur y induit un lecteur en erreur mais ne change aucun montant.
+**Ce qui reste hors des deux lots.** 1 683 lignes citent un article sans nommer
+de texte sur la même ligne, et 4 033 nomment un texte sans citer d'article. Les
+premières sont couvertes indirectement, par la fenêtre de contexte du test de
+balayage ; les secondes ne portent aucune référence vérifiable article par
+article. S'y ajoutent quatre corpus non indexés dans ce passage (Code des
+douanes, Code du numérique, CPCC, SYSCOHADA hors AUDCIF), soit 14 références,
+dont les citations ont été lues mais sans rapprochement mécanique.
 
 Deux points relevés au passage et laissés en réserve plutôt que tranchés :
 
@@ -191,9 +290,14 @@ Deux points relevés au passage et laissés en réserve plutôt que tranchés :
 ## Ce que l'audit dit du logiciel
 
 Sur les 89 références qui commandent un montant, une échéance ou un seuil, **aucun
-chiffre n'est faux**. Les deux défauts trouvés sont des renvois : l'un reproduisait
-une contradiction de sa source sans la nommer, l'autre pointait vers un texte qui
-n'existe pas.
+chiffre n'est faux**. Sur les 206 références explicatives distinctes, **203 sont
+exactes**.
+
+Les cinq défauts des deux lots sont tous des RENVOIS, aucun n'est un calcul : un
+taux rattaché à son texte modificatif plutôt qu'à son texte porteur, une
+application du Guide annoncée comme un article, un article cité sans son texte à
+côté d'un autre qui porte le sien, une définition renvoyée à l'article voisin, et
+une anomalie du texte officiel reproduite sans réserve puis glosée.
 
 C'est cohérent avec ce que les corrections des jours précédents avaient déjà montré :
 ce sont les RÉFÉRENCES qui ont été écrites trop vite, jamais les calculs. La

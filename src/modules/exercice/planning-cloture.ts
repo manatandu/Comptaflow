@@ -280,11 +280,11 @@ export const JALONS_CLOTURE: DefinitionJalon[] = [
     etape: 5,
     libelle: 'Déclaration semestrielle relative aux ressources',
     detail:
-      'Déclaration des ressources de l’association, à RENOUVELER à la fin ou au début de chaque semestre · elle ne se fait donc pas une fois l’an. Le manquement est sanctionné par l’article 19, c’est-à-dire par la dissolution : c’est l’obligation la plus lourdement sanctionnée de toute la loi 004/2001, et la plus facile à oublier puisqu’elle ne suit pas le calendrier comptable. L’échéance portée ici est celle du semestre qui suit la clôture ; l’autre tombe six mois plus tôt.',
+      'Déclaration des ressources de l’association, à RENOUVELER à la fin ou au début de chaque semestre · elle ne se fait donc pas une fois l’an. L’article 4, e) l’exige « sous peine d’application de l’article 19 ». RÉSERVE, et elle est dans le texte officiel : l’article 19 organise la dissolution VOLONTAIRE, décidée par les deux tiers des membres effectifs ; c’est l’article 20 qui porte la dissolution JUDICIAIRE de l’association « qui ne remplit plus ses engagements », prononcée par le Tribunal de Grande Instance. Le renvoi de l’article 4, e) est donc reproduit tel quel, sans qu’OmegaX en tire une sanction automatique : l’obligation est réelle et à ne pas manquer, sa suite exacte relève de votre conseil. L’échéance portée ici est celle du semestre qui suit la clôture ; l’autre tombe six mois plus tôt.',
     nature: 'LEGALE',
     debut: { moisApres: 0, jour: 1 },
     echeance: { moisApres: 1, jour: 'FIN' },
-    source: 'Loi n° 004/2001 du 20 juillet 2001, art. 4, e (sanction : art. 19)',
+    source: 'Loi n° 004/2001 du 20 juillet 2001, art. 4, e (qui renvoie à l’art. 19 · voir la réserve)',
     formes: FORMES_ASBL,
     referentiels: [Referentiel.SYCEBNL],
   },  {
