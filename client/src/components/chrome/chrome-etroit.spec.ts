@@ -58,7 +58,13 @@ describe('chrome à 360 px', () => {
     // qu'il n'a pas `min-w-0` : les deux libellés sortaient de 21 px de la
     // barre et s'imprimaient par-dessus le bord de l'écran.
     expect(src).toMatch(/flex items-center gap-2 min-w-0/);
-    expect(src).toMatch(/className="min-w-0 truncate"/);
+    // Le bloc de droite porte désormais le SÉLECTEUR d'exercice à côté du
+    // libellé, donc `flex` en plus · la borne, elle, ne bouge pas, et c'est
+    // elle que ce test surveille. Le libellé qui peut être long (nom du
+    // dossier) garde son propre `truncate`, sans quoi c'est le sélecteur qui
+    // serait poussé hors de la barre sur un écran étroit.
+    expect(src).toMatch(/className="min-w-0 truncate flex items-center gap-1"/);
+    expect(src).toMatch(/<span className="truncate">/);
     expect(src).toMatch(/text-text truncate/);
   });
 

@@ -1,5 +1,5 @@
 import { useAuth } from '../../lib/auth';
-import { useExercice } from '../../lib/exercice';
+import { SelecteurExercice } from './SelecteurExercice';
 import { useFenetres } from '../../lib/fenetres';
 
 const LIBELLE_ROLE: Record<string, string> = {
@@ -10,7 +10,6 @@ const LIBELLE_ROLE: Record<string, string> = {
 
 export function StatusBar() {
   const { utilisateur } = useAuth();
-  const { exerciceCourant } = useExercice();
   const { fenetres, cleActive } = useFenetres();
 
   /*
@@ -39,10 +38,18 @@ export function StatusBar() {
         </span>
         <span className="font-medium text-text truncate">{titreFenetre}</span>
       </span>
-      <span className="min-w-0 truncate">
-        {utilisateur?.tenant.nom} · {utilisateur?.tenant.referentiel}
-        {utilisateur && ` · ${LIBELLE_ROLE[utilisateur.role]}`}
-        {exerciceCourant && ` · Exercice ${new Date(exerciceCourant.dateDebut).getFullYear()}`}
+      {/*
+        L'exercice n'est plus un simple libellé · il se CHOISIT ici. Le point
+        médian qui le sépare du reste est porté par le sélecteur lui-même : un
+        dossier sans aucun exercice ne rend rien, et une barre qui se
+        terminerait par un séparateur orphelin se lirait comme un libellé perdu.
+      */}
+      <span className="min-w-0 truncate flex items-center gap-1">
+        <span className="truncate">
+          {utilisateur?.tenant.nom} · {utilisateur?.tenant.referentiel}
+          {utilisateur && ` · ${LIBELLE_ROLE[utilisateur.role]}`}
+        </span>
+        <SelecteurExercice />
       </span>
     </div>
   );

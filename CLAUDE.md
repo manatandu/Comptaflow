@@ -1254,6 +1254,42 @@ techniques (`etats-financiers.communs.ts`, `note-annexe.types.ts` côté
 serveur, `components/NotesAnnexesRendu.tsx` côté client) · aucun poste, aucun
 compte, aucun libellé.
 
+**Sélecteur d'exercice · l'exercice courant ne se devine plus quand il y a un
+doute.** `ExerciceProvider` prenait `exercices.find((e) => e.statut ===
+'OUVERT')` sur une liste triée par date de début DÉCROISSANTE · c'est-à-dire le
+PLUS RÉCENT des exercices ouverts, sans que rien ne le dise et sans qu'aucun
+écran ne permette d'en changer.
+
+LE DÉFAUT SE DÉCLENCHE DANS LA SITUATION LA PLUS ORDINAIRE QUI SOIT. Un cabinet
+ouvre l'exercice suivant le 1er janvier alors que le précédent n'est pas encore
+clôturé · c'est la règle et non l'exception, l'arrêté des comptes se faisant
+dans les quatre mois (AUDCIF art. 23). À cette seconde, les trente-quatre écrans
+qui lisent le contexte basculent sur le nouvel exercice. Le comptable qui saisit
+décembre ne retrouve plus ses écritures à la balance, RIEN ne se déséquilibre ·
+la balance boucle, sur le mauvais exercice · et aucun total ne bouge.
+
+TROIS RÈGLES, et la troisième est le vrai correctif. Le CHOIX DE L'UTILISATEUR
+prime toujours, et il est mémorisé PAR DOSSIER (`omegax.exercice.<tenantId>`) ·
+un opérateur de la plateforme passe d'un cabinet à l'autre, et l'identifiant
+d'exercice d'un dossier n'a aucun sens dans un autre. Un SEUL exercice ouvert
+est retenu sans discussion · il n'y a rien à trancher. PLUSIEURS exercices
+ouverts et aucun choix : le plus récent est encore retenu, mais le contexte le
+DÉCLARE (`choixImplicite`) et la barre de statut le signale. Refuser d'afficher
+quoi que ce soit bloquerait le logiciel dans un cas parfaitement légitime ;
+choisir en silence est ce qui vient d'être corrigé. La seule issue honnête est
+de choisir ET de le dire.
+
+AUCUN EXERCICE OUVERT N'EST PAS UN CHOIX IMPLICITE · le plus récent sert de
+fenêtre, sans avertissement. Avertir là ferait crier le bandeau sur tout dossier
+dont les exercices sont clôturés, c'est-à-dire sur les dossiers les plus sains,
+et on apprendrait à l'ignorer avant le jour où il compte.
+
+LA RÈGLE VIT HORS DU COMPOSANT (`client/src/lib/exercice-choix.ts`,
+`resoudreExercice`) · c'est ce qui la rend vérifiable sans monter React, et le
+provider ne doit appeler qu'elle. La mémorisation passe par des `try/catch` :
+`localStorage` jette en fenêtre privée, et la préférence est un confort, jamais
+une condition d'usage.
+
 ### Migrations écrites à la main
 
 Une migration écrite à la main peut DIVERGER du schéma sans que rien ne le
