@@ -591,6 +591,47 @@ lignes, `docs/capacite-mesuree.md`). Les autres se demandent nommément :
 élargir le défaut aurait alourdi l'écran le plus consulté sans que personne ne
 l'ait demandé.
 
+**Réévaluation · le chiffre du relevé de manques était faux, et c'est la
+vérification qui l'a dit.** Le relevé annonçait « une déclaration spéciale
+avant le 30 avril » et « une astreinte de 100 000 CDF par jour ». Les deux
+viennent de l'Ordonnance-loi n° 89/017 du 18 février 1989, art. 16 et 20 ·
+ABROGÉE par la loi n° 23/053, art. 152 point 3, avec effet au 1er janvier 2026
+(art. 153). Le texte en vigueur dit « AU PLUS TARD le 30 avril » (art. 136) et
+« 300.000,00 Francs congolais PAR JOUR » (art. 138). Les coder tels quels
+aurait produit le § 10 bis dans sa forme la plus coûteuse : un signalement
+plausible, sourcé, faux, et une sanction sous-évaluée d'un facteur trois.
+
+`DECLARATION_REEVALUATION_A_DEPOSER` est de gravité INFORMATION et ne CONSTATE
+jamais le manquement · le dépôt est un fait externe qu'aucune comptabilité ne
+porte. Il est borné aux exercices clos à compter du 1er janvier 2026, et il
+porte la réserve sur les entités exemptées au lieu de la taire : l'art. 136
+vise « toutes les entreprises » sans définir le mot, et l'ordonnance-loi
+abrogée visait expressément les exonérés, ce que la loi nouvelle ne reprend
+pas.
+
+LE CONTRÔLE S'ARRÊTE AU 106 et ne descend pas à ses subdivisions, pour la
+TROISIÈME fois la même raison qu'au 192 du registre des provisions et au 4181
+des produits à recevoir · un numéro identique, deux sens. Le 1061 est la
+réévaluation LÉGALE au SYSCOHADA et « sur des biens SANS DROIT DE REPRISE » au
+SYCEBNL ; le 1062 est LIBRE d'un côté, « AVEC DROIT DE REPRISE » de l'autre.
+La conséquence est fiscale, le prélèvement libératoire de l'art. 129 différant
+selon légale ou libre.
+
+**Excédent d'inventaire · l'art. 43 ne régit pas la caisse.** Le refus de
+comptabiliser un excédent tient, mais sa citation était fausse sur un compte
+57, et corrigée le 2026-09-06. L'art. 43 oppose la « valeur d'inventaire » à
+la « valeur d'entrée » DU MÊME BIEN et débouche sur un amortissement ou une
+dépréciation : il traite d'une variation de VALEUR. Un excédent de caisse est
+une variation de QUANTITÉ, et la fiche du compte 57 dit l'inverse dans les
+DEUX plans, mot pour mot · « le solde du compte caisse doit toujours
+correspondre exactement à la somme disponible réellement ». Aucune source lue
+ne dit pour autant ce qu'il faut créditer · ni produit, ni dette, ni compte
+d'attente, et aucun plan ne porte de compte « écart de caisse ».
+`motifRefusExcedent()` nomme donc la tension sur un 57 et cite l'art. 43
+partout ailleurs. Citer un article sur le mauvais cas est la forme la plus
+discrète du § 10 bis : le message est plausible, sourcé, et personne ne le
+vérifie.
+
 **Correspondance bilan de clôture / bilan d'ouverture · la convention et ses
 DEUX seules exceptions.** « Le bilan d'ouverture d'un exercice doit
 correspondre au bilan de clôture de l'exercice précédent » (AUDCIF art. 34 et
