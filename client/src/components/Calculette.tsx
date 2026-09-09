@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { evaluerExpression } from '../lib/calcul';
+import { PortailModale } from './PortailModale';
 
 /**
  * CALCULETTE · Édition → Calculette Sage.
@@ -53,6 +54,11 @@ export function Calculette({
   }, [onFermer]);
 
   return (
+    // LE PORTAIL N'EST PAS UN DÉTAIL DE MISE EN OEUVRE · la calculette est
+    // appelée depuis la barre de menus, dont le `backdrop-blur` faisait un
+    // bloc conteneur pour `position: fixed`. Sans lui, elle se centre sur une
+    // barre de 26 px et son sommet passe hors de l'écran. Voir PortailModale.
+    <PortailModale>
     <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4 anim-voile" onClick={onFermer}>
       <div
         onClick={(e) => e.stopPropagation()}
@@ -148,5 +154,6 @@ export function Calculette({
         </div>
       </div>
     </div>
+    </PortailModale>
   );
 }

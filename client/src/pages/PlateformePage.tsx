@@ -395,7 +395,7 @@ export function PlateformePage() {
         <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
           <form
             onSubmit={onReinitialiserAdmin}
-            className="anim-fenetre bg-surface border border-border-dark shadow-flottant w-[460px] max-w-full"
+            className="anim-fenetre bg-surface border border-border-dark shadow-flottant w-[460px] max-w-full max-h-[calc(100dvh-2rem)] overflow-y-auto"
           >
             <div className="px-3.5 py-2 bg-chrome border-b border-border-dark text-[11px] font-bold">
               Mot de passe administrateur · {reinitEnCours.nom}
@@ -530,7 +530,7 @@ export function PlateformePage() {
 
       {groupeEnCours && (
         <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
-          <form onSubmit={onEnregistrerGroupe} className="anim-modale w-full max-w-[440px] bg-surface border border-border-dark shadow-flottante">
+          <form onSubmit={onEnregistrerGroupe} className="anim-modale w-full max-w-[440px] bg-surface border border-border-dark shadow-flottante max-h-[calc(100dvh-2rem)] overflow-y-auto">
             <div
               className="h-[26px] flex items-center justify-between px-2.5 text-white text-[10.5px]"
               style={{ background: 'linear-gradient(180deg, var(--titlebar-from), var(--titlebar-to))' }}
@@ -683,7 +683,7 @@ export function PlateformePage() {
 
       {cree && (
         <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
-          <div className="anim-modale w-full max-w-[460px] bg-surface border border-border-dark shadow-flottante">
+          <div className="anim-modale w-full max-w-[460px] bg-surface border border-border-dark shadow-flottante max-h-[calc(100dvh-2rem)] overflow-y-auto">
             <div
               className="h-[26px] flex items-center px-2.5 text-white text-[10.5px]"
               style={{ background: 'linear-gradient(180deg, var(--titlebar-from), var(--titlebar-to))' }}

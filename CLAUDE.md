@@ -1254,6 +1254,45 @@ techniques (`etats-financiers.communs.ts`, `note-annexe.types.ts` côté
 serveur, `components/NotesAnnexesRendu.tsx` côté client) · aucun poste, aucun
 compte, aucun libellé.
 
+**Modales qui sortaient de l'écran par le haut · deux causes, mesurées avant
+d'être corrigées.** Signalé par Manasse sur la calculette de la barre de menus,
+et vrai ailleurs. Le débordement vers le HAUT est le seul qui soit
+irrécupérable : aucune barre de défilement ne remonte au-dessus du bord
+supérieur, et c'est le titre, les onglets et la croix de fermeture qui y passent
+en premier.
+
+1. **LE BLOC CONTENEUR.** `position: fixed` ne se résout PAS toujours sur la
+   fenêtre du navigateur : un ancêtre portant `filter`, `backdrop-filter`,
+   `transform`, `perspective` ou `contain: paint` en devient le bloc conteneur.
+   La barre de menus porte `backdrop-blur-md` (le verre dépoli de la maquette
+   Windows 11), et la calculette est rendue DEPUIS son icône · `inset-0` se
+   résolvait donc sur une barre de 26 px, et `items-center` centrait une
+   calculette de 302 px sur ces 26 px. Mesuré au navigateur, viewport
+   1280 × 800 : **sommet à -105 px**, contre 249 px pour le même balisage sous
+   une barre non floutée. Le dossier connaissait déjà l'AUTRE moitié de la
+   règle · le commentaire de `MenuBar` note que « backdrop-blur crée un
+   contexte d'empilement sur cette barre ». C'est le même mot-clef qui crée le
+   bloc conteneur, et c'est cette moitié-là qui manquait.
+2. **LA HAUTEUR NON BORNÉE.** Une modale plus haute que l'écran, centrée par
+   `items-center`, déborde des DEUX côtés à parts égales. Mesuré : 1 200 px sur
+   un écran de 800 px commence à **-200 px** ; bornée à `calc(100dvh-2rem)` avec
+   défilement interne, elle commence à 16 px. Sept modales n'avaient aucune
+   borne, dans trois écrans (groupe, plateforme, utilisateurs).
+
+`components/PortailModale.tsx` porte la modale dans le `<body>`. CE QUI A ÉTÉ
+REFUSÉ · retirer le flou des barres corrigerait le symptôme en défaisant un
+parti pris de maquette, et ne protégerait de rien : le prochain `transform`
+posé sur un ancêtre rouvrirait le même trou, en silence. Le portail rend la
+modale indépendante de l'endroit d'où elle est appelée, ce qui est de toute
+façon ce qu'une modale veut dire.
+
+`modales-dans-l-ecran.spec.ts` gèle les deux règles pour TOUTES les modales du
+dossier, celles qui n'existent pas encore comprises : il recense les voiles
+`fixed inset-0`, exige de chacun une borne de hauteur, et refuse qu'une barre
+floutée du chrome héberge un voile qui ne serait pas porté. Un premier test
+vérifie que le recensement trouve encore quelque chose · un garde-fou qui ne
+trouve plus rien passe sans rien vérifier.
+
 **Taux de TVA par défaut dans la grille de saisie · une règle qui ne servait
 qu'une porte sur deux.** Le code taxe existe sur la fiche compte depuis le
 chantier de 2026-08, mais seule la modale « Achat / Vente avec TVA » le lisait.

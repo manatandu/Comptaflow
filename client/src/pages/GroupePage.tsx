@@ -572,7 +572,7 @@ export function GroupePage() {
 
       {creationOuverte && (
         <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
-          <form onSubmit={onCreer} className="anim-modale w-full max-w-[460px] bg-surface border border-border-dark shadow-flottante">
+          <form onSubmit={onCreer} className="anim-modale w-full max-w-[460px] bg-surface border border-border-dark shadow-flottante max-h-[calc(100dvh-2rem)] overflow-y-auto">
             <div
               className="h-[26px] flex items-center justify-between px-2.5 text-white text-[10.5px]"
               style={{ background: 'linear-gradient(180deg, var(--titlebar-from), var(--titlebar-to))' }}
@@ -612,7 +612,7 @@ export function GroupePage() {
 
       {creee && (
         <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
-          <div className="anim-modale w-full max-w-[460px] bg-surface border border-border-dark shadow-flottante">
+          <div className="anim-modale w-full max-w-[460px] bg-surface border border-border-dark shadow-flottante max-h-[calc(100dvh-2rem)] overflow-y-auto">
             <div
               className="h-[26px] flex items-center px-2.5 text-white text-[10.5px]"
               style={{ background: 'linear-gradient(180deg, var(--titlebar-from), var(--titlebar-to))' }}
@@ -674,7 +674,7 @@ export function GroupePage() {
 
       {depotPour && (
         <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
-          <div className="anim-modale w-full max-w-[440px] bg-surface border border-border-dark shadow-flottante">
+          <div className="anim-modale w-full max-w-[440px] bg-surface border border-border-dark shadow-flottante max-h-[calc(100dvh-2rem)] overflow-y-auto">
             <div
               className="h-[26px] flex items-center justify-between px-2.5 text-white text-[10.5px]"
               style={{ background: 'linear-gradient(180deg, var(--titlebar-from), var(--titlebar-to))' }}
@@ -705,7 +705,7 @@ export function GroupePage() {
 
       {rapportDepot && (
         <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
-          <div className="anim-modale w-full max-w-[480px] bg-surface border border-border-dark shadow-flottante">
+          <div className="anim-modale w-full max-w-[480px] bg-surface border border-border-dark shadow-flottante max-h-[calc(100dvh-2rem)] overflow-y-auto">
             <div
               className="h-[26px] flex items-center px-2.5 text-white text-[10.5px]"
               style={{ background: 'linear-gradient(180deg, var(--titlebar-from), var(--titlebar-to))' }}

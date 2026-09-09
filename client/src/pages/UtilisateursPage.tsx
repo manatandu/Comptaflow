@@ -229,7 +229,7 @@ export function UtilisateursPage() {
         <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
           <form
             onSubmit={onReinitialiser}
-            className="anim-fenetre bg-surface border border-border-dark shadow-flottant w-[440px] max-w-full"
+            className="anim-fenetre bg-surface border border-border-dark shadow-flottant w-[440px] max-w-full max-h-[calc(100dvh-2rem)] overflow-y-auto"
           >
             <div className="px-3.5 py-2 bg-chrome border-b border-border-dark text-[11px] font-bold">
               Réinitialiser le mot de passe · {reinitCible.email}
