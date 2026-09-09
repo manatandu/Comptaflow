@@ -91,9 +91,11 @@ describe('Restitution · le registre des retenues distingue ses deux reversement
 
 describe('Saisie guidée · la ligne de TVA au taux zéro, sans laquelle le prorata ment', () => {
   it('pose la ligne quand le TAUX est nul, pas seulement quand la taxe l’est', () => {
-    const s = source('components/ModelesSaisie.tsx');
-    expect(s).toContain('tauxEstZero');
-    expect(s).toContain('tva > 0.005 || tauxEstZero');
+    // La règle a quitté la modale pour `lib/tva-saisie.ts`, que la grille de
+    // saisie appelle aussi · c'est là qu'il faut la tenir.
+    const s = source('lib/tva-saisie.ts');
+    expect(s).toContain('estTauxZero');
+    expect(s).toContain('if (!(tva > 0.005) && !tauxZero)');
     // Sans `tauxTvaId`, la ligne ne qualifie rien : c'est elle qui compte.
     expect(s).toContain('tauxTvaId: taux.id');
   });

@@ -71,9 +71,20 @@ describe('TVA SYSCOHADA · le compte suit la nature de l’opération', () => {
     }
   });
 
-  it('est bien branchée sur la modale de saisie, pas seulement écrite', () => {
-    const modale = lire('../components/ModelesSaisie.tsx');
-    expect(modale).toContain('compteTvaPourContrepartie(');
-    expect(modale).toContain('compteRoute?.id ?? (recette ? taux.compteCollecteId : taux.compteDeductibleId)');
+  it('est bien branchée sur la règle partagée, et les DEUX écrans l’appellent', () => {
+    // Le routage vivait dans la modale « Achat / Vente avec TVA ». Il vit
+    // maintenant dans `lib/tva-saisie.ts`, que la modale ET la grille de
+    // saisie appellent · réécrire ce calcul dans la grille aurait produit deux
+    // TVA plausibles et différentes sur la même facture.
+    const regle = lire('./tva-saisie.ts');
+    expect(regle).toContain('compteTvaPourContrepartie(');
+    expect(regle).toContain("compteRoute?.id ?? (famille === 'COLLECTEE' ? taux.compteCollecteId : taux.compteDeductibleId)");
+    for (const ecran of ['../components/ModelesSaisie.tsx', '../pages/SaisiePage.tsx']) {
+      expect(`${ecran}: ${lire(ecran).includes('construireLigneTva(')}`).toBe(`${ecran}: true`);
+    }
+    // Et personne ne refait le routage dans son coin.
+    for (const ecran of ['../components/ModelesSaisie.tsx', '../pages/SaisiePage.tsx']) {
+      expect(`${ecran}: ${lire(ecran).includes('compteTvaPourContrepartie(')}`).toBe(`${ecran}: false`);
+    }
   });
 });

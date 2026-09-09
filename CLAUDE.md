@@ -1254,6 +1254,53 @@ techniques (`etats-financiers.communs.ts`, `note-annexe.types.ts` côté
 serveur, `components/NotesAnnexesRendu.tsx` côté client) · aucun poste, aucun
 compte, aucun libellé.
 
+**Taux de TVA par défaut dans la grille de saisie · une règle qui ne servait
+qu'une porte sur deux.** Le code taxe existe sur la fiche compte depuis le
+chantier de 2026-08, mais seule la modale « Achat / Vente avec TVA » le lisait.
+La grille, c'est-à-dire la voie NORMALE de l'écran central, ne proposait rien :
+le comptable qui saisit sa facture ligne à ligne devait connaître de tête le
+compte 4454 et calculer ses 16 %.
+
+LA RÈGLE VIT MAINTENANT DANS `lib/tva-saisie.ts`, ET LES DEUX ÉCRANS
+L'APPELLENT. La réécrire dans la grille aurait produit deux TVA plausibles et
+différentes sur la même facture · c'est ce que le lettrage a déjà appris avec
+`calculerPropositions`. Un test lit les deux fichiers et refuse qu'un écran
+refasse le routage dans son coin.
+
+TROIS DÉCISIONS QUE CE DÉPLACEMENT A RENDUES VISIBLES, dont une FAUSSE :
+
+- le compte de taxe est ROUTÉ selon la nature de la contrepartie (un transport
+  déduit en 4453, un service extérieur en 4454, une prestation vendue collecte
+  en 4432), et il n'est JAMAIS deviné · un taux sans compte rattaché le dit et
+  s'arrête ;
+- **la famille se lit sur la NATURE de la contrepartie, pas sur le sens de la
+  ligne**, et c'est la correction du chantier. Dans la modale les deux
+  coïncident, ses modèles n'ouvrant que des charges ou que des produits. Dans
+  la grille, non : un AVOIR FOURNISSEUR crédite un compte de charge, et déduire
+  la famille du sens aurait posé la contre-taxe en 443 « TVA facturée sur
+  ventes ». Le montant aurait été juste, le compte faux, et la déclaration
+  aurait ventilé un reversement de déduction en collecte. Ce n'est pas une
+  règle inventée, c'est ce que 443 et 445 signifient : une charge porte une
+  taxe récupérable, un produit une taxe facturée, et le sens dit seulement si
+  l'on pose ou si l'on reprend ;
+- la ligne au TAUX ZÉRO doit exister · art. 43 de l'O.-L. n° 10/001, les
+  exportations entrent au numérateur du prorata, et le serveur les reconnaît par
+  cette ligne. Un taux nul qualifie l'opération ; une taxe nulle faute de base
+  ne qualifie rien. Les deux zéros ne se confondent pas.
+
+LE TAUX EST PORTÉ PAR LA LIGNE DE TVA, JAMAIS PAR LA LIGNE HT · c'est le sens
+que le schéma lui donne et celui que `TauxTvaService.declaration` lit (un
+`tauxTvaId` ET un compte 443 ou 445). Le marquer sur la ligne de charge aurait
+été le huitième « un champ, deux sens » du dossier : inerte aujourd'hui puisque
+le filtre de compte l'écarte, faux le jour où quelqu'un relâche ce filtre.
+
+ET LA GRILLE PROPOSE, ELLE N'IMPUTE PAS. La bande attend un clic, le taux y
+reste modifiable, elle s'abandonne d'un mot. Une ligne de taxe qui s'ajouterait
+d'office passerait inaperçue jusqu'à la déclaration, notamment sur une
+association exonérée. La proposition est retrouvée par son indice ET son
+compte : une suppression l'invalide au lieu de la reporter sur la ligne
+voisine.
+
 **Exclusion de relance par tiers · ce que l'exclusion NE DOIT PAS faire.** Sage
 l'appelle « Hors rappel/relevé » et en fait une case sur la fiche du tiers. La
 case est la partie facile ; le piège est ce qu'on lui fait faire de trop.

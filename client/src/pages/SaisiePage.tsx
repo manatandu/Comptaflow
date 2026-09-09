@@ -3,7 +3,9 @@ import { api, ApiError } from '../lib/api';
 import { useExercice } from '../lib/exercice';
 import { ModelesSaisieModale, type LigneInseree } from '../components/ModelesSaisie';
 import { Calculette } from '../components/Calculette';
-import type { Compte, Ecriture, Journal, PlanAnalytique, SectionAnalytique } from '../lib/types';
+import type { Compte, Ecriture, Journal, PlanAnalytique, SectionAnalytique, TauxTva } from '../lib/types';
+import { useAuth } from '../lib/auth';
+import { construireLigneTva, montantTva, sensDeLaLigne } from '../lib/tva-saisie';
 
 /**
  * SAISIE DES JOURNAUX · l'écran central du logiciel, calqué sur
@@ -153,6 +155,7 @@ const LIBELLE_TYPE_JOURNAL: Record<Journal['type'], string> = {
 
 export function SaisiePage() {
   const { exerciceCourant } = useExercice();
+  const { utilisateur } = useAuth();
   const [journaux, setJournaux] = useState<Journal[]>([]);
   const [comptes, setComptes] = useState<Compte[]>([]);
 
@@ -197,6 +200,20 @@ export function SaisiePage() {
   // fenêtre, pas à chaque ligne saisie (78 entrées, quelques dizaines de Ko).
   const [regles, setRegles] = useState<RegleCompte[]>([]);
   const [calculetteOuverte, setCalculetteOuverte] = useState(false);
+  // LES TAUX DE TAXE · chargés une fois, pour proposer la ligne de TVA d'un
+  // compte qui porte un code taxe par défaut.
+  const [tauxTvaListe, setTauxTvaListe] = useState<TauxTva[]>([]);
+  /**
+   * LA PROPOSITION DE TVA EN ATTENTE · elle vise la ligne HT qui vient d'être
+   * posée, par son INDICE, et se vide dès qu'on y touche.
+   *
+   * Rien n'est inséré tout seul. Sage propose le code taxe du compte dès qu'il
+   * est saisi ; proposer n'est pas imputer, et une ligne de taxe qui
+   * s'ajouterait d'office serait une imputation que personne n'a voulue · sur
+   * une facture d'association exonérée, elle passerait inaperçue jusqu'à la
+   * déclaration.
+   */
+  const [propositionTva, setPropositionTva] = useState<{ index: number; compteId: string; tauxTvaId: string } | null>(null);
 
   const compteRef = useRef<HTMLInputElement>(null);
   const libelleRef = useRef<HTMLInputElement>(null);
@@ -330,6 +347,8 @@ export function SaisiePage() {
   const soldePiece = Math.round((totalDebitPiece - totalCreditPiece) * 100) / 100;
   const equilibree = Math.abs(soldePiece) < 0.005 && lignes.length >= 2;
 
+  const numerosDuPlan = useMemo(() => new Set(comptes.map((c) => c.numero)), [comptes]);
+
   const comptesFiltres = useMemo(() => {
     const q = compteSaisie.trim().toLowerCase();
     if (!q) return comptes.slice(0, 14);
@@ -393,6 +412,20 @@ export function SaisiePage() {
         ),
       },
     ]);
+    // CODE TAXE PAR DÉFAUT · Sage porte un taux sur la fiche compte et le
+    // PROPOSE dès que ce compte est saisi. La grille ne le faisait pas : seule
+    // la modale « Achat / Vente avec TVA » le lisait, et le comptable qui
+    // saisit sa facture ligne à ligne devait connaître de tête le compte de
+    // taxe et calculer ses 16 %.
+    //
+    // La proposition vise la ligne qu'on vient de poser (son indice est
+    // `prev.length` avant l'ajout, donc `lignes.length` ici) et attend un
+    // geste · rien ne s'insère seul.
+    if (compteChoisi.tauxTvaDefautId) {
+      setPropositionTva({ index: lignes.length, compteId: compteChoisi.id, tauxTvaId: compteChoisi.tauxTvaDefautId });
+    } else {
+      setPropositionTva(null);
+    }
     // « Répéter » façon modèle Sage : le libellé reste, le compte et les
     // montants se vident, le curseur revient au compte.
     setCompteChoisi(null);
@@ -406,6 +439,7 @@ export function SaisiePage() {
 
   const retirerLigne = (i: number) => {
     setLignes((prev) => prev.filter((_, idx) => idx !== i));
+    setPropositionTva(null);
   };
 
   /**
@@ -455,6 +489,59 @@ export function SaisiePage() {
     reste, elle, à demeure dans la barre : elle ne dépend d'aucune fenêtre.
   */
 
+  /**
+   * CE QUE LA PROPOSITION POSERAIT · recalculé à chaque rendu, jamais rangé.
+   *
+   * La ligne visée est retrouvée par son indice ET son compte : une
+   * suppression ou un déplacement invalide la proposition au lieu de la
+   * reporter sur la ligne voisine, ce qui poserait une taxe sur une opération
+   * qui ne la porte pas.
+   *
+   * Le SENS vient de la ligne elle-même, pas de la classe du compte · un
+   * compte de charge peut être crédité (avoir fournisseur), et lire la classe
+   * ferait déduire une taxe là où elle se reverse.
+   */
+  const apercuTva = useMemo(() => {
+    if (!propositionTva) return null;
+    const ligneHt = lignes[propositionTva.index];
+    if (!ligneHt || ligneHt.compteId !== propositionTva.compteId) return null;
+    const taux = tauxTvaListe.find((t) => t.id === propositionTva.tauxTvaId);
+    if (!taux) return null;
+    const sens = sensDeLaLigne(ligneHt);
+    if (!sens) return null;
+    const ht = ligneHt.debit || ligneHt.credit;
+    const resultat = construireLigneTva({
+      referentiel: utilisateur?.tenant.referentiel,
+      sens,
+      contrepartie: { id: ligneHt.compteId, numero: ligneHt.numero, intitule: ligneHt.intitule },
+      ht,
+      taux,
+      comptes,
+      numerosDuPlan,
+    });
+    return { ligneHt, taux, sens, ht, montant: montantTva(ht, taux), resultat };
+  }, [propositionTva, lignes, tauxTvaListe, comptes, numerosDuPlan, utilisateur?.tenant.referentiel]);
+
+  const poserLigneTva = () => {
+    if (!apercuTva?.resultat.ligne) return;
+    const l = apercuTva.resultat.ligne;
+    setLignes((prev) => [
+      ...prev,
+      {
+        compteId: l.compteId,
+        numero: l.numero,
+        intitule: l.intitule,
+        libelle: l.libelle,
+        debit: l.debit,
+        credit: l.credit,
+        // Le taux est porté par la LIGNE DE TVA, jamais par la ligne HT · voir
+        // lib/tva-saisie.ts et le commentaire de LigneEcriture.tauxTvaId.
+        tauxTvaId: l.tauxTvaId,
+      },
+    ]);
+    setPropositionTva(null);
+  };
+
   const equilibrer = () => {
     if (Math.abs(soldePiece) < 0.005) return;
     if (soldePiece > 0) {
@@ -493,6 +580,9 @@ export function SaisiePage() {
     api
       .get<RegleCompte[]>('/controles/regles-comptes')
       .then((r) => !annule && setRegles(r), () => !annule && setRegles([]));
+    api
+      .get<TauxTva[]>('/taux-tva?actifsSeuls=true')
+      .then((t) => !annule && setTauxTvaListe(t), () => !annule && setTauxTvaListe([]));
     return () => {
       annule = true;
     };
@@ -1176,6 +1266,72 @@ export function SaisiePage() {
           <span className="font-mono text-right">{totalCreditPiece.toLocaleString('fr-FR')}</span>
           <span />
         </div>
+
+        {/* ------------------------------------------------------------------
+            CODE TAXE PAR DÉFAUT · Sage porte un taux sur la fiche compte et le
+            propose dès que ce compte est saisi. La bande PROPOSE, elle
+            n'impute pas : le taux reste modifiable, la proposition
+            s'abandonne, et rien ne s'ajoute sans un clic. Une ligne de taxe
+            qui s'insérerait d'office passerait inaperçue jusqu'à la
+            déclaration, notamment sur une association exonérée.
+
+            LA PIÈCE SE DÉSÉQUILIBRE EN AJOUTANT LA TAXE, et c'est normal : la
+            contrepartie de tiers porte le TTC. Le bouton Équilibrer, juste en
+            dessous, complète le montant manquant.
+            ------------------------------------------------------------------ */}
+        {apercuTva && (
+          <div className="flex items-center gap-2 px-3 py-2 flex-wrap border-b border-border/50 bg-chrome-alt/60">
+            <span className="text-[10px] font-bold text-text-dim">CODE TAXE</span>
+            <span className="text-[10.5px]">
+              <span className="font-mono">{apercuTva.ligneHt.numero}</span> ·{' '}
+              {apercuTva.sens === 'depense' ? 'TVA déductible' : 'TVA collectée'} sur{' '}
+              <span className="font-mono">{apercuTva.ht.toLocaleString('fr-FR')}</span>
+            </span>
+            <select
+              value={propositionTva?.tauxTvaId ?? ''}
+              onChange={(e) =>
+                setPropositionTva((p) => (p ? { ...p, tauxTvaId: e.target.value } : p))
+              }
+              className="border border-border-dark bg-surface px-2 py-1 text-[10.5px]"
+            >
+              {tauxTvaListe.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.code} · {Number(t.taux)} %
+                </option>
+              ))}
+            </select>
+            {apercuTva.resultat.ligne ? (
+              <span className="text-[10.5px]">
+                → <span className="font-mono">{apercuTva.resultat.ligne.numero}</span>{' '}
+                <span className="font-mono font-semibold">
+                  {apercuTva.montant.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}
+                </span>{' '}
+                au {apercuTva.sens === 'depense' ? 'débit' : 'crédit'}
+              </span>
+            ) : (
+              // Le motif est écrit en toutes lettres · un bouton grisé sans
+              // raison renvoie le comptable à la fenêtre des taux sans lui
+              // dire ce qui manque.
+              <span className="text-[10.5px] text-warning">{apercuTva.resultat.motif}</span>
+            )}
+            <div className="flex-1" />
+            <button
+              type="button"
+              onClick={poserLigneTva}
+              disabled={!apercuTva.resultat.ligne}
+              className="border border-border-dark bg-chrome hover:bg-surface px-3 py-1 text-[10.5px] disabled:opacity-40"
+            >
+              Ajouter la ligne de TVA
+            </button>
+            <button
+              type="button"
+              onClick={() => setPropositionTva(null)}
+              className="text-[10.5px] text-text-dim hover:underline px-1"
+            >
+              Sans TVA
+            </button>
+          </div>
+        )}
 
         <div className="flex items-center gap-2 px-3 py-2 flex-wrap">
           <span

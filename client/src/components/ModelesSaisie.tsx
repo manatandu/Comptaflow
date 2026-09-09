@@ -37,7 +37,7 @@ export interface LigneInseree {
  */
 
 import { MODELES_SIMPLES_SYCEBNL, MODELES_SIMPLES_SYSCOHADA, type ModeleSimple } from '../lib/modeles-saisie';
-import { compteTvaPourContrepartie } from '../lib/tva-syscohada';
+import { construireLigneTva, montantTva } from '../lib/tva-saisie';
 
 type ModeleTva = { code: 'vente_tva' | 'achat_tva'; libelle: string; sens: 'recette' | 'depense' };
 const MODELES_TVA: ModeleTva[] = [
@@ -236,26 +236,28 @@ export function ModelesSaisieModale({
       return;
     }
     const recette = m.sens === 'recette';
-    // ROUTAGE PAR NATURE D'OPÉRATION · le plan SYSCOHADA subdivise 443 et 445,
-    // et la modale imputait le compte générique du taux quelle qu'ait été la
-    // contrepartie : une prestation vendue collectait en « TVA facturée sur
-    // VENTES », un service extérieur déduisait en « TVA récupérable sur
-    // ACHATS ». Voir lib/tva-syscohada.ts pour la table et ses sources.
-    // `null` = rien à router, le compte du taux fait foi.
-    const numeroRoute = compteTvaPourContrepartie(
-      utilisateur?.tenant.referentiel,
-      recette ? 'recette' : 'depense',
-      contrepartie.numero,
+    // LA RÈGLE VIT DANS `lib/tva-saisie.ts` · routage du compte de taxe selon
+    // la nature de la contrepartie, arrondi, ligne au taux zéro. La grille de
+    // saisie appelle la même, et c'est ce qui les empêche de proposer deux TVA
+    // différentes sur la même facture.
+    const resultat = construireLigneTva({
+      referentiel: utilisateur?.tenant.referentiel,
+      sens: recette ? 'recette' : 'depense',
+      contrepartie,
+      ht,
+      taux,
+      comptes,
       numerosDuPlan,
-    );
-    const compteRoute = numeroRoute ? comptes.find((c) => c.numero === numeroRoute) : undefined;
-    const compteTaxeId = compteRoute?.id ?? (recette ? taux.compteCollecteId : taux.compteDeductibleId);
-    const compteTaxe = comptes.find((c) => c.id === compteTaxeId);
-    if (!compteTaxeId || !compteTaxe) {
-      setErreur(`Le taux ${taux.code} n'a pas de compte de TVA rattaché pour ce sens.`);
+    });
+    // Une taxe nulle ne rend pas de ligne, et ce n'est PAS une erreur : les
+    // deux lignes de l'opération restent justes. Seul un compte de taxe
+    // manquant arrête la modale · c'est un paramétrage à faire, pas un
+    // résultat.
+    if (resultat.raison === 'SANS_COMPTE') {
+      setErreur(resultat.motif);
       return;
     }
-    const tva = arrondi2(ht * (Number(taux.taux) / 100));
+    const tva = montantTva(ht, taux);
     const ttc = arrondi2(ht + tva);
     const lignes: LigneInseree[] = [
       {
@@ -300,20 +302,7 @@ export function ModelesSaisieModale({
       un taux nul, qui qualifie l'opération et doit laisser une trace, et une
       taxe nulle faute de base, qui ne qualifie rien.
     */
-    const tauxEstZero = Number(taux.taux) <= 0.000001;
-    if (tva > 0.005 || tauxEstZero) {
-      lignes.push({
-        compteId: compteTaxe.id,
-        numero: compteTaxe.numero,
-        intitule: compteTaxe.intitule,
-        libelle: tauxEstZero
-          ? `TVA ${Number(taux.taux)} % · ligne de qualification pour le prorata (art. 43)`
-          : `TVA ${Number(taux.taux)} %`,
-        debit: recette ? 0 : tva,
-        credit: recette ? tva : 0,
-        tauxTvaId: taux.id,
-      });
-    }
+    if (resultat.ligne) lignes.push(resultat.ligne);
     onInserer(lignes, m.libelle);
   };
 
