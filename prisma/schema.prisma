@@ -560,6 +560,7 @@ model Tenant {
   evenementsAudit           EvenementAudit[]
   mandatsAuditeur           MandatAuditeur[]
   accordsCadresPlan         AccordCadrePlan[]
+  factures                  Facture[]
 
   @@index([dossierMereId])
   @@map("tenants")
@@ -1192,6 +1193,9 @@ model Ecriture {
   // export balaie l'intégralité des écritures du dossier.
   ecartsInventaire EcartInventaire[]
 
+  /// La facture dont cette écriture est la comptabilisation · au plus une.
+  facture Facture?
+
   @@index([tenantId, exerciceId, date])
   @@index([tenantId, statut], map: "ecritures_statut_idx")
   // Chemin de la numérotation des pièces : à CHAQUE création d'écriture, le
@@ -1728,6 +1732,7 @@ model Tiers {
   relances         Relance[]
 
   demandesConfirmation DemandeConfirmation[]
+  factures             Facture[]
 
   @@unique([tenantId, code])
   // L'agrégation du groupe interroge les tiers PAR CELLULE · sans cet index
@@ -2787,6 +2792,7 @@ model TauxTva {
   createdAt DateTime @default(now())
 
   lignesEcriture LigneEcriture[]
+  lignesFacture  LigneFacture[]
 
   // Comptes de charge ou de produit qui proposent ce taux en saisie.
   comptesAvecCeTauxParDefaut Compte[] @relation("CompteTauxTvaDefaut")
@@ -5094,4 +5100,121 @@ model AccordCadrePlan {
 
   @@index([tenantId, dateSignature])
   @@map("accords_cadres_plan")
+}
+
+// ---------------------------------------------------------------------------
+// FACTURATION · la pièce que la loi exige pour CHAQUE transaction, et que le
+// logiciel n'a jamais tenue.
+//
+// Une vente n'était jusqu'ici qu'une écriture, dont la seule trace de facture
+// était `Ecriture.reference`, chaîne libre. Trois textes s'en accommodaient
+// mal :
+//  · LPF art. 23 · « pour chaque transaction effectuée, délivrer une facture ou
+//    un document en tenant lieu, dont les mentions sont déterminées par voie
+//    réglementaire » ;
+//  · décret n° 011/42, art. 100 · neuf groupes de mentions, dont trois ne se
+//    lisent que sur des LIGNES (désignation, quantité, prix unitaire), que rien
+//    ne stockait ;
+//  · O.-L. n° 10/001, art. 56 · l'état détaillé, CONDITION du droit à
+//    déduction, se construit de ces mêmes lignes.
+//
+// CE QUE CE MODÈLE N'EST PAS · une facture normalisée au sens de l'art. 58.
+// Celle-là est produite par un dispositif électronique fiscal, et l'art. 59
+// quater exige qu'un système de facturation propre soit HOMOLOGUÉ avant toute
+// utilisation. OmegaX ne l'est pas, et le module le dit à l'écran plutôt que de
+// laisser croire le contraire (voir `mentions-facture.ts`, HOMOLOGATION).
+//
+// CE QU'IL N'EST PAS NON PLUS · une comptabilité parallèle (règle de revue de
+// la §7 du plan de construction). La facture ne porte aucun montant comptable
+// de son côté : elle POINTE vers l'écriture passée par `EcritureService`, et
+// c'est l'écriture qui fait foi au grand livre.
+// ---------------------------------------------------------------------------
+
+enum SensFacture {
+  /// Facture émise par le dossier · le client est la contrepartie.
+  VENTE
+  /// Facture reçue · le fournisseur est la contrepartie. C'est elle, et elle
+  /// seule, qui alimente l'état détaillé de l'art. 134 (volet déductions).
+  ACHAT
+}
+
+model Facture {
+  id       String      @id @default(uuid())
+  tenantId String
+  tenant   Tenant      @relation(fields: [tenantId], references: [id])
+  sens     SensFacture
+
+  /// N° DE SÉRIE · art. 100, troisième groupe. Unique par dossier ET par sens :
+  /// la numérotation des factures reçues est celle des fournisseurs, elle n'a
+  /// aucune raison de ne pas croiser la nôtre.
+  numeroSerie String
+  dateFacture DateTime
+
+  tiersId String?
+  tiers   Tiers?  @relation(fields: [tiersId], references: [id])
+
+  /// IDENTITÉS RECOPIÉES, ET NON LUES DU TIERS AU MOMENT DE L'ÉDITION. Une
+  /// facture est un document daté : le nom et le numéro impôt qui y figurent
+  /// sont ceux du jour où elle a été établie. Les relire sur la fiche du tiers
+  /// ferait changer rétroactivement une pièce justificative dès qu'un
+  /// fournisseur déménage ou obtient son numéro impôt, et l'état détaillé
+  /// déclaré l'an dernier ne se reconstituerait plus à l'identique.
+  emetteurNom             String
+  emetteurNumeroImpot     String?
+  contrepartieNom         String
+  contrepartieNumeroImpot String?
+
+  /// Décret n° 011/42, art. 60 · « la mention "Autorisation d'acquitter la TVA
+  /// d'après les débits" doit figurer sur TOUTES les factures du prestataire ou
+  /// entrepreneur autorisé ». Le drapeau existe déjà sur `Tiers`, mais c'est
+  /// sur la FACTURE que la mention se lit : recopiée ici pour la même raison
+  /// que les identités.
+  mentionTvaDebits Boolean @default(false)
+
+  /// L'écriture qui porte l'opération au grand livre · optionnelle, parce
+  /// qu'une facture peut être saisie avant d'être comptabilisée, jamais
+  /// dupliquée. Un pour un : deux factures ne partagent pas une écriture.
+  ecritureId String?   @unique
+  ecriture   Ecriture? @relation(fields: [ecritureId], references: [id])
+
+  lignes    LigneFacture[]
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@unique([tenantId, sens, numeroSerie])
+  /// L'état détaillé interroge un MOIS de factures d'achat.
+  @@index([tenantId, sens, dateFacture])
+  @@map("factures")
+}
+
+model LigneFacture {
+  id        String  @id @default(uuid())
+  factureId String
+  facture   Facture @relation(fields: [factureId], references: [id], onDelete: Cascade)
+  ordre     Int
+
+  designation  String
+  quantite     Decimal @db.Decimal(18, 4)
+  prixUnitaire Decimal @db.Decimal(18, 2)
+  /// Le montant HT tel qu'il FIGURE sur la facture, et non quantité × prix
+  /// unitaire recalculé. Une remise de ligne, un arrondi du fournisseur ou une
+  /// facture reçue en dollars recalculée au cours du jour font diverger les
+  /// deux, et c'est le document qui fait foi pour l'art. 134.
+  montantHT    Decimal @db.Decimal(18, 2)
+
+  /// La distinction que l'art. 100 exige explicitement (« distinction sommes
+  /// imposables / non imposables justifiées »). Booléen, jamais déduit d'un
+  /// taux nul : une opération exonérée et une opération au taux zéro (art. 24,
+  /// exportations) sont deux choses différentes.
+  imposable Boolean @default(true)
+
+  tauxTvaId    String?
+  tauxTva      TauxTva? @relation(fields: [tauxTvaId], references: [id])
+  /// Taux recopié au moment de l'établissement · un taux légal change, la
+  /// facture déjà émise non.
+  tauxApplique Decimal? @db.Decimal(5, 2)
+  montantTva   Decimal  @default(0) @db.Decimal(18, 2)
+
+  @@unique([factureId, ordre])
+  @@map("lignes_facture")
 }

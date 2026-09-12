@@ -49,6 +49,7 @@ export const BORNES_PORTEES: Readonly<Record<string, readonly string[]>> = {
   ExecutionEngagement: ['engagement'],
   LigneAffectation: ['affectation'],
   LigneEcriture: ['ecriture'],
+  LigneFacture: ['facture'],
   LigneModeleSaisie: ['modele'],
   RapportBailleur: ['convention'],
   ReclassementImmobilisation: ['immobilisation'],

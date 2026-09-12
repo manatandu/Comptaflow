@@ -23,6 +23,7 @@ const JustificatifSoldePage = lazy(() => import('../pages/JustificatifSoldePage'
 const EvolutionSoldesPage = lazy(() => import('../pages/EvolutionSoldesPage').then((m) => ({ default: m.EvolutionSoldesPage })));
 const PalmaresJournauxPage = lazy(() => import('../pages/PalmaresJournauxPage').then((m) => ({ default: m.PalmaresJournauxPage })));
 const MandatAuditeurPage = lazy(() => import('../pages/MandatAuditeurPage').then((m) => ({ default: m.MandatAuditeurPage })));
+const FacturationPage = lazy(() => import('../pages/FacturationPage').then((m) => ({ default: m.FacturationPage })));
 const AccordCadrePage = lazy(() => import('../pages/AccordCadrePage').then((m) => ({ default: m.AccordCadrePage })));
 const ConstitutionPage = lazy(() => import('../pages/ConstitutionPage').then((m) => ({ default: m.ConstitutionPage })));
 const TableauxImmobilisationsPage = lazy(() => import('../pages/TableauxImmobilisationsPage').then((m) => ({ default: m.TableauxImmobilisationsPage })));
@@ -202,6 +203,18 @@ export const FENETRES: DefinitionFenetre[] = [
     titre: 'Mandat du contrôleur des comptes',
     titreCourt: 'Mandat',
     rendre: () => <MandatAuditeurPage />,
+  },
+  {
+    motif: /^\/facturation$/,
+    titre: 'Facturation',
+    titreCourt: 'Factures',
+    // AUCUN `referentielsApplicables` · l'obligation de facturer vient de la
+    // loi de procédures fiscales (art. 23), qui vise des redevables d'impôts,
+    // pas les tenants d'un référentiel comptable. Une ASBL assujettie à la TVA
+    // sur une activité accessoire y est tenue comme une société commerciale,
+    // et lui fermer la fenêtre lui retirerait l'état détaillé dont sa
+    // déduction dépend. Le contrôleur serveur est ouvert de la même façon.
+    rendre: () => <FacturationPage />,
   },
   {
     motif: /^\/accord-cadre$/,

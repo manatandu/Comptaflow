@@ -20,6 +20,7 @@ export const MODELES_CLOISONNES = new Set<string>([
   'EvenementAudit',
   'Exercice',
   'Exoneration',
+  'Facture',
   'CampagneInventaire',
   'SousCommissionInventaire',
   'MembreSousCommission',
@@ -94,6 +95,10 @@ export const MODELES_PORTES_PAR_LEUR_PARENT = new Set<string>([
   // ouvrirait la porte à un rattachement dont la tête et la ligne
   // désigneraient deux dossiers différents.
   'ExecutionEngagement',
+  // Portée par sa facture · l'état détaillé ne l'atteint jamais qu'après avoir
+  // borné la facture au dossier, et le rattachement est en cascade (supprimer
+  // la facture supprime ses lignes).
+  'LigneFacture',
   'LigneAffectation',
   'LigneEcriture',
   // Portés par leur convention de financement · le service ne les atteint

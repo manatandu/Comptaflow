@@ -246,6 +246,13 @@ export function AppShell() {
       titre: 'Traitement',
       items: [
         { label: 'Saisie des journaux', onClick: () => navigate('/saisie') },
+        // La facture PRÉCÈDE l'écriture · elle est la pièce que la loi de
+        // procédures fiscales exige pour chaque transaction (art. 23), et
+        // c'est l'écriture qui la comptabilise, jamais l'inverse. Rangée
+        // ici plutôt que sous « État » : ce n'est pas une restitution, c'est
+        // un travail de tenue. Ouverte aux deux référentiels · l'obligation
+        // vise des redevables d'impôts, pas un référentiel comptable.
+        { label: 'Facturation', onClick: () => navigate('/facturation') },
         // La fenêtre s'ouvre directement, son sélecteur intégré désigne le
         // compte · passer par le plan comptable était un détour trompeur
         // (le menu « Lettrage » ouvrait une autre fenêtre que celle annoncée).

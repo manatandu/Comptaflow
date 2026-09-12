@@ -1985,6 +1985,98 @@ vivent dans le module `accord-cadre`, et l'étape correspondante y renvoie. Deux
 listes divergentes de la même règle, le dossier a déjà payé pour savoir ce que
 ça coûte.
 
+**Facturation · la pièce que la loi exige pour chaque transaction, et qui
+n'existait pas.** Une vente n'était qu'une écriture, et sa seule trace de
+facture était `Ecriture.reference`, chaîne libre. La loi de procédures fiscales
+art. 23 (modifié par la loi n° 23/052) veut au contraire, « POUR CHAQUE
+TRANSACTION EFFECTUÉE », une facture « dont les mentions sont déterminées par
+voie réglementaire ».
+
+LA PREMIÈRE CHOSE QUE LA FENÊTRE DIT EST CE QU'ELLE N'EST PAS. L'art. 58 de
+l'O.-L. n° 10/001 veut une facture NORMALISÉE « produite par les dispositifs
+électroniques fiscaux », et l'art. 59 quater exige qu'un « système de
+facturation propre » soit HOMOLOGUÉ avant toute utilisation. OmegaX ne l'est
+pas, et aucune source lue ne décrit la procédure, renvoyée aux spécifications
+de l'Administration. Imprimer une pièce d'allure officielle sans le dire ferait
+croire à un cabinet qu'il est en règle · c'est le § 10 bis dans son sens le
+plus coûteux. Le module tient donc la facture comme PIÈCE JUSTIFICATIVE
+(AUDCIF art. 17, dix ans) et comme source de l'état détaillé, ce qui ne demande
+aucune homologation, et il le porte en tête de l'écran.
+
+LES NEUF GROUPES DE L'ART. 100 du décret n° 011/42 sont transcrits dans l'ordre
+du texte, et leur nombre est EN DUR. TROIS d'entre eux ne se lisent que sur des
+LIGNES (désignation et quantité ; prix unitaire et global ; taux et montant de
+TVA), et trois autres en dépendent : une pièce sans lignes manque SIX groupes
+sur neuf. C'était exactement l'état de chaque vente d'OmegaX, et rien ne le
+disait.
+
+LE TOTAL DE L'AMENDE NE SE CALCULE PAS. L'art. 97 bis punit « 750.000 FC
+(personnes morales) ; 250.000 FC (personnes physiques), PAR OMISSION » sans
+définir l'unité de l'omission · le groupe de l'art. 100, ou chacun de ses
+éléments. Multiplier neuf par 750.000 afficherait un barème que personne n'a
+écrit. Le module rend le montant UNITAIRE avec sa source, la réserve TOUJOURS,
+et un test relit la source pour y interdire la multiplication.
+
+L'ÉTAT DÉTAILLÉ EST LE VRAI ENJEU. L'art. 56 en fait la CONDITION du droit à
+déduction : « le défaut de production entraîne la RÉINTÉGRATION D'OFFICE des
+déductions opérées, après mise en demeure non suivie de régularisation dans les
+cinq jours ». Le module de TVA calculait donc, depuis toujours, un montant
+déductible exact dont il ne détenait aucune des pièces justificatives, et il
+n'en disait pas un mot. Le contenu de l'art. 134 se lit ligne à ligne (« nature
+et désignation », « quantité », « prix HT ») · rien de tout cela n'existait
+nulle part.
+
+QUATRE DÉCISIONS DE LECTURE, chacune fausse si on l'oublie. L'état ne lit que
+les factures d'ACHAT · y mêler les ventes ferait lire à l'Administration une
+déduction jamais demandée. Sur un achat, le FOURNISSEUR est l'ÉMETTEUR et non
+la contrepartie, qui est le dossier lui-même · l'inverser ferait nommer le
+dossier comme son propre fournisseur, sur un état qui boucle parfaitement. Une
+ligne incomplète est SIGNALÉE et jamais écartée · l'écarter produirait un état
+d'apparence complète, ce que l'Administration refuse précisément. Et le VOLET
+IMPORTATIONS n'est PAS couvert : il demande le numéro, la date et le montant de
+la déclaration de mise à la consommation et la valeur en douane, qu'OmegaX ne
+tient nulle part · lacune DÉCLARÉE sur l'état lui-même, jamais comblée par une
+valeur déduite d'un compte d'achat.
+
+AUCUN CLOISONNEMENT PAR RÉFÉRENTIEL, et ce n'est pas un oubli de la § 6.
+L'art. 23 vise « les redevables de l'Impôt sur les Sociétés et de la Taxe sur
+la Valeur Ajoutée ainsi que, le cas échéant, ceux de l'Impôt sur le Revenu des
+Personnes Physiques », pas les tenants d'un référentiel comptable. Une ASBL
+assujettie à la TVA sur une activité accessoire y est tenue comme une SARL, et
+lui fermer la fenêtre lui retirerait l'état détaillé dont sa déduction dépend.
+C'est donc le premier morceau de gestion commerciale à être COMMUN, alors que
+le § 8.4 du plan annonçait la gestion commerciale comme propre au SYSCOHADA ·
+le § 8.4 parlait du DEVIS et de la COMMANDE, qui le sont ; la facture est une
+obligation fiscale des deux.
+
+LES IDENTITÉS SONT RECOPIÉES SUR LA FACTURE, jamais relues sur la fiche du
+tiers. Une facture est un document daté : le nom et le numéro impôt qui y
+figurent sont ceux du jour où elle a été établie. Les relire ferait changer
+rétroactivement une pièce justificative dès qu'un fournisseur déménage ou
+obtient son numéro impôt, et l'état détaillé déclaré l'an dernier ne se
+reconstituerait plus à l'identique. Même raison pour la mention « autorisation
+d'acquitter la TVA d'après les débits » (décret art. 60), qui se lit sur la
+facture et non sur le tiers.
+
+LE MONTANT HT EST CELUI QUI FIGURE SUR LA PIÈCE, pas quantité × prix unitaire
+recalculé · une remise de ligne, un arrondi du fournisseur ou une facture reçue
+en devise recalculée au cours du jour font diverger les deux, et c'est le
+document qui fait foi. Et `imposable` est un BOOLÉEN, jamais déduit d'un taux
+nul : une opération exonérée et une opération au taux zéro (art. 24,
+exportations) sont deux choses différentes, et l'art. 100 exige justement de
+les distinguer.
+
+AUCUNE COMPTABILITÉ PARALLÈLE · règle de revue de la § 7 du plan de
+construction. La facture ne porte aucun montant au grand livre : elle POINTE
+vers l'écriture passée par `EcritureService`, un pour un, et c'est l'écriture
+qui fait foi.
+
+ET LE TEST QUI COMPTE N'EST PAS DANS CE MODULE. `graphe-applicatif.spec.ts` a
+refusé le premier jet parce que `FacturationModule` n'importait pas
+`LicenceModule` : le `LicenceGuard` de son contrôleur ne se résolvait pas.
+Compilation propre, 3 397 tests verts, et un serveur qui n'aurait pas démarré ·
+exactement la panne du 2026-09-02 que ce test existe pour attraper.
+
 ### Migrations écrites à la main
 
 Une migration écrite à la main peut DIVERGER du schéma sans que rien ne le

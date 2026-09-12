@@ -460,6 +460,35 @@ Avertissement du §3.6 à ne pas perdre : le multi-classification se pose à la
 CONCEPTION. `Compte`, `Journal` et `Immobilisation` sont tous
 mono-classification, et la migration renchérit chaque mois.
 
+**I1 · La facture est livrée le 2026-09-12** · modèles `Facture` et
+`LigneFacture`, migration `20260925000000_facturation`, module
+`src/modules/facturation/` (les neuf groupes de mentions de l'art. 100 du
+décret n° 011/42, l'état détaillé de l'art. 56 qui conditionne le droit à
+déduction, et le refus d'appeler « normalisée » une pièce qu'aucune
+homologation de l'art. 59 quater ne couvre), fenêtre Facturation sous
+Traitement, 25 tests.
+
+Trois constats de ce premier pas dans la Phase I, à ne pas perdre pour la
+suite.
+
+- **Le §8.4 se trompait de périmètre sur la facture.** Il annonce la gestion
+  commerciale comme propre au SYSCOHADA · c'est vrai du devis et de la commande
+  client, faux de la facture, dont l'obligation vient de la loi de procédures
+  fiscales et vise des redevables d'impôts, pas des tenants d'un référentiel.
+  Le module est donc COMMUN, et c'est le premier de ce bloc à l'être.
+- **Le module de TVA calculait un droit dont il ne tenait aucune pièce.** La
+  déduction est conditionnée par un état détaillé (art. 56), dont le défaut
+  entraîne la réintégration d'office après cinq jours. Ce n'était pas un
+  manque de confort, c'était la condition qui manquait.
+- **L'homologation de l'art. 59 quater est une décision qui n'appartient pas
+  au logiciel**, et elle rejoint la liste ci-dessous : un système de
+  facturation propre doit être homologué avant toute utilisation, et aucune
+  source lue ne décrit la procédure. Tant que Manasse ne l'a pas engagée,
+  OmegaX ne produit pas de facture normalisée, et l'écran le dit.
+
+Reste de la Phase I : devis et commande client (eux, propres au SYSCOHADA) ·
+stocks · paie · OHADA vers IFRS · consolidation · RBAC fin.
+
 ---
 
 ## Décisions qui n'appartiennent pas au logiciel
@@ -481,6 +510,14 @@ Aucun développement ne les débloque.
   faire qualifier par un juriste congolais avant tout usage.
 - **Formulaire de déclaration DGI** · l'impôt est calculé, l'imprimé se
   remplit à la main faute d'en détenir le modèle.
+- **Homologation du système de facturation** · O.-L. n° 10/001, art. 59 quater
+  et 59 ter. Les assujettis doivent s'enregistrer comme utilisateurs des
+  dispositifs électroniques fiscaux, et « les systèmes de facturation propres
+  doivent respecter les spécifications techniques et être homologués avant
+  toute utilisation ». Aucune source lue ne décrit la procédure ni les
+  spécifications, renvoyées à l'Administration. Tant qu'elle n'est pas
+  engagée, la fenêtre Facturation tient une pièce justificative et l'état
+  détaillé, pas une facture normalisée.
 - **Forfait micro-entreprise** · la circulaire de change n'est pas connue, la
   branche renvoie `null`.
 - **Tenue en devise étrangère** · le logiciel laisse ouvrir un dossier en USD
