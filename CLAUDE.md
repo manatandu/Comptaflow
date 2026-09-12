@@ -1765,6 +1765,70 @@ périmètre. Aucun de ces trois ne se déduit d'une date. Seule la DURÉE est
 mécanique, et `CodeNonComparabilite` est une union fermée pour qu'un quatrième
 motif oblige quelqu'un à décider comment il se constate.
 
+**Mandat du contrôleur des comptes · le contrôle réclamait une vérification que
+le logiciel rendait impossible.** `regles-auditeur.ts` sait depuis longtemps QUI
+doit désigner un contrôleur, et le contrôle 6 disait au cabinet, en toutes
+lettres, « Vérifiez que le mandat est en cours ». Aucune table ne le détenait.
+Même forme que `Tenant.longueurCompte`, qui promettait une méthode inexistante :
+une exigence qu'on ne peut pas satisfaire est une exigence qui apprend à être
+ignorée.
+
+TROIS DURÉES, ET ELLES NE SE SERVENT JAMAIS L'UNE POUR L'AUTRE. SYCEBNL art. 21
+· « L'auditeur est nommé pour TROIS (3) exercices RENOUVELABLES UNE FOIS ».
+AUSCGIE art. 704, société anonyme · DEUX exercices quand le commissaire est
+désigné dans les statuts ou par l'assemblée constitutive, SIX quand il l'est par
+l'assemblée générale ordinaire · la durée dépend donc de l'ORGANE, pas seulement
+de la forme, et la déduire de la forme seule donnerait un mandat trois fois trop
+long ou trois fois trop court. AUSCGIE art. 379, SARL · TROIS exercices.
+
+LE PIÈGE EST LE « TROIS », neuvième occurrence de « un nombre, deux sens » après
+le 192, le 4181, le 1061/1062, le 38/37, le 397, l'article 11 et le taux de TVA
+de la grille. Le trois du SYCEBNL est renouvelable UNE FOIS et pas davantage ;
+celui de l'art. 379 n'est assorti d'AUCUNE limite de renouvellement. Appliquer
+la limite du SYCEBNL à une SARL inventerait une interdiction (§ 10 bis) ; ne pas
+l'appliquer à une association laisserait passer un troisième mandat que le texte
+refuse. Même partage pour la réduction « si l'entité a une existence inférieure
+à trois exercices » · elle est PROPRE au SYCEBNL, et la transposer raccourcirait
+un mandat que l'AUSCGIE ne raccourcit pas.
+
+LE VRAI PIÈGE DU CHANTIER EST L'ARTICLE 22, ET IL VA DANS LE SENS INVERSE DE
+L'INTUITION. Un mandat dont le dernier exercice est passé n'est PAS un trou :
+« si l'assemblée […] ne procède pas au renouvellement du mandat de l'auditeur ou
+à son remplacement à l'expiration de son mandat, la mission de l'auditeur est
+PROROGÉE, sauf refus exprès de sa part », jusqu'à la prochaine assemblée statuant
+sur les comptes. Crier « mandat expiré » serait un signalement faux : l'entité a
+un contrôleur, et le cabinet corrigerait un manquement inexistant. D'où
+`MANDAT_AUDITEUR_PROROGE` en gravité INFORMATION, et
+`MANDAT_AUDITEUR_SANS_PROROGATION` en AVERTISSEMENT sur le SEUL fait que
+l'article oppose à la prorogation · le refus exprès du contrôleur.
+
+L'INSCRIPTION AU TABLEAU DE L'ORDRE EST EXIGÉE ET JAMAIS VÉRIFIÉE. L'art. 20
+veut un expert-comptable « inscrit au tableau de l'ordre […] ou de l'organe qui
+en tient lieu » (l'ONEC en RDC) ; OmegaX ne consulte aucun tableau. Il conserve
+la référence parce que c'est elle qu'un réviseur demandera, et le message le DIT
+plutôt que de laisser croire à une vérification · même parti que la source d'un
+relevé d'unités d'œuvre.
+
+CE QUE LE MODULE NE SAIT PAS EST DÉCLARÉ ABSENT. La SAS (art. 853-13), la SNC
+(art. 289-1), la commandite simple, le GIE, la coopérative et l'entreprenant
+n'ont dans les textes lus AUCUNE durée de mandat chiffrée · `dureeMandat` rend
+alors `null`, la durée se saisit, et aucun refus n'est opposé. Une règle absente
+n'est jamais remplacée par la plus proche.
+
+ET LA FENÊTRE A CHANGÉ DE MENU PARCE QU'UN TEST L'A REFUSÉE. Placée sous
+« État > Contrôle et révision », elle faisait tomber le plafond de
+`chrome-etroit.spec.ts` (seize lignes à 360 px), dont le commentaire interdit
+justement de relever le chiffre d'un cran. Le refus avait raison sur le FOND :
+les registres de ce groupe sont ce que le CABINET produit en révisant, alors que
+le mandat est ce que l'ENTITÉ a fait devant son assemblée, au même titre que sa
+forme juridique. La fenêtre vit sous « Structure », à côté des paramètres du
+dossier. Un plafond qui fait relire la place d'une fenêtre au lieu de se faire
+relever est un plafond qui a servi.
+
+Dix-huit doublures Prisma ont été complétées, jamais contournées · le contrôle 28
+lit une table réelle, et une doublure muette dessus validerait un service qui
+n'existe pas.
+
 ### Migrations écrites à la main
 
 Une migration écrite à la main peut DIVERGER du schéma sans que rien ne le

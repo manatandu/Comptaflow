@@ -203,6 +203,14 @@ describe('menu « État » à 360 px', () => {
     // comptes » cette fois : le palmarès et l'analyse des journaux, deux états
     // de relecture réunis dans une seule fenêtre à onglets · les compter pour
     // une entrée est ce qui garde le menu sous son plafond.
+    //
+    // Le 2026-09-12, une NEUVIÈME entrée a été refusée par ce test et s'est
+    // révélée mal placée : le mandat du contrôleur des comptes est parti sous
+    // « Structure », à côté des paramètres du dossier. Les registres de
+    // « Contrôle et révision » sont ce que le CABINET produit en révisant ; le
+    // mandat est ce que l'ENTITÉ a fait devant son assemblée. Le plafond a
+    // donc servi à ce pour quoi il existe · faire relire la place d'une
+    // fenêtre, et non se faire relever d'un cran.
     const tous = [...source.matchAll(/label: '([^']+)'/g)].map((m) => m[1]);
     expect(tous).toHaveLength(30);
     expect([...vues].sort()).toEqual([...tous].sort());

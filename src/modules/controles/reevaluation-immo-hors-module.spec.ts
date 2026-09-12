@@ -57,6 +57,10 @@ function service(
     // Dossiers de subvention · vides ici, ces specs ne les testent pas. Sans
     // cette doublure, le contrôle 24 tomberait sur undefined.
     conventionFinancement: { findMany: jest.fn().mockResolvedValue([]) },
+    // Mandat du contrôleur des comptes · contrôle 28. Vide ici, ces specs ne
+    // le testent pas ; une doublure muette sur une lecture réelle validerait
+    // un service qui n'existe pas.
+    mandatAuditeur: { findMany: jest.fn().mockResolvedValue([]) },
     // Le contrôle 15 retranche du solde des comptes 29 ce que le module
     // d'immobilisations y a lui-même posté · sans ce faux, il croirait la
     // table absente.

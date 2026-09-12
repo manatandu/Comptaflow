@@ -558,6 +558,7 @@ model Tenant {
   pvComptageCaisse          ProcesVerbalComptageCaisse[]
   coupuresComptees          CoupureComptee[]
   evenementsAudit           EvenementAudit[]
+  mandatsAuditeur           MandatAuditeur[]
 
   @@index([dossierMereId])
   @@map("tenants")
@@ -4939,4 +4940,93 @@ model CoupureComptee {
 
   @@index([tenantId, pvId])
   @@map("coupures_comptees")
+}
+
+/// ORGANE QUI A DÉSIGNÉ LE CONTRÔLEUR DES COMPTES.
+///
+/// Ce n'est pas un ornement : chez la société anonyme, la DURÉE du mandat en
+/// dépend (AUSCGIE art. 704 · deux exercices par les statuts ou l'assemblée
+/// constitutive, six par l'assemblée générale ordinaire). Le déduire de la
+/// forme juridique seule donnerait un mandat trois fois trop long ou trois
+/// fois trop court, sans qu'aucun écran ne le dise.
+enum OrganeDesignationAuditeur {
+  /// AUSCGIE art. 703, premier alinéa · le premier commissaire et son suppléant.
+  STATUTS_OU_AG_CONSTITUTIVE
+  /// AUSCGIE art. 703, second alinéa (SA) · SYCEBNL art. 21, second alinéa (EBNL).
+  ASSEMBLEE_GENERALE_ORDINAIRE
+  /// AUSCGIE art. 379 · la SARL nomme par ses associés représentant plus de la
+  /// moitié du capital.
+  ASSOCIES
+  /// SYCEBNL art. 21, second alinéa · « ou par le bailleur de fonds et/ou
+  /// l'État partie bénéficiaire du Projet de développement ».
+  BAILLEUR_OU_ETAT
+  /// SYCEBNL art. 21, dernier alinéa · à défaut de nomination, « tout membre
+  /// peut demander à la juridiction compétente la désignation d'un auditeur ».
+  JURIDICTION
+}
+
+/// MANDAT DU CONTRÔLEUR DES COMPTES · auditeur au SYCEBNL, commissaire aux
+/// comptes à l'AUSCGIE.
+///
+/// Le logiciel savait dire QUI doit en désigner un (`regles-auditeur.ts`) et
+/// réclamait au cabinet, dans le contrôle 6, de « vérifier que le mandat est
+/// en cours » · sans qu'aucune table ne le détienne. Une exigence qu'on ne
+/// peut pas satisfaire est une exigence qui apprend à être ignorée.
+///
+/// UN MANDAT PAR NOMINATION, JAMAIS UN ÉCRASEMENT · la succession des mandats
+/// EST l'information. Le SYCEBNL borne le renouvellement à une fois (art. 21),
+/// et cette limite ne se vérifie qu'en gardant les mandats antérieurs. Un
+/// modèle à une seule ligne par dossier rendrait la règle invérifiable.
+model MandatAuditeur {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  /// Nom du contrôleur ou de son cabinet.
+  nom String
+
+  /// RÉFÉRENCE D'INSCRIPTION AU TABLEAU DE L'ORDRE · SYCEBNL art. 20,
+  /// « l'auditeur est CHOISI […] parmi les experts-comptables INSCRITS AU
+  /// TABLEAU de l'ordre des experts-comptables ou de l'organe qui en tient lieu
+  /// dans chaque État partie » (l'ONEC en RDC). Le logiciel ne consulte aucun
+  /// tableau et ne vérifie donc rien · il EXIGE la référence, parce que c'est
+  /// elle qu'un réviseur demandera, pas le nom. Même parti que la source d'un
+  /// relevé d'unités d'œuvre.
+  inscriptionOrdre String
+
+  organeDesignation OrganeDesignationAuditeur
+  dateDesignation   DateTime
+
+  /// Premier exercice couvert, par son ANNÉE de clôture. Une année plutôt
+  /// qu'un identifiant d'exercice : un mandat court sur des exercices dont
+  /// certains ne sont pas encore créés dans le dossier.
+  premierExercice Int
+  /// Nombre d'exercices du mandat. Proposé par `dureeMandat()` selon le
+  /// référentiel, la forme juridique et l'organe, jamais imposé · pour les
+  /// formes dont aucun texte lu ne fixe la durée, c'est la seule source.
+  nombreExercices Int
+
+  /// Rang du mandat pour ce contrôleur · 1 pour la nomination initiale, 2 pour
+  /// le renouvellement. Le SYCEBNL s'arrête là (art. 21).
+  rang Int @default(1)
+
+  /// PROROGATION DE PLEIN DROIT · SYCEBNL art. 22, « si l'assemblée […] ne
+  /// procède pas au renouvellement du mandat de l'auditeur ou à son
+  /// remplacement à l'expiration de son mandat, la mission de l'auditeur est
+  /// PROROGÉE, sauf refus exprès de sa part ». Un mandat échu n'est donc pas un
+  /// trou : il se prolonge tout seul jusqu'à la prochaine assemblée statuant
+  /// sur les comptes. Le champ enregistre le refus exprès, qui est le seul fait
+  /// capable d'interrompre cette prorogation.
+  refusDeProrogation Boolean @default(false)
+
+  /// Fin anticipée (démission, révocation, remplacement) et son motif. Nulles
+  /// tant que le mandat suit son cours.
+  finAnticipeeLe DateTime?
+  motifFin       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId, premierExercice])
+  @@map("mandats_auditeur")
 }

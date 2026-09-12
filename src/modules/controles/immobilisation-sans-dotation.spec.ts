@@ -57,6 +57,10 @@ function service(immobilisations: Immo[]) {
     // Dossiers de subvention · vides ici, ces specs ne les testent pas. Sans
     // cette doublure, le contrôle 24 tomberait sur undefined.
     conventionFinancement: { findMany: jest.fn().mockResolvedValue([]) },
+    // Mandat du contrôleur des comptes · contrôle 28. Vide ici, ces specs ne
+    // le testent pas ; une doublure muette sur une lecture réelle validerait
+    // un service qui n'existe pas.
+    mandatAuditeur: { findMany: jest.fn().mockResolvedValue([]) },
     // Le contrôle 12 (bien repris sans amortissement antérieur) interroge la
     // même table · il filtre sur dateMiseEnService < ouverture du dossier, que
     // ce faux ignore. Ses signalements éventuels ne gênent pas : on ne lit ici

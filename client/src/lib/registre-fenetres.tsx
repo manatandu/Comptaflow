@@ -22,6 +22,7 @@ const BalanceAuxiliairePage = lazy(() => import('../pages/BalanceAuxiliairePage'
 const JustificatifSoldePage = lazy(() => import('../pages/JustificatifSoldePage').then((m) => ({ default: m.JustificatifSoldePage })));
 const EvolutionSoldesPage = lazy(() => import('../pages/EvolutionSoldesPage').then((m) => ({ default: m.EvolutionSoldesPage })));
 const PalmaresJournauxPage = lazy(() => import('../pages/PalmaresJournauxPage').then((m) => ({ default: m.PalmaresJournauxPage })));
+const MandatAuditeurPage = lazy(() => import('../pages/MandatAuditeurPage').then((m) => ({ default: m.MandatAuditeurPage })));
 const TableauxImmobilisationsPage = lazy(() => import('../pages/TableauxImmobilisationsPage').then((m) => ({ default: m.TableauxImmobilisationsPage })));
 const EcheancierPage = lazy(() => import('../pages/EcheancierPage').then((m) => ({ default: m.EcheancierPage })));
 const LettragePage = lazy(() => import('../pages/LettragePage').then((m) => ({ default: m.LettragePage })));
@@ -193,6 +194,12 @@ export const FENETRES: DefinitionFenetre[] = [
     titre: 'Palmarès et analyse des journaux',
     titreCourt: 'Palmarès',
     rendre: () => <PalmaresJournauxPage />,
+  },
+  {
+    motif: /^\/mandat-auditeur$/,
+    titre: 'Mandat du contrôleur des comptes',
+    titreCourt: 'Mandat',
+    rendre: () => <MandatAuditeurPage />,
   },
   {
     motif: /^\/tableaux-immobilisations$/,

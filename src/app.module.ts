@@ -41,6 +41,7 @@ import { ExonerationsModule } from './modules/exonerations/exonerations.module';
 import { InventaireModule } from './modules/inventaire/inventaire.module';
 import { CircularisationModule } from './modules/circularisation/circularisation.module';
 import { FaiblessesModule } from './modules/faiblesses/faiblesses.module';
+import { MandatAuditeurModule } from './modules/mandat-auditeur/mandat-auditeur.module';
 import { QuestionnaireModule } from './modules/questionnaire/questionnaire.module';
 import { MonnaieFonctionnelleModule } from './modules/monnaie-fonctionnelle/monnaie-fonctionnelle.module';
 import { ProvisionsModule } from './modules/provisions/provisions.module';
@@ -99,6 +100,7 @@ import { CourrierModule } from './modules/courrier/courrier.module';
     InventaireModule,
     CircularisationModule,
     FaiblessesModule,
+    MandatAuditeurModule,
     QuestionnaireModule,
     MonnaieFonctionnelleModule,
     ProvisionsModule,

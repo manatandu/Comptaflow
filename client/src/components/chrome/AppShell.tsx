@@ -217,6 +217,16 @@ export function AppShell() {
         // de trésorerie), qui commandent toute la liasse · ils ont leur place
         // dans Structure, avec les autres éléments qui structurent le dossier.
         { label: 'Paramètres du dossier', separateurAvant: true, onClick: () => navigate('/parametres-dossier') },
+        // LE MANDAT EST UN FAIT JURIDIQUE DU DOSSIER, PAS UN TRAVAIL DE
+        // RÉVISION. Il a d'abord été posé sous « État > Contrôle et révision »,
+        // où le test du chrome à 360 px l'a refusé · et ce refus avait raison
+        // sur le fond, pas seulement sur la place. Les registres de ce groupe
+        // sont ce que le CABINET produit en révisant ; le mandat est ce que
+        // l'ENTITÉ a fait devant son assemblée, au même titre que sa forme
+        // juridique ou son référentiel. Ouvert aux deux référentiels · le
+        // SYCEBNL (art. 19 à 22) comme l'AUSCGIE (art. 379, 702 à 705)
+        // imposent un contrôleur au-delà de leurs seuils, chacun par son texte.
+        { label: 'Mandat du contrôleur des comptes', onClick: () => navigate('/mandat-auditeur') },
       ],
     },
     {

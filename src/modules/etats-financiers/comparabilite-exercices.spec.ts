@@ -135,6 +135,10 @@ function serviceControles(referentiel: Referentiel, precedent: { dateDebut: stri
     exoneration: { findMany: jest.fn().mockResolvedValue([]) },
     manuelProcedures: { findFirst: jest.fn().mockResolvedValue(null) },
     conventionFinancement: { findMany: jest.fn().mockResolvedValue([]) },
+    // Mandat du contrôleur des comptes · contrôle 28. Vide ici, ces specs ne
+    // le testent pas ; une doublure muette sur une lecture réelle validerait
+    // un service qui n'existe pas.
+    mandatAuditeur: { findMany: jest.fn().mockResolvedValue([]) },
     immobilisation: { findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0) },
   } as Faux;
   return new ControlesService(prisma as unknown as PrismaService);

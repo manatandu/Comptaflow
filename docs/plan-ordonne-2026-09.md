@@ -400,6 +400,12 @@ compte à rebours juste à côté. S'y ajoutent le mandat de l'auditeur (D3),
 l'accord-cadre Ministère du Plan, la checklist de constitution E2, et
 l'échéancier fiscal qui n'atteint jamais le tableau de bord.
 
+**Le mandat de l'auditeur (D3) est livré le 2026-09-12** · modèle
+`MandatAuditeur`, règle `dureeMandat` (trois durées selon le texte et l'organe),
+contrôles `AUDITEUR_OBLIGATOIRE_SANS_MANDAT`, `MANDAT_AUDITEUR_PROROGE` et
+`MANDAT_AUDITEUR_SANS_PROROGATION`. Restent l'accord-cadre Ministère du Plan, la
+checklist de constitution E2 et l'échéancier fiscal au tableau de bord.
+
 ## Phase H · Confort et restitution
 
 Modèle et effort : **Opus 5, `high`** · frontend et wiring, motif établi.

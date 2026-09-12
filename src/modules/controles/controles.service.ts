@@ -17,6 +17,7 @@ import { regleAuditeur, type RegleAuditeur } from './regles-auditeur';
 import { sourceManuel } from '../documents-obligatoires/manuel-procedures.service';
 import { PREFIXES_CHIFFRE_AFFAIRES_SYSCOHADA } from '../etats-financiers-syscohada/correspondance-compte-resultat-syscohada';
 import { evaluerComparabilite } from '../etats-financiers/comparabilite-exercices';
+import { dernierExerciceCouvert } from '../mandat-auditeur/duree-mandat';
 
 /**
  * SEUILS DE DÉSIGNATION DU CONTRÔLEUR DES COMPTES · ils ne sont PLUS ici.
@@ -2721,6 +2722,100 @@ export class ControlesService {
           date: ex.dateFin.toISOString().slice(0, 10),
         })),
       });
+    }
+
+    // --- 28. Le mandat du contrôleur des comptes -----------------------------
+    //
+    // Le contrôle 6 réclamait déjà de « vérifier que le mandat est en cours »
+    // alors qu'aucune table ne le détenait. Elle existe désormais, et ce
+    // contrôle est la moitié qui manquait.
+    //
+    // LE PIÈGE EST L'ARTICLE 22, ET IL VA DANS LE SENS INVERSE DE L'INTUITION.
+    // Un mandat dont le dernier exercice est passé n'est PAS un trou : « si
+    // l'assemblée […] ne procède pas au renouvellement du mandat de l'auditeur
+    // ou à son remplacement à l'expiration de son mandat, la mission de
+    // l'auditeur est PROROGÉE, sauf refus exprès de sa part », et cette
+    // prorogation court « jusqu'à la plus prochaine assemblée générale […]
+    // statuant sur les comptes ». Crier « mandat expiré » sur cette situation
+    // serait un signalement faux (§ 10 bis) · l'entité a un contrôleur, et le
+    // cabinet corrigerait un manquement qui n'existe pas.
+    //
+    // SEUL LE REFUS EXPRÈS OUVRE LE TROU, parce que c'est le seul fait que
+    // l'article oppose à la prorogation.
+    const mandats = await this.prisma.mandatAuditeur.findMany({
+      where: { tenantId, finAnticipeeLe: null },
+      orderBy: { premierExercice: 'desc' },
+      select: { id: true, nom: true, premierExercice: true, nombreExercices: true, refusDeProrogation: true },
+    });
+    const anneeExercice = ex.dateFin.getUTCFullYear();
+    const couvrant = mandats.find(
+      (m) => m.premierExercice <= anneeExercice && dernierExerciceCouvert(m.premierExercice, m.nombreExercices) >= anneeExercice,
+    );
+    // Le plus récent mandat échu · candidat à la prorogation de l'art. 22.
+    const echu = mandats.find((m) => dernierExerciceCouvert(m.premierExercice, m.nombreExercices) < anneeExercice);
+
+    if (!couvrant && (seuils.franchis.length > 0 || seuils.obligationSansSeuil)) {
+      if (!echu) {
+        anomalies.push({
+          code: 'AUDITEUR_OBLIGATOIRE_SANS_MANDAT',
+          gravite: 'AVERTISSEMENT',
+          libelle: 'Aucun mandat de contrôleur des comptes enregistré',
+          consequence:
+            `${'source' in seuils.regle ? seuils.regle.source : 'Le texte applicable au dossier'} rend la ` +
+            'désignation obligatoire pour ce dossier, et aucun mandat n’est ' +
+            'enregistré dans OmegaX pour l’exercice. Le logiciel ne peut donc dire ni qui contrôle les comptes, ' +
+            'ni depuis quand, ni jusqu’à quel exercice.',
+          action:
+            'Enregistrez le mandat dans la fenêtre Mandat du contrôleur des comptes · nom, référence ' +
+            'd’inscription au tableau de l’ordre, organe qui a désigné, date et premier exercice couvert.',
+          occurrences: [
+            { reference: `Exercice ${anneeExercice}`, detail: 'Aucun mandat ne couvre cet exercice' },
+          ],
+        });
+      } else if (echu.refusDeProrogation) {
+        // Le contrôleur a refusé de poursuivre · la prorogation de plein droit
+        // ne joue pas, et l'entité est réellement sans contrôleur.
+        anomalies.push({
+          code: 'MANDAT_AUDITEUR_SANS_PROROGATION',
+          gravite: 'AVERTISSEMENT',
+          libelle: 'Mandat échu et prorogation refusée par le contrôleur',
+          consequence:
+            'Le mandat est arrivé à son terme et le contrôleur a opposé le refus exprès que prévoit le ' +
+            'SYCEBNL art. 22. La prorogation de plein droit ne joue donc pas · l’entité est sans contrôleur ' +
+            'des comptes alors que le texte lui en impose un.',
+          action: 'Faites désigner un contrôleur par l’assemblée, et enregistrez son mandat.',
+          occurrences: [
+            {
+              reference: echu.nom,
+              detail: `Mandat couvrant jusqu’à l’exercice ${dernierExerciceCouvert(echu.premierExercice, echu.nombreExercices)}, prorogation refusée`,
+            },
+          ],
+        });
+      } else {
+        // INFORMATION, jamais avertissement · aucun texte n'est enfreint. La
+        // mission CONTINUE de plein droit, et le dire est utile ; le reprocher
+        // serait faux.
+        anomalies.push({
+          code: 'MANDAT_AUDITEUR_PROROGE',
+          gravite: 'INFORMATION',
+          libelle: 'Mandat échu, prorogé de plein droit',
+          consequence:
+            'SYCEBNL art. 22 · « si l’assemblée […] ne procède pas au renouvellement du mandat de l’auditeur ' +
+            'ou à son remplacement à l’expiration de son mandat, la mission de l’auditeur est PROROGÉE, sauf ' +
+            'refus exprès de sa part », et cette prorogation court « jusqu’à la plus prochaine assemblée ' +
+            'générale […] statuant sur les comptes ». Le contrôleur est donc toujours en fonction · ce n’est ' +
+            'pas un manquement.',
+          action:
+            'Portez à l’ordre du jour de la prochaine assemblée le renouvellement ou le remplacement, puis ' +
+            'enregistrez le nouveau mandat.',
+          occurrences: [
+            {
+              reference: echu.nom,
+              detail: `Mandat couvrant jusqu’à l’exercice ${dernierExerciceCouvert(echu.premierExercice, echu.nombreExercices)}`,
+            },
+          ],
+        });
+      }
     }
 
     const ordre: Record<Gravite, number> = { BLOQUANT: 0, AVERTISSEMENT: 1, INFORMATION: 2 };

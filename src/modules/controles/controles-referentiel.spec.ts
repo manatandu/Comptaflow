@@ -79,6 +79,10 @@ function service(referentiel: Referentiel, ecritures: ReturnType<typeof ecriture
     // Dossiers de subvention · vides ici, ces specs ne les testent pas. Sans
     // cette doublure, le contrôle 24 tomberait sur undefined.
     conventionFinancement: { findMany: jest.fn().mockResolvedValue([]) },
+    // Mandat du contrôleur des comptes · contrôle 28. Vide ici, ces specs ne
+    // le testent pas ; une doublure muette sur une lecture réelle validerait
+    // un service qui n'existe pas.
+    mandatAuditeur: { findMany: jest.fn().mockResolvedValue([]) },
   } as unknown as PrismaService;
   return { svc: new ControlesService(prisma), exoneration };
 }
