@@ -406,6 +406,11 @@ contrôles `AUDITEUR_OBLIGATOIRE_SANS_MANDAT`, `MANDAT_AUDITEUR_PROROGE` et
 `MANDAT_AUDITEUR_SANS_PROROGATION`. Restent l'accord-cadre Ministère du Plan, la
 checklist de constitution E2 et l'échéancier fiscal au tableau de bord.
 
+**L'échéancier fiscal atteint le tableau de bord le 2026-09-12** · panneau
+« Prochaines échéances », règle `echeancesAVenir` (horizon en jours, retard
+constaté en tête, et la distinction déclaration / reversement). Restent
+l'accord-cadre Ministère du Plan et la checklist de constitution E2.
+
 ## Phase H · Confort et restitution
 
 Modèle et effort : **Opus 5, `high`** · frontend et wiring, motif établi.

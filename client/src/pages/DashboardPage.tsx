@@ -4,7 +4,8 @@ import { api } from '../lib/api';
 import { useExercice } from '../lib/exercice';
 import { useAuth } from '../lib/auth';
 import { IconNew } from '../components/chrome/icons';
-import type { Ecriture, LigneBalance } from '../lib/types';
+import type { EcheancierFiscal, Ecriture, LigneBalance } from '../lib/types';
+import { echeancesAVenir } from '../lib/echeances-a-venir';
 
 /**
  * TABLEAU DE BORD · l'esprit « Édition pilotée » de Sage : quelques
@@ -24,6 +25,7 @@ export function DashboardPage() {
   const { utilisateur } = useAuth();
   const [ecritures, setEcritures] = useState<Ecriture[] | null>(null);
   const [balance, setBalance] = useState<LigneBalance[] | null>(null);
+  const [echeancier, setEcheancier] = useState<EcheancierFiscal | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -38,6 +40,18 @@ export function DashboardPage() {
     api.get<{ lignes: LigneBalance[] }>(`/ecritures/balance?exerciceId=${exerciceCourant.id}`).then((r) => {
       if (!annule) setBalance(r.lignes);
     });
+    // L'ÉCHÉANCIER VIENT DU SERVEUR, DATE DE RÉFÉRENCE COMPRISE · les dates
+    // sont calculées là-bas, et deux postes mal réglés afficheraient sinon
+    // deux calendriers différents pour le même dossier. L'échec est absorbé :
+    // le panneau disparaît, le reste du tableau de bord ne dépend pas de lui.
+    api
+      .get<EcheancierFiscal>(`/retenues/echeancier?exerciceId=${exerciceCourant.id}`)
+      .then((r) => {
+        if (!annule) setEcheancier(r);
+      })
+      .catch(() => {
+        if (!annule) setEcheancier(null);
+      });
     return () => {
       annule = true;
     };
@@ -60,6 +74,8 @@ export function DashboardPage() {
     }
     return { tresorerie: tres, produits: prod, charges: chg, resultat: res };
   }, [balance]);
+
+  const aVenir = useMemo(() => (echeancier ? echeancesAVenir(echeancier) : null), [echeancier]);
 
   const indicateurs: Array<{ label: string; valeur: number; note: string; teinte?: 'auto' }> = [
     { label: 'TRÉSORERIE DISPONIBLE', valeur: tresorerie, note: 'classe 5, hors dépréciations (59)' },
@@ -103,6 +119,79 @@ export function DashboardPage() {
           );
         })}
       </div>
+
+      {/*
+        PROCHAINES ÉCHÉANCES · l'échéancier existait, complet et sourcé, mais
+        seulement dans la fenêtre Retenues, c'est-à-dire là où l'on va quand on
+        y pense déjà. Une échéance qu'il faut aller chercher n'avertit personne.
+
+        CE PANNEAU NE DIT JAMAIS « VOUS ÊTES À JOUR ». Une liste vide veut dire
+        « rien dans les trente jours », pas « tout est déposé et payé » · le
+        logiciel n'a aucun moyen de savoir si une déclaration a été déposée, et
+        l'affirmer serait exactement ce qu'un cabinet croirait.
+      */}
+      {aVenir && (
+        <div className="bg-surface border border-border shadow-posee mb-2.5 overflow-x-auto">
+          <div className="px-3.5 py-1.5 bg-surface-alt border-b border-border-dark flex items-center justify-between">
+            <span className="text-[10px] font-bold text-text-dim">
+              PROCHAINES ÉCHÉANCES · {aVenir.horizonJours} JOURS
+            </span>
+            <a href="#/retenues" className="text-[10px] text-sel hover:underline">
+              Ouvrir l'échéancier
+            </a>
+          </div>
+          {aVenir.proches.length === 0 ? (
+            <div className="p-3 text-[10.5px] text-text-dim">
+              Aucune échéance dans les {aVenir.horizonJours} prochains jours. Cela ne veut pas dire que les
+              déclarations antérieures ont été déposées · OmegaX ne détient pas cette information.
+            </div>
+          ) : (
+            aVenir.proches.map((e) => (
+              <div
+                key={e.cle}
+                className="grid grid-cols-[78px_1fr_92px_120px] min-w-[520px] gap-2.5 items-center px-3.5 py-[4px] border-b border-border/50 last:border-b-0 text-[10.5px]"
+              >
+                <span className="font-mono text-[10px] text-text-dim">
+                  {new Date(e.date).toLocaleDateString('fr-FR')}
+                </span>
+                <span className="truncate" title={e.baseLegale}>
+                  {e.libelle}
+                  <span className="ml-1.5 text-[10px] text-text-dim">
+                    {e.genre === 'DECLARATION' ? 'déclaration' : 'reversement'}
+                  </span>
+                </span>
+                <span className="font-mono text-[10px] text-right">
+                  {/* LE RETARD N'EST MONTRÉ QUE S'IL EST CONSTATÉ DANS LES
+                      LIVRES · une somme retenue et non versée. Une déclaration
+                      n'a pas de retard visible d'ici : le serveur ne rend que
+                      sa prochaine occurrence, et rien ne dit si la précédente a
+                      été déposée. */}
+                  {e.retardConstate ? (
+                    <span className="text-danger font-bold">{e.moisEnRetard} mois de retard</span>
+                  ) : e.joursRestants <= 0 ? (
+                    <span className="text-text-dim">aujourd'hui</span>
+                  ) : (
+                    <span className="text-text-dim">dans {e.joursRestants} j</span>
+                  )}
+                </span>
+                <span className="font-mono font-semibold text-right">
+                  {e.genre === 'DECLARATION' ? (
+                    <span className="text-[10px] font-normal text-text-dim">sans montant</span>
+                  ) : (
+                    `${e.montantDu.toLocaleString('fr-FR')} CDF`
+                  )}
+                </span>
+              </div>
+            ))
+          )}
+          {aVenir.auDela > 0 && (
+            <div className="px-3.5 py-1.5 text-[10px] text-text-dim border-t border-border/50">
+              {aVenir.auDela} autre(s) échéance(s) au-delà de {aVenir.horizonJours} jours · elles sont dans la
+              fenêtre Retenues.
+            </div>
+          )}
+        </div>
+      )}
 
       <div
         // `overflow-x-auto` ici, `min-w` sur les lignes · les 382 px de colonnes

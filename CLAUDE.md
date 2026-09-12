@@ -1829,6 +1829,46 @@ Dix-huit doublures Prisma ont été complétées, jamais contournées · le cont
 lit une table réelle, et une doublure muette dessus validerait un service qui
 n'existe pas.
 
+**Échéances fiscales au tableau de bord · l'échéancier n'avertissait que ceux
+qui y pensaient déjà.** Il existe depuis le chantier des retenues, complet et
+sourcé, et il ne vivait que dans la fenêtre Retenues · c'est-à-dire à l'endroit
+où l'on va QUAND ON Y PENSE. Le tableau de bord est le seul écran qu'un cabinet
+ouvre sans avoir de raison particulière, et c'est là qu'une échéance avertit
+quelqu'un.
+
+LA RÈGLE QUI TIENT TOUT LE PANNEAU · UNE DÉCLARATION N'EST JAMAIS EN RETARD
+CONSTATÉ, UN REVERSEMENT L'EST. Aucune comptabilité ne porte le DÉPÔT d'une
+déclaration : le serveur ne rend d'ailleurs que sa PROCHAINE occurrence, jamais
+une occurrence échue. Un reversement, lui, se lit dans les livres · une somme
+retenue au crédit d'un compte et non versée EST un fait comptable, et
+`moisEnRetard` le mesure. Traiter les deux pareil mettrait en rouge une
+obligation peut-être déposée depuis des semaines, et le cabinet corrigerait un
+manquement qui n'existe pas (§ 10 bis).
+
+L'HORIZON EST EN JOURS, PAS EN NOMBRE DE LIGNES. « Les cinq prochaines » masque
+en silence tout ce qui tombe après la cinquième, et rien à l'écran ne le dit. Un
+horizon se DÉCLARE et ce qui le dépasse se COMPTE · « et 2 autres au-delà de
+30 jours » est une phrase vraie. Les trente jours sont une convention de lecture
+d'OmegaX, aucun texte ne les fixe, et le panneau les écrit dans son titre.
+
+UN RETARD CONSTATÉ REMONTE EN TÊTE, quelle que soit sa date · c'est le seul cas
+où une pénalité court DÉJÀ, et le trier par date le ferait disparaître sous des
+échéances qui, elles, ne coûtent encore rien. Il est retenu même hors de
+l'horizon.
+
+ET LE PANNEAU NE DIT JAMAIS « À JOUR ». Une liste vide veut dire « rien dans les
+trente jours », pas « tout est déposé et payé » · le logiciel n'a aucun moyen de
+vérifier le second, et c'est exactement celui qu'un cabinet croirait. La réserve
+est ÉCRITE sous la liste vide plutôt que simplement omise, et un test relit
+`DashboardPage.tsx` pour y interdire « à jour », « en règle », « aucun retard »
+et « conforme ».
+
+La date de référence vient du SERVEUR, jamais de l'horloge du poste · c'est lui
+qui a calculé les dates, et deux navigateurs mal réglés afficheraient sinon deux
+calendriers pour le même dossier. La règle vit hors du composant
+(`client/src/lib/echeances-a-venir.ts`), ce qui la rend vérifiable sans monter
+React · même parti que `resoudreExercice`.
+
 ### Migrations écrites à la main
 
 Une migration écrite à la main peut DIVERGER du schéma sans que rien ne le
