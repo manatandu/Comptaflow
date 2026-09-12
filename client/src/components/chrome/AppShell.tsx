@@ -232,7 +232,13 @@ export function AppShell() {
         // fenêtre elle-même dit « ce dossier n'est pas concerné » quand la
         // forme ne correspond pas · le menu ne peut pas la lire d'ici.
         ...(estSycebnl
-          ? [{ label: 'Accord-cadre (Ministère du Plan)', onClick: () => navigate('/accord-cadre') }]
+          ? [
+              { label: 'Accord-cadre (Ministère du Plan)', onClick: () => navigate('/accord-cadre') },
+              // En amont de tout le reste · c'est cette checklist qui produit
+              // le certificat d'enregistrement que la fenêtre Exonérations
+              // réclame « en cours de validité ».
+              { label: 'Checklist de constitution', onClick: () => navigate('/constitution') },
+            ]
           : []),
       ],
     },

@@ -24,6 +24,7 @@ const EvolutionSoldesPage = lazy(() => import('../pages/EvolutionSoldesPage').th
 const PalmaresJournauxPage = lazy(() => import('../pages/PalmaresJournauxPage').then((m) => ({ default: m.PalmaresJournauxPage })));
 const MandatAuditeurPage = lazy(() => import('../pages/MandatAuditeurPage').then((m) => ({ default: m.MandatAuditeurPage })));
 const AccordCadrePage = lazy(() => import('../pages/AccordCadrePage').then((m) => ({ default: m.AccordCadrePage })));
+const ConstitutionPage = lazy(() => import('../pages/ConstitutionPage').then((m) => ({ default: m.ConstitutionPage })));
 const TableauxImmobilisationsPage = lazy(() => import('../pages/TableauxImmobilisationsPage').then((m) => ({ default: m.TableauxImmobilisationsPage })));
 const EcheancierPage = lazy(() => import('../pages/EcheancierPage').then((m) => ({ default: m.EcheancierPage })));
 const LettragePage = lazy(() => import('../pages/LettragePage').then((m) => ({ default: m.LettragePage })));
@@ -211,6 +212,15 @@ export const FENETRES: DefinitionFenetre[] = [
     // route se refuse aussi, masquer ne suffit pas (§ 6).
     referentielsApplicables: ['SYCEBNL'],
     rendre: () => <AccordCadrePage />,
+  },
+  {
+    motif: /^\/constitution$/,
+    titre: 'Checklist de constitution',
+    titreCourt: 'Constitution',
+    // La loi n° 004/2001 régit les ASBL et les EUP · une société commerciale
+    // se constitue selon l'AUSCGIE, par une tout autre procédure.
+    referentielsApplicables: ['SYCEBNL'],
+    rendre: () => <ConstitutionPage />,
   },
   {
     motif: /^\/tableaux-immobilisations$/,

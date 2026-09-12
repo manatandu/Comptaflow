@@ -1927,6 +1927,64 @@ contrôleur demandera. Et le contrôle ne s'allume que sur une part DÉCLARÉE s
 le seuil : une part absente n'est pas une part insuffisante, et la traiter comme
 telle accuserait tout dossier qui n'a rien saisi.
 
+**Checklist de constitution · le logiciel tenait l'aval de la chaîne sans son
+amont.** Le module `exonerations` porte les trois dossiers de facilités de la
+note circulaire n° 003/2013 (section B), et chacun exige « le certificat
+d'enregistrement EN COURS DE VALIDITÉ délivré par le Ministère ayant le Plan
+dans ses attributions ». La section A de la même note, celle qui dit COMMENT on
+obtient ce certificat, n'était nulle part · le logiciel réclamait une pièce dont
+il ne savait rien dire.
+
+TROIS FONDEMENTS, ET ILS NE SE VALENT PAS. C'est la décision centrale, et une
+checklist qui présenterait les dix pièces comme également « légales » serait
+fausse. LOI · la pièce est exigée par la loi n° 004/2001, article à l'appui (les
+cinq pièces de la personnalité juridique viennent de l'art. 4, pas d'une
+pratique). PRATIQUE_ADMINISTRATIVE · elle est exigée par la note circulaire, qui
+écrit d'elle-même qu'elle « ne crée pas de droit nouveau » ; la refuser bloque le
+dossier sans que ce soit une obligation légale. USAGE_SANS_BASE_LEGALE ·
+l'acte de reconnaissance de l'autorité politico-administrative, point 4 de la
+liste officielle, dont le guide Kahasha (§ 6) écrit que « cette exigence ne
+découle d'AUCUN TEXTE LÉGAL. Elle procède de la pratique d'un ancien texte de
+loi, savoir le Décret-loi n° 195 du 29 janvier 1999 en son article 37, ABROGÉ
+par la loi n° 004/2001 », et que « cette procédure informelle […] peut se
+révéler dangereuse pour l'ONG et ne lui fournit aucune garantie ». Elle est
+CONSERVÉE dans la liste, puisqu'un dossier sans elle est recalé, ET son origine
+est dite · taire l'un ou l'autre tromperait dans un sens ou dans l'autre.
+
+AUCUN MONTANT DE FRAIS DGRAD N'EST DONNÉ. Le texte imprimé porte 50 et 100 USD,
+tous deux BARRÉS À LA MAIN sur le scan et remplacés par une annotation
+manuscrite dont la lecture reste incertaine. Une annotation en marge n'a pas la
+valeur probante du texte imprimé · un test interdit tout chiffre de barème dans
+le catalogue, et la réserve renvoie à la DGRAD.
+
+ET LE DOSSIER DE L'AVIS DE TUTELLE N'EST PAS INVENTÉ. Le guide est explicite :
+« la loi ne détermine NI la forme de la requête […] NI la procédure […] NI les
+frais à payer. Chaque Ministère les fixe librement. » Lister des pièces là
+ferait passer une supposition pour une exigence · l'étape porte la seule chose
+que le texte écrive, et dit le reste.
+
+AUCUNE TABLE NOUVELLE, ET C'EST LE CHOIX DU CHANTIER. Une checklist cochable
+aurait dupliqué `actePersonnaliteJuridique`, `numeroEnregistrementSecteur` et
+`certificatEnregistrementPlan`, qui sont exactement les PRODUITS des trois
+étapes. Deux endroits pour le même fait auraient divergé au premier correctif.
+Ce qui est rendu est une CONFRONTATION : le parcours tel que les textes
+l'écrivent, et en face ce que le dossier détient. L'appariement se fait PAR
+CLÉ d'étape, jamais par rang · un rang se décale le jour où une étape s'insère,
+et un produit se retrouverait en face de la mauvaise démarche sans qu'aucun
+total ne bouge.
+
+UN DÉFAUT RÉINJECTÉ N'A PAS ÉTÉ VU, et c'est ce qui a fait écrire le garde-fou
+ci-dessus. Remplacer `detenu[e.cle]` par `Object.values(detenu)[i]` laissait
+passer les dix tests : avec l'ordre actuel du catalogue, rang et clé coïncident.
+Le défaut est invisible aujourd'hui et faux demain. Aucun jeu d'essai ne peut le
+montrer sans inventer une étape qui n'existe pas · la propriété se gèle donc
+dans la SOURCE, comme l'absence de prorata dans `comparabilite-exercices.ts`.
+
+Enfin les quatre conditions de l'art. 37 ne sont PAS recopiées ici · elles
+vivent dans le module `accord-cadre`, et l'étape correspondante y renvoie. Deux
+listes divergentes de la même règle, le dossier a déjà payé pour savoir ce que
+ça coûte.
+
 ### Migrations écrites à la main
 
 Une migration écrite à la main peut DIVERGER du schéma sans que rien ne le

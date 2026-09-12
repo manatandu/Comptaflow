@@ -414,7 +414,15 @@ constaté en tête, et la distinction déclaration / reversement). **L'accord-ca
 `ACCORD_CADRE_PLAN_ECHU` et `MAIN_OEUVRE_LOCALE_SOUS_SEUIL`. Le manque que
 `exemption-is-ebnl.ts` déclarait lui-même est refermé.
 
-Reste la checklist de constitution E2.
+**La checklist de constitution E2 est livrée le 2026-09-12** ·
+`catalogue-constitution.ts` porte les trois étapes et leurs pièces, chacune avec
+son FONDEMENT (loi, pratique administrative, usage sans base légale en vigueur).
+Aucune table nouvelle : le service confronte le parcours à ce que le dossier
+détient déjà.
+
+**G4 est close.** Les cinq items sont livrés et déployés : attestation
+d'exemption d'IS, mandat de l'auditeur, accord-cadre Ministère du Plan,
+échéancier fiscal au tableau de bord, checklist de constitution.
 
 ## Phase H · Confort et restitution
 

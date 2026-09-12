@@ -43,6 +43,7 @@ import { CircularisationModule } from './modules/circularisation/circularisation
 import { FaiblessesModule } from './modules/faiblesses/faiblesses.module';
 import { MandatAuditeurModule } from './modules/mandat-auditeur/mandat-auditeur.module';
 import { AccordCadreModule } from './modules/accord-cadre/accord-cadre.module';
+import { ConstitutionModule } from './modules/constitution/constitution.module';
 import { QuestionnaireModule } from './modules/questionnaire/questionnaire.module';
 import { MonnaieFonctionnelleModule } from './modules/monnaie-fonctionnelle/monnaie-fonctionnelle.module';
 import { ProvisionsModule } from './modules/provisions/provisions.module';
@@ -103,6 +104,7 @@ import { CourrierModule } from './modules/courrier/courrier.module';
     FaiblessesModule,
     MandatAuditeurModule,
     AccordCadreModule,
+    ConstitutionModule,
     QuestionnaireModule,
     MonnaieFonctionnelleModule,
     ProvisionsModule,
