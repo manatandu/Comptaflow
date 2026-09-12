@@ -72,6 +72,11 @@ export class TenantService {
       throw new NotFoundException('Dossier introuvable');
     }
     const nombreEcritures = await this.prisma.ecriture.count({ where: { tenantId } });
+    // Le plancher de la longueur des comptes est servi AVEC le paramètre · un
+    // écran qui proposerait 3 à 13 sans dire lesquelles sont impossibles ferait
+    // découvrir le refus après le clic.
+    const { plancher: longueurCompteMinimale, exemple: longueurCompteExemple } =
+      await this.plancherLongueurCompte(tenantId);
     return {
       id: tenant.id,
       nom: tenant.nom,
@@ -113,6 +118,8 @@ export class TenantService {
       formeJuridiqueSyscohada: tenant.formeJuridiqueSyscohada,
       droitEtranger: siSycebnl(tenant.referentiel, tenant.droitEtranger),
       longueurCompte: tenant.longueurCompte,
+      longueurCompteMinimale,
+      longueurCompteExemple,
       assujettiTva: tenant.assujettiTva,
       dateOptionTva: tenant.dateOptionTva,
       regimeExigibiliteTva: tenant.regimeExigibiliteTva,
@@ -477,6 +484,82 @@ export class TenantService {
       );
     }
     await this.prisma.tenant.update({ where: { id: tenantId }, data: { methodeCotisations } });
+    return this.parametres(tenantId);
+  }
+
+  /**
+   * LONGUEUR DES NUMÉROS DE COMPTE · le paramètre existait, rien ne le posait.
+   *
+   * Le schéma annonçait depuis le début qu'il est « modifiable après coup
+   * (TenantService.modifierParametres) mais jamais en dessous de la longueur du
+   * plus long numéro de compte déjà créé ». Cette méthode n'existait pas :
+   * aucune route, aucun DTO, et l'écran rangeait la longueur parmi « ce qui ne
+   * se change pas ». Le champ ne servait donc que de PLAFOND, fixé à 8 pour
+   * tous les dossiers, sans qu'aucun cabinet puisse le porter à 10 ou 12.
+   *
+   * CE QU'IL COMMANDE, ET CE QU'IL NE COMMANDE PAS · la distinction décide de
+   * tout le reste. C'est la longueur MAXIMALE des numéros que le cabinet ouvre
+   * lui-même. Le plan NORMALISÉ semé à la création garde, lui, ses huit
+   * chiffres : ses numéros sont des littéraux, et les tables de correspondance
+   * des deux référentiels (bilan, compte de résultat, flux, notes, SMT) comme
+   * le routage des comptes de TVA sont écrits contre cette forme. Élargir la
+   * borne ouvre des sous-comptes plus fins sous une racine semée (un adhérent,
+   * un bailleur, un projet) · cela ne renumérote rien.
+   *
+   * LE PLANCHER EST LE PLUS LONG NUMÉRO DÉJÀ OUVERT, et il n'est pas
+   * négociable : descendre en dessous rendrait des comptes existants invalides
+   * RÉTROACTIVEMENT, c'est-à-dire des comptes déjà mouvementés, déjà lettrés,
+   * déjà repris dans des états déposés. Sur un dossier semé ce plancher vaut
+   * donc 8, et le refus le dit avec le numéro fautif plutôt qu'avec une borne
+   * abstraite · c'est ce numéro-là qu'il faudrait supprimer pour descendre.
+   *
+   * La borne haute de 13 et la borne basse de 3 sont celles de Sage (skill
+   * `sage-i7`, comptabilité générale : « longueur de compte paramétrable par
+   * dossier, 3 à 13 caractères »). Elles sont déjà celles du DTO de création
+   * de compte, qui valide le format sans connaître le dossier.
+   */
+  /**
+   * Le plancher de la longueur des comptes · le plus long numéro DÉJÀ OUVERT,
+   * avec un exemple.
+   *
+   * Lu EN BASE et pas déduit du semis : un cabinet qui a importé son propre
+   * plan porte des numéros que le semis n'a jamais posés. Le tri SQL ne sert à
+   * rien ici, il est lexicographique · « 9 » y passe après « 41100000 » alors
+   * qu'il est plus court.
+   *
+   * Partagé par la LECTURE des paramètres et par l'ÉCRITURE, et c'est
+   * délibéré : l'écran désactive les longueurs impossibles avec le même chiffre
+   * que celui par lequel le serveur les refuse. Deux calculs auraient divergé,
+   * et l'écran aurait alors proposé une valeur que la route rejette.
+   */
+  private async plancherLongueurCompte(tenantId: string): Promise<{ plancher: number; exemple: string }> {
+    const comptes = await this.prisma.compte.findMany({ where: { tenantId }, select: { numero: true } });
+    const plancher = comptes.reduce((max, c) => Math.max(max, c.numero.length), 0);
+    return { plancher, exemple: comptes.find((c) => c.numero.length === plancher)?.numero ?? '' };
+  }
+
+  async modifierLongueurCompte(tenantId: string, longueurCompte: number) {
+    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
+    if (!tenant) {
+      throw new NotFoundException('Dossier introuvable');
+    }
+    if (!Number.isInteger(longueurCompte) || longueurCompte < 3 || longueurCompte > 13) {
+      throw new BadRequestException(
+        'La longueur des numéros de compte va de 3 à 13 chiffres · c’est la plage des logiciels de la place.',
+      );
+    }
+
+    const { plancher, exemple } = await this.plancherLongueurCompte(tenantId);
+
+    if (longueurCompte < plancher) {
+      throw new BadRequestException(
+        `Ce dossier porte déjà des numéros de ${plancher} chiffres (par exemple « ${exemple} ») · ` +
+          `les ramener à ${longueurCompte} les rendrait invalides rétroactivement, alors qu'ils sont ` +
+          'mouvementés et repris dans les états. Supprimez d’abord les comptes plus longs, ou gardez cette longueur.',
+      );
+    }
+
+    await this.prisma.tenant.update({ where: { id: tenantId }, data: { longueurCompte } });
     return this.parametres(tenantId);
   }
 

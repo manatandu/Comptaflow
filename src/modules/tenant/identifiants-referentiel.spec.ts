@@ -31,6 +31,11 @@ function service(referentiel: Referentiel, capture: { data?: Record<string, unkn
     },
     exercice: { findFirst: async () => null, count: async () => 0 },
     ecriture: { count: async () => 0 },
+    // La doublure répond à la lecture des comptes que `parametres()` fait
+    // désormais · le plancher de la longueur des numéros s'y calcule. Une
+    // doublure muette sur une lecture réelle validerait un service qui
+    // n'existe pas.
+    compte: { findMany: async () => [] },
   } as never);
 }
 

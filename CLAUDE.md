@@ -1254,6 +1254,51 @@ techniques (`etats-financiers.communs.ts`, `note-annexe.types.ts` côté
 serveur, `components/NotesAnnexesRendu.tsx` côté client) · aucun poste, aucun
 compte, aucun libellé.
 
+**Longueur de compte réellement paramétrable · un champ que le schéma
+promettait modifiable et qu'aucune route ne posait.** `Tenant.longueurCompte`
+existe depuis l'origine, et son commentaire écrit qu'il est « modifiable après
+coup (`TenantService.modifierParametres`) mais jamais en dessous de la longueur
+du plus long numéro de compte déjà créé ». Cette méthode n'existait pas : ni
+route, ni DTO, ni écran, et la longueur figurait au contraire dans le bloc
+« ce qui ne se change pas ». Le champ ne servait donc que de PLAFOND, figé à 8
+pour tous les dossiers, sans qu'aucun cabinet puisse le porter à 10 ou 12.
+
+CE QU'IL COMMANDE, ET CE QU'IL NE COMMANDE PAS · la distinction décide de tout
+le reste, et l'écran la dit en toutes lettres. C'est la longueur MAXIMALE des
+numéros que le cabinet ouvre lui-même. Le plan NORMALISÉ semé à la création
+garde, lui, ses huit chiffres : ses numéros sont des littéraux, et les tables de
+correspondance des deux référentiels (bilan, compte de résultat, flux, notes,
+SMT) comme le routage des comptes de TVA sont écrits contre cette forme.
+Élargir la borne ouvre des sous-comptes plus fins sous une racine semée (un
+adhérent, un bailleur, un projet) · cela ne renumérote rien, et laisser croire
+le contraire serait la promesse la plus coûteuse de cet écran. Un test l'exige
+mot pour mot.
+
+LE PLANCHER EST LE PLUS LONG NUMÉRO DÉJÀ OUVERT. Descendre en dessous rendrait
+des comptes invalides RÉTROACTIVEMENT · des comptes mouvementés, lettrés, repris
+dans des états déposés. Le refus nomme le numéro fautif plutôt qu'une borne
+abstraite : c'est celui-là qu'il faudrait supprimer. Et le plancher se lit sur
+la LONGUEUR, jamais sur un `orderBy` SQL · le tri y est lexicographique, « 9 »
+passe après « 41100000 » alors qu'il est plus court, et un plancher déduit d'un
+tri vaudrait 1. La plage 3 à 13 est celle des logiciels de la place (skill
+`sage-i7`), déjà celle du DTO de création de compte.
+
+UN SEUL CALCUL, DEUX CONSOMMATEURS · `plancherLongueurCompte` sert la lecture
+des paramètres ET l'écriture, si bien que l'écran désactive les longueurs
+impossibles avec le chiffre exact par lequel la route les refuse. Deux calculs
+auraient divergé, et l'utilisateur aurait découvert le refus après le clic.
+
+DEUX CORRECTIONS DE MÉTHODE AU PASSAGE. Servir le plancher avec les paramètres
+a fait échouer six doublures Prisma qui ne répondaient pas à la lecture des
+comptes · elles ont été complétées plutôt que contournées, une doublure muette
+sur une lecture réelle validant un service qui n'existe pas. Et un test de
+l'échéancier ONEM échouait TOUT SEUL, sans qu'une ligne de code ait bougé : il
+lisait l'horloge, et tombait du 11 au 15 de chaque mois, quand la prochaine
+déclaration (le 10 du mois suivant) passe après le versement encore à venir du
+mois courant (le 15). Le calcul est juste · chaque obligation rend sa PROCHAINE
+occurrence. Le test, lui, figeait une relation qui ne vaut que dans un même
+mois : il porte désormais une date de référence fixe.
+
 **Modales qui sortaient de l'écran par le haut · deux causes, mesurées avant
 d'être corrigées.** Signalé par Manasse sur la calculette de la barre de menus,
 et vrai ailleurs. Le débordement vers le HAUT est le seul qui soit

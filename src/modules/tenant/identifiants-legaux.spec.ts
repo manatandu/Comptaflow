@@ -22,6 +22,11 @@ describe('Identifiants légaux du dossier', () => {
         },
       },
       ecriture: { count: async () => 0 },
+      // La doublure répond à la lecture des comptes que `parametres()` fait
+      // désormais · le plancher de la longueur des numéros s'y calcule. Une
+      // doublure muette sur une lecture réelle validerait un service qui
+      // n'existe pas.
+      compte: { findMany: async () => [] },
     } as never);
 
   it('la chaîne vide EFFACE l’identifiant, l’absence de champ n’y touche pas', async () => {

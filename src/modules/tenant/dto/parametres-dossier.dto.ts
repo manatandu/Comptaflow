@@ -1,4 +1,4 @@
-import { IsBoolean, IsEnum, IsOptional, IsString, MaxLength, MinLength, IsDateString, IsInt, Min, ValidateIf } from 'class-validator';
+import { IsBoolean, IsEnum, IsOptional, IsString, MaxLength, MinLength, IsDateString, IsInt, Max, Min, ValidateIf } from 'class-validator';
 import {
   FormeJuridiqueEbnl,
   FormeJuridiqueSyscohada,
@@ -246,4 +246,22 @@ export class ModifierMethodeCotisationsDto {
 export class ModifierDoubleRegardDto {
   @IsBoolean()
   doubleRegardValidation!: boolean;
+}
+
+/**
+ * LONGUEUR MAXIMALE DES NUMÉROS DE COMPTE DU DOSSIER · plage de Sage, 3 à 13
+ * chiffres (skill `sage-i7`, comptabilité générale). La même plage que celle
+ * du DTO de création de compte, qui valide le format sans connaître le dossier.
+ *
+ * Le PLANCHER réel n'est pas ici et ne peut pas y être : il vaut la longueur du
+ * plus long numéro DÉJÀ OUVERT, et un DTO ne connaît pas le dossier. C'est
+ * `TenantService.modifierLongueurCompte` qui le lit en base et refuse de
+ * descendre en dessous · sinon des comptes existants, mouvementés et repris
+ * dans des états, deviendraient invalides rétroactivement.
+ */
+export class ModifierLongueurCompteDto {
+  @IsInt()
+  @Min(3)
+  @Max(13)
+  longueurCompte!: number;
 }

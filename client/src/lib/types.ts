@@ -1349,7 +1349,16 @@ export interface ParametresDossier {
   formeJuridiqueSyscohada: FormeJuridiqueSyscohada | null;
   /** Entité de droit étranger (loi n° 004/2001, art. 29 à 34) · `null` hors SYCEBNL. */
   droitEtranger: boolean | null;
+  /** Longueur MAXIMALE des numéros que le cabinet ouvre lui-même (3 à 13). */
   longueurCompte: number;
+  /**
+   * Le plancher · longueur du plus long numéro DÉJÀ OUVERT, et un exemple.
+   * Servis par le serveur plutôt que recalculés ici : l'écran doit désactiver
+   * les longueurs impossibles avec le chiffre exact par lequel la route les
+   * refuse, sinon il propose une valeur qui sera rejetée après le clic.
+   */
+  longueurCompteMinimale: number;
+  longueurCompteExemple: string;
   /**
    * Assujettissement à la TVA · une ASBL ne l'est PAS de plein droit
    * (ordonnance-loi n° 10/001, art. 14 : seuil de 80 000 000 FC de chiffre

@@ -224,7 +224,21 @@ describe('Registre des retenues à la source', () => {
     // Deux dates, deux sanctions : 50 % de la contribution pour la déclaration
     // manquante ou inexacte, 0,5 % par jour pour le versement en retard. Les
     // confondre laisserait croire qu'être à jour du paiement suffit.
-    const e = await service([]).echeancierFiscal('t1', { exerciceId: 'e1' });
+    //
+    // LA DATE DE RÉFÉRENCE EST FIGÉE, et ce n'est pas un confort. Sans elle le
+    // test lisait l'horloge, et il TOMBAIT du 11 au 15 de chaque mois : passé
+    // le 10, l'échéancier annonce la prochaine déclaration (le 10 du mois
+    // suivant) à côté du versement encore à venir du mois courant (le 15), si
+    // bien que la déclaration paraissait suivre le paiement. Ce n'est pas une
+    // erreur de calcul · chaque obligation rend sa PROCHAINE occurrence, et
+    // les deux ne tombent pas dans le même mois pendant cinq jours. Mais un
+    // test qui passe ou échoue selon le jour où on le lance ne prouve rien,
+    // et celui-ci avait fini par échouer tout seul, sans qu'une ligne de code
+    // ait bougé.
+    //
+    // Le 5 mars est choisi AVANT le 10 : les deux échéances tombent alors dans
+    // le même mois, et l'écart de cinq jours qu'on veut figer est observable.
+    const e = await service([]).echeancierFiscal('t1', { exerciceId: 'e1', dateReference: '2026-03-05' });
     const declaration = e.echeances.find((x) => x.cle === 'declarationMensuelleOnem');
     const versement = e.echeances.find((x) => x.cle === 'onem');
     expect(declaration).toBeDefined();
@@ -233,7 +247,11 @@ describe('Registre des retenues à la source', () => {
     expect(versement!.genre).toBe('REVERSEMENT');
     expect(declaration!.periodicite).toBe('MENSUELLE');
     expect(declaration!.sanction).toContain('50 %');
-    // La déclaration tombe cinq jours AVANT le versement du même mois.
+    // La déclaration tombe cinq jours AVANT le versement DU MÊME MOIS · c'est
+    // la relation qu'on fige, et elle ne s'observe que dans ce mois-là.
+    expect(declaration!.date.getMonth()).toBe(versement!.date.getMonth());
+    expect(declaration!.date.getDate()).toBe(10);
+    expect(versement!.date.getDate()).toBe(15);
     expect(declaration!.date.getTime()).toBeLessThan(versement!.date.getTime());
   });
 

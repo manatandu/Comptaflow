@@ -55,6 +55,11 @@ function service(referentiel: string, surcharge: Record<string, unknown> = {}) {
   const prisma = {
     tenant: { findUnique: jest.fn().mockResolvedValue({ ...DOSSIER, referentiel, ...surcharge }) },
     ecriture: { count: jest.fn().mockResolvedValue(0) },
+    // La doublure répond à la lecture des comptes que `parametres()` fait
+    // désormais · le plancher de la longueur des numéros s'y calcule. Une
+    // doublure muette sur une lecture réelle validerait un service qui
+    // n'existe pas.
+    compte: { findMany: jest.fn().mockResolvedValue([]) },
   } as unknown as PrismaService;
   return new TenantService(prisma);
 }

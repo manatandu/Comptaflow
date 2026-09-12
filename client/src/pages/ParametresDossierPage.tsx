@@ -273,6 +273,30 @@ export function ParametresDossierPage() {
    * méthode des cotisations : l'obligation de se donner des procédures
    * comptables atteint les deux référentiels, par deux chemins.
    */
+  /**
+   * LONGUEUR DES NUMÉROS DE COMPTE · elle figurait parmi « ce qui ne se change
+   * pas », alors que le schéma l'annonce modifiable depuis toujours. Aucune
+   * route ne la posait.
+   *
+   * Les longueurs sous le plancher sont DÉSACTIVÉES et non masquées : voir
+   * qu'on ne peut plus descendre, et pourquoi, vaut mieux qu'une liste
+   * mystérieusement courte.
+   */
+  const changerLongueurCompte = async (longueur: number) => {
+    setEnvoi(true);
+    setErreur(null);
+    try {
+      setParams(await api.patch<ParametresDossier>('/dossier/longueur-compte', { longueurCompte: longueur }));
+      setInfo(
+        `Longueur des numéros de compte portée à ${longueur} chiffres · les comptes déjà ouverts ne changent pas.`,
+      );
+    } catch (err) {
+      setErreur(err instanceof ApiError ? err.message : 'Modification impossible');
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
   const changerDoubleRegard = async (actif: boolean) => {
     setEnvoi(true);
     setErreur(null);
@@ -670,14 +694,51 @@ export function ParametresDossierPage() {
                   </div>
                 )}
               </form>
+              {/* ----------------------------------------------------------
+                  LONGUEUR DES NUMÉROS DE COMPTE · elle était rangée parmi « ce
+                  qui ne se change pas », alors que le schéma l'annonce
+                  modifiable. Ce qu'elle commande est dit en toutes lettres :
+                  c'est un PLAFOND pour les comptes que le cabinet ouvre
+                  lui-même, pas une renumérotation du plan normalisé.
+                  ---------------------------------------------------------- */}
+              <Ligne label="Longueur des comptes" large>
+                {estAdmin ? (
+                  <select
+                    value={params.longueurCompte}
+                    disabled={envoi}
+                    onChange={(e) => changerLongueurCompte(Number(e.target.value))}
+                    className="border border-border-dark bg-surface px-2 py-1 text-[10.5px] disabled:opacity-60"
+                  >
+                    {Array.from({ length: 11 }, (_, i) => i + 3).map((n) => (
+                      <option key={n} value={n} disabled={n < params.longueurCompteMinimale}>
+                        {n} chiffres
+                        {n < params.longueurCompteMinimale ? ' · impossible, comptes plus longs déjà ouverts' : ''}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <div className="text-[11px] leading-[26px] font-medium">{params.longueurCompte} chiffres</div>
+                )}
+              </Ligne>
+              <p className="text-[10.5px] text-text-dim">
+                C’est la longueur MAXIMALE des numéros que vous ouvrez vous-même · l’élargir permet des sous-comptes
+                plus fins sous une racine du plan (un adhérent, un bailleur, un projet). Le plan normalisé semé à la
+                création garde ses huit chiffres et n’est pas renuméroté.
+                {params.longueurCompteMinimale > 0 && (
+                  <>
+                    {' '}Vous ne pouvez pas descendre sous <strong>{params.longueurCompteMinimale} chiffres</strong> :
+                    ce dossier porte déjà des numéros de cette longueur
+                    {params.longueurCompteExemple ? ` (par exemple ${params.longueurCompteExemple})` : ''}, et les
+                    raccourcir les rendrait invalides alors qu’ils sont mouvementés et repris dans les états.
+                  </>
+                )}
+              </p>
               {/* Ce qui NE SE CHANGE PAS, et pourquoi · le référentiel sème le
-                  plan de comptes à la création, la longueur des comptes
-                  structure chaque numéro déjà saisi. */}
+                  plan de comptes à la création. */}
               <div>
                 {(
                   [
                     ['Référentiel', params.referentiel],
-                    ['Longueur des comptes', `${params.longueurCompte} caractères`],
                     ['Écritures enregistrées', String(params.nombreEcritures)],
                   ] as [string, string | null][]
                 ).map(([cle, valeur]) => (

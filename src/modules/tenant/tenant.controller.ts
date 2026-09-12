@@ -12,6 +12,7 @@ import {
   ModifierIdentiteDto,
   ModifierDoubleRegardDto,
   ModifierJeuEtatsDto,
+  ModifierLongueurCompteDto,
   ModifierMethodeCotisationsDto,
   ModifierRegimeDto,
   ModifierSystemeSyscohadaDto,
@@ -124,6 +125,21 @@ export class TenantController {
    * deux référentiels, par l'AUDCIF art. 69 d'un côté et le SYCEBNL art. 16, 2)
    * de l'autre.
    */
+  /**
+   * Longueur maximale des numéros de compte du dossier · réservée à
+   * l'administrateur du cabinet comme les autres paramètres de structure. Le
+   * refus de descendre sous les comptes déjà ouverts vit dans le service, pas
+   * ici : la route reste ouverte à un appel direct (CLAUDE.md § 6).
+   */
+  @Patch('longueur-compte')
+  @Roles(RoleUtilisateur.ADMIN_CABINET)
+  async modifierLongueurCompte(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: ModifierLongueurCompteDto,
+  ) {
+    return this.tenantService.modifierLongueurCompte(user.tenantId, dto.longueurCompte);
+  }
+
   @Patch('double-regard')
   @Roles(RoleUtilisateur.ADMIN_CABINET)
   async modifierDoubleRegard(

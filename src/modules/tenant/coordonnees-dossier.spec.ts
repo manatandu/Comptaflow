@@ -37,6 +37,11 @@ describe('Coordonnées du dossier', () => {
         },
       },
       ecriture: { count: async () => ecritures },
+      // La doublure répond à la lecture des comptes que `parametres()` fait
+      // désormais · le plancher de la longueur des numéros s'y calcule. Une
+      // doublure muette sur une lecture réelle validerait un service qui
+      // n'existe pas.
+      compte: { findMany: async () => [] },
       // Les devises OUVERTES du dossier · c'est par elles que la monnaie
       // fonctionnelle est validée.
       devise: {
