@@ -16,6 +16,7 @@ import { JOURS_ALERTE_RENOUVELLEMENT } from '../exonerations/correspondance-exon
 import { regleAuditeur, type RegleAuditeur } from './regles-auditeur';
 import { sourceManuel } from '../documents-obligatoires/manuel-procedures.service';
 import { PREFIXES_CHIFFRE_AFFAIRES_SYSCOHADA } from '../etats-financiers-syscohada/correspondance-compte-resultat-syscohada';
+import { evaluerComparabilite } from '../etats-financiers/comparabilite-exercices';
 
 /**
  * SEUILS DE DÉSIGNATION DU CONTRÔLEUR DES COMPTES · ils ne sont PLUS ici.
@@ -1715,7 +1716,9 @@ export class ControlesService {
     const exercicePrecedent = await this.prisma.exercice.findFirst({
       where: { tenantId, dateFin: { lt: ex.dateDebut } },
       orderBy: { dateFin: 'desc' },
-      select: { id: true, dateFin: true },
+      // `dateDebut` sert au contrôle 27 · la comparabilité se lit sur la DURÉE
+      // des deux exercices, pas sur leur seule date de clôture.
+      select: { id: true, dateDebut: true, dateFin: true },
     });
     // Le faux Prisma des tests rend l'exercice courant pour toute recherche ·
     // sans cette garde, le contrôle se comparerait à lui-même.
@@ -2660,6 +2663,63 @@ export class ControlesService {
             detail: 'Aucune immobilisation entrée sur l’exercice',
             montant: Math.round((v.credit - v.debit) * 100) / 100,
           })),
+      });
+    }
+
+    // --- 27. Colonne N-1 servie alors que les exercices ne se comparent pas ---
+    //
+    // LE SECOND ALINÉA QUE LE LOGICIEL NE LISAIT PAS. Les deux textes imposent
+    // la colonne comparative ET, dans la même phrase, ce qu'il faut faire
+    // quand elle ne vaut rien : « Lorsque l'un des postes chiffrés d'un état
+    // financier n'est pas comparable à celui de l'exercice précédent, c'est ce
+    // dernier qui doit être adapté. L'absence de comparabilité ou l'adaptation
+    // des chiffres est signalée dans les Notes annexes. » OmegaX servait le
+    // premier alinéa à treize endroits et ignorait le second.
+    //
+    // CE QUE RIEN NE VOYAIT · la colonne part d'office, remplie, avec des
+    // totaux justes et un bilan qui boucle. Le lecteur en tire une variation
+    // qui ne veut rien dire, et aucune ligne de l'état ne l'en avertit.
+    //
+    // LE CAS N'EST PAS THÉORIQUE. L'AUDCIF art. 7 autorise nommément un
+    // premier exercice de moins ou de plus de douze mois selon le semestre où
+    // l'entité commence · c'est donc la DEUXIÈME liasse de tout dossier ouvert
+    // en cours d'année qui porte la colonne fautive.
+    //
+    // AVERTISSEMENT, et le logiciel N'ADAPTE RIEN. Le texte confie l'adaptation
+    // à l'entité, et la mention aux Notes annexes. Proratiser un compte de
+    // résultat fabriquerait des chiffres que personne n'a décidés ; proratiser
+    // un bilan n'aurait même pas de sens, un bilan étant un stock à une date.
+    const comparabilite = evaluerComparabilite(
+      tenant.referentiel,
+      { dateDebut: ex.dateDebut, dateFin: ex.dateFin },
+      // Même garde que le contrôle 19 · le faux Prisma des tests rend
+      // l'exercice courant pour toute recherche, et sans elle le contrôle se
+      // comparerait à lui-même, donc ne signalerait jamais rien.
+      exercicePrecedent && exercicePrecedent.dateFin < ex.dateDebut
+        ? { dateDebut: exercicePrecedent.dateDebut, dateFin: exercicePrecedent.dateFin }
+        : null,
+    );
+    if (!comparabilite.comparable) {
+      anomalies.push({
+        code: 'COMPARATIF_N1_NON_COMPARABLE',
+        gravite: 'AVERTISSEMENT',
+        libelle: 'Colonne N-1 servie alors que les deux exercices ne se comparent pas',
+        consequence:
+          `${comparabilite.motifs.map((m) => m.phrase).join(' ')} Le texte (${comparabilite.article}) impose ` +
+          'la colonne comparative, mais aussi d’adapter l’exercice précédent quand un poste n’est pas ' +
+          'comparable, et de signaler l’absence de comparabilité ou l’adaptation dans les Notes annexes. ' +
+          'Tant que rien n’est dit, la colonne s’imprime et se dépose telle quelle : tous les totaux sont ' +
+          'justes, le bilan boucle, et le lecteur en tire une variation qui ne veut rien dire.',
+        action:
+          'Adaptez les chiffres de l’exercice précédent si vous le pouvez, et portez la mention dans les ' +
+          'Notes annexes (règles et méthodes comptables). OmegaX n’adapte aucun chiffre de lui-même : ' +
+          'proratiser des charges ou des produits fabriquerait des montants que personne n’a décidés, et un ' +
+          'bilan, qui est un stock à une date, ne se proratise pas du tout.',
+        occurrences: comparabilite.motifs.map((m) => ({
+          reference: `Exercice clos le ${ex.dateFin.toISOString().slice(0, 10)}`,
+          detail: m.phrase,
+          date: ex.dateFin.toISOString().slice(0, 10),
+        })),
       });
     }
 

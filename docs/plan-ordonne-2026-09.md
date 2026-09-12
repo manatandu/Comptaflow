@@ -412,6 +412,19 @@ journaux · pré-lettrage · exclusion de relance par tiers · taux de TVA par
 défaut dans la grille de saisie · longueur de compte réellement paramétrable ·
 export XLSX en flux au-delà de 50 000 lignes.
 
+**Phase H close le 2026-09-12.** Les neuf items sont livrés et déployés. Le
+« comparatif au-delà de N-1 » l'était depuis `f5ff0a7` (`evolutionSoldes`, huit
+exercices) · la relecture des deux textes l'a confirmé et a trouvé, au passage,
+que les états financiers publiés ne peuvent PAS porter une troisième colonne :
+« la présentation des états financiers est identique d'un exercice à l'autre »
+et le chiffre porté est celui « de l'exercice précédent », au singulier
+(SYCEBNL art. 16, 6° et 7° · AUDCIF art. 34). Le comparatif pluriannuel est donc
+un état d'ANALYSE, jamais une colonne de la liasse.
+
+La même lecture a ouvert un item qui n'était pas au plan et qui a été livré dans
+la foulée : le second alinéa de ces deux articles, celui de la NON-COMPARABILITÉ
+(contrôle `COMPARATIF_N1_NON_COMPARABLE`).
+
 ## Phase I · Au-delà
 
 Gestion commerciale et ventes-clients (le §8.4 la désigne comme la porte

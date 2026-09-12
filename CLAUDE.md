@@ -1710,6 +1710,61 @@ lot passait, alors qu'en arrière il rejoue des pièces et en avant il en saute.
 Les deux exigent désormais la VALEUR. Un test qui n'a pas été VU ÉCHOUER ne
 protège rien, et « toBeTruthy » est la forme la plus courante de cette illusion.
 
+**Comparabilité de la colonne N-1 · le second alinéa que le logiciel ne
+lisait pas.** Les deux textes imposent la colonne comparative ET, dans la même
+phrase, ce qu'il faut faire quand elle ne vaut rien : « Lorsque l'un des postes
+chiffrés d'un état financier N'EST PAS COMPARABLE à celui de l'exercice
+précédent, c'est CE DERNIER QUI DOIT ÊTRE ADAPTÉ. L'absence de comparabilité ou
+l'adaptation des chiffres EST SIGNALÉE DANS LES NOTES ANNEXES. » OmegaX servait
+le premier alinéa à TREIZE endroits et ignorait le second.
+
+LE DÉFAUT EST DU § 10 BIS DANS SA FORME LA PLUS DISCRÈTE · la colonne part
+d'office, remplie, avec des totaux justes et un bilan qui boucle. Le lecteur en
+tire une variation qui ne veut rien dire, et aucune ligne de l'état ne l'en
+avertit.
+
+ET IL N'EST PAS THÉORIQUE. L'AUDCIF art. 7 autorise nommément un premier
+exercice de moins de douze mois quand l'entité commence au premier semestre, et
+de plus de douze mois quand elle commence au second. C'est donc la DEUXIÈME
+liasse de tout dossier ouvert en cours d'année qui porte la colonne fautive.
+
+L'UNITÉ EST LE MOIS, JAMAIS LE JOUR. Le même art. 7 dit « une période de DOUZE
+MOIS, appelée exercice ». Compter en jours ferait de chaque année bissextile une
+non-comparabilité (366 contre 365) : le signalement crierait une année sur
+quatre sur tous les dossiers du parc, et on apprendrait à l'ignorer avant le
+jour où il compte. Une limite est assumée et écrite : le compte porte sur les
+mois TRAVERSÉS, et un exercice qui ne commence pas un premier ni ne finit un
+dernier jour de mois est compté par le mois où tombe sa borne · le cas est
+irrégulier au regard de l'art. 7 lui-même, et aucune source lue ne dit comment
+l'arrondir.
+
+DEUX CHEMINS D'ARTICLE, et ils ne se servent jamais l'un pour l'autre. Côté
+SYSCOHADA, AUDCIF art. 34, dernier alinéa. Côté SYCEBNL, cet art. 34 est
+justement dans la liste d'exclusion de son art. 3 (« 25 À 34 ») · la règle lui
+vient de son PROPRE art. 16, 7°, qui l'écrit mot pour mot. Citer l'AUDCIF à une
+association serait invoquer un article que son référentiel écarte.
+
+LE LOGICIEL N'ADAPTE RIEN, ET C'EST LE REFUS DE CE CHANTIER. Le texte confie
+l'adaptation à l'ENTITÉ et la mention aux Notes annexes. Proratiser un compte de
+résultat sur le rapport des durées fabriquerait des montants que personne n'a
+décidés ; proratiser un bilan n'aurait même pas de sens, un bilan étant un
+STOCK à une date et non un flux. Une adaptation automatique rendrait une colonne
+plausible, comparable et inventée · le pire des trois états possibles. Un test
+relit `comparabilite-exercices.ts` et refuse qu'un prorata y apparaisse un jour.
+
+LA RÈGLE VIT UNE FOIS et le contrôle `COMPARATIF_N1_NON_COMPARABLE` l'appelle.
+Elle n'est PAS portée dans les treize états : la comparabilité est une propriété
+du COUPLE d'exercices, pas de chaque tableau, et la recopier treize fois aurait
+divergé au premier correctif. La gravité est AVERTISSEMENT · la mention est un
+« doit » des deux textes, mais elle s'écrit aux Notes annexes et ne bloque aucun
+travail en cours.
+
+CE QUE LE CONTRÔLE NE SAIT PAS LIRE, et qu'il ne prétend pas lire : un
+changement de méthode, une refonte du plan de comptes, un changement de
+périmètre. Aucun de ces trois ne se déduit d'une date. Seule la DURÉE est
+mécanique, et `CodeNonComparabilite` est une union fermée pour qu'un quatrième
+motif oblige quelqu'un à décider comment il se constate.
+
 ### Migrations écrites à la main
 
 Une migration écrite à la main peut DIVERGER du schéma sans que rien ne le
