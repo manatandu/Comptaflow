@@ -1649,6 +1649,67 @@ provider ne doit appeler qu'elle. La mémorisation passe par des `try/catch` :
 `localStorage` jette en fenêtre privée, et la préférence est un confort, jamais
 une condition d'usage.
 
+**Journal et grand livre exportés en flux · l'export était AMPUTÉ, et il
+annonçait DEUX totaux.** Le chantier visait la mémoire ; le défaut trouvé est
+plus grave. `journalExcel` appelait `EcritureService.lister()`, qui n'a jamais
+rendu plus de `PLAFOND_ECRITURES_PAR_FENETRE`, soit 2 000 écritures. Ce plafond
+est celui d'une FENÊTRE, posé pour qu'un écran ne tue pas le serveur ; un
+fichier n'est pas une fenêtre. Le journal d'un dossier de trois mille écritures
+sortait amputé du tiers, sans un mot.
+
+ET LA LIGNE TOTAUX AGGRAVAIT L'AMPUTATION AU LIEU DE LA RÉVÉLER. Elle porte une
+formule `SUM` sur les lignes écrites ET, en valeur jointe, l'agrégat SQL de la
+période ENTIÈRE. Le même classeur annonçait donc deux totaux : Excel recalcule
+et montre le tronqué, tout ce qui lit sans moteur de calcul (un import, un
+convertisseur, un aperçu) lit le complet. Le livre-journal est un livre
+obligatoire (AUDCIF art. 22, 6°), et le § 8 bis écrit déjà pour le grand livre
+qu'« un livre amputé en silence est un document FAUX ». Le journal n'avait pas
+eu droit à la même phrase.
+
+LE GRAND LIVRE COMPLET, LUI, NE REFUSAIT PAS À 50 000 MAIS À 20 000, par
+`PLAFOND_LIGNES_GRAND_LIVRE` · un plafond justifié dans le code par « ce qu'une
+fenêtre peut afficher ». Une contrainte d'écran appliquée à un fichier. Les deux
+exports lisent maintenant PAR LOTS (`LOT_EXPORT = 500`, curseur par identifiant
+avec `skip: 1`) et n'empruntent plus aucune borne de fenêtre.
+
+LE PÉRIMÈTRE DU JOURNAL VIT UNE FOIS (`perimetreJournal`, dans
+`ecriture.service.ts`) et la fenêtre comme l'export l'appellent. Deux filtres
+écrits séparément auraient rendu deux journaux plausibles et différents pour les
+mêmes critères · c'est la leçon de `calculerPropositions` et de
+`construireLigneTva`, la troisième fois qu'elle se présente.
+
+`classeur-en-flux.ts` porte la coiffe, l'en-tête et les options, et les trois
+règles du flux qu'on ne peut pas apprendre en lisant le code d'un classeur en
+mémoire. RIEN NE SE RELIT · une feuille partie sur le réseau ne se rouvre pas
+pour insérer trois lignes en tête, d'où la coiffe écrite AVANT la première
+donnée. LES FORMATS SONT PORTÉS PAR LA COLONNE · en flux une ligne est scellée
+dès qu'elle est écrite, et `appliquerFormats` appelé après coup, comme sur les
+classeurs en mémoire, n'a AUCUN effet sur les lignes déjà parties : les dates
+sortiraient en numéros de série. Et `useSharedStrings` RESTE FAUX · mesuré à
+1 195 Mo contre 450 Mo pour un demi-million de lignes, il défait exactement le
+bénéfice du flux, la table des chaînes vivant en mémoire jusqu'à la fin.
+
+UNE RÉPONSE COMMENCÉE NE PEUT PLUS ÊTRE RETIRÉE, et c'est le prix du flux.
+L'en-tête HTTP part avec les premiers octets : une panne survenue ensuite ne
+peut plus se changer en 500. `envoyerXlsxEnFlux` DÉTRUIT alors la connexion
+plutôt que de la fermer proprement · Excel refuse le ZIP tronqué au lieu de
+l'ouvrir sur un livre incomplet. Le seul autre choix était de livrer un fichier
+qui s'ouvre et qui ment.
+
+`MAX_LIGNES_EXPORT` passe de 50 000 à 200 000, mesuré (`docs/capacite-mesuree.md`,
+banc du 2026-09-12) · c'est la dernière valeur qui laisse la moitié du tas libre.
+Elle reste un REFUS, jamais une troncature.
+
+DEUX TESTS DE CE CHANTIER NE PROUVAIENT RIEN, et seule la réinjection du défaut
+l'a dit. Celui des formats vérifiait `numFmt` par `toBeTruthy()` : retirer le
+format de la colonne Date le laissait passer, ExcelJS donnant d'office un format
+intégré à toute cellule dont la valeur est une `Date` · format AMÉRICAIN, où un
+3 avril sort « 4/3 » et se lit comme un 4 mars. Celui du curseur vérifiait qu'un
+curseur était PRÉSENT, pas lequel : un curseur posé sur n'importe quelle ligne du
+lot passait, alors qu'en arrière il rejoue des pièces et en avant il en saute.
+Les deux exigent désormais la VALEUR. Un test qui n'a pas été VU ÉCHOUER ne
+protège rien, et « toBeTruthy » est la forme la plus courante de cette illusion.
+
 ### Migrations écrites à la main
 
 Une migration écrite à la main peut DIVERGER du schéma sans que rien ne le

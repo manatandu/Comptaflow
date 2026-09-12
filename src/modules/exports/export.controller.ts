@@ -46,6 +46,45 @@ const TYPE_XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.s
  * différents ne s'écrasent pas côté navigateur). Le contrôleur se contente
  * de le servir.
  */
+/**
+ * ENVOI EN FLUX · le classeur part au fur et à mesure qu'il s'écrit.
+ *
+ * Ce que cela coûte, et qu'il faut assumer plutôt que découvrir : une fois le
+ * premier octet parti, LES EN-TÊTES SONT ENVOYÉS. On ne peut plus répondre 500
+ * ni poser un message d'erreur · le filtre d'exception de Nest n'a plus de
+ * réponse à écrire.
+ *
+ * D'où le choix fait ici : en cas d'échec en cours de route, on DÉTRUIT la
+ * réponse. Le client reçoit un téléchargement interrompu, et le fichier à
+ * moitié écrit n'est pas une archive ZIP close · Excel le REFUSE au lieu de
+ * l'ouvrir. C'est exactement ce qu'on veut d'un livre obligatoire : un
+ * classeur tronqué qui s'ouvre est bien pire qu'un téléchargement qui échoue,
+ * parce que personne ne voit ce qui manque.
+ *
+ * Tant que `ouvrir` n'a pas été appelé, rien n'est parti et l'erreur remonte
+ * normalement · c'est là que vivent les refus de volume et les 404 d'exercice.
+ */
+async function envoyerXlsxEnFlux(
+  res: Response,
+  ecrire: (ouvrir: (nomFichier: string) => Response) => Promise<unknown>,
+): Promise<void> {
+  let commence = false;
+  try {
+    await ecrire((nomFichier) => {
+      commence = true;
+      res.set({
+        'Content-Type': TYPE_XLSX,
+        'Content-Disposition': `attachment; filename="${nomFichier}"`,
+        'Access-Control-Expose-Headers': 'Content-Disposition',
+      });
+      return res;
+    });
+  } catch (erreur) {
+    if (!commence) throw erreur;
+    res.destroy(erreur instanceof Error ? erreur : undefined);
+  }
+}
+
 function envoyerXlsx(res: Response, classeur: ClasseurExporte) {
   res.set({
     'Content-Type': TYPE_XLSX,
@@ -77,9 +116,12 @@ export class ExportController {
     @Query('dateFin') dateFin?: string,
     @Query('recherche') recherche?: string,
   ) {
-    envoyerXlsx(
-      res,
-      await this.exportService.journalExcel(user.tenantId, { exerciceId, journalId, dateDebut, dateFin, recherche }),
+    await envoyerXlsxEnFlux(res, (ouvrir) =>
+      this.exportService.journalExcelEnFlux(
+        user.tenantId,
+        { exerciceId, journalId, dateDebut, dateFin, recherche },
+        ouvrir,
+      ),
     );
   }
 
@@ -90,7 +132,9 @@ export class ExportController {
     @Res() res: Response,
     @Query('exerciceId') exerciceId?: string,
   ) {
-    envoyerXlsx(res, await this.exportService.grandLivreCompletExcel(user.tenantId, exerciceId));
+    await envoyerXlsxEnFlux(res, (ouvrir) =>
+      this.exportService.grandLivreCompletExcelEnFlux(user.tenantId, exerciceId, ouvrir),
+    );
   }
 
   @Get('grand-livre/:compteId')

@@ -1,6 +1,13 @@
 import { Injectable, PayloadTooLargeException } from '@nestjs/common';
 import { REFS_DE_SOLDE } from '../etats-financiers/correspondance-projet-emplois-ressources';
+import type { Writable } from 'stream';
 import type { PerimetreBalanceAgee } from '../comptabilite/ecriture.service';
+import { perimetreJournal } from '../comptabilite/ecriture.service';
+import {
+  PREMIERE_LIGNE_DONNEES,
+  ouvrirFeuilleEnFlux,
+  type IdentiteEtat,
+} from './classeur-en-flux';
 import { JeuEtatsFinanciersSycebnl, Prisma, Referentiel, SystemeComptableSyscohada } from '@prisma/client';
 import * as ExcelJS from 'exceljs';
 import { PrismaService } from '../../common/prisma.service';
@@ -226,7 +233,85 @@ export class ExportService {
    * est plafonné ici, c'est le CLASSEUR, que `writeBuffer()` construit en
    * entier en mémoire.
    */
-  private static readonly MAX_LIGNES_EXPORT = Number(process.env.EXPORT_MAX_LIGNES ?? 50_000);
+  /**
+   * Taille d'un lot de lecture pour les exports en flux · le pendant de
+   * `LOT_LECTURE` des notes annexes. Cinq cents écritures avec leurs lignes
+   * pèsent quelques mégaoctets : l'intérêt n'est pas la vitesse, c'est que la
+   * mémoire ne dépende plus de la taille du dossier.
+   */
+  private static readonly LOT_EXPORT = 500;
+
+  /**
+   * Colonnes du journal · sorties en constante parce que le flux doit les
+   * poser À LA CRÉATION de la feuille, avant la première ligne.
+   */
+  private static readonly COLONNES_JOURNAL: Partial<ExcelJS.Column>[] = [
+    // LES FORMATS SONT PORTÉS PAR LA COLONNE, ET POSÉS ICI · en flux, une
+    // ligne est écrite et scellée aussitôt. Un `numFmt` appliqué après coup,
+    // comme le fait `appliquerFormats` sur les classeurs en mémoire, n'a alors
+    // AUCUN effet sur les lignes déjà parties : les dates sortiraient en
+    // numéros de série et les montants sans séparateur. Éprouvé par un test
+    // qui relit le classeur produit.
+    { header: 'Date', key: 'date', width: 12, style: { numFmt: FORMAT_DATE } },
+    { header: 'Journal', key: 'journal', width: 10 },
+    { header: 'N° pièce', key: 'numeroPiece', width: 10 },
+    { header: 'Référence', key: 'reference', width: 16 },
+    { header: 'Libellé écriture', key: 'libelleEcriture', width: 32 },
+    { header: 'Compte', key: 'compteNumero', width: 12 },
+    { header: 'Intitulé compte', key: 'compteIntitule', width: 28 },
+    { header: 'Libellé ligne', key: 'libelleLigne', width: 32 },
+    { header: 'Débit', key: 'debit', width: 14, style: { numFmt: FORMAT_MONTANT } },
+    { header: 'Crédit', key: 'credit', width: 14, style: { numFmt: FORMAT_MONTANT } },
+    { header: 'Lettrage', key: 'lettre', width: 10 },
+    // Un journal d'audit qui tairait les annulations laisserait additionner
+    // une erreur et sa correction sans savoir laquelle est laquelle. Les deux
+    // écritures RESTENT au journal · « sans blanc ni altération d'aucune
+    // sorte » (AUDCIF art. 20, repris par le SYCEBNL Partie 2 ch. 2) · mais
+    // chacune se nomme.
+    { header: 'Correction (art. 20 AUDCIF)', key: 'correction', width: 30 },
+    { header: 'Motif de la correction', key: 'motifCorrection', width: 46 },
+    // LA PISTE, RESTITUÉE · AUDCIF art. 22, 1° : les données « comprennent,
+    // lors de leur entrée, l'indication de l'ORIGINE, du contenu et de
+    // l'imputation, et puissent être RESTITUÉES sur papier ou sous une forme
+    // directement intelligible ». La DATE DE SAISIE n'est pas la date
+    // comptable, et l'écart entre les deux est ce que l'art. 22, 4° appelle la
+    // date de valeur, « mentionnée distinctement ».
+    { header: 'Statut', key: 'statut', width: 12 },
+    { header: 'Saisie le', key: 'saisieLe', width: 18, style: { numFmt: FORMAT_DATE_HEURE } },
+    { header: 'Saisie par', key: 'saisiePar', width: 28 },
+    { header: 'Validée le', key: 'valideeLe', width: 18, style: { numFmt: FORMAT_DATE_HEURE } },
+    { header: 'Validée par', key: 'valideePar', width: 28 },
+  ];
+
+  /**
+   * PLAFOND DES DEUX LIVRES EXPORTÉS, ET CE QU'IL MESURE DÉSORMAIS.
+   *
+   * Il valait 50 000 parce que le classeur était bâti ENTIER EN MÉMOIRE · à ce
+   * volume, le banc du 2026-09-03 relevait 693 Mo pour un tas de 460 Mio, et
+   * 200 000 lignes tuaient le processus. Ce n'était donc pas une borne
+   * comptable mais une borne de construction, et elle refusait un grand livre
+   * parfaitement ordinaire : un dossier à 60 000 lignes n'a rien d'un gros
+   * dossier.
+   *
+   * Le flux a déplacé la borne, il ne l'a pas supprimée. Mesuré en flux, même
+   * banc : 200 000 lignes coûtent 246 Mo, 500 000 en coûtent 443 · c'est-à-dire
+   * PRESQUE TOUT LE TAS. `useStyles: true`, que les formats de cellule rendent
+   * obligatoire, n'y change quasiment rien en mémoire mais double le temps
+   * (37,6 s contre 19,6 s à 500 000). Le plafond est donc porté à 200 000, la
+   * dernière mesure qui laisse la moitié du tas libre.
+   *
+   * LA RÉSERVE EST ÉCRITE PLUTÔT QUE SUPPOSÉE · la mesure porte sur UN export à
+   * la fois. Cloud Run sert 80 requêtes par instance (`--concurrency 80`, § 5
+   * de CLAUDE.md) : deux exports de 200 000 lignes lancés en même temps sur la
+   * même instance ne sont couverts par aucune mesure. Refaire le banc avant de
+   * relever encore ce chiffre, et le refaire à plusieurs exports simultanés.
+   *
+   * ET IL RESTE UN REFUS, JAMAIS UNE TRONCATURE · le journal et le grand livre
+   * sont des livres obligatoires (AUDCIF art. 22, 6°), et « un livre amputé en
+   * silence est un document faux ». Au-delà du plafond, l'export s'arrête et
+   * nomme le chemin de rechange.
+   */
+  private static readonly MAX_LIGNES_EXPORT = Number(process.env.EXPORT_MAX_LIGNES ?? 200_000);
 
   private async verifierVolume(where: Prisma.LigneEcritureWhereInput, quoi: string) {
     const nb = await this.prisma.ligneEcriture.count({ where });
@@ -424,144 +509,138 @@ export class ExportService {
     }
   }
 
-  /** Journal : reprend exactement EcritureService.lister(), une ligne d'écriture = une ligne Excel. */
-  async journalExcel(
+  /**
+   * JOURNAL EN FLUX · et la correction d'un livre obligatoire qui sortait FAUX.
+   *
+   * L'export appelait `EcritureService.lister()` sans limite. Or `lister` n'en
+   * rend jamais plus de `PLAFOND_ECRITURES_PAR_FENETRE`, soit 2 000 · c'est le
+   * plafond d'une FENÊTRE, posé pour qu'un écran ne tue pas le serveur. Un
+   * fichier n'est pas une fenêtre, et le journal d'un dossier qui compte trois
+   * mille écritures s'exportait donc amputé du tiers, sans un mot.
+   *
+   * PIRE QUE L'AMPUTATION · la ligne TOTAUX. Elle porte une formule `SUM` sur
+   * les lignes écrites ET, en valeur jointe, l'agrégat SQL de la période
+   * ENTIÈRE (voir `formule`). Le même classeur annonçait donc deux totaux
+   * différents selon son lecteur : Excel recalcule et montre le total tronqué,
+   * tout ce qui lit sans moteur de calcul (un import, un convertisseur, un
+   * aperçu) lit le total complet. Un livre-journal est un livre obligatoire
+   * (AUDCIF art. 22, 6°) · le grand livre porte déjà en toutes lettres qu'« un
+   * livre amputé en silence est un document FAUX ». Le journal n'avait pas eu
+   * droit à la même phrase.
+   *
+   * La lecture se fait donc PAR LOTS, curseur sur l'identifiant, et l'écriture
+   * en flux · plus de plafond de fenêtre, plus de classeur en mémoire, et les
+   * deux totaux redeviennent le même parce qu'ils portent sur les mêmes lignes.
+   *
+   * `ouvrir` est appelé UNE FOIS, quand le nom du fichier est connu et avant le
+   * premier octet · c'est là que l'appelant pose ses en-têtes HTTP. Après, il
+   * est trop tard : on ne rattrape pas une réponse commencée.
+   */
+  async journalExcelEnFlux(
     tenantId: string,
     filtres: { exerciceId?: string; journalId?: string; dateDebut?: string; dateFin?: string; recherche?: string },
-  ): Promise<ClasseurExporte> {
-    await this.verifierVolume(
-      {
-        ecriture: {
-          tenantId,
-          ...(filtres.exerciceId ? { exerciceId: filtres.exerciceId } : {}),
-          ...(filtres.journalId ? { journalId: filtres.journalId } : {}),
-          ...(filtres.dateDebut || filtres.dateFin
-            ? {
-                date: {
-                  ...(filtres.dateDebut ? { gte: new Date(filtres.dateDebut) } : {}),
-                  ...(filtres.dateFin ? { lte: new Date(filtres.dateFin) } : {}),
-                },
-              }
-            : {}),
-        },
-      },
-      'Journal',
-    );
-
-    const { ecritures, totaux } = await this.ecritureService.lister(tenantId, filtres);
-    const identiteJournal = await this.identiteEtat(tenantId, filtres);
-
-    const classeur = this.nouveauClasseur();
-    const feuille = classeur.addWorksheet('Journal');
-    feuille.columns = [
-      { header: 'Date', key: 'date', width: 12 },
-      { header: 'Journal', key: 'journal', width: 10 },
-      { header: 'N° pièce', key: 'numeroPiece', width: 10 },
-      { header: 'Référence', key: 'reference', width: 16 },
-      { header: 'Libellé écriture', key: 'libelleEcriture', width: 32 },
-      { header: 'Compte', key: 'compteNumero', width: 12 },
-      { header: 'Intitulé compte', key: 'compteIntitule', width: 28 },
-      { header: 'Libellé ligne', key: 'libelleLigne', width: 32 },
-      { header: 'Débit', key: 'debit', width: 14 },
-      { header: 'Crédit', key: 'credit', width: 14 },
-      { header: 'Lettrage', key: 'lettre', width: 10 },
-      // Un journal d'audit qui tairait les annulations laisserait additionner
-      // une erreur et sa correction sans savoir laquelle est laquelle. Les
-      // deux écritures RESTENT au journal · « sans blanc ni altération
-      // d'aucune sorte » (AUDCIF art. 20, repris par le SYCEBNL Partie 2
-      // ch. 2) · mais chacune se nomme.
-      { header: 'Correction (art. 20 AUDCIF)', key: 'correction', width: 30 },
-      { header: 'Motif de la correction', key: 'motifCorrection', width: 46 },
-      // LA PISTE, RESTITUÉE · AUDCIF art. 22, 1° : les données « comprennent,
-      // lors de leur entrée, l'indication de l'ORIGINE, du contenu et de
-      // l'imputation, et puissent être RESTITUÉES sur papier ou sous une forme
-      // directement intelligible ». La seconde moitié de la phrase est aussi
-      // normative que la première · OmegaX capturait l'origine depuis toujours
-      // et ne la rendait nulle part, ni à l'écran ni dans le classeur remis.
-      // L'article 22 n'est pas dans la liste d'exclusion de l'art. 3 du
-      // SYCEBNL : il vaut des deux côtés.
-      //
-      // La DATE DE SAISIE n'est pas la date comptable, et l'écart entre les
-      // deux est ce que l'art. 22, 4° appelle la date de valeur, « mentionnée
-      // distinctement ». C'est aussi l'axe du test de l'ISA 240 § 33 a) ii).
-      { header: 'Statut', key: 'statut', width: 12 },
-      { header: 'Saisie le', key: 'saisieLe', width: 18 },
-      { header: 'Saisie par', key: 'saisiePar', width: 28 },
-      { header: 'Validée le', key: 'valideeLe', width: 18 },
-      { header: 'Validée par', key: 'valideePar', width: 28 },
-    ];
+    ouvrir: (nomFichier: string) => Writable,
+  ): Promise<{ lignes: number }> {
+    const where = perimetreJournal(tenantId, filtres);
+    await this.verifierVolume({ ecriture: where }, 'Journal');
+    const identite = await this.identiteEtat(tenantId, filtres);
 
     // L'auteur est un identifiant en base · un auditeur ne lit pas un uuid.
-    const auteurs = await this.prisma.user.findMany({
-      where: { tenantId },
-      select: { id: true, email: true },
-    });
+    const auteurs = await this.prisma.user.findMany({ where: { tenantId }, select: { id: true, email: true } });
     const courrielParId = new Map(auteurs.map((u) => [u.id, u.email]));
     // Un utilisateur retiré du dossier ne rend pas sa trace anonyme · on le
     // dit, plutôt que de laisser une case vide qui se lit comme « personne ».
     const courriel = (id: string | null) =>
       id ? (courrielParId.get(id) ?? 'utilisateur retiré du dossier') : '';
 
-    for (const e of ecritures) {
-      const etatCorrection = e.correction
-        ? `Annulée par la pièce n° ${e.correction.numeroPiece ?? '·'}`
-        : e.corrigeEcriture
-          ? `Annule la pièce n° ${e.corrigeEcriture.numeroPiece ?? '·'}`
-          : '';
-      for (const l of e.lignes) {
-        feuille.addRow({
-          date: e.date,
-          journal: e.journal.code,
-          numeroPiece: e.numeroPiece,
-          reference: e.reference ?? '',
-          libelleEcriture: e.libelle,
-          compteNumero: l.compte.numero,
-          compteIntitule: l.compte.intitule,
-          libelleLigne: l.libelle ?? '',
-          debit: Number(l.debit) || null,
-          credit: Number(l.credit) || null,
-          lettre: l.lettre ?? '',
-          correction: etatCorrection,
-          motifCorrection: e.motifCorrection ?? '',
-          statut: e.statut === 'VALIDEE' ? 'Validée' : 'Brouillard',
-          saisieLe: e.createdAt,
-          saisiePar: courriel(e.createdBy),
-          valideeLe: e.valideeAt,
-          valideePar: courriel(e.valideeBy),
-        });
+    const sortie = ouvrir(`journal${await this.suffixeExercice(tenantId, filtres.exerciceId)}.xlsx`);
+    const flux = ouvrirFeuilleEnFlux({
+      sortie,
+      nomFeuille: 'Journal',
+      titre: 'JOURNAL',
+      identite,
+      colonnes: ExportService.COLONNES_JOURNAL,
+    });
+
+    let totalDebit = 0;
+    let totalCredit = 0;
+    let nbLignes = 0;
+    let curseur: string | undefined;
+    for (;;) {
+      const lot = await this.prisma.ecriture.findMany({
+        // `tenantId` répété alors que `where` le porte déjà · le balayage de
+        // cloisonnement lit le CODE, pas la valeur d'une variable, et une borne
+        // qu'il ne voit pas est une borne qu'un relecteur ne voit pas non plus.
+        where: { ...where, tenantId },
+        take: ExportService.LOT_EXPORT,
+        ...(curseur ? { cursor: { id: curseur }, skip: 1 } : {}),
+        include: {
+          lignes: { include: { compte: true } },
+          journal: true,
+          correction: { select: { id: true, numeroPiece: true, date: true } },
+          corrigeEcriture: { select: { id: true, numeroPiece: true, date: true, libelle: true } },
+        },
+        // Même ordre total que la fenêtre · à date égale, laisser le plan
+        // d'exécution décider ferait sortir deux exports du même exercice dans
+        // deux ordres différents.
+        orderBy: [{ date: 'asc' }, { numeroPiece: 'asc' }, { id: 'asc' }],
+      });
+      for (const e of lot) {
+        const etatCorrection = e.correction
+          ? `Annulée par la pièce n° ${e.correction.numeroPiece ?? '·'}`
+          : e.corrigeEcriture
+            ? `Annule la pièce n° ${e.corrigeEcriture.numeroPiece ?? '·'}`
+            : '';
+        for (const l of e.lignes) {
+          totalDebit += Number(l.debit);
+          totalCredit += Number(l.credit);
+          nbLignes++;
+          await flux.ajouter({
+            date: e.date,
+            journal: e.journal.code,
+            numeroPiece: e.numeroPiece,
+            reference: e.reference ?? '',
+            libelleEcriture: e.libelle,
+            compteNumero: l.compte.numero,
+            compteIntitule: l.compte.intitule,
+            libelleLigne: l.libelle ?? '',
+            debit: Number(l.debit) || null,
+            credit: Number(l.credit) || null,
+            lettre: l.lettre ?? '',
+            correction: etatCorrection,
+            motifCorrection: e.motifCorrection ?? '',
+            statut: e.statut === 'VALIDEE' ? 'Validée' : 'Brouillard',
+            saisieLe: e.createdAt,
+            saisiePar: courriel(e.createdBy),
+            valideeLe: e.valideeAt,
+            valideePar: courriel(e.valideeBy),
+          });
+        }
       }
+      if (lot.length < ExportService.LOT_EXPORT) break;
+      curseur = lot[lot.length - 1].id;
     }
 
-    const derniereLigneDonnees = feuille.rowCount;
-    const ligneTotal = feuille.addRow({ libelleEcriture: 'TOTAUX DE LA PÉRIODE' });
-    // Somme Excel, pas un chiffre figé · le lecteur voit la plage additionnée,
-    // et le total suit si une ligne est ajoutée ou retirée.
-    const premiereJ = this.ligneCoiffee(2);
-    const derniereJ = this.ligneCoiffee(derniereLigneDonnees);
+    const derniereDonnee = flux.derniereLigneDonnees();
+    // LES DEUX TOTAUX SONT DÉSORMAIS LE MÊME · la formule couvre exactement les
+    // lignes écrites, et la valeur jointe est leur somme. Tant que l'export
+    // était tronqué, ces deux-là divergeaient en silence.
+    const ligneTotal = flux.feuille.addRow({ libelleEcriture: 'TOTAUX DE LA PÉRIODE' });
     for (const [cle, valeur] of [
-      ['debit', totaux.debit],
-      ['credit', totaux.credit],
+      ['debit', totalDebit],
+      ['credit', totalCredit],
     ] as const) {
-      const col = this.colonne(feuille, cle);
-      ligneTotal.getCell(cle).value = this.formule(`SUM(${col}${premiereJ}:${col}${derniereJ})`, valeur);
+      const col = flux.feuille.getColumn(cle).letter;
+      ligneTotal.getCell(cle).value = this.formule(
+        `SUM(${col}${PREMIERE_LIGNE_DONNEES}:${col}${derniereDonnee})`,
+        valeur,
+      );
     }
     ligneTotal.font = ENTETE_FONT;
+    ligneTotal.commit();
 
-    this.appliquerFormats(feuille, {
-      date: FORMAT_DATE,
-      debit: FORMAT_MONTANT,
-      credit: FORMAT_MONTANT,
-      saisieLe: FORMAT_DATE_HEURE,
-      valideeLe: FORMAT_DATE_HEURE,
-    });
-    this.piedDePageEtat(feuille, identiteJournal);
-    const enteteJournal = this.coifferEtat(feuille, identiteJournal, 'JOURNAL', feuille.columns.length);
-    this.finaliserTableau(feuille, feuille.columns.length, derniereLigneDonnees + 3, enteteJournal);
-
-    return {
-      buffer: await this.versBuffer(classeur),
-      nomFichier: `journal${await this.suffixeExercice(tenantId, filtres.exerciceId)}.xlsx`,
-    };
+    await flux.terminer(derniereDonnee);
+    return { lignes: nbLignes };
   }
 
   /** Colonnes communes au grand livre d'un compte et au grand livre complet. */
@@ -599,13 +678,15 @@ export class ExportService {
     return [
       ...colonnesCompte,
       { header: 'Journal', key: 'journal', width: 10 },
-      { header: 'Date écriture', key: 'date', width: 13 },
+      // Formats portés par la COLONNE · en flux, une ligne commise ne se
+      // reformate plus (voir COLONNES_JOURNAL).
+      { header: 'Date écriture', key: 'date', width: 13, style: { numFmt: FORMAT_DATE } },
       { header: 'N° pièce', key: 'numeroPiece', width: 10 },
       { header: 'Réf. pièce', key: 'reference', width: 16 },
       { header: 'Libellé', key: 'libelle', width: 34 },
-      { header: 'Débit', key: 'debit', width: 14 },
-      { header: 'Crédit', key: 'credit', width: 14 },
-      { header: 'Solde progressif', key: 'solde', width: 16 },
+      { header: 'Débit', key: 'debit', width: 14, style: { numFmt: FORMAT_MONTANT } },
+      { header: 'Crédit', key: 'credit', width: 14, style: { numFmt: FORMAT_MONTANT } },
+      { header: 'Solde progressif', key: 'solde', width: 16, style: { numFmt: FORMAT_MONTANT } },
       { header: 'Code lettrage', key: 'lettre', width: 13 },
       ...(avecContrepartie
         ? [{ header: 'Compte contrepartie', key: 'contrepartie', width: 28 }]
@@ -706,52 +787,95 @@ export class ExportService {
    *    final) · c'est là que vivent les sous-totaux, plutôt qu'en lignes de
    *    rupture au milieu des données qui fausseraient tout filtre.
    */
-  async grandLivreCompletExcel(tenantId: string, exerciceId?: string): Promise<ClasseurExporte> {
-    await this.verifierVolume(
-      { ecriture: { tenantId, ...(exerciceId ? { exerciceId } : {}) } },
-      'Grand livre complet',
+  async grandLivreCompletExcelEnFlux(
+    tenantId: string,
+    exerciceId: string | undefined,
+    ouvrir: (nomFichier: string) => Writable,
+  ): Promise<{ lignes: number }> {
+    const perimetre = { tenantId, ...(exerciceId ? { exerciceId } : {}) };
+    await this.verifierVolume({ ecriture: perimetre }, 'Grand livre complet');
+    const identite = await this.identiteEtat(tenantId, { exerciceId });
+
+    // LES COMPTES SANS MOUVEMENT SONT ÉCARTÉS D'ABORD, par un agrégat · c'est
+    // le même filtre que `balance()` (un compte dont tous les mouvements sont à
+    // 0/0 n'y figure pas non plus), et sans cet alignement deux états exportés
+    // le même jour ne listent pas les mêmes comptes · écart qu'un auditeur
+    // relève immédiatement.
+    //
+    // En flux, il ne peut PAS se faire après coup : on ne revient pas effacer
+    // les lignes d'un compte déjà parties sur le réseau. Une ligne par compte,
+    // quelques centaines au plus · la mémoire ne dépend pas du volume.
+    const parCompte = await this.prisma.ligneEcriture.groupBy({
+      by: ['compteId'],
+      where: { ecriture: { ...perimetre, tenantId } },
+      _sum: { debit: true, credit: true },
+    });
+    const comptesMouvementes = new Set(
+      parCompte.filter((c) => Number(c._sum.debit ?? 0) !== 0 || Number(c._sum.credit ?? 0) !== 0).map((c) => c.compteId),
     );
 
-    const comptes = await this.ecritureService.grandLivreComplet(tenantId, exerciceId);
-    const identiteGrandLivre = await this.identiteEtat(tenantId, { exerciceId });
+    const sortie = ouvrir(`grand-livre-complet${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`);
+    const flux = ouvrirFeuilleEnFlux({
+      sortie,
+      nomFeuille: 'Grand livre',
+      titre: 'GRAND LIVRE',
+      identite,
+      colonnes: this.colonnesGrandLivre(true),
+    });
 
-    const classeur = this.nouveauClasseur();
-    const feuille = classeur.addWorksheet('Grand livre');
-    feuille.columns = this.colonnesGrandLivre(true);
-
-    for (const c of comptes) {
-      for (const l of c.lignes) {
-        feuille.addRow({
-          compteNumero: c.compte.numero,
-          compteIntitule: c.compte.intitule,
-          date: l.date,
-          journal: l.journalCode,
-          numeroPiece: l.numeroPiece,
-          reference: l.reference ?? '',
-          libelle: l.libelle,
-          debit: l.debit || null,
-          credit: l.credit || null,
-          solde: l.soldeProgressif,
+    let compteCourant: string | null = null;
+    let solde = 0;
+    let nbLignes = 0;
+    let curseur: string | undefined;
+    for (;;) {
+      const lot = await this.prisma.ligneEcriture.findMany({
+        // `tenantId` répété · voir le journal juste au-dessus.
+        where: { ecriture: { ...perimetre, tenantId } },
+        take: ExportService.LOT_EXPORT,
+        ...(curseur ? { cursor: { id: curseur }, skip: 1 } : {}),
+        include: { compte: true, ecriture: { include: { journal: true } } },
+        // Ordre TOTAL · à date égale, laisser le plan d'exécution décider ferait
+        // sortir deux exports du même exercice avec des soldes progressifs
+        // différents, ce qui est inacceptable dans un dossier d'audit où l'on
+        // recoupe deux tirages ligne à ligne.
+        orderBy: [
+          { compte: { numero: 'asc' } },
+          { ecriture: { date: 'asc' } },
+          { ecriture: { numeroPiece: 'asc' } },
+          { id: 'asc' },
+        ],
+      });
+      for (const l of lot) {
+        if (!comptesMouvementes.has(l.compteId)) continue;
+        // LE SOLDE PROGRESSIF SE RÉINITIALISE À CHAQUE COMPTE · le tri par
+        // numéro de compte garantit que toutes les lignes d'un compte se
+        // suivent, ce qui rend le cumul juste en une seule passe.
+        if (l.compteId !== compteCourant) {
+          compteCourant = l.compteId;
+          solde = 0;
+        }
+        solde += Number(l.debit) - Number(l.credit);
+        nbLignes++;
+        await flux.ajouter({
+          compteNumero: l.compte.numero,
+          compteIntitule: l.compte.intitule,
+          journal: l.ecriture.journal.code,
+          date: l.ecriture.date,
+          numeroPiece: l.ecriture.numeroPiece,
+          reference: l.ecriture.reference ?? '',
+          libelle: l.libelle ?? l.ecriture.libelle,
+          debit: Number(l.debit) || null,
+          credit: Number(l.credit) || null,
+          solde: Math.round(solde * 100) / 100,
           lettre: l.lettre ?? '',
         });
       }
+      if (lot.length < ExportService.LOT_EXPORT) break;
+      curseur = lot[lot.length - 1].id;
     }
 
-    this.appliquerFormats(feuille, {
-      date: FORMAT_DATE,
-      debit: FORMAT_MONTANT,
-      credit: FORMAT_MONTANT,
-      solde: FORMAT_MONTANT,
-    });
-    this.piedDePageEtat(feuille, identiteGrandLivre);
-    const derniereLigneGL = feuille.rowCount;
-    const enteteGLComplet = this.coifferEtat(feuille, identiteGrandLivre, 'GRAND LIVRE', feuille.columns.length);
-    this.finaliserTableau(feuille, feuille.columns.length, derniereLigneGL + 3, enteteGLComplet);
-
-    return {
-      buffer: await this.versBuffer(classeur),
-      nomFichier: `grand-livre-complet${await this.suffixeExercice(tenantId, exerciceId)}.xlsx`,
-    };
+    await flux.terminer();
+    return { lignes: nbLignes };
   }
 
   /** Balance générale · la présentation des dossiers de révision réels. */

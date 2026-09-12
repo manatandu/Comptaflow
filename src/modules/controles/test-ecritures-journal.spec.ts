@@ -1,3 +1,4 @@
+import { Writable } from 'stream';
 import * as ExcelJS from 'exceljs';
 import { RoleUtilisateur, StatutEcriture } from '@prisma/client';
 import { TestEcrituresJournalService } from './test-ecritures-journal.service';
@@ -174,10 +175,18 @@ describe('la piste d’audit, restituée · AUDCIF art. 22, 1°', () => {
       user: { findMany: jest.fn().mockResolvedValue([COMPTABLE, ADMIN]) },
       tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ nom: 'Dossier', nif: 'A1234', deviseComptes: 'CDF' }) },
       exercice: { findFirst: jest.fn().mockResolvedValue(EXERCICE), findUnique: jest.fn().mockResolvedValue(EXERCICE) },
+      // L'export lit désormais les écritures PAR LOTS, curseur sur
+      // l'identifiant · la doublure rend le lot puis un lot vide, sans quoi la
+      // boucle ne s'arrêterait jamais. Une doublure qui répondrait toujours la
+      // même chose bouclerait à l'infini, ce qui est déjà un enseignement.
+      ecriture: {
+        findMany: jest
+          .fn()
+          .mockResolvedValueOnce(ecritures)
+          .mockResolvedValue([]),
+      },
     } as Faux;
-    const ecritureService = {
-      lister: jest.fn().mockResolvedValue({ ecritures, totaux: { debit: 0, credit: 0 } }),
-    } as Faux;
+    const ecritureService = {} as Faux;
     return new ExportService(
       prisma as unknown as PrismaService,
       ecritureService as never,
@@ -190,9 +199,22 @@ describe('la piste d’audit, restituée · AUDCIF art. 22, 1°', () => {
     // classeur remis ne le montrait pas. Un auditeur ne peut alors ni voir
     // qui a passé une écriture, ni distinguer une pièce enregistrée le jour
     // même d'une pièce enregistrée trois mois plus tard.
-    const { buffer } = await exportService([{ ...ORDINAIRE, lignes: ORDINAIRE.lignes, correction: null, corrigeEcriture: null }]).journalExcel('t1', { exerciceId: 'ex' });
+    // L'export part EN FLUX · on le recueille dans un tampon mémoire, ce qui
+    // vérifie au passage que l'archive écrite au fil de l'eau est bien close
+    // et relisible. Un classeur en flux jamais terminé n'est pas un classeur
+    // tronqué, c'est un fichier qu'ExcelJS refuse d'ouvrir.
+    const morceaux: Buffer[] = [];
+    const sortie = new Writable({
+      write(m, _e, cb) {
+        morceaux.push(Buffer.from(m));
+        cb();
+      },
+    });
+    await exportService([
+      { ...ORDINAIRE, lignes: ORDINAIRE.lignes, correction: null, corrigeEcriture: null },
+    ]).journalExcelEnFlux('t1', { exerciceId: 'ex' }, () => sortie);
     const classeur = new ExcelJS.Workbook();
-    await classeur.xlsx.load(buffer as never);
+    await classeur.xlsx.load(Buffer.concat(morceaux) as never);
     const feuille = classeur.worksheets[0];
 
     const entetes: string[] = [];

@@ -118,6 +118,43 @@ export interface TrancheEcheancier {
  *    révision). Un grand livre amputé en silence est un document FAUX. On le
  *    REFUSE au-delà du plafond, en disant par où passer.
  */
+/**
+ * LE PÉRIMÈTRE DU JOURNAL · une seule écriture de ce filtre, deux lecteurs.
+ *
+ * La fenêtre Journal le lit par tranches ; l'export Excel le lit en flux, du
+ * premier au dernier. Écrire le filtre deux fois aurait produit deux journaux
+ * plausibles et différents pour les mêmes critères · la fenêtre montrant ce que
+ * le fichier ne porte pas, ou l'inverse. C'est le même motif que
+ * `calculerPropositions` au lettrage et `construireLigneTva` à la saisie.
+ */
+export function perimetreJournal(
+  tenantId: string,
+  filtres: {
+    exerciceId?: string;
+    journalId?: string;
+    dateDebut?: string;
+    dateFin?: string;
+    recherche?: string;
+    inclureBrouillard?: boolean;
+  },
+): Prisma.EcritureWhereInput {
+  return {
+    tenantId,
+    ...(filtres.inclureBrouillard === false ? { statut: StatutEcriture.VALIDEE } : {}),
+    ...(filtres.exerciceId ? { exerciceId: filtres.exerciceId } : {}),
+    ...(filtres.journalId ? { journalId: filtres.journalId } : {}),
+    ...(filtres.dateDebut || filtres.dateFin
+      ? {
+          date: {
+            ...(filtres.dateDebut ? { gte: new Date(filtres.dateDebut) } : {}),
+            ...(filtres.dateFin ? { lte: new Date(filtres.dateFin) } : {}),
+          },
+        }
+      : {}),
+    ...(filtres.recherche ? { libelle: { contains: filtres.recherche, mode: 'insensitive' as const } } : {}),
+  };
+}
+
 export const PLAFOND_ECRITURES_PAR_FENETRE = 2000;
 export const PLAFOND_LIGNES_GRAND_LIVRE = 20000;
 
@@ -1326,21 +1363,7 @@ export class EcritureService {
       limite?: number;
     },
   ) {
-    const where = {
-        tenantId,
-        ...(filtres.inclureBrouillard === false ? { statut: StatutEcriture.VALIDEE } : {}),
-        ...(filtres.exerciceId ? { exerciceId: filtres.exerciceId } : {}),
-        ...(filtres.journalId ? { journalId: filtres.journalId } : {}),
-        ...(filtres.dateDebut || filtres.dateFin
-          ? {
-              date: {
-                ...(filtres.dateDebut ? { gte: new Date(filtres.dateDebut) } : {}),
-                ...(filtres.dateFin ? { lte: new Date(filtres.dateFin) } : {}),
-              },
-            }
-          : {}),
-        ...(filtres.recherche ? { libelle: { contains: filtres.recherche, mode: 'insensitive' as const } } : {}),
-    };
+    const where = perimetreJournal(tenantId, filtres);
 
     // AUCUNE COLLECTION SANS BORNE · sans ce plafond, la fenêtre Journal
     // d'un gros dossier tuait le serveur (voir PLAFOND_ECRITURES_PAR_FENETRE).

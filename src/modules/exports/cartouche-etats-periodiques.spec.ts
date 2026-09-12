@@ -27,12 +27,24 @@ import { join } from 'node:path';
  */
 
 const service = readFileSync(join(__dirname, 'export.service.ts'), 'utf8');
+const flux = readFileSync(join(__dirname, 'classeur-en-flux.ts'), 'utf8');
 
 describe('exports périodiques · identification de l’état', () => {
   it('porte l’identification en pied de page sur les trois livres obligatoires', () => {
-    for (const identite of ['identiteJournal', 'identiteGrandLivre', 'identiteBalance']) {
-      expect(service).toContain(`this.piedDePageEtat(feuille, ${identite});`);
+    // Le JOURNAL et le GRAND LIVRE COMPLET partent désormais EN FLUX · leur
+    // pied de page et leur coiffe se posent à la CRÉATION de la feuille, dans
+    // `classeur-en-flux.ts`, parce qu'une feuille déjà partie sur le réseau ne
+    // se relit pas. La règle ne change pas d'un iota : aucun état exportable ne
+    // sort sans son identification. C'est l'endroit où on la pose qui change,
+    // et il est verrouillé ici comme les autres.
+    expect(flux).toContain('oddFooter:');
+    expect(flux).toContain('params.identite.entite');
+    for (const enFlux of ['journalExcelEnFlux', 'grandLivreCompletExcelEnFlux']) {
+      expect(`${enFlux}: ${service.includes(`${enFlux}(`)}`).toBe(`${enFlux}: true`);
+      // Et chacun passe une identité résolue par `identiteEtat`.
+      expect(service).toContain('const identite = await this.identiteEtat(');
     }
+    expect(service).toContain('this.piedDePageEtat(feuille, identiteBalance);');
     // Chaque pose passe une identité résolue par `identiteEtat`, jamais un
     // littéral bricolé sur place · une nouvelle feuille exportable doit être
     // identifiée de la même façon que les trois autres. Le compte n'est pas

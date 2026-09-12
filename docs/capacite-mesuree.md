@@ -101,12 +101,42 @@ il tomberait en poussant la ventilation des échéances dans un agrégat SQL,
 ce qui n'a pas été fait ce soir pour ne pas risquer de changer un montant
 sans son propre test.
 
+## Le journal et le grand livre en flux (banc du 2026-09-12)
+
+Les deux derniers exports bâtis entièrement en mémoire sont passés au
+`WorkbookWriter`. Même machine, même tas de 460 Mio, même jeu de lignes :
+
+| lignes | classeur en mémoire | en flux |
+|---|---|---|
+| 50 000 | 12,1 s · 693 Mo | 2,3 s · 137 Mo |
+| 200 000 | mort (dépassement de tas) | 8,0 s · 246 Mo |
+| 500 000 | mort | 19,6 s · 450 Mo |
+| 1 000 000 | mort | 81 s · 784 Mo |
+
+Deux options du `WorkbookWriter` ont été mesurées à part, à 500 000 lignes, et
+elles ne se tranchent pas pareil :
+
+- `useSharedStrings: true` fait passer la mémoire de 450 Mo à **1 195 Mo**. La
+  table des chaînes partagées vit en mémoire jusqu'à la fin du classeur, ce qui
+  défait exactement le bénéfice du flux. Elle reste à FAUX ;
+- `useStyles: true` coûte du TEMPS (37,6 s contre 19,6 s) et presque rien en
+  mémoire (443 Mo contre 450). Elle reste à VRAI, et ce n'est pas un confort :
+  en flux, une ligne est scellée dès qu'elle est écrite, si bien qu'un `numFmt`
+  posé après coup n'a aucun effet. Sans elle, les dates sortent en numéros de
+  série et les montants sans séparateur.
+
+`MAX_LIGNES_EXPORT` passe donc de 50 000 à **200 000**, dernière mesure qui
+laisse la moitié du tas libre. La mesure porte sur UN export à la fois : deux
+exports simultanés de cette taille sur une même instance ne sont couverts par
+aucun chiffre de ce document.
+
 ## Ce qui reste
 
-Les exports de journal et de grand livre gardent leur refus au-delà de
-50 000 lignes (`MAX_LIGNES_EXPORT`), eux construisent bien tout le classeur
-en mémoire. Le `WorkbookWriter` en flux lèverait cette borne · c'est lui qui
-rendrait de nouveau exportable le grand livre complet d'un gros dossier.
+Plus aucun export ne construit son classeur entier en mémoire. Ce qui n'est
+pas mesuré, et qui le sera le jour où un dossier réel s'en approchera : le
+comportement à plusieurs exports CONCURRENTS sur une même instance Cloud Run
+(`--concurrency 80`), le seul cas où le plafond ci-dessus peut être franchi
+sans que personne n'ait exporté 200 000 lignes.
 
 ## Refaire la mesure
 
