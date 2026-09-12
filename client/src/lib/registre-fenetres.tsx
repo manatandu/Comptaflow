@@ -23,6 +23,7 @@ const JustificatifSoldePage = lazy(() => import('../pages/JustificatifSoldePage'
 const EvolutionSoldesPage = lazy(() => import('../pages/EvolutionSoldesPage').then((m) => ({ default: m.EvolutionSoldesPage })));
 const PalmaresJournauxPage = lazy(() => import('../pages/PalmaresJournauxPage').then((m) => ({ default: m.PalmaresJournauxPage })));
 const MandatAuditeurPage = lazy(() => import('../pages/MandatAuditeurPage').then((m) => ({ default: m.MandatAuditeurPage })));
+const AccordCadrePage = lazy(() => import('../pages/AccordCadrePage').then((m) => ({ default: m.AccordCadrePage })));
 const TableauxImmobilisationsPage = lazy(() => import('../pages/TableauxImmobilisationsPage').then((m) => ({ default: m.TableauxImmobilisationsPage })));
 const EcheancierPage = lazy(() => import('../pages/EcheancierPage').then((m) => ({ default: m.EcheancierPage })));
 const LettragePage = lazy(() => import('../pages/LettragePage').then((m) => ({ default: m.LettragePage })));
@@ -200,6 +201,16 @@ export const FENETRES: DefinitionFenetre[] = [
     titre: 'Mandat du contrôleur des comptes',
     titreCourt: 'Mandat',
     rendre: () => <MandatAuditeurPage />,
+  },
+  {
+    motif: /^\/accord-cadre$/,
+    titre: 'Accord-cadre (Ministère du Plan)',
+    titreCourt: 'Accord-cadre',
+    // Cloisonné au SYCEBNL · la loi n° 004/2001 régit les ASBL et les ONG, et
+    // aucune société commerciale ne conclut d'accord-cadre à ce titre. La
+    // route se refuse aussi, masquer ne suffit pas (§ 6).
+    referentielsApplicables: ['SYCEBNL'],
+    rendre: () => <AccordCadrePage />,
   },
   {
     motif: /^\/tableaux-immobilisations$/,

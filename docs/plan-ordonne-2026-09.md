@@ -408,8 +408,13 @@ checklist de constitution E2 et l'échéancier fiscal au tableau de bord.
 
 **L'échéancier fiscal atteint le tableau de bord le 2026-09-12** · panneau
 « Prochaines échéances », règle `echeancesAVenir` (horizon en jours, retard
-constaté en tête, et la distinction déclaration / reversement). Restent
-l'accord-cadre Ministère du Plan et la checklist de constitution E2.
+constaté en tête, et la distinction déclaration / reversement). **L'accord-cadre Ministère du Plan est livré le 2026-09-12** · modèle
+`AccordCadrePlan` portant les QUATRE conditions de l'art. 37, règle
+`conditions-ong-etrangere.ts`, contrôles `ACCORD_CADRE_PLAN_ABSENT`,
+`ACCORD_CADRE_PLAN_ECHU` et `MAIN_OEUVRE_LOCALE_SOUS_SEUIL`. Le manque que
+`exemption-is-ebnl.ts` déclarait lui-même est refermé.
+
+Reste la checklist de constitution E2.
 
 ## Phase H · Confort et restitution
 

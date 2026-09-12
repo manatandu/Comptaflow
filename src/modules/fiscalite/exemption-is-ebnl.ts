@@ -240,8 +240,10 @@ const ONG_ETRANGERE =
   "plan dans ses attributions ». L'arrêté n° 007/2025 en fait des pièces de la demande d'attestation, et en tire " +
   "cette conséquence : « Une ONG étrangère sans accord-cadre avec le Ministère du Plan, ou sans représentation " +
   "justifiée en RDC, ne peut donc pas obtenir l'attestation, même personnalité juridique acquise à l'étranger. » " +
-  "OmegaX NE TIENT PAS l'accord-cadre : le dossier ne porte qu'un certificat d'enregistrement du Ministère du Plan, " +
-  "qui est une autre pièce. Vérifier l'accord-cadre hors logiciel avant de conclure à l'exemption.";
+  "L'accord-cadre se tient désormais dans la fenêtre Accord-cadre (Ministère du Plan) · il ne se confond pas avec " +
+  "le certificat d'enregistrement du Ministère du Plan, qui est une autre pièce, ni avec l'arrêté interministériel " +
+  "de l'art. 39, qui ouvre les exonérations et non l'existence de l'ONG. Ce module ne LIT pas l'accord : il rappelle " +
+  "la condition, et c'est le contrôle ACCORD_CADRE_PLAN_ABSENT qui constate son absence.";
 
 /** Loi n° 004/2001, art. 3 et art. 5 · ce que « constituées conformément à la Loi » suppose. */
 const ACTE_MANQUANT =

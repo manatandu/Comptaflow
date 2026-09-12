@@ -18,6 +18,11 @@ import { sourceManuel } from '../documents-obligatoires/manuel-procedures.servic
 import { PREFIXES_CHIFFRE_AFFAIRES_SYSCOHADA } from '../etats-financiers-syscohada/correspondance-compte-resultat-syscohada';
 import { evaluerComparabilite } from '../etats-financiers/comparabilite-exercices';
 import { dernierExerciceCouvert } from '../mandat-auditeur/duree-mandat';
+import {
+  articleTrenteSeptApplicable,
+  etatAccordCadre,
+  PART_MAIN_OEUVRE_LOCALE_MINIMALE,
+} from '../accord-cadre/conditions-ong-etrangere';
 
 /**
  * SEUILS DE DÉSIGNATION DU CONTRÔLEUR DES COMPTES · ils ne sont PLUS ici.
@@ -2812,6 +2817,105 @@ export class ControlesService {
             {
               reference: echu.nom,
               detail: `Mandat couvrant jusqu’à l’exercice ${dernierExerciceCouvert(echu.premierExercice, echu.nombreExercices)}`,
+            },
+          ],
+        });
+      }
+    }
+
+    // --- 29. Les quatre conditions de l'article 37 (ONG de droit étranger) ---
+    //
+    // Loi n° 004/2001, art. 37 · quatre conditions CUMULATIVES pour une
+    // organisation ÉTRANGÈRE : une représentation en RDC, un accord-cadre avec
+    // le Ministère du Plan, les attestations de bonne conduite du personnel
+    // expatrié, et 60 % au minimum de main-d'œuvre locale.
+    //
+    // LE PÉRIMÈTRE AVANT TOUT · la sous-section II ne vise QUE l'ONG étrangère,
+    // et l'art. 35 réserve le mot ONG à une catégorie précise. Réclamer un
+    // accord-cadre à une ONG de droit congolais, à une association
+    // confessionnelle ou à un établissement d'utilité publique serait une
+    // exigence inventée, sourcée et fausse · § 10 bis.
+    if (articleTrenteSeptApplicable(tenant.formeJuridique, tenant.droitEtranger)) {
+      const accords = await this.prisma.accordCadrePlan.findMany({
+        where: { tenantId, denonceLe: null },
+        orderBy: { dateSignature: 'desc' },
+      });
+      const accord = accords[0];
+
+      if (!accord) {
+        anomalies.push({
+          code: 'ACCORD_CADRE_PLAN_ABSENT',
+          gravite: 'AVERTISSEMENT',
+          libelle: 'Aucun accord-cadre avec le Ministère du Plan',
+          consequence:
+            'La loi n° 004/2001, art. 37, impose à l’organisation étrangère de « conclure un accord-cadre avec ' +
+            'le Ministère ayant le plan dans ses attributions ». Aucun n’est enregistré dans OmegaX pour ce ' +
+            'dossier, qui se déclare pourtant ONG de droit étranger. L’arrêté n° 007/2025 en fait aussi une ' +
+            'pièce de la demande d’attestation d’exemption d’impôt sur les sociétés.',
+          action:
+            'Enregistrez l’accord dans la fenêtre Accord-cadre (Ministère du Plan) · référence, date de ' +
+            'signature et durée recopiées de l’acte signé.',
+          occurrences: [],
+        });
+      } else {
+        const etat = etatAccordCadre({
+          dateSignature: accord.dateSignature,
+          dureeAnnees: accord.dureeAnnees,
+          taciteReconduction: accord.taciteReconduction,
+          preavisMois: accord.preavisMois,
+          denonceLe: accord.denonceLe,
+          reference: ex.dateFin,
+        });
+        // UNE PÉRIODE ÉCOULÉE N'EST PAS UNE FIN quand l'accord se reconduit
+        // tacitement · même forme que la prorogation de plein droit du mandat
+        // de l'auditeur (SYCEBNL art. 22), et même refus de crier « expiré ».
+        // Sans tacite reconduction, en revanche, la période écoulée EST la fin.
+        if (etat.periodeEcoulee && !etat.enTaciteReconduction) {
+          anomalies.push({
+            code: 'ACCORD_CADRE_PLAN_ECHU',
+            gravite: 'AVERTISSEMENT',
+            libelle: 'Accord-cadre échu, sans tacite reconduction',
+            consequence:
+              `L’accord ${accord.reference} couvrait ${accord.dureeAnnees} an(s) à compter du ` +
+              `${accord.dateSignature.toISOString().slice(0, 10)} et l’accord enregistré ne prévoit pas de ` +
+              'tacite reconduction. La condition de l’art. 37, point 2 n’est donc plus remplie à la clôture.',
+            action: 'Concluez un nouvel accord avec le Ministère du Plan, ou corrigez la clause enregistrée.',
+            occurrences: [
+              {
+                reference: accord.reference,
+                detail: `Période close le ${etat.finDePeriode.toISOString().slice(0, 10)}`,
+                date: etat.finDePeriode.toISOString().slice(0, 10),
+              },
+            ],
+          });
+        }
+      }
+
+      // LA PART DE MAIN-D'ŒUVRE LOCALE N'EST JAMAIS CALCULÉE · OmegaX n'a pas
+      // de module de paie. Le contrôle ne s'allume que sur une part DÉCLARÉE
+      // sous le seuil : une part absente n'est pas une part insuffisante, et la
+      // traiter comme telle accuserait tout dossier qui n'a rien saisi.
+      if (
+        accord &&
+        accord.partMainOeuvreLocale !== null &&
+        accord.partMainOeuvreLocale < PART_MAIN_OEUVRE_LOCALE_MINIMALE
+      ) {
+        anomalies.push({
+          code: 'MAIN_OEUVRE_LOCALE_SOUS_SEUIL',
+          gravite: 'AVERTISSEMENT',
+          libelle: 'Part de main-d’œuvre locale déclarée sous le minimum légal',
+          consequence:
+            `L’art. 37, point 4 impose d’« utiliser la main d’œuvre locale à concurrence de ` +
+            `${PART_MAIN_OEUVRE_LOCALE_MINIMALE}% au minimum ». La part déclarée est de ` +
+            `${accord.partMainOeuvreLocale} %. OmegaX ne calcule pas ce chiffre · il reprend celui qui a été ` +
+            'saisi, avec sa source.',
+          action:
+            'Vérifiez le relevé et sa source, et régularisez la composition des effectifs si l’écart est réel.',
+          occurrences: [
+            {
+              reference: accord.sourceMainOeuvre ?? 'Source non précisée',
+              detail: `${accord.partMainOeuvreLocale} % de main-d’œuvre locale déclarés`,
+              montant: accord.partMainOeuvreLocale,
             },
           ],
         });

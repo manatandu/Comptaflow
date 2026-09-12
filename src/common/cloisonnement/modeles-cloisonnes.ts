@@ -39,6 +39,7 @@ export const MODELES_CLOISONNES = new Set<string>([
   'Immobilisation',
   'Journal',
   'Lettrage',
+  'AccordCadrePlan',
   'MandatAuditeur',
   'Licence',
   'LiquidationTva',

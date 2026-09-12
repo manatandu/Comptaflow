@@ -227,6 +227,13 @@ export function AppShell() {
         // SYCEBNL (art. 19 à 22) comme l'AUSCGIE (art. 379, 702 à 705)
         // imposent un contrôleur au-delà de leurs seuils, chacun par son texte.
         { label: 'Mandat du contrôleur des comptes', onClick: () => navigate('/mandat-auditeur') },
+        // Loi n° 004/2001, art. 37 · réservé à l'ONG de DROIT ÉTRANGER, et
+        // masqué aux dossiers SYSCOHADA comme aux autres formes d'EBNL. La
+        // fenêtre elle-même dit « ce dossier n'est pas concerné » quand la
+        // forme ne correspond pas · le menu ne peut pas la lire d'ici.
+        ...(estSycebnl
+          ? [{ label: 'Accord-cadre (Ministère du Plan)', onClick: () => navigate('/accord-cadre') }]
+          : []),
       ],
     },
     {

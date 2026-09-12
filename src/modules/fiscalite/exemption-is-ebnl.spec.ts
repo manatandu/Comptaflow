@@ -130,13 +130,24 @@ describe("Attestation de l'art. 2 de l'arrêté n° 007/2025 · elle est enfin L
     expect(q.exemptionAffirmable).toBe(false);
   });
 
-  it("réclame à une ONG étrangère l'accord-cadre du Ministère du Plan, qu'OmegaX ne tient pas", () => {
+  it("réclame à une ONG étrangère l'accord-cadre du Ministère du Plan, et ne le confond avec aucune autre pièce", () => {
+    // Le manque était DÉCLARÉ ici (« OmegaX NE TIENT PAS l'accord-cadre ») et
+    // il est refermé · le module `accord-cadre` le tient. Ce qui reste vrai,
+    // et que ce test gèle, c'est que TROIS pièces distinctes ne se confondent
+    // pas : l'accord-cadre (art. 37, l'existence de l'ONG étrangère), le
+    // certificat d'enregistrement du Ministère du Plan, et l'arrêté
+    // interministériel de l'art. 39 (les exonérations). Croire qu'un accord
+    // signé exonère ferait dédouaner sur une pièce qui ne le permet pas.
     const q = qualifierExemptionIs(
       tenant({ forme: FormeJuridiqueEbnl.ORGANISATION_NON_GOUVERNEMENTALE, droitEtranger: true }),
     );
     const dit = q.avertissements.join(' ');
     expect(dit).toMatch(/accord-cadre conclu avec le Ministère du Plan/);
-    expect(dit).toMatch(/OmegaX NE TIENT PAS l'accord-cadre/);
+    expect(dit).toMatch(/certificat d'enregistrement du Ministère du Plan, qui est une autre pièce/);
+    expect(dit).toMatch(/arrêté interministériel de l'art. 39, qui ouvre les exonérations/);
+    // Et ce module ne prétend pas LIRE l'accord · c'est le contrôle qui
+    // constate son absence, pas cette qualification.
+    expect(dit).toMatch(/ACCORD_CADRE_PLAN_ABSENT/);
   });
 });
 

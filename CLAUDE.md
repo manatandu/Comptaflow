@@ -1869,6 +1869,64 @@ calendriers pour le même dossier. La règle vit hors du composant
 (`client/src/lib/echeances-a-venir.ts`), ce qui la rend vérifiable sans monter
 React · même parti que `resoudreExercice`.
 
+**Accord-cadre avec le Ministère du Plan · le manque que le logiciel déclarait
+lui-même.** `exemption-is-ebnl.ts` écrivait depuis G4a, en toutes lettres, que
+« OmegaX NE TIENT PAS l'accord-cadre : le dossier ne porte qu'un certificat
+d'enregistrement du Ministère du Plan, qui est une autre pièce ». Manque
+DÉCLARÉ, refermé.
+
+LES QUATRE CONDITIONS SONT PORTÉES ENSEMBLE, pas seulement l'accord. La loi
+n° 004/2001, art. 37, en pose quatre CUMULATIVES à l'organisation étrangère :
+une représentation en RDC, l'accord-cadre avec le Ministère du Plan, les
+attestations de bonne conduite du personnel expatrié légalisées par
+l'Ambassade ou le Consulat, et « la main d'œuvre locale à concurrence de 60 %
+au minimum ». N'en tenir qu'une aurait recréé le même manque partiel.
+
+LE PÉRIMÈTRE EST LE PREMIER REFUS, et c'est le § 10 bis. La sous-section II ne
+vise QUE l'organisation ÉTRANGÈRE, et l'art. 35 réserve le mot ONG à
+« l'association sans but lucratif […] dont l'objet concourt au développement
+social, culturel et économique des communautés locales ». Réclamer un
+accord-cadre à une ONG de droit CONGOLAIS (qui relève de l'art. 36), à une
+association confessionnelle ou à un établissement d'utilité publique serait une
+exigence inventée, sourcée, plausible et fausse. La fenêtre dit « ce dossier
+n'est pas concerné » plutôt que d'afficher un formulaire vide qui ressemblerait
+à un manquement.
+
+TROIS PIÈCES QUI NE SE CONFONDENT PAS, et c'est la confusion que ce module
+existe pour empêcher. L'ACCORD-CADRE conditionne l'EXISTENCE de l'ONG étrangère
+en RDC (art. 37). L'ARRÊTÉ INTERMINISTÉRIEL des Ministres du Plan et des
+Finances ouvre les EXONÉRATIONS (art. 39, module `exonerations`). Le CERTIFICAT
+D'ENREGISTREMENT du Ministère du Plan est encore autre chose. Croire qu'un
+accord signé exonère ferait dédouaner sur une pièce qui ne le permet pas · un
+test gèle les trois mentions dans `exemption-is-ebnl.ts`.
+
+LA DURÉE EST SAISIE, ET L'ORIGINE DES DIX ANS EST DITE. La loi n'en fixe
+AUCUNE. Les « dix ans renouvelable par tacite reconduction, à moins d'être
+dénoncé par l'une des parties 6 mois avant la fin de chaque période » viennent
+de l'article IX du MODÈLE d'accord-cadre annexé au guide pratique du cabinet
+Kahasha (annexe VIII) · un modèle, pas le texte légal. Les coder en dur ferait
+lire sur dix ans un accord conclu pour trois, et ferait passer une clause de
+modèle pour une règle de droit. `MODELE_KAHASHA` les propose TOUJOURS avec leur
+source.
+
+UNE PÉRIODE ÉCOULÉE N'EST PAS UNE FIN · même forme que la prorogation de plein
+droit du mandat de l'auditeur (SYCEBNL art. 22), rencontrée au chantier
+précédent, et même refus. Sous tacite reconduction l'accord repart pour une
+période identique tant qu'aucune partie ne l'a dénoncé, et annoncer « accord
+expiré » serait un signalement faux. Seule la DÉNONCIATION l'arrête, comme seul
+le refus exprès arrête la prorogation du mandat. Ce qui est rendu, à la place,
+est le DERNIER JOUR POUR DÉNONCER (fin moins le préavis) · la seule date encore
+utilisable, et celle que l'accord ne calcule pas lui-même. Sans préavis
+stipulé, aucune date n'est inventée.
+
+LA PART DE MAIN-D'ŒUVRE LOCALE EST SAISIE, JAMAIS CALCULÉE. OmegaX n'a pas de
+module de paie : aucun effectif, aucune nationalité, aucun contrat, et un
+pourcentage déduit d'un compte 66 serait une invention. La SOURCE est exigée
+avec le nombre, comme pour les relevés d'unités d'œuvre · c'est elle qu'un
+contrôleur demandera. Et le contrôle ne s'allume que sur une part DÉCLARÉE sous
+le seuil : une part absente n'est pas une part insuffisante, et la traiter comme
+telle accuserait tout dossier qui n'a rien saisi.
+
 ### Migrations écrites à la main
 
 Une migration écrite à la main peut DIVERGER du schéma sans que rien ne le
