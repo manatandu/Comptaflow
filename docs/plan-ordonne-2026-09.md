@@ -504,10 +504,14 @@ SMT et compte de résultat déjà écrits attendent des variations qu'aucune sou
 ne produit) · paie · OHADA vers IFRS · consolidation · RBAC fin.
 
 > **POINT D'ARRÊT DE LA PHASE I · 2026-09-13.** La Phase I est suspendue ici, à
-> la demande de Manasse, le temps du plan de confrontations
-> (`docs/plan-confrontations.md`). Elle reprend à son item suivant, les STOCKS,
-> et à rien d'autre : ne pas recommencer la gestion commerciale, ni sauter
-> directement à la paie.
+> la demande de Manasse, le temps des confrontations. Le plan qui les ordonne
+> est `docs/plan-confrontations.md`, VERROUILLÉ le 2026-09-13 · 31 passes en
+> quatre blocs (fiscalité, actes uniformes OHADA non ouverts, solde des
+> référentiels comptables, droit congolais hors fiscal). On avance sur sa base
+> et dans son ordre.
+>
+> La Phase I reprend à son item suivant, les STOCKS, et à rien d'autre : ne pas
+> recommencer la gestion commerciale, ni sauter directement à la paie.
 
 ---
 
@@ -530,14 +534,19 @@ Aucun développement ne les débloque.
   faire qualifier par un juriste congolais avant tout usage.
 - **Formulaire de déclaration DGI** · l'impôt est calculé, l'imprimé se
   remplit à la main faute d'en détenir le modèle.
-- **Homologation du système de facturation** · O.-L. n° 10/001, art. 59 quater
-  et 59 ter. Les assujettis doivent s'enregistrer comme utilisateurs des
-  dispositifs électroniques fiscaux, et « les systèmes de facturation propres
-  doivent respecter les spécifications techniques et être homologués avant
-  toute utilisation ». Aucune source lue ne décrit la procédure ni les
-  spécifications, renvoyées à l'Administration. Tant qu'elle n'est pas
-  engagée, la fenêtre Facturation tient une pièce justificative et l'état
-  détaillé, pas une facture normalisée.
+- **Homologation d'OmegaX comme SFE** · décret n° 23/10 du 3 mars 2023,
+  art. 20 à 23. CORRIGÉ le 2026-09-13 : la version précédente de cette ligne
+  disait qu'aucune source ne décrivait la procédure, ce qui était faux.
+  OmegaX est un « Système de Facturation d'Entreprise » (art. 3, 7°), un SFE
+  développé en propre ne peut être utilisé qu'après une ATTESTATION DE
+  CONFORMITÉ délivrée par l'Administration fiscale (art. 22), et les modalités
+  de la procédure sont renvoyées à un arrêté du Ministre des Finances
+  (art. 23) qui n'est dans aucune source lue. Le point à trancher en premier
+  n'est d'ailleurs pas l'émission mais la VENTE : « seuls les SFE homologués
+  sont proposés à la vente aux contribuables et utilisés en République
+  Démocratique du Congo » (art. 20), et les assujettis « ne peuvent acquérir
+  que des SFE homologués, répertoriés et publiés par l'Administration »
+  (art. 21).
 - **Forfait micro-entreprise** · la circulaire de change n'est pas connue, la
   branche renvoie `null`.
 - **Tenue en devise étrangère** · le logiciel laisse ouvrir un dossier en USD

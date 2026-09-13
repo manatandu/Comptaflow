@@ -7,7 +7,9 @@ import {
   AMENDE_PAR_OMISSION,
   FactureVerifiable,
   HOMOLOGATION,
-  MENTIONS_ARTICLE_100,
+  MENTIONS_ARTICLE_26,
+  MENTIONS_DOCUMENT_EN_TENANT_LIEU,
+  OBLIGATION_DACCEPTATION,
   totauxFacture,
   verifierMentions,
 } from './mentions-facture';
@@ -33,17 +35,20 @@ const facture = (sur: Partial<FactureVerifiable> = {}): FactureVerifiable => ({
   contrepartieNumeroImpot: 'B7654321Y',
   dateFacture: new Date('2026-09-10'),
   numeroSerie: 'FV-2026-0001',
+  autresImpotsEtTaxes: 0,
   lignes: [ligne()],
   ...sur,
 });
 
-describe('Les mentions de l’art. 100 · les neuf groupes du texte', () => {
-  it('les neuf groupes sont ceux du décret, dans son ordre, et pas un de plus', () => {
-    // Le texte les sépare par NEUF points-virgules · en ajouter un dixième
-    // inventerait une mention, en fusionner deux en effacerait une. Le nombre
-    // est EN DUR pour qu'on rouvre le décret le jour où quelqu'un y touche.
-    expect(MENTIONS_ARTICLE_100).toHaveLength(9);
-    expect(MENTIONS_ARTICLE_100.map((m) => m.cle)).toEqual([
+describe('Les mentions · DOUZE à l’art. 26, DIX pour un document en tenant lieu', () => {
+  it('LE TEXTE GOUVERNANT EST CELUI DE 2023, et il porte douze groupes', () => {
+    // CE TEST A PORTÉ « 9 » PENDANT UN JOUR, et il gelait une erreur au lieu
+    // d'une règle. Le décret n° 011/42 de 2011 portait neuf groupes ; le
+    // décret n° 23/10 du 3 mars 2023, art. 26, en porte douze et abroge « les
+    // dispositions antérieures contraires » (art. 28). Un nombre en dur ne
+    // protège que s'il vient du bon texte.
+    expect(MENTIONS_ARTICLE_26).toHaveLength(12);
+    expect(MENTIONS_ARTICLE_26.map((m) => m.cle)).toEqual([
       'IDENTITE_VENDEUR',
       'IDENTITE_CLIENT',
       'DATE_ET_NUMERO',
@@ -53,10 +58,42 @@ describe('Les mentions de l’art. 100 · les neuf groupes du texte', () => {
       'TAUX_ET_MONTANT_TVA',
       'MONTANT_NON_TAXABLE',
       'MONTANT_TTC',
+      'AUTRES_IMPOTS_ET_TAXES',
+      'NUMERO_DISPOSITIF_ELECTRONIQUE',
+      'CODE_AUTHENTIFICATION_ET_QR',
     ]);
   });
 
-  it('une facture complète sert les neuf', () => {
+  it('un DOCUMENT EN TENANT LIEU en sert DIX · art. 26, dernier alinéa', () => {
+    // « Le document tenant lieu de facture normalisée comprend toutes les
+    // mentions obligatoires visées par le présent article, À L'EXCEPTION DE
+    // CELLES INDIQUÉES AUX POINTS K ET L. » Les compter comme manquantes ferait
+    // crier sur chaque pièce et noierait les vraies omissions.
+    expect(MENTIONS_DOCUMENT_EN_TENANT_LIEU).toHaveLength(10);
+    expect(MENTIONS_DOCUMENT_EN_TENANT_LIEU.map((m) => m.cle)).not.toContain('NUMERO_DISPOSITIF_ELECTRONIQUE');
+    expect(MENTIONS_DOCUMENT_EN_TENANT_LIEU.map((m) => m.cle)).not.toContain('CODE_AUTHENTIFICATION_ET_QR');
+  });
+
+  it('les deux mentions hors de portée sont NOMMÉES, jamais tues', () => {
+    const v = verifierMentions(facture(), true);
+    expect(v.horsDePortee.map((m) => m.cle)).toEqual([
+      'NUMERO_DISPOSITIF_ELECTRONIQUE',
+      'CODE_AUTHENTIFICATION_ET_QR',
+    ]);
+  });
+
+  it('LE DIXIÈME GROUPE · « le cas échéant » n’est pas « facultatif »', () => {
+    // Le manque que l'inventaire du corpus a trouvé. Un champ vide n'est pas
+    // une absence d'autres taxes, c'est une absence de réponse · y répondre
+    // zéro d'office aurait servi la mention sans que personne ne l'examine.
+    const v = verifierMentions(facture({ autresImpotsEtTaxes: null }), true);
+    expect(v.conforme).toBe(false);
+    expect(v.manquantes.map((m) => m.cle)).toEqual(['AUTRES_IMPOTS_ET_TAXES']);
+    // Et ZÉRO est une réponse recevable.
+    expect(verifierMentions(facture({ autresImpotsEtTaxes: 0 }), true).conforme).toBe(true);
+  });
+
+  it('une facture complète sert les dix', () => {
     const v = verifierMentions(facture(), true);
     expect(v.conforme).toBe(true);
     expect(v.manquantes).toEqual([]);
@@ -77,8 +114,9 @@ describe('Les mentions de l’art. 100 · les neuf groupes du texte', () => {
       'MONTANT_NON_TAXABLE',
       'MONTANT_TTC',
     ]);
-    // Les trois servis sont ceux qu'une écriture portait déjà.
-    expect(v.presentes).toEqual(['IDENTITE_VENDEUR', 'IDENTITE_CLIENT', 'DATE_ET_NUMERO']);
+    // Les quatre servis sont ceux qu'une écriture portait déjà, plus la
+    // réponse sur les autres impôts, qui ne dépend pas des lignes.
+    expect(v.presentes).toEqual(['IDENTITE_VENDEUR', 'IDENTITE_CLIENT', 'DATE_ET_NUMERO', 'AUTRES_IMPOTS_ET_TAXES']);
   });
 
   it('l’identité se sert du NOM ET du numéro impôt · pas de l’un des deux', () => {
@@ -137,15 +175,31 @@ describe('L’amende de l’art. 97 bis · un barème unitaire, jamais un total'
   });
 });
 
-describe('L’homologation que le logiciel n’a pas', () => {
-  it('OmegaX n’est PAS homologué, et le module le dit au lieu de le taire', () => {
-    // Art. 59 quater · « les systèmes de facturation propres doivent […] être
-    // HOMOLOGUÉS avant toute utilisation ». Un écran qui imprimerait une pièce
-    // d'allure officielle sans le dire ferait croire à un cabinet qu'il est en
-    // règle · c'est le § 10 bis dans le sens le plus coûteux.
+describe('L’homologation · la procédure EXISTE, et le module le disait de travers', () => {
+  it('nomme le décret, la qualification d’OmegaX et l’acte à obtenir', () => {
+    // CE BLOC A DIT LE CONTRAIRE PENDANT UN JOUR · « aucune source lue ne
+    // décrit la procédure d'homologation ». Le décret n° 23/10 du 3 mars 2023
+    // la décrit, et le logiciel l'affichait à l'écran. Une lacune DÉCLARÉE à
+    // tort est aussi fausse qu'une règle inventée : elle dispense d'une
+    // démarche qui est due.
     expect(HOMOLOGATION.omegaxHomologue).toBe(false);
+    expect(HOMOLOGATION.source).toMatch(/23\/10 du 3 mars 2023/);
+    expect(HOMOLOGATION.qualification).toMatch(/Système de Facturation d[’']Entreprise/);
+    expect(HOMOLOGATION.procedure).toMatch(/ATTESTATION DE CONFORMITÉ/);
     expect(HOMOLOGATION.consequence).toMatch(/n[’']est PAS une facture normalisée/);
-    expect(HOMOLOGATION.source).toMatch(/art\. 58 et 59 quater/);
+  });
+
+  it('dit ce qui reste hors corpus · l’ARRÊTÉ de l’art. 23, pas la procédure elle-même', () => {
+    expect(HOMOLOGATION.procedure).toMatch(/arrêté du Ministre des Finances \(art\. 23\)/);
+    expect(HOMOLOGATION.procedure).toMatch(/n[’']est dans aucune source lue/);
+  });
+
+  it('l’obligation d’ACCEPTATION nomme l’ONG · art. 27', () => {
+    // La confirmation la plus nette que ce module ne devait pas être
+    // cloisonné : une ASBL est concernée quand elle REÇOIT une facture, pas
+    // seulement quand elle en émet.
+    expect(OBLIGATION_DACCEPTATION.mention).toMatch(/organisations non gouvernementales/);
+    expect(OBLIGATION_DACCEPTATION.source).toMatch(/art\. 25 et 27/);
   });
 
   it('aucun fichier du module ne présente sa sortie comme une facture normalisée', () => {

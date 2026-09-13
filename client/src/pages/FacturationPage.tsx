@@ -44,9 +44,11 @@ type Facture = {
     montantTva: number;
     montantTTC: number;
   };
+  autresImpotsEtTaxes: number | null;
   mentions: {
     conforme: boolean;
     manquantes: Mention[];
+    horsDePortee: Mention[];
     amendeUnitaire: number;
     reserveAmende: string;
     source: string;
@@ -54,7 +56,14 @@ type Facture = {
 };
 
 type Etat = {
-  homologation: { omegaxHomologue: boolean; source: string; consequence: string };
+  homologation: {
+    omegaxHomologue: boolean;
+    source: string;
+    qualification: string;
+    procedure: string;
+    consequence: string;
+  };
+  obligationDAcceptation: { source: string; mention: string };
   factures: Facture[];
 };
 
@@ -99,6 +108,7 @@ export function FacturationPage() {
   const [imposable, setImposable] = useState(true);
   const [tauxApplique, setTauxApplique] = useState<number | ''>('');
   const [montantTva, setMontantTva] = useState<number | ''>('');
+  const [autresImpots, setAutresImpots] = useState<number | ''>('');
   const [periode, setPeriode] = useState('');
   const [detaille, setDetaille] = useState<EtatDetaille | null>(null);
 
@@ -114,6 +124,9 @@ export function FacturationPage() {
         sens,
         numeroSerie,
         dateFacture,
+        // « Le cas échéant » veut dire « s'il y en a », pas « si vous voulez » ·
+        // laisser vide n'est pas répondre, et la mention manque.
+        autresImpotsEtTaxes: autresImpots === '' ? undefined : Number(autresImpots),
         contrepartieNom: contrepartieNom || undefined,
         contrepartieNumeroImpot: contrepartieNumeroImpot || undefined,
         lignes: [
@@ -156,15 +169,26 @@ export function FacturationPage() {
           lequel des deux il est AVANT qu'on en lise les chiffres. */}
       <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
         <h2 className="text-[11px] font-bold mb-1.5">Ce n'est pas une facture normalisée</h2>
-        <p className="text-[10.5px] text-text-dim leading-[1.6]">{etat.homologation.consequence}</p>
+        <p className="text-[10.5px] text-text-dim leading-[1.6]">{etat.homologation.qualification}</p>
+        {/* LA PROCÉDURE EXISTE · cet écran a dit le contraire pendant un jour.
+            Une lacune déclarée à tort dispense d'une démarche qui est due. */}
+        <p className="text-[10.5px] text-text-dim leading-[1.6] mt-1.5">{etat.homologation.procedure}</p>
+        <p className="text-[10.5px] text-text-dim leading-[1.6] mt-1.5">{etat.homologation.consequence}</p>
         <p className="text-[10px] text-text-dim mt-1.5">{etat.homologation.source}</p>
+      </section>
+
+      <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
+        <h2 className="text-[11px] font-bold mb-1.5">Ce que vous devez refuser de vos fournisseurs</h2>
+        <p className="text-[10.5px] text-text-dim leading-[1.6]">{etat.obligationDAcceptation.mention}</p>
+        <p className="text-[10px] text-text-dim mt-1.5">{etat.obligationDAcceptation.source}</p>
       </section>
 
       <p className="text-[10.5px] text-text-dim mb-2.5 leading-[1.6]">
         Loi de procédures fiscales, <strong>art. 23</strong> · une facture est due « pour chaque transaction
-        effectuée ». Ses mentions sont celles de l'<strong>art. 100 du décret n° 011/42</strong>, et l'art. 97
-        bis sanctionne chaque omission. La fenêtre confronte chaque pièce à ces mentions ; elle ne les complète
-        jamais d'office.
+        effectuée ». Ses mentions sont celles de l'<strong>art. 26 du décret n° 23/10 du 3 mars 2023</strong> ·
+        douze groupes, dont deux ne s'obtiennent que d'un dispositif électronique fiscal et que le dernier
+        alinéa retire du document en tenant lieu. Dix restent dues, et l'art. 97 bis sanctionne chaque omission.
+        La fenêtre confronte chaque pièce à ces mentions ; elle ne les complète jamais d'office.
       </p>
 
       <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
@@ -225,13 +249,24 @@ export function FacturationPage() {
             <input type="checkbox" checked={imposable} onChange={(e) => setImposable(e.target.checked)} />
             Ligne imposable
           </label>
+          <label className="text-[10.5px]">
+            Autres impôts et taxes (art. 26 j)
+            <input
+              type="number"
+              className="w-full border border-border px-1.5 py-1 text-[10.5px]"
+              value={autresImpots}
+              onChange={(e) => setAutresImpots(e.target.value === '' ? '' : Number(e.target.value))}
+              placeholder="0 s'il n'y en a pas"
+            />
+          </label>
         </div>
         {/* La distinction imposable / non imposable est demandée par l'art. 100
             lui-même · elle ne se déduit pas d'un taux nul, une opération au
             taux zéro (exportation) étant imposable. */}
         <p className="text-[10px] text-text-dim mt-2 leading-[1.6]">
           Décochez « imposable » pour une opération <strong>exonérée</strong>. Une opération au taux zéro
-          (exportation) reste imposable : les deux zéros ne se confondent pas.
+          (exportation) reste imposable : les deux zéros ne se confondent pas. Et portez <strong>0</strong> aux
+          autres impôts et taxes s'il n'y en a pas : un champ vide n'est pas une réponse, et la mention manque.
         </p>
         {erreur && <p className="text-[10.5px] text-danger mt-2">{erreur}</p>}
         <button className="mt-2 border border-border px-2.5 py-1 text-[10.5px]" onClick={() => void enregistrer()}>
@@ -351,7 +386,7 @@ export function FacturationPage() {
                     <td className="py-1 pr-2 text-right">{somme(f.totaux.montantTTC)}</td>
                     <td className="py-1">
                       {f.mentions.conforme ? (
-                        <span>Les neuf groupes sont servis.</span>
+                        <span>Les dix groupes exigibles sont servis.</span>
                       ) : (
                         <>
                           <span className="text-danger">Manque : {f.mentions.manquantes.map((m) => m.libelle).join(' · ')}</span>
@@ -365,6 +400,13 @@ export function FacturationPage() {
                           </p>
                         </>
                       )}
+                      {/* LES DEUX MENTIONS HORS DE PORTÉE SONT NOMMÉES, sur
+                          chaque pièce · les taire laisserait croire que le
+                          document est complet au sens de l'art. 26. */}
+                      <p className="text-[10px] text-text-dim mt-1 leading-[1.6]">
+                        Hors de portée sans dispositif électronique fiscal :{' '}
+                        {f.mentions.horsDePortee.map((m) => m.libelle).join(' · ')}.
+                      </p>
                     </td>
                   </tr>
                 ))}

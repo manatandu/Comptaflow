@@ -2077,6 +2077,68 @@ refusé le premier jet parce que `FacturationModule` n'importait pas
 Compilation propre, 3 397 tests verts, et un serveur qui n'aurait pas démarré ·
 exactement la panne du 2026-09-02 que ce test existe pour attraper.
 
+**CORRECTION DU 2026-09-13 · la facture normalisée, et une lacune déclarée à
+tort.** Le module de facturation a porté pendant un jour une phrase fausse, et
+c'est l'ÉCRAN qui l'affichait : « aucune source lue ne décrit la procédure
+d'homologation, renvoyée aux spécifications de l'Administration ». Le texte
+existe, il est daté, et il a été trouvé en inventoriant le corpus fiscal pour
+bâtir le plan de confrontations · pas par un chantier, pas par un test.
+
+**DÉCRET N° 23/10 DU 3 MARS 2023** portant réglementation de la facture
+normalisée et fixation des modalités de mise en œuvre des dispositifs
+électroniques fiscaux. Trois conséquences, toutes dans le code désormais.
+
+UNE LACUNE DÉCLARÉE À TORT EST AUSSI FAUSSE QU'UNE RÈGLE INVENTÉE, et c'est la
+leçon à retenir. Le § 10 bis visait jusqu'ici le signalement qui fabrique une
+anomalie ; celui-ci fabrique une DISPENSE. Dire « aucun texte ne prévoit la
+procédure » conclut le sujet et fait renoncer à une démarche qui est due. Le
+coût est le même, la direction est inverse, et rien dans les tests ne pouvait
+l'attraper : une absence de source ne se vérifie que contre le corpus entier.
+
+**1 · OMEGAX EST UN SFE, et la procédure porte un nom.** Art. 3, 7° : « Système
+de Facturation d'Entreprise (SFE) : logiciel de facturation ou solution
+informatique permettant à une entreprise de gérer tout ou partie de son
+processus de facturation. Pour pouvoir émettre une facture normalisée, le
+système de facturation d'entreprise doit être homologué et relié soit à un MCF
+physique, soit à un MCF dématérialisé. » Art. 22 : un SFE développé en propre
+« ne peut être utilisé qu'après obtention d'une ATTESTATION DE CONFORMITÉ
+délivrée par l'Administration fiscale ». Ce qui reste hors corpus est l'ARRÊTÉ
+de l'art. 23, qui en fixe les modalités · la suite n'est donc pas une lecture
+de plus, c'est une démarche auprès de la DGI. Et les art. 20 et 21 dépassent la
+seule émission : « seuls les SFE homologués sont proposés à la vente aux
+contribuables et utilisés en République Démocratique du Congo ». C'est un
+arbitrage qui appartient à Manasse, porté au plan.
+
+**2 · LES MENTIONS SONT DOUZE, PAS NEUF, et dix sont dues.** L'art. 100 du
+décret n° 011/42 de 2011, sur lequel le module avait été bâti, en portait neuf.
+L'art. 26 du décret de 2023 en porte douze et l'art. 28 abroge « toutes les
+dispositions antérieures contraires ». Le dixième est nouveau · « j) le montant
+de tous autres impôts et taxes, LE CAS ÉCHÉANT ». Les deux derniers (numéro du
+dispositif électronique, code d'authentification et code QR) ne s'obtiennent
+que d'un DEF, et le dernier alinéa du même article les retire expressément du
+« document tenant lieu de facture normalisée », qui est ce que produit OmegaX.
+Le module sert donc DIX groupes, et NOMME les deux hors de portée sur chaque
+pièce plutôt que de les taire ou de les compter manquants.
+
+« LE CAS ÉCHÉANT » NE VEUT PAS DIRE « FACULTATIF », il veut dire « s'il y en
+a ». Aucun logiciel ne sait s'il y a d'autres impôts sur une opération donnée :
+`Facture.autresImpotsEtTaxes` est donc NULLABLE, null valant « pas de réponse »
+et comptant comme une omission. Un défaut à zéro aurait répondu à la place du
+comptable sur chaque facture, et servi la mention sans que personne ne
+l'examine.
+
+**3 · L'ONG EST NOMMÉE DU CÔTÉ DE CELUI QUI REÇOIT.** Art. 27 : « les
+entreprises privées, LES ORGANISATIONS NON GOUVERNEMENTALES, les acteurs
+d'exécution de la dépense publique […] sont tenus de n'accepter que les
+factures normalisées ». Et art. 25 : la TVA n'est déductible que si elle figure
+sur une facture normalisée ou un document en tenant lieu dûment délivré par un
+assujetti. C'est la confirmation la plus nette que ce module ne devait pas être
+cloisonné · une ASBL est concernée quand elle REÇOIT, pas seulement quand elle
+émet, et c'est exactement ce que l'état détaillé de l'art. 134 recense.
+
+Quatre défauts réinjectés sur cette correction, quatre détectés · dont le
+défaut d'hier lui-même, le retour aux neuf mentions.
+
 **Devis et commande client · l'OFFRE et son ACCEPTATION, où l'intuition
 commerciale se trompe quatre fois.** Un devis n'est pas un brouillon de
 facture : s'il est suffisamment précis et indique la volonté d'être lié, c'est

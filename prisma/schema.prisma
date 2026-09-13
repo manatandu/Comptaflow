@@ -5173,6 +5173,18 @@ model Facture {
   /// que les identités.
   mentionTvaDebits Boolean @default(false)
 
+  /// ART. 26 j) DU DÉCRET N° 23/10 · « le montant de tous autres impôts et
+  /// taxes, LE CAS ÉCHÉANT ». Dixième mention obligatoire, ajoutée par le
+  /// décret de 2023 que l'art. 100 de 2011 ne portait pas.
+  ///
+  /// NULLABLE À DESSEIN, et la nuance décide de tout : « le cas échéant » veut
+  /// dire « s'il y en a », pas « si vous voulez ». Aucun logiciel ne sait s'il
+  /// y a d'autres impôts sur une opération donnée. Un défaut à zéro aurait
+  /// répondu « il n'y en a pas » à la place du comptable, sur chaque facture,
+  /// et la mention aurait été servie sans que personne ne l'ait examinée.
+  /// Null veut donc dire « pas de réponse », et compte comme une omission.
+  autresImpotsEtTaxes Decimal? @db.Decimal(18, 2)
+
   /// L'écriture qui porte l'opération au grand livre · optionnelle, parce
   /// qu'une facture peut être saisie avant d'être comptabilisée, jamais
   /// dupliquée. Un pour un : deux factures ne partagent pas une écriture.

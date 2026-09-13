@@ -5,6 +5,7 @@ import { EnregistrerFactureDto } from './dto/facture.dto';
 import {
   FactureVerifiable,
   HOMOLOGATION,
+  OBLIGATION_DACCEPTATION,
   totauxFacture,
   verifierMentions,
 } from './mentions-facture';
@@ -54,6 +55,7 @@ export class FacturationService {
     contrepartieNumeroImpot: string | null;
     dateFacture: Date;
     numeroSerie: string;
+    autresImpotsEtTaxes: Prisma.Decimal | null;
     lignes: {
       designation: string;
       quantite: Prisma.Decimal;
@@ -71,6 +73,7 @@ export class FacturationService {
       contrepartieNumeroImpot: f.contrepartieNumeroImpot,
       dateFacture: f.dateFacture,
       numeroSerie: f.numeroSerie,
+      autresImpotsEtTaxes: nombre(f.autresImpotsEtTaxes),
       lignes: f.lignes.map((l) => ({
         designation: l.designation,
         quantite: nombre(l.quantite),
@@ -94,6 +97,7 @@ export class FacturationService {
 
     return {
       homologation: HOMOLOGATION,
+      obligationDAcceptation: OBLIGATION_DACCEPTATION,
       factures: factures.map((f) => {
         const v = this.verifiable(f);
         return {
@@ -107,6 +111,7 @@ export class FacturationService {
           contrepartieNom: f.contrepartieNom,
           contrepartieNumeroImpot: f.contrepartieNumeroImpot,
           mentionTvaDebits: f.mentionTvaDebits,
+          autresImpotsEtTaxes: nombre(f.autresImpotsEtTaxes),
           ecritureId: f.ecritureId,
           lignes: f.lignes.map((l) => ({
             id: l.id,
@@ -184,6 +189,8 @@ export class FacturationService {
         contrepartieNom: dto.sens === SensFacture.VENTE ? contrepartieNom : t.nom,
         contrepartieNumeroImpot: dto.sens === SensFacture.VENTE ? contrepartieNumeroImpot : t.numeroImpot,
         mentionTvaDebits: dto.mentionTvaDebits ?? false,
+        autresImpotsEtTaxes:
+          dto.autresImpotsEtTaxes === undefined ? null : new Prisma.Decimal(dto.autresImpotsEtTaxes),
         ecritureId: dto.ecritureId ?? null,
         lignes: {
           create: dto.lignes.map((l, i) => ({

@@ -79,6 +79,12 @@ export class EnregistrerFactureDto {
   @IsBoolean()
   mentionTvaDebits?: boolean;
 
+  /** Art. 26 j) · portez 0 s'il n'y en a pas, l'absence n'est pas une réponse. */
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  autresImpotsEtTaxes?: number;
+
   @IsOptional()
   @IsString()
   ecritureId?: string;
