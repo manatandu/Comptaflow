@@ -93,6 +93,33 @@ Reprise de celle du relevé de manques, qui a fait ses preuves.
    jamais déclarer une lacune sans avoir cherché dans tout le corpus** · les
    deux erreurs se paient au même prix, dans deux directions opposées.
 
+### Qui conduit une passe · arbitré par Manasse le 2026-09-13
+
+Chaque passe est conduite par un **workflow d'agents**, avec modèle et effort
+réglés par étape. Ce n'est PAS une délégation : c'est une division du travail,
+et elle tient à trois règles qui ne se négocient pas.
+
+| Étape | Qui | Modèle · effort | Pourquoi |
+|---|---|---|---|
+| **Lecture** du texte, article par article | un agent par chapitre, **qui n'a pas accès au code** | Opus · `high` | L'indépendance est le seul vrai apport. Un lecteur qui connaît le code lit le texte à travers lui et ne voit plus que ce que le logiciel fait déjà |
+| **Confrontation** de chaque obligation au dépôt | un agent par chapitre | Opus · `high` | Cherche où l'obligation vit, ou constate qu'elle ne vit nulle part |
+| **Réfutation** de chaque manque annoncé | un agent par constat, payé pour DÉMOLIR | Opus · `xhigh` | Un constat qu'on n'a pas essayé de réfuter n'est qu'une impression |
+| **Correction**, schéma, migrations, tests, déploiement | **la session principale, jamais un agent** | Opus · `high` | C'est la seule discipline qui a réellement attrapé des défauts : réinjection, garde-fous du dépôt, déploiement relu pas à pas |
+
+**TROIS RÈGLES, ET « SANS ERREURS » N'EN FAIT PAS PARTIE.** Des agents
+n'apportent pas la justesse · ils lisent et hallucinent comme la session
+principale, et leur rapport revient sous forme de TEXTE, ce qui est pire : le
+croire propagerait une citation fausse avec plus d'assurance que de l'avoir lue
+soi-même. Ce qu'ils apportent est la COUVERTURE, l'INDÉPENDANCE et le TEMPS.
+D'où :
+
+1. **Aucun agent n'écrit dans le dépôt.** Ils lisent et rapportent.
+2. **Tout constat est ancré** · citation exacte, fichier source, ligne. Rien
+   n'entre dans le code sans que la session principale ait relu la ligne
+   elle-même. C'est la règle n° 1 de CLAUDE.md, et elle ne se délègue pas.
+3. **Une étape adverse est obligatoire.** Ce qui survit à la réfutation entre
+   au relevé ; le reste est écrit comme écarté, avec sa raison.
+
 **Journal d'avancement :** `docs/releve-de-manques-fiscal.md` pour les passes F,
 `docs/releve-de-manques-ohada.md` pour les passes O, `docs/releve-de-manques-referentiels.md`
 (existant, à compléter) pour les passes R.
