@@ -120,6 +120,34 @@ export const HOMOLOGATION = {
     'Tant que cette attestation n’est pas obtenue, le document produit ici n’est PAS une facture normalisée : il vaut ' +
     '« document en tenant lieu », qui porte les mêmes mentions à l’exception du numéro du dispositif électronique ' +
     'fiscal et du code d’authentification (art. 26, dernier alinéa).',
+  /**
+   * LE SECOND ARRÊTÉ, QUE LA PASSE F1 A TROUVÉ · et c'est la même faute que
+   * celle corrigée le matin même, commise une seconde fois au paragraphe
+   * suivant.
+   *
+   * Le module se range lui-même dans la catégorie « document en tenant lieu »
+   * et en TIRE UNE DISPENSE des points k) et l) de l'art. 26. Or c'est un
+   * arrêté qui définit cette catégorie : art. 25, dernière phrase, « Un arrêté
+   * du Ministre ayant les Finances dans ses attributions détermine les
+   * documents tenant lieu de facture normalisée ». Cet arrêté n'est dans
+   * aucune source lue, exactement comme celui de l'art. 23.
+   *
+   * La qualification reste donc une HYPOTHÈSE, et elle est écrite comme telle
+   * plutôt que présentée comme acquise · une dispense fondée sur un texte non
+   * lu est du même ordre que la lacune déclarée à tort.
+   *
+   * ANOMALIE DU TEXTE SOURCE, signalée et non tranchée · dans la compilation
+   * lue, cette phrase est typographiquement placée À L'INTÉRIEUR du point 3 de
+   * l'art. 25 (livraisons à soi-même), à l'indentation de continuation, alors
+   * qu'elle définit un terme employé au point 1. Le scan ne permet pas de dire
+   * si elle est un alinéa autonome ou une phrase du point 3. Ne pas la
+   * « corriger » sans le Journal officiel.
+   */
+  qualificationHypothetique:
+    'La catégorie « document tenant lieu de facture normalisée » est définie par un arrêté du Ministre des Finances ' +
+    '(art. 25, dernière phrase), qui n’est dans aucune source lue. Ranger OmegaX dans cette catégorie, et en tirer ' +
+    'la dispense des points k) et l), reste donc une HYPOTHÈSE à confirmer auprès de la DGI en même temps que ' +
+    'l’homologation.',
 } as const;
 
 /**
@@ -147,15 +175,55 @@ export const OBLIGATION_DACCEPTATION = {
   source: 'Décret n° 23/10 du 3 mars 2023, art. 25 et 27',
   mention:
     'Les entreprises privées, les organisations non gouvernementales et les acteurs de la dépense publique ne ' +
-    'doivent accepter que des factures normalisées de leurs fournisseurs éligibles. Et la TVA n’est déductible que ' +
-    'si elle figure sur une facture normalisée ou un document en tenant lieu dûment délivré par un assujetti.',
+    'doivent accepter que des factures normalisées de leurs fournisseurs éligibles (art. 27).',
+  /**
+   * CE PARAGRAPHE DISAIT LE TEXTE DE TRAVERS, et la passe F1 l'a relevé.
+   *
+   * Il écrivait « la TVA n'est déductible QUE SI elle figure sur une facture
+   * normalisée ou un document en tenant lieu », c'est-à-dire qu'il faisait du
+   * point 1 de l'art. 25 une règle EXCLUSIVE. Le texte dit au contraire « DE
+   * FAÇON GÉNÉRALE » pour ce point, et nomme deux autres supports : la
+   * déclaration de mise à la consommation en cas d'importation (point 2), et
+   * la facture normalisée à soi-même en cas de livraison ou prestation à
+   * soi-même (point 3).
+   *
+   * LA CONSÉQUENCE N'ÉTAIT PAS THÉORIQUE · un cabinet lisant cet écran pouvait
+   * croire qu'une TVA d'importation, portée au 445 sur une déclaration en
+   * douane, n'ouvrait pas droit à déduction faute de facture. Le logiciel
+   * l'aurait dissuadé d'une déduction que le texte lui accorde.
+   */
+  supportsDeDeduction: [
+    {
+      cas: 'de façon générale',
+      support: 'une facture normalisée ou tout autre document en tenant lieu dûment délivré par un assujetti',
+      tenuParOmegaX: true,
+    },
+    {
+      cas: 'en cas d’importation',
+      support: 'la déclaration de mise à la consommation délivrée par la douane',
+      tenuParOmegaX: false,
+    },
+    {
+      cas: 'en cas de livraison de biens ou de prestation de services à soi-même',
+      support: 'une facture normalisée à soi-même',
+      tenuParOmegaX: false,
+    },
+  ],
+  reserveSupports:
+    'OmegaX ne tient ni déclaration de mise à la consommation, ni facture à soi-même. Une TVA déductible née de ces ' +
+    'deux cas existe donc dans les comptes sans que son support propre soit dans le logiciel : l’état détaillé ne ' +
+    'peut pas la justifier, et la pièce est à joindre à la main.',
 } as const;
 
 /** La forme minimale qu'une facture doit présenter pour être vérifiée. */
 export interface FactureVerifiable {
   emetteurNom: string | null;
+  /** Art. 26 a) · « l'adresse exacte » du vendeur ou prestataire. */
+  emetteurAdresse: string | null;
   emetteurNumeroImpot: string | null;
   contrepartieNom: string | null;
+  /** Art. 26 b) · « l'adresse exacte » du client. */
+  contrepartieAdresse: string | null;
   contrepartieNumeroImpot: string | null;
   dateFacture: Date | null;
   numeroSerie: string | null;
@@ -217,14 +285,38 @@ const nombreRenseigne = (v: number | null | undefined): boolean => typeof v === 
  */
 export const MENTIONS_ARTICLE_26: readonly Mention[] = [
   {
+    /**
+     * TROIS ÉLÉMENTS, ET L'ADRESSE MANQUAIT · art. 26 a), lu verbatim : « les
+     * nom, post-nom et prénom ou raison sociale, L'ADRESSE EXACTE, le numéro
+     * impôt du vendeur ou prestataire ». Le module avait été bâti sur l'art. 100
+     * de 2011, qui écrit seulement « identité et n° impôt » : l'adresse n'y est
+     * pas, et elle n'était vérifiée nulle part.
+     *
+     * CE N'ÉTAIT PAS UN CHAMP DE MOINS, C'ÉTAIT UN VERDICT FAUX ·
+     * `verifierMentions` rendait `conforme: true` sur une pièce qui omet une
+     * mention obligatoire, et l'écran l'affichait comme conforme, sans amende,
+     * alors que l'art. 97 bis en punit chaque omission. Le logiciel rassurait à
+     * tort sur exactement ce qu'il a été construit pour surveiller.
+     */
     cle: 'IDENTITE_VENDEUR',
-    libelle: 'identité et n° impôt du vendeur ou prestataire',
-    presente: (f) => renseigne(f.emetteurNom) && renseigne(f.emetteurNumeroImpot),
+    libelle: 'identité, adresse exacte et n° impôt du vendeur ou prestataire',
+    presente: (f) => renseigne(f.emetteurNom) && renseigne(f.emetteurAdresse) && renseigne(f.emetteurNumeroImpot),
   },
   {
+    /**
+     * Art. 26 b) · « les nom, post-nom et prénom ou raison sociale, L'ADRESSE
+     * EXACTE du client et son numéro impôt ». Même omission, même coût.
+     *
+     * ET AUCUNE DÉROGATION N'EST FABRIQUÉE pour un client non immatriculé · le
+     * texte n'en prévoit pas, et en inventer une dispenserait de la mention sur
+     * toute vente à un particulier. Un numéro impôt absent compte comme une
+     * omission ; si le texte admet un tempérament, il est dans un arrêté que
+     * nous n'avons pas lu.
+     */
     cle: 'IDENTITE_CLIENT',
-    libelle: 'identité et n° impôt du client',
-    presente: (f) => renseigne(f.contrepartieNom) && renseigne(f.contrepartieNumeroImpot),
+    libelle: 'identité, adresse exacte et n° impôt du client',
+    presente: (f) =>
+      renseigne(f.contrepartieNom) && renseigne(f.contrepartieAdresse) && renseigne(f.contrepartieNumeroImpot),
   },
   {
     cle: 'DATE_ET_NUMERO',
@@ -309,6 +401,83 @@ export const MENTIONS_DOCUMENT_EN_TENANT_LIEU = MENTIONS_ARTICLE_26.filter(
   (m) => !m.exigeUnDispositifElectronique,
 );
 
+/**
+ * LE BORNAGE, QUI MANQUAIT · art. 29 du décret n° 23/10 : « Le Ministre ayant
+ * les Finances dans ses attributions est chargé de l'exécution du présent
+ * Décret QUI ENTRE EN VIGUEUR À LA DATE DE SA SIGNATURE. » Signé le 3 mars
+ * 2023. Pas de vacatio legis, pas de période transitoire.
+ *
+ * LE DÉPÔT CONNAISSAIT DÉJÀ CETTE DOCTRINE ET NE L'AVAIT PAS APPLIQUÉE ICI.
+ * `controles.service.ts` l'écrit en toutes lettres · « LE BORNAGE N'EST PAS UNE
+ * PRÉCAUTION, C'EST LE CONTRÔLE LUI-MÊME », et « sans cette borne, un dossier
+ * qui fait analyser son exercice 2024 ou 2025 se verrait reprocher une pièce
+ * qu'aucun texte ne lui demandait alors ». Le module de facturation était le
+ * seul endroit où un texte fiscal daté s'appliquait sans sa borne : une facture
+ * de 2022 reprise dans un dossier se voyait reprocher l'adresse exacte et les
+ * autres impôts au nom d'un décret qui n'existait pas encore, avec une amende
+ * chiffrée sur ce reproche.
+ *
+ * CE QUI S'APPLIQUAIT AVANT N'EST PAS « RIEN » · l'art. 100 du décret n° 011/42
+ * du 22 novembre 2011 porte NEUF groupes, et l'art. 28 du décret de 2023
+ * n'abroge que « les dispositions antérieures CONTRAIRES ». Les neuf ne sont pas
+ * contraires aux douze, ils en sont le noyau : une pièce antérieure se vérifie
+ * donc contre eux, et le module le DIT plutôt que de laisser croire qu'il
+ * applique le même texte à toutes les dates.
+ */
+export const ENTREE_EN_VIGUEUR_DECRET_23_10 = new Date(Date.UTC(2023, 2, 3));
+
+/**
+ * Les neuf groupes de l'art. 100, pour une pièce antérieure au 3 mars 2023 ·
+ * l'adresse exacte et les autres impôts n'y figurent pas, et les deux mentions
+ * du dispositif électronique non plus.
+ */
+export const MENTIONS_ARTICLE_100: readonly Mention[] = MENTIONS_DOCUMENT_EN_TENANT_LIEU.filter(
+  (m) => m.cle !== 'AUTRES_IMPOTS_ET_TAXES',
+).map((m) =>
+  m.cle === 'IDENTITE_VENDEUR'
+    ? {
+        ...m,
+        libelle: 'identité et n° impôt du vendeur ou prestataire',
+        presente: (f: FactureVerifiable) => renseigne(f.emetteurNom) && renseigne(f.emetteurNumeroImpot),
+      }
+    : m.cle === 'IDENTITE_CLIENT'
+      ? {
+          ...m,
+          libelle: 'identité et n° impôt du client',
+          presente: (f: FactureVerifiable) => renseigne(f.contrepartieNom) && renseigne(f.contrepartieNumeroImpot),
+        }
+      : m,
+);
+
+export interface TexteApplicable {
+  mentions: readonly Mention[];
+  texte: string;
+  source: string;
+}
+
+/** Le texte en vigueur À LA DATE DE LA PIÈCE, jamais celui d'aujourd'hui. */
+export function texteApplicable(dateFacture: Date | null): TexteApplicable {
+  const anterieure =
+    dateFacture instanceof Date &&
+    !Number.isNaN(dateFacture.getTime()) &&
+    dateFacture.getTime() < ENTREE_EN_VIGUEUR_DECRET_23_10.getTime();
+
+  return anterieure
+    ? {
+        mentions: MENTIONS_ARTICLE_100,
+        texte: 'Décret n° 011/42 du 22 novembre 2011, art. 100 · neuf groupes',
+        source:
+          'Pièce antérieure au 3 mars 2023 : le décret n° 23/10 « entre en vigueur à la date de sa signature » ' +
+          '(art. 29) et ne lui est pas opposable. Ni l’adresse exacte ni le montant des autres impôts et taxes ne ' +
+          'lui sont réclamés.',
+      }
+    : {
+        mentions: MENTIONS_DOCUMENT_EN_TENANT_LIEU,
+        texte: 'Décret n° 23/10 du 3 mars 2023, art. 26 · dix groupes pour un document en tenant lieu',
+        source: 'Le décret est entré en vigueur le 3 mars 2023, date de sa signature (art. 29).',
+      };
+}
+
 export interface Totaux {
   montantHT: number;
   montantNonTaxable: number;
@@ -339,6 +508,8 @@ export function totauxFacture(f: FactureVerifiable): Totaux {
 
 export interface VerificationMentions {
   conforme: boolean;
+  /** Le texte en vigueur à la date de la pièce, et pourquoi c'est celui-là. */
+  texteApplicable: TexteApplicable;
   manquantes: { cle: CleMention; libelle: string }[];
   presentes: CleMention[];
   /** Les deux mentions qui supposent un dispositif électronique fiscal homologué. */
@@ -354,14 +525,16 @@ export interface VerificationMentions {
  * mentions · les neuf groupes sont les mêmes pour tous.
  */
 export function verifierMentions(f: FactureVerifiable, personneMorale: boolean): VerificationMentions {
+  const applicable = texteApplicable(f.dateFacture);
   const manquantes: { cle: CleMention; libelle: string }[] = [];
   const presentes: CleMention[] = [];
-  for (const m of MENTIONS_DOCUMENT_EN_TENANT_LIEU) {
+  for (const m of applicable.mentions) {
     if (m.presente(f)) presentes.push(m.cle);
     else manquantes.push({ cle: m.cle, libelle: m.libelle });
   }
   return {
     conforme: manquantes.length === 0,
+    texteApplicable: applicable,
     manquantes,
     presentes,
     horsDePortee: MENTIONS_ARTICLE_26.filter((m) => m.exigeUnDispositifElectronique).map((m) => ({
@@ -370,6 +543,6 @@ export function verifierMentions(f: FactureVerifiable, personneMorale: boolean):
     })),
     amendeUnitaire: personneMorale ? AMENDE_PAR_OMISSION.personneMorale : AMENDE_PAR_OMISSION.personnePhysique,
     reserveAmende: AMENDE_PAR_OMISSION.reserve,
-    source: 'Décret n° 23/10 du 3 mars 2023, art. 26 · sanction : loi de procédures fiscales, art. 97 bis',
+    source: `${applicable.texte} · sanction : loi de procédures fiscales, art. 97 bis`,
   };
 }

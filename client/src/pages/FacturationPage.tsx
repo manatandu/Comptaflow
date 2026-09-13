@@ -21,8 +21,10 @@ type Facture = {
   dateFacture: string;
   tiers: { id: string; code: string; nom: string } | null;
   emetteurNom: string;
+  emetteurAdresse: string | null;
   emetteurNumeroImpot: string | null;
   contrepartieNom: string;
+  contrepartieAdresse: string | null;
   contrepartieNumeroImpot: string | null;
   mentionTvaDebits: boolean;
   ecritureId: string | null;
@@ -47,6 +49,7 @@ type Facture = {
   autresImpotsEtTaxes: number | null;
   mentions: {
     conforme: boolean;
+    texteApplicable: { texte: string; source: string };
     manquantes: Mention[];
     horsDePortee: Mention[];
     amendeUnitaire: number;
@@ -62,8 +65,14 @@ type Etat = {
     qualification: string;
     procedure: string;
     consequence: string;
+    qualificationHypothetique: string;
   };
-  obligationDAcceptation: { source: string; mention: string };
+  obligationDAcceptation: {
+    source: string;
+    mention: string;
+    supportsDeDeduction: { cas: string; support: string; tenuParOmegaX: boolean }[];
+    reserveSupports: string;
+  };
   factures: Facture[];
 };
 
@@ -100,6 +109,7 @@ export function FacturationPage() {
   const [numeroSerie, setNumeroSerie] = useState('');
   const [dateFacture, setDateFacture] = useState('');
   const [contrepartieNom, setContrepartieNom] = useState('');
+  const [contrepartieAdresse, setContrepartieAdresse] = useState('');
   const [contrepartieNumeroImpot, setContrepartieNumeroImpot] = useState('');
   const [designation, setDesignation] = useState('');
   const [quantite, setQuantite] = useState<number | ''>('');
@@ -128,6 +138,7 @@ export function FacturationPage() {
         // laisser vide n'est pas répondre, et la mention manque.
         autresImpotsEtTaxes: autresImpots === '' ? undefined : Number(autresImpots),
         contrepartieNom: contrepartieNom || undefined,
+        contrepartieAdresse: contrepartieAdresse || undefined,
         contrepartieNumeroImpot: contrepartieNumeroImpot || undefined,
         lignes: [
           {
@@ -174,12 +185,33 @@ export function FacturationPage() {
             Une lacune déclarée à tort dispense d'une démarche qui est due. */}
         <p className="text-[10.5px] text-text-dim leading-[1.6] mt-1.5">{etat.homologation.procedure}</p>
         <p className="text-[10.5px] text-text-dim leading-[1.6] mt-1.5">{etat.homologation.consequence}</p>
+        {/* LA SECONDE LACUNE, trouvée par la passe F1 · la catégorie dont le
+            module tire sa dispense est elle aussi définie par un arrêté non lu. */}
+        <p className="text-[10.5px] text-text-dim leading-[1.6] mt-1.5">
+          {etat.homologation.qualificationHypothetique}
+        </p>
         <p className="text-[10px] text-text-dim mt-1.5">{etat.homologation.source}</p>
       </section>
 
       <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
         <h2 className="text-[11px] font-bold mb-1.5">Ce que vous devez refuser de vos fournisseurs</h2>
         <p className="text-[10.5px] text-text-dim leading-[1.6]">{etat.obligationDAcceptation.mention}</p>
+        {/* TROIS SUPPORTS, ET NON UN SEUL · ce panneau disait « la TVA n'est
+            déductible QUE SI elle figure sur une facture normalisée », ce qui
+            aurait dissuadé un cabinet d'une déduction d'importation que le
+            texte lui accorde. L'art. 25 dit « de façon générale ». */}
+        <p className="text-[10.5px] text-text-dim leading-[1.6] mt-2">
+          Pour être admise en déduction, la TVA doit figurer (art. 25) :
+        </p>
+        <ul className="text-[10.5px] text-text-dim leading-[1.6] mt-1">
+          {etat.obligationDAcceptation.supportsDeDeduction.map((s) => (
+            <li key={s.cas}>
+              <strong>{s.cas}</strong> · {s.support}
+              {!s.tenuParOmegaX && <span className="text-danger"> · non tenu par OmegaX</span>}
+            </li>
+          ))}
+        </ul>
+        <p className="text-[10px] text-text-dim mt-1.5 leading-[1.6]">{etat.obligationDAcceptation.reserveSupports}</p>
         <p className="text-[10px] text-text-dim mt-1.5">{etat.obligationDAcceptation.source}</p>
       </section>
 
@@ -216,6 +248,10 @@ export function FacturationPage() {
           <label className="text-[10.5px]">
             {sens === 'VENTE' ? 'Client' : 'Fournisseur'}
             <input className="w-full border border-border px-1.5 py-1 text-[10.5px]" value={contrepartieNom} onChange={(e) => setContrepartieNom(e.target.value)} />
+          </label>
+          <label className="text-[10.5px]">
+            Adresse exacte de la contrepartie (art. 26)
+            <input className="w-full border border-border px-1.5 py-1 text-[10.5px]" value={contrepartieAdresse} onChange={(e) => setContrepartieAdresse(e.target.value)} />
           </label>
           <label className="text-[10.5px]">
             N° impôt de la contrepartie
@@ -386,7 +422,7 @@ export function FacturationPage() {
                     <td className="py-1 pr-2 text-right">{somme(f.totaux.montantTTC)}</td>
                     <td className="py-1">
                       {f.mentions.conforme ? (
-                        <span>Les dix groupes exigibles sont servis.</span>
+                        <span>Tous les groupes exigibles sont servis.</span>
                       ) : (
                         <>
                           <span className="text-danger">Manque : {f.mentions.manquantes.map((m) => m.libelle).join(' · ')}</span>
@@ -406,6 +442,12 @@ export function FacturationPage() {
                       <p className="text-[10px] text-text-dim mt-1 leading-[1.6]">
                         Hors de portée sans dispositif électronique fiscal :{' '}
                         {f.mentions.horsDePortee.map((m) => m.libelle).join(' · ')}.
+                      </p>
+                      {/* LE TEXTE APPLIQUÉ EST CELUI DE LA DATE DE LA PIÈCE ·
+                          sans cette ligne, une facture de 2022 se verrait
+                          reprocher une mention au nom d'un décret de 2023. */}
+                      <p className="text-[10px] text-text-dim mt-1 leading-[1.6]">
+                        Texte appliqué : {f.mentions.texteApplicable.texte}. {f.mentions.texteApplicable.source}
                       </p>
                     </td>
                   </tr>

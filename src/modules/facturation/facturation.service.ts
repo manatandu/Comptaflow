@@ -30,7 +30,15 @@ export class FacturationService {
   private async dossier(tenantId: string) {
     return this.prisma.tenant.findUniqueOrThrow({
       where: { id: tenantId },
-      select: { id: true, nom: true, numeroImpot: true, formeJuridique: true, formeJuridiqueSyscohada: true },
+      select: {
+        id: true,
+        nom: true,
+        numeroImpot: true,
+        adresse: true,
+        ville: true,
+        formeJuridique: true,
+        formeJuridiqueSyscohada: true,
+      },
     });
   }
 
@@ -50,8 +58,10 @@ export class FacturationService {
 
   private verifiable(f: {
     emetteurNom: string;
+    emetteurAdresse: string | null;
     emetteurNumeroImpot: string | null;
     contrepartieNom: string;
+    contrepartieAdresse: string | null;
     contrepartieNumeroImpot: string | null;
     dateFacture: Date;
     numeroSerie: string;
@@ -68,8 +78,10 @@ export class FacturationService {
   }): FactureVerifiable {
     return {
       emetteurNom: f.emetteurNom,
+      emetteurAdresse: f.emetteurAdresse,
       emetteurNumeroImpot: f.emetteurNumeroImpot,
       contrepartieNom: f.contrepartieNom,
+      contrepartieAdresse: f.contrepartieAdresse,
       contrepartieNumeroImpot: f.contrepartieNumeroImpot,
       dateFacture: f.dateFacture,
       numeroSerie: f.numeroSerie,
@@ -107,8 +119,10 @@ export class FacturationService {
           dateFacture: f.dateFacture,
           tiers: f.tiers,
           emetteurNom: f.emetteurNom,
+          emetteurAdresse: f.emetteurAdresse,
           emetteurNumeroImpot: f.emetteurNumeroImpot,
           contrepartieNom: f.contrepartieNom,
+          contrepartieAdresse: f.contrepartieAdresse,
           contrepartieNumeroImpot: f.contrepartieNumeroImpot,
           mentionTvaDebits: f.mentionTvaDebits,
           autresImpotsEtTaxes: nombre(f.autresImpotsEtTaxes),
@@ -138,15 +152,19 @@ export class FacturationService {
     // SAISIE SINON · une facture reçue d'un fournisseur non ouvert au plan des
     // tiers doit pouvoir entrer, sans quoi l'état détaillé perdrait la ligne.
     let contrepartieNom = dto.contrepartieNom?.trim() ?? '';
+    let contrepartieAdresse = dto.contrepartieAdresse?.trim() || null;
     let contrepartieNumeroImpot = dto.contrepartieNumeroImpot?.trim() || null;
     if (dto.tiersId) {
       const tiers = await this.prisma.tiers.findFirst({
         where: { id: dto.tiersId, tenantId },
-        select: { nom: true, numeroImpot: true },
+        select: { nom: true, numeroImpot: true, adresse: true, ville: true },
       });
       if (!tiers) throw new NotFoundException('Tiers introuvable dans ce dossier.');
       contrepartieNom = contrepartieNom || tiers.nom;
       contrepartieNumeroImpot = contrepartieNumeroImpot ?? tiers.numeroImpot;
+      // ADRESSE RECOPIÉE À LA DATE DE LA PIÈCE, comme le nom · ce que la fiche
+      // du tiers porte aujourd'hui sert de défaut, et n'est jamais relu ensuite.
+      contrepartieAdresse = contrepartieAdresse ?? ([tiers.adresse, tiers.ville].filter(Boolean).join(', ') || null);
     }
     if (!contrepartieNom) {
       throw new BadRequestException(
@@ -174,6 +192,10 @@ export class FacturationService {
       );
     }
 
+    // L'adresse du dossier vient de ses paramètres, et reste NULLE quand ils ne
+    // la portent pas · la mention manque alors, ce qui est l'état vrai.
+    const adresseDossier = [t.adresse, t.ville].filter(Boolean).join(', ') || null;
+
     const facture = await this.prisma.facture.create({
       data: {
         tenantId,
@@ -185,8 +207,10 @@ export class FacturationService {
         // L'art. 100 demande le vendeur ou prestataire · sur une facture reçue,
         // ce n'est pas nous.
         emetteurNom: dto.sens === SensFacture.VENTE ? t.nom : contrepartieNom,
+        emetteurAdresse: dto.sens === SensFacture.VENTE ? adresseDossier : contrepartieAdresse,
         emetteurNumeroImpot: dto.sens === SensFacture.VENTE ? t.numeroImpot : contrepartieNumeroImpot,
         contrepartieNom: dto.sens === SensFacture.VENTE ? contrepartieNom : t.nom,
+        contrepartieAdresse: dto.sens === SensFacture.VENTE ? contrepartieAdresse : adresseDossier,
         contrepartieNumeroImpot: dto.sens === SensFacture.VENTE ? contrepartieNumeroImpot : t.numeroImpot,
         mentionTvaDebits: dto.mentionTvaDebits ?? false,
         autresImpotsEtTaxes:

@@ -10,6 +10,8 @@ import {
   MENTIONS_ARTICLE_26,
   MENTIONS_DOCUMENT_EN_TENANT_LIEU,
   OBLIGATION_DACCEPTATION,
+  ENTREE_EN_VIGUEUR_DECRET_23_10,
+  texteApplicable,
   totauxFacture,
   verifierMentions,
 } from './mentions-facture';
@@ -30,8 +32,10 @@ const ligne = (sur: Partial<FactureVerifiable['lignes'][number]> = {}) => ({
 
 const facture = (sur: Partial<FactureVerifiable> = {}): FactureVerifiable => ({
   emetteurNom: 'VMG Consulting',
+  emetteurAdresse: '12, avenue de la Justice, Kinshasa/Gombe',
   emetteurNumeroImpot: 'A1234567X',
   contrepartieNom: 'Client SARL',
+  contrepartieAdresse: '4, boulevard du 30 Juin, Kinshasa',
   contrepartieNumeroImpot: 'B7654321Y',
   dateFacture: new Date('2026-09-10'),
   numeroSerie: 'FV-2026-0001',
@@ -409,5 +413,136 @@ describe('L’état détaillé ne lit QUE les factures d’achat', () => {
     const { svc, prisma } = service([]);
     await expect(svc.etatDetaille('t', '2026')).rejects.toThrow(/AAAA-MM/);
     expect((prisma.facture as Faux).findMany as jest.Mock).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CE QUE LA PASSE F1 A TROUVÉ · confrontation du décret n° 23/10 le 2026-09-13
+// ---------------------------------------------------------------------------
+
+describe('L’ADRESSE EXACTE · la mention qui rendait le verdict FAUX', () => {
+  it('l’art. 26 a) exige TROIS éléments du vendeur, et l’adresse manquait', () => {
+    // Le défaut le plus grave de ce module : `conforme: true` sur une pièce qui
+    // omet une mention obligatoire. Le logiciel rassurait à tort sur exactement
+    // ce qu'il a été construit pour surveiller, alors que l'art. 97 bis punit
+    // chaque omission de 750.000 FC pour une personne morale.
+    const v = verifierMentions(facture({ emetteurAdresse: null }), true);
+    expect(v.conforme).toBe(false);
+    expect(v.manquantes.map((m) => m.cle)).toEqual(['IDENTITE_VENDEUR']);
+    expect(v.manquantes[0].libelle).toMatch(/adresse exacte/);
+  });
+
+  it('l’art. 26 b) l’exige aussi du client', () => {
+    const v = verifierMentions(facture({ contrepartieAdresse: '   ' }), true);
+    expect(v.conforme).toBe(false);
+    expect(v.manquantes.map((m) => m.cle)).toEqual(['IDENTITE_CLIENT']);
+  });
+
+  it('AUCUNE DÉROGATION n’est fabriquée pour un client non immatriculé', () => {
+    // Le texte n'en prévoit pas. En inventer une dispenserait de la mention sur
+    // toute vente à un particulier · et la source ne doit porter aucune trace
+    // d'un tel tempérament.
+    expect(verifierMentions(facture({ contrepartieNumeroImpot: null }), true).conforme).toBe(false);
+    const source = readFileSync(join(__dirname, 'mentions-facture.ts'), 'utf8');
+    expect(source).not.toMatch(/nonImmatricule|sansNumeroImpot|particulier\s*\?/);
+  });
+});
+
+describe('LE BORNAGE À L’ENTRÉE EN VIGUEUR · art. 29, 3 mars 2023', () => {
+  it('la date est celle de la signature, sans vacatio legis', () => {
+    expect(ENTREE_EN_VIGUEUR_DECRET_23_10.toISOString().slice(0, 10)).toBe('2023-03-03');
+  });
+
+  it('une pièce ANTÉRIEURE se vérifie contre l’art. 100, et pas contre l’art. 26', () => {
+    // § 10 bis, dans la forme que le dépôt connaissait déjà et n'avait pas
+    // appliquée ici : sans borne, une facture de 2022 reprise dans un dossier
+    // se voit reprocher l'adresse exacte au nom d'un décret qui n'existait pas
+    // encore, avec une amende chiffrée sur ce reproche.
+    const ancienne = facture({
+      dateFacture: new Date('2022-11-30T00:00:00Z'),
+      emetteurAdresse: null,
+      contrepartieAdresse: null,
+      autresImpotsEtTaxes: null,
+    });
+    const v = verifierMentions(ancienne, true);
+    expect(v.conforme).toBe(true);
+    expect(v.texteApplicable.texte).toMatch(/011\/42/);
+    expect(v.texteApplicable.source).toMatch(/ne lui est pas opposable/);
+    expect(v.source).toMatch(/011\/42/);
+  });
+
+  it('la MÊME pièce au 3 mars 2023 tombe sous les douze de l’art. 26', () => {
+    // La borne se lit sur la DATE DE LA PIÈCE, et le jour de la signature est
+    // déjà couvert · le décret « entre en vigueur à la date de sa signature ».
+    const v = verifierMentions(
+      facture({
+        dateFacture: new Date('2023-03-03T00:00:00Z'),
+        emetteurAdresse: null,
+        autresImpotsEtTaxes: null,
+      }),
+      true,
+    );
+    expect(v.conforme).toBe(false);
+    expect(v.manquantes.map((m) => m.cle)).toEqual(['IDENTITE_VENDEUR', 'AUTRES_IMPOTS_ET_TAXES']);
+    expect(v.texteApplicable.texte).toMatch(/23\/10/);
+  });
+
+  it('l’art. 100 ne réclame NI l’adresse NI les autres impôts', () => {
+    const avant = texteApplicable(new Date('2022-01-01T00:00:00Z'));
+    expect(avant.mentions).toHaveLength(9);
+    expect(avant.mentions.map((m) => m.cle)).not.toContain('AUTRES_IMPOTS_ET_TAXES');
+    expect(avant.mentions.find((m) => m.cle === 'IDENTITE_VENDEUR')!.libelle).not.toMatch(/adresse/);
+  });
+});
+
+describe('L’ART. 25 · trois supports de déduction, et non un seul', () => {
+  it('le texte dit « de façon générale », et le module ne le rend plus EXCLUSIF', () => {
+    // Ce paragraphe écrivait « la TVA n'est déductible QUE SI elle figure sur
+    // une facture normalisée ». Un cabinet pouvait en conclure qu'une TVA
+    // d'importation, portée au 445 sur une déclaration en douane, n'ouvrait pas
+    // droit à déduction · le logiciel l'aurait dissuadé d'une déduction que le
+    // texte lui accorde.
+    expect(OBLIGATION_DACCEPTATION.mention).not.toMatch(/n[’']est déductible que si/);
+    expect(OBLIGATION_DACCEPTATION.supportsDeDeduction).toHaveLength(3);
+    expect(OBLIGATION_DACCEPTATION.supportsDeDeduction.map((s) => s.cas)).toEqual([
+      'de façon générale',
+      'en cas d’importation',
+      'en cas de livraison de biens ou de prestation de services à soi-même',
+    ]);
+  });
+
+  it('dit lesquels des trois OmegaX ne tient pas', () => {
+    const absents = OBLIGATION_DACCEPTATION.supportsDeDeduction.filter((s) => !s.tenuParOmegaX);
+    expect(absents.map((s) => s.support)).toEqual([
+      'la déclaration de mise à la consommation délivrée par la douane',
+      'une facture normalisée à soi-même',
+    ]);
+    expect(OBLIGATION_DACCEPTATION.reserveSupports).toMatch(/à joindre à la main/);
+  });
+
+  it('l’état détaillé nomme l’art. 25, 2° et pas seulement l’imprimé de l’art. 134', () => {
+    const e = construireEtatDetaille('2026-09', []);
+    expect(e.voletImportations.motif).toMatch(/art\. 25, 2°/);
+    expect(e.voletImportations.motif).toMatch(/LE SUPPORT de la déduction/);
+  });
+});
+
+describe('L’ARRÊTÉ DE L’ART. 25 · la seconde lacune hors corpus', () => {
+  it('la qualification « document en tenant lieu » est dite HYPOTHÈSE, pas acquise', () => {
+    // Même faute que celle corrigée le matin même, commise une seconde fois :
+    // le module tire une DISPENSE des points k) et l) d'une catégorie définie
+    // par un arrêté qu'aucune source lue ne porte.
+    expect(HOMOLOGATION.qualificationHypothetique).toMatch(/HYPOTHÈSE/);
+    expect(HOMOLOGATION.qualificationHypothetique).toMatch(/art\. 25, dernière phrase/);
+    expect(HOMOLOGATION.qualificationHypothetique).toMatch(/n[’']est dans aucune source lue/);
+  });
+
+  it('l’anomalie du texte source est signalée et NON tranchée', () => {
+    // La phrase est typographiquement à l'intérieur du point 3 alors qu'elle
+    // définit un terme du point 1. Le scan ne permet pas de trancher, et une
+    // « correction » silencieuse falsifierait la lecture.
+    const source = readFileSync(join(__dirname, 'mentions-facture.ts'), 'utf8');
+    expect(source).toMatch(/ANOMALIE DU TEXTE SOURCE/);
+    expect(source).toMatch(/sans le Journal officiel/);
   });
 });

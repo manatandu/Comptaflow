@@ -141,7 +141,7 @@ autres sous-dossiers en étant des vues thématiques.
 
 | Passe | Objet | Source |
 |---|---|---|
-| **F1** | **TVA · la facture normalisée et les dispositifs électroniques** | décret n° 23/10 du 3 mars 2023 (29 art.), art. 14 du code général |
+| **F1** | **FAITE le 2026-09-13** · TVA, facture normalisée et dispositifs électroniques. 57 obligations lues, 30 constats, 25 réfutés, **5 retenus et corrigés** (adresse exacte des art. 26 a) et b), bornage au 3 mars 2023, art. 25 rendu exclusif à tort, volet importation nommé à moitié, arrêté de l'art. 25 hors corpus). Journal : `docs/releve-de-manques-fiscal.md` | décret n° 23/10 du 3 mars 2023 (29 art.), art. 14 du code général |
 | **F2** | **TVA · l'ordonnance-loi n° 10/001**, champ, territorialité, fait générateur, exigibilité, base, taux, déductions, obligations, liquidation, remboursement | art. 10 du code général, 10 chapitres |
 | **F3** | **TVA · le décret n° 011/42** d'exécution, les 12 chapitres | art. 11 à 13 du code général |
 | **F4** | **Impôt sur les sociétés · loi n° 23/053, Titre 2** | art. 04 du code général |
@@ -224,11 +224,11 @@ multi-classification se décide à la CONCEPTION, `Compte`, `Journal` et
 
 | Bloc | Passes | Faites | Reste |
 |---|---|---|---|
-| F · Fiscalité | 14 | 0 | 14 |
+| F · Fiscalité | 14 | **1** | 13 |
 | O · OHADA | 7 | 0 | 7 |
 | R · Référentiels, solde | 6 | 0 | 6 |
 | D · Droit congolais | 4 | 0 | 4 |
-| **Total** | **31** | **0** | **31** |
+| **Total** | **31** | **1** | **30** |
 
 *Tenir ce tableau à jour à la fin de chaque passe. Une passe n'est « faite »
 que lorsque son verdict est écrit dans son journal et que les corrections

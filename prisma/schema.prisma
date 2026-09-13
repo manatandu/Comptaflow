@@ -5162,8 +5162,21 @@ model Facture {
   /// fournisseur déménage ou obtient son numéro impôt, et l'état détaillé
   /// déclaré l'an dernier ne se reconstituerait plus à l'identique.
   emetteurNom             String
+  /// ART. 26 a) DU DÉCRET N° 23/10 · « les nom, post-nom et prénom ou raison
+  /// sociale, L'ADRESSE EXACTE, le numéro impôt du vendeur ou prestataire ».
+  /// L'adresse manquait : le module avait été bâti sur l'art. 100 de 2011, qui
+  /// n'écrit que « identité et n° impôt ». Ce n'était pas un champ de moins,
+  /// c'était un verdict de conformité FAUX.
+  ///
+  /// RECOPIÉE COMME LE NOM, et pour la même raison · une facture est un
+  /// document daté, l'adresse qui y figure est celle du jour où elle a été
+  /// établie, et la relire sur la fiche du tiers réécrirait rétroactivement une
+  /// pièce justificative à chaque déménagement.
+  emetteurAdresse         String?
   emetteurNumeroImpot     String?
   contrepartieNom         String
+  /// Art. 26 b) · « l'adresse exacte du client ».
+  contrepartieAdresse     String?
   contrepartieNumeroImpot String?
 
   /// Décret n° 011/42, art. 60 · « la mention "Autorisation d'acquitter la TVA

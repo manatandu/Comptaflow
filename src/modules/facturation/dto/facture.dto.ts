@@ -70,6 +70,12 @@ export class EnregistrerFactureDto {
   @MaxLength(300)
   contrepartieNom?: string;
 
+  /** Art. 26 b) · « l'adresse exacte du client », mention obligatoire. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  contrepartieAdresse?: string;
+
   @IsOptional()
   @IsString()
   @MaxLength(60)

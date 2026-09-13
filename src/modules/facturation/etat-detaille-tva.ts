@@ -27,8 +27,14 @@
  * (« nature et désignation », « quantité », « prix HT ») · rien de tout cela
  * n'existait nulle part, l'écriture d'achat ne portant qu'un `reference` libre.
  *
- * LA LACUNE QUI RESTE, ET QU'ON DÉCLARE PLUTÔT QUE DE LA COMBLER. Le second
- * volet de l'art. 134 porte sur les IMPORTATIONS et demande le numéro, la date
+ * LA LACUNE QUI RESTE, ET QU'ON DÉCLARE PLUTÔT QUE DE LA COMBLER. Elle est
+ * DOUBLE, et la passe F1 a montré que le module n'en déclarait qu'une moitié :
+ * la déclaration de mise à la consommation manque à l'IMPRIMÉ de l'art. 134,
+ * mais elle est aussi, par l'art. 25, 2° du décret n° 23/10, LE SUPPORT MÊME de
+ * la déduction en cas d'importation. Ne nommer que l'imprimé laissait croire
+ * qu'il ne manquait qu'une ligne de tableau.
+ *
+ * Le second volet de l'art. 134 porte sur les IMPORTATIONS et demande le numéro, la date
  * et le montant de la DÉCLARATION DE MISE À LA CONSOMMATION ainsi que la valeur
  * en douane. OmegaX ne tient aucune déclaration en douane · aucun modèle, aucun
  * champ. L'état produit ici couvre donc le premier volet seulement, et il le
@@ -137,7 +143,10 @@ export function construireEtatDetaille(periode: string, factures: readonly Factu
       motif:
         'Le second volet de l’art. 134 (importations) demande le numéro, la date et le montant de la déclaration de ' +
         'mise à la consommation ainsi que la valeur en douane. OmegaX ne tient aucune déclaration en douane : ces ' +
-        'lignes sont à ajouter à la main sur l’imprimé de l’Administration.',
+        'lignes sont à ajouter à la main sur l’imprimé de l’Administration. Et la lacune ne porte pas que sur ' +
+        'l’IMPRIMÉ : le décret n° 23/10 du 3 mars 2023, art. 25, 2°, fait de cette même déclaration LE SUPPORT de la ' +
+        'déduction en cas d’importation. Une TVA d’importation portée au compte 445 n’a donc, dans ce logiciel, ni sa ' +
+        'pièce ni sa ligne d’état.',
     },
     source: 'O.-L. n° 10/001, art. 56 · décret n° 011/42, art. 134',
     consequenceDuDefaut:

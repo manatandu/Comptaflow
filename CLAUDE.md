@@ -2139,6 +2139,69 @@ cloisonné · une ASBL est concernée quand elle REÇOIT, pas seulement quand el
 Quatre défauts réinjectés sur cette correction, quatre détectés · dont le
 défaut d'hier lui-même, le retour aux neuf mentions.
 
+**PASSE F1 · ce que la confrontation du décret n° 23/10 a trouvé (2026-09-13).**
+Première passe du plan de confrontations, menée en workflow d'agents. 57
+obligations extraites du texte, 30 constats, **25 réfutés par l'étape adverse**,
+5 retenus et corrigés. Journal complet : `docs/releve-de-manques-fiscal.md`.
+
+**L'ADRESSE EXACTE · art. 26 a) et b), et c'est le plus grave.** Le texte écrit
+« les nom, post-nom et prénom ou raison sociale, L'ADRESSE EXACTE, le numéro
+impôt du vendeur ou prestataire », et de même du client. Le module avait été
+bâti sur l'art. 100 de 2011, qui n'écrit que « identité et n° impôt ». Ce
+n'était pas un champ de moins : `verifierMentions` rendait `conforme: true` sur
+une pièce qui omet une mention obligatoire, et l'écran l'affichait ainsi, sans
+amende, quand l'art. 97 bis en punit chaque omission de 750 000 FC. **Le
+logiciel rassurait à tort sur exactement ce qu'il a été construit pour
+surveiller.** L'adresse est recopiée à la date de la pièce, comme le nom, et
+aucune dérogation n'est fabriquée pour un client non immatriculé · le texte n'en
+prévoit pas, et en inventer une dispenserait de la mention sur toute vente à un
+particulier.
+
+**LE BORNAGE À L'ENTRÉE EN VIGUEUR · art. 29.** « Le présent Décret […] entre en
+vigueur à la date de sa signature », le 3 mars 2023, sans vacatio legis. Le
+module l'appliquait à toute date : une facture de 2022 reprise dans un dossier
+se voyait reprocher l'adresse exacte au nom d'un décret qui n'existait pas
+encore, avec une amende chiffrée sur ce reproche. **Le dépôt connaissait sa
+propre doctrine et ne l'avait pas appliquée ici** · `controles.service.ts` écrit
+« LE BORNAGE N'EST PAS UNE PRÉCAUTION, C'EST LE CONTRÔLE LUI-MÊME ». Le module
+de facturation était le seul endroit où un texte fiscal daté s'appliquait sans
+sa borne.
+
+CE QUI S'APPLIQUAIT AVANT N'EST PAS « RIEN » · l'art. 28 n'abroge que les
+dispositions « CONTRAIRES », et les neuf groupes de l'art. 100 ne le sont pas,
+ils sont le noyau des douze. `texteApplicable(dateFacture)` choisit donc la
+liste en vigueur À LA DATE DE LA PIÈCE, et l'écran dit laquelle il applique.
+
+**L'ART. 25 RENDU EXCLUSIF.** Le module écrivait « la TVA n'est déductible QUE
+SI elle figure sur une facture normalisée ou un document en tenant lieu ». Le
+texte dit « DE FAÇON GÉNÉRALE » pour ce cas et en nomme deux autres : la
+déclaration de mise à la consommation en cas d'importation (2°), la facture à
+soi-même (3°). Un cabinet pouvait en conclure qu'une TVA d'importation portée au
+445 n'ouvrait pas droit à déduction · le logiciel l'aurait dissuadé d'une
+déduction que le texte lui accorde. Les trois supports sont rendus, avec ceux
+qu'OmegaX ne tient pas, et l'état détaillé nomme désormais l'art. 25, 2° et pas
+seulement l'imprimé de l'art. 134.
+
+**L'ARRÊTÉ DE L'ART. 25 · la même faute, commise une seconde fois le même
+jour.** Le module se range dans la catégorie « document en tenant lieu » et en
+tire une DISPENSE des points k) et l). Or c'est un arrêté qui définit cette
+catégorie (art. 25, dernière phrase), et il n'est dans aucune source lue,
+exactement comme celui de l'art. 23 corrigé le matin même. La qualification est
+écrite comme une HYPOTHÈSE. **Anomalie du texte source signalée et non
+tranchée** · dans la compilation lue, cette phrase est typographiquement à
+l'intérieur du point 3 alors qu'elle définit un terme du point 1 ; ne pas la
+« corriger » sans le Journal officiel.
+
+**CE QUE LA PASSE APPREND SUR LA MÉTHODE, et qui vaut pour les trente
+suivantes.** Les cinq constats portent sur des articles que la session
+principale avait LUS la veille en construisant le module : trois lui avaient
+échappé parce qu'elle lisait le texte à travers le code qu'elle écrivait.
+**C'est l'indépendance du lecteur qui paie, pas le nombre d'agents.** Et
+l'étape adverse est le cœur du dispositif, pas un supplément : vingt-cinq
+constats sur trente ne survivent pas, et un relevé sans elle serait à 83 % du
+bruit · du bruit qu'on corrigerait. Un réfutateur peut d'ailleurs RENFORCER un
+constat au lieu de le tuer, et c'est un comportement à conserver.
+
 **Devis et commande client · l'OFFRE et son ACCEPTATION, où l'intuition
 commerciale se trompe quatre fois.** Un devis n'est pas un brouillon de
 facture : s'il est suffisamment précis et indique la volonté d'être lié, c'est
