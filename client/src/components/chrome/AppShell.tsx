@@ -252,6 +252,11 @@ export function AppShell() {
         // ici plutôt que sous « État » : ce n'est pas une restitution, c'est
         // un travail de tenue. Ouverte aux deux référentiels · l'obligation
         // vise des redevables d'impôts, pas un référentiel comptable.
+        ...(estSycebnl
+          ? []
+          : // Le Livre 8 de l'AUDCG ne régit que la vente entre commerçants ·
+            // une ASBL n'en est pas une, et l'entrée ne lui est pas servie.
+            [{ label: 'Devis et commande client', onClick: () => navigate('/devis') }]),
         { label: 'Facturation', onClick: () => navigate('/facturation') },
         // La fenêtre s'ouvre directement, son sélecteur intégré désigne le
         // compte · passer par le plan comptable était un détour trompeur

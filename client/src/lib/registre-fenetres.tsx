@@ -23,6 +23,7 @@ const JustificatifSoldePage = lazy(() => import('../pages/JustificatifSoldePage'
 const EvolutionSoldesPage = lazy(() => import('../pages/EvolutionSoldesPage').then((m) => ({ default: m.EvolutionSoldesPage })));
 const PalmaresJournauxPage = lazy(() => import('../pages/PalmaresJournauxPage').then((m) => ({ default: m.PalmaresJournauxPage })));
 const MandatAuditeurPage = lazy(() => import('../pages/MandatAuditeurPage').then((m) => ({ default: m.MandatAuditeurPage })));
+const DevisPage = lazy(() => import('../pages/DevisPage').then((m) => ({ default: m.DevisPage })));
 const FacturationPage = lazy(() => import('../pages/FacturationPage').then((m) => ({ default: m.FacturationPage })));
 const AccordCadrePage = lazy(() => import('../pages/AccordCadrePage').then((m) => ({ default: m.AccordCadrePage })));
 const ConstitutionPage = lazy(() => import('../pages/ConstitutionPage').then((m) => ({ default: m.ConstitutionPage })));
@@ -203,6 +204,18 @@ export const FENETRES: DefinitionFenetre[] = [
     titre: 'Mandat du contrôleur des comptes',
     titreCourt: 'Mandat',
     rendre: () => <MandatAuditeurPage />,
+  },
+  {
+    motif: /^\/devis$/,
+    titre: 'Devis et commande client',
+    titreCourt: 'Devis',
+    // Cloisonné au SYSCOHADA · le Livre 8 de l'AUDCG ne régit que la vente de
+    // marchandises ENTRE COMMERÇANTS (art. 234), et une association n'est pas
+    // commerçante (loi n° 004/2001, art. 1er). Ce n'est pas qu'une ASBL ne
+    // vende rien : c'est que ces règles ne la régissent pas. La route se
+    // refuse aussi (§ 6).
+    referentielsApplicables: ['SYSCOHADA'],
+    rendre: () => <DevisPage />,
   },
   {
     motif: /^\/facturation$/,

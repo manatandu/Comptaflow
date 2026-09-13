@@ -2077,6 +2077,108 @@ refusé le premier jet parce que `FacturationModule` n'importait pas
 Compilation propre, 3 397 tests verts, et un serveur qui n'aurait pas démarré ·
 exactement la panne du 2026-09-02 que ce test existe pour attraper.
 
+**Devis et commande client · l'OFFRE et son ACCEPTATION, où l'intuition
+commerciale se trompe quatre fois.** Un devis n'est pas un brouillon de
+facture : s'il est suffisamment précis et indique la volonté d'être lié, c'est
+une OFFRE au sens de l'AUDCG art. 241, et son acceptation FORME le contrat
+(art. 244). Les logiciels de la place lui donnent un statut libre ; le texte,
+lui, attache à chaque état des conséquences que personne ne choisit.
+
+LE PÉRIMÈTRE EST LE PREMIER REFUS, et il est plus étroit qu'on ne croit. Le
+Livre 8 régit la vente de MARCHANDISES entre COMMERÇANTS (art. 234). Il ne
+régit PAS les marchandises achetées pour un usage personnel, familial ou
+domestique (art. 235 a), ni « les contrats de fourniture de marchandises dans
+lesquels LA PART PRÉPONDÉRANTE de l'obligation […] consiste dans une fourniture
+de main-d'œuvre ou d'autres services » (art. 235 b), ni les six régimes
+particuliers de l'art. 236 (enchères, saisie, valeurs mobilières, créances et
+instruments financiers, navires et aéronefs, électricité). Une société de
+conseil, de gardiennage ou de nettoyage vend des SERVICES : lui estampiller
+« art. 241 » appliquerait une règle hors de son domaine, avec des délais et des
+qualifications qui ne la concernent pas. La nature est SAISIE et jamais déduite,
+la prépondérance d'un contrat mixte étant une qualification du cabinet.
+
+LE REFUS CENTRAL EST QUE LE SILENCE NE VAUT RIEN. Art. 243, dernière phrase :
+« LE SILENCE OU L'INACTION NE PEUT À LUI SEUL VALOIR ACCEPTATION. » Un devis
+dont le délai s'est écoulé sans réponse n'est donc NI accepté NI refusé · il est
+CADUC. Le basculer en « refusé », ce que font les logiciels de la place,
+attribue au client un rejet qu'il n'a jamais exprimé et fausse la relance comme
+la statistique commerciale ; le basculer en « accepté » inventerait un contrat.
+Aucun chemin du service n'écrit `natureReponse` ailleurs que sur l'appel qui
+enregistre une réponse REÇUE, et un test gèle cette unicité dans la source ·
+aucun jeu d'essai ne peut montrer l'absence d'un second chemin.
+
+C'est la troisième fois que la forme se présente, et la troisième fois qu'elle
+prend un sens DIFFÉRENT · un terme échu n'est jamais un dénouement, mais pas
+pour la même raison. Le mandat de l'auditeur se PROROGE de plein droit (SYCEBNL
+art. 22), l'accord-cadre se RECONDUIT tacitement, et l'offre, elle, devient
+simplement inacceptable sans que personne n'ait rien décidé.
+
+DEUX DATES, ET UNE SEULE FAIT COURIR LE DÉLAI · dixième occurrence de « un
+nombre, deux sens ». L'offre PREND EFFET quand elle PARVIENT au destinataire
+(art. 242), mais le délai d'acceptation « commence à courir au moment où l'offre
+est EXPRIMÉE », la date portée sur l'offre étant présumée celle de son expédition
+(art. 246). Compter depuis la réception rallongerait l'offre de tout le temps
+d'acheminement, et le logiciel tiendrait pour ouverte une offre déjà close.
+
+AUCUN DÉLAI PAR DÉFAUT. À défaut de stipulation, l'art. 243 renvoie à un « délai
+raisonnable, compte tenu des circonstances, notamment de la rapidité des moyens
+de communication utilisés », que le texte ne chiffre pas. Poser trente jours
+« par convention » rendrait caduque une offre que le texte tient encore pour
+ouverte · un test interdit toute constante de délai dans le fichier.
+
+UN DÉLAI SEUL NE REND PAS L'OFFRE FERME. Art. 242 : l'offre ne peut être révoquée
+« si elle indique, EN FIXANT UN DÉLAI DÉTERMINÉ POUR L'ACCEPTATION, QU'ELLE EST
+IRRÉVOCABLE ». Deux conditions cumulatives. « Valable jusqu'au 30 » n'engage à
+rien ; « valable jusqu'au 30, offre ferme » engage. Déduire l'irrévocabilité de
+la seule présence d'une date ferait croire au cabinet qu'il est tenu, et
+l'empêcherait de révoquer une offre devenue ruineuse. La seconde branche du même
+article (le destinataire « raisonnablement fondé à croire » et qui a agi en
+conséquence) est ÉCRITE et jamais calculée.
+
+L'ART. 245 NE LAISSE À UNE RÉPONSE QUE DEUX SENS, et c'est ce qui a décidé du
+modèle. Une réponse porteuse d'éléments « n'altérant pas substantiellement les
+termes de l'offre » vaut ACCEPTATION, et les termes du contrat sont ceux de
+l'offre AVEC les modifications de l'acceptation. Une réponse qui contient « des
+additions, des limitations ou d'autres modifications » VAUT REJET et constitue
+une CONTRE-PROPOSITION. Un bon de commande qui s'écarte du devis n'est donc pas
+une acceptation, et l'enregistrer comme telle inscrirait un contrat qui n'existe
+pas.
+
+D'OÙ L'ABSENCE DE TABLE « CommandeClient ». Une commande est une RÉPONSE, pas un
+document de plus ; une contre-proposition est une OFFRE NOUVELLE, c'est-à-dire un
+devis de sens inverse, chaîné au précédent par `contrePropositionDeId`. Une
+négociation à trois allers-retours est une chaîne de trois devis, chacun gardant
+son état propre. Une table parallèle aurait dupliqué le même fait sous deux
+formes, et les deux auraient divergé au premier correctif. Le service refuse de
+rattacher une contre-proposition à un devis qui n'a pas été rejeté
+substantiellement, et INVERSE l'émetteur · l'offre nouvelle vient de celui qui a
+rejeté.
+
+LA SUBSTANTIALITÉ SE QUALIFIE, ELLE NE SE CALCULE PAS. C'est elle qui décide
+entre un contrat formé et un contrat à reprendre à zéro, et le service exige donc
+un écrit sur toute réponse modificative · personne ne saura six mois plus tard sur
+quoi elle reposait.
+
+CLOISONNÉ AU SYSCOHADA, et cette fois le § 8.4 du plan avait raison, contrairement
+à la facture. La raison n'est PAS qu'une ASBL ne vendrait rien · elle peut proposer
+un prix. C'est que l'art. 234 exige une vente entre COMMERÇANTS et qu'une
+association n'en est pas une : la loi n° 004/2001, art. 1er, dit qu'elle « ne se
+livre pas à des opérations industrielles ou commerciales, si ce n'est à titre
+accessoire ». Lui servir la fenêtre lui appliquerait des règles qui ne la
+régissent pas.
+
+DEUX MENTIONS PORTÉES SUR LE DOCUMENT, parce que le client les découvre d'ordinaire
+trop tard. Le total est HORS TAXES · art. 263, « le prix exprimé dans le contrat
+est présumé convenu hors taxes ». Et les deux délais de dénonciation : un défaut
+apparent le jour de la prise de livraison se dénonce DANS LE MOIS sous peine de
+DÉCHÉANCE (art. 258), un défaut caché se prescrit par UN AN du jour où il a été
+constaté ou aurait dû l'être (art. 259).
+
+ENFIN LE DEVIS N'EST PAS OBLIGATOIRE, à la différence de la facture. Art. 240 ·
+« le contrat de vente commerciale peut être écrit ou verbal ; il n'est soumis à
+aucune condition de forme. Il est prouvé par tous moyens. » La fenêtre le dit,
+pour ne jamais laisser croire qu'une vente sans devis serait irrégulière.
+
 ### Migrations écrites à la main
 
 Une migration écrite à la main peut DIVERGER du schéma sans que rien ne le

@@ -486,8 +486,28 @@ suite.
   source lue ne décrit la procédure. Tant que Manasse ne l'a pas engagée,
   OmegaX ne produit pas de facture normalisée, et l'écran le dit.
 
-Reste de la Phase I : devis et commande client (eux, propres au SYSCOHADA) ·
-stocks · paie · OHADA vers IFRS · consolidation · RBAC fin.
+**I2 · Le devis et la commande client sont livrés le 2026-09-13** · modèles
+`Devis` et `LigneDevis`, migration `20260926000000_devis`, module
+`src/modules/commercial/` (périmètre du Livre 8, qualification de l'offre de
+l'art. 241, les deux dates du délai, l'art. 245 qui ne laisse à une réponse que
+deux sens, et la révocabilité à deux conditions cumulatives), fenêtre Devis sous
+Traitement, cloisonnée SYSCOHADA aux deux bouts, 32 tests et huit défauts
+réinjectés. **La gestion commerciale est close.**
+
+Le § 8.4 avait raison sur le devis, et se trompait sur la facture : le premier
+est bien propre au SYSCOHADA (l'art. 234 exige une vente entre commerçants, et
+une ASBL n'en est pas une), la seconde est commune (l'obligation vient de la loi
+de procédures fiscales, qui vise des redevables d'impôts).
+
+Reste de la Phase I, À REPRENDRE APRÈS LES CONFRONTATIONS : **stocks** (les états
+SMT et compte de résultat déjà écrits attendent des variations qu'aucune source
+ne produit) · paie · OHADA vers IFRS · consolidation · RBAC fin.
+
+> **POINT D'ARRÊT DE LA PHASE I · 2026-09-13.** La Phase I est suspendue ici, à
+> la demande de Manasse, le temps du plan de confrontations
+> (`docs/plan-confrontations.md`). Elle reprend à son item suivant, les STOCKS,
+> et à rien d'autre : ne pas recommencer la gestion commerciale, ni sauter
+> directement à la paie.
 
 ---
 

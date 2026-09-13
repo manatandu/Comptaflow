@@ -561,6 +561,7 @@ model Tenant {
   mandatsAuditeur           MandatAuditeur[]
   accordsCadresPlan         AccordCadrePlan[]
   factures                  Facture[]
+  devis                     Devis[]
 
   @@index([dossierMereId])
   @@map("tenants")
@@ -1733,6 +1734,7 @@ model Tiers {
 
   demandesConfirmation DemandeConfirmation[]
   factures             Facture[]
+  devis                Devis[]
 
   @@unique([tenantId, code])
   // L'agrégation du groupe interroge les tiers PAR CELLULE · sans cet index
@@ -5217,4 +5219,138 @@ model LigneFacture {
 
   @@unique([factureId, ordre])
   @@map("lignes_facture")
+}
+
+// ---------------------------------------------------------------------------
+// DEVIS ET COMMANDE CLIENT · l'OFFRE et son ACCEPTATION au sens de l'AUDCG.
+//
+// CE QUI N'EST PAS MODÉLISÉ, ET C'EST LA DÉCISION CENTRALE · il n'y a PAS de
+// table « CommandeClient ». Le bon de commande que renvoie un client n'est pas
+// un document de plus : c'est une RÉPONSE à l'offre, et l'art. 245 lui donne
+// l'un de deux sens, jamais un troisième. Sans modification substantielle,
+// c'est une ACCEPTATION et le contrat est le devis ; avec, c'est un REJET et
+// une CONTRE-PROPOSITION, c'est-à-dire une offre nouvelle, qui est un DEVIS de
+// sens inverse. Une table parallèle aurait dupliqué le même fait sous deux
+// formes, et les deux auraient divergé au premier correctif.
+//
+// LE CHAÎNAGE PORTE DONC LA NÉGOCIATION · `contrePropositionDeId` relie chaque
+// offre à celle qu'elle rejette. Une négociation à trois allers-retours est une
+// chaîne de trois devis, et chacun garde son état propre. Écraser le premier
+// effacerait la preuve de ce qui a été proposé, que l'art. 240 fait justement
+// reposer sur « tous moyens ».
+// ---------------------------------------------------------------------------
+
+/// Qui a émis l'offre · une contre-proposition vient du CLIENT (AUDCG art. 245).
+enum EmetteurOffre {
+  DOSSIER
+  CLIENT
+}
+
+/// La nature de l'opération, qui commande si le Livre 8 s'applique (art. 234
+/// à 236). Elle est SAISIE et jamais déduite : aucun numéro de compte ne dit
+/// si la part prépondérante d'un contrat mixte est de la main-d'œuvre.
+enum NatureOperationVente {
+  MARCHANDISES
+  SERVICES
+  MIXTE_SERVICES_PREPONDERANTS
+  USAGE_PERSONNEL
+  REGIME_PARTICULIER
+}
+
+/// Le sens que l'art. 245 donne à la réponse reçue. Null tant qu'aucune
+/// réponse n'est PARVENUE (art. 244) · et un délai écoulé ne le remplit pas,
+/// « le silence ou l'inaction ne peut à lui seul valoir acceptation » (art. 243).
+enum NatureReponseDevis {
+  ACCEPTATION
+  REFUS
+  MODIFICATION_NON_SUBSTANTIELLE
+  MODIFICATION_SUBSTANTIELLE
+}
+
+model Devis {
+  id       String        @id @default(uuid())
+  tenantId String
+  tenant   Tenant        @relation(fields: [tenantId], references: [id])
+  emetteur EmetteurOffre @default(DOSSIER)
+
+  numero        String
+  /// DATE D'ÉMISSION, et c'est d'ELLE que court le délai d'acceptation ·
+  /// art. 246, « le délai d'acceptation […] commence à courir au moment où
+  /// l'offre est EXPRIMÉE », la date portée sur l'offre étant présumée celle de
+  /// son expédition. À ne pas confondre avec la date de réception ci-dessous,
+  /// qui dit seulement quand l'offre a PRIS EFFET (art. 242).
+  dateEmission  DateTime
+  dateReception DateTime?
+
+  /// Délai stipulé, en jours. NULL quand rien n'est stipulé · l'art. 243
+  /// renvoie alors à un « délai raisonnable » que le texte ne chiffre pas, et
+  /// qu'aucune convention du logiciel ne remplace.
+  delaiJours Int?
+
+  /// DEUX CONDITIONS CUMULATIVES pour l'irrévocabilité (art. 242) : un délai
+  /// déterminé ET la déclaration. Ce drapeau ne porte que la seconde · un
+  /// délai seul ne rend pas l'offre ferme, et le déduire ferait croire au
+  /// cabinet qu'il est tenu alors qu'il ne l'est pas.
+  declareeIrrevocable Boolean @default(false)
+
+  /// Art. 241 · une proposition à des personnes INDÉTERMINÉES n'est qu'une
+  /// invitation à l'offre, et la volonté d'être lié doit être indiquée. Les
+  /// deux sont des propriétés du document, pas des déductions.
+  destinataireDetermine Boolean @default(true)
+  volonteDEtreLie       Boolean @default(true)
+
+  nature NatureOperationVente
+
+  tiersId   String?
+  tiers     Tiers?  @relation(fields: [tiersId], references: [id])
+  /// Identité recopiée, pour la même raison que sur la facture · un devis est
+  /// un document daté, et l'offre faite l'an dernier ne se réécrit pas parce
+  /// qu'un client a changé de raison sociale.
+  clientNom String
+
+  objet String?
+
+  /// LA RÉPONSE, telle qu'elle est PARVENUE (art. 244). Les deux champs vont
+  /// ensemble : une nature sans date ne dit pas quand le contrat s'est formé,
+  /// et une date sans nature ne dit pas ce qui est arrivé.
+  natureReponse NatureReponseDevis?
+  dateReponse   DateTime?
+  /// Ce que la réponse a changé, quand elle a changé quelque chose · l'art. 245
+  /// fait de la substantialité la charnière, et elle se qualifie, ne se calcule pas.
+  detailReponse String?
+
+  revoqueLe       DateTime?
+  motifRevocation String?
+
+  /// La contre-proposition rejette une offre et en fait naître une autre.
+  contrePropositionDeId String? @unique
+  contrePropositionDe   Devis?  @relation("ContrePropositionDevis", fields: [contrePropositionDeId], references: [id])
+  contreProposition     Devis?  @relation("ContrePropositionDevis")
+
+  lignes    LigneDevis[]
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@unique([tenantId, numero])
+  @@index([tenantId, dateEmission])
+  @@map("devis")
+}
+
+model LigneDevis {
+  id      String @id @default(uuid())
+  devisId String
+  devis   Devis  @relation(fields: [devisId], references: [id], onDelete: Cascade)
+  ordre   Int
+
+  /// Les trois éléments que l'art. 241 exige pour qu'une offre soit
+  /// « suffisamment précise » : désigner, fixer la quantité, fixer le prix.
+  designation  String
+  quantite     Decimal @db.Decimal(18, 4)
+  prixUnitaire Decimal @db.Decimal(18, 2)
+  /// Total HT de la ligne · art. 263, « le prix exprimé dans le contrat est
+  /// présumé convenu HORS TAXES ».
+  montantHT    Decimal @db.Decimal(18, 2)
+
+  @@unique([devisId, ordre])
+  @@map("lignes_devis")
 }

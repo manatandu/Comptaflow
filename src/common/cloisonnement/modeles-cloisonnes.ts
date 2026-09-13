@@ -12,6 +12,7 @@ export const MODELES_CLOISONNES = new Set<string>([
   'Cloture',
   'ConventionFinancement',
   'Compte',
+  'Devis',
   'Devise',
   'Donation',
   'DossierFiscalExercice',
@@ -98,6 +99,7 @@ export const MODELES_PORTES_PAR_LEUR_PARENT = new Set<string>([
   // Portée par sa facture · l'état détaillé ne l'atteint jamais qu'après avoir
   // borné la facture au dossier, et le rattachement est en cascade (supprimer
   // la facture supprime ses lignes).
+  'LigneDevis',
   'LigneFacture',
   'LigneAffectation',
   'LigneEcriture',
