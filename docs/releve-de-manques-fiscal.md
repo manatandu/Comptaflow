@@ -503,3 +503,249 @@ méthode plutôt que la règle.
   vérifiables qu'un décret de procédure : 62 % de réfutation contre 83 %. À
   budget égal, F2b sur les déductions et les obligations devrait se rapprocher
   du régime de F1.
+
+## Passe F2b · Ordonnance-loi n° 10/001 sur la TVA, chapitres V à X (2026-09-13)
+
+**Corpus** · même fichier, lignes 960 à 1754. Chapitre V (régime des
+déductions, avec ses quatre sections), chapitre VI (obligations des
+redevables), chapitre VII (liquidation, recouvrement, remboursement), chapitre
+VIII (procédures), chapitre IX (pénalités), le bloc intercalé intitulé
+« CHAPITRE III : DES MESURES RELATIVES AUX RECETTES NON… » et chapitre X
+(dispositions transitoires et finales).
+
+**Volumétrie** · 137 agents, 16,1 M de jetons, 4 h 50. Six blocs de lecture,
+six confrontations, un réfutateur à `xhigh` par constat.
+
+**Résultat** · 125 constats soumis à réfutation, **46 écartés**, **79 retenus**,
+dont **17 de gravité FAUX**. Le taux de réfutation tombe à 37 %, contre 62 % en
+F2a et 83 % en F1 · la moitié « déductions, obligations, pénalités » d'une loi
+fiscale est faite d'obligations vérifiables, là où le champ d'application est
+fait de définitions.
+
+**F2 est close.** Ses deux runs sont dépouillés.
+
+### Ce qui est corrigé dans le code, et testé
+
+#### L'article 41 était fermé au SYCEBNL sur une affirmation FAUSSE
+
+Le module portait en commentaire, et un spec gelait, la phrase suivante :
+« SYSCOHADA SEUL. Le plan SYCEBNL n'a ni 6383 ni 6384 ni 6181 : ses charges
+externes sont agrégées en 61800000 et 63800000 (compte-seed.ts l. 765 et 782). »
+**Les trois comptes y sont, sous les mêmes intitulés que le SYSCOHADA** ·
+`compte-seed.ts` l. 824 « Voyages et déplacements », l. 887 « Réceptions »,
+l. 888 « Missions », plus l. 822 « Transports du personnel ». Et les deux
+renvois de ligne donnés à l'appui ne portent rien de tel : la l. 765 est une
+provision de classe 5, la l. 782 un compte d'achats.
+
+Le coût était double. Un dossier SYCEBNL assujetti · **une ASBL ou une ONG
+taxée sur une activité accessoire, c'est-à-dire le public même du logiciel** ·
+déduisait 100 % de la TVA sur ses réceptions, ses missions et ses voyages, mois
+après mois. Et la déclaration lui donnait une **raison fausse de ne pas
+regarder**, en annonçant « un plan qui agrège ses charges externes ». C'est la
+doctrine du dépôt retournée contre lui : une lacune déclarée à tort est aussi
+fausse qu'une règle inventée, et celle-ci empêchait d'appliquer une règle que
+le dépôt savait déjà écrire.
+
+`partExclueArt41` ne prend plus de référentiel en paramètre · **c'est le numéro
+semé qui décide**, et une racine qui ne rencontre aucun compte du plan ne
+déclenche rien. C'est exactement le cas du 62760000 « Cadeaux à la clientèle »,
+semé au seul SYSCOHADA : il reste sans effet ailleurs, et s'appliquerait de
+lui-même si un plan l'ouvrait un jour sous le même intitulé.
+
+La discipline, elle, ne bouge pas · on ne retient un compte que si l'intitulé
+semé reprend les mots de l'article, et les cinq numéros ont été relus **dans
+les deux semis** avant d'ouvrir la table.
+
+#### Les produits pétroliers sont comptés et nommés, jamais amputés
+
+Le 60420000 « Matières combustibles » est semé aux deux plans et l'article le
+frappe sur **trois points qui ne disent pas la même chose** · le 3° exclut les
+produits pétroliers sauf revente par grossistes ou production d'électricité
+revendue, le 3° bis les exclut sauf carburants d'appareils fixes industriels ou
+d'aéronefs, le 3° ter les limite à 50 % « pour les cas autres que ceux visés
+aux points 3 et 3bis ». Aucun pourcentage n'est appliqué : les exceptions des
+deux premiers points se recouvrent, le règlement auquel le 3° bis renvoie est
+absent du corpus, et l'articulation des trois points n'est pas tranchée par le
+texte lu. Le montant est donc **compté, nommé sur la déclaration avec ses trois
+points, et laissé déduit** · appliquer 50 % au jugé serait inventer une règle.
+
+#### Un test qui bannit un mot, troisième occurrence
+
+`hors-scope-tva.spec.ts` bannissait « art. 25 » ; F2a l'a corrigé. Il bannissait
+aussi « art. 63 », et cette interdiction a bloqué **une déclaration de manque
+parfaitement fondée** : pour dire que le crédit dont le remboursement a été
+demandé ne peut donner lieu à imputation (art. 66), il faut nommer l'imputation
+de l'art. 63 que le module opère. Une interdiction de MOT est trop large par
+construction. Le test lit désormais **la tête de chaque puce** et exige
+qu'aucune ne prenne pour SUJET un article couvert · citer un article servi dans
+la description d'un manque voisin reste permis.
+
+#### Onze lacunes nommées, aucune comblée de mémoire
+
+Portées au hors-scope avec leur règle écrite, jamais seulement leur numéro :
+la **retenue à la source** de l'art. 53 al. 2 et sa sanction (art. 74 ter,
+amende égale au montant de la retenue) ; le **crédit dont le remboursement a
+été demandé** (art. 66) ; la perte du droit à déduction après **taxation
+d'office** (art. 69 ter) et après manquement au **paiement scriptural** au
+seuil de 1 000 000 FC (art. 59 bis et 74 bis) ; la **taxe due du seul fait de
+sa mention** et les trois amendes du triple (art. 59, 70, 71, 74 al. 2), qui
+supposent toutes de rapprocher deux gisements que le dépôt tient en parallèle,
+la FACTURE et l'ÉCRITURE ; l'**art. 40 al. 2** (les immobilisations détenues à
+l'entrée dans le champ n'ouvrent pas droit à déduction) ; l'**art. 42 point 1**
+pour ses dépenses accessoires, avec ses trois contre-exceptions écrites ; les
+**points 3 et 4 de l'art. 42**, dont le premier réserve lui-même son
+application à un arrêté non paru ; l'**art. 43 al. 3** (les ventes aux missions
+diplomatiques et aux organisations internationales vont au numérateur, et
+faute de compte elles font baisser le prorata, toujours au détriment du
+dossier) ; l'**art. 45 al. 1** pour le nouvel assujetti, qui est le seul à
+déclarer douze proratas différents faute d'un champ de prévisionnel ; et
+l'**art. 36 point 4**, dont la fiche d'immobilisation engendre une écriture à
+deux lignes sans place pour la taxe.
+
+### Vérification
+
+Cinq réinjections de défaut, cinq attrapées · l'article 41 refermé sur le seul
+SYSCOHADA (10 tests tombent), les produits pétroliers retirés de la liste, la
+puce de l'art. 66 effacée, le semis SYCEBNL privé de son intitulé
+« Réceptions », et le paragraphe de correction privé de la trace de ce qu'il
+corrige. 231 suites / 3 474 tests serveur, 41 fichiers / 468 tests client.
+
+### Les soixante et un autres constats retenus, portés au relevé sans correction
+
+| Article | Ce que le texte impose | Gravité |
+|---|---|---|
+| Article 36, point 4 (quatrième phrase) | Les amortissements de ces biens sont, pour l'assiette de l'impôt sur les bénéfices, calculés sur base du coût d'achat ou de revient hors TVA déductible. | INCOMPLET |
+| Article 38, point 1 (modifié par l'O.-L. n° 13/007 et par la L.F. n° 22/071) | Pour être déductible, la TVA doit figurer sur une facture normalisée ou un document en tenant lieu, dûment délivré par un assujetti et mentionnant son numéro impôt · trois conditions cu | INCOMPLET |
+| Article 38, point 2 | À l'importation, le support justificatif de la déduction est exclusivement la déclaration de mise à la consommation établie par la douane. | INCOMPLET |
+| Article 39 (modifié par l'O.-L. n° 13/007 et par la L.F. n° 20/020) | Les déductions afférentes aux exportations ne sont définitivement acquises que lorsque l'effectivité de l'exportation est établie par les documents douaniers ET par ceux relatifs au rap | INCOMPLET |
+| Article 40, première phrase | Déduction du stock d'entrée : la TVA sur les biens non immobilisés en stock à la date d'assujettissement est déductible si les biens sont destinés EXCLUSIVEMENT à des opérations ouvrant | INCOMPLET |
+| Article 41, point 2 | EXCLUSION pour les biens et services acquis par l'entreprise mais utilisés par des tiers, les dirigeants ou le personnel, sauf vêtements de travail ou de protection, locaux et matériel  | INCOMPLET |
+| Article 41, point 3 | EXCLUSION pour les produits pétroliers, sauf ceux destinés à la revente par les grossistes ou acquis pour la production d'électricité devant être revendue. | INCOMPLET |
+| Article 41, point 3bis | EXCLUSION des produits pétroliers, sauf carburants utilisés par des appareils fixes comme combustibles dans les entreprises industrielles (dans les conditions fixées par voie réglementa | INCOMPLET |
+| Article 41, point 4 | EXCLUSION par accessoire : les services de toute nature, notamment la location, l'entretien et la réparation, afférents à des biens, produits ou marchandises eux-mêmes exclus du droit à | INCOMPLET |
+| Article 41, point 5 | EXCLUSION pour les objets mobiliers autres que ceux utilisés par l'assujetti pour son exploitation. | INCOMPLET |
+| Article 41, point 6 | EXCLUSION pour les immeubles autres que les bâtiments et locaux à usage professionnel. | INCOMPLET |
+| Article 42, point 2 | EXCLUSION pour les transports de personnes et les opérations accessoires, sauf transports réalisés pour le compte d'une entreprise de transport public de voyageurs ou en vertu d'un CONT | INCOMPLET |
+| Article 42, point 4 | EXCLUSION pour la TVA sur une facture émise par une personne physique ou morale introuvable à l'adresse communiquée à l'Administration des Impôts, ou sur une facture dont l'adresse rens | INCOMPLET |
+| Article 43, al. 2, 1er tiret (l. 1115) · numérateur annuel, exportations incluse | Numérateur : montant ANNUEL des recettes afférentes aux opérations ouvrant droit à déduction, y compris les exportations et opérations assimilées. | INCOMPLET |
+| Article 43, al. 2, 2e tiret (l. 1118) · dénominateur et ses quatre exclusions | Dénominateur : recettes annuelles de toute nature, à l'exclusion des cessions d'éléments de l'actif immobilisé, des subventions d'équipements, des indemnités d'assurance non contreparti | INCOMPLET |
+| Article 43, al. 4 (l. 1127) · définition des recettes | Les recettes s'entendent tous frais, droits et taxes compris, à l'exclusion de la TVA · règle de valorisation des DEUX termes du rapport. | INCOMPLET |
+| Article 43, al. 5 (l. 1129) · livraisons et prestations à soi-même | Le montant des livraisons et prestations à soi-même est exclu des DEUX termes du rapport. | INCOMPLET |
+| Article 45, al. 2 (l. 1150) · prorata définitif au 31 mars et régularisation | Arrêter le prorata définitif au plus tard le 31 mars de l'année suivante, puis régulariser les déductions opérées à l'échéance qui suit. | CALENDRIER |
+| Article 46, al. 1 (l. 1158) · variation de plus de 10 % sur quatre ans, immobili | Sur chacune des quatre années suivant l'acquisition ou la première utilisation d'une immobilisation, comparer le prorata définitif au précédent et, si l'écart excède 10 %, reverser ou d | INCOMPLET |
+| Article 49, al. 2, 2e et 3e phrases (l. 1186) · comptabilité séparée et déductio | L'option est subordonnée à la tenue d'une comptabilité séparée par secteur ; la TVA est alors intégralement déductible ou non selon le secteur. | INCOMPLET |
+| Article 50, al. 1 (l. 1202) · fait générateur du reversement et délais de 4 et 1 | Reverser une fraction de la TVA antérieurement déduite en cas de sortie d'actif d'un bien immobilisé déduit, ou, sans sortie, de modification de sa situation au regard du droit à déduct | INCOMPLET |
+| Article 50, al. 2 (l. 1210) · formule du cinquième ou du vingtième | Fraction à reverser = montant de la déduction diminué, selon le cas, d'un cinquième ou d'un vingtième par année OU FRACTION D'ANNÉE depuis l'acquisition. | INCOMPLET |
+| Article 50, al. 3 (l. 1213) · droit à déduction de l'acquéreur | En cas de cession, l'acquéreur peut déduire la TVA correspondant au montant reversé par le vendeur, à deux conditions cumulatives : le bien constitue une immobilisation pour lui, et il  | INCOMPLET |
+| Article 50, al. 4 (l. 1217) · attestation du vendeur | La déduction de l'acquéreur est subordonnée à la délivrance par le vendeur d'une attestation mentionnant le montant de la taxe reversée. | INCOMPLET |
+| Article 50, al. 5 (l. 1219) · reversement INTÉGRAL sur biens non immobilisés et  | Reversement intégral, sans fractionnement, de la TVA initialement déduite sur les services et biens ne constituant pas des immobilisations, lorsqu'ils ont été utilisés à des opérations  | INCOMPLET |
+| Article 51, al. 1 (l. 1225) · vente à perte | En cas de vente à perte, la déduction de la TVA d'amont est limitée au montant de la TVA due sur la vente ; la déduction initiale doit être régularisée à due concurrence. | INCOMPLET |
+| Article 51, al. 2 (l. 1229) · disparition et changement d'affectation | Reversement obligatoire de la TVA déduite en cas de disparition ou de changement d'affectation des biens ou produits destinés à l'exploitation. | INCOMPLET |
+| Article 52, al. 1 (l. 1234) · récupération par voie d'imputation | La TVA acquittée sur des ventes ou services ultérieurement résiliés, annulés ou restés impayés peut être récupérée, par voie d'imputation seulement, sur l'impôt dû pour les opérations f | INCOMPLET |
+| Article 54, alinéa 1er (modifié par la L.F. n° 18/025 du 13 décembre 2018) | Toute personne assujettie à la TVA est identifiée par un NUMÉRO TVA, dont les modalités d'attribution sont déterminées par un Arrêté du Ministre ayant les Finances dans ses attributions | INCOMPLET |
+| Article 54, alinéa 2 (modifié par la L.F. n° 18/025 du 13 décembre 2018) | Souscrire une déclaration d'assujettissement auprès de l'Administration des Impôts AVANT LE DÉBUT de ses activités. Le délai est préalable au démarrage de l'activité. | CALENDRIER |
+| Article 55 | Toute personne morale ou physique dont le chiffre d'affaires cumulé atteint en cours d'année le seuil d'assujettissement de l'article 14 doit souscrire une déclaration d'assujettissemen | CALENDRIER |
+| Article 56, alinéa 1er (modifié par la L.F. n° 14/027 du 31 décembre 2014 et par | CONDITION DE FORME DU DROIT À DÉDUCTION : joindre un état détaillé à la déclaration MENSUELLE de TVA, dont le modèle est déterminé par voie réglementaire. | INCOMPLET |
+| Article 57, alinéa 1er | Tenir une comptabilité régulière comportant SEPT documents : livre-journal, grand livre des comptes, balance des comptes, journal de ventes, journal d'achats, livre d'inventaire, livre  | CONFORT |
+| Article 57, alinéa 2 | La comptabilité doit être DISPONIBLE EN RÉPUBLIQUE DÉMOCRATIQUE DU CONGO, au siège social ou au principal établissement. En cas de désignation d'un représentant agréé, les documents et  | INCOMPLET |
+| Article 57, alinéa 3 | Les pièces justificatives relatives à des opérations OUVRANT DROIT À DÉDUCTION doivent être des documents ORIGINAUX. Selon la lettre du texte, une copie, une photocopie ou un duplicata  | INCOMPLET |
+| Article 59, alinéa 4 | Cumul : l'obligation de reversement n'exclut pas l'application des sanctions liées à la facturation illégale de la TVA prévues par la présente Ordonnance-Loi. | INCOMPLET |
+| Article 59 ter, alinéa 1er (créé par la L.F. n° 17/005 du 23 juin 2017 et modifi | Se faire enregistrer auprès de l'Administration des Impôts comme utilisateur des dispositifs électroniques fiscaux, dans les conditions précisées par voie réglementaire · obligation dis | INCOMPLET |
+| Article 59 quater, 1) (créé par la L.F. n° 17/005 du 23 juin 2017 et modifié par | Double obligation : (a) utiliser des dispositifs électroniques fiscaux CONNECTÉS au système informatique de l'Administration des Impôts pour la collecte et la gestion des données de TVA | INCOMPLET |
+| Article 59 quater, 2) | CONDITION PRÉALABLE : un système de facturation d'entreprise acquis ou développé pour son propre compte doit satisfaire aux spécifications techniques de l'Administration des Impôts ET ê | INCOMPLET |
+| Article 59 quater, 3) | Droit conditionnel au remboursement forfaitaire des frais d'acquisition, ouvert aux seules personnes ayant acquis des dispositifs électroniques fiscaux PHYSIQUES, sur demande adressée a | CONFORT |
+| Article 59 quater, 3), alinéa suivant | MODALITÉ ET CONDITIONS : le remboursement est accordé sous forme de crédit imputable sur l'impôt sur les bénéfices et profits, sur la base d'un engagement d'utilisation permanente du di | INCOMPLET |
+| Article 60, alinéa 1er (mod. L.F. n° 23/056 art. 22 et L.F. n° 25/060 art. 48) | Souscrire chaque mois, au plus tard le quinze du mois qui suit celui de la réalisation des opérations, une déclaration conforme au modèle prescrit par l'Administration des Impôts. | CALENDRIER |
+| Article 60, alinéa 2 (mod. L.F. n° 23/056 art. 22 et L.F. n° 25/060 art. 48) | La déclaration est souscrite en DOUBLE EXEMPLAIRE et accompagnée du PAIEMENT de la TVA (déclaration-paiement, à l'échéance de l'alinéa 1er). | INCOMPLET |
+| Article 60, alinéa 3 (mod. L.F. n° 23/056 art. 22 et L.F. n° 25/060 art. 48) | La déclaration est due MÊME si aucune opération imposable n'a été réalisée au cours du mois, et doit alors porter la mention « Néant ». | CALENDRIER |
+| Article 62, alinéa 3 (mod. L.F. n° 21/029, L.F. n° 22/071 et L.F. n° 25/060 art. | Régime dérogatoire minier : la TVA due à l'importation de marchandises ou sur les acquisitions locales de produits manufacturés localement destinés à l'exploitation, par les entreprises | INCOMPLET |
+| Article 62 bis (créé par l'O.-L. n° 13/007 du 23 février 2013) | Les modalités de perception de la TVA concernant les activités de distribution des produits pétroliers sont déterminées par voie réglementaire. | AUCUNE |
+| Article 63, alinéa 2 | Double interdiction impérative : le crédit d'impôt ne peut pas faire l'objet d'un remboursement au profit de l'assujetti, et ne peut être cédé. | INCOMPLET |
+| Article 64, alinéa 1er (mod. O.-L. n° 13/007, L.F. n° 14/002, L.F. n° 17/005, L. | Liste limitative de six catégories pouvant, SUR DEMANDE EXPRESSE adressée à l'Administration des Impôts, obtenir le remboursement de leur crédit de TVA résultant de l'acquisition des bi | INCOMPLET |
+| Article 64, alinéa 2 (mod. O.-L. n° 13/007, L.F. n° 14/002, L.F. n° 17/005, L.F. | Définition de l'investissement lourd, à trois conditions cumulatives (immobilisations CORPORELLES, acquises à l'état NEUF, nécessaires à l'exploitation) et un seuil : valeur du projet a | INCOMPLET |
+| Article 64, alinéa 3 (mod. O.-L. n° 13/007, L.F. n° 14/002, L.F. n° 17/005, L.F. | Plafond de remboursement : le montant remboursable est limité au montant de TVA calculé au TAUX NORMAL sur le montant des exportations réalisées au cours du mois. | INCOMPLET |
+| Article 68, alinéa 1 (Chapitre VIII : des procédures) | L'assiette, le contrôle, le recouvrement, le contentieux et la prescription de la TVA obéissent au droit fiscal commun en vigueur, sauf procédures propres à l'Ordonnance-Loi TVA. | INCOMPLET |
+| Article 69 (Chapitre IX) · modifié par la L.F. n° 24/011 du 20 décembre 2024, ar | Amende fixe de 5.000.000,00 FC pour absence de déclaration d'assujettissement à la TVA dans le délai. | CALENDRIER |
+| Article 69 bis (Chapitre IX) · créé par la L.F. n° 21/029 du 31 décembre 2021 | Défaut de souscription d'une déclaration de TVA CRÉDITRICE dans le délai : amende de 1.500.000,00 FC ET perte d'une quotité de 10 % du montant du crédit. | CALENDRIER |
+| Article 72, alinéa 1 (Chapitre IX) | Amende fiscale égale au DOUBLE du montant des droits compromis pour l'absence de facture ou de document en tenant lieu, en cas de livraison de biens et de prestations de services effect | INCOMPLET |
+| Article 74, alinéa 1 (Chapitre IX) · complété par la L.F. n° 25/060 du 29 décemb | Amende fiscale égale au montant des droits indûment déduits, pour toute déduction ne correspondant pas, en partie ou en totalité, à une acquisition de biens ou à une prestation de servi | INCOMPLET |
+| Article 74 quater · créé par la L.F. n° 17/005 du 23 juin 2017 | Amende de 10.000.000,00 FC pour le défaut d'utilisation, par l'assujetti, du dispositif électronique fiscal lors de ses transactions. | INCOMPLET |
+| Article 74 sexies, alinéa 1 · créé par la L.F. n° 22/071 du 28 décembre 2022 | Toute personne soumise à l'obligation d'utiliser les dispositifs électroniques fiscaux qui effectue une transaction sans délivrer une facture normalisée établie dans les conditions de l | INCOMPLET |
+| Article 74 sexies, alinéa 2 · créé par la L.F. n° 22/071 du 28 décembre 2022 | Récidive : amende égale à 10 fois « le montant pour lequel la facture normalisée n'a pas été délivrée », plancher de 50.000.000 FC par facture ; cumul possible avec une fermeture admini | INCOMPLET |
+| Article 74 septies · créé par la L.F. n° 22/071 du 28 décembre 2022 | Les sanctions de l'article 74 quater s'appliquent aussi à qui a) délivre une facture normalisée de valeur ou de quantité minorée, b) cause un dysfonctionnement au dispositif électroniqu | INCOMPLET |
+| Article 74 nonies, alinéa 1 · créé par la L.F. n° 22/071 du 28 décembre 2022 | Les fournisseurs de système de facturation d'entreprises et les éditeurs de logiciels de facturation qui ne satisfont pas à l'obligation d'homologation de leurs logiciels sont passibles | INCOMPLET |
+| Article 74 nonies, alinéa 2 · créé par la L.F. n° 22/071 du 28 décembre 2022 | Même sanction pour les entreprises qui ont développé leur propre système de facturation électronique sans avoir satisfait à l'obligation d'homologation. | INCOMPLET |
+### Les quarante-six constats écartés
+
+| Article | Obligation alléguée | Motif de la réfutation (extrait) |
+|---|---|---|
+| Article 36, point 1 | Ouvre droit à déduction la TVA sur les matières premières, biens intermédiaires et consommables entrant d | Le texte est bien cité (art. 36, point 1), mais le constat lui prête un régime que son propre décret d'application contredit : le décret n° 011/42 interdit à son art. 97 la vérification réclamée (« La déduction est opéré |
+| Article 36, point 2 | Ouvre droit à déduction la TVA sur les biens destinés à être revendus dans le cadre d'une opération impos | Le constat cite l'art. 36, point 2 fidèlement, mais il lui fait dire ce qu'il ne dit pas : il transforme une ÉNUMÉRATION de ce qui ouvre droit à déduction en une OBLIGATION DE VÉRIFICATION BIEN PAR BIEN au moment de la d |
+| Article 36, point 3 | Ouvre droit à déduction la TVA sur les services entrant dans le prix de revient d'opérations ouvrant elle | Le constat reproche à OmegaX de ne pas coder une condition que l'Ordonnance-Loi n'édicte pas, et qu'elle règle elle-même · de plein droit · par le prorata que le logiciel applique déjà. Article 36 est une ÉNUMÉRATION de  |
+| Article 36, point 4 (première phrase) | Ouvre droit à déduction la TVA sur les biens meubles, immeubles et services acquis POUR LES BESOINS DE L' | MAUVAIS RATTACHEMENT D'ARTICLE ET DOUBLE COMPTAGE. L'art. 36, point 4, première phrase est une norme ATTRIBUTIVE de droit, et OmegaX l'ouvre exactement là où le texte l'ouvre (investissements et frais généraux). Le manqu |
+| Article 36, point 4 (deuxième phrase) | La TVA afférente aux livraisons de biens à soi-même et prestations de services à soi-même est déductible, | CONSTAT REFUTE. Son anomalie collaterale est FAUSSE sur le point meme qu'elle accuse (« les DEUX termes »), et sa preuve du cote DEDUIT ne demontre pas un manque sur l'article 36 mais sur l'article 38, point 3, que le de |
+| Article 38, point 3 | Pour les livraisons de biens et prestations de services à soi-même, la déduction suppose une facture norm | CONSTAT REFUTE. Sa premisse factuelle decisive est fausse : la facture a soi-meme EST representable dans le modele `Facture` et EST reprise dans le volet deductions de l'etat detaille. Accessoirement, sa preuve renvoie a |
+| Article 41, point 7 | EXCLUSION pour les biens cédés et services rendus gratuitement ou à un prix inférieur au prix de revient, | Le noyau factuel du constat est exact (le 6276 est bien le seul compte porteur du point 7, en mode avertissement, et rien dans le dépôt ne traite la cession sous le prix de revient), mais les DEUX « réserves à porter » q |
+| Article 42, point 3 (avec la mention entre crochets) | EXCLUSION pour la TVA reprise sur une facture émise en dehors des dispositifs électroniques fiscaux par u | Le texte est bien cité (art. 42, point 3, crochet compris) mais le constat s'effondre sur deux points. D'une part il se réfute lui-même : il reconnaît que « ne pas appliquer l'exclusion est aujourd'hui le comportement co |
+| Article 43, al. 1 (l. 1109) · limitation par prorata | L'assujetti qui ne réalise pas exclusivement des opérations ouvrant droit à déduction voit sa déduction l | Le constat est réfuté sur ses deux jambes. (1) Sa jambe FACTUELLE est fausse : il affirme que la question « n'est nulle part posée dans le code, ni dans le hors-scope, ni sur l'écran ». Or les montants qu'il vise (781, 7 |
+| Article 45, al. 3 (l. 1152) · justification du prorata pré | Le prorata prévisionnel n'est accepté que sur justification : prorata définitif de l'exercice antérieur ( | Le constat est faux sur les faits, et sa preuve est techniquement nulle. (1) Sa preuve n°1 repose sur un grep syntaxiquement invalide : `grep -rn "previsionnel/prévisionnel"` sans `-E` cherche la chaîne LITTÉRALE `previs |
+| Article 46, al. 2 (l. 1164) · aucune régularisation si la  | Lorsque la variation du prorata est inférieure ou égale à 10 %, aucun reversement ni déduction complément | Le constat est refute sur trois plans cumulatifs. (1) L'art. 46, al. 2 n'est pas une obligation autonome : c'est la moitie negative de la meme regle que l'al. 1, dont il est la contraposee exacte (« varie de plus de 10%  |
+| Article 47 (modifié conformément à l'O.-L. n° 13/007) · ce | Les dispositions de l'article 43 s'appliquent également aux redevables qui cessent leur activité ou perde | L'article 47 ne porte pas l'obligation pour laquelle le constat note INCOMPLET. Son renvoi est limité par son propre texte à UN seul article, et le constat concède lui-même que cet article-là est servi sans condition. Ve |
+| Article 48 (modifié conformément à l'O.-L. n° 13/007) · l' | Pour l'application des articles 43 et 45, l'année d'acquisition ou de cession des biens, de début ou cess | L'article 48 est une règle de DÉCOMPTE D'ANNÉES (« est comptée pour une année entière »), pas une règle sur la fenêtre d'observation d'une estimation provisoire. Partout où les art. 43 et 45 comptent une année, OmegaX la |
+| Article 49, al. 1 (l. 1180) · option pour les secteurs dis | Possibilité (non obligation) de tenir compte de secteurs distincts d'activités lorsque l'assujetti exerce | L'article 49 n'impose aucune obligation au redevable : son al. 1 ouvre une simple faculté (« il peut être tenu compte »), dont le bénéfice « doit être expressément demandé à l'Administration des Impôts », et dont l'al. 3 |
+| Article 49, al. 2, 1re phrase (l. 1183) · délai et forme d | Demande expresse à l'Administration des Impôts avant le 31 janvier de l'exercice de l'option, ou au plus  | L'article 49, al. 2 ne porte PAS une « obligation déclarative du redevable » assortie d'une « date opposable » : il fixe la modalité de demande d'une OPTION facultative, dont le seul effet du non-respect est le retour au |
+| Article 49, al. 3 (l. 1189) · irrévocabilité et remise en  | L'option est irrévocable ; le non-respect des conditions la remet en cause et le prorata est applicable d | Le constat se contredit et se trompe sur les faits du dépôt. Il affirme dans sa preuve qu'il n'existe « ni bascule vers le prorata », alors que sa propre explication reconnaît que « le régime servi est déjà celui vers le |
+| Article 52, al. 2 (l. 1237) · facture nouvelle ou note de  | Pour les opérations annulées ou résiliées, la récupération est subordonnée à l'établissement ET à l'envoi | Le constat est REFUTE sur son fait central. L'obligation existe bien dans les termes cites (angle 1 ne donne rien contre lui), mais le reproche repose sur une premisse fausse · « le module n'emettant que la facture norma |
+| Article 52, al. 3 (l. 1240) · opérations impayées et dupli | Pour les impayés, la créance doit être réellement et définitivement irrécouvrable ; la rectification cons | Le constat est réfuté sur deux plans. (1) Il est mal calibré : l'alinéa 3 de l'art. 52 a DEUX jambes · celle du vendeur (duplicata surchargé, irrécouvrabilité prouvée) et celle du client (« la TVA correspondante […] qui  |
+| Article 53 · Circulaire ministérielle n° 003 du 7 octobre  | Rattacher la retenue de l'art. 53 al. 2 à l'article 33 de la L.F. n° 17/005, et porter la divergence de c | L'obligation est mal formulée : le confronteur a construit son constat sur les deux seules phrases NON normatives de la circulaire (une reformulation liminaire et un risque de rétroactivité) et a laissé tomber l'objet mê |
+| Article 53 · Circulaire ministérielle n° 003 du 7 octobre  | La retenue minière s'applique « à partir du 7 octobre 2017 et concerne toutes les factures relatives aux  | REFUTE comme constat autonome, sur quatre points dont deux dirimants. Le FAIT matériel est exact (rien dans le dépôt ne sert cette règle · vérifié autrement que le constat, cf. contre-preuve), mais sa QUALIFICATION est f |
+| Article 56, alinéa 3 (modifié par la L.F. n° 14/027 du 31  | FORME DE LA MISE EN DEMEURE : pli recommandé avec accusé de réception, OU remise en mains propres sous bo | L'alinéa 3 de l'article 56 ne met AUCUNE obligation à la charge du redevable : il régit l'acte d'ENVOI de l'Administration des Impôts (« La mise en demeure susvisée EST ENVOYÉE AU REDEVABLE, soit sous pli recommandé... » |
+| Article 58, alinéa 1er (modifié par la L.F. n° 18/025 du 1 | Délivrer au client une facture normalisée produite par les dispositifs électroniques fiscaux, ou un docum | Constat mal fondé sous l'article 58. Deux raisons cumulatives. (1) L'article 58 n'impose QU'UNE SEULE CHOSE : délivrer un document unique, portant des mentions uniques, dans trois hypothèses d'émission. Ni l'art. 58, ni  |
+| Article 59, alinéa 2 | Payer la TVA même lorsque son montant n'a pas été inclus, pour quelque cause que ce soit, dans le prix de | Le constat cite l'article fidèlement mais lui fait produire une exigence qu'il ne contient pas, et sa seconde preuve est factuellement fausse. (1) L'art. 59, al. 2 ne prescrit AUCUN mode de calcul : il dit que la non-inc |
+| Article 59 bis, alinéa 2 | Le seuil de 1.000.000,00 FC n'est pas figé : le Ministre ayant les Finances dans ses attributions peut le | L'alinéa 2 de l'art. 59 bis n'est pas une obligation : c'est une HABILITATION donnée au Ministre des Finances (« le Ministre […] PEUT, par voie d'Arrêté, modifier le montant »). Elle ne pèse ni sur le redevable ni sur so |
+| Article 59 bis, alinéa final (entre crochets) | DÉLAI D'ENTRÉE EN APPLICATION : les dispositions de l'art. 59 bis sont appliquées dans un délai de trois  | Le constat cite le texte fidèlement mais il n'a pas d'objet propre : il reproche au logiciel l'absence de la BORNE d'un article qu'il constate lui-même absent du dépôt. Sans règle de l'art. 59 bis dans le code, il n'y a  |
+| Article 60, alinéa 4 (mod. L.F. n° 23/056 art. 22 et L.F.  | Sont également soumises à déclaration les opérations de livraison de biens et de prestations de services  | CONSTAT RÉFUTÉ sur les angles 1 et 2. L'angle 3 échoue, et je le dis franchement : l'art. 60 al. 4 est bien une obligation du REDEVABLE, pas de l'Administration ni de la Douane · le grief est dans le périmètre d'un logic |
+| Article 61 (mod. O.-L. n° 13/007 du 23 février 2013) | En cas d'importation, la TVA doit être DÉCLARÉE et VERSÉE avant l'enlèvement de la marchandise. L'enlèvem | CONSTAT RÉFUTÉ sur l'angle 2 (son affirmation centrale sur le code est fausse), avec l'appui de l'angle 3 ; sa citation de l'art. 61, elle, est fidèle et je ne l'attaque pas là-dessus. Le constat fait reposer toute sa gr |
+| Article 62, alinéa 1er (mod. L.F. n° 21/029, L.F. n° 22/07 | Le recouvrement de la TVA est assuré par l'Administration des Impôts. Règle de compétence : elle détermin | Le constat reproche au logiciel de ne pas servir une règle qui ne s'adresse pas à lui, et il y parvient en ajoutant au texte une portée que le texte n'a pas. Art. 62 al. 1 (l. 1469-1470) : « Le recouvrement de la taxe su |
+| Article 62, alinéa 2 (mod. L.F. n° 21/029, L.F. n° 22/071  | À l'importation, la TVA est perçue par l'Administration des Douanes, et non par l'Administration des Impô | RÉFUTÉ sur les trois angles, dont deux suffisent seuls. 1) ANGLE 1 · L'OBLIGATION N'EST PAS CITÉE FIDÈLEMENT, ET LE MOT AJOUTÉ EST CONTREDIT PAR L'ALINÉA SUIVANT DU MÊME ARTICLE. Le texte lu (fichier 10-tva-ol10-001-loi- |
+| Article 62, alinéa 4 (mod. L.F. n° 21/029, L.F. n° 22/071  | Les modalités de mise en œuvre du mécanisme minier de l'alinéa 3 seront fixées par arrêté du Ministre aya | Le constat s'effondre sur son affirmation centrale. Son « explication » repose entièrement sur ceci : « RENVOI À UN TEXTE ABSENT DU FICHIER […] l'arrêté n'est ni identifié (aucun numéro, aucune date) ni reproduit ; je ne |
+| Article 64, alinéa 4 (mod. O.-L. n° 13/007, L.F. n° 14/002 | Investissements lourds d'EXTENSION et de MODERNISATION : la demande de remboursement doit intervenir DANS | Le constat est fondé sur une qualification que le texte ne porte pas. L'art. 64 al. 4 dit « peuvent demander », jamais « doivent » : c'est une FACULTÉ de remboursement ouverte à une catégorie d'assujettis, pas une obliga |
+| Article 64, alinéa 5 (mod. O.-L. n° 13/007, L.F. n° 14/002 | Le Ministre ayant les Finances dans ses attributions peut, lorsque les circonstances l'exigent, réajuster | Le constat échoue sur les trois angles. (1) Il ne cite pas l'alinéa verbatim : il en réécrit l'ordre des mots et remplace « par voie d'Arrêté » par « par arrêté ». (2) Sa preuve porte une négative universelle FAUSSE : «  |
+| Article 65 | Lorsqu'un redevable perd la qualité d'assujetti, son crédit de TVA est IMPUTÉ sur les sommes dont il est  | Le constat cite l'article 65 fidèlement et son observation brute est exacte (rien dans OmegaX ne réagit au basculement de `assujettiTva`), mais sa qualification juridique · celle qui fonde la gravité, l'« aggravation » r |
+| Article 67 | Les modalités pratiques de remboursement du crédit de TVA sont déterminées par voie réglementaire. | Le constat tombe sur les trois angles. (1) Citation non verbatim : l'art. 67 dit « du crédit de la taxe sur la valeur ajoutée », pas « du crédit de TVA ». (2) Sa preuve avancée se donne pour un relevé exhaustif de « remb |
+| Article 68, alinéa 2 (Chapitre VIII) | À l'importation, la liquidation et le recouvrement de la TVA relèvent de la législation douanière, non de | CONSTAT RÉFUTÉ sur l'angle 3 (destinataire), de façon décisive, et affaibli sur l'angle 1 (la reformulation dit plus que le texte). L'angle 2 est concédé pour le mot, mais non pour la substance. 1) ANGLE 3, DÉCISIF · L'A |
+| Article 69 bis, seconde phrase (Chapitre IX) · créé par la | Amende réduite de 500.000,00 FC lorsque le défaut de souscription dans le délai porte sur une déclaration | La jambe décisive de la preuve est fausse. Le constat conclut « PAS DU TOUT » et grade CALENDRIER en affirmant que « La même doctrine n'a pas été portée au module TVA ». Elle l'a été : l'échéancier fiscal porte une natur |
+| Article 72, alinéa 2 (Chapitre IX) | Aggravation en cas de récidive : l'amende de l'alinéa 1 est triplée. Le texte ne définit ni la récidive n | Le constat est refute sur son MOTIF, non sur son fait materiel. Son assertion operative · « Le texte ne definit ni la recidive ni son delai de constatation » · est fausse au regard du corpus applicable, et le second « bl |
+| Article 73 (Chapitre IX) | Tout remboursement de crédits de TVA obtenu sur la base de fausses factures donne lieu à restitution immé | Le constat est mal fondé SOUS LE NUMÉRO 73. L'article existe bien (Chapitre IX : DES PENALITES, l. 1614-1617 du fichier de loi) et il est cité presque fidèlement, mais son fait générateur est DOUBLE et CUMULATIF : un « r |
+| Article 74 quinquies · créé par la L.F. n° 18/025 du 13 dé | Amende de 5.000.000,00 FC pour l'assujetti qui corrompt DÉLIBÉRÉMENT le fonctionnement du dispositif élec | CONSTAT REFUTE. L'article vise un acte personnel delibere contre un objet qui n'existe pas dans le perimetre, il ne porte pas l'obligation qu'on lui prete, et DEUX des citations que le constat fait du depot sont fausses, |
+| Article 74 sexies, alinéa 3 · créé par la L.F. n° 22/071 d | Lorsque les dirigeants de l'entreprise sont de nationalité étrangère, interdiction de séjour en RDC cumul | Le constat est mal fondé sur deux plans. (1) PÉRIMÈTRE : l'alinéa 3 de l'art. 74 sexies ne met AUCUNE obligation à la charge du redevable. Lu verbatim, il institue une sanction accessoire de police des étrangers, frappan |
+| Article 74 octies · créé par la L.F. n° 22/071 du 28 décem | Amende de 10.000.000,00 FC PAR FACTURE pour toute modification du système de facturation d'entreprise ou  | L'article 74 octies ne porte pas l'obligation que le constat lui prête. Lu à l'instant (fichier `.../fiscalite-rdc/code-general-2026/references/10-tva-ol10-001-loi-base-ch1-10.md`, l. 1698-1703), il dit VERBATIM : « Arti |
+| Article 74 decies, alinéa 1 · créé par la L.F. n° 22/071 d | Sanction balai : tout manquement non spécifié à la réglementation relative à l'utilisation des dispositif | Le constat appelle « obligation » ce qui est une clause de sanction résiduelle, puis, constatant lui-même qu'elle n'impose rien de déterminé, lui substitue un devoir qu'il écrit à sa place · et ce devoir substitué est dé |
+| Article 74 decies, alinéa 2 · créé par la L.F. n° 22/071 d | Règle de non-substitution : l'amende de l'alinéa 1 se cumule avec le paiement de la TVA éludée, avec les  | Le texte existe et le numéro d'article est exact, mais le constat le détache de son objet et lui prête un destinataire qu'il n'a pas. Deux motifs, plus une erreur de renvoi. 1) L'ALINÉA S'ADRESSE À L'ADMINISTRATION, PAS  |
+| Article 75 (Chapitre IX) | Les infractions en matière de TVA découlant de l'importation des marchandises sont constatées, poursuivie | L'article 75 ne crée aucune obligation à la charge du redevable : ses trois verbes ("constatées, poursuivies et sanctionnées") désignent exclusivement des actes de l'Administration, et l'article se borne à répartir la co |
+| Article 76 (Chapitre IX) | Application supplétive du régime général des pénalités prévu par la Loi n° 004/2003 du 13 mars 2003 porta | Constat mal ancré et mal cité. (1) L'article 76 n'est PAS une obligation : c'est une clause de désignation de norme applicable, adressée à l'Administration et au juge. Elle ne porte ni acte du redevable, ni assiette, ni  |
+| Article 78 (Chapitre X) | La présente Ordonnance-Loi entre en vigueur endéans dix-huit mois à dater de sa signature (texte signé le | L'article 78 est cité fidèlement et correctement numéroté, mais ce n'est pas une obligation : c'est la clause d'entrée en vigueur de la loi elle-même, une disposition finale sans sujet ni destinataire, épuisée au plus ta |
+### Ce que cette passe apprend sur la méthode
+
+- **Le test qui gèle une affirmation sur le dépôt doit être relu contre le
+  dépôt.** Deux specs, en deux passes, gardaient une phrase fausse :
+  `hors-scope-tva.spec.ts` gardait un hors-scope surestimé, et
+  `tva-exclusions-art41.spec.ts` gardait « un dossier SYCEBNL n'exclut rien ·
+  son plan agrège ses charges externes ». Dans les deux cas le test couvrait
+  bien le code ; dans les deux cas la PRÉMISSE était fausse, et personne ne la
+  vérifiait. D'où le nouveau spec `exclusions-art41-semees.spec.ts`, qui relit
+  les deux fichiers de semis et exige que chaque racine reconnue y soit
+  réellement ouverte sous l'intitulé qui la justifie.
+- **Une interdiction de mot est toujours trop large.** Troisième occurrence de
+  la même faute, et la règle est maintenant écrite : on exige la réserve
+  exacte, on ne bannit jamais un numéro d'article.
+- **Le rendement d'une passe suit la nature du chapitre.** 83 % de réfutation
+  sur un décret de procédure, 62 % sur un chapitre de champ d'application,
+  37 % sur les déductions et les pénalités. Le budget d'une passe doit se
+  calibrer là-dessus, pas sur le nombre de lignes du texte.
+- **Un réfutateur qui vérifie les numéros de ligne rend un relevé opposable.**
+  Sur l'art. 36 point 4, il a laissé le constat vivre tout en corrigeant trois
+  renvois faux, en démentant deux affirmations de la preuve avancée, et en
+  trouvant une quatrième phrase de l'article que le confronteur avait manquée ·
+  celle qui assoit les amortissements déductibles à l'impôt sur les bénéfices
+  sur le coût hors TVA déductible.

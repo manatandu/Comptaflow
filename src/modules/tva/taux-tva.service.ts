@@ -260,15 +260,34 @@ const RACINES_HORS_DENOMINATEUR_SYSCOHADA: ReadonlyArray<string> = ['754'];
  * plan reprend les mots de l'article · au-delà, le numéro ne dit plus la
  * dépense, et deviner coûterait au contribuable une déduction à laquelle il a
  * droit. Ce qui n'est pas reconnu est ANNONCÉ, pas exclu (voir
- * `EXCLUSIONS_ART_41_A_VERIFIER_SYSCOHADA` et la mention de la déclaration).
+ * `EXCLUSIONS_ART_41_A_VERIFIER` et la mention de la déclaration).
  *
- * SYSCOHADA SEUL. Le plan SYCEBNL n'a ni 6383 ni 6384 ni 6181 : ses charges
- * externes sont agrégées en 61800000 « Autres frais de transport » et
- * 63800000 « Autres charges externes » (compte-seed.ts l. 765 et 782), qui
- * mêlent le déductible et l'exclu. Aucune exclusion n'y est lisible, et la
- * déclaration le dit plutôt que de trancher au hasard.
+ * LES DEUX RÉFÉRENTIELS, ET C'EST UNE CORRECTION. Ce commentaire portait
+ * « SYSCOHADA SEUL · le plan SYCEBNL n'a ni 6383 ni 6384 ni 6181 : ses charges
+ * externes sont agrégées en 61800000 et 63800000 ». C'ÉTAIT FAUX, et les
+ * renvois de ligne donnés à l'appui ne portaient rien de tel. Le semis SYCEBNL
+ * ouvre en propre, sous les mêmes intitulés que le SYSCOHADA, le 61810000
+ * « Voyages et déplacements » (`compte-seed.ts` l. 824), le 63830000
+ * « Réceptions » (l. 887) et le 63840000 « Missions » (l. 888), plus le
+ * 61400000 « Transports du personnel » (l. 822). Les trois dépenses que
+ * l'article 41, 1° nomme y sont donc aussi lisibles qu'ailleurs.
+ *
+ * LE COÛT DE CETTE PHRASE ÉTAIT DOUBLE. Un dossier SYCEBNL assujetti · une
+ * ASBL ou une ONG taxée sur une activité accessoire, c'est-à-dire le public
+ * même du logiciel · déduisait 100 % de la TVA sur ses réceptions, ses
+ * missions et ses voyages, mois après mois. Et la déclaration lui donnait une
+ * RAISON FAUSSE de ne pas regarder, en annonçant « un plan qui agrège ses
+ * charges externes ». Une lacune déclarée à tort est aussi fausse qu'une règle
+ * inventée ; celle-ci empêchait en outre d'appliquer une règle que le dépôt
+ * savait déjà écrire.
+ *
+ * LA DISCIPLINE, ELLE, NE CHANGE PAS · on ne retient un compte que si
+ * l'INTITULÉ SEMÉ reprend les mots de l'article, et les quatre numéros
+ * ci-dessus ont été relus dans les DEUX semis avant d'ouvrir la table. Un plan
+ * qui n'ouvrirait pas l'un d'eux ne déclenche rien : le préfixe ne rencontre
+ * aucun compte, et rien n'est exclu à tort.
  */
-const EXCLUSIONS_ART_41_SYSCOHADA: ReadonlyArray<readonly [string, string]> = [
+const EXCLUSIONS_ART_41: ReadonlyArray<readonly [string, string]> = [
   // 63830000 « Réceptions » · l'article nomme les « dépenses de réception ».
   ['6383', '6383 Réceptions'],
   // 63840000 « Missions » · logement, hébergement et restauration en
@@ -297,9 +316,28 @@ const EXCLUSIONS_ART_41_SYSCOHADA: ReadonlyArray<readonly [string, string]> = [
  *    leur personnel sur les lieux de travail » (l. 1084-1088). L'existence
  *    d'un contrat permanent est une donnée juridique, pas comptable.
  */
-const EXCLUSIONS_ART_41_A_VERIFIER_SYSCOHADA: ReadonlyArray<readonly [string, string]> = [
+const EXCLUSIONS_ART_41_A_VERIFIER: ReadonlyArray<readonly [string, string]> = [
   ['6276', "6276 Cadeaux à la clientèle (art. 41, 7° · sauf objets publicitaires de faible valeur unitaire)"],
   ['6140', '6140 Transports du personnel (art. 42, 2° · sauf contrat permanent de transport du personnel)'],
+  // 60420000 « Matières combustibles », semé aux DEUX plans
+  // (`compte-seed-syscohada.ts` l. 1041, `compte-seed.ts` l. 795). L'article
+  // frappe les produits pétroliers sur TROIS points qui ne disent pas la même
+  // chose et que le compte ne permet pas de départager :
+  //   3.    « les produits pétroliers, à l'exception de ceux destinés à la
+  //          revente par les grossistes ou acquis pour la production
+  //          d'électricité devant être revendue » ;
+  //   3bis. « les produits pétroliers, à l'exception des carburants utilisés
+  //          par des appareils fixes comme combustibles dans les entreprises
+  //          industrielles dans les conditions fixées par voie réglementaire
+  //          ou dans les aéronefs par les compagnies de navigation aérienne » ;
+  //   3ter. « les produits pétroliers, dans la limite de 50%, pour les cas
+  //          autres que ceux visés aux points 3 et 3bis ci-dessus ».
+  // AUCUN POURCENTAGE N'EST APPLIQUÉ, ET C'EST DÉLIBÉRÉ. Le point 3ter ne
+  // joue que « pour les cas autres » que ceux des points 3 et 3bis, dont les
+  // exceptions se recouvrent en partie ; l'articulation des trois points n'est
+  // pas tranchée par le texte lu, et le règlement auquel 3bis renvoie est
+  // absent du corpus. Le montant est donc COMPTÉ ET NOMMÉ, jamais amputé.
+  ['6042', '6042 Matières combustibles (art. 41, 3°, 3° bis et 3° ter · produits pétroliers, exceptions et limite de 50 %)'],
 ];
 
 /**
@@ -370,6 +408,87 @@ const EXCLUSIONS_ART_41_A_VERIFIER_SYSCOHADA: ReadonlyArray<readonly [string, st
  *    taxe et sans taux proposé · c'est une question ANTÉRIEURE aux
  *    régularisations des art. 50 et 51 ci-dessous, qui portent sur la taxe
  *    DÉDUITE en amont, non sur celle à COLLECTER sur le prix de cession ;
+ *  · LA RETENUE À LA SOURCE DE LA TVA (art. 53, alinéa 2, et sa sanction,
+ *    art. 74 ter). Par exception au principe, la taxe est retenue par les
+ *    entreprises minières assujetties pour le compte des établissements et
+ *    entreprises publics dont l'État détient tout le capital, et par le Trésor
+ *    Public pour le compte des fournisseurs et prestataires de l'État lors du
+ *    paiement de leurs factures. La déclaration produite ici compte TOUTE la
+ *    taxe collectée : un dossier qui facture l'État se voit donc annoncer une
+ *    dette que le Trésor a déjà retenue. Aucune des trois données nécessaires
+ *    n'est au modèle (qualité publique du client, qualité minière du dossier,
+ *    ligne de retenue), et le défaut de retenue coûte une amende égale à son
+ *    montant (art. 74 ter) ;
+ *  · LE CRÉDIT DONT LE REMBOURSEMENT A ÉTÉ DEMANDÉ (art. 66). « Le crédit de
+ *    taxe sur la valeur ajoutée dont le remboursement a été demandé ne peut
+ *    donner lieu à imputation » : la demande NEUTRALISE l'imputation de
+ *    l'art. 63, que ce module opère d'office. Aucun champ ne peut dire qu'une
+ *    demande a été déposée · c'est le seul endroit où l'imputation servie
+ *    peut, sans faute de saisie, produire une déclaration fausse ;
+ *  · LA PERTE DU DROIT À DÉDUCTION APRÈS TAXATION D'OFFICE (art. 69 ter) et
+ *    APRÈS MANQUEMENT AU PAIEMENT SCRIPTURAL (art. 59 bis et art. 74 bis).
+ *    L'art. 59 bis impose le chèque, le virement ou la carte bancaire pour
+ *    « toute transaction entre assujettis […] d'un montant d'au moins
+ *    1.000.000,00 de Francs congolais », et l'art. 74 bis fait perdre la
+ *    déduction à qui y manque. OmegaX connaît le montant, le tiers et le
+ *    règlement, mais NE STOCKE NULLE PART LE MOYEN DE PAIEMENT : il ne peut ni
+ *    contrôler ni avertir. Un numéro de compte de trésorerie ne qualifie pas
+ *    juridiquement le moyen · un débit de 521 ne prouve pas un virement ;
+ *  · LA TAXE DUE DU SEUL FAIT DE SA MENTION (art. 59, alinéas 1 et 3) et LES
+ *    AMENDES DU TRIPLE (art. 70, mention abusive ; art. 71, fausse facture ;
+ *    art. 74 alinéa 2, document servi DEUX FOIS à la déduction). Toutes
+ *    supposent de confronter DEUX gisements que le dépôt tient en parallèle et
+ *    ne rapproche jamais : la FACTURE, qui porte son taux et son montant de
+ *    taxe, et l'ÉCRITURE, seule lue par cette déclaration. Une facture portant
+ *    16 % dont l'écriture ne pose aucune ligne de taxe rend la taxe due sans
+ *    que rien ne la déclare ;
+ *  · L'ARTICLE 40, ALINÉA 2 · « La taxe ayant grevé les immobilisations
+ *    détenues par les entreprises qui entrent nouvellement dans le champ
+ *    d'application de la taxe sur la valeur ajoutée, n'ouvre pas droit à
+ *    déduction. » L'exclusion est absolue et sans tempérament ; le crédit de
+ *    départ sur le STOCK, lui, est ouvert par la première phrase, sous
+ *    condition d'une déclaration détaillée préalable. Aucune date d'entrée
+ *    dans le champ n'est comparée à une date d'acquisition ;
+ *  · L'ARTICLE 42, POINT 1, POUR SES DÉPENSES ACCESSOIRES · l'exclusion des
+ *    véhicules de transport de personnes s'étend expressément à « leur
+ *    location, leurs pièces détachées et accessoires ou les services afférents
+ *    à ces mêmes biens ». Aucun intitulé du plan n'isole ce qui se rapporte à
+ *    un véhicule de personnes : un 6223 « Locations de matériels et
+ *    outillages » ou un 6242 « Entretien et réparations des biens mobiliers »
+ *    porte aussi bien un engin de chantier. Les TROIS contre-exceptions sont
+ *    écrites ici pour que le cabinet les ait : véhicules routiers de dix
+ *    places assises ou plus, chauffeur inclus, affectés au transport exclusif
+ *    du personnel ; véhicules des entreprises de transport public de voyageurs
+ *    affectés exclusivement à ces transports ; véhicules particuliers des
+ *    entreprises de location de voitures ;
+ *  · L'ARTICLE 42, POINTS 3 ET 4 · la taxe portée sur une facture émise hors
+ *    dispositif électronique fiscal, dont le texte réserve lui-même
+ *    l'application « à compter de la date qui sera fixée par Arrêté du
+ *    Ministre ayant les Finances dans ses attributions », arrêté ABSENT du
+ *    corpus ; et la taxe sur une facture émise par une personne introuvable à
+ *    l'adresse communiquée à l'Administration ;
+ *  · L'ARTICLE 43, ALINÉA 3 · « Figurent également au numérateur les recettes
+ *    afférentes aux livraisons de biens et prestations de services rendues aux
+ *    missions diplomatiques et consulaires et aux organisations
+ *    internationales. » Aucun plan n'ouvre de compte pour ces recettes : elles
+ *    ne portent aucune ligne de taxe, tombent au seul dénominateur et FONT
+ *    BAISSER le prorata, donc minorent la déduction. Le sens de l'écart est
+ *    constant et toujours au détriment du dossier, et le cas est courant chez
+ *    les ONG ;
+ *  · L'ARTICLE 45, ALINÉA 1, POUR LE NOUVEL ASSUJETTI · le prorata provisoire
+ *    doit être assis « sur les recettes et produits prévisionnels de l'année
+ *    en cours », donc stable sur douze mois. Faute d'un champ de prévisionnel,
+ *    le module retombe sur une estimation recalculée à chaque période : le
+ *    nouvel assujetti est le seul à déclarer douze proratas différents, ce qui
+ *    est le défaut même que la correction du prorata avait chassé pour les
+ *    autres ;
+ *  · L'ARTICLE 36, POINT 4 · les biens d'investissement s'inscrivent en
+ *    comptabilité « pour leur coût d'achat ou de revient hors TVA déductible »
+ *    et leurs amortissements se calculent sur cette même base pour l'assiette
+ *    de l'impôt sur les bénéfices. Le module `immobilisations` ne connaît pas
+ *    la TVA : sa fiche engendre une écriture à DEUX lignes, sans place pour la
+ *    taxe, et le pendant de la règle manque aussi · quand la taxe n'est PAS
+ *    déductible, la part non déductible doit au contraire entrer dans le coût ;
  *  · l'option pour secteurs distincts d'activité (art. 49) ;
  *  · la régularisation pluriannuelle du prorata sur les immobilisations
  *    (art. 46, variation > 10 % sur 4 ans) ;
@@ -1270,7 +1389,7 @@ export class TauxTvaService {
 
   /**
    * PART DE LA TVA D'AMONT QUE L'ARTICLE 41 EXCLUT, lue sur les charges de
-   * l'écriture · voir `EXCLUSIONS_ART_41_SYSCOHADA`.
+   * l'écriture · voir `EXCLUSIONS_ART_41`.
    *
    * La ligne de TVA porte un montant, jamais la nature de la dépense : c'est
    * la CONTREPARTIE de classe 6 de la même écriture qui la dit. Quand une
@@ -1284,13 +1403,15 @@ export class TauxTvaService {
    * déclaration le NOMME plutôt que de laisser croire au contrôle.
    */
   private partExclueArt41(
-    referentiel: Referentiel | undefined,
     lignesCharge: Array<{ debit: unknown; credit: unknown; compte: { numero: string } }>,
   ): { exclue: number; aVerifier: number; lisible: boolean } {
     const rien = { exclue: 0, aVerifier: 0, lisible: false };
-    // Le plan SYCEBNL agrège ses charges externes · aucune exclusion n'y est
-    // lisible, et trancher au numéro y serait une devinette.
-    if (referentiel !== Referentiel.SYSCOHADA) return rien;
+    // LES DEUX RÉFÉRENTIELS. Cette méthode se fermait au SYCEBNL sur une
+    // affirmation fausse (voir l'en-tête d'`EXCLUSIONS_ART_41`) : les quatre
+    // comptes que la table reconnaît sont semés aux deux plans, sous les mêmes
+    // intitulés. Le `referentiel` n'est plus un paramètre de cette méthode ·
+    // c'est le NUMÉRO SEMÉ qui décide, et un plan qui n'ouvre pas le compte ne
+    // déclenche rien.
     let total = 0;
     let exclue = 0;
     let aVerifier = 0;
@@ -1298,8 +1419,8 @@ export class TauxTvaService {
       const montant = Number(c.debit) - Number(c.credit);
       if (montant <= EPSILON) continue;
       total += montant;
-      if (EXCLUSIONS_ART_41_SYSCOHADA.some(([racine]) => c.compte.numero.startsWith(racine))) exclue += montant;
-      else if (EXCLUSIONS_ART_41_A_VERIFIER_SYSCOHADA.some(([racine]) => c.compte.numero.startsWith(racine)))
+      if (EXCLUSIONS_ART_41.some(([racine]) => c.compte.numero.startsWith(racine))) exclue += montant;
+      else if (EXCLUSIONS_ART_41_A_VERIFIER.some(([racine]) => c.compte.numero.startsWith(racine)))
         aVerifier += montant;
     }
     if (total <= EPSILON) return rien;
@@ -1632,7 +1753,7 @@ export class TauxTvaService {
       }
       // ARTICLE 41 · ce que la loi retire du droit à déduction, avant tout
       // prorata. Le prorata LIMITE une déduction ; l'article 41 la SUPPRIME.
-      const part = this.partExclueArt41(referentiel, lignesCharge);
+      const part = this.partExclueArt41(lignesCharge);
       const exclu = TauxTvaService.c(exigible * part.exclue);
       if (exclu > EPSILON) tvaExclueArt41 = TauxTvaService.c(tvaExclueArt41 + exclu);
       if (part.aVerifier > 0) {
@@ -1881,7 +2002,7 @@ export class TauxTvaService {
           'l’article 41, 1° dispose que « n’ouvre pas droit à déduction, la taxe ayant grevé […] les dépenses de ' +
           'logement, d’hébergement, de restauration, de réception, de spectacles, de location de véhicules de ' +
           'tourisme et de transport de personnes ». Sont reconnues les charges portées aux comptes ' +
-          `${EXCLUSIONS_ART_41_SYSCOHADA.map(([, libelle]) => libelle).join(', ')}. Le même point réserve les ` +
+          `${EXCLUSIONS_ART_41.map(([, libelle]) => libelle).join(', ')}. Le même point réserve les ` +
           'dépenses supportées, AU TITRE DE LEUR ACTIVITÉ IMPOSABLE, par les professionnels du tourisme, de la ' +
           'restauration et du spectacle : OmegaX ne connaît pas le secteur d’activité du dossier et n’applique ' +
           'donc pas cette exception · si elle vous concerne, réintégrez ce montant.',
@@ -1890,7 +2011,7 @@ export class TauxTvaService {
     if (e.tvaAVerifierArt41 > EPSILON) {
       phrases.push(
         `À VÉRIFIER, ARTICLES 41 ET 42 · ${fc(e.tvaAVerifierArt41)} CDF de TVA d’amont portent sur des charges ` +
-          `que la loi vise SOUS CONDITION (${EXCLUSIONS_ART_41_A_VERIFIER_SYSCOHADA.map(([, l]) => l).join(' ; ')}). ` +
+          `que la loi vise SOUS CONDITION (${EXCLUSIONS_ART_41_A_VERIFIER.map(([, l]) => l).join(' ; ')}). ` +
           'La condition ne se lit ni au compte ni au montant : elle tient à la valeur unitaire du bien ou à ' +
           'l’existence d’un contrat. Ces montants restent DÉDUITS · à trancher pièce par pièce avant dépôt.',
       );

@@ -142,7 +142,7 @@ autres sous-dossiers en étant des vues thématiques.
 | Passe | Objet | Source |
 |---|---|---|
 | **F1** | **FAITE le 2026-09-13** · TVA, facture normalisée et dispositifs électroniques. 57 obligations lues, 30 constats, 25 réfutés, **5 retenus et corrigés** (adresse exacte des art. 26 a) et b), bornage au 3 mars 2023, art. 25 rendu exclusif à tort, volet importation nommé à moitié, arrêté de l'art. 25 hors corpus). Journal : `docs/releve-de-manques-fiscal.md` | décret n° 23/10 du 3 mars 2023 (29 art.), art. 14 du code général |
-| **F2** | **TVA · l'ordonnance-loi n° 10/001**, champ, territorialité, fait générateur, exigibilité, base, taux, déductions, obligations, liquidation, remboursement. **EXÉCUTION SCINDÉE EN DEUX RUNS**, le plan inchangé, sa conduite seule · 1 754 lignes contre 306 pour F1, et à ce volume plus de cent réfutateurs à `xhigh`. **F2a FAITE le 2026-09-13** · chapitres I à IV, 159 agents, 19,0 M de jetons, 149 constats réfutés un à un, 93 écartés, **56 retenus, 4 corrigés et 6 lacunes nommées** (nature fiscale lue à la contrepartie et non au compte de TVA · art. 6 et 8 ; art. 26 al. 3 déclaré ; art. 25 borné à ses points 1 et 2 ; territorialité, bases particulières et cessions d'actifs nommées). **F2b RESTE À FAIRE** · chapitres V à X. La passe F2 n'est close qu'une fois les deux runs dépouillés. Journal : `docs/releve-de-manques-fiscal.md` | art. 10 du code général, 10 chapitres |
+| **F2** | **TVA · l'ordonnance-loi n° 10/001**, champ, territorialité, fait générateur, exigibilité, base, taux, déductions, obligations, liquidation, remboursement. **EXÉCUTION SCINDÉE EN DEUX RUNS**, le plan inchangé, sa conduite seule · 1 754 lignes contre 306 pour F1, et à ce volume plus de cent réfutateurs à `xhigh`. **F2a FAITE le 2026-09-13** · chapitres I à IV, 159 agents, 19,0 M de jetons, 149 constats réfutés un à un, 93 écartés, **56 retenus, 4 corrigés et 6 lacunes nommées** (nature fiscale lue à la contrepartie et non au compte de TVA · art. 6 et 8 ; art. 26 al. 3 déclaré ; art. 25 borné à ses points 1 et 2 ; territorialité, bases particulières et cessions d'actifs nommées). **F2b FAITE le 2026-09-13** · chapitres V à X, 137 agents, 16,1 M de jetons, 125 constats réfutés un à un, 46 écartés, **79 retenus dont 17 de gravité FAUX, 3 corrigés et 11 lacunes nommées** (l'art. 41 était fermé au SYCEBNL sur une affirmation fausse, les produits pétroliers des art. 41, 3°, 3° bis et 3° ter comptés sans pourcentage inventé, un test qui bannissait « art. 63 » corrigé). **F2 EST CLOSE.** Journal : `docs/releve-de-manques-fiscal.md` | art. 10 du code général, 10 chapitres |
 | **F3** | **TVA · le décret n° 011/42** d'exécution, les 12 chapitres | art. 11 à 13 du code général |
 | **F4** | **Impôt sur les sociétés · loi n° 23/053, Titre 2** | art. 04 du code général |
 | **F5** | **IRPP · loi n° 23/053, Titre 3** et les retenues (AM 2025 salaires, AM 008/2025 capitaux mobiliers) | art. 05 du code général + socle |
@@ -224,15 +224,15 @@ multi-classification se décide à la CONCEPTION, `Compte`, `Journal` et
 
 | Bloc | Passes | Faites | Reste |
 |---|---|---|---|
-| F · Fiscalité | 14 | **1**, plus F2a sur deux | 13 |
+| F · Fiscalité | 14 | **2** | 12 |
 | O · OHADA | 7 | 0 | 7 |
 | R · Référentiels, solde | 6 | 0 | 6 |
 | D · Droit congolais | 4 | 0 | 4 |
-| **Total** | **31** | **1** | **30** |
+| **Total** | **31** | **2** | **29** |
 
-*F2 n'est PAS comptée faite. Son premier run, F2a, est dépouillé et ses
-corrections sont poussées ; le second, F2b, ne l'est pas. Une passe scindée
-reste une passe : elle se compte quand son dernier run est clos.*
+*F2 est comptée faite depuis le dépouillement de son second run. Une passe
+scindée reste une passe : elle se compte quand son dernier run est clos, pas
+quand le premier est poussé.*
 
 *Tenir ce tableau à jour à la fin de chaque passe. Une passe n'est « faite »
 que lorsque son verdict est écrit dans son journal et que les corrections

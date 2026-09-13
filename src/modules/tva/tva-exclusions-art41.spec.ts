@@ -186,13 +186,71 @@ describe('Ce que le compte ne tranche pas · avertir, jamais deviner', () => {
     expect(d.mentionExigibilite).toContain('transport des personnes');
   });
 
-  it('un dossier SYCEBNL n’exclut rien · son plan agrège ses charges externes, et il le dit', async () => {
-    // 63800000 « Autres charges externes » mêle le déductible et l'exclu ·
-    // trancher au numéro y serait une devinette au détriment du dossier.
+  /*
+    CE SPEC GELAIT LE DÉFAUT, ET C'EST LA SECONDE FOIS EN DEUX PASSES.
+
+    Il portait : « un dossier SYCEBNL n'exclut rien · son plan agrège ses
+    charges externes, et il le dit ». La prémisse était FAUSSE. Le semis
+    SYCEBNL ouvre en propre le 61810000 « Voyages et déplacements »
+    (`compte-seed.ts` l. 824), le 63830000 « Réceptions » (l. 887), le 63840000
+    « Missions » (l. 888) et le 61400000 « Transports du personnel » (l. 822) ·
+    les quatre comptes mêmes que la table reconnaît, sous les mêmes intitulés.
+
+    Un dossier SYCEBNL assujetti déduisait donc 100 % de la TVA sur ses
+    réceptions, ses missions et ses voyages, et la déclaration lui donnait une
+    RAISON FAUSSE de ne pas regarder. Le test le gardait en l'état, comme
+    `hors-scope-tva.spec.ts` gardait un hors-scope surestimé à la passe
+    précédente : un test qui fige une affirmation sur le dépôt doit être relu
+    contre le dépôt, pas seulement contre le code qu'il couvre.
+  */
+  it('un dossier SYCEBNL exclut ses RÉCEPTIONS comme un dossier SYSCOHADA · le plan les sème', async () => {
+    const s = service([{ date: '2026-03-10', tva: 160_000, charges: [{ numero: '63830000', debit: 1_000_000 }] }], 'SYCEBNL');
+    const d = await s.declaration('t1', MARS, FIN_MARS);
+    expect(d.totalDeductible).toBe(0);
+    expect(d.tvaExclueArt41).toBe(160_000);
+    expect(d.mentionExigibilite).toContain('EXCLUSIONS DE L’ARTICLE 41');
+  });
+
+  it('et ses MISSIONS et VOYAGES de même', async () => {
+    for (const numero of ['63840000', '61810000']) {
+      const s = service([{ date: '2026-03-10', tva: 160_000, charges: [{ numero, debit: 1_000_000 }] }], 'SYCEBNL');
+      const d = await s.declaration('t1', MARS, FIN_MARS);
+      expect(d.totalDeductible).toBe(0);
+      expect(d.tvaExclueArt41).toBe(160_000);
+    }
+  });
+
+  it('un compte VRAIMENT agrégé (63800000) n’exclut toujours rien, et n’est plus expliqué à tort', async () => {
+    // « Autres charges externes » mêle le déductible et l'exclu · trancher au
+    // numéro y serait une devinette au détriment du dossier. Ce qui change,
+    // c'est qu'il n'est plus compté comme une dépense DONT LA NATURE N'EST PAS
+    // LISIBLE : cette rubrique vise les écritures SANS contrepartie de charge,
+    // et l'y ranger faisait afficher au comptable une raison qui n'était pas
+    // la bonne.
     const s = service([{ date: '2026-03-10', tva: 160_000, charges: [{ numero: '63800000', debit: 1_000_000 }] }], 'SYCEBNL');
     const d = await s.declaration('t1', MARS, FIN_MARS);
     expect(d.totalDeductible).toBe(160_000);
     expect(d.tvaExclueArt41).toBe(0);
-    expect(d.tvaNatureDepenseIllisible).toBe(160_000);
+    expect(d.tvaNatureDepenseIllisible).toBe(0);
+  });
+
+  it('les PRODUITS PÉTROLIERS (6042) sont comptés et nommés, jamais amputés d’un pourcentage', async () => {
+    // Art. 41, points 3, 3° bis et 3° ter. Le point 3ter chiffre une limite de
+    // 50 %, mais il ne joue que « pour les cas autres que ceux visés aux
+    // points 3 et 3bis », dont les exceptions se recouvrent, et le règlement
+    // auquel 3bis renvoie est absent du corpus. Le montant reste DÉDUIT et
+    // l'article est nommé · appliquer 50 % au jugé serait inventer une règle.
+    for (const referentiel of ['SYSCOHADA', 'SYCEBNL'] as const) {
+      const s = service(
+        [{ date: '2026-03-10', tva: 160_000, charges: [{ numero: '60420000', debit: 1_000_000 }] }],
+        referentiel,
+      );
+      const d = await s.declaration('t1', MARS, FIN_MARS);
+      expect(d.totalDeductible).toBe(160_000);
+      expect(d.tvaExclueArt41).toBe(0);
+      expect(d.tvaAVerifierArt41).toBe(160_000);
+      expect(d.mentionExigibilite).toContain('produits pétroliers');
+      expect(d.mentionExigibilite).toContain('50 %');
+    }
   });
 });

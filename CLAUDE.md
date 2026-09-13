@@ -2416,6 +2416,68 @@ non-assujettis) ; la TVA COLLECTÉE sur les cessions d'éléments d'actifs
 (art. 6), question antérieure aux régularisations des art. 50 et 51 déjà
 déclarées ; le fait générateur des promoteurs immobiliers (art. 24, 6° et 7°).
 
+**PASSE F2b · la seconde moitié de l'ordonnance-loi n° 10/001, chapitres V à X
+(2026-09-13).** Déductions, obligations des redevables, liquidation,
+recouvrement, remboursement, procédures et pénalités. 137 agents, 16,1 M de
+jetons, 125 constats réfutés un à un, 46 écartés, 79 retenus dont 17 de gravité
+FAUX. **La passe F2 est close.** Journal : `docs/releve-de-manques-fiscal.md`.
+
+**L'ARTICLE 41 ÉTAIT FERMÉ AU SYCEBNL SUR UNE AFFIRMATION FAUSSE.** Le module
+portait, et un spec gelait, la phrase « SYSCOHADA SEUL. Le plan SYCEBNL n'a ni
+6383 ni 6384 ni 6181 : ses charges externes sont agrégées en 61800000 et
+63800000 ». Les trois comptes y sont, sous les mêmes intitulés qu'au SYSCOHADA
+(`compte-seed.ts` l. 824, 887, 888, plus l. 822 pour les transports du
+personnel), et les deux renvois de ligne donnés à l'appui ne portaient rien de
+tel. **Un dossier SYCEBNL assujetti · une ASBL ou une ONG taxée sur une
+activité accessoire, c'est-à-dire le public même du logiciel · déduisait 100 %
+de la TVA sur ses réceptions, ses missions et ses voyages, et la déclaration lui
+donnait une RAISON FAUSSE de ne pas regarder.** `partExclueArt41` ne lit plus le
+référentiel : c'est le NUMÉRO SEMÉ qui décide, et une racine qui ne rencontre
+aucun compte ne déclenche rien (cas du 62760000 « Cadeaux à la clientèle »,
+semé au seul SYSCOHADA). La discipline ne change pas · on ne retient un compte
+que si l'INTITULÉ SEMÉ reprend les mots de l'article, et les cinq numéros ont
+été relus DANS LES DEUX SEMIS avant d'ouvrir la table.
+
+**CE QU'ON AFFIRME DU PLAN SE VÉRIFIE CONTRE LE PLAN · règle qui sort de cette
+passe.** Deux specs, en deux passes, gardaient une phrase fausse : l'un un
+hors-scope surestimé, l'autre « un dossier SYCEBNL n'exclut rien ». Dans les
+deux cas le test couvrait bien le code, et dans les deux cas sa PRÉMISSE sur le
+dépôt n'était vérifiée par personne. `exclusions-art41-semees.spec.ts` relit
+désormais les deux fichiers de semis et exige que chaque racine reconnue y soit
+réellement ouverte sous l'intitulé qui la justifie.
+
+**UNE INTERDICTION DE MOT EST TOUJOURS TROP LARGE · troisième occurrence.**
+`hors-scope-tva.spec.ts` bannissait « art. 63 » de la liste des manques ; cette
+interdiction a bloqué une déclaration fondée, puisque dire que le crédit dont le
+remboursement a été demandé ne peut donner lieu à imputation (art. 66) suppose
+de nommer l'imputation de l'art. 63 que le module opère. Le test lit maintenant
+LA TÊTE DE CHAQUE PUCE et exige qu'aucune ne prenne pour SUJET un article
+couvert ; citer un article servi dans la description d'un manque voisin reste
+permis. **On exige la réserve exacte, on ne bannit jamais un numéro.**
+
+**LES PRODUITS PÉTROLIERS SONT COMPTÉS ET NOMMÉS, JAMAIS AMPUTÉS.** Le 60420000
+« Matières combustibles » est semé aux deux plans, et l'article le frappe sur
+trois points qui ne disent pas la même chose (3° et 3° bis excluent avec des
+exceptions qui se recouvrent, 3° ter limite à 50 % « pour les cas autres »).
+Le règlement auquel le 3° bis renvoie est absent du corpus. Le montant reste
+DÉDUIT, compté à part et annoncé avec ses trois points · appliquer 50 % au jugé
+serait inventer une règle.
+
+**ONZE LACUNES NOMMÉES, AVEC LEUR RÈGLE ÉCRITE ET NON SEULEMENT LEUR NUMÉRO** ·
+la retenue à la source de l'art. 53 al. 2 et son amende (art. 74 ter) ; le
+crédit dont le remboursement a été demandé (art. 66) ; la perte du droit à
+déduction après taxation d'office (art. 69 ter) et après manquement au paiement
+scriptural au seuil de 1 000 000 FC (art. 59 bis et 74 bis) ; la taxe due du
+seul fait de sa mention et les trois amendes du triple (art. 59, 70, 71 et 74
+al. 2), qui supposent toutes de rapprocher DEUX GISEMENTS que le dépôt tient en
+parallèle, la FACTURE et l'ÉCRITURE ; l'art. 40 al. 2 ; l'art. 42 point 1 pour
+ses dépenses accessoires, avec ses trois contre-exceptions écrites ; les points
+3 et 4 de l'art. 42 ; l'art. 43 al. 3 (les ventes aux missions diplomatiques
+vont au numérateur, et faute de compte elles font BAISSER le prorata, toujours
+au détriment du dossier) ; l'art. 45 al. 1 pour le nouvel assujetti ; et
+l'art. 36 point 4, dont la fiche d'immobilisation engendre une écriture à DEUX
+lignes sans place pour la taxe.
+
 ## 7. Conventions du plan de comptes semé
 
 Valables pour les deux référentiels (`compte-seed.ts`,

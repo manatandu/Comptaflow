@@ -76,15 +76,57 @@ describe('le module TVA nomme exactement ce qu’il ne traite pas', () => {
     expect(service).toContain('art. 46');
   });
 
-  it('n’annonce PLUS de hors-scope pour ce qui est désormais traité', () => {
+  /*
+    TROISIÈME OCCURRENCE DE LA MÊME FAUTE, ET ELLE EST DANS CE SPEC.
+
+    Ce test bannissait la chaîne « art. 25 » du hors-scope ; on l'a corrigé à
+    la passe F2a. Il bannissait aussi « art. 63 », et à la passe F2b cette
+    interdiction a bloqué une déclaration de manque PARFAITEMENT FONDÉE : le
+    crédit dont le REMBOURSEMENT A ÉTÉ DEMANDÉ ne peut donner lieu à
+    imputation (art. 66), et pour le dire il faut nommer l'imputation de
+    l'art. 63 que le module opère.
+
+    Une interdiction de MOT est donc trop large par construction : un article
+    servi peut être cité dans la description d'un manque voisin. Ce que le
+    dépôt veut garantir est plus étroit · qu'aucun PUCE du hors-scope ne
+    prenne pour SUJET un article que le module couvre. Le test lit maintenant
+    la tête de chaque puce, et non le paragraphe entier.
+  */
+  const puces = () => {
+    const horsScope = service.slice(service.indexOf('RESTE HORS SCOPE'), service.indexOf('@Injectable()'));
+    return horsScope
+      .split('\n')
+      .filter((l) => l.includes(' · '))
+      .map((l) => l.replace(/^\s*\*\s*·\s*/, '').slice(0, 90));
+  };
+
+  it('aucune puce du hors-scope ne prend pour SUJET un article désormais traité', () => {
     // La naissance du droit à déduction (art. 37), le prorata (art. 43), les
     // exclusions (art. 41) et le report du crédit (art. 63) sont couverts et
-    // testés · les laisser dans la liste ferait renoncer le cabinet à ce
-    // qu'il a. L'ARTICLE 25 N'EST PLUS DE CEUX-LÀ, voir le spec suivant.
-    const horsScope = service.slice(service.indexOf('RESTE HORS SCOPE'), service.indexOf('@Injectable()'));
+    // testés · les annoncer non traités ferait renoncer le cabinet à ce
+    // qu'il a. Les CITER dans la description d'un autre manque est permis.
     for (const article of ['art. 37', 'art. 63', 'art. 43', 'art. 41']) {
-      expect(horsScope).not.toContain(article);
+      for (const puce of puces()) expect(puce).not.toContain(article);
     }
+  });
+
+  it('les manques nommés par la passe F2b ont bien leur puce', () => {
+    const horsScope = service.slice(service.indexOf('RESTE HORS SCOPE'), service.indexOf('@Injectable()'));
+    for (const attendu of [
+      'LA RETENUE À LA SOURCE DE LA TVA (art. 53',
+      'LE CRÉDIT DONT LE REMBOURSEMENT A ÉTÉ DEMANDÉ (art. 66)',
+      "L'ARTICLE 40, ALINÉA 2",
+      "L'ARTICLE 42, POINTS 3 ET 4",
+      "L'ARTICLE 43, ALINÉA 3",
+      "L'ARTICLE 45, ALINÉA 1",
+      "L'ARTICLE 36, POINT 4",
+    ]) {
+      expect(horsScope).toContain(attendu);
+    }
+    // Le seuil et les trois contre-exceptions sont ÉCRITS · un hors-scope qui
+    // nomme un article sans donner la règle oblige à rouvrir la loi.
+    expect(horsScope).toContain('1.000.000,00 de Francs congolais');
+    expect(horsScope).toContain('dix\n *    places assises ou plus');
   });
 
   /*
