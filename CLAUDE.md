@@ -2340,6 +2340,82 @@ sections portant les exigences d'un article qui ne la régit pas. Gelé par
 `parite-documents-obligatoires.spec.ts`, qui relit le classeur produit et lit
 la métadonnée des routes.
 
+**PASSE F2a · la TVA confrontée article par article, chapitres I à IV de
+l'ordonnance-loi n° 10/001 (2026-09-13).** Deuxième passe du plan, dont
+l'EXÉCUTION a été scindée en deux runs · 1 754 lignes de source contre 306 pour
+F1, et à ce volume plus de cent réfutateurs à `xhigh`. F2a couvre l'objet, le
+champ d'application, le fait générateur, l'exigibilité, la base et les taux ;
+F2b couvrira les déductions, les obligations, la liquidation, les procédures et
+les pénalités. 159 agents, 19,0 M de jetons, 149 constats réfutés un à un, 93
+écartés, 56 retenus. Journal : `docs/releve-de-manques-fiscal.md`.
+
+**LA NATURE FISCALE SE LIT À LA CONTREPARTIE, JAMAIS AU COMPTE DE TVA (art. 6
+et 8).** Le routage 443/445 de `client/src/lib/tva-syscohada.ts` suit la
+NOMENCLATURE COMPTABLE ; les articles 6 et 8 qualifient l'OPÉRATION. Le module
+tenait le premier pour la seconde, et deux racines en payaient le prix. Toute la
+racine **707** partait au 44310000, classé BIENS · or le plan y sème le 70720000
+« Commissions et courtages », le 70730000 « Locations » et le 70760000
+« Redevances », que l'article 8 range parmi les prestations de services
+(« les opérations d'entremise », « les locations de biens meubles », « les
+opérations portant sur des biens meubles incorporels ») et que l'article 25, 2°
+rend exigibles à l'encaissement : une commission facturée en mars et encaissée
+en juin était déclarée en MARS. Symétriquement, toute la racine **60** partait
+au 44520000, classé BIENS · or le 60510000 est « Eau », le 60520000
+« Électricité » et le 60570000 « Achats d'études et prestations de services »,
+que l'article 8 nomme en toutes lettres : la déduction naissait à la facture au
+lieu de naître à l'exigibilité chez le fournisseur, déduction anticipée et
+réintégrable. La nature se lit désormais à la CONTREPARTIE (classe 7 sur une
+vente, classes 6 et 2 sur un achat), la plus longue racine l'emportant, le
+compte de TVA ne servant plus que de repli. **Ce qui porte deux sens n'est pas
+tranché** · le 60580000 « travaux, matériels et équipements », le 70710000
+« ports, emballages perdus », le 70780000, et toute écriture dont les
+contreparties ne disent pas la même chose rendent INDETERMINEE, avec le montant
+annoncé sur la déclaration.
+
+**L'ARTICLE 26, ALINÉA 3, ÉTAIT SERVI DU SEUL CÔTÉ OÙ IL N'ÉTAIT PAS DÛ.**
+« Elle ne dispense pas le redevable de s'acquitter de la taxe […] au moment de
+l'encaissement du prix ou de l'acompte si celui-ci intervient avant les
+débits » vise ce que le redevable ACQUITTE, donc sa taxe COLLECTÉE. Le module le
+servait sur la déduction et l'enjambait sur la collecte, sous une hypothèse
+inscrite au schéma dont la réserve était l'aveu : « la date de facture étant la
+plus précoce des deux DANS LE CAS USUEL ». L'avance sur marché et l'acompte à la
+commande sont précisément le cas réservé. OmegaX **ne peut pas** les voir : ils
+s'enregistrent en avance reçue (419), sans ligne de taxe et sans rattachement à
+la facture qui suivra. La correction est donc une DÉCLARATION CHIFFRÉE sur la
+déclaration, pas un calcul, et l'hypothèse fausse du schéma est supprimée.
+
+**UN TEST PEUT INTERDIRE DE DÉCLARER UNE LACUNE · c'est la découverte de méthode
+de cette passe.** Le module annonçait « l'exigibilité par NATURE d'opération
+(art. 25 et 26) » sans réserve de point, alors que seuls les points 1 et 2 sont
+servis (ne le sont pas : importation et zone franche, escompte d'effet,
+crédit-bail, préfinancement des cultures pérennes, mutation d'immeuble). Et
+`hors-scope-tva.spec.ts` BANNISSAIT la chaîne « art. 25 » de la liste des
+manques, pour prouver que l'article était traité : écrire la lacune au bon
+endroit faisait tomber le test. C'est le §10 bis pris à revers · une lacune
+déclarée à tort est aussi fausse qu'une règle inventée, et une lacune qu'un test
+interdit de déclarer l'est deux fois. **Règle qui en sort : un test qui bannit
+un numéro d'article d'une liste de manques est suspect ; on exige la RÉSERVE
+EXACTE, jamais on n'interdit le mot.**
+
+**UNE DOUBLURE QUI NE FILTRE PAS VALIDE UN CODE QUI NE CHARGE PAS.** La
+réinjection consistant à retirer la classe 7 du `where` de production n'a
+d'abord rien cassé : la doublure de `findMany` rend ce qu'on lui donne. En
+production, la contrepartie n'aurait pas été chargée et le défaut serait revenu
+intact. Quand un correctif dépend de ce que la requête RAMÈNE, il faut un test
+sur la requête elle-même, pas seulement sur son résultat simulé. Même famille
+que la doublure de `findFirst` de la passe I2.
+
+**QUATRE LACUNES NOMMÉES, AUCUNE COMBLÉE DE MÉMOIRE** · la territorialité
+(art. 22, 3° · un service « utilisé ou exploité au pays » est dans le champ) et
+le client rendu redevable à défaut de représentant agréé (art. 23, al. 2, taxe
+ET pénalités) ; les bases particulières des art. 27 point 10, 31, 32, 33 et 34,
+avec la RÉSERVE DE LECTURE que le texte lui-même porte et qu'il ne nous
+appartient pas de trancher (« prix d'achat » à l'art. 27, 10 sans condition de
+fournisseur, « prix de revient » à l'art. 31 et seulement auprès de
+non-assujettis) ; la TVA COLLECTÉE sur les cessions d'éléments d'actifs
+(art. 6), question antérieure aux régularisations des art. 50 et 51 déjà
+déclarées ; le fait générateur des promoteurs immobiliers (art. 24, 6° et 7°).
+
 ## 7. Conventions du plan de comptes semé
 
 Valables pour les deux référentiels (`compte-seed.ts`,

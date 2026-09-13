@@ -125,9 +125,15 @@ enum FormeJuridiqueSyscohada {
 //    justifiant de circonstances particulières : l'exigibilité devient
 //    l'inscription au débit du compte du client, donc la date de facture.
 //    L'option ne dispense PAS d'acquitter la taxe à l'encaissement quand
-//    celui-ci précède le débit (art. 26 in fine) · d'où le traitement
-//    identique à LIVRAISONS, la date de facture étant la plus précoce des
-//    deux dans le cas usuel.
+//    celui-ci précède le débit : « Elle ne dispense pas le redevable de
+//    s'acquitter de la taxe sur la valeur ajoutée au moment de l'encaissement
+//    du prix ou de l'acompte si celui-ci intervient avant les débits »
+//    (art. 26, alinéa 3). Cet alinéa N'EST PAS SERVI côté collecte, et le
+//    traitement identique à LIVRAISONS ne l'approche pas : l'avance sur
+//    marché, l'acompte à la commande et le dépôt de garantie imputable sont
+//    encaissés AVANT toute facture, sur une écriture d'avance reçue qui ne
+//    porte aucune ligne de taxe. La déclaration le DIT, avec son montant et
+//    son article, au lieu de le supposer résolu.
 enum RegimeExigibiliteTva {
   LIVRAISONS
   ENCAISSEMENTS

@@ -106,6 +106,87 @@ const NATURE_RECUPERABLE_SYSCOHADA: ReadonlyArray<readonly [string, NatureOperat
 ];
 
 /**
+ * LA NATURE FISCALE SE LIT À LA CONTREPARTIE, PAS AU COMPTE DE TVA.
+ *
+ * Le module lisait la nature de l'opération sur la racine du compte de TVA,
+ * en tenant le routage de `client/src/lib/tva-syscohada.ts` pour une
+ * qualification fiscale. Il n'en est pas une : ce routage suit la
+ * NOMENCLATURE COMPTABLE (443 par catégorie de vente, 445 par catégorie
+ * d'achat), quand les art. 6 et 8 de l'O.-L. n° 10/001 qualifient
+ * l'OPÉRATION. Les deux ne se recouvrent pas, et deux comptes le prouvent.
+ *
+ * 707 · toute la racine part au 44310000 « TVA facturée sur ventes », classé
+ * BIENS. Or le plan SYSCOHADA y sème le 70720000 « Commissions et courtages »,
+ * le 70730000 « Locations », le 70750000 « Mise à disposition de personnel »
+ * et le 70760000 « Redevances pour brevets, logiciels, marques et droits
+ * similaires ». L'art. 8 (fichier `code-general-2026/references/
+ * 10-tva-ol10-001-loi-base-ch1-10.md`, l. 165-186) range expressément parmi
+ * les prestations de services « les locations de biens meubles », « les
+ * opérations portant sur des biens meubles incorporels » et « les opérations
+ * d'entremise » ; et son alinéa 1er les tient toutes pour telles, « toutes les
+ * opérations autres que les livraisons de biens meubles corporels ».
+ * L'art. 25, 2° les rend exigibles À L'ENCAISSEMENT. Une commission facturée
+ * en mars et encaissée en juin était déclarée en MARS.
+ *
+ * 605 · toute la racine 60 part au 44520000 « TVA récupérable sur achats »,
+ * classé BIENS. Or le 60510000 est « Fournitures non stockables - Eau », le
+ * 60520000 « … Électricité », le 60530000 « … Autres énergies », et l'art. 8
+ * nomme en toutes lettres « la fourniture d'eau, d'électricité, de gaz,
+ * d'énergie thermique et des biens similaires ». Le 60570000 « Achats
+ * d'études et prestations de services » relève de la même liste (« travaux
+ * d'études, de conseil, d'expertise et de recherche »). Le droit à déduction
+ * naissait dès la facture au lieu de naître à l'exigibilité chez le
+ * fournisseur (art. 37 al. 1, décret n° 011/42 art. 96) · une facture
+ * d'électricité de mars réglée en juin était déduite en mars.
+ *
+ * CE QUI PORTE DEUX SENS N'EST PAS TRANCHÉ. Le 60580000 « Achats de travaux,
+ * matériels et équipements » porte des TRAVAUX (services, art. 8) et des
+ * MATÉRIELS (biens, art. 6) sous un seul numéro ; le 70710000 « Ports,
+ * emballages perdus et autres frais facturés » porte un transport (service) et
+ * des emballages (biens) ; le 70780000 « Autres produits accessoires » ne dit
+ * rien. Ces comptes rendent INDETERMINEE, qui n'est pas un échec : c'est le
+ * repli DÉCLARÉ, annoncé sur la déclaration avec son montant.
+ *
+ * LA PLUS LONGUE RACINE L'EMPORTE · '6051' avant '60', '7073' avant '707'.
+ * Et une écriture dont les contreparties ne disent pas toutes la même chose
+ * rend INDETERMINEE : mélanger une vente de marchandises et une commission
+ * sur la même pièce ne donne pas le droit d'en choisir une.
+ */
+const NATURE_CONTREPARTIE_SYSCOHADA: ReadonlyArray<readonly [string, NatureOperationTva]> = [
+  // PRODUITS · art. 6 pour les biens meubles corporels, art. 8 pour le reste.
+  ['701', 'BIENS'], // Ventes de marchandises
+  ['702', 'BIENS'], // Ventes de produits finis
+  ['703', 'BIENS'], // Ventes de produits intermédiaires
+  ['704', 'BIENS'], // Ventes de produits résiduels
+  ['705', 'SERVICES'], // Travaux facturés · art. 8, « les travaux immobiliers »
+  ['706', 'SERVICES'], // Services vendus
+  // 707 · produits accessoires, dont la racine ne dit RIEN par elle-même.
+  ['707', 'INDETERMINEE'],
+  ['7072', 'SERVICES'], // Commissions et courtages · « les opérations d'entremise »
+  ['7073', 'SERVICES'], // Locations · « les locations de biens meubles »
+  ['7074', 'BIENS'], // Bonis sur reprises et cessions d'emballages
+  ['7075', 'SERVICES'], // Mise à disposition de personnel · art. 8, alinéa 1er
+  ['7076', 'SERVICES'], // Redevances · « biens meubles incorporels »
+  ['7077', 'SERVICES'], // Services exploités dans l'intérêt du personnel
+  // Production immobilisée · livraison à soi-même, art. 25, 1° in fine.
+  ['72', 'BIENS'],
+  // CHARGES · l'achat suit la nature de ce qui est acheté.
+  ['60', 'BIENS'],
+  ['6051', 'SERVICES'], // Eau
+  ['6052', 'SERVICES'], // Électricité
+  ['6053', 'SERVICES'], // Autres énergies · « gaz, énergie thermique et biens similaires »
+  ['6057', 'SERVICES'], // Achats d'études et prestations de services
+  ['6058', 'INDETERMINEE'], // « travaux, matériels et équipements » · deux sens
+  ['61', 'SERVICES'], // Transports · art. 8, « le transport de personnes et de marchandises »
+  ['62', 'SERVICES'], // Services extérieurs
+  ['63', 'SERVICES'], // Autres services extérieurs
+  // IMMOBILISATIONS · délibérément non classées, comme le 4451 · une
+  // immobilisation s'acquiert par livraison de biens comme par travaux
+  // immobiliers ou cession d'un incorporel. Le compte ne tranche pas.
+  ['2', 'INDETERMINEE'],
+];
+
+/**
  * RECETTES EXCLUES DU DÉNOMINATEUR DU PRORATA (art. 43).
  *
  * Fichier `code-general-2026/references/10-tva-ol10-001-loi-base-ch1-10.md`,
@@ -225,8 +306,10 @@ const EXCLUSIONS_ART_41_A_VERIFIER_SYSCOHADA: ReadonlyArray<readonly [string, st
  * TVA (cf. docs/plan-de-construction.md §3.1/§5) : entité "Taux" paramétrable,
  * fondée sur l'O.-L. n° 10/001 du 20/08/2010 modifiée par la LF 2026 (skill
  * `fiscalite-rdc/tva`). Couvre désormais, en plus du référentiel (taux +
- * comptes 443/445 rattachés) : l'exigibilité par NATURE d'opération (art. 25
- * et 26), la naissance du droit à déduction chez le fournisseur (art. 37 al. 1
+ * comptes 443/445 rattachés) : l'exigibilité par NATURE d'opération (art. 25,
+ * POINTS 1 ET 2 SEULEMENT, et art. 26 alinéas 1 et 2), la nature étant lue à
+ * la contrepartie que les art. 6 et 8 qualifient ;
+ * la naissance du droit à déduction chez le fournisseur (art. 37 al. 1
  * et décret n° 011/42 art. 96), le délai d'exercice de ce droit et sa
  * déchéance (art. 37 al. 2), les exclusions que le plan de comptes établit
  * (art. 41), le prorata de déduction (art. 43-45), la récupération de la taxe
@@ -237,6 +320,56 @@ const EXCLUSIONS_ART_41_A_VERIFIER_SYSCOHADA: ReadonlyArray<readonly [string, st
  * compte 444).
  *
  * RESTE HORS SCOPE, ET IL FAUT LE NOMMER EXACTEMENT :
+ *  · LES POINTS 3 À 7 DE L'ARTICLE 25. Le module annonçait « l'exigibilité par
+ *    nature d'opération (art. 25 et 26) » sans réserve de point, et un spec
+ *    interdisait même d'écrire « art. 25 » dans cette liste : seuls les points
+ *    1 et 2 sont servis. Ne le sont pas · le point 3 (déclaration de mise à la
+ *    consommation, pour les biens importés, placés sous régime suspensif ou
+ *    sortis d'une zone franche), le point 4 (échéance de l'effet, en cas
+ *    d'escompte), le point 5 (échéance des intérêts ou des loyers, crédit à la
+ *    consommation et crédit-bail des établissements financiers), le point 6
+ *    (livraison des produits ou perception du PRÉFINANCEMENT, cultures
+ *    pérennes · le préfinancement rend la taxe exigible avant toute livraison,
+ *    et s'enregistre en avance reçue sans ligne de taxe) et le point 7 (date
+ *    de mutation ou de transfert de propriété d'immeuble, avec l'exception de
+ *    l'habitat social et des locations de promoteurs immobiliers, exigibles à
+ *    chaque échéance). Les points 6 et 7 de l'ARTICLE 24 (fait générateur des
+ *    opérations des promoteurs immobiliers) sont hors scope pour la même
+ *    raison : aucun modèle ne porte la qualité de promoteur immobilier ;
+ *  · L'ALINÉA 3 DE L'ARTICLE 26 · l'encaissement antérieur au débit. Il n'est
+ *    pas calculé, il est DÉCLARÉ avec son montant sur la déclaration : un
+ *    acompte encaissé avant la facture s'enregistre en avance reçue (419),
+ *    sans ligne de taxe et sans rattachement à la facture qui suivra ;
+ *  · LA TERRITORIALITÉ (art. 22) ET LE CLIENT RENDU REDEVABLE (art. 23).
+ *    L'art. 22, 3° rattache à la RDC les prestations « lorsque le service
+ *    rendu, le droit cédé ou l'objet loué, sont utilisés ou exploités au
+ *    pays » : une étude, une redevance ou un logiciel facturés depuis
+ *    l'étranger et utilisés en RDC sont DANS le champ. L'art. 23, alinéa 2,
+ *    met la taxe et les pénalités à la charge de « la personne cliente »
+ *    quand le redevable étranger n'a pas désigné de représentant agréé.
+ *    OmegaX enregistre ces achats en charges ordinaires, sans ligne de taxe
+ *    et sans signal · alors qu'il voit le fournisseur non-résident pour un
+ *    autre impôt (prélèvement de 14 %, art. 144) ;
+ *  · LES BASES PARTICULIÈRES DES ART. 27 POINT 10, 31, 32, 33 ET 34 · le
+ *    régime de la marge des négociants de biens d'occasion, d'œuvres d'art,
+ *    d'objets de collection ou d'antiquité, celui des agences de voyages et
+ *    organisateurs de circuits touristiques (avec l'interdiction de déduction
+ *    de l'art. 33) et celui des transitaires et commissionnaires en douane.
+ *    Le chemin guidé applique `ht × taux` au prix entier. RÉSERVE DE LECTURE,
+ *    QU'IL NE NOUS APPARTIENT PAS DE TRANCHER : l'art. 27, point 10 retient
+ *    « la différence entre le prix de vente et le prix d'achat de chaque
+ *    bien » sans condition de fournisseur, quand l'art. 31 retient « la
+ *    différence entre le prix de vente et le prix de revient » et seulement
+ *    pour les biens acquis auprès de non-assujettis. Les deux règles ne disent
+ *    pas la même chose dans le même chapitre ;
+ *  · LA TVA COLLECTÉE SUR LES CESSIONS D'ÉLÉMENTS D'ACTIFS (art. 6). L'art. 6
+ *    range expressément « les cessions d'éléments d'actifs » parmi les
+ *    livraisons de biens meubles corporels, au même titre que l'échange de
+ *    biens, l'apport en société, la location-vente et la vente à tempérament.
+ *    Le module `immobilisations` pose l'écriture de cession sans une ligne de
+ *    taxe et sans taux proposé · c'est une question ANTÉRIEURE aux
+ *    régularisations des art. 50 et 51 ci-dessous, qui portent sur la taxe
+ *    DÉDUITE en amont, non sur celle à COLLECTER sur le prix de cession ;
  *  · l'option pour secteurs distincts d'activité (art. 49) ;
  *  · la régularisation pluriannuelle du prorata sur les immobilisations
  *    (art. 46, variation > 10 % sur 4 ans) ;
@@ -907,6 +1040,7 @@ export class TauxTvaService {
     referentiel: Referentiel | undefined,
     numeroCompte: string,
     estCollecte: boolean,
+    contreparties: readonly string[] = [],
   ): NatureOperationTva {
     // Le plan SYCEBNL ne subdivise ni 443 ni 445 · ses 44310000 et 44510000
     // sont GÉNÉRIQUES, et portent le même numéro que des subdivisions
@@ -914,11 +1048,39 @@ export class TauxTvaService {
     // ferait passer toute la TVA d'un dossier SYCEBNL pour de la vente de
     // biens. Même garde que `client/src/lib/tva-syscohada.ts`.
     if (referentiel !== Referentiel.SYSCOHADA) return 'INDETERMINEE';
+
+    // LA CONTREPARTIE D'ABORD · c'est elle qui porte l'opération que les
+    // art. 6 et 8 qualifient. Une seule contrepartie non classée, ou deux
+    // contreparties de natures différentes, et rien n'est tranché.
+    let vue: NatureOperationTva | null = null;
+    for (const numero of contreparties) {
+      const nature = TauxTvaService.natureContrepartie(numero);
+      if (nature === 'INDETERMINEE') return 'INDETERMINEE';
+      if (vue && vue !== nature) return 'INDETERMINEE';
+      vue = nature;
+    }
+    if (vue) return vue;
+
+    // AUCUNE CONTREPARTIE LISIBLE · la racine du compte de TVA reste le seul
+    // indice, et la déclaration annonce le repli quand elle ne dit rien.
     const table = estCollecte ? NATURE_COLLECTEE_SYSCOHADA : NATURE_RECUPERABLE_SYSCOHADA;
     for (const [racine, nature] of table) {
       if (numeroCompte.startsWith(racine)) return nature;
     }
     return 'INDETERMINEE';
+  }
+
+  /** Nature d'un compte de contrepartie · LA PLUS LONGUE RACINE L'EMPORTE. */
+  private static natureContrepartie(numero: string): NatureOperationTva {
+    let meilleure: NatureOperationTva = 'INDETERMINEE';
+    let longueur = -1;
+    for (const [racine, nature] of NATURE_CONTREPARTIE_SYSCOHADA) {
+      if (numero.startsWith(racine) && racine.length > longueur) {
+        meilleure = nature;
+        longueur = racine.length;
+      }
+    }
+    return meilleure;
   }
 
   /**
@@ -1039,8 +1201,9 @@ export class TauxTvaService {
     numeroCompte: string,
     estCollecte: boolean,
     fournisseurAuxDebits: boolean,
+    contreparties: readonly string[] = [],
   ): { base: 'FAIT_GENERATEUR' | 'ENCAISSEMENT'; nature: NatureOperationTva } {
-    const nature = this.natureOperation(referentiel, numeroCompte, estCollecte);
+    const nature = this.natureOperation(referentiel, numeroCompte, estCollecte, contreparties);
     if (nature === 'BIENS') return { base: 'FAIT_GENERATEUR', nature };
     if (nature === 'SERVICES') {
       // COLLECTE · l'art. 26 vise la taxe que le redevable ACQUITTE, donc
@@ -1258,6 +1421,14 @@ export class TauxTvaService {
                         { compte: { classe: ClasseCompte.CLASSE_4 }, lettrageId: { not: null } },
                         { compte: { classe: ClasseCompte.CLASSE_4, tiersCompte: { isNot: null } } },
                         { compte: { classe: ClasseCompte.CLASSE_6 } },
+                        // CONTREPARTIES DE PRODUIT ET D'IMMOBILISATION · elles ne
+                        // servent qu'à une seule question, mais elle est lourde :
+                        // la NATURE FISCALE de l'opération (art. 6 et 8). Sans
+                        // la classe 7, une vente n'a aucune contrepartie lisible
+                        // et sa nature retombait sur le numéro du compte de TVA,
+                        // qui ne la porte pas (voir NATURE_CONTREPARTIE_SYSCOHADA).
+                        { compte: { classe: ClasseCompte.CLASSE_7 } },
+                        { compte: { classe: ClasseCompte.CLASSE_2 } },
                       ],
                     },
                     include: {
@@ -1311,6 +1482,11 @@ export class TauxTvaService {
     let deductionServicesDiffere = 0;
     let deductionServicesDebits = 0;
     let deductionServicesDebitsSansReference = 0;
+    // TVA COLLECTÉE datée à la facture SOUS LE RÉGIME DES DÉBITS · l'art. 26,
+    // alinéa 3, réserve l'encaissement antérieur, et OmegaX ne peut pas le
+    // voir : un acompte encaissé avant la facture est une avance reçue (419),
+    // sans ligne de taxe et sans rattachement à la facture qui suivra.
+    let collecteServicesDebits = 0;
     let tvaExclueArt41 = 0;
     let tvaAVerifierArt41 = 0;
     let tvaNatureDepenseIllisible = 0;
@@ -1398,14 +1574,30 @@ export class TauxTvaService {
             l.ecriture.lignes.filter((x) => x.compte?.classe === ClasseCompte.CLASSE_4),
           );
 
+      // Contreparties qui portent la NATURE de l'opération · classe 7 sur une
+      // vente, classes 6 et 2 sur un achat. Jamais les classes 4 et 5, qui
+      // disent avec qui et par quel moyen, jamais quoi.
+      const contreparties = l.ecriture.lignes
+        .filter((x) =>
+          estCollecte
+            ? x.compte?.classe === ClasseCompte.CLASSE_7
+            : x.compte?.classe === ClasseCompte.CLASSE_6 || x.compte?.classe === ClasseCompte.CLASSE_2,
+        )
+        .map((x) => x.compte?.numero)
+        .filter((n): n is string => Boolean(n));
+
       const { base, nature } = this.baseExigibilite(
         referentiel,
         regime,
         l.compte.numero,
         estCollecte,
         fournisseur.autorise,
+        contreparties,
       );
       if (nature === 'INDETERMINEE' && dansLaPeriode) montantIndetermine += montant;
+      if (estCollecte && nature === 'SERVICES' && regime === 'DEBITS' && dansLaPeriode) {
+        collecteServicesDebits += montant;
+      }
       if (!estCollecte && nature === 'SERVICES' && dansLaPeriode) {
         // DEUX compteurs, et non un seul : ce qui est différé FAUTE DE SAVOIR
         // n'est pas ce qui est déduit d'avance PARCE QU'ON SAIT. Les confondre
@@ -1511,6 +1703,7 @@ export class TauxTvaService {
         deductionServicesDiffere: TauxTvaService.c(deductionServicesDiffere),
         deductionServicesDebits: TauxTvaService.c(deductionServicesDebits),
         deductionServicesDebitsSansReference: TauxTvaService.c(deductionServicesDebitsSansReference),
+        collecteServicesDebits: TauxTvaService.c(collecteServicesDebits),
         creditAnterieur: credit.montant,
         creditImpute,
         avoirsCollecteConstates,
@@ -1592,6 +1785,7 @@ export class TauxTvaService {
     deductionServicesDiffere: number;
     deductionServicesDebits: number;
     deductionServicesDebitsSansReference: number;
+    collecteServicesDebits: number;
     creditAnterieur: number;
     creditImpute: number;
     avoirsCollecteConstates: number;
@@ -1608,9 +1802,11 @@ export class TauxTvaService {
     const phrases: string[] = [
       "Exigibilité datée OPÉRATION PAR OPÉRATION (article 25 de l'ordonnance-loi n° 10/001) : les LIVRAISONS DE " +
         'BIENS au fait générateur (art. 25, 1°), les PRESTATIONS DE SERVICES et TRAVAUX IMMOBILIERS à ' +
-        "l'encaissement du prix, des acomptes ou avances (art. 25, 2°). La nature est lue au compte de TVA " +
-        '(4431/4434 ventes et livraisons à soi-même, 4432/4433 services et travaux ; 4452 achats, 4453/4454 ' +
-        'transport et services extérieurs), tel que la saisie guidée l’impute. La date de l’encaissement est celle ' +
+        "l'encaissement du prix, des acomptes ou avances (art. 25, 2°). La nature est lue à la CONTREPARTIE de " +
+        'l’écriture, que les art. 6 et 8 qualifient (701 à 704 ventes de biens, 705/706 travaux et services, 7072 ' +
+        'commissions, 7073 locations, 7076 redevances ; 60 achats, 6051/6052/6053 eau, électricité et énergies, ' +
+        '6057 études, 61 à 63 transports et services extérieurs), et non au numéro du compte de TVA, qui suit la ' +
+        'nomenclature comptable et non la loi fiscale. La date de l’encaissement est celle ' +
         'de l’ÉCRITURE DE RÈGLEMENT du groupe de lettrage, jamais celle du lettrage lui-même (décret n° 011/42, ' +
         'art. 57).',
     ];
@@ -1620,6 +1816,19 @@ export class TauxTvaService {
           "Général des Impôts) : sa TVA sur services et travaux est exigible à l'inscription au débit du compte " +
           'du client, donc à la date de la facture. Cette autorisation ne change rien aux ventes de biens, déjà ' +
           'exigibles au fait générateur, ni à la TVA déductible, qui se juge chez le fournisseur.',
+      );
+    }
+    if (e.collecteServicesDebits > EPSILON) {
+      phrases.push(
+        `ENCAISSEMENT ANTÉRIEUR AU DÉBIT, NON VÉRIFIÉ · ${fc(e.collecteServicesDebits)} CDF de TVA collectée sur ` +
+          'services et travaux sont datés de la FACTURE, au titre de l’autorisation de l’article 26. Son ' +
+          'alinéa 3 y met une réserve impérative : « Elle ne dispense pas le redevable de s’acquitter de la taxe ' +
+          'sur la valeur ajoutée au moment de l’encaissement du prix ou de l’acompte si celui-ci intervient avant ' +
+          'les débits. » L’exigibilité est alors le PREMIER des deux événements. OmegaX NE PEUT PAS l’établir : ' +
+          'une avance sur marché, un acompte à la commande ou un dépôt de garantie imputable s’enregistrent en ' +
+          'avance reçue (compte 419), sans ligne de taxe et sans rattachement à la facture qui suivra · rien dans ' +
+          'l’écriture ne les relie. Ce montant est donc daté AU PLUS TARD, jamais au plus tôt, et l’écart se ' +
+          'redresse contre le dossier · à reprendre acompte par acompte avant dépôt.',
       );
     }
     if (e.montantIndetermine > EPSILON) {
