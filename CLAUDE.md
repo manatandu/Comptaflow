@@ -2478,6 +2478,83 @@ au détriment du dossier) ; l'art. 45 al. 1 pour le nouvel assujetti ; et
 l'art. 36 point 4, dont la fiche d'immobilisation engendre une écriture à DEUX
 lignes sans place pour la taxe.
 
+**PASSE F3a · le décret n° 011/42 d'application de la TVA, chapitres I à III
+(2026-09-16).** 134 agents, 124 constats réfutés un à un, **106 écartés**, 18
+retenus dont 7 de gravité FAUX. **85 % de réfutation, le plus haut taux des
+quatre passes**, et l'effet d'une consigne nouvelle : les confronteurs
+reçoivent le journal des passes précédentes et le hors-scope du module, avec
+interdiction de resignaler un manque déjà nommé. Ce qui survit est du neuf.
+Journal : `docs/releve-de-manques-fiscal.md`.
+
+**LE RÉFÉRENTIEL FERMAIT LA LECTURE DE LA CONTREPARTIE, SUR UN MOTIF PÉRIMÉ.**
+`natureOperation` écartait tout dossier non SYSCOHADA au motif que « le plan
+SYCEBNL ne subdivise ni 443 ni 445 ». Le motif était vrai et la conclusion a
+cessé de l'être le jour où F2a a déplacé la lecture de la nature du compte de
+TVA vers la CONTREPARTIE : les classes 6 des deux plans portent les mêmes
+numéros sous les mêmes intitulés. Un dossier SYCEBNL déduisait sa TVA
+d'électricité dès la facture au lieu du paiement du fournisseur, et la
+déclaration lui en donnait pour raison que « aucune nature n'y est lisible ».
+**Troisième fois que le dépôt écarte une règle sur une affirmation périmée ou
+fausse**, après l'homologation de la facture (F1) et les exclusions de
+l'art. 41 (F2b). Règle qui en sort · QUAND UNE LECTURE SE DÉPLACE, RELIRE LES
+GARDES QUI LA PRÉCÈDENT · une garde posée pour l'ancienne lecture devient un
+refus sans motif.
+
+**UNE CORRECTION PEUT CRÉER LE DÉFAUT QU'ELLE CORRIGE · la classe 7.** Le
+constat demandait d'ouvrir la lecture au SYCEBNL ; il avait raison pour les
+CHARGES et tort pour les PRODUITS. Le **70510000 est « Dans la Région »** au
+SYSCOHADA, sous 705 « Travaux facturés », donc un SERVICE ; il est **« Ventes
+de marchandises »** au SYCEBNL. Ouvrir la table des produits aux deux plans
+aurait daté une vente de marchandises à l'encaissement et MINORÉ la
+déclaration. Treizième occurrence du premier piège, et la seule qui aurait été
+fabriquée par un correctif. La table des produits reste propre au SYSCOHADA, et
+la raison écrite est désormais la vraie. Même prudence sur le **601**, « Achats
+de marchandises » au SYSCOHADA et « Achats de biens ET SERVICES liés à
+l'activité » au SYCEBNL : sur ce plan-là, le compte ne tranche pas.
+
+**LA LOCATION-VENTE EST UNE LIVRAISON DE BIENS (art. 10 du décret).** Le décret
+la nomme trois fois · l'art. 10 la range parmi les livraisons de biens meubles
+corporels, l'art. 51 l'exclut de la règle des décomptes et paiements
+successifs, l'art. 52 la date au transfert du pouvoir de disposer. Le 62340000
+est semé aux deux plans et la table classait toute la racine 62 en SERVICES :
+la taxe d'amont était datée de l'encaissement, la déduction différée jusqu'à
+risquer la déchéance de l'art. 37 al. 2. `6234` prime `62`, et une location
+simple de matériel reste un service.
+
+**LA MENTION DE L'ARTICLE 60 N'ÉTAIT PAS CONTRÔLÉE.** « La mention
+"Autorisation d'acquitter la TVA d'après les débits" doit figurer sur toutes
+les factures délivrées par le prestataire de services ou l'entrepreneur de
+travaux publics ou de travaux immobiliers. » Le champ existait sur la pièce et
+`verifierMentions` ne le lisait pas : `conforme: true` sur une vente qui
+l'omet. **Répétition exacte du défaut corrigé par F1 sur l'adresse exacte.**
+Deux limites tenues · la mention ne pèse que sur celui qui DÉLIVRE et qui est
+AUTORISÉ, et l'amende de l'art. 97 bis ne lui est PAS étendue, ce barème visant
+les mentions du décret n° 23/10 quand le décret n° 011/42 n'énonce aucune
+sanction.
+
+**« UNE ASSOCIATION NE L'EST PAS DE PLEIN DROIT » ÉTAIT FAUX, ET AFFICHÉ.**
+L'écran des paramètres servait cette phrase à tout dossier SYCEBNL ; aucune
+source lue ne la porte. L'art. 42 du décret soumet « les personnes physiques ET
+MORALES » dont le chiffre d'affaires atteint le seuil, et le dépôt écrit
+lui-même ailleurs qu'une ASBL dotée de la personnalité juridique est une
+personne morale. Ce qui est propre à une association tient aux EXONÉRATIONS,
+non au seuil (art. 15, 2° et 17, 8°) : ces opérations ne produisent pas de
+chiffre d'affaires taxable, une activité accessoire taxable si. La phrase est
+remplacée par la règle, avec le chiffre d'affaires HORS TVA de l'art. 42 et sa
+mesure par l'art. 43.
+
+**UNE LACUNE DÉCLARÉE AVEC UN DÉCLENCHEUR FAUX INVITE À PAYER CE QUI N'EST PAS
+DÛ.** Le hors-scope faisait dépendre la dette du client de l'absence de
+représentant AGRÉÉ ; les deux textes la font dépendre de l'absence de
+DÉSIGNATION, et le silence de l'Administration vaut agrément. C'est une
+troisième forme de la doctrine du §10 bis, après la lacune déclarée à tort et
+la lacune qu'un test interdit de déclarer. S'y ajoutent deux réserves du décret
+que la loi ne porte pas et que l'écran affirmait sans elles · les CONTRATS
+D'ABONNEMENT à décomptes proportionnels à la consommation, exigibles à
+l'expiration de la période (art. 55), et les EFFETS DE COMMERCE, encaissés « à
+la date de l'échéance de la traite, même si elle a été remise à l'escompte »
+(art. 57, alinéa 2).
+
 ## 7. Conventions du plan de comptes semé
 
 Valables pour les deux référentiels (`compte-seed.ts`,

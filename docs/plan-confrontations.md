@@ -143,7 +143,7 @@ autres sous-dossiers en étant des vues thématiques.
 |---|---|---|
 | **F1** | **FAITE le 2026-09-13** · TVA, facture normalisée et dispositifs électroniques. 57 obligations lues, 30 constats, 25 réfutés, **5 retenus et corrigés** (adresse exacte des art. 26 a) et b), bornage au 3 mars 2023, art. 25 rendu exclusif à tort, volet importation nommé à moitié, arrêté de l'art. 25 hors corpus). Journal : `docs/releve-de-manques-fiscal.md` | décret n° 23/10 du 3 mars 2023 (29 art.), art. 14 du code général |
 | **F2** | **TVA · l'ordonnance-loi n° 10/001**, champ, territorialité, fait générateur, exigibilité, base, taux, déductions, obligations, liquidation, remboursement. **EXÉCUTION SCINDÉE EN DEUX RUNS**, le plan inchangé, sa conduite seule · 1 754 lignes contre 306 pour F1, et à ce volume plus de cent réfutateurs à `xhigh`. **F2a FAITE le 2026-09-13** · chapitres I à IV, 159 agents, 19,0 M de jetons, 149 constats réfutés un à un, 93 écartés, **56 retenus, 4 corrigés et 6 lacunes nommées** (nature fiscale lue à la contrepartie et non au compte de TVA · art. 6 et 8 ; art. 26 al. 3 déclaré ; art. 25 borné à ses points 1 et 2 ; territorialité, bases particulières et cessions d'actifs nommées). **F2b FAITE le 2026-09-13** · chapitres V à X, 137 agents, 16,1 M de jetons, 125 constats réfutés un à un, 46 écartés, **79 retenus dont 17 de gravité FAUX, 3 corrigés et 11 lacunes nommées** (l'art. 41 était fermé au SYCEBNL sur une affirmation fausse, les produits pétroliers des art. 41, 3°, 3° bis et 3° ter comptés sans pourcentage inventé, un test qui bannissait « art. 63 » corrigé). **F2 EST CLOSE.** Journal : `docs/releve-de-manques-fiscal.md` | art. 10 du code général, 10 chapitres |
-| **F3** | **TVA · le décret n° 011/42** d'exécution, les 12 chapitres | art. 11 à 13 du code général |
+| **F3** | **TVA · le décret n° 011/42** d'exécution, les 12 chapitres. **EXÉCUTION SCINDÉE EN DEUX RUNS** · 3 525 lignes. **F3a FAITE le 2026-09-16** · chapitres I à III, 134 agents, 15,5 M de jetons, 124 constats réfutés un à un, **106 écartés, 18 retenus dont 7 FAUX, 6 corrigés** (le référentiel fermait la lecture de la contrepartie sur un motif périmé ; la location-vente rendue aux livraisons de biens ; la mention de l'art. 60 contrôlée ; « une association ne l'est pas de plein droit », affiché et faux ; le déclencheur faux de l'art. 41 ; les abonnements et les effets de commerce déclarés). 85 % de réfutation, le plus haut taux des quatre passes · effet de la consigne qui donne aux confronteurs le journal et le hors-scope. **F3b RESTE À FAIRE** · chapitres IV à XII. Journal : `docs/releve-de-manques-fiscal.md` | art. 11 à 13 du code général |
 | **F4** | **Impôt sur les sociétés · loi n° 23/053, Titre 2** | art. 04 du code général |
 | **F5** | **IRPP · loi n° 23/053, Titre 3** et les retenues (AM 2025 salaires, AM 008/2025 capitaux mobiliers) | art. 05 du code général + socle |
 | **F6** | **Loi n° 23/053, Titres 1, 4 à 7** · dispositions générales, communes, abrogatoires, et l'art. 141 sur la tenue en français et en franc congolais | art. 03 et 06 |
@@ -224,15 +224,14 @@ multi-classification se décide à la CONCEPTION, `Compte`, `Journal` et
 
 | Bloc | Passes | Faites | Reste |
 |---|---|---|---|
-| F · Fiscalité | 14 | **2** | 12 |
+| F · Fiscalité | 14 | **2**, plus F3a sur deux | 12 |
 | O · OHADA | 7 | 0 | 7 |
 | R · Référentiels, solde | 6 | 0 | 6 |
 | D · Droit congolais | 4 | 0 | 4 |
 | **Total** | **31** | **2** | **29** |
 
-*F2 est comptée faite depuis le dépouillement de son second run. Une passe
-scindée reste une passe : elle se compte quand son dernier run est clos, pas
-quand le premier est poussé.*
+*Une passe scindée reste une passe : elle se compte quand son dernier run est
+clos, pas quand le premier est poussé. F2 l'est ; F3 ne le sera qu'après F3b.*
 
 *Tenir ce tableau à jour à la fin de chaque passe. Une passe n'est « faite »
 que lorsque son verdict est écrit dans son journal et que les corrections

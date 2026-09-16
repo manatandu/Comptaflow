@@ -152,8 +152,19 @@ const NATURE_RECUPERABLE_SYSCOHADA: ReadonlyArray<readonly [string, NatureOperat
  * rend INDETERMINEE : mélanger une vente de marchandises et une commission
  * sur la même pièce ne donne pas le droit d'en choisir une.
  */
-const NATURE_CONTREPARTIE_SYSCOHADA: ReadonlyArray<readonly [string, NatureOperationTva]> = [
+const NATURE_CONTREPARTIE_PRODUITS_SYSCOHADA: ReadonlyArray<readonly [string, NatureOperationTva]> = [
   // PRODUITS · art. 6 pour les biens meubles corporels, art. 8 pour le reste.
+  //
+  // CETTE TABLE EST PROPRE AU SYSCOHADA, ET LA RAISON N'EST PAS CELLE QUI
+  // ÉTAIT ÉCRITE. Elle ne tient pas à ce que le plan SYCEBNL « ne subdivise
+  // pas » : elle tient à ce que sa CLASSE 7 porte les MÊMES NUMÉROS POUR
+  // D'AUTRES COMPTES. Le 70510000 est « Dans la Région » au SYSCOHADA, sous
+  // 705 « Travaux facturés », donc un SERVICE ; il est « Ventes de
+  // marchandises » au SYCEBNL (`compte-seed.ts` l. 1019), donc un BIEN.
+  // Appliquer cette table à un dossier SYCEBNL daterait ses ventes de
+  // marchandises à l'encaissement et MINORERAIT sa déclaration. Treizième
+  // occurrence du premier piège du dépôt, et celle-ci aurait été créée par
+  // la correction elle-même.
   ['701', 'BIENS'], // Ventes de marchandises
   ['702', 'BIENS'], // Ventes de produits finis
   ['703', 'BIENS'], // Ventes de produits intermédiaires
@@ -170,6 +181,28 @@ const NATURE_CONTREPARTIE_SYSCOHADA: ReadonlyArray<readonly [string, NatureOpera
   ['7077', 'SERVICES'], // Services exploités dans l'intérêt du personnel
   // Production immobilisée · livraison à soi-même, art. 25, 1° in fine.
   ['72', 'BIENS'],
+];
+
+/**
+ * CONTREPARTIES DE CHARGE ET D'IMMOBILISATION · LES DEUX RÉFÉRENTIELS.
+ *
+ * La nature de l'opération d'amont se lit ici, et cette table vaut pour les
+ * deux plans : leurs classes 6 portent les MÊMES numéros sous les MÊMES
+ * intitulés (60 achats, 605 fournitures non stockables, 61 transports, 62 et
+ * 63 services extérieurs), vérifiés ligne à ligne dans les deux semis. C'est
+ * la même démonstration que la passe F2b a faite pour les exclusions de
+ * l'article 41, et elle tombe du même côté.
+ *
+ * LE DÉCRET D'APPLICATION CONFIRME LA LISTE, ET L'ALLONGE. Son article 17
+ * (fichier `code-general-2026/references/11-tva-decret-application-ch1-4.md`,
+ * l. 260-277) reprend celle de l'art. 8 de la loi en y ajoutant « les services
+ * électroniques fournis en ligne ». Son article 10 (l. 178-184) range à
+ * l'inverse parmi les LIVRAISONS DE BIENS « la vente, l'échange de biens,
+ * l'apport en société, le prêt de consommation, la LOCATION-VENTE, la vente à
+ * tempérament, les ventes d'articles et matériels d'occasion faites par des
+ * professionnels, les cessions d'éléments d'actifs ».
+ */
+const NATURE_CONTREPARTIE_CHARGES: ReadonlyArray<readonly [string, NatureOperationTva]> = [
   // CHARGES · l'achat suit la nature de ce qui est acheté.
   ['60', 'BIENS'],
   ['6051', 'SERVICES'], // Eau
@@ -179,6 +212,13 @@ const NATURE_CONTREPARTIE_SYSCOHADA: ReadonlyArray<readonly [string, NatureOpera
   ['6058', 'INDETERMINEE'], // « travaux, matériels et équipements » · deux sens
   ['61', 'SERVICES'], // Transports · art. 8, « le transport de personnes et de marchandises »
   ['62', 'SERVICES'], // Services extérieurs
+  // 6234 « Location-vente », semé aux DEUX plans (`compte-seed-syscohada.ts`
+  // l. 1086, `compte-seed.ts` l. 837). L'art. 6 de la loi ET l'art. 10 du
+  // décret la rangent expressément parmi les LIVRAISONS DE BIENS, et le
+  // décret l'exclut deux fois de plus de la règle des paiements successifs
+  // (art. 51) en la datant au transfert du pouvoir de disposer (art. 52).
+  // La racine la plus longue l'emporte : '6234' prime '62'.
+  ['6234', 'BIENS'],
   ['63', 'SERVICES'], // Autres services extérieurs
   // IMMOBILISATIONS · délibérément non classées, comme le 4451 · une
   // immobilisation s'acquiert par livraison de biens comme par travaux
@@ -186,6 +226,22 @@ const NATURE_CONTREPARTIE_SYSCOHADA: ReadonlyArray<readonly [string, NatureOpera
   ['2', 'INDETERMINEE'],
 ];
 
+/**
+ * CE QUE LE SEUL PLAN SYCEBNL DIT AUTREMENT · les divergences, et rien d'autre.
+ *
+ * Les deux classes 6 se recouvrent presque entièrement, mais pas partout, et
+ * l'endroit où elles divergent est celui qui compte. Le 601 est « Achats de
+ * marchandises » au SYSCOHADA (`compte-seed-syscohada.ts` l. 1021), donc des
+ * BIENS sans ambiguïté ; il est « Achats de biens ET SERVICES liés à
+ * l'activité » au SYCEBNL (`compte-seed.ts` l. 772-776), un seul numéro pour
+ * les deux natures. Sur ce plan-là, le compte ne tranche pas, et on ne tranche
+ * pas à sa place.
+ *
+ * Cette table PRIME la précédente à longueur de racine égale ou supérieure.
+ */
+const NATURE_CONTREPARTIE_CHARGES_SYCEBNL: ReadonlyArray<readonly [string, NatureOperationTva]> = [
+  ['601', 'INDETERMINEE'],
+];
 /**
  * RECETTES EXCLUES DU DÉNOMINATEUR DU PRORATA (art. 43).
  *
@@ -384,7 +440,16 @@ const EXCLUSIONS_ART_41_A_VERIFIER: ReadonlyArray<readonly [string, string]> = [
  *    pays » : une étude, une redevance ou un logiciel facturés depuis
  *    l'étranger et utilisés en RDC sont DANS le champ. L'art. 23, alinéa 2,
  *    met la taxe et les pénalités à la charge de « la personne cliente »
- *    quand le redevable étranger n'a pas désigné de représentant agréé.
+ *    « en cas de non désignation d'un représentant ». LE DÉCLENCHEUR EST LA
+ *    DÉSIGNATION, PAS L'AGRÉMENT, et cette liste portait « agréé », ce qui
+ *    déplaçait la dette. Le décret n° 011/42, art. 41, dit la même chose : « À
+ *    défaut de désignation d'un représentant, la taxe et, le cas échéant, les
+ *    pénalités y afférentes, sont dues par la personne cliente. » Entre la
+ *    désignation et l'agrément s'écoule un délai, et le silence de
+ *    l'Administration vaut agrément : un fournisseur étranger qui a désigné un
+ *    représentant non encore agréé a satisfait à l'obligation, et son client
+ *    congolais n'est PAS redevable. Une lacune déclarée avec un déclencheur
+ *    faux invite à supporter une taxe qui n'est pas due ;
  *    OmegaX enregistre ces achats en charges ordinaires, sans ligne de taxe
  *    et sans signal · alors qu'il voit le fournisseur non-résident pour un
  *    autre impôt (prélèvement de 14 %, art. 144) ;
@@ -489,6 +554,35 @@ const EXCLUSIONS_ART_41_A_VERIFIER: ReadonlyArray<readonly [string, string]> = [
  *    la TVA : sa fiche engendre une écriture à DEUX lignes, sans place pour la
  *    taxe, et le pendant de la règle manque aussi · quand la taxe n'est PAS
  *    déductible, la part non déductible doit au contraire entrer dans le coût ;
+ *  · LES CONTRATS D'ABONNEMENT (décret n° 011/42, art. 55 et 56). « En cas
+ *    d'une fourniture réalisée dans le cadre d'un contrat d'abonnement donnant
+ *    lieu à l'établissement des décomptes ou à des encaissements successifs
+ *    proportionnels à la consommation du client, LE FAIT GÉNÉRATEUR ET
+ *    L'EXIGIBILITÉ interviennent à l'expiration des périodes auxquelles se
+ *    rapportent ces décomptes ou ces encaissements. » Le décret étend donc à
+ *    l'EXIGIBILITÉ ce que l'art. 24, point 9 de la loi ne disait que du fait
+ *    générateur. OmegaX ne peut pas le voir : rien dans une écriture ne dit
+ *    qu'une fourniture relève d'un contrat d'abonnement, et l'eau comme
+ *    l'électricité sont ici datées de l'encaissement au titre de l'art. 25, 2°.
+ *    Le sens de l'écart diffère selon le côté · à la COLLECTE, la taxe est
+ *    déclarée APRÈS être devenue exigible, ce qui se redresse ; à la
+ *    DÉDUCTION, elle est déduite plus tard qu'elle ne pourrait l'être, ce qui
+ *    ne se redresse pas ;
+ *  · LE PAIEMENT PAR EFFET DE COMMERCE (décret n° 011/42, art. 57, alinéa 2,
+ *    4e tiret). L'encaissement intervient « à la date de l'échéance de la
+ *    traite, MÊME SI ELLE A ÉTÉ REMISE À L'ESCOMPTE auprès d'un établissement
+ *    financier ». Le module date l'encaissement de l'écriture qui solde le
+ *    compte du tiers · sur un effet, c'est l'ACCEPTATION, antérieure à
+ *    l'échéance. Le même alinéa règle aussi l'affacturage, dont l'encaissement
+ *    « coïncide avec la date du paiement effectif de la créance par le
+ *    débiteur », et non avec le versement du factor. Ni l'un ni l'autre n'est
+ *    lu ;
+ *  · LA MESURE DU SEUIL D'ASSUJETTISSEMENT (décret n° 011/42, art. 42 et 43).
+ *    Le seuil de l'art. 14 de la loi s'apprécie sur un chiffre d'affaires
+ *    « hors taxe sur la valeur ajoutée », « de l'année précédente » pour les
+ *    entreprises existantes et « prévisionnel » pour les nouvelles. La règle
+ *    est écrite à l'écran et au schéma ; elle n'est CALCULÉE nulle part, et
+ *    `assujettiTva` reste un booléen que l'administrateur coche ;
  *  · l'option pour secteurs distincts d'activité (art. 49) ;
  *  · la régularisation pluriannuelle du prorata sur les immobilisations
  *    (art. 46, variation > 10 % sur 4 ans) ;
@@ -1161,19 +1255,38 @@ export class TauxTvaService {
     estCollecte: boolean,
     contreparties: readonly string[] = [],
   ): NatureOperationTva {
-    // Le plan SYCEBNL ne subdivise ni 443 ni 445 · ses 44310000 et 44510000
-    // sont GÉNÉRIQUES, et portent le même numéro que des subdivisions
-    // SYSCOHADA qui, elles, ont un sens. Les classer sur le numéro seul
-    // ferait passer toute la TVA d'un dossier SYCEBNL pour de la vente de
-    // biens. Même garde que `client/src/lib/tva-syscohada.ts`.
-    if (referentiel !== Referentiel.SYSCOHADA) return 'INDETERMINEE';
+    /*
+      LE RÉFÉRENTIEL NE FERME PLUS LA PORTE D'ENTRÉE, ET C'EST UNE CORRECTION.
+
+      Cette méthode commençait par « if (referentiel !== SYSCOHADA) return
+      INDETERMINEE », au motif que « le plan SYCEBNL ne subdivise ni 443 ni
+      445 ». Le motif était vrai et la conclusion l'a cessé : depuis la passe
+      F2a, la nature ne se lit PLUS au compte de TVA, elle se lit à la
+      CONTREPARTIE. Or les classes 6 des deux plans portent les mêmes numéros
+      sous les mêmes intitulés · le 60510000 est « Eau » et le 60570000
+      « Achats d'études et prestations de services » dans les DEUX semis. La
+      garde écartait donc une lecture qui marche, et la déclaration en donnait
+      pour raison que « aucune nature n'y est lisible », ce qui n'était plus
+      exact. Troisième fois que le dépôt écarte une règle sur une affirmation
+      périmée ; la première fut l'homologation de la facture, la deuxième les
+      exclusions de l'article 41.
+
+      CE QUI RESTE FERMÉ, ET POURQUOI · LA CLASSE 7. Le plan SYCEBNL y porte
+      les mêmes numéros pour d'autres comptes : son 70510000 est « Ventes de
+      marchandises » quand celui du SYSCOHADA est « Dans la Région », sous 705
+      « Travaux facturés ». Ouvrir la table des produits aux deux plans
+      daterait une vente de marchandises SYCEBNL à l'encaissement et MINORERAIT
+      sa déclaration · le défaut aurait été créé par la correction.
+    */
+    const estSyscohada = referentiel === Referentiel.SYSCOHADA;
 
     // LA CONTREPARTIE D'ABORD · c'est elle qui porte l'opération que les
-    // art. 6 et 8 qualifient. Une seule contrepartie non classée, ou deux
-    // contreparties de natures différentes, et rien n'est tranché.
+    // art. 6 et 8 de la loi, et les art. 10 et 17 du décret, qualifient. Une
+    // seule contrepartie non classée, ou deux contreparties de natures
+    // différentes, et rien n'est tranché.
     let vue: NatureOperationTva | null = null;
     for (const numero of contreparties) {
-      const nature = TauxTvaService.natureContrepartie(numero);
+      const nature = TauxTvaService.natureContrepartie(numero, estCollecte, estSyscohada);
       if (nature === 'INDETERMINEE') return 'INDETERMINEE';
       if (vue && vue !== nature) return 'INDETERMINEE';
       vue = nature;
@@ -1181,7 +1294,9 @@ export class TauxTvaService {
     if (vue) return vue;
 
     // AUCUNE CONTREPARTIE LISIBLE · la racine du compte de TVA reste le seul
-    // indice, et la déclaration annonce le repli quand elle ne dit rien.
+    // indice, et elle n'est lisible qu'au SYSCOHADA. La déclaration annonce le
+    // repli quand elle ne dit rien.
+    if (!estSyscohada) return 'INDETERMINEE';
     const table = estCollecte ? NATURE_COLLECTEE_SYSCOHADA : NATURE_RECUPERABLE_SYSCOHADA;
     for (const [racine, nature] of table) {
       if (numeroCompte.startsWith(racine)) return nature;
@@ -1189,17 +1304,42 @@ export class TauxTvaService {
     return 'INDETERMINEE';
   }
 
-  /** Nature d'un compte de contrepartie · LA PLUS LONGUE RACINE L'EMPORTE. */
-  private static natureContrepartie(numero: string): NatureOperationTva {
-    let meilleure: NatureOperationTva = 'INDETERMINEE';
+  /**
+   * Nature d'un compte de contrepartie · LA PLUS LONGUE RACINE L'EMPORTE.
+   *
+   * Les CHARGES et les IMMOBILISATIONS se lisent aux deux référentiels ; les
+   * PRODUITS au seul SYSCOHADA, la classe 7 du SYCEBNL portant les mêmes
+   * numéros pour d'autres comptes.
+   */
+  private static natureContrepartie(
+    numero: string,
+    estCollecte: boolean,
+    estSyscohada: boolean,
+  ): NatureOperationTva {
+    if (estCollecte && !estSyscohada) return 'INDETERMINEE';
+    if (estCollecte) return TauxTvaService.plusLongue(NATURE_CONTREPARTIE_PRODUITS_SYSCOHADA, numero).nature;
+    const commune = TauxTvaService.plusLongue(NATURE_CONTREPARTIE_CHARGES, numero);
+    if (estSyscohada) return commune.nature;
+    // Le propre du SYCEBNL l'emporte à longueur égale · c'est lui qui connaît
+    // son plan.
+    const propre = TauxTvaService.plusLongue(NATURE_CONTREPARTIE_CHARGES_SYCEBNL, numero);
+    return propre.longueur >= commune.longueur ? propre.nature : commune.nature;
+  }
+
+  /** La plus longue racine d'une table qui préfixe ce numéro. */
+  private static plusLongue(
+    table: ReadonlyArray<readonly [string, NatureOperationTva]>,
+    numero: string,
+  ): { nature: NatureOperationTva; longueur: number } {
+    let nature: NatureOperationTva = 'INDETERMINEE';
     let longueur = -1;
-    for (const [racine, nature] of NATURE_CONTREPARTIE_SYSCOHADA) {
+    for (const [racine, n] of table) {
       if (numero.startsWith(racine) && racine.length > longueur) {
-        meilleure = nature;
+        nature = n;
         longueur = racine.length;
       }
     }
-    return meilleure;
+    return { nature, longueur };
   }
 
   /**
@@ -1547,7 +1687,7 @@ export class TauxTvaService {
                         // la NATURE FISCALE de l'opération (art. 6 et 8). Sans
                         // la classe 7, une vente n'a aucune contrepartie lisible
                         // et sa nature retombait sur le numéro du compte de TVA,
-                        // qui ne la porte pas (voir NATURE_CONTREPARTIE_SYSCOHADA).
+                        // qui ne la porte pas (voir NATURE_CONTREPARTIE_CHARGES).
                         { compte: { classe: ClasseCompte.CLASSE_7 } },
                         { compte: { classe: ClasseCompte.CLASSE_2 } },
                       ],
@@ -1929,7 +2069,12 @@ export class TauxTvaService {
         '6057 études, 61 à 63 transports et services extérieurs), et non au numéro du compte de TVA, qui suit la ' +
         'nomenclature comptable et non la loi fiscale. La date de l’encaissement est celle ' +
         'de l’ÉCRITURE DE RÈGLEMENT du groupe de lettrage, jamais celle du lettrage lui-même (décret n° 011/42, ' +
-        'art. 57).',
+        'art. 57). DEUX RÉSERVES DU MÊME DÉCRET NE SONT PAS APPLIQUÉES ICI, et elles jouent en sens contraire : ' +
+        'une fourniture sous CONTRAT D’ABONNEMENT à décomptes proportionnels à la consommation est exigible à ' +
+        'l’expiration de la période, et non à l’encaissement (art. 55) ; un paiement par EFFET DE COMMERCE est ' +
+        'encaissé « à la date de l’échéance de la traite, même si elle a été remise à l’escompte » (art. 57, ' +
+        'alinéa 2), quand OmegaX retient la date de l’écriture qui solde le tiers, c’est-à-dire l’acceptation. ' +
+        'À reprendre pièce par pièce si le dossier connaît l’un ou l’autre.',
     ];
     if (regime === 'DEBITS') {
       phrases.push(

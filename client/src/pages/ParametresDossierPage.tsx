@@ -1057,10 +1057,17 @@ export function ParametresDossierPage() {
                     Entité assujettie à la TVA
                     {params.referentiel === 'SYCEBNL' ? (
                       <span className="block text-[10px] text-text-dim leading-[1.5] mt-0.5">
-                        Une association ne l’est pas de plein droit. Le seuil est de 80 000 000 FC de chiffre
-                        d’affaires annuel hors taxes (ordonnance-loi n° 10/001, art. 14) ; en deçà, l’option est
-                        possible et engage deux ans. Les opérations conformes à l’objet sont par ailleurs exonérées
-                        (art. 15, 2° et 17, 8°). Décochée, la TVA supportée n’est pas récupérable et se porte en
+                        L’assujettissement est de PLEIN DROIT dès 80 000 000 FC de chiffre d’affaires annuel
+                        (ordonnance-loi n° 10/001, art. 14) · le décret n° 011/42, art. 42, y soumet « les personnes
+                        physiques ET MORALES », sans écarter les associations, et précise que ce chiffre d’affaires
+                        s’entend HORS TVA ; son art. 43 le mesure sur l’année précédente, ou sur le prévisionnel
+                        pour une entité nouvelle. Ce qui est propre à une association tient aux EXONÉRATIONS, non au
+                        seuil : ses ventes et importations à caractère social, sportif, culturel, religieux,
+                        éducatif ou philanthropique conforme à son objet sont exonérées (art. 15, 2°), comme ses
+                        prestations d’activité normale tant que leur non-assujettissement ne fausse pas la
+                        concurrence (art. 17, 8°) · ces opérations ne produisent donc pas de chiffre d’affaires
+                        taxable. Une activité accessoire taxable, elle, compte. En deçà du seuil, l’option reste
+                        possible et engage deux ans. Décochée, la TVA supportée n’est pas récupérable et se porte en
                         charge.
                       </span>
                     ) : (

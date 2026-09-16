@@ -38,6 +38,7 @@ const facture = (sur: Partial<FactureVerifiable> = {}): FactureVerifiable => ({
   contrepartieAdresse: '4, boulevard du 30 Juin, Kinshasa',
   contrepartieNumeroImpot: 'B7654321Y',
   dateFacture: new Date('2026-09-10'),
+  mentionTvaDebits: false,
   numeroSerie: 'FV-2026-0001',
   autresImpotsEtTaxes: 0,
   lignes: [ligne()],
@@ -544,5 +545,95 @@ describe('L’ARRÊTÉ DE L’ART. 25 · la seconde lacune hors corpus', () => {
     const source = readFileSync(join(__dirname, 'mentions-facture.ts'), 'utf8');
     expect(source).toMatch(/ANOMALIE DU TEXTE SOURCE/);
     expect(source).toMatch(/sans le Journal officiel/);
+  });
+});
+
+/*
+  ARTICLE 60 DU DÉCRET N° 011/42 · LA MENTION QUI N'ÉTAIT PAS CONTRÔLÉE.
+
+  « La mention "Autorisation d'acquitter la TVA d'après les débits" doit
+  figurer sur toutes les factures délivrées par le prestataire de services ou
+  l'entrepreneur de travaux publics ou de travaux immobiliers. »
+
+  Le champ existait sur la pièce et personne ne le lisait : `verifierMentions`
+  ne parcourait que les mentions du décret n° 23/10 et rendait `conforme: true`
+  sur une vente qui omet la mention. C'est la répétition exacte du défaut que
+  la passe F1 a corrigé sur l'adresse exacte · le logiciel rassurait à tort sur
+  ce qu'il est fait pour surveiller.
+
+  Deux limites tenues : la mention ne pèse que sur celui qui DÉLIVRE la facture
+  et qui est AUTORISÉ, et l'amende de l'art. 97 bis ne lui est PAS étendue, ce
+  barème visant les mentions du décret n° 23/10.
+*/
+describe('Article 60 du décret n° 011/42 · la mention des débits', () => {
+  const aucun = { sensVente: true, regimeExigibiliteTva: 'ENCAISSEMENTS' };
+  const debits = { sensVente: true, regimeExigibiliteTva: 'DEBITS' };
+
+  it('une VENTE d’un dossier aux DÉBITS sans la mention n’est PAS conforme', () => {
+    const v = verifierMentions(facture({ mentionTvaDebits: false }), true, debits);
+    expect(v.mentionDebitsExigee).toBe(true);
+    expect(v.mentionDebitsManquante).toBe(true);
+    expect(v.conforme).toBe(false);
+    expect(v.mentionDebits.article).toContain('art. 60');
+  });
+
+  it('la même vente AVEC la mention est conforme', () => {
+    const v = verifierMentions(facture({ mentionTvaDebits: true }), true, debits);
+    expect(v.mentionDebitsManquante).toBe(false);
+    expect(v.conforme).toBe(true);
+  });
+
+  it('un dossier qui n’est PAS aux débits ne doit rien mentionner', () => {
+    const v = verifierMentions(facture({ mentionTvaDebits: false }), true, aucun);
+    expect(v.mentionDebitsExigee).toBe(false);
+    expect(v.conforme).toBe(true);
+  });
+
+  it('sur un ACHAT, la mention se lit mais ne s’impose pas · c’est le fournisseur qui la doit', () => {
+    const v = verifierMentions(facture({ mentionTvaDebits: false }), true, {
+      sensVente: false,
+      regimeExigibiliteTva: 'DEBITS',
+    });
+    expect(v.mentionDebitsExigee).toBe(false);
+    expect(v.conforme).toBe(true);
+  });
+
+  it('l’amende de l’article 97 bis n’est PAS étendue à cette omission', () => {
+    // Le décret n° 011/42 n'énonce aucune sanction, et le barème de l'art. 97
+    // bis vise les mentions du décret n° 23/10 · chiffrer ici serait inventer.
+    const v = verifierMentions(facture({ mentionTvaDebits: false }), true, debits);
+    expect(v.manquantes).toHaveLength(0);
+    expect(v.mentionDebits.reserveSanction).toContain('aucune sanction');
+  });
+});
+
+/*
+  LA FONCTION PURE PEUT ÊTRE JUSTE ET LE SERVICE NE PAS L'APPELER AINSI.
+
+  Leçon de la passe F2a : une doublure qui ne filtre rien valide un code qui ne
+  charge pas. Ici le risque est jumeau · `verifierMentions` sait juger l'art. 60
+  dès qu'on lui donne le sens de la pièce et le régime du dossier, et il
+  suffirait que le service oublie l'un des deux pour que le contrôle ne se
+  déclenche JAMAIS en production, sans qu'aucun test ci-dessus ne bronche.
+
+  Ce spec lit donc le service lui-même : la requête doit ramener le régime, et
+  les DEUX appels doivent passer le contexte.
+*/
+describe('le service câble bien le contexte de l’article 60', () => {
+  const service = readFileSync(join(__dirname, 'facturation.service.ts'), 'utf8');
+
+  it('la requête du dossier ramène le régime d’exigibilité', () => {
+    const dossier = service.slice(service.indexOf('private async dossier'), service.indexOf('LE BARÈME'));
+    expect(dossier).toContain('regimeExigibiliteTva: true');
+  });
+
+  it('les deux appels à verifierMentions passent le sens ET le régime', () => {
+    const appels = service.split('verifierMentions(').slice(1);
+    expect(appels).toHaveLength(2);
+    for (const a of appels) {
+      const bloc = a.slice(0, 220);
+      expect(bloc).toContain('sensVente');
+      expect(bloc).toContain('regimeExigibiliteTva: t.regimeExigibiliteTva');
+    }
   });
 });

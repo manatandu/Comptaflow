@@ -38,6 +38,9 @@ export class FacturationService {
         ville: true,
         formeJuridique: true,
         formeJuridiqueSyscohada: true,
+        // Décret n° 011/42, art. 60 · la mention n'est due que par le dossier
+        // AUTORISÉ, et seulement sur les factures qu'il DÉLIVRE.
+        regimeExigibiliteTva: true,
       },
     });
   }
@@ -65,6 +68,7 @@ export class FacturationService {
     contrepartieNumeroImpot: string | null;
     dateFacture: Date;
     numeroSerie: string;
+    mentionTvaDebits: boolean;
     autresImpotsEtTaxes: Prisma.Decimal | null;
     lignes: {
       designation: string;
@@ -85,6 +89,7 @@ export class FacturationService {
       contrepartieNumeroImpot: f.contrepartieNumeroImpot,
       dateFacture: f.dateFacture,
       numeroSerie: f.numeroSerie,
+      mentionTvaDebits: f.mentionTvaDebits,
       autresImpotsEtTaxes: nombre(f.autresImpotsEtTaxes),
       lignes: f.lignes.map((l) => ({
         designation: l.designation,
@@ -139,7 +144,10 @@ export class FacturationService {
             montantTva: nombre(l.montantTva),
           })),
           totaux: totauxFacture(v),
-          mentions: verifierMentions(v, morale),
+          mentions: verifierMentions(v, morale, {
+            sensVente: f.sens === SensFacture.VENTE,
+            regimeExigibiliteTva: t.regimeExigibiliteTva,
+          }),
         };
       }),
     };
@@ -237,7 +245,10 @@ export class FacturationService {
     return {
       id: facture.id,
       totaux: totauxFacture(v),
-      mentions: verifierMentions(v, this.estPersonneMorale(t)),
+      mentions: verifierMentions(v, this.estPersonneMorale(t), {
+        sensVente: facture.sens === SensFacture.VENTE,
+        regimeExigibiliteTva: t.regimeExigibiliteTva,
+      }),
       homologation: HOMOLOGATION,
     };
   }

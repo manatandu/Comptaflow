@@ -749,3 +749,292 @@ corrige. 231 suites / 3 474 tests serveur, 41 fichiers / 468 tests client.
   trouvant une quatrième phrase de l'article que le confronteur avait manquée ·
   celle qui assoit les amortissements déductibles à l'impôt sur les bénéfices
   sur le coût hors TVA déductible.
+
+## Passe F3a · Décret n° 011/42 d'application de la TVA, chapitres I à III (2026-09-16)
+
+**Corpus** · `fiscalite-rdc/code-general-2026/references/11-tva-decret-application-ch1-4.md`,
+1 807 lignes. Chapitre 1er (objet), chapitre II (champ d'application ·
+opérations imposables, assujettis, seuil, et une section d'exonérations de plus
+de mille lignes), chapitre III (fait générateur et exigibilité).
+
+**L'exécution de F3 est scindée en deux runs**, comme F2 et pour la même
+raison · 3 525 lignes au total. F3b couvrira les chapitres IV à XII.
+
+**Volumétrie** · 134 agents, 15,5 M de jetons, 5 h 57.
+
+**Résultat** · 124 constats soumis à réfutation, **106 écartés**, **18 retenus**,
+dont 7 de gravité FAUX. Le taux de réfutation remonte à **85 %**, le plus haut
+des quatre passes · c'est l'effet de la consigne nouvelle, qui donnait aux
+confronteurs le journal des trois passes précédentes et le hors-scope du module
+en leur interdisant de resignaler un manque déjà nommé. Ce qui survit est donc
+du neuf, et non de la redite.
+
+### Trois réglages de méthode, et ce qu'ils ont rapporté
+
+- **Les lecteurs pouvaient ouvrir la loi, pour une seule question** · quel
+  article de l'ordonnance-loi chaque disposition applique, et où le décret
+  AJOUTE. C'est de là que sortent les art. 55 et 57, qui n'ont pas d'équivalent
+  dans la loi.
+- **Les confronteurs lisaient le journal avant de conclure.** D'où 85 % de
+  réfutation, et des constats qui commencent par « le manque est déjà nommé ·
+  je ne le resignale pas. Ce qui est neuf, c'est que… ».
+- **Le quatrième piège est devenu une consigne de chasse** · toute phrase du
+  code qui dit « le plan ne porte pas X » ou « ce cas n'existe pas » est un
+  constat de gravité FAUX dès qu'elle est démontrable comme inexacte. Elle a
+  rapporté trois des sept FAUX.
+
+### Ce qui est corrigé dans le code, et testé
+
+#### 1 · Le référentiel fermait la lecture de la contrepartie, sur un motif périmé
+
+`natureOperation` commençait par écarter tout dossier non SYSCOHADA, au motif
+que « le plan SYCEBNL ne subdivise ni 443 ni 445 ». **Le motif était vrai et la
+conclusion a cessé de l'être** le jour où la passe F2a a déplacé la lecture de
+la nature du compte de TVA vers la CONTREPARTIE : les classes 6 des deux plans
+portent les mêmes numéros sous les mêmes intitulés, le 60510000 est « Eau » et
+le 60570000 « Achats d'études et prestations de services » dans les deux semis.
+Un dossier SYCEBNL assujetti déduisait donc sa TVA d'électricité dès la facture
+au lieu du paiement du fournisseur · déduction anticipée, réintégrable. Et la
+déclaration lui en donnait pour raison que « aucune nature n'y est lisible »,
+ce qui n'était plus exact.
+
+**Troisième fois que le dépôt écarte une règle sur une affirmation périmée ou
+fausse** · la première fut l'homologation de la facture (F1), la deuxième les
+exclusions de l'article 41 (F2b), celle-ci est la troisième.
+
+#### 2 · Ce qui reste fermé, et pourquoi · la classe 7
+
+C'est le point où la correction pouvait CRÉER le défaut qu'elle corrigeait. Le
+**70510000 est « Dans la Région »** au SYSCOHADA, sous 705 « Travaux
+facturés », donc un SERVICE ; il est **« Ventes de marchandises »** au SYCEBNL.
+Ouvrir la table des produits aux deux plans aurait daté une vente de
+marchandises à l'encaissement et **minoré la déclaration**. Treizième occurrence
+du premier piège du dépôt, et la seule qui aurait été fabriquée par un
+correctif. La table des produits reste donc propre au SYSCOHADA, et la raison
+écrite est désormais la vraie.
+
+Une divergence réelle est traitée à part : le **601** est « Achats de
+marchandises » au SYSCOHADA, « Achats de biens ET SERVICES liés à l'activité »
+au SYCEBNL. Un seul numéro, deux natures : sur ce plan-là, le compte ne tranche
+pas, et on ne tranche pas à sa place.
+
+#### 3 · La location-vente est une livraison de biens (art. 10)
+
+Le décret la nomme **trois fois** · l'art. 10 la range parmi les livraisons de
+biens meubles corporels, l'art. 51 l'EXCLUT expressément de la règle des
+décomptes et paiements successifs, l'art. 52 la date « lors du transfert du
+pouvoir de disposer d'un bien comme propriétaire ». Le compte 62340000
+« Location-vente » est semé aux deux plans, et la table classait toute la
+racine 62 en SERVICES. La taxe d'amont était datée de l'encaissement au lieu du
+fait générateur · déduction différée, jusqu'à risquer la déchéance de l'art. 37
+al. 2 que le module calcule par ailleurs. La racine la plus longue l'emporte :
+`6234` prime `62`, et une location simple de matériel reste un service.
+
+#### 4 · La mention de l'article 60 n'était pas contrôlée
+
+« La mention "Autorisation d'acquitter la TVA d'après les débits" doit figurer
+sur toutes les factures délivrées par le prestataire de services ou
+l'entrepreneur de travaux publics ou de travaux immobiliers. » Le champ
+existait sur la pièce et personne ne le lisait : `verifierMentions` rendait
+`conforme: true` sur une vente qui l'omet. **C'est la répétition exacte du
+défaut que la passe F1 a corrigé sur l'adresse exacte.** Deux limites tenues ·
+la mention ne pèse que sur celui qui DÉLIVRE la facture et qui est AUTORISÉ, et
+l'amende de l'art. 97 bis ne lui est PAS étendue, ce barème visant les mentions
+du décret n° 23/10 quand le décret n° 011/42 n'énonce aucune sanction.
+
+#### 5 · « Une association ne l'est pas de plein droit » était faux, et affiché
+
+L'écran des paramètres affichait cette phrase à tout dossier SYCEBNL. **Aucune
+source lue ne la porte.** L'art. 42 du décret soumet « les personnes physiques
+ET MORALES » dont le chiffre d'affaires atteint le seuil, sans écarter les
+associations, et le dépôt écrit lui-même ailleurs qu'une ASBL dotée de la
+personnalité juridique est une personne morale. Ce qui est propre à une
+association tient aux EXONÉRATIONS, non au seuil · ses ventes et importations
+conformes à son objet sont exonérées (art. 15, 2°), comme ses prestations
+d'activité normale tant qu'elles ne faussent pas la concurrence (art. 17, 8°),
+de sorte qu'elles ne produisent pas de chiffre d'affaires taxable. Une activité
+accessoire taxable, elle, compte. La phrase est remplacée par la règle, avec le
+chiffre d'affaires **hors TVA** de l'art. 42 et la mesure de l'art. 43 (année
+précédente, ou prévisionnel pour une entité nouvelle).
+
+#### 6 · Trois lacunes nommées, dont une qui l'était avec un déclencheur faux
+
+- **Art. 41 · la dette du client.** Le hors-scope faisait dépendre la dette de
+  l'absence de représentant **AGRÉÉ**. Les deux textes la font dépendre de
+  l'absence de **DÉSIGNATION**. Entre les deux s'écoule un délai, et le silence
+  de l'Administration vaut agrément : un fournisseur étranger qui a désigné un
+  représentant non encore agréé a satisfait à l'obligation, et son client
+  congolais n'est pas redevable. **Une lacune déclarée avec un déclencheur faux
+  invite à supporter une taxe qui n'est pas due.**
+- **Art. 55 et 56 · les contrats d'abonnement.** Le décret étend à
+  l'EXIGIBILITÉ ce que l'art. 24, point 9 de la loi ne disait que du fait
+  générateur : pour une fourniture sous abonnement à décomptes proportionnels à
+  la consommation, les deux interviennent à l'expiration de la période. Rien
+  dans une écriture ne dit qu'une fourniture relève d'un abonnement.
+- **Art. 57, alinéa 2, 4e tiret · les effets de commerce.** L'encaissement
+  intervient « à la date de l'échéance de la traite, MÊME SI ELLE A ÉTÉ REMISE
+  À L'ESCOMPTE ». Le module date l'encaissement de l'écriture qui solde le
+  tiers · sur un effet, c'est l'acceptation, antérieure. Le même alinéa règle
+  aussi l'affacturage. La phrase rendue à l'écran énonçait la règle de
+  l'encaissement **sans ces deux réserves** : elle affirmait au cabinet quelque
+  chose que le décret contredit. Elle les porte désormais.
+
+S'y ajoute la mesure du seuil (art. 42 et 43), écrite partout et calculée nulle
+part.
+
+### Vérification
+
+**Six réinjections de défaut, six attrapées** · la location-vente redevenue un
+service, le référentiel refermé sur la contrepartie, la classe 7 ouverte au
+SYCEBNL (le défaut que la correction aurait créé), le 601 du SYCEBNL tranché à
+tort, la mention de l'art. 60 retirée de `conforme`, et le service qui oublie
+de passer le régime à `verifierMentions`.
+
+Cette dernière est la leçon de F2a appliquée d'avance : la fonction pure peut
+être juste et le service ne pas l'appeler ainsi. Un spec lit le service
+lui-même · la requête doit ramener le régime, et les DEUX appels doivent passer
+le contexte.
+
+232 suites / 3 489 tests serveur, 41 fichiers / 468 tests client.
+
+### Les onze autres constats retenus
+
+| Article | Ce que le texte impose | Gravité |
+|---|---|---|
+| Article 26 | La livraison de biens à soi-même se réalise lorsque l'entreprise fabrique elle-même les biens et se les livre en l'état ; elle se réalise également lorsque des biens acquis par l'entreprise ET QUI ONT | INCOMPLET |
+| Article 31, alinéa 2 (Décret n° 011/42) | Exclusion du champ : la personne liée par un contrat de travail ou tout autre rapport de subordination (conditions de travail, modalités de rémunération, responsabilité de l'employeur) n'est pas assuj | INCOMPLET |
+| Article 35 (Décret n° 011/42) | Test opérant de la distorsion de concurrence, en trois critères à comparer au secteur privé : le public visé, les prix pratiqués, les moyens publicitaires utilisés. | INCOMPLET |
+| Article 38 · texte inséré de l'A.M. n° 067 du 29 novembre 2011 (délai  | DÉLAI IMPÉRATIF, deux points de départ : entreprises nouvelles, au plus tard le QUINZIÈME JOUR suivant le début des activités ; entreprises existantes, dans les QUINZE JOURS suivant la réception de l' | CALENDRIER |
+| Article 38 · texte inséré de l'A.M. n° 067 du 29 novembre 2011 (pièces | Cinq pièces à joindre à la lettre de désignation, condition de l'agrément : lettre d'acceptation du mandat sur modèle de l'Administration ; attestation de résidence si le représentant est une personne | INCOMPLET |
+| Article 43 (Décret n° 011/42) | Base de référence pour apprécier le seuil : pour les entreprises EXISTANTES, le chiffre d'affaires de l'ANNÉE PRÉCÉDENTE ; pour les entreprises NOUVELLES, le chiffre d'affaires PRÉVISIONNEL. | INCOMPLET |
+| Article 48, alinéa 1 (décret, adapté conformément à l'O.-L. n° 13/007  | L'exonération pharmaceutique de l'art. 15, point 10, « ne concerne que les produits destinés à la prévention, au diagnostic et au traitement des maladies » · restriction par la DESTINATION du produit. | AUCUNE |
+| Article 51, 9e tiret | Opérations à décomptes ou paiements successifs : fait générateur à l'expiration de la période à laquelle le décompte ou l'encaissement se rapporte, sauf vente à tempérament, location ou location-vente | INCOMPLET |
+| Article 57, alinéa 1er | L'encaissement s'entend de la perception des sommes, à quelque titre que ce soit, notamment avances, acomptes et règlement pour solde, du fait de la réalisation de l'opération ou de l'exécution des tr | AUCUNE |
+| Article 57, alinéa 2, 2e tiret | Paiement par chèque : l'encaissement est daté de la REMISE du chèque, et non de son encaissement bancaire ni de sa date d'émission. | CALENDRIER |
+| Article 57, alinéa 3 | Affacturage : l'encaissement coïncide avec la date du PAIEMENT EFFECTIF DE LA CRÉANCE PAR LE DÉBITEUR, et non avec le versement du factor. | CALENDRIER |
+### Les cent six constats écartés
+
+| Article | Obligation alléguée | Motif de la réfutation (extrait) |
+|---|---|---|
+| Article 1er (Décret n° 011/42 du 22 novembre 2011) | Norme d'objet : « Le présent Décret a pour objet de fixer les mesures d'exécution de l'Ordonnan | CONSTAT RÉFUTÉ, sur les angles 1, 3 et 4 à la fois · et il se détruit lui-même dans sa propre réserve. 1) ANGLE 1 · L'ARTICLE 1er NE PORTE AUCUNE OBLIGATION, ET PAS UNE LIGNE DU GRIEF N'EN SORT. Lu à  |
+| Article 2, alinéa 1er | Champ matériel : la TVA frappe tous les biens et services de toutes origines, consommés ou util | CONSTAT RÉFUTÉ sur trois angles indépendants, dont chacun suffit · et son signalement adjacent est, lui, démontrablement faux. 1) ANGLE 1 · L'ARTICLE VISÉ NE PORTE AUCUNE OBLIGATION, ET LE CONSTAT LUI |
+| Article 3, alinéa 1er | La TVA vise toutes les opérations qui relèvent d'une activité économique. | Doublon avéré, preuve calibrée sur le mauvais texte, et grep faux. (1) Le constat est LE MÊME que celui déjà porté au relevé sous l'O.-L., avec la même gravité : /home/user/comptaflow/docs/releve-de-m |
+| Article 3, alinéa 2 | Énumération non limitative des activités économiques, y compris extractives, agricoles, foresti | CONSTAT RÉFUTÉ sur les angles 1 et 3, et corrigé sur l'angle 2. 1) LE TEXTE VISÉ NE PORTE AUCUNE OBLIGATION. L'art. 3, al. 2 du Décret n° 011/42 (fichier `11-tva-decret-application-ch1-4.md`, l. 104-1 |
+| Article 4, alinéa 1er | Grille de qualification en cinq catégories : livraisons de biens à des tiers, prestations à des | CONSTAT REFUTE. Sa qualification du texte est inventee, son affirmation centrale est fausse a la lecture faite a l'instant sur trois points independants, et pour trois de ses cinq cases le releve a de |
+| Article 4, alinéa 2 | Conditions cumulatives : deux personnes distinctes et une contrepartie · le but lucratif ou non | Constat réfuté sur l'angle 3, et son ressort juridique (l'« ajout » propre au Décret) est faux. (1) DÉJÀ JUGÉ, ET DEUX FOIS. Le contenu de l'art. 4 al. 2 du Décret n'est pas une règle du Décret : c'es |
+| Article 4, alinéa 3 | La contrepartie correspond au prix convenu et peut s'effectuer en espèces, par chèque, virement | RÉFUTÉ sur les angles 1, 2 et 3 (l'angle 4 est concédé : l'art. 4 vise bien les opérations du redevable). L'art. 4, alinéa 3 du Décret n'est pas une obligation mais la seconde phrase d'une règle de CH |
+| Article 4, alinéa 4 | Condition de LIEN DIRECT : la contrepartie doit avoir un lien direct avec le bien livré ou le s | RÉFUTÉ · non sur l'existence de l'alinéa, qui est réelle et bien placée, mais sur les DEUX jambes qui portent le constat : sa conséquence chiffrée et son fait matériel. Les deux tombent, et chacune su |
+| Article 5, alinéa 1er | Les livraisons de biens corporels ET les prestations de services faites à des tiers restent imp | L'art. 5, al. 1er du Décret n° 011/42 n'est pas une obligation mais une règle d'imposabilité ANTI-EXCLUSION, déjà portée mot pour mot par la loi habilitante (O.-L. art. 6) pour les biens et par ses ar |
+| Article 5, alinéa 2 | Définition de la réquisition de l'autorité publique : acte par lequel les autorités civiles ou  | CONSTAT REFUTE sur l'angle 1 et sur l'angle 3, chacun suffisant. (1) La citation est AMPUTEE, et l'amputation est exactement ce qui fait tenir le raisonnement : la definition de l'alinea 2 porte DEUX  |
+| Article 6, tirets 1 et 2 | Personnes distinctes : personnes juridiques différentes si toutes les parties sont établies en  | RÉFUTÉ sur trois plans indépendants, chacun suffisant. Tout ce qui suit a été lu à l'instant. ANGLE 1 · L'ARTICLE 6 DU DÉCRET NE PORTE AUCUNE OBLIGATION : C'EST UN CHAPEAU DE DÉFINITION. Lu verbatim à |
+| Article 6, alinéa final | L'association momentanée est considérée comme une personne distincte de ses membres lorsqu'elle | REFUTE sur trois motifs independants, dont le premier suffit seul. 1) ANGLE 3 · LE MANQUE EST DEJA AU JOURNAL, ET IL Y EST DEJA ECARTE. Le decret n'invente rien : son art. 6 in fine RECOPIE l'O.-L. ar |
+| Article 7 | La livraison d'un bien meuble corporel est le transfert du pouvoir de disposer du bien comme pr | L'article 7 du Décret n° 011/42 ne porte aucune obligation : c'est une définition de champ d'application, et le constat l'admet en l'invoquant comme EXCUSE du comportement du logiciel (« l'alinéa 2 du |
+| Article 8 | Vente sous condition RÉSOLUTOIRE : le transfert du droit de disposer intervient dès la conclusi | Constat déposé sous un article qui ne porte pas la gravité invoquée, et gravité CALENDRIER vide : l'art. 8 du Décret est une règle de QUALIFICATION (chapitre du champ d'application), la règle de date  |
+| Article 9 | Vente sous condition SUSPENSIVE : le transfert du droit de disposer intervient à la réalisation | REFUTE sur l'angle 1, et sur la mécanique du code que le constat cite lui-même. L'article 9 du Décret est une règle de QUALIFICATION (il dit QUAND le transfert du droit de disposer intervient), pas un |
+| Article 11 | L'apport en société de l'article 10 ne concerne QUE l'apport en nature dont la contrepartie rés | Article 11 n'est pas une obligation mais une DÉFINITION SOUSTRACTIVE, et le constat le grade INCOMPLET sur un manque qu'il reconnaît lui-même ne pas venir de cet article. Art. 11 ne taxe rien : il RET |
+| Article 12, tirets 1 à 7 et 9 | Liste des opérations assimilées aux exportations de marchandises : aéronefs (construction, tran | REFUTE sur l'angle 3 (le manque est deja nomme, et deja ECARTE sept fois, sur le texte qui le porte vraiment), avec un appui sur l'angle 1 (le constat se trompe sur ce que le Decret « ajoute ») et une |
+| Article 12, tiret 8 | Sont assimilées aux exportations les livraisons de biens ET les prestations de services effectu | REFUTE sur l'angle 3, qui est décisif, et entamé sur les angles 1 et 2. 1) LE TIRET N'EST PAS UNE OBLIGATION, C'EST UNE RÈGLE DE QUALIFICATION · et le constat la cite de mémoire, pas verbatim. Fichier |
+| Article 13 | Les opérations sur aéronefs du premier tiret de l'article 12 ne sont assimilées aux exportation | REFUTE, principalement sur l'angle 3 (le manque est deja nomme et deja ecarte), accessoirement sur les angles 1 et 4 · la citation de l'article, elle, est exacte. 1) ANGLE 3 · LE CONSTAT EST DEJA JUGE |
+| Article 14 | Les opérations des quatrième et cinquième tirets de l'article 12 ne sont assimilées aux exporta | RÉFUTÉ sur trois fondements indépendants : la citation n'est pas fidèle et son durcissement contredit la loi (angle 1), la disposition excède la loi habilitante et le constat le dit lui-même avant de  |
+| Article 15 | Par engins et filets de pêche, il faut entendre les produits et objets susceptibles d'attirer,  | CONSTAT RÉFUTÉ sur trois fondements indépendants, dont deux sont fatals. Sa seule partie exacte · le grep · n'est pas contestée : je l'ai rejoué mot pour mot (`grep -rniE "filets de pêche/hameçon/rali |
+| Article 16 | Constituent des prestations de services TOUTES les opérations autres que les livraisons de bien | REFUTE sur les quatre angles. Tout ce qui suit a ete lu a l'instant. 1) L'ARTICLE 16 NE PORTE PAS LE GRIEF QU'ON LUI PRETE. Texte integral, VERBATIM (11-tva-decret-application-ch1-4.md, l. 250-258) :  |
+| Article 18 | Les « biens meubles incorporels » recouvrent les droits d'utilisation d'actifs industriels, la  | RÉFUTÉ sur les quatre angles. (1) L'ARTICLE EST BIEN LU, MAIS CE N'EST PAS UNE OBLIGATION. Art. 18 du Décret, fichier `code-general-2026/references/11-tva-decret-application-ch1-4.md`, l. 282-302, ver |
+| Article 19 | Le crédit-bail est une technique de financement par laquelle UNE BANQUE OU UNE SOCIÉTÉ FINANCIÈ | CONSTAT RÉFUTÉ sur quatre fondements indépendants, dont deux erreurs de fait vérifiables dans sa propre preuve. (1) ANGLE 3, DÉCISIF · l'affirmation centrale « Le logiciel ne pose jamais la question [ |
+| Article 22 | Le travail à façon consiste à transformer ou adapter des matières ou des pièces en produit fini | CONSTAT RÉFUTÉ sur les trois angles, et de façon décisive sur l'angle 3 : le critère que le constat dit introuvable est EXACTEMENT celui qui décide du compte SYSCOHADA, et la table lit le compte. 1) A |
+| Article 23 | Les services électroniques fournis en ligne PAR DES ENTREPRISES RÉSIDENTES ET NON RÉSIDENTES co | RÉFUTÉ SUR LES QUATRE ANGLES, et d'abord sur le fait : l'affirmation centrale du constat · « Le Décret ne dit PAS, dans le périmètre lu, comment la taxe est collectée auprès d'un fournisseur non résid |
+| Article 25 | La livraison de biens à soi-même s'entend des prélèvements et affectations effectués, à partir  | CONSTAT REFUTE. Son fait matériel est vrai mais DÉJÀ CONSIGNÉ, et la seule chose qu'il revendique comme neuve est démentie par le Décret lui-même, à l'article suivant, plus une erreur de fait vérifiab |
+| Article 27 | Les prestations de services à soi-même consistent en des services que les assujettis réalisent  | CONSTAT REFUTE sur trois plans, dont deux suffisent seuls. (1) LA PREUVE EST MATERIELLEMENT FAUSSE : le grep que le constat dit avoir executé, relancé verbatim a l'instant, rend DEUX resultats, et AUC |
+| Article 28 | Il y a prestation de services à soi-même : en cas d'utilisation d'un bien affecté à l'entrepris | Le constat ne tient sur aucun de ses trois piliers. (1) Il n'est pas cité verbatim : l'art. 28 du Décret n° 011/42 ampute DEUX FOIS les mots « par l'assujetti » et remplace le troisième tiret par une  |
+| Article 29 | L'importation est l'entrée en RDC d'un bien ou d'un service. Pour un bien, elle est réalisée pa | L'article 29 du Décret est un article de DÉFINITION du champ (« signifie », « est réalisée », « vise »), pas une obligation documentaire du redevable : le constat convertit une clause de qualification |
+| Article 30 (Décret n° 011/42) | Définition opérante de l'assujetti : personne physique ou morale, de droit public ou de droit p | CONSTAT RÉFUTÉ sur les quatre angles. 1) L'article 30 n'est pas une obligation : il est placé, dans le fichier lu à l'instant, sous « SECTION 2 : DES ASSUJETTIS » (l. 418) puis « Paragraphe 1er : De l |
+| Article 31, alinéa 1er (Décret n° 011/42) | Double test cumulatif de l'indépendance : exercice sous sa propre responsabilité ET totale libe | CONSTAT RÉFUTÉ, sur trois fondements dont deux suffisent seuls. Je concède d'emblée l'angle 1 sur la forme : la citation est VERBATIM exacte, le numéro d'article est le bon, les renvois de ligne sont  |
+| Article 32 (Décret n° 011/42) | Définition des deux modalités : habituel = effectué de manière répétitive ; occasionnel = non r | CONSTAT RÉFUTÉ sur l'angle 1 (deux fois), sur l'angle 2 retourné contre lui, et sur l'angle 3. Ses renvois de ligne sont exacts · je les ai vérifiés et je ne corrige rien de ce côté · mais l'article q |
+| Article 33 (Décret n° 011/42) | Définition limitative, en quatre catégories, des personnes morales de droit public : l'Etat, le | CONSTAT RÉFUTÉ sur les angles 3 et 1, avec une réserve d'angle 2 qui retourne sa conclusion contre lui. Les citations du constat sont, elles, exactes : l'article 33 du décret n° 011/42 du 22 novembre  |
+| Article 34 (Décret n° 011/42) | Principe : les personnes morales de droit public sont assujetties. Exception à double condition | CONSTAT RÉFUTÉ · il n'a plus d'objet propre une fois vérifié, et les DEUX apports qu'il revendique sont faux. 1) L'APPORT REVENDIQUÉ N°1 EST DÉMONTRABLEMENT FAUX. Le constat écrit : « l'AFFIRMATION LI |
+| Article 36 (Décret n° 011/42) | Double définition : membre d'une profession libérale = personne exerçant une activité libérale  | ARTICLE 36 N'EST PAS UNE OBLIGATION : C'EST UNE ENTRÉE DE DICTIONNAIRE AUTO-LIMITÉE, DONT LE SEUL ATTACHEMENT OPÉRANT EST DÉSUET. Lu à l'instant dans /root/.claude/skills/synced/80921ba8-2ca0-4a8a-b7c |
+| Article 37 (Décret n° 011/42) | Obligation, pour tout assujetti établi ou domicilié hors de RDC, de désigner un représentant RÉ | RÉFUTÉ sur l'angle 3 (déjà servi/déjà nommé), et la preuve avancée contient une affirmation de fait vérifiable et FAUSSE qui contredit le constat lui-même. 1) DÉJÀ NOMMÉ, DEUX FOIS. L'obligation de l' |
+| Article 38, alinéa 1er (Décret n° 011/42) | Formalisme : la désignation se fait par lettre LÉGALISÉE OU NOTARIÉE adressée à l'Administratio | MANQUE DÉJÀ NOMMÉ · doublon du journal, sans apport propre du décret. Le constat est exact sur la lettre (art. 38, al. 1er, bien aux l. 494-495 : « La désignation du représentant se fait par lettre lé |
+| Article 38, alinéa 2 (Décret n° 011/42) | Le représentant désigné doit être AGRÉÉ par l'Administration des Impôts, dans les conditions fi | CONSTAT RÉFUTÉ sur trois motifs cumulatifs : (1) il n'est pas neuf · l'obligation d'un « représentant AGRÉÉ » est portée par la LOI elle-même (O.-L. art. 23, al. 1) et elle est DÉJÀ au journal des man |
+| Article 38 · texte inséré de l'A.M. n° 067 du 29 nov | IMPRIMÉ OBLIGATOIRE : la lettre de désignation doit suivre un MODÈLE déterminé par l'Administra | Le constat est réfuté sur trois jambes, dont aucune ne tient à l'absence elle-même (elle est réelle). (1) MAUVAIS RATTACHEMENT : l'obligation d'imprimé n'est PAS dans l'article 38 du décret. Lu à l'in |
+| Article 38 · texte inséré de l'A.M. n° 067 du 29 nov | Délai à la charge de l'Administration : DIX JOURS OUVRABLES à compter de la réception de la let | CONSTAT RÉFUTÉ SUR L'ANGLE 4 (destinataire), confirmé par l'angle 3 (manque déjà déclaré), et sa preuve porte deux inexactitudes à corriger. 1) LE DÉLAI NE PÈSE SUR PERSONNE QUE LE CONSTAT PUISSE CODE |
+| Article 38 · texte inséré de l'A.M. n° 067 du 29 nov | AGRÉMENT TACITE : le silence de l'Administration pendant dix jours ouvrables VAUT AGRÉMENT. Obl | CONSTAT RÉFUTÉ sur l'angle 4 (dirimant) et sur l'angle 3 (dirimant lui aussi), avec une réserve de numérotation sur l'angle 1. 1) AUCUN DES DEUX MEMBRES N'EST UNE OBLIGATION DU REDEVABLE. Le premier · |
+| Article 39 (Décret n° 011/42) | Responsabilité solidaire du représentant avec l'assujetti, à triple assiette : la DÉCLARATION,  | Le constat n'est pas neuf, et sa preuve est factuellement fausse sur le dépôt. Le texte est bien cité (angle 1 tient, à un renvoi de ligne près), et l'excès du décret sur sa loi habilitante est réel · |
+| Article 40 (Décret n° 011/42) | Unicité : l'assujetti ne peut désigner qu'UN SEUL représentant pour l'ensemble des opérations q | CONSTAT RÉFUTÉ sur trois angles, dont deux dirimants, et sa citation du dépôt est inexistante. 1) ANGLE 1 · LE CONSTAT AMPUTE L'ARTICLE DE LA SEULE CHOSE QUI EN FIXE LA PORTÉE. La citation verbatim es |
+| Article 45 (Décret n° 011/42) | Les importations sont soumises à la TVA quelle que soit leur valeur : aucune franchise de valeu | CONSTAT RÉFUTÉ sur trois fondements indépendants, dont deux suffisent seuls. Je concède d'emblée l'angle 1 sur la citation : l'article est cité VERBATIM et sous le bon numéro · décret, l. 577-579 : «  |
+| Article 46, première phrase (Décret, Chapitre II, Se | Principe de stricte limitation : seules les opérations énumérées aux articles 15 à 19 de l'O.-L | CONSTAT RÉFUTÉ sur quatre plans cumulatifs, dont deux sont des erreurs d'adresse vérifiables. Tout ce qui suit a été lu à l'instant. 1) L'ARTICLE 46 NE PORTE PAS L'OBLIGATION QUE LE CONSTAT Y FAIT ENT |
+| Article 46, seconde phrase (Décret, Chapitre II, Sec | Interdiction d'étendre une exonération « en vertu des similitudes ou analogies entre les opérat | CONSTAT RÉFUTÉ. L'angle 1 est concédé sur la lettre : l'article, la section et les lignes sont exacts. Le constat tombe sur l'angle 3 (deux affirmations de fait fausses, dont celle qui porte toute la  |
+| Article 47, alinéa 1 (Décret) | L'exonération des intrants agricoles de l'art. 15, point 6 de l'O.-L. ne vaut que pour les intr | CONSTAT RÉFUTÉ sur les angles 1, 2 et 3. Il coupe l'article 47 en deux et jette la moitié opérante, il invente une obligation probatoire que le texte ne porte pas, il affirme une thèse juridique que s |
+| Article 47, alinéa 2 (Décret) | L'exonération est subordonnée à l'inscription du bien sur une liste fixée par Arrêté conjoint d | L'alinéa 2 de l'article 47 ne porte pas l'obligation énoncée : c'est une norme d'habilitation dont les seuls destinataires sont deux Ministres, et la « subordination » que le constat lui prête est dan |
+| Article 47 · annexe (liste, structure en positions t | L'exonération se vérifie par CLASSEMENT TARIFAIRE : un bien n'est exonéré que si sa position ta | REFUTE sur les angles 1 et 3, chacun suffisant. (1) L'ARTICLE 47 NE PORTE PAS L'OBLIGATION ÉNONCÉE. Lu à l'instant (11-tva-decret-application-ch1-4.md, l. 589-596), l'art. 47 ne contient pas un mot su |
+| Article 47 · annexe, n° 01 à 03, 18, 20, 21 (positio | Sont exonérés au titre des intrants agricoles des articles de PÊCHE : flotteurs pour la pêche,  | CONSTAT RÉFUTÉ sur quatre fondements indépendants. (1) Son affirmation centrale et prétendument « neuve » · « l'art. 15, 9° ne vise ni les flotteurs, ni les cannes, ni les hameçons, ni les moulinets,  |
+| Article 47 · annexe, n° 04 (position 73.14, sous-pos | Seuil technique cumulatif conditionnant l'exonération des grillages et treillis soudés : fils d | Le « seuil technique cumulatif conditionnant l'exonération » n'existe pas : les 3 mm et 100 cm2 ne conditionnent RIEN. La citation du constat s'arrête au milieu de la ligne 644, juste avant les mots « |
+| Article 47 · annexe, n° 05 (position 73.26, sous-pos | L'exonération des ouvrages en fer ou en acier est limitée aux batteries pour élevage et aux mat | Le constat rejoue, vu du côté de l'arrêté-annexe, un manque DÉJÀ confronté et DÉJÀ ÉCARTÉ à une passe précédente (art. 15, 6° de l'O.-L. n° 10/001, journal l. 419, section « Les quatre-vingt-treize co |
+| Article 47 · annexe, n° 06 (position 82.01) | Exonération de l'outillage agricole, horticole ou forestier À MAIN, décliné en sous-positions 1 | CONSTAT RÉFUTÉ sur les angles 1, 2 et 3. (1) L'obligation est placée sous un numéro qui ne la porte pas : l'Article 47 du Décret ne compte que deux alinéas et ne nomme aucun outil ; il DÉLÈGUE la list |
+| Article 47 · annexe, n° 07 (position 84.13, sous-pos | Les pompes pour liquides et les élévateurs à liquides ne sont exonérés que dans leurs sous-posi | RÉFUTÉ sur les quatre angles, dont deux sont fatals à eux seuls : (a) le constat attribue au DÉCRET une liste que le décret lui-même déclare fixée par un ARRÊTÉ interministériel, et son renvoi de lign |
+| Article 47 · annexe, n° 08 (position 84.24, sous-pos | Les appareils mécaniques à projeter, disperser ou pulvériser ne sont exonérés que dans la sous- | Constat mal ancré et non neuf. Le renvoi de ligne est faux (n° 08 tient l. 706-716, la l. 717 ouvre le n° 09, position 84.32) ; la norme attaquée n'est pas le Décret mais l'A. Inter. n° 606 et n° 028  |
+| Article 47 · annexe, n° 09 et 10 (positions 84.32 et | Exonération du machinisme de préparation du sol et de culture (84.32 : 10.00, 21.00, 29.00, 30. | Constat réfuté sur les quatre angles. (1) Il se trompe de source normative : l'article 47 du Décret n'édicte AUCUNE liste · il restreint l'exonération de l'art. 15, 6° aux « intrants destinés à l'usag |
+| Article 47 · annexe, n° 11, 12, 13 (positions 84.34, | Exonération des machines à traire et appareils de laiterie (84.34 : 10.00 et 20.00), des presse | RÉFUTÉ sur quatre points indépendants, dont trois sont des erreurs de fait vérifiables. (1) ANGLE 1 · LE RENVOI DE LIGNES EST FAUX AUX DEUX BOUTS, et le numéro d'article ne porte pas ce qu'on lui prêt |
+| Article 47 · annexe, n° 14 (position 84.37, sous-pos | Exonération des machines de nettoyage, triage ou criblage des grains et des légumes secs (10.00 | CONSTAT RÉFUTÉ sur quatre fondements indépendants, dont deux sont des erreurs de lecture du texte lui-même. 1) LA RÈGLE QU'IL ÉNONCE EST L'INVERSE DE CE QUE LE TEXTE DIT (angle 1, décisif). Le constat |
+| Article 47 · annexe, n° 15 (position 85.39, sous-pos | Seules les lampes et tubes à rayons ultraviolets et infrarouges destinés à l'ÉLEVAGE (85.39.49. | Le constat impute au DÉCRET un item qui n'en est pas un (la liste est « fixée par l'A. Inter. n° 606 et n° 028 du 10 novembre 2012 », art. 47 al. 2 renvoyant à un arrêté), son renvoi de lignes est fau |
+| Article 47 · annexe, n° 16 (position 87.01, sous-pos | Exonération des motoculteurs (10.00) et des tracteurs agricoles (90.00), à l'EXCLUSION expresse | Constat mal fondé sur trois angles, et non neuf sur le quatrième. (1) NUMÉRO. L'article 47 du décret ne porte PAS l'item n° 16. Verbatim, l. 589-596, il ne contient que deux choses : une restriction e |
+| Article 47 · annexe, n° 17 (position 87.16, sous-pos | Exonération des remorques et semi-remorques autochargeuses ou autodéchargeuses pour usages agri | CONSTAT RÉFUTÉ sur son affirmation porteuse (« PAS DU TOUT »), et fragilisé sur trois autres points dont deux sont des erreurs de fait vérifiables. 1) ANGLE 3, DÉCISIF · L'EXONÉRATION EST SERVIE, PAR  |
+| Article 47 · annexe, n° 19 (position 90.18, sous-pos | Parmi les instruments de médecine, chirurgie, art dentaire ou art vétérinaire, seule la sous-po | CONSTAT RÉFUTÉ sur quatre plans indépendants, dont trois sont des erreurs de fait vérifiables. Je concède d'emblée ce qui tient : la preuve empirique du confronteur est EXACTE · `grep -rniI "vétérinai |
+| Article 47 · annexe, n° 22, 23, 24, 25 (positions 01 | Condition de qualité zootechnique : les animaux vivants ne sont exonérés que s'ils sont « repro | Le constat se trompe de fondement légal (la liste où figurent les n° 22-25 applique l'art. 15, point 6 · intrants agricoles · et non le point 18 sur les bêtes sur pied), invente une « condition de qua |
+| Article 47 · annexe, n° 26 (position 01.05, sous-pos | Seuil de poids : la volaille vivante domestique n'est exonérée que dans la sous-position 01.05. | Le constat cite fidèlement et ses renvois de lignes sont exacts (je le concède), mais il s'effondre sur son affirmation porteuse, qui est une affirmation de DROIT vérifiable et fausse : « la volaille  |
+| Article 47 · annexe, n° 27 (position 04.07, sous-pos | Condition de destination : seuls les œufs FERTILISÉS DESTINÉS À L'INCUBATION sont exonérés (11. | Le constat est réfuté sur son affirmation porteuse, sur sa source et sur sa nouveauté. (1) SA SOURCE EST MAL DÉSIGNÉE : l'Article 47 du décret ne contient ni liste tarifaire ni œuf ; il délègue « la l |
+| Article 47 · annexe, n° 28 à 32 (positions 07.01, 07 | Condition « de semence » : pommes de terre (07.01.10.00), légumes à cosse secs (07.13, sous-pos | Constat mal adressé (angle 1) et déjà nommé (angle 3). L'article 47 du décret, lu verbatim, ne porte AUCUNE condition « de semence » ni aucune sous-position tarifaire : il pose une condition de DESTIN |
+| Article 47 · annexe, n° 33, 34, 35 (positions 23.01, | Exonération des aliments pour animaux : farines et poudres de viandes, d'abats et cretons (23.0 | Le constat se trompe d'instrument, d'intitulé et de condition, sa citation entre guillemets n'est pas fidèle, et le manque qu'il décrit est déjà porté au journal · deux fois. (1) La liste des n° 33-35 |
+| Article 47 · annexe, n° 36 (position 29.36) | Exonération des provitamines et vitamines non mélangées et de leurs dérivés : A (21.00), B1 (22 | Le constat impute au DÉCRET une norme que le décret refuse expressément de poser, ampute la seule condition qui gouverne l'exonération, se trompe de bornes de lignes, et rejoue un manque déjà examiné  |
+| Article 47 · annexe, n° 37, 38, 39 (positions 30.02, | Exonération des vaccins pour la médecine VÉTÉRINAIRE (30.02.30.00), des médicaments non conditi | CONSTAT RÉFUTÉ sur les quatre angles. (1) Il se trompe d'INSTRUMENT : l'annexe n'est pas du décret, elle est fixée par un arrêté interministériel (l. 598-600), le décret se bornant à la déléguer. (2)  |
+| Article 47 · annexe, n° 40, 41, 42, 43 (positions 31 | Exonération des engrais limitée aux sous-positions listées : urée même en solution aqueuse (31. | RÉFUTÉ sur les angles 1, 2 et 3. Le fait matériel est exact (le dépôt ne porte aucune liste tarifaire d'engrais exonérés), mais le constat est mal ancré, il repose sur une lecture fausse du libellé ta |
+| Article 47 · annexe, n° 44 (position 38.08) | Exonération des produits phytosanitaires du 38.08 : fongicides (92.00), herbicides, inhibiteurs | Constat réfuté sur trois plans indépendants, chacun suffisant. (1) MAUVAIS INSTRUMENT : l'item n° 44 n'appartient pas au Décret. L'article 47 du Décret tient en deux alinéas (l. 589-596) qui ne nommen |
+| Liste des équipements agricoles exonérés (annexée à  | L'exonération n'est acquise que si la marchandise figure dans la liste annexée, identifiée par  | Le critère que le constat impute au décret n'existe dans aucun article : « position tarifaire » n'apparaît dans 11-tva-decret-application-ch1-4.md qu'en EN-TÊTE DE COLONNE de tableaux, et zéro fois da |
+| Article 48, alinéa 2 (décret, adapté conformément à  | « L'exonération des emballages des produits pharmaceutiques et des intrants pharmaceutiques ne  | Angle 3 · le manque est déjà nommé, deux fois, et la preuve avancée repose sur un grep accent-aveugle qui produit un faux négatif. (a) `docs/releve-de-manques-fiscal.md` porte déjà la ligne 328 « Arti |
+| Article 48, alinéa 3 (décret) | « Un Arrêté conjoint des Ministres de la Santé et des Finances fixe la liste des intrants pharm | Le constat est fidèle au texte (la citation de l'art. 48, al. 3 est exacte au mot près, l. 1153-1154), mais il tombe sur trois autres angles. (4) L'alinéa 3 s'adresse aux DEUX MINISTRES, pas au redeva |
+| Liste des intrants pharmaceutiques exonérés (A. Inte | L'exonération des intrants pharmaceutiques suppose l'inscription du produit dans une liste nomi | Le constat est réfuté sur l'angle 3 (le manque est déjà consigné au journal, avec le même article et la même gravité, et la donnée manquante y est déjà nommée), sur l'angle 1 (il met entre guillemets  |
+| Article 49 (décret) | « Sous réserve de réciprocité, les biens et services destinés à l'usage officiel des missions d | Le constat tronque sa citation À L'INTÉRIEUR de la plage de lignes qu'il déclare lui-même (l. 1613-1617) : il coupe la seconde phrase de l'art. 49, « Les modalités d'application de la présente exonéra |
+| Modalités d'application de l'exonération diplomatiqu | « Pour le bénéfice de l'exonération de la taxe sur la valeur ajoutée en régime intérieur, l'Adm | RÉFUTÉ sur l'angle 4 (destinataire), avec renfort de l'angle 3 (le seul volet de ce terrain qui touche le redevable est DÉJÀ au hors-scope et au journal) et deux corrections dues sur les angles 1 et 2 |
+| Modalités d'application de l'exonération diplomatiqu | « La mission diplomatique et consulaire ou la représentation de l'organisation internationale e | Le constat tombe sur l'angle 4 (destinataire), qui est fatal, et sur l'angle 1 (fidélité de la citation pivot), qui est grave. L'angle 2 ne donne rien et je le concède franchement. 1) L'A.M. n° 009 NO |
+| Modalités d'application de l'exonération diplomatiqu | « L'application de l'exonération de la taxe sur la valeur ajoutée au moment de l'IMPORTATION de | CONSTAT RÉFUTÉ sur les quatre angles, dont trois suffisent seuls. Sa citation, elle, est fidèle et je ne l'attaque pas là-dessus. 1) ANGLE 1 · LE TEXTE N'EST PAS CELUI QU'ON LUI PRÊTE, ET LE RENVOI DE |
+| Article 50 (décret) | « Les exonérations à la taxe sur la valeur ajoutée entraînent la perte du droit à déduction de  | RÉFUTÉ. Le constat est exact sur le texte (citation verbatim fidèle, bon numéro, bonne place : l'art. 50 ferme bien la SECTION 4 : DES EXONERATIONS, l. 581-1651, avant le CHAPITRE III, l. 1652) et exa |
+| Article 51, 1er tiret | Ventes de biens meubles corporels : le fait générateur est la livraison du bien, ni la facturat | CONSTAT RÉFUTÉ. Il demande au logiciel un « champ de date de livraison » que le décret qu'il invoque interdit lui-même de concevoir comme un événement physique (art. 7, l. 156-159 : la livraison « con |
+| Article 51, 2e tiret | Prestations de services, travaux à façon et travaux immobiliers : fait générateur à l'exécution | Doublon d'un constat déjà réfuté, sur un tiret qui ne porte pas d'obligation. L'art. 51, 2e tiret du décret reproduit MOT POUR MOT l'art. 24, point 2 de l'O.-L. n° 10/001 · déjà confronté et réfuté en |
+| Article 51, 3e tiret | Importations et exportations : fait générateur au franchissement des frontières de la RDC. | Constat réfuté sur l'angle 3 (déjà confronté et déjà écarté), avec une preuve matériellement fausse et une conséquence juridiquement impossible. (1) DÉJÀ JUGÉ. L'art. 51, 3e tiret du décret est la cop |
+| Article 51, 4e tiret | Marchandises sous régime douanier suspensif : fait générateur repoussé à la mise à la consommat | Le constat charge l'article 51, 4e tiret (FAIT GÉNÉRATEUR) mais le prouve avec un hors-scope qui porte sur l'article 25, point 3 de la loi (EXIGIBILITÉ) · soit, côté décret, l'article 52, 5e tiret. Ma |
+| Article 51, 5e tiret | Zone franche : fait générateur à la sortie des marchandises en vue de la mise à la consommation | Doublon exact d'un constat déjà jugé, sur un article qui ne porte aucune obligation. Le 5e tiret de l'art. 51 du décret recopie MOT POUR MOT le point 5 de l'art. 24 de l'O.-L. n° 10/001 · même phrase, |
+| Article 51, 6e tiret | Opérations immobilières des promoteurs immobiliers : fait générateur à l'acte de mutation ou de | Constat non neuf (angle 3). La règle du 6e tiret de l'art. 51 du décret est MOT POUR MOT celle de l'art. 24, point 6 de l'ordonnance-loi n° 10/001, déjà déclarée hors scope en tête de `taux-tva.servic |
+| Article 51, 7e tiret | Locations de terrains nus non aménagés ou de locaux nus réalisées par des PERSONNES ASSUJETTIES | CONSTAT RÉFUTÉ sur son affirmation centrale · « le motif inscrit au code est inexact pour ce tiret » · et sur sa nouveauté. Le repère d'article et les numéros de ligne du constat sont exacts (j'ai com |
+| Article 51, 8e tiret | Biens ou prestations de services que les redevables se livrent à eux-mêmes : fait générateur à  | CONSTAT RÉFUTÉ sur l'angle 2 (le décret n'ajoute RIEN ici) et sur l'angle 3 (« PAS DU TOUT » est faux, et le manque résiduel est déjà nommé quatre fois comme constat RETENU). Trois des cinq renvois de |
+| Article 51, 10e tiret | Règle balai : pour les autres opérations imposables, le fait générateur est l'encaissement du p | CONSTAT RÉFUTÉ, et non neuf. Angle 1 : le numéro est bon mais le constat loge sous un article de FAIT GÉNÉRATEUR un grief qui porte sur un champ d'EXIGIBILITÉ. L'art. 51 du décret dit quand naît la cr |
+| Article 52, 1er tiret | Livraisons de biens faites à des tiers : exigibilité au transfert du pouvoir de disposer du bie | Le constat traite comme un « critère du décret » ce qui n'est qu'une substitution de la DÉFINITION LÉGALE au mot défini : le décret n° 011/42 définit lui-même, à son art. 7, la livraison à des tiers c |
+| Article 52, 2e tiret | Livraisons de biens à soi-même : exigibilité à la première utilisation ou à la première mise en | CONSTAT RÉFUTÉ sur l'angle 3 (déjà nommé, et déjà confronté), avec renfort de l'angle 2 (le décret n'ajoute rien à la loi) et deux renvois de ligne faux dans sa propre preuve. Sa citation du 2e tiret  |
+| Article 52, 4e tiret | Prestations de services à soi-même : exigibilité à la date de l'exécution du service. | CONSTAT MAL ANCRÉ ET DÉJÀ PORTÉ AILLEURS. Le 4e tiret de l'art. 52 du décret est une règle de DATE, et cette règle-là est servie ET testée par le dépôt : le 4434 classé 'BIENS' route vers `base: 'FAIT |
+| Article 52, 5e tiret | Biens importés directement, placés sous régime suspensif ou sortis de zone franche : exigibilit | Constat REFUTE sur l'angle 3 (doublon), de façon decisive. La citation est fidele et le numero de tiret est bon · je ne l'attaque ni sur l'angle 1 ni sur l'angle 2 ·, mais le 5e tiret de l'art. 52 du  |
+| Article 52, 6e tiret | Escompte d'un effet de commerce : exigibilité à la date de l'échéance de l'effet. | CONSTAT RÉFUTÉ, sur l'angle 3 principalement, et par un vice de doublon que le confronteur concède lui-même dans son explication. 1) ANGLE 1 · JE CONCÈDE TOUT, ET JE LE DIS FRANCHEMENT. Lu à l'instant |
+| Article 52, 7e tiret | Crédit à la consommation et crédit-bail des établissements financiers : exigibilité à chaque éc | CONSTAT RÉFUTÉ, non sur les faits bruts mais sur la NOUVEAUTÉ et sur la gravité. Je concède trois choses : (angle 1) l'article et le rang sont bons · le 7e tiret de l'art. 52 du Décret n° 011/42 porte |
+| Article 52, 8e tiret | Opérations liées aux cultures pérennes : exigibilité à la livraison des produits ou à la percep | RÉFUTÉ comme constat NEUF, sur trois jambes, aucune tenant à l'angle 1 (l'article et le rang du tiret sont exacts) ni à l'angle 4 (c'est bien une obligation du redevable). 1) DÉJÀ AU JOURNAL DES PASSE |
+| Article 52, 9e tiret | Mutations de propriété d'immeuble : exigibilité à la date de mutation ou de transfert. Exceptio | REFUTE sur trois des quatre piliers du constat : sa GRAVITE (« FAUX »), sa NOUVEAUTE (« CONSTAT NEUF ») et l'ATTRIBUTION du motif qu'il attaque. (1) La phrase qu'il accuse d'être une affirmation fauss |
+| Article 53 | Vente sous condition SUSPENSIVE : fait générateur ET exigibilité reportés au moment de la réali | Réfuté sur les angles 1 et 3. (1) La citation de l'art. 53 est fidèle, mais le constat lui prête une exigence qu'il ne porte pas : l'article ne réclame aucune donnée nouvelle, il fixe une DATE, et cet |
+| Article 54 | Vente sous condition RÉSOLUTOIRE : fait générateur ET exigibilité dès la conclusion du contrat. | CONSTAT RÉFUTÉ sur les angles 1 et 3. La citation de l'article est fidèle et le numéro est bon, mais le constat fabrique la seule chose qui justifie sa gravité : une « lacune du texte » qui n'existe p |
+| Article 56 | Définition opérante du décompte : sommes correspondant à des consommations ou prestations de pé | Doublon d'un manque DÉJÀ PORTÉ AU JOURNAL sous l'article porteur, avec la gravité identique : docs/releve-de-manques-fiscal.md l. 350 retient « Article 24, point 9 · Pour les livraisons de biens, pres |
+| Article 57, alinéa 2, 3e tiret | Virement, ordre de paiement ou tout autre moyen y compris électronique ayant pouvoir libératoir | Le constat s'effondre sur l'angle 3, et il s'auto-réfute sur l'angle 1. Le 3e tiret est précisément celui des quatre où le substitut comptable ne substitue RIEN : « l'inscription au crédit du compte d |
+| Article 58 | Option pour les débits : ouverte aux entrepreneurs de travaux publics et immobiliers et aux pre | CONSTAT RÉFUTÉ sur les angles 1, 2 et 3, et trois de ses quatre renvois au code sont inexacts. L'article existe et le constat en cite le corps fidèlement · c'est le seul point concédé. 0) CE QUI EST C |
+| Article 59 | La décision intervient dans les DIX JOURS suivant la réception de la demande ; l'absence de déc | Sa preuve centrale est factuellement fausse · le dépôt porte déjà, mot pour mot, le délai de dix jours ET l'autorisation tacite de l'art. 59 (tiers.dto.ts l. 102-108) · et son grief le plus grave (bor |
+| Article 62 | L'autorisation d'acquitter d'après les débits ne dispense pas de la taxe au moment de l'encaiss | Doublon sans contenu normatif propre. L'article 62 du décret ne fait que recopier l'article 26, alinéa 3, de l'O.-L. n° 10/001 : lu côte à côte, il n'ajoute ni modalité, ni condition, ni renvoi. Or ce |
+| Article 63 | Sortie du régime des débits : l'autorisation est révocable sur SIMPLE DEMANDE ÉCRITE du contrib | CONSTAT RÉFUTÉ, sur les angles 1, 3 et 4 réunis · la citation de l'article est fidèle (c'est le seul point concédé), mais le constat (a) impute à l'art. 63 un grief que l'article ne porte pas et qu'il |
+### Ce que cette passe apprend sur la méthode
+
+- **Donner aux confronteurs ce qui est déjà déclaré multiplie le rendement.**
+  85 % de réfutation, contre 37 % à 83 % pour les passes précédentes, et
+  pourtant sept constats de gravité FAUX · le bruit tombe, le signal reste.
+- **Un décret d'application rapporte ce que sa loi ne peut pas donner.** Les
+  art. 55, 56 et 57 n'ont aucun équivalent dans l'ordonnance-loi : ils datent
+  l'encaissement moyen de paiement par moyen de paiement, et c'est exactement
+  le niveau de détail qu'un logiciel de comptabilité peut manquer sans que la
+  lecture de la loi ne le révèle jamais.
+- **Une correction peut créer le défaut qu'elle corrige.** Le constat qui
+  demandait d'ouvrir la lecture de la contrepartie au SYCEBNL avait raison pour
+  les CHARGES et tort pour les PRODUITS, et suivre sa conclusion en bloc aurait
+  minoré les déclarations de tous les dossiers SYCEBNL vendeurs de
+  marchandises. La règle n° 1 du dépôt vaut aussi contre un constat retenu ·
+  relire le plan avant d'élargir une table.

@@ -227,6 +227,11 @@ export interface FactureVerifiable {
   contrepartieNumeroImpot: string | null;
   dateFacture: Date | null;
   numeroSerie: string | null;
+  /**
+   * Décret n° 011/42, art. 60 · la pièce porte-t-elle la mention
+   * « Autorisation d'acquitter la TVA d'après les débits » ?
+   */
+  mentionTvaDebits: boolean;
   /** Art. 26 j) · null quand le comptable n'a pas répondu, 0 quand il n'y en a pas. */
   autresImpotsEtTaxes: number | null;
   lignes: readonly LigneVerifiable[];
@@ -506,7 +511,38 @@ export function totauxFacture(f: FactureVerifiable): Totaux {
   };
 }
 
+/**
+ * Ce que la pièce ne porte pas elle-même, et qu'il faut pour juger l'art. 60 ·
+ * le SENS de la facture et le RÉGIME du dossier qui la délivre.
+ */
+export interface ContexteMentions {
+  sensVente?: boolean;
+  regimeExigibiliteTva?: string | null;
+}
+
+/** Décret n° 011/42, art. 60 · texte exact de la mention et sa portée. */
+export const MENTION_AUTORISATION_DEBITS = {
+  texte: "Autorisation d'acquitter la TVA d'après les débits",
+  article: "décret n° 011/42, art. 60",
+  citation:
+    'La mention « Autorisation d\u2019acquitter la TVA d\u2019après les débits » doit figurer sur toutes les ' +
+    'factures délivrées par le prestataire de services ou l\u2019entrepreneur de travaux publics ou de travaux ' +
+    'immobiliers.',
+  consequence:
+    "L'article 61 du même décret fait de l'inscription au débit du compte du client l'exigibilité de la taxe, et " +
+    "l'article 96 en fait naître le droit à déduction du CLIENT. Sans la mention, le client ne peut pas savoir " +
+    "qu'il déduit dès la facture.",
+  reserveSanction:
+    "Le décret n° 011/42 n'énonce aucune sanction pour cette omission, et l'amende de l'article 97 bis de la loi " +
+    'de procédures fiscales vise les mentions du décret n° 23/10 · elle n\u2019est pas étendue ici.',
+} as const;
+
 export interface VerificationMentions {
+  /** Art. 60 · la mention est-elle due sur cette pièce ? */
+  mentionDebitsExigee: boolean;
+  /** Art. 60 · elle est due et absente. */
+  mentionDebitsManquante: boolean;
+  mentionDebits: typeof MENTION_AUTORISATION_DEBITS;
   conforme: boolean;
   /** Le texte en vigueur à la date de la pièce, et pourquoi c'est celui-là. */
   texteApplicable: TexteApplicable;
@@ -524,7 +560,11 @@ export interface VerificationMentions {
  * @param personneMorale commande le barème de l'art. 97 bis, pas le contenu des
  * mentions · les neuf groupes sont les mêmes pour tous.
  */
-export function verifierMentions(f: FactureVerifiable, personneMorale: boolean): VerificationMentions {
+export function verifierMentions(
+  f: FactureVerifiable,
+  personneMorale: boolean,
+  contexte: ContexteMentions = {},
+): VerificationMentions {
   const applicable = texteApplicable(f.dateFacture);
   const manquantes: { cle: CleMention; libelle: string }[] = [];
   const presentes: CleMention[] = [];
@@ -532,8 +572,41 @@ export function verifierMentions(f: FactureVerifiable, personneMorale: boolean):
     if (m.presente(f)) presentes.push(m.cle);
     else manquantes.push({ cle: m.cle, libelle: m.libelle });
   }
+  /*
+    LA MENTION DE L'ARTICLE 60 · DEUX TEXTES, DEUX SANCTIONS, UNE SEULE PIÈCE.
+
+    Elle ne vient PAS du décret n° 23/10, dont les art. 26 et 100 fixent les
+    mentions de la facture normalisée : elle vient du décret n° 011/42 portant
+    mesures d'application de la TVA, art. 60 (fichier
+    `code-general-2026/references/11-tva-decret-application-ch1-4.md`) :
+    « La mention "Autorisation d'acquitter la TVA d'après les débits" doit
+    figurer sur toutes les factures délivrées par le prestataire de services ou
+    l'entrepreneur de travaux publics ou de travaux immobiliers. »
+
+    Elle est donc comptée À PART des mentions de l'art. 26, et l'amende de
+    l'art. 97 bis ne lui est PAS étendue : ce barème vise les mentions du
+    décret n° 23/10, et le décret n° 011/42 n'énonce lui-même aucune sanction.
+    Ce qui est en jeu n'en est pas moins lourd · l'art. 61 fait de l'inscription
+    au débit du compte du client l'exigibilité de la taxe, et l'art. 96 fait
+    naître de cette exigibilité le droit à déduction du CLIENT. Sans la
+    mention, le client ne peut pas savoir qu'il déduit plus tôt.
+
+    ELLE N'EST EXIGÉE QUE DE CELUI QUI DÉLIVRE LA FACTURE, ET QUI EST AUTORISÉ.
+    Sur un ACHAT, la mention se lit, elle ne s'impose pas · c'est le
+    fournisseur qui la doit. Et un dossier dont le régime n'est pas DEBITS
+    n'est pas autorisé : rien à mentionner.
+
+    `conforme` LA PREND EN COMPTE. C'est le point du défaut : une pièce qui
+    omet une mention obligatoire ne peut pas être affichée conforme, et c'est
+    exactement la correction que la passe F1 avait faite sur l'adresse exacte.
+  */
+  const mentionDebitsExigee = contexte.sensVente === true && contexte.regimeExigibiliteTva === 'DEBITS';
+  const mentionDebitsManquante = mentionDebitsExigee && !f.mentionTvaDebits;
   return {
-    conforme: manquantes.length === 0,
+    conforme: manquantes.length === 0 && !mentionDebitsManquante,
+    mentionDebitsExigee,
+    mentionDebitsManquante,
+    mentionDebits: MENTION_AUTORISATION_DEBITS,
     texteApplicable: applicable,
     manquantes,
     presentes,
