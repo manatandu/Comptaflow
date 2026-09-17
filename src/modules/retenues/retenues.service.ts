@@ -409,7 +409,7 @@ export class RetenuesService {
       signalementsDeductibilite,
       avertissements: [
         AVERTISSEMENT_REGISTRE,
-        avertissementRegimeImpot(referentiel),
+        avertissementRegimeImpot(referentiel, formeJuridiqueSyscohada),
         AVERTISSEMENT_REDEVABLE,
         // Conditionnels, et en dernier · un avertissement qui ne vise
         // personne affaibli ceux qui visent tout le monde. Les deux premiers

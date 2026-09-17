@@ -2602,6 +2602,66 @@ près de sept heures de run ; `resumeFromRunId` n'a pas rejoué le cache et tout
 de conteneur, et le découpage se règle sur la DURÉE autant que sur le nombre de
 lignes du texte.
 
+**PASSE F4a · l'impôt sur les sociétés, loi n° 23/053 du 30 novembre 2023,
+Titre 2, champ d'application et produits imposables (2026-09-17).** Premier
+texte de la série qui ne soit pas la TVA. 85 agents, 3 h 55, 77 constats
+réfutés un à un, 30 écartés, 47 retenus dont 15 de gravité FAUX. **39 % de
+réfutation, le plus bas taux de la série** · c'est le prix d'un texte vierge,
+là où les passes TVA bénéficiaient de cinq journaux accumulés. Journal :
+`docs/releve-de-manques-fiscal.md`.
+
+**L'ARTICLE 5 NE DISCRIMINE PAS PAR RÉFÉRENTIEL, MAIS PAR QUALITÉ DE LA
+PERSONNE.** `avertissementRegimeImpot` ne lisait que le référentiel et
+affirmait à tout dossier SYSCOHADA « La société est redevable de l'impôt sur les
+sociétés (art. 3) », avec l'échéance du 30 avril et ses trois acomptes. Or un
+ÉTABLISSEMENT PUBLIC (art. 5, 1°) et une COOPÉRATIVE AGRICOLE DE FORME CIVILE
+(art. 5, 2°) sont tenus en SYSCOHADA : l'écran leur affirmait en tête de leur
+registre fiscal exactement ce que l'article leur épargne. **Cinquième piège du
+dépôt dans sa forme exacte** · le commentaire de la fonction ÉNUMÉRAIT pourtant
+les exemptés, et `retenues.service.ts` chargeait déjà `formeJuridiqueSyscohada`
+dans la même requête. La fonction ne tranche pas pour autant : l'art. 5, 1°
+réserve l'exemption aux établissements publics « en vertu de leurs statuts » et
+aux organismes « dont les ressources proviennent uniquement de subventions
+budgétaires », quand l'art. 3 impose l'exploitation lucrative ; l'art. 5, 2° pose
+DEUX conditions cumulatives dont la FORME CIVILE, et le champ du dossier porte
+la coopérative au sens de l'Acte uniforme, pas la forme civile au sens fiscal.
+L'écran pose la question au lieu d'y répondre.
+
+**EXEMPTION ET EXONÉRATION NE SONT PAS LE MÊME RÉGIME**, et le Titre Ier le
+définit · art. 2, 10° « Exemption : la dispense d'une obligation fiscale de
+DÉCLARATION ET DE PAIEMENT » ; 11° « Exonération : la dispense totale ou
+partielle de PAIEMENT ». Le texte servi à une ASBL disait qu'elle « ne dispense
+pas non plus de DÉCLARER » · vrai des impôts retenus pour autrui, faux de
+l'impôt sur les sociétés lui-même.
+
+**UNE PHRASE PLUS LARGE QUE SON ARTICLE COÛTE DE L'IMPÔT EN TROP.** L'écran
+affirmait « Les ristournes font partie du bénéfice imposable (art. 11) ».
+L'art. 11, 3° n'en réintègre que DEUX catégories · celles versées « aux
+associés, en tant que ristournes et avantages provenant d'achats ou de ventes
+effectués par les NON-ASSOCIÉS » et celles versées « aux non-associés ». La
+ristourne servie à un associé sur ses propres opérations, qui est la ristourne
+ordinaire, n'y figure pas : un comptable réintégrait le compte en bloc.
+
+**LE MODULE FISCAL EST ENFIN BORNÉ AU 1er JANVIER 2026.** La loi n° 23/053 est
+entrée en vigueur à cette date, et tout ce que le service applique en vient. Or
+`deficitsAnterieursCalcules` et `chiffresAffairesAnterieurs` REMONTENT jusqu'à
+trois exercices et y recalculent un résultat fiscal avec ces mêmes règles, qui
+sert ensuite d'assiette au report imputé en 2026. Deuxième piège du dépôt dans
+sa forme la plus large, et sa doctrine était écrite ici sans avoir franchi la
+porte du module fiscal. **ON AVERTIT, ON NE BLOQUE PAS** · le texte antérieur
+n'est pas dans le corpus lu, et refuser le calcul priverait le cabinet d'un
+chiffre sans rien lui offrir ; ce qu'il faut, c'est cesser de présenter comme un
+résultat fiscal de 2024 ce qui est une SIMULATION sous la loi de 2026. S'y
+ajoute la TERRITORIALITÉ de l'art. 7, qui ne retient « uniquement » que les
+bénéfices réalisés en RDC quand le résultat fiscal part du résultat comptable
+entier · la base affichée est trop large, et la déclaration le dit.
+
+**LE TROU DU CÂBLAGE REVIENT À CHAQUE PASSE · règle qui en sort.** Trois passes
+sur quatre, la première réinjection a porté sur un POINT D'APPEL et non sur la
+règle : la fonction pure était juste et le service ne l'appelait pas ainsi.
+Écrire le spec du CÂBLAGE en même temps que celui de la règle, et non après
+l'avoir constaté.
+
 ## 7. Conventions du plan de comptes semé
 
 Valables pour les deux référentiels (`compte-seed.ts`,

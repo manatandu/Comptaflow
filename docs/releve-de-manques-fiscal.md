@@ -1316,3 +1316,213 @@ source rendue à l'écran, le seuil chiffré de l'art. 107 retiré de la mention
 - **Le rendement se stabilise autour de 78 à 85 % de réfutation** dès lors que
   les confronteurs reçoivent le journal et le hors-scope. Ce qui survit est
   presque entièrement du neuf.
+
+## Passe F4a · Impôt sur les sociétés, loi n° 23/053, Titre 2, champ d'application et produits imposables (2026-09-17)
+
+**Premier texte non fiscal indirect de la série.** Les cinq passes précédentes
+portaient toutes sur la TVA ; celle-ci ouvre l'impôt sur les sociétés.
+
+**Corpus** · `fiscalite-rdc/code-general-2026/references/04-loi23-053-titre2-impot-societes.md`,
+lignes 9 à 402 · chapitre 1 (champ d'application, exemptions et exonérations,
+territorialité, établissement stable) et chapitre 2 jusqu'à la fin des produits
+imposables.
+
+**Volumétrie** · 85 agents, 10,9 M de jetons, **3 h 55**. Le découpage plus
+serré a tenu : le conteneur a survécu, contre sept heures perdues sur F3b.
+
+**Résultat** · 96 constats, dont 77 soumis à réfutation. **30 écartés**,
+**47 retenus**, dont 15 de gravité FAUX. Le taux de réfutation tombe à **39 %**,
+le plus bas de la série · c'est attendu sur un texte vierge, là où les passes
+TVA bénéficiaient de cinq journaux accumulés.
+
+### Ce qui est corrigé dans le code, et testé
+
+#### 1 · L'article 5 ne discrimine pas par référentiel, mais par qualité de la personne
+
+`avertissementRegimeImpot` ne lisait que le RÉFÉRENTIEL et affirmait à tout
+dossier SYSCOHADA : « La société est redevable de l'impôt sur les sociétés
+(art. 3) », avec l'échéance du 30 avril et ses trois acomptes. Or un
+**établissement public** (art. 5, 1°) et une **coopérative agricole de forme
+civile** (art. 5, 2°) sont tenus en SYSCOHADA : l'écran leur affirmait
+exactement ce que l'article 5 leur épargne, en tête de leur registre fiscal.
+
+**Cinquième piège du dépôt dans sa forme exacte** · une garde posée pour une
+lecture qui s'est déplacée depuis. Le commentaire de la fonction ÉNUMÉRAIT
+pourtant les exemptés de l'article 5, y compris ces deux-là, et
+`retenues.service.ts` chargeait déjà `formeJuridiqueSyscohada` dans la même
+requête. La donnée était là.
+
+**Ce que la fonction ne tranche pas, et le dit.** Pour l'entité publique,
+l'art. 5, 1° réserve son exemption aux établissements publics « en vertu de
+leurs statuts » et aux organismes « dont les ressources proviennent uniquement
+de subventions budgétaires », quand l'art. 3 impose l'exploitation lucrative :
+ni les statuts ni l'origine des ressources ne sont au modèle. Pour la
+coopérative, l'art. 5, 2° pose DEUX conditions cumulatives, l'objet agricole et
+la FORME CIVILE, et le champ du dossier porte la coopérative au sens de l'Acte
+uniforme, **pas** la forme civile au sens fiscal · occurrence supplémentaire du
+premier piège. Dans les deux cas l'écran pose la question au lieu d'y répondre.
+
+#### 2 · L'exemption dispense de la déclaration comme du paiement
+
+Titre Ier, art. 2, 10° : « Exemption : la dispense d'une obligation fiscale de
+**déclaration ET de paiement** », contre le 11° : « Exonération : la dispense
+totale ou partielle de **paiement** ». Le texte servi à une ASBL disait qu'elle
+« ne dispense pas non plus de DÉCLARER » · vrai des impôts retenus pour autrui,
+faux de l'impôt sur les sociétés lui-même. La distinction des deux régimes est
+maintenant écrite, et le rappel sur les impôts retenus pour le compte d'autrui
+subsiste dans tous les cas, ce qui est l'objet même de cet état.
+
+#### 3 · Les ristournes, bornées à ce que l'article 11, 3° réintègre
+
+L'écran affirmait : « Les ristournes font partie du bénéfice imposable
+(art. 11). » L'article ne réintègre que **deux** catégories · celles versées
+« aux associés, en tant que ristournes et avantages provenant d'achats ou de
+ventes effectués par les NON-ASSOCIÉS » et celles versées « aux non-associés ».
+**La ristourne servie à un associé sur ses propres opérations avec la
+coopérative, qui est la ristourne ordinaire et le cœur du mécanisme coopératif,
+n'y figure pas.** Un comptable qui lisait cette phrase réintégrait le compte en
+entier : base gonflée, impôt trop élevé, et rien en aval ne le rattrapait,
+aucun code du catalogue ne portant cette nature.
+
+#### 4 · Deux bornes que le module franchissait sans les nommer
+
+**L'entrée en vigueur.** La loi n° 23/053 est « entrée en vigueur le 1er janvier
+2026 ». Tout ce que le service applique en vient · l'assiette, le catalogue des
+retraitements, le taux, le minimum de perception, le report déficitaire. Or
+`deficitsAnterieursCalcules` et `chiffresAffairesAnterieurs` **remontent jusqu'à
+trois exercices** et y recalculent un résultat fiscal avec ces mêmes règles : un
+dossier ouvert en 2026 se voyait calculer un résultat 2024 et 2025 sous une loi
+qui ne régissait pas ces exercices, et ce résultat servait ensuite d'assiette au
+report imputé en 2026. Deuxième piège du dépôt dans sa forme la plus large, et
+sa doctrine était écrite au CLAUDE.md sans avoir franchi la porte du module
+fiscal.
+
+**On avertit, on ne bloque pas**, et c'est délibéré : le texte antérieur n'est
+pas dans le corpus lu, et refuser le calcul priverait le cabinet d'un chiffre
+sans rien lui offrir en échange. Ce que le logiciel doit, c'est cesser de
+présenter comme un résultat fiscal de 2024 ce qui est une **simulation** de 2024
+sous la loi de 2026.
+
+**La territorialité.** Art. 7, alinéa 1er : les bénéfices « sont déterminés en
+tenant compte UNIQUEMENT des bénéfices réalisés dans les entreprises exploitées
+ou sur les opérations réalisées en République Démocratique du Congo, ainsi que
+ceux dont l'imposition est attribuée à la République Démocratique du Congo par
+une convention internationale ». Le résultat fiscal part du résultat COMPTABLE
+entier : une succursale, un chantier ou un immeuble à l'étranger entrent dans la
+même balance et ressortent dans la même base, sans découpage et sans un mot.
+Aucune donnée du modèle ne porte la source d'un produit ni le lieu d'une
+exploitation · la base affichée est trop large, et la déclaration le dit
+désormais.
+
+### Vérification
+
+**Six réinjections de défaut, six attrapées** · l'entité publique retombée dans
+le droit commun, l'exemption redevenue une simple exonération, le bornage à
+2026 supprimé, la territorialité retirée de la mention, et l'appel du service
+privé de la forme juridique.
+
+**La première réinjection n'a d'abord rien cassé.** Retirer l'argument au point
+d'appel laissait tout passer : les tests portaient sur la fonction pure, et la
+forme juridique y est optionnelle avec `null` par défaut · le droit commun
+serait revenu en silence. C'est le trou de F2a et de F3a, une troisième fois.
+Un spec lit maintenant le service lui-même.
+
+234 suites / 3 502 tests serveur, 41 fichiers / 468 tests client.
+
+### Une erreur de ma consigne, relevée par un réfutateur
+
+J'avais écrit dans l'invite des agents « loi n° 23/053 du **4 décembre** 2023 ».
+Les deux fichiers sources et le dépôt lui-même portent « du **30 novembre**
+2023 ». Le réfutateur l'a corrigé dans sa contre-preuve sans qu'on le lui
+demande · c'est exactement ce qu'on attend de l'étage adverse, et cela vaut
+aussi pour ce que la session principale écrit.
+
+### Les quarante autres constats retenus
+
+| Article | Ce que le texte impose | Gravité |
+|---|---|---|
+| Art. 3, alinéa 2, 2° (personnes morales de droit public) | Les personnes morales de droit public n'ayant pas la forme d'une société commerciale sont imposables à l'IS dès lors qu'elles se livrent à une exploitation ou à des opérations à caractère lu | INCOMPLET |
+| Art. 3, alinéa 2, 4° (associations momentanées) | Les associations momentanées sont imposables à l'IS en raison de leur activité. | INCOMPLET |
+| Art. 3, alinéa 3 (imposition sur option) | Trois sociétés de personnes, et elles seules, peuvent opter pour l'IS : société en nom collectif, société en commandite simple, société en participation. Hors option, elles ne relèvent pas d | FAUX |
+| Art. 4, alinéa 1 (irrévocabilité et interdiction d'option) | Double règle impérative : l'option pour l'IS est irrévocable ; et il est interdit d'opter aux sociétés de personnes issues de la transformation antérieure de sociétés par actions (verrou ant | INCOMPLET |
+| Art. 4, alinéa 2 (forme et délai de l'option) | Cinq conditions cumulatives de validité : option levée en Assemblée générale ; procès-verbal ; notification par le Gérant ; au service de l'Administration des Impôts territorialement compéte | CALENDRIER |
+| Art. 5, 6° (exemption · établissements privés d'enseignement) | Exemption d'IS des établissements privés d'enseignement national organisant EXCLUSIVEMENT un enseignement technique, professionnel ou spécial ; l'organisation concurrente d'un enseignement d | INCOMPLET |
+| Art. 6, 1° (exonération · GIE) | Exonération d'assiette : le bénéfice du GIE n'est exonéré que pour la quote-part distribuée à ses membres personnes physiques. Double critère · la distribution effective et la qualité de per | INCOMPLET |
+| Art. 6, 2° (exonération · transporteurs étrangers en escale, sous réserv | Exonération d'assiette sous six conditions cumulatives, dont la réciprocité accordée par le pays étranger, portant sur les seuls bénéfices tirés de l'exploitation de navires, aéronefs, véhic | INCOMPLET |
+| Article 6, point 2 (exonération des entreprises étrangères de transport  | EXONÉRATION impérative : les bénéfices qu'une entreprise établie à l'étranger retire de l'exploitation de navires, aéronefs, véhicules ou tout autre moyen de transport dont elle est propriét | INCOMPLET |
+| Article 7, alinéa 1er, seconde branche (extension conventionnelle de l'a | Entrent aussi dans l'assiette les bénéfices dont l'imposition est attribuée à la RDC par une convention internationale relative aux doubles impositions, même hors exploitation ou opération r | INCOMPLET |
+| Article 8, alinéa 1er, point 1 (ES par installation matérielle, liste én | La société non-résidente a un établissement stable en RDC lorsqu'elle y dispose d'une installation matérielle : siège de direction effective, succursales, fabriques, usines, ateliers, agence | FAUX |
+| Article 8, alinéa 1er, point 2 (ES à défaut d'installation : activité pr | À défaut d'installation matérielle, il y a établissement stable si la société non-résidente exerce directement, sous sa propre raison sociale, une activité professionnelle pendant une périod | INCOMPLET |
+| Article 8, alinéa 1er, point 3 (ES de services : prestations par employé | Il y a établissement stable lorsque la société non-résidente fournit des prestations de services, y compris les services conseils, par l'intermédiaire d'employés ou d'autre personnel engagé  | INCOMPLET |
+| Article 8, alinéa 1er, point 4 (ES de chantier : construction, montage,  | Il y a établissement stable pour un chantier de construction, un projet de montage ou d'installation, ou des activités de supervision liées à ce projet, « mais seulement si ce chantier de co | INCOMPLET |
+| Article 8, alinéa 2, chapeau et point 1 (ES par agent dépendant disposan | Par dérogation à l'alinéa 1er, une société non-résidente a un établissement stable en RDC, POUR TOUTES les activités que la personne exerce pour elle, lorsqu'une personne autre qu'un agent à | INCOMPLET |
+| Article 8, alinéa 4, seconde phrase (contre-exception : personne agissan | CONTRE-EXCEPTION anti-abus : la qualité d'agent indépendant est REFUSÉE à la personne qui agit exclusivement ou presque exclusivement pour le compte d'une ou de plusieurs entreprises auxquel | INCOMPLET |
+| Article 10, point 2 | Les travaux en cours sont évalués au coût de revient À L'EXCLUSION des frais généraux et des frais financiers : leur incorporation est fiscalement interdite, contrairement aux stocks du poin | INCOMPLET |
+| Article 11, point 1 | Les bénéfices de la liquidation sont imposables, sans distinguer s'ils proviennent de la continuation de l'activité ou des opérations de liquidation. | FAUX |
+| Article 11, point 4 | Sont réintégrés au bénéfice imposable les libéralités et avantages QUELCONQUES revenant, à quelque titre et sous quelque forme que ce soit, aux associés NON-ACTIFS ou à leurs HÉRITIERS, dans | INCOMPLET |
+| Article 11, point 5 | Sont réintégrées les sommes affectées au remboursement total ou partiel de capitaux empruntés, à l'extension de l'entreprise ou à la plus-value de l'outillage, lorsqu'elles ont été comptabil | INCOMPLET |
+| Article 11, point 6 (2e phrase) · EXEMPTION | Les primes d'émission ne sont PAS des bénéfices, à la double condition alternative qu'elles soient affectées à un compte indisponible OU incorporées au capital social. Il est interdit de les | INCOMPLET |
+| Article 12, alinéa 1 (2e phrase) | Tout contribuable doit arrêter ses comptes chaque année au 31 DÉCEMBRE. Seules deux circonstances écartent cette date : la CESSION et la CESSATION d'activité en cours d'année. | INCOMPLET |
+| Article 12, alinéa 3 | Mécanisme en quatre temps pour une entreprise créée après le 30 juin : (1) autorisation d'arrêter le premier exercice comptable au 31 décembre de l'année SUIVANTE ; (2) l'impôt est NÉANMOINS | FAUX |
+| Article 13, alinéa 1 | En cas de dissolution d'une société, y compris notamment la fusion ou la scission, une cotisation spéciale est réglée IMMÉDIATEMENT par CHAQUE société, d'après les résultats de la période pe | CALENDRIER |
+| Article 13, alinéa 2 | En cas de dissolution suivie de liquidation, une AUTRE cotisation spéciale, distincte de celle de l'alinéa 1, est réglée d'après les résultats accusés par le DERNIER bilan de liquidation. La | INCOMPLET |
+| Article 13, alinéa 3 | La cotisation est rattachée à l'exercice désigné par le MILLÉSIME DE L'ANNÉE DE LA DISSOLUTION, et non à l'année de clôture de la liquidation, qui peut être postérieure. | CALENDRIER |
+| Article 14, point 3 | Les revenus des capitaux mobiliers sont imposables pour leur montant BRUT, et non net. | INCOMPLET |
+| Article 14, point 10 | Regle conditionnelle : seuls les degrevements portant sur des IMPOTS DEDUCTIBLES sont des produits imposables ; a contrario, le degrevement d'un impot non deductible n'entre pas dans cette c | INCOMPLET |
+| Article 15, point 3 | Travaux d'entreprise a reception complete ou partielle : rattachement a l'exercice de l'achevement ou de la reception de la partie terminee, meme si la reception est seulement provisoire ou  | INCOMPLET |
+| Article 16 | Les creances sur la clientele et les versements recus a l'avance sont rattaches a l'exercice de la LIVRAISON des biens ou de l'ACCOMPLISSEMENT des prestations ; un acompte n'est pas imposabl | INCOMPLET |
+| Article 17, alinea 1 | Determiner A LA CLOTURE DE CHAQUE EXERCICE les ecarts de conversion des devises, creances et dettes en monnaies etrangeres, par rapport aux montants initialement comptabilises, en fonction d | INCOMPLET |
+| Article 17, alinea 3 | Les ecarts de conversion des creances et dettes en monnaies etrangeres NE SONT PAS pris en compte dans le resultat imposable ; ils le sont a l'exercice du DENOUEMENT, au titre de gains ou de | FAUX |
+| Article 18, alinea 1 | Les subventions d'equipement ne sont pas comprises dans les resultats de l'annee de leur encaissement ; elles sont rapportees aux resultats nets a concurrence des amortissements pratiques su | FAUX |
+| Article 18, alinea 2 | Subvention affectee a une immobilisation NON amortissable : rapportee par fractions egales sur la duree d'inalienabilite prevue a l'acte ; a defaut de clause, par fraction egale au DIXIEME ( | INCOMPLET |
+| Article 18, alinea 3 | En cas de cession de l'immobilisation subventionnee, retrancher de la valeur comptable la fraction de subvention non encore rapportee, pour determiner la plus-value imposable ou la moins-val | INCOMPLET |
+| Article 18, alinea 4 | Les subventions d'exploitation ou d'equilibre font partie du resultat net de l'exercice de leur ENCAISSEMENT ; aucun etalement. | FAUX |
+| Article 19, alinea 1 | EXEMPTION : les accroissements resultant de plus-values NON REALISEES, exprimees dans les comptes ou inventaires sans etre traitees comme benefices, ne sont pas des produits imposables. | FAUX |
+| Article 19, alinea 3, condition de maintien 2 | Dans les societes AUTRES QUE PAR ACTIONS, les plus-values ne doivent pas entrer en ligne de compte pour determiner les parts des associes entrants ou sortants. | INCOMPLET |
+| Article 19, alinea 3, condition de maintien 4 | Absence de partage, meme PARTIEL, de l'avoir social, notamment par retrait d'un associe ou par fusion (creation d'une societe nouvelle ou absorption). | INCOMPLET |
+| Article 19, dernier alinea | SANCTION : la violation d'une seule des conditions d'octroi ou de maintien requalifie les plus-values en benefices, rattaches a l'exercice de l'inexecution ou de l'inobservation. | INCOMPLET |
+### Les trente constats écartés
+
+| Article | Obligation alléguée | Motif de la réfutation (extrait) |
+|---|---|---|
+| Art. 3, alinéa 1 (imposition en raison de la forme) | SA, SARL et SAS, même unipersonnelles, sont à l'IS de plein droit, sans condition d'objet, d'ac | CONSTAT RÉFUTÉ PAR MAUVAIS RATTACHEMENT D'ARTICLE (angle 1), le fait matériel étant concédé mais ne relevant pas de l'art. 3, al. 1. 1) L'ARTICLE, LU À L'INSTANT, NE PORTE AUCUNE RÈGLE DE DATE. Fichie |
+| Art. 3, alinéa 2, 3° (sociétés de fait et créées de  | Les sociétés de fait et les sociétés créées de fait sont imposables à l'IS en raison de leur ac | Constat réfuté sur quatre fronts, dont trois dirimants. (1) ANGLE 2 · le Titre 1 borne l'obligation et le constat l'énonce à moitié : l'art. 2, 17°, b) range parmi les « Personnes physiques » « les as |
+| Art. 3, alinéa 2, 5°, a) (sociétés autres que commer | Une société ni commerciale ni coopérative devient imposable à l'IS dès lors qu'elle se livre à  | La preuve centrale du constat est fausse : le champ d'activité qu'il déclare inexistant est à prisma/schema.prisma:274, DANS le bloc même qu'il cite (« model Tenant l. 253 et suivants »), il est saisi |
+| Art. 3, alinéa 2, 5°, b) (présence de sociétés par a | Critère alternatif, sans condition d'activité : une société autre que commerciale et coopérativ | Le constat vise le bon article et le cite fidèlement sur le point b), mais il s'effondre sur l'angle 3 : l'EFFET JURIDIQUE que commande l'art. 3, al. 2, 5°, b) · l'assujettissement à l'IS · est DÉJÀ l |
+| Art. 3, alinéa 2, 6° (clause balai) | Clause générale à double branche alternative : toute autre personne morale qui se livre à une e | Les trois jambes de l'explication tombent. (1) Le `default:` n'est PAS « la clause balai » : sur les quatre valeurs d'enum qui l'atteignent, trois (SA, SARL, SAS) relèvent de l'art. 3, alinéa 1, qui i |
+| Article 7, alinéa 2, chapeau (hiérarchie : sous rése | RÈGLE DE HIÉRARCHIE : la présomption d'exploitation en RDC des points 1 et 2 ne joue que « sous | CONSTAT RÉFUTÉ · non sur l'existence de la règle, mais sur son ANCRAGE et sur ses DEUX preuves, dont l'une est affirmativement fausse. 1) ANGLE 1 · l'obligation existe, mais elle ne porte pas ce que l |
+| Article 7, alinéa 2, point 1 (société résidente : si | Est réputée exploitée en RDC la société résidente, la résidence se caractérisant par le siège s | CONSTAT RÉFUTÉ sur quatre fronts : la prémisse de fait est fausse, le grief est déposé sous une subdivision qui ne peut pas le porter, le remède proposé ne sert pas l'article invoqué, et trois des ren |
+| Article 7, alinéa 2, point 2 (société non-résidente  | La société non-résidente est réputée exploitée en RDC dès lors, et seulement dès lors, qu'elle  | Le constat repose sur une affirmation factuelle démentie par les lignes mêmes qu'il cite : « Or l'art. 144 […] l. 169-172, ne dit pas "non-résidents" ». L'article 144 dit « non-résidents », à la ligne |
+| Article 8, alinéa 2, point 2 (ES par stock de marcha | À défaut de pouvoir de conclure des contrats, il y a néanmoins établissement stable si la perso | RÉFUTÉ sur l'angle 4 (dirimant) et sur l'angle 1 (citation amputée de la condition qui commande tout l'alinéa), avec renfort de l'angle 2 (le Titre I définit la notion exclue) et deux erreurs de fait  |
+| Article 8, alinéa 3 (société d'assurance non-résiden | Par dérogation aux alinéas 1er et 2, une société d'assurance non-résidente a un établissement s | Le constat altère le texte sur trois points (« Nonobstant » rendu par « Par dérogation », la présomption « est considérée comme ayant » rendue par l'indicatif « a », et une virgule ajoutée avant « par |
+| Article 8, alinéa 4, première phrase (exclusion : ag | EXCLUSION NÉGATIVE : il n'y a PAS d'établissement stable lorsque la personne qui agit en RDC po | CONSTAT RÉFUTÉ sur quatre fondements indépendants, dont deux suffisent seuls. Je concède d'emblée ce qui tient : le grep est exact (`grep -rniE "agent ind[ée]pendant/statut ind[ée]pendant" /home/user/ |
+| Article 9, alinéa 2 (1re phrase) | Bénéfice net = (actif net de clôture − actif net d'ouverture) − suppléments d'apports + prélève | La citation de l'al. 2 est fidèle et les numéros d'article/alinéa sont bons, mais le constat tombe sur trois plans cumulatifs. (1) STRUCTURE DE L'ARTICLE : l'al. 3 n'est pas « une voie que l'article a |
+| Article 9, alinéa 2 (2e phrase) | Actif net = valeurs d'actif − (créances des tiers + amortissements + provisions JUSTIFIÉES). Un | L'art. 9, al. 2, 2e phrase est une DÉFINITION de terme, pas une règle de réintégration, et l'alinéa 3 du même article · que le constat passe sous silence · confie la détermination de « chaque exercice |
+| Article 10, point 1 | Les stocks sont évalués au COÛT DE REVIENT. Les matières premières et marchandises payées d'ava | Le constat cite l'article fidèlement, mais ses DEUX propositions porteuses sont fausses à la lecture faite à l'instant. (1) Sa « conséquence chiffrée directe » est arithmétiquement impossible : l'art. |
+| Article 11, phrase introductive | L'article 11 dresse une liste d'éléments qui S'AJOUTENT au bénéfice imposable de l'article 9 ·  | Le constat est réfuté sur trois plans, dont deux suffisent seuls. (1) ANGLE 1 · sa phrase porteuse est factuellement fausse sur l'architecture de la loi : il n'existe AUCUN « Chapitre des charges non  |
+| Article 11, point 2 | Sont imposables les bénéfices obtenus MÊME en fin d'exploitation ou APRÈS cessation, par vente, | Le constat se réfute par sa propre concession, et sa part résiduelle est déposée sous un article qui ne la porte pas et déjà nommée deux fois par le dépôt. (1) Il concède que la première branche entre |
+| Article 12, alinéa 2 (2e phrase) | Un exercice de durée INFÉRIEURE À DOUZE MOIS n'est admis que pour le PREMIER exercice et seulem | Le constat transforme une FACULTÉ en PROHIBITION EXCLUSIVE, et le cas qu'il reproche à OmegaX de ne pas refuser est précisément celui que l'article 12 organise lui-même. Texte lu à l'instant (fichier  |
+| Article 12, alinéa 4 | Lorsque des bilans successifs sont dressés au cours d'une même année, leurs résultats DOIVENT ê | La démonstration du constat repose entièrement sur le scénario de liquidation, qui est précisément le seul cas que l'article 12, alinéa 4 ne régit PAS : l'article 13, dans la même Section 2, prescrit  |
+| Article 13, alinéa 4 | Après la dissolution d'une association momentanée, TOUT impôt établi est recouvré auprès du SOC | REFUTE sur deux motifs independants, chacun suffisant, plus deux corrections de renvoi. Je concede d'emblee l'angle 1 sur le fond : l'article 13 porte bien, en quatrieme alinea, la phrase invoquee, et |
+| Article 14, point 12 | Seuls les gains de change EFFECTIVEMENT REALISES sont imposables ; les gains latents ne sont pa | Le constat tombe sur trois plans. (1) L'obligation qu'il prête à l'art. 14, point 12 n'y figure pas : le chapeau de l'article est une énumération expressément NON limitative (« Les produits imposables |
+| Article 15, phrase introductive | L'article fixe, par nature d'operation (ventes, prestations, travaux d'entreprise), le fait gen | Le constat est déposé sur la PHRASE INTRODUCTIVE de l'article 15, mais il lui impute l'intégralité du contenu de ses points 1, 2 et 3, qu'elle ne porte pas. Lue verbatim, cette phrase est : « Les prod |
+| Article 15, point 1 | Ventes : rattachement a l'exercice de la FACTURATION ; sont incluses les ventes sous condition  | Le constat cherche une règle FISCALE là où l'article 9 de la même loi dit qu'il n'y en a pas à chercher : l'assiette est le résultat comptable, et les trois qualifications de l'article 15, point 1 son |
+| Article 15, point 2 (1re phrase) | Prestations de services : rattachement a l'exercice de la DATE D'ACHEVEMENT de la prestation. | La preuve avancée est matériellement fausse sur son affirmation porteuse · celle qui, seule, justifie « PAS DU TOUT » et la gravité INCOMPLET · et la plage de lignes que le constat cite lui-même à l'a |
+| Article 15, point 2 (prestations continues) | Prestations CONTINUES : produit definitivement acquis au fur et a mesure de l'execution, quelle | CONSTAT RÉFUTÉ sur les angles 1, 2 et 3. (1) Le constat date faussement la loi (« 4 décembre 2023 » ; le texte lu porte « 30 novembre 2023 »), et surtout il ampute le point 2 de sa seconde branche pui |
+| Article 15, point 2 (prestations discontinues) | Prestations DISCONTINUES : produit acquis au fur et a mesure des echeances successives de l'exe | Le constat tombe sur son affirmation porteuse (angle 3 : l'obligation EST servie) et sur son fondement d'assiette (angle 2 : l'article 9, al. 3 de la même loi fait du rattachement comptable le rattach |
+| Article 19, alinea 2, condition d'octroi 1 | CONDITION d'octroi : le redevable tient une comptabilite reguliere. | Le constat tombe sur l'angle 3 et sur l'angle 4, et se corrige sur l'angle 1. Angle 3, decisif : la norme que le constat pose lui-meme dans sa derniere phrase (« servir la condition au comptable avec  |
+| Article 19, alinea 2, condition d'octroi 2 | CONDITION cumulative : satisfaire aux obligations declaratives en matiere d'IS ET ne pas se tro | ANGLE 3, DÉCISIF · l'affirmation centrale du constat est fausse dans les faits. Il écrit que « la déduction de la ligne PLUS_VALUES_NON_REALISEES ne s'accompagne d'aucun avertissement sur l'état décla |
+| Article 19, alinea 3, condition de maintien 1 | Les plus-values doivent demeurer incorporees au bien ; toute alienation du bien, de quelque man | La preuve avancée est fausse sur son point central : l'écran fiscal d'OmegaX porte DEUX lignes sur ce sujet, dont une sourcée littéralement « Loi n° 23/053, art. 19 », et une autre qui nomme la cessio |
+| Article 19, alinea 3, condition de maintien 3 | Aucune plus-value exemptee ne peut faire l'objet d'amortissement, de distribution ou de preleve | La preuve centrale du constat est fausse dans le fichier même qu'il cite : `catalogue-retraitements.ts` porte, 45 lignes sous la ligne qu'il produit comme « le seul voisin », une entrée `PLUS_VALUES_N |
+| Article 19, alinea 3, condition de maintien 5 | Les plus-values doivent rester actees a un COMPTE SPECIAL au PASSIF du bilan, DISTINCT des comp | La « moitié dynamique » réclamée serait un contrôle FAUX. L'opération que le constat désigne comme la rupture de la condition · le virement du 106 au capital, modélisé au TFT l. 996 · est EXPRESSÉMENT |
+### Ce que cette passe apprend sur la méthode
+
+- **Un texte vierge réfute moins.** 39 % contre 78 à 85 % sur la TVA. Le
+  rendement d'une passe dépend d'abord de ce que les passes précédentes ont
+  déjà déclaré · sur un texte neuf, presque tout constat est neuf.
+- **Le découpage par durée fonctionne.** 3 h 55 pour 85 agents, et le conteneur
+  a tenu. F3b en avait perdu sept.
+- **Le trou du câblage revient à chaque fois.** Trois passes sur quatre, la
+  première réinjection a porté sur un point d'appel et non sur la règle. Il
+  faut désormais écrire le spec du câblage EN MÊME TEMPS que celui de la règle,
+  et non après l'avoir constaté.

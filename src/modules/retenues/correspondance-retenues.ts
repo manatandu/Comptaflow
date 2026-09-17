@@ -859,34 +859,101 @@ export const AVERTISSEMENT_REGISTRE =
 
 /**
  * LE RÉGIME D'IMPÔT DU DOSSIER, ET C'EST L'AVERTISSEMENT LE PLUS FAUX QU'ON
- * PUISSE SERVIR AU MAUVAIS RÉFÉRENTIEL.
+ * PUISSE SERVIR AU MAUVAIS DOSSIER.
  *
- * Le texte annonçait à TOUT dossier une exemption d'impôt sur les sociétés.
- * L'article 5 de la loi n° 23/053 ne l'accorde qu'à l'État, aux provinces, aux
- * ETD, aux établissements publics, aux coopératives agricoles de forme civile,
- * aux ASBL, aux établissements d'utilité publique et aux ONG, et à certains
- * établissements privés d'enseignement. Une société commerciale y est au
- * contraire soumise par sa forme même (art. 3) : lui dire l'inverse en tête de
- * son registre fiscal est la pire chose que cet écran puisse faire.
+ * Le texte annonçait d'abord à TOUT dossier une exemption d'impôt sur les
+ * sociétés. Il a ensuite été corrigé pour distinguer les deux RÉFÉRENTIELS, et
+ * la garde est restée là · alors que l'article 5 ne discrimine pas par
+ * référentiel, mais par QUALITÉ DE LA PERSONNE. Un établissement public et une
+ * coopérative agricole de forme civile sont tenus en SYSCOHADA, et l'écran
+ * leur affirmait « La société est redevable de l'impôt sur les sociétés
+ * (art. 3) », avec l'échéance du 30 avril et ses trois acomptes · c'est-à-dire
+ * exactement ce que l'article 5 leur épargne.
  *
- * La conclusion, elle, est la même des deux côtés, et c'est tout l'objet de
+ * LE PIÈGE N° 5 DU DÉPÔT, DANS SA FORME EXACTE · une garde posée pour une
+ * lecture qui s'est déplacée depuis. Le commentaire ci-dessus ÉNUMÉRAIT
+ * pourtant les exemptés de l'article 5, y compris ces deux-là. La donnée
+ * manquait si peu que `retenues.service.ts` chargeait déjà
+ * `formeJuridiqueSyscohada` dans la même requête.
+ *
+ * CE QUE LA FONCTION NE TRANCHE PAS, ET LE DIT. Pour l'entité publique,
+ * l'article 5, 1° réserve son exemption aux établissements publics « en vertu
+ * de leurs statuts » et aux organismes « dont les ressources proviennent
+ * uniquement de subventions budgétaires », quand l'article 3 impose
+ * l'exploitation lucrative : ni les statuts ni l'origine des ressources ne
+ * sont au modèle. Pour la coopérative, l'article 5, 2° pose DEUX conditions
+ * cumulatives, l'objet agricole et la FORME CIVILE, et le champ du dossier
+ * porte la coopérative au sens de l'Acte uniforme, pas la forme civile au sens
+ * fiscal. Dans les deux cas l'écran pose la question au lieu d'y répondre.
+ *
+ * ET LA PORTÉE DE L'EXEMPTION EST CELLE DU TITRE Ier, PAS UNE AUTRE. Son
+ * article 2, 10° définit l'exemption comme « la dispense d'une obligation
+ * fiscale de DÉCLARATION ET DE PAIEMENT », là où le 11° définit l'exonération
+ * comme « la dispense totale ou partielle de PAIEMENT ». Le texte servi à une
+ * ASBL disait qu'elle « ne dispense pas non plus de DÉCLARER », ce qui est
+ * vrai des impôts retenus pour autrui et faux de l'impôt sur les sociétés
+ * lui-même.
+ *
+ * La conclusion, elle, est la même dans tous les cas, et c'est tout l'objet de
  * l'état : payer ou ne pas payer son propre impôt ne dispense de rien de ce
  * qu'on retient pour le compte d'autrui.
  */
-export function avertissementRegimeImpot(referentiel: Referentiel): string {
+export function avertissementRegimeImpot(
+  referentiel: Referentiel,
+  formeJuridique: FormeJuridiqueSyscohada | null = null,
+): string {
+  const rappelTiers =
+    "Quoi qu'il en soit de son propre impôt, l'entité ne se trouve dispensée d'AUCUN impôt retenu pour le compte " +
+    "d'autrui, ni d'aucune cotisation sociale, ni de les DÉCLARER aux échéances prévues.";
+
   if (referentiel === Referentiel.SYSCOHADA) {
+    // ART. 5, 1° · « l'Etat, les Provinces et les Entités Territoriales
+    // Décentralisées, les établissements publics, en vertu de leurs statuts,
+    // et les autres organismes de droit public dont les ressources proviennent
+    // uniquement de subventions budgétaires ». La condition de ressources ne
+    // vise que la dernière catégorie, et aucune donnée du dossier ne la porte.
+    if (formeJuridique === FormeJuridiqueSyscohada.ENTITE_PUBLIQUE) {
+      return (
+        "Ce dossier est une ENTITÉ PUBLIQUE, et l'impôt sur les sociétés ne lui est pas dû de plein droit. " +
+        "L'article 5, 1° de la loi n° 23/053 EXEMPTE « l'Etat, les Provinces et les Entités Territoriales " +
+        'Décentralisées, les établissements publics, en vertu de leurs statuts, et les autres organismes de droit ' +
+        "public dont les ressources proviennent uniquement de subventions budgétaires ». L'exemption est, au sens " +
+        "du Titre Ier, article 2, 10°, « la dispense d'une obligation fiscale de déclaration ET de paiement ». " +
+        "Elle ne joue PAS pour une exploitation lucrative, que l'article 3 impose : OmegaX ne connaît ni les " +
+        "statuts de l'établissement ni l'origine de ses ressources, et ne tranche donc pas · à vérifier avant " +
+        'toute déclaration. ' +
+        rappelTiers
+      );
+    }
+    // ART. 5, 2° · deux conditions CUMULATIVES, et le modèle n'en porte
+    // aucune : l'objet (agricole, élevage, pêche) et la FORME CIVILE. Le mot
+    // « coopérative » ne vaut pas la même chose ici et à l'AUSCOOP, qui est le
+    // sens du champ.
+    if (formeJuridique === FormeJuridiqueSyscohada.SOCIETE_COOPERATIVE) {
+      return (
+        "Ce dossier est une SOCIÉTÉ COOPÉRATIVE, et son régime dépend de deux données que le logiciel ne détient " +
+        "pas. L'article 3 l'impose à raison de son activité ; l'article 5, 2° EXEMPTE « les sociétés coopératives " +
+        'de production, de transformation, de conservation et de vente de produits agricoles, de l’élevage et de ' +
+        'la pêche et leurs unions fonctionnant conformément aux dispositions légales qui les régissent, LORSQU’ELLES ' +
+        'REVÊTENT LA FORME CIVILE ». Les deux conditions sont cumulatives, et le champ « forme juridique » du ' +
+        "dossier porte la coopérative au sens de l'Acte uniforme, pas la forme civile au sens fiscal · à trancher " +
+        'avant toute déclaration. ' +
+        rappelTiers
+      );
+    }
     return (
       "La société est redevable de l'impôt sur les sociétés (loi n° 23/053, art. 3). Sa déclaration est due au plus " +
       "tard le 30 avril de l'année qui suit celle de la réalisation des revenus (loi n° 004/2003, art. 12), et ses " +
       'trois acomptes provisionnels au plus tard les 25 juillet, 25 septembre et 25 novembre (art. 57 bis, tel que ' +
-      "modifié par la loi de finances n° 25/060 du 29 décembre 2025). Cet impôt ne dispense d'aucun impôt retenu " +
-      "pour le compte d'autrui, ni d'aucune cotisation sociale, ni de DÉCLARER aux échéances prévues."
+      "modifié par la loi de finances n° 25/060 du 29 décembre 2025). " +
+      rappelTiers
     );
   }
   return (
-    "L'exemption d'impôt sur les sociétés dont bénéficie une ASBL régulièrement constituée (loi n° 23/053, art. 5) " +
-    "ne dispense d'aucun impôt retenu pour le compte d'autrui, ni d'aucune cotisation sociale. Elle ne dispense pas " +
-    "non plus de DÉCLARER aux échéances prévues, même lorsque rien n'est dû."
+    "L'exemption d'impôt sur les sociétés dont bénéficie une ASBL régulièrement constituée (loi n° 23/053, art. 5, " +
+    "3°) porte, au sens du Titre Ier, article 2, 10°, sur « une obligation fiscale de DÉCLARATION ET DE PAIEMENT » · " +
+    "elle ne se confond pas avec l'EXONÉRATION du 11°, qui ne dispense que du paiement. " +
+    rappelTiers
   );
 }
 

@@ -60,6 +60,15 @@ import { PREFIXES_CHIFFRE_AFFAIRES_SYSCOHADA as PREFIXES_CHIFFRE_AFFAIRES } from
 const arrondir = (n: number) => Math.round(n * 100) / 100;
 
 /**
+ * ENTRÉE EN VIGUEUR DE LA LOI N° 23/053 DU 30 NOVEMBRE 2023 · le 1er janvier
+ * 2026, tel que les bases juridiques du Titre Ier le portent (fichier
+ * `code-general-2026/references/03-loi23-053-titre1-dispositions-generales.md`).
+ * Tout ce que ce service calcule vient de cette loi ; un exercice ouvert avant
+ * cette date relève d'un texte qui n'est pas dans OmegaX.
+ */
+const ENTREE_EN_VIGUEUR_LOI_23_053 = new Date(Date.UTC(2026, 0, 1));
+
+/**
  * ARRONDI LÉGAL DE L'IMPÔT · art. 150 de la loi n° 23/053, TITRE VI,
  * chapitre 1 « DES DISPOSITIONS RELATIVES AUX ARRONDIS » :
  *
@@ -713,6 +722,53 @@ export class FiscaliteService {
     return excedents;
   }
 
+  /**
+   * DEUX BORNES QUE CE MODULE FRANCHIT SANS LES NOMMER · la date, et le
+   * territoire.
+   *
+   * 1 · L'ENTRÉE EN VIGUEUR. La loi n° 23/053 du 30 novembre 2023 est « entrée
+   * en vigueur le 1er janvier 2026 » (`code-general-2026/references/
+   * 03-loi23-053-titre1-dispositions-generales.md`, bases juridiques du
+   * Titre Ier). Tout ce que ce service applique en vient : l'assiette des
+   * art. 14 à 19, le catalogue des retraitements, le taux, le minimum de
+   * perception, le report déficitaire. Or `deficitsAnterieursCalcules` et
+   * `chiffresAffairesAnterieurs` REMONTENT jusqu'à trois exercices et y
+   * recalculent un résultat fiscal avec ces mêmes règles · un dossier ouvert
+   * en 2026 se voit donc calculer un résultat 2024 et 2025 sous une loi qui ne
+   * régissait pas ces exercices, et ce résultat sert ensuite d'assiette au
+   * report imputé en 2026. C'est le deuxième piège du dépôt, dont la doctrine
+   * est pourtant écrite au CLAUDE.md et appliquée ailleurs.
+   *
+   * ON AVERTIT, ON NE BLOQUE PAS, et c'est délibéré. Le texte antérieur n'est
+   * pas dans le corpus lu : refuser le calcul priverait le cabinet d'un chiffre
+   * qu'il peut vouloir, sans rien lui offrir en échange. Ce que le logiciel
+   * doit, c'est cesser de présenter comme un résultat fiscal de 2024 ce qui est
+   * une simulation de 2024 sous la loi de 2026.
+   *
+   * 2 · LA TERRITORIALITÉ. L'art. 7, alinéa 1er : les bénéfices passibles de
+   * l'impôt « sont déterminés en tenant compte UNIQUEMENT des bénéfices
+   * réalisés dans les entreprises exploitées ou sur les opérations réalisées en
+   * République Démocratique du Congo, ainsi que ceux dont l'imposition est
+   * attribuée à la République Démocratique du Congo par une convention
+   * internationale relative aux doubles impositions ». Le résultat fiscal part
+   * ici du résultat COMPTABLE entier, lu au compte 13 ou sur les classes 6, 7
+   * et 8 : une succursale, un chantier ou un immeuble à l'étranger entrent dans
+   * la même balance et ressortent dans la même base, sans découpage et sans un
+   * mot. Aucune donnée du modèle ne porte la source d'un produit ni le lieu
+   * d'une exploitation.
+   */
+  private avertissementsPerimetreLoi(dateDebutExercice: Date): string[] {
+    const avertissements = [
+      "PÉRIMÈTRE TERRITORIAL NON DÉCOUPÉ (art. 7). Le résultat fiscal calculé ici part du résultat COMPTABLE de la balance, dans son entier. L'article 7 ne retient « uniquement » que les bénéfices réalisés dans les entreprises exploitées ou sur les opérations réalisées en République Démocratique du Congo, plus ceux qu'une convention de double imposition attribue à la RDC. OmegaX ne porte ni la source d'un produit ni le lieu d'une exploitation : si le dossier exploite une succursale, un chantier ou un immeuble hors de RDC, la base affichée est TROP LARGE · à retrancher par une déduction, pièce à l'appui.",
+    ];
+    if (dateDebutExercice.getTime() < ENTREE_EN_VIGUEUR_LOI_23_053.getTime()) {
+      avertissements.push(
+        `EXERCICE ANTÉRIEUR À L'ENTRÉE EN VIGUEUR DE LA LOI. Cet exercice ouvre le ${dateDebutExercice.toISOString().slice(0, 10)}, avant le 1er janvier 2026, date à laquelle la loi n° 23/053 du 30 novembre 2023 est entrée en vigueur. Tout ce qui est calculé ci-dessous en vient : l'assiette, le catalogue des retraitements, le taux, le minimum de perception et le report déficitaire. Le texte applicable à cet exercice n'est PAS celui-ci et n'est pas dans OmegaX · ce chiffre est une SIMULATION sous la loi de 2026, pas le résultat fiscal de l'exercice. Il ne doit servir ni de déclaration, ni de base à un report déficitaire imputé sur un exercice postérieur.`,
+      );
+    }
+    return avertissements;
+  }
+
   private async resultatFiscalBrut(tenantId: string, exerciceId: string) {
     const [lecture, retraitements] = await Promise.all([
       this.lireBalance(tenantId, exerciceId),
@@ -982,7 +1038,7 @@ export class FiscaliteService {
         break;
       case FormeJuridiqueSyscohada.SOCIETE_COOPERATIVE:
         observations.push(
-          "Société coopérative : soumise à l'impôt sur les sociétés à raison de son activité (art. 3), SAUF les coopératives agricoles, d'élevage et de pêche revêtant la forme civile, qui en sont exemptées (art. 5). Les ristournes font partie du bénéfice imposable (art. 11).",
+          "Société coopérative : soumise à l'impôt sur les sociétés à raison de son activité (art. 3), SAUF les coopératives de production, de transformation, de conservation et de vente de produits agricoles, de l'élevage et de la pêche et leurs unions « fonctionnant conformément aux dispositions légales qui les régissent, lorsqu'elles revêtent la FORME CIVILE » (art. 5, 2°) · deux conditions cumulatives qu'aucun champ du dossier ne porte, le champ « forme juridique » désignant la coopérative au sens de l'Acte uniforme et non la forme civile au sens fiscal. RISTOURNES : l'art. 11, 3° n'en réintègre que DEUX catégories, celles versées « aux associés, en tant que ristournes et avantages provenant d'achats ou de ventes effectués par les NON-ASSOCIÉS » et celles versées « aux non-associés ». La ristourne servie à un associé sur ses propres opérations avec la coopérative, qui est la ristourne ordinaire, n'y figure pas · ne pas réintégrer le compte en bloc.",
         );
         break;
       case FormeJuridiqueSyscohada.ENTITE_PUBLIQUE:
@@ -1162,6 +1218,7 @@ export class FiscaliteService {
       chiffresAffairesAnterieurs,
     );
     observations.push(...this.avertissementsReportDeficitaire(deficitAnterieur));
+    observations.push(...this.avertissementsPerimetreLoi(exercice.dateDebut));
 
     // Plafonds exprimés en francs pour cet exercice · l'écran s'en sert pour
     // calculer l'excédent à réintégrer à partir de la charge engagée.

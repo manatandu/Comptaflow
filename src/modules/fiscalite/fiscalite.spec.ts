@@ -983,3 +983,71 @@ describe('Suivi des acomptes · le 4492 et lui seul', () => {
     expect(r.suiviAcomptes!.comptabilises).toBe(3000000);
   });
 });
+
+/*
+  DEUX BORNES QUE CE MODULE FRANCHISSAIT SANS LES NOMMER · passe F4a.
+
+  Le service applique l'assiette, le catalogue, le taux, le minimum de
+  perception et le report déficitaire de la loi n° 23/053 du 30 novembre 2023,
+  « entrée en vigueur le 1er janvier 2026 ». Or il REMONTE jusqu'à trois
+  exercices pour y recalculer un résultat fiscal avec les mêmes règles : un
+  dossier ouvert en 2026 se voyait calculer un résultat 2024 et 2025 sous une
+  loi qui ne régissait pas ces exercices, et ce résultat servait ensuite
+  d'assiette au report imputé en 2026. Deuxième piège du dépôt, dont la
+  doctrine était pourtant écrite au CLAUDE.md.
+
+  Et l'article 7 ne retient « uniquement » que les bénéfices réalisés en RDC,
+  quand le résultat fiscal part ici du résultat comptable entier.
+
+  ON AVERTIT, ON NE BLOQUE PAS : le texte antérieur n'est pas dans le corpus
+  lu, et refuser le calcul priverait le cabinet d'un chiffre sans rien lui
+  offrir en échange.
+*/
+describe('Le périmètre de la loi est annoncé · entrée en vigueur et territoire', () => {
+  // 131 · résultat net de l'exercice, seule subdivision du 13 que le service
+  // lit (avec le 139) · voir le commentaire de `lireBalance`.
+  const balance = [ligne('13100000', -10_000_000)];
+
+  it('la territorialité de l’art. 7 est annoncée sur TOUT exercice', async () => {
+    const { s } = service({ balances: { N: balance } });
+    const r = await s.resultatFiscal('t1', 'N');
+    const texte = r.observations.join(' | ');
+    expect(texte).toContain('PÉRIMÈTRE TERRITORIAL NON DÉCOUPÉ (art. 7)');
+    expect(texte).toContain('uniquement');
+    expect(texte).toContain('TROP LARGE');
+  });
+
+  it('un exercice de 2026 ne porte PAS l’avertissement d’entrée en vigueur', async () => {
+    const { s } = service({ balances: { N: balance } });
+    const r = await s.resultatFiscal('t1', 'N');
+    expect(r.observations.join(' | ')).not.toContain("ANTÉRIEUR À L'ENTRÉE EN VIGUEUR");
+  });
+
+  it('un exercice ouvert AVANT le 1er janvier 2026 est annoncé comme une SIMULATION', async () => {
+    const { s } = service({
+      balances: { A: balance },
+      exercices: [{ id: 'A', dateDebut: new Date(Date.UTC(2025, 0, 1)), dateFin: new Date(Date.UTC(2025, 11, 31)) }],
+    });
+    const r = await s.resultatFiscal('t1', 'A');
+    const texte = r.observations.join(' | ');
+    expect(texte).toContain("EXERCICE ANTÉRIEUR À L'ENTRÉE EN VIGUEUR DE LA LOI");
+    expect(texte).toContain('2025-01-01');
+    expect(texte).toContain('SIMULATION');
+    // La conséquence la plus coûteuse est nommée · ce chiffre ne doit pas
+    // servir d'assiette à un report déficitaire.
+    expect(texte).toContain('report déficitaire');
+  });
+
+  it('le chiffre reste CALCULÉ · on avertit, on ne bloque pas', async () => {
+    const { s } = service({
+      balances: { A: balance },
+      exercices: [{ id: 'A', dateDebut: new Date(Date.UTC(2025, 0, 1)), dateFin: new Date(Date.UTC(2025, 11, 31)) }],
+    });
+    const r = await s.resultatFiscal('t1', 'A');
+    // Le calcul va jusqu'au bout · le résultat comptable est lu, le résultat
+    // fiscal en découle, et seule la MENTION dit que ce chiffre est une
+    // simulation. Refuser de calculer priverait le cabinet sans rien offrir.
+    expect(r.resultatComptable).toBe(10_000_000);
+    expect(r.observations.length).toBeGreaterThan(0);
+  });
+});
