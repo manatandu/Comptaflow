@@ -363,9 +363,22 @@ const EXCLUSIONS_ART_41: ReadonlyArray<readonly [string, string]> = [
  *
  *  · 62760000 « Cadeaux à la clientèle » · art. 41, 7° exclut les biens cédés
  *    à titre de cadeaux « sauf quand il s'agit d'objets publicitaires de
- *    faible valeur unitaire hors taxe » (l. 1064-1067). La valeur UNITAIRE
- *    n'est nulle part dans le modèle : une ligne d'écriture porte un montant
- *    global, jamais une quantité ni un prix unitaire.
+ *    faible valeur unitaire hors taxe » (l. 1064-1067).
+ *
+ *    LE SEUIL EXISTE, ET IL EST CHIFFRÉ · décret n° 011/42, art. 107 : « Par
+ *    objet publicitaire de faible valeur, il faut entendre le bien dont la
+ *    valeur unitaire est INFÉRIEURE À 10.000,00 FRANCS CONGOLAIS. » Le même
+ *    article habilite le Ministre des Finances à réajuster ce montant, et
+ *    aucun réajustement n'est dans le corpus lu.
+ *
+ *    CE QUI RESTE VRAI, ET CE QUI NE L'ÉTAIT PAS. Ce paragraphe écrivait que
+ *    « la valeur UNITAIRE n'est nulle part dans le modèle ». C'est inexact
+ *    depuis l'item I1 : `LigneFacture` porte `quantite` et `prixUnitaire`. Ce
+ *    qui reste exact, c'est que CETTE déclaration ne lit pas les factures ·
+ *    elle lit les ÉCRITURES, et une ligne d'écriture ne porte qu'un montant
+ *    global. Le contrôle est donc possible sur le chemin de la FACTURE et
+ *    impossible sur celui de la déclaration, et c'est cela qu'il faut dire ·
+ *    non que la donnée n'existe pas.
  *  · 61400000 « Transports du personnel » · art. 42, 2° exclut les transports
  *    de personnes « à l'exclusion des transports réalisés […] en vertu d'un
  *    contrat permanent de transport conclu par les entreprises pour amener
@@ -373,7 +386,11 @@ const EXCLUSIONS_ART_41: ReadonlyArray<readonly [string, string]> = [
  *    d'un contrat permanent est une donnée juridique, pas comptable.
  */
 const EXCLUSIONS_ART_41_A_VERIFIER: ReadonlyArray<readonly [string, string]> = [
-  ['6276', "6276 Cadeaux à la clientèle (art. 41, 7° · sauf objets publicitaires de faible valeur unitaire)"],
+  [
+    '6276',
+    '6276 Cadeaux à la clientèle (art. 41, 7° · sauf objets publicitaires dont la valeur unitaire est inférieure à ' +
+      '10 000,00 FC, décret n° 011/42 art. 107)',
+  ],
   ['6140', '6140 Transports du personnel (art. 42, 2° · sauf contrat permanent de transport du personnel)'],
   // 60420000 « Matières combustibles », semé aux DEUX plans
   // (`compte-seed-syscohada.ts` l. 1041, `compte-seed.ts` l. 795). L'article
@@ -2157,8 +2174,14 @@ export class TauxTvaService {
       phrases.push(
         `À VÉRIFIER, ARTICLES 41 ET 42 · ${fc(e.tvaAVerifierArt41)} CDF de TVA d’amont portent sur des charges ` +
           `que la loi vise SOUS CONDITION (${EXCLUSIONS_ART_41_A_VERIFIER.map(([, l]) => l).join(' ; ')}). ` +
-          'La condition ne se lit ni au compte ni au montant : elle tient à la valeur unitaire du bien ou à ' +
-          'l’existence d’un contrat. Ces montants restent DÉDUITS · à trancher pièce par pièce avant dépôt.',
+          'La condition ne se lit ni au compte ni au montant GLOBAL d’une ligne d’écriture, qui est tout ce que ' +
+          'cette déclaration lit. Pour les CADEAUX, le décret n° 011/42, art. 107, chiffre pourtant le seuil : est ' +
+          'de faible valeur « le bien dont la valeur unitaire est inférieure à 10.000,00 Francs congolais », le ' +
+          'Ministre des Finances étant habilité à réajuster ce montant. La valeur unitaire EST saisie sur la ' +
+          'facture (prix unitaire et quantité) · elle ne l’est pas sur l’écriture, et c’est la facture qu’il faut ' +
+          'reprendre. Pour les TRANSPORTS, la condition tient à l’existence d’un contrat permanent, donnée ' +
+          'juridique qu’aucune écriture ne porte. Ces montants restent DÉDUITS · à trancher pièce par pièce avant ' +
+          'dépôt.',
       );
     }
     if (e.tvaNatureDepenseIllisible > EPSILON) {

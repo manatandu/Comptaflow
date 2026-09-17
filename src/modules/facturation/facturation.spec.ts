@@ -14,6 +14,7 @@ import {
   texteApplicable,
   totauxFacture,
   verifierMentions,
+  EXCLUSION_DEDUCTION_ART_104,
 } from './mentions-facture';
 import { construireEtatDetaille } from './etat-detaille-tva';
 
@@ -461,8 +462,6 @@ describe('LE BORNAGE À L’ENTRÉE EN VIGUEUR · art. 29, 3 mars 2023', () => {
     // encore, avec une amende chiffrée sur ce reproche.
     const ancienne = facture({
       dateFacture: new Date('2022-11-30T00:00:00Z'),
-      emetteurAdresse: null,
-      contrepartieAdresse: null,
       autresImpotsEtTaxes: null,
     });
     const v = verifierMentions(ancienne, true);
@@ -488,11 +487,51 @@ describe('LE BORNAGE À L’ENTRÉE EN VIGUEUR · art. 29, 3 mars 2023', () => {
     expect(v.texteApplicable.texte).toMatch(/23\/10/);
   });
 
-  it('l’art. 100 ne réclame NI l’adresse NI les autres impôts', () => {
+  /*
+    CE TEST GELAIT UNE AFFIRMATION FAUSSE, ET C'EST LA CORRECTION QUI L'AVAIT
+    INTRODUITE.
+
+    Il portait : « l'art. 100 ne réclame NI l'adresse NI les autres impôts ».
+    La seconde moitié est vraie, la première ne l'est pas. Décret n° 011/42 du
+    22 novembre 2011, art. 100, ses DEUX premiers tirets, VERBATIM : « - les
+    noms, post-nom, prénom ou raison sociale, L'ADRESSE EXACTE, le numéro impôt
+    du vendeur ou prestataire ; - les noms, post-nom et prénom ou raison
+    sociale, L'ADRESSE EXACTE du client et son numéro impôt ; ».
+
+    La passe F1 avait corrigé l'oubli de l'adresse sur la branche du décret
+    n° 23/10 et, du même geste, DÉRIVÉ la branche antérieure en la retirant :
+    le défaut est revenu par l'autre porte, sur la branche la plus difficile à
+    voir, celle des pièces anciennes reprises dans un dossier. Et il y coûte
+    plus cher · l'art. 104 du même décret EXCLUT DU DROIT À DÉDUCTION les biens
+    et services dont la pièce ne remplit pas les conditions de l'art. 100.
+
+    Leçon, la quatrième du même genre : QUAND UNE CORRECTION DÉRIVE UNE BRANCHE
+    D'UNE AUTRE, IL FAUT LIRE LE TEXTE DE LA BRANCHE DÉRIVÉE, pas déduire son
+    contenu de la différence entre deux dates.
+  */
+  it('l’art. 100 réclame l’adresse exacte AUSSI · seul le dixième groupe lui manque', () => {
     const avant = texteApplicable(new Date('2022-01-01T00:00:00Z'));
     expect(avant.mentions).toHaveLength(9);
     expect(avant.mentions.map((m) => m.cle)).not.toContain('AUTRES_IMPOTS_ET_TAXES');
-    expect(avant.mentions.find((m) => m.cle === 'IDENTITE_VENDEUR')!.libelle).not.toMatch(/adresse/);
+    expect(avant.mentions.find((m) => m.cle === 'IDENTITE_VENDEUR')!.libelle).toMatch(/adresse exacte/);
+    expect(avant.mentions.find((m) => m.cle === 'IDENTITE_CLIENT')!.libelle).toMatch(/adresse exacte/);
+    expect(avant.source).toMatch(/L’ADRESSE EXACTE lui est réclamée TOUT AUTANT/);
+    expect(avant.source).toMatch(/EXCLUT DU DROIT À DÉDUCTION/);
+  });
+
+  it('une pièce de 2022 SANS adresse n’est PAS conforme, et l’art. 104 en dit le prix', () => {
+    const v = verifierMentions(
+      facture({
+        dateFacture: new Date('2022-11-30T00:00:00Z'),
+        emetteurAdresse: null,
+        contrepartieAdresse: null,
+        autresImpotsEtTaxes: null,
+      }),
+      true,
+    );
+    expect(v.conforme).toBe(false);
+    expect(v.manquantes.map((m) => m.cle)).toEqual(['IDENTITE_VENDEUR', 'IDENTITE_CLIENT']);
+    expect(EXCLUSION_DEDUCTION_ART_104.citation).toContain('exclus du droit à déduction');
   });
 });
 

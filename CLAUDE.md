@@ -2555,6 +2555,53 @@ l'expiration de la période (art. 55), et les EFFETS DE COMMERCE, encaissés « 
 la date de l'échéance de la traite, même si elle a été remise à l'escompte »
 (art. 57, alinéa 2).
 
+**PASSE F3b · le décret n° 011/42, chapitres IV à XII (2026-09-17).** 183
+agents, 171 constats réfutés un à un, 134 écartés, 37 retenus dont 8 de gravité
+FAUX. **La passe F3 est close.** Journal : `docs/releve-de-manques-fiscal.md`.
+
+**UNE CORRECTION PEUT RÉINTRODUIRE AILLEURS LE DÉFAUT QU'ELLE CORRIGE · c'est
+la quatrième forme de la doctrine du §10 bis, et la plus insidieuse.** La passe
+F1 avait ajouté l'adresse exacte aux mentions du décret n° 23/10 (art. 26) et,
+pour borner le texte à son entrée en vigueur, **DÉRIVÉ** la branche antérieure
+en la retirant, avec cette phrase à l'écran : « Ni l'adresse exacte ni le
+montant des autres impôts et taxes ne lui sont réclamés. » Le décret n° 011/42,
+art. 100, dit le contraire à ses DEUX premiers tirets · « les noms, post-nom,
+prénom ou raison sociale, L'ADRESSE EXACTE, le numéro impôt du vendeur ou
+prestataire » et « les noms, post-nom et prénom ou raison sociale, L'ADRESSE
+EXACTE du client et son numéro impôt ». `verifierMentions` rendait donc
+`conforme: true` sur une facture de 2022 qui omet deux mentions obligatoires, et
+l'art. 104 du même décret EXCLUT DU DROIT À DÉDUCTION les biens et services dont
+la pièce ne remplit pas les conditions de l'art. 100 · la sanction n'est pas
+seulement l'amende, elle atteint la taxe. **Règle qui en sort : QUAND UNE
+CORRECTION DÉRIVE UNE BRANCHE D'UNE AUTRE, LIRE LE TEXTE DE LA BRANCHE DÉRIVÉE,
+jamais déduire son contenu de la différence entre deux dates.** Ce qui distingue
+réellement les deux textes, et c'est tout : neuf groupes à l'art. 100, dix à
+l'art. 26, le dixième étant le montant des autres impôts et taxes.
+
+**UN TEST ÉCRIT DANS LA FOULÉE D'UNE CORRECTION GÈLE SES ERREURS.** Le spec de
+F1 portait « l'art. 100 ne réclame NI l'adresse NI les autres impôts ». Il
+couvrait bien le code ; sa prémisse sur le TEXTE n'avait été vérifiée par
+personne. Troisième occurrence, après le hors-scope surestimé (F2a) et
+l'affirmation sur le plan de comptes (F2b).
+
+**LE SEUIL DE L'OBJET PUBLICITAIRE EXISTAIT, CHIFFRÉ, ET LE MODULE LE DÉCLARAIT
+INTROUVABLE.** Il écrivait que « la valeur UNITAIRE n'est nulle part dans le
+modèle » · inexact depuis l'item I1, `LigneFacture` portant `quantite` et
+`prixUnitaire`. Et le décret chiffre ce que la loi laissait indéterminé,
+art. 107 : est de faible valeur « le bien dont la valeur unitaire est INFÉRIEURE
+À 10.000,00 FRANCS CONGOLAIS », le Ministre des Finances étant habilité à
+réajuster ce montant. Ce qui reste vrai est désormais dit à la bonne place ·
+cette déclaration ne lit pas les factures, elle lit les ÉCRITURES, et une ligne
+d'écriture ne porte qu'un montant global. Le montant reste déduit, la mention
+porte le seuil avec son article, et elle dit OÙ la condition se vérifie au lieu
+de nier la donnée.
+
+**LA REPRISE D'UN WORKFLOW N'EST PAS UN FILET.** Le conteneur a redémarré après
+près de sept heures de run ; `resumeFromRunId` n'a pas rejoué le cache et tout a
+été refait, 20,1 M de jetons. Une passe se découpe donc pour tenir dans une vie
+de conteneur, et le découpage se règle sur la DURÉE autant que sur le nombre de
+lignes du texte.
+
 ## 7. Conventions du plan de comptes semé
 
 Valables pour les deux référentiels (`compte-seed.ts`,

@@ -154,6 +154,22 @@ describe('Article 41 · ce que le plan de comptes établit est ÉCARTÉ de la d�
 });
 
 describe('Ce que le compte ne tranche pas · avertir, jamais deviner', () => {
+  /*
+    LE SEUIL EXISTAIT, ET LE MODULE LE DÉCLARAIT INTROUVABLE.
+
+    Ce paragraphe écrivait que « la valeur UNITAIRE n'est nulle part dans le
+    modèle ». Inexact depuis l'item I1 : `LigneFacture` porte `quantite` et
+    `prixUnitaire`. Et le décret n° 011/42, art. 107, chiffre ce que la loi
+    laissait indéterminé : « Par objet publicitaire de faible valeur, il faut
+    entendre le bien dont la valeur unitaire est INFÉRIEURE À 10.000,00 FRANCS
+    CONGOLAIS », le Ministre des Finances étant habilité à le réajuster.
+
+    Ce qui reste vrai, et qui est maintenant dit à la bonne place : CETTE
+    déclaration ne lit pas les factures, elle lit les ÉCRITURES, et une ligne
+    d'écriture ne porte qu'un montant global. Le montant reste donc DÉDUIT, et
+    la mention dit désormais OÙ la condition se vérifie plutôt que d'affirmer
+    que la donnée n'existe pas.
+  */
   it('les CADEAUX À LA CLIENTÈLE (6276) restent déduits, et sont NOMMÉS · art. 41, 7°', async () => {
     // « sauf quand il s'agit d'objets publicitaires de faible valeur unitaire
     // hors taxe » : la valeur UNITAIRE n'est nulle part dans le modèle. Exclure
@@ -164,6 +180,12 @@ describe('Ce que le compte ne tranche pas · avertir, jamais deviner', () => {
     expect(d.tvaExclueArt41).toBe(0);
     expect(d.tvaAVerifierArt41).toBe(96_000);
     expect(d.mentionExigibilite).toContain('À VÉRIFIER, ARTICLES 41 ET 42');
+    // Le seuil du décret est CHIFFRÉ sur la mention, avec son article.
+    expect(d.mentionExigibilite).toContain('10.000,00 Francs congolais');
+    expect(d.mentionExigibilite).toContain('art. 107');
+    // Et la mention dit OÙ la condition se vérifie, au lieu de nier la donnée.
+    expect(d.mentionExigibilite).toContain('EST saisie sur la');
+    expect(d.mentionExigibilite).not.toContain('n’est nulle part dans le modèle');
   });
 
   it('le TRANSPORT DU PERSONNEL (6140) aussi · art. 42, 2° le réserve au contrat permanent', async () => {

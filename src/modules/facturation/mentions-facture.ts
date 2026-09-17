@@ -436,23 +436,49 @@ export const ENTREE_EN_VIGUEUR_DECRET_23_10 = new Date(Date.UTC(2023, 2, 3));
  * l'adresse exacte et les autres impôts n'y figurent pas, et les deux mentions
  * du dispositif électronique non plus.
  */
+/**
+ * L'ARTICLE 100 RÉCLAME L'ADRESSE EXACTE, LUI AUSSI · ET CE MODULE A AFFIRMÉ LE
+ * CONTRAIRE PENDANT TROIS JOURS.
+ *
+ * La passe F1 a corrigé l'oubli de l'adresse exacte sur la branche du décret
+ * n° 23/10 (art. 26). Elle a, du même geste, DÉRIVÉ la branche antérieure en
+ * retirant cette mention, et écrit que l'art. 100 ne la réclamait pas. C'était
+ * faux. Fichier `code-general-2026/references/12-tva-decret-application-ch5-8.md`,
+ * art. 100 du décret n° 011/42 du 22 novembre 2011, VERBATIM, ses deux premiers
+ * tirets : « - les noms, post-nom, prénom ou raison sociale, L'ADRESSE EXACTE,
+ * le numéro impôt du vendeur ou prestataire ; - les noms, post-nom et prénom ou
+ * raison sociale, L'ADRESSE EXACTE du client et son numéro impôt ; ».
+ *
+ * Le défaut corrigé était donc REVENU par l'autre porte, et sur la branche la
+ * plus difficile à voir · celle des pièces anciennes reprises dans un dossier.
+ * `verifierMentions` rendait `conforme: true` sur une facture de 2022 qui omet
+ * deux mentions obligatoires.
+ *
+ * ET LA CONSÉQUENCE EST PLUS LOURDE ICI QUE SUR L'AUTRE BRANCHE. L'art. 104 du
+ * même décret : « Les biens et services qui ne remplissent pas les conditions
+ * visées aux articles 95, 98 et 100 ci-dessus sont EXCLUS DU DROIT À
+ * DÉDUCTION. » Une facture d'achat sans adresse n'ouvre pas droit à déduction,
+ * et le logiciel l'affichait conforme.
+ *
+ * CE QUI DIFFÈRE VRAIMENT ENTRE LES DEUX TEXTES, et c'est tout : l'art. 100
+ * compte NEUF groupes, l'art. 26 du décret n° 23/10 en compte DIX, le dixième
+ * étant « le montant des autres impôts et taxes ». C'est la seule mention que
+ * cette branche retire.
+ */
 export const MENTIONS_ARTICLE_100: readonly Mention[] = MENTIONS_DOCUMENT_EN_TENANT_LIEU.filter(
   (m) => m.cle !== 'AUTRES_IMPOTS_ET_TAXES',
-).map((m) =>
-  m.cle === 'IDENTITE_VENDEUR'
-    ? {
-        ...m,
-        libelle: 'identité et n° impôt du vendeur ou prestataire',
-        presente: (f: FactureVerifiable) => renseigne(f.emetteurNom) && renseigne(f.emetteurNumeroImpot),
-      }
-    : m.cle === 'IDENTITE_CLIENT'
-      ? {
-          ...m,
-          libelle: 'identité et n° impôt du client',
-          presente: (f: FactureVerifiable) => renseigne(f.contrepartieNom) && renseigne(f.contrepartieNumeroImpot),
-        }
-      : m,
 );
+
+/** Décret n° 011/42, art. 104 · ce que coûte une pièce incomplète. */
+export const EXCLUSION_DEDUCTION_ART_104 = {
+  article: 'décret n° 011/42, art. 104',
+  citation:
+    'Les biens et services qui ne remplissent pas les conditions visées aux articles 95, 98 et 100 ci-dessus sont ' +
+    'exclus du droit à déduction.',
+  portee:
+    "Une facture d'ACHAT à laquelle il manque une mention de l'article 100 n'ouvre pas droit à déduction · la " +
+    "sanction ne se limite donc pas à l'amende de l'article 97 bis, elle atteint la taxe elle-même.",
+} as const;
 
 export interface TexteApplicable {
   mentions: readonly Mention[];
@@ -473,8 +499,10 @@ export function texteApplicable(dateFacture: Date | null): TexteApplicable {
         texte: 'Décret n° 011/42 du 22 novembre 2011, art. 100 · neuf groupes',
         source:
           'Pièce antérieure au 3 mars 2023 : le décret n° 23/10 « entre en vigueur à la date de sa signature » ' +
-          '(art. 29) et ne lui est pas opposable. Ni l’adresse exacte ni le montant des autres impôts et taxes ne ' +
-          'lui sont réclamés.',
+          '(art. 29) et ne lui est pas opposable. L’ADRESSE EXACTE lui est réclamée TOUT AUTANT, aux deux tirets de ' +
+          'l’article 100 ; seul le montant des autres impôts et taxes, dixième groupe ajouté par l’article 26 du ' +
+          'décret n° 23/10, ne l’est pas. Et l’article 104 du même décret n° 011/42 EXCLUT DU DROIT À DÉDUCTION les ' +
+          'biens et services dont la pièce ne remplit pas les conditions de l’article 100.',
       }
     : {
         mentions: MENTIONS_DOCUMENT_EN_TENANT_LIEU,
