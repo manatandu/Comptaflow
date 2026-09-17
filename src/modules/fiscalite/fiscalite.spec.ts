@@ -44,9 +44,16 @@ function service(options: {
     },
     exercice: {
       findFirst: async ({ where }: { where: { id: string } }) => exercices.find((e) => e.id === where.id) ?? null,
-      findMany: async ({ where, take }: { where: { dateFin: { lt: Date } }; take: number }) =>
+      // LA DOUBLURE HONORE LES DEUX BORNES · `lt` ET `gte`.
+      //
+      // Elle n'appliquait que `lt`, et laissait donc passer un exercice hors
+      // de la fenêtre de trois ans de l'art. 51, alinéa 1er. Une doublure qui
+      // filtre moins que la production valide un code qui ne filtre pas · même
+      // famille que les doublures de `findMany` et de `findFirst` relevées aux
+      // passes F2a et I2.
+      findMany: async ({ where, take }: { where: { dateFin: { lt: Date; gte?: Date } }; take: number }) =>
         exercices
-          .filter((e) => e.dateFin < where.dateFin.lt)
+          .filter((e) => e.dateFin < where.dateFin.lt && (!where.dateFin.gte || e.dateFin >= where.dateFin.gte))
           .sort((a, b) => b.dateDebut.getTime() - a.dateDebut.getTime())
           .slice(0, take),
     },
@@ -1008,13 +1015,34 @@ describe('Le périmètre de la loi est annoncé · entrée en vigueur et territo
   // lit (avec le 139) · voir le commentaire de `lireBalance`.
   const balance = [ligne('13100000', -10_000_000)];
 
-  it('la territorialité de l’art. 7 est annoncée sur TOUT exercice', async () => {
+  /*
+    LA CORRECTION DE F4a AVAIT DONNÉ UNE DIRECTION UNIQUE À UNE RÈGLE QUI EN A
+    DEUX, et la passe F4b l'a relevé le lendemain.
+
+    Elle n'avait lu que l'art. 7 et écrivait donc, sans condition, « la base
+    affichée est TROP LARGE · à retrancher par une déduction ». Vrai d'une
+    exploitation étrangère BÉNÉFICIAIRE ; faux d'une exploitation étrangère
+    DÉFICITAIRE, que l'art. 51, alinéa 3 traite en sens inverse : « les pertes
+    subies dans les entreprises exploitées hors de la République Démocratique
+    du Congo ne sont pas déductibles du bénéfice imposable des entreprises
+    exploitées en République Démocratique du Congo ». La perte étrangère est
+    déjà dans le résultat comptable, la base est TROP ÉTROITE, et il faut la
+    RÉINTÉGRER. Un comptable qui suivait l'avertissement à la lettre creusait
+    l'écart au lieu de le combler.
+  */
+  it('la territorialité est annoncée sur TOUT exercice, DANS LES DEUX SENS', async () => {
     const { s } = service({ balances: { N: balance } });
     const r = await s.resultatFiscal('t1', 'N');
     const texte = r.observations.join(' | ');
-    expect(texte).toContain('PÉRIMÈTRE TERRITORIAL NON DÉCOUPÉ (art. 7)');
+    expect(texte).toContain('PÉRIMÈTRE TERRITORIAL NON DÉCOUPÉ (art. 7 et art. 51, alinéa 3)');
     expect(texte).toContain('uniquement');
+    // Bénéficiaire · art. 7, on retranche. Déficitaire · art. 51 al. 3, on
+    // réintègre. Les deux directions servies ensemble, sans quoi la moitié des
+    // cas reçoit la mauvaise consigne.
     expect(texte).toContain('TROP LARGE');
+    expect(texte).toContain('TROP ÉTROITE');
+    expect(texte).toContain('RÉINTÉGRER');
+    expect(texte).toContain('sens inverse');
   });
 
   it('un exercice de 2026 ne porte PAS l’avertissement d’entrée en vigueur', async () => {
@@ -1049,5 +1077,76 @@ describe('Le périmètre de la loi est annoncé · entrée en vigueur et territo
     // simulation. Refuser de calculer priverait le cabinet sans rien offrir.
     expect(r.resultatComptable).toBe(10_000_000);
     expect(r.observations.length).toBeGreaterThan(0);
+  });
+});
+
+
+/*
+  ARTICLE 51, ALINÉA 1er · LA FENÊTRE SE COMPTE EN EXERCICES, PAS EN LIGNES.
+
+  « Il est procédé à un report déficitaire sur les exercices suivants JUSQU'AU
+  TROISIÈME EXERCICE QUI SUIT l'exercice déficitaire. » C'est une borne de
+  DATE. La requête ne portait qu'un `take: 3`, c'est-à-dire trois
+  ENREGISTREMENTS, et rien n'oblige les exercices d'un dossier à être jointifs :
+  un dossier repris d'un confrère ne contient que ce qu'on a saisi.
+
+  ARTICLE 57 · TROIS CAS, ET NON DEUX. La comparaison `minimum > theorique` est
+  stricte : l'ÉGALITÉ tombait dans la branche qui affirme que le 30 % est
+  « supérieur » au minimum. Le cas n'a rien d'exotique · il est atteint par
+  toute société déficitaire dont le chiffre d'affaires est nul, le chiffre
+  d'affaires ne lisant que les comptes 701 à 707.
+*/
+describe('Report déficitaire et impôt minimum · deux bornes rendues exactes', () => {
+  it('un déficit hors fenêtre de trois exercices n’est plus imputé', async () => {
+    // 2020 déficitaire, puis un TROU, puis 2026. Le droit du déficit de 2020
+    // s'est éteint au 31 décembre 2023 : trois lignes en base, mais six ans.
+    const { s } = service({
+      balances: {
+        A2020: [ligne('13100000', 5_000_000)],
+        A2021: [ligne('13100000', 0)],
+        N: [ligne('13100000', -20_000_000)],
+      },
+      exercices: [
+        { id: 'N', dateDebut: new Date(Date.UTC(2026, 0, 1)), dateFin: new Date(Date.UTC(2026, 11, 31)) },
+        { id: 'A2021', dateDebut: new Date(Date.UTC(2021, 0, 1)), dateFin: new Date(Date.UTC(2021, 11, 31)) },
+        { id: 'A2020', dateDebut: new Date(Date.UTC(2020, 0, 1)), dateFin: new Date(Date.UTC(2020, 11, 31)) },
+      ],
+    });
+    const r = await s.resultatFiscal('t1', 'N');
+    expect(r.deficitAnterieur.montant).toBe(0);
+    expect(r.resultatFiscal).toBe(20_000_000);
+  });
+
+  it('un déficit DANS la fenêtre reste imputé', async () => {
+    const { s } = service({
+      balances: {
+        A2025: [ligne('13100000', 5_000_000)],
+        N: [ligne('13100000', -20_000_000)],
+      },
+      exercices: [
+        { id: 'N', dateDebut: new Date(Date.UTC(2026, 0, 1)), dateFin: new Date(Date.UTC(2026, 11, 31)) },
+        { id: 'A2025', dateDebut: new Date(Date.UTC(2025, 0, 1)), dateFin: new Date(Date.UTC(2025, 11, 31)) },
+      ],
+    });
+    const r = await s.resultatFiscal('t1', 'N');
+    expect(r.deficitAnterieur.montant).toBe(5_000_000);
+    expect(r.resultatFiscal).toBe(15_000_000);
+  });
+
+  it('une société DÉFICITAIRE sans chiffre d’affaires n’est plus dite imposée au taux de 30 %', async () => {
+    // Produits en 77 seulement · le chiffre d'affaires ne lit que 701 à 707,
+    // donc les deux impôts valent zéro et ils sont ÉGAUX.
+    const { s } = service({
+      balances: { N: [ligne('77100000', -1_000_000), ligne('62100000', 3_000_000)] },
+    });
+    const r = await s.resultatFiscal('t1', 'N');
+    expect(r.chiffreAffaires).toBe(0);
+    expect(r.impotDu).toBe(0);
+    expect(r.explication).toContain('RÉSULTAT DÉFICITAIRE');
+    expect(r.explication).toContain('article 57');
+    expect(r.explication).not.toContain('supérieur à l’impôt minimum');
+    // Et la réserve sur l'assiette est dite · le chiffre DÉCLARÉ à
+    // l'administration peut ne pas être celui-là.
+    expect(r.explication).toContain('701 à 707');
   });
 });

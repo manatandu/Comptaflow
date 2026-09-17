@@ -745,7 +745,21 @@ export class FiscaliteService {
    * doit, c'est cesser de présenter comme un résultat fiscal de 2024 ce qui est
    * une simulation de 2024 sous la loi de 2026.
    *
-   * 2 · LA TERRITORIALITÉ. L'art. 7, alinéa 1er : les bénéfices passibles de
+   * 2 · LA TERRITORIALITÉ, ET SON SENS DE CORRECTION · DEUX ARTICLES, DEUX
+   * DIRECTIONS OPPOSÉES. La passe F4a n'avait lu que l'art. 7 et écrivait donc,
+   * sans condition, « la base affichée est TROP LARGE · à retrancher par une
+   * déduction ». C'est vrai d'une exploitation étrangère BÉNÉFICIAIRE et FAUX
+   * d'une exploitation étrangère DÉFICITAIRE : l'art. 51, alinéa 3 dispose que
+   * « les pertes subies dans les entreprises exploitées hors de la République
+   * Démocratique du Congo ne sont pas déductibles du bénéfice imposable des
+   * entreprises exploitées en République Démocratique du Congo ». La perte
+   * étrangère est déjà entrée dans le résultat comptable de la balance : la
+   * base est alors TROP ÉTROITE, et il faut la RÉINTÉGRER. Un comptable qui
+   * suivait à la lettre le seul avertissement disponible CREUSAIT l'écart au
+   * lieu de le combler · une correction de la veille avait donné une direction
+   * unique à une règle qui en a deux.
+   *
+   * L'art. 7, alinéa 1er : les bénéfices passibles de
    * l'impôt « sont déterminés en tenant compte UNIQUEMENT des bénéfices
    * réalisés dans les entreprises exploitées ou sur les opérations réalisées en
    * République Démocratique du Congo, ainsi que ceux dont l'imposition est
@@ -759,7 +773,7 @@ export class FiscaliteService {
    */
   private avertissementsPerimetreLoi(dateDebutExercice: Date): string[] {
     const avertissements = [
-      "PÉRIMÈTRE TERRITORIAL NON DÉCOUPÉ (art. 7). Le résultat fiscal calculé ici part du résultat COMPTABLE de la balance, dans son entier. L'article 7 ne retient « uniquement » que les bénéfices réalisés dans les entreprises exploitées ou sur les opérations réalisées en République Démocratique du Congo, plus ceux qu'une convention de double imposition attribue à la RDC. OmegaX ne porte ni la source d'un produit ni le lieu d'une exploitation : si le dossier exploite une succursale, un chantier ou un immeuble hors de RDC, la base affichée est TROP LARGE · à retrancher par une déduction, pièce à l'appui.",
+      "PÉRIMÈTRE TERRITORIAL NON DÉCOUPÉ (art. 7 et art. 51, alinéa 3). Le résultat fiscal calculé ici part du résultat COMPTABLE de la balance, dans son entier. OmegaX ne porte ni la source d'un produit ni le lieu d'une exploitation, et LE SENS DE LA CORRECTION DÉPEND DU RÉSULTAT DE L'EXPLOITATION ÉTRANGÈRE · les deux articles jouent en sens inverse. Si elle est BÉNÉFICIAIRE, l'article 7 ne retient « uniquement » que les bénéfices réalisés dans les entreprises exploitées ou sur les opérations réalisées en République Démocratique du Congo, plus ceux qu'une convention de double imposition attribue à la RDC : la base affichée est TROP LARGE, à retrancher par une déduction. Si elle est DÉFICITAIRE, l'article 51, alinéa 3 dispose que « les pertes subies dans les entreprises exploitées hors de la République Démocratique du Congo ne sont pas déductibles du bénéfice imposable des entreprises exploitées en République Démocratique du Congo » : la perte étrangère est déjà entrée dans le résultat comptable, la base est alors TROP ÉTROITE, et il faut la RÉINTÉGRER. Dans les deux cas, pièce à l'appui.",
     ];
     if (dateDebutExercice.getTime() < ENTREE_EN_VIGUEUR_LOI_23_053.getTime()) {
       avertissements.push(
@@ -796,8 +810,34 @@ export class FiscaliteService {
    * fenêtre est perdu, pas reporté plus loin.
    */
   private async deficitsAnterieursCalcules(tenantId: string, exercice: { id: string; dateDebut: Date }) {
+    /*
+      LA FENÊTRE SE COMPTE EN EXERCICES DE LA VIE DE L'ENTREPRISE, PAS EN
+      LIGNES PRÉSENTES DANS LE DOSSIER.
+
+      L'art. 51, alinéa 1er reporte le déficit « sur les exercices suivants
+      JUSQU'AU TROISIÈME EXERCICE QUI SUIT l'exercice déficitaire ». C'est une
+      borne de DATE. Le `take: 3` ne comptait, lui, que trois ENREGISTREMENTS,
+      et rien n'oblige les exercices d'un dossier à être jointifs · `validerArticle7`
+      ne vérifie que la fin au 31 décembre et l'unicité de la période, et un
+      dossier repris d'un confrère est précisément le cas où l'on ne saisit que
+      les exercices dont on dispose.
+
+      Un dossier qui tient 2020, 2021 puis 2026 se voyait imputer en 2026 le
+      déficit de 2020, dont le droit s'est éteint au 31 décembre 2023. L'impôt
+      sortait minoré, sans qu'aucun total ne bouge.
+
+      LA BORNE DE DATE DOUBLE DONC LE `take`, et ne le remplace pas : le `take`
+      protège des dossiers à très longue histoire, la date dit le droit.
+    */
+    const bornePlusAncienne = new Date(
+      Date.UTC(
+        exercice.dateDebut.getUTCFullYear() - IMPOT_SOCIETES.exercicesReportDeficit,
+        exercice.dateDebut.getUTCMonth(),
+        exercice.dateDebut.getUTCDate(),
+      ),
+    );
     const precedents = await this.prisma.exercice.findMany({
-      where: { tenantId, dateFin: { lt: exercice.dateDebut } },
+      where: { tenantId, dateFin: { lt: exercice.dateDebut, gte: bornePlusAncienne } },
       orderBy: { dateDebut: 'desc' },
       take: IMPOT_SOCIETES.exercicesReportDeficit,
     });
@@ -1372,15 +1412,41 @@ export class FiscaliteService {
         const theorique = arrondirImpotArt150(is.taux * Math.max(resultatFiscal, 0));
         const minimum = arrondirImpotArt150(is.tauxMinimum * chiffreAffaires);
         const minimumApplique = minimum > theorique;
+        /*
+          TROIS CAS, ET NON DEUX · la comparaison est stricte, l'ÉGALITÉ
+          tombait donc dans la branche qui affirme le contraire.
+
+          Le texte servi disait « Impôt sur le bénéfice au taux de 30 %,
+          SUPÉRIEUR à l'impôt minimum ». Quand les deux montants sont ÉGAUX,
+          c'est faux, et le cas n'a rien d'exotique : il est atteint par toute
+          société DÉFICITAIRE dont le chiffre d'affaires est nul, puisque le
+          chiffre d'affaires ne lit que les comptes 701 à 707. Une holding dont
+          les produits sont en 77, une société en démarrage, une société dont
+          tout le produit est hors activités ordinaires en 84 · l'écran
+          affichait alors « 30 % : 0 », « minimum : 0 », « IMPÔT DÛ : 0 » et
+          l'affirmation que le premier est supérieur au second.
+
+          Le déficit est nommé pour lui-même, parce que c'est le premier cas de
+          déclenchement de l'article : « Les sociétés sont assujetties à un
+          impôt minimum fixé à 1 % du chiffre d'affaires déclaré, LORSQUE LES
+          RÉSULTATS SONT DÉFICITAIRES ou bénéficiaires mais susceptibles de
+          donner lieu à une imposition inférieure à ce montant. »
+        */
+        const deficitaire = resultatFiscal < 0;
+        const explication = minimumApplique
+          ? `L'impôt minimum de ${is.tauxMinimum * 100} % du chiffre d'affaires déclaré (loi n° 23/053, art. 57) est supérieur à l'impôt sur le bénéfice : c'est lui qui est dû.`
+          : minimum === theorique
+            ? deficitaire
+              ? `RÉSULTAT DÉFICITAIRE ET CHIFFRE D'AFFAIRES NUL. L'article 57 assujettit les sociétés à l'impôt minimum de ${is.tauxMinimum * 100} % du chiffre d'affaires déclaré « lorsque les résultats sont déficitaires » : il s'applique bien ici, mais son assiette est nulle, d'où un impôt de zéro. Le chiffre d'affaires retenu ne lit que les comptes 701 à 707 · si le dossier a des produits ailleurs (77 financiers, 84 hors activités ordinaires), le chiffre d'affaires DÉCLARÉ à l'administration peut ne pas être celui-ci.`
+              : `Les deux impôts sont ÉGAUX : ${is.taux * 100} % du bénéfice net imposable (loi n° 23/053, art. 56) et ${is.tauxMinimum * 100} % du chiffre d'affaires (même loi, art. 57) donnent le même montant. L'article 57 ne joue que si l'imposition serait INFÉRIEURE au minimum · ce n'est pas le cas.`
+            : `Impôt sur le bénéfice net imposable au taux de ${is.taux * 100} % (loi n° 23/053, art. 56), supérieur à l'impôt minimum de ${is.tauxMinimum * 100} % du chiffre d'affaires (même loi, art. 57).`;
         return {
           impotTheorique: theorique,
           impotMinimum: minimum,
           impotDu: Math.max(theorique, minimum),
           baseImpot: `${is.taux * 100} % du bénéfice net imposable (loi n° 23/053, art. 56)`,
           minimumApplique,
-          explication: minimumApplique
-            ? `L'impôt minimum de ${is.tauxMinimum * 100} % du chiffre d'affaires déclaré (loi n° 23/053, art. 57) est supérieur à l'impôt sur le bénéfice : c'est lui qui est dû.`
-            : `Impôt sur le bénéfice net imposable au taux de ${is.taux * 100} % (loi n° 23/053, art. 56), supérieur à l'impôt minimum de ${is.tauxMinimum * 100} % du chiffre d'affaires (même loi, art. 57).`,
+          explication,
         };
       }
       case 'IRPP_MICRO_ENTREPRISE':

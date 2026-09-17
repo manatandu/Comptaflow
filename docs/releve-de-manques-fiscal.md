@@ -1526,3 +1526,267 @@ aussi pour ce que la session principale écrit.
   première réinjection a porté sur un point d'appel et non sur la règle. Il
   faut désormais écrire le spec du câblage EN MÊME TEMPS que celui de la règle,
   et non après l'avoir constaté.
+
+## Passe F4b · Impôt sur les sociétés, loi n° 23/053, Titre 2, charges déductibles, charges non déductibles, taux et liquidation (2026-09-17)
+
+**Seconde moitié du Titre 2, et clôture de la passe F4.** F4a avait couvert le
+champ d'application, les exemptions, la territorialité, l'établissement stable
+et les produits imposables. Celle-ci prend la suite : les charges déductibles
+(art. 20 à 49), les charges non déductibles (art. 50), le report déficitaire,
+les prix de transfert, les fusions, et le chapitre 3 sur le taux et
+l'impôt minimum (art. 56 et 57).
+
+**Corpus** · `fiscalite-rdc/code-general-2026/references/04-loi23-053-titre2-impot-societes.md`,
+lignes 402 à 1061, plus `03-loi23-053-titre1-dispositions-generales.md` en
+socle. Six blocs de lecture, dimensionnés par la DURÉE comme F4a et non par le
+nombre de lignes.
+
+**Volumétrie** · 119 agents (6 lecteurs, 6 confronteurs, 107 réfutateurs),
+**127 obligations extraites**, 129 constats, dont **107 soumis à réfutation**.
+
+**Résultat** · **44 écartés, 63 retenus**, dont **13 de gravité FAUX**. Le taux
+de réfutation est de **41 %**, dans la ligne de F4a (39 %) et loin des 78 à
+85 % des passes TVA · c'est le même effet de texte vierge, et il se confirme.
+
+### Ce qui est corrigé dans le code, et testé
+
+#### 1 · L'article 57 affirmait le contraire du vrai sur le cas d'égalité
+
+`calculerImpot` comparait `minimum > theorique`, comparaison STRICTE, et
+l'égalité tombait donc dans la branche qui affirme « Impôt sur le bénéfice net
+imposable au taux de 30 %, **supérieur** à l'impôt minimum ». Quand les deux
+montants sont égaux, cette phrase est fausse.
+
+**Et le cas n'a rien d'exotique.** Il est atteint par toute société
+DÉFICITAIRE dont le chiffre d'affaires est nul, puisque le chiffre d'affaires
+retenu ne lit que les comptes 701 à 707 : une holding dont les produits sont en
+77, une société en démarrage, une société dont tout le produit est hors
+activités ordinaires en 84. L'écran affichait alors « 30 % : 0 »,
+« minimum : 0 », « IMPÔT DÛ : 0 » et l'affirmation que le premier est supérieur
+au second · trois chiffres justes et une phrase fausse.
+
+La branche est désormais à TROIS cas, et le cas déficitaire est nommé pour
+lui-même, parce que c'est le premier déclencheur que l'article écrit : « Les
+sociétés sont assujetties à un impôt minimum fixé à 1 % du chiffre d'affaires
+déclaré, **lorsque les résultats sont déficitaires** ou bénéficiaires mais
+susceptibles de donner lieu à une imposition inférieure à ce montant. »
+L'article s'applique bien, son assiette est nulle, et la réserve sur le chiffre
+d'affaires DÉCLARÉ (qui n'est pas forcément la somme des 701 à 707) est écrite
+à l'écran au lieu d'être tue.
+
+**Anomalie du texte source signalée et non tranchée** · l'art. 57 dit
+« chiffre d'affaires déclaré » sans préciser hors taxes ou toutes taxes
+comprises, alors que le même Titre 2 écrit ailleurs « chiffre d'affaires hors
+taxes » (art. 36, 43 et 49). La divergence est dans la loi, pas dans sa
+transcription.
+
+#### 2 · Le report déficitaire se comptait en LIGNES du dossier, pas en exercices
+
+L'art. 51, alinéa 1er reporte le déficit « sur les exercices suivants
+**jusqu'au troisième exercice qui suit** l'exercice déficitaire ». C'est une
+borne de DATE. `deficitsAnterieursCalcules` ne posait qu'un `take: 3`, qui
+compte trois ENREGISTREMENTS.
+
+Rien n'oblige les exercices d'un dossier à être jointifs · `validerArticle7` ne
+vérifie que la fin au 31 décembre et l'unicité de la période, et un dossier
+repris d'un confrère est précisément le cas où l'on ne saisit que les exercices
+dont on dispose. **Un dossier qui tient 2020, 2021 puis 2026 se voyait imputer
+en 2026 le déficit de 2020, dont le droit s'est éteint au 31 décembre 2023.**
+L'impôt sortait minoré, aucun total ne bougeait, et l'écran nommait
+correctement les exercices d'origine.
+
+La borne de date DOUBLE le `take` et ne le remplace pas : le `take` protège des
+dossiers à très longue histoire, la date dit le droit.
+
+#### 3 · La territorialité n'a pas un sens de correction, elle en a deux
+
+C'est la correction de F4a qu'il a fallu corriger le lendemain. La passe
+précédente n'avait lu que l'art. 7 et écrivait donc, sans condition : « la base
+affichée est TROP LARGE · à retrancher par une déduction ».
+
+C'est vrai d'une exploitation étrangère BÉNÉFICIAIRE et **faux** d'une
+exploitation étrangère DÉFICITAIRE. L'art. 51, alinéa 3 dispose que « les
+pertes subies dans les entreprises exploitées hors de la République
+Démocratique du Congo ne sont pas déductibles du bénéfice imposable des
+entreprises exploitées en République Démocratique du Congo ». La perte
+étrangère est déjà entrée dans le résultat comptable de la balance : la base
+est alors TROP ÉTROITE, et il faut la RÉINTÉGRER.
+
+**Un comptable qui suivait à la lettre le seul avertissement disponible
+CREUSAIT l'écart au lieu de le combler.** Les deux articles jouent en sens
+inverse, l'avertissement porte désormais les deux, et il dit que c'est le
+RÉSULTAT de l'exploitation étrangère qui décide du sens.
+
+#### 4 · Le piège de la doublure, pour la troisième fois
+
+La réinjection du défaut n°2 (retirer la borne `gte`) n'a d'abord rien cassé :
+la doublure de `exercice.findMany` n'honorait que le `lt` et rendait les
+exercices hors fenêtre quoi qu'on lui demande. **Même famille que la doublure
+de `findFirst` de la passe I2 et que celle de `ecriture.findMany` de F2a.** La
+doublure honore maintenant les deux bornes, et son commentaire nomme la
+famille · une doublure qui filtre moins que la production valide un code qui ne
+filtre pas.
+
+### Vérification
+
+`npx tsc --noEmit` et `npm run build` des deux côtés, 3 505 tests serveur et
+468 tests client au vert. **Quatre défauts réinjectés un à un, quatre
+détectés**, le quatrième seulement après correction de la doublure ci-dessus ·
+c'est elle qui a fait écrire le test.
+
+### Ce que la lecture a trouvé dans le TEXTE lui-même
+
+Les six lecteurs remontent quarante-trois anomalies du texte source, dont
+trois commandent tout calcul d'amortissement et **ne se comblent pas** :
+
+- **contradiction entre les art. 32 et 33** · l'art. 32, 1. exclut du dégressif
+  « les éléments amortissables dont la durée normale d'utilisation est
+  inférieure à quatre (4) ans », quand l'art. 33, 1., a) prévoit un coefficient
+  pour une durée « de trois (3) à quatre (4) ans » ;
+- **lacune de barème à l'art. 33** · aucune tranche ne couvre une durée
+  strictement comprise entre quatre et cinq ans, le a) s'arrêtant à 4 ans et le
+  b) commençant à 5 ;
+- **aucun taux de droit commun n'est chiffrable à partir de la loi seule** ·
+  l'art. 28 renvoie à un arrêté du Ministre des Finances qui n'est pas au
+  corpus. Le dépôt sert le barème de l'arrêté n° 013/2025, déjà cité ailleurs ·
+  ce renvoi reste à confronter, il ne se présume pas.
+
+S'y ajoutent quatre renvois NON RÉSOLUS qui bornent d'avance ce que le logiciel
+pourra dire : la liste des États non coopératifs de l'art. 48, alinéa 3 (arrêté
+absent), le prélèvement exceptionnel sur personnel expatrié de l'art. 50, 2°
+(texte instituant absent), la mise en demeure de déclarer de l'art. 51,
+alinéa 2 (procédure extérieure), et le « taux des avances de la Banque Centrale
+du Congo » de l'art. 40, alinéa 1er, qui n'est ni chiffré ni daté.
+
+### Les soixante autres constats retenus
+
+| Article | Ce que le texte impose | Gravité |
+|---|---|---|
+| Article 20 | Règle d'assiette : le bénéfice net imposable est établi après déduction de tous frais et charges nécessités par l'exercice de l'activité imposable en RDC, sous quatre conditions cumulatives. | INCOMPLET |
+| Article 20, point 2 | Condition n°2 : la charge doit correspondre à une charge effective ET être appuyée de pièces justificatives probantes. | INCOMPLET |
+| Article 20, alinéa final | Pour toute somme donnant lieu à un prélèvement ou à une retenue à la source, la société apporte la preuve de la DÉCLARATION ET DU PAIEMENT de la retenue correspondante. | INCOMPLET |
+| Article 21, alinéa 1 | Les traitements, salaires et autres rémunérations alloués aux salariés ne sont déductibles que dans la mesure où ils correspondent à un travail effectif. | INCOMPLET |
+| Article 22, alinéa 1 | Les rémunérations versées aux associés actifs de sociétés de capitaux et à leurs conjoints, aux associés actifs de SNC, aux gérants commandités de SCS et aux membres de sociétés en participa | INCOMPLET |
+| Article 22, alinéa 2 | En cas d'exagération ou de rémunérations fictives, l'ENSEMBLE des rétributions versées aux associés dirigeants ou à leurs conjoints est considéré comme bénéfices distribués et traité comme t | INCOMPLET |
+| Article 23, point 1 (charges déductibles) | Sont déductibles les sommes FIXES DÉCIDÉES PAR LES ASSEMBLÉES GÉNÉRALES ORDINAIRES allouées à titre d'indemnités de fonction en rémunération des activités des administrateurs. | INCOMPLET |
+| Article 23, point 2 (charges déductibles) | Sont déductibles les rémunérations exceptionnelles allouées conformément aux dispositions de l'article 432 de l'Acte uniforme révisé du 30 janvier 2014 relatif au droit des sociétés commerci | INCOMPLET |
+| Article 23, exclusion 1 | Sont exclues des charges déductibles les rémunérations autres que celles perçues dans le cadre du travail, les sommes fixes autres que celles décidées par les AGO à titre d'indemnités de fon | INCOMPLET |
+| Article 25, alinéa 2 | La valeur locative des immeubles dont le redevable est propriétaire n'est considérée comme loyer ou charge locative que s'il existe un contrat de bail dûment signé entre le propriétaire et l | INCOMPLET |
+| Article 26, alinéa 2 | Commissions, courtages, ristournes commerciales ou autres, vacations, honoraires occasionnels ou non, gratifications et autres rétributions quelconques ne sont admis en déduction que s'ils s | INCOMPLET |
+| Article 26, alinéa 4 | À défaut de déclaration exacte des sommes de l'alinéa 2 ou de leurs bénéficiaires, lesdites sommes sont AJOUTÉES aux bénéfices de celui qui les a payées, sans préjudice des sanctions prévues | INCOMPLET |
+| Article 27 | Les primes d'assurance ne sont déductibles qu'à la condition qu'elles couvrent des risques dont la réalisation entraîne une diminution de l'actif net de l'entreprise. | INCOMPLET |
+| Article 27 | Les primes d'assurance ne sont déductibles que si le risque couvert, en cas de réalisation, entraîne une diminution de l'actif net de l'entreprise. | INCOMPLET |
+| Article 28, alinéa 1 (chapeau) | Seuls sont déductibles les amortissements des immobilisations servant à l'exercice de l'activité et ceux des immobilisations données en location par une Institution de crédit-bail agréée par | INCOMPLET |
+| Article 28, condition 1 | L'amortissement n'est déductible que s'il porte sur une immobilisation inscrite à l'actif ET effectivement soumise à dépréciation. | INCOMPLET |
+| Article 29, point 1 (acquisition à titre onéreux) | Coût d'entrée = prix d'achat net de réductions et de la TVA récupérable, majoré des charges accessoires et des charges d'installation nécessaires à la mise en état d'utilisation. | INCOMPLET |
+| Article 29, point 2 (acquisition à titre gratuit) | Pour une immobilisation acquise à titre gratuit, le coût d'entrée est la valeur vénale. | INCOMPLET |
+| Article 30, alinéa 2 (2e phrase) | En cas de cession d'un élément en cours d'exercice, l'amortissement peut être pratiqué JUSQU'AU JOUR DE LA CESSION. Au-delà de ce jour, aucun amortissement n'est admis. | FAUX |
+| Article 33, point 1, a) b) c) (barème des coefficients) | Barème impératif : 1,5 pour une durée de trois à quatre ans ; 2 pour cinq à six ans ; 2,5 au-delà de six ans. | INCOMPLET |
+| Article 33, point 2 (annuités suivantes) | Pour chaque période imposable suivante, le taux retenu s'applique à la valeur résiduelle, c'est-à-dire au coût de revient diminué des amortissements effectués ET ADMIS dans la période imposa | INCOMPLET |
+| Article 33, point 2 (systeme degressif · annuites suivantes) | A partir de la deuxieme annuite, l'annuite degressive se calcule en appliquant le taux retenu (lineaire x 1,5 / 2 / 2,5) a la valeur residuelle, definie comme le cout de revient diminue des  | INCOMPLET |
+| Article 34 | La premiere annuite est obligatoirement reduite prorata temporis a compter du PREMIER JOUR DU MOIS de mise en service ou de creation du bien. | FAUX |
+| Article 35 | Des que l'annuite d'amortissement calculee pour un exercice devient inferieure au quotient [valeur residuelle comptable / nombre d'annees d'utilisation restant a courir a compter de l'ouvert | INCOMPLET |
+| Article 38, point 2 | Apres la premiere annuite a 60 %, les periodes suivantes appliquent le systeme degressif a la valeur residuelle, c'est-a-dire au cout de revient diminue des amortissements effectues et admis | INCOMPLET |
+| Article 39 | Ne sont pas admis en deduction du benefice imposable : les interets des capitaux engages par l'associe dans une societe unipersonnelle, et les sommes de toute nature versees a titre de remun | INCOMPLET |
+| Article 40, alinea 1er (chapeau et points 1 et 2) | Les interets servis aux associes sur les sommes laissees en sus de leurs parts de capital ne sont admis que dans la limite du taux des avances de la Banque Centrale du Congo majore de 2 poin | FAUX |
+| Article 40, alinea 2 | Pour les societes soumises a l'IS, les interets servis aux associes ou actionnaires possedant en droit ou en fait la direction de l'entreprise ne sont deductibles que si les sommes laissees  | INCOMPLET |
+| Article 41, alinea 1er | Les interets des capitaux empruntes a des tiers et engages dans l'exploitation, et toutes charges, rentes ou redevances analogues, sont deductibles a condition que ces emprunts soient justif | INCOMPLET |
+| Article 42, alinea 1er (points 1, 2 et 3) | Les interets payes a une entite liee au sens de l'article 53, alinea 2 ne sont deductibles qu'a trois conditions cumulatives : remboursement du principal dans les cinq ans de la mise a dispo | FAUX |
+| Article 42, alinea 2 (definition du resultat retraite, points 1 a 4) | Le resultat retraite servant de base au plafond de 15 % est le resultat net des activites ordinaires auquel sont rajoutes : les charges d'interets deductibles en application des articles 40  | INCOMPLET |
+| Article 43, alinea 1er | Les redevances de concession de licences d'exploitation, de brevets d'invention, de marques de fabrique, procedes ou formules de fabrication et autres droits analogues EN COURS DE VALIDITE v | INCOMPLET |
+| Article 43, alinéa 1er | Redevances de licences, brevets, marques, procédés ou formules de fabrication et autres droits analogues EN COURS DE VALIDITE, versées à une entité LIEE au sens de l'art. 53 al. 2 : déductib | INCOMPLET |
+| Article 44, alinéa 1er | Versements au profit du Fonds Social de la RDC, d'organismes de recherche, d'œuvres ou organismes d'utilité publique à caractère philanthropique et social et d'associations sportives, À COND | INCOMPLET |
+| Article 45, première phrase | Sont déductibles les impôts, droits et taxes à charge de l'entreprise (a) ACQUITTES, (b) DANS LE DELAI, (c) NON ETABLIS D'OFFICE, à l'exception sans condition de l'Impôt sur les Sociétés et  | INCOMPLET |
+| Article 45, seconde phrase | Règle d'assiette en sens inverse et règle de rattachement : les dégrèvements ultérieurement accordés sur les IMPOTS DEDUCTIBLES entrent dans les recettes de l'exercice au cours duquel la soc | INCOMPLET |
+| Article 46 | Triple condition cumulative de déductibilité des sommes PAYEES OU DUES par une entreprise exploitée en RDC à une personne physique ou morale LIEE au sens de l'art. 53 al. 2 : (1) réalité du  | INCOMPLET |
+| Article 47, alinéa 1er | Double condition cumulative pour les sommes payées ou dues à une personne NON LIEE au sens de l'art. 53 al. 2, domiciliée ou résidente dans un pays à REGIME FISCAL PRIVILEGIE : (1) le débite | INCOMPLET |
+| Article 47, alinéa 2 | Définition opérante et règle de calcul comparatif du régime fiscal privilégié, par critère ALTERNATIF : (1) l'entreprise n'est pas imposable dans cet État, OU (2) l'impôt sur les bénéfices o | INCOMPLET |
+| Article 49, chapeau | Chapeau d'une liste LIMITATIVE de sept charges déductibles, s'ajoutant (« également ») aux charges déjà admises par les articles précédents. Chaque point porte ses propres conditions et limi | INCOMPLET |
+| Article 49, point 1 | Dépenses liées aux cadeaux et aux objets spécialement conçus pour la publicité : déductibles si elles sont JUSTIFIEES PAR DES FACTURES et dans les limites de deux pour mille (2 ‰) du chiffre | INCOMPLET |
+| Article 49, point 2 | Frais de représentation JUSTIFIES PAR DES FACTURES, dans la limite de 60 % de leur montant. Le plafond porte sur la charge elle-même. 40 % sont non déductibles par principe, même entièrement | INCOMPLET |
+| Article 49, point 3 | Exception sectorielle : les charges professionnelles afférentes aux bâtiments et terrains DONNES EN LOCATION par les SOCIETES IMMOBILIERES sont déductibles. Aucune limite chiffrée, aucune co | FAUX |
+| Article 49, point 4 | Seules les pertes de change EFFECTIVEMENT REALISEES sont déductibles. L'adverbe exclut, par lecture littérale, les pertes latentes ou constatées par réévaluation de clôture : la déduction es | FAUX |
+| Article 49, point 6 | Règle d'assiette, étalement obligatoire et taux : les dépenses de recherche APPLIQUEE et de développement pour des projets NETTEMENT INDIVIDUALISES ne sont pas déduites immédiatement · elles | INCOMPLET |
+| Art. 50, 1° | Interdiction de déduire les dépenses à caractère personnel, la liste (entretien du ménage, frais d'instruction, frais de congé) étant introduite par « notamment », donc exemplative. | INCOMPLET |
+| Art. 50, 5°, chapeau | Principe de NON-déductibilité de toutes les provisions (pertes, charges, dépréciations d'actif), sauf les TROIS catégories limitativement énumérées aux a), b) et c). Toute provision non list | FAUX |
+| Art. 50, 5°, b) | Exception à trois conditions cumulatives : provision OBLIGATOIRE portant sur des créances ; constituée par un établissement de crédit ou de microfinance CONFORMÉMENT à sa réglementation spéc | INCOMPLET |
+| Art. 50, 6° | Interdiction de déduire les dépenses somptuaires (chasse et pêche sportives, bateaux de plaisance, aéronefs de tourisme, résidences d'agrément, et toute autre dépense somptuaire), QUE CE SOI | INCOMPLET |
+| Art. 53, alinéa 1er | Les bénéfices indirectement transférés à des entreprises liées situées hors RDC sont INCORPORÉS aux résultats comptables, par n'importe quel moyen. La méthode est légalement fixée : COMPARAI | FAUX |
+| Art. 53, alinéa 2, 1°, a) | Critère de dépendance : détention directe ou indirecte de la MAJORITÉ RELATIVE du capital social. Le contrôle indirect se caractérise par une chaîne, SANS LIMITE PARTICULIÈRE, de prises de p | INCOMPLET |
+| Art. 53, alinéa 2, 2° | Troisième critère : détention d'un pourcentage des droits de vote suffisant pour exercer un contrôle EFFECTIF dans l'autre entité · critère qualitatif, sans seuil chiffré. | INCOMPLET |
+| Art. 53, alinéa 2, 3° | Quatrième critère : dirigeant COMMUN aux deux entités, ou dirigeants liés par une COMMUNAUTÉ D'INTÉRÊT. Aucun lien capitalistique n'est exigé. | INCOMPLET |
+| Art. 53, alinéa 2, 4° | Cinquième critère : conditions contractuelles, commerciales ou financières s'écartant de celles convenues entre entités indépendantes ET conduisant à placer une entité sous la DÉPENDANCE ÉCO | INCOMPLET |
+| Art. 53, alinéa 2, 5° | Sixième critère : les deux entités placées, l'une et l'autre dans les conditions du point 1, sous le CONTRÔLE D'UNE MÊME ENTITÉ TIERCE · le lien horizontal entre sociétés sœurs est couvert. | INCOMPLET |
+| Art. 53, alinéa 5, 1° à 7° | Énumération exemplative (« notamment ») de SEPT modalités de transfert indirect : prix majorés ou minorés ; redevances excessives ou sans contrepartie ; renonciations à recette (vente à prix | INCOMPLET |
+| Art. 54, alinéa 1er | Exonération d'IS des plus-values, autres que sur marchandises, résultant de l'attribution d'actions ou de parts sociales à la suite de FUSION de sociétés anonymes, par actions simplifiées ou | FAUX |
+| Art. 54, alinéa 2 et conditions 1° et 2° | Extension de l'exonération à l'apport partiel d'actif rémunéré par attribution GRATUITE d'actions ou de parts, à deux conditions cumulatives : (1) la société bénéficiaire a son siège social  | INCOMPLET |
+| Art. 55 | Les éléments déjà imposés au cours d'un exercice SONT DÉDUITS du montant des revenus imposables à l'IS réalisés durant cet exercice, pour éviter la double imposition d'un même revenu dans le | FAUX |
+| Article 56 (Titre II, Chapitre 3) · unicité de la source du taux | Le taux de 30 % de l'art. 56 et le taux de 1 % de l'art. 57 sont des chiffres de loi ; le dépôt s'interdit de les écrire ailleurs que dans leur paramètre, au motif écrit qu'« un taux recopié | INCOMPLET |
+
+### Les quarante-quatre constats écartés par l'étape adverse
+
+| Article | Constat écarté | Motif de la réfutation |
+|---|---|---|
+| Article 20, point 1 | Condition n°1 : la charge doit être exposée dans l'intérêt direct de l'entreprise ou se rattacher à sa gestion | CONSTAT RÉFUTÉ sur l'angle 1 (le constat fait dire au texte l'inverse de ce qu'il dit : il transforme une BRANCHE ALTERNATIVE EXONÉRATOIRE en fondement autonome de rejet), sur l'angle 4 (le seul texte du corpus qui porte l'« acte  |
+| Article 20, point 3 | Condition n°3 : la charge doit se traduire par une diminution de l'actif net de l'entreprise. | Le constat cite fidèlement l'art. 20, 3° et le place sous le bon numéro, mais il lui prête une règle que le texte ne porte pas : la frontière charge / dépense immobilisable, seul contenu concret du constat, est posée par la loi à  |
+| Article 20, point 4 | Condition n°4 : la charge doit être comprise dans les charges de l'exercice au cours duquel elle a été ENGAGÉE | Le constat tombe sur ses deux jambes. (1) Sa jambe « la plus gênante » · la prétendue tension avec l'art. 25 · repose sur une citation REFORMULÉE : il prête à l'art. 25, al. 1er une exclusivité (« n'admet en déduction QUE le loyer |
+| Article 21, alinéa 2 | La règle s'applique à toutes les rémunérations directes ou indirectes, y compris indemnités, allocations, avan | La prémisse de fait du constat est fausse, et c'est elle qui portait toute la gravité. « Unique occurrence » et « Aucun code du catalogue ne les vise » sont démentis par le catalogue des retraitements, qui contient une ligne de RÉ |
+| Article 23, exclusion 2 | Sont exclues des charges déductibles les sommes versées aux dirigeants ou cadres au titre d'indemnité de frais | CONSTAT RÉFUTÉ sur son affirmation porteuse (angle 3) et sur deux de ses trois preuves de fait (angles 1 et 2). « PAS DU TOUT » est faux : le catalogue fiscal d'OmegaX porte une ligne de RÉINTÉGRATION dont la source, lue à l'insta |
+| Article 24 | Seuls sont déductibles les salaires, commissions, honoraires, rémunérations de services payés OU DUS et assimi | Le constat est exact sur le texte (art. 24 lu verbatim, l. 479-482) et sur les greps (l'entrée 277-283 n'a effectivement ni `plafond` ni `assietteHorsPortee`), mais sa jambe décisive est fausse : il assimile l'assiette de l'art. 2 |
+| Article 25, alinéa 1 | Sont déductibles le loyer RÉELLEMENT PAYÉ et les charges locatives afférents aux immeubles ou parties d'immeub | Le constat est réfuté sur sa qualification (« PAS DU TOUT ») et sur la jambe de preuve qui, seule, la portait. Il affirme que la nature `retenueLocative` « traite la retenue de 20 %, jamais la déductibilité ». C'est faux, et faux  |
+| Article 28, alinéa inséré entre les conditions 2 et 3 | Le taux d'amortissement est fixé par Arrêté du Ministre ayant les Finances dans ses attributions ; la loi ne d | REFUTE sur les angles 1, 4 et 3. (1) Le constat tronque l'alinéa qu'il vise et en fait dire plus qu'il ne dit. L'alinéa inséré entre les points 2 et 3 de l'art. 28 (fichier `04-loi23-053-titre2-impot-societes.md`, lignes 535 à 540 |
+| Article 28, fin de la condition 2 (crédit-bail) | Pour les biens donnés en location par une institution de crédit-bail spécialisée agréée par la BCC, la durée d | Les deux affirmations empiriques qui portent le constat sont démenties par le dépôt lui-même : (a) le sujet du crédit-bail y est connu DU CÔTÉ BAILLEUR, avec l'agrément BCC et le renvoi à l'art. 28, dans src/modules/fiscalite/cata |
+| Article 28, dernier alinéa | Le petit matériel et outillage ainsi que le matériel de bureau sont déductibles pour la totalité de leur coût  | RÉFUTÉ sur l'angle 3, par une preuve matérielle : la preuve centrale du constat est fausse. Le grep qu'il déclare vide (« 014/CAB », « 014/2025 », « 500 USD » sur src/ et client/ : aucune occurrence ») rend en réalité une occurren |
+| Article 29, point 3 (apport) | Pour une immobilisation apportée à l'entreprise par des tiers, le coût d'entrée est la valeur d'apport. | Le constat vise le bon article et le cite fidèlement, mais il s'effondre sur sa preuve et sur sa qualification. (1) Sa preuve matérielle est FAUSSE : le grep qu'il dit avoir exécuté rend une occurrence, pas zéro. (2) Ses renvois d |
+| Article 29, point 4 (immobilisations créées par l'entreprise) | Coût d'entrée = coût d'acquisition des matières ou fournitures utilisées, augmenté de toutes charges directes  | La preuve avancée est matériellement fausse · le grep qu'elle invoque rend 30 occurrences dans src/, dont une à l'intérieur même du contrôle que le constat cite comme preuve de son absence · et les trois branches de son explicatio |
+| Article 29, dernier alinéa (définition opérante) | La valeur résiduelle prévisionnelle est la valeur probable de réalisation du bien à l'issue de sa durée d'util | CONSTAT RÉFUTÉ · il érige en obligation une clause de pure DÉFINITION, et il concède lui-même que la seule part opérante est servie. 1) ANGLE 1 · LE TEXTE. Fichier lu à l'instant : /root/.claude/skills/synced/80921ba8-2ca0-4a8a-b7 |
+| Article 30, alinéa 1 (1re phrase) | À l'exception des immobilisations admises aux systèmes dégressif ou exceptionnel, le système retenu est celui  | L'obligation citée est bien dans le texte, mais elle est SERVIE, et le constat le concède lui-même (« Le défaut est bien le linéaire, ce que l'article exige »). Ce qu'il ajoute · une interdiction de tout troisième mode, et l'absen |
+| Article 31, chapeau | Régime OPTIONNEL : les sociétés peuvent opter pour le dégressif, applicable aux biens NEUFS acquis ou créés, i | Le constat s'effondre sur l'angle 3 et sur l'angle 1. (A) Ses deux négatives porteuses sont démenties par la ligne même qu'il produit comme preuve : catalogue-retraitements.ts porte, dans l'entrée AMORTISSEMENTS_EXCEDENT qu'il cit |
+| Article 31, liste des biens éligibles (points 1 à 10) | Liste LIMITATIVE de dix catégories seules éligibles au dégressif, chacune assortie d'exclusions expresses : vé | L'article 31 n'édicte aucune obligation : il ouvre une FACULTÉ (« Les sociétés peuvent opter pour un système d'amortissement dégressif ») dont OmegaX n'offre pas l'exercice · l'énumération `ModeAmortissement` ne porte que `LINEAIR |
+| Article 32 | Double exclusion du dégressif : les éléments dont la durée normale d'utilisation est INFÉRIEURE À 4 ANS ou SUP | L'art. 32 n'est pas une obligation mais une restriction à une FACULTÉ que l'art. 31 ouvre par « peuvent opter » · et cette faculté n'existe pas dans OmegaX : `enum ModeAmortissement` ne porte que LINEAIRE et UNITES_DOEUVRE, DEGRES |
+| Article 33, point 1 (première annuité dégressive et coefficients) | Taux dégressif = taux d'amortissement linéaire normalement applicable multiplié par un coefficient de 1,5 ; 2  | CONSTAT RÉFUTÉ sur l'angle 1 (deux fois) et sur l'angle 3, le fait matériel qu'il produit étant concédé et vérifié. Je concède d'emblée ce qui tient : ses trois renvois de lignes sont exacts, je les ai relus à l'instant et je n'en |
+| Article 36, alinea 1er | L'option pour l'amortissement exceptionnel est ouverte aux seules entreprises industrielles fabriquant des pro | Le constat tombe sur trois points, dont deux sont des erreurs de lecture du texte lui-même. (1) Il érige en « obligation » ce que l'article 36 formule comme une pure faculté : « peuvent opter ». Aucun redevable n'est tenu à rien,  |
+| Article 36, alinea 2 | Le seuil de 20 % peut etre reevalue par Arrete du Ministre ayant les Finances dans ses attributions ; le taux  | Art. 36, al. 2 n'est pas une obligation : c'est une HABILITATION du Ministre des Finances, qui ne met rien à la charge du redevable ni du logiciel. Et le dispositif qu'il borne est structurellement inaccessible dans OmegaX : l'art |
+| Article 36, alinea 3 | Prorata = CA HT a l'exportation / total du CA HT de l'entreprise, le chiffre d'affaires a considerer etant cel | Constat réfuté sur l'angle 1 (citation détachée : l'alinéa 3 n'est que la définition d'un terme employé par une FACULTÉ d'option, et le constat tait l'alinéa 2 qui rend le seuil lui-même variable par arrêté) et surtout sur l'angle |
+| Article 37 | L'amortissement exceptionnel ne s'applique qu'aux elements de l'actif immobilise repris a l'article 31, amorti | CONSTAT RÉFUTÉ sur l'angle 3 (dirimant) et sur l'angle 4 (dirimant lui aussi), avec deux réserves d'angle 1 qui atteignent son en-tête et sa pièce maîtresse. 1) SA PREUVE CENTRALE EST FAUSSE DANS LE FICHIER ET DANS L'ENTRÉE QU'IL  |
+| Article 38, point 1 | La premiere annuite d'amortissement exceptionnel est egale a 60 % du cout de revient de l'element, a compter d | CONSTAT RÉFUTÉ sur les angles 1 et 3, chacun portant seul, avec deux renvois de ligne faux et une affirmation textuelle de son explication démontrablement contredite par le fichier qu'il cite. Je concède d'emblée ce qui tient : le |
+| Article 38, point 3 | Des que l'annuite calculee devient inferieure au quotient [valeur residuelle comptable / nombre d'annees d'uti | CONSTAT RÉFUTÉ sur l'angle 3, qui est dirimant, et affaibli sur l'angle 1. Sa phrase de clôture · « Manque non couvert par le hors-scope déclaré, qui ne nomme pas l'exceptionnel » · est fausse deux fois : le schéma déclare hors sc |
+| Article 41, alinea 2 | Ne sont pas consideres comme tiers les associes dans les societes autres que par actions · leurs avances relev | REFUTE sur l'angle 1 (la consequence prêtee au texte n'existe pas) et sur l'angle 3 (la preuve « aucune trace » est fausse quant a l'article). Le constat cite l'alinea fidelement et ses renvois de lignes sont exacts, mais son ress |
+| Article 41, alinea 3 | En aucun cas les interets des creances hypothecaires sur des immeubles donnes en location, en tout ou en parti | CONSTAT RÉFUTÉ sur l'angle 3 (décisif) et sur l'angle 1. (1) L'obligation EST servie, sous un autre numéro d'article : le catalogue porte une ligne de RÉINTÉGRATION dont le libellé reprend la portée générale de l'art. 50, 4° · « D |
+| Article 43, alinéa 2 | Condition de fond et charge de la preuve : même sous le plafond de 3,5 %, les sommes payées ne sont admises en | CONSTAT RÉFUTÉ sur son affirmation porteuse, qui est une affirmation de fait vérifiable et fausse. Je concède d'emblée ce qui tient : l'article, l'alinéa et les QUATRE renvois de lignes du dépôt sont exacts (catalogue-retraitement |
+| Article 44, alinéa 2, point 1 | Obligation déclarative formelle, condition du bénéfice de la déduction : un relevé indiquant LES MONTANTS, LA  | CONSTAT RÉFUTÉ sur l'angle 3 (déjà servi, et testé sous ce nom), et sa contre-preuve s'effondre sur la seule colonne qui compte. 1) ANGLE 1 · le texte est bien celui-là, et le dépôt le sert VERBATIM. Lu à l'instant, fichier 04-loi |
+| Article 48, alinéa 1er | Interdiction absolue de déduction, sans échappatoire probatoire : les sommes payées ou dues à une personne LIE | Le constat repose sur une affirmation de droit qui est fausse au vu du texte lu à l'instant : « ce champ [pays] est l'unique critère d'application de l'article (le seul critère est la résidence du bénéficiaire) ». L'article 48 ne  |
+| Article 48, alinéa 2 | Définition opérante du caractère non coopératif : États et territoires qui ne se conforment pas aux standards  | Le constat ampute l'article 48 de son alinéa 3, qui est la clé du dispositif : la qualification d'« État ou territoire non coopératif » n'est pas laissée à l'appréciation du redevable à partir du critère qualitatif de l'alinéa 2,  |
+| Article 48, alinéa 3 | Compétence réglementaire et condition d'applicabilité : la liste des États et territoires non coopératifs est  | L'alinéa 3 ne porte pas la « condition d'applicabilité » que le constat lui prête : la loi fait dépendre la qualification d'État non coopératif de la DÉFINITION de l'alinéa 2, pas de la liste de l'alinéa 3 · son propre article 53  |
+| Article 49, point 5 | Les dépenses de formation professionnelle sont déductibles. Aucune limite chiffrée, aucun plafond, aucune cond | CONSTAT RÉFUTÉ sur deux fondements indépendants, chacun suffisant. (1) ANGLE 1/2 · le constat fait dire au texte plus qu'il ne dit. Son affirmation porteuse · « Aucune limite chiffrée, aucun plafond, AUCUNE CONDITION DE FORME […]  |
+| Article 49, point 7 | Règle d'assiette à deux étages : les frais de communication JUSTIFIES PAR DES FACTURES ne sont déductibles qu' | Le constat tombe sur l'angle 3 : le moyen qu'il déclare absent existe, et par DEUX routes indépendantes qu'il n'a pas regardées. Sa prémisse porteuse · « la proposition ne se construit pas à la main : elle se calcule sur le MOUVEM |
+| Art. 50, 2° | Interdiction de déduire (a) les impôts sur les revenus, (b) les autres impôts qui ne constituent pas une charg | RÉFUTÉ sur l'angle 1 (la prémisse juridique du constat est fausse), confirmé sur l'angle 3. Tout ce qui suit a été lu à l'instant. 1) LE TEXTE EST CITÉ FIDÈLEMENT, MAIS DÉCOUPÉ AUTREMENT QU'IL NE SE DÉCOUPE. Art. 50, 2° (04-loi23- |
+| Art. 50, 3° | Interdiction de déduire amendes, amendes transactionnelles, confiscations et pénalités de toute nature sanctio | Le constat s'effondre sur son mécanisme et sur sa lecture du texte. 1) Il tronque l'article : l'art. 50, 3° n'est pas une énumération fermée, il se ferme par une clause générale (« et, d'une manière générale, aux lois et règlement |
+| Art. 50, 5°, a) | Exception : les provisions pour reconstitution des gisements MINIERS sont déductibles, sans condition, sans pl | RÉFUTÉ sur l'angle 3, qui suffit seul, et sur une affirmation centrale démontrablement fausse. Le constat concède lui-même que l'obligation est servie exactement ("L'exception est bien nommée et sans condition ajoutée, ce qui est  |
+| Art. 50, 5°, c) | Exception à quatre conditions cumulatives : provision OBLIGATOIRE, constituée dans le cadre des ENGAGEMENTS RÉ | Le constat est exact sur le texte mais sa gravité INCOMPLET ne tient pas : l'exception qu'il veut voir mieux servie ne peut être ouverte par AUCUN dossier que le logiciel accepte, et son propre reproche se contredit. 1) LA CITATIO |
+| Art. 52, chapeau | Formule restrictive : les déductions de pertes de l'art. 51, al. 1er « ne sont autorisées que » conformément a | CONSTAT RÉFUTÉ sur trois plans, dont deux dirimants. Je concède d'emblée l'angle 1 sur la lettre : le chapeau existe et est cité mot pour mot. Lu à l'instant, fichier `04-loi23-053-titre2-impot-societes.md`, l. 932-933 : « Les déd |
+| Art. 52, 3° | Les amortissements pratiqués en l'absence de bénéfices ne peuvent être réputés différés qu'à DEUX conditions c | Constat mal calibré sur trois plans, et faux sur une jambe de sa preuve. (1) ANGLE 1 · sa ligne « obligation » inverse la modalité du texte : l'art. 52, 3° est PERMISSIF (« peuvent être réputés différés […] à condition de »), il n |
+| Art. 53, alinéa 2, 1°, b) | Second critère : l'exercice EN FAIT du pouvoir de décision (dépendance de fait), « qui est présumée ». Le text | CONSTAT RÉFUTÉ sur les angles 1, 3 et 4, dont deux suffisent seuls. (1) LA DISPOSITION N'EST PAS UNE OBLIGATION. Le constat range sous « obligation » ce qui est une DÉFINITION. L'alinéa 2 de l'art. 53 s'ouvre par « Deux entités so |
+| Art. 53, alinéa 3 | Définition opérante d'« entité » aux fins de l'alinéa 2 : toute entreprise, société, association, joint-ventur | RÉFUTÉ sur trois angles, dont le premier est dirimant parce qu'il porte sur la moitié annoncée du constat. (1) ANGLE 1 · LE « PIÈGE » EST L'INVERSE EXACT DU TEXTE, ET LE TEXTE EST DANS LE FICHIER QUE LE CONFRONTEUR DIT AVOIR LU. L |
+| Art. 54, alinéa 3, 2° | Seconde condition de l'exonération : inscrire IMMÉDIATEMENT au passif de la bénéficiaire, en contrepartie des  | Le texte est bien lu et bien placé, mais la PREUVE AVANCÉE est fausse sur ses deux jambes matérielles, et l'EXPLICATION repose sur un « arbitrage muet » qui n'existe pas. (1) Le renvoi de ligne est faux : la racine 15 court de la  |
+| Article 57 (Titre II, Chapitre 3) · règle d'assiette du minimum | L'assiette du minimum n'est pas le bénéfice mais le CHIFFRE D'AFFAIRES DÉCLARÉ. Deux assiettes distinctes coex | Le constat est réfuté dans sa formulation et dans sa gravité : sur ses quatre points, deux sont contraires au texte lu (le point « durée de l'exercice » est régi mot pour mot par l'art. 12, al. 2 à 4, et le point « affichage » n'e |
+| Article 57 (Titre II, Chapitre 3) · assujettis au minimum | « Les sociétés sont assujetties à un impôt minimum fixé à 1 % du chiffre d'affaires déclaré » · le plancher fr | Le constat repose sur deux affirmations que la lecture du texte et du code dément. (1) Il cite l'art. 57 tronqué : il s'arrête à « chiffre d'affaires déclaré » et supprime la condition qui suit, laquelle est précisément ce qui gou |
+
+### Ce que cette passe apprend sur la méthode
+
+- **Une correction de la veille est un constat comme un autre.** Trois des
+  treize FAUX portaient sur du code écrit par F1, F3a et F4a, et l'un d'eux
+  (la territorialité à sens unique) a été corrigé moins de vingt-quatre heures
+  après avoir été posé. La confrontation ne vise pas seulement le code ancien ·
+  le code le plus récent est celui que personne n'a encore relu.
+- **Le piège de la doublure est structurel, pas accidentel.** Troisième
+  occurrence en cinq passes, toujours la même forme : la doublure filtre moins
+  que la production, la réinjection passe, et le test valide un code qui ne
+  filtre pas. Toute correction qui dépend de ce qu'une requête RAMÈNE se teste
+  désormais sur la requête elle-même.
+- **Le trou du câblage n'est plus revenu**, et c'est la règle de F4a qui a
+  servi : le spec du câblage a été écrit en même temps que celui de la règle,
+  et la première réinjection a porté sur la règle.
+- **Le taux de réfutation d'un texte vierge se stabilise autour de 40 %.** F4a
+  39 %, F4b 41 %. Ce n'est plus une observation isolée · c'est la base à
+  laquelle comparer les passes O, R et D à venir.

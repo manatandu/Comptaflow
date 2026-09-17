@@ -2662,6 +2662,69 @@ règle : la fonction pure était juste et le service ne l'appelait pas ainsi.
 Écrire le spec du CÂBLAGE en même temps que celui de la règle, et non après
 l'avoir constaté.
 
+**PASSE F4b · l'impôt sur les sociétés, loi n° 23/053, Titre 2, charges,
+taux et liquidation (2026-09-17).** 119 agents, 127 obligations extraites, 107
+constats réfutés un à un, 44 écartés, 63 retenus dont 13 de gravité FAUX.
+**41 % de réfutation**, dans la ligne de F4a · le taux d'un texte vierge se
+stabilise autour de 40 %. **La passe F4 est close, 4 sur 31.** Journal :
+`docs/releve-de-manques-fiscal.md`.
+
+**L'ARTICLE 57 AFFIRMAIT LE CONTRAIRE DU VRAI SUR LE CAS D'ÉGALITÉ.** La
+comparaison `minimum > theorique` est STRICTE : l'égalité tombait dans la
+branche qui affirme « Impôt sur le bénéfice net imposable au taux de 30 %,
+SUPÉRIEUR à l'impôt minimum ». Le cas n'a rien d'exotique · il est atteint par
+toute société DÉFICITAIRE dont le chiffre d'affaires est nul, le chiffre
+d'affaires retenu ne lisant que les comptes 701 à 707 (une holding dont les
+produits sont en 77, une société en démarrage, une société dont tout le produit
+est en 84). L'écran affichait « 30 % : 0 », « minimum : 0 », « IMPÔT DÛ : 0 »
+et l'affirmation que le premier est supérieur au second · trois chiffres justes
+et une phrase fausse. Trois cas désormais, le déficitaire nommé pour lui-même
+parce que c'est le premier déclencheur de l'article (« lorsque les résultats
+sont déficitaires »), et la réserve sur le chiffre d'affaires DÉCLARÉ écrite
+plutôt que tue. **Anomalie du texte source signalée et non tranchée** ·
+l'art. 57 dit « chiffre d'affaires déclaré » quand le même Titre 2 écrit
+ailleurs « chiffre d'affaires hors taxes » (art. 36, 43, 49).
+
+**LE REPORT DÉFICITAIRE SE COMPTAIT EN LIGNES DU DOSSIER, PAS EN EXERCICES.**
+L'art. 51, alinéa 1er reporte le déficit « jusqu'au TROISIÈME EXERCICE QUI
+SUIT » · c'est une borne de DATE, et `deficitsAnterieursCalcules` ne posait
+qu'un `take: 3`, qui compte des ENREGISTREMENTS. Rien n'oblige les exercices
+d'un dossier à être jointifs, `validerArticle7` ne vérifiant que la fin au
+31 décembre et l'unicité de la période, et un dossier repris d'un confrère est
+précisément celui où l'on ne saisit que ce dont on dispose : un dossier qui
+tient 2020, 2021 puis 2026 se voyait imputer en 2026 le déficit de 2020, éteint
+au 31 décembre 2023. La borne de date DOUBLE le `take` et ne le remplace pas ·
+le `take` protège des dossiers à très longue histoire, la date dit le droit.
+
+**LA TERRITORIALITÉ N'A PAS UN SENS DE CORRECTION, ELLE EN A DEUX · et c'est la
+correction de F4a qu'il a fallu corriger le lendemain.** L'avertissement posé la
+veille ne lisait que l'art. 7 et écrivait sans condition « la base affichée est
+TROP LARGE · à retrancher ». Vrai d'une exploitation étrangère BÉNÉFICIAIRE,
+FAUX d'une exploitation étrangère DÉFICITAIRE : l'art. 51, alinéa 3 dispose que
+« les pertes subies dans les entreprises exploitées hors de la République
+Démocratique du Congo ne sont pas déductibles du bénéfice imposable des
+entreprises exploitées en République Démocratique du Congo », et cette perte est
+déjà dans le résultat comptable · la base est alors TROP ÉTROITE et il faut la
+RÉINTÉGRER. **Un comptable qui suivait à la lettre le seul avertissement
+disponible CREUSAIT l'écart au lieu de le combler.** Règle qui en sort · LA
+CONFRONTATION VISE AUSSI LE CODE DE LA VEILLE, qui est celui que personne n'a
+encore relu.
+
+**LE PIÈGE DE LA DOUBLURE, POUR LA TROISIÈME FOIS.** La réinjection de la borne
+`gte` n'a d'abord rien cassé : la doublure de `exercice.findMany` n'honorait que
+le `lt`. Même famille que la doublure de `findFirst` de la passe I2 et que celle
+de `ecriture.findMany` de F2a. Toute correction qui dépend de ce qu'une requête
+RAMÈNE se teste sur la requête elle-même, jamais sur son seul résultat simulé.
+
+**TROIS ANOMALIES DU TEXTE QUI BORNENT D'AVANCE TOUT CALCUL D'AMORTISSEMENT**,
+relevées par les lecteurs et NON comblées : l'art. 32, 1. exclut du dégressif
+les durées « inférieures à quatre (4) ans » quand l'art. 33, 1., a) prévoit un
+coefficient « de trois (3) à quatre (4) ans » ; aucune tranche de l'art. 33 ne
+couvre une durée strictement comprise entre quatre et cinq ans ; et aucun taux
+de droit commun n'est chiffrable à partir de la loi seule, l'art. 28 renvoyant à
+un arrêté absent du corpus. Le dépôt sert le barème de l'arrêté n° 013/2025 ·
+ce renvoi reste À CONFRONTER, il ne se présume pas.
+
 ## 7. Conventions du plan de comptes semé
 
 Valables pour les deux référentiels (`compte-seed.ts`,
