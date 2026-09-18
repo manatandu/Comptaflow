@@ -2725,6 +2725,43 @@ de droit commun n'est chiffrable à partir de la loi seule, l'art. 28 renvoyant 
 un arrêté absent du corpus. Le dépôt sert le barème de l'arrêté n° 013/2025 ·
 ce renvoi reste À CONFRONTER, il ne se présume pas.
 
+**LE NUMÉRO 23/10 PORTE DEUX TEXTES DE 2023, ET LE DÉPÔT N'EN CONNAÎT QU'UN
+(2026-09-18).** Trouvé en mesurant le volume des passes restantes, pas par une
+passe · même effet que le décret n° 23/10 lui-même, trouvé en inventoriant le
+corpus avant que la première confrontation ne commence.
+
+- **Décret n° 23/10 du 3 MARS 2023** · réglementation de la facture normalisée
+  et des dispositifs électroniques fiscaux. C'est le texte de la passe F1, et
+  c'est de lui que vit le module de facturation.
+- **Ordonnance-loi n° 23/10 du 13 MARS 2023** · Code du numérique. C'est le
+  texte de la passe D4, et le dépôt n'en porte encore rien d'autre qu'une
+  fenêtre de confidentialité.
+
+Même numéro, même année, dix jours d'écart, deux instruments de nature
+différente. **QUATORZIÈME OCCURRENCE DU PREMIER PIÈGE, ET LA PREMIÈRE SUR UN
+NUMÉRO DE TEXTE** · les treize précédentes portaient sur un numéro de compte
+(192, 4181, 1061/1062, 38/37, 397, 70510000, 601), sur un numéro d'article (les
+deux articles 11 des revenus locatifs) ou sur une durée (les trois « trois
+exercices » du mandat de contrôleur).
+
+LE DÉPÔT EST PROPRE AUJOURD'HUI, et c'est le seul moment où la règle se pose
+sans rien coûter : les vingt-cinq occurrences de « 23/10 » dans `src/` portent
+toutes « décret n° 23/10 du 3 mars 2023 ». Le risque naît le jour où D4 ouvre,
+et il est de la forme la plus discrète du § 10 bis · une citation plausible,
+sourcée, et qui renvoie au mauvais texte. **Toute citation du Code du numérique
+porte donc « ordonnance-loi n° 23/10 du 13 mars 2023 » EN ENTIER, jamais son
+numéro seul, et un test gèle la distinction DANS LES DEUX SENS**, sur le modèle
+des deux articles 11 de `retenues.spec.ts`. Décidé ici pour ne pas avoir à le
+découvrir là-bas.
+
+**ET UNE RÉSERVE DU PLAN ÉTAIT PÉRIMÉE**, trouvée du même geste : le plan de
+confrontations décrivait le Code du numérique comme « OCR non collationné ». La
+compétence a été réextraite du PDF natif le 05/09/2026, sans erreur de
+reconnaissance de caractères. La qualification par un juriste reste due, elle ·
+c'est l'autre moitié de la réserve, et elle tient. Une lacune déclarée à tort
+fait renoncer à une démarche due, et celle-ci était dans le document qui
+organise les démarches.
+
 ## 7. Conventions du plan de comptes semé
 
 Valables pour les deux référentiels (`compte-seed.ts`,

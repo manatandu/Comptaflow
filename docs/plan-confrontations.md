@@ -188,7 +188,155 @@ Ce que les 21 passes n'avaient pas ouvert, et qui n'a servi qu'à CONSTRUIRE.
 | **D1** | **Loi n° 004/2001** · art. 1 à 76. Le logiciel en porte déjà beaucoup (constitution, accord-cadre, exemption), jamais article par article |
 | **D2** | **Droit du travail congolais et CNSS** · aucune paie dans le logiciel, mais les retenues et l'ONEM y sont · vérifier ce qui est affirmé |
 | **D3** | **ONEC** · ce que l'Ordre impose à un cabinet qui tient des comptes, et ce que le logiciel prétend à sa place |
-| **D4** | **Code du numérique** · relevé comme « OCR non collationné, à faire qualifier par un juriste ». La passe établit ce qui est lisible, et ce qui ne l'est pas |
+| **D4** | **Code du numérique · ordonnance-loi n° 23/10 du 13 MARS 2023**, à ne jamais confondre avec le décret n° 23/10 du 3 mars 2023 de la passe F1 (voir § 5 bis, constat 1). La réserve « OCR non collationné » portée ici jusqu'au 2026-09-18 **est périmée** · la compétence a été réextraite du PDF natif le 05/09/2026, sans erreur de reconnaissance de caractères. Reste entière l'autre moitié : la qualification juridique est due, et la passe établit ce qu'elle peut lire contre le logiciel, pas ce qu'un juriste seul peut trancher |
+
+---
+
+## 5 bis. Le volume des 27 passes restantes, MESURÉ · et ce que la mesure a trouvé
+
+**Ajouté le 2026-09-18, à la demande de Manasse.** Cette section ne change pas
+l'ordre verrouillé du § 5 · elle le CHIFFRE. Les deux répondent à des questions
+différentes : le § 5 dit dans quel ordre on avance, celle-ci dit combien chaque
+passe coûte et en combien de runs elle tient.
+
+### Ce qui est mesuré, et pourquoi le nombre de lignes
+
+**La mesure est le NOMBRE DE LIGNES DU CORPUS À CONFRONTER**, relevé fichier par
+fichier avec `wc -l` dans les compétences, jamais estimé. C'est la seule grandeur
+disponible AVANT d'ouvrir une passe : le nombre d'articles ne se connaît qu'après
+lecture, et le nombre d'obligations qu'après la phase de lecture elle-même.
+
+**Elle est imparfaite, et il faut savoir en quoi.** Une ligne de nomenclature ne
+vaut pas une ligne de texte normatif. Mesurée sur les six runs faits, la DENSITÉ
+d'obligations va de 0,07 à 0,19 obligation par ligne · le décret d'application
+de la TVA est en bas de la fourchette, la loi sur l'impôt sur les sociétés en
+haut (127 obligations pour 659 lignes à F4b). Le nombre de lignes borne donc le
+coût par le haut, il ne le prédit pas.
+
+### Ce qu'un run tient, mesuré sur les six runs faits
+
+| Run | Lignes lues | Agents | Jetons | Durée |
+|---|---|---|---|---|
+| F1 | 306 | 1 lot | · | court |
+| F2a | ~900 | 159 | 19,0 M | · |
+| F2b | ~850 | 137 | 16,1 M | · |
+| F3a | 1 807 | 134 | 15,5 M | · |
+| F3b | 1 718 | 183 | 20,1 M | **> 7 h, conteneur perdu** |
+| F4a | 393 | 85 | 10,9 M | 3 h 55 |
+| F4b | 659 | 119 | · | · |
+
+**LE PLAFOND EST LA DURÉE, PAS LE VOLUME**, et il a été payé une fois : F3b a
+perdu sept heures parce que le conteneur a redémarré et que `resumeFromRunId`
+n'a pas rejoué le cache. La borne de sûreté retenue est donc **environ 120
+agents par run**, soit **600 à 900 lignes de texte normatif dense** et jusqu'à
+**1 500 lignes de texte réglementaire ou de nomenclature**. Le découpage
+prévisionnel ci-dessous applique 900 lignes par run · c'est une borne de travail,
+à resserrer sur un texte dense et à relâcher sur une nomenclature.
+
+### Le tri, du plus volumineux au moins volumineux
+
+**27 passes, 80 933 lignes, environ 105 runs à 900 lignes.** Le total est la
+donnée la plus utile de ce tableau : il dit que la parenthèse n'est pas à trois
+passes de sa fin.
+
+| Rang | Passe | Corpus | Lignes | Runs prévus |
+|---|---|---|---|---|
+| 1 | **F14** | Accises 2 028 + taxe de promotion de l'industrie 93 + recettes non fiscales 12 550 | **14 671** | 17 |
+| 2 | **O1** | AUSCGIE, art. 1 à 920 | **10 359** | 12 |
+| 3 | **D3** | ONEC · loi 15/002, règlement intérieur, règlement de stage, norme 2024-001, FORCO, programme UE1 à UE7 | **6 622** | 8 |
+| 4 | **D2** | Droit du travail congolais 2 768 + CNSS 3 107 | **5 875** | 7 |
+| 5 | **D4** | Code du numérique, ordonnance-loi n° 23/10 seule | **5 425** | 7 |
+| 6 | **D1** | Loi n° 004/2001 et son appareil (le texte légal seul : 680 lignes) | **3 541** | 4 |
+| 7 | **O4** | AUPSRVE · recouvrement et voies d'exécution | **3 379** | 4 |
+| 8 | **O5** | AUPCAP · procédures collectives | **3 341** | 4 |
+| 9 | **R1** | AUDCIF Titre VII · contenu et fonctionnement des comptes, classes 1 à 9 | **3 296** | 4 |
+| 10 | **O6** | AUSCOOP · sociétés coopératives | **3 033** | 4 |
+| 11 | **F8** | Procédures fiscales, Titres 2 et 3 · contrôle et recouvrement | **2 794** | 4 |
+| 12 | **R5** | SYCEBNL Partie 2 · cadre comptable et plan des comptes | **2 203** | 3 |
+| 13 | **F11** | Impôts réels et cédulaires · O.-L. 69/006, 88/029, survivances du 69/009 | **1 987** | 3 |
+| 14 | **R2** | AUDCIF Titres IX et X · états financiers, Système normal et SMT | **1 888** | 3 |
+| 15 | **R6** | SYCEBNL Partie 4 · les trois jeux d'états et leurs notes | **1 715** | 2 |
+| 16 | **O3** | AUS · sûretés | **1 623** | 2 |
+| 17 | **R3** | AUDCIF Titre XI · nomenclatures NAEMA et NOPEMA | **1 493** | 2 |
+| 18 | **F12** | Le socle 2026 · sept arrêtés ministériels + `parametres-2026.md` | **1 308** | 2 |
+| 19 | **F5** | IRPP 1 048 + arrêté retenue salaires 77 + AM 008/2025 capitaux mobiliers 60 | **1 185** | 2 |
+| 20 | **F7** | Procédures fiscales, Titre 1 · obligations déclaratives | **1 061** | 2 |
+| 21 | **O2** | AUDCG hors Livre 8 (déjà lu pour le devis) | **921** | 2 |
+| 22 | **O7** | AUA 397 + AUM 193 + AUCTMR 329 | **919** | 2 |
+| 23 | **R4** | AUDCIF Titres XII et XIII · comptes consolidés et combinés (D4C) | **612** | 1 |
+| 24 | **F13** | Loi de finances n° 25/060 156 + IPM (O.-L. 71/087) 331 | **487** | 1 |
+| 25 | **F6** | Loi n° 23/053, Titres 1, 4 à 7 | **415** | 1 |
+| 26 | **F9** | Procédures fiscales, Titre 4 · sanctions fiscales et pénales | **396** | 1 |
+| 27 | **F10** | Procédures fiscales, Titres 5 à 7 · réclamations, délais, transitoires | **384** | 1 |
+
+### QUATRE CHOSES QUE LA MESURE A TROUVÉES, ET QU'AUCUNE PASSE N'AURAIT VUES
+
+Le § 3 de ce plan notait que le décret n° 23/10 avait été trouvé en INVENTORIANT
+le corpus, avant qu'une passe ne commence. Le même effet se reproduit ici :
+compter les lignes oblige à ouvrir chaque dossier, et quatre choses en sortent.
+
+**1 · LE NUMÉRO 23/10 PORTE DEUX TEXTES DE 2023, À DIX JOURS D'INTERVALLE.** Le
+**décret n° 23/10 du 3 MARS 2023** règlemente la facture normalisée · c'est le
+texte de la passe F1, et le module de facturation en vit. L'**ordonnance-loi
+n° 23/10 du 13 MARS 2023** porte le Code du numérique · c'est le texte de la
+passe D4. Même numéro, même année, deux instruments différents.
+
+**Quatorzième occurrence du premier piège du dépôt, et la PREMIÈRE sur un numéro
+de TEXTE** · les treize précédentes portaient sur un numéro de compte (192, 4181,
+1061/1062, 38/37, 397, 70510000), un numéro d'article (les deux art. 11 des
+revenus locatifs) ou une durée (les trois « trois exercices » du mandat). Le
+dépôt est propre AUJOURD'HUI : les 25 occurrences de « 23/10 » dans `src/`
+portent toutes « décret n° 23/10 du 3 mars 2023 ». Le risque naît le jour où D4
+ouvre, et il est prophylactique · **toute citation du Code du numérique porte
+« ordonnance-loi n° 23/10 du 13 mars 2023 » en entier, et un test gèle la
+distinction dans les deux sens**, comme pour les deux articles 11 de
+`retenues.spec.ts`. Décidé ici pour ne pas avoir à le découvrir là-bas.
+
+**2 · LA RÉSERVE « OCR NON COLLATIONNÉ » DE D4 EST PÉRIMÉE.** Le § 5 décrit D4
+comme « relevé comme OCR non collationné, à faire qualifier par un juriste ». La
+première moitié ne vaut plus : le README de la compétence porte, daté du
+**05/09/2026**, « remplace l'ancienne version OCRisée depuis le PDF fusionné de
+873 pages par une extraction depuis le PDF natif du document seul. Pas d'erreurs
+de reconnaissance de caractères ». La seconde moitié tient entièrement · la
+qualification juridique reste due. **C'est une lacune déclarée à tort dans le
+plan lui-même**, c'est-à-dire exactement ce que son § 3 pose comme aussi faux
+qu'une règle inventée. Elle aurait fait renoncer à une passe lisible.
+
+**3 · LA CNSS EST COMPTÉE DEUX FOIS.** Le § 5 met « parafiscalité sociale » dans
+F14 et « CNSS » dans D2. C'est le même corpus, 3 107 lignes. Il est **rattaché à
+D2** dans le tri ci-dessus, avec le droit du travail dont il est indissociable, et
+retranché de F14. Deux passes sur le même texte auraient rendu deux relevés
+plausibles et différents · c'est ce que le dépôt a déjà payé sur
+`calculerPropositions` et sur `construireLigneTva`.
+
+**4 · F14 N'EST PAS UNE PASSE, C'EST UN BLOC.** Elle pèse 14 671 lignes, soit
+plus que O1 et près du cinquième du reste à faire. Et **12 550 de ces lignes sont
+les recettes non fiscales**, dont 6 309 pour les deux seules nomenclatures des
+ordonnances-lois 13/001 et 13/002 · des tables qui ÉNUMÈRENT des milliers de
+droits, taxes et redevances sans énoncer d'obligation comptable. Les confronter
+article par article produirait du volume, pas des constats.
+
+**Elle doit être re-découpée avant d'être ouverte**, et le découpage est un
+arbitrage de Manasse, pas une décision de passe : les accises (2 028 lignes, un
+code avec ses obligations déclaratives) et la taxe de promotion de l'industrie
+(93 lignes) sont du texte normatif ordinaire ; les recettes non fiscales
+demandent d'abord de décider CE QU'ON Y CHERCHE · vraisemblablement les
+procédures de l'O.-L. 13/003 (2 292 lignes, note de perception, ordonnancement,
+recouvrement), et non les nomenclatures.
+
+### Ce que ce tri NE décide pas
+
+**L'ORDRE D'EXÉCUTION DU § 5 RESTE VERROUILLÉ.** Il suit « le coût d'une erreur
+pour un client du cabinet, pas la taille du corpus », et ce motif ne change pas
+parce qu'on a compté les lignes : une lacune sur les sanctions fiscales (F9, la
+26e par le volume) se paie chez le client, une lacune sur une nomenclature de
+recettes non fiscales (F14, la 1re) ne se paie nulle part. **Trier par volume et
+exécuter par volume sont deux choses, et la seconde appartient à Manasse.**
+
+Ce que le tri sert, lui, est le DÉCOUPAGE et le CALENDRIER · il dit d'avance
+quelles passes tiennent en un run (les rangs 23 à 27, toutes du bloc F) et
+lesquelles doivent être scindées avant d'être lancées, ce qui est précisément ce
+que F2, F3 et F4 ont dû décider en cours de route.
 
 ---
 
@@ -244,6 +392,8 @@ que lorsque son verdict est écrit dans son journal et que les corrections
 qu'elle emporte sont poussées et déployées.*
 
 ## 9. Ce qui attend Manasse, ouvert par ce plan
+
+0. **LE RE-DÉCOUPAGE DE LA PASSE F14**, ouvert par la mesure du 2026-09-18 (§ 5 bis, constat 4). Elle pèse 14 671 lignes, la plus lourde des 27, et 12 550 d'entre elles sont les recettes non fiscales, dont 6 309 de pures nomenclatures énumérant des milliers de droits et taxes sans énoncer d'obligation comptable. Les confronter article par article produirait du volume et aucun constat. **La question à trancher n'est pas comment la découper, mais ce qu'on cherche dedans** · vraisemblablement les procédures de l'O.-L. 13/003 (note de perception, ordonnancement, recouvrement, 2 292 lignes), et non les nomenclatures. Tant que ce n'est pas tranché, F14 reste une passe qu'on ne peut pas lancer.
 
 1. **L'homologation d'OmegaX comme SFE** (décret n° 23/10, art. 20 à 23). La
    procédure existe et porte un nom ; l'arrêté qui en fixe les modalités n'est
