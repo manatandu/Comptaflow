@@ -2023,3 +2023,80 @@ Les trois lecteurs remontent 48 anomalies du texte source. Quatre comptent :
   définirait le terme autrement primerait.
 - **Le nouvel ordre tient ses promesses de coût** · 2 h 42 pour la passe
   entière, contre 3 h 55 pour F4a et sept heures perdues sur F3b.
+
+### Correction de la passe F10, le jour même · les deux limites déclarées étaient une limite et une erreur
+
+**2026-09-18, quelques heures après la clôture de F10.** Manasse a fourni
+l'ordonnance des jours fériés et signalé que l'administration publique ne
+travaille pas le samedi. Les deux points que la passe avait déclarés comme
+« non calculés » tombent, et le second n'était pas une limite : c'était faux.
+
+#### 1 · Les jours fériés existent, ils sont dix, et tous à date fixe
+
+**ORDONNANCE N° 23-042 DU 30 MARS 2023** fixant la liste des jours fériés
+légaux en République démocratique du Congo (J.O. RDC, 15 mai 2023), prise sur
+le fondement de l'art. 123 du Code du travail, abrogeant l'ordonnance 14-010 du
+14 mai 2014.
+
+Art. 1er, liste limitative · 1er janvier (Nouvel an), 4 janvier (Martyrs de
+l'indépendance), 16 janvier (Laurent Désiré Kabila), 17 janvier (Patrice Emery
+Lumumba), 6 avril (Simon Kimbangu et conscience africaine), 1er mai (Fête du
+travail), 17 mai (Forces armées), 30 juin (Indépendance), 1er août (Fête des
+parents), 25 décembre (Noël). **Aucune fête mobile.**
+
+Bornée au 30 mars 2023 (art. 4, « sort ses effets à la date de sa signature »).
+Avant, l'ordonnance 14-010 s'appliquait et n'est pas au corpus · une échéance
+antérieure ne porte que le report du dimanche.
+
+**L'ARTICLE 2 JOUE À REBOURS, ET N'EST PAS CALCULÉ.** « Dans le cas où l'un des
+jours fériés légaux [...] coïncide avec un DIMANCHE, le congé relatif à ce jour
+est pris LE JOUR PRÉCÉDENT. » Le congé recule quand l'échéance fiscale avance, et
+rien n'articule les deux. Le cas est cocasse en 2027 : le 17 janvier (Lumumba)
+tombe un dimanche, et le jour précédent est le 16, **déjà férié** (Kabila).
+
+#### 2 · « Le samedi est ouvrable » était faux · la source était la mauvaise
+
+La passe F10 avait posé ce point EN CAPITALES comme « la décision qui compte le
+plus ici », avec un raisonnement juste : le Code du travail ne donne qu'un jour
+de repos hebdomadaire, le dimanche (art. 121, al. 2), donc six jours ouvrables.
+
+**Le Code du travail régit les rapports entre EMPLOYEURS ET TRAVAILLEURS.**
+L'obligation que l'art. 110 bis fait tomber à une date s'exécute, elle, DEVANT
+L'ADMINISTRATION · on dépose une déclaration et on verse à un guichet. Les jours
+d'ouverture de ce guichet sont fixés ailleurs :
+
+> **DÉCRET N° 24/09 DU 17 FÉVRIER 2024** portant règlement d'administration
+> relatif à la discipline, art. 1er : « L'horaire de travail dans les services
+> publics est fixé comme suit : **du lundi au vendredi**, de 8 heures à
+> 17 heures, avec une pause de 12 heures 30 à 13 heures. »
+
+**CE QUE L'ERREUR COÛTAIT** · le 25 juillet 2026, **première échéance d'acompte
+sur l'impôt des sociétés**, est un SAMEDI. Le logiciel l'opposait telle quelle.
+De même le 15 août 2026 (retenue de juillet), le 10 janvier et le 10 octobre
+2026 (relevé trimestriel des tiers).
+
+Bornée au 17 février 2024 (art. 51). Deux réserves écrites · le décret fixe un
+horaire de travail et ne définit pas le « jour ouvrable » de la loi fiscale, et
+son art. 2, al. 3 permet à un ministre de fixer des horaires spécifiques pour
+les services spéciaux de son autorité.
+
+#### Vérification
+
+3 528 tests serveur au vert. **Trois réinjections, trois attrapées** · le samedi
+rendu ouvrable (7 tests tombent), la borne du 17 février 2024 sautée (1), un
+férié retiré de la liste (2). Quatre tests existants ont été corrigés avec leur
+motif, tous parce que leur date brute tombait un samedi.
+
+#### Ce que ces vingt-quatre heures apprennent
+
+- **QUAND LA LOI FISCALE EMPRUNTE UN MOT QU'ELLE NE DÉFINIT PAS, LA QUESTION
+  N'EST PAS « QUELLE SOURCE LE DÉFINIT » MAIS « DEVANT QUI L'OBLIGATION
+  S'EXÉCUTE ».** J'avais pris la première source qui définissait le terme, et
+  j'avais déclaré l'emprunt · ce qui ne suffit pas. Il faut déclarer pourquoi
+  CET emprunt-là.
+- **Une limite déclarée n'est pas une limite tant qu'on n'a pas cherché la
+  source ailleurs que dans le corpus fiscal.** Le décret n° 24/09 était dans le
+  dépôt de compétences depuis le début, sous `administration-publique-rdc`.
+- **Cinquième « interdiction de mot trop large », et la deuxième en deux
+  jours** · le test qui bannissait « Pâques » de la source est tombé sur le
+  commentaire qui dit que la liste n'en porte aucune.

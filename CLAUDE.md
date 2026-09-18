@@ -2790,20 +2790,19 @@ l'exception du jour de repos hebdomadaire et des jours fériés légaux »), et
 l'emprunt est écrit dans le code plutôt que tu.
 
 - **Le dimanche est le repos hebdomadaire** · Code du travail, art. 121,
-  alinéa 2, « Il a lieu le dimanche ». Seul report calculé.
-- **LE SAMEDI EST OUVRABLE**, et c'est la décision qui compte. Un seul jour de
-  repos, donc six jours ouvrables, ce que confirme la base de 26 jours par mois
-  du décompte final. Le traiter comme non ouvrable dirait au redevable qu'il a
-  jusqu'au lundi alors qu'il est en retard depuis le samedi · **ne pas signaler
-  un retard qui court coûte une pénalité, en signaler un qui n'existe pas coûte
-  une vérification.** Le 25 juillet 2026, première échéance d'acompte, est un
-  samedi et n'est pas reporté.
+  alinéa 2, « Il a lieu le dimanche ». Vaut de tout temps.
+- **LE SAMEDI EST OUVRABLE** · un seul jour de repos, donc six jours ouvrables,
+  ce que confirme la base de 26 jours par mois du décompte final.
 - **LES JOURS FÉRIÉS NE SONT PAS CALCULÉS** · leur liste est fixée par décret du
   Président de la République (Code du travail, art. 123), et ce décret n'est dans
-  AUCUNE source lue. Une liste inventée serait pire que l'absence : elle
-  reporterait des échéances au hasard et couvrirait de vrais retards. Limite
-  assumée, écrite dans `RESERVE_JOUR_OUVRABLE`, refermable quand le décret entre
-  au corpus.
+  AUCUNE source lue.
+
+**CES DEUX DERNIERS POINTS ONT TENU UNE JOURNÉE, ET LES DEUX ÉTAIENT FAUX.**
+Voir ci-dessous · Manasse a fourni l'ordonnance des jours fériés le lendemain,
+et signalé que l'administration ne travaille pas le samedi. Les deux corrections
+sont au paragraphe suivant, et ce paragraphe-ci est laissé tel quel parce que le
+raisonnement qu'il porte reste instructif : il était juste et il partait de la
+mauvaise source.
 
 ET LE REPORT N'EST PAS INCONDITIONNEL · l'alinéa 3 laisse l'Administration
 « fixer l'échéance déclarative et de paiement au jour ouvrable PRÉCÉDANT la date
@@ -2844,6 +2843,72 @@ du recours gracieux n'est pas susceptible »). La suite dit quelles voies de
 recours restent ouvertes après un rejet gracieux, et le recours gracieux suppose
 justement de RENONCER aux autres. Rien ne se code là-dessus tant que le fichier
 n'est pas complété.
+
+**LE JOUR OUVRABLE, CORRIGÉ DEUX FOIS EN VINGT-QUATRE HEURES (2026-09-18).**
+La passe F10 avait posé le report de l'art. 110 bis, al. 2 avec deux limites
+déclarées. Manasse a fermé les deux le lendemain, et la seconde n'était pas une
+limite mais une ERREUR.
+
+**1 · LES JOURS FÉRIÉS SONT DÉSORMAIS CALCULÉS.** Le texte existe :
+**ORDONNANCE N° 23-042 DU 30 MARS 2023** fixant la liste des jours fériés légaux
+(J.O. RDC, 15 mai 2023), prise sur l'art. 123 du Code du travail et abrogeant
+l'ordonnance 14-010 du 14 mai 2014. Son art. 1er ferme la liste à **DIX dates,
+toutes FIXES** · 1er, 4, 16 et 17 janvier, 6 avril, 1er et 17 mai, 30 juin,
+1er août, 25 décembre. **AUCUNE FÊTE MOBILE** n'y figure, ni Pâques ni aucune
+fête musulmane : ne pas en ajouter « par évidence », la liste est limitative.
+Borne : art. 4, l'ordonnance « sort ses effets à la date de sa signature », donc
+le 30 mars 2023 · avant, l'ordonnance 14-010 s'appliquait et n'est pas au
+corpus.
+
+**SON ARTICLE 2 JOUE À REBOURS DE L'ART. 110 BIS, ET N'EST PAS CALCULÉ.** « Dans
+le cas où l'un des jours fériés légaux [...] coïncide avec un DIMANCHE, le congé
+relatif à ce jour est pris LE JOUR PRÉCÉDENT. » Le congé RECULE quand l'échéance
+fiscale AVANCE, et rien n'articule les deux textes. Le samedi précédent n'est
+donc pas rendu non ouvrable de ce chef, et la réserve le dit. Le cas est cocasse
+en 2027 : le 17 janvier (Lumumba) tombe un dimanche, et le « jour précédent » est
+le 16, **qui est déjà férié** (Laurent Désiré Kabila) · l'ordonnance ne dit pas
+ce qu'il advient alors.
+
+**2 · « LE SAMEDI EST OUVRABLE » ÉTAIT FAUX, ET C'EST UNE ERREUR DE
+TRANSPOSITION.** Je l'avais écrit en capitales comme « la décision qui compte le
+plus ici ». Le raisonnement était juste et la SOURCE était la mauvaise : le Code
+du travail régit les rapports entre EMPLOYEURS ET TRAVAILLEURS, alors que
+l'obligation que l'art. 110 bis fait tomber à une date s'exécute DEVANT
+L'ADMINISTRATION, à un guichet. Et ce guichet a ses propres jours :
+
+> **DÉCRET N° 24/09 DU 17 FÉVRIER 2024**, art. 1er : « L'horaire de travail dans
+> les services publics est fixé comme suit : **DU LUNDI AU VENDREDI**, de
+> 8 heures à 17 heures, avec une pause de 12 heures 30 à 13 heures. »
+
+Le samedi est donc NON OUVRABLE pour une échéance fiscale, à compter du
+17 février 2024 (art. 51, en vigueur à la signature). **Ce que l'erreur coûtait :
+le 25 juillet 2026, PREMIÈRE ÉCHÉANCE D'ACOMPTE sur l'impôt des sociétés, est un
+samedi**, et le logiciel l'opposait telle quelle. Deux réserves écrites · le
+décret fixe un HORAIRE DE TRAVAIL et ne définit pas le « jour ouvrable » de la
+loi fiscale (c'est encore une transposition, mieux fondée mais une
+transposition), et son art. 2, al. 3 permet à un ministre de fixer des horaires
+spécifiques pour les services spéciaux de son autorité.
+
+**LA RÈGLE PORTE MAINTENANT TROIS EXCLUSIONS, CHACUNE SA SOURCE ET SA BORNE** ·
+dimanche (de tout temps), samedi (depuis le 17 février 2024), dix jours fériés
+(depuis le 30 mars 2023). Les bornes ne sont pas une coquetterie : le registre
+calcule des échéances d'exercices anciens, et leur appliquer un texte postérieur
+est le deuxième piège du dépôt.
+
+**CE QUE CES VINGT-QUATRE HEURES APPRENNENT, ET C'EST LA VRAIE LEÇON.** Quand la
+loi fiscale emprunte un mot qu'elle ne définit pas, **la question n'est pas
+« quelle source le définit » mais « devant qui l'obligation s'exécute ».** J'ai
+pris la première source qui définissait le terme au lieu de chercher celle qui
+régit le lieu où l'acte se fait. Déclarer l'emprunt, comme je l'avais fait, ne
+suffit pas · il faut déclarer POURQUOI CET EMPRUNT-LÀ.
+
+**ET J'AI BANNI UN MOT DANS UN TEST, POUR LA DEUXIÈME FOIS EN DEUX JOURS.**
+`not.toMatch(/paques|ascension|.../i)` sur la source est tombé sur le
+COMMENTAIRE qui dit précisément que la liste ne porte aucune fête mobile. Le
+test gèle désormais la PROPRIÉTÉ (des entiers littéraux, aucune arithmétique de
+date) et non le vocabulaire. Après « art. 98 bis » la veille, c'est la cinquième
+occurrence au dossier · **on exige la réserve exacte, on ne bannit jamais un
+mot.**
 
 ## 7. Conventions du plan de comptes semé
 

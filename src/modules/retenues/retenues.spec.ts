@@ -308,7 +308,11 @@ describe('Échéancier fiscal et social', () => {
     // modulo se trompait d'un an sur ce seul cas.
     const e = await service([]).echeancierFiscal('t1', { exerciceId: 'e1', dateReference: '2026-01-05' });
     const releve = e.echeances.find((x) => x.cle === 'releveTrimestrielTiers')!;
-    expect(releve.date.toISOString().slice(0, 10)).toBe('2026-01-10');
+    // Le 10 janvier 2026 est un SAMEDI · les services publics travaillent du
+    // lundi au vendredi (décret n° 24/09, art. 1er), et l'art. 110 bis, al. 2
+    // reporte au lundi 12. Ce test figeait la date brute avant le 2026-09-18 ;
+    // ce qu'il vérifie est le rattachement au trimestre écoulé, intact.
+    expect(releve.date.toISOString().slice(0, 10)).toBe('2026-01-12');
   });
 
   it('la déclaration mensuelle du mois CLOS reste due jusqu’à son dixième jour', async () => {
@@ -322,7 +326,9 @@ describe('Échéancier fiscal et social', () => {
   it('le relevé trimestriel bascule au trimestre suivant une fois l’échéance passée', async () => {
     const e = await service([]).echeancierFiscal('t1', { exerciceId: 'e1', dateReference: '2026-07-20' });
     const releve = e.echeances.find((x) => x.cle === 'releveTrimestrielTiers')!;
-    expect(releve.date.toISOString().slice(0, 10)).toBe('2026-10-10');
+    // Le 10 octobre 2026 est un SAMEDI · même report au lundi 12. Ce qui est
+    // figé ici est la BASCULE de trimestre, pas le quantième.
+    expect(releve.date.toISOString().slice(0, 10)).toBe('2026-10-12');
   });
 
   it('porte les deux déclarations annuelles du 31 mars (art. 22 ter et 47 ter)', async () => {

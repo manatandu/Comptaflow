@@ -62,7 +62,12 @@ describe('Échéances de l’impôt sur les sociétés', () => {
 
   it('les acomptes tombent les 25 juillet, septembre et novembre · pas les 1er août, octobre et décembre', async () => {
     const parCle = new Map((await echeances('SYSCOHADA')).map((e) => [e.cle, e]));
-    expect(parCle.get('premierAcompteIs')!.date.toISOString().slice(0, 10)).toBe('2026-07-25');
+    // LE 25 JUILLET 2026 EST UN SAMEDI, et c'est le cas qui a fait corriger la
+    // règle le 2026-09-18 : les services publics travaillent du lundi au
+    // vendredi (décret n° 24/09, art. 1er), donc l'art. 110 bis, al. 2 reporte
+    // le premier acompte au LUNDI 27. L'échéance LÉGALE reste le 25 · c'est la
+    // date à laquelle le versement doit être fait qui est rendue ici.
+    expect(parCle.get('premierAcompteIs')!.date.toISOString().slice(0, 10)).toBe('2026-07-27');
     expect(parCle.get('deuxiemeAcompteIs')!.date.toISOString().slice(0, 10)).toBe('2026-09-25');
     expect(parCle.get('troisiemeAcompteIs')!.date.toISOString().slice(0, 10)).toBe('2026-11-25');
   });

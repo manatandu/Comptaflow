@@ -35,36 +35,107 @@
  * qui définirait le terme autrement primerait celui-ci.
  *
  * ────────────────────────────────────────────────────────────────────────────
- * LE SAMEDI EST OUVRABLE, ET C'EST LA DÉCISION QUI COMPTE LE PLUS ICI.
+ * LE SAMEDI · CORRIGÉ LE 2026-09-18, ET C'EST UNE ERREUR DE TRANSPOSITION.
  *
- * Code du travail, art. 121, alinéa 2 : le repos hebdomadaire « a lieu le
- * dimanche ». UN SEUL jour de repos par semaine, et l'art. 7, 9° n'exclut que
- * celui-là et les jours fériés. La semaine congolaise compte donc SIX jours
- * ouvrables, ce que confirme la base de calcul de 26 jours par mois retenue
- * pour le décompte final.
+ * Ce fichier a d'abord posé, EN CAPITALES et comme « la décision qui compte le
+ * plus ici », que le samedi était OUVRABLE. Le raisonnement était : le Code du
+ * travail ne donne qu'un jour de repos hebdomadaire, le dimanche (art. 121,
+ * al. 2), donc six jours ouvrables par semaine, ce que confirme la base de
+ * 26 jours par mois du décompte final.
  *
- * Traiter le samedi comme non ouvrable reporterait au lundi une échéance que la
- * loi ne reporte pas · le logiciel dirait au redevable qu'il a jusqu'au lundi
- * alors qu'il est en retard depuis le samedi. C'EST LA DIRECTION D'ERREUR LA
- * PLUS DANGEREUSE DES DEUX : ne pas signaler un retard qui court coûte une
- * pénalité, là où en signaler un qui n'existe pas coûte une vérification. Le
- * 25 juillet 2026, première échéance d'acompte, est un samedi · il n'est pas
- * reporté.
+ * LE RAISONNEMENT ÉTAIT JUSTE ET LA SOURCE ÉTAIT LA MAUVAISE. Le Code du
+ * travail régit les rapports entre EMPLOYEURS ET TRAVAILLEURS. L'obligation que
+ * l'art. 110 bis fait tomber à une date, elle, s'exécute DEVANT
+ * L'ADMINISTRATION · on dépose une déclaration et on verse à un guichet. Et les
+ * jours d'ouverture de ce guichet sont fixés ailleurs :
+ *
+ *   DÉCRET N° 24/09 DU 17 FÉVRIER 2024 portant règlement d'administration
+ *   relatif à la discipline, art. 1er, VERBATIM : « L'horaire de travail dans
+ *   les services publics est fixé comme suit : DU LUNDI AU VENDREDI, de
+ *   8 heures à 17 heures, avec une pause de 12 heures 30 à 13 heures. »
+ *
+ * Les services publics ne travaillent donc pas le samedi, et un redevable dont
+ * l'échéance y tombe ne peut ni déclarer ni payer. C'est exactement le cas que
+ * l'art. 110 bis, alinéa 2 règle. LE SAMEDI EST NON OUVRABLE pour une échéance
+ * fiscale, à compter du 17 février 2024 (art. 51 du même décret, « entre en
+ * vigueur à la date de sa signature »).
+ *
+ * CE QUE L'ERREUR COÛTAIT · le 25 juillet 2026, première échéance d'acompte sur
+ * l'impôt des sociétés, est un SAMEDI. Le logiciel l'opposait telle quelle.
+ *
+ * DEUX RÉSERVES, écrites plutôt que tues. (1) Le décret n° 24/09 fixe un
+ * HORAIRE DE TRAVAIL des agents, il ne définit pas le « jour ouvrable » de la
+ * loi fiscale · c'est une transposition, mieux fondée que la première pour ce
+ * qui se fait devant un guichet, mais une transposition. (2) Son art. 2,
+ * alinéa 3 permet à un ministre de fixer « des horaires de prestation
+ * spécifiques » pour les services spéciaux relevant de son autorité · une
+ * administration fiscale ouverte le samedi par cette voie ne serait pas connue
+ * du logiciel.
+ *
+ * AVANT LE 17 FÉVRIER 2024, le samedi reste tenu pour ouvrable ici · le texte
+ * qui réglait alors l'horaire des services publics n'est pas au corpus, et le
+ * décret abroge l'ordonnance n° 81-067 du 7 mai 1981 sans en reprendre le
+ * contenu. Même discipline que pour les jours fériés ci-dessous.
  *
  * ────────────────────────────────────────────────────────────────────────────
- * LES JOURS FÉRIÉS NE SONT PAS CALCULÉS, ET LE DIRE FAIT PARTIE DE LA RÈGLE.
+ * LES JOURS FÉRIÉS SONT CALCULÉS DEPUIS LE 2026-09-18 · la liste a été fournie.
  *
- * Code du travail, art. 123 : « Le Président de la République fixe, par décret
- * [...] la liste des jours fériés légaux. » CE DÉCRET N'EST DANS AUCUNE SOURCE
- * LUE. Aucune liste de jours fériés congolais ne peut donc être écrite ici sans
- * l'inventer, et une liste inventée serait pire que l'absence : elle reporterait
- * des échéances au hasard et couvrirait de vrais retards.
+ * Ce fichier a porté pendant un jour la phrase « ce décret n'est dans aucune
+ * source lue », et elle était vraie de ce que le dépôt détenait alors. Manasse
+ * a fourni le texte le 2026-09-18 : **ORDONNANCE N° 23-042 DU 30 MARS 2023**
+ * fixant la liste des jours fériés légaux en République démocratique du Congo
+ * (J.O. RDC, 15 mai 2023), prise sur le fondement de l'art. 123 du Code du
+ * travail et abrogeant l'ordonnance 14-010 du 14 mai 2014.
  *
- * Le report ne porte donc QUE sur le dimanche, et la réserve est rendue avec
- * l'état (`RESERVE_JOUR_OUVRABLE`) plutôt que tue. Une échéance tombant un jour
- * férié est encore présentée comme échue alors que la loi la reporte · c'est
- * une limite ASSUMÉE, écrite, et refermable le jour où le décret entre au
- * corpus.
+ * Son art. 1er ferme la liste · « La liste des jours fériés en République
+ * démocratique du Congo est fixée comme suit », puis DIX dates, toutes FIXES.
+ * AUCUNE FÊTE MOBILE n'y figure · ni Pâques, ni l'Ascension, ni aucune fête
+ * musulmane. Ne pas en ajouter « par évidence » : la liste est limitative, et
+ * un jour de plus reporterait une échéance que la loi ne reporte pas.
+ *
+ * LA LISTE EST BORNÉE AU 30 MARS 2023, et cette borne n'est pas une précaution.
+ * Art. 4 : l'ordonnance « sort ses effets à la date de sa signature ». Avant
+ * cette date s'appliquait l'ordonnance 14-010 du 14 mai 2014, QUI N'EST PAS AU
+ * CORPUS et dont la liste peut différer. Une échéance antérieure au 30 mars
+ * 2023 ne se voit donc appliquer QUE le dimanche · c'est le deuxième piège du
+ * dépôt (un texte daté se borne à son entrée en vigueur), et le registre des
+ * retenues calcule bel et bien des échéances d'exercices anciens.
+ *
+ * ────────────────────────────────────────────────────────────────────────────
+ * L'ARTICLE 2 JOUE EN SENS INVERSE DE L'ART. 110 BIS, ET IL N'EST PAS CALCULÉ.
+ *
+ * Art. 2, VERBATIM : « Dans le cas où l'un des jours fériés légaux visés à
+ * l'article 1er coïncide avec un DIMANCHE, le congé relatif à ce jour est pris
+ * LE JOUR PRÉCÉDENT. » Le congé recule ; l'art. 110 bis, alinéa 2, lui, fait
+ * AVANCER l'échéance. Les deux textes bougent une date dans des directions
+ * opposées, et rien ne les articule.
+ *
+ * DEUX LECTURES, ET LE CODE NE TRANCHE PAS. Ou bien seul le CONGÉ se déplace et
+ * le samedi reste un jour ouvrable au sens de l'art. 7, 9° du Code du travail,
+ * qui n'excepte que « le jour de repos hebdomadaire et les JOURS FÉRIÉS
+ * LÉGAUX » · or le jour férié légal reste la date de l'art. 1er, pas le samedi.
+ * Ou bien le samedi devient le jour du congé et cesse d'être ouvrable.
+ *
+ * LE CODE RETIENT LA PREMIÈRE, et le motif est celui qui gouverne tout ce
+ * fichier : rendre un samedi non ouvrable REPORTERAIT une échéance que la loi
+ * ne reporte peut-être pas, c'est-à-dire dirait au redevable qu'il a plus de
+ * temps qu'il n'en a. Sur un doute, on ne se trompe pas dans ce sens-là. La
+ * réserve est écrite plutôt que tue.
+ *
+ * LE CAS N'EST PAS THÉORIQUE et il est même cocasse en 2027 : le 17 janvier
+ * (Lumumba) tombe un dimanche, et le « jour précédent » où le congé serait pris
+ * est le 16 janvier, QUI EST DÉJÀ FÉRIÉ (Laurent Désiré Kabila). L'ordonnance
+ * ne dit pas ce qu'il advient alors.
+ *
+ * ────────────────────────────────────────────────────────────────────────────
+ * QUATRE ANOMALIES DU TEXTE SOURCE, signalées et non corrigées.
+ *
+ * (1) L'art. 123 du Code du travail annonce un DÉCRET du Président ; l'acte
+ * pris est une ORDONNANCE. (2) L'art. 3 est syntaxiquement fautif · « Sont
+ * abrogées toutes l'ordonnance 14-010 [...] ainsi que toutes les dispositions
+ * antérieures contraires ». (3) Le même article écrit « jours fériés légaus ».
+ * (4) Des espaces manquent dans la source (« le25décembre », « dui8 février
+ * 2006 », « mai2023 ») · artefacts d'extraction, sans incidence sur le sens.
  *
  * ────────────────────────────────────────────────────────────────────────────
  * ET LE REPORT N'EST PAS INCONDITIONNEL · l'alinéa 3 joue en sens inverse.
@@ -77,18 +148,78 @@
  * connaître : il est nommé dans la réserve, jamais calculé.
  */
 
-/** Dimanche, au sens de `Date.prototype.getDay()`. */
+/** Dimanche et samedi, au sens de `Date.prototype.getDay()`. */
 const DIMANCHE = 0;
+const SAMEDI = 6;
 
 /**
- * Un jour est-il ouvrable au sens de l'art. 7, 9° du Code du travail, dans la
- * mesure de ce qui est calculable ?
+ * Entrée en vigueur du décret n° 24/09, art. 51 · « entre en vigueur à la date
+ * de sa signature », le 17 février 2024. C'est lui qui ferme le samedi dans les
+ * services publics. Avant, le texte applicable n'est pas au corpus.
+ */
+const ENTREE_EN_VIGUEUR_DECRET_24_09 = new Date(2024, 1, 17);
+
+/**
+ * Entrée en vigueur de l'ordonnance n° 23-042, art. 4 · « sort ses effets à la
+ * date de sa signature », le 30 mars 2023. Avant, l'ordonnance 14-010 du
+ * 14 mai 2014 s'appliquait et n'est pas au corpus.
+ */
+const ENTREE_EN_VIGUEUR_ORDONNANCE_23_042 = new Date(2023, 2, 30);
+
+/**
+ * LES DIX JOURS FÉRIÉS LÉGAUX, art. 1er de l'ordonnance n° 23-042 du 30 mars
+ * 2023, dans l'ordre du texte. Le mois est en base 1, comme le texte l'écrit.
  *
- * Rend `false` pour le seul dimanche. Un jour férié légal rend `true` faute de
- * liste · voir l'en-tête, la limite est assumée et déclarée.
+ * La liste est LIMITATIVE (« est fixée comme suit ») et ne porte que des dates
+ * FIXES · aucune fête mobile. Ne pas en ajouter.
+ */
+export const JOURS_FERIES: ReadonlyArray<{ mois: number; jour: number; nom: string }> = [
+  { mois: 1, jour: 1, nom: 'Nouvel an' },
+  { mois: 1, jour: 4, nom: "Journée des Martyrs de l'indépendance" },
+  { mois: 1, jour: 16, nom: 'Journée du héros national Laurent Désiré Kabila' },
+  { mois: 1, jour: 17, nom: 'Journée du héros national Patrice Emery Lumumba' },
+  { mois: 4, jour: 6, nom: 'Journée du combat de Simon Kimbangu et de la conscience africaine' },
+  { mois: 5, jour: 1, nom: 'Fête du travail' },
+  { mois: 5, jour: 17, nom: 'Journée des Forces armées' },
+  { mois: 6, jour: 30, nom: "Journée de l'indépendance" },
+  { mois: 8, jour: 1, nom: 'Fête des parents' },
+  { mois: 12, jour: 25, nom: 'Noël' },
+];
+
+/**
+ * La date est-elle un jour férié légal opposable ?
+ *
+ * Rend le NOM du jour férié, ou `null`. Le nom sert à l'affichage : une
+ * échéance déplacée doit pouvoir dire par quoi.
+ *
+ * Une date ANTÉRIEURE au 30 mars 2023 rend toujours `null` · voir l'en-tête,
+ * la liste d'avant n'est pas au corpus et la deviner serait l'inventer.
+ */
+export function jourFerie(date: Date): string | null {
+  if (date.getTime() < ENTREE_EN_VIGUEUR_ORDONNANCE_23_042.getTime()) return null;
+  const trouve = JOURS_FERIES.find((f) => f.mois === date.getMonth() + 1 && f.jour === date.getDate());
+  return trouve ? trouve.nom : null;
+}
+
+/**
+ * Un jour est-il ouvrable pour l'exécution d'une obligation fiscale ?
+ *
+ * TROIS EXCLUSIONS, chacune sa source et sa borne :
+ * - le DIMANCHE, jour de repos hebdomadaire · Code du travail, art. 121,
+ *   alinéa 2, et art. 7, 9°. De tout temps ;
+ * - le SAMEDI, jour où les services publics ne travaillent pas · décret
+ *   n° 24/09, art. 1er, à compter du 17 février 2024 ;
+ * - les DIX JOURS FÉRIÉS LÉGAUX · ordonnance n° 23-042, art. 1er, à compter du
+ *   30 mars 2023.
+ *
+ * Les bornes ne sont pas une coquetterie : le registre des retenues calcule des
+ * échéances d'exercices anciens, et leur appliquer un texte postérieur est le
+ * deuxième piège du dépôt.
  */
 export function estJourOuvrable(date: Date): boolean {
-  return date.getDay() !== DIMANCHE;
+  if (date.getDay() === DIMANCHE) return false;
+  if (date.getDay() === SAMEDI && date.getTime() >= ENTREE_EN_VIGUEUR_DECRET_24_09.getTime()) return false;
+  return jourFerie(date) === null;
 }
 
 /**
@@ -123,12 +254,19 @@ export function echeanceReportee(echeanceLegale: Date): boolean {
  */
 export const RESERVE_JOUR_OUVRABLE =
   "REPORT DES ÉCHÉANCES · art. 110 bis, alinéa 2 de la loi de procédures fiscales : une échéance tombant un jour " +
-  'non ouvrable est reportée au premier jour ouvrable qui suit. Les échéances de cet état appliquent ce report ' +
-  'pour le DIMANCHE, jour de repos hebdomadaire (Code du travail, art. 121, alinéa 2, qui le fixe au dimanche, et ' +
-  'art. 7, 9°, qui définit le jour ouvrable comme tout jour hors repos hebdomadaire et jours fériés légaux · la ' +
-  "législation fiscale n'en donne aucune définition, celle-ci lui est empruntée). LE SAMEDI EST OUVRABLE et n'est " +
-  'donc pas reporté. DEUX CHOSES NE SONT PAS CALCULÉES ICI : les JOURS FÉRIÉS LÉGAUX, dont la liste est fixée par ' +
-  "décret du Président de la République (Code du travail, art. 123) et qu'aucune source du logiciel ne porte · une " +
-  "échéance tombant un jour férié est encore présentée comme échue ; et la faculté qu'a l'Administration, par " +
-  "l'alinéa 3 du même article, de fixer l'échéance déclarative et de paiement au jour ouvrable PRÉCÉDANT " +
-  "l'échéance légale, acte qu'aucune comptabilité ne porte.";
+  'non ouvrable est reportée au premier jour ouvrable qui suit. Cet état applique le report sur TROIS exclusions, ' +
+  'chacune avec sa source et sa date. Le DIMANCHE, jour de repos hebdomadaire (Code du travail, art. 121, ' +
+  'alinéa 2), de tout temps. Le SAMEDI, parce que les services publics travaillent « du lundi au vendredi » ' +
+  '(décret n° 24/09 du 17 février 2024, art. 1er) et que la déclaration comme le paiement se font devant eux · ' +
+  'à compter du 17 février 2024. Et les DIX JOURS FÉRIÉS LÉGAUX de l\u2019article 1er de l\u2019ordonnance ' +
+  'n° 23-042 du 30 mars 2023 (1er, 4, 16 et 17 janvier, 6 avril, 1er et 17 mai, 30 juin, 1er août, 25 décembre) · ' +
+  "à compter du 30 mars 2023. QUATRE RÉSERVES. (1) La législation fiscale ne définit pas le « jour ouvrable » : " +
+  'ces trois règles lui sont EMPRUNTÉES au droit du travail et au droit de la fonction publique. (2) Avant leurs ' +
+  "dates d'effet, les textes antérieurs (ordonnance 14-010 du 14 mai 2014 pour les fériés, ordonnance 81-067 du " +
+  "7 mai 1981 pour la discipline) ne sont pas au corpus du logiciel · une échéance plus ancienne ne porte que le " +
+  'report du dimanche. (3) L\u2019article 2 de l\u2019ordonnance n° 23-042 dispose que le congé d\u2019un jour ' +
+  "férié tombant un dimanche « est pris le jour précédent » · il fait RECULER un congé quand l'article 110 bis " +
+  "fait AVANCER une échéance, et rien n'articule les deux. Le logiciel ne s'en sert pas et le dit. (4) Un " +
+  "ministre peut fixer « des horaires de prestation spécifiques » pour les services spéciaux de son autorité " +
+  "(décret n° 24/09, art. 2, alinéa 3), et l'Administration peut fixer l'échéance au jour ouvrable PRÉCÉDANT " +
+  "l'échéance légale (art. 110 bis, alinéa 3) · deux actes qu'aucune comptabilité ne porte.";
