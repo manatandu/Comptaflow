@@ -46,6 +46,9 @@ const COMPTES = [
   { id: 'c12', numero: '12', intitule: 'Report à nouveau', typeCompte: 'TOTAL' },
   { id: 'c60', numero: '60100000', intitule: 'Achats', typeCompte: 'DETAIL' },
   { id: 'c103', numero: '10300000', intitule: 'Capital personnel', typeCompte: 'DETAIL' },
+  // Vit sous la racine 10, qui est une destination admise · c'est tout le
+  // piège de la passe F6.
+  { id: 'c1061', numero: '10610000', intitule: 'Écarts de réévaluation légale', typeCompte: 'DETAIL' },
 ];
 
 interface Options {
@@ -117,6 +120,12 @@ function service(o: Options = {}) {
 /** Un bénéfice de `montant` porté par le MOUVEMENT du 131. */
 const benefice = (montant: number, extra: LigneBalance[] = []): LigneBalance[] => [
   { numero: '13100000', mouvementDebit: 0, mouvementCredit: montant, solde: -montant },
+  ...extra,
+];
+
+/** Une perte de `montant` portée par le MOUVEMENT du 139. */
+const perte = (montant: number, extra: LigneBalance[] = []): LigneBalance[] => [
+  { numero: '13900000', mouvementDebit: montant, mouvementCredit: 0, solde: montant },
   ...extra,
 ];
 
@@ -525,5 +534,76 @@ describe('Affectation · une seule par exercice', () => {
         lignes: [{ compteId: 'c121', montant: 1_000_000 }],
       }),
     ).rejects.toThrow(/déjà été affecté le 2027-05-01/);
+  });
+});
+
+/**
+ * PASSE F6 · L'ÉCART DE RÉÉVALUATION N'EST PAS UNE DESTINATION DU RÉSULTAT.
+ *
+ * La loi n° 23/053, art. 133, alinéa 4 : l'écart de réévaluation des éléments
+ * amortissables « n'est pas distribuable et il ne peut pas être utilisé à la
+ * compensation des pertes ». L'AUDCIF, art. 65, ajoute qu'il « ne peut être
+ * incorporé au résultat de l'exercice de réévaluation ».
+ *
+ * Le compte 106 vit sous la racine 10, que les deux référentiels admettent en
+ * destination : le menu déroulant l'offrait, et l'enregistrement d'une perte
+ * le DÉBITAIT, ce qui est exactement la compensation interdite.
+ */
+describe('Passe F6 · le compte 106 « Écarts de réévaluation » n’est pas une destination', () => {
+  it('refuse d’imputer une PERTE sur l’écart de réévaluation', async () => {
+    const { svc } = service({ balance: perte(1_000_000) });
+    await expect(
+      svc.enregistrer('t1', 'u1', {
+        ...DECISION,
+        exerciceId: 'ex2026',
+        lignes: [{ compteId: 'c1061', montant: 1_000_000 }],
+      }),
+    ).rejects.toThrow(/compensation/);
+  });
+
+  it('le refuse aussi d’un BÉNÉFICE · l’écart naît d’une réévaluation, pas d’une affectation', async () => {
+    const { svc } = service({ balance: benefice(1_000_000) });
+    await expect(
+      svc.enregistrer('t1', 'u1', {
+        ...DECISION,
+        exerciceId: 'ex2026',
+        lignes: [{ compteId: 'c1061', montant: 1_000_000 }],
+      }),
+    ).rejects.toThrow(/n'est PAS une destination du résultat/);
+  });
+
+  it('le refuse dans les DEUX référentiels', async () => {
+    const { svc } = service({ referentiel: Referentiel.SYCEBNL, balance: perte(1_000_000) });
+    await expect(
+      svc.enregistrer('t1', 'u1', {
+        ...DECISION,
+        exerciceId: 'ex2026',
+        lignes: [{ compteId: 'c1061', montant: 1_000_000 }],
+      }),
+    ).rejects.toThrow(/Écarts de réévaluation/);
+  });
+
+  it('ne le PROPOSE plus au menu · refuser après avoir offert arrive trop tard', async () => {
+    const { svc } = service({ balance: benefice(1_000_000) });
+    const vue = await svc.preparer('t1', 'ex2026');
+    const numeros = vue.destinations.map((d: { numero: string }) => d.numero);
+    // Une PRÉSENCE est figée à côté : la liste vit toujours et porte le 101.
+    expect(numeros).toContain('10110000');
+    expect(numeros).not.toContain('10610000');
+  });
+
+  it('laisse passer une réserve facultative · la correction n’a pas fermé la racine 10', async () => {
+    const { svc, creerEcriture } = service({ balance: benefice(1_000_000) });
+    await svc.enregistrer('t1', 'u1', {
+      ...DECISION,
+      exerciceId: 'ex2026',
+      // La réserve légale du dixième est dotée d'abord · ce test porte sur la
+      // racine 10 laissée ouverte, pas sur l'AUSCGIE.
+      lignes: [
+        { compteId: 'c111', montant: 100_000 },
+        { compteId: 'c118', montant: 900_000 },
+      ],
+    });
+    expect(creerEcriture).toHaveBeenCalled();
   });
 });

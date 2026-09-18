@@ -8,6 +8,7 @@ import {
   obligationsDeclarativesApplicables,
   AVERTISSEMENT_REDEVABLE,
   FORMES_PERSONNES_PHYSIQUES,
+  avertissementRegimeImpot,
 } from './correspondance-retenues';
 
 /**
@@ -1225,5 +1226,96 @@ describe('Ce que le dépôt AFFIRME sur les sanctions · vérifié contre le tex
     expect(FORMES_PERSONNES_PHYSIQUES).toContain('ENTREPRISE_INDIVIDUELLE');
     expect(FORMES_PERSONNES_PHYSIQUES).toContain('ENTREPRENANT');
     expect(FORMES_PERSONNES_PHYSIQUES).toHaveLength(2);
+  });
+});
+
+/**
+ * PASSE F6 · CE QUE LA LOI n° 23/053 DIT DE LA QUALITÉ DE LA PERSONNE.
+ *
+ * Trois écrans du logiciel routaient déjà l'entreprise individuelle et
+ * l'entreprenant vers l'IRPP ; le registre des retenues, lui, leur servait
+ * l'impôt sur les sociétés. Ces tests figent la qualité de la personne là où
+ * elle se lit, c'est-à-dire dans ce qui est SERVI.
+ *
+ * DISCIPLINE DE CES TESTS · on gèle une PRÉSENCE, jamais l'absence d'un mot
+ * dans la source d'un fichier. La source porte l'histoire de ses corrections,
+ * et le commentaire qui explique pourquoi une formule était fausse contient
+ * forcément cette formule. Quatre tests ont été écrits de travers ainsi en
+ * trois jours. Ici, ce qu'on interroge est la VALEUR SERVIE par la fonction.
+ */
+describe('Passe F6 · l’impôt suit la qualité de la personne (art. 1er et art. 2, 17°, a))', () => {
+  it('sert l’IRPP, et non l’impôt sur les sociétés, à une entreprise individuelle', () => {
+    const message = avertissementRegimeImpot('SYSCOHADA' as never, 'ENTREPRISE_INDIVIDUELLE' as never);
+    expect(message).toContain('PERSONNE PHYSIQUE');
+    expect(message).toContain("l'impôt sur les sociétés ne lui est PAS dû");
+    expect(message).toContain('impôt unique sur le revenu des personnes physiques');
+    expect(message).toContain('article 17');
+    // Le calendrier de paiement n'est PAS tranché ici · les trois régimes sont
+    // nommés avec leur condition, et l'écran qui tranche est désigné.
+    expect(message).toContain('DÉPEND DU RÉGIME');
+    expect(message).toContain('Résultat fiscal et impôt sur les bénéfices');
+  });
+
+  it('sert le même message à un entreprenant · les deux formes vivent dans une seule liste', () => {
+    const entreprenant = avertissementRegimeImpot('SYSCOHADA' as never, 'ENTREPRENANT' as never);
+    const individuelle = avertissementRegimeImpot('SYSCOHADA' as never, 'ENTREPRISE_INDIVIDUELLE' as never);
+    expect(entreprenant).toBe(individuelle);
+    expect(FORMES_PERSONNES_PHYSIQUES).toEqual(['ENTREPRISE_INDIVIDUELLE', 'ENTREPRENANT']);
+  });
+
+  it('continue de servir l’impôt sur les sociétés à une SARL · la correction n’a pas débordé', () => {
+    const message = avertissementRegimeImpot('SYSCOHADA' as never, 'SOCIETE_RESPONSABILITE_LIMITEE' as never);
+    expect(message).toContain("La société est redevable de l'impôt sur les sociétés");
+    expect(message).toContain('25 juillet, 25 septembre et 25 novembre');
+  });
+
+  it('forme non renseignée · on ne devine pas, le repli société reste servi', () => {
+    const message = avertissementRegimeImpot('SYSCOHADA' as never, null);
+    expect(message).toContain("La société est redevable de l'impôt sur les sociétés");
+  });
+
+  it('les deux branches déjà lues restent intactes · entité publique et coopérative', () => {
+    expect(avertissementRegimeImpot('SYSCOHADA' as never, 'ENTITE_PUBLIQUE' as never)).toContain('ENTITÉ PUBLIQUE');
+    expect(avertissementRegimeImpot('SYSCOHADA' as never, 'SOCIETE_COOPERATIVE' as never)).toContain(
+      'SOCIÉTÉ COOPÉRATIVE',
+    );
+  });
+});
+
+describe('Passe F6 · le prélèvement des capitaux mobiliers ne vise que « les sociétés »', () => {
+  it('n’est plus servi à une entreprise individuelle ni à un entreprenant', () => {
+    for (const forme of FORMES_PERSONNES_PHYSIQUES) {
+      const cles = obligationsDeclarativesApplicables('SYSCOHADA' as never, forme).map((o) => o.cle);
+      expect(cles).not.toContain('prelevementCapitauxMobiliersNonResidents');
+    }
+  });
+
+  it('reste servi à une société, à une succursale et à une entité publique', () => {
+    for (const forme of ['SOCIETE_ANONYME', 'SUCCURSALE', 'ENTITE_PUBLIQUE']) {
+      const cles = obligationsDeclarativesApplicables('SYSCOHADA' as never, forme as never).map((o) => o.cle);
+      expect(cles).toContain('prelevementCapitauxMobiliersNonResidents');
+    }
+  });
+
+  it('forme non renseignée · rien n’est retranché', () => {
+    const cles = obligationsDeclarativesApplicables('SYSCOHADA' as never, null).map((o) => o.cle);
+    expect(cles).toContain('prelevementCapitauxMobiliersNonResidents');
+  });
+
+  it('dit pourquoi les deux formes restantes ne sont pas exclues, et ne se lit pas comme une dispense', () => {
+    const o = OBLIGATIONS_DECLARATIVES.find((x) => x.cle === 'prelevementCapitauxMobiliersNonResidents')!;
+    expect(o.sourceDonnees).toContain('SUCCURSALE');
+    expect(o.sourceDonnees).toContain('ENTITÉ PUBLIQUE');
+    expect(o.sourceDonnees).toContain('art. 120');
+  });
+});
+
+describe('Passe F6 · l’abrogation de l’O.-L. n° 69/007 porte sa date d’effet (art. 152 et 153)', () => {
+  it('borne la mort du régime expatrié au 1er janvier 2026', () => {
+    const nature = NATURES_RETENUES.find((n) => n.cle === 'prelevementExpatries')!;
+    expect(nature.reserveSyscohada).toContain('1er JANVIER 2026');
+    expect(nature.reserveSyscohada).toContain('vingt-quatre mois');
+    expect(nature.reserveSyscohada).toContain('30 novembre 2023');
+    expect(nature.reserveSyscohada).toContain('SUR UN EXERCICE ANTÉRIEUR');
   });
 });

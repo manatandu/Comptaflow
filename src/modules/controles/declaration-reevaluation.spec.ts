@@ -148,3 +148,31 @@ describe('Déclaration spéciale de réévaluation · déclenchement et bornage'
     expect(table).not.toContain("'1062'");
   });
 });
+
+/**
+ * PASSE F6 · DEUX INTERDITS, DEUX TEXTES, ET L'UN ÉTAIT MIS AU COMPTE DE
+ * L'AUTRE.
+ *
+ * L'action de ce contrôle écrivait « l'écart n'est ni distribuable ni
+ * imputable sur des pertes (art. 65 AUDCIF) ». Or l'article 65 de l'AUDCIF ne
+ * dit QUE ceci : « L'écart de réévaluation ne peut être incorporé au résultat
+ * de l'exercice de réévaluation. Il n'est pas distribuable. Il peut être
+ * incorporé en tout ou partie au capital. » Pas un mot sur les pertes.
+ *
+ * La prohibition de la compensation vient de la loi n° 23/053, art. 133,
+ * alinéa 4, et elle y vise littéralement « l'écart de réévaluation des
+ * éléments AMORTISSABLES ». Attribuer à l'AUDCIF une règle fiscale, c'est
+ * envoyer le réviseur la chercher là où elle n'est pas · le même geste que
+ * l'erreur de transposition du jour ouvrable.
+ */
+describe('Passe F6 · chaque interdit de l’écart de réévaluation nomme SA source', () => {
+  it('rend la non-distribution à l’AUDCIF et la compensation des pertes à la loi fiscale', () => {
+    expect(BLOC).toContain('ni distribuable (art. 65 AUDCIF)');
+    expect(BLOC).toContain('loi n° 23/053, art. 133, alinéa 4');
+  });
+
+  it('dit que les deux interdits viennent de deux textes distincts, et le dit à l’écran', () => {
+    expect(BLOC).toContain('DEUX textes distincts');
+    expect(BLOC).toContain('AMORTISSABLES');
+  });
+});

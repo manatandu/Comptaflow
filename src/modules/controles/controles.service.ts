@@ -2454,7 +2454,7 @@ export class ControlesService {
             'réévaluation porte sur l’ENSEMBLE des immobilisations corporelles et financières (art. 130 de la ' +
             'loi, art. 62 de l’AUDCIF · toute réévaluation partielle est interdite), la décision émane des ' +
             'organes de gestion et indique la méthode, les postes concernés, les montants et le traitement ' +
-            'fiscal de l’écart, et l’écart n’est ni distribuable ni imputable sur des pertes (art. 65 AUDCIF).',
+            'fiscal de l’écart, et l’écart n’est ni distribuable (art. 65 AUDCIF) ni, pour les éléments AMORTISSABLES, imputable sur des pertes (loi n° 23/053, art. 133, alinéa 4). Les deux interdits viennent de DEUX textes distincts : l’article 65 de l’AUDCIF ne pose que la non-distribution, et la compensation des pertes n’est prohibée que par la loi fiscale.',
           occurrences: mouvementees.slice(0, 50).map((l) => ({
             reference: l.numero,
             detail: l.intitule,

@@ -2965,6 +2965,43 @@ mot dans un fichier.**
 la date de l'art. 96 bis. Les deux tests manquants ont été écrits avant de
 rejouer les réinjections.
 
+**La passe F6 (loi n° 23/053, Titres I et IV à VII) · une restriction écrite et
+non codée.** Trois des huit écarts retenus avaient le même mécanisme, et c'est
+le plus instructif de la série. Le commentaire du code énonçait la restriction
+en toutes lettres, parfois en capitales, et le filtre écrit juste en dessous
+était plus large qu'elle. « ELLE NE VISE QUE LES SOCIÉTÉS », puis un filtre par
+référentiel · or SYSCOHADA porte aussi l'entreprise individuelle et
+l'entreprenant, qui ne sont pas des sociétés. **Une restriction écrite et non
+portée par le code est plus dangereuse qu'une restriction oubliée, parce qu'à la
+relecture elle se lit comme faite.** Quand un commentaire pose une condition,
+vérifier qu'une ligne l'exécute, et pas seulement qu'elle est dite.
+
+**La même passe · le piège de la doublure, quinzième occurrence.** Le registre
+des retenues annonçait l'impôt sur les sociétés à une personne physique, alors
+que le planning de clôture scindait déjà ses jalons avec
+`formesSyscohadaExclues`, que le module fiscal routait déjà vers l'IRPP, et que
+le même fichier déclarait trente lignes plus bas `FORMES_PERSONNES_PHYSIQUES`
+sous un commentaire disant « Elles ne sont pas redevables de l'impôt sur les
+sociétés ». Quatre écrans, trois justes, un faux. *Une correction n'est finie
+que quand on a cherché son jumeau*, et le jumeau se cherche par la RÈGLE, pas
+par le fichier.
+
+**La même passe · deux constats sur huit viennent de la relecture, pas du run.**
+216 agents et trois réfutateurs par constat n'ont vu ni que l'AUDCIF art. 65 ne
+dit pas ce que le dépôt lui faisait dire (il ne pose que la non-distribution, la
+compensation des pertes venant de la loi fiscale), ni que l'art. 141 vise « les
+redevables visés aux articles 139 ET 140 », donc aussi les entités à but non
+lucratif. La règle n°1 (la session principale relit la source elle-même avant
+qu'une ligne entre dans le code) n'est pas une formalité de contrôle · c'est une
+source de constats à part entière, et il faut la traiter comme telle.
+
+**La même passe · une migration appliquée ne se retouche pas.** La date fausse
+« 5 décembre 2023 » vivait à deux endroits : un module et le commentaire d'une
+migration déjà appliquée. Seul le module est corrigé. Une migration porte une
+empreinte, et la réécrire ferait diverger la base · elle est de l'HISTOIRE, pas
+une source. Le module le dit en clair, pour que personne ne « finisse » la
+correction. Même traitement que la migration des cadratins.
+
 ## 7. Conventions du plan de comptes semé
 
 Valables pour les deux référentiels (`compte-seed.ts`,

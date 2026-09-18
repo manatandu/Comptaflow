@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { FormeJuridiqueSyscohada, Referentiel, SensRetraitementFiscal, TypeCompteDetailTotal } from '@prisma/client';
 import { FiscaliteService, arrondirImpotArt150 } from './fiscalite.service';
 import { CATALOGUE_RETRAITEMENTS, CODE_LIBRE } from './catalogue-retraitements';
@@ -1199,5 +1201,37 @@ describe('Rapprochement du 4492 · les deux sens de l’écart (art. 110, al. 2)
 
   it("un écart nul ne produit aucune des deux phrases", () => {
     expect(suivi(2_000_000, 2_000_000)!.observations.join(' ')).not.toContain('diffèrent de');
+  });
+});
+
+/**
+ * PASSE F6 · LA NOTE DE RECHERCHE DIT-ELLE CE QUE LE CODE FAIT ?
+ *
+ * `docs/fiscalite-asbl-rdc.md` est la matière fiscale de référence du cabinet.
+ * Elle énonçait l'arrondi de l'art. 150 EN UN SEUL TEMPS, « à la centaine de
+ * FC la plus proche », et supprimait l'alinéa 1, celui de la décimale. Le code
+ * le fait en deux temps, et les deux règles ne donnent pas le même montant :
+ * sur 1 234 549,5 FC, la règle raccourcie descend à 1 234 500 et le texte
+ * monte à 1 234 600.
+ *
+ * Une note qui contredit le code est pire qu'une note absente : le
+ * collaborateur qui recalcule à la main conclut à une divergence du logiciel
+ * et « corrige » vers le montant qui ne se déclare pas.
+ */
+describe('Passe F6 · la note de recherche énonce l’arrondi de l’art. 150 en deux temps', () => {
+  const note = readFileSync(join(__dirname, '../../../docs/fiscalite-asbl-rdc.md'), 'utf8');
+
+  it('porte l’alinéa 1, la décimale, avant la tranche', () => {
+    expect(note).toContain('en DEUX temps');
+    expect(note).toContain('première décimale est\nsupérieure ou égale à 5');
+    expect(note).toContain('alinéas 2 et 3');
+  });
+
+  it('donne le cas chiffré qui sépare les deux lectures, et il est celui du test du code', () => {
+    expect(note).toContain('1 234 549,5');
+    expect(note).toContain('1 234 600');
+    // La valeur que la note annonce est bien celle que la fonction sert · la
+    // note et le code ne peuvent plus diverger sans qu'un test tombe.
+    expect(arrondirImpotArt150(1_234_549.5)).toBe(1_234_600);
   });
 });

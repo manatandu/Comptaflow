@@ -1,7 +1,7 @@
 /**
  * LA MONNAIE DE TENUE · elle ne se choisit pas.
  *
- * Loi n° 23/053 du 5 décembre 2023, art. 141, 1° · les redevables sont dans
+ * Loi n° 23/053 du 30 novembre 2023, art. 141, 1° · les redevables sont dans
  * l'obligation « de tenir leur comptabilité en français à leur siège ou au
  * siège de leurs établissements situés en République Démocratique du Congo.
  * Cette comptabilité est exprimée en Franc congolais ».
@@ -11,6 +11,19 @@
  * cours légal dans l'État partie ».
  *
  * Ni l'un ni l'autre ne prévoit d'option, de seuil ou de dérogation.
+ *
+ * LA DATE ÉTAIT FAUSSE ICI, ET SEULEMENT ICI. Ce fichier portait « du
+ * 5 décembre 2023 ». Le texte s'intitule « Loi n° 23/053 du 30 novembre 2023 »
+ * et se clôt sur « Fait à Kinshasa, le 30 novembre 2023 ». Le reste du dépôt
+ * écrit la bonne date partout ailleurs · corrigé à la passe F6. La migration
+ * 20260918120000_monnaie_fonctionnelle recopie l'ancien en-tête dans un
+ * commentaire SQL et N'EST PAS retouchée : une migration appliquée porte une
+ * empreinte, et la réécrire ferait diverger la base. Elle est de l'HISTOIRE,
+ * pas une source.
+ *
+ * Ce qu'aucun test n'attrapait · `citations-articles.spec.ts` ne contrôle que
+ * la PLAGE des articles sous un sigle d'Acte uniforme, et écarte expressément
+ * les lois numérotées. La DATE d'un texte cité n'était vérifiée nulle part.
  *
  * POURQUOI UNE CONSTANTE ET NON UN CHAMP MODIFIABLE. `Tenant.devise` existe
  * toujours en base parce qu'un dossier d'un autre État partie aura un jour une

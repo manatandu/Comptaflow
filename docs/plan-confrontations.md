@@ -160,7 +160,7 @@ gardent l'historique de chaque passe · elles ne portent plus l'ordre.
 |---|---|---|---|---|
 | **1** | **F10** | **FAITE le 2026-09-18** · loi n° 004/2003, Livre II, Titres V à VII, plus l'A.M. n° 013 du 11 mai 2015. 69 agents, 2 h 42, 75 obligations, 63 constats réfutés un à un, **50 écartés, 13 retenus dont 2 FAUX, 2 corrigés** (le report au premier jour ouvrable de l'art. 110 bis al. 2, qui faisait accuser d'un retard inexistant tout redevable dont l'échéance tombe un dimanche ; la consignation du dixième de l'art. 110 al. 2, prise pour un acompte insuffisant et renvoyée à l'amende de l'art. 98 bis dans le sens où rien ne manque). 79 % de réfutation · un texte adressé à l'Administration rend la plupart de ses articles à qui de droit. Journal : `docs/releve-de-manques-fiscal.md` | 384 | 1 |
 | **2** | **F9** | **FAITE le 2026-09-18** · loi n° 004/2003, Livre II, Titre IV, le barème complet. 67 agents, 2 h 46, 65 obligations, 59 constats réfutés un à un, **22 écartés, 37 retenus dont 5 FAUX, 3 corrigés** (l'art. 97 bis ne vise pas le décret n° 23/10 que le dépôt lui prêtait · créé en 2013, il ne peut pas viser un décret de 2023 ; l'ENTREPRENANT se voyait annoncer 750 000 FC au lieu de 250 000, le code contredisant son propre commentaire ; l'art. 96 bis daté de son remplacement et non de son insertion). 37 % de réfutation, le plus bas de la série · vérifier ce que le dépôt AFFIRME rapporte plus que chercher ce qui manque. Journal : `docs/releve-de-manques-fiscal.md` | 396 | 1 |
-| **3** | **F6** | Loi n° 23/053, Titres 1, 4 à 7 · dont l'art. 141 sur la tenue en franc congolais | 415 | 1 |
+| **3** | **F6** | **FAITE le 2026-09-18** · loi n° 23/053, Titres I et IV à VII. 216 agents, quinze blocs, deux regards par bloc et trois réfutateurs par constat. 62 constats bruts, **52 réfutés, 10 retenus dont 3 doublons, soit 6 écarts distincts, plus 2 trouvés par la session principale en relisant les sources · 8 corrigés** (l'écran des retenues annonçait l'impôt sur les SOCIÉTÉS à une entreprise individuelle et à un entreprenant, qui sont des personnes physiques ; l'affectation du résultat acceptait d'imputer une perte sur le compte « Écarts de réévaluation », ce que l'art. 133 al. 4 interdit, et le menu le proposait ; le contrôle de réévaluation mettait au compte de l'AUDCIF art. 65 une prohibition qu'il ne porte pas ; le prélèvement des capitaux mobiliers non-résidents était servi à des personnes physiques alors que son propre commentaire écrivait « ELLE NE VISE QUE LES SOCIÉTÉS » ; la mention du comptable de l'art. 141, 2° n'avait aucun porteur ; la note du cabinet énonçait l'arrondi de l'art. 150 en un temps au lieu de deux ; la mort de l'O.-L. n° 69/007 était annoncée sans sa borne du 1er janvier 2026 ; la loi était datée du 5 décembre au lieu du 30 novembre 2023). **84 % de réfutation, le plus haut de la série** · un texte de définitions et de renvois rend presque tout, et ce qui survit est dans du code déjà écrit. Leçon : une restriction écrite en toutes lettres dans un commentaire et non portée par le code est plus dangereuse qu'une restriction oubliée, parce qu'elle se relit comme faite. Journal : `docs/releve-de-manques-fiscal.md` | 415 | 1 |
 | **4** | **F13** | Loi de finances n° 25/060 + IPM (O.-L. 71/087) | 487 | 1 |
 | **5** | **R4** | AUDCIF Titres XII et XIII · comptes consolidés et combinés (D4C) | 612 | 1 |
 | **6** | **O7** | AUA + AUM + AUCTMR · les trois petits actes, ensemble | 919 | 2 |
@@ -442,11 +442,11 @@ multi-classification se décide à la CONCEPTION, `Compte`, `Journal` et
 
 | Bloc | Passes | Faites | Reste |
 |---|---|---|---|
-| F · Fiscalité | 14 | **6** | 8 |
+| F · Fiscalité | 14 | **7** | 7 |
 | O · OHADA | 7 | 0 | 7 |
 | R · Référentiels, solde | 6 | 0 | 6 |
 | D · Droit congolais | 4 | 0 | 4 |
-| **Total** | **31** | **6** | **25** |
+| **Total** | **31** | **7** | **24** |
 
 *Une passe scindée reste une passe : elle se compte quand son dernier run est
 clos, pas quand le premier est poussé. F2 et F3 le sont.*

@@ -81,3 +81,29 @@ describe('la monnaie de tenue', () => {
     expect(page).toContain('art. 141');
   });
 });
+
+/**
+ * PASSE F6 · LA DATE D'UN TEXTE EST, AVEC SON NUMÉRO, SA SEULE CLÉ.
+ *
+ * Ce fichier datait la loi n° 23/053 du « 5 décembre 2023 ». Elle est du
+ * 30 novembre 2023 : c'est son intitulé et c'est la mention finale du texte,
+ * « Fait à Kinshasa, le 30 novembre 2023 ». Aucun test ne vérifiait la DATE
+ * d'un texte cité · `citations-articles.spec.ts` ne contrôle que la plage des
+ * articles sous un sigle d'Acte uniforme et écarte les lois numérotées.
+ *
+ * On gèle une PRÉSENCE, la bonne date, et non l'absence de la mauvaise : la
+ * source d'un fichier porte l'histoire de ses corrections, et le commentaire
+ * qui explique l'erreur contient forcément l'erreur.
+ */
+describe('Passe F6 · la loi n° 23/053 est datée du 30 novembre 2023', () => {
+  const source = readFileSync(join(__dirname, 'monnaie-de-tenue.ts'), 'utf8');
+
+  it('porte la date du texte à côté de son numéro', () => {
+    expect(source).toContain('Loi n° 23/053 du 30 novembre 2023, art. 141, 1°');
+  });
+
+  it('dit pourquoi la migration qui porte encore l’ancienne date n’est pas retouchée', () => {
+    expect(source).toContain('empreinte');
+    expect(source).toContain('20260918120000_monnaie_fonctionnelle');
+  });
+});

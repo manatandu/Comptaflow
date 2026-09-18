@@ -132,7 +132,24 @@ describe('Destinations du résultat · les deux plans ne les offrent pas toutes'
 
   it('le SYSCOHADA les connaît · 465 Associés, dividendes à payer', () => {
     expect(REGLES[Referentiel.SYSCOHADA].destinations).toContain('465');
-    expect(REGLES[Referentiel.SYSCOHADA].interdits).toEqual([]);
+    // MOTIF DU CHANGEMENT · ce test attendait `interdits` VIDE côté SYSCOHADA.
+    // Il est tombé à la passe F6, et c'est la correction qui marchait : le 106
+    // « Écarts de réévaluation » y est désormais refusé, parce qu'il vit sous
+    // la racine 10 et qu'imputer une perte dessus est la compensation que la
+    // loi n° 23/053, art. 133, alinéa 4, interdit. Le 465, lui, reste admis
+    // côté SYSCOHADA · c'était et cela demeure le point de ce test.
+    expect(REGLES[Referentiel.SYSCOHADA].interdits.map((i) => i.racine)).not.toContain('465');
+  });
+
+  it('les DEUX plans refusent l’écart de réévaluation · racine 106 (passe F6)', () => {
+    for (const r of Object.values(REGLES)) {
+      expect(r.interdits.map((i) => i.racine)).toContain('106');
+      const motif = r.interdits.find((i) => i.racine === '106')!.motif;
+      // Chaque interdit nomme SA source, et les deux sources sont distinctes.
+      expect(motif).toContain('art. 133, alinéa 4');
+      expect(motif).toContain('AUDCIF, art. 65');
+      expect(motif).toContain('compensation des pertes');
+    }
   });
 
   it('les deux soldent le 13 par la classe 1, et le report à nouveau y est toujours', () => {

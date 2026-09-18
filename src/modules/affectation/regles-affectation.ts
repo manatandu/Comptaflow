@@ -134,7 +134,23 @@ export const REGLES: Record<Referentiel, ReglesAffectation> = {
     // 10 Capital (101 social, 103 personnel) · 11 Réserves · 12 Report à
     // nouveau · 465 Associés, dividendes à payer.
     destinations: ['10', '11', '12', '465'],
-    interdits: [],
+    interdits: [
+      {
+        racine: '106',
+        motif:
+          "Le compte 106 « Écarts de réévaluation » n'est PAS une destination du résultat, dans aucun des deux " +
+          "sens. Un écart de réévaluation naît d'une réévaluation de l'actif immobilisé, jamais d'une " +
+          "délibération d'affectation : l'AUDCIF, art. 65, pose que « l'écart de réévaluation ne peut être " +
+          "incorporé au résultat de l'exercice de réévaluation », et la loi n° 23/053, art. 133, alinéa 4, " +
+          "ajoute pour l'écart des éléments AMORTISSABLES qu'« il n'est pas distribuable et il ne peut pas être " +
+          "utilisé à la compensation des pertes ». Imputer une perte sur ce compte est exactement cette " +
+          "compensation. RÉSERVE · l'alinéa 4 vise littéralement les éléments amortissables, et le plan ne " +
+          "sépare pas l'écart selon ce critère ; le refus porte donc sur toute la racine 106, ce qui est le " +
+          "sens le plus strict et le seul qui ne fasse passer aucune écriture interdite. La seule destination " +
+          "que les deux textes ouvrent à l'écart est le CAPITAL, « en tout ou partie » (art. 133, alinéa 5 · " +
+          "AUDCIF art. 65), et elle se passe par une écriture d'incorporation, pas par l'affectation du résultat.",
+      },
+    ],
     reserveLegale: '111',
     reportANouveau: '12',
   },
@@ -143,6 +159,21 @@ export const REGLES: Record<Referentiel, ReglesAffectation> = {
     // ne le porte pas, et une EBNL ne distribue pas.
     destinations: ['10', '11', '12'],
     interdits: [
+      {
+        racine: '106',
+        motif:
+          "Le compte 106 « Écarts de réévaluation » n'est PAS une destination du résultat, dans aucun des deux " +
+          "sens. Un écart de réévaluation naît d'une réévaluation de l'actif immobilisé, jamais d'une " +
+          "délibération d'affectation : l'AUDCIF, art. 65, pose que « l'écart de réévaluation ne peut être " +
+          "incorporé au résultat de l'exercice de réévaluation », et la loi n° 23/053, art. 133, alinéa 4, " +
+          "ajoute pour l'écart des éléments AMORTISSABLES qu'« il n'est pas distribuable et il ne peut pas être " +
+          "utilisé à la compensation des pertes ». Imputer une perte sur ce compte est exactement cette " +
+          "compensation. RÉSERVE · l'alinéa 4 vise littéralement les éléments amortissables, et le plan ne " +
+          "sépare pas l'écart selon ce critère ; le refus porte donc sur toute la racine 106, ce qui est le " +
+          "sens le plus strict et le seul qui ne fasse passer aucune écriture interdite. La seule destination " +
+          "que les deux textes ouvrent à l'écart est le CAPITAL, « en tout ou partie » (art. 133, alinéa 5 · " +
+          "AUDCIF art. 65), et elle se passe par une écriture d'incorporation, pas par l'affectation du résultat.",
+      },
       {
         racine: '465',
         motif:

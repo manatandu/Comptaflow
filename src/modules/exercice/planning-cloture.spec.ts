@@ -722,3 +722,58 @@ describe('inventaires extracomptables · la sanction et le PV', () => {
     expect(s).toContain('rapport de gestion');
   });
 });
+
+/**
+ * PASSE F6 · LA MENTION DU COMPTABLE, ART. 141, 2°.
+ *
+ * « Les redevables visés aux articles 139 et 140 ci-dessus sont dans
+ * l'obligation : [...] 2. d'indiquer dans leur déclaration le nom, l'adresse
+ * et la qualification du comptable chargé de tenir leur comptabilité, en
+ * précisant si celui-ci est salarié ou non de leur entreprise. »
+ *
+ * Toutes les occurrences de l'article 141 dans le dépôt portaient le « 1° »,
+ * celui de la monnaie de tenue. Le 2° n'existait nulle part. Le contreseing
+ * « par le conseil ou le comptable » que les jalons connaissaient déjà n'est
+ * pas cette mention : signer n'est pas déclarer son adresse, sa qualification
+ * et son lien de subordination.
+ *
+ * OmegaX ne détient aucune de ces quatre données et ne les invente pas · il
+ * NOMME l'obligation, avec sa source, dans le jalon qui prépare la
+ * déclaration. C'est ce que fige ce test : une présence, pas une absence.
+ */
+describe('Passe F6 · l’art. 141, 2° est nommé dans les deux déclarations annuelles', () => {
+  const jalons = JALONS_CLOTURE.filter((j) => j.libelle.startsWith('Déclaration'));
+
+  it('les deux jalons annuels de déclaration portent la mention et sa source', () => {
+    // TROIS jalons annuels de déclaration, et non deux · le SYCEBNL a le sien.
+    // L'article 141 vise « les redevables visés aux articles 139 ET 140 », et
+    // l'article 140 nomme « les entités à but non lucratif » : la mention les
+    // concerne aussi. Relevé en relisant le texte après le run, qui ne l'avait
+    // pas vu.
+    const concernes = jalons.filter(
+      (j) => j.libelle === 'Déclarations fiscales annuelles' || j.libelle.includes('personne physique'),
+    );
+    expect(concernes).toHaveLength(3);
+    for (const j of concernes) {
+      expect(j.detail).toContain('LA MENTION DU COMPTABLE');
+      expect(j.detail).toContain('la qualification du comptable');
+      expect(j.detail).toContain('salarié ou non');
+      expect(j.source).toContain('art. 141, 2°');
+    }
+  });
+
+  it('dit que ce n’est PAS le contreseing, et qu’OmegaX ne détient pas la donnée', () => {
+    const concernes = jalons.filter(
+      (x) => x.libelle === 'Déclarations fiscales annuelles' || x.libelle.includes('personne physique'),
+    );
+    const j = concernes.find((x) => x.referentiels?.includes('SYSCOHADA' as never) && x.libelle === 'Déclarations fiscales annuelles')!;
+    expect(j.detail).toContain('signer n’est pas déclarer');
+    expect(j.detail).toContain('à reporter à la main');
+    // Le jalon de l'ASBL porte la mention AVEC sa réserve · ce qui n'est pas
+    // tranché par un texte lu est dit comme tel, jamais affirmé.
+    const asbl = concernes.find((x) => x.referentiels?.includes('SYCEBNL' as never))!;
+    expect(asbl.detail).toContain('articles 139 ET 140');
+    expect(asbl.detail).toContain('RÉSERVE');
+    expect(asbl.source).toContain('art. 141, 2°');
+  });
+});

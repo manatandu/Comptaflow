@@ -157,6 +157,27 @@ export interface ObligationDeclarative {
    * pourtant l'obligation et son amende.
    */
   referentiels?: Referentiel[];
+  /**
+   * Formes juridiques SYSCOHADA que l'obligation NE VISE PAS, nommément.
+   *
+   * POURQUOI CE CHAMP EXISTE, alors que `referentiels` filtrait déjà. Le
+   * référentiel n'est pas la qualité de la personne : SYSCOHADA porte les
+   * cinq sociétés commerciales de l'AUSCGIE, mais aussi l'entreprise
+   * individuelle et l'entreprenant, qui sont des personnes PHYSIQUES, la
+   * succursale, qui n'a pas de personnalité juridique propre, et l'entité
+   * publique. Une obligation dont le texte dit « les sociétés » ne se filtre
+   * donc pas par le seul référentiel · c'est exactement l'écart relevé à la
+   * passe F6 sur le prélèvement des capitaux mobiliers non-résidents, dont le
+   * commentaire écrivait en capitales « ELLE NE VISE QUE LES SOCIÉTÉS » et
+   * dont le filtre servait l'obligation à tout dossier SYSCOHADA.
+   *
+   * Miroir de `formesSyscohadaExclues` du planning de clôture, et même mot
+   * volontairement : c'est la même idée, elle doit se lire pareil.
+   *
+   * Sur un dossier dont la forme n'est pas renseignée, on ne retranche rien ·
+   * un dossier incomplet n'est pas un dossier exclu.
+   */
+  formesExclues?: FormeJuridiqueSyscohada[];
 }
 
 /**
@@ -304,7 +325,7 @@ export const NATURES_RETENUES: NatureRetenue[] = [
     // sont elles. Servir la réserve d'une ASBL à une entreprise lui suggérait
     // de faire trancher un point qui ne se discute pas.
     reserveSyscohada:
-      "Prélèvement dû par toute entreprise individuelle ou sociétaire située en RDC employant du personnel expatrié (art. 145), assis sur le montant brut des rémunérations de l'article 68 (art. 146), les exemptions et immunités des articles 64 et 69 s'y appliquant (art. 147). Il est dû lorsque les revenus sont payés ou mis à la disposition de leurs bénéficiaires (art. 149), non lorsque la charge est engagée. Il reste à charge de l'entreprise et n'est pas déductible du bénéfice imposable (art. 50, 2°). Le taux réduit du secteur minier, le plancher au SMIG du pays d'origine et l'assimilation des ressortissants des pays limitrophes sont MORTS avec l'ordonnance-loi n° 69/007, abrogée par l'article 152 : les pages en ligne qui les mentionnent encore décrivent un régime abrogé.",
+      "Prélèvement dû par toute entreprise individuelle ou sociétaire située en RDC employant du personnel expatrié (art. 145), assis sur le montant brut des rémunérations de l'article 68 (art. 146), les exemptions et immunités des articles 64 et 69 s'y appliquant (art. 147). Il est dû lorsque les revenus sont payés ou mis à la disposition de leurs bénéficiaires (art. 149), non lorsque la charge est engagée. Il reste à charge de l'entreprise et n'est pas déductible du bénéfice imposable (art. 50, 2°). Le taux réduit du secteur minier, le plancher au SMIG du pays d'origine et l'assimilation des ressortissants des pays limitrophes sont MORTS avec l'ordonnance-loi n° 69/007, que l'article 152 abroge nommément · MAIS SEULEMENT À COMPTER DU 1er JANVIER 2026, l'article 153 fixant l'entrée en vigueur de la loi « après vingt-quatre mois à compter du 31 décembre de l'année de sa promulgation » et la loi datant du 30 novembre 2023. SUR UN EXERCICE ANTÉRIEUR, ces trois règles étaient en vigueur et régissent la période que vous arrêtez : cet état est servi exercice par exercice, et c'est à vous de lire la réserve à la date de l'exercice affiché. Les pages en ligne qui les mentionnent encore décrivent un régime abrogé pour l'avenir, pas pour le passé.",
   },
   {
     cle: 'capitauxMobiliers',
@@ -504,6 +525,28 @@ const SOURCE_ACOMPTES =
   "donc dans aucun solde de compte de l'exercice en cours.";
 
 /**
+ * LES DEUX FORMES SYSCOHADA QUI SONT DES PERSONNES PHYSIQUES, et la liste vit
+ * UNE FOIS · commerçant personne physique (AUDCG art. 2 et 13) et entreprenant
+ * (art. 30). Elles ne sont pas redevables de l'impôt sur les sociétés mais de
+ * l'IRPP (loi n° 23/053, art. 1er et art. 2, 17°, a)), et leur calendrier de
+ * paiement dépend d'un RÉGIME que ce module ne détermine pas.
+ *
+ * Exportée depuis la passe F9 · le module de facturation en écrivait une
+ * seconde, à la main, qui avait oublié l'entreprenant et annonçait donc
+ * 750.000 FC au lieu de 250.000 sur l'amende de l'art. 97 bis.
+ *
+ * DEUX BLOCS EMPILÉS, dont TypeScript n'attachait que le second : le premier
+ * portait la règle de fond et ne parvenait ni à l'éditeur ni à la
+ * documentation engendrée. Fusionnés à la passe F6.
+ */
+export const FORMES_PERSONNES_PHYSIQUES: FormeJuridiqueSyscohada[] = [
+  FormeJuridiqueSyscohada.ENTREPRISE_INDIVIDUELLE,
+  FormeJuridiqueSyscohada.ENTREPRENANT,
+];
+// Déclarée AVANT `OBLIGATIONS_DECLARATIVES`, qui s'en sert dans son littéral :
+// une const de bloc lue au chargement du module ne se hisse pas.
+
+/**
  * AMENDE DE L'ARTICLE 94 · elle n'est plus un montant unique, et le registre
  * servait l'ancienne rédaction.
  *
@@ -611,8 +654,29 @@ export const OBLIGATIONS_DECLARATIVES: ObligationDeclarative[] = [
     sourceDonnees:
       "Compte 44784 pour le prélèvement, et les dividendes et intérêts servis pour l'assiette. LE LOGICIEL NE PEUT " +
       "PAS ISOLER CETTE PART : un compte de retenue porte le montant retenu, jamais la résidence du bénéficiaire · " +
-      "c'est à vous de ventiler vos versements avant de déclarer.",
+      "c'est à vous de ventiler vos versements avant de déclarer. RÉSERVE DE CHAMP · le texte dit « les sociétés » : " +
+      "l'entreprise individuelle et l'entreprenant sont écartés de cette obligation, qui ne leur est plus servie. " +
+      "Pour une SUCCURSALE et pour une ENTITÉ PUBLIQUE, aucun texte lu ne tranche, et l'obligation reste affichée " +
+      "plutôt que retirée au jugé · à faire trancher par un conseil. Ne lisez pas cette exclusion comme une " +
+      "dispense générale : la retenue INTERNE de 20 % sur les revenus de capitaux mobiliers (art. 120 de la même " +
+      "loi) est une autre obligation, qui a sa propre ligne dans cet état.",
     referentiels: [Referentiel.SYSCOHADA],
+    // LE RAISONNEMENT ÉTAIT JUSTE ET LE FILTRE PLUS LARGE QUE LUI. Le
+    // commentaire ci-dessus conclut « ELLE NE VISE QUE LES SOCIÉTÉS » et
+    // n'en tirait que l'exclusion de l'ASBL, par le référentiel. Or le
+    // référentiel SYSCOHADA porte aussi l'entreprise individuelle et
+    // l'entreprenant, qui sont des commerçants PERSONNES PHYSIQUES (AUDCG
+    // art. 2, 13 et 30) et pas davantage des sociétés qu'une ASBL. Le même
+    // argument les écarte, et il n'était pas appliqué.
+    //
+    // CE QUI EST EXCLU, ET CE QUI NE L'EST PAS. Les deux personnes physiques
+    // le sont avec certitude. La SUCCURSALE ne l'est pas : elle n'a pas de
+    // personnalité juridique propre (AUSCGIE art. 116 à 118) et le payeur
+    // réel est la société dont elle est l'établissement. L'ENTITÉ PUBLIQUE
+    // non plus : aucun texte lu ne dit si elle entre ou non dans « les
+    // sociétés » de l'art. 149 ter, et deviner dans un sens comme dans
+    // l'autre serait inventer. Les deux restent servies, et la réserve le dit.
+    formesExclues: FORMES_PERSONNES_PHYSIQUES,
   },
   {
     cle: 'releveTrimestrielTiers',
@@ -943,6 +1007,54 @@ export function avertissementRegimeImpot(
         rappelTiers
       );
     }
+    // ART. 1er ET ART. 2, 17°, a) · L'IMPÔT SUR LES SOCIÉTÉS N'EST PAS
+    // L'IMPÔT DE TOUT LE MONDE, et ce repli le servait à tout dossier
+    // SYSCOHADA que les deux branches ci-dessus ne captaient pas, entreprise
+    // individuelle et entreprenant compris.
+    //
+    // L'article 1er établit DEUX impôts et les sépare par la qualité de la
+    // personne : « un impôt sur l'ensemble des bénéfices réalisés par les
+    // SOCIÉTÉS ET AUTRES PERSONNES MORALES [...] désigné sous le nom d'Impôt
+    // sur les Sociétés » et « un impôt unique sur le revenu des PERSONNES
+    // PHYSIQUES [...] désigné sous le nom d'Impôt sur le Revenu des Personnes
+    // Physiques ». L'article 2, 17°, a) range parmi les personnes physiques
+    // « les exploitants individuels ». Et l'article 3, que ce message citait,
+    // n'énumère au titre de la forme que les sociétés anonymes, à
+    // responsabilité limitée et par actions simplifiées, et au titre de
+    // l'activité que des sociétés et des personnes morales : une entreprise
+    // individuelle n'y figure nulle part.
+    //
+    // LA CORRECTION EXISTAIT DÉJÀ AILLEURS, ET N'AVAIT PAS TRAVERSÉ. Le
+    // planning de clôture a scindé ses deux jalons de déclaration annuelle et
+    // exclut nommément ces formes de celui de l'impôt sur les sociétés
+    // (`planning-cloture.ts`, `formesSyscohadaExclues: FORMES_PERSONNES_PHYSIQUES`),
+    // le module fiscal les route vers l'IRPP, et le fichier que voici déclare
+    // trente lignes plus bas `FORMES_PERSONNES_PHYSIQUES` sous un commentaire
+    // qui écrit lui-même « Elles ne sont pas redevables de l'impôt sur les
+    // sociétés mais de l'IRPP ». Trois écrans disaient l'IRPP, celui-ci
+    // disait l'impôt sur les sociétés, et le cabinet arbitrait.
+    //
+    // CE QUE CE MESSAGE NE TRANCHE PAS. Le calendrier de PAIEMENT d'une
+    // personne physique dépend de son RÉGIME (micro, petite entreprise, réel),
+    // qui se déduit du chiffre d'affaires sur plusieurs exercices (art. 113)
+    // et vit dans le module fiscal. Recalculer ici la règle de l'art. 113 la
+    // ferait exister à deux endroits, donc diverger : le message nomme la
+    // branche et renvoie à la fenêtre qui tranche.
+    if (formeJuridique !== null && FORMES_PERSONNES_PHYSIQUES.includes(formeJuridique)) {
+      return (
+        "Ce dossier est une PERSONNE PHYSIQUE, et l'impôt sur les sociétés ne lui est PAS dû. L'article 1er de la " +
+        "loi n° 23/053 établit l'impôt sur les sociétés sur « l'ensemble des bénéfices réalisés par les sociétés et " +
+        "autres personnes morales » et réserve aux personnes physiques « un impôt unique sur le revenu des personnes " +
+        "physiques », l'IRPP ; l'article 2, 17°, a) range l'exploitant individuel parmi les personnes physiques, et " +
+        "l'article 3 ne l'impose à l'IS ni par sa forme ni par son activité. La déclaration annuelle est celle de " +
+        "l'article 17 de la loi n° 004/2003, due au plus tard le 30 avril de l'année qui suit celle de la " +
+        "réalisation des revenus. SON CALENDRIER DE PAIEMENT DÉPEND DU RÉGIME, que cet état ne détermine pas : au " +
+        'régime réel, trois acomptes provisionnels (art. 57 bis) ; au régime des petites entreprises, deux quotités ' +
+        '(art. 57, al. 3 et 57 quater) ; au régime des micro-entreprises, ni acompte ni quotité. Le régime se lit ' +
+        'dans État > Résultat fiscal et impôt sur les bénéfices. ' +
+        rappelTiers
+      );
+    }
     return (
       "La société est redevable de l'impôt sur les sociétés (loi n° 23/053, art. 3). Sa déclaration est due au plus " +
       "tard le 30 avril de l'année qui suit celle de la réalisation des revenus (loi n° 004/2003, art. 12), et ses " +
@@ -959,23 +1071,6 @@ export function avertissementRegimeImpot(
   );
 }
 
-/**
- * LES DEUX FORMES SYSCOHADA QUI SONT DES PERSONNES PHYSIQUES · commerçant
- * personne physique (AUDCG art. 2 et 13) et entreprenant (art. 30). Elles ne
- * sont pas redevables de l'impôt sur les sociétés mais de l'IRPP, et leur
- * calendrier de paiement dépend d'un RÉGIME que ce module ne détermine pas.
- */
-/**
- * LES FORMES QUI SONT DES PERSONNES PHYSIQUES, et la liste vit UNE FOIS.
- *
- * Exportée depuis la passe F9 · le module de facturation en écrivait une
- * seconde, à la main, qui avait oublié l'entreprenant et annonçait donc
- * 750.000 FC au lieu de 250.000 sur l'amende de l'art. 97 bis.
- */
-export const FORMES_PERSONNES_PHYSIQUES: FormeJuridiqueSyscohada[] = [
-  FormeJuridiqueSyscohada.ENTREPRISE_INDIVIDUELLE,
-  FormeJuridiqueSyscohada.ENTREPRENANT,
-];
 
 /** Obligation servie à l'échéancier, avec la réserve qui l'accompagne. */
 export type ObligationServie = ObligationDeclarative & { reserve: string | null };
@@ -1009,7 +1104,12 @@ export function obligationsDeclarativesApplicables(
 ): ObligationServie[] {
   const physique = !!formeSyscohada && FORMES_PERSONNES_PHYSIQUES.includes(formeSyscohada);
   return OBLIGATIONS_DECLARATIVES.filter(
-    (o) => (!o.referentiels || o.referentiels.includes(referentiel)) && (!o.personnesPhysiquesSeulement || physique),
+    (o) =>
+      (!o.referentiels || o.referentiels.includes(referentiel)) &&
+      (!o.personnesPhysiquesSeulement || physique) &&
+      // Forme non renseignée = rien n'est retranché · on n'exclut que ce
+      // qu'on sait exclure.
+      !(o.formesExclues && !!formeSyscohada && o.formesExclues.includes(formeSyscohada)),
   ).map((o) => ({ ...o, reserve: physique ? (o.reserveRegimePhysique ?? null) : null }));
 }
 

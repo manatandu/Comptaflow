@@ -255,9 +255,23 @@ franc près » par la page IRPP de la DGI le 10 juillet 2026.
 Réduction pour charge de famille : 2 % par personne, 9 personnes au maximum
 (art. 123), sans effet au-delà de la troisième tranche.
 
-Arrondi de l'impôt : à la centaine de FC la plus proche, la tranche de 50 FC
-basculant vers le haut (art. 150). **Deux arrondis différents, l'un en entrée
-sur le revenu, l'autre en sortie sur l'impôt : ne pas les confondre.**
+Arrondi de l'impôt (art. 150) : **en DEUX temps, et non en un seul.** D'abord
+la décimale, « arrondie à l'unité supérieure si la première décimale est
+supérieure ou égale à 5 ; dans le cas contraire, ramenée à l'unité
+inférieure » (alinéa 1). Ensuite seulement la tranche : une tranche
+supérieure ou égale à 50 FC monte à la centaine supérieure, une tranche
+inférieure à 50 FC descend à la centaine inférieure (alinéas 2 et 3).
+
+L'ordre compte, et cette note l'omettait : elle ne donnait que la seconde
+étape, « à la centaine la plus proche ». Sur 1 234 549,5 FC, la règle
+raccourcie retient la tranche 49,5, inférieure à 50, et descend à
+1 234 500 ; le texte arrondit d'abord la décimale (5 ≥ 5) à 1 234 550, dont
+la tranche atteint 50, et monte à 1 234 600. Cent francs d'écart, et c'est
+le second montant qui se déclare. `arrondirImpotArt150` fait les deux
+temps et son test fige précisément ce cas.
+
+**Deux arrondis différents, l'un en entrée sur le revenu, l'autre en sortie
+sur l'impôt : ne pas les confondre non plus.**
 
 ### 7.2 CNSS (décret n° 18/041 du 24 novembre 2018)
 

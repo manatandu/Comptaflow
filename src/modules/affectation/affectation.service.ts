@@ -72,7 +72,7 @@ export class AffectationService {
     // Les comptes RÉELLEMENT ouverts dans le plan du dossier, sous les racines
     // que le référentiel autorise · proposer un compte absent du plan
     // renverrait une erreur à la validation, ce qui se découvre trop tard.
-    const destinations = await this.prisma.compte.findMany({
+    const destinationsBrutes = await this.prisma.compte.findMany({
       where: {
         tenantId,
         estActif: true,
@@ -82,6 +82,15 @@ export class AffectationService {
       select: { id: true, numero: true, intitule: true },
       orderBy: { numero: 'asc' },
     });
+    // PROPOSER UN COMPTE PUIS LE REFUSER EST PIRE QUE DE NE PAS LE PROPOSER.
+    // La liste est bâtie par RACINE, et une racine admise contient des comptes
+    // interdits : le 106 « Écarts de réévaluation » vit sous le 10, qui est
+    // une destination. Le refus de `enregistrer` existait déjà ; il ne
+    // s'appliquait qu'après que le comptable eut choisi dans un menu qui
+    // offrait le compte. Les deux listes se lisent maintenant au même endroit.
+    const destinations = destinationsBrutes.filter(
+      (c) => !regles.interdits.some((i) => c.numero.startsWith(i.racine)),
+    );
 
     const existante = await this.prisma.affectationResultat.findUnique({
       where: { exerciceId },

@@ -2292,3 +2292,66 @@ bonne règle (« on exige la réserve exacte ») ; il manquait de dire OÙ la po
 - **Le taux de réfutation de 37 % confirme la ligne des textes vierges** ·
   39 % à F4a, 41 % à F4b, 37 % ici, contre 79 à 85 % sur un texte adressé à
   l'Administration ou déjà balayé par les passes précédentes.
+
+---
+
+## Passe F6 · loi n° 23/053, Titres I et IV à VII
+
+Rang 3 de l'ordre verrouillé. 415 lignes (Titre I, 110 lignes, déjà lu comme
+socle pendant F4a et F4b mais jamais confronté article par article ; Titres IV
+à VII, 305 lignes). 216 agents, quinze blocs d'articles, deux regards
+indépendants par bloc, trois réfutateurs adversariaux par constat sous trois
+angles distincts (le texte, le code, la portée).
+
+**62 constats bruts, 52 réfutés, 10 survivants, soit 84 % de réfutation ·
+le taux le plus élevé des dix passes.** Trois paires de survivants étaient des
+doublons, ce qui ramène à six écarts distincts. La session principale en a
+trouvé deux de plus en relisant elle-même les sources.
+
+### Ce qui est retenu
+
+| Article | Écart | Gravité | Correction |
+|---|---|---|---|
+| Art. 1er et art. 2, 17°, a) | Le registre des retenues servait « La société est redevable de l'impôt sur les sociétés » à TOUT dossier SYSCOHADA que deux branches ne captaient pas, entreprise individuelle et entreprenant compris. L'art. 1er n'établit l'IS que sur « les sociétés et autres personnes morales » ; l'art. 3, que le message invoquait, n'énumère aucune personne physique. | FAUX | Branche sur `FORMES_PERSONNES_PHYSIQUES` : l'IRPP, la déclaration de l'art. 17, et les trois régimes nommés avec leur condition, sans en trancher aucun. |
+| Art. 133, alinéa 4 | Le module d'affectation admettait la racine 10 sans exception, et le plan ouvre 10610000 et 10620000 en comptes de détail. Le menu les offrait, et en cas de perte le service DÉBITAIT la destination choisie : l'écriture passée était exactement « l'utilisation de l'écart à la compensation des pertes » que l'alinéa interdit. | FAUX | La racine 106 est refusée dans les DEUX référentiels, et retirée du menu · proposer puis refuser arrive trop tard. |
+| Art. 133 al. 4 et AUDCIF art. 65 | Le contrôle de réévaluation écrivait « l'écart n'est ni distribuable ni imputable sur des pertes (art. 65 AUDCIF) ». L'art. 65 ne dit QUE « Il n'est pas distribuable ». La compensation des pertes vient de la loi fiscale, et y vise les éléments AMORTISSABLES. | FAUX | Chaque interdit rendu à sa source, et le message dit que les deux textes sont distincts. Relevé par la session principale, pas par le run. |
+| Art. 149 ter et 149 quinquies | L'obligation déclarative du prélèvement sur les capitaux mobiliers non-résidents n'était filtrée que par le RÉFÉRENTIEL. Son propre commentaire concluait pourtant en capitales « ELLE NE VISE QUE LES SOCIÉTÉS » et n'en tirait que l'exclusion de l'ASBL. Le référentiel SYSCOHADA porte aussi deux personnes physiques. | FAUX | Nouveau champ `formesExclues`, miroir de `formesSyscohadaExclues` du planning. Succursale et entité publique restent servies, faute de source, et la réserve le dit · elle dit aussi que ce n'est pas une dispense, la retenue interne de l'art. 120 étant une autre obligation. |
+| Art. 141, 2° | La mention du comptable (nom, adresse, QUALIFICATION, salarié ou non) n'avait aucun porteur. Les quinze occurrences de l'art. 141 dans le dépôt portaient toutes le « 1° », celui de la monnaie. Le contreseing que les jalons connaissaient n'est pas cette mention. | NON_DIT | Nommée dans les TROIS jalons annuels de déclaration, avec sa source. Le run en voyait deux · l'art. 141 vise « les redevables visés aux articles 139 ET 140 », et l'art. 140 nomme « les entités à but non lucratif », donc l'ASBL aussi. Relevé par la session principale. |
+| Art. 150 | La note de recherche du cabinet énonçait l'arrondi EN UN SEUL TEMPS, « à la centaine la plus proche », et supprimait l'alinéa 1. Sur 1 234 549,5 FC la règle raccourcie descend à 1 234 500 et le texte monte à 1 234 600. Le code, lui, faisait les deux temps. | INCOMPLET | La note énonce les deux temps, donne le cas chiffré qui les sépare, et un test lie sa valeur à celle que la fonction sert. |
+| Art. 152 et 153 | La réserve du prélèvement expatriés écrivait que le régime de l'O.-L. n° 69/007 est « MORT », sans date, dans un état servi exercice par exercice. L'abrogation ne joue qu'au 1er janvier 2026. | INCOMPLET | La borne est écrite, avec le calcul de l'art. 153, et la réserve dit que sur un exercice antérieur ces règles régissaient la période arrêtée. |
+| Art. 141, 1° et art. 153 | Le module de la monnaie de tenue datait la loi du « 5 décembre 2023 ». Elle est du 30 novembre 2023, par son intitulé et par sa mention finale. Treize occurrences justes ailleurs, deux fausses. | COSMETIQUE | Corrigée. La migration appliquée qui recopie l'en-tête n'est PAS retouchée · une migration porte une empreinte, et c'est de l'histoire, pas une source. Le fichier le dit. |
+
+Neuf réinjections de défaut, neuf attrapées. Un test existant est tombé et
+c'était la correction qui marchait : il figeait `interdits` vide côté
+SYSCOHADA. Il est mis à jour avec son motif.
+
+234 suites / 3 556 tests serveur, 41 fichiers / 468 tests client.
+
+### Ce que cette passe apprend sur la méthode
+
+- **84 % de réfutation sur un texte de charnière.** Les Titres I et IV à VII
+  sont pour l'essentiel des définitions, des renvois et des prélèvements qui ne
+  touchent pas un logiciel de tenue. Le rendement n'est pas dans le volume
+  réfuté mais dans ce qui survit : deux FAUX de gravité maximale, tous deux
+  dans du code déjà écrit et déjà relu.
+- **LE MÊME DÉFAUT, TROIS FOIS, ET TOUJOURS LE MÊME MÉCANISME.** Le repli qui
+  sert l'IS à une personne physique, le filtre qui sert le prélèvement des
+  capitaux mobiliers à une personne physique, et la racine 10 qui avale le 106 :
+  dans les trois cas, **le raisonnement écrit était juste et le code était plus
+  large que lui**. Le commentaire disait « ne vise que les sociétés », le filtre
+  visait tout le référentiel. La leçon : *quand un commentaire énonce une
+  restriction, vérifier que le code la porte · une restriction écrite en toutes
+  lettres et non codée est plus dangereuse qu'une restriction oubliée, parce
+  qu'elle se relit comme faite.*
+- **La correction existait déjà ailleurs et n'avait pas traversé.** Le planning
+  de clôture scindait ses jalons avec `formesSyscohadaExclues` depuis une passe
+  antérieure ; trois écrans routaient les personnes physiques vers l'IRPP ; le
+  même fichier déclarait `FORMES_PERSONNES_PHYSIQUES` sous un commentaire qui
+  écrivait « Elles ne sont pas redevables de l'impôt sur les sociétés ». Le
+  piège de la doublure, pour la quinzième fois : *une correction n'est finie que
+  quand on a cherché son jumeau.*
+- **Relire soi-même rapporte encore après 216 agents.** Deux des huit écarts
+  retenus viennent de la relecture de la session principale, pas du run :
+  l'AUDCIF art. 65 qui ne dit pas ce qu'on lui faisait dire, et le troisième
+  jalon que l'article 141 vise par son renvoi à l'article 140. La règle n°1
+  n'est pas une formalité de contrôle, c'est une source de constats.
