@@ -128,9 +128,71 @@ D'où :
 
 ## 5. LES PASSES, DANS L'ORDRE · c'est cet ordre qui est verrouillé
 
-L'ordre suit le coût d'une erreur pour un client du cabinet, pas la taille du
-corpus. Le fiscal d'abord : c'est le seul domaine où une lacune se paie en
-pénalités datées, chez le client, et c'est le plus jeune du logiciel.
+**ORDRE REVERROUILLÉ LE 2026-09-18 PAR MANASSE · du MOINS volumineux au PLUS
+volumineux.** Le § 5 exige qu'un changement d'ordre soit dit ici : il l'est.
+
+L'ordre verrouillé du 2026-09-13 suivait « le coût d'une erreur pour un client
+du cabinet, pas la taille du corpus ». **Il est remplacé par l'ordre du volume
+croissant**, mesuré au § 5 bis. Les quatre passes faites (F1 à F4) l'ont été
+sous l'ancien ordre et ne sont pas rejouées.
+
+**CE QUE LE CHANGEMENT DONNE.** Sept passes tiennent chacune en un run ou deux
+et se referment vite · le bloc F cesse d'être une file d'attente où les textes
+courts attendent derrière les longs. Et deux passes que l'ancien ordre plaçait
+en queue remontent en tête, dont **F9, les sanctions fiscales et leur barème**,
+qui était 26e sur 27 par le volume alors que c'est un des textes dont une
+lacune se paie le plus vite chez un client.
+
+**CE QU'IL COÛTE, ET IL FAUT LE SAVOIR.** Les deux passes les plus lourdes
+passent en dernier, et ce ne sont pas des passes neutres. **O1 (AUSCGIE,
+10 359 lignes) porte une contradiction de fenêtre que ce plan déclare
+lui-même en attente d'arbitrage** · le jalon 16 contre les documents
+obligatoires de l'art. 138. Elle attendra désormais vingt-cinq passes. Et
+**F14 est de toute façon bloquée** tant que son périmètre n'est pas tranché
+(§ 9, point 0), ce qui rend sa place en queue sans conséquence.
+
+L'ordre ci-dessous est le seul qui fasse foi. Les fiches par bloc qui suivent
+gardent l'historique de chaque passe · elles ne portent plus l'ordre.
+
+### L'ordre d'exécution, verrouillé
+
+| Rang | Passe | Corpus | Lignes | Runs prévus |
+|---|---|---|---|---|
+| **1** | **F10** | Procédures fiscales, Titres 5 à 7 · réclamations, délais, transitoires | 384 | 1 |
+| **2** | **F9** | Procédures fiscales, Titre 4 · sanctions fiscales et pénales, barème complet | 396 | 1 |
+| **3** | **F6** | Loi n° 23/053, Titres 1, 4 à 7 · dont l'art. 141 sur la tenue en franc congolais | 415 | 1 |
+| **4** | **F13** | Loi de finances n° 25/060 + IPM (O.-L. 71/087) | 487 | 1 |
+| **5** | **R4** | AUDCIF Titres XII et XIII · comptes consolidés et combinés (D4C) | 612 | 1 |
+| **6** | **O7** | AUA + AUM + AUCTMR · les trois petits actes, ensemble | 919 | 2 |
+| **7** | **O2** | AUDCG hors Livre 8 · commerçant, RCCM, bail, fonds de commerce, intermédiaires | 921 | 2 |
+| 8 | F7 | Procédures fiscales, Titre 1 · obligations déclaratives | 1 061 | 2 |
+| 9 | F5 | IRPP + les deux arrêtés de retenue | 1 185 | 2 |
+| 10 | F12 | Le socle 2026 · sept arrêtés ministériels + `parametres-2026.md` | 1 308 | 2 |
+| 11 | R3 | AUDCIF Titre XI · nomenclatures NAEMA et NOPEMA | 1 493 | 2 |
+| 12 | O3 | AUS · sûretés | 1 623 | 2 |
+| 13 | R6 | SYCEBNL Partie 4 · les trois jeux d'états et leurs notes | 1 715 | 2 |
+| 14 | R2 | AUDCIF Titres IX et X · états financiers, Système normal et SMT | 1 888 | 3 |
+| 15 | F11 | Impôts réels et cédulaires | 1 987 | 3 |
+| 16 | R5 | SYCEBNL Partie 2 · cadre comptable et plan des comptes | 2 203 | 3 |
+| 17 | F8 | Procédures fiscales, Titres 2 et 3 · contrôle et recouvrement | 2 794 | 4 |
+| 18 | O6 | AUSCOOP | 3 033 | 4 |
+| 19 | R1 | AUDCIF Titre VII · fonctionnement des comptes, classes 1 à 9 | 3 296 | 4 |
+| 20 | O5 | AUPCAP · procédures collectives | 3 341 | 4 |
+| 21 | O4 | AUPSRVE · recouvrement et voies d'exécution | 3 379 | 4 |
+| 22 | D1 | Loi n° 004/2001 et son appareil | 3 541 | 4 |
+| 23 | D4 | Code du numérique, ordonnance-loi n° 23/10 du 13 mars 2023 | 5 425 | 7 |
+| 24 | D2 | Droit du travail congolais + CNSS | 5 875 | 7 |
+| 25 | D3 | ONEC | 6 622 | 8 |
+| 26 | O1 | AUSCGIE, art. 1 à 920 | 10 359 | 12 |
+| 27 | F14 | Accises + TPI + recettes non fiscales · **périmètre à trancher avant de lancer** | 14 671 | 17 |
+
+**LES SEPT PREMIÈRES SONT LANCÉES D'AFFILÉE**, décidé le 2026-09-18 · 4 094
+lignes, six runs, et elles referment quatre passes du bloc F, la première du
+bloc R et deux du bloc O. Chacune garde son cycle complet : corrections
+relues ligne à ligne par la session principale, réinjection de défaut, tests,
+journal, commit, et déploiement relu pas à pas quand `src/` est touché.
+
+### Les fiches par passe · historique, et non plus ordre
 
 ### Bloc F · La fiscalité congolaise · JAMAIS CONFRONTÉE
 
@@ -194,10 +256,12 @@ Ce que les 21 passes n'avaient pas ouvert, et qui n'a servi qu'à CONSTRUIRE.
 
 ## 5 bis. Le volume des 27 passes restantes, MESURÉ · et ce que la mesure a trouvé
 
-**Ajouté le 2026-09-18, à la demande de Manasse.** Cette section ne change pas
-l'ordre verrouillé du § 5 · elle le CHIFFRE. Les deux répondent à des questions
-différentes : le § 5 dit dans quel ordre on avance, celle-ci dit combien chaque
-passe coûte et en combien de runs elle tient.
+**Ajouté le 2026-09-18, à la demande de Manasse.** C'est cette mesure qui a
+servi à reverrouiller l'ordre du § 5 le jour même, **en la prenant à l'envers** ·
+le § 5 exécute du plus léger au plus lourd, cette section classe du plus lourd
+au plus léger pour que le poids de ce qui reste se lise d'un coup d'œil. Les
+deux tableaux portent les mêmes 27 passes et les mêmes chiffres, dans les deux
+sens.
 
 ### Ce qui est mesuré, et pourquoi le nombre de lignes
 
@@ -324,19 +388,25 @@ demandent d'abord de décider CE QU'ON Y CHERCHE · vraisemblablement les
 procédures de l'O.-L. 13/003 (2 292 lignes, note de perception, ordonnancement,
 recouvrement), et non les nomenclatures.
 
-### Ce que ce tri NE décide pas
+### Ce que ce tri décide, et ce qu'il ne décide pas
 
-**L'ORDRE D'EXÉCUTION DU § 5 RESTE VERROUILLÉ.** Il suit « le coût d'une erreur
-pour un client du cabinet, pas la taille du corpus », et ce motif ne change pas
-parce qu'on a compté les lignes : une lacune sur les sanctions fiscales (F9, la
-26e par le volume) se paie chez le client, une lacune sur une nomenclature de
-recettes non fiscales (F14, la 1re) ne se paie nulle part. **Trier par volume et
-exécuter par volume sont deux choses, et la seconde appartient à Manasse.**
+**IL DÉCIDE L'ORDRE, depuis le 2026-09-18 et sur décision de Manasse** · pris à
+l'envers, il EST l'ordre d'exécution du § 5. Ce n'était pas le cas le matin même,
+où il ne servait qu'à chiffrer : le § 5 suivait alors le coût d'une erreur chez
+le client. Le motif retenu est désormais le volume croissant, et ce que
+l'échange coûte est écrit en tête du § 5 plutôt que tu.
 
-Ce que le tri sert, lui, est le DÉCOUPAGE et le CALENDRIER · il dit d'avance
-quelles passes tiennent en un run (les rangs 23 à 27, toutes du bloc F) et
-lesquelles doivent être scindées avant d'être lancées, ce qui est précisément ce
-que F2, F3 et F4 ont dû décider en cours de route.
+**IL NE DÉCIDE PAS CE QU'UNE PASSE TROUVE.** Une passe courte n'est pas une
+passe légère : F1 pesait 306 lignes, la plus petite de toutes celles qui ont été
+faites, et elle a rendu cinq constats dont l'adresse exacte de l'art. 26, qui
+faisait rendre `conforme: true` à une facture non conforme. Le rang dans ce
+tableau dit le COÛT DE LA PASSE, jamais la valeur de ce qu'elle rapporte.
+
+**ET IL NE DÉCIDE PAS LE DÉCOUPAGE EN RUNS**, qu'il propose seulement. La
+colonne « runs prévus » applique 900 lignes par run ; le vrai plafond est la
+DURÉE, et la densité d'obligations varie du simple au triple selon qu'on lit un
+décret d'application ou une loi d'assiette. Un run se resserre sur un texte
+dense, se relâche sur une nomenclature, et se décide à l'ouverture de la passe.
 
 ---
 
