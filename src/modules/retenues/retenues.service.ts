@@ -16,6 +16,7 @@ import {
   obligationsDeclarativesApplicables,
   reservePourReferentiel,
 } from './correspondance-retenues';
+import { reporterAuJourOuvrable } from './jour-ouvrable';
 
 /**
  * REGISTRE DES RETENUES À LA SOURCE et ÉCHÉANCIER FISCAL ET SOCIAL.
@@ -86,7 +87,14 @@ export class RetenuesService {
     // mois suivant » tombe donc le 10 du mois suivant, « le 15 du mois
     // suivant » le 15. Le mois suivant s'écrit `moisZeroBase + 1`, que
     // `Date` reporte de lui-même sur janvier quand on part de décembre.
-    return new Date(annee, moisZeroBase + 1, nature.joursApresPeriode);
+    //
+    // PUIS LE REPORT DE L'ART. 110 BIS, AL. 2 · une échéance tombant un jour
+    // non ouvrable est reportée au premier jour ouvrable qui suit. Sans lui,
+    // le 15 février 2026, qui est un DIMANCHE, faisait écrire « 1 mois en
+    // retard » dès le lundi 16 à un redevable qui avait la journée entière
+    // pour verser. Voir jour-ouvrable.ts pour ce qui est calculé et ce qui ne
+    // l'est pas.
+    return reporterAuJourOuvrable(new Date(annee, moisZeroBase + 1, nature.joursApresPeriode));
   }
 
   /**
@@ -97,7 +105,11 @@ export class RetenuesService {
   private prochaineEcheance(nature: NatureRetenue, reference: Date): Date {
     const echeance = new Date(reference.getFullYear(), reference.getMonth(), nature.joursApresPeriode);
     if (echeance < reference) echeance.setMonth(echeance.getMonth() + 1);
-    return echeance;
+    // Art. 110 bis, al. 2 · même report que sur l'échéance mensuelle. Il est
+    // appliqué APRÈS le choix du mois : reporter d'abord ferait comparer une
+    // date déjà déplacée à la référence et sauterait un mois entier quand le
+    // report franchit la fin du mois.
+    return reporterAuJourOuvrable(echeance);
   }
 
   /**
@@ -119,8 +131,13 @@ export class RetenuesService {
       const jours = obligation.joursApresPeriode ?? 10;
       for (let m = -1; m < 2; m++) {
         const finDeMois = new Date(reference.getFullYear(), reference.getMonth() + m + 1, 0);
-        const echeance = new Date(finDeMois);
-        echeance.setDate(echeance.getDate() + jours);
+        const echeance = reporterAuJourOuvrable(
+          (() => {
+            const d = new Date(finDeMois);
+            d.setDate(d.getDate() + jours);
+            return d;
+          })(),
+        );
         if (echeance >= reference) return echeance;
       }
     }
@@ -136,8 +153,13 @@ export class RetenuesService {
         // d'un an sur le trimestre précédent quand il est celui de l'année
         // écoulée (JS rend -1 pour -1 % 4).
         const finTrimestre = new Date(reference.getFullYear(), (t + 1) * 3, 0);
-        const echeance = new Date(finTrimestre);
-        echeance.setDate(echeance.getDate() + jours);
+        const echeance = reporterAuJourOuvrable(
+          (() => {
+            const d = new Date(finTrimestre);
+            d.setDate(d.getDate() + jours);
+            return d;
+          })(),
+        );
         if (echeance >= reference) return echeance;
       }
     }
@@ -145,7 +167,10 @@ export class RetenuesService {
     const jour = obligation.jourEcheance ?? 31;
     const echeance = new Date(reference.getFullYear(), mois, jour);
     if (echeance < reference) echeance.setFullYear(echeance.getFullYear() + 1);
-    return echeance;
+    // Art. 110 bis, al. 2, comme sur les deux périodicités précédentes. Le
+    // report vient APRÈS le choix de l'année, pour la même raison qu'au
+    // mensuel : il peut franchir le 31 décembre.
+    return reporterAuJourOuvrable(echeance);
   }
 
   /**

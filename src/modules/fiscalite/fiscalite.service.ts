@@ -279,14 +279,59 @@ export class FiscaliteService {
     const observations: string[] = [];
 
     if (Math.abs(ecart) >= 0.01) {
+      /*
+        L'ÉCART A DEUX SENS, ET UN SEUL APPELLE L'AMENDE DE L'ART. 98 BIS.
+
+        Passe F10. Le message était INCONDITIONNEL et renvoyait dans tous les
+        cas à « l'insuffisance de paiement de l'acompte provisionnel ». Quand
+        le 4492 porte PLUS que les acomptes déclarés, ce reproche est à
+        l'envers : rien ne manque, quelque chose est en trop, et le cabinet
+        était envoyé chercher un défaut de versement qui n'existe pas.
+
+        ET LA CAUSE LA PLUS PROBABLE DE CE SENS-LÀ EST UNE CONSIGNATION, pas un
+        acompte. Loi n° 004/2003 portant réforme des procédures fiscales,
+        art. 110, alinéa 2, VERBATIM : « Toutefois, lorsque la réclamation
+        porte sur un supplément d'impôt, le contribuable peut, à sa demande,
+        bénéficier d'un sursis de recouvrement de l'impôt litigieux et des
+        pénalités y afférentes. Dans ce cas, IL EST TENU DE VERSER un montant
+        égal au DIXIÈME du supplément d'impôt contesté. » C'est une compétence
+        liée, le versement est dû dès que le sursis est demandé, et le seul
+        compte semé dont l'intitulé le reçoive est justement le 4492 « État,
+        avances et acomptes versés sur impôts ». Le filtre de ce module étant
+        un `startsWith('4492')`, la consignation y entre quelle que soit la
+        subdivision ouverte.
+
+        CE N'EST PAS UN ACOMPTE PROVISIONNEL. L'acompte de l'art. 57 bis est
+        une avance sur l'impôt de l'exercice, imputable sur lui ; la
+        consignation de l'art. 110 est le prix d'entrée d'un sursis sur un
+        supplément CONTESTÉ, et son sort dépend de l'issue de la réclamation.
+        Les additionner fausse le solde à payer dans l'autre sens.
+
+        LE MODULE NE TRANCHE PAS, ET NE PEUT PAS · OmegaX ne détient aucune
+        réclamation, aucun avis de mise en recouvrement, aucune demande de
+        sursis. Il NOMME la cause possible et laisse le cabinet la
+        reconnaître, comme partout ailleurs dans ce service.
+      */
+      const enTrop = ecart < 0;
       observations.push(
         `Les acomptes DÉCLARÉS dans cette fenêtre (${entree.declares}) et le solde débiteur du compte 4492 ` +
           `« État, avances et acomptes versés sur impôts » (${entree.comptabilises}) diffèrent de ${ecart}. ` +
           "Le 4492 est débité des sommes effectivement versées à l'État par le crédit de la trésorerie (AUDCIF " +
           'Titre VII, compte 44) : il porte le décaissement, la saisie porte une déclaration. Le solde à payer ' +
-          "calculé ici est faux de cet écart. Si ce sont les acomptes qui manquent, l'art. 98 bis LPF punit " +
-          "« le défaut ou l'insuffisance de paiement de l'acompte provisionnel » d'« une amende égale à 50 % du " +
-          "montant de l'acompte non versé ».",
+          'calculé ici est faux de cet écart. ' +
+          (enTrop
+            ? "LE COMPTE PORTE PLUS QUE CE QUI EST DÉCLARÉ : ce sens-là n'est PAS une insuffisance de versement, " +
+              "et l'amende de l'art. 98 bis ne s'y applique pas. DEUX CAUSES À EXAMINER. Un acompte versé et non " +
+              'saisi dans cette fenêtre, qui se corrige à la saisie. Ou une somme qui N’EST PAS un acompte : ' +
+              "l'art. 110, alinéa 2 de la loi de procédures fiscales oblige le contribuable qui demande un sursis " +
+              'de recouvrement sur un supplément contesté à « verser un montant égal au DIXIÈME du supplément ' +
+              "d'impôt contesté ». Cette consignation n'est pas une avance sur l'impôt de l'exercice et ne " +
+              "s'impute pas comme un acompte · son sort suit l'issue de la réclamation. Le sursis ne joue pas en " +
+              "cas de taxation d'office (même article, alinéa 3). OmegaX ne détient aucune réclamation et ne peut " +
+              'donc pas distinguer les deux : la ventilation appartient au cabinet.'
+            : "LE COMPTE PORTE MOINS QUE CE QUI EST DÉCLARÉ. Si ce sont les acomptes qui manquent, l'art. 98 bis " +
+              "LPF punit « le défaut ou l'insuffisance de paiement de l'acompte provisionnel » d'« une amende " +
+              "égale à 50 % du montant de l'acompte non versé »."),
       );
     }
 

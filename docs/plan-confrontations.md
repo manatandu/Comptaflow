@@ -158,7 +158,7 @@ gardent l'historique de chaque passe · elles ne portent plus l'ordre.
 
 | Rang | Passe | Corpus | Lignes | Runs prévus |
 |---|---|---|---|---|
-| **1** | **F10** | Procédures fiscales, Titres 5 à 7 · réclamations, délais, transitoires | 384 | 1 |
+| **1** | **F10** | **FAITE le 2026-09-18** · loi n° 004/2003, Livre II, Titres V à VII, plus l'A.M. n° 013 du 11 mai 2015. 69 agents, 2 h 42, 75 obligations, 63 constats réfutés un à un, **50 écartés, 13 retenus dont 2 FAUX, 2 corrigés** (le report au premier jour ouvrable de l'art. 110 bis al. 2, qui faisait accuser d'un retard inexistant tout redevable dont l'échéance tombe un dimanche ; la consignation du dixième de l'art. 110 al. 2, prise pour un acompte insuffisant et renvoyée à l'amende de l'art. 98 bis dans le sens où rien ne manque). 79 % de réfutation · un texte adressé à l'Administration rend la plupart de ses articles à qui de droit. Journal : `docs/releve-de-manques-fiscal.md` | 384 | 1 |
 | **2** | **F9** | Procédures fiscales, Titre 4 · sanctions fiscales et pénales, barème complet | 396 | 1 |
 | **3** | **F6** | Loi n° 23/053, Titres 1, 4 à 7 · dont l'art. 141 sur la tenue en franc congolais | 415 | 1 |
 | **4** | **F13** | Loi de finances n° 25/060 + IPM (O.-L. 71/087) | 487 | 1 |
@@ -442,11 +442,11 @@ multi-classification se décide à la CONCEPTION, `Compte`, `Journal` et
 
 | Bloc | Passes | Faites | Reste |
 |---|---|---|---|
-| F · Fiscalité | 14 | **4** | 10 |
+| F · Fiscalité | 14 | **5** | 9 |
 | O · OHADA | 7 | 0 | 7 |
 | R · Référentiels, solde | 6 | 0 | 6 |
 | D · Droit congolais | 4 | 0 | 4 |
-| **Total** | **31** | **4** | **27** |
+| **Total** | **31** | **5** | **26** |
 
 *Une passe scindée reste une passe : elle se compte quand son dernier run est
 clos, pas quand le premier est poussé. F2 et F3 le sont.*
@@ -462,6 +462,8 @@ que lorsque son verdict est écrit dans son journal et que les corrections
 qu'elle emporte sont poussées et déployées.*
 
 ## 9. Ce qui attend Manasse, ouvert par ce plan
+
+0 bis. **UN FICHIER DE COMPÉTENCE EST TRONQUÉ**, trouvé par la passe F10 le 2026-09-18. `fiscalite-rdc/code-general-2026/references/25-mesures-execution-reclamations-recours-am013-2015.md` s'arrête à la ligne 71, EN PLEIN MILIEU de la phrase de l'article 7 de l'arrêté : « La décision de clôture d'instruction du recours gracieux n'est pas susceptible ». La suite manque, et c'est elle qui dit quelles voies de recours restent ouvertes après un rejet gracieux · exactement la phrase qu'un cabinet a besoin de lire avant de conseiller la voie gracieuse, qui fait renoncer aux autres recours. Rien ne peut être codé là-dessus tant que le fichier n'est pas complété.
 
 0. **LE RE-DÉCOUPAGE DE LA PASSE F14**, ouvert par la mesure du 2026-09-18 (§ 5 bis, constat 4). Elle pèse 14 671 lignes, la plus lourde des 27, et 12 550 d'entre elles sont les recettes non fiscales, dont 6 309 de pures nomenclatures énumérant des milliers de droits et taxes sans énoncer d'obligation comptable. Les confronter article par article produirait du volume et aucun constat. **La question à trancher n'est pas comment la découper, mais ce qu'on cherche dedans** · vraisemblablement les procédures de l'O.-L. 13/003 (note de perception, ordonnancement, recouvrement, 2 292 lignes), et non les nomenclatures. Tant que ce n'est pas tranché, F14 reste une passe qu'on ne peut pas lancer.
 

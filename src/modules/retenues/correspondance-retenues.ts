@@ -1,4 +1,5 @@
 import { FormeJuridiqueSyscohada, Referentiel } from '@prisma/client';
+import { RESERVE_JOUR_OUVRABLE } from './jour-ouvrable';
 
 /**
  * REGISTRE DES RETENUES À LA SOURCE ET ÉCHÉANCIER FISCAL.
@@ -855,7 +856,8 @@ export const OBLIGATIONS_DECLARATIVES: ObligationDeclarative[] = [
 export const AVERTISSEMENT_REGISTRE =
   "Cet état ne calcule aucun impôt et n'applique aucun barème. Il recense ce que votre comptabilité porte déjà sur " +
   "les comptes de retenue et de cotisation, en regard de l'échéance légale de reversement. Les montants viennent de " +
-  'vos écritures ; les échéances viennent des textes cités, à la date de vérification indiquée.';
+  'vos écritures ; les échéances viennent des textes cités, à la date de vérification indiquée. ' +
+  RESERVE_JOUR_OUVRABLE;
 
 /**
  * LE RÉGIME D'IMPÔT DU DOSSIER, ET C'EST L'AVERTISSEMENT LE PLUS FAUX QU'ON

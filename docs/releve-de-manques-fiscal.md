@@ -1790,3 +1790,236 @@ du Congo » de l'art. 40, alinéa 1er, qui n'est ni chiffré ni daté.
 - **Le taux de réfutation d'un texte vierge se stabilise autour de 40 %.** F4a
   39 %, F4b 41 %. Ce n'est plus une observation isolée · c'est la base à
   laquelle comparer les passes O, R et D à venir.
+
+## Passe F10 · Loi n° 004/2003 portant réforme des procédures fiscales, Livre II, Titres V à VII (2026-09-18)
+
+**Première passe du nouvel ordre**, verrouillé la veille du moins volumineux au
+plus volumineux. Réclamations et recours, computation des délais, dispositions
+transitoires, plus l'arrêté ministériel n° 013 du 11 mai 2015 sur le recours
+gracieux.
+
+**Corpus** · `21-procedures-titre5-7-reclamations-delais-transitoires.md`
+(313 lignes, art. 104 à 112) et `25-mesures-execution-reclamations-recours-am013-2015.md`
+(71 lignes). Trois blocs de lecture.
+
+**Volumétrie** · 69 agents, 7,5 M de jetons, **2 h 42**. Le découpage prévu par
+le § 5 bis annonçait un run : il en a tenu un, avec de la marge.
+
+**Résultat** · 75 obligations extraites, 76 constats, **63 soumis à réfutation**.
+**50 écartés, 13 retenus**, dont **2 de gravité FAUX** et 7 de gravité
+CALENDRIER. Le taux de réfutation remonte à **79 %**, et c'est attendu : sur ce
+texte, la majorité des articles s'adressent à l'Administration ou au juge, et
+l'étape adverse les a rendus à qui de droit.
+
+### Ce qui est corrigé dans le code, et testé
+
+#### 1 · Le report au premier jour ouvrable · art. 110 bis, alinéa 2
+
+**Le logiciel accusait le redevable d'un retard qui n'existe pas.** Les
+échéances du registre des retenues étaient des dates calendaires brutes, et
+`enRetard` en tirait un « en retard » catégorique, en rouge au registre comme au
+tableau de bord, accompagné de l'avertissement de non-déductibilité de l'art. 20.
+
+Or l'art. 110 bis, alinéa 2, créé par la L.F. n° 21/029 du 31 décembre 2021,
+dispose : « Si le dernier jour du délai prescrit par la législation fiscale pour
+l'exécution d'une obligation ou l'exercice d'un droit est un jour NON OUVRABLE,
+la date de l'exécution d'une obligation ou l'exercice d'un droit est REPORTÉE au
+premier jour ouvrable qui suit. »
+
+**Le cas est vérifié sur calendrier réel, et il n'est pas rare.** La retenue
+IRPP sur salaires de janvier 2026 est reversable le 15 février. **Le 15 février
+2026 est un dimanche** : le redevable est dans les délais toute la journée du
+lundi 16, et OmegaX lui écrivait « 1 mois en retard » dès le 16. En 2026,
+l'échéance du 15 tombe un dimanche en février, en mars et en novembre.
+
+**TROIS QUESTIONS, TRANCHÉES DANS LES SOURCES ET NON DE MÉMOIRE.** La
+législation fiscale emploie « jour ouvrable » sans le définir, ni à l'art. 110
+bis ni ailleurs dans le Livre II. La seule définition congolaise lue est celle
+du **Code du travail, art. 7, 9°** : « Jour ouvrable : chaque jour de la semaine
+à l'exception du jour de repos hebdomadaire et des jours fériés légaux. »
+L'emprunt à un autre corpus est écrit dans le code plutôt que tu.
+
+- **Le dimanche est le jour de repos hebdomadaire** · Code du travail, art. 121,
+  alinéa 2 : « Il a lieu le dimanche. » C'est le seul report calculé.
+- **LE SAMEDI EST OUVRABLE**, et c'est la décision la plus importante de la
+  correction. Un seul jour de repos par semaine, donc six jours ouvrables, ce
+  que confirme la base de 26 jours par mois du décompte final. Le traiter comme
+  non ouvrable reporterait au lundi une échéance que la loi ne reporte pas ·
+  **le logiciel dirait au redevable qu'il a jusqu'au lundi alors qu'il est en
+  retard depuis le samedi.** C'est la direction d'erreur la plus dangereuse des
+  deux : ne pas signaler un retard qui court coûte une pénalité, en signaler un
+  qui n'existe pas coûte une vérification. Le 25 juillet 2026, première échéance
+  d'acompte, est un samedi et n'est pas reporté.
+- **Les jours fériés ne sont PAS calculés, et le dire fait partie de la règle** ·
+  Code du travail, art. 123 : « Le Président de la République fixe, par décret
+  […] la liste des jours fériés légaux. » **Ce décret n'est dans aucune source
+  lue.** Une liste inventée serait pire que l'absence : elle reporterait des
+  échéances au hasard et couvrirait de vrais retards. La limite est assumée,
+  écrite dans `RESERVE_JOUR_OUVRABLE`, et refermable le jour où le décret entre
+  au corpus.
+
+**ET LE REPORT N'EST PAS INCONDITIONNEL** · l'alinéa 3 joue en sens inverse :
+l'Administration « peut, en matière de déclaration et de paiement des impôts,
+fixer l'échéance déclarative et de paiement au jour ouvrable PRÉCÉDANT la date
+de l'échéance légale ». Cet acte n'est dans aucune comptabilité. Il est nommé
+dans la réserve, jamais calculé.
+
+La règle vit une fois (`retenues/jour-ouvrable.ts`) et les quatre calculs
+d'échéance du service l'appellent · un test relit la source pour interdire
+qu'un `getDay()` réapparaisse dans le service.
+
+#### 2 · La consignation du dixième n'est pas un acompte · art. 110, alinéa 2
+
+Le rapprochement du compte 4492 renvoyait **inconditionnellement** à l'amende
+de l'art. 98 bis pour « insuffisance de paiement de l'acompte provisionnel »,
+y compris quand le compte porte **PLUS** que ce qui est déclaré, c'est-à-dire
+dans le sens où rien ne manque. Le cabinet était envoyé chercher un défaut de
+versement qui n'existe pas.
+
+**Et la cause la plus probable de ce sens-là est une consignation.** Art. 110,
+alinéa 2 : « lorsque la réclamation porte sur un supplément d'impôt, le
+contribuable peut, à sa demande, bénéficier d'un sursis de recouvrement […].
+Dans ce cas, IL EST TENU DE VERSER un montant égal au DIXIÈME du supplément
+d'impôt contesté. » Compétence liée, versement dû dès la demande de sursis, et
+le seul compte semé dont l'intitulé le reçoive est le 4492 « État, avances et
+acomptes versés sur impôts ». Le filtre du module étant un `startsWith('4492')`,
+la consignation y entre quelle que soit la subdivision ouverte.
+
+Ce n'est pas un acompte provisionnel : l'acompte de l'art. 57 bis est une avance
+sur l'impôt de l'exercice, imputable sur lui ; la consignation est le prix
+d'entrée d'un sursis sur un supplément CONTESTÉ, et son sort suit l'issue de la
+réclamation. Le message est désormais scindé par le SENS de l'écart, nomme la
+consignation avec sa limite (le sursis ne joue pas sur une taxation d'office,
+alinéa 3), et laisse la ventilation au cabinet · OmegaX ne détient aucune
+réclamation.
+
+### Vérification
+
+`npx tsc --noEmit` et `npm run build` des deux côtés, **3 521 tests serveur** et
+468 tests client au vert. **Trois défauts réinjectés, trois détectés** · le
+câblage retiré d'`echeanceDuMois`, le samedi rendu non ouvrable, et le message
+du 4492 redevenu inconditionnel.
+
+**TROIS TESTS EXISTANTS SONT TOMBÉS, ET C'ÉTAIT LA RÈGLE QUI MARCHAIT.** Ils
+figeaient des dates brutes : le 25 juillet 2027 et le 10 janvier 2027 sont des
+dimanches, le 15 mars 2026 aussi. Chacun a été corrigé AVEC SON MOTIF écrit, et
+celui de l'ONEM a changé d'objet · ce qu'il fige n'est plus l'écart de cinq
+jours entre la déclaration et le versement, mais leur ORDRE, que le report ne
+peut pas intervertir.
+
+### J'ai commis dans un test le piège que le dépôt a déjà catalogué trois fois
+
+La première version du spec de l'art. 110 posait `not.toContain('art. 98 bis')`
+sur le message du sens « en trop ». Il est tombé sur un message JUSTE · celui
+qui nomme l'article POUR DIRE qu'il ne s'applique pas, ce qui est exactement ce
+qu'un cabinet a besoin de lire. **Quatrième occurrence de « une interdiction de
+mot est toujours trop large »**, après les « art. 25 » et « art. 63 » de
+`hors-scope-tva.spec.ts` aux passes F2a et F2b, et la première commise en
+écrivant le test d'une correction plutôt qu'en relisant un ancien. Le test exige
+désormais la réserve exacte.
+
+### Ce que la lecture a trouvé dans le TEXTE, et qui n'est pas du code
+
+Les trois lecteurs remontent 48 anomalies du texte source. Quatre comptent :
+
+- **LE FICHIER 25 EST TRONQUÉ**, et c'est à signaler à Manasse côté compétences.
+  Il s'arrête à la ligne 71, **en plein milieu de la phrase de l'art. 7** de
+  l'arrêté : « La décision de clôture d'instruction du recours gracieux n'est pas
+  susceptible » · la suite manque, et c'est elle qui dit quelles voies de recours
+  restent ouvertes après un rejet gracieux.
+- **L'art. 112 fait rétroagir la loi de plus de deux mois** · entrée en vigueur
+  au 1er janvier 2003 pour une loi datée du 13 mars 2003.
+- **Le délai de quinze jours de l'art. 5 de l'arrêté n'a aucun point de départ
+  exprimé**, alors que son expiration emporte rejet tacite.
+- **Tension entre l'art. 110, alinéa 3 et l'art. 109 bis, alinéa 3** sur le
+  sursis en cas de taxation d'office · l'un l'exclut, l'autre l'accorde de plein
+  droit. Signalée, non tranchée.
+
+### Les onze autres constats retenus
+
+| Article | Ce que le texte impose | Gravité |
+|---|---|---|
+| Art. 104, al. 1er (modifié par la L. n° 06/003 du 27 février 2006, par la L.F. n° 15/021 du 31 décembre 2015 et par la L.F. n° 20/020 du 28 décembre 2020) | Réclamation administrative préalable OBLIGATOIRE et par écrit, avant toute saisine du juge, auprès du Directeur ou du Chef de Centre compétent selon le cas ; mandat général ou spécial justifié pour le | INCOMPLET |
+| Art. 104, al. 3 | CONDITION DE RECEVABILITÉ expresse : la réclamation doit être motivée. Aucune autre mention obligatoire ni pièce à joindre au stade de l'introduction. | INCOMPLET |
+| Art. 104, al. 4 (1re phrase) | DÉLAI DE RÉCLAMATION : trois (3) mois, sous peine de DÉCHÉANCE. Double point de départ alternatif : la date de la déclaration, ou la date de RÉCEPTION de l'Avis de mise en recouvrement (ni son émissio | CALENDRIER |
+| Art. 105, al. 1er, 1re phrase (modifié par l'O.-L. n° 13/005 du 23 février 2013, par la L.F. n° 15/021 du 31 décembre 2015, par la L.F. n° 20/020 du 28 décembre 2020, par la L.F. n° 23/056 du 10 décembre 2023, art. 33, et par la L.F. n° 24/011 du 20 décembre 2024, art. 49) | La décision de l'Administration doit être notifiée dans les trois (3) mois qui suivent la DATE DE RÉCEPTION de la réclamation. | CALENDRIER |
+| Art. 105, al. 1er, 2e phrase | REJET IMPLICITE : l'absence de décision dans les trois mois vaut décision de rejet de la réclamation. | CALENDRIER |
+| Art. 105, al. 8 | FORCLUSION FINANCIÈRE : si l'impôt est déjà payé, le surplus n'est inscrit au crédit du compte courant fiscal que si la surimposition est constatée ou signalée dans un délai de trois ans à compter de  | CALENDRIER |
+| Art. 108, al. 2 | DÉLAI DE RECOURS JURIDICTIONNEL : trois (3) mois sous peine de DÉCHÉANCE, à partir de la notification de la décision AU REDEVABLE ou, en l'absence de décision, à compter de la date d'expiration du dél | CALENDRIER |
+| Art. 108 ter (inséré par la L.F. n° 25/060 du 29 décembre 2025, art. 37) | EFFET SUSPENSIF : la saisine de la Commission nationale de médiation fiscale est suspensive des délais de recours devant les cours et tribunaux. | CALENDRIER |
+| A.M. n° 013 du 11 mai 2015, art. 4 | CINQ CONDITIONS CUMULATIVES DE RECEVABILITÉ : recours individuel et signé par le contribuable ou son mandataire ; établi au moyen d'une simple lettre ; introduit après la réception de l'Avis de mise e | INCOMPLET |
+| Art. 110 bis, al. 1er (Titre VI, Chapitre unique) · fichier 21-procedures-titre5-7, l. 247 | Point de depart de tout delai fiscal exprime en jours ou en mois : le delai prend cours « le premier jour ouvrable qui suit celui de l'accuse de reception », tant pour les actes de l'Administration qu | INCOMPLET |
+| Art. 110 bis, al. 3 · fichier 21-procedures-titre5-7, l. 256 | « Par derogation aux dispositions de l'alinea precedent, l'Administration des Impots peut, en matiere de declaration et de paiement des impots, fixer l'echeance declarative et de paiement au jour ouvr | CALENDRIER |
+
+### Les cinquante constats écartés par l'étape adverse
+
+| Article | Constat écarté | Motif de la réfutation |
+|---|---|---|
+| Art. 104, al. 2 | Extension de la qualité pour réclamer : les personnes à charge desquelles l'impôt a été retenu à la  | CONSTAT RÉFUTÉ, principalement sur l'angle 4, et accessoirement sur les angles 1 et 5. Le constat inverse les deux personnes du texte, et c'est fatal. 1) L'OBLIGATION EXISTE, MAIS PAS DANS CES TERMES  |
+| Art. 104, al. 4 (2e phrase) | Obligation à la charge de l'Administration : délivrer reçu de la réclamation au redevable. Ce reçu e | RÉFUTÉ, à titre principal sur l'ANGLE 4, et le constat se réfute lui-même : il annonce que le logiciel « ne servirait PAS DU TOUT » l'obligation, puis écrit dans sa propre explication « ce n'est donc  |
+| Art. 105, al. 2 | FENÊTRE DE COMPLÉMENT : trente (30) jours maximum pour ajouter des moyens nouveaux libellés par écri | RÉFUTÉ sur l'angle 1, qui est dirimant, avec l'appui de l'angle 2 et de l'angle 5 · et je concède d'emblée le fait brut : rien dans le dépôt ne sert la phase de réclamation, l'angle 3 ne donne rien co |
+| Art. 105, al. 3 | DÉGRÈVEMENT D'OFFICE, hors délai de réclamation, à l'indicatif (« accorde ») donc en compétence liée | RÉFUTÉ, principalement sur l'ANGLE 4 (destinataire), de façon dirimante, avec appui des angles 1 (le constat fait dire au texte le contraire de ce qu'il dit sur le point qui fait toute sa valeur annon |
+| Art. 105, al. 4 à 6 (définition de l'erreur matérielle) | Définition légale limitative en trois cas, chacun défini par le texte : erreur de plume (reproductio | RÉFUTÉ, sur l'angle 4 à titre principal (le motif que le cahier annonçait comme le plus probable), avec trois appuis cumulatifs : l'ancrage (angle 1), la fausseté de la preuve avancée (angle 3) et l'a |
+| Art. 105, al. 7 (définition du double emploi) | Définition légale limitative en deux hypothèses : deux cotisations établies à des articles différent | REFUTE sur quatre plans cumulatifs, dont le premier suffit seul. (4) L'OBLIGATION NE PESE PAS SUR CE LOGICIEL · motif dirimant. La definition du double emploi n'est pas une regle autonome : elle est l |
+| Art. 105 bis, al. 4 | COMPÉTENCE sans condition de montant : toutes les décisions clôturant l'instruction des réclamations | CONSTAT RÉFUTÉ, sur l'ANGLE 4 à titre dirimant, avec l'appui de l'ANGLE 1 (mauvais rattachement d'article) et l'effondrement de la PREUVE AVANCÉE, qui est matériellement fausse sur ses deux jambes. Je |
+| Art. 105 ter, al. 1er (créé par la L. n° 06/003 du 27 février 2006, modifié par l'O.-L. n° 13/005 du 23 février 2013 et par la L.F. n° 22/071 du 28 décembre 2022) | RECOURS GRACIEUX distinct du contentieux : demande de remise ou de modération des PÉNALITÉS FISCALES | CONSTAT RÉFUTÉ sur l'angle 4 à titre principal (le texte n'oblige PERSONNE, et surtout pas ce logiciel), sur l'angle 1 (la « obligation » annoncée est une FACULTÉ dont l'article renvoie toute la subst |
+| Art. 106, al. 1er | Pouvoirs d'instruction de l'Administration saisie d'une réclamation : vérification des écritures du  | CONSTAT RÉFUTÉ, principalement sur l'ANGLE 4 (destinataire), avec l'appui de l'ANGLE 1 (l'obligation n'existe pas dans ces termes à l'alinéa visé), de l'ANGLE 2 (le seul délai de l'article est absent  |
+| Art. 106, al. 2 | DÉLAI DE RÉPONSE de vingt (20) jours : si le redevable s'abstient, pendant plus de vingt jours, de f | CONSTAT RÉFUTÉ sur l'angle 2, qui est dirimant ici, et affaibli sur les angles 1 et 5. La partie FACTUELLE du constat est exacte · je ne la conteste pas : le dépôt n'a aucune notion de réclamation, d' |
+| Art. 107 | DROIT DE COMMUNICATION au stade de l'instruction de la réclamation, opposable aux TIERS : services p | CONSTAT RÉFUTÉ sur l'angle 4, décisif, et affaibli sur les angles 1, 2, 3 et 5. Aucun de ces points ne repose sur une appréciation : tous sont vérifiables dans le texte lu à l'instant. (1) ANGLE 4 · L |
+| Art. 108, al. 1er (modifié par l'O.-L. n° 13/005 du 23 février 2013, par la L.F. n° 17/005 du 23 juin 2017, par la L.F. n° 17/014 du 24 décembre 2017 et par la L.F. n° 20/020 du 28 décembre 2020) | VOIE DE RECOURS JURIDICTIONNEL : la décision de rejet TOTAL OU PARTIEL peut faire l'objet d'un recou | RÉFUTÉ sur les angles 4, 1 et 2, chacun suffisant seul ; l'angle 3 est concédé franchement et l'angle 5 confirme le classement. ANGLE 4, DIRIMANT · CE N'EST PAS UNE OBLIGATION, ET ELLE NE S'ADRESSE PA |
+| Art. 108, al. 3 | INTERDICTION FORMELLE : aucune demande nouvelle ne peut être présentée à l'occasion du recours devan | RÉFUTÉ sur l'angle 4 à titre principal, avec l'angle 2 qui ruine l'explication et l'angle 5 qui achève le classement. (4) LE DESTINATAIRE EST LE JUGE, ET RIEN DANS L'ALINÉA N'EST UNE OBLIGATION COMPTA |
+| Art. 108 bis, al. 1er (inséré par la L.F. n° 24/011 du 20 décembre 2024, art. 51, modifié par la L.F.R. n° 25/044 du 28 juin 2025, art. 9) | Institution d'une Commission nationale de médiation fiscale, instance consultative, paritaire et ind | REFUTE sur l'angle 4 a titre principal, avec l'angle 5 en renfort, et avec une prescription de son explication qui est DEMONTRABLEMENT FAUSSE et qui aurait injecte une date erronee dans le code. Ce qu |
+| Art. 108 bis, al. 4 | CONDITION DE RECEVABILITÉ TEMPORELLE : la saisine de la Commission nationale de médiation ne peut s' | Réfuté sur l'angle 2 (le « délai » n'existe pas) appuyé par l'angle 4 (destinataire), l'angle 1 (renvoi à un arrêté absent du corpus) et l'angle 5 (module entier). La citation est fidèle et le numéro  |
+| A.M. n° 013 du 11 mai 2015, art. 2 | Qualité pour agir (redevables et mandataires justifiant d'un mandat général ou spécial), forme écrit | RÉFUTÉ sur l'angle 1, de façon décisive, avec l'appui des angles 4 et 5. · (1) IL N'Y A PAS D'OBLIGATION. L'art. 2 de l'A.M. n° 013 du 11 mai 2015 lu à l'instant (fichier 25, l. 19-23) dit : « Les red |
+| A.M. n° 013 du 11 mai 2015, art. 3 | Le recours est adressé au Ministre, qui le transmet à l'Administration des Impôts pour un avis dans  | RÉFUTÉ sur l'angle 4 (destinataire), qui est dirimant et que le texte lui-même verrouille, avec l'appui de l'angle 2 (point de départ faux) et de l'angle 1 (ancrage faux + paraphrase qui déplace le dé |
+| A.M. n° 013 du 11 mai 2015, art. 5 | Le Ministre statue après avis MOTIVÉ de l'Administration des Impôts. La décision est rendue dans un  | CONSTAT RÉFUTÉ sur l'angle 4 (dirimant), sur l'angle 2 (dirimant lui aussi, et le constat se disqualifie lui-même dessus), avec l'appui de l'angle 1 (rattachement faux et nature du recours mal décrite |
+| A.M. n° 013 du 11 mai 2015, art. 6 | EFFET SUSPENSIF SUR LE RECOUVREMENT, strictement délimité : l'introduction d'un recours gracieux sus | REFUTE, principalement sur l'ANGLE 4 (destinataire), avec l'ANGLE 2 (gravité mal classée) et l'ANGLE 3 (la preuve avancée est inexacte sur son propre terrain) en renfort. La citation, elle, est fidèle |
+| A.M. n° 013 du 11 mai 2015, art. 7 | IMPOSSIBLE À ÉTABLIR · la phrase est TRONQUÉE dans la source. Elle s'arrête sur « La décision de clô | RÉFUTÉ, et sur un fondement dirimant qui ruine les trois affirmations porteuses du constat : LA SOURCE N'EST PAS TRONQUÉE. L'article 7 est complet dans le corpus, l'article 8 aussi, et l'entrée en vig |
+| Article 108 ter | La saisine de la Commission Nationale de Médiation Fiscale suspend les délais de recours devant les  | REFUTE, sur les angles 4, 2 et 5 cumules, avec une preuve avancee doublement fausse (angle 3). ANGLE 4, decisif. L'art. 108 ter ne porte AUCUNE obligation du redevable. Lu verbatim (l. 171-172) : « La |
+| Article 109 bis | Alinéa 1er · réouverture d'un litige clôturé. Sur erreur de DROIT dans le fondement légal d'une impo | RÉFUTÉ sur l'angle 4 (destinataire), de façon dirimante, avec l'appui de l'angle 1 (citation amputée) et de l'angle 5 (module entier), et avec l'auto-réfutation du constat par sa propre preuve. 1) CE  |
+| Article 109 bis | Alinéa 2 · le sursis de recouvrement antérieurement accordé dans les conditions de l'article 110 dem | CONSTAT RÉFUTÉ, principalement sur l'angle 4 (destinataire) et sur l'angle 1 (le constat fait dire au texte ce qu'il ne dit pas, et c'est précisément cet ajout qui fabrique le « risque pratique » qui  |
+| Article 109 bis | Alinéa 3 · dans le cadre du réexamen pour erreur de droit, le sursis de recouvrement est accordé DE  | CONSTAT RÉFUTÉ, de façon décisive sur l'angle 4 (destinataire), avec l'appui de l'angle 1 (la reformulation dit trois choses que le texte ne dit pas) et de l'angle 5 (au mieux un item du plan ordonné, |
+| Article 109 bis | Alinéa 4 · à compter de la RÉCEPTION de la lettre autorisant le réexamen, l'Administration dispose d | RÉFUTÉ sur l'ANGLE 4, de façon dirimante, et l'angle 2 le confirme au lieu de le sauver. Le constat est exact dans sa lettre · et c'est précisément ce qui le tue. 1) ANGLE 1 · la citation tient, l'art |
+| Article 109 ter | Le sursis antérieurement accordé dans les conditions de l'article 110 demeure valable pendant toute  | CONSTAT RÉFUTÉ, sur l'angle 4 (dirimant) puis sur l'angle 2 qui est la matière même de la passe ; l'angle 1 abîme deux de ses renvois ; l'angle 3, lui, NE le réfute pas et je le dis franchement. (4) D |
+| Article 110 | Alinéa 1er · RÈGLE DE PRINCIPE. Sauf erreur matérielle ou double emploi, l'introduction d'une réclam | RÉFUTÉ sur l'angle 4 à titre principal, avec l'appui de l'angle 5, et avec une PREUVE AVANCÉE matériellement fausse (angle 3). (4) L'exception de l'alinéa 1er n'est pas un état que le logiciel du cont |
+| Article 110 | Alinéa 1er, suite · IDENTITÉ DE L'ARTICLE. La règle ci-dessus est portée par l'ARTICLE 110 de la loi | CONSTAT RÉFUTÉ sur son assertion porteuse (angle 3), avec un appoint sur l'angle 1/4. 1) ANGLE 3 · DÉCISIF · L'ÉCRAN PORTE SON EN-TÊTE DE CORPUS, ET LE CONSTAT AFFIRME LE CONTRAIRE. Le constat écrit q |
+| Article 110 | Alinéa 3 · EXCLUSION. Sans préjudice de l'article 109 bis, le sursis de recouvrement ne s'applique p | RÉFUTÉ, principalement sur l'ANGLE 4 (destinataire), avec l'appui de l'ANGLE 1 (le constat fait dire au texte plus qu'il ne dit) et de l'ANGLE 5 (il faudrait un module entier). · (4) DESTINATAIRE, dir |
+| Article 110 | Alinéa 4 · SURVIE DU SURSIS EN PHASE JURIDICTIONNELLE, dans un cas et un seul : en cas de silence de | RÉFUTÉ sur l'angle 4, qui est dirimant, et sur une affirmation centrale de l'explication qui est démontrablement fausse · fausse à l'intérieur même du périmètre de lignes que le constat s'assigne. CE  |
+| Article 110 | Alinéa 5 · Le sursis ne dispense pas l'Administration d'appliquer les pénalités de recouvrement prév | CONSTAT RÉFUTÉ sur quatre plans, dont deux dirimants pris isolément. (1) ANGLE 1, DIRIMANT · LE CONSTAT AMPUTE L'ARTICLE DE L'ALINÉA QUI LE LIMITE, ET C'EST EXACTEMENT L'ALINÉA QUI RUINE L'AVERTISSEME |
+| Article 110 | Alinéa final · CONTRE-EXCEPTION. « Les dispositions de l'alinéa précédent ne s'appliquent pas au cas | RÉFUTÉ sur l'ANGLE 4 (destinataire), de façon décisive, et sur l'ANGLE 5 pour la preuve avancée, qui est un non-sequitur. ANGLE 1 · la citation est FIDÈLE et les renvois de lignes sont JUSTES. Rien à  |
+| Art. 110 bis · mentions de creation et de modification · fichier 21-procedures-titre5-7, l. 246 et 260 | Bornage temporel : l'article 110 bis, qui porte toute la computation des delais, est « (cree par la  | CONSTAT RÉFUTÉ sur quatre angles, dont trois suffisent seuls. (1) ANGLE 1, dirimant · IL N'Y A PAS D'OBLIGATION. La ligne « obligation » ne cite aucune phrase normative de l'art. 110 bis : elle cite l |
+| Art. 111, al. 1er, point 1) (Titre VII) · fichier 21-procedures-titre5-7, l. 265 | Abrogation de « toutes les dispositions contraires a la presente Loi » et de celles relatives « aux  | REFUTE sur l'angle 4 (le texte ne s'adresse pas a ce logiciel), confirme par l'angle 3 (deja servi par construction) et par l'angle 2 (vide). 1) CE N'EST PAS UNE OBLIGATION. L'art. 111 ouvre le « TITR |
+| Art. 111, dernier alinea (reserve transitoire) · fichier 21-procedures-titre5-7, l. 273 | « Toutefois, par derogation a l'alinea precedent, les procedures fiscales visees au point 1 ci-dessu | CONSTAT RÉFUTÉ sur l'angle 4 (dirimant) et sur l'angle 3 (la preuve avancée est matériellement FAUSSE sur sa phrase porteuse), avec un renfort d'angle 2 qui détruit le mécanisme de préjudice. Je concè |
+| Art. 112 (Titre VII) · fichier 21-procedures-titre5-7, l. 286 | « La presente Loi sort ses effets a la date du 1er janvier 2003. » Article unique, sans condition ni | CONSTAT RÉFUTÉ sur trois motifs indépendants dont deux sont dirimants, plus deux erreurs de fait dans sa preuve et un aveu interne qui ruine sa gravité. (1) ANGLE 1, DIRIMANT · LE « COROLLAIRE EXPRESS |
+| Bases juridiques, point d. (Livre II, IIeme Partie) · fichier 21-procedures-titre5-7, l. 311 | « d. En matiere de reclamations et recours - Arrete Ministeriel n° 013 du 11 mai 2015 ». Le corpus n | CONSTAT RÉFUTÉ sur les angles 1 et 4, qui sont chacun dirimants, avec l'angle 2 en appui et l'angle 5 pour solde. Sa jambe factuelle (zéro occurrence) est exacte · je l'ai revérifiée · mais elle ne po |
+| A.M. n° 013 du 11 mai 2015, art. 1er · fichier 25-mesures-execution, l. 13 | Objet : l'Arrete « fixe les modalites de mise en œuvre du recours gracieux en application des dispos | CONSTAT RÉFUTÉ sur l'angle 4 (à titre dirimant), sur l'angle 1 (une affirmation centrale du constat est démontrablement fausse) et sur l'angle 5 (ce n'est pas un constat, c'est un préambule aux consta |
+| A.M. n° 013 du 11 mai 2015, art. 2, al. 1er · fichier 25-mesures-execution, l. 19 | « Les redevables ainsi que leurs mandataires justifiant d'un mandat general ou special peuvent intro | REFUTE sur l'angle 1, de facon dirimante, avec l'appui des angles 2 et 5. Les faits du depot avances par le constat sont exacts (je les ai tous reverifies) : le manque materiel est reel. Ce qui s'effo |
+| A.M. n° 013 du 11 mai 2015, art. 2, al. 2 (definitions) · fichier 25-mesures-execution, l. 24 | « Il faut entendre par : - gene, situation de contrainte mettant le redevable dans l'impossibilite m | CONSTAT RÉFUTÉ sur cinq motifs cumulatifs, dont trois suffisent seuls. Je concède d'emblée ce qui tient : la citation de l'art. 2, al. 2 est VERBATIM (fichier 25-mesures-execution, l. 24-29, relues à  |
+| A.M. n° 013 du 11 mai 2015, art. 2, al. 3 (assiette du recours) · fichier 25-mesures-execution, l. 30 | « Les penalites fiscales visees ci-dessus comprennent les penalites d'assiette ou majorations, les p | CONSTAT RÉFUTÉ sur les angles 1 et 4, chacun dirimant à lui seul, avec l'appui des angles 3 et 5 · et le constat se réfute lui-même dans sa RÉSERVE. (1) ANGLE 1 · CE N'EST PAS UNE OBLIGATION, C'EST UN |
+| A.M. n° 013 du 11 mai 2015, art. 3 · fichier 25-mesures-execution, l. 35 | « Le recours visé ci-dessus est adresse au Ministre ayant les Finances dans ses attributions, qui le | REFUTE sur l'angle 4 a titre principal (dirimant), avec deux appuis independants sur les angles 1-2. (4) L'art. 3 de l'A.M. n° 013 ne porte AUCUNE obligation du contribuable : le sujet de « transmet » |
+| A.M. n° 013 du 11 mai 2015, art. 4, 1er tiret (recevabilite) · fichier 25-mesures-execution, l. 40-41 | « Pour etre recevable, le recours gracieux doit : - etre individuel et signe par le contribuable ou  | CONSTAT RÉFUTÉ, principalement sur l'ANGLE 4 (destinataire/objet) qui est dirimant, et sur l'effondrement complet de son « point de vigilance », dont les DEUX renvois au dépôt sont faux et dont le fic |
+| A.M. n° 013 du 11 mai 2015, art. 4, 2e tiret · fichier 25-mesures-execution, l. 42 | « - etre etabli au moyen d'une simple lettre ». Aucun formulaire ni imprime reglementaire n'est exig | RÉFUTÉ. La citation du texte est bonne, mais la preuve avancée est fausse sur ses deux jambes, et le grief qu'elle construit n'existe pas dans le dépôt. 1) LA CITATION TIENT, ET JE NE L'ATTAQUE PAS. F |
+| A.M. n° 013 du 11 mai 2015, art. 4, 3e tiret · fichier 25-mesures-execution, l. 51 | « - etre introduit apres la reception de l'Avis de mise en recouvrement et apres avoir renonce expre | RÉFUTÉ sur l'angle 1 (dirimant) et sur l'angle 4, avec une preuve tronquée sur l'angle 3. (1) Le constat lit une conjonction là où le texte porte une DISJONCTION : le 3e tiret de l'art. 4 offre DEUX v |
+| A.M. n° 013 du 11 mai 2015, art. 4, 4e tiret · fichier 25-mesures-execution, l. 54 | « - enoncer les motifs de gene ou d'indigence ». Mention obligatoire a peine d'irrecevabilite ; le t | RÉFUTÉ sur les angles 1 (modalité du texte), 4 (périmètre) et 3 (le « gabarit exact » invoqué est structurellement inapte), avec deux renvois faux dans la preuve avancée. 1) ANGLE 1 · CE N'EST PAS UNE |
+| A.M. n° 013 du 11 mai 2015, art. 4, 5e tiret · fichier 25-mesures-execution, l. 55 | « - indiquer le montant des penalites fiscales pour lesquelles la remise ou la moderation est sollic | CONSTAT RÉFUTÉ sur l'angle 1 (dirimant), sur l'angle 3 (son affirmation matérielle porteuse est démontrablement fausse, dirimant lui aussi), sur l'angle 4, et il se contredit dans sa propre gravité. J |
+| A.M. n° 013 du 11 mai 2015, art. 5 · fichier 25-mesures-execution, l. 60 | « Le Ministre ayant les Finances dans ses attributions statue sur les recours lui adresses apres avi | RÉFUTÉ sur l'angle 4 et sur l'angle 2, chacun dirimant à lui seul, avec un débordement d'angle 5 et quatre renvois à corriger. Je concède d'emblée l'angle 1 sur le fond : l'article est bien l'art. 5 d |
+| A.M. n° 013 du 11 mai 2015, art. 6 · fichier 25-mesures-execution, l. 66 | « L'introduction d'un recours gracieux suspend uniquement le recouvrement des penalites fiscales con | CONSTAT RÉFUTÉ, principalement sur l'angle 4, avec une preuve mal adressée (angle 3) et une gravité mal classée. 1) L'ARTICLE 6 N'EST PAS UNE OBLIGATION, ET IL NE PÈSE PAS SUR LE REDEVABLE. Lu à l'ins |
+| A.M. n° 013 du 11 mai 2015, art. 7 · fichier 25-mesures-execution, l. 71 (TEXTE TRONQUE) | Le fichier s'interrompt en plein milieu de la phrase, a la ligne 71 qui est sa DERNIERE ligne : « La | REFUTE, et d'abord sur son propre moyen de preuve (angle 1) : l'affirmation centrale du constat · « la fin de l'art. 7 et, le cas echeant, les articles 8 et suivants de l'Arrete · notamment l'article  |
+
+### Ce que cette passe apprend sur la méthode
+
+- **Un texte adressé à l'Administration réfute beaucoup, et c'est sain.** 79 %,
+  contre 40 % sur les textes d'assiette. La plupart des articles du Titre V
+  pèsent sur le Directeur des Impôts ou sur le juge, et l'étape adverse les a
+  rendus à qui de droit plutôt que de les coder. Ce qui survit est ce qui touche
+  le redevable, et c'est très exactement ce qu'on cherchait.
+- **La gravité CALENDRIER domine pour la première fois** · 7 des 13 retenus.
+  C'est la signature d'un texte de procédure, et elle dit où ira le travail de
+  fond : OmegaX ne détient ni réclamation, ni avis de mise en recouvrement, ni
+  date de réception, donc aucun des points de départ des délais du Titre V.
+- **Une définition peut venir d'un autre corpus, à condition de le dire.** Le
+  « jour ouvrable » de la loi fiscale a été lu dans le Code du travail. C'est un
+  emprunt, il est écrit comme tel dans le code, et un texte fiscal qui
+  définirait le terme autrement primerait.
+- **Le nouvel ordre tient ses promesses de coût** · 2 h 42 pour la passe
+  entière, contre 3 h 55 pour F4a et sept heures perdues sur F3b.

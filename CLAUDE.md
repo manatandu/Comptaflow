@@ -2762,6 +2762,89 @@ c'est l'autre moitié de la réserve, et elle tient. Une lacune déclarée à to
 fait renoncer à une démarche due, et celle-ci était dans le document qui
 organise les démarches.
 
+**PASSE F10 · les procédures fiscales, loi n° 004/2003, Livre II, Titres V à
+VII (2026-09-18).** Première passe du nouvel ordre, verrouillé du moins au plus
+volumineux. 69 agents, 2 h 42, 75 obligations, 63 constats réfutés un à un, 50
+écartés, 13 retenus dont 2 de gravité FAUX. **79 % de réfutation** · un texte
+adressé à l'Administration rend la plupart de ses articles à qui de droit, et
+c'est sain. Journal : `docs/releve-de-manques-fiscal.md`.
+
+**LE LOGICIEL ACCUSAIT LE REDEVABLE D'UN RETARD QUI N'EXISTE PAS · art. 110 bis,
+alinéa 2.** « Si le dernier jour du délai prescrit par la législation fiscale
+pour l'exécution d'une obligation ou l'exercice d'un droit est un jour NON
+OUVRABLE, la date [...] est REPORTÉE au premier jour ouvrable qui suit. » Les
+échéances du registre des retenues étaient des dates calendaires brutes, et
+`enRetard` en tirait un « en retard » catégorique, en rouge au registre comme au
+tableau de bord, avec l'avertissement de non-déductibilité de l'art. 20.
+**Le 15 février 2026 est un DIMANCHE** : le redevable est dans les délais toute
+la journée du lundi 16, et OmegaX lui écrivait « 1 mois en retard » dès le 16.
+En 2026, l'échéance du 15 tombe un dimanche en février, en mars et en novembre.
+C'est le § 10 bis dans sa forme la plus coûteuse · le cabinet corrige, et
+personne ne saura jamais que l'anomalie n'existait pas.
+
+**TROIS QUESTIONS TRANCHÉES DANS LES SOURCES**, et la règle vit une fois
+(`retenues/jour-ouvrable.ts`), appelée par les quatre calculs d'échéance du
+service. La loi fiscale n'y définit nulle part « jour ouvrable » : la définition
+est EMPRUNTÉE au Code du travail, art. 7, 9° (« chaque jour de la semaine à
+l'exception du jour de repos hebdomadaire et des jours fériés légaux »), et
+l'emprunt est écrit dans le code plutôt que tu.
+
+- **Le dimanche est le repos hebdomadaire** · Code du travail, art. 121,
+  alinéa 2, « Il a lieu le dimanche ». Seul report calculé.
+- **LE SAMEDI EST OUVRABLE**, et c'est la décision qui compte. Un seul jour de
+  repos, donc six jours ouvrables, ce que confirme la base de 26 jours par mois
+  du décompte final. Le traiter comme non ouvrable dirait au redevable qu'il a
+  jusqu'au lundi alors qu'il est en retard depuis le samedi · **ne pas signaler
+  un retard qui court coûte une pénalité, en signaler un qui n'existe pas coûte
+  une vérification.** Le 25 juillet 2026, première échéance d'acompte, est un
+  samedi et n'est pas reporté.
+- **LES JOURS FÉRIÉS NE SONT PAS CALCULÉS** · leur liste est fixée par décret du
+  Président de la République (Code du travail, art. 123), et ce décret n'est dans
+  AUCUNE source lue. Une liste inventée serait pire que l'absence : elle
+  reporterait des échéances au hasard et couvrirait de vrais retards. Limite
+  assumée, écrite dans `RESERVE_JOUR_OUVRABLE`, refermable quand le décret entre
+  au corpus.
+
+ET LE REPORT N'EST PAS INCONDITIONNEL · l'alinéa 3 laisse l'Administration
+« fixer l'échéance déclarative et de paiement au jour ouvrable PRÉCÉDANT la date
+de l'échéance légale ». Acte qu'aucune comptabilité ne porte : nommé dans la
+réserve, jamais calculé.
+
+**LA CONSIGNATION DU DIXIÈME N'EST PAS UN ACOMPTE · art. 110, alinéa 2.** Le
+rapprochement du 4492 renvoyait INCONDITIONNELLEMENT à l'amende de l'art. 98 bis
+pour insuffisance d'acompte, y compris quand le compte porte PLUS que ce qui est
+déclaré · le sens où rien ne manque. Or « lorsque la réclamation porte sur un
+supplément d'impôt, le contribuable peut, à sa demande, bénéficier d'un sursis de
+recouvrement [...]. Dans ce cas, IL EST TENU DE VERSER un montant égal au DIXIÈME
+du supplément d'impôt contesté » · compétence liée, et le seul compte semé dont
+l'intitulé le reçoive est le 4492, que le filtre `startsWith('4492')` ramasse
+quelle que soit la subdivision. Ce n'est pas une avance sur l'impôt de
+l'exercice : son sort suit l'issue de la réclamation. Le message est scindé par
+le SENS de l'écart, nomme la consignation avec sa limite (pas de sursis sur une
+taxation d'office, alinéa 3), et laisse la ventilation au cabinet.
+
+**J'AI COMMIS DANS UN TEST LE PIÈGE QUE LE DÉPÔT A DÉJÀ CATALOGUÉ TROIS FOIS.**
+La première version du spec posait `not.toContain('art. 98 bis')` et est tombée
+sur un message JUSTE · celui qui nomme l'article POUR DIRE qu'il ne s'applique
+pas, ce qu'un cabinet a précisément besoin de lire. **Quatrième occurrence de
+« une interdiction de mot est toujours trop large »**, et la première commise en
+écrivant le test d'une correction plutôt qu'en relisant un ancien. On exige la
+RÉSERVE EXACTE, on ne bannit jamais un numéro.
+
+**TROIS TESTS EXISTANTS SONT TOMBÉS, ET C'ÉTAIT LA RÈGLE QUI MARCHAIT** · ils
+figeaient des dates brutes (25 juillet 2027, 10 janvier 2027, 15 mars 2026, tous
+des dimanches). Chacun corrigé AVEC SON MOTIF, et celui de l'ONEM a changé
+d'objet : il fige désormais l'ORDRE des deux échéances, que le report ne peut pas
+intervertir, et non plus l'écart de cinq jours.
+
+**ET UN FICHIER DE COMPÉTENCE EST TRONQUÉ**, à signaler à Manasse ·
+`25-mesures-execution-reclamations-recours-am013-2015.md` s'arrête ligne 71 en
+plein milieu de l'article 7 de l'arrêté (« La décision de clôture d'instruction
+du recours gracieux n'est pas susceptible »). La suite dit quelles voies de
+recours restent ouvertes après un rejet gracieux, et le recours gracieux suppose
+justement de RENONCER aux autres. Rien ne se code là-dessus tant que le fichier
+n'est pas complété.
+
 ## 7. Conventions du plan de comptes semé
 
 Valables pour les deux référentiels (`compte-seed.ts`,

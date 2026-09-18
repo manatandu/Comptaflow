@@ -76,7 +76,11 @@ describe('Échéances de l’impôt sur les sociétés', () => {
     // Au 1er décembre, les trois acomptes de l'année sont passés · l'échéancier
     // annonce ceux de l'an prochain plutôt que de les taire.
     const parCle = new Map((await echeances('SYSCOHADA', '2026-12-01')).map((e) => [e.cle, e]));
-    expect(parCle.get('premierAcompteIs')!.date.toISOString().slice(0, 10)).toBe('2027-07-25');
+    // Le 25 juillet 2027 est un DIMANCHE · l'échéance légale de l'art. 57 bis
+    // reste le 25, et la date à laquelle le versement doit être fait est le
+    // lundi 26 par l'art. 110 bis, al. 2 (passe F10). L'échéancier rend la
+    // seconde, qui est celle qu'un redevable doit tenir.
+    expect(parCle.get('premierAcompteIs')!.date.toISOString().slice(0, 10)).toBe('2027-07-26');
     expect(parCle.get('troisiemeAcompteIs')!.date.toISOString().slice(0, 10)).toBe('2027-11-25');
   });
 

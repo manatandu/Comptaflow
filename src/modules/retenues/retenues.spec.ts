@@ -181,7 +181,11 @@ describe('Registre des retenues à la source', () => {
     const r = await service([ligne('44781000', '2026-12-20', { credit: 50_000 })]).registre('t1', {
       exerciceId: 'e1',
     });
-    expect(nature(r, 'retenueLocative').mois[0].echeance.toISOString().slice(0, 10)).toBe('2027-01-10');
+    // Les dix jours de la retenue locative tombent le 10 janvier 2027, qui est
+    // un DIMANCHE · art. 110 bis, al. 2, l'échéance est reportée au lundi 11.
+    // Ce test figeait la date brute avant la passe F10 ; ce qu'il vérifie est
+    // le franchissement d'année, et il le vérifie toujours.
+    expect(nature(r, 'retenueLocative').mois[0].echeance.toISOString().slice(0, 10)).toBe('2027-01-11');
   });
 
   it('le 4478 générique n’absorbe pas les lignes de ses sous-comptes ventilés', async () => {
@@ -251,7 +255,12 @@ describe('Registre des retenues à la source', () => {
     // la relation qu'on fige, et elle ne s'observe que dans ce mois-là.
     expect(declaration!.date.getMonth()).toBe(versement!.date.getMonth());
     expect(declaration!.date.getDate()).toBe(10);
-    expect(versement!.date.getDate()).toBe(15);
+    // Le 15 mars 2026 est un DIMANCHE · le versement est reporté au lundi 16
+    // par l'art. 110 bis, al. 2 (passe F10). CE QUI EST FIGÉ ICI N'EST PAS
+    // L'ÉCART DE CINQ JOURS mais l'ORDRE des deux échéances : la déclaration
+    // précède le versement, et le report ne peut pas les intervertir · le 10
+    // et le 15 d'un même mois ne peuvent pas tomber le même jour de semaine.
+    expect(versement!.date.getDate()).toBe(16);
     expect(declaration!.date.getTime()).toBeLessThan(versement!.date.getTime());
   });
 

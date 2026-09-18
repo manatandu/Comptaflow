@@ -1150,3 +1150,54 @@ describe('Report déficitaire et impôt minimum · deux bornes rendues exactes',
     expect(r.explication).toContain('701 à 707');
   });
 });
+
+/**
+ * ART. 110, ALINÉA 2 · LA CONSIGNATION DU DIXIÈME N'EST PAS UN ACOMPTE.
+ *
+ * Passe F10. Le rapprochement du 4492 renvoyait INCONDITIONNELLEMENT à
+ * l'amende de l'art. 98 bis pour insuffisance d'acompte, y compris quand le
+ * compte porte PLUS que ce qui est déclaré · c'est-à-dire dans le sens où rien
+ * ne manque.
+ */
+describe('Rapprochement du 4492 · les deux sens de l’écart (art. 110, al. 2)', () => {
+  const suivi = (declares: number, comptabilises: number) =>
+    FiscaliteService.suiviAcomptes({ acomptesDus: true, declares, comptabilises, impotDu: null });
+
+  it("LE COMPTE PORTE MOINS · l'amende de l'art. 98 bis est nommée, c'est le sens où elle vaut", () => {
+    const o = suivi(3_000_000, 1_000_000)!.observations.join(' ');
+    expect(o).toContain('art. 98 bis');
+    expect(o).toContain('MOINS QUE CE QUI EST DÉCLARÉ');
+    // Dans ce sens, la consignation n'a rien à faire là.
+    expect(o).not.toContain('art. 110');
+  });
+
+  it("LE COMPTE PORTE PLUS · l'amende n'est PAS nommée, et c'est la correction de la passe", () => {
+    const o = suivi(1_000_000, 3_000_000)!.observations.join(' ');
+    expect(o).toContain('PLUS QUE CE QUI EST DÉCLARÉ');
+    expect(o).toContain("n'est PAS une insuffisance de versement");
+    // ON EXIGE LA RÉSERVE EXACTE, ON NE BANNIT JAMAIS UN NUMÉRO. La première
+    // version de ce test posait `not.toContain('art. 98 bis')` et tombait sur
+    // un message JUSTE · celui qui nomme l'article POUR DIRE qu'il ne
+    // s'applique pas, ce qui est précisément ce qu'un cabinet a besoin de
+    // lire. Quatrième occurrence de ce piège après les « art. 25 » et
+    // « art. 63 » de `hors-scope-tva.spec.ts` (passes F2a et F2b), et la
+    // première commise en écrivant le test d'une correction.
+    expect(o).toContain("l'amende de l'art. 98 bis ne s'y applique pas");
+  });
+
+  it('LE COMPTE PORTE PLUS · la consignation du dixième est nommée avec son article et sa limite', () => {
+    const o = suivi(1_000_000, 3_000_000)!.observations.join(' ');
+    expect(o).toContain('art. 110, alinéa 2');
+    expect(o).toContain('DIXIÈME');
+    // La limite de l'alinéa 3 fait partie de la règle : le sursis ne joue pas
+    // sur une taxation d'office, et taire la limite ferait croire l'inverse.
+    expect(o).toContain("taxation d'office");
+    // Le module NOMME une cause possible, il ne qualifie pas : OmegaX ne
+    // détient aucune réclamation.
+    expect(o).toContain('appartient au cabinet');
+  });
+
+  it("un écart nul ne produit aucune des deux phrases", () => {
+    expect(suivi(2_000_000, 2_000_000)!.observations.join(' ')).not.toContain('diffèrent de');
+  });
+});
