@@ -1,4 +1,3 @@
-import { readFileSync } from 'fs';
 import { join } from 'path';
 import { Prisma, SensFacture } from '@prisma/client';
 import { FacturationService } from './facturation.service';
@@ -17,6 +16,7 @@ import {
   EXCLUSION_DEDUCTION_ART_104,
 } from './mentions-facture';
 import { construireEtatDetaille } from './etat-detaille-tva';
+import { readFileSync } from 'fs';
 
 type Faux = Record<string, unknown>;
 
@@ -637,12 +637,47 @@ describe('Article 60 du décret n° 011/42 · la mention des débits', () => {
     expect(v.conforme).toBe(true);
   });
 
-  it('l’amende de l’article 97 bis n’est PAS étendue à cette omission', () => {
-    // Le décret n° 011/42 n'énonce aucune sanction, et le barème de l'art. 97
-    // bis vise les mentions du décret n° 23/10 · chiffrer ici serait inventer.
+  it("l'amende de l'art. 97 bis n'est pas CHIFFRÉE ici, et ce silence n'est pas présenté comme une dispense", () => {
+    // PASSE F9 · ce test gelait une affirmation FAUSSE. Il exigeait que la
+    // réserve dise que le barème « vise les mentions du décret n° 23/10 »,
+    // alors que l'art. 97 bis frappe « toute omission d'une mention
+    // obligatoire » sans désigner de texte, et qu'il est créé par l'O.-L.
+    // n° 13/005 du 23 février 2013, dix ans avant ce décret.
+    //
+    // Troisième occurrence de « un test écrit dans la foulée d'une correction
+    // gèle ses erreurs », après F3b et F2b.
     const v = verifierMentions(facture({ mentionTvaDebits: false }), true, debits);
     expect(v.manquantes).toHaveLength(0);
-    expect(v.mentionDebits.reserveSanction).toContain('aucune sanction');
+    // Ce qui est figé désormais : le module ne chiffre pas, ET il ne dit pas
+    // que rien n'est encouru.
+    expect(v.mentionDebits.reserveSanction).toContain('NE CHIFFRE AUCUNE AMENDE');
+    expect(v.mentionDebits.reserveSanction).toContain("n'est pas une dispense");
+    expect(v.mentionDebits.reserveSanction).toContain("TOUTE");
+    // ON EXIGE LA RÉSERVE EXACTE, ON NE BANNIT JAMAIS UN NUMÉRO · l'art. 97 bis
+    // doit être NOMMÉ, précisément pour dire que la question n'est pas tranchée.
+    expect(v.mentionDebits.reserveSanction).toContain('article 97 bis');
+  });
+
+  it("CE QUI EST SERVI AU CABINET ne rattache le barème à aucun texte de mentions", () => {
+    /*
+      TROISIÈME FOIS EN TROIS JOURS QUE JE ME PRENDS LE MÊME PIÈGE, et il faut
+      l'écrire ici plutôt qu'au journal seul.
+
+      La première version de ce test scannait la SOURCE : `not.toContain('vise
+      les mentions du décret n° 23/10')`. Elle est tombée sur le COMMENTAIRE
+      qui vient d'être écrit pour expliquer que cette phrase était fausse.
+      Même forme que `not.toContain('art. 98 bis')` le 2026-09-17 et que
+      `not.toMatch(/paques/i)` le 2026-09-18.
+
+      LA RÈGLE QUI EN SORT · un bannissement de chaîne ne se pose JAMAIS sur la
+      source d'un fichier, parce que la source porte aussi l'histoire de ses
+      corrections. Il se pose sur la VALEUR SERVIE, qui est la seule chose que
+      le cabinet lit, et c'est d'ailleurs la seule surface de risque.
+    */
+    const v = verifierMentions(facture({ mentionTvaDebits: false }), true, debits);
+    expect(v.mentionDebits.reserveSanction).not.toContain('vise les mentions du décret n° 23/10');
+    // Et la démonstration par la date vit dans le commentaire du module, où
+    // elle explique la correction · on ne la gèle pas depuis un test.
   });
 });
 
@@ -674,5 +709,38 @@ describe('le service câble bien le contexte de l’article 60', () => {
       expect(bloc).toContain('sensVente');
       expect(bloc).toContain('regimeExigibiliteTva: t.regimeExigibiliteTva');
     }
+  });
+});
+
+/*
+  PASSE F9 · LE BARÈME DE L'ART. 97 BIS ET LES DEUX FORMES DE PERSONNE PHYSIQUE.
+
+  `estPersonneMorale` est privée, et la réinjection du défaut a montré qu'aucun
+  test ne tombait quand elle réexcluait la seule entreprise individuelle. Le
+  câblage se gèle donc dans la source, comme celui du double regard.
+*/
+describe("Art. 97 bis · le choix du barème lit la liste partagée", () => {
+  it("le service ne réécrit pas sa propre liste de personnes physiques", () => {
+    const source = readFileSync(join(__dirname, 'facturation.service.ts'), 'utf8');
+    // La liste vit dans le module des retenues et n'est pas recopiée ici · une
+    // seconde liste aurait divergé au premier correctif, et c'est exactement
+    // ce qui s'était produit : elle avait oublié l'ENTREPRENANT, donc
+    // 750.000 FC au lieu de 250.000 sur chaque omission de mention.
+    expect(source).toContain("import { FORMES_PERSONNES_PHYSIQUES } from '../retenues/correspondance-retenues'");
+    // L'ASSERTION POSITIVE SUFFIT, et c'est le point. Revenir à la comparaison
+    // en dur fait disparaître cet appel, donc tomber ce test.
+    expect(source).toContain('FORMES_PERSONNES_PHYSIQUES.includes(');
+
+    // J'AVAIS AJOUTÉ ICI `not.toMatch(/!== 'ENTREPRISE_INDIVIDUELLE'/)`, ET IL
+    // EST TOMBÉ SUR LE COMMENTAIRE QUI CITE L'ANCIENNE LIGNE POUR EXPLIQUER
+    // POURQUOI ELLE ÉTAIT FAUSSE. Quatrième fois en trois jours, et la
+    // quatrième fois dans le test écrit à côté d'une correction · après
+    // « art. 98 bis », « Pâques » et « vise les mentions du décret n° 23/10 ».
+    //
+    // LA RÈGLE, ÉCRITE ICI PARCE QUE C'EST ICI QU'ON LA ROMPT · un
+    // bannissement de chaîne ne se pose JAMAIS sur la source d'un fichier. La
+    // source porte aussi l'histoire de ses corrections, et c'est justement
+    // quand une correction est bien commentée que le test tombe. On gèle une
+    // présence (un appel, une valeur servie), jamais une absence de mot.
   });
 });

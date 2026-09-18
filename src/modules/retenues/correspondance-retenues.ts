@@ -965,7 +965,14 @@ export function avertissementRegimeImpot(
  * sont pas redevables de l'impôt sur les sociétés mais de l'IRPP, et leur
  * calendrier de paiement dépend d'un RÉGIME que ce module ne détermine pas.
  */
-const FORMES_PERSONNES_PHYSIQUES: FormeJuridiqueSyscohada[] = [
+/**
+ * LES FORMES QUI SONT DES PERSONNES PHYSIQUES, et la liste vit UNE FOIS.
+ *
+ * Exportée depuis la passe F9 · le module de facturation en écrivait une
+ * seconde, à la main, qui avait oublié l'entreprenant et annonçait donc
+ * 750.000 FC au lieu de 250.000 sur l'amende de l'art. 97 bis.
+ */
+export const FORMES_PERSONNES_PHYSIQUES: FormeJuridiqueSyscohada[] = [
   FormeJuridiqueSyscohada.ENTREPRISE_INDIVIDUELLE,
   FormeJuridiqueSyscohada.ENTREPRENANT,
 ];
@@ -1017,8 +1024,12 @@ export function reservePourReferentiel(nature: NatureRetenue, referentiel: Refer
  */
 export const AVERTISSEMENT_REDEVABLE =
   "Le redevable qui n'a pas opéré une retenue, ou qui l'a opérée pour un montant insuffisant, en est PERSONNELLEMENT " +
-  'redevable (article 96 bis de la loi de procédures fiscales, créé par la loi de finances n° 25/060 du 29 décembre ' +
-  "2025). Une retenue oubliée ne disparaît pas avec le paiement : elle devient une dette de l'entité elle-même.";
+  'redevable (article 96 bis de la loi de procédures fiscales, INSÉRÉ par la loi de finances n° 24/011 du ' +
+  '20 décembre 2024, art. 46, et REMPLACÉ par la loi de finances n° 25/060 du 29 décembre 2025, art. 35). Une ' +
+  "retenue oubliée ne disparaît pas avec le paiement : elle devient une dette de l'entité elle-même. RÉSERVE · la " +
+  'rédaction citée ici est celle issue du remplacement de 2025. Le texte de la version de 2024 n\u2019est pas au ' +
+  "corpus du logiciel : sur un exercice antérieur à 2026, un article de ce numéro était en vigueur, mais sa " +
+  'rédaction exacte reste à vérifier avant tout usage opposable.';
 
 /**
  * LA SEULE FAUSSE ALERTE QUE LE RAPPROCHEMENT CORRIGÉ NE PEUT PAS LEVER SEUL.

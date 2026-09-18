@@ -10,6 +10,7 @@ import {
   verifierMentions,
 } from './mentions-facture';
 import { construireEtatDetaille, FactureAchatSource } from './etat-detaille-tva';
+import { FORMES_PERSONNES_PHYSIQUES } from '../retenues/correspondance-retenues';
 
 const nombre = (d: Prisma.Decimal | number | null): number | null =>
   d === null || d === undefined ? null : Number(d);
@@ -56,7 +57,34 @@ export class FacturationService {
    * définition un groupement.
    */
   private estPersonneMorale(t: { formeJuridiqueSyscohada: string | null }): boolean {
-    return t.formeJuridiqueSyscohada !== 'ENTREPRISE_INDIVIDUELLE';
+    /*
+      PASSE F9 · LE CODE DISAIT LE CONTRAIRE DE SON PROPRE COMMENTAIRE.
+
+      La ligne était `!== 'ENTREPRISE_INDIVIDUELLE'`, alors que le commentaire
+      ci-dessus nomme DEUX formes de personne physique, l'entreprenant ET le
+      commerçant en nom propre. Un dossier d'ENTREPRENANT se voyait donc
+      annoncer 750.000 FC par omission là où l'art. 97 bis en prévoit
+      250.000 · TROIS FOIS TROP, sur le seul chiffre que cet écran affirme.
+
+      Et la liste existait déjà, à deux fichiers de là :
+      `FORMES_PERSONNES_PHYSIQUES` de `retenues/correspondance-retenues.ts`
+      porte les deux formes depuis le chantier des retenues. C'est elle qui
+      sert ici · une seconde liste écrite à la main aurait divergé au premier
+      correctif, comme `calculerPropositions` l'a déjà appris au dépôt.
+
+      L'ENTREPRENANT EST UNE PERSONNE PHYSIQUE, et le schéma l'écrit :
+      `prisma/schema.prisma` note « AUDCG art. 30 · dispensé d'immatriculation
+      au RCCM, il DÉCLARE son activité ».
+
+      CE QUI N'EST PAS TRANCHÉ ICI · la SUCCURSALE. Aucun texte lu ne dit si
+      elle relève du barème de la personne morale, son propriétaire pouvant
+      être une société comme une personne physique. Elle reste donc du côté
+      des personnes morales par défaut, faute de source, et non parce que la
+      question serait réglée.
+    */
+    return !FORMES_PERSONNES_PHYSIQUES.includes(
+      t.formeJuridiqueSyscohada as (typeof FORMES_PERSONNES_PHYSIQUES)[number],
+    );
   }
 
   private verifiable(f: {

@@ -6,6 +6,8 @@ import {
   NATURES_RETENUES,
   OBLIGATIONS_DECLARATIVES,
   obligationsDeclarativesApplicables,
+  AVERTISSEMENT_REDEVABLE,
+  FORMES_PERSONNES_PHYSIQUES,
 } from './correspondance-retenues';
 
 /**
@@ -1191,5 +1193,37 @@ describe('L’échéance suit le mois du VERSEMENT, pas celui de l’écriture (
     expect(n.mois.find((m) => m.mois === '2026-11')!.solde).toBe(0);
     expect(n.mois.find((m) => m.mois === '2027-01')!.reverseEcritures).toBe(300_000);
     expect(n.moisEnRetard).toBe(0);
+  });
+});
+
+/**
+ * PASSE F9 · DEUX CHIFFRES ET UNE DATE QUE LE DÉPÔT AFFIRMAIT DE TRAVERS.
+ *
+ * Ces deux tests n'existaient pas, et c'est la réinjection du défaut qui l'a
+ * montré : les deux corrections passaient sans qu'aucun test ne tombe.
+ */
+describe('Ce que le dépôt AFFIRME sur les sanctions · vérifié contre le texte', () => {
+  it("l'article 96 bis est daté de son INSERTION, pas de son remplacement", () => {
+    // Source, art. 96 bis, VERBATIM : « (inséré par la L.F. n° 24/011 du
+    // 20 décembre 2024, art. 46, remplacé par la L.F. n° 25/060 du 29 décembre
+    // 2025, art. 35) ». Le module écrivait « créé par la loi de finances
+    // n° 25/060 » · un cabinet qui traite un exercice 2025 en concluait que la
+    // règle n'existait pas encore.
+    expect(AVERTISSEMENT_REDEVABLE).toContain('24/011');
+    expect(AVERTISSEMENT_REDEVABLE).toContain('25/060');
+    expect(AVERTISSEMENT_REDEVABLE).toContain('REMPLACÉ');
+    // Et la réserve sur la rédaction de 2024, absente du corpus, est écrite
+    // plutôt que tue : on ne transporte pas la règle actuelle sur un exercice
+    // antérieur sans avoir lu le texte d'alors.
+    expect(AVERTISSEMENT_REDEVABLE).toContain('RÉSERVE');
+  });
+
+  it("L'ENTREPRENANT EST UNE PERSONNE PHYSIQUE · la liste en porte DEUX, pas une", () => {
+    // C'est cette liste que le module de facturation consomme pour choisir
+    // entre les 750.000 FC et les 250.000 FC de l'art. 97 bis. Il en écrivait
+    // une seconde à la main, qui avait oublié l'entreprenant.
+    expect(FORMES_PERSONNES_PHYSIQUES).toContain('ENTREPRISE_INDIVIDUELLE');
+    expect(FORMES_PERSONNES_PHYSIQUES).toContain('ENTREPRENANT');
+    expect(FORMES_PERSONNES_PHYSIQUES).toHaveLength(2);
   });
 });

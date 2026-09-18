@@ -2910,6 +2910,61 @@ date) et non le vocabulaire. Après « art. 98 bis » la veille, c'est la cinqui
 occurrence au dossier · **on exige la réserve exacte, on ne bannit jamais un
 mot.**
 
+**PASSE F9 · le barème des sanctions, loi n° 004/2003, Livre II, Titre IV
+(2026-09-18).** 67 agents, 2 h 46, 65 obligations, 59 constats réfutés un à un,
+22 écartés, 37 retenus dont 5 de gravité FAUX. **37 % de réfutation**, le plus
+bas de la série. Journal : `docs/releve-de-manques-fiscal.md`.
+
+**LA CONSIGNE QUI A PAYÉ · VÉRIFIER CE QUE LE DÉPÔT AFFIRME, PAS CHERCHER CE QUI
+MANQUE.** Sur un texte déjà partiellement codé, les cinq FAUX portent tous sur
+des chiffres ou des dates DÉJÀ à l'écran. Aucun n'aurait été trouvé par une
+consigne qui aurait seulement demandé « où cette obligation vit-elle ».
+
+**L'ARTICLE 97 BIS NE VISE PAS LE DÉCRET QUE LE DÉPÔT LUI PRÊTAIT.** Le module
+de facturation affirmait, à l'écran et sous un test qui le gelait, que « l'amende
+de l'article 97 bis vise les mentions du décret n° 23/10 · elle n'est pas étendue
+ici », pour en conclure qu'une omission de la mention de l'art. 60 du décret
+n° 011/42 n'est pas sanctionnée. Le texte dit « **TOUTE omission d'une mention
+obligatoire** constatée dans une facture ou un document en tenant lieu », sans
+désigner aucun texte. **ET LA DATE LE DÉMONTRE SEULE** · l'article est créé par
+l'O.-L. n° 13/005 du 23 février 2013, dix ans avant le décret n° 23/10 du 3 mars
+2023 ; à sa création, les seules mentions obligatoires en vigueur étaient celles
+du décret n° 011/42 de 2011. Le fichier se contredisait d'ailleurs trente lignes
+plus loin. Lacune déclarée à tort, dans le sens qui rassure. Le module ne chiffre
+toujours rien · il cesse de présenter son silence comme une dispense.
+
+**L'ENTREPRENANT PAYAIT TROIS FOIS TROP, ET LE CODE CONTREDISAIT SON PROPRE
+COMMENTAIRE.** `estPersonneMorale` rendait `!== 'ENTREPRISE_INDIVIDUELLE'` quand
+le commentaire juste au-dessus nomme DEUX formes de personne physique,
+« l'entreprenant ou le commerçant en nom propre ». Un dossier d'entreprenant se
+voyait annoncer 750 000 FC par omission là où l'art. 97 bis en prévoit 250 000.
+La liste existait déjà à deux fichiers de là · `FORMES_PERSONNES_PHYSIQUES` du
+module des retenues, désormais exportée et consommée. **La SUCCURSALE reste non
+tranchée**, faute de source, et c'est dit comme tel.
+
+**L'ARTICLE 96 BIS ÉTAIT DATÉ DE SON REMPLACEMENT.** Le registre écrivait « créé
+par la loi de finances n° 25/060 du 29 décembre 2025 » ; la source porte
+« inséré par la L.F. n° 24/011 du 20 décembre 2024, art. 46, remplacé par la
+L.F. n° 25/060 ». Deuxième piège pris à l'envers · un cabinet sur un exercice
+2025 lisait que la règle n'existait pas encore. La rédaction de 2024 n'étant pas
+au corpus, la réserve le dit plutôt que de transporter la règle actuelle en
+arrière.
+
+**UN BANNISSEMENT DE CHAÎNE NE SE POSE JAMAIS SUR LA SOURCE D'UN FICHIER.**
+Quatre fois en trois jours, toujours dans le test écrit à côté d'une
+correction : `art. 98 bis`, `/paques/i`, `vise les mentions du décret n° 23/10`,
+`/!== 'ENTREPRISE_INDIVIDUELLE'/`. À chaque fois le test tombe sur le
+COMMENTAIRE écrit pour expliquer que la chose bannie était fausse · **c'est
+quand une correction est bien commentée que ce genre de test casse.** Les deux
+premières occurrences avaient produit la bonne règle (« on exige la réserve
+exacte, on ne bannit jamais un numéro ») ; il manquait de dire OÙ la poser.
+**On gèle une PRÉSENCE** · un appel, une valeur servie · **jamais une absence de
+mot dans un fichier.**
+
+**ET DEUX RÉINJECTIONS SUR TROIS N'ONT D'ABORD RIEN CASSÉ** · l'entrepreneur et
+la date de l'art. 96 bis. Les deux tests manquants ont été écrits avant de
+rejouer les réinjections.
+
 ## 7. Conventions du plan de comptes semé
 
 Valables pour les deux référentiels (`compte-seed.ts`,

@@ -2100,3 +2100,195 @@ motif, tous parce que leur date brute tombait un samedi.
 - **Cinquième « interdiction de mot trop large », et la deuxième en deux
   jours** · le test qui bannissait « Pâques » de la source est tombé sur le
   commentaire qui dit que la liste n'en porte aucune.
+
+## Passe F9 · Loi n° 004/2003, Livre II, Titre IV · sanctions fiscales et pénales (2026-09-18)
+
+**Deuxième passe du nouvel ordre.** Le barème complet : dispositions générales,
+base de calcul, taux des pénalités, sanctions pénales. 36 articles, 396 lignes,
+quatre blocs.
+
+**Volumétrie** · 67 agents, 7,9 M de jetons, **2 h 46**.
+
+**Résultat** · 65 obligations, 70 constats, 59 soumis à réfutation.
+**22 écartés, 37 retenus**, dont **5 de gravité FAUX**. Taux de réfutation
+**37 %**, le plus bas de la série · c'est un texte vierge, et la consigne y
+demandait de vérifier les citations DÉJÀ PRÉSENTES plutôt que de chercher ce
+qui manque.
+
+**LA CONSIGNE A PAYÉ, ET EXACTEMENT LÀ OÙ ELLE VISAIT.** Les cinq FAUX portent
+tous sur des chiffres ou des dates que le dépôt AFFIRME déjà au cabinet, et
+trois d'entre eux sont le même défaut vu par trois confronteurs différents.
+
+### Ce qui est corrigé dans le code, et testé
+
+#### 1 · L'article 97 bis ne vise pas le décret que le dépôt lui prêtait
+
+Le module de facturation écrivait, à l'écran et en commentaire, et un test le
+gelait : « l'amende de l'article 97 bis vise les mentions du décret n° 23/10 ·
+elle n'est pas étendue ici », pour en conclure qu'une omission de la mention de
+l'art. 60 du décret n° 011/42 n'est pas sanctionnée.
+
+**Le texte ne dit rien de tel.** Art. 97 bis, VERBATIM : « **Toute omission
+d'une mention obligatoire** constatée dans une facture ou un document en tenant
+lieu entraîne l'application d'une amende de 750.000,00 Francs congolais pour les
+personnes morales et de 250.000,00 Francs congolais pour les personnes
+physiques, par omission. » Aucun renvoi, aucun texte désigné.
+
+**ET LA DATE LE DÉMONTRE À ELLE SEULE.** L'article est **créé par l'O.-L.
+n° 13/005 du 23 février 2013**, soit dix ans avant le décret n° 23/10 du 3 mars
+2023. Un barème de 2013 ne peut pas avoir été écrit pour les mentions d'un
+décret de 2023 · à sa création, les seules mentions obligatoires en vigueur
+étaient justement celles du décret n° 011/42 de 2011 que le dépôt déclarait hors
+champ.
+
+**LE FICHIER SE CONTREDISAIT TRENTE LIGNES PLUS LOIN**, puisqu'il attache bien
+l'art. 97 bis aux neuf groupes de l'art. 100 du décret n° 011/42 pour toute
+pièce antérieure à 2023. C'était une **lacune déclarée à tort**, et elle jouait
+dans le sens qui rassure.
+
+**CE QUI N'EST PAS TRANCHÉ POUR AUTANT.** Dire que l'amende EST due supposerait
+de qualifier l'omission, ce qui appartient à l'Administration. Le module ne
+chiffre toujours rien · il cesse seulement de présenter son silence comme une
+dispense.
+
+#### 2 · L'entrepreneur payait trois fois trop, et le code contredisait son propre commentaire
+
+`estPersonneMorale` rendait `formeJuridiqueSyscohada !== 'ENTREPRISE_INDIVIDUELLE'`.
+Le commentaire immédiatement au-dessus écrit pourtant : « Les 250.000 FC ne
+visent que la personne PHYSIQUE, c'est-à-dire **l'entreprenant** ou le
+commerçant en nom propre. »
+
+**Un dossier d'ENTREPRENANT se voyait donc annoncer 750.000 FC par omission là
+où le texte en prévoit 250.000.** Trois fois trop, sur le seul chiffre que cet
+écran affirme. Le schéma range pourtant l'entreprenant du côté des personnes
+physiques (« AUDCG art. 30 · dispensé d'immatriculation au RCCM, il DÉCLARE son
+activité »), et **la liste existait déjà**, à deux fichiers de là :
+`FORMES_PERSONNES_PHYSIQUES` du module des retenues porte les deux formes depuis
+le chantier des retenues. Elle est désormais exportée et consommée · une seconde
+liste écrite à la main avait divergé, comme `calculerPropositions` l'avait déjà
+appris au dépôt.
+
+**CE QUI RESTE NON TRANCHÉ** · la SUCCURSALE. Aucun texte lu ne dit de quel côté
+elle tombe, son propriétaire pouvant être une société comme une personne
+physique. Elle reste du côté des personnes morales **faute de source**, et non
+parce que la question serait réglée.
+
+#### 3 · L'article 96 bis était daté de son remplacement, pas de son insertion
+
+Le registre des retenues affirmait « article 96 bis [...] **créé par** la loi de
+finances n° 25/060 du 29 décembre 2025 ». La source porte : « **inséré** par la
+L.F. n° 24/011 du 20 décembre 2024, art. 46, **remplacé** par la L.F. n° 25/060
+du 29 décembre 2025, art. 35 ».
+
+**C'est le deuxième piège du dépôt pris à l'envers** · un cabinet qui traite un
+exercice 2025 lisait que la règle n'existait pas encore, alors qu'un article de
+ce numéro était en vigueur depuis la loi de finances précédente. La réserve
+honnête est écrite plutôt que comblée : **le texte de la version 2024 n'est pas
+au corpus**, donc la rédaction citée est celle de 2025 et il ne faut pas la
+transporter sur un exercice antérieur sans avoir lu celle d'alors.
+
+### Vérification
+
+3 532 tests serveur, 468 client, les deux builds. **Trois réinjections, et
+DEUX N'ONT D'ABORD RIEN CASSÉ** · celle de l'entrepreneur et celle de la date de
+l'art. 96 bis. Les deux tests manquants ont été écrits, puis les réinjections
+rejouées : trois sur trois.
+
+### Le même piège, quatre fois en trois jours, et toujours par moi
+
+`not.toMatch` / `not.toContain` posé sur la SOURCE d'un fichier, qui tombe sur
+le commentaire écrit pour expliquer la correction :
+
+| Jour | Chaîne bannie | Tombé sur |
+|---|---|---|
+| F10, 2026-09-17 | `art. 98 bis` | le message qui nomme l'article POUR DIRE qu'il ne s'applique pas |
+| Jours fériés, 2026-09-18 | `/paques\|ascension/i` | le commentaire qui dit que la liste ne porte aucune fête mobile |
+| F9, 2026-09-18 | `vise les mentions du décret n° 23/10` | le commentaire qui explique que cette phrase était fausse |
+| F9, 2026-09-18 | `/!== 'ENTREPRISE_INDIVIDUELLE'/` | le commentaire qui cite l'ancienne ligne |
+
+**LA RÈGLE, ÉCRITE DANS LE TEST OÙ JE LA ROMPS.** Un bannissement de chaîne ne
+se pose JAMAIS sur la source d'un fichier : la source porte aussi l'histoire de
+ses corrections, et c'est justement quand une correction est bien commentée que
+le test tombe. **On gèle une PRÉSENCE** · un appel, une valeur servie ·
+**jamais une absence de mot.** Les deux premières occurrences avaient produit la
+bonne règle (« on exige la réserve exacte ») ; il manquait de dire OÙ la poser.
+
+### Les trente-quatre autres constats retenus
+
+| Article | Ce que le texte impose | Gravité |
+|---|---|---|
+| Article 84, alinéa 2 (modifié par la L.F. n° 17/014 du 24 décembre 2017) | La pénalité de recouvrement ne comporte qu'un instrument, la MAJORATION. Fait générateur triple et alternatif : DÉFAUT de paiement, INSUFFISANCE de paiement, RETARD de paiement, dans le déla | INCOMPLET |
+| Article 88 | BASE DE CALCUL des astreintes : montant FORFAITAIRE PAR JOUR DE RETARD · unité journalière, jamais mensuelle, jamais un pourcentage. Période bornée aux deux extrémités : point de départ, la  | CONFORT |
+| Article 89, alinéa 2 | « En cas de redressement, il est appliqué une majoration égale à 20% du montant de l’impôt éludé. Cette majoration est portée à 40% du même montant, en cas de récidive. » Base confirmée par  | INCOMPLET |
+| Article 89, alinéa 3 | « En cas de taxation d’office, la majoration est de 50% du montant de l’impôt reconstitué. Cette majoration est portée à 100% du même montant, en cas de récidive. » | INCOMPLET |
+| Article 89, alinéa 4 | « En cas de redressement ou de taxation d’office, il est appliqué un intérêt de retard de 2% par mois de retard, plafonné à 50% de l’impôt éludé ou reconstitué d’office. » Taux PÉRIODIQUE, p | INCOMPLET |
+| Article 89, alinéa 5 | « Le décompte de l’intérêt de retard se fait à partir du premier jour du mois qui suit celui au cours duquel l’impôt aurait dû être déclaré et payé et s’arrête au dernier jour du mois de la  | CONFORT |
+| Article 91, alinéa 1 (mod. L.F. n° 13/009, O.-L. n° 13/005, L.F. n° 18/025 et L.F. n° 20/020 du 28 décembre 20 | « Le retard dans le paiement de tout ou partie des impôts et autres droits déclarés ou mis en recouvrement dans le délai donne lieu à l’application d’une majoration égale à 2%, par mois de r | INCOMPLET |
+| Article 91, alinéa 2 | « La majoration est décomptée du premier jour du mois au cours duquel l’impôt aurait dû être payé au jour du mois du paiement effectif, tout mois commencé étant compté intégralement. » Le mo | INCOMPLET |
+| Article 92 (mod. O.-L. n° 13/005 du 23 février 2013 et L.F. n° 24/011 du 20 décembre 2024, art. 45) | Astreinte fiscale pour refus de répondre, dans le délai légal, à une demande de renseignements « en dehors de toute procédure de contrôle », PAR JOUR de retard jusqu’à communication : « 250. | INCOMPLET |
+| Article 92 bis (inséré par la L.F. n° 25/060 du 29 décembre 2025, art. 33) | « Le défaut de réponse à la demande des informations ou documents indiqués à l’article 29 bis de la présente Loi entraîne l’application d’une astreinte de 10 000 000,00 de Francs congolais p | INCOMPLET |
+| Article 93, 1re phrase (mod. O.-L. n° 13/005 du 23 février 2013 et L.F. n° 19/005 du 31 décembre 2019) | « L’absence d’annexes à la déclaration de l’impôt sur les bénéfices et profits est sanctionnée par une amende de 100.000,00 Francs congolais par annexe. En cas de récidive, cette amende est  | INCOMPLET |
+| Article 93 bis, alinéa 1 (créé L.F. n° 21/029, mod. L.F. n° 22/071 et L.F. n° 25/060 du 29 décembre 2025, art. | « Le défaut de souscription de déclaration dans le délai est sanctionné par une amende de : - 400.000,00 Francs congolais pour les déclarations d’un contribuable exonéré ou réalisant les opé | INCOMPLET |
+| Article 93 bis, alinéa 3 | « Le défaut de réponse ou la réponse incomplète à la mise en demeure prévue à l’article 24 bis de la présente Loi entraîne l’application, pour chaque exercice vérifié, d’une amende égale à 2 | INCOMPLET |
+| Article 93 bis, alinéa 4 | « Le défaut de souscription ou la souscription de manière incomplète ou inexacte, dans le délai imparti, de la déclaration annuelle des prix de transfert prévue à l’article 24 ter de la prés | INCOMPLET |
+| Article 93 ter (inséré par la L.F. n° 23/056 du 10 décembre 2023, art. 28) | « Le défaut de certification des états financiers annuels de synthèse des entreprises par les soins d’un expert-comptable inscrit au tableau de l’Ordre National des Experts-Comptables est sa | INCOMPLET |
+| Article 96 (aucun texte modificatif mentionné · version d’origine de la loi n° 004/2003) | « Le défaut de retenue sur loyers ou de reversement de celle-ci est sanctionné d’une amende égale au montant de la retenue due. » Amende fixée par ÉGALITÉ avec sa base, soit 100 % de la rete | INCOMPLET |
+| Art. 96 ter, al. 1er (inséré par la L.F. n° 24/011 du 20 décembre 2024, art. 47) | Déposer dans le délai la déclaration d'impôt professionnel sur les rémunérations des agents publics et des membres des institutions politiques nationales ou provinciales et assimilés, Y COMP | INCOMPLET |
+| Art. 96 ter, al. 2 | L'amende de 2.000.000,00 FC par déclaration non déposée est due par l'ORDONNATEUR, responsable du Service public concerné, et non par le service ni par l'agent déclarant. | INCOMPLET |
+| Art. 97, al. 2 | Communiquer des renseignements complets · amende de 750.000,00 FC pour les personnes morales et de 125.000,00 FC pour les personnes physiques. | CONFORT |
+| Art. 97 ter, al. 2 | Se soumettre à l'enquête pour obtenir la réouverture des installations · fermeture provisoire prononcée par l'Agent des Impôts revêtu de la qualité d'Officier de Police Judiciaire à compéten | CONFORT |
+| Art. 97 quinquies (inséré par la L.F. n° 23/056 du 10 décembre 2023, art. 32) | Ne certifier que des états financiers annuels de synthèse sincères et donnant une image fidèle · amende de 50.000.000,00 FC pour la certification des états d'une grande entreprise et de 20.0 | INCOMPLET |
+| Art. 98, al. 1er (modifié et complété par l'O.-L. n° 13/005 du 23 février 2013, par la L.F. n° 19/005 du 31 dé | Accomplir PRÉALABLEMENT à l'exercice d'une activité soumise à l'impôt la formalité prescrite à l'article 1er · à défaut, fermeture provisoire ET amende de 1.000.000,00 FC (personnes morales) | INCOMPLET |
+| Art. 98, al. 2 | Règle de date : l'amende de l'alinéa 1er n'est ni établie ni recouvrée au jour du constat, mais lors de la RÉOUVERTURE de l'établissement, laquelle n'intervient qu'après attribution du Numér | CALENDRIER |
+| Art. 98 ter (créé par l'O.-L. n° 13/005 du 23 février 2013) | Savoir que TOUS les montants fixes de pénalités de cette loi sont modifiables par arrêté du Ministre ayant les Finances dans ses attributions, sans que la loi elle-même change. | INCOMPLET |
+| Art. 100, al. 1er · E. Frais de poursuites (modifié par la L.F n° 21/029 du 31 décembre 2021) | En recouvrement forcé, des frais proportionnels sont mis à la charge du redevable, calculés sur le montant des impôts et autres droits dus AINSI QUE sur celui des pénalités : Commandement 3  | INCOMPLET |
+| Article 101, alinéa introductif (chapitre IV : sanctions pénales) | « Sans préjudice des peines portées aux articles 124 et 127 du Code Pénal, les auteurs d'infractions fiscales qui procèdent manifestement à une intention frauduleuse et leurs complices sont  | INCOMPLET |
+| Article 101, point 1) · première infraction | « 1) Pour la première infraction, une amende égale au montant de l'impôt éludé ou non payé dans le délai » (l. 360-361). Amende pénale égale à UNE FOIS l'impôt, assise sur « le montant de l' | INCOMPLET |
+| Article 101, dernier alinéa · définition de l'intention frauduleuse | « L'intention frauduleuse consiste à poser des actes en vue de se soustraire ou de soustraire des tiers à l'établissement ou au paiement total ou partiel de l'impôt dû » (l. 363 à 365). Cond | CONFORT |
+| Article 102, tiret 3 · passation délibérée d'écritures fictives ou inexactes dans les livres comptables | « - la passation délibérée des écritures fictives ou inexactes dans les livres comptables » (l. 379-380). Fait générateur de l'amende pénale de l'article 101, visant directement la tenue de  | INCOMPLET |
+| Article 102, tiret 7 · non reversement de tout impôt dont le contribuable n'est que redevable légal | « - le non reversement de tout impôt dont le contribuable n'est que redevable légal » (l. 385-386). Fait générateur de l'amende pénale de l'article 101, visant spécifiquement le collecteur e | INCOMPLET |
+
+<!-- 30 lignes -->
+
+### Les vingt-deux constats écartés par l'étape adverse
+
+| Article | Constat écarté | Motif de la réfutation |
+|---|---|---|
+| Article 83 (modifié par la L.F. n° 17/014 du 24 décembre 2017) | Ferme la liste des pénalités fiscales à QUATRE catégories et à elles seules : pénalités d'assiette,  | CONSTAT RÉFUTÉ sur les angles 3, 4 et 5, et sa pièce maîtresse est matériellement fausse dans le fichier même qu'il produit. (A) ANGLE 4 · LA « PORTE » PAR LAQUELLE LE CONSTAT ENTRE DANS LE PÉRIMÈTRE  |
+| Article 84, alinéa 1 (modifié par la L.F. n° 17/014 du 24 décembre 2017) | Scinde la pénalité d'assiette en deux instruments de nature différente : l'INTÉRÊT DE RETARD, répara | CONSTAT RÉFUTÉ sur trois motifs indépendants, dont deux dirimants pris isolément. Je concède d'emblée tout ce qui tient, et c'est beaucoup : la citation de l'art. 84, al. 1 est VERBATIM (fichier 20-pr |
+| Article 84, alinéa 3 (modifié par la L.F. n° 17/014 du 24 décembre 2017) | L'amende administrative réprime le non-respect des formalités comptables et fiscales ainsi que le ma | CONSTAT RÉFUTÉ sur les angles 1, 2 et 3, chacun dirimant, avec une assertion porteuse démontrablement FAUSSE, une inversion syntaxique sur le mot qui porte tout son point (2), et une auto-réfutation d |
+| Article 84, alinéa 4 (modifié par la L.F. n° 17/014 du 24 décembre 2017) | L'astreinte suppose une CONDITION DE FORME PRÉALABLE stricte : une mise en demeure notifiée soit par | RÉFUTÉ sur l'angle 1 (la lecture du chiffre et de sa base est fausse) et sur l'angle 4 (le constat demande au logiciel d'AFFIRMER une règle que le texte ne porte pas). Je concède d'emblée les angles 2 |
+| Article 85 (modifié et complété par la L.F. n° 17/014 du 24 décembre 2017) | BASE DE CALCUL des pénalités d'ASSIETTE. Lors de l'établissement de suppléments d'impôts ou d'une ta | CONSTAT RÉFUTÉ sur les angles 2 et 4, avec en outre une preuve centrale matériellement fausse. Je concède d'emblée que tous les renvois de ligne sont exacts (FiscalitePage.tsx:731 et 751 vérifiés au g |
+| Article 86 (modifié par l'O.-L. n° 13/005 du 23 février 2013 et par la L.F. n° 17/014 du 2 | BASE DE CALCUL des pénalités de RECOUVREMENT, distincte de celle de l'article 85. En cas de défaut,  | CONSTAT RÉFUTÉ, de façon dirimante sur l'ANGLE 1 (la base est vérifiée, et l'article que le constat a refusé de lire ruine sa thèse opérante), avec l'appui de l'ANGLE 4 par symétrie (la phrase qu'il r |
+| Article 87 | BASE DE CALCUL des amendes administratives : il n'y en a pas au sens d'une assiette proportionnelle. | CONSTAT RÉFUTÉ sur les angles 1, 3 et 4, chacun suffisant, plus quatre renvois de ligne faux à corriger. 1) ANGLE 1, DIRIMANT · L'ARTICLE NE POSE AUCUNE BASE ET AUCUNE OBLIGATION, ET LE CONSTAT L'ADME |
+| Article 89, alinéa 1 (mod. O.-L. n° 13/005 du 23 février 2013 et L.F. n° 18/025 du 13 déce | « Lorsque le redevable défaillant régularise sa situation avant la réception d’une mise en demeure d | RÉFUTÉ sur l'angle 1, qui est dirimant deux fois, et non sur la matérialité du manque · que je concède d'emblée et entièrement. CE QUE JE CONCÈDE. Angle 1 partiel : la citation est VERBATIM exacte (fi |
+| Article 89, alinéa 6 (définition légale de la récidive) | « Au sens de la présente Loi, il faut entendre par récidive, le fait de commettre une même infractio | REFUTE sur l'angle 3, doublement, et sur l'angle 1 pris du cote du depot. Je concede d'emblee ce qui est vrai : la citation de l'alinea est VERBATIM et exacte, le rang d'alinea (6e) est exact, le ratt |
+| Article 93, 2e phrase | Défaut d’annexes à la déclaration de l’impôt professionnel sur les rémunérations « afférente au dern | RÉFUTÉ sur l'angle 1 (la BASE de l'amende n'est pas celle que le constat lui donne) et sur l'angle 2 (renvoi de phrase et d'obligation faux), chacun suffisant. Le constat cite les trois montants EXACT |
+| Article 93 bis, alinéa 2 | « Le défaut de souscription ou la souscription de manière incomplète ou inexacte, dans le délai impa | REFUTE sur l'angle 3 (le point d'ancrage que le constat invoque n'existe pas) et sur la faussete de sa preuve avancee. Le texte lui-meme est bien lu : l'art. 93 bis, al. 2 porte exactement « Le défaut |
+| Art. 97, al. 1er (modifié par l'O.-L. n° 13/005 du 23 février 2013) | Ne pas communiquer de faux renseignements en réponse à une demande de renseignements de l'Administra | CONSTAT RÉFUTÉ, sur l'angle 3 et sur l'angle 4, chacun dirimant à lui seul, avec l'appui de l'angle 5. Je concède d'abord l'angle 1 et l'angle 2 : ils ne donnent rien. CE QUI TIENT, ET QUE JE NE CHERC |
+| Art. 97 ter, al. 1er (créé par la L.F. n° 22/071 du 28 décembre 2022, modifié par la L.F.  | Ne pas s'opposer à l'exercice du droit d'enquête de l'Administration · amende de 1.000.000,00 FC, po | CONSTAT REFUTE. Son FAIT MATERIEL est exact et je l'ai verifie autrement que lui (cf. contre-preuve) : rien dans le depot ne sert l'art. 97 ter. Sa citation de l'al. 1er est VERBATIM et son renvoi de  |
+| Art. 97 quater, al. 1er (inséré par la L.F. n° 23/056 du 10 décembre 2023, art. 31) | Répondre à l'obligation de communication prévue à l'article 49 de la loi de procédures fiscales · as | RÉFUTÉ sur l'angle 3 puis sur l'angle 4, chacun suffisant à lui seul. (1) LE FAIT GÉNÉRATEUR EST VÉRIFIABLE, ET LE CONSTAT A ARRÊTÉ SA LECTURE UN FICHIER TROP TÔT. Le constat fonde toute sa réserve di |
+| Art. 99, al. 1er (modifié par l'O.-L. n° 13/005 du 23 février 2013) | Principe d'accessoire : les pénalités sont établies et recouvrées selon les mêmes modalités et sous  | CONSTAT RÉFUTÉ, sur l'angle 4 (dirimant) et sur la fausseté démontrée de sa seule plus-value annoncée. Le fait matériel (aucune occurrence de l'art. 99 LPF dans src/ ni client/src/) est vrai · je l'ai |
+| Art. 99, al. 2 | Payer les droits dans le délai de l'article 60 · les pénalités de recouvrement sont CALCULÉES LORS D | CONSTAT RÉFUTÉ sur trois motifs, dont deux dirimants pris isolément, et avec une preuve avancée matériellement fausse. (1) ANGLE 2 + ANGLE 1, DIRIMANT · L'ARTICLE 60 N'EST PAS ABSENT DU CORPUS, ET SON |
+| Article 101, point 2) · récidive | « 2) En cas de récidive, une amende égale au double du montant de l'impôt éludé ou non payé dans le  | CONSTAT RÉFUTÉ, et sur le point même que le confronteur présentait comme son noyau dur incompressible. Ce que je concède d'abord, pour que la réfutation porte là où elle porte. ANGLE 1 : le chiffre es |
+| Article 102, alinéa introductif | « Les infractions fiscales visées à l'article précédent sont les suivantes » (l. 367 à 369, article  | CONSTAT RÉFUTÉ, principalement sur l'angle 4, avec un défaut propre sur l'angle 1 et une couverture partielle déjà servie sur l'angle 3. ANGLE 2 · RIEN CONTRE, ET IL FAUT LE DIRE. L'ancrage est exact. |
+| Article 102, tiret 1 · omission volontaire de déclaration d'impôt | « - l'omission volontaire de déclaration d'impôt » (l. 370). Fait générateur de l'amende pénale de l | CONSTAT RÉFUTÉ, et d'abord sur sa PREUVE, qui est démontrablement fausse · ce qui suffit seul, puisque c'est elle qui fabrique tout le grief. 1) DIRIMANT · « LE FAIT EST DÉJÀ DÉTECTÉ ET AFFICHÉ » EST  |
+| Article 102, tiret 2 · dissimulation volontaire des sommes sujettes à l'impôt | « - la dissimulation volontaire des sommes sujettes à l'impôt » (l. 371). Fait générateur de l'amend | CONSTAT RÉFUTÉ sur les angles 1, 2 et 4, chacun suffisant, et sa preuve porte en outre un renvoi de ligne faux. (1) ANGLE 2 · LE TIRET N'EST PAS CELUI-LÀ POUR AU MOINS UN DES TROIS CONTRÔLES, ET LE DÉ |
+| Article 103, alinéa 1 · autorité de poursuite | « Les poursuites en application des dispositions des articles 101 et 102 ci-dessus sont exercées par | RÉFUTÉ, sur l'angle 4 (dirimant) et l'angle 3, la preuve centrale étant en outre structurellement vide. 1) ANGLE 4 · L'ART. 103 NE PORTE AUCUNE OBLIGATION QUE LE LOGICIEL PUISSE SERVIR. Lu à l'instant |
+| Article 103, alinéa 2 · charge de la preuve | « Pour tous cas d'intention frauduleuse, la charge de la preuve incombe à l'Agent visé à l'alinéa pr | CONSTAT RÉFUTÉ sur les angles 1, 2 et 4, chacun dirimant pris isolément. Ce que je concède d'abord, parce que tout est exact : la citation est verbatim, les renvois de lignes sont justes (l. 393 à 395 |
+
+### Ce que cette passe apprend sur la méthode
+
+- **Vérifier ce que le dépôt AFFIRME rapporte plus que chercher ce qui manque**,
+  sur un texte déjà partiellement codé. Les cinq FAUX portent tous sur des
+  chiffres ou des dates déjà à l'écran, et aucun n'aurait été trouvé par une
+  consigne qui aurait seulement demandé « où cette obligation vit-elle ».
+- **Un défaut vu par trois confronteurs indépendants est un défaut réel.** Les
+  trois constats sur l'art. 97 bis venaient de trois blocs différents, avec
+  trois raisonnements différents, et convergeaient sur la même phrase.
+- **La date d'un texte est un argument.** Ce qui a emporté la conviction sur
+  l'art. 97 bis n'est pas une lecture fine mais une soustraction : créé en 2013,
+  il ne peut pas viser un décret de 2023.
+- **Le taux de réfutation de 37 % confirme la ligne des textes vierges** ·
+  39 % à F4a, 41 % à F4b, 37 % ici, contre 79 à 85 % sur un texte adressé à
+  l'Administration ou déjà balayé par les passes précédentes.

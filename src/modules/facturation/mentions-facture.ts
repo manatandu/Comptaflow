@@ -561,8 +561,13 @@ export const MENTION_AUTORISATION_DEBITS = {
     "l'article 96 en fait naître le droit à déduction du CLIENT. Sans la mention, le client ne peut pas savoir " +
     "qu'il déduit dès la facture.",
   reserveSanction:
-    "Le décret n° 011/42 n'énonce aucune sanction pour cette omission, et l'amende de l'article 97 bis de la loi " +
-    'de procédures fiscales vise les mentions du décret n° 23/10 · elle n\u2019est pas étendue ici.',
+    "Le décret n° 011/42 n'énonce lui-même aucune sanction pour cette omission. OmegaX NE CHIFFRE AUCUNE AMENDE " +
+    "ici, et ce silence n'est pas une dispense : l'article 97 bis de la loi de procédures fiscales frappe « TOUTE " +
+    "omission d'une mention obligatoire constatée dans une facture ou un document en tenant lieu », sans désigner " +
+    'le texte qui pose la mention, et la mention de l\u2019article 60 en est une · le décret écrit qu\u2019elle ' +
+    '« DOIT figurer sur toutes les factures délivrées » par le prestataire autorisé. Le point n\u2019est pas ' +
+    "tranché par les sources lues et appartient à l'appréciation de l'Administration : le chiffrer serait " +
+    "l'inventer, le nier serait rassurer à tort.",
 } as const;
 
 export interface VerificationMentions {
@@ -611,9 +616,28 @@ export function verifierMentions(
     figurer sur toutes les factures délivrées par le prestataire de services ou
     l'entrepreneur de travaux publics ou de travaux immobiliers. »
 
-    Elle est donc comptée À PART des mentions de l'art. 26, et l'amende de
-    l'art. 97 bis ne lui est PAS étendue : ce barème vise les mentions du
-    décret n° 23/10, et le décret n° 011/42 n'énonce lui-même aucune sanction.
+    Elle est donc comptée À PART des mentions de l'art. 26, et OmegaX NE
+    CHIFFRE AUCUNE AMENDE sur son omission.
+
+    MAIS CE SILENCE N'EST PAS UNE DISPENSE, ET LA PHRASE D'AVANT L'ÉTAIT.
+    Jusqu'à la passe F9, ce commentaire et l'écran affirmaient que « ce barème
+    vise les mentions du décret n° 23/10 ». Le texte ne dit rien de tel :
+    l'art. 97 bis frappe « TOUTE omission d'une mention obligatoire constatée
+    dans une facture ou un document en tenant lieu », sans désigner de texte.
+    Et sa date le démontre à elle seule · il est CRÉÉ PAR L'O.-L. N° 13/005 DU
+    23 FÉVRIER 2013, dix ans avant le décret n° 23/10 du 3 mars 2023 : un
+    barème de 2013 ne peut pas avoir été écrit pour les mentions d'un décret de
+    2023, et les seules mentions obligatoires en vigueur à sa création étaient
+    justement celles du décret n° 011/42 de 2011.
+
+    LE FICHIER SE CONTREDISAIT D'AILLEURS TRENTE LIGNES PLUS LOIN, puisqu'il
+    attache bien l'art. 97 bis aux neuf groupes de l'art. 100 du décret
+    n° 011/42 pour toute pièce antérieure à 2023. C'était donc une LACUNE
+    DÉCLARÉE À TORT, et elle jouait dans le sens qui rassure.
+
+    CE QUI N'EST PAS TRANCHÉ, ET QUI RESTE ÉCRIT COMME TEL · dire que l'amende
+    EST due supposerait de qualifier l'omission, ce qui appartient à
+    l'Administration. Le module nomme donc l'exposition sans la chiffrer.
     Ce qui est en jeu n'en est pas moins lourd · l'art. 61 fait de l'inscription
     au débit du compte du client l'exigibilité de la taxe, et l'art. 96 fait
     naître de cette exigibilité le droit à déduction du CLIENT. Sans la
