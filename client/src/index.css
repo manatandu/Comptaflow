@@ -599,6 +599,46 @@ tbody tr {
 .anim-voile {
   animation: voile-in 0.18s var(--t-doux) both;
 }
+/*
+ * UNE MODALE BORNÉE, MÊME QUAND `dvh` N'EXISTE PAS.
+ *
+ * La borne de hauteur des modales était écrite `max-h-[calc(100dvh-2rem)]`,
+ * en une seule déclaration. L'unité `dvh` n'existe qu'à partir de Chrome 108
+ * et de Safari 15.4 : sur un navigateur plus ancien, ou une vue web Android
+ * figée, la déclaration entière est INVALIDE et le navigateur la jette.
+ * Silencieusement. La modale n'a alors plus AUCUNE borne, et `items-center`
+ * la fait déborder des deux côtés à parts égales · dont le haut, d'où rien ne
+ * la ramène.
+ *
+ * Deux déclarations dans la même règle : la seconde écrase la première là où
+ * `dvh` est compris, et là où il ne l'est pas la première tient. C'est le seul
+ * moyen d'avoir une borne dans les deux cas, et une classe utilitaire isolée
+ * ne peut pas l'exprimer.
+ */
+.modale-bornee {
+  max-height: calc(100vh - 2rem);
+  max-height: calc(100dvh - 2rem);
+}
+
+/*
+ * LE CENTRAGE SÛR · au-dessus du pli, jamais au-dessus du bord.
+ *
+ * `align-items: center` sur un enfant plus haut que son conteneur le fait
+ * déborder EN HAUT autant qu'en bas, et le haut est irrécupérable : aucune
+ * barre de défilement ne remonte au-dessus du bord supérieur. Le voile défile,
+ * l'enfant se centre par `margin: auto` · une marge automatique ne devient
+ * jamais négative, donc l'enfant trop haut se pose en haut et le voile se
+ * défile, au lieu de sortir de l'écran.
+ */
+.voile-centre-sur {
+  align-items: flex-start;
+  overflow-y: auto;
+}
+.voile-centre-sur > * {
+  margin-top: auto;
+  margin-bottom: auto;
+}
+
 .anim-modale {
   animation: modale-in 0.24s var(--t-sortie) both;
 }

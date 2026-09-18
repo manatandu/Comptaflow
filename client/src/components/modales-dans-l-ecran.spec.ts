@@ -85,6 +85,57 @@ describe('Toute modale reste dans l’écran', () => {
     expect(portail).toContain('createPortal(children, document.body)');
   });
 
+  it('LA BORNE A DEUX DÉTENTES · `dvh` seul disparaît en silence sur un vieux navigateur', () => {
+    /*
+      TROISIÈME CAUSE, RELEVÉE PAR MANASSE APRÈS LES DEUX PREMIÈRES.
+
+      La borne de hauteur s'écrivait `max-h-[calc(100dvh-2rem)]`, en une seule
+      déclaration. L'unité `dvh` n'existe qu'à partir de Chrome 108 et de
+      Safari 15.4 : ailleurs, la déclaration entière est INVALIDE, le
+      navigateur la jette sans rien dire, et la modale se retrouve sans aucune
+      borne · exactement la cause n° 2 ci-dessus, revenue par la porte de
+      derrière.
+
+      `.modale-bornee` pose les deux, `vh` puis `dvh`, dans la MÊME règle CSS :
+      la seconde écrase la première là où elle est comprise, la première tient
+      là où la seconde ne l'est pas. Deux classes utilitaires séparées ne
+      peuvent pas l'exprimer · l'ordre de la feuille engendrée ne suit pas
+      l'ordre des classes écrites.
+    */
+    const css = readFileSync(join(RACINE, 'index.css'), 'utf8');
+    const regle = css.slice(css.indexOf('.modale-bornee'), css.indexOf('.modale-bornee') + 200);
+    expect(regle).toContain('max-height: calc(100vh - 2rem)');
+    expect(regle).toContain('max-height: calc(100dvh - 2rem)');
+    // L'ordre compte · le repli d'abord, l'unité moderne ensuite.
+    expect(regle.indexOf('100vh')).toBeLessThan(regle.indexOf('100dvh'));
+  });
+
+  it('LE CENTRAGE EST SÛR · une marge automatique ne devient jamais négative', () => {
+    // `align-items: center` fait déborder un enfant trop haut des deux côtés.
+    // Le voile défile et l'enfant se centre par `margin: auto` : trop haut, il
+    // se pose en haut et le voile se défile, au lieu de sortir de l'écran.
+    const css = readFileSync(join(RACINE, 'index.css'), 'utf8');
+    const regle = css.slice(css.indexOf('.voile-centre-sur'), css.indexOf('.voile-centre-sur') + 220);
+    expect(regle).toContain('align-items: flex-start');
+    expect(regle).toContain('overflow-y: auto');
+    expect(regle).toContain('margin-top: auto');
+    expect(regle).toContain('margin-bottom: auto');
+  });
+
+  it('la calculette porte les trois gardes, et ne se met pas au point en faisant défiler', () => {
+    const calculette = readFileSync(join(__dirname, 'Calculette.tsx'), 'utf8');
+    expect(calculette).toContain('voile-centre-sur');
+    expect(calculette).toContain('modale-bornee');
+    // Le clavier d'un téléphone s'ouvre à la mise au point, et le navigateur
+    // fait alors défiler la page pour amener le champ dans la fenêtre visible
+    // · une modale `fixed` s'en trouve décalée vers le haut.
+    expect(calculette).toContain('focus({ preventScroll: true })');
+    // Et le voile n'utilise plus le centrage par `items-center`, qui est la
+    // cause que les deux gardes précédentes réparent.
+    const voile = calculette.slice(calculette.indexOf('fixed inset-0'), calculette.indexOf('fixed inset-0') + 160);
+    expect(voile).not.toContain('items-center');
+  });
+
   it('tout voile appelé depuis une barre du chrome passe par le portail', () => {
     // Les barres floutées du chrome · celles qui créent un bloc conteneur.
     // Toute modale rendue DEPUIS l'une d'elles doit être portée, faute de quoi

@@ -37,12 +37,48 @@ export interface LigneInseree {
  */
 
 import { MODELES_SIMPLES_SYCEBNL, MODELES_SIMPLES_SYSCOHADA, type ModeleSimple } from '../lib/modeles-saisie';
+import { ordonnerLignes } from '../lib/ordre-ecriture';
 import { construireLigneTva, montantTva } from '../lib/tva-saisie';
 
-type ModeleTva = { code: 'vente_tva' | 'achat_tva'; libelle: string; sens: 'recette' | 'depense' };
+/*
+  UNE FACTURE AVEC TVA PASSE PAR UN TIERS, ELLE AUSSI. Ces deux modèles
+  soldaient leur écriture sur un compte de trésorerie choisi à l'écran : un
+  achat avec TVA créditait la banque du TTC, et le fournisseur n'apparaissait
+  nulle part. Le Guide d'application ne présente aucune facture ainsi
+  (Partie 1 ch. 2, Applications 1 et 2), et sa recommandation est expresse :
+  « contrepartie systématique = 401 pour les achats de biens/services ».
+
+  Chaque modèle porte donc la RACINE de son tiers · l'écran propose les comptes
+  ouverts sous cette racine dans le plan du dossier, et le premier d'entre eux
+  par défaut.
+*/
+type ModeleTva = {
+  code: 'vente_tva' | 'achat_tva';
+  libelle: string;
+  sens: 'recette' | 'depense';
+  /** 411 pour un client, 401 pour un fournisseur. */
+  racineTiers: string;
+  suite: string;
+};
 const MODELES_TVA: ModeleTva[] = [
-  { code: 'vente_tva', libelle: 'Vente avec TVA', sens: 'recette' },
-  { code: 'achat_tva', libelle: 'Achat avec TVA', sens: 'depense' },
+  {
+    code: 'vente_tva',
+    libelle: 'Vente avec TVA (facture)',
+    sens: 'recette',
+    racineTiers: '411',
+    suite:
+      "La facture crée la CRÉANCE sur le client, TTC. L'encaissement est une seconde écriture, trésorerie au " +
+      'débit par le crédit du 411.',
+  },
+  {
+    code: 'achat_tva',
+    libelle: 'Achat avec TVA (facture)',
+    sens: 'depense',
+    racineTiers: '401',
+    suite:
+      "La facture crée la DETTE envers le fournisseur, TTC. Le règlement est une seconde écriture, 401 au débit " +
+      'par le crédit de la trésorerie.',
+  },
 ];
 
 function arrondi2(n: number): number {
@@ -75,6 +111,9 @@ export function ModelesSaisieModale({
   const [montant, setMontant] = useState('');
   const [compteTresorerieId, setCompteTresorerieId] = useState('');
   const [compteContrepartieTvaId, setCompteContrepartieTvaId] = useState('');
+  // Le compte de tiers effectivement choisi · vide tant que l'écran n'a rien
+  // proposé, auquel cas le numéro par défaut du modèle s'applique.
+  const [compteTiersId, setCompteTiersId] = useState('');
   const [tauxTvaId, setTauxTvaId] = useState('');
 
   // Paramètres + choix de comptes des écritures-types SYCEBNL
@@ -182,44 +221,52 @@ export function ModelesSaisieModale({
     );
   };
 
+  /**
+   * UN MODÈLE SIMPLE N'EST PLUS DEUX LIGNES CÂBLÉES · il déroule les lignes
+   * que le modèle déclare, chacune avec son rôle. La trésorerie n'apparaît
+   * plus que là où le modèle en pose une, c'est-à-dire dans les règlements et
+   * dans le don manuel.
+   */
   const insererSimple = (m: ModeleSimple) => {
     const montantN = Number(montant);
     if (!(montantN > 0)) {
       setErreur('Saisissez le montant.');
       return;
     }
-    const tresorerie = comptes.find((c) => c.id === compteTresorerieId);
-    const contrepartie = comptes.find((c) => c.numero === m.numeroContrepartie);
-    if (!tresorerie) {
-      setErreur('Choisissez le compte de trésorerie.');
-      return;
+    const lignes: LigneInseree[] = [];
+    for (const l of m.lignes) {
+      let compte: Compte | undefined;
+      if (l.role === 'TRESORERIE') {
+        compte = comptes.find((c) => c.id === compteTresorerieId);
+        if (!compte) {
+          setErreur('Choisissez le compte de trésorerie.');
+          return;
+        }
+      } else if (l.role === 'TIERS') {
+        // Le modèle PROPOSE un numéro, l'écran laisse en choisir un autre sous
+        // la même racine · un dossier tient rarement un seul fournisseur.
+        compte = comptes.find((c) => c.id === compteTiersId) ?? comptes.find((c) => c.numero === l.numero);
+        if (!compte) {
+          setErreur(`Compte de tiers ${l.numero} introuvable dans le plan comptable.`);
+          return;
+        }
+      } else {
+        compte = comptes.find((c) => c.numero === l.numero);
+        if (!compte) {
+          setErreur(`Compte ${l.numero} introuvable dans le plan comptable.`);
+          return;
+        }
+      }
+      lignes.push({
+        compteId: compte.id,
+        numero: compte.numero,
+        intitule: compte.intitule,
+        libelle: m.libelle,
+        debit: l.sens === 'DEBIT' ? montantN : 0,
+        credit: l.sens === 'CREDIT' ? montantN : 0,
+      });
     }
-    if (!contrepartie) {
-      setErreur(`Compte ${m.numeroContrepartie} introuvable dans le plan comptable.`);
-      return;
-    }
-    const recette = m.sens === 'recette';
-    onInserer(
-      [
-        {
-          compteId: tresorerie.id,
-          numero: tresorerie.numero,
-          intitule: tresorerie.intitule,
-          libelle: m.libelle,
-          debit: recette ? montantN : 0,
-          credit: recette ? 0 : montantN,
-        },
-        {
-          compteId: contrepartie.id,
-          numero: contrepartie.numero,
-          intitule: contrepartie.intitule,
-          libelle: m.libelle,
-          debit: recette ? 0 : montantN,
-          credit: recette ? montantN : 0,
-        },
-      ],
-      m.libelle,
-    );
+    onInserer(ordonnerLignes(lignes), m.libelle);
   };
 
   const insererTva = (m: ModeleTva) => {
@@ -228,11 +275,16 @@ export function ModelesSaisieModale({
       setErreur('Saisissez le montant HT.');
       return;
     }
-    const tresorerie = comptes.find((c) => c.id === compteTresorerieId);
+    // LE TIERS, PAS LA TRÉSORERIE · une facture avec TVA crée une dette ou une
+    // créance. Le guide met « 401 Fournisseurs » au crédit d'un achat
+    // (Partie 1 ch. 2 § 1.1) et « 4111 Client » au débit d'une vente
+    // (Application 2), la trésorerie n'y figurant ni dans un cas ni dans
+    // l'autre. Le règlement est une écriture distincte.
+    const tiers = comptes.find((c) => c.id === compteTiersId) ?? comptes.find((c) => c.numero === numeroTiersDefaut);
     const contrepartie = comptes.find((c) => c.id === compteContrepartieTvaId);
     const taux = tauxTvaListe.find((t) => t.id === tauxTvaId);
-    if (!tresorerie || !contrepartie || !taux) {
-      setErreur('Choisissez le compte de contrepartie, le taux et le compte de trésorerie.');
+    if (!tiers || !contrepartie || !taux) {
+      setErreur('Choisissez le compte de tiers, le compte de contrepartie et le taux.');
       return;
     }
     const recette = m.sens === 'recette';
@@ -261,9 +313,9 @@ export function ModelesSaisieModale({
     const ttc = arrondi2(ht + tva);
     const lignes: LigneInseree[] = [
       {
-        compteId: tresorerie.id,
-        numero: tresorerie.numero,
-        intitule: tresorerie.intitule,
+        compteId: tiers.id,
+        numero: tiers.numero,
+        intitule: tiers.intitule,
         libelle: m.libelle,
         debit: recette ? ttc : 0,
         credit: recette ? 0 : ttc,
@@ -303,8 +355,42 @@ export function ModelesSaisieModale({
       taxe nulle faute de base, qui ne qualifie rien.
     */
     if (resultat.ligne) lignes.push(resultat.ligne);
-    onInserer(lignes, m.libelle);
+    // L'ORDRE DE LECTURE · débits puis crédits, la TVA après le compte de
+    // nature. Sans ce tri, un achat sortait tiers d'abord, puis charge, puis
+    // taxe · l'inverse de l'Application 1 du guide.
+    onInserer(ordonnerLignes(lignes), m.libelle);
   };
+
+  /*
+    CE QUE LE MODÈLE CHOISI RÉCLAME À L'ÉCRAN · un tiers, une trésorerie, ou
+    les deux. Poser la question de la trésorerie sur une facture d'achat était
+    la trace visible du défaut : l'écran demandait une banque pour une écriture
+    où aucune banque ne joue.
+  */
+  const ligneTiers =
+    selection?.genre === 'simple' ? selection.modele.lignes.find((l) => l.role === 'TIERS') : undefined;
+  const racineTiers =
+    selection?.genre === 'tva'
+      ? selection.modele.racineTiers
+      : ligneTiers?.numero
+        ? ligneTiers.numero.replace(/0+$/, '').slice(0, 3)
+        : null;
+  const numeroTiersDefaut = selection?.genre === 'simple' ? (ligneTiers?.numero ?? null) : null;
+  const comptesTiers = useMemo(
+    () => (racineTiers ? comptes.filter((c) => c.numero.startsWith(racineTiers)) : []),
+    [comptes, racineTiers],
+  );
+  const utiliseTresorerie =
+    selection?.genre === 'simple' && selection.modele.lignes.some((l) => l.role === 'TRESORERIE');
+
+  // Le premier compte ouvert sous la racine, dès qu'un modèle à tiers est
+  // choisi · on ne laisse pas un sélecteur vide bloquer l'insertion.
+  useEffect(() => {
+    if (comptesTiers.length > 0 && !comptesTiers.some((c) => c.id === compteTiersId)) {
+      setCompteTiersId(comptesTiers[0].id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [comptesTiers]);
 
   const tauxDisponibles =
     selection?.genre === 'tva'
@@ -407,7 +493,13 @@ export function ModelesSaisieModale({
 
             {selection && (selection.genre === 'simple' || selection.genre === 'tva') && (
               <div className="max-w-[440px]">
-                <h3 className="text-[12px] font-bold mb-3">{selection.modele.libelle}</h3>
+                <h3 className="text-[12px] font-bold mb-0.5">{selection.modele.libelle}</h3>
+                {selection.genre === 'simple' && (
+                  <p className="text-[10.5px] text-text-dim mb-3">
+                    Se saisit au journal des {selection.modele.journal.toLowerCase()}.
+                  </p>
+                )}
+                {selection.genre === 'tva' && <p className="text-[10.5px] text-text-dim mb-3">Facture.</p>}
                 <div className="grid grid-cols-[150px_1fr] items-center gap-x-3 gap-y-2.5">
                   <label className="text-[11px] text-right">
                     {selection.genre === 'tva' ? 'Montant HT :' : 'Montant :'}
@@ -454,19 +546,67 @@ export function ModelesSaisieModale({
                     </>
                   )}
 
-                  <label className="text-[11px] text-right">Compte de trésorerie :</label>
-                  <select
-                    value={compteTresorerieId}
-                    onChange={(e) => setCompteTresorerieId(e.target.value)}
-                    className="border border-border-dark px-2 py-1 text-[11px]"
-                  >
-                    {comptesTresorerie.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.numero} · {c.intitule}
-                      </option>
-                    ))}
-                  </select>
+                  {comptesTiers.length > 0 && (
+                    <>
+                      <label className="text-[11px] text-right">
+                        {racineTiers === '401'
+                          ? 'Fournisseur :'
+                          : racineTiers === '411'
+                            ? 'Client ou adhérent :'
+                            : racineTiers === '422'
+                              ? 'Compte de personnel :'
+                              : 'Compte de tiers :'}
+                      </label>
+                      <select
+                        value={compteTiersId}
+                        onChange={(e) => setCompteTiersId(e.target.value)}
+                        className="border border-border-dark px-2 py-1 text-[11px]"
+                      >
+                        {comptesTiers.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.numero} · {c.intitule}
+                          </option>
+                        ))}
+                      </select>
+                    </>
+                  )}
+
+                  {racineTiers && comptesTiers.length === 0 && (
+                    <div className="col-span-2 border border-danger/50 bg-danger/5 px-2.5 py-2 text-[10.5px] leading-[1.5]">
+                      Aucun compte n'est ouvert sous la racine {racineTiers} dans le plan de ce dossier. Cette
+                      opération passe OBLIGATOIREMENT par un compte de tiers · ouvrez-le au plan comptable avant
+                      d'employer ce modèle.
+                    </div>
+                  )}
+
+                  {utiliseTresorerie && (
+                    <>
+                      <label className="text-[11px] text-right">Compte de trésorerie :</label>
+                      <select
+                        value={compteTresorerieId}
+                        onChange={(e) => setCompteTresorerieId(e.target.value)}
+                        className="border border-border-dark px-2 py-1 text-[11px]"
+                      >
+                        {comptesTresorerie.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.numero} · {c.intitule}
+                          </option>
+                        ))}
+                      </select>
+                    </>
+                  )}
                 </div>
+
+                {/*
+                  CE QUE LE MODÈLE NE FAIT PAS, DIT AVANT L'INSERTION. Une
+                  facture n'est que la première moitié de l'opération, et le
+                  logiciel ne devine pas la seconde · il la nomme.
+                */}
+                {selection.modele.suite && (
+                  <div className="mt-3 border border-border bg-surface-alt px-2.5 py-2 text-[10.5px] leading-[1.55]">
+                    {selection.modele.suite}
+                  </div>
+                )}
 
                 <button
                   type="button"

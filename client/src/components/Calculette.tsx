@@ -47,7 +47,12 @@ export function Calculette({
   const resultat = evaluerExpression(expression);
 
   useEffect(() => {
-    champ.current?.focus();
+    // `preventScroll` · sans lui, la mise au point ouvre le clavier d'un
+    // téléphone, le navigateur fait défiler la page pour amener le champ dans
+    // la fenêtre visible, et une modale `fixed` se retrouve décalée vers le
+    // haut. Le champ est déjà au centre de l'écran : il n'y a rien à faire
+    // défiler pour l'atteindre.
+    champ.current?.focus({ preventScroll: true });
     const surTouche = (e: KeyboardEvent) => e.key === 'Escape' && onFermer();
     document.addEventListener('keydown', surTouche);
     return () => document.removeEventListener('keydown', surTouche);
@@ -58,11 +63,27 @@ export function Calculette({
     // appelée depuis la barre de menus, dont le `backdrop-blur` faisait un
     // bloc conteneur pour `position: fixed`. Sans lui, elle se centre sur une
     // barre de 26 px et son sommet passe hors de l'écran. Voir PortailModale.
+    //
+    // LE PORTAIL NE SUFFISAIT PAS, ET IL RESTAIT TROIS FAÇONS DE SORTIR PAR LE
+    // HAUT, toutes corrigées ici.
+    //  1. `max-h-[calc(100dvh-2rem)]` était la SEULE borne de hauteur. `dvh`
+    //     n'existe pas avant Chrome 108 ni Safari 15.4 : la déclaration y est
+    //     invalide, jetée sans bruit, et la modale n'a plus de borne du tout.
+    //     `modale-bornee` en pose deux, `vh` puis `dvh`, dans la même règle.
+    //  2. `items-center` fait déborder un enfant trop haut des DEUX côtés à
+    //     parts égales. `voile-centre-sur` le remplace par un voile défilant
+    //     et un centrage par marges automatiques, qui ne deviennent jamais
+    //     négatives.
+    //  3. La mise au point du champ ouvrait le clavier d'un téléphone et
+    //     faisait défiler la page sous la modale · `preventScroll` plus bas.
     <PortailModale>
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4 anim-voile" onClick={onFermer}>
+    <div
+      className="fixed inset-0 z-50 bg-black/40 flex justify-center p-4 anim-voile voile-centre-sur"
+      onClick={onFermer}
+    >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-[280px] bg-surface border border-border rounded-[10px] overflow-hidden shadow-flottante anim-modale max-h-[calc(100dvh-2rem)] overflow-y-auto"
+        className="w-[280px] bg-surface border border-border rounded-[10px] overflow-hidden shadow-flottante anim-modale modale-bornee max-h-[calc(100dvh-2rem)] overflow-y-auto"
       >
         <div
           className="h-[30px] flex items-center justify-between px-3 text-white text-[11px]"

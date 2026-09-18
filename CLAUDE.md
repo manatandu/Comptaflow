@@ -3002,6 +3002,86 @@ empreinte, et la réécrire ferait diverger la base · elle est de l'HISTOIRE, p
 une source. Le module le dit en clair, pour que personne ne « finisse » la
 correction. Même traitement que la migration des cadratins.
 
+**Modèles de saisie · un achat ne se règle pas par la trésorerie dans la même
+écriture.** Signalé par Manasse le 2026-09-18, et c'est une faute de fond, pas
+de présentation. Les quatre modèles de chaque référentiel tenaient en DEUX
+lignes, un compte de nature contre un compte de trésorerie choisi à l'écran :
+un achat débitait la charge et créditait directement la banque. La dette envers
+le fournisseur n'existait jamais, le compte 401 restait vide, et aucune balance
+âgée, aucun échéancier, aucun lettrage ne pouvait dire à qui l'entité devait
+quoi. Le même défaut frappait la vente (pas de créance client), le salaire (pas
+de 422) et les deux modèles avec TVA.
+
+LE GUIDE NE LAISSE AUCUNE LATITUDE · Partie 1 ch. 2 § 1.1 : « Recommandation
+SYSCOHADA (flux de trésorerie) : contrepartie systématique = 401 pour les
+achats de biens/services (hors immobilisations) ; 481 ou 404 pour les
+immobilisations. » Le SYCEBNL écrit la même chose au fonctionnement de son
+compte 40, en deux temps explicitement séparés · le compte est crédité des
+FACTURES par le débit de la classe 6 et du 445, puis débité des RÈGLEMENTS par
+le crédit de la trésorerie. Deux écritures, deux journaux. Même règle à la
+vente (Application 2 : 4111 au débit) et à la paie (ch. 3 § 4.1 : « Montant
+brut au crédit 422 Personnel, rémunérations dues, par débit 661-663 »).
+
+LES SEULES ÉCRITURES QUI TOUCHENT LA TRÉSORERIE SONT CELLES QUI N'ONT PAS DE
+TIERS · le don manuel en numéraire, qui n'a pas de débiteur (SYCEBNL Partie 3
+ch. 4 § 3 · une générosité PROMISE passe, elle, par le 475), et les règlements,
+qui sont la seconde moitié d'une opération déjà comptabilisée. La liste est
+FERMÉE et nommée dans le spec : ajouter un modèle qui touche la trésorerie
+oblige à venir dire ici pourquoi.
+
+ET LE DÉPÔT DÉNONÇAIT DÉJÀ CE QU'IL FABRIQUAIT · le contrôle
+CHARGE_SANS_TIERS signale exactement l'écriture que ces modèles proposaient.
+Seizième occurrence du piège de la doublure, dans sa forme la plus gênante :
+la règle était codée, et l'écran qui propose l'écriture ne la connaissait pas.
+
+**Ordre des lignes d'une écriture proposée · les débits, puis les crédits.**
+Même signalement, même jour. Les lignes sortaient dans l'ordre où le code les
+tapait : pour un achat, la trésorerie au CRÉDIT arrivait en première ligne,
+suivie de la charge au débit, puis de la TVA. Aucun manuel ne présente une
+écriture ainsi, et le Guide d'application moins que tout autre · il présente
+CHAQUE écriture en tableau à cinq colonnes, débits remplis avant crédits.
+
+L'ORDRE INTERNE À CHAQUE COLONNE VIENT DE DEUX ÉCRITURES DU TEXTE, pas d'une
+préférence. Application 1 · au débit 2443, puis les 601 et 605, PUIS 4451 et
+4452 ; au crédit 4812 et 4011. Application 2 · au débit 4111 ; au crédit 7011,
+7021, 7071, PUIS 4431. **La TVA vient après les comptes de nature, jamais
+avant**, alors qu'un tri numérique nu la placerait en tête. L'escompte, lui,
+est l'accessoire du règlement (compte 40 débité « des escomptes de règlement
+obtenus ; par le crédit du compte 773 ») et se lit après le tiers qu'il solde.
+
+`client/src/lib/ordre-ecriture.ts` porte la règle une fois · sens, puis rang
+(nature, taxe, escompte), puis numéro croissant, tri STABLE. Deux abstentions
+volontaires. La racine « 44 » entière n'est PAS traitée comme un accessoire ·
+elle emporterait le 441 impôt sur le résultat et le 447 impôts retenus à la
+source, qui ne sont les accessoires d'aucune facture. Et une ligne à deux zéros
+reste au débit · un modèle vierge, que le comptable chiffre ensuite, ne doit
+pas s'inverser à moitié.
+
+CE QUI N'EST PAS TRIÉ, ET POURQUOI · les écritures-types SYCEBNL servies par
+`/operations-specifiques` sont transcrites du Guide d'application DANS SON
+ORDRE, et un tri générique les dégraderait ; les modèles de saisie propres au
+dossier portent un champ `ordre` qui est le choix du cabinet. On ordonne ce
+qu'OmegaX propose de son propre chef, rien d'autre.
+
+**Modale coupée en haut, troisième cause · `dvh` seul disparaît en silence.**
+Les deux premières causes sont plus haut (bloc conteneur, hauteur non bornée).
+La troisième est que la borne s'écrivait `max-h-[calc(100dvh-2rem)]`, en une
+SEULE déclaration : l'unité `dvh` n'existe qu'à partir de Chrome 108 et de
+Safari 15.4, et ailleurs la déclaration entière est invalide, jetée sans bruit.
+La modale se retrouve alors sans aucune borne, c'est-à-dire exactement dans la
+deuxième cause, revenue par la porte de derrière. `.modale-bornee` pose `vh`
+PUIS `dvh` dans la même règle CSS · deux classes utilitaires séparées ne
+peuvent pas l'exprimer, l'ordre de la feuille engendrée ne suivant pas l'ordre
+des classes écrites.
+
+Deux gardes de plus sur la calculette. `.voile-centre-sur` remplace
+`items-center` par un voile défilant et un centrage par marges automatiques ·
+une marge automatique ne devient jamais négative, donc un contenu trop haut se
+pose en haut au lieu de sortir par le haut. Et la mise au point du champ passe
+`preventScroll: true` · sans lui, le clavier d'un téléphone s'ouvre, le
+navigateur fait défiler la page pour amener le champ dans la fenêtre visible,
+et une modale `fixed` s'en trouve décalée.
+
 ## 7. Conventions du plan de comptes semé
 
 Valables pour les deux référentiels (`compte-seed.ts`,
