@@ -1378,6 +1378,7 @@ export interface ParametresDossier {
    * (SYCEBNL, art. 19) et tranche de cotisation INPP.
    */
   effectifPermanent: number;
+  numeroAffiliationCnssEmployeur: string | null;
   /**
    * Fait générateur des cotisations et du droit d'entrée · cadre conceptuel
    * SYCEBNL § 5.4.2.1. `null` = pas encore tranché pour une association, sans

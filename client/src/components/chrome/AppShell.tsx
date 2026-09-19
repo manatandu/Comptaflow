@@ -216,6 +216,12 @@ export function AppShell() {
         // ordres professionnels / projets de développement / Système minimal
         // de trésorerie), qui commandent toute la liasse · ils ont leur place
         // dans Structure, avec les autres éléments qui structurent le dossier.
+        // AVEC LES RÉFÉRENTIELS DU DOSSIER, pas avec les traitements. Le
+        // registre du personnel ne passe AUCUNE écriture · il tient l'état
+        // civil et les engagements, comme le plan des tiers tient les tiers.
+        // Le moteur de bulletin, lui, écrira au livre-journal quand il
+        // existera, et sa fenêtre ira alors où vont les écritures.
+        { label: 'Registre du personnel', onClick: () => navigate('/personnel') },
         { label: 'Paramètres du dossier', separateurAvant: true, onClick: () => navigate('/parametres-dossier') },
         // LE MANDAT EST UN FAIT JURIDIQUE DU DOSSIER, PAS UN TRAVAIL DE
         // RÉVISION. Il a d'abord été posé sous « État > Contrôle et révision »,

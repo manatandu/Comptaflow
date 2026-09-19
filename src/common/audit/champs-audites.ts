@@ -90,6 +90,20 @@ export const MODELES_AUDITES = new Set<string>([
   'Exoneration',
   'LiquidationTva',
   'RetraitementFiscal',
+  // LE REGISTRE DU PERSONNEL · les trois tables de P1. Elles sont auditées
+  // pour la même raison que les écarts d'inventaire : ce qui compte n'est pas
+  // la création, c'est la RETOUCHE. Une date d'entrée en vigueur reculée, un
+  // type passé de CDD à CDI, une date de fin déplacée, un enfant à charge
+  // ajouté après coup · chacun change une ancienneté, une requalification ou
+  // une allocation, et rien d'autre n'en garderait la trace.
+  //
+  // ET C'EST PRÉCISÉMENT POURQUOI LA LISTE D'EXCLUSION LES SUIT. Le journal
+  // recopie la ligne entière, et ces lignes portent les premières données
+  // personnelles du dépôt. On garde la CLÉ (savoir que la date de naissance a
+  // changé fait partie de la trace) et on masque la VALEUR.
+  'Salarie',
+  'ContratTravail',
+  'EnfantACharge',
 ]);
 
 /**
@@ -137,11 +151,72 @@ export const MARQUEUR_MASQUE = '[masqué]';
  */
 export const COLONNES_EXCLUES_PAR_MODELE: Readonly<Record<string, readonly string[]>> = {
   User: ['motDePasse', 'estOperateurPlateforme'],
+
+  // LE REGISTRE DU PERSONNEL · le premier cas où l'exclusion ne protège pas
+  // le LOGICIEL mais une PERSONNE.
+  //
+  // Le journal d'audit est lisible par tout utilisateur du dossier ayant
+  // accès à `/journal-audit`. Un comptable saisit les salaires ; il n'a pas à
+  // lire, dans un journal conservé bien plus longtemps que la fiche, la date
+  // de naissance d'un collègue, le nom de son conjoint, celui de ses enfants
+  // ou son numéro d'affiliation.
+  //
+  // CE QUI RESTE LISIBLE, ET POURQUOI. Le nom, le matricule et le sexe : ils
+  // désignent la ligne, et un journal qui ne dit plus DE QUI il parle ne sert
+  // plus de chemin de révision (AUDCIF art. 22, 6°). Les dates de
+  // déclaration, l'aptitude et le drapeau `actif` : ce sont des faits de
+  // GESTION, pas des données de la personne, et ce sont eux qu'un inspecteur
+  // du travail vient vérifier.
+  //
+  // CE QUI EST MASQUÉ. Tout ce qui décrit la personne plutôt que sa relation
+  // de travail, plus la RÉMUNÉRATION : la clé suffit à dire qu'elle a changé,
+  // et la valeur n'a rien à faire dans un journal que tout le dossier lit.
+  Salarie: [
+    'numeroAffiliationCnss',
+    'dateNaissance',
+    'millesimeNaissance',
+    'lieuNaissance',
+    'nationalite',
+    'nomConjoint',
+  ],
+  EnfantACharge: ['nom', 'postNom', 'prenoms', 'dateNaissance'],
+  ContratTravail: ['remunerationBase', 'avantagesConvenus'],
 };
 
-/** Les colonnes exclues d'un modèle, en minuscules, comparables telles quelles. */
+/** Les colonnes exclues du JOURNAL, en minuscules, comparables telles quelles. */
 export function colonnesExclues(modele: string): ReadonlySet<string> {
   return new Set((COLONNES_EXCLUES_PAR_MODELE[modele] ?? []).map((c) => c.toLowerCase()));
+}
+
+/**
+ * CE QUI NE SORT JAMAIS DU LOGICIEL · une liste DISTINCTE, et il a fallu
+ * l'écrire.
+ *
+ * LES DEUX LISTES NE SERVENT PAS LA MÊME CHOSE, et les confondre a failli
+ * coûter cher. `COLONNES_EXCLUES_PAR_MODELE` protège une personne d'un
+ * JOURNAL que tout le dossier lit et qu'on conserve bien plus longtemps que
+ * la fiche. L'archive de restitution, elle, rend au dossier SES PROPRES
+ * DONNÉES, à lui seul, sur sa demande.
+ *
+ * `colonnesDuModele()` de la restitution lisait la liste du journal. Tant que
+ * cette liste ne contenait que `motDePasse` et `estOperateurPlateforme`, les
+ * deux usages coïncidaient. Le registre du personnel les a séparés : y verser
+ * la date de naissance, la nationalité et la rémunération aurait, du même
+ * geste, VIDÉ L'ARCHIVE de ce qu'elle doit rendre · un dossier n'aurait plus
+ * pu reconstituer son propre registre, et l'archive se serait dite complète.
+ * Le socle qui ne peut pas mentir aurait menti.
+ *
+ * D'où deux listes. Celle-ci ne contient que ce qui n'appartient PAS au
+ * dossier : l'empreinte d'un mot de passe, et le drapeau qui désigne le
+ * compte de l'exploitant du logiciel.
+ */
+export const COLONNES_JAMAIS_RESTITUEES: Readonly<Record<string, readonly string[]>> = {
+  User: ['motDePasse', 'estOperateurPlateforme'],
+};
+
+/** Les colonnes qu'une ARCHIVE DE RESTITUTION ne porte pas. */
+export function colonnesNonRestituables(modele: string): ReadonlySet<string> {
+  return new Set((COLONNES_JAMAIS_RESTITUEES[modele] ?? []).map((c) => c.toLowerCase()));
 }
 
 export function estChampSensible(nom: string, exclues?: ReadonlySet<string>): boolean {

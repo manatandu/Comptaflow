@@ -1,6 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { MODELES_CLOISONNES, MODELES_PORTES_PAR_LEUR_PARENT } from '../../../common/cloisonnement/modeles-cloisonnes';
-import { colonnesExclues } from '../../../common/audit/champs-audites';
+import { colonnesNonRestituables } from '../../../common/audit/champs-audites';
 
 /**
  * L'INVENTAIRE BORNÉ DES TABLES DU DOSSIER.
@@ -127,7 +127,12 @@ export function ordreDuModele(modele: string): string {
 export function colonnesDuModele(modele: string): string[] {
   const description = Prisma.dmmf.datamodel.models.find((m) => m.name === modele);
   if (!description) throw new ModeleSansBorne(modele);
-  const exclues = colonnesExclues(modele);
+  // LA LISTE DE LA RESTITUTION, PAS CELLE DU JOURNAL. Les deux ont divergé
+  // avec le registre du personnel : le journal masque la date de naissance,
+  // l'archive DOIT la rendre · elle appartient au dossier. Reprendre ici la
+  // liste du journal amputerait l'archive en silence, et elle se dirait
+  // complète. Voir `COLONNES_JAMAIS_RESTITUEES`.
+  const exclues = colonnesNonRestituables(modele);
   return description.fields
     .filter((f) => f.kind === 'scalar' || f.kind === 'enum')
     .map((f) => f.name)

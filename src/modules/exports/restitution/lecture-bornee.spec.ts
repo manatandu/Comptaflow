@@ -37,11 +37,45 @@ describe('l’inventaire couvre le schéma, sans trou ni surplus', () => {
   it('compte exactement les modèles du schéma, Tenant mis à part', () => {
     const schema = readFileSync(join(RACINE, 'prisma/schema.prisma'), 'utf8');
     const modeles = [...schema.matchAll(/^model (\w+) \{/gm)].map(([, n]) => n);
-    // 76 au total · 1 Tenant + 58 cloisonnés + 17 portés. Le nombre est EN
-    // DUR pour qu'un modèle ajouté au schéma oblige quelqu'un à décider par
-    // quelle borne il se lit · sans quoi il se lirait sans borne du tout.
-    expect(modeles).toHaveLength(79);
+    // Le nombre est EN DUR pour qu'un modèle ajouté au schéma oblige
+    // quelqu'un à décider par quelle borne il se lit · sans quoi il se lirait
+    // sans borne du tout. C'est la SEULE fonction de ce chiffre : tomber.
+    // Il est passé de 79 à 82 avec le registre du personnel (P1 de la paie).
+    expect(modeles).toHaveLength(82);
     expect([...TABLES_RESTITUEES].sort()).toEqual(modeles.filter((m) => m !== 'Tenant').sort());
+  });
+
+  it('L’ARCHIVE REND LES DONNÉES QUE LE JOURNAL MASQUE · deux listes, deux fins', () => {
+    // LE DÉFAUT QUE CE TEST EMPÊCHE, ET IL A FAILLI PASSER.
+    //
+    // `colonnesDuModele()` lisait la liste d'exclusion du JOURNAL D'AUDIT.
+    // Tant qu'elle ne contenait que `motDePasse` et `estOperateurPlateforme`,
+    // les deux usages coïncidaient et personne ne voyait qu'ils étaient
+    // confondus. Le registre du personnel les a séparés : la date de
+    // naissance, la nationalité et la rémunération doivent être MASQUÉES au
+    // journal (que tout le dossier lit) et RENDUES à l'archive (que le
+    // dossier seul reçoit, et qui est faite pour qu'il reconstitue sa base).
+    //
+    // Avec une seule liste, l'archive se serait amputée en silence de ce
+    // qu'elle existe pour rendre, et elle se serait dite complète.
+    const colonnes = colonnesDuModele('Salarie');
+    for (const attendue of [
+      'dateNaissance',
+      'nationalite',
+      'lieuNaissance',
+      'nomConjoint',
+      'numeroAffiliationCnss',
+    ]) {
+      expect(colonnes).toContain(attendue);
+    }
+    expect(colonnesDuModele('ContratTravail')).toContain('remunerationBase');
+    expect(colonnesDuModele('EnfantACharge')).toContain('dateNaissance');
+
+    // ET L'INVERSE RESTE VRAI · ce qui n'appartient pas au dossier ne sort
+    // toujours pas. L'empreinte d'un mot de passe et le drapeau de
+    // l'exploitant ne sont pas des données du client.
+    expect(colonnesDuModele('User')).not.toContain('motDePasse');
+    expect(colonnesDuModele('User')).not.toContain('estOperateurPlateforme');
   });
 
   it('déclare une borne pour CHAQUE modèle porté, et pour eux seuls', () => {

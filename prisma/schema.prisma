@@ -509,6 +509,19 @@ model Tenant {
   // un effectif inventé serait pire qu'un effectif absent.
   effectifPermanent Int @default(0)
 
+  // NUMÉRO D'IMMATRICULATION DE L'EMPLOYEUR À LA CNSS · art. 212, point 2 du
+  // Code du travail : c'est la SECONDE énonciation obligatoire de tout
+  // contrat écrit, et elle est du côté de l'employeur, pas du salarié. Sans
+  // elle, aucun contrat du dossier ne peut être complet au sens de
+  // l'art. 212, quel que soit le soin mis à la fiche du travailleur.
+  numeroAffiliationCnssEmployeur String?
+
+  // LE REGISTRE DU PERSONNEL · P1 de la paie. Voir le bloc « Le registre du
+  // personnel » en fin de schéma.
+  salaries        Salarie[]
+  enfantsACharge  EnfantACharge[]
+  contratsTravail ContratTravail[]
+
   // GROUPE D'ÉTABLISSEMENTS · une même personne morale (une église et ses
   // cellules, un siège et ses antennes) tenue en plusieurs dossiers. Le lien
   // est posé depuis la console plateforme, JAMAIS par un dossier lui-même :
@@ -5688,4 +5701,294 @@ model Consignation {
   @@index([tenantId, etat])
   @@index([tenantId, tiersId])
   @@map("consignations")
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// LE REGISTRE DU PERSONNEL · la table que l'article 212 écrit lui-même
+// ══════════════════════════════════════════════════════════════════════════
+//
+// P1 DE LA PAIE. Rien ici ne calcule un bulletin : ces trois tables ne
+// portent que l'ÉTAT CIVIL et l'ENGAGEMENT, et elles ne les inventent pas.
+//
+// L'ARTICLE 212 DU CODE DU TRAVAIL EST LE SCHÉMA. Il énumère, en quinze
+// points, « les énonciations » que tout contrat constaté par écrit « doit
+// comporter, au minimum » · et l'article 44 boucle la boucle en exigeant
+// l'écrit « pour autant qu'il comporte les énonciations visées à l'article
+// 212 ». Chaque colonne ci-dessous cite son point. Aucune colonne n'est là
+// sans texte, et aucune énonciation du texte n'est sans colonne : c'est ce
+// que `regles-contrat-travail.ts` vérifie, et ce qu'un test tient fermé.
+//
+// DEUX ARTICLES 37, ET ILS NE DISENT PAS LA MÊME CHOSE. L'art. 37 du Code du
+// travail frappe de nullité toute clause moins favorable que le Code ;
+// l'art. 37 de la loi n° 004/2001, point 4, impose à une ONG d'employer 60 %
+// de main-d'œuvre locale, et c'est `AccordCadrePlan.partMainOeuvreLocale` qui
+// le porte, à trois cents lignes d'ici. Les deux vivent dans le même module
+// à partir de P1. Un même numéro, deux textes · le dépôt en est à sa
+// vingt-et-unième occurrence, et celle-ci est la première où les deux sens
+// se touchent dans une seule fonctionnalité.
+//
+// POURQUOI CE SONT LES PREMIÈRES DONNÉES PERSONNELLES DU DÉPÔT. Date de
+// naissance, nationalité, situation de famille, rémunération : rien de tout
+// cela n'existait dans OmegaX. Le journal d'audit recopie la ligne entière
+// des modèles qu'il suit · ces trois tables entrent donc au journal AVEC une
+// liste d'exclusion nommée colonne par colonne (`champs-audites.ts`), qui
+// garde la trace du CHANGEMENT sans en recopier la valeur.
+
+/// ART. 212, POINT 3 · « le sexe du travailleur ». Énonciation obligatoire,
+/// et non une donnée de confort : la note 27B (SYSCOHADA) et la note 29B
+/// (SYCEBNL) ventilent effectifs et masse salariale par sexe.
+enum SexeTravailleur {
+  MASCULIN
+  FEMININ
+}
+
+/// ART. 39 · « Tout contrat de travail est à durée déterminée ou à durée
+/// indéterminée. » Les deux premières valeurs sont celles du texte.
+///
+/// JOUR_LE_JOUR est la troisième forme, et elle n'est pas un troisième type :
+/// l'art. 44 al. 3 l'exempte de l'écrit, et l'art. 40 al. 2 la requalifie de
+/// plein droit en CDI au-delà de vingt-deux journées sur deux mois. Elle est
+/// distinguée pour que ces deux règles puissent s'appliquer · les confondre
+/// avec un CDD ferait réclamer un écrit que la loi n'exige pas, et manquer
+/// une requalification qu'elle impose.
+///
+/// APPRENTISSAGE relève du Titre III (art. 18 à 35), régime propre. Il est
+/// nommé ici pour ne pas être compté comme un CDD par les contrôles de
+/// l'art. 41, qui ne le visent pas.
+enum TypeContratTravail {
+  DUREE_DETERMINEE
+  DUREE_INDETERMINEE
+  JOUR_LE_JOUR
+  APPRENTISSAGE
+}
+
+/// LE TRAVAILLEUR · art. 212, points 3 à 7 et 15.
+model Salarie {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  /// ART. 212, POINT 4 · « éventuellement, le numéro d'ordre qui lui est
+  /// attribué par l'employeur ». « Éventuellement » est dans le texte : le
+  /// matricule est FACULTATIF, et l'unicité ne vaut que s'il est donné.
+  matricule String?
+
+  /// ART. 212, POINT 3 · « le nom, les prénoms et, le ou les post-noms ».
+  /// Le nom seul est exigible ; le post-nom est l'usage congolais et le
+  /// texte le nomme, au pluriel possible.
+  nom     String
+  postNom String?
+  prenoms String?
+  sexe    SexeTravailleur
+
+  /// ART. 212, POINT 4 · « le numéro d'affiliation du travailleur à
+  /// l'Institut National de Sécurité Sociale ».
+  numeroAffiliationCnss String?
+
+  /// ART. 212, POINT 5 · « la date de naissance du travailleur OU À DÉFAUT,
+  /// LE MILLÉSIME DE L'ANNÉE PRÉSUMÉE DE CELLE-CI ». Le texte prévoit
+  /// lui-même le cas de la date inconnue : deux colonnes, et le contrôle de
+  /// complétude est satisfait par l'une OU l'autre. Exiger la date pleine
+  /// serait plus sévère que la loi.
+  dateNaissance      DateTime?
+  millesimeNaissance Int?
+
+  /// ART. 212, POINT 6 · « le lieu de naissance du travailleur et sa
+  /// nationalité ». La nationalité n'est pas décorative : l'art. 218 impose
+  /// une déclaration annuelle « sur la situation de la main-d'œuvre nationale
+  /// et étrangère », et l'art. 37, point 4 de la loi n° 004/2001 fixe à 60 %
+  /// la part de main-d'œuvre locale d'une ONG.
+  lieuNaissance String?
+  nationalite   String?
+
+  /// ART. 212, POINT 7 · « nom, prénoms, ou post-noms du conjoint ». Les
+  /// enfants sont dans `EnfantACharge`, le texte en exigeant la date de
+  /// naissance de CHACUN.
+  nomConjoint String?
+
+  /// ART. 38 et ART. 212, POINT 15 · « l'aptitude au travail dûment constatée
+  /// par un médecin ». L'art. 38 admet, en l'absence de médecin, un
+  /// certificat PROVISOIRE délivré par un infirmier, « sous réserve de
+  /// soumettre le travailleur à un examen médical dans les trois mois qui
+  /// suivent le début des prestations ». D'où le drapeau : un provisoire non
+  /// confirmé au-delà de trois mois est un manquement, et rien d'autre ne le
+  /// dirait.
+  aptitudeConstateeLe  DateTime?
+  aptitudeConstateePar String?
+  aptitudeProvisoire   Boolean   @default(false)
+
+  /// ART. 217 · « A l'occasion de son engagement, le travailleur fait
+  /// l'objet, DANS LES QUINZE JOURS, d'une déclaration » au ministère et à
+  /// l'ONEM ; « tout travailleur quittant l'employeur, pour quelque cause que
+  /// ce soit, fait l'objet d'une déclaration » mentionnant la date du départ.
+  /// Deux dates, deux obligations. Le logiciel ne déclare rien : il enregistre
+  /// que la déclaration a été faite, et signale le délai couru.
+  declarationEngagementLe DateTime?
+  declarationDepartLe     DateTime?
+
+  /// Le salarié reste au registre après son départ · c'est son CONTRAT qui se
+  /// termine. Un registre qui efface les partants ne peut plus servir ni le
+  /// décompte final, ni la déclaration de l'art. 218, ni un contrôle.
+  actif Boolean @default(true)
+
+  contrats ContratTravail[]
+  enfants  EnfantACharge[]
+
+  createdAt DateTime @default(now())
+  createdBy String
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, matricule])
+  @@index([tenantId, actif])
+  @@index([tenantId, nom])
+  @@map("salaries")
+}
+
+/// ART. 212, POINT 7 · « nom, prénoms ou post-noms ET DATE DE NAISSANCE de
+/// chaque enfant à charge ». Une table, parce que le texte exige la date de
+/// CHACUN, et parce que les allocations familiales minima se comptent PAR
+/// ENFANT bénéficiaire.
+model EnfantACharge {
+  id        String  @id @default(uuid())
+  tenantId  String
+  tenant    Tenant  @relation(fields: [tenantId], references: [id])
+  salarieId String
+  salarie   Salarie @relation(fields: [salarieId], references: [id], onDelete: Cascade)
+
+  nom           String
+  postNom       String?
+  prenoms       String?
+  /// Exigée par le texte. Facultative en base, parce qu'un registre incomplet
+  /// doit pouvoir être saisi puis complété · c'est le contrôle de complétude
+  /// qui la réclame, pas la contrainte de colonne. Une colonne obligatoire
+  /// ferait renoncer à enregistrer l'enfant, et l'absence serait alors muette.
+  dateNaissance DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId, salarieId])
+  @@map("enfants_a_charge")
+}
+
+/// L'ENGAGEMENT · art. 212, points 8 à 14, plus les contrôles de durée des
+/// art. 40 à 47.
+model ContratTravail {
+  id        String  @id @default(uuid())
+  tenantId  String
+  tenant    Tenant  @relation(fields: [tenantId], references: [id])
+  salarieId String
+  salarie   Salarie @relation(fields: [salarieId], references: [id])
+
+  type TypeContratTravail
+
+  /// ART. 44 · « Le contrat de travail doit être constaté par écrit […] A
+  /// DÉFAUT D'ÉCRIT, LE CONTRAT EST PRÉSUMÉ, jusqu'à preuve du contraire,
+  /// avoir été conclu pour une durée indéterminée. » Le drapeau commande donc
+  /// une requalification, pas un simple rappel de forme.
+  constateParEcrit Boolean @default(true)
+
+  /// ART. 212, POINT 13 · « la date d'entrée en vigueur du contrat ». Seule
+  /// date obligatoire en colonne : c'est elle qui fait courir l'ancienneté,
+  /// le délai de déclaration de l'art. 217 et la durée de l'essai.
+  dateEntreeEnVigueur DateTime
+  /// ART. 212, POINT 14 · « le lieu et la date de la conclusion du contrat ».
+  dateConclusion      DateTime?
+  lieuConclusion      String?
+
+  /// ART. 212, POINT 11 · « la durée de l'engagement ». ART. 41 · un CDD « ne
+  /// peut excéder deux ans », ramenés à un an pour le travailleur marié et
+  /// séparé de sa famille, veuf, séparé de corps ou divorcé assumant la garde
+  /// de ses enfants. Le drapeau porte cette situation, qui ne se déduit ni du
+  /// conjoint ni des enfants · un salarié marié peut vivre avec sa famille.
+  dateFinPrevue     DateTime?
+  separeDeSaFamille Boolean   @default(false)
+
+  /// ART. 40 · un CDD l'est « soit pour un temps déterminé, SOIT POUR UN
+  /// OUVRAGE DÉTERMINÉ, soit pour le REMPLACEMENT d'un travailleur
+  /// temporairement indisponible ». ART. 45 · faute d'indiquer, dans ce
+  /// dernier cas, « les motifs et conditions particulières du remplacement »,
+  /// le contrat « est réputé avoir été conclu pour une durée indéterminée ».
+  ouvrageDetermine  String?
+  motifRemplacement String?
+
+  /// ART. 42 · « Lorsque le travailleur est engagé pour occuper un EMPLOI
+  /// PERMANENT […] le contrat DOIT être conclu pour une durée indéterminée. »
+  /// Saisi, jamais déduit : aucune colonne ne dit si un poste est permanent.
+  emploiPermanent Boolean @default(false)
+
+  /// ART. 212, POINTS 8 et 10 · « la nature et les modalités du travail à
+  /// fournir » ; « le ou les lieux d'exécution du contrat ».
+  natureTravail String?
+  lieuExecution String?
+
+  /// La CATÉGORIE de la convention collective. Donnée du DOSSIER, pas du
+  /// Code : c'est la convention qui les nomme, et l'art. 114 comme le barème
+  /// de préavis raisonnent par catégorie. Tant que la convention du dossier
+  /// n'est pas au corpus, rien ici n'en déduit de montant.
+  categorieProfessionnelle String?
+
+  /// ART. 43 · la durée maximale de l'essai « ne peut dépasser UN MOIS pour
+  /// le travailleur MANŒUVRE SANS SPÉCIALITÉ ni SIX MOIS pour les autres ».
+  /// La qualité est saisie parce qu'elle décide du plafond, et qu'aucune
+  /// catégorie de convention ne la donne de façon portable.
+  manoeuvreSansSpecialite Boolean @default(false)
+
+  /// ART. 212, POINT 9 · « le montant de la rémunération et des autres
+  /// avantages convenus ». La rémunération CONVENUE au contrat, qui n'est ni
+  /// l'assiette sociale ni l'assiette fiscale · P0 a tranché qu'elles vivent
+  /// séparées, et aucune des trois ne se déduit des deux autres.
+  remunerationBase  Decimal? @db.Decimal(18, 2)
+  avantagesConvenus String?
+
+  /// ART. 43 · « Tout contrat de travail peut être assorti d'une clause
+  /// d'essai. CETTE CLAUSE D'ESSAI DOIT ÊTRE CONSTATÉE PAR ÉCRIT. » Trois
+  /// colonnes, parce que le texte pose trois conditions distinctes :
+  /// l'existence, l'écrit, et la durée, « réduite DE PLEIN DROIT » si elle
+  /// dépasse le plafond.
+  clauseEssai           Boolean @default(false)
+  essaiConstateParEcrit Boolean @default(false)
+  essaiDureeJours       Int?
+
+  /// ART. 212, POINT 12 · « la durée du préavis de licenciement ». ART. 64 ·
+  /// quatorze jours ouvrables plus sept par année d'ancienneté du côté de
+  /// l'employeur. La colonne porte ce que le CONTRAT stipule · le calcul
+  /// légal est de P4, et l'art. 37 frappe de nullité toute clause moins
+  /// favorable que le Code.
+  dureePreavisJours Int?
+
+  /// ART. 47 · « L'employeur est tenu de soumettre tout contrat écrit au VISA
+  /// de l'Office National de l'Emploi. » Le défaut ouvre au travailleur la
+  /// résiliation sans préavis, et un contrat dont le visa est REFUSÉ « prend
+  /// fin de plein droit ». Le registre enregistre le fait et sa date · il ne
+  /// vise rien.
+  viseParOnem  Boolean   @default(false)
+  dateVisaOnem DateTime?
+
+  /// ART. 41 · « ni RENOUVELER PLUS D'UNE FOIS un contrat à durée
+  /// déterminée ». Un renouvellement n'est pas un nouveau contrat, et les
+  /// compter ensemble ferait manquer la règle : le lien les distingue.
+  renouvelleDeId String?         @unique
+  renouvelleDe   ContratTravail? @relation("RenouvellementContrat", fields: [renouvelleDeId], references: [id], onDelete: Restrict)
+  renouvellement ContratTravail? @relation("RenouvellementContrat")
+
+  /// La fin RÉELLE, et son motif. ART. 217 · la déclaration de départ
+  /// « mentionn[e] notamment la date du départ de l'entreprise ».
+  ///
+  /// LE MOTIF EST UNE CHAÎNE LIBRE, ET C'EST DÉLIBÉRÉ. Le Code distingue
+  /// l'arrivée du terme, la résiliation pour motif valable (art. 62), la
+  /// faute lourde (art. 72), le licenciement économique (art. 78) et la force
+  /// majeure, chacun avec des conséquences différentes sur le décompte final.
+  /// Figer une liste ici reviendrait à trancher P4 avant de l'avoir lu · on
+  /// ne devine pas une qualification qui commande une indemnité.
+  dateFin  DateTime?
+  motifFin String?
+
+  createdAt DateTime @default(now())
+  createdBy String
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId, salarieId])
+  @@index([tenantId, dateEntreeEnVigueur])
+  @@map("contrats_travail")
 }

@@ -1250,6 +1250,53 @@ l'**arrêté INPP n° 002/CAB/MET/2025**, cité par le dépôt et absent des
 compétences, donc invérifiable ; et la **convention collective** du dossier,
 que l'art. 114 comme le barème de préavis appellent par catégorie.
 
+**P1 EST LIVRÉ · LE REGISTRE DU PERSONNEL** (`docs/paie-p1-registre-du-personnel.md`).
+Trois tables (`Salarie`, `EnfantACharge`, `ContratTravail`), une fenêtre, une
+confrontation · **aucun bulletin, aucune assiette, aucun montant de paie**. Ce
+qui le rend possible malgré les textes manquants : il ne dépend que du **Code
+du travail**, qui est au corpus, et **l'article 212 EST le schéma** · ses
+quinze énonciations sont la liste des colonnes, numérotées comme le texte les
+numérote, et un test les tient à quinze. Les requalifications des art. 40 à 45
+sont RENDUES, jamais appliquées en base · le logiciel dit que le texte l'a
+déjà fait, avec sa formule (« de plein droit », « est réputé »), parce que
+c'est la formule qui distingue un conseil d'un effet légal.
+
+**TROIS CHOSES QUE P1 A TROUVÉES SANS LES CHERCHER.**
+
+1. **LA LISTE D'EXCLUSION SERVAIT DEUX FINS OPPOSÉES.** L'archive de
+   restitution du dossier lisait la liste d'exclusion du JOURNAL D'AUDIT. Tant
+   qu'elle ne contenait que `motDePasse` et `estOperateurPlateforme`, les deux
+   usages coïncidaient et personne ne voyait qu'ils étaient confondus. Y verser
+   la date de naissance et la rémunération aurait, du même geste, VIDÉ
+   L'ARCHIVE de ce qu'elle existe pour rendre · et elle se serait dite
+   complète. **Le socle qui ne peut pas mentir aurait menti.** Deux listes
+   désormais, et un test vu tomber contre la version confondue. **DOCTRINE ·
+   une liste d'exclusion se nomme par sa FIN, jamais par sa forme. Deux listes
+   identiques qui protègent deux choses différentes sont deux listes, pas une.**
+2. **LE JEU D'ESSAI N'A RIEN PROUVÉ LA PREMIÈRE FOIS.** Sept défauts
+   réinjectés, six attrapés. Le septième (plafond de l'art. 41 compté en 730
+   jours au lieu de date à date) est passé parce que mon CDD n'enjambait aucun
+   29 février : les deux lectures rendaient le même verdict. Refait du
+   5 janvier 2027 au 5 janvier 2029, il dure 731 jours et pourtant exactement
+   deux ans, et le défaut est tombé. **Même leçon que le mali de stock, et il a
+   fallu la réapprendre.**
+3. **VINGT-ET-UNIÈME OCCURRENCE** de « un même numéro, deux sens » · l'art. 37
+   du Code du travail (nullité de la clause moins favorable) et l'art. 37,
+   point 4 de la loi n° 004/2001 (60 % de main-d'œuvre locale). **Première fois
+   que les deux sens se touchent dans une seule fonctionnalité.**
+
+**L'EFFECTIF EST PROPOSÉ, JAMAIS SUBSTITUÉ.** Trois endroits l'attendaient et
+le saisissaient (`Tenant.effectifPermanent`, les notes 27B et 29B, la part de
+main-d'œuvre locale de l'accord-cadre). Le registre les rend calculables · il
+ne les calcule pas à leur place. Et la part de main-d'œuvre nationale est
+rendue NULLE dès qu'une seule nationalité manque : **une source saisie et
+assumée vaut mieux qu'un calcul qui ne sait pas ce qu'il ignore.**
+
+**L'ASYMÉTRIE DE SEMIS EST TRANCHÉE** · `43340000` et `43350000` sont désormais
+ouverts dans le semis SYSCOHADA aussi. La raison est dans les textes : l'INPP
+naît des art. 8 à 17 du Code du travail, l'ONEM de ses art. 202 et suivants, et
+ni l'un ni l'autre ne distingue une ASBL d'une SARL.
+
 **ILS NE SONT PLUS QUATRE** (passe de recherche du 19/09/2026,
 `docs/paie-recherche-textes-2026-09-19.md`). L'**arrêté de l'art. 139
 n'existe pas** : la contre-valeur du logement est fixée par le MÊME texte que

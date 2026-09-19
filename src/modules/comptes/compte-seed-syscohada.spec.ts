@@ -24,9 +24,16 @@ describe('plan SYSCOHADA · structure Total/Détail', () => {
     // « 915 à 918 », qui ne sont pas des numéros de compte) + 8 racines 911 à
     // 918 + 32 contreparties à quatre chiffres, en miroir des 32 comptes 90xx.
     // Les huit divisions 92 à 99 sont semées, en en-têtes sans imputation.
-    expect(PLAN_COMPTES_SYSCOHADA).toHaveLength(1441);
+    //
+    // + 2 EN P1 DE LA PAIE · `43340000` (INPP) et `43350000` (ONEM), ouverts
+    // PAR LE LOGICIEL sous 433, le plan SYSCOHADA étant régional et ne
+    // nommant aucun organisme congolais. Le semis SYCEBNL les portait déjà :
+    // celui-ci ne les portait pas, alors que le registre des retenues les
+    // cherche pour LES DEUX référentiels. Une société commerciale n'avait
+    // donc aucun compte où porter deux cotisations qu'elle doit.
+    expect(PLAN_COMPTES_SYSCOHADA).toHaveLength(1443);
     expect(totaux).toHaveLength(311);
-    expect(detail).toHaveLength(1130);
+    expect(detail).toHaveLength(1132);
   });
 
   it('ne porte aucun doublon de numéro', () => {
@@ -203,5 +210,25 @@ describe('CompteService.seedPlan · aiguillage par référentiel', () => {
     expect(totalFournisseurs.lettrable).toBe(false);
     const banque = captures[0].data.find((c) => c.numero === '52110000')!;
     expect(banque.lettrable).toBe(false);
+  });
+});
+
+describe('P1 · l’INPP et l’ONEM sont ouverts DANS LES DEUX référentiels', () => {
+  it('sème 4334 et 4335 en SYSCOHADA, imputables, sous la division 433', () => {
+    // L'ASYMÉTRIE QUE CE TEST EMPÊCHE DE REVENIR. `correspondance-retenues.ts`
+    // pointe les clés `inpp` et `onem` vers `4334` et `4335` pour les deux
+    // référentiels. Tant que le semis SYSCOHADA ne les portait pas, le
+    // registre des retenues d'une société commerciale rendait un état SANS
+    // LIGNE pour deux cotisations dues · ce qui se lit « rien à reverser ».
+    for (const numero of ['43340000', '43350000']) {
+      const compte = PLAN_COMPTES_SYSCOHADA.find((c) => c.numero === numero);
+      expect(compte).toBeDefined();
+      // DÉTAIL, pas TOTAL · un compte en tête de division ne s'impute pas, et
+      // le registre le chercherait en vain tout autant.
+      expect(compte!.typeCompte).toBeUndefined();
+      expect(compte!.classe).toBe('CLASSE_4');
+    }
+    // La division qui les porte existe bien, et en tête.
+    expect(PLAN_COMPTES_SYSCOHADA.find((c) => c.numero === '433')!.typeCompte).toBe('TOTAL');
   });
 });

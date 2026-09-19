@@ -127,6 +127,7 @@ export class TenantService {
       regimeExigibiliteTva: tenant.regimeExigibiliteTva,
       dateAutorisationDebitsTva: tenant.dateAutorisationDebitsTva,
       effectifPermanent: tenant.effectifPermanent,
+      numeroAffiliationCnssEmployeur: tenant.numeroAffiliationCnssEmployeur,
       // Fait générateur des cotisations · SYCEBNL seulement (§ 5.4.2.1) ·
       // `null` pour un dossier SYSCOHADA veut dire « sans objet », et pour un
       // dossier SYCEBNL « pas encore tranché ». Le référentiel du dossier
@@ -651,6 +652,7 @@ export class TenantService {
       assujettiTva?: boolean;
       dateOptionTva?: string;
       effectifPermanent?: number;
+      numeroAffiliationCnssEmployeur?: string;
       regimeExigibiliteTva?: RegimeExigibiliteTva;
       dateAutorisationDebitsTva?: string;
     },
@@ -665,6 +667,9 @@ export class TenantService {
         ...(dto.assujettiTva === undefined ? {} : { assujettiTva: dto.assujettiTva }),
         ...(dto.dateOptionTva === undefined ? {} : { dateOptionTva: new Date(dto.dateOptionTva) }),
         ...(dto.effectifPermanent === undefined ? {} : { effectifPermanent: dto.effectifPermanent }),
+        ...(dto.numeroAffiliationCnssEmployeur === undefined
+          ? {}
+          : { numeroAffiliationCnssEmployeur: dto.numeroAffiliationCnssEmployeur.trim() || null }),
         ...(dto.regimeExigibiliteTva === undefined ? {} : { regimeExigibiliteTva: dto.regimeExigibiliteTva }),
         ...(dto.dateAutorisationDebitsTva === undefined
           ? {}

@@ -750,6 +750,29 @@ const classe4: LigneSeed[] = [
   d('43310000', 'Mutuelle', ClasseCompte.CLASSE_4, SOLDE),
   d('43320000', 'Assurances retraite', ClasseCompte.CLASSE_4, SOLDE),
   d('43330000', 'Assurances et organismes de santé', ClasseCompte.CLASSE_4, SOLDE),
+  // INPP ET ONEM · L'ASYMÉTRIE QUE P0 AVAIT LAISSÉE À TRANCHER, ET QUE P1
+  // TRANCHE.
+  //
+  // Le semis SYCEBNL ouvrait `43340000` et `43350000` ; celui-ci ne les
+  // portait pas. Or `correspondance-retenues.ts` pointe les clés `inpp` et
+  // `onem` vers les comptes `4334` et `4335` POUR LES DEUX RÉFÉRENTIELS : une
+  // société commerciale n'avait donc aucun compte où porter deux cotisations
+  // qu'elle doit, et le registre des retenues cherchait chez elle deux
+  // comptes qui n'existaient pas. Il ne disait rien · il rendait un registre
+  // sans ligne, ce qui se lit comme « rien à reverser ».
+  //
+  // LES DEUX TEXTES SONT CONGOLAIS, PAS RÉGIONAUX, et c'est ce qui rend la
+  // symétrie obligatoire : l'INPP naît des articles 8 à 17 du Code du
+  // travail, l'ONEM de ses articles 202 et suivants. Ni l'un ni l'autre ne
+  // distingue une ASBL d'une SARL. Le plan SYSCOHADA est régional et ne
+  // nomme aucun organisme congolais · ces deux subdivisions de 433 sont donc
+  // ouvertes PAR LE LOGICIEL, exactement comme dans le semis SYCEBNL, et
+  // déclarées comme telles ici.
+  //
+  // Le taux, ses tranches et ses DEUX dates d'effet vivent dans
+  // `correspondance-retenues.ts`, clés `inpp` et `onem` · pas ici.
+  d('43340000', 'INPP (formation professionnelle)', ClasseCompte.CLASSE_4, SOLDE),
+  d('43350000', "ONEM (emploi)", ClasseCompte.CLASSE_4, SOLDE),
   t('438', 'Organismes sociaux, charges à payer et produits à recevoir', ClasseCompte.CLASSE_4, SOLDE),
   d('43810000', 'Charges sociales sur gratifications à payer', ClasseCompte.CLASSE_4, SOLDE),
   d('43820000', 'Charges sociales sur congés à payer', ClasseCompte.CLASSE_4, SOLDE),

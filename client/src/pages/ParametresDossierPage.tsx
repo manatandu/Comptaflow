@@ -317,6 +317,7 @@ export function ParametresDossierPage() {
   const changerRegime = async (dto: {
     assujettiTva?: boolean;
     effectifPermanent?: number;
+    numeroAffiliationCnssEmployeur?: string | null;
     regimeExigibiliteTva?: RegimeExigibiliteTva;
   }) => {
     setEnvoi(true);
@@ -1138,6 +1139,33 @@ export function ParametresDossierPage() {
                       nombre commande aussi la tranche de cotisation INPP.
                     </span>
                   )}
+                </label>
+
+                {/* N° CNSS DE L'EMPLOYEUR · art. 212, point 2 du Code du
+                    travail. Le registre du personnel renvoie ICI quand il
+                    manque · il faut donc qu'il y soit. Un renvoi vers un champ
+                    qui n'existe pas est le trou du câblage. */}
+                <label className="block text-[10.5px]">
+                  Numéro d’immatriculation à la CNSS (employeur)
+                  <input
+                    type="text"
+                    defaultValue={params.numeroAffiliationCnssEmployeur ?? ''}
+                    disabled={!estAdmin || envoi}
+                    onBlur={(e) => {
+                      const valeur = e.target.value.trim();
+                      if (valeur !== (params.numeroAffiliationCnssEmployeur ?? '')) {
+                        changerRegime({ numeroAffiliationCnssEmployeur: valeur });
+                      }
+                    }}
+                    className="mt-1 w-64 border border-border rounded-[7px] bg-bg px-2 py-1 text-[11px] focus:outline-none focus:border-sel"
+                  />
+                  <span className="block text-[10px] text-text-dim leading-[1.5] mt-1">
+                    Deuxième des quinze énonciations que l’article 212 du Code du travail exige de tout contrat
+                    constaté par écrit, et la seule qui soit du côté de l’employeur. Tant qu’elle manque,{' '}
+                    <strong>aucun contrat de ce dossier n’est complet</strong> au sens de l’article 212, quel que soit
+                    le soin mis à la fiche de chaque salarié · le registre du personnel le signale en tête de sa
+                    confrontation.
+                  </span>
                 </label>
 
                 {/* COTISATIONS · propre au jeu associations et ordres

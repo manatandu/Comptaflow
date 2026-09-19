@@ -44,6 +44,7 @@ const RetenuesPage = lazy(() => import('../pages/RetenuesPage').then((m) => ({ d
 const ExonerationsPage = lazy(() => import('../pages/ExonerationsPage').then((m) => ({ default: m.ExonerationsPage })));
 const InventairePage = lazy(() => import('../pages/InventairePage').then((m) => ({ default: m.InventairePage })));
 const VariationStocksPage = lazy(() => import('../pages/VariationStocksPage').then((m) => ({ default: m.VariationStocksPage })));
+const PersonnelPage = lazy(() => import('../pages/PersonnelPage').then((m) => ({ default: m.PersonnelPage })));
 const MagasinPage = lazy(() => import('../pages/MagasinPage').then((m) => ({ default: m.MagasinPage })));
 const EmballagesPage = lazy(() => import('../pages/EmballagesPage').then((m) => ({ default: m.EmballagesPage })));
 const CircularisationPage = lazy(() => import('../pages/CircularisationPage').then((m) => ({ default: m.CircularisationPage })));
@@ -306,6 +307,18 @@ export const FENETRES: DefinitionFenetre[] = [
     titre: 'Variation des stocks',
     titreCourt: 'Var. stocks',
     rendre: () => <VariationStocksPage />,
+  },
+  {
+    // AUCUN `referentielsApplicables` · le Code du travail ne connaît ni le
+    // SYCEBNL ni le SYSCOHADA. Une ASBL et une société commerciale embauchent
+    // sous le MÊME texte, et l'article 212 leur réclame les mêmes quinze
+    // énonciations. Ce qui diffère est la note annexe où l'effectif ressort
+    // (27B en SYSCOHADA, 29B en SYCEBNL), et elle est tranchée dans les
+    // tables de correspondance, pas dans le registre.
+    motif: /^\/personnel$/,
+    titre: 'Registre du personnel',
+    titreCourt: 'Personnel',
+    rendre: () => <PersonnelPage />,
   },
   {
     // AUCUN `referentielsApplicables`, pour la même raison que la variation de

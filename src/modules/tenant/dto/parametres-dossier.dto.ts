@@ -204,6 +204,18 @@ export class ModifierRegimeDto {
   effectifPermanent?: number;
 
   /**
+   * ART. 212, POINT 2 du Code du travail · « le numéro d'immatriculation de
+   * l'employeur à l'Institut National de Sécurité Sociale ». Deuxième des
+   * quinze énonciations obligatoires de tout contrat écrit, et la seule qui
+   * soit du côté de l'employeur : tant qu'elle manque, AUCUN contrat du
+   * dossier n'est complet, quel que soit le soin mis aux fiches.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  numeroAffiliationCnssEmployeur?: string;
+
+  /**
    * Régime d'exigibilité de la TVA · O.-L. n° 10/001, art. 25 et 26. Il
    * décide de la PÉRIODE dans laquelle une TVA facturée se déclare : à la
    * livraison, à l'encaissement (droit commun des prestations de services),
