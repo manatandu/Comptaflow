@@ -2060,6 +2060,21 @@ PASSE EST PLUS UTILE QU'UNE RÉINJECTION QUI ÉCHOUE.**
 sont closes · le SMIG et son annexe, le modèle du livre de paie, l'arrêté de
 l'art. 139, la cotisation syndicale. L'arrêté INPP n'en était pas une.
 
+**ET LA RÈGLE DE P6 ÉTAIT INCOMPLÈTE · LA SECONDE MOITIÉ.** P7 a d'abord
+reconduit deux textes « identifiés et non lus » (l'arrêté INPP de 2003 et
+l'ordonnance n° 08/040 de 2008) DANS LE MESSAGE MÊME qui reconnaissait avoir
+recopié une liste périmée. Manasse a posé la seule question qui les élimine ·
+**qu'est-ce que tu en ferais ?** Rien. L'arrêté de 2003 régit l'antérieur au
+14 février 2006, soit vingt ans en arrière, quand **l'article 24 de l'AUDCIF
+fixe la conservation à DIX ANS** · et le module de paie n'a aucune règle aussi
+basse (INPP 14/02/2006, ONEM 17/08/2018, SMIG mai 2025, IRPP 2026). Versé, il
+n'aurait nulle part où aller. **D'OÙ LA SECONDE RÈGLE · UN TEXTE ABROGÉ N'EST
+UN MANQUE QUE SI LE LOGICIEL PEUT ENCORE RENCONTRER UN EXERCICE QU'IL
+RÉGISSAIT**, et le test est objectif : sa période tombe-t-elle dans les dix ans
+de l'art. 24, et le module descend-il seulement jusque-là ? « Avant de
+redemander un texte, l'y chercher » ne suffisait pas · il faut aussi SAVOIR CE
+QU'ON EN FERAIT.
+
 **Questionnaire de révision par cycle · vingt-quatre items du CPCC, et le
 reste assumé.** Le séminaire porte DEUX checklists, § VI « vérification de
 l'inventaire physique » (immobilisations, stocks, caisses) et § VII

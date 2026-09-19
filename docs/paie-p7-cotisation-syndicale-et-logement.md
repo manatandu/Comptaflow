@@ -170,6 +170,29 @@ réinjection qui échoue.**
 modèle du livre de paie, l'arrêté de l'article 139, et la cotisation syndicale.
 L'arrêté INPP n'en était pas une.
 
-Deux textes restent **identifiés et non lus**, et aucun ne bloque quoi que ce
-soit aujourd'hui : l'**ordonnance n° 08/040 du 30 avril 2008** (utile pour un
-exercice antérieur à mai 2018) et l'arrêté INPP de **2003**, abrogé.
+### CORRECTION, une heure plus tard · ces deux textes n'étaient pas des manques
+
+Cette section en listait deux comme « identifiés et non lus ». **Manasse a posé
+la seule question qui les élimine : qu'est-ce que j'en ferais ?**
+
+**L'arrêté INPP de 2003** régit la période antérieure au 14 février 2006, soit
+vingt ans en arrière. L'article 24 de l'AUDCIF fixe la conservation des livres
+et pièces à **dix ans** · en 2026, la borne est 2016. Et le module de paie n'a
+aucune règle aussi ancienne : ses bornes les plus basses sont l'INPP au
+14/02/2006, l'ONEM au 17/08/2018, le SMIG à mai 2025, l'IRPP à 2026. **Versé,
+il n'aurait nulle part où aller.**
+
+**L'ordonnance n° 08/040 de 2008** passe le premier filtre de justesse (elle
+régit jusqu'en mai 2018, donc 2016-2018 est dans la conservation) et échoue au
+second : `bareme-smig.ts` ne descend pas sous mai 2025, et rien ne demande de
+l'étendre.
+
+**LA RÈGLE QUI MANQUAIT.** P6 en avait posé une, « avant de redemander un
+texte, l'y chercher ». Elle était incomplète, et l'incomplétude a produit cette
+liste-ci dans le message même qui reconnaissait la précédente. Il en faut une
+seconde : **UN TEXTE ABROGÉ N'EST UN MANQUE QUE SI LE LOGICIEL PEUT ENCORE
+RENCONTRER UN EXERCICE QU'IL RÉGISSAIT.** Le test est objectif et se pose en
+deux secondes · la période du texte tombe-t-elle dans les dix ans de
+l'article 24, et le module descend-il seulement jusque-là ?
+
+**Plus rien n'est donc attendu de Manasse sur la paie, sans réserve.**
