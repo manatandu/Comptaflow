@@ -4,6 +4,7 @@ import { PrismaService } from '../../common/prisma.service';
 import {
   ContratTravailDto,
   DecompteFinalDto,
+  LivreDePaieDto,
   SalarieDto,
   SimulationPaieDto,
   TerminerContratDto,
@@ -12,6 +13,16 @@ import { assiettes, type ElementPaie, type NatureElementPaie } from './assiettes
 import { baremeApplicableAuMois, retenueMensuelle } from './bareme-irpp';
 import { cotisations, netAPayer, type NatureEmployeurInpp } from './cotisations-paie';
 import { passationPaie, type Referentiel } from './passation-paie';
+import { quotiteSaisissable } from './quotite-saisissable';
+import {
+  ARRETE_DU_MODELE,
+  DOUBLES_DETACHABLES_MINIMUM,
+  MENTIONS_ARTICLE_25,
+  RESERVE_ARTICLE_104,
+  SANCTION_ARTICLE_103,
+  livreDePaie,
+} from './livre-de-paie';
+import { MULTIPLICATEURS_ARTICLE_7, allocationFamilialeJournaliere } from './bareme-smig';
 import {
   decompteFinal,
   type InitiativeRupture,
@@ -434,6 +445,27 @@ export class PersonnelService {
    * revenus, non au jour de la paie · un enfant né en mars ne compte qu'en
    * janvier suivant.
    */
+  /**
+   * LE « TAUX LÉGAL » DE L'ARTICLE 69, 1, ET POURQUOI IL EST CALCULÉ ICI.
+   *
+   * La colonne 19 des annexes du décret n° 25/22 donne un taux JOURNALIER par
+   * enfant. L'immunité de l'article 69, 1 borne ce que l'employeur accorde
+   * SUR LA PÉRIODE DE PAIE · on mensualise donc par le multiplicateur de
+   * l'article 7 du décret, vingt-six, et on porte au nombre d'enfants
+   * BÉNÉFICIAIRES. Rendre `null` n'est pas une panne : c'est ce qui déclenche
+   * l'abstention en aval, et elle vaut mieux qu'un plafond inventé.
+   */
+  private tauxLegalAllocationsFamiliales(dto: SimulationPaieDto): number | null {
+    if (typeof dto.tauxLegalAllocationsFamilialesFc === 'number') {
+      return dto.tauxLegalAllocationsFamilialesFc;
+    }
+    const enfants = dto.enfantsBeneficiairesAllocations;
+    if (typeof enfants !== 'number') return null;
+    const a = allocationFamilialeJournaliere(dto.moisDePaie, enfants);
+    if (!a.valeur) return null;
+    return a.valeur.totalFc * MULTIPLICATEURS_ARTICLE_7.MOIS;
+  }
+
   async simulerPaie(tenantId: string, salarieId: string | null, dto: SimulationPaieDto) {
     const borne = baremeApplicableAuMois(dto.moisDePaie);
 
@@ -476,8 +508,16 @@ export class PersonnelService {
     // qui en sort ENTRE ALORS dans les retenues de l'article 71, et c'est
     // seulement là que l'assiette fiscale nette se ferme. Calculer l'impôt
     // avant les cotisations le surestimerait de 5 % de l'assiette sociale.
+    // ARTICLE 69, 1 · LE « TAUX LÉGAL » SE CALCULE, IL NE SE SAISIT PLUS.
+    // Voir RESOLUTION_TAUX_LEGAL_ALLOCATIONS · c'est la colonne 19 du décret
+    // n° 25/22, mensualisée par le multiplicateur de l'article 7 et portée au
+    // nombre d'ENFANTS BÉNÉFICIAIRES, qui n'est pas le nombre de personnes à
+    // charge de l'article 124. Un taux saisi PRIME, pour le mois qu'aucune
+    // annexe ne couvre. Ni l'un ni l'autre, et l'assiette s'abstient.
+    const tauxLegalAllocationsFamilialesFc = this.tauxLegalAllocationsFamiliales(dto);
+
     const premierPassage = assiettes(elements, {
-      tauxLegalAllocationsFamilialesFc: dto.tauxLegalAllocationsFamilialesFc ?? null,
+      tauxLegalAllocationsFamilialesFc,
     });
     const lesCotisations = cotisations(premierPassage.assietteSocialeFc, {
       moisDePaie: dto.moisDePaie,
@@ -494,7 +534,7 @@ export class PersonnelService {
       lesCotisations.totalTravailleurFc + Math.max(0, dto.retenuesArticle71Fc ?? 0);
 
     const deuxAssiettes = assiettes(elements, {
-      tauxLegalAllocationsFamilialesFc: dto.tauxLegalAllocationsFamilialesFc ?? null,
+      tauxLegalAllocationsFamilialesFc,
       retenuesArticle71Fc,
     });
 
@@ -545,10 +585,26 @@ export class PersonnelService {
       netAPayerFc: net.netAPayerFc,
     });
 
+    // ARTICLE 114 · LA QUOTITÉ SAISISSABLE S'ASSIED SUR LA RÉMUNÉRATION AU
+    // SENS DE L'ARTICLE 7, qui est exactement l'assiette SOCIALE, et sur les
+    // retenues réellement liquidées ci-dessus. Elle s'abstient d'elle-même
+    // quand la classe manque ou qu'un logement est fourni en nature.
+    const quotite = quotiteSaisissable({
+      moisDePaie: dto.moisDePaie,
+      remunerationFc: deuxAssiettes.assietteSocialeFc,
+      classeProfessionnelle: dto.classeProfessionnelle ?? null,
+      retenuesFiscalesFc: retenue ? retenue.retenueFc : 0,
+      retenuesSocialesFc: lesCotisations.totalTravailleurFc,
+      logementFourniEnNature: dto.logementFourniEnNature,
+      obligationAlimentaireLegale: dto.obligationAlimentaireLegale,
+    });
+
     return {
       moisDePaie: dto.moisDePaie,
       referentiel: tenant.referentiel,
       passation,
+      quotite,
+      tauxLegalAllocationsFamilialesFc,
       cotisations: lesCotisations,
       net,
       baremeApplicable: borne.applicable,
@@ -559,8 +615,10 @@ export class PersonnelService {
       sourceProposition,
       retenue,
       avertissement:
-        "Ceci n'est PAS un bulletin de paie. OmegaX rend ici deux assiettes et la retenue de l'article 119 ; " +
-        "il ne liquide aucune cotisation patronale, ne propose aucune écriture et ne conserve rien. " +
+        "Ceci n'est PAS un bulletin de paie et ne tient PAS lieu de livre de paie des articles 213 à 215. " +
+        "OmegaX rend ici les deux assiettes, les cotisations des deux côtés, la retenue de l'article 119, " +
+        "le net, la quotité saisissable de l'article 114 et une PROPOSITION d'écriture · il ne conserve " +
+        "rien, ne poste rien et ne remet aucun décompte écrit au sens de l'article 103. " +
         "La retenue rendue est un ACOMPTE sur l'impôt annuel de l'article 116, jamais un solde.",
     };
   }
@@ -581,6 +639,32 @@ export class PersonnelService {
    * et le garder en signature empêche qu'on l'oublie le jour où le décompte
    * lira le contrat.
    */
+  /**
+   * LE LIVRE DE PAIE · PUREMENT DÉCLARATIF, RIEN N'EST LU NI ÉCRIT.
+   *
+   * OmegaX ne tient pas le livre de paie et ne prétend pas en tenir lieu.
+   * Il dit ce que les articles 213 à 215 exigent, il compte les mentions de
+   * l'article 25 de l'arrêté n° 146/2018 qu'un document couvre, et il REFUSE
+   * toujours de certifier la conformité au modèle : l'arrêté de 2008 qui fixe
+   * ce modèle est identifié mais pas lu.
+   */
+  livreDePaie(_tenantId: string, dto: LivreDePaieDto) {
+    return {
+      ...livreDePaie({
+        siegeDExploitation: dto.siegeDExploitation ?? null,
+        autorisationInspecteurDuTravail: dto.autorisationInspecteurDuTravail ?? null,
+        effectifHabituel: dto.effectifHabituel ?? null,
+        exclusivementPersonnelDomestique: dto.exclusivementPersonnelDomestique,
+        mentionsPortees: dto.mentionsPortees ?? [],
+      }),
+      mentions: MENTIONS_ARTICLE_25,
+      arreteDuModele: ARRETE_DU_MODELE,
+      doublesDetachablesMinimum: DOUBLES_DETACHABLES_MINIMUM,
+      sanctionArticle103: SANCTION_ARTICLE_103,
+      reserveArticle104: RESERVE_ARTICLE_104,
+    };
+  }
+
   decompteFinal(_tenantId: string, dto: DecompteFinalDto) {
     return decompteFinal({
       anneesAnciennete: dto.anneesAnciennete,
@@ -683,3 +767,4 @@ export type Confrontation = Awaited<ReturnType<PersonnelService['confronter']>>;
 export type Effectif = Awaited<ReturnType<PersonnelService['effectif']>>;
 export type SimulationPaie = Awaited<ReturnType<PersonnelService['simulerPaie']>>;
 export type DecompteFinal = ReturnType<PersonnelService['decompteFinal']>;
+export type LivreDePaie = ReturnType<PersonnelService['livreDePaie']>;

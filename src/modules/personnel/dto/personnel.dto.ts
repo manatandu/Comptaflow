@@ -339,13 +339,29 @@ export class SimulationPaieDto {
 
   /**
    * Article 69, 1 · le « taux légal » des allocations familiales du mois.
-   * Absent, la simulation s'abstient plutôt que de choisir entre les deux
-   * montants que le corpus porte.
+   * NORMALEMENT INUTILE DEPUIS P5 · la simulation le calcule à partir de la
+   * colonne 19 du décret n° 25/22 et du nombre d'enfants bénéficiaires.
+   * Ce champ reste ouvert pour le mois de paie qu'aucune annexe ne couvre ;
+   * fourni, il prime, et l'absence des deux vaut abstention.
    */
   @IsOptional()
   @IsNumber()
   @Min(0)
   tauxLegalAllocationsFamilialesFc?: number;
+
+  /**
+   * Article 69, 1 · le nombre d'ENFANTS BÉNÉFICIAIRES des allocations
+   * familiales du mois. Il ne se déduit ni du registre ni des personnes à
+   * charge de l'article 124 : l'article 8 de l'arrêté ministériel n° 137/2018
+   * interrompt le droit enfant par enfant (fin d'études, vingt-cinq ans,
+   * mariage, décès, résidence hors du territoire), et un enfant à charge au
+   * sens fiscal n'est donc pas forcément un enfant bénéficiaire.
+   */
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(30)
+  enfantsBeneficiairesAllocations?: number;
 
   /** Nature de l'employeur au sens de l'arrêté INPP · PUBLIC ou PRIVE. */
   @IsOptional()
@@ -362,6 +378,32 @@ export class SimulationPaieDto {
   @IsOptional()
   @IsBoolean()
   majorationRisquesProfessionnels?: boolean;
+
+  /**
+   * Article 114 · la CLASSE de la tension salariale, 1 à 17. Elle place le
+   * seuil des « cinq fois le salaire mensuel minimum interprofessionnel de sa
+   * catégorie ». Absente, la quotité saisissable n'est pas chiffrée.
+   */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(17)
+  classeProfessionnelle?: number;
+
+  /**
+   * Article 114, alinéa 4 · un logement est-il FOURNI EN NATURE avec
+   * remboursement ? Ce n'est PAS l'indemnité de logement, qui est hors
+   * rémunération par l'article 7 litera h. Répondu oui, la quotité n'est pas
+   * chiffrable : l'arrêté de l'article 139 a) n'est pas au corpus.
+   */
+  @IsOptional()
+  @IsBoolean()
+  logementFourniEnNature?: boolean;
+
+  /** Article 114, alinéa 2 · la créance poursuit-elle une obligation alimentaire légale ? */
+  @IsOptional()
+  @IsBoolean()
+  obligationAlimentaireLegale?: boolean;
 }
 
 /**
@@ -440,4 +482,39 @@ export class DecompteFinalDto {
   @IsNumber()
   @Min(0)
   gratificationFc?: number;
+}
+
+/**
+ * LE LIVRE DE PAIE · ce qui se DÉCLARE, et rien de nominatif. La route ne
+ * reçoit aucun nom de salarié : elle juge un DOCUMENT et une organisation,
+ * pas une paie.
+ */
+export class LivreDePaieDto {
+  /** Article 213 · un livre par siège d'exploitation. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  siegeDExploitation?: string;
+
+  /** Article 215, alinéa 2 · l'autorisation de l'Inspecteur du Travail. */
+  @IsOptional()
+  @IsBoolean()
+  autorisationInspecteurDuTravail?: boolean;
+
+  /** Article 215, alinéa 3 · l'effectif habituel de l'établissement. */
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  effectifHabituel?: number;
+
+  /** Article 213 · l'employeur occupe-t-il exclusivement du personnel domestique ? */
+  @IsOptional()
+  @IsBoolean()
+  exclusivementPersonnelDomestique?: boolean;
+
+  /** Les rangs de l'article 25 de l'arrêté n° 146/2018 que le document porte. */
+  @IsOptional()
+  @IsArray()
+  @IsInt({ each: true })
+  mentionsPortees?: number[];
 }

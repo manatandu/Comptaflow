@@ -199,6 +199,18 @@ interface Simulation {
     refus: { motif: string; explication: string }[];
     reserves: string[];
   };
+  tauxLegalAllocationsFamilialesFc: number | null;
+  quotite: {
+    baseFc: number | null;
+    seuilFc: number | null;
+    mensuelMinimumFc: number | null;
+    quotiteOrdinaireFc: number | null;
+    quotiteAlimentaireFc: number | null;
+    quotiteCumuleeFc: number | null;
+    partInsaisissableFc: number | null;
+    abstentions: { motif: string; explication: string }[];
+    reserves: string[];
+  };
   personnesAChargeRetenues: number;
   propositionPersonnesACharge: number | null;
   sourceProposition: string | null;
@@ -219,6 +231,29 @@ interface Simulation {
     };
   } | null;
   avertissement: string;
+}
+
+interface LivreDePaie {
+  livreDu: boolean;
+  remplacementAutorise: boolean;
+  livreInspireAdmis: boolean;
+  mentionsPorteesCount: number;
+  mentionsManquantes: { rang: number; libelle: string }[];
+  conformiteAuModeleCertifiee: boolean;
+  refus: { motif: string; explication: string }[];
+  reserves: string[];
+  mentions: { rang: number; libelle: string }[];
+  arreteDuModele: {
+    reference: string;
+    objet: string;
+    publie: string;
+    viseParLeCodeDuTravail: string[];
+    lu: boolean;
+    pourquoi: string;
+  };
+  doublesDetachablesMinimum: number;
+  sanctionArticle103: string;
+  reserveArticle104: string;
 }
 
 interface Decompte {
@@ -416,7 +451,7 @@ export function PersonnelPage() {
   const [confrontation, setConfrontation] = useState<Confrontation | null>(null);
   const [effectif, setEffectif] = useState<Effectif | null>(null);
   const [onglet, setOnglet] = useState<
-    'registre' | 'confrontation' | 'effectif' | 'simulation' | 'decompte'
+    'registre' | 'confrontation' | 'effectif' | 'simulation' | 'decompte' | 'livre'
   >('registre');
   const [tous, setTous] = useState(false);
   const [selection, setSelection] = useState<string>('');
@@ -446,6 +481,18 @@ export function PersonnelPage() {
     moyenneDouzeMoisFc: '',
     gratificationFc: '',
   });
+  const [enfantsAllocations, setEnfantsAllocations] = useState('');
+  const [classePro, setClassePro] = useState('');
+  const [logementNature, setLogementNature] = useState(false);
+  const [obligationAlimentaire, setObligationAlimentaire] = useState(false);
+  const [livre, setLivre] = useState<LivreDePaie | null>(null);
+  const [livreSaisie, setLivreSaisie] = useState({
+    siegeDExploitation: '',
+    autorisation: '' as '' | 'oui' | 'non',
+    effectifHabituel: '',
+    domestique: false,
+  });
+  const [mentionsPortees, setMentionsPortees] = useState<number[]>([]);
   const [natureInpp, setNatureInpp] = useState<'' | 'PUBLIC' | 'PRIVE'>('');
   const [effectifInpp, setEffectifInpp] = useState('');
   const [majorationRp, setMajorationRp] = useState(false);
@@ -514,6 +561,13 @@ export function PersonnelPage() {
       ...(natureInpp === '' ? {} : { natureEmployeurInpp: natureInpp }),
       effectif: nombre(effectifInpp),
       ...(majorationRp ? { majorationRisquesProfessionnels: true } : {}),
+      // ARTICLE 69, 1 · le nombre d'enfants BÉNÉFICIAIRES, dont le serveur
+      // tire le taux légal. Absent, il s'abstient · il ne suppose pas un.
+      enfantsBeneficiairesAllocations: nombre(enfantsAllocations),
+      // ARTICLE 114 · la classe place le seuil. Vide = quotité non chiffrée.
+      classeProfessionnelle: nombre(classePro),
+      ...(logementNature ? { logementFourniEnNature: true } : {}),
+      ...(obligationAlimentaire ? { obligationAlimentaireLegale: true } : {}),
     };
     api
       .post<Simulation>(
@@ -533,6 +587,42 @@ export function PersonnelPage() {
   };
 
 /**
+   * LE LIVRE DE PAIE EST DEMANDÉ AU SERVEUR, et les trente mentions en
+   * REVIENNENT · les recopier ici en ferait une deuxième liste, qui aurait
+   * divergé au premier correctif de l'arrêté n° 146/2018.
+   */
+  const verifierLivre = () => {
+    setErreur('');
+    setEnCours(true);
+    const nombre = (v: string) => {
+      const n = Number(v.replace(/\s/g, ''));
+      return v.trim() === '' || Number.isNaN(n) ? undefined : n;
+    };
+    api
+      .post<LivreDePaie>('/personnel/livre-de-paie', {
+        siegeDExploitation: livreSaisie.siegeDExploitation.trim() || undefined,
+        // « NON RENSEIGNÉ » RESTE ABSENT · l'envoyer à false ferait d'un
+        // silence un refus, et d'une absence de réponse une réponse.
+        ...(livreSaisie.autorisation === ''
+          ? {}
+          : { autorisationInspecteurDuTravail: livreSaisie.autorisation === 'oui' }),
+        effectifHabituel: nombre(livreSaisie.effectifHabituel),
+        ...(livreSaisie.domestique ? { exclusivementPersonnelDomestique: true } : {}),
+        mentionsPortees,
+      })
+      .then(
+        (r) => {
+          setLivre(r);
+          setEnCours(false);
+        },
+        (e: ApiError) => {
+          setErreur(e.message);
+          setEnCours(false);
+        },
+      );
+  };
+
+  /**
    * LE DÉCOMPTE EST DEMANDÉ AU SERVEUR · les durées du Code du travail et les
    * réserves sur le séminaire CPCC vivent dans `decompte-final.ts`. Les
    * recopier ici produirait un second décompte, plausible et différent.
@@ -723,7 +813,9 @@ export function PersonnelPage() {
       )}
 
       <div className="ecran-seul flex gap-1 mb-2 text-[10.5px]">
-        {(['registre', 'confrontation', 'effectif', 'simulation', 'decompte'] as const).map((o) => (
+        {(
+          ['registre', 'confrontation', 'effectif', 'simulation', 'decompte', 'livre'] as const
+        ).map((o) => (
           <button
             key={o}
             type="button"
@@ -740,7 +832,9 @@ export function PersonnelPage() {
                   ? 'Effectif'
                   : o === 'simulation'
                     ? 'Simulation'
-                    : 'Décompte final'}
+                    : o === 'decompte'
+                      ? 'Décompte final'
+                      : 'Livre de paie'}
           </button>
         ))}
       </div>
@@ -1452,11 +1546,13 @@ export function PersonnelPage() {
             renvoie avec chaque simulation plutôt que de la laisser ici seule.
           */}
           <div className="border border-warning/40 bg-warning/5 px-3.5 py-2.5 mb-2.5">
-            <strong>Ceci n’est pas un bulletin de paie.</strong> OmegaX rend ici les{' '}
-            <strong>deux assiettes</strong> d’un mois et la retenue de l’article 119 de la loi
-            n° 23/053. Il ne liquide aucune cotisation patronale, ne propose aucune écriture et ne
-            conserve rien. La retenue rendue est un <strong>acompte</strong> sur l’impôt annuel de
-            l’article 116, jamais un solde.
+            <strong>Ceci n’est pas un bulletin de paie</strong>, et cela ne tient pas lieu de{' '}
+            <strong>livre de paie</strong> des articles 213 à 215. OmegaX rend ici les{' '}
+            <strong>deux assiettes</strong> d’un mois, les cotisations des deux côtés, la retenue de
+            l’article 119 de la loi n° 23/053, le net, la quotité saisissable de l’article 114 et
+            une <strong>proposition</strong> d’écriture. Il ne conserve rien, ne poste rien et ne
+            remet aucun décompte écrit au sens de l’article 103. La retenue rendue est un{' '}
+            <strong>acompte</strong> sur l’impôt annuel de l’article 116, jamais un solde.
           </div>
 
           <div className="border border-border px-3.5 py-2.5 mb-2.5">
@@ -1503,12 +1599,44 @@ export function PersonnelPage() {
                 />
               </label>
               <label className="flex flex-col gap-0.5">
+                <span className={etiquette}>Enfants bénéficiaires alloc.</span>
+                <input
+                  value={enfantsAllocations}
+                  onChange={(e) => setEnfantsAllocations(e.target.value)}
+                  className="border border-border bg-transparent px-2 py-1 w-[150px] text-right"
+                />
+              </label>
+              <label className="flex flex-col gap-0.5">
                 <span className={etiquette}>Taux légal alloc. fam. (FC)</span>
                 <input
                   value={tauxAllocations}
                   onChange={(e) => setTauxAllocations(e.target.value)}
                   className="border border-border bg-transparent px-2 py-1 w-[160px] text-right"
                 />
+              </label>
+              <label className="flex flex-col gap-0.5">
+                <span className={etiquette}>Classe (art. 114)</span>
+                <input
+                  value={classePro}
+                  onChange={(e) => setClassePro(e.target.value)}
+                  className="border border-border bg-transparent px-2 py-1 w-[120px] text-right"
+                />
+              </label>
+              <label className="flex items-center gap-1 pb-1">
+                <input
+                  type="checkbox"
+                  checked={logementNature}
+                  onChange={(e) => setLogementNature(e.target.checked)}
+                />
+                <span className="text-[10px]">Logement fourni en nature</span>
+              </label>
+              <label className="flex items-center gap-1 pb-1">
+                <input
+                  type="checkbox"
+                  checked={obligationAlimentaire}
+                  onChange={(e) => setObligationAlimentaire(e.target.checked)}
+                />
+                <span className="text-[10px]">Créance alimentaire légale</span>
               </label>
               <label className="flex flex-col gap-0.5">
                 <span className={etiquette}>Employeur INPP</span>
@@ -1551,9 +1679,15 @@ export function PersonnelPage() {
             <div className="text-[10px] text-text-dim mb-2">
               Les <strong>retenues de l’article 71</strong> sont saisies, quote-part ouvrière de la
               CNSS en tête : leurs taux vivent au registre des retenues avec leur date d’effet, et
-              ce module ne les recopie pas. Le <strong>taux légal des allocations familiales</strong>{' '}
-              l’est aussi, parce que deux textes en portent deux montants et qu’aucune source lue ne
-              dit lequel vaut ici. Sans lui, la simulation <strong>s’abstient</strong>.
+              ce module ne les recopie pas. Le{' '}
+              <strong>taux légal des allocations familiales</strong>, lui, est désormais{' '}
+              <strong>calculé</strong> à partir du nombre d’enfants bénéficiaires : c’est la colonne
+              19 du décret n° 25/22, mensualisée. Ce n’est <strong>pas</strong> le montant de
+              8 100 FC de l’arrêté ministériel n° 137/2018, qui est une prestation{' '}
+              <strong>servie directement par la Caisse</strong> et que l’employeur n’accorde pas.
+              Le champ de saisie ne sert plus qu’au mois qu’aucune annexe ne couvre. La{' '}
+              <strong>classe</strong> place le seuil de l’article 114 ; sans elle, ou dès qu’un
+              logement est <strong>fourni en nature</strong>, la quotité n’est pas chiffrée.
             </div>
           </div>
 
@@ -2028,6 +2162,88 @@ export function PersonnelPage() {
                 )}
               </div>
 
+              {/*
+                ARTICLE 114 · LA QUOTITÉ SAISISSABLE. Elle ne s'assied ni sur
+                le total versé ni sur l'assiette fiscale · sur la RÉMUNÉRATION
+                au sens de l'article 7, moins les retenues fiscales et
+                sociales. Tous les montants viennent du serveur.
+              */}
+              <div className="border border-border px-3.5 py-2.5 mt-2.5">
+                <div className={`${etiquette} mb-1.5`}>
+                  Article 114 · quotité cessible et saisissable
+                </div>
+                {simulation.quotite.abstentions.length > 0 ? (
+                  <ul className="text-[10px]">
+                    {simulation.quotite.abstentions.map((a, i) => (
+                      <li key={i} className="py-1 border-t border-border/40">
+                        <span className="text-warning">{a.motif}</span>
+                        <div className="text-text-dim">{a.explication}</div>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[520px] text-[10px]">
+                      <tbody>
+                        <tr className="border-t border-border/40">
+                          <td className="py-1">Base de l’alinéa 4</td>
+                          <td className="py-1 text-right">{fc(simulation.quotite.baseFc)}</td>
+                        </tr>
+                        <tr className="border-t border-border/40">
+                          <td className="py-1">
+                            Mensuel minimum de la classe (décret n° 25/22)
+                          </td>
+                          <td className="py-1 text-right">
+                            {fc(simulation.quotite.mensuelMinimumFc)}
+                          </td>
+                        </tr>
+                        <tr className="border-t border-border/40">
+                          <td className="py-1">Seuil · cinq fois ce minimum</td>
+                          <td className="py-1 text-right">{fc(simulation.quotite.seuilFc)}</td>
+                        </tr>
+                        <tr className="border-t border-border/40">
+                          <td className="py-1">
+                            Quotité ordinaire · un cinquième puis un tiers
+                          </td>
+                          <td className="py-1 text-right">
+                            {fc(simulation.quotite.quotiteOrdinaireFc)}
+                          </td>
+                        </tr>
+                        <tr className="border-t border-border/40">
+                          <td className="py-1">
+                            Quotité alimentaire · deux cinquièmes (alinéa 2)
+                          </td>
+                          <td className="py-1 text-right">
+                            {fc(simulation.quotite.quotiteAlimentaireFc)}
+                          </td>
+                        </tr>
+                        <tr className="border-t border-border">
+                          <td className="py-1">
+                            <strong>Cumul (alinéa 3)</strong>
+                          </td>
+                          <td className="py-1 text-right">
+                            <strong>{fc(simulation.quotite.quotiteCumuleeFc)}</strong>
+                          </td>
+                        </tr>
+                        <tr className="border-t border-border/40">
+                          <td className="py-1 text-ok">Part insaisissable</td>
+                          <td className="py-1 text-right text-ok">
+                            {fc(simulation.quotite.partInsaisissableFc)}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                <ul className="text-[10px] text-text-dim mt-1.5">
+                  {simulation.quotite.reserves.map((r, i) => (
+                    <li key={i} className="py-1 border-t border-border/40">
+                      {r}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
               {(simulation.assiettes.reserves.length > 0 ||
                 (simulation.retenue?.reserves.length ?? 0) > 0) && (
                 <div className="border border-border px-3.5 py-2.5 mt-2.5 text-[10px]">
@@ -2247,6 +2463,184 @@ export function PersonnelPage() {
                     </li>
                   ))}
                 </ul>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {onglet === 'livre' && (
+        <div className="ecran-seul max-w-[1240px] text-[10.5px]">
+          {/*
+            CE QUE CETTE FENÊTRE NE FAIT PAS, ET ELLE LE DIT AVANT TOUT LE
+            RESTE. OmegaX ne tient pas le livre de paie et ne certifie aucune
+            conformité au modèle · l'arrêté de 2008 qui le fixe est identifié
+            mais pas lu. Ce qui est rendu est une COUVERTURE des mentions.
+          */}
+          <div className="border border-warning/40 bg-warning/5 px-3.5 py-2.5 mb-2.5">
+            <strong>OmegaX ne tient pas votre livre de paie.</strong> L’article 215 exige un{' '}
+            <strong>modèle fixé par arrêté</strong> du Ministre du Travail. Cet arrêté est{' '}
+            <strong>identifié mais non lu</strong> par OmegaX : rien ici ne certifie une conformité
+            à ce modèle, et ce qui est rendu est une <strong>couverture</strong> des trente
+            mentions de l’article 25 de l’arrêté ministériel n° 146/2018, qui sont, elles, lues.
+            Couverture ne vaut pas conformité.
+          </div>
+
+          <div className="border border-border px-3.5 py-2.5 mb-2.5">
+            <div className="flex flex-wrap gap-3 items-end mb-2">
+              <label className="flex flex-col gap-0.5">
+                <span className={etiquette}>Siège d’exploitation</span>
+                <input
+                  value={livreSaisie.siegeDExploitation}
+                  onChange={(e) =>
+                    setLivreSaisie({ ...livreSaisie, siegeDExploitation: e.target.value })
+                  }
+                  className="border border-border bg-transparent px-2 py-1 w-[220px]"
+                />
+              </label>
+              <label className="flex flex-col gap-0.5">
+                <span className={etiquette}>Autorisation Inspecteur (art. 215, al. 2)</span>
+                <select
+                  value={livreSaisie.autorisation}
+                  onChange={(e) =>
+                    setLivreSaisie({
+                      ...livreSaisie,
+                      autorisation: e.target.value as '' | 'oui' | 'non',
+                    })
+                  }
+                  className="border border-border bg-transparent px-2 py-1 w-[170px]"
+                >
+                  <option value="">Non renseignée</option>
+                  <option value="oui">Obtenue</option>
+                  <option value="non">Non obtenue</option>
+                </select>
+              </label>
+              <label className="flex flex-col gap-0.5">
+                <span className={etiquette}>Effectif habituel</span>
+                <input
+                  value={livreSaisie.effectifHabituel}
+                  onChange={(e) =>
+                    setLivreSaisie({ ...livreSaisie, effectifHabituel: e.target.value })
+                  }
+                  className="border border-border bg-transparent px-2 py-1 w-[120px] text-right"
+                />
+              </label>
+              <label className="flex items-center gap-1 pb-1">
+                <input
+                  type="checkbox"
+                  checked={livreSaisie.domestique}
+                  onChange={(e) =>
+                    setLivreSaisie({ ...livreSaisie, domestique: e.target.checked })
+                  }
+                />
+                <span className="text-[10px]">Personnel exclusivement domestique</span>
+              </label>
+              <button
+                type="button"
+                onClick={verifierLivre}
+                disabled={enCours}
+                className="border border-accent text-accent px-3 py-1"
+              >
+                Vérifier
+              </button>
+            </div>
+            <div className="text-[10px] text-text-dim">
+              L’article 213 impose un livre <strong>dans chacun des sièges d’exploitation</strong>,
+              consignant à chaque paie <strong>toute somme quelconque</strong> attribuée à titre de
+              rémunération. L’alinéa 2 de l’article 215 permet de le remplacer par un autre document
+              en <strong>gestion automatisée</strong>, mais l’autorisation de l’Inspecteur du
+              Travail est un <strong>acte</strong> à obtenir, pas une faculté que l’informatisation
+              accorde d’elle-même.
+            </div>
+          </div>
+
+          {livre && (
+            <>
+              <div className="border border-border px-3.5 py-2.5 mb-2.5">
+                <div className={`${etiquette} mb-1`}>Verdict</div>
+                <div className="text-[10px]">
+                  Livre dû : <strong>{livre.livreDu ? 'oui' : 'non'}</strong> · remplacement
+                  autorisé : <strong>{livre.remplacementAutorise ? 'oui' : 'non'}</strong> · livre
+                  « inspiré du modèle » (moins de {25} travailleurs) :{' '}
+                  <strong>{livre.livreInspireAdmis ? 'oui' : 'non'}</strong> · mentions couvertes :{' '}
+                  <strong>
+                    {livre.mentionsPorteesCount} / {livre.mentions.length}
+                  </strong>{' '}
+                  · conformité au modèle certifiée :{' '}
+                  <strong className="text-warning">
+                    {livre.conformiteAuModeleCertifiee ? 'oui' : 'non'}
+                  </strong>
+                </div>
+                <ul className="text-[10px] mt-1.5">
+                  {livre.refus.map((r, i) => (
+                    <li key={i} className="py-1 border-t border-border/40">
+                      <span className="text-warning">{r.motif}</span>
+                      <div className="text-text-dim">{r.explication}</div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="border border-border px-3.5 py-2.5 mb-2.5 overflow-x-auto">
+                <div className={`${etiquette} mb-1`}>
+                  Les trente mentions de l’article 25 de l’arrêté n° 146/2018
+                </div>
+                <table className="w-full min-w-[520px] text-[10px]">
+                  <tbody>
+                    {livre.mentions.map((m) => {
+                      const portee = mentionsPortees.includes(m.rang);
+                      return (
+                        <tr key={m.rang} className="border-t border-border/40">
+                          <td className="py-1 w-[36px] text-right text-text-dim">{m.rang}</td>
+                          <td className="py-1">{m.libelle}</td>
+                          <td className="py-1 w-[90px] text-right">
+                            <label className="flex items-center gap-1 justify-end">
+                              <input
+                                type="checkbox"
+                                checked={portee}
+                                onChange={(e) =>
+                                  setMentionsPortees(
+                                    e.target.checked
+                                      ? [...mentionsPortees, m.rang]
+                                      : mentionsPortees.filter((r) => r !== m.rang),
+                                  )
+                                }
+                              />
+                              <span className={portee ? 'text-ok' : 'text-text-dim'}>
+                                {portee ? 'portée' : 'absente'}
+                              </span>
+                            </label>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="border border-danger/30 bg-danger-soft px-3.5 py-2.5 mb-2.5 text-[10px]">
+                {livre.sanctionArticle103}
+              </div>
+
+              <div className="border border-border px-3.5 py-2.5 text-[10px]">
+                <div className={`${etiquette} mb-1`}>Réserves de lecture</div>
+                <ul>
+                  {[...livre.reserves, livre.reserveArticle104].map((r, i) => (
+                    <li key={i} className="py-1 border-t border-border/40 text-text-dim">
+                      {r}
+                    </li>
+                  ))}
+                </ul>
+                <div className="py-1 border-t border-border/40 text-text-dim">
+                  {livre.arreteDuModele.reference} {livre.arreteDuModele.objet} ·{' '}
+                  {livre.arreteDuModele.publie} · visé par le Code du travail aux{' '}
+                  {livre.arreteDuModele.viseParLeCodeDuTravail.join(', ')}.{' '}
+                  {livre.arreteDuModele.pourquoi}
+                </div>
+                <div className="py-1 border-t border-border/40 text-text-dim">
+                  Article 214 · le livre se compose de feuilles numérotées de manière continue,
+                  chacune comportant au moins {livre.doublesDetachablesMinimum} doubles détachables.
+                </div>
               </div>
             </>
           )}

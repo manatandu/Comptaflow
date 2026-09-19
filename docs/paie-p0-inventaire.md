@@ -116,7 +116,7 @@ l'évaluation forfaitaire du logement de l'art. 139**.
 | Manque | Ce qu'il bloque | Voie |
 |---|---|---|
 | **Le SMIG** · cité par au moins cinq articles (décret 18/041 art. 8 ; AM 146 art. 94, 98, 102 ; loi 16/009 art. 75, 95), **jamais chiffré dans le corpus** | le plancher d'assiette CNSS ET la quotité saisissable de l'art. 114 | trouver le décret en vigueur |
-| ~~**L'arrêté de l'art. 139** (valeur forfaitaire du logement)~~ | · | **CE MANQUE N'EN EST PAS UN** · voir ci-dessous |
+| **L'arrêté de l'art. 139** (valeur maximale de remboursement du logement fourni en nature) | la déduction de l'alinéa 4 de l'art. 114, donc la quotité saisissable dès qu'un logement est fourni en nature | **MANQUE RÉEL, RÉTABLI EN P5** · sa radiation du 19/09 confondait deux objets |
 | **L'arrêté INPP** · cité par le dépôt sous un numéro introuvable et daté à tort | rien aujourd'hui, mais le taux restait invérifiable ET sa date d'effet était fausse | à verser au corpus · **date corrigée le 19/09/2026** |
 | **La convention collective** · l'art. 114 raisonne par CATÉGORIE, et le décompte final montre qu'un protocole sectoriel change le barème de préavis | le décompte final et toute catégorisation | donnée du dossier, à saisir |
 
@@ -126,11 +126,14 @@ genre de chiffre qu'on croit connaître.
 **MISE À JOUR DU 19/09/2026 · la passe de recherche
 (`docs/paie-recherche-textes-2026-09-19.md`) en a ramené trois choses.**
 
-1. **L'arrêté de l'art. 139 n'existe pas.** La contre-valeur du logement est
-   fixée par le MÊME décret que le SMIG, et ce n'est pas un montant mais une
-   formule. Ce tableau annonçait « chercher l'arrêté » : il envoyait chercher
-   un texte qui n'a jamais été écrit. Deux manques n'en faisaient qu'un, et P4
-   ne dépend que d'un seul texte.
+1. ~~**L'arrêté de l'art. 139 n'existe pas.**~~ **CETTE CONCLUSION EST FAUSSE,
+   CORRIGÉE EN P5.** Elle prenait la **contre-valeur du logement** du décret
+   n° 25/22 pour la **valeur maximale de remboursement** de l'art. 139 a).
+   Ce sont deux objets, deux auteurs et deux conditions. L'arrêté de
+   l'art. 139 reste introuvable, et c'est lui, et lui seul, que l'alinéa 4 de
+   l'art. 114 fait déduire. Le manque annoncé au tableau ci-dessus était donc
+   RÉEL · c'est sa radiation qui était l'erreur. Voir
+   `docs/paie-p5-quotite-et-livre-de-paie.md`.
 2. **Le SMIG est identifié** · décret n° 25/22 du 30 mai 2025, dix articles au
    moins et une ANNEXE de tension salariale. Identifié, pas lu : la sortie
    réseau de l'environnement a refusé les six dépôts qui le portaient.
@@ -238,7 +241,10 @@ une règle que le logiciel applique déjà trente fichiers plus loin.
 - **Une table de comptes par référentiel**, sur le modèle de
   `nomenclature-stocks.ts` et de `nomenclature-emballages.ts`.
 - **Le décompte final (P4) attend le SMIG.** L'art. 114 ne se calcule pas sans
-  lui, et l'art. 139 ne se calcule pas sans son arrêté.
+  lui, et l'art. 139 ne se calcule pas sans son arrêté. **P5 nuance le
+  premier point** · la quotité de l'art. 114 se calcule dès que la CLASSE du
+  décret n° 25/22 est connue, la convention collective n'y entrant pas · seul
+  le logement fourni en nature reste bloqué, et par l'arrêté de l'art. 139.
 - **Le module détiendra des données personnelles** · situation de famille,
   nationalité, salaire. C'est le premier du dépôt dans ce cas, et la liste
   d'exclusion du journal d'audit demandera une passe propre en P1.
@@ -247,9 +253,11 @@ une règle que le logiciel applique déjà trente fichiers plus loin.
 
 1. **Le SMIG en vigueur** (décret), sans lequel ni le plancher d'assiette ni la
    quotité saisissable ne se calculent.
-2. ~~**L'arrêté de l'art. 139** sur la valeur forfaitaire du logement.~~
-   **SANS OBJET** · il est dans le décret du point 1, qu'il faut donc verser
-   AVEC SON ANNEXE.
+2. **L'arrêté de l'art. 139** sur la valeur maximale de remboursement du
+   logement fourni en nature. **DEMANDE RÉTABLIE EN P5** · elle avait été
+   radiée le 19/09 au motif qu'elle était « dans le décret du point 1 ». Elle
+   ne l'est pas : le décret fixe une contre-valeur, l'arrêté fixe une valeur
+   maximale de remboursement, et c'est celle-ci que l'art. 114 déduit.
 3. **L'arrêté interministériel INPP du 24 septembre 2025** (numéro exact non
    établi ; « n° 002/CAB/MET/2025 » n'a pu être confirmé), à verser au corpus
    avec l'arrêté de 2006 qu'il remplace.

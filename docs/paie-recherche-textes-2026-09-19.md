@@ -51,7 +51,23 @@ devine pas.
 
 ---
 
-## 2. Manque n° 2 · l'arrêté de l'art. 139 · **IL N'EXISTE PAS**
+## 2. Manque n° 2 · l'arrêté de l'art. 139
+
+> **CETTE SECTION EST FAUSSE, ET LA CORRECTION EST EN P5.** Elle concluait
+> « il n'existe pas, il est dans le décret SMIG ». C'est un objet pris pour un
+> autre. L'art. 139 a) annonce un ARRÊTÉ du Ministre du Travail, pris après
+> avis du Conseil National du Travail, qui fixe « les cas dans lesquels le
+> logement doit être fourni, **sa valeur maximale de remboursement**, et les
+> conditions auxquelles il doit répondre ». Le décret n° 25/22 fixe une
+> **contre-valeur du logement** · un autre auteur (le Premier ministre), un
+> autre objet, et une condition que l'art. 139 n'a pas (le décret n° 25/21,
+> art. 15, ne la défalque que **pour cause de mutation**). L'arrêté de
+> l'art. 139 **n'a pas été trouvé**, et tant qu'il ne l'est pas la déduction
+> de l'alinéa 4 de l'art. 114 n'est pas chiffrable. Voir
+> `docs/paie-p5-quotite-et-livre-de-paie.md` et
+> `src/modules/personnel/quotite-saisissable.ts`.
+
+### Ce que la passe du 19/09 avait conclu, et qui ne tient pas
 
 C'est le vrai produit de cette passe, et c'est une correction de ma propre
 lecture P0. Le § 3 annonçait « chercher l'arrêté » sur la valeur forfaitaire du

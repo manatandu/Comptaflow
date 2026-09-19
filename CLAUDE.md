@@ -1410,11 +1410,14 @@ visible, et la masquer protégerait la manipulation, pas la personne. Six
 contresens réinjectés, six attrapés.
 
 **ILS NE SONT PLUS QUATRE** (passe de recherche du 19/09/2026,
-`docs/paie-recherche-textes-2026-09-19.md`). L'**arrêté de l'art. 139
-n'existe pas** : la contre-valeur du logement est fixée par le MÊME texte que
-le SMIG, le **décret n° 25/22 du 30 mai 2025**, et c'est une FORMULE, pas un
-montant. Deux manques n'en faisaient qu'un, et le décompte final ne dépend que
-d'un seul texte · à verser AVEC SON ANNEXE de tension salariale. Et le manque
+`docs/paie-recherche-textes-2026-09-19.md`). ~~L'**arrêté de l'art. 139
+n'existe pas**~~ **CETTE CONCLUSION-LÀ EST FAUSSE, ET P5 LA RETIRE** · elle
+prenait la **contre-valeur du logement** du décret n° 25/22 pour la **valeur
+maximale de remboursement** de l'art. 139 a). Un décret du Premier ministre
+n'est pas un arrêté du Ministre du Travail pris après avis du Conseil National
+du Travail, et le second objet n'est pas le premier. Le manque de l'art. 139
+est RÉEL, il est rétabli, et c'est sa radiation qui était l'erreur. Le décret
+n° 25/22 reste à verser AVEC SON ANNEXE de tension salariale pour le reste. Et le manque
 INPP cachait un DÉFAUT : le dépôt datait le nouveau barème du 24 septembre
 2025, qui est la date de SIGNATURE · l'entrée en vigueur est au 1er janvier
 2026, un exercice 2025 relevant du barème de 2006 (3 %, 2 %, 1 %, arrêté
@@ -1794,6 +1797,92 @@ est portée au brut en 6638 alors que l'arrêté n° 146/2018 l'exclut de
 l'assiette sociale. Recopier l'exemple en croyant y lire un calcul est le piège
 de plus.
 
+
+**P5 · LES TROIS RESTES, ET UN MÊME MOT QUI PORTAIT TROIS OBJETS.**
+
+`docs/paie-p5-quotite-et-livre-de-paie.md`. Trois sujets, dont deux déclarés
+bloqués et qui ne l'étaient pas.
+
+**VINGT-TROISIÈME OCCURRENCE DE LA FAMILLE « UN MÊME MOT, DEUX SENS », ET LA
+PREMIÈRE À TROIS.** Le mot « logement » porte, dans ce corpus : (1)
+l'**indemnité de logement** des art. 138 et 7 litera h, HORS rémunération sans
+condition, qui ne se déduit donc jamais de la base de l'art. 114 puisqu'elle
+n'y est pas entrée ; (2) la **valeur maximale de remboursement du logement
+fourni en nature** de l'art. 139 a), fixée par un ARRÊTÉ du Ministre du Travail
+après avis du Conseil National du Travail, et c'est celle-là, et elle seule,
+que l'alinéa 4 de l'art. 114 fait déduire · **arrêté introuvable** ; (3) la
+**contre-valeur du logement** du décret n° 25/22 art. 6, colonne 20, défalcable
+de l'indemnité et POUR CAUSE DE MUTATION seulement (décret n° 25/21 art. 15).
+
+**ET C'EST LE DÉPÔT LUI-MÊME QUI AVAIT CONFONDU** (2) et (3), le 19/09, dans
+une phrase de correction. Sans ce rattrapage, la quotité saisissable aurait
+déduit la colonne 20 · base trop haute, part saisissable trop grande, **saisie
+qui mord sur la part que l'art. 114 protège**. D'OÙ LA DOCTRINE : **une
+correction engage autant qu'une règle, et un manque déclaré SANS OBJET se
+vérifie avec la même discipline qu'un manque déclaré tout court.**
+
+**LA QUOTITÉ DE L'ART. 114 N'ÉTAIT PAS BLOQUÉE PAR LA CONVENTION
+COLLECTIVE.** L'article vise le salaire minimum **INTERPROFESSIONNEL** de la
+catégorie, qui est celui du décret n° 25/22 · une convention ne peut être que
+plus favorable, et ce qu'elle ajoute n'est pas ce seuil. Le module demande la
+**CLASSE** (1 à 17) et non la catégorie, parce qu'une catégorie couvre
+plusieurs échelons à des taux différents ; prendre le premier échelon pour tous
+abaisserait le seuil et AUGMENTERAIT la part saisissable. **Une règle de
+protection ne se tranche pas contre celui qu'elle protège.** Le cumul de
+l'alinéa 3 n'est PAS plafonné, parce que le texte ne le plafonne pas · une
+réserve le dit, le code ne le fait pas.
+
+**LE TAUX LÉGAL DES ALLOCATIONS FAMILIALES · LA QUESTION ÉTAIT MAL POSÉE.**
+P2a demandait « lequel des deux montants ». Il n'y a pas deux lectures d'une
+même règle : il y a **DEUX OBLIGATIONS, DEUX DÉBITEURS**, qui partagent un nom.
+Les 8 100 FC de l'arrêté n° 137/2018 art. 3 sont « **servis directement par la
+Caisse** » (art. 4, et arrêté n° 143/2018 art. 1er) · même en dévolution, « la
+Caisse MET À LA DISPOSITION DE L'EMPLOYEUR le montant total des sommes à
+payer » (art. 143/2018 art. 3), donc l'employeur est un GUICHET. La colonne 19
+du décret n° 25/22, elle, est ce que l'EMPLOYEUR doit. Et l'art. 69, 1 immunise
+ce qui est « **RÉELLEMENT ACCORDÉ AUX EMPLOYÉS** ». **LE PLAFOND D'UNE IMMUNITÉ
+SE LIT SUR LE DÉBITEUR DE LA SOMME QU'IL BORNE.** Le taux se calcule donc
+désormais au lieu de se saisir. Le nombre d'enfants BÉNÉFICIAIRES n'est pas le
+nombre de personnes à charge · l'art. 8 de l'arrêté n° 137/2018 interrompt le
+droit enfant par enfant.
+
+**CINQUIÈME LACUNE DÉCLARÉE À TORT.** `bareme-smig.ts` écrivait « CET ARRÊTÉ
+N'EST PAS AU CORPUS » de l'arrêté n° 137/2018. Il y est, douze articles, et les
+conditions de suspension qu'on disait manquantes sont à ses art. 5, 6 et 8.
+Même cause que les quatre précédentes · **le manque vérifié contre le module
+qu'on écrit, pas contre le corpus entier**.
+
+**LE LIVRE DE PAIE · L'ART. 215 AL. 2 VISE EXACTEMENT OMEGAX, ET POSE DEUX
+CONDITIONS, PAS UNE.** La gestion automatisée permet de remplacer le livre par
+tout autre document, mais il faut une **AUTORISATION DE L'INSPECTEUR DU
+TRAVAIL**, qui est un ACTE à obtenir et conserver, jamais une faculté que
+l'informatisation accorde d'elle-même · et des mentions conformes à l'arrêté du
+modèle. « Non renseignée » n'est jamais lue comme « obtenue ». L'arrêté du
+modèle est **IDENTIFIÉ** (n° 12/CAB.MIN/ETPS/042 du 8 août 2008) et **TOUJOURS
+NON LU** · la sortie réseau refuse les quatre dépôts qui le portent. Aucune de
+ses mentions n'est codée, et **le module ne certifie JAMAIS une conformité au
+modèle, même toutes cases cochées**. Ce qu'il rend est la couverture des
+**trente mentions de l'art. 25 de l'arrêté n° 146/2018**, qui sont lues :
+**COUVERTURE NE VAUT PAS CONFORMITÉ**, et le mot « notamment » de l'art. 25
+rappelle que la liste n'est même pas fermée.
+
+**L'ART. 103 AL. 2 EST LA DISPOSITION LA PLUS LOURDE DU TITRE V POUR UN
+CABINET**, et elle n'était nulle part : sans décompte écrit remis AU MOMENT DU
+PAIEMENT, « ses allégations concernant le décompte des paiements effectués
+**SONT REJETÉES** ». Un paiement réel mais non décompté se plaide comme un
+non-paiement. Et l'art. 104 ferme la porte inverse · « pour solde de tout
+compte » ne vaut pas renonciation.
+
+**UNE GARANTIE NÉGATIVE VIEILLIT.** L'avertissement de la simulation disait
+encore, aux deux bouts, « il ne liquide aucune cotisation patronale, ne propose
+aucune écriture ». Vrai en P2a, faux depuis P2b et P3, et lu par l'utilisateur
+à chaque simulation. **CHAQUE PASSE QUI AJOUTE UNE CAPACITÉ DOIT RELIRE LES
+PHRASES QUI DISENT QUE LE LOGICIEL NE L'A PAS.** Un test le gèle maintenant,
+serveur et écran.
+
+Onze contresens réinjectés, onze attrapés · plus un douzième refait parce que
+la première version ne compilait pas, et **une suite à « 0 total » n'est pas
+une suite qui tombe**.
 
 **Questionnaire de révision par cycle · vingt-quatre items du CPCC, et le
 reste assumé.** Le séminaire porte DEUX checklists, § VI « vérification de

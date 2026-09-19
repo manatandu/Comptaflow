@@ -2,6 +2,7 @@ import {
   HORS_REMUNERATION_ARTICLE_7,
   IMMUNITES_ARTICLE_69,
   PLAFOND_LOGEMENT_POUR_CENT,
+  RESOLUTION_TAUX_LEGAL_ALLOCATIONS,
   assiettes,
   assietteSociale,
   type ElementPaie,
@@ -203,8 +204,10 @@ describe("Les abstentions plutôt que les suppositions", () => {
   });
 
   it("s'abstient sur les allocations familiales tant que le taux légal n'est pas fourni", () => {
-    // Deux textes portent deux montants et aucune source lue ne dit lequel
-    // vaut. OmegaX ne choisit pas.
+    // LE MOTIF DE CE TEST A CHANGÉ EN P5, ET SON ISSUE NON. La question
+    // « lequel des deux montants ? » est tranchée · ce qui reste possible est
+    // qu'aucune annexe ne couvre le mois, ou que le nombre d'enfants
+    // bénéficiaires manque. L'abstention demeure, sa raison est autre.
     const verdict = assiettes([
       salaire(1_000_000),
       {
@@ -217,8 +220,40 @@ describe("Les abstentions plutôt que les suppositions", () => {
     expect(verdict.abstentions[0].motif).toBe(
       'TAUX_LEGAL_ALLOCATIONS_FAMILIALES_NON_FOURNI',
     );
-    expect(verdict.abstentions[0].explication).toContain('137/2018');
     expect(verdict.abstentions[0].explication).toContain('25/22');
+    expect(verdict.abstentions[0].explication).toMatch(/colonne 19/i);
+  });
+});
+
+/**
+ * LA RÉSOLUTION DES DEUX MONTANTS · on gèle la CONCLUSION, pas seulement ses
+ * sources. La leçon de la réserve CNSS : un test qui ne cite que les articles
+ * laisse passer l'inversion de la phrase qui compte.
+ */
+describe("Le « taux légal » de l'article 69, 1", () => {
+  it('désigne la colonne 19 du décret, et écarte nommément les 8 100 FC de la Caisse', () => {
+    expect(RESOLUTION_TAUX_LEGAL_ALLOCATIONS).toMatch(/colonne 19/i);
+    expect(RESOLUTION_TAUX_LEGAL_ALLOCATIONS).toContain('25/22');
+    expect(RESOLUTION_TAUX_LEGAL_ALLOCATIONS).toContain('8 100');
+    expect(RESOLUTION_TAUX_LEGAL_ALLOCATIONS).toContain('137/2018');
+    expect(RESOLUTION_TAUX_LEGAL_ALLOCATIONS).toContain('143/2018');
+    // LA CONCLUSION ELLE-MÊME, et dans le bon sens.
+    expect(RESOLUTION_TAUX_LEGAL_ALLOCATIONS).toMatch(/n'est PAS le montant de 8 100 FC/i);
+    expect(RESOLUTION_TAUX_LEGAL_ALLOCATIONS).toMatch(/SERVIE DIRECTEMENT PAR LA CAISSE/i);
+    expect(RESOLUTION_TAUX_LEGAL_ALLOCATIONS).toMatch(/RÉELLEMENT ACCORDÉ/i);
+  });
+
+  it("n'immunise que jusqu'au taux légal, et reprend l'excédent", () => {
+    const verdict = assiettes(
+      [
+        salaire(1_000_000),
+        { nature: 'ALLOCATIONS_FAMILIALES_LEGALES', libelle: 'Allocations', montantFc: 50_000 },
+      ],
+      { tauxLegalAllocationsFamilialesFc: 20_703.8 },
+    );
+    expect(verdict.abstentions).toHaveLength(0);
+    // 50 000 versés, 20 703,80 immunisés, le reste imposable.
+    expect(verdict.assietteFiscaleBruteFc).toBeCloseTo(1_000_000 + 50_000 - 20_703.8, 2);
   });
 });
 

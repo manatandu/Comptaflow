@@ -158,6 +158,45 @@ export const IMMUNITES_ARTICLE_69: readonly ImmuniteArticle69[] = [
 /** Article 69, 8, a) · le seul chiffre que le point porte. */
 export const PLAFOND_LOGEMENT_POUR_CENT = 30;
 
+/**
+ * LEQUEL DES DEUX MONTANTS EST « LE TAUX LÉGAL » DE L'ARTICLE 69, 1 ·
+ * LA QUESTION EST TRANCHÉE, ET ELLE ÉTAIT MAL POSÉE.
+ *
+ * P2a l'avait laissée ouverte en la formulant ainsi : « le corpus porte deux
+ * montants d'allocation familiale, lequel vaut ? ». La réponse est qu'il n'y
+ * a PAS DEUX LECTURES D'UNE MÊME RÈGLE · IL Y A DEUX OBLIGATIONS, portées
+ * par DEUX DÉBITEURS DIFFÉRENTS, qui se trouvent partager un nom.
+ *
+ *  · LES 8 100 FC PAR MOIS ET PAR ENFANT · arrêté ministériel n° 137/2018,
+ *    article 3. Son article 4 dit ce qu'il en est : « Les allocations
+ *    familiales sont SERVIES DIRECTEMENT PAR LA CAISSE par voie bancaire ou
+ *    par guichet espèces. » L'arrêté n° 143/2018 le redit à son article 1er,
+ *    et son article 3 achève la démonstration pour le cas exceptionnel où
+ *    l'employeur paie : « LA CAISSE MET À LA DISPOSITION DE L'EMPLOYEUR
+ *    chargé du paiement […] le montant total des sommes à payer ». Même
+ *    alors, l'employeur est un GUICHET, jamais le débiteur. Cette somme
+ *    n'est donc pas versée par l'employeur, elle n'entre pas dans le revenu
+ *    professionnel de l'article 68, et il n'y a rien à immuniser.
+ *
+ *  · LA COLONNE 19 DES ANNEXES DU DÉCRET n° 25/22 · les « ALLOCATIONS
+ *    FAMILIALES MINIMA » que le titre du décret annonce, fondées sur
+ *    l'article 87 du Code du travail. Celles-là, l'EMPLOYEUR les doit.
+ *    C'est cela qu'un bulletin porte, et c'est donc cela que l'article 69, 1
+ *    vise.
+ *
+ * LE MOT QUI TRANCHE EST DANS L'ARTICLE 69, 1 LUI-MÊME · il immunise les
+ * allocations familiales « RÉELLEMENT ACCORDÉES AUX EMPLOYÉS ». Une
+ * prestation servie par la Caisse n'est pas accordée par l'employeur. Le
+ * plafond d'une immunité se lit sur le DÉBITEUR de la somme qu'il borne.
+ */
+export const RESOLUTION_TAUX_LEGAL_ALLOCATIONS =
+  "ARTICLE 69, 1 · le « taux légal » qui borne l'immunité est celui de la COLONNE 19 des annexes du décret " +
+  "n° 25/22, converti au mois par le multiplicateur de l'article 7 et multiplié par le nombre d'enfants " +
+  "bénéficiaires. Ce n'est PAS le montant de 8 100 FC de l'article 3 de l'arrêté ministériel n° 137/2018 : " +
+  "celui-là est une prestation SERVIE DIRECTEMENT PAR LA CAISSE (art. 4 du même arrêté, art. 1er de " +
+  "l'arrêté n° 143/2018), que l'employeur n'accorde pas et qui n'entre donc jamais dans le revenu " +
+  "professionnel de l'article 68. L'article 69, 1 ne vise que ce qui est « RÉELLEMENT ACCORDÉ AUX EMPLOYÉS ».";
+
 export type ElementPaie = {
   readonly nature: NatureElementPaie;
   readonly libelle: string;
@@ -227,11 +266,11 @@ export type VerdictAssiettes = {
 export type ParametresAssiettes = {
   /**
    * Article 69, 1 · le « taux légal » des allocations familiales, POUR LA
-   * PÉRIODE DE PAIE. OmegaX ne le choisit pas : deux textes portent deux
-   * montants (arrêté ministériel n° 137/2018, article 3, servi par la CNSS ;
-   * colonne 19 de l'annexe du décret n° 25/22), et aucune source lue ne dit
-   * lequel des deux est « le taux légal » au sens fiscal. Absent, l'élément
-   * passe en abstention.
+   * PÉRIODE DE PAIE ET POUR L'EFFECTIF D'ENFANTS CONCERNÉ. Voir
+   * `RESOLUTION_TAUX_LEGAL_ALLOCATIONS` plus bas : la question des deux
+   * montants est TRANCHÉE, et c'est la colonne 19 du décret n° 25/22 qui la
+   * borne. Le service le calcule ; ce champ reste ouvert pour le cas où le
+   * mois de paie sort des annexes, et l'absence vaut alors abstention.
    */
   readonly tauxLegalAllocationsFamilialesFc?: number | null;
   /**
@@ -355,8 +394,9 @@ export function assiettes(
           libelle: element.libelle,
           montantFc: element.montantFc,
           explication:
-            `${immunite.point} immunise les allocations familiales ${immunite.texte}. Le « taux légal » n'est pas tranché : ` +
-            "l'arrêté ministériel n° 137/2018, article 3, et la colonne 19 de l'annexe du décret n° 25/22 portent deux montants différents, et aucune source lue ne dit lequel vaut ici. OmegaX ne choisit pas.",
+            `${immunite.point} immunise les allocations familiales ${immunite.texte}. Le « taux légal » est la ` +
+            "colonne 19 du décret n° 25/22 (voir RESOLUTION_TAUX_LEGAL_ALLOCATIONS), mais AUCUNE ANNEXE DE CE DÉCRET NE " +
+            "COUVRE CE MOIS DE PAIE, ou le nombre d'enfants bénéficiaires n'est pas renseigné. Le plafond ne se place donc pas.",
         });
         sortsFiscaux.push({
           libelle: element.libelle,

@@ -314,9 +314,29 @@ export function tauxJournalierDeLaClasse(
  * n° 16/009 du 15 juillet 2016 […] telle qu'appliquée par l'article 3 de
  * l'Arrêté ministériel n° 137/CAB/MINETAT/MTEPS/01/2018 du 8 novembre 2018
  * déterminant le montant, les modalités de paiement des allocations
- * familiales et les conditions de suspension ». CET ARRÊTÉ N'EST PAS AU
- * CORPUS · les CONDITIONS DE SUSPENSION en particulier n'y sont pas lues, et
- * OmegaX ne sait donc pas quand l'allocation cesse d'être due.
+ * familiales et les conditions de suspension ».
+ *
+ * CORRECTION DU 19/09/2026 · CET ARRÊTÉ EST AU CORPUS, ET IL L'ÉTAIT DÉJÀ.
+ * Ce commentaire le déclarait absent · il est dans le skill des cotisations
+ * sociales, douze articles, texte intégral. C'est la CINQUIÈME « lacune
+ * déclarée à tort » du dépôt, et la même que les quatre autres : le manque
+ * avait été vérifié contre le module qu'on écrivait, pas contre le corpus
+ * entier. LES CONDITIONS DE SUSPENSION Y SONT, et les voici · l'allocation
+ * cesse à l'interruption de l'activité professionnelle, réputée établie par
+ * l'interruption des déclarations et versements au compte individuel
+ * (art. 5), à compter du premier jour du mois civil suivant, et elle
+ * reprend le premier jour du mois civil du versement retrouvé (art. 6) ;
+ * elle est due malgré la suspension du contrat pour maladie ou accident,
+ * grossesse ou accouchement, incarcération sur plainte de l'employeur,
+ * congé et jours fériés légaux (art. 5) ; le droit s'interrompt par enfant
+ * en cas d'arrêt de la fréquentation scolaire, de fin d'études avant
+ * vingt-cinq ans, de dépassement de vingt-cinq ans sauf enfant invalide,
+ * de mariage ou de décès, et peut l'être si l'enfant ne réside plus sur le
+ * territoire national (art. 8).
+ *
+ * CE QUI NE CHANGE PAS · les 8 100 FC de l'article 3 de cet arrêté NE SONT
+ * PAS le montant de la colonne 19. Voir `assiettes-paie.ts` : ce sont deux
+ * obligations, deux débiteurs, et non deux lectures d'une même règle.
  */
 export function allocationFamilialeJournaliere(
   moisDePaie: string,
@@ -337,8 +357,10 @@ export function allocationFamilialeJournaliere(
       `Colonne ${COLONNE_ALLOCATIONS_FAMILIALES} de l'annexe ${a.valeur.numero} : ${parEnfant} FC ` +
       `par jour et PAR ENFANT à charge, soit 1/27e du taux du manœuvre ordinaire ` +
       `(${a.valeur.smigJournalierFc} FC) arrondi au centime. LES CONDITIONS DE SUSPENSION de ` +
-      "l'allocation relèvent de l'arrêté ministériel n° 137/CAB/MINETAT/MTEPS/01/2018, que l'article " +
-      "13 du décret n° 25/21 vise et qui n'est PAS au corpus d'OmegaX.",
+      "l'allocation relèvent de l'arrêté ministériel n° 137/CAB/MINETAT/MTEPS/01/2018 que vise l'article 13 " +
+      "du décret n° 25/21 · elles sont au corpus, articles 5, 6 et 8. CE MONTANT EST CELUI QUE L'EMPLOYEUR " +
+      "DOIT, et il ne se confond pas avec les 8 100 FC par mois de l'article 3 du même arrêté, qui sont une " +
+      "prestation SERVIE DIRECTEMENT PAR LA CAISSE (art. 4).",
   };
 }
 

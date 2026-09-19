@@ -53,7 +53,9 @@ describe("L'attestation de l'article 69, 8 n'est envoyée que si elle a été do
 
 describe("Ce que la fenêtre annonce avant tout chiffre", () => {
   it("dit que ce n'est pas un bulletin de paie", () => {
-    expect(SOURCE).toContain('Ceci n’est pas un bulletin de paie.');
+    // LA PHRASE A CHANGÉ EN P5, PAS SA FONCTION · elle ne s'arrête plus au
+    // point, elle enchaîne sur le livre de paie des articles 213 à 215.
+    expect(SOURCE).toContain('Ceci n’est pas un bulletin de paie');
   });
 
   it("ne déclare plus que le moteur attend des textes absents du corpus", () => {
@@ -177,5 +179,95 @@ describe("P4 · le décompte final à l'écran", () => {
   it("explique pourquoi les mois de service sont SAISIS", () => {
     expect(SOURCE).toContain('article 141, alinéa 2');
     expect(SOURCE).toContain('plausible et faux');
+  });
+});
+
+/**
+ * P5 · LA QUOTITÉ ET LE LIVRE DE PAIE À L'ÉCRAN. Même règle qu'au-dessus :
+ * on gèle ce que la page FAIT, et surtout ce qu'elle refuse de faire.
+ */
+describe("L'article 114 à l'écran", () => {
+  it('ne recalcule aucune fraction dans la page', () => {
+    // Le défaut visé : diviser par cinq ou par trois « pour afficher tout de
+    // suite ». Le seuil et les deux fractions vivent au serveur.
+    const debut = SOURCE.indexOf("Article 114 · quotité");
+    const fin = SOURCE.indexOf('Réserves de lecture', debut);
+    const panneau = SOURCE.slice(debut, fin);
+    expect(panneau).not.toMatch(/\/\s*5\b/);
+    expect(panneau).not.toMatch(/\/\s*3\b/);
+    expect(panneau).toContain('simulation.quotite.quotiteOrdinaireFc');
+    expect(panneau).toContain('simulation.quotite.partInsaisissableFc');
+  });
+
+  it("affiche les abstentions plutôt qu'un zéro", () => {
+    const debut = SOURCE.indexOf("Article 114 · quotité");
+    const panneau = SOURCE.slice(debut, debut + 2600);
+    expect(panneau).toContain('simulation.quotite.abstentions.length > 0');
+  });
+
+  it("envoie la classe et les deux cases, et laisse vide ce qui est vide", () => {
+    const corps = SOURCE.slice(SOURCE.indexOf('const simuler ='));
+    expect(corps).toContain('classeProfessionnelle: nombre(classePro)');
+    expect(corps).toContain('logementFourniEnNature: true');
+    expect(corps).toContain('obligationAlimentaireLegale: true');
+    expect(corps).toContain('enfantsBeneficiairesAllocations: nombre(enfantsAllocations)');
+  });
+
+  it("ne recopie AUCUN taux de la grille de tension dans la page", () => {
+    expect(SOURCE).not.toMatch(/21[_ .]?500/);
+    expect(SOURCE).not.toMatch(/14[_ .]?500/);
+    expect(SOURCE).not.toMatch(/796[.,]3/);
+  });
+});
+
+describe("Le livre de paie à l'écran", () => {
+  it('demande le verdict au serveur et ne recopie pas les trente mentions', () => {
+    expect(SOURCE).toContain('/personnel/livre-de-paie');
+    expect(SOURCE).toContain('livre.mentions.map');
+    // Le défaut visé : une deuxième liste, qui aurait divergé au premier
+    // correctif de l'arrêté n° 146/2018.
+    expect(SOURCE).not.toMatch(/numéro d’immatriculation attribué par la Caisse/);
+    expect(SOURCE).not.toMatch(/montant pris en considération pour le calcul des cotisations/);
+  });
+
+  it("n'affirme JAMAIS une conformité au modèle", () => {
+    const debut = SOURCE.indexOf("{onglet === 'livre' &&");
+    const panneau = SOURCE.slice(debut);
+    expect(panneau).toMatch(/identifié mais non lu/i);
+    expect(panneau).toMatch(/Couverture ne vaut pas conformité/i);
+    expect(panneau).toContain('livre.conformiteAuModeleCertifiee');
+    expect(panneau).not.toMatch(/livre de paie conforme/i);
+  });
+
+  it("laisse l'autorisation ABSENTE tant qu'elle n'est pas renseignée", () => {
+    const corps = SOURCE.slice(SOURCE.indexOf('const verifierLivre ='));
+    expect(corps).toContain("livreSaisie.autorisation === ''");
+    expect(corps).toMatch(/\?\s*\{\}/);
+  });
+
+  it("porte la sanction de l'article 103 telle que le serveur la rend", () => {
+    const debut = SOURCE.indexOf("{onglet === 'livre' &&");
+    const panneau = SOURCE.slice(debut);
+    expect(panneau).toContain('livre.sanctionArticle103');
+    expect(panneau).toContain('livre.reserveArticle104');
+  });
+});
+
+describe("L'avertissement de la simulation ne ment plus", () => {
+  it('ne dit plus « ne liquide aucune cotisation patronale »', () => {
+    expect(SOURCE).not.toMatch(/ne liquide aucune cotisation patronale/i);
+    expect(SOURCE).not.toMatch(/ne propose aucune écriture/i);
+  });
+
+  it('dit ce que la fenêtre fait vraiment', () => {
+    expect(SOURCE).toMatch(/ne tient pas lieu de/i);
+    expect(SOURCE).toMatch(/livre de paie/i);
+    expect(SOURCE).toMatch(/aucun décompte écrit/i);
+  });
+
+  it("dit que les 8 100 FC ne sont pas le taux légal", () => {
+    expect(SOURCE).toContain('8 100 FC');
+    expect(SOURCE).toMatch(/servie directement par la Caisse/i);
+    expect(SOURCE).toMatch(/colonne\s*\n?\s*19/i);
   });
 });

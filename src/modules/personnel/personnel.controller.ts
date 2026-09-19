@@ -9,6 +9,7 @@ import { PersonnelService } from './personnel.service';
 import {
   ContratTravailDto,
   DecompteFinalDto,
+  LivreDePaieDto,
   SalarieDto,
   SimulationPaieDto,
   TerminerContratDto,
@@ -110,6 +111,19 @@ export class PersonnelController {
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE, RoleUtilisateur.LECTURE_SEULE)
   async decompteFinal(@CurrentUser() user: AuthenticatedUser, @Body() dto: DecompteFinalDto) {
     return this.personnel.decompteFinal(user.tenantId, dto);
+  }
+
+  /**
+   * LE LIVRE DE PAIE ET LE DÉCOMPTE ÉCRIT · articles 213 à 215 et 103. En
+   * POST comme les deux routes précédentes, mais pour une autre raison : le
+   * corps porte une liste de mentions, pas un nom. La lecture seule y a
+   * droit · c'est un contrôle de conformité, exactement le travail du
+   * réviseur.
+   */
+  @Post('livre-de-paie')
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE, RoleUtilisateur.LECTURE_SEULE)
+  async livreDePaie(@CurrentUser() user: AuthenticatedUser, @Body() dto: LivreDePaieDto) {
+    return this.personnel.livreDePaie(user.tenantId, dto);
   }
 
   /**

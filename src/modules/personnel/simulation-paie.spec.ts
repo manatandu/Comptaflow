@@ -372,3 +372,163 @@ describe("P3 · la passation lit le référentiel du dossier, et le cloisonne", 
     expect(res.net.netAPayerFc).not.toBeNull();
   });
 });
+
+/**
+ * P5 · LE CÂBLAGE DES DEUX RESTES. Même discipline : ce ne sont pas les
+ * règles qu'on vérifie ici, ce sont les POINTS D'APPEL.
+ */
+describe("Le « taux légal » des allocations familiales, calculé et non saisi", () => {
+  it("le tire de la colonne 19 et le MENSUALISE par vingt-six", async () => {
+    const { svc } = service();
+    const res = await svc.simulerPaie(
+      't-1',
+      null,
+      dto({
+        elements: [
+          { nature: 'SALAIRE_OU_TRAITEMENT', libelle: 'Salaire', montantFc: 1_000_000 },
+          {
+            nature: 'ALLOCATIONS_FAMILIALES_LEGALES',
+            libelle: 'Allocations',
+            montantFc: 30_000,
+          },
+        ],
+        enfantsBeneficiairesAllocations: 1,
+      } as Partial<SimulationPaieDto>),
+    );
+    // Annexe 2 · 796,30 FC par jour et par enfant, fois vingt-six.
+    expect(res.tauxLegalAllocationsFamilialesFc).toBeCloseTo(796.3 * 26, 6);
+    expect(res.assiettes.abstentions).toHaveLength(0);
+  });
+
+  it('le porte au NOMBRE D\'ENFANTS, pas à un seul', async () => {
+    const { svc } = service();
+    const res = await svc.simulerPaie(
+      't-1',
+      null,
+      dto({ enfantsBeneficiairesAllocations: 3 } as Partial<SimulationPaieDto>),
+    );
+    expect(res.tauxLegalAllocationsFamilialesFc).toBeCloseTo(796.3 * 26 * 3, 6);
+  });
+
+  it("ne le devine PAS quand le nombre d'enfants n'est pas déclaré", async () => {
+    const { svc } = service();
+    const res = await svc.simulerPaie('t-1', null, dto());
+    expect(res.tauxLegalAllocationsFamilialesFc).toBeNull();
+  });
+
+  it("laisse PRIMER le taux saisi, pour le mois hors annexe", async () => {
+    const { svc } = service();
+    const res = await svc.simulerPaie(
+      't-1',
+      null,
+      dto({
+        tauxLegalAllocationsFamilialesFc: 12_345,
+        enfantsBeneficiairesAllocations: 2,
+      } as Partial<SimulationPaieDto>),
+    );
+    expect(res.tauxLegalAllocationsFamilialesFc).toBe(12_345);
+  });
+
+  it("rend null hors période d'annexe, même avec des enfants déclarés", async () => {
+    const { svc } = service();
+    const res = await svc.simulerPaie(
+      't-1',
+      null,
+      dto({
+        moisDePaie: '2024-06',
+        enfantsBeneficiairesAllocations: 2,
+      } as Partial<SimulationPaieDto>),
+    );
+    expect(res.tauxLegalAllocationsFamilialesFc).toBeNull();
+  });
+});
+
+describe("La quotité saisissable est appelée sur la RÉMUNÉRATION, pas sur le total versé", () => {
+  it("s'assied sur l'assiette SOCIALE et déduit les retenues réellement liquidées", async () => {
+    const { svc } = service();
+    const res = await svc.simulerPaie(
+      't-1',
+      null,
+      dto({
+        elements: [
+          { nature: 'SALAIRE_OU_TRAITEMENT', libelle: 'Salaire', montantFc: 1_000_000 },
+          // HORS rémunération par l'article 7 · elle ne doit PAS entrer dans
+          // la base de l'article 114.
+          {
+            nature: 'INDEMNITE_DE_TRANSPORT',
+            libelle: 'Transport',
+            montantFc: 200_000,
+            conditionArticle69Attestee: true,
+          },
+        ],
+        classeProfessionnelle: 1,
+        natureEmployeurInpp: 'PRIVE',
+        effectif: 10,
+      } as Partial<SimulationPaieDto>),
+    );
+    expect(res.quotite.baseFc).toBeCloseTo(
+      res.assiettes.assietteSocialeFc -
+        res.cotisations.totalTravailleurFc -
+        (res.retenue ? res.retenue.retenueFc : 0),
+      6,
+    );
+    // ET SURTOUT · le total versé, lui, comprend le transport.
+    expect(res.net.totalVerseFc).toBe(1_200_000);
+    expect(res.quotite.baseFc!).toBeLessThan(res.net.totalVerseFc);
+  });
+
+  it("s'abstient sans classe, et la simulation tient quand même", async () => {
+    const { svc } = service();
+    const res = await svc.simulerPaie(
+      't-1',
+      null,
+      dto({ natureEmployeurInpp: 'PRIVE', effectif: 10 } as Partial<SimulationPaieDto>),
+    );
+    expect(res.quotite.quotiteOrdinaireFc).toBeNull();
+    expect(res.quotite.abstentions.map((a) => a.motif)).toContain(
+      'CLASSE_PROFESSIONNELLE_ABSENTE',
+    );
+    expect(res.net.netAPayerFc).not.toBeNull();
+  });
+
+  it("s'abstient dès qu'un logement est fourni en nature", async () => {
+    const { svc } = service();
+    const res = await svc.simulerPaie(
+      't-1',
+      null,
+      dto({
+        classeProfessionnelle: 5,
+        logementFourniEnNature: true,
+        natureEmployeurInpp: 'PRIVE',
+        effectif: 10,
+      } as Partial<SimulationPaieDto>),
+    );
+    expect(res.quotite.abstentions.map((a) => a.motif)).toContain(
+      'LOGEMENT_EN_NATURE_NON_CHIFFRABLE',
+    );
+  });
+});
+
+describe("L'avertissement de la simulation dit la vérité de ce qu'elle fait", () => {
+  it("ne prétend plus ne liquider aucune cotisation patronale ni ne proposer d'écriture", async () => {
+    const { svc } = service();
+    const res = await svc.simulerPaie('t-1', null, dto());
+    expect(res.avertissement).not.toMatch(/ne liquide aucune cotisation patronale/i);
+    expect(res.avertissement).not.toMatch(/ne propose aucune écriture/i);
+    expect(res.avertissement).toMatch(/ne tient PAS lieu de livre de paie/i);
+    expect(res.avertissement).toMatch(/aucun décompte écrit/i);
+    expect(res.avertissement).toMatch(/ACOMPTE/);
+  });
+});
+
+describe('Le livre de paie ne lit ni n\'écrit rien', () => {
+  it("rend son verdict sans toucher à Prisma", () => {
+    const { svc, findFirst, tenantFind } = service();
+    const v = svc.livreDePaie('t-1', { siegeDExploitation: 'Gombe' });
+    expect(findFirst).not.toHaveBeenCalled();
+    expect(tenantFind).not.toHaveBeenCalled();
+    expect(v.conformiteAuModeleCertifiee).toBe(false);
+    expect(v.mentions).toHaveLength(30);
+    expect(v.arreteDuModele.lu).toBe(false);
+  });
+});
