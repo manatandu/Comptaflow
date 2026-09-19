@@ -14,6 +14,7 @@ import {
   ModifierJeuEtatsDto,
   ModifierLongueurCompteDto,
   ModifierMethodeCotisationsDto,
+  ModifierMethodeInventaireStocksDto,
   ModifierRegimeDto,
   ModifierSystemeSyscohadaDto,
 } from './dto/parametres-dossier.dto';
@@ -109,6 +110,24 @@ export class TenantController {
     @Body() dto: ModifierMethodeCotisationsDto,
   ) {
     return this.tenantService.modifierMethodeCotisations(user.tenantId, dto.methodeCotisations);
+  }
+
+  /**
+   * Mode de tenue des stocks · voir
+   * `TenantService.modifierMethodeInventaireStocks`. Réservé à
+   * l'administrateur du dossier : le choix commande l'écriture de variation de
+   * chaque clôture, ce n'est pas un réglage d'affichage.
+   */
+  @Patch('methode-inventaire-stocks')
+  @Roles(RoleUtilisateur.ADMIN_CABINET)
+  async modifierMethodeInventaireStocks(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: ModifierMethodeInventaireStocksDto,
+  ) {
+    return this.tenantService.modifierMethodeInventaireStocks(
+      user.tenantId,
+      dto.methodeInventaireStocks,
+    );
   }
 
   /**

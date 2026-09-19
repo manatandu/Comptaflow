@@ -3,7 +3,9 @@ import { siSycebnl } from '../../common/reponse-referentiel';
 import { PrismaService } from '../../common/prisma.service';
 import { MONNAIE_DE_TENUE } from '../../common/monnaie-de-tenue';
 import { Prisma, FormeJuridiqueEbnl,
-  FormeJuridiqueSyscohada, JeuEtatsFinanciersSycebnl, MethodeCotisations, Referentiel, RegimeExigibiliteTva, SystemeComptableSyscohada, TypeLicence } from '@prisma/client';
+  FormeJuridiqueSyscohada, JeuEtatsFinanciersSycebnl, MethodeCotisations, Referentiel, RegimeExigibiliteTva, SystemeComptableSyscohada, TypeLicence,
+  MethodeInventaireStocks,
+} from '@prisma/client';
 
 /**
  * Crée un tenant et sa licence en une transaction. Le référentiel comptable
@@ -130,6 +132,12 @@ export class TenantService {
       // dossier SYCEBNL « pas encore tranché ». Le référentiel du dossier
       // distingue les deux, comme pour la forme juridique.
       methodeCotisations: siSycebnl(tenant.referentiel, tenant.methodeCotisations),
+      // EN CLAIR, ET SANS `siSycebnl()` · les deux textes ouvrent une classe 3
+      // et posent le même choix entre inventaire permanent et intermittent
+      // (AUDCIF Titre VII ch. 3 section 3 · SYCEBNL Partie 2 ch. 3 section 3).
+      // Le masquer à un dossier SYSCOHADA lui retirerait le réglage qui
+      // commande son écriture de variation de stocks.
+      methodeInventaireStocks: tenant.methodeInventaireStocks,
       nombreEcritures,
     };
   }
@@ -484,6 +492,36 @@ export class TenantService {
       );
     }
     await this.prisma.tenant.update({ where: { id: tenantId }, data: { methodeCotisations } });
+    return this.parametres(tenantId);
+  }
+
+  /**
+   * MODE DE TENUE DES STOCKS · le choix que les deux textes laissent à
+   * l'entité, et qu'aucun défaut ne remplace.
+   *
+   * AUDCIF Titre VII ch. 3 section 3 et SYCEBNL Partie 2 ch. 3 section 3, dans
+   * les mêmes mots : « La comptabilisation des stocks repose sur la tenue SOIT
+   * d'un inventaire PERMANENT, SOIT d'un inventaire INTERMITTENT. Toutefois,
+   * les entités qui n'ont pas les moyens de tenir l'inventaire permanent
+   * peuvent recourir au système de l'inventaire intermittent. »
+   *
+   * AUCUN REFUS PAR RÉFÉRENTIEL · les deux en ont une, contrairement aux
+   * cotisations juste au-dessus. Et modifiable à tout moment : une entité qui
+   * se dote d'un magasin passe du jour au lendemain de l'un à l'autre, et le
+   * changement ne vaut que pour les clôtures à venir.
+   */
+  async modifierMethodeInventaireStocks(
+    tenantId: string,
+    methodeInventaireStocks: MethodeInventaireStocks,
+  ) {
+    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
+    if (!tenant) {
+      throw new NotFoundException('Dossier introuvable');
+    }
+    await this.prisma.tenant.update({
+      where: { id: tenantId },
+      data: { methodeInventaireStocks },
+    });
     return this.parametres(tenantId);
   }
 

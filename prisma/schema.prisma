@@ -241,6 +241,25 @@ enum StatutLicence {
 /// Ce n'est donc PAS une préférence de méthode : c'est l'existence, dans les
 /// statuts, d'une voie de recouvrement. Le logiciel ne peut pas la lire · il
 /// enregistre ce que le cabinet a constaté, et le lui oppose ensuite.
+/// LA TENUE DES STOCKS · les deux textes posent le choix dans les mêmes mots.
+///
+/// AUDCIF, Titre VII ch. 3 section 3, et SYCEBNL, Partie 2 ch. 3 section 3 :
+/// « La comptabilisation des stocks repose sur la tenue SOIT d'un inventaire
+/// PERMANENT, SOIT d'un inventaire INTERMITTENT. Toutefois, les entités qui
+/// n'ont pas les moyens de tenir l'inventaire permanent peuvent recourir au
+/// système de l'inventaire intermittent. »
+enum MethodeInventaireStocks {
+  /// Chaque entrée et chaque sortie passe par le compte de variation, en
+  /// continu. Le logiciel ne tient pas encore ce mode : un dossier qui le
+  /// déclare n'a PAS de proposition de variation à la clôture, et l'écran le
+  /// dit plutôt que de lui en servir une qui ferait double emploi.
+  PERMANENT
+  /// Le stock n'est connu qu'à la clôture, par inventaire extra-comptable.
+  /// C'est le mode que les deux textes ouvrent aux entités sans les moyens du
+  /// permanent, et celui que le module sert.
+  INTERMITTENT
+}
+
 enum MethodeCotisations {
   /// L'entité justifie d'un droit d'agir · la créance est constatée à l'appel
   /// (411 Adhérents par le crédit du 701).
@@ -419,6 +438,16 @@ model Tenant {
   /// doit préciser dans les notes annexes, la méthode retenue » · d'où le
   /// contrôle qui signale un dossier qui ne l'a pas fait.
   methodeCotisations MethodeCotisations?
+
+  /// Mode de tenue des stocks. NULL = pas encore tranché, et AUCUNE valeur par
+  /// défaut n'est posée · présumer l'INTERMITTENT ferait proposer une écriture
+  /// de variation à un dossier qui tient l'inventaire permanent, où chaque
+  /// entrée et chaque sortie sont déjà passées par le compte de variation : la
+  /// variation serait comptée DEUX FOIS, sur une écriture équilibrée. Et
+  /// présumer le PERMANENT priverait de la proposition le dossier qui en a le
+  /// plus besoin. Les deux textes laissent le choix à l'entité, le logiciel le
+  /// lui demande.
+  methodeInventaireStocks MethodeInventaireStocks?
 
   // ASSUJETTISSEMENT À LA TVA · une ASBL n'est PAS assujettie de plein droit.
   // L'ordonnance-loi n° 10/001 art. 14 fixe le seuil à 80 000 000 FC de chiffre

@@ -264,6 +264,17 @@ export function AppShell() {
         { label: 'Interrogation et lettrage', separateurAvant: true, onClick: () => navigate('/lettrage') },
         { label: 'Rapprochement bancaire', onClick: () => navigate('/rapprochement') },
         { label: 'Régularisations et abonnements', onClick: () => navigate('/regularisations') },
+        // SOUS « TRAITEMENT », ET NON SOUS « CONTRÔLE ET RÉVISION ».
+        // Premier essai, la fenêtre avait été posée à côté de l'inventaire
+        // physique, dont elle découle · le plafond du menu à 360 px l'a
+        // refusée, et il avait raison sur le FOND. Les registres de
+        // « Contrôle et révision » sont ce que le cabinet PRODUIT en
+        // révisant ; la variation de stocks, elle, PASSE UNE ÉCRITURE au
+        // livre-journal, exactement comme la régularisation juste au-dessus
+        // et l'affectation du résultat juste en dessous. Deuxième fois que ce
+        // plafond fait relire la place d'une fenêtre au lieu de se faire
+        // relever d'un cran.
+        { label: 'Variation des stocks', onClick: () => navigate('/variation-stocks') },
         // Geste ANNUEL, décidé par un organe · rangé avec les traitements de
         // fin d'exercice plutôt qu'avec la saisie courante.
         { label: 'Affectation du résultat', onClick: () => navigate('/affectation-resultat') },

@@ -43,6 +43,7 @@ const DeclarationTvaPage = lazy(() => import('../pages/DeclarationTvaPage').then
 const RetenuesPage = lazy(() => import('../pages/RetenuesPage').then((m) => ({ default: m.RetenuesPage })));
 const ExonerationsPage = lazy(() => import('../pages/ExonerationsPage').then((m) => ({ default: m.ExonerationsPage })));
 const InventairePage = lazy(() => import('../pages/InventairePage').then((m) => ({ default: m.InventairePage })));
+const VariationStocksPage = lazy(() => import('../pages/VariationStocksPage').then((m) => ({ default: m.VariationStocksPage })));
 const CircularisationPage = lazy(() => import('../pages/CircularisationPage').then((m) => ({ default: m.CircularisationPage })));
 const FaiblessesPage = lazy(() => import('../pages/FaiblessesPage').then((m) => ({ default: m.FaiblessesPage })));
 const QuestionnaireRevisionPage = lazy(() => import('../pages/QuestionnaireRevisionPage').then((m) => ({ default: m.QuestionnaireRevisionPage })));
@@ -290,6 +291,19 @@ export const FENETRES: DefinitionFenetre[] = [
     titre: 'Inventaire physique',
     titreCourt: 'Inventaire',
     rendre: () => <InventairePage />,
+  },
+  {
+    // AUCUN `referentielsApplicables` · les deux textes ouvrent une classe 3,
+    // posent le même choix entre inventaire permanent et intermittent, et
+    // écrivent le même schéma de variation à la clôture (AUDCIF Titre VII
+    // ch. 3 section 3 · SYCEBNL Partie 2 ch. 3 section 3). Ce qui les sépare
+    // est la NOMENCLATURE, tranchée compte par compte côté serveur. Fermer la
+    // fenêtre à l'un des deux lui retirerait une écriture que son propre
+    // référentiel lui impose.
+    motif: /^\/variation-stocks$/,
+    titre: 'Variation des stocks',
+    titreCourt: 'Var. stocks',
+    rendre: () => <VariationStocksPage />,
   },
   {
     // La confirmation de soldes n'est propre à aucun des deux plans · le CPCC

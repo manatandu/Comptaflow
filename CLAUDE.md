@@ -877,6 +877,47 @@ ET LE MODULE NE POSTE RIEN. Il PROPOSE, le comptable passe · le stock final vie
 d'un inventaire EXTRA-COMPTABLE qu'aucun livre ne porte, et le déduire serait
 l'inventer.
 
+**Mode de tenue des stocks · le champ SANS valeur par défaut, et les deux états
+qui ne sont pas des erreurs.** `Tenant.methodeInventaireStocks` enregistre ce
+que l'entité a choisi, et les deux textes lui laissent le choix dans les mêmes
+mots · « la comptabilisation des stocks repose sur la tenue SOIT d'un inventaire
+PERMANENT, SOIT d'un inventaire INTERMITTENT ». Aucun défaut n'est posé, et
+c'est la décision centrale du chantier : présumer l'INTERMITTENT ferait proposer
+une écriture de variation à un dossier qui tient le permanent, où chaque entrée
+et chaque sortie sont DÉJÀ passées par le compte de variation · la variation
+serait comptée deux fois, sur une écriture équilibrée. Présumer le PERMANENT
+priverait de la proposition le dossier qui en a le plus besoin.
+
+D'où trois états rendus par la fenêtre, et deux ne sont pas des erreurs. Méthode
+non déclarée · la réserve dit quoi faire et cite les deux textes. Inventaire
+PERMANENT · la réserve dit qu'il n'y a RIEN à passer ici et renvoie au
+rapprochement de l'inventaire physique. Inventaire INTERMITTENT · la proposition
+chiffrée. Une liste vide, dans les deux premiers cas, se lirait comme « rien à
+faire ».
+
+L'ENREGISTREMENT NE FAIT PAS CONFIANCE AU CLIENT · il REJOUE le calcul à partir
+du dossier et ne poste que ce que sa propre proposition contient, même
+discipline que la confirmation d'un pré-lettrage. Le stock final vient d'une
+CAMPAGNE D'INVENTAIRE quand elle existe, et la source nomme la campagne et sa
+date. Plusieurs fiches sur un même compte s'additionnent ; une SEULE fiche non
+valorisée rend le compte entier « pas encore compté », parce que la lire comme
+zéro minorerait le stock final de ce qu'on n'a pas su chiffrer.
+
+LES COMPTES VIENNENT DU PLAN, PAS DE LA BALANCE. Un stock ouvert cette année n'a
+aucun mouvement avant l'écriture de variation : la balance ne rend que les
+comptes mouvementés et l'écarterait, alors que c'est précisément celui dont il
+faut constater le stock final.
+
+ET LA FENÊTRE A CHANGÉ DE MENU PARCE QU'UN TEST L'A REFUSÉE, pour la DEUXIÈME
+fois. Posée d'abord sous « État > Contrôle et révision », à côté de l'inventaire
+physique dont elle découle, elle faisait tomber le plafond de
+`chrome-etroit.spec.ts`. Le refus avait raison sur le FOND : les registres de ce
+groupe sont ce que le CABINET produit en révisant, alors que la variation de
+stocks PASSE UNE ÉCRITURE au livre-journal, exactement comme la régularisation
+et l'affectation du résultat, qui vivent toutes deux sous « Traitement ». Un
+plafond qui fait relire la place d'une fenêtre au lieu de se faire relever d'un
+cran est un plafond qui a servi.
+
 
 **Questionnaire de révision par cycle · vingt-quatre items du CPCC, et le
 reste assumé.** Le séminaire porte DEUX checklists, § VI « vérification de

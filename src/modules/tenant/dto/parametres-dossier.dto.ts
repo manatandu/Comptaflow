@@ -6,6 +6,7 @@ import {
   MethodeCotisations,
   RegimeExigibiliteTva,
   SystemeComptableSyscohada,
+  MethodeInventaireStocks,
 } from '@prisma/client';
 
 export class ModifierJeuEtatsDto {
@@ -226,6 +227,18 @@ export class ModifierRegimeDto {
 export class ModifierMethodeCotisationsDto {
   @IsEnum(MethodeCotisations)
   methodeCotisations!: MethodeCotisations;
+}
+
+/**
+ * Mode de tenue des stocks · AUDCIF Titre VII ch. 3 section 3 et SYCEBNL
+ * Partie 2 ch. 3 section 3, dans les mêmes mots. Pas de valeur par défaut,
+ * ici comme en base : présumer l'INTERMITTENT ferait proposer une écriture de
+ * variation à un dossier qui tient le permanent, où la variation serait alors
+ * comptée deux fois.
+ */
+export class ModifierMethodeInventaireStocksDto {
+  @IsEnum(MethodeInventaireStocks)
+  methodeInventaireStocks!: MethodeInventaireStocks;
 }
 
 

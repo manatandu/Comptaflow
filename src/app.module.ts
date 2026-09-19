@@ -34,6 +34,7 @@ import { ImportModule } from './modules/import/import.module';
 import { ControlesModule } from './modules/controles/controles.module';
 import { RegularisationModule } from './modules/regularisation/regularisation.module';
 import { DevisesModule } from './modules/devises/devises.module';
+import { StockModule } from './modules/stocks/stock.module';
 import { AffectationModule } from './modules/affectation/affectation.module';
 import { RelancesModule } from './modules/relances/relances.module';
 import { RetenuesModule } from './modules/retenues/retenues.module';
@@ -98,6 +99,7 @@ import { CourrierModule } from './modules/courrier/courrier.module';
     RegularisationModule,
     DevisesModule,
     AffectationModule,
+    StockModule,
     RelancesModule,
     RetenuesModule,
     ExonerationsModule,
