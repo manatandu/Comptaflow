@@ -75,7 +75,7 @@ l'assiette fiscale et hors de l'assiette sociale.
 | CNSS · prestations aux familles | 6,5 % | employeur seul | décret 18/041, art. 2 |
 | CNSS · pensions | 10 % | **5 % employeur + 5 % travailleur** | art. 3 |
 | CNSS · risques professionnels | 1,5 % | employeur seul, **doublable** en cas de non-conformité | art. 4 et 5 |
-| INPP | 4 % public · 3,5 % (1 à 50) · 3 % (51 à 300) · 2 % (> 300) | employeur | arrêté 002/CAB/MET/2025 · **hors corpus** |
+| INPP | 4 % public · 3,5 % (1 à 50) · 3 % (51 à 300) · 2 % (> 300) | employeur | arrêté interministériel n° 002/CAB/MET/2025, n° 003/CAB/VPM/MIN/BUD/2025 du 24/09/2025, art. 1er · **AU CORPUS, texte intégral** (corrigé le 19/09/2026) |
 | ONEM | 0,5 % depuis le 25/09/2025, 0,2 % avant | employeur | arrêté 028/2025, art. 1er |
 | IRPP salarial | barème progressif 3 / 15 / 30 / 40 %, **plafonné à 30 %** | travailleur (retenu) | loi 23/053 art. 118 |
 
@@ -258,11 +258,22 @@ une règle que le logiciel applique déjà trente fichiers plus loin.
    radiée le 19/09 au motif qu'elle était « dans le décret du point 1 ». Elle
    ne l'est pas : le décret fixe une contre-valeur, l'arrêté fixe une valeur
    maximale de remboursement, et c'est celle-ci que l'art. 114 déduit.
-3. **L'arrêté interministériel INPP du 24 septembre 2025** (numéro exact non
-   établi ; « n° 002/CAB/MET/2025 » n'a pu être confirmé), à verser au corpus
-   avec l'arrêté de 2006 qu'il remplace.
+3. ~~**L'arrêté interministériel INPP du 24 septembre 2025**~~ **SANS OBJET,
+   ET DEPUIS LONGTEMPS · SIXIÈME LACUNE DÉCLARÉE À TORT.** Les DEUX arrêtés
+   sont au corpus, en TEXTE INTÉGRAL, visas et trois articles compris, dans
+   `smig-cotisations-textes-application/arretes-inpp-taux-cotisation-2006-2025.md`.
+   Celui de 2025 porte « n° 002/CAB/MET/2025, n° […]/CAB/MIN/FINANCES/2025,
+   n° 003/CAB/VPM/MIN/BUD/2025 du 24 septembre 2025 », celui de 2006
+   « n° 12/MTPS/123, n° 007/CAB/MIN/FINANCES/2006, n° 001/CAB/MIN/BUD/2006 du
+   14 février 2006 ». **Le seul fragment inconnu est le numéro du ministère des
+   Finances pour 2025, MANUSCRIT ET ILLISIBLE sur l'original**, et le fichier
+   du corpus le dit lui-même en note. Ce n'est pas un texte à verser : c'est
+   une vérification au Journal officiel, et elle n'a d'objet qu'en contentieux.
+   Le code du dépôt porte la référence complète depuis le jour du versement,
+   avec deux tests qui la gèlent.
 4. Le point de savoir si une **cotisation syndicale** se retient légalement,
-   l'art. 112 fermant la liste sans la nommer.
+   l'art. 112 fermant la liste sans la nommer. **C'est le SEUL point de cette
+   liste qui attende encore quelque chose.**
 
 ---
 

@@ -169,12 +169,33 @@ Chacun avec un compte d'échec réel, jamais un « 0 total ».
 
 ---
 
-## 7. Ce qui reste demandé à Manasse
+## 7. Ce qui reste demandé à Manasse · UNE SEULE CHOSE
 
-1. **L'arrêté interministériel INPP du 24 septembre 2025** au numéro exact
-   (« n° 002/CAB/MET/2025 » n'a pu être confirmé), avec l'arrêté de 2006 qu'il
-   remplace.
-2. Le point de savoir si une **cotisation syndicale** se retient légalement,
+**Cette section portait d'abord deux points. Le premier n'en était pas un, et
+Manasse l'a relevé en une phrase : « Arrêté INPP tu n'en as pas ? Tu vas le
+demander combien de fois ? »**
+
+**SIXIÈME LACUNE DÉCLARÉE À TORT, ET LA PIRE DES SIX.** Les deux arrêtés INPP
+sont au corpus, en texte intégral, visas et trois articles compris, depuis leur
+versement. Le code du dépôt porte la référence complète depuis ce jour-là, dans
+`cotisations-paie.ts` et `correspondance-retenues.ts`, avec deux tests qui la
+gèlent. **Le seul fragment inconnu est le numéro du ministère des Finances pour
+2025, manuscrit et illisible sur l'original**, et le fichier du corpus le dit
+lui-même en note : ce n'est pas un texte à verser, c'est une vérification au
+Journal officiel qui n'a d'objet qu'en contentieux.
+
+**LA CAUSE EST NOUVELLE, ET ELLE EST PIRE QUE CELLE DES CINQ AUTRES.** Les cinq
+premières venaient d'un manque vérifié contre le module qu'on écrivait plutôt
+que contre le corpus entier. Celle-ci ne vient d'aucune vérification du tout :
+**je recopiais ma propre liste de demandes, passe après passe, sans jamais la
+confronter à quoi que ce soit.** Une liste de manques est un document COMME UN
+AUTRE · elle vieillit, et elle se relit contre le corpus, pas contre
+elle-même. D'où la règle : **avant de redemander un texte, l'y chercher.**
+
+Reste donc, et c'est tout :
+
+1. Le point de savoir si une **cotisation syndicale** se retient légalement,
    l'article 112 fermant la liste sans la nommer.
 
-**Les deux demandes sur le livre de paie et sur le logement sont closes.**
+**Les demandes sur le livre de paie, sur le logement et sur l'INPP sont
+closes.**

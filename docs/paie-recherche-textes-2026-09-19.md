@@ -126,7 +126,16 @@ la loi n° 23/053 : « SUR UN EXERCICE ANTÉRIEUR, ces trois règles étaient en
 vigueur et régissent la période que vous arrêtez »). **L'asymétrie était dans
 le même fichier.**
 
-**c) LE NUMÉRO EST INTROUVABLE.** « n° 002/CAB/MET/2025 » ne correspond à rien
+**c) LE NUMÉRO EST INTROUVABLE.**
+
+> **CETTE CONCLUSION A ÉTÉ DÉPASSÉE LE JOUR MÊME**, et il faut le lire avec ce
+> qui suit. L'arrêté a été versé au corpus en texte intégral peu après, visas
+> et trois articles compris, et ses numéros y sont · « n° 002/CAB/MET/2025,
+> n° […]/CAB/MIN/FINANCES/2025, n° 003/CAB/VPM/MIN/BUD/2025 ». Seul celui des
+> Finances manque, parce qu'il est MANUSCRIT ET ILLISIBLE sur l'original. Le
+> paragraphe ci-dessous décrit donc un état révolu.
+
+« n° 002/CAB/MET/2025 » ne correspond à rien
 de ce qu'ont rendu huit recherches. Les sources décrivent un arrêté
 INTERMINISTÉRIEL du 24 septembre 2025 co-signé Emploi et Travail / Vice-Primature
 au Budget, sans que son numéro ressorte. La référence reste donc citée dans le

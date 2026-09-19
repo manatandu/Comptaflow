@@ -1976,6 +1976,25 @@ est faux et renvoie à P6. **Effacer une erreur en efface aussi la leçon.**
 
 Dix contresens réinjectés, dix attrapés, chacun avec un compte d'échec réel.
 
+**SIXIÈME LACUNE DÉCLARÉE À TORT, ET LA PIRE DES SIX · L'ARRÊTÉ INPP.** Le
+journal redemandait « l'arrêté interministériel INPP du 24 septembre 2025 au
+numéro exact » en P0, en P5 et encore en P6. **LES DEUX ARRÊTÉS INPP SONT AU
+CORPUS, EN TEXTE INTÉGRAL, VISAS ET TROIS ARTICLES COMPRIS**, et le code du
+dépôt porte leurs références complètes depuis le jour de leur versement, avec
+deux tests qui les gèlent. Le seul fragment inconnu est le numéro du ministère
+des Finances pour 2025, MANUSCRIT ET ILLISIBLE sur l'original · le fichier du
+corpus le dit lui-même en note, et ce n'est pas un texte à verser mais une
+vérification au Journal officiel qui n'a d'objet qu'en contentieux.
+
+**LA CAUSE EST NOUVELLE.** Les cinq premières venaient d'un manque vérifié
+contre le module qu'on écrivait plutôt que contre le corpus entier. Celle-ci ne
+vient d'AUCUNE vérification : le journal recopiait sa propre liste de demandes,
+passe après passe, sans jamais la confronter à quoi que ce soit. **UNE LISTE DE
+MANQUES EST UN DOCUMENT COMME UN AUTRE · elle vieillit, et elle se relit contre
+le corpus, jamais contre elle-même.** D'où la règle, qui vaut pour toute passe :
+**AVANT DE REDEMANDER UN TEXTE, L'Y CHERCHER.** Et c'est Manasse qui l'a relevé,
+en une phrase, après trois passes.
+
 **Questionnaire de révision par cycle · vingt-quatre items du CPCC, et le
 reste assumé.** Le séminaire porte DEUX checklists, § VI « vérification de
 l'inventaire physique » (immobilisations, stocks, caisses) et § VII
