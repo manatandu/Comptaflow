@@ -236,3 +236,159 @@ une règle que le logiciel applique déjà trente fichiers plus loin.
    corpus · le dépôt en cite les tranches sans pouvoir les vérifier.
 4. Le point de savoir si une **cotisation syndicale** se retient légalement,
    l'art. 112 fermant la liste sans la nommer.
+
+---
+
+# Addendum · le second document de cours (2026-09-19)
+
+Un second extrait du même livre a été fourni en cours de passe : **27 pages,
+pages 173 à 199**, couvrant les comptes de charges de la classe 6, une note
+« Essentiel sur la fiscalité en RDC », et surtout **le chapitre 66, Charges de
+personnel** avec ses barèmes et son journal complet. C'est le chapitre de la
+paie, et il arrive à point.
+
+**Même statut que le premier : une note de cours, pas une source.** Et le même
+piège, en plus large · **la totalité de sa partie fiscale est bâtie sur le
+régime abrogé** (IBP à 30 %, impôt minimum forfaitaire, acomptes de 40 % avant
+le 1er août et le 1er décembre, IPR, IERE, comptes 44721 et 44722). Rien de
+cela n'est repris : le dépôt porte déjà l'IS, l'IRPP et les échéances des
+acomptes au 25 juillet, 25 septembre et 25 novembre de la loi de finances
+n° 25/060.
+
+## A. Ce que le chapitre 66 apporte, et qui MANQUAIT au corpus
+
+### A.1 L'ORDRE DE CALCUL · l'IRPP s'assied APRÈS la CNSS
+
+« L'IPR est calculée sur la rémunération imposable **NETTE du montant retenu
+pour CNSS (QPO)**. » Aucun texte lu jusqu'ici ne donnait cet enchaînement. Il
+décide de tout le moteur : brut → assiette sociale → CNSS 5 % → assiette
+fiscale **nette de la CNSS** → barème → plafond. Le calculer dans l'autre sens
+surestime l'impôt de 5 % de l'assiette.
+
+**À CONFRONTER** à l'arrêté IRPP de 2025 avant d'être codé · le mécanisme est
+ancien et le nom de l'impôt a changé, mais rien ne dit que la déductibilité de
+la part ouvrière ait été reconduite telle quelle.
+
+### A.2 LES AVANTAGES EN NATURE NE VONT PAS DIRECTEMENT EN CHARGES DE PERSONNEL
+
+« Les avantages en nature dont bénéficie le personnel sont enregistrés dans les
+**différents comptes de charges concernés**. Ces avantages en nature sont
+ensuite **TRANSFÉRÉS** dans les frais de personnel (comptes 6617 et 6627). Les
+entreprises débitent les comptes 6617 et 6627 par le crédit du compte 78
+"Transfert de charges". »
+
+Un logement fourni passe donc d'abord par sa nature (loyer, entretien), puis
+est viré en 6617 par le 78. Porter l'avantage directement au 6617 donne le même
+résultat net et **fausse la ventilation par nature du compte de résultat**,
+exactement comme le virement du 637 au 667 que le dépôt surveille déjà.
+
+### A.3 Les rémunérations dues à la clôture
+
+« Les rémunérations dues à la clôture de l'exercice sont à inclure dans les
+charges de l'exercice par le crédit du compte **422** ou par le crédit du
+compte **428** "Personnel, charges à payer et produits à recevoir". »
+
+### A.4 La décomposition de la rémunération
+
+Gains = rémunérations directes (salaire de base, primes et gratifications,
+congés payés, indemnités de préavis et de licenciement, salaire pour incapacité
+de travail, allocations familiales légales, avantages en nature, heures
+supplémentaires) **+** indemnités forfaitaires (logement, représentation,
+transport, autres). Retenues = sociales et fiscales **+** occasionnelles
+(avances, prêts, saisies-arrêts). Charges patronales à part.
+
+## B. LE BARÈME MENSUEL EST LE BARÈME ANNUEL DIVISÉ PAR DOUZE, ET LES TRANCHES
+## N'ONT PAS CHANGÉ ENTRE L'IPR ET L'IRPP
+
+Le livre donne un barème **MENSUEL** de l'IPR :
+
+| Taux | Minimum | Maximum | IPR mensuel cumulé |
+|---|---|---|---|
+| 3 % | 0 | 162 000 | 4 860 |
+| 15 % | 162 001 | 1 800 000 | 250 560 |
+| 30 % | 1 800 001 | 3 600 000 | 790 560 |
+| 40 % | au-delà de 3 600 000 | | |
+
+**Les trois bornes sont EXACTEMENT celles de l'art. 118 divisées par douze** ·
+162 000 × 12 = 1 944 000 ; 1 800 000 × 12 = 21 600 000 ; 3 600 000 × 12 =
+43 200 000. Et l'arithmétique de la colonne cumulée est juste au franc près
+(3 % de 162 000 = 4 860 ; +15 % de 1 638 000 = 250 560 ; +30 % de 1 800 000 =
+790 560).
+
+**Ce que cela apprend, et c'est utile :** le changement d'IPR en IRPP au
+1er janvier 2026 a changé le NOM et la BASE LÉGALE, pas les tranches. Le barème
+mensuel du livre est donc directement exploitable, et il donne au moteur la
+forme mensualisée que l'art. 118, rédigé en annuel, ne donne pas.
+
+**DEUX RÉSERVES.** La colonne « tranche imposable » du livre porte 1 637 999 et
+1 799 999 là où les bornes donnent 1 638 000 et 1 800 000 · coquille sans
+portée sur la colonne d'impôt. Et surtout : **un barème mensualisé n'est pas
+neutre**. L'art. 118 assied l'impôt sur le revenu net GLOBAL arrondi au millier
+inférieur ; une retenue mensuelle est un ACOMPTE sur cet impôt annuel. Le
+module devra dire lequel des deux il calcule.
+
+## C. UN PLANCHER D'IMPÔT QU'AUCUNE AUTRE SOURCE NE PORTE
+
+« **L'IPR ne peut être inférieur à 2.000 FC.** » Le fichier des paramètres
+fiscaux du dépôt donne le barème et le plafond de 30 %, **jamais ce plancher**.
+Piste réelle, à confronter à l'arrêté IRPP de 2025 et à la loi n° 23/053 avant
+tout codage · un plancher de 2 000 FC hérité de l'IPR n'a pas été retrouvé dans
+le régime actuel.
+
+## D. TROIS CONTRADICTIONS DU LIVRE CONTRE LES TEXTES LUS
+
+1. **LES SAISIES-ARRÊTS SONT FAUSSES DEUX FOIS.** Le livre écrit « 1/5 salaire
+   brut pour des raisons financières et **2/3** pour cause d'obligation
+   alimentaire ». L'**article 114 du Code du travail** dit : un cinquième sur
+   la partie n'excédant pas **cinq fois le salaire mensuel minimum
+   interprofessionnel de sa catégorie**, **un tiers sur le surplus**, et
+   **deux cinquièmes** pour une obligation alimentaire. Le livre ignore le
+   seuil des cinq SMIG, ignore le tiers au-delà, et donne 2/3 au lieu de 2/5.
+   Une retenue calculée sur cette base **dépasserait la quotité légale** ·
+   c'est la seule erreur du livre qui expose l'employeur.
+2. **L'INPP est à l'ancien barème** · le livre donne 3 % public, 3 % de 1 à 50,
+   2 % de 51 à 300, 1 % au-delà de 300. Le dépôt porte 4 % public, 3,5 %, 3 %
+   et 2 %, sur l'arrêté interministériel n° 002/CAB/MET/2025. Le livre décrit
+   l'état antérieur à septembre 2025.
+3. **L'ONEM est à 0,2 %** · c'est 0,5 % depuis le 25 septembre 2025. Troisième
+   document du corpus à porter l'ancien taux.
+
+## E. Le journal d'une paie globale, qui vaut comme MODÈLE
+
+L'exemple chiffré donne l'enchaînement complet, et c'est le seul du corpus :
+
+```
+4212  Personnel, acomptes                      à  521 Banques
+6611  Appointements, salaires et commissions
+6612  Primes et gratifications
+6638  Autres indemnités et avantages divers (transport)
+6618  Autres rémunérations directes (heures supp.)
+6632  Indemnité de représentation                à  422 Personnel, rémunérations dues
+422   Personnel, rémunérations dues              à  431 CNSS
+                                                   4472 Impôts sur salaires
+664   Charges sociales                           à  431 CNSS
+422   Personnel, rémunérations dues              à  521 Banques
+                                                   4212 Personnel, acomptes
+431   Sécurité sociale                           à  521 Banques
+```
+
+**L'exemple ne démontre PAS les exclusions d'assiette** · ses cotisations sont
+des DONNÉES, non calculées. L'indemnité de transport y est portée au brut en
+6638 alors que l'arrêté n° 146/2018 l'exclut de l'assiette sociale. Le livre ne
+se contredit pas, il ne traite simplement pas la question · et c'est un piège de
+plus pour qui recopierait l'exemple en croyant y lire un calcul.
+
+Coquille de l'énoncé, signalée : « Salaires et appointements de base : 82 600 »
+là où la solution et le journal portent **820 600**. Le reste boucle (brut
+884 200, retenues 17 750, net 866 450, acomptes 25 200, versé 841 250).
+
+## F. Ce que l'addendum change au plan
+
+- **P2 gagne son ordre de calcul** (A.1) et le mécanisme des avantages en
+  nature (A.2), les deux plus grosses inconnues du moteur.
+- **P2 gagne la forme mensualisée du barème** (B), avec la réserve « acompte
+  mensuel ou impôt annuel ».
+- **P4 gagne une confirmation** : l'art. 114 prime sur le livre, et le livre
+  s'y trompe dans le sens qui expose l'employeur.
+- **Deux pistes à confronter avant codage** : le plancher de 2 000 FC (C) et la
+  déductibilité de la CNSS de l'assiette fiscale (A.1).

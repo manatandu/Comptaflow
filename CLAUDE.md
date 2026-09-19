@@ -1251,6 +1251,61 @@ compétences, donc invérifiable ; et la **convention collective** du dossier,
 que l'art. 114 comme le barème de préavis appellent par catégorie.
 
 
+**ADDENDUM P0 · le chapitre 66 du livre de cours, et ce qu'il apporte
+vraiment.** Un second extrait du même livre (pages 173 à 199) a été fourni en
+cours de passe. Il porte LE chapitre de la paie. Même statut que le premier ·
+une note de cours, pas une source · et le même piège en plus large : **toute sa
+partie fiscale est bâtie sur le régime abrogé** (IBP, impôt minimum
+forfaitaire, acomptes de 40 % avant le 1er août et le 1er décembre, IPR, IERE,
+comptes 44721 et 44722). Rien n'en est repris.
+
+TROIS MÉCANISMES QU'AUCUNE AUTRE SOURCE NE DONNAIT, et qui décident du moteur.
+**L'ORDRE DE CALCUL** · « l'IPR est calculée sur la rémunération imposable
+NETTE du montant retenu pour CNSS (QPO) » : brut, puis assiette sociale, puis
+CNSS, puis assiette fiscale NETTE DE LA CNSS, puis barème, puis plafond. Le
+calculer dans l'autre sens surestime l'impôt de 5 % de l'assiette. **LES
+AVANTAGES EN NATURE NE VONT PAS DIRECTEMENT EN CHARGES DE PERSONNEL** · ils
+s'enregistrent « dans les différents comptes de charges CONCERNÉS » puis sont
+TRANSFÉRÉS en 6617 et 6627 par le crédit du 78 « Transfert de charges ». Les
+porter d'emblée au 6617 donne le même résultat net et fausse la ventilation par
+nature du compte de résultat, exactement comme le virement du 637 au 667 que le
+dépôt surveille déjà. Et **les rémunérations dues à la clôture** entrent par le
+422 ou par le 428.
+
+**LE BARÈME MENSUEL EST LE BARÈME ANNUEL DIVISÉ PAR DOUZE, ET LES TRANCHES
+N'ONT PAS CHANGÉ ENTRE L'IPR ET L'IRPP.** Le livre donne 162 000, 1 800 000 et
+3 600 000 en mensuel ; l'art. 118 donne 1 944 000, 21 600 000 et 43 200 000 en
+annuel. Les trois rapports valent douze exactement, et la colonne d'impôt
+cumulé du livre est juste au franc près. Le passage à l'IRPP au 1er janvier
+2026 a donc changé le NOM et la BASE LÉGALE, pas les tranches · le barème
+mensualisé est exploitable, avec la réserve qu'un barème mensuel est un ACOMPTE
+sur un impôt que l'art. 118 assied sur le revenu net GLOBAL, et que le module
+devra dire lequel des deux il calcule.
+
+**UN PLANCHER D'IMPÔT QU'AUCUNE AUTRE SOURCE NE PORTE** · « l'IPR ne peut être
+inférieur à 2.000 FC ». Le fichier des paramètres fiscaux donne le barème et le
+plafond de 30 %, jamais ce plancher. Piste réelle, à confronter avant tout
+codage : un plancher hérité de l'IPR n'a pas été retrouvé dans le régime
+actuel.
+
+**ET TROIS CONTRADICTIONS DU LIVRE CONTRE LES TEXTES, DONT UNE QUI EXPOSE
+L'EMPLOYEUR.** Les saisies-arrêts y sont fausses deux fois · le livre écrit
+« 1/5 pour des raisons financières et 2/3 pour obligation alimentaire » quand
+l'art. 114 du Code du travail dit un cinquième sur la partie n'excédant pas
+CINQ FOIS le salaire minimum de la catégorie, UN TIERS sur le surplus, et DEUX
+CINQUIÈMES pour une obligation alimentaire. Une retenue calculée sur le livre
+DÉPASSERAIT la quotité légale. S'y ajoutent l'INPP à l'ancien barème (3 / 3 /
+2 / 1 % contre 4 / 3,5 / 3 / 2 % depuis l'arrêté de 2025) et l'ONEM à 0,2 % ·
+troisième document du corpus à porter l'ancien taux.
+
+LE JOURNAL D'UNE PAIE GLOBALE qu'il donne vaut comme modèle, et c'est le seul
+du corpus. Mais **il ne démontre PAS les exclusions d'assiette** : ses
+cotisations y sont des DONNÉES, non calculées, et l'indemnité de transport y
+est portée au brut en 6638 alors que l'arrêté n° 146/2018 l'exclut de
+l'assiette sociale. Recopier l'exemple en croyant y lire un calcul est le piège
+de plus.
+
+
 **Questionnaire de révision par cycle · vingt-quatre items du CPCC, et le
 reste assumé.** Le séminaire porte DEUX checklists, § VI « vérification de
 l'inventaire physique » (immobilisations, stocks, caisses) et § VII
