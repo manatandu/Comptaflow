@@ -502,11 +502,12 @@ const B13: OperationSpecifique = {
       libelle: 'Contribution volontaire en travail (bénévolat)',
       objet: 'Valorise hors bilan les heures offertes par les bénévoles.',
       source:
-        "Guide App. 20 : « l'évaluation des heures de bénévolat sur la base du SMIG horaire ». Le montant est le produit des heures par le taux horaire retenu.",
+        "Guide App. 20 : « l'évaluation des heures de bénévolat sur la base du SMIG horaire ». Le montant est le produit des heures par le taux horaire retenu. " +
+        "LE SMIG CONGOLAIS N'EST PAS HORAIRE, et c'est le piège de cette rubrique. Le décret n° 25/22 du 30 mai 2025 fixe un taux JOURNALIER (21 500 FC pour le manœuvre ordinaire, art. 2) et donne, à son article 7, trois MULTIPLICATEURS vers la semaine, le mois et l'année (6, 26 et 312) · il ne donne aucun taux horaire et aucun diviseur. Descendre du jour à l'heure suppose la durée légale du travail, qui relève du Titre VI du Code du travail et non de ce décret. OmegaX ne fait donc PAS cette division : le taux horaire reste saisi, et c'est le dossier qui le justifie.",
       applicationGuide: 'App. 20',
       parametres: [
         { nom: 'heures', libelle: 'Nombre total d’heures offertes', type: 'MONTANT', aide: 'Ex. 450 bénévoles × 18,5 h de moyenne = 8 325 h (App. 20).' },
-        { nom: 'tauxHoraire', libelle: 'Taux horaire de valorisation', type: 'TAUX', aide: 'SMIG horaire dans l’exemple du Guide ; à justifier par le dossier.' },
+        { nom: 'tauxHoraire', libelle: 'Taux horaire de valorisation', type: 'TAUX', aide: 'SMIG horaire dans l’exemple du Guide. Le décret n° 25/22 ne fixe qu’un taux JOURNALIER (21 500 FC, art. 2) et ne donne aucun diviseur vers l’heure : le taux saisi ici est à justifier par le dossier, OmegaX ne le déduit pas.' },
       ],
       lignes: [
         { compte: '904', libelle: 'Personnel bénévole', sens: 'DEBIT', montant: { mode: 'PROPORTION', parametre: 'heures', taux: 'tauxHoraire' } },

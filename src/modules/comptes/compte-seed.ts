@@ -641,14 +641,14 @@ const classe4Solde: LigneSeed[] = c(ClasseCompte.CLASSE_4, SOLDE, [
   // organisme congolais. Sans elles, les trois prélèvements sociaux
   // atterrissaient sur un compte 43 unique dont l'échéancier ne pouvait
   // distinguer ni le bénéficiaire ni le taux.
-  //  · INPP · formation professionnelle, taux par tranche d'effectif
-  //    (4 % public, 3,5 % de 1 à 50, 3 % de 51 à 300, 2 % au-delà de 300),
-  //    arrêté interministériel du 24 septembre 2025, EN VIGUEUR AU
-  //    1er JANVIER 2026 seulement · jusque-là l'arrêté interministériel
-  //    n° 12/MTPS/123 et n° 007/CAB/MIN/FINANCES/2006 du 14 février 2006
-  //    (3 %, 2 %, 1 %). Ce texte n'est PAS au corpus et son numéro exact
-  //    n'est pas établi ; le taux et ses deux dates vivent en réserve dans
-  //    `correspondance-retenues.ts`, clé `inpp`, qui le dit ;
+  //  · INPP · formation professionnelle. Le taux suit D'ABORD la nature de
+  //    l'employeur, puis, pour le privé seulement, la tranche d'effectif :
+  //    4 % public, 3,5 % de 1 à 50, 3 % de 51 à 300, 2 % au-delà de 300,
+  //    arrêté interministériel n° 002/CAB/MET/2025 du 24 septembre 2025,
+  //    art. 1er, entré en vigueur à la date de sa signature (art. 3).
+  //    Avant lui, l'arrêté interministériel n° 12/MTPS/123 du 14 février
+  //    2006 : 3 % public, 3 %, 2 %, 1 %. Les taux et leurs deux dates
+  //    d'effet vivent dans `correspondance-retenues.ts`, clé `inpp` ;
   //  · ONEM · emploi, 0,5 % de la rémunération mensuelle depuis le
   //    25 septembre 2025 (arrêté ministériel n° 028/CAB/MIN.ET/FMM/RK/09/2025,
   //    art. 1er), 0,2 % auparavant (arrêté n° 095/2018). Le taux et sa date

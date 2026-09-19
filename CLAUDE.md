@@ -1297,6 +1297,49 @@ ouverts dans le semis SYSCOHADA aussi. La raison est dans les textes : l'INPP
 naît des art. 8 à 17 du Code du travail, l'ONEM de ses art. 202 et suivants, et
 ni l'un ni l'autre ne distingue une ASBL d'une SARL.
 
+**LES TEXTES ONT ÉTÉ REÇUS LE JOUR MÊME, ET ILS M'ONT DONNÉ TORT**
+(`docs/paie-textes-recus-2026-09-19.md`).
+
+**LA FAUTE, D'ABORD.** La passe de recherche a corrigé la fiche INPP pour
+dater son entrée en vigueur du 1er janvier 2026, sur la foi de quatre sources
+web concordantes, et a déclaré la référence « n° 002/CAB/MET/2025 »
+introuvable. **L'article 3 de l'arrêté dit « qui entre en vigueur à la date de
+sa signature », le cachet porte le 24 septembre 2025, et le titre porte le
+numéro.** Le dépôt avait raison ; ma correction l'a rendu faux. Ce que les
+sources décrivaient est la PUBLICATION au Journal officiel · publier n'est pas
+entrer en vigueur quand le texte fixe lui-même sa date d'effet. Pire : **deux
+tests figeaient le faux**, dont l'un INTERDISAIT la phrase vraie.
+
+**DOCTRINE, ET ELLE MANQUAIT · UNE CORRECTION FONDÉE SUR UNE CORROBORATION EST
+ELLE-MÊME UNE RÈGLE INVENTÉE.** Le web fait naître un doute et identifie un
+texte ; il ne tranche pas contre le dépôt. Devant une divergence, on LIT le
+texte · à défaut on consigne le doute et **on ne touche à rien**.
+**COROLLAIRE · on n'écrit pas de test sur une corroboration**, parce qu'un test
+fige, et qu'on arme alors la fausseté. **VINGTIÈME OCCURRENCE** d'une famille
+voisine : ici **un même texte, DEUX DATES** · signature et publication.
+
+**LE DÉCRET n° 25/22 EST LU, DOUZE ARTICLES, et il porte une distinction que
+presque personne ne fait. L'ARTICLE 2 FIXE LE SMIG À 21 500 FC ; L'ARTICLE 3
+ÉCHELONNE SON PAIEMENT** (14 500 à partir de la paie de mai 2025, 21 500 à
+partir de celle de janvier 2026). Le SMIG est donc de 21 500 FC **depuis le
+30 mai 2025** · tout ce qui se calcule SUR lui (plancher d'assiette CNSS,
+quotité saisissable de l'art. 114, allocations familiales) s'y assied dès mai
+2025, et le calculer sur le payable du mois **minore une assiette pendant huit
+mois**. L'article 7 donne les multiplicateurs (6, 26, 312) pour les TROIS
+grandeurs, et **aucun taux horaire** : OmegaX ne divise pas vers l'heure, la
+durée légale du travail étant dans un autre texte. L'allocation familiale est
+1/27e du SMIG PAR ENFANT (art. 5) et **la contre-valeur du logement est 1/5e de
+L'ALLOCATION, jamais du SMIG** (art. 6) · la confondre donne un montant
+vingt-sept fois trop élevé. Rien n'est arrondi, le décret ne prescrivant aucun
+arrondi et la colonne 19 de son ANNEXE étant la vraie source.
+
+**CE QUI RESTE BLOQUÉ TIENT À UN SEUL DOCUMENT · L'ANNEXE.** Elle porte la
+grille de TENSION SALARIALE de l'art. 4, « du travailleur manœuvre ordinaire au
+cadre de collaboration ». **21 500 FC est le SMIG DU MANŒUVRE ORDINAIRE, et de
+lui seul** : en faire le minimum de toutes les catégories serait le plus gros
+contresens possible sur ce texte. Six contresens réinjectés dans
+`bareme-smig.ts`, six attrapés.
+
 **ILS NE SONT PLUS QUATRE** (passe de recherche du 19/09/2026,
 `docs/paie-recherche-textes-2026-09-19.md`). L'**arrêté de l'art. 139
 n'existe pas** : la contre-valeur du logement est fixée par le MÊME texte que

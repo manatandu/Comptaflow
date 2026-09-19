@@ -228,38 +228,70 @@ describe('Registre des retenues à la source', () => {
   });
 
   it('porte le barème INPP ANTÉRIEUR et la date d’effet du nouveau', async () => {
-    // MÊME EXIGENCE QUE L'ONEM, ET ELLE MANQUAIT. Le barème de l'arrêté du
-    // 24 septembre 2025 n'entre en vigueur qu'au 1er janvier 2026 : le
-    // 24 septembre 2025 est la date de SIGNATURE. La fiche datait le nouveau
-    // barème de la signature, et un exercice 2025 s'y serait liquidé à
-    // 3,5 / 3 / 2 % au lieu de 3 / 2 / 1 %. Un taux sans date d'effet, dans un
-    // logiciel comptable, est un piège · et une date d'effet fausse en est un
-    // pire, parce qu'elle a l'air d'une réponse.
+    // LA DATE D'EFFET VIENT DE L'ARTICLE 3, ET DE LUI SEUL. Les deux arrêtés
+    // portent la même formule · « qui entre en vigueur à la date de sa
+    // signature ». Celui de 2025 est daté du 24 septembre 2025, celui de 2006
+    // du 14 février 2006. Il n'y a donc PAS de décalage entre signature et
+    // entrée en vigueur, et un exercice à cheval porte les deux barèmes.
     const r = await service([]).registre('t1', { exerciceId: 'e1' });
     const inpp = nature(r, 'inpp');
-    expect(inpp.baseLegale).toContain('1er JANVIER 2026');
+    expect(inpp.baseLegale).toContain('24 SEPTEMBRE 2025');
+    expect(inpp.baseLegale).toContain('à la date de sa signature');
     // Le barème antérieur et son texte, sans lesquels un exercice clos se
     // liquide au mauvais taux.
     expect(inpp.baseLegale).toContain('12/MTPS/123');
-    expect(inpp.baseLegale).toMatch(/3 %, 2 %, 1 %|2 % de 51 à 300, 1 % au-delà/);
+    expect(inpp.baseLegale).toContain('14 février 2006');
     expect(inpp.reserve).toContain("DATE D'EFFET");
-    // LA RÉGRESSION ELLE-MÊME : le 24 septembre 2025 ne doit jamais être
-    // présenté comme l'entrée en vigueur.
-    expect(inpp.baseLegale).not.toMatch(/en vigueur depuis le 24 septembre 2025/);
+
+    // LA RÉGRESSION QUE CE TEST EMPÊCHE DE REVENIR, ET ELLE A EU LIEU.
+    // Une version du 19/09/2026 a daté l'entrée en vigueur du 1er janvier
+    // 2026, sur la foi de quatre sources web concordantes. Le texte dit le
+    // contraire. Aucune date autre que celle des deux signatures ne doit
+    // reparaître ici.
+    expect(inpp.baseLegale).not.toContain('1er JANVIER 2026');
+    expect(inpp.reserve).not.toContain('1er JANVIER 2026');
   });
 
-  it('déclare l’INPP HORS CORPUS · son texte n’est pas versé aux compétences', async () => {
-    // L'ASYMÉTRIE QUI A PRODUIT LE DÉFAUT. L'ONEM porte son texte, ses
-    // articles, sa date et ses sanctions parce qu'il est AU corpus. L'INPP
-    // n'y est pas : le logiciel rapporte son taux, il ne le lit pas. Tant que
-    // l'arrêté n'est pas versé, la fiche doit le DIRE · une réserve muette se
-    // lit comme une vérification faite.
+  it('nomme les QUATRE catégories de l’article 1er · le public n’est pas une tranche d’effectif', async () => {
+    // LE PIÈGE DE LA LECTURE RAPIDE. L'article 1er pose D'ABORD la nature de
+    // l'employeur (1° public, 2° privé), et la tranche d'effectif ne découpe
+    // QUE le privé. Un dossier public de quarante agents n'est pas à 3,5 % ·
+    // il est à 4 %. Les deux arrêtés ont cette structure, et en 2006 le
+    // public (3 %) et la première tranche privée (3 %) portaient le MÊME
+    // taux · de quoi croire à un barème unique à trois échelons.
     const r = await service([]).registre('t1', { exerciceId: 'e1' });
     const inpp = nature(r, 'inpp');
-    expect(inpp.reserve).toContain('HORS CORPUS');
-    // La fausse référence doit rester citée COMME fausse, jamais en base légale.
-    expect(inpp.baseLegale).not.toContain('002/CAB/MET/2025');
-    expect(inpp.reserve).toContain('002/CAB/MET/2025');
+    for (const taux of ['4 %', '3,5 %', '3 %', '2 %']) {
+      expect(inpp.baseLegale).toContain(taux);
+    }
+    expect(inpp.baseLegale).toContain('PUBLICS');
+    expect(inpp.baseLegale).toContain('PRIVÉS');
+    // Le barème de 2006 porte son taux public, qui manquait.
+    expect(inpp.baseLegale).toContain('3 % pour les entreprises publiques');
+    expect(inpp.reserve).toContain("NATURE de l'employeur");
+  });
+
+  it('n’invente PAS le taux de l’arrêté de 2003, dont seul le visa est connu', async () => {
+    // « Une lacune déclarée à tort est aussi fausse qu'une règle inventée » ·
+    // et l'inverse tient aussi. L'arrêté de 2006 abroge celui du 28 mars 2003
+    // sans en reproduire le taux. Le dépôt nomme ce texte et s'arrête là.
+    const r = await service([]).registre('t1', { exerciceId: 'e1' });
+    const inpp = nature(r, 'inpp');
+    expect(inpp.reserve).toContain('28 mars 2003');
+    expect(inpp.reserve).toContain("n'est PAS reconstitué");
+    // Et il n'apparaît jamais en base légale, où il se lirait comme applicable.
+    expect(inpp.baseLegale).not.toContain('2003');
+  });
+
+  it('restitue les numéros LISIBLES et signale celui qui ne l’est pas', async () => {
+    // Sur l'original, les trois numéros de l'arrêté de 2025 sont manuscrits.
+    // Deux se lisent, le troisième non · le dépôt rend les deux et DIT que le
+    // troisième manque, plutôt que de compléter une référence de mémoire.
+    const r = await service([]).registre('t1', { exerciceId: 'e1' });
+    const inpp = nature(r, 'inpp');
+    expect(inpp.baseLegale).toContain('002/CAB/MET/2025');
+    expect(inpp.baseLegale).toContain('003/CAB/VPM/MIN/BUD/2025');
+    expect(inpp.reserve).toContain('ILLISIBLE');
   });
 
   it('sépare la déclaration ONEM (le 10) du versement ONEM (le 15)', async () => {
