@@ -1386,3 +1386,80 @@ describe('Passe F6 · l’abrogation de l’O.-L. n° 69/007 porte sa date d’e
     expect(nature.reserveSyscohada).toContain('SUR UN EXERCICE ANTÉRIEUR');
   });
 });
+
+/**
+ * L'ASSIETTE DE LA CNSS N'EST PAS LE REVENU IMPOSABLE.
+ *
+ * Ce bloc n'existe pas par précaution : la règle inverse est vraie ailleurs et
+ * se trouve en premier quand on la cherche sur le web (le Maroc a harmonisé
+ * son assiette sociale sur le traitement fiscal des indemnités par l'arrêté
+ * n° 1314-25 ; le Gabon assied ses cotisations sur le « salaire brut
+ * imposable »). Une correction faite sur une source étrangère ferait cotiser
+ * sur le logement et le transport, c'est-à-dire trop, sur un bulletin dont
+ * tous les totaux s'additionnent.
+ *
+ * On gèle une PRÉSENCE · les deux articles qui portent la règle, et la preuve
+ * que la déclaration elle-même en apporte. Jamais une absence de mot.
+ */
+describe("CNSS · l'assiette est la rémunération, pas le revenu imposable", () => {
+  const cnss = () => NATURES_RETENUES.find((r) => r.cle === 'cnss')!;
+
+  it("énonce la CONCLUSION, et pas seulement ses sources", () => {
+    // Le premier contresens réinjecté est passé sans ce test : on peut
+    // retourner la phrase de tête en gardant les deux citations intactes, et
+    // un cabinet pressé lit la phrase de tête. On gèle donc la PRÉSENCE de
+    // l'énoncé, en plus de celle des articles.
+    expect(cnss().reserve).toContain("L'ASSIETTE N'EST PAS LE REVENU IMPOSABLE");
+    expect(cnss().reserve).toContain(
+      "sont assises sur l'ensemble de la rémunération du travailleur assujetti",
+    );
+  });
+
+  it("cite l'article 13 de la loi n° 16/009, qui ROUTE l'assiette vers le Code du travail", () => {
+    // C'est lui qui sort l'assiette de la fiscalité : « assises sur l'ensemble
+    // de la rémunération du travailleur assujetti tel que prévu à l'article 7,
+    // litera h, du Code du travail ».
+    expect(cnss().reserve).toContain('article 13 de la loi n° 16/009');
+    expect(cnss().reserve).toContain("ARTICLE 7, LITERA H, DU CODE DU TRAVAIL");
+  });
+
+  it("cite l'arrêté n° 146/2018, article 17, point 1, qui recopie la définition", () => {
+    expect(cnss().reserve).toContain('arrêté n° 146/2018, article 17, point 1');
+  });
+
+  it('nomme les CINQ exclusions, et dit qu\'elles sont inconditionnelles', () => {
+    const r = cnss().reserve ?? '';
+    for (const exclusion of [
+      'soins de santé',
+      'logement',
+      'allocations familiales légales',
+      'transport',
+      'frais de voyage',
+    ]) {
+      expect(r).toContain(exclusion);
+    }
+    expect(r).toContain('INCONDITIONNELLES');
+  });
+
+  it('oppose ces exclusions aux immunités conditionnelles de la loi fiscale', () => {
+    // La confusion coûte dans les deux sens : servir la liste sociale à
+    // l'assiette fiscale sous-impose, servir l'assiette fiscale à la CNSS
+    // fait sur-cotiser.
+    expect(cnss().reserve).toContain("article 69 de la loi n° 23/053");
+  });
+
+  it('porte la preuve que la déclaration apporte elle-même', () => {
+    // Le Mod. DC distingue le brut payé et ce qui est pris en considération
+    // pour le calcul des cotisations. Si l'assiette était le brut, la seconde
+    // colonne n'aurait pas lieu d'être.
+    const r = cnss().reserve ?? '';
+    expect(r).toContain('Mod. DC');
+    expect(r).toContain('PRISES EN CONSIDÉRATION POUR LE CALCUL DES COTISATIONS');
+  });
+
+  it("nomme les deux régimes étrangers qui disent l'inverse, pour qu'on ne s'en serve pas", () => {
+    const r = cnss().reserve ?? '';
+    expect(r).toContain('1314-25');
+    expect(r).toContain('salaire brut imposable');
+  });
+});
