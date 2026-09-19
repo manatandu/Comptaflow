@@ -1668,6 +1668,78 @@ désormais la PROPRIÉTÉ · aucune opération d'écriture, quelles que soient l
 lectures. Même famille que « un test de source s'ancre sur une structure, jamais
 sur une distance ». Huit contresens réinjectés dans la passation, huit attrapés.
 
+**P4 · LE DÉCOMPTE FINAL, ET LE MEILLEUR DOCUMENT DE MÉTHODE DU CORPUS SE
+TROMPE TROIS FOIS.**
+
+Le séminaire CPCC donne la seule méthode complète du dépôt, et il porte
+lui-même la règle qui sauve · « en cas de désaccord entre ce fichier et un
+article du Code, L'ARTICLE PRIME ». La confrontation a été faite.
+
+**TROIS ERREURS SUR LE CONGÉ, TOUJOURS DANS LE MÊME SENS · IL GONFLE.**
+L'article 141 dit « au moins UN jour ouvrable par mois entier pour le
+travailleur âgé de PLUS de dix-huit ans », « au moins UN jour ouvrable ET DEMI »
+pour celui de MOINS de dix-huit ans, et « augmente d'UN jour ouvrable par
+tranche de cinq années ». Le séminaire porte 1,5 pour le majeur (soit ses
+18 jours l'an), 2 pour le mineur, 2 par tranche. **IL A DÉCALÉ D'UN CRAN** · la
+règle des mineurs est servie aux majeurs, et celle des mineurs est inventée.
+Une indemnité compensatrice calculée ainsi est de CINQUANTE POUR CENT trop
+élevée. Et le texte donne au MINEUR le taux le plus ÉLEVÉ, ce qu'on n'attend
+pas.
+
+**ET SON BARÈME DE PRÉAVIS PAR CATÉGORIE N'EST PAS DANS LE CODE.** L'article 64
+pose QUATORZE jours ouvrables plus SEPT par année entière, sans aucune
+catégorie, et renvoie le reste à un ARRÊTÉ du Ministre absent du corpus · c'est
+de là que viennent le « 1 mois + 9 jours » de la maîtrise et le « 3 mois +
+16 jours » des cadres. OmegaX calcule le PLANCHER et le DIT · l'appliquer à un
+cadre SOUS-ESTIMERAIT son préavis, et c'est le travailleur qui paierait. Même
+réserve sur le congé, l'article 141 disant « AU MOINS ».
+
+**« JOUR OUVRABLE » · LA MÊME QUESTION QU'AU 18/09, ET LA RÉPONSE EST INVERSE.**
+Le dépôt a appris que « la question n'est pas QUELLE SOURCE définit le mot mais
+DEVANT QUI l'obligation s'exécute ». Une échéance fiscale s'exécute à un
+GUICHET, d'où le décret n° 24/09 et le samedi NON ouvrable. **UN PRÉAVIS
+S'EXÉCUTE ENTRE L'EMPLOYEUR ET LE TRAVAILLEUR**, et le Code définit le mot
+lui-même (art. 7, point 9 · le repos hebdomadaire ayant lieu le dimanche,
+art. 121 al. 2) · **LE SAMEDI EST OUVRABLE ICI**, et `jour-ouvrable.ts` NE DOIT
+PAS être réemployé. **L'ARITHMÉTIQUE LE CONFIRME PAR UN AUTRE CHEMIN** ·
+l'article 7 du décret n° 25/22 convertit le journalier en mensuel par
+VINGT-SIX, soit six jours par semaine. Vingt-six et « samedi ouvrable » disent
+la même chose.
+
+**LE SEUL CHIFFRE DU SÉMINAIRE QUE LA CONFRONTATION CONFIRME EST LE 312** · ce
+n'est pas une convention, c'est le multiplicateur ANNÉE de l'article 7 du
+décret n° 25/22, déjà lu et déjà codé. Le module le RÉUTILISE au lieu de le
+réécrire.
+
+**TROIS CAS OÙ AUCUN PRÉAVIS N'EST DÛ, chacun lu au texte** · la faute lourde
+(art. 72, « résilié immédiatement sans préavis », enfermée dans une
+notification écrite sous quinze jours ouvrables), la force majeure, et le terme
+d'un CDD qui s'éteint de plein droit. La démission vaut LA MOITIÉ et jamais
+plus (art. 64 al. 2). Le délégué syndical vaut LE DOUBLE (art. 258), mais son
+plancher de TROIS MOIS n'est PAS converti · le texte l'exprime en mois et le
+préavis en jours ouvrables, et aucune source ne convertit les uns dans les
+autres.
+
+**UN SOLDE PARTIEL SE LIT COMME UN SOLDE**, et c'est le refus central. Quatre
+rubriques valent `null` plutôt que zéro (arriérés, moyenne des douze mois,
+gratification, et les montants sans taux journalier) · un zéro se lit « rien
+n'est dû », un `null` « personne n'a répondu ». Le TOTAL devient alors `null`
+lui aussi, parce que le travailleur signe pour ce qui est écrit. Le zéro du
+préavis sur faute lourde, LUI, est une RÉPONSE, et il porte son article.
+
+**DEUX AUTRES ÉCARTS RELEVÉS.** L'article 142 fait payer en espèces les
+avantages en nature « EXCEPTION FAITE SEULEMENT POUR LE LOGEMENT », quand le
+séminaire porte une « indemnité congé / logement » · le logement EN NATURE
+n'entre pas dans la conversion, une indemnité de logement en ESPÈCES est de la
+rémunération et y entre. Et les commissions, primes et participations se
+prennent sur la MOYENNE DES DOUZE MOIS (art. 66 et 142), jamais sur le dernier.
+
+**ET LES RETENUES DU SÉMINAIRE NE SONT PAS REPRISES** · l'IPR à 10 % est
+ABROGÉ au 1er janvier 2026, et la « retenue syndicat 2 % » n'est fondée par
+AUCUN article, l'article 112 énumérant les retenues autorisées sans la nommer.
+Les assiettes et le barème de l'article 118 valent pour le décompte comme pour
+un mois ordinaire. Neuf contresens réinjectés, neuf attrapés.
+
 **ADDENDUM P0 · le chapitre 66 du livre de cours, et ce qu'il apporte
 vraiment.** Un second extrait du même livre (pages 173 à 199) a été fourni en
 cours de passe. Il porte LE chapitre de la paie. Même statut que le premier ·

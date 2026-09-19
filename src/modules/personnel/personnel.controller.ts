@@ -8,6 +8,7 @@ import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-
 import { PersonnelService } from './personnel.service';
 import {
   ContratTravailDto,
+  DecompteFinalDto,
   SalarieDto,
   SimulationPaieDto,
   TerminerContratDto,
@@ -97,6 +98,18 @@ export class PersonnelController {
     @Query('salarieId') salarieId?: string,
   ) {
     return this.personnel.simulerPaie(user.tenantId, salarieId ?? null, dto);
+  }
+
+
+  /**
+   * LE DÉCOMPTE FINAL · en POST parce qu'il ne stocke rien mais que ses
+   * données sont nominatives par destination, et qu'une chaîne de requête
+   * entrerait dans les journaux d'accès. Même raison que la simulation.
+   */
+  @Post('decompte-final')
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE, RoleUtilisateur.LECTURE_SEULE)
+  async decompteFinal(@CurrentUser() user: AuthenticatedUser, @Body() dto: DecompteFinalDto) {
+    return this.personnel.decompteFinal(user.tenantId, dto);
   }
 
   /**

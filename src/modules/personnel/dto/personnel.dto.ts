@@ -384,3 +384,60 @@ export class ParametresCotisationsDto {
   @IsBoolean()
   majorationRisquesProfessionnels?: boolean;
 }
+
+/**
+ * LE DÉCOMPTE FINAL · rien n'est stocké. Les quatre montants saisis sont ceux
+ * qu'aucun livre du dossier ne porte, et OmegaX ne les présume pas.
+ */
+export class DecompteFinalDto {
+  @IsInt()
+  @Min(0)
+  @Max(99)
+  anneesAnciennete!: number;
+
+  @IsInt()
+  @Min(0)
+  @Max(1200)
+  moisEntiersDeService!: number;
+
+  @IsOptional()
+  @IsBoolean()
+  moinsDeDixHuitAns?: boolean;
+
+  @IsEnum(['EMPLOYEUR', 'TRAVAILLEUR'])
+  initiative!: string;
+
+  @IsEnum([
+    'LICENCIEMENT',
+    'DEMISSION',
+    'FAUTE_LOURDE',
+    'FORCE_MAJEURE',
+    'TERME_DU_CDD',
+    'COMMUN_ACCORD',
+  ])
+  motif!: string;
+
+  @IsOptional()
+  @IsBoolean()
+  delegueSyndical?: boolean;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  remunerationJournaliereFc?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  arrieresFc?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  moyenneDouzeMoisFc?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  gratificationFc?: number;
+}

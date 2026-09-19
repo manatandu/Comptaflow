@@ -221,6 +221,21 @@ interface Simulation {
   avertissement: string;
 }
 
+interface Decompte {
+  preavis: { joursOuvrables: number | null; motifAucunPreavis: string | null };
+  conge: { joursOuvrables: number; joursDeBase: number; joursDAnciennete: number };
+  rubriques: {
+    cle: string;
+    libelle: string;
+    montantFc: number | null;
+    fondement: string;
+    reserve: string | null;
+  }[];
+  totalBrutFc: number | null;
+  echeancePaiement: string;
+  reserves: string[];
+}
+
 interface Effectif {
   effectif: number;
   hommes: number;
@@ -401,7 +416,7 @@ export function PersonnelPage() {
   const [confrontation, setConfrontation] = useState<Confrontation | null>(null);
   const [effectif, setEffectif] = useState<Effectif | null>(null);
   const [onglet, setOnglet] = useState<
-    'registre' | 'confrontation' | 'effectif' | 'simulation'
+    'registre' | 'confrontation' | 'effectif' | 'simulation' | 'decompte'
   >('registre');
   const [tous, setTous] = useState(false);
   const [selection, setSelection] = useState<string>('');
@@ -418,6 +433,19 @@ export function PersonnelPage() {
   const [tauxAllocations, setTauxAllocations] = useState('');
   const [personnesACharge, setPersonnesACharge] = useState('');
   const [simulation, setSimulation] = useState<Simulation | null>(null);
+  const [decompte, setDecompte] = useState<Decompte | null>(null);
+  const [dec, setDec] = useState({
+    anneesAnciennete: '',
+    moisEntiersDeService: '',
+    moinsDeDixHuitAns: false,
+    initiative: 'EMPLOYEUR' as 'EMPLOYEUR' | 'TRAVAILLEUR',
+    motif: 'LICENCIEMENT',
+    delegueSyndical: false,
+    remunerationJournaliereFc: '',
+    arrieresFc: '',
+    moyenneDouzeMoisFc: '',
+    gratificationFc: '',
+  });
   const [natureInpp, setNatureInpp] = useState<'' | 'PUBLIC' | 'PRIVE'>('');
   const [effectifInpp, setEffectifInpp] = useState('');
   const [majorationRp, setMajorationRp] = useState(false);
@@ -495,6 +523,43 @@ export function PersonnelPage() {
       .then(
         (r) => {
           setSimulation(r);
+          setEnCours(false);
+        },
+        (e: ApiError) => {
+          setErreur(e.message);
+          setEnCours(false);
+        },
+      );
+  };
+
+/**
+   * LE DÉCOMPTE EST DEMANDÉ AU SERVEUR · les durées du Code du travail et les
+   * réserves sur le séminaire CPCC vivent dans `decompte-final.ts`. Les
+   * recopier ici produirait un second décompte, plausible et différent.
+   */
+  const calculerDecompte = () => {
+    setErreur('');
+    setEnCours(true);
+    const nombre = (v: string) => {
+      const n = Number(v.replace(/\s/g, '').replace(',', '.'));
+      return v.trim() === '' || Number.isNaN(n) ? undefined : n;
+    };
+    api
+      .post<Decompte>('/personnel/decompte-final', {
+        anneesAnciennete: nombre(dec.anneesAnciennete) ?? 0,
+        moisEntiersDeService: nombre(dec.moisEntiersDeService) ?? 0,
+        moinsDeDixHuitAns: dec.moinsDeDixHuitAns,
+        initiative: dec.initiative,
+        motif: dec.motif,
+        delegueSyndical: dec.delegueSyndical,
+        remunerationJournaliereFc: nombre(dec.remunerationJournaliereFc),
+        arrieresFc: nombre(dec.arrieresFc),
+        moyenneDouzeMoisFc: nombre(dec.moyenneDouzeMoisFc),
+        gratificationFc: nombre(dec.gratificationFc),
+      })
+      .then(
+        (r) => {
+          setDecompte(r);
           setEnCours(false);
         },
         (e: ApiError) => {
@@ -658,7 +723,7 @@ export function PersonnelPage() {
       )}
 
       <div className="ecran-seul flex gap-1 mb-2 text-[10.5px]">
-        {(['registre', 'confrontation', 'effectif', 'simulation'] as const).map((o) => (
+        {(['registre', 'confrontation', 'effectif', 'simulation', 'decompte'] as const).map((o) => (
           <button
             key={o}
             type="button"
@@ -673,7 +738,9 @@ export function PersonnelPage() {
                 ? 'Article 212'
                 : o === 'effectif'
                   ? 'Effectif'
-                  : 'Simulation'}
+                  : o === 'simulation'
+                    ? 'Simulation'
+                    : 'Décompte final'}
           </button>
         ))}
       </div>
@@ -1978,6 +2045,210 @@ export function PersonnelPage() {
                 </div>
               )}
             </div>
+          )}
+        </div>
+      )}
+
+      {onglet === 'decompte' && (
+        <div className="ecran-seul max-w-[1240px] text-[10.5px]">
+          <div className="border border-warning/40 bg-warning/5 px-3.5 py-2.5 mb-2.5">
+            <strong>Le Code du travail ne définit pas le « décompte final ».</strong> C’est un
+            usage professionnel, dont le fondement est l’<strong>article 100</strong> : toute somme
+            restant due doit être payée au plus tard dans les <strong>deux jours ouvrables</strong>{' '}
+            qui suivent la cessation des services. OmegaX calcule les durées que le Code fixe, et
+            laisse saisir ce qu’aucun livre ne porte.
+          </div>
+
+          <div className="border border-border px-3.5 py-2.5 mb-2.5">
+            <div className="flex flex-wrap gap-3 items-end">
+              <label className="flex flex-col gap-0.5">
+                <span className={etiquette}>Ancienneté (années)</span>
+                <input
+                  value={dec.anneesAnciennete}
+                  onChange={(e) => setDec({ ...dec, anneesAnciennete: e.target.value })}
+                  className="border border-border bg-transparent px-2 py-1 w-[110px] text-right"
+                />
+              </label>
+              <label className="flex flex-col gap-0.5">
+                <span className={etiquette}>Mois entiers de service</span>
+                <input
+                  value={dec.moisEntiersDeService}
+                  onChange={(e) => setDec({ ...dec, moisEntiersDeService: e.target.value })}
+                  className="border border-border bg-transparent px-2 py-1 w-[140px] text-right"
+                />
+              </label>
+              <label className="flex flex-col gap-0.5">
+                <span className={etiquette}>Initiative</span>
+                <select
+                  value={dec.initiative}
+                  onChange={(e) =>
+                    setDec({ ...dec, initiative: e.target.value as 'EMPLOYEUR' | 'TRAVAILLEUR' })
+                  }
+                  className="border border-border bg-transparent px-2 py-1 w-[130px]"
+                >
+                  <option value="EMPLOYEUR">Employeur</option>
+                  <option value="TRAVAILLEUR">Travailleur</option>
+                </select>
+              </label>
+              <label className="flex flex-col gap-0.5">
+                <span className={etiquette}>Motif</span>
+                <select
+                  value={dec.motif}
+                  onChange={(e) => setDec({ ...dec, motif: e.target.value })}
+                  className="border border-border bg-transparent px-2 py-1 w-[160px]"
+                >
+                  <option value="LICENCIEMENT">Licenciement</option>
+                  <option value="DEMISSION">Démission</option>
+                  <option value="FAUTE_LOURDE">Faute lourde</option>
+                  <option value="FORCE_MAJEURE">Force majeure</option>
+                  <option value="TERME_DU_CDD">Terme du CDD</option>
+                  <option value="COMMUN_ACCORD">Commun accord</option>
+                </select>
+              </label>
+              <label className="flex flex-col gap-0.5">
+                <span className={etiquette}>Taux journalier (FC)</span>
+                <input
+                  value={dec.remunerationJournaliereFc}
+                  onChange={(e) => setDec({ ...dec, remunerationJournaliereFc: e.target.value })}
+                  className="border border-border bg-transparent px-2 py-1 w-[140px] text-right"
+                />
+              </label>
+              <label className="flex items-center gap-1 pb-1">
+                <input
+                  type="checkbox"
+                  checked={dec.moinsDeDixHuitAns}
+                  onChange={(e) => setDec({ ...dec, moinsDeDixHuitAns: e.target.checked })}
+                />
+                <span className="text-[10px]">Moins de 18 ans</span>
+              </label>
+              <label className="flex items-center gap-1 pb-1">
+                <input
+                  type="checkbox"
+                  checked={dec.delegueSyndical}
+                  onChange={(e) => setDec({ ...dec, delegueSyndical: e.target.checked })}
+                />
+                <span className="text-[10px]">Délégué syndical</span>
+              </label>
+            </div>
+
+            <div className="flex flex-wrap gap-3 items-end mt-2">
+              <label className="flex flex-col gap-0.5">
+                <span className={etiquette}>Arriérés (FC)</span>
+                <input
+                  value={dec.arrieresFc}
+                  onChange={(e) => setDec({ ...dec, arrieresFc: e.target.value })}
+                  className="border border-border bg-transparent px-2 py-1 w-[130px] text-right"
+                />
+              </label>
+              <label className="flex flex-col gap-0.5">
+                <span className={etiquette}>Moyenne 12 mois (FC)</span>
+                <input
+                  value={dec.moyenneDouzeMoisFc}
+                  onChange={(e) => setDec({ ...dec, moyenneDouzeMoisFc: e.target.value })}
+                  className="border border-border bg-transparent px-2 py-1 w-[150px] text-right"
+                />
+              </label>
+              <label className="flex flex-col gap-0.5">
+                <span className={etiquette}>Gratification (FC)</span>
+                <input
+                  value={dec.gratificationFc}
+                  onChange={(e) => setDec({ ...dec, gratificationFc: e.target.value })}
+                  className="border border-border bg-transparent px-2 py-1 w-[150px] text-right"
+                />
+              </label>
+              <button
+                type="button"
+                disabled={enCours}
+                onClick={calculerDecompte}
+                className="border border-accent text-accent px-3 py-1 disabled:opacity-40"
+              >
+                Calculer
+              </button>
+            </div>
+            <div className="text-[10px] text-text-dim mt-2">
+              Les <strong>mois entiers de service</strong> sont saisis : l’article 141, alinéa 2, y
+              fait entrer les jours de repos, de congé payé, les jours fériés et l’incapacité
+              jusqu’à six mois par année. Les reconstituer depuis les dates du contrat donnerait un
+              chiffre plausible et faux.
+            </div>
+          </div>
+
+          {decompte && (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mb-2.5">
+                <div className="border border-border px-3.5 py-2.5">
+                  <div className={etiquette}>Préavis (article 64)</div>
+                  <div className="text-[14px] font-bold">
+                    {decompte.preavis.joursOuvrables === null
+                      ? 'Aucun'
+                      : `${decompte.preavis.joursOuvrables} jours ouvrables`}
+                  </div>
+                  {decompte.preavis.motifAucunPreavis && (
+                    <div className="text-[10px] text-text-dim mt-1">
+                      {decompte.preavis.motifAucunPreavis}
+                    </div>
+                  )}
+                </div>
+                <div className="border border-border px-3.5 py-2.5">
+                  <div className={etiquette}>Congé (article 141)</div>
+                  <div className="text-[14px] font-bold">
+                    {decompte.conge.joursOuvrables} jours ouvrables
+                  </div>
+                  <div className="text-[10px] text-text-dim mt-1">
+                    dont {decompte.conge.joursDeBase} de base et {decompte.conge.joursDAnciennete}{' '}
+                    d’ancienneté.
+                  </div>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[620px] border-collapse">
+                  <thead>
+                    <tr className="border-b border-border text-left">
+                      <th className={`${etiquette} py-1`}>Rubrique</th>
+                      <th className={`${etiquette} py-1 text-right`}>Montant FC</th>
+                      <th className={`${etiquette} py-1`}>Fondement</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {decompte.rubriques.map((r) => (
+                      <tr key={r.cle} className="border-b border-border/40 align-top">
+                        <td className="py-1 pr-2">{r.libelle}</td>
+                        <td className="py-1 pr-2 text-right font-mono">
+                          {r.montantFc === null ? 'indéterminé' : fc(r.montantFc)}
+                        </td>
+                        <td className="py-1 text-[10px] text-text-dim">
+                          {r.fondement}
+                          {r.reserve && <div className="mt-0.5">{r.reserve}</div>}
+                        </td>
+                      </tr>
+                    ))}
+                    <tr className="border-t border-border font-bold">
+                      <td className="py-1">Total brut</td>
+                      <td className="py-1 pr-2 text-right font-mono">
+                        {decompte.totalBrutFc === null
+                          ? 'Indéterminé'
+                          : fc(decompte.totalBrutFc)}
+                      </td>
+                      <td className="py-1 text-[10px] text-text-dim font-normal">
+                        {decompte.echeancePaiement}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="border border-border px-3.5 py-2.5 mt-2.5 text-[10px]">
+                <div className={`${etiquette} mb-1`}>Réserves de lecture</div>
+                <ul>
+                  {decompte.reserves.map((r, i) => (
+                    <li key={i} className="py-1 border-t border-border/40 text-text-dim">
+                      {r}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </>
           )}
         </div>
       )}

@@ -3,6 +3,7 @@ import { TypeContratTravail } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import {
   ContratTravailDto,
+  DecompteFinalDto,
   SalarieDto,
   SimulationPaieDto,
   TerminerContratDto,
@@ -11,6 +12,11 @@ import { assiettes, type ElementPaie, type NatureElementPaie } from './assiettes
 import { baremeApplicableAuMois, retenueMensuelle } from './bareme-irpp';
 import { cotisations, netAPayer, type NatureEmployeurInpp } from './cotisations-paie';
 import { passationPaie, type Referentiel } from './passation-paie';
+import {
+  decompteFinal,
+  type InitiativeRupture,
+  type MotifRupture,
+} from './decompte-final';
 import {
   aptitudeProvisoirePerimee,
   declarationsDues,
@@ -559,6 +565,37 @@ export class PersonnelService {
     };
   }
 
+
+  /**
+   * LE DÉCOMPTE FINAL · P4. PUREMENT CALCULÉ, RIEN N'EST STOCKÉ.
+   *
+   * Aucune lecture Prisma non plus · tout ce dont le calcul a besoin est dans
+   * le Code du travail et dans ce que le cabinet déclare. L'ancienneté et les
+   * mois de service SE SAISISSENT, et ce n'est pas un raccourci : l'article
+   * 141, alinéa 2, fait entrer dans le service les jours de repos, de congé
+   * payé, les jours fériés et l'incapacité jusqu'à six mois par année, sans
+   * cette limite pour un accident du travail. Reconstituer ce décompte depuis
+   * les dates du contrat donnerait un chiffre plausible et faux.
+   *
+   * LE `tenantId` EST QUAND MÊME REÇU · la route est cloisonnée par le jeton,
+   * et le garder en signature empêche qu'on l'oublie le jour où le décompte
+   * lira le contrat.
+   */
+  decompteFinal(_tenantId: string, dto: DecompteFinalDto) {
+    return decompteFinal({
+      anneesAnciennete: dto.anneesAnciennete,
+      moisEntiersDeService: dto.moisEntiersDeService,
+      moinsDeDixHuitAns: dto.moinsDeDixHuitAns ?? false,
+      initiative: dto.initiative as InitiativeRupture,
+      motif: dto.motif as MotifRupture,
+      delegueSyndical: dto.delegueSyndical,
+      remunerationJournaliereFc: dto.remunerationJournaliereFc ?? null,
+      arrieresFc: dto.arrieresFc ?? null,
+      moyenneDouzeMoisFc: dto.moyenneDouzeMoisFc ?? null,
+      gratificationFc: dto.gratificationFc ?? null,
+    });
+  }
+
   /** Le nombre de renouvellements qui MÈNENT à ce contrat, celui-ci compris. */
   private longueurChaineRenouvellement(
     contrats: Array<{ id: string; renouvelleDeId: string | null }>,
@@ -645,3 +682,4 @@ export class PersonnelService {
 export type Confrontation = Awaited<ReturnType<PersonnelService['confronter']>>;
 export type Effectif = Awaited<ReturnType<PersonnelService['effectif']>>;
 export type SimulationPaie = Awaited<ReturnType<PersonnelService['simulerPaie']>>;
+export type DecompteFinal = ReturnType<PersonnelService['decompteFinal']>;

@@ -150,3 +150,32 @@ describe('P3 · la passation comptable à l\'écran', () => {
     expect(SOURCE).toContain('<strong>proposée</strong>');
   });
 });
+
+describe("P4 · le décompte final à l'écran", () => {
+  it("n'écrit AUCUNE durée du Code du travail dans la page", () => {
+    // Le défaut visé : recopier « 14 jours », « 7 par année », « 1 jour par
+    // mois » pour éviter un aller-retour. Deux calculs écrits séparément
+    // divergent au premier correctif, et les deux restent plausibles.
+    const debut = SOURCE.indexOf("{onglet === 'decompte'");
+    const panneau = SOURCE.slice(debut);
+    expect(panneau).not.toMatch(/14\s*jours/);
+    expect(panneau).not.toMatch(/\b1,5\s*jour/);
+    expect(panneau).not.toMatch(/\b18\s*jours\b/);
+    expect(panneau).toContain('{decompte.preavis.joursOuvrables} jours ouvrables');
+  });
+
+  it("dit que le Code ne définit PAS le décompte final", () => {
+    expect(SOURCE).toContain('Le Code du travail ne définit pas le « décompte final ».');
+    expect(SOURCE).toContain('deux jours ouvrables');
+  });
+
+  it("rend l'indétermination visible plutôt qu'un zéro", () => {
+    expect(SOURCE).toContain("r.montantFc === null ? 'indéterminé'");
+    expect(SOURCE).toContain("decompte.totalBrutFc === null");
+  });
+
+  it("explique pourquoi les mois de service sont SAISIS", () => {
+    expect(SOURCE).toContain('article 141, alinéa 2');
+    expect(SOURCE).toContain('plausible et faux');
+  });
+});
