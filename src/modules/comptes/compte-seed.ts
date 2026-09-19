@@ -644,9 +644,19 @@ const classe4Solde: LigneSeed[] = c(ClasseCompte.CLASSE_4, SOLDE, [
   //  · INPP · formation professionnelle, taux par tranche d'effectif
   //    (4 % public, 3,5 % de 1 à 50, 3 % de 51 à 300, 2 % au-delà de 300),
   //    arrêté interministériel n° 002/CAB/MET/2025 du 24 septembre 2025 ;
-  //  · ONEM · aucun texte ne figure au corpus consulté pour le taux
-  //    couramment pratiqué de 0,2 % : le compte est ouvert, le taux n'est
-  //    PAS inscrit dans le logiciel.
+  //  · ONEM · emploi, 0,5 % de la rémunération mensuelle depuis le
+  //    25 septembre 2025 (arrêté ministériel n° 028/CAB/MIN.ET/FMM/RK/09/2025,
+  //    art. 1er), 0,2 % auparavant (arrêté n° 095/2018). Le taux et sa date
+  //    d'effet vivent dans `correspondance-retenues.ts`, clé `onem`.
+  //
+  // CE COMMENTAIRE A DÉCLARÉ UNE LACUNE À TORT, et la passe P0 de la paie l'a
+  // trouvé le 19/09/2026. Il écrivait « aucun texte ne figure au corpus pour
+  // le taux couramment pratiqué de 0,2 % · le taux n'est PAS inscrit dans le
+  // logiciel ». C'était vrai quand il a été écrit ; l'arrêté de 2025 a depuis
+  // été versé au corpus et le registre des retenues le code, avec sa date
+  // d'effet et ses sanctions. Une lacune déclarée à tort est aussi fausse
+  // qu'une règle inventée · celle-ci faisait renoncer à une règle que le
+  // logiciel applique déjà.
   ['43340000', 'Autres organismes sociaux · INPP (formation professionnelle)'],
   ['43350000', 'Autres organismes sociaux · ONEM (emploi)'],
   ['43810000', 'Organismes sociaux · charges sociales sur gratifications à payer'],

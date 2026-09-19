@@ -1187,6 +1187,70 @@ de consignation et une créance de consignation sont de sens opposés au bilan,
 leur somme ne veut rien dire.
 
 
+**Paie P0 · la lecture avant le code, et le dix-neuvième « un numéro, deux
+sens ».** Passe de lecture du 2026-09-19, rien de codé. Journal complet dans
+`docs/paie-p0-inventaire.md`.
+
+ELLE A COMMENCÉ PAR CORRIGER LE PLAN QUI L'ANNONÇAIT. Trois affirmations
+étaient fausses : l'INPP n'est pas absent (le dépôt le porte avec ses quatre
+tranches d'effectif), il n'existe aucun plafond d'assiette CNSS mais un
+PLANCHER au SMIG (décret n° 18/041, art. 8), et la moitié déclarative de la
+paie est déjà construite dans le registre des retenues.
+
+**LE DIX-NEUVIÈME PIÈGE PORTE LA LIGNE LA PLUS LOURDE DU BULLETIN.** La
+cotisation de retraite obligatoire, 10 % de la masse salariale, est au **4313**
+au SYSCOHADA (sous 431 Sécurité sociale) et au **4321** au SYCEBNL, dont le 431
+n'ouvre AUCUN 4313. Et la correction évidente est elle-même un piège : au
+SYCEBNL le 432 est « Caisses de retraite » avec 4321 obligatoire, quand au
+SYSCOHADA le 432 est la retraite **COMPLÉMENTAIRE**. Corriger 4313 en 432
+rangerait donc la cotisation obligatoire sous une nature facultative dans un
+plan sur deux. **Aucun numéro de compte de paie ne s'écrira ailleurs que dans
+une table nommée, et aucun sans son référentiel** · troisième fois que la règle
+se pose, après les stocks et les emballages.
+
+**DEUX ASSIETTES, JAMAIS UNE.** L'arrêté n° 146/2018, art. 17, exclut de
+l'assiette sociale le logement et son indemnité, le transport, les allocations
+familiales légales, les soins de santé et les frais de voyage · l'assiette
+fiscale, elle, les porte. Un bulletin qui n'en tiendrait qu'une serait faux
+sans que rien ne le dise.
+
+**LE BARÈME IRPP PORTE UNE TENSION QUE LE TEXTE NE TRANCHE PAS** · taux
+marginal de 40 % et plafond de l'impôt total à 30 % du revenu imposable
+(art. 118). Le plafond finit toujours par mordre. Le coder sans le plafond
+donne un impôt faux sur les hauts salaires, sur un bulletin d'apparence juste.
+Double arrondi : assiette au millier inférieur, puis impôt selon l'art. 150.
+
+**LE MEILLEUR DOCUMENT DE MÉTHODE DU CORPUS EST LE PLUS DATÉ.** Le séminaire
+CPCC sur le décompte final donne la seule méthode complète (préavis, congé,
+gratification, prorata sur 312), et quatre de ses éléments sont périmés ou
+faux : l'IPR à 10 % (abrogé au 1er janvier 2026), l'ONEM à 0,2 % (0,5 % depuis
+le 25/09/2025), une retenue « Syndicat 2 % » qu'aucun article ne fonde (l'art.
+112 FERME la liste des retenues autorisées et ne la nomme pas), et surtout
+**« C/ 4331 INPP · C/ 4332 ONEM », faux dans les DEUX plans** où le 4331 est
+« Mutuelle » et le 4332 « Assurances retraite ». Un cabinet qui suivrait ce
+schéma porterait l'INPP à la mutuelle sur une balance qui boucle. Le fichier
+porte lui-même l'avertissement qui sauve : « en cas de désaccord entre ce
+fichier et un article du Code, l'article prime ». Il vaut pour la MÉTHODE.
+
+**ET UNE LACUNE DÉCLARÉE À TORT DANS LE SEMIS, CORRIGÉE.** Le commentaire des
+comptes 4334 et 4335 du semis SYCEBNL écrivait que « aucun texte ne figure au
+corpus pour le taux ONEM couramment pratiqué de 0,2 % · le taux n'est PAS
+inscrit dans le logiciel ». C'était vrai à l'écriture ; l'arrêté n° 028/2025 a
+depuis été versé au corpus et `correspondance-retenues.ts` le code à 0,5 % avec
+sa date d'effet. **Une asymétrie reste ouverte et se tranchera en P1** : ces
+deux comptes n'existent QUE dans le semis SYCEBNL, alors que le registre des
+retenues les cherche pour les deux référentiels · une société commerciale n'a
+aujourd'hui aucun compte où porter son INPP et son ONEM.
+
+QUATRE MANQUES NOMMÉS, AUCUN COMBLÉ DE MÉMOIRE · le **SMIG**, cité par au
+moins cinq articles et jamais chiffré, sans lequel ni le plancher d'assiette ni
+la quotité saisissable de l'art. 114 ne se calculent ; l'**arrêté de l'art.
+139** sur la valeur forfaitaire du logement, que l'art. 114 déduit ;
+l'**arrêté INPP n° 002/CAB/MET/2025**, cité par le dépôt et absent des
+compétences, donc invérifiable ; et la **convention collective** du dossier,
+que l'art. 114 comme le barème de préavis appellent par catégorie.
+
+
 **Questionnaire de révision par cycle · vingt-quatre items du CPCC, et le
 reste assumé.** Le séminaire porte DEUX checklists, § VI « vérification de
 l'inventaire physique » (immobilisations, stocks, caisses) et § VII
