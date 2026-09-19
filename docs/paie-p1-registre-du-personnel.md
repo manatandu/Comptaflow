@@ -243,3 +243,86 @@ Aucun de ces quatre n'a été écrit pour P1. Tous quatre ont travaillé pour lu
   étrangère, et bilan social) est identifié mais pas porté à l'échéancier.
 - **Le livre de paie** des art. 213 à 215, avec son modèle fixé par arrêté
   ministériel, est de P3.
+
+---
+
+# ADDENDUM P1b · la classe, et le contrat confronté au minimum légal
+
+P1 laissait `categorieProfessionnelle` en chaîne libre, au motif que « tant que
+la convention collective du dossier n'est pas au corpus, rien ici n'en déduit de
+montant ». **Ce motif ne vaut plus qu'à moitié.** La convention du dossier reste
+absente, mais la **grille de tension salariale du décret n° 25/22 est arrivée**,
+et elle fixe un minimum par classe.
+
+## Deux colonnes, et elles ne se confondent pas
+
+| Colonne | D'où elle vient | Ce qu'elle commande |
+|---|---|---|
+| `categorieProfessionnelle` | la **convention collective** du dossier | le préavis de l'art. 64, la quotité saisissable de l'art. 114 |
+| `classeProfessionnelle` | le **décret n° 25/22**, annexes, 1 à 17 | le taux journalier MINIMUM |
+
+Les fondre ferait servir un barème légal sous un nom conventionnel, ou
+l'inverse. Un test l'exige : une catégorie conventionnelle renseignée ne
+renseigne pas la classe.
+
+## Le contrôle, et ce n'est pas un avis
+
+> **Décret n° 25/21, art. 3** · le SMIG est « la somme minimale fixée par le
+> pouvoir public **en deçà de laquelle aucun travailleur ne peut être rémunéré
+> sous peine de sanction** ».
+>
+> **Code du travail, art. 37** · « Toute clause contractuelle accordant au
+> travailleur des avantages inférieurs à ceux prescrits par le présent Code est
+> **nulle de plein droit**. »
+
+La confrontation rend donc, pour chaque contrat, le minimum de sa classe et le
+manque quand il y en a un.
+
+## TROIS CHOSES SANS LESQUELLES IL S'ABSTIENT, ET LE DIT
+
+1. **La classe** · on ne la déduit ni de l'intitulé du poste, ni de la catégorie
+   conventionnelle.
+2. **La périodicité de la rémunération** · nouvelle colonne, et elle est
+   indispensable. Le décret fixe un taux JOURNALIER ; la supposer mensuelle
+   ferait paraître un salaire journalier **vingt-six fois trop bas**, et un
+   salaire annuel douze fois trop haut. Un test pose le cas : 21 500 FC est
+   exactement le minimum journalier de la classe 1 et très au-dessous du minimum
+   mensuel · le même nombre est conforme ou fautif selon l'unité.
+3. **Le mois de référence.** Un contrat TERMINÉ se juge sur son dernier mois ·
+   le confronter au minimum d'aujourd'hui reprocherait à l'employeur une
+   revalorisation postérieure au départ du salarié. Un contrat EN COURS se juge
+   au mois courant, parce que c'est ce qu'un inspecteur regarde.
+
+**Et `conforme` vaut `null` quand il s'abstient, jamais `true`.** Une abstention
+muette se lirait comme un contrat conforme.
+
+## Le piège que le contrôle rend visible
+
+**Le minimum a changé en janvier 2026.** 500 000 FC par mois était conforme de
+mai à décembre 2025 (14 500 × 26 = 377 000) et ne l'est plus en janvier 2026
+(21 500 × 26 = 559 000). **Un contrat conforme à sa signature cesse de l'être
+sans que rien n'ait bougé au contrat**, et l'art. 11 du décret n° 25/21 programme
+un ajustement chaque janvier. Un test fige ce basculement.
+
+**L'autre contresens, plus coûteux** : contrôler tout le monde contre les
+21 500 FC du manœuvre ordinaire. Le dernier échelon du cadre de collaboration
+est à 215 000 FC par jour, **dix fois plus**.
+
+## Ce que le contrôle ne fait pas
+
+Il compare la rémunération **convenue au contrat**, pas ce qui est payé · un
+bulletin est de P2. Et il ne tient aucun compte des avantages en nature, que
+l'article 8 du décret n° 25/22 exclut expressément de la rémunération pour le
+logement et le transport.
+
+## Au journal d'audit
+
+Les deux colonnes sont **admises**, pas masquées, et pour une raison précise :
+rétrograder quelqu'un d'une classe après coup **abaisse le minimum qui lui est
+opposable**. C'est exactement la retouche qu'un journal existe pour rendre
+visible · la masquer protégerait la manipulation, pas la personne. La
+périodicité suit, parce qu'elle est l'unité et non le montant, lequel reste
+masqué.
+
+Six contresens réinjectés, six attrapés. Le garde-fou de la liste d'exclusion
+fermée a servi une fois de plus, sans qu'on l'appelle.

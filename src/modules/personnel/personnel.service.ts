@@ -8,6 +8,7 @@ import {
   mentionsManquantes,
   requalifications,
   verdictEssai,
+  verdictRemunerationMinimale,
   type ContratPourControle,
 } from './regles-contrat-travail';
 
@@ -222,6 +223,8 @@ export class PersonnelService {
         natureTravail: dto.natureTravail?.trim() || null,
         lieuExecution: dto.lieuExecution?.trim() || null,
         categorieProfessionnelle: dto.categorieProfessionnelle?.trim() || null,
+        classeProfessionnelle: dto.classeProfessionnelle ?? null,
+        periodiciteRemuneration: dto.periodiciteRemuneration ?? null,
         manoeuvreSansSpecialite: dto.manoeuvreSansSpecialite ?? false,
         remunerationBase: dto.remunerationBase ?? null,
         avantagesConvenus: dto.avantagesConvenus?.trim() || null,
@@ -324,8 +327,17 @@ export class PersonnelService {
           clauseEssai: c.clauseEssai,
           essaiConstateParEcrit: c.essaiConstateParEcrit,
           essaiDureeJours: c.essaiDureeJours,
+          classeProfessionnelle: c.classeProfessionnelle,
+          periodiciteRemuneration: c.periodiciteRemuneration,
         };
         const nombreRenouvellements = this.longueurChaineRenouvellement(s.contrats, c.id);
+        // LE MOIS DE RÉFÉRENCE DU CONTRÔLE DE MINIMUM. Un contrat TERMINÉ se
+        // juge sur son dernier mois · le barème a pu changer depuis, et le
+        // confronter au minimum d'aujourd'hui reprocherait à l'employeur une
+        // revalorisation postérieure au départ du salarié. Un contrat EN
+        // COURS se juge au mois courant, parce que c'est ce qu'un inspecteur
+        // du travail regarde.
+        const moisDeReference = (c.dateFin ?? aujourdhui).toISOString().slice(0, 7);
         return {
           salarieId: s.id,
           salarie: [s.nom, s.postNom, s.prenoms].filter(Boolean).join(' '),
@@ -357,6 +369,8 @@ export class PersonnelService {
           // sans préavis. Il n'est pas une requalification · il est rendu à
           // part pour ne pas se confondre avec elles.
           visaOnemManquant: c.constateParEcrit && !c.viseParOnem,
+          moisDeReference,
+          remunerationMinimale: verdictRemunerationMinimale(contrat, moisDeReference),
         };
       });
     });
@@ -372,7 +386,8 @@ export class PersonnelService {
           n +
           f.mentionsManquantes.length +
           f.requalifications.length +
-          f.declarations.filter((d) => d.enRetard).length,
+          f.declarations.filter((d) => d.enRetard).length +
+          (f.remunerationMinimale.conforme === false ? 1 : 0),
         0,
       ),
     };

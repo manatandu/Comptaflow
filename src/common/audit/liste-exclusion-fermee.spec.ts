@@ -148,6 +148,17 @@ describe('la liste d’exclusion est fermée sur User', () => {
       'natureTravail',
       'lieuExecution',
       'categorieProfessionnelle',
+      // LA CLASSE RESTE LISIBLE, ET C'EST DÉLIBÉRÉ. Elle commande le MINIMUM
+      // légal de la rémunération : rétrograder quelqu'un d'une classe après
+      // coup abaisse le minimum qui lui est opposable, et c'est exactement la
+      // retouche qu'un journal d'audit existe pour rendre visible. La masquer
+      // protégerait la manipulation, pas la personne.
+      'classeProfessionnelle',
+      // L'UNITÉ, PAS LE MONTANT. Savoir qu'une rémunération est stipulée au
+      // mois ne dit rien de ce qu'elle vaut · le montant, lui, est masqué.
+      // Et sans l'unité, un changement de classe au journal se lirait sans
+      // qu'on puisse voir s'il s'accompagne d'un changement de base.
+      'periodiciteRemuneration',
       'manoeuvreSansSpecialite',
       'clauseEssai',
       'essaiConstateParEcrit',

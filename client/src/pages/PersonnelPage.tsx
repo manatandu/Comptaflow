@@ -50,6 +50,8 @@ interface Contrat {
   viseParOnem: boolean;
   remunerationBase: string | number | null;
   categorieProfessionnelle: string | null;
+  classeProfessionnelle: number | null;
+  periodiciteRemuneration: 'JOUR' | 'SEMAINE' | 'MOIS' | 'ANNEE' | null;
 }
 
 interface Salarie {
@@ -100,6 +102,15 @@ interface Declaration {
   article: string;
 }
 
+interface RemunerationMinimale {
+  conforme: boolean | null;
+  minimumFc: number | null;
+  convenueFc: number | null;
+  manqueFc: number | null;
+  abstention: string | null;
+  explication: string;
+}
+
 interface FicheConfrontee {
   salarieId: string;
   salarie: string;
@@ -119,6 +130,8 @@ interface FicheConfrontee {
   declarations: Declaration[];
   aptitudeProvisoirePerimee: boolean;
   visaOnemManquant: boolean;
+  moisDeReference: string;
+  remunerationMinimale: RemunerationMinimale;
 }
 
 interface Confrontation {
@@ -173,6 +186,8 @@ const NOUVEAU_CONTRAT = {
   natureTravail: '',
   lieuExecution: '',
   categorieProfessionnelle: '',
+  classeProfessionnelle: '',
+  periodiciteRemuneration: '' as '' | 'JOUR' | 'SEMAINE' | 'MOIS' | 'ANNEE',
   manoeuvreSansSpecialite: false,
   remunerationBase: '',
   avantagesConvenus: '',
@@ -183,6 +198,34 @@ const NOUVEAU_CONTRAT = {
   viseParOnem: false,
   dateVisaOnem: '',
 };
+
+/**
+ * LES DIX-SEPT CLASSES DE LA TENSION SALARIALE, décret n° 25/22, annexes.
+ *
+ * Recopiées ici pour l'affichage seul · le MINIMUM associé à chacune vient
+ * toujours du serveur, qui seul lit le barème avec son mois d'effet. Un
+ * montant calculé côté client se périmerait au prochain ajustement de
+ * janvier sans que personne ne le voie.
+ */
+const CLASSES: { classe: number; libelle: string }[] = [
+  { classe: 1, libelle: 'Manœuvre ordinaire' },
+  { classe: 2, libelle: 'Manœuvre lourd' },
+  { classe: 3, libelle: 'Travailleur spécialisé' },
+  { classe: 4, libelle: 'Travailleur semi qualifié, échelon 1' },
+  { classe: 5, libelle: 'Travailleur semi qualifié, échelon 2' },
+  { classe: 6, libelle: 'Travailleur semi qualifié, échelon 3' },
+  { classe: 7, libelle: 'Travailleur qualifié, échelon 1' },
+  { classe: 8, libelle: 'Travailleur qualifié, échelon 2' },
+  { classe: 9, libelle: 'Travailleur hautement qualifié' },
+  { classe: 10, libelle: 'Maîtrise, échelon 1' },
+  { classe: 11, libelle: 'Maîtrise, échelon 2' },
+  { classe: 12, libelle: 'Maîtrise, échelon 3' },
+  { classe: 13, libelle: 'Maîtrise, échelon 4' },
+  { classe: 14, libelle: 'Cadre de collaboration, échelon 1' },
+  { classe: 15, libelle: 'Cadre de collaboration, échelon 2' },
+  { classe: 16, libelle: 'Cadre de collaboration, échelon 3' },
+  { classe: 17, libelle: 'Cadre de collaboration, échelon 4' },
+];
 
 const nomComplet = (s: Salarie) => [s.nom, s.postNom, s.prenoms].filter(Boolean).join(' ');
 const jour = (d: string | null) => (d ? d.slice(0, 10) : '');
@@ -321,6 +364,8 @@ export function PersonnelPage() {
         natureTravail: contrat.natureTravail.trim() || undefined,
         lieuExecution: contrat.lieuExecution.trim() || undefined,
         categorieProfessionnelle: contrat.categorieProfessionnelle.trim() || undefined,
+        classeProfessionnelle: contrat.classeProfessionnelle ? Number(contrat.classeProfessionnelle) : undefined,
+        periodiciteRemuneration: contrat.periodiciteRemuneration || undefined,
         manoeuvreSansSpecialite: contrat.manoeuvreSansSpecialite,
         remunerationBase: contrat.remunerationBase ? Number(contrat.remunerationBase) : undefined,
         avantagesConvenus: contrat.avantagesConvenus.trim() || undefined,
@@ -788,6 +833,42 @@ export function PersonnelPage() {
                     />
                   </label>
                   <label>
+                    <span className={etiquette}>Classe de la tension salariale (1 à 17)</span>
+                    <select
+                      className={champ}
+                      value={contrat.classeProfessionnelle}
+                      onChange={(e) =>
+                        setContrat({ ...contrat, classeProfessionnelle: e.target.value })
+                      }
+                    >
+                      <option value="">non tranchée</option>
+                      {CLASSES.map((c) => (
+                        <option key={c.classe} value={c.classe}>
+                          {c.classe} · {c.libelle}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    <span className={etiquette}>Périodicité de la rémunération</span>
+                    <select
+                      className={champ}
+                      value={contrat.periodiciteRemuneration}
+                      onChange={(e) =>
+                        setContrat({
+                          ...contrat,
+                          periodiciteRemuneration: e.target.value as typeof contrat.periodiciteRemuneration,
+                        })
+                      }
+                    >
+                      <option value="">non renseignée</option>
+                      <option value="JOUR">par jour</option>
+                      <option value="SEMAINE">par semaine</option>
+                      <option value="MOIS">par mois</option>
+                      <option value="ANNEE">par an</option>
+                    </select>
+                  </label>
+                  <label>
                     <span className={etiquette}>Ouvrage déterminé (art. 40)</span>
                     <input
                       className={champ}
@@ -937,6 +1018,24 @@ export function PersonnelPage() {
                       </li>
                     ))}
                   </ul>
+                </div>
+              )}
+              {f.remunerationMinimale.conforme === false && (
+                <div className="mt-1 border-l-2 border-danger pl-2">
+                  <div className="font-bold text-danger">
+                    Rémunération convenue en deçà du minimum légal
+                  </div>
+                  <div>{f.remunerationMinimale.explication}</div>
+                  {f.remunerationMinimale.manqueFc !== null && (
+                    <div>
+                      Manque : <strong>{f.remunerationMinimale.manqueFc.toLocaleString('fr-FR')} FC</strong>.
+                    </div>
+                  )}
+                </div>
+              )}
+              {f.remunerationMinimale.abstention !== null && (
+                <div className="mt-1 text-text-dim">
+                  Minimum légal non contrôlé · {f.remunerationMinimale.explication}
                 </div>
               )}
               {f.essai.reduiteDePleinDroit && (

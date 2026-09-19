@@ -1376,6 +1376,39 @@ lui seul** : en faire le minimum de toutes les catégories serait le plus gros
 contresens possible sur ce texte. Six contresens réinjectés dans
 `bareme-smig.ts`, six attrapés.
 
+**P1b · LE CONTRAT EST DÉSORMAIS CONFRONTÉ AU MINIMUM DE SA CLASSE.** La grille
+de tension arrivée le matin même rouvrait une justification de P1 : la
+`categorieProfessionnelle` était en chaîne libre « tant que la convention
+collective n'est pas au corpus ». La convention l'est toujours, mais le DÉCRET
+ne l'est plus · d'où une SECONDE colonne, `classeProfessionnelle` (1 à 17), qui
+vient du décret et non de la convention. **Les fondre ferait servir un barème
+légal sous un nom conventionnel.**
+
+Le contrôle n'est pas un avis : le SMIG est « la somme minimale […] en deçà de
+laquelle aucun travailleur ne peut être rémunéré SOUS PEINE DE SANCTION »
+(décret n° 25/21, art. 3), et l'art. 37 du Code du travail frappe de NULLITÉ DE
+PLEIN DROIT toute clause moins favorable.
+
+**TROIS ABSTENTIONS PLUTÔT QU'UNE SUPPOSITION**, et `conforme` vaut `null`,
+jamais `true` : sans la classe, sans la PÉRIODICITÉ (colonne neuve · le décret
+fixe un taux JOURNALIER, la supposer mensuelle ferait paraître un salaire
+journalier vingt-six fois trop bas), et sans un mois de référence dans le
+barème. **Le mois se choisit** : un contrat TERMINÉ se juge sur son dernier
+mois, sinon on reprocherait à l'employeur une revalorisation postérieure au
+départ du salarié ; un contrat EN COURS se juge au mois courant.
+
+**ET LE CONTRÔLE REND VISIBLE UN PIÈGE QUE RIEN NE SIGNALAIT** · 500 000 FC par
+mois était conforme jusqu'en décembre 2025 (14 500 × 26 = 377 000) et ne l'est
+plus en janvier 2026 (21 500 × 26 = 559 000). **Un contrat conforme à sa
+signature cesse de l'être sans que rien n'y ait bougé**, et l'art. 11 du décret
+n° 25/21 programme un ajustement chaque janvier.
+
+**AU JOURNAL D'AUDIT, LES DEUX COLONNES SONT ADMISES, PAS MASQUÉES.**
+Rétrograder quelqu'un d'une classe après coup ABAISSE LE MINIMUM QUI LUI EST
+OPPOSABLE · c'est exactement la retouche qu'un journal existe pour rendre
+visible, et la masquer protégerait la manipulation, pas la personne. Six
+contresens réinjectés, six attrapés.
+
 **ILS NE SONT PLUS QUATRE** (passe de recherche du 19/09/2026,
 `docs/paie-recherche-textes-2026-09-19.md`). L'**arrêté de l'art. 139
 n'existe pas** : la contre-valeur du logement est fixée par le MÊME texte que

@@ -9,6 +9,7 @@ import {
   mentionsManquantes,
   requalifications,
   verdictEssai,
+  verdictRemunerationMinimale,
   type ContratPourControle,
   type EmployeurPourControle,
   type SalariePourControle,
@@ -54,6 +55,8 @@ const CONTRAT: ContratPourControle = {
   clauseEssai: false,
   essaiConstateParEcrit: false,
   essaiDureeJours: null,
+  classeProfessionnelle: null,
+  periodiciteRemuneration: null,
 };
 
 describe('article 212 · les quinze énonciations, et pas une de plus', () => {
@@ -422,5 +425,104 @@ describe('l’aptitude provisoire de l’article 38', () => {
         new Date('2026-06-01'),
       ),
     ).toBe(false);
+  });
+});
+
+describe('la rémunération convenue confrontée au minimum de sa classe', () => {
+  // Un manœuvre ordinaire (classe 1) payé au mois. Au mois de paie de
+  // janvier 2026, l'annexe 2 donne 21 500 FC par jour, soit 559 000 FC par
+  // mois avec le multiplicateur 26 de l'article 7.
+  const manoeuvre: ContratPourControle = {
+    ...CONTRAT,
+    classeProfessionnelle: 1,
+    periodiciteRemuneration: 'MOIS',
+    remunerationBase: 559_000,
+  };
+
+  it('conforme quand la rémunération atteint le minimum, au centime près', () => {
+    const v = verdictRemunerationMinimale(manoeuvre, '2026-01');
+    expect(v.conforme).toBe(true);
+    expect(v.minimumFc).toBe(559_000);
+    expect(v.manqueFc).toBeNull();
+    expect(v.explication).toContain('Manœuvre');
+  });
+
+  it('EN DEÇÀ · il chiffre le manque et cite les deux textes qui le sanctionnent', () => {
+    const v = verdictRemunerationMinimale({ ...manoeuvre, remunerationBase: 500_000 }, '2026-01');
+    expect(v.conforme).toBe(false);
+    expect(v.manqueFc).toBe(59_000);
+    // Ce n'est pas un conseil · le décret et le Code le disent.
+    expect(v.explication).toContain('sous peine de sanction');
+    expect(v.explication).toContain("l'article 37 du Code du travail");
+  });
+
+  it('LE MINIMUM A CHANGÉ EN JANVIER 2026 · le même contrat bascule', () => {
+    // 500 000 FC par mois était conforme de mai à décembre 2025 (14 500 × 26
+    // = 377 000) et ne l'est plus en janvier 2026 (21 500 × 26 = 559 000). Un
+    // contrat conforme à sa signature peut cesser de l'être sans que rien
+    // n'ait bougé au contrat.
+    const sousPaye = { ...manoeuvre, remunerationBase: 500_000 };
+    expect(verdictRemunerationMinimale(sousPaye, '2025-09').conforme).toBe(true);
+    expect(verdictRemunerationMinimale(sousPaye, '2025-09').minimumFc).toBe(377_000);
+    expect(verdictRemunerationMinimale(sousPaye, '2026-01').conforme).toBe(false);
+  });
+
+  it('LA PÉRIODICITÉ CHANGE TOUT · le même nombre est conforme ou non selon l’unité', () => {
+    // 21 500 FC est exactement le minimum JOURNALIER de la classe 1, et très
+    // au-dessous du minimum MENSUEL. Supposer le mois ferait signaler un
+    // contrat journalier parfaitement conforme.
+    const base = { ...manoeuvre, remunerationBase: 21_500 };
+    expect(verdictRemunerationMinimale({ ...base, periodiciteRemuneration: 'JOUR' }, '2026-01').conforme).toBe(true);
+    expect(verdictRemunerationMinimale({ ...base, periodiciteRemuneration: 'MOIS' }, '2026-01').conforme).toBe(false);
+    // Et les quatre unités suivent les multiplicateurs de l'article 7.
+    expect(verdictRemunerationMinimale({ ...base, periodiciteRemuneration: 'SEMAINE' }, '2026-01').minimumFc).toBe(129_000);
+    expect(verdictRemunerationMinimale({ ...base, periodiciteRemuneration: 'ANNEE' }, '2026-01').minimumFc).toBe(6_708_000);
+  });
+
+  it('LA CLASSE COMMANDE LE MINIMUM · un cadre n’est pas un manœuvre', () => {
+    // Le contresens le plus coûteux serait de contrôler tout le monde contre
+    // les 21 500 FC du manœuvre ordinaire. Le dernier échelon du cadre de
+    // collaboration est à 215 000 FC par jour, dix fois plus.
+    const cadre = { ...manoeuvre, classeProfessionnelle: 17, remunerationBase: 559_000 };
+    expect(verdictRemunerationMinimale(cadre, '2026-01').conforme).toBe(false);
+    expect(verdictRemunerationMinimale(cadre, '2026-01').minimumFc).toBe(215_000 * 26);
+    expect(verdictRemunerationMinimale(cadre, '2026-01').explication).toContain('Cadre de collaboration');
+  });
+
+  it('S’ABSTIENT plutôt que de deviner, et nomme ce qui manque', () => {
+    // Trois abstentions, trois motifs distincts. Une abstention muette se
+    // lirait comme un contrat conforme.
+    expect(verdictRemunerationMinimale({ ...manoeuvre, classeProfessionnelle: null }, '2026-01').abstention)
+      .toBe('CLASSE_NON_RENSEIGNEE');
+    expect(verdictRemunerationMinimale({ ...manoeuvre, periodiciteRemuneration: null }, '2026-01').abstention)
+      .toBe('PERIODICITE_NON_RENSEIGNEE');
+    expect(verdictRemunerationMinimale({ ...manoeuvre, remunerationBase: null }, '2026-01').abstention)
+      .toBe('REMUNERATION_NON_RENSEIGNEE');
+    // Et `conforme` vaut NULL, jamais `true`.
+    for (const v of [
+      verdictRemunerationMinimale({ ...manoeuvre, classeProfessionnelle: null }, '2026-01'),
+      verdictRemunerationMinimale({ ...manoeuvre, periodiciteRemuneration: null }, '2026-01'),
+      verdictRemunerationMinimale({ ...manoeuvre, remunerationBase: null }, '2026-01'),
+    ]) {
+      expect(v.conforme).toBeNull();
+      expect(v.explication.length).toBeGreaterThan(60);
+    }
+  });
+
+  it('NE CONTRÔLE RIEN avant mai 2025 · le barème de 2018 n’est pas au corpus', () => {
+    const v = verdictRemunerationMinimale(manoeuvre, '2025-03');
+    expect(v.abstention).toBe('HORS_BAREME');
+    expect(v.explication).toContain('18/017');
+  });
+
+  it('ne déduit PAS la classe de la catégorie de la convention collective', () => {
+    // Deux grilles, deux colonnes. Une catégorie conventionnelle renseignée
+    // ne renseigne pas la classe du décret.
+    const v = verdictRemunerationMinimale(
+      { ...manoeuvre, classeProfessionnelle: null, categorieProfessionnelle: 'Agent de maîtrise' } as ContratPourControle,
+      '2026-01',
+    );
+    expect(v.abstention).toBe('CLASSE_NON_RENSEIGNEE');
+    expect(v.explication).toContain('convention collective');
   });
 });

@@ -8,11 +8,12 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  Max,
   MaxLength,
   Min,
   ValidateNested,
 } from 'class-validator';
-import { SexeTravailleur, TypeContratTravail } from '@prisma/client';
+import { PeriodiciteRemuneration, SexeTravailleur, TypeContratTravail } from '@prisma/client';
 
 export class EnfantAChargeDto {
   @IsString()
@@ -180,6 +181,24 @@ export class ContratTravailDto {
   @IsString()
   @MaxLength(120)
   categorieProfessionnelle?: string;
+
+  /**
+   * La classe de la tension salariale, de 1 à 17 · elle vient du DÉCRET, et
+   * non de la convention collective du dossier, qui est une autre grille.
+   */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(17)
+  classeProfessionnelle?: number;
+
+  /**
+   * L'unité dans laquelle la rémunération est stipulée. Sans elle, le
+   * contrôle du minimum légal s'abstient · il ne suppose pas le mois.
+   */
+  @IsOptional()
+  @IsEnum(PeriodiciteRemuneration)
+  periodiciteRemuneration?: PeriodiciteRemuneration;
 
   @IsOptional()
   @IsBoolean()

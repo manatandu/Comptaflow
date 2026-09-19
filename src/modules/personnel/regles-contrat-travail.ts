@@ -26,6 +26,13 @@
  * P4, et P0 a établi qu'ils butent sur des textes qui ne sont pas au corpus.
  */
 
+import {
+  MULTIPLICATEURS_ARTICLE_7,
+  TENSIONS,
+  tauxJournalierDeLaClasse,
+  type PeriodeSmig,
+} from './bareme-smig';
+
 /** Les quinze points de l'art. 212, dans l'ordre du texte. */
 export type PointArticle212 =
   | 'NOM_EMPLOYEUR'
@@ -197,6 +204,10 @@ export interface ContratPourControle {
   clauseEssai: boolean;
   essaiConstateParEcrit: boolean;
   essaiDureeJours: number | null;
+  /** La classe de la tension salariale, 1 à 17. Null quand elle n'est pas tranchée. */
+  classeProfessionnelle: number | null;
+  /** L'unité dans laquelle `remunerationBase` est stipulée. */
+  periodiciteRemuneration: 'JOUR' | 'SEMAINE' | 'MOIS' | 'ANNEE' | null;
 }
 
 const rempli = (v: unknown): boolean =>
@@ -570,4 +581,130 @@ export function aptitudeProvisoirePerimee(
   const debut = enDate(contrat.dateEntreeEnVigueur);
   if (!debut) return false;
   return joursEntre(debut, aujourdhui) > JOURS_CONFIRMATION_APTITUDE;
+}
+
+/**
+ * LA RÉMUNÉRATION CONVENUE CONFRONTÉE AU MINIMUM DE SA CLASSE.
+ *
+ * C'est le contrôle que la grille de tension salariale rend enfin possible,
+ * et il n'est pas un avis. Le décret n° 25/21, art. 3, définit le SMIG comme
+ * « la somme minimale fixée par le pouvoir public EN DEÇÀ DE LAQUELLE AUCUN
+ * TRAVAILLEUR NE PEUT ÊTRE RÉMUNÉRÉ SOUS PEINE DE SANCTION ». Et l'art. 37 du
+ * Code du travail frappe de nullité de plein droit « toute clause
+ * contractuelle accordant au travailleur des avantages inférieurs à ceux
+ * prescrits par le présent Code ».
+ *
+ * TROIS CHOSES SANS LESQUELLES LE CONTRÔLE S'ABSTIENT, ET LE DIT.
+ *
+ * 1. LA CLASSE. Elle vient du décret, pas de la convention collective du
+ *    dossier · les deux vivent dans deux colonnes séparées, et aucune ne se
+ *    déduit de l'autre.
+ * 2. LA PÉRIODICITÉ. Le décret fixe un taux JOURNALIER ; la supposer
+ *    mensuelle ferait passer un salaire journalier pour vingt-six fois trop
+ *    bas, et un salaire annuel pour douze fois trop haut.
+ * 3. LE MOIS DE RÉFÉRENCE. Le minimum a changé en janvier 2026 (art. 3 du
+ *    décret n° 25/22) et s'ajuste chaque janvier (art. 11 du n° 25/21). Un
+ *    contrat conforme à sa signature peut cesser de l'être.
+ *
+ * CE QU'IL NE FAIT PAS. Il compare la rémunération CONVENUE au contrat, pas
+ * ce qui est effectivement payé · un bulletin est de P2. Et il ne tient
+ * aucun compte des avantages en nature, que le décret n° 25/22 exclut
+ * expressément de la rémunération à son article 8 pour le logement et le
+ * transport.
+ */
+export type MotifAbstentionMinimum =
+  | 'CLASSE_NON_RENSEIGNEE'
+  | 'PERIODICITE_NON_RENSEIGNEE'
+  | 'REMUNERATION_NON_RENSEIGNEE'
+  | 'HORS_BAREME';
+
+export interface VerdictRemunerationMinimale {
+  /** Vrai quand la rémunération convenue atteint au moins le minimum. */
+  conforme: boolean | null;
+  /** Le minimum légal, ramené à la périodicité du contrat. */
+  minimumFc: number | null;
+  /** La rémunération convenue, telle que stipulée. */
+  convenueFc: number | null;
+  /** Ce qui manque au contrat pour atteindre le minimum, quand il est en deçà. */
+  manqueFc: number | null;
+  abstention: MotifAbstentionMinimum | null;
+  explication: string;
+}
+
+/** Les multiplicateurs de l'art. 7, plus le jour qui vaut un. */
+const MULTIPLICATEUR: Record<'JOUR' | PeriodeSmig, number> = {
+  JOUR: 1,
+  SEMAINE: MULTIPLICATEURS_ARTICLE_7.SEMAINE,
+  MOIS: MULTIPLICATEURS_ARTICLE_7.MOIS,
+  ANNEE: MULTIPLICATEURS_ARTICLE_7.ANNEE,
+};
+
+export function verdictRemunerationMinimale(
+  contrat: ContratPourControle,
+  moisDeReference: string,
+): VerdictRemunerationMinimale {
+  const abstention = (
+    motif: MotifAbstentionMinimum,
+    explication: string,
+  ): VerdictRemunerationMinimale => ({
+    conforme: null,
+    minimumFc: null,
+    convenueFc: contrat.remunerationBase,
+    manqueFc: null,
+    abstention: motif,
+    explication,
+  });
+
+  if (contrat.classeProfessionnelle === null) {
+    return abstention(
+      'CLASSE_NON_RENSEIGNEE',
+      `La classe de la tension salariale n'est pas renseignée. Les annexes du décret n° 25/22 en ` +
+        `portent ${TENSIONS.length}, du manœuvre ordinaire au cadre de collaboration · OmegaX ne la ` +
+        "déduit ni de l'intitulé du poste, ni de la catégorie de la convention collective, qui est " +
+        'une autre grille.',
+    );
+  }
+  if (contrat.periodiciteRemuneration === null) {
+    return abstention(
+      'PERIODICITE_NON_RENSEIGNEE',
+      "La périodicité de la rémunération convenue n'est pas renseignée. Le décret fixe un taux " +
+        "JOURNALIER et l'article 7 donne les multiplicateurs vers la semaine (6), le mois (26) et " +
+        "l'année (312) · sans l'unité, la comparaison n'a pas de sens, et la supposer mensuelle " +
+        'ferait paraître un salaire journalier vingt-six fois trop bas.',
+    );
+  }
+  if (contrat.remunerationBase === null) {
+    return abstention(
+      'REMUNERATION_NON_RENSEIGNEE',
+      "La rémunération convenue n'est pas renseignée · c'est déjà le point 9 manquant de " +
+        "l'article 212.",
+    );
+  }
+
+  const taux = tauxJournalierDeLaClasse(contrat.classeProfessionnelle, moisDeReference);
+  if (!taux.valeur) return abstention('HORS_BAREME', taux.explication);
+
+  const minimum = taux.valeur.tauxFc * MULTIPLICATEUR[contrat.periodiciteRemuneration];
+  const conforme = contrat.remunerationBase >= minimum;
+  const unite = contrat.periodiciteRemuneration.toLowerCase();
+  return {
+    conforme,
+    minimumFc: minimum,
+    convenueFc: contrat.remunerationBase,
+    manqueFc: conforme ? null : minimum - contrat.remunerationBase,
+    abstention: null,
+    explication: conforme
+      ? `Classe ${taux.valeur.classe} (${taux.valeur.categorie.libelle}${
+          taux.valeur.echelon ? `, échelon ${taux.valeur.echelon}` : ''
+        }), tension ${taux.valeur.tension} : minimum de ${minimum} FC par ${unite} au mois de paie ` +
+        `${moisDeReference}. La rémunération convenue l'atteint.`
+      : `EN DEÇÀ DU MINIMUM LÉGAL. Classe ${taux.valeur.classe} (${taux.valeur.categorie.libelle}` +
+        `${taux.valeur.echelon ? `, échelon ${taux.valeur.echelon}` : ''}), tension ` +
+        `${taux.valeur.tension} : le minimum est de ${minimum} FC par ${unite} au mois de paie ` +
+        `${moisDeReference}, et le contrat stipule ${contrat.remunerationBase} FC. ` +
+        "Le SMIG est « la somme minimale fixée par le pouvoir public en deçà de laquelle aucun " +
+        "travailleur ne peut être rémunéré sous peine de sanction » (décret n° 25/21, art. 3), et " +
+        "l'article 37 du Code du travail frappe de nullité de plein droit toute clause accordant " +
+        'au travailleur des avantages inférieurs à ceux prescrits par le Code.',
+  };
 }

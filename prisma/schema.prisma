@@ -5871,6 +5871,21 @@ model EnfantACharge {
   @@map("enfants_a_charge")
 }
 
+/// LES QUATRE UNITÉS DANS LESQUELLES UNE RÉMUNÉRATION SE STIPULE, et elles
+/// sont exactement celles que l'article 7 du décret n° 25/22 sait convertir :
+/// « La valeur hebdomadaire, mensuelle et annuelle […] s'obtient en
+/// multipliant par 6, 26 et 312. » Le JOUR est l'unité du décret lui-même.
+///
+/// Une cinquième valeur ajoutée ici (l'heure, par exemple) obligerait
+/// quelqu'un à dire quel texte la convertit · le décret, lui, ne donne aucun
+/// diviseur vers l'heure.
+enum PeriodiciteRemuneration {
+  JOUR
+  SEMAINE
+  MOIS
+  ANNEE
+}
+
 /// L'ENGAGEMENT · art. 212, points 8 à 14, plus les contrôles de durée des
 /// art. 40 à 47.
 model ContratTravail {
@@ -5927,6 +5942,39 @@ model ContratTravail {
   /// de préavis raisonnent par catégorie. Tant que la convention du dossier
   /// n'est pas au corpus, rien ici n'en déduit de montant.
   categorieProfessionnelle String?
+
+  /// LA CLASSE DE LA TENSION SALARIALE, de 1 à 17, et elle n'est PAS la
+  /// catégorie ci-dessus.
+  ///
+  /// Celle-ci vient du DÉCRET, pas de la convention : les annexes du décret
+  /// n° 25/22 du 30 mai 2025 découpent sept catégories en dix-sept classes,
+  /// « du travailleur manœuvre ordinaire au cadre de collaboration »
+  /// (art. 4), et à chaque classe correspond un taux journalier MINIMUM.
+  ///
+  /// POURQUOI DEUX COLONNES, ET NON UNE. La convention collective d'un
+  /// dossier nomme ses propres catégories, qui ne coïncident pas
+  /// nécessairement avec les sept du décret ; et c'est la convention qui
+  /// commande le préavis de l'art. 64 et la quotité saisissable de
+  /// l'art. 114. Les fondre ferait servir un barème légal sous un nom
+  /// conventionnel, ou l'inverse.
+  ///
+  /// FACULTATIVE, parce qu'un contrat peut être enregistré avant qu'on ait
+  /// tranché sa classe. Le contrôle de la rémunération minimale s'abstient
+  /// alors, et le DIT · il ne devine pas une classe.
+  classeProfessionnelle Int?
+
+  /// LA PÉRIODICITÉ DE LA RÉMUNÉRATION CONVENUE, et elle est indispensable.
+  ///
+  /// Le décret fixe un taux JOURNALIER et donne, à son article 7, les
+  /// multiplicateurs vers la semaine (6), le mois (26) et l'année (312).
+  /// Comparer une rémunération de contrat au minimum légal suppose donc de
+  /// savoir dans quelle unité elle est stipulée. La supposer mensuelle est
+  /// le piège : un salaire journalier lu comme mensuel passerait pour
+  /// vingt-six fois trop bas, et un salaire annuel lu comme mensuel pour
+  /// douze fois trop haut.
+  ///
+  /// Nulle par défaut : on ne la devine pas, et le contrôle s'abstient.
+  periodiciteRemuneration PeriodiciteRemuneration?
 
   /// ART. 43 · la durée maximale de l'essai « ne peut dépasser UN MOIS pour
   /// le travailleur MANŒUVRE SANS SPÉCIALITÉ ni SIX MOIS pour les autres ».
