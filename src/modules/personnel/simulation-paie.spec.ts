@@ -562,3 +562,74 @@ describe('Le livre de paie ne lit ni n\'écrit rien', () => {
     expect(v.destinationDesDoubles.second).toMatch(/SÉCURITÉ SOCIALE/);
   });
 });
+
+describe("P7 · le service guette la BONNE nature pour le cumul de l'article 138", () => {
+  it("signale le cumul quand une INDEMNITÉ de logement est à la paie", async () => {
+    const { svc } = service();
+    const res = await svc.simulerPaie(
+      't-1',
+      null,
+      dto({
+        elements: [
+          { nature: 'SALAIRE_OU_TRAITEMENT', libelle: 'Salaire', montantFc: 1_000_000 },
+          {
+            nature: 'LOGEMENT_OU_SON_INDEMNITE',
+            libelle: 'Indemnité de logement',
+            montantFc: 200_000,
+            conditionArticle69Attestee: true,
+          },
+        ],
+        classeProfessionnelle: 5,
+        logementFourniEnNature: true,
+        natureEmployeurInpp: 'PRIVE',
+        effectif: 10,
+      } as Partial<SimulationPaieDto>),
+    );
+    expect(res.quotite.reserves.some((r) => r.includes('Lukoo Musubao'))).toBe(true);
+  });
+
+  it("ne le signale PAS pour une autre nature d'élément", async () => {
+    // Le défaut visé : guetter SOINS_DE_SANTE ou n'importe quelle autre
+    // exclusion de l'article 7 à la place de l'indemnité de logement.
+    const { svc } = service();
+    const res = await svc.simulerPaie(
+      't-1',
+      null,
+      dto({
+        elements: [
+          { nature: 'SALAIRE_OU_TRAITEMENT', libelle: 'Salaire', montantFc: 1_000_000 },
+          {
+            nature: 'SOINS_DE_SANTE',
+            libelle: 'Soins',
+            montantFc: 200_000,
+            conditionArticle69Attestee: true,
+          },
+        ],
+        classeProfessionnelle: 5,
+        logementFourniEnNature: true,
+        natureEmployeurInpp: 'PRIVE',
+        effectif: 10,
+      } as Partial<SimulationPaieDto>),
+    );
+    expect(res.quotite.reserves.some((r) => r.includes('Lukoo Musubao'))).toBe(false);
+  });
+
+  it("ne le signale pas non plus sur une indemnité de logement à ZÉRO", async () => {
+    const { svc } = service();
+    const res = await svc.simulerPaie(
+      't-1',
+      null,
+      dto({
+        elements: [
+          { nature: 'SALAIRE_OU_TRAITEMENT', libelle: 'Salaire', montantFc: 1_000_000 },
+          { nature: 'LOGEMENT_OU_SON_INDEMNITE', libelle: 'Logement', montantFc: 0 },
+        ],
+        classeProfessionnelle: 5,
+        logementFourniEnNature: true,
+        natureEmployeurInpp: 'PRIVE',
+        effectif: 10,
+      } as Partial<SimulationPaieDto>),
+    );
+    expect(res.quotite.reserves.some((r) => r.includes('Lukoo Musubao'))).toBe(false);
+  });
+});

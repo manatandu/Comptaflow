@@ -15,6 +15,13 @@ import { cotisations, netAPayer, type NatureEmployeurInpp } from './cotisations-
 import { passationPaie, type Referentiel } from './passation-paie';
 import { quotiteSaisissable } from './quotite-saisissable';
 import {
+  REPONSE_COTISATION_SYNDICALE,
+  RESERVE_CESSION_SYNDICALE,
+  RESERVE_LITTERAE_DATEES,
+  RETENUES_ARTICLE_112,
+  SANCTION_ARTICLE_112,
+} from './retenues-autorisees';
+import {
   ARRETE_DU_MODELE,
   DESTINATION_DES_DOUBLES,
   DOUBLES_DETACHABLES_MINIMUM,
@@ -600,6 +607,11 @@ export class PersonnelService {
       retenuesSocialesFc: lesCotisations.totalTravailleurFc,
       logementFourniEnNature: dto.logementFourniEnNature,
       logementEnNatureDejaDefalque: dto.logementEnNatureDejaDefalque,
+      // ARTICLE 138 · fournir et indemniser sont ALTERNATIFS. Les deux
+      // déclarés ensemble n'est pas interdit, c'est inhabituel · on le dit.
+      indemniteDeLogementVersee: elements.some(
+        (e) => e.nature === 'LOGEMENT_OU_SON_INDEMNITE' && e.montantFc > 0,
+      ),
       obligationAlimentaireLegale: dto.obligationAlimentaireLegale,
     });
 
@@ -608,6 +620,16 @@ export class PersonnelService {
       referentiel: tenant.referentiel,
       passation,
       quotite,
+      // ARTICLE 112 · LA LISTE FERMÉE VOYAGE AVEC LA SIMULATION, parce
+      // qu'une retenue illicite a exactement l'aspect d'une retenue licite
+      // sur un bulletin, et qu'aucun contrôle ne la rattrape après coup.
+      retenuesAutorisees: {
+        liste: RETENUES_ARTICLE_112,
+        sanction: SANCTION_ARTICLE_112,
+        cotisationSyndicale: REPONSE_COTISATION_SYNDICALE,
+        cessionSyndicale: RESERVE_CESSION_SYNDICALE,
+        litteraeDatees: RESERVE_LITTERAE_DATEES,
+      },
       tauxLegalAllocationsFamilialesFc,
       cotisations: lesCotisations,
       net,

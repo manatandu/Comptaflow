@@ -155,6 +155,13 @@ export type EntreeQuotite = {
    * ne déduit pas une seconde fois. Cela se déclare, cela ne se devine pas.
    */
   readonly logementEnNatureDejaDefalque?: boolean;
+  /**
+   * Une INDEMNITÉ de logement figure-t-elle à la paie du mois ? Elle ne se
+   * déduit pas (l'article 7 litera h l'a déjà sortie), mais la déclarer en
+   * même temps qu'un logement fourni en nature fait jouer les deux branches
+   * ALTERNATIVES de l'article 138, ce qui mérite d'être dit.
+   */
+  readonly indemniteDeLogementVersee?: boolean;
   /** La créance poursuit-elle une obligation alimentaire légale ? */
   readonly obligationAlimentaireLegale?: boolean;
 };
@@ -214,6 +221,59 @@ export const RESERVE_LOGEMENT =
   "l'article 7 litera h, qui ne se déduit pas puisqu'elle n'est jamais entrée ; et la défalcation du décret " +
   "n° 25/21 article 15, qui porte la même grandeur mais se prend sur l'INDEMNITÉ et POUR CAUSE DE MUTATION seulement.";
 
+/**
+ * L'ÉQUIVALENCE DES DEUX BRANCHES · FOURNIR OU INDEMNISER, JAMAIS LES DEUX.
+ *
+ * Apport d'un article de doctrine lu le 19/09/2026 (Deo Batakafua Tshiyoyo,
+ * « Droit au logement en République démocratique du Congo »,
+ * village-justice.com, 16 février 2022), qui cite l'article 4 de l'arrêté
+ * n° 12/CAB.MIN/TPS/110/2005 et, surtout, une JURISPRUDENCE CONGOLAISE
+ * recensée par R. Lukoo Musubao (« La jurisprudence congolaise en droit du
+ * travail et de la sécurité sociale », Kinshasa, 2006, p. 141) :
+ *
+ *   « l'employeur s'acquitte de l'obligation de fournir un logement à un
+ *   employé lorsqu'il verse à ce dernier une indemnité de logement ».
+ *
+ * UNE DOCTRINE N'EST PAS UNE SOURCE, et rien n'est codé sur sa foi. Mais
+ * l'équivalence qu'elle rapporte a une conséquence de COHÉRENCE que le
+ * logiciel peut signaler sans trancher : les deux branches de l'article 138
+ * sont ALTERNATIVES. L'employeur qui verse l'indemnité a satisfait à son
+ * obligation, et il n'a donc rien à défalquer au titre de l'article 10 ;
+ * celui qui fournit en nature défalque, et ne verse pas d'indemnité.
+ * DÉCLARER LES DEUX EN MÊME TEMPS N'EST PAS INTERDIT, mais c'est assez
+ * inhabituel pour être dit plutôt que calculé en silence.
+ */
+export const RESERVE_EQUIVALENCE_DES_DEUX_BRANCHES =
+  "ARTICLE 138 · fournir le logement EN NATURE et verser une INDEMNITÉ DE LOGEMENT sont deux façons " +
+  "ALTERNATIVES de satisfaire la même obligation · la jurisprudence congolaise recensée par R. Lukoo Musubao " +
+  "(2006, p. 141) retient que « l'employeur s'acquitte de l'obligation de fournir un logement à un employé " +
+  "lorsqu'il verse à ce dernier une indemnité de logement ». Les deux sont ici déclarés ENSEMBLE : la " +
+  "défalcation de l'article 10 est appliquée telle quelle, mais le cumul mérite d'être vérifié au contrat. " +
+  "C'EST UNE DOCTRINE, PAS UNE SOURCE · OmegaX le signale, il ne le tranche pas.";
+
+/**
+ * TROIS TEXTES DE FIXATION EN DIX-SEPT ANS, ET LA MÊME ARCHITECTURE.
+ * Le même article de doctrine cite l'article 5 de l'ORDONNANCE n° 08/040 du
+ * 30 avril 2008 « portant fixation du salaire minimum interprofessionnel
+ * garanti, des allocations familiales minimum ET DE LA CONTRE-VALEUR DU
+ * LOGEMENT », dont le libellé est celui-là même que reprendront le décret
+ * n° 18/017 de 2018 puis le décret n° 25/22 de 2025 · « Le montant journalier
+ * des allocations familiales par enfant, fixé à la [colonne] ».
+ *
+ * CELA CORROBORE P6 PAR UN TROISIÈME CHEMIN, historique cette fois : depuis
+ * 2008 au moins, la contre-valeur du logement est une COLONNE d'un texte de
+ * fixation du SMIG, dérivée de l'allocation familiale, exactement comme
+ * l'article 10 de l'arrêté de 2005 l'ordonne. Le système est stable sur
+ * dix-sept ans, et la lecture qui séparait les deux textes en deux règles
+ * était d'autant moins tenable.
+ */
+export const RESERVE_CONTINUITE_DES_TEXTES =
+  "CONTINUITÉ · la contre-valeur du logement est portée par une SUITE de textes de fixation du SMIG qui " +
+  "gardent le même intitulé et la même mécanique de colonnes : ordonnance n° 08/040 du 30 avril 2008, décret " +
+  "n° 18/017 du 22 mai 2018, décret n° 25/22 du 30 mai 2025. L'arrêté n° 12/CAB.MIN/TPS/110/2005 pose la " +
+  "formule, ces textes chiffrent l'opérande. L'ordonnance de 2008 N'EST PAS au corpus d'OmegaX, et elle n'y " +
+  "manque que pour un exercice antérieur à mai 2018.";
+
 export const RESERVE_FACULTE_DE_DEFALCATION =
   "ARTICLE 10 DE L'ARRÊTÉ · l'employeur « PEUT » défalquer, il n'y est pas tenu. OmegaX déduit l'évaluation " +
   "forfaitaire de la base de l'article 114 parce que son alinéa 4 l'ordonne pour le CALCUL DE LA QUOTITÉ, " +
@@ -252,7 +312,10 @@ export function quotiteSaisissable(entree: EntreeQuotite): VerdictQuotite {
   const abstentions: { motif: MotifAbstentionQuotite; explication: string }[] = [];
   const reserves: string[] = [RESERVE_CATEGORIE, RESERVE_LOGEMENT];
 
-  if (entree.logementFourniEnNature) reserves.push(RESERVE_FACULTE_DE_DEFALCATION);
+  if (entree.logementFourniEnNature) {
+    reserves.push(RESERVE_FACULTE_DE_DEFALCATION, RESERVE_CONTINUITE_DES_TEXTES);
+    if (entree.indemniteDeLogementVersee) reserves.push(RESERVE_EQUIVALENCE_DES_DEUX_BRANCHES);
+  }
 
   const classe = entree.classeProfessionnelle;
   if (classe === undefined || classe === null) {

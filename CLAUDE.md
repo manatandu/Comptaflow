@@ -1995,6 +1995,71 @@ le corpus, jamais contre elle-même.** D'où la règle, qui vaut pour toute pass
 **AVANT DE REDEMANDER UN TEXTE, L'Y CHERCHER.** Et c'est Manasse qui l'a relevé,
 en une phrase, après trois passes.
 
+**P7 · LA COTISATION SYNDICALE, ET LA DERNIÈRE DEMANDE DE LA SÉRIE PAIE QUI
+N'EN ÉTAIT PAS UNE.**
+
+`docs/paie-p7-cotisation-syndicale-et-logement.md`. La question était mal posée
+depuis P0 · « l'article 112 ferme la liste sans nommer la cotisation syndicale,
+donc on ne sait pas ». **C'ÉTAIT LIRE UN SEUL ARTICLE**, et la réponse était au
+Titre XII depuis toujours.
+
+**ARTICLE 279 · toute convention collective « comporte OBLIGATOIREMENT […] les
+modalités de perception et de versement PAR LES TRAVAILLEURS des cotisations
+syndicales ».** LE SUJET DU VERBE EST LE TRAVAILLEUR. Cinq sources
+indépendantes donnent la même phrase, et l'une rapporte qu'un état ANTÉRIEUR du
+droit congolais mettait la perception à la charge DES EMPLOYEURS · le
+changement de sujet est un choix du législateur de 2002.
+
+**ET UNE CONVENTION COLLECTIVE NE PEUT PAS RÉTABLIR LA RETENUE.** L'article 274
+lui interdit de déroger à l'ordre public, et l'article 112 en est, POUR DEUX
+RAISONS PLUTÔT QU'UNE · nullité de plein droit à son alinéa 1er, ET sanction
+pénale (art. 321) dont l'article 328 b) multiplie l'amende « AUTANT DE FOIS
+QU'IL Y A DES TRAVAILLEURS CONCERNÉS ». **L'ARTICLE 279, LUI, N'EST DANS AUCUNE
+DES DEUX LISTES PÉNALES**, et c'est l'asymétrie qui tranche. Le « retenue
+syndicat 2 % » du séminaire CPCC est donc écarté pour une raison, non plus par
+prudence.
+
+**LA VOIE QUI RESTE EST UNE CESSION, PAS UNE RETENUE, ET C'EST UNE LECTURE
+D'ÉDITEUR DÉCLARÉE.** L'article 114 régit « la CESSION » autant que la saisie ;
+une cession est un acte DU TRAVAILLEUR, et l'employeur qui paie le cessionnaire
+EXÉCUTE au lieu de retenir. Deux conséquences dites avant de la proposer · elle
+CONSOMME LA QUOTITÉ CESSIBLE et concurrence donc les créanciers, et elle
+suppose un ÉCRIT RÉVOCABLE du travailleur, jamais une clause qui vaut pour tous.
+
+**DEUX LITTERAE DE L'ARTICLE 112 SONT DATÉS, ET LA SOUPLESSE A UNE LIMITE.** Le
+a) nomme la « taxe professionnelle », abrogée, et le b) l'« Institut National de
+Sécurité Sociale », devenu la CNSS en 2018 · on les lit par équivalence sans
+que personne n'y voie une illégalité. **MAIS L'ÉQUIVALENCE VAUT POUR UN TEXTE
+QUI REMPLACE CELUI QUE LA LISTE NOMME, JAMAIS POUR UNE RETENUE QUE LA LISTE N'A
+JAMAIS PRÉVUE.** Un test interdit d'en ajouter une à un autre litera.
+
+**UN ARTICLE DE DOCTRINE SUR LE DROIT AU LOGEMENT, ET CE QU'IL APPORTE
+VRAIMENT.** Trente-sept pages de politique publique, dont les chiffres sur le
+logement patronal sont des FRANCS DU CONGO BELGE de 1950 à 1956. Rien n'en est
+codé, et un test vérifie qu'aucun de ces montants n'entre. Il apporte pourtant
+trois choses, et aucune n'est un chiffre · (1) une JURISPRUDENCE recensée par
+R. Lukoo Musubao (2006, p. 141) selon laquelle « l'employeur s'acquitte de
+l'obligation de fournir un logement lorsqu'il verse une indemnité de
+logement » · les deux branches de l'art. 138 sont donc ALTERNATIVES, et OmegaX
+signale désormais leur cumul sans le refuser ; (2) l'ORDONNANCE n° 08/040 du
+30 avril 2008, au même intitulé et à la même mécanique de colonnes que les
+décrets n° 18/017 et n° 25/22 · **P6 est donc corroboré par un troisième
+chemin, historique**, et le système est stable sur dix-sept ans ; (3) l'article
+117 du Code de 1967, qui porte les DEUX MÊMES conditions cumulatives que
+l'art. 4 de l'arrêté de 2005.
+
+**UNE DOCTRINE N'EST PAS UNE SOURCE**, et la règle ne bouge pas · ce qu'elle
+apporte se signale, se date et s'attribue, il ne se calcule jamais.
+
+Cinq contresens réinjectés, cinq attrapés · **mais le cinquième est passé au
+premier essai**, et c'était un vrai trou : le câblage du service n'était couvert
+par aucun test. Trois tests ajoutés, réinjection refaite. **UNE RÉINJECTION QUI
+PASSE EST PLUS UTILE QU'UNE RÉINJECTION QUI ÉCHOUE.**
+
+**PLUS RIEN N'EST DEMANDÉ À MANASSE SUR LA PAIE.** Les quatre demandes de P0
+sont closes · le SMIG et son annexe, le modèle du livre de paie, l'arrêté de
+l'art. 139, la cotisation syndicale. L'arrêté INPP n'en était pas une.
+
 **Questionnaire de révision par cycle · vingt-quatre items du CPCC, et le
 reste assumé.** Le séminaire porte DEUX checklists, § VI « vérification de
 l'inventaire physique » (immobilisations, stocks, caisses) et § VII

@@ -6,6 +6,8 @@ import {
   DIVISEUR_EVALUATION_FORFAITAIRE_LOGEMENT,
   MULTIPLE_DU_MINIMUM_CATEGORIEL,
   RESERVE_CUMUL,
+  RESERVE_CONTINUITE_DES_TEXTES,
+  RESERVE_EQUIVALENCE_DES_DEUX_BRANCHES,
   RESERVE_FACULTE_DE_DEFALCATION,
   RESERVE_LOGEMENT,
   mensuelMinimumDeLaClasse,
@@ -295,5 +297,56 @@ describe('La classe plutôt que la catégorie · une règle de protection', () =
     });
     expect(haute.seuilFc!).toBeGreaterThan(basse.seuilFc!);
     expect(haute.quotiteOrdinaireFc!).toBeLessThan(basse.quotiteOrdinaireFc!);
+  });
+});
+
+describe("P7 · ce que la doctrine apporte, et ce qu'elle n'apporte pas", () => {
+  it("signale le cumul des deux branches de l'article 138, sans le refuser", () => {
+    const v = quotiteSaisissable({
+      moisDePaie: MOIS,
+      remunerationFc: 5_000_000,
+      classeProfessionnelle: 5,
+      logementFourniEnNature: true,
+      indemniteDeLogementVersee: true,
+    });
+    expect(v.abstentions).toHaveLength(0);
+    expect(v.quotiteOrdinaireFc).not.toBeNull();
+    expect(v.reserves).toContain(RESERVE_EQUIVALENCE_DES_DEUX_BRANCHES);
+    expect(RESERVE_EQUIVALENCE_DES_DEUX_BRANCHES).toMatch(/ALTERNATIVES/);
+    expect(RESERVE_EQUIVALENCE_DES_DEUX_BRANCHES).toMatch(/Lukoo Musubao/);
+    // ET L'AVEU · une doctrine n'est pas une source.
+    expect(RESERVE_EQUIVALENCE_DES_DEUX_BRANCHES).toMatch(/PAS UNE SOURCE/);
+    expect(RESERVE_EQUIVALENCE_DES_DEUX_BRANCHES).toMatch(/il ne le tranche pas/);
+  });
+
+  it('ne signale rien quand une seule branche joue', () => {
+    const v = quotiteSaisissable({
+      moisDePaie: MOIS,
+      remunerationFc: 5_000_000,
+      classeProfessionnelle: 5,
+      logementFourniEnNature: true,
+    });
+    expect(v.reserves).not.toContain(RESERVE_EQUIVALENCE_DES_DEUX_BRANCHES);
+  });
+
+  it("porte la chaîne des trois textes de fixation, et dit lequel manque", () => {
+    expect(RESERVE_CONTINUITE_DES_TEXTES).toContain('08/040');
+    expect(RESERVE_CONTINUITE_DES_TEXTES).toContain('18/017');
+    expect(RESERVE_CONTINUITE_DES_TEXTES).toContain('25/22');
+    expect(RESERVE_CONTINUITE_DES_TEXTES).toContain('110/2005');
+    expect(RESERVE_CONTINUITE_DES_TEXTES).toMatch(/N'EST PAS au corpus/i);
+    expect(RESERVE_CONTINUITE_DES_TEXTES).toMatch(/antérieur à mai 2018/);
+  });
+
+  it("NE CODE AUCUN CHIFFRE de l'article de doctrine", () => {
+    // Ses montants sont des francs du Congo belge, 1950 à 1956 · 72, 110,
+    // 160, 13,50, 16,50, 22,50, et les allocations du Katanga de 1962.
+    const source = require('node:fs').readFileSync(
+      require('node:path').join(__dirname, 'quotite-saisissable.ts'),
+      'utf8',
+    );
+    for (const chiffre of ['13,50', '16,50', '22,50', '1.500 francs', '900 francs']) {
+      expect(source).not.toContain(chiffre);
+    }
   });
 });

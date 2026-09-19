@@ -200,6 +200,13 @@ interface Simulation {
     reserves: string[];
   };
   tauxLegalAllocationsFamilialesFc: number | null;
+  retenuesAutorisees: {
+    liste: { littera: string; libelle: string; equivalentActuel: string | null }[];
+    sanction: string;
+    cotisationSyndicale: string;
+    cessionSyndicale: string;
+    litteraeDatees: string;
+  };
   quotite: {
     baseFc: number | null;
     seuilFc: number | null;
@@ -2247,6 +2254,51 @@ export function PersonnelPage() {
                 )}
                 <ul className="text-[10px] text-text-dim mt-1.5">
                   {simulation.quotite.reserves.map((r, i) => (
+                    <li key={i} className="py-1 border-t border-border/40">
+                      {r}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/*
+                ARTICLE 112 · LA LISTE FERMÉE. Elle est ici et pas ailleurs
+                parce qu'une retenue illicite ressemble trait pour trait à une
+                retenue licite sur un bulletin · c'est au moment de la saisir
+                qu'on peut encore l'éviter, jamais au contrôle.
+              */}
+              <div className="border border-border px-3.5 py-2.5 mt-2.5">
+                <div className={`${etiquette} mb-1.5`}>
+                  Article 112 · les sept seules retenues autorisées
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[520px] text-[10px]">
+                    <tbody>
+                      {simulation.retenuesAutorisees.liste.map((r) => (
+                        <tr key={r.littera} className="border-t border-border/40">
+                          <td className="py-1 w-[28px] text-text-dim">{r.littera})</td>
+                          <td className="py-1">
+                            {r.libelle}
+                            {r.equivalentActuel && (
+                              <div className="text-text-dim">
+                                Aujourd’hui : {r.equivalentActuel}
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="border border-danger/30 bg-danger-soft px-3 py-2 mt-2 text-[10px]">
+                  {simulation.retenuesAutorisees.sanction}
+                </div>
+                <ul className="text-[10px] text-text-dim mt-1.5">
+                  {[
+                    simulation.retenuesAutorisees.cotisationSyndicale,
+                    simulation.retenuesAutorisees.cessionSyndicale,
+                    simulation.retenuesAutorisees.litteraeDatees,
+                  ].map((r, i) => (
                     <li key={i} className="py-1 border-t border-border/40">
                       {r}
                     </li>

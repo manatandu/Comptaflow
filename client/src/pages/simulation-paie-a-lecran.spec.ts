@@ -299,3 +299,25 @@ describe("L'avertissement de la simulation ne ment plus", () => {
     expect(SOURCE).toMatch(/colonne\s*\n?\s*19/i);
   });
 });
+
+describe("L'article 112 à l'écran · la liste fermée", () => {
+  it('rend les sept litterae du serveur, sans les recopier', () => {
+    expect(SOURCE).toContain('simulation.retenuesAutorisees.liste.map');
+    // Le défaut visé : une huitième ligne « cotisation syndicale » ajoutée
+    // à la main dans la page, là où le serveur n'en rend que sept.
+    // On borne au TABLEAU seul · les réserves qui suivent parlent, elles,
+    // de la cotisation syndicale, et c'est leur rôle.
+    const debut = SOURCE.indexOf('Article 112 · les sept seules retenues');
+    const panneau = SOURCE.slice(debut, SOURCE.indexOf('</table>', debut));
+    expect(panneau).not.toMatch(/syndic/i);
+    expect(panneau).not.toContain('saisie-arrêt');
+    expect(panneau).not.toContain('taxe professionnelle');
+  });
+
+  it('porte la sanction et les trois réserves telles que le serveur les rend', () => {
+    expect(SOURCE).toContain('simulation.retenuesAutorisees.sanction');
+    expect(SOURCE).toContain('simulation.retenuesAutorisees.cotisationSyndicale');
+    expect(SOURCE).toContain('simulation.retenuesAutorisees.cessionSyndicale');
+    expect(SOURCE).toContain('simulation.retenuesAutorisees.litteraeDatees');
+  });
+});
