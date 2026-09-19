@@ -116,12 +116,28 @@ l'évaluation forfaitaire du logement de l'art. 139**.
 | Manque | Ce qu'il bloque | Voie |
 |---|---|---|
 | **Le SMIG** · cité par au moins cinq articles (décret 18/041 art. 8 ; AM 146 art. 94, 98, 102 ; loi 16/009 art. 75, 95), **jamais chiffré dans le corpus** | le plancher d'assiette CNSS ET la quotité saisissable de l'art. 114 | trouver le décret en vigueur |
-| **L'arrêté de l'art. 139** (valeur forfaitaire du logement) | la quotité saisissable, seconde fois | chercher l'arrêté |
-| **L'arrêté INPP n° 002/CAB/MET/2025** · cité par le dépôt, absent des compétences | rien aujourd'hui, mais le taux reste invérifiable | à verser au corpus |
+| ~~**L'arrêté de l'art. 139** (valeur forfaitaire du logement)~~ | · | **CE MANQUE N'EN EST PAS UN** · voir ci-dessous |
+| **L'arrêté INPP** · cité par le dépôt sous un numéro introuvable et daté à tort | rien aujourd'hui, mais le taux restait invérifiable ET sa date d'effet était fausse | à verser au corpus · **date corrigée le 19/09/2026** |
 | **La convention collective** · l'art. 114 raisonne par CATÉGORIE, et le décompte final montre qu'un protocole sectoriel change le barème de préavis | le décompte final et toute catégorisation | donnée du dossier, à saisir |
 
 **AUCUN DE CES QUATRE NE SE COMBLE DE MÉMOIRE.** Le SMIG en particulier est le
 genre de chiffre qu'on croit connaître.
+
+**MISE À JOUR DU 19/09/2026 · la passe de recherche
+(`docs/paie-recherche-textes-2026-09-19.md`) en a ramené trois choses.**
+
+1. **L'arrêté de l'art. 139 n'existe pas.** La contre-valeur du logement est
+   fixée par le MÊME décret que le SMIG, et ce n'est pas un montant mais une
+   formule. Ce tableau annonçait « chercher l'arrêté » : il envoyait chercher
+   un texte qui n'a jamais été écrit. Deux manques n'en faisaient qu'un, et P4
+   ne dépend que d'un seul texte.
+2. **Le SMIG est identifié** · décret n° 25/22 du 30 mai 2025, dix articles au
+   moins et une ANNEXE de tension salariale. Identifié, pas lu : la sortie
+   réseau de l'environnement a refusé les six dépôts qui le portaient.
+3. **L'INPP portait un défaut, pas seulement un doute.** Le dépôt datait le
+   nouveau barème du 24 septembre 2025, qui est la date de signature ·
+   l'entrée en vigueur est au 1er janvier 2026, et un exercice 2025 relève du
+   barème de 2006 (3 %, 2 %, 1 %). Corrigé, avec deux tests vus tomber.
 
 ---
 
@@ -231,9 +247,12 @@ une règle que le logiciel applique déjà trente fichiers plus loin.
 
 1. **Le SMIG en vigueur** (décret), sans lequel ni le plancher d'assiette ni la
    quotité saisissable ne se calculent.
-2. **L'arrêté de l'art. 139** sur la valeur forfaitaire du logement.
-3. **L'arrêté interministériel n° 002/CAB/MET/2025** sur l'INPP, à verser au
-   corpus · le dépôt en cite les tranches sans pouvoir les vérifier.
+2. ~~**L'arrêté de l'art. 139** sur la valeur forfaitaire du logement.~~
+   **SANS OBJET** · il est dans le décret du point 1, qu'il faut donc verser
+   AVEC SON ANNEXE.
+3. **L'arrêté interministériel INPP du 24 septembre 2025** (numéro exact non
+   établi ; « n° 002/CAB/MET/2025 » n'a pu être confirmé), à verser au corpus
+   avec l'arrêté de 2006 qu'il remplace.
 4. Le point de savoir si une **cotisation syndicale** se retient légalement,
    l'art. 112 fermant la liste sans la nommer.
 

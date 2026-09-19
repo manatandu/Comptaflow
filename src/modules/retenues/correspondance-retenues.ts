@@ -452,9 +452,11 @@ export const NATURES_RETENUES: NatureRetenue[] = [
     joursApresPeriode: 15,
     echeance: 'Mensuelle, au plus tard le 15 du mois suivant',
     baseLegale:
-      "Arrêté interministériel n° 002/CAB/MET/2025 et suivants, en vigueur depuis le 24 septembre 2025 : 4 % pour le secteur public, 3,5 % de 1 à 50 travailleurs, 3 % de 51 à 300, 2 % au-delà de 300.",
+      "Arrêté interministériel du 24 septembre 2025 (Emploi et Travail · Budget), publié au Journal officiel en numéro spécial et ENTRÉ EN VIGUEUR LE 1er JANVIER 2026 : 4 % pour le secteur public, 3,5 % de 1 à 50 travailleurs, 3 % de 51 à 300, 2 % au-delà de 300. JUSQU'AU 31 DÉCEMBRE 2025, et donc sur tout exercice antérieur : arrêté interministériel n° 12/MTPS/123 et n° 007/CAB/MIN/FINANCES/2006 du 14 février 2006 (J.O. n° 6 du 15 mars 2006), 3 % de 1 à 50 travailleurs, 2 % de 51 à 300, 1 % au-delà de 300.",
     reserve:
-      "Le taux dépend de la TRANCHE D'EFFECTIF : renseignez l'effectif permanent dans Structure > Paramètres du dossier pour que le registre puisse rappeler le taux applicable au vôtre.",
+      "DATE D'EFFET · le nouveau barème ne vaut QU'À PARTIR DU 1er JANVIER 2026. Le 24 septembre 2025 est la date de SIGNATURE de l'arrêté, pas celle de son entrée en vigueur : un exercice 2025 se liquide au barème de 2006 (3 %, 2 %, 1 %), et un exercice 2026 au nouveau. Une version antérieure de cette fiche datait le nouveau barème du 24 septembre 2025 · elle aurait fait recalculer tout un exercice au mauvais taux. " +
+      "HORS CORPUS · à la différence de l'ONEM, ce texte n'est PAS versé aux compétences d'OmegaX. Son numéro exact n'est pas établi : une version antérieure de cette fiche l'appelait « n° 002/CAB/MET/2025 », référence qu'aucune source consultée n'a confirmée. Ni les taux ni les dates ci-dessus ne sont donc LUS par le logiciel · ils y sont rapportés. Confirmez-les au Journal officiel avant tout usage contentieux. " +
+      "TRANCHE D'EFFECTIF · renseignez l'effectif permanent dans Structure > Paramètres du dossier pour que le registre puisse rappeler le taux applicable au vôtre. Le logiciel ne LIQUIDE rien : il recense ce que votre comptabilité porte sur le compte 4334.",
   },
   {
     cle: 'onem',

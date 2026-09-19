@@ -1250,6 +1250,22 @@ l'**arrêté INPP n° 002/CAB/MET/2025**, cité par le dépôt et absent des
 compétences, donc invérifiable ; et la **convention collective** du dossier,
 que l'art. 114 comme le barème de préavis appellent par catégorie.
 
+**ILS NE SONT PLUS QUATRE** (passe de recherche du 19/09/2026,
+`docs/paie-recherche-textes-2026-09-19.md`). L'**arrêté de l'art. 139
+n'existe pas** : la contre-valeur du logement est fixée par le MÊME texte que
+le SMIG, le **décret n° 25/22 du 30 mai 2025**, et c'est une FORMULE, pas un
+montant. Deux manques n'en faisaient qu'un, et le décompte final ne dépend que
+d'un seul texte · à verser AVEC SON ANNEXE de tension salariale. Et le manque
+INPP cachait un DÉFAUT : le dépôt datait le nouveau barème du 24 septembre
+2025, qui est la date de SIGNATURE · l'entrée en vigueur est au 1er janvier
+2026, un exercice 2025 relevant du barème de 2006 (3 %, 2 %, 1 %, arrêté
+n° 12/MTPS/123 et n° 007/CAB/MIN/FINANCES/2006). Corrigé, avec deux tests vus
+tomber. **VINGTIÈME OCCURRENCE D'UNE FAMILLE VOISINE** de « un même numéro,
+deux sens » : ici un même texte, DEUX DATES · celle qu'il porte et celle où il
+mord. Le même fichier portait déjà la doctrine inverse trois fiches plus haut,
+pour le prélèvement expatrié (art. 152 et 153). Une règle exacte, datée de la
+mauvaise date, est une règle fausse sur tout un exercice.
+
 
 **ADDENDUM P0 · le chapitre 66 du livre de cours, et ce qu'il apporte
 vraiment.** Un second extrait du même livre (pages 173 à 199) a été fourni en

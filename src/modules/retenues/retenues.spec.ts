@@ -227,6 +227,41 @@ describe('Registre des retenues à la source', () => {
     expect(nature(r, 'onem').baseLegale).not.toMatch(/0[.,]2\s*%/);
   });
 
+  it('porte le barème INPP ANTÉRIEUR et la date d’effet du nouveau', async () => {
+    // MÊME EXIGENCE QUE L'ONEM, ET ELLE MANQUAIT. Le barème de l'arrêté du
+    // 24 septembre 2025 n'entre en vigueur qu'au 1er janvier 2026 : le
+    // 24 septembre 2025 est la date de SIGNATURE. La fiche datait le nouveau
+    // barème de la signature, et un exercice 2025 s'y serait liquidé à
+    // 3,5 / 3 / 2 % au lieu de 3 / 2 / 1 %. Un taux sans date d'effet, dans un
+    // logiciel comptable, est un piège · et une date d'effet fausse en est un
+    // pire, parce qu'elle a l'air d'une réponse.
+    const r = await service([]).registre('t1', { exerciceId: 'e1' });
+    const inpp = nature(r, 'inpp');
+    expect(inpp.baseLegale).toContain('1er JANVIER 2026');
+    // Le barème antérieur et son texte, sans lesquels un exercice clos se
+    // liquide au mauvais taux.
+    expect(inpp.baseLegale).toContain('12/MTPS/123');
+    expect(inpp.baseLegale).toMatch(/3 %, 2 %, 1 %|2 % de 51 à 300, 1 % au-delà/);
+    expect(inpp.reserve).toContain("DATE D'EFFET");
+    // LA RÉGRESSION ELLE-MÊME : le 24 septembre 2025 ne doit jamais être
+    // présenté comme l'entrée en vigueur.
+    expect(inpp.baseLegale).not.toMatch(/en vigueur depuis le 24 septembre 2025/);
+  });
+
+  it('déclare l’INPP HORS CORPUS · son texte n’est pas versé aux compétences', async () => {
+    // L'ASYMÉTRIE QUI A PRODUIT LE DÉFAUT. L'ONEM porte son texte, ses
+    // articles, sa date et ses sanctions parce qu'il est AU corpus. L'INPP
+    // n'y est pas : le logiciel rapporte son taux, il ne le lit pas. Tant que
+    // l'arrêté n'est pas versé, la fiche doit le DIRE · une réserve muette se
+    // lit comme une vérification faite.
+    const r = await service([]).registre('t1', { exerciceId: 'e1' });
+    const inpp = nature(r, 'inpp');
+    expect(inpp.reserve).toContain('HORS CORPUS');
+    // La fausse référence doit rester citée COMME fausse, jamais en base légale.
+    expect(inpp.baseLegale).not.toContain('002/CAB/MET/2025');
+    expect(inpp.reserve).toContain('002/CAB/MET/2025');
+  });
+
   it('sépare la déclaration ONEM (le 10) du versement ONEM (le 15)', async () => {
     // Deux dates, deux sanctions : 50 % de la contribution pour la déclaration
     // manquante ou inexacte, 0,5 % par jour pour le versement en retard. Les
