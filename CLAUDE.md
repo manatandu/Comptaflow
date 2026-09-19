@@ -970,6 +970,58 @@ plafond qui fait relire la place d'une fenêtre au lieu de se faire relever d'un
 cran est un plafond qui a servi.
 
 
+**Notes de cours sur les stocks · un témoin, jamais une source, et le bout du
+cycle qui diverge quand même.** Un livre de comptabilité générale (chapitre 10,
+section 10.1, lu le 2026-09-19) a été dépouillé et confronté au dépôt · journal
+complet dans `docs/stocks-notes-de-cours.md`. Il CONFIRME les trois méthodes de
+valorisation, leur appariement au mode de tenue, la forme de la fiche par
+couches et les écritures de variation dans les deux inventaires. **Il ne lève
+aucun refus**, et notamment pas celui du coût moyen de période de stockage : il
+en propose une route calculable (rotation, puis durée moyenne d'écoulement, puis
+coût moyen des entrées des derniers jours) qui n'est PAS la définition du
+glossaire, laquelle demande « la DATE D'ENTRÉE MOYENNE du stock existant en fin
+d'exercice ». Une note de cours commente le texte, elle ne le promulgue pas ·
+c'est la règle n°1 appliquée à un document qui a l'air d'une source.
+
+CE QU'IL APPORTE EST LE CYCLE DES EMBALLAGES, que le dépôt ne portait pas :
+matériel d'emballage (243, immobilisation) contre emballages commerciaux (335,
+stock) · perdus, récupérables non identifiables, à usage mixte · et la
+CONSIGNATION, seule particularité du cycle, tenue en miroir par une créance
+(4094) chez le client et une dette (4194) chez le fournisseur, avec trois
+dénouements qui ne se comptabilisent pas pareil (retour, conservation, et
+déconsignation sous le prix de consignation).
+
+ET LA CONFRONTATION AU PLAN SEMÉ A RENVERSÉ L'ATTENTE. Le cycle des stocks est
+la plus grande occurrence du premier piège du dépôt (douze numéros sur
+quatorze) ; les emballages sont **le premier cycle où l'essentiel de la
+nomenclature COÏNCIDE** · les 3351 à 3358, les 6081 à 6089, le 6224, le 6225, le
+4094, le 4194, le 24300000, le 28430000 et le 29430000 portent le même numéro et
+le même intitulé dans les deux semis. **LA DIVERGENCE EST AU BOUT PRODUIT, ET
+C'EST LÀ QUE LE CYCLE SE DÉNOUE** : le SYSCOHADA ouvre `70710000` « Ports,
+emballages perdus et autres frais facturés » et `70740000` « Bonis sur reprises
+et cessions d'emballages », quand le SYCEBNL ne subdivise pas son 707 du tout et
+n'ouvre qu'un `70700000` « Produits accessoires ». Servir l'écriture de
+déconsignation sans regarder le référentiel enverrait une association sur un
+compte qui n'existe pas dans son plan, et l'écriture serait refusée à la saisie
+APRÈS que tout a été chiffré · exactement le défaut du 734 et du 735. Pire
+encore pour le `6588` « Emballages à rendre perdus » que le livre donne : le
+numéro EXISTE au SYSCOHADA sous un TOUT AUTRE intitulé, « Autres charges
+diverses », et n'existe pas au SYCEBNL. Dix-huitième occurrence de « un numéro,
+deux sens ». **Aucun numéro d'emballage ne s'écrira donc ailleurs que dans une
+table nommée, et aucun sans son référentiel**, comme pour la variation de
+stocks.
+
+TROIS PISTES NOTÉES ET NON CODÉES, parce qu'aucune n'a encore été lue au texte
+officiel : le sous-compte **388 « Stocks provenant d'immobilisations mises hors
+service ou au rebut »**, qui relie le cycle des stocks à la sortie
+d'immobilisation et que le dépôt ne traite nulle part ; les fiches des comptes
+33, 40, 41, 60, 62 et 70 des deux textes, à lire avant toute ligne sur les
+emballages ; et la route du coût moyen de période de stockage ci-dessus. Le
+livre porte en outre huit coquilles relevées (un trimestre habillé en mois, une
+unité qui change en cours d'énoncé, une écriture qui ne s'équilibre pas de
+1 000 000), toutes signalées dans le journal et aucune reprise.
+
+
 **Questionnaire de révision par cycle · vingt-quatre items du CPCC, et le
 reste assumé.** Le séminaire porte DEUX checklists, § VI « vérification de
 l'inventaire physique » (immobilisations, stocks, caisses) et § VII
