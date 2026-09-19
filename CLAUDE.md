@@ -877,6 +877,57 @@ ET LE MODULE NE POSTE RIEN. Il PROPOSE, le comptable passe · le stock final vie
 d'un inventaire EXTRA-COMPTABLE qu'aucun livre ne porte, et le déduire serait
 l'inventer.
 
+**Valorisation des biens fongibles · trois méthodes sur cinq, et celle que les
+logiciels implémentent par défaut n'en fait pas partie.** Le chapitre des
+comptes abrège : « les biens interchangeables […] sont évalués soit selon la
+technique du COÛT MOYEN PONDÉRÉ (C.M.P.), soit selon la méthode du PREMIER
+ENTRÉ PREMIER SORTI (P.E.P.S.) ». Pris au mot, cela autoriserait n'importe
+quelle moyenne. Le glossaire (AUDCIF Titre VI, « VALORISATION DES BIENS
+FONGIBLES ») en décide autrement et c'est lui qui tranche · il énumère CINQ
+méthodes (coût moyen pondéré ANNUEL, C.M.P.A.C.E., coût moyen de PÉRIODE DE
+STOCKAGE, P.E.P.S., D.E.P.S.) puis : « Parmi ces cinq méthodes, le SYSTÈME
+COMPTABLE OHADA EN ACCEPTE TROIS ; celle qui est retenue doit être MENTIONNÉE
+DANS LES NOTES ANNEXES : P.E.P.S. ; C.M.P.A.C.E. ; C.M.P. de période de
+stockage. »
+
+**LE COÛT MOYEN PONDÉRÉ ANNUEL EST EXCLU**, et c'est la forme la plus répandue
+dans les logiciels de la place. Le coder aurait rendu un stock final plausible,
+une balance qui boucle, et une méthode que le référentiel n'accepte pas · sans
+qu'aucun test ne puisse le dire, l'arithmétique en étant juste. Le D.E.P.S.
+(L.I.F.O.) est exclu de la même liste, et le N.I.F.O. ou coût de remplacement
+est déclaré « INACCEPTABLE en comptabilité générale, car [il] n'assure pas le
+raccordement entre les valeurs des sorties et celles des entrées ». Un test gèle
+la liste à trois valeurs.
+
+LE MÊME PARAGRAPHE APPARIE LES MÉTHODES AU MODE DE TENUE, et ce n'est pas
+théorique : « cette dernière méthode est compatible avec la pratique de
+l'inventaire INTERMITTENT, alors que les deux autres reposent sur celle de
+l'inventaire PERMANENT ». Le P.E.P.S. et le C.M.P.A.C.E. valorisent CHAQUE
+SORTIE, ce qu'un inventaire intermittent ne connaît pas ; le coût moyen de
+période de stockage valorise le STOCK FINAL, ce qui ne dit rien des sorties.
+
+L'AXIOME QUI FONDE LES TROIS, et qui est devenu un test : « l'axiomatique
+comptable impose une égalité systématique, dans tout compte, des sorties et des
+entrées EN VALEURS, dès lors que toutes les unités entrées sont sorties ». D'où
+le refus central du moteur · UNE SORTIE NE PORTE JAMAIS SON COÛT, elle le
+calcule. Un coût imposé à la main rompt le raccordement, et le stock cesse
+d'être la différence de ce qui est entré et de ce qui est sorti.
+
+ET LA DERNIÈRE SORTIE PREND LA VALEUR RESTANTE, pas un dernier produit quantité
+× coût moyen · sinon un résidu d'arrondi reste au magasin, c'est-à-dire une
+valeur non nulle sur une quantité nulle, qui se lit « stock de -0,00 » sur un
+état. LE TEST QUI LE GÈLE A DÛ ÊTRE CHERCHÉ : le flottant ramène 3 × (100/3) à
+exactement 100, si bien qu'un cas « qui ne tombe pas juste » choisi d'intuition
+ne prouvait rien · la réinjection l'a dit, deux fois. 29 pour 7 unités, lui,
+rend 29.000000000000004. *Un test qui n'a pas été VU ÉCHOUER ne protège rien, et
+un jeu d'essai se cherche quand il doit porter une propriété numérique.*
+
+CE QUE LE MODULE NE CALCULE PAS, ET LE DIT · le coût moyen de PÉRIODE DE
+STOCKAGE. Sa définition suppose une donnée qu'OmegaX ne tient pas (« on calcule
+la DATE D'ENTRÉE MOYENNE du stock existant en fin d'exercice »), et elle
+concerne un dossier qui, tenant un inventaire intermittent, ne saisit aucune
+entrée. Inventer une pondération rendrait un chiffre plausible et hors du texte.
+
 **Mode de tenue des stocks · le champ SANS valeur par défaut, et les deux états
 qui ne sont pas des erreurs.** `Tenant.methodeInventaireStocks` enregistre ce
 que l'entité a choisi, et les deux textes lui laissent le choix dans les mêmes
