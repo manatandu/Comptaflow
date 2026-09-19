@@ -123,3 +123,30 @@ describe('P2b · les cotisations et le net à payer', () => {
     );
   });
 });
+
+describe('P3 · la passation comptable à l\'écran', () => {
+  it("n'écrit AUCUN numéro de compte dans la page", () => {
+    // Quatrième fois que la règle se pose : aucun numéro de compte de paie
+    // hors de `passation-paie.ts`, et aucun sans son référentiel. Le recopier
+    // ici servirait le numéro d'un plan au dossier de l'autre.
+    const debut = SOURCE.indexOf("{onglet === 'simulation'");
+    const panneau = SOURCE.slice(debut);
+    expect(panneau).not.toMatch(/\b4[2-4]\d{6}\b/);
+    expect(panneau).not.toMatch(/\b66\d{6}\b/);
+    expect(panneau).toContain('{l.compte}');
+  });
+
+  it("affiche le plan sur lequel l'écriture est proposée", () => {
+    expect(SOURCE).toContain('Passation comptable · plan {simulation.passation.referentiel}');
+  });
+
+  it("montre le refus plutôt qu'une écriture partielle", () => {
+    expect(SOURCE).toContain('Aucune écriture n’est proposée');
+    expect(SOURCE).toContain('simulation.passation.refus.length > 0');
+  });
+
+  it("dit qu'il n'enregistre ni ne poste rien", () => {
+    expect(SOURCE).toContain('sans rien conserver ni poster');
+    expect(SOURCE).toContain('<strong>proposée</strong>');
+  });
+});

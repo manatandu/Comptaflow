@@ -183,6 +183,22 @@ interface Simulation {
     netAPayerFc: number | null;
     reserves: string[];
   };
+  referentiel: string;
+  passation: {
+    referentiel: string;
+    lignes: {
+      compte: string;
+      intitule: string;
+      sens: 'DEBIT' | 'CREDIT';
+      montantFc: number;
+      reserve: string | null;
+    }[];
+    totalDebitFc: number;
+    totalCreditFc: number;
+    equilibree: boolean;
+    refus: { motif: string; explication: string }[];
+    reserves: string[];
+  };
   personnesAChargeRetenues: number;
   propositionPersonnesACharge: number | null;
   sourceProposition: string | null;
@@ -624,9 +640,9 @@ export function PersonnelPage() {
         <div className="text-[10px] text-text-dim mt-0.5">
           Le registre tient l’état civil et les engagements, et confronte chaque contrat aux quinze
           énonciations obligatoires de l’article 212 ainsi qu’aux requalifications de plein droit des
-          articles 40 à 45. <strong>Il ne produit aucun bulletin de paie</strong> : l’onglet
-          Simulation rend les deux assiettes d’un mois et la retenue de l’article 119, sans rien
-          conserver ni proposer d’écriture.
+          articles 40 à 45. <strong>Il n’enregistre aucun bulletin de paie</strong> : l’onglet
+          Simulation rend les deux assiettes d’un mois, les cotisations, la retenue de l’article
+          119 et l’écriture de passation <strong>proposée</strong>, sans rien conserver ni poster.
         </div>
       </div>
 
@@ -1864,6 +1880,85 @@ export function PersonnelPage() {
                     </li>
                   ))}
                 </ul>
+              </div>
+
+              <div className="border border-border px-3.5 py-2.5 mt-2.5">
+                <div className="flex items-baseline justify-between mb-1.5">
+                  <div className={etiquette}>
+                    Passation comptable · plan {simulation.passation.referentiel}
+                  </div>
+                  {simulation.passation.equilibree && (
+                    <div className="text-[10px] text-text-dim">
+                      Débit {fc(simulation.passation.totalDebitFc)} = Crédit{' '}
+                      {fc(simulation.passation.totalCreditFc)}
+                    </div>
+                  )}
+                </div>
+
+                {simulation.passation.refus.length > 0 ? (
+                  <div className="border border-warning/40 bg-warning/5 px-3 py-2">
+                    <div className="font-bold mb-1">Aucune écriture n’est proposée</div>
+                    <ul>
+                      {simulation.passation.refus.map((r, i) => (
+                        <li key={i} className="py-1 border-t border-border/40 text-[10px]">
+                          <strong>{r.motif}</strong> · {r.explication}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : (
+                  <>
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[560px] border-collapse">
+                        <thead>
+                          <tr className="border-b border-border text-left">
+                            <th className={`${etiquette} py-1`}>Compte</th>
+                            <th className={`${etiquette} py-1`}>Intitulé</th>
+                            <th className={`${etiquette} py-1 text-right`}>Débit</th>
+                            <th className={`${etiquette} py-1 text-right`}>Crédit</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {simulation.passation.lignes.map((l, i) => (
+                            <tr key={i} className="border-b border-border/40 align-top">
+                              <td className="py-1 pr-2 font-mono">{l.compte}</td>
+                              <td className="py-1 pr-2">
+                                {l.intitule}
+                                {l.reserve && (
+                                  <div className="text-[9.5px] text-text-dim">{l.reserve}</div>
+                                )}
+                              </td>
+                              <td className="py-1 pr-2 text-right font-mono">
+                                {l.sens === 'DEBIT' ? fc(l.montantFc) : ''}
+                              </td>
+                              <td className="py-1 text-right font-mono">
+                                {l.sens === 'CREDIT' ? fc(l.montantFc) : ''}
+                              </td>
+                            </tr>
+                          ))}
+                          <tr className="border-t border-border font-bold">
+                            <td className="py-1" colSpan={2}>
+                              Totaux
+                            </td>
+                            <td className="py-1 pr-2 text-right font-mono">
+                              {fc(simulation.passation.totalDebitFc)}
+                            </td>
+                            <td className="py-1 text-right font-mono">
+                              {fc(simulation.passation.totalCreditFc)}
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                    <ul className="mt-1.5 text-[10px] text-text-dim">
+                      {simulation.passation.reserves.map((r, i) => (
+                        <li key={i} className="py-0.5 border-t border-border/40">
+                          {r}
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
               </div>
 
               {(simulation.assiettes.reserves.length > 0 ||

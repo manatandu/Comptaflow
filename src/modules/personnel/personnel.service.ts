@@ -10,6 +10,7 @@ import {
 import { assiettes, type ElementPaie, type NatureElementPaie } from './assiettes-paie';
 import { baremeApplicableAuMois, retenueMensuelle } from './bareme-irpp';
 import { cotisations, netAPayer, type NatureEmployeurInpp } from './cotisations-paie';
+import { passationPaie, type Referentiel } from './passation-paie';
 import {
   aptitudeProvisoirePerimee,
   declarationsDues,
@@ -514,8 +515,34 @@ export class PersonnelService {
       retenue ? retenue.retenueFc : null,
     );
 
+    // LA PASSATION LIT LE RÉFÉRENTIEL DU DOSSIER, et elle est la seule de ce
+    // module à en dépendre · le Code du travail et la loi fiscale ne
+    // connaissent ni le SYCEBNL ni le SYSCOHADA, le PLAN DE COMPTES si.
+    const tenant = await this.prisma.tenant.findUniqueOrThrow({
+      where: { id: tenantId },
+      select: { referentiel: true },
+    });
+    const passation = passationPaie({
+      referentiel: tenant.referentiel as Referentiel,
+      elements: dto.elements.map((e) => ({
+        nature: e.nature as NatureElementPaie,
+        libelle: e.libelle,
+        montantFc: e.montantFc,
+      })),
+      cotisations: lesCotisations.lignes.map((l) => ({
+        cle: l.cle,
+        charge: l.charge,
+        montantFc: l.montantFc,
+      })),
+      abstentionsCotisations: lesCotisations.abstentions,
+      irppFc: retenue ? retenue.retenueFc : null,
+      netAPayerFc: net.netAPayerFc,
+    });
+
     return {
       moisDePaie: dto.moisDePaie,
+      referentiel: tenant.referentiel,
+      passation,
       cotisations: lesCotisations,
       net,
       baremeApplicable: borne.applicable,

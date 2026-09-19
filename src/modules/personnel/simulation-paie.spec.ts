@@ -16,15 +16,18 @@ import type { SimulationPaieDto } from './dto/personnel.dto';
  * la mauvaise entrée, ne protège rien.
  */
 
-function service(salarie?: unknown) {
+function service(salarie?: unknown, referentiel?: 'SYSCOHADA' | 'SYCEBNL') {
   const findFirst = jest.fn().mockResolvedValue(salarie === undefined ? null : salarie);
+  const tenantFind = jest.fn().mockResolvedValue({ referentiel: referentiel ?? 'SYSCOHADA' });
   const prisma = {
     // COMPLÉTÉE, JAMAIS CONTOURNÉE · le service lit réellement le salarié pour
-    // proposer un nombre de personnes à charge, et une doublure muette
-    // validerait une lecture qui n'a pas lieu.
+    // proposer un nombre de personnes à charge, et le référentiel du dossier
+    // pour la passation. Une doublure muette validerait une lecture qui n'a
+    // pas lieu.
     salarie: { findFirst },
+    tenant: { findUniqueOrThrow: tenantFind },
   } as unknown as PrismaService;
-  return { svc: new PersonnelService(prisma), findFirst };
+  return { svc: new PersonnelService(prisma), findFirst, tenantFind };
 }
 
 const dto = (over: Partial<SimulationPaieDto> = {}): SimulationPaieDto =>
@@ -216,7 +219,19 @@ describe("Ce que la simulation annonce ne pas être", () => {
     const corps = source.slice(debut, fin);
     expect(debut).toBeGreaterThan(0);
     expect(fin).toBeGreaterThan(debut);
-    expect(corps.match(/this\.prisma\.\w+\.\w+\(/g)).toEqual(['this.prisma.salarie.findFirst(']);
+    // ON GÈLE LA PROPRIÉTÉ, PAS LE DÉCOMPTE. La première version exigeait UN
+    // SEUL appel Prisma, ce qui n'était qu'une approximation de « aucune
+    // écriture » · elle est tombée quand P3 a ajouté la lecture du
+    // référentiel, qui est pourtant parfaitement légitime. Ce qui compte est
+    // qu'aucune opération d'ÉCRITURE n'apparaisse dans ce corps.
+    const appels = corps.match(/this\.prisma\.\w+\.(\w+)\(/g) ?? [];
+    expect(appels.length).toBeGreaterThan(0);
+    for (const appel of appels) {
+      expect(appel).toMatch(/\.(find\w*|count|aggregate|groupBy)\($/);
+    }
+    // Et les deux lectures attendues sont bien là.
+    expect(corps).toContain('this.prisma.salarie.findFirst(');
+    expect(corps).toContain('this.prisma.tenant.findUniqueOrThrow(');
   });
 });
 
@@ -312,5 +327,48 @@ describe("P2b · l'ordre de calcul, et le net qui ne part pas de l'assiette", ()
       expect(res.cotisations.lignes.some((l) => l.organisme === 'CNSS')).toBe(true);
       expect(res.net.netAPayerFc).not.toBeNull();
     });
+  });
+});
+
+describe("P3 · la passation lit le référentiel du dossier, et le cloisonne", () => {
+  it('borne la lecture du référentiel au dossier de la session', async () => {
+    const { svc, tenantFind } = service();
+    await svc.simulerPaie('t-1', null, dto({ natureEmployeurInpp: 'PRIVE', effectif: 10 } as Partial<SimulationPaieDto>));
+    expect(tenantFind).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 't-1' } }),
+    );
+  });
+
+  it('route la pension vers 43130000 en SYSCOHADA et 43210000 en SYCEBNL', async () => {
+    const p = { natureEmployeurInpp: 'PRIVE', effectif: 10 } as Partial<SimulationPaieDto>;
+    const sys = await service(undefined, 'SYSCOHADA').svc.simulerPaie('t-1', null, dto(p));
+    const syc = await service(undefined, 'SYCEBNL').svc.simulerPaie('t-1', null, dto(p));
+    expect(sys.passation.lignes.some((l) => l.compte === '43130000')).toBe(true);
+    expect(syc.passation.lignes.some((l) => l.compte === '43210000')).toBe(true);
+    expect(syc.passation.lignes.some((l) => l.compte === '43130000')).toBe(false);
+  });
+
+  it("propose une écriture équilibrée sur un dossier complet", async () => {
+    const { svc } = service();
+    const res = await svc.simulerPaie(
+      't-1',
+      null,
+      dto({ natureEmployeurInpp: 'PRIVE', effectif: 10 } as Partial<SimulationPaieDto>),
+    );
+    expect(res.passation.refus).toEqual([]);
+    expect(res.passation.equilibree).toBe(true);
+    expect(res.passation.totalDebitFc).toBeCloseTo(res.passation.totalCreditFc, 6);
+  });
+
+  it("REFUSE la passation tant que la nature de l'employeur INPP manque", async () => {
+    // L'abstention de P2b remonte jusqu'ici : l'écriture serait équilibrée
+    // avec une charge de personnel minorée de l'INPP manquant.
+    const { svc } = service();
+    const res = await svc.simulerPaie('t-1', null, dto());
+    expect(res.passation.lignes).toEqual([]);
+    expect(res.passation.refus.map((r) => r.motif)).toContain('COTISATION_EN_ABSTENTION');
+    // Et le reste de la simulation tient : le refus ne casse pas les assiettes.
+    expect(res.assiettes.assietteSocialeFc).toBe(1_000_000);
+    expect(res.net.netAPayerFc).not.toBeNull();
   });
 });

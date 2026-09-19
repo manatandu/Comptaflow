@@ -1596,6 +1596,78 @@ connu d'un extrait de résultat de recherche. Retirée · la preuve tirée de
 l'article 23, elle, est lue. Sept contresens réinjectés dans les cotisations,
 sept attrapés.
 
+**P3 · LA PASSATION COMPTABLE, ET LE DIX-NEUVIÈME PIÈGE ENFIN CONFRONTÉ AU
+SEMIS** (`docs/paie-p3-passation-comptable.md`).
+
+**AUCUN NUMÉRO DE COMPTE DE PAIE N'EST ÉCRIT AILLEURS QUE DANS
+`passation-paie.ts`, ET AUCUN SANS SON RÉFÉRENTIEL** · quatrième fois que la
+règle se pose, après les stocks, les emballages et la variation de stocks.
+
+**DIX-SEPT RÔLES, UN SEUL DIVERGE**, et c'est celui qui porte la ligne la plus
+lourde du bulletin. La cotisation de retraite OBLIGATOIRE est au **43130000**
+en SYSCOHADA (sous 431 Sécurité sociale) et au **43210000** en SYCEBNL (sous
+432). Tout le reste coïncide, numéro ET intitulé · 6611, 6612, 6613, 6615,
+6617, 6618, 6631, 6634, 6638, 6641, 4311, 4312, 4334, 4335, 4472, 4220.
+
+**ET LA CORRECTION ÉVIDENTE EST ELLE-MÊME UN PIÈGE.** Le 432 du SYSCOHADA est
+« Caisses de retraite COMPLÉMENTAIRE », semé en un compte unique 43200000 ;
+celui du SYCEBNL est « Caisses de retraite » tout court, tête de division
+ouvrant 4321 obligatoire, 4322 complémentaire, 4328 autres. Corriger 4313 en
+432 rangerait la cotisation OBLIGATOIRE sous une nature FACULTATIVE dans un
+plan sur deux. Un test interdit nommément le 43200000 et le 43220000 dans toute
+la table, et vérifie que les numéros divergents ne sont PAS ouverts dans
+l'autre plan.
+
+**LA PRÉMISSE EST RELUE À CHAQUE EXÉCUTION** · un test lit les DEUX fichiers de
+semis et exige que chacun des dix-sept numéros y soit réellement ouvert,
+trente-quatre assertions. Règle sortie de F2b, et deux specs l'avaient déjà
+payée.
+
+**CINQ ABSENCES ASYMÉTRIQUES EN CLASSE 66**, relevées et non codées ·
+66330000 (indemnités d'expatriation), 666 (exploitant individuel), 66720000
+(personnel détaché) et 66820000 (comités d'hygiène) n'existent QU'AU SYSCOHADA ;
+66500000 (habillement) et 66900000 (dégrèvements de charges sociales) QU'AU
+SYCEBNL. Ce sont des ABSENCES, pas des sens différents · moins traître que « un
+numéro, deux sens », aussi coûteux à la saisie.
+
+**LE SÉMINAIRE CPCC SE TROMPE ICI, DANS LES DEUX PLANS** · il écrit « C/ 4331
+INPP · C/ 4332 ONEM » quand le 4331 est « Mutuelle » et le 4332 « Assurances
+retraite » des deux côtés. L'INPP est au 4334, l'ONEM au 4335. Un test
+l'interdit.
+
+**SORTIR DE L'ASSIETTE N'EST PAS SORTIR DE LA COMPTABILITÉ**, et c'est le piège
+symétrique de P2a. Le logement et le transport sortent de la rémunération de
+l'art. 7, point 8, donc de l'assiette des cotisations · ils sont pourtant PAYÉS,
+donc ils sont en CHARGE au 66310000 et au 66340000. Même erreur que le net à
+payer de P2b, prise par l'autre bout.
+
+**QUATRE NATURES NE SONT PAS IMPUTÉES**, et deviner produirait une écriture
+équilibrée sur une nature fausse. La PARTICIPATION AUX BÉNÉFICES · le SYCEBNL
+n'ouvre pas de 426 DU TOUT, et l'absence est elle-même la réponse. Les
+ALLOCATIONS FAMILIALES LÉGALES · servies par la CNSS, l'arrêté n° 143/2018
+organisant leur paiement en dévolution, ce que l'employeur avance est une
+CRÉANCE et non une charge. Les SOINS DE SANTÉ · trois comptes pourraient les
+recevoir et aucune source ne dit lequel. Les FRAIS DE VOYAGE · transport,
+avantage de fonction ou remboursement effectif sont trois natures, et l'art. 68,
+1 renvoie à une qualification. Un test vérifie que les deux tables se complètent
+EXACTEMENT sur les quinze natures, sans trou ni recouvrement.
+
+**QUATRE REFUS, CHACUN CONTRE UN DÉFAUT QUI LAISSE LA BALANCE BOUCLÉE.** Le
+plus fin est **COTISATION_EN_ABSTENTION** · sans nature d'employeur déclarée,
+l'écriture serait ÉQUILIBRÉE avec une charge de personnel minorée de l'INPP
+manquant, et rien en aval ne le verrait. Et l'ÉCRITURE S'ÉQUILIBRE PAR
+CONSTRUCTION (débit = total versé + patronales ; crédit = cotisations + impôt +
+net, et net = total versé - quote-part ouvrière - impôt) · le contrôle est fait
+QUAND MÊME, et son échec est un REFUS. Aucune ligne de bouclage n'est posée ·
+un écart est un défaut du moteur, jamais un arrondi à rattraper.
+
+**ET UN TEST GELAIT UNE APPROXIMATION.** Le spec de P2a exigeait UN SEUL appel
+Prisma dans `simulerPaie`, comme proxy de « aucune écriture ». Il est tombé
+quand P3 a ajouté la lecture du référentiel, parfaitement légitime. Il gèle
+désormais la PROPRIÉTÉ · aucune opération d'écriture, quelles que soient les
+lectures. Même famille que « un test de source s'ancre sur une structure, jamais
+sur une distance ». Huit contresens réinjectés dans la passation, huit attrapés.
+
 **ADDENDUM P0 · le chapitre 66 du livre de cours, et ce qu'il apporte
 vraiment.** Un second extrait du même livre (pages 173 à 199) a été fourni en
 cours de passe. Il porte LE chapitre de la paie. Même statut que le premier ·
