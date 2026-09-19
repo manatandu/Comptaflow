@@ -1,5 +1,20 @@
 # Paie P5 · les trois restes, et trois objets qui portaient le même mot
 
+> **CORRIGÉ LE MÊME SOIR PAR P6 ·
+> `docs/paie-p6-les-deux-arretes-recus.md`.** Les deux arrêtés que ce document
+> déclarait manquants ont été versés au corpus quelques heures après sa
+> rédaction, et ils le prennent en défaut. **Sa section 1 est FAUSSE SUR LE
+> CHIFFRE** : l'arrêté de l'article 139 existe (n° 12/CAB.MIN/TPS/110/2005 du
+> 26 octobre 2005) et son article 10 donne la même formule que le décret
+> n° 25/22, si bien que la quotité saisissable EST chiffrable et que
+> l'abstention décrite ici est levée. **Sa section 5 est FAUSSE SUR CINQ
+> POINTS** : le fichier informatisé est admis sans autorisation, les mentions
+> sont trente-trois et non trente, trois d'entre elles sont des formules de
+> somme, le seuil du livre « inspiré » est contredit par l'arrêté, et
+> l'article 2 impose un décompte écrit à la rupture. Ce qui reste vrai de ce
+> document est dit en tête de P6. Il est conservé tel quel, sans réécriture :
+> effacer une erreur en efface aussi la leçon.
+
 Passe du 19 septembre 2026. Elle ferme les trois sujets que P4 laissait
 ouverts : la quotité saisissable de l'art. 114, le livre de paie des
 art. 213 à 215, et le taux légal des allocations familiales de l'art. 69, 1.

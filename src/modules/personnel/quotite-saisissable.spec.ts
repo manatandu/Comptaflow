@@ -3,8 +3,10 @@ import {
   FRACTION_OBLIGATION_ALIMENTAIRE,
   FRACTION_SOUS_LE_SEUIL,
   JOURS_DU_MOIS,
+  DIVISEUR_EVALUATION_FORFAITAIRE_LOGEMENT,
   MULTIPLE_DU_MINIMUM_CATEGORIEL,
   RESERVE_CUMUL,
+  RESERVE_FACULTE_DE_DEFALCATION,
   RESERVE_LOGEMENT,
   mensuelMinimumDeLaClasse,
   quotiteSaisissable,
@@ -65,16 +67,61 @@ describe("Les abstentions de l'article 114", () => {
     expect(v.abstentions.map((a) => a.motif)).toContain('CLASSE_PROFESSIONNELLE_ABSENTE');
   });
 
-  it("s'abstient quand un logement est FOURNI EN NATURE", () => {
+  it("NE s'abstient PLUS pour un logement fourni en nature · l'arrêté de 2005 est au corpus", () => {
+    // CE TEST GELAIT UNE ABSTENTION QUI N'A PLUS LIEU D'ÊTRE. P5 refusait de
+    // chiffrer faute d'arrêté de l'article 139 · il est arrivé le 19/09, et
+    // son article 10 donne la formule. L'issue s'inverse avec son motif.
     const v = quotiteSaisissable({
       moisDePaie: MOIS,
       remunerationFc: 5_000_000,
       classeProfessionnelle: 5,
       logementFourniEnNature: true,
     });
-    expect(v.quotiteOrdinaireFc).toBeNull();
-    expect(v.abstentions.map((a) => a.motif)).toContain('LOGEMENT_EN_NATURE_NON_CHIFFRABLE');
-    expect(v.abstentions[0].explication).toContain('139');
+    expect(v.abstentions).toHaveLength(0);
+    expect(v.quotiteOrdinaireFc).not.toBeNull();
+    // 796,30 / 5 = 159,26 par jour, fois vingt-six.
+    expect(v.evaluationForfaitaireLogementFc).toBeCloseTo((796.3 / 5) * 26, 6);
+    expect(v.reserves).toContain(RESERVE_FACULTE_DE_DEFALCATION);
+  });
+
+  it('ne déduit RIEN quand aucun logement en nature n\'est déclaré', () => {
+    const v = quotiteSaisissable({
+      moisDePaie: MOIS,
+      remunerationFc: 5_000_000,
+      classeProfessionnelle: 5,
+    });
+    expect(v.evaluationForfaitaireLogementFc).toBe(0);
+    expect(v.reserves).not.toContain(RESERVE_FACULTE_DE_DEFALCATION);
+  });
+
+  it("ne déduit PAS deux fois quand l'employeur a déjà défalqué", () => {
+    // Article 10 · « il PEUT défalquer ». S'il l'a fait, la rémunération
+    // transmise est déjà nette, et redéduire la compterait deux fois.
+    const v = quotiteSaisissable({
+      moisDePaie: MOIS,
+      remunerationFc: 5_000_000,
+      classeProfessionnelle: 5,
+      logementFourniEnNature: true,
+      logementEnNatureDejaDefalque: true,
+    });
+    expect(v.evaluationForfaitaireLogementFc).toBe(0);
+    expect(v.baseFc).toBe(5_000_000);
+  });
+
+  it("abaisse la base, donc la quotité, quand le logement est en nature", () => {
+    const sans = quotiteSaisissable({
+      moisDePaie: MOIS,
+      remunerationFc: 5_000_000,
+      classeProfessionnelle: 5,
+    });
+    const avec = quotiteSaisissable({
+      moisDePaie: MOIS,
+      remunerationFc: 5_000_000,
+      classeProfessionnelle: 5,
+      logementFourniEnNature: true,
+    });
+    expect(avec.baseFc!).toBeLessThan(sans.baseFc!);
+    expect(avec.quotiteOrdinaireFc!).toBeLessThan(sans.quotiteOrdinaireFc!);
   });
 
   it("ne s'abstient PAS pour une simple indemnité de logement", () => {
@@ -99,18 +146,37 @@ describe("Les abstentions de l'article 114", () => {
   });
 });
 
-describe("LES TROIS SENS DU MOT « LOGEMENT », et la correction qu'ils portent", () => {
-  it('nomme les trois objets et refuse de les confondre', () => {
-    expect(RESERVE_LOGEMENT).toContain('139');
-    expect(RESERVE_LOGEMENT).toContain('25/22');
-    expect(RESERVE_LOGEMENT).toContain('25/21');
+describe("Le mot « logement », et la conclusion que le dépôt a dû retourner", () => {
+  it("nomme l'arrêté de 2005, sa formule, et dit que le décret EN EST LE RÉSULTAT", () => {
+    // CE TEST GELAIT LA CONCLUSION INVERSE · « le décret n'est pas l'arrêté,
+    // donc la quotité n'est pas chiffrable ». Juste sur la forme, faux sur le
+    // chiffre. On gèle maintenant la conclusion vraie, et dans le bon sens.
+    expect(RESERVE_LOGEMENT).toContain('12/CAB.MIN/TPS/110/2005');
+    expect(RESERVE_LOGEMENT).toContain('26 OCTOBRE 2005');
+    expect(RESERVE_LOGEMENT).toMatch(/1\/5 DU TAUX JOURNALIER DES ALLOCATIONS/i);
+    expect(RESERVE_LOGEMENT).toMatch(/quelle que soit la catégorie/i);
+    expect(RESERVE_LOGEMENT).toMatch(/EN EST LE RÉSULTAT/i);
+    expect(RESERVE_LOGEMENT).toMatch(/les deux textes disent la même chose/i);
+    // ET CE QUI RESTE DISTINCT, qui est le vrai acquis de P5.
     expect(RESERVE_LOGEMENT).toContain('138');
     expect(RESERVE_LOGEMENT).toMatch(/litera h/i);
-    // LA CONCLUSION, pas seulement les citations · la phrase qui compte est
-    // que le décret N'EST PAS l'arrêté, et qu'il faut une MUTATION.
-    expect(RESERVE_LOGEMENT).toMatch(/n'est PAS au corpus/i);
-    expect(RESERVE_LOGEMENT).toMatch(/MUTATION/i);
-    expect(RESERVE_LOGEMENT).toMatch(/décret, pas un arrêté/i);
+    expect(RESERVE_LOGEMENT).toContain('25/21');
+    expect(RESERVE_LOGEMENT).toMatch(/MUTATION/);
+  });
+
+  it("l'arithmétique boucle sur les deux annexes, et c'est la preuve", () => {
+    // 1/5 du taux journalier des allocations familiales DOIT donner la
+    // colonne 20. Si ce test tombe, c'est que les deux textes divergent
+    // vraiment, et la doctrine ci-dessus est à refaire.
+    expect(ANNEXES[0].allocationFamilialeJournaliereFc / 5).toBeCloseTo(
+      ANNEXES[0].contreValeurLogementJournaliereFc,
+      2,
+    );
+    expect(ANNEXES[1].allocationFamilialeJournaliereFc / 5).toBeCloseTo(
+      ANNEXES[1].contreValeurLogementJournaliereFc,
+      2,
+    );
+    expect(DIVISEUR_EVALUATION_FORFAITAIRE_LOGEMENT).toBe(5);
   });
 });
 

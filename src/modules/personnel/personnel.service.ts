@@ -16,11 +16,14 @@ import { passationPaie, type Referentiel } from './passation-paie';
 import { quotiteSaisissable } from './quotite-saisissable';
 import {
   ARRETE_DU_MODELE,
+  DESTINATION_DES_DOUBLES,
   DOUBLES_DETACHABLES_MINIMUM,
-  MENTIONS_ARTICLE_25,
+  FORMULES_DU_MODELE,
+  MENTIONS_MODELE_2008,
   RESERVE_ARTICLE_104,
   SANCTION_ARTICLE_103,
   livreDePaie,
+  type FormeDuDocument,
 } from './livre-de-paie';
 import { MULTIPLICATEURS_ARTICLE_7, allocationFamilialeJournaliere } from './bareme-smig';
 import {
@@ -596,6 +599,7 @@ export class PersonnelService {
       retenuesFiscalesFc: retenue ? retenue.retenueFc : 0,
       retenuesSocialesFc: lesCotisations.totalTravailleurFc,
       logementFourniEnNature: dto.logementFourniEnNature,
+      logementEnNatureDejaDefalque: dto.logementEnNatureDejaDefalque,
       obligationAlimentaireLegale: dto.obligationAlimentaireLegale,
     });
 
@@ -652,12 +656,15 @@ export class PersonnelService {
     return {
       ...livreDePaie({
         siegeDExploitation: dto.siegeDExploitation ?? null,
+        formeDuDocument: (dto.formeDuDocument as FormeDuDocument | undefined) ?? null,
         autorisationInspecteurDuTravail: dto.autorisationInspecteurDuTravail ?? null,
         effectifHabituel: dto.effectifHabituel ?? null,
         exclusivementPersonnelDomestique: dto.exclusivementPersonnelDomestique,
         mentionsPortees: dto.mentionsPortees ?? [],
       }),
-      mentions: MENTIONS_ARTICLE_25,
+      mentions: MENTIONS_MODELE_2008,
+      formules: FORMULES_DU_MODELE,
+      destinationDesDoubles: DESTINATION_DES_DOUBLES,
       arreteDuModele: ARRETE_DU_MODELE,
       doublesDetachablesMinimum: DOUBLES_DETACHABLES_MINIMUM,
       sanctionArticle103: SANCTION_ARTICLE_103,

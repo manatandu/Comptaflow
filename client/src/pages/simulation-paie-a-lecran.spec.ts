@@ -230,13 +230,41 @@ describe("Le livre de paie à l'écran", () => {
     expect(SOURCE).not.toMatch(/montant pris en considération pour le calcul des cotisations/);
   });
 
-  it("n'affirme JAMAIS une conformité au modèle", () => {
+  it("n'affirme JAMAIS une conformité au modèle, et le motif a changé", () => {
+    // CE TEST GELAIT « identifié mais non lu ». L'arrêté est arrivé le 19/09 ·
+    // la retenue demeure, sa raison est autre : le modèle annexé est une MISE
+    // EN FORME, qu'une liste de mentions ne prouve pas.
     const debut = SOURCE.indexOf("{onglet === 'livre' &&");
     const panneau = SOURCE.slice(debut);
-    expect(panneau).toMatch(/identifié mais non lu/i);
-    expect(panneau).toMatch(/Couverture ne vaut pas conformité/i);
+    expect(panneau).not.toMatch(/identifié mais non lu/i);
+    expect(panneau).toContain('12/CAB.MIN/ETPS/042');
+    expect(panneau).toMatch(/au modèle annexé/i);
+    expect(panneau).toMatch(/rien ici ne certifie cette conformité/i);
     expect(panneau).toContain('livre.conformiteAuModeleCertifiee');
     expect(panneau).not.toMatch(/livre de paie conforme/i);
+  });
+
+  it("dit que le fichier informatisé ne demande AUCUNE autorisation", () => {
+    const debut = SOURCE.indexOf("{onglet === 'livre' &&");
+    const panneau = SOURCE.slice(debut);
+    expect(panneau).toMatch(/ou fichier informatisé/i);
+    expect(panneau).toMatch(/aucune autorisation/i);
+    expect(panneau).toMatch(/tout autre document/i);
+  });
+
+  it("laisse la FORME du document absente quand elle n'est pas déclarée", () => {
+    const corps = SOURCE.slice(SOURCE.indexOf('const verifierLivre ='));
+    expect(corps).toContain("livreSaisie.forme === ''");
+    expect(corps).toContain('formeDuDocument: livreSaisie.forme');
+  });
+
+  it('rend les formules du modèle telles que le serveur les donne', () => {
+    const debut = SOURCE.indexOf("{onglet === 'livre' &&");
+    const panneau = SOURCE.slice(debut);
+    expect(panneau).toContain('livre.formules.brut.composantes');
+    expect(panneau).toContain('livre.destinationDesDoubles');
+    // Et surtout, la page ne recopie pas la liste des composantes.
+    expect(panneau).not.toMatch(/\[7,\s*10,\s*11/);
   });
 
   it("laisse l'autorisation ABSENTE tant qu'elle n'est pas renseignée", () => {

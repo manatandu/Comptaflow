@@ -1884,6 +1884,98 @@ Onze contresens réinjectés, onze attrapés · plus un douzième refait parce q
 la première version ne compilait pas, et **une suite à « 0 total » n'est pas
 une suite qui tombe**.
 
+**P6 · LES DEUX ARRÊTÉS REÇUS, ET CE DÉPÔT PRIS EN DÉFAUT QUINZE FOIS.**
+
+`docs/paie-p6-les-deux-arretes-recus.md`. Manasse a versé, le soir même, les
+deux arrêtés que P5 déclarait manquants · n° 12/CAB.MIN/ETPS/042 du 8 août 2008
+(modèle du livre de paie, art. 215) et n° 12/CAB.MIN/TPS/110/2005 du 26 octobre
+2005 (logement, art. 139). Tous deux sont au skill `droit-travail-congolais`,
+texte intégral. **Aucun des deux n'y était**, ce qui a été vérifié avant de les
+écrire.
+
+**CE DÉPÔT S'EST TROMPÉ DEUX FOIS DANS LA MÊME JOURNÉE, EN SENS INVERSE, ET LA
+VÉRITÉ ÉTAIT ENTRE LES DEUX.** Le matin : « l'arrêté de l'art. 139 n'existe
+pas, c'est dans le décret SMIG » · FAUX sur la forme, JUSTE sur le chiffre.
+L'après-midi, P5 : « trois objets distincts, donc la quotité n'est pas
+chiffrable » · JUSTE sur la forme, FAUX sur le chiffre. L'article 10 de
+l'arrêté de 2005 tranche : « il peut défalquer de la rémunération du
+travailleur **1/5 DU TAUX JOURNALIER DES ALLOCATIONS FAMILIALES quelle que soit
+la catégorie professionnelle** ». C'est EXACTEMENT la colonne 20 du décret
+n° 25/22 · 537,04 / 5 = 107,41 et 796,30 / 5 = 159,26, les deux annexes
+bouclent au centime. **D'OÙ LA DOCTRINE · DEUX TEXTES QUI SE SUIVENT DE VINGT
+ANS PEUVENT ÊTRE DEUX TEXTES ET UNE SEULE RÈGLE.** Refuser de les confondre est
+juste ; en conclure qu'ils disent des choses différentes ne l'est pas. SEULE
+L'ARITHMÉTIQUE TRANCHE, et un test la refait sur les deux annexes.
+
+Ce qui reste de la distinction de P5, correctement découpé · l'INDEMNITÉ de
+logement (art. 138 et 7 litera h), hors rémunération, qui ne se déduit pas
+puisqu'elle n'est jamais entrée ; la défalcation de l'ARRÊTÉ DE 2005 art. 10,
+sur la RÉMUNÉRATION, dès que le logement est EN NATURE, sans condition de
+mutation ; et celle du DÉCRET n° 25/21 art. 15, MÊME GRANDEUR mais sur
+l'INDEMNITÉ et POUR CAUSE DE MUTATION. C'est la deuxième que l'art. 114 al. 4
+fait déduire · **la quotité saisissable est chiffrable, l'abstention de P5 est
+levée**. Une précaution demeure · l'art. 10 dit « il PEUT défalquer », et si
+l'employeur l'a déjà fait, redéduire compterait deux fois contre le travailleur.
+Cela se DÉCLARE.
+
+**LE LIVRE DE PAIE · CINQ DÉFAUTS DANS CE QUE P5 AVAIT CODÉ DU SEUL CODE.**
+(1) L'art. 1er vise « le livre de paie **OU FICHIER INFORMATISÉ** » · le
+fichier informatisé est une FORME DU LIVRE, admise d'office, et seul « tout
+autre document » tombe sous l'autorisation de l'art. 215 al. 2. P5 refusait à
+un cabinet informatisé une faculté que le texte lui donne. (2) Les mentions
+sont **TRENTE-TROIS**, pas trente · P5 prenait la liste de l'arrêté n° 146/2018,
+qui est celle de la sécurité sociale, pour le modèle du livre. (3) **TROIS
+MENTIONS SONT DES FORMULES DE SOMME** · la 20 (brut = 7+10+11+12+13+16+19), la
+26 (déductions = 21+22+23+24+25), la 28 (jours = 6+14+17). LA PREMIÈRE VAUT
+DÉMONSTRATION · les allocations familiales n'y sont pas, et le modèle officiel
+corrobore donc par sa seule arithmétique l'exclusion de l'art. 7 litera h.
+(4) Le seuil du livre « inspiré du modèle » est de **DIX** dans l'arrêté et de
+**VINGT-CINQ** à l'art. 215 al. 3 · contradiction réelle, UN ARRÊTÉ NE DÉROGE
+PAS À LA LOI, OmegaX garde vingt-cinq et porte la contradiction en réserve.
+(5) L'art. 2 donne la destination des deux doubles de l'art. 214 (un au
+travailleur, un à l'INSS) ET impose un décompte écrit des paiements **lors de
+la résiliation du contrat**, en plus du bulletin de chaque paie.
+
+**LA MENTION 11 NOMME LE SAMEDI**, que l'arrêté n° 146/2018 ne nomme pas ·
+TROISIÈME corroboration indépendante de la doctrine P4, après le multiplicateur
+26 de l'art. 7 du décret et la définition du Code.
+
+**CE QUE LE MODULE CONTINUE DE REFUSER, ET POURQUOI CE N'EST PLUS LA MÊME
+RAISON.** L'art. 1er exige DEUX choses · les trente-trois énonciations ET la
+conformité AU MODÈLE ANNEXÉ, qui est une MISE EN FORME. OmegaX vérifie les
+énonciations sur déclaration, il ne sait pas vérifier qu'un document a la forme
+du tableau annexé. La conformité n'est donc toujours pas certifiée, mais plus
+parce que le modèle serait inconnu. **UN REFUS QUI SURVIT À SON MOTIF DOIT
+CHANGER DE MOTIF, PAS DISPARAÎTRE NI RESTER MUET.**
+
+**LA SANCTION A UN MULTIPLICATEUR** · art. 328 a), pour les infractions à
+l'art. 215, « l'amende est appliquée AUTANT DE FOIS QU'IL Y A DE TRAVAILLEURS
+NON INSCRITS OU DE RENSEIGNEMENTS OMIS », plafonnée à cinquante fois le taux.
+Une mention manquante se multiplie par l'effectif.
+
+**UNE LACUNE DANS L'ARRÊTÉ DE 2005 LUI-MÊME** · son art. 1er b) annonce la
+ration journalière de vivres, ses régions, ses catégories et sa valeur maximum
+de remboursement · AUCUN DE SES DOUZE ARTICLES SUIVANTS NE LE FAIT. L'art. 139
+b) du Code reste sans mesure d'exécution. Ce n'est pas un manque du corpus
+d'OmegaX, c'est un manque du droit congolais, et il se signale au lieu de se
+chercher.
+
+**L'ANNEXE DE 2008 EST UNE RECONSTITUTION, ET LE FICHIER LE DIT EN TÊTE.** Sa
+police porte un encodage décalé (+29 sur l'ASCII imprimable) · « 1XPpURG RUGUH »
+pour « Numéro d'ordre ». La restitution est mécanique, sauf les accents que
+l'encodage perd, rétablis d'après les libellés identiques de l'art. 1er, lu
+directement. NE JAMAIS CITER UN LIBELLÉ DE L'ANNEXE COMME UNE LECTURE DIRECTE.
+
+Trois anomalies de renvoi signalées et non corrigées · « art. 323 (9) » qui
+n'existe pas (2008, art. 5) ; « art. 321 (c) » qui vise la numérotation
+d'avant 2016 (2005, art. 12) ; et un renvoi à « l'art. 4 alinéa 1° » pour une
+exception qui est à l'art. 5, 1° (2005, art. 2, 9°).
+
+**LE DOCUMENT P5 N'A PAS ÉTÉ RÉÉCRIT** · il porte un bandeau qui dit ce qui y
+est faux et renvoie à P6. **Effacer une erreur en efface aussi la leçon.**
+
+Dix contresens réinjectés, dix attrapés, chacun avec un compte d'échec réel.
+
 **Questionnaire de révision par cycle · vingt-quatre items du CPCC, et le
 reste assumé.** Le séminaire porte DEUX checklists, § VI « vérification de
 l'inventaire physique » (immobilisations, stocks, caisses) et § VII

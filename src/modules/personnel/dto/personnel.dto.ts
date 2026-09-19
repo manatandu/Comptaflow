@@ -391,14 +391,23 @@ export class SimulationPaieDto {
   classeProfessionnelle?: number;
 
   /**
-   * Article 114, alinéa 4 · un logement est-il FOURNI EN NATURE avec
-   * remboursement ? Ce n'est PAS l'indemnité de logement, qui est hors
-   * rémunération par l'article 7 litera h. Répondu oui, la quotité n'est pas
-   * chiffrable : l'arrêté de l'article 139 a) n'est pas au corpus.
+   * Article 114, alinéa 4 · un logement est-il FOURNI EN NATURE ? Ce n'est PAS
+   * l'indemnité de logement, qui est hors rémunération par l'article 7 litera
+   * h. Répondu oui, OmegaX déduit l'évaluation forfaitaire de l'article 10 de
+   * l'arrêté n° 12/CAB.MIN/TPS/110/2005.
    */
   @IsOptional()
   @IsBoolean()
   logementFourniEnNature?: boolean;
+
+  /**
+   * Article 10 de l'arrêté de 2005 · « IL PEUT défalquer ». Si l'employeur a
+   * déjà opéré la défalcation sur la paie, la rémunération transmise est DÉJÀ
+   * nette et OmegaX ne déduit pas une seconde fois.
+   */
+  @IsOptional()
+  @IsBoolean()
+  logementEnNatureDejaDefalque?: boolean;
 
   /** Article 114, alinéa 2 · la créance poursuit-elle une obligation alimentaire légale ? */
   @IsOptional()
@@ -495,6 +504,16 @@ export class LivreDePaieDto {
   @IsString()
   @MaxLength(200)
   siegeDExploitation?: string;
+
+  /**
+   * La forme adoptée. L'article 1er de l'arrêté du 8 août 2008 admet d'office
+   * le livre papier ET le fichier informatisé ; tout autre document tombe
+   * sous l'autorisation de l'article 215, alinéa 2. Absente, OmegaX retient
+   * le cas le plus exigeant.
+   */
+  @IsOptional()
+  @IsEnum(['LIVRE_PAPIER', 'FICHIER_INFORMATISE', 'AUTRE_DOCUMENT'])
+  formeDuDocument?: string;
 
   /** Article 215, alinéa 2 · l'autorisation de l'Inspecteur du Travail. */
   @IsOptional()

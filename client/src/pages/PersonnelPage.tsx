@@ -237,17 +237,22 @@ interface LivreDePaie {
   livreDu: boolean;
   remplacementAutorise: boolean;
   livreInspireAdmis: boolean;
+  enonciationsCompletes: boolean;
   mentionsPorteesCount: number;
   mentionsManquantes: { rang: number; libelle: string }[];
   conformiteAuModeleCertifiee: boolean;
   refus: { motif: string; explication: string }[];
   reserves: string[];
   mentions: { rang: number; libelle: string }[];
+  formules: Record<string, { rang: number; composantes: number[] }>;
+  destinationDesDoubles: { premier: string; second: string };
   arreteDuModele: {
     reference: string;
     objet: string;
     publie: string;
+    signataire: string;
     viseParLeCodeDuTravail: string[];
+    abroge: string;
     lu: boolean;
     pourquoi: string;
   };
@@ -488,6 +493,7 @@ export function PersonnelPage() {
   const [livre, setLivre] = useState<LivreDePaie | null>(null);
   const [livreSaisie, setLivreSaisie] = useState({
     siegeDExploitation: '',
+    forme: '' as '' | 'LIVRE_PAPIER' | 'FICHIER_INFORMATISE' | 'AUTRE_DOCUMENT',
     autorisation: '' as '' | 'oui' | 'non',
     effectifHabituel: '',
     domestique: false,
@@ -601,6 +607,10 @@ export function PersonnelPage() {
     api
       .post<LivreDePaie>('/personnel/livre-de-paie', {
         siegeDExploitation: livreSaisie.siegeDExploitation.trim() || undefined,
+        // FORME NON DÉCLARÉE = CHAMP ABSENT · le serveur retient alors le cas
+        // le plus exigeant. La supposer informatisée dispenserait d'une
+        // autorisation qui est due.
+        ...(livreSaisie.forme === '' ? {} : { formeDuDocument: livreSaisie.forme }),
         // « NON RENSEIGNÉ » RESTE ABSENT · l'envoyer à false ferait d'un
         // silence un refus, et d'une absence de réponse une réponse.
         ...(livreSaisie.autorisation === ''
@@ -2478,12 +2488,12 @@ export function PersonnelPage() {
             mais pas lu. Ce qui est rendu est une COUVERTURE des mentions.
           */}
           <div className="border border-warning/40 bg-warning/5 px-3.5 py-2.5 mb-2.5">
-            <strong>OmegaX ne tient pas votre livre de paie.</strong> L’article 215 exige un{' '}
-            <strong>modèle fixé par arrêté</strong> du Ministre du Travail. Cet arrêté est{' '}
-            <strong>identifié mais non lu</strong> par OmegaX : rien ici ne certifie une conformité
-            à ce modèle, et ce qui est rendu est une <strong>couverture</strong> des trente
-            mentions de l’article 25 de l’arrêté ministériel n° 146/2018, qui sont, elles, lues.
-            Couverture ne vaut pas conformité.
+            <strong>OmegaX ne tient pas votre livre de paie.</strong> Le modèle est fixé par
+            l’<strong>arrêté ministériel n° 12/CAB.MIN/ETPS/042 du 8 août 2008</strong>, qui est au
+            corpus : ce sont ses <strong>trente-trois énonciations</strong> qui sont vérifiées
+            ci-dessous, et non plus celles de la sécurité sociale. Mais son article 1er exige aussi
+            la conformité <strong>au modèle annexé</strong>, qui est une mise en forme : une liste
+            de mentions ne la prouve pas, et <strong>rien ici ne certifie cette conformité</strong>.
           </div>
 
           <div className="border border-border px-3.5 py-2.5 mb-2.5">
@@ -2497,6 +2507,24 @@ export function PersonnelPage() {
                   }
                   className="border border-border bg-transparent px-2 py-1 w-[220px]"
                 />
+              </label>
+              <label className="flex flex-col gap-0.5">
+                <span className={etiquette}>Forme du document (art. 1er)</span>
+                <select
+                  value={livreSaisie.forme}
+                  onChange={(e) =>
+                    setLivreSaisie({
+                      ...livreSaisie,
+                      forme: e.target.value as '' | 'LIVRE_PAPIER' | 'FICHIER_INFORMATISE' | 'AUTRE_DOCUMENT',
+                    })
+                  }
+                  className="border border-border bg-transparent px-2 py-1 w-[190px]"
+                >
+                  <option value="">Non déclarée</option>
+                  <option value="FICHIER_INFORMATISE">Fichier informatisé</option>
+                  <option value="LIVRE_PAPIER">Livre papier</option>
+                  <option value="AUTRE_DOCUMENT">Tout autre document</option>
+                </select>
               </label>
               <label className="flex flex-col gap-0.5">
                 <span className={etiquette}>Autorisation Inspecteur (art. 215, al. 2)</span>
@@ -2547,10 +2575,12 @@ export function PersonnelPage() {
             <div className="text-[10px] text-text-dim">
               L’article 213 impose un livre <strong>dans chacun des sièges d’exploitation</strong>,
               consignant à chaque paie <strong>toute somme quelconque</strong> attribuée à titre de
-              rémunération. L’alinéa 2 de l’article 215 permet de le remplacer par un autre document
-              en <strong>gestion automatisée</strong>, mais l’autorisation de l’Inspecteur du
-              Travail est un <strong>acte</strong> à obtenir, pas une faculté que l’informatisation
-              accorde d’elle-même.
+              rémunération. L’article 1er de l’arrêté vise « le livre de paie{' '}
+              <strong>ou fichier informatisé</strong> » : un fichier informatisé est donc une forme
+              du livre, et ne demande <strong>aucune autorisation</strong>. Seul{' '}
+              <strong>tout autre document</strong> tombe sous l’alinéa 2 de l’article 215, où
+              l’autorisation de l’Inspecteur du Travail est un <strong>acte</strong> à obtenir.
+              Forme non déclarée : OmegaX retient le cas le plus exigeant.
             </div>
           </div>
 
@@ -2561,7 +2591,7 @@ export function PersonnelPage() {
                 <div className="text-[10px]">
                   Livre dû : <strong>{livre.livreDu ? 'oui' : 'non'}</strong> · remplacement
                   autorisé : <strong>{livre.remplacementAutorise ? 'oui' : 'non'}</strong> · livre
-                  « inspiré du modèle » (moins de {25} travailleurs) :{' '}
+                  « inspiré du modèle » (art. 215 al. 3, moins de 25 travailleurs) :{' '}
                   <strong>{livre.livreInspireAdmis ? 'oui' : 'non'}</strong> · mentions couvertes :{' '}
                   <strong>
                     {livre.mentionsPorteesCount} / {livre.mentions.length}
@@ -2583,7 +2613,7 @@ export function PersonnelPage() {
 
               <div className="border border-border px-3.5 py-2.5 mb-2.5 overflow-x-auto">
                 <div className={`${etiquette} mb-1`}>
-                  Les trente mentions de l’article 25 de l’arrêté n° 146/2018
+                  Les trente-trois énonciations de l’article 1er de l’arrêté du 8 août 2008
                 </div>
                 <table className="w-full min-w-[520px] text-[10px]">
                   <tbody>
@@ -2640,6 +2670,14 @@ export function PersonnelPage() {
                 <div className="py-1 border-t border-border/40 text-text-dim">
                   Article 214 · le livre se compose de feuilles numérotées de manière continue,
                   chacune comportant au moins {livre.doublesDetachablesMinimum} doubles détachables.
+                  Article 2 de l’arrêté · le premier va {livre.destinationDesDoubles.premier} ; le
+                  second {livre.destinationDesDoubles.second}.
+                </div>
+                <div className="py-1 border-t border-border/40 text-text-dim">
+                  Article 1er de l’arrêté · trois mentions sont des <strong>formules de somme</strong>{' '}
+                  : la {livre.formules.brut.rang} (brut) vaut la somme des mentions{' '}
+                  {livre.formules.brut.composantes.join(', ')} · les allocations familiales n’y sont
+                  pas, ce qui confirme l’exclusion de l’article 7 litera h du Code du travail.
                 </div>
               </div>
             </>

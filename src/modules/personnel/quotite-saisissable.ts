@@ -22,32 +22,58 @@
  *     Code. »
  *
  * ────────────────────────────────────────────────────────────────────────
- * LE MOT « LOGEMENT » PORTE ICI TROIS OBJETS DISTINCTS, ET LES CONFONDRE
- * FAUSSE LE CALCUL DANS LES DEUX SENS.
+ * LE MOT « LOGEMENT », ET DEUX ERREURS DE CE DÉPÔT EN SENS INVERSE.
  *
- *  1. L'INDEMNITÉ DE LOGEMENT · articles 7 litera h et 138. Elle est HORS
- *     rémunération. Elle n'a donc pas à être déduite : elle n'est jamais
- *     entrée dans la base.
- *  2. LA VALEUR MAXIMALE DE REMBOURSEMENT DU LOGEMENT FOURNI EN NATURE ·
- *     article 139 a), fixée par un ARRÊTÉ du Ministre du Travail pris après
- *     avis du Conseil National du Travail. C'EST CELLE-LÀ, ET ELLE SEULE,
- *     que l'alinéa 4 de l'article 114 fait déduire. CET ARRÊTÉ N'EST PAS AU
- *     CORPUS D'OMEGAX.
- *  3. LA CONTRE-VALEUR DU LOGEMENT · décret n° 25/22 article 6, colonne 20
- *     des annexes, défalcable de l'indemnité de logement POUR CAUSE DE
- *     MUTATION SEULEMENT (décret n° 25/21, article 15). Un décret du Premier
- *     ministre, pas un arrêté ministériel · un autre auteur, un autre objet,
- *     une autre condition.
+ * L'ARRÊTÉ DE L'ARTICLE 139 EST AU CORPUS DEPUIS LE 19/09/2026 · arrêté
+ * ministériel n° 12/CAB.MIN/TPS/110/2005 du 26 octobre 2005 fixant les
+ * modalités d'attribution de logement, de sa contre valeur et des conditions
+ * auxquelles il doit répondre, treize articles, signé Balamage N'kolo. SON
+ * ARTICLE 10 PORTE LA FORMULE, ET LA VOICI, VERBATIM :
  *
- * CORRECTION D'UNE ERREUR DE CE DÉPÔT · la passe de recherche du 19/09/2026
- * a conclu que « l'arrêté de l'article 139 n'existe pas, il est dans le
- * décret SMIG ». C'EST FAUX, et c'était le point 3 pris pour le point 2.
- * L'article 139 a) annonce un arrêté qui fixe « les cas dans lesquels le
- * logement doit être fourni, SA VALEUR MAXIMALE DE REMBOURSEMENT, et les
- * conditions auxquelles il doit répondre » · un décret portant fixation
- * d'une contre-valeur n'est pas cet arrêté, et n'en tient pas lieu.
- * Conséquence pratique : dès qu'un logement est FOURNI EN NATURE avec
- * remboursement, la quotité N'EST PAS CHIFFRABLE, et OmegaX s'en abstient.
+ *   « Lorsque l'employeur assure le logement en nature au travailleur et à sa
+ *   famille, il peut défalquer de la rémunération du travailleur 1/5 DU TAUX
+ *   JOURNALIER DES ALLOCATIONS FAMILIALES quelle que soit la catégorie
+ *   professionnelle. »
+ *
+ * CE DÉPÔT S'EST TROMPÉ DEUX FOIS, EN SENS INVERSE, ET LA VÉRITÉ EST ENTRE
+ * LES DEUX. Il faut le dire net plutôt que de réécrire l'histoire.
+ *
+ *  · LE 19/09 AU MATIN, une passe de recherche a conclu que « l'arrêté de
+ *    l'article 139 N'EXISTE PAS, la contre-valeur est dans le décret SMIG ».
+ *    FAUX SUR LA FORME · l'arrêté existe, il est de 2005, il a un numéro.
+ *    JUSTE SUR LE CHIFFRE · la grandeur est bien celle du décret.
+ *  · LE 19/09 L'APRÈS-MIDI, P5 a corrigé en sens inverse : « trois objets
+ *    distincts, le décret N'EST PAS l'arrêté, donc la quotité n'est pas
+ *    chiffrable ». JUSTE SUR LA FORME · ce sont deux textes, deux auteurs.
+ *    FAUX SUR LE CHIFFRE · la colonne 20 du décret n° 25/22 EST le résultat
+ *    de la formule de l'arrêté de 2005. 537,04 / 5 = 107,41 et
+ *    796,30 / 5 = 159,26 · les deux annexes bouclent au centime. L'arrêté
+ *    pose la règle, le décret chiffre l'opérande et publie le résultat.
+ *
+ * D'OÙ LA DOCTRINE, qui vaut au-delà de ce fichier · DEUX TEXTES QUI SE
+ * SUIVENT DE VINGT ANS PEUVENT ÊTRE DEUX TEXTES ET UNE SEULE RÈGLE. Refuser
+ * de les confondre est juste ; en conclure qu'ils disent des choses
+ * différentes ne l'est pas. Seule l'ARITHMÉTIQUE tranche, et elle a tranché.
+ *
+ * CE QUI RESTE VRAI DE LA DISTINCTION, et il en reste :
+ *  1. L'INDEMNITÉ DE LOGEMENT · articles 7 litera h et 138. HORS rémunération
+ *     sans condition. Elle n'a pas à être déduite : elle n'est jamais entrée
+ *     dans la base. C'est toujours un objet à part.
+ *  2. LA DÉFALCATION DE L'ARTICLE 10 DE L'ARRÊTÉ DE 2005 · sur LA
+ *     RÉMUNÉRATION, dès que le logement est assuré EN NATURE, sans condition
+ *     de mutation, uniforme pour toutes les catégories.
+ *  3. LA DÉFALCATION DU DÉCRET n° 25/21, ARTICLE 15 · MÊME GRANDEUR, mais sur
+ *     L'INDEMNITÉ de logement et POUR CAUSE DE MUTATION seulement.
+ * Deux défalcations, deux assiettes, deux conditions, un seul montant.
+ *
+ * C'EST LA DÉFALCATION n° 2 QUE L'ALINÉA 4 DE L'ARTICLE 114 FAIT DÉDUIRE,
+ * et la quotité saisissable est donc CHIFFRABLE. L'abstention de P5 est
+ * levée.
+ *
+ * UNE PRÉCAUTION QUI RESTE · l'article 10 dit « IL PEUT défalquer ». Si
+ * l'employeur a déjà exercé cette faculté, la rémunération transmise est
+ * DÉJÀ nette, et la déduire une seconde fois la compterait deux fois, au
+ * détriment du travailleur. Cela se DÉCLARE, cela ne se devine pas.
  * ────────────────────────────────────────────────────────────────────────
  *
  * « SA CATÉGORIE » · CE QUE LE DÉPÔT EN FAIT, ET POURQUOI IL DEMANDE LA
@@ -73,10 +99,18 @@
 
 import {
   MULTIPLICATEURS_ARTICLE_7,
+  allocationFamilialeJournaliere,
   annexeApplicable,
   colonneDeLaClasse,
   type Annexe,
 } from './bareme-smig';
+
+/**
+ * Article 10 de l'arrêté n° 12/CAB.MIN/TPS/110/2005 · « 1/5 du taux
+ * journalier des allocations familiales ». Le diviseur, et rien d'autre · le
+ * montant vient de la colonne 19 de l'annexe en vigueur.
+ */
+export const DIVISEUR_EVALUATION_FORFAITAIRE_LOGEMENT = 5;
 
 /** Alinéa 1er · « cinq fois le salaire mensuel minimum […] de sa catégorie ». */
 export const MULTIPLE_DU_MINIMUM_CATEGORIEL = 5;
@@ -91,10 +125,7 @@ export const FRACTION_OBLIGATION_ALIMENTAIRE = { numerateur: 2, denominateur: 5 
 /** Le mois de l'article 7 du décret n° 25/22 · vingt-six jours. */
 export const JOURS_DU_MOIS = MULTIPLICATEURS_ARTICLE_7.MOIS;
 
-export type MotifAbstentionQuotite =
-  | 'CLASSE_PROFESSIONNELLE_ABSENTE'
-  | 'MOIS_HORS_ANNEXE'
-  | 'LOGEMENT_EN_NATURE_NON_CHIFFRABLE';
+export type MotifAbstentionQuotite = 'CLASSE_PROFESSIONNELLE_ABSENTE' | 'MOIS_HORS_ANNEXE';
 
 export type EntreeQuotite = {
   /** AAAA-MM · il choisit l'annexe, donc le seuil. */
@@ -112,12 +143,18 @@ export type EntreeQuotite = {
   /** Alinéa 4 · la quote-part ouvrière de la CNSS, et elle seule ici. */
   readonly retenuesSocialesFc?: number;
   /**
-   * Alinéa 4 · un logement est-il FOURNI EN NATURE avec remboursement ?
-   * Répondu oui, la quotité n'est pas chiffrable tant que l'arrêté de
-   * l'article 139 a) n'est pas au corpus. Ce n'est pas l'indemnité de
-   * logement, qui est hors rémunération et ne se déduit pas.
+   * Alinéa 4 · un logement est-il FOURNI EN NATURE ? Répondu oui, OmegaX
+   * déduit l'évaluation forfaitaire de l'article 10 de l'arrêté
+   * n° 12/CAB.MIN/TPS/110/2005. Ce n'est PAS l'indemnité de logement, qui est
+   * hors rémunération par l'article 7 litera h et ne se déduit donc pas.
    */
   readonly logementFourniEnNature?: boolean;
+  /**
+   * Article 10 de l'arrêté · « IL PEUT défalquer ». Si l'employeur a déjà
+   * exercé cette faculté, la rémunération transmise est DÉJÀ nette et OmegaX
+   * ne déduit pas une seconde fois. Cela se déclare, cela ne se devine pas.
+   */
+  readonly logementEnNatureDejaDefalque?: boolean;
   /** La créance poursuit-elle une obligation alimentaire légale ? */
   readonly obligationAlimentaireLegale?: boolean;
 };
@@ -125,6 +162,12 @@ export type EntreeQuotite = {
 export type VerdictQuotite = {
   /** La base de l'alinéa 4, après les trois déductions. `null` si abstention. */
   readonly baseFc: number | null;
+  /**
+   * L'évaluation forfaitaire du logement effectivement déduite, article 10 de
+   * l'arrêté de 2005. Zéro quand aucun logement n'est fourni en nature ou
+   * quand l'employeur l'a déjà défalquée.
+   */
+  readonly evaluationForfaitaireLogementFc: number | null;
   /** Cinq fois le mensuel minimum de la classe. `null` si abstention. */
   readonly seuilFc: number | null;
   /** Le mensuel minimum de la classe, avant le multiple de cinq. */
@@ -162,11 +205,20 @@ export const RESERVE_CATEGORIE =
   "augmenterait la part saisissable · l'article 114 protège le travailleur, il ne se tranche pas contre lui.";
 
 export const RESERVE_LOGEMENT =
-  "ARTICLE 139 a) · l'arrêté qui fixe « la valeur maximale de remboursement » du logement fourni en nature " +
-  "n'est PAS au corpus d'OmegaX. Il ne faut pas le confondre avec la CONTRE-VALEUR du logement du décret " +
-  "n° 25/22 (colonne 20), qui est un décret, pas un arrêté, et qui ne se défalque que de l'indemnité de " +
-  "logement et POUR CAUSE DE MUTATION (décret n° 25/21, article 15). Ni avec l'indemnité de logement de " +
-  "l'article 138, qui est HORS rémunération par l'article 7 litera h et ne se déduit donc pas une deuxième fois.";
+  "ARTICLE 139 · l'arrêté qui fixe l'évaluation forfaitaire du logement est l'ARRÊTÉ MINISTÉRIEL " +
+  "n° 12/CAB.MIN/TPS/110/2005 DU 26 OCTOBRE 2005, et son article 10 la donne comme une FORMULE, pas comme un " +
+  "montant : « il peut défalquer de la rémunération du travailleur 1/5 DU TAUX JOURNALIER DES ALLOCATIONS " +
+  "FAMILIALES quelle que soit la catégorie professionnelle ». Son opérande est la colonne 19 des annexes du " +
+  "décret n° 25/22, et la colonne 20 du même décret EN EST LE RÉSULTAT · les deux textes disent la même chose. " +
+  "DEUX CHOSES RESTENT DISTINCTES · l'INDEMNITÉ de logement de l'article 138, HORS rémunération par " +
+  "l'article 7 litera h, qui ne se déduit pas puisqu'elle n'est jamais entrée ; et la défalcation du décret " +
+  "n° 25/21 article 15, qui porte la même grandeur mais se prend sur l'INDEMNITÉ et POUR CAUSE DE MUTATION seulement.";
+
+export const RESERVE_FACULTE_DE_DEFALCATION =
+  "ARTICLE 10 DE L'ARRÊTÉ · l'employeur « PEUT » défalquer, il n'y est pas tenu. OmegaX déduit l'évaluation " +
+  "forfaitaire de la base de l'article 114 parce que son alinéa 4 l'ordonne pour le CALCUL DE LA QUOTITÉ, " +
+  "que l'employeur ait ou non exercé sa faculté sur la paie. Déclarer que la défalcation a DÉJÀ été opérée " +
+  "empêche de la compter deux fois.";
 
 /** Le mensuel minimum d'une classe · taux journalier de la colonne fois 26. */
 export function mensuelMinimumDeLaClasse(
@@ -187,6 +239,7 @@ export function mensuelMinimumDeLaClasse(
 
 const ABSTENU: Omit<VerdictQuotite, 'abstentions' | 'reserves' | 'annexe' | 'colonne'> = {
   baseFc: null,
+  evaluationForfaitaireLogementFc: null,
   seuilFc: null,
   mensuelMinimumFc: null,
   quotiteOrdinaireFc: null,
@@ -199,16 +252,7 @@ export function quotiteSaisissable(entree: EntreeQuotite): VerdictQuotite {
   const abstentions: { motif: MotifAbstentionQuotite; explication: string }[] = [];
   const reserves: string[] = [RESERVE_CATEGORIE, RESERVE_LOGEMENT];
 
-  if (entree.logementFourniEnNature) {
-    abstentions.push({
-      motif: 'LOGEMENT_EN_NATURE_NON_CHIFFRABLE',
-      explication:
-        "ALINÉA 4 · le calcul se fait après déduction de « l'évaluation forfaitaire du logement, tel que " +
-        "défini à l'article 139 ». Un logement est déclaré fourni EN NATURE, et l'arrêté de l'article 139 a) " +
-        "qui en fixe la valeur maximale de remboursement n'est pas au corpus. OmegaX ne chiffre pas la quotité " +
-        "plutôt que de la chiffrer sur une base trop haute, ce qui exposerait à la saisie une part protégée.",
-    });
-  }
+  if (entree.logementFourniEnNature) reserves.push(RESERVE_FACULTE_DE_DEFALCATION);
 
   const classe = entree.classeProfessionnelle;
   if (classe === undefined || classe === null) {
@@ -243,14 +287,31 @@ export function quotiteSaisissable(entree: EntreeQuotite): VerdictQuotite {
     };
   }
 
-  // ALINÉA 4 · les trois déductions. Le logement n'en est pas une ici : soit
-  // il est fourni en nature et on s'est abstenu plus haut, soit c'est une
-  // indemnité, et l'article 7 l'a déjà sortie de la rémunération.
+  // ALINÉA 4 · LES TROIS DÉDUCTIONS, ET LA TROISIÈME SE CALCULE DEPUIS 2005.
+  // L'article 10 de l'arrêté n° 12/CAB.MIN/TPS/110/2005 donne l'évaluation
+  // forfaitaire comme « 1/5 du taux journalier des allocations familiales,
+  // QUELLE QUE SOIT LA CATÉGORIE PROFESSIONNELLE ». On la mensualise par le
+  // multiplicateur de l'article 7 du décret, comme le seuil au-dessus · les
+  // deux grandeurs de cet alinéa doivent être dans la même unité de temps.
+  //
+  // Elle ne joue que pour le logement FOURNI EN NATURE. Une indemnité de
+  // logement, elle, est déjà hors rémunération par l'article 7 litera h : la
+  // déduire ici la sortirait une seconde fois.
+  let evaluationForfaitaireLogementFc = 0;
+  if (entree.logementFourniEnNature && !entree.logementEnNatureDejaDefalque) {
+    const alloc = allocationFamilialeJournaliere(entree.moisDePaie, 1);
+    if (alloc.valeur) {
+      evaluationForfaitaireLogementFc =
+        (alloc.valeur.parEnfantFc / DIVISEUR_EVALUATION_FORFAITAIRE_LOGEMENT) * JOURS_DU_MOIS;
+    }
+  }
+
   const baseFc = Math.max(
     0,
     entree.remunerationFc -
       Math.max(0, entree.retenuesFiscalesFc ?? 0) -
-      Math.max(0, entree.retenuesSocialesFc ?? 0),
+      Math.max(0, entree.retenuesSocialesFc ?? 0) -
+      evaluationForfaitaireLogementFc,
   );
 
   const seuilFc = minimum.montantFc * MULTIPLE_DU_MINIMUM_CATEGORIEL;
@@ -273,6 +334,7 @@ export function quotiteSaisissable(entree: EntreeQuotite): VerdictQuotite {
 
   return {
     baseFc,
+    evaluationForfaitaireLogementFc,
     seuilFc,
     mensuelMinimumFc: minimum.montantFc,
     quotiteOrdinaireFc,

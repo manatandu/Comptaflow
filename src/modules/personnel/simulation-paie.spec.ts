@@ -491,9 +491,12 @@ describe("La quotité saisissable est appelée sur la RÉMUNÉRATION, pas sur le
     expect(res.net.netAPayerFc).not.toBeNull();
   });
 
-  it("s'abstient dès qu'un logement est fourni en nature", async () => {
+  it("CHIFFRE le logement en nature depuis l'arrêté de 2005, sans s'abstenir", async () => {
+    // CE TEST GELAIT L'ABSTENTION DE P5. L'arrêté n° 12/CAB.MIN/TPS/110/2005
+    // est arrivé le 19/09 et son article 10 donne la formule · l'issue
+    // s'inverse avec son motif.
     const { svc } = service();
-    const res = await svc.simulerPaie(
+    const avec = await svc.simulerPaie(
       't-1',
       null,
       dto({
@@ -503,9 +506,34 @@ describe("La quotité saisissable est appelée sur la RÉMUNÉRATION, pas sur le
         effectif: 10,
       } as Partial<SimulationPaieDto>),
     );
-    expect(res.quotite.abstentions.map((a) => a.motif)).toContain(
-      'LOGEMENT_EN_NATURE_NON_CHIFFRABLE',
+    const sans = await svc.simulerPaie(
+      't-1',
+      null,
+      dto({
+        classeProfessionnelle: 5,
+        natureEmployeurInpp: 'PRIVE',
+        effectif: 10,
+      } as Partial<SimulationPaieDto>),
     );
+    expect(avec.quotite.abstentions).toHaveLength(0);
+    expect(avec.quotite.evaluationForfaitaireLogementFc).toBeCloseTo((796.3 / 5) * 26, 6);
+    expect(avec.quotite.baseFc!).toBeLessThan(sans.quotite.baseFc!);
+  });
+
+  it("ne déduit pas le logement quand l'employeur l'a déjà défalqué", async () => {
+    const { svc } = service();
+    const res = await svc.simulerPaie(
+      't-1',
+      null,
+      dto({
+        classeProfessionnelle: 5,
+        logementFourniEnNature: true,
+        logementEnNatureDejaDefalque: true,
+        natureEmployeurInpp: 'PRIVE',
+        effectif: 10,
+      } as Partial<SimulationPaieDto>),
+    );
+    expect(res.quotite.evaluationForfaitaireLogementFc).toBe(0);
   });
 });
 
@@ -528,7 +556,9 @@ describe('Le livre de paie ne lit ni n\'écrit rien', () => {
     expect(findFirst).not.toHaveBeenCalled();
     expect(tenantFind).not.toHaveBeenCalled();
     expect(v.conformiteAuModeleCertifiee).toBe(false);
-    expect(v.mentions).toHaveLength(30);
-    expect(v.arreteDuModele.lu).toBe(false);
+    expect(v.mentions).toHaveLength(33);
+    expect(v.arreteDuModele.lu).toBe(true);
+    expect(v.formules.brut.composantes).toEqual([7, 10, 11, 12, 13, 16, 19]);
+    expect(v.destinationDesDoubles.second).toMatch(/SÉCURITÉ SOCIALE/);
   });
 });
