@@ -3034,6 +3034,50 @@ CHARGE_SANS_TIERS signale exactement l'écriture que ces modèles proposaient.
 Seizième occurrence du piège de la doublure, dans sa forme la plus gênante :
 la règle était codée, et l'écran qui propose l'écriture ne la connaissait pas.
 
+**LES MODÈLES QUE LE CABINET FABRIQUE LUI-MÊME N'AVAIENT AUCUNE GARDE DE
+TIERS**, et c'est la seconde moitié du même signalement. Les modèles ÉCRITS
+DANS LE CODE ont été refaits ci-dessus ; ceux du DOSSIER passaient par
+`verifierLignes`, qui contrôle que les comptes existent, qu'ils sont
+imputables et qu'il y a un débit et un crédit. Rien sur le tiers. Un modèle
+« Achat » soldé sur la banque s'enregistrait, et engendrait ensuite autant
+d'écritures fautives qu'on l'appliquait · un modèle est justement ce qui
+répète une écriture.
+
+UN AVERTISSEMENT, PAS UN REFUS · c'est la doctrine que le dépôt applique déjà
+aux fiches par compte (§ 6) : « l'avertissement n'empêche pas la saisie · le
+logiciel ne connaît pas la nature de l'opération, refuser bloquerait des
+écritures justes ». Des frais bancaires que le relevé justifie seul, un don
+manuel reçu en numéraire, une opération diverse : un refus sec les bloquerait,
+et le cabinet finirait par contourner l'outil. Le message NOMME les deux cas
+légitimes plutôt que de laisser le lecteur s'en convaincre tout seul, faute de
+quoi il s'apprend à être ignoré. CE QUI CHANGE PAR RAPPORT À
+CHARGE_SANS_TIERS, C'EST LE MOMENT : le contrôle en aval relit des écritures
+déjà passées, celui-ci parle là où le modèle naît, une fois pour toutes celles
+qu'il engendrera.
+
+L'EXCEPTION DU DON MANUEL EST BORNÉE AU SYCEBNL, ET C'EST LA PREMIÈRE FOIS
+QU'UNE EXCEPTION AURAIT FABRIQUÉ LE PREMIER PIÈGE DU DÉPÔT. Le 704 ne
+déclenche rien au SYCEBNL · les dons, legs, denier du culte, zakat, dîme,
+mécénat et parrainage y sont « enregistrés dans le compte 704 Revenus liés à
+la générosité » (Partie 3 ch. 4 § 3), et un don manuel n'a pas de débiteur, le
+fait générateur étant la remise elle-même (une générosité PROMISE passe, elle,
+par le 475 et a donc un tiers). Le MÊME 7041 est « Ventes de produits
+résiduels » au plan SYSCOHADA : exempter le 704 sans regarder le référentiel
+dispenserait une société de tiers sur ses ventes de déchets, écriture
+parfaitement équilibrée. DIX-SEPTIÈME occurrence de « un numéro, deux sens »,
+et un test relit LES DEUX SEMIS pour que la prémisse ne repose sur personne
+(règle sortie de F2b).
+
+LE DIAGNOSTIC SE RELIT SUR CE QUI EST ENREGISTRÉ, jamais sur le DTO, et les
+trois portes le servent · `lister`, `creer` et `modifier`. Une modification
+d'intitulé seul n'envoie aucune ligne : diagnostiquer le DTO rendrait alors
+« aucun avertissement » sur un modèle qui en mérite un. Et la relecture suit
+exactement le chemin de `lister`, si bien que la création et la liste ne
+peuvent pas dire deux choses différentes du même modèle. Le CÂBLAGE a son
+propre spec, écrit en même temps que la règle et non après l'avoir constaté ·
+trois passes de confrontation sur quatre ont vu la première réinjection porter
+sur un point d'appel et non sur la règle (passe F4a).
+
 **Ordre des lignes d'une écriture proposée · les débits, puis les crédits.**
 Même signalement, même jour. Les lignes sortaient dans l'ordre où le code les
 tapait : pour un achat, la trésorerie au CRÉDIT arrivait en première ligne,
@@ -3290,6 +3334,16 @@ classeur produit plutôt que d'affirmer qu'il est correct.
 
 Quand un bug est corrigé, le test qui l'aurait attrapé est écrit dans le même
 commit.
+
+**UN TEST DE SOURCE S'ANCRE SUR UNE STRUCTURE, JAMAIS SUR UNE DISTANCE.** Le
+2026-09-18, un test du journal gelait « appliquer AJOUTE à la pièce » par
+`/appliquerModele[\s\S]{0,400}setLignes\(\(prev\) => \[/`. Il est tombé le jour
+où un COMMENTAIRE a été ajouté au-dessus de l'appel · la règle qu'il garde
+n'avait pas bougé d'une ligne. Un seuil de caractères mesure la longueur du
+code, pas ce qu'il fait, et il punit exactement ce que le § 9 demande. Le test
+découpe désormais le CORPS de la fonction et y cherche la propriété. Même
+famille que « on gèle une PRÉSENCE, jamais une absence de mot » : ce qui se
+gèle est ce que le code FAIT, jamais la forme qu'il a.
 
 ## 10 bis. Ce qui casse en silence
 

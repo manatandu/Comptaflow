@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { Prisma, SensModeleSaisie } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import { CreerModeleSaisieDto, LigneModeleSaisieDto, ModifierModeleSaisieDto } from './dto/modele-saisie.dto';
+import { diagnostiquerTiers } from './diagnostic-tiers';
 
 /**
  * MODÈLES DE SAISIE · les « opérations courantes » d'un journal.
@@ -27,6 +28,15 @@ export class ModeleSaisieService {
    * Sans `journalId`, la liste complète · c'est l'écran de gestion.
    */
   async lister(tenantId: string, journalId?: string, inclureInactifs = false) {
+    // LE DIAGNOSTIC SE SERT SUR LA LISTE, ET C'EST LÀ QU'IL COMPTE. Le poser
+    // seulement à la création ne dirait rien des modèles DÉJÀ enregistrés,
+    // qui sont précisément ceux qui tournent aujourd'hui dans les dossiers.
+    // Le référentiel commande la citation ET l'exception du compte 704 · il
+    // se lit donc ici, une fois, plutôt que d'être deviné dans la règle.
+    const tenant = await this.prisma.tenant.findUniqueOrThrow({
+      where: { id: tenantId },
+      select: { referentiel: true },
+    });
     const modeles = await this.prisma.modeleSaisie.findMany({
       where: {
         tenantId,
@@ -59,6 +69,10 @@ export class ModeleSaisieService {
         libelle: l.libelle,
         montant: l.montant === null ? null : Number(l.montant),
       })),
+      avertissements: diagnostiquerTiers(
+        m.lignes.map((l) => ({ numero: l.compte.numero, sens: l.sens })),
+        tenant.referentiel,
+      ),
     }));
   }
 
@@ -76,7 +90,7 @@ export class ModeleSaisieService {
       },
       select: { id: true },
     });
-    return modele;
+    return { ...modele, avertissements: await this.avertissementsDuModele(tenantId, modele.id) };
   }
 
   async modifier(tenantId: string, modeleId: string, dto: ModifierModeleSaisieDto) {
@@ -88,7 +102,7 @@ export class ModeleSaisieService {
     // Les lignes sont REMPLACÉES en bloc, dans une transaction · les
     // modifier une à une laisserait, entre deux requêtes, un modèle
     // déséquilibré qu'un autre utilisateur pourrait appliquer.
-    return this.prisma.$transaction(async (tx) => {
+    const modifie = await this.prisma.$transaction(async (tx) => {
       if (dto.lignes) {
         await tx.ligneModeleSaisie.deleteMany({ where: { modeleId } });
         await tx.ligneModeleSaisie.createMany({
@@ -105,6 +119,7 @@ export class ModeleSaisieService {
         select: { id: true },
       });
     });
+    return { ...modifie, avertissements: await this.avertissementsDuModele(tenantId, modeleId) };
   }
 
   async supprimer(tenantId: string, modeleId: string) {
@@ -115,6 +130,30 @@ export class ModeleSaisieService {
     // retirer des listes sans le perdre, `estActif` est là.
     await this.prisma.modeleSaisie.delete({ where: { id: modeleId } });
     return { supprime: true };
+  }
+
+  /**
+   * LE DIAGNOSTIC SE RELIT SUR CE QUI A ÉTÉ ENREGISTRÉ, jamais sur le DTO.
+   *
+   * `modifier` peut ne toucher qu'à l'intitulé ou au journal, sans envoyer
+   * de lignes : diagnostiquer le DTO rendrait alors un modèle sans ligne,
+   * donc sans avertissement, sur un modèle qui en mérite un. Et une relecture
+   * suit exactement le chemin de `lister`, si bien que la création et la
+   * liste ne peuvent pas dire deux choses différentes du même modèle.
+   */
+  private async avertissementsDuModele(tenantId: string, modeleId: string) {
+    const tenant = await this.prisma.tenant.findUniqueOrThrow({
+      where: { id: tenantId },
+      select: { referentiel: true },
+    });
+    const lignes = await this.prisma.ligneModeleSaisie.findMany({
+      where: { modeleId, modele: { tenantId } },
+      select: { sens: true, compte: { select: { numero: true } } },
+    });
+    return diagnostiquerTiers(
+      lignes.map((l) => ({ numero: l.compte.numero, sens: l.sens })),
+      tenant.referentiel,
+    );
   }
 
   private versLigne(l: LigneModeleSaisieDto, ordre: number): Prisma.LigneModeleSaisieCreateWithoutModeleInput &

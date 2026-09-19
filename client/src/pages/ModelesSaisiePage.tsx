@@ -38,6 +38,12 @@ interface ModeleSaisie {
     libelle: string | null;
     montant: number | null;
   }>;
+  /**
+   * Ce que le serveur a lu du modèle · vide quand il n'y a rien à dire. Le
+   * modèle est enregistré dans tous les cas : c'est un avertissement, pas un
+   * refus, et le texte servi dit lui-même pourquoi.
+   */
+  avertissements: string[];
 }
 
 const LIGNE_VIDE: LigneModele = { compteId: '', sens: 'DEBIT', libelle: '', montant: '' };
@@ -282,21 +288,40 @@ export function ModelesSaisiePage() {
           </div>
         )}
         {modeles.map((m) => (
-          <div
-            key={m.id}
-            className="grid grid-cols-[1.4fr_150px_70px_130px] min-w-[550px] gap-2 px-3 py-[5px] items-center border-b border-border/50 last:border-b-0 text-[10.5px]"
-          >
-            <span className={m.estActif ? '' : 'text-text-dim line-through'}>{m.intitule}</span>
-            <span className="text-text-dim">{m.journalCode ?? 'Tous'}</span>
-            <span className="text-right font-mono">{m.lignes.length}</span>
-            <span className="flex gap-2 justify-end">
-              <button type="button" onClick={() => reprendre(m)} className="text-sel hover:underline">
-                Modifier
-              </button>
-              <button type="button" onClick={() => supprimer(m)} className="text-text-dim hover:text-danger">
-                Supprimer
-              </button>
-            </span>
+          <div key={m.id} className="border-b border-border/50 last:border-b-0">
+            <div className="grid grid-cols-[1.4fr_150px_70px_130px] min-w-[550px] gap-2 px-3 py-[5px] items-center text-[10.5px]">
+              <span className={m.estActif ? '' : 'text-text-dim line-through'}>
+                {m.intitule}
+                {m.avertissements.length > 0 && (
+                  <span className="ml-1.5 text-warning" title="Ce modèle appelle une réserve">
+                    ⚠
+                  </span>
+                )}
+              </span>
+              <span className="text-text-dim">{m.journalCode ?? 'Tous'}</span>
+              <span className="text-right font-mono">{m.lignes.length}</span>
+              <span className="flex gap-2 justify-end">
+                <button type="button" onClick={() => reprendre(m)} className="text-sel hover:underline">
+                  Modifier
+                </button>
+                <button type="button" onClick={() => supprimer(m)} className="text-text-dim hover:text-danger">
+                  Supprimer
+                </button>
+              </span>
+            </div>
+            {/*
+              L'AVERTISSEMENT EST DÉPLIÉ, PAS REPLIÉ DERRIÈRE UN CLIC. Un
+              modèle fautif engendre une écriture fautive chaque fois qu'on
+              l'applique · le lire doit coûter zéro geste.
+            */}
+            {m.avertissements.map((a, i) => (
+              <p
+                key={i}
+                className="mx-3 mb-2 border border-warning/50 bg-warning/5 px-2.5 py-2 text-[10px] leading-[1.55]"
+              >
+                {a}
+              </p>
+            ))}
           </div>
         ))}
       </div>

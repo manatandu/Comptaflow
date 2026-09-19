@@ -17,10 +17,21 @@ function service(options: {
   comptes?: Array<{ id: string; numero: string; typeCompte: string }>;
   journal?: unknown;
   modele?: unknown;
+  lignesEnregistrees?: Array<{ sens: string; compte: { numero: string } }>;
 } = {}) {
   const cree = jest.fn().mockResolvedValue({ id: 'm-1' });
   const supprime = jest.fn().mockResolvedValue({ id: 'm-1' });
   const prisma = {
+    // COMPLÉTÉE, JAMAIS CONTOURNÉE (CLAUDE.md § 8) · le service relit le
+    // référentiel du dossier et les lignes ENREGISTRÉES pour diagnostiquer le
+    // modèle. Une doublure muette sur ces deux lectures validerait un service
+    // qui n'existe pas.
+    tenant: { findUniqueOrThrow: jest.fn().mockResolvedValue({ referentiel: 'SYSCOHADA' }) },
+    ligneModeleSaisie: {
+      findMany: jest.fn().mockResolvedValue(options.lignesEnregistrees ?? []),
+      deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+      createMany: jest.fn().mockResolvedValue({ count: 0 }),
+    },
     compte: { findMany: jest.fn().mockResolvedValue(options.comptes ?? []) },
     // `?? { id }` aurait été un PIÈGE : `null ?? défaut` rend le défaut, donc
     // le cas « journal absent » n'aurait jamais été joué et le test serait
@@ -30,10 +41,16 @@ function service(options: {
       findFirst: jest.fn().mockResolvedValue('modele' in options ? options.modele : null),
       findMany: jest.fn().mockResolvedValue([]),
       create: cree,
+      update: jest.fn().mockResolvedValue({ id: 'm-1' }),
       delete: supprime,
     },
-  } as unknown as PrismaService;
-  return { svc: new ModeleSaisieService(prisma), prisma: prisma as never, cree, supprime };
+  } as Record<string, unknown>;
+  // La transaction rend le MÊME client · `modifier` y remplace les lignes en
+  // bloc, et une doublure qui rendrait un autre objet ferait passer un
+  // service qui écrit à côté.
+  prisma.$transaction = (fn: (tx: unknown) => unknown) => fn(prisma);
+  const client = prisma as unknown as PrismaService;
+  return { svc: new ModeleSaisieService(client), prisma: prisma as never, cree, supprime };
 }
 
 const DETAIL = (id: string, numero: string) => ({ id, numero, typeCompte: 'DETAIL' });
@@ -122,5 +139,67 @@ describe('modification et suppression', () => {
     const { svc, supprime } = service({ modele: { id: 'm-1' } });
     await expect(svc.supprimer('t-1', 'm-1')).resolves.toEqual({ supprime: true });
     expect(supprime).toHaveBeenCalledWith({ where: { id: 'm-1' } });
+  });
+});
+
+/**
+ * LE CÂBLAGE, ET PAS SEULEMENT LA RÈGLE.
+ *
+ * Trois passes de confrontation sur quatre ont vu la première réinjection
+ * porter sur un POINT D'APPEL et non sur la règle : la fonction pure était
+ * juste et le service ne l'appelait pas. `diagnostic-tiers.spec.ts` éprouve
+ * la règle ; ces trois tests éprouvent que les trois portes la servent.
+ */
+describe('diagnostic du tiers · les trois portes le servent', () => {
+  const achatSurBanque = [
+    { sens: 'DEBIT', compte: { numero: '60110000' } },
+    { sens: 'CREDIT', compte: { numero: '52100000' } },
+  ];
+
+  it('`lister` rend l’avertissement sur un modèle déjà enregistré', async () => {
+    const { svc, prisma } = service();
+    (prisma as never as { modeleSaisie: { findMany: jest.Mock } }).modeleSaisie.findMany.mockResolvedValue([
+      {
+        id: 'm-1',
+        intitule: 'Achat',
+        journalId: null,
+        journal: null,
+        estActif: true,
+        lignes: achatSurBanque.map((l, ordre) => ({
+          ordre,
+          compteId: `c-${ordre}`,
+          compte: { id: `c-${ordre}`, numero: l.compte.numero, intitule: '' },
+          sens: l.sens,
+          libelle: null,
+          montant: null,
+        })),
+      },
+    ]);
+    const liste = await svc.lister('t-1');
+    expect(liste[0].avertissements).toHaveLength(1);
+    expect(liste[0].avertissements[0]).toContain('DIRECTEMENT');
+  });
+
+  it('`creer` rend l’avertissement avec l’identifiant', async () => {
+    const { svc } = service({
+      comptes: [DETAIL('c-1', '60110000'), DETAIL('c-2', '52100000')],
+      lignesEnregistrees: achatSurBanque,
+    });
+    const cree = await svc.creer('t-1', 'u-1', {
+      intitule: 'Achat',
+      lignes: [
+        { compteId: 'c-1', sens: SensModeleSaisie.DEBIT },
+        { compteId: 'c-2', sens: SensModeleSaisie.CREDIT },
+      ],
+    });
+    expect(cree.avertissements).toHaveLength(1);
+  });
+
+  it('`modifier` relit les lignes ENREGISTRÉES, même quand le DTO n’en porte aucune', async () => {
+    // Une modification d'intitulé seul ne doit pas rendre un modèle « sans
+    // avertissement » au motif que le DTO ne portait pas de ligne.
+    const { svc } = service({ modele: { id: 'm-1' }, lignesEnregistrees: achatSurBanque });
+    const modifie = await svc.modifier('t-1', 'm-1', { intitule: 'Achat comptant' });
+    expect(modifie.avertissements).toHaveLength(1);
   });
 });

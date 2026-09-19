@@ -93,7 +93,18 @@ describe('modèles de saisie · la barre de Sage, dans la fenêtre du journal', 
   it('appliquer AJOUTE à la pièce, il ne la remplace pas', () => {
     // Écraser une grille déjà commencée ferait perdre une saisie en cours
     // sans confirmation.
-    expect(saisie).toMatch(/appliquerModele[\s\S]{0,400}setLignes\(\(prev\) => \[\s*\.\.\.prev,/);
+    //
+    // LA PROPRIÉTÉ SE LIT DANS LE CORPS DE LA FONCTION, PAS À UNE DISTANCE.
+    // La version précédente cherchait `setLignes` dans les 400 caractères
+    // suivant le nom de la fonction : elle est tombée le jour où un
+    // commentaire a été ajouté au-dessus de l'appel, alors que la règle
+    // qu'elle garde n'avait pas bougé. Un seuil de caractères mesure la
+    // longueur du code, pas ce qu'il fait.
+    const debut = saisie.indexOf('const appliquerModele');
+    expect(debut).toBeGreaterThan(-1);
+    const corps = saisie.slice(debut, saisie.indexOf('\n  const ', debut + 1));
+    expect(corps).toContain('setLignes((prev) => [');
+    expect(corps).toContain('...prev,');
   });
 
   it('une ligne sans montant arrive à zéro, prête à être chiffrée', () => {

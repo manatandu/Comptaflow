@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { ordonnerLignes } from './ordre-ecriture';
 
 // Pas d'import de « vitest » · convention du dépôt, describe/it/expect par les
@@ -98,5 +100,36 @@ describe('Ordre d’une écriture proposée · les débits, puis les crédits', 
     const rendu = ordonnerLignes(lignes);
     expect(rendu).toHaveLength(3);
     expect(new Set(rendu)).toEqual(new Set(lignes));
+  });
+});
+
+/**
+ * LE CÂBLAGE · la règle juste que personne n'appelle.
+ *
+ * Trois passes de confrontation sur quatre ont vu la première réinjection
+ * porter sur un POINT D'APPEL et non sur la règle (CLAUDE.md, passe F4a).
+ * Aucun jeu d'essai ne montre l'absence d'un appel : la propriété se gèle
+ * donc dans la SOURCE, comme l'absence de prorata de
+ * `comparabilite-exercices.ts`.
+ *
+ * On gèle une PRÉSENCE, jamais une absence de mot · c'est la règle sortie de
+ * la passe F9, après quatre tests tombés sur le commentaire qui expliquait
+ * justement la correction.
+ */
+describe('Ordre d’une écriture proposée · les trois portes l’appellent', () => {
+  const client = join(__dirname, '..', '..');
+  const source = (chemin: string) => readFileSync(join(client, chemin), 'utf8');
+
+  it('les deux modèles de la modale ordonnent avant d’insérer', () => {
+    const modale = source('src/components/ModelesSaisie.tsx');
+    // Un modèle simple et un modèle avec TVA · deux chemins, deux appels.
+    expect(modale.match(/onInserer\(ordonnerLignes\(/g)).toHaveLength(2);
+  });
+
+  it('l’application d’un modèle du dossier ordonne aussi', () => {
+    // Les modèles du dossier portent un champ `ordre` que le cabinet a
+    // choisi ; il commande le STOCKAGE. Ce qui est ordonné ici est ce qui
+    // arrive DANS LA GRILLE, à l'insertion, et rien n'est réécrit en base.
+    expect(source('src/pages/SaisiePage.tsx')).toContain('ordonnerLignes(');
   });
 });

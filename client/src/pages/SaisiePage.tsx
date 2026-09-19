@@ -3,6 +3,7 @@ import { api, ApiError } from '../lib/api';
 import { useExercice } from '../lib/exercice';
 import { ModelesSaisieModale, type LigneInseree } from '../components/ModelesSaisie';
 import { Calculette } from '../components/Calculette';
+import { ordonnerLignes } from '../lib/ordre-ecriture';
 import type { Compte, Ecriture, Journal, PlanAnalytique, SectionAnalytique, TauxTva } from '../lib/types';
 import { useAuth } from '../lib/auth';
 import { construireLigneTva, montantTva, sensDeLaLigne } from '../lib/tva-saisie';
@@ -79,6 +80,8 @@ interface ModeleSaisie {
     libelle: string | null;
     montant: number | null;
   }>;
+  /** Servi par /modeles-saisie · vide quand il n'y a rien à dire. */
+  avertissements: string[];
 }
 
 interface Periode {
@@ -629,16 +632,28 @@ export function SaisiePage() {
   const appliquerModele = () => {
     const modele = modeles.find((m) => m.id === modeleChoisi);
     if (!modele) return;
+    /*
+      L'ORDRE CONVENTIONNEL S'APPLIQUE À L'INSERTION, JAMAIS AU STOCKAGE.
+
+      Le champ `ordre` du modèle reste tel que le cabinet l'a posé · rien
+      n'est réécrit en base, et rouvrir le modèle le montre inchangé. Ce qui
+      est ordonné, c'est la PIÈCE qu'on vient de remplir, pour qu'elle se lise
+      comme le Guide d'application présente ses écritures : les débits, puis
+      les crédits, la TVA après les comptes de nature (Partie 1 ch. 2,
+      Applications 1 et 2).
+    */
     setLignes((prev) => [
       ...prev,
-      ...modele.lignes.map((l) => ({
-        compteId: l.compteId,
-        numero: l.compteNumero,
-        intitule: l.compteIntitule,
-        libelle: l.libelle ?? '',
-        debit: l.sens === 'DEBIT' ? (l.montant ?? 0) : 0,
-        credit: l.sens === 'CREDIT' ? (l.montant ?? 0) : 0,
-      })),
+      ...ordonnerLignes(
+        modele.lignes.map((l) => ({
+          compteId: l.compteId,
+          numero: l.compteNumero,
+          intitule: l.compteIntitule,
+          libelle: l.libelle ?? '',
+          debit: l.sens === 'DEBIT' ? (l.montant ?? 0) : 0,
+          credit: l.sens === 'CREDIT' ? (l.montant ?? 0) : 0,
+        })),
+      ),
     ]);
     if (!libellePiece) setLibellePiece(modele.intitule);
   };
@@ -871,6 +886,25 @@ export function SaisiePage() {
           </button>
         </div>
       )}
+
+      {/*
+        LA RÉSERVE SE LIT AVANT D'APPLIQUER, PAS APRÈS.
+
+        Le serveur diagnostique chaque modèle du dossier (voir
+        `modeles-saisie/diagnostic-tiers.ts`) · un modèle qui solde une charge
+        ou un produit directement sur la trésorerie est signalé, avec le texte
+        des deux référentiels. On l'affiche ici, sur le modèle CHOISI, parce
+        que c'est la seconde d'avant le clic qui décide.
+      */}
+      {modeleChoisi &&
+        (modeles.find((m) => m.id === modeleChoisi)?.avertissements ?? []).map((a, i) => (
+          <p
+            key={i}
+            className="mb-2 border border-warning/50 bg-warning/5 px-2.5 py-2 text-[10px] leading-[1.55]"
+          >
+            {a}
+          </p>
+        ))}
 
       <div className="bg-surface border border-border shadow-posee">
         {/* En-tête de colonnes · la grille Sage : Jour · Pièce · Référence · Compte · Libellé · Débit · Crédit */}
