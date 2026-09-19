@@ -40,7 +40,7 @@ describe('l’inventaire couvre le schéma, sans trou ni surplus', () => {
     // 76 au total · 1 Tenant + 58 cloisonnés + 17 portés. Le nombre est EN
     // DUR pour qu'un modèle ajouté au schéma oblige quelqu'un à décider par
     // quelle borne il se lit · sans quoi il se lirait sans borne du tout.
-    expect(modeles).toHaveLength(78);
+    expect(modeles).toHaveLength(79);
     expect([...TABLES_RESTITUEES].sort()).toEqual(modeles.filter((m) => m !== 'Tenant').sort());
   });
 

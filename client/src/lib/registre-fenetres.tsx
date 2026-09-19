@@ -45,6 +45,7 @@ const ExonerationsPage = lazy(() => import('../pages/ExonerationsPage').then((m)
 const InventairePage = lazy(() => import('../pages/InventairePage').then((m) => ({ default: m.InventairePage })));
 const VariationStocksPage = lazy(() => import('../pages/VariationStocksPage').then((m) => ({ default: m.VariationStocksPage })));
 const MagasinPage = lazy(() => import('../pages/MagasinPage').then((m) => ({ default: m.MagasinPage })));
+const EmballagesPage = lazy(() => import('../pages/EmballagesPage').then((m) => ({ default: m.EmballagesPage })));
 const CircularisationPage = lazy(() => import('../pages/CircularisationPage').then((m) => ({ default: m.CircularisationPage })));
 const FaiblessesPage = lazy(() => import('../pages/FaiblessesPage').then((m) => ({ default: m.FaiblessesPage })));
 const QuestionnaireRevisionPage = lazy(() => import('../pages/QuestionnaireRevisionPage').then((m) => ({ default: m.QuestionnaireRevisionPage })));
@@ -315,6 +316,16 @@ export const FENETRES: DefinitionFenetre[] = [
     titre: 'Magasin · fiches de stock',
     titreCourt: 'Magasin',
     rendre: () => <MagasinPage />,
+  },
+  {
+    // AUCUN `referentielsApplicables` · les deux textes décrivent la
+    // consignation dans les mêmes termes, aux fiches de leurs comptes 40 et
+    // 41. Ce qui les sépare est le seul compte de PRODUIT (7074 contre 707),
+    // tranché côté serveur dans `nomenclature-emballages.ts`.
+    motif: /^\/emballages$/,
+    titre: "Consignation d'emballages",
+    titreCourt: 'Emballages',
+    rendre: () => <EmballagesPage />,
   },
   {
     // La confirmation de soldes n'est propre à aucun des deux plans · le CPCC

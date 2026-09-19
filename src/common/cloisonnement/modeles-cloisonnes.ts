@@ -11,6 +11,7 @@ export const MODELES_CLOISONNES = new Set<string>([
   'ArticleStock',
   'Bailleur',
   'Cloture',
+  'Consignation',
   'ConventionFinancement',
   'Compte',
   'Devis',

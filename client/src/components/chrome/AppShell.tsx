@@ -281,6 +281,10 @@ export function AppShell() {
         // de la variation dont il est l'autre moitié : l'une sert
         // l'inventaire intermittent, l'autre le permanent.
         { label: 'Magasin et fiches de stock', onClick: () => navigate('/magasin') },
+        // MÊME GROUPE · la consignation ouvre puis dénoue un compte
+        // d'attente au livre-journal (4094 ou 4194). C'est une écriture,
+        // pas un registre de révision.
+        { label: "Consignation d'emballages", onClick: () => navigate('/emballages') },
         // Geste ANNUEL, décidé par un organe · rangé avec les traitements de
         // fin d'exercice plutôt qu'avec la saisie courante.
         { label: 'Affectation du résultat', onClick: () => navigate('/affectation-resultat') },

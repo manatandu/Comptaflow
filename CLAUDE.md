@@ -1121,6 +1121,72 @@ clôture sous la forme d'un MALI D'INVENTAIRE QUI N'EXISTE PAS, mis à la charge
 de l'entité sur une balance qui boucle.
 
 
+**Les EMBALLAGES et leur CONSIGNATION · le premier cycle où les deux plans
+coïncident, sauf au bout qui le dénoue.** « Les comptes relatifs aux emballages
+fonctionnent de la même manière que ceux relatifs aux marchandises et matières.
+La seule particularité concerne la CONSIGNATION. » Les deux textes la décrivent
+en miroir, aux fiches de leurs comptes 40 et 41.
+
+DIX-HUITIÈME OCCURRENCE DE « UN NUMÉRO, DEUX SENS », ET ELLE EST AU BOUT
+PRODUIT. Sur les huit rôles du cycle, SEPT portent le même numéro et le même
+intitulé dans les deux plans · 4094, 4194, 6082, 6224, 243, 822, 812, plus les
+3351 à 3358 et les 6081 à 6089. C'est le premier cycle du dépôt où la
+nomenclature se recouvre à ce point, et l'attente était l'inverse. **LE HUITIÈME
+DIVERGE, ET C'EST CELUI PAR LEQUEL LE CYCLE SE DÉNOUE** : les deux fiches du
+compte 41 écrivent la même règle avec une PROFONDEUR différente. L'AUDCIF dit
+« le crédit du compte 7074 (bonis sur cession d'emballages) » ; le SYCEBNL dit
+« le crédit du compte 707 PRODUITS ACCESSOIRES », et il n'ouvre aucune
+subdivision sous son 707, quand celui de l'AUDCIF est un EN-TÊTE DE DIVISION
+semé en TOTAL. Servir 7074 à une association l'enverrait sur un compte que son
+plan n'ouvre pas ; servir 707 à une société l'enverrait sur un en-tête, refusé à
+la saisie APRÈS que tout a été chiffré · le défaut du 734 et du 735, à
+l'identique. Un test relit la table et exige que le seul rôle divergent soit
+celui-là.
+
+DEUX NUMÉROS QUE LES FICHES ÉCRIVENT EN TÊTE DE DIVISION, ET QUE LE MODULE
+DESCEND D'UN CRAN EN LE DISANT. Les deux fiches écrivent « le compte 24 » et
+« le compte 82 » ; les deux sont des TOTAUX dans les deux plans. Le module
+propose le 243 et le 822, qui sont les subdivisions que l'objet consigné
+appelle, et porte la réserve sur la ligne plutôt que de laisser croire que c'est
+le mot du texte.
+
+**LE REFUS CENTRAL VIENT DE CE QUE LA FICHE NE DIT PAS.** Côté fournisseur, la
+conservation d'un MATÉRIEL est routée vers le compte 82, « produits des cessions
+d'immobilisations ». C'est une CESSION, et une cession ne se résume pas à son
+produit : la valeur comptable nette sort au 81 et l'immobilisation est
+décomptabilisée. La fiche du compte 41 décrit le sort du 4194, PAS celui du
+bien. Poster ici « 4194 à 822 » seul laisserait le matériel AU BILAN pendant que
+son prix de cession est enregistré · l'écriture s'équilibre, la balance boucle,
+et l'actif comme le résultat sont surévalués de la valeur nette du bien. Le
+module REFUSE et renvoie au module des immobilisations, qui tient le plan
+d'amortissement et la dépréciation. C'est le même défaut que celui que la sortie
+d'immobilisation existe déjà pour empêcher.
+
+AUCUNE LIGNE DE TVA, ET L'ABSTENTION EST MOTIVÉE. Les deux fiches décrivent
+l'écriture ligne à ligne et ne mentionnent AUCUNE taxe, ni à la consignation ni
+à son dénouement ; le régime de TVA d'une consignation n'est tranché nulle part
+dans le corpus lu. Le livre de cours, lui, en portait · c'est précisément
+pourquoi il n'est pas une source. En poser une d'office ferait collecter ou
+déduire une taxe que personne n'a décidée, et la déclaration partirait avec.
+
+ET LE « 6588 Emballages à rendre perdus » DU LIVRE N'EST REPRIS NULLE PART. Le
+6588 du SYSCOHADA est « Autres charges diverses » et le SYCEBNL n'a qu'un 658
+sans subdivision. Un emballage perdu y serait comptabilisé sans qu'aucune
+balance ne cesse de boucler, et la Note annexe publierait « Autres charges
+diverses ». Un test gèle l'absence du numéro ET la PRÉSENCE de la raison ·
+on gèle une présence, jamais une absence de mot.
+
+POURQUOI UNE TABLE `Consignation` ET PAS DE SIMPLES MODÈLES D'ÉCRITURE. Le 4094
+et le 4194 sont des comptes d'ATTENTE : tant que la consignation n'est pas
+dénouée, on ne sait pas si elle s'éteindra par un retour, par une vente ou par
+un écart. Un 4194 laissé en l'état à la clôture est une dette envers un client
+qui, peut-être, ne rendra jamais l'emballage · le bilan est faux du montant des
+consignations non qualifiées, et la balance boucle quand même. L'écran rend donc
+le total en attente, et **les deux sens ne s'additionnent JAMAIS** : une dette
+de consignation et une créance de consignation sont de sens opposés au bilan,
+leur somme ne veut rien dire.
+
+
 **Questionnaire de révision par cycle · vingt-quatre items du CPCC, et le
 reste assumé.** Le séminaire porte DEUX checklists, § VI « vérification de
 l'inventaire physique » (immobilisations, stocks, caisses) et § VII

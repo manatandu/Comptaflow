@@ -815,6 +815,14 @@ export class EcritureService {
       // remonterait à la clôture sous la forme d'un MALI D'INVENTAIRE qui
       // n'existe pas, mis à la charge de l'entité.
       ['un mouvement de magasin', this.prisma.mouvementStock.count({ where: { tenantId, ecritureId } })],
+      // La consignation d'emballages, par l'une OU l'autre de ses deux
+      // écritures. Le lien dénoué en silence laisserait le registre annoncer
+      // une consignation ouverte ou dénouée sans l'écriture qui l'a faite · et
+      // c'est précisément ce registre qui existe pour montrer ce qui reste à
+      // qualifier au 4094 et au 4194.
+      ["une consignation d'emballages", this.prisma.consignation.count({
+        where: { tenantId, OR: [{ ecritureConsignationId: ecritureId }, { ecritureDenouementId: ecritureId }] },
+      })],
     ];
     const resultats = await Promise.all(detenteursPossibles.map(([, p]) => p));
     const detenteurs = detenteursPossibles.filter((_, i) => resultats[i] > 0).map(([nom]) => nom);

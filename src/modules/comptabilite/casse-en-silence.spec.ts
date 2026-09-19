@@ -55,6 +55,7 @@ function serviceEcriture(detenteurs: Record<string, number> = {}) {
     affectationResultat: { count: compteur('affectationResultat') },
     executionEngagement: { count: compteur('executionEngagement') },
     mouvementStock: { count: compteur('mouvementStock') },
+    consignation: { count: compteur('consignation') },
     $transaction: jest.fn().mockImplementation((f: (tx: unknown) => unknown) => f(prisma)),
   } as Faux;
 
@@ -191,6 +192,12 @@ describe('3 · une écriture qu’un module tient ne se supprime pas', () => {
     await expect(
       serviceEcriture({ mouvementStock: 1 }).supprimer('t1', 'e1'),
     ).rejects.toThrow(/mouvement de magasin/i);
+  });
+
+  it("refuse aussi quand l'écriture ouvre ou dénoue une consignation", async () => {
+    await expect(
+      serviceEcriture({ consignation: 1 }).supprimer('t1', 'e1'),
+    ).rejects.toThrow(/consignation d'emballages/i);
   });
 
   it('laisse partir une écriture que personne ne tient', async () => {

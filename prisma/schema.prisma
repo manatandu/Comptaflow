@@ -600,6 +600,7 @@ model Tenant {
   devis                     Devis[]
   articlesStock             ArticleStock[]
   mouvementsStock           MouvementStock[]
+  consignations             Consignation[]
 
   @@index([dossierMereId])
   @@map("tenants")
@@ -1239,6 +1240,11 @@ model Ecriture {
   /// comptable (inventaire permanent).
   mouvementsStock MouvementStock[]
 
+  /// Les deux écritures du cycle de consignation, nommées séparément ·
+  /// l'ouverture du compte d'attente et son dénouement.
+  consignationsOuvertes Consignation[] @relation("EcritureConsignation")
+  consignationsDenouees Consignation[] @relation("EcritureDenouementConsignation")
+
   /// La facture dont cette écriture est la comptabilisation · au plus une.
   facture Facture?
 
@@ -1775,7 +1781,10 @@ model Tiers {
   createdAt DateTime @default(now())
 
   comptesRattaches TiersCompte[]
-  relances         Relance[]
+
+  /// Consignations d'emballages ou de matériels avec ce tiers.
+  consignations Consignation[]
+  relances      Relance[]
 
   demandesConfirmation DemandeConfirmation[]
   factures             Facture[]
@@ -5585,4 +5594,98 @@ model MouvementStock {
   @@unique([articleId, ordre])
   @@index([tenantId, articleId, date])
   @@map("mouvements_stock")
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// LA CONSIGNATION D'EMBALLAGES · le compte d'attente qu'il faut dénouer
+// ══════════════════════════════════════════════════════════════════════════
+//
+// « Les comptes relatifs aux emballages fonctionnent de la même manière que
+// ceux relatifs aux marchandises et matières. La seule particularité concerne
+// la CONSIGNATION. » Les deux textes la décrivent en miroir, aux fiches des
+// comptes 40 et 41.
+//
+// POURQUOI UNE TABLE, ET PAS SEULEMENT DES MODÈLES D'ÉCRITURE. Le 4094 et le
+// 4194 sont des comptes d'ATTENTE : tant que la consignation n'est pas
+// dénouée, on ne sait pas si elle s'éteindra par un retour, par une vente ou
+// par un écart. Un 4194 laissé en l'état à la clôture est une DETTE envers un
+// client qui, peut-être, ne rendra jamais l'emballage · le bilan est faux du
+// montant des consignations non qualifiées, et aucune balance ne le dit,
+// puisqu'elle boucle. C'est le registre qui rend l'attente visible.
+
+/// De quel côté l'entité se tient. ÉMISE · elle a consigné à son CLIENT, et
+/// c'est le 4194 qui joue. REÇUE · un FOURNISSEUR lui a consigné, et c'est le
+/// 4094.
+enum SensConsignation {
+  EMISE
+  RECUE
+}
+
+/// EMBALLAGE ou MATÉRIEL, ET CE N'EST PAS DÉCORATIF · les deux fiches routent
+/// la conservation différemment selon la nature de l'objet (produit accessoire
+/// contre produit de cession, stock contre immobilisation). Elle est SAISIE et
+/// jamais déduite : aucun numéro de compte ne dit si l'objet consigné est un
+/// casier ou une citerne.
+enum NatureObjetConsigne {
+  EMBALLAGE
+  MATERIEL
+}
+
+/// Les trois dénouements que les deux fiches énumèrent, et eux seuls. Un
+/// quatrième ajouté ici obligerait quelqu'un à dire quel texte le porte.
+enum EtatConsignation {
+  EN_COURS
+  RESTITUEE
+  CONSERVEE
+  REPRISE_SOUS_PRIX
+}
+
+model Consignation {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  /// Le tiers consignataire · client à qui l'entité consigne, ou fournisseur
+  /// qui consigne à l'entité. Obligatoire : une consignation sans tiers est
+  /// une dette ou une créance envers personne.
+  tiersId String
+  tiers   Tiers  @relation(fields: [tiersId], references: [id])
+
+  sens        SensConsignation
+  nature      NatureObjetConsigne
+  designation String
+
+  /// Le nombre d'objets consignés · porté pour la gestion, il ne commande
+  /// aucune écriture. Les deux fiches raisonnent en MONTANT FACTURÉ à titre
+  /// de consignation, jamais en quantité.
+  quantite Decimal? @db.Decimal(18, 3)
+
+  dateConsignation DateTime
+  /// « les sommes FACTURÉES à titre de consignation d'emballages ou de
+  /// matériels » · c'est ce montant, et non une valeur de stock, qui ouvre le
+  /// compte d'attente.
+  montant          Decimal  @db.Decimal(18, 2)
+
+  etat EtatConsignation @default(EN_COURS)
+
+  dateDenouement DateTime?
+  /// Renseigné pour la seule REPRISE_SOUS_PRIX · c'est lui qui décide du
+  /// montant de l'écart, et il ne se déduit de rien.
+  prixDeReprise  Decimal?  @db.Decimal(18, 2)
+
+  /// Les deux écritures du cycle. FACULTATIVES : le module PROPOSE, le
+  /// comptable passe, et une consignation peut être enregistrée au registre
+  /// avant que son écriture ne soit saisie.
+  ecritureConsignationId String?
+  ecritureConsignation   Ecriture? @relation("EcritureConsignation", fields: [ecritureConsignationId], references: [id])
+  ecritureDenouementId   String?
+  ecritureDenouement     Ecriture? @relation("EcritureDenouementConsignation", fields: [ecritureDenouementId], references: [id])
+
+  createdAt DateTime @default(now())
+  createdBy String
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId, etat])
+  @@index([tenantId, tiersId])
+  @@map("consignations")
 }
