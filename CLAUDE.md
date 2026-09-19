@@ -813,6 +813,70 @@ SYCEBNL ne porte pas la rubrique « stocks en cours de route ». L'obligation es
 écrite, le support ne l'est pas · ne pas construire de contrôle là-dessus sans
 avoir tranché ce point.
 
+**Variation de stocks · le trou qui faussait un compte de résultat, et les DOUZE
+numéros qui le gardaient.** Le compte de résultat des deux référentiels porte
+des lignes de variation de stocks · au SYSCOHADA les postes RB, RD et RF, lus
+sur les 6031, 6032 et 6033, plus la ligne du 73 en produits. Ces comptes étaient
+semés, mouvementables à la main, et RIEN ne les produisait. Un dossier qui tient
+des stocks sortait donc une liasse dont les lignes de variation valaient zéro :
+le résultat était faux du montant de la variation, la balance bouclait, et seul
+le dépôt le révélait. C'était le dernier trou de cette nature dans le produit.
+
+LE CYCLE DES STOCKS EST LA PLUS GRANDE OCCURRENCE DU PREMIER PIÈGE DU DÉPÔT, et
+elle dépasse de loin les précédentes : le 192, le 4181, le 1061, le 38/37, le
+397, le 70510000, le 601, les deux articles 11, les trois « trois exercices »,
+le 7041, les deux textes n° 23/10 n'en portaient qu'UNE à la fois. Ici, sur les
+quatorze numéros du cycle, **DOUZE** changent de sens entre les deux plans ou
+n'existent que d'un côté. Le 31 est « Marchandises » au SYSCOHADA et « Biens
+liés à l'activité » au SYCEBNL. Le 34 est « Produits en cours » d'un côté et
+« Dons en nature » de l'autre. Le 37 et le 38 sont échangés. Et les comptes de
+VARIATION suivent : le 6031 est la variation des marchandises au SYSCOHADA, celle
+des biens liés à l'activité au SYCEBNL · le 6032 est les matières premières d'un
+côté, les marchandises de l'autre. Une seule table servie pour les deux
+publierait, au poste des marchandises d'une société, la variation d'un stock
+qu'elle n'a pas. D'où la règle : **aucun numéro de compte de stock ou de
+variation n'est écrit ailleurs que dans `stocks/nomenclature-stocks.ts`, et
+aucun n'y est écrit sans son référentiel.**
+
+UN COMPTE DE VARIATION DOIT ÊTRE IMPUTABLE, ET LE VÉRIFIER A TROUVÉ L'ERREUR. La
+première table renvoyait le 34 vers le 734 et le 35 vers le 735. Les deux numéros
+existent, les deux portent le bon intitulé, et les deux sont des EN-TÊTES DE
+DIVISION · le Titre VII n'ouvre sous eux que 7341, 7342, 7351 et 7352. Un compte
+TOTAL ne reçoit jamais d'écriture (§ 7) : la proposition aurait été refusée à la
+saisie, APRÈS que le comptable a tout chiffré. Vérifier que le numéro « existe au
+plan » ne suffisait pas, il existe. Ce qui distingue un compte d'imputation d'un
+en-tête est sa forme SEMÉE, complétée à huit chiffres · c'est cette forme que le
+test exige, et rien d'autre.
+
+QUATRE ANOMALIES DU PLAN OFFICIEL, SIGNALÉES ET NON COMBLÉES. Le compte 34 ouvre
+343, 344 et 345, le compte 37 ouvre 373, et le compte 73 n'ouvre AUCUN compte de
+variation imputable pour ces quatre subdivisions. Les rattacher au 7341 ou au
+7371 leur prêterait une nature qu'elles n'ont pas. Elles sont donc nommées hors
+de la variation automatique, avec leur motif, et l'écriture se passe à la main.
+
+LA FORME EST BRUTE, PAS NETTE. Les deux textes admettent les deux (« du montant
+du stock final OU du montant de l'augmentation de l'exercice »), et le mot
+« POUR SOLDE » tranche : le compte de stock doit être VIDÉ de son stock initial,
+que la forme nette laisserait en place. Le journal garde aussi la trace des deux
+mouvements, qu'un stock entièrement renouvelé ferait disparaître sous une
+variation nette de zéro.
+
+TROIS REFUS ET UN AVERTISSEMENT. « Pas encore compté » n'est PAS zéro · lu comme
+zéro, le stock entier partirait en charge sur une écriture équilibrée, même refus
+que le rapprochement d'inventaire sur une fiche non valorisée. Un stock final
+NÉGATIF est refusé, un stock étant un actif qui se compte en quantités détenues.
+Un montant SANS SA SOURCE est refusé, parce que c'est le document d'inventaire
+extra-comptable que le réviseur demandera, pas le chiffre · même parti que la
+source d'un relevé d'unités d'œuvre. Et un solde CRÉDITEUR sur un compte de stock
+est signalé sans être refusé : aucun texte lu ne le traite, la variation reste
+calculable, et le taire figerait une imputation fautive dans les états. Un refus
+n'emporte jamais les autres comptes · un dossier à dix stocks dont un seul n'est
+pas compté doit voir les neuf autres.
+
+ET LE MODULE NE POSTE RIEN. Il PROPOSE, le comptable passe · le stock final vient
+d'un inventaire EXTRA-COMPTABLE qu'aucun livre ne porte, et le déduire serait
+l'inventer.
+
 
 **Questionnaire de révision par cycle · vingt-quatre items du CPCC, et le
 reste assumé.** Le séminaire porte DEUX checklists, § VI « vérification de
