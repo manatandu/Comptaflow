@@ -202,3 +202,130 @@ l'annexe que nous n'avons pas.
 4. Ces trois textes **versés à une compétence installée** · ils ont été lus
    dans cette session, depuis les originaux, mais une session suivante ne les
    retrouvera pas.
+
+---
+
+# ADDENDUM · l'annexe est arrivée, et le décret n° 25/21 avec elle
+
+Le Journal officiel, **première partie, numéro spécial du 28 octobre 2025**,
+publie ensemble les deux décrets ET les deux annexes. Il ferme **les deux
+manques** que le § 5 ci-dessus déclarait bloquants, et il en ouvre un nouveau.
+
+## A. LA GRILLE DE TENSION SALARIALE · dix-sept classes, sept catégories
+
+| Rang | Catégorie | Échelons | Classes |
+|---|---|---|---|
+| I | Manœuvre | Ordinaire, Lourd | 1 à 2 |
+| II | Travailleur spécialisé | · | 3 |
+| III | Travailleur semi qualifié | 1, 2, 3 | 4 à 6 |
+| IV | Travailleur qualifié | 1, 2 | 7 à 8 |
+| V | Travailleur hautement qualifié | · | 9 |
+| VI | Maîtrise | 1 à 4 | 10 à 13 |
+| VII | Cadre de collaboration | 1 à 4 | 14 à 17 |
+
+**Indices de tension**, base 100 au manœuvre ordinaire :
+100, 116, 133, 154, 178, 206, 237, 274, 317, 366, 422, 488, 564, 651, 752,
+868, **1 000**.
+
+Deux annexes, et le taux journalier de chaque classe vaut **tension × SMIG /
+100** :
+
+| | Annexe 1 (paie de mai à décembre 2025) | Annexe 2 (paie de janvier 2026) |
+|---|---|---|
+| Manœuvre ordinaire (classe 1) | 14 500 FC | 21 500 FC |
+| Cadre de collaboration, 4e échelon (classe 17) | 145 000 FC | 215 000 FC |
+| Allocation familiale, par enfant (colonne 19) | 537,04 FC | 796,30 FC |
+| Contre-valeur du logement (colonne 20) | 107,41 FC | 159,26 FC |
+
+### LA TRANSCRIPTION EST PROUVÉE PAR LE TEXTE LUI-MÊME
+
+Les trente-quatre taux sont **recopiés**, pas calculés. Un test les confronte
+ensuite à `tension × SMIG / 100`, et les colonnes 19 et 20 à `SMIG / 27` et à
+son cinquième. **Les trente-quatre bouclent, et les quatre montants dérivés
+tombent au centime.** Une grille arithmétiquement close est une grille
+correctement lue.
+
+C'est ce contrôle qui a **tranché une divergence de lecture** : la tension du
+deuxième échelon se lisait « 110 » sur le scan et « 116 » sur la couche texte.
+Seul 116 × 145 donne les 16 820 FC de la colonne ; 110 aurait donné 15 950.
+**Aucune des deux lectures n'était fiable · c'est l'arithmétique qui a décidé.**
+
+### LA COLONNE 19 CONFIRME LA NUMÉROTATION
+
+L'article 5 du décret désigne « la **colonne 19** du tableau en annexe ». Cette
+seule phrase fixe le comptage : colonne 1 pour les en-têtes de ligne, colonnes
+2 à 18 pour les dix-sept classes, **19 pour l'allocation familiale**, 20 pour
+la contre-valeur du logement. Si colonne et classe coïncidaient, l'allocation
+serait en 18 et l'article serait faux.
+
+## B. ET L'ANNEXE ME CORRIGE UNE SECONDE FOIS
+
+Ce matin, lisant les seuls articles 2 et 3, j'ai écrit dans
+`bareme-smig.ts` :
+
+> « tout ce qui se calcule SUR le SMIG s'assied sur 21 500 dès mai 2025 · le
+> calculer sur le payable du mois minorerait une assiette pendant huit mois. »
+
+**L'ANNEXE 1 DIT LE CONTRAIRE.** Son allocation familiale est de **537,04 FC**,
+soit **14 500 / 27**. Toute la grille s'assied sur le montant **PAYÉ**, pas sur
+les 21 500 FC de l'article 2.
+
+La lecture des articles n'était pas fausse · elle était **incomplète**, et j'en
+avais tiré une conséquence que le texte ne portait pas. Les articles 2 et 3
+laissaient la question ouverte ; c'est l'annexe qui la ferme.
+
+**Corrigé partout**, et la leçon est la même qu'au § 1, d'un cran plus fin :
+**une déduction tirée d'un texte partiel est une règle inventée, même quand
+chaque phrase citée est exacte.**
+
+Et j'ai gardé la mesure là où l'annexe ne dit rien : le **plancher d'assiette
+CNSS** relève d'un autre texte (décret n° 18/041, art. 8). La fiche du registre
+des retenues présente désormais **les deux lectures et n'en tranche aucune**,
+en renvoyant à la CNSS. Sur-corriger une seconde fois aurait été la vraie faute.
+
+## C. LE DÉCRET n° 25/21, dix-sept articles
+
+Celui que P0 déclarait manquant. Ce qu'il apporte :
+
+- **Art. 4 et 5** · les critères de fixation, et le déclencheur d'ajustement :
+  une hausse **égale ou supérieure à 50 %** de l'indice des prix à la
+  consommation, constatée par relevés successifs.
+- **Art. 6** · la tension salariale, « du travailleur manœuvre ordinaire au
+  cadre de collaboration ». C'est l'article que le n° 25/22 vise.
+- **Art. 7 à 9** · le **budget-type familial**, pour un ménage de travailleur
+  ayant **cinq enfants à charge**, avec cinq postes en annexe (alimentation,
+  scolarisation, soins de santé, transport, épargne). Le SMIG est « calculé en
+  pourcentage du budget-type familial ».
+- **Art. 11** · une commission tripartite, et un ajustement **à partir du mois
+  de janvier de chaque année**.
+- **Art. 13** · l'allocation familiale est fixée « conformément à la loi
+  n° 16/009 […] telle qu'appliquée par l'article 3 de l'**arrêté ministériel
+  n° 137/CAB/MINETAT/MTEPS/01/2018 du 8 novembre 2018** ».
+- **Art. 15** · **la contre-valeur du logement est une DÉFALCATION, pas une
+  indemnité.** « Lorsque, pour cause de **mutation**, l'employeur assure au
+  travailleur un logement **en nature**, il peut défalquer de l'indemnité de
+  logement de celui-ci un montant minimum équivalent. » Hors ce cas, la retenir
+  serait une retenue sans titre, et l'article 112 du Code du travail ferme la
+  liste des retenues autorisées.
+
+## D. TROIS DATES POUR UN SEUL TEXTE
+
+Le décret est signé le **30 mai 2025** (par le Ministre AKWAKWA NAMETU), ses
+annexes sont arrêtées le **17 septembre 2025** (par le Ministre MASSAMBA WA
+MASSAMBA), et la publication est du **28 octobre 2025**. **La grille de tension
+n'existait pas quand le décret a été signé**, alors qu'il la visait déjà à son
+article 4.
+
+## E. Ce qui reste, et c'est court
+
+| Manque | Ce qu'il empêche |
+|---|---|
+| **Arrêté n° 137/CAB/MINETAT/MTEPS/01/2018** | il porte les **conditions de suspension** de l'allocation familiale · OmegaX sert le montant sans savoir quand il cesse d'être dû |
+| **Décret n° 18/017 du 22 mai 2018** | abrogé, mais il régit les mois de paie antérieurs à mai 2025 |
+| **Dispositions agro-industrielles et pastorales** | art. 10, textes propres au secteur |
+| **L'arrêté annuel d'ajustement** | l'art. 11 du n° 25/21 en programme un chaque janvier · les annexes ci-dessus ne valent que jusqu'au prochain |
+| **La cotisation syndicale** | rien ne l'a tranchée |
+
+Et toujours : **verser ces quatre textes à une compétence installée**. Ils ont
+été lus dans cette session, depuis le Journal officiel ; une session suivante
+ne les retrouvera pas.

@@ -1333,7 +1333,43 @@ L'ALLOCATION, jamais du SMIG** (art. 6) · la confondre donne un montant
 vingt-sept fois trop élevé. Rien n'est arrondi, le décret ne prescrivant aucun
 arrondi et la colonne 19 de son ANNEXE étant la vraie source.
 
-**CE QUI RESTE BLOQUÉ TIENT À UN SEUL DOCUMENT · L'ANNEXE.** Elle porte la
+**L'ANNEXE EST ARRIVÉE LE JOUR MÊME, AVEC LE DÉCRET n° 25/21** (J.O., première
+partie, numéro spécial du 28 octobre 2025). Les deux manques déclarés
+bloquants sont fermés.
+
+**LA GRILLE DE TENSION SALARIALE** · sept catégories, dix-sept classes, du
+manœuvre ordinaire (indice 100) au cadre de collaboration 4e échelon (indice
+1 000). Deux annexes, et `taux = tension × SMIG / 100`. **LA TRANSCRIPTION EST
+PROUVÉE PAR LE TEXTE LUI-MÊME** : les trente-quatre taux sont RECOPIÉS, puis
+confrontés à la formule par un test, et les colonnes 19 et 20 à `SMIG/27` et à
+son cinquième. Les trente-quatre bouclent, les quatre dérivés tombent au
+centime. **DOCTRINE · une grille arithmétiquement CLOSE est une grille
+correctement lue** · et c'est ce contrôle, non ma lecture, qui a tranché une
+divergence entre le scan (« 110 ») et la couche texte (« 116 »), seul 116 × 145
+donnant les 16 820 FC de la colonne.
+
+**ET L'ANNEXE M'A CORRIGÉ UNE SECONDE FOIS DANS LA MÊME JOURNÉE.** J'avais
+écrit, sur la seule lecture des articles 2 et 3, que « tout ce qui se calcule
+sur le SMIG s'assied sur 21 500 dès mai 2025 ». L'annexe 1 porte une allocation
+familiale de 537,04 FC, soit **14 500/27** : toute la grille s'assied sur le
+montant PAYÉ. Chaque phrase que je citais était exacte ; la conséquence que
+j'en tirais ne l'était pas. **DOCTRINE · une déduction tirée d'un texte PARTIEL
+est une règle inventée, même quand chaque phrase citée est exacte.** Et j'ai
+gardé la mesure là où l'annexe ne dit rien : le plancher d'assiette CNSS relève
+d'un autre texte, et la fiche présente désormais les deux lectures sans en
+trancher aucune · sur-corriger une seconde fois aurait été la vraie faute.
+
+**LE DÉCRET n° 25/21** apporte le déclencheur d'ajustement (hausse de l'IPC
+égale ou supérieure à 50 %, art. 5), l'ajustement annuel **à partir de janvier**
+(art. 11), le budget-type familial pour cinq enfants (art. 7 à 9), et surtout
+l'art. 15 : **la contre-valeur du logement est une DÉFALCATION, pas une
+indemnité**, ouverte seulement « pour cause de MUTATION » avec logement en
+nature · hors ce cas ce serait une retenue sans titre, et l'art. 112 du Code du
+travail ferme la liste. **TROIS DATES POUR UN SEUL TEXTE** · décret du 30 mai
+2025, annexes du 17 septembre, publication du 28 octobre : la grille n'existait
+pas quand le décret la visait. Huit contresens réinjectés, huit attrapés.
+
+**CE QUI RESTAIT BLOQUÉ TENAIT À UN SEUL DOCUMENT · L'ANNEXE.** Elle porte la
 grille de TENSION SALARIALE de l'art. 4, « du travailleur manœuvre ordinaire au
 cadre de collaboration ». **21 500 FC est le SMIG DU MANŒUVRE ORDINAIRE, et de
 lui seul** : en faire le minimum de toutes les catégories serait le plus gros
