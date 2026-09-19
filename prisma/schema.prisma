@@ -250,9 +250,10 @@ enum StatutLicence {
 /// système de l'inventaire intermittent. »
 enum MethodeInventaireStocks {
   /// Chaque entrée et chaque sortie passe par le compte de variation, en
-  /// continu. Le logiciel ne tient pas encore ce mode : un dossier qui le
-  /// déclare n'a PAS de proposition de variation à la clôture, et l'écran le
-  /// dit plutôt que de lui en servir une qui ferait double emploi.
+  /// continu. Un dossier qui le déclare n'a PAS de proposition de variation à
+  /// la clôture · l'écran le dit plutôt que de lui en servir une qui ferait
+  /// double emploi. Ce qui lui est dû à la clôture est le BONI ou le MALI
+  /// d'inventaire, que le module de magasin rend depuis 2026-09-19.
   PERMANENT
   /// Le stock n'est connu qu'à la clôture, par inventaire extra-comptable.
   /// C'est le mode que les deux textes ouvrent aux entités sans les moyens du
@@ -597,6 +598,8 @@ model Tenant {
   accordsCadresPlan         AccordCadrePlan[]
   factures                  Facture[]
   devis                     Devis[]
+  articlesStock             ArticleStock[]
+  mouvementsStock           MouvementStock[]
 
   @@index([dossierMereId])
   @@map("tenants")
@@ -835,6 +838,9 @@ model Compte {
   /// Lignes du registre des provisions portées par ce compte (ch. 18 § 5.3).
   provisionsRisquesCharges   ProvisionRisqueCharge[]
   ProcesVerbalComptageCaisse ProcesVerbalComptageCaisse[]
+
+  /// Articles de magasin rattachés à ce compte de stock (classe 3).
+  articlesStock ArticleStock[]
 
   @@unique([tenantId, numero])
   // Le résultat fiscal ne cherche que les comptes qui portent un code de
@@ -1228,6 +1234,10 @@ model Ecriture {
   // états financiers) : tenant + exercice, trié par date. Sans index, chaque
   // export balaie l'intégralité des écritures du dossier.
   ecartsInventaire EcartInventaire[]
+
+  /// Mouvements de magasin dont cette écriture est la contrepartie
+  /// comptable (inventaire permanent).
+  mouvementsStock MouvementStock[]
 
   /// La facture dont cette écriture est la comptabilisation · au plus une.
   facture Facture?
@@ -3069,8 +3079,17 @@ model Immobilisation {
   // Le RELIQUAT, « les parties de l'immobilisation qui n'ont pas été
   // comptabilisées distinctement », est la STRUCTURE · c'est l'immobilisation
   // principale elle-même, qui ne porte pas ce champ.
+  //
+  // `onDelete: Restrict` EST DÉCLARÉ, ET CE N'EST PAS UNE PRÉCAUTION DE STYLE.
+  // Sur une relation FACULTATIVE, Prisma pose `SET NULL` par défaut : la
+  // suppression d'un principal DÉNOUERAIT le lien sans erreur, et l'ascenseur
+  // resterait au bilan, amorti sur son plan propre, sans l'immeuble auquel il
+  // se rapporte. La migration du 14/09 posait déjà RESTRICT ; le schéma le
+  // taisait, et la vérification de dérive du 19/09 a trouvé l'écart. Même
+  // correction que celle du 03/09 : on déclare la règle voulue, on n'aligne
+  // jamais la SQL sur un défaut qu'on ne voulait pas.
   immobilisationPrincipaleId String?
-  immobilisationPrincipale   Immobilisation?  @relation("ImmoComposants", fields: [immobilisationPrincipaleId], references: [id])
+  immobilisationPrincipale   Immobilisation?  @relation("ImmoComposants", fields: [immobilisationPrincipaleId], references: [id], onDelete: Restrict)
   composants                 Immobilisation[] @relation("ImmoComposants")
 
   // Null pour une structure. Les quatre valeurs nommées viennent du texte
@@ -3087,8 +3106,13 @@ model Immobilisation {
 
   // Le composant remplacé, quand celui-ci est le renouvellement d'un autre ·
   // AUDCIF ch. 4 § 4.1. Sert à retrouver la chaîne des remplacements.
+  // RESTRICT pour la même raison, et elle est plus grave ici : `SET NULL`
+  // effacerait la trace du renouvellement, et les deux composants se
+  // retrouveraient au bilan sans que rien ne dise que le second a remplacé le
+  // premier · exactement le défaut que l'opération `renouveler` existe pour
+  // empêcher.
   composantRemplaceId String?         @unique
-  composantRemplace   Immobilisation? @relation("ImmoRenouvellement", fields: [composantRemplaceId], references: [id])
+  composantRemplace   Immobilisation? @relation("ImmoRenouvellement", fields: [composantRemplaceId], references: [id], onDelete: Restrict)
   renouvelePar        Immobilisation? @relation("ImmoRenouvellement")
 
   dotations     DotationAmortissement[]
@@ -5413,4 +5437,152 @@ model LigneDevis {
 
   @@unique([devisId, ordre])
   @@map("lignes_devis")
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// LE MAGASIN · l'inventaire permanent, article par article
+// ══════════════════════════════════════════════════════════════════════════
+//
+// Les deux textes ouvrent le même choix dans les mêmes mots : « la
+// comptabilisation des stocks repose sur la tenue SOIT d'un inventaire
+// PERMANENT, SOIT d'un inventaire INTERMITTENT ». Le module ne servait que le
+// second. Ces deux tables portent le premier.
+//
+// LE MAGASIN EST OUVERT AUX DEUX MODES, ET IL NE VEUT PAS DIRE LA MÊME CHOSE.
+// En inventaire PERMANENT, chaque mouvement a sa contrepartie au livre-journal
+// et le stock du magasin doit égaler le solde du compte · c'est de cette
+// égalité que naît le boni ou le mali d'inventaire. En inventaire
+// INTERMITTENT, le magasin est EXTRA-COMPTABLE : il tient les quantités pour
+// la gestion, aucune écriture ne le suit, et ce qu'il produit à la clôture est
+// le stock final de l'écriture de variation. Confondre les deux ferait naître
+// un boni d'inventaire là où il n'existe aucun inventaire comptable à
+// comparer.
+
+/// Les trois méthodes que le glossaire de l'AUDCIF (Titre VI, « valorisation
+/// des biens fongibles ») retient sur cinq : « Parmi ces cinq méthodes, le
+/// SYSTÈME COMPTABLE OHADA EN ACCEPTE TROIS ; celle qui est retenue doit être
+/// MENTIONNÉE DANS LES NOTES ANNEXES : P.E.P.S. ; C.M.P.A.C.E. ; C.M.P. de
+/// période de stockage. »
+///
+/// LE COÛT MOYEN PONDÉRÉ ANNUEL ET LE D.E.P.S. N'Y SONT PAS, et le premier est
+/// la forme la plus répandue dans les logiciels de la place. Cette liste est
+/// gelée par `valorisation-stocks.spec.ts`, qui relit `METHODES_ADMISES`.
+enum MethodeValorisationStock {
+  /// Premier entré, premier sorti. Repose sur l'inventaire PERMANENT.
+  PEPS
+  /// Coût moyen pondéré après chaque entrée. Repose sur l'inventaire PERMANENT.
+  CMPACE
+  /// Coût moyen de période de stockage · la seule que le texte dit
+  /// « compatible avec la pratique de l'inventaire INTERMITTENT ». OmegaX ne la
+  /// CALCULE pas (sa définition suppose la date d'entrée moyenne du stock
+  /// existant en fin d'exercice) : elle est déclarable, pour que la mention en
+  /// Notes annexes soit exacte, et la fiche le dit au lieu de rendre un chiffre.
+  CMP_PERIODE_STOCKAGE
+}
+
+enum SensMouvementStock {
+  ENTREE
+  SORTIE
+}
+
+model ArticleStock {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  /// Le compte de stock auquel l'article se rattache · classe 3, type DETAIL.
+  /// Obligatoire : une fiche de stock qui ne se rapporte à aucun compte ne se
+  /// rapproche de rien, et c'est le rapprochement qui fait l'inventaire
+  /// permanent. Le contrôle de classe est au service, pas au schéma.
+  compteId String
+  compte   Compte @relation(fields: [compteId], references: [id])
+
+  /// Référence interne du dossier. C'est par elle que le magasinier appelle
+  /// l'article, et elle est unique dans le dossier.
+  code        String
+  designation String
+
+  /// « 120 litres », « 8 cartouches » · l'unité est portée parce qu'une fiche
+  /// sans unité ne se relit pas, et qu'un comptage physique se fait dans une
+  /// unité précise.
+  uniteMesure String
+
+  /// LA MÉTHODE EST PORTÉE PAR L'ARTICLE, ET AUCUNE SOURCE LUE NE DIT À QUEL
+  /// NIVEAU LE CHOIX SE FAIT. Le glossaire parle de « celle qui est retenue »
+  /// sans désigner l'entité, la famille ou l'article. Le niveau le plus fin est
+  /// choisi parce qu'il peut exprimer les deux usages (une méthode unique pour
+  /// tout le magasin s'exprime en la répétant), alors que le plus grossier ne
+  /// peut pas exprimer le premier. La permanence des méthodes reste une règle
+  /// de conduite du cabinet : le module ne change jamais la méthode d'un
+  /// article tout seul.
+  methodeValorisation MethodeValorisationStock
+
+  /// Un article retiré du magasin n'est jamais supprimé · ses mouvements font
+  /// partie de la piste d'audit (AUDCIF art. 22, 5°).
+  actif Boolean @default(true)
+
+  mouvements MouvementStock[]
+
+  createdAt DateTime @default(now())
+  createdBy String
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, code])
+  @@index([tenantId, compteId])
+  @@map("articles_stock")
+}
+
+model MouvementStock {
+  id        String       @id @default(uuid())
+  tenantId  String
+  tenant    Tenant       @relation(fields: [tenantId], references: [id])
+  articleId String
+  article   ArticleStock @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  /// AUCUN `exerciceId`, ET C'EST VOULU. Une fiche de stock est CONTINUE : le
+  /// stock final d'un exercice est le stock initial du suivant, et les couches
+  /// du P.E.P.S. traversent la clôture avec leur coût d'origine. Découper la
+  /// fiche par exercice obligerait à saisir chaque 1er janvier un mouvement
+  /// d'ouverture qui n'existe pas, et ferait perdre le coût des couches
+  /// anciennes · c'est-à-dire la méthode elle-même.
+  date DateTime
+
+  /// Départage deux mouvements du MÊME JOUR, que les deux méthodes ne
+  /// valorisent pas pareil selon l'ordre. Posé par le serveur, jamais reçu du
+  /// client.
+  ordre Int
+
+  sens     SensMouvementStock
+  quantite Decimal            @db.Decimal(18, 3)
+
+  /// Coût TOTAL de l'entrée · prix d'achat, droits de douane et taxes non
+  /// récupérables, transport et manutention, rabais et remises DÉDUITS
+  /// (AUDCIF Titre VII ch. 3).
+  ///
+  /// NULL SUR UNE SORTIE, ET C'EST TOUT LE PROPOS DU MODULE. « L'axiomatique
+  /// comptable impose une égalité systématique, dans tout compte, des sorties
+  /// et des entrées EN VALEURS, dès lors que toutes les unités entrées sont
+  /// sorties » : une sortie chiffrée à la main rompt ce raccordement, et le
+  /// stock cesse d'être la différence de ce qui est entré et de ce qui est
+  /// sorti. La valeur d'une sortie se CALCULE, elle ne se saisit pas.
+  cout Decimal? @db.Decimal(18, 2)
+
+  /// Le bon d'entrée, le bon de sortie, la facture. C'est la pièce que le
+  /// réviseur demandera, pas le nombre.
+  piece   String
+  libelle String?
+
+  /// L'écriture qui porte ce mouvement au livre-journal, quand le dossier tient
+  /// un inventaire PERMANENT. NULL en inventaire intermittent, où le magasin
+  /// est extra-comptable par construction · et NULL aussi sur un mouvement
+  /// permanent dont l'écriture n'a pas encore été passée, ce que la fiche dit.
+  ecritureId String?
+  ecriture   Ecriture? @relation(fields: [ecritureId], references: [id])
+
+  createdAt DateTime @default(now())
+  createdBy String
+
+  @@unique([articleId, ordre])
+  @@index([tenantId, articleId, date])
+  @@map("mouvements_stock")
 }

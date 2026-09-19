@@ -8,6 +8,7 @@
  */
 export const MODELES_CLOISONNES = new Set<string>([
   'AffectationResultat',
+  'ArticleStock',
   'Bailleur',
   'Cloture',
   'ConventionFinancement',
@@ -50,6 +51,7 @@ export const MODELES_CLOISONNES = new Set<string>([
   'ModeleAbonnement',
   'ModeleReglement',
   'ModeleSaisie',
+  'MouvementStock',
   'NiveauRelance',
   'PlanAnalytique',
   'RapportActivite',

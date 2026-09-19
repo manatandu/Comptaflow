@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import {
   DecisionEcartInventaire,
+  MethodeInventaireStocks,
   Referentiel,
   RoleMembreInventaire,
   StatutCampagneInventaire,
@@ -116,7 +117,88 @@ export class InventaireService {
    * message nomme la tension au lieu d'invoquer un article qui ne régit pas
    * le cas.
    */
-  static motifRefusExcedent(numeroCompte: string): string {
+  /**
+   * LA CONTREPARTIE D'UN MANQUANT · « le référentiel n'en impose aucune »
+   * ÉTAIT TROP LARGE, et corrigé le 2026-09-19.
+   *
+   * La phrase est vraie d'une caisse, d'une immobilisation, d'un tiers : rien
+   * dans le corpus ne dit quel compte de charge reçoit le manquant, cela
+   * dépend de sa nature. Elle est FAUSSE d'un compte de classe 3 tenu en
+   * inventaire PERMANENT, où les deux textes nomment la contrepartie · c'est
+   * le compte de VARIATION du stock. AUDCIF Titre VII, compte 603 : « à la
+   * clôture, DÉBITÉ des différences en MOINS constatées entre l'inventaire
+   * comptable et l'inventaire physique, par le crédit des stocks concernés ».
+   * SYCEBNL Partie 2 ch. 3 : « en cas d'existence d'un MALI D'INVENTAIRE […]
+   * par le débit du compte 6031 ».
+   *
+   * LE COÛT DE LA LACUNE DÉCLARÉE À TORT · un cabinet qui suit la note
+   * imputait le manquant en charge diverse. L'écriture s'équilibre, la
+   * balance boucle, et la ligne « Variation des stocks » du compte de
+   * résultat reste fausse du montant de l'écart, sous une nature de charge
+   * qui n'est pas la bonne. Rien en aval ne peut le dire.
+   *
+   * CE QUI RESTE VRAI, ET QUI EST DIT · sur un compte de classe 3, un écart
+   * de valeur peut aussi venir d'une baisse de valeur à quantité égale, qui
+   * relève de la DÉPRÉCIATION (compte 39) et non de la variation. Le module
+   * ne tranche pas entre les deux · il nomme les deux voies avec leur
+   * article, et la qualification appartient à la sous-commission.
+   */
+  static noteContrepartieManquant(
+    numeroCompte: string,
+    modeInventaireStocks?: MethodeInventaireStocks | null,
+  ): string {
+    if (numeroCompte.startsWith('3') && modeInventaireStocks === MethodeInventaireStocks.PERMANENT) {
+      return (
+        "Sur un STOCK tenu en inventaire PERMANENT, la contrepartie n'est pas libre, et elle " +
+        "dépend de la QUALIFICATION de l'écart. Si la quantité comptée est inférieure à celle des " +
+        "livres, c'est un MALI D'INVENTAIRE : la contrepartie est le compte de VARIATION du stock, " +
+        'que les deux textes désignent (AUDCIF Titre VII, compte 603 · SYCEBNL Partie 2 ch. 3, ' +
+        "comptes 31 à 36), et la fenêtre Magasin le chiffre article par article. Si c'est la " +
+        "VALEUR qui a baissé à quantité égale, c'est une DÉPRÉCIATION (compte 39), et non une " +
+        'variation. Les deux voies ne se remplacent pas : porter un mali en charge diverse ' +
+        "laisserait la ligne « Variation des stocks » du compte de résultat fausse du montant de " +
+        "l'écart, sur une écriture parfaitement équilibrée."
+      );
+    }
+    return "Contrepartie à choisir selon la nature du manquant · le référentiel n'en impose aucune.";
+  }
+
+  static motifRefusExcedent(
+    numeroCompte: string,
+    modeInventaireStocks?: MethodeInventaireStocks | null,
+  ): string {
+    // SUR UN STOCK TENU EN INVENTAIRE PERMANENT, L'ART. 43 NE COUVRE QUE LA
+    // MOITIÉ DU CAS, et l'affirmer seul fabrique une DISPENSE.
+    //
+    // Un écart de valeur sur un compte de classe 3 a deux origines, et les
+    // deux textes ne les traitent pas pareil. Si la VALEUR a baissé à
+    // quantité égale, l'art. 43 s'applique en effet et l'excédent ne
+    // s'inscrit pas. Mais si la QUANTITÉ comptée dépasse la quantité des
+    // livres, c'est un BONI D'INVENTAIRE, et les deux textes disent
+    // expressément de le comptabiliser · AUDCIF Titre VII, compte 603, « à la
+    // clôture, CRÉDITÉ des différences en PLUS constatées entre l'inventaire
+    // comptable et l'inventaire physique, par le débit des comptes de stocks
+    // concernés » ; SYCEBNL Partie 2 ch. 3, fiches des comptes 31 à 36, « en
+    // cas d'existence d'un BONI D'INVENTAIRE […] est débité le compte 31 […]
+    // par le crédit du compte 6031 ».
+    //
+    // C'est la même distinction VALEUR / QUANTITÉ que sur la caisse, avec
+    // cette différence que la caisse n'a AUCUNE contrepartie dans le corpus,
+    // alors que le stock en a une, nommée. Refuser tout excédent sur un 3 au
+    // nom de l'art. 43 était donc une lacune déclarée à tort.
+    if (numeroCompte.startsWith('3') && modeInventaireStocks === MethodeInventaireStocks.PERMANENT) {
+      return (
+        "Sur un STOCK tenu en inventaire PERMANENT, l'art. 43 ne couvre que la moitié du cas. Il " +
+        "s'applique bien à une baisse de VALEUR à quantité égale : « si la valeur d'inventaire est " +
+        "supérieure à la valeur d'entrée, cette dernière est maintenue dans les comptes ». Mais si " +
+        "c'est la QUANTITÉ comptée qui dépasse celle des livres, il s'agit d'un BONI " +
+        "D'INVENTAIRE, et les deux textes disent de le comptabiliser · le compte de stock est " +
+        'débité par le crédit de son compte de VARIATION (AUDCIF Titre VII, compte 603 · SYCEBNL ' +
+        'Partie 2 ch. 3, comptes 31 à 36). La qualification décide, et elle appartient à la ' +
+        "sous-commission : c'est la fenêtre Magasin qui chiffre un boni, article par article, " +
+        "parce qu'elle seule connaît les quantités."
+      );
+    }
     if (numeroCompte.startsWith('57')) {
       return (
         "Sur une CAISSE, l'AUDCIF art. 43 ne tranche pas : il oppose deux VALEURS du même bien et débouche sur " +
@@ -431,11 +513,17 @@ export class InventaireService {
       throw new ForbiddenException("L'arbitrage n'est ouvert qu'après le rapprochement et avant la clôture de la campagne.");
     }
 
+    // Le mode de tenue des stocks décide du motif sur un compte de classe 3 ·
+    // un boni d'inventaire n'existe qu'en inventaire permanent.
+    const { methodeInventaireStocks: modeStocks } = await this.prisma.tenant.findUniqueOrThrow({
+      where: { id: tenantId },
+      select: { methodeInventaireStocks: true },
+    });
     const montant = Number(ecart.ecart);
     if (dto.decision === DecisionEcartInventaire.A_REDRESSER && montant > 0) {
       throw new BadRequestException(
         `L'écart du compte ${ecart.compte.numero} est un EXCÉDENT (+${montant}) · il ne se redresse pas. ` +
-          InventaireService.motifRefusExcedent(ecart.compte.numero) +
+          InventaireService.motifRefusExcedent(ecart.compte.numero, modeStocks) +
           ' Le classer en EXCEDENT_NON_COMPTABILISE, ou le renvoyer à la commission principale.',
       );
     }
@@ -487,6 +575,10 @@ export class InventaireService {
       include: { compte: { select: { numero: true, intitule: true } } },
     });
     if (!ecart) throw new NotFoundException('Écart introuvable.');
+    const { methodeInventaireStocks: modeStocks } = await this.prisma.tenant.findUniqueOrThrow({
+      where: { id: tenantId },
+      select: { methodeInventaireStocks: true },
+    });
     const montant = Number(ecart.ecart);
     if (montant >= 0) {
       return {
@@ -510,7 +602,7 @@ export class InventaireService {
           libelle: `Manquant d'inventaire · ${ecart.compte.numero} ${ecart.compte.intitule}`,
           sens: 'DEBIT' as const,
           montant: Math.abs(montant),
-          note: "Contrepartie à choisir selon la nature du manquant · le référentiel n'en impose aucune.",
+          note: InventaireService.noteContrepartieManquant(ecart.compte.numero, modeStocks),
         },
         {
           compte: ecart.compte.numero,

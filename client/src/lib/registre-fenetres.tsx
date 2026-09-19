@@ -44,6 +44,7 @@ const RetenuesPage = lazy(() => import('../pages/RetenuesPage').then((m) => ({ d
 const ExonerationsPage = lazy(() => import('../pages/ExonerationsPage').then((m) => ({ default: m.ExonerationsPage })));
 const InventairePage = lazy(() => import('../pages/InventairePage').then((m) => ({ default: m.InventairePage })));
 const VariationStocksPage = lazy(() => import('../pages/VariationStocksPage').then((m) => ({ default: m.VariationStocksPage })));
+const MagasinPage = lazy(() => import('../pages/MagasinPage').then((m) => ({ default: m.MagasinPage })));
 const CircularisationPage = lazy(() => import('../pages/CircularisationPage').then((m) => ({ default: m.CircularisationPage })));
 const FaiblessesPage = lazy(() => import('../pages/FaiblessesPage').then((m) => ({ default: m.FaiblessesPage })));
 const QuestionnaireRevisionPage = lazy(() => import('../pages/QuestionnaireRevisionPage').then((m) => ({ default: m.QuestionnaireRevisionPage })));
@@ -304,6 +305,16 @@ export const FENETRES: DefinitionFenetre[] = [
     titre: 'Variation des stocks',
     titreCourt: 'Var. stocks',
     rendre: () => <VariationStocksPage />,
+  },
+  {
+    // AUCUN `referentielsApplicables`, pour la même raison que la variation de
+    // stocks juste au-dessus · les deux textes ouvrent une classe 3 et posent
+    // le même choix entre inventaire permanent et intermittent. Ce qui les
+    // sépare est la NOMENCLATURE, tranchée compte par compte côté serveur.
+    motif: /^\/magasin$/,
+    titre: 'Magasin · fiches de stock',
+    titreCourt: 'Magasin',
+    rendre: () => <MagasinPage />,
   },
   {
     // La confirmation de soldes n'est propre à aucun des deux plans · le CPCC

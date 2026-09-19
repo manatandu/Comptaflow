@@ -808,6 +808,13 @@ export class EcritureService {
       // REMONTERAIT tout seul, gonflant la colonne Engagement du tableau
       // d'exécution budgétaire sans que personne ne l'ait décidé.
       ["l'exécution d'un engagement de dépense", this.prisma.executionEngagement.count({ where: parLEcriture })],
+      // Le mouvement de magasin, en inventaire permanent. Sans ce refus, le
+      // lien se dénouerait en silence et la fiche de stock afficherait
+      // « écriture non passée » sur un mouvement qui en avait une · la fiche
+      // et le compte divergeraient alors du montant du mouvement, et l'écart
+      // remonterait à la clôture sous la forme d'un MALI D'INVENTAIRE qui
+      // n'existe pas, mis à la charge de l'entité.
+      ['un mouvement de magasin', this.prisma.mouvementStock.count({ where: { tenantId, ecritureId } })],
     ];
     const resultats = await Promise.all(detenteursPossibles.map(([, p]) => p));
     const detenteurs = detenteursPossibles.filter((_, i) => resultats[i] > 0).map(([nom]) => nom);

@@ -275,6 +275,12 @@ export function AppShell() {
         // plafond fait relire la place d'une fenêtre au lieu de se faire
         // relever d'un cran.
         { label: 'Variation des stocks', onClick: () => navigate('/variation-stocks') },
+        // MÊME GROUPE, ET POUR LA MÊME RAISON · le magasin PASSE UNE
+        // ÉCRITURE (la régularisation des différences d'inventaire),
+        // il ne produit pas un registre de révision. Il vit donc à côté
+        // de la variation dont il est l'autre moitié : l'une sert
+        // l'inventaire intermittent, l'autre le permanent.
+        { label: 'Magasin et fiches de stock', onClick: () => navigate('/magasin') },
         // Geste ANNUEL, décidé par un organe · rangé avec les traitements de
         // fin d'exercice plutôt qu'avec la saisie courante.
         { label: 'Affectation du résultat', onClick: () => navigate('/affectation-resultat') },

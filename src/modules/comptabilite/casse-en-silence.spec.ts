@@ -54,6 +54,7 @@ function serviceEcriture(detenteurs: Record<string, number> = {}) {
     donation: { count: compteur('donation') },
     affectationResultat: { count: compteur('affectationResultat') },
     executionEngagement: { count: compteur('executionEngagement') },
+    mouvementStock: { count: compteur('mouvementStock') },
     $transaction: jest.fn().mockImplementation((f: (tx: unknown) => unknown) => f(prisma)),
   } as Faux;
 
@@ -178,6 +179,18 @@ describe('3 · une écriture qu’un module tient ne se supprime pas', () => {
     await expect(
       serviceEcriture({ executionEngagement: 1 }).supprimer('t1', 'e1'),
     ).rejects.toThrow(/engagement de dépense/i);
+  });
+
+  it("refuse aussi quand l'écriture porte un mouvement de magasin", async () => {
+    // Le lien est FACULTATIF : sans ce refus, Prisma le dénouerait en silence.
+    // La fiche de stock afficherait alors « écriture non passée » sur un
+    // mouvement qui en avait une, la fiche et le compte divergeraient, et
+    // l'écart remonterait à la clôture sous la forme d'un MALI D'INVENTAIRE
+    // qui n'existe pas · mis à la charge de l'entité, sur une balance qui
+    // boucle.
+    await expect(
+      serviceEcriture({ mouvementStock: 1 }).supprimer('t1', 'e1'),
+    ).rejects.toThrow(/mouvement de magasin/i);
   });
 
   it('laisse partir une écriture que personne ne tient', async () => {

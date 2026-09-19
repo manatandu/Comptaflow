@@ -1022,6 +1022,105 @@ unité qui change en cours d'énoncé, une écriture qui ne s'équilibre pas de
 1 000 000), toutes signalées dans le journal et aucune reprise.
 
 
+**Le magasin et le BONI / MALI D'INVENTAIRE · un écart de QUANTITÉ, qui SE
+COMPTABILISE, et dont les deux textes désignent la contrepartie.**
+`ArticleStock` et `MouvementStock` portent l'inventaire PERMANENT que le module
+ne servait pas, fiche par article, avec les trois blocs de la fiche (entrées,
+sorties, stock) et la vérification en DEUX dimensions.
+
+LES DEUX TEXTES NOMMENT L'OPÉRATION, ET C'EST LA DÉCOUVERTE DU CHANTIER. AUDCIF
+Titre VII, compte 603 · le compte enregistre « les DIFFÉRENCES CONSTATÉES ENTRE
+L'INVENTAIRE COMPTABLE PERMANENT ET L'INVENTAIRE PHYSIQUE », puis « à la
+clôture, DÉBITÉ des différences en MOINS […] par le crédit des stocks
+concernés » et « CRÉDITÉ des différences en PLUS […] par le débit des comptes de
+stocks ». Le SYCEBNL emploie les mots eux-mêmes, fiches des comptes 31 à 36 ·
+« en cas d'existence d'un BONI D'INVENTAIRE […] par le crédit du compte 6031 »,
+« en cas d'existence d'un MALI D'INVENTAIRE […] par le débit du compte 6031 ».
+
+**L'ART. 43 NE S'OPPOSE PAS AU BONI**, et c'est la distinction centrale.
+L'article oppose deux VALEURS du MÊME bien et interdit d'inscrire une plus-value
+latente ; un boni d'inventaire est autre chose, des UNITÉS existent que les
+livres n'avaient pas, et les porter à leur coût d'entrée ne fabrique aucune
+plus-value. C'est la même distinction VALEUR / QUANTITÉ que le dépôt avait déjà
+tranchée sur la caisse le 06/09, à cette différence près qu'ici les textes
+DISENT quoi faire, là où aucune source ne le dit pour un écart de caisse.
+
+TROIS BORNES. Le boni et le mali n'existent QU'EN INVENTAIRE PERMANENT · les
+deux textes le bornent dans la phrase qui le pose, et en intermittent il n'y a
+aucun inventaire comptable à confronter : le comptage EST le stock final et il
+entre par l'écriture de variation. « Pas encore compté » n'est pas zéro · lu
+comme zéro il produirait un mali égal à tout le stock de l'article, à la charge
+de l'entité. Et une fiche qui ne se valorise pas ne se chiffre pas.
+
+LE MALI ET LE BONI NE SE VALORISENT PAS PAREIL, ET CE N'EST PAS UNE COQUETTERIE.
+Un MALI est une SORTIE : la méthode le valorise, et le moteur rejoue la fiche
+avec une sortie de plus · en P.E.P.S. elle consomme les couches les plus
+anciennes, en C.M.P.A.C.E. elle prend le coût moyen en vigueur. Un BONI est une
+ENTRÉE, et là les deux méthodes divergent · en C.M.P.A.C.E. le magasin ne
+détient qu'UNE seule valeur unitaire à cette date, et la retenir n'est pas un
+choix de l'éditeur mais l'arithmétique de la méthode ; en P.E.P.S. il détient
+plusieurs couches et **AUCUNE SOURCE LUE NE DIT À LAQUELLE RATTACHER des unités
+dont les livres ignoraient l'existence** · le P.E.P.S. règle l'ordre des
+SORTIES, pas l'entrée d'un boni. Le coût est donc RÉCLAMÉ avec sa source, comme
+le stock final d'une variation ou le relevé d'unités d'œuvre. Retenir « la
+couche la plus récente » aurait été plausible et inventé.
+
+LE JEU D'ESSAI A DÛ ÊTRE CHERCHÉ, POUR LA DEUXIÈME FOIS SUR CE MODULE. Le
+premier sortait 150 unités sur 300 : le P.E.P.S. vidait alors entièrement la
+couche la plus ancienne, le magasin n'en gardait qu'une, et le coût P.E.P.S. du
+mali coïncidait avec le coût moyen. Le défaut « valoriser le mali à la moyenne
+du magasin » passait donc inaperçu, et seule la réinjection l'a dit. Il faut que
+le magasin garde DEUX couches à des coûts différents · sept défauts réinjectés,
+sept détectés.
+
+**ET L'AUDIT DE COHÉRENCE A TROUVÉ UNE LACUNE DÉCLARÉE À TORT DANS LE MODULE
+D'INVENTAIRE PHYSIQUE.** Il écrivait sur TOUT compte que « le référentiel
+n'impose aucune contrepartie » à un manquant, et refusait TOUT excédent au nom
+de l'art. 43. Les deux phrases sont vraies d'une caisse, d'une immobilisation,
+d'un tiers. Elles sont FAUSSES d'un compte de classe 3 tenu en inventaire
+permanent. Le coût est celui du § 10 bis dans sa forme la plus discrète · un
+cabinet qui suivait la note imputait le manquant en charge diverse, l'écriture
+s'équilibrait, la balance bouclait, et la ligne « Variation des stocks » du
+compte de résultat restait fausse du montant de l'écart, sous une nature de
+charge qui n'est pas la bonne. `noteContrepartieManquant()` et
+`motifRefusExcedent()` prennent désormais le MODE DE TENUE, et nomment les DEUX
+voies que le texte ouvre sur un stock · la variation pour une différence de
+QUANTITÉ, la dépréciation (39) pour une baisse de VALEUR à quantité égale. Le
+module ne tranche pas entre elles · la qualification appartient à la
+sous-commission, et c'est elle qui décide de l'écriture.
+
+**LA VÉRIFICATION DE DÉRIVE DES MIGRATIONS A TOURNÉ POUR LA PREMIÈRE FOIS**, et
+elle a trouvé quelque chose. Le contrôle que le § « Migrations écrites à la
+main » réclame depuis le 03/09 n'avait jamais pu être exécuté faute de base
+jetable ; un PostgreSQL local en tient désormais lieu. Il a rendu une dérive
+RÉELLE, et de la famille exacte que ce § décrit : la migration du 14/09 posait
+`ON DELETE RESTRICT` sur `immobilisationPrincipaleId` et `composantRemplaceId`,
+le schéma le taisait, et Prisma pose `SET NULL` par défaut sur une relation
+FACULTATIVE. Supprimer un principal aurait dénoué le lien SANS ERREUR ·
+l'ascenseur serait resté au bilan, amorti sur son plan propre, sans l'immeuble
+auquel il se rapporte ; et sur `composantRemplaceId`, la trace du renouvellement
+aurait disparu, laissant les deux composants au bilan sans que rien ne dise que
+le second a remplacé le premier, c'est-à-dire exactement le défaut que
+l'opération `renouveler` existe pour empêcher. Même correction qu'au 03/09 · la
+règle voulue est DÉCLARÉE dans le schéma, on n'aligne jamais la SQL sur un
+défaut qu'on ne voulait pas. Le dépôt ne porte plus aucune dérive.
+
+**ET DEUX GARDE-FOUS ONT SERVI SANS QU'ON LES SOLLICITE.** Le décompte en dur de
+`lecture-bornee.spec.ts` est tombé sur les deux tables nouvelles, ce pour quoi
+il existe · il a obligé à décider par quelle borne elles se lisent avant
+qu'elles n'entrent dans l'archive de restitution. Et les commentaires du même
+fichier annonçaient « 55 tables » quand il y en avait 76 : un décompte périmé
+dans un commentaire se lit comme une garantie, il est retiré, et le seul chiffre
+en dur reste celui du test, dont la fonction est de TOMBER.
+
+UN MOUVEMENT DE MAGASIN RETIENT SON ÉCRITURE · ajouté à la liste de
+`verifierAucunModuleNeLaTient`. Sur une relation facultative, Prisma dénoue en
+silence : la fiche afficherait alors « sans écriture » sur un mouvement qui en
+avait une, la fiche et le compte divergeraient, et l'écart remonterait à la
+clôture sous la forme d'un MALI D'INVENTAIRE QUI N'EXISTE PAS, mis à la charge
+de l'entité sur une balance qui boucle.
+
+
 **Questionnaire de révision par cycle · vingt-quatre items du CPCC, et le
 reste assumé.** Le séminaire porte DEUX checklists, § VI « vérification de
 l'inventaire physique » (immobilisations, stocks, caisses) et § VII

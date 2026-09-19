@@ -1,4 +1,4 @@
-import { DecisionEcartInventaire, Referentiel, RoleMembreInventaire, StatutCampagneInventaire } from '@prisma/client';
+import { DecisionEcartInventaire, MethodeInventaireStocks, Referentiel, RoleMembreInventaire, StatutCampagneInventaire } from '@prisma/client';
 import { InventaireService } from './inventaire.service';
 import { PrismaService } from '../../common/prisma.service';
 import { EcritureService } from '../comptabilite/ecriture.service';
@@ -442,6 +442,59 @@ describe('Inventaire · le motif du refus d’excédent dépend du compte', () =
     const m = InventaireService.motifRefusExcedent('57110000');
     expect(m).toContain('écart de');
     expect(m).toContain('commission');
+  });
+
+  /**
+   * LA CORRECTION DU 2026-09-19 · une lacune déclarée à tort, trouvée par
+   * l'audit de cohérence et non par un test.
+   *
+   * Le module affirmait, sur TOUT compte, que « le référentiel n'impose
+   * aucune contrepartie » à un manquant, et refusait TOUT excédent au nom de
+   * l'art. 43. Les deux phrases sont vraies d'une caisse, d'une
+   * immobilisation ou d'un tiers. Elles sont FAUSSES d'un compte de classe 3
+   * tenu en inventaire PERMANENT, où les deux textes nomment le boni et le
+   * mali d'inventaire ET désignent leur contrepartie.
+   */
+  it("sur un stock en inventaire PERMANENT, l’excédent n’est plus refusé au seul nom de l’art. 43", () => {
+    const m = InventaireService.motifRefusExcedent('31100000', MethodeInventaireStocks.PERMANENT);
+    expect(m).toContain("BONI");
+    expect(m).toContain('VARIATION');
+    // L'art. 43 reste cité · il régit toujours la moitié « baisse de valeur ».
+    expect(m).toContain("valeur d'entrée");
+  });
+
+  it("sur un stock en inventaire INTERMITTENT, l’art. 43 reste le seul motif", () => {
+    // Sans inventaire comptable permanent, il n'existe aucun boni : le
+    // comptage EST le stock final, et il entre par l'écriture de variation.
+    const m = InventaireService.motifRefusExcedent('31100000', MethodeInventaireStocks.INTERMITTENT);
+    expect(m).toContain('art. 43');
+    expect(m).not.toContain('BONI');
+  });
+
+  it("la contrepartie d’un manquant est NOMMÉE sur un stock en inventaire permanent", () => {
+    const note = InventaireService.noteContrepartieManquant(
+      '31100000',
+      MethodeInventaireStocks.PERMANENT,
+    );
+    expect(note).toContain('MALI');
+    expect(note).toContain('VARIATION');
+    // Et la seconde voie est nommée aussi · un écart de valeur à quantité
+    // égale est une dépréciation, pas une variation.
+    expect(note).toContain('DÉPRÉCIATION');
+    expect(note).not.toContain("le référentiel n'en impose aucune");
+  });
+
+  it("ailleurs, la phrase d’origine tient · aucune source ne nomme la contrepartie", () => {
+    for (const numero of ['57110000', '24410000', '41100000']) {
+      expect(
+        InventaireService.noteContrepartieManquant(numero, MethodeInventaireStocks.PERMANENT),
+      ).toContain("le référentiel n'en impose aucune");
+    }
+    // Et sur un stock dont le mode n'est pas déclaré non plus · un boni
+    // n'existe qu'en inventaire permanent, et on ne le présume pas.
+    expect(InventaireService.noteContrepartieManquant('31100000', null)).toContain(
+      "le référentiel n'en impose aucune",
+    );
   });
 
   it('le 58 (virements internes) n’est pas une caisse · seul le 57 bascule', () => {

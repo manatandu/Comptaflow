@@ -3,7 +3,14 @@ import { MODELES_CLOISONNES, MODELES_PORTES_PAR_LEUR_PARENT } from '../../../com
 import { colonnesExclues } from '../../../common/audit/champs-audites';
 
 /**
- * L'INVENTAIRE BORNÉ DES 55 TABLES.
+ * L'INVENTAIRE BORNÉ DES TABLES DU DOSSIER.
+ *
+ * LE NOMBRE N'EST PAS ÉCRIT ICI, ET C'EST VOULU · il a été faux deux fois
+ * (« 55 » pour 76, puis 76 pour 78), et un décompte périmé dans un
+ * commentaire se lit comme une garantie. Le seul décompte EN DUR vit dans
+ * `lecture-bornee.spec.ts`, où il a pour fonction de TOMBER : un modèle
+ * ajouté au schéma doit obliger quelqu'un à décider par quelle borne il se
+ * lit.
  *
  * LE DANGER QUE CE FICHIER EXISTE POUR ÉCARTER. La garde de cloisonnement
  * commence par `if (!MODELES_CLOISONNES.has(model)) return query(args)` · les
@@ -128,7 +135,7 @@ export function colonnesDuModele(modele: string): string[] {
 }
 
 /**
- * Les 55 tables à restituer, dans un ordre stable · les cloisonnées d'abord,
+ * Les tables à restituer, dans un ordre stable · les cloisonnées d'abord,
  * puis les portées. `Tenant` n'y est PAS : le dossier lui-même est une ligne
  * unique, servie par le manifeste, et le lire comme une collection
  * demanderait une borne `{ id }` que `filtreBorne` ne reconnaîtrait pas.
