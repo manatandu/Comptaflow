@@ -1,7 +1,14 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { TypeContratTravail } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
-import { ContratTravailDto, SalarieDto, TerminerContratDto } from './dto/personnel.dto';
+import {
+  ContratTravailDto,
+  SalarieDto,
+  SimulationPaieDto,
+  TerminerContratDto,
+} from './dto/personnel.dto';
+import { assiettes, type ElementPaie, type NatureElementPaie } from './assiettes-paie';
+import { baremeApplicableAuMois, retenueMensuelle } from './bareme-irpp';
 import {
   aptitudeProvisoirePerimee,
   declarationsDues,
@@ -393,6 +400,103 @@ export class PersonnelService {
     };
   }
 
+
+  /**
+   * LA SIMULATION DE PAIE · P2a. DEUX ASSIETTES ET UNE RETENUE, RIEN DE PLUS.
+   *
+   * CE QU'ELLE N'EST PAS, ET L'ÉCRAN LE DIT AVANT LES CHIFFRES. Ce n'est pas
+   * un bulletin de paie · rien n'est stocké, aucune écriture n'est proposée,
+   * aucune cotisation patronale n'est liquidée. Le bulletin, le livre de paie
+   * des articles 213 à 215 et la passation comptable sont de P2b et de P3.
+   *
+   * POURQUOI ELLE EXISTE QUAND MÊME. Les deux assiettes d'un bulletin
+   * congolais ne coïncident pas, et c'est l'erreur la plus coûteuse du
+   * domaine : elle laisse un bulletin dont tous les totaux s'additionnent, un
+   * net à payer plausible, et une retenue fausse. La rendre VISIBLE, élément
+   * par élément, avec l'article qui décide de chacun, est ce qui permet à un
+   * cabinet de vérifier avant de payer.
+   *
+   * LE NOMBRE DE PERSONNES À CHARGE EST PROPOSÉ, JAMAIS SUBSTITUÉ · même
+   * parti que la part de main-d'œuvre nationale de l'effectif, et pour une
+   * raison écrite dans le texte : l'article 124 ne compte les enfants et les
+   * ascendants que « pour autant qu'ils n'aient pas bénéficié personnellement
+   * […] des ressources nettes ne dépassant pas le revenu de la première
+   * tranche », donnée qu'aucun livre du dossier ne porte. Et l'article 125
+   * fige la situation de famille AU 1er JANVIER de l'année de réalisation des
+   * revenus, non au jour de la paie · un enfant né en mars ne compte qu'en
+   * janvier suivant.
+   */
+  async simulerPaie(tenantId: string, salarieId: string | null, dto: SimulationPaieDto) {
+    const borne = baremeApplicableAuMois(dto.moisDePaie);
+
+    // Le salarié n'est lu QUE pour proposer un nombre de personnes à charge,
+    // et il est borné au dossier de la session · un identifiant venu du client
+    // ne désigne jamais à lui seul la ligne à lire.
+    let propositionPersonnesACharge: number | null = null;
+    let sourceProposition: string | null = null;
+    if (salarieId) {
+      const salarie = await this.prisma.salarie.findFirst({
+        where: { id: salarieId, tenantId },
+        select: {
+          nom: true,
+          nomConjoint: true,
+          _count: { select: { enfants: true } },
+        },
+      });
+      if (!salarie) throw new NotFoundException('Salarié introuvable dans ce dossier.');
+      const conjoint = salarie.nomConjoint ? 1 : 0;
+      propositionPersonnesACharge = conjoint + salarie._count.enfants;
+      sourceProposition =
+        `Registre du personnel · ${conjoint} conjoint et ${salarie._count.enfants} enfant(s) à charge. ` +
+        "L'article 124 y ajoute les ascendants des deux conjoints faisant partie du ménage, que le registre ne tient pas, " +
+        "et il écarte les enfants et ascendants qui disposent de ressources propres supérieures à la première tranche du barème. " +
+        "L'article 125 fige la situation au 1er janvier de l'année. Le nombre retenu appartient donc au cabinet.";
+    }
+
+    const elements: ElementPaie[] = dto.elements.map((e) => ({
+      nature: e.nature as NatureElementPaie,
+      libelle: e.libelle,
+      montantFc: e.montantFc,
+      remboursementDeDepenseProfessionnelleEffective:
+        e.remboursementDeDepenseProfessionnelleEffective,
+      conditionArticle69Attestee: e.conditionArticle69Attestee ?? null,
+    }));
+
+    const deuxAssiettes = assiettes(elements, {
+      tauxLegalAllocationsFamilialesFc: dto.tauxLegalAllocationsFamilialesFc ?? null,
+      retenuesArticle71Fc: dto.retenuesArticle71Fc,
+    });
+
+    // TROIS RAISONS DE NE PAS CHIFFRER LA RETENUE, et aucune n'est une panne.
+    // Le barème hors de sa période, une assiette indéterminée, et c'est tout ·
+    // un nombre de personnes à charge absent vaut ZÉRO réduction, ce qui est
+    // le sens défavorable au contribuable et donc celui qu'on ne suppose pas
+    // en sa faveur.
+    const retenue =
+      borne.applicable && deuxAssiettes.assietteFiscaleNetteFc !== null
+        ? retenueMensuelle(
+            dto.moisDePaie,
+            deuxAssiettes.assietteFiscaleNetteFc,
+            dto.personnesACharge ?? 0,
+          )
+        : null;
+
+    return {
+      moisDePaie: dto.moisDePaie,
+      baremeApplicable: borne.applicable,
+      motifBaremeInapplicable: borne.motif,
+      assiettes: deuxAssiettes,
+      personnesAChargeRetenues: dto.personnesACharge ?? 0,
+      propositionPersonnesACharge,
+      sourceProposition,
+      retenue,
+      avertissement:
+        "Ceci n'est PAS un bulletin de paie. OmegaX rend ici deux assiettes et la retenue de l'article 119 ; " +
+        "il ne liquide aucune cotisation patronale, ne propose aucune écriture et ne conserve rien. " +
+        "La retenue rendue est un ACOMPTE sur l'impôt annuel de l'article 116, jamais un solde.",
+    };
+  }
+
   /** Le nombre de renouvellements qui MÈNENT à ce contrat, celui-ci compris. */
   private longueurChaineRenouvellement(
     contrats: Array<{ id: string; renouvelleDeId: string | null }>,
@@ -478,3 +582,4 @@ export class PersonnelService {
 
 export type Confrontation = Awaited<ReturnType<PersonnelService['confronter']>>;
 export type Effectif = Awaited<ReturnType<PersonnelService['effectif']>>;
+export type SimulationPaie = Awaited<ReturnType<PersonnelService['simulerPaie']>>;

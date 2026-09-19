@@ -1426,6 +1426,108 @@ pour le prélèvement expatrié (art. 152 et 153). Une règle exacte, datée de 
 mauvaise date, est une règle fausse sur tout un exercice.
 
 
+**P2a · LES DEUX ASSIETTES, ET LA DÉCOUVERTE QU'ELLES SE RESSEMBLENT**
+(`docs/paie-p2a-assiettes-et-bareme.md`).
+
+**P2 N'ÉTAIT PAS BLOQUÉ, ET LE JOURNAL DE P0 SE TROMPAIT DE MANQUE.** Les
+trois points qu'il tenait pour bloquants sont tranchés par des textes DÉJÀ au
+corpus · le barème et son plafond (loi n° 23/053, art. 118), la déductibilité
+de la quote-part ouvrière CNSS (art. 71), la cotisation syndicale (Code du
+travail, art. 112, qui ferme la liste des retenues et ne la nomme pas). **Un
+manque se vérifie contre le corpus ENTIER, pas contre le module qu'on écrit** ·
+P0 lisait le corpus par le bout de la paie, le barème vivait au bout de la
+fiscalité.
+
+**LA TENSION DU BARÈME N'EN EST PAS UNE, ET ELLE SE CALCULE.** L'article 118
+pose un taux marginal de 40 % ET un plafond (« En aucun cas, l'impôt total ne
+peut excéder 30 % du revenu imposable ») · le second borne le premier, et il
+MORD à partir de **77 932 800 FC** de revenu net global annuel. Le seuil n'est
+pas une constante du texte, c'est le croisement de deux de ses alinéas, et le
+test le RECALCULE depuis les tranches au lieu de le croire.
+
+**LA DÉCOUVERTE · DEUX LISTES D'EXCLUSION QUI SE RESSEMBLENT MOT POUR MOT ET
+N'ONT PAS LA MÊME FORME.** Le Code du travail, art. 7, point 8, sort CINQ
+natures de la rémunération **sans aucune condition** (soins de santé, logement
+ou son indemnité, allocations familiales légales, transport, frais de voyage).
+La loi fiscale nomme les mêmes choses, les fait d'abord ENTRER dans
+l'imposable (art. 68, « tous les avantages en argent et en nature ») puis les
+immunise **sous condition** (art. 69). Servir la liste sociale à l'assiette
+fiscale SOUS-IMPOSE sans qu'aucun total du bulletin ne bouge · une indemnité de
+logement de 40 % du salaire sort de l'assiette sociale de plein droit et NE
+SORT PAS de l'assiette fiscale. Même doctrine qu'à P1 · **une liste d'exclusion
+se nomme par sa FIN, jamais par sa forme.** Et la divergence joue AUSSI en sens
+inverse · les frais de voyage sortent de la rémunération et ne figurent dans
+AUCUN point de l'art. 69, dont la liste est fermée.
+
+**TROIS FORMULATIONS DE LA MÊME LOI, ET C'EST ELLE QUI LES DISTINGUE.** « DANS
+LA LIMITE DE 5 % » (art. 116, 1) et « DANS LA MESURE OÙ elles ne dépassent pas
+les taux légaux » (art. 69, 1) sont des PLAFONDS · seul l'excédent est repris.
+« POUR AUTANT QUE l'indemnité de logement ne dépasse 30 % de la rémunération »
+(art. 69, 8, a) est une CONDITION · remplie, l'immunité joue tout entière ; non
+remplie, elle ne joue pas du tout. **La lecture n'est pas une opinion** : le
+même législateur écrit « dans la limite de » quand il veut un plafond, à trois
+articles de là. OmegaX applique la condition et NOMME l'autre lecture avec le
+montant qu'elle changerait. La BASE des 30 % est prise au sens de l'art. 7,
+point 8, qui exclut justement le logement · la réserve est écrite.
+
+**TROIS ABSTENTIONS, ET AUCUNE NE SE SUPPOSE.** La réalité du transport
+(art. 69, 8, b) et les documents probants des frais médicaux (art. 69, 8, c)
+ne sont dans AUCUN livre comptable · le cabinet ATTESTE, sans quoi la
+simulation s'abstient, jamais n'immunise d'office. Et le « taux légal » des
+allocations familiales de l'art. 69, 1 reste NON TRANCHÉ · l'arrêté n° 137/2018
+art. 3 et la colonne 19 de l'annexe du décret n° 25/22 portent deux montants,
+et aucune source lue ne dit lequel vaut. **L'abstention fiscale n'emporte
+JAMAIS l'assiette sociale**, qui ne dépend d'aucune de ces conditions.
+
+**LA MENSUALISATION EST UNE CONVENTION DE L'ÉDITEUR, ET ELLE EST DÉCLARÉE.**
+L'art. 119 impose une retenue MENSUELLE et renvoie au barème ANNUEL de
+l'art. 118 · aucun article ne dit comment passer de l'un à l'autre. **On
+annualise le mois, on ne divise pas les tranches** · les deux sont
+arithmétiquement équivalents, mais annualiser applique le barème tel qu'il est
+écrit sans jamais écrire de tranche mensuelle que le texte ne porte pas. Et
+l'ARRONDI AU MILLIER se prend sur le revenu ANNUALISÉ, seul « revenu net
+global » que l'article nomme · 1 000 100 FC par mois font 12 001 000 FC, contre
+12 000 000 par l'autre chemin. **Ce qui sort est un ACOMPTE** · l'art. 116
+assied l'impôt sur le revenu net global annuel et l'art. 121 y impute les
+retenues, si bien que la somme des douze retenues n'est pas ce que le salarié
+doit.
+
+**LE PLAFOND JOUE AVANT LA QUOTITÉ, ET LE TEXTE LE DIT.** L'art. 123 réduit
+« l'impôt établi par application de l'article 118 », alinéa 2 compris. L'ordre
+inverse rendrait un impôt PLUS ÉLEVÉ dès que le plafond mord, au détriment du
+seul contribuable qui a des personnes à charge ET un haut revenu. Le SEUL
+endroit où le texte se tait est la répartition de l'impôt PLAFONNÉ entre la
+part basse et la part haute · OmegaX ne fabrique aucune clé, il retient le plus
+petit des deux montants que le texte nomme, et le dit en réserve.
+
+**LE NOMBRE DE PERSONNES À CHARGE EST PROPOSÉ, JAMAIS SUBSTITUÉ** · même parti
+que la part de main-d'œuvre nationale de P1. L'art. 124 ne compte les enfants
+et ascendants que s'ils n'ont pas de ressources propres supérieures à la
+première tranche, et l'art. 125 fige la situation AU 1er JANVIER, non au jour
+de la paie. À défaut, ZÉRO est retenu · le sens défavorable au contribuable,
+donc celui qu'on ne suppose pas en sa faveur.
+
+**TROIS RÈGLES QUE LE MODULE N'APPLIQUE PAS, ET QUI SONT NOMMÉES.** Le minimum
+de perception de l'art. 122 (1 % du chiffre d'affaires) ne vise PAS les revenus
+salariaux de l'art. 68 · l'appliquer à un bulletin inventerait un impôt. Le
+plancher de 2 000 FC du livre de cours n'est dans AUCUN article. Et la retenue
+LIBÉRATOIRE de l'art. 121, alinéa 2 (personnel domestique, salariés de
+micro-entreprises, arrêté n° 019/2025 non lu) est un autre régime, nommé plutôt
+qu'ignoré.
+
+**ET UNE LACUNE DÉCLARÉE À TORT DANS NOTRE PROPRE ÉCRAN, LA QUATRIÈME.**
+L'en-tête de la fenêtre Personnel écrivait depuis P1 que « le moteur de
+rémunération attend des textes qui ne sont pas encore au corpus du logiciel ».
+Vrai à l'écriture, faux le lendemain. Après l'homologation de la facture (F1),
+les exclusions de l'art. 41 (F2b) et la lecture de la contrepartie (F3a),
+c'est **la première dans un texte affiché à l'utilisateur** · une phrase de ce
+genre conclut le sujet et fait renoncer à une démarche possible.
+
+Neuf contresens réinjectés dans les assiettes, neuf attrapés · huit dans le
+barème, huit attrapés · six au point d'appel, six attrapés, **dont deux passés
+au premier essai** (un motif de réinjection qui visait la mauvaise occurrence
+du fichier, et un trou de test réel sur le taux légal, couvert depuis).
+
 **ADDENDUM P0 · le chapitre 66 du livre de cours, et ce qu'il apporte
 vraiment.** Un second extrait du même livre (pages 173 à 199) a été fourni en
 cours de passe. Il porte LE chapitre de la paie. Même statut que le premier ·

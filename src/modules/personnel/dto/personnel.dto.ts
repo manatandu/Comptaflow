@@ -258,3 +258,92 @@ export class TerminerContratDto {
   @MaxLength(300)
   motifFin?: string;
 }
+
+/**
+ * UN ÉLÉMENT DE PAIE SOUMIS À LA SIMULATION. Rien n'est stocké · P2a rend
+ * deux assiettes et une retenue, le bulletin est de P2b.
+ */
+export class ElementPaieDto {
+  @IsEnum([
+    'SALAIRE_OU_TRAITEMENT',
+    'COMMISSION',
+    'INDEMNITE_DE_VIE_CHERE',
+    'PRIME',
+    'PARTICIPATION_AUX_BENEFICES',
+    'GRATIFICATION_OU_MOIS_COMPLEMENTAIRE',
+    'PRESTATION_SUPPLEMENTAIRE',
+    'AVANTAGE_EN_NATURE',
+    'ALLOCATION_OU_INDEMNITE_COMPENSATOIRE_DE_CONGE',
+    'INDEMNITE_INCAPACITE_OU_ACCOUCHEMENT',
+    'SOINS_DE_SANTE',
+    'LOGEMENT_OU_SON_INDEMNITE',
+    'ALLOCATIONS_FAMILIALES_LEGALES',
+    'INDEMNITE_DE_TRANSPORT',
+    'FRAIS_DE_VOYAGE_OU_AVANTAGE_DE_FONCTION',
+  ])
+  nature!: string;
+
+  @IsString()
+  @MaxLength(160)
+  libelle!: string;
+
+  @IsNumber()
+  @Min(0)
+  montantFc!: number;
+
+  @IsOptional()
+  @IsBoolean()
+  remboursementDeDepenseProfessionnelleEffective?: boolean;
+
+  /**
+   * Articles 69, 8, b) et c) · l'attestation du cabinet. Laisser le champ
+   * ABSENT vaut abstention, jamais immunité.
+   */
+  @IsOptional()
+  @IsBoolean()
+  conditionArticle69Attestee?: boolean;
+}
+
+export class SimulationPaieDto {
+  /** Mois de paie au format AAAA-MM · il borne le barème et le SMIG. */
+  @IsString()
+  @MaxLength(7)
+  moisDePaie!: string;
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ElementPaieDto)
+  elements!: ElementPaieDto[];
+
+  /**
+   * Article 123 · le nombre de personnes à charge RETENU par le cabinet.
+   * Le registre en PROPOSE un, il ne le substitue pas : l'article 124 borne
+   * la qualité de personne à charge par des ressources propres qu'aucun livre
+   * du dossier ne porte.
+   */
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(99)
+  personnesACharge?: number;
+
+  /**
+   * Article 71 · les versements déductibles du brut, quote-part ouvrière de
+   * la CNSS en tête. Ils sont SAISIS · les taux vivent au registre des
+   * retenues avec leur date d'effet, et ce module ne les recopie pas.
+   */
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  retenuesArticle71Fc?: number;
+
+  /**
+   * Article 69, 1 · le « taux légal » des allocations familiales du mois.
+   * Absent, la simulation s'abstient plutôt que de choisir entre les deux
+   * montants que le corpus porte.
+   */
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  tauxLegalAllocationsFamilialesFc?: number;
+}

@@ -141,6 +141,47 @@ interface Confrontation {
   totalSignalements: number;
 }
 
+interface Simulation {
+  moisDePaie: string;
+  baremeApplicable: boolean;
+  motifBaremeInapplicable: string | null;
+  assiettes: {
+    assietteSocialeFc: number;
+    horsRemuneration: { libelle: string; montantFc: number; motif: string }[];
+    assietteFiscaleBruteFc: number | null;
+    sortsFiscaux: {
+      libelle: string;
+      montantFc: number;
+      imposableFc: number | null;
+      motif: string;
+    }[];
+    retenuesArticle71Fc: number;
+    assietteFiscaleNetteFc: number | null;
+    abstentions: { motif: string; libelle: string; montantFc: number; explication: string }[];
+    reserves: string[];
+  };
+  personnesAChargeRetenues: number;
+  propositionPersonnesACharge: number | null;
+  sourceProposition: string | null;
+  retenue: {
+    revenuAnnualiseFc: number;
+    retenueFc: number;
+    reserves: string[];
+    annuel: {
+      assietteArrondieFc: number;
+      impotDuBaremeFc: number;
+      plafondFc: number;
+      plafondApplique: boolean;
+      impotArticle118Fc: number;
+      quotitePourCent: number;
+      reductionFc: number;
+      impotDuFc: number;
+      parTranche: { tauxPourCent: number; baseFc: number; impotFc: number }[];
+    };
+  } | null;
+  avertissement: string;
+}
+
 interface Effectif {
   effectif: number;
   hommes: number;
@@ -227,6 +268,92 @@ const CLASSES: { classe: number; libelle: string }[] = [
   { classe: 17, libelle: 'Cadre de collaboration, échelon 4' },
 ];
 
+/**
+ * LES QUINZE NATURES D'ÉLÉMENT DE PAIE. Les dix premières sont dans la
+ * rémunération de l'article 7, point 8 du Code du travail ; les cinq
+ * dernières en sortent. LE LIBELLÉ LE DIT, parce que c'est exactement la
+ * distinction que le bulletin doit rendre visible.
+ *
+ * Aucun calcul n'est fait ici · l'écran ENVOIE les éléments et AFFICHE ce que
+ * le serveur rend. Refaire les deux assiettes côté client produirait deux
+ * chiffres plausibles et différents pour la même paie, ce que le lettrage et
+ * la TVA ont déjà appris au dépôt.
+ */
+const NATURES_PAIE: { valeur: string; libelle: string; dansLaRemuneration: boolean }[] = [
+  { valeur: 'SALAIRE_OU_TRAITEMENT', libelle: 'Salaire ou traitement', dansLaRemuneration: true },
+  { valeur: 'COMMISSION', libelle: 'Commission', dansLaRemuneration: true },
+  { valeur: 'INDEMNITE_DE_VIE_CHERE', libelle: 'Indemnité de vie chère', dansLaRemuneration: true },
+  { valeur: 'PRIME', libelle: 'Prime', dansLaRemuneration: true },
+  {
+    valeur: 'PARTICIPATION_AUX_BENEFICES',
+    libelle: 'Participation aux bénéfices',
+    dansLaRemuneration: true,
+  },
+  {
+    valeur: 'GRATIFICATION_OU_MOIS_COMPLEMENTAIRE',
+    libelle: 'Gratification ou mois complémentaire',
+    dansLaRemuneration: true,
+  },
+  {
+    valeur: 'PRESTATION_SUPPLEMENTAIRE',
+    libelle: 'Prestation supplémentaire',
+    dansLaRemuneration: true,
+  },
+  { valeur: 'AVANTAGE_EN_NATURE', libelle: 'Avantage en nature', dansLaRemuneration: true },
+  {
+    valeur: 'ALLOCATION_OU_INDEMNITE_COMPENSATOIRE_DE_CONGE',
+    libelle: 'Allocation ou indemnité compensatoire de congé',
+    dansLaRemuneration: true,
+  },
+  {
+    valeur: 'INDEMNITE_INCAPACITE_OU_ACCOUCHEMENT',
+    libelle: 'Indemnité d’incapacité ou d’accouchement',
+    dansLaRemuneration: true,
+  },
+  { valeur: 'SOINS_DE_SANTE', libelle: 'Soins de santé', dansLaRemuneration: false },
+  {
+    valeur: 'LOGEMENT_OU_SON_INDEMNITE',
+    libelle: 'Logement ou son indemnité',
+    dansLaRemuneration: false,
+  },
+  {
+    valeur: 'ALLOCATIONS_FAMILIALES_LEGALES',
+    libelle: 'Allocations familiales légales',
+    dansLaRemuneration: false,
+  },
+  {
+    valeur: 'INDEMNITE_DE_TRANSPORT',
+    libelle: 'Indemnité de transport',
+    dansLaRemuneration: false,
+  },
+  {
+    valeur: 'FRAIS_DE_VOYAGE_OU_AVANTAGE_DE_FONCTION',
+    libelle: 'Frais de voyage ou avantage de fonction',
+    dansLaRemuneration: false,
+  },
+];
+
+type LignePaie = {
+  nature: string;
+  libelle: string;
+  montantFc: string;
+  attestee: '' | 'oui' | 'non';
+  remboursement: boolean;
+};
+
+const LIGNE_VIERGE: LignePaie = {
+  nature: 'SALAIRE_OU_TRAITEMENT',
+  libelle: '',
+  montantFc: '',
+  attestee: '',
+  remboursement: false,
+};
+
+const fc = (n: number | null | undefined) =>
+  n === null || n === undefined
+    ? '' 
+    : n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
 const nomComplet = (s: Salarie) => [s.nom, s.postNom, s.prenoms].filter(Boolean).join(' ');
 const jour = (d: string | null) => (d ? d.slice(0, 10) : '');
 
@@ -234,7 +361,9 @@ export function PersonnelPage() {
   const [salaries, setSalaries] = useState<Salarie[]>([]);
   const [confrontation, setConfrontation] = useState<Confrontation | null>(null);
   const [effectif, setEffectif] = useState<Effectif | null>(null);
-  const [onglet, setOnglet] = useState<'registre' | 'confrontation' | 'effectif'>('registre');
+  const [onglet, setOnglet] = useState<
+    'registre' | 'confrontation' | 'effectif' | 'simulation'
+  >('registre');
   const [tous, setTous] = useState(false);
   const [selection, setSelection] = useState<string>('');
   const [erreur, setErreur] = useState('');
@@ -244,6 +373,12 @@ export function PersonnelPage() {
   const [enfants, setEnfants] = useState<Enfant[]>([]);
   const [contrat, setContrat] = useState({ ...NOUVEAU_CONTRAT });
   const [aLa, setALa] = useState('');
+  const [moisDePaie, setMoisDePaie] = useState('');
+  const [lignes, setLignes] = useState<LignePaie[]>([{ ...LIGNE_VIERGE }]);
+  const [retenues71, setRetenues71] = useState('');
+  const [tauxAllocations, setTauxAllocations] = useState('');
+  const [personnesACharge, setPersonnesACharge] = useState('');
+  const [simulation, setSimulation] = useState<Simulation | null>(null);
 
   const charger = useCallback(() => {
     api.get<Salarie[]>(`/personnel/salaries${tous ? '?tous=true' : ''}`).then(
@@ -266,6 +401,60 @@ export function PersonnelPage() {
         .then(setEffectif, (e: ApiError) => setErreur(e.message));
     }
   }, [onglet, aLa]);
+
+/**
+   * LA SIMULATION EST DEMANDÉE AU SERVEUR, jamais refaite ici. Deux calculs
+   * écrits séparément auraient divergé au premier correctif, et l'écart
+   * n'aurait sauté aux yeux de personne · les deux assiettes sont plausibles
+   * séparément. C'est la leçon de `calculerPropositions` et de
+   * `construireLigneTva`.
+   *
+   * ET L'ATTESTATION DE L'ARTICLE 69, 8 N'EST ENVOYÉE QUE LORSQU'ELLE A ÉTÉ
+   * DONNÉE · « non renseigné » laisse le champ ABSENT, ce qui vaut abstention
+   * au serveur. L'envoyer à `false` transformerait un silence en refus, et
+   * imposerait une indemnité que personne n'a examinée.
+   */
+  const simuler = () => {
+    setErreur('');
+    setSucces('');
+    setEnCours(true);
+    const nombre = (v: string) => {
+      const n = Number(v.replace(/\s/g, '').replace(',', '.'));
+      return v.trim() === '' || Number.isNaN(n) ? undefined : n;
+    };
+    const corps = {
+      moisDePaie,
+      elements: lignes
+        .filter((l) => nombre(l.montantFc) !== undefined)
+        .map((l) => ({
+          nature: l.nature,
+          libelle:
+            l.libelle.trim() ||
+            (NATURES_PAIE.find((n) => n.valeur === l.nature)?.libelle ?? l.nature),
+          montantFc: nombre(l.montantFc) as number,
+          ...(l.remboursement ? { remboursementDeDepenseProfessionnelleEffective: true } : {}),
+          ...(l.attestee === '' ? {} : { conditionArticle69Attestee: l.attestee === 'oui' }),
+        })),
+      retenuesArticle71Fc: nombre(retenues71),
+      tauxLegalAllocationsFamilialesFc: nombre(tauxAllocations),
+      personnesACharge: nombre(personnesACharge),
+    };
+    api
+      .post<Simulation>(
+        `/personnel/simulation${selection ? `?salarieId=${selection}` : ''}`,
+        corps,
+      )
+      .then(
+        (r) => {
+          setSimulation(r);
+          setEnCours(false);
+        },
+        (e: ApiError) => {
+          setErreur(e.message);
+          setEnCours(false);
+        },
+      );
+  };
 
   const corpsSalarie = () => ({
     matricule: salarie.matricule.trim() || undefined,
@@ -403,8 +592,9 @@ export function PersonnelPage() {
         <div className="text-[10px] text-text-dim mt-0.5">
           Le registre tient l’état civil et les engagements, et confronte chaque contrat aux quinze
           énonciations obligatoires de l’article 212 ainsi qu’aux requalifications de plein droit des
-          articles 40 à 45. <strong>Il ne calcule aucun bulletin de paie</strong> : le moteur de
-          rémunération attend des textes qui ne sont pas encore au corpus du logiciel.
+          articles 40 à 45. <strong>Il ne produit aucun bulletin de paie</strong> : l’onglet
+          Simulation rend les deux assiettes d’un mois et la retenue de l’article 119, sans rien
+          conserver ni proposer d’écriture.
         </div>
       </div>
 
@@ -420,7 +610,7 @@ export function PersonnelPage() {
       )}
 
       <div className="ecran-seul flex gap-1 mb-2 text-[10.5px]">
-        {(['registre', 'confrontation', 'effectif'] as const).map((o) => (
+        {(['registre', 'confrontation', 'effectif', 'simulation'] as const).map((o) => (
           <button
             key={o}
             type="button"
@@ -429,7 +619,13 @@ export function PersonnelPage() {
               onglet === o ? 'border-accent text-accent' : 'border-border text-text-dim'
             }`}
           >
-            {o === 'registre' ? 'Registre' : o === 'confrontation' ? 'Article 212' : 'Effectif'}
+            {o === 'registre'
+              ? 'Registre'
+              : o === 'confrontation'
+                ? 'Article 212'
+                : o === 'effectif'
+                  ? 'Effectif'
+                  : 'Simulation'}
           </button>
         ))}
       </div>
@@ -1129,6 +1325,417 @@ export function PersonnelPage() {
             incomplet produirait un pourcentage faux sous une apparence de calcul, sur un engagement
             dont le manquement se sanctionne.
           </div>
+        </div>
+      )}
+
+      {onglet === 'simulation' && (
+        <div className="ecran-seul max-w-[1240px] text-[10.5px]">
+          {/*
+            CE QUE LA FENÊTRE DIT AVANT TOUT CHIFFRE. Un écran qui montre un
+            brut, des retenues et un net EST lu comme un bulletin, quoi qu'il
+            annonce ensuite. La réserve est donc en tête, et le serveur la
+            renvoie avec chaque simulation plutôt que de la laisser ici seule.
+          */}
+          <div className="border border-warning/40 bg-warning/5 px-3.5 py-2.5 mb-2.5">
+            <strong>Ceci n’est pas un bulletin de paie.</strong> OmegaX rend ici les{' '}
+            <strong>deux assiettes</strong> d’un mois et la retenue de l’article 119 de la loi
+            n° 23/053. Il ne liquide aucune cotisation patronale, ne propose aucune écriture et ne
+            conserve rien. La retenue rendue est un <strong>acompte</strong> sur l’impôt annuel de
+            l’article 116, jamais un solde.
+          </div>
+
+          <div className="border border-border px-3.5 py-2.5 mb-2.5">
+            <div className="text-[10px] text-text-dim mb-2">
+              Les deux assiettes ne coïncident pas, et c’est l’erreur la plus coûteuse du domaine.
+              Le <strong>Code du travail</strong>, article 7, point 8, sort cinq natures de la
+              rémunération <strong>sans aucune condition</strong>. La <strong>loi fiscale</strong>{' '}
+              les fait d’abord entrer dans l’imposable (article 68) puis les immunise{' '}
+              <strong>sous condition</strong> (article 69). Une indemnité de logement de 40 % du
+              salaire sort de l’assiette sociale de plein droit et reste entièrement imposable.
+            </div>
+
+            <div className="flex flex-wrap gap-3 items-end mb-2.5">
+              <label className="flex flex-col gap-0.5">
+                <span className={etiquette}>Mois de paie</span>
+                <input
+                  type="month"
+                  value={moisDePaie}
+                  onChange={(e) => setMoisDePaie(e.target.value)}
+                  className="border border-border bg-transparent px-2 py-1 w-[140px]"
+                />
+              </label>
+              <label className="flex flex-col gap-0.5">
+                <span className={etiquette}>Salarié (facultatif)</span>
+                <select
+                  value={selection}
+                  onChange={(e) => setSelection(e.target.value)}
+                  className="border border-border bg-transparent px-2 py-1 w-[220px]"
+                >
+                  <option value="">Aucun</option>
+                  {salaries.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {nomComplet(s)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex flex-col gap-0.5">
+                <span className={etiquette}>Retenues art. 71 (FC)</span>
+                <input
+                  value={retenues71}
+                  onChange={(e) => setRetenues71(e.target.value)}
+                  className="border border-border bg-transparent px-2 py-1 w-[140px] text-right"
+                />
+              </label>
+              <label className="flex flex-col gap-0.5">
+                <span className={etiquette}>Taux légal alloc. fam. (FC)</span>
+                <input
+                  value={tauxAllocations}
+                  onChange={(e) => setTauxAllocations(e.target.value)}
+                  className="border border-border bg-transparent px-2 py-1 w-[160px] text-right"
+                />
+              </label>
+              <label className="flex flex-col gap-0.5">
+                <span className={etiquette}>Personnes à charge</span>
+                <input
+                  value={personnesACharge}
+                  onChange={(e) => setPersonnesACharge(e.target.value)}
+                  className="border border-border bg-transparent px-2 py-1 w-[120px] text-right"
+                />
+              </label>
+            </div>
+
+            <div className="text-[10px] text-text-dim mb-2">
+              Les <strong>retenues de l’article 71</strong> sont saisies, quote-part ouvrière de la
+              CNSS en tête : leurs taux vivent au registre des retenues avec leur date d’effet, et
+              ce module ne les recopie pas. Le <strong>taux légal des allocations familiales</strong>{' '}
+              l’est aussi, parce que deux textes en portent deux montants et qu’aucune source lue ne
+              dit lequel vaut ici. Sans lui, la simulation <strong>s’abstient</strong>.
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[760px] border-collapse">
+              <thead>
+                <tr className="border-b border-border text-left">
+                  <th className={`${etiquette} py-1`}>Nature</th>
+                  <th className={`${etiquette} py-1`}>Libellé</th>
+                  <th className={`${etiquette} py-1 text-right`}>Montant FC</th>
+                  <th className={`${etiquette} py-1`}>Art. 69, 8 attesté</th>
+                  <th className={`${etiquette} py-1`}>Art. 68, 1</th>
+                  <th className={`${etiquette} py-1`} />
+                </tr>
+              </thead>
+              <tbody>
+                {lignes.map((l, i) => {
+                  const nature = NATURES_PAIE.find((n) => n.valeur === l.nature);
+                  const attestable =
+                    l.nature === 'INDEMNITE_DE_TRANSPORT' || l.nature === 'SOINS_DE_SANTE';
+                  return (
+                    <tr key={i} className="border-b border-border/40">
+                      <td className="py-1 pr-2">
+                        <select
+                          value={l.nature}
+                          onChange={(e) =>
+                            setLignes(
+                              lignes.map((x, j) =>
+                                j === i ? { ...x, nature: e.target.value } : x,
+                              ),
+                            )
+                          }
+                          className="border border-border bg-transparent px-1.5 py-0.5 w-[260px]"
+                        >
+                          <optgroup label="Dans la rémunération (art. 7, point 8)">
+                            {NATURES_PAIE.filter((n) => n.dansLaRemuneration).map((n) => (
+                              <option key={n.valeur} value={n.valeur}>
+                                {n.libelle}
+                              </option>
+                            ))}
+                          </optgroup>
+                          <optgroup label="Hors rémunération (art. 7, point 8)">
+                            {NATURES_PAIE.filter((n) => !n.dansLaRemuneration).map((n) => (
+                              <option key={n.valeur} value={n.valeur}>
+                                {n.libelle}
+                              </option>
+                            ))}
+                          </optgroup>
+                        </select>
+                      </td>
+                      <td className="py-1 pr-2">
+                        <input
+                          value={l.libelle}
+                          onChange={(e) =>
+                            setLignes(
+                              lignes.map((x, j) =>
+                                j === i ? { ...x, libelle: e.target.value } : x,
+                              ),
+                            )
+                          }
+                          placeholder={nature?.libelle ?? ''}
+                          className="border border-border bg-transparent px-1.5 py-0.5 w-[200px]"
+                        />
+                      </td>
+                      <td className="py-1 pr-2">
+                        <input
+                          value={l.montantFc}
+                          onChange={(e) =>
+                            setLignes(
+                              lignes.map((x, j) =>
+                                j === i ? { ...x, montantFc: e.target.value } : x,
+                              ),
+                            )
+                          }
+                          className="border border-border bg-transparent px-1.5 py-0.5 w-[120px] text-right"
+                        />
+                      </td>
+                      <td className="py-1 pr-2">
+                        {/*
+                          LE CHAMP N'EXISTE QUE LÀ OÙ LE TEXTE POSE UNE
+                          CONDITION QU'AUCUN LIVRE NE PORTE · transport
+                          (art. 69, 8, b) et frais médicaux (art. 69, 8, c).
+                          L'offrir partout ferait croire que le cabinet peut
+                          attester le plafond de 30 % du logement, que le
+                          serveur calcule lui-même.
+                        */}
+                        {attestable ? (
+                          <select
+                            value={l.attestee}
+                            onChange={(e) =>
+                              setLignes(
+                                lignes.map((x, j) =>
+                                  j === i
+                                    ? { ...x, attestee: e.target.value as LignePaie['attestee'] }
+                                    : x,
+                                ),
+                              )
+                            }
+                            className="border border-border bg-transparent px-1.5 py-0.5 w-[120px]"
+                          >
+                            <option value="">Non renseigné</option>
+                            <option value="oui">Condition remplie</option>
+                            <option value="non">Condition non remplie</option>
+                          </select>
+                        ) : (
+                          <span className="text-text-dim">sans objet</span>
+                        )}
+                      </td>
+                      <td className="py-1 pr-2">
+                        <label className="flex items-center gap-1">
+                          <input
+                            type="checkbox"
+                            checked={l.remboursement}
+                            onChange={(e) =>
+                              setLignes(
+                                lignes.map((x, j) =>
+                                  j === i ? { ...x, remboursement: e.target.checked } : x,
+                                ),
+                              )
+                            }
+                          />
+                          <span className="text-[9.5px] text-text-dim">dépense effective</span>
+                        </label>
+                      </td>
+                      <td className="py-1 text-right">
+                        <button
+                          type="button"
+                          onClick={() => setLignes(lignes.filter((_, j) => j !== i))}
+                          className="border border-border px-2 py-0.5 text-text-dim"
+                        >
+                          Retirer
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex gap-2 mt-2">
+            <button
+              type="button"
+              onClick={() => setLignes([...lignes, { ...LIGNE_VIERGE }])}
+              className="border border-border px-3 py-1"
+            >
+              Ajouter un élément
+            </button>
+            <button
+              type="button"
+              disabled={enCours || !moisDePaie}
+              onClick={simuler}
+              className="border border-accent text-accent px-3 py-1 disabled:opacity-40"
+            >
+              Simuler
+            </button>
+          </div>
+
+          {simulation && (
+            <div className="mt-3">
+              {!simulation.baremeApplicable && simulation.motifBaremeInapplicable && (
+                <div className="border border-warning/40 bg-warning/5 px-3.5 py-2.5 mb-2.5">
+                  {simulation.motifBaremeInapplicable}
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className="border border-border px-3.5 py-2.5">
+                  <div className={etiquette}>Assiette sociale</div>
+                  <div className="text-[14px] font-bold">
+                    {fc(simulation.assiettes.assietteSocialeFc)} FC
+                  </div>
+                  <div className="text-[10px] text-text-dim mt-1">
+                    Rémunération au sens de l’article 7, point 8 du Code du travail, reprise par
+                    l’article 17 de l’arrêté ministériel n° 146/2018. C’est elle que les cotisations
+                    frappent.
+                  </div>
+                  {simulation.assiettes.horsRemuneration.length > 0 && (
+                    <ul className="mt-1.5 text-[10px]">
+                      {simulation.assiettes.horsRemuneration.map((h, i) => (
+                        <li key={i} className="py-0.5 border-t border-border/40">
+                          <span className="text-text-dim">Écarté</span> · {h.libelle} ·{' '}
+                          {fc(h.montantFc)} FC
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
+                <div className="border border-border px-3.5 py-2.5">
+                  <div className={etiquette}>Assiette fiscale nette (art. 70)</div>
+                  <div className="text-[14px] font-bold">
+                    {simulation.assiettes.assietteFiscaleNetteFc === null
+                      ? 'Indéterminée'
+                      : `${fc(simulation.assiettes.assietteFiscaleNetteFc)} FC`}
+                  </div>
+                  <div className="text-[10px] text-text-dim mt-1">
+                    Brut imposable des articles 68 et 69
+                    {simulation.assiettes.assietteFiscaleBruteFc !== null &&
+                      ` (${fc(simulation.assiettes.assietteFiscaleBruteFc)} FC)`}
+                    , diminué des retenues de l’article 71 (
+                    {fc(simulation.assiettes.retenuesArticle71Fc)} FC).
+                  </div>
+                </div>
+              </div>
+
+              {simulation.assiettes.abstentions.length > 0 && (
+                <div className="border border-warning/40 bg-warning/5 px-3.5 py-2.5 mt-2.5">
+                  <div className="font-bold mb-1">
+                    La simulation s’abstient plutôt que de supposer
+                  </div>
+                  <ul>
+                    {simulation.assiettes.abstentions.map((a, i) => (
+                      <li key={i} className="py-1 border-t border-border/40">
+                        <strong>{a.libelle}</strong> · {fc(a.montantFc)} FC
+                        <div className="text-[10px] mt-0.5">{a.explication}</div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <div className="overflow-x-auto mt-2.5">
+                <table className="w-full min-w-[620px] border-collapse">
+                  <thead>
+                    <tr className="border-b border-border text-left">
+                      <th className={`${etiquette} py-1`}>Élément</th>
+                      <th className={`${etiquette} py-1 text-right`}>Montant</th>
+                      <th className={`${etiquette} py-1 text-right`}>Imposable</th>
+                      <th className={`${etiquette} py-1`}>Article qui décide</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {simulation.assiettes.sortsFiscaux.map((s, i) => (
+                      <tr key={i} className="border-b border-border/40 align-top">
+                        <td className="py-1 pr-2">{s.libelle}</td>
+                        <td className="py-1 pr-2 text-right font-mono">{fc(s.montantFc)}</td>
+                        <td className="py-1 pr-2 text-right font-mono">
+                          {s.imposableFc === null ? 'indéterminé' : fc(s.imposableFc)}
+                        </td>
+                        <td className="py-1 text-[10px] text-text-dim">{s.motif}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {simulation.retenue && (
+                <div className="border border-border px-3.5 py-2.5 mt-2.5">
+                  <div className={etiquette}>Retenue du mois (art. 119)</div>
+                  <div className="text-[16px] font-bold">
+                    {fc(simulation.retenue.retenueFc)} FC
+                  </div>
+                  <div className="text-[10px] text-text-dim mt-1">
+                    Revenu annualisé {fc(simulation.retenue.revenuAnnualiseFc)} FC, arrondi au
+                    millier inférieur à {fc(simulation.retenue.annuel.assietteArrondieFc)} FC.
+                    Barème de l’article 118 : {fc(simulation.retenue.annuel.impotDuBaremeFc)} FC.
+                    {simulation.retenue.annuel.plafondApplique && (
+                      <>
+                        {' '}
+                        Plafond de 30 % appliqué :{' '}
+                        {fc(simulation.retenue.annuel.impotArticle118Fc)} FC.
+                      </>
+                    )}
+                    {simulation.retenue.annuel.quotitePourCent > 0 && (
+                      <>
+                        {' '}
+                        Quotité de l’article 123 ({simulation.retenue.annuel.quotitePourCent} %) :{' '}
+                        moins {fc(simulation.retenue.annuel.reductionFc)} FC.
+                      </>
+                    )}{' '}
+                    Impôt annuel dû {fc(simulation.retenue.annuel.impotDuFc)} FC, ramené au mois.
+                  </div>
+                  <div className="overflow-x-auto mt-1.5">
+                    <table className="w-full min-w-[320px] border-collapse text-[10px]">
+                      <thead>
+                        <tr className="border-b border-border text-left">
+                          <th className={`${etiquette} py-1`}>Taux</th>
+                          <th className={`${etiquette} py-1 text-right`}>Base annuelle</th>
+                          <th className={`${etiquette} py-1 text-right`}>Impôt</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {simulation.retenue.annuel.parTranche.map((t, i) => (
+                          <tr key={i} className="border-b border-border/40">
+                            <td className="py-1">{t.tauxPourCent} %</td>
+                            <td className="py-1 text-right font-mono">{fc(t.baseFc)}</td>
+                            <td className="py-1 text-right font-mono">{fc(t.impotFc)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {simulation.sourceProposition && (
+                <div className="border border-border px-3.5 py-2.5 mt-2.5 text-[10px]">
+                  <strong>
+                    Personnes à charge · le registre en propose{' '}
+                    {simulation.propositionPersonnesACharge}, la simulation en retient{' '}
+                    {simulation.personnesAChargeRetenues}.
+                  </strong>
+                  <div className="text-text-dim mt-0.5">{simulation.sourceProposition}</div>
+                </div>
+              )}
+
+              {(simulation.assiettes.reserves.length > 0 ||
+                (simulation.retenue?.reserves.length ?? 0) > 0) && (
+                <div className="border border-border px-3.5 py-2.5 mt-2.5 text-[10px]">
+                  <div className={`${etiquette} mb-1`}>Réserves de lecture</div>
+                  <ul>
+                    {[
+                      ...simulation.assiettes.reserves,
+                      ...(simulation.retenue?.reserves ?? []),
+                    ].map((r, i) => (
+                      <li key={i} className="py-1 border-t border-border/40 text-text-dim">
+                        {r}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

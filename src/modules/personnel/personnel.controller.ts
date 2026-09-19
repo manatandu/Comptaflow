@@ -6,7 +6,12 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PersonnelService } from './personnel.service';
-import { ContratTravailDto, SalarieDto, TerminerContratDto } from './dto/personnel.dto';
+import {
+  ContratTravailDto,
+  SalarieDto,
+  SimulationPaieDto,
+  TerminerContratDto,
+} from './dto/personnel.dto';
 
 /**
  * LE REGISTRE DU PERSONNEL · commun aux deux référentiels, parce que le Code
@@ -71,6 +76,27 @@ export class PersonnelController {
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE, RoleUtilisateur.LECTURE_SEULE)
   async confronter(@CurrentUser() user: AuthenticatedUser) {
     return this.personnel.confronter(user.tenantId);
+  }
+
+
+  /**
+   * LA SIMULATION DE PAIE · elle ne STOCKE rien, et c'est pourquoi elle est en
+   * POST sans être une écriture : les éléments de paie d'un mois ne tiennent
+   * pas dans une chaîne de requête, et les porter en clair dans une URL les
+   * ferait entrer dans les journaux d'accès, ce qui est une donnée de
+   * rémunération nominative.
+   *
+   * LA LECTURE SEULE Y A DROIT. Le réviseur a besoin de refaire le calcul
+   * d'une retenue sans pouvoir rien modifier · c'est exactement sa place.
+   */
+  @Post('simulation')
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE, RoleUtilisateur.LECTURE_SEULE)
+  async simulerPaie(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: SimulationPaieDto,
+    @Query('salarieId') salarieId?: string,
+  ) {
+    return this.personnel.simulerPaie(user.tenantId, salarieId ?? null, dto);
   }
 
   /**
