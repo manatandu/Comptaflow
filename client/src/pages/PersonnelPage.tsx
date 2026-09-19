@@ -160,6 +160,29 @@ interface Simulation {
     abstentions: { motif: string; libelle: string; montantFc: number; explication: string }[];
     reserves: string[];
   };
+  cotisations: {
+    lignes: {
+      cle: string;
+      libelle: string;
+      organisme: string;
+      charge: 'EMPLOYEUR' | 'TRAVAILLEUR';
+      tauxPourCent: number;
+      assietteFc: number;
+      montantFc: number;
+      source: string;
+      reserve: string | null;
+    }[];
+    totalEmployeurFc: number;
+    totalTravailleurFc: number;
+    abstentions: string[];
+  };
+  net: {
+    totalVerseFc: number;
+    quotePartOuvriereFc: number;
+    irppFc: number | null;
+    netAPayerFc: number | null;
+    reserves: string[];
+  };
   personnesAChargeRetenues: number;
   propositionPersonnesACharge: number | null;
   sourceProposition: string | null;
@@ -379,6 +402,9 @@ export function PersonnelPage() {
   const [tauxAllocations, setTauxAllocations] = useState('');
   const [personnesACharge, setPersonnesACharge] = useState('');
   const [simulation, setSimulation] = useState<Simulation | null>(null);
+  const [natureInpp, setNatureInpp] = useState<'' | 'PUBLIC' | 'PRIVE'>('');
+  const [effectifInpp, setEffectifInpp] = useState('');
+  const [majorationRp, setMajorationRp] = useState(false);
 
   const charger = useCallback(() => {
     api.get<Salarie[]>(`/personnel/salaries${tous ? '?tous=true' : ''}`).then(
@@ -438,6 +464,12 @@ export function PersonnelPage() {
       retenuesArticle71Fc: nombre(retenues71),
       tauxLegalAllocationsFamilialesFc: nombre(tauxAllocations),
       personnesACharge: nombre(personnesACharge),
+      // LE TAUX INPP NE SE DEVINE PAS · il dépend de la nature de l'employeur,
+      // puis de la tranche d'effectif pour le privé seulement. Champ vide =
+      // champ ABSENT, ce qui vaut abstention au serveur.
+      ...(natureInpp === '' ? {} : { natureEmployeurInpp: natureInpp }),
+      effectif: nombre(effectifInpp),
+      ...(majorationRp ? { majorationRisquesProfessionnels: true } : {}),
     };
     api
       .post<Simulation>(
@@ -1396,6 +1428,34 @@ export function PersonnelPage() {
                 />
               </label>
               <label className="flex flex-col gap-0.5">
+                <span className={etiquette}>Employeur INPP</span>
+                <select
+                  value={natureInpp}
+                  onChange={(e) => setNatureInpp(e.target.value as '' | 'PUBLIC' | 'PRIVE')}
+                  className="border border-border bg-transparent px-2 py-1 w-[130px]"
+                >
+                  <option value="">Non renseigné</option>
+                  <option value="PRIVE">Privé</option>
+                  <option value="PUBLIC">Public</option>
+                </select>
+              </label>
+              <label className="flex flex-col gap-0.5">
+                <span className={etiquette}>Effectif (privé)</span>
+                <input
+                  value={effectifInpp}
+                  onChange={(e) => setEffectifInpp(e.target.value)}
+                  className="border border-border bg-transparent px-2 py-1 w-[110px] text-right"
+                />
+              </label>
+              <label className="flex items-center gap-1 pb-1">
+                <input
+                  type="checkbox"
+                  checked={majorationRp}
+                  onChange={(e) => setMajorationRp(e.target.checked)}
+                />
+                <span className="text-[10px]">Risques prof. majorés</span>
+              </label>
+              <label className="flex flex-col gap-0.5">
                 <span className={etiquette}>Personnes à charge</span>
                 <input
                   value={personnesACharge}
@@ -1717,6 +1777,94 @@ export function PersonnelPage() {
                   <div className="text-text-dim mt-0.5">{simulation.sourceProposition}</div>
                 </div>
               )}
+
+              <div className="overflow-x-auto mt-2.5">
+                <table className="w-full min-w-[620px] border-collapse">
+                  <thead>
+                    <tr className="border-b border-border text-left">
+                      <th className={`${etiquette} py-1`}>Cotisation</th>
+                      <th className={`${etiquette} py-1`}>Charge</th>
+                      <th className={`${etiquette} py-1 text-right`}>Taux</th>
+                      <th className={`${etiquette} py-1 text-right`}>Assiette</th>
+                      <th className={`${etiquette} py-1 text-right`}>Montant</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {simulation.cotisations.lignes.map((c) => (
+                      <tr key={c.cle} className="border-b border-border/40">
+                        <td className="py-1 pr-2">
+                          {c.libelle}
+                          {c.reserve && (
+                            <div className="text-[9.5px] text-text-dim">{c.reserve}</div>
+                          )}
+                        </td>
+                        <td className="py-1 pr-2 text-[10px]">
+                          {c.charge === 'TRAVAILLEUR' ? 'Travailleur' : 'Employeur'}
+                        </td>
+                        <td className="py-1 pr-2 text-right font-mono">{c.tauxPourCent} %</td>
+                        <td className="py-1 pr-2 text-right font-mono">{fc(c.assietteFc)}</td>
+                        <td className="py-1 text-right font-mono">{fc(c.montantFc)}</td>
+                      </tr>
+                    ))}
+                    <tr className="border-t border-border font-bold">
+                      <td className="py-1" colSpan={4}>
+                        Total employeur
+                      </td>
+                      <td className="py-1 text-right font-mono">
+                        {fc(simulation.cotisations.totalEmployeurFc)}
+                      </td>
+                    </tr>
+                    <tr className="font-bold">
+                      <td className="py-1" colSpan={4}>
+                        Total retenu sur la paie
+                      </td>
+                      <td className="py-1 text-right font-mono">
+                        {fc(simulation.cotisations.totalTravailleurFc)}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              {simulation.cotisations.abstentions.length > 0 && (
+                <div className="border border-warning/40 bg-warning/5 px-3.5 py-2.5 mt-2.5">
+                  <ul>
+                    {simulation.cotisations.abstentions.map((a, i) => (
+                      <li key={i} className="py-0.5">
+                        {a}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <div className="border border-border px-3.5 py-2.5 mt-2.5">
+                <div className={etiquette}>Net à payer</div>
+                <div className="text-[16px] font-bold">
+                  {simulation.net.netAPayerFc === null
+                    ? 'Indéterminé'
+                    : `${fc(simulation.net.netAPayerFc)} FC`}
+                </div>
+                <div className="text-[10px] text-text-dim mt-1">
+                  Total versé {fc(simulation.net.totalVerseFc)} FC, moins la quote-part ouvrière
+                  de {fc(simulation.net.quotePartOuvriereFc)} FC et l’impôt de{' '}
+                  {simulation.net.irppFc === null
+                    ? 'montant indéterminé'
+                    : `${fc(simulation.net.irppFc)} FC`}
+                  .{' '}
+                  <strong>
+                    Le net part du total VERSÉ, pas de l’assiette : le logement et le transport
+                    sortent de la rémunération, pas de ce que l’employeur paie.
+                  </strong>
+                </div>
+                <ul className="mt-1.5 text-[10px] text-text-dim">
+                  {simulation.net.reserves.map((r, i) => (
+                    <li key={i} className="py-0.5 border-t border-border/40">
+                      {r}
+                    </li>
+                  ))}
+                </ul>
+              </div>
 
               {(simulation.assiettes.reserves.length > 0 ||
                 (simulation.retenue?.reserves.length ?? 0) > 0) && (

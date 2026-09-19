@@ -346,4 +346,41 @@ export class SimulationPaieDto {
   @IsNumber()
   @Min(0)
   tauxLegalAllocationsFamilialesFc?: number;
+
+  /** Nature de l'employeur au sens de l'arrêté INPP · PUBLIC ou PRIVE. */
+  @IsOptional()
+  @IsEnum(['PUBLIC', 'PRIVE'])
+  natureEmployeurInpp?: string;
+
+  /** Effectif · il commande la tranche INPP du secteur PRIVÉ seulement. */
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  effectif?: number;
+
+  /** Article 5 du décret n° 18/041 · décision de la Caisse, jamais présumée. */
+  @IsOptional()
+  @IsBoolean()
+  majorationRisquesProfessionnels?: boolean;
+}
+
+/**
+ * Les paramètres qui commandent les COTISATIONS, et qui ne se devinent pas ·
+ * le taux INPP dépend d'abord de la nature de l'employeur, puis, pour le privé
+ * seulement, de sa tranche d'effectif ; et la majoration des risques
+ * professionnels est une décision de la Caisse.
+ */
+export class ParametresCotisationsDto {
+  @IsOptional()
+  @IsEnum(['PUBLIC', 'PRIVE'])
+  natureEmployeurInpp?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  effectif?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  majorationRisquesProfessionnels?: boolean;
 }

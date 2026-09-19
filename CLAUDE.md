@@ -1528,6 +1528,74 @@ barème, huit attrapés · six au point d'appel, six attrapés, **dont deux pass
 au premier essai** (un motif de réinjection qui visait la mauvaise occurrence
 du fichier, et un trou de test réel sur le taux légal, couvert depuis).
 
+**P2b · LES COTISATIONS DES DEUX CÔTÉS, ET LE NET QUI NE PART PAS DE
+L'ASSIETTE.**
+
+**DIX-HUIT POUR CENT, PAS DIX-NEUF**, et le total ne figure dans AUCUN
+article · il se calcule. Décret n° 18/041, art. 2 à 4 : prestations aux
+familles 6,5 % (employeur), pensions 10 % (5 % employeur + 5 % travailleur),
+risques professionnels 1,5 % (employeur). Soit 13 % patronal et 5 % ouvrier.
+Un test refait l'addition, parce qu'elle a été ratée une fois en conversation.
+L'art. 5 permet de DOUBLER le taux des risques professionnels, mais c'est une
+DÉCISION DE LA CAISSE · elle se déclare, et la présumer ferait cotiser 1,5
+point de trop sur tout le parc.
+
+**L'ORDRE DE CALCUL EST DANS LES TEXTES, ET L'INVERSER SURESTIME L'IMPÔT.**
+L'assiette SOCIALE ne dépend d'aucune cotisation · on la prend d'abord. Les
+cotisations s'y assoient. La quote-part ouvrière qui en sort ENTRE ALORS dans
+les retenues de l'article 71, et c'est seulement là que l'assiette fiscale
+nette se ferme. Calculer l'impôt avant les cotisations le surestime de 5 % de
+l'assiette sociale. Le champ saisi ne porte plus que les AUTRES versements de
+l'article 71 · faire saisir la quote-part CNSS la compterait deux fois.
+
+**SEULE LA QUOTE-PART OUVRIÈRE SE DÉDUIT.** L'article 71 ne laisse déduire que
+ce qui est RETENU sur le revenu du travailleur. Servir le total des cotisations
+y ferait déduire les patronales, qui ne sont retenues sur rien.
+
+**LE NET À PAYER PART DU TOTAL VERSÉ, JAMAIS DE L'ASSIETTE**, et c'est le piège
+central du chantier. Les cinq exclusions de l'article 7, point 8 ne sont pas
+des sommes qu'on ne paie pas · ce sont des sommes qui ne sont pas de la
+rémunération. Le travailleur reçoit bien son indemnité de logement. Partir de
+l'assiette amputerait son net de tout ce qu'elles représentent, sur un bulletin
+dont CHAQUE COTISATION serait exacte.
+
+**TROIS ASSIETTES POSSIBLES, ET LE TEXTE N'EN NOMME EXPRESSÉMENT QU'UNE.** La
+CNSS est la seule dont l'assiette soit ROUTÉE par la loi (art. 13 de la loi
+n° 16/009 vers l'art. 7, litera h). L'INPP dit « les rémunérations versées »,
+l'ONEM « la rémunération mensuelle payée » · NI L'UN NI L'AUTRE NE RENVOIE À
+L'ARTICLE 7. OmegaX retient la même assiette pour les trois, parce que les deux
+arrêtés sont pris par le Ministre ayant le Travail dans ses attributions et que
+« rémunération » est un mot DÉFINI par le Code dont ils relèvent. C'est une
+LECTURE, elle est portée sur chaque ligne, et elle n'est pas neutre · lue comme
+le brut versé, l'assiette INPP d'un dossier qui loge son personnel serait
+sensiblement plus large. Un test vérifie que la réserve est sur l'INPP et
+l'ONEM et PAS sur la CNSS.
+
+**LE TAUX INPP NE SE DEVINE PAS** · la NATURE de l'employeur d'abord (public
+4 %, privé 3,5 / 3 / 2 % depuis le 24 septembre 2025 ; 3 % et 3 / 2 / 1 %
+avant), puis la tranche d'effectif POUR LE PRIVÉ SEULEMENT. Faire dépendre le
+taux public de l'effectif ferait payer 3,5 % à un établissement public de dix
+agents. Sans nature déclarée, abstention · et l'abstention INPP n'emporte ni la
+CNSS ni l'ONEM ni le net.
+
+**CE QUE P2b NE CALCULE PAS, ET LE DIT** · les retenues de l'article 112
+(avances, indemnités de l'article 52, cautionnement, prêt, saisie-arrêt)
+supposent chacune un acte du dossier ; et la QUOTITÉ SAISISSABLE de l'article
+114 se mesure « sur la partie n'excédant pas cinq fois le salaire minimum
+interprofessionnel de SA CATÉGORIE », qui vient de la convention collective
+absente du corpus, après déduction de « l'évaluation forfaitaire du logement,
+tel que défini à l'article 139 », dont l'arrêté n'existe pas.
+
+**ET DEUX CORRECTIONS DE MÉTHODE SUR MOI-MÊME.** Les 19 % annoncés en
+conversation étaient une addition ratée, jamais entrée au dépôt · ce qui est
+TESTÉ a tenu, ce qui était dit en prose n'a pas tenu, et c'est la seule
+frontière qui ait lâché. Et la réserve CNSS poussée le matin gelait une
+CORROBORATION · elle affirmait que la distinction des deux colonnes du Mod. DC
+« remonte à l'arrêté départemental n° 0021 du 10 avril 1978 », texte NON LU,
+connu d'un extrait de résultat de recherche. Retirée · la preuve tirée de
+l'article 23, elle, est lue. Sept contresens réinjectés dans les cotisations,
+sept attrapés.
+
 **ADDENDUM P0 · le chapitre 66 du livre de cours, et ce qu'il apporte
 vraiment.** Un second extrait du même livre (pages 173 à 199) a été fourni en
 cours de passe. Il porte LE chapitre de la paie. Même statut que le premier ·

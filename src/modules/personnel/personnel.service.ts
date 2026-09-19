@@ -9,6 +9,7 @@ import {
 } from './dto/personnel.dto';
 import { assiettes, type ElementPaie, type NatureElementPaie } from './assiettes-paie';
 import { baremeApplicableAuMois, retenueMensuelle } from './bareme-irpp';
+import { cotisations, netAPayer, type NatureEmployeurInpp } from './cotisations-paie';
 import {
   aptitudeProvisoirePerimee,
   declarationsDues,
@@ -462,9 +463,32 @@ export class PersonnelService {
       conditionArticle69Attestee: e.conditionArticle69Attestee ?? null,
     }));
 
+    // L'ORDRE DE CALCUL EST LE POINT DÉLICAT, ET IL EST DANS LES TEXTES.
+    // L'assiette SOCIALE ne dépend d'aucune cotisation : on la prend d'abord,
+    // à retenues nulles. Les cotisations s'y assoient. La quote-part ouvrière
+    // qui en sort ENTRE ALORS dans les retenues de l'article 71, et c'est
+    // seulement là que l'assiette fiscale nette se ferme. Calculer l'impôt
+    // avant les cotisations le surestimerait de 5 % de l'assiette sociale.
+    const premierPassage = assiettes(elements, {
+      tauxLegalAllocationsFamilialesFc: dto.tauxLegalAllocationsFamilialesFc ?? null,
+    });
+    const lesCotisations = cotisations(premierPassage.assietteSocialeFc, {
+      moisDePaie: dto.moisDePaie,
+      natureEmployeurInpp: (dto.natureEmployeurInpp as NatureEmployeurInpp | undefined) ?? null,
+      effectif: dto.effectif ?? null,
+      majorationRisquesProfessionnels: dto.majorationRisquesProfessionnels,
+    });
+
+    // Le champ saisi porte les AUTRES versements de l'article 71 (une caisse
+    // de pension complémentaire, une assurance-maladie souscrite sous le
+    // patronage de l'employeur). La quote-part ouvrière de la CNSS, elle, est
+    // calculée · la faire saisir en plus la compterait deux fois.
+    const retenuesArticle71Fc =
+      lesCotisations.totalTravailleurFc + Math.max(0, dto.retenuesArticle71Fc ?? 0);
+
     const deuxAssiettes = assiettes(elements, {
       tauxLegalAllocationsFamilialesFc: dto.tauxLegalAllocationsFamilialesFc ?? null,
-      retenuesArticle71Fc: dto.retenuesArticle71Fc,
+      retenuesArticle71Fc,
     });
 
     // TROIS RAISONS DE NE PAS CHIFFRER LA RETENUE, et aucune n'est une panne.
@@ -481,8 +505,19 @@ export class PersonnelService {
           )
         : null;
 
+    // Le TOTAL VERSÉ n'est pas l'assiette · les cinq exclusions de l'article 7
+    // sortent de la rémunération, pas de ce que l'employeur paie.
+    const totalVerseFc = elements.reduce((n, e) => n + Math.max(0, e.montantFc), 0);
+    const net = netAPayer(
+      totalVerseFc,
+      lesCotisations.totalTravailleurFc,
+      retenue ? retenue.retenueFc : null,
+    );
+
     return {
       moisDePaie: dto.moisDePaie,
+      cotisations: lesCotisations,
+      net,
       baremeApplicable: borne.applicable,
       motifBaremeInapplicable: borne.motif,
       assiettes: deuxAssiettes,

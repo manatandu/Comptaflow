@@ -42,9 +42,13 @@ describe('La simulation appelle bien les deux moteurs, et avec la bonne entrée'
     return svc
       .simulerPaie('t-1', null, dto({ retenuesArticle71Fc: 50_000, personnesACharge: 2 }))
       .then((res) => {
+        // DEPUIS P2b, la quote-part ouvrière de la CNSS est CALCULÉE et entre
+        // d'office dans les retenues de l'article 71 : 5 % de l'assiette
+        // sociale, soit 50 000 FC, qui s'AJOUTENT aux 50 000 saisis. Le champ
+        // du DTO ne porte plus que les AUTRES versements de l'article 71.
         const attendu = assiettes(
           [{ nature: 'SALAIRE_OU_TRAITEMENT', libelle: 'Salaire', montantFc: 1_000_000, conditionArticle69Attestee: null }],
-          { tauxLegalAllocationsFamilialesFc: null, retenuesArticle71Fc: 50_000 },
+          { tauxLegalAllocationsFamilialesFc: null, retenuesArticle71Fc: 100_000 },
         );
         expect(res.assiettes.assietteSocialeFc).toBe(attendu.assietteSocialeFc);
         expect(res.assiettes.assietteFiscaleNetteFc).toBe(attendu.assietteFiscaleNetteFc);
@@ -62,8 +66,10 @@ describe('La simulation appelle bien les deux moteurs, et avec la bonne entrée'
     return svc
       .simulerPaie('t-1', null, dto({ retenuesArticle71Fc: 200_000 }))
       .then((res) => {
+        // 200 000 saisis au titre de l'article 71, PLUS les 50 000 de
+        // quote-part ouvrière que P2b calcule : l'assiette nette vaut 750 000.
         const surLeBrut = retenueMensuelle('2026-03', 1_000_000, 0).retenueFc;
-        const surLeNet = retenueMensuelle('2026-03', 800_000, 0).retenueFc;
+        const surLeNet = retenueMensuelle('2026-03', 750_000, 0).retenueFc;
         expect(surLeNet).toBeLessThan(surLeBrut);
         expect(res.retenue?.retenueFc).toBeCloseTo(surLeNet, 6);
       });
@@ -127,7 +133,10 @@ it("ne présume JAMAIS un taux légal d'allocations familiales à zéro", async 
         tauxLegalAllocationsFamilialesFc: 25_000,
       } as Partial<SimulationPaieDto>),
     );
-    expect(res.assiettes.assietteFiscaleNetteFc).toBe(1_015_000);
+    // Brut imposable 1 015 000 (salaire + excédent d'allocation), moins les
+    // 50 000 de quote-part ouvrière calculée sur l'assiette sociale de
+    // 1 000 000 · l'allocation familiale n'est pas de la rémunération.
+    expect(res.assiettes.assietteFiscaleNetteFc).toBe(965_000);
     expect(res.retenue).not.toBeNull();
   });
 
@@ -208,5 +217,100 @@ describe("Ce que la simulation annonce ne pas être", () => {
     expect(debut).toBeGreaterThan(0);
     expect(fin).toBeGreaterThan(debut);
     expect(corps.match(/this\.prisma\.\w+\.\w+\(/g)).toEqual(['this.prisma.salarie.findFirst(']);
+  });
+});
+
+describe("P2b · l'ordre de calcul, et le net qui ne part pas de l'assiette", () => {
+  it("assied les cotisations sur l'assiette SOCIALE, pas sur le total versé", () => {
+    // 1 000 000 de salaire + 400 000 de logement. Le logement sort de la
+    // rémunération de plein droit : les cotisations portent sur 1 000 000.
+    const { svc } = service();
+    return svc
+      .simulerPaie(
+        't-1',
+        null,
+        dto({
+          elements: [
+            { nature: 'SALAIRE_OU_TRAITEMENT', libelle: 'Salaire', montantFc: 1_000_000 },
+            { nature: 'LOGEMENT_OU_SON_INDEMNITE', libelle: 'Logement', montantFc: 400_000 },
+          ],
+          natureEmployeurInpp: 'PRIVE',
+          effectif: 10,
+        } as Partial<SimulationPaieDto>),
+      )
+      .then((res) => {
+        expect(res.assiettes.assietteSocialeFc).toBe(1_000_000);
+        for (const ligne of res.cotisations.lignes) {
+          expect(ligne.assietteFc).toBe(1_000_000);
+        }
+        // 13 % patronal, 5 % ouvrier sur la CNSS.
+        expect(res.cotisations.totalTravailleurFc).toBeCloseTo(50_000, 6);
+      });
+  });
+
+  it("fait entrer la quote-part ouvrière dans les retenues de l'article 71", () => {
+    // Le défaut visé : calculer l'impôt AVANT les cotisations. Il serait
+    // surestimé de tout ce que l'article 71 laisse déduire.
+    const { svc } = service();
+    return svc
+      .simulerPaie('t-1', null, dto({ natureEmployeurInpp: 'PRIVE', effectif: 10 } as Partial<SimulationPaieDto>))
+      .then((res) => {
+        expect(res.assiettes.retenuesArticle71Fc).toBeCloseTo(50_000, 6);
+        expect(res.assiettes.assietteFiscaleNetteFc).toBe(950_000);
+      });
+  });
+
+  it("ADDITIONNE la quote-part calculée et les autres versements saisis", () => {
+    // Le défaut symétrique : faire saisir la quote-part de la CNSS en plus,
+    // ce qui la compterait deux fois.
+    const { svc } = service();
+    return svc
+      .simulerPaie(
+        't-1',
+        null,
+        dto({
+          natureEmployeurInpp: 'PRIVE',
+          effectif: 10,
+          retenuesArticle71Fc: 20_000,
+        } as Partial<SimulationPaieDto>),
+      )
+      .then((res) => {
+        expect(res.assiettes.retenuesArticle71Fc).toBeCloseTo(70_000, 6);
+      });
+  });
+
+  it('rend un net qui part du TOTAL VERSÉ, logement compris', () => {
+    const { svc } = service();
+    return svc
+      .simulerPaie(
+        't-1',
+        null,
+        dto({
+          elements: [
+            { nature: 'SALAIRE_OU_TRAITEMENT', libelle: 'Salaire', montantFc: 1_000_000 },
+            { nature: 'LOGEMENT_OU_SON_INDEMNITE', libelle: 'Logement', montantFc: 400_000 },
+          ],
+          natureEmployeurInpp: 'PRIVE',
+          effectif: 10,
+        } as Partial<SimulationPaieDto>),
+      )
+      .then((res) => {
+        expect(res.net.totalVerseFc).toBe(1_400_000);
+        expect(res.net.netAPayerFc).toBeCloseTo(
+          1_400_000 - res.net.quotePartOuvriereFc - (res.retenue?.retenueFc ?? 0),
+          6,
+        );
+        // Et surtout : le net dépasse l'assiette sociale.
+        expect(res.net.netAPayerFc!).toBeGreaterThan(res.assiettes.assietteSocialeFc - 100_000);
+      });
+  });
+
+  it("s'abstient sur l'INPP sans emporter la CNSS ni le net", () => {
+    const { svc } = service();
+    return svc.simulerPaie('t-1', null, dto()).then((res) => {
+      expect(res.cotisations.abstentions.join(' ')).toContain('NATURE');
+      expect(res.cotisations.lignes.some((l) => l.organisme === 'CNSS')).toBe(true);
+      expect(res.net.netAPayerFc).not.toBeNull();
+    });
   });
 });

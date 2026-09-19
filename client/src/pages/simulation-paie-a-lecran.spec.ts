@@ -90,3 +90,36 @@ describe('Le garde-fou des 360 px', () => {
     expect(conteneurs).toBeGreaterThanOrEqual(larges.length);
   });
 });
+
+describe('P2b · les cotisations et le net à payer', () => {
+  it("n'écrit aucun taux de cotisation dans la page", () => {
+    // Les taux vivent dans `cotisations-paie.ts` avec leur date d'effet. Les
+    // recopier ici les figerait au prochain arrêté, et l'écran servirait un
+    // taux périmé sur un tableau parfaitement additionné.
+    const debut = SOURCE.indexOf("{onglet === 'simulation'");
+    const panneau = SOURCE.slice(debut);
+    expect(panneau).not.toMatch(/6[.,]5\s*%/);
+    expect(panneau).not.toMatch(/1[.,]5\s*%/);
+    expect(panneau).not.toMatch(/0[.,]5\s*%/);
+    // Le taux affiché vient toujours de la ligne rendue par le serveur.
+    expect(panneau).toContain('{c.tauxPourCent} %');
+  });
+
+  it('affiche la charge de chaque ligne, employeur ou travailleur', () => {
+    // Sans la colonne, un cabinet lit le total comme une retenue sur la paie.
+    expect(SOURCE).toContain("c.charge === 'TRAVAILLEUR' ? 'Travailleur' : 'Employeur'");
+    expect(SOURCE).toContain('Total retenu sur la paie');
+  });
+
+  it("dit que le net part du total VERSÉ, pas de l'assiette", () => {
+    expect(SOURCE).toContain('Le net part du total VERSÉ');
+  });
+
+  it("laisse la nature INPP ABSENTE quand elle n'est pas renseignée", () => {
+    // `''` enverrait une valeur que le DTO refuse, et surtout la présumer
+    // ferait servir un taux public à un employeur privé, ou l'inverse.
+    expect(SOURCE).toContain(
+      "...(natureInpp === '' ? {} : { natureEmployeurInpp: natureInpp }),",
+    );
+  });
+});
