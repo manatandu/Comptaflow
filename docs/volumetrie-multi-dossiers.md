@@ -150,3 +150,21 @@ Trois lectures, et elles ne sont pas dans le logiciel :
 Le tableau de projection permet de répondre à la deuxième sans attendre : c'est
 le nombre de dossiers qui décide, et le seuil du plan Neon souscrit qui dit
 lequel des trois est nécessaire.
+
+## Décision du 2026-09-23 · voie 1, tout garder
+
+**Tranché par Manasse : on garde tout, pour l'instant.** Aucun événement du
+journal d'audit n'est supprimé, archivé ni allégé. La chaîne reste entière en
+base, et `verifier()` la parcourt par lots de 5 000.
+
+Ce que cette décision n'autorise pas : **une purge, même partielle, même d'un
+exercice clos.** Elle casserait la vérification de tout ce qui suit (§ « La
+décision qui reste »). Qui voudra réduire le volume passera par la voie 2,
+l'archivage avec ancrage, et pas par un `DELETE`.
+
+**Quand rouvrir la question.** Le signal n'est pas une date mais le stockage
+consommé dans la console Neon, rapproché du plafond du plan souscrit. La
+projection ci-dessus donne l'ordre de grandeur : environ 84 Mo par
+dossier-exercice, dont les trois quarts pour le journal. C'est à ce moment que
+la voie 2 devient un chantier à planifier. La voie 3 reste déconseillée : elle
+change ce que le journal prouve.
