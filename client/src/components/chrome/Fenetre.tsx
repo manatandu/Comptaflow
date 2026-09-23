@@ -175,7 +175,7 @@ function FenetreInterne({ fenetre, active }: { fenetre: FenetreOuverte; active: 
         */
         className={`shrink-0 flex items-center justify-between gap-2 pl-3.5 select-none border-b border-border ${
           agrandie ? '' : 'cursor-move'
-        } ${active ? 'bg-surface text-text' : 'bg-chrome text-text-dim'}`}
+        } ${active ? 'bg-mica text-text' : 'bg-chrome text-text-dim'}`}
       >
         <span className="truncate text-[13px]">{fenetre.titre}</span>
         <span className="flex items-stretch self-stretch shrink-0">

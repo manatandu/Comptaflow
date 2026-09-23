@@ -559,7 +559,7 @@ export function AppShell() {
         passe en ENCRE, le rendu que la charte prévoit sur fond clair (§ 7.3,
         12,74:1 sur blanc).
       */}
-      <div className="ecran-seul h-[34px] flex items-center justify-between px-3 bg-surface text-text text-[12px] shrink-0 relative border-b border-border">
+      <div className="ecran-seul h-[34px] flex items-center justify-between px-3 bg-mica text-text text-[12px] shrink-0 relative">
         <div className="flex items-center gap-2.5 min-w-0">
           <SymboleOmegaX taille={17} className="text-[var(--a-900)]" />
           {/*

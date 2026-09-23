@@ -219,7 +219,8 @@ fond de document, employer le filet de clôture (§ 9), qui est fait pour ça.
 |---|---|---|---|
 | Blanc `#ffffff` | **oui** · 12,74:1 | non · 1,00:1 | oui · 21,00:1 |
 | `--surface-alt` `#f5f7fa` | **oui** · 11,87:1 | non | oui |
-| `--bg` `#eceff4` | **oui** · 11,05:1 | non | oui |
+| `--bg` `#e1e7f0` | **oui** · 10,24:1 | non | oui |
+| `--mica` `#e8edf4` (barres) | **oui** · 10,83:1 | non | oui |
 | `--n-200` `#d3dae4` | oui · 9,05:1 | non | oui |
 | Encre `#142f6b` | non · 1,00:1 | **oui** · 12,74:1 | non |
 | `--chrome` `#f5f7fa` (panneaux latéraux) | **oui** · 11,87:1 | non | oui |
@@ -236,17 +237,19 @@ courant : un logo moins contrasté qu'un paragraphe se lit moins bien que lui.
 | Couple | Rapport | Niveau |
 |---|---|---|
 | `--text` sur `--surface` | 17,46:1 | AAA |
-| `--text` sur `--bg` | 15,15:1 | AAA |
-| `--text-dim` sur blanc | 5,30:1 | AA |
-| `--text-dim` sur `--surface-alt` | 4,94:1 | AA |
-| `--text-dim` sur `--bg` | 4,60:1 | AA |
+| `--text` sur `--bg` | 14,04:1 | AAA |
+| `--text` sur `--mica` | 14,84:1 | AAA |
+| `--text-dim` sur blanc | 6,06:1 | AA |
+| `--text-dim` sur `--surface-alt` | 5,64:1 | AA |
+| `--text-dim` sur `--bg` | 4,87:1 | AA |
+| `--text-dim` sur `--mica` | 5,15:1 | AA |
 | `--sel` sur blanc | 6,37:1 | AA |
 | Blanc sur `--sel` | 6,37:1 | AA |
-| `--positive` sur blanc | 5,36:1 | AA |
-| `--warning` sur blanc | 5,42:1 | AA |
+| `--positive` sur blanc | 6,12:1 | AA |
+| `--warning` sur blanc | 6,14:1 | AA |
 | `--danger` sur blanc | 6,21:1 | AA |
 | `--text` sur `--chrome` | 16,27:1 | AAA |
-| `--text-dim` sur `--chrome` | 4,94:1 | AA |
+| `--text-dim` sur `--chrome` | 5,64:1 | AA |
 | Encre sur `--chrome` | 11,87:1 | AAA |
 | Blanc sur `#c42b1c` (fermeture survolée) | 5,66:1 | AA |
 
@@ -257,6 +260,14 @@ signe porte l'encre, la barre ne la porte plus. Les deux couples
 `--chrome-text` sur barre de titre (12,50:1 et 6,55:1) ne sont donc plus
 employés. Seul le bouton de fermeture garde une couleur propre au survol,
 le rouge `#c42b1c` de Windows 11, mesuré ci-dessus.
+
+**Fond teinté façon Mica, le même jour.** Tout blanc, l'écran perdait ses
+repères : fond, cartes et barres avaient la même valeur. Le bureau est
+désormais gris-bleu (`--bg` `#e1e7f0`), les barres un cran plus clair
+(`--mica` `#e8edf4`), le contenu reste blanc. Le fond plus sombre faisait
+tomber `--text-dim` à 4,26:1, sous le plancher AA : il est passé de `#626c7d`
+à `#5a6373`, et `--positive` et `--warning` ont été assombris d'autant
+(`#0e7049`, `#8e5406`). Les valeurs ci-dessus sont celles d'après.
 
 **Ne pas changer la couleur d'un texte de l'interface :** ces couples sont
 approuvés pour l'accessibilité, et la table ci-dessus est ce qui l'établit.

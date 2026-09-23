@@ -37,6 +37,7 @@ export default {
       },
       colors: {
         chrome: 'var(--chrome)',
+        mica: 'var(--mica)',
         'chrome-alt': 'var(--chrome-alt)',
         'chrome-border': 'var(--chrome-border)',
         'chrome-text': 'var(--chrome-text)',

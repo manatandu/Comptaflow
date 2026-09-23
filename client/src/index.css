@@ -199,8 +199,12 @@
      restait lisible pour un œil valide, et aucun test ne mesurait. Assombri
      de deux points de clarté, teinte et saturation inchangées, il passe
      partout où l'interface l'emploie (5,30 sur blanc, 4,94 sur `--surface-alt`,
-     4,60 sur `--bg`). Table complète dans `docs/charte-omegax.md`. */
-  --n-500: #626c7d;
+     4,60 sur `--bg`). Table complète dans `docs/charte-omegax.md`.
+     Assombri une seconde fois le 2026-09-23 (#626c7d devenu #5a6373), quand
+     le fond a pris la teinte bleutée de Windows 11 : à #626c7d il tombait à
+     4,26:1 sur le nouveau `--bg`. Il fait désormais 4,87 sur `--bg`, 5,15 sur
+     `--mica`, 6,06 sur blanc. */
+  --n-500: #5a6373;
   --n-600: #515b6b;
   --n-700: #3b4351;
   --n-800: #262c37;
@@ -229,7 +233,11 @@
   --chrome-text: #eaeff7;
   --chrome-text-dim: #9fb0c9;
 
-  --bg: var(--n-100);
+  /* FOND TEINTÉ façon Mica de Windows 11 (2026-09-23) · le tout-blanc
+     effaçait les repères, fond, cartes et barres ayant la même valeur. Le
+     bureau est gris-bleu, les barres un cran plus clair, le contenu blanc. */
+  --bg: #e1e7f0;
+  --mica: #e8edf4;
   --surface: var(--n-0);
   --surface-alt: var(--n-50);
   --border: var(--n-150);
@@ -239,9 +247,9 @@
   --sel: var(--a-600);
   --sel-soft: var(--a-50);
 
-  --positive: #0f7a4f;
+  --positive: #0e7049;
   --positive-soft: #e4f6ed;
-  --warning: #9a5b06;
+  --warning: #8e5406;
   --warning-soft: #fdf0da;
   --danger: #b52e26;
   --danger-soft: #fde9e7;

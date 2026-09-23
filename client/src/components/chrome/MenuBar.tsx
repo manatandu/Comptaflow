@@ -315,8 +315,9 @@ export function MenuBar({
       }}
       /*
         `relative z-40` n'est PAS décoratif · il corrige un menu qui s'ouvrait
-        DERRIÈRE la fenêtre active. `backdrop-blur` crée un contexte
-        d'empilement sur cette barre, et `will-change: transform` en crée un
+        DERRIÈRE la fenêtre active. `backdrop-blur` créait un contexte
+        d'empilement sur cette barre (il est retiré depuis le fond Mica, le
+        z-index reste la garde si un effet de ce genre revient), et `will-change: transform` en crée un
         autre sur la fenêtre en dessous : deux contextes à z-index `auto`,
         donc à égalité, que seul l'ordre du DOM départageait · la fenêtre,
         écrite après, recouvrait le menu déroulé. La barre passe donc
@@ -331,7 +332,7 @@ export function MenuBar({
         conteneur qui défile en X rogne aussi en Y, et les menus seraient
         coupés. 32 px : la hauteur d'une barre de commandes de Windows 11.
       */
-      className="relative z-40 min-h-[32px] flex flex-wrap items-center gap-0.5 px-2 py-0.5 bg-chrome/80 backdrop-blur-md border-b border-border select-none"
+      className="relative z-40 min-h-[32px] flex flex-wrap items-center gap-0.5 px-2 py-0.5 bg-mica border-b border-border select-none"
     >
       {avant}
       {menus.map((m) => (
