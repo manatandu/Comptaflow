@@ -581,9 +581,13 @@ Aucun développement ne les débloque.
   compteur est par conteneur, donc deux instances Cloud Run doublent le
   plafond réel. Redis, ou plafond d'instances assumé.
 - **Code du numérique congolais** · déclaration des traitements, autorisation
-  de transfert hors RDC, notification des violations. Le corpus lu est un OCR
-  non collationné, le numéro apparaît sous deux formes selon les sources : à
-  faire qualifier par un juriste congolais avant tout usage.
+  de transfert hors RDC, notification des violations. **CORRIGÉ LE
+  2026-09-23** · le corpus n'est plus un OCR : il a été réextrait du PDF natif
+  le 05/09/2026 (la même réserve avait déjà été levée dans le plan de
+  confrontations, pas ici). Reste à faire qualifier par un juriste congolais.
+  Et la question est désormais CONCRÈTE : l'art. 201 veut les données
+  personnelles « stockées et/ou hébergées en République Démocratique du
+  Congo », et OmegaX est hébergé hors de RDC. Voir `docs/hebergement-en-rdc.md`.
 - **Formulaire de déclaration DGI** · l'impôt est calculé, l'imprimé se
   remplit à la main faute d'en détenir le modèle.
 - **Homologation d'OmegaX comme SFE** · décret n° 23/10 du 3 mars 2023,
