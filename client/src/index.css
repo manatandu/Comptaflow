@@ -596,6 +596,53 @@ tbody tr {
   animation: menu-in 0.15s var(--t-sortie) both;
   transform-origin: top center;
 }
+/*
+ * FOND DES MENUS · PLEIN, et c'est mesuré.
+ *
+ * `bg-surface/95` ne marche pas : `--surface` est une variable, le
+ * modificateur d'opacité de Tailwind ne sait pas la décomposer, et le fond
+ * rendu était TRANSPARENT. Un fond translucide flouté façon « acrylique » ne
+ * marche pas mieux ici : le menu est DANS la barre de menus, qui porte déjà
+ * un `backdrop-filter`, et un flou imbriqué dans un autre ne floute rien · le
+ * texte des cartes se lisait net à travers le menu (capture du 2026-09-23).
+ */
+.panneau-menu {
+  background: var(--surface);
+  /* L'ombre de `shadow-flottante`, SANS la classe : celle-ci impose
+     `overflow: hidden` (couche components ci-dessus), qui rognait le
+     sous-menu sorti sur le côté · il existait, positionné, et invisible. */
+  box-shadow: var(--ombre-flottante);
+}
+/*
+ * SOUS-MENU VOLANT · il glisse de quelques pixels depuis le panneau dont il
+ * sort, comme les sous-menus de Windows 11. Le côté est décidé à l'ouverture
+ * (`coteSousMenu`, menu-groupes.ts) : à droite par défaut, à gauche quand le
+ * bord de l'écran est trop proche.
+ */
+.sous-menu-droite {
+  left: calc(100% + 2px);
+}
+.sous-menu-gauche {
+  right: calc(100% + 2px);
+}
+.anim-sous-menu {
+  animation: sous-menu-in 0.14s var(--t-sortie) both;
+}
+.sous-menu-gauche.anim-sous-menu {
+  animation-name: sous-menu-in-gauche;
+}
+@keyframes sous-menu-in {
+  from {
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+}
+@keyframes sous-menu-in-gauche {
+  from {
+    opacity: 0;
+    transform: translateX(6px);
+  }
+}
 .anim-voile {
   animation: voile-in 0.18s var(--t-doux) both;
 }
@@ -685,6 +732,7 @@ tbody tr {
 @media (prefers-reduced-motion: reduce) {
   .anim-fenetre,
   .anim-menu,
+  .anim-sous-menu,
   .anim-voile,
   .anim-modale,
   .anim-alerte,

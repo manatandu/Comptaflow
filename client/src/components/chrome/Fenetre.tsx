@@ -24,7 +24,8 @@ import { LimiteErreur } from './LimiteErreur';
  * bouge vite, défaut classique des implémentations naïves.
  */
 
-const HAUTEUR_TITRE = 26;
+/** 32 px · la barre de titre d'une application Windows 11. */
+const HAUTEUR_TITRE = 32;
 const MARGE_MIN_VISIBLE = 90; // px de barre de titre toujours attrapables
 const LARGEUR_MIN = 380;
 const HAUTEUR_MIN = 220;
@@ -155,7 +156,7 @@ function FenetreInterne({ fenetre, active }: { fenetre: FenetreOuverte; active: 
       ref={refCadre}
       onPointerDown={() => !active && activer(fenetre.cle)}
       style={style}
-      className={`anim-fenetre absolute flex flex-col overflow-hidden rounded-[12px] border bg-surface ${
+      className={`anim-fenetre absolute flex flex-col overflow-hidden rounded-[8px] border bg-surface ${
         active ? 'border-border-dark shadow-dominante' : 'border-border shadow-posee'
       }`}
     >
@@ -163,22 +164,21 @@ function FenetreInterne({ fenetre, active }: { fenetre: FenetreOuverte; active: 
       <div
         onPointerDown={(e) => demarrerGeste(e, 'deplacer')}
         onDoubleClick={() => basculerAgrandissement(fenetre.cle)}
-        style={{
-          height: HAUTEUR_TITRE,
-          // La fenêtre active porte le même bandeau sombre que la barre de
-          // titre de l'application : d'un coup d'œil, on voit laquelle des
-          // fenêtres ouvertes reçoit le clavier. Sage distingue les siennes
-          // exactement ainsi.
-          ...(active
-            ? { background: 'linear-gradient(180deg, var(--titlebar-from), var(--titlebar-to))' }
-            : {}),
-        }}
-        className={`shrink-0 flex items-center justify-between gap-2 pl-3 pr-1 select-none ${
+        style={{ height: HAUTEUR_TITRE }}
+        /*
+          BARRE DE TITRE CLAIRE, À LA WINDOWS 11 (2026-09-23). Elle était un
+          bandeau bleu nuit, celui de Sage et de Windows 7 · c'est ce qui
+          faisait dire « le design est un peu vieux ». Windows 11 distingue la
+          fenêtre active autrement : son titre et ses boutons sont en encre
+          pleine, ceux des autres fenêtres s'éteignent, et son ombre est plus
+          profonde. La distinction demeure, elle change seulement de forme.
+        */
+        className={`shrink-0 flex items-center justify-between gap-2 pl-3.5 select-none border-b border-border ${
           agrandie ? '' : 'cursor-move'
-        } ${active ? 'text-white' : 'bg-chrome-alt text-text-dim border-b border-border'}`}
+        } ${active ? 'bg-surface text-text' : 'bg-chrome text-text-dim'}`}
       >
-        <span className="truncate text-[11px] font-semibold tracking-[0.01em]">{fenetre.titre}</span>
-        <span className="flex items-center gap-0.5 shrink-0">
+        <span className="truncate text-[12px]">{fenetre.titre}</span>
+        <span className="flex items-stretch self-stretch shrink-0">
           <BoutonTitre
             actif={active}
             titre="Réduire"
@@ -265,15 +265,14 @@ function BoutonTitre({
       onPointerDown={(e) => e.stopPropagation()}
       onDoubleClick={(e) => e.stopPropagation()}
       onClick={onClick}
-      className={`flex items-center justify-center w-[26px] h-[22px] rounded-[6px] transition-colors duration-150 ${
-        danger
-          ? 'hover:bg-danger hover:text-white'
-          : actif
-            ? 'hover:bg-white/15'
-            : 'hover:bg-chrome'
-      } ${actif ? 'text-white/80' : 'text-text-dim'}`}
+      // 46 px de large sur toute la hauteur de la barre, sans arrondi : les
+      // boutons de légende de Windows 11. Fermer vire au rouge système au
+      // survol, les deux autres à un gris léger.
+      className={`flex items-center justify-center w-[46px] transition-colors duration-100 ${
+        danger ? 'hover:bg-[#c42b1c] hover:text-white' : 'hover:bg-chrome-alt'
+      } ${actif ? 'text-text' : 'text-text-dim'}`}
     >
-      <svg viewBox="0 0 16 16" width="13" height="13" fill="currentColor">
+      <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
         {dessin}
       </svg>
     </button>

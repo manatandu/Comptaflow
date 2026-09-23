@@ -22,11 +22,17 @@ export interface MenuItemDef {
 }
 
 /**
- * Un repli, et NON un sous-menu volant. Un sous-menu qui sort sur le côté de
- * son titre reproduirait exactement le défaut que le repli corrige : à 360 px
- * la barre de menus se replie sur deux rangs, le panneau part déjà du bord
- * gauche de l'écran (voir `left-2 right-2` dans MenuBar.tsx), et un second
- * panneau posé à sa droite n'aurait nulle part où aller.
+ * UN SOUS-MENU QUI SORT SUR LE CÔTÉ, SAUF SUR UN ÉCRAN ÉTROIT.
+ *
+ * Sur un écran d'ordinateur, le groupe se comporte comme le « Nouveau » du
+ * clic droit de Windows : le survol de son titre ouvre un second panneau à
+ * DROITE du premier, et le premier garde sa hauteur. C'est la demande de
+ * Manasse du 2026-09-23 · le repli vers le bas allongeait le panneau à chaque
+ * ouverture, exactement ce que les groupes devaient éviter.
+ *
+ * Sous 640 px, le repli DANS le panneau demeure : le panneau va déjà d'un
+ * bord à l'autre de l'écran (`left-2 right-2` dans MenuBar.tsx), et un
+ * second panneau posé à sa droite n'aurait nulle part où aller.
  */
 export interface MenuGroupeDef {
   /** Titre du repli · les commandes du groupe s'affichent en retrait dessous. */
@@ -81,4 +87,19 @@ export function lignesDuMenu(entrees: MenuEntreeDef[], groupeDeplie: string | nu
     }
   }
   return lignes;
+}
+
+/** Largeur réservée à un sous-menu volant · `min-w-[232px]` dans MenuBar.tsx. */
+export const LARGEUR_SOUS_MENU = 232;
+
+/**
+ * DE QUEL CÔTÉ SORT LE SOUS-MENU.
+ *
+ * À droite par défaut, comme sous Windows. Mais le menu « Fenêtre » ou
+ * « État » est à droite de la barre : sur un écran de 1 024 px, son
+ * sous-menu déborderait. Windows le fait alors sortir à GAUCHE, et c'est la
+ * même règle ici · on ne le coupe jamais, on ne le fait jamais défiler.
+ */
+export function coteSousMenu(bordDroitPanneau: number, largeurEcran: number, largeur = LARGEUR_SOUS_MENU): 'droite' | 'gauche' {
+  return bordDroitPanneau + largeur + 8 <= largeurEcran ? 'droite' : 'gauche';
 }

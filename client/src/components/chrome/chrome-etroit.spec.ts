@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { lignesDuMenu, type LigneMenu, type MenuEntreeDef, type MenuGroupeDef } from './menu-groupes';
+import { coteSousMenu, LARGEUR_SOUS_MENU, lignesDuMenu, type LigneMenu, type MenuEntreeDef, type MenuGroupeDef } from './menu-groupes';
 
 // AUCUN import de « vitest » ici, volontairement · c'est la convention du
 // dépôt (voir client/vitest.config.ts et calcul.spec.ts) : describe/it/expect
@@ -33,7 +33,9 @@ describe('chrome à 360 px', () => {
     // minimum. On ne teste pas l'absence de l'ancienne classe · les
     // commentaires du fichier la citent pour expliquer l'incident, et une
     // négation la retrouverait dans la prose au lieu du code.
-    expect(src).toMatch(/z-40 min-h-\[26px\] flex flex-wrap/);
+    // 32 px depuis le 2026-09-23 (hauteur d'une barre de commandes de
+    // Windows 11, demande de Manasse). C'est la MINIMALE qui compte ici.
+    expect(src).toMatch(/z-40 min-h-\[32px\] flex flex-wrap/);
   });
 
   it("chaque titre de menu se mesure sur son RANG et non sur la barre", () => {
@@ -259,13 +261,39 @@ describe('menu « État » à 360 px', () => {
     const src = lire('MenuBar.tsx');
     // Le panneau rend la LISTE calculée, il ne refait pas le calcul : c'est
     // ce qui rend la règle exécutable dans ce spec plutôt que relisible.
-    expect(src).toMatch(/lignesDuMenu\(m\.items, groupeDeplie\)/);
+    // Le panneau étroit reçoit désormais les entrées par paramètre
+    // (`rendreReplie(items)`), la liste reste celle que calcule le module.
+    expect(src).toMatch(/lignesDuMenu\(items, groupeDeplie\)/);
     // Un état qui porterait une collection laisserait ouvrir les six groupes
     // et rendrait au panneau les vingt-deux lignes qu'on lui retire.
     expect(src).toMatch(/const \[groupeDeplie, setGroupeDeplie\] = useState<string \| null>\(null\)/);
-    // `left-full` / `right-full` sont l'ancrage d'un sous-menu VOLANT · à
-    // 360 px il sortirait de l'écran, ce que le repli corrige justement.
-    expect(src).not.toMatch(/left-full|right-full/);
+    // CE TEST INTERDISAIT TOUT SOUS-MENU VOLANT, et Manasse l'a demandé le
+    // 2026-09-23 : sur ordinateur, le groupe s'ouvre à DROITE, comme le
+    // « Nouveau » du clic droit de Windows. La raison de l'interdiction tient
+    // toujours, mais seulement sous 640 px · le volant est donc borné à la
+    // largeur, et le repli demeure en dessous.
+    expect(src).toMatch(/const volant = useMedia\('\(min-width: 640px\)'\)/);
+    expect(src).toMatch(/\{volant \? rendreVolant\(m\.items\) : rendreReplie\(m\.items\)\}/);
+  });
+
+  it('en mode volant, le panneau ne défile pas · sinon il rognerait le sous-menu', () => {
+    const src = lire('MenuBar.tsx');
+    // Un conteneur à `overflow-y-auto` rogne aussi ce qui dépasse sur le
+    // côté : le sous-menu existait, positionné, et restait invisible.
+    expect(src).toMatch(/volant \? '' : 'max-h-\[calc\(100dvh-64px\)\] overflow-y-auto'/);
+    // Même piège par une autre porte · `shadow-flottante` impose
+    // `overflow: hidden` (index.css). Vu au navigateur le 2026-09-23.
+    expect(src).not.toMatch(/shadow-flottante/);
+  });
+
+  it('le survol ouvre le menu, sans clic, là où le survol existe', () => {
+    const src = lire('MenuBar.tsx');
+    expect(src).toMatch(/onMouseEnter=\{\(\) => survolerTitre\(m\.titre\)\}/);
+    // Sur un écran tactile, un « survol » précède le toucher : il ouvrirait
+    // le menu, et le clic qui suit le refermerait.
+    expect(src).toMatch(/useMedia\('\(hover: hover\) and \(pointer: fine\)'\)/);
+    // Avec survol, le clic OUVRE et ne bascule pas.
+    expect(src).toMatch(/setOuvert\(survolable \? m\.titre : ouvert === m\.titre \? null : m\.titre\)/);
   });
 
   it("le titre de groupe porte la petite flèche qui dit dans quel sens il va", () => {
@@ -274,5 +302,22 @@ describe('menu « État » à 360 px', () => {
     // clique en croyant ouvrir une fenêtre, et le panneau change de forme.
     expect(src).toMatch(/\{ligne\.deplie \? '▾' : '▸'\}/);
     expect(src).toMatch(/aria-expanded=\{ligne\.deplie\}/);
+  });
+});
+
+describe('côté du sous-menu volant', () => {
+  it('sort à droite quand la place existe, comme sous Windows', () => {
+    expect(coteSousMenu(548, 1366)).toBe('droite');
+  });
+
+  it('sort à GAUCHE près du bord droit de l’écran · jamais coupé', () => {
+    // Menu « Fenêtre » sur un écran de 1 024 px : son panneau finit vers
+    // 900 px, et 232 de plus sortiraient de l'écran.
+    expect(coteSousMenu(900, 1024)).toBe('gauche');
+  });
+
+  it('la limite compte la marge de 8 px', () => {
+    expect(coteSousMenu(1024 - LARGEUR_SOUS_MENU - 8, 1024)).toBe('droite');
+    expect(coteSousMenu(1024 - LARGEUR_SOUS_MENU - 7, 1024)).toBe('gauche');
   });
 });
