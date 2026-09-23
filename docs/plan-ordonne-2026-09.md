@@ -165,11 +165,24 @@ compare l'empreinte SHA-256 à l'original · chiffrer sans jamais déchiffrer
 serait la faute de la sauvegarde jamais restaurée, d'un cran plus haut. Sans
 clé publique configurée le workflow ÉCHOUE, il ne retombe jamais sur du clair.
 
-RESTE À FAIRE, et c'est une ACTION DE MANASSE, pas de code : générer la paire
-de clés et poser `CLE_AGE_SAUVEGARDES` en variable de dépôt (procédure dans
-`docs/sauvegardes-et-restauration.md`). Tant qu'elle n'est pas posée, la
-sauvegarde nocturne est rouge · c'est voulu, mais cela veut dire qu'il n'y a
-pas de sauvegarde nouvelle pendant ce temps.
+CORRIGÉ LE 2026-09-23 · CE PARAGRAPHE DISAIT LE CONTRAIRE DU VRAI. Il portait
+« RESTE À FAIRE, et c'est une ACTION DE MANASSE : générer la paire de clés et
+poser `CLE_AGE_SAUVEGARDES` en variable de dépôt ». C'EST FAIT, et depuis le
+2026-09-02 · le commentaire du workflow le datait lui-même (« Vécu le
+2026-09-02, première pose de la clé ») et Manasse s'en souvenait. La preuve ne
+se lit ni ici ni dans ce commentaire, mais dans les runs : l'étape « Exiger la
+clé publique de chiffrement » sort en erreur si la variable est absente ou mal
+formée, donc un run vert la suppose posée ET conforme (`age1` suivi de 58
+caractères). Les VINGT-SIX runs de `sauvegarde-base.yml` sont verts, le
+vingt-sixième le 2026-09-23 à 07:05:09, étape 7 comprise, suivie du chiffrement
+éprouvé par déchiffrement et du contrôle qu'aucun fichier en clair ne subsiste.
+
+D'OÙ LA RÈGLE, et c'est la SEPTIÈME « lacune déclarée à tort » · **UNE LIGNE DE
+PLAN QUI DÉCRIT UNE ACTION D'UN TIERS NE SE RECOPIE PAS, ELLE SE VÉRIFIE CONTRE
+CE QUE CETTE ACTION AURAIT CHANGÉ.** Ici, ce que la pose de la clé change est
+observable d'une seule requête : le workflow passe du rouge au vert. Redemander
+la clé sans regarder les runs, c'est exactement ce qui avait fait redemander
+trois fois l'arrêté INPP sans regarder le corpus.
 
 Restent aussi, non traités : le passage des secrets Cloud Run par Secret
 Manager, et le remplacement de la clé de compte de service JSON permanente

@@ -2075,6 +2075,30 @@ de l'art. 24, et le module descend-il seulement jusque-là ? « Avant de
 redemander un texte, l'y chercher » ne suffisait pas · il faut aussi SAVOIR CE
 QU'ON EN FERAIT.
 
+**LA SEPTIÈME « LACUNE DÉCLARÉE À TORT » · LA CLÉ DE CHIFFREMENT DES
+SAUVEGARDES.** Le même jour, après l'arrêté INPP, j'ai redemandé à Manasse de
+générer la paire de clés `age` et de poser `CLE_AGE_SAUVEGARDES` en variable de
+dépôt, en recopiant le paragraphe « RESTE À FAIRE » de
+`docs/plan-ordonne-2026-09.md`. Manasse a répondu · **« Je m'en souviens d'avoir
+déjà fait cet exercice. Pourquoi on le refait ? »** Il avait raison. La clé est
+posée depuis le 2026-09-02 · le workflow lui-même le datait (« Vécu le
+2026-09-02, première pose de la clé », à propos du retour chariot de Windows) et
+`docs/sauvegardes-et-restauration.md` montrait une clé publique horodatée du
+même jour.
+
+**LA PREUVE NE SE LISAIT DANS AUCUN DOCUMENT · ELLE SE LISAIT DANS LES RUNS.**
+L'étape « Exiger la clé publique de chiffrement » sort en erreur si la variable
+est absente ou mal formée · **un run vert de `sauvegarde-base.yml` est donc une
+attestation que la variable est posée ET conforme**. Vingt-six runs, tous verts,
+le dernier le 2026-09-23 à 07:05:09, étape 7 comprise.
+
+**D'OÙ LA RÈGLE · UNE LIGNE DE PLAN QUI DÉCRIT UNE ACTION D'UN TIERS NE SE
+RECOPIE PAS, ELLE SE VÉRIFIE CONTRE CE QUE CETTE ACTION AURAIT CHANGÉ.** C'est
+l'exact pendant de « avant de redemander un texte, l'y chercher » · là le corpus
+répondait, ici c'est la CI. Dans les deux cas le tort venait de la même source ·
+j'ai relu ma propre liste au lieu de la confronter au monde. **Une liste de
+manques ne se relit jamais contre elle-même.**
+
 **Questionnaire de révision par cycle · vingt-quatre items du CPCC, et le
 reste assumé.** Le séminaire porte DEUX checklists, § VI « vérification de
 l'inventaire physique » (immobilisations, stocks, caisses) et § VII
