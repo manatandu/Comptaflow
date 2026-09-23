@@ -56,10 +56,16 @@ export function DevisesPage() {
 
   const charger = async () => {
     try {
-      setDevises(await api.get<Devise[]>('/devises'));
-      if (exerciceCourant) {
-        setReevaluations(await api.get<Reevaluation[]>(`/devises/reevaluation/liste?exerciceId=${exerciceCourant.id}`));
-      }
+      // Les deux demandes sont indépendantes · en parallèle, un aller-retour
+      // transatlantique de moins à l'ouverture de la fenêtre.
+      const [devises, reevaluations] = await Promise.all([
+        api.get<Devise[]>('/devises'),
+        exerciceCourant
+          ? api.get<Reevaluation[]>(`/devises/reevaluation/liste?exerciceId=${exerciceCourant.id}`)
+          : Promise.resolve(null),
+      ]);
+      setDevises(devises);
+      if (reevaluations) setReevaluations(reevaluations);
     } catch (e) {
       setErreur(e instanceof ApiError ? e.message : 'Chargement impossible');
     }

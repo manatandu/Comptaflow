@@ -1,3 +1,5 @@
+import { entetesRequete } from './entetes-requete';
+
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
 
 export class ApiError extends Error {
@@ -34,18 +36,13 @@ export function setCsrf(token: string | null) {
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const csrf = getCsrf();
   const res = await fetch(`${API_URL}${path}`, {
     ...options,
     // Le cookie de session voyage avec chaque appel (origines croisées :
     // oomega.web.app vers Cloud Run) · le serveur n'admet cela que pour les
     // origines de sa liste CORS.
     credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(csrf ? { 'X-CSRF-Token': csrf } : {}),
-      ...options.headers,
-    },
+    headers: entetesRequete(options.method, getCsrf(), options.headers),
   });
 
   if (!res.ok) {

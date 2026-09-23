@@ -60,7 +60,14 @@ ajoutent-elles ? Le texte ne le dit pas explicitement, et la réponse commande
 la conduite à tenir. Deux autres faits manquent et ne se lisent pas d'ici ·
 l'Autorité de protection des données est-elle installée et délivre-t-elle des
 autorisations, et les États-Unis figurent-ils sur une liste d'adéquation
-congolaise. **C'est le seul point de ce document qui demande un juriste.**
+congolaise.
+
+> **Complété le 2026-09-23** (`hebergement-en-rdc.md`). L'Autorité n'est pas
+> créée ; depuis l'arrêté ministériel n° CAB/MIN/PT&NTIC/AKIM/KL/Kbs/051/2024
+> du 17 août 2024, ses missions sont exercées à titre transitoire par
+> l'ARPTC (sources web, texte de l'arrêté non lu). C'est donc auprès de
+> l'ARPTC que l'autorisation de l'art. 201 se demande. Pour la troisième
+> issue, le rapatriement, la même note dresse ce qui existe à Kinshasa. **C'est le seul point de ce document qui demande un juriste.**
 
 Les issues, par ordre de coût croissant : demander l'autorisation de
 l'art. 201 ; s'appuyer sur l'art. 202, 2° en le documentant dans le contrat de

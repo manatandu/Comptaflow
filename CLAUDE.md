@@ -2140,6 +2140,19 @@ des tests (148 et 103 au lieu de 228), pas au mot « failed ». **UN TOTAL QUI
 BAISSE EST UNE SUITE QUI N'A PAS TOURNÉ, PAS UN DÉFAUT ATTRAPÉ.** Refaites
 avec des mutations qui compilent, attrapées toutes deux.
 
+**TEMPS DE CHARGEMENT · LA DISTANCE, MULTIPLIÉE (2026-09-23).** Le goulot
+n'était ni la taille des fichiers ni le serveur, tous deux déjà traités : c'était
+le NOMBRE d'allers-retours entre Kinshasa et us-east1 (`docs/temps-de-chargement.md`).
+Deux règles en sortent. **(1) UNE LECTURE NE PORTE NI `Content-Type` NI
+`X-CSRF-Token`** · ces en-têtes rendent la requête « non simple » et la font
+précéder d'un `OPTIONS`, alors que le serveur ne contrôle le CSRF que sur les
+méthodes qui modifient. C'est `entetes-requete.ts` qui décide, et un spec le
+gèle. **(2) DEUX APPELS INDÉPENDANTS PARTENT ENSEMBLE** · chaque `await` enchaîné
+coûte un aller-retour transatlantique. Mesuré : 10 appels dont 5 `OPTIONS` en
+3 vagues, contre 5 appels en 2 vagues. **Le simulateur de latence de Chrome ne
+retarde pas les `OPTIONS`** : une mesure faite avec lui sous-estime ce qu'ils
+coûtent.
+
 **Questionnaire de révision par cycle · vingt-quatre items du CPCC, et le
 reste assumé.** Le séminaire porte DEUX checklists, § VI « vérification de
 l'inventaire physique » (immobilisations, stocks, caisses) et § VII

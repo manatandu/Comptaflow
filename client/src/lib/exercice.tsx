@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState, ReactNode } fr
 import { api } from './api';
 import type { Exercice } from './types';
 import { resoudreExercice } from './exercice-choix';
+import { consommerPrechargement } from './prechargement';
 
 interface ExerciceContextValue {
   exerciceCourant: Exercice | null;
@@ -78,15 +79,20 @@ export function ExerciceProvider({ children }: { children: ReactNode }) {
   const [chargement, setChargement] = useState(true);
   const [choisiId, setChoisiId] = useState<string | null>(null);
 
-  const recharger = async () => {
+  const recharger = async (auDemarrage = false) => {
     setChargement(true);
-    const liste = await api.get<Exercice[]>('/exercices');
+    // Au démarrage seulement, la réponse partie en même temps que /auth/me
+    // est reprise (voir prechargement.ts). Si elle a échoué, on redemande.
+    const prechargee = auDemarrage ? consommerPrechargement() : null;
+    const liste = prechargee
+      ? await prechargee.catch(() => api.get<Exercice[]>('/exercices'))
+      : await api.get<Exercice[]>('/exercices');
     setExercices(liste);
     setChargement(false);
   };
 
   useEffect(() => {
-    recharger();
+    recharger(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

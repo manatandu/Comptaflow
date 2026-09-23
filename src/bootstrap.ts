@@ -74,9 +74,33 @@ export function configurerApplication(app: INestApplication) {
   // serveur l'autorise explicitement, ET pour une origine NOMMÉE (jamais
   // `*`, que les navigateurs refusent avec credentials) · en développement,
   // `origin: true` reflète l'origine appelante, ce qui reste nominatif.
-  app.enableCors(origines ? { origin: origines, credentials: true } : { origin: true, credentials: true });
+  app.enableCors(optionsCors(origines));
   // whitelist: rejette tout champ non déclaré dans un DTO · évite qu'un client
   // injecte silencieusement un champ (ex: tenantId) qui devrait venir du JWT.
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
   return app;
+}
+
+/**
+ * LE CONTRÔLE PRÉALABLE CORS SE MET EN CACHE · `maxAge`.
+ *
+ * Le site et l'API sont deux origines : toute écriture (JSON, jeton CSRF) est
+ * précédée d'une requête OPTIONS. Sans `Access-Control-Max-Age`, Chrome n'en
+ * garde la réponse que CINQ SECONDES, si bien que presque chaque écriture
+ * coûtait deux allers-retours entre Kinshasa et us-east1 au lieu d'un.
+ * 7 200 secondes est le plafond de Chrome (Firefox en admet davantage) : au
+ * delà, la valeur est ramenée à 7 200, pas refusée.
+ *
+ * Le cache ne relâche rien : il porte sur la réponse au contrôle (origine,
+ * méthodes, en-têtes admis), pas sur les données, et il est propre à chaque
+ * origine appelante.
+ */
+export const DUREE_CACHE_CONTROLE_CORS = 7200;
+
+export function optionsCors(origines: string[] | undefined) {
+  return {
+    origin: origines ?? true,
+    credentials: true,
+    maxAge: DUREE_CACHE_CONTROLE_CORS,
+  };
 }

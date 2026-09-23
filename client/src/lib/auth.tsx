@@ -1,7 +1,8 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { api, ApiError, setCsrf } from './api';
 import { memoriserDossier } from './dossiersRecents';
-import type { JeuEtatsFinanciersSycebnl, SystemeComptableSyscohada, Referentiel, RoleUtilisateur } from './types';
+import type { Exercice, JeuEtatsFinanciersSycebnl, SystemeComptableSyscohada, Referentiel, RoleUtilisateur } from './types';
+import { oublierPrechargement, prechargerExercices } from './prechargement';
 
 interface MeResponse {
   id: string;
@@ -90,6 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (erreur) {
       setCsrf(null);
       setUtilisateur(null);
+      oublierPrechargement();
       if (exigeante) {
         throw new Error(
           erreur instanceof ApiError && erreur.status !== 401
@@ -104,6 +106,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
+    // Les exercices partent EN MÊME TEMPS que la vérification de session ·
+    // un aller-retour transatlantique de moins à chaque ouverture.
+    prechargerExercices(() => api.get<Exercice[]>('/exercices'));
     chargerUtilisateur();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -125,6 +130,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const seDeconnecter = () => {
+    oublierPrechargement();
     // Le cookie httpOnly ne peut pas être effacé d'ici · c'est le serveur
     // qui le fait tomber. Sans attendre la réponse : l'interface se ferme
     // tout de suite, et un échec réseau laisse au pire un cookie qui

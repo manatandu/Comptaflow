@@ -2,6 +2,16 @@
 
 Question de Manasse : peut-on trouver un hébergeur fiable au Congo ?
 
+> **À lire avec `code-du-numerique-et-omegax.md`** (2026-09-05), qui avait
+> déjà lu l'art. 201, les dérogations de l'art. 202 et la dispense de
+> déclaration de l'art. 189, 5°, et posé les trois issues (autorisation,
+> art. 202, 2°, rapatriement). Le message de commit de cette note disait la
+> question « posée par personne » : c'était faux, elle l'était depuis le
+> 5 septembre, et je ne l'avais pas cherchée avant d'écrire. Ce document-ci
+> apporte deux choses nouvelles · QUI délivre aujourd'hui l'autorisation
+> (l'ARPTC, à titre transitoire), et CE QUI EXISTE à Kinshasa pour la
+> troisième issue.
+
 ## 1. Pourquoi la question n'est pas seulement technique
 
 **Ordonnance-loi n° 23/010 du 13 mars 2023 portant Code du numérique, art. 201**

@@ -30,6 +30,16 @@ window.addEventListener('load', () => sessionStorage.removeItem('omegax:recharge
  * (navigateur ancien, contexte non sécurisé, réglage de l'utilisateur) ne doit
  * pas empêcher un comptable de travailler.
  */
+/*
+ * LE TABLEAU DE BORD EST LA PREMIÈRE FENÊTRE OUVERTE · son code est chargé à
+ * la demande, donc seulement APRÈS la vérification de session et le
+ * chargement des exercices. Le demander dès maintenant le fait arriver
+ * pendant ces deux allers-retours au lieu de s'y ajouter. Même module que le
+ * `lazy()` du registre des fenêtres : Vite n'en fait qu'un fichier, servi une
+ * seule fois. Un échec est avalé · le `lazy()` le redemandera.
+ */
+void import('./pages/DashboardPage').catch(() => undefined);
+
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').catch(() => undefined);
