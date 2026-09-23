@@ -9,12 +9,16 @@ export default {
         // système sur lequel il tourne, pas à une page web. `ui-sans-serif`
         // en tête prend la police d'interface native de chaque plateforme ;
         // Segoe UI Variable reste nommée pour Windows 11.
+        // Segoe UI Variable EN TÊTE depuis le 2026-09-23 : derrière
+        // `ui-sans-serif`, Chrome sous Windows prenait Segoe UI, la police de
+        // Windows 10. Voir `body` dans index.css.
         sans: [
+          '"Segoe UI Variable Text"',
+          '"Segoe UI Variable"',
+          '"Segoe UI"',
           'ui-sans-serif',
           'system-ui',
           '-apple-system',
-          '"Segoe UI Variable Text"',
-          '"Segoe UI"',
           'Inter',
           'Roboto',
           '"Helvetica Neue"',

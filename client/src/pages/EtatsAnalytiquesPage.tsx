@@ -100,26 +100,26 @@ export function EtatsAnalytiquesPage() {
   }, [onglet, planId, sectionId, mois, exerciceCourant?.id]);
 
   const ongletClasse = (o: Onglet) =>
-    `px-4 py-1.5 text-[10.5px] font-bold ${onglet === o ? 'bg-surface border-x border-border' : 'text-text-dim'}`;
+    `px-4 py-1.5 text-[12px] font-bold ${onglet === o ? 'bg-surface border-x border-border' : 'text-text-dim'}`;
 
   return (
     <div className="p-2">
       <EnteteImpression titre="États analytiques" />
       <div className="flex items-end justify-between mb-1.5 gap-3 flex-wrap">
         <div>
-          <div className="text-[10px] font-mono text-text-dim leading-none">ÉTAT</div>
-          <h1 className="text-[12px] font-bold leading-tight flex items-center gap-1.5">
+          <div className="text-[11px] font-mono text-text-dim leading-none">ÉTAT</div>
+          <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
             États analytiques
             <Aide sujet="analytique" />
           </h1>
         </div>
         <div className="flex items-end gap-2.5">
           <label className="flex flex-col gap-1">
-            <span className="text-[10px] font-bold text-text-dim">AXE</span>
+            <span className="text-[11px] font-bold text-text-dim">AXE</span>
             <select
               value={planId}
               onChange={(e) => setPlanId(e.target.value)}
-              className="border border-border rounded-[6px] bg-surface px-2 py-1 text-[10.5px] min-w-[180px]"
+              className="border border-border rounded-[6px] bg-surface px-2 py-1 text-[12px] min-w-[180px]"
             >
               {plans.map((p) => (
                 <option key={p.id} value={p.id}>
@@ -130,11 +130,11 @@ export function EtatsAnalytiquesPage() {
           </label>
           {onglet === 'grand-livre' && (
             <label className="flex flex-col gap-1">
-              <span className="text-[10px] font-bold text-text-dim">SECTION</span>
+              <span className="text-[11px] font-bold text-text-dim">SECTION</span>
               <select
                 value={sectionId}
                 onChange={(e) => setSectionId(e.target.value)}
-                className="border border-border rounded-[6px] bg-surface px-2 py-1 text-[10.5px] min-w-[220px]"
+                className="border border-border rounded-[6px] bg-surface px-2 py-1 text-[12px] min-w-[220px]"
               >
                 {sections
                   .filter((s) => s.type === 'DETAIL')
@@ -148,11 +148,11 @@ export function EtatsAnalytiquesPage() {
           )}
           {onglet === 'budgetaire' && (
             <label className="flex flex-col gap-1">
-              <span className="text-[10px] font-bold text-text-dim">PÉRIODE</span>
+              <span className="text-[11px] font-bold text-text-dim">PÉRIODE</span>
               <select
                 value={mois}
                 onChange={(e) => setMois(Number(e.target.value))}
-                className="border border-border rounded-[6px] bg-surface px-2 py-1 text-[10.5px]"
+                className="border border-border rounded-[6px] bg-surface px-2 py-1 text-[12px]"
               >
                 {MOIS.map((m, i) => (
                   <option key={m} value={i}>
@@ -166,7 +166,7 @@ export function EtatsAnalytiquesPage() {
       </div>
 
       {erreur && (
-        <div className="mb-2.5 text-[11px] text-danger bg-danger-soft border border-danger/30 rounded-[6px] px-2.5 py-1.5">
+        <div className="mb-2.5 text-[12.5px] text-danger bg-danger-soft border border-danger/30 rounded-[6px] px-2.5 py-1.5">
           {erreur}
         </div>
       )}
@@ -196,18 +196,18 @@ export function EtatsAnalytiquesPage() {
           // mais la dernière colonne était simplement invisible.
           className="border border-border bg-surface rounded-b-[10px] overflow-x-auto"
         >
-          <div className="grid grid-cols-[120px_1fr_140px_140px_150px] min-w-[770px] gap-2 px-4 py-1.5 bg-chrome-alt border-b border-border text-[10px] font-bold text-text-dim">
+          <div className="grid grid-cols-[120px_1fr_140px_140px_150px] min-w-[770px] gap-2 px-4 py-1.5 bg-chrome-alt border-b border-border text-[11px] font-bold text-text-dim">
             <span>SECTION</span>
             <span>INTITULÉ</span>
             <span className="text-right">MOUVEMENT DÉBIT</span>
             <span className="text-right">MOUVEMENT CRÉDIT</span>
             <span className="text-right">SOLDE</span>
           </div>
-          {!balance && <div className="px-4 py-4 text-[11px] text-text-dim">Chargement…</div>}
+          {!balance && <div className="px-4 py-4 text-[12.5px] text-text-dim">Chargement…</div>}
           {balance?.lignes.map((l) => (
             <div
               key={l.sectionId}
-              className={`grid grid-cols-[120px_1fr_140px_140px_150px] min-w-[770px] gap-2 px-4 py-1 text-[11px] border-b border-border/40 ${
+              className={`grid grid-cols-[120px_1fr_140px_140px_150px] min-w-[770px] gap-2 px-4 py-1 text-[12.5px] border-b border-border/40 ${
                 l.type === 'TOTAL' ? 'bg-chrome-alt font-bold' : ''
               }`}
             >
@@ -219,12 +219,12 @@ export function EtatsAnalytiquesPage() {
             </div>
           ))}
           {balance && balance.lignes.length === 0 && (
-            <div className="px-4 py-4 text-[11px] text-text-dim italic">
+            <div className="px-4 py-4 text-[12.5px] text-text-dim italic">
               Aucune section sur cet axe. Créez vos sections dans Structure → Plans analytiques.
             </div>
           )}
           {balance && (
-            <div className="grid grid-cols-[120px_1fr_140px_140px_150px] min-w-[770px] gap-2 px-4 py-1.5 bg-chrome border-t border-border text-[11px] font-bold">
+            <div className="grid grid-cols-[120px_1fr_140px_140px_150px] min-w-[770px] gap-2 px-4 py-1.5 bg-chrome border-t border-border text-[12.5px] font-bold">
               <span />
               <span>Total des sections Détail</span>
               <span className="text-right font-mono">{montant(balance.totaux.debit)}</span>
@@ -238,7 +238,7 @@ export function EtatsAnalytiquesPage() {
       {onglet === 'grand-livre' && (
         <div className="border border-border bg-surface rounded-b-[10px] overflow-x-auto">
           {grandLivre && (
-            <div className="px-4 py-2 bg-chrome-alt border-b border-border text-[10.5px]">
+            <div className="px-4 py-2 bg-chrome-alt border-b border-border text-[12px]">
               <span className="font-mono font-bold">{grandLivre.section.code}</span> {grandLivre.section.intitule}
               {grandLivre.section.dateDebut && (
                 <span className="text-text-dim">
@@ -250,7 +250,7 @@ export function EtatsAnalytiquesPage() {
               )}
             </div>
           )}
-          <div className="grid grid-cols-[90px_60px_70px_110px_1fr_120px_120px_130px] min-w-[940px] gap-2 px-4 py-1.5 bg-chrome-alt border-b border-border text-[10px] font-bold text-text-dim">
+          <div className="grid grid-cols-[90px_60px_70px_110px_1fr_120px_120px_130px] min-w-[940px] gap-2 px-4 py-1.5 bg-chrome-alt border-b border-border text-[11px] font-bold text-text-dim">
             <span>DATE</span>
             <span>JAL</span>
             <span>PIÈCE</span>
@@ -260,11 +260,11 @@ export function EtatsAnalytiquesPage() {
             <span className="text-right">CRÉDIT</span>
             <span className="text-right">SOLDE</span>
           </div>
-          {!grandLivre && <div className="px-4 py-4 text-[11px] text-text-dim">Chargement…</div>}
+          {!grandLivre && <div className="px-4 py-4 text-[12.5px] text-text-dim">Chargement…</div>}
           {grandLivre?.lignes.map((l, i) => (
             <div
               key={i}
-              className="grid grid-cols-[90px_60px_70px_110px_1fr_120px_120px_130px] min-w-[940px] gap-2 px-4 py-1 text-[11px] border-b border-border/40"
+              className="grid grid-cols-[90px_60px_70px_110px_1fr_120px_120px_130px] min-w-[940px] gap-2 px-4 py-1 text-[12.5px] border-b border-border/40"
             >
               <span className="font-mono">{l.date}</span>
               <span className="font-mono">{l.journal}</span>
@@ -277,33 +277,33 @@ export function EtatsAnalytiquesPage() {
             </div>
           ))}
           {grandLivre && grandLivre.lignes.length === 0 && (
-            <div className="px-4 py-4 text-[11px] text-text-dim italic">Aucun mouvement ventilé sur cette section.</div>
+            <div className="px-4 py-4 text-[12.5px] text-text-dim italic">Aucun mouvement ventilé sur cette section.</div>
           )}
         </div>
       )}
 
       {onglet === 'controle' && (
         <div className="border border-border bg-surface rounded-b-[10px] overflow-hidden p-3 flex flex-col gap-3">
-          <div className="flex items-center gap-1.5 text-[10.5px] text-text-dim">
+          <div className="flex items-center gap-1.5 text-[12px] text-text-dim">
             <span>Ce que cet état prouve</span>
             <Aide sujet="controleCumuls" />
           </div>
-          {!controle && <div className="text-[11px] text-text-dim">Chargement…</div>}
+          {!controle && <div className="text-[12.5px] text-text-dim">Chargement…</div>}
           {controle?.map((c) => {
             const equilibre = Math.abs(c.ecartDebit) < 0.005 && Math.abs(c.ecartCredit) < 0.005;
             return (
               <section key={c.planId} className="border border-border rounded-[8px] overflow-x-auto">
                 <header
-                  className={`px-3 py-2 text-[11px] font-bold flex items-center justify-between ${
+                  className={`px-3 py-2 text-[12.5px] font-bold flex items-center justify-between ${
                     equilibre ? 'bg-positive-soft text-positive' : 'bg-warning-soft text-warning'
                   }`}
                 >
                   <span>
-                    {c.planIntitule} <span className="font-mono text-[10px] opacity-70">{c.planCode}</span>
+                    {c.planIntitule} <span className="font-mono text-[11px] opacity-70">{c.planCode}</span>
                   </span>
                   <span>{equilibre ? 'Cumuls concordants' : 'Écart à ventiler'}</span>
                 </header>
-                <div className="grid grid-cols-[1fr_140px_140px] min-w-[470px] gap-2 px-3 py-1.5 bg-chrome-alt border-b border-border text-[10px] font-bold text-text-dim">
+                <div className="grid grid-cols-[1fr_140px_140px] min-w-[470px] gap-2 px-3 py-1.5 bg-chrome-alt border-b border-border text-[11px] font-bold text-text-dim">
                   <span />
                   <span className="text-right">DÉBIT</span>
                   <span className="text-right">CRÉDIT</span>
@@ -315,7 +315,7 @@ export function EtatsAnalytiquesPage() {
                 ].map(([libelle, d, cr], i) => (
                   <div
                     key={libelle as string}
-                    className={`grid grid-cols-[1fr_140px_140px] min-w-[470px] gap-2 px-3 py-1 text-[11px] ${
+                    className={`grid grid-cols-[1fr_140px_140px] min-w-[470px] gap-2 px-3 py-1 text-[12.5px] ${
                       i === 2 ? 'font-bold border-t border-border' : 'border-b border-border/40'
                     }`}
                   >
@@ -326,7 +326,7 @@ export function EtatsAnalytiquesPage() {
                 ))}
                 {c.lignesSansRepartition.length > 0 && (
                   <div className="border-t border-border">
-                    <div className="px-3 py-1.5 bg-chrome text-[10px] font-bold text-text-dim">
+                    <div className="px-3 py-1.5 bg-chrome text-[11px] font-bold text-text-dim">
                       {c.lignesSansRepartition.length} écriture(s) sans répartition
                     </div>
                     <div className="max-h-[240px] overflow-y-auto">
@@ -334,7 +334,7 @@ export function EtatsAnalytiquesPage() {
                         <button
                           key={i}
                           onClick={() => navigate('/journal')}
-                          className="w-full grid grid-cols-[90px_60px_110px_1fr_110px_110px] gap-2 px-3 py-1 text-[10.5px] text-left border-b border-border/40 hover:bg-chrome-alt"
+                          className="w-full grid grid-cols-[90px_60px_110px_1fr_110px_110px] gap-2 px-3 py-1 text-[12px] text-left border-b border-border/40 hover:bg-chrome-alt"
                         >
                           <span className="font-mono">{l.date}</span>
                           <span className="font-mono">{l.journal}</span>
@@ -356,7 +356,7 @@ export function EtatsAnalytiquesPage() {
       {onglet === 'budgetaire' && (
         <div className="border border-border bg-surface rounded-b-[10px] overflow-x-auto">
           {plan && !plan.gererBudgets ? (
-            <div className="px-4 py-4 text-[11px] text-text-dim">
+            <div className="px-4 py-4 text-[12.5px] text-text-dim">
               L'axe {plan.intitule} ne porte pas de budget. Le budget se tient sur l'axe des projets :{' '}
               {estSyscohada
                 ? "un projet n'a pas un budget par source de financement, il a un budget et plusieurs sources."
@@ -364,7 +364,7 @@ export function EtatsAnalytiquesPage() {
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-[120px_1fr_140px_140px_140px_100px] min-w-[870px] gap-2 px-4 py-1.5 bg-chrome-alt border-b border-border text-[10px] font-bold text-text-dim">
+              <div className="grid grid-cols-[120px_1fr_140px_140px_140px_100px] min-w-[870px] gap-2 px-4 py-1.5 bg-chrome-alt border-b border-border text-[11px] font-bold text-text-dim">
                 <span>SECTION</span>
                 <span>INTITULÉ</span>
                 <span className="text-right">BUDGET</span>
@@ -372,7 +372,7 @@ export function EtatsAnalytiquesPage() {
                 <span className="text-right">ÉCART</span>
                 <span className="text-right">CONSOMMÉ</span>
               </div>
-              {!budgetaire && <div className="px-4 py-4 text-[11px] text-text-dim">Chargement…</div>}
+              {!budgetaire && <div className="px-4 py-4 text-[12.5px] text-text-dim">Chargement…</div>}
               {budgetaire?.lignes.map((l) => (
                 <div
                   key={l.sectionId}
@@ -383,7 +383,7 @@ export function EtatsAnalytiquesPage() {
                     comme une ligne de plus et le tableau paraît compter deux
                     fois ce qu'il totalise une fois.
                   */
-                  className={`grid grid-cols-[120px_1fr_140px_140px_140px_100px] min-w-[870px] gap-2 px-4 py-1 text-[11px] border-b border-border/40 ${
+                  className={`grid grid-cols-[120px_1fr_140px_140px_140px_100px] min-w-[870px] gap-2 px-4 py-1 text-[12.5px] border-b border-border/40 ${
                     l.estRubrique
                       ? 'font-bold bg-surface-alt border-y border-border'
                       : l.horsBudget
@@ -396,7 +396,7 @@ export function EtatsAnalytiquesPage() {
                   <span className="font-mono">{l.code}</span>
                   <span>
                     {l.intitule}
-                    {l.horsBudget && <span className="ml-2 text-[10px] font-bold text-danger">hors budget</span>}
+                    {l.horsBudget && <span className="ml-2 text-[11px] font-bold text-danger">hors budget</span>}
                   </span>
                   <span className="text-right font-mono">{montant(l.budget)}</span>
                   <span className="text-right font-mono">{montant(l.realise)}</span>
@@ -409,7 +409,7 @@ export function EtatsAnalytiquesPage() {
                 </div>
               ))}
               {budgetaire && (
-                <div className="grid grid-cols-[120px_1fr_140px_140px_140px_100px] min-w-[870px] gap-2 px-4 py-1.5 bg-chrome border-t border-border text-[11px] font-bold">
+                <div className="grid grid-cols-[120px_1fr_140px_140px_140px_100px] min-w-[870px] gap-2 px-4 py-1.5 bg-chrome border-t border-border text-[12.5px] font-bold">
                   <span />
                   <span>Total</span>
                   <span className="text-right font-mono">{montant(budgetaire.totaux.budget)}</span>
@@ -422,7 +422,7 @@ export function EtatsAnalytiquesPage() {
                   </span>
                 </div>
               )}
-              <p className="px-4 py-2 text-[10px] text-text-dim border-t border-border leading-[1.5]">
+              <p className="px-4 py-2 text-[11px] text-text-dim border-t border-border leading-[1.5]">
                 Une section mouvementée sans dotation apparaît en rouge, marquée « hors budget » :{' '}
                 {estSyscohada ? 'pour la direction' : 'pour un financeur'}, c'est la ligne la plus importante de
                 l'état. Un écart négatif signale un dépassement.

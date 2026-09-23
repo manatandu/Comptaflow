@@ -107,16 +107,16 @@ export function BalanceAuxiliairePage() {
       <EnteteImpression titre="Balance auxiliaire" />
       <div className="flex items-end justify-between mb-1.5 gap-3 flex-wrap">
         <div>
-          <div className="text-[10px] font-mono text-text-dim leading-none">ÉTAT</div>
-          <h1 className="text-[12px] font-bold leading-tight">Balance auxiliaire</h1>
+          <div className="text-[11px] font-mono text-text-dim leading-none">ÉTAT</div>
+          <h1 className="text-[13px] font-bold leading-tight">Balance auxiliaire</h1>
         </div>
         <div className="flex items-end gap-3">
           <label className="flex flex-col gap-1">
-            <span className="text-[10px] font-bold text-text-dim">TYPE DE TIERS</span>
+            <span className="text-[11px] font-bold text-text-dim">TYPE DE TIERS</span>
             <select
               value={type}
               onChange={(e) => setType(e.target.value as TypeTiers)}
-              className="border border-border-dark bg-surface px-2 py-1 text-[10.5px] min-w-[190px]"
+              className="border border-border-dark bg-surface px-2 py-1 text-[12px] min-w-[190px]"
             >
               {(Object.keys(libelle) as TypeTiers[]).map((t) => (
                 <option key={t} value={t}>
@@ -128,7 +128,7 @@ export function BalanceAuxiliairePage() {
           <button
             type="button"
             onClick={exporter}
-            className="border border-border-dark bg-surface-alt px-3 py-1 text-[10.5px] font-semibold"
+            className="border border-border-dark bg-surface-alt px-3 py-1 text-[12px] font-semibold"
           >
             Exporter en Excel
           </button>
@@ -136,12 +136,12 @@ export function BalanceAuxiliairePage() {
       </div>
 
       {erreur && (
-        <div className="text-[11px] text-danger bg-danger-soft border border-danger/30 px-3 py-2 mb-2.5">{erreur}</div>
+        <div className="text-[12.5px] text-danger bg-danger-soft border border-danger/30 px-3 py-2 mb-2.5">{erreur}</div>
       )}
 
       <div className="border border-border bg-surface shadow-posee overflow-x-auto">
         <div
-          className={`${grille} px-3.5 py-1.5 bg-surface-alt text-[10px] font-bold text-text-dim border-b border-border-dark`}
+          className={`${grille} px-3.5 py-1.5 bg-surface-alt text-[11px] font-bold text-text-dim border-b border-border-dark`}
         >
           <span>CODE COMPTE</span>
           <span>CODE TIERS</span>
@@ -155,7 +155,7 @@ export function BalanceAuxiliairePage() {
         </div>
 
         {donnees && donnees.comptes.length === 0 && (
-          <div className="px-3.5 py-4 text-[10.5px] text-text-dim">
+          <div className="px-3.5 py-4 text-[12px] text-text-dim">
             Aucun compte de tiers mouvementé sur cet exercice.
           </div>
         )}
@@ -163,7 +163,7 @@ export function BalanceAuxiliairePage() {
         {donnees?.comptes.map((c) => (
           <div
             key={c.compteId}
-            className={`${grille} px-3.5 py-[4px] items-center border-b border-border/50 text-[10.5px]`}
+            className={`${grille} px-3.5 py-[4px] items-center border-b border-border/50 text-[12px]`}
           >
             <span className="font-mono">{c.numero}</span>
             <span className="font-mono text-text-dim">{c.codeTiers}</span>
@@ -180,7 +180,7 @@ export function BalanceAuxiliairePage() {
         ))}
 
         {donnees && donnees.comptes.length > 0 && (
-          <div className={`${grille} px-3.5 py-1.5 bg-surface-alt border-t border-border-dark text-[10.5px] font-bold`}>
+          <div className={`${grille} px-3.5 py-1.5 bg-surface-alt border-t border-border-dark text-[12px] font-bold`}>
             <span>SOLDE</span>
             <span />
             <span />
@@ -194,7 +194,7 @@ export function BalanceAuxiliairePage() {
         )}
       </div>
 
-      <p className="text-[10px] text-text-dim mt-2 max-w-[860px]">
+      <p className="text-[11px] text-text-dim mt-2 max-w-[860px]">
         Les colonnes « solde débit » et « solde crédit » s'excluent : un compte est débiteur ou créditeur,
         jamais les deux. Leur somme se rapproche de la balance générale. Un compte de tiers sans tiers
         rattaché reste affiché · c'est lui qui échappera à la circularisation.

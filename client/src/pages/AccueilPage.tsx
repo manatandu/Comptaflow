@@ -225,22 +225,24 @@ export function AccueilPage() {
   return (
     <div className="p-4 pb-8 max-w-[1320px]">
       {/* --- Bande 1 · identité du dossier --------------------------------- */}
-      <section
-        className="relative overflow-hidden rounded-[16px] px-5 py-4 mb-4 text-white shadow-posee"
-        style={{ background: 'linear-gradient(120deg, var(--a-700), var(--a-800) 55%, var(--titlebar-from))' }}
-      >
-        {/* Voile lumineux : donne du volume sans image ni motif. */}
-        <div
-          className="pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full"
-          style={{ background: 'radial-gradient(circle, rgba(255,255,255,0.14), transparent 68%)' }}
-        />
-        <div className="relative flex flex-wrap items-end justify-between gap-4">
-          <div className="min-w-0">
-            <div className="text-[10.5px] font-semibold uppercase tracking-[0.09em] text-white/55">Dossier ouvert</div>
-            <h1 className="text-[17px] font-semibold leading-tight mt-0.5 truncate">{utilisateur?.tenant.nom}</h1>
-            <div className="text-[11px] text-white/70 mt-1">
-              {utilisateur?.tenant.referentiel}
-              {jeu && ` · ${jeu}`}
+      {/*
+        EN-TÊTE À LA MANIÈRE DES PARAMÈTRES DE WINDOWS 11 (2026-09-23) · une
+        carte claire, le nom du dossier en grand et une pastille d'accent,
+        là où il y avait un bandeau bleu en dégradé.
+      */}
+      <section className="rounded-[8px] border border-border bg-surface px-5 py-4 mb-5 shadow-plate">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="min-w-0 flex items-center gap-4">
+            <span className="hidden sm:flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-[8px] bg-sel text-white">
+              <IconFolderOpen width={24} height={24} />
+            </span>
+            <div className="min-w-0">
+              <div className="text-[12px] text-text-dim">Dossier ouvert</div>
+              <h1 className="text-[20px] font-semibold leading-tight truncate">{utilisateur?.tenant.nom}</h1>
+              <div className="text-[12.5px] text-text-dim mt-0.5">
+                {utilisateur?.tenant.referentiel}
+                {jeu && ` · ${jeu}`}
+              </div>
             </div>
           </div>
           {/*
@@ -251,7 +253,7 @@ export function AccueilPage() {
           */}
           <div className="flex flex-wrap items-center gap-2 min-w-0">
             {anneeExercice && (
-              <span className="rounded-[10px] bg-white/10 px-3 py-1.5 text-[11px] font-semibold">
+              <span className="rounded-[4px] bg-sel-soft text-sel px-3 py-1.5 text-[12.5px] font-semibold">
                 Exercice {anneeExercice}
               </span>
             )}
@@ -262,7 +264,7 @@ export function AccueilPage() {
               <button
                 type="button"
                 onClick={() => navigate('/plateforme')}
-                className="flex items-center gap-1.5 rounded-[10px] bg-white/12 px-3 py-1.5 text-[11px] font-semibold hover:bg-white/20"
+                className="flex items-center gap-1.5 rounded-[4px] border border-border px-3 py-1.5 text-[12.5px] font-semibold"
               >
                 <IconFileAdd width={14} height={14} />
                 Nouveau dossier
@@ -274,7 +276,7 @@ export function AccueilPage() {
                 seDeconnecter();
                 navigate('/connexion');
               }}
-              className="flex items-center gap-1.5 rounded-[10px] bg-white/12 px-3 py-1.5 text-[11px] font-semibold hover:bg-white/20"
+              className="flex items-center gap-1.5 rounded-[4px] border border-border px-3 py-1.5 text-[12.5px] font-semibold"
             >
               <IconFolderOpen width={14} height={14} />
               Ouvrir un autre
@@ -358,7 +360,7 @@ export function AccueilPage() {
         <button
           type="button"
           onClick={() => setAProposOuvert(true)}
-          className="flex items-center gap-1.5 text-[10.5px] text-text-dim hover:text-text"
+          className="flex items-center gap-1.5 text-[12px] text-text-dim hover:text-text"
         >
           <IconInfo width={13} height={13} />
           À propos d’OmegaX
@@ -372,7 +374,7 @@ export function AccueilPage() {
 
 function TitreBande({ children }: { children: React.ReactNode }) {
   return (
-    <div className="text-[10.5px] font-semibold uppercase tracking-[0.09em] text-text-dim mb-2 px-0.5">{children}</div>
+    <div className="text-[12px] font-semibold uppercase tracking-[0.09em] text-text-dim mb-2 px-0.5">{children}</div>
   );
 }
 
@@ -396,7 +398,7 @@ function Tuile({ tuile, rang, onClick }: { tuile: TuileDef; rang: number; onClic
       <span className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[6px] bg-sel-soft text-sel transition-colors duration-150 group-hover:bg-sel group-hover:text-white">
         <tuile.Icon width={17} height={17} />
       </span>
-      <span className="min-w-0 text-[12px] font-medium leading-snug text-text line-clamp-2">{tuile.label}</span>
+      <span className="min-w-0 text-[13px] font-medium leading-snug text-text line-clamp-2">{tuile.label}</span>
     </button>
   );
 }
@@ -425,11 +427,11 @@ function CarteEtat({
       onClick={() => navigate(chemin)}
       className="group flex flex-col items-start gap-1.5 rounded-[12px] border border-border bg-surface p-3.5 text-left shadow-plate transition-[transform,box-shadow,border-color] duration-200 ease-sortie hover:-translate-y-[2px] hover:border-border-dark hover:shadow-flottante"
     >
-      <span className="flex items-center gap-2 text-[10.5px] font-semibold uppercase tracking-[0.05em] text-text-dim">
+      <span className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.05em] text-text-dim">
         <span className={`h-1.5 w-1.5 rounded-full ${bon ? 'bg-positive' : 'bg-warning'}`} aria-hidden />
         {titre}
       </span>
-      <span className={`text-[12px] font-medium leading-snug ${bon ? '' : 'text-warning'}`}>{valeur}</span>
+      <span className={`text-[13px] font-medium leading-snug ${bon ? '' : 'text-warning'}`}>{valeur}</span>
     </button>
   );
 }

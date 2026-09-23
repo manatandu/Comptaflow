@@ -216,7 +216,7 @@ export function ConventionsFinancementPage() {
       />
 
       <div className="ecran-seul flex items-center gap-2">
-        <h1 className="text-[13px] font-bold">Conventions de financement</h1>
+        <h1 className="text-[14px] font-bold">Conventions de financement</h1>
         <Aide
           titre="Ce que le caractère de l'engagement commande"
           texte={
@@ -231,14 +231,14 @@ export function ConventionsFinancementPage() {
         />
       </div>
 
-      {erreur && <div className="ecran-seul border border-danger bg-danger/10 px-3 py-1.5 text-[11px]">{erreur}</div>}
-      {info && <div className="ecran-seul border border-border bg-surface-alt px-3 py-1.5 text-[11px]">{info}</div>}
+      {erreur && <div className="ecran-seul border border-danger bg-danger/10 px-3 py-1.5 text-[12.5px]">{erreur}</div>}
+      {info && <div className="ecran-seul border border-border bg-surface-alt px-3 py-1.5 text-[12.5px]">{info}</div>}
 
       {estAdmin && (
         <form onSubmit={onCreer} className="ecran-seul flex flex-wrap items-end gap-2 border border-border bg-surface px-3 py-2">
           <label className="flex flex-col gap-1">
-            <span className="text-[10px] font-bold text-text-dim">BAILLEUR</span>
-            <select value={bailleurId} onChange={(e) => setBailleurId(e.target.value)} required className="border border-border-dark bg-surface px-2 py-1 text-[11px] w-[200px]">
+            <span className="text-[11px] font-bold text-text-dim">BAILLEUR</span>
+            <select value={bailleurId} onChange={(e) => setBailleurId(e.target.value)} required className="border border-border-dark bg-surface px-2 py-1 text-[12.5px] w-[200px]">
               <option value="">Choisir…</option>
               {bailleurs.map((b) => (
                 <option key={b.id} value={b.id}>{b.code} · {b.nom}</option>
@@ -246,66 +246,66 @@ export function ConventionsFinancementPage() {
             </select>
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-[10px] font-bold text-text-dim">RÉFÉRENCE</span>
-            <input value={reference} onChange={(e) => setReference(e.target.value)} required className="border border-border-dark bg-surface px-2 py-1 text-[11px] font-mono w-[150px]" />
+            <span className="text-[11px] font-bold text-text-dim">RÉFÉRENCE</span>
+            <input value={reference} onChange={(e) => setReference(e.target.value)} required className="border border-border-dark bg-surface px-2 py-1 text-[12.5px] font-mono w-[150px]" />
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-[10px] font-bold text-text-dim">OBJET</span>
-            <input value={objet} onChange={(e) => setObjet(e.target.value)} required className="border border-border-dark bg-surface px-2 py-1 text-[11px] w-[240px]" />
+            <span className="text-[11px] font-bold text-text-dim">OBJET</span>
+            <input value={objet} onChange={(e) => setObjet(e.target.value)} required className="border border-border-dark bg-surface px-2 py-1 text-[12.5px] w-[240px]" />
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-[10px] font-bold text-text-dim" title="Ferme et inconditionnel : créance à recevoir, si l'écrit signé est joint. Conditionnel : mention en Notes annexes seulement.">
+            <span className="text-[11px] font-bold text-text-dim" title="Ferme et inconditionnel : créance à recevoir, si l'écrit signé est joint. Conditionnel : mention en Notes annexes seulement.">
               CARACTÈRE DE L’ENGAGEMENT
             </span>
-            <select value={caractere} onChange={(e) => setCaractere(e.target.value as CaractereEngagement)} className="border border-border-dark bg-surface px-2 py-1 text-[11px] w-[190px]">
+            <select value={caractere} onChange={(e) => setCaractere(e.target.value as CaractereEngagement)} className="border border-border-dark bg-surface px-2 py-1 text-[12.5px] w-[190px]">
               {CARACTERES.map((c) => (<option key={c.valeur} value={c.valeur}>{c.libelle}</option>))}
             </select>
           </label>
           {caractere === 'CONDITIONNEL' && (
             <label className="flex flex-col gap-1">
-              <span className="text-[10px] font-bold text-text-dim" title="Le § 5.4.2.4 impose de les mentionner en Notes annexes : « conditionnel » sans ses conditions ne se mentionne pas">
+              <span className="text-[11px] font-bold text-text-dim" title="Le § 5.4.2.4 impose de les mentionner en Notes annexes : « conditionnel » sans ses conditions ne se mentionne pas">
                 CONDITIONS
               </span>
-              <input value={conditions} onChange={(e) => setConditions(e.target.value)} required className="border border-border-dark bg-surface px-2 py-1 text-[11px] w-[260px]" />
+              <input value={conditions} onChange={(e) => setConditions(e.target.value)} required className="border border-border-dark bg-surface px-2 py-1 text-[12.5px] w-[260px]" />
             </label>
           )}
           <label className="flex items-center gap-1.5 pb-1">
             <input type="checkbox" checked={ecritSigne} onChange={(e) => setEcritSigne(e.target.checked)} />
-            <span className="text-[10px] font-bold text-text-dim" title="Sans écrit signé, aucun engagement ne se comptabilise en créance, si ferme soit-il">
+            <span className="text-[11px] font-bold text-text-dim" title="Sans écrit signé, aucun engagement ne se comptabilise en créance, si ferme soit-il">
               ÉCRIT SIGNÉ
             </span>
           </label>
           {ecritSigne && (
             <>
               <label className="flex flex-col gap-1">
-                <span className="text-[10px] font-bold text-text-dim" title="Le texte parle des « représentants HABILITÉS » du financeur">SIGNATAIRE</span>
-                <input value={signataire} onChange={(e) => setSignataire(e.target.value)} required className="border border-border-dark bg-surface px-2 py-1 text-[11px] w-[180px]" />
+                <span className="text-[11px] font-bold text-text-dim" title="Le texte parle des « représentants HABILITÉS » du financeur">SIGNATAIRE</span>
+                <input value={signataire} onChange={(e) => setSignataire(e.target.value)} required className="border border-border-dark bg-surface px-2 py-1 text-[12.5px] w-[180px]" />
               </label>
               <label className="flex flex-col gap-1">
-                <span className="text-[10px] font-bold text-text-dim">DATE DE SIGNATURE</span>
-                <input type="date" value={dateSignature} onChange={(e) => setDateSignature(e.target.value)} className="border border-border-dark bg-surface px-2 py-1 text-[11px] w-[140px]" />
+                <span className="text-[11px] font-bold text-text-dim">DATE DE SIGNATURE</span>
+                <input type="date" value={dateSignature} onChange={(e) => setDateSignature(e.target.value)} className="border border-border-dark bg-surface px-2 py-1 text-[12.5px] w-[140px]" />
               </label>
             </>
           )}
           <label className="flex flex-col gap-1">
-            <span className="text-[10px] font-bold text-text-dim">DÉBUT</span>
-            <input type="date" value={dateDebut} onChange={(e) => setDateDebut(e.target.value)} required className="border border-border-dark bg-surface px-2 py-1 text-[11px] w-[140px]" />
+            <span className="text-[11px] font-bold text-text-dim">DÉBUT</span>
+            <input type="date" value={dateDebut} onChange={(e) => setDateDebut(e.target.value)} required className="border border-border-dark bg-surface px-2 py-1 text-[12.5px] w-[140px]" />
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-[10px] font-bold text-text-dim" title="Validité de la convention · le planning de clôture demande de la vérifier à chaque exercice">FIN</span>
-            <input type="date" value={dateFin} onChange={(e) => setDateFin(e.target.value)} required className="border border-border-dark bg-surface px-2 py-1 text-[11px] w-[140px]" />
+            <span className="text-[11px] font-bold text-text-dim" title="Validité de la convention · le planning de clôture demande de la vérifier à chaque exercice">FIN</span>
+            <input type="date" value={dateFin} onChange={(e) => setDateFin(e.target.value)} required className="border border-border-dark bg-surface px-2 py-1 text-[12.5px] w-[140px]" />
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-[10px] font-bold text-text-dim">MONTANT ACCORDÉ</span>
-            <input type="number" step="0.01" value={accorde} onChange={(e) => setAccorde(e.target.value)} required className="border border-border-dark bg-surface px-2 py-1 text-[11px] font-mono text-right w-[150px]" />
+            <span className="text-[11px] font-bold text-text-dim">MONTANT ACCORDÉ</span>
+            <input type="number" step="0.01" value={accorde} onChange={(e) => setAccorde(e.target.value)} required className="border border-border-dark bg-surface px-2 py-1 text-[12.5px] font-mono text-right w-[150px]" />
           </label>
-          <button type="submit" className="border border-border-dark bg-surface-alt px-3 py-1 text-[11px] font-bold">Enregistrer</button>
+          <button type="submit" className="border border-border-dark bg-surface-alt px-3 py-1 text-[12.5px] font-bold">Enregistrer</button>
         </form>
       )}
 
       <div className="overflow-x-auto">
         <div className="min-w-[1120px] border border-border">
-          <div className="grid grid-cols-[150px_130px_1fr_190px_140px_140px_150px] gap-2 bg-surface-alt px-3 py-1.5 text-[10px] font-bold border-b border-border">
+          <div className="grid grid-cols-[150px_130px_1fr_190px_140px_140px_150px] gap-2 bg-surface-alt px-3 py-1.5 text-[11px] font-bold border-b border-border">
             <span>BAILLEUR</span>
             <span>RÉFÉRENCE</span>
             <span>OBJET · VALIDITÉ</span>
@@ -317,9 +317,9 @@ export function ConventionsFinancementPage() {
 
           {conventions?.map((c) => (
             <div key={c.id} className="border-b border-border last:border-b-0">
-              <div className="grid grid-cols-[150px_130px_1fr_190px_140px_140px_150px] gap-2 px-3 py-1 text-[11px] items-center">
+              <div className="grid grid-cols-[150px_130px_1fr_190px_140px_140px_150px] gap-2 px-3 py-1 text-[12.5px] items-center">
                 <span className="truncate">{c.bailleur.code} · {c.bailleur.nom}</span>
-                <span className="font-mono text-[10.5px]">{c.reference}</span>
+                <span className="font-mono text-[12px]">{c.reference}</span>
                 <span className="truncate">
                   {c.objet}
                   <span className={`text-text-dim ${c.expiree ? 'text-danger font-semibold' : ''}`}>
@@ -329,7 +329,7 @@ export function ConventionsFinancementPage() {
                   {c.statut !== 'EN_COURS' && <span className="text-text-dim"> · {c.statut}</span>}
                 </span>
                 <span
-                  className={`text-[10px] ${c.traitement === 'CREANCE_A_RECEVOIR' ? 'font-semibold' : 'text-text-dim'}`}
+                  className={`text-[11px] ${c.traitement === 'CREANCE_A_RECEVOIR' ? 'font-semibold' : 'text-text-dim'}`}
                   title={
                     c.traitement === 'CREANCE_A_RECEVOIR'
                       ? 'Ferme, inconditionnel et assorti de son écrit signé · portable en créance à recevoir'
@@ -344,11 +344,11 @@ export function ConventionsFinancementPage() {
               </div>
 
               {c.caractere === 'CONDITIONNEL' && c.conditions && (
-                <div className="px-3 pb-1 text-[10px] text-text-dim">Conditions · {c.conditions}</div>
+                <div className="px-3 pb-1 text-[11px] text-text-dim">Conditions · {c.conditions}</div>
               )}
-              {c.motifCloture && <div className="px-3 pb-1 text-[10px] text-text-dim">{c.statut} · {c.motifCloture}</div>}
+              {c.motifCloture && <div className="px-3 pb-1 text-[11px] text-text-dim">{c.statut} · {c.motifCloture}</div>}
 
-              <div className="ecran-seul px-3 pb-1.5 flex gap-1.5 text-[10px]">
+              <div className="ecran-seul px-3 pb-1.5 flex gap-1.5 text-[11px]">
                 <button type="button" onClick={() => setDetailPour(detailPour === c.id ? null : c.id)} className="border border-border-dark px-1.5 py-0.5">
                   Tranches et rapports ({c.tranches.length} · {c.rapports.length})
                 </button>
@@ -363,9 +363,9 @@ export function ConventionsFinancementPage() {
               {detailPour === c.id && (
                 <div className="bg-surface-alt px-3 py-2 flex flex-col gap-2">
                   <div>
-                    <div className="text-[10px] font-bold text-text-dim mb-1">TRANCHES ATTENDUES</div>
+                    <div className="text-[11px] font-bold text-text-dim mb-1">TRANCHES ATTENDUES</div>
                     {c.tranches.map((t) => (
-                      <div key={t.id} className="flex items-center gap-2 text-[10.5px]">
+                      <div key={t.id} className="flex items-center gap-2 text-[12px]">
                         <span className="font-mono w-[24px]">{t.numero}</span>
                         <span className="w-[200px] truncate">{t.libelle}</span>
                         <span className="font-mono w-[130px] text-right">{montant(t.montant)}</span>
@@ -382,24 +382,24 @@ export function ConventionsFinancementPage() {
                         )}
                       </div>
                     ))}
-                    {c.tranches.length === 0 && <div className="text-[10px] text-text-dim">Aucune tranche saisie.</div>}
+                    {c.tranches.length === 0 && <div className="text-[11px] text-text-dim">Aucune tranche saisie.</div>}
                     {peutTenir && (
                       <form onSubmit={(e) => void onAjouterTranche(e, c.id)} className="ecran-seul flex flex-wrap items-end gap-1.5 mt-1.5">
-                        <input name="numero" type="number" min="1" required placeholder="N°" className="border border-border-dark bg-surface px-1.5 py-0.5 text-[10.5px] w-[60px]" />
-                        <input name="libelle" required placeholder="Libellé de la tranche" className="border border-border-dark bg-surface px-1.5 py-0.5 text-[10.5px] w-[220px]" />
-                        <input name="montant" type="number" step="0.01" required placeholder="Montant" className="border border-border-dark bg-surface px-1.5 py-0.5 text-[10.5px] font-mono text-right w-[130px]" />
-                        <input name="datePrevue" type="date" required className="border border-border-dark bg-surface px-1.5 py-0.5 text-[10.5px] w-[140px]" />
-                        <button type="submit" className="border border-border-dark bg-surface px-2 py-0.5 text-[10.5px]">Ajouter</button>
+                        <input name="numero" type="number" min="1" required placeholder="N°" className="border border-border-dark bg-surface px-1.5 py-0.5 text-[12px] w-[60px]" />
+                        <input name="libelle" required placeholder="Libellé de la tranche" className="border border-border-dark bg-surface px-1.5 py-0.5 text-[12px] w-[220px]" />
+                        <input name="montant" type="number" step="0.01" required placeholder="Montant" className="border border-border-dark bg-surface px-1.5 py-0.5 text-[12px] font-mono text-right w-[130px]" />
+                        <input name="datePrevue" type="date" required className="border border-border-dark bg-surface px-1.5 py-0.5 text-[12px] w-[140px]" />
+                        <button type="submit" className="border border-border-dark bg-surface px-2 py-0.5 text-[12px]">Ajouter</button>
                       </form>
                     )}
                   </div>
 
                   <div>
-                    <div className="text-[10px] font-bold text-text-dim mb-1" title="Leur retard suspend le versement de la tranche suivante dans la plupart des conventions">
+                    <div className="text-[11px] font-bold text-text-dim mb-1" title="Leur retard suspend le versement de la tranche suivante dans la plupart des conventions">
                       RAPPORTS DUS
                     </div>
                     {c.rapports.map((r) => (
-                      <div key={r.id} className="flex items-center gap-2 text-[10.5px]">
+                      <div key={r.id} className="flex items-center gap-2 text-[12px]">
                         <span className="w-[240px] truncate">{r.intitule}</span>
                         <span className="w-[80px] text-text-dim">{r.nature}</span>
                         <span className={`w-[170px] ${r.enRetard ? 'text-danger font-semibold' : 'text-text-dim'}`}>
@@ -415,15 +415,15 @@ export function ConventionsFinancementPage() {
                         )}
                       </div>
                     ))}
-                    {c.rapports.length === 0 && <div className="text-[10px] text-text-dim">Aucun rapport enregistré.</div>}
+                    {c.rapports.length === 0 && <div className="text-[11px] text-text-dim">Aucun rapport enregistré.</div>}
                     {peutTenir && (
                       <form onSubmit={(e) => void onAjouterRapport(e, c.id)} className="ecran-seul flex flex-wrap items-end gap-1.5 mt-1.5">
-                        <input name="intitule" required placeholder="Intitulé du rapport" className="border border-border-dark bg-surface px-1.5 py-0.5 text-[10.5px] w-[240px]" />
-                        <select name="nature" className="border border-border-dark bg-surface px-1.5 py-0.5 text-[10.5px] w-[110px]">
+                        <input name="intitule" required placeholder="Intitulé du rapport" className="border border-border-dark bg-surface px-1.5 py-0.5 text-[12px] w-[240px]" />
+                        <select name="nature" className="border border-border-dark bg-surface px-1.5 py-0.5 text-[12px] w-[110px]">
                           {NATURES_RAPPORT.map((n) => (<option key={n.valeur} value={n.valeur}>{n.libelle}</option>))}
                         </select>
-                        <input name="dateEcheance" type="date" required className="border border-border-dark bg-surface px-1.5 py-0.5 text-[10.5px] w-[140px]" />
-                        <button type="submit" className="border border-border-dark bg-surface px-2 py-0.5 text-[10.5px]">Ajouter</button>
+                        <input name="dateEcheance" type="date" required className="border border-border-dark bg-surface px-1.5 py-0.5 text-[12px] w-[140px]" />
+                        <button type="submit" className="border border-border-dark bg-surface px-2 py-0.5 text-[12px]">Ajouter</button>
                       </form>
                     )}
                   </div>
@@ -433,7 +433,7 @@ export function ConventionsFinancementPage() {
           ))}
 
           {conventions?.length === 0 && (
-            <div className="px-3 py-2 text-[10.5px] text-text-dim">
+            <div className="px-3 py-2 text-[12px] text-text-dim">
               Aucune convention enregistrée. Tant que ce dossier est vide, rien ne permet de dire si un financement
               annoncé peut être porté en créance à recevoir ou seulement mentionné en Notes annexes.
             </div>
@@ -443,16 +443,16 @@ export function ConventionsFinancementPage() {
 
       {mentions.length > 0 && (
         <div className="border border-border bg-surface px-3 py-2">
-          <div className="text-[10px] font-bold text-text-dim mb-1">
+          <div className="text-[11px] font-bold text-text-dim mb-1">
             MENTIONS À PORTER EN NOTES ANNEXES · ENGAGEMENTS CONDITIONNELS
           </div>
           {mentions.map((m) => (
-            <p key={m} className="text-[10.5px] mb-1 max-w-[900px]">{m}</p>
+            <p key={m} className="text-[12px] mb-1 max-w-[900px]">{m}</p>
           ))}
         </div>
       )}
 
-      <p className="text-[10px] text-text-dim max-w-[900px]">
+      <p className="text-[11px] text-text-dim max-w-[900px]">
         OmegaX ne qualifie pas l’engagement à votre place et ne passe aucune écriture : il enregistre votre lecture de
         la convention, en tire la mention de Notes annexes que le § 5.4.2.4 impose pour les engagements conditionnels,
         et vous montre ce qui peut être porté en créance à recevoir.

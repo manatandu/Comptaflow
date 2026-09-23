@@ -361,7 +361,7 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
     <button
       onClick={onClick}
       disabled={exportEnCours}
-      className={`flex items-center gap-1.5 border border-border px-3 py-1.5 text-[10.5px] font-bold hover:bg-surface-alt disabled:opacity-50 disabled:cursor-wait ${
+      className={`flex items-center gap-1.5 border border-border px-3 py-1.5 text-[12px] font-bold hover:bg-surface-alt disabled:opacity-50 disabled:cursor-wait ${
         principal ? 'bg-surface' : 'bg-chrome'
       }`}
     >
@@ -375,8 +375,8 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
       <EnteteImpression titre="Journal, grand livre et balance" />
       <div className="flex items-center justify-between mb-1.5 gap-2">
         <div>
-          <div className="text-[10px] font-mono text-text-dim leading-none">ÉTAT</div>
-          <h1 className="text-[12px] font-bold leading-tight">
+          <div className="text-[11px] font-mono text-text-dim leading-none">ÉTAT</div>
+          <h1 className="text-[13px] font-bold leading-tight">
             {onglet === 'journal' ? 'Journal' : onglet === 'grand-livre' ? 'Grand livre des comptes' : 'Balance des comptes'}
           </h1>
         </div>
@@ -384,7 +384,7 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
           {onglet === 'journal' && (
             <button
               onClick={() => setFiltresOuverts((v) => !v)}
-              className={`flex items-center gap-1.5 border border-border px-3 py-1.5 text-[10.5px] font-bold hover:bg-surface-alt ${
+              className={`flex items-center gap-1.5 border border-border px-3 py-1.5 text-[12px] font-bold hover:bg-surface-alt ${
                 filtreActif ? 'bg-warning-soft border-warning/40' : 'bg-surface'
               }`}
             >
@@ -394,7 +394,7 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
           )}
           {onglet === 'journal' && (
             <label
-              className="flex items-center gap-1.5 border border-border bg-surface px-3 py-1.5 text-[10.5px] font-bold cursor-pointer hover:bg-surface-alt"
+              className="flex items-center gap-1.5 border border-border bg-surface px-3 py-1.5 text-[12px] font-bold cursor-pointer hover:bg-surface-alt"
               title="Décoché, le journal ne montre que le livre-journal · ce qui fait foi"
             >
               <input
@@ -418,8 +418,8 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
 
       {erreur && (
         <div className="flex items-start justify-between gap-3 border border-danger/30 bg-danger-soft px-3.5 py-2 mb-2.5">
-          <span className="text-[10.5px]">{erreur}</span>
-          <button onClick={() => setErreur(null)} className="text-[10.5px] font-bold shrink-0 hover:underline">
+          <span className="text-[12px]">{erreur}</span>
+          <button onClick={() => setErreur(null)} className="text-[12px] font-bold shrink-0 hover:underline">
             Fermer
           </button>
         </div>
@@ -428,11 +428,11 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
       {onglet === 'journal' && filtresOuverts && (
         <div className="border border-border bg-surface-alt shadow-posee p-3 mb-2.5 flex flex-wrap items-end gap-3">
           <label className="flex flex-col gap-1">
-            <span className="text-[10px] font-bold text-text-dim">JOURNAL</span>
+            <span className="text-[11px] font-bold text-text-dim">JOURNAL</span>
             <select
               value={filtres.journalId}
               onChange={(e) => setFiltres({ ...filtres, journalId: e.target.value })}
-              className="border border-border bg-surface px-2 py-1 text-[10.5px] font-mono min-w-[150px]"
+              className="border border-border bg-surface px-2 py-1 text-[12px] font-mono min-w-[150px]"
             >
               <option value="">Tous</option>
               {journaux.map((j) => (
@@ -443,38 +443,38 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
             </select>
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-[10px] font-bold text-text-dim">DU</span>
+            <span className="text-[11px] font-bold text-text-dim">DU</span>
             <input
               type="date"
               value={filtres.dateDebut}
               onChange={(e) => setFiltres({ ...filtres, dateDebut: e.target.value })}
-              className="border border-border bg-surface px-2 py-1 text-[10.5px] font-mono"
+              className="border border-border bg-surface px-2 py-1 text-[12px] font-mono"
             />
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-[10px] font-bold text-text-dim">AU</span>
+            <span className="text-[11px] font-bold text-text-dim">AU</span>
             <input
               type="date"
               value={filtres.dateFin}
               onChange={(e) => setFiltres({ ...filtres, dateFin: e.target.value })}
-              className="border border-border bg-surface px-2 py-1 text-[10.5px] font-mono"
+              className="border border-border bg-surface px-2 py-1 text-[12px] font-mono"
             />
           </label>
           <label className="flex flex-col gap-1 flex-1 min-w-[180px]">
-            <span className="text-[10px] font-bold text-text-dim">LIBELLÉ CONTIENT</span>
+            <span className="text-[11px] font-bold text-text-dim">LIBELLÉ CONTIENT</span>
             <input
               type="text"
               value={filtres.recherche}
               onChange={(e) => setFiltres({ ...filtres, recherche: e.target.value })}
               onKeyDown={(e) => e.key === 'Enter' && setFiltresAppliques(filtres)}
               placeholder="ex. cotisation"
-              className="border border-border bg-surface px-2 py-1 text-[10.5px]"
+              className="border border-border bg-surface px-2 py-1 text-[12px]"
             />
           </label>
           <div className="flex gap-2">
             <button
               onClick={() => setFiltresAppliques(filtres)}
-              className="border border-border bg-surface px-3 py-1.5 text-[10.5px] font-bold hover:bg-chrome"
+              className="border border-border bg-surface px-3 py-1.5 text-[12px] font-bold hover:bg-chrome"
             >
               Appliquer
             </button>
@@ -483,7 +483,7 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
                 setFiltres(FILTRES_VIDES);
                 setFiltresAppliques(FILTRES_VIDES);
               }}
-              className="border border-border bg-chrome px-3 py-1.5 text-[10.5px] font-bold hover:bg-surface-alt"
+              className="border border-border bg-chrome px-3 py-1.5 text-[12px] font-bold hover:bg-surface-alt"
             >
               Réinitialiser
             </button>
@@ -494,19 +494,19 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
       <div className="flex bg-chrome border border-border border-b-0 rounded-t-[10px] overflow-hidden">
         <button
           onClick={() => setOnglet('journal')}
-          className={`px-4 py-1.5 text-[10.5px] font-bold ${onglet === 'journal' ? 'bg-surface border-r border-border' : 'text-text-dim'}`}
+          className={`px-4 py-1.5 text-[12px] font-bold ${onglet === 'journal' ? 'bg-surface border-r border-border' : 'text-text-dim'}`}
         >
           JOURNAL
         </button>
         <button
           onClick={() => setOnglet('grand-livre')}
-          className={`px-4 py-1.5 text-[10.5px] font-bold ${onglet === 'grand-livre' ? 'bg-surface border-r border-l border-border' : 'text-text-dim'}`}
+          className={`px-4 py-1.5 text-[12px] font-bold ${onglet === 'grand-livre' ? 'bg-surface border-r border-l border-border' : 'text-text-dim'}`}
         >
           GRAND LIVRE
         </button>
         <button
           onClick={() => setOnglet('balance')}
-          className={`px-4 py-1.5 text-[10.5px] font-bold ${onglet === 'balance' ? 'bg-surface border-r border-l border-border' : 'text-text-dim'}`}
+          className={`px-4 py-1.5 text-[12px] font-bold ${onglet === 'balance' ? 'bg-surface border-r border-l border-border' : 'text-text-dim'}`}
         >
           BALANCE
         </button>
@@ -525,7 +525,7 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
           serveur). Le taire ferait lire un journal amputé comme un journal
           complet. Les totaux ci-dessous restent ceux du journal ENTIER. */}
       {onglet === 'journal' && troncature && (
-        <div className="border border-warning/40 bg-warning-soft text-[11px] px-3.5 py-2 mb-2">
+        <div className="border border-warning/40 bg-warning-soft text-[12.5px] px-3.5 py-2 mb-2">
           {troncature.montrees.toLocaleString('fr-FR')} écritures affichées sur{' '}
           {troncature.total.toLocaleString('fr-FR')}. Les totaux restent ceux du journal entier. Restreignez les dates
           ou le journal pour tout voir à l'écran, ou passez par l'export Excel.
@@ -540,7 +540,7 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
           // qui emportait alors titre, onglets et boutons hors de l'écran.
           className="border border-border bg-surface shadow-posee rounded-t-none overflow-x-auto"
         >
-          <div className="grid grid-cols-[68px_46px_52px_92px_120px_1fr_108px_108px_128px] min-w-[980px] gap-2.5 px-3.5 py-1.5 bg-surface-alt text-[10px] font-bold text-text-dim border-b border-border-dark">
+          <div className="grid grid-cols-[68px_46px_52px_92px_120px_1fr_108px_108px_128px] min-w-[980px] gap-2.5 px-3.5 py-1.5 bg-surface-alt text-[11px] font-bold text-text-dim border-b border-border-dark">
             <span>DATE</span>
             <span>JRN</span>
             <span className="text-right">PIÈCE</span>
@@ -552,25 +552,25 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
             <span>CORRECTION (ART. 20)</span>
           </div>
           {lignesJournal.length === 0 && (
-            <div className="px-3.5 py-4 text-[10.5px] text-text-dim">
+            <div className="px-3.5 py-4 text-[12px] text-text-dim">
               {filtreActif ? 'Aucune écriture ne correspond au filtre.' : 'Aucune écriture sur cet exercice.'}
             </div>
           )}
           {lignesJournal.map((l) => (
             <div
               key={l.key}
-              className={`grid grid-cols-[68px_46px_52px_92px_120px_1fr_108px_108px_128px] min-w-[980px] gap-2.5 px-3.5 py-[3px] items-center text-[10.5px] border-b border-border/50 ${
+              className={`grid grid-cols-[68px_46px_52px_92px_120px_1fr_108px_108px_128px] min-w-[980px] gap-2.5 px-3.5 py-[3px] items-center text-[12px] border-b border-border/50 ${
                 l.premiereLigne ? 'border-t border-t-border' : ''
               } ${l.annuleePar ? 'opacity-55 line-through decoration-danger/60' : ''}`}
             >
-              <span className="font-mono text-[10px] text-text-dim">
+              <span className="font-mono text-[11px] text-text-dim">
                 {l.premiereLigne ? new Date(l.date).toLocaleDateString('fr-FR') : ''}
               </span>
               <span className="font-mono text-text-dim">{l.premiereLigne ? l.journal : ''}</span>
-              <span className="font-mono text-[10px] text-text-dim text-right">
+              <span className="font-mono text-[11px] text-text-dim text-right">
                 {l.premiereLigne ? (l.numeroPiece ?? '·') : ''}
               </span>
-              <span className="font-mono text-[10px] text-text-dim truncate">{l.premiereLigne ? l.reference : ''}</span>
+              <span className="font-mono text-[11px] text-text-dim truncate">{l.premiereLigne ? l.reference : ''}</span>
               <span className="font-mono" title={l.compte}>
                 {l.compteNumero}
               </span>
@@ -579,10 +579,10 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
               </span>
               <span className="font-mono text-right">{l.debit ? l.debit.toLocaleString('fr-FR') : ''}</span>
               <span className="font-mono text-right">{l.credit ? l.credit.toLocaleString('fr-FR') : ''}</span>
-              <span className="text-[10px] no-underline flex items-center gap-1.5 justify-end">
+              <span className="text-[11px] no-underline flex items-center gap-1.5 justify-end">
                 {l.premiereLigne && l.enBrouillard && (
                   <span
-                    className="text-[10px] font-bold text-warning bg-warning-soft border border-warning/40 rounded-[3px] px-1"
+                    className="text-[11px] font-bold text-warning bg-warning-soft border border-warning/40 rounded-[3px] px-1"
                     title="En brouillard · pas encore entrée au livre-journal"
                   >
                     BROUILLARD
@@ -592,9 +592,9 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
               </span>
             </div>
           ))}
-          <div className="grid grid-cols-[68px_46px_52px_92px_120px_1fr_108px_108px_128px] min-w-[980px] gap-2.5 px-3.5 py-1.5 bg-surface-alt border-t border-border-dark text-[10.5px] font-bold">
+          <div className="grid grid-cols-[68px_46px_52px_92px_120px_1fr_108px_108px_128px] min-w-[980px] gap-2.5 px-3.5 py-1.5 bg-surface-alt border-t border-border-dark text-[12px] font-bold">
             <span className="col-span-5" />
-            <span className="text-right text-[10px] text-text-dim self-center">TOTAUX DE LA PÉRIODE</span>
+            <span className="text-right text-[11px] text-text-dim self-center">TOTAUX DE LA PÉRIODE</span>
             <span className="font-mono text-right">{totaux.debit.toLocaleString('fr-FR')}</span>
             <span className="font-mono text-right">{totaux.credit.toLocaleString('fr-FR')}</span>
             <span />
@@ -613,11 +613,11 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
             FILTRE, appliqué à l'état déjà chargé (aucune requête de plus).
           */}
           <div className="px-3.5 py-1.5 bg-surface-alt border-b border-border flex items-center gap-2 flex-wrap">
-            <label className="text-[10px] font-bold text-text-dim">FILTRER SUR UN COMPTE</label>
+            <label className="text-[11px] font-bold text-text-dim">FILTRER SUR UN COMPTE</label>
             <select
               value={compteGrandLivreId}
               onChange={(e) => setCompteGrandLivreId(e.target.value)}
-              className="border border-border rounded-[5px] bg-surface px-2 py-[2px] text-[10.5px] font-mono"
+              className="border border-border rounded-[5px] bg-surface px-2 py-[2px] text-[12px] font-mono"
             >
               <option value="">tous les comptes mouvementés</option>
               {(grandLivre ?? []).map((c) => (
@@ -627,7 +627,7 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
               ))}
             </select>
             {grandLivre && (
-              <span className="text-[10px] text-text-dim">
+              <span className="text-[11px] text-text-dim">
                 {sectionsAffichees.length} compte{sectionsAffichees.length > 1 ? 's' : ''} ·{' '}
                 {sectionsAffichees.reduce((n, c) => n + c.lignes.length, 0)} mouvement
                 {sectionsAffichees.reduce((n, c) => n + c.lignes.length, 0) > 1 ? 's' : ''}
@@ -635,9 +635,9 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
             )}
           </div>
 
-          {!grandLivre && <div className="px-3.5 py-4 text-[10.5px] text-text-dim">Chargement…</div>}
+          {!grandLivre && <div className="px-3.5 py-4 text-[12px] text-text-dim">Chargement…</div>}
           {grandLivre && sectionsAffichees.length === 0 && (
-            <div className="px-3.5 py-4 text-[10.5px] text-text-dim">
+            <div className="px-3.5 py-4 text-[12px] text-text-dim">
               Aucun mouvement sur cet exercice.
             </div>
           )}
@@ -651,10 +651,10 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
           */}
           {sectionsAffichees.map((section) => (
             <div key={section.compte.id}>
-              <div className="px-3.5 py-1 border-y border-border-dark bg-chrome font-bold text-[11px]">
+              <div className="px-3.5 py-1 border-y border-border-dark bg-chrome font-bold text-[12.5px]">
                 <span className="font-mono">{section.compte.numero}</span> · {section.compte.intitule}
               </div>
-              <div className={`grid ${GRILLE_GL} gap-2 px-3.5 py-1 bg-surface-alt text-[10px] font-bold text-text-dim border-b border-border`}>
+              <div className={`grid ${GRILLE_GL} gap-2 px-3.5 py-1 bg-surface-alt text-[11px] font-bold text-text-dim border-b border-border`}>
                 <span>DATE</span>
                 <span>JRN</span>
                 <span className="text-right">PIÈCE</span>
@@ -670,11 +670,11 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
               {section.lignes.map((l) => (
                 <div
                   key={l.id}
-                  className={`grid ${GRILLE_GL} gap-2 px-3.5 py-[3px] items-center border-b border-border/50 text-[10.5px]`}
+                  className={`grid ${GRILLE_GL} gap-2 px-3.5 py-[3px] items-center border-b border-border/50 text-[12px]`}
                 >
-                  <span className="font-mono text-[10px] text-text-dim">{new Date(l.date).toLocaleDateString('fr-FR')}</span>
+                  <span className="font-mono text-[11px] text-text-dim">{new Date(l.date).toLocaleDateString('fr-FR')}</span>
                   <span className="font-mono text-text-dim">{l.journalCode}</span>
-                  <span className="font-mono text-[10px] text-text-dim text-right">{l.numeroPiece ?? '·'}</span>
+                  <span className="font-mono text-[11px] text-text-dim text-right">{l.numeroPiece ?? '·'}</span>
                   <span className="truncate" title={l.libelle}>
                     {l.libelle}
                   </span>
@@ -682,14 +682,14 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
                   <Montant valeur={l.credit} />
                   <span className="font-mono text-right font-semibold">{l.soldeProgressif.toLocaleString('fr-FR')}</span>
                   <span className="font-mono text-text-dim">{l.lettre ?? ''}</span>
-                  <span className="font-mono text-[10px] text-text-dim truncate">
+                  <span className="font-mono text-[11px] text-text-dim truncate">
                     {l.contrepartie.length > 0 ? l.contrepartie.join(' + ') : '·'}
                   </span>
                 </div>
               ))}
-              <div className={`grid ${GRILLE_GL} gap-2 px-3.5 py-1 bg-surface-alt border-b border-border-dark text-[10.5px] font-bold`}>
+              <div className={`grid ${GRILLE_GL} gap-2 px-3.5 py-1 bg-surface-alt border-b border-border-dark text-[12px] font-bold`}>
                 <span className="col-span-3" />
-                <span className="text-right text-[10px] text-text-dim self-center">TOTAL MOUVEMENTS · SOLDE FINAL</span>
+                <span className="text-right text-[11px] text-text-dim self-center">TOTAL MOUVEMENTS · SOLDE FINAL</span>
                 <Montant valeur={section.totalDebit} />
                 <Montant valeur={section.totalCredit} />
                 <span className="font-mono text-right">{section.soldeFinal.toLocaleString('fr-FR')}</span>
@@ -718,14 +718,14 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
       */}
       {onglet === 'balance' && (
         <div className="border border-border bg-surface shadow-posee rounded-t-none overflow-x-auto">
-          <div className={`grid ${GRILLE_BALANCE} gap-2 px-3.5 pt-1.5 text-[10px] font-bold text-text-dim bg-surface-alt`}>
+          <div className={`grid ${GRILLE_BALANCE} gap-2 px-3.5 pt-1.5 text-[11px] font-bold text-text-dim bg-surface-alt`}>
             <span />
             <span />
             <span className="col-span-2 text-center border-b border-border pb-0.5">SOLDE D’OUVERTURE</span>
             <span className="col-span-2 text-center border-b border-border pb-0.5">MOUVEMENTS</span>
             <span className="col-span-2 text-center border-b border-border pb-0.5">SOLDE DE CLÔTURE</span>
           </div>
-          <div className={`grid ${GRILLE_BALANCE} gap-2 px-3.5 py-1 bg-surface-alt text-[10px] font-bold text-text-dim border-b border-border-dark`}>
+          <div className={`grid ${GRILLE_BALANCE} gap-2 px-3.5 py-1 bg-surface-alt text-[11px] font-bold text-text-dim border-b border-border-dark`}>
             <span>N° COMPTE</span>
             <span>INTITULÉ DU COMPTE</span>
             <span className="text-right">DÉBIT</span>
@@ -738,7 +738,7 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
           {balance.map((l) => (
             <div
               key={l.compteId}
-              className={`grid ${GRILLE_BALANCE} gap-2 px-3.5 py-[3px] items-center border-b border-border/50 text-[10.5px]`}
+              className={`grid ${GRILLE_BALANCE} gap-2 px-3.5 py-[3px] items-center border-b border-border/50 text-[12px]`}
             >
               <span className="font-mono">{l.numero}</span>
               <span className="truncate" title={l.intitule}>
@@ -772,9 +772,9 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
             const cumul = (f: (l: LigneBalance) => number) => balance.reduce((s, l) => s + f(l), 0);
             const ouv = (l: LigneBalance) => l.reportDebit - l.reportCredit;
             return (
-              <div className={`grid ${GRILLE_BALANCE} gap-2 px-3.5 py-1.5 bg-surface-alt border-t border-border-dark text-[10.5px] font-bold`}>
+              <div className={`grid ${GRILLE_BALANCE} gap-2 px-3.5 py-1.5 bg-surface-alt border-t border-border-dark text-[12px] font-bold`}>
                 <span />
-                <span className="text-right text-[10px] text-text-dim self-center">TOTAUX GÉNÉRAUX</span>
+                <span className="text-right text-[11px] text-text-dim self-center">TOTAUX GÉNÉRAUX</span>
                 <Montant valeur={cumul((l) => Math.max(ouv(l), 0))} />
                 <Montant valeur={cumul((l) => Math.max(-ouv(l), 0))} />
                 <Montant valeur={cumul((l) => l.mouvementDebit)} />

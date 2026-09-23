@@ -109,39 +109,39 @@ export function CircularisationPage() {
     <div className="p-2">
       <EnteteImpression titre="Circularisation" />
       <div className="ecran-seul mb-1.5 max-w-[1240px]">
-        <div className="text-[10px] font-mono text-text-dim leading-none">INVENTAIRE DOCUMENTAIRE</div>
+        <div className="text-[11px] font-mono text-text-dim leading-none">INVENTAIRE DOCUMENTAIRE</div>
         <div className="flex items-center justify-between gap-3">
-          <h1 className="text-[12px] font-bold leading-tight">Circularisation</h1>
+          <h1 className="text-[13px] font-bold leading-tight">Circularisation</h1>
           <button
             type="button"
             onClick={() => setCreation(true)}
-            className="bg-sel text-white rounded-[6px] px-3 py-[3px] text-[10.5px] font-semibold hover:opacity-90"
+            className="bg-sel text-white rounded-[6px] px-3 py-[3px] text-[12px] font-semibold hover:opacity-90"
           >
             Nouvelle campagne
           </button>
         </div>
-        <div className="text-[10px] text-text-dim mt-0.5">
+        <div className="text-[11px] text-text-dim mt-0.5">
           Confirmation de soldes auprès des tiers · méthode de l’ISA 505. Le logiciel n’envoie aucune lettre : la norme
           veut la réponse revenue directement au demandeur, ce qu’un envoi depuis la boîte du dossier ne garantit pas.
         </div>
       </div>
 
       {erreur && (
-        <div className="border border-danger/30 bg-danger-soft px-3.5 py-2 mb-2.5 text-[10.5px] max-w-[1240px]">
+        <div className="border border-danger/30 bg-danger-soft px-3.5 py-2 mb-2.5 text-[12px] max-w-[1240px]">
           {erreur}
         </div>
       )}
 
       {creation && (
         <div className="border border-border bg-surface px-3.5 py-2.5 mb-2.5 max-w-[1240px]">
-          <div className="text-[10.5px] font-semibold mb-1.5">Ouvrir une campagne</div>
+          <div className="text-[12px] font-semibold mb-1.5">Ouvrir une campagne</div>
           <div className="flex flex-wrap gap-2 items-end">
-            <label className="text-[10px] text-text-dim">
+            <label className="text-[11px] text-text-dim">
               Exercice
               <select
                 value={exerciceId}
                 onChange={(e) => setExerciceId(e.target.value)}
-                className="block border border-border bg-surface px-2 py-[3px] text-[10.5px] min-w-[180px]"
+                className="block border border-border bg-surface px-2 py-[3px] text-[12px] min-w-[180px]"
               >
                 <option value="">Choisir…</option>
                 {exercices.map((x) => (
@@ -151,12 +151,12 @@ export function CircularisationPage() {
                 ))}
               </select>
             </label>
-            <label className="text-[10px] text-text-dim">
+            <label className="text-[11px] text-text-dim">
               Cycle
               <select
                 value={cycle}
                 onChange={(e) => setCycle(e.target.value)}
-                className="block border border-border bg-surface px-2 py-[3px] text-[10.5px]"
+                className="block border border-border bg-surface px-2 py-[3px] text-[12px]"
               >
                 {Object.entries(LIBELLE_CYCLE).map(([k, v]) => (
                   <option key={k} value={k}>
@@ -165,41 +165,41 @@ export function CircularisationPage() {
                 ))}
               </select>
             </label>
-            <label className="text-[10px] text-text-dim">
+            <label className="text-[11px] text-text-dim">
               Date d’arrêté
               <input
                 type="date"
                 value={dateArrete}
                 onChange={(e) => setDateArrete(e.target.value)}
-                className="block border border-border bg-surface px-2 py-[3px] text-[10.5px]"
+                className="block border border-border bg-surface px-2 py-[3px] text-[12px]"
               />
             </label>
-            <label className="text-[10px] text-text-dim flex-1 min-w-[200px]">
+            <label className="text-[11px] text-text-dim flex-1 min-w-[200px]">
               Libellé
               <input
                 value={libelle}
                 onChange={(e) => setLibelle(e.target.value)}
                 placeholder="Fournisseurs au 31/12/2026"
-                className="block w-full border border-border bg-surface px-2 py-[3px] text-[10.5px]"
+                className="block w-full border border-border bg-surface px-2 py-[3px] text-[12px]"
               />
             </label>
             <button
               type="button"
               onClick={creer}
               disabled={!exerciceId || !dateArrete || !libelle.trim()}
-              className="bg-sel text-white rounded-[6px] px-3 py-[3px] text-[10.5px] font-semibold disabled:opacity-40"
+              className="bg-sel text-white rounded-[6px] px-3 py-[3px] text-[12px] font-semibold disabled:opacity-40"
             >
               Ouvrir
             </button>
             <button
               type="button"
               onClick={() => setCreation(false)}
-              className="border border-border rounded-[6px] px-3 py-[3px] text-[10.5px]"
+              className="border border-border rounded-[6px] px-3 py-[3px] text-[12px]"
             >
               Annuler
             </button>
           </div>
-          <div className="text-[9.5px] text-text-dim mt-1.5">
+          <div className="text-[10.5px] text-text-dim mt-1.5">
             La forme NÉGATIVE (le tiers ne répond que s’il est en désaccord) n’est pas proposée ici : l’ISA 505 § 15 la
             réserve à quatre conditions cumulatives, à déclarer une à une. Elle est moins probante que la positive.
           </div>
@@ -208,9 +208,9 @@ export function CircularisationPage() {
 
       <div className="flex gap-2.5 max-w-[1400px] items-start">
         <div className="border border-border bg-surface min-w-[240px] max-w-[280px]">
-          <div className="px-2.5 py-1.5 border-b border-border text-[10px] font-mono text-text-dim">CAMPAGNES</div>
+          <div className="px-2.5 py-1.5 border-b border-border text-[11px] font-mono text-text-dim">CAMPAGNES</div>
           {campagnes?.length === 0 && (
-            <div className="px-2.5 py-3 text-[10.5px] text-text-dim">
+            <div className="px-2.5 py-3 text-[12px] text-text-dim">
               Aucune campagne. Le CPCC ouvre chaque cycle de l’inventaire documentaire par la même question : a-t-on
               circularisé ?
             </div>
@@ -224,8 +224,8 @@ export function CircularisationPage() {
                 c.id === selectionId ? 'bg-sel-soft' : 'hover:bg-chrome'
               }`}
             >
-              <div className="text-[10.5px] font-semibold leading-tight">{c.libelle}</div>
-              <div className="text-[9.5px] text-text-dim mt-0.5">
+              <div className="text-[12px] font-semibold leading-tight">{c.libelle}</div>
+              <div className="text-[10.5px] text-text-dim mt-0.5">
                 {LIBELLE_CYCLE[c.cycle]} · {jour(c.dateArrete)}
               </div>
             </button>
@@ -234,7 +234,7 @@ export function CircularisationPage() {
 
         <div className="flex-1 min-w-0">
           {!detail && (
-            <div className="border border-border bg-surface px-3.5 py-3 text-[10.5px] text-text-dim">
+            <div className="border border-border bg-surface px-3.5 py-3 text-[12px] text-text-dim">
               Choisir une campagne pour en voir l’échantillon et les réponses.
             </div>
           )}
@@ -244,8 +244,8 @@ export function CircularisationPage() {
               <div className="border border-border bg-surface px-3.5 py-2 mb-2">
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                   <div>
-                    <div className="text-[11px] font-bold">{detail.libelle}</div>
-                    <div className="text-[10px] text-text-dim">
+                    <div className="text-[12.5px] font-bold">{detail.libelle}</div>
+                    <div className="text-[11px] text-text-dim">
                       {LIBELLE_CYCLE[detail.cycle]} au {jour(detail.dateArrete)} ·{' '}
                       {detail.forme === 'NEGATIVE' ? 'demande négative' : 'demande positive'}
                     </div>
@@ -256,14 +256,14 @@ export function CircularisationPage() {
                         <button
                           type="button"
                           onClick={() => agir(() => api.post(`/circularisation/${detail.id}/envoyer`, {}))}
-                          className="border border-border rounded-[6px] px-2.5 py-[3px] text-[10.5px]"
+                          className="border border-border rounded-[6px] px-2.5 py-[3px] text-[12px]"
                         >
                           {detail.statut === 'PREPARATION' ? 'Marquer envoyées' : 'Relancer'}
                         </button>
                         <button
                           type="button"
                           onClick={() => agir(() => api.post(`/circularisation/${detail.id}/clore`, {}))}
-                          className="bg-sel text-white rounded-[6px] px-2.5 py-[3px] text-[10.5px] font-semibold"
+                          className="bg-sel text-white rounded-[6px] px-2.5 py-[3px] text-[12px] font-semibold"
                         >
                           Clore
                         </button>
@@ -275,7 +275,7 @@ export function CircularisationPage() {
 
               {s && s.envoyees > 0 && (
                 <div className="border border-border bg-surface px-3.5 py-2 mb-2">
-                  <div className="flex flex-wrap gap-x-6 gap-y-1 text-[10.5px]">
+                  <div className="flex flex-wrap gap-x-6 gap-y-1 text-[12px]">
                     <span>
                       <span className="text-text-dim">Taux de réponse </span>
                       <span className="font-semibold tabular-nums">{s.tauxReponse} %</span>
@@ -302,7 +302,7 @@ export function CircularisationPage() {
                       </span>
                     )}
                   </div>
-                  <div className="text-[9.5px] text-text-dim mt-1 border-t border-border/60 pt-1">
+                  <div className="text-[10.5px] text-text-dim mt-1 border-t border-border/60 pt-1">
                     Les deux taux ne disent pas la même chose : le premier compte les lettres, le second pèse les
                     montants. C’est le second qui dit si la procédure a établi quelque chose.
                   </div>
@@ -310,7 +310,7 @@ export function CircularisationPage() {
               )}
 
               {s && s.nonReponsesSansProcedure > 0 && (
-                <div className="border border-danger/30 bg-danger-soft px-3.5 py-2 mb-2 text-[10.5px]">
+                <div className="border border-danger/30 bg-danger-soft px-3.5 py-2 mb-2 text-[12px]">
                   <span className="font-semibold">
                     {s.nonReponsesSansProcedure} non-réponse{s.nonReponsesSansProcedure > 1 ? 's' : ''} sans procédure
                     alternative.
@@ -322,17 +322,17 @@ export function CircularisationPage() {
               )}
 
               <div className="border border-border bg-surface mb-2">
-                <div className="px-2.5 py-1.5 border-b border-border text-[10px] font-mono text-text-dim">
+                <div className="px-2.5 py-1.5 border-b border-border text-[11px] font-mono text-text-dim">
                   DEMANDES · {detail.demandes?.length ?? 0}
                 </div>
                 {(detail.demandes?.length ?? 0) === 0 && (
-                  <div className="px-2.5 py-3 text-[10.5px] text-text-dim">
+                  <div className="px-2.5 py-3 text-[12px] text-text-dim">
                     Aucune demande. L’échantillon proposé ci-dessous classe les soldes du cycle, du plus gros au plus
                     petit · la sélection reste au cabinet, aucune norme n’en impose la méthode.
                   </div>
                 )}
                 {(detail.demandes?.length ?? 0) > 0 && (
-                  <table className="w-full text-[10.5px]">
+                  <table className="w-full text-[12px]">
                     <thead>
                       <tr className="text-text-dim border-b border-border/60">
                         <th className="text-left px-2.5 py-1 font-normal">Destinataire</th>
@@ -351,7 +351,7 @@ export function CircularisationPage() {
                             <td className="px-2.5 py-1">
                               {d.destinataire}
                               {d.reponseIndirecte && (
-                                <span className="text-[9px] text-warning"> · réponse indirecte</span>
+                                <span className="text-[10px] text-warning"> · réponse indirecte</span>
                               )}
                             </td>
                             <td className="px-2.5 py-1 font-mono text-text-dim">{d.compte.numero}</td>
@@ -370,7 +370,7 @@ export function CircularisationPage() {
                                 >
                                   {montant(d.ecart)}
                                   {d.natureEcart && (
-                                    <span className="text-[9px] text-text-dim"> · {LIBELLE_NATURE[d.natureEcart]}</span>
+                                    <span className="text-[10px] text-text-dim"> · {LIBELLE_NATURE[d.natureEcart]}</span>
                                   )}
                                 </span>
                               )}
@@ -378,7 +378,7 @@ export function CircularisationPage() {
                             <td className="px-2.5 py-1">
                               {LIBELLE_STATUT_DEMANDE[d.statut]}
                               {nonReponse && !d.proceduresAlternatives && (
-                                <span className="text-danger text-[9px]"> · sans procédure alternative</span>
+                                <span className="text-danger text-[10px]"> · sans procédure alternative</span>
                               )}
                             </td>
                           </tr>
@@ -392,14 +392,14 @@ export function CircularisationPage() {
               {echantillon && echantillon.candidats.length > 0 && detail.statut !== 'CLOTUREE' && (
                 <div className="border border-border bg-surface">
                   <div className="px-2.5 py-1.5 border-b border-border flex items-center justify-between">
-                    <span className="text-[10px] font-mono text-text-dim">
+                    <span className="text-[11px] font-mono text-text-dim">
                       ÉCHANTILLON PROPOSÉ · racines {echantillon.racines.join(', ')}
                     </span>
-                    <span className="text-[9.5px] text-text-dim">
+                    <span className="text-[10.5px] text-text-dim">
                       total du cycle {montant(echantillon.totalCycle)}
                     </span>
                   </div>
-                  <table className="w-full text-[10.5px]">
+                  <table className="w-full text-[12px]">
                     <thead>
                       <tr className="text-text-dim border-b border-border/60">
                         <th className="text-left px-2.5 py-1 font-normal">Compte</th>
@@ -419,7 +419,7 @@ export function CircularisationPage() {
                           <td className="px-2.5 py-1 text-right tabular-nums text-text-dim">{c.poids} %</td>
                           <td className="px-2.5 py-1 text-right">
                             {c.dejaRetenu ? (
-                              <span className="text-[9.5px] text-text-dim">retenu</span>
+                              <span className="text-[10.5px] text-text-dim">retenu</span>
                             ) : (
                               <button
                                 type="button"
@@ -431,7 +431,7 @@ export function CircularisationPage() {
                                     }),
                                   )
                                 }
-                                className="border border-border rounded-[5px] px-2 py-[1px] text-[9.5px]"
+                                className="border border-border rounded-[5px] px-2 py-[1px] text-[10.5px]"
                               >
                                 Retenir
                               </button>
@@ -442,7 +442,7 @@ export function CircularisationPage() {
                     </tbody>
                   </table>
                   {echantillon.candidats.length > 25 && (
-                    <div className="px-2.5 py-1 border-t border-border text-[9.5px] text-text-dim">
+                    <div className="px-2.5 py-1 border-t border-border text-[10.5px] text-text-dim">
                       {echantillon.candidats.length - 25} compte(s) de plus, au-delà des vingt-cinq premiers soldes.
                     </div>
                   )}

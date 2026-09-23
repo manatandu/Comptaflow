@@ -92,7 +92,7 @@ function CommandeMenu({
       // commande repliée se lit à l'aplomb du titre qui la contient.
       className={`w-full flex items-center text-left rounded-[5px] ${
         retrait ? 'pl-[27px] pr-3' : 'px-3'
-      } h-[30px] text-[12px] hover:enabled:bg-chrome-alt focus-visible:bg-chrome-alt outline-none disabled:opacity-40 disabled:cursor-not-allowed`}
+      } h-[30px] text-[13px] hover:enabled:bg-chrome-alt focus-visible:bg-chrome-alt outline-none disabled:opacity-40 disabled:cursor-not-allowed`}
     >
       <span className="min-w-0 truncate">{item.label}</span>
     </button>
@@ -241,7 +241,7 @@ export function MenuBar({
                 setGroupeDeplie(entree.titre);
               }
             }}
-            className={`w-full flex items-center gap-2 text-left rounded-[5px] px-3 h-[30px] text-[12px] outline-none focus-visible:bg-chrome-alt ${
+            className={`w-full flex items-center gap-2 text-left rounded-[5px] px-3 h-[30px] text-[13px] outline-none focus-visible:bg-chrome-alt ${
               deplie ? 'bg-chrome-alt' : 'hover:bg-chrome-alt'
             }`}
           >
@@ -288,12 +288,12 @@ export function MenuBar({
               type="button"
               aria-expanded={ligne.deplie}
               onClick={() => setGroupeDeplie(ligne.deplie ? null : ligne.groupe.titre)}
-              className="w-full flex items-center gap-[5px] text-left rounded-[5px] px-3 h-[30px] text-[12px] font-semibold hover:bg-chrome-alt"
+              className="w-full flex items-center gap-[5px] text-left rounded-[5px] px-3 h-[30px] text-[13px] font-semibold hover:bg-chrome-alt"
             >
               {/* La petite flèche dit dans quel sens le repli va, comme un
                   dossier de l'explorateur. `aria-hidden` : l'état est déjà
                   porté par `aria-expanded`. */}
-              <span aria-hidden className="w-[10px] shrink-0 text-[9px] text-text-dim">
+              <span aria-hidden className="w-[10px] shrink-0 text-[10px] text-text-dim">
                 {ligne.deplie ? '▾' : '▸'}
               </span>
               <span className="min-w-0 truncate">{ligne.groupe.titre}</span>
@@ -355,7 +355,7 @@ export function MenuBar({
               setOuvert(survolable ? m.titre : ouvert === m.titre ? null : m.titre);
             }}
             onMouseEnter={() => survolerTitre(m.titre)}
-            className={`rounded-[5px] px-2.5 h-[26px] text-[12px] transition-colors duration-100 ${
+            className={`rounded-[5px] px-2.5 h-[26px] text-[13px] transition-colors duration-100 ${
               ouvert === m.titre ? 'bg-chrome-alt text-text' : 'text-text/85 hover:bg-chrome-alt hover:text-text'
             }`}
           >

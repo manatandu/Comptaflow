@@ -124,7 +124,7 @@ function LigneTableauNote({
   return (
     <div
       title={ligne.comptes.length > 0 ? `Comptes : ${ligne.comptes.map((c) => c.numero).join(', ')}` : undefined}
-      className={`grid gap-2 px-4 py-1 text-[11px] ${ligne.estTotal ? 'font-bold bg-surface-alt border-y border-border' : ''}`}
+      className={`grid gap-2 px-4 py-1 text-[12.5px] ${ligne.estTotal ? 'font-bold bg-surface-alt border-y border-border' : ''}`}
       style={{ gridTemplateColumns: `1.6fr repeat(${note.colonnes.length}, ${cellules ? '1fr' : '108px'})` }}
     >
       <span className={ligne.enAttenteDeRattachement ? 'text-danger italic' : ''}>
@@ -168,7 +168,7 @@ function LigneTableauNote({
               }}
               disabled={saisie.enCours !== null}
               placeholder={c.type === 'LIBRE' ? '' : '0,00'}
-              className={`border border-border bg-surface px-1 py-0.5 text-[10.5px] disabled:opacity-50 ${
+              className={`border border-border bg-surface px-1 py-0.5 text-[12px] disabled:opacity-50 ${
                 c.type === 'LIBRE' ? '' : 'font-mono text-right'
               }`}
             />
@@ -231,22 +231,22 @@ export function BlocTableauNote({
   return (
     <div className="border border-border bg-surface mb-4">
       <div className="px-4 py-2 border-b border-border bg-chrome">
-        <div className="text-[11px] font-bold">
+        <div className="text-[12.5px] font-bold">
           NOTE {note.code}
           {note.sousTableau ? ` ${note.sousTableau}` : ''} {note.titre}
         </div>
         {note.renvoyeeDepuis && note.renvoyeeDepuis.length > 0 && (
-          <div className="text-[10px] text-text-dim mt-0.5">Renvoyée depuis les postes : {note.renvoyeeDepuis.join(', ')}</div>
+          <div className="text-[11px] text-text-dim mt-0.5">Renvoyée depuis les postes : {note.renvoyeeDepuis.join(', ')}</div>
         )}
       </div>
 
       {/* Le logiciel JOINT toutes les notes à la liasse, les vides portant
           la mention NEANT · l'écran doit dire la même chose que le fichier
           produit, sans quoi l'un des deux ment. */}
-      {!note.applicable && <div className="px-4 py-3 text-[10.5px] text-text-dim italic">{mentionNonApplicable}</div>}
+      {!note.applicable && <div className="px-4 py-3 text-[12px] text-text-dim italic">{mentionNonApplicable}</div>}
 
       {afficherHorsBalance && note.horsBalance && (
-        <div className="px-4 py-2 text-[10px] text-text-dim italic border-b border-border">
+        <div className="px-4 py-2 text-[11px] text-text-dim italic border-b border-border">
           Note renseignée hors comptabilité · aucune balance ne porte ces rubriques. Un montant à zéro signifie
           qu'elles n'ont pas encore été renseignées, non qu'elles soient nulles.
         </div>
@@ -259,7 +259,7 @@ export function BlocTableauNote({
       {note.lignes.length > 0 && (
         <div className="overflow-x-auto">
           <div
-            className="grid gap-2 px-4 py-1.5 bg-chrome border-b border-border text-[10px] font-bold text-text-dim"
+            className="grid gap-2 px-4 py-1.5 bg-chrome border-b border-border text-[11px] font-bold text-text-dim"
             style={{ gridTemplateColumns: `1.6fr repeat(${note.colonnes.length}, 108px)` }}
           >
             <span>LIBELLÉ</span>
@@ -276,7 +276,7 @@ export function BlocTableauNote({
       )}
 
       {(note.commentaire || note.renvoiOfficiel) && (
-        <div className="px-4 py-2 text-[10px] text-text-dim border-t border-border italic">
+        <div className="px-4 py-2 text-[11px] text-text-dim border-t border-border italic">
           {note.renvoiOfficiel && <div className="mb-1">{note.renvoiOfficiel}</div>}
           {note.commentaire && <div>Commentaire officiel : {note.commentaire}</div>}
         </div>
@@ -285,16 +285,16 @@ export function BlocTableauNote({
       {/* --- Rattachement : rubriques en attente + comptes déjà rattachés --- */}
       {(note.rubriquesEnAttente.length > 0 || rattachees.length > 0) && (
         <div className="border-t border-border px-4 py-3 bg-surface-alt">
-          <div className="text-[10px] font-bold text-text-dim mb-2">RATTACHEMENT DES SOUS-COMPTES DU DOSSIER</div>
+          <div className="text-[11px] font-bold text-text-dim mb-2">RATTACHEMENT DES SOUS-COMPTES DU DOSSIER</div>
 
           {rattachees.map((l) => (
-            <div key={l.cle} className="mb-2 text-[10.5px]">
+            <div key={l.cle} className="mb-2 text-[12px]">
               <span className="font-semibold">{l.libelle}</span>
               <div className="flex flex-wrap gap-1.5 mt-1">
                 {l.comptes.map((c) => (
                   <span
                     key={c.numero}
-                    className="inline-flex items-center gap-1.5 border border-border bg-surface px-2 py-0.5 font-mono text-[10px]"
+                    className="inline-flex items-center gap-1.5 border border-border bg-surface px-2 py-0.5 font-mono text-[11px]"
                   >
                     {c.numero} · {c.intitule}
                     {estAdmin && (
@@ -320,8 +320,8 @@ export function BlocTableauNote({
             const cleForm = `${note.code}::${r.cle}`;
             return (
               <div key={r.cle} className="mb-2.5 pb-2.5 border-b border-border last:border-b-0 last:pb-0 last:mb-0">
-                <div className="text-[10.5px] font-semibold text-danger">{r.libelle}</div>
-                <div className="text-[10px] text-text-dim mb-1.5">{r.attendu}</div>
+                <div className="text-[12px] font-semibold text-danger">{r.libelle}</div>
+                <div className="text-[11px] text-text-dim mb-1.5">{r.attendu}</div>
                 {estAdmin ? (
                   // `flex-wrap` et `min-w-0` sont la SEULE différence de rendu
                   // avec l'écran SYCEBNL d'origine, et elle ne se voit qu'en
@@ -335,7 +335,7 @@ export function BlocTableauNote({
                     <select
                       value={compteChoisi[cleForm] ?? ''}
                       onChange={(e) => setCompteChoisi((v) => ({ ...v, [cleForm]: e.target.value }))}
-                      className="border border-border-dark px-2 py-1 text-[10.5px] max-w-[360px] min-w-0"
+                      className="border border-border-dark px-2 py-1 text-[12px] max-w-[360px] min-w-0"
                     >
                       <option value="">choisir un sous-compte</option>
                       {comptesDetail.map((c) => (
@@ -347,13 +347,13 @@ export function BlocTableauNote({
                     <button
                       onClick={() => rattacher(note.code, r.cle)}
                       disabled={!compteChoisi[cleForm] || enCours !== null}
-                      className="bg-sel text-white text-[10.5px] font-semibold px-3 py-1 disabled:opacity-50"
+                      className="bg-sel text-white text-[12px] font-semibold px-3 py-1 disabled:opacity-50"
                     >
                       Rattacher
                     </button>
                   </div>
                 ) : (
-                  <span className="text-[10px] text-text-dim italic">Réservé à l'administrateur du cabinet.</span>
+                  <span className="text-[11px] text-text-dim italic">Réservé à l'administrateur du cabinet.</span>
                 )}
               </div>
             );
@@ -386,7 +386,7 @@ export function FicheRecapitulativeNotes({
 }) {
   return (
     <div className={`${className} border border-border bg-surface`}>
-      <div className="grid grid-cols-[52px_1fr_28px] gap-2 px-3 py-1.5 bg-chrome border-b border-border text-[10px] font-bold text-text-dim sticky top-0">
+      <div className="grid grid-cols-[52px_1fr_28px] gap-2 px-3 py-1.5 bg-chrome border-b border-border text-[11px] font-bold text-text-dim sticky top-0">
         <span>NOTE</span>
         <span>INTITULÉ</span>
         <span />
@@ -395,14 +395,14 @@ export function FicheRecapitulativeNotes({
         <button
           key={f.code}
           onClick={() => onSelectionner(f.code)}
-          className={`w-full text-left grid grid-cols-[52px_1fr_28px] gap-2 px-3 py-1.5 border-b border-border last:border-b-0 text-[10.5px] ${
+          className={`w-full text-left grid grid-cols-[52px_1fr_28px] gap-2 px-3 py-1.5 border-b border-border last:border-b-0 text-[12px] ${
             codeSelectionne === f.code ? 'bg-sel-soft' : f.applicable ? 'hover:bg-surface-alt' : 'text-text-dim'
           }`}
         >
           <span className="font-mono">{f.code}</span>
           <span className="truncate">{f.titre}</span>
           <span
-            className={`font-mono text-[10px] font-bold text-center px-1 py-0.5 w-fit justify-self-end ${
+            className={`font-mono text-[11px] font-bold text-center px-1 py-0.5 w-fit justify-self-end ${
               f.applicable ? 'text-positive bg-positive-soft' : 'text-text-dim bg-surface-alt'
             }`}
           >

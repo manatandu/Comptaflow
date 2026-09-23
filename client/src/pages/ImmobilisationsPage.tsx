@@ -419,29 +419,29 @@ export function ImmobilisationsPage() {
 
   return (
     <div className="p-2">
-      <div className="text-[10px] font-mono text-text-dim leading-none">STRUCTURE</div>
+      <div className="text-[11px] font-mono text-text-dim leading-none">STRUCTURE</div>
       <div className="flex items-center justify-between mb-1.5 max-w-[1100px]">
-        <h1 className="text-[12px] font-bold leading-tight">Immobilisations</h1>
+        <h1 className="text-[13px] font-bold leading-tight">Immobilisations</h1>
         {estAdmin && (
           <div className="flex items-center gap-1.5">
             <button
               type="button"
               onClick={() => setAfficherFormFamille((v) => !v)}
-              className="border border-border rounded-[6px] bg-surface px-3 py-[3px] text-[10.5px] font-semibold hover:bg-surface-alt"
+              className="border border-border rounded-[6px] bg-surface px-3 py-[3px] text-[12px] font-semibold hover:bg-surface-alt"
             >
               Nouvelle famille
             </button>
-            <button type="button" onClick={() => setAfficherFormImmo((v) => !v)} className="bg-sel text-white rounded-[6px] px-3 py-[3px] text-[10.5px] font-semibold hover:opacity-90">
+            <button type="button" onClick={() => setAfficherFormImmo((v) => !v)} className="bg-sel text-white rounded-[6px] px-3 py-[3px] text-[12px] font-semibold hover:opacity-90">
               Nouvelle immobilisation
             </button>
           </div>
         )}
       </div>
 
-      {erreur && <div className="text-[11px] text-danger bg-danger-soft border border-danger/30 px-3 py-2 mb-3 max-w-[1100px]">{erreur}</div>}
+      {erreur && <div className="text-[12.5px] text-danger bg-danger-soft border border-danger/30 px-3 py-2 mb-3 max-w-[1100px]">{erreur}</div>}
 
       {reconstitution && (
-        <div className="border border-border bg-surface px-3.5 py-2.5 mb-3 max-w-[1100px] text-[10.5px]">
+        <div className="border border-border bg-surface px-3.5 py-2.5 mb-3 max-w-[1100px] text-[12px]">
           <div className="flex items-start justify-between gap-3">
             <div className="font-semibold">
               Composant « révisions majeures » · {reconstitution.immobilisation}
@@ -449,7 +449,7 @@ export function ImmobilisationsPage() {
             <button
               type="button"
               onClick={() => setReconstitution(null)}
-              className="text-[10px] text-text-dim hover:underline"
+              className="text-[11px] text-text-dim hover:underline"
             >
               Fermer
             </button>
@@ -466,100 +466,100 @@ export function ImmobilisationsPage() {
           ) : (
             <div className="mt-1 text-warning">{reconstitution.motif}</div>
           )}
-          <div className="mt-1.5 text-[10px] text-text-dim">{reconstitution.suite}</div>
+          <div className="mt-1.5 text-[11px] text-text-dim">{reconstitution.suite}</div>
         </div>
       )}
-      {info && <div className="text-[11px] text-positive bg-positive-soft border border-positive/30 px-3 py-2 mb-3 max-w-[1100px]">{info}</div>}
+      {info && <div className="text-[12.5px] text-positive bg-positive-soft border border-positive/30 px-3 py-2 mb-3 max-w-[1100px]">{info}</div>}
 
       {estAdmin && afficherFormFamille && (
         <form onSubmit={onCreerFamille} className="bg-surface border border-border p-4 mb-4 max-w-[900px]">
-          <div className="font-mono text-[10.5px] font-semibold text-text-dim mb-3">NOUVELLE FAMILLE</div>
+          <div className="font-mono text-[12px] font-semibold text-text-dim mb-3">NOUVELLE FAMILLE</div>
           <div className="grid grid-cols-3 gap-3 mb-3">
-            <label className="text-[10.5px] font-semibold text-text-dim">
+            <label className="text-[12px] font-semibold text-text-dim">
               Code
-              <input required value={fCode} onChange={(e) => setFCode(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal font-mono" />
+              <input required value={fCode} onChange={(e) => setFCode(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[13px] font-normal font-mono" />
             </label>
-            <label className="text-[10.5px] font-semibold text-text-dim col-span-2">
+            <label className="text-[12px] font-semibold text-text-dim col-span-2">
               Intitulé
-              <input required value={fIntitule} onChange={(e) => setFIntitule(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal" />
+              <input required value={fIntitule} onChange={(e) => setFIntitule(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[13px] font-normal" />
             </label>
-            <label className="text-[10.5px] font-semibold text-text-dim">
+            <label className="text-[12px] font-semibold text-text-dim">
               Compte d'immobilisation (classe 2)
-              <select required value={fCompteImmo} onChange={(e) => setFCompteImmo(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal">
+              <select required value={fCompteImmo} onChange={(e) => setFCompteImmo(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[13px] font-normal">
                 <option value="" />
                 {comptesClasse2.map((c) => (
                   <option key={c.id} value={c.id}>{c.numero} · {c.intitule}</option>
                 ))}
               </select>
             </label>
-            <label className="text-[10.5px] font-semibold text-text-dim">
+            <label className="text-[12px] font-semibold text-text-dim">
               Compte d'amortissement (classe 28)
-              <select required value={fCompteAmort} onChange={(e) => setFCompteAmort(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal">
+              <select required value={fCompteAmort} onChange={(e) => setFCompteAmort(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[13px] font-normal">
                 <option value="" />
                 {comptesFinancement.filter((c) => c.numero.startsWith('28')).map((c) => (
                   <option key={c.id} value={c.id}>{c.numero} · {c.intitule}</option>
                 ))}
               </select>
             </label>
-            <label className="text-[10.5px] font-semibold text-text-dim">
+            <label className="text-[12px] font-semibold text-text-dim">
               Compte de dotation (classe 68)
-              <select required value={fCompteDotation} onChange={(e) => setFCompteDotation(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal">
+              <select required value={fCompteDotation} onChange={(e) => setFCompteDotation(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[13px] font-normal">
                 <option value="" />
                 {comptesFinancement.filter((c) => c.numero.startsWith('68')).map((c) => (
                   <option key={c.id} value={c.id}>{c.numero} · {c.intitule}</option>
                 ))}
               </select>
             </label>
-            <label className="text-[10.5px] font-semibold text-text-dim">
+            <label className="text-[12px] font-semibold text-text-dim">
               Durée d'amortissement (années)
-              <input required type="number" min={1} value={fDuree} onChange={(e) => setFDuree(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal font-mono" />
+              <input required type="number" min={1} value={fDuree} onChange={(e) => setFDuree(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[13px] font-normal font-mono" />
             </label>
           </div>
           <div className="flex gap-2">
-            <button type="submit" disabled={envoi} className="bg-sel text-white text-[11px] font-semibold px-4 py-1.5 disabled:opacity-50">{envoi ? 'Création…' : 'Ajouter'}</button>
-            <button type="button" onClick={() => setAfficherFormFamille(false)} className="text-[11px] font-semibold text-text-dim px-4 py-1.5">Annuler</button>
+            <button type="submit" disabled={envoi} className="bg-sel text-white text-[12.5px] font-semibold px-4 py-1.5 disabled:opacity-50">{envoi ? 'Création…' : 'Ajouter'}</button>
+            <button type="button" onClick={() => setAfficherFormFamille(false)} className="text-[12.5px] font-semibold text-text-dim px-4 py-1.5">Annuler</button>
           </div>
         </form>
       )}
 
       {afficherFormImmo && (
         <form onSubmit={onCreerImmo} className="bg-surface border border-border p-4 mb-4 max-w-[900px]">
-          <div className="font-mono text-[10.5px] font-semibold text-text-dim mb-3">NOUVELLE IMMOBILISATION</div>
+          <div className="font-mono text-[12px] font-semibold text-text-dim mb-3">NOUVELLE IMMOBILISATION</div>
           <div className="grid grid-cols-3 gap-3 mb-3">
-            <label className="text-[10.5px] font-semibold text-text-dim col-span-2">
+            <label className="text-[12px] font-semibold text-text-dim col-span-2">
               Désignation
-              <input required value={iDesignation} onChange={(e) => setIDesignation(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal" />
+              <input required value={iDesignation} onChange={(e) => setIDesignation(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[13px] font-normal" />
             </label>
-            <label className="text-[10.5px] font-semibold text-text-dim">
+            <label className="text-[12px] font-semibold text-text-dim">
               N° inventaire
-              <input value={iNumeroInventaire} onChange={(e) => setINumeroInventaire(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal font-mono" />
+              <input value={iNumeroInventaire} onChange={(e) => setINumeroInventaire(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[13px] font-normal font-mono" />
             </label>
-            <label className="text-[10.5px] font-semibold text-text-dim">
+            <label className="text-[12px] font-semibold text-text-dim">
               Famille
-              <select required value={iFamilleId} onChange={(e) => setIFamilleId(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal">
+              <select required value={iFamilleId} onChange={(e) => setIFamilleId(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[13px] font-normal">
                 <option value="" />
                 {(familles ?? []).map((f) => (
                   <option key={f.id} value={f.id}>{f.intitule} ({f.dureeAmortissementAns} ans)</option>
                 ))}
               </select>
             </label>
-            <label className="text-[10.5px] font-semibold text-text-dim">
+            <label className="text-[12px] font-semibold text-text-dim">
               Date d'acquisition
-              <input required type="date" value={iDateAcquisition} onChange={(e) => setIDateAcquisition(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal font-mono" />
+              <input required type="date" value={iDateAcquisition} onChange={(e) => setIDateAcquisition(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[13px] font-normal font-mono" />
             </label>
-            <label className="text-[10.5px] font-semibold text-text-dim">
+            <label className="text-[12px] font-semibold text-text-dim">
               Date de mise en service
-              <input required type="date" value={iDateMiseEnService} onChange={(e) => setIDateMiseEnService(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal font-mono" />
+              <input required type="date" value={iDateMiseEnService} onChange={(e) => setIDateMiseEnService(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[13px] font-normal font-mono" />
             </label>
-            <label className="text-[10.5px] font-semibold text-text-dim">
+            <label className="text-[12px] font-semibold text-text-dim">
               Valeur d'origine
-              <input required type="number" step="0.01" min={0} value={iValeurOrigine} onChange={(e) => setIValeurOrigine(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal font-mono" />
+              <input required type="number" step="0.01" min={0} value={iValeurOrigine} onChange={(e) => setIValeurOrigine(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[13px] font-normal font-mono" />
             </label>
-            <label className="text-[10.5px] font-semibold text-text-dim">
+            <label className="text-[12px] font-semibold text-text-dim">
               Valeur résiduelle
-              <input type="number" step="0.01" min={0} value={iValeurResiduelle} onChange={(e) => setIValeurResiduelle(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal font-mono" />
+              <input type="number" step="0.01" min={0} value={iValeurResiduelle} onChange={(e) => setIValeurResiduelle(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[13px] font-normal font-mono" />
             </label>
-            <label className="text-[10.5px] font-semibold text-text-dim">
+            <label className="text-[12px] font-semibold text-text-dim">
               Amortissement déjà pratiqué
               <input
                 type="number"
@@ -567,17 +567,17 @@ export function ImmobilisationsPage() {
                 min={0}
                 value={iAmortissementAnterieur}
                 onChange={(e) => setIAmortissementAnterieur(e.target.value)}
-                className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal font-mono"
+                className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[13px] font-normal font-mono"
               />
-              <span className="block mt-1 text-[10px] font-normal text-text-dim leading-[1.45]">
+              <span className="block mt-1 text-[11px] font-normal text-text-dim leading-[1.45]">
                 Pour un bien REPRIS, mis en service avant l'ouverture du dossier : le cumul déjà porté au compte 28
                 à la date de reprise. Sans lui, le bien s'amortirait sa durée entière une seconde fois. Zéro pour un
                 bien acquis dans le logiciel.
               </span>
             </label>
-            <label className="text-[10.5px] font-semibold text-text-dim">
+            <label className="text-[12px] font-semibold text-text-dim">
               Financement (contrepartie)
-              <select required value={iCompteContrepartie} onChange={(e) => setICompteContrepartie(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal">
+              <select required value={iCompteContrepartie} onChange={(e) => setICompteContrepartie(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[13px] font-normal">
                 <option value="" />
                 {comptesFinancement.map((c) => (
                   <option key={c.id} value={c.id}>{c.numero} · {c.intitule}</option>
@@ -590,13 +590,13 @@ export function ImmobilisationsPage() {
               ch. 4 § 1. Le renseigner rattache le bien et lui garde son PROPRE
               plan d'amortissement, ce qui est tout l'objet du chapitre. */}
           <div className="border-t border-border pt-3 mb-3">
-            <div className="font-mono text-[10px] font-semibold text-text-dim mb-2">
+            <div className="font-mono text-[11px] font-semibold text-text-dim mb-2">
               COMPOSANT D’UNE AUTRE IMMOBILISATION (facultatif)
             </div>
             <div className="grid grid-cols-3 gap-3">
-              <label className="text-[10.5px] font-semibold text-text-dim">
+              <label className="text-[12px] font-semibold text-text-dim">
                 Immobilisation principale
-                <select value={iPrincipal} onChange={(e) => setIPrincipal(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal">
+                <select value={iPrincipal} onChange={(e) => setIPrincipal(e.target.value)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[13px] font-normal">
                   <option value="">Aucune · bien autonome</option>
                   {principaux.map((i) => (
                     <option key={i.id} value={i.id}>{i.designation}</option>
@@ -604,9 +604,9 @@ export function ImmobilisationsPage() {
                 </select>
               </label>
               {iPrincipal && (
-                <label className="text-[10.5px] font-semibold text-text-dim">
+                <label className="text-[12px] font-semibold text-text-dim">
                   Nature
-                  <select value={iTypeComposant} onChange={(e) => setITypeComposant(e.target.value as TypeComposant)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal">
+                  <select value={iTypeComposant} onChange={(e) => setITypeComposant(e.target.value as TypeComposant)} className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[13px] font-normal">
                     <option value="COMPOSANT">Composant</option>
                     <option value="DEMANTELEMENT">Démantèlement et remise en état du site</option>
                     <option value="REVISION_MAJEURE">Révision majeure</option>
@@ -618,17 +618,17 @@ export function ImmobilisationsPage() {
             </div>
             {iPrincipal && (
               <>
-                <label className="block text-[10.5px] font-semibold text-text-dim mt-3">
+                <label className="block text-[12px] font-semibold text-text-dim mt-3">
                   Pourquoi ce bien est décomposable
                   <input
                     maxLength={500}
                     value={iJustification}
                     onChange={(e) => setIJustification(e.target.value)}
                     placeholder="Durées d’utilité distinctes, coût significatif, informations disponibles sur chaque élément…"
-                    className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[12px] font-normal"
+                    className="mt-1 w-full border border-border-dark px-2.5 py-1.5 text-[13px] font-normal"
                   />
                 </label>
-                <p className="text-[10px] text-text-dim mt-1.5 leading-[1.55]">
+                <p className="text-[11px] text-text-dim mt-1.5 leading-[1.55]">
                   Une pièce de SÉCURITÉ s’amortit dès l’acquisition du bien principal, qu’elle serve ou non ; une
                   pièce de RECHANGE seulement à partir du jour où elle y est intégrée. Un composant ne porte pas de
                   valeur résiduelle, sauf s’il s’agit du dernier renouvellement avant la fin d’utilisation du bien.
@@ -636,18 +636,18 @@ export function ImmobilisationsPage() {
               </>
             )}
           </div>
-          <p className="text-[10.5px] text-text-dim mb-3">
+          <p className="text-[12px] text-text-dim mb-3">
             En dessous de l'équivalent de 500 USD (arrêté RDC n° 014/2025), le bien peut être passé
             directement en charge plutôt qu'immobilisé · à votre appréciation, non vérifié automatiquement ici.
           </p>
           <div className="flex gap-2">
-            <button type="submit" disabled={envoi || !exerciceCourant} className="bg-sel text-white text-[11px] font-semibold px-4 py-1.5 disabled:opacity-50">{envoi ? 'Création…' : 'Ajouter'}</button>
-            <button type="button" onClick={() => setAfficherFormImmo(false)} className="text-[11px] font-semibold text-text-dim px-4 py-1.5">Annuler</button>
+            <button type="submit" disabled={envoi || !exerciceCourant} className="bg-sel text-white text-[12.5px] font-semibold px-4 py-1.5 disabled:opacity-50">{envoi ? 'Création…' : 'Ajouter'}</button>
+            <button type="button" onClick={() => setAfficherFormImmo(false)} className="text-[12.5px] font-semibold text-text-dim px-4 py-1.5">Annuler</button>
           </div>
         </form>
       )}
 
-      {!immobilisations && <div className="text-[11px] text-text-dim">Chargement…</div>}
+      {!immobilisations && <div className="text-[12.5px] text-text-dim">Chargement…</div>}
 
       {immobilisations && (
         <div
@@ -657,7 +657,7 @@ export function ImmobilisationsPage() {
           // qui emportait alors titre, onglets et boutons hors de l'écran.
           className="border border-border bg-surface shadow-posee max-w-[1180px] overflow-x-auto"
         >
-          <div className="grid grid-cols-[1.4fr_110px_100px_100px_100px_100px_90px_170px] min-w-[1020px] gap-2.5 px-3.5 py-1.5 bg-chrome border-b border-border text-[10px] font-bold text-text-dim">
+          <div className="grid grid-cols-[1.4fr_110px_100px_100px_100px_100px_90px_170px] min-w-[1020px] gap-2.5 px-3.5 py-1.5 bg-chrome border-b border-border text-[11px] font-bold text-text-dim">
             <span>DÉSIGNATION</span>
             <span>MISE EN SERVICE</span>
             <span className="text-right">V. ORIGINE</span>
@@ -670,7 +670,7 @@ export function ImmobilisationsPage() {
           {immobilisations.map((immo, i) => (
             <div key={immo.id}>
               <div
-                className={`grid grid-cols-[1.4fr_110px_100px_100px_100px_100px_90px_170px] min-w-[1020px] gap-2.5 px-3.5 py-1.5 items-center border-b border-border text-[10.5px] ${
+                className={`grid grid-cols-[1.4fr_110px_100px_100px_100px_100px_90px_170px] min-w-[1020px] gap-2.5 px-3.5 py-1.5 items-center border-b border-border text-[12px] ${
                   i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'
                 }`}
               >
@@ -679,22 +679,22 @@ export function ImmobilisationsPage() {
                   {/* Le rattachement est ce qui manquait · le montrer sur la ligne
                       évite qu'un composant se lise comme un bien autonome. */}
                   {immo.immobilisationPrincipaleId && (
-                    <span className="block text-[10px] text-text-dim">
+                    <span className="block text-[11px] text-text-dim">
                       composant de {nomPrincipal(immo.immobilisationPrincipaleId) ?? '…'}
                     </span>
                   )}
                 </span>
-                <span className="font-mono text-[10px] text-text-dim">{new Date(immo.dateMiseEnService).toLocaleDateString('fr-FR')}</span>
+                <span className="font-mono text-[11px] text-text-dim">{new Date(immo.dateMiseEnService).toLocaleDateString('fr-FR')}</span>
                 <span className="font-mono text-right">{immo.valeurOrigine.toLocaleString('fr-FR')}</span>
                 <span className="font-mono text-right">{cumulAmorti(immo).toLocaleString('fr-FR')}</span>
                 <span className="font-mono text-right font-semibold">{vcn(immo).toLocaleString('fr-FR')}</span>
-                <span className="font-mono text-[10px] text-text-dim">
+                <span className="font-mono text-[11px] text-text-dim">
                   {immo.modeAmortissement === 'UNITES_DOEUVRE'
                     ? `${(immo.unitesOeuvrePrevues ?? 0).toLocaleString('fr-FR')} ${immo.uniteOeuvreLibelle ?? ''}`
                     : `${immo.dureeAmortissementAns} ans`}
                 </span>
                 <span
-                  className={`font-mono text-[10px] font-bold px-1.5 py-0.5 w-fit ${
+                  className={`font-mono text-[11px] font-bold px-1.5 py-0.5 w-fit ${
                     immo.statut === 'EN_SERVICE' ? 'text-positive bg-positive-soft' : 'text-text-dim bg-surface-alt'
                   }`}
                 >
@@ -707,7 +707,7 @@ export function ImmobilisationsPage() {
                         <button
                           onClick={() => reconstituerRevision(immo)}
                           title="Estimer un composant « révisions majeures » jamais identifié (AUDCIF ch. 5 § 1)"
-                          className="text-[10px] text-sel hover:underline"
+                          className="text-[11px] text-sel hover:underline"
                         >
                           Révision
                         </button>
@@ -716,7 +716,7 @@ export function ImmobilisationsPage() {
                         <button
                           onClick={() => saisirConsommation(immo)}
                           title="Saisir les unités d’œuvre consommées sur cet exercice"
-                          className="text-[10px] text-sel hover:underline"
+                          className="text-[11px] text-sel hover:underline"
                         >
                           Relevé
                         </button>
@@ -725,7 +725,7 @@ export function ImmobilisationsPage() {
                         onClick={() => passerDotation(immo.id)}
                         disabled={dejaDoteeCetExercice(immo)}
                         title={dejaDoteeCetExercice(immo) ? 'Déjà dotée pour cet exercice' : 'Passer la dotation de cet exercice'}
-                        className="text-[10px] text-sel hover:underline disabled:opacity-40 disabled:no-underline"
+                        className="text-[11px] text-sel hover:underline disabled:opacity-40 disabled:no-underline"
                       >
                         Doter
                       </button>
@@ -735,7 +735,7 @@ export function ImmobilisationsPage() {
                             setRenouvellementOuvertPour(renouvellementOuvertPour === immo.id ? null : immo.id)
                           }
                           title="Sortir ce composant de l’actif et porter son remplaçant"
-                          className="text-[10px] text-sel hover:underline"
+                          className="text-[11px] text-sel hover:underline"
                         >
                           Renouveler
                         </button>
@@ -745,7 +745,7 @@ export function ImmobilisationsPage() {
                           setReclassementOuvertPour(reclassementOuvertPour === immo.id ? null : immo.id)
                         }
                         title="Changer la catégorie du bien sans toucher à sa valeur comptable"
-                        className="text-[10px] text-sel hover:underline"
+                        className="text-[11px] text-sel hover:underline"
                       >
                         Reclasser
                       </button>
@@ -754,13 +754,13 @@ export function ImmobilisationsPage() {
                           setDepreciationOuvertePour(depreciationOuvertePour === immo.id ? null : immo.id)
                         }
                         title="Constater une perte de valeur, ou en reprendre une"
-                        className="text-[10px] text-sel hover:underline"
+                        className="text-[11px] text-sel hover:underline"
                       >
                         Déprécier
                       </button>
                       <button
                         onClick={() => setSortieOuvertePour(sortieOuvertePour === immo.id ? null : immo.id)}
-                        className="text-[10px] text-sel hover:underline"
+                        className="text-[11px] text-sel hover:underline"
                       >
                         Sortir
                       </button>
@@ -775,24 +775,24 @@ export function ImmobilisationsPage() {
                       n'ont pas d'incidence sur la valeur comptable du bien immobilier
                       transféré. » D'où l'absence de tout champ de montant : le laisser
                       saisir inviterait à recalculer ce que le texte veut inchangé. */}
-                  <p className="text-[10px] text-text-dim leading-[1.55] mb-2">
+                  <p className="text-[11px] text-text-dim leading-[1.55] mb-2">
                     Le bien prend les comptes de sa nouvelle famille. Sa valeur d’origine, son amortissement cumulé
                     et sa dépréciation sont VIRÉS tels quels, sans être recalculés : la valeur comptable nette ne
                     bouge pas et aucune ligne de résultat n’est touchée. Un reclassement n’est ni une cession, ni une
                     dépréciation.
                   </p>
-                  <p className="text-[10px] text-text-dim leading-[1.55] mb-2">
+                  <p className="text-[11px] text-text-dim leading-[1.55] mb-2">
                     Le transfert vers les STOCKS, que le texte nomme aussi, ne passe pas par ici : un bien qui passe
                     en stock quitte le module · sortez-le, puis composez l’écriture de stock.
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <label className="flex flex-col gap-1">
-                      <span className="text-[10px] font-bold text-text-dim">NOUVELLE FAMILLE</span>
+                      <span className="text-[11px] font-bold text-text-dim">NOUVELLE FAMILLE</span>
                       <select
                         value={rcFamille}
                         onChange={(e) => setRcFamille(e.target.value)}
                         required
-                        className="border border-border rounded-[6px] bg-surface px-2 py-1 text-[10.5px]"
+                        className="border border-border rounded-[6px] bg-surface px-2 py-1 text-[12px]"
                       >
                         <option value="">Choisir…</option>
                         {(familles ?? [])
@@ -805,25 +805,25 @@ export function ImmobilisationsPage() {
                       </select>
                     </label>
                     <label className="flex flex-col gap-1">
-                      <span className="text-[10px] font-bold text-text-dim">DATE</span>
+                      <span className="text-[11px] font-bold text-text-dim">DATE</span>
                       <input
                         type="date"
                         value={rcDate}
                         onChange={(e) => setRcDate(e.target.value)}
                         required
-                        className="border border-border rounded-[6px] bg-surface px-2 py-1 text-[10.5px]"
+                        className="border border-border rounded-[6px] bg-surface px-2 py-1 text-[12px]"
                       />
                     </label>
                     {cumulDeprecie(immo) > 0 && (
                       <label className="flex flex-col gap-1 sm:col-span-2">
-                        <span className="text-[10px] font-bold text-text-dim">
+                        <span className="text-[11px] font-bold text-text-dim">
                           COMPTE 29 DE DESTINATION
                         </span>
                         <select
                           value={rcCompte29}
                           onChange={(e) => setRcCompte29(e.target.value)}
                           required
-                          className="border border-border rounded-[6px] bg-surface px-2 py-1 text-[10.5px]"
+                          className="border border-border rounded-[6px] bg-surface px-2 py-1 text-[12px]"
                         >
                           <option value="">Choisir…</option>
                           {(comptesClasse2 ?? [])
@@ -834,7 +834,7 @@ export function ImmobilisationsPage() {
                               </option>
                             ))}
                         </select>
-                        <span className="text-[10px] text-text-dim leading-[1.5]">
+                        <span className="text-[11px] text-text-dim leading-[1.5]">
                           Ce bien porte une dépréciation. Le compte n’est pas déduit du nouveau compte
                           d’immobilisation : le logiciel ne connaît pas la subdivision que votre dossier a ouverte,
                           et un 29 deviné serait un compte faux dans une balance juste.
@@ -842,15 +842,15 @@ export function ImmobilisationsPage() {
                       </label>
                     )}
                     <label className="flex flex-col gap-1 sm:col-span-2">
-                      <span className="text-[10px] font-bold text-text-dim">MOTIF DU CHANGEMENT D’UTILISATION</span>
+                      <span className="text-[11px] font-bold text-text-dim">MOTIF DU CHANGEMENT D’UTILISATION</span>
                       <input
                         value={rcMotif}
                         onChange={(e) => setRcMotif(e.target.value)}
                         required
                         placeholder="Ce que le bien sert désormais, et depuis quand"
-                        className="border border-border rounded-[6px] bg-surface px-2 py-1 text-[10.5px]"
+                        className="border border-border rounded-[6px] bg-surface px-2 py-1 text-[12px]"
                       />
-                      <span className="text-[10px] text-text-dim leading-[1.5]">
+                      <span className="text-[11px] text-text-dim leading-[1.5]">
                         Obligatoire · le § 1.2 qualifie un immeuble de placement par l’USAGE, que nul solde ne
                         porte, et le § 4.2 en fait une information de Notes annexes.
                       </span>
@@ -860,14 +860,14 @@ export function ImmobilisationsPage() {
                     <button
                       type="submit"
                       disabled={envoi}
-                      className="bg-sel text-white text-[10.5px] font-bold px-3.5 py-1.5 rounded-[6px] disabled:opacity-50"
+                      className="bg-sel text-white text-[12px] font-bold px-3.5 py-1.5 rounded-[6px] disabled:opacity-50"
                     >
                       Reclasser
                     </button>
                     <button
                       type="button"
                       onClick={() => setReclassementOuvertPour(null)}
-                      className="border border-border rounded-[6px] bg-surface px-3 py-1.5 text-[10.5px]"
+                      className="border border-border rounded-[6px] bg-surface px-3 py-1.5 text-[12px]"
                     >
                       Annuler
                     </button>
@@ -880,31 +880,31 @@ export function ImmobilisationsPage() {
                   {/* Les deux mouvements vont ensemble · AUDCIF ch. 4 § 4.1. Porter le
                       nouveau sans sortir l'ancien laisse deux ascenseurs au bilan pour
                       une seule cage, et l'écriture reste pourtant équilibrée. */}
-                  <p className="text-[10px] text-text-dim leading-[1.55] mb-2">
+                  <p className="text-[11px] text-text-dim leading-[1.55] mb-2">
                     La valeur nette comptable de « {immo.designation} » sort de l’actif, et le remplaçant est porté
                     au même bien principal avec son propre plan. La durée est saisie : elle court jusqu’au prochain
                     remplacement, ou jusqu’à la fin d’utilisation de la structure si celui-ci est le dernier.
                   </p>
                   <div className="grid grid-cols-4 gap-3 items-end">
-                    <label className="text-[10.5px] font-semibold text-text-dim">
+                    <label className="text-[12px] font-semibold text-text-dim">
                       Désignation du remplaçant
-                      <input required value={rDesignation} onChange={(e) => setRDesignation(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11px]" />
+                      <input required value={rDesignation} onChange={(e) => setRDesignation(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[12.5px]" />
                     </label>
-                    <label className="text-[10.5px] font-semibold text-text-dim">
+                    <label className="text-[12px] font-semibold text-text-dim">
                       Coût
-                      <input required type="number" step="0.01" min={0.01} value={rCout} onChange={(e) => setRCout(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11px] font-mono" />
+                      <input required type="number" step="0.01" min={0.01} value={rCout} onChange={(e) => setRCout(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[12.5px] font-mono" />
                     </label>
-                    <label className="text-[10.5px] font-semibold text-text-dim">
+                    <label className="text-[12px] font-semibold text-text-dim">
                       Durée (ans)
-                      <input required type="number" min={1} value={rDuree} onChange={(e) => setRDuree(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11px] font-mono" />
+                      <input required type="number" min={1} value={rDuree} onChange={(e) => setRDuree(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[12.5px] font-mono" />
                     </label>
-                    <label className="text-[10.5px] font-semibold text-text-dim">
+                    <label className="text-[12px] font-semibold text-text-dim">
                       Date
-                      <input required type="date" value={rDate} onChange={(e) => setRDate(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11px] font-mono" />
+                      <input required type="date" value={rDate} onChange={(e) => setRDate(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[12.5px] font-mono" />
                     </label>
-                    <label className="text-[10.5px] font-semibold text-text-dim col-span-2">
+                    <label className="text-[12px] font-semibold text-text-dim col-span-2">
                       Réglé par
-                      <select required value={rContrepartie} onChange={(e) => setRContrepartie(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11px]">
+                      <select required value={rContrepartie} onChange={(e) => setRContrepartie(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[12.5px]">
                         <option value="" />
                         {comptesFinancement.map((c) => (
                           <option key={c.id} value={c.id}>{c.numero} · {c.intitule}</option>
@@ -913,42 +913,42 @@ export function ImmobilisationsPage() {
                     </label>
                   </div>
                   <div className="flex gap-2 mt-3">
-                    <button type="submit" disabled={envoi} className="bg-sel text-white text-[11px] font-semibold px-3 py-1.5 disabled:opacity-50">{envoi ? '…' : 'Renouveler'}</button>
-                    <button type="button" onClick={() => setRenouvellementOuvertPour(null)} className="text-[11px] font-semibold text-text-dim px-3 py-1.5">Annuler</button>
+                    <button type="submit" disabled={envoi} className="bg-sel text-white text-[12.5px] font-semibold px-3 py-1.5 disabled:opacity-50">{envoi ? '…' : 'Renouveler'}</button>
+                    <button type="button" onClick={() => setRenouvellementOuvertPour(null)} className="text-[12.5px] font-semibold text-text-dim px-3 py-1.5">Annuler</button>
                   </div>
                 </form>
               )}
               {depreciationOuvertePour === immo.id && (
                 <form onSubmit={(e) => onDeprecier(e, immo.id)} className="bg-chrome border-b border-border px-4 py-3">
-                  <p className="text-[10px] text-text-dim leading-[1.55] mb-2">
+                  <p className="text-[11px] text-text-dim leading-[1.55] mb-2">
                     L’actif se déprécie lorsque sa valeur nette comptable dépasse sa valeur actuelle. Le montant et
                     l’indice sont saisis : le logiciel ne connaît ni le marché, ni l’usage du bien. Une dotation
                     ré-étale le plan d’amortissement sur la durée restant à courir.
                   </p>
                   <div className="grid grid-cols-4 gap-3 items-end">
-                    <label className="text-[10.5px] font-semibold text-text-dim">
+                    <label className="text-[12px] font-semibold text-text-dim">
                       Sens
-                      <select value={dSens} onChange={(e) => setDSens(e.target.value as 'DOTATION' | 'REPRISE')} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11px]">
+                      <select value={dSens} onChange={(e) => setDSens(e.target.value as 'DOTATION' | 'REPRISE')} className="mt-1 w-full border border-border-dark px-2 py-1 text-[12.5px]">
                         <option value="DOTATION">Dotation</option>
                         <option value="REPRISE">Reprise</option>
                       </select>
                     </label>
-                    <label className="text-[10.5px] font-semibold text-text-dim">
+                    <label className="text-[12px] font-semibold text-text-dim">
                       Montant
-                      <input required type="number" step="0.01" min={0.01} value={dMontant} onChange={(e) => setDMontant(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11px] font-mono" />
+                      <input required type="number" step="0.01" min={0.01} value={dMontant} onChange={(e) => setDMontant(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[12.5px] font-mono" />
                     </label>
-                    <label className="text-[10.5px] font-semibold text-text-dim">
+                    <label className="text-[12px] font-semibold text-text-dim">
                       Compte de dépréciation (29)
-                      <select required value={dCompte29} onChange={(e) => setDCompte29(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11px]">
+                      <select required value={dCompte29} onChange={(e) => setDCompte29(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[12.5px]">
                         <option value="" />
                         {comptesFinancement.filter((c) => c.numero.startsWith('29')).map((c) => (
                           <option key={c.id} value={c.id}>{c.numero} · {c.intitule}</option>
                         ))}
                       </select>
                     </label>
-                    <label className="text-[10.5px] font-semibold text-text-dim">
+                    <label className="text-[12px] font-semibold text-text-dim">
                       Contrepartie ({dSens === 'DOTATION' ? '69' : '79'})
-                      <select required value={dContrepartie} onChange={(e) => setDContrepartie(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11px]">
+                      <select required value={dContrepartie} onChange={(e) => setDContrepartie(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[12.5px]">
                         <option value="" />
                         {comptesFinancement
                           .filter((c) => c.numero.startsWith(dSens === 'DOTATION' ? '69' : '79'))
@@ -958,7 +958,7 @@ export function ImmobilisationsPage() {
                       </select>
                     </label>
                   </div>
-                  <label className="block text-[10.5px] font-semibold text-text-dim mt-3">
+                  <label className="block text-[12px] font-semibold text-text-dim mt-3">
                     Indice de perte de valeur
                     <input
                       required
@@ -966,38 +966,38 @@ export function ImmobilisationsPage() {
                       value={dIndice}
                       onChange={(e) => setDIndice(e.target.value)}
                       placeholder="Baisse du prix du marché, obsolescence, dégradation physique, mise hors service prévue…"
-                      className="mt-1 w-full border border-border-dark px-2 py-1 text-[11px]"
+                      className="mt-1 w-full border border-border-dark px-2 py-1 text-[12.5px]"
                     />
                   </label>
                   <div className="flex gap-2 mt-3">
-                    <button type="submit" disabled={envoi} className="bg-sel text-white text-[11px] font-semibold px-3 py-1.5 disabled:opacity-50">{envoi ? '…' : 'Enregistrer'}</button>
-                    <button type="button" onClick={() => setDepreciationOuvertePour(null)} className="text-[11px] font-semibold text-text-dim px-3 py-1.5">Annuler</button>
+                    <button type="submit" disabled={envoi} className="bg-sel text-white text-[12.5px] font-semibold px-3 py-1.5 disabled:opacity-50">{envoi ? '…' : 'Enregistrer'}</button>
+                    <button type="button" onClick={() => setDepreciationOuvertePour(null)} className="text-[12.5px] font-semibold text-text-dim px-3 py-1.5">Annuler</button>
                   </div>
                 </form>
               )}
               {sortieOuvertePour === immo.id && (
                 <form onSubmit={(e) => onSortir(e, immo.id)} className="bg-chrome border-b border-border px-4 py-3">
                   <div className="grid grid-cols-4 gap-3 items-end">
-                    <label className="text-[10.5px] font-semibold text-text-dim">
+                    <label className="text-[12px] font-semibold text-text-dim">
                       Type
-                      <select value={sType} onChange={(e) => setSType(e.target.value as 'CESSION' | 'MISE_HORS_SERVICE')} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11px]">
+                      <select value={sType} onChange={(e) => setSType(e.target.value as 'CESSION' | 'MISE_HORS_SERVICE')} className="mt-1 w-full border border-border-dark px-2 py-1 text-[12.5px]">
                         <option value="MISE_HORS_SERVICE">Mise hors service</option>
                         <option value="CESSION">Cession</option>
                       </select>
                     </label>
-                    <label className="text-[10.5px] font-semibold text-text-dim">
+                    <label className="text-[12px] font-semibold text-text-dim">
                       Date
-                      <input required type="date" value={sDateSortie} onChange={(e) => setSDateSortie(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11px] font-mono" />
+                      <input required type="date" value={sDateSortie} onChange={(e) => setSDateSortie(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[12.5px] font-mono" />
                     </label>
                     {sType === 'CESSION' && (
                       <>
-                        <label className="text-[10.5px] font-semibold text-text-dim">
+                        <label className="text-[12px] font-semibold text-text-dim">
                           Prix de cession
-                          <input required type="number" step="0.01" min={0} value={sPrixCession} onChange={(e) => setSPrixCession(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11px] font-mono" />
+                          <input required type="number" step="0.01" min={0} value={sPrixCession} onChange={(e) => setSPrixCession(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[12.5px] font-mono" />
                         </label>
-                        <label className="text-[10.5px] font-semibold text-text-dim">
+                        <label className="text-[12px] font-semibold text-text-dim">
                           Encaissé sur
-                          <select required value={sCompteContrepartie} onChange={(e) => setSCompteContrepartie(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[11px]">
+                          <select required value={sCompteContrepartie} onChange={(e) => setSCompteContrepartie(e.target.value)} className="mt-1 w-full border border-border-dark px-2 py-1 text-[12.5px]">
                             <option value="" />
                             {comptesFinancement.map((c) => (
                               <option key={c.id} value={c.id}>{c.numero} · {c.intitule}</option>
@@ -1008,14 +1008,14 @@ export function ImmobilisationsPage() {
                     )}
                   </div>
                   <div className="flex gap-2 mt-3">
-                    <button type="submit" disabled={envoi} className="bg-sel text-white text-[11px] font-semibold px-3 py-1.5 disabled:opacity-50">{envoi ? '…' : 'Confirmer la sortie'}</button>
-                    <button type="button" onClick={() => setSortieOuvertePour(null)} className="text-[11px] font-semibold text-text-dim px-3 py-1.5">Annuler</button>
+                    <button type="submit" disabled={envoi} className="bg-sel text-white text-[12.5px] font-semibold px-3 py-1.5 disabled:opacity-50">{envoi ? '…' : 'Confirmer la sortie'}</button>
+                    <button type="button" onClick={() => setSortieOuvertePour(null)} className="text-[12.5px] font-semibold text-text-dim px-3 py-1.5">Annuler</button>
                   </div>
                 </form>
               )}
             </div>
           ))}
-          {immobilisations.length === 0 && <div className="p-3 text-[11px] text-text-dim">Aucune immobilisation pour l'instant.</div>}
+          {immobilisations.length === 0 && <div className="p-3 text-[12.5px] text-text-dim">Aucune immobilisation pour l'instant.</div>}
         </div>
       )}
     </div>

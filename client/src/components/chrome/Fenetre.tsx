@@ -177,7 +177,7 @@ function FenetreInterne({ fenetre, active }: { fenetre: FenetreOuverte; active: 
           agrandie ? '' : 'cursor-move'
         } ${active ? 'bg-surface text-text' : 'bg-chrome text-text-dim'}`}
       >
-        <span className="truncate text-[12px]">{fenetre.titre}</span>
+        <span className="truncate text-[13px]">{fenetre.titre}</span>
         <span className="flex items-stretch self-stretch shrink-0">
           <BoutonTitre
             actif={active}
@@ -220,7 +220,7 @@ function FenetreInterne({ fenetre, active }: { fenetre: FenetreOuverte; active: 
               Les pages sont chargées à la demande (registre-fenetres, lazy) :
               le temps du transfert de son module, la fenêtre affiche le même
               « Chargement… » que ses données · rien ne clignote deux fois. */}
-          <Suspense key={fenetre.version} fallback={<div className="p-3 text-[11px] text-text-dim">Chargement…</div>}>
+          <Suspense key={fenetre.version} fallback={<div className="p-3 text-[12.5px] text-text-dim">Chargement…</div>}>
             {rendreFenetre(fenetre.adresse)}
           </Suspense>
         </LimiteErreur>

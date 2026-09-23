@@ -254,17 +254,17 @@ export function FiscalitePage() {
     <div className="p-2">
       <EnteteImpression titre="Résultat fiscal et impôt sur les bénéfices" />
       <div className="ecran-seul mb-1.5 max-w-[1100px]">
-        <div className="text-[10px] font-mono text-text-dim leading-none">FISCALITÉ</div>
+        <div className="text-[11px] font-mono text-text-dim leading-none">FISCALITÉ</div>
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <h1 className="text-[12px] font-bold leading-tight flex items-center gap-1.5">
+          <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
             Résultat fiscal et impôt sur les bénéfices <Aide sujet="resultatFiscal" />
           </h1>
-          <label className="text-[10.5px] flex items-center gap-2">
+          <label className="text-[12px] flex items-center gap-2">
             Exercice
             <select
               value={exerciceId ?? ''}
               onChange={(e) => setExerciceId(e.target.value)}
-              className="border border-border rounded-[7px] bg-bg px-2 py-1 text-[11px] focus:outline-none focus:border-sel"
+              className="border border-border rounded-[7px] bg-bg px-2 py-1 text-[12.5px] focus:outline-none focus:border-sel"
             >
               {exercices.map((ex) => (
                 <option key={ex.id} value={ex.id}>
@@ -274,7 +274,7 @@ export function FiscalitePage() {
             </select>
           </label>
         </div>
-        <div className="text-[10px] text-text-dim mt-0.5">
+        <div className="text-[11px] text-text-dim mt-0.5">
           Loi n° 23/053 du 30 novembre 2023, applicable depuis le 1<sup>er</sup> janvier 2026. Paramètres vérifiés le{' '}
           {resultat ? jour(resultat.derniereVerification) : '·'}. Cet écran produit le calcul et sa justification, pas
           le formulaire officiel de déclaration.
@@ -282,7 +282,7 @@ export function FiscalitePage() {
       </div>
 
       {erreur && (
-        <div className="border border-danger/30 bg-danger-soft px-3.5 py-2 mb-2.5 text-[10.5px] max-w-[1100px]">
+        <div className="border border-danger/30 bg-danger-soft px-3.5 py-2 mb-2.5 text-[12px] max-w-[1100px]">
           {erreur}
         </div>
       )}
@@ -293,11 +293,11 @@ export function FiscalitePage() {
           <section className="border border-border rounded-[8px] p-3">
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div>
-                <div className="text-[10px] font-mono text-text-dim leading-none">RÉGIME</div>
-                <div className="text-[12px] font-bold">{LIBELLE_REGIME[resultat.regime]}</div>
+                <div className="text-[11px] font-mono text-text-dim leading-none">RÉGIME</div>
+                <div className="text-[13px] font-bold">{LIBELLE_REGIME[resultat.regime]}</div>
               </div>
               {resultat.regime === 'IRPP_PETITE_ENTREPRISE' && !lectureSeule && (
-                <label className="text-[10.5px] flex items-center gap-2">
+                <label className="text-[12px] flex items-center gap-2">
                   Activité principale
                   <select
                     value={resultat.natureActivite ?? ''}
@@ -305,7 +305,7 @@ export function FiscalitePage() {
                     onChange={(e) =>
                       modifierDossier({ natureActivite: (e.target.value || null) as NatureActiviteFiscale | null })
                     }
-                    className="border border-border rounded-[7px] bg-bg px-2 py-1 text-[11px]"
+                    className="border border-border rounded-[7px] bg-bg px-2 py-1 text-[12.5px]"
                   >
                     <option value="">À renseigner</option>
                     <option value="VENTE">Vente · 1 % du chiffre d’affaires</option>
@@ -315,7 +315,7 @@ export function FiscalitePage() {
               )}
             </div>
             {resultat.observations.map((o, i) => (
-              <p key={i} className="text-[10.5px] text-text-dim leading-[1.55] mt-1.5">
+              <p key={i} className="text-[12px] text-text-dim leading-[1.55] mt-1.5">
                 {o}
               </p>
             ))}
@@ -323,7 +323,7 @@ export function FiscalitePage() {
 
           {/* TABLEAU DE PASSAGE */}
           <section className="border border-border rounded-[8px] overflow-hidden">
-            <table className="w-full text-[10.5px]">
+            <table className="w-full text-[12px]">
               <tbody>
                 <Ligne libelle="Résultat comptable de l’exercice" montant={resultat.resultatComptable} devise={devise}
                   note={resultat.sourceResultat === 'COMPTE_13' ? 'lu au compte 13, exercice clôturé' : 'lu dans les classes 6, 7 et 8'} />
@@ -354,12 +354,12 @@ export function FiscalitePage() {
               rappelle ce que le comptable a décidé une fois. */}
           {propositions.length > 0 && (
             <section className="border border-warning/40 bg-warning-soft rounded-[8px] p-3">
-              <div className="text-[10px] font-mono text-text-dim leading-none">PROPOSITIONS À REPRENDRE</div>
-              <p className="text-[10.5px] text-text-dim mt-1 mb-2 leading-[1.5]">
+              <div className="text-[11px] font-mono text-text-dim leading-none">PROPOSITIONS À REPRENDRE</div>
+              <p className="text-[12px] text-text-dim mt-1 mb-2 leading-[1.5]">
                 Ces comptes portent un traitement fiscal déclaré dans le plan comptable. Rien n'est inscrit tant que
                 vous ne reprenez pas la ligne · vérifiez le montant avant.
               </p>
-              <table className="w-full text-[10.5px]">
+              <table className="w-full text-[12px]">
                 <tbody>
                   {propositions.map((p) => (
                     <tr key={p.compteId} className="border-t border-border/60">
@@ -368,7 +368,7 @@ export function FiscalitePage() {
                         {p.libelle}
                         <span className="text-text-dim"> · {p.source}</span>
                         {p.plafondEnonce && (
-                          <span className="block text-[10px] text-text-dim">
+                          <span className="block text-[11px] text-text-dim">
                             Mouvement {p.mouvement.toLocaleString('fr-FR')} · admis{' '}
                             {(p.montantAdmis ?? 0).toLocaleString('fr-FR')} ({p.plafondEnonce})
                           </span>
@@ -382,7 +382,7 @@ export function FiscalitePage() {
                           type="button"
                           onClick={() => reprendre(p)}
                           disabled={envoi}
-                          className="border border-border-dark bg-chrome hover:bg-chrome-alt px-2 py-0.5 text-[10px] disabled:opacity-40"
+                          className="border border-border-dark bg-chrome hover:bg-chrome-alt px-2 py-0.5 text-[11px] disabled:opacity-40"
                         >
                           Reprendre
                         </button>
@@ -400,14 +400,14 @@ export function FiscalitePage() {
               déclaration. Le compte, l'article et ce qu'il reste à établir. */}
           {avertissementsPropositions.length > 0 && (
             <section className="border border-border rounded-[8px] p-3 bg-surface-alt">
-              <div className="text-[10px] font-mono text-text-dim leading-none">
+              <div className="text-[11px] font-mono text-text-dim leading-none">
                 À ÉTABLIR VOUS-MÊME · AUCUN MONTANT N’EST PROPOSÉ
               </div>
-              <p className="text-[10.5px] text-text-dim mt-1 mb-2 leading-[1.5]">
+              <p className="text-[12px] text-text-dim mt-1 mb-2 leading-[1.5]">
                 Ces comptes portent un traitement fiscal déclaré, mais leur assiette ne se lit pas dans leur mouvement.
                 OmegaX ne propose donc aucun montant · à vous de l’établir, puis de le saisir en retraitement.
               </p>
-              <table className="w-full text-[10.5px]">
+              <table className="w-full text-[12px]">
                 <tbody>
                   {avertissementsPropositions.map((a) => (
                     <tr key={a.compteId} className="border-t border-border/60 align-top">
@@ -415,7 +415,7 @@ export function FiscalitePage() {
                       <td className="py-1 pr-2">
                         {a.libelle}
                         <span className="text-text-dim"> · {a.source}</span>
-                        <span className="block text-[10px] text-text-dim leading-[1.5] mt-0.5">{a.motif}</span>
+                        <span className="block text-[11px] text-text-dim leading-[1.5] mt-0.5">{a.motif}</span>
                       </td>
                       <td className="py-1 font-mono text-right whitespace-nowrap text-text-dim">
                         mouvement {a.mouvement.toLocaleString('fr-FR')}
@@ -429,14 +429,14 @@ export function FiscalitePage() {
 
           {/* RETRAITEMENTS */}
           <section className="border border-border rounded-[8px] p-3">
-            <div className="text-[10px] font-mono text-text-dim leading-none">RETRAITEMENTS</div>
+            <div className="text-[11px] font-mono text-text-dim leading-none">RETRAITEMENTS</div>
             {resultat.retraitements.length === 0 ? (
-              <p className="text-[10.5px] text-text-dim mt-1.5">
+              <p className="text-[12px] text-text-dim mt-1.5">
                 Aucun retraitement saisi. Un résultat fiscal égal au résultat comptable est rare : passez le catalogue
                 en revue, ligne par ligne.
               </p>
             ) : (
-              <table className="w-full text-[10.5px] mt-1.5">
+              <table className="w-full text-[12px] mt-1.5">
                 <thead>
                   <tr className="text-left text-text-dim">
                     <th className="font-medium py-1">Sens</th>
@@ -476,7 +476,7 @@ export function FiscalitePage() {
 
             {!lectureSeule && catalogue && (
               <div className="mt-3 border-t border-border pt-3 space-y-2">
-                <label className="block text-[10.5px]">
+                <label className="block text-[12px]">
                   Ajouter un retraitement
                   <select
                     value={code}
@@ -485,7 +485,7 @@ export function FiscalitePage() {
                       setMontant('');
                       setChargeEngagee('');
                     }}
-                    className="mt-1 block w-full border border-border rounded-[7px] bg-bg px-2 py-1 text-[11px] focus:outline-none focus:border-sel"
+                    className="mt-1 block w-full border border-border rounded-[7px] bg-bg px-2 py-1 text-[12.5px] focus:outline-none focus:border-sel"
                   >
                     <option value="">Choisir dans le catalogue</option>
                     <optgroup label="Réintégrations">
@@ -513,7 +513,7 @@ export function FiscalitePage() {
                 </label>
 
                 {definition && (
-                  <div className="text-[10px] text-text-dim leading-[1.55] border border-border rounded-[7px] p-2.5">
+                  <div className="text-[11px] text-text-dim leading-[1.55] border border-border rounded-[7px] p-2.5">
                     <div>{definition.aide}</div>
                     <div className="mt-1 font-medium">{definition.source}</div>
                   </div>
@@ -521,24 +521,24 @@ export function FiscalitePage() {
 
                 {code === 'AUTRE' && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <label className="block text-[10.5px]">
+                    <label className="block text-[12px]">
                       Sens
                       <select
                         value={sensLibre}
                         onChange={(e) => setSensLibre(e.target.value as SensRetraitementFiscal)}
-                        className="mt-1 block w-full border border-border rounded-[7px] bg-bg px-2 py-1 text-[11px]"
+                        className="mt-1 block w-full border border-border rounded-[7px] bg-bg px-2 py-1 text-[12.5px]"
                       >
                         <option value="REINTEGRATION">Réintégration (+)</option>
                         <option value="DEDUCTION">Déduction (−)</option>
                       </select>
                     </label>
-                    <label className="block text-[10.5px]">
+                    <label className="block text-[12px]">
                       Libellé
                       <input
                         value={libelleLibre}
                         onChange={(e) => setLibelleLibre(e.target.value)}
                         maxLength={200}
-                        className="mt-1 block w-full border border-border rounded-[7px] bg-bg px-2 py-1 text-[11px]"
+                        className="mt-1 block w-full border border-border rounded-[7px] bg-bg px-2 py-1 text-[12.5px]"
                       />
                     </label>
                   </div>
@@ -547,15 +547,15 @@ export function FiscalitePage() {
                 {definition && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {plafond ? (
-                      <label className="block text-[10.5px]">
+                      <label className="block text-[12px]">
                         Charge engagée sur l’exercice
                         <input
                           value={chargeEngagee}
                           onChange={(e) => setChargeEngagee(e.target.value)}
                           inputMode="decimal"
-                          className="mt-1 block w-full border border-border rounded-[7px] bg-bg px-2 py-1 text-[11px] font-mono"
+                          className="mt-1 block w-full border border-border rounded-[7px] bg-bg px-2 py-1 text-[12.5px] font-mono"
                         />
-                        <span className="block text-[10px] text-text-dim mt-1 leading-[1.5]">
+                        <span className="block text-[11px] text-text-dim mt-1 leading-[1.5]">
                           Plafond : {plafond.enonce}
                           {plafond.montantAdmis !== null ? ` · soit ${nombre(plafond.montantAdmis)} ${devise} admis` : ''}.
                           {excedentCalcule !== null
@@ -564,24 +564,24 @@ export function FiscalitePage() {
                         </span>
                       </label>
                     ) : (
-                      <label className="block text-[10.5px]">
+                      <label className="block text-[12px]">
                         Montant
                         <input
                           value={montant}
                           onChange={(e) => setMontant(e.target.value)}
                           inputMode="decimal"
-                          className="mt-1 block w-full border border-border rounded-[7px] bg-bg px-2 py-1 text-[11px] font-mono"
+                          className="mt-1 block w-full border border-border rounded-[7px] bg-bg px-2 py-1 text-[12.5px] font-mono"
                         />
                       </label>
                     )}
-                    <label className="block text-[10.5px]">
+                    <label className="block text-[12px]">
                       Justification{code === 'AUTRE' ? ' (obligatoire)' : ''}
                       <input
                         value={commentaire}
                         onChange={(e) => setCommentaire(e.target.value)}
                         maxLength={1000}
                         placeholder="Ce qui sera opposé au vérificateur"
-                        className="mt-1 block w-full border border-border rounded-[7px] bg-bg px-2 py-1 text-[11px]"
+                        className="mt-1 block w-full border border-border rounded-[7px] bg-bg px-2 py-1 text-[12.5px]"
                       />
                     </label>
                   </div>
@@ -592,7 +592,7 @@ export function FiscalitePage() {
                     type="button"
                     onClick={ajouter}
                     disabled={envoi || (plafond ? excedentCalcule === null || excedentCalcule === 0 : !montant)}
-                    className="bg-sel text-white rounded-[6px] px-3 py-[3px] text-[10.5px] font-semibold hover:opacity-90 disabled:opacity-50"
+                    className="bg-sel text-white rounded-[6px] px-3 py-[3px] text-[12px] font-semibold hover:opacity-90 disabled:opacity-50"
                   >
                     Enregistrer le retraitement
                   </button>
@@ -604,8 +604,8 @@ export function FiscalitePage() {
           {/* DÉFICIT ANTÉRIEUR SAISI */}
           {!lectureSeule && (
             <section className="border border-border rounded-[8px] p-3">
-              <div className="text-[10px] font-mono text-text-dim leading-none">DÉFICITS ANTÉRIEURS</div>
-              <p className="text-[10.5px] text-text-dim mt-1.5 leading-[1.55]">
+              <div className="text-[11px] font-mono text-text-dim leading-none">DÉFICITS ANTÉRIEURS</div>
+              <p className="text-[12px] text-text-dim mt-1.5 leading-[1.55]">
                 OmegaX calcule les déficits reportables depuis les trois exercices précédents tenus ici
                 {resultat.deficitAnterieur.detail.length > 0
                   ? ` (${resultat.deficitAnterieur.detail.map((d) => `${nombre(d.montant)} au ${jour(d.dateFin)}`).join(', ')})`
@@ -628,7 +628,7 @@ export function FiscalitePage() {
                       modifierDossier({ deficitAnterieurSaisi: n });
                   }
                 }}
-                className="mt-1.5 w-56 border border-border rounded-[7px] bg-bg px-2 py-1 text-[11px] font-mono"
+                className="mt-1.5 w-56 border border-border rounded-[7px] bg-bg px-2 py-1 text-[12.5px] font-mono"
               />
             </section>
           )}
@@ -636,11 +636,11 @@ export function FiscalitePage() {
           {/* IMPÔT */}
           <section className="border border-border rounded-[8px] overflow-hidden">
             <div className="px-3 pt-3">
-              <div className="text-[10px] font-mono text-text-dim leading-none">IMPÔT</div>
-              <div className="text-[10.5px] mt-1">{resultat.baseImpot}</div>
-              <p className="text-[10.5px] text-text-dim mt-1 leading-[1.55]">{resultat.explication}</p>
+              <div className="text-[11px] font-mono text-text-dim leading-none">IMPÔT</div>
+              <div className="text-[12px] mt-1">{resultat.baseImpot}</div>
+              <p className="text-[12px] text-text-dim mt-1 leading-[1.55]">{resultat.explication}</p>
             </div>
-            <table className="w-full text-[10.5px] mt-2">
+            <table className="w-full text-[12px] mt-2">
               <tbody>
                 {resultat.impotTheorique !== null && (
                   <Ligne libelle={physique ? 'Impôt sur le chiffre d’affaires' : 'Impôt sur le bénéfice (30 %)'} montant={resultat.impotTheorique} devise={devise} />
@@ -663,7 +663,7 @@ export function FiscalitePage() {
                   <td className="px-3 py-1.5">
                     {calendrier.libelleVersements}
                     {calendrier.calendrier && (
-                      <span className="block text-[10px] text-text-dim">{calendrier.calendrier}</span>
+                      <span className="block text-[11px] text-text-dim">{calendrier.calendrier}</span>
                     )}
                   </td>
                   <td className="px-3 py-1.5 text-right font-mono whitespace-nowrap">
@@ -679,7 +679,7 @@ export function FiscalitePage() {
                           const n = lireNombre(e.target.value);
                           if (n !== null && n >= 0 && n !== resultat.acomptesVerses) modifierDossier({ acomptesVerses: n });
                         }}
-                        className="w-40 text-right border border-border rounded-[7px] bg-bg px-2 py-0.5 text-[11px] font-mono"
+                        className="w-40 text-right border border-border rounded-[7px] bg-bg px-2 py-0.5 text-[12.5px] font-mono"
                       />
                     )}
                   </td>
@@ -710,7 +710,7 @@ export function FiscalitePage() {
                 {resultat.suiviAcomptes && resultat.suiviAcomptes.ecart !== 0 && (
                   <tr className="border-t border-border">
                     <td colSpan={2} className="px-3 py-1.5">
-                      <div className="text-[11px] font-semibold text-danger">
+                      <div className="text-[12.5px] font-semibold text-danger">
                         Compte 4492 : {nombre(resultat.suiviAcomptes.comptabilises)} · déclaré ici :{' '}
                         {nombre(resultat.suiviAcomptes.declares)} · écart {nombre(resultat.suiviAcomptes.ecart)}
                       </div>
@@ -720,7 +720,7 @@ export function FiscalitePage() {
               </tbody>
             </table>
             {resultat.acomptesProchainExercice.length > 0 && (
-              <div className="px-3 pb-3 pt-2 text-[10px] text-text-dim leading-[1.55]">
+              <div className="px-3 pb-3 pt-2 text-[11px] text-text-dim leading-[1.55]">
                 {/* La base des acomptes n'est PAS le seul impôt déclaré · art. 57 bis
                     LPF, tel que modifié par la loi de finances n° 25/060, y ajoute les
                     suppléments établis par l'Administration, contestés ou non. Ils
@@ -742,7 +742,7 @@ export function FiscalitePage() {
                         if (n !== null && n >= 0 && n !== resultat.supplementsAdministration)
                           modifierDossier({ supplementsAdministration: n });
                       }}
-                      className="w-32 text-right border border-border rounded-[7px] bg-bg px-2 py-0.5 text-[10.5px] font-mono"
+                      className="w-32 text-right border border-border rounded-[7px] bg-bg px-2 py-0.5 text-[12px] font-mono"
                     />
                   )}
                   <span className="font-mono">{devise}</span>
@@ -763,7 +763,7 @@ export function FiscalitePage() {
                 n'apparaissaient nulle part. La réserve du second versement est
                 celle du texte lui-même et s'affiche avec lui. */}
             {resultat.quotitesPetiteEntreprise.length > 0 && (
-              <div className="px-3 pb-3 pt-2 text-[10px] text-text-dim leading-[1.55] border-t border-border">
+              <div className="px-3 pb-3 pt-2 text-[11px] text-text-dim leading-[1.55] border-t border-border">
                 <div className="font-semibold text-text">
                   Paiement de l’impôt de cet exercice en deux quotités
                 </div>
@@ -806,7 +806,7 @@ function Ligne({
     <tr className={`border-t border-border ${total ? 'bg-surface-alt' : ''}`}>
       <td className={`px-3 py-1.5 ${gras ? 'font-bold' : ''}`}>
         {libelle}
-        {note && <span className="block text-[10px] text-text-dim font-normal">{note}</span>}
+        {note && <span className="block text-[11px] text-text-dim font-normal">{note}</span>}
       </td>
       <td className={`px-3 py-1.5 text-right font-mono whitespace-nowrap ${gras ? 'font-bold' : ''}`}>
         {signe && montant !== null ? `${signe} ` : ''}

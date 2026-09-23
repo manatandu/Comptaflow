@@ -19,22 +19,33 @@ export function BarreFenetres() {
   const onglets = [...fenetres];
 
   return (
-    <div className="ecran-seul relative z-20 h-[26px] shrink-0 flex items-center gap-1 px-2 bg-chrome/80 backdrop-blur-md border-t border-border">
-      <div className="flex-1 min-w-0 flex items-center gap-1 overflow-x-auto">
+    /*
+      LA BARRE DES TÂCHES DE WINDOWS 11 (2026-09-23) · des boutons sans
+      bordure, et sous chacun un trait qui dit son état : long et bleu pour la
+      fenêtre active, court et gris pour une fenêtre ouverte derrière, absent
+      pour une fenêtre réduite. C'est le signe que l'œil d'un utilisateur de
+      Windows cherche déjà.
+    */
+    <div className="ecran-seul relative z-20 h-[34px] shrink-0 flex items-center gap-1 px-2 bg-surface border-t border-border">
+      <div className="flex-1 min-w-0 flex items-center gap-0.5 overflow-x-auto h-full">
         {onglets.map((f) => {
           const active = f.cle === cleActive;
           const reduite = f.etat === 'reduite';
           return (
             <div
               key={f.cle}
-              className={`group flex items-center shrink-0 rounded-[7px] border transition-colors duration-150 ${
-                active
-                  ? 'bg-sel-soft border-sel/35 text-sel'
-                  : reduite
-                    ? 'bg-transparent border-border text-text-dim hover:bg-chrome-alt'
-                    : 'bg-surface border-border text-text hover:bg-chrome-alt'
+              className={`group relative flex items-center shrink-0 h-[28px] rounded-[4px] transition-colors duration-150 ${
+                active ? 'bg-chrome-alt text-text' : reduite ? 'text-text-dim hover:bg-chrome' : 'text-text hover:bg-chrome'
               }`}
             >
+              {!reduite && (
+                <span
+                  aria-hidden
+                  className={`absolute bottom-0 left-1/2 -translate-x-1/2 h-[3px] rounded-full transition-all duration-200 ${
+                    active ? 'w-4 bg-sel' : 'w-1.5 bg-border-dark'
+                  }`}
+                />
+              )}
               <button
                 type="button"
                 title={f.titre}
@@ -42,7 +53,7 @@ export function BarreFenetres() {
                 // la barre des tâches de Windows : le même bouton sert à
                 // montrer et à masquer, sans avoir à viser autre chose.
                 onClick={() => (active ? reduire(f.cle) : activer(f.cle))}
-                className="max-w-[190px] truncate px-2.5 py-[3px] text-[10.5px] font-medium"
+                className={`max-w-[190px] truncate px-3 h-full text-[12px] ${active ? 'font-semibold' : ''}`}
               >
                 {f.titreCourt}
               </button>
@@ -74,7 +85,7 @@ export function BarreFenetres() {
           type="button"
           onClick={fermerTout}
           title="Fermer toutes les fenêtres et revenir à l’accueil"
-          className="shrink-0 rounded-[7px] px-2 py-[3px] text-[10px] font-semibold text-text-dim hover:bg-chrome-alt hover:text-text"
+          className="shrink-0 rounded-[4px] px-2.5 h-[28px] text-[12px] text-text-dim hover:bg-chrome hover:text-text"
         >
           Tout fermer
         </button>

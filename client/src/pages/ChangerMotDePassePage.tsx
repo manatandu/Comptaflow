@@ -53,18 +53,17 @@ export function ChangerMotDePassePage() {
     <div className="min-h-screen flex items-center justify-center p-4">
       <form onSubmit={onChanger} className="anim-modale w-full max-w-[440px] bg-surface border border-border-dark shadow-flottante">
         <div
-          className="h-[26px] flex items-center px-2.5 text-white text-[10.5px]"
-          style={{ background: 'linear-gradient(180deg, var(--titlebar-from), var(--titlebar-to))' }}
+          className="h-[32px] flex items-center px-2.5 bg-surface text-text border-b border-border text-[12px]"
         >
           <span>Choisissez votre mot de passe</span>
         </div>
         <div className="p-5">
-          <p className="text-[11px]">
+          <p className="text-[12.5px]">
             Bienvenue{utilisateur ? ` ${utilisateur.email}` : ''}. Le mot de passe qui vous a été remis est provisoire :
             choisissez le vôtre pour ouvrir le dossier. Personne d'autre que vous ne le connaîtra.
           </p>
           <div className="grid grid-cols-[170px_1fr] items-center gap-x-3 gap-y-2.5 mt-4">
-            <label className="text-[11px] text-right">Mot de passe reçu :</label>
+            <label className="text-[12.5px] text-right">Mot de passe reçu :</label>
             <input
               type="password"
               required
@@ -72,9 +71,9 @@ export function ChangerMotDePassePage() {
               autoComplete="current-password"
               value={actuel}
               onChange={(e) => setActuel(e.target.value)}
-              className="border border-border-dark px-2.5 py-1.5 text-[12px]"
+              className="border border-border-dark px-2.5 py-1.5 text-[13px]"
             />
-            <label className="text-[11px] text-right">Nouveau mot de passe :</label>
+            <label className="text-[12.5px] text-right">Nouveau mot de passe :</label>
             <input
               type="password"
               required
@@ -83,9 +82,9 @@ export function ChangerMotDePassePage() {
               placeholder="10 caractères min."
               value={nouveau}
               onChange={(e) => setNouveau(e.target.value)}
-              className="border border-border-dark px-2.5 py-1.5 text-[12px]"
+              className="border border-border-dark px-2.5 py-1.5 text-[13px]"
             />
-            <label className="text-[11px] text-right">Confirmation :</label>
+            <label className="text-[12.5px] text-right">Confirmation :</label>
             <input
               type="password"
               required
@@ -93,15 +92,15 @@ export function ChangerMotDePassePage() {
               autoComplete="new-password"
               value={confirmation}
               onChange={(e) => setConfirmation(e.target.value)}
-              className="border border-border-dark px-2.5 py-1.5 text-[12px]"
+              className="border border-border-dark px-2.5 py-1.5 text-[13px]"
             />
           </div>
-          {erreur && <div className="text-[11px] text-danger bg-danger-soft border border-danger/30 px-2.5 py-1.5 mt-3">{erreur}</div>}
+          {erreur && <div className="text-[12.5px] text-danger bg-danger-soft border border-danger/30 px-2.5 py-1.5 mt-3">{erreur}</div>}
           <div className="flex justify-between items-center mt-4">
-            <button type="button" onClick={seDeconnecter} className="text-[10.5px] text-text-dim hover:text-text">
+            <button type="button" onClick={seDeconnecter} className="text-[12px] text-text-dim hover:text-text">
               Se déconnecter
             </button>
-            <button type="submit" disabled={envoi} className="bg-sel text-white px-4 py-1.5 text-[11px] font-semibold disabled:opacity-50">
+            <button type="submit" disabled={envoi} className="bg-sel text-white px-4 py-1.5 text-[12.5px] font-semibold disabled:opacity-50">
               {envoi ? 'Enregistrement…' : 'Enregistrer et ouvrir le dossier'}
             </button>
           </div>

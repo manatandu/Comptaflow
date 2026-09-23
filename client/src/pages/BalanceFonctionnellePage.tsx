@@ -49,15 +49,15 @@ export function BalanceFonctionnellePage() {
     <div className="p-2">
       <EnteteImpression titre="Balance en monnaie fonctionnelle" />
       <div className="ecran-seul mb-1.5 max-w-[1240px]">
-        <div className="text-[10px] font-mono text-text-dim leading-none">SECOND JEU · DOCUMENT DE GESTION</div>
+        <div className="text-[11px] font-mono text-text-dim leading-none">SECOND JEU · DOCUMENT DE GESTION</div>
         <div className="flex items-center justify-between gap-3">
-          <h1 className="text-[12px] font-bold leading-tight">Balance en monnaie fonctionnelle</h1>
-          <label className="text-[10px] text-text-dim">
+          <h1 className="text-[13px] font-bold leading-tight">Balance en monnaie fonctionnelle</h1>
+          <label className="text-[11px] text-text-dim">
             Exercice
             <select
               value={exerciceId}
               onChange={(e) => setExerciceId(e.target.value)}
-              className="block border border-border bg-surface px-2 py-[3px] text-[10.5px] min-w-[180px]"
+              className="block border border-border bg-surface px-2 py-[3px] text-[12px] min-w-[180px]"
             >
               {exercices.map((x) => (
                 <option key={x.id} value={x.id}>
@@ -70,19 +70,19 @@ export function BalanceFonctionnellePage() {
       </div>
 
       {erreur && (
-        <div className="border border-danger/30 bg-danger-soft px-3.5 py-2 mb-2.5 text-[10.5px] max-w-[1240px]">
+        <div className="border border-danger/30 bg-danger-soft px-3.5 py-2 mb-2.5 text-[12px] max-w-[1240px]">
           {erreur}
         </div>
       )}
 
       {balance && (
         <>
-          <div className="border border-warning/30 bg-warning-soft px-3.5 py-2 mb-2 text-[10px] max-w-[1240px]">
+          <div className="border border-warning/30 bg-warning-soft px-3.5 py-2 mb-2 text-[11px] max-w-[1240px]">
             {balance.mention}
           </div>
 
           <div className="border border-border bg-surface px-3.5 py-2 mb-2 max-w-[1240px]">
-            <div className="flex flex-wrap gap-x-6 gap-y-1 text-[10.5px]">
+            <div className="flex flex-wrap gap-x-6 gap-y-1 text-[12px]">
               <span>
                 <span className="text-text-dim">Monnaie </span>
                 <span className="font-semibold">{balance.monnaie}</span>
@@ -99,7 +99,7 @@ export function BalanceFonctionnellePage() {
               </span>
             </div>
             {balance.totaux.ecartDeConversion !== 0 && (
-              <div className="text-[10px] text-warning mt-1">
+              <div className="text-[11px] text-warning mt-1">
                 Écart de conversion · {montant(balance.totaux.ecartDeConversion)} {balance.monnaie}. Il naît des
                 lignes prises à leur montant d’origine face à des lignes converties : les deux côtés d’une même
                 opération n’ont pas la même origine. Il est montré et non logé dans un compte de bouclage, qui
@@ -109,9 +109,9 @@ export function BalanceFonctionnellePage() {
           </div>
 
           <div className="border border-border bg-surface max-w-[1240px] overflow-x-auto">
-            <table className="w-full text-[10.5px]">
+            <table className="w-full text-[12px]">
               <thead>
-                <tr className="border-b border-border text-text-dim font-mono text-[10px]">
+                <tr className="border-b border-border text-text-dim font-mono text-[11px]">
                   <th className="text-left px-2.5 py-1.5">COMPTE</th>
                   <th className="text-left px-2.5 py-1.5">INTITULÉ</th>
                   <th className="text-right px-2.5 py-1.5">DÉBIT</th>

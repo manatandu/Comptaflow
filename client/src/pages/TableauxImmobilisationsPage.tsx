@@ -149,25 +149,25 @@ export function TableauxImmobilisationsPage() {
       <EnteteImpression titre="Tableaux des immobilisations" />
       <div className="flex items-end justify-between mb-1.5 gap-3 flex-wrap">
         <div>
-          <div className="text-[10px] font-mono text-text-dim leading-none">RÉVISION</div>
-          <h1 className="text-[12px] font-bold leading-tight">Immobilisations et amortissements</h1>
+          <div className="text-[11px] font-mono text-text-dim leading-none">RÉVISION</div>
+          <h1 className="text-[13px] font-bold leading-tight">Immobilisations et amortissements</h1>
         </div>
         <div className="flex items-end gap-3">
           {onglet === 'immobilisations' && (
             <label className="flex flex-col gap-1">
-              <span className="text-[10px] font-bold text-text-dim">ARRÊTÉ AU</span>
+              <span className="text-[11px] font-bold text-text-dim">ARRÊTÉ AU</span>
               <input
                 type="date"
                 value={dateArret}
                 onChange={(e) => setDateArret(e.target.value)}
-                className="border border-border-dark bg-surface px-2 py-1 text-[10.5px] font-mono"
+                className="border border-border-dark bg-surface px-2 py-1 text-[12px] font-mono"
               />
             </label>
           )}
           <button
             type="button"
             onClick={exporter}
-            className="border border-border-dark bg-surface-alt px-3 py-1 text-[10.5px] font-semibold"
+            className="border border-border-dark bg-surface-alt px-3 py-1 text-[12px] font-semibold"
           >
             Exporter en Excel
           </button>
@@ -180,7 +180,7 @@ export function TableauxImmobilisationsPage() {
             key={o}
             type="button"
             onClick={() => setOnglet(o)}
-            className={`px-3 py-1 text-[10.5px] font-semibold border border-b-0 -mb-px ${
+            className={`px-3 py-1 text-[12px] font-semibold border border-b-0 -mb-px ${
               onglet === o ? 'bg-surface border-border-dark' : 'bg-surface-alt border-transparent text-text-dim'
             }`}
           >
@@ -190,13 +190,13 @@ export function TableauxImmobilisationsPage() {
       </div>
 
       {erreur && (
-        <div className="text-[11px] text-danger bg-danger-soft border border-danger/30 px-3 py-2 mb-2.5">{erreur}</div>
+        <div className="text-[12.5px] text-danger bg-danger-soft border border-danger/30 px-3 py-2 mb-2.5">{erreur}</div>
       )}
 
       {onglet === 'immobilisations' && immo && (
         <div className="border border-border bg-surface shadow-posee overflow-x-auto">
           <div
-            className={`${grilleImmo} px-3.5 py-1.5 bg-surface-alt text-[10px] font-bold text-text-dim border-b border-border-dark`}
+            className={`${grilleImmo} px-3.5 py-1.5 bg-surface-alt text-[11px] font-bold text-text-dim border-b border-border-dark`}
           >
             <span>LIBELLÉ</span>
             <span>ACQUISITION</span>
@@ -208,18 +208,18 @@ export function TableauxImmobilisationsPage() {
           </div>
 
           {immo.groupes.length === 0 && (
-            <div className="px-3.5 py-4 text-[10.5px] text-text-dim">Aucune immobilisation à cette date.</div>
+            <div className="px-3.5 py-4 text-[12px] text-text-dim">Aucune immobilisation à cette date.</div>
           )}
 
           {immo.groupes.map((g) => (
             <div key={g.numero}>
-              <div className="px-3.5 py-1 text-[10.5px] font-bold bg-surface-alt/60 border-y border-border/60">
+              <div className="px-3.5 py-1 text-[12px] font-bold bg-surface-alt/60 border-y border-border/60">
                 ({g.numero}) {g.intitule}
               </div>
               {g.lignes.map((l) => (
                 <div
                   key={l.id}
-                  className={`${grilleImmo} px-3.5 py-[4px] items-center border-b border-border/50 text-[10.5px]`}
+                  className={`${grilleImmo} px-3.5 py-[4px] items-center border-b border-border/50 text-[12px]`}
                 >
                   <span className="truncate" title={l.designation}>
                     {l.designation}
@@ -234,7 +234,7 @@ export function TableauxImmobilisationsPage() {
                   </span>
                 </div>
               ))}
-              <div className={`${grilleImmo} px-3.5 py-1 text-[10.5px] font-bold border-b border-border`}>
+              <div className={`${grilleImmo} px-3.5 py-1 text-[12px] font-bold border-b border-border`}>
                 <span>S/TOTAL</span>
                 <span />
                 <span />
@@ -248,7 +248,7 @@ export function TableauxImmobilisationsPage() {
 
           {immo.groupes.length > 0 && (
             <div
-              className={`${grilleImmo} px-3.5 py-1.5 bg-surface-alt border-t border-border-dark text-[10.5px] font-bold`}
+              className={`${grilleImmo} px-3.5 py-1.5 bg-surface-alt border-t border-border-dark text-[12px] font-bold`}
             >
               <span>TOTAL GÉNÉRAL</span>
               <span />
@@ -266,7 +266,7 @@ export function TableauxImmobilisationsPage() {
         <div className="border border-border bg-surface shadow-posee overflow-x-auto">
           <div
             style={grilleAmort}
-            className="px-3.5 py-1.5 bg-surface-alt text-[10px] font-bold text-text-dim border-b border-border-dark"
+            className="px-3.5 py-1.5 bg-surface-alt text-[11px] font-bold text-text-dim border-b border-border-dark"
           >
             <span>LIBELLÉ</span>
             <span>ACQUIS.</span>
@@ -283,19 +283,19 @@ export function TableauxImmobilisationsPage() {
           </div>
 
           {amort.groupes.length === 0 && (
-            <div className="px-3.5 py-4 text-[10.5px] text-text-dim">Aucune immobilisation sur cet exercice.</div>
+            <div className="px-3.5 py-4 text-[12px] text-text-dim">Aucune immobilisation sur cet exercice.</div>
           )}
 
           {amort.groupes.map((g) => (
             <div key={g.numero}>
-              <div className="px-3.5 py-1 text-[10.5px] font-bold bg-surface-alt/60 border-y border-border/60">
+              <div className="px-3.5 py-1 text-[12px] font-bold bg-surface-alt/60 border-y border-border/60">
                 ({g.numero}) {g.intitule}
               </div>
               {g.lignes.map((l) => (
                 <div
                   key={l.id}
                   style={grilleAmort}
-                  className="px-3.5 py-[4px] items-center border-b border-border/50 text-[10.5px]"
+                  className="px-3.5 py-[4px] items-center border-b border-border/50 text-[12px]"
                 >
                   <span className="truncate" title={l.designation}>
                     {l.designation}
@@ -319,7 +319,7 @@ export function TableauxImmobilisationsPage() {
                   <span className="font-mono text-right font-semibold">{montant(l.valeurNette)}</span>
                 </div>
               ))}
-              <div style={grilleAmort} className="px-3.5 py-1 text-[10.5px] font-bold border-b border-border">
+              <div style={grilleAmort} className="px-3.5 py-1 text-[12px] font-bold border-b border-border">
                 <span>S/TOTAL</span>
                 <span />
                 <span />
@@ -339,7 +339,7 @@ export function TableauxImmobilisationsPage() {
           {amort.groupes.length > 0 && (
             <div
               style={grilleAmort}
-              className="px-3.5 py-1.5 bg-surface-alt border-t border-border-dark text-[10.5px] font-bold"
+              className="px-3.5 py-1.5 bg-surface-alt border-t border-border-dark text-[12px] font-bold"
             >
               <span>TOTAL GÉNÉRAL</span>
               <span />
@@ -358,7 +358,7 @@ export function TableauxImmobilisationsPage() {
         </div>
       )}
 
-      <p className="text-[10px] text-text-dim mt-2 max-w-[900px]">
+      <p className="text-[11px] text-text-dim mt-2 max-w-[900px]">
         {onglet === 'immobilisations'
           ? "Les amortissements cumulés incluent l'amortissement antérieur des biens repris d'un dossier précédent : sans lui, un matériel de vingt ans afficherait une valeur nette égale à son brut. Les dotations postérieures à la date d'arrêté sont écartées."
           : "La dotation retenue est celle DÉJÀ COMPTABILISÉE quand elle l'a été ; sinon elle est calculée, et la ligne est marquée « à passer » · un tableau qui mêlerait sans le dire du comptabilisé et du prévisionnel ne se recouperait avec aucun compte. La somme des douze colonnes est exactement la dotation, au centime : le reliquat d'arrondi tombe sur le dernier mois servi."}

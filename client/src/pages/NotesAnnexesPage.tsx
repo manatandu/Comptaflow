@@ -224,16 +224,16 @@ function NotesAnnexesSycebnlPage() {
   if (jeuSmt) {
     return (
       <div className="p-2">
-        <div className="text-[10px] font-mono text-text-dim leading-none">ÉTAT</div>
-        <h1 className="text-[12px] font-bold leading-tight mb-2">Notes annexes</h1>
+        <div className="text-[11px] font-mono text-text-dim leading-none">ÉTAT</div>
+        <h1 className="text-[13px] font-bold leading-tight mb-2">Notes annexes</h1>
         <div className="border border-border bg-surface px-3.5 py-3 max-w-[620px]">
-          <p className="text-[11px] mb-2">
+          <p className="text-[12.5px] mb-2">
             Ce dossier est tenu au Système minimal de trésorerie. Le SYCEBNL ne lui demande pas les 35 notes des
             associations ni les 24 des projets de développement, mais cinq notes propres : acquisition et suivi des
             immobilisations, état des stocks, état des créances et des dettes non échues, journal unique de
             trésorerie et dotation.
           </p>
-          <p className="text-[11px] text-text-dim">
+          <p className="text-[12.5px] text-text-dim">
             Elles sont servies dans l'écran <span className="font-semibold">États financiers</span>, onglets
             « Journal de trésorerie » et « Notes annexes ».
           </p>
@@ -246,22 +246,22 @@ function NotesAnnexesSycebnlPage() {
       <EnteteImpression titre="Notes annexes" />
       <div className="flex items-center justify-between mb-1.5">
         <div>
-          <div className="text-[10px] font-mono text-text-dim leading-none">ÉTAT</div>
-          <h1 className="text-[12px] font-bold leading-tight flex items-center gap-1.5">
+          <div className="text-[11px] font-mono text-text-dim leading-none">ÉTAT</div>
+          <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
             Notes annexes
             <Aide sujet="notesAnnexes" />
           </h1>
         </div>
         <div className="flex items-center gap-2.5">
           {exerciceCourant && (
-            <span className="font-mono text-[10.5px] border border-border bg-surface px-2.5 py-1.5">
+            <span className="font-mono text-[12px] border border-border bg-surface px-2.5 py-1.5">
               Exercice {new Date(exerciceCourant.dateDebut).getFullYear()}
             </span>
           )}
           <button
             onClick={exporter}
             disabled={exportEnCours}
-            className="flex items-center gap-1.5 border border-border bg-surface px-3 py-1.5 text-[10.5px] font-bold hover:bg-surface-alt disabled:opacity-50 disabled:cursor-wait"
+            className="flex items-center gap-1.5 border border-border bg-surface px-3 py-1.5 text-[12px] font-bold hover:bg-surface-alt disabled:opacity-50 disabled:cursor-wait"
           >
             <IconExport width={13} height={13} />
             {exportEnCours ? 'Export en cours…' : 'Exporter Excel'}
@@ -269,7 +269,7 @@ function NotesAnnexesSycebnlPage() {
         </div>
       </div>
 
-      <p className="text-[10px] text-text-dim mb-2">
+      <p className="text-[11px] text-text-dim mb-2">
         Jeu «{' '}
         {jeuProjet ? 'Projets de développement et assimilés' : 'Associations et ordres professionnels'} » (SYCEBNL) ·{' '}
         {resultat ? `${resultat.couverture.transcrites} notes sur ${resultat.couverture.attendues} attendues.` : 'chargement…'}
@@ -287,14 +287,14 @@ function NotesAnnexesSycebnlPage() {
 
       {erreur && (
         <div className="flex items-start justify-between gap-3 border border-danger/30 bg-danger-soft px-3.5 py-2 mb-2.5">
-          <span className="text-[10.5px]">{erreur}</span>
-          <button onClick={() => setErreur(null)} className="text-[10.5px] font-bold shrink-0 hover:underline">
+          <span className="text-[12px]">{erreur}</span>
+          <button onClick={() => setErreur(null)} className="text-[12px] font-bold shrink-0 hover:underline">
             Fermer
           </button>
         </div>
       )}
 
-      {!resultat && <div className="border border-border px-4 py-4 text-[11px] text-text-dim">Chargement…</div>}
+      {!resultat && <div className="border border-border px-4 py-4 text-[12.5px] text-text-dim">Chargement…</div>}
 
       {resultat && (
         <div className="flex gap-3 items-start">
@@ -308,7 +308,7 @@ function NotesAnnexesSycebnlPage() {
           {/* --- Détail du/des tableau(x) du code sélectionné --- */}
           <div className="flex-1 min-w-0">
             {tableaux.length === 0 && (
-              <div className="border border-border px-4 py-4 text-[11px] text-text-dim">Sélectionnez une note.</div>
+              <div className="border border-border px-4 py-4 text-[12.5px] text-text-dim">Sélectionnez une note.</div>
             )}
             {tableaux.map((n) => (
               <BlocTableauNote key={n.sousTableau ?? n.code} note={n} rattachement={rattachement} saisie={saisie} />
@@ -347,11 +347,11 @@ export function NotesAnnexesPage() {
   // référentiel n'est pas encore connu, et interroger la mauvaise route ne
   // produirait qu'un 403 affiché en rouge.
   if (chargement || !utilisateur) {
-    return <div className="p-2.5 text-[11px] text-text-dim">Chargement…</div>;
+    return <div className="p-2.5 text-[12.5px] text-text-dim">Chargement…</div>;
   }
   if (utilisateur.tenant.referentiel === 'SYSCOHADA') {
     return (
-      <Suspense fallback={<div className="p-3 text-[11px] text-text-dim">Chargement…</div>}>
+      <Suspense fallback={<div className="p-3 text-[12.5px] text-text-dim">Chargement…</div>}>
         <NotesAnnexesSyscohadaPage />
       </Suspense>
     );

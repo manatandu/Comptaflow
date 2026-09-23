@@ -67,7 +67,7 @@ function Pastille({ statut }: { statut: StatutMessage }) {
   return (
     <span
       title={etat.explication}
-      className={`inline-block rounded-[5px] px-1.5 py-[1px] text-[10px] font-semibold truncate ${CLASSES_TON[etat.ton]}`}
+      className={`inline-block rounded-[5px] px-1.5 py-[1px] text-[11px] font-semibold truncate ${CLASSES_TON[etat.ton]}`}
     >
       {etat.libelle}
     </span>
@@ -171,15 +171,15 @@ export function CourrierPage() {
     <div className="p-2">
       <div className="flex items-end justify-between mb-1.5 gap-3 flex-wrap">
         <div>
-          <div className="text-[10px] font-mono text-text-dim leading-none">DOSSIER</div>
-          <h1 className="text-[12px] font-bold leading-tight">Courriers sortants</h1>
+          <div className="text-[11px] font-mono text-text-dim leading-none">DOSSIER</div>
+          <h1 className="text-[13px] font-bold leading-tight">Courriers sortants</h1>
         </div>
         {peutEcrire && (
           <button
             onClick={relancer}
             disabled={reprise}
             title="Reprend les messages qui attendent un envoi · ceux qui ont échoué, et ceux écrits pendant que la messagerie n’était pas posée. Les envoyés et les abandonnés ne sont pas retentés."
-            className="bg-sel text-white text-[10.5px] font-bold px-3.5 py-1.5 rounded-[6px] hover:brightness-110 disabled:opacity-50"
+            className="bg-sel text-white text-[12px] font-bold px-3.5 py-1.5 rounded-[6px] hover:brightness-110 disabled:opacity-50"
           >
             {reprise ? 'Reprise en cours…' : `Relancer les envois (${aRelancer})`}
           </button>
@@ -187,7 +187,7 @@ export function CourrierPage() {
       </div>
 
       {erreur && (
-        <div className="mb-2.5 text-[11px] text-danger bg-danger-soft border border-danger/30 rounded-[6px] px-2.5 py-1.5">
+        <div className="mb-2.5 text-[12.5px] text-danger bg-danger-soft border border-danger/30 rounded-[6px] px-2.5 py-1.5">
           {erreur}
         </div>
       )}
@@ -200,32 +200,32 @@ export function CourrierPage() {
       */}
       {transport && !transport.configure && (
         <section className="mb-2.5 rounded-[8px] border border-sel/30 bg-sel-soft px-3 py-2.5">
-          <div className="text-[11px] font-bold text-sel">{TITRE_SANS_TRANSPORT}</div>
-          <p className="mt-1 text-[10.5px] leading-[1.55] text-text">{PHRASE_SANS_TRANSPORT}</p>
+          <div className="text-[12.5px] font-bold text-sel">{TITRE_SANS_TRANSPORT}</div>
+          <p className="mt-1 text-[12px] leading-[1.55] text-text">{PHRASE_SANS_TRANSPORT}</p>
           {transport.manques.length > 0 && (
-            <div className="mt-1.5 text-[10.5px] text-text">
+            <div className="mt-1.5 text-[12px] text-text">
               <span className="font-semibold">Ce qui manque au service :</span>
               <ul className="mt-0.5 space-y-[1px]">
                 {transport.manques.map((m) => (
-                  <li key={m.variable} className="font-mono text-[10px]">
+                  <li key={m.variable} className="font-mono text-[11px]">
                     {m.variable} <span className="font-sans text-text-dim">· {m.raison}</span>
                   </li>
                 ))}
               </ul>
             </div>
           )}
-          <p className="mt-1.5 text-[10px] leading-[1.5] text-text-dim">{PHRASE_OU_SE_POSE_LE_COURRIEL}</p>
+          <p className="mt-1.5 text-[11px] leading-[1.5] text-text-dim">{PHRASE_OU_SE_POSE_LE_COURRIEL}</p>
         </section>
       )}
       {transport?.configure && (
-        <div className="mb-2.5 rounded-[8px] border border-positive/30 bg-positive-soft px-3 py-1.5 text-[10.5px] text-text">
+        <div className="mb-2.5 rounded-[8px] border border-positive/30 bg-positive-soft px-3 py-1.5 text-[12px] text-text">
           Messagerie posée · le courrier part sous l’adresse{' '}
           <span className="font-mono font-semibold">{transport.expediteur}</span>.
         </div>
       )}
 
       {bilan && (
-        <div className="mb-2.5 flex items-start justify-between gap-3 rounded-[6px] border border-border bg-chrome-alt px-2.5 py-1.5 text-[11px]">
+        <div className="mb-2.5 flex items-start justify-between gap-3 rounded-[6px] border border-border bg-chrome-alt px-2.5 py-1.5 text-[12.5px]">
           <span>{resumeReprise(bilan)}</span>
           <button onClick={() => setBilan(null)} className="font-bold text-text-dim hover:text-text">
             Fermer
@@ -239,7 +239,7 @@ export function CourrierPage() {
           <button
             key={f.statut ?? 'TOUS'}
             onClick={() => setFiltre(f.statut)}
-            className={`px-3 py-1.5 text-[10.5px] font-bold ${
+            className={`px-3 py-1.5 text-[12px] font-bold ${
               filtre === f.statut ? 'bg-surface border-x border-border' : 'text-text-dim'
             }`}
           >
@@ -250,7 +250,7 @@ export function CourrierPage() {
 
       <div className="border border-border bg-surface rounded-b-[10px] overflow-hidden">
         {filtre && (
-          <p className="px-3 py-2 text-[10.5px] text-text-dim border-b border-border/40">
+          <p className="px-3 py-2 text-[12px] text-text-dim border-b border-border/40">
             {etatMessage(filtre).explication}
           </p>
         )}
@@ -268,7 +268,7 @@ export function CourrierPage() {
           sort du relevé et n'est plus protégée par personne.
         */}
         <div className="overflow-x-auto">
-          <div className="grid grid-cols-[86px_120px_minmax(160px,1fr)_minmax(190px,1.3fr)_140px_54px_minmax(180px,1.2fr)] min-w-[1010px] gap-2 px-3 py-1.5 bg-chrome-alt border-b border-border text-[10px] font-bold text-text-dim">
+          <div className="grid grid-cols-[86px_120px_minmax(160px,1fr)_minmax(190px,1.3fr)_140px_54px_minmax(180px,1.2fr)] min-w-[1010px] gap-2 px-3 py-1.5 bg-chrome-alt border-b border-border text-[11px] font-bold text-text-dim">
             <span>ÉCRIT LE</span>
             <span>ORIGINE</span>
             <span>DESTINATAIRE</span>
@@ -278,7 +278,7 @@ export function CourrierPage() {
             <span>DERNIÈRE ERREUR</span>
           </div>
 
-          {!file && <div className="px-3 py-4 text-[11px] text-text-dim">Chargement…</div>}
+          {!file && <div className="px-3 py-4 text-[12.5px] text-text-dim">Chargement…</div>}
 
           {file?.messages.map((m) => (
             <button
@@ -286,41 +286,41 @@ export function CourrierPage() {
               type="button"
               onClick={() => ouvrirMessage(m)}
               title="Ouvrir le message · son texte entier"
-              className={`grid grid-cols-[86px_120px_minmax(160px,1fr)_minmax(190px,1.3fr)_140px_54px_minmax(180px,1.2fr)] min-w-[1010px] gap-2 px-3 w-full text-left py-1 items-center border-b border-border/40 text-[11px] hover:bg-sel-soft ${
+              className={`grid grid-cols-[86px_120px_minmax(160px,1fr)_minmax(190px,1.3fr)_140px_54px_minmax(180px,1.2fr)] min-w-[1010px] gap-2 px-3 w-full text-left py-1 items-center border-b border-border/40 text-[12.5px] hover:bg-sel-soft ${
                 ouvert?.id === m.id ? 'bg-sel-soft' : ''
               }`}
             >
-              <span className="font-mono text-[10px] text-text-dim">
+              <span className="font-mono text-[11px] text-text-dim">
                 {new Date(m.createdAt).toLocaleDateString('fr-FR')}
               </span>
-              <span className="text-[10.5px] truncate">{libelleOrigine(m.origine)}</span>
+              <span className="text-[12px] truncate">{libelleOrigine(m.origine)}</span>
               <span className="truncate">
                 {m.destinataireNom ? (
                   <>
-                    {m.destinataireNom} <span className="text-text-dim font-mono text-[10px]">{m.destinataire}</span>
+                    {m.destinataireNom} <span className="text-text-dim font-mono text-[11px]">{m.destinataire}</span>
                   </>
                 ) : (
-                  <span className="font-mono text-[10.5px]">{m.destinataire}</span>
+                  <span className="font-mono text-[12px]">{m.destinataire}</span>
                 )}
               </span>
               <span className="truncate">{m.sujet}</span>
               <span className="min-w-0">
                 <Pastille statut={m.statut} />
               </span>
-              <span className="text-right font-mono text-[10.5px]">{m.tentatives}</span>
+              <span className="text-right font-mono text-[12px]">{m.tentatives}</span>
               {/*
                 L'erreur est rendue TELLE QUELLE par le transport · c'est elle
                 qui distingue un refus d'authentification d'un domaine
                 inexistant. Coupée à l'affichage seulement · le texte entier
                 est dans la fiche, sous la liste.
               */}
-              <span className="truncate text-[10px] text-danger">{m.erreur ?? ''}</span>
+              <span className="truncate text-[11px] text-danger">{m.erreur ?? ''}</span>
             </button>
           ))}
         </div>
 
         {file && file.messages.length === 0 && (
-          <div className="px-3 py-5 text-[11px] text-text-dim italic">
+          <div className="px-3 py-5 text-[12.5px] text-text-dim italic">
             {filtre
               ? 'Aucun message dans cet état.'
               : 'Aucun courrier n’a encore été préparé sur ce dossier. Les rappels émis depuis « Rappel et relevé » viendront s’inscrire ici.'}
@@ -333,7 +333,7 @@ export function CourrierPage() {
           total est pris sur le périmètre entier, pas sur la tranche rendue.
         */}
         {file && file.messages.length > 0 && (
-          <div className="px-3 py-1.5 bg-chrome border-t border-border text-[10.5px] text-text-dim">
+          <div className="px-3 py-1.5 bg-chrome border-t border-border text-[12px] text-text-dim">
             {file.tronque ? (
               <>
                 {file.messages.length} message(s) affiché(s) sur {file.total} · seuls les {file.plafond} plus récents
@@ -361,26 +361,26 @@ function FicheMessage({ message, onFermer }: { message: MessageComplet; onFermer
   return (
     <section className="mt-2.5 bg-surface border border-border rounded-[10px] shadow-posee overflow-hidden">
       <header className="px-3 py-2 bg-chrome-alt border-b border-border flex items-center justify-between gap-3">
-        <span className="text-[10.5px] font-bold truncate">{message.sujet}</span>
+        <span className="text-[12px] font-bold truncate">{message.sujet}</span>
         <div className="flex items-center gap-2 shrink-0">
           <Pastille statut={message.statut} />
           <button
             onClick={onFermer}
-            className="border border-border rounded-[6px] bg-surface px-2.5 py-[3px] text-[10.5px] font-semibold hover:bg-chrome"
+            className="border border-border rounded-[6px] bg-surface px-2.5 py-[3px] text-[12px] font-semibold hover:bg-chrome"
           >
             Fermer
           </button>
         </div>
       </header>
 
-      <dl className="px-3 py-2 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-[10.5px]">
+      <dl className="px-3 py-2 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-[12px]">
         <Ligne libelle="Destinataire">
           {message.destinataireNom ? `${message.destinataireNom} · ` : ''}
           <span className="font-mono">{message.destinataire}</span>
         </Ligne>
         <Ligne libelle="Origine">
           {libelleOrigine(message.origine)}
-          {message.origineId && <span className="font-mono text-[10px] text-text-dim"> · {message.origineId}</span>}
+          {message.origineId && <span className="font-mono text-[11px] text-text-dim"> · {message.origineId}</span>}
         </Ligne>
         <Ligne libelle="Écrit le">{quand(message.createdAt)}</Ligne>
         <Ligne libelle="Tentatives">{message.tentatives}</Ligne>
@@ -389,7 +389,7 @@ function FicheMessage({ message, onFermer }: { message: MessageComplet; onFermer
         {message.envoyeAt && <Ligne libelle="Envoyé le">{quand(message.envoyeAt)}</Ligne>}
       </dl>
 
-      <p className="px-3 pb-2 text-[10.5px] text-text-dim">{etat.explication}</p>
+      <p className="px-3 pb-2 text-[12px] text-text-dim">{etat.explication}</p>
 
       {message.erreur && (
         <div className="mx-3 mb-2 rounded-[6px] border border-danger/30 bg-danger-soft px-2.5 py-1.5">
@@ -398,16 +398,16 @@ function FicheMessage({ message, onFermer }: { message: MessageComplet; onFermer
             ferait perdre la seule chose qu'elle apprend, la différence entre
             un refus d'authentification et un domaine qui n'existe pas.
           */}
-          <div className="text-[10px] font-bold text-danger">DERNIÈRE ERREUR RENDUE PAR LE SERVEUR DE MESSAGERIE</div>
-          <pre className="mt-0.5 whitespace-pre-wrap font-mono text-[10px] leading-[1.5]">{message.erreur}</pre>
+          <div className="text-[11px] font-bold text-danger">DERNIÈRE ERREUR RENDUE PAR LE SERVEUR DE MESSAGERIE</div>
+          <pre className="mt-0.5 whitespace-pre-wrap font-mono text-[11px] leading-[1.5]">{message.erreur}</pre>
         </div>
       )}
 
       <div className="border-t border-border/40">
-        <div className="px-3 pt-1.5 text-[10px] font-bold text-text-dim">TEXTE DU MESSAGE</div>
+        <div className="px-3 pt-1.5 text-[11px] font-bold text-text-dim">TEXTE DU MESSAGE</div>
         {/* Entier, jamais coupé · un texte tronqué se lit comme le message et
             n'en est pas un. */}
-        <pre className="px-3 pb-2.5 text-[10.5px] whitespace-pre-wrap font-sans leading-[1.6]">{message.corps}</pre>
+        <pre className="px-3 pb-2.5 text-[12px] whitespace-pre-wrap font-sans leading-[1.6]">{message.corps}</pre>
       </div>
     </section>
   );

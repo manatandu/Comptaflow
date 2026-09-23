@@ -47,7 +47,7 @@ export function SelecteurExercice() {
         }
         value={exerciceCourant.id}
         onChange={(e) => choisir(e.target.value)}
-        className={`bg-transparent border-0 p-0 text-[10px] cursor-pointer focus:outline-none focus:ring-1 focus:ring-accent rounded ${
+        className={`bg-transparent border-0 p-0 text-[11px] cursor-pointer focus:outline-none focus:ring-1 focus:ring-accent rounded ${
           choixImplicite ? 'text-warning font-medium' : 'text-text-dim'
         }`}
       >

@@ -231,8 +231,8 @@ function NotesSyscohadaSystemeNormal() {
       <EnteteImpression titre="Notes annexes" sousTitre="SYSCOHADA révisé · Système normal" />
       <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
         <div>
-          <div className="text-[10px] font-mono text-text-dim leading-none">ÉTAT</div>
-          <h1 className="text-[12px] font-bold leading-tight flex items-center gap-1.5">
+          <div className="text-[11px] font-mono text-text-dim leading-none">ÉTAT</div>
+          <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
             Notes annexes
             {/* Entrée SYSCOHADA du lexique · surtout PAS « notesAnnexes »,
                 qui définit les notes du SYCEBNL et compte ses jeux (35, 24,
@@ -243,14 +243,14 @@ function NotesSyscohadaSystemeNormal() {
         </div>
         <div className="flex items-center gap-2.5">
           {exerciceCourant && (
-            <span className="font-mono text-[10.5px] border border-border bg-surface px-2.5 py-1.5">
+            <span className="font-mono text-[12px] border border-border bg-surface px-2.5 py-1.5">
               Exercice {new Date(exerciceCourant.dateDebut).getFullYear()}
             </span>
           )}
           <button
             onClick={exporter}
             disabled={exportEnCours}
-            className="flex items-center gap-1.5 border border-border bg-surface px-3 py-1.5 text-[10.5px] font-bold hover:bg-surface-alt disabled:opacity-50 disabled:cursor-wait"
+            className="flex items-center gap-1.5 border border-border bg-surface px-3 py-1.5 text-[12px] font-bold hover:bg-surface-alt disabled:opacity-50 disabled:cursor-wait"
           >
             <IconExport width={13} height={13} />
             {exportEnCours ? 'Export en cours…' : 'Exporter Excel'}
@@ -258,7 +258,7 @@ function NotesSyscohadaSystemeNormal() {
         </div>
       </div>
 
-      <p className="text-[10px] text-text-dim mb-2">
+      <p className="text-[11px] text-text-dim mb-2">
         Liste officielle des Notes annexes du Système normal · AUDCIF Titre IX ch. 6 section 2 (NOTE 1 à NOTE 36) ·{' '}
         {resultat ? `${resultat.couverture.transcrites} notes sur ${resultat.couverture.attendues} attendues.` : 'chargement…'}{' '}
         Chaque poste du bilan, du compte de résultat et du tableau des flux porte le numéro de sa note : la référence
@@ -267,7 +267,7 @@ function NotesSyscohadaSystemeNormal() {
 
       {/* La liste compte 46 CODES pour 36 NOTES, et le dire évite qu'on
           prenne l'écart pour un doublon ou un oubli de transcription. */}
-      <p className="text-[10px] text-text-dim mb-2">
+      <p className="text-[11px] text-text-dim mb-2">
         Les notes ne sont pas numérotées de façon continue : la note 3 se subdivise de 3A à 3F (pas de 3G), la 15 en
         15A et 15B (pas de 15C), la 16 en 16A, 16B, 16B bis et 16C (pas de 16D), la 27 en 27A et 27B · 46 codes pour
         36 numéros de note. <span className="font-semibold">[texte officiel]</span> les NOTE 16B et NOTE 16B bis
@@ -278,14 +278,14 @@ function NotesSyscohadaSystemeNormal() {
 
       {erreur && (
         <div className="flex items-start justify-between gap-3 border border-danger/30 bg-danger-soft px-3.5 py-2 mb-2.5">
-          <span className="text-[10.5px]">{erreur}</span>
-          <button onClick={() => setErreur(null)} className="text-[10.5px] font-bold shrink-0 hover:underline">
+          <span className="text-[12px]">{erreur}</span>
+          <button onClick={() => setErreur(null)} className="text-[12px] font-bold shrink-0 hover:underline">
             Fermer
           </button>
         </div>
       )}
 
-      {!resultat && <div className="border border-border px-4 py-4 text-[11px] text-text-dim">Chargement…</div>}
+      {!resultat && <div className="border border-border px-4 py-4 text-[12.5px] text-text-dim">Chargement…</div>}
 
       {resultat && (
         <div className="flex flex-col lg:flex-row gap-3 items-start">
@@ -300,7 +300,7 @@ function NotesSyscohadaSystemeNormal() {
           {/* --- Détail du/des tableau(x) du code sélectionné --- */}
           <div className="w-full lg:flex-1 min-w-0">
             {tableaux.length === 0 && (
-              <div className="border border-border px-4 py-4 text-[11px] text-text-dim">Sélectionnez une note.</div>
+              <div className="border border-border px-4 py-4 text-[12.5px] text-text-dim">Sélectionnez une note.</div>
             )}
             {tableaux.map((n) => (
               <BlocTableauNote
@@ -345,13 +345,13 @@ export function NotesAnnexesSyscohadaPage() {
   // n'est pas encore connu, et interroger la route SYSCOHADA depuis un
   // dossier SYCEBNL ne produirait qu'un 403 affiché en rouge.
   if (chargement || !utilisateur) {
-    return <div className="p-2.5 text-[11px] text-text-dim">Chargement…</div>;
+    return <div className="p-2.5 text-[12.5px] text-text-dim">Chargement…</div>;
   }
 
   if (utilisateur.tenant.referentiel !== 'SYSCOHADA') {
     return (
       <div className="p-2.5">
-        <div className="border border-border bg-surface px-4 py-3 text-[11px] max-w-[640px]">
+        <div className="border border-border bg-surface px-4 py-3 text-[12.5px] max-w-[640px]">
           Cette fenêtre présente les Notes annexes de l'AUDCIF (Titre IX ch. 6), réservées aux dossiers tenus en
           SYSCOHADA. Ce dossier est tenu en {utilisateur.tenant.referentiel} : ses notes annexes ont leur propre
           fenêtre, avec d'autres rubriques et d'autres renvois.
@@ -363,17 +363,17 @@ export function NotesAnnexesSyscohadaPage() {
   if (utilisateur.tenant.systemeComptableSyscohada === 'MINIMAL_TRESORERIE') {
     return (
       <div className="p-2">
-        <div className="text-[10px] font-mono text-text-dim leading-none">ÉTAT</div>
-        <h1 className="text-[12px] font-bold leading-tight mb-2">Notes annexes</h1>
+        <div className="text-[11px] font-mono text-text-dim leading-none">ÉTAT</div>
+        <h1 className="text-[13px] font-bold leading-tight mb-2">Notes annexes</h1>
         <div className="border border-border bg-surface px-3.5 py-3 max-w-[620px]">
-          <p className="text-[11px] mb-2">
+          <p className="text-[12.5px] mb-2">
             Ce dossier est tenu au Système minimal de trésorerie. L'AUDCIF ne lui demande pas les 36 notes du Système
             normal : le Titre X ch. 3 lui donne les siennes · tableau de suivi du matériel, du mobilier et des
             cautions (NOTE 1), état des stocks (NOTE 2), état des créances et des dettes non échues (NOTE 3). Le
             journal de trésorerie (NOTE 4) y figure aussi, mais le ch. 1 § 2 ne le range pas parmi les composantes des
             Notes annexes : c'est l'une des trois pièces de base de la tenue.
           </p>
-          <p className="text-[11px] text-text-dim">
+          <p className="text-[12.5px] text-text-dim">
             Elles sont servies dans la fenêtre <span className="font-semibold">États financiers</span>, onglets
             « Journal de trésorerie » et « Notes annexes ».
           </p>

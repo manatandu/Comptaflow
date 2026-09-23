@@ -117,34 +117,34 @@ export function DevisPage() {
     }
   }
 
-  if (!etat) return <div className="p-3 text-[11px] text-text-dim">Chargement…</div>;
+  if (!etat) return <div className="p-3 text-[12.5px] text-text-dim">Chargement…</div>;
 
   return (
     <div className="p-2 max-w-[1100px]">
-      <p className="text-[10.5px] text-text-dim mb-2.5 leading-[1.6]">
+      <p className="text-[12px] text-text-dim mb-2.5 leading-[1.6]">
         AUDCG, <strong>Livre 8</strong> · un devis n'est pas un brouillon de facture. S'il est suffisamment précis et
         indique la volonté d'être lié, c'est une <strong>offre</strong> (art. 241), et son acceptation forme le contrat
         (art. 244). {etat.aucuneConditionDeForme.mention}
       </p>
 
       <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
-        <h2 className="text-[11px] font-bold mb-1.5">Émettre un devis</h2>
+        <h2 className="text-[12.5px] font-bold mb-1.5">Émettre un devis</h2>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-          <label className="text-[10.5px]">
+          <label className="text-[12px]">
             Numéro
-            <input className="w-full border border-border px-1.5 py-1 text-[10.5px]" value={numero} onChange={(e) => setNumero(e.target.value)} />
+            <input className="w-full border border-border px-1.5 py-1 text-[12px]" value={numero} onChange={(e) => setNumero(e.target.value)} />
           </label>
-          <label className="text-[10.5px]">
+          <label className="text-[12px]">
             Date d'émission
-            <input type="date" className="w-full border border-border px-1.5 py-1 text-[10.5px]" value={dateEmission} onChange={(e) => setDateEmission(e.target.value)} />
+            <input type="date" className="w-full border border-border px-1.5 py-1 text-[12px]" value={dateEmission} onChange={(e) => setDateEmission(e.target.value)} />
           </label>
-          <label className="text-[10.5px]">
+          <label className="text-[12px]">
             Client
-            <input className="w-full border border-border px-1.5 py-1 text-[10.5px]" value={clientNom} onChange={(e) => setClientNom(e.target.value)} />
+            <input className="w-full border border-border px-1.5 py-1 text-[12px]" value={clientNom} onChange={(e) => setClientNom(e.target.value)} />
           </label>
-          <label className="text-[10.5px]">
+          <label className="text-[12px]">
             Nature de l'opération
-            <select className="w-full border border-border px-1.5 py-1 text-[10.5px]" value={nature} onChange={(e) => setNature(e.target.value)}>
+            <select className="w-full border border-border px-1.5 py-1 text-[12px]" value={nature} onChange={(e) => setNature(e.target.value)}>
               <option value="MARCHANDISES">Vente de marchandises</option>
               <option value="SERVICES">Prestation de services</option>
               <option value="MIXTE_SERVICES_PREPONDERANTS">Mixte, main-d'œuvre prépondérante</option>
@@ -152,52 +152,52 @@ export function DevisPage() {
               <option value="REGIME_PARTICULIER">Régime particulier (art. 236)</option>
             </select>
           </label>
-          <label className="text-[10.5px]">
+          <label className="text-[12px]">
             Délai d'acceptation (jours)
-            <input type="number" className="w-full border border-border px-1.5 py-1 text-[10.5px]" value={delaiJours} onChange={(e) => setDelaiJours(e.target.value === '' ? '' : Number(e.target.value))} />
+            <input type="number" className="w-full border border-border px-1.5 py-1 text-[12px]" value={delaiJours} onChange={(e) => setDelaiJours(e.target.value === '' ? '' : Number(e.target.value))} />
           </label>
-          <label className="text-[10.5px] flex items-center gap-1.5 mt-4">
+          <label className="text-[12px] flex items-center gap-1.5 mt-4">
             <input type="checkbox" checked={irrevocable} onChange={(e) => setIrrevocable(e.target.checked)} />
             Offre déclarée ferme (irrévocable)
           </label>
-          <label className="text-[10.5px]">
+          <label className="text-[12px]">
             Objet
-            <input className="w-full border border-border px-1.5 py-1 text-[10.5px]" value={objet} onChange={(e) => setObjet(e.target.value)} />
+            <input className="w-full border border-border px-1.5 py-1 text-[12px]" value={objet} onChange={(e) => setObjet(e.target.value)} />
           </label>
-          <label className="text-[10.5px]">
+          <label className="text-[12px]">
             Désignation
-            <input className="w-full border border-border px-1.5 py-1 text-[10.5px]" value={designation} onChange={(e) => setDesignation(e.target.value)} />
+            <input className="w-full border border-border px-1.5 py-1 text-[12px]" value={designation} onChange={(e) => setDesignation(e.target.value)} />
           </label>
-          <label className="text-[10.5px]">
+          <label className="text-[12px]">
             Quantité
-            <input type="number" className="w-full border border-border px-1.5 py-1 text-[10.5px]" value={quantite} onChange={(e) => setQuantite(e.target.value === '' ? '' : Number(e.target.value))} />
+            <input type="number" className="w-full border border-border px-1.5 py-1 text-[12px]" value={quantite} onChange={(e) => setQuantite(e.target.value === '' ? '' : Number(e.target.value))} />
           </label>
-          <label className="text-[10.5px]">
+          <label className="text-[12px]">
             Prix unitaire
-            <input type="number" className="w-full border border-border px-1.5 py-1 text-[10.5px]" value={prixUnitaire} onChange={(e) => setPrixUnitaire(e.target.value === '' ? '' : Number(e.target.value))} />
+            <input type="number" className="w-full border border-border px-1.5 py-1 text-[12px]" value={prixUnitaire} onChange={(e) => setPrixUnitaire(e.target.value === '' ? '' : Number(e.target.value))} />
           </label>
-          <label className="text-[10.5px]">
+          <label className="text-[12px]">
             Montant HT
-            <input type="number" className="w-full border border-border px-1.5 py-1 text-[10.5px]" value={montantHT} onChange={(e) => setMontantHT(e.target.value === '' ? '' : Number(e.target.value))} />
+            <input type="number" className="w-full border border-border px-1.5 py-1 text-[12px]" value={montantHT} onChange={(e) => setMontantHT(e.target.value === '' ? '' : Number(e.target.value))} />
           </label>
         </div>
 
         {/* DEUX CONDITIONS CUMULATIVES · un délai seul n'engage à rien. Le dire
             ici évite qu'un cabinet se croie tenu, ou se croie libre. */}
-        <p className="text-[10px] text-text-dim mt-2 leading-[1.6]">
+        <p className="text-[11px] text-text-dim mt-2 leading-[1.6]">
           Un délai seul ne rend PAS l'offre ferme : l'art. 242 exige un délai déterminé <strong>et</strong> la
           déclaration d'irrévocabilité. Sans délai stipulé, l'art. 243 renvoie à un « délai raisonnable » qu'aucune
           source ne chiffre, et que le logiciel ne remplace par aucune convention.
         </p>
-        {erreur && <p className="text-[10.5px] text-danger mt-2">{erreur}</p>}
-        <button className="mt-2 border border-border px-2.5 py-1 text-[10.5px]" onClick={() => void emettre()}>
+        {erreur && <p className="text-[12px] text-danger mt-2">{erreur}</p>}
+        <button className="mt-2 border border-border px-2.5 py-1 text-[12px]" onClick={() => void emettre()}>
           Émettre
         </button>
       </section>
 
       <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
-        <h2 className="text-[11px] font-bold mb-1.5">Délais de dénonciation à rappeler au client</h2>
-        <ul className="text-[10.5px] text-text-dim leading-[1.6]">
+        <h2 className="text-[12.5px] font-bold mb-1.5">Délais de dénonciation à rappeler au client</h2>
+        <ul className="text-[12px] text-text-dim leading-[1.6]">
           {etat.delaisDeConformite.map((d) => (
             <li key={d.cle}>
               <strong>{d.libelle}</strong> · {d.delai} ({d.article})
@@ -207,12 +207,12 @@ export function DevisPage() {
       </section>
 
       <section className="border border-border bg-surface px-3.5 py-2.5">
-        <h2 className="text-[11px] font-bold mb-1.5">Devis émis et reçus</h2>
+        <h2 className="text-[12.5px] font-bold mb-1.5">Devis émis et reçus</h2>
         {etat.devis.length === 0 ? (
-          <p className="text-[10.5px] text-text-dim">Aucun devis enregistré.</p>
+          <p className="text-[12px] text-text-dim">Aucun devis enregistré.</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-[10.5px]">
+            <table className="w-full text-[12px]">
               <thead>
                 <tr className="text-left border-b border-border">
                   <th className="py-1 pr-2">Numéro</th>
@@ -229,7 +229,7 @@ export function DevisPage() {
                   <tr key={d.id} className="border-b border-border/50 align-top">
                     <td className="py-1 pr-2">
                       {d.numero}
-                      {d.emetteur === 'CLIENT' && <div className="text-[10px] text-text-dim">reçu du client</div>}
+                      {d.emetteur === 'CLIENT' && <div className="text-[11px] text-text-dim">reçu du client</div>}
                     </td>
                     <td className="py-1 pr-2">{jour(d.dateEmission)}</td>
                     <td className="py-1 pr-2">{d.clientNom}</td>
@@ -237,38 +237,38 @@ export function DevisPage() {
                     <td className="py-1 pr-2">{jour(d.etat.dateLimite)}</td>
                     <td className="py-1 pr-2">{LIBELLE_ETAT[d.etat.etat] ?? d.etat.etat}</td>
                     <td className="py-1">
-                      <p className="text-[10px] text-text-dim leading-[1.6]">
+                      <p className="text-[11px] text-text-dim leading-[1.6]">
                         {d.etat.explication} ({d.etat.article})
                       </p>
                       {!d.perimetre.regiParLeLivre8 && (
                         // LE PÉRIMÈTRE EST DIT SUR LA LIGNE, pas en note de bas
                         // de page · un cabinet qui vend des services ne doit pas
                         // lire des règles qui ne le régissent pas.
-                        <p className="text-[10px] text-text-dim leading-[1.6] mt-1">
+                        <p className="text-[11px] text-text-dim leading-[1.6] mt-1">
                           <strong>Hors Livre 8</strong> · {d.perimetre.motif}
                         </p>
                       )}
                       {!d.qualification.estUneOffre && (
-                        <p className="text-[10px] text-danger leading-[1.6] mt-1">{d.qualification.requalification}</p>
+                        <p className="text-[11px] text-danger leading-[1.6] mt-1">{d.qualification.requalification}</p>
                       )}
                       {d.etat.etat === 'EN_ATTENTE' && (
                         <div className="mt-1 flex flex-wrap gap-1">
-                          <button className="border border-border px-1.5 py-0.5 text-[10px]" onClick={() => void repondre(d.id, 'ACCEPTATION')}>
+                          <button className="border border-border px-1.5 py-0.5 text-[11px]" onClick={() => void repondre(d.id, 'ACCEPTATION')}>
                             Acceptation reçue
                           </button>
-                          <button className="border border-border px-1.5 py-0.5 text-[10px]" onClick={() => void repondre(d.id, 'MODIFICATION_NON_SUBSTANTIELLE')}>
+                          <button className="border border-border px-1.5 py-0.5 text-[11px]" onClick={() => void repondre(d.id, 'MODIFICATION_NON_SUBSTANTIELLE')}>
                             Réponse modifiée, non substantielle
                           </button>
-                          <button className="border border-border px-1.5 py-0.5 text-[10px]" onClick={() => void repondre(d.id, 'MODIFICATION_SUBSTANTIELLE')}>
+                          <button className="border border-border px-1.5 py-0.5 text-[11px]" onClick={() => void repondre(d.id, 'MODIFICATION_SUBSTANTIELLE')}>
                             Modification substantielle
                           </button>
-                          <button className="border border-border px-1.5 py-0.5 text-[10px]" onClick={() => void repondre(d.id, 'REFUS')}>
+                          <button className="border border-border px-1.5 py-0.5 text-[11px]" onClick={() => void repondre(d.id, 'REFUS')}>
                             Refus reçu
                           </button>
                         </div>
                       )}
                       {d.etat.etat === 'CADUC' && (
-                        <p className="text-[10px] text-text-dim leading-[1.6] mt-1">
+                        <p className="text-[11px] text-text-dim leading-[1.6] mt-1">
                           Une réponse tardive reste enregistrable : c'est un fait, et le logiciel n'en décide pas à la
                           place des parties.
                         </p>
@@ -278,7 +278,7 @@ export function DevisPage() {
                 ))}
               </tbody>
             </table>
-            <p className="text-[10px] text-text-dim mt-2 leading-[1.6]">
+            <p className="text-[11px] text-text-dim mt-2 leading-[1.6]">
               {etat.devis[0]?.prixPresume.mention} ({etat.devis[0]?.prixPresume.article})
             </p>
           </div>

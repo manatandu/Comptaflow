@@ -88,14 +88,14 @@ export function DashboardPage() {
     <div className="p-2">
       <div className="flex items-center justify-between mb-1.5">
         <div>
-          <div className="text-[10px] font-mono text-text-dim leading-none">FENÊTRE</div>
-          <h1 className="text-[12px] font-bold leading-tight">
+          <div className="text-[11px] font-mono text-text-dim leading-none">FENÊTRE</div>
+          <h1 className="text-[13px] font-bold leading-tight">
             Tableau de bord{exerciceCourant && ` · Exercice ${new Date(exerciceCourant.dateDebut).getFullYear()}`}
           </h1>
         </div>
         <button
           onClick={() => navigate('/saisie')}
-          className="flex items-center gap-2 px-4 py-1.5 bg-sel text-white text-[11px] font-semibold"
+          className="flex items-center gap-2 px-4 py-1.5 bg-sel text-white text-[12.5px] font-semibold"
         >
           <IconNew width={15} height={15} />
           Saisie des journaux
@@ -109,12 +109,12 @@ export function DashboardPage() {
             ind.teinte === 'auto' ? (ind.valeur >= 0 ? 'text-positive' : 'text-danger') : 'text-text';
           return (
             <div key={ind.label} className="bg-surface border border-border shadow-posee px-3.5 py-2.5">
-              <div className="text-[10px] font-bold text-text-dim tracking-wide">{ind.label}</div>
+              <div className="text-[11px] font-bold text-text-dim tracking-wide">{ind.label}</div>
               <div className={`font-mono text-[17px] font-bold leading-tight mt-0.5 ${teinte}`}>
                 {balance ? ind.valeur.toLocaleString('fr-FR') : '…'}
-                <span className="text-[10px] font-normal text-text-dim ml-1">CDF</span>
+                <span className="text-[11px] font-normal text-text-dim ml-1">CDF</span>
               </div>
-              <div className="text-[10px] text-text-dim mt-0.5">{ind.note}</div>
+              <div className="text-[11px] text-text-dim mt-0.5">{ind.note}</div>
             </div>
           );
         })}
@@ -133,15 +133,15 @@ export function DashboardPage() {
       {aVenir && (
         <div className="bg-surface border border-border shadow-posee mb-2.5 overflow-x-auto">
           <div className="px-3.5 py-1.5 bg-surface-alt border-b border-border-dark flex items-center justify-between">
-            <span className="text-[10px] font-bold text-text-dim">
+            <span className="text-[11px] font-bold text-text-dim">
               PROCHAINES ÉCHÉANCES · {aVenir.horizonJours} JOURS
             </span>
-            <a href="#/retenues" className="text-[10px] text-sel hover:underline">
+            <a href="#/retenues" className="text-[11px] text-sel hover:underline">
               Ouvrir l'échéancier
             </a>
           </div>
           {aVenir.proches.length === 0 ? (
-            <div className="p-3 text-[10.5px] text-text-dim">
+            <div className="p-3 text-[12px] text-text-dim">
               Aucune échéance dans les {aVenir.horizonJours} prochains jours. Cela ne veut pas dire que les
               déclarations antérieures ont été déposées · OmegaX ne détient pas cette information.
             </div>
@@ -149,18 +149,18 @@ export function DashboardPage() {
             aVenir.proches.map((e) => (
               <div
                 key={e.cle}
-                className="grid grid-cols-[78px_1fr_92px_120px] min-w-[520px] gap-2.5 items-center px-3.5 py-[4px] border-b border-border/50 last:border-b-0 text-[10.5px]"
+                className="grid grid-cols-[78px_1fr_92px_120px] min-w-[520px] gap-2.5 items-center px-3.5 py-[4px] border-b border-border/50 last:border-b-0 text-[12px]"
               >
-                <span className="font-mono text-[10px] text-text-dim">
+                <span className="font-mono text-[11px] text-text-dim">
                   {new Date(e.date).toLocaleDateString('fr-FR')}
                 </span>
                 <span className="truncate" title={e.baseLegale}>
                   {e.libelle}
-                  <span className="ml-1.5 text-[10px] text-text-dim">
+                  <span className="ml-1.5 text-[11px] text-text-dim">
                     {e.genre === 'DECLARATION' ? 'déclaration' : 'reversement'}
                   </span>
                 </span>
-                <span className="font-mono text-[10px] text-right">
+                <span className="font-mono text-[11px] text-right">
                   {/* LE RETARD N'EST MONTRÉ QUE S'IL EST CONSTATÉ DANS LES
                       LIVRES · une somme retenue et non versée. Une déclaration
                       n'a pas de retard visible d'ici : le serveur ne rend que
@@ -176,7 +176,7 @@ export function DashboardPage() {
                 </span>
                 <span className="font-mono font-semibold text-right">
                   {e.genre === 'DECLARATION' ? (
-                    <span className="text-[10px] font-normal text-text-dim">sans montant</span>
+                    <span className="text-[11px] font-normal text-text-dim">sans montant</span>
                   ) : (
                     `${e.montantDu.toLocaleString('fr-FR')} CDF`
                   )}
@@ -185,7 +185,7 @@ export function DashboardPage() {
             ))
           )}
           {aVenir.auDela > 0 && (
-            <div className="px-3.5 py-1.5 text-[10px] text-text-dim border-t border-border/50">
+            <div className="px-3.5 py-1.5 text-[11px] text-text-dim border-t border-border/50">
               {aVenir.auDela} autre(s) échéance(s) au-delà de {aVenir.horizonJours} jours · elles sont dans la
               fenêtre Retenues.
             </div>
@@ -201,14 +201,14 @@ export function DashboardPage() {
         className="bg-surface border border-border shadow-posee overflow-x-auto"
       >
         <div className="px-3.5 py-1.5 bg-surface-alt border-b border-border-dark flex items-center justify-between">
-          <span className="text-[10px] font-bold text-text-dim">DERNIÈRES ÉCRITURES</span>
-          <a href="#/journal" className="text-[10px] text-sel hover:underline">
+          <span className="text-[11px] font-bold text-text-dim">DERNIÈRES ÉCRITURES</span>
+          <a href="#/journal" className="text-[11px] text-sel hover:underline">
             Ouvrir le journal
           </a>
         </div>
-        {!ecritures && <div className="p-3 text-[11px] text-text-dim">Chargement…</div>}
+        {!ecritures && <div className="p-3 text-[12.5px] text-text-dim">Chargement…</div>}
         {ecritures?.length === 0 && (
-          <div className="p-3 text-[11px] text-text-dim">
+          <div className="p-3 text-[12.5px] text-text-dim">
             Aucune écriture sur cet exercice · commencez par la saisie des journaux.
           </div>
         )}
@@ -217,13 +217,13 @@ export function DashboardPage() {
           return (
             <div
               key={e.id}
-              className="grid grid-cols-[76px_52px_56px_1fr_130px] min-w-[540px] gap-2.5 items-center px-3.5 py-[4px] border-b border-border/50 last:border-b-0 text-[10.5px]"
+              className="grid grid-cols-[76px_52px_56px_1fr_130px] min-w-[540px] gap-2.5 items-center px-3.5 py-[4px] border-b border-border/50 last:border-b-0 text-[12px]"
             >
-              <span className="font-mono text-[10px] text-text-dim">
+              <span className="font-mono text-[11px] text-text-dim">
                 {new Date(e.date).toLocaleDateString('fr-FR')}
               </span>
               <span className="font-mono text-text-dim">{e.journal?.code ?? ''}</span>
-              <span className="font-mono text-[10px] text-text-dim text-right">{e.numeroPiece ?? '·'}</span>
+              <span className="font-mono text-[11px] text-text-dim text-right">{e.numeroPiece ?? '·'}</span>
               <span className="truncate">{e.libelle}</span>
               <span className="font-mono font-semibold text-right">{totalDebit.toLocaleString('fr-FR')}</span>
             </div>
@@ -231,7 +231,7 @@ export function DashboardPage() {
         })}
       </div>
 
-      <p className="text-[10px] text-text-dim mt-2 max-w-[860px]">
+      <p className="text-[11px] text-text-dim mt-2 max-w-[860px]">
         Indicateurs calculés en direct depuis la balance de l'exercice · aucune donnée parallèle. Le résultat
         est provisoire tant que les écritures d'inventaire et de clôture ne sont pas passées ; les états
         financiers {utilisateur?.tenant.referentiel === 'SYSCOHADA' ? 'SYSCOHADA' : 'SYCEBNL'} restent la

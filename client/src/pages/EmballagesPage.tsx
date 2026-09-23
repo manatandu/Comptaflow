@@ -171,18 +171,18 @@ export function EmballagesPage() {
   };
 
   const champ =
-    'border border-border bg-surface px-1.5 py-1 text-[10.5px] w-full focus:outline-none focus:border-accent';
+    'border border-border bg-surface px-1.5 py-1 text-[12px] w-full focus:outline-none focus:border-accent';
   const cell = 'px-2 py-1 border border-border';
 
   return (
     <div className="p-2">
       <EnteteImpression titre="Consignation d'emballages" />
       <div className="ecran-seul mb-1.5 max-w-[1240px]">
-        <div className="text-[10px] font-mono text-text-dim leading-none">
+        <div className="text-[11px] font-mono text-text-dim leading-none">
           COMPTES 4094 ET 4194 · COMPTES D'ATTENTE
         </div>
-        <h1 className="text-[12px] font-bold leading-tight">Consignation d'emballages</h1>
-        <div className="text-[10px] text-text-dim mt-0.5">
+        <h1 className="text-[13px] font-bold leading-tight">Consignation d'emballages</h1>
+        <div className="text-[11px] text-text-dim mt-0.5">
           « Les comptes relatifs aux emballages fonctionnent de la même manière que ceux relatifs aux
           marchandises et matières. La seule particularité concerne la CONSIGNATION. » · AUDCIF
           Titre VII et SYCEBNL Partie 2 ch. 3, fiches des comptes 40 et 41.
@@ -190,12 +190,12 @@ export function EmballagesPage() {
       </div>
 
       {erreur && (
-        <div className="border border-danger/30 bg-danger-soft px-3.5 py-2 mb-2.5 text-[10.5px] max-w-[1240px]">
+        <div className="border border-danger/30 bg-danger-soft px-3.5 py-2 mb-2.5 text-[12px] max-w-[1240px]">
           {erreur}
         </div>
       )}
       {succes && (
-        <div className="border border-ok/30 bg-ok-soft px-3.5 py-2 mb-2.5 text-[10.5px] max-w-[1240px]">
+        <div className="border border-ok/30 bg-ok-soft px-3.5 py-2 mb-2.5 text-[12px] max-w-[1240px]">
           {succes}
         </div>
       )}
@@ -204,13 +204,13 @@ export function EmballagesPage() {
           Une dette de consignation et une créance de consignation sont de sens
           opposés au bilan ; leur somme ne veut rien dire. */}
       {registre && (
-        <div className="border border-border bg-surface-2 px-3.5 py-2.5 mb-2.5 text-[10.5px] max-w-[1240px]">
+        <div className="border border-border bg-surface-2 px-3.5 py-2.5 mb-2.5 text-[12px] max-w-[1240px]">
           <span className="font-semibold">{registre.enAttente.nombre} consignation(s) en attente</span>
           {' · '}
           dette envers les clients (4194) {mt(registre.enAttente.detteEmise)}
           {' · '}
           créance sur les fournisseurs (4094) {mt(registre.enAttente.creanceRecue)}.
-          <div className="text-[9.5px] text-text-dim mt-1">
+          <div className="text-[10.5px] text-text-dim mt-1">
             Une consignation non dénouée à la clôture est une dette envers un client qui, peut-être,
             ne rendra jamais l'emballage. La balance boucle quand même : c'est ici que l'attente se
             voit. Les deux montants ne s'additionnent pas, ils sont de sens opposés au bilan.
@@ -219,7 +219,7 @@ export function EmballagesPage() {
       )}
 
       <div className="ecran-seul border border-border bg-surface-2 px-3 py-2.5 mb-2.5 max-w-[1240px]">
-        <div className="text-[10.5px] font-semibold mb-1.5">Nouvelle consignation</div>
+        <div className="text-[12px] font-semibold mb-1.5">Nouvelle consignation</div>
         <div className="grid grid-cols-7 gap-2">
           <select
             className={champ}
@@ -285,18 +285,18 @@ export function EmballagesPage() {
               !nouvelle.montant
             }
             onClick={creer}
-            className="px-3 py-1 text-[10.5px] border border-accent bg-accent/10 disabled:opacity-40"
+            className="px-3 py-1 text-[12px] border border-accent bg-accent/10 disabled:opacity-40"
           >
             Enregistrer au registre
           </button>
-          <span className="text-[9.5px] text-text-dim">
+          <span className="text-[10.5px] text-text-dim">
             La NATURE est saisie, jamais déduite · les deux textes routent la conservation d'un
             emballage et celle d'un matériel vers des comptes différents.
           </span>
         </div>
       </div>
 
-      <table className="w-full border-collapse text-[10.5px] mb-2.5 max-w-[1240px]">
+      <table className="w-full border-collapse text-[12px] mb-2.5 max-w-[1240px]">
         <thead>
           <tr className="bg-surface-2 text-text-dim">
             <th className={`${cell} text-left font-semibold`}>Date</th>
@@ -342,7 +342,7 @@ export function EmballagesPage() {
 
       {selection && (
         <div className="ecran-seul border border-border bg-surface-2 px-3 py-2.5 max-w-[1240px]">
-          <div className="text-[10.5px] font-semibold mb-1.5">
+          <div className="text-[12px] font-semibold mb-1.5">
             Dénouer · {selection.designation} ({mt(selection.montant)})
           </div>
           <div className="grid grid-cols-4 gap-2">
@@ -372,7 +372,7 @@ export function EmballagesPage() {
               type="button"
               disabled={enCours || !dateDenouement || !!proposition?.refus}
               onClick={denouer}
-              className="px-3 py-1 text-[10.5px] border border-accent bg-accent/10 disabled:opacity-40"
+              className="px-3 py-1 text-[12px] border border-accent bg-accent/10 disabled:opacity-40"
             >
               Dénouer
             </button>
@@ -381,14 +381,14 @@ export function EmballagesPage() {
           {/* LE REFUS EST MONTRÉ AVANT LE GESTE, PAS APRÈS · c'est là que le
               comptable peut encore changer d'avis. */}
           {proposition?.refus && (
-            <div className="border border-danger/30 bg-danger-soft px-3 py-2 mt-2 text-[10px]">
+            <div className="border border-danger/30 bg-danger-soft px-3 py-2 mt-2 text-[11px]">
               {proposition.refus.explication}
             </div>
           )}
 
           {proposition && !proposition.refus && (
             <>
-              <table className="w-full border-collapse text-[10.5px] mt-2">
+              <table className="w-full border-collapse text-[12px] mt-2">
                 <thead>
                   <tr className="bg-surface text-text-dim">
                     <th className={`${cell} text-left font-semibold`}>Compte</th>
@@ -404,7 +404,7 @@ export function EmballagesPage() {
                       <td className={cell}>
                         {l.intitule}
                         {l.reserve && (
-                          <span className="block text-[9px] text-warning mt-0.5">{l.reserve}</span>
+                          <span className="block text-[10px] text-warning mt-0.5">{l.reserve}</span>
                         )}
                       </td>
                       <td className={`${cell} text-right font-mono`}>
@@ -418,7 +418,7 @@ export function EmballagesPage() {
                 </tbody>
               </table>
               {proposition.reserves.map((r) => (
-                <div key={r} className="text-[9.5px] text-text-dim mt-1.5">
+                <div key={r} className="text-[10.5px] text-text-dim mt-1.5">
                   {r}
                 </div>
               ))}

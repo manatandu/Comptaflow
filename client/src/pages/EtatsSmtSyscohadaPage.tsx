@@ -198,13 +198,13 @@ export function EtatsSmtSyscohadaPage() {
     <div
       key={p.ref}
       title={infoComptes(p.comptes)}
-      className={`grid ${GRILLE_BILAN} gap-2 px-3 py-1 text-[11px] ${
+      className={`grid ${GRILLE_BILAN} gap-2 px-3 py-1 text-[12.5px] ${
         p.estTotal ? 'font-bold bg-surface-alt border-y border-border' : p.montant === 0 ? 'text-text-dim' : ''
       }`}
     >
-      <span className="font-mono text-[10px] text-text-dim">{p.ref}</span>
+      <span className="font-mono text-[11px] text-text-dim">{p.ref}</span>
       <span>{p.libelle}</span>
-      <span className="font-mono text-[10px] text-text-dim text-center">{p.note ?? ''}</span>
+      <span className="font-mono text-[11px] text-text-dim text-center">{p.note ?? ''}</span>
       <span className="font-mono text-right">{montant(p.montant)}</span>
       <span className="font-mono text-right text-text-dim font-normal">{montant(p.montantN1)}</span>
     </div>
@@ -216,16 +216,16 @@ export function EtatsSmtSyscohadaPage() {
     <div
       key={p.ref}
       title={infoComptes(p.comptes)}
-      className={`grid ${GRILLE_RESULTAT} gap-2 px-3 py-1 text-[11px] ${
+      className={`grid ${GRILLE_RESULTAT} gap-2 px-3 py-1 text-[12.5px] ${
         p.estTotal ? 'font-bold bg-surface-alt border-y border-border' : p.montant === 0 ? 'text-text-dim' : ''
       }`}
     >
-      <span className="font-mono text-[10px] text-text-dim">{p.ref}</span>
+      <span className="font-mono text-[11px] text-text-dim">{p.ref}</span>
       {/* Lettre de la maquette (A, B, C, F, G) · c'est elle que la formule
           officielle G = C - D + E - F invoque, pas le repère de poste. */}
-      <span className="font-mono text-[10px] font-bold text-center">{p.lettre ?? ''}</span>
+      <span className="font-mono text-[11px] font-bold text-center">{p.lettre ?? ''}</span>
       <span>{p.libelle}</span>
-      <span className="font-mono text-[10px] text-text-dim text-center">{p.note ?? ''}</span>
+      <span className="font-mono text-[11px] text-text-dim text-center">{p.note ?? ''}</span>
       <span className="font-mono text-right">{montant(p.montant)}</span>
       <span className="font-mono text-right text-text-dim font-normal">{montant(p.montantN1)}</span>
     </div>
@@ -233,7 +233,7 @@ export function EtatsSmtSyscohadaPage() {
 
   const entete = (colonnes: string[], grille: string) => (
     <div
-      className={`grid ${grille} gap-2 px-3 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim`}
+      className={`grid ${grille} gap-2 px-3 py-1.5 bg-surface-alt border-b border-border text-[11px] font-bold text-text-dim`}
     >
       {colonnes.map((c, i) => (
         <span key={c + i} className={i >= colonnes.length - 2 ? 'text-right' : ''}>
@@ -251,7 +251,7 @@ export function EtatsSmtSyscohadaPage() {
    */
   const bloc = (titre: string, contenu: React.ReactNode) => (
     <div className="border border-border bg-surface mb-3 overflow-x-auto">
-      <div className="bg-surface-alt border-b border-border px-3 py-1.5 text-[10.5px] font-bold">{titre}</div>
+      <div className="bg-surface-alt border-b border-border px-3 py-1.5 text-[12px] font-bold">{titre}</div>
       {contenu}
     </div>
   );
@@ -260,7 +260,7 @@ export function EtatsSmtSyscohadaPage() {
   const listeComptes = (comptes: CompteDuPoste[]) => (
     <div className="mt-1">
       {comptes.map((c) => (
-        <div key={c.numero} className="flex justify-between gap-3 text-[10.5px] font-mono">
+        <div key={c.numero} className="flex justify-between gap-3 text-[12px] font-mono">
           <span className="min-w-0 break-words">
             {c.numero} · {c.intitule}
           </span>
@@ -282,12 +282,12 @@ export function EtatsSmtSyscohadaPage() {
       <EnteteImpression titre="États financiers · Système minimal de trésorerie" sousTitre={LIBELLE_ONGLET[onglet]} />
       <div className="ecran-seul flex items-start justify-between gap-3 flex-wrap mb-1.5">
         <div className="min-w-0">
-          <div className="text-[10px] font-mono text-text-dim leading-none">ÉTAT</div>
-          <h1 className="text-[12px] font-bold leading-tight flex items-center gap-1.5">
+          <div className="text-[11px] font-mono text-text-dim leading-none">ÉTAT</div>
+          <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
             États financiers SYSCOHADA
             <Aide sujet="systemeSyscohada" />
           </h1>
-          <div className="text-[10px] text-text-dim mt-0.5">
+          <div className="text-[11px] text-text-dim mt-0.5">
             Système minimal de trésorerie <Aide sujet="smtSyscohada" /> ·{' '}
             <button onClick={() => navigate('/parametres-dossier')} className="underline hover:text-sel">
               paramètres du dossier
@@ -296,7 +296,7 @@ export function EtatsSmtSyscohadaPage() {
         </div>
         <div className="flex items-center gap-2.5 flex-wrap">
           {exerciceCourant && (
-            <span className="font-mono text-[10.5px] border border-border bg-surface px-2.5 py-1.5">
+            <span className="font-mono text-[12px] border border-border bg-surface px-2.5 py-1.5">
               Exercice {new Date(exerciceCourant.dateDebut).getFullYear()}
             </span>
           )}
@@ -312,7 +312,7 @@ export function EtatsSmtSyscohadaPage() {
             onClick={exporterLiasse}
             disabled={exportEnCours}
             title="Tous les états du jeu dans un seul classeur, précédés d’un sommaire"
-            className="flex items-center gap-1.5 border border-sel bg-sel text-white px-3 py-1.5 text-[10.5px] font-bold hover:brightness-110 disabled:opacity-50 disabled:cursor-wait"
+            className="flex items-center gap-1.5 border border-sel bg-sel text-white px-3 py-1.5 text-[12px] font-bold hover:brightness-110 disabled:opacity-50 disabled:cursor-wait"
           >
             <IconExport width={13} height={13} />
             {exportEnCours ? 'Export en cours…' : 'Exporter la liasse complète'}
@@ -325,7 +325,7 @@ export function EtatsSmtSyscohadaPage() {
                 ? "L’éligibilité est un contrôle d’assujettissement (art. 11 et 13), pas un état financier : le jeu SMT du Titre X ch. 1 § 2 ne compte que le bilan, le compte de résultat et les notes annexes."
                 : 'Seulement l’état affiché dans cet onglet'
             }
-            className="flex items-center gap-1.5 border border-border bg-surface px-3 py-1.5 text-[10.5px] font-bold hover:bg-surface-alt disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-1.5 border border-border bg-surface px-3 py-1.5 text-[12px] font-bold hover:bg-surface-alt disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <IconExport width={13} height={13} />
             Cet onglet
@@ -335,8 +335,8 @@ export function EtatsSmtSyscohadaPage() {
 
       {erreur && (
         <div className="flex items-start justify-between gap-3 border border-danger/30 bg-danger-soft px-3.5 py-2 mb-2.5">
-          <span className="text-[10.5px]">{erreur}</span>
-          <button onClick={() => setErreur(null)} className="text-[10.5px] font-bold shrink-0 hover:underline">
+          <span className="text-[12px]">{erreur}</span>
+          <button onClick={() => setErreur(null)} className="text-[12px] font-bold shrink-0 hover:underline">
             Fermer
           </button>
         </div>
@@ -347,7 +347,7 @@ export function EtatsSmtSyscohadaPage() {
           <button
             key={o.cle}
             onClick={() => setOnglet(o.cle)}
-            className={`px-3 py-1.5 text-[10.5px] font-bold ${
+            className={`px-3 py-1.5 text-[12px] font-bold ${
               onglet === o.cle ? 'bg-surface border-x border-border' : 'text-text-dim'
             }`}
           >
@@ -365,7 +365,7 @@ export function EtatsSmtSyscohadaPage() {
           </div>
           {/* Renvoi (1) du modèle officiel, imprimé sous l'actif · transcrit
               par la table de correspondance, jamais reformulé ici. */}
-          <p className="text-[10px] text-text-dim mb-3">{bilan.renvoiImmobilisations}</p>
+          <p className="text-[11px] text-text-dim mb-3">{bilan.renvoiImmobilisations}</p>
 
           <div className="border border-border bg-surface mb-3 overflow-x-auto">
             {entete(['REF', 'PASSIF', 'NOTE', 'EXERCICE N', 'EXERCICE N-1'], GRILLE_BILAN)}
@@ -373,7 +373,7 @@ export function EtatsSmtSyscohadaPage() {
           </div>
 
           {!bilan.exerciceN1Disponible && (
-            <p className="text-[10px] text-text-dim mb-3">
+            <p className="text-[11px] text-text-dim mb-3">
               Premier exercice du dossier : la colonne « Exercice N-1 » de la maquette officielle reste vide, elle n'est
               pas servie à zéro.
             </p>
@@ -389,7 +389,7 @@ export function EtatsSmtSyscohadaPage() {
               height={14}
               className={`shrink-0 mt-0.5 ${bilan.equilibre ? 'text-positive' : 'text-danger'}`}
             />
-            <span className="font-mono text-[10.5px] font-medium break-words">
+            <span className="font-mono text-[12px] font-medium break-words">
               {bilan.equilibre
                 ? `LE BILAN EST ÉQUILIBRÉ · Total actif = Total passif = ${montant(bilan.totalActif)}`
                 : `DÉSÉQUILIBRE DÉTECTÉ · Total actif ${montant(bilan.totalActif)} contre Total passif ${montant(
@@ -404,10 +404,10 @@ export function EtatsSmtSyscohadaPage() {
               disparaître de la comptabilité. */}
           {bilan.comptesNonRattaches.length > 0 && (
             <div className="border border-warning/40 bg-warning-soft px-3.5 py-2.5 mb-2">
-              <div className="text-[10.5px] font-bold mb-1">
+              <div className="text-[12px] font-bold mb-1">
                 {bilan.comptesNonRattaches.length} compte(s) de bilan hors maquette
               </div>
-              <p className="text-[10.5px] mb-1">
+              <p className="text-[12px] mb-1">
                 Ces comptes ne correspondent à aucun des postes du modèle officiel du Titre X ch. 2 § 1. Ils ne sont pas
                 rattachés d'office : leur montant manque au total, et c'est ce qui explique un écart.
               </p>
@@ -420,8 +420,8 @@ export function EtatsSmtSyscohadaPage() {
               après. Les deux servies en même temps, il est compté deux fois. */}
           {bilan.controle.doubleComptageProbable && (
             <div className="border border-warning/40 bg-warning-soft px-3.5 py-2.5 mb-2">
-              <div className="text-[10.5px] font-bold mb-1">Double comptage probable du résultat</div>
-              <p className="text-[10.5px]">
+              <div className="text-[12px] font-bold mb-1">Double comptage probable du résultat</div>
+              <p className="text-[12px]">
                 Le résultat ressort à la fois des comptes de charges et de produits ({montant(
                   bilan.controle.resultatClasses678,
                 )}
@@ -451,8 +451,8 @@ export function EtatsSmtSyscohadaPage() {
             contredire, pas cachée dans un calcul.
           */}
           <div className="border border-border bg-surface px-3.5 py-2.5 mb-2">
-            <div className="text-[10.5px] font-bold mb-1">Formule officielle · G = C - D + E - F</div>
-            <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-[10.5px] font-mono">
+            <div className="text-[12px] font-bold mb-1">Formule officielle · G = C - D + E - F</div>
+            <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-[12px] font-mono">
               <span>C</span>
               <span>{montant(cr.soldeCaisse)}</span>
               <span>D ({cr.lettresDE.D.join(' + ')})</span>
@@ -464,7 +464,7 @@ export function EtatsSmtSyscohadaPage() {
               <span className="font-bold">G</span>
               <span className="font-bold">{montant(cr.resultatExercice)}</span>
             </div>
-            <p className="text-[10px] text-text-dim mt-1.5">
+            <p className="text-[11px] text-text-dim mt-1.5">
               La maquette officielle étiquette A, B, C, F et G, mais n'attribue D et E à aucune ligne alors que la
               formule les invoque : D regroupe les variations retranchées (stocks, créances), E la variation ajoutée
               (dettes d'exploitation). Anomalie du texte officiel, signalée et non corrigée.
@@ -489,8 +489,8 @@ export function EtatsSmtSyscohadaPage() {
           */}
           {cr.fluxHorsResultat.some((r) => Math.abs(r.montant) > 0.005) && (
             <div className="border border-border bg-surface px-3.5 py-2.5 mb-2">
-              <div className="text-[10.5px] font-bold mb-1">Flux de trésorerie hors résultat</div>
-              <p className="text-[10.5px] text-text-dim mb-1.5">
+              <div className="text-[12px] font-bold mb-1">Flux de trésorerie hors résultat</div>
+              <p className="text-[12px] text-text-dim mb-1.5">
                 Encaissements et décaissements qui ne sont ni une recette sur produits ni une dépense sur charges :
                 apport ou prélèvement de l'exploitant, emprunt souscrit ou remboursé, immobilisation acquise ou cédée.
                 Ils entrent dans le solde de trésorerie de la période mais pas dans le résultat, et la maquette du Titre
@@ -500,7 +500,7 @@ export function EtatsSmtSyscohadaPage() {
                 .filter((r) => Math.abs(r.montant) > 0.005)
                 .map((r) => (
                   <div key={r.cle} className="mb-1">
-                    <div className="flex justify-between gap-3 text-[10.5px] font-bold">
+                    <div className="flex justify-between gap-3 text-[12px] font-bold">
                       <span className="min-w-0 break-words">{r.intitule}</span>
                       <span className="font-mono shrink-0">{montant(r.montant)}</span>
                     </div>
@@ -512,8 +512,8 @@ export function EtatsSmtSyscohadaPage() {
 
           {cr.contrepartiesNonRattachees.length > 0 && (
             <div className="border border-warning/40 bg-warning-soft px-3.5 py-2.5 mb-2">
-              <div className="text-[10.5px] font-bold mb-1">Contreparties de trésorerie non rattachées</div>
-              <p className="text-[10.5px] mb-1">
+              <div className="text-[12px] font-bold mb-1">Contreparties de trésorerie non rattachées</div>
+              <p className="text-[12px] mb-1">
                 Ces comptes font face à un mouvement de trésorerie sans appartenir ni aux recettes, ni aux dépenses, ni
                 au financement, ni à l'investissement. Ils ne sont rattachés à aucun poste voisin d'office.
               </p>
@@ -534,7 +534,7 @@ export function EtatsSmtSyscohadaPage() {
               cr.controle.concordant ? 'border-positive/30 bg-positive-soft' : 'border-warning/40 bg-warning-soft'
             }`}
           >
-            <span className="text-[10.5px] break-words">
+            <span className="text-[12px] break-words">
               {cr.controle.concordant
                 ? `Le résultat reconstitué (G ${montant(cr.resultatExercice)}) concorde avec le poste « Résultat exercice » du bilan (${montant(
                     cr.controle.resultatBilan,
@@ -544,7 +544,7 @@ export function EtatsSmtSyscohadaPage() {
                   )}) et le poste « Résultat exercice » du bilan (${montant(cr.controle.resultatBilan)}).`}
             </span>
             {!cr.controle.concordant && (
-              <div className="mt-1.5 text-[10.5px]">
+              <div className="mt-1.5 text-[12px]">
                 <div className="font-bold mb-0.5">Décomposition attendue de l'écart</div>
                 <div className="grid grid-cols-[1fr_auto] gap-x-3 font-mono">
                   <span>Financement enregistré sans passer par la trésorerie</span>
@@ -582,18 +582,18 @@ export function EtatsSmtSyscohadaPage() {
       {onglet === 'journal' && note4 && (
         <div>
           {note4.journaux.length === 0 && (
-            <div className="border border-border px-4 py-4 text-[11px] text-text-dim">
+            <div className="border border-border px-4 py-4 text-[12.5px] text-text-dim">
               Aucun compte de trésorerie mouvementé sur cet exercice.
             </div>
           )}
           {note4.journaux.map((j) => (
             <div key={j.compteId} className="border border-border bg-surface mb-3 overflow-x-auto">
               <div className="flex items-center justify-between gap-2 flex-wrap bg-surface-alt border-b border-border px-3 py-1.5">
-                <span className="text-[10.5px] font-bold font-mono">
+                <span className="text-[12px] font-bold font-mono">
                   {j.numero} · {j.intitule}
                 </span>
                 <span
-                  className={`text-[10px] font-mono ${j.boucle ? 'text-text-dim' : 'text-danger font-bold'}`}
+                  className={`text-[11px] font-mono ${j.boucle ? 'text-text-dim' : 'text-danger font-bold'}`}
                   title={
                     j.boucle
                       ? 'Le journal boucle : son solde final est celui du compte à la balance.'
@@ -609,14 +609,14 @@ export function EtatsSmtSyscohadaPage() {
                   des dépenses est en infobulle plutôt qu'en colonnes : à neuf
                   colonnes de ventilation, le tableau devient illisible sur un
                   écran étroit et le journal cesse d'être consultable. */}
-              <div className="grid grid-cols-[80px_minmax(140px,1fr)_100px_100px_100px] min-w-[560px] gap-2 px-3 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
+              <div className="grid grid-cols-[80px_minmax(140px,1fr)_100px_100px_100px] min-w-[560px] gap-2 px-3 py-1.5 bg-surface-alt border-b border-border text-[11px] font-bold text-text-dim">
                 <span>DATE</span>
                 <span>LIBELLÉS</span>
                 <span className="text-right">RECETTES</span>
                 <span className="text-right">DÉPENSES</span>
                 <span className="text-right">SOLDE</span>
               </div>
-              <div className="grid grid-cols-[80px_minmax(140px,1fr)_100px_100px_100px] min-w-[560px] gap-2 px-3 py-1 text-[11px] text-text-dim">
+              <div className="grid grid-cols-[80px_minmax(140px,1fr)_100px_100px_100px] min-w-[560px] gap-2 px-3 py-1 text-[12.5px] text-text-dim">
                 <span>·</span>
                 <span>Report à nouveau</span>
                 <span className="text-right">·</span>
@@ -636,14 +636,14 @@ export function EtatsSmtSyscohadaPage() {
                             .join(' · ')
                         : 'Écriture partagée entre plusieurs comptes de trésorerie : ventilation non attribuée'
                   }
-                  className="grid grid-cols-[80px_minmax(140px,1fr)_100px_100px_100px] min-w-[560px] gap-2 px-3 py-1 text-[11px]"
+                  className="grid grid-cols-[80px_minmax(140px,1fr)_100px_100px_100px] min-w-[560px] gap-2 px-3 py-1 text-[12.5px]"
                 >
-                  <span className="font-mono text-[10.5px]">{jour(o.date)}</span>
+                  <span className="font-mono text-[12px]">{jour(o.date)}</span>
                   <span className="break-words">
                     {o.libelle}
-                    {o.virementInterne && <span className="ml-1.5 text-[10px] text-text-dim">virement interne</span>}
+                    {o.virementInterne && <span className="ml-1.5 text-[11px] text-text-dim">virement interne</span>}
                     {!o.virementInterne && !o.ventile && (
-                      <span className="ml-1.5 text-[10px] text-warning">non ventilé</span>
+                      <span className="ml-1.5 text-[11px] text-warning">non ventilé</span>
                     )}
                   </span>
                   <span className="font-mono text-right">{o.recette ? montant(o.recette) : ''}</span>
@@ -651,7 +651,7 @@ export function EtatsSmtSyscohadaPage() {
                   <span className="font-mono text-right text-text-dim">{montant(o.solde)}</span>
                 </div>
               ))}
-              <div className="grid grid-cols-[80px_minmax(140px,1fr)_100px_100px_100px] min-w-[560px] gap-2 px-3 py-1.5 bg-surface-alt border-t border-border text-[11px] font-bold">
+              <div className="grid grid-cols-[80px_minmax(140px,1fr)_100px_100px_100px] min-w-[560px] gap-2 px-3 py-1.5 bg-surface-alt border-t border-border text-[12.5px] font-bold">
                 <span>·</span>
                 {/* La maquette nomme cette ligne « solde à reporter ». Les
                     deux colonnes de totaux sont un ajout : les nommer évite de
@@ -662,7 +662,7 @@ export function EtatsSmtSyscohadaPage() {
                 <span className="font-mono text-right">{montant(j.soldeAReporter)}</span>
               </div>
               {j.lignesNonVentilees > 0 && (
-                <p className="px-3 py-1.5 text-[10px] text-warning border-t border-border">
+                <p className="px-3 py-1.5 text-[11px] text-warning border-t border-border">
                   {j.lignesNonVentilees} écriture(s) touchent plusieurs comptes de trésorerie à la fois : leur montant
                   est bien porté au journal, mais sa ventilation entre les colonnes analytiques n'est pas attribuable
                   sans clé de répartition, et aucune n'est inventée.
@@ -674,16 +674,16 @@ export function EtatsSmtSyscohadaPage() {
           {/* Les colonnes de ventilation de la maquette, listées telles quelles
               avec ce que le NB officiel autorise à y rajouter. */}
           <div className="border border-border bg-surface mb-3 px-3.5 py-2.5 max-w-[900px]">
-            <div className="text-[10.5px] font-bold mb-1">Ventilation de la NOTE 4</div>
-            <div className="text-[10.5px] mb-0.5">
+            <div className="text-[12px] font-bold mb-1">Ventilation de la NOTE 4</div>
+            <div className="text-[12px] mb-0.5">
               <span className="text-text-dim">Recettes : </span>
               {note4.colonnesRecettes.map((c) => `${c.libelle}${c.rajoutAutorise ? ' (rajout)' : ''}`).join(' · ')}
             </div>
-            <div className="text-[10.5px]">
+            <div className="text-[12px]">
               <span className="text-text-dim">Dépenses : </span>
               {note4.colonnesDepenses.map((c) => `${c.libelle}${c.rajoutAutorise ? ' (rajout)' : ''}`).join(' · ')}
             </div>
-            <p className="text-[10px] text-text-dim mt-1.5">{note4.nb}</p>
+            <p className="text-[11px] text-text-dim mt-1.5">{note4.nb}</p>
           </div>
         </div>
       )}
@@ -694,7 +694,7 @@ export function EtatsSmtSyscohadaPage() {
           {bloc(
             'STRUCTURE OFFICIELLE DU JEU · TITRE X CH. 1 ET CH. 3',
             <>
-              <div className="px-3 py-1.5 text-[10.5px]">
+              <div className="px-3 py-1.5 text-[12px]">
                 <span className="text-text-dim">États financiers annuels du S.M.T : </span>
                 {notes.fiche.documents.map((d) => NOM_DOCUMENT_SMT[d] ?? d).join(' · ')}
                 {/* Pas de tableau des flux de trésorerie · le ch. 1 § 2
@@ -704,20 +704,20 @@ export function EtatsSmtSyscohadaPage() {
               {notes.fiche.notes.map((n) => (
                 <div
                   key={n.numero}
-                  className="grid grid-cols-[62px_minmax(120px,1fr)_150px] gap-2 px-3 py-1 text-[11px] min-w-[420px]"
+                  className="grid grid-cols-[62px_minmax(120px,1fr)_150px] gap-2 px-3 py-1 text-[12.5px] min-w-[420px]"
                 >
-                  <span className="font-mono text-[10.5px] text-text-dim">NOTE {n.numero}</span>
+                  <span className="font-mono text-[12px] text-text-dim">NOTE {n.numero}</span>
                   <span className="break-words">{n.intitule}</span>
-                  <span className="text-[10px] text-text-dim">
+                  <span className="text-[11px] text-text-dim">
                     {n.partie === 'BILAN' ? 'Note sur le bilan' : 'Note sur le compte de résultat'}
                   </span>
                 </div>
               ))}
-              <div className="px-3 py-1.5 border-t border-border text-[10px] text-text-dim">
+              <div className="px-3 py-1.5 border-t border-border text-[11px] text-text-dim">
                 Pièces de suivi non numérotées comme notes, dont l'existence conditionne la fiabilité du système avec le
                 journal de trésorerie (ch. 1 § 1) : {notes.fiche.journauxDeSuivi.map((j) => j.intitule).join(' · ')}.
               </div>
-              <div className="px-3 py-1.5 border-t border-border text-[10px] text-text-dim">
+              <div className="px-3 py-1.5 border-t border-border text-[11px] text-text-dim">
                 Inventaire extra-comptable de fin d'exercice, à la charge du responsable de l'entité, dont les états
                 récapitulatifs se conservent en pièce justificative :
                 <ul className="list-disc ml-4 mt-0.5">
@@ -726,7 +726,7 @@ export function EtatsSmtSyscohadaPage() {
                   ))}
                 </ul>
               </div>
-              <div className="px-3 py-1.5 border-t border-border text-[10px] text-text-dim">
+              <div className="px-3 py-1.5 border-t border-border text-[11px] text-text-dim">
                 Amortissement : mode {notes.fiche.amortissement.mode.toLowerCase()}
                 {!notes.fiche.amortissement.prorataTemporis && ' sans prorata temporis'} · règle propre au SMT (ch. 1
                 § 1), distincte de celle du Système normal.
@@ -737,7 +737,7 @@ export function EtatsSmtSyscohadaPage() {
           {bloc(
             'NOTE 1 · TABLEAU SMT DE SUIVI DU MATÉRIEL, DU MOBILIER ET DES CAUTIONS',
             <div>
-              <div className="grid grid-cols-[86px_minmax(150px,1fr)_110px_92px_110px] min-w-[560px] gap-2 px-3 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
+              <div className="grid grid-cols-[86px_minmax(150px,1fr)_110px_92px_110px] min-w-[560px] gap-2 px-3 py-1.5 bg-surface-alt border-b border-border text-[11px] font-bold text-text-dim">
                 <span>DATE</span>
                 <span>DÉSIGNATION</span>
                 <span className="text-right">MONTANT</span>
@@ -745,7 +745,7 @@ export function EtatsSmtSyscohadaPage() {
                 <span className="text-right">PRIX DE CESSION</span>
               </div>
               {notes.note1.lignes.length === 0 && (
-                <div className="px-3 py-2 text-[10.5px] text-text-dim">
+                <div className="px-3 py-2 text-[12px] text-text-dim">
                   Aucune immobilisation ni caution enregistrée.
                 </div>
               )}
@@ -757,19 +757,19 @@ export function EtatsSmtSyscohadaPage() {
                       ? "Repris depuis le solde du compte de dépôts et cautionnements versés : une caution n'est pas un bien amortissable et ne figure pas au registre des immobilisations."
                       : undefined
                   }
-                  className="grid grid-cols-[86px_minmax(150px,1fr)_110px_92px_110px] min-w-[560px] gap-2 px-3 py-1 text-[11px]"
+                  className="grid grid-cols-[86px_minmax(150px,1fr)_110px_92px_110px] min-w-[560px] gap-2 px-3 py-1 text-[12.5px]"
                 >
-                  <span className="font-mono text-[10.5px]">{jour(l.date)}</span>
+                  <span className="font-mono text-[12px]">{jour(l.date)}</span>
                   <span className="break-words">
                     {l.designation}
-                    {l.origine === 'BALANCE' && <span className="ml-1.5 text-[10px] text-text-dim">caution</span>}
+                    {l.origine === 'BALANCE' && <span className="ml-1.5 text-[11px] text-text-dim">caution</span>}
                   </span>
                   <span className="font-mono text-right">{montant(l.montant)}</span>
-                  <span className="font-mono text-[10.5px]">{jour(l.dateSortie)}</span>
+                  <span className="font-mono text-[12px]">{jour(l.dateSortie)}</span>
                   <span className="font-mono text-right">{montant(l.prixCession)}</span>
                 </div>
               ))}
-              <div className="grid grid-cols-[86px_minmax(150px,1fr)_110px_92px_110px] min-w-[560px] gap-2 px-3 py-1.5 border-t border-border text-[11px] font-bold">
+              <div className="grid grid-cols-[86px_minmax(150px,1fr)_110px_92px_110px] min-w-[560px] gap-2 px-3 py-1.5 border-t border-border text-[12.5px] font-bold">
                 <span>·</span>
                 <span>TOTAL</span>
                 <span className="font-mono text-right">{montant(notes.note1.total)}</span>
@@ -777,7 +777,7 @@ export function EtatsSmtSyscohadaPage() {
                 <span />
               </div>
               {notes.note1.totalCautions !== 0 && (
-                <p className="px-3 py-2 text-[10px] text-text-dim border-t border-border">
+                <p className="px-3 py-2 text-[11px] text-text-dim border-t border-border">
                   Dont registre des immobilisations {montant(notes.note1.totalRegistre)} et cautions{' '}
                   {montant(notes.note1.totalCautions)}. {notes.note1.motifCautions}
                 </p>
@@ -788,7 +788,7 @@ export function EtatsSmtSyscohadaPage() {
           {bloc(
             'NOTE 2 · ÉTAT DES STOCKS',
             <div>
-              <div className="grid grid-cols-[110px_minmax(140px,1fr)_86px_96px_110px] min-w-[540px] gap-2 px-3 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
+              <div className="grid grid-cols-[110px_minmax(140px,1fr)_86px_96px_110px] min-w-[540px] gap-2 px-3 py-1.5 bg-surface-alt border-b border-border text-[11px] font-bold text-text-dim">
                 <span>RÉFÉRENCE</span>
                 <span>DÉSIGNATION</span>
                 <span className="text-right">QUANTITÉ</span>
@@ -796,14 +796,14 @@ export function EtatsSmtSyscohadaPage() {
                 <span className="text-right">MONTANT</span>
               </div>
               {notes.note2.lignes.length === 0 && (
-                <div className="px-3 py-2 text-[10.5px] text-text-dim">Aucun compte de stock mouvementé.</div>
+                <div className="px-3 py-2 text-[12px] text-text-dim">Aucun compte de stock mouvementé.</div>
               )}
               {notes.note2.lignes.map((l) => (
                 <div
                   key={l.reference}
-                  className="grid grid-cols-[110px_minmax(140px,1fr)_86px_96px_110px] min-w-[540px] gap-2 px-3 py-1 text-[11px]"
+                  className="grid grid-cols-[110px_minmax(140px,1fr)_86px_96px_110px] min-w-[540px] gap-2 px-3 py-1 text-[12.5px]"
                 >
-                  <span className="font-mono text-[10.5px]">{l.reference}</span>
+                  <span className="font-mono text-[12px]">{l.reference}</span>
                   <span className="break-words">{l.designation}</span>
                   <span className="text-right text-text-dim">{montant(l.quantite)}</span>
                   <span className="text-right text-text-dim">{montant(l.prixUnitaire)}</span>
@@ -813,21 +813,21 @@ export function EtatsSmtSyscohadaPage() {
               {/* Les deux lignes de synthèse du bas de tableau, dans l'ordre du
                   texte · c'est leur différence qui alimente la variation des
                   stocks du compte de résultat. */}
-              <div className="grid grid-cols-[110px_minmax(140px,1fr)_86px_96px_110px] min-w-[540px] gap-2 px-3 py-1.5 border-t border-border text-[11px] font-bold">
+              <div className="grid grid-cols-[110px_minmax(140px,1fr)_86px_96px_110px] min-w-[540px] gap-2 px-3 py-1.5 border-t border-border text-[12.5px] font-bold">
                 <span>·</span>
                 <span>{notes.note2.lignesSynthese[0]}</span>
                 <span />
                 <span />
                 <span className="font-mono text-right">{montant(notes.note2.valeurStockFinal)}</span>
               </div>
-              <div className="grid grid-cols-[110px_minmax(140px,1fr)_86px_96px_110px] min-w-[540px] gap-2 px-3 py-1 text-[11px] font-bold">
+              <div className="grid grid-cols-[110px_minmax(140px,1fr)_86px_96px_110px] min-w-[540px] gap-2 px-3 py-1 text-[12.5px] font-bold">
                 <span>·</span>
                 <span>{notes.note2.lignesSynthese[1]}</span>
                 <span />
                 <span />
                 <span className="font-mono text-right">{montant(notes.note2.valeurStockInitial)}</span>
               </div>
-              <p className="px-3 py-2 text-[10px] text-text-dim border-t border-border">
+              <p className="px-3 py-2 text-[11px] text-text-dim border-t border-border">
                 Variation portée au compte de résultat : {montant(notes.note2.variationSv1)}.
                 {!notes.note2.quantitesTenues && ` ${notes.note2.motifQuantites}`}
               </p>
@@ -866,7 +866,7 @@ export function EtatsSmtSyscohadaPage() {
                 ] as const
               ).map(([titre, colonneNom, lignes, total, libelleTotal, totalNonEchu, totalEchu, totalNonDate]) => (
                 <div key={titre}>
-                  <div className="grid grid-cols-[minmax(160px,1fr)_100px_100px_100px_100px_100px_100px_72px] min-w-[900px] gap-2 px-3 py-1.5 bg-surface-alt border-y border-border text-[10px] font-bold text-text-dim">
+                  <div className="grid grid-cols-[minmax(160px,1fr)_100px_100px_100px_100px_100px_100px_72px] min-w-[900px] gap-2 px-3 py-1.5 bg-surface-alt border-y border-border text-[11px] font-bold text-text-dim">
                     {/* LA VENTILATION S'AJOUTE À LA MAQUETTE, ELLE NE L'AMPUTE
                         PAS · « AU 31 DÉCEMBRE » reste le solde ENTIER, comme
                         le ch. 3 l'imprime, faute de quoi la note cesserait de
@@ -884,15 +884,15 @@ export function EtatsSmtSyscohadaPage() {
                     <span className="text-right">VAR. %</span>
                   </div>
                   {lignes.length === 0 && (
-                    <div className="px-3 py-1.5 text-[10.5px] text-text-dim">Aucune ligne.</div>
+                    <div className="px-3 py-1.5 text-[12px] text-text-dim">Aucune ligne.</div>
                   )}
                   {lignes.map((l) => (
                     <div
                       key={l.numero}
-                      className="grid grid-cols-[minmax(160px,1fr)_100px_100px_100px_100px_100px_100px_72px] min-w-[900px] gap-2 px-3 py-1 text-[11px]"
+                      className="grid grid-cols-[minmax(160px,1fr)_100px_100px_100px_100px_100px_100px_72px] min-w-[900px] gap-2 px-3 py-1 text-[12.5px]"
                     >
                       <span className="break-words">
-                        <span className="font-mono text-[10.5px] text-text-dim">{l.numero}</span> {l.nom}
+                        <span className="font-mono text-[12px] text-text-dim">{l.numero}</span> {l.nom}
                       </span>
                       <span className="font-mono text-right">{montant(l.montantCloture)}</span>
                       <span className="font-mono text-right">{montant(l.montantNonEchu)}</span>
@@ -909,7 +909,7 @@ export function EtatsSmtSyscohadaPage() {
                       </span>
                     </div>
                   ))}
-                  <div className="grid grid-cols-[minmax(160px,1fr)_100px_100px_100px_100px_100px_100px_72px] min-w-[900px] gap-2 px-3 py-1.5 text-[11px] font-bold">
+                  <div className="grid grid-cols-[minmax(160px,1fr)_100px_100px_100px_100px_100px_100px_72px] min-w-[900px] gap-2 px-3 py-1.5 text-[12.5px] font-bold">
                     <span>{libelleTotal}</span>
                     <span className="font-mono text-right">{montant(total)}</span>
                     <span className="font-mono text-right">{montant(totalNonEchu)}</span>
@@ -925,12 +925,12 @@ export function EtatsSmtSyscohadaPage() {
                   </div>
                 </div>
               ))}
-              <p className="px-3 py-2 text-[10px] text-text-dim border-t border-border">
+              <p className="px-3 py-2 text-[11px] text-text-dim border-t border-border">
                 La colonne « au 31 décembre » porte le solde ENTIER du compte, comme la maquette officielle · c'est
                 « dont non échu » qui répond au titre de la note. Les trois parts la totalisent toujours.
                 {notes.note3.motifEcheances ? ` ${notes.note3.motifEcheances}` : ''}
               </p>
-              <p className="px-3 py-2 text-[10px] text-text-dim border-t border-border">
+              <p className="px-3 py-2 text-[11px] text-text-dim border-t border-border">
                 Variations portées au compte de résultat : créances {montant(notes.note3.variationSv2)}, dettes
                 d'exploitation {montant(notes.note3.variationSv3)}. {notes.note3.reserveVariationPourcent}
               </p>
@@ -952,7 +952,7 @@ export function EtatsSmtSyscohadaPage() {
           {bloc(
             "CHIFFRE D'AFFAIRES HORS TAXES DE L'EXERCICE",
             <>
-              <div className="grid grid-cols-[42px_minmax(140px,1fr)_130px] min-w-[420px] gap-2 px-3 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
+              <div className="grid grid-cols-[42px_minmax(140px,1fr)_130px] min-w-[420px] gap-2 px-3 py-1.5 bg-surface-alt border-b border-border text-[11px] font-bold text-text-dim">
                 <span>REF</span>
                 <span>POSTE</span>
                 <span className="text-right">EXERCICE N</span>
@@ -961,29 +961,29 @@ export function EtatsSmtSyscohadaPage() {
                 <div
                   key={v.ref}
                   title={infoComptes(v.comptes)}
-                  className={`grid grid-cols-[42px_minmax(140px,1fr)_130px] min-w-[420px] gap-2 px-3 py-1 text-[11px] ${
+                  className={`grid grid-cols-[42px_minmax(140px,1fr)_130px] min-w-[420px] gap-2 px-3 py-1 text-[12.5px] ${
                     v.montant === 0 ? 'text-text-dim' : ''
                   }`}
                 >
-                  <span className="font-mono text-[10px] text-text-dim">{v.ref}</span>
+                  <span className="font-mono text-[11px] text-text-dim">{v.ref}</span>
                   <span className="break-words">{v.libelle}</span>
                   <span className="font-mono text-right">{montant(v.montant)}</span>
                 </div>
               ))}
-              <div className="grid grid-cols-[42px_minmax(140px,1fr)_130px] min-w-[420px] gap-2 px-3 py-1.5 border-t border-border text-[11px] font-bold">
+              <div className="grid grid-cols-[42px_minmax(140px,1fr)_130px] min-w-[420px] gap-2 px-3 py-1.5 border-t border-border text-[12.5px] font-bold">
                 <span>·</span>
                 <span>CHIFFRE D'AFFAIRES</span>
                 <span className="font-mono text-right">{montant(eligibilite.chiffreAffaires)}</span>
               </div>
-              <p className="px-3 py-2 text-[10px] text-text-dim border-t border-border">
+              <p className="px-3 py-2 text-[11px] text-text-dim border-t border-border">
                 Lu en solde des comptes de ventes, c'est-à-dire en montant facturé et non en encaissements : l'article 13
                 parle de chiffre d'affaires, pas de recettes. Une entité qui facture beaucoup et encaisse peu n'échappe
                 pas au Système normal. Montants exprimés en {eligibilite.deviseDossier ?? 'monnaie de tenue du dossier'}.
               </p>
               {eligibilite.comptesHorsVentilation.length > 0 && (
                 <div className="px-3 py-2 border-t border-border">
-                  <div className="text-[10.5px] font-bold mb-0.5">Comptes de ventes hors ventilation</div>
-                  <p className="text-[10.5px] text-text-dim mb-1">
+                  <div className="text-[12px] font-bold mb-0.5">Comptes de ventes hors ventilation</div>
+                  <p className="text-[12px] text-text-dim mb-1">
                     Ces comptes entrent dans le chiffre d'affaires sans se rattacher à l'un des quatre postes du modèle :
                     signalés plutôt que perdus.
                   </p>
@@ -996,7 +996,7 @@ export function EtatsSmtSyscohadaPage() {
           {bloc(
             "LES TROIS SEUILS DE L'ARTICLE 13",
             <>
-              <div className="grid grid-cols-[minmax(150px,1fr)_130px_120px] min-w-[440px] gap-2 px-3 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
+              <div className="grid grid-cols-[minmax(150px,1fr)_130px_120px] min-w-[440px] gap-2 px-3 py-1.5 bg-surface-alt border-b border-border text-[11px] font-bold text-text-dim">
                 <span>CATÉGORIE D'ACTIVITÉ</span>
                 <span className="text-right">SEUIL (F CFA)</span>
                 <span className="text-right">COMPARAISON BRUTE</span>
@@ -1005,16 +1005,16 @@ export function EtatsSmtSyscohadaPage() {
                 <div
                   key={s.cle}
                   title={s.clause}
-                  className="grid grid-cols-[minmax(150px,1fr)_130px_120px] min-w-[440px] gap-2 px-3 py-1 text-[11px]"
+                  className="grid grid-cols-[minmax(150px,1fr)_130px_120px] min-w-[440px] gap-2 px-3 py-1 text-[12.5px]"
                 >
                   <span className="break-words">{s.categorie}</span>
                   <span className="font-mono text-right">{s.montantFcfa.toLocaleString('fr-FR')}</span>
-                  <span className={`text-right text-[10.5px] ${s.souSeuilSiMemeMonnaie ? 'text-positive' : 'text-warning'}`}>
+                  <span className={`text-right text-[12px] ${s.souSeuilSiMemeMonnaie ? 'text-positive' : 'text-warning'}`}>
                     {s.souSeuilSiMemeMonnaie ? 'sous le seuil' : 'au-dessus du seuil'}
                   </span>
                 </div>
               ))}
-              <p className="px-3 py-2 text-[10px] text-text-dim border-t border-border">
+              <p className="px-3 py-2 text-[11px] text-text-dim border-t border-border">
                 {eligibilite.seuils[0]?.clause}. La colonne « comparaison brute » oppose le chiffre d'affaires du
                 dossier au montant en F CFA sans aucune conversion : elle n'a de sens que si le dossier est tenu en
                 F CFA, et n'est jamais une conclusion.
@@ -1023,14 +1023,14 @@ export function EtatsSmtSyscohadaPage() {
           )}
 
           <div className="border border-border bg-surface px-3.5 py-2.5 mb-3">
-            <div className="text-[10.5px] font-bold mb-1">Ce que l'écran ne décide pas</div>
-            <p className="text-[10.5px] mb-1.5">{eligibilite.qualificationParLEntite}</p>
-            <p className="text-[10.5px] mb-1.5">{eligibilite.rappelArticle11}</p>
-            <p className="text-[10.5px]">{eligibilite.avertissementConversion}</p>
+            <div className="text-[12px] font-bold mb-1">Ce que l'écran ne décide pas</div>
+            <p className="text-[12px] mb-1.5">{eligibilite.qualificationParLEntite}</p>
+            <p className="text-[12px] mb-1.5">{eligibilite.rappelArticle11}</p>
+            <p className="text-[12px]">{eligibilite.avertissementConversion}</p>
           </div>
 
           <div className="border border-border bg-surface px-3.5 py-2.5">
-            <div className="text-[10.5px]">
+            <div className="text-[12px]">
               <span className="text-text-dim">Système retenu par le dossier : </span>
               <span className="font-bold">
                 {eligibilite.systemeActuel === 'MINIMAL_TRESORERIE'
@@ -1044,7 +1044,7 @@ export function EtatsSmtSyscohadaPage() {
                 paramètres du dossier
               </button>
             </div>
-            <p className="text-[10px] text-text-dim mt-1">
+            <p className="text-[11px] text-text-dim mt-1">
               Exercice du {jour(eligibilite.exercice.dateDebut)} au {jour(eligibilite.exercice.dateFin)}.
             </p>
           </div>

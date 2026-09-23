@@ -142,39 +142,39 @@ export function QuestionnaireRevisionPage() {
     <div className="p-2">
       <EnteteImpression titre="Questionnaire de révision" />
       <div className="ecran-seul mb-1.5 max-w-[1240px]">
-        <div className="text-[10px] font-mono text-text-dim leading-none">CONTRÔLE ET RÉVISION</div>
+        <div className="text-[11px] font-mono text-text-dim leading-none">CONTRÔLE ET RÉVISION</div>
         <div className="flex items-center justify-between gap-3">
-          <h1 className="text-[12px] font-bold leading-tight">Questionnaire de révision</h1>
+          <h1 className="text-[13px] font-bold leading-tight">Questionnaire de révision</h1>
           <button
             type="button"
             onClick={() => setCreation(true)}
-            className="bg-sel text-white rounded-[6px] px-3 py-[3px] text-[10.5px] font-semibold hover:opacity-90"
+            className="bg-sel text-white rounded-[6px] px-3 py-[3px] text-[12px] font-semibold hover:opacity-90"
           >
             Nouveau questionnaire
           </button>
         </div>
-        <div className="text-[10px] text-text-dim mt-0.5">
+        <div className="text-[11px] text-text-dim mt-0.5">
           Les deux checklists du CPCC (§ VI inventaire physique, § VII inventaire documentaire) reprises mot pour mot,
           et les cycles que le séminaire ne couvre pas, ajoutés par le cabinet. Chaque item porte son origine.
         </div>
       </div>
 
       {erreur && (
-        <div className="border border-danger/30 bg-danger-soft px-3.5 py-2 mb-2.5 text-[10.5px] max-w-[1240px]">
+        <div className="border border-danger/30 bg-danger-soft px-3.5 py-2 mb-2.5 text-[12px] max-w-[1240px]">
           {erreur}
         </div>
       )}
 
       {creation && (
         <div className="border border-border bg-surface px-3.5 py-2.5 mb-2.5 max-w-[1240px]">
-          <div className="text-[10.5px] font-semibold mb-1.5">Ouvrir un questionnaire</div>
+          <div className="text-[12px] font-semibold mb-1.5">Ouvrir un questionnaire</div>
           <div className="flex flex-wrap gap-2 items-end mb-1.5">
-            <label className="text-[10px] text-text-dim">
+            <label className="text-[11px] text-text-dim">
               Exercice
               <select
                 value={exerciceId}
                 onChange={(e) => setExerciceId(e.target.value)}
-                className="block border border-border bg-surface px-2 py-[3px] text-[10.5px] min-w-[180px]"
+                className="block border border-border bg-surface px-2 py-[3px] text-[12px] min-w-[180px]"
               >
                 <option value="">Choisir…</option>
                 {exercices.map((x) => (
@@ -184,17 +184,17 @@ export function QuestionnaireRevisionPage() {
                 ))}
               </select>
             </label>
-            <label className="text-[10px] text-text-dim flex-1 min-w-[220px]">
+            <label className="text-[11px] text-text-dim flex-1 min-w-[220px]">
               Libellé
               <input
                 value={libelle}
                 onChange={(e) => setLibelle(e.target.value)}
                 placeholder="Révision de clôture 2026"
-                className="block w-full border border-border bg-surface px-2 py-[3px] text-[10.5px]"
+                className="block w-full border border-border bg-surface px-2 py-[3px] text-[12px]"
               />
             </label>
           </div>
-          <div className="text-[10px] text-text-dim mb-1">Cycles · aucun coché = tous</div>
+          <div className="text-[11px] text-text-dim mb-1">Cycles · aucun coché = tous</div>
           <div className="flex flex-wrap gap-1.5 mb-1.5">
             {Object.entries(LIBELLE_CYCLE).map(([k, v]) => (
               <button
@@ -203,7 +203,7 @@ export function QuestionnaireRevisionPage() {
                 onClick={() =>
                   setCyclesChoisis((c) => (c.includes(k) ? c.filter((x) => x !== k) : [...c, k]))
                 }
-                className={`border rounded-[6px] px-2 py-[2px] text-[10px] ${
+                className={`border rounded-[6px] px-2 py-[2px] text-[11px] ${
                   cyclesChoisis.includes(k) ? 'bg-sel text-white border-sel' : 'border-border'
                 }`}
               >
@@ -216,14 +216,14 @@ export function QuestionnaireRevisionPage() {
               type="button"
               onClick={creer}
               disabled={!exerciceId || !libelle.trim()}
-              className="bg-sel text-white rounded-[6px] px-3 py-[3px] text-[10.5px] font-semibold disabled:opacity-40"
+              className="bg-sel text-white rounded-[6px] px-3 py-[3px] text-[12px] font-semibold disabled:opacity-40"
             >
               Ouvrir
             </button>
             <button
               type="button"
               onClick={() => setCreation(false)}
-              className="border border-border rounded-[6px] px-3 py-[3px] text-[10.5px]"
+              className="border border-border rounded-[6px] px-3 py-[3px] text-[12px]"
             >
               Annuler
             </button>
@@ -233,9 +233,9 @@ export function QuestionnaireRevisionPage() {
 
       <div className="flex gap-2.5 max-w-[1400px] items-start">
         <div className="border border-border bg-surface min-w-[220px] max-w-[260px]">
-          <div className="px-2.5 py-1.5 border-b border-border text-[10px] font-mono text-text-dim">QUESTIONNAIRES</div>
+          <div className="px-2.5 py-1.5 border-b border-border text-[11px] font-mono text-text-dim">QUESTIONNAIRES</div>
           {liste?.length === 0 && (
-            <div className="px-2.5 py-3 text-[10.5px] text-text-dim">
+            <div className="px-2.5 py-3 text-[12px] text-text-dim">
               Aucun questionnaire. Le CPCC ouvre l’inventaire par deux checklists.
             </div>
           )}
@@ -251,8 +251,8 @@ export function QuestionnaireRevisionPage() {
                 q.id === selectionId ? 'bg-sel-soft' : 'hover:bg-chrome'
               }`}
             >
-              <div className="text-[10.5px] font-semibold leading-tight">{q.libelle}</div>
-              <div className="text-[9.5px] text-text-dim mt-0.5">
+              <div className="text-[12px] font-semibold leading-tight">{q.libelle}</div>
+              <div className="text-[10.5px] text-text-dim mt-0.5">
                 {q.cycles.length === 0 ? 'Tous les cycles' : `${q.cycles.length} cycle(s)`}
                 {q.statut === 'CLOS' && ' · clos'}
               </div>
@@ -262,7 +262,7 @@ export function QuestionnaireRevisionPage() {
 
         <div className="flex-1 min-w-0">
           {!detail && (
-            <div className="border border-border bg-surface px-3.5 py-3 text-[10.5px] text-text-dim">
+            <div className="border border-border bg-surface px-3.5 py-3 text-[12px] text-text-dim">
               Choisir un questionnaire pour le remplir.
             </div>
           )}
@@ -272,8 +272,8 @@ export function QuestionnaireRevisionPage() {
               <div className="border border-border bg-surface px-3.5 py-2 mb-2">
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                   <div>
-                    <div className="text-[11px] font-bold">{detail.libelle}</div>
-                    <div className="text-[10px] text-text-dim">
+                    <div className="text-[12.5px] font-bold">{detail.libelle}</div>
+                    <div className="text-[11px] text-text-dim">
                       {s.itemsCpcc} item(s) du CPCC · {s.itemsVmg} du cabinet
                       {detail.statut === 'CLOS' && ` · clos le ${jour(detail.closLe)}`}
                     </div>
@@ -282,13 +282,13 @@ export function QuestionnaireRevisionPage() {
                     <button
                       type="button"
                       onClick={() => agir(() => api.post(`/questionnaire-revision/${detail.id}/clore`, {}))}
-                      className="bg-sel text-white rounded-[6px] px-2.5 py-[3px] text-[10.5px] font-semibold"
+                      className="bg-sel text-white rounded-[6px] px-2.5 py-[3px] text-[12px] font-semibold"
                     >
                       Clore
                     </button>
                   )}
                 </div>
-                <div className="flex flex-wrap gap-x-6 gap-y-1 text-[10.5px] mt-1.5">
+                <div className="flex flex-wrap gap-x-6 gap-y-1 text-[12px] mt-1.5">
                   <span>
                     <span className="text-text-dim">Questions </span>
                     <span className="font-semibold tabular-nums">
@@ -319,7 +319,7 @@ export function QuestionnaireRevisionPage() {
                   <button
                     type="button"
                     onClick={() => setCycleAffiche(null)}
-                    className={`border rounded-[6px] px-2 py-[2px] text-[10px] ${
+                    className={`border rounded-[6px] px-2 py-[2px] text-[11px] ${
                       cycleAffiche === null ? 'bg-sel text-white border-sel' : 'border-border'
                     }`}
                   >
@@ -330,7 +330,7 @@ export function QuestionnaireRevisionPage() {
                       key={c}
                       type="button"
                       onClick={() => setCycleAffiche(c)}
-                      className={`border rounded-[6px] px-2 py-[2px] text-[10px] ${
+                      className={`border rounded-[6px] px-2 py-[2px] text-[11px] ${
                         cycleAffiche === c ? 'bg-sel text-white border-sel' : 'border-border'
                       }`}
                     >
@@ -349,27 +349,27 @@ export function QuestionnaireRevisionPage() {
                 >
                   <div className="flex items-start justify-between gap-3 flex-wrap">
                     <div className="min-w-0 flex-1">
-                      <div className="text-[9.5px] font-mono text-text-dim">
+                      <div className="text-[10.5px] font-mono text-text-dim">
                         {l.code} · {LIBELLE_CYCLE[l.cycle] ?? l.cycle} ·{' '}
                         {l.origine === 'CPCC' ? `CPCC ${l.source ?? ''}` : 'Ajout du cabinet'}
                         {l.polariteException === 'OUI' && ' · « Oui » est l’anomalie'}
                         {!l.ouvert && l.ouvertPar && ` · ouvert si ${l.ouvertPar.code} = ${l.ouvertPar.reponse}`}
                       </div>
-                      <div className="text-[10.5px] mt-0.5">{l.libelle}</div>
+                      <div className="text-[12px] mt-0.5">{l.libelle}</div>
                       {l.objets && (
-                        <div className="text-[9.5px] text-text-dim mt-0.5">
+                        <div className="text-[10.5px] text-text-dim mt-0.5">
                           À couvrir un par un · {l.objets.join(', ')}
                         </div>
                       )}
                       {l.origine === 'VMG' && l.fondement && (
-                        <div className="text-[9.5px] text-text-dim mt-0.5">Fondement · {l.fondement}</div>
+                        <div className="text-[10.5px] text-text-dim mt-0.5">Fondement · {l.fondement}</div>
                       )}
-                      {l.reponse?.valeur && <div className="text-[10px] mt-0.5">{l.reponse.valeur}</div>}
+                      {l.reponse?.valeur && <div className="text-[11px] mt-0.5">{l.reponse.valeur}</div>}
                       {l.reponse?.renvoiTravaux && (
-                        <div className="text-[10px] mt-0.5">Renvoi · {l.reponse.renvoiTravaux}</div>
+                        <div className="text-[11px] mt-0.5">Renvoi · {l.reponse.renvoiTravaux}</div>
                       )}
                       {l.reponse?.commentaire && (
-                        <div className="text-[10px] mt-0.5">Commentaire · {l.reponse.commentaire}</div>
+                        <div className="text-[11px] mt-0.5">Commentaire · {l.reponse.commentaire}</div>
                       )}
                     </div>
                     {detail.statut === 'OUVERT' && l.ouvert && (
@@ -380,7 +380,7 @@ export function QuestionnaireRevisionPage() {
                               key={r}
                               type="button"
                               onClick={() => repondreFerme(l, r)}
-                              className={`border rounded-[6px] px-2 py-[2px] text-[10px] ${
+                              className={`border rounded-[6px] px-2 py-[2px] text-[11px] ${
                                 l.reponse?.reponse === r ? 'bg-sel text-white border-sel' : 'border-border'
                               }`}
                             >
@@ -391,7 +391,7 @@ export function QuestionnaireRevisionPage() {
                           <button
                             type="button"
                             onClick={() => repondreEcrit(l)}
-                            className="border border-border rounded-[6px] px-2 py-[2px] text-[10px]"
+                            className="border border-border rounded-[6px] px-2 py-[2px] text-[11px]"
                           >
                             {l.forme === 'TRAVAIL' ? 'Renvoi' : 'Répondre'}
                           </button>
@@ -403,7 +403,7 @@ export function QuestionnaireRevisionPage() {
               ))}
 
               {(detail.motifsRefusCloture ?? []).length > 0 && (
-                <div className="border border-warning/30 bg-warning-soft px-3.5 py-2 mt-2 text-[10px]">
+                <div className="border border-warning/30 bg-warning-soft px-3.5 py-2 mt-2 text-[11px]">
                   <div className="font-semibold mb-0.5">Ce questionnaire ne peut pas être clos en l’état</div>
                   {(detail.motifsRefusCloture ?? []).map((m) => (
                     <div key={m} className="mt-0.5">

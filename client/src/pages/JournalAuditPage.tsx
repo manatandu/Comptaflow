@@ -137,19 +137,19 @@ export function JournalAuditPage() {
       <EnteteImpression titre="Journal d'audit" />
       <div className="flex items-end justify-between mb-1.5 gap-3 flex-wrap">
         <div>
-          <div className="text-[10px] font-mono text-text-dim leading-none">CHEMIN DE RÉVISION</div>
-          <h1 className="text-[12px] font-bold leading-tight">Journal d'audit</h1>
+          <div className="text-[11px] font-mono text-text-dim leading-none">CHEMIN DE RÉVISION</div>
+          <h1 className="text-[13px] font-bold leading-tight">Journal d'audit</h1>
         </div>
         <div className="flex items-end gap-3">
           <label className="flex flex-col gap-1">
-            <span className="text-[10px] font-bold text-text-dim">OBJET</span>
+            <span className="text-[11px] font-bold text-text-dim">OBJET</span>
             <select
               value={entite}
               onChange={(e) => {
                 setEntite(e.target.value);
                 setPage(1);
               }}
-              className="border border-border-dark bg-surface px-2 py-1 text-[10.5px] min-w-[190px]"
+              className="border border-border-dark bg-surface px-2 py-1 text-[12px] min-w-[190px]"
             >
               <option value="">Tous les objets</option>
               {Object.entries(LIBELLES_ENTITE).map(([cle, texte]) => (
@@ -160,7 +160,7 @@ export function JournalAuditPage() {
             </select>
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-[10px] font-bold text-text-dim">AUTEUR</span>
+            <span className="text-[11px] font-bold text-text-dim">AUTEUR</span>
             <input
               value={acteurEmail}
               onChange={(e) => {
@@ -168,13 +168,13 @@ export function JournalAuditPage() {
                 setPage(1);
               }}
               placeholder="courriel"
-              className="border border-border-dark bg-surface px-2 py-1 text-[10.5px] min-w-[180px]"
+              className="border border-border-dark bg-surface px-2 py-1 text-[12px] min-w-[180px]"
             />
           </label>
           <button
             type="button"
             onClick={verifier}
-            className="border border-border-dark bg-surface-alt px-3 py-1 text-[10.5px] font-semibold"
+            className="border border-border-dark bg-surface-alt px-3 py-1 text-[12px] font-semibold"
           >
             Vérifier l'intégrité
           </button>
@@ -182,12 +182,12 @@ export function JournalAuditPage() {
       </div>
 
       {erreur && (
-        <div className="text-[11px] text-danger bg-danger-soft border border-danger/30 px-3 py-2 mb-2.5">{erreur}</div>
+        <div className="text-[12.5px] text-danger bg-danger-soft border border-danger/30 px-3 py-2 mb-2.5">{erreur}</div>
       )}
 
       {verdict && (
         <div
-          className={`text-[11px] px-3 py-2 mb-2.5 border ${
+          className={`text-[12.5px] px-3 py-2 mb-2.5 border ${
             verdict.intacte ? 'bg-success-soft border-success/30 text-success' : 'bg-danger-soft border-danger/30 text-danger'
           }`}
         >
@@ -216,7 +216,7 @@ export function JournalAuditPage() {
 
       <div className="border border-border bg-surface shadow-posee overflow-x-auto">
         <div
-          className={`${grille} px-3.5 py-1.5 bg-surface-alt text-[10px] font-bold text-text-dim border-b border-border-dark`}
+          className={`${grille} px-3.5 py-1.5 bg-surface-alt text-[11px] font-bold text-text-dim border-b border-border-dark`}
         >
           <div>N°</div>
           <div>DATE ET HEURE</div>
@@ -227,7 +227,7 @@ export function JournalAuditPage() {
         </div>
 
         {donnees?.evenements.length === 0 && (
-          <div className="px-3.5 py-3 text-[11px] text-text-dim">Aucun événement pour ce filtre.</div>
+          <div className="px-3.5 py-3 text-[12.5px] text-text-dim">Aucun événement pour ce filtre.</div>
         )}
 
         {donnees?.evenements.map((e) => (
@@ -235,7 +235,7 @@ export function JournalAuditPage() {
             <button
               type="button"
               onClick={() => setOuvert(ouvert === e.id ? null : e.id)}
-              className={`${grille} w-full text-left px-3.5 py-1 text-[10.5px] border-b border-border hover:bg-surface-alt`}
+              className={`${grille} w-full text-left px-3.5 py-1 text-[12px] border-b border-border hover:bg-surface-alt`}
             >
               <div className="font-mono text-text-dim">{e.rang}</div>
               <div className="font-mono">{horodatage(e.horodatage)}</div>
@@ -247,19 +247,19 @@ export function JournalAuditPage() {
             {ouvert === e.id && (
               <div className="px-3.5 py-2 bg-surface-alt border-b border-border-dark grid grid-cols-2 gap-3">
                 <div>
-                  <div className="text-[10px] font-bold text-text-dim mb-1">AVANT</div>
-                  <pre className="text-[10px] whitespace-pre-wrap break-all">
+                  <div className="text-[11px] font-bold text-text-dim mb-1">AVANT</div>
+                  <pre className="text-[11px] whitespace-pre-wrap break-all">
                     {e.avant ? JSON.stringify(e.avant, null, 1) : 'rien · création'}
                   </pre>
                 </div>
                 <div>
-                  <div className="text-[10px] font-bold text-text-dim mb-1">APRÈS</div>
-                  <pre className="text-[10px] whitespace-pre-wrap break-all">
+                  <div className="text-[11px] font-bold text-text-dim mb-1">APRÈS</div>
+                  <pre className="text-[11px] whitespace-pre-wrap break-all">
                     {e.apres ? JSON.stringify(e.apres, null, 1) : 'rien · suppression'}
                   </pre>
                 </div>
                 {e.adresseIp && (
-                  <div className="col-span-2 text-[10px] text-text-dim">Adresse d'origine · {e.adresseIp}</div>
+                  <div className="col-span-2 text-[11px] text-text-dim">Adresse d'origine · {e.adresseIp}</div>
                 )}
               </div>
             )}
@@ -268,7 +268,7 @@ export function JournalAuditPage() {
       </div>
 
       {donnees && donnees.total > donnees.taille && (
-        <div className="flex items-center gap-3 mt-2 text-[10.5px]">
+        <div className="flex items-center gap-3 mt-2 text-[12px]">
           <button
             type="button"
             disabled={page <= 1}

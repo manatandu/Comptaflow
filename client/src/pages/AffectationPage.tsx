@@ -150,7 +150,7 @@ export function AffectationPage() {
       <EnteteImpression titre="Affectation du résultat" />
 
       <div className="flex items-center gap-2 mb-2.5 no-impression">
-        <h1 className="text-[12px] font-bold leading-tight flex items-center gap-1.5">
+        <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
           Affectation du résultat
           <Aide
             titre="Affectation du résultat"
@@ -169,7 +169,7 @@ export function AffectationPage() {
             setExerciceId(e.target.value);
             setPrep(null);
           }}
-          className="border border-border rounded-[6px] px-2 py-1 text-[10.5px] ml-auto"
+          className="border border-border rounded-[6px] px-2 py-1 text-[12px] ml-auto"
         >
           {exercicesClos.length === 0 && <option value="">Aucun exercice clôturé</option>}
           {exercicesClos.map((e) => (
@@ -181,12 +181,12 @@ export function AffectationPage() {
       </div>
 
       {erreur && (
-        <div className="mb-2.5 text-[11px] text-danger bg-danger-soft border border-danger/30 rounded-[6px] px-2.5 py-1.5 leading-[1.5]">
+        <div className="mb-2.5 text-[12.5px] text-danger bg-danger-soft border border-danger/30 rounded-[6px] px-2.5 py-1.5 leading-[1.5]">
           {erreur}
         </div>
       )}
       {info && (
-        <div className="mb-2.5 text-[11px] text-positive bg-positive-soft border border-positive/30 rounded-[6px] px-2.5 py-1.5 flex justify-between">
+        <div className="mb-2.5 text-[12.5px] text-positive bg-positive-soft border border-positive/30 rounded-[6px] px-2.5 py-1.5 flex justify-between">
           <span>{info}</span>
           <button onClick={() => setInfo(null)} className="font-bold hover:underline">
             Fermer
@@ -195,7 +195,7 @@ export function AffectationPage() {
       )}
 
       {exercicesClos.length === 0 && (
-        <div className="text-[11px] text-text-dim italic border border-border rounded-[8px] px-3 py-4">
+        <div className="text-[12.5px] text-text-dim italic border border-border rounded-[8px] px-3 py-4">
           Aucun exercice clôturé. Le résultat ne s'affecte qu'après la clôture · c'est elle qui le porte au compte 13.
         </div>
       )}
@@ -204,7 +204,7 @@ export function AffectationPage() {
         <>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-3 mb-3 bg-surface border border-border rounded-[10px]">
             <div>
-              <div className="text-[10px] text-text-dim">
+              <div className="text-[11px] text-text-dim">
                 {prep.estBenefice ? 'Résultat à affecter' : 'Perte à imputer'}
               </div>
               <div className={`text-[15px] font-bold font-mono ${prep.estBenefice ? 'text-positive' : 'text-danger'}`}>
@@ -212,40 +212,40 @@ export function AffectationPage() {
               </div>
             </div>
             <div>
-              <div className="text-[10px] text-text-dim">Pertes antérieures (12 débiteur)</div>
-              <div className="text-[13px] font-mono">{montant(prep.pertesAnterieures)}</div>
+              <div className="text-[11px] text-text-dim">Pertes antérieures (12 débiteur)</div>
+              <div className="text-[14px] font-mono">{montant(prep.pertesAnterieures)}</div>
             </div>
             <div>
-              <div className="text-[10px] text-text-dim">Réserve légale constituée</div>
-              <div className="text-[13px] font-mono">{montant(prep.reserveLegaleExistante)}</div>
+              <div className="text-[11px] text-text-dim">Réserve légale constituée</div>
+              <div className="text-[14px] font-mono">{montant(prep.reserveLegaleExistante)}</div>
             </div>
             <div>
-              <div className="text-[10px] text-text-dim">Capital social (101)</div>
-              <div className="text-[13px] font-mono">{montant(prep.capitalSocial)}</div>
+              <div className="text-[11px] text-text-dim">Capital social (101)</div>
+              <div className="text-[14px] font-mono">{montant(prep.capitalSocial)}</div>
             </div>
           </div>
 
-          <div className="mb-3 text-[10.5px] text-text-dim bg-chrome-alt border border-border rounded-[6px] px-2.5 py-1.5 leading-[1.55]">
+          <div className="mb-3 text-[12px] text-text-dim bg-chrome-alt border border-border rounded-[6px] px-2.5 py-1.5 leading-[1.55]">
             {prep.reserveLegale.motif}
           </div>
 
           {prep.existante ? (
             <div className="bg-surface border border-border rounded-[10px] overflow-hidden">
               <div className="px-3 py-2 bg-chrome-alt border-b border-border flex items-center justify-between">
-                <span className="text-[10.5px] font-bold">
+                <span className="text-[12px] font-bold">
                   Décidée le {jour(prep.existante.dateDecision)} · {prep.existante.organe}
                   {prep.existante.reference ? ` · ${prep.existante.reference}` : ''}
                 </span>
                 {peutEcrire && (
                   <button
                     onClick={() => supprimer(prep.existante!.id)}
-                    className="text-[10px] text-danger hover:underline no-impression"
+                    className="text-[11px] text-danger hover:underline no-impression"
                   >
                     Supprimer
                   </button>
                 )}
               </div>
-              <table className="w-full text-[11px]">
+              <table className="w-full text-[12.5px]">
                 <tbody>
                   {prep.existante.lignes.map((l) => (
                     <tr key={l.id} className="border-b border-border last:border-0">
@@ -256,7 +256,7 @@ export function AffectationPage() {
                   ))}
                 </tbody>
               </table>
-              <div className="px-3 py-1.5 text-[10.5px] text-text-dim border-t border-border">
+              <div className="px-3 py-1.5 text-[12px] text-text-dim border-t border-border">
                 Écriture{' '}
                 {prep.existante.ecriture
                   ? `pièce n° ${prep.existante.ecriture.numeroPiece ?? '·'} (${prep.existante.ecriture.statut === 'BROUILLARD' ? 'au brouillard' : 'validée'})`
@@ -265,21 +265,21 @@ export function AffectationPage() {
             </div>
           ) : (
             <form onSubmit={enregistrer} className="bg-surface border border-border rounded-[10px] overflow-hidden">
-              <div className="px-3 py-2 bg-chrome-alt border-b border-border text-[10.5px] font-bold">
+              <div className="px-3 py-2 bg-chrome-alt border-b border-border text-[12px] font-bold">
                 Décision de l'organe compétent
               </div>
               <div className="p-3 grid grid-cols-1 md:grid-cols-3 gap-2.5">
-                <label className="text-[10.5px] font-semibold text-text-dim flex flex-col gap-1">
+                <label className="text-[12px] font-semibold text-text-dim flex flex-col gap-1">
                   Date de la décision
                   <input
                     type="date"
                     value={dateDecision}
                     onChange={(e) => setDateDecision(e.target.value)}
                     required
-                    className="border border-border-dark px-2 py-1 text-[11px] font-mono font-normal"
+                    className="border border-border-dark px-2 py-1 text-[12.5px] font-mono font-normal"
                   />
                 </label>
-                <label className="text-[10.5px] font-semibold text-text-dim flex flex-col gap-1">
+                <label className="text-[12px] font-semibold text-text-dim flex flex-col gap-1">
                   Organe
                   <input
                     value={organe}
@@ -290,16 +290,16 @@ export function AffectationPage() {
                         ? 'Assemblée générale ordinaire'
                         : 'Assemblée générale des membres'
                     }
-                    className="border border-border-dark px-2 py-1 text-[11px] font-normal"
+                    className="border border-border-dark px-2 py-1 text-[12.5px] font-normal"
                   />
                 </label>
-                <label className="text-[10.5px] font-semibold text-text-dim flex flex-col gap-1">
+                <label className="text-[12px] font-semibold text-text-dim flex flex-col gap-1">
                   Procès-verbal
                   <input
                     value={reference}
                     onChange={(e) => setReference(e.target.value)}
                     placeholder="PV n° …"
-                    className="border border-border-dark px-2 py-1 text-[11px] font-normal"
+                    className="border border-border-dark px-2 py-1 text-[12.5px] font-normal"
                   />
                 </label>
               </div>
@@ -310,7 +310,7 @@ export function AffectationPage() {
                     <select
                       value={l.compteId}
                       onChange={(e) => majLigne(i, 'compteId', e.target.value)}
-                      className="border border-border-dark px-2 py-1 text-[11px] flex-1 min-w-0"
+                      className="border border-border-dark px-2 py-1 text-[12.5px] flex-1 min-w-0"
                     >
                       <option value="">Destination…</option>
                       {prep.destinations.map((d) => (
@@ -323,19 +323,19 @@ export function AffectationPage() {
                       value={l.libelle}
                       onChange={(e) => majLigne(i, 'libelle', e.target.value)}
                       placeholder="Libellé"
-                      className="border border-border-dark px-2 py-1 text-[11px] w-[190px]"
+                      className="border border-border-dark px-2 py-1 text-[12.5px] w-[190px]"
                     />
                     <input
                       type="number"
                       step="0.01"
                       value={l.montant}
                       onChange={(e) => majLigne(i, 'montant', e.target.value)}
-                      className="border border-border-dark px-2 py-1 text-[11px] font-mono text-right w-[130px]"
+                      className="border border-border-dark px-2 py-1 text-[12.5px] font-mono text-right w-[130px]"
                     />
                     <button
                       type="button"
                       onClick={() => setLignes((ls) => ls.filter((_, j) => j !== i))}
-                      className="text-[11px] text-text-dim hover:text-danger px-1"
+                      className="text-[12.5px] text-text-dim hover:text-danger px-1"
                       title="Retirer cette ligne"
                     >
                       ✕
@@ -345,13 +345,13 @@ export function AffectationPage() {
                 <button
                   type="button"
                   onClick={() => setLignes((ls) => [...ls, { compteId: '', montant: '', libelle: '' }])}
-                  className="self-start text-[10.5px] text-sel hover:underline"
+                  className="self-start text-[12px] text-sel hover:underline"
                 >
                   + Ajouter une destination
                 </button>
               </div>
 
-              <div className="px-3 py-2 border-t border-border flex items-center justify-between text-[11px]">
+              <div className="px-3 py-2 border-t border-border flex items-center justify-between text-[12.5px]">
                 <span className={Math.abs(reste) < 0.005 ? 'text-positive' : 'text-warning'}>
                   {Math.abs(reste) < 0.005
                     ? 'Le compte 13 est soldé.'
@@ -360,7 +360,7 @@ export function AffectationPage() {
                 <button
                   type="submit"
                   disabled={envoi || !peutEcrire || Math.abs(reste) >= 0.005}
-                  className="bg-sel text-white text-[10.5px] font-bold px-3 py-1 rounded-[6px] hover:brightness-110 disabled:opacity-50"
+                  className="bg-sel text-white text-[12px] font-bold px-3 py-1 rounded-[6px] hover:brightness-110 disabled:opacity-50"
                 >
                   Enregistrer et passer l'écriture
                 </button>
@@ -372,12 +372,12 @@ export function AffectationPage() {
 
       {historique.length > 0 && (
         <div className="mt-4">
-          <div className="text-[10px] font-bold text-text-dim mb-1">AFFECTATIONS PRÉCÉDENTES</div>
+          <div className="text-[11px] font-bold text-text-dim mb-1">AFFECTATIONS PRÉCÉDENTES</div>
           <div className="bg-surface border border-border rounded-[8px] overflow-hidden">
             {historique.map((a) => (
               <div
                 key={a.id}
-                className="px-3 py-1.5 border-b border-border last:border-0 flex justify-between text-[11px]"
+                className="px-3 py-1.5 border-b border-border last:border-0 flex justify-between text-[12.5px]"
               >
                 <span>
                   Exercice clos le {a.exercice ? jour(a.exercice.dateFin) : '·'} · {a.organe} du{' '}

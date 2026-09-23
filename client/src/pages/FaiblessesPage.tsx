@@ -213,39 +213,39 @@ export function FaiblessesPage() {
     <div className="p-2">
       <EnteteImpression titre="Registre des faiblesses du contrôle interne" />
       <div className="ecran-seul mb-1.5 max-w-[1240px]">
-        <div className="text-[10px] font-mono text-text-dim leading-none">CONTRÔLE ET RÉVISION</div>
+        <div className="text-[11px] font-mono text-text-dim leading-none">CONTRÔLE ET RÉVISION</div>
         <div className="flex items-center justify-between gap-3">
-          <h1 className="text-[12px] font-bold leading-tight">Registre des faiblesses</h1>
+          <h1 className="text-[13px] font-bold leading-tight">Registre des faiblesses</h1>
           <button
             type="button"
             onClick={() => setCreation(true)}
-            className="bg-sel text-white rounded-[6px] px-3 py-[3px] text-[10.5px] font-semibold hover:opacity-90"
+            className="bg-sel text-white rounded-[6px] px-3 py-[3px] text-[12px] font-semibold hover:opacity-90"
           >
             Nouveau registre
           </button>
         </div>
-        <div className="text-[10px] text-text-dim mt-0.5">
+        <div className="text-[11px] text-text-dim mt-0.5">
           « Faire le suivi des faiblesses relevées lors de l’audit précédent » (CPCC), conduit selon la méthode de
           l’ISA 265. Ce n’est pas un audit et aucune opinion sur les états financiers n’en sort.
         </div>
       </div>
 
       {erreur && (
-        <div className="border border-danger/30 bg-danger-soft px-3.5 py-2 mb-2.5 text-[10.5px] max-w-[1240px]">
+        <div className="border border-danger/30 bg-danger-soft px-3.5 py-2 mb-2.5 text-[12px] max-w-[1240px]">
           {erreur}
         </div>
       )}
 
       {creation && (
         <div className="border border-border bg-surface px-3.5 py-2.5 mb-2.5 max-w-[1240px]">
-          <div className="text-[10.5px] font-semibold mb-1.5">Ouvrir un registre</div>
+          <div className="text-[12px] font-semibold mb-1.5">Ouvrir un registre</div>
           <div className="flex flex-wrap gap-2 items-end">
-            <label className="text-[10px] text-text-dim">
+            <label className="text-[11px] text-text-dim">
               Exercice
               <select
                 value={exerciceId}
                 onChange={(e) => setExerciceId(e.target.value)}
-                className="block border border-border bg-surface px-2 py-[3px] text-[10.5px] min-w-[180px]"
+                className="block border border-border bg-surface px-2 py-[3px] text-[12px] min-w-[180px]"
               >
                 <option value="">Choisir…</option>
                 {exercices.map((x) => (
@@ -255,12 +255,12 @@ export function FaiblessesPage() {
                 ))}
               </select>
             </label>
-            <label className="text-[10px] text-text-dim">
+            <label className="text-[11px] text-text-dim">
               Origine
               <select
                 value={origine}
                 onChange={(e) => setOrigine(e.target.value)}
-                className="block border border-border bg-surface px-2 py-[3px] text-[10.5px] min-w-[220px]"
+                className="block border border-border bg-surface px-2 py-[3px] text-[12px] min-w-[220px]"
               >
                 {Object.entries(LIBELLE_ORIGINE).map(([k, v]) => (
                   <option key={k} value={k}>
@@ -269,41 +269,41 @@ export function FaiblessesPage() {
                 ))}
               </select>
             </label>
-            <label className="text-[10px] text-text-dim flex-1 min-w-[200px]">
+            <label className="text-[11px] text-text-dim flex-1 min-w-[200px]">
               Libellé
               <input
                 value={libelle}
                 onChange={(e) => setLibelle(e.target.value)}
                 placeholder={externe ? 'Lettre de recommandations 2026' : 'Révision 2026'}
-                className="block w-full border border-border bg-surface px-2 py-[3px] text-[10.5px]"
+                className="block w-full border border-border bg-surface px-2 py-[3px] text-[12px]"
               />
             </label>
             {externe && (
               <>
-                <label className="text-[10px] text-text-dim">
+                <label className="text-[11px] text-text-dim">
                   Émetteur
                   <input
                     value={emetteur}
                     onChange={(e) => setEmetteur(e.target.value)}
                     placeholder="Commissaire aux comptes"
-                    className="block border border-border bg-surface px-2 py-[3px] text-[10.5px]"
+                    className="block border border-border bg-surface px-2 py-[3px] text-[12px]"
                   />
                 </label>
-                <label className="text-[10px] text-text-dim">
+                <label className="text-[11px] text-text-dim">
                   Date de la lettre
                   <input
                     type="date"
                     value={dateLettre}
                     onChange={(e) => setDateLettre(e.target.value)}
-                    className="block border border-border bg-surface px-2 py-[3px] text-[10.5px]"
+                    className="block border border-border bg-surface px-2 py-[3px] text-[12px]"
                   />
                 </label>
-                <label className="text-[10px] text-text-dim">
+                <label className="text-[11px] text-text-dim">
                   Référence
                   <input
                     value={referenceLettre}
                     onChange={(e) => setReferenceLettre(e.target.value)}
-                    className="block border border-border bg-surface px-2 py-[3px] text-[10.5px]"
+                    className="block border border-border bg-surface px-2 py-[3px] text-[12px]"
                   />
                 </label>
               </>
@@ -312,19 +312,19 @@ export function FaiblessesPage() {
               type="button"
               onClick={creer}
               disabled={!exerciceId || !libelle.trim() || (externe && (!emetteur.trim() || !dateLettre))}
-              className="bg-sel text-white rounded-[6px] px-3 py-[3px] text-[10.5px] font-semibold disabled:opacity-40"
+              className="bg-sel text-white rounded-[6px] px-3 py-[3px] text-[12px] font-semibold disabled:opacity-40"
             >
               Ouvrir
             </button>
             <button
               type="button"
               onClick={() => setCreation(false)}
-              className="border border-border rounded-[6px] px-3 py-[3px] text-[10.5px]"
+              className="border border-border rounded-[6px] px-3 py-[3px] text-[12px]"
             >
               Annuler
             </button>
           </div>
-          <div className="text-[9.5px] text-text-dim mt-1.5">
+          <div className="text-[10.5px] text-text-dim mt-1.5">
             {externe
               ? 'En mode « recommandation reçue », OmegaX est le porte-documents de la direction : il range et il suit. La qualification portée dans la lettre est recopiée telle quelle, et le cabinet ne la refait pas.'
               : 'En révision interne, le cabinet constate sur son propre travail de tenue. La qualification en « significative » est un acte de jugement séparé (§ 6 b), jamais une conséquence d’un montant.'}
@@ -334,9 +334,9 @@ export function FaiblessesPage() {
 
       <div className="flex gap-2.5 max-w-[1400px] items-start">
         <div className="border border-border bg-surface min-w-[240px] max-w-[280px]">
-          <div className="px-2.5 py-1.5 border-b border-border text-[10px] font-mono text-text-dim">REGISTRES</div>
+          <div className="px-2.5 py-1.5 border-b border-border text-[11px] font-mono text-text-dim">REGISTRES</div>
           {registres?.length === 0 && (
-            <div className="px-2.5 py-3 text-[10.5px] text-text-dim">
+            <div className="px-2.5 py-3 text-[12px] text-text-dim">
               Aucun registre. Le CPCC réclame le suivi des faiblesses de l’exercice précédent parmi les travaux de
               l’inventaire documentaire.
             </div>
@@ -350,8 +350,8 @@ export function FaiblessesPage() {
                 r.id === selectionId ? 'bg-sel-soft' : 'hover:bg-chrome'
               }`}
             >
-              <div className="text-[10.5px] font-semibold leading-tight">{r.libelle}</div>
-              <div className="text-[9.5px] text-text-dim mt-0.5">
+              <div className="text-[12px] font-semibold leading-tight">{r.libelle}</div>
+              <div className="text-[10.5px] text-text-dim mt-0.5">
                 {LIBELLE_ORIGINE[r.origine]} · {r._count?.faiblesses ?? 0} faiblesse(s)
                 {r.statut === 'CLOS' && ' · clos'}
               </div>
@@ -361,7 +361,7 @@ export function FaiblessesPage() {
 
         <div className="flex-1 min-w-0">
           {!detail && (
-            <div className="border border-border bg-surface px-3.5 py-3 text-[10.5px] text-text-dim">
+            <div className="border border-border bg-surface px-3.5 py-3 text-[12px] text-text-dim">
               Choisir un registre pour en voir les faiblesses et leur suivi.
             </div>
           )}
@@ -371,8 +371,8 @@ export function FaiblessesPage() {
               <div className="border border-border bg-surface px-3.5 py-2 mb-2">
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                   <div>
-                    <div className="text-[11px] font-bold">{detail.libelle}</div>
-                    <div className="text-[10px] text-text-dim">
+                    <div className="text-[12.5px] font-bold">{detail.libelle}</div>
+                    <div className="text-[11px] text-text-dim">
                       {LIBELLE_ORIGINE[detail.origine]}
                       {detail.emetteur && ` · ${detail.emetteur}, lettre du ${jour(detail.dateLettre)}`}
                       {detail.statut === 'CLOS' && ` · clos le ${jour(detail.closLe)}`}
@@ -383,14 +383,14 @@ export function FaiblessesPage() {
                       <button
                         type="button"
                         onClick={() => setAjout(true)}
-                        className="border border-border rounded-[6px] px-2.5 py-[3px] text-[10.5px]"
+                        className="border border-border rounded-[6px] px-2.5 py-[3px] text-[12px]"
                       >
                         Ajouter une faiblesse
                       </button>
                       <button
                         type="button"
                         onClick={() => agir(() => api.post(`/faiblesses/${detail.id}/clore`, {}))}
-                        className="bg-sel text-white rounded-[6px] px-2.5 py-[3px] text-[10.5px] font-semibold"
+                        className="bg-sel text-white rounded-[6px] px-2.5 py-[3px] text-[12px] font-semibold"
                       >
                         Clore
                       </button>
@@ -401,7 +401,7 @@ export function FaiblessesPage() {
 
               {s && s.total > 0 && (
                 <div className="border border-border bg-surface px-3.5 py-2 mb-2">
-                  <div className="flex flex-wrap gap-x-6 gap-y-1 text-[10.5px]">
+                  <div className="flex flex-wrap gap-x-6 gap-y-1 text-[12px]">
                     <span>
                       <span className="text-text-dim">Significatives </span>
                       <span className="font-semibold tabular-nums">{s.significatives}</span>
@@ -423,14 +423,14 @@ export function FaiblessesPage() {
                     )}
                   </div>
                   {s.significativesSansEcrit > 0 && (
-                    <div className="text-[10px] text-danger mt-1">
+                    <div className="text-[11px] text-danger mt-1">
                       {s.significativesSansEcrit} faiblesse(s) significative(s) jamais communiquée(s) par écrit ·
                       ISA 265 § 9 : « the auditor shall communicate IN WRITING significant deficiencies […] on a timely
                       basis ».
                     </div>
                   )}
                   {s.significativesAReporter > 0 && (
-                    <div className="text-[10px] text-warning mt-1">
+                    <div className="text-[11px] text-warning mt-1">
                       {s.significativesAReporter} significative(s) non remédiée(s) et non encore reportée(s)
                       {s.referencesAReporter.length > 0 && ` (${s.referencesAReporter.join(', ')})`} · § A17 : les avoir
                       déjà communiquées « does NOT eliminate the need to repeat the communication if remedial action has
@@ -442,32 +442,32 @@ export function FaiblessesPage() {
 
               {ajout && detail.statut === 'OUVERT' && (
                 <div className="border border-border bg-surface px-3.5 py-2.5 mb-2">
-                  <div className="text-[10.5px] font-semibold mb-1.5">Ajouter une faiblesse</div>
+                  <div className="text-[12px] font-semibold mb-1.5">Ajouter une faiblesse</div>
                   <div className="flex flex-wrap gap-2 items-end mb-1.5">
-                    <label className="text-[10px] text-text-dim">
+                    <label className="text-[11px] text-text-dim">
                       Référence
                       <input
                         value={reference}
                         onChange={(e) => setReference(e.target.value)}
                         placeholder="F-01"
-                        className="block border border-border bg-surface px-2 py-[3px] text-[10.5px] w-[90px]"
+                        className="block border border-border bg-surface px-2 py-[3px] text-[12px] w-[90px]"
                       />
                     </label>
-                    <label className="text-[10px] text-text-dim flex-1 min-w-[220px]">
+                    <label className="text-[11px] text-text-dim flex-1 min-w-[220px]">
                       Intitulé
                       <input
                         value={intitule}
                         onChange={(e) => setIntitule(e.target.value)}
-                        className="block w-full border border-border bg-surface px-2 py-[3px] text-[10.5px]"
+                        className="block w-full border border-border bg-surface px-2 py-[3px] text-[12px]"
                       />
                     </label>
                     {detailExterne && (
-                      <label className="text-[10px] text-text-dim">
+                      <label className="text-[11px] text-text-dim">
                         Qualification portée par la lettre
                         <select
                           value={qualificationLettre}
                           onChange={(e) => setQualificationLettre(e.target.value)}
-                          className="block border border-border bg-surface px-2 py-[3px] text-[10.5px]"
+                          className="block border border-border bg-surface px-2 py-[3px] text-[12px]"
                         >
                           {Object.entries(LIBELLE_QUALIFICATION).map(([k, v]) => (
                             <option key={k} value={k}>
@@ -478,31 +478,31 @@ export function FaiblessesPage() {
                       </label>
                     )}
                   </div>
-                  <label className="text-[10px] text-text-dim block mb-1.5">
+                  <label className="text-[11px] text-text-dim block mb-1.5">
                     Description · § 11 a)
                     <textarea
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
                       rows={2}
-                      className="block w-full border border-border bg-surface px-2 py-[3px] text-[10.5px]"
+                      className="block w-full border border-border bg-surface px-2 py-[3px] text-[12px]"
                     />
                   </label>
-                  <label className="text-[10px] text-text-dim block mb-1.5">
+                  <label className="text-[11px] text-text-dim block mb-1.5">
                     Effet potentiel · § 11 a), et § A28 : « the auditor need not QUANTIFY those effects »
                     <textarea
                       value={effetPotentiel}
                       onChange={(e) => setEffetPotentiel(e.target.value)}
                       rows={2}
-                      className="block w-full border border-border bg-surface px-2 py-[3px] text-[10.5px]"
+                      className="block w-full border border-border bg-surface px-2 py-[3px] text-[12px]"
                     />
                   </label>
-                  <label className="text-[10px] text-text-dim block mb-1.5">
+                  <label className="text-[11px] text-text-dim block mb-1.5">
                     Recommandation
                     <textarea
                       value={recommandation}
                       onChange={(e) => setRecommandation(e.target.value)}
                       rows={2}
-                      className="block w-full border border-border bg-surface px-2 py-[3px] text-[10.5px]"
+                      className="block w-full border border-border bg-surface px-2 py-[3px] text-[12px]"
                     />
                   </label>
                   <div className="flex gap-1.5">
@@ -510,14 +510,14 @@ export function FaiblessesPage() {
                       type="button"
                       onClick={ajouter}
                       disabled={!reference.trim() || !intitule.trim() || !description.trim() || !effetPotentiel.trim()}
-                      className="bg-sel text-white rounded-[6px] px-3 py-[3px] text-[10.5px] font-semibold disabled:opacity-40"
+                      className="bg-sel text-white rounded-[6px] px-3 py-[3px] text-[12px] font-semibold disabled:opacity-40"
                     >
                       Ajouter
                     </button>
                     <button
                       type="button"
                       onClick={() => setAjout(false)}
-                      className="border border-border rounded-[6px] px-3 py-[3px] text-[10.5px]"
+                      className="border border-border rounded-[6px] px-3 py-[3px] text-[12px]"
                     >
                       Annuler
                     </button>
@@ -529,33 +529,33 @@ export function FaiblessesPage() {
                 <div key={f.id} className="border border-border bg-surface px-3.5 py-2 mb-1.5">
                   <div className="flex items-start justify-between gap-3 flex-wrap">
                     <div className="min-w-0 flex-1">
-                      <div className="text-[10.5px] font-semibold">
+                      <div className="text-[12px] font-semibold">
                         {f.reference} · {f.intitule}
                       </div>
-                      <div className="text-[10px] text-text-dim mt-0.5">
+                      <div className="text-[11px] text-text-dim mt-0.5">
                         {LIBELLE_QUALIFICATION[f.qualification]} · {LIBELLE_STATUT[f.statut]}
                         {f.communiqueeLe && ` · communiquée le ${jour(f.communiqueeLe)} à ${f.communiqueeA}`}
                         {f.faiblesseAnterieure && ` · reconduite de ${f.faiblesseAnterieure.reference}`}
                         {f.reconduction && ` · reportée sous ${f.reconduction.reference}`}
                         {f.escaladeeLe && ` · escaladée le ${jour(f.escaladeeLe)}`}
                       </div>
-                      <div className="text-[10px] mt-1">{f.description}</div>
-                      <div className="text-[10px] text-text-dim mt-0.5">Effet potentiel · {f.effetPotentiel}</div>
+                      <div className="text-[11px] mt-1">{f.description}</div>
+                      <div className="text-[11px] text-text-dim mt-0.5">Effet potentiel · {f.effetPotentiel}</div>
                       {f.recommandation && (
-                        <div className="text-[10px] text-text-dim mt-0.5">Recommandation · {f.recommandation}</div>
+                        <div className="text-[11px] text-text-dim mt-0.5">Recommandation · {f.recommandation}</div>
                       )}
                       {f.verificationCabinet && (
-                        <div className="text-[10px] text-text-dim mt-0.5">
+                        <div className="text-[11px] text-text-dim mt-0.5">
                           Vérification · {f.verificationCabinet}
                         </div>
                       )}
                       {f.motifNonRemediation && (
-                        <div className="text-[10px] text-text-dim mt-0.5">
+                        <div className="text-[11px] text-text-dim mt-0.5">
                           Non remédiée · {f.motifNonRemediation}
                         </div>
                       )}
                       {f.qualification === 'SIGNIFICATIVE' && !f.communiqueeLe && (
-                        <div className="text-[10px] text-danger mt-0.5">
+                        <div className="text-[11px] text-danger mt-0.5">
                           Jamais sortie par écrit · ISA 265 § 9.
                         </div>
                       )}
@@ -567,14 +567,14 @@ export function FaiblessesPage() {
                             <button
                               type="button"
                               onClick={() => qualifier(f, 'SIGNIFICATIVE')}
-                              className="border border-border rounded-[6px] px-2 py-[2px] text-[10px]"
+                              className="border border-border rounded-[6px] px-2 py-[2px] text-[11px]"
                             >
                               Significative
                             </button>
                             <button
                               type="button"
                               onClick={() => qualifier(f, 'AUTRE')}
-                              className="border border-border rounded-[6px] px-2 py-[2px] text-[10px]"
+                              className="border border-border rounded-[6px] px-2 py-[2px] text-[11px]"
                             >
                               Autre faiblesse
                             </button>
@@ -584,7 +584,7 @@ export function FaiblessesPage() {
                           <button
                             type="button"
                             onClick={() => communiquer(f)}
-                            className="border border-border rounded-[6px] px-2 py-[2px] text-[10px]"
+                            className="border border-border rounded-[6px] px-2 py-[2px] text-[11px]"
                           >
                             Communiquer
                           </button>
@@ -593,7 +593,7 @@ export function FaiblessesPage() {
                           <button
                             type="button"
                             onClick={() => marquerRemediee(f)}
-                            className="border border-border rounded-[6px] px-2 py-[2px] text-[10px]"
+                            className="border border-border rounded-[6px] px-2 py-[2px] text-[11px]"
                           >
                             Remédiée
                           </button>
@@ -605,7 +605,7 @@ export function FaiblessesPage() {
                             <button
                               type="button"
                               onClick={() => escalader(f)}
-                              className="border border-border rounded-[6px] px-2 py-[2px] text-[10px]"
+                              className="border border-border rounded-[6px] px-2 py-[2px] text-[11px]"
                             >
                               Escalader
                             </button>
@@ -614,7 +614,7 @@ export function FaiblessesPage() {
                           <button
                             type="button"
                             onClick={() => reporter(f)}
-                            className="border border-border rounded-[6px] px-2 py-[2px] text-[10px]"
+                            className="border border-border rounded-[6px] px-2 py-[2px] text-[11px]"
                           >
                             Reporter
                           </button>
@@ -626,7 +626,7 @@ export function FaiblessesPage() {
               ))}
 
               {(detail.motifsRefusCloture ?? []).length > 0 && (
-                <div className="border border-warning/30 bg-warning-soft px-3.5 py-2 text-[10px]">
+                <div className="border border-warning/30 bg-warning-soft px-3.5 py-2 text-[11px]">
                   <div className="font-semibold mb-0.5">Ce registre ne peut pas être clos en l’état</div>
                   {(detail.motifsRefusCloture ?? []).map((m) => (
                     <div key={m} className="mt-0.5">
@@ -637,7 +637,7 @@ export function FaiblessesPage() {
               )}
 
               {(detail.mentionsContexte ?? []).length > 0 && (
-                <div className="border border-border bg-chrome px-3.5 py-2 mt-2 text-[9.5px] text-text-dim">
+                <div className="border border-border bg-chrome px-3.5 py-2 mt-2 text-[10.5px] text-text-dim">
                   <div className="font-mono mb-0.5">CONTEXTE DE LA COMMUNICATION · ISA 265 § 11 b)</div>
                   {(detail.mentionsContexte ?? []).map((m) => (
                     <div key={m} className="mt-0.5">

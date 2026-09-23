@@ -299,9 +299,14 @@ body,
 
 body {
   margin: 0;
+  /* SEGOE UI VARIABLE EN TÊTE · la police de Windows 11. Derrière
+     `ui-sans-serif`, Chrome sous Windows rendait « Segoe UI », celle de
+     Windows 10 : le logiciel n'avait donc jamais eu la police du système
+     qu'il imite. Ailleurs (macOS, Android), elle est absente et la pile
+     retombe sur la police native. */
   font-family:
-    ui-sans-serif, system-ui, -apple-system, 'Segoe UI Variable Text', 'Segoe UI', Inter, Roboto,
-    'Helvetica Neue', Arial, sans-serif;
+    'Segoe UI Variable Text', 'Segoe UI Variable', 'Segoe UI', ui-sans-serif, system-ui, -apple-system,
+    Inter, Roboto, 'Helvetica Neue', Arial, sans-serif;
   /* Interlignage un cran plus large qu'avant : à densité égale, c'est ce qui
      distingue un tableau lisible d'un tableau compact. */
   line-height: 1.45;
@@ -331,13 +336,31 @@ body::before {
     linear-gradient(178deg, var(--n-50) 0%, var(--n-100) 100%);
 }
 
+/* 4 px pour les CONTRÔLES (boutons, champs), 8 px pour les SURFACES
+   (fenêtres, cartes, menus) · la règle d'arrondi de Windows 11. */
 button,
 input,
 select,
 textarea {
   font-family: inherit;
   font-variant-numeric: inherit;
-  border-radius: 8px;
+  border-radius: 4px;
+}
+
+/*
+ * CHAMPS À LA WINDOWS 11 · un filet plus sombre sous le champ au repos, qui
+ * devient un trait d'accent au focus. Visé sur `.border-border` et non sur
+ * tout champ bordé : un champ que l'écran a mis en erreur (`border-danger`)
+ * ou en avertissement garde sa couleur entière.
+ */
+:is(input, select, textarea).border-border {
+  border-bottom-color: var(--n-400);
+}
+input[type='checkbox'],
+input[type='radio'],
+input[type='range'],
+progress {
+  accent-color: var(--sel);
 }
 
 /*
@@ -509,18 +532,21 @@ button:active:not(:disabled) {
 }
 
 /* Focus lisible et discret, cohérent partout. */
+/* Focus à la Windows 11 · pour un champ, un trait d'accent de 2 px sous le
+   champ (1 px de bordure + 1 px d'ombre intérieure) ; pour un bouton ou un
+   lien, l'anneau noir et blanc du système. */
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
   outline: none;
-  border-color: var(--sel);
-  box-shadow: var(--anneau-focus);
+  border-bottom-color: var(--sel);
+  box-shadow: inset 0 -1px 0 var(--sel);
 }
 button:focus-visible,
 a:focus-visible {
-  outline: 2px solid var(--sel);
-  outline-offset: 2px;
-  border-radius: 8px;
+  outline: 2px solid var(--text);
+  outline-offset: 1px;
+  box-shadow: 0 0 0 1px #fff;
 }
 
 /* Une ligne de tableau survolée doit se distinguer sans clignoter. */
@@ -529,6 +555,8 @@ tbody tr {
 }
 
 /* Barres de défilement fines, qui n'apparaissent qu'au survol du conteneur. */
+/* Fines comme celles de Windows 11 : 6 px au repos, qui s'épaississent
+   au survol grâce à la bordure transparente. */
 *::-webkit-scrollbar {
   width: 10px;
   height: 10px;
@@ -537,9 +565,9 @@ tbody tr {
   background: transparent;
 }
 *::-webkit-scrollbar-thumb {
-  background: var(--n-200);
-  border-radius: 6px;
-  border: 3px solid transparent;
+  background: var(--n-300);
+  border-radius: 999px;
+  border: 3.5px solid transparent;
   background-clip: content-box;
   transition: background-color 0.15s;
 }
@@ -744,6 +772,14 @@ tbody tr {
 
 .anim-modale {
   animation: modale-in 0.24s var(--t-sortie) both;
+}
+/* Boîte de dialogue façon Windows 11 · coins de 8 px. Aucun `overflow`
+   imposé ici : une liste déroulante peut dépasser de la modale, et la barre
+   de titre étant de la couleur du corps, ses angles ne débordent pas.
+   `:where()` garde la spécificité à zéro, si bien qu'un `rounded-*` écrit
+   sur la modale l'emporte toujours. */
+:where(.anim-modale) {
+  border-radius: 8px;
 }
 .anim-alerte {
   animation: alerte-in 0.2s var(--t-sortie) both;

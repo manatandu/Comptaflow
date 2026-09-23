@@ -401,11 +401,10 @@ export function ModelesSaisieModale({
     <div className="anim-voile fixed inset-0 z-40 bg-black/35 flex items-center justify-center p-4">
       <div className="anim-modale w-full max-w-[900px] max-h-[88vh] flex flex-col bg-surface border border-border-dark shadow-flottante">
         <div
-          className="h-[26px] flex items-center justify-between px-2.5 text-white text-[10.5px] shrink-0"
-          style={{ background: 'linear-gradient(180deg, var(--titlebar-from), var(--titlebar-to))' }}
+          className="h-[32px] flex items-center justify-between px-2.5 bg-surface text-text border-b border-border text-[12px] shrink-0"
         >
           <span>Appel d'un modèle de saisie</span>
-          <button onClick={onFermer} className="text-white/85 hover:text-white px-1.5">
+          <button onClick={onFermer} className="-mr-2 self-stretch w-[46px] flex items-center justify-center text-text-dim hover:text-white hover:bg-[#c42b1c]">
             ✕
           </button>
         </div>
@@ -413,7 +412,7 @@ export function ModelesSaisieModale({
         <div className="flex-1 min-h-0 flex">
           {/* Liste des modèles */}
           <div className="w-[300px] shrink-0 border-r border-border overflow-auto bg-surface-alt">
-            <div className="px-3 pt-2.5 pb-1 text-[10px] font-bold text-text-dim">OPÉRATIONS COURANTES</div>
+            <div className="px-3 pt-2.5 pb-1 text-[11px] font-bold text-text-dim">OPÉRATIONS COURANTES</div>
             {modelesSimples.map((m) => (
               <button
                 key={m.code}
@@ -422,7 +421,7 @@ export function ModelesSaisieModale({
                   setSelection({ genre: 'simple', modele: m });
                   setErreur(null);
                 }}
-                className={`w-full text-left px-3 py-1.5 text-[11px] ${
+                className={`w-full text-left px-3 py-1.5 text-[12.5px] ${
                   selection?.genre === 'simple' && selection.modele.code === m.code
                     ? 'bg-sel text-white'
                     : 'hover:bg-chrome-alt'
@@ -431,7 +430,7 @@ export function ModelesSaisieModale({
                 {m.libelle}
               </button>
             ))}
-            <div className="px-3 pt-2.5 pb-1 text-[10px] font-bold text-text-dim">AVEC TVA</div>
+            <div className="px-3 pt-2.5 pb-1 text-[11px] font-bold text-text-dim">AVEC TVA</div>
             {MODELES_TVA.map((m) => (
               <button
                 key={m.code}
@@ -440,7 +439,7 @@ export function ModelesSaisieModale({
                   setSelection({ genre: 'tva', modele: m });
                   setErreur(null);
                 }}
-                className={`w-full text-left px-3 py-1.5 text-[11px] ${
+                className={`w-full text-left px-3 py-1.5 text-[12.5px] ${
                   selection?.genre === 'tva' && selection.modele.code === m.code
                     ? 'bg-sel text-white'
                     : 'hover:bg-chrome-alt'
@@ -451,17 +450,17 @@ export function ModelesSaisieModale({
             ))}
             {/* Famille propre au SYCEBNL · sa route serveur l'est aussi. */}
             {!estSyscohada && (
-              <div className="px-3 pt-2.5 pb-1 text-[10px] font-bold text-text-dim">
+              <div className="px-3 pt-2.5 pb-1 text-[11px] font-bold text-text-dim">
                 ÉCRITURES-TYPES SYCEBNL (PARTIE 3 · GUIDE)
               </div>
             )}
             {!estSyscohada && !catalogue && (
-              <div className="px-3 py-1.5 text-[10.5px] text-text-dim italic">Chargement…</div>
+              <div className="px-3 py-1.5 text-[12px] text-text-dim italic">Chargement…</div>
             )}
             {catalogue &&
               [...catalogue.operations, ...catalogue.operationsAutreJeu].map((op) => (
                 <div key={op.code}>
-                  <div className="px-3 pt-1.5 pb-0.5 text-[10px] font-semibold text-text-dim">
+                  <div className="px-3 pt-1.5 pb-0.5 text-[11px] font-semibold text-text-dim">
                     {op.code} · {op.libelle}
                   </div>
                   {op.modeles.map((mo) => (
@@ -469,7 +468,7 @@ export function ModelesSaisieModale({
                       key={mo.code}
                       type="button"
                       onClick={() => choisirEbnl(op, mo)}
-                      className={`w-full text-left pl-5 pr-3 py-1 text-[10.5px] ${
+                      className={`w-full text-left pl-5 pr-3 py-1 text-[12px] ${
                         selection?.genre === 'ebnl' && selection.modele.code === mo.code
                           ? 'bg-sel text-white'
                           : 'hover:bg-chrome-alt'
@@ -485,7 +484,7 @@ export function ModelesSaisieModale({
           {/* Paramètres du modèle sélectionné */}
           <div className="flex-1 min-w-0 overflow-auto p-4">
             {!selection && (
-              <div className="text-[11px] text-text-dim">
+              <div className="text-[12.5px] text-text-dim">
                 Sélectionnez un modèle à gauche. Le modèle pré-remplit la pièce en cours de saisie · toutes
                 les lignes générées restent modifiables avant enregistrement.
               </div>
@@ -493,15 +492,15 @@ export function ModelesSaisieModale({
 
             {selection && (selection.genre === 'simple' || selection.genre === 'tva') && (
               <div className="max-w-[440px]">
-                <h3 className="text-[12px] font-bold mb-0.5">{selection.modele.libelle}</h3>
+                <h3 className="text-[13px] font-bold mb-0.5">{selection.modele.libelle}</h3>
                 {selection.genre === 'simple' && (
-                  <p className="text-[10.5px] text-text-dim mb-3">
+                  <p className="text-[12px] text-text-dim mb-3">
                     Se saisit au journal des {selection.modele.journal.toLowerCase()}.
                   </p>
                 )}
-                {selection.genre === 'tva' && <p className="text-[10.5px] text-text-dim mb-3">Facture.</p>}
+                {selection.genre === 'tva' && <p className="text-[12px] text-text-dim mb-3">Facture.</p>}
                 <div className="grid grid-cols-[150px_1fr] items-center gap-x-3 gap-y-2.5">
-                  <label className="text-[11px] text-right">
+                  <label className="text-[12.5px] text-right">
                     {selection.genre === 'tva' ? 'Montant HT :' : 'Montant :'}
                   </label>
                   <input
@@ -510,18 +509,18 @@ export function ModelesSaisieModale({
                     step="0.01"
                     value={montant}
                     onChange={(e) => setMontant(e.target.value)}
-                    className="border border-border-dark px-2 py-1 text-[12px] font-mono text-right"
+                    className="border border-border-dark px-2 py-1 text-[13px] font-mono text-right"
                   />
 
                   {selection.genre === 'tva' && (
                     <>
-                      <label className="text-[11px] text-right">
+                      <label className="text-[12.5px] text-right">
                         {selection.modele.code === 'vente_tva' ? 'Compte de produit :' : 'Compte de charge :'}
                       </label>
                       <select
                         value={compteContrepartieTvaId}
                         onChange={(e) => setCompteContrepartieTvaId(e.target.value)}
-                        className="border border-border-dark px-2 py-1 text-[11px]"
+                        className="border border-border-dark px-2 py-1 text-[12.5px]"
                       >
                         <option value="">Sélectionner</option>
                         {(selection.modele.code === 'vente_tva' ? comptesProduits : comptesCharges).map((c) => (
@@ -530,11 +529,11 @@ export function ModelesSaisieModale({
                           </option>
                         ))}
                       </select>
-                      <label className="text-[11px] text-right">Taux de TVA :</label>
+                      <label className="text-[12.5px] text-right">Taux de TVA :</label>
                       <select
                         value={tauxTvaId}
                         onChange={(e) => setTauxTvaId(e.target.value)}
-                        className="border border-border-dark px-2 py-1 text-[11px]"
+                        className="border border-border-dark px-2 py-1 text-[12.5px]"
                       >
                         <option value="">Sélectionner</option>
                         {tauxDisponibles.map((t) => (
@@ -548,7 +547,7 @@ export function ModelesSaisieModale({
 
                   {comptesTiers.length > 0 && (
                     <>
-                      <label className="text-[11px] text-right">
+                      <label className="text-[12.5px] text-right">
                         {racineTiers === '401'
                           ? 'Fournisseur :'
                           : racineTiers === '411'
@@ -560,7 +559,7 @@ export function ModelesSaisieModale({
                       <select
                         value={compteTiersId}
                         onChange={(e) => setCompteTiersId(e.target.value)}
-                        className="border border-border-dark px-2 py-1 text-[11px]"
+                        className="border border-border-dark px-2 py-1 text-[12.5px]"
                       >
                         {comptesTiers.map((c) => (
                           <option key={c.id} value={c.id}>
@@ -572,7 +571,7 @@ export function ModelesSaisieModale({
                   )}
 
                   {racineTiers && comptesTiers.length === 0 && (
-                    <div className="col-span-2 border border-danger/50 bg-danger/5 px-2.5 py-2 text-[10.5px] leading-[1.5]">
+                    <div className="col-span-2 border border-danger/50 bg-danger/5 px-2.5 py-2 text-[12px] leading-[1.5]">
                       Aucun compte n'est ouvert sous la racine {racineTiers} dans le plan de ce dossier. Cette
                       opération passe OBLIGATOIREMENT par un compte de tiers · ouvrez-le au plan comptable avant
                       d'employer ce modèle.
@@ -581,11 +580,11 @@ export function ModelesSaisieModale({
 
                   {utiliseTresorerie && (
                     <>
-                      <label className="text-[11px] text-right">Compte de trésorerie :</label>
+                      <label className="text-[12.5px] text-right">Compte de trésorerie :</label>
                       <select
                         value={compteTresorerieId}
                         onChange={(e) => setCompteTresorerieId(e.target.value)}
-                        className="border border-border-dark px-2 py-1 text-[11px]"
+                        className="border border-border-dark px-2 py-1 text-[12.5px]"
                       >
                         {comptesTresorerie.map((c) => (
                           <option key={c.id} value={c.id}>
@@ -603,7 +602,7 @@ export function ModelesSaisieModale({
                   logiciel ne devine pas la seconde · il la nomme.
                 */}
                 {selection.modele.suite && (
-                  <div className="mt-3 border border-border bg-surface-alt px-2.5 py-2 text-[10.5px] leading-[1.55]">
+                  <div className="mt-3 border border-border bg-surface-alt px-2.5 py-2 text-[12px] leading-[1.55]">
                     {selection.modele.suite}
                   </div>
                 )}
@@ -613,7 +612,7 @@ export function ModelesSaisieModale({
                   onClick={() =>
                     selection.genre === 'simple' ? insererSimple(selection.modele) : insererTva(selection.modele)
                   }
-                  className="mt-4 bg-sel text-white px-4 py-1.5 text-[11px] font-semibold"
+                  className="mt-4 bg-sel text-white px-4 py-1.5 text-[12.5px] font-semibold"
                 >
                   Insérer dans la pièce
                 </button>
@@ -622,9 +621,9 @@ export function ModelesSaisieModale({
 
             {selection && selection.genre === 'ebnl' && (
               <div>
-                <h3 className="text-[12px] font-bold mb-0.5">{selection.modele.libelle}</h3>
-                <p className="text-[10.5px] text-text-dim mb-1">{selection.modele.objet}</p>
-                <p className="text-[10px] font-mono text-text-dim mb-3">
+                <h3 className="text-[13px] font-bold mb-0.5">{selection.modele.libelle}</h3>
+                <p className="text-[12px] text-text-dim mb-1">{selection.modele.objet}</p>
+                <p className="text-[11px] font-mono text-text-dim mb-3">
                   {selection.modele.source}
                   {selection.modele.applicationGuide && ` · ${selection.modele.applicationGuide}`}
                 </p>
@@ -636,7 +635,7 @@ export function ModelesSaisieModale({
                     laisser essuyer un 400 après avoir rempli les montants. */}
                 {selection.modele.exigeDroitDAgir && catalogue?.methodeCotisations !== 'APPEL' && (
                   <div
-                    className={`mb-3 px-2.5 py-2 text-[10.5px] leading-[1.5] border ${
+                    className={`mb-3 px-2.5 py-2 text-[12px] leading-[1.5] border ${
                       catalogue?.methodeCotisations === 'ENCAISSEMENT'
                         ? 'border-danger text-danger'
                         : 'border-border text-text-dim'
@@ -662,7 +661,7 @@ export function ModelesSaisieModale({
                   <div className="grid grid-cols-[220px_180px] items-center gap-x-3 gap-y-2 mb-3">
                     {selection.modele.parametres.map((p) => (
                       <div key={p.nom} className="contents">
-                        <label className="text-[11px] text-right" title={p.aide}>
+                        <label className="text-[12.5px] text-right" title={p.aide}>
                           {p.libelle} :
                         </label>
                         <input
@@ -670,7 +669,7 @@ export function ModelesSaisieModale({
                           step="0.01"
                           value={parametres[p.nom] ?? ''}
                           onChange={(e) => setParametres((prev) => ({ ...prev, [p.nom]: e.target.value }))}
-                          className="border border-border-dark px-2 py-1 text-[12px] font-mono text-right"
+                          className="border border-border-dark px-2 py-1 text-[13px] font-mono text-right"
                         />
                       </div>
                     ))}
@@ -681,14 +680,14 @@ export function ModelesSaisieModale({
                   type="button"
                   disabled={calcul}
                   onClick={() => calculerEbnl(selection.modele, comptesChoisis)}
-                  className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3.5 py-1 text-[11px] disabled:opacity-50"
+                  className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3.5 py-1 text-[12.5px] disabled:opacity-50"
                 >
                   {calcul ? 'Calcul…' : "Calculer l'écriture"}
                 </button>
 
                 {proposition && (
                   <div className="mt-3 border border-border">
-                    <div className="grid grid-cols-[110px_1fr_110px_110px] gap-2 px-3 py-1.5 bg-surface-alt border-b border-border text-[10px] font-bold text-text-dim">
+                    <div className="grid grid-cols-[110px_1fr_110px_110px] gap-2 px-3 py-1.5 bg-surface-alt border-b border-border text-[11px] font-bold text-text-dim">
                       <span>COMPTE</span>
                       <span>LIBELLÉ</span>
                       <span className="text-right">DÉBIT</span>
@@ -697,7 +696,7 @@ export function ModelesSaisieModale({
                     {proposition.lignes.map((l, i) => (
                       <div
                         key={i}
-                        className="grid grid-cols-[110px_1fr_110px_110px] gap-2 px-3 py-1 border-b border-border text-[10.5px] items-center"
+                        className="grid grid-cols-[110px_1fr_110px_110px] gap-2 px-3 py-1 border-b border-border text-[12px] items-center"
                       >
                         <span className="font-mono">
                           {l.choixRequis ? (
@@ -708,7 +707,7 @@ export function ModelesSaisieModale({
                                 setComptesChoisis(choix);
                                 calculerEbnl(selection.modele, choix);
                               }}
-                              className="border border-border-dark px-1 py-0.5 text-[10.5px] w-full"
+                              className="border border-border-dark px-1 py-0.5 text-[12px] w-full"
                             >
                               <option value="">{l.numero}… à choisir</option>
                               {l.choixRequis.candidats.map((c) => (
@@ -728,9 +727,9 @@ export function ModelesSaisieModale({
                         <span className="font-mono text-right">{l.credit ? l.credit.toLocaleString('fr-FR') : ''}</span>
                       </div>
                     ))}
-                    <div className="grid grid-cols-[110px_1fr_110px_110px] gap-2 px-3 py-1.5 bg-surface-alt text-[10.5px] font-bold">
+                    <div className="grid grid-cols-[110px_1fr_110px_110px] gap-2 px-3 py-1.5 bg-surface-alt text-[12px] font-bold">
                       <span />
-                      <span className="text-right text-[10px] text-text-dim">TOTAUX</span>
+                      <span className="text-right text-[11px] text-text-dim">TOTAUX</span>
                       <span className="font-mono text-right">{proposition.totalDebit.toLocaleString('fr-FR')}</span>
                       <span className="font-mono text-right">{proposition.totalCredit.toLocaleString('fr-FR')}</span>
                     </div>
@@ -741,7 +740,7 @@ export function ModelesSaisieModale({
                   <button
                     type="button"
                     onClick={insererEbnl}
-                    className="mt-3 bg-sel text-white px-4 py-1.5 text-[11px] font-semibold"
+                    className="mt-3 bg-sel text-white px-4 py-1.5 text-[12.5px] font-semibold"
                   >
                     Insérer dans la pièce
                   </button>
@@ -750,7 +749,7 @@ export function ModelesSaisieModale({
             )}
 
             {erreur && (
-              <div className="mt-3 text-[11px] text-danger bg-danger-soft border border-danger/30 px-2.5 py-1.5 max-w-[560px]">
+              <div className="mt-3 text-[12.5px] text-danger bg-danger-soft border border-danger/30 px-2.5 py-1.5 max-w-[560px]">
                 {erreur}
               </div>
             )}

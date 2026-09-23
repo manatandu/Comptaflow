@@ -796,20 +796,20 @@ export function PersonnelPage() {
   };
 
   const champ =
-    'border border-border bg-surface px-1.5 py-1 text-[10.5px] w-full focus:outline-none focus:border-accent';
+    'border border-border bg-surface px-1.5 py-1 text-[12px] w-full focus:outline-none focus:border-accent';
   const cell = 'px-2 py-1 border border-border';
-  const etiquette = 'text-[9.5px] text-text-dim uppercase tracking-wide';
+  const etiquette = 'text-[10.5px] text-text-dim uppercase tracking-wide';
   const choisi = salaries.find((s) => s.id === selection) ?? null;
 
   return (
     <div className="p-2">
       <EnteteImpression titre="Registre du personnel" />
       <div className="ecran-seul mb-1.5 max-w-[1240px]">
-        <div className="text-[10px] font-mono text-text-dim leading-none">
+        <div className="text-[11px] font-mono text-text-dim leading-none">
           CODE DU TRAVAIL · LOI N° 015/2002, ARTICLE 212
         </div>
-        <h1 className="text-[12px] font-bold leading-tight">Registre du personnel</h1>
-        <div className="text-[10px] text-text-dim mt-0.5">
+        <h1 className="text-[13px] font-bold leading-tight">Registre du personnel</h1>
+        <div className="text-[11px] text-text-dim mt-0.5">
           Le registre tient l’état civil et les engagements, et confronte chaque contrat aux quinze
           énonciations obligatoires de l’article 212 ainsi qu’aux requalifications de plein droit des
           articles 40 à 45. <strong>Il n’enregistre aucun bulletin de paie</strong> : l’onglet
@@ -819,17 +819,17 @@ export function PersonnelPage() {
       </div>
 
       {erreur && (
-        <div className="border border-danger/30 bg-danger-soft px-3.5 py-2 mb-2.5 text-[10.5px] max-w-[1240px]">
+        <div className="border border-danger/30 bg-danger-soft px-3.5 py-2 mb-2.5 text-[12px] max-w-[1240px]">
           {erreur}
         </div>
       )}
       {succes && (
-        <div className="border border-ok/30 bg-ok-soft px-3.5 py-2 mb-2.5 text-[10.5px] max-w-[1240px]">
+        <div className="border border-ok/30 bg-ok-soft px-3.5 py-2 mb-2.5 text-[12px] max-w-[1240px]">
           {succes}
         </div>
       )}
 
-      <div className="ecran-seul flex gap-1 mb-2 text-[10.5px]">
+      <div className="ecran-seul flex gap-1 mb-2 text-[12px]">
         {(
           ['registre', 'confrontation', 'effectif', 'simulation', 'decompte', 'livre'] as const
         ).map((o) => (
@@ -865,18 +865,18 @@ export function PersonnelPage() {
         <div className="grid grid-cols-[minmax(320px,1fr)_minmax(420px,1.4fr)] gap-2">
           <div className="border border-border">
             <div className="flex items-center justify-between px-2 py-1 border-b border-border">
-              <div className="text-[10.5px] font-bold">Salariés ({salaries.length})</div>
+              <div className="text-[12px] font-bold">Salariés ({salaries.length})</div>
               <div className="flex items-center gap-2">
-                <label className="text-[10px] flex items-center gap-1">
+                <label className="text-[11px] flex items-center gap-1">
                   <input type="checkbox" checked={tous} onChange={(e) => setTous(e.target.checked)} />
                   Inclure les inactifs
                 </label>
-                <button type="button" onClick={nouveau} className="text-[10px] text-accent">
+                <button type="button" onClick={nouveau} className="text-[11px] text-accent">
                   Nouveau
                 </button>
               </div>
             </div>
-            <table className="w-full text-[10.5px] border-collapse">
+            <table className="w-full text-[12px] border-collapse">
               <thead>
                 <tr className="text-text-dim">
                   <th className={`${cell} text-left`}>Matricule</th>
@@ -914,7 +914,7 @@ export function PersonnelPage() {
           </div>
 
           <div className="border border-border p-2">
-            <div className="text-[10.5px] font-bold mb-1.5">
+            <div className="text-[12px] font-bold mb-1.5">
               {selection ? `Fiche · ${salarie.nom}` : 'Nouvelle fiche'}
             </div>
             <div className="grid grid-cols-3 gap-1.5">
@@ -1031,7 +1031,7 @@ export function PersonnelPage() {
                   onChange={(e) => setSalarie({ ...salarie, aptitudeConstateePar: e.target.value })}
                 />
               </label>
-              <label className="text-[10px] flex items-end gap-1 pb-1">
+              <label className="text-[11px] flex items-end gap-1 pb-1">
                 <input
                   type="checkbox"
                   checked={salarie.aptitudeProvisoire}
@@ -1068,7 +1068,7 @@ export function PersonnelPage() {
                 </div>
                 <button
                   type="button"
-                  className="text-[10px] text-accent"
+                  className="text-[11px] text-accent"
                   onClick={() =>
                     setEnfants([...enfants, { nom: '', postNom: '', prenoms: '', dateNaissance: '' }])
                   }
@@ -1126,17 +1126,17 @@ export function PersonnelPage() {
               type="button"
               disabled={enCours || !salarie.nom.trim() || !salarie.sexe}
               onClick={enregistrerSalarie}
-              className="mt-2 px-3 py-1 border border-accent text-accent text-[10.5px] disabled:opacity-40"
+              className="mt-2 px-3 py-1 border border-accent text-accent text-[12px] disabled:opacity-40"
             >
               {selection ? 'Mettre à jour' : 'Inscrire au registre'}
             </button>
 
             {choisi && (
               <div className="mt-3 border-t border-border pt-2">
-                <div className="text-[10.5px] font-bold mb-1">
+                <div className="text-[12px] font-bold mb-1">
                   Contrats de {nomComplet(choisi)} ({choisi.nombreContrats})
                 </div>
-                <table className="w-full text-[10.5px] border-collapse mb-2">
+                <table className="w-full text-[12px] border-collapse mb-2">
                   <thead>
                     <tr className="text-text-dim">
                       <th className={`${cell} text-left`}>Type</th>
@@ -1315,7 +1315,7 @@ export function PersonnelPage() {
                     />
                   </label>
                 </div>
-                <div className="grid grid-cols-2 gap-1 mt-1.5 text-[10px]">
+                <div className="grid grid-cols-2 gap-1 mt-1.5 text-[11px]">
                   <label className="flex items-center gap-1">
                     <input
                       type="checkbox"
@@ -1385,7 +1385,7 @@ export function PersonnelPage() {
                   type="button"
                   disabled={enCours || !contrat.dateEntreeEnVigueur}
                   onClick={creerContrat}
-                  className="mt-2 px-3 py-1 border border-accent text-accent text-[10.5px] disabled:opacity-40"
+                  className="mt-2 px-3 py-1 border border-accent text-accent text-[12px] disabled:opacity-40"
                 >
                   Enregistrer le contrat
                 </button>
@@ -1399,7 +1399,7 @@ export function PersonnelPage() {
       {onglet === 'confrontation' && confrontation && (
         <div className="max-w-[1240px]">
           {confrontation.manqueEmployeur && (
-            <div className="border border-warning/40 bg-warning/5 px-3.5 py-2.5 mb-2.5 text-[10.5px]">
+            <div className="border border-warning/40 bg-warning/5 px-3.5 py-2.5 mb-2.5 text-[12px]">
               <strong>Le numéro d’immatriculation de l’employeur à la CNSS n’est pas renseigné.</strong>{' '}
               C’est la deuxième des quinze énonciations de l’article 212, et elle est du côté de
               l’employeur : tant qu’elle manque, <em>aucun</em> contrat de ce dossier n’est complet,
@@ -1407,13 +1407,13 @@ export function PersonnelPage() {
               dossier.
             </div>
           )}
-          <div className="text-[10.5px] mb-1.5">
+          <div className="text-[12px] mb-1.5">
             {confrontation.totalSignalements === 0
               ? 'Aucun signalement. Chaque contrat porte les quinze énonciations, et aucune requalification de plein droit ne s’applique.'
               : `${confrontation.totalSignalements} signalement(s) sur ${confrontation.fiches.length} contrat(s).`}
           </div>
           {confrontation.fiches.map((f) => (
-            <div key={f.contratId} className="border border-border mb-2 p-2 text-[10.5px]">
+            <div key={f.contratId} className="border border-border mb-2 p-2 text-[12px]">
               <div className="font-bold">
                 {f.salarie} · {LIBELLE_TYPE[f.type]} du {jour(f.dateEntreeEnVigueur)}
                 {f.dateFin ? ` au ${jour(f.dateFin)}` : ''}
@@ -1497,7 +1497,7 @@ export function PersonnelPage() {
       )}
 
       {onglet === 'effectif' && (
-        <div className="max-w-[1240px] text-[10.5px]">
+        <div className="max-w-[1240px] text-[12px]">
           <label className="block mb-2">
             <span className={etiquette}>Effectif à la date du</span>
             <input
@@ -1555,7 +1555,7 @@ export function PersonnelPage() {
       )}
 
       {onglet === 'simulation' && (
-        <div className="ecran-seul max-w-[1240px] text-[10.5px]">
+        <div className="ecran-seul max-w-[1240px] text-[12px]">
           {/*
             CE QUE LA FENÊTRE DIT AVANT TOUT CHIFFRE. Un écran qui montre un
             brut, des retenues et un net EST lu comme un bulletin, quoi qu'il
@@ -1573,7 +1573,7 @@ export function PersonnelPage() {
           </div>
 
           <div className="border border-border px-3.5 py-2.5 mb-2.5">
-            <div className="text-[10px] text-text-dim mb-2">
+            <div className="text-[11px] text-text-dim mb-2">
               Les deux assiettes ne coïncident pas, et c’est l’erreur la plus coûteuse du domaine.
               Le <strong>Code du travail</strong>, article 7, point 8, sort cinq natures de la
               rémunération <strong>sans aucune condition</strong>. La <strong>loi fiscale</strong>{' '}
@@ -1645,7 +1645,7 @@ export function PersonnelPage() {
                   checked={logementNature}
                   onChange={(e) => setLogementNature(e.target.checked)}
                 />
-                <span className="text-[10px]">Logement fourni en nature</span>
+                <span className="text-[11px]">Logement fourni en nature</span>
               </label>
               <label className="flex items-center gap-1 pb-1">
                 <input
@@ -1653,7 +1653,7 @@ export function PersonnelPage() {
                   checked={obligationAlimentaire}
                   onChange={(e) => setObligationAlimentaire(e.target.checked)}
                 />
-                <span className="text-[10px]">Créance alimentaire légale</span>
+                <span className="text-[11px]">Créance alimentaire légale</span>
               </label>
               <label className="flex flex-col gap-0.5">
                 <span className={etiquette}>Employeur INPP</span>
@@ -1681,7 +1681,7 @@ export function PersonnelPage() {
                   checked={majorationRp}
                   onChange={(e) => setMajorationRp(e.target.checked)}
                 />
-                <span className="text-[10px]">Risques prof. majorés</span>
+                <span className="text-[11px]">Risques prof. majorés</span>
               </label>
               <label className="flex flex-col gap-0.5">
                 <span className={etiquette}>Personnes à charge</span>
@@ -1693,7 +1693,7 @@ export function PersonnelPage() {
               </label>
             </div>
 
-            <div className="text-[10px] text-text-dim mb-2">
+            <div className="text-[11px] text-text-dim mb-2">
               Les <strong>retenues de l’article 71</strong> sont saisies, quote-part ouvrière de la
               CNSS en tête : leurs taux vivent au registre des retenues avec leur date d’effet, et
               ce module ne les recopie pas. Le{' '}
@@ -1826,7 +1826,7 @@ export function PersonnelPage() {
                               )
                             }
                           />
-                          <span className="text-[9.5px] text-text-dim">dépense effective</span>
+                          <span className="text-[10.5px] text-text-dim">dépense effective</span>
                         </label>
                       </td>
                       <td className="py-1 text-right">
@@ -1877,13 +1877,13 @@ export function PersonnelPage() {
                   <div className="text-[14px] font-bold">
                     {fc(simulation.assiettes.assietteSocialeFc)} FC
                   </div>
-                  <div className="text-[10px] text-text-dim mt-1">
+                  <div className="text-[11px] text-text-dim mt-1">
                     Rémunération au sens de l’article 7, point 8 du Code du travail, reprise par
                     l’article 17 de l’arrêté ministériel n° 146/2018. C’est elle que les cotisations
                     frappent.
                   </div>
                   {simulation.assiettes.horsRemuneration.length > 0 && (
-                    <ul className="mt-1.5 text-[10px]">
+                    <ul className="mt-1.5 text-[11px]">
                       {simulation.assiettes.horsRemuneration.map((h, i) => (
                         <li key={i} className="py-0.5 border-t border-border/40">
                           <span className="text-text-dim">Écarté</span> · {h.libelle} ·{' '}
@@ -1901,7 +1901,7 @@ export function PersonnelPage() {
                       ? 'Indéterminée'
                       : `${fc(simulation.assiettes.assietteFiscaleNetteFc)} FC`}
                   </div>
-                  <div className="text-[10px] text-text-dim mt-1">
+                  <div className="text-[11px] text-text-dim mt-1">
                     Brut imposable des articles 68 et 69
                     {simulation.assiettes.assietteFiscaleBruteFc !== null &&
                       ` (${fc(simulation.assiettes.assietteFiscaleBruteFc)} FC)`}
@@ -1920,7 +1920,7 @@ export function PersonnelPage() {
                     {simulation.assiettes.abstentions.map((a, i) => (
                       <li key={i} className="py-1 border-t border-border/40">
                         <strong>{a.libelle}</strong> · {fc(a.montantFc)} FC
-                        <div className="text-[10px] mt-0.5">{a.explication}</div>
+                        <div className="text-[11px] mt-0.5">{a.explication}</div>
                       </li>
                     ))}
                   </ul>
@@ -1945,7 +1945,7 @@ export function PersonnelPage() {
                         <td className="py-1 pr-2 text-right font-mono">
                           {s.imposableFc === null ? 'indéterminé' : fc(s.imposableFc)}
                         </td>
-                        <td className="py-1 text-[10px] text-text-dim">{s.motif}</td>
+                        <td className="py-1 text-[11px] text-text-dim">{s.motif}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1958,7 +1958,7 @@ export function PersonnelPage() {
                   <div className="text-[16px] font-bold">
                     {fc(simulation.retenue.retenueFc)} FC
                   </div>
-                  <div className="text-[10px] text-text-dim mt-1">
+                  <div className="text-[11px] text-text-dim mt-1">
                     Revenu annualisé {fc(simulation.retenue.revenuAnnualiseFc)} FC, arrondi au
                     millier inférieur à {fc(simulation.retenue.annuel.assietteArrondieFc)} FC.
                     Barème de l’article 118 : {fc(simulation.retenue.annuel.impotDuBaremeFc)} FC.
@@ -1979,7 +1979,7 @@ export function PersonnelPage() {
                     Impôt annuel dû {fc(simulation.retenue.annuel.impotDuFc)} FC, ramené au mois.
                   </div>
                   <div className="overflow-x-auto mt-1.5">
-                    <table className="w-full min-w-[320px] border-collapse text-[10px]">
+                    <table className="w-full min-w-[320px] border-collapse text-[11px]">
                       <thead>
                         <tr className="border-b border-border text-left">
                           <th className={`${etiquette} py-1`}>Taux</th>
@@ -2002,7 +2002,7 @@ export function PersonnelPage() {
               )}
 
               {simulation.sourceProposition && (
-                <div className="border border-border px-3.5 py-2.5 mt-2.5 text-[10px]">
+                <div className="border border-border px-3.5 py-2.5 mt-2.5 text-[11px]">
                   <strong>
                     Personnes à charge · le registre en propose{' '}
                     {simulation.propositionPersonnesACharge}, la simulation en retient{' '}
@@ -2029,10 +2029,10 @@ export function PersonnelPage() {
                         <td className="py-1 pr-2">
                           {c.libelle}
                           {c.reserve && (
-                            <div className="text-[9.5px] text-text-dim">{c.reserve}</div>
+                            <div className="text-[10.5px] text-text-dim">{c.reserve}</div>
                           )}
                         </td>
-                        <td className="py-1 pr-2 text-[10px]">
+                        <td className="py-1 pr-2 text-[11px]">
                           {c.charge === 'TRAVAILLEUR' ? 'Travailleur' : 'Employeur'}
                         </td>
                         <td className="py-1 pr-2 text-right font-mono">{c.tauxPourCent} %</td>
@@ -2079,7 +2079,7 @@ export function PersonnelPage() {
                     ? 'Indéterminé'
                     : `${fc(simulation.net.netAPayerFc)} FC`}
                 </div>
-                <div className="text-[10px] text-text-dim mt-1">
+                <div className="text-[11px] text-text-dim mt-1">
                   Total versé {fc(simulation.net.totalVerseFc)} FC, moins la quote-part ouvrière
                   de {fc(simulation.net.quotePartOuvriereFc)} FC et l’impôt de{' '}
                   {simulation.net.irppFc === null
@@ -2091,7 +2091,7 @@ export function PersonnelPage() {
                     sortent de la rémunération, pas de ce que l’employeur paie.
                   </strong>
                 </div>
-                <ul className="mt-1.5 text-[10px] text-text-dim">
+                <ul className="mt-1.5 text-[11px] text-text-dim">
                   {simulation.net.reserves.map((r, i) => (
                     <li key={i} className="py-0.5 border-t border-border/40">
                       {r}
@@ -2106,7 +2106,7 @@ export function PersonnelPage() {
                     Passation comptable · plan {simulation.passation.referentiel}
                   </div>
                   {simulation.passation.equilibree && (
-                    <div className="text-[10px] text-text-dim">
+                    <div className="text-[11px] text-text-dim">
                       Débit {fc(simulation.passation.totalDebitFc)} = Crédit{' '}
                       {fc(simulation.passation.totalCreditFc)}
                     </div>
@@ -2118,7 +2118,7 @@ export function PersonnelPage() {
                     <div className="font-bold mb-1">Aucune écriture n’est proposée</div>
                     <ul>
                       {simulation.passation.refus.map((r, i) => (
-                        <li key={i} className="py-1 border-t border-border/40 text-[10px]">
+                        <li key={i} className="py-1 border-t border-border/40 text-[11px]">
                           <strong>{r.motif}</strong> · {r.explication}
                         </li>
                       ))}
@@ -2143,7 +2143,7 @@ export function PersonnelPage() {
                               <td className="py-1 pr-2">
                                 {l.intitule}
                                 {l.reserve && (
-                                  <div className="text-[9.5px] text-text-dim">{l.reserve}</div>
+                                  <div className="text-[10.5px] text-text-dim">{l.reserve}</div>
                                 )}
                               </td>
                               <td className="py-1 pr-2 text-right font-mono">
@@ -2168,7 +2168,7 @@ export function PersonnelPage() {
                         </tbody>
                       </table>
                     </div>
-                    <ul className="mt-1.5 text-[10px] text-text-dim">
+                    <ul className="mt-1.5 text-[11px] text-text-dim">
                       {simulation.passation.reserves.map((r, i) => (
                         <li key={i} className="py-0.5 border-t border-border/40">
                           {r}
@@ -2190,7 +2190,7 @@ export function PersonnelPage() {
                   Article 114 · quotité cessible et saisissable
                 </div>
                 {simulation.quotite.abstentions.length > 0 ? (
-                  <ul className="text-[10px]">
+                  <ul className="text-[11px]">
                     {simulation.quotite.abstentions.map((a, i) => (
                       <li key={i} className="py-1 border-t border-border/40">
                         <span className="text-warning">{a.motif}</span>
@@ -2200,7 +2200,7 @@ export function PersonnelPage() {
                   </ul>
                 ) : (
                   <div className="overflow-x-auto">
-                    <table className="w-full min-w-[520px] text-[10px]">
+                    <table className="w-full min-w-[520px] text-[11px]">
                       <tbody>
                         <tr className="border-t border-border/40">
                           <td className="py-1">Base de l’alinéa 4</td>
@@ -2252,7 +2252,7 @@ export function PersonnelPage() {
                     </table>
                   </div>
                 )}
-                <ul className="text-[10px] text-text-dim mt-1.5">
+                <ul className="text-[11px] text-text-dim mt-1.5">
                   {simulation.quotite.reserves.map((r, i) => (
                     <li key={i} className="py-1 border-t border-border/40">
                       {r}
@@ -2272,7 +2272,7 @@ export function PersonnelPage() {
                   Article 112 · les sept seules retenues autorisées
                 </div>
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[520px] text-[10px]">
+                  <table className="w-full min-w-[520px] text-[11px]">
                     <tbody>
                       {simulation.retenuesAutorisees.liste.map((r) => (
                         <tr key={r.littera} className="border-t border-border/40">
@@ -2290,10 +2290,10 @@ export function PersonnelPage() {
                     </tbody>
                   </table>
                 </div>
-                <div className="border border-danger/30 bg-danger-soft px-3 py-2 mt-2 text-[10px]">
+                <div className="border border-danger/30 bg-danger-soft px-3 py-2 mt-2 text-[11px]">
                   {simulation.retenuesAutorisees.sanction}
                 </div>
-                <ul className="text-[10px] text-text-dim mt-1.5">
+                <ul className="text-[11px] text-text-dim mt-1.5">
                   {[
                     simulation.retenuesAutorisees.cotisationSyndicale,
                     simulation.retenuesAutorisees.cessionSyndicale,
@@ -2308,7 +2308,7 @@ export function PersonnelPage() {
 
               {(simulation.assiettes.reserves.length > 0 ||
                 (simulation.retenue?.reserves.length ?? 0) > 0) && (
-                <div className="border border-border px-3.5 py-2.5 mt-2.5 text-[10px]">
+                <div className="border border-border px-3.5 py-2.5 mt-2.5 text-[11px]">
                   <div className={`${etiquette} mb-1`}>Réserves de lecture</div>
                   <ul>
                     {[
@@ -2328,7 +2328,7 @@ export function PersonnelPage() {
       )}
 
       {onglet === 'decompte' && (
-        <div className="ecran-seul max-w-[1240px] text-[10.5px]">
+        <div className="ecran-seul max-w-[1240px] text-[12px]">
           <div className="border border-warning/40 bg-warning/5 px-3.5 py-2.5 mb-2.5">
             <strong>Le Code du travail ne définit pas le « décompte final ».</strong> C’est un
             usage professionnel, dont le fondement est l’<strong>article 100</strong> : toute somme
@@ -2397,7 +2397,7 @@ export function PersonnelPage() {
                   checked={dec.moinsDeDixHuitAns}
                   onChange={(e) => setDec({ ...dec, moinsDeDixHuitAns: e.target.checked })}
                 />
-                <span className="text-[10px]">Moins de 18 ans</span>
+                <span className="text-[11px]">Moins de 18 ans</span>
               </label>
               <label className="flex items-center gap-1 pb-1">
                 <input
@@ -2405,7 +2405,7 @@ export function PersonnelPage() {
                   checked={dec.delegueSyndical}
                   onChange={(e) => setDec({ ...dec, delegueSyndical: e.target.checked })}
                 />
-                <span className="text-[10px]">Délégué syndical</span>
+                <span className="text-[11px]">Délégué syndical</span>
               </label>
             </div>
 
@@ -2443,7 +2443,7 @@ export function PersonnelPage() {
                 Calculer
               </button>
             </div>
-            <div className="text-[10px] text-text-dim mt-2">
+            <div className="text-[11px] text-text-dim mt-2">
               Les <strong>mois entiers de service</strong> sont saisis : l’article 141, alinéa 2, y
               fait entrer les jours de repos, de congé payé, les jours fériés et l’incapacité
               jusqu’à six mois par année. Les reconstituer depuis les dates du contrat donnerait un
@@ -2462,7 +2462,7 @@ export function PersonnelPage() {
                       : `${decompte.preavis.joursOuvrables} jours ouvrables`}
                   </div>
                   {decompte.preavis.motifAucunPreavis && (
-                    <div className="text-[10px] text-text-dim mt-1">
+                    <div className="text-[11px] text-text-dim mt-1">
                       {decompte.preavis.motifAucunPreavis}
                     </div>
                   )}
@@ -2472,7 +2472,7 @@ export function PersonnelPage() {
                   <div className="text-[14px] font-bold">
                     {decompte.conge.joursOuvrables} jours ouvrables
                   </div>
-                  <div className="text-[10px] text-text-dim mt-1">
+                  <div className="text-[11px] text-text-dim mt-1">
                     dont {decompte.conge.joursDeBase} de base et {decompte.conge.joursDAnciennete}{' '}
                     d’ancienneté.
                   </div>
@@ -2495,7 +2495,7 @@ export function PersonnelPage() {
                         <td className="py-1 pr-2 text-right font-mono">
                           {r.montantFc === null ? 'indéterminé' : fc(r.montantFc)}
                         </td>
-                        <td className="py-1 text-[10px] text-text-dim">
+                        <td className="py-1 text-[11px] text-text-dim">
                           {r.fondement}
                           {r.reserve && <div className="mt-0.5">{r.reserve}</div>}
                         </td>
@@ -2508,7 +2508,7 @@ export function PersonnelPage() {
                           ? 'Indéterminé'
                           : fc(decompte.totalBrutFc)}
                       </td>
-                      <td className="py-1 text-[10px] text-text-dim font-normal">
+                      <td className="py-1 text-[11px] text-text-dim font-normal">
                         {decompte.echeancePaiement}
                       </td>
                     </tr>
@@ -2516,7 +2516,7 @@ export function PersonnelPage() {
                 </table>
               </div>
 
-              <div className="border border-border px-3.5 py-2.5 mt-2.5 text-[10px]">
+              <div className="border border-border px-3.5 py-2.5 mt-2.5 text-[11px]">
                 <div className={`${etiquette} mb-1`}>Réserves de lecture</div>
                 <ul>
                   {decompte.reserves.map((r, i) => (
@@ -2532,7 +2532,7 @@ export function PersonnelPage() {
       )}
 
       {onglet === 'livre' && (
-        <div className="ecran-seul max-w-[1240px] text-[10.5px]">
+        <div className="ecran-seul max-w-[1240px] text-[12px]">
           {/*
             CE QUE CETTE FENÊTRE NE FAIT PAS, ET ELLE LE DIT AVANT TOUT LE
             RESTE. OmegaX ne tient pas le livre de paie et ne certifie aucune
@@ -2613,7 +2613,7 @@ export function PersonnelPage() {
                     setLivreSaisie({ ...livreSaisie, domestique: e.target.checked })
                   }
                 />
-                <span className="text-[10px]">Personnel exclusivement domestique</span>
+                <span className="text-[11px]">Personnel exclusivement domestique</span>
               </label>
               <button
                 type="button"
@@ -2624,7 +2624,7 @@ export function PersonnelPage() {
                 Vérifier
               </button>
             </div>
-            <div className="text-[10px] text-text-dim">
+            <div className="text-[11px] text-text-dim">
               L’article 213 impose un livre <strong>dans chacun des sièges d’exploitation</strong>,
               consignant à chaque paie <strong>toute somme quelconque</strong> attribuée à titre de
               rémunération. L’article 1er de l’arrêté vise « le livre de paie{' '}
@@ -2640,7 +2640,7 @@ export function PersonnelPage() {
             <>
               <div className="border border-border px-3.5 py-2.5 mb-2.5">
                 <div className={`${etiquette} mb-1`}>Verdict</div>
-                <div className="text-[10px]">
+                <div className="text-[11px]">
                   Livre dû : <strong>{livre.livreDu ? 'oui' : 'non'}</strong> · remplacement
                   autorisé : <strong>{livre.remplacementAutorise ? 'oui' : 'non'}</strong> · livre
                   « inspiré du modèle » (art. 215 al. 3, moins de 25 travailleurs) :{' '}
@@ -2653,7 +2653,7 @@ export function PersonnelPage() {
                     {livre.conformiteAuModeleCertifiee ? 'oui' : 'non'}
                   </strong>
                 </div>
-                <ul className="text-[10px] mt-1.5">
+                <ul className="text-[11px] mt-1.5">
                   {livre.refus.map((r, i) => (
                     <li key={i} className="py-1 border-t border-border/40">
                       <span className="text-warning">{r.motif}</span>
@@ -2667,7 +2667,7 @@ export function PersonnelPage() {
                 <div className={`${etiquette} mb-1`}>
                   Les trente-trois énonciations de l’article 1er de l’arrêté du 8 août 2008
                 </div>
-                <table className="w-full min-w-[520px] text-[10px]">
+                <table className="w-full min-w-[520px] text-[11px]">
                   <tbody>
                     {livre.mentions.map((m) => {
                       const portee = mentionsPortees.includes(m.rang);
@@ -2700,11 +2700,11 @@ export function PersonnelPage() {
                 </table>
               </div>
 
-              <div className="border border-danger/30 bg-danger-soft px-3.5 py-2.5 mb-2.5 text-[10px]">
+              <div className="border border-danger/30 bg-danger-soft px-3.5 py-2.5 mb-2.5 text-[11px]">
                 {livre.sanctionArticle103}
               </div>
 
-              <div className="border border-border px-3.5 py-2.5 text-[10px]">
+              <div className="border border-border px-3.5 py-2.5 text-[11px]">
                 <div className={`${etiquette} mb-1`}>Réserves de lecture</div>
                 <ul>
                   {[...livre.reserves, livre.reserveArticle104].map((r, i) => (

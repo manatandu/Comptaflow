@@ -159,8 +159,8 @@ export function RelancesPage() {
       <EnteteImpression titre="Rappel et relevé" />
       <div className="flex items-end justify-between mb-1.5 gap-3 flex-wrap">
         <div>
-          <div className="text-[10px] font-mono text-text-dim leading-none">TRAITEMENT</div>
-          <h1 className="text-[12px] font-bold leading-tight flex items-center gap-1.5">
+          <div className="text-[11px] font-mono text-text-dim leading-none">TRAITEMENT</div>
+          <h1 className="text-[13px] font-bold leading-tight flex items-center gap-1.5">
             Rappel et relevé
             {/* Le lexique s'aiguille tout seul sur le référentiel du dossier
                 (`entreeLexique`) · l'entrée `relanceSyscohada` existe. */}
@@ -170,11 +170,11 @@ export function RelancesPage() {
         {peutEcrire && (
           <div className="flex items-end gap-2">
             <label className="flex flex-col gap-1">
-              <span className="text-[10px] font-bold text-text-dim">NIVEAU</span>
+              <span className="text-[11px] font-bold text-text-dim">NIVEAU</span>
               <select
                 value={niveauId}
                 onChange={(e) => setNiveauId(e.target.value)}
-                className="border border-border rounded-[6px] bg-surface px-2 py-1 text-[10.5px] min-w-[200px]"
+                className="border border-border rounded-[6px] bg-surface px-2 py-1 text-[12px] min-w-[200px]"
               >
                 {niveaux.map((n) => (
                   <option key={n.id} value={n.id}>
@@ -186,7 +186,7 @@ export function RelancesPage() {
             <button
               onClick={emettre}
               disabled={envoi || selection.size === 0}
-              className="bg-sel text-white text-[10.5px] font-bold px-3.5 py-1.5 rounded-[6px] hover:brightness-110 disabled:opacity-50"
+              className="bg-sel text-white text-[12px] font-bold px-3.5 py-1.5 rounded-[6px] hover:brightness-110 disabled:opacity-50"
             >
               Préparer les courriers ({selection.size})
             </button>
@@ -195,12 +195,12 @@ export function RelancesPage() {
       </div>
 
       {erreur && (
-        <div className="mb-2.5 text-[11px] text-danger bg-danger-soft border border-danger/30 rounded-[6px] px-2.5 py-1.5">
+        <div className="mb-2.5 text-[12.5px] text-danger bg-danger-soft border border-danger/30 rounded-[6px] px-2.5 py-1.5">
           {erreur}
         </div>
       )}
       {info && (
-        <div className="mb-2.5 text-[11px] text-positive bg-positive-soft border border-positive/30 rounded-[6px] px-2.5 py-1.5 flex justify-between">
+        <div className="mb-2.5 text-[12.5px] text-positive bg-positive-soft border border-positive/30 rounded-[6px] px-2.5 py-1.5 flex justify-between">
           <span>{info}</span>
           <button onClick={() => setInfo(null)} className="font-bold hover:underline">
             Fermer
@@ -214,7 +214,7 @@ export function RelancesPage() {
             key={e.valeur}
             onClick={() => setType(e.valeur)}
             title={e.description}
-            className={`px-4 py-1.5 text-[10.5px] font-bold ${
+            className={`px-4 py-1.5 text-[12px] font-bold ${
               type === e.valeur ? 'bg-surface border-x border-border' : 'text-text-dim'
             }`}
           >
@@ -228,11 +228,11 @@ export function RelancesPage() {
           colonne DERNIÈRE RELANCE était ROGNÉE et aucune barre ne permettait
           d'aller la chercher. */}
       <div className="border border-border bg-surface rounded-b-[10px] overflow-x-auto">
-        <p className="px-3 py-2 text-[10.5px] text-text-dim border-b border-border/40">
+        <p className="px-3 py-2 text-[12px] text-text-dim border-b border-border/40">
           {ETATS.find((e) => e.valeur === type)?.description}
         </p>
 
-        <div className={`${grille} px-3 py-1.5 bg-chrome-alt border-b border-border text-[10px] font-bold text-text-dim`}>
+        <div className={`${grille} px-3 py-1.5 bg-chrome-alt border-b border-border text-[11px] font-bold text-text-dim`}>
           <span>
             {peutEcrire && positions && positions.length > 0 && (
               <input
@@ -261,11 +261,11 @@ export function RelancesPage() {
           <span>DERNIÈRE RELANCE</span>
         </div>
 
-        {!positions && <div className="px-3 py-4 text-[11px] text-text-dim">Chargement…</div>}
+        {!positions && <div className="px-3 py-4 text-[12.5px] text-text-dim">Chargement…</div>}
         {positions?.map((p) => (
           <div key={p.compteId}>
             <div
-              className={`${grille} px-3 py-1 text-[11px] items-center border-b border-border/40 ${
+              className={`${grille} px-3 py-1 text-[12.5px] items-center border-b border-border/40 ${
                 p.retardMaxJours > 90 ? 'bg-danger-soft' : p.retardMaxJours > 30 ? 'bg-warning-soft' : ''
               }`}
             >
@@ -301,30 +301,30 @@ export function RelancesPage() {
                     `tiersEmail` pour cela, et une lettre composée pour un
                     tiers sans adresse ne partira à personne. */}
                 {p.tiersId && !p.tiersEmail && (
-                  <span className="ml-1 text-[9.5px] text-warning font-semibold">sans adresse</span>
+                  <span className="ml-1 text-[10.5px] text-warning font-semibold">sans adresse</span>
                 )}
                 {/* L'EXCLUSION SE VOIT, elle ne fait pas disparaître la ligne ·
                     un tiers hors circuit doit toujours, et une liste qui le
                     cacherait laisserait croire le poste apuré. */}
                 {p.horsRelance && (
                   <span
-                    className="ml-1 text-[9.5px] text-text-dim font-semibold border border-border px-1"
+                    className="ml-1 text-[10.5px] text-text-dim font-semibold border border-border px-1"
                     title={`Hors circuit de relance${p.horsRelanceDepuis ? ` depuis le ${new Date(p.horsRelanceDepuis).toLocaleDateString('fr-FR')}` : ''} · ${p.motifHorsRelance ?? ''}`}
                   >
                     hors circuit
                   </span>
                 )}
               </button>
-              <span className="text-[10.5px] text-text-dim">{p.qualite}</span>
+              <span className="text-[12px] text-text-dim">{p.qualite}</span>
               <span className="text-right font-mono font-semibold">{montant(p.montantDu)}</span>
               <span
-                className={`text-right font-mono text-[10.5px] ${
+                className={`text-right font-mono text-[12px] ${
                   p.retardMaxJours > 90 ? 'text-danger font-bold' : p.retardMaxJours > 0 ? 'text-warning' : 'text-text-dim'
                 }`}
               >
                 {p.retardMaxJours > 0 ? `${p.retardMaxJours} j` : `dans ${-p.retardMaxJours} j`}
               </span>
-              <span className="text-[10.5px]">
+              <span className="text-[12px]">
                 {p.derniereRelance ? (
                   <span className="text-text-dim">
                     niveau {p.derniereRelance.niveau} le {new Date(p.derniereRelance.date).toLocaleDateString('fr-FR')}
@@ -338,7 +338,7 @@ export function RelancesPage() {
             </div>
             {deplie.has(p.compteId) &&
               p.lignes.map((l, i) => (
-                <div key={i} className={`${grille} px-3 py-0.5 text-[10.5px] bg-chrome-alt/50 border-b border-border/30`}>
+                <div key={i} className={`${grille} px-3 py-0.5 text-[12px] bg-chrome-alt/50 border-b border-border/30`}>
                   <span />
                   <span className="font-mono text-text-dim">{l.echeance ?? l.date}</span>
                   <span className="truncate text-text-dim">{l.libelle}</span>
@@ -360,7 +360,7 @@ export function RelancesPage() {
               <div className="px-3 py-2 bg-chrome-alt/50 border-b border-border/30 flex items-center gap-2 flex-wrap">
                 {p.horsRelance ? (
                   <>
-                    <span className="text-[10.5px] text-text-dim">
+                    <span className="text-[12px] text-text-dim">
                       Hors circuit
                       {p.horsRelanceDepuis
                         ? ` depuis le ${new Date(p.horsRelanceDepuis).toLocaleDateString('fr-FR')}`
@@ -372,7 +372,7 @@ export function RelancesPage() {
                       type="button"
                       disabled={envoi}
                       onClick={() => definirHorsRelance(p.tiersId!, false)}
-                      className="border border-border-dark bg-chrome hover:bg-surface px-2 py-1 text-[10.5px] disabled:opacity-50"
+                      className="border border-border-dark bg-chrome hover:bg-surface px-2 py-1 text-[12px] disabled:opacity-50"
                     >
                       Remettre dans le circuit
                     </button>
@@ -383,7 +383,7 @@ export function RelancesPage() {
                       value={motifs[p.compteId] ?? ''}
                       onChange={(e) => setMotifs((m) => ({ ...m, [p.compteId]: e.target.value }))}
                       placeholder="Pourquoi ce tiers sort du circuit (litige, échéancier convenu…)"
-                      className="border border-border-dark bg-surface px-2 py-1 text-[10.5px] flex-1 min-w-[220px]"
+                      className="border border-border-dark bg-surface px-2 py-1 text-[12px] flex-1 min-w-[220px]"
                     />
                     {/* LE MOTIF EST EXIGÉ, ici comme au serveur · une case
                         seule ne se relit pas, et au prochain examen personne
@@ -392,13 +392,13 @@ export function RelancesPage() {
                       type="button"
                       disabled={envoi || (motifs[p.compteId] ?? '').trim().length === 0}
                       onClick={() => definirHorsRelance(p.tiersId!, true, motifs[p.compteId])}
-                      className="border border-border-dark bg-chrome hover:bg-surface px-2 py-1 text-[10.5px] disabled:opacity-40"
+                      className="border border-border-dark bg-chrome hover:bg-surface px-2 py-1 text-[12px] disabled:opacity-40"
                     >
                       Exclure du circuit
                     </button>
                   </>
                 )}
-                <span className="text-[10px] text-text-dim">
+                <span className="text-[11px] text-text-dim">
                   L'exclusion ne porte que sur le COURRIER · la créance reste due et visible partout ailleurs.
                 </span>
               </div>
@@ -407,7 +407,7 @@ export function RelancesPage() {
         ))}
 
         {positions && positions.length === 0 && (
-          <div className="px-3 py-5 text-[11px] text-text-dim italic">
+          <div className="px-3 py-5 text-[12.5px] text-text-dim italic">
             {type === 'PREVENTIVE'
               ? utilisateur?.tenant.referentiel === 'SYSCOHADA'
                 ? 'Aucune échéance à venir sur les comptes clients (41).'
@@ -419,7 +419,7 @@ export function RelancesPage() {
         )}
 
         {positions && positions.length > 0 && (
-          <div className={`${grille} px-3 py-1.5 bg-chrome border-t border-border text-[11px] font-bold`}>
+          <div className={`${grille} px-3 py-1.5 bg-chrome border-t border-border text-[12.5px] font-bold`}>
             <span />
             <span />
             <span>{positions.length} tiers</span>
@@ -434,17 +434,17 @@ export function RelancesPage() {
       {lettres && lettres.length > 0 && (
         <section className="mt-2.5 bg-surface border border-border rounded-[10px] shadow-posee overflow-hidden">
           <header className="px-3 py-2 bg-chrome-alt border-b border-border flex items-center justify-between">
-            <span className="text-[10.5px] font-bold">Courriers préparés</span>
+            <span className="text-[12px] font-bold">Courriers préparés</span>
             <button
               onClick={() => navigator.clipboard?.writeText(lettres.map((l) => l.texte).join('\n\n\n'))}
-              className="border border-border rounded-[6px] bg-surface px-3 py-1 text-[10.5px] font-semibold hover:bg-chrome"
+              className="border border-border rounded-[6px] bg-surface px-3 py-1 text-[12px] font-semibold hover:bg-chrome"
             >
               Tout copier
             </button>
           </header>
           {lettres.map((l) => (
             <article key={l.compteId} className="border-b border-border/40">
-              <div className="px-3 py-1.5 bg-chrome text-[10.5px] font-semibold flex justify-between gap-2 flex-wrap">
+              <div className="px-3 py-1.5 bg-chrome text-[12px] font-semibold flex justify-between gap-2 flex-wrap">
                 <span>{l.tiers}</span>
                 <span className="font-mono">{montant(l.montant)}</span>
               </div>
@@ -453,7 +453,7 @@ export function RelancesPage() {
                   remet en main propre ; ce qui serait faux, c'est de laisser
                   croire qu'elle est partie. */}
               <div
-                className={`px-3 py-1 text-[10px] border-b border-border/30 ${
+                className={`px-3 py-1 text-[11px] border-b border-border/30 ${
                   tonRemise(l.remise) === 'manque'
                     ? 'bg-warning-soft text-warning'
                     : tonRemise(l.remise) === 'remis'
@@ -465,7 +465,7 @@ export function RelancesPage() {
                 {l.remise.destinataire && <span> · {l.remise.destinataire}</span>}
                 {l.remise.motif && <span> · {l.remise.motif}</span>}
               </div>
-              <pre className="px-3 py-2 text-[10.5px] whitespace-pre-wrap font-sans leading-[1.6]">{l.texte}</pre>
+              <pre className="px-3 py-2 text-[12px] whitespace-pre-wrap font-sans leading-[1.6]">{l.texte}</pre>
             </article>
           ))}
         </section>

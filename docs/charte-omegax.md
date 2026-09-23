@@ -222,7 +222,8 @@ fond de document, employer le filet de clôture (§ 9), qui est fait pour ça.
 | `--bg` `#eceff4` | **oui** · 11,05:1 | non | oui |
 | `--n-200` `#d3dae4` | oui · 9,05:1 | non | oui |
 | Encre `#142f6b` | non · 1,00:1 | **oui** · 12,74:1 | non |
-| Barre de titre `#1d2a3f` | non · 1,13:1 | **oui** · 14,43:1 | non |
+| `--chrome` `#f5f7fa` (panneaux latéraux) | **oui** · 11,87:1 | non | oui |
+| Barre de titre `#1d2a3f` (retirée le 2026-09-23) | non · 1,13:1 | oui · 14,43:1 | non |
 | Noir `#000000` | non · 1,65:1 | **oui** · 21,00:1 | non |
 | Photographie, texture, dégradé | non, sauf cartouche (§ 5) | non, sauf cartouche | non |
 
@@ -244,8 +245,18 @@ courant : un logo moins contrasté qu'un paragraphe se lit moins bien que lui.
 | `--positive` sur blanc | 5,36:1 | AA |
 | `--warning` sur blanc | 5,42:1 | AA |
 | `--danger` sur blanc | 6,21:1 | AA |
-| `--chrome-text` sur barre de titre | 12,50:1 | AAA |
-| `--chrome-text-dim` sur barre de titre | 6,55:1 | AA |
+| `--text` sur `--chrome` | 16,27:1 | AAA |
+| `--text-dim` sur `--chrome` | 4,94:1 | AA |
+| Encre sur `--chrome` | 11,87:1 | AAA |
+| Blanc sur `#c42b1c` (fermeture survolée) | 5,66:1 | AA |
+
+**Barres de titre claires depuis le 2026-09-23.** Toutes les barres de titre
+(bandeau de l'espace de travail, fenêtres, boîtes de dialogue, écran
+d'ouverture) sont passées au fond `--surface`, comme sous Windows 11 : le
+signe porte l'encre, la barre ne la porte plus. Les deux couples
+`--chrome-text` sur barre de titre (12,50:1 et 6,55:1) ne sont donc plus
+employés. Seul le bouton de fermeture garde une couleur propre au survol,
+le rouge `#c42b1c` de Windows 11, mesuré ci-dessus.
 
 **Ne pas changer la couleur d'un texte de l'interface :** ces couples sont
 approuvés pour l'accessibilité, et la table ci-dessus est ce qui l'établit.

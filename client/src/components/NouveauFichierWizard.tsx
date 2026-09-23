@@ -203,7 +203,7 @@ function formInitial(): Form {
 }
 
 const champ =
-  'mt-1 w-full border border-border rounded-[6px] bg-surface px-2.5 py-1.5 text-[12px] font-normal focus:outline-none focus:ring-2 focus:ring-sel/25 focus:border-sel';
+  'mt-1 w-full border border-border rounded-[6px] bg-surface px-2.5 py-1.5 text-[13px] font-normal focus:outline-none focus:ring-2 focus:ring-sel/25 focus:border-sel';
 
 /**
  * LIGNE DE FORMULAIRE, au modèle Sage · étiquette ALIGNÉE À DROITE dans une
@@ -227,7 +227,7 @@ function Ligne({
 }) {
   return (
     <div className="flex items-center gap-3 mb-1.5">
-      <span className="w-[132px] flex-shrink-0 text-right text-[11px] text-text leading-tight">{label}</span>
+      <span className="w-[132px] flex-shrink-0 text-right text-[12.5px] text-text leading-tight">{label}</span>
       <div className={large ? 'flex-1 min-w-0' : 'w-[190px] flex-shrink-0'}>{children}</div>
     </div>
   );
@@ -240,7 +240,7 @@ function Ligne({
 function SectionTitre({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex items-center gap-3 mt-4 mb-2.5">
-      <span className="text-[12px] text-text-dim">{children}</span>
+      <span className="text-[13px] text-text-dim">{children}</span>
       <span className="flex-1 h-px bg-border" />
     </div>
   );
@@ -322,15 +322,14 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
       {/* Surface de marque, comme la porte d'ouverture · voir AuthPage. */}
       <div className="w-full max-w-[700px] max-h-[calc(100dvh-2rem)] flex flex-col bg-surface border border-border rounded-[10px] overflow-hidden shadow-flottante anim-modale font-marque">
         <div
-          className="h-[34px] flex items-center justify-between px-3 text-white text-[11px]"
-          style={{ background: 'linear-gradient(180deg, var(--titlebar-from), var(--titlebar-to))' }}
+          className="h-[32px] flex items-center justify-between px-3 bg-surface text-text border-b border-border text-[12.5px]"
         >
           <div className="flex items-center gap-2">
-            <SymboleOmegaX taille={14} className="text-white" />
+            <SymboleOmegaX taille={14} className="text-[var(--a-900)]" />
             <span>Assistant de création de fichier comptable</span>
           </div>
           {!envoi && (
-            <button onClick={onClose} className="text-white/85 hover:text-white text-[11px] leading-none px-1">
+            <button onClick={onClose} className="-mr-2 self-stretch w-[46px] flex items-center justify-center text-text-dim hover:text-white hover:bg-[#c42b1c] text-[12.5px]">
               ✕
             </button>
           )}
@@ -341,8 +340,8 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
             <div className="w-12 h-12 rounded-full bg-positive-soft flex items-center justify-center">
               <IconCheck width={22} height={22} className="text-positive" />
             </div>
-            <h2 className="text-[13px] font-bold">Dossier « {form.nomEntite} » créé</h2>
-            <p className="text-[11px] text-text-dim max-w-[440px]">
+            <h2 className="text-[14px] font-bold">Dossier « {form.nomEntite} » créé</h2>
+            <p className="text-[12.5px] text-text-dim max-w-[440px]">
               Le plan de comptes {form.referentiel} et l'exercice {new Date(form.dateDebutExercice).getFullYear()} sont
               prêts.{' '}
               {form.referentiel === 'SYCEBNL'
@@ -351,7 +350,7 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
             </p>
             <button
               onClick={() => (onTermine ? onTermine() : onClose())}
-              className="mt-2 bg-sel text-white text-[12px] font-semibold px-6 py-2 rounded-[6px] hover:brightness-110"
+              className="mt-2 bg-sel text-white text-[13px] font-semibold px-6 py-2 rounded-[6px] hover:brightness-110"
             >
               Compléter l'identification
             </button>
@@ -359,24 +358,23 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
         ) : (
           <div className="flex flex-1 min-h-0">
             <div
-              className="w-[172px] flex-shrink-0 p-4 overflow-y-auto"
-              style={{ background: 'linear-gradient(180deg, var(--titlebar-from), var(--titlebar-to))' }}
+              className="w-[172px] flex-shrink-0 p-4 overflow-y-auto bg-chrome border-r border-border"
             >
-              <div className="text-[10.5px] font-bold text-white mb-4 leading-snug">Nouveau dossier</div>
+              <div className="text-[12px] font-bold text-text mb-4 leading-snug">Nouveau dossier</div>
               {etapes.map((c, i) => (
                 <div key={c} className="flex items-center gap-2 py-1">
                   <span
-                    className={`w-[18px] h-[18px] rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${
+                    className={`w-[18px] h-[18px] rounded-full flex items-center justify-center text-[11px] font-bold flex-shrink-0 ${
                       i < rang
-                        ? 'bg-white text-[var(--titlebar-to)]'
+                        ? 'bg-sel text-white'
                         : i === rang
-                          ? 'border-2 border-white text-white'
-                          : 'border border-white/40 text-white/50'
+                          ? 'border-2 border-sel text-sel'
+                          : 'border border-border-dark text-text-dim'
                     }`}
                   >
                     {i < rang ? '✓' : i + 1}
                   </span>
-                  <span className={`text-[10.5px] ${i === rang ? 'text-white font-semibold' : 'text-white/60'}`}>
+                  <span className={`text-[12px] ${i === rang ? 'text-text font-semibold' : 'text-text-dim'}`}>
                     {LIBELLE_ETAPE[c]}
                   </span>
                 </div>
@@ -418,11 +416,11 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
                         ce soit. Tenue en UNE ligne : trois blocs de prose
                         avant la première question repoussaient les choix
                         hors de l'écran. */}
-                    <p className="text-[11px] text-text-dim leading-[1.6] mb-3">
+                    <p className="text-[12.5px] text-text-dim leading-[1.6] mb-3">
                       Cet assistant met en place un nouveau dossier comptable. Vos réponses commandent le plan de
                       comptes semé à la création et la présentation des états financiers.
                     </p>
-                    <h2 className="text-[13px] font-bold mb-1 flex items-center gap-1.5">
+                    <h2 className="text-[14px] font-bold mb-1 flex items-center gap-1.5">
                       Indiquez le référentiel comptable de l'entité
                       {/*
                         PAS `sujet="jeuEtats"` ICI · cette entrée n'explique que
@@ -443,7 +441,7 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
                         un dossier · dire « modifiable plus tard » serait faux.
                         Seul le jeu d'états SYCEBNL se change après coup, tant
                         qu'aucune écriture n'existe. */}
-                    <p className="text-[10.5px] text-text-dim leading-[1.5] mb-2.5">
+                    <p className="text-[12px] text-text-dim leading-[1.5] mb-2.5">
                       Ce choix sème le plan de comptes du dossier et ne se change plus ensuite · pour l'autre
                       référentiel, on ouvre un autre dossier.
                     </p>
@@ -470,14 +468,14 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
                               onChange={() => r.disponible && majer('referentiel', r.valeur)}
                             />
                             <span className="min-w-0">
-                              <span className="block text-[11px] font-semibold flex items-center gap-1.5">
+                              <span className="block text-[12.5px] font-semibold flex items-center gap-1.5">
                                 {r.titre}
-                                <span className="text-[10.5px] font-normal text-text-dim">{r.sousTitre}</span>
+                                <span className="text-[12px] font-normal text-text-dim">{r.sousTitre}</span>
                                 {!r.disponible && (
-                                  <span className="text-[10px] font-semibold text-warning">bientôt</span>
+                                  <span className="text-[11px] font-semibold text-warning">bientôt</span>
                                 )}
                               </span>
-                              <span className="block text-[10.5px] text-text-dim leading-[1.45] mt-0.5">
+                              <span className="block text-[12px] text-text-dim leading-[1.45] mt-0.5">
                                 {r.description}
                               </span>
                             </span>
@@ -496,13 +494,13 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
                     encadré par un seuil, et l'écran donne le seuil. */}
                 {cle === 'systeme' && (
                   <>
-                    <h2 className="text-[13px] font-bold mb-1 flex items-center gap-1.5">
+                    <h2 className="text-[14px] font-bold mb-1 flex items-center gap-1.5">
                       {form.referentiel === 'SYCEBNL'
                         ? "Choisissez le jeu d'états financiers"
                         : 'Choisissez le système comptable'}
                       <Aide sujet={form.referentiel === 'SYCEBNL' ? 'jeuEtats' : 'systemeSyscohada'} />
                     </h2>
-                    <p className="text-[10.5px] text-text-dim leading-[1.5] mb-2.5">
+                    <p className="text-[12px] text-text-dim leading-[1.5] mb-2.5">
                       {form.referentiel === 'SYCEBNL'
                         ? 'Le SYCEBNL en prévoit trois. Ce choix commande la présentation de toute la liasse et se verrouille à la première écriture.'
                         : "L'AUDCIF n'en admet que deux (art. 11) · l'ancien Système allégé est abrogé. Ce choix se verrouille à la première écriture."}
@@ -526,8 +524,8 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
                                   onChange={() => majer('jeuEtatsFinanciersSycebnl', t.valeur)}
                                 />
                                 <span className="min-w-0">
-                                  <span className="block text-[11px] font-semibold">{t.titre}</span>
-                                  <span className="block text-[10.5px] text-text-dim leading-[1.45] mt-0.5">
+                                  <span className="block text-[12.5px] font-semibold">{t.titre}</span>
+                                  <span className="block text-[12px] text-text-dim leading-[1.45] mt-0.5">
                                     {t.description}
                                   </span>
                                 </span>
@@ -551,8 +549,8 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
                                   onChange={() => majer('systemeComptableSyscohada', t.valeur)}
                                 />
                                 <span className="min-w-0">
-                                  <span className="block text-[11px] font-semibold">{t.titre}</span>
-                                  <span className="block text-[10.5px] text-text-dim leading-[1.45] mt-0.5">
+                                  <span className="block text-[12.5px] font-semibold">{t.titre}</span>
+                                  <span className="block text-[12px] text-text-dim leading-[1.45] mt-0.5">
                                     {t.description}
                                   </span>
                                 </span>
@@ -567,7 +565,7 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
                       form.jeuEtatsFinanciersSycebnl === 'SYSTEME_MINIMAL_TRESORERIE') ||
                       (form.referentiel === 'SYSCOHADA' &&
                         form.systemeComptableSyscohada === 'MINIMAL_TRESORERIE')) && (
-                      <p className="mt-2 text-[10.5px] text-warning bg-warning-soft border border-warning/30 rounded-[6px] px-2.5 py-1.5 leading-[1.5]">
+                      <p className="mt-2 text-[12px] text-warning bg-warning-soft border border-warning/30 rounded-[6px] px-2.5 py-1.5 leading-[1.5]">
                         Le Système minimal de trésorerie est une exception liée à la taille. C'est à l'entité de
                         vérifier qu'elle reste sous le seuil, exercice après exercice.
                       </p>
@@ -577,8 +575,8 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
 
                 {cle === 'raisonSociale' && (
                   <>
-                    <h2 className="text-[13px] font-bold mb-1.5">Indiquez la dénomination de l'entité</h2>
-                    <p className="text-[11px] text-text-dim leading-[1.6] mb-5">
+                    <h2 className="text-[14px] font-bold mb-1.5">Indiquez la dénomination de l'entité</h2>
+                    <p className="text-[12.5px] text-text-dim leading-[1.6] mb-5">
                       Telle qu'elle figure aux statuts : elle sera portée en tête de chaque état imprimé, et c'est
                       sous ce nom que le dossier s'ouvrira.
                     </p>
@@ -597,11 +595,11 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
 
                 {cle === 'coordonnees' && (
                   <>
-                    <h2 className="text-[13px] font-bold mb-1.5">Renseignez l'identification du dossier</h2>
+                    <h2 className="text-[14px] font-bold mb-1.5">Renseignez l'identification du dossier</h2>
                     {/* La phrase reprend le nom saisi à l'écran précédent · chez
                         Sage « Renseignez la fiche Identification de la société
                         DDZCZ ». Le logiciel montre qu'il a retenu. */}
-                    <p className="text-[11px] text-text-dim leading-[1.6] mb-4">
+                    <p className="text-[12.5px] text-text-dim leading-[1.6] mb-4">
                       Fiche d'identification de {form.nomEntite ? <strong className="text-text">{form.nomEntite}</strong> : "l'entité"}.
                       Tout est facultatif ici, et se corrige ensuite dans Structure &gt; Paramètres du dossier ·
                       l'adresse, la ville et le pays composent l'adresse imprimée en tête de chaque état financier.
@@ -639,8 +637,8 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
 
                 {cle === 'exercice' && (
                   <>
-                    <h2 className="text-[13px] font-bold mb-1.5">Définissez le premier exercice</h2>
-                    <p className="text-[11px] text-text-dim leading-[1.6] mb-4">
+                    <h2 className="text-[14px] font-bold mb-1.5">Définissez le premier exercice</h2>
+                    <p className="text-[12.5px] text-text-dim leading-[1.6] mb-4">
                       Indiquez les dates de début et de fin de votre exercice comptable.
                     </p>
 
@@ -665,7 +663,7 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
                         « Important ! » de Sage · une boîte colorée à cet
                         endroit crie plus fort que le reste de l'écran alors
                         que c'est une simple mise en garde. */}
-                    <p className="mt-3 text-[11px] text-text leading-[1.6]">
+                    <p className="mt-3 text-[12.5px] text-text leading-[1.6]">
                       <strong>Important !</strong> Les dates restent modifiables tant qu'aucune écriture n'est saisie.
                       Après la première écriture, elles sont figées : le report à-nouveau et tous les états s'appuient
                       dessus.
@@ -675,11 +673,11 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
 
                 {cle === 'monnaie' && (
                   <>
-                    <h2 className="text-[13px] font-bold mb-1.5">Identifiez la monnaie de tenue des comptes</h2>
-                    <p className="text-[11px] text-text-dim leading-[1.6] mb-4">Vous tenez votre comptabilité en :</p>
+                    <h2 className="text-[14px] font-bold mb-1.5">Identifiez la monnaie de tenue des comptes</h2>
+                    <p className="text-[12.5px] text-text-dim leading-[1.6] mb-4">Vous tenez votre comptabilité en :</p>
 
                     <div className="flex flex-col gap-2.5">
-                      <label className="flex items-center gap-2.5 text-[12px] cursor-pointer">
+                      <label className="flex items-center gap-2.5 text-[13px] cursor-pointer">
                         <input
                           type="radio"
                           name="devise"
@@ -691,7 +689,7 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
                         />
                         Franc congolais (CDF)
                       </label>
-                      <label className="flex items-center gap-2.5 text-[12px] cursor-pointer">
+                      <label className="flex items-center gap-2.5 text-[13px] cursor-pointer">
                         <input
                           type="radio"
                           name="devise"
@@ -708,7 +706,7 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
                           que l'option n'est pas retenue · exactement le motif
                           de l'écran monnaie de Sage. */}
                       <div className="flex items-center gap-2.5">
-                        <label className="flex items-center gap-2.5 text-[12px] cursor-pointer whitespace-nowrap">
+                        <label className="flex items-center gap-2.5 text-[13px] cursor-pointer whitespace-nowrap">
                           <input
                             type="radio"
                             name="devise"
@@ -731,7 +729,7 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
                       </div>
                     </div>
 
-                    <p className="mt-4 text-[11px] text-text-dim leading-[1.6]">
+                    <p className="mt-4 text-[12.5px] text-text-dim leading-[1.6]">
                       Le code sur trois lettres (norme ISO 4217) est celui qui s'imprimera en tête des états
                       financiers. Il ne se change plus une fois des écritures saisies.
                     </p>
@@ -740,8 +738,8 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
 
                 {cle === 'reprise' && (
                   <>
-                    <h2 className="text-[13px] font-bold mb-1.5">Reprise des éléments comptables</h2>
-                    <p className="text-[11px] text-text-dim leading-[1.6] mb-3">
+                    <h2 className="text-[14px] font-bold mb-1.5">Reprise des éléments comptables</h2>
+                    <p className="text-[12.5px] text-text-dim leading-[1.6] mb-3">
                       Le dossier peut être créé à partir du modèle livré en standard. Vous n'aurez alors plus qu'à
                       définir les éléments propres à votre entité{' '}
                       {form.referentiel === 'SYSCOHADA'
@@ -753,34 +751,34 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
                         chez Sage « Souhaitez-vous créer votre fichier à partir
                         du modèle standard ? ». Sans elle, trois phrases
                         commençant par « Oui » ne répondent à rien de visible. */}
-                    <p className="text-[11px] text-text mb-3">
+                    <p className="text-[12.5px] text-text mb-3">
                       Souhaitez-vous créer le dossier à partir du modèle standard ?
                     </p>
                     <div className="flex flex-col gap-2.5">
-                      <label className="flex items-start gap-2 text-[12px]">
+                      <label className="flex items-start gap-2 text-[13px]">
                         <input type="radio" checked readOnly className="mt-0.5" />
                         <span>
                           Oui, le dossier sera prêt à l'emploi : plan de comptes {form.referentiel} standard et
                           exercice généré automatiquement
-                          <span className="block text-[10.5px] text-text-dim">
+                          <span className="block text-[12px] text-text-dim">
                             (recommandé · c'est la seule option disponible pour l'instant)
                           </span>
                         </span>
                       </label>
-                      <label className="flex items-start gap-2 text-[12px] text-text-dim opacity-60">
+                      <label className="flex items-start gap-2 text-[13px] text-text-dim opacity-60">
                         <input type="radio" disabled className="mt-0.5" />
                         <span>
                           Oui, mais avec une sélection partielle des données
-                          <span className="inline-flex items-center gap-1 ml-2 text-[10px] font-semibold text-warning">
+                          <span className="inline-flex items-center gap-1 ml-2 text-[11px] font-semibold text-warning">
                             bientôt
                           </span>
                         </span>
                       </label>
-                      <label className="flex items-start gap-2 text-[12px] text-text-dim opacity-60">
+                      <label className="flex items-start gap-2 text-[13px] text-text-dim opacity-60">
                         <input type="radio" disabled className="mt-0.5" />
                         <span>
                           Non, paramétrage manuel
-                          <span className="inline-flex items-center gap-1 ml-2 text-[10px] font-semibold text-warning">
+                          <span className="inline-flex items-center gap-1 ml-2 text-[11px] font-semibold text-warning">
                             bientôt
                           </span>
                         </span>
@@ -791,12 +789,12 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
 
                 {derniereEtape && (
                   <>
-                    <h2 className="text-[13px] font-bold mb-1.5">Création du dossier comptable</h2>
+                    <h2 className="text-[14px] font-bold mb-1.5">Création du dossier comptable</h2>
                     {/* Dernier écran = RÉCAPITULATIF EN PROSE, puis ce qui
                         reste à saisir, puis ce que fera le bouton · c'est la
                         forme de l'écran « Création du fichier comptable » de
                         Sage, qui annonce le traitement avant de le lancer. */}
-                    <p className="text-[11px] text-text-dim leading-[1.6] mb-2">
+                    <p className="text-[12.5px] text-text-dim leading-[1.6] mb-2">
                       Vous avez terminé la définition des paramètres. Le dossier{' '}
                       <strong className="text-text">{form.nomEntite || 'sans nom'}</strong> sera tenu en{' '}
                       {form.referentiel}
@@ -808,7 +806,7 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
                       {form.dateDebutExercice.split('-').reverse().join('/')} au{' '}
                       {form.dateFinExercice.split('-').reverse().join('/')}.
                     </p>
-                    <p className="text-[11px] text-text-dim leading-[1.6] mb-4">
+                    <p className="text-[12.5px] text-text-dim leading-[1.6] mb-4">
                       OmegaX est hébergé : il n'y a pas de fichier à nommer ni d'emplacement à choisir. Il reste à
                       définir les identifiants qui ouvriront ce dossier.
                     </p>
@@ -827,12 +825,12 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
                       />
                     </Ligne>
 
-                    <p className="mt-4 text-[11px] text-text leading-[1.6]">
+                    <p className="mt-4 text-[12.5px] text-text leading-[1.6]">
                       Cliquez sur <strong>Fin</strong> pour lancer la création : le plan de comptes {form.referentiel}{' '}
                       sera semé et l'exercice ouvert.
                     </p>
                     {erreur && (
-                      <div className="mt-3 text-[11px] text-danger bg-danger-soft border border-danger/30 rounded-[6px] px-2.5 py-1.5">
+                      <div className="mt-3 text-[12.5px] text-danger bg-danger-soft border border-danger/30 rounded-[6px] px-2.5 py-1.5">
                         {erreur}
                       </div>
                     )}
@@ -845,7 +843,7 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
                   type="button"
                   onClick={onClose}
                   disabled={envoi}
-                  className="px-4 py-1.5 border border-border rounded-[6px] bg-surface text-[11px] hover:bg-chrome-alt disabled:opacity-50"
+                  className="px-4 py-1.5 border border-border rounded-[6px] bg-surface text-[12.5px] hover:bg-chrome-alt disabled:opacity-50"
                 >
                   Annuler
                 </button>
@@ -857,14 +855,14 @@ export function NouveauFichierWizard({ onClose, onTermine }: { onClose: () => vo
                   type="button"
                   onClick={precedent}
                   disabled={envoi || rang === 0}
-                  className="px-4 py-1.5 border border-border rounded-[6px] bg-surface text-[11px] hover:bg-chrome-alt disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="px-4 py-1.5 border border-border rounded-[6px] bg-surface text-[12.5px] hover:bg-chrome-alt disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   &lt; Précédent
                 </button>
                 <button
                   type="submit"
                   disabled={!peutAvancer || envoi}
-                  className="px-5 py-1.5 bg-sel text-white text-[11px] font-semibold rounded-[6px] hover:brightness-110 disabled:opacity-50"
+                  className="px-5 py-1.5 bg-sel text-white text-[12.5px] font-semibold rounded-[6px] hover:brightness-110 disabled:opacity-50"
                 >
                   {envoi ? 'Création…' : derniereEtape ? 'Fin' : 'Suivant >'}
                 </button>

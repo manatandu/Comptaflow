@@ -149,7 +149,7 @@ export function ClocheChrome() {
     >
       <IconCloche width={13} height={13} />
       {pastille && (
-        <span className="absolute -top-[1px] -right-[1px] min-w-[13px] h-[13px] px-[3px] rounded-full bg-danger text-white text-[8px] font-bold leading-[13px] text-center">
+        <span className="absolute -top-[1px] -right-[1px] min-w-[13px] h-[13px] px-[3px] rounded-full bg-danger text-white text-[9px] font-bold leading-[13px] text-center">
           {pastille}
         </span>
       )}

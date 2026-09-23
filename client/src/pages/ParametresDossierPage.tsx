@@ -544,29 +544,29 @@ export function ParametresDossierPage() {
   return (
     <div className="p-2 h-full flex flex-col">
       <div className="mb-2">
-        <div className="text-[10px] font-mono text-text-dim leading-none">STRUCTURE</div>
+        <div className="text-[11px] font-mono text-text-dim leading-none">STRUCTURE</div>
         {/* Le titre porte l'onglet actif · Sage écrit « Identification de
             votre société - IFRS » dans sa barre de titre : on sait où l'on
             se trouve sans relire la liste des onglets. */}
-        <h1 className="text-[12px] font-bold leading-tight">
+        <h1 className="text-[13px] font-bold leading-tight">
           Identification du dossier
           <span className="font-normal text-text-dim"> · {ONGLETS.find((o) => o.cle === onglet)?.libelle}</span>
         </h1>
       </div>
 
       {erreur && (
-        <div className="mb-2 text-[11px] text-danger bg-danger-soft border border-danger/30 rounded-[6px] px-2.5 py-1.5">
+        <div className="mb-2 text-[12.5px] text-danger bg-danger-soft border border-danger/30 rounded-[6px] px-2.5 py-1.5">
           {erreur}
         </div>
       )}
       {info && (
-        <div className="mb-2 text-[11px] text-positive bg-positive-soft border border-positive/30 rounded-[6px] px-2.5 py-1.5">
+        <div className="mb-2 text-[12.5px] text-positive bg-positive-soft border border-positive/30 rounded-[6px] px-2.5 py-1.5">
           {info}
         </div>
       )}
 
       {!params ? (
-        <div className="text-[11px] text-text-dim">Chargement…</div>
+        <div className="text-[12.5px] text-text-dim">Chargement…</div>
       ) : (
         <OngletsVerticaux onglets={ONGLETS} actif={onglet} onChanger={setOnglet}>
           {onglet === 'identification' && (
@@ -675,7 +675,7 @@ export function ParametresDossierPage() {
                     />
                   </Ligne>
                 </div>
-                <p className="text-[10.5px] text-text-dim">
+                <p className="text-[12px] text-text-dim">
                   L’adresse, la ville et le pays composent l’adresse imprimée en tête de chaque état financier.{' '}
                   <strong>La monnaie de tenue ne se choisit pas</strong> · la comptabilité est exprimée en francs
                   congolais (loi n° 23/053, art. 141, 1° · AUDCIF, art. 17, 1°), et les livres comme les états déposés
@@ -688,7 +688,7 @@ export function ParametresDossierPage() {
                     <button
                       type="submit"
                       disabled={envoi}
-                      className="border border-border rounded-[6px] bg-surface px-3 py-1.5 text-[10.5px] font-bold hover:bg-surface-alt disabled:opacity-60"
+                      className="border border-border rounded-[6px] bg-surface px-3 py-1.5 text-[12px] font-bold hover:bg-surface-alt disabled:opacity-60"
                     >
                       Enregistrer
                     </button>
@@ -708,7 +708,7 @@ export function ParametresDossierPage() {
                     value={params.longueurCompte}
                     disabled={envoi}
                     onChange={(e) => changerLongueurCompte(Number(e.target.value))}
-                    className="border border-border-dark bg-surface px-2 py-1 text-[10.5px] disabled:opacity-60"
+                    className="border border-border-dark bg-surface px-2 py-1 text-[12px] disabled:opacity-60"
                   >
                     {Array.from({ length: 11 }, (_, i) => i + 3).map((n) => (
                       <option key={n} value={n} disabled={n < params.longueurCompteMinimale}>
@@ -718,10 +718,10 @@ export function ParametresDossierPage() {
                     ))}
                   </select>
                 ) : (
-                  <div className="text-[11px] leading-[26px] font-medium">{params.longueurCompte} chiffres</div>
+                  <div className="text-[12.5px] leading-[26px] font-medium">{params.longueurCompte} chiffres</div>
                 )}
               </Ligne>
-              <p className="text-[10.5px] text-text-dim">
+              <p className="text-[12px] text-text-dim">
                 C’est la longueur MAXIMALE des numéros que vous ouvrez vous-même · l’élargir permet des sous-comptes
                 plus fins sous une racine du plan (un adhérent, un bailleur, un projet). Le plan normalisé semé à la
                 création garde ses huit chiffres et n’est pas renuméroté.
@@ -744,13 +744,13 @@ export function ParametresDossierPage() {
                   ] as [string, string | null][]
                 ).map(([cle, valeur]) => (
                   <Ligne key={cle} label={cle} large>
-                    <div className="text-[11px] leading-[26px] font-medium">{valeur || '·'}</div>
+                    <div className="text-[12.5px] leading-[26px] font-medium">{valeur || '·'}</div>
                   </Ligne>
                 ))}
               </div>
               <SectionTitre>Immatriculation</SectionTitre>
               <form onSubmit={enregistrerIdentite} className="flex flex-col gap-3">
-                <p className="text-[10.5px] text-text-dim">
+                <p className="text-[12px] text-text-dim">
                   Le numéro d’impôt est porté en tête de chaque page imprimée, au même titre que la dénomination, la
                   date de clôture et la durée de l’exercice.
                   {estSycebnl
@@ -774,7 +774,7 @@ export function ParametresDossierPage() {
                   ))}
                 </div>
                 {estSycebnl && (
-                  <p className="text-[10.5px] text-text-dim">
+                  <p className="text-[12px] text-text-dim">
                     <span className="font-bold">Important !</span> Une entité à but non lucratif n’est pas
                     immatriculée au registre du commerce : l’Acte uniforme sur le droit commercial général (art. 2)
                     n’y assujettit que les commerçants et les sociétés. Le champ RCCM n’est donc pas proposé ici.
@@ -786,7 +786,7 @@ export function ParametresDossierPage() {
                     <button
                       type="submit"
                       disabled={envoi}
-                      className="border border-border rounded-[6px] bg-surface px-3 py-1.5 text-[10.5px] font-bold hover:bg-surface-alt disabled:opacity-60"
+                      className="border border-border rounded-[6px] bg-surface px-3 py-1.5 text-[12px] font-bold hover:bg-surface-alt disabled:opacity-60"
                     >
                       Enregistrer
                     </button>
@@ -813,8 +813,8 @@ export function ParametresDossierPage() {
               {estSycebnl && exemption && (
                 <div className="mt-5 border-t border-border pt-4 flex flex-col gap-2">
                   <SectionTitre>Exemption d’impôt sur les sociétés</SectionTitre>
-                  <p className="text-[10.5px] leading-[1.6]">{exemption.enonce}</p>
-                  <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[10.5px]">
+                  <p className="text-[12px] leading-[1.6]">{exemption.enonce}</p>
+                  <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[12px]">
                     <dt className="text-text-dim">Attestation exigée</dt>
                     <dd>
                       {exemption.attestationRequise === null
@@ -844,7 +844,7 @@ export function ParametresDossierPage() {
                       {exemption.avertissements.map((a) => (
                         <li
                           key={a.slice(0, 60)}
-                          className="text-[10.5px] leading-[1.6] border-l-2 border-border-dark pl-2.5 text-text-dim"
+                          className="text-[12px] leading-[1.6] border-l-2 border-border-dark pl-2.5 text-text-dim"
                         >
                           {a}
                         </li>
@@ -865,7 +865,7 @@ export function ParametresDossierPage() {
             <>
               <SectionTitre>Forme juridique</SectionTitre>
               <div className="flex flex-col gap-2">
-                <p className="text-[10.5px] text-text-dim">
+                <p className="text-[12px] text-text-dim">
                   Au sens de la loi n° 004/2001 du 20 juillet 2001. Ce choix ne change pas vos états financiers : il
                   détermine les obligations annuelles proposées par le planning de clôture.
                 </p>
@@ -888,14 +888,14 @@ export function ParametresDossierPage() {
                           onChange={() => changerForme(f.valeur)}
                         />
                         <span className="min-w-0">
-                          <span className="block text-[11px] font-semibold">{f.titre}</span>
-                          <span className="block text-[10.5px] text-text-dim mt-0.5">{f.detail}</span>
+                          <span className="block text-[12.5px] font-semibold">{f.titre}</span>
+                          <span className="block text-[12px] text-text-dim mt-0.5">{f.detail}</span>
                         </span>
                       </label>
                     );
                   })}
                 </div>
-                <label className="flex items-center gap-2 text-[10.5px] mt-1">
+                <label className="flex items-center gap-2 text-[12px] mt-1">
                   <input
                     type="checkbox"
                     checked={params.droitEtranger ?? false}
@@ -916,7 +916,7 @@ export function ParametresDossierPage() {
                 Forme juridique OHADA <Aide sujet="formeJuridiqueSyscohada" />
               </SectionTitre>
               <div className="flex flex-col gap-2">
-                <p className="text-[10.5px] text-text-dim">
+                <p className="text-[12px] text-text-dim">
                   Au sens du droit OHADA des affaires · l’AUSCGIE pour les sociétés commerciales et le groupement
                   d’intérêt économique, l’AUSCOOP pour les coopératives, l’AUDCG pour le commerçant personne physique
                   et l’entreprenant. Ce choix ne change pas vos états financiers : il détermine les obligations
@@ -924,7 +924,7 @@ export function ParametresDossierPage() {
                   une assemblée générale, dépose au registre du commerce, ou ni l’un ni l’autre.
                 </p>
                 {params.formeJuridiqueSyscohada === null && (
-                  <p className="text-[10.5px] text-text-dim border border-border rounded-[7px] p-2.5 leading-[1.55]">
+                  <p className="text-[12px] text-text-dim border border-border rounded-[7px] p-2.5 leading-[1.55]">
                     <strong>Aucune forme n’est encore renseignée.</strong> Le planning de clôture n’affiche donc, pour
                     l’instant, que les jalons communs à toutes les entités · ni l’assemblée générale, ni le dépôt au
                     registre du commerce, qui dépendent de la forme. Elle se lit dans vos statuts.
@@ -949,14 +949,14 @@ export function ParametresDossierPage() {
                           onChange={() => changerFormeSyscohada(f.valeur)}
                         />
                         <span className="min-w-0">
-                          <span className="block text-[11px] font-semibold">{f.titre}</span>
-                          <span className="block text-[10.5px] text-text-dim mt-0.5 leading-[1.5]">{f.detail}</span>
+                          <span className="block text-[12.5px] font-semibold">{f.titre}</span>
+                          <span className="block text-[12px] text-text-dim mt-0.5 leading-[1.5]">{f.detail}</span>
                         </span>
                       </label>
                     );
                   })}
                 </div>
-                <p className="text-[10.5px] text-text-dim mt-1 leading-[1.55]">
+                <p className="text-[12px] text-text-dim mt-1 leading-[1.55]">
                   Les montants de capital sont ceux de l’Acte uniforme, exprimés en francs CFA. Celui de la SARL ne
                   s’applique PAS en RDC : l’article 311 réserve le cas de « dispositions nationales contraires », et
                   l’arrêté interministériel n° 002/CAB/MIN/JGS&amp;DH/014 et n° 243/CAB/MIN/FINANCES/2014 du 30
@@ -981,14 +981,14 @@ export function ParametresDossierPage() {
                     ASBL peut être EXEMPTÉE, une société ne l'est jamais. */}
                 {params.referentiel === 'SYSCOHADA' && (
                   <div className="border border-border rounded-[7px] p-2.5">
-                    <span className="block text-[11px] font-semibold">Impôt sur les bénéfices</span>
-                    <span className="block text-[10px] text-text-dim leading-[1.55] mt-1">
+                    <span className="block text-[12.5px] font-semibold">Impôt sur les bénéfices</span>
+                    <span className="block text-[11px] text-text-dim leading-[1.55] mt-1">
                       Depuis le 1<sup>er</sup> janvier 2026, la loi n° 23/053 du 30 novembre 2023 a remplacé l’impôt
                       professionnel sur les bénéfices par deux impôts distincts, selon que l’entité est une personne
                       morale ou une personne physique. L’<strong>IPR et l’IBP n’existent plus</strong> : un logiciel ou
                       un conseil qui les mobilise encore raisonne sous un régime abrogé.
                     </span>
-                    <ul className="block text-[10px] text-text-dim leading-[1.55] mt-1.5 list-disc pl-4 space-y-1">
+                    <ul className="block text-[11px] text-text-dim leading-[1.55] mt-1.5 list-disc pl-4 space-y-1">
                       <li>
                         <strong>Personnes morales</strong> · impôt sur les sociétés à 30 % du bénéfice net imposable
                         (art. 56), avec un impôt minimum de 1 % du chiffre d’affaires déclaré lorsque le résultat est
@@ -1004,7 +1004,7 @@ export function ParametresDossierPage() {
                         est immédiat (art. 113).
                       </li>
                     </ul>
-                    <span className="block text-[10px] text-text-dim leading-[1.55] mt-1.5">
+                    <span className="block text-[11px] text-text-dim leading-[1.55] mt-1.5">
                       Ces seuils et ce forfait sont réajustables par arrêté du Ministre des Finances · vérifiez-les
                       avant de les opposer à un client. La fenêtre <strong>Fiscalité</strong> monte le tableau de
                       passage du résultat comptable au résultat fiscal, liquide l’impôt et calcule les acomptes ·
@@ -1022,7 +1022,7 @@ export function ParametresDossierPage() {
                     obligation, et le cabinet qui la décoche croirait
                     contrevenir à quelque chose.
                     ---------------------------------------------------------- */}
-                <label className="flex items-start gap-2 text-[10.5px]">
+                <label className="flex items-start gap-2 text-[12px]">
                   <input
                     type="checkbox"
                     className="mt-[3px]"
@@ -1032,7 +1032,7 @@ export function ParametresDossierPage() {
                   />
                   <span>
                     Double regard à la validation
-                    <span className="block text-[10px] text-text-dim leading-[1.5] mt-0.5">
+                    <span className="block text-[11px] text-text-dim leading-[1.5] mt-0.5">
                       Une écriture n’est validée que par un autre utilisateur que celui qui l’a saisie. La
                       validation est le franchissement : c’est elle qui fait entrer la pièce au livre-journal, et
                       l’AUDCIF art. 22, 2° pose que « l’irréversibilité des traitements interdise toute
@@ -1046,7 +1046,7 @@ export function ParametresDossierPage() {
                     </span>
                   </span>
                 </label>
-                <label className="flex items-start gap-2 text-[10.5px]">
+                <label className="flex items-start gap-2 text-[12px]">
                   <input
                     type="checkbox"
                     className="mt-[3px]"
@@ -1057,7 +1057,7 @@ export function ParametresDossierPage() {
                   <span>
                     Entité assujettie à la TVA
                     {params.referentiel === 'SYCEBNL' ? (
-                      <span className="block text-[10px] text-text-dim leading-[1.5] mt-0.5">
+                      <span className="block text-[11px] text-text-dim leading-[1.5] mt-0.5">
                         L’assujettissement est de PLEIN DROIT dès 80 000 000 FC de chiffre d’affaires annuel
                         (ordonnance-loi n° 10/001, art. 14) · le décret n° 011/42, art. 42, y soumet « les personnes
                         physiques ET MORALES », sans écarter les associations, et précise que ce chiffre d’affaires
@@ -1072,7 +1072,7 @@ export function ParametresDossierPage() {
                         charge.
                       </span>
                     ) : (
-                      <span className="block text-[10px] text-text-dim leading-[1.5] mt-0.5">
+                      <span className="block text-[11px] text-text-dim leading-[1.5] mt-0.5">
                         L’assujettissement est de PLEIN DROIT dès 80 000 000 FC de chiffre d’affaires annuel hors
                         taxes (ordonnance-loi n° 10/001, art. 14) · à la différence d’une association, une entité
                         commerciale qui atteint ce seuil n’a rien à choisir. En deçà, l’option reste possible sur
@@ -1088,19 +1088,19 @@ export function ParametresDossierPage() {
                     pas le MONTANT de la taxe mais la PÉRIODE où elle est due,
                     ce qui est la première cause d'écart sur une déclaration. */}
                 {params.assujettiTva && (
-                  <label className="block text-[10.5px]">
+                  <label className="block text-[12px]">
                     Exigibilité de la TVA
                     <select
                       value={params.regimeExigibiliteTva}
                       disabled={!estAdmin || envoi}
                       onChange={(e) => changerRegime({ regimeExigibiliteTva: e.target.value as RegimeExigibiliteTva })}
-                      className="mt-1 block w-full max-w-[420px] border border-border rounded-[7px] bg-bg px-2 py-1 text-[11px] focus:outline-none focus:border-sel"
+                      className="mt-1 block w-full max-w-[420px] border border-border rounded-[7px] bg-bg px-2 py-1 text-[12.5px] focus:outline-none focus:border-sel"
                     >
                       <option value="LIVRAISONS">Livraisons · taxe due à la livraison du bien (art. 25, 1°)</option>
                       <option value="ENCAISSEMENTS">Encaissements · taxe due au règlement (art. 25, 2°)</option>
                       <option value="DEBITS">Débits · sur autorisation du DGI (art. 26)</option>
                     </select>
-                    <span className="block text-[10px] text-text-dim leading-[1.5] mt-1">
+                    <span className="block text-[11px] text-text-dim leading-[1.5] mt-1">
                       Pour les PRESTATIONS DE SERVICES et les travaux immobiliers, le régime de droit commun est celui
                       de l’<strong>encaissement</strong> : une facture émise en mars et réglée en juin se déclare en
                       juin. Laisser « Livraisons » sur un dossier de services fait verser chaque mois une taxe qui n’a
@@ -1109,7 +1109,7 @@ export function ParametresDossierPage() {
                     </span>
                   </label>
                 )}
-                <label className="block text-[10.5px]">
+                <label className="block text-[12px]">
                   Effectif permanent
                   <input
                     type="number"
@@ -1122,15 +1122,15 @@ export function ParametresDossierPage() {
                         changerRegime({ effectifPermanent: Math.max(0, Math.trunc(valeur)) });
                       }
                     }}
-                    className="mt-1 w-32 border border-border rounded-[7px] bg-bg px-2 py-1 text-[11px] focus:outline-none focus:border-sel"
+                    className="mt-1 w-32 border border-border rounded-[7px] bg-bg px-2 py-1 text-[12.5px] focus:outline-none focus:border-sel"
                   />
                   {params.referentiel === 'SYCEBNL' ? (
-                    <span className="block text-[10px] text-text-dim leading-[1.5] mt-1">
+                    <span className="block text-[11px] text-text-dim leading-[1.5] mt-1">
                       Au-delà de vingt personnes, la désignation d’un auditeur devient obligatoire (SYCEBNL, art. 19,
                       troisième critère). Ce nombre commande aussi la tranche de cotisation INPP.
                     </span>
                   ) : (
-                    <span className="block text-[10px] text-text-dim leading-[1.5] mt-1">
+                    <span className="block text-[11px] text-text-dim leading-[1.5] mt-1">
                       Au-delà de cinquante personnes, l’effectif devient l’un des trois critères de désignation
                       obligatoire d’un commissaire aux comptes dans une SARL (AUSCGIE, art. 376) et dans une SAS
                       (art. 853-13) · il en faut DEUX sur trois, les deux autres étant le total du bilan au-delà de
@@ -1145,7 +1145,7 @@ export function ParametresDossierPage() {
                     travail. Le registre du personnel renvoie ICI quand il
                     manque · il faut donc qu'il y soit. Un renvoi vers un champ
                     qui n'existe pas est le trou du câblage. */}
-                <label className="block text-[10.5px]">
+                <label className="block text-[12px]">
                   Numéro d’immatriculation à la CNSS (employeur)
                   <input
                     type="text"
@@ -1157,9 +1157,9 @@ export function ParametresDossierPage() {
                         changerRegime({ numeroAffiliationCnssEmployeur: valeur });
                       }
                     }}
-                    className="mt-1 w-64 border border-border rounded-[7px] bg-bg px-2 py-1 text-[11px] focus:outline-none focus:border-sel"
+                    className="mt-1 w-64 border border-border rounded-[7px] bg-bg px-2 py-1 text-[12.5px] focus:outline-none focus:border-sel"
                   />
-                  <span className="block text-[10px] text-text-dim leading-[1.5] mt-1">
+                  <span className="block text-[11px] text-text-dim leading-[1.5] mt-1">
                     Deuxième des quinze énonciations que l’article 212 du Code du travail exige de tout contrat
                     constaté par écrit, et la seule qui soit du côté de l’employeur. Tant qu’elle manque,{' '}
                     <strong>aucun contrat de ce dossier n’est complet</strong> au sens de l’article 212, quel que soit
@@ -1174,7 +1174,7 @@ export function ParametresDossierPage() {
                     refuse le réglage · le montrer serait une promesse fausse. */}
                 {params.referentiel === 'SYCEBNL' &&
                   params.jeuEtatsFinanciersSycebnl === 'ASSOCIATIONS_ORDRES_PROFESSIONNELS' && (
-                    <label className="block text-[10.5px]">
+                    <label className="block text-[12px]">
                       Comptabilisation des cotisations et du droit d’entrée
                       <select
                         value={params.methodeCotisations ?? ''}
@@ -1183,7 +1183,7 @@ export function ParametresDossierPage() {
                           const v = e.target.value;
                           if (v === 'APPEL' || v === 'ENCAISSEMENT') changerMethodeCotisations(v);
                         }}
-                        className="mt-1 block w-full max-w-[420px] border border-border rounded-[7px] bg-bg px-2 py-1 text-[11px] focus:outline-none focus:border-sel"
+                        className="mt-1 block w-full max-w-[420px] border border-border rounded-[7px] bg-bg px-2 py-1 text-[12.5px] focus:outline-none focus:border-sel"
                       >
                         <option value="" disabled>
                           À trancher · lire les statuts
@@ -1191,7 +1191,7 @@ export function ParametresDossierPage() {
                         <option value="APPEL">À l’appel · l’entité justifie d’un droit d’agir en recouvrement</option>
                         <option value="ENCAISSEMENT">À l’encaissement effectif · aucune voie de recouvrement</option>
                       </select>
-                      <span className="block text-[10px] text-text-dim leading-[1.5] mt-1">
+                      <span className="block text-[11px] text-text-dim leading-[1.5] mt-1">
                         Cadre conceptuel § 5.4.2.1 : le fait générateur est l’<strong>appel</strong>, « toutefois, si
                         l’entité ne peut justifier d’un droit d’agir en recouvrement, les cotisations et le droit
                         d’entrée sont comptabilisés lors de leur encaissement effectif ». Ce n’est donc pas une
@@ -1232,16 +1232,16 @@ export function ParametresDossierPage() {
                         onChange={() => changerSysteme(c.valeur)}
                       />
                       <span className="min-w-0">
-                        <span className="block text-[12px] font-semibold flex items-center gap-1.5">
+                        <span className="block text-[13px] font-semibold flex items-center gap-1.5">
                           {c.titre}
                           <Aide sujet="systemeSyscohada" />
                         </span>
-                        <span className="block text-[10.5px] text-text-dim mt-1 leading-[1.5]">{c.description}</span>
+                        <span className="block text-[12px] text-text-dim mt-1 leading-[1.5]">{c.description}</span>
                       </span>
                     </label>
                   );
                 })}
-                <p className="text-[10.5px] text-text-dim mt-1 leading-[1.55]">
+                <p className="text-[12px] text-text-dim mt-1 leading-[1.55]">
                   {verrouille
                     ? `Ce dossier porte ${params.nombreEcritures} écriture(s) : le système comptable est désormais figé. Pour tenir une entité relevant de l'autre système, créez un dossier distinct.`
                     : estAdmin
@@ -1275,17 +1275,17 @@ export function ParametresDossierPage() {
                         onChange={() => changerJeu(c.valeur)}
                       />
                       <span className="min-w-0">
-                        <span className="block text-[12px] font-semibold flex items-center gap-1.5">
+                        <span className="block text-[13px] font-semibold flex items-center gap-1.5">
                           {c.titre}
                           {c.valeur === 'SYSTEME_MINIMAL_TRESORERIE' && <Aide sujet="smt" />}
                         </span>
-                        <span className="block text-[10.5px] text-text-dim mt-1">{c.etats.join(' · ')}</span>
+                        <span className="block text-[12px] text-text-dim mt-1">{c.etats.join(' · ')}</span>
                       </span>
                     </label>
                   );
                 })}
 
-                <p className="text-[10.5px] text-text-dim mt-1 leading-[1.55]">
+                <p className="text-[12px] text-text-dim mt-1 leading-[1.55]">
                   {verrouille
                     ? `Ce dossier porte ${params.nombreEcritures} écriture(s) : le jeu d'états financiers est désormais figé. Pour tenir une entité de l'autre type, créez un dossier distinct.`
                     : estAdmin

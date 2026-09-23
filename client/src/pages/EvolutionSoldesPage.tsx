@@ -80,25 +80,25 @@ export function EvolutionSoldesPage() {
       <EnteteImpression titre="Évolution des soldes" />
       <div className="flex items-end justify-between mb-1.5 gap-3 flex-wrap">
         <div>
-          <div className="text-[10px] font-mono text-text-dim leading-none">RÉVISION</div>
-          <h1 className="text-[12px] font-bold leading-tight">Évolution pluriannuelle des soldes</h1>
+          <div className="text-[11px] font-mono text-text-dim leading-none">RÉVISION</div>
+          <h1 className="text-[13px] font-bold leading-tight">Évolution pluriannuelle des soldes</h1>
         </div>
         <div className="flex items-end gap-3">
           <label className="flex flex-col gap-1">
-            <span className="text-[10px] font-bold text-text-dim">RACINE DE COMPTE</span>
+            <span className="text-[11px] font-bold text-text-dim">RACINE DE COMPTE</span>
             <input
               value={racine}
               onChange={(e) => setRacine(e.target.value.replace(/\D/g, ''))}
               placeholder="ex. 47"
-              className="border border-border-dark bg-surface px-2 py-1 text-[10.5px] font-mono w-[110px]"
+              className="border border-border-dark bg-surface px-2 py-1 text-[12px] font-mono w-[110px]"
             />
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-[10px] font-bold text-text-dim">EXERCICES</span>
+            <span className="text-[11px] font-bold text-text-dim">EXERCICES</span>
             <select
               value={nbExercices}
               onChange={(e) => setNbExercices(Number(e.target.value))}
-              className="border border-border-dark bg-surface px-2 py-1 text-[10.5px]"
+              className="border border-border-dark bg-surface px-2 py-1 text-[12px]"
             >
               {[3, 5, 8, 10, 15, 20].map((n) => (
                 <option key={n} value={n}>
@@ -110,7 +110,7 @@ export function EvolutionSoldesPage() {
           <button
             type="button"
             onClick={exporter}
-            className="border border-border-dark bg-surface-alt px-3 py-1 text-[10.5px] font-semibold"
+            className="border border-border-dark bg-surface-alt px-3 py-1 text-[12px] font-semibold"
           >
             Exporter en Excel
           </button>
@@ -118,14 +118,14 @@ export function EvolutionSoldesPage() {
       </div>
 
       {erreur && (
-        <div className="text-[11px] text-danger bg-danger-soft border border-danger/30 px-3 py-2 mb-2.5">{erreur}</div>
+        <div className="text-[12.5px] text-danger bg-danger-soft border border-danger/30 px-3 py-2 mb-2.5">{erreur}</div>
       )}
 
       <div className="border border-border bg-surface shadow-posee overflow-x-auto">
         {donnees && (
           <div
             style={grille}
-            className="px-3.5 py-1.5 bg-surface-alt text-[10px] font-bold text-text-dim border-b border-border-dark"
+            className="px-3.5 py-1.5 bg-surface-alt text-[11px] font-bold text-text-dim border-b border-border-dark"
           >
             <span>N° COMPTE</span>
             <span>INTITULÉ</span>
@@ -138,7 +138,7 @@ export function EvolutionSoldesPage() {
         )}
 
         {donnees && lignes.length === 0 && (
-          <div className="px-3.5 py-4 text-[10.5px] text-text-dim">
+          <div className="px-3.5 py-4 text-[12px] text-text-dim">
             {donnees.lignes.length === 0
               ? "Aucun compte mouvementé sur la fenêtre retenue."
               : `Aucun compte ne commence par « ${racine} ».`}
@@ -149,7 +149,7 @@ export function EvolutionSoldesPage() {
           <div
             key={l.compteId}
             style={grille}
-            className="px-3.5 py-[4px] items-center border-b border-border/50 text-[10.5px]"
+            className="px-3.5 py-[4px] items-center border-b border-border/50 text-[12px]"
           >
             <span className="font-mono">{l.numero}</span>
             <span className="truncate" title={l.intitule}>
@@ -168,7 +168,7 @@ export function EvolutionSoldesPage() {
         ))}
       </div>
 
-      <p className="text-[10px] text-text-dim mt-2 max-w-[900px]">
+      <p className="text-[11px] text-text-dim mt-2 max-w-[900px]">
         Solde de clôture de chaque exercice, à-nouveaux compris · c'est la définition de la balance, et c'est
         ce qui rend chaque colonne comparable à la balance de l'année. Une case vide signifie que le compte
         n'était pas mouvementé cet exercice-là, ce qui n'est pas la même chose qu'un solde nul. Les montants
