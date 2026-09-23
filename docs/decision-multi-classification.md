@@ -106,6 +106,11 @@ Ces deux signaux décident de la PRIORITÉ du chantier, pas de sa structure.
 
 ## 6. Conséquence pour la Phase I
 
-La gestion commerciale (bon de livraison, avoir, relance, statistiques) peut
-démarrer sans attendre : elle écrit dans des modèles qui ne changeront pas de
-forme.
+Ce qui reste de la gestion commerciale peut avancer sans attendre : cela écrit
+dans des modèles qui ne changeront pas de forme.
+
+> **Corrigé le jour même.** Cette section listait « bon de livraison, avoir,
+> relance, statistiques ». La liste venait de ma mémoire, pas du dépôt : le
+> plan déclarait la gestion commerciale close depuis I2, les relances et le
+> palmarès des comptes existaient déjà. La confrontation au texte n'a trouvé
+> qu'un manque réel, la note de crédit (art. 52 al. 2), livrée en I3.

@@ -1,7 +1,9 @@
 import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { LicenceGuard } from '../licence/licence.guard';
+import { RoleUtilisateur } from '@prisma/client';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { InventaireService } from './inventaire.service';
 import {
@@ -48,16 +50,19 @@ export class InventaireController {
     return this.inventaire.consulter(user.tenantId, id);
   }
 
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Post()
   creer(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreerCampagneDto) {
     return this.inventaire.creer(user.tenantId, user.userId, dto);
   }
 
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Patch(':id')
   modifier(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: ModifierCampagneDto) {
     return this.inventaire.modifier(user.tenantId, id, dto);
   }
 
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Post(':id/sous-commissions')
   ajouterSousCommission(
     @CurrentUser() user: AuthenticatedUser,
@@ -67,6 +72,7 @@ export class InventaireController {
     return this.inventaire.ajouterSousCommission(user.tenantId, id, dto);
   }
 
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Post('sous-commissions/:sousCommissionId/membres')
   ajouterMembre(
     @CurrentUser() user: AuthenticatedUser,
@@ -76,17 +82,20 @@ export class InventaireController {
     return this.inventaire.ajouterMembre(user.tenantId, sousCommissionId, dto);
   }
 
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Post(':id/fiches')
   creerFiche(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: CreerFicheDto) {
     return this.inventaire.creerFiche(user.tenantId, id, dto);
   }
 
   /** Le parc immobilisé est déjà tenu par le logiciel · on ne le ressaisit pas. */
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Post(':id/fiches/immobilisations')
   engendrerFiches(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return this.inventaire.engendrerFichesImmobilisations(user.tenantId, id);
   }
 
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Patch('fiches/:ficheId')
   saisirComptage(
     @CurrentUser() user: AuthenticatedUser,
@@ -96,11 +105,13 @@ export class InventaireController {
     return this.inventaire.saisirComptage(user.tenantId, ficheId, dto);
   }
 
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Post(':id/rapprocher')
   rapprocher(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return this.inventaire.rapprocher(user.tenantId, id);
   }
 
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Patch('ecarts/:ecartId')
   arbitrer(
     @CurrentUser() user: AuthenticatedUser,
@@ -115,6 +126,7 @@ export class InventaireController {
     return this.inventaire.propositionRedressement(user.tenantId, ecartId);
   }
 
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Post(':id/proces-verbal')
   etablirPv(
     @CurrentUser() user: AuthenticatedUser,
@@ -129,6 +141,7 @@ export class InventaireController {
    * siège, caisse agence, caisse de secours »). Distinct du PV de la campagne,
    * qui porte l'inventaire physique dans son ensemble.
    */
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Post(':id/pv-caisse')
   etablirPvCaisse(
     @CurrentUser() user: AuthenticatedUser,
@@ -144,6 +157,7 @@ export class InventaireController {
     return this.inventaire.caissesNonComptees(user.tenantId, id);
   }
 
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Post(':id/clore')
   clore(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return this.inventaire.clore(user.tenantId, id, user.userId);

@@ -515,6 +515,37 @@ deux sens, et la révocabilité à deux conditions cumulatives), fenêtre Devis 
 Traitement, cloisonnée SYSCOHADA aux deux bouts, 32 tests et huit défauts
 réinjectés. **La gestion commerciale est close.**
 
+> **CORRIGÉ LE 2026-09-23 · ELLE NE L'ÉTAIT PAS TOUT À FAIT.** Il manquait la
+> NOTE DE CRÉDIT, et elle n'est pas un confort : l'O.-L. n° 10/001, art. 52
+> al. 2, SUBORDONNE la récupération de la TVA sur une vente annulée ou résiliée
+> à « l'établissement et à l'envoi au client d'une facture nouvelle ou note de
+> crédit annulant et remplaçant la facture initiale », et le décret n° 011/42,
+> art. 127, veut la facture initiale « barrée et conservée dans le facturier ».
+> Le module TVA imputait la récupération sur tout débit du 443, et la
+> facturation ne savait émettre aucune note. **I3 la livre le 2026-09-23** ·
+> nature `NOTE_DE_CREDIT` et lien `factureAnnuleeId` (unique, `RESTRICT`),
+> migration `20261001000000_note_de_credit`, route
+> `POST /facturation/:id/note-de-credit`, la facture annulée barrée à l'écran
+> et insupprimable, les notes exclues de l'état détaillé (elles y auraient
+> gonflé la déduction du montant qu'elles annulent), et dans la déclaration de
+> TVA les avoirs sans note de crédit SIGNALÉS mais pas retirés, une note émise
+> hors d'OmegaX restant une pièce valable. 21 tests, 13 défauts réinjectés,
+> 13 attrapés (deux refaits : la première version ne compilait pas).
+>
+> **TROUVÉ EN CHEMIN, ET PASSÉ DEVANT · la lecture seule pouvait écrire.**
+> `RolesGuard` laisse passer toute route sans `@Roles`. Dix contrôleurs
+> (facturation, devis, provisions, inventaire, circularisation, faiblesses,
+> questionnaires, mandat de l'auditeur, accords-cadres, exonérations)
+> n'en posaient sur aucune route d'écriture : cinquante routes où un compte en
+> LECTURE_SEULE, typiquement celui d'un auditeur ou d'un bailleur, pouvait
+> créer et supprimer. Réservées désormais à ADMIN_CABINET et COMPTABLE, route
+> par route pour que la consultation reste ouverte. Le spec
+> `src/common/guards/ecritures-reservees.spec.ts` relit tous les contrôleurs et
+> refuse toute route POST, PUT, PATCH ou DELETE sans rôle ni motif écrit ; il a
+> été vu échouer sur les cinquante avant le correctif. **Résidu** · côté client,
+> seule la fenêtre Facturation masque désormais ses boutons d'écriture ; les
+> neuf autres les montrent encore, et le serveur répond « Rôle insuffisant ».
+
 Le § 8.4 avait raison sur le devis, et se trompait sur la facture : le premier
 est bien propre au SYSCOHADA (l'art. 234 exige une vente entre commerçants, et
 une ASBL n'en est pas une), la seconde est commune (l'obligation vient de la loi

@@ -1,8 +1,9 @@
 import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
-import { OrganeDesignationAuditeur } from '@prisma/client';
+import { OrganeDesignationAuditeur, RoleUtilisateur } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { LicenceGuard } from '../licence/licence.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { MandatAuditeurService } from './mandat-auditeur.service';
 import { CloreMandatDto, EnregistrerMandatDto, RefusProrogationDto } from './dto/mandat-auditeur.dto';
@@ -35,11 +36,13 @@ export class MandatAuditeurController {
     return this.mandats.dureeProposee(user.tenantId, organe);
   }
 
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Post()
   enregistrer(@CurrentUser() user: AuthenticatedUser, @Body() dto: EnregistrerMandatDto) {
     return this.mandats.enregistrer(user.tenantId, dto);
   }
 
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Patch(':id/prorogation')
   refuserProrogation(
     @CurrentUser() user: AuthenticatedUser,
@@ -49,6 +52,7 @@ export class MandatAuditeurController {
     return this.mandats.refuserProrogation(user.tenantId, id, dto.refus);
   }
 
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Patch(':id/fin')
   clore(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: CloreMandatDto) {
     return this.mandats.clore(user.tenantId, id, dto);

@@ -2113,6 +2113,33 @@ mélangerait des retraitements dans le bilan déposé, sans que la balance cesse
 de boucler. Retraitements et correspondances IFRS iront dans des tables
 posées à côté, qui lisent le grand livre sans y écrire.
 
+**I3 · LA NOTE DE CRÉDIT, ET LA LECTURE SEULE QUI POUVAIT ÉCRIRE
+(2026-09-23).** Deux choses, et la seconde est la plus grave.
+
+(1) **LA RÉCUPÉRATION DE L'ART. 52 EST SUBORDONNÉE À UNE PIÈCE**, la note de
+crédit « annulant et remplaçant la facture initiale » (O.-L. n° 10/001, art. 52
+al. 2 ; décret n° 011/42, art. 127, qui veut la facture initiale « barrée et
+conservée »). Le module TVA écrivait « OmegaX ne peut pas le vérifier » ; il le
+peut désormais pour les notes qu'il émet, et la phrase a changé dans le même
+geste. **UNE NOTE DE CRÉDIT PORTE DES MONTANTS POSITIFS, C'EST SA NATURE QUI
+PORTE LE SENS** · un montant négatif passerait par tous les totaux et toutes
+les mentions du module sans qu'aucun ne soit écrit pour lui. **LES AVOIRS SANS
+NOTE SONT SIGNALÉS, PAS RETIRÉS** · la facturation d'OmegaX est facultative, et
+une note émise ailleurs est une pièce valable que le logiciel ne voit pas.
+
+(2) **`RolesGuard` LAISSE PASSER TOUTE ROUTE SANS `@Roles`**, c'est son
+comportement voulu pour la consultation. Dix contrôleurs l'importaient sans
+jamais le poser : cinquante routes d'écriture ouvertes à LECTURE_SEULE. **RÈGLE :
+TOUTE ROUTE POST, PUT, PATCH OU DELETE PORTE `@Roles`, OU FIGURE AVEC SON MOTIF
+DANS `ecritures-reservees.spec.ts`.** Le rôle se pose ROUTE PAR ROUTE et jamais
+sur la classe, qui fermerait aussi la lecture. Aucun spec de service ne pouvait
+le voir, puisqu'ils appellent le service sans passer par le contrôleur.
+
+(3) **DEUX RÉINJECTIONS NE COMPILAIENT PAS**, et elles se lisaient au total
+des tests (148 et 103 au lieu de 228), pas au mot « failed ». **UN TOTAL QUI
+BAISSE EST UNE SUITE QUI N'A PAS TOURNÉ, PAS UN DÉFAUT ATTRAPÉ.** Refaites
+avec des mutations qui compilent, attrapées toutes deux.
+
 **Questionnaire de révision par cycle · vingt-quatre items du CPCC, et le
 reste assumé.** Le séminaire porte DEUX checklists, § VI « vérification de
 l'inventaire physique » (immobilisations, stocks, caisses) et § VII

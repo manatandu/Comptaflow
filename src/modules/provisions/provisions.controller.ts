@@ -1,7 +1,9 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { LicenceGuard } from '../licence/licence.guard';
+import { RoleUtilisateur } from '@prisma/client';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { ProvisionsService } from './provisions.service';
 import {
@@ -34,6 +36,7 @@ export class ProvisionsController {
     return this.provisions.tableauDeVariation(user.tenantId, exerciceId);
   }
 
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Post(':exerciceId')
   creer(
     @CurrentUser() user: AuthenticatedUser,
@@ -43,6 +46,7 @@ export class ProvisionsController {
     return this.provisions.creer(user.tenantId, exerciceId, dto, user.email);
   }
 
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Patch(':id')
   modifier(
     @CurrentUser() user: AuthenticatedUser,
@@ -52,6 +56,7 @@ export class ProvisionsController {
     return this.provisions.modifier(user.tenantId, id, dto);
   }
 
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Patch(':id/statut')
   statuer(
     @CurrentUser() user: AuthenticatedUser,
@@ -61,6 +66,7 @@ export class ProvisionsController {
     return this.provisions.statuer(user.tenantId, id, dto);
   }
 
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Post('reporter/ouverture')
   reporter(@CurrentUser() user: AuthenticatedUser, @Body() dto: ReporterProvisionsDto) {
     return this.provisions.reporterALOuverture(
@@ -71,6 +77,7 @@ export class ProvisionsController {
     );
   }
 
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Delete(':id')
   supprimer(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return this.provisions.supprimer(user.tenantId, id);

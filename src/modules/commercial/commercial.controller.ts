@@ -1,8 +1,9 @@
 import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
-import { Referentiel } from '@prisma/client';
+import { Referentiel, RoleUtilisateur } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { LicenceGuard } from '../licence/licence.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { ReferentielGuard } from '../../common/guards/referentiel.guard';
 import { ReferentielsAutorises } from '../../common/decorators/referentiels.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
@@ -33,11 +34,13 @@ export class CommercialController {
     return this.commercial.lister(user.tenantId, { dateReference });
   }
 
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Post()
   emettre(@CurrentUser() user: AuthenticatedUser, @Body() dto: EmettreDevisDto) {
     return this.commercial.emettre(user.tenantId, dto);
   }
 
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Patch(':id/reponse')
   enregistrerReponse(
     @CurrentUser() user: AuthenticatedUser,
@@ -47,6 +50,7 @@ export class CommercialController {
     return this.commercial.enregistrerReponse(user.tenantId, id, dto);
   }
 
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Patch(':id/revocation')
   revoquer(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: RevoquerDevisDto) {
     return this.commercial.revoquer(user.tenantId, id, dto);

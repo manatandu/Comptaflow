@@ -2,9 +2,10 @@ import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@ne
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { LicenceGuard } from '../licence/licence.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { ReferentielGuard } from '../../common/guards/referentiel.guard';
 import { ReferentielsAutorises } from '../../common/decorators/referentiels.decorator';
-import { Referentiel } from '@prisma/client';
+import { Referentiel, RoleUtilisateur } from '@prisma/client';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { AccordCadreService } from './accord-cadre.service';
 import {
@@ -31,11 +32,13 @@ export class AccordCadreController {
     return this.accords.etat(user.tenantId, { dateReference });
   }
 
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Post()
   enregistrer(@CurrentUser() user: AuthenticatedUser, @Body() dto: EnregistrerAccordCadreDto) {
     return this.accords.enregistrer(user.tenantId, dto);
   }
 
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Patch(':id/main-oeuvre')
   declarerMainOeuvre(
     @CurrentUser() user: AuthenticatedUser,
@@ -45,6 +48,7 @@ export class AccordCadreController {
     return this.accords.declarerMainOeuvre(user.tenantId, id, dto);
   }
 
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Patch(':id/denonciation')
   denoncer(
     @CurrentUser() user: AuthenticatedUser,

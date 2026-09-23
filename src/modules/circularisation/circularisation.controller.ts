@@ -1,7 +1,9 @@
 import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { LicenceGuard } from '../licence/licence.guard';
+import { RoleUtilisateur } from '@prisma/client';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { CircularisationService } from './circularisation.service';
 import {
@@ -40,22 +42,26 @@ export class CircularisationController {
     return this.circularisation.echantillonPropose(user.tenantId, id);
   }
 
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Post()
   creer(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreerCampagneCircularisationDto) {
     return this.circularisation.creer(user.tenantId, user.userId, dto);
   }
 
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Post(':id/demandes')
   creerDemande(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: CreerDemandeDto) {
     return this.circularisation.creerDemande(user.tenantId, id, dto);
   }
 
   /** Premier appel : envoi. Second : relance · le CPCC la réclame nommément. */
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Post(':id/envoyer')
   envoyer(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: EnvoyerDto) {
     return this.circularisation.envoyer(user.tenantId, id, dto);
   }
 
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Patch('demandes/:demandeId')
   depouiller(
     @CurrentUser() user: AuthenticatedUser,
@@ -65,6 +71,7 @@ export class CircularisationController {
     return this.circularisation.depouiller(user.tenantId, demandeId, dto);
   }
 
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Patch('demandes/:demandeId/procedures-alternatives')
   proceduresAlternatives(
     @CurrentUser() user: AuthenticatedUser,
@@ -74,6 +81,7 @@ export class CircularisationController {
     return this.circularisation.consignerProceduresAlternatives(user.tenantId, demandeId, dto);
   }
 
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Post(':id/clore')
   clore(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: ClorerCampagneDto) {
     return this.circularisation.clore(user.tenantId, id, user.userId, dto);

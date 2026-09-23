@@ -1,7 +1,9 @@
 import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { LicenceGuard } from '../licence/licence.guard';
+import { RoleUtilisateur } from '@prisma/client';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { QuestionnaireService } from './questionnaire.service';
 import { ClorerQuestionnaireDto, CreerQuestionnaireDto, RepondreDto } from './dto/questionnaire.dto';
@@ -36,16 +38,19 @@ export class QuestionnaireController {
     return this.questionnaire.consulter(user.tenantId, id);
   }
 
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Post()
   creer(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreerQuestionnaireDto) {
     return this.questionnaire.creer(user.tenantId, user.userId, dto);
   }
 
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Post(':id/reponses')
   repondre(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: RepondreDto) {
     return this.questionnaire.repondre(user.tenantId, id, user.userId, dto);
   }
 
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Post(':id/clore')
   clore(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: ClorerQuestionnaireDto) {
     return this.questionnaire.clore(user.tenantId, id, user.userId, dto);

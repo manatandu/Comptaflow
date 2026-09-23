@@ -1,7 +1,9 @@
 import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { LicenceGuard } from '../licence/licence.guard';
+import { RoleUtilisateur } from '@prisma/client';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { FaiblessesService } from './faiblesses.service';
 import {
@@ -46,16 +48,19 @@ export class FaiblessesController {
     return this.faiblesses.consulter(user.tenantId, id);
   }
 
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Post()
   creer(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreerRegistreFaiblessesDto) {
     return this.faiblesses.creer(user.tenantId, user.userId, dto);
   }
 
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Post(':id/faiblesses')
   ajouter(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: AjouterFaiblesseDto) {
     return this.faiblesses.ajouter(user.tenantId, id, user.userId, dto);
   }
 
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Patch('faiblesses/:faiblesseId/qualification')
   qualifier(
     @CurrentUser() user: AuthenticatedUser,
@@ -65,6 +70,7 @@ export class FaiblessesController {
     return this.faiblesses.qualifier(user.tenantId, faiblesseId, user.userId, dto);
   }
 
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Patch('faiblesses/:faiblesseId/communication')
   communiquer(
     @CurrentUser() user: AuthenticatedUser,
@@ -74,6 +80,7 @@ export class FaiblessesController {
     return this.faiblesses.communiquer(user.tenantId, faiblesseId, dto);
   }
 
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Patch('faiblesses/:faiblesseId/reponse-direction')
   reponseDirection(
     @CurrentUser() user: AuthenticatedUser,
@@ -83,12 +90,14 @@ export class FaiblessesController {
     return this.faiblesses.reponseDirection(user.tenantId, faiblesseId, user.userId, dto);
   }
 
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Patch('faiblesses/:faiblesseId/suivi')
   suivre(@CurrentUser() user: AuthenticatedUser, @Param('faiblesseId') faiblesseId: string, @Body() dto: SuivreDto) {
     return this.faiblesses.suivre(user.tenantId, faiblesseId, dto);
   }
 
   /** Le report vers le registre de l'exercice suivant · le double régime du § A17 et du § A24. */
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Post('faiblesses/:faiblesseId/report')
   reporter(
     @CurrentUser() user: AuthenticatedUser,
@@ -98,6 +107,7 @@ export class FaiblessesController {
     return this.faiblesses.reporter(user.tenantId, faiblesseId, dto);
   }
 
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Post('faiblesses/:faiblesseId/escalade')
   escalader(
     @CurrentUser() user: AuthenticatedUser,
@@ -107,6 +117,7 @@ export class FaiblessesController {
     return this.faiblesses.escalader(user.tenantId, faiblesseId, user.userId, dto);
   }
 
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Post(':id/clore')
   clore(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: ClorerRegistreDto) {
     return this.faiblesses.clore(user.tenantId, id, user.userId, dto);

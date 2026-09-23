@@ -1,8 +1,9 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
-import { Referentiel } from '@prisma/client';
+import { Referentiel, RoleUtilisateur } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { LicenceGuard } from '../licence/licence.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { ReferentielGuard } from '../../common/guards/referentiel.guard';
 import { ReferentielsAutorises } from '../../common/decorators/referentiels.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
@@ -33,11 +34,13 @@ export class ExonerationsController {
     return this.exonerations.referentiel();
   }
 
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Post()
   async creer(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreerExonerationDto) {
     return this.exonerations.creer(user.tenantId, user.userId, dto);
   }
 
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Patch(':id')
   async modifier(
     @CurrentUser() user: AuthenticatedUser,
@@ -47,6 +50,7 @@ export class ExonerationsController {
     return this.exonerations.modifier(user.tenantId, id, dto as Record<string, unknown>);
   }
 
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Delete(':id')
   async supprimer(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return this.exonerations.supprimer(user.tenantId, id);
