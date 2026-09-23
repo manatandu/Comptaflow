@@ -72,6 +72,9 @@ interface TuileDef {
 
 interface GroupeDef {
   titre: string;
+  /** Une ligne sous le titre, pour dire ce que la carte rassemble. */
+  sousTitre: string;
+  Icon: (p: SVGProps<SVGSVGElement>) => JSX.Element;
   tuiles: TuileDef[];
 }
 
@@ -83,65 +86,79 @@ interface GroupeDef {
  * évite de le noyer parmi les fenêtres classiques, alors que c'est là que se
  * joue la conformité SYCEBNL.
  *
- * DIX-NEUF TUILES, pas une par écran · retenue après le constat « trop
- * d'icônes ». N'y figurent ni ce que les cartes d'état au-dessus ouvrent
- * déjà (Brouillard, Analyse et contrôles · elles y mènent d'un clic), ni ce
- * qu'on ne visite qu'à l'installation ou rarement (Codes journaux, Plans
- * analytiques, Documents obligatoires, Échéancier) · tout cela reste dans
- * les menus, qui sont la carte complète. IntuiSage fait le même choix : ses
- * tuiles sont une sélection, jamais le catalogue.
+ * UNE CARTE PAR DOMAINE, façon page d'accueil des Paramètres de Windows 11
+ * (2026-09-23) · Manasse trouvait la grille de tuiles « désordonnée » : cinq
+ * bandes de longueurs inégales (3, 8, 4, 5 et 4 tuiles), qui laissaient des
+ * trous à droite, cinq loupes identiques, et une bande « tiers » qui portait
+ * le rapprochement bancaire et les immobilisations. Les groupes sont donc
+ * refaits pour être HOMOGÈNES et de taille voisine, et chaque fenêtre est
+ * une LIGNE d'une carte, pas une tuile de plus.
+ *
+ * Ce n'est toujours pas le catalogue : ni ce que la colonne d'état ouvre
+ * déjà (Brouillard, Analyse et contrôles), ni ce qu'on ne visite qu'à
+ * l'installation (Codes journaux, Plans analytiques, Documents obligatoires,
+ * Échéancier) · les menus restent la carte complète.
  */
 const GROUPES: GroupeDef[] = [
   {
-    titre: 'Gestion quotidienne',
+    titre: 'Saisie et consultation',
+    sousTitre: 'Le travail de tous les jours',
+    Icon: IconGrille,
     tuiles: [
       { label: 'Saisie des journaux', chemin: '/saisie', Icon: IconGrille },
       { label: 'Journal', chemin: '/journal?onglet=journal', Icon: IconJournal },
       { label: 'Balance des comptes', chemin: '/journal?onglet=balance', Icon: IconBalance },
+      { label: 'Grand livre', chemin: '/journal?onglet=grand-livre', Icon: IconBook },
+      { label: 'Rapprochement bancaire', chemin: '/rapprochement', Icon: IconBanque },
     ],
   },
   {
-    titre: 'Gestion des tiers',
+    titre: 'Tiers',
+    sousTitre: 'Adhérents, clients, fournisseurs, salariés',
+    Icon: IconUsers,
     tuiles: [
       { label: 'Plan des tiers', chemin: '/tiers', Icon: IconUsers },
-      { label: 'Balance âgée', chemin: '/balance-agee', Icon: IconSearch },
-      { label: 'Balance auxiliaire', chemin: '/balance-auxiliaire', Icon: IconSearch },
+      { label: 'Balance âgée', chemin: '/balance-agee', Icon: IconBalance },
+      { label: 'Balance auxiliaire', chemin: '/balance-auxiliaire', Icon: IconBalance },
       { label: 'Justificatif de solde', chemin: '/justificatif-solde', Icon: IconSearch },
-      { label: 'Évolution des soldes', chemin: '/evolution-soldes', Icon: IconSearch },
-      { label: 'Immobilisations et amortissements', chemin: '/tableaux-immobilisations', Icon: IconSearch },
       { label: 'Rappel et relevé', chemin: '/relances', Icon: IconPrint },
-      { label: 'Rapprochement', chemin: '/rapprochement', Icon: IconBanque },
     ],
   },
   {
-    titre: 'Comptes généraux et structure',
+    titre: 'Comptes et immobilisations',
+    sousTitre: 'Le plan comptable et les biens durables',
+    Icon: IconComptes,
     tuiles: [
       { label: 'Plan comptable', chemin: '/comptes', Icon: IconComptes },
-      { label: 'Grand livre', chemin: '/journal?onglet=grand-livre', Icon: IconBook },
+      { label: 'Évolution des soldes', chemin: '/evolution-soldes', Icon: IconSearch },
       { label: 'Immobilisations', chemin: '/immobilisations', Icon: IconImmo },
+      { label: 'Tableaux des immobilisations', chemin: '/tableaux-immobilisations', Icon: IconImmo },
       { label: 'Régularisations', chemin: '/regularisations', Icon: IconRefresh },
     ],
   },
   {
     titre: 'Clôture et états financiers',
+    sousTitre: "Arrêter les comptes et produire la liasse",
+    Icon: IconEtats,
     tuiles: [
       { label: 'États financiers', chemin: '/etats-financiers', Icon: IconEtats },
       { label: 'Notes annexes', chemin: '/notes-annexes', Icon: IconBook },
       { label: "Fin d'exercice", chemin: '/exercice', Icon: IconCheck },
+      { label: 'Tableau de bord', chemin: '/tableau-de-bord', Icon: IconDashboard },
       // Le journal dit qui a fait quoi · il expose l'activité de chaque
       // collaborateur, d'où la réserve à l'administrateur du dossier. La
       // route serveur porte la même (@Roles ADMIN_CABINET) · masquer sans
       // refuser laisserait la route ouverte à un appel direct.
       { label: "Journal d'audit", chemin: '/journal-audit', Icon: IconCheck, admin: true },
-      { label: 'Tableau de bord', chemin: '/tableau-de-bord', Icon: IconDashboard },
     ],
   },
   {
-    // « Analytique et obligations » : les tuiles propres au SYCEBNL portent
-    // leur restriction, les deux autres valent pour tout référentiel · un
-    // dossier SYSCOHADA voit donc une bande à deux tuiles, pas une bande
-    // vide sous un titre qui ne le concerne pas.
+    // Les lignes propres au SYCEBNL portent leur restriction, les deux autres
+    // valent pour tout référentiel · un dossier SYSCOHADA voit donc une carte
+    // à deux lignes, jamais une carte vide sous un titre qui ne le concerne pas.
     titre: 'Analytique et obligations',
+    sousTitre: 'Projets, bailleurs et fiscalité',
+    Icon: IconDashboard,
     tuiles: [
       { label: 'Registre des donateurs', chemin: '/registre-donateurs', Icon: IconBook, referentielsApplicables: ['SYCEBNL'] },
       { label: 'Bailleurs de fonds', chemin: '/bailleurs', Icon: IconUsers, referentielsApplicables: ['SYCEBNL'] },
@@ -285,86 +302,84 @@ export function AccueilPage() {
         </div>
       </section>
 
-      {/* --- Bande 2 · ce qui réclame une action --------------------------- */}
-      <section className="mb-6">
-        <TitreBande>Où en est ce dossier</TitreBande>
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
-          {chargement ? (
-            [0, 1, 2, 3].map((i) => <div key={i} className="squelette h-[86px] rounded-[12px]" />)
-          ) : (
-            <>
-              <CarteEtat
-                titre="Écritures au brouillard"
-                valeur={brouillard ? brouillard.libelle : 'Non déterminé'}
-                bon={brouillard?.satisfait ?? true}
-                chemin="/brouillard"
-                navigate={navigate}
-              />
-              <CarteEtat
-                titre="Contrôles de cohérence"
-                valeur={
-                  !controles
-                    ? 'Non calculés'
-                    : bloquants + avertissements === 0
-                      ? 'Aucune anomalie à traiter'
-                      : `${bloquants > 0 ? `${bloquants} bloquante(s)` : `${avertissements} à vérifier`} · ${
-                          pireAnomalie?.libelle ?? ''
-                        }`
-                }
-                bon={!!controles && bloquants + avertissements === 0}
-                chemin="/controles"
-                navigate={navigate}
-              />
-              <CarteEtat
-                titre="Jalons de clôture en retard"
-                valeur={
-                  enRetard.length === 0
-                    ? 'Aucun jalon en retard'
-                    : `${enRetard.length} en retard · ${enRetard[0].libelle}`
-                }
-                bon={enRetard.length === 0}
-                chemin="/exercice"
-                navigate={navigate}
-              />
-              <CarteEtat
-                titre="Prochaine échéance"
-                valeur={prochain ? `${dateCourte(prochain.echeance)} · ${prochain.libelle}` : 'Rien à venir'}
-                bon
-                chemin="/exercice"
-                navigate={navigate}
-              />
-            </>
-          )}
-        </div>
-      </section>
-
-      {/* --- Bande 3 · le lanceur, par domaine ----------------------------- */}
-      {GROUPES.map((groupe) => (
-        <section key={groupe.titre} className="mb-5">
-          <TitreBande>{groupe.titre}</TitreBande>
-          {/* Une grille qui se remplit à la largeur de la fenêtre, comme la page
-              d'accueil des Paramètres de Windows 11 · 180 px au moins par
-              carte, ce qui en met une par ligne sur un téléphone. */}
-          <div className="grid gap-2 [grid-template-columns:repeat(auto-fill,minmax(180px,1fr))]">
-            {groupe.tuiles
+      {/* --- Deux colonnes : le lanceur, et l'état du dossier à droite ------
+          Sur un téléphone l'état passe AU-DESSUS · c'est lui qui dit s'il y a
+          quelque chose à faire, il ne doit pas finir sous cinq cartes. */}
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px] items-start">
+        <div className="grid gap-4 md:grid-cols-2 items-start">
+          {GROUPES.map((groupe, rang) => {
+            const tuiles = groupe.tuiles
               .filter((t) => !t.admin || estAdmin)
-              .filter((t) => fenetreDisponible(t, referentiel))
-              .map((t, i) => (
-                <Tuile key={t.chemin} tuile={t} rang={i} onClick={() => navigate(t.chemin)} />
-              ))}
-          </div>
-        </section>
-      ))}
+              .filter((t) => fenetreDisponible(t, referentiel));
+            if (tuiles.length === 0) return null;
+            return <CarteGroupe key={groupe.titre} groupe={groupe} tuiles={tuiles} rang={rang} navigate={navigate} />;
+          })}
+        </div>
 
-      <div className="mt-6 flex justify-end">
-        <button
-          type="button"
-          onClick={() => setAProposOuvert(true)}
-          className="flex items-center gap-1.5 text-[12px] text-text-dim hover:text-text"
-        >
-          <IconInfo width={13} height={13} />
-          À propos d’OmegaX
-        </button>
+        <aside className="order-first lg:order-none flex flex-col gap-3">
+          <section className="rounded-[8px] border border-border bg-surface shadow-plate overflow-hidden">
+            <div className="px-4 pt-3.5 pb-2 text-[14px] font-semibold">Où en est ce dossier</div>
+            {chargement ? (
+              <div className="px-4 pb-4 flex flex-col gap-2">
+                {[0, 1, 2, 3].map((i) => (
+                  <div key={i} className="squelette h-[44px] rounded-[4px]" />
+                ))}
+              </div>
+            ) : (
+              <div>
+                <LigneEtat
+                  titre="Écritures au brouillard"
+                  valeur={brouillard ? brouillard.libelle : 'Non déterminé'}
+                  bon={brouillard?.satisfait ?? true}
+                  chemin="/brouillard"
+                  navigate={navigate}
+                />
+                <LigneEtat
+                  titre="Contrôles de cohérence"
+                  valeur={
+                    !controles
+                      ? 'Non calculés'
+                      : bloquants + avertissements === 0
+                        ? 'Aucune anomalie à traiter'
+                        : `${bloquants > 0 ? `${bloquants} bloquante(s)` : `${avertissements} à vérifier`} · ${
+                            pireAnomalie?.libelle ?? ''
+                          }`
+                  }
+                  bon={!!controles && bloquants + avertissements === 0}
+                  chemin="/controles"
+                  navigate={navigate}
+                />
+                <LigneEtat
+                  titre="Jalons de clôture en retard"
+                  valeur={
+                    enRetard.length === 0
+                      ? 'Aucun jalon en retard'
+                      : `${enRetard.length} en retard · ${enRetard[0].libelle}`
+                  }
+                  bon={enRetard.length === 0}
+                  chemin="/exercice"
+                  navigate={navigate}
+                />
+                <LigneEtat
+                  titre="Prochaine échéance"
+                  valeur={prochain ? `${dateCourte(prochain.echeance)} · ${prochain.libelle}` : 'Rien à venir'}
+                  bon
+                  chemin="/exercice"
+                  navigate={navigate}
+                />
+              </div>
+            )}
+          </section>
+
+          <button
+            type="button"
+            onClick={() => setAProposOuvert(true)}
+            className="self-end flex items-center gap-1.5 text-[12px] text-text-dim hover:text-text"
+          >
+            <IconInfo width={13} height={13} />
+            À propos d’OmegaX
+          </button>
+        </aside>
       </div>
 
       {aProposOuvert && <AProposModale onFermer={() => setAProposOuvert(false)} />}
@@ -372,43 +387,71 @@ export function AccueilPage() {
   );
 }
 
-function TitreBande({ children }: { children: React.ReactNode }) {
+/** Flèche des lignes cliquables, comme dans les Paramètres de Windows 11. */
+function Chevron() {
   return (
-    <div className="text-[12px] font-semibold uppercase tracking-[0.09em] text-text-dim mb-2 px-0.5">{children}</div>
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden className="shrink-0 text-text-dim">
+      <path d="M6 3.5 10.5 8 6 12.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }
 
 /**
- * Tuile de lancement · une CARTE à la Windows 11 (2026-09-23), et non plus le
- * carré bleu d'IntuiSage avec son libellé en 10 px dessous, que Manasse
- * trouvait vieux. L'icône vit dans une pastille teintée, le libellé à côté
- * d'elle, en 12 px, sur deux lignes au plus · il n'est jamais coupé à
- * l'intérieur d'un carré, défaut que la tuile de Sage avait et que l'ancienne
- * disposition corrigeait déjà.
+ * Carte de domaine · un en-tête (pastille, titre, sous-titre) puis une ligne
+ * par fenêtre. Remplace les tuiles isolées (2026-09-23) : des lignes de même
+ * hauteur dans des cartes de même largeur ne laissent aucun trou, quel que
+ * soit le nombre de fenêtres du groupe.
  */
-function Tuile({ tuile, rang, onClick }: { tuile: TuileDef; rang: number; onClick: () => void }) {
+function CarteGroupe({
+  groupe,
+  tuiles,
+  rang,
+  navigate,
+}: {
+  groupe: GroupeDef;
+  tuiles: TuileDef[];
+  rang: number;
+  navigate: (c: string) => void;
+}) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      title={tuile.label}
-      style={{ animationDelay: `${rang * 35}ms` }}
-      className="anim-cascade group flex min-h-[56px] items-center gap-3 rounded-[8px] border border-border bg-surface px-3 py-2 text-left shadow-plate transition-[background-color,border-color,box-shadow] duration-150 ease-sortie hover:border-border-dark hover:bg-surface-alt active:bg-chrome"
+    <section
+      style={{ animationDelay: `${rang * 40}ms` }}
+      className="anim-cascade rounded-[8px] border border-border bg-surface shadow-plate overflow-hidden"
     >
-      <span className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[6px] bg-sel-soft text-sel transition-colors duration-150 group-hover:bg-sel group-hover:text-white">
-        <tuile.Icon width={17} height={17} />
-      </span>
-      <span className="min-w-0 text-[13px] font-medium leading-snug text-text line-clamp-2">{tuile.label}</span>
-    </button>
+      <div className="flex items-center gap-3 px-4 pt-3.5 pb-3">
+        <span className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-[8px] bg-sel text-white">
+          <groupe.Icon width={18} height={18} />
+        </span>
+        <div className="min-w-0">
+          <h2 className="text-[14px] font-semibold leading-tight">{groupe.titre}</h2>
+          <div className="text-[12px] text-text-dim truncate">{groupe.sousTitre}</div>
+        </div>
+      </div>
+      <ul>
+        {tuiles.map((t) => (
+          <li key={t.chemin} className="border-t border-border">
+            <button
+              type="button"
+              onClick={() => navigate(t.chemin)}
+              className="group w-full flex items-center gap-3 px-4 h-[40px] text-left transition-colors duration-150 hover:bg-surface-alt active:bg-chrome"
+            >
+              <t.Icon width={16} height={16} className="shrink-0 text-sel" />
+              <span className="flex-1 min-w-0 truncate text-[13px] text-text">{t.label}</span>
+              <Chevron />
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
 /**
- * Carte d'état · une phrase, une couleur, une destination. Le vert dit
+ * Ligne d'état · une phrase, une couleur, une destination. Le vert dit
  * « rien à faire ici », l'ambre « regardez ». Pas de rouge : rien sur cet
  * écran n'est une erreur du logiciel, seulement du travail en attente.
  */
-function CarteEtat({
+function LigneEtat({
   titre,
   valeur,
   bon,
@@ -425,13 +468,16 @@ function CarteEtat({
     <button
       type="button"
       onClick={() => navigate(chemin)}
-      className="group flex flex-col items-start gap-1.5 rounded-[12px] border border-border bg-surface p-3.5 text-left shadow-plate transition-[transform,box-shadow,border-color] duration-200 ease-sortie hover:-translate-y-[2px] hover:border-border-dark hover:shadow-flottante"
+      className="w-full flex items-start gap-3 border-t border-border px-4 py-2.5 text-left transition-colors duration-150 hover:bg-surface-alt"
     >
-      <span className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.05em] text-text-dim">
-        <span className={`h-1.5 w-1.5 rounded-full ${bon ? 'bg-positive' : 'bg-warning'}`} aria-hidden />
-        {titre}
+      <span className={`mt-[5px] h-2 w-2 shrink-0 rounded-full ${bon ? 'bg-positive' : 'bg-warning'}`} aria-hidden />
+      <span className="flex-1 min-w-0">
+        <span className="block text-[12px] text-text-dim">{titre}</span>
+        <span className={`block text-[13px] font-medium leading-snug ${bon ? 'text-text' : 'text-warning'}`}>{valeur}</span>
       </span>
-      <span className={`text-[13px] font-medium leading-snug ${bon ? '' : 'text-warning'}`}>{valeur}</span>
+      <span className="mt-[3px]">
+        <Chevron />
+      </span>
     </button>
   );
 }
