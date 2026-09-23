@@ -1,11 +1,12 @@
 import { Body, Controller, Delete, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
-import { SensFacture } from '@prisma/client';
+import { RoleUtilisateur, SensFacture } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { LicenceGuard } from '../licence/licence.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { FacturationService } from './facturation.service';
-import { EnregistrerFactureDto } from './dto/facture.dto';
+import { EmettreNoteDeCreditDto, EnregistrerFactureDto } from './dto/facture.dto';
 
 /**
  * PAS DE CLOISONNEMENT PAR RÉFÉRENTIEL, ET CE N'EST PAS UN OUBLI.
@@ -40,11 +41,24 @@ export class FacturationController {
     return this.facturation.etatDetaille(user.tenantId, periode);
   }
 
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Post()
   enregistrer(@CurrentUser() user: AuthenticatedUser, @Body() dto: EnregistrerFactureDto) {
     return this.facturation.enregistrer(user.tenantId, dto);
   }
 
+  /** Décret n° 011/42, art. 127 · la note qui annule et remplace la facture. */
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Post(':id/note-de-credit')
+  emettreNoteDeCredit(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: EmettreNoteDeCreditDto,
+  ) {
+    return this.facturation.emettreNoteDeCredit(user.tenantId, id, dto);
+  }
+
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   @Delete(':id')
   supprimer(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return this.facturation.supprimer(user.tenantId, id);

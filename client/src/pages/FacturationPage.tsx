@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
+import { useAuth } from '../lib/auth';
 
 /**
  * FACTURATION · la pièce que la loi exige pour chaque transaction.
@@ -14,9 +15,17 @@ import { api, ApiError } from '../lib/api';
  */
 type Mention = { cle: string; libelle: string };
 
+type PieceLiee = { id: string; numeroSerie: string; dateFacture: string };
+
 type Facture = {
   id: string;
   sens: 'VENTE' | 'ACHAT';
+  /** Décret n° 011/42, art. 127 · une note de crédit annule et remplace une facture. */
+  nature: 'FACTURE' | 'NOTE_DE_CREDIT';
+  factureAnnulee: PieceLiee | null;
+  noteDeCredit: PieceLiee | null;
+  /** Calculé par le serveur de l'existence de la note, jamais saisi. */
+  barree: boolean;
   numeroSerie: string;
   dateFacture: string;
   tiers: { id: string; code: string; nom: string } | null;
@@ -103,6 +112,12 @@ const somme = (n: number | null | undefined) =>
   typeof n === 'number' ? n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '·';
 
 export function FacturationPage() {
+  const { estAdmin, utilisateur } = useAuth();
+  // Le serveur refuse l'écriture à la lecture seule ; l'écran ne la propose pas.
+  const peutEcrire = estAdmin || utilisateur?.role === 'COMPTABLE';
+  const [noteSur, setNoteSur] = useState<string | null>(null);
+  const [noteNumero, setNoteNumero] = useState('');
+  const [noteDate, setNoteDate] = useState('');
   const [etat, setEtat] = useState<Etat | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [sens, setSens] = useState<'VENTE' | 'ACHAT'>('VENTE');
@@ -157,6 +172,22 @@ export function FacturationPage() {
       await recharger();
     } catch (e) {
       setErreur(e instanceof ApiError ? e.message : "L'enregistrement n'a pas abouti.");
+    }
+  }
+
+  async function emettreNoteDeCredit(factureId: string) {
+    setErreur(null);
+    try {
+      await api.post(`/facturation/${encodeURIComponent(factureId)}/note-de-credit`, {
+        numeroSerie: noteNumero,
+        dateNote: noteDate,
+      });
+      setNoteSur(null);
+      setNoteNumero('');
+      setNoteDate('');
+      await recharger();
+    } catch (e) {
+      setErreur(e instanceof ApiError ? e.message : "La note de crédit n'a pas pu être émise.");
     }
   }
 
@@ -305,9 +336,11 @@ export function FacturationPage() {
           autres impôts et taxes s'il n'y en a pas : un champ vide n'est pas une réponse, et la mention manque.
         </p>
         {erreur && <p className="text-[10.5px] text-danger mt-2">{erreur}</p>}
-        <button className="mt-2 border border-border px-2.5 py-1 text-[10.5px]" onClick={() => void enregistrer()}>
-          Enregistrer
-        </button>
+        {peutEcrire && (
+          <button className="mt-2 border border-border px-2.5 py-1 text-[10.5px]" onClick={() => void enregistrer()}>
+            Enregistrer
+          </button>
+        )}
       </section>
 
       <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
@@ -414,7 +447,50 @@ export function FacturationPage() {
                 {etat.factures.map((f) => (
                   <tr key={f.id} className="border-b border-border/50 align-top">
                     <td className="py-1 pr-2">{f.sens === 'VENTE' ? 'Vente' : 'Achat'}</td>
-                    <td className="py-1 pr-2">{f.numeroSerie}</td>
+                    <td className="py-1 pr-2">
+                      {/* DÉCRET ART. 127 · la facture annulée « doit être
+                          barrée et conservée ». Elle reste dans la liste,
+                          barrée, avec la note qui l'annule. */}
+                      <span className={f.barree ? 'line-through' : undefined}>{f.numeroSerie}</span>
+                      {f.nature === 'NOTE_DE_CREDIT' && (
+                        <p className="text-[10px] text-text-dim">
+                          Note de crédit · annule {f.factureAnnulee?.numeroSerie ?? '·'}
+                        </p>
+                      )}
+                      {f.barree && (
+                        <p className="text-[10px] text-text-dim">Annulée par {f.noteDeCredit?.numeroSerie}</p>
+                      )}
+                      {peutEcrire && f.nature === 'FACTURE' && !f.barree && (
+                        noteSur === f.id ? (
+                          <div className="mt-1 flex flex-wrap gap-1 items-center">
+                            <input
+                              aria-label="N° de la note de crédit"
+                              className="border border-border px-1 py-0.5 w-24"
+                              placeholder="N° de série"
+                              value={noteNumero}
+                              onChange={(e) => setNoteNumero(e.target.value)}
+                            />
+                            <input
+                              aria-label="Date de la note de crédit"
+                              type="date"
+                              className="border border-border px-1 py-0.5"
+                              value={noteDate}
+                              onChange={(e) => setNoteDate(e.target.value)}
+                            />
+                            <button className="border border-border px-1.5 py-0.5" onClick={() => void emettreNoteDeCredit(f.id)}>
+                              Émettre
+                            </button>
+                            <button className="px-1.5 py-0.5 text-text-dim" onClick={() => setNoteSur(null)}>
+                              Annuler
+                            </button>
+                          </div>
+                        ) : (
+                          <button className="mt-1 text-[10px] underline text-text-dim" onClick={() => setNoteSur(f.id)}>
+                            Note de crédit
+                          </button>
+                        )
+                      )}
+                    </td>
                     <td className="py-1 pr-2">{f.dateFacture.slice(0, 10)}</td>
                     <td className="py-1 pr-2">{f.sens === 'VENTE' ? f.contrepartieNom : f.emetteurNom}</td>
                     <td className="py-1 pr-2 text-right">{somme(f.totaux.montantHT)}</td>

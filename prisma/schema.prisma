@@ -5221,11 +5221,37 @@ enum SensFacture {
   ACHAT
 }
 
+/// O.-L. n° 10/001, art. 52 al. 2, et décret n° 011/42, art. 127 · pour une
+/// opération annulée ou résiliée, la récupération de la TVA « est subordonnée
+/// à l'établissement et à l'envoi au client d'une facture nouvelle ou d'une
+/// NOTE DE CRÉDIT annulant et remplaçant la facture initiale ».
+enum NatureFacture {
+  FACTURE
+  NOTE_DE_CREDIT
+}
+
 model Facture {
   id       String      @id @default(uuid())
   tenantId String
   tenant   Tenant      @relation(fields: [tenantId], references: [id])
   sens     SensFacture
+
+  /// FACTURE, ou NOTE DE CRÉDIT qui en annule une autre. Les montants d'une
+  /// note sont POSITIFS et recopiés de la facture annulée · c'est la nature
+  /// qui porte le sens de la pièce, jamais un signe. Un montant négatif dans
+  /// `montantHT` passerait par tous les totaux et toutes les mentions du
+  /// module sans qu'aucun ne soit écrit pour lui.
+  nature NatureFacture @default(FACTURE)
+
+  /// LA FACTURE QUE CETTE NOTE ANNULE ET REMPLACE (décret art. 127). Unique :
+  /// une facture n'est annulée qu'une fois. `onDelete: Restrict` n'est pas une
+  /// précaution de style · la facture initiale « doit être barrée et CONSERVÉE
+  /// dans le facturier », sa suppression est donc refusée par la base tant
+  /// qu'une note la vise, et pas seulement par le service.
+  factureAnnuleeId String?  @unique
+  factureAnnulee   Facture? @relation("AnnulationFacture", fields: [factureAnnuleeId], references: [id], onDelete: Restrict)
+  /// La note qui barre cette facture, s'il y en a une.
+  noteDeCredit     Facture? @relation("AnnulationFacture")
 
   /// N° DE SÉRIE · art. 100, troisième groupe. Unique par dossier ET par sens :
   /// la numérotation des factures reçues est celle des fournisseurs, elle n'a

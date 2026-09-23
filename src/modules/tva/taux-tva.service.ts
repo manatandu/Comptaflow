@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { PrismaService } from '../../common/prisma.service';
 import { CreerTauxTvaDto, ModifierTauxTvaDto } from './dto/taux-tva.dto';
 import { tauxTvaDefaut } from './taux-tva-seed';
-import { Prisma, ClasseCompte, Referentiel, TypeJournal } from '@prisma/client';
+import { Prisma, ClasseCompte, Referentiel, TypeJournal, NatureFacture } from '@prisma/client';
 import { EcritureService } from '../comptabilite/ecriture.service';
 
 const EPSILON = 0.005;
@@ -1683,6 +1683,10 @@ export class TauxTvaService {
               compte: { select: { numero: true } },
               ecriture: {
                 include: {
+                  // LA PIÈCE QUI JUSTIFIE UN AVOIR SUR VENTE · décret n° 011/42,
+                  // art. 127. Seule la NATURE est lue : une note de crédit
+                  // rattachée à l'écriture est la pièce que le texte exige.
+                  facture: { select: { nature: true } },
                   // DEUX contreparties sont lues sur la même écriture, et pour
                   // trois questions différentes : la ligne de TIERS lettrée dit
                   // QUAND la taxe est exigible (art. 25, 2°), le TIERS auquel son
@@ -1770,6 +1774,9 @@ export class TauxTvaService {
     let tvaNatureDepenseIllisible = 0;
     let tvaDeductibleDechue = 0;
     let avoirsCollecteNonImputes = 0;
+    // Avoirs sur ventes, constatés ou imputés sur cette déclaration, dont
+    // l'écriture ne porte aucune note de crédit (O.-L. art. 52 al. 2).
+    let avoirsSansNoteDeCredit = 0;
 
     /*
       DÉCHÉANCE DU DROIT À DÉDUCTION · article 37, alinéa 2.
@@ -1820,6 +1827,22 @@ export class TauxTvaService {
           if (dansLaPeriode) cumul.deductible = TauxTvaService.c(cumul.deductible - avoir);
           continue;
         }
+        /*
+          LA RÉCUPÉRATION EST SUBORDONNÉE À UNE PIÈCE. O.-L. n° 10/001, art. 52
+          al. 2 : « la récupération de la taxe acquittée est subordonnée à
+          l'établissement et à l'envoi au client d'une facture nouvelle ou note
+          de crédit annulant et remplaçant la facture initiale ». Depuis I3, le
+          module facturation émet cette note et la rattache à l'écriture.
+
+          LE MONTANT N'EST PAS RETIRÉ, IL EST SIGNALÉ. La facturation d'OmegaX
+          est facultative : un dossier peut émettre ses notes ailleurs, sur un
+          carnet ou un autre logiciel, et les retirer d'office refuserait à tous
+          ceux-là une récupération à laquelle ils ont droit. Le logiciel dit
+          donc ce qu'il ne voit pas, au lieu de le trancher.
+        */
+        const justifie = l.ecriture.facture?.nature === NatureFacture.NOTE_DE_CREDIT;
+        const compteIci = dansLaPeriode || (dateEcriture < dateDebut && !!debutReportAvoirs && dateEcriture >= debutReportAvoirs);
+        if (compteIci && !justifie) avoirsSansNoteDeCredit = TauxTvaService.c(avoirsSansNoteDeCredit + avoir);
         if (dansLaPeriode) cumul.avoir = TauxTvaService.c(cumul.avoir + avoir);
         else if (dateEcriture < dateDebut) {
           if (!debutReportAvoirs) {
@@ -1987,6 +2010,7 @@ export class TauxTvaService {
         avoirsCollecteConstates,
         recuperationArt52,
         avoirsCollecteNonImputes,
+        avoirsSansNoteDeCredit,
         tvaExclueArt41,
         tvaAVerifierArt41,
         tvaNatureDepenseIllisible,
@@ -2007,6 +2031,11 @@ export class TauxTvaService {
       recuperationArt52,
       /** Avoirs antérieurs qu'aucune liquidation ne permet de situer. */
       avoirsCollecteNonImputes,
+      /**
+       * Avoirs sur ventes constatés ou imputés ici dont l'écriture ne porte
+       * aucune note de crédit (art. 52 al. 2, décret art. 127). Signalés, pas retirés.
+       */
+      avoirsSansNoteDeCredit,
       /** TVA d'amont écartée par l'article 41 · jamais déductible. */
       tvaExclueArt41,
       /** TVA d'amont sur des postes que l'article 41 vise sous condition. */
@@ -2069,6 +2098,7 @@ export class TauxTvaService {
     avoirsCollecteConstates: number;
     recuperationArt52: number;
     avoirsCollecteNonImputes: number;
+    avoirsSansNoteDeCredit: number;
     tvaExclueArt41: number;
     tvaAVerifierArt41: number;
     tvaNatureDepenseIllisible: number;
@@ -2204,7 +2234,18 @@ export class TauxTvaService {
           'la constatation ». Ce montant ne minore donc PAS la collecte de cette déclaration · il sera inscrit en ' +
           'déduction de la suivante, une fois celle-ci liquidée. La récupération suppose que la note de crédit ou ' +
           'la facture nouvelle ait été ÉTABLIE ET ENVOYÉE au client, et la facture initiale barrée et conservée ' +
-          '(décret art. 127) : OmegaX ne peut pas le vérifier.',
+          '(décret art. 127). OmegaX voit la note quand elle est émise par sa facturation et rattachée à ' +
+          'l’écriture ; il ne voit pas une note émise ailleurs, ni son ENVOI au client.',
+      );
+    }
+    if (e.avoirsSansNoteDeCredit > EPSILON) {
+      phrases.push(
+        `AVOIRS SANS NOTE DE CRÉDIT · ${fc(e.avoirsSansNoteDeCredit)} CDF de TVA sur avoirs, constatés ou imputés ` +
+          'sur cette déclaration, ne sont justifiés par aucune note de crédit rattachée à leur écriture. « Pour les ' +
+          'opérations annulées ou résiliées, la récupération de la taxe acquittée est subordonnée à l’établissement ' +
+          'et à l’envoi au client d’une facture nouvelle ou note de crédit annulant et remplaçant la facture ' +
+          'initiale » (article 52, alinéa 2). Ces montants restent comptés · si la note a été émise hors d’OmegaX, ' +
+          'la tenir à disposition ; sinon, l’émettre depuis la fenêtre Facturation avant de récupérer la taxe.',
       );
     }
     if (e.recuperationArt52 > EPSILON) {

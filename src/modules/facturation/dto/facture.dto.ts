@@ -101,3 +101,24 @@ export class EnregistrerFactureDto {
   @Type(() => LigneFactureDto)
   lignes!: LigneFactureDto[];
 }
+
+/**
+ * NOTE DE CRÉDIT · décret n° 011/42, art. 127. Elle ANNULE ET REMPLACE la
+ * facture initiale : ses lignes sont celles de la facture visée, recopiées par
+ * le service. Seuls le numéro, la date et l'écriture sont propres à la note.
+ */
+export class EmettreNoteDeCreditDto {
+  /** N° de série de la note · même facturier, même unicité que les factures. */
+  @IsString()
+  @MinLength(1)
+  @MaxLength(60)
+  numeroSerie!: string;
+
+  @IsDateString()
+  dateNote!: string;
+
+  /** L'écriture d'annulation, celle qui débite le 443 sur une vente. */
+  @IsOptional()
+  @IsString()
+  ecritureId?: string;
+}

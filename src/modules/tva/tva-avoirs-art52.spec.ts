@@ -129,8 +129,9 @@ describe('Avoir sur VENTE · reporté sur la déclaration suivante (art. 52, dé
     expect(d.avoirsCollecteConstates).toBe(1_600_000);
     expect(d.mentionExigibilite).toContain('AVOIRS SUR VENTES CONSTATÉS');
     expect(d.mentionExigibilite).toContain('art. 126');
-    // La condition de l'article 127 · le logiciel ne peut pas la vérifier, il
-    // la nomme.
+    // La condition de l'article 127 est nommée. Depuis I3, OmegaX voit la note
+    // qu'il a émise (tva-avoirs-note-de-credit.spec.ts) ; l'ENVOI au client,
+    // lui, reste hors de sa vue.
     expect(d.mentionExigibilite).toContain('ENVOYÉE au client');
   });
 

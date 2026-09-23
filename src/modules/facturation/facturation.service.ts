@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, SensFacture } from '@prisma/client';
+import { NatureFacture, Prisma, SensFacture } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
-import { EnregistrerFactureDto } from './dto/facture.dto';
+import { EmettreNoteDeCreditDto, EnregistrerFactureDto } from './dto/facture.dto';
 import {
   FactureVerifiable,
   HOMOLOGATION,
@@ -136,7 +136,12 @@ export class FacturationService {
     const morale = this.estPersonneMorale(t);
     const factures = await this.prisma.facture.findMany({
       where: { tenantId, ...(params.sens ? { sens: params.sens } : {}) },
-      include: { lignes: { orderBy: { ordre: 'asc' } }, tiers: { select: { id: true, code: true, nom: true } } },
+      include: {
+        lignes: { orderBy: { ordre: 'asc' } },
+        tiers: { select: { id: true, code: true, nom: true } },
+        factureAnnulee: { select: { id: true, numeroSerie: true, dateFacture: true } },
+        noteDeCredit: { select: { id: true, numeroSerie: true, dateFacture: true } },
+      },
       orderBy: [{ dateFacture: 'desc' }, { numeroSerie: 'desc' }],
     });
 
@@ -148,6 +153,18 @@ export class FacturationService {
         return {
           id: f.id,
           sens: f.sens,
+          nature: f.nature,
+          /** La facture que cette note annule et remplace. */
+          factureAnnulee: f.factureAnnulee,
+          /** La note qui annule cette facture, s'il y en a une. */
+          noteDeCredit: f.noteDeCredit,
+          /**
+           * DÉCRET ART. 127 · la facture initiale « doit être BARRÉE et
+           * conservée dans le facturier ». Calculé, jamais stocké : c'est
+           * l'existence de la note qui barre la facture, et un drapeau posé à
+           * part pourrait la contredire.
+           */
+          barree: f.noteDeCredit !== null,
           numeroSerie: f.numeroSerie,
           dateFacture: f.dateFacture,
           tiers: f.tiers,
@@ -281,9 +298,136 @@ export class FacturationService {
     };
   }
 
+  /**
+   * LA NOTE DE CRÉDIT · O.-L. n° 10/001, art. 52 al. 2, et décret n° 011/42,
+   * art. 127.
+   *
+   * « Pour les opérations annulées ou résiliées, la récupération de la taxe sur
+   * la valeur ajoutée acquittée par le vendeur est subordonnée à
+   * l'établissement et à l'envoi au client d'une facture nouvelle ou d'une note
+   * de crédit ANNULANT ET REMPLAÇANT la facture initiale. Celle-ci doit être
+   * barrée et conservée dans le facturier ou classeur des factures selon
+   * l'ordre chronologique de numérotation. »
+   *
+   * ANNULANT : la note reprend la facture ENTIÈRE, ligne pour ligne. Le texte
+   * ne connaît pas d'annulation partielle ; une opération seulement réduite se
+   * traite en « facture nouvelle », que le module sait déjà enregistrer.
+   *
+   * LES IDENTITÉS SONT CELLES DE LA FACTURE ANNULÉE, et non celles du jour. La
+   * note ne documente pas une opération nouvelle, elle défait celle-là : le
+   * client doit y retrouver exactement ce qu'il a déduit, pour pouvoir le
+   * reverser.
+   *
+   * LES DEUX SENS. Sur une VENTE, c'est la pièce que l'art. 127 exige du
+   * vendeur. Sur un ACHAT, c'est la note reçue d'un fournisseur, enregistrée
+   * pour la même raison qu'une facture reçue : la tenir dans le facturier.
+   */
+  async emettreNoteDeCredit(tenantId: string, factureId: string, dto: EmettreNoteDeCreditDto) {
+    const initiale = await this.prisma.facture.findFirst({
+      where: { id: factureId, tenantId },
+      include: { lignes: { orderBy: { ordre: 'asc' } }, noteDeCredit: { select: { numeroSerie: true } } },
+    });
+    if (!initiale) throw new NotFoundException('Facture introuvable dans ce dossier.');
+    if (initiale.nature !== NatureFacture.FACTURE) {
+      throw new BadRequestException(
+        'Une note de crédit annule une FACTURE (décret n° 011/42, art. 127). Pour revenir sur une note émise ' +
+          'à tort, établissez une facture nouvelle.',
+      );
+    }
+    if (initiale.noteDeCredit) {
+      throw new BadRequestException(
+        `Cette facture est déjà annulée par la note de crédit « ${initiale.noteDeCredit.numeroSerie} ».`,
+      );
+    }
+
+    const dateNote = new Date(dto.dateNote);
+    // Le facturier se tient « selon l'ordre chronologique » (art. 127) · une
+    // note ne peut pas annuler une facture qui n'existait pas encore.
+    if (dateNote < initiale.dateFacture) {
+      throw new BadRequestException(
+        'La note de crédit ne peut pas être antérieure à la facture qu’elle annule.',
+      );
+    }
+
+    const numeroSerie = dto.numeroSerie.trim();
+    const doublon = await this.prisma.facture.findFirst({
+      where: { tenantId, sens: initiale.sens, numeroSerie },
+      select: { id: true },
+    });
+    if (doublon) {
+      throw new BadRequestException(
+        `Le numéro de série « ${numeroSerie} » est déjà porté par une pièce de ce sens dans ce dossier. ` +
+          'La note de crédit est rangée dans le même facturier que les factures : deux pièces ne partagent pas un numéro.',
+      );
+    }
+
+    if (dto.ecritureId) {
+      const ecriture = await this.prisma.ecriture.findFirst({
+        where: { id: dto.ecritureId, tenantId },
+        select: { id: true },
+      });
+      if (!ecriture) throw new NotFoundException('Écriture introuvable dans ce dossier.');
+    }
+
+    const note = await this.prisma.facture.create({
+      data: {
+        tenantId,
+        sens: initiale.sens,
+        nature: NatureFacture.NOTE_DE_CREDIT,
+        factureAnnuleeId: initiale.id,
+        numeroSerie,
+        dateFacture: dateNote,
+        tiersId: initiale.tiersId,
+        emetteurNom: initiale.emetteurNom,
+        emetteurAdresse: initiale.emetteurAdresse,
+        emetteurNumeroImpot: initiale.emetteurNumeroImpot,
+        contrepartieNom: initiale.contrepartieNom,
+        contrepartieAdresse: initiale.contrepartieAdresse,
+        contrepartieNumeroImpot: initiale.contrepartieNumeroImpot,
+        mentionTvaDebits: initiale.mentionTvaDebits,
+        autresImpotsEtTaxes: initiale.autresImpotsEtTaxes,
+        ecritureId: dto.ecritureId ?? null,
+        lignes: {
+          create: initiale.lignes.map((l) => ({
+            ordre: l.ordre,
+            designation: l.designation,
+            quantite: l.quantite,
+            prixUnitaire: l.prixUnitaire,
+            montantHT: l.montantHT,
+            imposable: l.imposable,
+            tauxTvaId: l.tauxTvaId,
+            tauxApplique: l.tauxApplique,
+            montantTva: l.montantTva,
+          })),
+        },
+      },
+      include: { lignes: { orderBy: { ordre: 'asc' } } },
+    });
+
+    return {
+      id: note.id,
+      nature: note.nature,
+      factureAnnulee: { id: initiale.id, numeroSerie: initiale.numeroSerie },
+      totaux: totauxFacture(this.verifiable(note)),
+    };
+  }
+
   async supprimer(tenantId: string, id: string) {
-    const facture = await this.prisma.facture.findFirst({ where: { id, tenantId }, select: { id: true } });
+    const facture = await this.prisma.facture.findFirst({
+      where: { id, tenantId },
+      select: { id: true, noteDeCredit: { select: { numeroSerie: true } } },
+    });
     if (!facture) throw new NotFoundException('Facture introuvable dans ce dossier.');
+    // LA FACTURE ANNULÉE SE CONSERVE. Décret n° 011/42, art. 127 : elle « doit
+    // être barrée et conservée dans le facturier ou classeur des factures selon
+    // l'ordre chronologique de numérotation ». La clé étrangère RESTRICT le
+    // refuserait aussi, mais avec une erreur de base que personne ne lirait.
+    if (facture.noteDeCredit) {
+      throw new BadRequestException(
+        `Cette facture est annulée par la note de crédit « ${facture.noteDeCredit.numeroSerie} ». Elle doit être ` +
+          'barrée et CONSERVÉE dans le facturier (décret n° 011/42, art. 127) : elle ne se supprime pas.',
+      );
+    }
     await this.prisma.facture.delete({ where: { id: facture.id } });
     return { supprimee: true };
   }
@@ -305,7 +449,17 @@ export class FacturationService {
     const finExclue = new Date(Date.UTC(annee, mois, 1));
 
     const factures = await this.prisma.facture.findMany({
-      where: { tenantId, sens: SensFacture.ACHAT, dateFacture: { gte: debut, lt: finExclue } },
+      // LES NOTES DE CRÉDIT N'Y ENTRENT PAS. L'état justifie la taxe
+      // DÉDUCTIBLE, et une note reçue d'un fournisseur la RÉDUIT : ses montants
+      // sont positifs (la nature porte le sens), si bien qu'elle s'y
+      // additionnerait comme une facture de plus et gonflerait la déduction du
+      // montant même qu'elle annule.
+      where: {
+        tenantId,
+        sens: SensFacture.ACHAT,
+        nature: NatureFacture.FACTURE,
+        dateFacture: { gte: debut, lt: finExclue },
+      },
       include: { lignes: { orderBy: { ordre: 'asc' } } },
       orderBy: [{ dateFacture: 'asc' }, { numeroSerie: 'asc' }],
     });
