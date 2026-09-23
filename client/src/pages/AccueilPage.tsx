@@ -236,6 +236,9 @@ export function AccueilPage() {
         : null;
   const anneeExercice = exerciceCourant ? new Date(exerciceCourant.dateDebut).getFullYear() : null;
 
+  const tuilesVisibles = (groupe: GroupeDef) =>
+    groupe.tuiles.filter((t) => !t.admin || estAdmin).filter((t) => fenetreDisponible(t, referentiel));
+
   const dateCourte = (iso: string) =>
     new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
 
@@ -306,13 +309,20 @@ export function AccueilPage() {
           Sur un téléphone l'état passe AU-DESSUS · c'est lui qui dit s'il y a
           quelque chose à faire, il ne doit pas finir sous cinq cartes. */}
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px] items-start">
+        {/* La CINQUIÈME carte, seule sur sa rangée à gauche, laissait un trou ·
+            sur grand écran elle passe sous la colonne d'état. Sur téléphone
+            et tablette elle reste à la suite des autres, la colonne d'état
+            remontant en tête. Rendue deux fois, une seule est visible. */}
         <div className="grid gap-4 md:grid-cols-2 items-start">
           {GROUPES.map((groupe, rang) => {
-            const tuiles = groupe.tuiles
-              .filter((t) => !t.admin || estAdmin)
-              .filter((t) => fenetreDisponible(t, referentiel));
+            const tuiles = tuilesVisibles(groupe);
             if (tuiles.length === 0) return null;
-            return <CarteGroupe key={groupe.titre} groupe={groupe} tuiles={tuiles} rang={rang} navigate={navigate} />;
+            const derniere = rang === GROUPES.length - 1;
+            return (
+              <div key={groupe.titre} className={derniere ? 'lg:hidden' : undefined}>
+                <CarteGroupe groupe={groupe} tuiles={tuiles} rang={rang} navigate={navigate} />
+              </div>
+            );
           })}
         </div>
 
@@ -370,6 +380,17 @@ export function AccueilPage() {
               </div>
             )}
           </section>
+
+          {tuilesVisibles(GROUPES[GROUPES.length - 1]).length > 0 && (
+            <div className="hidden lg:block">
+              <CarteGroupe
+                groupe={GROUPES[GROUPES.length - 1]}
+                tuiles={tuilesVisibles(GROUPES[GROUPES.length - 1])}
+                rang={GROUPES.length - 1}
+                navigate={navigate}
+              />
+            </div>
+          )}
 
           <button
             type="button"
