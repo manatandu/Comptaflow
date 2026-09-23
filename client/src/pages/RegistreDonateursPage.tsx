@@ -94,8 +94,7 @@ const FORMULAIRE_VIDE: Formulaire = {
 
 export function RegistreDonateursPage() {
   const { exerciceCourant } = useExercice();
-  const { utilisateur } = useAuth();
-  const peutTenir = utilisateur?.role === 'ADMIN_CABINET' || utilisateur?.role === 'COMPTABLE';
+  const { peutEcrire } = useAuth();
 
   const [lignes, setLignes] = useState<Donation[] | null>(null);
   const [rapport, setRapport] = useState<RapportConformiteRegistre | null>(null);
@@ -292,7 +291,7 @@ export function RegistreDonateursPage() {
 
       {onglet === 'registre' && (
         <>
-          {peutTenir && (
+          {peutEcrire && (
             <div className="mb-2.5">
               {!formOuvert ? (
                 <button
@@ -457,12 +456,12 @@ export function RegistreDonateursPage() {
                     )}
                   </span>
                   <span className="flex items-center gap-2 justify-end">
-                    {peutTenir && !d.annulee && !d.signeePar && (
+                    {peutEcrire && !d.annulee && !d.signeePar && (
                       <button onClick={() => signer(d)} className="text-sel text-[11px] font-semibold hover:underline">
                         Signer
                       </button>
                     )}
-                    {peutTenir && !d.annulee && (
+                    {peutEcrire && !d.annulee && (
                       <button onClick={() => annuler(d)} className="text-danger text-[11px] hover:underline">
                         Annuler
                       </button>

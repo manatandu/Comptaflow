@@ -521,6 +521,7 @@ model Tenant {
   salaries        Salarie[]
   enfantsACharge  EnfantACharge[]
   contratsTravail ContratTravail[]
+  bulletinsPaie   BulletinPaie[]
 
   // GROUPE D'ÉTABLISSEMENTS · une même personne morale (une église et ses
   // cellules, un siège et ses antennes) tenue en plusieurs dossiers. Le lien
@@ -5857,8 +5858,9 @@ model Salarie {
   /// décompte final, ni la déclaration de l'art. 218, ni un contrôle.
   actif Boolean @default(true)
 
-  contrats ContratTravail[]
-  enfants  EnfantACharge[]
+  contrats  ContratTravail[]
+  enfants   EnfantACharge[]
+  bulletins BulletinPaie[]
 
   createdAt DateTime @default(now())
   createdBy String
@@ -6046,6 +6048,8 @@ model ContratTravail {
   renouvelleDe   ContratTravail? @relation("RenouvellementContrat", fields: [renouvelleDeId], references: [id], onDelete: Restrict)
   renouvellement ContratTravail? @relation("RenouvellementContrat")
 
+  bulletins BulletinPaie[]
+
   /// La fin RÉELLE, et son motif. ART. 217 · la déclaration de départ
   /// « mentionn[e] notamment la date du départ de l'entreprise ».
   ///
@@ -6065,4 +6069,74 @@ model ContratTravail {
   @@index([tenantId, salarieId])
   @@index([tenantId, dateEntreeEnVigueur])
   @@map("contrats_travail")
+}
+
+/// P8 · LE BULLETIN DE PAIE ÉMIS, c'est-à-dire le DÉCOMPTE ÉCRIT de l'article
+/// 103 du Code du travail, que l'arrêté n° 12/CAB.MIN/ETPS/042 du 8 août 2008,
+/// art. 2, définit comme « un des doubles du livre de paie prévus à l'article
+/// 214 ». Il FIGE une simulation : ce qui a été remis au travailleur ne se
+/// recalcule plus jamais, même si le barème ou le registre changent ensuite.
+enum StatutBulletinPaie {
+  EMIS
+  /// Annulé par un acte motivé · la ligne reste, jamais supprimée (art. 4 de
+  /// l'arrêté de 2008, écriture « indélébile »).
+  ANNULE
+}
+
+model BulletinPaie {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  salarieId String
+  salarie   Salarie        @relation(fields: [salarieId], references: [id], onDelete: Restrict)
+  contratId String
+  contrat   ContratTravail @relation(fields: [contratId], references: [id], onDelete: Restrict)
+
+  /// ART. 214 · « feuilles numérotées de manière CONTINUE ». Une seule
+  /// séquence par dossier, attribuée par le serveur, jamais réutilisée · un
+  /// bulletin annulé garde son numéro, sans quoi le trou se refermerait.
+  numero Int
+
+  /// AAAA-MM, la forme que le moteur de paie lit déjà.
+  moisDePaie String
+  statut     StatutBulletinPaie @default(EMIS)
+
+  /// Mentions 1 à 4 de l'arrêté de 2008, RECOPIÉES à la date d'émission · un
+  /// bulletin remis ne change pas parce que la fiche du salarié change.
+  nomComplet               String
+  matricule                String?
+  emploi                   String?
+  categorieProfessionnelle String?
+  numeroAffiliationCnss    String?
+
+  /// Les chiffres que le travailleur a lus, figés. Le détail complet est dans
+  /// `calcul` ; ces colonnes servent aux totaux du mois sans relire le JSON.
+  totalVerseFc             Decimal @db.Decimal(18, 2)
+  assietteSocialeFc        Decimal @db.Decimal(18, 2)
+  cotisationsTravailleurFc Decimal @db.Decimal(18, 2)
+  cotisationsEmployeurFc   Decimal @db.Decimal(18, 2)
+  irppFc                   Decimal @db.Decimal(18, 2)
+  netAPayerFc              Decimal @db.Decimal(18, 2)
+
+  /// Ce qui a été saisi, rejouable tel quel par la simulation.
+  entree Json
+  /// Le résultat de la simulation au moment de l'émission, tel quel.
+  calcul Json
+
+  emisLe  DateTime @default(now())
+  emisPar String
+
+  /// ART. 103 · le décompte se remet « au moment du paiement ». La date est
+  /// déclarée par le cabinet : aucun livre ne porte la remise.
+  remisLe DateTime?
+
+  annuleLe        DateTime?
+  annulePar       String?
+  motifAnnulation String?
+
+  @@unique([tenantId, numero])
+  @@index([tenantId, moisDePaie])
+  @@index([tenantId, salarieId])
+  @@map("bulletins_paie")
 }

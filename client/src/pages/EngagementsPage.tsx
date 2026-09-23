@@ -43,9 +43,8 @@ function jour(iso: string): string {
 }
 
 export function EngagementsPage() {
-  const { estAdmin, utilisateur } = useAuth();
+  const { peutEcrire } = useAuth();
   const { exerciceCourant } = useExercice();
-  const peutSaisir = estAdmin || utilisateur?.role === 'COMPTABLE';
 
   const [engagements, setEngagements] = useState<EngagementDepense[] | null>(null);
   const [sections, setSections] = useState<SectionAnalytique[]>([]);
@@ -224,7 +223,7 @@ export function EngagementsPage() {
       {erreur && <div className="ecran-seul border border-danger bg-danger/10 px-3 py-1.5 text-[12.5px]">{erreur}</div>}
       {info && <div className="ecran-seul border border-border bg-surface-alt px-3 py-1.5 text-[12.5px]">{info}</div>}
 
-      {peutSaisir && (
+      {peutEcrire && (
         <form
           onSubmit={onCreer}
           className="ecran-seul flex flex-wrap items-end gap-2 border border-border bg-surface px-3 py-2"
@@ -355,7 +354,7 @@ export function EngagementsPage() {
                   {montant(e.resteAExecuter)}
                 </span>
                 <span className="ecran-seul flex gap-1.5 text-[11px]">
-                  {peutSaisir && e.statut === 'OUVERT' && (
+                  {peutEcrire && e.statut === 'OUVERT' && (
                     <button
                       type="button"
                       onClick={() => setRattachementPour(rattachementPour === e.id ? null : e.id)}
@@ -364,17 +363,17 @@ export function EngagementsPage() {
                       Rattacher
                     </button>
                   )}
-                  {peutSaisir && e.statut === 'OUVERT' && (
+                  {peutEcrire && e.statut === 'OUVERT' && (
                     <button type="button" onClick={() => void onClore(e.id)} className="border border-border-dark px-1.5 py-0.5">
                       Clore
                     </button>
                   )}
-                  {peutSaisir && e.statut === 'CLOS' && (
+                  {peutEcrire && e.statut === 'CLOS' && (
                     <button type="button" onClick={() => void onRouvrir(e.id)} className="border border-border-dark px-1.5 py-0.5">
                       Rouvrir
                     </button>
                   )}
-                  {peutSaisir && e.executions.length === 0 && (
+                  {peutEcrire && e.executions.length === 0 && (
                     <button type="button" onClick={() => void onSupprimer(e.id)} className="border border-border-dark px-1.5 py-0.5">
                       Supprimer
                     </button>
@@ -394,7 +393,7 @@ export function EngagementsPage() {
                         {jour(x.ecriture.date)} · pièce {x.ecriture.numeroPiece ?? '·'} · {x.ecriture.libelle}
                       </span>
                       <span className="font-mono">{montant(x.montant)}</span>
-                      {peutSaisir && (
+                      {peutEcrire && (
                         <button
                           type="button"
                           onClick={() => void onDetacher(e.id, x.id)}

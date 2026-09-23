@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
+import { useAuth } from '../lib/auth';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
 import type { Exercice, FaiblesseControleInterne, RegistreFaiblesses } from '../lib/types';
 
@@ -41,6 +42,7 @@ const LIBELLE_STATUT: Record<string, string> = {
 const jour = (d: string | null | undefined) => (d ? new Date(d).toLocaleDateString('fr-FR') : '·');
 
 export function FaiblessesPage() {
+  const { peutEcrire } = useAuth();
   const [registres, setRegistres] = useState<RegistreFaiblesses[] | null>(null);
   const [exercices, setExercices] = useState<Exercice[]>([]);
   const [selectionId, setSelectionId] = useState<string | null>(null);
@@ -216,13 +218,15 @@ export function FaiblessesPage() {
         <div className="text-[11px] font-mono text-text-dim leading-none">CONTRÔLE ET RÉVISION</div>
         <div className="flex items-center justify-between gap-3">
           <h1 className="text-[13px] font-bold leading-tight">Registre des faiblesses</h1>
-          <button
-            type="button"
-            onClick={() => setCreation(true)}
-            className="bg-sel text-white rounded-[6px] px-3 py-[3px] text-[12px] font-semibold hover:opacity-90"
-          >
-            Nouveau registre
-          </button>
+          {peutEcrire && (
+            <button
+              type="button"
+              onClick={() => setCreation(true)}
+              className="bg-sel text-white rounded-[6px] px-3 py-[3px] text-[12px] font-semibold hover:opacity-90"
+            >
+              Nouveau registre
+            </button>
+          )}
         </div>
         <div className="text-[11px] text-text-dim mt-0.5">
           « Faire le suivi des faiblesses relevées lors de l’audit précédent » (CPCC), conduit selon la méthode de
@@ -378,7 +382,7 @@ export function FaiblessesPage() {
                       {detail.statut === 'CLOS' && ` · clos le ${jour(detail.closLe)}`}
                     </div>
                   </div>
-                  {detail.statut === 'OUVERT' && (
+                  {peutEcrire && detail.statut === 'OUVERT' && (
                     <div className="flex gap-1.5">
                       <button
                         type="button"
@@ -560,7 +564,7 @@ export function FaiblessesPage() {
                         </div>
                       )}
                     </div>
-                    {detail.statut === 'OUVERT' && (
+                    {peutEcrire && detail.statut === 'OUVERT' && (
                       <div className="flex flex-wrap gap-1.5 justify-end">
                         {!detailExterne && f.qualification === 'NON_QUALIFIEE' && (
                           <>

@@ -542,14 +542,23 @@ réinjectés. **La gestion commerciale est close.**
 > par route pour que la consultation reste ouverte. Le spec
 > `src/common/guards/ecritures-reservees.spec.ts` relit tous les contrôleurs et
 > refuse toute route POST, PUT, PATCH ou DELETE sans rôle ni motif écrit ; il a
-> été vu échouer sur les cinquante avant le correctif. **Résidu** · côté client,
-> seule la fenêtre Facturation masque désormais ses boutons d'écriture ; les
-> neuf autres les montrent encore, et le serveur répond « Rôle insuffisant ».
+> été vu échouer sur les cinquante avant le correctif. ~~**Résidu** · côté
+> client, seule la fenêtre Facturation masque désormais ses boutons
+> d'écriture ; les neuf autres les montrent encore.~~ **FERMÉ LE 2026-09-23**,
+> et il était plus large qu'annoncé : trente-neuf écrans, pas neuf. `peutEcrire`
+> est dans le contexte de session et `ecriture-masquee.spec.ts` le gèle.
 
 Le § 8.4 avait raison sur le devis, et se trompait sur la facture : le premier
 est bien propre au SYSCOHADA (l'art. 234 exige une vente entre commerçants, et
 une ASBL n'en est pas une), la seconde est commune (l'obligation vient de la loi
 de procédures fiscales, qui vise des redevables d'impôts).
+
+**P8 · le bulletin de paie émis est livré le 2026-09-23** · table
+`BulletinPaie`, migration `20261002000000_bulletin_paie`, onglet Bulletins de la
+fenêtre Personnel (émission depuis la simulation, liste du mois et totaux,
+impression, annulation motivée, remise de l'art. 103). Reste pour la paie : la
+PASSATION du mois au journal, à partir des propositions que chaque bulletin
+conserve.
 
 Reste de la Phase I, À REPRENDRE APRÈS LES CONFRONTATIONS : **stocks** (les états
 SMT et compte de résultat déjà écrits attendent des variations qu'aucune source

@@ -49,7 +49,7 @@ import {
  */
 function NotesAnnexesSycebnlPage() {
   const { exerciceCourant } = useExercice();
-  const { utilisateur, estAdmin } = useAuth();
+  const { utilisateur, estAdmin, peutEcrire } = useAuth();
   const jeuProjet = utilisateur?.tenant.jeuEtatsFinanciersSycebnl === 'PROJETS_DEVELOPPEMENT';
   // Les 35 et 24 notes catalogués ici sont celles du Système normal. Le
   // Système minimal de trésorerie n'en a que cinq, servies directement par
@@ -201,9 +201,7 @@ function NotesAnnexesSycebnlPage() {
 
   // LECTURE_SEULE n'écrit rien · le serveur le refuserait de toute façon
   // (`@Roles`), mais un champ ouvert qui rend un 403 est une promesse fausse.
-  const saisie: SaisieNotes | undefined = utilisateur?.role === 'LECTURE_SEULE'
-    ? undefined
-    : { enCours, enregistrer: enregistrerSaisie };
+  const saisie: SaisieNotes | undefined = peutEcrire ? { enCours, enregistrer: enregistrerSaisie } : undefined;
 
   // Rattachement des sous-comptes du dossier · l'état vit ici (c'est cet
   // écran qui appelle le serveur), le rendu est celui de NotesAnnexesRendu.

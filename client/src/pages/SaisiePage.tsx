@@ -158,7 +158,7 @@ const LIBELLE_TYPE_JOURNAL: Record<Journal['type'], string> = {
 
 export function SaisiePage() {
   const { exerciceCourant } = useExercice();
-  const { utilisateur } = useAuth();
+  const { utilisateur, peutEcrire } = useAuth();
   const [journaux, setJournaux] = useState<Journal[]>([]);
   const [comptes, setComptes] = useState<Compte[]>([]);
 
@@ -860,7 +860,7 @@ export function SaisiePage() {
           non dans une boîte de dialogue à part : on ne quitte pas la grille.
           Absente tant que le dossier n'a défini aucun modèle · une liste vide
           n'apprend rien et prend une ligne. */}
-      {modeles.length > 0 && (
+      {peutEcrire && modeles.length > 0 && (
         <div className="flex items-center gap-2 mb-2 bg-chrome border border-border px-2.5 py-1.5">
           <span className="text-[12px] text-text-dim flex-shrink-0">Appeler un modèle</span>
           <select
@@ -1008,444 +1008,457 @@ export function SaisiePage() {
       </div>
 
       {/* ------- Pièce en cours ------- */}
-      <div className="bg-surface border border-border-dark mt-2.5 rounded-[10px]">
-        <div className="flex items-center justify-between px-3 py-1.5 bg-chrome border-b border-border rounded-t-[10px]">
-          <span className="text-[12px] font-bold text-text-dim">PIÈCE EN COURS DE SAISIE</span>
-          <div className="flex items-center gap-2.5 text-[12px]">
-            <label className="flex items-center gap-1.5">
-              <span className="text-text-dim">Jour :</span>
-              <input
-                type="number"
-                min={1}
-                max={periode ? joursDansMois(periode.annee, periode.mois) : 31}
-                value={jour}
-                onChange={(e) => setJour(Number(e.target.value))}
-                className="w-[52px] border border-border-dark px-1.5 py-0.5 font-mono text-right"
-              />
-            </label>
-            <label className="flex items-center gap-1.5">
-              <span className="text-text-dim">Référence :</span>
-              <input
-                value={reference}
-                onChange={(e) => setReference(e.target.value)}
-                placeholder="n° facture, chèque…"
-                className="w-[140px] border border-border-dark px-1.5 py-0.5 font-mono"
-              />
-            </label>
-            <label className="flex items-center gap-1.5">
-              <span className="text-text-dim">Libellé pièce :</span>
-              <input
-                value={libellePiece}
-                onChange={(e) => setLibellePiece(e.target.value)}
-                className="w-[240px] border border-border-dark px-1.5 py-0.5"
-              />
-            </label>
+      {/*
+        LA LECTURE SEULE CONSULTE LE JOURNAL, ELLE NE COMPOSE PAS DE PIÈCE.
+        Le serveur refuse POST /ecritures à ce rôle : lui montrer la grille
+        de saisie, c'était la laisser taper une pièce entière pour découvrir
+        le refus à l'enregistrement. Les écritures de la période et les
+        totaux du journal, au-dessus, restent affichés.
+      */}
+      {peutEcrire ? (
+        <div className="bg-surface border border-border-dark mt-2.5 rounded-[10px]">
+          <div className="flex items-center justify-between px-3 py-1.5 bg-chrome border-b border-border rounded-t-[10px]">
+            <span className="text-[12px] font-bold text-text-dim">PIÈCE EN COURS DE SAISIE</span>
+            <div className="flex items-center gap-2.5 text-[12px]">
+              <label className="flex items-center gap-1.5">
+                <span className="text-text-dim">Jour :</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={periode ? joursDansMois(periode.annee, periode.mois) : 31}
+                  value={jour}
+                  onChange={(e) => setJour(Number(e.target.value))}
+                  className="w-[52px] border border-border-dark px-1.5 py-0.5 font-mono text-right"
+                />
+              </label>
+              <label className="flex items-center gap-1.5">
+                <span className="text-text-dim">Référence :</span>
+                <input
+                  value={reference}
+                  onChange={(e) => setReference(e.target.value)}
+                  placeholder="n° facture, chèque…"
+                  className="w-[140px] border border-border-dark px-1.5 py-0.5 font-mono"
+                />
+              </label>
+              <label className="flex items-center gap-1.5">
+                <span className="text-text-dim">Libellé pièce :</span>
+                <input
+                  value={libellePiece}
+                  onChange={(e) => setLibellePiece(e.target.value)}
+                  className="w-[240px] border border-border-dark px-1.5 py-0.5"
+                />
+              </label>
+            </div>
           </div>
-        </div>
 
-        {/* Lignes déjà validées de la pièce */}
-        {lignes.map((l, i) => (
-          <div
-            key={i}
-            style={grilleStyle} className={`${grille} px-3 py-[3px] border-b border-border/60 text-[12px] items-center bg-positive-soft/40`}
-          >
-            <span className="font-mono text-text-dim">{i === 0 ? String(jour).padStart(2, '0') : ''}</span>
-            <span className="font-mono text-text-dim">{i === 0 ? '(auto)' : ''}</span>
-            <span className="font-mono text-[11px] text-text-dim truncate">{i === 0 ? reference : ''}</span>
-            <span className="font-mono" title={l.intitule}>
-              {l.numero}
-            </span>
+          {/* Lignes déjà validées de la pièce */}
+          {lignes.map((l, i) => (
+            <div
+              key={i}
+              style={grilleStyle} className={`${grille} px-3 py-[3px] border-b border-border/60 text-[12px] items-center bg-positive-soft/40`}
+            >
+              <span className="font-mono text-text-dim">{i === 0 ? String(jour).padStart(2, '0') : ''}</span>
+              <span className="font-mono text-text-dim">{i === 0 ? '(auto)' : ''}</span>
+              <span className="font-mono text-[11px] text-text-dim truncate">{i === 0 ? reference : ''}</span>
+              <span className="font-mono" title={l.intitule}>
+                {l.numero}
+              </span>
+              {axesGrille.map((p) => {
+                const section = (sectionsParPlan[p.id] ?? []).find((sc) => sc.id === l.sections?.[p.id]);
+                return (
+                  <span key={p.id} className="font-mono text-[11px] text-text-dim truncate" title={section?.intitule}>
+                    {section?.code ?? ''}
+                  </span>
+                );
+              })}
+              <span className="truncate" title={`${l.intitule} · ${l.libelle}`}>
+                {l.libelle}
+                {l.dateVersement && (
+                  <span className="ml-1 font-mono text-[10.5px] text-text-dim" title="Date du versement · l'échéance de la retenue se compte sur ce mois (loi n° 004/2003, art. 18)">
+                    versé le {l.dateVersement.split('-').reverse().join('/')}
+                  </span>
+                )}
+              </span>
+              <span className="font-mono text-right">{l.debit ? l.debit.toLocaleString('fr-FR') : ''}</span>
+              <span className="font-mono text-right">{l.credit ? l.credit.toLocaleString('fr-FR') : ''}</span>
+              <span className="flex items-center justify-end gap-1">
+                <button
+                  type="button"
+                  onClick={() => dupliquerLigne(i)}
+                  title="Dupliquer cette ligne sans son montant (Ctrl+D)"
+                  className="text-text-dim hover:text-sel text-[11px] leading-none"
+                >
+                  ⧉
+                </button>
+                <button
+                  type="button"
+                  onClick={() => inverserLigne(i)}
+                  title="Inverser débit et crédit sur cette ligne"
+                  className="text-text-dim hover:text-sel text-[11px] leading-none"
+                >
+                  ⇅
+                </button>
+                <button
+                  type="button"
+                  onClick={() => retirerLigne(i)}
+                  title="Retirer cette ligne"
+                  className="text-danger/70 hover:text-danger text-[12px] leading-none"
+                >
+                  ✕
+                </button>
+              </span>
+            </div>
+          ))}
+
+          {/* Zone de saisie de la ligne · Tab de zone en zone, Entrée valide. */}
+          <div style={grilleStyle} className={`${grille} px-3 py-1.5 items-center border-b border-border bg-surface`}>
+            <span className="font-mono text-[12px] text-text-dim text-center">·</span>
+            <span className="font-mono text-[12px] text-text-dim">(auto)</span>
+            <span />
+            <div className="relative">
+              <input
+                ref={compteRef}
+                value={compteSaisie}
+                onChange={(e) => {
+                  setCompteSaisie(e.target.value);
+                  setCompteChoisi(null);
+                  setPickerOuvert(true);
+                  setPickerIndex(0);
+                }}
+                onFocus={() => setPickerOuvert(true)}
+                onKeyDown={(e) => {
+                  if (e.key === 'F4') {
+                    e.preventDefault();
+                    setPickerOuvert(true);
+                  } else if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    setPickerOuvert(true);
+                    setPickerIndex((i) => Math.min(i + 1, comptesFiltres.length - 1));
+                  } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    setPickerIndex((i) => Math.max(i - 1, 0));
+                  } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (pickerOuvert && comptesFiltres[pickerIndex]) choisirCompte(comptesFiltres[pickerIndex]);
+                  } else if (e.key === 'Escape') {
+                    setPickerOuvert(false);
+                  } else if (e.key === 'Tab' && pickerOuvert && comptesFiltres[pickerIndex] && !compteChoisi) {
+                    choisirCompte(comptesFiltres[pickerIndex]);
+                  }
+                }}
+                onBlur={() => setTimeout(() => setPickerOuvert(false), 150)}
+                placeholder="n° ou F4"
+                className="w-full border border-border-dark px-1.5 py-1 font-mono text-[12.5px]"
+              />
+              {pickerOuvert && comptesFiltres.length > 0 && (
+                <div className="anim-menu absolute left-0 top-full z-20 w-[380px] max-h-[240px] overflow-auto bg-surface border border-border-dark shadow-flottante">
+                  {comptesFiltres.map((c, i) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        choisirCompte(c);
+                      }}
+                      className={`w-full text-left px-2.5 py-1 text-[12px] flex gap-2 ${
+                        i === pickerIndex ? 'bg-sel text-white' : 'hover:bg-chrome-alt'
+                      }`}
+                    >
+                      <span className="font-mono font-semibold w-[86px] shrink-0">{c.numero}</span>
+                      <span className="truncate">{c.intitule}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {compteChoisi && !pickerOuvert && (
+                <div className="absolute left-0 top-full text-[11px] text-positive bg-surface px-1 border border-border border-t-0 truncate max-w-full z-10">
+                  {compteChoisi.intitule}
+                </div>
+              )}
+            </div>
             {axesGrille.map((p) => {
-              const section = (sectionsParPlan[p.id] ?? []).find((sc) => sc.id === l.sections?.[p.id]);
+              const actif = axeConcerne(p, compteChoisi);
               return (
-                <span key={p.id} className="font-mono text-[11px] text-text-dim truncate" title={section?.intitule}>
-                  {section?.code ?? ''}
-                </span>
+                <select
+                  key={p.id}
+                  value={sectionsSaisie[p.id] ?? ''}
+                  disabled={!actif}
+                  title={
+                    actif
+                      ? p.intitule
+                      : `${p.intitule} · ne ventile que les classes ${p.classesVentilees.split(',').join(', ')}`
+                  }
+                  onChange={(e) => setSectionsSaisie((prev) => ({ ...prev, [p.id]: e.target.value }))}
+                  className="w-full border border-border-dark px-1 py-1 text-[12px] font-mono disabled:opacity-40 disabled:bg-chrome-alt"
+                >
+                  <option value="">{actif ? '·' : ''}</option>
+                  {(sectionsParPlan[p.id] ?? []).map((sc) => (
+                    <option key={sc.id} value={sc.id}>
+                      {sc.code}
+                    </option>
+                  ))}
+                </select>
               );
             })}
-            <span className="truncate" title={`${l.intitule} · ${l.libelle}`}>
-              {l.libelle}
-              {l.dateVersement && (
-                <span className="ml-1 font-mono text-[10.5px] text-text-dim" title="Date du versement · l'échéance de la retenue se compte sur ce mois (loi n° 004/2003, art. 18)">
-                  versé le {l.dateVersement.split('-').reverse().join('/')}
-                </span>
-              )}
-            </span>
-            <span className="font-mono text-right">{l.debit ? l.debit.toLocaleString('fr-FR') : ''}</span>
-            <span className="font-mono text-right">{l.credit ? l.credit.toLocaleString('fr-FR') : ''}</span>
-            <span className="flex items-center justify-end gap-1">
-              <button
-                type="button"
-                onClick={() => dupliquerLigne(i)}
-                title="Dupliquer cette ligne sans son montant (Ctrl+D)"
-                className="text-text-dim hover:text-sel text-[11px] leading-none"
-              >
-                ⧉
-              </button>
-              <button
-                type="button"
-                onClick={() => inverserLigne(i)}
-                title="Inverser débit et crédit sur cette ligne"
-                className="text-text-dim hover:text-sel text-[11px] leading-none"
-              >
-                ⇅
-              </button>
-              <button
-                type="button"
-                onClick={() => retirerLigne(i)}
-                title="Retirer cette ligne"
-                className="text-danger/70 hover:text-danger text-[12px] leading-none"
-              >
-                ✕
-              </button>
-            </span>
-          </div>
-        ))}
-
-        {/* Zone de saisie de la ligne · Tab de zone en zone, Entrée valide. */}
-        <div style={grilleStyle} className={`${grille} px-3 py-1.5 items-center border-b border-border bg-surface`}>
-          <span className="font-mono text-[12px] text-text-dim text-center">·</span>
-          <span className="font-mono text-[12px] text-text-dim">(auto)</span>
-          <span />
-          <div className="relative">
             <input
-              ref={compteRef}
-              value={compteSaisie}
-              onChange={(e) => {
-                setCompteSaisie(e.target.value);
-                setCompteChoisi(null);
-                setPickerOuvert(true);
-                setPickerIndex(0);
-              }}
-              onFocus={() => setPickerOuvert(true)}
+              ref={libelleRef}
+              value={libelleLigne}
+              onChange={(e) => setLibelleLigne(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'F4') {
+                if (e.key === 'Enter') {
                   e.preventDefault();
-                  setPickerOuvert(true);
-                } else if (e.key === 'ArrowDown') {
-                  e.preventDefault();
-                  setPickerOuvert(true);
-                  setPickerIndex((i) => Math.min(i + 1, comptesFiltres.length - 1));
-                } else if (e.key === 'ArrowUp') {
-                  e.preventDefault();
-                  setPickerIndex((i) => Math.max(i - 1, 0));
-                } else if (e.key === 'Enter') {
-                  e.preventDefault();
-                  if (pickerOuvert && comptesFiltres[pickerIndex]) choisirCompte(comptesFiltres[pickerIndex]);
-                } else if (e.key === 'Escape') {
-                  setPickerOuvert(false);
-                } else if (e.key === 'Tab' && pickerOuvert && comptesFiltres[pickerIndex] && !compteChoisi) {
-                  choisirCompte(comptesFiltres[pickerIndex]);
+                  focusMontantConseille();
                 }
               }}
-              onBlur={() => setTimeout(() => setPickerOuvert(false), 150)}
-              placeholder="n° ou F4"
-              className="w-full border border-border-dark px-1.5 py-1 font-mono text-[12.5px]"
+              placeholder={libellePiece || 'libellé de la ligne'}
+              className="w-full border border-border-dark px-1.5 py-1 text-[12.5px]"
             />
-            {pickerOuvert && comptesFiltres.length > 0 && (
-              <div className="anim-menu absolute left-0 top-full z-20 w-[380px] max-h-[240px] overflow-auto bg-surface border border-border-dark shadow-flottante">
-                {comptesFiltres.map((c, i) => (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      choisirCompte(c);
-                    }}
-                    className={`w-full text-left px-2.5 py-1 text-[12px] flex gap-2 ${
-                      i === pickerIndex ? 'bg-sel text-white' : 'hover:bg-chrome-alt'
-                    }`}
-                  >
-                    <span className="font-mono font-semibold w-[86px] shrink-0">{c.numero}</span>
-                    <span className="truncate">{c.intitule}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-            {compteChoisi && !pickerOuvert && (
-              <div className="absolute left-0 top-full text-[11px] text-positive bg-surface px-1 border border-border border-t-0 truncate max-w-full z-10">
-                {compteChoisi.intitule}
-              </div>
-            )}
-          </div>
-          {axesGrille.map((p) => {
-            const actif = axeConcerne(p, compteChoisi);
-            return (
-              <select
-                key={p.id}
-                value={sectionsSaisie[p.id] ?? ''}
-                disabled={!actif}
-                title={
-                  actif
-                    ? p.intitule
-                    : `${p.intitule} · ne ventile que les classes ${p.classesVentilees.split(',').join(', ')}`
+            <input
+              ref={debitRef}
+              type="number"
+              min={0}
+              step="0.01"
+              value={debitSaisie}
+              onChange={(e) => {
+                setDebitSaisie(e.target.value);
+                if (e.target.value) setCreditSaisie('');
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  validerLigne();
                 }
-                onChange={(e) => setSectionsSaisie((prev) => ({ ...prev, [p.id]: e.target.value }))}
-                className="w-full border border-border-dark px-1 py-1 text-[12px] font-mono disabled:opacity-40 disabled:bg-chrome-alt"
+              }}
+              className={`w-full border border-border-dark px-1.5 py-1 font-mono text-[12.5px] text-right ${
+                journal && compteChoisi && sensConseille(journal.type, compteChoisi.numero) === 'debit'
+                  ? 'bg-positive-soft'
+                  : ''
+              }`}
+            />
+            <input
+              ref={creditRef}
+              type="number"
+              min={0}
+              step="0.01"
+              value={creditSaisie}
+              onChange={(e) => {
+                setCreditSaisie(e.target.value);
+                if (e.target.value) setDebitSaisie('');
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  validerLigne();
+                }
+              }}
+              className={`w-full border border-border-dark px-1.5 py-1 font-mono text-[12.5px] text-right ${
+                journal && compteChoisi && sensConseille(journal.type, compteChoisi.numero) === 'credit'
+                  ? 'bg-positive-soft'
+                  : ''
+              }`}
+            />
+            <button
+              type="button"
+              onClick={validerLigne}
+              title="Valider la ligne (Entrée)"
+              className="text-sel hover:text-text text-[13px] font-bold text-center"
+            >
+              ↵
+            </button>
+          </div>
+
+          {/*
+            DATE DE VERSEMENT · UNE EXCEPTION, ET ELLE EST PRÉSENTÉE COMME TELLE.
+
+            Elle n'est PAS une colonne de la grille : la remplir à chaque ligne
+            ferait ressaisir une date que l'écriture porte déjà. Les textes
+            rattachent la retenue au mois du VERSEMENT, jamais à celui de
+            l'écriture qui la constate · loi n° 004/2003, art. 18 : les retenues
+            « doivent être versées au plus tard le 15 du mois qui suit celui du
+            versement de ces revenus aux bénéficiaires ou de leur mise à
+            disposition ». Les deux dates coïncident presque toujours ; elles
+            divergent quand la paie de décembre est passée au 31 décembre et
+            versée le 5 janvier.
+
+            Vide = la date de l'écriture fait foi, ce qui est le comportement
+            d'aujourd'hui et celui de toutes les lignes déjà en base.
+          */}
+          <div className="px-3 py-1.5 border-b border-border bg-surface-alt/60 flex items-baseline gap-2 flex-wrap">
+            <label className="flex items-center gap-1.5 text-[12px]">
+              <span className="text-text-dim">Date de versement (exception) :</span>
+              <input
+                type="date"
+                value={versement}
+                onChange={(e) => setVersement(e.target.value)}
+                className="border border-border-dark px-1.5 py-0.5 font-mono text-[12px]"
+              />
+            </label>
+            <span className="text-[11px] text-text-dim leading-[1.5] flex-1 min-w-[260px]">
+              {versement && periode && versement.slice(0, 7) === moisDeLaPeriode
+                ? 'Ce versement tombe dans le mois de l’écriture · laissez le champ vide, la date de l’écriture fait foi.'
+                : 'À ne remplir que si le versement, ou la mise à disposition, tombe dans un autre mois que l’écriture · l’échéance de la retenue se compte sur le mois du versement (loi n° 004/2003, art. 18).'}
+            </span>
+          </div>
+
+          {/* Pied de la pièce : totaux, équilibre, boutons de bas d'écran Sage */}
+          <div style={grilleStyle} className={`${grille} px-3 py-1.5 bg-surface-alt text-[12px] font-bold border-b border-border`}>
+            <span className="col-span-4" />
+            <span className="text-right text-[11px] text-text-dim self-center">TOTAUX PIÈCE</span>
+            <span className="font-mono text-right">{totalDebitPiece.toLocaleString('fr-FR')}</span>
+            <span className="font-mono text-right">{totalCreditPiece.toLocaleString('fr-FR')}</span>
+            <span />
+          </div>
+
+          {/* ------------------------------------------------------------------
+              CODE TAXE PAR DÉFAUT · Sage porte un taux sur la fiche compte et le
+              propose dès que ce compte est saisi. La bande PROPOSE, elle
+              n'impute pas : le taux reste modifiable, la proposition
+              s'abandonne, et rien ne s'ajoute sans un clic. Une ligne de taxe
+              qui s'insérerait d'office passerait inaperçue jusqu'à la
+              déclaration, notamment sur une association exonérée.
+
+              LA PIÈCE SE DÉSÉQUILIBRE EN AJOUTANT LA TAXE, et c'est normal : la
+              contrepartie de tiers porte le TTC. Le bouton Équilibrer, juste en
+              dessous, complète le montant manquant.
+              ------------------------------------------------------------------ */}
+          {apercuTva && (
+            <div className="flex items-center gap-2 px-3 py-2 flex-wrap border-b border-border/50 bg-chrome-alt/60">
+              <span className="text-[11px] font-bold text-text-dim">CODE TAXE</span>
+              <span className="text-[12px]">
+                <span className="font-mono">{apercuTva.ligneHt.numero}</span> ·{' '}
+                {apercuTva.sens === 'depense' ? 'TVA déductible' : 'TVA collectée'} sur{' '}
+                <span className="font-mono">{apercuTva.ht.toLocaleString('fr-FR')}</span>
+              </span>
+              <select
+                value={propositionTva?.tauxTvaId ?? ''}
+                onChange={(e) =>
+                  setPropositionTva((p) => (p ? { ...p, tauxTvaId: e.target.value } : p))
+                }
+                className="border border-border-dark bg-surface px-2 py-1 text-[12px]"
               >
-                <option value="">{actif ? '·' : ''}</option>
-                {(sectionsParPlan[p.id] ?? []).map((sc) => (
-                  <option key={sc.id} value={sc.id}>
-                    {sc.code}
+                {tauxTvaListe.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.code} · {Number(t.taux)} %
                   </option>
                 ))}
               </select>
-            );
-          })}
-          <input
-            ref={libelleRef}
-            value={libelleLigne}
-            onChange={(e) => setLibelleLigne(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                focusMontantConseille();
-              }
-            }}
-            placeholder={libellePiece || 'libellé de la ligne'}
-            className="w-full border border-border-dark px-1.5 py-1 text-[12.5px]"
-          />
-          <input
-            ref={debitRef}
-            type="number"
-            min={0}
-            step="0.01"
-            value={debitSaisie}
-            onChange={(e) => {
-              setDebitSaisie(e.target.value);
-              if (e.target.value) setCreditSaisie('');
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                validerLigne();
-              }
-            }}
-            className={`w-full border border-border-dark px-1.5 py-1 font-mono text-[12.5px] text-right ${
-              journal && compteChoisi && sensConseille(journal.type, compteChoisi.numero) === 'debit'
-                ? 'bg-positive-soft'
-                : ''
-            }`}
-          />
-          <input
-            ref={creditRef}
-            type="number"
-            min={0}
-            step="0.01"
-            value={creditSaisie}
-            onChange={(e) => {
-              setCreditSaisie(e.target.value);
-              if (e.target.value) setDebitSaisie('');
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                validerLigne();
-              }
-            }}
-            className={`w-full border border-border-dark px-1.5 py-1 font-mono text-[12.5px] text-right ${
-              journal && compteChoisi && sensConseille(journal.type, compteChoisi.numero) === 'credit'
-                ? 'bg-positive-soft'
-                : ''
-            }`}
-          />
-          <button
-            type="button"
-            onClick={validerLigne}
-            title="Valider la ligne (Entrée)"
-            className="text-sel hover:text-text text-[13px] font-bold text-center"
-          >
-            ↵
-          </button>
-        </div>
+              {apercuTva.resultat.ligne ? (
+                <span className="text-[12px]">
+                  → <span className="font-mono">{apercuTva.resultat.ligne.numero}</span>{' '}
+                  <span className="font-mono font-semibold">
+                    {apercuTva.montant.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}
+                  </span>{' '}
+                  au {apercuTva.sens === 'depense' ? 'débit' : 'crédit'}
+                </span>
+              ) : (
+                // Le motif est écrit en toutes lettres · un bouton grisé sans
+                // raison renvoie le comptable à la fenêtre des taux sans lui
+                // dire ce qui manque.
+                <span className="text-[12px] text-warning">{apercuTva.resultat.motif}</span>
+              )}
+              <div className="flex-1" />
+              <button
+                type="button"
+                onClick={poserLigneTva}
+                disabled={!apercuTva.resultat.ligne}
+                className="border border-border-dark bg-chrome hover:bg-surface px-3 py-1 text-[12px] disabled:opacity-40"
+              >
+                Ajouter la ligne de TVA
+              </button>
+              <button
+                type="button"
+                onClick={() => setPropositionTva(null)}
+                className="text-[12px] text-text-dim hover:underline px-1"
+              >
+                Sans TVA
+              </button>
+            </div>
+          )}
 
-        {/*
-          DATE DE VERSEMENT · UNE EXCEPTION, ET ELLE EST PRÉSENTÉE COMME TELLE.
-
-          Elle n'est PAS une colonne de la grille : la remplir à chaque ligne
-          ferait ressaisir une date que l'écriture porte déjà. Les textes
-          rattachent la retenue au mois du VERSEMENT, jamais à celui de
-          l'écriture qui la constate · loi n° 004/2003, art. 18 : les retenues
-          « doivent être versées au plus tard le 15 du mois qui suit celui du
-          versement de ces revenus aux bénéficiaires ou de leur mise à
-          disposition ». Les deux dates coïncident presque toujours ; elles
-          divergent quand la paie de décembre est passée au 31 décembre et
-          versée le 5 janvier.
-
-          Vide = la date de l'écriture fait foi, ce qui est le comportement
-          d'aujourd'hui et celui de toutes les lignes déjà en base.
-        */}
-        <div className="px-3 py-1.5 border-b border-border bg-surface-alt/60 flex items-baseline gap-2 flex-wrap">
-          <label className="flex items-center gap-1.5 text-[12px]">
-            <span className="text-text-dim">Date de versement (exception) :</span>
-            <input
-              type="date"
-              value={versement}
-              onChange={(e) => setVersement(e.target.value)}
-              className="border border-border-dark px-1.5 py-0.5 font-mono text-[12px]"
-            />
-          </label>
-          <span className="text-[11px] text-text-dim leading-[1.5] flex-1 min-w-[260px]">
-            {versement && periode && versement.slice(0, 7) === moisDeLaPeriode
-              ? 'Ce versement tombe dans le mois de l’écriture · laissez le champ vide, la date de l’écriture fait foi.'
-              : 'À ne remplir que si le versement, ou la mise à disposition, tombe dans un autre mois que l’écriture · l’échéance de la retenue se compte sur le mois du versement (loi n° 004/2003, art. 18).'}
-          </span>
-        </div>
-
-        {/* Pied de la pièce : totaux, équilibre, boutons de bas d'écran Sage */}
-        <div style={grilleStyle} className={`${grille} px-3 py-1.5 bg-surface-alt text-[12px] font-bold border-b border-border`}>
-          <span className="col-span-4" />
-          <span className="text-right text-[11px] text-text-dim self-center">TOTAUX PIÈCE</span>
-          <span className="font-mono text-right">{totalDebitPiece.toLocaleString('fr-FR')}</span>
-          <span className="font-mono text-right">{totalCreditPiece.toLocaleString('fr-FR')}</span>
-          <span />
-        </div>
-
-        {/* ------------------------------------------------------------------
-            CODE TAXE PAR DÉFAUT · Sage porte un taux sur la fiche compte et le
-            propose dès que ce compte est saisi. La bande PROPOSE, elle
-            n'impute pas : le taux reste modifiable, la proposition
-            s'abandonne, et rien ne s'ajoute sans un clic. Une ligne de taxe
-            qui s'insérerait d'office passerait inaperçue jusqu'à la
-            déclaration, notamment sur une association exonérée.
-
-            LA PIÈCE SE DÉSÉQUILIBRE EN AJOUTANT LA TAXE, et c'est normal : la
-            contrepartie de tiers porte le TTC. Le bouton Équilibrer, juste en
-            dessous, complète le montant manquant.
-            ------------------------------------------------------------------ */}
-        {apercuTva && (
-          <div className="flex items-center gap-2 px-3 py-2 flex-wrap border-b border-border/50 bg-chrome-alt/60">
-            <span className="text-[11px] font-bold text-text-dim">CODE TAXE</span>
-            <span className="text-[12px]">
-              <span className="font-mono">{apercuTva.ligneHt.numero}</span> ·{' '}
-              {apercuTva.sens === 'depense' ? 'TVA déductible' : 'TVA collectée'} sur{' '}
-              <span className="font-mono">{apercuTva.ht.toLocaleString('fr-FR')}</span>
-            </span>
-            <select
-              value={propositionTva?.tauxTvaId ?? ''}
-              onChange={(e) =>
-                setPropositionTva((p) => (p ? { ...p, tauxTvaId: e.target.value } : p))
-              }
-              className="border border-border-dark bg-surface px-2 py-1 text-[12px]"
+          <div className="flex items-center gap-2 px-3 py-2 flex-wrap">
+            <span
+              className={`text-[12px] font-mono px-2 py-0.5 border ${
+                equilibree
+                  ? 'text-positive border-positive/40 bg-positive-soft'
+                  : 'text-warning border-warning/40 bg-warning-soft'
+              }`}
             >
-              {tauxTvaListe.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.code} · {Number(t.taux)} %
-                </option>
-              ))}
-            </select>
-            {apercuTva.resultat.ligne ? (
-              <span className="text-[12px]">
-                → <span className="font-mono">{apercuTva.resultat.ligne.numero}</span>{' '}
-                <span className="font-mono font-semibold">
-                  {apercuTva.montant.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}
-                </span>{' '}
-                au {apercuTva.sens === 'depense' ? 'débit' : 'crédit'}
-              </span>
-            ) : (
-              // Le motif est écrit en toutes lettres · un bouton grisé sans
-              // raison renvoie le comptable à la fenêtre des taux sans lui
-              // dire ce qui manque.
-              <span className="text-[12px] text-warning">{apercuTva.resultat.motif}</span>
-            )}
+              {equilibree
+                ? 'Pièce équilibrée'
+                : lignes.length === 0
+                  ? 'Pièce vide'
+                  : `Solde : ${Math.abs(soldePiece).toLocaleString('fr-FR')} ${
+                      soldePiece > 0 ? 'à créditer' : 'à débiter'
+                    }`}
+            </span>
             <div className="flex-1" />
             <button
               type="button"
-              onClick={poserLigneTva}
-              disabled={!apercuTva.resultat.ligne}
-              className="border border-border-dark bg-chrome hover:bg-surface px-3 py-1 text-[12px] disabled:opacity-40"
+              onClick={() => setModaleModeles(true)}
+              className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[12px]"
             >
-              Ajouter la ligne de TVA
+              Modèle de saisie…
             </button>
             <button
               type="button"
-              onClick={() => setPropositionTva(null)}
-              className="text-[12px] text-text-dim hover:underline px-1"
+              onClick={() => setCalculetteOuverte(true)}
+              title="Calculette · son résultat se reporte dans la zone de montant (Ctrl+K)"
+              className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[12px]"
             >
-              Sans TVA
+              Calculette
             </button>
-          </div>
-        )}
-
-        <div className="flex items-center gap-2 px-3 py-2 flex-wrap">
-          <span
-            className={`text-[12px] font-mono px-2 py-0.5 border ${
-              equilibree
-                ? 'text-positive border-positive/40 bg-positive-soft'
-                : 'text-warning border-warning/40 bg-warning-soft'
-            }`}
-          >
-            {equilibree
-              ? 'Pièce équilibrée'
-              : lignes.length === 0
-                ? 'Pièce vide'
-                : `Solde : ${Math.abs(soldePiece).toLocaleString('fr-FR')} ${
-                    soldePiece > 0 ? 'à créditer' : 'à débiter'
-                  }`}
-          </span>
-          <div className="flex-1" />
-          <button
-            type="button"
-            onClick={() => setModaleModeles(true)}
-            className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[12px]"
-          >
-            Modèle de saisie…
-          </button>
-          <button
-            type="button"
-            onClick={() => setCalculetteOuverte(true)}
-            title="Calculette · son résultat se reporte dans la zone de montant (Ctrl+K)"
-            className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[12px]"
-          >
-            Calculette
-          </button>
-          <button
-            type="button"
-            onClick={inverserSaisie}
-            disabled={!debitSaisie && !creditSaisie}
-            title="Inverse débit et crédit sur la ligne en cours de frappe"
-            className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[12px] disabled:opacity-45"
-          >
-            Inverseur
-          </button>
-          <button
-            type="button"
-            onClick={equilibrer}
-            disabled={Math.abs(soldePiece) < 0.005}
-            title="Reporte le montant manquant dans la zone débit ou crédit de la ligne en cours"
-            className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[12px] disabled:opacity-45"
-          >
-            Équilibrer
-          </button>
-          {journal?.type === 'TRESORERIE' && journal.compteTresorerieId && (
             <button
               type="button"
-              onClick={contrepartieTresorerie}
-              disabled={Math.abs(soldePiece) < 0.005}
-              title="Ajoute la ligne de contrepartie sur le compte de trésorerie rattaché au journal"
+              onClick={inverserSaisie}
+              disabled={!debitSaisie && !creditSaisie}
+              title="Inverse débit et crédit sur la ligne en cours de frappe"
               className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[12px] disabled:opacity-45"
             >
-              Contrepartie trésorerie
+              Inverseur
             </button>
-          )}
-          <button
-            type="button"
-            onClick={abandonnerPiece}
-            disabled={lignes.length === 0 && !libellePiece && !reference}
-            className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[12px] disabled:opacity-45"
-          >
-            Abandonner
-          </button>
-          <button
-            type="button"
-            onClick={enregistrerPiece}
-            disabled={envoi || !equilibree}
-            className="bg-sel text-white px-4 py-1 text-[12px] font-semibold disabled:opacity-50"
-          >
-            {envoi ? 'Enregistrement…' : 'Enregistrer la pièce'}
-          </button>
+            <button
+              type="button"
+              onClick={equilibrer}
+              disabled={Math.abs(soldePiece) < 0.005}
+              title="Reporte le montant manquant dans la zone débit ou crédit de la ligne en cours"
+              className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[12px] disabled:opacity-45"
+            >
+              Équilibrer
+            </button>
+            {journal?.type === 'TRESORERIE' && journal.compteTresorerieId && (
+              <button
+                type="button"
+                onClick={contrepartieTresorerie}
+                disabled={Math.abs(soldePiece) < 0.005}
+                title="Ajoute la ligne de contrepartie sur le compte de trésorerie rattaché au journal"
+                className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[12px] disabled:opacity-45"
+              >
+                Contrepartie trésorerie
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={abandonnerPiece}
+              disabled={lignes.length === 0 && !libellePiece && !reference}
+              className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[12px] disabled:opacity-45"
+            >
+              Abandonner
+            </button>
+            <button
+              type="button"
+              onClick={enregistrerPiece}
+              disabled={envoi || !equilibree}
+              className="bg-sel text-white px-4 py-1 text-[12px] font-semibold disabled:opacity-50"
+            >
+              {envoi ? 'Enregistrement…' : 'Enregistrer la pièce'}
+            </button>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="text-[12px] text-text-dim italic border border-border bg-surface px-3 py-2 mt-2.5">
+          Consultation seule · la saisie est réservée aux comptables du dossier.
+        </div>
+      )}
 
       {erreur && (
         <div className="text-[12.5px] text-danger bg-danger-soft border border-danger/30 px-3 py-2 mt-2.5">{erreur}</div>
@@ -1456,7 +1469,7 @@ export function SaisiePage() {
         </div>
       )}
 
-      {calculetteOuverte && (
+      {peutEcrire && calculetteOuverte && (
         <Calculette
           onFermer={() => setCalculetteOuverte(false)}
           onReporter={(valeur) => {
@@ -1475,7 +1488,7 @@ export function SaisiePage() {
         />
       )}
 
-      {modaleModeles && (
+      {peutEcrire && modaleModeles && (
         <ModelesSaisieModale comptes={comptes} onInserer={insererModele} onFermer={() => setModaleModeles(false)} />
       )}
     </div>

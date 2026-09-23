@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
+import { useAuth } from '../lib/auth';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
 import type { Exercice, LigneQuestionnaire, QuestionnaireRevision } from '../lib/types';
 
@@ -42,6 +43,7 @@ const LIBELLE_CYCLE: Record<string, string> = {
 const jour = (d: string | null | undefined) => (d ? new Date(d).toLocaleDateString('fr-FR') : '·');
 
 export function QuestionnaireRevisionPage() {
+  const { peutEcrire } = useAuth();
   const [liste, setListe] = useState<QuestionnaireRevision[] | null>(null);
   const [exercices, setExercices] = useState<Exercice[]>([]);
   const [selectionId, setSelectionId] = useState<string | null>(null);
@@ -145,13 +147,15 @@ export function QuestionnaireRevisionPage() {
         <div className="text-[11px] font-mono text-text-dim leading-none">CONTRÔLE ET RÉVISION</div>
         <div className="flex items-center justify-between gap-3">
           <h1 className="text-[13px] font-bold leading-tight">Questionnaire de révision</h1>
-          <button
-            type="button"
-            onClick={() => setCreation(true)}
-            className="bg-sel text-white rounded-[6px] px-3 py-[3px] text-[12px] font-semibold hover:opacity-90"
-          >
-            Nouveau questionnaire
-          </button>
+          {peutEcrire && (
+            <button
+              type="button"
+              onClick={() => setCreation(true)}
+              className="bg-sel text-white rounded-[6px] px-3 py-[3px] text-[12px] font-semibold hover:opacity-90"
+            >
+              Nouveau questionnaire
+            </button>
+          )}
         </div>
         <div className="text-[11px] text-text-dim mt-0.5">
           Les deux checklists du CPCC (§ VI inventaire physique, § VII inventaire documentaire) reprises mot pour mot,
@@ -165,7 +169,7 @@ export function QuestionnaireRevisionPage() {
         </div>
       )}
 
-      {creation && (
+      {peutEcrire && creation && (
         <div className="border border-border bg-surface px-3.5 py-2.5 mb-2.5 max-w-[1240px]">
           <div className="text-[12px] font-semibold mb-1.5">Ouvrir un questionnaire</div>
           <div className="flex flex-wrap gap-2 items-end mb-1.5">
@@ -263,7 +267,7 @@ export function QuestionnaireRevisionPage() {
         <div className="flex-1 min-w-0">
           {!detail && (
             <div className="border border-border bg-surface px-3.5 py-3 text-[12px] text-text-dim">
-              Choisir un questionnaire pour le remplir.
+              Choisir un questionnaire pour le {peutEcrire ? 'remplir' : 'consulter'}.
             </div>
           )}
 
@@ -278,7 +282,7 @@ export function QuestionnaireRevisionPage() {
                       {detail.statut === 'CLOS' && ` · clos le ${jour(detail.closLe)}`}
                     </div>
                   </div>
-                  {detail.statut === 'OUVERT' && (
+                  {peutEcrire && detail.statut === 'OUVERT' && (
                     <button
                       type="button"
                       onClick={() => agir(() => api.post(`/questionnaire-revision/${detail.id}/clore`, {}))}
@@ -372,7 +376,18 @@ export function QuestionnaireRevisionPage() {
                         <div className="text-[11px] mt-0.5">Commentaire · {l.reponse.commentaire}</div>
                       )}
                     </div>
-                    {detail.statut === 'OUVERT' && l.ouvert && (
+                    {/*
+                      Les boutons Oui/Non/N/A PORTENT la réponse (le bouton
+                      surligné) : les retirer à la lecture seule effacerait
+                      ce qu'elle vient justement consulter. Elle lit donc la
+                      réponse en clair, sans rien sur quoi cliquer.
+                    */}
+                    {!peutEcrire && l.forme === 'OUI_NON' && l.reponse?.reponse && (
+                      <span className="shrink-0 text-[11px] font-semibold">
+                        {l.reponse.reponse === 'SANS_OBJET' ? 'N/A' : l.reponse.reponse === 'OUI' ? 'Oui' : 'Non'}
+                      </span>
+                    )}
+                    {peutEcrire && detail.statut === 'OUVERT' && l.ouvert && (
                       <div className="flex gap-1 shrink-0">
                         {l.forme === 'OUI_NON' ? (
                           (['OUI', 'NON', 'SANS_OBJET'] as const).map((r) => (

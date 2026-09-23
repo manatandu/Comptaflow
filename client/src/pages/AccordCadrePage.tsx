@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
+import { useAuth } from '../lib/auth';
 
 /**
  * ACCORD-CADRE AVEC LE MINISTÈRE DU PLAN · le manque que le logiciel déclarait
@@ -42,6 +43,7 @@ type Etat = {
 const jour = (d: string | null) => (d ? d.slice(0, 10) : '·');
 
 export function AccordCadrePage() {
+  const { peutEcrire } = useAuth();
   const [etat, setEtat] = useState<Etat | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [reference, setReference] = useState('');
@@ -120,6 +122,9 @@ export function AccordCadrePage() {
         </p>
       </section>
 
+      {/* Le serveur réserve l'enregistrement à ADMIN_CABINET et COMPTABLE · la
+          lecture seule consulte les accords sans voir un formulaire refusé. */}
+      {peutEcrire && (
       <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
         <h2 className="text-[12.5px] font-bold mb-1.5">Enregistrer l'accord signé</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -162,6 +167,7 @@ export function AccordCadrePage() {
           Enregistrer
         </button>
       </section>
+      )}
 
       <section className="border border-border bg-surface px-3.5 py-2.5">
         <h2 className="text-[12.5px] font-bold mb-1.5">Accords enregistrés</h2>

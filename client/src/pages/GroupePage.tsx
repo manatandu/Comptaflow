@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '../lib/api';
+import { useAuth } from '../lib/auth';
 import { useExercice } from '../lib/exercice';
 import { controlesDeLAgregat } from '../lib/controles-agregat-groupe';
 import type { BalanceAgregeeGroupe, JeuEtatsFinanciersSycebnl } from '../lib/types';
@@ -76,6 +77,7 @@ function dateCourte(iso: string | null): string {
 }
 
 export function GroupePage() {
+  const { estAdmin, peutEcrire } = useAuth();
   const { exercices, exerciceCourant } = useExercice();
   const [exerciceId, setExerciceId] = useState<string | null>(null);
   const [meta, setMeta] = useState<ReponseCellules | null>(null);
@@ -242,7 +244,9 @@ export function GroupePage() {
               </option>
             ))}
           </select>
-          {meta?.peutCreerCellule && (
+          {/* Le serveur calcule le plafond, pas le rôle · la création reste
+              réservée à l'administrateur (@Roles ADMIN_CABINET). */}
+          {estAdmin && meta?.peutCreerCellule && (
             <button type="button" onClick={() => setCreationOuverte(true)} className="bg-sel text-white px-3.5 py-1 text-[12px] font-semibold">
               Nouvelle cellule
             </button>
@@ -255,27 +259,31 @@ export function GroupePage() {
           >
             Balance (Excel)
           </button>
-          <button
-            type="button"
-            disabled={!exerciceActif || liasseEnCours}
-            onClick={async () => {
-              if (!exerciceActif) return;
-              setLiasseEnCours(true);
-              setErreur(null);
-              try {
-                // Le serveur refuse tant qu'un contrôle est rouge · son
-                // message dit exactement quoi corriger, on l'affiche tel quel.
-                await api.telecharger(`/groupe/liasse/excel?exerciceId=${exerciceActif}`, 'liasse-groupe.xlsx');
-              } catch (err) {
-                setErreur(err instanceof ApiError ? err.message : 'Liasse impossible');
-              } finally {
-                setLiasseEnCours(false);
-              }
-            }}
-            className="bg-sel text-white px-3.5 py-1 text-[12px] font-semibold disabled:opacity-50"
-          >
-            {liasseEnCours ? 'Liasse en cours…' : 'Liasse du groupe (Excel)'}
-          </button>
+          {/* Un GET qui écrit dans le dossier de combinaison · le serveur le
+              refuse à la lecture seule comme une saisie. */}
+          {peutEcrire && (
+            <button
+              type="button"
+              disabled={!exerciceActif || liasseEnCours}
+              onClick={async () => {
+                if (!exerciceActif) return;
+                setLiasseEnCours(true);
+                setErreur(null);
+                try {
+                  // Le serveur refuse tant qu'un contrôle est rouge · son
+                  // message dit exactement quoi corriger, on l'affiche tel quel.
+                  await api.telecharger(`/groupe/liasse/excel?exerciceId=${exerciceActif}`, 'liasse-groupe.xlsx');
+                } catch (err) {
+                  setErreur(err instanceof ApiError ? err.message : 'Liasse impossible');
+                } finally {
+                  setLiasseEnCours(false);
+                }
+              }}
+              className="bg-sel text-white px-3.5 py-1 text-[12px] font-semibold disabled:opacity-50"
+            >
+              {liasseEnCours ? 'Liasse en cours…' : 'Liasse du groupe (Excel)'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -357,9 +365,11 @@ export function GroupePage() {
                   <button type="button" onClick={() => api.telecharger(`/groupe/cellules/${l.id}/canevas`, 'canevas.xlsx')} className="text-sel">
                     Canevas
                   </button>
-                  <button type="button" onClick={() => setDepotPour(l)} className="text-sel">
-                    Déposer
-                  </button>
+                  {peutEcrire && (
+                    <button type="button" onClick={() => setDepotPour(l)} className="text-sel">
+                      Déposer
+                    </button>
+                  )}
                 </span>
               </div>
             ))}

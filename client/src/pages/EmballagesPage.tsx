@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
+import { useAuth } from '../lib/auth';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
 import type { Tiers } from '../lib/types';
 
@@ -66,6 +67,7 @@ const LIBELLE_ETAT: Record<Etat, string> = {
 };
 
 export function EmballagesPage() {
+  const { peutEcrire } = useAuth();
   const [registre, setRegistre] = useState<Registre | null>(null);
   const [tiers, setTiers] = useState<Tiers[]>([]);
   const [erreur, setErreur] = useState('');
@@ -218,6 +220,7 @@ export function EmballagesPage() {
         </div>
       )}
 
+      {peutEcrire && (
       <div className="ecran-seul border border-border bg-surface-2 px-3 py-2.5 mb-2.5 max-w-[1240px]">
         <div className="text-[12px] font-semibold mb-1.5">Nouvelle consignation</div>
         <div className="grid grid-cols-7 gap-2">
@@ -295,6 +298,7 @@ export function EmballagesPage() {
           </span>
         </div>
       </div>
+      )}
 
       <table className="w-full border-collapse text-[12px] mb-2.5 max-w-[1240px]">
         <thead>
@@ -362,20 +366,27 @@ export function EmballagesPage() {
               value={mode === 'REPRISE_PRIX_INFERIEUR' ? prixDeReprise : ''}
               onChange={(e) => setPrixDeReprise(e.target.value)}
             />
-            <input
-              type="date"
-              className={champ}
-              value={dateDenouement}
-              onChange={(e) => setDateDenouement(e.target.value)}
-            />
-            <button
-              type="button"
-              disabled={enCours || !dateDenouement || !!proposition?.refus}
-              onClick={denouer}
-              className="px-3 py-1 text-[12px] border border-accent bg-accent/10 disabled:opacity-40"
-            >
-              Dénouer
-            </button>
+            {/* La simulation (GET) reste ouverte à la lecture seule, qui peut
+                voir l'écriture proposée · seul l'enregistrement du dénouement
+                est réservé à ADMIN_CABINET et COMPTABLE côté serveur. */}
+            {peutEcrire && (
+              <>
+                <input
+                  type="date"
+                  className={champ}
+                  value={dateDenouement}
+                  onChange={(e) => setDateDenouement(e.target.value)}
+                />
+                <button
+                  type="button"
+                  disabled={enCours || !dateDenouement || !!proposition?.refus}
+                  onClick={denouer}
+                  className="px-3 py-1 text-[12px] border border-accent bg-accent/10 disabled:opacity-40"
+                >
+                  Dénouer
+                </button>
+              </>
+            )}
           </div>
 
           {/* LE REFUS EST MONTRÉ AVANT LE GESTE, PAS APRÈS · c'est là que le

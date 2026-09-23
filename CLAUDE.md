@@ -2153,6 +2153,37 @@ coûte un aller-retour transatlantique. Mesuré : 10 appels dont 5 `OPTIONS` en
 retarde pas les `OPTIONS`** : une mesure faite avec lui sous-estime ce qu'ils
 coûtent.
 
+**P8 · LE BULLETIN DE PAIE ÉMIS, ET LA LECTURE SEULE QUI NE VOIT PLUS DE
+BOUTON QUI ÉCRIT (2026-09-23).** Deux chantiers livrés ensemble.
+
+(1) **LE BULLETIN EST LE DÉCOMPTE ÉCRIT DE L'ART. 103**, que l'arrêté
+n° 12/CAB.MIN/ETPS/042 du 8 août 2008, art. 2, définit comme « un des doubles
+du livre de paie » (`BulletinPaie`, `personnel/bulletin-paie.ts`). Il FIGE une
+simulation que le SERVEUR rejoue · le client n'envoie que ce qui a été saisi,
+jamais un montant, et l'écran utilise le MÊME corps pour simuler et émettre.
+NUMÉROTATION CONTINUE par dossier (art. 214), jamais réutilisée, annulés
+compris. **INDÉLÉBILE** (art. 4 de l'arrêté) : aucune route de modification ni
+de suppression, une erreur s'ANNULE avec un motif et la ligne reste. La REMISE
+se déclare une fois, jamais dans le futur. TROIS REFUS · un montant non
+calculé (impôt, cotisation, net · un chiffre provisoire sur un décompte remis
+devient opposable), aucun contrat en cours sur le mois (pas de contrat de
+repli, trouvé par réinjection), et un second bulletin actif le même mois. Ce
+dernier N'EST PAS une règle du Code, qui dit « à chaque paie » : c'est une
+LIMITE DU MOTEUR, déclarée, la retenue de l'art. 119 annualisant le mois. Le
+bulletin ne passe aucune écriture et n'est pas certifié conforme au modèle
+annexé. **UNE GARANTIE NÉGATIVE VIEILLIT** · l'en-tête du registre disait
+« il n'enregistre aucun bulletin de paie », retiré dans le même geste et gelé.
+
+(2) **`peutEcrire` VIT DANS LE CONTEXTE DE SESSION** (`lib/auth.tsx`, admin ou
+comptable). Près de quarante fenêtres proposaient leurs boutons d'écriture à
+LECTURE_SEULE, que le serveur refusait. `ecriture-masquee.spec.ts` exige de
+tout écran qui écrit qu'il LISE `peutEcrire`, ou `estAdmin` s'il figure dans
+la liste des écrans dont toutes les écritures sont réservées à
+l'administrateur, ou qu'il figure parmi les exemptions motivées. Il a été vu
+tomber sur trente-neuf écrans avant le correctif. `estAdmin` seul ne prouve
+rien ailleurs · un écran qui masque sa seule action d'administration peut
+montrer tout le reste.
+
 **Questionnaire de révision par cycle · vingt-quatre items du CPCC, et le
 reste assumé.** Le séminaire porte DEUX checklists, § VI « vérification de
 l'inventaire physique » (immobilisations, stocks, caisses) et § VII

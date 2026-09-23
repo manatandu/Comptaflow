@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
+import { useAuth } from '../lib/auth';
 
 /**
  * DEVIS ET COMMANDE CLIENT · l'OFFRE et son ACCEPTATION au sens de l'AUDCG.
@@ -53,6 +54,7 @@ const somme = (n: number) => n.toLocaleString('fr-FR', { minimumFractionDigits: 
 const jour = (d: string | null) => (d ? d.slice(0, 10) : '·');
 
 export function DevisPage() {
+  const { peutEcrire } = useAuth();
   const [etat, setEtat] = useState<Etat | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [numero, setNumero] = useState('');
@@ -127,6 +129,9 @@ export function DevisPage() {
         (art. 244). {etat.aucuneConditionDeForme.mention}
       </p>
 
+      {/* Émettre et répondre sont réservés à ADMIN_CABINET et COMPTABLE côté
+          serveur · la lecture seule garde l'état de chaque offre et son motif. */}
+      {peutEcrire && (
       <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
         <h2 className="text-[12.5px] font-bold mb-1.5">Émettre un devis</h2>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -194,6 +199,7 @@ export function DevisPage() {
           Émettre
         </button>
       </section>
+      )}
 
       <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
         <h2 className="text-[12.5px] font-bold mb-1.5">Délais de dénonciation à rappeler au client</h2>
@@ -251,7 +257,7 @@ export function DevisPage() {
                       {!d.qualification.estUneOffre && (
                         <p className="text-[11px] text-danger leading-[1.6] mt-1">{d.qualification.requalification}</p>
                       )}
-                      {d.etat.etat === 'EN_ATTENTE' && (
+                      {peutEcrire && d.etat.etat === 'EN_ATTENTE' && (
                         <div className="mt-1 flex flex-wrap gap-1">
                           <button className="border border-border px-1.5 py-0.5 text-[11px]" onClick={() => void repondre(d.id, 'ACCEPTATION')}>
                             Acceptation reçue

@@ -295,18 +295,24 @@ export function ExercicePage() {
             états financiers publiés, et le logiciel l’imprime dès qu’elle est renseignée.
           </p>
           <div className="flex items-end gap-2 flex-wrap">
-            <label className="text-[12px] font-semibold text-text-dim">
-              Comptes arrêtés le
-              <input
-                type="date"
-                value={dateArrete}
-                onChange={(e) => setDateArrete(e.target.value)}
-                className="mt-1 block border border-border-dark px-2 py-1 text-[12.5px] font-mono"
-              />
-            </label>
-            <button type="submit" disabled={envoi} className="bg-sel text-white text-[12.5px] font-semibold px-3 py-1.5 disabled:opacity-50">
-              {envoi ? '…' : 'Enregistrer'}
-            </button>
+            {/* La date se consulte par tous, elle ne se pose que par
+                l'administrateur (@Roles ADMIN_CABINET sur arrete-comptes). */}
+            {estAdmin && (
+              <>
+                <label className="text-[12px] font-semibold text-text-dim">
+                  Comptes arrêtés le
+                  <input
+                    type="date"
+                    value={dateArrete}
+                    onChange={(e) => setDateArrete(e.target.value)}
+                    className="mt-1 block border border-border-dark px-2 py-1 text-[12.5px] font-mono"
+                  />
+                </label>
+                <button type="submit" disabled={envoi} className="bg-sel text-white text-[12.5px] font-semibold px-3 py-1.5 disabled:opacity-50">
+                  {envoi ? '…' : 'Enregistrer'}
+                </button>
+              </>
+            )}
             {exercice.dateArreteComptes ? (
               <span className="text-[12px] text-positive">
                 Actuellement : {new Date(exercice.dateArreteComptes).toLocaleDateString('fr-FR')}
@@ -324,7 +330,7 @@ export function ExercicePage() {
         l'ouvrir d'emblée inviterait à s'en servir comme d'une saisie
         ordinaire, ce qu'elle n'est pas.
       */}
-      {exercice && (
+      {estAdmin && exercice && (
         <div className="mb-4 border border-border bg-surface max-w-[720px]">
           <button
             onClick={() => setImputationOuverte((v) => !v)}

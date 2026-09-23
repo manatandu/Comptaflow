@@ -40,8 +40,9 @@ describe('l’inventaire couvre le schéma, sans trou ni surplus', () => {
     // Le nombre est EN DUR pour qu'un modèle ajouté au schéma oblige
     // quelqu'un à décider par quelle borne il se lit · sans quoi il se lirait
     // sans borne du tout. C'est la SEULE fonction de ce chiffre : tomber.
-    // Il est passé de 79 à 82 avec le registre du personnel (P1 de la paie).
-    expect(modeles).toHaveLength(82);
+    // Il est passé de 79 à 82 avec le registre du personnel (P1 de la paie),
+    // puis à 83 avec le bulletin de paie émis (P8), borné par son tenantId.
+    expect(modeles).toHaveLength(83);
     expect([...TABLES_RESTITUEES].sort()).toEqual(modeles.filter((m) => m !== 'Tenant').sort());
   });
 

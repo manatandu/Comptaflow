@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
+import { useAuth } from '../lib/auth';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
 import { useExercice } from '../lib/exercice';
 import type { Journal } from '../lib/types';
@@ -57,6 +58,7 @@ const montant = (n: number) =>
 
 export function VariationStocksPage() {
   const { exerciceCourant } = useExercice();
+  const { peutEcrire } = useAuth();
   const [etat, setEtat] = useState<EtatStocks | null>(null);
   const [journaux, setJournaux] = useState<Journal[]>([]);
   const [journalId, setJournalId] = useState('');
@@ -216,52 +218,57 @@ export function VariationStocksPage() {
                   L’écriture proposée n’est pas équilibrée. Ne l’enregistrez pas et signalez-le.
                 </div>
               )}
-              <div className="flex flex-wrap items-end gap-2">
-                <label className="text-[11px] text-text-dim">
-                  Journal
-                  <select
-                    value={journalId}
-                    onChange={(e) => setJournalId(e.target.value)}
-                    className="block border border-border bg-surface px-2 py-[3px] text-[12px] min-w-[180px]"
-                  >
-                    <option value="">Choisir un journal</option>
-                    {journaux.map((j) => (
-                      <option key={j.id} value={j.id}>
-                        {j.code} · {j.intitule}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="text-[11px] text-text-dim">
-                  Date
-                  <input
-                    type="date"
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                    className="block border border-border bg-surface px-2 py-[3px] text-[12px]"
-                  />
-                </label>
-                <label className="text-[11px] text-text-dim">
-                  Référence
-                  <input
-                    value={reference}
-                    onChange={(e) => setReference(e.target.value)}
-                    className="block border border-border bg-surface px-2 py-[3px] text-[12px]"
-                  />
-                </label>
-                <button
-                  type="button"
-                  disabled={!journalId || !date || enCours || !equilibree}
-                  onClick={enregistrer}
-                  className="bg-sel text-white rounded-[6px] px-3 py-[3px] text-[12px] font-semibold hover:opacity-90 disabled:opacity-40"
-                >
-                  {enCours ? 'Enregistrement…' : 'Enregistrer l’écriture'}
-                </button>
-              </div>
-              <div className="text-[11px] text-text-dim mt-1.5">
-                Le journal n’est pas deviné · aucun des deux textes n’en nomme un, et le journal des
-                opérations diverses n’est pas un usage universel.
-              </div>
+              {/* La proposition se consulte par tous ; seul le passage de l'écriture est réservé. */}
+              {peutEcrire && (
+                <>
+                  <div className="flex flex-wrap items-end gap-2">
+                    <label className="text-[11px] text-text-dim">
+                      Journal
+                      <select
+                        value={journalId}
+                        onChange={(e) => setJournalId(e.target.value)}
+                        className="block border border-border bg-surface px-2 py-[3px] text-[12px] min-w-[180px]"
+                      >
+                        <option value="">Choisir un journal</option>
+                        {journaux.map((j) => (
+                          <option key={j.id} value={j.id}>
+                            {j.code} · {j.intitule}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="text-[11px] text-text-dim">
+                      Date
+                      <input
+                        type="date"
+                        value={date}
+                        onChange={(e) => setDate(e.target.value)}
+                        className="block border border-border bg-surface px-2 py-[3px] text-[12px]"
+                      />
+                    </label>
+                    <label className="text-[11px] text-text-dim">
+                      Référence
+                      <input
+                        value={reference}
+                        onChange={(e) => setReference(e.target.value)}
+                        className="block border border-border bg-surface px-2 py-[3px] text-[12px]"
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      disabled={!journalId || !date || enCours || !equilibree}
+                      onClick={enregistrer}
+                      className="bg-sel text-white rounded-[6px] px-3 py-[3px] text-[12px] font-semibold hover:opacity-90 disabled:opacity-40"
+                    >
+                      {enCours ? 'Enregistrement…' : 'Enregistrer l’écriture'}
+                    </button>
+                  </div>
+                  <div className="text-[11px] text-text-dim mt-1.5">
+                    Le journal n’est pas deviné · aucun des deux textes n’en nomme un, et le journal des
+                    opérations diverses n’est pas un usage universel.
+                  </div>
+                </>
+              )}
             </div>
           )}
         </div>

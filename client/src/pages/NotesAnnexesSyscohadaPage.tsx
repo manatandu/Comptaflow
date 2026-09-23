@@ -71,7 +71,7 @@ const MENTION_NEANT_SYSCOHADA = (
 
 function NotesSyscohadaSystemeNormal() {
   const { exerciceCourant } = useExercice();
-  const { utilisateur, estAdmin } = useAuth();
+  const { estAdmin, peutEcrire } = useAuth();
 
   const [resultat, setResultat] = useState<ResultatNotesJeu | null>(null);
   const [comptes, setComptes] = useState<Compte[] | null>(null);
@@ -211,9 +211,7 @@ function NotesSyscohadaSystemeNormal() {
 
   // LECTURE_SEULE n'écrit rien · le serveur le refuserait (`@Roles`), et un
   // champ ouvert qui rend un 403 est une promesse fausse.
-  const saisie: SaisieNotes | undefined = utilisateur?.role === 'LECTURE_SEULE'
-    ? undefined
-    : { enCours, enregistrer: enregistrerSaisie };
+  const saisie: SaisieNotes | undefined = peutEcrire ? { enCours, enregistrer: enregistrerSaisie } : undefined;
 
   const rattachement: RattachementNotes = {
     estAdmin,

@@ -9,6 +9,7 @@ import type {
   GroupeLettrageDossier,
 } from '../lib/types';
 import { Aide } from '../components/chrome/Aide';
+import { useAuth } from '../lib/auth';
 
 /**
  * Interrogation et lettrage · modèle du chapitre 6 des Notes de cours
@@ -56,6 +57,10 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
   // que la fenêtre active · elle ne peut donc pas servir de source à toutes).
   // Le repli sur `useParams` garde la page utilisable par une route directe.
   const params = useParams<{ compteId: string }>();
+  // Toute action de lettrage est réservée au comptable et à l'administrateur
+  // (`@Roles` du contrôleur). La lecture seule interroge le compte et voit les
+  // groupes posés, leur origine et leur verrou, sans les boutons qui écrivent.
+  const { peutEcrire } = useAuth();
   // Fenêtre ouverte SANS compte (menu Traitement) : le compte choisi vit en
   // état local, le sélecteur change alors le contenu de CETTE fenêtre au
   // lieu d'en ouvrir une seconde. Ouverte depuis le plan comptable, chaque
@@ -280,24 +285,31 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
               ))}
             </select>
           </label>
-          <button
-            type="button"
-            onClick={lancerPreLettrage}
-            disabled={envoi || !compte?.lettrable}
-            title="Cherche les rapprochements et les SOUMET · rien n'est écrit avant confirmation"
-            className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[12px] disabled:opacity-50"
-          >
-            Pré-lettrage
-          </button>
-          <button
-            type="button"
-            onClick={lancerLettrageAuto}
-            disabled={envoi || !compte?.lettrable}
-            title="Apparie d'abord par référence de pièce, puis par montant"
-            className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[12px] disabled:opacity-50"
-          >
-            Lettrage automatique
-          </button>
+          {/* Le pré-lettrage ne lit rien d'autre que ce qu'il propose de
+              lettrer : sans droit de confirmer, ses cases ne mèneraient nulle
+              part. Il part donc avec le lettrage automatique. */}
+          {peutEcrire && (
+            <>
+              <button
+                type="button"
+                onClick={lancerPreLettrage}
+                disabled={envoi || !compte?.lettrable}
+                title="Cherche les rapprochements et les SOUMET · rien n'est écrit avant confirmation"
+                className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[12px] disabled:opacity-50"
+              >
+                Pré-lettrage
+              </button>
+              <button
+                type="button"
+                onClick={lancerLettrageAuto}
+                disabled={envoi || !compte?.lettrable}
+                title="Apparie d'abord par référence de pièce, puis par montant"
+                className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[12px] disabled:opacity-50"
+              >
+                Lettrage automatique
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -487,16 +499,20 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
                     selection.has(l.id) ? 'bg-sel-soft' : soldee ? 'opacity-60' : ''
                   }`}
                 >
-                  <input
-                    type="checkbox"
-                    // Une ligne soldée est close. Une ligne d'un groupe
-                    // PARTIEL reste ouverte, mais elle est déjà rattachée :
-                    // on la solde en complétant son groupe, pas en la
-                    // resélectionnant ailleurs.
-                    disabled={!!l.lettrageId}
-                    checked={selection.has(l.id)}
-                    onChange={() => basculerSelection(l.id)}
-                  />
+                  {peutEcrire ? (
+                    <input
+                      type="checkbox"
+                      // Une ligne soldée est close. Une ligne d'un groupe
+                      // PARTIEL reste ouverte, mais elle est déjà rattachée :
+                      // on la solde en complétant son groupe, pas en la
+                      // resélectionnant ailleurs.
+                      disabled={!!l.lettrageId}
+                      checked={selection.has(l.id)}
+                      onChange={() => basculerSelection(l.id)}
+                    />
+                  ) : (
+                    <span />
+                  )}
                   <span className="font-mono text-[11px] text-text-dim">{new Date(l.date).toLocaleDateString('fr-FR')}</span>
                   <span className="font-mono text-text-dim">{l.journalCode}</span>
                   <span className="truncate" title={l.reference ? `Pièce ${l.reference}` : undefined}>
@@ -541,7 +557,7 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
         </div>
       )}
 
-      {lignes && lignes.length > 0 && compte?.lettrable && (
+      {peutEcrire && lignes && lignes.length > 0 && compte?.lettrable && (
         <div className="mt-3 max-w-[1040px] border border-border bg-surface px-3.5 py-2.5">
           <div className="flex items-center gap-4 flex-wrap">
             <span className="text-[12px] text-text-dim">
@@ -623,17 +639,21 @@ export function LettragePage({ compteId: compteIdProp }: { compteId?: string } =
                 {new Date(g.createdAt).toLocaleDateString('fr-FR')} · {g.createdBy}
               </span>
               <span className="flex items-center gap-2 justify-end">
-                <button onClick={() => basculerVerrou(g)} disabled={envoi} className="text-[11px] hover:underline">
-                  {g.verrouille ? 'Déverrouiller' : 'Verrouiller'}
-                </button>
-                <button
-                  onClick={() => delettrer(g.code)}
-                  disabled={envoi || g.verrouille}
-                  title={g.verrouille ? 'Lettrage verrouillé' : 'Défaire ce lettrage'}
-                  className="text-[11px] text-danger hover:underline disabled:opacity-40 disabled:no-underline"
-                >
-                  Délettrer
-                </button>
+                {peutEcrire && (
+                  <>
+                    <button onClick={() => basculerVerrou(g)} disabled={envoi} className="text-[11px] hover:underline">
+                      {g.verrouille ? 'Déverrouiller' : 'Verrouiller'}
+                    </button>
+                    <button
+                      onClick={() => delettrer(g.code)}
+                      disabled={envoi || g.verrouille}
+                      title={g.verrouille ? 'Lettrage verrouillé' : 'Défaire ce lettrage'}
+                      className="text-[11px] text-danger hover:underline disabled:opacity-40 disabled:no-underline"
+                    >
+                      Délettrer
+                    </button>
+                  </>
+                )}
               </span>
             </div>
           ))}

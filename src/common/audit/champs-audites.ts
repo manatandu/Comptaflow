@@ -104,6 +104,11 @@ export const MODELES_AUDITES = new Set<string>([
   'Salarie',
   'ContratTravail',
   'EnfantACharge',
+  // LE BULLETIN ÉMIS (P8) · il ne se modifie jamais, il s'ANNULE, et c'est
+  // l'annulation et la déclaration de remise que le journal doit dater et
+  // attribuer. Un bulletin annulé puis réémis sans trace est exactement ce
+  // qu'un contentieux sur l'article 103 viendrait chercher.
+  'BulletinPaie',
 ]);
 
 /**
@@ -181,6 +186,20 @@ export const COLONNES_EXCLUES_PAR_MODELE: Readonly<Record<string, readonly strin
   ],
   EnfantACharge: ['nom', 'postNom', 'prenoms', 'dateNaissance'],
   ContratTravail: ['remunerationBase', 'avantagesConvenus'],
+  // Le bulletin reste IDENTIFIABLE (numéro, mois, nom, statut, dates, motif
+  // d'annulation) · ses MONTANTS et le détail du calcul ne le sont pas, pour
+  // la même raison que la rémunération du contrat.
+  BulletinPaie: [
+    'numeroAffiliationCnss',
+    'totalVerseFc',
+    'assietteSocialeFc',
+    'cotisationsTravailleurFc',
+    'cotisationsEmployeurFc',
+    'irppFc',
+    'netAPayerFc',
+    'entree',
+    'calcul',
+  ],
 };
 
 /** Les colonnes exclues du JOURNAL, en minuscules, comparables telles quelles. */

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
+import { useAuth } from '../lib/auth';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
 import type { CampagneInventaire, Exercice } from '../lib/types';
 
@@ -42,6 +43,7 @@ const montant = (v: unknown) => Number(v ?? 0).toLocaleString('fr-FR', { minimum
 const jour = (d: string | null | undefined) => (d ? new Date(d).toLocaleDateString('fr-FR') : '·');
 
 export function InventairePage() {
+  const { peutEcrire } = useAuth();
   const [campagnes, setCampagnes] = useState<CampagneInventaire[] | null>(null);
   const [exercices, setExercices] = useState<Exercice[]>([]);
   const [selectionId, setSelectionId] = useState<string | null>(null);
@@ -105,13 +107,15 @@ export function InventairePage() {
         <div className="text-[11px] font-mono text-text-dim leading-none">INVENTAIRE EXTRA-COMPTABLE</div>
         <div className="flex items-center justify-between gap-3">
           <h1 className="text-[13px] font-bold leading-tight">Inventaire physique</h1>
-          <button
-            type="button"
-            onClick={() => setCreation(true)}
-            className="bg-sel text-white rounded-[6px] px-3 py-[3px] text-[12px] font-semibold hover:opacity-90"
-          >
-            Nouvelle campagne
-          </button>
+          {peutEcrire && (
+            <button
+              type="button"
+              onClick={() => setCreation(true)}
+              className="bg-sel text-white rounded-[6px] px-3 py-[3px] text-[12px] font-semibold hover:opacity-90"
+            >
+              Nouvelle campagne
+            </button>
+          )}
         </div>
         <div className="text-[11px] text-text-dim mt-0.5">
           « À la clôture de chaque exercice, l’entité doit procéder au recensement et à l’évaluation de ses biens,
@@ -232,44 +236,46 @@ export function InventairePage() {
                         : 'PV non établi'}
                     </div>
                   </div>
-                  <div className="flex gap-1.5">
-                    {(detail.statut === 'PREPARATION' || detail.statut === 'RECENSEMENT') && (
-                      <>
+                  {peutEcrire && (
+                    <div className="flex gap-1.5">
+                      {(detail.statut === 'PREPARATION' || detail.statut === 'RECENSEMENT') && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => agir(() => api.post(`/inventaire/${detail.id}/fiches/immobilisations`, {}))}
+                            className="border border-border rounded-[6px] px-2.5 py-[3px] text-[12px]"
+                          >
+                            Fiches du parc immobilisé
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => agir(() => api.post(`/inventaire/${detail.id}/rapprocher`, {}))}
+                            className="bg-sel text-white rounded-[6px] px-2.5 py-[3px] text-[12px] font-semibold"
+                          >
+                            Rapprocher de la balance
+                          </button>
+                        </>
+                      )}
+                      {detail.statut === 'ARBITRAGE' && (
                         <button
                           type="button"
-                          onClick={() => agir(() => api.post(`/inventaire/${detail.id}/fiches/immobilisations`, {}))}
-                          className="border border-border rounded-[6px] px-2.5 py-[3px] text-[12px]"
-                        >
-                          Fiches du parc immobilisé
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => agir(() => api.post(`/inventaire/${detail.id}/rapprocher`, {}))}
+                          onClick={() => agir(() => api.post(`/inventaire/${detail.id}/clore`, {}))}
                           className="bg-sel text-white rounded-[6px] px-2.5 py-[3px] text-[12px] font-semibold"
                         >
-                          Rapprocher de la balance
+                          Clore la campagne
                         </button>
-                      </>
-                    )}
-                    {detail.statut === 'ARBITRAGE' && (
-                      <button
-                        type="button"
-                        onClick={() => agir(() => api.post(`/inventaire/${detail.id}/clore`, {}))}
-                        className="bg-sel text-white rounded-[6px] px-2.5 py-[3px] text-[12px] font-semibold"
-                      >
-                        Clore la campagne
-                      </button>
-                    )}
-                    {detail.statut !== 'CLOTUREE' && !detail.procesVerbalEtabliLe && (
-                      <button
-                        type="button"
-                        onClick={() => agir(() => api.post(`/inventaire/${detail.id}/proces-verbal`, {}))}
-                        className="border border-border rounded-[6px] px-2.5 py-[3px] text-[12px]"
-                      >
-                        Établir le PV
-                      </button>
-                    )}
-                  </div>
+                      )}
+                      {detail.statut !== 'CLOTUREE' && !detail.procesVerbalEtabliLe && (
+                        <button
+                          type="button"
+                          onClick={() => agir(() => api.post(`/inventaire/${detail.id}/proces-verbal`, {}))}
+                          className="border border-border rounded-[6px] px-2.5 py-[3px] text-[12px]"
+                        >
+                          Établir le PV
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
                 {detail.sanction && (
                   <div className="text-[10.5px] text-text-dim mt-1 border-t border-border/60 pt-1">

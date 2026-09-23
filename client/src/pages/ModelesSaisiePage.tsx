@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
+import { useAuth } from '../lib/auth';
 import type { Compte, Journal } from '../lib/types';
 
 /**
@@ -49,6 +50,10 @@ interface ModeleSaisie {
 const LIGNE_VIDE: LigneModele = { compteId: '', sens: 'DEBIT', libelle: '', montant: '' };
 
 export function ModelesSaisiePage() {
+  // Créer, modifier, supprimer : réservé (`@Roles` ADMIN_CABINET, COMPTABLE).
+  // La lecture seule garde la liste et les avertissements, qui disent déjà
+  // ce qu'un modèle fautif ferait passer.
+  const { peutEcrire } = useAuth();
   const [modeles, setModeles] = useState<ModeleSaisie[]>([]);
   const [journaux, setJournaux] = useState<Journal[]>([]);
   const [comptes, setComptes] = useState<Compte[]>([]);
@@ -168,106 +173,108 @@ export function ModelesSaisiePage() {
         </div>
       )}
 
-      <div className="border border-border bg-surface shadow-posee max-w-[900px] mb-3">
-        <div className="px-3 py-1.5 bg-surface-alt border-b border-border-dark text-[11px] font-bold text-text-dim">
-          {edite ? 'MODIFIER LE MODÈLE' : 'NOUVEAU MODÈLE'}
-        </div>
-        <div className="p-3 flex flex-col gap-2">
-          <div className="flex gap-2">
-            <input
-              value={intitule}
-              onChange={(e) => setIntitule(e.target.value)}
-              placeholder="Nom du modèle, ex. Avoir sur facture de vente"
-              className={`${champ} flex-1`}
-            />
-            <select value={journalId} onChange={(e) => setJournalId(e.target.value)} className={`${champ} w-[240px]`}>
-              <option value="">Tous les journaux</option>
-              {journaux.map((j) => (
-                <option key={j.id} value={j.id}>
-                  {j.code} · {j.intitule}
-                </option>
-              ))}
-            </select>
+      {peutEcrire && (
+        <div className="border border-border bg-surface shadow-posee max-w-[900px] mb-3">
+          <div className="px-3 py-1.5 bg-surface-alt border-b border-border-dark text-[11px] font-bold text-text-dim">
+            {edite ? 'MODIFIER LE MODÈLE' : 'NOUVEAU MODÈLE'}
           </div>
-
-          {lignes.map((l, i) => (
-            <div key={i} className="flex gap-2 items-center">
-              <select
-                value={l.compteId}
-                onChange={(e) => setLignes((p) => p.map((x, k) => (k === i ? { ...x, compteId: e.target.value } : x)))}
-                className={`${champ} flex-1 min-w-0`}
-              >
-                <option value="">Compte…</option>
-                {comptes.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.numero} · {c.intitule}
+          <div className="p-3 flex flex-col gap-2">
+            <div className="flex gap-2">
+              <input
+                value={intitule}
+                onChange={(e) => setIntitule(e.target.value)}
+                placeholder="Nom du modèle, ex. Avoir sur facture de vente"
+                className={`${champ} flex-1`}
+              />
+              <select value={journalId} onChange={(e) => setJournalId(e.target.value)} className={`${champ} w-[240px]`}>
+                <option value="">Tous les journaux</option>
+                {journaux.map((j) => (
+                  <option key={j.id} value={j.id}>
+                    {j.code} · {j.intitule}
                   </option>
                 ))}
               </select>
-              <select
-                value={l.sens}
-                onChange={(e) =>
-                  setLignes((p) => p.map((x, k) => (k === i ? { ...x, sens: e.target.value as 'DEBIT' | 'CREDIT' } : x)))
-                }
-                className={`${champ} w-[86px]`}
-              >
-                <option value="DEBIT">Débit</option>
-                <option value="CREDIT">Crédit</option>
-              </select>
-              <input
-                value={l.libelle}
-                onChange={(e) => setLignes((p) => p.map((x, k) => (k === i ? { ...x, libelle: e.target.value } : x)))}
-                placeholder="Libellé pré-rempli"
-                className={`${champ} w-[220px]`}
-              />
-              <input
-                value={l.montant}
-                onChange={(e) => setLignes((p) => p.map((x, k) => (k === i ? { ...x, montant: e.target.value } : x)))}
-                placeholder="Montant (facultatif)"
-                className={`${champ} w-[140px] text-right`}
-              />
-              <button
-                type="button"
-                onClick={() => setLignes((p) => p.filter((_, k) => k !== i))}
-                disabled={lignes.length <= 2}
-                title={lignes.length <= 2 ? 'Un modèle porte au moins deux lignes' : 'Retirer cette ligne'}
-                className="px-2 text-[12.5px] text-text-dim hover:text-danger disabled:opacity-30"
-              >
-                ×
-              </button>
             </div>
-          ))}
 
-          <div className="flex items-center justify-between pt-1">
-            <button
-              type="button"
-              onClick={() => setLignes((p) => [...p, { ...LIGNE_VIDE }])}
-              className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[12px]"
-            >
-              + Ligne
-            </button>
-            <div className="flex gap-2">
-              {edite && (
+            {lignes.map((l, i) => (
+              <div key={i} className="flex gap-2 items-center">
+                <select
+                  value={l.compteId}
+                  onChange={(e) => setLignes((p) => p.map((x, k) => (k === i ? { ...x, compteId: e.target.value } : x)))}
+                  className={`${champ} flex-1 min-w-0`}
+                >
+                  <option value="">Compte…</option>
+                  {comptes.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.numero} · {c.intitule}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={l.sens}
+                  onChange={(e) =>
+                    setLignes((p) => p.map((x, k) => (k === i ? { ...x, sens: e.target.value as 'DEBIT' | 'CREDIT' } : x)))
+                  }
+                  className={`${champ} w-[86px]`}
+                >
+                  <option value="DEBIT">Débit</option>
+                  <option value="CREDIT">Crédit</option>
+                </select>
+                <input
+                  value={l.libelle}
+                  onChange={(e) => setLignes((p) => p.map((x, k) => (k === i ? { ...x, libelle: e.target.value } : x)))}
+                  placeholder="Libellé pré-rempli"
+                  className={`${champ} w-[220px]`}
+                />
+                <input
+                  value={l.montant}
+                  onChange={(e) => setLignes((p) => p.map((x, k) => (k === i ? { ...x, montant: e.target.value } : x)))}
+                  placeholder="Montant (facultatif)"
+                  className={`${champ} w-[140px] text-right`}
+                />
                 <button
                   type="button"
-                  onClick={reinitialiser}
-                  className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[12px]"
+                  onClick={() => setLignes((p) => p.filter((_, k) => k !== i))}
+                  disabled={lignes.length <= 2}
+                  title={lignes.length <= 2 ? 'Un modèle porte au moins deux lignes' : 'Retirer cette ligne'}
+                  className="px-2 text-[12.5px] text-text-dim hover:text-danger disabled:opacity-30"
                 >
-                  Annuler
+                  ×
                 </button>
-              )}
+              </div>
+            ))}
+
+            <div className="flex items-center justify-between pt-1">
               <button
                 type="button"
-                onClick={enregistrer}
-                disabled={intitule.trim().length < 2 || lignes.filter((l) => l.compteId).length < 2}
-                className="bg-sel text-white px-4 py-1 text-[12px] font-semibold hover:brightness-110 disabled:opacity-40"
+                onClick={() => setLignes((p) => [...p, { ...LIGNE_VIDE }])}
+                className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[12px]"
               >
-                Enregistrer
+                + Ligne
               </button>
+              <div className="flex gap-2">
+                {edite && (
+                  <button
+                    type="button"
+                    onClick={reinitialiser}
+                    className="border border-border-dark bg-chrome hover:bg-chrome-alt px-3 py-1 text-[12px]"
+                  >
+                    Annuler
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={enregistrer}
+                  disabled={intitule.trim().length < 2 || lignes.filter((l) => l.compteId).length < 2}
+                  className="bg-sel text-white px-4 py-1 text-[12px] font-semibold hover:brightness-110 disabled:opacity-40"
+                >
+                  Enregistrer
+                </button>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       <div
         // `overflow-x-auto` ici, `min-w` sur les lignes · les 398 px de colonnes
@@ -284,7 +291,9 @@ export function ModelesSaisiePage() {
         </div>
         {modeles.length === 0 && (
           <div className="px-3 py-2 text-[12.5px] text-text-dim">
-            Aucun modèle pour l'instant. Créez celui de l'opération que vous passez le plus souvent.
+            {peutEcrire
+              ? "Aucun modèle pour l'instant. Créez celui de l'opération que vous passez le plus souvent."
+              : "Aucun modèle pour l'instant."}
           </div>
         )}
         {modeles.map((m) => (
@@ -301,12 +310,16 @@ export function ModelesSaisiePage() {
               <span className="text-text-dim">{m.journalCode ?? 'Tous'}</span>
               <span className="text-right font-mono">{m.lignes.length}</span>
               <span className="flex gap-2 justify-end">
-                <button type="button" onClick={() => reprendre(m)} className="text-sel hover:underline">
-                  Modifier
-                </button>
-                <button type="button" onClick={() => supprimer(m)} className="text-text-dim hover:text-danger">
-                  Supprimer
-                </button>
+                {peutEcrire && (
+                  <>
+                    <button type="button" onClick={() => reprendre(m)} className="text-sel hover:underline">
+                      Modifier
+                    </button>
+                    <button type="button" onClick={() => supprimer(m)} className="text-text-dim hover:text-danger">
+                      Supprimer
+                    </button>
+                  </>
+                )}
               </span>
             </div>
             {/*

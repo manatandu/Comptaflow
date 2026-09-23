@@ -48,8 +48,7 @@ function jour(iso: string | null): string {
 }
 
 export function ConventionsFinancementPage() {
-  const { estAdmin, utilisateur } = useAuth();
-  const peutTenir = estAdmin || utilisateur?.role === 'COMPTABLE';
+  const { estAdmin, peutEcrire } = useAuth();
 
   const [conventions, setConventions] = useState<ConventionFinancement[] | null>(null);
   const [bailleurs, setBailleurs] = useState<Bailleur[]>([]);
@@ -375,7 +374,7 @@ export function ConventionsFinancementPage() {
                         <span className="w-[180px] text-text-dim">
                           {t.dateEncaissement ? `encaissée ${jour(t.dateEncaissement)} · ${montant(t.montantEncaisse ?? 0)}` : 'non encaissée'}
                         </span>
-                        {peutTenir && !t.dateEncaissement && (
+                        {peutEcrire && !t.dateEncaissement && (
                           <button type="button" onClick={() => void onEncaisser(c.id, t.id, t.montant)} className="ecran-seul border border-border px-1">
                             Encaisser
                           </button>
@@ -383,7 +382,7 @@ export function ConventionsFinancementPage() {
                       </div>
                     ))}
                     {c.tranches.length === 0 && <div className="text-[11px] text-text-dim">Aucune tranche saisie.</div>}
-                    {peutTenir && (
+                    {peutEcrire && (
                       <form onSubmit={(e) => void onAjouterTranche(e, c.id)} className="ecran-seul flex flex-wrap items-end gap-1.5 mt-1.5">
                         <input name="numero" type="number" min="1" required placeholder="N°" className="border border-border-dark bg-surface px-1.5 py-0.5 text-[12px] w-[60px]" />
                         <input name="libelle" required placeholder="Libellé de la tranche" className="border border-border-dark bg-surface px-1.5 py-0.5 text-[12px] w-[220px]" />
@@ -408,7 +407,7 @@ export function ConventionsFinancementPage() {
                         <span className="w-[170px] text-text-dim">
                           {r.dateTransmission ? `transmis le ${jour(r.dateTransmission)}` : 'non transmis'}
                         </span>
-                        {peutTenir && !r.dateTransmission && (
+                        {peutEcrire && !r.dateTransmission && (
                           <button type="button" onClick={() => void onTransmettre(c.id, r.id)} className="ecran-seul border border-border px-1">
                             Transmis
                           </button>
@@ -416,7 +415,7 @@ export function ConventionsFinancementPage() {
                       </div>
                     ))}
                     {c.rapports.length === 0 && <div className="text-[11px] text-text-dim">Aucun rapport enregistré.</div>}
-                    {peutTenir && (
+                    {peutEcrire && (
                       <form onSubmit={(e) => void onAjouterRapport(e, c.id)} className="ecran-seul flex flex-wrap items-end gap-1.5 mt-1.5">
                         <input name="intitule" required placeholder="Intitulé du rapport" className="border border-border-dark bg-surface px-1.5 py-0.5 text-[12px] w-[240px]" />
                         <select name="nature" className="border border-border-dark bg-surface px-1.5 py-0.5 text-[12px] w-[110px]">

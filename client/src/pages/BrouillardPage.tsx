@@ -35,7 +35,7 @@ function montant(n: number): string {
 }
 
 export function BrouillardPage() {
-  const { estAdmin, utilisateur } = useAuth();
+  const { utilisateur, peutEcrire } = useAuth();
   const { exerciceCourant } = useExercice();
   const [etat, setEtat] = useState<EtatBrouillard | null>(null);
   const [journaux, setJournaux] = useState<Journal[]>([]);
@@ -46,8 +46,6 @@ export function BrouillardPage() {
   const [erreur, setErreur] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
-
-  const peutValider = estAdmin || utilisateur?.role === 'COMPTABLE';
 
   const charger = async () => {
     if (!exerciceCourant) return;
@@ -194,7 +192,7 @@ export function BrouillardPage() {
               ))}
             </select>
           </label>
-          {peutValider && (
+          {peutEcrire && (
             <>
               <label className="flex flex-col gap-1">
                 <span className="text-[11px] font-bold text-text-dim">VALIDER JUSQU'AU</span>
@@ -261,7 +259,7 @@ export function BrouillardPage() {
           className={`${grille} px-3 py-1.5 bg-chrome-alt border-b border-border text-[11px] font-bold text-text-dim`}
         >
           <span>
-            {peutValider && (
+            {peutEcrire && (
               <input
                 type="checkbox"
                 checked={selection.size > 0 && selection.size === selectionnables.length}
@@ -290,7 +288,7 @@ export function BrouillardPage() {
               }`}
             >
               <span>
-                {peutValider && l.equilibree && (
+                {peutEcrire && l.equilibree && (
                   <input type="checkbox" checked={selection.has(l.id)} onChange={() => basculer(l.id)} />
                 )}
               </span>
@@ -322,7 +320,7 @@ export function BrouillardPage() {
                 {l.ancienneteJours} j
               </span>
               <span className="text-right">
-                {peutValider && (
+                {peutEcrire && (
                   <button
                     onClick={() => supprimer(l.id)}
                     title="Supprimer du brouillard"

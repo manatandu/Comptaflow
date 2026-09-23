@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
+import { useAuth } from '../lib/auth';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
 import type { CampagneCircularisation, EchantillonCircularisation, Exercice } from '../lib/types';
 
@@ -45,6 +46,9 @@ const montant = (v: unknown) => Number(v ?? 0).toLocaleString('fr-FR', { minimum
 const jour = (d: string | null | undefined) => (d ? new Date(d).toLocaleDateString('fr-FR') : '·');
 
 export function CircularisationPage() {
+  // Toutes les écritures de la campagne sont réservées à ADMIN_CABINET et
+  // COMPTABLE côté serveur · la lecture seule consulte taux et réponses.
+  const { peutEcrire } = useAuth();
   const [campagnes, setCampagnes] = useState<CampagneCircularisation[] | null>(null);
   const [exercices, setExercices] = useState<Exercice[]>([]);
   const [selectionId, setSelectionId] = useState<string | null>(null);
@@ -112,13 +116,15 @@ export function CircularisationPage() {
         <div className="text-[11px] font-mono text-text-dim leading-none">INVENTAIRE DOCUMENTAIRE</div>
         <div className="flex items-center justify-between gap-3">
           <h1 className="text-[13px] font-bold leading-tight">Circularisation</h1>
-          <button
-            type="button"
-            onClick={() => setCreation(true)}
-            className="bg-sel text-white rounded-[6px] px-3 py-[3px] text-[12px] font-semibold hover:opacity-90"
-          >
-            Nouvelle campagne
-          </button>
+          {peutEcrire && (
+            <button
+              type="button"
+              onClick={() => setCreation(true)}
+              className="bg-sel text-white rounded-[6px] px-3 py-[3px] text-[12px] font-semibold hover:opacity-90"
+            >
+              Nouvelle campagne
+            </button>
+          )}
         </div>
         <div className="text-[11px] text-text-dim mt-0.5">
           Confirmation de soldes auprès des tiers · méthode de l’ISA 505. Le logiciel n’envoie aucune lettre : la norme
@@ -132,7 +138,7 @@ export function CircularisationPage() {
         </div>
       )}
 
-      {creation && (
+      {peutEcrire && creation && (
         <div className="border border-border bg-surface px-3.5 py-2.5 mb-2.5 max-w-[1240px]">
           <div className="text-[12px] font-semibold mb-1.5">Ouvrir une campagne</div>
           <div className="flex flex-wrap gap-2 items-end">
@@ -251,7 +257,7 @@ export function CircularisationPage() {
                     </div>
                   </div>
                   <div className="flex gap-1.5">
-                    {detail.statut !== 'CLOTUREE' && (
+                    {peutEcrire && detail.statut !== 'CLOTUREE' && (
                       <>
                         <button
                           type="button"
@@ -420,7 +426,7 @@ export function CircularisationPage() {
                           <td className="px-2.5 py-1 text-right">
                             {c.dejaRetenu ? (
                               <span className="text-[10.5px] text-text-dim">retenu</span>
-                            ) : (
+                            ) : peutEcrire ? (
                               <button
                                 type="button"
                                 onClick={() =>
@@ -435,7 +441,7 @@ export function CircularisationPage() {
                               >
                                 Retenir
                               </button>
-                            )}
+                            ) : null}
                           </td>
                         </tr>
                       ))}

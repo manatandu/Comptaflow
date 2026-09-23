@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
 import { useExercice } from '../lib/exercice';
+import { useAuth } from '../lib/auth';
 import type { Journal } from '../lib/types';
 
 /**
@@ -122,6 +123,11 @@ const LIBELLE_METHODE: Record<Methode, string> = {
 
 export function MagasinPage() {
   const { exerciceCourant } = useExercice();
+  // La confrontation au comptage reste offerte à la lecture seule : le serveur
+  // la lui ouvre (elle calcule, n'écrit rien), et c'est précisément ce qu'un
+  // auditeur vient vérifier. Seules la création d'article, la saisie de
+  // mouvement et la régularisation lui sont retirées.
+  const { peutEcrire } = useAuth();
   const [liste, setListe] = useState<ListeArticles | null>(null);
   const [comptes, setComptes] = useState<CompteStock[]>([]);
   const [journaux, setJournaux] = useState<Journal[]>([]);
@@ -366,78 +372,80 @@ export function MagasinPage() {
 
       {onglet === 'fiche' && (
         <div className="max-w-[1240px]">
-          <div className="ecran-seul border border-border bg-surface-2 px-3 py-2.5 mb-2.5">
-            <div className="text-[12px] font-semibold mb-1.5">Nouvel article</div>
-            <div className="grid grid-cols-5 gap-2">
-              <select
-                className={champ}
-                value={nouveau.compteId}
-                onChange={(e) => setNouveau({ ...nouveau, compteId: e.target.value })}
-              >
-                <option value="">Compte de stock…</option>
-                {comptes.map((k) => (
-                  <option key={k.id} value={k.id}>
-                    {k.numero} {k.intitule}
-                  </option>
-                ))}
-              </select>
-              <input
-                className={champ}
-                placeholder="Code"
-                value={nouveau.code}
-                onChange={(e) => setNouveau({ ...nouveau, code: e.target.value })}
-              />
-              <input
-                className={champ}
-                placeholder="Désignation"
-                value={nouveau.designation}
-                onChange={(e) => setNouveau({ ...nouveau, designation: e.target.value })}
-              />
-              <input
-                className={champ}
-                placeholder="Unité (sac, litre…)"
-                value={nouveau.uniteMesure}
-                onChange={(e) => setNouveau({ ...nouveau, uniteMesure: e.target.value })}
-              />
-              <select
-                className={champ}
-                value={nouveau.methodeValorisation}
-                onChange={(e) =>
-                  setNouveau({ ...nouveau, methodeValorisation: e.target.value as Methode })
-                }
-              >
-                {/* AUCUNE VALEUR PAR DÉFAUT · le glossaire exige que « celle
-                    qui est retenue » soit mentionnée en Notes annexes, et une
-                    méthode posée d'office ferait publier une mention que
-                    personne n'a décidée. */}
-                <option value="">Méthode de valorisation…</option>
-                <option value="PEPS">P.E.P.S.</option>
-                <option value="CMPACE">C.M.P.A.C.E.</option>
-                <option value="CMP_PERIODE_STOCKAGE">C.M.P. de période de stockage</option>
-              </select>
+          {peutEcrire && (
+            <div className="ecran-seul border border-border bg-surface-2 px-3 py-2.5 mb-2.5">
+              <div className="text-[12px] font-semibold mb-1.5">Nouvel article</div>
+              <div className="grid grid-cols-5 gap-2">
+                <select
+                  className={champ}
+                  value={nouveau.compteId}
+                  onChange={(e) => setNouveau({ ...nouveau, compteId: e.target.value })}
+                >
+                  <option value="">Compte de stock…</option>
+                  {comptes.map((k) => (
+                    <option key={k.id} value={k.id}>
+                      {k.numero} {k.intitule}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  className={champ}
+                  placeholder="Code"
+                  value={nouveau.code}
+                  onChange={(e) => setNouveau({ ...nouveau, code: e.target.value })}
+                />
+                <input
+                  className={champ}
+                  placeholder="Désignation"
+                  value={nouveau.designation}
+                  onChange={(e) => setNouveau({ ...nouveau, designation: e.target.value })}
+                />
+                <input
+                  className={champ}
+                  placeholder="Unité (sac, litre…)"
+                  value={nouveau.uniteMesure}
+                  onChange={(e) => setNouveau({ ...nouveau, uniteMesure: e.target.value })}
+                />
+                <select
+                  className={champ}
+                  value={nouveau.methodeValorisation}
+                  onChange={(e) =>
+                    setNouveau({ ...nouveau, methodeValorisation: e.target.value as Methode })
+                  }
+                >
+                  {/* AUCUNE VALEUR PAR DÉFAUT · le glossaire exige que « celle
+                      qui est retenue » soit mentionnée en Notes annexes, et une
+                      méthode posée d'office ferait publier une mention que
+                      personne n'a décidée. */}
+                  <option value="">Méthode de valorisation…</option>
+                  <option value="PEPS">P.E.P.S.</option>
+                  <option value="CMPACE">C.M.P.A.C.E.</option>
+                  <option value="CMP_PERIODE_STOCKAGE">C.M.P. de période de stockage</option>
+                </select>
+              </div>
+              <div className="mt-1.5 flex items-center gap-3">
+                <button
+                  type="button"
+                  disabled={
+                    enCours ||
+                    !nouveau.compteId ||
+                    !nouveau.code.trim() ||
+                    !nouveau.designation.trim() ||
+                    !nouveau.uniteMesure.trim() ||
+                    !nouveau.methodeValorisation
+                  }
+                  onClick={creerArticle}
+                  className="px-3 py-1 text-[12px] border border-accent bg-accent/10 disabled:opacity-40"
+                >
+                  Créer l'article
+                </button>
+                <span className="text-[10.5px] text-text-dim">
+                  Trois méthodes seulement sont admises (AUDCIF Titre VI). Le coût moyen pondéré ANNUEL
+                  et le D.E.P.S. n'en font pas partie.
+                </span>
+              </div>
             </div>
-            <div className="mt-1.5 flex items-center gap-3">
-              <button
-                type="button"
-                disabled={
-                  enCours ||
-                  !nouveau.compteId ||
-                  !nouveau.code.trim() ||
-                  !nouveau.designation.trim() ||
-                  !nouveau.uniteMesure.trim() ||
-                  !nouveau.methodeValorisation
-                }
-                onClick={creerArticle}
-                className="px-3 py-1 text-[12px] border border-accent bg-accent/10 disabled:opacity-40"
-              >
-                Créer l'article
-              </button>
-              <span className="text-[10.5px] text-text-dim">
-                Trois méthodes seulement sont admises (AUDCIF Titre VI). Le coût moyen pondéré ANNUEL
-                et le D.E.P.S. n'en font pas partie.
-              </span>
-            </div>
-          </div>
+          )}
 
           <table className="w-full border-collapse text-[12px] mb-2.5">
             <thead>
@@ -596,71 +604,73 @@ export function MagasinPage() {
                 {mt(fiche.totaux.valeurFinale)}.
               </div>
 
-              <div className="ecran-seul border border-border bg-surface-2 px-3 py-2.5 mb-2.5">
-                <div className="text-[12px] font-semibold mb-1.5">Nouveau mouvement</div>
-                <div className="grid grid-cols-6 gap-2">
-                  <input
-                    type="date"
-                    className={champ}
-                    value={mvt.date}
-                    onChange={(e) => setMvt({ ...mvt, date: e.target.value })}
-                  />
-                  <select
-                    className={champ}
-                    value={mvt.sens}
-                    onChange={(e) => setMvt({ ...mvt, sens: e.target.value as 'ENTREE' | 'SORTIE' })}
-                  >
-                    <option value="ENTREE">Entrée</option>
-                    <option value="SORTIE">Sortie</option>
-                  </select>
-                  <input
-                    className={champ}
-                    placeholder="Quantité"
-                    value={mvt.quantite}
-                    onChange={(e) => setMvt({ ...mvt, quantite: e.target.value })}
-                  />
-                  <input
-                    className={champ}
-                    placeholder={mvt.sens === 'ENTREE' ? "Coût total d'entrée" : 'calculé'}
-                    disabled={mvt.sens === 'SORTIE'}
-                    value={mvt.sens === 'SORTIE' ? '' : mvt.cout}
-                    onChange={(e) => setMvt({ ...mvt, cout: e.target.value })}
-                  />
-                  <input
-                    className={champ}
-                    placeholder="Pièce (bon, facture)"
-                    value={mvt.piece}
-                    onChange={(e) => setMvt({ ...mvt, piece: e.target.value })}
-                  />
-                  <input
-                    className={champ}
-                    placeholder="Libellé"
-                    value={mvt.libelle}
-                    onChange={(e) => setMvt({ ...mvt, libelle: e.target.value })}
-                  />
+              {peutEcrire && (
+                <div className="ecran-seul border border-border bg-surface-2 px-3 py-2.5 mb-2.5">
+                  <div className="text-[12px] font-semibold mb-1.5">Nouveau mouvement</div>
+                  <div className="grid grid-cols-6 gap-2">
+                    <input
+                      type="date"
+                      className={champ}
+                      value={mvt.date}
+                      onChange={(e) => setMvt({ ...mvt, date: e.target.value })}
+                    />
+                    <select
+                      className={champ}
+                      value={mvt.sens}
+                      onChange={(e) => setMvt({ ...mvt, sens: e.target.value as 'ENTREE' | 'SORTIE' })}
+                    >
+                      <option value="ENTREE">Entrée</option>
+                      <option value="SORTIE">Sortie</option>
+                    </select>
+                    <input
+                      className={champ}
+                      placeholder="Quantité"
+                      value={mvt.quantite}
+                      onChange={(e) => setMvt({ ...mvt, quantite: e.target.value })}
+                    />
+                    <input
+                      className={champ}
+                      placeholder={mvt.sens === 'ENTREE' ? "Coût total d'entrée" : 'calculé'}
+                      disabled={mvt.sens === 'SORTIE'}
+                      value={mvt.sens === 'SORTIE' ? '' : mvt.cout}
+                      onChange={(e) => setMvt({ ...mvt, cout: e.target.value })}
+                    />
+                    <input
+                      className={champ}
+                      placeholder="Pièce (bon, facture)"
+                      value={mvt.piece}
+                      onChange={(e) => setMvt({ ...mvt, piece: e.target.value })}
+                    />
+                    <input
+                      className={champ}
+                      placeholder="Libellé"
+                      value={mvt.libelle}
+                      onChange={(e) => setMvt({ ...mvt, libelle: e.target.value })}
+                    />
+                  </div>
+                  <div className="mt-1.5 flex items-center gap-3">
+                    <button
+                      type="button"
+                      disabled={
+                        enCours ||
+                        !mvt.date ||
+                        !mvt.quantite ||
+                        !mvt.piece.trim() ||
+                        (mvt.sens === 'ENTREE' && !mvt.cout)
+                      }
+                      onClick={ajouterMouvement}
+                      className="px-3 py-1 text-[12px] border border-accent bg-accent/10 disabled:opacity-40"
+                    >
+                      Enregistrer le mouvement
+                    </button>
+                    <span className="text-[10.5px] text-text-dim">
+                      Une SORTIE ne porte jamais son prix · il se calcule. « L'axiomatique comptable
+                      impose une égalité systématique, dans tout compte, des sorties et des entrées en
+                      valeurs » (AUDCIF Titre VI).
+                    </span>
+                  </div>
                 </div>
-                <div className="mt-1.5 flex items-center gap-3">
-                  <button
-                    type="button"
-                    disabled={
-                      enCours ||
-                      !mvt.date ||
-                      !mvt.quantite ||
-                      !mvt.piece.trim() ||
-                      (mvt.sens === 'ENTREE' && !mvt.cout)
-                    }
-                    onClick={ajouterMouvement}
-                    className="px-3 py-1 text-[12px] border border-accent bg-accent/10 disabled:opacity-40"
-                  >
-                    Enregistrer le mouvement
-                  </button>
-                  <span className="text-[10.5px] text-text-dim">
-                    Une SORTIE ne porte jamais son prix · il se calcule. « L'axiomatique comptable
-                    impose une égalité systématique, dans tout compte, des sorties et des entrées en
-                    valeurs » (AUDCIF Titre VI).
-                  </span>
-                </div>
-              </div>
+              )}
             </>
           )}
         </div>
@@ -809,42 +819,44 @@ export function MagasinPage() {
                 débite le stock, un mali le crédite.
               </div>
 
-              <div className="ecran-seul border border-border bg-surface-2 px-3 py-2.5">
-                <div className="grid grid-cols-4 gap-2">
-                  <select
-                    className={champ}
-                    value={regul.journalId}
-                    onChange={(e) => setRegul({ ...regul, journalId: e.target.value })}
-                  >
-                    <option value="">Journal…</option>
-                    {journaux.map((j) => (
-                      <option key={j.id} value={j.id}>
-                        {j.code} {j.intitule}
-                      </option>
-                    ))}
-                  </select>
-                  <input
-                    type="date"
-                    className={champ}
-                    value={regul.date}
-                    onChange={(e) => setRegul({ ...regul, date: e.target.value })}
-                  />
-                  <input
-                    className={champ}
-                    placeholder="Référence (PV d'inventaire)"
-                    value={regul.reference}
-                    onChange={(e) => setRegul({ ...regul, reference: e.target.value })}
-                  />
-                  <button
-                    type="button"
-                    disabled={enCours || !regul.journalId || !regul.date}
-                    onClick={enregistrerRegularisation}
-                    className="px-3 py-1 text-[12px] border border-accent bg-accent/10 disabled:opacity-40"
-                  >
-                    Passer la régularisation
-                  </button>
+              {peutEcrire && (
+                <div className="ecran-seul border border-border bg-surface-2 px-3 py-2.5">
+                  <div className="grid grid-cols-4 gap-2">
+                    <select
+                      className={champ}
+                      value={regul.journalId}
+                      onChange={(e) => setRegul({ ...regul, journalId: e.target.value })}
+                    >
+                      <option value="">Journal…</option>
+                      {journaux.map((j) => (
+                        <option key={j.id} value={j.id}>
+                          {j.code} {j.intitule}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      type="date"
+                      className={champ}
+                      value={regul.date}
+                      onChange={(e) => setRegul({ ...regul, date: e.target.value })}
+                    />
+                    <input
+                      className={champ}
+                      placeholder="Référence (PV d'inventaire)"
+                      value={regul.reference}
+                      onChange={(e) => setRegul({ ...regul, reference: e.target.value })}
+                    />
+                    <button
+                      type="button"
+                      disabled={enCours || !regul.journalId || !regul.date}
+                      onClick={enregistrerRegularisation}
+                      className="px-3 py-1 text-[12px] border border-accent bg-accent/10 disabled:opacity-40"
+                    >
+                      Passer la régularisation
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
             </>
           )}
 

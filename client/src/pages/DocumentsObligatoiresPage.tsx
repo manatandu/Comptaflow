@@ -28,8 +28,7 @@ import type {
  */
 export function DocumentsObligatoiresPage() {
   const { exerciceCourant } = useExercice();
-  const { utilisateur } = useAuth();
-  const peutEtablir = utilisateur?.role === 'ADMIN_CABINET' || utilisateur?.role === 'COMPTABLE';
+  const { peutEcrire } = useAuth();
 
   const [onglet, setOnglet] = useState<'inventaire' | 'rapport' | 'manuel'>('inventaire');
 
@@ -229,7 +228,7 @@ export function DocumentsObligatoiresPage() {
       <textarea
         value={form[cle] as string}
         onChange={(e) => setForm((f) => ({ ...f, [cle]: e.target.value }))}
-        disabled={!peutEtablir}
+        disabled={!peutEcrire}
         rows={3}
         className="w-full border border-border-dark px-2 py-1 text-[12px] disabled:bg-surface-alt"
       />
@@ -293,7 +292,7 @@ export function DocumentsObligatoiresPage() {
       {onglet === 'inventaire' && confInv && (
         <div>
           <div className="flex items-center gap-2 mb-2.5">
-            {peutEtablir && (
+            {peutEcrire && (
               <button
                 onClick={transcrire}
                 disabled={enCours}
@@ -354,11 +353,11 @@ export function DocumentsObligatoiresPage() {
             <textarea
               value={resume}
               onChange={(e) => setResume(e.target.value)}
-              disabled={!peutEtablir || !confInv.transcrit}
+              disabled={!peutEcrire || !confInv.transcrit}
               rows={4}
               className="w-full border border-border-dark px-2 py-1 text-[12px] disabled:bg-surface-alt"
             />
-            {peutEtablir && confInv.transcrit && (
+            {peutEcrire && confInv.transcrit && (
               <button
                 onClick={enregistrerResume}
                 disabled={!resume.trim()}
@@ -387,11 +386,11 @@ export function DocumentsObligatoiresPage() {
                 type="date"
                 value={form.etabliLe}
                 onChange={(e) => setForm((f) => ({ ...f, etabliLe: e.target.value }))}
-                disabled={!peutEtablir}
+                disabled={!peutEcrire}
                 className="border border-border-dark px-2 py-1 text-[12px]"
               />
             </label>
-            {peutEtablir && (
+            {peutEcrire && (
               <button
                 onClick={etablirRapport}
                 disabled={enCours || !form.etabliLe}
@@ -472,7 +471,7 @@ export function DocumentsObligatoiresPage() {
                 type="checkbox"
                 checked={form.entiteAvecAuditeur}
                 onChange={(e) => setForm((f) => ({ ...f, entiteAvecAuditeur: e.target.checked }))}
-                disabled={!peutEtablir}
+                disabled={!peutEcrire}
               />
               L’entité a un auditeur · il produit alors son propre rapport et la déclaration n’est pas attendue.
             </label>
@@ -481,7 +480,7 @@ export function DocumentsObligatoiresPage() {
                 <textarea
                   value={form.declarationDirigeants}
                   onChange={(e) => setForm((f) => ({ ...f, declarationDirigeants: e.target.value }))}
-                  disabled={!peutEtablir}
+                  disabled={!peutEcrire}
                   rows={3}
                   className="w-full border border-border-dark px-2 py-1 text-[12px] disabled:bg-surface-alt"
                 />
@@ -540,7 +539,7 @@ export function DocumentsObligatoiresPage() {
             )}
           </div>
 
-          {peutEtablir && (
+          {peutEcrire && (
             <div className="flex items-end gap-2 mb-3">
               <label className="text-[12px] font-semibold text-text-dim">
                 Applicable à partir du
@@ -569,7 +568,7 @@ export function DocumentsObligatoiresPage() {
                 </div>
                 <textarea
                   rows={4}
-                  disabled={!peutEtablir}
+                  disabled={!peutEcrire}
                   value={sec.texte}
                   onChange={(e) =>
                     setSectionsManuel((prev) =>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
+import { useAuth } from '../lib/auth';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
 import type {
   DossierExoneration,
@@ -42,6 +43,7 @@ const COULEUR_STATUT: Record<StatutExoneration, string> = {
 };
 
 export function ExonerationsPage() {
+  const { peutEcrire } = useAuth();
   const [registre, setRegistre] = useState<RegistreExonerations | null>(null);
   const [referentiel, setReferentiel] = useState<ReferentielExonerations | null>(null);
   const [selectionId, setSelectionId] = useState<string | null>(null);
@@ -104,13 +106,15 @@ export function ExonerationsPage() {
         <div className="text-[11px] font-mono text-text-dim leading-none">REGISTRE</div>
         <div className="flex items-center justify-between gap-3">
           <h1 className="text-[13px] font-bold leading-tight">Exonérations douanières et fiscales</h1>
-          <button
-            type="button"
-            onClick={() => setCreation('PONCTUEL')}
-            className="bg-sel text-white rounded-[6px] px-3 py-[3px] text-[12px] font-semibold hover:opacity-90"
-          >
-            Nouvelle demande
-          </button>
+          {peutEcrire && (
+            <button
+              type="button"
+              onClick={() => setCreation('PONCTUEL')}
+              className="bg-sel text-white rounded-[6px] px-3 py-[3px] text-[12px] font-semibold hover:opacity-90"
+            >
+              Nouvelle demande
+            </button>
+          )}
         </div>
         <div className="text-[11px] text-text-dim mt-0.5">
           Les facilités de l’article 39 de la loi n° 004/2001, constatées par arrêté interministériel des Ministres du
@@ -226,8 +230,11 @@ export function ExonerationsPage() {
 
               <label className="block">
                 Statut
+                {/* Statut et pièces s'enregistrent au changement · la lecture
+                    seule les voit, sans pouvoir les modifier. */}
                 <select
                   value={selection.statut}
+                  disabled={!peutEcrire}
                   onChange={(e) => changerStatut(selection, e.target.value as StatutExoneration)}
                   className="mt-1 block w-full border border-border-dark bg-bg px-2 py-1 text-[12px]"
                 >
@@ -260,6 +267,7 @@ export function ExonerationsPage() {
                       type="checkbox"
                       className="mt-[3px]"
                       checked={p.fournie}
+                      disabled={!peutEcrire}
                       onChange={() => basculerPiece(selection, p.cle)}
                     />
                     <span className={p.fournie ? 'text-text-dim line-through' : ''}>

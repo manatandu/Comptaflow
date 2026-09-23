@@ -1,5 +1,6 @@
 import { FormEvent, useState } from 'react';
 import { api, ApiError } from '../lib/api';
+import { useAuth } from '../lib/auth';
 import { useExercice } from '../lib/exercice';
 import { IconCheck } from '../components/chrome/icons';
 import type { DeclarationTva, ProrataDefinitifTva } from '../lib/types';
@@ -10,6 +11,7 @@ function premierJourDuMois(): string {
 }
 
 export function DeclarationTvaPage() {
+  const { peutEcrire } = useAuth();
   const { exerciceCourant } = useExercice();
   const [dateDebut, setDateDebut] = useState(premierJourDuMois());
   const [dateFin, setDateFin] = useState(new Date().toISOString().slice(0, 10));
@@ -343,13 +345,17 @@ export function DeclarationTvaPage() {
                 « {declaration.liquidation.libelleEcriture} ». La comptabiliser une seconde fois porterait le
                 double de la dette sur le compte 444, sans que rien ne le signale.
               </p>
-              <button
-                onClick={annulerLiquidation}
-                disabled={comptabilisation}
-                className="mt-2 border border-border-dark bg-surface px-3 py-1 text-[12px] font-semibold disabled:opacity-50"
-              >
-                {comptabilisation ? 'Annulation…' : 'Annuler cette liquidation'}
-              </button>
+              {/* Liquider et annuler sont réservés à ADMIN_CABINET et COMPTABLE
+                  côté serveur · la lecture seule garde le calcul et l'avertissement. */}
+              {peutEcrire && (
+                <button
+                  onClick={annulerLiquidation}
+                  disabled={comptabilisation}
+                  className="mt-2 border border-border-dark bg-surface px-3 py-1 text-[12px] font-semibold disabled:opacity-50"
+                >
+                  {comptabilisation ? 'Annulation…' : 'Annuler cette liquidation'}
+                </button>
+              )}
             </div>
           ) : (
             /*
@@ -365,6 +371,7 @@ export function DeclarationTvaPage() {
 
               D'où la valeur absolue sur la déduction, et le troisième terme.
             */
+            peutEcrire &&
             (declaration.totalCollecte > 0 ||
               Math.abs(declaration.totalDeductibleAdmise) > 0 ||
               declaration.recuperationArt52 > 0) && (

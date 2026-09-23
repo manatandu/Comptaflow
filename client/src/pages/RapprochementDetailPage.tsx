@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../lib/api';
+import { useAuth } from '../lib/auth';
 import type { DetailRapprochement } from '../lib/types';
 
 /**
@@ -15,6 +16,7 @@ export function RapprochementDetailPage({ id: idProp }: { id?: string } = {}) {
   const params = useParams<{ id: string }>();
   const id = idProp ?? params.id;
   const navigate = useNavigate();
+  const { peutEcrire } = useAuth();
   const [detail, setDetail] = useState<DetailRapprochement | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -146,9 +148,10 @@ export function RapprochementDetailPage({ id: idProp }: { id?: string } = {}) {
                   l.pointee ? 'bg-positive-soft' : i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'
                 }`}
               >
+                {/* La case reste affichée à la lecture seule : cochée, elle DIT qu'une ligne est pointée. */}
                 <input
                   type="checkbox"
-                  disabled={!enCours}
+                  disabled={!enCours || !peutEcrire}
                   checked={l.pointee}
                   onChange={() => basculerPointage(l.id, l.pointee)}
                 />
@@ -164,7 +167,7 @@ export function RapprochementDetailPage({ id: idProp }: { id?: string } = {}) {
             )}
           </div>
 
-          {enCours && (
+          {peutEcrire && enCours && (
             <div className="mt-3 flex items-center gap-2 max-w-[900px]">
               <button
                 onClick={cloturer}

@@ -1,5 +1,5 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { TypeContratTravail } from '@prisma/client';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma, StatutBulletinPaie, TypeContratTravail } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import {
   ContratTravailDto,
@@ -14,6 +14,18 @@ import { baremeApplicableAuMois, retenueMensuelle } from './bareme-irpp';
 import { cotisations, netAPayer, type NatureEmployeurInpp } from './cotisations-paie';
 import { passationPaie, type Referentiel } from './passation-paie';
 import { quotiteSaisissable } from './quotite-saisissable';
+import {
+  LIMITE_UN_BULLETIN_PAR_MOIS,
+  RESERVE_MODELE,
+  TEXTE_ARTICLE_103,
+  TEXTE_INALTERABILITE,
+  TEXTE_NUMEROTATION,
+  contratCouvrantLeMois,
+  moisValide,
+  motifRefusRemise,
+  motifsRefusEmission,
+  nomCompletMajuscules,
+} from './bulletin-paie';
 import {
   REPONSE_COTISATION_SYNDICALE,
   RESERVE_CESSION_SYNDICALE,
@@ -645,6 +657,7 @@ export class PersonnelService {
         "OmegaX rend ici les deux assiettes, les cotisations des deux côtés, la retenue de l'article 119, " +
         "le net, la quotité saisissable de l'article 114 et une PROPOSITION d'écriture · il ne conserve " +
         "rien, ne poste rien et ne remet aucun décompte écrit au sens de l'article 103. " +
+        "Le décompte écrit s'obtient en ÉMETTANT le bulletin, qui fige ce calcul et lui donne un numéro. " +
         "La retenue rendue est un ACOMPTE sur l'impôt annuel de l'article 116, jamais un solde.",
     };
   }
@@ -790,6 +803,244 @@ export class PersonnelService {
           : null,
     };
   }
+
+  // ──────────────────────────────────────────────────────────────────────
+  // P8 · LE BULLETIN DE PAIE ÉMIS. Règles et textes dans `bulletin-paie.ts`.
+  // ──────────────────────────────────────────────────────────────────────
+
+  /**
+   * ÉMETTRE, c'est rejouer la simulation CÔTÉ SERVEUR et figer ce qu'elle
+   * rend. Le client n'envoie que ce qui a été saisi, jamais un montant
+   * calculé · un bulletin qui recopierait un net venu de l'écran porterait le
+   * chiffre que le navigateur a bien voulu envoyer.
+   */
+  async emettreBulletin(tenantId: string, userId: string, salarieId: string, dto: SimulationPaieDto) {
+    if (!moisValide(dto.moisDePaie)) {
+      throw new BadRequestException('Mois de paie illisible · la forme attendue est AAAA-MM.');
+    }
+    const salarie = await this.prisma.salarie.findFirst({
+      where: { id: salarieId, tenantId },
+      select: {
+        id: true,
+        nom: true,
+        postNom: true,
+        prenoms: true,
+        matricule: true,
+        numeroAffiliationCnss: true,
+        contrats: {
+          select: {
+            id: true,
+            dateEntreeEnVigueur: true,
+            dateFin: true,
+            natureTravail: true,
+            categorieProfessionnelle: true,
+          },
+        },
+      },
+    });
+    if (!salarie) throw new NotFoundException('Salarié introuvable dans ce dossier.');
+
+    const contrat = contratCouvrantLeMois(salarie.contrats, dto.moisDePaie);
+    if (!contrat) {
+      throw new BadRequestException(
+        `Aucun contrat de ce salarié n'est en cours en ${dto.moisDePaie} · la paie exécute un contrat, et le bulletin doit dire lequel.`,
+      );
+    }
+
+    const simulation = await this.simulerPaie(tenantId, salarieId, dto);
+    const motifs = motifsRefusEmission(simulation);
+    if (motifs.length > 0) {
+      throw new BadRequestException({
+        message: `Bulletin non émis · ${motifs.length} montant(s) non calculé(s). ${TEXTE_ARTICLE_103}`,
+        motifs,
+      });
+    }
+
+    const creer = () =>
+      this.prisma.$transaction(async (tx) => {
+        const actif = await tx.bulletinPaie.findFirst({
+          where: { tenantId, salarieId, moisDePaie: dto.moisDePaie, statut: StatutBulletinPaie.EMIS },
+          select: { numero: true },
+        });
+        if (actif) {
+          throw new BadRequestException(
+            `Le bulletin n° ${actif.numero} est déjà émis pour ce salarié en ${dto.moisDePaie}. Annulez-le d'abord s'il est faux. ${LIMITE_UN_BULLETIN_PAR_MOIS}`,
+          );
+        }
+        const dernier = await tx.bulletinPaie.aggregate({ where: { tenantId }, _max: { numero: true } });
+        return tx.bulletinPaie.create({
+          data: {
+            tenantId,
+            salarieId,
+            contratId: contrat.id,
+            numero: (dernier._max.numero ?? 0) + 1,
+            moisDePaie: dto.moisDePaie,
+            nomComplet: nomCompletMajuscules(salarie),
+            matricule: salarie.matricule,
+            emploi: contrat.natureTravail,
+            categorieProfessionnelle: contrat.categorieProfessionnelle,
+            numeroAffiliationCnss: salarie.numeroAffiliationCnss,
+            totalVerseFc: simulation.net.totalVerseFc,
+            assietteSocialeFc: simulation.assiettes.assietteSocialeFc ?? 0,
+            cotisationsTravailleurFc: simulation.cotisations.totalTravailleurFc,
+            cotisationsEmployeurFc: simulation.cotisations.totalEmployeurFc,
+            irppFc: simulation.retenue?.retenueFc ?? 0,
+            netAPayerFc: simulation.net.netAPayerFc ?? 0,
+            entree: JSON.parse(JSON.stringify(dto)) as Prisma.InputJsonValue,
+            calcul: JSON.parse(JSON.stringify(simulation)) as Prisma.InputJsonValue,
+            emisPar: userId,
+          },
+        });
+      });
+
+    // DEUX ÉMISSIONS SIMULTANÉES prennent le même « dernier numéro ». L'index
+    // unique (tenantId, numero) refuse la seconde · on la rejoue une fois, sur
+    // le numéro suivant, plutôt que de laisser l'utilisateur recommencer.
+    let cree;
+    try {
+      cree = await creer();
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+        try {
+          cree = await creer();
+        } catch (e2) {
+          if (e2 instanceof Prisma.PrismaClientKnownRequestError && e2.code === 'P2002') {
+            throw new ConflictException('Deux bulletins ont été émis au même instant · réessayez.');
+          }
+          throw e2;
+        }
+      } else {
+        throw e;
+      }
+    }
+    return this.lireBulletin(tenantId, cree.id);
+  }
+
+  /**
+   * Les bulletins d'un mois, ou les derniers émis. BORNÉ · aucune route ne
+   * rend une collection sans borne (§ 8 bis), et la liste le DIT quand elle
+   * est tronquée. Les totaux ne comptent que les bulletins ÉMIS : un bulletin
+   * annulé n'a rien payé.
+   */
+  async listerBulletins(tenantId: string, moisDePaie?: string) {
+    if (moisDePaie !== undefined && !moisValide(moisDePaie)) {
+      throw new BadRequestException('Mois de paie illisible · la forme attendue est AAAA-MM.');
+    }
+    const PLAFOND = 500;
+    // `undefined` n'est pas un filtre pour Prisma · sans mois, tout le dossier.
+    // La borne `tenantId` est écrite DANS chaque appel, où le balayage du
+    // cloisonnement la lit.
+    const [lignes, total, sommes] = await Promise.all([
+      this.prisma.bulletinPaie.findMany({
+        where: { tenantId, moisDePaie },
+        orderBy: { numero: 'desc' },
+        take: PLAFOND,
+        select: {
+          id: true,
+          numero: true,
+          moisDePaie: true,
+          statut: true,
+          nomComplet: true,
+          matricule: true,
+          salarieId: true,
+          totalVerseFc: true,
+          irppFc: true,
+          netAPayerFc: true,
+          emisLe: true,
+          remisLe: true,
+          annuleLe: true,
+        },
+      }),
+      this.prisma.bulletinPaie.count({ where: { tenantId, moisDePaie } }),
+      this.prisma.bulletinPaie.aggregate({
+        where: { tenantId, moisDePaie, statut: StatutBulletinPaie.EMIS },
+        _sum: {
+          totalVerseFc: true,
+          cotisationsTravailleurFc: true,
+          cotisationsEmployeurFc: true,
+          irppFc: true,
+          netAPayerFc: true,
+        },
+        _count: true,
+      }),
+    ]);
+    const n = (d: Prisma.Decimal | null) => (d === null ? 0 : Number(d));
+    return {
+      bulletins: lignes.map((b) => ({
+        ...b,
+        totalVerseFc: Number(b.totalVerseFc),
+        irppFc: Number(b.irppFc),
+        netAPayerFc: Number(b.netAPayerFc),
+      })),
+      total,
+      tronque: total > lignes.length,
+      totauxEmis: {
+        nombre: sommes._count,
+        totalVerseFc: n(sommes._sum.totalVerseFc),
+        cotisationsTravailleurFc: n(sommes._sum.cotisationsTravailleurFc),
+        cotisationsEmployeurFc: n(sommes._sum.cotisationsEmployeurFc),
+        irppFc: n(sommes._sum.irppFc),
+        netAPayerFc: n(sommes._sum.netAPayerFc),
+      },
+      textes: { numerotation: TEXTE_NUMEROTATION, inalterabilite: TEXTE_INALTERABILITE, article103: TEXTE_ARTICLE_103 },
+    };
+  }
+
+  async lireBulletin(tenantId: string, id: string) {
+    const b = await this.prisma.bulletinPaie.findFirst({ where: { id, tenantId } });
+    if (!b) throw new NotFoundException('Bulletin introuvable dans ce dossier.');
+    return {
+      ...b,
+      totalVerseFc: Number(b.totalVerseFc),
+      assietteSocialeFc: Number(b.assietteSocialeFc),
+      cotisationsTravailleurFc: Number(b.cotisationsTravailleurFc),
+      cotisationsEmployeurFc: Number(b.cotisationsEmployeurFc),
+      irppFc: Number(b.irppFc),
+      netAPayerFc: Number(b.netAPayerFc),
+      reserves: [TEXTE_ARTICLE_103, TEXTE_INALTERABILITE, RESERVE_MODELE],
+    };
+  }
+
+  /**
+   * ANNULER, jamais modifier ni supprimer (art. 4 de l'arrêté de 2008). La
+   * ligne reste, avec son numéro, son motif, son auteur et sa date · c'est ce
+   * qui permet de dire, six mois plus tard, pourquoi le travailleur a reçu
+   * deux bulletins pour le même mois.
+   */
+  async annulerBulletin(tenantId: string, userId: string, id: string, motif: string) {
+    const texte = (motif ?? '').trim();
+    if (texte.length < 5) {
+      throw new BadRequestException("Le motif d'annulation est obligatoire · il est la seule trace de la correction.");
+    }
+    const b = await this.prisma.bulletinPaie.findFirst({ where: { id, tenantId }, select: { statut: true } });
+    if (!b) throw new NotFoundException('Bulletin introuvable dans ce dossier.');
+    if (b.statut !== StatutBulletinPaie.EMIS) throw new BadRequestException('Ce bulletin est déjà annulé.');
+    await this.prisma.bulletinPaie.update({
+      where: { id },
+      data: { statut: StatutBulletinPaie.ANNULE, annuleLe: new Date(), annulePar: userId, motifAnnulation: texte },
+    });
+    return this.lireBulletin(tenantId, id);
+  }
+
+  /**
+   * DÉCLARER LA REMISE au travailleur (art. 103). Une fois, jamais corrigée ·
+   * une date de remise qui se déplace après coup est exactement ce qu'un
+   * contentieux sur l'article 103 viendrait chercher.
+   */
+  async declarerRemise(tenantId: string, id: string, remisLe: string) {
+    const b = await this.prisma.bulletinPaie.findFirst({
+      where: { id, tenantId },
+      select: { statut: true, remisLe: true, emisLe: true },
+    });
+    if (!b) throw new NotFoundException('Bulletin introuvable dans ce dossier.');
+    if (b.statut !== StatutBulletinPaie.EMIS) throw new BadRequestException("Un bulletin annulé ne se remet pas.");
+    if (b.remisLe) throw new BadRequestException('La remise de ce bulletin est déjà déclarée · elle ne se corrige pas.');
+    const date = new Date(remisLe);
+    const refus = motifRefusRemise(date, b.emisLe, new Date());
+    if (refus) throw new BadRequestException(refus);
+    await this.prisma.bulletinPaie.update({ where: { id }, data: { remisLe: date } });
+    return this.lireBulletin(tenantId, id);
+  }
 }
 
 export type Confrontation = Awaited<ReturnType<PersonnelService['confronter']>>;
@@ -797,3 +1048,4 @@ export type Effectif = Awaited<ReturnType<PersonnelService['effectif']>>;
 export type SimulationPaie = Awaited<ReturnType<PersonnelService['simulerPaie']>>;
 export type DecompteFinal = ReturnType<PersonnelService['decompteFinal']>;
 export type LivreDePaie = ReturnType<PersonnelService['livreDePaie']>;
+export type BulletinPaieLu = Awaited<ReturnType<PersonnelService['lireBulletin']>>;

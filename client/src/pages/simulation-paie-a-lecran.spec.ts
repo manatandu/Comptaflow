@@ -16,7 +16,9 @@ describe("La simulation ne recalcule rien côté client", () => {
     // Le défaut visé : recopier les tranches de l'article 118 ou le plafond
     // de 30 % pour « éviter un aller-retour ». Deux calculs écrits séparément
     // divergent au premier correctif, et les deux restent plausibles.
-    const corps = SOURCE.slice(SOURCE.indexOf('const simuler ='));
+    // Depuis P8 le corps est construit par `corpsSimulation`, que la simulation
+    // ET l'émission du bulletin appellent · c'est là qu'on le lit.
+    const corps = SOURCE.slice(SOURCE.indexOf('const corpsSimulation ='));
     expect(corps).not.toMatch(/1[_ .]?944[_ .]?000/);
     expect(corps).not.toMatch(/21[_ .]?600[_ .]?000/);
     expect(corps).not.toMatch(/43[_ .]?200[_ .]?000/);
@@ -206,7 +208,9 @@ describe("L'article 114 à l'écran", () => {
   });
 
   it("envoie la classe et les deux cases, et laisse vide ce qui est vide", () => {
-    const corps = SOURCE.slice(SOURCE.indexOf('const simuler ='));
+    // Depuis P8 le corps est construit par `corpsSimulation`, que la simulation
+    // ET l'émission du bulletin appellent · c'est là qu'on le lit.
+    const corps = SOURCE.slice(SOURCE.indexOf('const corpsSimulation ='));
     expect(corps).toContain('classeProfessionnelle: nombre(classePro)');
     expect(corps).toContain('logementFourniEnNature: true');
     expect(corps).toContain('obligationAlimentaireLegale: true');

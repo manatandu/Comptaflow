@@ -37,7 +37,7 @@ const LIBELLE_REGIME: Record<ResultatFiscal['regime'], string> = {
 };
 
 export function FiscalitePage() {
-  const { utilisateur } = useAuth();
+  const { peutEcrire } = useAuth();
   const { exerciceCourant, exercices } = useExercice();
   const [exerciceId, setExerciceId] = useState<string | null>(null);
   const [resultat, setResultat] = useState<ResultatFiscal | null>(null);
@@ -99,7 +99,6 @@ export function FiscalitePage() {
   const [chargeEngagee, setChargeEngagee] = useState('');
   const [commentaire, setCommentaire] = useState('');
 
-  const lectureSeule = utilisateur?.role === 'LECTURE_SEULE';
   const devise = resultat?.devise ?? 'CDF';
 
   useEffect(() => {
@@ -296,7 +295,7 @@ export function FiscalitePage() {
                 <div className="text-[11px] font-mono text-text-dim leading-none">RÉGIME</div>
                 <div className="text-[13px] font-bold">{LIBELLE_REGIME[resultat.regime]}</div>
               </div>
-              {resultat.regime === 'IRPP_PETITE_ENTREPRISE' && !lectureSeule && (
+              {resultat.regime === 'IRPP_PETITE_ENTREPRISE' && peutEcrire && (
                 <label className="text-[12px] flex items-center gap-2">
                   Activité principale
                   <select
@@ -378,14 +377,16 @@ export function FiscalitePage() {
                         {p.montant.toLocaleString('fr-FR')}
                       </td>
                       <td className="py-1 text-right">
-                        <button
-                          type="button"
-                          onClick={() => reprendre(p)}
-                          disabled={envoi}
-                          className="border border-border-dark bg-chrome hover:bg-chrome-alt px-2 py-0.5 text-[11px] disabled:opacity-40"
-                        >
-                          Reprendre
-                        </button>
+                        {peutEcrire && (
+                          <button
+                            type="button"
+                            onClick={() => reprendre(p)}
+                            disabled={envoi}
+                            className="border border-border-dark bg-chrome hover:bg-chrome-alt px-2 py-0.5 text-[11px] disabled:opacity-40"
+                          >
+                            Reprendre
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -457,7 +458,7 @@ export function FiscalitePage() {
                       <td className="py-1 pr-2 text-right font-mono whitespace-nowrap">{nombre(r.montant)}</td>
                       <td className="py-1 pr-2 text-text-dim hidden sm:table-cell">{r.source ?? '·'}</td>
                       <td className="py-1 text-right">
-                        {!lectureSeule && (
+                        {peutEcrire && (
                           <button
                             type="button"
                             disabled={envoi}
@@ -474,7 +475,7 @@ export function FiscalitePage() {
               </table>
             )}
 
-            {!lectureSeule && catalogue && (
+            {peutEcrire && catalogue && (
               <div className="mt-3 border-t border-border pt-3 space-y-2">
                 <label className="block text-[12px]">
                   Ajouter un retraitement
@@ -602,7 +603,7 @@ export function FiscalitePage() {
           </section>
 
           {/* DÉFICIT ANTÉRIEUR SAISI */}
-          {!lectureSeule && (
+          {peutEcrire && (
             <section className="border border-border rounded-[8px] p-3">
               <div className="text-[11px] font-mono text-text-dim leading-none">DÉFICITS ANTÉRIEURS</div>
               <p className="text-[12px] text-text-dim mt-1.5 leading-[1.55]">
@@ -667,7 +668,7 @@ export function FiscalitePage() {
                     )}
                   </td>
                   <td className="px-3 py-1.5 text-right font-mono whitespace-nowrap">
-                    {lectureSeule ? (
+                    {!peutEcrire ? (
                       nombre(resultat.acomptesVerses)
                     ) : (
                       <input
@@ -729,7 +730,7 @@ export function FiscalitePage() {
                     proposés seraient insuffisants pour tout dossier redressé. */}
                 <div className="flex items-center gap-2 flex-wrap">
                   <span>Suppléments établis par l’Administration, à ajouter à la base des acomptes :</span>
-                  {lectureSeule ? (
+                  {!peutEcrire ? (
                     <span className="font-mono">{nombre(resultat.supplementsAdministration)}</span>
                   ) : (
                     <input

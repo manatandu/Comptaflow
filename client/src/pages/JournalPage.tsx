@@ -136,8 +136,7 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
   // à l'écran une balance qui contient encore le compte annulé.
   const [rechargement, setRechargement] = useState(0);
   const charger = () => setRechargement((n) => n + 1);
-  const { utilisateur } = useAuth();
-  const peutCorriger = utilisateur?.role === 'ADMIN_CABINET' || utilisateur?.role === 'COMPTABLE';
+  const { peutEcrire } = useAuth();
   // L'écriture dont on demande la correction · `null` tant que la boîte est
   // fermée. Elle porte le libellé pour que la boîte puisse nommer ce qu'elle
   // s'apprête à annuler, plutôt que de dire « cette écriture ».
@@ -349,7 +348,7 @@ export function JournalPage({ adresse }: { adresse?: string } = {}) {
         </span>
       );
     }
-    if (!peutCorriger || l.estGenereeParCloture) return null;
+    if (!peutEcrire || l.estGenereeParCloture) return null;
     return (
       <button onClick={() => setACorriger({ id: l.ecritureId, libelle: l.libelle })} className="text-sel hover:underline">
         Corriger

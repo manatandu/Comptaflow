@@ -42,6 +42,15 @@ interface AuthContextValue {
   connecte: boolean;
   utilisateur: MeResponse | null;
   estAdmin: boolean;
+  /**
+   * Peut ENREGISTRER quelque chose dans le dossier · administrateur ou
+   * comptable. Le serveur refuse l'écriture à LECTURE_SEULE sur toute route
+   * POST, PUT, PATCH et DELETE (`ecritures-reservees.spec.ts`) ; l'écran ne
+   * doit donc pas la proposer, sans quoi un auditeur ou un bailleur clique et
+   * reçoit « Rôle insuffisant ». Une seule définition, lue par toutes les
+   * fenêtres.
+   */
+  peutEcrire: boolean;
   /** Après /auth/login ou /auth/register · la session est déjà posée en
    *  cookie httpOnly par le serveur, on ne reçoit ici que le jeton CSRF. */
   seConnecter: (csrfToken: string) => Promise<void>;
@@ -147,6 +156,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         connecte: !!utilisateur,
         utilisateur,
         estAdmin: utilisateur?.role === 'ADMIN_CABINET',
+        peutEcrire: utilisateur?.role === 'ADMIN_CABINET' || utilisateur?.role === 'COMPTABLE',
         seConnecter,
         rafraichir,
         seDeconnecter,

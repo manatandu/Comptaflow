@@ -14,7 +14,7 @@ import type { Compte, FamilleImmobilisation, Immobilisation, Journal, TypeCompos
  * de biens limitées).
  */
 export function ImmobilisationsPage() {
-  const { estAdmin } = useAuth();
+  const { estAdmin, peutEcrire } = useAuth();
   const { exerciceCourant } = useExercice();
   const [familles, setFamilles] = useState<FamilleImmobilisation[] | null>(null);
   const [immobilisations, setImmobilisations] = useState<Immobilisation[] | null>(null);
@@ -422,15 +422,19 @@ export function ImmobilisationsPage() {
       <div className="text-[11px] font-mono text-text-dim leading-none">STRUCTURE</div>
       <div className="flex items-center justify-between mb-1.5 max-w-[1100px]">
         <h1 className="text-[13px] font-bold leading-tight">Immobilisations</h1>
-        {estAdmin && (
+        {/* Les familles sont réservées à l'administrateur (@Roles ADMIN_CABINET),
+            les immobilisations s'ouvrent aussi au comptable. */}
+        {peutEcrire && (
           <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => setAfficherFormFamille((v) => !v)}
-              className="border border-border rounded-[6px] bg-surface px-3 py-[3px] text-[12px] font-semibold hover:bg-surface-alt"
-            >
-              Nouvelle famille
-            </button>
+            {estAdmin && (
+              <button
+                type="button"
+                onClick={() => setAfficherFormFamille((v) => !v)}
+                className="border border-border rounded-[6px] bg-surface px-3 py-[3px] text-[12px] font-semibold hover:bg-surface-alt"
+              >
+                Nouvelle famille
+              </button>
+            )}
             <button type="button" onClick={() => setAfficherFormImmo((v) => !v)} className="bg-sel text-white rounded-[6px] px-3 py-[3px] text-[12px] font-semibold hover:opacity-90">
               Nouvelle immobilisation
             </button>
@@ -522,7 +526,7 @@ export function ImmobilisationsPage() {
         </form>
       )}
 
-      {afficherFormImmo && (
+      {peutEcrire && afficherFormImmo && (
         <form onSubmit={onCreerImmo} className="bg-surface border border-border p-4 mb-4 max-w-[900px]">
           <div className="font-mono text-[12px] font-semibold text-text-dim mb-3">NOUVELLE IMMOBILISATION</div>
           <div className="grid grid-cols-3 gap-3 mb-3">
@@ -703,6 +707,8 @@ export function ImmobilisationsPage() {
                 <span className="flex gap-2">
                   {immo.statut === 'EN_SERVICE' && (
                     <>
+                      {/* L'estimation est un GET qui n'écrit rien · elle reste
+                          offerte à la lecture seule. */}
                       {!immo.immobilisationPrincipaleId && (
                         <button
                           onClick={() => reconstituerRevision(immo)}
@@ -712,6 +718,10 @@ export function ImmobilisationsPage() {
                           Révision
                         </button>
                       )}
+                    </>
+                  )}
+                  {peutEcrire && immo.statut === 'EN_SERVICE' && (
+                    <>
                       {immo.modeAmortissement === 'UNITES_DOEUVRE' && (
                         <button
                           onClick={() => saisirConsommation(immo)}

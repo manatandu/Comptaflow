@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../lib/api';
+import { useAuth } from '../lib/auth';
 import type { Compte, RapprochementBancaire } from '../lib/types';
 
 /**
@@ -10,6 +11,7 @@ import type { Compte, RapprochementBancaire } from '../lib/types';
  */
 export function RapprochementPage() {
   const navigate = useNavigate();
+  const { peutEcrire } = useAuth();
   const [comptes, setComptes] = useState<Compte[] | null>(null);
   const [rapprochements, setRapprochements] = useState<RapprochementBancaire[] | null>(null);
   const [afficherFormulaire, setAfficherFormulaire] = useState(false);
@@ -58,12 +60,14 @@ export function RapprochementPage() {
       <div className="text-[11px] font-mono text-text-dim leading-none">TRAITEMENT</div>
       <div className="flex items-center justify-between mb-1.5 max-w-[1100px]">
         <h1 className="text-[13px] font-bold leading-tight">Rapprochement bancaire</h1>
-        <button type="button" onClick={() => setAfficherFormulaire((v) => !v)} className="bg-sel text-white rounded-[6px] px-3 py-[3px] text-[12px] font-semibold hover:opacity-90">
-          Nouveau rapprochement
-        </button>
+        {peutEcrire && (
+          <button type="button" onClick={() => setAfficherFormulaire((v) => !v)} className="bg-sel text-white rounded-[6px] px-3 py-[3px] text-[12px] font-semibold hover:opacity-90">
+            Nouveau rapprochement
+          </button>
+        )}
       </div>
 
-      {afficherFormulaire && (
+      {peutEcrire && afficherFormulaire && (
         <form onSubmit={onOuvrir} className="bg-surface border border-border p-4 mb-4 max-w-[600px]">
           <div className="font-mono text-[12px] font-semibold text-text-dim mb-3">NOUVEAU RAPPROCHEMENT</div>
           <div className="grid grid-cols-2 gap-3 mb-3">

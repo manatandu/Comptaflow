@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
+import { useAuth } from '../lib/auth';
 
 /**
  * MANDAT DU CONTRÔLEUR DES COMPTES · auditeur au SYCEBNL, commissaire aux
@@ -46,6 +47,10 @@ const ORGANES: { valeur: string; libelle: string }[] = [
 ];
 
 export function MandatAuditeurPage() {
+  // L'enregistrement est réservé (`@Roles` ADMIN_CABINET, COMPTABLE) · la
+  // lecture seule, souvent l'auditeur lui-même, consulte les mandats sans
+  // voir un formulaire que le serveur lui refuserait.
+  const { peutEcrire } = useAuth();
   const [mandats, setMandats] = useState<Mandat[]>([]);
   const [duree, setDuree] = useState<Duree | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
@@ -105,84 +110,86 @@ export function MandatAuditeurPage() {
         proroge rien de lui-même.
       </p>
 
-      <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
-        <h2 className="text-[12.5px] font-bold mb-1.5">Enregistrer un mandat</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          <label className="text-[12px]">
-            Contrôleur ou cabinet
-            <input className="w-full border border-border px-1.5 py-1 text-[12px]" value={nom} onChange={(e) => setNom(e.target.value)} />
-          </label>
-          <label className="text-[12px]">
-            Inscription au tableau de l'ordre
-            <input
-              className="w-full border border-border px-1.5 py-1 text-[12px]"
-              value={inscription}
-              onChange={(e) => setInscription(e.target.value)}
-              placeholder="ONEC/EC/…"
-            />
-          </label>
-          <label className="text-[12px]">
-            Organe qui a désigné
-            <select className="w-full border border-border px-1.5 py-1 text-[12px]" value={organe} onChange={(e) => setOrgane(e.target.value)}>
-              {ORGANES.map((o) => (
-                <option key={o.valeur} value={o.valeur}>
-                  {o.libelle}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="text-[12px]">
-            Date de désignation
-            <input type="date" className="w-full border border-border px-1.5 py-1 text-[12px]" value={dateDesignation} onChange={(e) => setDateDesignation(e.target.value)} />
-          </label>
-          <label className="text-[12px]">
-            Premier exercice couvert
-            <input type="number" className="w-full border border-border px-1.5 py-1 text-[12px]" value={premierExercice} onChange={(e) => setPremierExercice(Number(e.target.value))} />
-          </label>
-          <label className="text-[12px]">
-            Nombre d'exercices
-            <input
-              type="number"
-              className="w-full border border-border px-1.5 py-1 text-[12px]"
-              value={nombreExercices}
-              onChange={(e) => setNombreExercices(Number(e.target.value))}
-              disabled={duree?.exercices !== null && duree?.exercices !== undefined}
-            />
-          </label>
-        </div>
+      {peutEcrire && (
+        <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
+          <h2 className="text-[12.5px] font-bold mb-1.5">Enregistrer un mandat</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <label className="text-[12px]">
+              Contrôleur ou cabinet
+              <input className="w-full border border-border px-1.5 py-1 text-[12px]" value={nom} onChange={(e) => setNom(e.target.value)} />
+            </label>
+            <label className="text-[12px]">
+              Inscription au tableau de l'ordre
+              <input
+                className="w-full border border-border px-1.5 py-1 text-[12px]"
+                value={inscription}
+                onChange={(e) => setInscription(e.target.value)}
+                placeholder="ONEC/EC/…"
+              />
+            </label>
+            <label className="text-[12px]">
+              Organe qui a désigné
+              <select className="w-full border border-border px-1.5 py-1 text-[12px]" value={organe} onChange={(e) => setOrgane(e.target.value)}>
+                {ORGANES.map((o) => (
+                  <option key={o.valeur} value={o.valeur}>
+                    {o.libelle}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="text-[12px]">
+              Date de désignation
+              <input type="date" className="w-full border border-border px-1.5 py-1 text-[12px]" value={dateDesignation} onChange={(e) => setDateDesignation(e.target.value)} />
+            </label>
+            <label className="text-[12px]">
+              Premier exercice couvert
+              <input type="number" className="w-full border border-border px-1.5 py-1 text-[12px]" value={premierExercice} onChange={(e) => setPremierExercice(Number(e.target.value))} />
+            </label>
+            <label className="text-[12px]">
+              Nombre d'exercices
+              <input
+                type="number"
+                className="w-full border border-border px-1.5 py-1 text-[12px]"
+                value={nombreExercices}
+                onChange={(e) => setNombreExercices(Number(e.target.value))}
+                disabled={duree?.exercices !== null && duree?.exercices !== undefined}
+              />
+            </label>
+          </div>
 
-        {duree && (
-          <p className="text-[11px] text-text-dim mt-2 leading-[1.6]">
-            {duree.exercices === null ? (
-              <>Aucune durée n'est chiffrée pour cette forme · {duree.source} Elle se saisit.</>
-            ) : (
-              <>
-                Durée : <strong>{duree.exercices} exercice(s)</strong> · {duree.source}.
-                {duree.ramenee && (
-                  <>
-                    {' '}Ramenée à la durée d'existence de l'entité ({duree.exercicesDeLEntite} exercice(s) au
-                    dossier) · SYCEBNL art. 21, seconde phrase.
-                  </>
-                )}
-                {duree.mandatsMaximum !== null && (
-                  <> Renouvelable {duree.mandatsMaximum - 1} fois, pas davantage.</>
-                )}
-              </>
-            )}
+          {duree && (
+            <p className="text-[11px] text-text-dim mt-2 leading-[1.6]">
+              {duree.exercices === null ? (
+                <>Aucune durée n'est chiffrée pour cette forme · {duree.source} Elle se saisit.</>
+              ) : (
+                <>
+                  Durée : <strong>{duree.exercices} exercice(s)</strong> · {duree.source}.
+                  {duree.ramenee && (
+                    <>
+                      {' '}Ramenée à la durée d'existence de l'entité ({duree.exercicesDeLEntite} exercice(s) au
+                      dossier) · SYCEBNL art. 21, seconde phrase.
+                    </>
+                  )}
+                  {duree.mandatsMaximum !== null && (
+                    <> Renouvelable {duree.mandatsMaximum - 1} fois, pas davantage.</>
+                  )}
+                </>
+              )}
+            </p>
+          )}
+
+          <p className="text-[11px] text-text-dim mt-1.5 leading-[1.6]">
+            La référence d'inscription est <strong>exigée et jamais vérifiée</strong> · le SYCEBNL
+            art. 20 veut un expert-comptable inscrit au tableau de l'ordre, mais OmegaX ne consulte
+            aucun tableau. Il conserve la référence, parce que c'est elle qu'un réviseur demandera.
           </p>
-        )}
 
-        <p className="text-[11px] text-text-dim mt-1.5 leading-[1.6]">
-          La référence d'inscription est <strong>exigée et jamais vérifiée</strong> · le SYCEBNL
-          art. 20 veut un expert-comptable inscrit au tableau de l'ordre, mais OmegaX ne consulte
-          aucun tableau. Il conserve la référence, parce que c'est elle qu'un réviseur demandera.
-        </p>
-
-        {erreur && <p className="text-[12px] text-danger mt-2">{erreur}</p>}
-        <button className="mt-2 border border-border px-2.5 py-1 text-[12px]" onClick={() => void enregistrer()}>
-          Enregistrer
-        </button>
-      </section>
+          {erreur && <p className="text-[12px] text-danger mt-2">{erreur}</p>}
+          <button className="mt-2 border border-border px-2.5 py-1 text-[12px]" onClick={() => void enregistrer()}>
+            Enregistrer
+          </button>
+        </section>
+      )}
 
       <section className="border border-border bg-surface px-3.5 py-2.5">
         <h2 className="text-[12.5px] font-bold mb-1.5">Mandats enregistrés</h2>

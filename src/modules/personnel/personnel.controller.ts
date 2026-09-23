@@ -7,9 +7,11 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PersonnelService } from './personnel.service';
 import {
+  AnnulationBulletinDto,
   ContratTravailDto,
   DecompteFinalDto,
   LivreDePaieDto,
+  RemiseBulletinDto,
   SalarieDto,
   SimulationPaieDto,
   TerminerContratDto,
@@ -136,5 +138,58 @@ export class PersonnelController {
   async effectif(@CurrentUser() user: AuthenticatedUser, @Query('ala') ala?: string) {
     const date = ala ? new Date(ala) : new Date();
     return this.personnel.effectif(user.tenantId, Number.isNaN(date.getTime()) ? new Date() : date);
+  }
+
+  // ──────────────────────────────────────────────────────────────────────
+  // P8 · LE BULLETIN DE PAIE ÉMIS. La consultation est ouverte au réviseur,
+  // comme le registre : c'est le premier document qu'un inspecteur du
+  // travail demande. Émettre, annuler et déclarer la remise sont des gestes
+  // de saisie.
+  // ──────────────────────────────────────────────────────────────────────
+
+  @Get('bulletins')
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE, RoleUtilisateur.LECTURE_SEULE)
+  async listerBulletins(@CurrentUser() user: AuthenticatedUser, @Query('mois') mois?: string) {
+    return this.personnel.listerBulletins(user.tenantId, mois || undefined);
+  }
+
+  @Get('bulletins/:id')
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE, RoleUtilisateur.LECTURE_SEULE)
+  async lireBulletin(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.personnel.lireBulletin(user.tenantId, id);
+  }
+
+  /**
+   * ÉMETTRE · le corps est celui de la simulation, rejouée côté serveur. Aucun
+   * montant calculé n'est reçu du client.
+   */
+  @Post('salaries/:salarieId/bulletins')
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  async emettreBulletin(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('salarieId') salarieId: string,
+    @Body() dto: SimulationPaieDto,
+  ) {
+    return this.personnel.emettreBulletin(user.tenantId, user.userId, salarieId, dto);
+  }
+
+  @Post('bulletins/:id/annulation')
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  async annulerBulletin(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: AnnulationBulletinDto,
+  ) {
+    return this.personnel.annulerBulletin(user.tenantId, user.userId, id, dto.motif);
+  }
+
+  @Post('bulletins/:id/remise')
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  async declarerRemise(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: RemiseBulletinDto,
+  ) {
+    return this.personnel.declarerRemise(user.tenantId, id, dto.remisLe);
   }
 }

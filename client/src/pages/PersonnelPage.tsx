@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
+import { useAuth } from '../lib/auth';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
+import { OngletBulletins } from './BulletinsPaie';
 
 /**
  * LE REGISTRE DU PERSONNEL · l'état civil, les engagements, et ce que
@@ -459,11 +461,16 @@ const nomComplet = (s: Salarie) => [s.nom, s.postNom, s.prenoms].filter(Boolean)
 const jour = (d: string | null) => (d ? d.slice(0, 10) : '');
 
 export function PersonnelPage() {
+  // Inscrire un salarié, le mettre à jour, lui ouvrir un contrat : réservé
+  // (`@Roles` ADMIN_CABINET, COMPTABLE). Simulation, décompte final et livre
+  // de paie restent ouverts à la lecture seule · le serveur les lui ouvre,
+  // ils calculent sans rien conserver.
+  const { peutEcrire } = useAuth();
   const [salaries, setSalaries] = useState<Salarie[]>([]);
   const [confrontation, setConfrontation] = useState<Confrontation | null>(null);
   const [effectif, setEffectif] = useState<Effectif | null>(null);
   const [onglet, setOnglet] = useState<
-    'registre' | 'confrontation' | 'effectif' | 'simulation' | 'decompte' | 'livre'
+    'registre' | 'confrontation' | 'effectif' | 'simulation' | 'bulletins' | 'decompte' | 'livre'
   >('registre');
   const [tous, setTous] = useState(false);
   const [selection, setSelection] = useState<string>('');
@@ -544,10 +551,10 @@ export function PersonnelPage() {
    * au serveur. L'envoyer à `false` transformerait un silence en refus, et
    * imposerait une indemnité que personne n'a examinée.
    */
-  const simuler = () => {
-    setErreur('');
-    setSucces('');
-    setEnCours(true);
+  // UN SEUL CORPS POUR SIMULER ET POUR ÉMETTRE · le bulletin est la
+  // simulation rejouée par le serveur. Deux constructions finiraient par
+  // diverger, et le bulletin émis ne serait plus ce que l'écran a montré.
+  const corpsSimulation = () => {
     const nombre = (v: string) => {
       const n = Number(v.replace(/\s/g, '').replace(',', '.'));
       return v.trim() === '' || Number.isNaN(n) ? undefined : n;
@@ -582,6 +589,14 @@ export function PersonnelPage() {
       ...(logementNature ? { logementFourniEnNature: true } : {}),
       ...(obligationAlimentaire ? { obligationAlimentaireLegale: true } : {}),
     };
+    return corps;
+  };
+
+  const simuler = () => {
+    setErreur('');
+    setSucces('');
+    setEnCours(true);
+    const corps = corpsSimulation();
     api
       .post<Simulation>(
         `/personnel/simulation${selection ? `?salarieId=${selection}` : ''}`,
@@ -600,6 +615,31 @@ export function PersonnelPage() {
   };
 
 /**
+   * ÉMETTRE LE BULLETIN · le serveur rejoue la simulation avec le MÊME corps
+   * et fige ce qu'il rend. Il refuse tant qu'un montant n'est pas calculé
+   * (impôt, cotisation, net) : sur un décompte remis au travailleur, un
+   * chiffre provisoire devient opposable (art. 103).
+   */
+  const emettreBulletin = () => {
+    if (!selection) return;
+    setErreur('');
+    setSucces('');
+    setEnCours(true);
+    api
+      .post<{ numero: number; moisDePaie: string }>(`/personnel/salaries/${selection}/bulletins`, corpsSimulation())
+      .then(
+        (b) => {
+          setSucces(`Bulletin n° ${b.numero} émis pour ${b.moisDePaie}. Il ne se modifie plus : une erreur se corrige en l’annulant.`);
+          setEnCours(false);
+        },
+        (e: ApiError) => {
+          setErreur(e.message);
+          setEnCours(false);
+        },
+      );
+  };
+
+  /**
    * LE LIVRE DE PAIE EST DEMANDÉ AU SERVEUR, et les trente mentions en
    * REVIENNENT · les recopier ici en ferait une deuxième liste, qui aurait
    * divergé au premier correctif de l'arrêté n° 146/2018.
@@ -812,9 +852,10 @@ export function PersonnelPage() {
         <div className="text-[11px] text-text-dim mt-0.5">
           Le registre tient l’état civil et les engagements, et confronte chaque contrat aux quinze
           énonciations obligatoires de l’article 212 ainsi qu’aux requalifications de plein droit des
-          articles 40 à 45. <strong>Il n’enregistre aucun bulletin de paie</strong> : l’onglet
-          Simulation rend les deux assiettes d’un mois, les cotisations, la retenue de l’article
-          119 et l’écriture de passation <strong>proposée</strong>, sans rien conserver ni poster.
+          articles 40 à 45. L’onglet Simulation rend les deux assiettes d’un mois, les cotisations,
+          la retenue de l’article 119 et l’écriture de passation <strong>proposée</strong>,
+          sans rien conserver ni poster. L’onglet <strong>Bulletins</strong> tient les bulletins émis,
+          numérotés et figés : le décompte écrit de l’article 103.
         </div>
       </div>
 
@@ -831,7 +872,7 @@ export function PersonnelPage() {
 
       <div className="ecran-seul flex gap-1 mb-2 text-[12px]">
         {(
-          ['registre', 'confrontation', 'effectif', 'simulation', 'decompte', 'livre'] as const
+          ['registre', 'confrontation', 'effectif', 'simulation', 'bulletins', 'decompte', 'livre'] as const
         ).map((o) => (
           <button
             key={o}
@@ -849,7 +890,9 @@ export function PersonnelPage() {
                   ? 'Effectif'
                   : o === 'simulation'
                     ? 'Simulation'
-                    : o === 'decompte'
+                    : o === 'bulletins'
+                      ? 'Bulletins'
+                      : o === 'decompte'
                       ? 'Décompte final'
                       : 'Livre de paie'}
           </button>
@@ -871,9 +914,11 @@ export function PersonnelPage() {
                   <input type="checkbox" checked={tous} onChange={(e) => setTous(e.target.checked)} />
                   Inclure les inactifs
                 </label>
-                <button type="button" onClick={nouveau} className="text-[11px] text-accent">
-                  Nouveau
-                </button>
+                {peutEcrire && (
+                  <button type="button" onClick={nouveau} className="text-[11px] text-accent">
+                    Nouveau
+                  </button>
+                )}
               </div>
             </div>
             <table className="w-full text-[12px] border-collapse">
@@ -915,221 +960,234 @@ export function PersonnelPage() {
 
           <div className="border border-border p-2">
             <div className="text-[12px] font-bold mb-1.5">
-              {selection ? `Fiche · ${salarie.nom}` : 'Nouvelle fiche'}
+              {selection
+                ? `Fiche · ${salarie.nom}`
+                : peutEcrire
+                  ? 'Nouvelle fiche'
+                  : 'Fiche · choisir un salarié'}
             </div>
-            <div className="grid grid-cols-3 gap-1.5">
-              <label>
-                <span className={etiquette}>Matricule (point 4, éventuel)</span>
-                <input
-                  className={champ}
-                  value={salarie.matricule}
-                  onChange={(e) => setSalarie({ ...salarie, matricule: e.target.value })}
-                />
-              </label>
-              <label>
-                <span className={etiquette}>Nom (point 3)</span>
-                <input
-                  className={champ}
-                  value={salarie.nom}
-                  onChange={(e) => setSalarie({ ...salarie, nom: e.target.value })}
-                />
-              </label>
-              <label>
-                <span className={etiquette}>Post-nom</span>
-                <input
-                  className={champ}
-                  value={salarie.postNom}
-                  onChange={(e) => setSalarie({ ...salarie, postNom: e.target.value })}
-                />
-              </label>
-              <label>
-                <span className={etiquette}>Prénoms</span>
-                <input
-                  className={champ}
-                  value={salarie.prenoms}
-                  onChange={(e) => setSalarie({ ...salarie, prenoms: e.target.value })}
-                />
-              </label>
-              <label>
-                <span className={etiquette}>Sexe (point 3)</span>
-                <select
-                  className={champ}
-                  value={salarie.sexe}
-                  onChange={(e) => setSalarie({ ...salarie, sexe: e.target.value as Sexe })}
-                >
-                  <option value="">choisir…</option>
-                  <option value="MASCULIN">Masculin</option>
-                  <option value="FEMININ">Féminin</option>
-                </select>
-              </label>
-              <label>
-                <span className={etiquette}>N° CNSS du travailleur (point 4)</span>
-                <input
-                  className={champ}
-                  value={salarie.numeroAffiliationCnss}
-                  onChange={(e) =>
-                    setSalarie({ ...salarie, numeroAffiliationCnss: e.target.value })
-                  }
-                />
-              </label>
-              <label>
-                <span className={etiquette}>Date de naissance (point 5)</span>
-                <input
-                  type="date"
-                  className={champ}
-                  value={salarie.dateNaissance}
-                  onChange={(e) => setSalarie({ ...salarie, dateNaissance: e.target.value })}
-                />
-              </label>
-              <label>
-                <span className={etiquette}>ou millésime présumé</span>
-                <input
-                  className={champ}
-                  value={salarie.millesimeNaissance}
-                  onChange={(e) => setSalarie({ ...salarie, millesimeNaissance: e.target.value })}
-                  placeholder="1990"
-                />
-              </label>
-              <label>
-                <span className={etiquette}>Lieu de naissance (point 6)</span>
-                <input
-                  className={champ}
-                  value={salarie.lieuNaissance}
-                  onChange={(e) => setSalarie({ ...salarie, lieuNaissance: e.target.value })}
-                />
-              </label>
-              <label>
-                <span className={etiquette}>Nationalité (point 6)</span>
-                <input
-                  className={champ}
-                  value={salarie.nationalite}
-                  onChange={(e) => setSalarie({ ...salarie, nationalite: e.target.value })}
-                />
-              </label>
-              <label>
-                <span className={etiquette}>Conjoint (point 7)</span>
-                <input
-                  className={champ}
-                  value={salarie.nomConjoint}
-                  onChange={(e) => setSalarie({ ...salarie, nomConjoint: e.target.value })}
-                />
-              </label>
-              <label>
-                <span className={etiquette}>Aptitude constatée le (point 15)</span>
-                <input
-                  type="date"
-                  className={champ}
-                  value={salarie.aptitudeConstateeLe}
-                  onChange={(e) => setSalarie({ ...salarie, aptitudeConstateeLe: e.target.value })}
-                />
-              </label>
-              <label>
-                <span className={etiquette}>par</span>
-                <input
-                  className={champ}
-                  value={salarie.aptitudeConstateePar}
-                  onChange={(e) => setSalarie({ ...salarie, aptitudeConstateePar: e.target.value })}
-                />
-              </label>
-              <label className="text-[11px] flex items-end gap-1 pb-1">
-                <input
-                  type="checkbox"
-                  checked={salarie.aptitudeProvisoire}
-                  onChange={(e) => setSalarie({ ...salarie, aptitudeProvisoire: e.target.checked })}
-                />
-                Certificat provisoire (art. 38 · à confirmer sous trois mois)
-              </label>
-              <label>
-                <span className={etiquette}>Déclaration d’engagement (art. 217)</span>
-                <input
-                  type="date"
-                  className={champ}
-                  value={salarie.declarationEngagementLe}
-                  onChange={(e) =>
-                    setSalarie({ ...salarie, declarationEngagementLe: e.target.value })
-                  }
-                />
-              </label>
-              <label>
-                <span className={etiquette}>Déclaration de départ (art. 217)</span>
-                <input
-                  type="date"
-                  className={champ}
-                  value={salarie.declarationDepartLe}
-                  onChange={(e) => setSalarie({ ...salarie, declarationDepartLe: e.target.value })}
-                />
-              </label>
-            </div>
-
-            <div className="mt-2">
-              <div className="flex items-center justify-between">
-                <div className={etiquette}>
-                  Enfants à charge (point 7 · la date de naissance de chacun est exigée)
-                </div>
-                <button
-                  type="button"
-                  className="text-[11px] text-accent"
-                  onClick={() =>
-                    setEnfants([...enfants, { nom: '', postNom: '', prenoms: '', dateNaissance: '' }])
-                  }
-                >
-                  Ajouter
-                </button>
-              </div>
-              {enfants.map((e, i) => (
-                <div key={i} className="grid grid-cols-4 gap-1 mt-1">
+            {/* La fiche reste LISIBLE en lecture seule : ses champs sont
+                la seule vue de l'état civil d'un salarié. Le fieldset les
+                éteint d'un coup plutôt que champ par champ. */}
+            <fieldset disabled={!peutEcrire} className="min-w-0">
+              <div className="grid grid-cols-3 gap-1.5">
+                <label>
+                  <span className={etiquette}>Matricule (point 4, éventuel)</span>
                   <input
                     className={champ}
-                    placeholder="Nom"
-                    value={e.nom}
-                    onChange={(ev) =>
-                      setEnfants(enfants.map((x, j) => (j === i ? { ...x, nom: ev.target.value } : x)))
-                    }
+                    value={salarie.matricule}
+                    onChange={(e) => setSalarie({ ...salarie, matricule: e.target.value })}
                   />
+                </label>
+                <label>
+                  <span className={etiquette}>Nom (point 3)</span>
                   <input
                     className={champ}
-                    placeholder="Post-nom"
-                    value={e.postNom ?? ''}
-                    onChange={(ev) =>
-                      setEnfants(
-                        enfants.map((x, j) => (j === i ? { ...x, postNom: ev.target.value } : x)),
-                      )
-                    }
+                    value={salarie.nom}
+                    onChange={(e) => setSalarie({ ...salarie, nom: e.target.value })}
                   />
+                </label>
+                <label>
+                  <span className={etiquette}>Post-nom</span>
                   <input
                     className={champ}
-                    placeholder="Prénoms"
-                    value={e.prenoms ?? ''}
-                    onChange={(ev) =>
-                      setEnfants(
-                        enfants.map((x, j) => (j === i ? { ...x, prenoms: ev.target.value } : x)),
-                      )
+                    value={salarie.postNom}
+                    onChange={(e) => setSalarie({ ...salarie, postNom: e.target.value })}
+                  />
+                </label>
+                <label>
+                  <span className={etiquette}>Prénoms</span>
+                  <input
+                    className={champ}
+                    value={salarie.prenoms}
+                    onChange={(e) => setSalarie({ ...salarie, prenoms: e.target.value })}
+                  />
+                </label>
+                <label>
+                  <span className={etiquette}>Sexe (point 3)</span>
+                  <select
+                    className={champ}
+                    value={salarie.sexe}
+                    onChange={(e) => setSalarie({ ...salarie, sexe: e.target.value as Sexe })}
+                  >
+                    <option value="">choisir…</option>
+                    <option value="MASCULIN">Masculin</option>
+                    <option value="FEMININ">Féminin</option>
+                  </select>
+                </label>
+                <label>
+                  <span className={etiquette}>N° CNSS du travailleur (point 4)</span>
+                  <input
+                    className={champ}
+                    value={salarie.numeroAffiliationCnss}
+                    onChange={(e) =>
+                      setSalarie({ ...salarie, numeroAffiliationCnss: e.target.value })
                     }
                   />
+                </label>
+                <label>
+                  <span className={etiquette}>Date de naissance (point 5)</span>
                   <input
                     type="date"
                     className={champ}
-                    value={e.dateNaissance ?? ''}
-                    onChange={(ev) =>
-                      setEnfants(
-                        enfants.map((x, j) =>
-                          j === i ? { ...x, dateNaissance: ev.target.value } : x,
-                        ),
-                      )
+                    value={salarie.dateNaissance}
+                    onChange={(e) => setSalarie({ ...salarie, dateNaissance: e.target.value })}
+                  />
+                </label>
+                <label>
+                  <span className={etiquette}>ou millésime présumé</span>
+                  <input
+                    className={champ}
+                    value={salarie.millesimeNaissance}
+                    onChange={(e) => setSalarie({ ...salarie, millesimeNaissance: e.target.value })}
+                    placeholder="1990"
+                  />
+                </label>
+                <label>
+                  <span className={etiquette}>Lieu de naissance (point 6)</span>
+                  <input
+                    className={champ}
+                    value={salarie.lieuNaissance}
+                    onChange={(e) => setSalarie({ ...salarie, lieuNaissance: e.target.value })}
+                  />
+                </label>
+                <label>
+                  <span className={etiquette}>Nationalité (point 6)</span>
+                  <input
+                    className={champ}
+                    value={salarie.nationalite}
+                    onChange={(e) => setSalarie({ ...salarie, nationalite: e.target.value })}
+                  />
+                </label>
+                <label>
+                  <span className={etiquette}>Conjoint (point 7)</span>
+                  <input
+                    className={champ}
+                    value={salarie.nomConjoint}
+                    onChange={(e) => setSalarie({ ...salarie, nomConjoint: e.target.value })}
+                  />
+                </label>
+                <label>
+                  <span className={etiquette}>Aptitude constatée le (point 15)</span>
+                  <input
+                    type="date"
+                    className={champ}
+                    value={salarie.aptitudeConstateeLe}
+                    onChange={(e) => setSalarie({ ...salarie, aptitudeConstateeLe: e.target.value })}
+                  />
+                </label>
+                <label>
+                  <span className={etiquette}>par</span>
+                  <input
+                    className={champ}
+                    value={salarie.aptitudeConstateePar}
+                    onChange={(e) => setSalarie({ ...salarie, aptitudeConstateePar: e.target.value })}
+                  />
+                </label>
+                <label className="text-[11px] flex items-end gap-1 pb-1">
+                  <input
+                    type="checkbox"
+                    checked={salarie.aptitudeProvisoire}
+                    onChange={(e) => setSalarie({ ...salarie, aptitudeProvisoire: e.target.checked })}
+                  />
+                  Certificat provisoire (art. 38 · à confirmer sous trois mois)
+                </label>
+                <label>
+                  <span className={etiquette}>Déclaration d’engagement (art. 217)</span>
+                  <input
+                    type="date"
+                    className={champ}
+                    value={salarie.declarationEngagementLe}
+                    onChange={(e) =>
+                      setSalarie({ ...salarie, declarationEngagementLe: e.target.value })
                     }
                   />
-                </div>
-              ))}
-            </div>
+                </label>
+                <label>
+                  <span className={etiquette}>Déclaration de départ (art. 217)</span>
+                  <input
+                    type="date"
+                    className={champ}
+                    value={salarie.declarationDepartLe}
+                    onChange={(e) => setSalarie({ ...salarie, declarationDepartLe: e.target.value })}
+                  />
+                </label>
+              </div>
 
-            <button
-              type="button"
-              disabled={enCours || !salarie.nom.trim() || !salarie.sexe}
-              onClick={enregistrerSalarie}
-              className="mt-2 px-3 py-1 border border-accent text-accent text-[12px] disabled:opacity-40"
-            >
-              {selection ? 'Mettre à jour' : 'Inscrire au registre'}
-            </button>
+              <div className="mt-2">
+                <div className="flex items-center justify-between">
+                  <div className={etiquette}>
+                    Enfants à charge (point 7 · la date de naissance de chacun est exigée)
+                  </div>
+                  {peutEcrire && (
+                    <button
+                      type="button"
+                      className="text-[11px] text-accent"
+                      onClick={() =>
+                        setEnfants([...enfants, { nom: '', postNom: '', prenoms: '', dateNaissance: '' }])
+                      }
+                    >
+                      Ajouter
+                    </button>
+                  )}
+                </div>
+                {enfants.map((e, i) => (
+                  <div key={i} className="grid grid-cols-4 gap-1 mt-1">
+                    <input
+                      className={champ}
+                      placeholder="Nom"
+                      value={e.nom}
+                      onChange={(ev) =>
+                        setEnfants(enfants.map((x, j) => (j === i ? { ...x, nom: ev.target.value } : x)))
+                      }
+                    />
+                    <input
+                      className={champ}
+                      placeholder="Post-nom"
+                      value={e.postNom ?? ''}
+                      onChange={(ev) =>
+                        setEnfants(
+                          enfants.map((x, j) => (j === i ? { ...x, postNom: ev.target.value } : x)),
+                        )
+                      }
+                    />
+                    <input
+                      className={champ}
+                      placeholder="Prénoms"
+                      value={e.prenoms ?? ''}
+                      onChange={(ev) =>
+                        setEnfants(
+                          enfants.map((x, j) => (j === i ? { ...x, prenoms: ev.target.value } : x)),
+                        )
+                      }
+                    />
+                    <input
+                      type="date"
+                      className={champ}
+                      value={e.dateNaissance ?? ''}
+                      onChange={(ev) =>
+                        setEnfants(
+                          enfants.map((x, j) =>
+                            j === i ? { ...x, dateNaissance: ev.target.value } : x,
+                          ),
+                        )
+                      }
+                    />
+                  </div>
+                ))}
+              </div>
+            </fieldset>
+
+            {peutEcrire && (
+              <button
+                type="button"
+                disabled={enCours || !salarie.nom.trim() || !salarie.sexe}
+                onClick={enregistrerSalarie}
+                className="mt-2 px-3 py-1 border border-accent text-accent text-[12px] disabled:opacity-40"
+              >
+                {selection ? 'Mettre à jour' : 'Inscrire au registre'}
+              </button>
+            )}
 
             {choisi && (
               <div className="mt-3 border-t border-border pt-2">
@@ -1157,238 +1215,242 @@ export function PersonnelPage() {
                   </tbody>
                 </table>
 
-                <div className={etiquette}>Nouveau contrat</div>
-                <div className="grid grid-cols-3 gap-1.5 mt-1">
-                  <label>
-                    <span className={etiquette}>Type (art. 39)</span>
-                    <select
-                      className={champ}
-                      value={contrat.type}
-                      onChange={(e) =>
-                        setContrat({ ...contrat, type: e.target.value as TypeContrat })
-                      }
+                {peutEcrire && (
+                  <>
+                    <div className={etiquette}>Nouveau contrat</div>
+                    <div className="grid grid-cols-3 gap-1.5 mt-1">
+                      <label>
+                        <span className={etiquette}>Type (art. 39)</span>
+                        <select
+                          className={champ}
+                          value={contrat.type}
+                          onChange={(e) =>
+                            setContrat({ ...contrat, type: e.target.value as TypeContrat })
+                          }
+                        >
+                          {(Object.keys(LIBELLE_TYPE) as TypeContrat[]).map((t) => (
+                            <option key={t} value={t}>
+                              {LIBELLE_TYPE[t]}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        <span className={etiquette}>Entrée en vigueur (point 13)</span>
+                        <input
+                          type="date"
+                          className={champ}
+                          value={contrat.dateEntreeEnVigueur}
+                          onChange={(e) =>
+                            setContrat({ ...contrat, dateEntreeEnVigueur: e.target.value })
+                          }
+                        />
+                      </label>
+                      <label>
+                        <span className={etiquette}>Terme prévu (art. 41)</span>
+                        <input
+                          type="date"
+                          className={champ}
+                          value={contrat.dateFinPrevue}
+                          onChange={(e) => setContrat({ ...contrat, dateFinPrevue: e.target.value })}
+                        />
+                      </label>
+                      <label>
+                        <span className={etiquette}>Conclu le (point 14)</span>
+                        <input
+                          type="date"
+                          className={champ}
+                          value={contrat.dateConclusion}
+                          onChange={(e) => setContrat({ ...contrat, dateConclusion: e.target.value })}
+                        />
+                      </label>
+                      <label>
+                        <span className={etiquette}>à (point 14)</span>
+                        <input
+                          className={champ}
+                          value={contrat.lieuConclusion}
+                          onChange={(e) => setContrat({ ...contrat, lieuConclusion: e.target.value })}
+                        />
+                      </label>
+                      <label>
+                        <span className={etiquette}>Nature du travail (point 8)</span>
+                        <input
+                          className={champ}
+                          value={contrat.natureTravail}
+                          onChange={(e) => setContrat({ ...contrat, natureTravail: e.target.value })}
+                        />
+                      </label>
+                      <label>
+                        <span className={etiquette}>Lieu d’exécution (point 10)</span>
+                        <input
+                          className={champ}
+                          value={contrat.lieuExecution}
+                          onChange={(e) => setContrat({ ...contrat, lieuExecution: e.target.value })}
+                        />
+                      </label>
+                      <label>
+                        <span className={etiquette}>Rémunération convenue (point 9)</span>
+                        <input
+                          className={champ}
+                          value={contrat.remunerationBase}
+                          onChange={(e) => setContrat({ ...contrat, remunerationBase: e.target.value })}
+                        />
+                      </label>
+                      <label>
+                        <span className={etiquette}>Préavis stipulé, en jours (point 12)</span>
+                        <input
+                          className={champ}
+                          value={contrat.dureePreavisJours}
+                          onChange={(e) => setContrat({ ...contrat, dureePreavisJours: e.target.value })}
+                        />
+                      </label>
+                      <label>
+                        <span className={etiquette}>Catégorie (convention collective)</span>
+                        <input
+                          className={champ}
+                          value={contrat.categorieProfessionnelle}
+                          onChange={(e) =>
+                            setContrat({ ...contrat, categorieProfessionnelle: e.target.value })
+                          }
+                        />
+                      </label>
+                      <label>
+                        <span className={etiquette}>Classe de la tension salariale (1 à 17)</span>
+                        <select
+                          className={champ}
+                          value={contrat.classeProfessionnelle}
+                          onChange={(e) =>
+                            setContrat({ ...contrat, classeProfessionnelle: e.target.value })
+                          }
+                        >
+                          <option value="">non tranchée</option>
+                          {CLASSES.map((c) => (
+                            <option key={c.classe} value={c.classe}>
+                              {c.classe} · {c.libelle}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        <span className={etiquette}>Périodicité de la rémunération</span>
+                        <select
+                          className={champ}
+                          value={contrat.periodiciteRemuneration}
+                          onChange={(e) =>
+                            setContrat({
+                              ...contrat,
+                              periodiciteRemuneration: e.target.value as typeof contrat.periodiciteRemuneration,
+                            })
+                          }
+                        >
+                          <option value="">non renseignée</option>
+                          <option value="JOUR">par jour</option>
+                          <option value="SEMAINE">par semaine</option>
+                          <option value="MOIS">par mois</option>
+                          <option value="ANNEE">par an</option>
+                        </select>
+                      </label>
+                      <label>
+                        <span className={etiquette}>Ouvrage déterminé (art. 40)</span>
+                        <input
+                          className={champ}
+                          value={contrat.ouvrageDetermine}
+                          onChange={(e) => setContrat({ ...contrat, ouvrageDetermine: e.target.value })}
+                        />
+                      </label>
+                      <label>
+                        <span className={etiquette}>Motif de remplacement (art. 45)</span>
+                        <input
+                          className={champ}
+                          value={contrat.motifRemplacement}
+                          onChange={(e) => setContrat({ ...contrat, motifRemplacement: e.target.value })}
+                        />
+                      </label>
+                      <label>
+                        <span className={etiquette}>Essai, en jours (art. 43)</span>
+                        <input
+                          className={champ}
+                          value={contrat.essaiDureeJours}
+                          onChange={(e) => setContrat({ ...contrat, essaiDureeJours: e.target.value })}
+                        />
+                      </label>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1 mt-1.5 text-[11px]">
+                      <label className="flex items-center gap-1">
+                        <input
+                          type="checkbox"
+                          checked={contrat.constateParEcrit}
+                          onChange={(e) =>
+                            setContrat({ ...contrat, constateParEcrit: e.target.checked })
+                          }
+                        />
+                        Constaté par écrit (art. 44)
+                      </label>
+                      <label className="flex items-center gap-1">
+                        <input
+                          type="checkbox"
+                          checked={contrat.emploiPermanent}
+                          onChange={(e) => setContrat({ ...contrat, emploiPermanent: e.target.checked })}
+                        />
+                        Emploi permanent (art. 42)
+                      </label>
+                      <label className="flex items-center gap-1">
+                        <input
+                          type="checkbox"
+                          checked={contrat.separeDeSaFamille}
+                          onChange={(e) =>
+                            setContrat({ ...contrat, separeDeSaFamille: e.target.checked })
+                          }
+                        />
+                        Travailleur séparé de sa famille (art. 41 · plafond ramené à un an)
+                      </label>
+                      <label className="flex items-center gap-1">
+                        <input
+                          type="checkbox"
+                          checked={contrat.manoeuvreSansSpecialite}
+                          onChange={(e) =>
+                            setContrat({ ...contrat, manoeuvreSansSpecialite: e.target.checked })
+                          }
+                        />
+                        Manœuvre sans spécialité (art. 43 · essai plafonné à un mois)
+                      </label>
+                      <label className="flex items-center gap-1">
+                        <input
+                          type="checkbox"
+                          checked={contrat.clauseEssai}
+                          onChange={(e) => setContrat({ ...contrat, clauseEssai: e.target.checked })}
+                        />
+                        Clause d’essai
+                      </label>
+                      <label className="flex items-center gap-1">
+                        <input
+                          type="checkbox"
+                          checked={contrat.essaiConstateParEcrit}
+                          onChange={(e) =>
+                            setContrat({ ...contrat, essaiConstateParEcrit: e.target.checked })
+                          }
+                        />
+                        Clause d’essai constatée par écrit (art. 43)
+                      </label>
+                      <label className="flex items-center gap-1">
+                        <input
+                          type="checkbox"
+                          checked={contrat.viseParOnem}
+                          onChange={(e) => setContrat({ ...contrat, viseParOnem: e.target.checked })}
+                        />
+                        Visé par l’Office national de l’emploi (art. 47)
+                      </label>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={enCours || !contrat.dateEntreeEnVigueur}
+                      onClick={creerContrat}
+                      className="mt-2 px-3 py-1 border border-accent text-accent text-[12px] disabled:opacity-40"
                     >
-                      {(Object.keys(LIBELLE_TYPE) as TypeContrat[]).map((t) => (
-                        <option key={t} value={t}>
-                          {LIBELLE_TYPE[t]}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    <span className={etiquette}>Entrée en vigueur (point 13)</span>
-                    <input
-                      type="date"
-                      className={champ}
-                      value={contrat.dateEntreeEnVigueur}
-                      onChange={(e) =>
-                        setContrat({ ...contrat, dateEntreeEnVigueur: e.target.value })
-                      }
-                    />
-                  </label>
-                  <label>
-                    <span className={etiquette}>Terme prévu (art. 41)</span>
-                    <input
-                      type="date"
-                      className={champ}
-                      value={contrat.dateFinPrevue}
-                      onChange={(e) => setContrat({ ...contrat, dateFinPrevue: e.target.value })}
-                    />
-                  </label>
-                  <label>
-                    <span className={etiquette}>Conclu le (point 14)</span>
-                    <input
-                      type="date"
-                      className={champ}
-                      value={contrat.dateConclusion}
-                      onChange={(e) => setContrat({ ...contrat, dateConclusion: e.target.value })}
-                    />
-                  </label>
-                  <label>
-                    <span className={etiquette}>à (point 14)</span>
-                    <input
-                      className={champ}
-                      value={contrat.lieuConclusion}
-                      onChange={(e) => setContrat({ ...contrat, lieuConclusion: e.target.value })}
-                    />
-                  </label>
-                  <label>
-                    <span className={etiquette}>Nature du travail (point 8)</span>
-                    <input
-                      className={champ}
-                      value={contrat.natureTravail}
-                      onChange={(e) => setContrat({ ...contrat, natureTravail: e.target.value })}
-                    />
-                  </label>
-                  <label>
-                    <span className={etiquette}>Lieu d’exécution (point 10)</span>
-                    <input
-                      className={champ}
-                      value={contrat.lieuExecution}
-                      onChange={(e) => setContrat({ ...contrat, lieuExecution: e.target.value })}
-                    />
-                  </label>
-                  <label>
-                    <span className={etiquette}>Rémunération convenue (point 9)</span>
-                    <input
-                      className={champ}
-                      value={contrat.remunerationBase}
-                      onChange={(e) => setContrat({ ...contrat, remunerationBase: e.target.value })}
-                    />
-                  </label>
-                  <label>
-                    <span className={etiquette}>Préavis stipulé, en jours (point 12)</span>
-                    <input
-                      className={champ}
-                      value={contrat.dureePreavisJours}
-                      onChange={(e) => setContrat({ ...contrat, dureePreavisJours: e.target.value })}
-                    />
-                  </label>
-                  <label>
-                    <span className={etiquette}>Catégorie (convention collective)</span>
-                    <input
-                      className={champ}
-                      value={contrat.categorieProfessionnelle}
-                      onChange={(e) =>
-                        setContrat({ ...contrat, categorieProfessionnelle: e.target.value })
-                      }
-                    />
-                  </label>
-                  <label>
-                    <span className={etiquette}>Classe de la tension salariale (1 à 17)</span>
-                    <select
-                      className={champ}
-                      value={contrat.classeProfessionnelle}
-                      onChange={(e) =>
-                        setContrat({ ...contrat, classeProfessionnelle: e.target.value })
-                      }
-                    >
-                      <option value="">non tranchée</option>
-                      {CLASSES.map((c) => (
-                        <option key={c.classe} value={c.classe}>
-                          {c.classe} · {c.libelle}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    <span className={etiquette}>Périodicité de la rémunération</span>
-                    <select
-                      className={champ}
-                      value={contrat.periodiciteRemuneration}
-                      onChange={(e) =>
-                        setContrat({
-                          ...contrat,
-                          periodiciteRemuneration: e.target.value as typeof contrat.periodiciteRemuneration,
-                        })
-                      }
-                    >
-                      <option value="">non renseignée</option>
-                      <option value="JOUR">par jour</option>
-                      <option value="SEMAINE">par semaine</option>
-                      <option value="MOIS">par mois</option>
-                      <option value="ANNEE">par an</option>
-                    </select>
-                  </label>
-                  <label>
-                    <span className={etiquette}>Ouvrage déterminé (art. 40)</span>
-                    <input
-                      className={champ}
-                      value={contrat.ouvrageDetermine}
-                      onChange={(e) => setContrat({ ...contrat, ouvrageDetermine: e.target.value })}
-                    />
-                  </label>
-                  <label>
-                    <span className={etiquette}>Motif de remplacement (art. 45)</span>
-                    <input
-                      className={champ}
-                      value={contrat.motifRemplacement}
-                      onChange={(e) => setContrat({ ...contrat, motifRemplacement: e.target.value })}
-                    />
-                  </label>
-                  <label>
-                    <span className={etiquette}>Essai, en jours (art. 43)</span>
-                    <input
-                      className={champ}
-                      value={contrat.essaiDureeJours}
-                      onChange={(e) => setContrat({ ...contrat, essaiDureeJours: e.target.value })}
-                    />
-                  </label>
-                </div>
-                <div className="grid grid-cols-2 gap-1 mt-1.5 text-[11px]">
-                  <label className="flex items-center gap-1">
-                    <input
-                      type="checkbox"
-                      checked={contrat.constateParEcrit}
-                      onChange={(e) =>
-                        setContrat({ ...contrat, constateParEcrit: e.target.checked })
-                      }
-                    />
-                    Constaté par écrit (art. 44)
-                  </label>
-                  <label className="flex items-center gap-1">
-                    <input
-                      type="checkbox"
-                      checked={contrat.emploiPermanent}
-                      onChange={(e) => setContrat({ ...contrat, emploiPermanent: e.target.checked })}
-                    />
-                    Emploi permanent (art. 42)
-                  </label>
-                  <label className="flex items-center gap-1">
-                    <input
-                      type="checkbox"
-                      checked={contrat.separeDeSaFamille}
-                      onChange={(e) =>
-                        setContrat({ ...contrat, separeDeSaFamille: e.target.checked })
-                      }
-                    />
-                    Travailleur séparé de sa famille (art. 41 · plafond ramené à un an)
-                  </label>
-                  <label className="flex items-center gap-1">
-                    <input
-                      type="checkbox"
-                      checked={contrat.manoeuvreSansSpecialite}
-                      onChange={(e) =>
-                        setContrat({ ...contrat, manoeuvreSansSpecialite: e.target.checked })
-                      }
-                    />
-                    Manœuvre sans spécialité (art. 43 · essai plafonné à un mois)
-                  </label>
-                  <label className="flex items-center gap-1">
-                    <input
-                      type="checkbox"
-                      checked={contrat.clauseEssai}
-                      onChange={(e) => setContrat({ ...contrat, clauseEssai: e.target.checked })}
-                    />
-                    Clause d’essai
-                  </label>
-                  <label className="flex items-center gap-1">
-                    <input
-                      type="checkbox"
-                      checked={contrat.essaiConstateParEcrit}
-                      onChange={(e) =>
-                        setContrat({ ...contrat, essaiConstateParEcrit: e.target.checked })
-                      }
-                    />
-                    Clause d’essai constatée par écrit (art. 43)
-                  </label>
-                  <label className="flex items-center gap-1">
-                    <input
-                      type="checkbox"
-                      checked={contrat.viseParOnem}
-                      onChange={(e) => setContrat({ ...contrat, viseParOnem: e.target.checked })}
-                    />
-                    Visé par l’Office national de l’emploi (art. 47)
-                  </label>
-                </div>
-                <button
-                  type="button"
-                  disabled={enCours || !contrat.dateEntreeEnVigueur}
-                  onClick={creerContrat}
-                  className="mt-2 px-3 py-1 border border-accent text-accent text-[12px] disabled:opacity-40"
-                >
-                  Enregistrer le contrat
-                </button>
+                      Enregistrer le contrat
+                    </button>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -1569,7 +1631,9 @@ export function PersonnelPage() {
             l’article 119 de la loi n° 23/053, le net, la quotité saisissable de l’article 114 et
             une <strong>proposition</strong> d’écriture. Il ne conserve rien, ne poste rien et ne
             remet aucun décompte écrit au sens de l’article 103. La retenue rendue est un{' '}
-            <strong>acompte</strong> sur l’impôt annuel de l’article 116, jamais un solde.
+            <strong>acompte</strong> sur l’impôt annuel de l’article 116, jamais un solde. Le
+            décompte écrit s’obtient en <strong>émettant le bulletin</strong>, en bas de la
+            simulation, qui fige ce calcul et lui donne un numéro.
           </div>
 
           <div className="border border-border px-3.5 py-2.5 mb-2.5">
@@ -2325,6 +2389,36 @@ export function PersonnelPage() {
             </div>
           )}
         </div>
+      )}
+
+      {onglet === 'simulation' && simulation && peutEcrire && (
+        <div className="ecran-seul max-w-[1240px] text-[12px] border border-border bg-surface px-3.5 py-2.5 mb-2.5 flex flex-wrap items-center gap-3">
+          {selection ? (
+            <>
+              <button
+                type="button"
+                disabled={enCours}
+                onClick={emettreBulletin}
+                className="px-3 py-1.5 bg-sel text-white font-semibold disabled:opacity-50"
+              >
+                Émettre le bulletin de {moisDePaie}
+              </button>
+              <span className="text-text-dim">
+                Numéroté à la suite (art. 214), figé tel que calculé ci-dessus, jamais modifiable
+                ensuite : une erreur se corrige en l’annulant, avec son motif.
+              </span>
+            </>
+          ) : (
+            <span className="text-text-dim">
+              Choisissez un salarié au registre pour émettre son bulletin · la simulation seule ne
+              désigne personne.
+            </span>
+          )}
+        </div>
+      )}
+
+      {onglet === 'bulletins' && (
+        <OngletBulletins moisInitial={moisDePaie} peutEcrire={peutEcrire} />
       )}
 
       {onglet === 'decompte' && (

@@ -11,6 +11,7 @@ import {
   Max,
   MaxLength,
   Min,
+  MinLength,
   ValidateNested,
 } from 'class-validator';
 import { PeriodiciteRemuneration, SexeTravailleur, TypeContratTravail } from '@prisma/client';
@@ -536,4 +537,18 @@ export class LivreDePaieDto {
   @IsArray()
   @IsInt({ each: true })
   mentionsPortees?: number[];
+}
+
+/** P8 · annuler un bulletin émis · le motif est la seule trace de la correction. */
+export class AnnulationBulletinDto {
+  @IsString()
+  @MinLength(5)
+  @MaxLength(500)
+  motif!: string;
+}
+
+/** P8 · déclarer la remise du décompte écrit au travailleur (art. 103). */
+export class RemiseBulletinDto {
+  @IsDateString()
+  remisLe!: string;
 }
