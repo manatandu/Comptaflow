@@ -194,6 +194,14 @@ une classification nationale ET une classification IFRS, avec des écritures et
 ventilations générées séparément pour chaque norme. À concevoir ainsi dès que ce
 chantier sera engagé, pas en couche de traduction ajoutée après coup.
 
+> **CORRIGÉ LE 2026-09-23.** Ce paragraphe transposait un choix de Sage sans
+> l'avoir confronté au texte. L'AUDCIF (art. 73-1 et ch. XII-3) fait d'IFRS
+> et de la consolidation des jeux d'états AJOUTÉS au jeu légal et bâtis par
+> retraitement. La couche posée à côté est donc la bonne architecture ici, et
+> la colonne de norme sur les écritures serait la mauvaise (97 lectures à
+> filtrer, une seule oubliée suffit à polluer le bilan déposé). Décision
+> complète : `docs/decision-multi-classification.md`.
+
 ### 3.7 RBAC (brique déjà construite · enrichissement de réserve, pas pour maintenant)
 
 Le modèle Sage X3 (hors périmètre i7, mais pertinent ici) est nettement plus fin que

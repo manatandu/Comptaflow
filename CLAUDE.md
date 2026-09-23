@@ -2099,6 +2099,20 @@ répondait, ici c'est la CI. Dans les deux cas le tort venait de la même source
 j'ai relu ma propre liste au lieu de la confronter au monde. **Une liste de
 manques ne se relit jamais contre elle-même.**
 
+**MULTI-CLASSIFICATION · TRANCHÉ LE 2026-09-23, ON NE TOUCHE PAS À LA
+STRUCTURE.** `Compte`, `Journal` et `Immobilisation` restent
+mono-classification (`docs/decision-multi-classification.md`). L'avertissement
+du plan (« la migration renchérit chaque mois ») venait de Sage et n'avait
+jamais été confronté au texte. Or l'AUDCIF fait d'IFRS un jeu d'états déposé
+« EN SUS » (art. 73-1) et de la consolidation un « retraitement des comptes
+individuels » (ch. XII-3) · deux COUCHES au-dessus du grand livre légal.
+**RÈGLE : RIEN N'ÉCRIT DANS `Ecriture` NI DANS `LigneEcriture` QUI NE SOIT PAS
+DU RÉFÉRENTIEL LÉGAL DU DOSSIER.** Une colonne de norme sur les écritures
+obligerait à filtrer 97 lectures dans 30 fichiers, et une seule oubliée
+mélangerait des retraitements dans le bilan déposé, sans que la balance cesse
+de boucler. Retraitements et correspondances IFRS iront dans des tables
+posées à côté, qui lisent le grand livre sans y écrire.
+
 **Questionnaire de révision par cycle · vingt-quatre items du CPCC, et le
 reste assumé.** Le séminaire porte DEUX checklists, § VI « vérification de
 l'inventaire physique » (immobilisations, stocks, caisses) et § VII

@@ -473,6 +473,14 @@ Avertissement du §3.6 à ne pas perdre : le multi-classification se pose à la
 CONCEPTION. `Compte`, `Journal` et `Immobilisation` sont tous
 mono-classification, et la migration renchérit chaque mois.
 
+**TRANCHÉ LE 2026-09-23 · L'AVERTISSEMENT NE TENAIT PAS.** Voir
+`docs/decision-multi-classification.md`. En droit OHADA, IFRS (AUDCIF art.
+73-1, « en sus ») et consolidation (ch. XII-3, « retraitements des comptes
+individuels ») sont des jeux d'états AJOUTÉS au jeu légal, pas une seconde
+classification dans le grand livre. Ils se construiront en tables posées à
+côté, purement additives, dont le coût ne croît pas avec le temps. Les trois
+modèles restent tels quels, et la gestion commerciale peut démarrer.
+
 **I1 · La facture est livrée le 2026-09-12** · modèles `Facture` et
 `LigneFacture`, migration `20260925000000_facturation`, module
 `src/modules/facturation/` (les neuf groupes de mentions de l'art. 100 du
