@@ -340,6 +340,62 @@ textarea {
   border-radius: 8px;
 }
 
+/*
+ * FINITIONS À LA WINDOWS 11, POUR TOUS LES ÉCRANS D'UN COUP (2026-09-23).
+ *
+ * Les écrans composent leurs encadrés, tableaux et boutons en utilitaires,
+ * écran par écran : 397 boutons, 41 tableaux, et des dizaines d'encadrés
+ * `border border-border bg-surface` restés CARRÉS. Les reprendre un à un
+ * aurait touché trente fichiers pour une affaire de coins. Ces règles posent
+ * la finition par défaut et s'effacent devant toute décision de l'écran.
+ *
+ * TOUT EST SOUS `:where()`, et c'est ce qui les rend sûres : une spécificité
+ * NULLE perd contre n'importe quelle classe utilitaire. Un encadré qui porte
+ * `rounded-none`, un bouton qui porte son propre `hover:bg-…`, une ligne de
+ * tableau déjà colorée gardent leur rendu. Seul ce qui n'a rien décidé reçoit
+ * la finition. Limité à <main> : la barre de titre, les menus et la barre
+ * d'état ont leur propre dessin.
+ */
+:where(main section.border, main div.border.bg-surface) {
+  border-radius: 8px;
+}
+:where(main section.border.bg-surface) {
+  box-shadow: var(--ombre-plate);
+}
+
+/* Boutons · une réaction au survol pour ceux qui n'en avaient aucune. */
+:where(main button) {
+  transition:
+    background-color 0.12s var(--t-doux),
+    border-color 0.12s var(--t-doux),
+    filter 0.12s var(--t-doux);
+}
+:where(main button.border:not(.bg-sel)) {
+  background-color: var(--surface);
+}
+:where(main button.border:not(.bg-sel):not(:disabled):hover) {
+  background-color: var(--chrome-alt);
+  border-color: var(--border-dark);
+}
+:where(main button.bg-sel:not(:disabled):hover) {
+  filter: brightness(1.08);
+}
+:where(main button:not(:disabled):active) {
+  filter: brightness(0.96);
+}
+
+/* Tableaux · l'en-tête se distingue du corps, la ligne survolée se voit. */
+:where(main thead th) {
+  font-weight: 600;
+  color: var(--text-dim);
+}
+:where(main thead tr) {
+  background-color: var(--surface-alt);
+}
+:where(main tbody tr:hover) {
+  background-color: color-mix(in srgb, var(--sel) 5%, transparent);
+}
+
 /* Une surface posée ou flottante est arrondie et clippe son contenu · les
    en-têtes carrés suivent le coin automatiquement. */
 @layer components {

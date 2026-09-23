@@ -340,7 +340,10 @@ export function AccueilPage() {
       {GROUPES.map((groupe) => (
         <section key={groupe.titre} className="mb-5">
           <TitreBande>{groupe.titre}</TitreBande>
-          <div className="flex flex-wrap gap-2.5">
+          {/* Une grille qui se remplit à la largeur de la fenêtre, comme la page
+              d'accueil des Paramètres de Windows 11 · 180 px au moins par
+              carte, ce qui en met une par ligne sur un téléphone. */}
+          <div className="grid gap-2 [grid-template-columns:repeat(auto-fill,minmax(180px,1fr))]">
             {groupe.tuiles
               .filter((t) => !t.admin || estAdmin)
               .filter((t) => fenetreDisponible(t, referentiel))
@@ -374,11 +377,12 @@ function TitreBande({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * Tuile de lancement · carrée et colorée comme celles d'IntuiSage, mais avec
- * le libellé SOUS l'icône et non par-dessus : chez Sage, le texte se glisse
- * dans le carré coloré et s'y coupe (« Visualisation/mo-dification d'une »),
- * ce qui rend la moitié des tuiles illisibles. Le carré porte l'icône, le
- * libellé vit dessous, au complet.
+ * Tuile de lancement · une CARTE à la Windows 11 (2026-09-23), et non plus le
+ * carré bleu d'IntuiSage avec son libellé en 10 px dessous, que Manasse
+ * trouvait vieux. L'icône vit dans une pastille teintée, le libellé à côté
+ * d'elle, en 12 px, sur deux lignes au plus · il n'est jamais coupé à
+ * l'intérieur d'un carré, défaut que la tuile de Sage avait et que l'ancienne
+ * disposition corrigeait déjà.
  */
 function Tuile({ tuile, rang, onClick }: { tuile: TuileDef; rang: number; onClick: () => void }) {
   return (
@@ -387,15 +391,12 @@ function Tuile({ tuile, rang, onClick }: { tuile: TuileDef; rang: number; onClic
       onClick={onClick}
       title={tuile.label}
       style={{ animationDelay: `${rang * 35}ms` }}
-      className="anim-cascade group flex w-[86px] flex-col items-center gap-1.5 rounded-[10px] border border-transparent p-1.5 text-center transition-[background-color,border-color,transform] duration-200 ease-sortie hover:-translate-y-[2px] hover:border-border hover:bg-surface"
+      className="anim-cascade group flex min-h-[56px] items-center gap-3 rounded-[8px] border border-border bg-surface px-3 py-2 text-left shadow-plate transition-[background-color,border-color,box-shadow] duration-150 ease-sortie hover:border-border-dark hover:bg-surface-alt active:bg-chrome"
     >
-      <span
-        className="flex h-[38px] w-[38px] items-center justify-center rounded-[10px] text-white shadow-plate transition-shadow duration-200 group-hover:shadow-flottante"
-        style={{ background: 'linear-gradient(140deg, var(--a-600), var(--a-800))' }}
-      >
-        <tuile.Icon width={16} height={16} />
+      <span className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[6px] bg-sel-soft text-sel transition-colors duration-150 group-hover:bg-sel group-hover:text-white">
+        <tuile.Icon width={17} height={17} />
       </span>
-      <span className="text-[10px] font-medium leading-tight text-text">{tuile.label}</span>
+      <span className="min-w-0 text-[12px] font-medium leading-snug text-text line-clamp-2">{tuile.label}</span>
     </button>
   );
 }
