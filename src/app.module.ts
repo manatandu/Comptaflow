@@ -69,6 +69,11 @@ import { CourrierModule } from './modules/courrier/courrier.module';
     // d'identification portent en plus leur propre limite serrée
     // (@Throttle sur AuthController) : c'est là que se joue la force brute
     // sur les mots de passe.
+    //
+    // COMPTÉ PAR INSTANCE, ET ASSUMÉ (2026-09-24) · aucun `storage`, donc un
+    // compteur par conteneur Cloud Run, jusqu'à quatre fois le plafond écrit.
+    // La force brute est tenue par le verrouillage PAR COMPTE, qui vit en
+    // base. Voir docs/connexions-et-plafonds.md § 7 avant d'y toucher.
     ThrottlerModule.forRoot({
       throttlers: [{ ttl: 60_000, limit: 300 }],
       errorMessage: 'Trop de tentatives depuis cette adresse · patientez une minute puis réessayez.',

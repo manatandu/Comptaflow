@@ -157,3 +157,29 @@ mentirait, et ses plafonds seraient calibrés pour une machine qui n'existe plus
 - **Des exports qui butent sur leurs plafonds** · c'est une question de
   mémoire, pas de connexions : refaire le banc de `docs/capacite-mesuree.md`
   avec le nouveau tas, puis relever les constantes du code.
+- **Le relèvement de `--max-instances`, ou un abus visible dans les journaux**
+  · c'est aussi le jour de revenir sur la limitation de débit (§ 7).
+
+## 7. La limitation de débit est comptée PAR INSTANCE, et c'est assumé
+
+Décision du 2026-09-24. `ThrottlerModule.forRoot` n'a pas de `storage` : chaque
+instance Cloud Run tient son propre compteur. Les plafonds écrits dans le code
+(300 requêtes par minute et par adresse partout ; 20 par minute sur les deux
+routes d'identification ; 30 par heure sur la troisième) sont donc des plafonds
+PAR INSTANCE. Avec `--max-instances 4`, le pire cas est quatre fois le chiffre
+écrit, et seulement quand Google a réellement démarré les quatre.
+
+POURQUOI ON NE POSE PAS REDIS. La défense contre la force brute sur un mot de
+passe n'est pas là : c'est le verrouillage PAR COMPTE (`auth/verrouillage.ts`),
+tenu sur `User.tentativesEchouees` et `User.verrouilleJusqua`, donc EN BASE,
+partagé par toutes les instances et vérifié AVANT bcrypt. Qu'on attaque par une
+instance ou par quatre, le compte se ferme au même essai. Redis ajouterait un
+service payant, un secret, un aller-retour réseau à chaque requête depuis
+Kinshasa, et une panne de plus · un magasin de compteurs indisponible fait
+refuser les requêtes de tout le monde.
+
+À REVOIR le jour où `--max-instances` est relevé, ou si les journaux montrent un
+abus que le plafond par instance laisse passer. Ne pas « corriger » en divisant
+les plafonds par quatre : en temps normal une seule instance tourne, et un
+cabinet dont tous les postes sortent par la même adresse serait coupé.
+

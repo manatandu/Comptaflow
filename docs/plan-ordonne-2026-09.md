@@ -32,7 +32,7 @@ colonne « Qui » dit qui tient la première étape.
 | 2 | Compléter le fichier de l'arrêté n° 013/2015, coupé à l'art. 7 · **ALLÉGÉ** le 2026-09-24 : la RÈGLE de l'art. 7 est au corpus, résumée dans `fiscalite-rdc/procedures-fiscales/references/16-mesures-execution-reclamations-recours.md` (« n'est susceptible d'aucune voie de recours »). Ne manque que le texte VERBATIM de la fin, utile pour une citation, plus bloquant pour coder | Manasse | minutes | La fin de l'article 7 et la suite, recopiées du texte officiel |
 | 3 | ~~Poser la variable `BUCKET_SAUVEGARDES`~~ **FAIT le 2026-09-24** · bucket `omega-x-ec07a-sauvegardes` (europe-west1, accès uniforme), `github-deploy` en Créateur d'objets Storage, variable posée. Prouvé par le run n° 28 : les étapes « S'authentifier » et « Copier vers Cloud Storage » sont VERTES, et non plus ignorées | Manasse | · | · |
 | 4 | ~~Mécénat au 4571 ou au 475~~ **FAIT le 2026-09-24** · Manasse a tranché pour le 475, le 4751 du texte étant lu comme sa subdivision. Le modèle portait en réalité le 4571, et le TFT cherchait la créance au 475 : une convention non soldée sortait du TFT. Aligné, et un test lie désormais le modèle au poste FC | Manasse, puis code | · | · |
-| 5 | Limitation de débit par conteneur | Manasse, puis code | < 1 h ou 1 jour | Assumer le plafond × instances (une phrase) ou poser Redis (une journée) |
+| 5 | ~~Limitation de débit par conteneur~~ **TRANCHÉ le 2026-09-24 · assumé**, sans Redis. Le verrouillage par compte, en base, tient la force brute. Écrit dans `docs/connexions-et-plafonds.md` § 7, à revoir si `--max-instances` monte | Manasse | · | · |
 | 6 | Sous-compte 388 « stocks provenant d'immobilisations mises hors service » | Code | ½ jour | Lecture des deux fiches du compte 38 et de la sortie d'immobilisation |
 | 7 | Rubrique « stocks en cours de route » absente de la Note 8 | Code | ½ jour | Lecture de la Note 8 ; trancher si l'on signale le trou ou si l'on s'abstient |
 | 8 | Mode « forfait 30 % » de l'IRPP, facultatif | Manasse, puis code | 1 jour | Décider de l'offrir malgré l'absence de base légale ; il serait déclaré comme tel à l'écran |
@@ -645,7 +645,7 @@ Aucun développement ne les débloque.
   installation sur site qui émette le heartbeat.
 - ~~**Variable `BUCKET_SAUVEGARDES`**~~ **FAIT le 2026-09-24**, run n° 28 vert jusqu'à la copie Cloud Storage · sans elle, la sauvegarde n'avait que 90
   jours de rétention et le job reste vert. Trois gestes dans le compte Google.
-- **Limitation de débit** · `ThrottlerModule.forRoot` sans `storage` : le
+- ~~**Limitation de débit**~~ **TRANCHÉ le 2026-09-24, assumé** (voir `connexions-et-plafonds.md` § 7) · `ThrottlerModule.forRoot` sans `storage` : le
   compteur est par conteneur, donc deux instances Cloud Run doublent le
   plafond réel. Redis, ou plafond d'instances assumé.
 - **Code du numérique congolais** · déclaration des traitements, autorisation
