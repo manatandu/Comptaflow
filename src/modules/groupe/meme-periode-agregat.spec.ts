@@ -68,6 +68,9 @@ const service = (exercicesCellule: Array<{ id: string; dateDebut: Date; dateFin:
       tiersCompte: { findMany: async () => [] },
       tenant: {
         findUnique: async () => ({ id: 'mere', nom: 'Église centrale', dossierCombinaisonId: 't-comb' }),
+        // Le dossier de combinaison déjà ouvert est réaligné sur le référentiel
+        // du siège à chaque liasse (voir assurerDossierCombinaison).
+        update: async () => ({}),
         findMany: async ({ where }: { where: { dossierMereId: string } }) =>
           where.dossierMereId === 'mere' ? [{ id: 'c1', nom: 'Cellule Matete', exercices: exercicesCellule }] : [],
       },

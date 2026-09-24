@@ -466,11 +466,11 @@ export const FENETRES: DefinitionFenetre[] = [
     titre: 'Groupe · balance agrégée',
     titreCourt: 'Groupe',
     rendre: () => <GroupePage />,
-    // Module monté sur le plan et les états SYCEBNL de bout en bout · la
-    // liasse du groupe crée un tenant de combinaison SYCEBNL en jeu
-    // ASSOCIATIONS. Le contrôleur porte le même filtre (CLAUDE.md § 6 · les
-    // deux endroits, toujours).
-    referentielsApplicables: ['SYCEBNL'],
+    // FENÊTRE COMMUNE AUX DEUX RÉFÉRENTIELS depuis le 2026-09-24 · une
+    // association et ses cellules (SYCEBNL, liaison par le 58), une société
+    // et ses succursales (SYSCOHADA, liaison par les 184 à 187). Le
+    // contrôleur autorise les deux et garde le canevas de trésorerie au seul
+    // SYCEBNL (CLAUDE.md § 6 · les deux endroits, toujours).
   },
   {
     motif: /^\/parametres-dossier$/,

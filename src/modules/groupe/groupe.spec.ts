@@ -162,7 +162,7 @@ describe('GroupeService · création de cellules par le siège', () => {
             id: 'mere',
             dossierMereId: mere.dossierMereId ?? null,
             plafondCellules: mere.plafondCellules ?? null,
-            // Le circuit du groupe est réservé au SYCEBNL (voir creerCellule).
+            // La cellule naît dans le référentiel du siège (voir creerCellule).
             referentiel: mere.referentiel ?? 'SYCEBNL',
             licence: mere.licence ?? null,
             _count: { cellules: mere.cellules ?? 0 },
@@ -231,10 +231,33 @@ describe('GroupeService · création de cellules par le siège', () => {
     ).rejects.toThrow(BadRequestException);
   });
 
-  it('refuse une mère SYSCOHADA · le circuit du groupe (canevas, liasse) est monté sur le SYCEBNL', async () => {
-    await expect(
-      service({ plafondCellules: 5, referentiel: 'SYSCOHADA' }).s.creerCellule('mere', { nom: 'X', emailAdmin: 'x@x.cd' }),
-    ).rejects.toThrow(/SYCEBNL/);
+  it('sous un siège SYSCOHADA, la succursale naît SYSCOHADA, au système du siège, sans jeu SYCEBNL', async () => {
+    const { s, traces } = service({ plafondCellules: 5, referentiel: 'SYSCOHADA' });
+    await s.creerCellule('mere', {
+      nom: 'Succursale Lubumbashi',
+      emailAdmin: 'x@x.cd',
+      // Un jeu SYCEBNL envoyé par erreur ne doit pas passer sur une société.
+      jeuEtatsFinanciersSycebnl: 'PROJETS_DEVELOPPEMENT' as never,
+    });
+    const envoye = traces.register[0] as Record<string, unknown>;
+    expect(envoye.referentiel).toBe('SYSCOHADA');
+    // Le siège n'a pas de système renseigné dans ce faux · Système normal,
+    // régime de droit commun de l'art. 11 de l'AUDCIF.
+    expect(envoye.systemeComptableSyscohada).toBe('NORMAL');
+    expect(envoye.jeuEtatsFinanciersSycebnl).toBeUndefined();
+  });
+
+  it('sous un siège SYCEBNL, la cellule naît SYCEBNL avec son jeu, sans système SYSCOHADA', async () => {
+    const { s, traces } = service({ plafondCellules: 5 });
+    await s.creerCellule('mere', {
+      nom: 'Cellule Matete',
+      emailAdmin: 'x@x.cd',
+      jeuEtatsFinanciersSycebnl: 'SYSTEME_MINIMAL_TRESORERIE' as never,
+    });
+    const envoye = traces.register[0] as Record<string, unknown>;
+    expect(envoye.referentiel).toBe('SYCEBNL');
+    expect(envoye.jeuEtatsFinanciersSycebnl).toBe('SYSTEME_MINIMAL_TRESORERIE');
+    expect(envoye.systemeComptableSyscohada).toBeUndefined();
   });
 });
 

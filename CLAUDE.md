@@ -230,7 +230,22 @@ SYCEBNL dit « (utiliser 104) », l'AUDCIF « → 481 ». Deux lecteurs distinct
 dans l'extracteur, et jamais une table servie pour l'autre référentiel.
 
 Propres au SYCEBNL : registre des donateurs, bailleurs, exonérations
-douanières, opérations spécifiques, module groupe.
+douanières, opérations spécifiques, canevas de trésorerie du groupe.
+
+Le **module groupe** est COMMUN depuis le 2026-09-24. Une association et ses
+cellules (SYCEBNL, liaison par le 58), une société et ses établissements ou
+succursales (SYSCOHADA, liaison par les 184 à 187). Dans les deux cas c'est UNE
+entité en plusieurs dossiers, pas une consolidation. La fiche du COMPTE 18
+(AUDCIF, Titre VII) fonde la variante SYSCOHADA : « les comptes de liaison sont
+égaux et de sens contraire dans les deux comptabilités ». Leur somme sur le
+groupe doit être nulle ; nulle, les 184 à 187 sortent de l'agrégat, rendus
+ligne à ligne ; sinon rien ne sort et la liasse est refusée. Les 181 à 183 et
+188 visent d'AUTRES personnes (entités liées) et ne sont pas des liaisons. Le
+même numéro ne veut rien dire en SYCEBNL (185 = dépôts reçus) : le contrôle
+n'existe que sous le SYSCOHADA. Cellule et combinaison prennent le référentiel
+(et, en SYSCOHADA, le système comptable) du siège, imposé aux deux portes
+(`creerCellule`, `modifierGroupe`). Le canevas de trésorerie, bâti sur les
+comptes du plan SYCEBNL, reste au seul SYCEBNL (filtre de route).
 
 Les **documents obligatoires** sont COMMUNS depuis le 2026-09-02, chacun lu
 dans son texte et jamais transposé : livre d'inventaire (SYCEBNL art. 14 selon

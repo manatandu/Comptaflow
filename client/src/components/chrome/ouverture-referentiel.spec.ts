@@ -53,7 +53,9 @@ describe('Ouverture d’une fenêtre réservée à un référentiel', () => {
     // toute entité et l'AUSCGIE art. 138 le rapport de gestion à toute
     // société commerciale (voir correspondance-inventaire-syscohada.ts).
     expect(reservees.size).toBeGreaterThanOrEqual(5);
-    expect(reservees.get('/groupe')).toBe('SYCEBNL');
+    // /groupe a cessé d'être réservée au SYCEBNL le 2026-09-24 (siège et
+    // succursales SYSCOHADA) · le registre des donateurs, lui, le reste.
+    expect(reservees.get('/registre-donateurs')).toBe('SYCEBNL');
     expect(reservees.get('/fiscalite')).toBe('SYSCOHADA');
   });
 

@@ -17,10 +17,11 @@ import type { BalanceAgregeeGroupe } from './types';
  */
 
 const VERT: BalanceAgregeeGroupe = {
+  referentiel: 'SYCEBNL',
   exercice: { id: 'ex', dateDebut: '2025-01-01T00:00:00.000Z', dateFin: '2025-12-31T00:00:00.000Z' },
   dossiers: [
-    { id: 'm', nom: 'Siège', estMere: true, totalDebit: 1000, totalCredit: 1000, solde58: 0, equilibre: true },
-    { id: 'c1', nom: 'Antenne Nord', estMere: false, totalDebit: 500, totalCredit: 500, solde58: 0, equilibre: true },
+    { id: 'm', nom: 'Siège', estMere: true, totalDebit: 1000, totalCredit: 1000, solde58: 0, soldeLiaison18: null, equilibre: true },
+    { id: 'c1', nom: 'Antenne Nord', estMere: false, totalDebit: 500, totalCredit: 500, solde58: 0, soldeLiaison18: null, equilibre: true },
   ],
   cellulesSansExercice: [],
   cellulesPeriodeDiscordante: [],
@@ -40,6 +41,8 @@ const VERT: BalanceAgregeeGroupe = {
     ecartElimination: 0,
     eliminationsSymetriques: true,
     rattachementsValides: true,
+    ecartLiaison18: null,
+    liaison18Neutralisee: null,
   },
   detailParDossier: [],
 };
@@ -80,7 +83,7 @@ describe('controlesDeLAgregat · ce que chaque échec doit nommer', () => {
       agregat({
         dossiers: [
           VERT.dossiers[0],
-          { id: 'c1', nom: 'Antenne Nord', estMere: false, totalDebit: 500, totalCredit: 460, solde58: 0, equilibre: false },
+          { id: 'c1', nom: 'Antenne Nord', estMere: false, totalDebit: 500, totalCredit: 460, solde58: 0, soldeLiaison18: null, equilibre: false },
         ],
         controles: { ...VERT.controles, tousEquilibres: false },
       }),
@@ -177,5 +180,41 @@ describe('controlesEnEchec', () => {
       agregat({ controles: { ...VERT.controles, reciprocitesEquilibrees: false, liaisonNeutralisee: false } }),
     );
     expect(rendus.map((c) => c.cle)).toEqual(['liaison', 'reciprocites']);
+  });
+});
+
+describe('controlesDeLAgregat · siège et succursales SYSCOHADA (comptes 184 à 187)', () => {
+  const SYSCOHADA = (neutralisee: boolean): BalanceAgregeeGroupe =>
+    agregat({
+      referentiel: 'SYSCOHADA',
+      dossiers: [
+        { ...VERT.dossiers[0], nom: 'Siège Kinshasa', soldeLiaison18: 500 },
+        { ...VERT.dossiers[1], nom: 'Succursale Lubumbashi', soldeLiaison18: neutralisee ? -500 : 0 },
+      ],
+      controles: { ...VERT.controles, ecartLiaison18: neutralisee ? 0 : 500, liaison18Neutralisee: neutralisee },
+    });
+
+  it('ajoute le contrôle de liaison juste après celui du 58', () => {
+    const cles = controlesDeLAgregat(SYSCOHADA(true)).map((c) => c.cle);
+    expect(cles.slice(cles.indexOf('liaison'), cles.indexOf('liaison') + 2)).toEqual(['liaison', 'liaison18']);
+    expect(parCle(SYSCOHADA(true), 'liaison18')).toMatchObject({ ok: true, detail: null });
+  });
+
+  it('en échec, chiffre l’écart et nomme le solde de chaque dossier', () => {
+    const c = parCle(SYSCOHADA(false), 'liaison18');
+    expect(c.ok).toBe(false);
+    expect(c.detail).toContain('Écart de 500.00 (Siège Kinshasa 500.00 · Succursale Lubumbashi 0.00)');
+    expect(c.detail).toContain('Rien n’a été retiré de l’agrégat');
+  });
+
+  it('un groupe SYCEBNL ne reçoit pas ce contrôle · ses 184 à 187 ne sont pas des liaisons', () => {
+    expect(controlesDeLAgregat(VERT).map((c) => c.cle)).toEqual([
+      'equilibre',
+      'periodes',
+      'liaison',
+      'rattachements',
+      'reciprocites',
+      'eliminations',
+    ]);
   });
 });

@@ -445,12 +445,11 @@ export function AppShell() {
             { label: 'Balance en monnaie fonctionnelle', onClick: () => navigate('/balance-fonctionnelle') },
             { label: 'Registre des faiblesses', onClick: () => navigate('/faiblesses') },
             // Dossier mère d'un groupe d'établissements (une église et ses
-            // cellules) · la balance agrégée du groupe est une édition du
-            // siège. Le module est monté sur le plan SYCEBNL (canevas de
-            // trésorerie et liasse combinée, cf. groupe.service.ts) et son
-            // contrôleur est réservé à ce référentiel · le compte des
-            // cellules ne suffit pas.
-            ...(estSycebnl && (utilisateur?.tenant.nombreCellules ?? 0) > 0
+            // cellules, une société et ses succursales) · la balance agrégée
+            // du groupe est une édition du siège, sous les deux référentiels
+            // (cf. groupe.controller.ts). Un dossier sans cellule n'a rien à
+            // agréger.
+            ...((utilisateur?.tenant.nombreCellules ?? 0) > 0
               ? [{ label: 'Balance agrégée du groupe', onClick: () => navigate('/groupe') }]
               : []),
           ],

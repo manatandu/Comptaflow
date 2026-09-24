@@ -262,20 +262,19 @@ export class PlateformeService implements OnModuleInit {
       // MÊME RÈGLE DE RÉFÉRENTIEL QUE `GroupeService.creerCellule`, et pour la
       // même raison. Il y a DEUX portes vers l'état « ce dossier est une
       // cellule » : le siège qui crée sa cellule, et l'opérateur qui rattache
-      // ici un dossier existant. La première vérifiait le référentiel, la
-      // seconde non · un dossier SYSCOHADA pouvait donc devenir cellule d'une
-      // mère SYCEBNL, ou une mère SYSCOHADA recevoir des cellules, par le
-      // seul chemin qui ne regardait rien.
+      // ici un dossier existant. Les deux exigent désormais la même chose ·
+      // la cellule relève du référentiel de sa mère.
       //
-      // Ce que ça produisait ensuite : la balance agrégée additionne des
-      // comptes de deux plans qui ne coïncident pas, le canevas de trésorerie
-      // du groupe est figé sur les rubriques SYCEBNL, et la liasse combinée
-      // monte un dossier de combinaison SYCEBNL. Trois états faux, aucun
-      // message.
-      if (mere.referentiel !== Referentiel.SYCEBNL || tenant.referentiel !== Referentiel.SYCEBNL) {
+      // Ce que le mélange produirait : la balance agrégée additionne par
+      // NUMÉRO des comptes de deux plans qui ne coïncident pas (le 18 est une
+      // dette financière au SYCEBNL, un compte de liaison des succursales au
+      // SYSCOHADA), et la liasse combinée sort au référentiel du siège sur
+      // des chiffres qui n'en relèvent pas. Aucun total ne cesserait de
+      // boucler, aucun message ne le dirait.
+      if (mere.referentiel !== tenant.referentiel) {
         throw new BadRequestException(
-          "Le groupe d'établissements n'est construit que pour les dossiers SYCEBNL pour l'instant · " +
-            'la mère et la cellule doivent toutes deux relever de ce référentiel.',
+          `La cellule et son dossier mère doivent relever du même référentiel · la mère est ${mere.referentiel}, ` +
+            `ce dossier est ${tenant.referentiel}.`,
         );
       }
     }

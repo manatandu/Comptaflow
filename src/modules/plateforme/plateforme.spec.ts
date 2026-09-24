@@ -264,14 +264,11 @@ describe('PlateformeService · groupe d’établissements', () => {
    *
    * Un dossier devient cellule par deux chemins : le siège qui crée sa
    * cellule (`GroupeService.creerCellule`), et l'opérateur qui rattache ici
-   * un dossier existant. Le premier refusait déjà une mère non SYCEBNL, avec
-   * sa raison écrite sur place ; le second ne regardait aucun référentiel.
-   *
-   * Ce que la porte ouverte produisait ensuite, sans un message : la balance
-   * agrégée additionne des comptes de deux plans qui ne coïncident pas, le
-   * canevas de trésorerie du groupe reste figé sur les rubriques SYCEBNL, et
-   * la liasse combinée monte un dossier de combinaison SYCEBNL pour des
-   * cellules d'entreprise.
+   * un dossier existant. Les deux exigent la même chose · la cellule relève
+   * du référentiel de sa mère. Le groupe s'ouvre au SYSCOHADA (siège et
+   * succursales d'une même société, comptes 184 à 187), jamais au MÉLANGE :
+   * la balance agrégée additionne par numéro, et le 18 n'est pas le même
+   * compte dans les deux plans.
    */
   const AVEC_SYSCOHADA = {
     ...TENANTS,
@@ -286,10 +283,18 @@ describe('PlateformeService · groupe d’établissements', () => {
     expect(maj).toEqual([]);
   });
 
-  it('refuse de donner des cellules à une mère SYSCOHADA', async () => {
+  it('refuse de donner une cellule SYCEBNL à une mère SYSCOHADA', async () => {
     const { s, maj } = service(AVEC_SYSCOHADA);
-    await expect(s.modifierGroupe('libre', { dossierMereId: 'mereEntreprise' })).rejects.toThrow(BadRequestException);
+    await expect(s.modifierGroupe('libre', { dossierMereId: 'mereEntreprise' })).rejects.toThrow(
+      /même référentiel · la mère est SYSCOHADA, ce dossier est SYCEBNL/,
+    );
     expect(maj).toEqual([]);
+  });
+
+  it('rattache une succursale SYSCOHADA à un siège SYSCOHADA', async () => {
+    const { s, maj } = service(AVEC_SYSCOHADA);
+    await s.modifierGroupe('celluleEntreprise', { dossierMereId: 'mereEntreprise' });
+    expect(maj[0]).toEqual({ where: { id: 'celluleEntreprise' }, data: { dossierMereId: 'mereEntreprise' } });
   });
 
   it('laisse DÉTACHER une cellule quel que soit son référentiel · on ne piège pas un dossier mal rattaché', async () => {

@@ -157,8 +157,8 @@ jour où un réviseur demande pourquoi ce compte-là.
   console Google Cloud → IAM → compte `github-deploy` → rôle « Lecteur de
   journaux ». Depuis le 2026-09-03 le déploiement affirme déjà le régime à
   l'envoi, ce qui suffit. **Ne bloque rien.**
-- **Module groupe en SYSCOHADA** · le refus est posé aux deux portes, les
-  moteurs existent. Ce n'est plus technique, c'est un arbitrage commercial.
+- ~~**Module groupe en SYSCOHADA** · le refus est posé aux deux portes, les
+  moteurs existent. Ce n'est plus technique, c'est un arbitrage commercial.~~ **TRANCHÉ le 2026-09-24** · ouvert aux succursales d'une même société (comptes 184 à 187).
 
 ---
 

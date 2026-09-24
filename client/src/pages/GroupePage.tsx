@@ -40,6 +40,8 @@ interface LigneSupervision {
   nbBrouillard: number;
   tresorerie: number;
   solde58: number;
+  /** Solde des 184 à 187 de la succursale (compte réfléchi du siège) · null hors SYSCOHADA. */
+  soldeLiaison18: number | null;
   equilibre: boolean;
   prete: boolean;
 }
@@ -77,7 +79,11 @@ function dateCourte(iso: string | null): string {
 }
 
 export function GroupePage() {
-  const { estAdmin, peutEcrire } = useAuth();
+  const { estAdmin, peutEcrire, utilisateur } = useAuth();
+  // SIÈGE ET SUCCURSALES D'UNE SOCIÉTÉ · la liaison passe par les 184 à 187
+  // (fiche du COMPTE 18), et le canevas de trésorerie, bâti sur les comptes
+  // du plan SYCEBNL, n'existe pas (le serveur le refuse aussi).
+  const syscohada = utilisateur?.tenant.referentiel === 'SYSCOHADA';
   const { exercices, exerciceCourant } = useExercice();
   const [exerciceId, setExerciceId] = useState<string | null>(null);
   const [meta, setMeta] = useState<ReponseCellules | null>(null);
@@ -178,7 +184,7 @@ export function GroupePage() {
       const resultat = await api.post<CelluleCreee>('/groupe/cellules', {
         nom,
         emailAdmin,
-        jeuEtatsFinanciersSycebnl: jeu,
+        ...(syscohada ? {} : { jeuEtatsFinanciersSycebnl: jeu }),
       });
       setCreationOuverte(false);
       setNom('');
@@ -321,13 +327,13 @@ export function GroupePage() {
         <div className="border border-border bg-surface shadow-posee max-w-[1120px] overflow-x-auto">
           <div className="min-w-[1020px]">
             <div className="grid grid-cols-[1.3fr_110px_100px_70px_80px_120px_110px_90px_190px] gap-2 px-3.5 py-1.5 bg-chrome border-b border-border text-[11px] font-bold text-text-dim">
-              <span>Cellule</span>
-              <span>JEU</span>
+              <span>{syscohada ? 'Succursale' : 'Cellule'}</span>
+              <span>{syscohada ? 'RÉFÉRENTIEL' : 'JEU'}</span>
               <span>Dern. écriture</span>
               <span className="text-right">Écrit.</span>
               <span className="text-right">Brouil.</span>
               <span className="text-right">Trésorerie</span>
-              <span className="text-right">58 (Liaison)</span>
+              <span className="text-right">{syscohada ? '184 à 187 (Liaison)' : '58 (Liaison)'}</span>
               <span>STATUT</span>
               <span></span>
             </div>
@@ -343,14 +349,23 @@ export function GroupePage() {
                 className={`grid grid-cols-[1.3fr_110px_100px_70px_80px_120px_110px_90px_190px] gap-2 items-center px-3.5 py-1.5 border-b border-border last:border-b-0 text-[12px] ${i % 2 === 0 ? 'bg-surface' : 'bg-surface-alt'}`}
               >
                 <span className="truncate font-semibold text-[12.5px]">{l.nom}</span>
-                <span>{LIBELLE_JEU[l.jeuEtatsFinanciersSycebnl]}</span>
+                {/* Le jeu d'états est un concept SYCEBNL · sur un dossier SYSCOHADA
+                    le champ porte une valeur par défaut qui ne veut rien dire. */}
+                <span>{syscohada ? 'SYSCOHADA' : LIBELLE_JEU[l.jeuEtatsFinanciersSycebnl]}</span>
                 <span className={l.derniereEcriture ? '' : 'text-danger'}>{dateCourte(l.derniereEcriture)}</span>
                 <span className="text-right tabular-nums">{l.nbEcritures}</span>
                 <span className={`text-right tabular-nums ${l.nbBrouillard > 0 ? 'text-warning font-semibold' : ''}`}>{l.nbBrouillard}</span>
                 <span className="text-right tabular-nums">{montant(l.tresorerie)}</span>
-                <span className={`text-right tabular-nums ${Math.abs(l.solde58) > 0.005 ? 'text-warning font-semibold' : 'text-text-dim'}`}>
-                  {montant(l.solde58)}
-                </span>
+                {syscohada ? (
+                  // Le compte réfléchi du siège n'a pas à être nul dans la
+                  // succursale · c'est le miroir du compte tenu au siège, et
+                  // seul l'agrégat exige leur somme nulle.
+                  <span className="text-right tabular-nums">{montant(l.soldeLiaison18 ?? 0)}</span>
+                ) : (
+                  <span className={`text-right tabular-nums ${Math.abs(l.solde58) > 0.005 ? 'text-warning font-semibold' : 'text-text-dim'}`}>
+                    {montant(l.solde58)}
+                  </span>
+                )}
                 <span
                   className={`font-mono text-[11px] font-bold px-1.5 py-0.5 w-fit ${
                     !l.exerciceId ? 'text-danger bg-danger-soft' : l.prete ? 'text-positive bg-positive-soft' : 'text-warning bg-warning-soft'
@@ -362,10 +377,12 @@ export function GroupePage() {
                   <button type="button" disabled={!l.exerciceId} onClick={() => ouvrirBalanceCellule(l)} className="text-sel disabled:opacity-40">
                     Balance
                   </button>
-                  <button type="button" onClick={() => api.telecharger(`/groupe/cellules/${l.id}/canevas`, 'canevas.xlsx')} className="text-sel">
-                    Canevas
-                  </button>
-                  {peutEcrire && (
+                  {!syscohada && (
+                    <button type="button" onClick={() => api.telecharger(`/groupe/cellules/${l.id}/canevas`, 'canevas.xlsx')} className="text-sel">
+                      Canevas
+                    </button>
+                  )}
+                  {peutEcrire && !syscohada && (
                     <button type="button" onClick={() => setDepotPour(l)} className="text-sel">
                       Déposer
                     </button>
@@ -575,9 +592,12 @@ export function GroupePage() {
 
       <p className="text-[12px] text-text-dim mt-2 max-w-[1080px]">
         Supervision en lecture seule : le siège voit tout, ne modifie rien · une correction se demande à la cellule, qui
-        la passe elle-même. « Canevas » télécharge le fichier Excel officiel d'une cellule non autonome · « Déposer »
-        importe le canevas rempli (tout ou rien, écritures en brouillard). Pour la liasse officielle : Exporter, puis
-        importer la feuille « Balance agrégée » dans un dossier de combinaison.
+        la passe elle-même.{' '}
+        {syscohada
+          ? 'Les opérations entre le siège et une succursale passent par les comptes de liaison 184 à 187 : un compte au nom de la succursale chez le siège, un compte réfléchi au nom du siège chez la succursale, égaux et de sens contraire. Neutralisés, ils sortent de l’agrégat.'
+          : "« Canevas » télécharge le fichier Excel officiel d'une cellule non autonome · « Déposer » importe le canevas rempli (tout ou rien, écritures en brouillard)."}{' '}
+        Pour la liasse officielle : « Liasse du groupe (Excel) », ou exporter puis importer la feuille « Balance agrégée »
+        dans un dossier de combinaison.
       </p>
 
       {creationOuverte && (
@@ -595,15 +615,22 @@ export function GroupePage() {
                 <input required autoFocus value={nom} onChange={(e) => setNom(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[13px]" />
                 <label className="text-[12.5px] text-right">E-mail du responsable :</label>
                 <input type="email" required value={emailAdmin} onChange={(e) => setEmailAdmin(e.target.value)} className="border border-border-dark px-2.5 py-1.5 text-[13px]" />
-                <label className="text-[12.5px] text-right">Tenue des comptes :</label>
-                <select value={jeu} onChange={(e) => setJeu(e.target.value as JeuEtatsFinanciersSycebnl)} className="border border-border-dark px-2.5 py-1.5 text-[12.5px]">
-                  <option value="SYSTEME_MINIMAL_TRESORERIE">Système minimal de trésorerie (petite cellule)</option>
-                  <option value="ASSOCIATIONS_ORDRES_PROFESSIONNELS">Système normal (grande cellule)</option>
-                </select>
+                {/* Une succursale SYSCOHADA prend le système comptable du siège ·
+                    c'est la même société (le serveur l'impose). */}
+                {!syscohada && (
+                  <>
+                    <label className="text-[12.5px] text-right">Tenue des comptes :</label>
+                    <select value={jeu} onChange={(e) => setJeu(e.target.value as JeuEtatsFinanciersSycebnl)} className="border border-border-dark px-2.5 py-1.5 text-[12.5px]">
+                      <option value="SYSTEME_MINIMAL_TRESORERIE">Système minimal de trésorerie (petite cellule)</option>
+                      <option value="ASSOCIATIONS_ORDRES_PROFESSIONNELS">Système normal (grande cellule)</option>
+                    </select>
+                  </>
+                )}
               </div>
               <p className="text-[12px] text-text-dim mt-2.5">
-                Le dossier naît complet, rattaché à ce groupe, avec la licence du siège. Pour une cellule non autonome
-                (dépôt Excel), utilisez un alias du comptable du siège comme e-mail.
+                {syscohada
+                  ? 'Le dossier de la succursale naît complet, au référentiel et au système comptable du siège, rattaché à ce groupe, avec la licence du siège.'
+                  : 'Le dossier naît complet, rattaché à ce groupe, avec la licence du siège. Pour une cellule non autonome (dépôt Excel), utilisez un alias du comptable du siège comme e-mail.'}
               </p>
               {creationErreur && <div className="text-[12.5px] text-danger bg-danger-soft border border-danger/30 px-2.5 py-1.5 mt-3">{creationErreur}</div>}
               <div className="flex justify-end gap-2 mt-4">

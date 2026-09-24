@@ -8,6 +8,7 @@ import {
   Referentiel,
   StatutEcriture,
   StatutExercice,
+  SystemeComptableSyscohada,
   TypeJournal,
 } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
@@ -64,13 +65,39 @@ export interface EcartReciprocite {
 
 const MOTIF_CREANCE_DETTE = 'Créance ou dette réciproque';
 const MOTIF_CHARGE_PRODUIT = 'Charge ou produit réciproque';
+const MOTIF_LIAISON_ETABLISSEMENTS = 'Compte de liaison siège / établissement';
+
+/**
+ * LES COMPTES DE LIAISON DES ÉTABLISSEMENTS ET SUCCURSALES · SYSCOHADA
+ * seulement. La fiche du COMPTE 18 (AUDCIF, Titre VII, classe 1) : « Le compte
+ * de liaison des établissements et succursales est un compte de bilan ouvert
+ * au nom de l'établissement. Il fonctionne comme un compte courant […] Il
+ * convient donc de créer, au siège, un compte de liaison au nom de chaque
+ * établissement ou succursale, et, dans l'établissement ou la succursale, un
+ * compte réfléchi au nom du siège […] les comptes de liaison sont égaux et de
+ * sens contraire dans les deux comptabilités. » Et : « Celle des comptes 184 à
+ * 187 est réservée aux opérations entre établissements d'une même entité. »
+ *
+ * D'où les deux gestes de l'agrégat : leur somme sur tout le groupe doit être
+ * NULLE (égaux et de sens contraire), et, nulle, elle sort de l'agrégat · un
+ * compte courant de l'entité envers elle-même n'est ni une créance ni une
+ * dette. Le 181, 182, 183 et 188 n'en sont PAS : ils visent des entités
+ * liées, c'est-à-dire d'AUTRES personnes (consolidation, hors de ce module).
+ *
+ * Le SYCEBNL n'a pas cet usage · son compte 18 porte les emprunts et dettes
+ * assimilées, et le groupe SYCEBNL passe ses transferts par le 58.
+ */
+const PREFIXES_LIAISON_ETABLISSEMENTS = ['184', '185', '186', '187'];
+const estLiaisonEtablissement = (numero: string) => PREFIXES_LIAISON_ETABLISSEMENTS.some((p) => numero.startsWith(p));
 
 /**
  * GROUPE D'ÉTABLISSEMENTS · une même personne morale tenue en plusieurs
  * dossiers : un dossier mère (le siège) et ses cellules. Cas type : une
  * église de plusieurs centaines de cellules, chacune tenant son dossier
  * (petites en SMT, grandes en Système normal), dont les comptabilités
- * s'AGRÈGENT au siège à la clôture. Ce n'est PAS une consolidation au sens
+ * s'AGRÈGENT au siège à la clôture. Sous le SYSCOHADA, le même schéma
+ * réunit une société et ses établissements ou succursales, reliés par les
+ * comptes 184 à 187 (voir PREFIXES_LIAISON_ETABLISSEMENTS). Ce n'est PAS une consolidation au sens
  * juridique (il n'y a qu'une seule entité, et l'Acte uniforme SYCEBNL ne
  * connaît d'ailleurs aucun régime de consolidation) : c'est la réunion des
  * comptabilités d'établissements d'une même entité, seule liasse déposable
@@ -117,17 +144,20 @@ export class GroupeService {
   private async assurerDossierCombinaison(tenantId: string): Promise<string> {
     const mere = await this.prisma.tenant.findUnique({
       where: { id: tenantId },
-      select: { nom: true, dossierCombinaisonId: true },
+      select: { nom: true, dossierCombinaisonId: true, referentiel: true, systemeComptableSyscohada: true },
     });
-    if (mere?.dossierCombinaisonId) return mere.dossierCombinaisonId;
+    // LE DOSSIER DE COMBINAISON PORTE LE RÉFÉRENTIEL DU SIÈGE · c'est lui que
+    // `ExportService.liasseCompleteExcel` lit pour choisir ses moteurs. Un
+    // dossier déjà ouvert est réaligné à chaque appel : le siège a pu changer
+    // de système comptable depuis, et la combinaison n'a aucune donnée propre
+    // (elle est régénérée de zéro à chaque liasse).
+    const caracteres = GroupeService.caracteresCombinaison(mere!);
+    if (mere?.dossierCombinaisonId) {
+      await this.prisma.tenant.update({ where: { id: mere.dossierCombinaisonId }, data: caracteres });
+      return mere.dossierCombinaisonId;
+    }
     const combinaison = await this.prisma.tenant.create({
-      data: {
-        nom: `${mere!.nom} · liasse du groupe`,
-        referentiel: Referentiel.SYCEBNL,
-        // L'entité agrégée relève du Système normal (art. 6 SYCEBNL · le
-        // seuil s'apprécie par entité), quel que soit le jeu des cellules.
-        jeuEtatsFinanciersSycebnl: JeuEtatsFinanciersSycebnl.ASSOCIATIONS_ORDRES_PROFESSIONNELS,
-      },
+      data: { nom: `${mere!.nom} · liasse du groupe`, ...caracteres },
       select: { id: true },
     });
     await this.prisma.tenant.update({
@@ -135,6 +165,32 @@ export class GroupeService {
       data: { dossierCombinaisonId: combinaison.id },
     });
     return combinaison.id;
+  }
+
+  /**
+   * Référentiel et système du dossier de combinaison, tirés du siège.
+   *  · SYCEBNL · Système normal, jeu ASSOCIATIONS (art. 6 SYCEBNL · le seuil
+   *    s'apprécie par entité), quel que soit le jeu des cellules ;
+   *  · SYSCOHADA · le système du siège. Siège et succursales sont UNE entité
+   *    (fiche du COMPTE 18 : « toute division de l'entité disposant d'une
+   *    comptabilité autonome ») · son système est celui de l'art. 11 de
+   *    l'AUDCIF apprécié pour elle, et c'est le siège qui le porte.
+   */
+  static caracteresCombinaison(mere: {
+    referentiel: Referentiel;
+    systemeComptableSyscohada: SystemeComptableSyscohada | null;
+  }) {
+    if (mere.referentiel === Referentiel.SYSCOHADA) {
+      return {
+        referentiel: Referentiel.SYSCOHADA,
+        systemeComptableSyscohada: mere.systemeComptableSyscohada ?? SystemeComptableSyscohada.NORMAL,
+      };
+    }
+    return {
+      referentiel: Referentiel.SYCEBNL,
+      jeuEtatsFinanciersSycebnl: JeuEtatsFinanciersSycebnl.ASSOCIATIONS_ORDRES_PROFESSIONNELS,
+      systemeComptableSyscohada: null,
+    };
   }
 
   private async dansLeGroupe<T>(tenantId: string, suite: () => Promise<T>): Promise<T> {
@@ -198,6 +254,7 @@ export class GroupeService {
         dossierMereId: true,
         plafondCellules: true,
         referentiel: true,
+        systemeComptableSyscohada: true,
         licence: { select: { type: true, dateExpiration: true } },
         _count: { select: { cellules: true } },
       },
@@ -205,16 +262,12 @@ export class GroupeService {
     if (!mere || mere.dossierMereId !== null) {
       throw new BadRequestException('Seul un dossier mère peut créer des cellules');
     }
-    // Tout le circuit du groupe (canevas de trésorerie, rubriques, liasse
-    // combinée) est monté sur le plan et les états SYCEBNL · ouvrir des
-    // cellules sous une mère SYSCOHADA produirait des agrégats du mauvais
-    // référentiel. À reconstruire pour le SYSCOHADA si un groupe commercial
-    // en a l'usage un jour, pas à laisser passer en silence.
-    if (mere.referentiel !== Referentiel.SYCEBNL) {
-      throw new BadRequestException(
-        "Le groupe d'établissements n'est construit que pour les dossiers SYCEBNL pour l'instant",
-      );
-    }
+    // LA CELLULE NAÎT DANS LE RÉFÉRENTIEL DU SIÈGE, jamais un autre · la
+    // balance agrégée réunit les comptes par NUMÉRO, et deux plans qui ne
+    // coïncident pas s'additionneraient sans qu'aucun total cesse de boucler.
+    // Sous le SYSCOHADA, la cellule est un établissement ou une succursale de
+    // la même société (fiche du COMPTE 18) : elle prend aussi le système
+    // comptable du siège, celui de l'entité.
     if (mere.plafondCellules === null) {
       throw new BadRequestException(
         "La création de cellules n'est pas activée pour ce dossier · rapprochez-vous de VMG Consulting",
@@ -229,10 +282,15 @@ export class GroupeService {
     const motDePasseTemporaire = randomBytes(12).toString('base64url');
     const resultat = await this.authService.register({
       nomEntite: dto.nom,
-      referentiel: Referentiel.SYCEBNL,
+      referentiel: mere.referentiel,
       email: dto.emailAdmin,
       motDePasse: motDePasseTemporaire,
-      jeuEtatsFinanciersSycebnl: dto.jeuEtatsFinanciersSycebnl,
+      jeuEtatsFinanciersSycebnl:
+        mere.referentiel === Referentiel.SYCEBNL ? dto.jeuEtatsFinanciersSycebnl : undefined,
+      systemeComptableSyscohada:
+        mere.referentiel === Referentiel.SYSCOHADA
+          ? (mere.systemeComptableSyscohada ?? SystemeComptableSyscohada.NORMAL)
+          : undefined,
       typeLicence: mere.licence?.type,
     });
     await this.prisma.tenant.update({
@@ -345,7 +403,8 @@ export class GroupeService {
   /**
    * Balance agrégée du groupe pour un exercice du dossier mère : les soldes
    * de la mère et de chaque cellule, réunis compte par compte (par NUMÉRO ·
-   * les dossiers créés depuis la console partagent le même plan SYCEBNL).
+   * les dossiers d'un groupe partagent le plan du référentiel du siège, imposé
+   * aux deux portes de rattachement).
    * Seuls les comptes Détail entrent dans l'agrégat, les comptes Total ne
    * sont que des lignes d'affichage déjà comptées par leurs enfants.
    *
@@ -380,7 +439,10 @@ export class GroupeService {
     if (!exercice) {
       throw new NotFoundException('Exercice introuvable dans ce dossier');
     }
-    const mere = await this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { id: true, nom: true } });
+    const mere = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { id: true, nom: true, referentiel: true },
+    });
     const cellules = await this.prisma.tenant.findMany({
       where: { dossierMereId: tenantId },
       orderBy: { nom: 'asc' },
@@ -389,6 +451,9 @@ export class GroupeService {
     if (cellules.length === 0) {
       throw new BadRequestException("Ce dossier n'a aucune cellule rattachée · le rattachement se fait depuis la console plateforme");
     }
+    // Les comptes 184 à 187 ne sont des comptes de liaison que dans le plan
+    // SYSCOHADA · voir PREFIXES_LIAISON_ETABLISSEMENTS.
+    const syscohada = mere?.referentiel === Referentiel.SYSCOHADA;
 
     const dossiers: Array<{
       id: string;
@@ -478,12 +543,25 @@ export class GroupeService {
     }
     const parNumero = new Map<string, LigneAgregee>();
     const detailParDossier: Array<{ dossier: string; numero: string; intitule: string; totalDebit: number; totalCredit: number }> = [];
-    const equilibres: Array<{ id: string; nom: string; estMere: boolean; totalDebit: number; totalCredit: number; solde58: number; equilibre: boolean }> = [];
+    const equilibres: Array<{
+      id: string;
+      nom: string;
+      estMere: boolean;
+      totalDebit: number;
+      totalCredit: number;
+      solde58: number;
+      /** Solde des 184 à 187 de ce dossier · null hors SYSCOHADA. */
+      soldeLiaison18: number | null;
+      equilibre: boolean;
+    }> = [];
+    /** Les lignes 184 à 187 de chaque dossier, telles qu'elles sortiront si la liaison se neutralise. */
+    const lignesLiaison: EliminationReciproque[] = [];
 
     for (const d of dossiers) {
       if (!d.exerciceId) continue;
       const balance = await this.ecritureService.balance(d.id, d.exerciceId);
       let solde58 = 0;
+      let soldeLiaison18 = 0;
       for (const l of balance.lignes) {
         // Redondant par construction (la balance ne rend que du détail), gardé
         // contre le double comptage · voir EcritureService.balance.
@@ -503,6 +581,18 @@ export class GroupeService {
           });
         }
         if (l.numero.startsWith('58')) solde58 += l.solde;
+        if (syscohada && estLiaisonEtablissement(l.numero)) {
+          soldeLiaison18 += l.solde;
+          lignesLiaison.push({
+            dossier: d.nom,
+            contrepartie: d.estMere ? 'établissements et succursales' : 'siège',
+            numero: l.numero,
+            intitule: l.intitule,
+            motif: MOTIF_LIAISON_ETABLISSEMENTS,
+            debit: l.totalDebit,
+            credit: l.totalCredit,
+          });
+        }
         // La créance (ou la dette) de CE dossier envers un autre dossier du
         // groupe · elle doit trouver son reflet exact en face.
         if (compteReciproque.has(l.compteId)) {
@@ -523,6 +613,7 @@ export class GroupeService {
         totalDebit: balance.totaux.debit,
         totalCredit: balance.totaux.credit,
         solde58,
+        soldeLiaison18: syscohada ? Math.round(soldeLiaison18 * 100) / 100 : null,
         equilibre: Math.abs(balance.totaux.debit - balance.totaux.credit) <= 0.005,
       });
     }
@@ -533,6 +624,34 @@ export class GroupeService {
       nomParDossier,
       soldeReciproqueParCompte,
     );
+
+    // LA LIAISON SIÈGE / ÉTABLISSEMENTS (SYSCOHADA) · « égaux et de sens
+    // contraire dans les deux comptabilités » (fiche du COMPTE 18). La somme
+    // des 184 à 187 sur tout le groupe doit donc être nulle ; nulle, les
+    // lignes sortent de l'agrégat, rendues une à une comme toute élimination.
+    // Non nulle, RIEN ne sort : retirer une liaison boiteuse effacerait
+    // justement l'écart qui dit qu'une opération n'est passée que d'un côté,
+    // et la liasse est refusée (voir liasseGroupe).
+    const ecartLiaison18 = syscohada
+      ? Math.round(equilibres.reduce((s, e) => s + (e.soldeLiaison18 ?? 0), 0) * 100) / 100
+      : 0;
+    const liaison18Neutralisee = Math.abs(ecartLiaison18) <= 0.005;
+    if (syscohada && liaison18Neutralisee) {
+      for (const e of lignesLiaison) {
+        e.debit = Math.round(e.debit * 100) / 100;
+        e.credit = Math.round(e.credit * 100) / 100;
+        if (e.debit === 0 && e.credit === 0) continue;
+        reciproques.eliminations.push(e);
+        reciproques.totaux.debit = Math.round((reciproques.totaux.debit + e.debit) * 100) / 100;
+        reciproques.totaux.credit = Math.round((reciproques.totaux.credit + e.credit) * 100) / 100;
+      }
+      reciproques.eliminations.sort(
+        (a, b) =>
+          a.dossier.localeCompare(b.dossier) ||
+          a.numero.localeCompare(b.numero) ||
+          a.motif.localeCompare(b.motif),
+      );
+    }
     // L'agrégat est le cumul MOINS ce qui a été éliminé · `detailParDossier`
     // reste le cumul BRUT, dossier par dossier, pour que la soustraction se
     // refasse à la main : agrégat = détail par dossier − éliminations. Un
@@ -634,7 +753,12 @@ export class GroupeService {
         ecartElimination,
         eliminationsSymetriques: Math.abs(ecartElimination) <= 0.005,
         rattachementsValides: rattachementsRefuses.length === 0,
+        // SYSCOHADA seulement · null ailleurs, où les 184 à 187 ne sont pas
+        // des comptes de liaison.
+        ecartLiaison18: syscohada ? ecartLiaison18 : null,
+        liaison18Neutralisee: syscohada ? liaison18Neutralisee : null,
       },
+      referentiel: syscohada ? Referentiel.SYSCOHADA : Referentiel.SYCEBNL,
       detailParDossier,
     };
   }
@@ -909,6 +1033,11 @@ export class GroupeService {
       { header: 'Débit', key: 'debit', width: 16, style: { numFmt: fmt } },
       { header: 'Crédit', key: 'credit', width: 16, style: { numFmt: fmt } },
       { header: 'Solde 58 (virements internes)', key: 'solde58', width: 24, style: { numFmt: fmt } },
+      // La colonne n'existe que pour un groupe SYSCOHADA · un groupe SYCEBNL
+      // garde son classeur d'avant, colonne pour colonne.
+      ...(agregat.controles.liaison18Neutralisee !== null
+        ? [{ header: 'Solde 184 à 187 (liaison siège / établissements)', key: 'liaison18', width: 30, style: { numFmt: fmt } }]
+        : []),
       { header: 'Équilibre', key: 'equilibre', width: 14 },
     ];
     controles.getRow(1).font = { bold: true };
@@ -918,6 +1047,7 @@ export class GroupeService {
         debit: e.totalDebit,
         credit: e.totalCredit,
         solde58: e.solde58,
+        liaison18: e.soldeLiaison18 ?? undefined,
         equilibre: e.equilibre ? 'Oui' : 'DÉSÉQUILIBRÉ',
       });
     }
@@ -940,7 +1070,14 @@ export class GroupeService {
       debit: agregat.totaux.debit,
       credit: agregat.totaux.credit,
       solde58: agregat.controles.ecartLiaison,
-      equilibre: agregat.controles.liaisonNeutralisee ? '58 neutralisés' : 'ÉCART SUR 58',
+      liaison18: agregat.controles.ecartLiaison18 ?? undefined,
+      equilibre:
+        (agregat.controles.liaisonNeutralisee ? '58 neutralisés' : 'ÉCART SUR 58') +
+        (agregat.controles.liaison18Neutralisee === null
+          ? ''
+          : agregat.controles.liaison18Neutralisee
+            ? ' · liaison 184 à 187 neutralisée'
+            : ' · ÉCART SUR LA LIAISON 184 À 187'),
     });
     totalRow.font = { bold: true };
     for (const c of agregat.cellulesSansExercice) {
@@ -1029,6 +1166,8 @@ export class GroupeService {
       orderBy: { nom: 'asc' },
       select: { id: true, nom: true, jeuEtatsFinanciersSycebnl: true, exercices: { select: { id: true, dateDebut: true, dateFin: true } } },
     });
+    const mere = await this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { referentiel: true } });
+    const syscohada = mere?.referentiel === Referentiel.SYSCOHADA;
 
     const lignes = [];
     for (const c of cellules) {
@@ -1051,6 +1190,7 @@ export class GroupeService {
           nbBrouillard: 0,
           tresorerie: 0,
           solde58: 0,
+          soldeLiaison18: syscohada ? 0 : null,
           equilibre: true,
           prete: false,
         });
@@ -1073,6 +1213,12 @@ export class GroupeService {
         .filter((l) => l.numero.startsWith('5') && !l.numero.startsWith('58'))
         .reduce((s, l) => s + l.solde, 0);
       const solde58 = detail.filter((l) => l.numero.startsWith('58')).reduce((s, l) => s + l.solde, 0);
+      // Le compte réfléchi du siège dans la succursale · son solde n'a pas à
+      // être nul (c'est le miroir du compte tenu au siège), seul l'agrégat
+      // l'exige. Montré pour que le siège le rapproche du sien.
+      const soldeLiaison18 = syscohada
+        ? Math.round(detail.filter((l) => estLiaisonEtablissement(l.numero)).reduce((s, l) => s + l.solde, 0) * 100) / 100
+        : null;
       const equilibre = Math.abs(balance.totaux.debit - balance.totaux.credit) <= 0.005;
       lignes.push({
         id: c.id,
@@ -1087,6 +1233,7 @@ export class GroupeService {
         nbBrouillard,
         tresorerie,
         solde58,
+        soldeLiaison18,
         equilibre,
         // « Prête pour l'agrégat » : sur la MÊME période que le siège,
         // équilibrée, plus rien en brouillard, et au moins une écriture (une
@@ -1451,6 +1598,16 @@ export class GroupeService {
         `virements internes (58) non neutralisés (écart ${agregat.controles.ecartLiaison.toFixed(2)}) · un transfert est enregistré d'un seul côté`,
       );
     }
+    if (agregat.controles.liaison18Neutralisee === false) {
+      const parDossier = agregat.dossiers
+        .map((d) => `${d.nom} ${(d.soldeLiaison18 ?? 0).toFixed(2)}`)
+        .join(', ');
+      blocages.push(
+        `comptes de liaison siège / établissements (184 à 187) non neutralisés (écart ${agregat.controles.ecartLiaison18!.toFixed(2)} · ` +
+          `${parDossier}) · « les comptes de liaison sont égaux et de sens contraire dans les deux comptabilités » ` +
+          '(SYSCOHADA, fiche du COMPTE 18) : une opération entre le siège et un établissement n’est enregistrée que d’un seul côté',
+      );
+    }
     // LES OPÉRATIONS RÉCIPROQUES · une élimination qui ne se boucle pas rendrait
     // une liasse aussi fausse qu'un 58 pendant, et de la même façon : le total
     // est cohérent avec lui-même, seule la réalité manque. Le D4C fait de la
@@ -1493,7 +1650,9 @@ export class GroupeService {
         `cellule(s) dont l'exercice ne couvre pas la période du siège (du ${GroupeService.jour(agregat.exercice.dateDebut)} au ` +
           `${GroupeService.jour(agregat.exercice.dateFin)}) : ${nommees} · leurs chiffres ont été laissés hors de l'agrégat, ` +
           "car une liasse qui additionne deux périodes ne correspond à aucune. L'exercice coïncide avec l'année civile " +
-          "(AUDCIF art. 7, non exclu par l'art. 3 du SYCEBNL et repris à l'entrée EXERCICE de son glossaire) : seuls un " +
+          (agregat.referentiel === Referentiel.SYSCOHADA
+            ? '(AUDCIF art. 7) : seuls un '
+            : "(AUDCIF art. 7, non exclu par l'art. 3 du SYCEBNL et repris à l'entrée EXERCICE de son glossaire) : seuls un ") +
           'PREMIER exercice ou un exercice de LIQUIDATION peuvent être décalés · clôturez la cellule sur la période du ' +
           "siège, puis relancez, ou attendez qu'elle soit revenue à l'année civile",
       );

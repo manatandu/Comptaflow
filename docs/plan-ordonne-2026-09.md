@@ -39,7 +39,7 @@ colonne « Qui » dit qui tient la première étape.
 | 9 | ~~Article 22 de l'AUDCIF · opération tombant dans une période close~~ **FAIT le 2026-09-24** · Manasse a tranché pour le texte. Au refus, la saisie propose « Reporter au premier jour de la période ouverte » ; l'écriture prend ce jour, sa date réelle est gardée en `Ecriture.dateValeur`, montrée au journal, à la saisie et dans l'export. Jamais d'office, jamais au-delà de l'exercice, jamais sur un journal clôturé totalement | Manasse, puis code | · | · |
 | 10 | Formulaire de déclaration DGI | Manasse, puis code | 2 jours | Le modèle officiel de l'imprimé |
 | 11 | Salaires en dollars | Source, puis code | 2 à 3 jours | Le texte qui fixe le cours de conversion pour l'IRPP · **CHERCHÉ (2026-09-24), ABSENT DU CORPUS.** Trouvé : art. 89 du Code du travail (« La rémunération doit être stipulée en monnaie ayant cours légal »), donc un contrat en USD n'est pas conforme à la lettre ; loi n° 23/053 Titre 3 et L.P.F. ne libellent qu'en FC, sans règle de conversion ; seuls textes à cours (forfaits en USD, IF/IRL Kinshasa) renvoient à une circulaire non détenue ou au « taux officiel du jour du paiement », hors IRPP. Rien côté CNSS, INPP, ONEM. Attend de Manasse : le texte (circulaire DGI, note de service, instruction CNSS) qui fixe le cours et sa date. |
-| 12 | Module Groupe ouvert au SYSCOHADA | Manasse, puis code | 3 à 5 jours | L'arbitrage ; les moteurs existent |
+| 12 | Module Groupe ouvert au SYSCOHADA | Manasse, puis code | 3 à 5 jours | L'arbitrage ; les moteurs existent · **FAIT (2026-09-24)**, tranché par Manasse : siège et succursales d'une même société, liaison par les 184 à 187 (fiche du COMPTE 18). Les filiales restent au 14 (consolidation). |
 | 13 | Droits d'accès plus fins que trois rôles | Code | 1 semaine | Définir les rôles voulus ; chaque route porte déjà `@Roles` |
 | 14 | Consolidation SYSCOHADA (AUDCIF Titres XII et XIII) | Code | 2 semaines | La passe R4, prochaine du plan de confrontations |
 | 15 | États IFRS en sus du jeu légal (AUDCIF art. 73-1) | Code | 2 à 3 semaines | Tables à côté du grand livre, jamais dedans (`docs/decision-multi-classification.md`) |
@@ -679,9 +679,9 @@ Aucun développement ne les débloque.
   congolais, `Tenant.devise` n'est plus dans aucun DTO, et la monnaie
   fonctionnelle commande un second jeu sans valeur légale. Ligne périmée,
   laissée barrée pour que la leçon reste.
-- **Module groupe en SYSCOHADA** · le refus est désormais posé aux deux portes
+- ~~**Module groupe en SYSCOHADA** · le refus est désormais posé aux deux portes
   (2026-09-02). Les moteurs nécessaires existent : ce n'est plus technique,
-  c'est un arbitrage.
+  c'est un arbitrage.~~ **OUVERT le 2026-09-24** aux succursales (184 à 187).
 - ~~**Mécénat 4571 contre 475**~~ **TRANCHÉ le 2026-09-24 pour le 475** · les deux comptes sont semés, le catalogue
   n'utilise que le 475. Arbitrage de doctrine, ouvert depuis l'audit d'août.
 - ~~**Article 22 de l'AUDCIF**~~ **APPLIQUÉ le 2026-09-24** · le texte prévoit qu'une opération tombant dans

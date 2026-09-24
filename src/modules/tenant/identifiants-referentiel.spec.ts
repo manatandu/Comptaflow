@@ -1,8 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { BadRequestException } from '@nestjs/common';
+import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { Referentiel } from '@prisma/client';
 import { TenantService } from './tenant.service';
+import { REFERENTIELS_KEY } from '../../common/decorators/referentiels.decorator';
+import { ReferentielGuard } from '../../common/guards/referentiel.guard';
+import { GroupeController } from '../groupe/groupe.controller';
 
 /**
  * LES IDENTIFIANTS LÉGAUX NE SONT PAS LES MÊMES DES DEUX CÔTÉS, et la route
@@ -89,20 +93,28 @@ describe('identifiants légaux · chacun son référentiel', () => {
   });
 });
 
-describe('module groupe · cloisonné aux DEUX endroits', () => {
-  it('porte le décorateur de référentiel et sa garde sur le contrôleur', () => {
-    // Les deux portes de rattachement refusent déjà une mère ou une cellule
-    // non SYCEBNL : ce qui manquait est la défense en profondeur du § 6, sans
-    // laquelle /groupe s'ouvre par URL directe et répond une erreur métier au
-    // lieu d'un refus de référentiel franc.
-    const controleur = readFileSync(join(__dirname, '../groupe/groupe.controller.ts'), 'utf8');
-    expect(controleur).toContain('@ReferentielsAutorises(Referentiel.SYCEBNL)');
-    expect(controleur).toContain('ReferentielGuard');
+describe('module groupe · les deux référentiels, sauf le canevas', () => {
+  it('le contrôleur autorise le SYCEBNL et le SYSCOHADA, sous sa garde', () => {
+    // Depuis le 2026-09-24 · une association et ses cellules, une société et
+    // ses succursales (fiche du COMPTE 18, 184 à 187). La garde reste posée :
+    // c'est elle qui refuserait un troisième référentiel.
+    expect(Reflect.getMetadata(REFERENTIELS_KEY, GroupeController)).toEqual([Referentiel.SYCEBNL, Referentiel.SYSCOHADA]);
+    expect(Reflect.getMetadata(GUARDS_METADATA, GroupeController)).toContain(ReferentielGuard);
   });
 
-  it('est masqué côté client par le registre des fenêtres', () => {
+  it('le canevas de trésorerie reste au SYCEBNL · ses rubriques sont des comptes de son plan', () => {
+    // Le filtre de la route l'emporte sur celui de la classe (getAllAndOverride).
+    const proto = GroupeController.prototype as unknown as Record<string, object>;
+    expect(Reflect.getMetadata(REFERENTIELS_KEY, proto.canevas)).toEqual([Referentiel.SYCEBNL]);
+    expect(Reflect.getMetadata(REFERENTIELS_KEY, proto.importerCanevas)).toEqual([Referentiel.SYCEBNL]);
+    // La balance agrégée et la liasse, elles, suivent la classe.
+    expect(Reflect.getMetadata(REFERENTIELS_KEY, proto.balanceAgregee)).toBeUndefined();
+    expect(Reflect.getMetadata(REFERENTIELS_KEY, proto.liasseGroupe)).toBeUndefined();
+  });
+
+  it('la fenêtre du client est commune aux deux référentiels', () => {
     const registre = readFileSync(join(__dirname, '../../../client/src/lib/registre-fenetres.tsx'), 'utf8');
     const bloc = registre.slice(registre.indexOf("motif: /^\\/groupe$/"), registre.indexOf("motif: /^\\/groupe$/") + 600);
-    expect(bloc).toContain("referentielsApplicables: ['SYCEBNL']");
+    expect(bloc).toContain('FENÊTRE COMMUNE AUX DEUX RÉFÉRENTIELS');
   });
 });

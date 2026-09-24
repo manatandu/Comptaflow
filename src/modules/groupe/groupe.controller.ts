@@ -37,22 +37,28 @@ function envoyerXlsx(res: Response, classeur: { buffer: Buffer; nomFichier: stri
  * l'appelant.
  */
 /*
-  MODULE PROPRE AU SYCEBNL, et il ne le disait nulle part côté serveur.
+  OUVERT AUX DEUX RÉFÉRENTIELS, SAUF LE CANEVAS.
 
-  Le groupe d'établissements est monté de bout en bout sur le plan et les
-  états SYCEBNL : le canevas de trésorerie, la balance agrégée, et surtout
-  `liasseGroupe`, qui crée un tenant de combinaison SYCEBNL en jeu
-  ASSOCIATIONS. CLAUDE.md § 6 le range parmi les modules propres au SYCEBNL.
+  Sous le SYCEBNL, un groupe d'établissements réunit une même association
+  tenue en plusieurs dossiers (siège et cellules), ses transferts passant
+  par le 58. Sous le SYSCOHADA, il réunit une société et ses établissements
+  ou succursales, reliés par les comptes 184 à 187 (fiche du COMPTE 18 ·
+  « toute division de l'entité disposant d'une comptabilité autonome »).
+  Dans les deux cas c'est UNE entité : pas une consolidation, qui vise des
+  personnes distinctes (AUDCIF art. 74 et suivants, hors de ce module).
 
-  Les deux portes de rattachement (GroupeService.creerCellule et
-  PlateformeService.modifierGroupe) refusent déjà une mère ou une cellule non
-  SYCEBNL : aucun état du mauvais référentiel n'est donc réellement produit
-  aujourd'hui. Ce qui manquait est la DÉFENSE EN PROFONDEUR du § 6 · sans
-  décorateur, /groupe s'ouvre par URL directe et ses routes répondent une
-  erreur métier au lieu d'un refus de référentiel franc.
+  Le référentiel des cellules et du dossier de combinaison est celui du
+  siège, imposé aux deux portes (GroupeService.creerCellule et
+  PlateformeService.modifierGroupe) · la liasse du groupe est produite par
+  les moteurs du référentiel du siège (ExportService.liasseCompleteExcel).
+
+  Le CANEVAS DE TRÉSORERIE reste propre au SYCEBNL · ses rubriques sont des
+  comptes du plan SYCEBNL (cotisations 701, dons 704, dîmes...) qui n'ont
+  pas d'équivalent exact dans le plan d'une société. Ses deux routes portent
+  leur propre filtre, qui l'emporte sur celui de la classe.
 */
 @UseGuards(JwtAuthGuard, LicenceGuard, RolesGuard, ReferentielGuard)
-@ReferentielsAutorises(Referentiel.SYCEBNL)
+@ReferentielsAutorises(Referentiel.SYCEBNL, Referentiel.SYSCOHADA)
 @Controller('groupe')
 export class GroupeController {
   constructor(private readonly groupeService: GroupeService) {}
@@ -83,6 +89,7 @@ export class GroupeController {
   }
 
   @Get('cellules/:celluleId/canevas')
+  @ReferentielsAutorises(Referentiel.SYCEBNL)
   async canevas(
     @CurrentUser() user: AuthenticatedUser,
     @Res() res: Response,
@@ -92,6 +99,7 @@ export class GroupeController {
   }
 
   @Post('cellules/:celluleId/import-canevas')
+  @ReferentielsAutorises(Referentiel.SYCEBNL)
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
   importerCanevas(
     @CurrentUser() user: AuthenticatedUser,

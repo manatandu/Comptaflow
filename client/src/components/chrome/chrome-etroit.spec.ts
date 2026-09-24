@@ -248,12 +248,12 @@ describe('menu « État » à 360 px', () => {
     expect(lignesDuMenu(entrees, 'Fiscalité').map(nom)).toEqual(['Tableau de bord']);
   });
 
-  it("la balance agrégée reste réservée au dossier SYCEBNL qui a des cellules", () => {
-    // Le regroupement ne doit pas avoir emporté la MOITIÉ de la condition ·
-    // le module est monté sur le plan SYCEBNL, et un dossier sans cellule
-    // n'a pas de groupe à agréger (cf. groupe.service.ts).
+  it("la balance agrégée reste réservée au dossier qui a des cellules", () => {
+    // Le regroupement ne doit pas avoir emporté la condition · un dossier
+    // sans cellule n'a pas de groupe à agréger (cf. groupe.service.ts). Le
+    // module sert les deux référentiels depuis le 2026-09-24.
     expect(source).toMatch(
-      /\.\.\.\(estSycebnl && \(utilisateur\?\.tenant\.nombreCellules \?\? 0\) > 0\n\s+\? \[\{ label: 'Balance agrégée du groupe'/,
+      /\.\.\.\(\(utilisateur\?\.tenant\.nombreCellules \?\? 0\) > 0\n\s+\? \[\{ label: 'Balance agrégée du groupe'/,
     );
   });
 

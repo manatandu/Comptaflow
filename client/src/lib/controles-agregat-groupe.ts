@@ -47,6 +47,25 @@ function jourFr(iso: string): string {
 export function controlesDeLAgregat(agregat: BalanceAgregeeGroupe): ControleAgregat[] {
   const c = agregat.controles;
   const desequilibres = agregat.dossiers.filter((d) => !d.equilibre);
+  // SIÈGE ET SUCCURSALES (SYSCOHADA) · le contrôle n'existe que là où les
+  // 184 à 187 sont des comptes de liaison. Le montrer à un groupe SYCEBNL
+  // afficherait une coche verte sur un contrôle qui n'a pas eu lieu.
+  const liaison18: ControleAgregat[] =
+    c.liaison18Neutralisee === null
+      ? []
+      : [
+          {
+            cle: 'liaison18',
+            libelle: 'Comptes de liaison siège / succursales (184 à 187) égaux et de sens contraire',
+            ok: c.liaison18Neutralisee,
+            detail: c.liaison18Neutralisee
+              ? null
+              : `Écart de ${somme(c.ecartLiaison18 ?? 0)} (${agregat.dossiers
+                  .map((d) => `${d.nom} ${somme(d.soldeLiaison18 ?? 0)}`)
+                  .join(' · ')}) · une opération entre le siège et une succursale est enregistrée d’un seul côté. ` +
+                'Rien n’a été retiré de l’agrégat tant que l’écart subsiste.',
+          },
+        ];
   return [
     {
       cle: 'equilibre',
@@ -80,6 +99,7 @@ export function controlesDeLAgregat(agregat: BalanceAgregeeGroupe): ControleAgre
         ? null
         : `Écart de ${somme(c.ecartLiaison)} · un transfert est enregistré d’un seul côté.`,
     },
+    ...liaison18,
     {
       cle: 'rattachements',
       libelle: 'Chaque tiers-cellule désigne un dossier de ce groupe',

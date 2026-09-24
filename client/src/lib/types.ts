@@ -3130,9 +3130,18 @@ export interface ControlesAgregatGroupe {
   ecartElimination: number;
   eliminationsSymetriques: boolean;
   rattachementsValides: boolean;
+  /**
+   * SYSCOHADA seulement · la somme des comptes 184 à 187 sur tout le groupe
+   * (fiche du COMPTE 18 : « égaux et de sens contraire dans les deux
+   * comptabilités »). Null pour un groupe SYCEBNL, où ces comptes sont des
+   * emprunts et dépôts, pas des liaisons.
+   */
+  ecartLiaison18: number | null;
+  liaison18Neutralisee: boolean | null;
 }
 
 export interface BalanceAgregeeGroupe {
+  referentiel: 'SYCEBNL' | 'SYSCOHADA';
   exercice: { id: string; dateDebut: string; dateFin: string };
   dossiers: Array<{
     id: string;
@@ -3141,6 +3150,8 @@ export interface BalanceAgregeeGroupe {
     totalDebit: number;
     totalCredit: number;
     solde58: number;
+    /** Solde des 184 à 187 du dossier · null hors SYSCOHADA. */
+    soldeLiaison18: number | null;
     equilibre: boolean;
   }>;
   /** Cellule dont l'exercice MANQUE sur la période · ses chiffres sont absents. */
