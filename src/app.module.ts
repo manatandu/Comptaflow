@@ -45,6 +45,7 @@ import { CircularisationModule } from './modules/circularisation/circularisation
 import { FaiblessesModule } from './modules/faiblesses/faiblesses.module';
 import { MandatAuditeurModule } from './modules/mandat-auditeur/mandat-auditeur.module';
 import { AccordCadreModule } from './modules/accord-cadre/accord-cadre.module';
+import { ConsolidationModule } from './modules/consolidation/consolidation.module';
 import { FacturationModule } from './modules/facturation/facturation.module';
 import { CommercialModule } from './modules/commercial/commercial.module';
 import { ConstitutionModule } from './modules/constitution/constitution.module';
@@ -116,6 +117,7 @@ import { CourrierModule } from './modules/courrier/courrier.module';
     FaiblessesModule,
     MandatAuditeurModule,
     AccordCadreModule,
+    ConsolidationModule,
     FacturationModule,
     CommercialModule,
     ConstitutionModule,

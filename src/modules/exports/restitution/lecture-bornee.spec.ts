@@ -41,8 +41,10 @@ describe('l’inventaire couvre le schéma, sans trou ni surplus', () => {
     // quelqu'un à décider par quelle borne il se lit · sans quoi il se lirait
     // sans borne du tout. C'est la SEULE fonction de ce chiffre : tomber.
     // Il est passé de 79 à 82 avec le registre du personnel (P1 de la paie),
-    // puis à 83 avec le bulletin de paie émis (P8), borné par son tenantId.
-    expect(modeles).toHaveLength(83);
+    // puis à 83 avec le bulletin de paie émis (P8), borné par son tenantId,
+    // puis à 86 avec le périmètre de consolidation (entités, participations,
+    // faits de l'obligation), tous trois portant leur tenantId.
+    expect(modeles).toHaveLength(86);
     expect([...TABLES_RESTITUEES].sort()).toEqual(modeles.filter((m) => m !== 'Tenant').sort());
   });
 

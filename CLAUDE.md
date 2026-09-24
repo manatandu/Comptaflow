@@ -2260,6 +2260,28 @@ connaissent que le franc. Le bulletin émis fige le cours (`calcul.conversion`)
 et garde la stipulation en dollars dans son entrée. L'art. 89 est rappelé à
 chaque calcul.
 
+**Consolidation SYSCOHADA, tranche 1 · le périmètre (2026-09-24).** AUDCIF
+Titre II, art. 74 à 98, et D4C ch. XII. SYSCOHADA SEUL · l'art. 3 du SYCEBNL
+écarte les art. 73 à 113, et une association avec ses cellules relève du
+module groupe, qui n'est pas une consolidation. Le moteur est PUR
+(`consolidation/perimetre-consolidation.ts`) et le service le joue AVANT
+toute écriture · une participation croisée ou un total au-delà de 100 %
+serait sinon accepté en base et ferait tomber la lecture du périmètre entier.
+QUATRE RÈGLES À NE PAS DÉFAIRE. (1) Deux pourcentages par participation ·
+les DROITS DE VOTE font le contrôle, le CAPITAL fait l'intérêt (ch. XII-5
+§ 3). (2) Le contrôle indirect ne passe que par une entité contrôlée
+EXCLUSIVEMENT, et l'intérêt ne remonte que par des entités RETENUES · une
+entité exclue pour importance négligeable reste contrôlée, seules la perte de
+contrôle et les restrictions sévères rompent la chaîne. (3) Rien ne se
+présume hors des pourcentages · le contrôle de fait exige les DEUX faits de
+l'art. 78, le conjoint un accord, et les exclusions un motif de la liste
+FERMÉE de l'art. 96 avec sa justification. (4) L'équivalent en francs du
+seuil de 500 000 000 FCFA (art. 95) n'est dans aucune source lue · il se
+déclare avec sa source, sans quoi la dispense n'est pas examinée. Les trois
+mois de l'art. 97 se comptent de date à date, fin de mois comprise · le
+30 septembre mène au 31 décembre. La consolidante est le DOSSIER, jamais une
+ligne de table, et le périmètre vit PAR EXERCICE.
+
 **Questionnaire de révision par cycle · vingt-quatre items du CPCC, et le
 reste assumé.** Le séminaire porte DEUX checklists, § VI « vérification de
 l'inventaire physique » (immobilisations, stocks, caisses) et § VII

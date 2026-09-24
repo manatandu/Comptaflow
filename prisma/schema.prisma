@@ -592,29 +592,32 @@ model Tenant {
 
   // Inventaire extra-comptable · AUDCIF art. 42, sanction art. 111 (SYSCOHADA)
   // ou SYCEBNL art. 24 (EBNL).
-  campagnesInventaire       CampagneInventaire[]
-  sousCommissionsInventaire SousCommissionInventaire[]
-  membresSousCommission     MembreSousCommission[]
-  fichesInventaire          FicheInventaire[]
-  ecartsInventaire          EcartInventaire[]
-  campagnesCircularisation  CampagneCircularisation[]
-  demandesConfirmation      DemandeConfirmation[]
-  provisionsRisquesCharges  ProvisionRisqueCharge[]
-  registresFaiblesses       RegistreFaiblesses[]
-  faiblessesControleInterne FaiblesseControleInterne[]
-  questionnairesRevision    QuestionnaireRevision[]
-  reponsesQuestionnaire     ReponseQuestionnaire[]
-  consommationsUniteOeuvre  ConsommationUniteOeuvre[]
-  pvComptageCaisse          ProcesVerbalComptageCaisse[]
-  coupuresComptees          CoupureComptee[]
-  evenementsAudit           EvenementAudit[]
-  mandatsAuditeur           MandatAuditeur[]
-  accordsCadresPlan         AccordCadrePlan[]
-  factures                  Facture[]
-  devis                     Devis[]
-  articlesStock             ArticleStock[]
-  mouvementsStock           MouvementStock[]
-  consignations             Consignation[]
+  campagnesInventaire            CampagneInventaire[]
+  sousCommissionsInventaire      SousCommissionInventaire[]
+  membresSousCommission          MembreSousCommission[]
+  fichesInventaire               FicheInventaire[]
+  ecartsInventaire               EcartInventaire[]
+  campagnesCircularisation       CampagneCircularisation[]
+  demandesConfirmation           DemandeConfirmation[]
+  provisionsRisquesCharges       ProvisionRisqueCharge[]
+  registresFaiblesses            RegistreFaiblesses[]
+  faiblessesControleInterne      FaiblesseControleInterne[]
+  questionnairesRevision         QuestionnaireRevision[]
+  reponsesQuestionnaire          ReponseQuestionnaire[]
+  consommationsUniteOeuvre       ConsommationUniteOeuvre[]
+  pvComptageCaisse               ProcesVerbalComptageCaisse[]
+  coupuresComptees               CoupureComptee[]
+  evenementsAudit                EvenementAudit[]
+  mandatsAuditeur                MandatAuditeur[]
+  accordsCadresPlan              AccordCadrePlan[]
+  factures                       Facture[]
+  devis                          Devis[]
+  articlesStock                  ArticleStock[]
+  mouvementsStock                MouvementStock[]
+  consignations                  Consignation[]
+  EntitePerimetreConsolidation   EntitePerimetreConsolidation[]
+  LienParticipationConsolidation LienParticipationConsolidation[]
+  FaitsConsolidationExercice     FaitsConsolidationExercice[]
 
   @@index([dossierMereId])
   @@map("tenants")
@@ -1077,8 +1080,11 @@ model Exercice {
   consommationsUniteOeuvre ConsommationUniteOeuvre[]
 
   // Détermination du résultat fiscal · SYSCOHADA seulement.
-  retraitementsFiscaux RetraitementFiscal[]
-  dossierFiscal        DossierFiscalExercice?
+  retraitementsFiscaux            RetraitementFiscal[]
+  dossierFiscal                   DossierFiscalExercice?
+  entitesPerimetreConsolidation   EntitePerimetreConsolidation[]
+  liensParticipationConsolidation LienParticipationConsolidation[]
+  faitsConsolidation              FaitsConsolidationExercice?
 
   @@unique([tenantId, dateDebut, dateFin])
   @@map("exercices")
@@ -1112,13 +1118,13 @@ enum StatutEcriture {
 }
 
 model Ecriture {
-  id          String   @id @default(uuid())
+  id          String    @id @default(uuid())
   tenantId    String
-  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  tenant      Tenant    @relation(fields: [tenantId], references: [id])
   exerciceId  String
-  exercice    Exercice @relation(fields: [exerciceId], references: [id])
+  exercice    Exercice  @relation(fields: [exerciceId], references: [id])
   journalId   String
-  journal     Journal  @relation(fields: [journalId], references: [id])
+  journal     Journal   @relation(fields: [journalId], references: [id])
   // Numéro de pièce auto-calculé selon Journal.numerotation (null si
   // NumerotationPiece.MANUELLE · voir JournalService.prochainNumeroPiece).
   numeroPiece Int?
@@ -1131,7 +1137,7 @@ model Ecriture {
   dateValeur  DateTime?
   libelle     String
   reference   String? // pièce justificative (numéro de facture, référence externe...)
-  createdAt   DateTime @default(now())
+  createdAt   DateTime  @default(now())
   createdBy   String // piste d'audit : jamais modifiable après clôture de l'exercice
 
   // Brouillard tant que l'écriture n'est pas validée · voir StatutEcriture.
@@ -6164,4 +6170,104 @@ model BulletinPaie {
   @@index([tenantId, moisDePaie])
   @@index([tenantId, salarieId])
   @@map("bulletins_paie")
+}
+
+// ─── Consolidation SYSCOHADA, tranche 1 · le périmètre (AUDCIF art. 74 à 98) ───
+
+/// Art. 96 · liste FERMÉE des causes d'exclusion, chacune justifiée en Notes annexes.
+enum MotifExclusionConsolidation {
+  PERTE_CONTROLE_DEMONTREE
+  RESTRICTIONS_SEVERES_DURABLES
+  DETENUE_EN_VUE_DE_CESSION
+  INFORMATION_FRAIS_EXCESSIFS
+  IMPORTANCE_NEGLIGEABLE
+}
+
+/// Une entité du périmètre, PAR EXERCICE · le périmètre s'apprécie à la
+/// clôture, et les participations d'une année ne sont pas celles de la
+/// suivante. La consolidante n'y figure pas : c'est le dossier lui-même.
+model EntitePerimetreConsolidation {
+  id         String   @id @default(uuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  exerciceId String
+  exercice   Exercice @relation(fields: [exerciceId], references: [id])
+
+  nom String
+
+  /// Art. 78 · les faits hors des livres, DÉCLARÉS. Le pourcentage se calcule,
+  /// ces faits ne se devinent pas.
+  designationMajoriteDeuxExercices Boolean @default(false)
+  aucunAutreAssocieSuperieur       Boolean @default(false)
+  controleContractuel              Boolean @default(false)
+  accordControleConjoint           Boolean @default(false)
+  influenceNotableDeclaree         Boolean @default(false)
+
+  /// Art. 96 · motif ET justification, ou ni l'un ni l'autre.
+  motifExclusion         MotifExclusionConsolidation?
+  justificationExclusion String?
+
+  /// Art. 97 · date de clôture de l'entité, comparée à celle du dossier.
+  dateCloture DateTime?
+
+  createdAt DateTime @default(now())
+
+  liensDetenus   LienParticipationConsolidation[] @relation("ParticipationDetenue")
+  liensDetenteur LienParticipationConsolidation[] @relation("ParticipationDetentrice")
+
+  @@unique([exerciceId, nom])
+  @@index([tenantId, exerciceId])
+  @@map("entites_perimetre_consolidation")
+}
+
+/// Une participation. DEUX grandeurs, jamais une · les droits de vote pour le
+/// CONTRÔLE, le capital pour l'INTÉRÊT (D4C, ch. XII-5 § 3).
+model LienParticipationConsolidation {
+  id         String   @id @default(uuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  exerciceId String
+  exercice   Exercice @relation(fields: [exerciceId], references: [id])
+
+  /// NULL · la détentrice est la consolidante, c'est-à-dire le dossier.
+  detentriceId String?
+  detentrice   EntitePerimetreConsolidation? @relation("ParticipationDetentrice", fields: [detentriceId], references: [id], onDelete: Cascade)
+  detenueId    String
+  detenue      EntitePerimetreConsolidation  @relation("ParticipationDetenue", fields: [detenueId], references: [id], onDelete: Cascade)
+
+  pctDroitsVote Decimal @db.Decimal(7, 4)
+  pctCapital    Decimal @db.Decimal(7, 4)
+
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, exerciceId])
+  @@map("liens_participation_consolidation")
+}
+
+/// Ce que l'obligation et ses dispenses demandent et qu'aucun livre ne porte
+/// (art. 75, 77 et 95), par exercice.
+model FaitsConsolidationExercice {
+  id         String   @id @default(uuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  exerciceId String   @unique
+  exercice   Exercice @relation(fields: [exerciceId], references: [id])
+
+  sousControleEntiteOhadaConsolidante Boolean @default(false)
+  siegesDansDeuxRegions               Boolean @default(false)
+  appelPublicEpargne                  Boolean @default(false)
+  demandeAssociesDixieme              Boolean @default(false)
+
+  /// Art. 95 · chiffre d'affaires HT de l'ensemble, en francs congolais.
+  chiffreAffairesN  Decimal? @db.Decimal(18, 2)
+  chiffreAffairesN1 Decimal? @db.Decimal(18, 2)
+  /// Art. 95 · l'équivalent en francs de 500 000 000 FCFA, DÉCLARÉ avec sa
+  /// source · aucune source lue ne le fixe.
+  seuilEquivalentFc Decimal? @db.Decimal(18, 2)
+  sourceSeuil       String?
+
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@map("faits_consolidation_exercice")
 }

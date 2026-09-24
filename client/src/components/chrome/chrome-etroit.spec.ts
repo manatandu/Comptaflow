@@ -213,8 +213,13 @@ describe('menu « État » à 360 px', () => {
     // mandat est ce que l'ENTITÉ a fait devant son assemblée. Le plafond a
     // donc servi à ce pour quoi il existe · faire relire la place d'une
     // fenêtre, et non se faire relever d'un cran.
+    //
+    // Le 2026-09-24, le périmètre de consolidation est entré sous « États
+    // financiers », SYSCOHADA seulement · ce sont des comptes consolidés,
+    // c'est-à-dire des états financiers (AUDCIF Titre II), et non un registre
+    // de révision. Les deux bornes ci-dessous ont tenu sans être touchées.
     const tous = [...source.matchAll(/label: '([^']+)'/g)].map((m) => m[1]);
-    expect(tous).toHaveLength(30);
+    expect(tous).toHaveLength(31);
     expect([...vues].sort()).toEqual([...tous].sort());
     // DEUX BORNES, et plus un chiffre relevé d'un cran à chaque ajout · c'est
     // la troisième fois en une journée qu'une édition nouvelle faisait tomber

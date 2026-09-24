@@ -497,6 +497,10 @@ export function AppShell() {
             // Les deux référentiels · AUDCIF art. 19 pour le livre d'inventaire,
             // AUSCGIE art. 138 (ou AUSCOOP art. 108) pour le rapport de gestion.
             { label: 'Documents obligatoires', onClick: () => navigate('/documents-obligatoires') },
+            // La consolidation (AUDCIF Titre II) n'existe qu'au SYSCOHADA · l'art. 3
+            // du SYCEBNL en écarte les art. 73 à 113. Une association et ses
+            // cellules relèvent du groupe, qui n'est pas une consolidation.
+            ...(estSycebnl ? [] : [{ label: 'Périmètre de consolidation', onClick: () => navigate('/consolidation') }]),
           ],
         },
         {

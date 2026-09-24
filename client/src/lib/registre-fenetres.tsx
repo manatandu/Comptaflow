@@ -23,6 +23,9 @@ const JustificatifSoldePage = lazy(() => import('../pages/JustificatifSoldePage'
 const EvolutionSoldesPage = lazy(() => import('../pages/EvolutionSoldesPage').then((m) => ({ default: m.EvolutionSoldesPage })));
 const PalmaresJournauxPage = lazy(() => import('../pages/PalmaresJournauxPage').then((m) => ({ default: m.PalmaresJournauxPage })));
 const MandatAuditeurPage = lazy(() => import('../pages/MandatAuditeurPage').then((m) => ({ default: m.MandatAuditeurPage })));
+const PerimetreConsolidationPage = lazy(() =>
+  import('../pages/PerimetreConsolidationPage').then((m) => ({ default: m.PerimetreConsolidationPage })),
+);
 const DevisPage = lazy(() => import('../pages/DevisPage').then((m) => ({ default: m.DevisPage })));
 const FacturationPage = lazy(() => import('../pages/FacturationPage').then((m) => ({ default: m.FacturationPage })));
 const AccordCadrePage = lazy(() => import('../pages/AccordCadrePage').then((m) => ({ default: m.AccordCadrePage })));
@@ -208,6 +211,15 @@ export const FENETRES: DefinitionFenetre[] = [
     titre: 'Mandat du contrôleur des comptes',
     titreCourt: 'Mandat',
     rendre: () => <MandatAuditeurPage />,
+  },
+  {
+    motif: /^\/consolidation$/,
+    titre: 'Périmètre de consolidation',
+    titreCourt: 'Consolidation',
+    // Cloisonné au SYSCOHADA · l'art. 3 du SYCEBNL écarte les art. 73 à 113 de
+    // l'AUDCIF, donc tout le Titre II. La route se refuse aussi (§ 6).
+    referentielsApplicables: ['SYSCOHADA'],
+    rendre: () => <PerimetreConsolidationPage />,
   },
   {
     motif: /^\/devis$/,
