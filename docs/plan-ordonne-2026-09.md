@@ -562,9 +562,18 @@ au journal est livrée le 2026-09-24** · une écriture pour tous les bulletins
 chiffres figés, liée à chaque bulletin et défaisable tant qu'elle est au
 brouillard (`comptabilisation-paie.ts`).
 
-Reste de la Phase I, À REPRENDRE APRÈS LES CONFRONTATIONS : **stocks** (les états
-SMT et compte de résultat déjà écrits attendent des variations qu'aucune source
-ne produit) · paie · OHADA vers IFRS · consolidation · RBAC fin.
+Reste de la Phase I, À REPRENDRE APRÈS LES CONFRONTATIONS : OHADA vers IFRS ·
+consolidation · RBAC fin.
+
+> **CORRIGÉ LE 2026-09-24 · LES STOCKS ET LA PAIE NE RESTAIENT PLUS.** Cette ligne
+> portait encore « stocks (les états attendent des variations qu'aucune source ne
+> produit) » alors que le cycle était livré du 18 au 19 septembre (variation de
+> stocks, valorisation, magasin et boni/mali, emballages), et la paie de P0 à P9.
+> Elle a été recopiée telle quelle et proposée comme prochaine étape le jour
+> même · une liste de manques ne se relit jamais contre elle-même, elle se
+> vérifie contre le dépôt. Restent du cycle des stocks deux pistes NOTÉES et non
+> codées (le sous-compte 388, la rubrique « stocks en cours de route » absente de
+> la Note 8), à lire au texte avant toute ligne.
 
 > **POINT D'ARRÊT DE LA PHASE I · 2026-09-13.** La Phase I est suspendue ici, à
 > la demande de Manasse, le temps des confrontations. Le plan qui les ordonne
@@ -575,6 +584,8 @@ ne produit) · paie · OHADA vers IFRS · consolidation · RBAC fin.
 >
 > La Phase I reprend à son item suivant, les STOCKS, et à rien d'autre : ne pas
 > recommencer la gestion commerciale, ni sauter directement à la paie.
+> *(Historique · les stocks et la paie ont été faits depuis, à la demande de
+> Manasse. Voir la correction du 2026-09-24 ci-dessus.)*
 
 ---
 
