@@ -5,6 +5,7 @@ import {
   ConversionIndividuelle,
   FiscaliteEntite,
   LigneBalanceEntree,
+  MonnaieEntite,
   OperationReciproque,
   ResultatInterne,
 } from './cumul-consolidation';
@@ -639,5 +640,76 @@ describe('tranche 4b · écarts de conversion des comptes individuels (D4C ch. X
     expect(() => jouer([conv({ provisions: [{ compteProvision: '19100000', cloture: 30, dotation: 30, reprise: 10 }] })])).toThrow(/194, au 4991 ou au 4997/);
     expect(() => jouer([conv({ provisions: [{ compteProvision: '49910000', cloture: 30, dotation: 90, reprise: 10 }] })])).toThrow(/ouverture/);
     expect(() => jouer([conv({ provisions: [{ compteProvision: '49970000', cloture: 30, dotation: 30, reprise: 10 }] })])).toThrow(/aucun compte 4997/);
+  });
+});
+
+describe('tranche 4c · conversion d’une entité étrangère au cours de clôture (D4C ch. XII-4 § 3)', () => {
+  // Filiale en USD · actif 200, capital 100, réserves 60, produits 100, charges 60 (résultat 40).
+  // Cours · clôture 3, charges et produits 2,5, entrée 2 ; capitaux propres au cours historique 400.
+  // Converti · actif 600 ; capitaux propres 400 ; résultat (250 − 150) 100 ; écart 600 − 500 = 100.
+  const FU = ent('F', 'IG', 80, b([['24500000', 200], ['10100000', -100], ['11800000', -60], ['70100000', -100], ['60100000', 60]]));
+  const MU = ent('M', 'IG', 100, b([['26100000', 250], ['52100000', 750], ['10100000', -1000]]), true);
+  const USD: MonnaieEntite = { entiteId: 'F', monnaie: 'USD', coursCloture: 3, coursProduitsCharges: 2.5, capitauxPropresHistoriques: 400, coursEntree: 2 };
+  const jouer = (m: MonnaieEntite[], entites = [MU, FU], acqs = [acq('M', 'F', 80, 250, 300)]) =>
+    cumulerConsolidation(EX, entites, acqs, [], [], [], [], { presentation: 'CDF', entites: m });
+
+  it('bilan au cours de clôture, résultat au cours déclaré, capitaux propres au cours historique · l’écart est leur solde', () => {
+    const r = jouer([USD]);
+    expect(ligne(r, '24500000')).toBe(600);
+    expect(ligne(r, '70100000')).toBe(-250);
+    expect(r.conversions).toEqual([{ entite: 'F', monnaie: 'USD', coursCloture: 3, coursProduitsCharges: 2.5, ecartConversion: 100 }]);
+    expect(r.equilibre).toBe(0);
+  });
+
+  it('l’écart se partage au pourcentage d’intérêt, et l’écart d’acquisition se convertit au cours de clôture', () => {
+    // Écart d'acquisition · 250 − 0,8 × 300 = 10, amorti sur dix ans depuis 2024 · 2 à l'ouverture, 3 à la clôture, dotation 1.
+    // Converti · brut 10 × 3/2 = 15, amortissements 4,5, dotation 1 × 2,5/2 = 1,25 ; écart né 15 − 4,5 + 1,25 − (10 − 3 + 1) = 3,75.
+    const r = jouer([USD]);
+    expect(ligne(r, 'ECART_ACQUISITION')).toBe(15);
+    expect(ligne(r, 'AMORTISSEMENT_ECART_ACQUISITION')).toBe(-4.5);
+    expect(ligne(r, 'DOTATION_ECART_ACQUISITION')).toBe(1.25);
+    // Groupe · 0,8 × 100 + 3,75 = 83,75 ; minoritaires 0,2 × (400 + 100) = 100.
+    // Réserves · 0,8 × 400 − 240 − 2 = 78 ; résultat du groupe 0,8 × 100 − 1,25 = 78,75.
+    expect(r.capitauxPropres).toMatchObject({ ecartsConversion: 83.75, reservesGroupe: 78, interetsMinoritairesHorsResultat: 100, resultatGroupe: 78.75, resultatMinoritaires: 20 });
+    expect(ligne(r, 'ECARTS_CONVERSION')).toBe(-83.75);
+    expect(r.obstaclesFlux.join(' ')).toMatch(/« F » est convertie de USD en CDF/);
+  });
+
+  it('un produit HAO (classe 8) se convertit comme les charges et produits, au cours déclaré pour eux', () => {
+    const FH = ent('F', 'IG', 80, b([['24500000', 210], ['10100000', -100], ['11800000', -60], ['70100000', -100], ['82100000', -10], ['60100000', 60]]));
+    const r = jouer([USD], [MU, FH]);
+    expect(ligne(r, '82100000')).toBe(-25);
+    expect(r.equilibre).toBe(0);
+  });
+
+  it('mise en équivalence · la quote-part suit l’écart, qui reste un écart de conversion', () => {
+    // 30 % · coût 100, quote-part d'entrée 90, écart 10. Valeur 0,3 × 600 + 7 × 1,5 = 190,5 ;
+    // écart de conversion 0,3 × 100 + 7 × 0,5 + 1 × 0,25 = 33,75 ; réserves 0,3 × 400 − 90 − 2 = 28.
+    const ME = ent('F', 'ME', 30, FU.balance);
+    const MM = ent('M', 'IG', 100, b([['26100000', 100], ['52100000', 900], ['10100000', -1000]]), true);
+    const r = jouer([USD], [MM, ME], [acq('M', 'F', 30, 100, 300)]);
+    expect(ligne(r, 'TITRES_MIS_EN_EQUIVALENCE')).toBe(190.5);
+    expect(r.capitauxPropres).toMatchObject({ ecartsConversion: 33.75, reservesGroupe: 28, resultatGroupe: 28.75 });
+    expect(r.equilibre).toBe(0);
+  });
+
+  it('une entité dans la monnaie de présentation n’est pas convertie · une entité sans monnaie déclarée est nommée', () => {
+    const r = jouer([{ entiteId: 'F', monnaie: 'cdf' }]);
+    expect(ligne(r, '24500000')).toBe(200);
+    expect(r.conversions).toEqual([]);
+    expect(r.conversionsIncompletes).toEqual([]);
+    const sans = jouer([]);
+    expect(sans.conversionsIncompletes.join(' ')).toMatch(/« F » n’a pas déclaré la monnaie/);
+    expect(sans.obstaclesFlux.join(' ')).toMatch(/« F » n’a pas déclaré la monnaie/);
+  });
+
+  it('refus · cours manquant, capitaux propres historiques manquants, hyperinflation, cours d’entrée manquant, écart d’évaluation', () => {
+    expect(() => jouer([{ ...USD, coursCloture: null }])).toThrow(/cours de clôture/);
+    expect(() => jouer([{ ...USD, coursProduitsCharges: null }])).toThrow(/charges et produits/);
+    expect(() => jouer([{ ...USD, capitauxPropresHistoriques: null }])).toThrow(/cours historique/);
+    expect(() => jouer([{ ...USD, hyperinflation: true }])).toThrow(/indice général des prix/);
+    expect(() => jouer([{ ...USD, coursEntree: null }])).toThrow(/cours à la date d’entrée/);
+    const ev = acq('M', 'F', 80, 250, 300, { ecartsEvaluation: [{ compte: '24500000', libelle: 'x', montant: 10, mode: 'NON_AMORTISSABLE' }] });
+    expect(() => jouer([USD], [MU, FU], [ev])).toThrow(/entité convertie/);
   });
 });

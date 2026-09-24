@@ -24,7 +24,17 @@ export type FiscaliteCumul = {
   ecartConversionPassifN1?: number | null;
 };
 export type ProvisionChangeCumul = { id: string; entiteId: string | null; compteProvision: string; cloture: number; dotation: number; reprise: number };
-export type EntiteCumul = { id: string; nom: string; balanceImporteeLe?: string | null; fichierBalance?: string | null } & FiscaliteCumul;
+/** Tranche 4c · la monnaie de la balance importée et ce qu'il faut pour la convertir au cours de clôture. */
+export type MonnaieCumul = {
+  monnaieBalance?: string | null;
+  justificationMonnaie?: string | null;
+  hyperinflation?: boolean;
+  coursCloture?: number | null;
+  coursProduitsCharges?: number | null;
+  coursEntree?: number | null;
+  capitauxPropresHistoriques?: number | null;
+};
+export type EntiteCumul = { id: string; nom: string; balanceImporteeLe?: string | null; fichierBalance?: string | null } & FiscaliteCumul & MonnaieCumul;
 export type EcartEvaluationCumul = {
   id: string;
   lienId: string;
@@ -58,6 +68,7 @@ type Resultat = {
   capitauxPropres: {
     capital: number;
     reservesGroupe: number;
+    ecartsConversion?: number;
     resultatGroupe: number;
     interetsMinoritairesHorsResultat: number;
     resultatMinoritaires: number;
@@ -555,6 +566,62 @@ export function CumulConsolidation(props: {
       </section>
 
       <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
+        <h2 className="text-[12.5px] font-bold mb-1.5">Monnaie des entités · conversion</h2>
+        <p className="text-[11px] text-text-dim mb-1.5 leading-[1.6]">
+          Chaque entité déclare la monnaie de sa balance importée, qui doit être sa monnaie <strong>fonctionnelle</strong> (celle
+          des prix de vente, des coûts et du financement, D4C ch. XII-4 § 1). Dans la monnaie des états consolidés, rien n’est
+          converti ; dans une autre, la méthode du cours de clôture s’applique (§ 3) · actifs et passifs au cours de clôture,
+          charges et produits au cours moyen de l’exercice ou de clôture, capitaux propres au cours historique, déclarés ici en
+          montant. Les cours sont le prix d’<strong>une</strong> unité de la monnaie de l’entité. Le cours d’entrée sert à
+          convertir l’écart d’acquisition. Une comptabilité tenue dans une autre monnaie que la fonctionnelle se convertit
+          d’abord par la méthode temporelle, avant l’import. Tant qu’une entité n’a pas déclaré sa monnaie, l’état consolidé
+          n’est pas publiable.
+        </p>
+        {entites.map((e) => (
+          <details key={e.id} className="border-b border-border/60 py-1">
+            <summary className="text-[12px] cursor-pointer">
+              {e.nom}
+              {e.monnaieBalance ? <span className="text-text-dim"> · {e.monnaieBalance}</span> : <span className="text-warning"> · monnaie non déclarée</span>}
+            </summary>
+            <form
+              className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 py-1.5"
+              onSubmit={(ev) => {
+                ev.preventDefault();
+                const f = new FormData(ev.currentTarget);
+                const txt = (k: string) => String(f.get(k) ?? '');
+                void agir(() =>
+                  api.put(`/consolidation/entites/${e.id}/monnaie`, {
+                    monnaieBalance: txt('monnaie').trim() || null,
+                    justificationMonnaie: txt('justifMonnaie') || null,
+                    hyperinflation: f.get('hyper') === 'on',
+                    coursCloture: nombre(txt('coursClo')),
+                    coursProduitsCharges: nombre(txt('coursPc')),
+                    coursEntree: nombre(txt('coursEntree')),
+                    capitauxPropresHistoriques: nombre(txt('cpHist')),
+                  }),
+                );
+              }}
+            >
+              <label className="text-[12px]">Monnaie de la balance (code ISO)<input name="monnaie" className={champ} defaultValue={e.monnaieBalance ?? ''} disabled={!peutEcrire} /></label>
+              <label className="text-[12px] sm:col-span-2">Pourquoi c’est sa monnaie fonctionnelle<input name="justifMonnaie" className={champ} defaultValue={e.justificationMonnaie ?? ''} disabled={!peutEcrire} /></label>
+              <label className="text-[12px]">Cours de clôture<input name="coursClo" className={champ} defaultValue={e.coursCloture ?? ''} disabled={!peutEcrire} /></label>
+              <label className="text-[12px]">Cours des charges et produits<input name="coursPc" className={champ} defaultValue={e.coursProduitsCharges ?? ''} disabled={!peutEcrire} /></label>
+              <label className="text-[12px]">Cours à la date d’entrée<input name="coursEntree" className={champ} defaultValue={e.coursEntree ?? ''} disabled={!peutEcrire} /></label>
+              <label className="text-[12px] sm:col-span-2">Capitaux propres hors résultat, au cours historique (monnaie des états)<input name="cpHist" className={champ} defaultValue={e.capitauxPropresHistoriques ?? ''} disabled={!peutEcrire} /></label>
+              <label className="text-[12px] flex items-center gap-1.5">
+                <input type="checkbox" name="hyper" defaultChecked={e.hyperinflation ?? false} disabled={!peutEcrire} /> Économie hyperinflationniste
+              </label>
+              {peutEcrire && (
+                <button type="submit" className="border border-border px-2.5 py-1 text-[12px] sm:col-span-3 justify-self-start">
+                  Enregistrer
+                </button>
+              )}
+            </form>
+          </details>
+        ))}
+      </section>
+
+      <section className="border border-border bg-surface px-3.5 py-2.5 mb-2.5">
         <h2 className="text-[12.5px] font-bold mb-1.5">Provisions pour pertes de change</h2>
         <p className="text-[11px] text-text-dim mb-1.5 leading-[1.6]">
           Les écarts de conversion des comptes individuels (478, 479) s’éliminent en consolidation · il faut pour cela les
@@ -635,6 +702,7 @@ export function CumulConsolidation(props: {
               <tbody>
                 <tr><td className="pr-3">Capital (consolidante)</td><td className="text-right">{fc(resultat.capitauxPropres.capital)}</td></tr>
                 <tr><td className="pr-3">Réserves consolidées</td><td className="text-right">{fc(resultat.capitauxPropres.reservesGroupe)}</td></tr>
+                <tr><td className="pr-3">Écarts de conversion (part du groupe)</td><td className="text-right">{fc(resultat.capitauxPropres.ecartsConversion ?? 0)}</td></tr>
                 <tr><td className="pr-3">Résultat, part de la consolidante</td><td className="text-right">{fc(resultat.capitauxPropres.resultatGroupe)}</td></tr>
                 <tr><td className="pr-3">Intérêts minoritaires, hors résultat</td><td className="text-right">{fc(resultat.capitauxPropres.interetsMinoritairesHorsResultat)}</td></tr>
                 <tr><td className="pr-3">Résultat, part des minoritaires</td><td className="text-right">{fc(resultat.capitauxPropres.resultatMinoritaires)}</td></tr>

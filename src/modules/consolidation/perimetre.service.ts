@@ -42,6 +42,10 @@ function fiscaliteEnNombres(f: {
   idpCloture: unknown;
   ecartConversionActifN1: unknown;
   ecartConversionPassifN1: unknown;
+  coursCloture?: unknown;
+  coursProduitsCharges?: unknown;
+  coursEntree?: unknown;
+  capitauxPropresHistoriques?: unknown;
 }) {
   const n = (v: unknown) => (v == null ? null : Number(v));
   return {
@@ -52,6 +56,10 @@ function fiscaliteEnNombres(f: {
     idpCloture: n(f.idpCloture),
     ecartConversionActifN1: n(f.ecartConversionActifN1),
     ecartConversionPassifN1: n(f.ecartConversionPassifN1),
+    coursCloture: n(f.coursCloture),
+    coursProduitsCharges: n(f.coursProduitsCharges),
+    coursEntree: n(f.coursEntree),
+    capitauxPropresHistoriques: n(f.capitauxPropresHistoriques),
   };
 }
 

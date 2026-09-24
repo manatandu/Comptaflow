@@ -199,12 +199,12 @@ export function construireTableauFluxConsolide(e: EntreesFluxConsolides, flux: R
   // ─── E à H ────────────────────────────────────────────────────────────────
   const eVar = L('VARIATION_PERIODE', 'Variation de la trésorerie nette de la période (E = B + C + D)', 'TOTAL', somme([b.net, c.net, d.net]));
   const fClot = L('TRESORERIE_CLOTURE', 'Trésorerie nette au 31 décembre (F = A + E)', 'TOTAL', somme([a.net, eVar.net]));
-  const g = L('INCIDENCE_DEVISES', 'Incidence des variations de cours des devises (G)', 'POSTE', null, {
-    reserve: 'Calculée avec la tranche 4c (conversion des entités étrangères) · non calculée ici, et non nulle pour autant.',
+  // Le tableau n'est établi que sans entité convertie et sans monnaie
+  // manquante · l'une et l'autre sont des obstacles du cumul. G est alors nul.
+  const g = L('INCIDENCE_DEVISES', 'Incidence des variations de cours des devises (G)', 'POSTE', 0, {
+    lecture: 'Aucune entité du périmètre n’est convertie · une entité convertie refuse le tableau, son incidence n’étant pas séparée par cette version.',
   });
-  const h = L('VARIATION_HORS_DEVISES', 'Variation de la trésorerie nette (H = E − G)', 'TOTAL', eVar.net, {
-    reserve: 'Égale à E tant que G n’est pas calculée.',
-  });
+  const h = L('VARIATION_HORS_DEVISES', 'Variation de la trésorerie nette (H = E − G)', 'TOTAL', r2((eVar.net ?? 0) - (g.net ?? 0)));
 
   // Trésorerie de clôture par le bilan · la même lecture que A, un exercice
   // plus tard, pour que le contrôle compare deux fois la même définition.
@@ -275,11 +275,11 @@ export function construireVariationCapitauxPropres(
   const ligne = (
     cle: string,
     libelle: string,
-    m: Partial<Record<Exclude<ColonneCp, 'groupe' | 'total' | 'conversion'>, number>>,
+    m: Partial<Record<Exclude<ColonneCp, 'groupe' | 'total'>, number>>,
     lecture?: string,
   ): LigneVariationCp => {
     const v = (k: keyof typeof m) => r2(m[k] ?? 0);
-    const groupe = somme([v('capital'), v('primes'), v('reserves'), v('resultat'), v('reevaluation')]);
+    const groupe = somme([v('capital'), v('primes'), v('reserves'), v('resultat'), v('conversion'), v('reevaluation')]);
     return {
       cle,
       libelle,
@@ -288,7 +288,7 @@ export function construireVariationCapitauxPropres(
         primes: v('primes'),
         reserves: v('reserves'),
         resultat: v('resultat'),
-        conversion: null,
+        conversion: v('conversion'),
         reevaluation: v('reevaluation'),
         groupe,
         minoritaires: v('minoritaires'),
@@ -310,12 +310,14 @@ export function construireVariationCapitauxPropres(
       primes: n1.primes,
       reserves: n1.reservesGroupe,
       resultat: n1.resultatGroupe,
+      conversion: n1.ecartsConversion,
       reevaluation: n1.ecartsReevaluation,
       minoritaires: minoritairesTotal(cumulN1),
     }),
     ligne('AFFECTATION_N1', 'Affectation du résultat N-1', { reserves: n1.resultatGroupe, resultat: -n1.resultatGroupe }),
     ligne('DISTRIBUTIONS_CONSOLIDANTE', 'Distributions de la consolidante', { reserves: -distribues }, 'Crédit du 465 de la consolidante, dividendes mis en paiement.'),
     ligne('VARIATION_CAPITAL', 'Variation du capital et des primes', { capital: r2(n.capital - n1.capital), primes: r2(n.primes - n1.primes) }),
+    ligne('VARIATION_CONVERSION', 'Variation des écarts de conversion', { conversion: r2(n.ecartsConversion - n1.ecartsConversion) }),
     ligne('VARIATION_REEVALUATION', 'Variation des écarts de réévaluation', { reevaluation: r2(n.ecartsReevaluation - n1.ecartsReevaluation) }),
     ligne('RESULTAT_N', 'Résultat de l’exercice', { resultat: n.resultatGroupe, minoritaires: n.resultatMinoritaires }),
     ligne(
@@ -334,6 +336,7 @@ export function construireVariationCapitauxPropres(
       primes: n.primes,
       reserves: n.reservesGroupe,
       resultat: n.resultatGroupe,
+      conversion: n.ecartsConversion,
       reevaluation: n.ecartsReevaluation,
       minoritaires: minoritairesTotal(cumulN),
     }),
@@ -341,7 +344,6 @@ export function construireVariationCapitauxPropres(
   return {
     lignes,
     reserves: [
-      'Écarts de conversion · calculés avec la tranche 4c (conversion des entités étrangères), colonne laissée vide.',
       'Bloc de l’exercice N-1 du modèle (clôture N-2 corrigée, mouvements N-1) · il suppose de consolider N-2, ce que cette version ne fait pas.',
     ],
   };

@@ -400,6 +400,45 @@ describe('CumulService · tranche 4b, écarts de conversion individuels déclar�
   });
 });
 
+describe('CumulService · tranche 4c, monnaie déclarée et conversion au cours de clôture', () => {
+  const ACQ = { coutAcquisition: 800, compteTitres: '26100000', dateEntree: '2024-01-01', capitauxPropresEntree: 900, modeDureeEcart: 'NON_DETERMINABLE' as const };
+
+  it('une filiale en USD déclarée avec ses cours est convertie · la présentation est la monnaie du dossier (CDF par défaut)', async () => {
+    const { service, lien, f } = await groupe();
+    await service.declarerAcquisition(T, lien.id, ACQ);
+    await service.enregistrerMonnaie(T, f.id, {
+      monnaieBalance: 'usd',
+      justificationMonnaie: 'Prix de vente et coûts en dollars',
+      coursCloture: 2,
+      coursProduitsCharges: 1.5,
+      coursEntree: 1,
+      capitauxPropresHistoriques: 3000,
+    });
+    const r = await service.cumul(T, EX);
+    // Actifs 2 000 × 2 = 4 000 ; capitaux propres historiques 3 000 ; résultat (1 000 − 600) × 1,5 = 600 ; écart 400.
+    expect(r.conversions).toEqual([{ entite: 'Filiale', monnaie: 'USD', coursCloture: 2, coursProduitsCharges: 1.5, ecartConversion: 400 }]);
+    expect(r.conversionsIncompletes).toEqual([]);
+    expect(r.reserves.join(' ')).toContain('COURS DE CLÔTURE vers la monnaie de présentation (CDF)');
+  });
+
+  it('sans monnaie déclarée, l’entité est nommée · en CDF, elle n’est pas convertie', async () => {
+    const { service, lien, f } = await groupe();
+    await service.declarerAcquisition(T, lien.id, ACQ);
+    expect((await service.cumul(T, EX)).conversionsIncompletes.join(' ')).toMatch(/« Filiale » n’a pas déclaré la monnaie/);
+    await service.enregistrerMonnaie(T, f.id, { monnaieBalance: 'CDF' });
+    const r = await service.cumul(T, EX);
+    expect(r.conversionsIncompletes).toEqual([]);
+    expect(r.capitauxPropres).toMatchObject({ reservesGroupe: 1044, resultatGroupe: 812, ecartsConversion: 0 });
+  });
+
+  it('refus à la porte · une monnaie étrangère sans justification, un cours nul', async () => {
+    const { service, f, tables } = await groupe();
+    await expect(service.enregistrerMonnaie(T, f.id, { monnaieBalance: 'USD' })).rejects.toThrow(/monnaie FONCTIONNELLE/);
+    await expect(service.enregistrerMonnaie(T, f.id, { monnaieBalance: 'USD', justificationMonnaie: 'x', coursCloture: 0 })).rejects.toThrow(/strictement positif/);
+    expect(tables.entites[0].monnaieBalance).toBeUndefined();
+  });
+});
+
 describe('ConsolidationController · tranche 2', () => {
   it('toute route qui écrit porte @Roles', () => {
     const proto = ConsolidationController.prototype as any;

@@ -14,6 +14,7 @@ import {
   AcquisitionDto,
   EcartEvaluationDto,
   FiscaliteEntiteDto,
+  MonnaieEntiteDto,
   ProvisionChangeDto,
   ImporterBalanceEntiteDto,
   OperationReciproqueDto,
@@ -130,6 +131,13 @@ export class ConsolidationController {
   @Delete('provisions-change/:id')
   supprimerProvisionChange(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return this.cumuls.supprimerProvisionChange(user.tenantId, id);
+  }
+
+  // ─── Tranche 4c · conversion des entités étrangères ──────────────────────
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  @Put('entites/:id/monnaie')
+  enregistrerMonnaie(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: MonnaieEntiteDto) {
+    return this.cumuls.enregistrerMonnaie(user.tenantId, id, dto);
   }
 
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)

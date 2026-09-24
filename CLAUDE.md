@@ -2337,8 +2337,8 @@ première au premier correctif. (2) LE COMPTE 10 DE LA CONSOLIDANTE SE LIT COMME
 DANS SES COMPTES · capital 101 à 104 et 109, primes 105 avec les réserves
 consolidées, réévaluation 106 en « Autres capitaux propres » (lecture déclarée).
 Une filiale, elle, partage TOUS ses capitaux propres, primes comprises. (3) CE
-QUI N'EST PAS CALCULÉ VAUT `null`, JAMAIS ZÉRO · écarts de conversion
-(tranche 4c), « dont » des corporelles, résultat par action. Ce qui
+QUI N'EST PAS CALCULÉ VAUT `null`, JAMAIS ZÉRO · « dont » des
+corporelles, résultat par action. Ce qui
 est À RETRAITER (ch. XII-3 § 2 · écarts de conversion individuels NON
 DÉCLARÉS, comptes sans poste, résultat reçu au 13 ; les provisions
 réglementées sont contre-passées depuis la tranche 4b) est montré ET compté
@@ -2439,6 +2439,37 @@ l'entité. (5) LES SUBVENTIONS D'INVESTISSEMENT (14) RESTENT SUR LEUR LIGNE,
 avec un avertissement · le ch. XII-3 § 2 les range parmi les éliminations
 fiscales, le modèle du ch. XII-8 § 2 les garde hors capitaux propres, et les
 deux textes ne s'articulent pas.
+
+**Consolidation SYSCOHADA, tranche 4c · conversion des entités étrangères
+(2026-09-24).** AUDCIF art. 87, D4C ch. XII-4. CINQ RÈGLES À NE PAS DÉFAIRE.
+(1) CHAQUE ENTITÉ DÉCLARE LA MONNAIE DE SA BALANCE, qui doit être sa monnaie
+FONCTIONNELLE · `null` n'est pas la monnaie de présentation, et tant qu'une
+entité n'a pas répondu l'état n'est pas publiable et le tableau des flux est
+refusé. La monnaie de présentation est celle de tenue du dossier consolidant
+(« unité monétaire ayant cours légal », art. 87). Une monnaie étrangère se
+déclare avec les facteurs qui en font la monnaie fonctionnelle (§ 1). (2)
+SEULE LA MÉTHODE DU COURS DE CLÔTURE EST JOUÉE (§ 3) · la méthode temporelle
+(§ 2) se fait avant l'import, et une monnaie hyperinflationniste (§ 4) est
+refusée. Actifs et passifs au cours de clôture, charges et produits (6 à 8 et
+le 13) au cours déclaré pour eux (moyen ou de clôture, le texte admet les
+deux), capitaux propres (10 à 12) au cours HISTORIQUE, DÉCLARÉ EN MONTANT
+parce qu'aucune balance ne le porte. L'écart est le solde qui rééquilibre la
+balance convertie. AUCUN COURS N'EST ÉCRIT dans le moteur. (3) L'ÉCART SE
+PARTAGE AU POURCENTAGE D'INTÉRÊT et reste SUR SA LIGNE (« Écarts de
+conversion », part du groupe ; celle des minoritaires dans leurs intérêts),
+jamais fondu dans les réserves · colonne propre dans la variation des
+capitaux propres. En mise en équivalence, la quote-part le suit et il reste
+un écart de conversion. (4) L'ÉCART D'ACQUISITION D'UNE ENTITÉ CONVERTIE SE
+CONVERTIT AU COURS DE CLÔTURE (§ 3) · ramené à la monnaie de l'entité par le
+cours d'entrée déclaré, puis reconverti, la dotation au cours des charges et
+produits. Ce que les réserves ont reçu des exercices passés reste à la
+valeur d'entrée, faute des cours de chaque exercice (lecture dite dans le
+code). (5) CE QUE CETTE VERSION NE SÉPARE PAS REFUSE, jamais ne vaut zéro ·
+un écart d'évaluation sur une entité convertie est refusé, et une entité
+convertie refuse le tableau des flux, l'incidence des cours (G) n'étant pas
+isolée. Sans entité convertie, G vaut zéro et le dit. Les montants déclarés
+ailleurs (coût et capitaux propres d'entrée, marges, impôts différés, 478 et
+479, réciproques) le sont en monnaie de présentation.
 
 **Questionnaire de révision par cycle · vingt-quatre items du CPCC, et le
 reste assumé.** Le séminaire porte DEUX checklists, § VI « vérification de

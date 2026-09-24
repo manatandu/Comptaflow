@@ -6,6 +6,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
   Max,
   MaxLength,
   Min,
@@ -207,4 +208,20 @@ export class ProvisionChangeDto {
   @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) cloture!: number;
   @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) dotation!: number;
   @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) reprise!: number;
+}
+
+/**
+ * Tranche 4c · la monnaie de la balance importée d'une entité, et ce qu'il faut
+ * pour la convertir au cours de clôture (D4C ch. XII-4 § 3). Les cours sont en
+ * unités de monnaie de présentation pour UNE unité de la monnaie de l'entité.
+ */
+export class MonnaieEntiteDto {
+  @IsOptional() @ValidateIf((_, v) => v !== null) @Matches(/^[A-Za-z]{3}$/, { message: 'La monnaie se donne par son code ISO à trois lettres (USD, EUR, XAF...).' })
+  monnaieBalance?: string | null;
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsString() @MaxLength(2000) justificationMonnaie?: string | null;
+  @IsOptional() @IsBoolean() hyperinflation?: boolean;
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsNumber() @Min(0) coursCloture?: number | null;
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsNumber() @Min(0) coursProduitsCharges?: number | null;
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsNumber() @Min(0) coursEntree?: number | null;
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsNumber({ maxDecimalPlaces: 2 }) capitauxPropresHistoriques?: number | null;
 }

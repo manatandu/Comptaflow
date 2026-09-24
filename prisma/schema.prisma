@@ -6229,19 +6229,32 @@ model EntitePerimetreConsolidation {
   /// impôts différés des comptes individuels (décalages temporaires, déficits
   /// reportables) se déclarent en MONTANTS D'IMPÔT · NULL veut dire « pas de
   /// réponse », et l'état consolidé se dit alors non publiable.
-  tauxImpotDiffere        Decimal? @db.Decimal(7, 4)
-  sourceTauxImpot         String?
-  idaOuverture            Decimal? @db.Decimal(18, 2)
-  idaCloture              Decimal? @db.Decimal(18, 2)
-  idpOuverture            Decimal? @db.Decimal(18, 2)
-  idpCloture              Decimal? @db.Decimal(18, 2)
+  tauxImpotDiffere           Decimal? @db.Decimal(7, 4)
+  sourceTauxImpot            String?
+  idaOuverture               Decimal? @db.Decimal(18, 2)
+  idaCloture                 Decimal? @db.Decimal(18, 2)
+  idpOuverture               Decimal? @db.Decimal(18, 2)
+  idpCloture                 Decimal? @db.Decimal(18, 2)
   /// Un impôt différé actif n'est comptabilisé que si son imputation est PROBABLE · le motif s'écrit.
-  justificationIda        String?
+  justificationIda           String?
   /// ÉCARTS DE CONVERSION INDIVIDUELS · tranche 4b (D4C ch. XII-3 § 2). Les
   /// 478 et 479 de la clôture N-1, que la balance N ne porte plus · NULL veut
   /// dire « pas de déclaration », et les 478/479 restent alors à retraiter.
-  ecartConversionActifN1  Decimal? @db.Decimal(18, 2)
-  ecartConversionPassifN1 Decimal? @db.Decimal(18, 2)
+  ecartConversionActifN1     Decimal? @db.Decimal(18, 2)
+  ecartConversionPassifN1    Decimal? @db.Decimal(18, 2)
+  /// CONVERSION · tranche 4c (art. 87, D4C ch. XII-4). La monnaie de la balance
+  /// importée, qui doit être la monnaie FONCTIONNELLE de l'entité (code ISO) ·
+  /// NULL veut dire « pas déclarée », et l'état consolidé n'est pas publiable.
+  monnaieBalance             String?  @db.VarChar(3)
+  /// Les facteurs qui font de cette monnaie la monnaie fonctionnelle (ch. XII-4 § 1).
+  justificationMonnaie       String?
+  hyperinflation             Boolean  @default(false)
+  /// Cours DÉCLARÉS · unités de monnaie de présentation pour UNE unité de la monnaie de l'entité.
+  coursCloture               Decimal? @db.Decimal(20, 8)
+  coursProduitsCharges       Decimal? @db.Decimal(20, 8)
+  coursEntree                Decimal? @db.Decimal(20, 8)
+  /// Capitaux propres hors résultat (10 à 12) au cours historique, en monnaie de présentation, solde créditeur.
+  capitauxPropresHistoriques Decimal? @db.Decimal(18, 2)
 
   createdAt DateTime @default(now())
 

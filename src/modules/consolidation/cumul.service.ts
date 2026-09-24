@@ -11,6 +11,7 @@ import {
   EcartEvaluation,
   EntiteACumuler,
   FiscaliteEntite,
+  MonnaieEntite,
   motifRefusEcartEvaluation,
   OperationReciproque,
   RefusConsolidation,
@@ -22,6 +23,7 @@ import {
   EcartEvaluationDto,
   FiscaliteEntiteDto,
   ImporterBalanceEntiteDto,
+  MonnaieEntiteDto,
   OperationReciproqueDto,
   ProvisionChangeDto,
   ResultatInterneDto,
@@ -362,6 +364,47 @@ export class CumulService {
       : this.prisma.faitsConsolidationExercice.create({ data: { tenantId, exerciceId: ex.id, ...data } });
   }
 
+  /**
+   * La monnaie de la balance d'une entité, et ce qu'il faut pour la convertir
+   * (tranche 4c). La consolidante n'en a pas · ses états sont dans la monnaie
+   * de présentation. Refus à la porte · une monnaie étrangère sans les
+   * facteurs qui en font la monnaie fonctionnelle (D4C ch. XII-4 § 1).
+   */
+  async enregistrerMonnaie(tenantId: string, entiteId: string, dto: MonnaieEntiteDto) {
+    const e = await this.prisma.entitePerimetreConsolidation.findFirst({ where: { id: entiteId, tenantId }, select: { id: true } });
+    if (!e) throw new NotFoundException('Entité introuvable dans ce dossier.');
+    const presentation = await this.monnaiePresentation(tenantId);
+    const monnaie = dto.monnaieBalance?.trim().toUpperCase() || null;
+    if (monnaie && monnaie !== presentation && !dto.justificationMonnaie?.trim()) {
+      throw new BadRequestException(
+        `Une balance en ${monnaie} quand les états sont présentés en ${presentation} · dites ce qui en fait la monnaie FONCTIONNELLE de l’entité ` +
+          '(monnaie des prix de vente, des coûts, du financement, D4C ch. XII-4 § 1). Une comptabilité tenue dans une autre monnaie se convertit ' +
+          'd’abord par la méthode temporelle (§ 2), avant l’import.',
+      );
+    }
+    for (const [k, v] of [['cours de clôture', dto.coursCloture], ['cours des charges et produits', dto.coursProduitsCharges], ['cours d’entrée', dto.coursEntree]] as const) {
+      if (v != null && !(v > 0)) throw new BadRequestException(`Le ${k} se déclare strictement positif.`);
+    }
+    return this.prisma.entitePerimetreConsolidation.update({
+      where: { id: e.id },
+      data: {
+        monnaieBalance: monnaie,
+        justificationMonnaie: dto.justificationMonnaie?.trim() || null,
+        hyperinflation: dto.hyperinflation ?? false,
+        coursCloture: dto.coursCloture ?? null,
+        coursProduitsCharges: dto.coursProduitsCharges ?? null,
+        coursEntree: dto.coursEntree ?? null,
+        capitauxPropresHistoriques: dto.capitauxPropresHistoriques ?? null,
+      },
+    });
+  }
+
+  /** La monnaie des états consolidés · celle de tenue de la consolidante, « unité monétaire ayant cours légal » (art. 87). */
+  private async monnaiePresentation(tenantId: string) {
+    const t = await this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { devise: true } });
+    return (t.devise ?? 'CDF').trim().toUpperCase();
+  }
+
   async supprimerReciproque(tenantId: string, id: string) {
     const o = await this.prisma.operationReciproqueConsolidation.findFirst({ where: { id, tenantId }, select: { id: true } });
     if (!o) throw new NotFoundException('Opération réciproque introuvable dans ce dossier.');
@@ -543,6 +586,17 @@ export class CumulService {
       ...etat.entites.map((e) => declarationConversion(e.id, e.id, e as unknown as Record<string, unknown>)),
     ].filter((c): c is ConversionIndividuelle => c !== null);
 
+    const presentation = await this.monnaiePresentation(tenantId);
+    const monnaies: MonnaieEntite[] = etat.entites.map((e) => ({
+      entiteId: e.id,
+      monnaie: e.monnaieBalance,
+      hyperinflation: e.hyperinflation,
+      coursCloture: n(e.coursCloture),
+      coursProduitsCharges: n(e.coursProduitsCharges),
+      coursEntree: n(e.coursEntree),
+      capitauxPropresHistoriques: n(e.capitauxPropresHistoriques),
+    }));
+
     try {
       return {
         ...cumulerConsolidation(
@@ -553,13 +607,15 @@ export class CumulService {
           resultatsInternes,
           fiscalites,
           conversions,
+          { presentation, entites: monnaies },
         ),
         reserves: [
           'Les balances des filiales sont réputées RETRAITÉES aux règles du groupe (D4C, ch. XII-3) · OmegaX ne fait ni l’homogénéisation ni les éliminations de nature fiscale.',
           'Écarts d’évaluation (art. 82, ch. XII-6) · DÉCLARÉS élément par élément, ils passent en priorité et l’écart d’acquisition n’est que le reste. Chacun porte son impôt différé, au taux déclaré de la détenue · jamais l’écart d’acquisition (ch. XII-3 § 3).',
-          'Impôts différés (art. 92) · écarts d’évaluation, marges internes éliminées (au taux de la vendeuse) et impôts différés DÉCLARÉS des comptes individuels. Actif et passif ne sont pas compensés, le D4C n’en disant rien, et aucune actualisation n’est faite (ch. XII-3 § 3). La conversion des entités étrangères suit (tranche 4c).',
+          'Impôts différés (art. 92) · écarts d’évaluation, marges internes éliminées (au taux de la vendeuse) et impôts différés DÉCLARÉS des comptes individuels. Actif et passif ne sont pas compensés, le D4C n’en disant rien, et aucune actualisation n’est faite (ch. XII-3 § 3).',
           'Éliminations de nature fiscale (art. 86, 3°, D4C ch. XII-3 § 2) · provisions réglementées (15) contre-passées, l’exercice au résultat (851 et 861) et l’antérieur aux réserves, avec leur impôt différé passif. Écarts de conversion individuels (478, 479) retraités sur DÉCLARATION de la position N-1 et de la provision pour pertes de change · leur impôt différé éventuel se déclare avec ceux de l’entité. Les subventions d’investissement restent sur leur ligne, hors capitaux propres (ch. XII-8 § 2).',
           'Résultats internes inclus dans les stocks et immobilisations (art. 86, 4°) · éliminés sur DÉCLARATION de la marge, totalement entre entités intégrées globalement, au produit des pourcentages avec une entité intégrée proportionnellement (D4C ch. XII-5). Le texte ne dit pas qui la supporte · OmegaX retraite le résultat de la VENDEUSE, qui se partage à son pourcentage d’intérêt (art. 85, résultat consolidé bâti des éléments du résultat de chaque entité). Une marge d’incidence négligeable peut ne pas être déclarée (art. 86, dernier alinéa).',
+          `Conversion des entités étrangères (art. 87, D4C ch. XII-4 § 3) · méthode du COURS DE CLÔTURE vers la monnaie de présentation (${presentation}), aux cours DÉCLARÉS · actifs et passifs au cours de clôture, charges et produits au cours déclaré pour eux, capitaux propres au cours historique déclaré en montant. L’écart se partage au pourcentage d’intérêt et reste sur sa ligne. La balance importée doit être dans la monnaie FONCTIONNELLE · la méthode temporelle (§ 2) et le retraitement d’une monnaie hyperinflationniste (§ 4) ne sont pas joués. Les montants déclarés ailleurs (coût et capitaux propres d’entrée, marges internes, impôts différés, 478 et 479, opérations réciproques) le sont en monnaie de présentation.`,
           'Amortissement de l’écart · prorata au mois, du premier jour du mois d’entrée, convention reprise du module des immobilisations · le D4C dit « linéairement » sans fixer de prorata.',
         ],
       };

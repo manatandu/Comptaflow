@@ -289,6 +289,33 @@ describe('tranche 4b · la perte de change latente retraitée entre au résultat
   });
 });
 
+describe('tranche 4c · l’écart de conversion au passif consolidé', () => {
+  // Le cas chiffré du moteur · filiale en USD à 80 %, écart du groupe 83,75.
+  const FU = ent('F', 'IG', 80, b([['24500000', 200], ['10100000', -100], ['11800000', -60], ['70100000', -100], ['60100000', 60]]));
+  const MU = ent('M', 'IG', 100, b([['26100000', 250], ['52100000', 750], ['10100000', -1000]]), true);
+  const jouer = (monnaie: string | null) =>
+    construireEtatsConsolides(
+      cumulerConsolidation({ dateDebut: new Date('2026-01-01'), dateFin: new Date('2026-12-31') }, [MU, FU], [acq('M', 'F', 80, 250, 300, { dateEntree: new Date('2024-01-01') })], [], [], [], [], {
+        presentation: 'CDF',
+        entites: [{ entiteId: 'F', monnaie, coursCloture: 3, coursProduitsCharges: 2.5, capitauxPropresHistoriques: 400, coursEntree: 2 }],
+      }),
+      R,
+    );
+
+  it('une ligne propre, comptée dans la part de la consolidante, et le bilan boucle', () => {
+    const e = jouer('USD');
+    expect(passif(e, 'ECARTS_CONVERSION')).toBe(83.75);
+    // Capital 1 000 + réserves 78 + écarts 83,75 + résultat 78,75.
+    expect(passif(e, 'PART_CONSOLIDANTE')).toBe(1240.5);
+    expect(e.controles.every((c) => c.ok)).toBe(true);
+  });
+
+  it('une entité sans monnaie déclarée rend l’état non publiable, et la nomme', () => {
+    expect(jouer(null).motifsNonPubliable.join(' ')).toMatch(/Conversion · « F » n’a pas déclaré la monnaie/);
+    expect(jouer('CDF').motifsNonPubliable.filter((m) => m.startsWith('Conversion ·'))).toEqual([]);
+  });
+});
+
 describe('résultats internes au compte de résultat consolidé', () => {
   const M = ent('M', 'IG', 100, b([['26100000', 800], ['31100000', 300], ['52100000', 900], ['10100000', -1000], ['11800000', -500], ['70100000', -1000], ['60100000', 500]]), true);
   const F = ent('F', 'IG', 80, b([['31100000', 500], ['52100000', 1500], ['10100000', -1000], ['11800000', -600], ['70100000', -1000], ['60100000', 600]]));

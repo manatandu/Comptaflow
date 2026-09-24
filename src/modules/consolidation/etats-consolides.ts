@@ -23,9 +23,8 @@ import { ResultatCumul } from './cumul-consolidation';
  * un numéro · le D4C n'impose aucun plan (ch. XII-5 § 2).
  *
  * TROIS SORTES DE LIGNES QUE LE MODÈLE NE PORTE PAS, DITES COMME TELLES.
- * (1) Ce que le D4C porte et qu'OmegaX ne calcule pas encore · écarts de
- * conversion des entités étrangères (tranche 4c), « dont » des immobilisations
- * corporelles, résultat par action · montant `null`, jamais zéro : un zéro se
+ * (1) Ce que le D4C porte et qu'OmegaX ne calcule pas encore · « dont » des
+ * immobilisations corporelles, résultat par action · montant `null`, jamais zéro : un zéro se
  * lit « il n'y en a pas ». (2) Ce que le modèle individuel porte et que le
  * modèle consolidé ne prévoit pas · quote-part de résultat partagé (AUDCIF
  * Titre VIII ch. 33) et participation des travailleurs · une ligne propre,
@@ -78,7 +77,6 @@ export interface Resolveurs {
 
 const r2 = (x: number) => Math.round(x * 100) / 100;
 const EPS = 0.005;
-const RESERVE_CONVERSION = 'Calculé avec la tranche 4c (conversion des entités étrangères) · non calculé ici, et non nul pour autant.';
 
 /**
  * Participations et créances RATTACHÉES · le D4C les réunit dans un poste,
@@ -265,12 +263,14 @@ export function construireEtatsConsolides(cumul: ResultatCumul, resolveurs: Reso
   const primesReserves = lp('PRIMES_RESERVES_CONSOLIDEES', 'Primes et réserves consolidées', 'POSTE', -(k('PRIMES_CONSOLIDANTE') + k('RESERVES_GROUPE')), {
     lecture: 'Primes (105) de la consolidante, ses réserves et report à nouveau, et la part du groupe dans les capitaux propres des entités consolidées depuis leur entrée.',
   });
-  const ecartsConv = lp('ECARTS_CONVERSION', 'Écarts de conversion', 'POSTE', null, { reserve: RESERVE_CONVERSION });
+  const ecartsConv = lp('ECARTS_CONVERSION', 'Écarts de conversion', 'POSTE', cp.ecartsConversion, {
+    lecture: 'Part du groupe dans les écarts nés de la conversion des entités étrangères au cours de clôture (D4C ch. XII-4 § 3) · celle des minoritaires est dans leurs intérêts.',
+  });
   const resultatConsolidante = lp('RESULTAT_CONSOLIDANTE', 'Résultat net (part de l’entité consolidante)', 'POSTE', cp.resultatGroupe);
   const autresCp = lp('AUTRES_CAPITAUX_PROPRES', 'Autres capitaux propres', 'POSTE', -k('ECARTS_REEVALUATION_CONSOLIDANTE'), {
     lecture: 'Écarts de réévaluation (106) de la consolidante · lecture déclarée, le D4C ne rattache aucun compte à ce poste.',
   });
-  const partConsolidante = lp('PART_CONSOLIDANTE', 'Part de l’entité consolidante', 'TOTAL', somme([capital.net, primesReserves.net, resultatConsolidante.net, autresCp.net]));
+  const partConsolidante = lp('PART_CONSOLIDANTE', 'Part de l’entité consolidante', 'TOTAL', somme([capital.net, primesReserves.net, ecartsConv.net, resultatConsolidante.net, autresCp.net]));
   const partMinoritaires = lp('PART_MINORITAIRES', 'Part des minoritaires', 'POSTE', -k('INTERETS_MINORITAIRES') + cp.resultatMinoritaires, {
     lecture: 'Intérêts minoritaires dans les capitaux propres et dans le résultat.',
   });
@@ -473,7 +473,7 @@ export function construireEtatsConsolides(cumul: ResultatCumul, resolveurs: Reso
   ];
 
   const motifsNonPubliable = [
-    'Conversion des entités étrangères non traitée (tranche 4c) · OmegaX ne sait pas encore dire si une entité du périmètre tient ses comptes dans une autre monnaie (art. 87, D4C ch. XII-4).',
+    ...cumul.conversionsIncompletes.map((m) => `Conversion · ${m}`),
     ...cumul.impotsDifferesIncomplets.map((m) => `Impôts différés incomplets · ${m}`),
     ...[...actif, ...passif, ...compteDeResultat]
       .filter((l) => l.nature === 'A_RETRAITER')

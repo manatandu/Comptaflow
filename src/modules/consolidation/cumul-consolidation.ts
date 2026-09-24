@@ -13,7 +13,10 @@
  * - les RETRAITEMENTS d'homogénéisation et les éliminations de nature fiscale
  *   (ch. XII-3) · les balances reçues sont réputées retraitées, et un solde
  *   aux comptes 14 ou 15 d'une filiale est signalé ;
- * - la conversion des entités étrangères (tranche 4c) ;
+ * - la méthode TEMPORELLE et le retraitement d'une monnaie hyperinflationniste
+ *   (ch. XII-4 § 2 et § 4) · la balance d'une filiale est reçue dans sa
+ *   monnaie fonctionnelle, et seule la méthode du cours de clôture (§ 3) est
+ *   jouée ici (tranche 4c) ;
  * - l'élimination des RÉSULTATS INTERNES inclus dans les stocks et les
  *   immobilisations (art. 86, 4°) · le texte veut une élimination totale sans
  *   dire qui du groupe ou des minoritaires du vendeur la supporte ;
@@ -179,6 +182,48 @@ export interface ConversionIndividuelle {
 }
 
 /**
+ * CONVERSION DES ENTITÉS ÉTRANGÈRES · tranche 4c, D4C ch. XII-4 § 3, méthode
+ * du COURS DE CLÔTURE (monnaie fonctionnelle → monnaie de présentation). Les
+ * cours se DÉCLARENT, en unités de monnaie de présentation pour UNE unité de
+ * la monnaie de l'entité · aucun cours n'est écrit dans ce moteur.
+ *
+ * `monnaie` · celle de la balance importée, qui DOIT être la monnaie
+ * fonctionnelle de l'entité · une comptabilité tenue dans une autre monnaie
+ * se convertit d'abord par la méthode temporelle (§ 2), hors de ce moteur.
+ * `null` · pas déclarée, et l'état consolidé n'est pas publiable.
+ *
+ * `capitauxPropresHistoriques` · les capitaux propres hors résultat de
+ * l'exercice (10 à 12), au COURS HISTORIQUE, en monnaie de présentation, en
+ * solde créditeur positif · « capital, réserves : cours historique » (§ 3).
+ * Aucune balance ne les porte · ils sont la somme de ce que chaque exercice
+ * passé y a versé à son propre cours.
+ *
+ * `coursEntree` · le cours à la date d'entrée, pour l'écart d'acquisition, qui
+ * se convertit lui aussi au cours de clôture (§ 3). Le coût des titres et les
+ * capitaux propres d'entrée restent déclarés en monnaie de présentation, au
+ * cours de la date d'entrée (ch. XII-6 § 2).
+ */
+export interface MonnaieEntite {
+  entiteId: string;
+  monnaie: string | null;
+  hyperinflation?: boolean;
+  coursCloture?: number | null;
+  /** Cours moyen de l'exercice, ou de clôture · les deux sont admis pour les charges et produits (§ 3). */
+  coursProduitsCharges?: number | null;
+  capitauxPropresHistoriques?: number | null;
+  coursEntree?: number | null;
+}
+
+export interface ConversionEntiteCalculee {
+  entite: string;
+  monnaie: string;
+  coursCloture: number;
+  coursProduitsCharges: number;
+  /** Écart de conversion né de la balance de l'entité, avant partage · solde créditeur positif. */
+  ecartConversion: number;
+}
+
+/**
  * Le compte de provision décide de la dotation et de la reprise · AUDCIF
  * Titre VIII ch. 22 § 2.3 (dotations 6591, 6971, 6791 contre 4991, 194, 4997)
  * et Titre VII classe 7 (reprises 7591, 7971, 7791, de même rang).
@@ -211,7 +256,8 @@ export type PosteConsolidation =
   | 'IMPOTS_DIFFERES_ACTIF'
   | 'IMPOTS_DIFFERES_PASSIF'
   | 'IMPOTS_DIFFERES_RESULTAT'
-  | 'ECARTS_CONVERSION_INDIVIDUELS_RESULTAT';
+  | 'ECARTS_CONVERSION_INDIVIDUELS_RESULTAT'
+  | 'ECARTS_CONVERSION';
 
 export const LIBELLE_POSTE: Record<PosteConsolidation, string> = {
   ECART_ACQUISITION: 'Écart d’acquisition',
@@ -235,6 +281,7 @@ export const LIBELLE_POSTE: Record<PosteConsolidation, string> = {
   IMPOTS_DIFFERES_PASSIF: 'Passifs d’impôts différés',
   IMPOTS_DIFFERES_RESULTAT: 'Impôts différés (charge ou produit de l’exercice)',
   ECARTS_CONVERSION_INDIVIDUELS_RESULTAT: 'Pertes et gains de change latents constatés (478 et 479 retraités)',
+  ECARTS_CONVERSION: 'Écarts de conversion (part du groupe)',
 };
 
 /** Les postes qui sont du résultat · le reste est du bilan. */
@@ -251,6 +298,12 @@ const POSTES_DE_RESULTAT = new Set<PosteConsolidation>([
 
 /** Clé interne · un ajustement de capitaux propres porté par la détentrice avant son partage. */
 const AJUSTEMENT_RESERVES = '§AJUSTEMENT_RESERVES';
+/**
+ * Clé interne · l'écart de conversion d'une entité, porté avant son partage.
+ * Il appartient « au groupe et aux minoritaires » (ch. XII-4 § 3) et se
+ * partage comme les capitaux propres, sans se fondre dans les réserves.
+ */
+const ECART_CONVERSION_ENTITE = '§ECART_CONVERSION';
 
 export interface LigneConsolidee {
   cle: string;
@@ -284,6 +337,8 @@ export interface ResultatCumul {
     /** 106 de la consolidante · lu en « Autres capitaux propres », LECTURE DÉCLARÉE, le D4C ne rattache aucun compte à ce poste. */
     ecartsReevaluation: number;
     reservesGroupe: number;
+    /** Part du groupe dans les écarts de conversion (ch. XII-4 § 3), solde créditeur positif. */
+    ecartsConversion: number;
     resultatGroupe: number;
     interetsMinoritairesHorsResultat: number;
     resultatMinoritaires: number;
@@ -315,6 +370,9 @@ export interface ResultatCumul {
    * ils le sont.
    */
   impotsDifferesIncomplets: string[];
+  conversions: ConversionEntiteCalculee[];
+  /** Entités dont la monnaie n'est pas déclarée · vide, toutes l'ont été. */
+  conversionsIncompletes: string[];
 }
 
 export interface EcartEvaluationCalcule {
@@ -395,8 +453,72 @@ export function cumulerConsolidation(
   resultatsInternes: ResultatInterne[] = [],
   fiscalites: FiscaliteEntite[] = [],
   conversions: ConversionIndividuelle[] = [],
+  monnaies?: { presentation: string; entites: MonnaieEntite[] },
 ): ResultatCumul {
   const avertissements: string[] = [];
+  const obstaclesFlux: string[] = [];
+
+  // ─── 0. Conversion des entités étrangères (ch. XII-4 § 3) ─────────────────
+  // Actifs et passifs hors capitaux propres au cours de CLÔTURE ; capitaux
+  // propres (10 à 12) au cours HISTORIQUE, déclaré en montant ; charges et
+  // produits (6 à 8, et le 13) au cours déclaré pour eux. L'écart de
+  // conversion est le solde qui rééquilibre la balance convertie · il reste
+  // une clé propre, partagée plus bas comme les capitaux propres.
+  const cours = new Map<string, { cloture: number; pc: number; entree: number | null }>();
+  const conversionsCalculees: ConversionEntiteCalculee[] = [];
+  const conversionsIncompletes: string[] = [];
+  if (monnaies) {
+    const presentation = monnaies.presentation.trim().toUpperCase();
+    entites = entites.map((e) => {
+      if (e.estConsolidante) return e;
+      const d = monnaies.entites.find((x) => x.entiteId === e.id);
+      const monnaie = d?.monnaie?.trim().toUpperCase();
+      if (!monnaie) {
+        const motif = `« ${e.nom} » n’a pas déclaré la monnaie de sa balance · OmegaX ne sait pas si elle est à convertir (art. 87, D4C ch. XII-4).`;
+        conversionsIncompletes.push(motif);
+        obstaclesFlux.push(motif);
+        return e;
+      }
+      if (monnaie === presentation) return e;
+      if (d!.hyperinflation) {
+        throw new RefusConsolidation(
+          `« ${e.nom} » a une monnaie fonctionnelle hyperinflationniste · ses états se retraitent d’abord par un indice général des prix ` +
+            '(D4C ch. XII-4 § 4), ce que cette version ne fait pas.',
+        );
+      }
+      const C = Number(d!.coursCloture);
+      const M = Number(d!.coursProduitsCharges);
+      const H = d!.capitauxPropresHistoriques;
+      if (!(C > 0) || !(M > 0) || H == null) {
+        throw new RefusConsolidation(
+          `« ${e.nom} » tient sa balance en ${monnaie} et les états sont présentés en ${presentation} · il faut son cours de clôture, le cours ` +
+            'de ses charges et produits (moyen ou de clôture) et ses capitaux propres au cours historique (D4C ch. XII-4 § 3).',
+        );
+      }
+      cours.set(e.id, { cloture: C, pc: M, entree: d!.coursEntree != null && d!.coursEntree > 0 ? d!.coursEntree : null });
+      if (!e.balance) return e;
+      const estCp = (n: string) => /^1[0-2]/.test(n);
+      const auCoursPc = (n: string) => /^13/.test(n) || /^[678]/.test(n);
+      const conv = (v: number | null | undefined, k: number) => (v == null ? v : r2(v * k));
+      const lignes: LigneBalanceEntree[] = e.balance.map((l) => {
+        const k = auCoursPc(l.numero) ? M : C;
+        return { ...l, solde: r2(l.solde * k), mouvementDebit: conv(l.mouvementDebit, k), mouvementCredit: conv(l.mouvementCredit, k) };
+      });
+      const cpAuCoursDeCloture = lignes.filter((l) => estCp(l.numero)).reduce((s, l) => s + l.solde, 0);
+      const ajustement = r2(-H - cpAuCoursDeCloture);
+      const ecart = r2(-(lignes.reduce((s, l) => s + l.solde, 0) + ajustement));
+      lignes.push(
+        { numero: AJUSTEMENT_RESERVES, intitule: 'Capitaux propres au cours historique', solde: ajustement, mouvementDebit: 0, mouvementCredit: 0 },
+        { numero: ECART_CONVERSION_ENTITE, intitule: 'Écart de conversion', solde: ecart, mouvementDebit: 0, mouvementCredit: 0 },
+      );
+      conversionsCalculees.push({ entite: e.nom, monnaie, coursCloture: C, coursProduitsCharges: M, ecartConversion: -ecart });
+      obstaclesFlux.push(
+        `« ${e.nom} » est convertie de ${monnaie} en ${presentation} · l’incidence des variations de cours des devises (G, D4C ch. XII-8 § 4) ` +
+          'n’est pas séparée par cette version, et ses flux mêleraient deux cours.',
+      );
+      return { ...e, balance: lignes };
+    });
+  }
   const parId = new Map(entites.map((e) => [e.id, e]));
   const consolidante = entites.find((e) => e.estConsolidante);
   if (!consolidante) throw new RefusConsolidation('Aucune entité consolidante.');
@@ -440,7 +562,6 @@ export function cumulerConsolidation(
     }
   }
 
-  const obstaclesFlux: string[] = [];
   const mouvements = new Map<string, { debit: number; credit: number }>();
   const comptes = new Map<string, Map<string, number>>();
   const intitules = new Map<string, string>();
@@ -545,6 +666,11 @@ export function cumulerConsolidation(
     const evs = a.ecartsEvaluation ?? [];
     let reestimation = 0;
     if (evs.length > 0) {
+      if (cours.has(a.detenueId)) {
+        throw new RefusConsolidation(
+          `Écart d’évaluation déclaré sur « ${detenue.nom} », entité convertie · sa conversion au cours de clôture (D4C ch. XII-4 § 3) n’est pas servie par cette version.`,
+        );
+      }
       if (detenue.methode === 'ME') {
         throw new RefusConsolidation(
           `Écart d’évaluation déclaré sur « ${detenue.nom} », mise en équivalence · ses comptes n’étant pas repris, il n’y a pas d’écart d’évaluation (D4C ch. XII-6 § 3).`,
@@ -611,6 +737,21 @@ export function cumulerConsolidation(
     if (ecart < 0 && (depOuv > 0 || depClo > 0)) {
       throw new RefusConsolidation(`Un écart d’acquisition négatif ne se déprécie pas (« ${detenue.nom} »).`);
     }
+    // L'ÉCART D'ACQUISITION D'UNE ENTITÉ CONVERTIE est un actif dans SA monnaie ·
+    // « le cours de clôture s'applique aussi aux écarts d'acquisition »
+    // (ch. XII-4 § 3). Calculé ici en monnaie de présentation au cours
+    // d'entrée, il est ramené à la monnaie de l'entité par ce cours, puis
+    // reconverti · au cours de clôture pour le bilan, au cours des charges et
+    // produits pour la dotation. Ce que les réserves en ont reçu les exercices
+    // passés reste à la valeur d'entrée, faute des cours de chaque exercice.
+    const cv = cours.get(a.detenueId);
+    if (cv && Math.abs(ecart) > 0.005 && cv.entree == null) {
+      throw new RefusConsolidation(
+        `L’écart d’acquisition sur « ${detenue.nom} », entité convertie, se convertit au cours de clôture (D4C ch. XII-4 § 3) · déclarez le cours à la date d’entrée.`,
+      );
+    }
+    const rc = cv && cv.entree ? cv.cloture / cv.entree : 1;
+    const rp = cv && cv.entree ? cv.pc / cv.entree : 1;
     ecarts.push({
       detentrice: detentrice.nom,
       detenue: detenue.nom,
@@ -641,15 +782,21 @@ export function cumulerConsolidation(
       // réserves de la détentrice, l'écart va à son poste (art. 82).
       ajouter(H, AJUSTEMENT_RESERVES, quotePart);
       if (ecart >= 0) {
-        ajouter(H, 'ECART_ACQUISITION', ecart);
-        ajouter(H, 'AMORTISSEMENT_ECART_ACQUISITION', -amortClo);
-        ajouter(H, 'DEPRECIATION_ECART_ACQUISITION', -depClo);
-        ajouter(H, 'DOTATION_ECART_ACQUISITION', r2(amortClo - amortOuv + depClo - depOuv));
+        const dot = r2(amortClo - amortOuv + depClo - depOuv);
+        const [b, am, dp, dt] = [r2(ecart * rc), r2(amortClo * rc), r2(depClo * rc), r2(dot * rp)];
+        ajouter(H, 'ECART_ACQUISITION', b);
+        ajouter(H, 'AMORTISSEMENT_ECART_ACQUISITION', -am);
+        ajouter(H, 'DEPRECIATION_ECART_ACQUISITION', -dp);
+        ajouter(H, 'DOTATION_ECART_ACQUISITION', dt);
         ajouter(H, AJUSTEMENT_RESERVES, r2(amortOuv + depOuv));
+        if (cv) ajouter(H, ECART_CONVERSION_ENTITE, -r2(b - am - dp + dt - (ecart - amortClo - depClo + dot)));
       } else {
-        ajouter(H, 'ECART_ACQUISITION_NEGATIF', r2(ecart + amortClo));
-        ajouter(H, 'REPRISE_ECART_ACQUISITION_NEGATIF', -r2(amortClo - amortOuv));
+        const rep_ = r2(amortClo - amortOuv);
+        const [net, rpr] = [r2((ecart + amortClo) * rc), r2(rep_ * rp)];
+        ajouter(H, 'ECART_ACQUISITION_NEGATIF', net);
+        ajouter(H, 'REPRISE_ECART_ACQUISITION_NEGATIF', -rpr);
         ajouter(H, AJUSTEMENT_RESERVES, -amortOuv);
+        if (cv) ajouter(H, ECART_CONVERSION_ENTITE, -r2(net - rpr - (ecart + amortClo - rep_)));
       }
     } else {
       // MISE EN ÉQUIVALENCE · « substituer à la valeur comptable des titres la
@@ -662,9 +809,14 @@ export function cumulerConsolidation(
         );
       }
       const { cp, res } = lireCp(detenue.balance!);
+      // L'écart de conversion de la détenue est dans ses capitaux propres · la
+      // quote-part le suit, et il reste un écart de conversion (§ 3).
+      const ecDetenue = -r2(detenue.balance!.filter((l) => l.numero === ECART_CONVERSION_ENTITE).reduce((s, l) => s + l.solde, 0));
       const quotePartResultat = r2(d * res);
-      const valeur = r2(d * (cp + res) + ecart - amortClo - depClo);
-      const dotation = r2(amortClo - amortOuv + depClo - depOuv);
+      const netEcartHist = r2(ecart - amortClo - depClo);
+      const dotationHist = r2(amortClo - amortOuv + depClo - depOuv);
+      const valeur = r2(d * (cp + res + ecDetenue) + r2(netEcartHist * rc));
+      const dotation = r2(dotationHist * rp);
       const partResultat = r2(quotePartResultat - dotation);
       if (valeur >= 0) {
         ajouter(H, 'TITRES_MIS_EN_EQUIVALENCE', valeur);
@@ -681,8 +833,11 @@ export function cumulerConsolidation(
       const valeurRetenue = valeur >= 0 || a.obligationNonDesengagement ? valeur : 0;
       ajouter(H, 'QUOTE_PART_RESULTAT_ME', -quotePartResultat);
       ajouter(H, 'DOTATION_ECART_ACQUISITION', dotation);
-      // Le reste de la variation des capitaux propres va aux réserves.
-      ajouter(H, AJUSTEMENT_RESERVES, -r2(valeurRetenue - a.coutAcquisition - partResultat));
+      // Ce que la conversion a fait naître reste un écart de conversion · le
+      // reste de la variation des capitaux propres va aux réserves.
+      const partConversion = cv && valeurRetenue === valeur ? r2(d * ecDetenue + netEcartHist * (rc - 1) + dotationHist * (rp - 1)) : 0;
+      if (partConversion !== 0) ajouter(H, ECART_CONVERSION_ENTITE, -partConversion);
+      ajouter(H, AJUSTEMENT_RESERVES, -r2(valeurRetenue - a.coutAcquisition - partResultat - partConversion));
     }
 
     // DIVIDENDES · « éliminés du résultat de la période (rapportés aux
@@ -909,6 +1064,7 @@ export function cumulerConsolidation(
   let primes = 0;
   let ecartsReevaluation = 0;
   let reservesGroupe = 0;
+  let ecartsConversion = 0;
   let resultatGroupe = 0;
   let imHorsResultat = 0;
   let resultatMinoritaires = 0;
@@ -923,9 +1079,11 @@ export function cumulerConsolidation(
     let cpPrimes = 0;
     let cpReevaluation = 0;
     let cpAutres = 0;
+    let ec = 0;
     let res = 0;
     for (const [cle, solde] of m) {
-      if (estCpHorsResultat(cle)) {
+      if (cle === ECART_CONVERSION_ENTITE) ec -= solde;
+      else if (estCpHorsResultat(cle)) {
         if (cle.startsWith('105')) cpPrimes -= solde;
         else if (cle.startsWith('106')) cpReevaluation -= solde;
         else if (cle.startsWith('10')) cpCapital -= solde;
@@ -943,10 +1101,12 @@ export function cumulerConsolidation(
       reservesGroupe += g * cp;
       imHorsResultat += (1 - g) * cp;
     }
+    ecartsConversion += g * ec;
+    imHorsResultat += (1 - g) * ec;
     resultatGroupe += g * res;
     resultatMinoritaires += (1 - g) * res;
     for (const [cle, solde] of m) {
-      if (estCpHorsResultat(cle)) continue;
+      if (estCpHorsResultat(cle) || cle === ECART_CONVERSION_ENTITE) continue;
       const k = estResultat13(cle) ? 'RESULTAT_DEJA_CONSTATE' : cle;
       agregat.set(k, r2((agregat.get(k) ?? 0) + solde));
     }
@@ -993,6 +1153,7 @@ export function cumulerConsolidation(
   primes = r2(primes);
   ecartsReevaluation = r2(ecartsReevaluation);
   reservesGroupe = r2(reservesGroupe);
+  ecartsConversion = r2(ecartsConversion);
   imHorsResultat = r2(imHorsResultat);
   resultatGroupe = r2(resultatGroupe);
   resultatMinoritaires = r2(resultatMinoritaires);
@@ -1000,6 +1161,7 @@ export function cumulerConsolidation(
   agregat.set('PRIMES_CONSOLIDANTE', -primes);
   agregat.set('ECARTS_REEVALUATION_CONSOLIDANTE', -ecartsReevaluation);
   agregat.set('RESERVES_GROUPE', -reservesGroupe);
+  agregat.set('ECARTS_CONVERSION', -ecartsConversion);
   agregat.set('INTERETS_MINORITAIRES', -imHorsResultat);
 
   const lignes: LigneConsolidee[] = [...agregat.entries()]
@@ -1019,6 +1181,7 @@ export function cumulerConsolidation(
       primes,
       ecartsReevaluation,
       reservesGroupe,
+      ecartsConversion,
       resultatGroupe,
       interetsMinoritairesHorsResultat: imHorsResultat,
       resultatMinoritaires,
@@ -1035,5 +1198,7 @@ export function cumulerConsolidation(
     ecartsEvaluationStocksResultat: r2(ecartsEvaluationStocksResultat),
     ecartsEvaluation,
     impotsDifferesIncomplets,
+    conversions: conversionsCalculees,
+    conversionsIncompletes,
   };
 }

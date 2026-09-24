@@ -146,8 +146,16 @@ describe('tableau des flux consolidé · le cas chiffré', () => {
     expect(t.controle).toEqual({ tresorerieParLesFlux: 1730, tresorerieParLeBilan: 1730, ecart: 0, ok: true });
   });
 
-  it('l’incidence des devises n’est pas calculée, et n’est pas zéro', () => {
-    expect(net(t, 'INCIDENCE_DEVISES')).toBeNull();
+  it('sans entité convertie, l’incidence des devises est nulle et le dit · H = E', () => {
+    expect(net(t, 'INCIDENCE_DEVISES')).toBe(0);
+    expect(t.lignes!.find((l) => l.cle === 'INCIDENCE_DEVISES')?.lecture).toMatch(/Aucune entité du périmètre n’est convertie/);
+    expect(net(t, 'VARIATION_HORS_DEVISES')).toBe(730);
+  });
+
+  it('une entité convertie refuse le tableau, son incidence (G) n’étant pas séparée', () => {
+    const e = groupe();
+    const cumulN = { ...e.cumulN, obstaclesFlux: ['« F » est convertie de USD en CDF · l’incidence des variations de cours des devises (G) n’est pas séparée.'] };
+    expect(construireTableauFluxConsolide({ ...e, cumulN }, flux).lignes).toBeNull();
   });
 
   it('un compte soldé à la clôture garde ses mouvements · le 465 de la mère', () => {
@@ -232,7 +240,12 @@ describe('variation des capitaux propres consolidés', () => {
     }
   });
 
-  it('les écarts de conversion ne sont pas calculés, et ne valent pas zéro', () => {
-    expect(ligne('CLOTURE_N').conversion).toBeNull();
+  it('les écarts de conversion ont leur colonne · clôture N-1, variation, clôture N, et la part du groupe les compte', () => {
+    const avec = (c: typeof e.cumulN, x: number) => ({ ...c, capitauxPropres: { ...c.capitauxPropres, ecartsConversion: x } });
+    const w = construireVariationCapitauxPropres(avec(e.cumulN, 50), avec(e.cumulN1, 20), e.consolidanteN);
+    const l = (cle: string) => w.lignes.find((x) => x.cle === cle)!.montants;
+    expect(l('CLOTURE_N1')).toMatchObject({ conversion: 20, groupe: 2720 });
+    expect(l('VARIATION_CONVERSION')).toMatchObject({ conversion: 30, groupe: 30 });
+    expect(l('CLOTURE_N').conversion).toBe(50);
   });
 });
