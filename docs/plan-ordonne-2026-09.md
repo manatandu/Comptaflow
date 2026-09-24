@@ -556,9 +556,11 @@ de procédures fiscales, qui vise des redevables d'impôts).
 **P8 · le bulletin de paie émis est livré le 2026-09-23** · table
 `BulletinPaie`, migration `20261002000000_bulletin_paie`, onglet Bulletins de la
 fenêtre Personnel (émission depuis la simulation, liste du mois et totaux,
-impression, annulation motivée, remise de l'art. 103). Reste pour la paie : la
-PASSATION du mois au journal, à partir des propositions que chaque bulletin
-conserve.
+impression, annulation motivée, remise de l'art. 103). **P9 · la paie du mois
+au journal est livrée le 2026-09-24** · une écriture pour tous les bulletins
+émis du mois, en trois temps (brut, retenues, patronales), rejouée sur leurs
+chiffres figés, liée à chaque bulletin et défaisable tant qu'elle est au
+brouillard (`comptabilisation-paie.ts`).
 
 Reste de la Phase I, À REPRENDRE APRÈS LES CONFRONTATIONS : **stocks** (les états
 SMT et compte de résultat déjà écrits attendent des variations qu'aucune source

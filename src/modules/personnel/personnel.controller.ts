@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { RoleUtilisateur } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { LicenceGuard } from '../licence/licence.guard';
@@ -6,8 +6,10 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PersonnelService } from './personnel.service';
+import { ComptabilisationPaieService } from './comptabilisation-paie.service';
 import {
   AnnulationBulletinDto,
+  ComptabilisationPaieDto,
   ContratTravailDto,
   DecompteFinalDto,
   LivreDePaieDto,
@@ -32,7 +34,10 @@ import {
 @UseGuards(JwtAuthGuard, LicenceGuard, RolesGuard)
 @Controller('personnel')
 export class PersonnelController {
-  constructor(private readonly personnel: PersonnelService) {}
+  constructor(
+    private readonly personnel: PersonnelService,
+    private readonly paieDuMois: ComptabilisationPaieService,
+  ) {}
 
   @Get('salaries')
   @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE, RoleUtilisateur.LECTURE_SEULE)
@@ -181,6 +186,29 @@ export class PersonnelController {
     @Body() dto: AnnulationBulletinDto,
   ) {
     return this.personnel.annulerBulletin(user.tenantId, user.userId, id, dto.motif);
+  }
+
+  // P9 · la paie du mois au journal, en une écriture.
+  @Get('paie-du-mois/:mois')
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE, RoleUtilisateur.LECTURE_SEULE)
+  async propositionPaieDuMois(@CurrentUser() user: AuthenticatedUser, @Param('mois') mois: string) {
+    return this.paieDuMois.proposition(user.tenantId, mois);
+  }
+
+  @Post('paie-du-mois/:mois/comptabilisation')
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  async comptabiliserPaieDuMois(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('mois') mois: string,
+    @Body() dto: ComptabilisationPaieDto,
+  ) {
+    return this.paieDuMois.comptabiliser(user.tenantId, user.userId, mois, dto);
+  }
+
+  @Delete('paie-du-mois/comptabilisation/:ecritureId')
+  @Roles(RoleUtilisateur.ADMIN_CABINET, RoleUtilisateur.COMPTABLE)
+  async annulerComptabilisationPaie(@CurrentUser() user: AuthenticatedUser, @Param('ecritureId') ecritureId: string) {
+    return this.paieDuMois.annulerComptabilisation(user.tenantId, ecritureId);
   }
 
   @Post('bulletins/:id/remise')

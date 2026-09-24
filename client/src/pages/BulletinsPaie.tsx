@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { BaremeMensuelIrpp, type DetailMensuelIrpp } from './BaremeMensuelIrpp';
+import { PaieDuMois } from './PaieDuMois';
 
 /**
  * P8 · LES BULLETINS ÉMIS, onglet de la fenêtre Personnel.
@@ -211,6 +212,8 @@ export function OngletBulletins({ moisInitial, peutEcrire }: { moisInitial: stri
           </table>
         </div>
       )}
+
+      <PaieDuMois mois={mois} peutEcrire={peutEcrire} apresChangement={charger} />
 
       {ouvert && (
         <div className="border border-border bg-surface px-5 py-4">

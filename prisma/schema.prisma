@@ -1262,6 +1262,9 @@ model Ecriture {
   /// La facture dont cette écriture est la comptabilisation · au plus une.
   facture Facture?
 
+  /// P9 · les bulletins de paie que cette écriture passe au journal.
+  bulletinsPaie BulletinPaie[]
+
   @@index([tenantId, exerciceId, date])
   @@index([tenantId, statut], map: "ecritures_statut_idx")
   // Chemin de la numérotation des pièces : à CHAQUE création d'écriture, le
@@ -6135,7 +6138,17 @@ model BulletinPaie {
   annulePar       String?
   motifAnnulation String?
 
+  /// P9 · L'ÉCRITURE DE PAIE DU MOIS qui porte ce bulletin. Une seule
+  /// écriture pour tous les bulletins passés ensemble. Le lien empêche de
+  /// passer deux fois le même salaire, et RESTRICT empêche que l'écriture
+  /// disparaisse en laissant le bulletin se dire passé · Prisma poserait
+  /// sinon SET NULL sur une relation facultative, et le bulletin repartirait
+  /// en silence dans la paie du mois suivant.
+  ecritureId String?
+  ecriture   Ecriture? @relation(fields: [ecritureId], references: [id], onDelete: Restrict)
+
   @@unique([tenantId, numero])
+  @@index([tenantId, ecritureId])
   @@index([tenantId, moisDePaie])
   @@index([tenantId, salarieId])
   @@map("bulletins_paie")

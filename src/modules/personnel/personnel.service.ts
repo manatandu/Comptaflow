@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, StatutBulletinPaie, TypeContratTravail } from '@prisma/client';
+import { Prisma, StatutBulletinPaie, StatutEcriture, TypeContratTravail } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import {
   ContratTravailDto,
@@ -1012,9 +1012,29 @@ export class PersonnelService {
     if (texte.length < 5) {
       throw new BadRequestException("Le motif d'annulation est obligatoire · il est la seule trace de la correction.");
     }
-    const b = await this.prisma.bulletinPaie.findFirst({ where: { id, tenantId }, select: { statut: true } });
+    const b = await this.prisma.bulletinPaie.findFirst({
+      where: { id, tenantId },
+      select: { statut: true, ecritureId: true },
+    });
     if (!b) throw new NotFoundException('Bulletin introuvable dans ce dossier.');
     if (b.statut !== StatutBulletinPaie.EMIS) throw new BadRequestException('Ce bulletin est déjà annulé.');
+    // P9 · UN BULLETIN PASSÉ AU BROUILLARD NE S'ANNULE PAS SEUL. L'écriture du
+    // mois porterait encore son salaire, et rien ne le signalerait. On défait
+    // d'abord la passation, qui se refait sans lui. Passé et VALIDÉ, il
+    // s'annule, et la proposition du mois le signale comme salaire encore au
+    // journal, à corriger par une écriture en négatif (AUDCIF art. 20).
+    if (b.ecritureId) {
+      const ecriture = await this.prisma.ecriture.findFirst({
+        where: { id: b.ecritureId, tenantId },
+        select: { statut: true, numeroPiece: true },
+      });
+      if (ecriture && ecriture.statut !== StatutEcriture.VALIDEE) {
+        throw new BadRequestException(
+          `Ce bulletin est passé dans l'écriture de paie n° ${ecriture.numeroPiece ?? ''}, encore au brouillard. ` +
+            "Annulez d'abord la comptabilisation du mois, puis le bulletin, puis repassez la paie.",
+        );
+      }
+    }
     await this.prisma.bulletinPaie.update({
       where: { id },
       data: { statut: StatutBulletinPaie.ANNULE, annuleLe: new Date(), annulePar: userId, motifAnnulation: texte },

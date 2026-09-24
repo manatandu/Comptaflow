@@ -552,3 +552,23 @@ export class RemiseBulletinDto {
   @IsDateString()
   remisLe!: string;
 }
+
+/**
+ * P9 · passer la paie du mois. Le client ne choisit que ce qui appartient au
+ * cabinet · l'exercice, le journal, la date et le libellé. Aucun montant.
+ */
+export class ComptabilisationPaieDto {
+  @IsString()
+  exerciceId!: string;
+
+  @IsString()
+  journalId!: string;
+
+  @IsDateString()
+  date!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  libelle?: string;
+}

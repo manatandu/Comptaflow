@@ -198,6 +198,10 @@ describe('la liste d’exclusion est fermée sur User', () => {
       'annuleLe',
       'annulePar',
       'motifAnnulation',
+      // P9 · quelle écriture de paie porte le bulletin. Aucun montant ·
+      // c'est le lien que le journal doit montrer quand il se pose ou se défait.
+      'ecritureId',
+      'ecriture',
     ],
   };
 

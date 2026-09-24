@@ -3,18 +3,8 @@ import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
 import { OngletBulletins } from './BulletinsPaie';
+import { TITRE_BLOC_PAIE } from './PaieDuMois';
 import { BaremeMensuelIrpp, type DetailMensuelIrpp } from './BaremeMensuelIrpp';
-
-/**
- * Les trois temps de l'écriture de paie, dans l'ordre du Guide d'application
- * SYSCOHADA (Partie 1 ch. 3 section 4, Application 10). L'impôt retenu est au
- * deuxième, jamais au troisième : c'est une retenue sur le salarié.
- */
-const TITRE_BLOC_PAIE = {
-  BRUT: '1 · Salaire brut dû au personnel',
-  RETENUES: '2 · Retenues sur le salaire (cotisations ouvrières, impôt)',
-  PATRONALES: '3 · Charges sociales patronales',
-} as const;
 
 /**
  * LE REGISTRE DU PERSONNEL · l'état civil, les engagements, et ce que

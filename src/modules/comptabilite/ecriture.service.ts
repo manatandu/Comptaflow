@@ -820,6 +820,12 @@ export class EcritureService {
       // une consignation ouverte ou dénouée sans l'écriture qui l'a faite · et
       // c'est précisément ce registre qui existe pour montrer ce qui reste à
       // qualifier au 4094 et au 4194.
+      // La paie du mois (P9). Sans ce refus, la clé RESTRICT renverrait une
+      // erreur brute ; sans la clé, les bulletins se diraient passés sans
+      // écriture, ou repartiraient en silence dans la paie suivante. La
+      // passation se défait depuis la fenêtre Personnel, qui libère les
+      // bulletins dans le même geste.
+      ['la paie du mois (bulletins de paie)', this.prisma.bulletinPaie.count({ where: { tenantId, ecritureId } })],
       ["une consignation d'emballages", this.prisma.consignation.count({
         where: { tenantId, OR: [{ ecritureConsignationId: ecritureId }, { ecritureDenouementId: ecritureId }] },
       })],

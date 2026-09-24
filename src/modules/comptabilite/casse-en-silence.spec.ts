@@ -56,6 +56,7 @@ function serviceEcriture(detenteurs: Record<string, number> = {}) {
     executionEngagement: { count: compteur('executionEngagement') },
     mouvementStock: { count: compteur('mouvementStock') },
     consignation: { count: compteur('consignation') },
+    bulletinPaie: { count: compteur('bulletinPaie') },
     $transaction: jest.fn().mockImplementation((f: (tx: unknown) => unknown) => f(prisma)),
   } as Faux;
 
@@ -198,6 +199,14 @@ describe('3 · une écriture qu’un module tient ne se supprime pas', () => {
     await expect(
       serviceEcriture({ consignation: 1 }).supprimer('t1', 'e1'),
     ).rejects.toThrow(/consignation d'emballages/i);
+  });
+
+  it("refuse aussi quand l'écriture passe la paie du mois", async () => {
+    // P9 · supprimée seule, elle laisserait les bulletins se dire passés
+    // sans écriture · la passation se défait depuis la fenêtre Personnel.
+    await expect(
+      serviceEcriture({ bulletinPaie: 3 }).supprimer('t1', 'e1'),
+    ).rejects.toThrow(/paie du mois/i);
   });
 
   it('laisse partir une écriture que personne ne tient', async () => {

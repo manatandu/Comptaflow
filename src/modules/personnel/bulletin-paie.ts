@@ -55,7 +55,9 @@
  * CE QUE LE BULLETIN NE PRÉTEND PAS. Il n'est pas certifié conforme au modèle
  * annexé à l'arrêté de 2008 · même réserve que `livre-de-paie.ts`, qui ne
  * certifie jamais une mise en forme qu'il ne peut pas vérifier. Il ne passe
- * aucune écriture : il conserve la PROPOSITION de passation de la simulation.
+ * aucune écriture À L'ÉMISSION : ses chiffres figés servent ensuite à la paie
+ * du mois, passée en une écriture pour tous les bulletins (P9,
+ * `comptabilisation-paie.ts`).
  */
 
 export const TEXTE_ARTICLE_103 =

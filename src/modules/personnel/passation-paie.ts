@@ -505,7 +505,7 @@ export function passationPaie(entree: EntreePassation): VerdictPassation {
   }
 
   reserves.push(
-    "OMEGAX PROPOSE, LE COMPTABLE PASSE · aucune écriture n'est enregistrée par ce module. La date, le journal et le libellé appartiennent au cabinet.",
+    "OMEGAX PROPOSE, LE COMPTABLE PASSE · la simulation n'enregistre rien. Une fois les bulletins émis, la paie du mois se passe au journal en UNE écriture depuis l'onglet Bulletins ; la date, le journal et le libellé appartiennent au cabinet.",
   );
   reserves.push(
     "LE JOURNAL · le dossier est semé avec cinq journaux (achats, ventes, banque, caisse, opérations diverses). La paie se passe aux OPÉRATIONS DIVERSES tant que le cabinet n'a pas ouvert un journal de paie dédié, ce qu'OmegaX ne fait pas à sa place.",

@@ -2207,6 +2207,29 @@ tomber sur trente-neuf écrans avant le correctif. `estAdmin` seul ne prouve
 rien ailleurs · un écran qui masque sa seule action d'administration peut
 montrer tout le reste.
 
+**P9 · LA PAIE DU MOIS AU JOURNAL, EN UNE ÉCRITURE (2026-09-24).**
+`comptabilisation-paie.ts` additionne, compte par compte, la passation de
+chaque bulletin émis du mois, dans les trois temps du Guide (brut, retenues,
+patronales). Quatre règles à ne pas défaire. (1) LA PASSATION EST REJOUÉE SUR
+LES CHIFFRES FIGÉS DU BULLETIN, jamais relue dans ses lignes stockées · les
+montants sont ceux que le travailleur a signés, la règle d'imputation est
+celle du jour, et un bulletin émis avant la correction du 24 porterait sinon
+l'écriture combinée. (2) UN SEUL BULLETIN REFUSÉ ARRÊTE LE MOIS ENTIER ·
+passer les autres ferait entrer une masse salariale amputée d'un salaire sur
+une écriture équilibrée. (3) AU CENTIME PAR CONSTRUCTION · chaque ligne de
+détail est arrondie, la ligne de total de chaque bloc est leur somme, et
+l'écart du 422 avec la somme des nets est montré, jamais logé dans un compte ;
+le jeu d'essai prend DEUX bulletins et non trois, trois tiers retombant sur un
+entier (vu à la réinjection). (4) `BulletinPaie.ecritureId` LIE chaque bulletin
+à son écriture, `onDelete: Restrict` déclaré au schéma · un salaire ne se passe
+pas deux fois, la liaison se pose sur les seuls bulletins encore libres et
+l'écriture est retirée si un autre clic les a pris entre-temps. L'écriture est
+ajoutée à `verifierAucunModuleNeLaTient` ; la passation se DÉFAIT depuis
+l'onglet Bulletins tant qu'elle est au brouillard, jamais une fois validée
+(AUDCIF art. 22, 2°). Un bulletin passé au brouillard ne s'annule pas seul ;
+passé et validé, il s'annule et la proposition du mois le signale comme salaire
+encore au journal. Six défauts réinjectés dans la règle, six attrapés.
+
 **Questionnaire de révision par cycle · vingt-quatre items du CPCC, et le
 reste assumé.** Le séminaire porte DEUX checklists, § VI « vérification de
 l'inventaire physique » (immobilisations, stocks, caisses) et § VII
