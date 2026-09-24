@@ -597,6 +597,10 @@ Aucun développement ne les débloque.
   `LICENCE_CHECK_URL` n'est lue par aucun `ConfigService` et que
   `enregistrerHeartbeat()` n'a aucun appelant. Un dossier vendu ainsi serait
   coupé à la première requête. À ne pas proposer avant vérification.
+  **FERMÉ côté console** (vérifié le 2026-09-24) · `PlateformeService`
+  refuse désormais d'attribuer ce type, à la création comme au changement
+  (`refuserAttributionSurSite`). Reste la décision de fond : livrer ou non une
+  installation sur site qui émette le heartbeat.
 - **Variable `BUCKET_SAUVEGARDES`** · sans elle, la sauvegarde n'a que 90
   jours de rétention et le job reste vert. Trois gestes dans le compte Google.
 - **Limitation de débit** · `ThrottlerModule.forRoot` sans `storage` : le
@@ -627,8 +631,12 @@ Aucun développement ne les débloque.
   (art. 21).
 - **Forfait micro-entreprise** · la circulaire de change n'est pas connue, la
   branche renvoie `null`.
-- **Tenue en devise étrangère** · le logiciel laisse ouvrir un dossier en USD
-  sans un mot sur l'art. 141 de la loi 23/053. À trancher avec un praticien.
+- ~~**Tenue en devise étrangère** · le logiciel laisse ouvrir un dossier en USD
+  sans un mot sur l'art. 141 de la loi 23/053.~~ **TRANCHÉ par M1 et M2**
+  (vérifié le 2026-09-24) · la monnaie de tenue est verrouillée sur le franc
+  congolais, `Tenant.devise` n'est plus dans aucun DTO, et la monnaie
+  fonctionnelle commande un second jeu sans valeur légale. Ligne périmée,
+  laissée barrée pour que la leçon reste.
 - **Module groupe en SYSCOHADA** · le refus est désormais posé aux deux portes
   (2026-09-02). Les moteurs nécessaires existent : ce n'est plus technique,
   c'est un arbitrage.
