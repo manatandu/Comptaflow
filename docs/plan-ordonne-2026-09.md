@@ -13,6 +13,48 @@ Il dit dans quel ORDRE attaquer ce qu'ils décrivent, et pourquoi.
 
 ---
 
+## LES RESTES, VERROUILLÉS DU MOINS LOURD AU PLUS LOURD (2026-09-24)
+
+Ce qui reste HORS des confrontations, chaque ligne vérifiée contre le dépôt le
+jour même (deux lignes de la liste d'origine étaient périmées, voir
+« Décisions qui n'appartiennent pas au logiciel »). Les 23 passes restantes
+gardent leur propre ordre dans `docs/plan-confrontations.md` et avancent en
+parallèle.
+
+LE POIDS est l'effort jusqu'à « fait et vérifié », décision préalable
+comprise. Une ligne qui attend un acte de Manasse ou d'un tiers ne démarre pas
+sans lui, et c'est sa place dans l'ordre qui dit quand le demander. La
+colonne « Qui » dit qui tient la première étape.
+
+| Rang | Reste | Qui | Poids | Ce qui le débloque |
+|---|---|---|---|---|
+| 1 | Verser aux compétences l'ordonnance n° 23-042 (jours fériés) | Manasse | minutes | Le fichier, déjà fourni le 2026-09-18 |
+| 2 | Compléter le fichier de l'arrêté n° 013/2015, coupé à l'art. 7 | Manasse | minutes | La fin de l'article 7 et la suite |
+| 3 | Poser la variable `BUCKET_SAUVEGARDES` | Manasse | minutes | Trois gestes dans le compte Google |
+| 4 | Mécénat au 4571 ou au 475 | Manasse, puis code | < 1 h | Un arbitrage de doctrine, puis une ligne du catalogue |
+| 5 | Limitation de débit par conteneur | Manasse, puis code | < 1 h ou 1 jour | Assumer le plafond × instances (une phrase) ou poser Redis (une journée) |
+| 6 | Sous-compte 388 « stocks provenant d'immobilisations mises hors service » | Code | ½ jour | Lecture des deux fiches du compte 38 et de la sortie d'immobilisation |
+| 7 | Rubrique « stocks en cours de route » absente de la Note 8 | Code | ½ jour | Lecture de la Note 8 ; trancher si l'on signale le trou ou si l'on s'abstient |
+| 8 | Mode « forfait 30 % » de l'IRPP, facultatif | Manasse, puis code | 1 jour | Décider de l'offrir malgré l'absence de base légale ; il serait déclaré comme tel à l'écran |
+| 9 | Article 22 de l'AUDCIF · opération tombant dans une période close | Professionnel, puis code | 1 à 2 jours | Confirmation d'un praticien ; ensuite, enregistrement au premier jour ouvert avec date de valeur distincte |
+| 10 | Formulaire de déclaration DGI | Manasse, puis code | 2 jours | Le modèle officiel de l'imprimé |
+| 11 | Salaires en dollars | Source, puis code | 2 à 3 jours | Le texte qui fixe le cours de conversion pour l'IRPP |
+| 12 | Module Groupe ouvert au SYSCOHADA | Manasse, puis code | 3 à 5 jours | L'arbitrage ; les moteurs existent |
+| 13 | Droits d'accès plus fins que trois rôles | Code | 1 semaine | Définir les rôles voulus ; chaque route porte déjà `@Roles` |
+| 14 | Consolidation SYSCOHADA (AUDCIF Titres XII et XIII) | Code | 2 semaines | La passe R4, prochaine du plan de confrontations |
+| 15 | États IFRS en sus du jeu légal (AUDCIF art. 73-1) | Code | 2 à 3 semaines | Tables à côté du grand livre, jamais dedans (`docs/decision-multi-classification.md`) |
+| 16 | Installation sur site | Manasse, puis code | 3 semaines et plus | Décider de la vendre ; émetteur du heartbeat, paquet, mises à jour |
+| 17 | Hébergement en RDC (Code du numérique, art. 201) | Juriste, puis infrastructure | mois | Qualification par un juriste congolais, puis un hébergeur en RDC (`docs/hebergement-en-rdc.md`) |
+| 18 | Homologation d'OmegaX comme SFE (décret n° 23/10, art. 20 à 23) | Manasse et DGI | mois | L'arrêté de l'art. 23, absent du corpus ; la démarche est auprès de la DGI. Conditionne la VENTE en RDC |
+
+Deux lignes pèsent peu et bloquent beaucoup, et c'est pour cela qu'elles sont
+nommées ici · la 18 conditionne la vente du logiciel, et la 17 son hébergement
+actuel. Leur place en queue dit leur DURÉE, pas leur urgence · la démarche de
+la 18 peut être engagée auprès de la DGI dès aujourd'hui, en parallèle de tout
+le reste.
+
+---
+
 ## Où on en est
 
 Terminé et déployé au 2026-09-02 : le SYSCOHADA niveau 2 de bout en bout
