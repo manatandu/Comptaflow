@@ -2245,6 +2245,21 @@ l'onglet Bulletins tant qu'elle est au brouillard, jamais une fois validée
 passé et validé, il s'annule et la proposition du mois le signale comme salaire
 encore au journal. Six défauts réinjectés dans la règle, six attrapés.
 
+**Salaire stipulé en dollars · la règle est celle du cabinet, pas d'un texte
+(2026-09-24).** Aucun texte du corpus ne fixe le cours de conversion d'une
+rémunération en devises pour l'IRPP, la CNSS, l'INPP ou l'ONEM, et le Code du
+travail, art. 89, veut la rémunération « stipulée en monnaie ayant cours légal ».
+Manasse a tranché : « le taux est le taux actuel, il faudra toujours renseigner
+le taux chaque jour ». `personnel/conversion-usd.ts` l'applique et rien d'autre ·
+le cours est celui saisi dans Devises pour le JOUR DU CALCUL, au calendrier de
+Kinshasa (UTC+1, le jour UTC ferait chercher la veille entre 23 h et minuit), à
+la date EXACTE. Jamais le dernier cours connu, qui ne serait pas « actuel » ;
+absent, le calcul est REFUSÉ et dit quel cours saisir. Seuls les ÉLÉMENTS se
+convertissent, avant tout calcul · assiettes, cotisations, IRPP et passation ne
+connaissent que le franc. Le bulletin émis fige le cours (`calcul.conversion`)
+et garde la stipulation en dollars dans son entrée. L'art. 89 est rappelé à
+chaque calcul.
+
 **Questionnaire de révision par cycle · vingt-quatre items du CPCC, et le
 reste assumé.** Le séminaire porte DEUX checklists, § VI « vérification de
 l'inventaire physique » (immobilisations, stocks, caisses) et § VII

@@ -147,6 +147,15 @@ interface Confrontation {
 
 interface Simulation {
   moisDePaie: string;
+  /** Salaire stipulé en USD · le cours du jour appliqué, null en francs. */
+  conversion: {
+    devise: 'USD';
+    cours: number;
+    dateCours: string;
+    sourceCours: string | null;
+    elements: { libelle: string; montantUsd: number; montantFc: number }[];
+    avertissement: string;
+  } | null;
   baremeApplicable: boolean;
   motifBaremeInapplicable: string | null;
   assiettes: {
@@ -486,6 +495,10 @@ export function PersonnelPage() {
   const [contrat, setContrat] = useState({ ...NOUVEAU_CONTRAT });
   const [aLa, setALa] = useState('');
   const [moisDePaie, setMoisDePaie] = useState('');
+  // LA MONNAIE DE STIPULATION · en USD, les montants saisis sont des dollars
+  // et le SERVEUR les convertit au cours du jour saisi dans Devises. Aucun
+  // cours n'est saisi ni calculé ici (règle du cabinet, conversion-usd.ts).
+  const [deviseStipulation, setDeviseStipulation] = useState<'CDF' | 'USD'>('CDF');
   const [lignes, setLignes] = useState<LignePaie[]>([{ ...LIGNE_VIERGE }]);
   const [retenues71, setRetenues71] = useState('');
   const [tauxAllocations, setTauxAllocations] = useState('');
@@ -565,6 +578,7 @@ export function PersonnelPage() {
     };
     const corps = {
       moisDePaie,
+      ...(deviseStipulation === 'USD' ? { deviseStipulation } : {}),
       elements: lignes
         .filter((l) => nombre(l.montantFc) !== undefined)
         .map((l) => ({
@@ -572,7 +586,9 @@ export function PersonnelPage() {
           libelle:
             l.libelle.trim() ||
             (NATURES_PAIE.find((n) => n.valeur === l.nature)?.libelle ?? l.nature),
-          montantFc: nombre(l.montantFc) as number,
+          ...(deviseStipulation === 'USD'
+            ? { montantUsd: nombre(l.montantFc) as number }
+            : { montantFc: nombre(l.montantFc) as number }),
           ...(l.remboursement ? { remboursementDeDepenseProfessionnelleEffective: true } : {}),
           ...(l.attestee === '' ? {} : { conditionArticle69Attestee: l.attestee === 'oui' }),
         })),
@@ -1776,13 +1792,29 @@ export function PersonnelPage() {
             </div>
           </div>
 
+          <label className="flex items-center gap-2 text-[12px] mb-1.5">
+            <span className={etiquette}>Rémunération stipulée en</span>
+            <select
+              value={deviseStipulation}
+              onChange={(e) => setDeviseStipulation(e.target.value as 'CDF' | 'USD')}
+              className="border border-border bg-transparent px-1.5 py-0.5"
+            >
+              <option value="CDF">Francs congolais (FC)</option>
+              <option value="USD">Dollars américains (USD)</option>
+            </select>
+            {deviseStipulation === 'USD' && (
+              <span className="text-text-dim">
+                Converti au cours du dollar <strong>du jour</strong>, à saisir chaque jour dans Devises.
+              </span>
+            )}
+          </label>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[760px] border-collapse">
               <thead>
                 <tr className="border-b border-border text-left">
                   <th className={`${etiquette} py-1`}>Nature</th>
                   <th className={`${etiquette} py-1`}>Libellé</th>
-                  <th className={`${etiquette} py-1 text-right`}>Montant FC</th>
+                  <th className={`${etiquette} py-1 text-right`}>{deviseStipulation === 'USD' ? 'Montant USD' : 'Montant FC'}</th>
                   <th className={`${etiquette} py-1`}>Art. 69, 8 attesté</th>
                   <th className={`${etiquette} py-1`}>Art. 68, 1</th>
                   <th className={`${etiquette} py-1`} />
@@ -1933,6 +1965,21 @@ export function PersonnelPage() {
 
           {simulation && (
             <div className="mt-3">
+              {simulation.conversion && (
+                <div className="border border-warning/40 bg-warning/5 px-3.5 py-2.5 mb-2.5 text-[12px]">
+                  <div className="font-semibold">
+                    Converti au cours du {simulation.conversion.dateCours.split('-').reverse().join('/')} :
+                    1 USD = {simulation.conversion.cours.toLocaleString('fr-FR')} FC
+                    {simulation.conversion.sourceCours ? ` (${simulation.conversion.sourceCours})` : ''}
+                  </div>
+                  {simulation.conversion.elements.map((e) => (
+                    <div key={e.libelle} className="text-text-dim">
+                      {e.libelle} : {e.montantUsd.toLocaleString('fr-FR')} USD = {fc(e.montantFc)}
+                    </div>
+                  ))}
+                  <div className="mt-1">{simulation.conversion.avertissement}</div>
+                </div>
+              )}
               {!simulation.baremeApplicable && simulation.motifBaremeInapplicable && (
                 <div className="border border-warning/40 bg-warning/5 px-3.5 py-2.5 mb-2.5">
                   {simulation.motifBaremeInapplicable}

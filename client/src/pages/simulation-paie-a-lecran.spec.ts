@@ -325,3 +325,17 @@ describe("L'article 112 à l'écran · la liste fermée", () => {
     expect(SOURCE).toContain('simulation.retenuesAutorisees.litteraeDatees');
   });
 });
+
+describe('Salaire stipulé en USD · le serveur convertit, l’écran ne calcule aucun cours', () => {
+  const corps = SOURCE.slice(SOURCE.indexOf('const corpsSimulation ='), SOURCE.indexOf('const simuler ='));
+
+  it('envoie les montants en dollars et la stipulation, sans cours', () => {
+    expect(corps).toContain("{ montantUsd: nombre(l.montantFc) as number }");
+    expect(corps).toContain("...(deviseStipulation === 'USD' ? { deviseStipulation } : {})");
+  });
+
+  it('affiche le cours du jour appliqué et le rappel de l’article 89', () => {
+    expect(SOURCE).toContain('simulation.conversion.avertissement');
+    expect(SOURCE).toContain('1 USD = {simulation.conversion.cours.toLocaleString');
+  });
+});

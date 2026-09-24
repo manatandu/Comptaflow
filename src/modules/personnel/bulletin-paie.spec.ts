@@ -193,6 +193,28 @@ describe('émettre · le serveur rejoue le calcul et fige ce qu’il rend', () =
     expect(data.calcul).toEqual(JSON.parse(JSON.stringify(attendu)));
   });
 
+  it('un salaire en USD est figé au cours du JOUR D’ÉMISSION, et le bulletin garde le cours', async () => {
+    const { svc, create, prisma } = service();
+    // Deux jours cotés · seul celui de l'émission doit servir.
+    const cotes: Record<string, number> = { '2026-03-30': 2800, '2026-03-31': 2825 };
+    prisma.coursDevise = {
+      findFirst: jest.fn(async ({ where }: { where: { date: Date } }) => {
+        const c = cotes[where.date.toISOString().slice(0, 10)];
+        return c === undefined ? null : { cours: c, source: 'BCC' };
+      }),
+    };
+    const enUsd = dto({
+      deviseStipulation: 'USD',
+      elements: [{ nature: 'SALAIRE_OU_TRAITEMENT', libelle: 'Salaire', montantUsd: 400 }],
+    } as Partial<SimulationPaieDto>);
+    await svc.emettreBulletin('t-1', 'u-1', 's-1', enUsd, new Date('2026-03-31T10:00:00Z'));
+    const data = create.mock.calls[0][0].data;
+    expect(data.totalVerseFc).toBe(1_130_000);
+    expect(data.calcul.conversion).toMatchObject({ cours: 2825, dateCours: '2026-03-31' });
+    // L'entrée garde la stipulation telle quelle · on sait relire ce qui a été convenu.
+    expect(data.entree.elements[0]).toMatchObject({ montantUsd: 400 });
+  });
+
   it('recopie les mentions 1 à 4 à la date d’émission, nom en majuscules', async () => {
     const { svc, create } = service();
     await svc.emettreBulletin('t-1', 'u-1', 's-1', dto());

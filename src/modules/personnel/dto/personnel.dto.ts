@@ -12,6 +12,7 @@ import {
   MaxLength,
   Min,
   MinLength,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 import { PeriodiciteRemuneration, SexeTravailleur, TypeContratTravail } from '@prisma/client';
@@ -288,9 +289,25 @@ export class ElementPaieDto {
   @MaxLength(160)
   libelle!: string;
 
+  /**
+   * Le montant en francs congolais · exigé sauf quand l'élément est donné en
+   * dollars (`montantUsd`), auquel cas le SERVEUR le calcule au cours du jour
+   * et l'écrase (voir conversion-usd.ts).
+   */
+  @ValidateIf((e: ElementPaieDto) => e.montantUsd === undefined)
   @IsNumber()
   @Min(0)
   montantFc!: number;
+
+  /**
+   * Le montant en dollars américains, pour un salaire stipulé en USD
+   * (`SimulationPaieDto.deviseStipulation`). Converti au cours du jour saisi
+   * au dossier, jamais à un cours fourni par le client.
+   */
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  montantUsd?: number;
 
   @IsOptional()
   @IsBoolean()
@@ -315,6 +332,16 @@ export class SimulationPaieDto {
   @ValidateNested({ each: true })
   @Type(() => ElementPaieDto)
   elements!: ElementPaieDto[];
+
+  /**
+   * LA MONNAIE DANS LAQUELLE LA RÉMUNÉRATION EST STIPULÉE. Francs congolais
+   * par défaut (Code du travail, art. 89). « USD » : chaque élément porte son
+   * `montantUsd`, converti au cours du dollar SAISI AU DOSSIER POUR LE JOUR
+   * DU CALCUL · règle du cabinet, faute de texte (conversion-usd.ts).
+   */
+  @IsOptional()
+  @IsEnum(['CDF', 'USD'])
+  deviseStipulation?: 'CDF' | 'USD';
 
   /**
    * Article 123 · le nombre de personnes à charge RETENU par le cabinet.

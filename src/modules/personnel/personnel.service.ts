@@ -15,6 +15,24 @@ import { cotisations, netAPayer, type NatureEmployeurInpp } from './cotisations-
 import { passationPaie, type Referentiel } from './passation-paie';
 import { quotiteSaisissable } from './quotite-saisissable';
 import {
+  AVERTISSEMENT_ARTICLE_89,
+  jourDeKinshasa,
+  messageCoursManquant,
+  usdEnFc,
+} from './conversion-usd';
+
+/** La trace d'une conversion USD vers FC · figée avec le bulletin émis. */
+export interface ConversionUsd {
+  devise: 'USD';
+  /** Francs congolais pour un dollar, tel que saisi au dossier. */
+  cours: number;
+  /** AAAA-MM-JJ, jour de Kinshasa du calcul. */
+  dateCours: string;
+  sourceCours: string | null;
+  elements: Array<{ libelle: string; montantUsd: number; montantFc: number }>;
+  avertissement: string;
+}
+import {
   LIMITE_UN_BULLETIN_PAR_MOIS,
   RESERVE_MODELE,
   TEXTE_ARTICLE_103,
@@ -488,7 +506,71 @@ export class PersonnelService {
     return a.valeur.totalFc * MULTIPLICATEURS_ARTICLE_7.MOIS;
   }
 
-  async simulerPaie(tenantId: string, salarieId: string | null, dto: SimulationPaieDto) {
+  /**
+   * LE SALAIRE STIPULÉ EN DOLLARS, ramené en francs AVANT tout calcul · les
+   * assiettes, les cotisations, l'IRPP et la passation ne connaissent que le
+   * franc congolais, et c'est voulu : les textes ne libellent qu'en francs.
+   * Voir conversion-usd.ts pour la règle (cours du JOUR, saisi au dossier,
+   * jamais un autre) et sa source (décision du cabinet, faute de texte).
+   *
+   * Rend le DTO en francs et la trace de la conversion · la trace voyage avec
+   * la simulation, donc avec le bulletin émis, qui fige le cours appliqué.
+   */
+  private async convertirEnFrancs(
+    tenantId: string,
+    dto: SimulationPaieDto,
+    maintenant: Date,
+  ): Promise<{ dtoFc: SimulationPaieDto; conversion: ConversionUsd | null }> {
+    if ((dto.deviseStipulation ?? 'CDF') === 'CDF') {
+      const sansFc = dto.elements.filter((e) => typeof e.montantFc !== 'number');
+      if (sansFc.length > 0) {
+        throw new BadRequestException(
+          `Élément(s) sans montant en francs : ${sansFc.map((e) => e.libelle).join(', ')} · un montant en dollars ` +
+            'suppose de déclarer la rémunération stipulée en USD.',
+        );
+      }
+      return { dtoFc: dto, conversion: null };
+    }
+    const sansUsd = dto.elements.filter((e) => typeof e.montantUsd !== 'number');
+    if (sansUsd.length > 0) {
+      throw new BadRequestException(
+        `Rémunération stipulée en USD · élément(s) sans montant en dollars : ${sansUsd.map((e) => e.libelle).join(', ')}.`,
+      );
+    }
+    const jour = jourDeKinshasa(maintenant);
+    const cote = await this.prisma.coursDevise.findFirst({
+      where: { date: jour, devise: { tenantId, code: 'USD' } },
+      select: { cours: true, source: true },
+    });
+    if (!cote) throw new BadRequestException(messageCoursManquant(jour));
+    const cours = Number(cote.cours);
+    return {
+      dtoFc: {
+        ...dto,
+        elements: dto.elements.map((e) => ({ ...e, montantFc: usdEnFc(e.montantUsd!, cours) })),
+      },
+      conversion: {
+        devise: 'USD',
+        cours,
+        dateCours: jour.toISOString().slice(0, 10),
+        sourceCours: cote.source ?? null,
+        elements: dto.elements.map((e) => ({
+          libelle: e.libelle,
+          montantUsd: e.montantUsd!,
+          montantFc: usdEnFc(e.montantUsd!, cours),
+        })),
+        avertissement: AVERTISSEMENT_ARTICLE_89,
+      },
+    };
+  }
+
+  async simulerPaie(
+    tenantId: string,
+    salarieId: string | null,
+    dtoStipule: SimulationPaieDto,
+    maintenant: Date = new Date(),
+  ) {
+    const { dtoFc: dto, conversion } = await this.convertirEnFrancs(tenantId, dtoStipule, maintenant);
     const borne = baremeApplicableAuMois(dto.moisDePaie);
 
     // Le salarié n'est lu QUE pour proposer un nombre de personnes à charge,
@@ -630,6 +712,9 @@ export class PersonnelService {
     return {
       moisDePaie: dto.moisDePaie,
       referentiel: tenant.referentiel,
+      // null pour une rémunération en francs · sinon le cours, sa date et le
+      // détail élément par élément, figés avec le bulletin émis.
+      conversion,
       passation,
       quotite,
       // ARTICLE 112 · LA LISTE FERMÉE VOYAGE AVEC LA SIMULATION, parce
@@ -814,7 +899,13 @@ export class PersonnelService {
    * calculé · un bulletin qui recopierait un net venu de l'écran porterait le
    * chiffre que le navigateur a bien voulu envoyer.
    */
-  async emettreBulletin(tenantId: string, userId: string, salarieId: string, dto: SimulationPaieDto) {
+  async emettreBulletin(
+    tenantId: string,
+    userId: string,
+    salarieId: string,
+    dto: SimulationPaieDto,
+    maintenant: Date = new Date(),
+  ) {
     if (!moisValide(dto.moisDePaie)) {
       throw new BadRequestException('Mois de paie illisible · la forme attendue est AAAA-MM.');
     }
@@ -847,7 +938,9 @@ export class PersonnelService {
       );
     }
 
-    const simulation = await this.simulerPaie(tenantId, salarieId, dto);
+    // Un salaire en dollars se convertit au cours du JOUR D'ÉMISSION · le
+    // bulletin fige ce cours (calcul.conversion), et ne se recalcule plus.
+    const simulation = await this.simulerPaie(tenantId, salarieId, dto, maintenant);
     const motifs = motifsRefusEmission(simulation);
     if (motifs.length > 0) {
       throw new BadRequestException({
