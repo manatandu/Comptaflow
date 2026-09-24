@@ -3,6 +3,7 @@ import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { EnteteImpression } from '../components/chrome/EnteteImpression';
 import { OngletBulletins } from './BulletinsPaie';
+import { BaremeMensuelIrpp, type DetailMensuelIrpp } from './BaremeMensuelIrpp';
 
 /**
  * Les trois temps de l'écriture de paie, dans l'ordre du Guide d'application
@@ -250,6 +251,7 @@ interface Simulation {
       impotDuFc: number;
       parTranche: { tauxPourCent: number; baseFc: number; impotFc: number }[];
     };
+    mensuel: DetailMensuelIrpp;
   } | null;
   avertissement: string;
 }
@@ -2034,46 +2036,10 @@ export function PersonnelPage() {
                   <div className="text-[16px] font-bold">
                     {fc(simulation.retenue.retenueFc)} FC
                   </div>
-                  <div className="text-[11px] text-text-dim mt-1">
-                    Revenu annualisé {fc(simulation.retenue.revenuAnnualiseFc)} FC, arrondi au
-                    millier inférieur à {fc(simulation.retenue.annuel.assietteArrondieFc)} FC.
-                    Barème de l’article 118 : {fc(simulation.retenue.annuel.impotDuBaremeFc)} FC.
-                    {simulation.retenue.annuel.plafondApplique && (
-                      <>
-                        {' '}
-                        Plafond de 30 % appliqué :{' '}
-                        {fc(simulation.retenue.annuel.impotArticle118Fc)} FC.
-                      </>
-                    )}
-                    {simulation.retenue.annuel.quotitePourCent > 0 && (
-                      <>
-                        {' '}
-                        Quotité de l’article 123 ({simulation.retenue.annuel.quotitePourCent} %) :{' '}
-                        moins {fc(simulation.retenue.annuel.reductionFc)} FC.
-                      </>
-                    )}{' '}
-                    Impôt annuel dû {fc(simulation.retenue.annuel.impotDuFc)} FC, ramené au mois.
-                  </div>
-                  <div className="overflow-x-auto mt-1.5">
-                    <table className="w-full min-w-[320px] border-collapse text-[11px]">
-                      <thead>
-                        <tr className="border-b border-border text-left">
-                          <th className={`${etiquette} py-1`}>Taux</th>
-                          <th className={`${etiquette} py-1 text-right`}>Base annuelle</th>
-                          <th className={`${etiquette} py-1 text-right`}>Impôt</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {simulation.retenue.annuel.parTranche.map((t, i) => (
-                          <tr key={i} className="border-b border-border/40">
-                            <td className="py-1">{t.tauxPourCent} %</td>
-                            <td className="py-1 text-right font-mono">{fc(t.baseFc)}</td>
-                            <td className="py-1 text-right font-mono">{fc(t.impotFc)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  <BaremeMensuelIrpp
+                    mensuel={simulation.retenue.mensuel}
+                    revenuAnnualiseFc={simulation.retenue.revenuAnnualiseFc}
+                  />
                 </div>
               )}
 

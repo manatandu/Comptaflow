@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../lib/api';
+import { BaremeMensuelIrpp, type DetailMensuelIrpp } from './BaremeMensuelIrpp';
 
 /**
  * P8 · LES BULLETINS ÉMIS, onglet de la fenêtre Personnel.
@@ -67,7 +68,12 @@ interface Bulletin extends LigneBulletin {
   cotisationsEmployeurFc: number;
   motifAnnulation: string | null;
   entree: { elements: ElementEntree[]; personnesACharge?: number };
-  calcul: { cotisations: { lignes: LigneCotisation[] } };
+  // `retenue.mensuel` n'existe que sur les bulletins émis depuis le 2026-09-24 ·
+  // un bulletin est indélébile, les plus anciens se relisent sans ce détail.
+  calcul: {
+    cotisations: { lignes: LigneCotisation[] };
+    retenue?: { mensuel?: DetailMensuelIrpp; revenuAnnualiseFc?: number } | null;
+  };
   reserves: string[];
 }
 
@@ -274,6 +280,16 @@ export function OngletBulletins({ moisInitial, peutEcrire }: { moisInitial: stri
               </tr>
             </tbody>
           </table>
+
+          {ouvert.calcul.retenue?.mensuel && (
+            <div className="mb-3">
+              <div className="font-semibold">Calcul de la retenue IRPP (barème mensuel)</div>
+              <BaremeMensuelIrpp
+                mensuel={ouvert.calcul.retenue.mensuel}
+                revenuAnnualiseFc={ouvert.calcul.retenue.revenuAnnualiseFc}
+              />
+            </div>
+          )}
 
           <div className="text-text-dim mb-3">
             Assiette des cotisations sociales {fc(ouvert.assietteSocialeFc)} FC · cotisations

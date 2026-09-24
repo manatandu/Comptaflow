@@ -1599,6 +1599,17 @@ connu d'un extrait de résultat de recherche. Retirée · la preuve tirée de
 l'article 23, elle, est lue. Sept contresens réinjectés dans les cotisations,
 sept attrapés.
 
+**LE BARÈME SE LIT AU MOIS, IL SE CALCULE SUR L'ANNÉE (2026-09-24).** Manasse
+l'a demandé : un salaire se paie au mois. `detailMensuel` relit le verdict
+annuel avec les tranches divisées par douze (162 000, 1 800 000, 3 600 000 FC,
+les bornes que donne aussi le cours de Mbuyamba pour l'IPR), et l'écran comme
+le bulletin émis affichent ce détail par un seul composant
+(`BaremeMensuelIrpp`). Ce n'est PAS un second calcul : l'arrondi au millier de
+l'art. 118 reste pris sur l'année, et la somme des tranches, plafond et
+quotité compris, rend la retenue au centime · un test le vérifie sur cinq
+salaires. Un bulletin émis avant ce jour se relit sans le détail, puisqu'un
+bulletin ne se modifie pas.
+
 **P3 · LA PASSATION COMPTABLE, ET LE DIX-NEUVIÈME PIÈGE ENFIN CONFRONTÉ AU
 SEMIS** (`docs/paie-p3-passation-comptable.md`).
 

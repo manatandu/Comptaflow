@@ -8,6 +8,7 @@ import {
   SEUIL_OU_LE_PLAFOND_MORD,
   TRANCHES_IRPP,
   arrondirAuMillierInferieur,
+  TRANCHES_IRPP_MENSUELLES,
   baremeApplicableAuMois,
   impotAnnuel,
   impotDuBareme,
@@ -244,5 +245,56 @@ describe('Les bornes que ce module ne franchit pas', () => {
     // Aucun calcul ne les applique : un revenu minuscule rend un impôt minuscule.
     expect(impotAnnuel(12_000).impotDuFc).toBeCloseTo(360, 6);
     expect(impotAnnuel(0).impotDuFc).toBe(0);
+  });
+});
+
+describe('Le barème lu au mois · ce que montrent l’écran et le bulletin', () => {
+  it('divise les bornes annuelles par douze, sans rien écrire à la main', () => {
+    // Les mêmes bornes que le barème mensuel de l'IPR que donne le cours de
+    // Mbuyamba (chapitre 12, p. 190) · 162 000, 1 800 000 et 3 600 000 FC.
+    expect(TRANCHES_IRPP_MENSUELLES.map((t) => [t.deFc, t.aFc, t.tauxPourCent])).toEqual([
+      [0, 162_000, 3],
+      [162_000, 1_800_000, 15],
+      [1_800_000, 3_600_000, 30],
+      [3_600_000, null, 40],
+    ]);
+  });
+
+  it('rend, pour 1 000 000 FC par mois, les 130 560 FC du barème mensuel', () => {
+    const v = retenueMensuelle('2026-03', 1_000_000);
+    expect(v.mensuel.parTranche.map((t) => [t.tauxPourCent, t.baseFc, t.impotFc])).toEqual([
+      [3, 162_000, 4_860],
+      [15, 838_000, 125_700],
+    ]);
+    expect(v.mensuel.impotDuBaremeFc).toBeCloseTo(130_560, 6);
+    expect(v.mensuel.retenueFc).toBeCloseTo(130_560, 6);
+  });
+
+  it.each([
+    [1_000_000, 2],
+    [2_500_000, 0],
+    [8_000_000, 3],
+    [150_000, 9],
+    [1_000_083, 1],
+  ])('retombe au centime sur la retenue · %d FC, %d personnes', (revenu, personnes) => {
+    const v = retenueMensuelle('2026-03', revenu, personnes);
+    const m = v.mensuel;
+    const somme = m.parTranche.reduce((n, t) => n + t.impotFc, 0);
+    expect(somme).toBeCloseTo(m.impotDuBaremeFc, 6);
+    expect(m.impotArticle118Fc - m.reductionFc).toBeCloseTo(v.retenueFc, 6);
+    expect(m.retenueFc).toBeCloseTo(v.retenueFc, 6);
+  });
+
+  it('montre le plafond au mois quand il mord', () => {
+    const m = retenueMensuelle('2026-03', 8_000_000).mensuel;
+    expect(m.plafondApplique).toBe(true);
+    expect(m.plafondFc).toBeCloseTo(2_400_000, 6);
+    expect(m.retenueFc).toBeCloseTo(2_400_000, 6);
+  });
+
+  it("garde l'arrondi au millier sur l'ANNÉE, comme l'article 118 l'écrit", () => {
+    // 1 000 083 FC par mois font 12 000 996 FC par an, arrondis à 12 000 000.
+    const m = retenueMensuelle('2026-03', 1_000_083).mensuel;
+    expect(m.revenuRetenuFc).toBeCloseTo(1_000_000, 6);
   });
 });

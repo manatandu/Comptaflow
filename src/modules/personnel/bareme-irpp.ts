@@ -287,12 +287,71 @@ export function impotAnnuel(
 /** Le nombre de mois que la mensualisation annualise. */
 export const MOIS_PAR_AN = 12;
 
+/**
+ * UNE TRANCHE DU BARÈME AU MOIS · les bornes de l'article 118 divisées par
+ * douze. Elles ne sont PAS écrites à la main : elles se déduisent de
+ * `TRANCHES_IRPP`, si bien qu'une révision du barème annuel les emporte.
+ */
+export type TrancheMensuelle = {
+  readonly tauxPourCent: number;
+  /** Premier franc de la tranche, au mois. */
+  readonly deFc: number;
+  /** Dernier franc de la tranche, au mois · `null` pour la dernière. */
+  readonly aFc: number | null;
+};
+
+export const TRANCHES_IRPP_MENSUELLES: readonly TrancheMensuelle[] = TRANCHES_IRPP.map((t, i) => ({
+  tauxPourCent: t.tauxPourCent,
+  deFc: i === 0 ? 0 : (TRANCHES_IRPP[i - 1].jusqua as number) / MOIS_PAR_AN,
+  aFc: t.jusqua === null ? null : t.jusqua / MOIS_PAR_AN,
+}));
+
+/**
+ * LE MÊME CALCUL, LU AU MOIS. Un salaire se paie au mois et un bulletin se lit
+ * au mois : chaque grandeur de l'article 118 est ici divisée par douze. Ce
+ * n'est PAS un second calcul · c'est le verdict annuel présenté autrement, et
+ * la somme des impôts par tranche, plafond et quotité compris, rend la retenue
+ * au centime. Deux calculs auraient divergé au premier arrondi.
+ */
+export type DetailMensuel = {
+  /** Le revenu du mois que l'arrondi annuel retient · assiette arrondie ÷ 12. */
+  readonly revenuRetenuFc: number;
+  readonly parTranche: readonly (TrancheMensuelle & { baseFc: number; impotFc: number })[];
+  readonly impotDuBaremeFc: number;
+  readonly plafondFc: number;
+  readonly plafondApplique: boolean;
+  readonly impotArticle118Fc: number;
+  readonly quotitePourCent: number;
+  readonly reductionFc: number;
+  readonly retenueFc: number;
+};
+
+export function detailMensuel(annuel: VerdictIrpp): DetailMensuel {
+  const m = (x: number) => x / MOIS_PAR_AN;
+  return {
+    revenuRetenuFc: m(annuel.assietteArrondieFc),
+    parTranche: annuel.parTranche.map((t) => {
+      const tranche = TRANCHES_IRPP_MENSUELLES.find((x) => x.tauxPourCent === t.tauxPourCent)!;
+      return { ...tranche, baseFc: m(t.baseFc), impotFc: m(t.impotFc) };
+    }),
+    impotDuBaremeFc: m(annuel.impotDuBaremeFc),
+    plafondFc: m(annuel.plafondFc),
+    plafondApplique: annuel.plafondApplique,
+    impotArticle118Fc: m(annuel.impotArticle118Fc),
+    quotitePourCent: annuel.quotitePourCent,
+    reductionFc: m(annuel.reductionFc),
+    retenueFc: m(annuel.impotDuFc),
+  };
+}
+
 export type VerdictRetenueMensuelle = {
   readonly moisDePaie: string;
   readonly revenuImposableDuMoisFc: number;
   /** Le mois porté à l'année, avant arrondi · c'est sur lui que l'art. 118 joue. */
   readonly revenuAnnualiseFc: number;
   readonly annuel: VerdictIrpp;
+  /** Le même verdict, lu au mois · c'est lui que l'écran et le bulletin montrent. */
+  readonly mensuel: DetailMensuel;
   /** L'impôt annuel ramené au mois. */
   readonly retenueFc: number;
   readonly reserves: readonly string[];
@@ -314,10 +373,13 @@ export type VerdictRetenueMensuelle = {
  * pas écrite : c'est une CONVENTION DE L'ÉDITEUR, portée en réserve sur chaque
  * verdict plutôt que tue.
  *
- * ON ANNUALISE LE MOIS, ON NE DIVISE PAS LES TRANCHES · les deux sont
- * arithmétiquement équivalents, mais annualiser applique le barème de
- * l'article 118 tel qu'il est écrit, à un revenu annuel, sans jamais écrire de
- * tranche mensuelle que le texte ne porte pas. Et l'ARRONDI AU MILLIER se
+ * ON CALCULE SUR L'ANNÉE, ON PRÉSENTE AU MOIS · les deux sont
+ * arithmétiquement équivalents. Le calcul applique le barème de l'article 118
+ * tel qu'il est écrit, à un revenu annuel ; `detailMensuel` le relit ensuite
+ * avec les tranches divisées par douze (162 000, 1 800 000, 3 600 000 FC), qui
+ * sont celles que la pratique emploie et que le cours de comptabilité générale
+ * de Mbuyamba donne pour l'IPR · un cours n'est pas une source, mais son
+ * arithmétique se vérifie ici. Et l'ARRONDI AU MILLIER se
  * prend alors sur le revenu ANNUALISÉ, qui est le « revenu net global » que
  * l'article 118 nomme · arrondir le mois puis multiplier arrondirait une
  * grandeur que l'article ne connaît pas.
@@ -343,7 +405,9 @@ export function retenueMensuelle(
   const reserves = [
     "MENSUALISATION · l'article 119 impose une retenue mensuelle et renvoie au barème annuel de " +
       "l'article 118, sans dire comment passer de l'un à l'autre. OmegaX porte le revenu du mois à " +
-      "l'année, applique l'article 118, puis ramène au mois. La convention est de l'éditeur.",
+      "l'année, applique l'article 118, puis ramène au mois : c'est le barème annuel divisé par douze " +
+      "(162 000, 1 800 000 et 3 600 000 FC par mois). L'arrondi au millier se prend sur l'année, " +
+      "comme l'article 118 l'écrit. La convention est de l'éditeur.",
     "ACOMPTE · l'article 116 assied l'IRPP sur le revenu net global annuel et l'article 121 y impute " +
       "les retenues de l'exercice. Cette ligne est une retenue à la source, jamais l'impôt définitif du salarié.",
     ...annuel.reserves,
@@ -354,6 +418,7 @@ export function retenueMensuelle(
     revenuImposableDuMoisFc,
     revenuAnnualiseFc,
     annuel,
+    mensuel: detailMensuel(annuel),
     retenueFc: annuel.impotDuFc / MOIS_PAR_AN,
     reserves,
   };
